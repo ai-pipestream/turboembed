@@ -72,9 +72,7 @@ impl<L: LexicalKnowledgeBase> SynsetSimilarity<L> {
         taxonomy_depth: usize,
     ) -> Result<f64, WordNetError> {
         if taxonomy_depth == 0 {
-            return Err(WordNetError::invalid(format!(
-                "taxonomyDepth must be positive: {taxonomy_depth}"
-            )));
+            return Err(WordNetError::invalid(format!("taxonomyDepth must be positive: {taxonomy_depth}")));
         }
         let Some(distance) = self.shortest_distance(synset_id, other_synset_id) else {
             return Ok(0.0);
@@ -140,12 +138,8 @@ impl<L: LexicalKnowledgeBase> SynsetSimilarity<L> {
     }
 
     fn hypernyms(&self, synset_id: &str) -> Vec<String> {
-        let direct = self
-            .knowledge_base
-            .related(synset_id, WordNetRelation::Hypernym);
-        let instance = self
-            .knowledge_base
-            .related(synset_id, WordNetRelation::InstanceHypernym);
+        let direct = self.knowledge_base.related(synset_id, WordNetRelation::Hypernym);
+        let instance = self.knowledge_base.related(synset_id, WordNetRelation::InstanceHypernym);
         let mut all = Vec::with_capacity(direct.len() + instance.len());
         all.extend(direct.iter().cloned());
         all.extend(instance.iter().cloned());

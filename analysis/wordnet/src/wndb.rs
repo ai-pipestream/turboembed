@@ -16,10 +16,8 @@ const FILE_POS_LIST: [(WordNetPos, char, &str); 4] = [
     (WordNetPos::Adverb, 'r', "adv"),
 ];
 
-const INDEX_POINTER_SYMBOLS: [&str; 20] = [
-    "!", "@", "~", "#m", "#s", "#p", "%m", "%s", "%p", "=", "+", "*", ">", "^", "$", "&", "<",
-    "\\", ";", "-",
-];
+const INDEX_POINTER_SYMBOLS: [&str; 20] =
+    ["!", "@", "~", "#m", "#s", "#p", "%m", "%s", "%p", "=", "+", "*", ">", "^", "$", "&", "<", "\\", ";", "-"];
 
 /// Reader for Princeton WordNet 3.0 / 3.1 database directories (`data.*` and `index.*`).
 pub struct WndbReader;
@@ -33,9 +31,7 @@ impl WndbReader {
 
     /// Reads a WNDB directory containing the eight `data.{noun,verb,adj,adv}` and
     /// `index.{noun,verb,adj,adv}` files into a validated [`InMemoryWordNetLexicon`].
-    pub fn read_directory(
-        directory: impl AsRef<Path>,
-    ) -> Result<InMemoryWordNetLexicon, WordNetError> {
+    pub fn read_directory(directory: impl AsRef<Path>) -> Result<InMemoryWordNetLexicon, WordNetError> {
         let dir = directory.as_ref();
         if !dir.is_dir() {
             return Err(WordNetError::invalid(format!(
@@ -82,19 +78,13 @@ fn synset_id(offset: &str, pos_char: char) -> String {
 
 fn read_all(file: &Path) -> Result<Vec<u8>, WordNetError> {
     if !file.is_file() {
-        return Err(WordNetError::invalid(format!(
-            "Missing WNDB database file: {}",
-            file.display()
-        )));
+        return Err(WordNetError::invalid(format!("Missing WNDB database file: {}", file.display())));
     }
     Ok(fs::read(file)?)
 }
 
 fn malformed(file_name: &str, line_number: usize, message: impl AsRef<str>) -> WordNetError {
-    WordNetError::invalid(format!(
-        "Malformed WNDB file {file_name} at line {line_number}: {}",
-        message.as_ref()
-    ))
+    WordNetError::invalid(format!("Malformed WNDB file {file_name} at line {line_number}: {}", message.as_ref()))
 }
 
 fn parse_data_file(
@@ -115,21 +105,9 @@ fn parse_data_file(
         while line_end < bytes.len() && bytes[line_end] != b'\n' {
             line_end += 1;
         }
-        let line: String = bytes[line_start..line_end]
-            .iter()
-            .map(|&b| b as char)
-            .collect();
+        let line: String = bytes[line_start..line_end].iter().map(|&b| b as char).collect();
         if !line.is_empty() && !line.starts_with(' ') {
-            parse_data_line(
-                &line,
-                line_start,
-                &file_name,
-                line_number,
-                pos,
-                pos_char,
-                raw_synsets,
-                raw_index,
-            )?;
+            parse_data_line(&line, line_start, &file_name, line_number, pos, pos_char, raw_synsets, raw_index)?;
         }
         line_start = line_end + 1;
     }
@@ -153,9 +131,7 @@ fn parse_data_line(
         return Err(malformed(
             file_name,
             line_number,
-            format!(
-                "Synset offset field {offset_field} disagrees with the actual byte position {byte_offset}"
-            ),
+            format!("Synset offset field {offset_field} disagrees with the actual byte position {byte_offset}"),
         ));
     }
     let lex_filenum = tokens.next_fixed_int("lex_filenum", 10, 2)?;
@@ -173,19 +149,11 @@ fn parse_data_line(
         ss_type.len() == 1 && ss_type.starts_with(pos_char)
     };
     if !valid_type {
-        return Err(malformed(
-            file_name,
-            line_number,
-            format!("Synset type {ss_type} does not belong in {file_name}"),
-        ));
+        return Err(malformed(file_name, line_number, format!("Synset type {ss_type} does not belong in {file_name}")));
     }
     let word_count = tokens.next_fixed_count("w_cnt", 16, 2, "Word count")?;
     if word_count < 1 {
-        return Err(malformed(
-            file_name,
-            line_number,
-            format!("Word count must be at least 1, got: {word_count}"),
-        ));
+        return Err(malformed(file_name, line_number, format!("Word count must be at least 1, got: {word_count}")));
     }
     let mut lemmas = Vec::with_capacity(word_count);
     for _ in 0..word_count {
@@ -201,11 +169,7 @@ fn parse_data_line(
     for _ in 0..pointer_count {
         let symbol = tokens.next_field("pointer_symbol")?;
         let Some(relation) = map_pointer(symbol) else {
-            return Err(malformed(
-                file_name,
-                line_number,
-                format!("Undeclared pointer symbol: {symbol}"),
-            ));
+            return Err(malformed(file_name, line_number, format!("Undeclared pointer symbol: {symbol}")));
         };
         let target_offset = tokens.next_field("pointer synset_offset")?;
         parse_offset(target_offset, &tokens)?;
@@ -266,14 +230,7 @@ fn parse_data_line(
     }
     let gloss = tokens.gloss()?;
     let id = synset_id(offset_field, pos_char);
-    let raw = RawSynset {
-        id: id.clone(),
-        pos,
-        lemmas,
-        gloss,
-        pointers,
-        file_name: file_name.to_string(),
-    };
+    let raw = RawSynset { id: id.clone(), pos, lemmas, gloss, pointers, file_name: file_name.to_string() };
     if let Some(&existing_idx) = raw_index.get(&id) {
         raw_synsets[existing_idx] = (id, raw);
     } else {
@@ -319,13 +276,7 @@ fn resolve_synsets(
                 list.push(target.id.clone());
             }
         }
-        let synset = Synset::new(
-            raw.id.clone(),
-            raw.pos,
-            raw.lemmas.clone(),
-            raw.gloss.clone(),
-            relations,
-        )?;
+        let synset = Synset::new(raw.id.clone(), raw.pos, raw.lemmas.clone(), raw.gloss.clone(), relations)?;
         synsets_by_id.insert(raw.id.clone(), synset);
     }
     Ok(synsets_by_id)
@@ -346,21 +297,10 @@ fn parse_index_file(
     let mut line_start = 0usize;
     while line_start < content.len() {
         line_number += 1;
-        let line_end = content[line_start..]
-            .find('\n')
-            .map_or(content.len(), |i| line_start + i);
+        let line_end = content[line_start..].find('\n').map_or(content.len(), |i| line_start + i);
         let line = &content[line_start..line_end];
         if !line.is_empty() && !line.starts_with(' ') {
-            parse_index_line(
-                line,
-                &file_name,
-                line_number,
-                pos,
-                pos_char,
-                suffix,
-                raw_index,
-                senses,
-            )?;
+            parse_index_line(line, &file_name, line_number, pos, pos_char, suffix, raw_index, senses)?;
         }
         line_start = line_end + 1;
     }
@@ -382,37 +322,21 @@ fn parse_index_line(
     let lemma = tokens.next_field("lemma")?;
     let pos_tok = tokens.next_field("pos")?;
     if pos_tok.len() != 1 || !pos_tok.starts_with(pos_char) {
-        return Err(malformed(
-            file_name,
-            line_number,
-            format!("Index pos {pos_tok} does not belong in {file_name}"),
-        ));
+        return Err(malformed(file_name, line_number, format!("Index pos {pos_tok} does not belong in {file_name}")));
     }
     let synset_count = tokens.next_non_negative_int("synset count", "Synset count")?;
     if synset_count < 1 {
-        return Err(malformed(
-            file_name,
-            line_number,
-            format!("Synset count must be at least 1, got: {synset_count}"),
-        ));
+        return Err(malformed(file_name, line_number, format!("Synset count must be at least 1, got: {synset_count}")));
     }
     let pointer_type_count = tokens.next_non_negative_int("pointer count", "Pointer count")?;
     let mut pointer_types = HashSet::with_capacity(pointer_type_count);
     for _ in 0..pointer_type_count {
         let symbol = tokens.next_field("ptr_symbol (pointer symbol)")?;
         if !INDEX_POINTER_SYMBOLS.contains(&symbol) {
-            return Err(malformed(
-                file_name,
-                line_number,
-                format!("Undeclared pointer symbol: {symbol}"),
-            ));
+            return Err(malformed(file_name, line_number, format!("Undeclared pointer symbol: {symbol}")));
         }
         if !pointer_types.insert(symbol) {
-            return Err(malformed(
-                file_name,
-                line_number,
-                format!("Duplicate pointer symbol: {symbol}"),
-            ));
+            return Err(malformed(file_name, line_number, format!("Duplicate pointer symbol: {symbol}")));
         }
     }
     let sense_count = tokens.next_non_negative_int("sense count", "Sense count")?;
@@ -423,8 +347,7 @@ fn parse_index_line(
             format!("Sense count {sense_count} does not match synset count {synset_count}"),
         ));
     }
-    let tagged_sense_count =
-        tokens.next_non_negative_int("tagged-sense count", "Tagged-sense count")?;
+    let tagged_sense_count = tokens.next_non_negative_int("tagged-sense count", "Tagged-sense count")?;
     if tagged_sense_count > sense_count {
         return Err(malformed(
             file_name,
@@ -452,11 +375,7 @@ fn parse_index_line(
             ));
         }
         if order.contains(&id) {
-            return Err(malformed(
-                file_name,
-                line_number,
-                format!("Duplicate synset offset {offset}"),
-            ));
+            return Err(malformed(file_name, line_number, format!("Duplicate synset offset {offset}")));
         }
         order.push(id);
     }
@@ -471,12 +390,7 @@ fn parse_index_line(
     Ok(())
 }
 
-fn clean_lemma(
-    word: &str,
-    file_name: &str,
-    line_number: usize,
-    file_pos: WordNetPos,
-) -> Result<String, WordNetError> {
+fn clean_lemma(word: &str, file_name: &str, line_number: usize, file_pos: WordNetPos) -> Result<String, WordNetError> {
     let mut cleaned = word;
     if cleaned.ends_with(')') {
         let marker = match cleaned.rfind('(') {
@@ -484,11 +398,7 @@ fn clean_lemma(
             None => "",
         };
         if marker != "(p)" && marker != "(a)" && marker != "(ip)" {
-            return Err(malformed(
-                file_name,
-                line_number,
-                format!("Unknown syntactic marker on word: {word}"),
-            ));
+            return Err(malformed(file_name, line_number, format!("Unknown syntactic marker on word: {word}")));
         }
         if file_pos != WordNetPos::Adjective {
             return Err(malformed(
@@ -507,13 +417,11 @@ fn clean_lemma(
 
 fn parse_offset(offset: &str, tokens: &Tokenizer<'_>) -> Result<usize, WordNetError> {
     if offset.len() != 8 || !offset.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(tokens.malformed_token(format!(
-            "Synset offset must be 8 digits, got: {offset}"
-        )));
+        return Err(tokens.malformed_token(format!("Synset offset must be 8 digits, got: {offset}")));
     }
-    offset.parse::<usize>().map_err(|_| {
-        tokens.malformed_token(format!("Synset offset must be 8 digits, got: {offset}"))
-    })
+    offset
+        .parse::<usize>()
+        .map_err(|_| tokens.malformed_token(format!("Synset offset must be 8 digits, got: {offset}")))
 }
 
 fn parse_pointer_pos_char(pos: &str, tokens: &Tokenizer<'_>) -> Result<char, WordNetError> {
@@ -523,9 +431,7 @@ fn parse_pointer_pos_char(pos: &str, tokens: &Tokenizer<'_>) -> Result<char, Wor
             return Ok(c);
         }
     }
-    Err(tokens.malformed_token(format!(
-        "Pointer pos must be one of n, v, a, r, got: {pos}"
-    )))
+    Err(tokens.malformed_token(format!("Pointer pos must be one of n, v, a, r, got: {pos}")))
 }
 
 fn map_pointer(symbol: &str) -> Option<WordNetRelation> {
@@ -569,12 +475,7 @@ struct Tokenizer<'a> {
 
 impl<'a> Tokenizer<'a> {
     fn new(line: &'a str, file_name: &'a str, line_number: usize) -> Self {
-        Self {
-            line,
-            file_name,
-            line_number,
-            position: 0,
-        }
+        Self { line, file_name, line_number, position: 0 }
     }
 
     fn next_field(&mut self, field: &str) -> Result<&'a str, WordNetError> {
@@ -583,11 +484,7 @@ impl<'a> Tokenizer<'a> {
             self.position += 1;
         }
         if self.position >= bytes.len() {
-            return Err(malformed(
-                self.file_name,
-                self.line_number,
-                format!("Truncated line, missing field: {field}"),
-            ));
+            return Err(malformed(self.file_name, self.line_number, format!("Truncated line, missing field: {field}")));
         }
         let start = self.position;
         while self.position < bytes.len() && bytes[self.position] != b' ' {
@@ -613,32 +510,17 @@ impl<'a> Tokenizer<'a> {
             ));
         }
         let val: i32 = token.parse().map_err(|_| {
-            malformed(
-                self.file_name,
-                self.line_number,
-                format!("{field} is not an unsigned decimal integer: {token}"),
-            )
+            malformed(self.file_name, self.line_number, format!("{field} is not an unsigned decimal integer: {token}"))
         })?;
         Ok(val as usize)
     }
 
-    fn next_fixed_int(
-        &mut self,
-        field: &str,
-        radix: u32,
-        width: usize,
-    ) -> Result<usize, WordNetError> {
+    fn next_fixed_int(&mut self, field: &str, radix: u32, width: usize) -> Result<usize, WordNetError> {
         let token = self.next_field(field)?;
         self.parse_fixed_int(field, radix, width, token)
     }
 
-    fn next_fixed_count(
-        &mut self,
-        field: &str,
-        radix: u32,
-        width: usize,
-        label: &str,
-    ) -> Result<usize, WordNetError> {
+    fn next_fixed_count(&mut self, field: &str, radix: u32, width: usize, label: &str) -> Result<usize, WordNetError> {
         let token = self.next_field(field)?;
         if token.starts_with('-') {
             return Err(malformed(
@@ -650,13 +532,7 @@ impl<'a> Tokenizer<'a> {
         self.parse_fixed_int(field, radix, width, token)
     }
 
-    fn parse_fixed_int(
-        &self,
-        field: &str,
-        radix: u32,
-        width: usize,
-        token: &str,
-    ) -> Result<usize, WordNetError> {
+    fn parse_fixed_int(&self, field: &str, radix: u32, width: usize, token: &str) -> Result<usize, WordNetError> {
         if token.len() != width || !token.chars().all(|c| c.is_digit(radix)) {
             return Err(malformed(
                 self.file_name,

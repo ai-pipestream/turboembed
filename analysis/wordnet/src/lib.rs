@@ -34,8 +34,8 @@ pub use folding::{fold, fold_into, split_on_spaces};
 pub use hypernym::HypernymTyper;
 pub use lexicon::{InMemoryWordNetLexicon, LemmaKey, LexicalKnowledgeBase, Synset};
 pub use lmf::{
-    QName, WnLmfDependency, WnLmfLexicon, WnLmfReader, WnLmfResolver, WnLmfResource, WnLmfSource,
-    EXT_NAMESPACE, MAX_EXTENSION_DEPTH,
+    EXT_NAMESPACE, MAX_EXTENSION_DEPTH, QName, WnLmfDependency, WnLmfLexicon, WnLmfReader, WnLmfResolver,
+    WnLmfResource, WnLmfSource,
 };
 pub use morphy::{MorphyExceptions, MorphyLemmatizer, UNKNOWN_LEMMA};
 pub use pos::WordNetPos;

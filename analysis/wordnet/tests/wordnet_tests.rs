@@ -1,21 +1,19 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use turbo_wordnet::{
-    fold, split_on_spaces, Expansion, ExpansionKind, HypernymTyper, InMemoryWordNetLexicon,
-    LemmaKey, LexicalExpander, LexicalKnowledgeBase, MorphyExceptions, MorphyLemmatizer, QName,
-    Synset, SynsetSimilarity, WnLmfDependency, WnLmfLexicon, WnLmfReader, WnLmfResolver,
-    WnLmfSource, WndbReader, WordNetError, WordNetPos, WordNetRelation, MAX_EXTENSION_DEPTH,
+    Expansion, ExpansionKind, HypernymTyper, InMemoryWordNetLexicon, LemmaKey, LexicalExpander, LexicalKnowledgeBase,
+    MAX_EXTENSION_DEPTH, MorphyExceptions, MorphyLemmatizer, QName, Synset, SynsetSimilarity, WnLmfDependency,
+    WnLmfLexicon, WnLmfReader, WnLmfResolver, WnLmfSource, WndbReader, WordNetError, WordNetPos, WordNetRelation, fold,
+    split_on_spaces,
 };
 
 fn fixtures_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures")
 }
 
 fn mini_wndb_dir() -> PathBuf {
@@ -76,10 +74,7 @@ fn test_split_on_spaces_collapses_runs_and_ignores_edges() {
 
 #[test]
 fn test_lemma_key_and_exception_lookup_agree_on_the_fold() {
-    assert_eq!(
-        LemmaKey::of("Domestic_Dog", WordNetPos::Noun),
-        LemmaKey::of(&fold("DOMESTIC_DOG"), WordNetPos::Noun)
-    );
+    assert_eq!(LemmaKey::of("Domestic_Dog", WordNetPos::Noun), LemmaKey::of(&fold("DOMESTIC_DOG"), WordNetPos::Noun));
 }
 
 // ============================================================================
@@ -87,14 +82,7 @@ fn test_lemma_key_and_exception_lookup_agree_on_the_fold() {
 // ============================================================================
 
 fn dummy_synset(id: &str, relations: BTreeMap<WordNetRelation, Vec<String>>) -> Synset {
-    Synset::new(
-        id,
-        WordNetPos::Noun,
-        vec!["lemma".to_string()],
-        "a gloss",
-        relations,
-    )
-    .expect("valid synset")
+    Synset::new(id, WordNetPos::Noun, vec!["lemma".to_string()], "a gloss", relations).expect("valid synset")
 }
 
 #[test]
@@ -107,10 +95,7 @@ fn test_in_memory_lexicon_accepts_consistent_maps() {
     synsets.insert("a".to_string(), a.clone());
     synsets.insert("b".to_string(), b.clone());
     let mut sense_order = HashMap::new();
-    sense_order.insert(
-        LemmaKey::of("lemma", WordNetPos::Noun),
-        vec!["a".to_string(), "b".to_string()],
-    );
+    sense_order.insert(LemmaKey::of("lemma", WordNetPos::Noun), vec!["a".to_string(), "b".to_string()]);
     let lexicon = InMemoryWordNetLexicon::new(synsets, sense_order).expect("valid lexicon");
     assert_eq!(2, lexicon.size());
     assert_eq!(vec![&a, &b], lexicon.lookup("lemma", WordNetPos::Noun));
@@ -119,10 +104,7 @@ fn test_in_memory_lexicon_accepts_consistent_maps() {
 #[test]
 fn test_in_memory_lexicon_rejects_key_that_does_not_match_synset_id() {
     let mut synsets = HashMap::new();
-    synsets.insert(
-        "wrong-key".to_string(),
-        dummy_synset("real-id", BTreeMap::new()),
-    );
+    synsets.insert("wrong-key".to_string(), dummy_synset("real-id", BTreeMap::new()));
     let err = InMemoryWordNetLexicon::new(synsets, HashMap::new()).unwrap_err();
     assert!(err.to_string().contains("wrong-key"), "{err}");
 }
@@ -143,10 +125,7 @@ fn test_in_memory_lexicon_rejects_sense_order_entry_with_unknown_synset() {
     let mut synsets = HashMap::new();
     synsets.insert("a".to_string(), dummy_synset("a", BTreeMap::new()));
     let mut sense_order = HashMap::new();
-    sense_order.insert(
-        LemmaKey::of("lemma", WordNetPos::Noun),
-        vec!["missing".to_string()],
-    );
+    sense_order.insert(LemmaKey::of("lemma", WordNetPos::Noun), vec!["missing".to_string()]);
     let err = InMemoryWordNetLexicon::new(synsets, sense_order).unwrap_err();
     assert!(err.to_string().contains("missing"), "{err}");
     assert!(err.to_string().contains("lemma"), "{err}");
@@ -170,10 +149,7 @@ fn test_in_memory_lexicon_rejects_duplicate_sense_order_entry() {
     let mut synsets = HashMap::new();
     synsets.insert("a".to_string(), dummy_synset("a", BTreeMap::new()));
     let mut sense_order = HashMap::new();
-    sense_order.insert(
-        LemmaKey::of("lemma", WordNetPos::Noun),
-        vec!["a".to_string(), "a".to_string()],
-    );
+    sense_order.insert(LemmaKey::of("lemma", WordNetPos::Noun), vec!["a".to_string(), "a".to_string()]);
     let err = InMemoryWordNetLexicon::new(synsets, sense_order).unwrap_err();
     assert!(err.to_string().contains("duplicate synset a"), "{err}");
 }
@@ -201,52 +177,30 @@ fn test_wndb_lookup_returns_synset_with_all_components() {
 #[test]
 fn test_wndb_lookup_folds_case_and_underscore() {
     let lexicon = wndb_fixture();
-    assert_eq!(
-        DOG_ID,
-        lexicon.lookup("Domestic_Dog", WordNetPos::Noun)[0].id()
-    );
+    assert_eq!(DOG_ID, lexicon.lookup("Domestic_Dog", WordNetPos::Noun)[0].id());
     assert_eq!(DOG_ID, lexicon.lookup("DOG", WordNetPos::Noun)[0].id());
 }
 
 #[test]
 fn test_wndb_lookup_keeps_index_sense_order() {
     let lexicon = wndb_fixture();
-    let ids: Vec<&str> = lexicon
-        .lookup("run", WordNetPos::Noun)
-        .iter()
-        .map(|s| s.id())
-        .collect();
+    let ids: Vec<&str> = lexicon.lookup("run", WordNetPos::Noun).iter().map(|s| s.id()).collect();
     assert_eq!(vec!["wndb-00001427-n", "wndb-00001669-n"], ids);
 }
 
 #[test]
 fn test_wndb_relation_navigation() {
     let lexicon = wndb_fixture();
-    assert_eq!(
-        &[DOG_ID],
-        lexicon.related(CANID_ID, WordNetRelation::Hyponym)
-    );
-    assert_eq!(
-        &["wndb-00001075-v", "wndb-00001171-v"],
-        lexicon.related("wndb-00001324-v", WordNetRelation::Hyponym)
-    );
-    assert_eq!(
-        &["wndb-00001075-v"],
-        lexicon.related("wndb-00001427-n", WordNetRelation::DerivationallyRelated)
-    );
+    assert_eq!(&[DOG_ID], lexicon.related(CANID_ID, WordNetRelation::Hyponym));
+    assert_eq!(&["wndb-00001075-v", "wndb-00001171-v"], lexicon.related("wndb-00001324-v", WordNetRelation::Hyponym));
+    assert_eq!(&["wndb-00001075-v"], lexicon.related("wndb-00001427-n", WordNetRelation::DerivationallyRelated));
 }
 
 #[test]
 fn test_wndb_lexical_pointers_surface_at_synset_level() {
     let lexicon = wndb_fixture();
-    assert_eq!(
-        &["wndb-00001141-a"],
-        lexicon.related("wndb-00001075-a", WordNetRelation::Antonym)
-    );
-    assert_eq!(
-        &["wndb-00001075-a"],
-        lexicon.related("wndb-00001141-a", WordNetRelation::Antonym)
-    );
+    assert_eq!(&["wndb-00001141-a"], lexicon.related("wndb-00001075-a", WordNetRelation::Antonym));
+    assert_eq!(&["wndb-00001075-a"], lexicon.related("wndb-00001141-a", WordNetRelation::Antonym));
 }
 
 #[test]
@@ -254,14 +208,8 @@ fn test_wndb_satellite_normalizes_to_adjective_and_marker_is_stripped() {
     let lexicon = wndb_fixture();
     let large = lexicon.lookup("large", WordNetPos::Adjective)[0];
     assert_eq!(WordNetPos::Adjective, large.pos());
-    assert_eq!(
-        &["wndb-00001211-a"],
-        large.related(WordNetRelation::SimilarTo)
-    );
-    assert_eq!(
-        &["short"],
-        lexicon.lookup("short", WordNetPos::Adjective)[0].lemmas()
-    );
+    assert_eq!(&["wndb-00001211-a"], large.related(WordNetRelation::SimilarTo));
+    assert_eq!(&["short"], lexicon.lookup("short", WordNetPos::Adjective)[0].lemmas());
 }
 
 fn write_empty_db(dir: &Path, suffixes: &[&str]) {
@@ -297,21 +245,11 @@ fn test_wndb_verb_group_pointer_maps_to_verb_group() {
     let off2 = format!("{:08}", template.len() + 1);
     let line1 = template.replace("XXXXXXXX", &off2);
     let line2 = format!("{off2} 29 v 01 chant 0 001 $ 00000000 v 0000 00 | sing monotonously");
-    std::fs::write(
-        temp.path().join("data.verb"),
-        format!("{line1}\n{line2}\n"),
-    )
-    .unwrap();
-    std::fs::write(
-        temp.path().join("index.verb"),
-        format!("chant v 1 1 $ 1 0 {off2}\nsing v 1 1 $ 1 0 00000000\n"),
-    )
-    .unwrap();
+    std::fs::write(temp.path().join("data.verb"), format!("{line1}\n{line2}\n")).unwrap();
+    std::fs::write(temp.path().join("index.verb"), format!("chant v 1 1 $ 1 0 {off2}\nsing v 1 1 $ 1 0 00000000\n"))
+        .unwrap();
     let lexicon = WndbReader::read(temp.path()).unwrap();
-    assert_eq!(
-        &[format!("wndb-{off2}-v")],
-        lexicon.related("wndb-00000000-v", WordNetRelation::VerbGroup)
-    );
+    assert_eq!(&[format!("wndb-{off2}-v")], lexicon.related("wndb-00000000-v", WordNetRelation::VerbGroup));
     assert_eq!(
         &["wndb-00000000-v".to_string()],
         lexicon.related(&format!("wndb-{off2}-v"), WordNetRelation::VerbGroup)
@@ -339,217 +277,52 @@ fn test_wndb_rejects_missing_directory_and_files() {
 #[test]
 fn test_wndb_rejects_malformed_fields() {
     let cases = [
-        (
-            "data.noun",
-            "00001564 03 n",
-            "0000156x 03 n",
-            "Synset offset must be 8 digits",
-        ),
-        (
-            "data.noun",
-            "00001564 03 n",
-            "00001564 xx n",
-            "lex_filenum must be a 2-digit base-10 integer",
-        ),
-        (
-            "data.noun",
-            "00001564 03 n",
-            "00001564 99 n",
-            "lex_filenum must be between 00 and 44",
-        ),
-        (
-            "data.noun",
-            "00001075 03 n",
-            "00001075 03 v",
-            "Synset type v does not belong in",
-        ),
-        (
-            "data.noun",
-            "n 01 box",
-            "n 0z box",
-            "w_cnt must be a 2-digit base-16 integer",
-        ),
-        (
-            "data.noun",
-            "n 01 man",
-            "n 00 man",
-            "Word count must be at least 1",
-        ),
-        (
-            "data.noun",
-            "n 01 box 0 000 |",
-            "n 01 box 0 -01 |",
-            "Pointer count must not be negative",
-        ),
-        (
-            "data.noun",
-            "00001160 n 0000",
-            "00001160 q 0000",
-            "Pointer pos must be one of",
-        ),
-        (
-            "data.noun",
-            "00001160 n 0000",
-            "00001160 n zzzz",
-            "pointer source/target must be a 4-digit base-16 integer",
-        ),
-        (
-            "data.noun",
-            "00001160 n 0000",
-            "00001160 n 0300",
-            "Pointer source word 3 exceeds word count 2",
-        ),
-        (
-            "data.noun",
-            "00001160 n 0000",
-            "00001160 n 0102",
-            "Pointer target word 2 exceeds target word count 1",
-        ),
-        (
-            "data.noun",
-            "00001160 n 0000",
-            "00001160 n 0100",
-            "must both be zero or nonzero",
-        ),
-        (
-            "data.verb",
-            "n 0101 01 + 02",
-            "n 0101 -1 + 02",
-            "Verb frame count must not be negative",
-        ),
-        (
-            "data.verb",
-            "01 + 02 00 |",
-            "01 ? 02 00 |",
-            "Expected + before a verb frame",
-        ),
-        (
-            "data.verb",
-            "01 + 02 00 |",
-            "01 + xx 00 |",
-            "f_num must be a 2-digit base-10 integer",
-        ),
-        (
-            "data.verb",
-            "01 + 02 00 |",
-            "01 + 36 00 |",
-            "f_num must be between 01 and 35",
-        ),
-        (
-            "data.verb",
-            "01 + 02 00 |",
-            "01 + 02 xx |",
-            "w_num must be a 2-digit base-16 integer",
-        ),
-        (
-            "data.verb",
-            "01 + 02 00 |",
-            "01 + 02 02 |",
-            "Verb frame word 2 exceeds word count 1",
-        ),
-        (
-            "data.noun",
-            "| a domesticated canid",
-            "! a domesticated canid",
-            "Expected the | gloss separator",
-        ),
-        (
-            "data.adj",
-            "short(p)",
-            "short(x)",
-            "Unknown syntactic marker on word: short(x)",
-        ),
-        (
-            "data.noun",
-            "dog 0",
-            "dog(p) 0",
-            "Syntactic marker (p) is only valid in data.adj",
-        ),
-        (
-            "index.noun",
-            "berry n 1",
-            "berry v 1",
-            "Index pos v does not belong in",
-        ),
-        (
-            "index.noun",
-            "berry n 1 0 1 0",
-            "berry n +1 0 1 0",
-            "synset count is not an unsigned decimal integer: +1",
-        ),
-        (
-            "index.noun",
-            "berry n 1 0 1 0",
-            "berry n 1 -1 1 0",
-            "Pointer count must not be negative",
-        ),
-        (
-            "index.noun",
-            "dog n 1 1 @ 1 0",
-            "dog n 1 1 ? 1 0",
-            "Undeclared pointer symbol: ?",
-        ),
-        (
-            "index.noun",
-            "dog n 1 1 @ 1 0",
-            "dog n 1 2 @ @ 1 0",
-            "Duplicate pointer symbol: @",
-        ),
-        (
-            "index.noun",
-            "berry n 1 0 1 0",
-            "berry n 1 0 x 0",
-            "sense count is not an unsigned decimal integer",
-        ),
-        (
-            "index.noun",
-            "berry n 1 0 1 0",
-            "berry n 1 0 1 -1",
-            "Tagged-sense count must not be negative",
-        ),
-        (
-            "index.noun",
-            "berry n 1 0 1 0",
-            "berry n 1 0 2 0",
-            "Sense count 2 does not match synset count 1",
-        ),
-        (
-            "index.noun",
-            "berry n 1 0 1 0",
-            "berry n 1 0 1 2",
-            "Tagged-sense count 2 exceeds sense count 1",
-        ),
+        ("data.noun", "00001564 03 n", "0000156x 03 n", "Synset offset must be 8 digits"),
+        ("data.noun", "00001564 03 n", "00001564 xx n", "lex_filenum must be a 2-digit base-10 integer"),
+        ("data.noun", "00001564 03 n", "00001564 99 n", "lex_filenum must be between 00 and 44"),
+        ("data.noun", "00001075 03 n", "00001075 03 v", "Synset type v does not belong in"),
+        ("data.noun", "n 01 box", "n 0z box", "w_cnt must be a 2-digit base-16 integer"),
+        ("data.noun", "n 01 man", "n 00 man", "Word count must be at least 1"),
+        ("data.noun", "n 01 box 0 000 |", "n 01 box 0 -01 |", "Pointer count must not be negative"),
+        ("data.noun", "00001160 n 0000", "00001160 q 0000", "Pointer pos must be one of"),
+        ("data.noun", "00001160 n 0000", "00001160 n zzzz", "pointer source/target must be a 4-digit base-16 integer"),
+        ("data.noun", "00001160 n 0000", "00001160 n 0300", "Pointer source word 3 exceeds word count 2"),
+        ("data.noun", "00001160 n 0000", "00001160 n 0102", "Pointer target word 2 exceeds target word count 1"),
+        ("data.noun", "00001160 n 0000", "00001160 n 0100", "must both be zero or nonzero"),
+        ("data.verb", "n 0101 01 + 02", "n 0101 -1 + 02", "Verb frame count must not be negative"),
+        ("data.verb", "01 + 02 00 |", "01 ? 02 00 |", "Expected + before a verb frame"),
+        ("data.verb", "01 + 02 00 |", "01 + xx 00 |", "f_num must be a 2-digit base-10 integer"),
+        ("data.verb", "01 + 02 00 |", "01 + 36 00 |", "f_num must be between 01 and 35"),
+        ("data.verb", "01 + 02 00 |", "01 + 02 xx |", "w_num must be a 2-digit base-16 integer"),
+        ("data.verb", "01 + 02 00 |", "01 + 02 02 |", "Verb frame word 2 exceeds word count 1"),
+        ("data.noun", "| a domesticated canid", "! a domesticated canid", "Expected the | gloss separator"),
+        ("data.adj", "short(p)", "short(x)", "Unknown syntactic marker on word: short(x)"),
+        ("data.noun", "dog 0", "dog(p) 0", "Syntactic marker (p) is only valid in data.adj"),
+        ("index.noun", "berry n 1", "berry v 1", "Index pos v does not belong in"),
+        ("index.noun", "berry n 1 0 1 0", "berry n +1 0 1 0", "synset count is not an unsigned decimal integer: +1"),
+        ("index.noun", "berry n 1 0 1 0", "berry n 1 -1 1 0", "Pointer count must not be negative"),
+        ("index.noun", "dog n 1 1 @ 1 0", "dog n 1 1 ? 1 0", "Undeclared pointer symbol: ?"),
+        ("index.noun", "dog n 1 1 @ 1 0", "dog n 1 2 @ @ 1 0", "Duplicate pointer symbol: @"),
+        ("index.noun", "berry n 1 0 1 0", "berry n 1 0 x 0", "sense count is not an unsigned decimal integer"),
+        ("index.noun", "berry n 1 0 1 0", "berry n 1 0 1 -1", "Tagged-sense count must not be negative"),
+        ("index.noun", "berry n 1 0 1 0", "berry n 1 0 2 0", "Sense count 2 does not match synset count 1"),
+        ("index.noun", "berry n 1 0 1 0", "berry n 1 0 1 2", "Tagged-sense count 2 exceeds sense count 1"),
         (
             "index.noun",
             "berry n 1 0 1 0",
             "berry n 2147483647 0 2147483647 0",
             "Synset count 2147483647 exceeds the available offset fields",
         ),
-        (
-            "index.noun",
-            "00001427 00001669",
-            "00001427 00001427",
-            "Duplicate synset offset 00001427",
-        ),
-        (
-            "index.noun",
-            "00001564  ",
-            "00001564 extra ",
-            "Unexpected field after synset offsets: extra",
-        ),
+        ("index.noun", "00001427 00001669", "00001427 00001427", "Duplicate synset offset 00001427"),
+        ("index.noun", "00001564  ", "00001564 extra ", "Unexpected field after synset offsets: extra"),
     ];
 
     for (file_name, find_str, replacement, expected) in cases {
         let temp = tempfile::tempdir().unwrap();
         copy_wndb_fixture(temp.path());
-        mutate_file(temp.path(), file_name, |line| {
-            line.replace(find_str, replacement)
-        });
+        mutate_file(temp.path(), file_name, |line| line.replace(find_str, replacement));
         let err = WndbReader::read(temp.path()).unwrap_err();
-        assert!(
-            err.to_string().contains(expected),
-            "expected '{expected}' in '{err}' for {file_name}"
-        );
+        assert!(err.to_string().contains(expected), "expected '{expected}' in '{err}' for {file_name}");
     }
 }
 
@@ -562,11 +335,7 @@ fn test_wndb_dangling_pointer_error_names_pointer_line() {
         "00000000 29 v 01 sing 0 001 $ 00009999 v 0000 00 | produce musical tones\n",
     )
     .unwrap();
-    std::fs::write(
-        temp.path().join("index.verb"),
-        "sing v 1 1 $ 1 0 00000000\n",
-    )
-    .unwrap();
+    std::fs::write(temp.path().join("index.verb"), "sing v 1 1 $ 1 0 00000000\n").unwrap();
     let err = WndbReader::read(temp.path()).unwrap_err();
     assert!(err.to_string().contains("wndb-00009999-v"), "{err}");
     assert!(err.to_string().contains("line 1"), "{err}");
@@ -592,21 +361,14 @@ fn test_lmf_lookup_returns_synset_with_all_components() {
 #[test]
 fn test_lmf_lookup_folds_case_and_underscore() {
     let lexicon = lmf_fixture();
-    assert_eq!(
-        "mini-n1",
-        lexicon.lookup("Domestic_Dog", WordNetPos::Noun)[0].id()
-    );
+    assert_eq!("mini-n1", lexicon.lookup("Domestic_Dog", WordNetPos::Noun)[0].id());
     assert_eq!("mini-n1", lexicon.lookup("DOG", WordNetPos::Noun)[0].id());
 }
 
 #[test]
 fn test_lmf_lookup_keeps_sense_order() {
     let lexicon = lmf_fixture();
-    let ids: Vec<&str> = lexicon
-        .lookup("run", WordNetPos::Noun)
-        .iter()
-        .map(|s| s.id())
-        .collect();
+    let ids: Vec<&str> = lexicon.lookup("run", WordNetPos::Noun).iter().map(|s| s.id()).collect();
     assert_eq!(vec!["mini-n5", "mini-n9"], ids);
 }
 
@@ -620,10 +382,7 @@ fn test_lmf_preserves_multiple_definitions() {
          <Definition>a domesticated cat</Definition></Synset>",
     ))
     .unwrap();
-    assert_eq!(
-        "a feline; a domesticated cat",
-        lexicon.lookup("cat", WordNetPos::Noun)[0].gloss()
-    );
+    assert_eq!("a feline; a domesticated cat", lexicon.lookup("cat", WordNetPos::Noun)[0].gloss());
 }
 
 #[test]
@@ -638,39 +397,18 @@ fn test_lmf_lookup_is_pos_scoped() {
 #[test]
 fn test_lmf_relation_navigation() {
     let lexicon = lmf_fixture();
-    assert_eq!(
-        &["mini-n1"],
-        lexicon.related("mini-n2", WordNetRelation::Hyponym)
-    );
-    assert_eq!(
-        &["mini-v1", "mini-v2"],
-        lexicon.related("mini-v4", WordNetRelation::Hyponym)
-    );
-    assert_eq!(
-        &["mini-v4"],
-        lexicon.related("mini-v1", WordNetRelation::Hypernym)
-    );
+    assert_eq!(&["mini-n1"], lexicon.related("mini-n2", WordNetRelation::Hyponym));
+    assert_eq!(&["mini-v1", "mini-v2"], lexicon.related("mini-v4", WordNetRelation::Hyponym));
+    assert_eq!(&["mini-v4"], lexicon.related("mini-v1", WordNetRelation::Hypernym));
 }
 
 #[test]
 fn test_lmf_sense_relations_are_represented_at_synset_level() {
     let lexicon = lmf_fixture();
-    assert_eq!(
-        &["mini-a2"],
-        lexicon.related("mini-a1", WordNetRelation::Antonym)
-    );
-    assert_eq!(
-        &["mini-a1"],
-        lexicon.related("mini-a2", WordNetRelation::Antonym)
-    );
-    assert_eq!(
-        &["mini-v1"],
-        lexicon.related("mini-n5", WordNetRelation::DerivationallyRelated)
-    );
-    assert_eq!(
-        &["mini-n5"],
-        lexicon.related("mini-v1", WordNetRelation::DerivationallyRelated)
-    );
+    assert_eq!(&["mini-a2"], lexicon.related("mini-a1", WordNetRelation::Antonym));
+    assert_eq!(&["mini-a1"], lexicon.related("mini-a2", WordNetRelation::Antonym));
+    assert_eq!(&["mini-v1"], lexicon.related("mini-n5", WordNetRelation::DerivationallyRelated));
+    assert_eq!(&["mini-n5"], lexicon.related("mini-v1", WordNetRelation::DerivationallyRelated));
 }
 
 #[test]
@@ -679,14 +417,8 @@ fn test_lmf_satellite_normalizes_to_adjective() {
     let senses = lexicon.lookup("large", WordNetPos::Adjective);
     assert_eq!(1, senses.len());
     assert_eq!(WordNetPos::Adjective, senses[0].pos());
-    assert_eq!(
-        &["mini-a4"],
-        lexicon.related("mini-a3", WordNetRelation::SimilarTo)
-    );
-    assert_eq!(
-        &["mini-a3"],
-        lexicon.related("mini-a4", WordNetRelation::SimilarTo)
-    );
+    assert_eq!(&["mini-a4"], lexicon.related("mini-a3", WordNetRelation::SimilarTo));
+    assert_eq!(&["mini-a3"], lexicon.related("mini-a4", WordNetRelation::SimilarTo));
 }
 
 #[test]
@@ -703,13 +435,8 @@ fn test_lmf_similar_on_verb_synset_maps_to_verb_group() {
          <Definition>sing monotonously</Definition></Synset>",
     ))
     .unwrap();
-    assert_eq!(
-        &["t-v2"],
-        lexicon.related("t-v1", WordNetRelation::VerbGroup)
-    );
-    assert!(lexicon
-        .related("t-v1", WordNetRelation::SimilarTo)
-        .is_empty());
+    assert_eq!(&["t-v2"], lexicon.related("t-v1", WordNetRelation::VerbGroup));
+    assert!(lexicon.related("t-v1", WordNetRelation::SimilarTo).is_empty());
 }
 
 #[test]
@@ -722,10 +449,7 @@ fn test_lmf_skips_doctype_and_rejects_xxe() {
         <Synset id=\"t-1\" partOfSpeech=\"n\"><Definition>a feline</Definition></Synset>\
         </Lexicon></LexicalResource>";
     let lexicon = parse_lmf(doc).unwrap();
-    assert_eq!(
-        "a feline",
-        lexicon.lookup("cat", WordNetPos::Noun)[0].gloss()
-    );
+    assert_eq!("a feline", lexicon.lookup("cat", WordNetPos::Noun)[0].gloss());
 
     let xxe_doc = "<?xml version=\"1.0\"?>\n\
         <!DOCTYPE LexicalResource [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]>\n\
@@ -816,10 +540,7 @@ fn test_lmf_rejects_structurally_invalid_documents() {
              <Synset id=\"t-1\" partOfSpeech=\"n\"/>",
             &["t-ghost-1"],
         ),
-        (
-            "<Lemma writtenForm=\"cat\" partOfSpeech=\"n\"/>",
-            &["Lemma outside a LexicalEntry"],
-        ),
+        ("<Lemma writtenForm=\"cat\" partOfSpeech=\"n\"/>", &["Lemma outside a LexicalEntry"]),
         (
             "<LexicalEntry id=\"t-cat-n\"><Lemma writtenForm=\"cat\" partOfSpeech=\"n\"/>\
              <Lemma writtenForm=\"dog\" partOfSpeech=\"n\"/></LexicalEntry>",
@@ -849,10 +570,7 @@ fn test_lmf_rejects_structurally_invalid_documents() {
              <Synset id=\"t-2\" partOfSpeech=\"n\"/></Synset>",
             &["Nested Synset inside t-1"],
         ),
-        (
-            "<Definition>orphaned definition</Definition>",
-            &["Definition outside a Synset"],
-        ),
+        ("<Definition>orphaned definition</Definition>", &["Definition outside a Synset"]),
         (
             "<LexicalEntry id=\"t-cat-n\"><Lemma writtenForm=\"cat\" partOfSpeech=\"n\"/>\
              <Sense id=\"t-cat-n-1\" synset=\"t-1\"/>\
@@ -860,20 +578,14 @@ fn test_lmf_rejects_structurally_invalid_documents() {
              <Synset id=\"t-1\" partOfSpeech=\"n\"/>",
             &["SenseRelation outside a Sense"],
         ),
-        (
-            "<SynsetRelation relType=\"hypernym\" target=\"t-1\"/>",
-            &["SynsetRelation outside a Synset"],
-        ),
+        ("<SynsetRelation relType=\"hypernym\" target=\"t-1\"/>", &["SynsetRelation outside a Synset"]),
     ];
 
     for (body, fragments) in cases {
         let err = parse_lmf(&wrap_lmf(body)).unwrap_err();
         let msg = err.to_string();
         for fragment in *fragments {
-            assert!(
-                msg.contains(fragment),
-                "expected '{fragment}' in '{msg}' for body: {body}"
-            );
+            assert!(msg.contains(fragment), "expected '{fragment}' in '{msg}' for body: {body}");
         }
     }
 }
@@ -919,41 +631,19 @@ fn test_lmf_reads_multilingual_resource_without_merging_lexicons() {
     );
     assert_eq!(
         Some(&"Open Multilingual Wordnet".to_string()),
-        italian.metadata().get(&QName::new(
-            "https://globalwordnet.github.io/schemas/dc/",
-            "publisher"
-        ))
+        italian.metadata().get(&QName::new("https://globalwordnet.github.io/schemas/dc/", "publisher"))
     );
-    assert_eq!(
-        &[WnLmfDependency::new("omw-en", "2.0", None).unwrap()],
-        italian.dependencies()
-    );
-    assert_eq!(
-        "omw-it-02084071-n",
-        italian.knowledge_base().lookup("cane", WordNetPos::Noun)[0].id()
-    );
+    assert_eq!(&[WnLmfDependency::new("omw-en", "2.0", None).unwrap()], italian.dependencies());
+    assert_eq!("omw-it-02084071-n", italian.knowledge_base().lookup("cane", WordNetPos::Noun)[0].id());
     assert_eq!(
         "omw-es-02084071-n",
-        resource
-            .lexicon("omw-es")
-            .unwrap()
-            .knowledge_base()
-            .lookup("perro", WordNetPos::Noun)[0]
-            .id()
+        resource.lexicon("omw-es").unwrap().knowledge_base().lookup("perro", WordNetPos::Noun)[0].id()
     );
     assert_eq!(
         "omw-sv-02084071-n",
-        resource
-            .lexicon("omw-sv")
-            .unwrap()
-            .knowledge_base()
-            .lookup("hund", WordNetPos::Noun)[0]
-            .id()
+        resource.lexicon("omw-sv").unwrap().knowledge_base().lookup("hund", WordNetPos::Noun)[0].id()
     );
-    assert!(italian
-        .knowledge_base()
-        .lookup("perro", WordNetPos::Noun)
-        .is_empty());
+    assert!(italian.knowledge_base().lookup("perro", WordNetPos::Noun).is_empty());
     assert!(resource.lexicon("missing").is_none());
 
     // Single-lexicon convenience rejects multi-lexicon resource
@@ -1005,16 +695,10 @@ fn test_every_legal_synset_and_sense_relation() {
         ("co_agent_patient", WordNetRelation::CoAgentPatient),
         ("co_agent_result", WordNetRelation::CoAgentResult),
         ("co_instrument_agent", WordNetRelation::CoInstrumentAgent),
-        (
-            "co_instrument_patient",
-            WordNetRelation::CoInstrumentPatient,
-        ),
+        ("co_instrument_patient", WordNetRelation::CoInstrumentPatient),
         ("co_instrument_result", WordNetRelation::CoInstrumentResult),
         ("co_patient_agent", WordNetRelation::CoPatientAgent),
-        (
-            "co_patient_instrument",
-            WordNetRelation::CoPatientInstrument,
-        ),
+        ("co_patient_instrument", WordNetRelation::CoPatientInstrument),
         ("co_result_agent", WordNetRelation::CoResultAgent),
         ("co_result_instrument", WordNetRelation::CoResultInstrument),
         ("co_role", WordNetRelation::CoRole),
@@ -1039,14 +723,8 @@ fn test_every_legal_synset_and_sense_relation() {
         ("involved_location", WordNetRelation::InvolvedLocation),
         ("involved_patient", WordNetRelation::InvolvedPatient),
         ("involved_result", WordNetRelation::InvolvedResult),
-        (
-            "involved_source_direction",
-            WordNetRelation::InvolvedSourceDirection,
-        ),
-        (
-            "involved_target_direction",
-            WordNetRelation::InvolvedTargetDirection,
-        ),
+        ("involved_source_direction", WordNetRelation::InvolvedSourceDirection),
+        ("involved_target_direction", WordNetRelation::InvolvedTargetDirection),
         ("ir_synonym", WordNetRelation::IrSynonym),
         ("is_caused_by", WordNetRelation::CausedBy),
         ("is_entailed_by", WordNetRelation::EntailedBy),
@@ -1141,17 +819,11 @@ struct CatalogResolver {
 
 impl CatalogResolver {
     fn new() -> Self {
-        Self {
-            catalog: Mutex::new(HashMap::new()),
-            calls: AtomicUsize::new(0),
-        }
+        Self { catalog: Mutex::new(HashMap::new()), calls: AtomicUsize::new(0) }
     }
 
     fn with(self, r: &str, version: &str, doc: impl Into<String>) -> Self {
-        self.catalog
-            .lock()
-            .unwrap()
-            .insert(format!("{r}@{version}"), doc.into());
+        self.catalog.lock().unwrap().insert(format!("{r}@{version}"), doc.into());
         self
     }
 
@@ -1167,10 +839,7 @@ impl WnLmfResolver for CatalogResolver {
         let Some(doc) = self.catalog.lock().unwrap().get(&key).cloned() else {
             return Ok(None);
         };
-        Ok(Some(WnLmfSource::named_bytes(
-            format!("{}-{}.xml", reference.id(), reference.version()),
-            doc.into_bytes(),
-        )?))
+        Ok(Some(WnLmfSource::named_bytes(format!("{}-{}.xml", reference.id(), reference.version()), doc.into_bytes())?))
     }
 }
 
@@ -1191,47 +860,23 @@ fn test_computer_science_extension_example() {
     assert_eq!(1, resource.lexicons().len());
     let composed = &resource.lexicons()[0];
     assert_eq!("ewn-cs-example", composed.id());
-    assert_eq!(
-        "English WordNet Computer Science Terms (example)",
-        composed.label()
-    );
+    assert_eq!("English WordNet Computer Science Terms (example)", composed.label());
     assert_eq!("en", composed.language());
     assert_eq!("1.0", composed.version());
+    assert_eq!(Some(&WnLmfDependency::new("ewn", "2020", None).unwrap()), composed.extension_of());
     assert_eq!(
-        Some(&WnLmfDependency::new("ewn", "2020", None).unwrap()),
-        composed.extension_of()
-    );
-    assert_eq!(
-        &[WnLmfDependency::new(
-            "omw-fr",
-            "1.4",
-            Some("https://example.org/omw-fr-1.4.xml".to_string())
-        )
-        .unwrap()],
+        &[WnLmfDependency::new("omw-fr", "1.4", Some("https://example.org/omw-fr-1.4.xml".to_string())).unwrap()],
         composed.dependencies()
     );
 
     let kb = composed.knowledge_base();
-    let process_ids: Vec<&str> = kb
-        .lookup("process", WordNetPos::Noun)
-        .iter()
-        .map(|s| s.id())
-        .collect();
-    assert_eq!(
-        vec!["ewn-08056231-n", "ewn-05984756-n", "ewn-20000123-n"],
-        process_ids
-    );
+    let process_ids: Vec<&str> = kb.lookup("process", WordNetPos::Noun).iter().map(|s| s.id()).collect();
+    assert_eq!(vec!["ewn-08056231-n", "ewn-05984756-n", "ewn-20000123-n"], process_ids);
 
     let computer_process = kb.synset("ewn-20000123-n").unwrap();
     assert_eq!(&["process"], computer_process.lemmas());
-    assert_eq!(
-        "a running instance of a computer program",
-        computer_process.gloss()
-    );
-    assert_eq!(
-        &["ewn-06581154-n"],
-        computer_process.related(WordNetRelation::Hypernym)
-    );
+    assert_eq!("a running instance of a computer program", computer_process.gloss());
+    assert_eq!(&["ewn-06581154-n"], computer_process.related(WordNetRelation::Hypernym));
     assert_eq!(6, kb.size());
 }
 
@@ -1244,20 +889,9 @@ fn test_extension_definition_fills_empty_base_gloss_but_never_replaces_non_empty
         <ExternalSynset id=\"ewn-08056231-n\">\
         <Definition>must not replace the base definition</Definition></ExternalSynset>\
         </LexiconExtension></LexicalResource>";
-    let kb = WnLmfReader::read_named_with_resolver(
-        Cursor::new(doc.as_bytes()),
-        "ext.xml",
-        &base_resolver(),
-    )
-    .unwrap();
-    assert_eq!(
-        "a placeholder definition",
-        kb.synset("ewn-90000001-n").unwrap().gloss()
-    );
-    assert_eq!(
-        "a phenomenon that unfolds over time",
-        kb.synset("ewn-08056231-n").unwrap().gloss()
-    );
+    let kb = WnLmfReader::read_named_with_resolver(Cursor::new(doc.as_bytes()), "ext.xml", &base_resolver()).unwrap();
+    assert_eq!("a placeholder definition", kb.synset("ewn-90000001-n").unwrap().gloss());
+    assert_eq!("a phenomenon that unfolds over time", kb.synset("ewn-08056231-n").unwrap().gloss());
 }
 
 #[test]
@@ -1275,12 +909,8 @@ fn test_sibling_extensions_compose_independently_and_share_one_resolver_call() {
         <Synset id=\"ext-b-1-n\" partOfSpeech=\"n\"/></LexiconExtension>\
         </LexicalResource>";
     let resolver = base_resolver();
-    let resource = WnLmfReader::read_resource_named_with_resolver(
-        Cursor::new(doc.as_bytes()),
-        "siblings.xml",
-        &resolver,
-    )
-    .unwrap();
+    let resource =
+        WnLmfReader::read_resource_named_with_resolver(Cursor::new(doc.as_bytes()), "siblings.xml", &resolver).unwrap();
     assert_eq!(1, resolver.calls());
     let first = resource.lexicon("ext-a").unwrap().knowledge_base();
     let second = resource.lexicon("ext-b").unwrap().knowledge_base();
@@ -1295,12 +925,8 @@ fn test_extension_cycles_and_depth_limit_are_enforced() {
     let self_cycle = "<LexicalResource><LexiconExtension id=\"loop\" label=\"loop\" language=\"en\" version=\"1.0\">\
         <Extends ref=\"loop\" version=\"1.0\"/></LexiconExtension></LexicalResource>";
     let resolver = CatalogResolver::new().with("loop", "1.0", self_cycle);
-    let err = WnLmfReader::read_named_with_resolver(
-        Cursor::new(self_cycle.as_bytes()),
-        "loop.xml",
-        &resolver,
-    )
-    .unwrap_err();
+    let err =
+        WnLmfReader::read_named_with_resolver(Cursor::new(self_cycle.as_bytes()), "loop.xml", &resolver).unwrap_err();
     assert!(err.to_string().contains("cycle"), "{err}");
 
     let make_chain = |depth: usize| {
@@ -1334,22 +960,13 @@ fn test_extension_cycles_and_depth_limit_are_enforced() {
     };
 
     let (top_ok, res_ok) = make_chain(MAX_EXTENSION_DEPTH);
-    let kb =
-        WnLmfReader::read_named_with_resolver(Cursor::new(top_ok.as_bytes()), "ok.xml", &res_ok)
-            .unwrap();
+    let kb = WnLmfReader::read_named_with_resolver(Cursor::new(top_ok.as_bytes()), "ok.xml", &res_ok).unwrap();
     assert_eq!(1, kb.lookup("process", WordNetPos::Noun).len());
 
     let (top_deep, res_deep) = make_chain(MAX_EXTENSION_DEPTH + 1);
-    let err = WnLmfReader::read_named_with_resolver(
-        Cursor::new(top_deep.as_bytes()),
-        "deep.xml",
-        &res_deep,
-    )
-    .unwrap_err();
-    assert!(
-        err.to_string().contains(&MAX_EXTENSION_DEPTH.to_string()),
-        "{err}"
-    );
+    let err =
+        WnLmfReader::read_named_with_resolver(Cursor::new(top_deep.as_bytes()), "deep.xml", &res_deep).unwrap_err();
+    assert!(err.to_string().contains(&MAX_EXTENSION_DEPTH.to_string()), "{err}");
 }
 
 #[test]
@@ -1364,15 +981,10 @@ fn test_normalized_and_rejected_member_separators() {
             "{base_entry}<Synset id=\"base-synset\" partOfSpeech=\"n\" members=\"{sep}dog-sense{sep}{sep}base-sense{sep}\"/>"
         ));
         let kb = parse_lmf(&doc).unwrap();
-        assert_eq!(
-            &["dog", "cat"],
-            kb.synset("base-synset").unwrap().lemmas()
-        );
+        assert_eq!(&["dog", "cat"], kb.synset("base-synset").unwrap().lemmas());
     }
 
-    for sep in [
-        "&#9;", "&#x9;", "&#10;", "&#xA;", "&#13;", "&#xD;", "&#xA0;", "&#x2003;",
-    ] {
+    for sep in ["&#9;", "&#x9;", "&#10;", "&#xA;", "&#13;", "&#xD;", "&#xA0;", "&#x2003;"] {
         let doc = wrap_lmf(&format!(
             "{base_entry}<Synset id=\"base-synset\" partOfSpeech=\"n\" members=\"dog-sense{sep}base-sense\"/>"
         ));
@@ -1394,30 +1006,21 @@ fn test_both_readers_produce_equivalent_views() {
     let by_gloss = |lex: &InMemoryWordNetLexicon| -> HashMap<String, Synset> {
         let mut map = HashMap::new();
         for s in lex.synsets() {
-            assert!(
-                map.insert(s.gloss().to_string(), s.clone()).is_none(),
-                "duplicate gloss: {}",
-                s.gloss()
-            );
+            assert!(map.insert(s.gloss().to_string(), s.clone()).is_none(), "duplicate gloss: {}", s.gloss());
         }
         map
     };
 
     let lmf_by_gloss = by_gloss(&lmf);
     let wndb_by_gloss = by_gloss(&wndb);
-    assert_eq!(
-        lmf_by_gloss.keys().collect::<HashSet<_>>(),
-        wndb_by_gloss.keys().collect::<HashSet<_>>()
-    );
+    assert_eq!(lmf_by_gloss.keys().collect::<HashSet<_>>(), wndb_by_gloss.keys().collect::<HashSet<_>>());
 
     let relations_by_gloss =
         |synset: &Synset, lex: &InMemoryWordNetLexicon| -> BTreeMap<WordNetRelation, HashSet<String>> {
             let mut result = BTreeMap::new();
             for (&rel, targets) in synset.relations() {
-                let glosses: HashSet<String> = targets
-                    .iter()
-                    .map(|tid| lex.synset(tid).unwrap().gloss().to_string())
-                    .collect();
+                let glosses: HashSet<String> =
+                    targets.iter().map(|tid| lex.synset(tid).unwrap().gloss().to_string()).collect();
                 result.insert(rel, glosses);
             }
             result
@@ -1427,24 +1030,13 @@ fn test_both_readers_produce_equivalent_views() {
         let actual = wndb_by_gloss.get(expected.gloss()).unwrap();
         assert_eq!(expected.pos(), actual.pos());
         assert_eq!(expected.lemmas(), actual.lemmas());
-        assert_eq!(
-            relations_by_gloss(expected, &lmf),
-            relations_by_gloss(actual, &wndb)
-        );
+        assert_eq!(relations_by_gloss(expected, &lmf), relations_by_gloss(actual, &wndb));
     }
 
     for synset in wndb.synsets() {
         for lemma in synset.lemmas() {
-            let lmf_glosses: Vec<&str> = lmf
-                .lookup(lemma, synset.pos())
-                .iter()
-                .map(|s| s.gloss())
-                .collect();
-            let wndb_glosses: Vec<&str> = wndb
-                .lookup(lemma, synset.pos())
-                .iter()
-                .map(|s| s.gloss())
-                .collect();
+            let lmf_glosses: Vec<&str> = lmf.lookup(lemma, synset.pos()).iter().map(|s| s.gloss()).collect();
+            let wndb_glosses: Vec<&str> = wndb.lookup(lemma, synset.pos()).iter().map(|s| s.gloss()).collect();
             assert_eq!(lmf_glosses, wndb_glosses);
         }
     }
@@ -1524,59 +1116,24 @@ fn test_morphy_lemmatizer() {
 
     assert_eq!(
         vec!["O", "mouse", "run", "quickly"],
-        morphy
-            .lemmatize(&["The", "mice", "ran", "quickly"], &["DT", "NNS", "VBD", "RB"])
-            .unwrap()
+        morphy.lemmatize(&["The", "mice", "ran", "quickly"], &["DT", "NNS", "VBD", "RB"]).unwrap()
     );
 
-    let candidates = morphy
-        .lemmatize_candidates(&["glarbs", "berries", "axes"], &["NNS", "NNS", "NNS"])
-        .unwrap();
+    let candidates = morphy.lemmatize_candidates(&["glarbs", "berries", "axes"], &["NNS", "NNS", "NNS"]).unwrap();
     assert_eq!(vec![vec!["O"], vec!["berry"], vec!["axis", "ax"]], candidates);
     assert_eq!("axis", one("axes", "NNS"));
 
-    assert_eq!(
-        Some(WordNetPos::Noun),
-        MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("NNP")
-    );
-    assert_eq!(
-        Some(WordNetPos::Verb),
-        MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("VBZ")
-    );
-    assert_eq!(
-        Some(WordNetPos::Adjective),
-        MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("JJ")
-    );
-    assert_eq!(
-        Some(WordNetPos::Adverb),
-        MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("RBR")
-    );
-    assert_eq!(
-        Some(WordNetPos::Adjective),
-        MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("a")
-    );
-    assert_eq!(
-        Some(WordNetPos::Adjective),
-        MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("s")
-    );
-    assert_eq!(
-        Some(WordNetPos::Adjective),
-        MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("ADJ")
-    );
-    assert_eq!(
-        Some(WordNetPos::Adverb),
-        MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("ADV")
-    );
-    assert_eq!(
-        Some(WordNetPos::Adverb),
-        MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("r")
-    );
+    assert_eq!(Some(WordNetPos::Noun), MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("NNP"));
+    assert_eq!(Some(WordNetPos::Verb), MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("VBZ"));
+    assert_eq!(Some(WordNetPos::Adjective), MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("JJ"));
+    assert_eq!(Some(WordNetPos::Adverb), MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("RBR"));
+    assert_eq!(Some(WordNetPos::Adjective), MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("a"));
+    assert_eq!(Some(WordNetPos::Adjective), MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("s"));
+    assert_eq!(Some(WordNetPos::Adjective), MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("ADJ"));
+    assert_eq!(Some(WordNetPos::Adverb), MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("ADV"));
+    assert_eq!(Some(WordNetPos::Adverb), MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag("r"));
     for tag in ["DT", "", "AUX", "ADP", "SCONJ", "SYM", "ß", "ſ"] {
-        assert_eq!(
-            None,
-            MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag(tag),
-            "{tag}"
-        );
+        assert_eq!(None, MorphyLemmatizer::<InMemoryWordNetLexicon>::pos_from_tag(tag), "{tag}");
     }
 }
 
@@ -1593,10 +1150,7 @@ fn test_lexical_expander_over_fixtures_and_morphy() {
     let lmf = lmf_fixture();
     let wndb = wndb_fixture();
 
-    let exp_lmf = LexicalExpander::builder(&lmf)
-        .build()
-        .expand("dog", WordNetPos::Noun)
-        .unwrap();
+    let exp_lmf = LexicalExpander::builder(&lmf).build().expand("dog", WordNetPos::Noun).unwrap();
     let dom = find_expansion(&exp_lmf, "domestic dog").unwrap();
     assert_eq!(ExpansionKind::Synonym, dom.kind());
     assert_eq!(1.0, dom.weight());
@@ -1607,10 +1161,7 @@ fn test_lexical_expander_over_fixtures_and_morphy() {
     assert_eq!(1, canid.depth());
     assert_eq!(0.5, canid.weight());
 
-    let exp_multi = LexicalExpander::builder(&wndb)
-        .build()
-        .expand("domestic_dog", WordNetPos::Noun)
-        .unwrap();
+    let exp_multi = LexicalExpander::builder(&wndb).build().expand("domestic_dog", WordNetPos::Noun).unwrap();
     assert_eq!(
         vec![
             Expansion::new("dog", ExpansionKind::Synonym, 0, 0, 1.0).unwrap(),
@@ -1623,17 +1174,11 @@ fn test_lexical_expander_over_fixtures_and_morphy() {
     let expander = LexicalExpander::builder(&lmf).lemmatizer(morphy).build();
 
     let dogs = expander.expand("dogs", WordNetPos::Noun).unwrap();
-    assert_eq!(
-        ExpansionKind::Synonym,
-        find_expansion(&dogs, "dog").unwrap().kind()
-    );
+    assert_eq!(ExpansionKind::Synonym, find_expansion(&dogs, "dog").unwrap().kind());
     assert!(find_expansion(&dogs, "canid").is_some());
 
     let mice = expander.expand("mice", WordNetPos::Noun).unwrap();
-    assert_eq!(
-        ExpansionKind::Synonym,
-        find_expansion(&mice, "mouse").unwrap().kind()
-    );
+    assert_eq!(ExpansionKind::Synonym, find_expansion(&mice, "mouse").unwrap().kind());
     assert!(find_expansion(&mice, "rodent").is_some());
 }
 
@@ -1648,33 +1193,17 @@ struct FixtureKb {
 
 impl FixtureKb {
     fn new() -> Self {
-        Self {
-            by_id: HashMap::new(),
-            by_lemma: HashMap::new(),
-        }
+        Self { by_id: HashMap::new(), by_lemma: HashMap::new() }
     }
 
     fn add(&mut self, id: &str, lemma: &str, rel: WordNetRelation, parents: &[&str]) {
         let mut relations = BTreeMap::new();
         if !parents.is_empty() {
-            relations.insert(
-                rel,
-                parents.iter().map(|s| (*s).to_string()).collect(),
-            );
+            relations.insert(rel, parents.iter().map(|s| (*s).to_string()).collect());
         }
-        let synset = Synset::new(
-            id,
-            WordNetPos::Noun,
-            vec![lemma.to_string()],
-            "fixture",
-            relations,
-        )
-        .unwrap();
+        let synset = Synset::new(id, WordNetPos::Noun, vec![lemma.to_string()], "fixture", relations).unwrap();
         self.by_id.insert(id.to_string(), synset);
-        self.by_lemma
-            .entry(lemma.to_string())
-            .or_default()
-            .push(id.to_string());
+        self.by_lemma.entry(lemma.to_string()).or_default().push(id.to_string());
     }
 }
 
@@ -1726,9 +1255,7 @@ fn test_synset_similarity_measures() {
 
     assert!((sim.leacock_chodorow("n5", "n6", 10).unwrap() - 10.0_f64.ln()).abs() < 1e-9);
     assert!((sim.leacock_chodorow("n6", "n12", 10).unwrap() - 0.0).abs() < 1e-9);
-    assert!(
-        (sim.leacock_chodorow("n6", "n8", 3).unwrap() - (-(7.0_f64 / 6.0).ln())).abs() < 1e-9
-    );
+    assert!((sim.leacock_chodorow("n6", "n8", 3).unwrap() - (-(7.0_f64 / 6.0).ln())).abs() < 1e-9);
     assert!(sim.leacock_chodorow("n5", "n6", 0).is_err());
 
     assert_eq!(None, sim.shortest_distance("n5", "missing"));
@@ -1739,18 +1266,8 @@ fn test_synset_similarity_measures() {
     let mut dag1 = FixtureKb::new();
     dag1.add("root", "root", WordNetRelation::Hypernym, &[]);
     dag1.add("middle-1", "middle-1", WordNetRelation::Hypernym, &["root"]);
-    dag1.add(
-        "middle-2",
-        "middle-2",
-        WordNetRelation::Hypernym,
-        &["middle-1"],
-    );
-    dag1.add(
-        "common",
-        "common",
-        WordNetRelation::Hypernym,
-        &["root", "middle-2"],
-    );
+    dag1.add("middle-2", "middle-2", WordNetRelation::Hypernym, &["middle-1"]);
+    dag1.add("common", "common", WordNetRelation::Hypernym, &["root", "middle-2"]);
     dag1.add("left", "left", WordNetRelation::Hypernym, &["common"]);
     dag1.add("right", "right", WordNetRelation::Hypernym, &["common"]);
     assert!((SynsetSimilarity::new(dag1).wu_palmer("left", "right") - 0.8).abs() < 1e-9);
@@ -1760,34 +1277,14 @@ fn test_synset_similarity_measures() {
     dag2.add("common", "common", WordNetRelation::Hypernym, &["root"]);
     dag2.add("right", "right", WordNetRelation::Hypernym, &["common"]);
     dag2.add("branch-1", "branch-1", WordNetRelation::Hypernym, &["root"]);
-    dag2.add(
-        "branch-2",
-        "branch-2",
-        WordNetRelation::Hypernym,
-        &["branch-1"],
-    );
-    dag2.add(
-        "branch-3",
-        "branch-3",
-        WordNetRelation::Hypernym,
-        &["branch-2"],
-    );
-    dag2.add(
-        "left",
-        "left",
-        WordNetRelation::Hypernym,
-        &["common", "branch-3"],
-    );
+    dag2.add("branch-2", "branch-2", WordNetRelation::Hypernym, &["branch-1"]);
+    dag2.add("branch-3", "branch-3", WordNetRelation::Hypernym, &["branch-2"]);
+    dag2.add("left", "left", WordNetRelation::Hypernym, &["common", "branch-3"]);
     assert!((SynsetSimilarity::new(dag2).wu_palmer("left", "right") - 0.5).abs() < 1e-9);
 
     let mut dangling = FixtureKb::new();
     dangling.add("left", "left", WordNetRelation::Hypernym, &["missing-parent"]);
-    dangling.add(
-        "right",
-        "right",
-        WordNetRelation::Hypernym,
-        &["missing-parent"],
-    );
+    dangling.add("right", "right", WordNetRelation::Hypernym, &["missing-parent"]);
     let dsim = SynsetSimilarity::new(dangling);
     assert_eq!(None, dsim.shortest_distance("left", "right"));
     assert_eq!(0.0, dsim.path("left", "right"));
@@ -1796,11 +1293,7 @@ fn test_synset_similarity_measures() {
 
 #[test]
 fn test_hypernym_typer() {
-    let typer = HypernymTyper::new(
-        similarity_taxonomy(),
-        [("person", "person"), ("location", "location")],
-    )
-    .unwrap();
+    let typer = HypernymTyper::new(similarity_taxonomy(), [("person", "person"), ("location", "location")]).unwrap();
     assert_eq!(Some("person"), typer.type_lemma("chemist").unwrap());
     assert_eq!(Some("location"), typer.type_lemma("paris").unwrap());
     assert_eq!(Some("person"), typer.type_lemma("person").unwrap());
@@ -1810,11 +1303,7 @@ fn test_hypernym_typer() {
     assert_eq!(None, typer.type_synset("n12"));
     assert_eq!(None, typer.type_synset("missing"));
 
-    let nested = HypernymTyper::new(
-        similarity_taxonomy(),
-        [("person", "person"), ("scientist", "scientist")],
-    )
-    .unwrap();
+    let nested = HypernymTyper::new(similarity_taxonomy(), [("person", "person"), ("scientist", "scientist")]).unwrap();
     assert_eq!(Some("scientist"), nested.type_lemma("chemist").unwrap());
     assert_eq!(Some("scientist"), nested.type_lemma("scientist").unwrap());
     assert_eq!(None, nested.type_lemma("organism").unwrap());
@@ -1822,11 +1311,7 @@ fn test_hypernym_typer() {
     // Conflicting labels for same synset rejected
     let lmf = lmf_fixture();
     assert!(HypernymTyper::new(&lmf, [("dog", "animal"), ("domestic dog", "pet")]).is_err());
-    assert!(HypernymTyper::new(
-        similarity_taxonomy(),
-        Vec::<(&str, &str)>::new()
-    )
-    .is_err());
+    assert!(HypernymTyper::new(similarity_taxonomy(), Vec::<(&str, &str)>::new()).is_err());
     assert!(HypernymTyper::new(similarity_taxonomy(), [(" ", "person")]).is_err());
     assert!(HypernymTyper::new(similarity_taxonomy(), [("person", "\u{00A0}")]).is_err());
     assert!(HypernymTyper::new(similarity_taxonomy(), [("notaword", "label")]).is_err());
@@ -1844,10 +1329,7 @@ fn test_navigate_semantic_role_relations_and_report_footprint() {
     let agent_id = &purchase.related(WordNetRelation::InvolvedAgent)[0];
     let instrument_id = &purchase.related(WordNetRelation::InvolvedInstrument)[0];
     assert_eq!(&["buyer"], lexicon.synset(agent_id).unwrap().lemmas());
-    assert_eq!(
-        &["payment card"],
-        lexicon.synset(instrument_id).unwrap().lemmas()
-    );
+    assert_eq!(&["payment card"], lexicon.synset(instrument_id).unwrap().lemmas());
 
     // Verify load time and memory footprint for miniature WNDB + WN-LMF fixtures (#201)
     let wndb_start = Instant::now();

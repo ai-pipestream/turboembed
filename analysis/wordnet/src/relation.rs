@@ -453,8 +453,7 @@ impl WordNetRelation {
 
     /// Resolves a WN-LMF `relType` string, returning an error if unknown.
     pub fn try_from_lmf_name(lmf_name: &str) -> Result<Self, WordNetError> {
-        Self::from_lmf_name(lmf_name).ok_or_else(|| {
-            WordNetError::invalid(format!("Unknown WordNet relation: '{lmf_name}'"))
-        })
+        Self::from_lmf_name(lmf_name)
+            .ok_or_else(|| WordNetError::invalid(format!("Unknown WordNet relation: '{lmf_name}'")))
     }
 }

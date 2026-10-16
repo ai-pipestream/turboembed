@@ -7,10 +7,7 @@ use crate::lexicon::LexicalKnowledgeBase;
 use crate::pos::WordNetPos;
 use crate::relation::WordNetRelation;
 
-const UPWARD_RELATIONS: [WordNetRelation; 2] = [
-    WordNetRelation::Hypernym,
-    WordNetRelation::InstanceHypernym,
-];
+const UPWARD_RELATIONS: [WordNetRelation; 2] = [WordNetRelation::Hypernym, WordNetRelation::InstanceHypernym];
 
 /// Types a noun using the nearest caller-defined anchor in its hypernym graph (`opennlp.wordnet.HypernymTyper`).
 #[derive(Clone, Debug)]
@@ -40,15 +37,11 @@ impl<L: LexicalKnowledgeBase> HypernymTyper<L> {
             let key = anchor_key.as_ref();
             let val = anchor_val.as_ref();
             if key.trim().is_empty() || val.trim().is_empty() {
-                return Err(WordNetError::invalid(
-                    "anchors must not contain blank entries",
-                ));
+                return Err(WordNetError::invalid("anchors must not contain blank entries"));
             }
             let senses = knowledge_base.lookup(key, WordNetPos::Noun);
             if senses.is_empty() {
-                return Err(WordNetError::invalid(format!(
-                    "anchor lemma is unknown to the knowledge base: {key}"
-                )));
+                return Err(WordNetError::invalid(format!("anchor lemma is unknown to the knowledge base: {key}")));
             }
             for sense in senses {
                 if let Some(prev) = labels.get(sense.id()) {
@@ -66,10 +59,7 @@ impl<L: LexicalKnowledgeBase> HypernymTyper<L> {
         if count == 0 {
             return Err(WordNetError::invalid("anchors must not be null or empty"));
         }
-        Ok(Self {
-            knowledge_base,
-            label_by_synset_id: labels,
-        })
+        Ok(Self { knowledge_base, label_by_synset_id: labels })
     }
 
     /// Types a noun lemma using the nearest anchor in its hypernym graph across all noun senses.

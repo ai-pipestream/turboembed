@@ -55,13 +55,7 @@ impl Synset {
                 }
             }
         }
-        Ok(Self {
-            id,
-            pos,
-            lemmas,
-            gloss,
-            relations,
-        })
+        Ok(Self { id, pos, lemmas, gloss, relations })
     }
 
     /// Returns the opaque, source-qualified synset identifier.
@@ -111,18 +105,12 @@ pub struct LemmaKey {
 impl LemmaKey {
     /// Creates a [`LemmaKey`] without additional folding.
     pub fn new(lemma: impl Into<String>, pos: WordNetPos) -> Self {
-        Self {
-            lemma: lemma.into(),
-            pos,
-        }
+        Self { lemma: lemma.into(), pos }
     }
 
     /// Folds `written_form` using [`crate::folding::fold`] and pairs it with `pos`.
     pub fn of(written_form: &str, pos: WordNetPos) -> Self {
-        Self {
-            lemma: fold(written_form),
-            pos,
-        }
+        Self { lemma: fold(written_form), pos }
     }
 
     /// Returns the lemma string.
@@ -148,16 +136,12 @@ pub trait LexicalKnowledgeBase {
 
     /// Navigates one typed relation from `synset_id`, returning target synset IDs in source order.
     fn related(&self, synset_id: &str, relation: WordNetRelation) -> &[String] {
-        self.synset(synset_id)
-            .map_or(&[], |s| s.related(relation))
+        self.synset(synset_id).map_or(&[], |s| s.related(relation))
     }
 
     /// Navigates one typed relation from `synset_id`, resolving each target synset in the lexicon.
     fn related_synsets(&self, synset_id: &str, relation: WordNetRelation) -> Vec<&Synset> {
-        self.related(synset_id, relation)
-            .iter()
-            .filter_map(|id| self.synset(id))
-            .collect()
+        self.related(synset_id, relation).iter().filter_map(|id| self.synset(id)).collect()
     }
 
     /// Tests whether the lexicon contains `lemma` with `pos`.
@@ -241,9 +225,7 @@ impl InMemoryWordNetLexicon {
     ) -> Result<Self, WordNetError> {
         for (id, synset) in &synsets_by_id {
             if id != synset.id() {
-                return Err(WordNetError::invalid(format!(
-                    "Synset table key {id} does not match its synset"
-                )));
+                return Err(WordNetError::invalid(format!("Synset table key {id} does not match its synset")));
             }
         }
 
@@ -279,10 +261,7 @@ impl InMemoryWordNetLexicon {
                         key.pos()
                     )));
                 };
-                let contains_lemma = synset
-                    .lemmas()
-                    .iter()
-                    .any(|lemma| key.lemma() == fold(lemma));
+                let contains_lemma = synset.lemmas().iter().any(|lemma| key.lemma() == fold(lemma));
                 if synset.pos() != key.pos() || !contains_lemma {
                     return Err(WordNetError::invalid(format!(
                         "Sense index entry {} ({}) references synset {synset_id}, which does not contain that lemma and part of speech",
@@ -294,10 +273,7 @@ impl InMemoryWordNetLexicon {
             index.insert(key, ordered_ids);
         }
 
-        Ok(Self {
-            synsets_by_id,
-            sense_order: index,
-        })
+        Ok(Self { synsets_by_id, sense_order: index })
     }
 
     /// Returns the number of synsets in this lexicon.
@@ -339,8 +315,7 @@ impl InMemoryWordNetLexicon {
     /// Estimates the in-memory heap footprint in bytes of all stored synsets, relations, and sense orders.
     pub fn memory_footprint_bytes(&self) -> usize {
         let mut bytes = std::mem::size_of::<Self>();
-        bytes += self.synsets_by_id.capacity()
-            * (std::mem::size_of::<String>() + std::mem::size_of::<Synset>() + 8);
+        bytes += self.synsets_by_id.capacity() * (std::mem::size_of::<String>() + std::mem::size_of::<Synset>() + 8);
         for (k, s) in &self.synsets_by_id {
             bytes += k.capacity() + s.id.capacity() + s.gloss.capacity();
             bytes += s.lemmas.capacity() * std::mem::size_of::<String>();
@@ -355,8 +330,8 @@ impl InMemoryWordNetLexicon {
                 }
             }
         }
-        bytes += self.sense_order.capacity()
-            * (std::mem::size_of::<LemmaKey>() + std::mem::size_of::<Vec<String>>() + 8);
+        bytes +=
+            self.sense_order.capacity() * (std::mem::size_of::<LemmaKey>() + std::mem::size_of::<Vec<String>>() + 8);
         for (k, ids) in &self.sense_order {
             bytes += k.lemma.capacity();
             bytes += ids.capacity() * std::mem::size_of::<String>();

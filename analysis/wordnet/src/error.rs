@@ -32,9 +32,7 @@ impl fmt::Display for WordNetError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io(err) => write!(f, "{err}"),
-            Self::InvalidData(msg) | Self::Parse(msg) | Self::InvalidInput(msg) => {
-                f.write_str(msg)
-            }
+            Self::InvalidData(msg) | Self::Parse(msg) | Self::InvalidInput(msg) => f.write_str(msg),
         }
     }
 }

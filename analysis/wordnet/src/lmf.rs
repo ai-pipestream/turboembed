@@ -32,10 +32,7 @@ pub struct QName {
 impl QName {
     /// Creates a new qualified name.
     pub fn new(namespace_uri: impl Into<String>, local_name: impl Into<String>) -> Self {
-        Self {
-            namespace_uri: namespace_uri.into(),
-            local_name: local_name.into(),
-        }
+        Self { namespace_uri: namespace_uri.into(), local_name: local_name.into() }
     }
 
     /// Creates a qualified name in the default (empty) namespace.
@@ -64,29 +61,19 @@ pub struct WnLmfDependency {
 
 impl WnLmfDependency {
     /// Creates a new dependency declaration.
-    pub fn new(
-        id: impl Into<String>,
-        version: impl Into<String>,
-        url: Option<String>,
-    ) -> Result<Self, WordNetError> {
+    pub fn new(id: impl Into<String>, version: impl Into<String>, url: Option<String>) -> Result<Self, WordNetError> {
         let id = id.into();
         let version = version.into();
         if id.is_empty() {
-            return Err(WordNetError::InvalidInput(
-                "WnLmfDependency ref/id must not be empty".to_string(),
-            ));
+            return Err(WordNetError::InvalidInput("WnLmfDependency ref/id must not be empty".to_string()));
         }
         if version.is_empty() {
-            return Err(WordNetError::InvalidInput(
-                "WnLmfDependency version must not be empty".to_string(),
-            ));
+            return Err(WordNetError::InvalidInput("WnLmfDependency version must not be empty".to_string()));
         }
         if let Some(ref u) = url
             && u.is_empty()
         {
-            return Err(WordNetError::InvalidInput(
-                "WnLmfDependency url must not be empty when present".to_string(),
-            ));
+            return Err(WordNetError::InvalidInput("WnLmfDependency url must not be empty when present".to_string()));
         }
         Ok(Self { id, version, url })
     }
@@ -185,10 +172,7 @@ impl WnLmfResource {
         let mut by_id = HashMap::with_capacity(lexicons.len());
         for (idx, lex) in lexicons.iter().enumerate() {
             if by_id.insert(lex.id().to_string(), idx).is_some() {
-                return Err(WordNetError::Parse(format!(
-                    "Duplicate lexicon id: {}",
-                    lex.id()
-                )));
+                return Err(WordNetError::Parse(format!("Duplicate lexicon id: {}", lex.id())));
             }
         }
         Ok(Self { lexicons, by_id })
@@ -226,15 +210,10 @@ pub enum WnLmfSource {
 
 impl WnLmfSource {
     /// Creates a named byte source.
-    pub fn named_bytes(
-        name: impl Into<String>,
-        bytes: impl Into<Vec<u8>>,
-    ) -> Result<Self, WordNetError> {
+    pub fn named_bytes(name: impl Into<String>, bytes: impl Into<Vec<u8>>) -> Result<Self, WordNetError> {
         let name = name.into();
         if name.is_empty() {
-            return Err(WordNetError::InvalidInput(
-                "WnLmfSource name must not be empty".to_string(),
-            ));
+            return Err(WordNetError::InvalidInput("WnLmfSource name must not be empty".to_string()));
         }
         Ok(Self::NamedBytes(name, bytes.into()))
     }
@@ -359,14 +338,10 @@ fn is_sense_only_rel_type(rel_type: &str) -> bool {
 
 fn malformed(resource_name: &str, line: Option<usize>, message: impl AsRef<str>) -> WordNetError {
     match line {
-        Some(l) if l > 0 => WordNetError::Parse(format!(
-            "{MALFORMED_PREFIX}{resource_name} at line {l}: {}",
-            message.as_ref()
-        )),
-        _ => WordNetError::Parse(format!(
-            "{MALFORMED_PREFIX}{resource_name}: {}",
-            message.as_ref()
-        )),
+        Some(l) if l > 0 => {
+            WordNetError::Parse(format!("{MALFORMED_PREFIX}{resource_name} at line {l}: {}", message.as_ref()))
+        }
+        _ => WordNetError::Parse(format!("{MALFORMED_PREFIX}{resource_name}: {}", message.as_ref())),
     }
 }
 
@@ -495,10 +470,7 @@ impl WnLmfReader {
     }
 
     /// Reads a single-lexicon WN-LMF XML stream with an explicit `resource_name` for diagnostics.
-    pub fn read_named<R: Read>(
-        reader: R,
-        resource_name: &str,
-    ) -> Result<InMemoryWordNetLexicon, WordNetError> {
+    pub fn read_named<R: Read>(reader: R, resource_name: &str) -> Result<InMemoryWordNetLexicon, WordNetError> {
         let resource = Self::read_resource_named(reader, resource_name)?;
         only_lexicon(resource, resource_name)
     }
@@ -536,10 +508,7 @@ impl WnLmfReader {
     }
 
     /// Reads a `<LexicalResource>` from `reader` with `resource_name` and no resolver.
-    pub fn read_resource_named<R: Read>(
-        reader: R,
-        resource_name: &str,
-    ) -> Result<WnLmfResource, WordNetError> {
+    pub fn read_resource_named<R: Read>(reader: R, resource_name: &str) -> Result<WnLmfResource, WordNetError> {
         read_resource_internal::<_, fn(&WnLmfDependency) -> Result<Option<WnLmfSource>, WordNetError>>(
             reader,
             resource_name,
@@ -581,10 +550,7 @@ impl WnLmfReader {
     }
 }
 
-fn only_lexicon(
-    resource: WnLmfResource,
-    resource_name: &str,
-) -> Result<InMemoryWordNetLexicon, WordNetError> {
+fn only_lexicon(resource: WnLmfResource, resource_name: &str) -> Result<InMemoryWordNetLexicon, WordNetError> {
     let mut lexicons = resource.into_lexicons();
     if lexicons.len() != 1 {
         return Err(WordNetError::Parse(format!(
@@ -631,10 +597,7 @@ fn descriptor(lexicon: RawLexicon, resource_name: &str) -> Result<WnLmfLexicon, 
     })
 }
 
-fn reject_same_document_base(
-    lexicons: &[RawLexicon],
-    resource_name: &str,
-) -> Result<(), WordNetError> {
+fn reject_same_document_base(lexicons: &[RawLexicon], resource_name: &str) -> Result<(), WordNetError> {
     for (i, ext) in lexicons.iter().enumerate() {
         if !ext.extension {
             continue;
@@ -669,21 +632,10 @@ struct XmlAttr {
 
 #[derive(Debug, Clone)]
 enum XmlEvent {
-    Start {
-        namespace_uri: String,
-        local_name: String,
-        attrs: Vec<XmlAttr>,
-        line: usize,
-    },
-    End {
-        namespace_uri: String,
-        local_name: String,
-        line: usize,
-    },
+    Start { namespace_uri: String, local_name: String, attrs: Vec<XmlAttr>, line: usize },
+    End { namespace_uri: String, local_name: String, line: usize },
     Text(String),
-    Eof {
-        line: usize,
-    },
+    Eof { line: usize },
 }
 
 type XmlElementFrame = (String, String, String, Vec<(String, String)>);
@@ -703,14 +655,7 @@ impl<'a> XmlPullParser<'a> {
         if input.starts_with('\u{feff}') {
             pos = '\u{feff}'.len_utf8();
         }
-        Self {
-            input,
-            resource_name,
-            pos,
-            line: 1,
-            pending_end: None,
-            element_stack: Vec::new(),
-        }
+        Self { input, resource_name, pos, line: 1, pending_end: None, element_stack: Vec::new() }
     }
 
     fn err(&self, line: usize, msg: impl AsRef<str>) -> WordNetError {
@@ -738,30 +683,19 @@ impl<'a> XmlPullParser<'a> {
                 }
             }
         }
-        if prefix.is_empty() {
-            Some(String::new())
-        } else {
-            None
-        }
+        if prefix.is_empty() { Some(String::new()) } else { None }
     }
 
     fn next_event(&mut self) -> Result<XmlEvent, WordNetError> {
         if let Some((ns, local, line)) = self.pending_end.take() {
-            return Ok(XmlEvent::End {
-                namespace_uri: ns,
-                local_name: local,
-                line,
-            });
+            return Ok(XmlEvent::End { namespace_uri: ns, local_name: local, line });
         }
 
         let bytes = self.input.as_bytes();
         loop {
             if self.pos >= bytes.len() {
                 if let Some((raw_qname, _, _, _)) = self.element_stack.last() {
-                    return Err(self.err(
-                        self.line,
-                        format!("Unclosed XML element <{raw_qname}> at end of stream"),
-                    ));
+                    return Err(self.err(self.line, format!("Unclosed XML element <{raw_qname}> at end of stream")));
                 }
                 return Ok(XmlEvent::Eof { line: self.line });
             }
@@ -770,10 +704,7 @@ impl<'a> XmlPullParser<'a> {
                 let start = self.pos;
                 let start_line = self.line;
                 while self.pos < bytes.len() && bytes[self.pos] != b'<' {
-                    if bytes[self.pos] == b'>'
-                        && self.pos >= 2
-                        && &bytes[self.pos - 2..=self.pos] == b"]]>"
-                    {
+                    if bytes[self.pos] == b'>' && self.pos >= 2 && &bytes[self.pos - 2..=self.pos] == b"]]>" {
                         return Err(self.err(self.line, "Unexpected ']]>' in XML text"));
                     }
                     if bytes[self.pos] == b'\n' {
@@ -784,9 +715,7 @@ impl<'a> XmlPullParser<'a> {
                 let raw_text = &self.input[start..self.pos];
                 if self.element_stack.is_empty() {
                     if !raw_text.trim().is_empty() {
-                        return Err(
-                            self.err(start_line, "Unexpected text outside root XML element")
-                        );
+                        return Err(self.err(start_line, "Unexpected text outside root XML element"));
                     }
                     continue;
                 }
@@ -797,16 +726,14 @@ impl<'a> XmlPullParser<'a> {
             let rem = &self.input[self.pos..];
             let tag_line = self.line;
             if let Some(after_comment) = rem.strip_prefix("<!--") {
-                let end = after_comment
-                    .find("-->")
-                    .ok_or_else(|| self.err(tag_line, "Unclosed XML comment '<!--'"))?;
+                let end = after_comment.find("-->").ok_or_else(|| self.err(tag_line, "Unclosed XML comment '<!--'"))?;
                 self.advance(4 + end + 3);
                 continue;
             }
             if let Some(after_pi) = rem.strip_prefix("<?") {
-                let end = after_pi.find("?>").ok_or_else(|| {
-                    self.err(tag_line, "Unclosed XML processing instruction '<?'")
-                })?;
+                let end = after_pi
+                    .find("?>")
+                    .ok_or_else(|| self.err(tag_line, "Unclosed XML processing instruction '<?'"))?;
                 self.advance(2 + end + 2);
                 continue;
             }
@@ -814,9 +741,8 @@ impl<'a> XmlPullParser<'a> {
                 if self.element_stack.is_empty() {
                     return Err(self.err(tag_line, "CDATA section outside root element"));
                 }
-                let end = after_cdata
-                    .find("]]>")
-                    .ok_or_else(|| self.err(tag_line, "Unclosed CDATA section '<![CDATA['"))?;
+                let end =
+                    after_cdata.find("]]>").ok_or_else(|| self.err(tag_line, "Unclosed CDATA section '<![CDATA['"))?;
                 let cdata = after_cdata[..end].to_string();
                 self.advance(9 + end + 3);
                 return Ok(XmlEvent::Text(cdata));
@@ -875,10 +801,7 @@ impl<'a> XmlPullParser<'a> {
         let bytes = self.input.as_bytes();
         self.advance(2); // skip "</"
         let name_start = self.pos;
-        while self.pos < bytes.len()
-            && bytes[self.pos] != b'>'
-            && !bytes[self.pos].is_ascii_whitespace()
-        {
+        while self.pos < bytes.len() && bytes[self.pos] != b'>' && !bytes[self.pos].is_ascii_whitespace() {
             self.advance(1);
         }
         let raw_qname = &self.input[name_start..self.pos];
@@ -891,22 +814,14 @@ impl<'a> XmlPullParser<'a> {
         self.advance(1); // skip '>'
 
         let Some((expected_qname, ns, local, _)) = self.element_stack.pop() else {
-            return Err(self.err(
-                tag_line,
-                format!("Unexpected closing tag </{raw_qname}> with empty element stack"),
-            ));
+            return Err(self.err(tag_line, format!("Unexpected closing tag </{raw_qname}> with empty element stack")));
         };
         if expected_qname != raw_qname {
-            return Err(self.err(
-                tag_line,
-                format!("Mismatched closing tag </{raw_qname}>, expected </{expected_qname}>"),
-            ));
+            return Err(
+                self.err(tag_line, format!("Mismatched closing tag </{raw_qname}>, expected </{expected_qname}>"))
+            );
         }
-        Ok(XmlEvent::End {
-            namespace_uri: ns,
-            local_name: local,
-            line: tag_line,
-        })
+        Ok(XmlEvent::End { namespace_uri: ns, local_name: local, line: tag_line })
     }
 
     fn parse_start_tag(&mut self, tag_line: usize) -> Result<XmlEvent, WordNetError> {
@@ -964,51 +879,38 @@ impl<'a> XmlPullParser<'a> {
                 return Err(self.err(attr_line, format!("Malformed attribute in <{raw_qname}>")));
             }
             if !seen_raw_names.insert(attr_name.clone()) {
-                return Err(self.err(
-                    attr_line,
-                    format!("Duplicate attribute '{attr_name}' on <{raw_qname}>"),
-                ));
+                return Err(self.err(attr_line, format!("Duplicate attribute '{attr_name}' on <{raw_qname}>")));
             }
 
             while self.pos < bytes.len() && bytes[self.pos].is_ascii_whitespace() {
                 self.advance(1);
             }
             if self.pos >= bytes.len() || bytes[self.pos] != b'=' {
-                return Err(self.err(
-                    attr_line,
-                    format!("Expected '=' after attribute '{attr_name}' in <{raw_qname}>"),
-                ));
+                return Err(self.err(attr_line, format!("Expected '=' after attribute '{attr_name}' in <{raw_qname}>")));
             }
             self.advance(1); // skip '='
 
             while self.pos < bytes.len() && bytes[self.pos].is_ascii_whitespace() {
                 self.advance(1);
             }
-            if self.pos >= bytes.len()
-                || (bytes[self.pos] != b'"' && bytes[self.pos] != b'\'')
-            {
-                return Err(self.err(
-                    attr_line,
-                    format!("Expected quoted value for attribute '{attr_name}' in <{raw_qname}>"),
-                ));
+            if self.pos >= bytes.len() || (bytes[self.pos] != b'"' && bytes[self.pos] != b'\'') {
+                return Err(
+                    self.err(attr_line, format!("Expected quoted value for attribute '{attr_name}' in <{raw_qname}>"))
+                );
             }
             let quote = bytes[self.pos];
             self.advance(1);
             let val_start = self.pos;
             while self.pos < bytes.len() && bytes[self.pos] != quote {
                 if bytes[self.pos] == b'<' {
-                    return Err(self.err(
-                        self.line,
-                        format!("Unescaped '<' inside attribute '{attr_name}' in <{raw_qname}>"),
-                    ));
+                    return Err(
+                        self.err(self.line, format!("Unescaped '<' inside attribute '{attr_name}' in <{raw_qname}>"))
+                    );
                 }
                 self.advance(1);
             }
             if self.pos >= bytes.len() {
-                return Err(self.err(
-                    attr_line,
-                    format!("Unclosed attribute value for '{attr_name}' in <{raw_qname}>"),
-                ));
+                return Err(self.err(attr_line, format!("Unclosed attribute value for '{attr_name}' in <{raw_qname}>")));
             }
             let raw_val = &self.input[val_start..self.pos];
             self.advance(1); // skip closing quote
@@ -1022,28 +924,17 @@ impl<'a> XmlPullParser<'a> {
                 ns_bindings.push((String::new(), v.clone()));
             } else if let Some(prefix) = k.strip_prefix("xmlns:") {
                 if prefix.is_empty() {
-                    return Err(self.err(
-                        tag_line,
-                        format!("Empty namespace prefix in '{k}' on <{raw_qname}>"),
-                    ));
+                    return Err(self.err(tag_line, format!("Empty namespace prefix in '{k}' on <{raw_qname}>")));
                 }
                 ns_bindings.push((prefix.to_string(), v.clone()));
             }
         }
 
-        self.element_stack.push((
-            raw_qname.clone(),
-            String::new(),
-            String::new(),
-            ns_bindings,
-        ));
+        self.element_stack.push((raw_qname.clone(), String::new(), String::new(), ns_bindings));
 
         let (elem_prefix, elem_local) = split_qname(&raw_qname, self.resource_name, tag_line)?;
         let elem_ns = self.resolve_prefix(elem_prefix).ok_or_else(|| {
-            self.err(
-                tag_line,
-                format!("Unbound XML namespace prefix '{elem_prefix}' on <{raw_qname}>"),
-            )
+            self.err(tag_line, format!("Unbound XML namespace prefix '{elem_prefix}' on <{raw_qname}>"))
         })?;
         let elem_local_owned = elem_local.to_string();
 
@@ -1063,25 +954,16 @@ impl<'a> XmlPullParser<'a> {
                 String::new()
             } else {
                 self.resolve_prefix(attr_prefix).ok_or_else(|| {
-                    self.err(
-                        tag_line,
-                        format!("Unbound XML namespace prefix '{attr_prefix}' on attribute '{k}'"),
-                    )
+                    self.err(tag_line, format!("Unbound XML namespace prefix '{attr_prefix}' on attribute '{k}'"))
                 })?
             };
             if !seen_qnames.insert((attr_ns.clone(), attr_local.to_string())) {
                 return Err(self.err(
                     tag_line,
-                    format!(
-                        "Duplicate expanded attribute '{{{attr_ns}}}{attr_local}' on <{raw_qname}>"
-                    ),
+                    format!("Duplicate expanded attribute '{{{attr_ns}}}{attr_local}' on <{raw_qname}>"),
                 ));
             }
-            resolved_attrs.push(XmlAttr {
-                namespace_uri: attr_ns,
-                local_name: attr_local.to_string(),
-                value: v,
-            });
+            resolved_attrs.push(XmlAttr { namespace_uri: attr_ns, local_name: attr_local.to_string(), value: v });
         }
 
         if self_closing {
@@ -1098,18 +980,10 @@ impl<'a> XmlPullParser<'a> {
     }
 }
 
-fn split_qname<'a>(
-    qname: &'a str,
-    resource_name: &str,
-    line: usize,
-) -> Result<(&'a str, &'a str), WordNetError> {
+fn split_qname<'a>(qname: &'a str, resource_name: &str, line: usize) -> Result<(&'a str, &'a str), WordNetError> {
     if let Some((prefix, local)) = qname.split_once(':') {
         if prefix.is_empty() || local.is_empty() || local.contains(':') {
-            return Err(malformed(
-                resource_name,
-                Some(line),
-                format!("Invalid XML QName '{qname}'"),
-            ));
+            return Err(malformed(resource_name, Some(line), format!("Invalid XML QName '{qname}'")));
         }
         Ok((prefix, local))
     } else {
@@ -1144,11 +1018,7 @@ fn unescape_xml(
         if b == b'&' {
             let after_amp = &raw[i + 1..];
             let semi = after_amp.find(';').ok_or_else(|| {
-                malformed(
-                    resource_name,
-                    Some(line),
-                    format!("Unescaped '&' or unclosed entity in '{raw}'"),
-                )
+                malformed(resource_name, Some(line), format!("Unescaped '&' or unclosed entity in '{raw}'"))
             })?;
             let entity = &after_amp[..semi];
             match entity {
@@ -1159,18 +1029,10 @@ fn unescape_xml(
                 "quot" => out.push('"'),
                 _ if entity.starts_with("#x") || entity.starts_with("#X") => {
                     let code = u32::from_str_radix(&entity[2..], 16).map_err(|_| {
-                        malformed(
-                            resource_name,
-                            Some(line),
-                            format!("Invalid hex character reference '&{entity};'"),
-                        )
+                        malformed(resource_name, Some(line), format!("Invalid hex character reference '&{entity};'"))
                     })?;
                     let ch = char::from_u32(code).ok_or_else(|| {
-                        malformed(
-                            resource_name,
-                            Some(line),
-                            format!("Invalid Unicode scalar '&{entity};'"),
-                        )
+                        malformed(resource_name, Some(line), format!("Invalid Unicode scalar '&{entity};'"))
                     })?;
                     out.push(ch);
                 }
@@ -1183,11 +1045,7 @@ fn unescape_xml(
                         )
                     })?;
                     let ch = char::from_u32(code).ok_or_else(|| {
-                        malformed(
-                            resource_name,
-                            Some(line),
-                            format!("Invalid Unicode scalar '&{entity};'"),
-                        )
+                        malformed(resource_name, Some(line), format!("Invalid Unicode scalar '&{entity};'"))
                     })?;
                     out.push(ch);
                 }
@@ -1210,10 +1068,7 @@ fn unescape_xml(
 }
 
 fn get_attr<'a>(attrs: &'a [XmlAttr], name: &str) -> Option<&'a str> {
-    attrs
-        .iter()
-        .find(|a| a.namespace_uri.is_empty() && a.local_name == name)
-        .map(|a| a.value.as_str())
+    attrs.iter().find(|a| a.namespace_uri.is_empty() && a.local_name == name).map(|a| a.value.as_str())
 }
 
 fn require_attr(
@@ -1225,29 +1080,20 @@ fn require_attr(
 ) -> Result<String, WordNetError> {
     match get_attr(attrs, attr) {
         Some(v) if !v.is_empty() => Ok(v.to_string()),
-        _ => Err(malformed(
-            resource_name,
-            Some(line),
-            format!("Element {element} is missing required attribute {attr}"),
-        )),
+        _ => {
+            Err(malformed(resource_name, Some(line), format!("Element {element} is missing required attribute {attr}")))
+        }
     }
 }
 
 fn read_lexicon_metadata(attrs: &[XmlAttr]) -> BTreeMap<QName, String> {
     let mut out = BTreeMap::new();
     for attr in attrs {
-        if attr.namespace_uri.is_empty()
-            && matches!(
-                attr.local_name.as_str(),
-                "id" | "label" | "language" | "version"
-            )
+        if attr.namespace_uri.is_empty() && matches!(attr.local_name.as_str(), "id" | "label" | "language" | "version")
         {
             continue;
         }
-        out.insert(
-            QName::new(attr.namespace_uri.clone(), attr.local_name.clone()),
-            attr.value.clone(),
-        );
+        out.insert(QName::new(attr.namespace_uri.clone(), attr.local_name.clone()), attr.value.clone());
     }
     out
 }
@@ -1260,27 +1106,17 @@ fn read_dependency(
 ) -> Result<WnLmfDependency, WordNetError> {
     let id = require_attr(attrs, element, "ref", resource_name, line)?;
     let version = require_attr(attrs, element, "version", resource_name, line)?;
-    let url = get_attr(attrs, "url")
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string());
+    let url = get_attr(attrs, "url").filter(|s| !s.is_empty()).map(|s| s.to_string());
     WnLmfDependency::new(id, version, url)
 }
 
-fn parse_pos(
-    code: &str,
-    resource_name: &str,
-    line: usize,
-) -> Result<WordNetPos, WordNetError> {
+fn parse_pos(code: &str, resource_name: &str, line: usize) -> Result<WordNetPos, WordNetError> {
     match code {
         "n" => Ok(WordNetPos::Noun),
         "v" => Ok(WordNetPos::Verb),
         "a" | "s" => Ok(WordNetPos::Adjective),
         "r" => Ok(WordNetPos::Adverb),
-        _ => Err(malformed(
-            resource_name,
-            Some(line),
-            format!("Unknown part-of-speech code: {code}"),
-        )),
+        _ => Err(malformed(resource_name, Some(line), format!("Unknown part-of-speech code: {code}"))),
     }
 }
 
@@ -1292,11 +1128,7 @@ fn claim_document_id(
     line: usize,
 ) -> Result<(), WordNetError> {
     if !document_ids.insert(id.to_string()) {
-        return Err(malformed(
-            resource_name,
-            Some(line),
-            format!("Duplicate {kind} id {id}"),
-        ));
+        return Err(malformed(resource_name, Some(line), format!("Duplicate {kind} id {id}")));
     }
     Ok(())
 }
@@ -1410,12 +1242,7 @@ fn parse_raw<R: Read>(
 
     loop {
         match parser.next_event()? {
-            XmlEvent::Start {
-                namespace_uri: _ns_uri,
-                local_name: name,
-                attrs,
-                line,
-            } => {
+            XmlEvent::Start { namespace_uri: _ns_uri, local_name: name, attrs, line } => {
                 if skip_depth > 0 {
                     skip_depth += 1;
                     continue;
@@ -1431,11 +1258,7 @@ fn parse_raw<R: Read>(
                 match name.as_str() {
                     "LexicalResource" => {
                         if !elements.is_empty() {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "Nested LexicalResource",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "Nested LexicalResource"));
                         }
                         elements.push(name);
                     }
@@ -1455,51 +1278,26 @@ fn parse_raw<R: Read>(
                                 format!("Nested {name} inside {outer_id}"),
                             ));
                         }
-                        require_parent(
-                            &elements,
-                            &name,
-                            "LexicalResource",
-                            None,
-                            resource_name,
-                            line,
-                        )?;
+                        require_parent(&elements, &name, "LexicalResource", None, resource_name, line)?;
                         let id = require_attr(&attrs, &name, "id", resource_name, line)?;
                         if !lexicon_ids.insert(id.clone()) {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                format!("Duplicate lexicon id {id}"),
-                            ));
+                            return Err(malformed(resource_name, Some(line), format!("Duplicate lexicon id {id}")));
                         }
                         claim_document_id(&mut document_ids, &id, "lexicon", resource_name, line)?;
                         current_extension = is_ext;
                         current_lexicon_id = Some(id);
-                        current_lexicon_label =
-                            require_attr(&attrs, &name, "label", resource_name, line)?;
-                        current_lexicon_language =
-                            require_attr(&attrs, &name, "language", resource_name, line)?;
-                        current_lexicon_version =
-                            require_attr(&attrs, &name, "version", resource_name, line)?;
+                        current_lexicon_label = require_attr(&attrs, &name, "label", resource_name, line)?;
+                        current_lexicon_language = require_attr(&attrs, &name, "language", resource_name, line)?;
+                        current_lexicon_version = require_attr(&attrs, &name, "version", resource_name, line)?;
                         current_lexicon_line = line;
                         current_lexicon_metadata = read_lexicon_metadata(&attrs);
                         elements.push(name);
                     }
                     "Extends" => {
                         if current_lexicon_id.is_none() || !current_extension {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "Extends outside a LexiconExtension",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "Extends outside a LexiconExtension"));
                         }
-                        require_parent(
-                            &elements,
-                            "Extends",
-                            "LexiconExtension",
-                            None,
-                            resource_name,
-                            line,
-                        )?;
+                        require_parent(&elements, "Extends", "LexiconExtension", None, resource_name, line)?;
                         if current_extends.is_some() {
                             return Err(malformed(
                                 resource_name,
@@ -1510,17 +1308,12 @@ fn parse_raw<R: Read>(
                                 ),
                             ));
                         }
-                        current_extends =
-                            Some(read_dependency(&attrs, "Extends", resource_name, line)?);
+                        current_extends = Some(read_dependency(&attrs, "Extends", resource_name, line)?);
                         elements.push(name);
                     }
                     "Requires" => {
                         if current_lexicon_id.is_none() {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "Requires outside a Lexicon",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "Requires outside a Lexicon"));
                         }
                         require_parent(
                             &elements,
@@ -1530,12 +1323,7 @@ fn parse_raw<R: Read>(
                             resource_name,
                             line,
                         )?;
-                        current_requires.push(read_dependency(
-                            &attrs,
-                            "Requires",
-                            resource_name,
-                            line,
-                        )?);
+                        current_requires.push(read_dependency(&attrs, "Requires", resource_name, line)?);
                         elements.push(name);
                     }
                     "LexicalEntry" => {
@@ -1547,11 +1335,7 @@ fn parse_raw<R: Read>(
                             ));
                         }
                         if current_lexicon_id.is_none() {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "LexicalEntry outside a Lexicon",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "LexicalEntry outside a Lexicon"));
                         }
                         require_parent(
                             &elements,
@@ -1562,13 +1346,7 @@ fn parse_raw<R: Read>(
                             line,
                         )?;
                         let id = require_attr(&attrs, "LexicalEntry", "id", resource_name, line)?;
-                        claim_document_id(
-                            &mut document_ids,
-                            &id,
-                            "lexical entry",
-                            resource_name,
-                            line,
-                        )?;
+                        claim_document_id(&mut document_ids, &id, "lexical entry", resource_name, line)?;
                         current_entry_id = Some(id);
                         current_entry_lemma = None;
                         current_entry_pos = None;
@@ -1591,34 +1369,14 @@ fn parse_raw<R: Read>(
                             resource_name,
                             line,
                         )?;
-                        let id = require_attr(
-                            &attrs,
-                            "ExternalLexicalEntry",
-                            "id",
-                            resource_name,
-                            line,
-                        )?;
-                        claim_document_id(
-                            &mut document_ids,
-                            &id,
-                            "external lexical entry",
-                            resource_name,
-                            line,
-                        )?;
-                        current_external_entry = Some(ExternalEntryBuilder {
-                            id,
-                            line,
-                            external_senses: Vec::new(),
-                        });
+                        let id = require_attr(&attrs, "ExternalLexicalEntry", "id", resource_name, line)?;
+                        claim_document_id(&mut document_ids, &id, "external lexical entry", resource_name, line)?;
+                        current_external_entry = Some(ExternalEntryBuilder { id, line, external_senses: Vec::new() });
                         elements.push(name);
                     }
                     "Lemma" => {
                         let Some(ref entry_id) = current_entry_id else {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "Lemma outside a LexicalEntry",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "Lemma outside a LexicalEntry"));
                         };
                         if current_entry_lemma.is_some() {
                             return Err(malformed(
@@ -1627,18 +1385,9 @@ fn parse_raw<R: Read>(
                                 format!("Duplicate Lemma in LexicalEntry {entry_id}"),
                             ));
                         }
-                        require_parent(
-                            &elements,
-                            "Lemma",
-                            "LexicalEntry",
-                            None,
-                            resource_name,
-                            line,
-                        )?;
-                        let wf =
-                            require_attr(&attrs, "Lemma", "writtenForm", resource_name, line)?;
-                        let pos_code =
-                            require_attr(&attrs, "Lemma", "partOfSpeech", resource_name, line)?;
+                        require_parent(&elements, "Lemma", "LexicalEntry", None, resource_name, line)?;
+                        let wf = require_attr(&attrs, "Lemma", "writtenForm", resource_name, line)?;
+                        let pos_code = require_attr(&attrs, "Lemma", "partOfSpeech", resource_name, line)?;
                         let pos = parse_pos(&pos_code, resource_name, line)?;
                         current_entry_lemma = Some(wf);
                         current_entry_pos = Some(pos);
@@ -1659,18 +1408,12 @@ fn parse_raw<R: Read>(
                                 return Err(malformed(
                                     resource_name,
                                     Some(line),
-                                    format!(
-                                        "Sense before its entry's Lemma in LexicalEntry {entry_id}"
-                                    ),
+                                    format!("Sense before its entry's Lemma in LexicalEntry {entry_id}"),
                                 ));
                             }
                             entry_id.clone()
                         } else {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "Sense outside a LexicalEntry",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "Sense outside a LexicalEntry"));
                         };
                         require_parent(
                             &elements,
@@ -1681,8 +1424,7 @@ fn parse_raw<R: Read>(
                             line,
                         )?;
                         let id = require_attr(&attrs, "Sense", "id", resource_name, line)?;
-                        let synset_id =
-                            require_attr(&attrs, "Sense", "synset", resource_name, line)?;
+                        let synset_id = require_attr(&attrs, "Sense", "synset", resource_name, line)?;
                         claim_document_id(&mut document_ids, &id, "sense", resource_name, line)?;
                         current_sense_id = Some(id);
                         current_sense_entry_id = Some(owner);
@@ -1699,37 +1441,15 @@ fn parse_raw<R: Read>(
                                 "ExternalSense outside an ExternalLexicalEntry",
                             ));
                         }
-                        require_parent(
-                            &elements,
-                            "ExternalSense",
-                            "ExternalLexicalEntry",
-                            None,
-                            resource_name,
-                            line,
-                        )?;
-                        let id =
-                            require_attr(&attrs, "ExternalSense", "id", resource_name, line)?;
-                        claim_document_id(
-                            &mut document_ids,
-                            &id,
-                            "external sense",
-                            resource_name,
-                            line,
-                        )?;
-                        current_external_sense = Some(ExternalSenseBuilder {
-                            id,
-                            line,
-                            relations: Vec::new(),
-                        });
+                        require_parent(&elements, "ExternalSense", "ExternalLexicalEntry", None, resource_name, line)?;
+                        let id = require_attr(&attrs, "ExternalSense", "id", resource_name, line)?;
+                        claim_document_id(&mut document_ids, &id, "external sense", resource_name, line)?;
+                        current_external_sense = Some(ExternalSenseBuilder { id, line, relations: Vec::new() });
                         elements.push(name);
                     }
                     "SenseRelation" => {
                         if current_external_sense.is_none() && current_sense_id.is_none() {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "SenseRelation outside a Sense",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "SenseRelation outside a Sense"));
                         }
                         require_parent(
                             &elements,
@@ -1740,20 +1460,8 @@ fn parse_raw<R: Read>(
                             line,
                         )?;
                         let rel = RawSenseRelation {
-                            rel_type: require_attr(
-                                &attrs,
-                                "SenseRelation",
-                                "relType",
-                                resource_name,
-                                line,
-                            )?,
-                            target: require_attr(
-                                &attrs,
-                                "SenseRelation",
-                                "target",
-                                resource_name,
-                                line,
-                            )?,
+                            rel_type: require_attr(&attrs, "SenseRelation", "relType", resource_name, line)?,
+                            target: require_attr(&attrs, "SenseRelation", "target", resource_name, line)?,
                             line,
                         };
                         if let Some(ref mut ext_sense) = current_external_sense {
@@ -1772,23 +1480,11 @@ fn parse_raw<R: Read>(
                             ));
                         }
                         if current_lexicon_id.is_none() {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "Synset outside a Lexicon",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "Synset outside a Lexicon"));
                         }
-                        require_parent(
-                            &elements,
-                            "Synset",
-                            "Lexicon",
-                            Some("LexiconExtension"),
-                            resource_name,
-                            line,
-                        )?;
+                        require_parent(&elements, "Synset", "Lexicon", Some("LexiconExtension"), resource_name, line)?;
                         let id = require_attr(&attrs, "Synset", "id", resource_name, line)?;
-                        let pos_code =
-                            require_attr(&attrs, "Synset", "partOfSpeech", resource_name, line)?;
+                        let pos_code = require_attr(&attrs, "Synset", "partOfSpeech", resource_name, line)?;
                         let pos = parse_pos(&pos_code, resource_name, line)?;
                         claim_document_id(&mut document_ids, &id, "synset", resource_name, line)?;
                         let members = get_attr(&attrs, "members").map(str::to_string);
@@ -1810,57 +1506,24 @@ fn parse_raw<R: Read>(
                                 "ExternalSynset outside a LexiconExtension",
                             ));
                         }
-                        require_parent(
-                            &elements,
-                            "ExternalSynset",
-                            "LexiconExtension",
-                            None,
-                            resource_name,
-                            line,
-                        )?;
-                        let id =
-                            require_attr(&attrs, "ExternalSynset", "id", resource_name, line)?;
-                        claim_document_id(
-                            &mut document_ids,
-                            &id,
-                            "external synset",
-                            resource_name,
-                            line,
-                        )?;
-                        current_external_synset = Some(ExternalSynsetBuilder {
-                            id,
-                            line,
-                            relations: Vec::new(),
-                            definition: None,
-                        });
+                        require_parent(&elements, "ExternalSynset", "LexiconExtension", None, resource_name, line)?;
+                        let id = require_attr(&attrs, "ExternalSynset", "id", resource_name, line)?;
+                        claim_document_id(&mut document_ids, &id, "external synset", resource_name, line)?;
+                        current_external_synset =
+                            Some(ExternalSynsetBuilder { id, line, relations: Vec::new(), definition: None });
                         elements.push(name);
                     }
                     "Definition" => {
                         if current_synset.is_none() && current_external_synset.is_none() {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "Definition outside a Synset",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "Definition outside a Synset"));
                         }
-                        require_parent(
-                            &elements,
-                            "Definition",
-                            "Synset",
-                            Some("ExternalSynset"),
-                            resource_name,
-                            line,
-                        )?;
+                        require_parent(&elements, "Definition", "Synset", Some("ExternalSynset"), resource_name, line)?;
                         definition_buffer = Some(String::new());
                         elements.push(name);
                     }
                     "SynsetRelation" => {
                         if current_synset.is_none() && current_external_synset.is_none() {
-                            return Err(malformed(
-                                resource_name,
-                                Some(line),
-                                "SynsetRelation outside a Synset",
-                            ));
+                            return Err(malformed(resource_name, Some(line), "SynsetRelation outside a Synset"));
                         }
                         require_parent(
                             &elements,
@@ -1870,26 +1533,10 @@ fn parse_raw<R: Read>(
                             resource_name,
                             line,
                         )?;
-                        let rel_type = require_attr(
-                            &attrs,
-                            "SynsetRelation",
-                            "relType",
-                            resource_name,
-                            line,
-                        )?;
-                        let target = require_attr(
-                            &attrs,
-                            "SynsetRelation",
-                            "target",
-                            resource_name,
-                            line,
-                        )?;
+                        let rel_type = require_attr(&attrs, "SynsetRelation", "relType", resource_name, line)?;
+                        let target = require_attr(&attrs, "SynsetRelation", "target", resource_name, line)?;
                         if rel_type != OTHER_RELATION {
-                            let rel = RawRelation {
-                                rel_type,
-                                target,
-                                line,
-                            };
+                            let rel = RawRelation { rel_type, target, line };
                             if let Some(ref mut syn) = current_synset {
                                 syn.relations.push(rel);
                             } else if let Some(ref mut ext_syn) = current_external_synset {
@@ -1910,11 +1557,7 @@ fn parse_raw<R: Read>(
                     def.push_str(&text);
                 }
             }
-            XmlEvent::End {
-                namespace_uri: _ns_uri,
-                local_name: name,
-                line,
-            } => {
+            XmlEvent::End { namespace_uri: _ns_uri, local_name: name, line } => {
                 if skip_depth > 0 {
                     skip_depth -= 1;
                     continue;
@@ -1944,15 +1587,8 @@ fn parse_raw<R: Read>(
                         };
                         let pos = current_entry_pos.take().unwrap();
                         entry_order.push(entry_id.clone());
-                        entries.insert(
-                            entry_id.clone(),
-                            RawEntry {
-                                id: entry_id,
-                                lemma,
-                                pos,
-                                line: current_entry_line,
-                            },
-                        );
+                        entries
+                            .insert(entry_id.clone(), RawEntry { id: entry_id, lemma, pos, line: current_entry_line });
                     }
                     "Sense" => {
                         if let Some(id) = current_sense_id.take() {
@@ -1962,21 +1598,14 @@ fn parse_raw<R: Read>(
                             sense_order.push(id.clone());
                             senses.insert(
                                 id.clone(),
-                                RawSense {
-                                    id,
-                                    entry_id,
-                                    synset_id,
-                                    relations,
-                                    line: current_sense_line,
-                                },
+                                RawSense { id, entry_id, synset_id, relations, line: current_sense_line },
                             );
                         }
                     }
                     "ExternalSense" => {
-                        if let (Some(ext_entry), Some(ext_sense)) = (
-                            current_external_entry.as_mut(),
-                            current_external_sense.take(),
-                        ) {
+                        if let (Some(ext_entry), Some(ext_sense)) =
+                            (current_external_entry.as_mut(), current_external_sense.take())
+                        {
                             ext_entry.external_senses.push(RawExternalSense {
                                 id: ext_sense.id,
                                 relations: ext_sense.relations,
@@ -2026,9 +1655,7 @@ fn parse_raw<R: Read>(
                                 return Err(malformed(
                                     resource_name,
                                     Some(line),
-                                    format!(
-                                        "LexiconExtension {id} is missing its Extends element"
-                                    ),
+                                    format!("LexiconExtension {id} is missing its Extends element"),
                                 ));
                             }
                             lexicons.push(RawLexicon {
@@ -2058,18 +1685,10 @@ fn parse_raw<R: Read>(
             }
             XmlEvent::Eof { line } => {
                 if let Some(id) = current_lexicon_id {
-                    return Err(malformed(
-                        resource_name,
-                        Some(line),
-                        format!("Unclosed Lexicon {id}"),
-                    ));
+                    return Err(malformed(resource_name, Some(line), format!("Unclosed Lexicon {id}")));
                 }
                 if lexicons.is_empty() {
-                    return Err(malformed(
-                        resource_name,
-                        Some(line),
-                        "Document contains no Lexicon",
-                    ));
+                    return Err(malformed(resource_name, Some(line), "Document contains no Lexicon"));
                 }
                 break;
             }
@@ -2090,10 +1709,7 @@ struct Materializer<'a> {
 
 impl<'a> Materializer<'a> {
     fn new(lexicon: &'a RawLexicon, resource_name: &'a str) -> Self {
-        Self {
-            lexicon,
-            resource_name,
-        }
+        Self { lexicon, resource_name }
     }
 
     fn fail(&self, line: Option<usize>, message: impl AsRef<str>) -> WordNetError {
@@ -2113,26 +1729,14 @@ impl<'a> Materializer<'a> {
             }
         }
 
-        let mut synsets_by_id: HashMap<String, Synset> =
-            HashMap::with_capacity(self.lexicon.synsets.len());
+        let mut synsets_by_id: HashMap<String, Synset> = HashMap::with_capacity(self.lexicon.synsets.len());
         for synset_id in &self.lexicon.synset_order {
             let raw = &self.lexicon.synsets[synset_id];
-            let senses = senses_by_synset
-                .get(raw.id.as_str())
-                .map(Vec::as_slice)
-                .unwrap_or(&[]);
+            let senses = senses_by_synset.get(raw.id.as_str()).map(Vec::as_slice).unwrap_or(&[]);
             let relations = self.resolve_relations(raw, senses)?;
             let lemmas = self.member_lemmas(raw, senses)?;
-            synsets_by_id.insert(
-                raw.id.clone(),
-                Synset::new(
-                    raw.id.clone(),
-                    raw.pos,
-                    lemmas,
-                    raw.gloss.clone(),
-                    relations,
-                )?,
-            );
+            synsets_by_id
+                .insert(raw.id.clone(), Synset::new(raw.id.clone(), raw.pos, lemmas, raw.gloss.clone(), relations)?);
         }
         InMemoryWordNetLexicon::new(synsets_by_id, sense_order)
     }
@@ -2141,10 +1745,7 @@ impl<'a> Materializer<'a> {
         let senses_by_synset = self.senses_by_synset()?;
         for synset_id in &self.lexicon.synset_order {
             let raw = &self.lexicon.synsets[synset_id];
-            let senses = senses_by_synset
-                .get(raw.id.as_str())
-                .map(Vec::as_slice)
-                .unwrap_or(&[]);
+            let senses = senses_by_synset.get(raw.id.as_str()).map(Vec::as_slice).unwrap_or(&[]);
             self.resolve_relations(raw, senses)?;
             self.member_lemmas(raw, senses)?;
         }
@@ -2189,10 +1790,7 @@ impl<'a> Materializer<'a> {
         self.lexicon.entries.get(&sense.entry_id).ok_or_else(|| {
             self.fail(
                 Some(sense.line),
-                format!(
-                    "Sense {} belongs to unresolved lexical entry {}",
-                    sense.id, sense.entry_id
-                ),
+                format!("Sense {} belongs to unresolved lexical entry {}", sense.id, sense.entry_id),
             )
         })
     }
@@ -2202,8 +1800,7 @@ impl<'a> Materializer<'a> {
         raw: &RawSynset,
         senses: &[&RawSense],
     ) -> Result<BTreeMap<WordNetRelation, Vec<String>>, WordNetError> {
-        let mut combined: Vec<(&str, &str, usize, bool)> =
-            Vec::with_capacity(raw.relations.len());
+        let mut combined: Vec<(&str, &str, usize, bool)> = Vec::with_capacity(raw.relations.len());
         for rel in &raw.relations {
             combined.push((&rel.rel_type, &rel.target, rel.line, false));
         }
@@ -2245,11 +1842,7 @@ impl<'a> Materializer<'a> {
         Ok(typed)
     }
 
-    fn member_lemmas(
-        &self,
-        raw: &RawSynset,
-        senses: &[&RawSense],
-    ) -> Result<Vec<String>, WordNetError> {
+    fn member_lemmas(&self, raw: &RawSynset, senses: &[&RawSense]) -> Result<Vec<String>, WordNetError> {
         let mut member_ids: Vec<&str> = Vec::new();
         if let Some(ref members) = raw.members {
             if !members.is_empty() {
@@ -2336,16 +1929,13 @@ impl<'a> Materializer<'a> {
         sense_relation: bool,
     ) -> Result<WordNetRelation, WordNetError> {
         if sense_relation && is_synset_only_rel_type(rel_type) {
-            return Err(self.fail(
-                Some(line),
-                format!("Relation type {rel_type} is not legal on SenseRelation at line {line}"),
-            ));
+            return Err(
+                self.fail(Some(line), format!("Relation type {rel_type} is not legal on SenseRelation at line {line}"))
+            );
         }
         if !sense_relation && is_sense_only_rel_type(rel_type) {
-            return Err(self.fail(
-                Some(line),
-                format!("Relation type {rel_type} is not legal on SynsetRelation at line {line}"),
-            ));
+            return Err(self
+                .fail(Some(line), format!("Relation type {rel_type} is not legal on SynsetRelation at line {line}")));
         }
         if rel_type == "similar" {
             return Ok(if !sense_relation && source_pos == WordNetPos::Verb {
@@ -2354,12 +1944,8 @@ impl<'a> Materializer<'a> {
                 WordNetRelation::SimilarTo
             });
         }
-        WordNetRelation::from_lmf_name(rel_type).ok_or_else(|| {
-            self.fail(
-                Some(line),
-                format!("Unknown relation type {rel_type} at line {line}"),
-            )
-        })
+        WordNetRelation::from_lmf_name(rel_type)
+            .ok_or_else(|| self.fail(Some(line), format!("Unknown relation type {rel_type} at line {line}")))
     }
 }
 
@@ -2402,22 +1988,11 @@ struct Composition<'a, Res: WnLmfResolver> {
 
 impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
     fn new(resolver: &'a Res) -> Self {
-        Self {
-            resolver,
-            cache: HashMap::new(),
-            stack: Vec::new(),
-        }
+        Self { resolver, cache: HashMap::new(), stack: Vec::new() }
     }
 
-    fn compose(
-        &mut self,
-        extension: &RawLexicon,
-        resource_name: &str,
-    ) -> Result<ResolvedLexicon, WordNetError> {
-        let key = ResolutionKey {
-            id: extension.id.clone(),
-            version: extension.version.clone(),
-        };
+    fn compose(&mut self, extension: &RawLexicon, resource_name: &str) -> Result<ResolvedLexicon, WordNetError> {
+        let key = ResolutionKey { id: extension.id.clone(), version: extension.version.clone() };
         self.validate_path(std::slice::from_ref(&key), resource_name)?;
         self.stack.push(key.clone());
         let res = (|| {
@@ -2427,24 +2002,14 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
             extension_path.push(key.clone());
             extension_path.extend(base.extension_path);
             let merged = self.merge(&base.lexicon, extension, resource_name)?;
-            Ok(ResolvedLexicon {
-                lexicon: merged,
-                extension_path,
-            })
+            Ok(ResolvedLexicon { lexicon: merged, extension_path })
         })();
         self.stack.pop();
         res
     }
 
-    fn base(
-        &mut self,
-        reference: &WnLmfDependency,
-        resource_name: &str,
-    ) -> Result<ResolvedLexicon, WordNetError> {
-        let key = ResolutionKey {
-            id: reference.id().to_string(),
-            version: reference.version().to_string(),
-        };
+    fn base(&mut self, reference: &WnLmfDependency, resource_name: &str) -> Result<ResolvedLexicon, WordNetError> {
+        let key = ResolutionKey { id: reference.id().to_string(), version: reference.version().to_string() };
         if let Some(cached) = self.cache.get(&key).cloned() {
             self.validate_path(&cached.extension_path, resource_name)?;
             return Ok(cached);
@@ -2453,11 +2018,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
         let source = self.resolver.resolve(reference)?.ok_or_else(|| {
             WordNetError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                format!(
-                    "Unresolved base lexicon '{}' version '{}'",
-                    reference.id(),
-                    reference.version()
-                ),
+                format!("Unresolved base lexicon '{}' version '{}'", reference.id(), reference.version()),
             ))
         })?;
         let source_name = source.name().to_string();
@@ -2469,9 +2030,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
                 let file = File::open(&path)?;
                 parse_raw(BufReader::new(file), &source_name, true)?
             }
-            WnLmfSource::NamedReader(_, r) | WnLmfSource::Reader(r) => {
-                parse_raw(r, &source_name, true)?
-            }
+            WnLmfSource::NamedReader(_, r) | WnLmfSource::Reader(r) => parse_raw(r, &source_name, true)?,
         };
 
         reject_same_document_base(&resolved_lexicons, &source_name)?;
@@ -2493,21 +2052,14 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
         let result = if matched.extension {
             self.compose(&matched, &source_name)?
         } else {
-            ResolvedLexicon {
-                lexicon: matched,
-                extension_path: Vec::new(),
-            }
+            ResolvedLexicon { lexicon: matched, extension_path: Vec::new() }
         };
         Materializer::new(&result.lexicon, &source_name).validate()?;
         self.cache.insert(key, result.clone());
         Ok(result)
     }
 
-    fn validate_path(
-        &self,
-        extension_path: &[ResolutionKey],
-        resource_name: &str,
-    ) -> Result<(), WordNetError> {
+    fn validate_path(&self, extension_path: &[ResolutionKey], resource_name: &str) -> Result<(), WordNetError> {
         for (i, key) in extension_path.iter().enumerate() {
             if self.stack.contains(key) {
                 let mut chain: Vec<String> = self.stack.iter().map(ToString::to_string).collect();
@@ -2524,9 +2076,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
                 return Err(malformed(
                     resource_name,
                     None,
-                    format!(
-                        "Extension chain at {key} exceeds the maximum composition depth of {MAX_EXTENSION_DEPTH}"
-                    ),
+                    format!("Extension chain at {key} exceeds the maximum composition depth of {MAX_EXTENSION_DEPTH}"),
                 ));
             }
         }
@@ -2541,36 +2091,15 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
     ) -> Result<RawLexicon, WordNetError> {
         for entry_id in &extension.entry_order {
             let entry = &extension.entries[entry_id];
-            self.require_new_id(
-                base,
-                extension,
-                &entry.id,
-                "lexical entry",
-                entry.line,
-                resource_name,
-            )?;
+            self.require_new_id(base, extension, &entry.id, "lexical entry", entry.line, resource_name)?;
         }
         for sense_id in &extension.sense_order {
             let sense = &extension.senses[sense_id];
-            self.require_new_id(
-                base,
-                extension,
-                &sense.id,
-                "sense",
-                sense.line,
-                resource_name,
-            )?;
+            self.require_new_id(base, extension, &sense.id, "sense", sense.line, resource_name)?;
         }
         for synset_id in &extension.synset_order {
             let synset = &extension.synsets[synset_id];
-            self.require_new_id(
-                base,
-                extension,
-                &synset.id,
-                "synset",
-                synset.line,
-                resource_name,
-            )?;
+            self.require_new_id(base, extension, &synset.id, "synset", synset.line, resource_name)?;
         }
 
         let mut external_synsets: HashMap<String, &RawExternalSynset> = HashMap::new();
@@ -2695,13 +2224,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
             }
         }
         for (source_id, rels) in &added_sense_relations {
-            self.require_sense_targets(
-                extension,
-                &declared_external_senses,
-                source_id,
-                rels,
-                resource_name,
-            )?;
+            self.require_sense_targets(extension, &declared_external_senses, source_id, rels, resource_name)?;
         }
 
         let mut entries = base.entries.clone();
@@ -2726,10 +2249,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
         for id in &extension.sense_order {
             let sense = &extension.senses[id];
             if external_synsets.contains_key(&sense.synset_id) {
-                extra_members
-                    .entry(sense.synset_id.clone())
-                    .or_default()
-                    .push(sense.entry_id.clone());
+                extra_members.entry(sense.synset_id.clone()).or_default().push(sense.entry_id.clone());
             }
         }
 
@@ -2737,9 +2257,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
         let mut synset_order = base.synset_order.clone();
         for ext_syn in &extension.external_synsets {
             let base_synset = synsets.get_mut(&ext_syn.id).unwrap();
-            base_synset
-                .relations
-                .extend(ext_syn.relations.iter().cloned());
+            base_synset.relations.extend(ext_syn.relations.iter().cloned());
             if base_synset.gloss.is_empty()
                 && let Some(ref def) = ext_syn.definition
             {
@@ -2784,10 +2302,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
         line: usize,
         resource_name: &str,
     ) -> Result<(), WordNetError> {
-        if base.entries.contains_key(id)
-            || base.senses.contains_key(id)
-            || base.synsets.contains_key(id)
-        {
+        if base.entries.contains_key(id) || base.senses.contains_key(id) || base.synsets.contains_key(id) {
             return Err(malformed(
                 resource_name,
                 Some(line),
@@ -2833,9 +2348,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
             if rel.rel_type == OTHER_RELATION {
                 continue;
             }
-            if !extension.senses.contains_key(&rel.target)
-                && !declared_external_senses.contains(&rel.target)
-            {
+            if !extension.senses.contains_key(&rel.target) && !declared_external_senses.contains(&rel.target) {
                 return Err(malformed(
                     resource_name,
                     Some(rel.line),

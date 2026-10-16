@@ -72,8 +72,7 @@ impl WordNetPos {
     /// Resolves a WNDB or WN-LMF single-character part-of-speech code, returning an error if unknown.
     #[inline]
     pub fn try_from_code(code: char) -> Result<Self, WordNetError> {
-        Self::from_code(code)
-            .ok_or_else(|| WordNetError::invalid(format!("Unknown WordNet POS code: '{code}'")))
+        Self::from_code(code).ok_or_else(|| WordNetError::invalid(format!("Unknown WordNet POS code: '{code}'")))
     }
 }
 

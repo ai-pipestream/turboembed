@@ -42,10 +42,7 @@ impl MorphyExceptions {
             let file_name = format!("{}.exc", pos.file_suffix());
             let file_path = dir.join(&file_name);
             if !file_path.is_file() {
-                return Err(WordNetError::format(format!(
-                    "Missing exception list file: {}",
-                    file_path.display()
-                )));
+                return Err(WordNetError::format(format!("Missing exception list file: {}", file_path.display())));
             }
             let file = File::open(&file_path)?;
             by_pos.insert(pos, Self::parse_named_reader(BufReader::new(file), &file_name)?);
@@ -71,10 +68,7 @@ impl MorphyExceptions {
         Self::parse_named_reader(reader, "inline.exc")
     }
 
-    fn parse_named_reader<R: Read>(
-        reader: R,
-        file_name: &str,
-    ) -> Result<HashMap<String, Vec<String>>, WordNetError> {
+    fn parse_named_reader<R: Read>(reader: R, file_name: &str) -> Result<HashMap<String, Vec<String>>, WordNetError> {
         let mut out: HashMap<String, Vec<String>> = HashMap::new();
         let buf = BufReader::new(reader);
         for (idx, line_res) in buf.lines().enumerate() {
@@ -120,16 +114,8 @@ const NOUN_RULES: &[(&str, &str)] = &[
     ("ies", "y"),
 ];
 
-const VERB_RULES: &[(&str, &str)] = &[
-    ("s", ""),
-    ("ies", "y"),
-    ("es", "e"),
-    ("es", ""),
-    ("ed", "e"),
-    ("ed", ""),
-    ("ing", "e"),
-    ("ing", ""),
-];
+const VERB_RULES: &[(&str, &str)] =
+    &[("s", ""), ("ies", "y"), ("es", "e"), ("es", ""), ("ed", "e"), ("ed", ""), ("ing", "e"), ("ing", "")];
 
 const ADJECTIVE_RULES: &[(&str, &str)] = &[("er", ""), ("est", ""), ("er", "e"), ("est", "e")];
 
@@ -146,10 +132,7 @@ pub struct MorphyLemmatizer<L: LexicalKnowledgeBase> {
 impl<L: LexicalKnowledgeBase> MorphyLemmatizer<L> {
     /// Creates a new [`MorphyLemmatizer`] backed by `lexicon` and `exceptions`.
     pub fn new(lexicon: L, exceptions: MorphyExceptions) -> Self {
-        Self {
-            lexicon,
-            exceptions,
-        }
+        Self { lexicon, exceptions }
     }
 
     /// Returns a reference to the underlying [`LexicalKnowledgeBase`].
@@ -188,10 +171,7 @@ impl<L: LexicalKnowledgeBase> MorphyLemmatizer<L> {
 
     /// Lemmatizes a single `(token, pos_tag)` pair, returning the first candidate or `"O"`.
     pub fn lemmatize_one(&self, token: &str, tag: &str) -> String {
-        self.lemmas_of(token, tag)
-            .into_iter()
-            .next()
-            .unwrap_or_else(|| UNKNOWN_LEMMA.to_string())
+        self.lemmas_of(token, tag).into_iter().next().unwrap_or_else(|| UNKNOWN_LEMMA.to_string())
     }
 
     /// Lemmatizes parallel slices of `tokens` and `tags`, returning the primary lemma (or `"O"`)
@@ -200,11 +180,7 @@ impl<L: LexicalKnowledgeBase> MorphyLemmatizer<L> {
     /// # Errors
     ///
     /// Returns [`WordNetError::InvalidInput`] if `tokens.len() != tags.len()`.
-    pub fn lemmatize(
-        &self,
-        tokens: &[impl AsRef<str>],
-        tags: &[impl AsRef<str>],
-    ) -> Result<Vec<String>, WordNetError> {
+    pub fn lemmatize(&self, tokens: &[impl AsRef<str>], tags: &[impl AsRef<str>]) -> Result<Vec<String>, WordNetError> {
         if tokens.len() != tags.len() {
             return Err(WordNetError::invalid(format!(
                 "toks and tags must have the same length, got {} and {}",

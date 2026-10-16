@@ -52,34 +52,20 @@ impl Expansion {
         }
         match kind {
             ExpansionKind::Synonym if depth != 0 => {
-                return Err(WordNetError::invalid(format!(
-                    "depth must be 0 for a synonym: {depth}"
-                )));
+                return Err(WordNetError::invalid(format!("depth must be 0 for a synonym: {depth}")));
             }
             ExpansionKind::Hypernym if depth == 0 => {
-                return Err(WordNetError::invalid(format!(
-                    "depth must be positive for a hypernym: {depth}"
-                )));
+                return Err(WordNetError::invalid(format!("depth must be positive for a hypernym: {depth}")));
             }
             ExpansionKind::Hyponym if depth != 1 => {
-                return Err(WordNetError::invalid(format!(
-                    "depth must be 1 for a hyponym: {depth}"
-                )));
+                return Err(WordNetError::invalid(format!("depth must be 1 for a hyponym: {depth}")));
             }
             _ => {}
         }
         if !(weight > 0.0 && weight <= 1.0) {
-            return Err(WordNetError::invalid(format!(
-                "weight must be in (0, 1]: {weight}"
-            )));
+            return Err(WordNetError::invalid(format!("weight must be in (0, 1]: {weight}")));
         }
-        Ok(Self {
-            term,
-            kind,
-            depth,
-            sense_rank,
-            weight,
-        })
+        Ok(Self { term, kind, depth, sense_rank, weight })
     }
 
     /// Returns the expanded term in the lexicon's written form.
@@ -259,13 +245,9 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
                         continue;
                     };
                     for lemma in ancestor.lemmas() {
-                        if let Ok(exp) = Expansion::new(
-                            lemma.clone(),
-                            ExpansionKind::Hypernym,
-                            depth,
-                            rank,
-                            depth_weight,
-                        ) {
+                        if let Ok(exp) =
+                            Expansion::new(lemma.clone(), ExpansionKind::Hypernym, depth, rank, depth_weight)
+                        {
                             Self::offer(best, excluded, exp);
                         }
                     }
@@ -284,13 +266,8 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
             for id in children {
                 if let Some(child) = self.lexicon.synset(id) {
                     for lemma in child.lemmas() {
-                        if let Ok(exp) = Expansion::new(
-                            lemma.clone(),
-                            ExpansionKind::Hyponym,
-                            1,
-                            rank,
-                            hyponym_weight,
-                        ) {
+                        if let Ok(exp) = Expansion::new(lemma.clone(), ExpansionKind::Hyponym, 1, rank, hyponym_weight)
+                        {
                             Self::offer(best, excluded, exp);
                         }
                     }
@@ -308,11 +285,7 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
         all
     }
 
-    fn offer(
-        best: &mut HashMap<String, Expansion>,
-        excluded: &HashSet<String>,
-        candidate: Expansion,
-    ) {
+    fn offer(best: &mut HashMap<String, Expansion>, excluded: &HashSet<String>, candidate: Expansion) {
         let key = fold(candidate.term());
         if excluded.contains(&key) {
             return;
@@ -351,9 +324,7 @@ impl<L: LexicalKnowledgeBase> LexicalExpanderBuilder<L> {
     /// Configures how many senses are expanded per part of speech (`>= 1`, default `3`).
     pub fn max_senses(mut self, max_senses: usize) -> Result<Self, WordNetError> {
         if max_senses < 1 {
-            return Err(WordNetError::invalid(format!(
-                "maxSenses must be positive: {max_senses}"
-            )));
+            return Err(WordNetError::invalid(format!("maxSenses must be positive: {max_senses}")));
         }
         self.max_senses = max_senses;
         Ok(self)
@@ -374,9 +345,7 @@ impl<L: LexicalKnowledgeBase> LexicalExpanderBuilder<L> {
     /// Configures the maximum number of expansions returned after ranking (`>= 1`, default `20`).
     pub fn max_expansions(mut self, max_expansions: usize) -> Result<Self, WordNetError> {
         if max_expansions < 1 {
-            return Err(WordNetError::invalid(format!(
-                "maxExpansions must be positive: {max_expansions}"
-            )));
+            return Err(WordNetError::invalid(format!("maxExpansions must be positive: {max_expansions}")));
         }
         self.max_expansions = max_expansions;
         Ok(self)
@@ -385,9 +354,7 @@ impl<L: LexicalKnowledgeBase> LexicalExpanderBuilder<L> {
     /// Configures the weight multiplier applied per sense rank step in `(0.0, 1.0]` (default `0.5`).
     pub fn sense_decay(mut self, sense_decay: f64) -> Result<Self, WordNetError> {
         if !(sense_decay > 0.0 && sense_decay <= 1.0) {
-            return Err(WordNetError::invalid(format!(
-                "senseDecay must be in (0, 1]: {sense_decay}"
-            )));
+            return Err(WordNetError::invalid(format!("senseDecay must be in (0, 1]: {sense_decay}")));
         }
         self.sense_decay = sense_decay;
         Ok(self)
@@ -396,9 +363,7 @@ impl<L: LexicalKnowledgeBase> LexicalExpanderBuilder<L> {
     /// Configures the weight multiplier applied per hypernym or hyponym step in `(0.0, 1.0]` (default `0.5`).
     pub fn depth_decay(mut self, depth_decay: f64) -> Result<Self, WordNetError> {
         if !(depth_decay > 0.0 && depth_decay <= 1.0) {
-            return Err(WordNetError::invalid(format!(
-                "depthDecay must be in (0, 1]: {depth_decay}"
-            )));
+            return Err(WordNetError::invalid(format!("depthDecay must be in (0, 1]: {depth_decay}")));
         }
         self.depth_decay = depth_decay;
         Ok(self)
