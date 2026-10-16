@@ -16,5 +16,5 @@ pub mod layer;
 
 pub use bm25::{Bm25, Collection, LocalCollection, Query};
 pub use count::TermCounter;
-pub use index::TermIndexer;
-pub use layer::{TermStats, Terms, Vocabulary};
+pub use index::{NormalizedTermIndexer, TermForm, TermIndexer};
+pub use layer::{IndexedTerms, TermStats, Terms, Vocabulary};
