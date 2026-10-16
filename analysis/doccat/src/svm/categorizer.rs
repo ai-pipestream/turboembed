@@ -58,7 +58,7 @@ impl SvmCategorizer {
 
     /// `getBestCategory`: the category of the first highest score.
     pub fn best_category(&self, outcome: &[f64]) -> &str {
-        self.category(best_index(outcome))
+        self.model.categories().get(best_index(outcome)).map_or("", String::as_str)
     }
 
     /// `getIndex`: `None` where OpenNLP returns -1.
@@ -79,6 +79,9 @@ impl SvmCategorizer {
     /// `getAllResults`: each category and its score in brackets, as
     /// `Double.toString` writes it, separated by spaces.
     pub fn all_results(&self, outcome: &[f64]) -> String {
+        if outcome.len() != self.num_categories() || outcome.is_empty() {
+            return String::new();
+        }
         let mut out = String::new();
         for (i, &p) in outcome.iter().enumerate() {
             if i > 0 {
@@ -128,8 +131,7 @@ impl Annotator for SvmCategorizer {
         if tokens.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "tokens are not in the given view".into() });
         }
-        let text = view.text();
-        let words: Vec<&str> = tokens.spans.iter().map(|(_, s)| &text[s.range()]).collect();
+        let words = crate::layer::extract_tokens(Self::ID, tokens, view.text())?;
         SCRATCH.with_borrow_mut(|scratch| {
             let outcome = self.categorize(&words, scratch);
             let best = Tag(best_index(outcome) as u16);
