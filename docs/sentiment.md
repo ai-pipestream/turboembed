@@ -108,3 +108,67 @@ context and probabilities bit for bit. It skips, naming
 
 `analysis/doccat/tests/sentiment.rs` covers the contexts, the model
 checks and the annotator on small models trained in the test.
+
+## Lexicon and negation sentiment baseline (`LexiconSentiment`, #320)
+
+`turbo_doccat::sentiment::lexicon` (`LexiconSentiment`, `VaderLexicon`,
+`VaderScore`, `SentenceSentiment`, `NegationMode`) provides a deterministic,
+explainable rule- and lexicon-based sentiment baseline that produces exact
+token evidence spans (`turbo:opinions`) and sentence-level polarity
+(`turbo:categories<opennlp:sentences>`):
+
+- **Lexicon (`VaderLexicon`)**: bundles the MIT-licensed VADER lexicon
+  (`vader_lexicon.txt`, 7,506 entries, Copyright (c) 2016 C.J. Hutto) and
+  also reads caller-supplied TSV tables (`VaderLexicon::from_tsv`).
+- **Emoji features**: Unicode emoji tokens that are not in the ASCII VADER
+  lexicon fall back to OpenNLP's Apache-2.0 `emoji-annotations.txt` coarse
+  polarity scores (`-2..=2`, via `turbo_normalize::emoji::opennlp_annotation`
+  or the document's `turbo:emoji` layer when present). The Emoji Sentiment
+  Ranking (CC BY-SA 4.0) is never used.
+- **VADER-compatible mode (`LexiconSentiment::score_text`)**: reproduces
+  Python `vaderSentiment`'s `SentimentIntensityAnalyzer.polarity_scores`:
+  punctuation stripping that preserves short emoticons (`:)`, `:D`),
+  ALLCAPS differential emphasis (`C_INCR = 0.733`), degree boosters and
+  dampeners (`B_INCR = 0.293`, `B_DECR = -0.293`) with distance damping
+  (`1.0`, `0.95`, `0.9`), negation scope (`N_SCALAR = -0.74`), special-case
+  idioms (`SPECIAL_CASES`, `never so/this`, `without doubt`, `least`),
+  contrastive `"but"` weighting (`0.5` before `"but"`, `1.5` after `"but"`),
+  exclamation/question punctuation emphasis, and `score / sqrt(score^2 + 15)`
+  compound normalization. Tested against all 28 sentences of
+  `vaderSentiment.py`'s reference suite.
+- **Evidence spans and sentence categories (`Annotator` for `LexiconSentiment`)**:
+  reads `(View, Sentences, Tokens, Option<Dependencies>, Option<Emoji>)` and
+  writes `(Opinions, Categories<Sentences>)`:
+  - Every token with a non-zero effective valence emits an `Opinion` item in
+    `turbo:opinions` pointing at its exact token span (`IxRange<Tokens>`),
+    with its prior `polarity`, non-negative `intensity`, and `negated` flag
+    such that `opinion.effective_polarity()` equals the token's final
+    adjusted valence.
+  - Each sentence gets a `Categories<Sentences>` row over the tag set
+    `["positive", "negative", "neutral"]` with VADER's `[pos, neg, neu]`
+    proportions and the best category selected by the standard `+/- 0.05`
+    compound threshold.
+
+### How dependency negation mode differs from VADER's three-token window
+
+`NegationMode::Auto` (the default) uses `opennlp:dependencies` when present
+on the document and falls back to VADER's three-token preceding window when
+absent, recording the active inputs in the layer's `Provenance.reads` and
+the mode in `ModelRef` (`vader:lexicon:auto`, `vader:lexicon:window`, or
+`vader:lexicon:dependency`). Dependency mode differs from the fixed
+three-token window in two documented ways:
+
+1. **Long-distance negation (`> 3` tokens away)**: in sentences where prepositional
+   or adverbial material separates the negator from its predicate head (for
+   example, *"The service is not in any way good."* where `"not"` is four
+   tokens before `"good"`), VADER's three-token window misses `"not"` and
+   scores `"good"` as positive, whereas dependency mode sees `"not"` attached
+    directly to `"good"` (`neg` / `advmod`) and negates it.
+2. **Clause and constituent boundaries within 3 tokens**: in sentences where a
+   negation word appears within three tokens of a sentiment word that belongs
+   to a different constituent whose head is not negated (for example, *"Not
+   saying everything good."* where `"Not"` modifies `"saying"` while `"good"`
+   modifies `"everything"`), VADER's three-token window blindly negates
+   `"good"`, whereas dependency mode checks whether the sentiment token or its
+   governing complement head has a negation dependent and leaves `"good"`
+   unnegated.

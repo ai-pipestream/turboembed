@@ -21,9 +21,14 @@
 //! its events with [`SentimentFactory::context`].
 
 mod detector;
+pub mod lexicon;
 mod model;
 
 pub use detector::{SENTIMENT, Scratch, SentimentMe};
+pub use lexicon::{
+    B_DECR, B_INCR, C_INCR, COMPOUND_THRESHOLD, DEFAULT_ALPHA, LexiconSentiment, N_SCALAR, NegationMode,
+    SENTENCE_SENTIMENT, SentenceSentiment, VaderLexicon, VaderScore,
+};
 pub use model::{
     COMPONENT, EMOJI_FACTORY, MODEL_ENTRY, SentimentFactory, SentimentModel, SentimentModelError, TOKEN_FACTORY,
 };
