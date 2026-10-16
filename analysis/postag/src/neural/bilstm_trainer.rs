@@ -187,12 +187,6 @@ impl BilstmSettings {
 #[derive(Clone, Debug)]
 pub struct Worker {
     buffers: Vec<Vec<Vec<f64>>>,
-    char_fwd_grads: LstmGradients,
-    char_bwd_grads: LstmGradients,
-    word_fwd_grads: LstmGradients,
-    word_bwd_grads: LstmGradients,
-    word_fwd2_grads: Option<LstmGradients>,
-    word_bwd2_grads: Option<LstmGradients>,
     tuning_row_grads: HashMap<usize, Vec<f64>>,
     word_fwd_cache: Option<ForwardCache>,
     word_bwd_cache: Option<ForwardCache>,
@@ -618,12 +612,6 @@ impl TrainingContext {
         }
         Worker {
             buffers,
-            char_fwd_grads: self.char_forward.new_gradients(),
-            char_bwd_grads: self.char_backward.new_gradients(),
-            word_fwd_grads: self.word_forward.new_gradients(),
-            word_bwd_grads: self.word_backward.new_gradients(),
-            word_fwd2_grads: self.word_forward2.as_ref().map(LstmLayer::new_gradients),
-            word_bwd2_grads: self.word_backward2.as_ref().map(LstmLayer::new_gradients),
             tuning_row_grads: HashMap::new(),
             word_fwd_cache: None,
             word_bwd_cache: None,
@@ -758,7 +746,7 @@ impl TrainingContext {
             }
             token_word_ids[t] = wid;
 
-            let mut c_ids: Vec<usize> = raw
+            let c_ids: Vec<usize> = raw
                 .encode_utf16()
                 .take(self.settings.max_word_length)
                 .map(|u| {
@@ -766,9 +754,6 @@ impl TrainingContext {
                     self.char_ids.get(&key).copied().unwrap_or(0)
                 })
                 .collect();
-            if c_ids.is_empty() {
-                c_ids.push(0);
-            }
             let c_len = c_ids.len();
             let mut cf_in = Vec::with_capacity(c_len);
             let mut cb_in = Vec::with_capacity(c_len);
@@ -780,17 +765,18 @@ impl TrainingContext {
                 worker.char_fwd_caches[t] = ForwardCache::of(c_len, char_hidden);
                 worker.char_bwd_caches[t] = ForwardCache::of(c_len, char_hidden);
             }
-            let cf_h = self.char_forward.run(&cf_in, Some(&mut worker.char_fwd_caches[t]))?;
-            let cb_h = self.char_backward.run(&cb_in, Some(&mut worker.char_bwd_caches[t]))?;
-
+            let rep = &mut word_fwd_in[t];
+            rep[..word_dim].copy_from_slice(&word_embeddings[wid]);
+            // As in Java, a token without characters keeps zero character states.
+            if c_len > 0 {
+                let cf_h = self.char_forward.run(&cf_in, Some(&mut worker.char_fwd_caches[t]))?;
+                let cb_h = self.char_backward.run(&cb_in, Some(&mut worker.char_bwd_caches[t]))?;
+                rep[word_dim..word_dim + char_hidden].copy_from_slice(&cf_h[c_len - 1]);
+                rep[word_dim + char_hidden..word_dim + 2 * char_hidden].copy_from_slice(&cb_h[c_len - 1]);
+            }
             token_char_ids.push(c_ids);
             char_fwd_in.push(cf_in);
             char_bwd_in.push(cb_in);
-
-            let rep = &mut word_fwd_in[t];
-            rep[..word_dim].copy_from_slice(&word_embeddings[wid]);
-            rep[word_dim..word_dim + char_hidden].copy_from_slice(&cf_h[c_len - 1]);
-            rep[word_dim + char_hidden..word_dim + 2 * char_hidden].copy_from_slice(&cb_h[c_len - 1]);
 
             if self.pretrained_dim > 0 {
                 let mut p_row = self.pretrained_ids.get(&norm).copied();
@@ -903,7 +889,10 @@ impl TrainingContext {
                 let w = &output_weights[o];
                 let mut sum = output_bias[o];
                 for j in 0..word_hidden {
-                    sum += w[j] * fh[j] + w[word_hidden + j] * bh[j];
+                    sum += w[j] * fh[j];
+                }
+                for j in 0..word_hidden {
+                    sum += w[word_hidden + j] * bh[j];
                 }
                 emissions[t][o] = sum;
             }
@@ -1026,25 +1015,17 @@ impl TrainingContext {
         {
             let mut d_l2_fwd_in = vec![vec![0.0; 2 * word_hidden]; n];
             let mut d_l2_bwd_in = vec![vec![0.0; 2 * word_hidden]; n];
-            let wf2_grads = worker.word_fwd2_grads.as_mut().unwrap();
-            let wb2_grads = worker.word_bwd2_grads.as_mut().unwrap();
-            wf2_grads.zero();
-            wb2_grads.zero();
-            wf2.backward(f_in, worker.word_fwd2_cache.as_mut().unwrap(), &d_word_fwd_h, &mut d_l2_fwd_in, wf2_grads);
-            wb2.backward(b_in, worker.word_bwd2_cache.as_mut().unwrap(), &d_word_bwd_h, &mut d_l2_bwd_in, wb2_grads);
-            accumulate_lstm_grads(
+            let wf2_cache = worker.word_fwd2_cache.as_mut().unwrap();
+            with_buffer_grads(
                 &mut worker.buffers,
-                self.idx_wf2_w.unwrap(),
-                self.idx_wf2_u.unwrap(),
-                self.idx_wf2_b.unwrap(),
-                wf2_grads,
+                [self.idx_wf2_w.unwrap(), self.idx_wf2_u.unwrap(), self.idx_wf2_b.unwrap()],
+                |grads| wf2.backward(f_in, wf2_cache, &d_word_fwd_h, &mut d_l2_fwd_in, grads),
             );
-            accumulate_lstm_grads(
+            let wb2_cache = worker.word_bwd2_cache.as_mut().unwrap();
+            with_buffer_grads(
                 &mut worker.buffers,
-                self.idx_wb2_w.unwrap(),
-                self.idx_wb2_u.unwrap(),
-                self.idx_wb2_b.unwrap(),
-                wb2_grads,
+                [self.idx_wb2_w.unwrap(), self.idx_wb2_u.unwrap(), self.idx_wb2_b.unwrap()],
+                |grads| wb2.backward(b_in, wb2_cache, &d_word_bwd_h, &mut d_l2_bwd_in, grads),
             );
             for t in 0..n {
                 let df = &d_l2_fwd_in[t];
@@ -1061,24 +1042,14 @@ impl TrainingContext {
 
         let mut d_word_fwd_in = vec![vec![0.0; in_dim]; n];
         let mut d_word_bwd_in = vec![vec![0.0; in_dim]; n];
-        worker.word_fwd_grads.zero();
-        worker.word_bwd_grads.zero();
-        self.word_forward.backward(
-            &word_fwd_in,
-            worker.word_fwd_cache.as_mut().unwrap(),
-            &d_word_fwd_h,
-            &mut d_word_fwd_in,
-            &mut worker.word_fwd_grads,
-        );
-        self.word_backward.backward(
-            &word_bwd_in,
-            worker.word_bwd_cache.as_mut().unwrap(),
-            &d_word_bwd_h,
-            &mut d_word_bwd_in,
-            &mut worker.word_bwd_grads,
-        );
-        accumulate_lstm_grads(&mut worker.buffers, self.idx_wf_w, self.idx_wf_u, self.idx_wf_b, &worker.word_fwd_grads);
-        accumulate_lstm_grads(&mut worker.buffers, self.idx_wb_w, self.idx_wb_u, self.idx_wb_b, &worker.word_bwd_grads);
+        let wf_cache = worker.word_fwd_cache.as_mut().unwrap();
+        with_buffer_grads(&mut worker.buffers, [self.idx_wf_w, self.idx_wf_u, self.idx_wf_b], |grads| {
+            self.word_forward.backward(&word_fwd_in, wf_cache, &d_word_fwd_h, &mut d_word_fwd_in, grads)
+        });
+        let wb_cache = worker.word_bwd_cache.as_mut().unwrap();
+        with_buffer_grads(&mut worker.buffers, [self.idx_wb_w, self.idx_wb_u, self.idx_wb_b], |grads| {
+            self.word_backward.backward(&word_bwd_in, wb_cache, &d_word_bwd_h, &mut d_word_bwd_in, grads)
+        });
 
         let mut d_char_fwd_h: Vec<Vec<f64>> = Vec::new();
         let mut d_char_bwd_h: Vec<Vec<f64>> = Vec::new();
@@ -1122,6 +1093,9 @@ impl TrainingContext {
 
             let c_ids = &token_char_ids[t];
             let c_len = c_ids.len();
+            if c_len == 0 {
+                continue;
+            }
             if d_char_fwd_h.len() != c_len {
                 d_char_fwd_h = vec![vec![0.0; char_hidden]; c_len];
                 d_char_bwd_h = vec![vec![0.0; char_hidden]; c_len];
@@ -1138,43 +1112,29 @@ impl TrainingContext {
                 d_char_bwd_h[c_len - 1][j] = dx[word_dim + char_hidden + j];
             }
 
-            worker.char_fwd_grads.zero();
-            worker.char_bwd_grads.zero();
-            self.char_forward.backward(
-                &char_fwd_in[t],
-                &mut worker.char_fwd_caches[t],
-                &d_char_fwd_h,
-                &mut d_char_fwd_in,
-                &mut worker.char_fwd_grads,
-            );
-            self.char_backward.backward(
-                &char_bwd_in[t],
-                &mut worker.char_bwd_caches[t],
-                &d_char_bwd_h,
-                &mut d_char_bwd_in,
-                &mut worker.char_bwd_grads,
-            );
-            accumulate_lstm_grads(
-                &mut worker.buffers,
-                self.idx_cf_w,
-                self.idx_cf_u,
-                self.idx_cf_b,
-                &worker.char_fwd_grads,
-            );
-            accumulate_lstm_grads(
-                &mut worker.buffers,
-                self.idx_cb_w,
-                self.idx_cb_u,
-                self.idx_cb_b,
-                &worker.char_bwd_grads,
-            );
-
+            // Java runs the forward direction's backward pass and adds its
+            // embedding gradients before it does the same for the backward
+            // direction, accumulating straight into the optimizer buffers.
+            let cf_cache = &mut worker.char_fwd_caches[t];
+            with_buffer_grads(&mut worker.buffers, [self.idx_cf_w, self.idx_cf_u, self.idx_cf_b], |grads| {
+                self.char_forward.backward(&char_fwd_in[t], cf_cache, &d_char_fwd_h, &mut d_char_fwd_in, grads)
+            });
             for i in 0..c_len {
                 let d_f = &d_char_fwd_in[i];
+                let d_c_emb = &mut worker.buffers[self.idx_char_emb][c_ids[i]];
+                for k in 0..char_dim {
+                    d_c_emb[k] += d_f[k];
+                }
+            }
+            let cb_cache = &mut worker.char_bwd_caches[t];
+            with_buffer_grads(&mut worker.buffers, [self.idx_cb_w, self.idx_cb_u, self.idx_cb_b], |grads| {
+                self.char_backward.backward(&char_bwd_in[t], cb_cache, &d_char_bwd_h, &mut d_char_bwd_in, grads)
+            });
+            for i in 0..c_len {
                 let d_b = &d_char_bwd_in[c_len - 1 - i];
                 let d_c_emb = &mut worker.buffers[self.idx_char_emb][c_ids[i]];
                 for k in 0..char_dim {
-                    d_c_emb[k] += d_f[k] + d_b[k];
+                    d_c_emb[k] += d_b[k];
                 }
             }
         }
@@ -1216,7 +1176,10 @@ impl TrainingContext {
                 let w = &head_weights[o];
                 let mut sum = head_bias[o];
                 for j in 0..word_hidden {
-                    sum += w[j] * fh[j] + w[word_hidden + j] * bh[j];
+                    sum += w[j] * fh[j];
+                }
+                for j in 0..word_hidden {
+                    sum += w[word_hidden + j] * bh[j];
                 }
                 scores[o] = sum;
                 if sum > max {
@@ -1460,21 +1423,25 @@ impl TrainingContext {
     }
 }
 
-fn accumulate_lstm_grads(buffers: &mut [Vec<Vec<f64>>], idx_w: usize, idx_u: usize, idx_b: usize, src: &LstmGradients) {
-    let gates = src.db.len();
-    for r in 0..gates {
-        let dw_dst = &mut buffers[idx_w][r];
-        let dw_src = &src.dw[r];
-        for k in 0..dw_dst.len() {
-            dw_dst[k] += dw_src[k];
-        }
-        let du_dst = &mut buffers[idx_u][r];
-        let du_src = &src.du[r];
-        for k in 0..du_dst.len() {
-            du_dst[k] += du_src[k];
-        }
-        buffers[idx_b][0][r] += src.db[r];
-    }
+/// Runs `backward` with the optimizer's gradient buffers for one LSTM
+/// layer (`[w, u, b]` buffer indices) as its accumulator, as Java's
+/// `LstmLayer.Gradients.wrap` does, so each gradient element receives every
+/// contribution in Java's order instead of a per-call partial sum. The
+/// buffers are moved out and back, not copied.
+fn with_buffer_grads(
+    buffers: &mut [Vec<Vec<f64>>],
+    [idx_w, idx_u, idx_b]: [usize; 3],
+    backward: impl FnOnce(&mut LstmGradients),
+) {
+    let mut grads = LstmGradients {
+        dw: std::mem::take(&mut buffers[idx_w]),
+        du: std::mem::take(&mut buffers[idx_u]),
+        db: std::mem::take(&mut buffers[idx_b][0]),
+    };
+    backward(&mut grads);
+    buffers[idx_w] = grads.dw;
+    buffers[idx_u] = grads.du;
+    buffers[idx_b][0] = grads.db;
 }
 
 fn xavier_output(rows: usize, cols: usize, rng: &mut JavaRng) -> Vec<Vec<f64>> {
@@ -1736,6 +1703,15 @@ mod tests {
         let overlong = "z".repeat(40);
         let prefix = &overlong[..model.max_word_length()];
         assert_eq!(tagger.tag(&[prefix]).unwrap(), tagger.tag(&[overlong.as_str()]).unwrap());
+
+        // An empty token has no characters, so as in Java its character
+        // states stay zero instead of running the character LSTMs.
+        assert!(model.char_ids("").is_empty());
+        let empty = model.word_representation("").unwrap();
+        let word_dim = model.word_embeddings[0].len();
+        let char_hidden = model.char_forward.hidden_size();
+        assert!(empty[word_dim..word_dim + 2 * char_hidden].iter().all(|&v| v.to_bits() == 0));
+        assert_eq!(tagger.tag(&[""]).unwrap().len(), 1);
 
         let unicode_tags = tagger.tag(&["İstanbul", "🐕"]).unwrap();
         assert_eq!(unicode_tags.len(), 2);

@@ -35,9 +35,9 @@ pub struct BilstmPosModel {
     char_entries: Vec<(Vec<u8>, usize)>,
     char_ids: HashMap<Vec<u8>, usize>,
     tags: Vec<String>,
-    word_embeddings: Vec<Vec<f64>>,
+    pub(crate) word_embeddings: Vec<Vec<f64>>,
     char_embeddings: Vec<Vec<f64>>,
-    char_forward: LstmLayer,
+    pub(crate) char_forward: LstmLayer,
     char_backward: LstmLayer,
     word_forward: LstmLayer,
     word_backward: LstmLayer,
@@ -185,11 +185,9 @@ impl BilstmPosModel {
         self.word_ids.get(&norm).copied().unwrap_or(0)
     }
 
-    /// Returns the character embedding row indices for `token` (up to `max_word_length` UTF-16 code units).
+    /// Returns the character embedding row indices for `token` (up to
+    /// `max_word_length` UTF-16 code units), empty for an empty token.
     pub fn char_ids(&self, token: &str) -> Vec<usize> {
-        if token.is_empty() {
-            return vec![0];
-        }
         let mut ids = Vec::with_capacity(token.len().min(self.max_word_length));
         let mut unit_buf = Vec::with_capacity(3);
         for unit in token.encode_utf16().take(self.max_word_length) {
@@ -197,9 +195,6 @@ impl BilstmPosModel {
             turbo_unicode::modified_utf8::push_modified_utf8(&mut unit_buf, u32::from(unit));
             let id = self.char_ids.get(&unit_buf).copied().unwrap_or(0);
             ids.push(id);
-        }
-        if ids.is_empty() {
-            ids.push(0);
         }
         ids
     }
@@ -239,18 +234,21 @@ impl BilstmPosModel {
         let w_row = &self.word_embeddings[self.word_id(token)];
         rep[..word_dim].copy_from_slice(w_row);
 
+        // As in Java, a token without characters keeps zero character states.
         let c_ids = self.char_ids(token);
         let len = c_ids.len();
-        let mut char_fwd_in = Vec::with_capacity(len);
-        let mut char_bwd_in = Vec::with_capacity(len);
-        for i in 0..len {
-            char_fwd_in.push(self.char_embeddings[c_ids[i]].clone());
-            char_bwd_in.push(self.char_embeddings[c_ids[len - 1 - i]].clone());
+        if len > 0 {
+            let mut char_fwd_in = Vec::with_capacity(len);
+            let mut char_bwd_in = Vec::with_capacity(len);
+            for i in 0..len {
+                char_fwd_in.push(self.char_embeddings[c_ids[i]].clone());
+                char_bwd_in.push(self.char_embeddings[c_ids[len - 1 - i]].clone());
+            }
+            let fwd_h = self.char_forward.run(&char_fwd_in, None)?;
+            let bwd_h = self.char_backward.run(&char_bwd_in, None)?;
+            rep[word_dim..word_dim + char_hidden].copy_from_slice(&fwd_h[len - 1]);
+            rep[word_dim + char_hidden..word_dim + 2 * char_hidden].copy_from_slice(&bwd_h[len - 1]);
         }
-        let fwd_h = self.char_forward.run(&char_fwd_in, None)?;
-        let bwd_h = self.char_backward.run(&char_bwd_in, None)?;
-        rep[word_dim..word_dim + char_hidden].copy_from_slice(&fwd_h[len - 1]);
-        rep[word_dim + char_hidden..word_dim + 2 * char_hidden].copy_from_slice(&bwd_h[len - 1]);
 
         if pretrained_dim > 0 {
             let norm = Self::normalize(token);
@@ -283,6 +281,11 @@ impl BilstmPosModel {
     }
 
     /// Runs the full BiLSTM stack over `tokens` and returns raw per-token tag scores `[tokens.len()][tags.len()]`.
+    ///
+    /// The scores follow Java's `BilstmPOSModel.score` operation by
+    /// operation, except that the gate sigmoids use the platform `exp` where
+    /// Java uses HotSpot's `Math.exp` intrinsic, so a score can differ from
+    /// the JVM's in its last bits (see the sigmoid in the LSTM module).
     pub fn score(&self, tokens: &[impl AsRef<str>]) -> Result<Vec<Vec<f64>>, NeuralError> {
         if tokens.is_empty() {
             return Err(NeuralError::InvalidArgument("tokens must not be null or empty".into()));
@@ -327,9 +330,14 @@ impl BilstmPosModel {
             let out_t = &mut scores[t];
             for o in 0..num_tags {
                 let w = &self.output_weights[o];
+                // Java adds the products over the concatenated state one at a
+                // time, the forward half first, so the sum rounds the same way.
                 let mut sum = self.output_bias[o];
                 for j in 0..h_size {
-                    sum += w[j] * fh[j] + w[h_size + j] * bh[j];
+                    sum += w[j] * fh[j];
+                }
+                for j in 0..h_size {
+                    sum += w[h_size + j] * bh[j];
                 }
                 if !sum.is_finite() {
                     return Err(NeuralError::NonFiniteScore(format!(

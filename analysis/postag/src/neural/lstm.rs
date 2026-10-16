@@ -1,6 +1,7 @@
 //! Single-direction LSTM layer (`LstmLayer`) with forward and backward passes.
 
 use crate::neural::{JavaRng, NeuralError};
+use turbo_jvm::strict_math;
 
 const ACCUMULATE_BLOCK: usize = 32;
 
@@ -203,10 +204,11 @@ impl LstmLayer {
 
         for t in 0..steps {
             let x = &xs[t];
-            gates.copy_from_slice(&self.b);
+            // Each gate starts from its bias and adds the products one at a
+            // time, in Java's order, so the sums round the same way.
             for r in 0..(4 * h_size) {
                 let w_row = &self.w[r];
-                let mut sum = 0.0;
+                let mut sum = self.b[r];
                 for k in 0..in_size {
                     sum += w_row[k] * x[k];
                 }
@@ -217,15 +219,15 @@ impl LstmLayer {
                         sum += u_row[k] * h_prev[k];
                     }
                 }
-                gates[r] += sum;
+                gates[r] = sum;
             }
             for j in 0..h_size {
                 let ig = sigmoid(gates[j]);
                 let fg = sigmoid(gates[h_size + j]);
-                let gg = gates[2 * h_size + j].tanh();
+                let gg = strict_math::tanh(gates[2 * h_size + j]);
                 let og = sigmoid(gates[3 * h_size + j]);
                 let cj = fg * c_prev[j] + ig * gg;
-                let tanh_cj = cj.tanh();
+                let tanh_cj = strict_math::tanh(cj);
                 let hj = og * tanh_cj;
                 c_curr[j] = cj;
                 h[t][j] = hj;
@@ -328,6 +330,19 @@ impl LstmLayer {
     }
 }
 
+/// The logistic sigmoid, evaluated on the side of zero where `exp` cannot
+/// overflow, as Java's `LstmLayer.sigmoid`.
+///
+/// Java calls `Math.exp`, which HotSpot on x86-64 computes with its own
+/// intrinsic routine rather than fdlibm (`StrictMath.exp`). That routine is
+/// not correctly rounded and its source is GPL licensed, so it is not
+/// ported. The platform `exp` is used instead: it is the closest of the
+/// available functions (on the 4662 sigmoid arguments of the BiLSTM test
+/// models glibc differs from the JDK 21 intrinsic on 11, fdlibm on 456), so
+/// an emission can still differ from the JVM's in its last bits. This is a
+/// deliberate difference; tags and Viterbi paths are unaffected on the
+/// test models. `tanh` uses fdlibm, which is what JDK 21's `Math.tanh`
+/// returns, and every sum is formed in Java's order.
 #[inline]
 fn sigmoid(x: f64) -> f64 {
     if x >= 0.0 {
@@ -451,5 +466,20 @@ mod tests {
         grads.db[0] = 1.0;
         grads.zero();
         assert!(grads.db().iter().all(|&v| v == 0.0));
+    }
+
+    #[test]
+    fn gate_sums_start_from_the_bias_in_java_order() {
+        // Java computes 1 + 2^-53 + 2^-53 + 2^-53 + 2^-53 left to right, and
+        // each addition rounds back to 1. Summing the products first and
+        // adding the bias last would give 1 + 2^-51.
+        let tiny = f64::from_bits(0x3CA0_0000_0000_0000);
+        let w = vec![vec![tiny; 4]; 4];
+        let u = vec![vec![0.0]; 4];
+        let b = vec![0.0, 0.0, 1.0, 0.0];
+        let layer = LstmLayer::of_weights(4, 1, w, u, b).unwrap();
+        let mut cache = ForwardCache::of(1, 1);
+        layer.run(&[vec![1.0; 4]], Some(&mut cache)).unwrap();
+        assert_eq!(cache.g_gate[0][0].to_bits(), strict_math::tanh(1.0).to_bits());
     }
 }

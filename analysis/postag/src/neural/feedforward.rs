@@ -11,8 +11,8 @@ use std::sync::{Arc, OnceLock, RwLock};
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{PosTags, TagSet, Tokens};
-use turbo_unicode::java::{is_digit, is_letter_or_digit, to_lower_char};
-use turbo_unicode::props::{lowercase as is_lower_cp, uppercase as is_upper_cp};
+use turbo_unicode::java::code_point::{is_digit, is_letter, is_upper_case};
+use turbo_unicode::java::to_lower_char;
 
 use crate::neural::{DataReader, DataWriter, JavaRng, NeuralError, NeuralSequence, PosSample};
 
@@ -59,8 +59,9 @@ impl FeedforwardPosContext {
         let w2 = Self::word(tokens, idx);
         let w3 = Self::word(tokens, idx + 1);
         let w4 = Self::word(tokens, idx + 2);
-        let suf2 = Self::suffix(&w2, 2);
-        let suf3 = Self::suffix(&w2, 3);
+        let lowered = Self::token(tokens, idx).map(Self::lowercase_all).unwrap_or_default();
+        let suf2 = Self::suffix(&lowered, 2);
+        let suf3 = Self::suffix(&lowered, 3);
         let sh0 = Self::shape_opt(Self::token(tokens, idx - 1)).to_owned();
         let sh1 = Self::shape_opt(Self::token(tokens, idx)).to_owned();
         let sh2 = Self::shape_opt(Self::token(tokens, idx + 1)).to_owned();
@@ -84,15 +85,37 @@ impl FeedforwardPosContext {
         if word.starts_with('*') { word.to_owned() } else { word.chars().map(to_lower_char).collect() }
     }
 
-    /// Returns the last `length` Unicode code points of `word` (or `word` itself if shorter).
+    /// Lowercases a whole token for the suffix features. Unlike
+    /// [`Self::lowercase`] this does not pass symbols starting with `*`
+    /// through, matching Java's `StringUtil.toLowerCase` on the token.
+    fn lowercase_all(word: &str) -> String {
+        word.chars().map(to_lower_char).collect()
+    }
+
+    /// Returns the last `length` UTF-16 code units of `word`, or `word`
+    /// itself when it is no longer, as Java's `substring` does.
+    ///
+    /// When the cut falls between the two halves of a surrogate pair, Java
+    /// returns a string starting with a lone low surrogate, which a Rust
+    /// string cannot hold. That half is replaced by U+FFFD. A model file
+    /// whose vocabulary holds a lone surrogate is rejected on load, so on
+    /// a Java model such a suffix maps to the unknown symbol either way.
     pub fn suffix(word: &str, length: usize) -> String {
-        let count = word.chars().count();
-        if count <= length {
-            return word.to_owned();
+        let mut units = 0;
+        for (start, c) in word.char_indices().rev() {
+            units += c.len_utf16();
+            if units == length {
+                return word[start..].to_owned();
+            }
+            if units > length {
+                let rest = &word[start + c.len_utf8()..];
+                let mut out = String::with_capacity(rest.len() + 3);
+                out.push('\u{FFFD}');
+                out.push_str(rest);
+                return out;
+            }
         }
-        let skip = count - length;
-        let byte_start = word.char_indices().nth(skip).map_or(0, |(idx, _)| idx);
-        word[byte_start..].to_owned()
+        word.to_owned()
     }
 
     fn shape_opt(word: Option<&str>) -> &'static str {
@@ -102,45 +125,43 @@ impl FeedforwardPosContext {
         }
     }
 
-    /// Classifies `word` into one of the six coarse orthographic shape symbols.
+    /// Classifies `word` into one of the six coarse orthographic shape
+    /// symbols, as Java's `FeedforwardPOSContext.shape` does: it walks the
+    /// UTF-16 code units, so a supplementary character (a surrogate pair)
+    /// is neither a letter nor a digit, and a letter that is not uppercase
+    /// counts as lowercase. A word with letters and no digit is all caps
+    /// when no letter is lowercase, capitalized when its first code unit
+    /// is uppercase, and lowercase otherwise.
     pub fn shape(word: &str) -> &'static str {
-        if word.is_empty() {
-            return SHAPE_OTHER;
-        }
-        let mut all_digits = true;
-        let mut all_upper = true;
-        let mut all_lower = true;
-        let mut all_alnum = true;
-        let mut first_upper = false;
-        let mut rest_lower = true;
-
-        for (i, c) in word.chars().enumerate() {
-            let d = is_digit(c);
-            let u = is_upper_cp(c);
-            let l = is_lower_cp(c);
-            let a = is_letter_or_digit(c);
-            all_digits &= d;
-            all_upper &= u;
-            all_lower &= l;
-            all_alnum &= a;
-            if i == 0 {
-                first_upper = u;
-            } else {
-                rest_lower &= l;
+        let mut letter = false;
+        let mut digit = false;
+        let mut upper = false;
+        let mut lower = false;
+        for unit in word.encode_utf16() {
+            let cp = u32::from(unit);
+            if is_digit(cp) {
+                digit = true;
+            } else if is_letter(cp) {
+                letter = true;
+                if is_upper_case(cp) {
+                    upper = true;
+                } else {
+                    lower = true;
+                }
             }
         }
-        if all_digits {
-            SHAPE_DIGIT
-        } else if all_upper {
-            SHAPE_ALLCAPS
-        } else if all_lower {
-            SHAPE_LOWER
-        } else if first_upper && rest_lower {
-            SHAPE_CAP
-        } else if all_alnum {
+        if letter && digit {
             SHAPE_ALNUM
-        } else {
+        } else if digit {
+            SHAPE_DIGIT
+        } else if !letter {
             SHAPE_OTHER
+        } else if upper && !lower {
+            SHAPE_ALLCAPS
+        } else if word.encode_utf16().next().is_some_and(|unit| is_upper_case(u32::from(unit))) {
+            SHAPE_CAP
+        } else {
+            SHAPE_LOWER
         }
     }
 
@@ -1097,14 +1118,15 @@ impl FeedforwardPosTrainer {
                     word_order.push(lower.clone());
                     word_counts.insert(lower.clone(), 1);
                 }
-                let s2 = FeedforwardPosContext::suffix(&lower, 2);
+                let lowered = FeedforwardPosContext::lowercase_all(&sample.sentence[i]);
+                let s2 = FeedforwardPosContext::suffix(&lowered, 2);
                 if let Some(c) = suffix_counts.get_mut(&s2) {
                     *c += 1;
                 } else {
                     suffix_order.push(s2.clone());
                     suffix_counts.insert(s2, 1);
                 }
-                let s3 = FeedforwardPosContext::suffix(&lower, 3);
+                let s3 = FeedforwardPosContext::suffix(&lowered, 3);
                 if let Some(c) = suffix_counts.get_mut(&s3) {
                     *c += 1;
                 } else {
@@ -1548,23 +1570,50 @@ mod tests {
 
     #[test]
     fn shapes_and_suffixes_match_java_conformance() {
+        // Each row is what Java's FeedforwardPOSContext.shape returns.
         let shape_cases = [
             ("Paris", "*cap*"),
+            ("Mr.", "*cap*"),
+            ("U.S.", "*allcaps*"),
+            ("3.5", "*digit*"),
+            ("iPhone", "*lower*"),
+            ("ALL-CAPS", "*allcaps*"),
+            ("x", "*lower*"),
+            ("X", "*allcaps*"),
+            ("hello-world", "*lower*"),
+            ("Hello-World", "*cap*"),
+            ("McDonald's", "*cap*"),
             ("USA", "*allcaps*"),
             ("2020", "*digit*"),
+            ("1,000", "*digit*"),
             ("B2B", "*alnum*"),
+            ("3rd", "*alnum*"),
             ("--", "*other*"),
+            (".", "*other*"),
+            (",", "*other*"),
+            ("$", "*other*"),
+            ("(", "*other*"),
             ("dog", "*lower*"),
             ("", "*other*"),
-            ("\u{10400}\u{10428}", "*cap*"),
-            ("\u{10400}\u{10401}", "*allcaps*"),
-            ("\u{10428}\u{10429}", "*lower*"),
-            ("\u{10428}1", "*alnum*"),
+            // Titlecase and other letters are not uppercase, so they count as lowercase.
+            ("\u{1C5}", "*lower*"),
+            ("\u{1C4}\u{1C5}", "*cap*"),
+            ("\u{4E2D}\u{6587}", "*lower*"),
+            // Non-ASCII decimal digits are digits.
+            ("\u{0663}", "*digit*"),
+            // Java walks UTF-16 code units, so a surrogate pair is neither a letter nor a digit.
+            ("\u{10400}\u{10428}", "*other*"),
+            ("\u{10428}1", "*digit*"),
+            ("\u{10400}a", "*lower*"),
+            ("\u{10400}A", "*allcaps*"),
+            // A circled letter is uppercase but not a letter.
+            ("\u{24B6}b", "*cap*"),
         ];
         for (word, expected) in shape_cases {
             assert_eq!(FeedforwardPosContext::shape(word), expected, "{word}");
         }
 
+        // Java takes the last UTF-16 code units; a cut inside a surrogate pair leaves U+FFFD.
         let suffix_cases = [
             ("dog", 2, "og"),
             ("dog", 3, "dog"),
@@ -1572,13 +1621,22 @@ mod tests {
             ("a", 3, "a"),
             ("", 2, ""),
             ("running", 3, "ing"),
-            ("a\u{10428}", 2, "a\u{10428}"),
-            ("\u{10428}\u{10429}\u{1042A}", 2, "\u{10429}\u{1042A}"),
-            ("ab\u{10428}", 2, "b\u{10428}"),
+            ("a\u{10428}", 2, "\u{10428}"),
+            ("a\u{10428}", 3, "a\u{10428}"),
+            ("\u{10428}\u{10429}\u{1042A}", 2, "\u{1042A}"),
+            ("\u{10428}\u{10429}\u{1042A}", 3, "\u{FFFD}\u{1042A}"),
+            ("ab\u{10428}", 2, "\u{10428}"),
+            ("ab\u{10428}", 3, "b\u{10428}"),
         ];
         for (word, len, expected) in suffix_cases {
             assert_eq!(FeedforwardPosContext::suffix(word, len), expected, "{word} {len}");
         }
+
+        // Java lowercases the whole token for the suffixes; only the word
+        // lookup passes symbols starting with `*` through unchanged.
+        let symbols = FeedforwardPosContext::extract(&["*ABCD", "Mr."], 0, None, None);
+        assert_eq!(symbols[2], "*ABCD");
+        assert_eq!(&symbols[5..10], ["cd", "bcd", ABSENT, "*allcaps*", "*cap*"]);
     }
 
     #[test]

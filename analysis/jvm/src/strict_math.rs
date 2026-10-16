@@ -1,5 +1,6 @@
-//! `StrictMath.exp` and `StrictMath.log`: ports of fdlibm 5.3's `e_exp.c`
-//! and `e_log.c`.
+//! `StrictMath.exp`, `StrictMath.log`, `StrictMath.expm1` and
+//! `StrictMath.tanh`: ports of fdlibm 5.3's `e_exp.c`, `e_log.c`,
+//! `s_expm1.c` and `s_tanh.c`.
 //!
 //! Java specifies `StrictMath` as the results of fdlibm, and JDK 21
 //! computes them with a Java translation of it (`java.lang.FdLibm.Exp` and
@@ -224,12 +225,152 @@ pub fn log(x: f64) -> f64 {
     }
 }
 
+/// 1.0e-300, given in decimal in the source.
+const TINY: f64 = 1.0e-300;
+/// The largest `x` whose `e^x` is finite, 709.78.
+const O_THRESHOLD: f64 = f64::from_bits(0x4086_2E42_FEFA_39EF);
+/// 1 / ln 2.
+const INVLN2: f64 = f64::from_bits(0x3FF7_1547_652B_82FE);
+/// The coefficients of the rational approximation of `expm1` on
+/// `[-0.5 ln 2, 0.5 ln 2]`.
+const Q1: f64 = f64::from_bits(0xBFA1_1111_1111_10F4);
+const Q2: f64 = f64::from_bits(0x3F5A_01A0_19FE_5585);
+const Q3: f64 = f64::from_bits(0xBF14_CE19_9EAA_DBB7);
+const Q4: f64 = f64::from_bits(0x3ED0_CFCA_86E6_5239);
+const Q5: f64 = f64::from_bits(0xBE8A_FDB7_6E09_C32D);
+
+/// `e^x - 1`, exactly as `java.lang.StrictMath.expm1`.
+///
+/// The argument is reduced to `x = k ln 2 + r` with `|r| <= 0.5 ln 2`,
+/// `e^r - 1` is found from a rational approximation, and the result is
+/// scaled by `2^k` in the way that keeps the most bits for each range of
+/// `k`. Special cases are those of fdlibm: NaN gives NaN, +inf gives +inf,
+/// -inf gives -1, `x` above 709.78 overflows to +inf and `x` below
+/// `-56 ln 2` gives -1.
+pub fn expm1(x: f64) -> f64 {
+    let mut x = x;
+    let mut hx = hi(x) as u32;
+    let negative = hx & 0x8000_0000 != 0;
+    hx &= 0x7FFF_FFFF;
+
+    // Huge and non-finite arguments.
+    if hx >= 0x4043_687A {
+        if hx >= 0x4086_2E42 {
+            if hx >= 0x7FF0_0000 {
+                if ((hx & 0xF_FFFF) | lo(x) as u32) != 0 {
+                    return x + x;
+                }
+                return if negative { -1.0 } else { x };
+            }
+            if x > O_THRESHOLD {
+                return HUGE * HUGE;
+            }
+        }
+        if negative && x + TINY < 0.0 {
+            return TINY - 1.0;
+        }
+    }
+
+    // Argument reduction.
+    let k: i32;
+    let mut c = 0.0;
+    if hx > 0x3FD6_2E42 {
+        let (high, low);
+        if hx < 0x3FF0_A2B2 {
+            if negative {
+                high = x + LN2_HI;
+                low = -LN2_LO;
+                k = -1;
+            } else {
+                high = x - LN2_HI;
+                low = LN2_LO;
+                k = 1;
+            }
+        } else {
+            k = (INVLN2 * x + if negative { -0.5 } else { 0.5 }) as i32;
+            let t = f64::from(k);
+            high = x - t * LN2_HI;
+            low = t * LN2_LO;
+        }
+        x = high - low;
+        c = (high - x) - low;
+    } else if hx < 0x3C90_0000 {
+        let t = HUGE + x;
+        return x - (t - (HUGE + x));
+    } else {
+        k = 0;
+    }
+
+    // x is now in the primary range.
+    let hfx = 0.5 * x;
+    let hxs = x * hfx;
+    let r1 = 1.0 + hxs * (Q1 + hxs * (Q2 + hxs * (Q3 + hxs * (Q4 + hxs * Q5))));
+    let t = 3.0 - r1 * hfx;
+    let mut e = hxs * ((r1 - t) / (6.0 - x * t));
+    if k == 0 {
+        return x - (x * e - hxs);
+    }
+    e = x * (e - c) - c;
+    e -= hxs;
+    if k == -1 {
+        return 0.5 * (x - e) - 0.5;
+    }
+    if k == 1 {
+        return if x < -0.25 { -2.0 * (e - (x + 0.5)) } else { 1.0 + 2.0 * (x - e) };
+    }
+    if k <= -2 || k > 56 {
+        let y = 1.0 - (e - x);
+        return with_hi(y, hi(y).wrapping_add(k << 20)) - 1.0;
+    }
+    if k < 20 {
+        let t = with_hi(1.0, 0x3FF0_0000 - (0x20_0000 >> k));
+        let y = t - (e - x);
+        with_hi(y, hi(y).wrapping_add(k << 20))
+    } else {
+        let t = with_hi(1.0, (0x3FF - k) << 20);
+        let mut y = x - (e + t);
+        y += 1.0;
+        with_hi(y, hi(y).wrapping_add(k << 20))
+    }
+}
+
+/// The hyperbolic tangent of `x`, exactly as `java.lang.StrictMath.tanh`.
+/// On JDK 21 `Math.tanh` returns `StrictMath.tanh`, so this is also
+/// `Math.tanh` there.
+///
+/// For `|x| < 22` it is computed from `expm1(2|x|)` or `expm1(-2|x|)`;
+/// beyond that it is +-1. NaN gives NaN, +-inf gives +-1 and an argument
+/// below 2^-55 in magnitude is returned as `x * (1 + x)`.
+pub fn tanh(x: f64) -> f64 {
+    let jx = hi(x);
+    let ix = jx & 0x7FFF_FFFF;
+    if ix >= 0x7FF0_0000 {
+        return if jx >= 0 { 1.0 / x + 1.0 } else { 1.0 / x - 1.0 };
+    }
+    let z;
+    if ix < 0x4036_0000 {
+        if ix < 0x3C80_0000 {
+            return x * (1.0 + x);
+        }
+        if ix >= 0x3FF0_0000 {
+            let t = expm1(2.0 * x.abs());
+            z = 1.0 - 2.0 / (t + 2.0);
+        } else {
+            let t = expm1(-2.0 * x.abs());
+            z = -t / (t + 2.0);
+        }
+    } else {
+        z = 1.0 - TINY;
+    }
+    if jx >= 0 { z } else { -z }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    #[allow(clippy::excessive_precision)] // the literals are copied from the C source
+    #[allow(clippy::excessive_precision, clippy::approx_constant)] // the literals are copied from the C source
     fn hex_constants_are_the_decimal_values_of_the_source() {
         // The C source gives each constant in decimal with its hex words;
         // the decimal literals must parse to the same bits.
@@ -238,6 +379,13 @@ mod tests {
         assert_eq!(TWO54, 1.80143985094819840000e+16);
         assert_eq!(TWOM1000, 9.33263618503218878990e-302);
         assert_eq!(f64::from_bits(0x3FD5_5555_5555_5555), 0.33333333333333333);
+        assert_eq!(O_THRESHOLD, 7.09782712893383973096e+02);
+        assert_eq!(INVLN2, 1.44269504088896338700e+00);
+        assert_eq!(Q1, -3.33333333333331316428e-02);
+        assert_eq!(Q2, 1.58730158725481460165e-03);
+        assert_eq!(Q3, -7.93650757867487942473e-05);
+        assert_eq!(Q4, 4.00821782732936239552e-06);
+        assert_eq!(Q5, -2.01099218183624371326e-07);
     }
 
     #[test]
@@ -280,5 +428,45 @@ mod tests {
             x *= 1.7;
         }
         assert!(ulps(log(f64::from_bits(1)), f64::from_bits(1).ln()) <= 1);
+    }
+
+    #[test]
+    fn expm1_and_tanh_match_the_jdk() {
+        // StrictMath.expm1 and StrictMath.tanh of OpenJDK 21.0.12 on x86-64,
+        // as raw bits. The port also agreed with that JDK on 3 million
+        // arguments (random bit patterns and uniform draws over several
+        // ranges), and its Math.tanh equalled StrictMath.tanh on all of them.
+        let cases: [(f64, u64, u64); 18] = [
+            (-30.0, 0xBFEF_FFFF_FFFF_FCB5, 0xBFF0_0000_0000_0000),
+            (-22.0, 0xBFEF_FFFF_FFD9_A96F, 0xBFF0_0000_0000_0000),
+            (-3.5, 0xBFEF_089F_7F38_D805, 0xBFEF_F112_C63A_9077),
+            (-1.0, 0xBFE4_3A54_E4E9_8864, 0xBFE8_5EFA_B514_F394),
+            (-0.75, 0xBFE0_E25F_8A08_1941, 0xBFE4_5323_E552_F228),
+            (-0.3465735902799726, 0xBFD2_BEC3_3301_8866, 0xBFD5_5555_5555_5555),
+            (-1.0e-10, 0xBDDB_7CDF_D9D1_D693, 0xBDDB_7CDF_D9D7_BDBB),
+            (1.0e-20, 0x3BC7_9CA1_0C92_4223, 0x3BC7_9CA1_0C92_4223),
+            (0.2, 0x3FCC_56EC_F2C5_6468, 0x3FC9_4398_30B3_A590),
+            (0.5, 0x3FE4_C253_1C3C_0D38, 0x3FDD_9353_D756_8AF3),
+            (core::f64::consts::LN_2, 0x3FF0_0000_0000_0000, 0x3FE3_3333_3333_3333),
+            (1.0, 0x3FFB_7E15_1628_AED2, 0x3FE8_5EFA_B514_F394),
+            (2.5, 0x4026_5D6F_D931_E0BB, 0x3FEF_9258_260A_71C2),
+            (7.25, 0x4095_FC6B_5D53_E8D9, 0x3FEF_FFFD_E276_0A41),
+            (21.9, 0x41E8_2AFC_CA52_7C18, 0x3FF0_0000_0000_0000),
+            (40.0, 0x438A_220D_3979_72EA, 0x3FF0_0000_0000_0000),
+            (700.0, 0x7F0D_945D_F4F8_EC8E, 0x3FF0_0000_0000_0000),
+            (-50.0, 0xBFF0_0000_0000_0000, 0xBFF0_0000_0000_0000),
+        ];
+        for (x, expm1_bits, tanh_bits) in cases {
+            assert_eq!(expm1(x).to_bits(), expm1_bits, "expm1({x})");
+            assert_eq!(tanh(x).to_bits(), tanh_bits, "tanh({x})");
+        }
+        assert!(expm1(f64::NAN).is_nan() && tanh(f64::NAN).is_nan());
+        assert_eq!(expm1(f64::INFINITY), f64::INFINITY);
+        assert_eq!(expm1(f64::NEG_INFINITY), -1.0);
+        assert_eq!(expm1(710.0), f64::INFINITY);
+        assert_eq!(tanh(f64::INFINITY), 1.0);
+        assert_eq!(tanh(f64::NEG_INFINITY), -1.0);
+        assert_eq!(expm1(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(tanh(-0.0).to_bits(), (-0.0f64).to_bits());
     }
 }
