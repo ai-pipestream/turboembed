@@ -19,6 +19,10 @@
 
 #[path = "spec/datetime.rs"]
 mod datetime;
+#[path = "spec/dutch.rs"]
+mod dutch;
+#[path = "spec/spanish.rs"]
+mod spanish;
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -26,7 +30,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 use turbo_analysis::{OffsetTable, Utf16Offset};
-use turbo_grammar::{ENGLISH, Mention, Output, Parser, Value};
+use turbo_grammar::{ENGLISH, Grammar, Mention, Output, Parser, Value};
 
 #[derive(Deserialize)]
 struct Case {
@@ -174,14 +178,21 @@ fn ratchet(language: &str, file: &str, passing: &BTreeSet<usize>, bless: bool) {
     }
 }
 
-/// Checks one file against its pass list, or with `bless` and `BLESS`
-/// set rewrites the list; returns (eligible, passing).
+/// Checks one English file against its pass list, or with `bless` and
+/// `BLESS` set rewrites the list; returns (eligible, passing).
 fn check(spec: &Spec, bless: bool) -> (usize, usize) {
     let dir = data().join("recognizers-text").join(spec.language).join(spec.kind);
     let json = std::fs::read_to_string(dir.join(spec.file)).expect("a specification file");
     let cases: Vec<Case> = serde_json::from_str(&json).expect("a specification parses");
+    check_cases(&ENGLISH, spec, &cases, bless)
+}
+
+/// Runs `grammar` on the cases of one file and checks them against its
+/// pass list, or with `bless` and `BLESS` set rewrites the list; returns
+/// (eligible, passing).
+fn check_cases(grammar: &'static dyn Grammar, spec: &Spec, cases: &[Case], bless: bool) -> (usize, usize) {
     let show = std::env::var_os("SPEC_SHOW").is_some();
-    let mut parser = Parser::new(&ENGLISH);
+    let mut parser = Parser::new(grammar);
     let mut passing = BTreeSet::new();
     let mut eligible = 0;
     for (i, case) in cases.iter().enumerate() {
@@ -223,6 +234,46 @@ fn english_percentages() {
     assert_eq!(eligible, 20);
 }
 
+#[path = "spec/units.rs"]
+mod units;
+
+/// The number-with-unit files: file, kind, eligible cases.
+const UNIT_FILES: [(&str, turbo_grammar::Measure, usize); 4] = [
+    ("AgeModel.json", turbo_grammar::Measure::Age, 19),
+    ("CurrencyModel.json", turbo_grammar::Measure::Currency, 177),
+    ("DimensionModel.json", turbo_grammar::Measure::Dimension, 100),
+    ("TemperatureModel.json", turbo_grammar::Measure::Temperature, 43),
+];
+
+fn check_units(k: usize, bless: bool) -> (usize, usize) {
+    let (file, measure, want) = UNIT_FILES[k];
+    let (eligible, passing) = units::run_file(file, measure);
+    ratchet("English", file, &passing, bless);
+    println!("English/NumberWithUnit/{file}: {} of {eligible} eligible cases pass", passing.len());
+    assert_eq!(eligible, want);
+    (eligible, passing.len())
+}
+
+#[test]
+fn english_ages() {
+    check_units(0, true);
+}
+
+#[test]
+fn english_currencies() {
+    check_units(1, true);
+}
+
+#[test]
+fn english_dimensions() {
+    check_units(2, true);
+}
+
+#[test]
+fn english_temperatures() {
+    check_units(3, true);
+}
+
 fn datetime_cases() -> Vec<datetime::TimeCase> {
     let path = data().join("recognizers-text/English/DateTime/DateTimeModel.json");
     let json = std::fs::read_to_string(path).expect("a specification file");
@@ -247,15 +298,19 @@ fn english_datetimes() {
 /// The pass rate of every file, in one table.
 #[test]
 fn summary() {
-    let mut table = String::from("file                                eligible  passing\n");
+    let mut table = format!("{:<46}eligible  passing\n", "file");
     for spec in [&NUMBER, &ORDINAL, &PERCENT] {
         let (eligible, passing) = check(spec, false);
         let name = format!("{}/{}/{}", spec.language, spec.kind, spec.file);
-        let _ = writeln!(table, "{name:<36}{eligible:>8}{passing:>9}");
+        let _ = writeln!(table, "{name:<46}{eligible:>8}{passing:>9}");
+    }
+    for (k, (file, _, _)) in UNIT_FILES.iter().enumerate() {
+        let (eligible, passing) = check_units(k, false);
+        let _ = writeln!(table, "{:<46}{eligible:>8}{passing:>9}", format!("English/NumberWithUnit/{file}"));
     }
     let run = datetime::run_all(&datetime_cases(), false);
     ratchet("English", "DateTimeModel.json", &run.passing, false);
-    let _ = writeln!(table, "{:<36}{:>8}{:>9}", "English/DateTime/DateTimeModel.json", run.eligible, run.passing.len());
+    let _ = writeln!(table, "{:<46}{:>8}{:>9}", "English/DateTime/DateTimeModel.json", run.eligible, run.passing.len());
     println!("{table}");
 }
 

@@ -1,0 +1,215 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/abbreviations	323	323	daae94d6ca8153be16e834da072d9f05a8437508fe55f4102378d0cfaae36036
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	17	outcome:str	context:str	values:str
+n	2 eos=. n=Alvarez ncap s= sn v= x=Dr xcap	
+n	1 eos=. n=in s=S scap v=the x=U xcap	
+n	2 eos=. n=in s= sn v=U vcap x=.S	
+n	2 eos=. n=Mark's ncap s= sn v=on x=St xcap	
+n	5 eos=. n=She ncap s= sn v=Mark's vcap x=Place xcap	
+n	2 eos=. n=Chen ncap s= sn v=with x=Mr xcap	
+n	3 eos=. n=2004, s= sn v=until x=Jan xcap	
+n	6 eos=. n=Prof. ncap s= sn v=clinic x=closed	
+n	4 eos=. n=Okafor, ncap s= sn v=closed. x=Prof xcap	
+n	2 eos=. n=, s=D scap v=Okafor, vcap x=Ph xcap	
+n	2 eos=. n=later s=, v=Ph vcap x=.D	
+n	1 eos=. n=health s=S scap v=the x=U xcap	
+n	2 eos=. n=health s= sn v=U vcap x=.S	
+n	5 eos=. n=It ncap s=" v=her x=ideas	
+n	1 eos=. n=a s=e v=nonprofit, x=i	
+n	2 eos=. n=a s= sn v=i x=.e	
+s	3 eos=. n= s= sn v=a x=day	
+end	turbo:events
+layer	turbo:liblinear-text	document	69	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 62
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+1.9448260042618446 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0.13461378598497162 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+f1878d9aa622c45d653ad98ab77f179bf35c4c50c20fc296f0e204e9a54904f5	982
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	68	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fec71c6bf936dba 0.8888887159077321
+0	given	1	3fbc71ca03649230 0.11111128409226789
+0	reversed	0	3fec71c6bf936dba 0.8888887159077321
+0	reversed	1	3fbc71ca03649230 0.11111128409226789
+1	given	0	3fec71c6bf936dba 0.8888887159077321
+1	given	1	3fbc71ca03649230 0.11111128409226789
+1	reversed	0	3fec71c6bf936dba 0.8888887159077321
+1	reversed	1	3fbc71ca03649230 0.11111128409226789
+2	given	0	3febff0738daa906 0.8748813734466985
+2	given	1	3fc003e31c955be8 0.12511862655330153
+2	reversed	0	3febff0738daa906 0.8748813734466985
+2	reversed	1	3fc003e31c955be8 0.12511862655330153
+3	given	0	3fec71c6bf936dba 0.8888887159077321
+3	given	1	3fbc71ca03649230 0.11111128409226789
+3	reversed	0	3fec71c6bf936dba 0.8888887159077321
+3	reversed	1	3fbc71ca03649230 0.11111128409226789
+4	given	0	3fec71c6bf936dba 0.8888887159077321
+4	given	1	3fbc71ca03649230 0.11111128409226789
+4	reversed	0	3fec71c6bf936dba 0.8888887159077321
+4	reversed	1	3fbc71ca03649230 0.11111128409226789
+5	given	0	3fec71c6bf936dba 0.8888887159077321
+5	given	1	3fbc71ca03649230 0.11111128409226789
+5	reversed	0	3fec71c6bf936dba 0.8888887159077321
+5	reversed	1	3fbc71ca03649230 0.11111128409226789
+6	given	0	3fec71c6bf936dba 0.8888887159077321
+6	given	1	3fbc71ca03649230 0.11111128409226789
+6	reversed	0	3fec71c6bf936dba 0.8888887159077321
+6	reversed	1	3fbc71ca03649230 0.11111128409226789
+7	given	0	3febff0738daa906 0.8748813734466985
+7	given	1	3fc003e31c955be8 0.12511862655330153
+7	reversed	0	3febff0738daa906 0.8748813734466985
+7	reversed	1	3fc003e31c955be8 0.12511862655330153
+8	given	0	3fec71c6bf936dba 0.8888887159077321
+8	given	1	3fbc71ca03649230 0.11111128409226789
+8	reversed	0	3fec71c6bf936dba 0.8888887159077321
+8	reversed	1	3fbc71ca03649230 0.11111128409226789
+9	given	0	3fec71c6bf936dba 0.8888887159077321
+9	given	1	3fbc71ca03649230 0.11111128409226789
+9	reversed	0	3fec71c6bf936dba 0.8888887159077321
+9	reversed	1	3fbc71ca03649230 0.11111128409226789
+10	given	0	3febff0738daa906 0.8748813734466985
+10	given	1	3fc003e31c955be8 0.12511862655330153
+10	reversed	0	3febff0738daa906 0.8748813734466985
+10	reversed	1	3fc003e31c955be8 0.12511862655330153
+11	given	0	3fec71c6bf936dba 0.8888887159077321
+11	given	1	3fbc71ca03649230 0.11111128409226789
+11	reversed	0	3fec71c6bf936dba 0.8888887159077321
+11	reversed	1	3fbc71ca03649230 0.11111128409226789
+12	given	0	3febff0738daa906 0.8748813734466985
+12	given	1	3fc003e31c955be8 0.12511862655330153
+12	reversed	0	3febff0738daa906 0.8748813734466985
+12	reversed	1	3fc003e31c955be8 0.12511862655330153
+13	given	0	3febff0738daa906 0.8748813734466985
+13	given	1	3fc003e31c955be8 0.12511862655330153
+13	reversed	0	3febff0738daa906 0.8748813734466985
+13	reversed	1	3fc003e31c955be8 0.12511862655330153
+14	given	0	3febff0738daa906 0.8748813734466985
+14	given	1	3fc003e31c955be8 0.12511862655330153
+14	reversed	0	3febff0738daa906 0.8748813734466985
+14	reversed	1	3fc003e31c955be8 0.12511862655330153
+15	given	0	3febff0738daa906 0.8748813734466985
+15	given	1	3fc003e31c955be8 0.12511862655330153
+15	reversed	0	3febff0738daa906 0.8748813734466985
+15	reversed	1	3fc003e31c955be8 0.12511862655330153
+16	given	0	3febff0738daa906 0.8748813734466985
+16	given	1	3fc003e31c955be8 0.12511862655330153
+16	reversed	0	3febff0738daa906 0.8748813734466985
+16	reversed	1	3fc003e31c955be8 0.12511862655330153
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	34	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+4	given	n
+4	reversed	n
+5	given	n
+5	reversed	n
+6	given	n
+6	reversed	n
+7	given	n
+7	reversed	n
+8	given	n
+8	reversed	n
+9	given	n
+9	reversed	n
+10	given	n
+10	reversed	n
+11	given	n
+11	reversed	n
+12	given	n
+12	reversed	n
+13	given	n
+13	reversed	n
+14	given	n
+14	reversed	n
+15	given	n
+15	reversed	n
+16	given	n
+16	reversed	n
+end	turbo:liblinear-best

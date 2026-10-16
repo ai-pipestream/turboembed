@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	gazetteer/table-geonames-country-lower	63	63	f9e2cae41daa7beab8d6012b803eede649a07a8fa684f89098bbec9967b321cf
+annotator	opennlp.geo.GeoNamesGazetteer	load
+layer	turbo:gazetteer-load	document	1	loaded:u32	error-class:str	error-message:str
+0	opennlp.tools.util.InvalidFormatException	line 1 is not a GeoNames row: countryCode must be an ISO 3166-1 alpha-2 code (two ASCII capital letters) or null, got: de
+end	turbo:gazetteer-load
+layer	turbo:gazetteer-suppressions	document	0	name:str	has-country:u32	country:str	has-feature-class:u32	feature-class:str
+end	turbo:gazetteer-suppressions

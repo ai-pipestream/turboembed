@@ -1,0 +1,29 @@
+# Words for the Hunspell goldens, one per line; a line starting with # is a
+# comment. \\, \t, \n, \r and \uXXXX are escapes (\uXXXX is one UTF-16 unit).
+# The fixture hungarian.
+ház
+háztető
+tetőház
+házkert
+kertház
+házban
+kertházban
+házi
+házit
+háztetőkert
+ajtó
+ajtóház
+házajtó
+városház
+városháza
+házváros
+városi
+épitész
+építészház
+tető-
+tető-ház
+ház-tető
+legeslegház
+legesleghaz
+kert-ház
+kertajtó

@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	gazetteer/table-overture-longitude	30	30	e2c1d782d75be8529e0d333f189415db2613d3c5b9072664e9e536bcd450dc50
+annotator	opennlp.geo.OvertureGazetteer	load
+layer	turbo:gazetteer-load	document	1	loaded:u32	error-class:str	error-message:str
+0	opennlp.tools.util.InvalidFormatException	line 1 is not a derived division row: For input string: "far"
+end	turbo:gazetteer-load
+layer	turbo:gazetteer-suppressions	document	0	name:str	has-country:u32	country:str	has-feature-class:u32	feature-class:str
+end	turbo:gazetteer-suppressions

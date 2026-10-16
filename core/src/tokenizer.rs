@@ -655,6 +655,13 @@ impl Tokenizer {
         if self.pad_id < 0 { self.unk_id } else { self.pad_id }
     }
 
+    /// The vocabulary's piece for `id`, as the tokenizer file spells it
+    /// (a SentencePiece word start as U+2581), or None for an id outside
+    /// the vocabulary.
+    pub fn piece(&self, id: i32) -> Option<&str> {
+        usize::try_from(id).ok().and_then(|i| self.pieces.get(i)).map(|p| &**p)
+    }
+
     pub fn specials_per_sequence(&self) -> u32 {
         self.template.iter().filter(|p| p.is_some()).count() as u32
     }

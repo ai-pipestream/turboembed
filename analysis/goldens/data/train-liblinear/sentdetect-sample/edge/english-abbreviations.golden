@@ -1,0 +1,146 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/english-abbreviations	100	100	a1ae6c3cea011ea2aa2fa0957c75784f28e53270a0ed62574eb35e06b08fb03b
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	10	outcome:str	context:str	values:str
+n	2 eos=. n=Smith ncap s= sn v= x=Mr xcap	
+n	2 eos=. n=Jones ncap s= sn v=met x=Dr xcap	
+n	1 eos=. n=last s=S scap v=the x=U xcap	
+n	2 eos=. n=last s= sn v=U vcap x=.S	
+n	1 eos=. n=on s=g v=week, x=e	
+n	2 eos=. n=on s= sn v=e x=.g	
+n	6 eos=. n=They ncap s= sn v=on x=Monday xcap	
+n	6 eos=. n=Prof. ncap s= sn v=They vcap x=agreed	
+n	4 eos=. n=Lee ncap s= sn v=agreed. x=Prof xcap	
+s	5 eos=. n= s= sn v=wasn't x=there	
+end	turbo:events
+layer	turbo:liblinear-text	document	49	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 42
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+1.3861041760390380 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+7.2674113969351040e-05 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0.00030638444981306666 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+fc705c70b5299538d8b13de9f3183f75f26f82516add07227a00ebd16295bc75	721
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	40	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe999d8f8ca135e 0.8000302180449628
+0	given	1	3fc9989c1cd7b288 0.19996978195503723
+0	reversed	0	3fe999d8f8ca135e 0.8000302180449628
+0	reversed	1	3fc9989c1cd7b288 0.19996978195503723
+1	given	0	3fe999d8f8ca135e 0.8000302180449628
+1	given	1	3fc9989c1cd7b288 0.19996978195503723
+1	reversed	0	3fe999d8f8ca135e 0.8000302180449628
+1	reversed	1	3fc9989c1cd7b288 0.19996978195503723
+2	given	0	3fe999c096b3abc1 0.8000185912509253
+2	given	1	3fc998fda53150fc 0.19998140874907466
+2	reversed	0	3fe999c096b3abc1 0.8000185912509253
+2	reversed	1	3fc998fda53150fc 0.19998140874907466
+3	given	0	3fe99959c7e4d2f4 0.7999695686508788
+3	given	1	3fc99a98e06cb430 0.20003043134912124
+3	reversed	0	3fe99959c7e4d2f4 0.7999695686508788
+3	reversed	1	3fc99a98e06cb430 0.20003043134912124
+4	given	0	3fe99959c7e4d2f4 0.7999695686508788
+4	given	1	3fc99a98e06cb430 0.20003043134912124
+4	reversed	0	3fe99959c7e4d2f4 0.7999695686508788
+4	reversed	1	3fc99a98e06cb430 0.20003043134912124
+5	given	0	3fe99959c7e4d2f4 0.7999695686508788
+5	given	1	3fc99a98e06cb430 0.20003043134912124
+5	reversed	0	3fe99959c7e4d2f4 0.7999695686508788
+5	reversed	1	3fc99a98e06cb430 0.20003043134912124
+6	given	0	3fe999d8f8ca135e 0.8000302180449628
+6	given	1	3fc9989c1cd7b288 0.19996978195503723
+6	reversed	0	3fe999d8f8ca135e 0.8000302180449628
+6	reversed	1	3fc9989c1cd7b288 0.19996978195503723
+7	given	0	3fe999722b21032b 0.7999811975824732
+7	given	1	3fc99a37537bf354 0.2000188024175268
+7	reversed	0	3fe999722b21032b 0.7999811975824732
+7	reversed	1	3fc99a37537bf354 0.2000188024175268
+8	given	0	3fe999d8f8ca135e 0.8000302180449628
+8	given	1	3fc9989c1cd7b288 0.19996978195503723
+8	reversed	0	3fe999d8f8ca135e 0.8000302180449628
+8	reversed	1	3fc9989c1cd7b288 0.19996978195503723
+9	given	0	3fe99959c7e4d2f4 0.7999695686508788
+9	given	1	3fc99a98e06cb430 0.20003043134912124
+9	reversed	0	3fe99959c7e4d2f4 0.7999695686508788
+9	reversed	1	3fc99a98e06cb430 0.20003043134912124
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	20	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+4	given	n
+4	reversed	n
+5	given	n
+5	reversed	n
+6	given	n
+6	reversed	n
+7	given	n
+7	reversed	n
+8	given	n
+8	reversed	n
+9	given	n
+9	reversed	n
+end	turbo:liblinear-best

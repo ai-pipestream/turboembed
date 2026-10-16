@@ -1826,6 +1826,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-doccat"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-train",
+]
+
+[[package]]
 name = "turbo-eval"
 version = "0.1.0"
 dependencies = [
@@ -1872,9 +1885,47 @@ dependencies = [
  "turbo-normalize",
  "turbo-numeric",
  "turbo-phrase-chunker",
+ "turbo-pii",
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-geo"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-normalize",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-glossary"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-glossary-layers",
+ "turbo-goldens",
+ "turbo-matcher",
+ "turbo-normalize",
+ "turbo-stem",
+ "turbo-stem-layers",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-glossary-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-unicode",
 ]
 
@@ -1904,6 +1955,17 @@ dependencies = [
  "serde_json",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-hunspell"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-stem-layers",
  "turbo-unicode",
 ]
 
@@ -2079,6 +2141,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-pii"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-postag"
 version = "0.1.0"
 dependencies = [
@@ -2088,6 +2160,18 @@ dependencies = [
  "turbo-maxent",
  "turbo-sequence",
  "turbo-train",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-sat"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
  "turbo-unicode",
 ]
 
@@ -2197,6 +2281,8 @@ name = "turbo-train-components"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-doccat",
  "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",

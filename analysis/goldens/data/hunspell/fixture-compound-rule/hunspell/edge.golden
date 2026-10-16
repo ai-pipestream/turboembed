@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/edge	592	560	28bc4140f764c243f0010d2a37035fa7d91b6074d15e74968b0e7c41e6a9b2bb
+model	compound-rule.aff	af2cd9d6433a08963bb489c9851b88cd9618e88160c7806973c5048babcd979950e108ceae2db6753b1e6c3abcc347fa63d3ae2739026530e90b9152aab4e501
+model	compound-rule.dic	0c6fe9b0aed1b4f88636ff9de1e573bc8b9c39de301d60c5737b6577d489978771d9f364559ee50a9e64a701e8845b36826ef21301f2767640caf466cb7fc6a4
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+java.io.IOException	expected exactly one flag at line 6
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	0	word:str	stem:str	thrown:str
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	0	word:u32	stem:str
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	0	word:u32	analysis:str
+end	turbo:hunspell-analyses

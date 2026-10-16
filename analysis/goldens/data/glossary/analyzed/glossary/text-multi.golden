@@ -1,0 +1,151 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/text-multi	344	219	625f8d9057a2a6ff07df852fb46dae89c1346115922dfc92c3a573273259ec03
+annotator	opennlp.tools.glossary.TermAnalyzingGlossaryMatcher	match
+config	analyzer	caseFold stem(PorterStemmer)
+layer	turbo:analyzed-terms	text	50	start:u32	end:u32	normalized:str
+0	3	die
+4	11	größe
+12	15	und
+16	19	die
+20	27	größe
+28	31	und
+32	35	die
+36	43	größe
+45	50	über
+51	56	über
+57	62	über
+64	67	東
+67	70	京
+70	79	タワー
+79	82	は
+82	85	東
+85	88	京
+88	91	に
+91	94	あ
+94	97	る
+100	103	東
+103	106	京
+106	109	都
+112	124	カタカナ
+124	127	語
+127	130	と
+130	142	カタカナ
+145	157	서울에서
+158	164	서울
+165	171	사람
+173	187	σίσυφος
+188	202	σίσυφος
+203	217	σίσυφος
+219	228	i̇stanbul
+229	237	istanbul
+238	247	i̇stanbul
+249	255	naïv
+256	263	naïv
+264	270	naïv
+272	276	🙂
+276	280	🙂
+281	285	🙂
+286	291	smile
+291	295	🙂
+297	305	𝐀𝐁
+306	318	𝐀𝐁𝐂
+320	324	são
+325	330	paulo
+332	336	são
+337	342	paulo
+end	turbo:analyzed-terms
+layer	turbo:analyzed-entries	document	61	entry:u32	token:str
+0	hot
+0	dog
+1	frankfurt
+2	new
+2	york
+3	new
+3	york
+3	citi
+4	york
+5	cat
+6	can
+7	c
+8	u.
+9	e
+9	mail
+10	größe
+11	東
+11	京
+12	東
+12	京
+12	タワー
+13	カタカナ
+14	서울
+15	naïv
+16	machin
+16	learn
+17	neural
+17	network
+18	neural
+18	net
+19	hot
+19	dog
+20	dog
+21	über
+22	hot
+22	dog
+23	σίσυφος
+24	i̇stanbul
+25	🙂
+26	data
+26	driven
+27	a
+28	a.b
+29	run
+29	dog
+30	can't
+31	york
+31	citi
+32	ic
+32	cream
+33	ic
+33	cream
+34	ic
+34	cream
+35	x
+36	gmbh
+36	co
+37	3.5
+38	𝐀𝐁
+39	são
+39	paulo
+end	turbo:analyzed-entries
+layer	turbo:glossary-terms	text	26	start:u32	end:u32	entry:u32
+4	11	10
+20	27	10
+36	43	10
+45	50	21
+51	56	21
+57	62	21
+64	79	12
+82	88	11
+100	106	11
+112	124	13
+130	142	13
+158	164	14
+173	187	23
+188	202	23
+203	217	23
+219	228	24
+238	247	24
+249	255	15
+264	270	15
+272	276	25
+276	280	25
+281	285	25
+291	295	25
+297	305	38
+320	330	39
+332	342	39
+end	turbo:glossary-terms
