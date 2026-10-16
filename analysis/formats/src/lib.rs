@@ -98,12 +98,18 @@ pub mod convert;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;
+pub mod irishsentencebank;
+pub mod leipzig;
+pub mod letsmt;
 pub mod masc;
+pub mod moses;
 pub mod native;
 pub mod ner;
+pub mod nkjp;
 pub mod registry;
 pub mod sample;
 pub mod source;
+pub mod twenty_newsgroups;
 
 use std::fmt;
 
@@ -111,8 +117,8 @@ pub use encoding::{DecodeError, Encoding, decode};
 pub use error::{FormatError, Warning};
 pub use registry::{Format, OPENNLP_FORMAT, ReadOptions, Registry, SampleKind};
 pub use sample::{
-    ChunkSample, DocumentSample, LanguageSample, LemmaSample, Name, NameSample, Phrase, PosSample, SentenceSample,
-    SplitMarker, TokenSample,
+    ChunkSample, DependencyArc, DependencyGraph, DependencySample, DocumentSample, LanguageSample, LemmaSample, Name,
+    NameSample, Phrase, PosSample, SentenceSample, SplitMarker, TokenSample,
 };
 pub use source::{Field, Line, Lines, Piece};
 

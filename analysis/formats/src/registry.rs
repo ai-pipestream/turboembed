@@ -33,14 +33,20 @@ use crate::conll::{
     CONLL02_FORMAT, CONLL03_FORMAT, CONLLX_FORMAT, Conll02Language, Conll02Reader, Conll03Language, Conll03Reader,
     ConllXPosReader, EntityTypes,
 };
-use crate::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
+use crate::conllu::{
+    ConlluDependencyReader, ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset,
+};
 use crate::convert::{ChunkSize, ToSentenceSamples, ToTokenSamples};
 use crate::error::FormatError;
+use crate::irishsentencebank::{IrishSentenceBankSentenceReader, IrishSentenceBankTokenReader};
+use crate::letsmt::{DetokenizeSentenceReader, LetsmtSentenceReader};
+use crate::moses::MosesSentenceReader;
 use crate::native::{
     ChunkReader, DocumentReader, LanguageReader, LemmaReader, NameReader, SentenceReader, TokenReader, WordTagReader,
 };
 use crate::sample::{
-    ChunkSample, DocumentSample, LanguageSample, LemmaSample, NameSample, PosSample, SentenceSample, TokenSample,
+    ChunkSample, DependencySample, DocumentSample, LanguageSample, LemmaSample, NameSample, PosSample, SentenceSample,
+    TokenSample,
 };
 
 /// The name of OpenNLP's own format of every kind
@@ -49,6 +55,17 @@ pub const OPENNLP_FORMAT: &str = "opennlp";
 
 /// The name of the CoNLL-U formats (`ConlluPOSSampleStreamFactory.CONLLU_FORMAT`).
 pub const CONLLU_FORMAT: &str = "conllu";
+
+/// The name of the Moses sentence format (`MosesSentenceSampleStreamFactory`).
+pub const MOSES_FORMAT: &str = "moses";
+
+/// The name of the LetsMT sentence format (`LetsmtSentenceStreamFactory`).
+pub const LETSMT_FORMAT: &str = "letsmt";
+
+/// The name of the Irish Sentence Bank formats
+/// (`IrishSentenceBankSentenceStreamFactory` and
+/// `IrishSentenceBankTokenSampleStreamFactory`).
+pub const IRISH_SENTENCE_BANK_FORMAT: &str = "irishsentencebank";
 
 /// A kind of sample: the type that names one sample type for the
 /// registry.
@@ -89,6 +106,8 @@ kinds! {
     DocumentSamples => DocumentSample, "opennlp.tools.doccat.DocumentSample";
     /// [`LanguageSample`]s.
     LanguageSamples => LanguageSample, "opennlp.tools.langdetect.LanguageSample";
+    /// [`DependencySample`]s.
+    DependencySamples => DependencySample, "opennlp.tools.depparse.DependencySample";
 }
 
 /// A stream of samples of kind `K` read from a source text.
@@ -473,6 +492,100 @@ impl Format<SentenceSamples> for ConllXSentences {
     }
 }
 
+/// Dependency samples from CoNLL-U (`ConlluDependencySampleStream`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ConlluDependencies {
+    pub tagset: Tagset,
+}
+
+impl Format<DependencySamples> for ConlluDependencies {
+    fn name(&self) -> &str {
+        CONLLU_FORMAT
+    }
+
+    fn open<'a>(
+        &'a self,
+        source: &'a str,
+        _options: ReadOptions,
+    ) -> Result<Samples<'a, DependencySamples>, FormatError> {
+        Ok(Box::new(ConlluDependencyReader::new(source, self.tagset)?))
+    }
+}
+
+/// Sentence samples from Moses (`MosesSentenceSampleStreamFactory`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct MosesSentences;
+
+impl Format<SentenceSamples> for MosesSentences {
+    fn name(&self) -> &str {
+        MOSES_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+        Ok(Box::new(MosesSentenceReader::new(source)?))
+    }
+}
+
+/// Sentence samples from LetsMT XML (`LetsmtSentenceStreamFactory`), with
+/// an optional detokenizer dictionary.
+#[derive(Clone, Debug, Default)]
+pub struct LetsmtSentences {
+    pub dictionary: Option<Arc<DetokenizerDictionary>>,
+}
+
+impl Format<SentenceSamples> for LetsmtSentences {
+    fn name(&self) -> &str {
+        LETSMT_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+        let reader = LetsmtSentenceReader::from_xml_str(source)?
+            .map(|r| r.map(|s: SentenceSample<'static>| -> SentenceSample<'a> { s }));
+        if let Some(dict) = &self.dictionary {
+            let detok = Detokenizer::new(dict);
+            Ok(Box::new(DetokenizeSentenceReader::new(reader, detok).with_whitespace_mode(options.whitespace)))
+        } else {
+            Ok(Box::new(reader))
+        }
+    }
+}
+
+/// Sentence samples from the Irish Sentence Bank XML
+/// (`IrishSentenceBankSentenceStreamFactory`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct IrishSentenceBankSentences;
+
+impl Format<SentenceSamples> for IrishSentenceBankSentences {
+    fn name(&self) -> &str {
+        IRISH_SENTENCE_BANK_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+        Ok(Box::new(
+            IrishSentenceBankSentenceReader::from_xml_str(source)?
+                .map(|r| r.map(|s: SentenceSample<'static>| -> SentenceSample<'a> { s })),
+        ))
+    }
+}
+
+/// Token samples from the Irish Sentence Bank XML
+/// (`IrishSentenceBankTokenSampleStreamFactory`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct IrishSentenceBankTokens;
+
+impl Format<TokenSamples> for IrishSentenceBankTokens {
+    fn name(&self) -> &str {
+        IRISH_SENTENCE_BANK_FORMAT
+    }
+
+    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, TokenSamples>, FormatError> {
+        Ok(Box::new(
+            IrishSentenceBankTokenReader::from_xml_str(source)?
+                .map(|r| r.map(|s: TokenSample<'static>| -> TokenSample<'a> { s })),
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -493,6 +606,51 @@ mod tests {
         let src = "1\ta\tla\tX\tx\t_\t_\t_\t_\t_\n";
         let samples: Vec<_> = r.open(CONLLU_FORMAT, src, ReadOptions::default()).unwrap().map(Result::unwrap).collect();
         assert_eq!(samples[0].tags()[0].as_str(), "x");
+
+        let mut dep_reg = Registry::<DependencySamples>::empty();
+        dep_reg.register(ConlluDependencies::default()).unwrap();
+        let dep_src = "1\tThe\tthe\tDET\tDT\t_\t2\tdet\t_\t_\n2\tcat\tcat\tNOUN\tNN\t_\t0\troot\t_\t_\n";
+        let dep_samples: Vec<_> =
+            dep_reg.open(CONLLU_FORMAT, dep_src, ReadOptions::default()).unwrap().map(Result::unwrap).collect();
+        assert_eq!(dep_samples.len(), 1);
+        assert_eq!(dep_samples[0].graph().root(), 1);
+    }
+
+    #[test]
+    fn moses_letsmt_and_irish_formats_register_by_name() {
+        let mut sents = Registry::<SentenceSamples>::with_native();
+        sents.register(MosesSentences).unwrap();
+        sents.register(LetsmtSentences::default()).unwrap();
+        sents.register(IrishSentenceBankSentences).unwrap();
+
+        let moses_out: Vec<_> = sents
+            .open(MOSES_FORMAT, "First.\nSecond.\n", ReadOptions::default())
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(moses_out[0].sentences().len(), 2);
+
+        let letsmt_xml = "<letsmt version=\"1.0\"><body><s id=\"1\"><w>Hello</w><w>world</w></s></body></letsmt>";
+        let letsmt_out: Vec<_> =
+            sents.open(LETSMT_FORMAT, letsmt_xml, ReadOptions::default()).unwrap().map(Result::unwrap).collect();
+        assert_eq!(letsmt_out[0].sentence(0), "Hello world");
+
+        let irish_xml = "<sentences><sentence source='s'><original><token slot='1'>Dia</token></original><translation>God</translation><flex slot='1' lemma='dia'/></sentence></sentences>";
+        let irish_sents: Vec<_> = sents
+            .open(IRISH_SENTENCE_BANK_FORMAT, irish_xml, ReadOptions::default())
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(irish_sents[0].sentence(0), "Dia");
+
+        let mut toks = Registry::<TokenSamples>::with_native();
+        toks.register(IrishSentenceBankTokens).unwrap();
+        let irish_toks: Vec<_> = toks
+            .open(IRISH_SENTENCE_BANK_FORMAT, irish_xml, ReadOptions::default())
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(irish_toks[0].token(0), "Dia");
     }
 
     #[test]

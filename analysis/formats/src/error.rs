@@ -125,6 +125,29 @@ pub enum FormatError {
     /// `StringUtil.split` drops the empty columns at its end). `text` is
     /// the line.
     ConllXColumns { line: u32, text: String },
+    /// An invalid [`DependencyGraph`](crate::sample::DependencyGraph) or
+    /// [`DependencyArc`](crate::sample::DependencyArc).
+    InvalidDependencyGraph { detail: String },
+    /// An invalid [`DependencySample`](crate::sample::DependencySample).
+    InvalidDependencySample { detail: String },
+    /// A CoNLL-U dependency line without ten tab-separated columns (keeping
+    /// trailing empty columns, as `ConlluDependencySampleStream` splits
+    /// them).
+    ConlluDependencyColumns { line: u32, count: usize, text: String },
+    /// A malformed CoNLL-U coreference document or mention
+    /// (`ConlluCorefDocumentStream`).
+    ConlluCoref { line: u32, message: String },
+    /// An XML format error in LetsMT, NKJP or Irish Sentence Bank.
+    Xml { format: &'static str, message: String },
+    /// A Leipzig sentences file with fewer lines than
+    /// `sentences_per_sample * samples_per_file`
+    /// (`LeipzigLanguageSampleStream`).
+    LeipzigNotEnoughLines { path: String, total_lines: usize, required_lines: usize },
+    /// An unknown rule-based tokenizer name in Twenty Newsgroups
+    /// (`TwentyNewsgroupSampleStreamFactory`).
+    UnknownTokenizer { name: String },
+    /// A filesystem error while reading a multi-file corpus directory.
+    Io { path: String, message: String },
 }
 
 impl FormatError {
@@ -139,20 +162,28 @@ impl FormatError {
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
             Ner(e) => Some(e.java_class()),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
-            Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
+            Lengths { .. }
+            | OutOfBounds { .. }
+            | BackwardsSpan { .. }
+            | InvalidDependencyGraph { .. }
+            | InvalidDependencySample { .. } => Some("java.lang.IllegalArgumentException"),
             ConlluColumns { .. }
             | InvalidLanguage { .. }
             | InvalidMultiwordId { .. }
             | BackwardsMultiwordId { .. }
-            | MissingMultiwordLine { .. } => Some("opennlp.tools.util.InvalidFormatException"),
+            | MissingMultiwordLine { .. }
+            | ConlluDependencyColumns { .. }
+            | ConlluCoref { .. }
+            | LeipzigNotEnoughLines { .. } => Some("opennlp.tools.util.InvalidFormatException"),
             MultiwordRemoval { .. } => Some("java.lang.IndexOutOfBoundsException"),
-            TokenNotInText { .. } | NoSentenceText { .. } => Some("java.io.IOException"),
+            TokenNotInText { .. } | NoSentenceText { .. } | Xml { .. } | Io { .. } => Some("java.io.IOException"),
             ConlluHead { .. } | ConlluDocument { .. } | HeadOutsideSentence { .. } | NoTokens => None,
             Conll02Fields { .. } | Conll03Fields { .. } | InvalidNameTag { .. } | DocstartNotFollowedByEmpty { .. } => {
                 Some("java.io.IOException")
             }
             UnknownNameType { .. } | ConllXColumns { .. } => Some("opennlp.tools.util.InvalidFormatException"),
             DocstartAtEnd { .. } => Some("java.lang.NullPointerException"),
+            UnknownTokenizer { .. } => Some("opennlp.tools.cmdline.TerminateToolException"),
             SplitsSurrogatePair { .. } | NameOutsideTokens { .. } | TooLong { .. } => None,
         }
     }
@@ -183,7 +214,9 @@ impl FormatError {
             | UnknownNameType { line, .. }
             | DocstartNotFollowedByEmpty { line, .. }
             | DocstartAtEnd { line }
-            | ConllXColumns { line, .. } => Some(line),
+            | ConllXColumns { line, .. }
+            | ConlluDependencyColumns { line, .. }
+            | ConlluCoref { line, .. } => Some(line),
             _ => None,
         }
     }
@@ -253,6 +286,18 @@ impl fmt::Display for FormatError {
                 f.write_str("Cannot invoke \"java.lang.CharSequence.length()\" because \"theString\" is null")
             }
             ConllXColumns { text, .. } => write!(f, "Every non-empty line must have at least 5 fields: '{text}'!"),
+            InvalidDependencyGraph { detail } | InvalidDependencySample { detail } => f.write_str(detail),
+            ConlluDependencyColumns { count, text, .. } => {
+                write!(f, "CoNLL-U word line has {count} columns, expected 10: {text}")
+            }
+            ConlluCoref { message, .. } => f.write_str(message),
+            Xml { format, message } => write!(f, "{format}: {message}"),
+            LeipzigNotEnoughLines { path, total_lines, required_lines } => write!(
+                f,
+                "{path} does not contain enough lines ({total_lines} lines < {required_lines} required lines)."
+            ),
+            UnknownTokenizer { name } => write!(f, "Unknown tokenizer: {name}"),
+            Io { path, message } => write!(f, "{path}: {message}"),
         }
     }
 }
@@ -273,4 +318,7 @@ pub enum Warning {
     /// A language sample line without a tab after a non-empty language
     /// code, which `LanguageDetectorSampleStream` passes over silently.
     NoLanguage { line: u32 },
+    /// A CoNLL-U dependency sentence skipped because its basic dependency
+    /// annotation was incomplete or not a valid tree.
+    SkippedDependencySentence { line: u32 },
 }

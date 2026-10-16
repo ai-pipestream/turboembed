@@ -49,6 +49,8 @@
 //! - An error in a sentence discards the whole sentence, and reading goes
 //!   on with the next.
 
+pub mod coref;
+pub mod dependency;
 pub mod document;
 pub mod samples;
 pub mod words;
@@ -60,6 +62,8 @@ use turbo_analysis::Span;
 use crate::error::FormatError;
 use crate::source::{Field, Line, Lines, Piece, java_trim, split_fields};
 
+pub use coref::{ConlluCorefReader, CorefChains, CorefMention, GOLD_CHAINS, SPEAKERS, Speakers};
+pub use dependency::ConlluDependencyReader;
 pub use document::write_document_conllu;
 pub use samples::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader};
 pub use words::{

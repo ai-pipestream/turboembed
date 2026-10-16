@@ -12,6 +12,7 @@
 //! reader holds the text and gives out samples that point into it.
 
 pub mod chunk;
+pub mod dependency;
 pub mod document;
 pub mod lemma;
 pub mod name;
@@ -20,6 +21,7 @@ pub mod sentence;
 pub mod token;
 
 pub use chunk::{ChunkSample, Phrase};
+pub use dependency::{DependencyArc, DependencyGraph, DependencySample};
 pub use document::{DocumentSample, LanguageSample};
 pub use lemma::LemmaSample;
 pub use name::{DEFAULT_NAME_TYPE, Name, NameSample};
