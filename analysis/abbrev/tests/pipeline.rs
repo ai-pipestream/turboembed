@@ -186,6 +186,23 @@ Later AB-CD-EF and Alpha Delta echo (ADE) appeared.";
     let mentions2: Vec<&str> =
         items(&doc2).into_iter().filter(|i| i.2 == AbbreviationForm::Mention).map(|i| i.3).collect();
     assert!(mentions2.is_empty(), "{mentions2:?}");
+
+    // Strict containment in the other direction is allowed under Overlap::Nesting:
+    // mention "AB delta" (35..43) strictly contains long form "delta" (38..43).
+    let nested_long = "Alpha beta delta (AB delta). Later AB delta (DT).";
+    let doc3 = run(nested_long, false);
+    let layer3 = doc3.get::<Abbreviations>().unwrap();
+    assert_eq!(layer3.check(), Ok(()));
+    assert_eq!(
+        items(&doc3),
+        [
+            (0, 16, AbbreviationForm::Long, "Alpha beta delta", None),
+            (18, 26, AbbreviationForm::Short, "AB delta", Some("Alpha beta delta")),
+            (35, 43, AbbreviationForm::Mention, "AB delta", Some("Alpha beta delta")),
+            (38, 43, AbbreviationForm::Long, "delta", None),
+            (45, 47, AbbreviationForm::Short, "DT", Some("delta")),
+        ]
+    );
 }
 
 #[test]

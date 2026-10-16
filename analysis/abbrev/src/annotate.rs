@@ -183,7 +183,7 @@ fn is_mention(text: &str, span: Span, definitions: &[Definition], tokens: Option
     }
     let first_long = definitions.partition_point(|d| d.long.end <= span.start);
     for d in definitions[first_long..].iter().take_while(|d| d.long.start < span.end) {
-        if !(d.long.start <= span.start && span.end <= d.long.end && d.long != span) {
+        if d.long == span || !(d.long.contains(span) || span.contains(d.long)) {
             return false;
         }
     }
