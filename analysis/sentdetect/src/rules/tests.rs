@@ -225,11 +225,17 @@ fn scratch_reuse_gives_the_same_spans() {
 
 #[test]
 fn annotator() {
-    let doc = Document::new("Mr. Smith left. He came back.");
+    let mut doc = Document::new("\"It is big.\"[1] Next one.");
     let view = doc.get::<View>().unwrap();
     let detector = RuleSentenceDetector::new("en");
+    assert_eq!(RuleSentenceDetector::VERSION, "2");
     let (sentences,) = detector.annotate((view,)).unwrap();
-    assert_eq!(sentences.spans.columns(), (&[0, 16][..], &[15, 29][..]));
+    assert_eq!(sentences.spans.columns(), (&[0, 16][..], &[15, 25][..]));
+    let analyzer = turbo_analysis::Analyzer::builder().add(RuleSentenceDetector::new("en")).build().unwrap();
+    analyzer.run(std::slice::from_mut(&mut doc)).into_iter().next().unwrap().unwrap();
+    let prov = doc.provenance(turbo_analysis::Key::<Sentences>::DEFAULT.id()).unwrap();
+    assert_eq!(prov.annotator, "turbo-sentdetect:rules");
+    assert_eq!(prov.version, "2");
     let other = RuleSentenceDetector::new("de");
     assert_ne!(detector.config_hash(), other.config_hash());
     // de-AT uses the German rules, so it is the same configuration.

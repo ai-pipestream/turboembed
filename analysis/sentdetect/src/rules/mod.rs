@@ -308,7 +308,7 @@ thread_local! {
 impl Annotator for RuleSentenceDetector {
     const ID: &'static str = "turbo-sentdetect:rules";
     /// Changes whenever the rules or the data change what is split.
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
     type Reads = (View,);
     type Writes = (Sentences,);
 
