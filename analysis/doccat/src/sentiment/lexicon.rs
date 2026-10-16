@@ -328,8 +328,13 @@ impl VaderLexicon {
     }
 
     /// Parses a tab-separated lexicon (`word\tvalence`, ignoring empty lines
-    /// and `#` comment lines).
-    pub fn from_tsv(tsv: &str) -> Result<VaderLexicon, String> {
+    /// and `#` comment lines). Extra columns, such as the standard deviation
+    /// and raw ratings in the upstream file, are ignored.
+    pub fn from_tsv(tsv: &str) -> Result<VaderLexicon, Error> {
+        let invalid = |line_no: usize, detail: String| Error::Annotator {
+            annotator: LexiconSentiment::ID,
+            detail: format!("lexicon line {}: {detail}", line_no + 1),
+        };
         let mut entries = HashMap::new();
         for (line_no, raw_line) in tsv.lines().enumerate() {
             let line = raw_line.trim();
@@ -338,22 +343,39 @@ impl VaderLexicon {
             }
             let mut fields = line.split('\t');
             let Some(word) = fields.next() else {
-                return Err(format!("line {}: missing word column", line_no + 1));
+                return Err(invalid(line_no, "missing word column".into()));
             };
             let Some(measure_str) = fields.next() else {
-                return Err(format!("line {}: missing valence column for {:?}", line_no + 1, word));
+                return Err(invalid(line_no, format!("missing valence column for {word:?}")));
             };
             let measure: f64 = measure_str
                 .trim()
                 .parse()
-                .map_err(|e| format!("line {}: invalid valence {:?}: {e}", line_no + 1, measure_str))?;
+                .map_err(|e| invalid(line_no, format!("invalid valence {measure_str:?}: {e}")))?;
             if !measure.is_finite() {
-                return Err(format!("line {}: non-finite valence for {:?}", line_no + 1, word));
+                return Err(invalid(line_no, format!("non-finite valence for {word:?}")));
             }
             entries.insert(word.to_string(), measure);
         }
-        let sha256_hex = sha256(tsv.as_bytes()).to_hex();
-        Ok(VaderLexicon { entries, sha256_hex })
+        let mut lexicon = VaderLexicon { entries, sha256_hex: String::new() };
+        lexicon.recompute_digest();
+        Ok(lexicon)
+    }
+
+    /// Recomputes the digest over the entries in canonical form (sorted
+    /// `word\tvalence` lines), so two tables with the same entries share a
+    /// digest whatever their comments or column layout.
+    fn recompute_digest(&mut self) {
+        let mut words: Vec<&String> = self.entries.keys().collect();
+        words.sort_unstable();
+        let mut canonical = String::new();
+        for word in words {
+            canonical.push_str(word);
+            canonical.push('\t');
+            canonical.push_str(&self.entries[word].to_string());
+            canonical.push('\n');
+        }
+        self.sha256_hex = sha256(canonical.as_bytes()).to_hex();
     }
 
     /// Looks up the prior valence of `word_lower`.
@@ -371,6 +393,7 @@ impl VaderLexicon {
     /// Inserts or updates a lowercase lexicon entry and recomputes the digest.
     pub fn insert(&mut self, word_lower: impl Into<String>, valence: f64) {
         self.entries.insert(word_lower.into(), valence);
+        self.recompute_digest();
     }
 
     /// Number of entries in the lexicon.
@@ -383,7 +406,8 @@ impl VaderLexicon {
         self.entries.is_empty()
     }
 
-    /// SHA-256 hex digest of the lexicon source bytes.
+    /// SHA-256 hex digest of the entries in canonical form (sorted
+    /// `word\tvalence` lines).
     pub fn sha256_hex(&self) -> &str {
         &self.sha256_hex
     }
@@ -628,7 +652,6 @@ impl LexiconSentiment {
         let is_cap_diff = allcap_differential(&words);
         let mut sentiments = Vec::with_capacity(n);
         let mut priors = Vec::with_capacity(n);
-        let mut negated_flags = Vec::with_capacity(n);
 
         for i in 0..n {
             let tok_global = start + i;
@@ -638,7 +661,6 @@ impl LexiconSentiment {
             {
                 sentiments.push(0.0);
                 priors.push(0.0);
-                negated_flags.push(false);
                 continue;
             }
 
@@ -648,8 +670,8 @@ impl LexiconSentiment {
                 None
             };
 
-            let (valence, prior, negated) = if use_deps {
-                self.dependency_token_valence(
+            let (valence, prior, _negated) = match deps {
+                Some(deps) if use_deps => self.dependency_token_valence(
                     item,
                     item_lower,
                     i,
@@ -659,16 +681,19 @@ impl LexiconSentiment {
                     &lower_words,
                     is_cap_diff,
                     emoji_prior,
-                    deps.expect("checked Some"),
-                )
-            } else {
-                self.window_token_valence(item, item_lower, i, &words, &lower_words, is_cap_diff, emoji_prior)
+                    deps,
+                ),
+                _ => self.window_token_valence(item, item_lower, i, &words, &lower_words, is_cap_diff, emoji_prior),
             };
             sentiments.push(valence);
             priors.push(prior);
-            negated_flags.push(negated);
         }
 
+        // Contrastive "but": by token position, not by vaderSentiment's value
+        // lookup (`sentiments.index(sentiment)`), which rescales the first token
+        // carrying a repeated value instead of the token itself. `score_text`
+        // keeps that quirk for parity; evidence spans must point at the token
+        // that was actually rescaled.
         if let Some(but_idx) = lower_words.iter().position(|w| w == "but") {
             for (sidx, s) in sentiments.iter_mut().enumerate() {
                 if sidx < but_idx {
@@ -686,7 +711,10 @@ impl LexiconSentiment {
             if final_val == 0.0 || prior == 0.0 {
                 continue;
             }
-            let negated = negated_flags[i] || (final_val.signum() != prior.signum());
+            // `negated` must agree with the sign of the adjusted valence so that
+            // `Opinion::effective_polarity` reproduces it: a doubly negated token
+            // ("no", then "not") ends up positive and is reported as not negated.
+            let negated = final_val.signum() != prior.signum();
             let intensity = (final_val / prior).abs();
             let tok_ix = (start + i) as u32;
             opinions.push(Opinion { tokens: IxRange::new(tok_ix, tok_ix + 1), polarity: prior, intensity, negated });
@@ -717,9 +745,13 @@ impl LexiconSentiment {
         let mut valence = base_valence;
         let mut negated = false;
 
-        // "no" immediately before a lexicon word acts as a negator rather than its own lexicon item.
+        // "no" immediately before a lexicon word acts as a negator rather than its
+        // own lexicon item. Its valence becomes 0.0 but, as in vaderSentiment, the
+        // ALLCAPS and booster rules below still apply to it ("NO good" scores
+        // "NO" at -0.733).
         if item_lower == "no" && i + 1 < n && self.lexicon.contains(&lower_words[i + 1]) {
-            return (0.0, 0.0, false);
+            valence = 0.0;
+            prior = 0.0;
         }
         if (i > 0 && lower_words[i - 1] == "no")
             || (i > 1 && lower_words[i - 2] == "no")
@@ -795,23 +827,31 @@ impl LexiconSentiment {
             return (0.0, 0.0, false);
         };
         let n = words.len();
-        if item_lower == "no" && i + 1 < n && self.lexicon.contains(&lower_words[i + 1]) {
-            return (0.0, 0.0, false);
-        }
-        // Also suppress "no" when it is a dependency modifier of a lexicon head in this sentence.
-        let tok_global = sent_start + i;
-        if item_lower == "no"
-            && let Some(Some(head_ix)) = deps.head.get(tok_global)
-        {
-            let h = head_ix.get();
-            if h >= sent_start && h < sent_end && h != tok_global && self.lexicon.contains(&lower_words[h - sent_start])
-            {
-                return (0.0, 0.0, false);
-            }
-        }
-
         let mut prior = base_valence;
         let mut valence = base_valence;
+
+        // "no" acts as a negator rather than its own lexicon item when it precedes a
+        // lexicon word or is a dependent of a lexicon head in this sentence. Its
+        // valence becomes 0.0 but the ALLCAPS and booster rules below still apply,
+        // as in the window path.
+        let tok_global = sent_start + i;
+        if item_lower == "no" {
+            let precedes_lexicon_word = i + 1 < n && self.lexicon.contains(&lower_words[i + 1]);
+            let modifies_lexicon_head = match deps.head.get(tok_global) {
+                Some(Some(head_ix)) => {
+                    let h = head_ix.get();
+                    h >= sent_start
+                        && h < sent_end
+                        && h != tok_global
+                        && self.lexicon.contains(&lower_words[h - sent_start])
+                }
+                _ => false,
+            };
+            if precedes_lexicon_word || modifies_lexicon_head {
+                valence = 0.0;
+                prior = 0.0;
+            }
+        }
 
         if is_all_caps(item) && is_cap_diff {
             if valence > 0.0 {
@@ -1194,24 +1234,17 @@ impl Annotator for LexiconSentiment {
                 opinions.push(op);
             }
 
-            let (mut pos, mut neg, mut neu) = (result.score.pos, result.score.neg, result.score.neu);
+            let (pos, neg, mut neu) = (result.score.pos, result.score.neg, result.score.neu);
             if pos == 0.0 && neg == 0.0 && neu == 0.0 {
                 neu = 1.0;
             }
+            // The best category follows the compound threshold, not the largest
+            // proportion: "not bad" is mostly neutral tokens but classifies positive.
             let best_tag = match result.score.polarity() {
-                Polarity::Positive => {
-                    if pos <= neg || pos <= neu {
-                        // Ensure best_tag matches the Polarity classification or highest score.
-                    }
-                    Tag(0)
-                }
+                Polarity::Positive => Tag(0),
                 Polarity::Negative => Tag(1),
                 Polarity::Neutral => Tag(2),
             };
-            // Ensure scores are finite and non-negative for Categories<Sentences>.
-            pos = pos.max(0.0);
-            neg = neg.max(0.0);
-            neu = neu.max(0.0);
             categories.push(best_tag, &[pos, neg, neu]);
         }
 
@@ -1277,6 +1310,19 @@ mod tests {
         ("Without a doubt, an excellent idea.", 0.000, 0.408, 0.592, 0.7013),
     ];
 
+    /// Sentences outside the upstream suite where an earlier port diverged,
+    /// scored with vaderSentiment 3.3.2. "no" before a lexicon word keeps its
+    /// 0.0 valence through the ALLCAPS and booster rules; a dampener before
+    /// "no" and a leading idiom are both scored by the preceding-word rules.
+    const VADER_EXTRA_SUITE: &[(&str, f64, f64, f64, f64)] = &[
+        ("NO good", 1.000, 0.000, 0.000, -0.4835),
+        ("very no good", 0.539, 0.201, 0.260, -0.3381),
+        ("yeah right bad ass", 0.686, 0.098, 0.216, -0.7003),
+        ("screwer NO bravely favoritisms", 1.000, 0.000, 0.000, -0.7313),
+        ("no no good", 0.454, 0.189, 0.357, -0.1326),
+        ("no not good", 0.420, 0.191, 0.389, -0.0412),
+    ];
+
     fn make_sentences_and_tokens(text: &str, words: &[&str]) -> (Sentences, Tokens) {
         let mut s_spans = Spans::new(ViewId::SOURCE);
         s_spans.push(Span::new(0, text.len() as u32));
@@ -1298,7 +1344,9 @@ mod tests {
         let scorer = LexiconSentiment::new();
         assert_eq!(scorer.lexicon().len(), 7506);
 
-        for &(sentence, exp_neg, exp_neu, exp_pos, exp_compound) in VADER_REFERENCE_SUITE {
+        for &(sentence, exp_neg, exp_neu, exp_pos, exp_compound) in
+            VADER_REFERENCE_SUITE.iter().chain(VADER_EXTRA_SUITE)
+        {
             let s = scorer.score_text(sentence);
             assert_eq!(
                 (s.neg_rounded(), s.neu_rounded(), s.pos_rounded(), s.compound_rounded()),
@@ -1306,6 +1354,34 @@ mod tests {
                 "mismatch on sentence: {sentence:?}"
             );
         }
+    }
+
+    #[test]
+    fn digest_follows_entries_not_source_bytes() {
+        let a = VaderLexicon::from_tsv("# comment\ngood\t1.9\nbad\t-2.5\n").unwrap();
+        let b = VaderLexicon::from_tsv("bad\t-2.5\t0.5\t[-3, -2]\ngood\t1.9\n").unwrap();
+        assert_eq!(a.sha256_hex(), b.sha256_hex());
+        let mut c = a.clone();
+        c.insert("meh", -0.5);
+        assert_ne!(a.sha256_hex(), c.sha256_hex());
+        assert!(VaderLexicon::from_tsv("good\tnot-a-number\n").is_err());
+    }
+
+    #[test]
+    fn double_negation_is_reported_as_not_negated() {
+        // "no" two tokens back applies the "no" rule, then "not" applies the
+        // negation window: the valence flips twice and ends positive.
+        let text = "no not good";
+        let words = ["no", "not", "good"];
+        let (_s, tokens) = make_sentences_and_tokens(text, &words);
+        let scorer = LexiconSentiment::new().with_negation_mode(NegationMode::Window);
+        let res = scorer.score_sentence(text, Span::new(0, 11), &tokens, IxRange::new(0, 3), None, None);
+        // "no" keeps its own lexicon valence here because "not" is not a lexicon word.
+        assert_eq!(res.opinions.len(), 2);
+        let op = res.opinions[1];
+        assert_eq!(op.tokens, IxRange::new(2, 3));
+        assert!(!op.negated);
+        assert!((op.effective_polarity() - 1.9 * N_SCALAR * N_SCALAR).abs() < 1e-12);
     }
 
     #[test]

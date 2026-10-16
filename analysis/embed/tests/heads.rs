@@ -16,7 +16,8 @@
 //! 5. Sentiment classification comparison between `LexiconSentiment` (#320),
 //!    `LabelCentroids` (#321), and `ClassifierHead` (#321) on a self-contained
 //!    benchmark and on MASC 3.0.0 MPQA opinion annotations (`CC BY 3.0 US`)
-//!    when `/work/opennlp-eval-data/masc/MASC-3.0.0` is present.
+//!    when `TURBO_MASC_ROOT` names the corpus' `data` directory and
+//!    `TURBO_MINILM_BUNDLE` a sentence-transformers/all-MiniLM-L6-v2 bundle.
 //! 6. CPU and GPU (`TURBO_TEST_DEVICE` / `TURBO_TEST_REQUIRE_CUDA=1`) parity
 //!    for both `LabelCentroids` and `ClassifierHead`.
 
@@ -521,7 +522,7 @@ fn vector_head_and_span_heads_write_expected_layers() {
 
 /// Self-contained sentiment evaluation benchmark comparing `LexiconSentiment` (#320),
 /// `LabelCentroids` (#321), and `ClassifierHead` (#321), plus MASC 3.0.0 MPQA
-/// opinion evaluation when `/work/opennlp-eval-data/masc/MASC-3.0.0` is available.
+/// opinion evaluation when `TURBO_MASC_ROOT` and `TURBO_MINILM_BUNDLE` are set.
 #[test]
 fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
     let (_sub, vec_ann) = open_cpu(64);
@@ -640,15 +641,18 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
     assert!(cent_correct >= 10, "centroids accuracy {cent_correct}/{}", eval_data.len());
     assert!(lin_correct >= 10, "linear head accuracy {lin_correct}/{}", eval_data.len());
 
-    // Optional MASC 3.0.0 MPQA corpus evaluation when present on the machine.
-    let masc_root = Path::new("/work/opennlp-eval-data/masc/MASC-3.0.0/data");
-    if masc_root.is_dir() {
-        let samples = load_masc_mpqa_samples(masc_root);
+    // Optional MASC 3.0.0 MPQA corpus evaluation: TURBO_MASC_ROOT is the corpus'
+    // `data` directory and TURBO_MINILM_BUNDLE an all-MiniLM-L6-v2 bundle.
+    let masc_root = std::env::var_os("TURBO_MASC_ROOT").map(PathBuf::from);
+    let minilm_path = std::env::var_os("TURBO_MINILM_BUNDLE").map(PathBuf::from);
+    if let (Some(masc_root), Some(minilm_path)) = (masc_root, minilm_path)
+        && masc_root.is_dir()
+    {
+        let samples = load_masc_mpqa_samples(&masc_root);
         assert!(samples.len() >= 200, "expected >= 200 MASC MPQA samples, got {}", samples.len());
         let split = (samples.len() * 4) / 5;
         let (m_train, m_test) = samples.split_at(split);
 
-        let minilm_path = Path::new("/work/tmp/minilm-npu-token-ids-f16-febfed530b66-sealed");
         let use_cuda = std::env::var("TURBO_TEST_REQUIRE_CUDA").as_deref() == Ok("1");
         let o = VectorOptions {
             encoder: EncoderOptions {
@@ -659,9 +663,9 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
             ..VectorOptions::default()
         };
         let (eval_bundle_path, m_vec_ann) = if minilm_path.is_dir()
-            && let Ok(va) = VectorAnnotator::open(minilm_path, &o)
+            && let Ok(va) = VectorAnnotator::open(&minilm_path, &o)
         {
-            (minilm_path.to_path_buf(), Arc::new(va))
+            (minilm_path.clone(), Arc::new(va))
         } else {
             (bert(), Arc::clone(&vec_ann))
         };
@@ -1108,6 +1112,15 @@ fn pragmatics_annotator_combines_incongruity_emoji_and_embedding_head() {
 
     let prag = doc.get::<Pragmatics>().unwrap();
     assert_eq!(prag.len(), 4);
+
+    // The centroid head wrote its own Categories<Sentences> instance; it is not
+    // what PragmaticsAnnotator read (that was the lexicon polarity at the
+    // default instance), so check it on its own: the implicit-irony training
+    // sentence lands on "sarcastic" and the literal one on "literal".
+    let cent = doc.get_key::<Categories<Sentences>>(&Key::named("prag-centroids")).unwrap();
+    assert_eq!(cent.len(), 4);
+    assert_eq!(cent.best_category(2), "sarcastic");
+    assert_eq!(cent.best_category(3), "literal");
 
     // Sentence 0: Riloff incongruity -> high score and Some(Incongruity).
     let p0 = prag.get(Ix::new(0));
