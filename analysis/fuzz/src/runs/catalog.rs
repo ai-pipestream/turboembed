@@ -29,10 +29,12 @@ use crate::resources::{Resources, Unavailable};
 /// `namefind` runs train name finders from name samples and find names in
 /// them, and the sentiment runs (`sentiment`) train models on a corpus of
 /// their own and score their own documents, which turbo-train-components
-/// compares with; the PII rewrites (`pii-rewrite`) compare whole rewritten
+/// compares with; the maxent document categorizer runs (`doccat`) train
+/// models on a downloaded corpus and categorize documents of their own; the
+/// PII rewrites (`pii-rewrite`) compare whole rewritten
 /// texts, labels and audit reports rather than layers, which turbo-pii
 /// compares with.
-pub const NOT_COVERED: [&str; 28] = [
+pub const NOT_COVERED: [&str; 29] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -60,6 +62,7 @@ pub const NOT_COVERED: [&str; 28] = [
     "glossary",
     "svm-doccat",
     "sentiment",
+    "doccat",
     "pii-rewrite",
 ];
 

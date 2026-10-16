@@ -319,6 +319,19 @@ are not taken from any corpus.
   has, whitespace alone, several lines, and one word without a line end
   (`docs/sentiment.md`).
 
+- `inputs/doccat-train/`: `emoji.txt`, 25 short text messages written for
+  this project in the SMS Spam Collection's format (`ham` or `spam`, a tab
+  and the message), 15 `ham` and 10 `spam`, each with emoji, which the
+  maxent document categorizer goldens train on after that downloaded
+  corpus, since it has none. The corpus itself is not checked in
+  (`analysis/goldens-tool/README.md`, "Maxent document categorizer
+  goldens").
+- `inputs/doccat/`: 12 documents those models categorize, written for this
+  project: one like each category, a mixed one, emoji alone, emoji joined
+  to words and to each other, accents and a character outside the Basic
+  Multilingual Plane, repeated words, words no corpus has, whitespace
+  alone, several lines, a long message, and one word without a line end.
+
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
 ## Conformance suites

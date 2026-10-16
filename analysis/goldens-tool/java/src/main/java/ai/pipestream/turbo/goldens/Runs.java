@@ -47,6 +47,12 @@ final class Runs {
   static final String KO_DIC = "mecab-ko-dic-2.1.1-20180720";
 
   /**
+   * The training corpus the maxent document categorizer runs read from the models directory: the
+   * SMS Spam Collection (CC BY 4.0), downloaded by {@code fetch-models} and never checked in.
+   */
+  static final String SMS_SPAM_CORPUS = "corpora/sms-spam-collection.tsv";
+
+  /**
    * The files the generator loads from the fixtures directory: models and dictionaries made for
    * the tests or copied from OpenNLP, which are checked in (analysis/goldens/data/fixtures).
    */
@@ -172,9 +178,9 @@ final class Runs {
   private Runs() {}
 
   /**
-   * The runs, with the inputs directory, which the SVM document categorizer and sentiment runs
-   * train their models from ({@link SvmDoccatGolden}, {@link SentimentGolden}), and the models and
-   * fixtures directories.
+   * The runs, with the inputs directory, which the SVM document categorizer, sentiment and maxent
+   * document categorizer runs train their models from ({@link SvmDoccatGolden},
+   * {@link SentimentGolden}, {@link DoccatGolden}), and the models and fixtures directories.
    */
   static All load(Path inputs, Path models, Path fixtures, Path moneySnapshot) throws IOException {
     List<AnnotatorGolden> annotators = new ArrayList<>();
@@ -394,6 +400,9 @@ final class Runs {
     // The sentiment detector (turbo-doccat, turbo-train-components): models trained on the
     // sentiment-train corpus with each factory and trainer, and run on the sentiment documents.
     annotators.addAll(SentimentGolden.all(inputs));
+    // The maxent document categorizer (turbo-doccat): models trained on the downloaded SMS corpus
+    // and the doccat-train corpus with each trainer, and run on the doccat documents.
+    annotators.addAll(DoccatGolden.all(inputs, models));
     return new All(annotators, recorders);
   }
 }

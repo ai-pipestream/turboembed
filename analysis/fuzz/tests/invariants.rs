@@ -27,6 +27,8 @@ const FED: &[&str] = &[
     "codec",
     "descriptor-errors",
     "detokenizer",
+    "doccat",
+    "doccat-train",
     "edge",
     "en",
     "formats",
