@@ -20,11 +20,16 @@
 //! Training is in `turbo-train-components` (`sentiment`), which builds
 //! its events with [`SentimentFactory::context`].
 
+pub mod aspect;
 mod detector;
 pub mod lexicon;
 mod model;
 pub mod pragmatics;
 
+pub use aspect::{
+    AbsaMetrics, AbsaTriplet, AspectCategoryScorer, DEFAULT_ASPECT_CATEGORIES, RuleAspectSentiment,
+    evaluate_absa_corpus, extract_triplets,
+};
 pub use detector::{SENTIMENT, Scratch, SentimentMe};
 pub use lexicon::{
     B_DECR, B_INCR, C_INCR, COMPOUND_THRESHOLD, DEFAULT_ALPHA, LexiconSentiment, N_SCALAR, NegationMode,

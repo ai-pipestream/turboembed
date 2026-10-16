@@ -15,6 +15,7 @@
 //!
 //! This is the one analysis crate that depends on the core crate, `turbo`.
 
+pub mod aspect;
 pub mod centroids;
 pub mod encoder;
 pub mod heads;
@@ -23,6 +24,7 @@ pub mod subwords;
 pub mod vectors;
 pub mod window;
 
+pub use aspect::{BIO_ASPECT_OPINION_LABELS, LabeledAbsaDoc, LearnedAspectSentiment, bio_aspect_opinion_tagset};
 pub use centroids::{CentroidNorm, LabelCentroids, add_categories, category_sentence_centroids, centroid};
 pub use encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
 pub use heads::{
@@ -32,7 +34,8 @@ pub use heads::{
 pub use levels::LevelVectors;
 pub use subwords::{SubwordAnnotator, SubwordsProvider, align};
 pub use vectors::{
-    ChunkVectors, Input, Output, SentenceChunkVectors, SentenceVectors, VectorAnnotator, VectorOptions, VectorsProvider,
+    ChunkVectors, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorAnnotator, VectorOptions,
+    VectorsProvider,
 };
 
 use turbo::bundle::Bundle;
