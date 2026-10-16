@@ -1,0 +1,190 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/numbers	226	226	c9f48b2fbd30b7603cd02cad8f56d1a5d0961619d294faecb2a75d4c1f404102
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	14	outcome:str	context:str	values:str
+n	1 eos=. n=metres s=5 v=is x=3	
+n	3 eos=. n=at s=99 v=costs x=$12	
+n	5 eos=. n=Version ncap s= sn v=the x=store	
+n	1 eos=. n=1 s=10 v=Version vcap x=2	
+n	3 eos=. n=fixed s=1 v=2 x=.10	
+n	2 eos=. n=2024. s=03 v=on x=12	
+n	3 eos=. n=The ncap s=2024 v=12 x=.03	
+n	5 eos=. n=The ncap s= sn v=12.03 x=.2024	
+n	1 eos=. n=percent. s=7 v=roughly x=4	
+n	7 eos=. n=Pi ncap s= sn v=4.7 x=percent	
+n	1 eos=. n=Section ncap s=14159 v=about x=3	
+n	6 eos=. n=Section ncap s= sn v=3 x=.14159	
+n	1 eos=. n=explains s=2 v=Section vcap x=4	
+s	4 eos=. n= s= sn v=the x=rest	
+end	turbo:events
+layer	turbo:liblinear-text	document	65	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 58
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+1.7917055050807411 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+533ead24618e72b23fd051d3e6487b5a3c7b1c192c4a96974714393996dcdddb	920
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	56	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3feb6da8ffcb90f5 0.8571362491607305
+0	given	1	3fc2495c00d1bc2c 0.1428637508392695
+0	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+0	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+1	given	0	3feb6da8ffcb90f5 0.8571362491607305
+1	given	1	3fc2495c00d1bc2c 0.1428637508392695
+1	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+1	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+2	given	0	3feb6da8ffcb90f5 0.8571362491607305
+2	given	1	3fc2495c00d1bc2c 0.1428637508392695
+2	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+2	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+3	given	0	3feb6da8ffcb90f5 0.8571362491607305
+3	given	1	3fc2495c00d1bc2c 0.1428637508392695
+3	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+3	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+4	given	0	3feb6da8ffcb90f5 0.8571362491607305
+4	given	1	3fc2495c00d1bc2c 0.1428637508392695
+4	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+4	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+5	given	0	3feb6da8ffcb90f5 0.8571362491607305
+5	given	1	3fc2495c00d1bc2c 0.1428637508392695
+5	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+5	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+6	given	0	3feb6da8ffcb90f5 0.8571362491607305
+6	given	1	3fc2495c00d1bc2c 0.1428637508392695
+6	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+6	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+7	given	0	3feb6da8ffcb90f5 0.8571362491607305
+7	given	1	3fc2495c00d1bc2c 0.1428637508392695
+7	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+7	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+8	given	0	3feb6da8ffcb90f5 0.8571362491607305
+8	given	1	3fc2495c00d1bc2c 0.1428637508392695
+8	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+8	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+9	given	0	3feb6da8ffcb90f5 0.8571362491607305
+9	given	1	3fc2495c00d1bc2c 0.1428637508392695
+9	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+9	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+10	given	0	3feb6da8ffcb90f5 0.8571362491607305
+10	given	1	3fc2495c00d1bc2c 0.1428637508392695
+10	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+10	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+11	given	0	3feb6da8ffcb90f5 0.8571362491607305
+11	given	1	3fc2495c00d1bc2c 0.1428637508392695
+11	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+11	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+12	given	0	3feb6da8ffcb90f5 0.8571362491607305
+12	given	1	3fc2495c00d1bc2c 0.1428637508392695
+12	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+12	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+13	given	0	3feb6da8ffcb90f5 0.8571362491607305
+13	given	1	3fc2495c00d1bc2c 0.1428637508392695
+13	reversed	0	3feb6da8ffcb90f5 0.8571362491607305
+13	reversed	1	3fc2495c00d1bc2c 0.1428637508392695
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	28	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+4	given	n
+4	reversed	n
+5	given	n
+5	reversed	n
+6	given	n
+6	reversed	n
+7	given	n
+7	reversed	n
+8	given	n
+8	reversed	n
+9	given	n
+9	reversed	n
+10	given	n
+10	reversed	n
+11	given	n
+11	reversed	n
+12	given	n
+12	reversed	n
+13	given	n
+13	reversed	n
+end	turbo:liblinear-best

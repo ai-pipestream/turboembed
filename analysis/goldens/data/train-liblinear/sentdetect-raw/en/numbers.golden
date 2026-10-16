@@ -1,0 +1,35 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/numbers	226	226	c9f48b2fbd30b7603cd02cad8f56d1a5d0961619d294faecb2a75d4c1f404102
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.01
+config	events	raw
+config	p	0
+config	solverType	L2R_LR
+config	source	sentdetect
+layer	turbo:events	document	14	outcome:str	context:str	values:str
+n	eos=. x=3 1 v=is s=5 n=metres	
+n	eos=. x=$12 3 v=costs s=99 n=at	
+n	sn eos=. x=store 5 v=the s= n=Version ncap	
+n	eos=. x=2 1 v=Version vcap s=10 n=1	
+n	eos=. x=.10 3 v=2 s=1 n=fixed	
+n	eos=. x=12 2 v=on s=03 n=2024.	
+n	eos=. x=.03 3 v=12 s=2024 n=The ncap	
+n	sn eos=. x=.2024 5 v=12.03 s= n=The ncap	
+n	eos=. x=4 1 v=roughly s=7 n=percent.	
+n	sn eos=. x=percent 7 v=4.7 s= n=Pi ncap	
+n	eos=. x=3 1 v=about s=14159 n=Section ncap	
+n	sn eos=. x=.14159 6 v=3 s= n=Section ncap	
+n	eos=. x=4 1 v=Section vcap s=2 n=explains	
+s	sn eos=. x=rest 4 v=the s= n=	
+end	turbo:events
+layer	turbo:liblinear-error	document	1	class:str	message:str
+java.lang.IllegalArgumentException	feature nodes must be sorted by index in ascending order
+end	turbo:liblinear-error

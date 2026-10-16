@@ -1,0 +1,35 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/url	240	240	40c3987b444f0d812d66c7a62a3654135ae28fbbfc5980e3802fba91b11f2037
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.01
+config	events	raw
+config	p	0
+config	solverType	L2R_LR
+config	source	sentdetect
+layer	turbo:events	document	14	outcome:str	context:str	values:str
+n	eos=. x=https://example 15 v=at s=org/docs/v1 n=2/index.html.	
+n	eos=. x=.org/docs/v1 12 v=https://example s=2/index n=html.	
+n	eos=. x=.2/index 8 v=https://example.org/docs/v1 s=html n=You ncap	
+n	sn eos=. x=.html 5 v=https://example.org/docs/v1.2/index s= n=You ncap	
+n	eos=. x=help@example 12 v=to s=org n=for	
+n	sn eos=. x=support 7 v=for s= n=Visit ncap	
+n	eos=. x=www 3 v=Visit vcap s=example n=com.	
+n	eos=. x=.example 8 v=www s=com n=before	
+n	sn eos=. x=.com 4 v=www.example s= n=before	
+n	eos=. x=http://mirror 13 v=at s=example n=net/path?q=1&lang=en.	
+n	eos=. x=.example 8 v=http://mirror s=net/path n=q=1&lang=en.	
+n	eos=? x=.net/path 9 v=http://mirror.example s=q=1&lang=en n=Links ncap	
+n	sn eos=. x=?q=1&lang=en 12 v=http://mirror.example.net/path s= n=Links ncap	
+s	sn eos=. x=often 5 v=break s= n=	
+end	turbo:events
+layer	turbo:liblinear-error	document	1	class:str	message:str
+java.lang.IllegalArgumentException	feature nodes must be sorted by index in ascending order
+end	turbo:liblinear-error

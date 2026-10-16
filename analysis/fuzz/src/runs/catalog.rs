@@ -14,7 +14,7 @@ use crate::resources::{Resources, Unavailable};
 
 /// The annotator directories the generator writes that the differential
 /// does not cover: the training stack (`train`, `train-events`,
-/// `train-langdetect`), the format readers (`formats`, `masc`, `ner`) and
+/// `train-langdetect`, `train-liblinear`), the format readers (`formats`, `masc`, `ner`) and
 /// the parse and head rule readers (`parse`, `head-rules`) compare files,
 /// not layers of a text; the evaluators compare scores; the detokenizer
 /// runs on token lists; the BPE trainer learns merges from a whole set; the
@@ -30,10 +30,11 @@ use crate::resources::{Resources, Unavailable};
 /// them, which turbo-train-components compares with; the PII rewrites
 /// (`pii-rewrite`) compare whole rewritten texts, labels and audit reports
 /// rather than layers, which turbo-pii compares with.
-pub const NOT_COVERED: [&str; 25] = [
+pub const NOT_COVERED: [&str; 26] = [
     "train",
     "train-events",
     "train-langdetect",
+    "train-liblinear",
     "formats",
     "evaluate",
     "detokenize",
