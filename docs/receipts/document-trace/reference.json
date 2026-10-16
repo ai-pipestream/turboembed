@@ -1,0 +1,94 @@
+{
+  "checkout_commit": "0a5cf9ee484a779f14d95a258877d88531c104f8",
+  "reference_base_commit": "272b9298",
+  "reference_patch_commits": [
+    "98bee392",
+    "c958b17d",
+    "cc62410b"
+  ],
+  "normalized_term_integration_probe": null,
+  "documents": [
+    {
+      "name": "dublin",
+      "source_sha256": "ec416a95af0a514f8f192e70fbce208986f37f67da19ef300acec44dacfed660",
+      "source_bytes": 7820,
+      "token_source_mapping_checks": 1344,
+      "counts": {
+        "abbreviation_edges": 1,
+        "abbreviations": 2,
+        "chunk_vectors": 9,
+        "chunks_all_levels": 9,
+        "entities": 58,
+        "layers": 26,
+        "leaf_chunks": 8,
+        "levels": 9,
+        "locations": 44,
+        "numbers": 0,
+        "over_budget_leaves": 0,
+        "over_budget_parents": 1,
+        "pii": 0,
+        "regions": 9,
+        "rejected_single_letter_mentions": 14,
+        "sentence_vectors": 64,
+        "sentences": 64,
+        "structure": 1,
+        "subwords": 1408,
+        "temporal": 0,
+        "tokens": 1344,
+        "vector_dimension": 384,
+        "vocabulary": 516
+      },
+      "model": {
+        "id": "sentence-transformers/all-MiniLM-L6-v2",
+        "revision": "trace-1110a243",
+        "sha256": "aa4fe6835aad81378f69103998c05aab05b3170c72b2536c230d016979ff9c27"
+      },
+      "execution": {
+        "backend": "cpu",
+        "device": "AMD Ryzen 9 9950X3D 16-Core Processor",
+        "precision": "f32 (model)"
+      }
+    },
+    {
+      "name": "pulmonary-fibrosis",
+      "source_sha256": "11054580c6b94fe3c62085cabfae4a1c7c15343c6de197c670e5da37ac403933",
+      "source_bytes": 22439,
+      "token_source_mapping_checks": 3870,
+      "counts": {
+        "abbreviation_edges": 74,
+        "abbreviations": 80,
+        "chunk_vectors": 32,
+        "chunks_all_levels": 32,
+        "entities": 22,
+        "layers": 26,
+        "leaf_chunks": 30,
+        "levels": 32,
+        "locations": 5,
+        "numbers": 317,
+        "over_budget_leaves": 0,
+        "over_budget_parents": 2,
+        "pii": 1,
+        "regions": 4,
+        "rejected_single_letter_mentions": 17,
+        "sentence_vectors": 111,
+        "sentences": 111,
+        "structure": 17,
+        "subwords": 4923,
+        "temporal": 0,
+        "tokens": 3870,
+        "vector_dimension": 384,
+        "vocabulary": 866
+      },
+      "model": {
+        "id": "sentence-transformers/all-MiniLM-L6-v2",
+        "revision": "trace-1110a243",
+        "sha256": "aa4fe6835aad81378f69103998c05aab05b3170c72b2536c230d016979ff9c27"
+      },
+      "execution": {
+        "backend": "cpu",
+        "device": "AMD Ryzen 9 9950X3D 16-Core Processor",
+        "precision": "f32 (model)"
+      }
+    }
+  ]
+}
