@@ -165,9 +165,6 @@ fn a_short_form_inside_another_is_not_a_mention() {
 fn partially_overlapping_mentions_and_mentions_crossing_a_long_form_do_not_cross() {
     // "AB-CD" and "CD-EF" are both defined; in "AB-CD-EF", "AB-CD" (0..5) and
     // "CD-EF" (3..8) partially cross, so only the earlier mention is kept.
-    // And in "AB-CD Ef (AE)", "AB-CD" is nested inside the later long form
-    // "AB-CD Ef", whereas in "X AB-CD (XA)", if a mention "CD Ef" crossed into
-    // "X AB-CD" it must be rejected.
     let text = "Alpha beta charlie delta (AB-CD) first. \
 Charlie delta echo foxtrot (CD-EF) second. \
 Delta echo (D E) third. \
@@ -178,6 +175,17 @@ Later AB-CD-EF and Alpha Delta echo (ADE) appeared.";
     let mentions: Vec<&str> =
         items(&doc).into_iter().filter(|i| i.2 == AbbreviationForm::Mention).map(|i| i.3).collect();
     assert_eq!(mentions, ["AB-CD"]);
+
+    // In "Later B C delta (CD) y.", a candidate mention of "B C" starts before
+    // and ends inside the long form "C delta", so it must be refused rather
+    // than crossing the long form.
+    let cross_long = "Bob Carl (B C) x. Later B C delta (CD) y. End.";
+    let doc2 = run(cross_long, false);
+    let layer2 = doc2.get::<Abbreviations>().unwrap();
+    assert_eq!(layer2.check(), Ok(()));
+    let mentions2: Vec<&str> =
+        items(&doc2).into_iter().filter(|i| i.2 == AbbreviationForm::Mention).map(|i| i.3).collect();
+    assert!(mentions2.is_empty(), "{mentions2:?}");
 }
 
 #[test]

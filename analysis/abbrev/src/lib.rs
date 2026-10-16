@@ -37,6 +37,12 @@
 //! - **Mentions are exact.** "WHO" mentions "WHO" only: not "who", not
 //!   "WHOs". A mention inside another word is not one ("WHOLE"), and with
 //!   tokens, a mention must be whole tokens.
+//! - **A short form opening with `(` still anchors at a word start.** When
+//!   a short form begins with an unclosed `(` (such as `"(AB"` from
+//!   `((AB)`), its first letter or digit after the leading `(` must match
+//!   the start of a word in the long form, whereas `ExtractAbbrev.java`
+//!   tests `sIndex == 0` only and leaves the first letter unanchored when
+//!   index 0 is punctuation.
 
 mod annotate;
 mod detect;

@@ -137,9 +137,9 @@ pub fn rle_hybrid(buf: &[u8], width: u32, count: usize) -> Result<Vec<u32>> {
         if header & 1 == 0 {
             let run = usize::try_from(header >> 1).map_err(|_| "a run header past usize::MAX")?;
             if run == 0 {
-                return Err("an empty run or bit-packed group".into());
+                return Err("an empty run".into());
             }
-            let b = buf.get(pos..pos + bytes).ok_or("levels or indices end early")?;
+            let b = pos.checked_add(bytes).and_then(|end| buf.get(pos..end)).ok_or("levels or indices end early")?;
             pos += bytes;
             let v = b.iter().rev().fold(0u32, |a, &x| a << 8 | u32::from(x));
             if v > mask {
@@ -149,10 +149,10 @@ pub fn rle_hybrid(buf: &[u8], width: u32, count: usize) -> Result<Vec<u32>> {
         } else {
             let groups = usize::try_from(header >> 1).map_err(|_| "a run header past usize::MAX")?;
             if groups == 0 {
-                return Err("an empty run or bit-packed group".into());
+                continue;
             }
             let len = groups.checked_mul(width as usize).ok_or("bit-packed group length overflows")?;
-            let packed = buf.get(pos..pos + len).ok_or("levels or indices end early")?;
+            let packed = pos.checked_add(len).and_then(|end| buf.get(pos..end)).ok_or("levels or indices end early")?;
             pos += len;
             let total = groups.checked_mul(8).ok_or("bit-packed group count overflows")?.min(count - out.len());
             for i in 0..total {
@@ -557,12 +557,13 @@ mod tests {
     }
 
     #[test]
-    fn hybrid_zero_runs_zero_groups_and_overflowing_groups_are_refused() {
-        // An RLE header with run == 0 (0x00) makes no progress and must fail.
-        assert_eq!(rle_hybrid(&[0, 0], 1, 1).unwrap_err(), "an empty run or bit-packed group");
-        // A bit-packed header with groups == 0 (0x01) makes no progress and must fail.
-        assert_eq!(rle_hybrid(&[1], 1, 1).unwrap_err(), "an empty run or bit-packed group");
-        // A 5-byte varint header with huge groups and width == 0 must not spin or overflow.
+    fn hybrid_zero_runs_and_overflowing_groups_are_refused_and_zero_bit_packed_groups_skip() {
+        // An RLE header with run == 0 (0x00) is refused.
+        assert_eq!(rle_hybrid(&[0, 0], 1, 1).unwrap_err(), "an empty run");
+        // A bit-packed header with groups == 0 (0x01) is skipped as in arrow-rs,
+        // reading the following RLE run of three 1s.
+        assert_eq!(rle_hybrid(&[1, 6, 1], 1, 3).unwrap(), [1, 1, 1]);
+        // A 5-byte varint header with huge groups and width == 32 must not overflow.
         let huge_groups = [0x81, 0x80, 0x80, 0x80, 0x7f];
         assert!(rle_hybrid(&huge_groups, 32, 1).is_err());
     }
