@@ -1,0 +1,66 @@
+# newdoc id = blank-speaker
+# speaker =  
+1	a	a	X	x	_	0	root	_	_
+# newdoc id = nine-columns
+1	a	_	X	x	_	0	root	_
+# newdoc id = empty-last-column
+1	a	a	X	x	_	0	root	_	
+# newdoc id = blank-column
+1	a	a	X	 	_	0	root	_	_
+# newdoc id = invalid-id-leading-zero
+01	a	a	X	x	_	0	root	_	_
+# newdoc id = invalid-range
+2-1	ab	ab	X	x	_	0	root	_	_
+1	a	a	X	x	_	0	root	_	_
+# newdoc id = invalid-equal-range
+1-1	a	a	X	x	_	0	root	_	_
+1	a	a	X	x	_	0	root	_	_
+# newdoc id = invalid-empty-node
+1.0	a	a	X	x	_	0	root	_	_
+# newdoc id = empty-node-zero
+0.1	e	e	X	x	_	0	root	_	_
+1	a	a	X	x	_	0	root	_	_
+# newdoc id = unexpected-id
+1	a	a	X	x	_	0	root	_	_
+3	c	c	X	x	_	0	root	_	_
+# newdoc id = ids-restart-after-a-line-of-length-zero
+1	a	a	X	x	_	0	root	_	_
+
+1	b	b	X	x	_	0	root	_	_
+2	c	c	X	x	_	0	root	_	_
+# newdoc id = line-of-spaces
+1	a	a	X	x	_	0	root	_	_
+  
+2	b	b	X	x	_	0	root	_	_
+# newdoc id = empty-entity
+1	a	a	X	x	_	0	root	_	Entity=
+# newdoc id = empty-id
+1	a	a	X	x	_	0	root	_	Entity=(-person)
+# newdoc id = missing-close
+1	a	a	X	x	_	0	root	_	Entity=(e1)e2
+# newdoc id = closed-not-open
+1	a	a	X	x	_	0	root	_	Entity=e1)
+# newdoc id = close-holds-paren
+1	a	a	X	x	_	0	root	_	Entity=(e1
+2	b	b	X	x	_	0	root	_	Entity=e1(e2)
+# newdoc id = crosses-sentence
+1	a	a	X	x	_	0	root	_	Entity=(e1
+
+1	b	b	X	x	_	0	root	_	Entity=e1)
+# newdoc id = never-closed
+1	a	a	X	x	_	0	root	_	Entity=(e1
+2	b	b	X	x	_	0	root	_	_
+# newdoc id = several-open-hash-order
+1	a	a	X	x	_	0	root	_	Entity=(BB(e1(Aa(zz
+# newdoc id = empty-node-opens
+1	a	a	X	x	_	0	root	_	_
+1.1	e	e	X	x	_	0	root	_	Entity=(e1
+2	b	b	X	x	_	0	root	_	Entity=e1)
+# newdoc id = thirteen-open-one-left
+1	a	a	X	x	_	0	root	_	Entity=(e3(e10(e17(e24(e31(e38(e45(e52(e59(e66(e73(e80(e87
+2	b	b	X	x	_	0	root	_	Entity=e10)e17)e24)e31)e38)e45)e52)e59)e66)e73)e87)
+# newdoc id = thirteen-open-then-a-resize
+1	a	a	X	x	_	0	root	_	Entity=(e3(e10(e17(e24(e31(e38(e45(e52(e59(e66(e73(e80(e87
+2	b	b	X	x	_	0	root	_	Entity=e10)e17)e24)e31)e38)e45)e52)e59)e66)e73)e87)(e3
+# newdoc id = after-errors
+1	fine	fine	X	x	_	0	root	_	Entity=(e1)

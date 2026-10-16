@@ -43,6 +43,19 @@ pub const PLACE_PROFILES_COMMIT: &str = "07e1f670818917d74e9a94367080f51ae6365bf
 /// a jar of their own.
 pub const LIBLINEAR_ADDON_COMMIT: &str = "84631d0111629110ebf094eadb6e938bbf7d738f";
 
+/// The commit of the OpenNLP fork's `ready/agents-md` branch whose
+/// `ConlluDependencySampleStream`, `DependencySample`, `DependencyTree` and
+/// `DependencyArc` the generator runs for the CoNLL-U dependency goldens.
+/// The container compiles them, with the branch's `ParamChecks`, into a jar
+/// of their own.
+pub const CONLLU_DEPENDENCY_COMMIT: &str = "2da0ee764cd7340b968a207b925cce852485cccb";
+
+/// The commit of the OpenNLP addons, on their `ready/coref` branch, whose
+/// `ConlluCorefDocumentStream` (with `CorefAnnotator` and `CorefMention`)
+/// the generator runs for the CorefUD goldens. The container compiles the
+/// three classes into a jar of their own.
+pub const COREF_ADDONS_COMMIT: &str = "be11df610e24a9a2a10f80b7199349fe5b3594a9";
+
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP and addons commits, so an image built from other commits has
 /// another tag.
@@ -872,7 +885,7 @@ pub const FIXTURES: [Fixture; 109] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 41] = [
+pub const INPUT_SETS: [&str; 42] = [
     "en",
     "multi",
     "norm",
@@ -914,6 +927,7 @@ pub const INPUT_SETS: [&str; 41] = [
     "svm-doccat-train",
     "sentiment",
     "sentiment-train",
+    "conllu",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -927,7 +941,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 45] = [
+pub const ANNOTATORS: [&str; 46] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -973,6 +987,7 @@ pub const ANNOTATORS: [&str; 45] = [
     "glossary",
     "svm-doccat",
     "sentiment",
+    "conllu",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -1083,6 +1098,12 @@ mod tests {
         let liblinear = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/LiblinearTrainGolden.java");
         assert!(liblinear.contains(&format!("ADDON_COMMIT = \"{LIBLINEAR_ADDON_COMMIT}\";")));
         assert!(liblinear.contains("ANNOTATOR = \"train-liblinear\""));
+        assert!(dockerfile.contains(&format!("\nARG CONLLU_DEPENDENCY_COMMIT={CONLLU_DEPENDENCY_COMMIT}\n")));
+        let dependency = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/ConlluDependencyGolden.java");
+        assert!(dependency.contains(&format!("BRANCH_COMMIT = \"{CONLLU_DEPENDENCY_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG COREF_ADDONS_COMMIT={COREF_ADDONS_COMMIT}\n")));
+        let coref = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/CorefUdGolden.java");
+        assert!(coref.contains(&format!("ADDONS_COMMIT = \"{COREF_ADDONS_COMMIT}\";")));
     }
 
     #[test]

@@ -207,6 +207,34 @@ are not taken from any corpus.
   test corpus (`opennlp-core/opennlp-formats/src/test/resources/opennlp/tools/formats/masc/`
   at the goldens' OpenNLP commit, Apache License 2.0), unchanged.
 
+- `inputs/conllu/`: 5 CoNLL-U files written for this project (no text of
+  a Universal Dependencies or CorefUD treebank), read by the `conllu`
+  goldens; the part of the id before the first hyphen names the reader
+  (`dependency`, `corefud`). The `dependency-` files hold Spanish and
+  English sentences with a multiword token, empty nodes with enhanced
+  dependencies, a byte order mark, emoji and accented letters, and the
+  sentences `ConlluDependencySampleStream` skips or refuses: ids that do
+  not count from 1, with a leading zero, past Java's `int` or out of
+  order, `_` tags, relations and heads, heads with a sign, a leading
+  zero, an Arabic-Indic digit, an empty node's id or past the sentence,
+  self heads, two roots, none, a cycle, blank relations in one
+  whitespace mode or both, nine and eleven columns, an empty last
+  column, a comment after spaces, sentences of a multiword token or an
+  empty node only, separator lines of spaces, `U+0085`, `U+001C` and
+  no-break spaces, CR LF and no line feed at the end. The `corefud-`
+  files hold documents with `Entity` brackets in the CorefUD 1.x
+  notation: one-word, nested and discontinuous mentions, mentions of one
+  span by two entities, a mention on a multiword token's word and on an
+  empty node, `SpaceAfter=No` on words and on a multiword token,
+  speakers (one with no words after it), a document of comments only,
+  emoji and accented letters, a byte order mark, CR LF, and a document
+  for each error of `ConlluCorefDocumentStream`: blank speaker, nine
+  columns, a blank column, ids that are not words, multiword tokens or
+  empty nodes, ids out of order, a line of spaces, an empty value or id,
+  a close without `)` or with a `(`, a close of no open mention, a
+  mention across a sentence boundary or never closed, several mentions
+  open at the end, and a mention opened on an empty node.
+
 - `inputs/ner/`: 12 files in the named entity corpus formats OpenNLP
   reads, written for this project except as noted below; the part of
   the id before the first hyphen names the corpus (`germeval`,

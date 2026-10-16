@@ -31,8 +31,9 @@ use crate::resources::{Resources, Unavailable};
 /// their own and score their own documents, which turbo-train-components
 /// compares with; the PII rewrites (`pii-rewrite`) compare whole rewritten
 /// texts, labels and audit reports rather than layers, which turbo-pii
-/// compares with.
-pub const NOT_COVERED: [&str; 28] = [
+/// compares with; the CoNLL-U dependency and CorefUD readers (`conllu`)
+/// read files of their own, which turbo-formats compares with.
+pub const NOT_COVERED: [&str; 29] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -61,6 +62,7 @@ pub const NOT_COVERED: [&str; 28] = [
     "svm-doccat",
     "sentiment",
     "pii-rewrite",
+    "conllu",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

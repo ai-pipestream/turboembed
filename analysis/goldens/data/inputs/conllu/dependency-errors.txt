@@ -1,0 +1,125 @@
+# ids not counting from 1
+2	a	_	X	x	_	0	root	_	_
+
+# an id with a leading zero
+01	a	_	X	x	_	0	root	_	_
+
+# an id past Java int
+2147483648	a	_	X	x	_	0	root	_	_
+
+# ids out of order
+1	a	_	X	x	_	0	root	_	_
+3	b	_	X	x	_	1	dep	_	_
+2	c	_	X	x	_	1	dep	_	_
+
+# a _ universal tag
+1	a	_	_	x	_	0	root	_	_
+
+# a _ relation
+1	a	_	X	x	_	0	_	_	_
+
+# a _ head
+1	a	_	X	x	_	_	root	_	_
+
+# heads that are not plain decimals
+1	a	_	X	x	_	00	root	_	_
+
+# a plus sign
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	+1	dep	_	_
+
+# a minus sign
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	-1	dep	_	_
+
+# an Arabic-Indic digit
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	١	dep	_	_
+
+# an empty node as head
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	1.1	dep	_	_
+
+# a head past Java int
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	2147483648	dep	_	_
+
+# the largest int head is out of range
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	2147483647	dep	_	_
+
+# a head past the sentence
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	3	dep	_	_
+
+# a word heading itself
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	2	dep	_	_
+
+# two roots
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	0	root	_	_
+
+# no root
+1	a	_	X	x	_	2	dep	_	_
+2	b	_	X	x	_	1	dep	_	_
+
+# a cycle beside the root
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	3	dep	_	_
+3	c	_	X	x	_	4	dep	_	_
+4	d	_	X	x	_	2	dep	_	_
+
+# a relation of spaces
+1	a	_	X	x	_	0	   	_	_
+
+# a relation of U+0085, blank in the Unicode mode only
+1	a	_	X	x	_	0		_	_
+
+# a relation of U+001C, blank in the legacy mode only
+1	a	_	X	x	_	0		_	_
+
+# a relation of no-break spaces, blank in both
+1	a	_	X	x	_	0	  	_	_
+
+# nine columns end the sentence so far
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	1	dep	_
+1	c	_	X	x	_	0	root	_	_
+
+# an empty tenth column is a column
+1	a	_	X	x	_	0	root	_	
+
+# eleven columns
+1	a	_	X	x	_	0	root	_	_	
+
+# multiword ranges and empty nodes are dropped whatever they hold
+1-2	ab	_	_	_	_	_	_	_	_
+1	a	_	X	x	_	0	root	_	_
+2	b	_	X	x	_	1	dep	_	_
+x-y	junk	_	_	_	_	_	_	_	_
+2.1	e	_	_	_	_	_	_	1:dep	_
+a.b	junk	_	_	_	_	_	_	_	_
+
+# a comment that does not start the line is a word line
+  # not a comment
+1	a	_	X	x	_	0	root	_	_
+
+# a sentence of a multiword range only joins the next
+1-2	ab	_	_	_	_	_	_	_	_
+
+1	joined	_	X	x	_	0	root	_	_
+   
+1	after-spaces	_	X	x	_	0	root	_	_
+
+1	after-nel	_	X	x	_	0	root	_	_
+
+1	after-fs	_	X	x	_	0	root	_	_
+ 
+1	after-nbsp	_	X	x	_	0	root	_	_
+
+# CR LF lines
+1	crlf	_	X	x	_	0	root	_	_
+
+# the last sentence has an empty node only and no line feed
+0.1	e	_	X	x	_	_	_	_	_
