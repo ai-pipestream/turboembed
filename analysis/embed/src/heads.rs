@@ -651,7 +651,7 @@ impl ClassifierHead {
             .tag("sarcastic")
             .or_else(|| self.tags.tag("ironic"))
             .or_else(|| self.tags.tag("sarcasm"))
-            .unwrap_or(Tag(0))
+            .ok_or_else(|| fail("pragmatics head has no \"sarcastic\", \"ironic\" or \"sarcasm\" label".into()))?
             .0 as usize;
         let mut out = Pragmatics::new();
         let mut buf = vec![0.0f64; self.tags.len()];
@@ -1220,8 +1220,10 @@ impl Annotator for PragmaticsHeadAnnotator {
     }
 }
 
-/// High-accuracy rational approximation to `erf(x)` in `f64` (Abramowitz and
-/// Stegun 7.1.26, maximum error `1.5e-7`, deterministic across platforms).
+/// Rational approximation to `erf(x)` in `f64` (Abramowitz and Stegun
+/// 7.1.26, maximum error `1.5e-7`). It leans on the platform's `exp`, as the
+/// `Tanh` activation leans on its `tanh`, so bit-for-bit results across
+/// platforms are not promised; the CPU and CUDA parity test allows `1e-5`.
 fn erf_f64(x: f64) -> f64 {
     let sign = if x < 0.0 { -1.0 } else { 1.0 };
     let ax = x.abs();
