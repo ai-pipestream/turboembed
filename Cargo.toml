@@ -55,6 +55,7 @@ members = [
     "analysis/wordnet",
     "analysis/hunspell",
     "analysis/zoo",
+    "analysis/zstd",
 ]
 resolver = "3"
 

@@ -33,8 +33,9 @@ use crate::resources::{Resources, Unavailable};
 /// models on a downloaded corpus and categorize documents of their own; the
 /// PII rewrites (`pii-rewrite`) compare whole rewritten
 /// texts, labels and audit reports rather than layers, which turbo-pii
-/// compares with.
-pub const NOT_COVERED: [&str; 30] = [
+/// compares with; the CoNLL-U dependency and CorefUD readers (`conllu`)
+/// read files of their own, which turbo-formats compares with.
+pub const NOT_COVERED: [&str; 31] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -64,6 +65,7 @@ pub const NOT_COVERED: [&str; 30] = [
     "sentiment",
     "doccat",
     "pii-rewrite",
+    "conllu",
     "corpora",
 ];
 

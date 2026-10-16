@@ -67,6 +67,7 @@ pub enum Codec {
     Uncompressed,
     Snappy,
     Gzip,
+    Zstd,
     Other(i32),
 }
 
@@ -76,10 +77,10 @@ impl fmt::Display for Codec {
             Codec::Uncompressed => "UNCOMPRESSED",
             Codec::Snappy => "SNAPPY",
             Codec::Gzip => "GZIP",
+            Codec::Zstd => "ZSTD",
             Codec::Other(3) => "LZO",
             Codec::Other(4) => "BROTLI",
             Codec::Other(5) => "LZ4",
-            Codec::Other(6) => "ZSTD",
             Codec::Other(7) => "LZ4_RAW",
             Codec::Other(v) => return write!(f, "codec {v}"),
         };
@@ -179,6 +180,15 @@ fn count(what: &str, v: i64) -> Result<u64> {
 
 fn usize_count(what: &str, v: i64) -> Result<usize> {
     usize::try_from(v).map_err(|_| format!("{what} is {v}"))
+}
+
+/// A page's size, which `parquet.thrift` declares an i32, so at most
+/// 2^31 - 1 bytes.
+fn page_size(what: &str, v: i64) -> Result<usize> {
+    match i32::try_from(v) {
+        Ok(n) if n >= 0 => Ok(n as usize),
+        _ => Err(format!("{what} is {v}, outside 0 to {}", i32::MAX)),
+    }
 }
 
 impl FileMeta {
@@ -290,6 +300,7 @@ fn column_meta(c: &mut Compact) -> Result<ColumnMeta> {
                     0 => Codec::Uncompressed,
                     1 => Codec::Snappy,
                     2 => Codec::Gzip,
+                    6 => Codec::Zstd,
                     v => Codec::Other(v),
                 })
             }
@@ -353,8 +364,8 @@ impl PageHeader {
         c.read_struct(|c, id, _| {
             match id {
                 1 => kind = Some(c.i32()?),
-                2 => unc = Some(usize_count("a page's size", c.i64()?)?),
-                3 => comp = Some(usize_count("a page's compressed size", c.i64()?)?),
+                2 => unc = Some(page_size("a page's uncompressed size", c.i64()?)?),
+                3 => comp = Some(page_size("a page's compressed size", c.i64()?)?),
                 5 => data = Some(data_page(c)?),
                 7 => dict = Some(dict_page(c)?),
                 8 => v2 = Some(data_page_v2(c)?),

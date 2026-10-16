@@ -704,12 +704,54 @@ impl<K: JavaHash + Eq, V> JavaHashMap<K, V> {
     fn find<Q>(&self, bin: usize, h: u32, key: &Q) -> Option<u32>
     where
         K: Borrow<Q>,
-        Q: Eq + ?Sized,
+        Q: JavaHash + Eq + ?Sized,
     {
-        self.bins[bin].nodes.iter().copied().find(|&idx| {
+        let nodes = &self.bins[bin].nodes;
+        if self.bins[bin].tree
+            && let Some(&root) = nodes.first()
+        {
+            return self.find_in_tree(root, h, key);
+        }
+        nodes.iter().copied().find(|&idx| {
             let (k, s, _) = self.entries[idx as usize].as_ref().expect("live entry");
             *s == h && k.borrow() == key
         })
+    }
+
+    /// `TreeNode.find` from the root of a tree bin: descends by hash as a
+    /// signed `int` and then by [`JavaHash::tree_order`], and searches both
+    /// sides of a node whose key the order cannot place, so a bin of many
+    /// keys with one hash code is searched in logarithmic time when the
+    /// keys are ordered, as the JDK searches it.
+    fn find_in_tree<Q>(&self, root: u32, h: u32, key: &Q) -> Option<u32>
+    where
+        K: Borrow<Q>,
+        Q: JavaHash + Eq + ?Sized,
+    {
+        // The right subtrees still to search after an unordered node.
+        let mut rest = Vec::new();
+        let mut p = root;
+        loop {
+            if p == NIL {
+                p = rest.pop()?;
+                continue;
+            }
+            let (pk, ph) = self.key(p);
+            let Links { left, right, .. } = self.links[p as usize];
+            p = match (ph as i32).cmp(&(h as i32)) {
+                Ordering::Greater => left,
+                Ordering::Less => right,
+                Ordering::Equal if pk.borrow() == key => return Some(p),
+                Ordering::Equal => match key.tree_order(pk.borrow()) {
+                    Some(Ordering::Less) => left,
+                    Some(Ordering::Greater) => right,
+                    _ => {
+                        rest.push(right);
+                        left
+                    }
+                },
+            };
+        }
     }
 
     /// Looks up the value for `key`.
@@ -1240,6 +1282,47 @@ mod tests {
                 "AaAaAaBB", "AaAaAaAa"
             ]
         );
+    }
+
+    #[test]
+    fn keys_in_a_tree_bin_are_found_by_descending_the_tree() {
+        // 4096 strings with one hash code, all in one tree bin.
+        let keys: Vec<String> =
+            (0..1u32 << 12).map(|i| (0..12).map(|b| if i >> b & 1 == 1 { "Aa" } else { "BB" }).collect()).collect();
+        let mut map = JavaHashMap::new();
+        for (i, k) in keys.iter().enumerate() {
+            map.merge(k.as_str(), i, |v, n| *v += n);
+        }
+        assert_eq!((map.len(), map.tree_bins(), map.is_jvm_exact()), (keys.len(), 1, true));
+        for (i, k) in keys.iter().enumerate() {
+            assert_eq!(map.get(k.as_str()), Some(&i), "{k}");
+        }
+        // Same hash code, not a key; and a key merged again stays one entry.
+        assert_eq!(map.get("Aa".repeat(11).as_str()), None);
+        assert_eq!(map.get(format!("{}Ab", "Aa".repeat(11)).as_str()), None);
+        map.merge(keys[7].as_str(), 1, |v, n| *v += n);
+        assert_eq!((map.len(), map.get(keys[7].as_str())), (keys.len(), Some(&8)));
+    }
+
+    #[test]
+    fn keys_the_tree_cannot_order_are_found_on_either_side() {
+        /// One hash code and no order, as `CharBuffer` keys of one hash.
+        #[derive(PartialEq, Eq)]
+        struct Unordered(u32);
+        impl JavaHash for Unordered {
+            fn java_hash(&self) -> i32 {
+                7
+            }
+        }
+        let mut map = JavaHashMap::new();
+        for i in 0..200 {
+            map.put(Unordered(i), i);
+        }
+        assert_eq!((map.tree_bins(), map.is_jvm_exact()), (1, false));
+        for i in 0..200 {
+            assert_eq!(map.get(&Unordered(i)), Some(&i));
+        }
+        assert_eq!(map.get(&Unordered(200)), None);
     }
 
     #[test]
