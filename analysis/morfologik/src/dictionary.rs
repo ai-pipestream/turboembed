@@ -90,6 +90,11 @@ impl MorfologikDictionary {
             return Vec::new();
         };
         let separator = self.metadata.separator;
+        // As in `DictionaryLookup`, a word holding the separator byte cannot be a surface
+        // form; walking it would continue into the encoded lemma and tag of another entry.
+        if word_bytes.contains(&separator) {
+            return Vec::new();
+        }
         let encoder = self.metadata.encoder;
         let charset = self.metadata.charset;
         let control_len = encoder.control_bytes();
@@ -350,8 +355,8 @@ impl MorfologikDictionaryBuilder {
     }
 }
 
-/// Serializes sorted, deduplicated byte sequences into an FSA5 automaton (`gotoLength = 3`,
-/// `nodeDataLength = 0`).
+/// Serializes sorted, deduplicated byte sequences into an FSA5 automaton (`nodeDataLength = 0`,
+/// with the narrowest `gotoLength` that can address every arc).
 pub fn serialize_fsa5(sequences: &[Vec<u8>], annotation_byte: u8) -> Vec<u8> {
     #[derive(Default)]
     struct TrieNode {
@@ -386,13 +391,27 @@ pub fn serialize_fsa5(sequences: &[Vec<u8>], annotation_byte: u8) -> Vec<u8> {
         }
     }
 
-    // Header: `\fsa`, version 0x05, filler '_', annotation separator, gotoLength = 3.
-    let mut out = vec![MAGIC[0], MAGIC[1], MAGIC[2], MAGIC[3], VERSION_FSA5, b'_', annotation_byte, 0x03];
+    // Every arc is a label byte followed by a little-endian address of `goto_length` bytes
+    // whose low 3 bits hold the flags. Pick the narrowest width that can address every arc,
+    // counting the dummy terminal node and the epsilon node ahead of the trie.
+    let arc_count = 2 + trie.iter().map(|node| node.children.len()).sum::<usize>();
+    let goto_length = (1..=8usize)
+        .find(|&width| {
+            let data_len = (arc_count as u128) * (1 + width as u128);
+            ((data_len << 3) | 7) < (1u128 << (8 * width))
+        })
+        .expect("an 8-byte address covers any in-memory automaton");
+    let arc_size = 1 + goto_length;
 
-    // Arc block starts with:
-    // - node 0 (TERMINAL_NODE / dummy node): 4-byte arc (label 0, flags BIT_LAST_ARC=0x02, address 0) -> bytes 0..4
-    // - node 4 (epsilon node): 4-byte arc pointing to root node (or 0 if empty) -> bytes 4..8
-    let mut arcs: Vec<u8> = vec![0, 0x02, 0, 0, b'^', 0x02, 0, 0];
+    // Header: `\fsa`, version 0x05, filler '_', annotation separator, goto length (node data length 0).
+    let mut out = vec![MAGIC[0], MAGIC[1], MAGIC[2], MAGIC[3], VERSION_FSA5, b'_', annotation_byte, goto_length as u8];
+
+    // The arc block starts with the dummy terminal node at offset 0 (label 0, BIT_LAST_ARC,
+    // address 0) and the epsilon node at offset `arc_size`, whose single arc points to the
+    // root node (or to 0 for an empty automaton).
+    let mut arcs: Vec<u8> = Vec::with_capacity(arc_count * arc_size);
+    push_fsa5_arc(&mut arcs, 0, 0x02, goto_length);
+    push_fsa5_arc(&mut arcs, b'^', 0x02, goto_length);
 
     if trie[0].children.is_empty() {
         out.extend_from_slice(&arcs);
@@ -419,27 +438,25 @@ pub fn serialize_fsa5(sequences: &[Vec<u8>], annotation_byte: u8) -> Vec<u8> {
         for (idx, (&label, &(is_final, target))) in trie[node].children.iter().enumerate() {
             let is_last = idx + 1 == len;
             let target_offset = if target == 0 { 0 } else { node_offsets[target] };
-            let mut flags = 0u32;
+            let mut flags = 0u64;
             if is_final {
                 flags |= 0x01;
             }
             if is_last {
                 flags |= 0x02;
             }
-            let encoded = ((target_offset as u32) << 3) | flags;
-            arcs.push(label);
-            arcs.push((encoded & 0xff) as u8);
-            arcs.push(((encoded >> 8) & 0xff) as u8);
-            arcs.push(((encoded >> 16) & 0xff) as u8);
+            push_fsa5_arc(&mut arcs, label, ((target_offset as u64) << 3) | flags, goto_length);
         }
     }
 
-    let root_offset = node_offsets[0] as u32;
-    let eps_encoded = (root_offset << 3) | 0x02;
-    arcs[5] = (eps_encoded & 0xff) as u8;
-    arcs[6] = ((eps_encoded >> 8) & 0xff) as u8;
-    arcs[7] = ((eps_encoded >> 16) & 0xff) as u8;
+    let root_encoded = ((node_offsets[0] as u64) << 3) | 0x02;
+    arcs[arc_size + 1..2 * arc_size].copy_from_slice(&root_encoded.to_le_bytes()[..goto_length]);
 
     out.extend_from_slice(&arcs);
     out
+}
+
+fn push_fsa5_arc(arcs: &mut Vec<u8>, label: u8, encoded_address: u64, goto_length: usize) {
+    arcs.push(label);
+    arcs.extend_from_slice(&encoded_address.to_le_bytes()[..goto_length]);
 }

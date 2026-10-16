@@ -724,3 +724,53 @@ fn annotator_and_sequence_validator_and_disk_builder_round_trip() {
 
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }
+
+#[test]
+fn builder_widens_addresses_for_large_dictionaries() {
+    // An unminimized trie of 60,000 random 16-byte words needs more than 2^21 bytes of arcs,
+    // which no longer fits a 3-byte FSA5 address with its 3 flag bits.
+    let mut state = 0x2545_f491_4f6c_dd1du64;
+    let mut sequences: Vec<Vec<u8>> = (0..60_000)
+        .map(|_| {
+            (0..16)
+                .map(|_| {
+                    state ^= state << 13;
+                    state ^= state >> 7;
+                    state ^= state << 17;
+                    b'a' + (state % 26) as u8
+                })
+                .collect()
+        })
+        .collect();
+    sequences.sort();
+    sequences.dedup();
+    let bytes = turbo_morfologik::serialize_fsa5(&sequences, b'+');
+    assert!(bytes.len() > 1 << 21, "fixture too small to cross the 3-byte address limit");
+    let reader = Fsa5Reader::from_bytes(&bytes).unwrap();
+    assert!(reader.sequences() == sequences, "large FSA5 round trip lost or changed sequences");
+}
+
+#[test]
+fn lookup_of_a_word_containing_the_separator_finds_nothing() {
+    let info = b"fsa.dict.separator=,\nfsa.dict.encoding=UTF-8\nfsa.dict.encoder=none\n";
+    let dict_bytes = MorfologikDictionaryBuilder::compile_bytes(b"casa,casa,NOUN\n", info).unwrap();
+    let dictionary = MorfologikDictionary::from_bytes(&dict_bytes, info).unwrap();
+    assert_eq!(dictionary.lookup("casa").len(), 1);
+    // Without the check the walk continues into the encoded lemma and reports "NOUN" as a stem.
+    assert_eq!(dictionary.lookup("casa,casa"), Vec::new());
+}
+
+#[test]
+fn metadata_follows_java_properties_continuations_and_surrogate_pairs() {
+    let info = b"fsa.dict.separator=+\n\
+fsa.dict.encoding=UTF-8\n\
+fsa.dict.encoder=\\\n    suffix\n\
+fsa.dict.input-conversion=a b,\\\n  \\uD83D\\uDE00 c\r\
+# comment\n";
+    let meta = MorfologikMetadata::parse(info).unwrap();
+    assert_eq!(meta.encoder, BaseFormEncoding::Suffix);
+    assert_eq!(meta.input_conversion.apply("a\u{1F600}"), "bc");
+
+    let lone = b"fsa.dict.separator=+\nfsa.dict.encoding=UTF-8\nfsa.dict.encoder=none\nx=\\uD83D\n";
+    assert!(MorfologikMetadata::parse(lone).is_err());
+}

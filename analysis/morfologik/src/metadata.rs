@@ -206,17 +206,46 @@ impl MorfologikMetadata {
 /// Parses Java `.properties` text (`java.util.Properties.load(Reader)`).
 fn parse_java_properties(text: &str) -> Result<HashMap<String, String>, MorfologikError> {
     let mut map = HashMap::new();
-    for raw_line in text.lines() {
-        let line = raw_line.trim_start_matches([' ', '\t', '\u{000c}']);
-        if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
-            continue;
-        }
-        let (key_raw, val_raw) = split_property_line(line);
+    for line in logical_property_lines(text) {
+        let (key_raw, val_raw) = split_property_line(&line);
         let key = unescape_java_property(key_raw)?;
         let val = unescape_java_property(val_raw)?;
         map.insert(key, val);
     }
     Ok(map)
+}
+
+/// Joins natural lines (ended by `\n`, `\r`, or `\r\n`) into logical lines as
+/// `Properties.load` does: comment and blank lines are dropped, leading whitespace is
+/// stripped, and a line ending in an odd number of backslashes continues on the next line.
+fn logical_property_lines(text: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current: Option<String> = None;
+    let mut rest = text;
+    while !rest.is_empty() {
+        let end = rest.find(['\n', '\r']).unwrap_or(rest.len());
+        let natural = &rest[..end];
+        rest = &rest[end..];
+        if rest.starts_with("\r\n") {
+            rest = &rest[2..];
+        } else if !rest.is_empty() {
+            rest = &rest[1..];
+        }
+
+        let line = natural.trim_start_matches([' ', '\t', '\u{000c}']);
+        if current.is_none() && (line.is_empty() || line.starts_with('#') || line.starts_with('!')) {
+            continue;
+        }
+        let trailing_backslashes = line.bytes().rev().take_while(|&b| b == b'\\').count();
+        let continues = trailing_backslashes % 2 == 1;
+        let body = if continues { &line[..line.len() - 1] } else { line };
+        current.get_or_insert_with(String::new).push_str(body);
+        if !continues {
+            lines.extend(current.take());
+        }
+    }
+    lines.extend(current);
+    lines
 }
 
 fn split_property_line(line: &str) -> (&str, &str) {
@@ -249,38 +278,40 @@ fn split_property_line(line: &str) -> (&str, &str) {
 }
 
 fn unescape_java_property(s: &str) -> Result<String, MorfologikError> {
-    let mut out = String::with_capacity(s.len());
+    // `\uXXXX` escapes produce UTF-16 code units, so a supplementary character may be
+    // written as an escaped surrogate pair; only unpaired surrogates are rejected.
+    let mut units: Vec<u16> = Vec::with_capacity(s.len());
     let mut chars = s.chars();
     while let Some(ch) = chars.next() {
         if ch != '\\' {
-            out.push(ch);
+            let mut buf = [0u16; 2];
+            units.extend_from_slice(ch.encode_utf16(&mut buf));
             continue;
         }
         let Some(esc) = chars.next() else {
-            out.push('\\');
+            units.push(u16::from(b'\\'));
             break;
         };
-        match esc {
-            't' => out.push('\t'),
-            'n' => out.push('\n'),
-            'r' => out.push('\r'),
-            'f' => out.push('\u{000c}'),
-            '\\' => out.push('\\'),
+        let decoded = match esc {
+            't' => '\t',
+            'n' => '\n',
+            'r' => '\r',
+            'f' => '\u{000c}',
             'u' => {
-                let mut code: u32 = 0;
+                let mut code: u16 = 0;
                 for _ in 0..4 {
                     let Some(hex) = chars.next().and_then(|c| c.to_digit(16)) else {
                         return Err(MorfologikError::invalid_argument("malformed \\uXXXX escape in .info metadata"));
                     };
-                    code = (code << 4) | hex;
+                    code = (code << 4) | hex as u16;
                 }
-                let Some(decoded) = char::from_u32(code) else {
-                    return Err(MorfologikError::invalid_argument("lone surrogate in .info metadata"));
-                };
-                out.push(decoded);
+                units.push(code);
+                continue;
             }
-            other => out.push(other),
-        }
+            other => other,
+        };
+        let mut buf = [0u16; 2];
+        units.extend_from_slice(decoded.encode_utf16(&mut buf));
     }
-    Ok(out)
+    String::from_utf16(&units).map_err(|_| MorfologikError::invalid_argument("lone surrogate in .info metadata"))
 }
