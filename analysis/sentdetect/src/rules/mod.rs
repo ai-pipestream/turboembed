@@ -299,6 +299,12 @@ impl RuleSentenceDetector {
     }
 }
 
+thread_local! {
+    /// The buffers of the rule annotator, one set per thread, so that a
+    /// pipeline running many documents allocates only while they grow.
+    static RULE_SCRATCH: std::cell::RefCell<RuleScratch> = std::cell::RefCell::new(RuleScratch::default());
+}
+
 impl Annotator for RuleSentenceDetector {
     const ID: &'static str = "turbo-sentdetect:rules";
     /// Changes whenever the rules or the data change what is split.
@@ -310,8 +316,8 @@ impl Annotator for RuleSentenceDetector {
         let text = view.text();
         check_len(Self::ID, text)?;
         let mut out = Vec::new();
-        self.splitter.split(text, &mut out);
-        let mut spans = Spans::new(view.id());
+        RULE_SCRATCH.with_borrow_mut(|scratch| self.splitter.split_with(text, scratch, &mut out));
+        let mut spans = Spans::with_capacity(view.id(), out.len());
         for s in out {
             spans.push(s);
         }

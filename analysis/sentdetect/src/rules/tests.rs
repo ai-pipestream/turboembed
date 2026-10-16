@@ -91,6 +91,10 @@ fn numbered_references() {
     assert_eq!(en("It is big.[1][2] Next one."), ["It is big.[1][2]", "Next one."]);
     assert_eq!(en("It is big. [3] Next one."), ["It is big. [3]", "Next one."]);
     assert_eq!(en("It is big.[1]"), ["It is big.[1]"]);
+    assert_eq!(en("\"It is big.\"[1] Next one."), ["\"It is big.\"[1]", "Next one."]);
+    assert_eq!(en("'It is big.'[1][2] Next one."), ["'It is big.'[1][2]", "Next one."]);
+    assert_eq!(en("\"It is big.[1]\" Next one."), ["\"It is big.[1]\"", "Next one."]);
+    assert_eq!(en("\"It is big.[1]\""), ["\"It is big.[1]\""]);
     // Without the tailoring, UAX #29 breaks after the bracket, and the
     // bracket rule then keeps the sentence whole.
     assert_eq!(without("en", "It is big.[1] Next one.", |r| r.references = false), ["It is big.[1] Next one."]);

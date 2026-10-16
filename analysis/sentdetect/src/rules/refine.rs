@@ -62,6 +62,9 @@ pub(crate) fn after_references(t: &Text<'_>, b: Break) -> Option<Break> {
         return Some(b);
     }
     let mut i = b.term as usize + 1;
+    while t.char_at(i) != Some('[') && matches!(t.class(i), Some(Close | Extend | Format)) {
+        i += 1;
+    }
     let mut end = None;
     loop {
         let mut j = i;
@@ -82,7 +85,10 @@ pub(crate) fn after_references(t: &Text<'_>, b: Break) -> Option<Break> {
         i = k + 1;
         end = Some(i);
     }
-    let Some(end) = end else { return Some(b) };
+    let Some(mut end) = end else { return Some(b) };
+    while t.char_at(end) != Some('[') && matches!(t.class(end), Some(Close | Extend | Format)) {
+        end += 1;
+    }
     // References glued to a following word are not references.
     if !(t.class(end).is_none() || t.class(end) == Some(Sp) || t.class(end).is_some_and(is_para_sep)) {
         return Some(b);
