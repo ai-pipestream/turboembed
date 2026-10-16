@@ -1,0 +1,53 @@
+# Written for this project in the layout and format of the French Treebank (constituent XML files); it holds no text
+# of the corpus, which is licensed and not redistributable. Sentences with
+# phrases, compounds with and without text after their words, categories carried over
+# by empty and missing attributes, references, a comment, a CDATA section, a carriage
+# return, an empty word, elements named TOP and TK, an empty sentence and text outside
+# words. lmf3_00002.xml is read before lmf3_00001.xml.
+
+@@ file lmf3_00001.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<text id="lmf3_00001">
+<SENT nb="1">
+  <NP fct="SUJ">
+    <w cat="D" ee="D-def-fs" ei="Dfs" lemma="la" mph="fs" subcat="def">La</w>
+    <w cat="N" ee="N-C-fs" ei="NCfs" lemma="société" mph="fs" subcat="C">société</w>
+  </NP>
+  <VN>
+    <w cat="V" ee="V--P3s" ei="VP3s" lemma="annoncer" mph="P3s" subcat="">annonce</w>
+  </VN>
+  <NP fct="OBJ">
+    <w cat="D" lemma="un" mph="ms" subcat="ind">un</w>
+    <w compound="yes" cat="N" lemma="chiffre d'affaires" subcat="C">
+      <w catint="N">chiffre</w>
+      <w catint="P">d'</w>
+      <w catint="N">affaires</w>
+    </w>
+    <w cat="A" subcat="qual">record</w>
+  </NP>
+  <w cat="PONCT" subcat="S">.</w>
+</SENT>
+<SENT nb="2">
+  <w cat="CL" subcat="suj">Il</w>
+  <VN><w cat="V">a</w> <w cat="V">dit</w></VN>
+  <w cat="PONCT" subcat="W">&#171;</w> <w cat="ADV"> d&apos;accord&#xA0;</w> <w cat="PONCT">&#187;</w>
+  <!-- un commentaire -->
+  <w cat="ET">C&amp;A</w>
+  <w cat="N"><![CDATA[<x>]]></w>
+  <w cat="N">deux
+lignes</w>
+  <w cat="PONCT"/>
+  <w cat="ADV" compound="yes"><w catint="P">au</w> <w catint="N">fur</w> et à mesure</w>
+</SENT>
+</text>
+@@ end
+@@ file lmf3_00002.xml
+<?xml version="1.0"?>
+<text>
+<p>
+<SENT nb="3"><TOP><w cat="N">ignoré</w></TOP><TK><w cat="N">jeton</w></TK><NP><w cat="N">fin</w></NP></SENT>
+</p>
+<SENT nb="4"></SENT>
+<SENT nb="5">texte nu <Ssub><w cat="C">que</w></Ssub></SENT>
+</text>
+@@ end

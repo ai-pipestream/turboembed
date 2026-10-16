@@ -187,6 +187,8 @@ a directory with the same model run without them, and its options are
 | `corpora` (the sentence, language and document corpus streams) | `moses`, `letsmt`, `letsmt-detokenized`, `nkjp`, `irish-sentences`, `irish-tokens`, `leipzig-2x3`, `leipzig-1x4-skip2`, `20newsgroup-whitespace` (also `+legacy`), `20newsgroup-simple` | `corpora`, the inputs whose id starts with the corpus's prefix (`moses-`, `letsmt-`, `nkjp-`, `irish-`, `leipzig-`, `newsgroups-`) | `detokenizer`; `sentencesPerSample`, `samplesPerLanguage`, `samplesToSkip`; `tokenizer`, `dataDir`, `whitespace legacy` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 | `ad` (the Arvores Deitadas streams) | `names`, `names-nosplit`, `pos`, `pos-expand-features`, `chunk`, `chunk-1-3`, `sentence`, `sentence-titles`, `token` (with `pt-detokenizer`, fixture) | `ad`; the `sentence` runs leave out `ad-null-text` | `splitHyphenatedTokens`, `expandME`, `includeFeatures`, `start`, `end`, `includeTitles` |
+| `ontonotes` (the OntoNotes streams) | `names` (also `+legacy`), `parse`, `pos`, `lines` | `ontonotes` | `whitespace legacy` |
+| `frenchtreebank` (`ConstitParseSampleStream`) | `parse` | `frenchtreebank` | |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
 | `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
@@ -738,6 +740,36 @@ from the rule file `inputs/head-rules/<id>.txt`: `turbo:head-rules`, the
 lines `serialize` wrote, or `turbo:rules-errors`, what the reader threw.
 `analysis/parser/tests/goldens.rs` compares the Rust reader, writer and
 rule classes with both.
+
+## OntoNotes and French Treebank goldens
+
+`ontonotes/<run>/ontonotes/<id>.golden` is what one of OpenNLP's OntoNotes
+streams read from the corpus directory bundled in
+`inputs/ontonotes/<id>.txt` (a bundle, see "MASC goldens"). `OntoNotesGolden`
+writes the directory out and makes each stream with the `ontonotes` factory
+of the registry, given the directory as `-ontoNotesDir`: the name samples of
+its `.name` files (`names`, and `names+legacy` with the legacy whitespace),
+the parses of its `.parse` files (`parse`) and the part-of-speech samples
+made of them (`pos`). `lines` reads the `.parse` files with the
+`DocumentToLineStream` the parse factory puts under its stream.
+`frenchtreebank/parse/frenchtreebank/<id>.golden` is what
+`ConstitParseSampleStream` read from the data directory bundled in
+`inputs/frenchtreebank/<id>.txt`, made by the `frenchtreebank` factory with
+the directory as `-data`.
+
+The streams are read until `read` returns null; an exception is recorded
+with the number of samples before it, and reading goes on. The layers are
+`turbo:samples` and `turbo:read-errors`; then `turbo:sample-tokens` and
+`turbo:names` for the names, the layers of "Parse goldens" below for the
+parses, `turbo:sample-tokens` and `turbo:sample-tags` for the
+part-of-speech samples and `turbo:lines` for the lines; and last
+`turbo:listing`, the files the factory's `DirectorySampleStream` gives, in
+its order, relative to the directory. A message that names the directory
+writes it `<corpus>`. `analysis/formats/tests/ontonotes.rs` and
+`analysis/formats/tests/frenchtreebank.rs` compare the readers of
+`turbo_formats::ontonotes` and `turbo_formats::frenchtreebank` with these
+goldens; the messages of parse errors and XML errors are the JVM's own and
+are not compared.
 
 ## Gazetteer goldens
 

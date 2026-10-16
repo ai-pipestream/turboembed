@@ -1,0 +1,28 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ontonotes/ontonotes-names	2449	2440	7f30d04d332cbca77effa1ed8cedd7171add1960d8d8f0553936fd1172be63df
+annotator	opennlp.tools.formats.ontonotes.DocumentToLineStream	read
+layer	turbo:samples	document	6	written:str
+(TOP (S (NP-SBJ (NNP Anna) (NNP Berg))
+        (VP (MD will)
+            (VP (VB join)
+                (NP (DT the) (NN board))))
+        (. .)))
+
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:lines	document	6	line:str
+(TOP (S (NP-SBJ (NNP Anna) (NNP Berg))
+        (VP (MD will)
+            (VP (VB join)
+                (NP (DT the) (NN board))))
+        (. .)))
+
+end	turbo:lines
+layer	turbo:listing	document	1	file:str
+data/english/annotations/nw/wsj/00/wsj_0001.parse
+end	turbo:listing

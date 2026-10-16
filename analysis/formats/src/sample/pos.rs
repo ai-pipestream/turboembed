@@ -28,6 +28,12 @@ impl<'a> PosSample<'a> {
         Ok(PosSample { tokens, tags, source })
     }
 
+    /// A sample of token and tag pairs, read from `source`.
+    pub(crate) fn from_pairs(pairs: impl Iterator<Item = (Field<'a>, Field<'a>)>, source: Span) -> PosSample<'a> {
+        let (tokens, tags) = pairs.unzip();
+        PosSample { tokens, tags, source }
+    }
+
     /// A sample with no tokens, at `source`: what `WordTagSampleStream`
     /// returns in place of a line it cannot read.
     pub fn empty(source: Span) -> PosSample<'a> {

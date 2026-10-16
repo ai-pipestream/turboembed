@@ -1,0 +1,46 @@
+# Written for this project in the layout and format of the OntoNotes 4.0 name files; it holds no text
+# of the corpus, which is licensed and not redistributable. The files of the
+# root are read in the reverse of their sorted order: f_tagged throws on its first line,
+# e_end on its fourth, d_type on its first, c_tags on its second, b_good reads whole and
+# a_empty, which has no sample, ends the stream before sub/later.name.
+
+@@ file a_empty.name
+<DOC DOCNO="a">
+</DOC>
+
+@@ end
+@@ file b_good.name
+<DOC DOCNO="b">
+<ENAMEX TYPE="PERSON">Kari</ENAMEX> sang .
+She left .
+</DOC>
+
+@@ end
+@@ file c_tags.name
+first line .
+the token é😀>x<y throws
+never read
+
+@@ end
+@@ file d_type.name
+<ENAMEX TYPE="PERSON>Per</ENAMEX> came
+never read
+
+@@ end
+@@ file e_end.name
+<DOC DOCNO="e">
+one <ENAMEX TYPE="ORG">Acme</ENAMEX>
+two
+three</ENAMEX> again
+never read
+</DOC>
+
+@@ end
+@@ file f_tagged.name
+TYPE="X">ab>c<d
+
+@@ end
+@@ file sub/later.name
+not read
+
+@@ end

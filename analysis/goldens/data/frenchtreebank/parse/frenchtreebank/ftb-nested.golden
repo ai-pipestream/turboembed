@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	frenchtreebank/ftb-nested	678	676	e4139bb2f5dcf8903f2ff622b2ab5c806bd302cb54434e632afefa08b8b5df48
+annotator	opennlp.tools.formats.frenchtreebank.ConstitParseSampleStream	read
+layer	turbo:samples	document	3	written:str
+(TOP (S (XY dedans)) )
+(TOP (S (XY z) (MWN (NY a)) (NY fin)) )
+(TOP (S (NY vide)) )
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:parse-texts	document	3	sample:u32	text:str
+0	dedans 
+1	z a fin 
+2	vide 
+end	turbo:parse-texts
+layer	turbo:parse-nodes	document	17	sample:u32	depth:u32	type:str	start:u32	end:u32	head-start:u32	head-end:u32	own-head:u32	head-index:u32
+0	0	TOP	0	7	0	7	1	0
+0	1	S	0	6	0	6	1	0
+0	2	XY	0	6	0	6	1	0
+0	3	TK	0	6	0	6	1	0
+1	0	TOP	0	8	0	8	1	0
+1	1	S	0	7	0	7	1	2
+1	2	XY	0	1	0	1	1	0
+1	3	TK	0	1	0	1	1	0
+1	2	MWN	2	3	2	3	1	1
+1	3	NY	2	3	2	3	1	1
+1	4	TK	2	3	2	3	1	1
+1	2	NY	4	7	4	7	1	2
+1	3	TK	4	7	4	7	1	2
+2	0	TOP	0	5	0	5	1	0
+2	1	S	0	4	0	4	1	0
+2	2	NY	0	4	0	4	1	0
+2	3	TK	0	4	0	4	1	0
+end	turbo:parse-nodes
+layer	turbo:pos-samples	document	5	sample:u32	token:str	tag:str
+0	dedans	XY
+1	z	XY
+1	a	NY
+1	fin	NY
+2	vide	NY
+end	turbo:pos-samples
+layer	turbo:chunk-samples	document	5	sample:u32	token:str	tag:str	pred:str
+0	dedans	XY	S-S
+1	z	XY	O
+1	a	NY	S-MWN
+1	fin	NY	O
+2	vide	NY	S-S
+end	turbo:chunk-samples
+layer	turbo:listing	document	1	file:str
+nested.xml
+end	turbo:listing
