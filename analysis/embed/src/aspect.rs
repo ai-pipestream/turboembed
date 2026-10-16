@@ -285,11 +285,11 @@ impl Annotator for LearnedAspectSentiment {
                 } else {
                     (0.0, 0.0, 1.0)
                 };
+                let signed_prior = (pos_p - neg_p).clamp(-1.0, 1.0);
+                let intensity = (pos_p + neg_p).clamp(0.1, 2.0);
                 if negated {
                     std::mem::swap(&mut pos_p, &mut neg_p);
                 }
-                let signed_prior = pos_p - neg_p;
-                let intensity = (pos_p + neg_p).clamp(0.1, 2.0);
                 sent_opinions.push(DecodedOpinion {
                     tokens: r,
                     head_token: head_tok,

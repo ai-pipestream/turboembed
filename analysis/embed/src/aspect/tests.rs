@@ -26,7 +26,7 @@ fn open_test_vectors() -> (SubwordAnnotator, Arc<VectorAnnotator>) {
 }
 
 #[test]
-fn negated_opinion_flips_opinion_polarity_once_not_twice() {
+fn negated_opinion_preserves_prior_polarity_and_flips_effective_and_aspect_polarity() {
     let (sub_ann, vec_ann) = open_test_vectors();
     let text = "service is not helpful";
     let doc = Document::new(text.to_string());
@@ -45,31 +45,61 @@ fn negated_opinion_flips_opinion_polarity_once_not_twice() {
 
     let (subwords,) = sub_ann.annotate((view, Some(&tokens))).unwrap();
 
-    // Fit on positive opinion ("helpful") at token 3..4 and aspect ("service") at token 0..1.
-    let train_doc = LabeledAbsaDoc {
+    // 1. Fit on positive opinion ("helpful") at token 3..4 and aspect ("service") at token 0..1.
+    let pos_doc = LabeledAbsaDoc {
         subwords: &subwords,
         sentences: &sentences,
         tokens: &tokens,
         aspects: &[(IxRange::new(0, 1), "service", "positive")],
         opinions: &[(IxRange::new(3, 4), "positive")],
     };
-    let annotator =
-        LearnedAspectSentiment::fit(Arc::clone(&vec_ann), &["service"], &[train_doc], 1e-4, 200, 2.0).unwrap();
+    let pos_annotator =
+        LearnedAspectSentiment::fit(Arc::clone(&vec_ann), &["service"], &[pos_doc], 1e-4, 200, 2.0).unwrap();
 
-    let (opinions, aspects) = annotator.annotate((view, &sentences, &tokens, &subwords, None, None, None)).unwrap();
+    let (opinions, aspects) = pos_annotator.annotate((view, &sentences, &tokens, &subwords, None, None, None)).unwrap();
     assert_eq!(opinions.len(), 1);
     let op = opinions.get(Ix::new(0));
     assert!(op.negated, "opinion 'helpful' preceded by 'not' must be marked negated");
+    assert!(op.polarity > 0.0, "prior polarity for positive opinion must remain positive, got {}", op.polarity);
     assert!(
-        op.polarity < 0.0,
-        "negated positive opinion must have negative polarity, got {} (double-negation bug)",
-        op.polarity
+        op.effective_polarity() < 0.0,
+        "effective polarity for negated positive opinion must be negative, got {}",
+        op.effective_polarity()
     );
     assert_eq!(aspects.len(), 1);
     let asp = aspects.get(Ix::new(0));
     assert!(
         asp.polarity.negative > asp.polarity.positive,
-        "linked aspect must also reflect negative polarity after negation: {:?}",
+        "linked aspect must reflect negative polarity after negation: {:?}",
+        asp.polarity
+    );
+
+    // 2. Control: fit on negative opinion at token 3..4 and verify negation flips effective and aspect polarity positive.
+    let neg_doc = LabeledAbsaDoc {
+        subwords: &subwords,
+        sentences: &sentences,
+        tokens: &tokens,
+        aspects: &[(IxRange::new(0, 1), "service", "negative")],
+        opinions: &[(IxRange::new(3, 4), "negative")],
+    };
+    let neg_annotator =
+        LearnedAspectSentiment::fit(Arc::clone(&vec_ann), &["service"], &[neg_doc], 1e-4, 200, 2.0).unwrap();
+
+    let (opinions, aspects) = neg_annotator.annotate((view, &sentences, &tokens, &subwords, None, None, None)).unwrap();
+    assert_eq!(opinions.len(), 1);
+    let op = opinions.get(Ix::new(0));
+    assert!(op.negated);
+    assert!(op.polarity < 0.0, "prior polarity for negative opinion must remain negative, got {}", op.polarity);
+    assert!(
+        op.effective_polarity() > 0.0,
+        "effective polarity for negated negative opinion must be positive, got {}",
+        op.effective_polarity()
+    );
+    assert_eq!(aspects.len(), 1);
+    let asp = aspects.get(Ix::new(0));
+    assert!(
+        asp.polarity.positive > asp.polarity.negative,
+        "linked aspect must reflect positive polarity after negating negative opinion: {:?}",
         asp.polarity
     );
 }
