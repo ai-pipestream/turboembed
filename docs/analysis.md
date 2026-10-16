@@ -524,9 +524,9 @@ fields mean bumps its `SCHEMA`.
 | `Abbreviations` | `turbo:abbreviations` | text | `turbo-analysis-layers` |
 | `Matches` | `turbo:matches` | text | `turbo-analysis-layers` |
 | `Opinions` | `turbo:opinions` | the document (indexes `Tokens`) | `turbo-analysis-layers` |
-| `Aspects` | `turbo:aspects` | the document (indexes `Tokens`, `Sentences`, `Opinions`) | `turbo-analysis-layers` |
-| `Incivility` | `turbo:incivility` | the document (indexes `Tokens`, `Sentences`, `Chunks`, `Structure`) | `turbo-analysis-layers` |
-| `Pragmatics` | `turbo:pragmatics` | sentences (indexes `Tokens`) | `turbo-analysis-layers` |
+| `Aspects` | `turbo:aspects` | the document (indexes `Tokens`, `Sentences`, `Opinions` when used) | `turbo-analysis-layers` |
+| `Incivility` | `turbo:incivility` | the document (indexes `Tokens`, `Sentences`, `Chunks`, `Structure` when used) | `turbo-analysis-layers` |
+| `Pragmatics` | `turbo:pragmatics` | sentences (indexes `Tokens` when there is evidence) | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `GlossaryTerms` | `turbo:glossary-terms` | text (indexes `Tokens`) | `turbo-glossary-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
@@ -560,8 +560,8 @@ so byte offsets follow view alignment without duplicating `Spans`:
   non-decreasing `(start, end)` order), `polarity: Vec<f64>` (prior
   signed polarity), `intensity: Vec<f64>` (finite, `>= 0.0`), and
   `negated: Vec<bool>`.
-- `Aspects` (`turbo:aspects`, anchored to `Document`, indexing `Tokens`
-  and, when used, `Sentences` and `Opinions`): `tokens:
+- `Aspects` (`turbo:aspects`, anchored to `Document`, indexing, when
+  used, `Tokens`, `Sentences` and `Opinions`): `tokens:
   Vec<Option<IxRange<Tokens>>>` (`Some` for explicit aspect terms,
   `None` for implicit aspects), `sentence: Vec<Option<Ix<Sentences>>>`
   (required when `tokens[i]` is `None`), `category: Vec<Option<Tag>>`
@@ -571,8 +571,8 @@ so byte offsets follow view alignment without duplicating `Spans`:
   and `opinion_end: Vec<u32>`, kept in strictly increasing order per
   aspect).
 - `Incivility` (`turbo:incivility`, anchored to `Document`, indexing
-  `Tokens` and whichever of `Sentences`, `Chunks`, or `Structure` its
-  rows target): `target: Vec<IncivilityTarget>` in strictly increasing
+  `Tokens` when a row has evidence, and whichever of `Sentences`,
+  `Chunks`, or `Structure` its rows target): `target: Vec<IncivilityTarget>` in strictly increasing
   target order, six `f64` label score columns (`insult`, `profanity`,
   `threat`, `identity_attack`, `intolerance`, `severe_toxicity` in
   `0.0..=1.0`), and CSR evidence spans (`evidence_label:
@@ -581,7 +581,7 @@ so byte offsets follow view alignment without duplicating `Spans`:
   row so `Incivility::evidence_for_label` returns a contiguous
   `&[IxRange<Tokens>]` slice by binary search.
 - `Pragmatics` (`turbo:pragmatics`, aligned to `Sentences` and indexing
-  `Tokens`): `score: Vec<f64>` (`0.0..=1.0` per sentence) and `evidence:
+  `Tokens` when a sentence has evidence): `score: Vec<f64>` (`0.0..=1.0` per sentence) and `evidence:
   Vec<Option<Incongruity>>` where `Incongruity { positive:
   IxRange<Tokens>, negative: IxRange<Tokens> }` holds the two contrasted
   token spans (`size_of::<Option<Incongruity>>() == 16`).

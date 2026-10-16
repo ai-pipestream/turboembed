@@ -577,8 +577,13 @@ impl Layer for Aspects {
     }
 
     fn indexes(&self) -> Vec<(KeyId, usize)> {
+        // Implicit aspects index no tokens, so a layer of only implicit
+        // aspects does not require a Tokens layer.
         let max_tok = self.tokens.iter().flatten().map(|r| r.end.get()).max().unwrap_or(0);
-        let mut out = vec![(self.tokens_key.id(), max_tok)];
+        let mut out = Vec::new();
+        if max_tok > 0 || !self.tokens_key.name.is_empty() {
+            out.push((self.tokens_key.id(), max_tok));
+        }
         let max_sent = self.sentence.iter().flatten().map(|s| s.get() + 1).max().unwrap_or(0);
         if max_sent > 0 || !self.sentences_key.name.is_empty() {
             out.push((self.sentences_key.id(), max_sent));
@@ -1051,8 +1056,13 @@ impl Layer for Incivility {
     }
 
     fn indexes(&self) -> Vec<(KeyId, usize)> {
+        // Evidence spans are optional, so items scored without evidence do
+        // not require a Tokens layer.
         let max_tok = self.evidence_tokens.iter().map(|r| r.end.get()).max().unwrap_or(0);
-        let mut out = vec![(self.tokens_key.id(), max_tok)];
+        let mut out = Vec::new();
+        if max_tok > 0 || !self.tokens_key.name.is_empty() {
+            out.push((self.tokens_key.id(), max_tok));
+        }
         let mut max_sent = 0usize;
         let mut max_chunk = 0usize;
         let mut max_block = 0usize;
@@ -1298,7 +1308,9 @@ impl Layer for Pragmatics {
             .map(|inc| inc.positive.end.get().max(inc.negative.end.get()))
             .max()
             .unwrap_or(0);
-        vec![(self.tokens_key.id(), max_tok)]
+        // A sentence scored by an embedding head alone has no evidence, so
+        // a layer without evidence does not require a Tokens layer.
+        if max_tok > 0 || !self.tokens_key.name.is_empty() { vec![(self.tokens_key.id(), max_tok)] } else { Vec::new() }
     }
 
     fn check(&self) -> Result<(), String> {
@@ -1640,6 +1652,50 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.contains("outside sentence 0"), "{err}");
+    }
+
+    #[test]
+    fn score_only_layers_add_to_a_document_without_tokens() {
+        // A sentence-level head can score sarcasm, incivility, or implicit
+        // aspects with no token evidence; such layers index no Tokens and
+        // must not require a Tokens layer on the document.
+        let (sentences, _) = make_sentences_and_tokens();
+        let mut doc = Document::new("The food was not great, but the service was fast. Price was fair.");
+        doc.add(&Key::DEFAULT, sentences, Provenance::by("test")).unwrap();
+
+        let mut prag = Pragmatics::new();
+        prag.push(PragmaticsItem { score: 0.7, evidence: None });
+        prag.push(PragmaticsItem { score: 0.1, evidence: None });
+        doc.add(&Key::DEFAULT, prag, Provenance::by("test")).unwrap();
+
+        let mut inc = Incivility::new();
+        inc.push(IncivilityItem {
+            target: IncivilityTarget::Sentence(Ix::new(1)),
+            scores: IncivilityScores { insult: 0.2, ..Default::default() },
+            evidence: &[],
+        });
+        doc.add(&Key::DEFAULT, inc, Provenance::by("test")).unwrap();
+
+        let mut aspects = Aspects::default();
+        aspects.push(Aspect {
+            target: AspectTarget::Implicit { sentence: Ix::new(1) },
+            category: None,
+            polarity: PolarityScores::new(0.6, 0.1, 0.3),
+            opinions: &[],
+        });
+        doc.add(&Key::DEFAULT, aspects, Provenance::by("test")).unwrap();
+
+        // Evidence that does index tokens still needs the Tokens layer.
+        let mut with_evidence = Incivility::on(Key::named("ev"), Key::DEFAULT, Key::DEFAULT, Key::DEFAULT);
+        with_evidence.push(IncivilityItem {
+            target: IncivilityTarget::Sentence(Ix::new(0)),
+            scores: IncivilityScores::default(),
+            evidence: &[(IncivilityLabel::Insult, IxRange::new(0, 1))],
+        });
+        let mut p = Provenance::by("test");
+        p.reads.push(Key::<Tokens>::named("ev").id());
+        let err = doc.add(&Key::named("ev"), with_evidence, p).unwrap_err();
+        assert!(matches!(err, Error::Missing(_)), "{err:?}");
     }
 
     struct DummyOpinionReader;
