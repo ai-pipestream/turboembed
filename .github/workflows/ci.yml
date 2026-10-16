@@ -70,12 +70,16 @@ jobs:
       # default sentence model is the English one, and turbo-train-recipes
       # gates its models against the English sentence and token models (its
       # tagger's reference, OpenNLP 1.5's en-pos-maxent, is local-only).
+      # LibreOffice's Hunspell dictionaries are not checked in either
+      # (de_DE_frami is GPL, hu_HU MPL or LGPL; en_US, under SCOWL's
+      # permissive terms, is downloaded with them); turbo-hunspell's
+      # goldens over them run here.
       - name: parity against the JVM with the published models, models required
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
           TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
         run: |
-          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-langspan -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer
+          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-langspan -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer -p turbo-hunspell
           cargo test -p turbo-zoo --test builtin
           cargo test -p turbo-eval --lib
           cargo test -p turbo-train-recipes --test recipes

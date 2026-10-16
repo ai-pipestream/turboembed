@@ -1,0 +1,56 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/german	113	111	e32a4213e4001ec2c47886e11da17717363d81f5d5b100507de304c1286f57d1
+annotator	opennlp.tools.pii.PiiPacks	contact
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	contact
+layer	turbo:view	text	23	start:u32	end:u32	with:str
+40	41	*
+41	42	*
+42	43	*
+43	44	*
+45	46	*
+46	47	*
+47	48	*
+48	49	*
+50	51	*
+51	52	*
+96	97	*
+97	98	*
+98	99	*
+99	100	*
+101	102	*
+102	103	*
+103	104	*
+104	105	*
+105	106	*
+106	107	*
+107	108	*
+109	110	*
+110	111	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Bitte überweisen Sie an DE89 3704 0044 ############ und schreiben Sie an büro@example.de oder ###############.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	Bitte überweisen Sie an DE89 3704 0044 PHONE-1 und schreiben Sie an büro@example.de oder EMAIL-1.\n	
+hmac	Bitte überweisen Sie an DE89 3704 0044 PHONE-d93b376c99f48a80 und schreiben Sie an büro@example.de oder EMAIL-d0d506bf4ae9f414.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	4	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	40	52	40	47	PHONE-1
+pseudonymize	96	111	91	98	EMAIL-1
+hmac	40	52	40	62	PHONE-d93b376c99f48a80
+hmac	96	111	106	128	EMAIL-d0d506bf4ae9f414
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	2	type:str	mentions:u32	distinct:u32	samples:str
+email	1	1	EMAIL-d0d506bf4ae9f414
+phone	1	1	PHONE-d93b376c99f48a80
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+email: 1 mentions, 1 distinct [EMAIL-d0d506bf4ae9f414]\nphone: 1 mentions, 1 distinct [PHONE-d93b376c99f48a80]
+end	turbo:pii-audit-report

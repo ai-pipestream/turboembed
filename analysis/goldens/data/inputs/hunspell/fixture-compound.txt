@@ -1,0 +1,45 @@
+# Words for the Hunspell goldens, one per line; a line starting with # is a
+# comment. \\, \t, \n, \r and \uXXXX are escapes (\uXXXX is one UTF-16 unit).
+# The fixture compound.
+football
+footballs
+ballfoot
+sunflower
+sunflowers
+sunroomflower
+sunroomroomflower
+flowersun
+badfoot
+footbad
+seesea
+seasea
+seaseasea
+footfoot
+manfoot
+footman
+Footman
+FOOTMAN
+handfoot
+handhandfoot
+footlink
+linkfoot
+footlinkball
+footballsball
+footsball
+refootball
+footreball
+radiobob
+radiouxa
+uxaradio
+boatsz
+boats
+boatsball
+foot-ball
+-football
+football-
+foot--
+footBall
+FootBall
+FOOTBALL
+sun flower
+sunflowerroom

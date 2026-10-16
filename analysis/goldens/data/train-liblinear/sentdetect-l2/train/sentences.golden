@@ -1,0 +1,705 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	train/sentences	7883	7882	d843be6d86abac50c15c97cc0792491f68fd9970e776a8db3589c22b65c6beaf
+annotator	LiblinearTrainer	train
+config	Cutoff	2
+config	DataIndexer	TwoPass
+config	bias	-1
+config	c	0.1
+config	eps	0.001
+config	events	sorted
+config	p	0
+config	solverType	L2R_LR
+config	source	sentdetect
+layer	turbo:events	document	282	outcome:str	context:str	values:str
+n	2 eos=. n=Smith ncap s= sn v= x=Mr xcap	
+n	1 eos=. n=on s=m v=9 x=a	
+n	2 eos=. n=on s= sn v=a x=.m	
+s	6 eos=. n=He ncap s= sn v=on x=Monday xcap	
+s	8 eos=. n=Dr. ncap s= sn v=brown x=suitcase	
+n	2 eos=. n=Brown ncap s= sn v=suitcase. x=Dr xcap	
+s	8 eos=. n=They ncap s= sn v=the x=platform	
+s	3 eos=. n=The ncap s= sn v=the x=car	
+s	7 eos=. n=Mrs. ncap s= sn v=45 x=minutes	
+n	3 eos=. n=Brown ncap s= sn v=minutes. x=Mrs xcap	
+s	8 eos=. n=After ncap s= sn v=for x=everyone	
+s	7 eos=. n=The ncap s= sn v=the x=project	
+n	1 eos=. n=million s=5 v=was x=2	
+s	7 eos=. n=Nobody ncap s= sn v=million x=dollars	
+s	6 eos=. n=Prof. ncap s= sn v=be x=enough	
+n	4 eos=. n=Green ncap s= sn v=enough. x=Prof xcap	
+n	1 eos=. n=that s=m v=3 x=p	
+n	2 eos=. n=that s= sn v=p x=.m	
+s	9 eos=. n= s= sn v=that x=afternoon	
+n	1 eos=. n=government s=S scap v=The vcap x=U xcap	
+n	2 eos=. n=government s= sn v=U vcap x=.S	
+s	7 eos=. n=Exports ncap s= sn v=on x=Tuesday xcap	
+n	1 eos=. n=percent s=2 v=by x=4	
+s	7 eos=. n=Imports ncap s= sn v=third x=quarter	
+n	1 eos=. n=in s=g v=slightly, x=e	
+n	2 eos=. n=in s= sn v=e x=.g	
+s	9 eos=. n=Analysts ncap s= sn v=and x=machinery	
+s	6 eos=. n=The ncap s= sn v=smaller x=change	
+s	5 eos=. n=It ncap s= sn v=120 x=pages	
+s	10 eos=. n=Some ncap s= sn v=15 x=economists	
+n	1 eos=. n=outside s=e v=universities, x=i	
+n	2 eos=. n=outside s= sn v=i x=.e	
+s	10 eos=. n=The ncap s= sn v=the x=government	
+s	5 eos=. n=Markets ncap s= sn v=in x=March xcap	
+s	6 eos=. n=Prices ncap s= sn v=reacted x=calmly	
+n	1 eos=. n=percent s=3 v=closed x=0	
+s	6 eos=. n= s= sn v=percent x=higher	
+n	2 eos=. n=in s= sn v=Baker vcap x=St xcap	
+s	6 eos=. n=Her ncap s= sn v=in x=London xcap	
+s	7 eos=. n=They ncap s= sn v=retired x=teacher	
+s	6 eos=. n=The ncap s= sn v=the x=garden	
+n	3 eos=. n=and s= sn v=daisies, x=etc	
+s	4 eos=. n=Last ncap s= sn v=small x=pond	
+s	7 eos=. n=The ncap s= sn v=in x=January xcap	
+s	4 eos=. n=Then ncap s= sn v=a x=week	
+s	5 eos=. n=Everyone ncap s= sn v=warm x=again	
+s	6 eos=. n=Did ncap s= sn v=it x=melted	
+s	6 eos=? n=I ncap s= sn v=a x=winter	
+s	3 eos=! n= s= sn v=did x=not	
+n	1 eos=. n=4 s=1 v=Version vcap x=3	
+n	2 eos=. n=of s=4 v=3 x=.1	
+s	4 eos=. n=The ncap s= sn v=several x=bugs	
+s	7 eos=. n=One ncap s= sn v=27 x=changes	
+s	6 eos=. n=Another ncap s= sn v=are x=parsed	
+s	7 eos=. n=Users ncap s= sn v=30 x=percent	
+s	5 eos=. n=The ncap s= sn v=for x=years	
+s	8 eos=. n=The ncap s= sn v=reported x=problems	
+n	1 eos=. n=0. s=2 v=numbered x=3	
+n	2 eos=. n=It ncap s=0 v=3 x=.2	
+s	2 eos=. n=It ncap s= sn v=3.2 x=.0	
+s	5 eos=. n=Testing ncap s= sn v=six x=weeks	
+s	5 eos=. n=Volunteers ncap s= sn v=already x=begun	
+s	4 eos=. n= s= sn v=to x=help	
+s	4 eos=? n=It ncap s= sn v=museum x=open	
+n	1 eos=. n=on s=m v=10 x=a	
+n	2 eos=. n=on s= sn v=a x=.m	
+s	8 eos=. n=On ncap s= sn v=on x=weekdays	
+s	5 eos=. n=Tickets ncap s= sn v=hour x=later	
+n	2 eos=. n=euros s=50 v=cost x=12	
+s	6 eos=. n=Children ncap s= sn v=for x=adults	
+s	4 eos=. n=The ncap s= sn v=for x=free	
+s	4 eos=. n=Some ncap s= sn v=old x=maps	
+s	3 eos=. n=Mr. ncap s= sn v=years x=old	
+n	2 eos=. n=Lee, ncap s= sn v=old. x=Mr xcap	
+s	6 eos=. n=The ncap s= sn v=every x=Friday xcap	
+s	7 eos=. n=Bring ncap s= sn v=90 x=minutes	
+s	5 eos=! n= s= sn v=comfortable x=shoes	
+n	3 eos=. n=announced s= sn v=Acme vcap x=Inc xcap	
+s	9 eos=. n=The ncap s= sn v=profits x=yesterday	
+n	3 eos=. n=in s= sn v=paint, x=etc	
+s	9 eos=. n=Its ncap s= sn v=30 x=countries	
+n	3 eos=. n=Patel, ncap s= sn v=executive, x=Mrs xcap	
+s	9 eos=. n=She ncap s= sn v=to x=reporters	
+s	7 eos=. n=The ncap s= sn v=than x=planned	
+s	7 eos=. n=Some ncap s= sn v=8 x=percent	
+s	4 eos=. n=Others ncap s= sn v=at x=once	
+s	4 eos=. n=The ncap s= sn v=to x=wait	
+s	3 eos=. n=Shareholders ncap s= sn v=in x=May xcap	
+s	8 eos=. n=Nobody ncap s= sn v=new x=dividend	
+s	9 eos=. n= s= sn v=any x=surprises	
+n	1 eos=. n=because s=m v=4 x=p	
+n	2 eos=. n=because s= sn v=p x=.m	
+s	6 eos=. n=Trains ncap s= sn v=the x=strike	
+s	6 eos=. n=Many ncap s= sn v=whole x=region	
+s	7 eos=. n=Roads ncap s= sn v=home x=instead	
+s	5 eos=. n=The ncap s= sn v=than x=usual	
+s	7 eos=. n=By ncap s= sn v=be x=patient	
+s	5 eos=. n=The ncap s= sn v=running x=again	
+s	4 eos=. n=Commuters ncap s= sn v=next x=week	
+s	4 eos=. n=It ncap s= sn v=ends x=soon	
+s	6 eos=. n=Both ncap s= sn v=two x=months	
+s	9 eos=. n= s= sn v=an x=agreement	
+n	2 eos=. n=Adams ncap s= sn v= x=Dr xcap	
+s	6 eos=. n=Later ncap s= sn v=in x=Boston xcap	
+n	1 eos=. n=west s=S scap v=the x=U xcap	
+n	2 eos=. n=west s= sn v=U vcap x=.S	
+s	5 eos=. n=There ncap s= sn v=west x=coast	
+s	6 eos=. n=The ncap s= sn v=small x=clinic	
+s	3 eos=. n=Most ncap s= sn v=a x=day	
+s	8 eos=. n=Some ncap s= sn v=nearby x=villages	
+s	5 eos=. n=Dr. ncap s= sn v=two x=hours	
+n	2 eos=. n=Adams ncap s= sn v=hours. x=Dr xcap	
+s	7 eos=. n=Her ncap s= sn v=local x=college	
+s	4 eos=. n=She ncap s= sn v=very x=much	
+s	5 eos=. n=Who ncap s= sn v=five x=years	
+s	4 eos=? n= s= sn v=clinic x=then	
+n	1 eos=. n=cups s=5 v=needs x=2	
+s	4 eos=. n=Mix ncap s= sn v=3 x=eggs	
+s	4 eos=. n=Add ncap s= sn v=of x=salt	
+s	4 eos=. n=Stir ncap s= sn v=a x=time	
+s	6 eos=. n=Let ncap s= sn v=is x=smooth	
+s	7 eos=. n=Heat ncap s= sn v=20 x=minutes	
+s	4 eos=. n=Pour ncap s= sn v=medium x=heat	
+s	6 eos=. n=Cook ncap s= sn v=of x=batter	
+s	6 eos=. n=Serve ncap s= sn v=a x=minute	
+s	4 eos=. n=They ncap s= sn v=pancakes x=warm	
+n	1 eos=. n=berries s=g v=fruit, x=e	
+n	2 eos=. n=berries s= sn v=e x=.g	
+s	7 eos=. n= s= sn v=or x=bananas	
+n	4 eos=. n=Martin ncap s= sn v= x=Prof xcap	
+s	4 eos=. n=The ncap s= sn v=ancient x=Rome xcap	
+n	1 eos=. n=He ncap s=m v=7 x=p	
+s	2 eos=. n=He ncap s= sn v=p x=.m	
+s	5 eos=. n=Nobody ncap s= sn v=two x=hours	
+s	5 eos=. n=At ncap s= sn v=left x=early	
+s	6 eos=. n=Several ncap s= sn v=applauded x=loudly	
+s	9 eos=. n=One ncap s= sn v=asked x=questions	
+s	6 eos=. n=Prof. ncap s= sn v=the x=empire	
+n	4 eos=. n=Martin ncap s= sn v=empire. x=Prof xcap	
+s	5 eos=. n=He ncap s= sn v=long x=story	
+s	4 eos=. n=The ncap s= sn v=next x=time	
+s	8 eos=. n= s= sn v=on x=Thursday xcap	
+n	2 eos=. n=Mary's ncap s= sn v= x=St xcap	
+s	4 eos=. n=It ncap s= sn v=old x=town	
+s	7 eos=. n=The ncap s= sn v=12th x=century	
+s	4 eos=. n=Visitors ncap s= sn v=metres x=high	
+s	6 eos=. n=From ncap s= sn v=in x=summer	
+s	6 eos=. n=On ncap s= sn v=whole x=valley	
+s	7 eos=. n=The ncap s= sn v=are x=visible	
+s	6 eos=. n=Entry ncap s= sn v=every x=Sunday xcap	
+s	7 eos=. n=The ncap s= sn v=are x=welcome	
+s	4 eos=. n=It ncap s= sn v=in x=1998	
+s	9 eos=. n= s= sn v=sounds x=wonderful	
+n	2 eos=. n=and s= sn v= x=Mr xcap	
+n	3 eos=. n=Jones ncap s= sn v=and x=Mrs xcap	
+s	11 eos=. n=Their ncap s= sn v=50th x=anniversary	
+s	5 eos=. n=More ncap s= sn v=a x=party	
+s	4 eos=. n=There ncap s= sn v=guests x=came	
+s	4 eos=. n=Mr. ncap s= sn v=large x=cake	
+n	2 eos=. n=Jones ncap s= sn v=cake. x=Mr xcap	
+s	6 eos=. n=He ncap s= sn v=short x=speech	
+s	5 eos=. n=Everyone ncap s= sn v=happy x=years	
+s	5 eos=. n=The ncap s= sn v=a x=glass	
+s	8 eos=. n=It ncap s= sn v=until x=midnight	
+s	8 eos=. n=The ncap s= sn v=to x=remember	
+s	7 eos=. n= s= sn v=family x=website	
+n	2 eos=. n=degrees s=5 v=minus x=12	
+s	9 eos=. n=Schools ncap s= sn v=degrees x=overnight	
+s	5 eos=. n=Buses ncap s= sn v=several x=towns	
+s	9 eos=. n=Doctors ncap s= sn v=reduced x=timetable	
+s	7 eos=. n=The ncap s= sn v=stay x=indoors	
+s	8 eos=. n=Forecasters ncap s= sn v=by x=Saturday xcap	
+s	4 eos=. n=Farmers ncap s= sn v=after x=that	
+s	5 eos=. n=Some ncap s= sn v=their x=crops	
+s	7 eos=. n=The ncap s= sn v=already x=damaged	
+n	1 eos=. n=low s=e v=help, x=i	
+n	2 eos=. n=low s= sn v=i x=.e	
+s	5 eos=. n=Applications ncap s= sn v=interest x=loans	
+s	5 eos=. n= s= sn v=next x=month	
+s	4 eos=? n=There ncap s= sn v=project x=fail	
+s	7 eos=. n=The ncap s= sn v=several x=reasons	
+s	5 eos=. n=The ncap s= sn v=the x=start	
+s	5 eos=. n=Costs ncap s= sn v=three x=times	
+n	1 eos=. n=to s=2 v=from x=1	
+n	1 eos=. n=million. s=4 v=to x=3	
+s	7 eos=. n=Nobody ncap s= sn v=3.4 x=million	
+s	4 eos=. n=Mr. ncap s= sn v=in x=time	
+n	2 eos=. n=Clark, ncap s= sn v=time. x=Mr xcap	
+s	4 eos=. n=His ncap s= sn v=in x=June xcap	
+s	7 eos=. n=It ncap s= sn v=the x=project	
+s	4 eos=. n=The ncap s= sn v=too x=late	
+s	7 eos=. n= s= sn v=business x=schools	
+n	1 eos=. n=and s=m v=8 x=a	
+n	2 eos=. n=and s= sn v=a x=.m	
+n	1 eos=. n=It ncap s=m v=8 x=p	
+s	2 eos=. n=It ncap s= sn v=p x=.m	
+s	5 eos=. n=There ncap s= sn v=200,000 x=books	
+s	10 eos=. n=Students ncap s= sn v=of x=newspapers	
+s	3 eos=. n=The ncap s= sn v=every x=day	
+s	7 eos=. n=Its ncap s= sn v=is x=popular	
+n	1 eos=. n=euros. s=80 v=only x=1	
+s	5 eos=. n=Dr. ncap s= sn v=1.80 x=euros	
+n	2 eos=. n=Kim ncap s= sn v=euros. x=Dr xcap	
+s	10 eos=. n=She ncap s= sn v=books x=department	
+s	4 eos=. n=Photography ncap s= sn v=from x=1462	
+s	5 eos=. n=Please ncap s= sn v=allowed x=there	
+s	4 eos=. n= s= sn v=for x=help	
+s	2 eos=! n=I ncap s= sn v=for x=me	
+s	7 eos=. n=Please ncap s= sn v=five x=minutes	
+s	2 eos=. n=The ncap s= sn v=without x=me	
+n	1 eos=. n=tonight. s=15 v=at x=6	
+s	7 eos=. n=We ncap s= sn v=6.15 x=tonight	
+s	2 eos=. n=The ncap s= sn v=miss x=it	
+s	8 eos=. n=Have ncap s= sn v=until x=tomorrow	
+s	7 eos=? n=Yes, ncap s= sn v=the x=tickets	
+s	3 eos=. n=Good, ncap s= sn v=my x=bag	
+s	5 eos=. n=Let ncap s= sn v=are x=ready	
+s	2 eos=. n= s= sn v=us x=go	
+n	1 eos=. n=institute s=S scap v=the x=U xcap	
+n	2 eos=. n=institute s= sn v=U vcap x=.S	
+s	7 eos=. n=The ncap s= sn v=new x=vaccine	
+s	10 eos=. n=Results ncap s= sn v=3,000 x=volunteers	
+s	7 eos=. n=The ncap s= sn v=medical x=journal	
+n	2 eos=. n=percent s=5 v=was x=94	
+s	9 eos=. n=Side ncap s= sn v=percent x=effective	
+n	1 eos=. n=a s=g v=mild, x=e	
+n	2 eos=. n=a s= sn v=e x=.g	
+s	8 eos=. n=Regulators ncap s= sn v=a x=headache	
+s	4 eos=. n=A ncap s= sn v=the x=data	
+s	6 eos=. n=Prof. ncap s= sn v=within x=months	
+n	4 eos=. n=Ito ncap s= sn v=months. x=Prof xcap	
+s	5 eos=. n=She ncap s= sn v=the x=study	
+s	11 eos=. n=Further ncap s= sn v=very x=encouraging	
+s	6 eos=. n= s= sn v=will x=follow	
+n	3 eos=. n=at s= sn v=Mozart, vcap x=etc	
+s	8 eos=. n=The ncap s= sn v=the x=festival	
+s	4 eos=. n=Concerts ncap s= sn v=ten x=days	
+s	8 eos=. n=Most ncap s= sn v=and x=churches	
+s	4 eos=. n=Last ncap s= sn v=are x=free	
+s	8 eos=. n=The ncap s= sn v=people x=attended	
+s	4 eos=. n=Mrs. ncap s= sn v=this x=year	
+n	3 eos=. n=Novak ncap s= sn v=year. x=Mrs xcap	
+s	7 eos=. n=Tickets ncap s= sn v=opening x=concert	
+s	4 eos=. n=A ncap s= sn v=an x=hour	
+s	4 eos=. n=Bring ncap s= sn v=concert x=live	
+s	6 eos=. n= s= sn v=a x=picnic	
+n	2 eos=. n=dollars s=99 v=paid x=19	
+s	4 eos=. n=It ncap s= sn v=the x=book	
+s	4 eos=. n=The ncap s= sn v=every x=cent	
+s	7 eos=. n=A ncap s= sn v=small x=village	
+s	3 eos=. n=Nobody ncap s= sn v=old x=key	
+s	5 eos=. n=She ncap s= sn v=it x=opens	
+s	7 eos=. n=In ncap s= sn v=whole x=village	
+s	4 eos=. n=What ncap s= sn v=hidden x=door	
+s	2 eos=? n=You ncap s= sn v=behind x=it	
+s	4 eos=. n=I ncap s= sn v=the x=book	
+s	3 eos=! n= s= sn v=tell x=you	
+n	2 eos=. n=Rossi ncap s= sn v= x=Dr xcap	
+n	4 eos=. n=Weber ncap s= sn v=and x=Prof xcap	
+s	8 eos=. n=It ncap s= sn v=report x=together	
+s	4 eos=. n=The ncap s= sn v=to x=2020	
+s	6 eos=. n=Cities ncap s= sn v=is x=simple	
+s	8 eos=. n=Young ncap s= sn v=than x=villages	
+s	11 eos=. n=Older ncap s= sn v=the x=countryside	
+s	6 eos=. n=Shops ncap s= sn v=stayed x=behind	
+s	6 eos=. n=Some ncap s= sn v=many x=places	
+s	5 eos=. n=The ncap s= sn v=almost x=empty	
+n	1 eos=. n=better s=g v=measures, x=e	
+n	2 eos=. n=better s= sn v=e x=.g	
+s	8 eos=. n=The ncap s= sn v=better x=internet	
+s	4 eos=. n= s= sn v=studying x=them	
+s	1 eos=. n=It ncap s= sn v=platform x=4	
+n	1 eos=. n=hours. s=5 v=about x=2	
+s	5 eos=. n=There ncap s= sn v=2.5 x=hours	
+s	5 eos=. n=Seats ncap s= sn v=on x=board	
+s	6 eos=. n=First ncap s= sn v=reserved x=online	
+s	5 eos=. n=Second ncap s= sn v=89 x=euros	
+s	5 eos=. n=Children ncap s= sn v=49 x=euros	
+s	5 eos=. n=Dogs ncap s= sn v=half x=price	
+s	4 eos=. n=Bicycles ncap s= sn v=a x=lead	
+s	7 eos=. n=Have ncap s= sn v=in x=advance	
+s	7 eos=! n= s= sn v=pleasant x=journey	
+end	turbo:events
+layer	turbo:liblinear-text	document	156	line:str
+solver_type L2R_LR
+nr_class 2
+label 0 1
+nr_feature 150
+bias -1.0000000000000000
+w
+0.58502463447546020 
+-0.065840981489332290 
+-0.042630208555867210 
+0.90321614707880150 
+0.29227560590799150 
+-0.15721053635678348 
+-0.33342678299446670 
+-0.36303992981355043 
+-0.29206462905025330 
+-0.22190881350003414 
+-0.11376830183118604 
+-0.064748203681713150 
+0.32631140189572355 
+-0.070937166819975250 
+-0.31022985978593450 
+-0.035354032044530005 
+0.079263878510781820 
+-0.024429928705982852 
+0.098106345196909540 
+-0.021258471207278870 
+-0.033791119247095110 
+-0.022131697806661296 
+-0.022299426196826143 
+-0.032614978422064030 
+-0.030718011257277304 
+-0.039318510479241155 
+-0.095847677229342120 
+-0.024750961188217220 
+0.096540545063370500 
+-0.025323362107915196 
+-0.021663199737514488 
+0.12217848313115232 
+-0.031762654700698460 
+-0.042736075072199065 
+-0.024429928705982852 
+-0.044075595620741176 
+-0.022130940731759193 
+-0.025372545786204950 
+-0.022361646897140530 
+-0.031156170022235730 
+-0.059801128973278730 
+-0.070517415880150910 
+-0.33204672195795560 
+-0.036158310711428840 
+-0.035639497294346636 
+-0.023035184813822458 
+0.062358692639412710 
+0.13646857677435253 
+0.064098283213534520 
+0.062358692639412710 
+0.062358692639412710 
+0.045771575932831760 
+0.13493429882898730 
+0.049738636119635145 
+0.067074939163450030 
+0.087083276695985350 
+0.067074939163450030 
+0.072133115165839170 
+0.062977453513939810 
+0.049738636119635145 
+-0.90149447745556210 
+-0.56471749017665600 
+0.077157833661944260 
+0.047257628603528930 
+0.086870331028668970 
+0.039488426782134670 
+0.050701872223584980 
+0.094035505183192300 
+0.16709535524375616 
+0.039488426782134670 
+-0.56471749017665600 
+0.23386740344223866 
+0.069616859164594850 
+-0.024852230001850440 
+0.053214071686355544 
+0.10576031372694188 
+-0.015010579149339709 
+-0.020063145466142206 
+-0.034735046401062654 
+0.090088682355578860 
+-0.036092286826305620 
+0.014733684852253404 
+-0.022447171687865284 
+0.00071332340501457870 
+0.15239976915254677 
+-0.060865490120676300 
+-0.022063772857147870 
+-0.079447833993935400 
+0.012235254232887339 
+0.083447997641589060 
+-0.17046319107836650 
+-0.032983224951134230 
+-0.021751015203385037 
+-0.020743465307041250 
+-0.040540347376036345 
+-0.037974134977604120 
+-0.042387268146350110 
+-0.099228924314901280 
+0.018785172201864310 
+-0.031728305513801610 
+-0.029661404159428970 
+-0.031937532425278296 
+-0.029129266617313486 
+-0.12972096194188300 
+-0.019017298871975417 
+-0.031762806039826910 
+-0.023671925682539670 
+-0.026984420825896444 
+0.044430817443926410 
+-0.033001639413346760 
+0.24787258487393168 
+0.10576031372694188 
+0.083447997641589060 
+0.15239976915254677 
+0.13063577483951916 
+0.053429137679433095 
+0.042344082517085610 
+0.047154307797582580 
+0.074814140120592580 
+0.0027238568299989023 
+0.20429854890719015 
+0.18051979004982338 
+0.24330129210854656 
+0.34667807470611300 
+0.062398466208457855 
+0.039488426782134670 
+0.037819937203401380 
+-0.019523479808659483 
+-0.022194005482252265 
+-0.032119226712084135 
+0.094035505183192300 
+0.16300275680889540 
+-0.033063448121772070 
+-0.021677971600512400 
+-0.040858073233670530 
+-0.031907326105253030 
+0.050701872223584980 
+-0.045881646765007030 
+-0.044045936761219510 
+-0.045047766622889810 
+-0.021436586461772100 
+0.12927551216192662 
+-0.023014573779460826 
+-0.017387069121686770 
+-0.033126168390452584 
+-0.022440849622172220 
+-0.023849558329741203 
+-0.025693391611807365 
+-0.029766188080007080 
+0.82369851971219450 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+874d2c07e9b183e53c1a873801cd91cba9453d420da9ca743c38323f222f8489	5106
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	160	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe37061ea50ce74 0.607468564651255
+0	given	1	3fd91f3c2b5e6318 0.392531435348745
+0	reversed	0	3fe37061ea50ce74 0.607468564651255
+0	reversed	1	3fd91f3c2b5e6318 0.392531435348745
+1	given	0	3fe89c9c38345785 0.7691174600356453
+1	given	1	3fcd8d8f1f2ea1ec 0.2308825399643547
+1	reversed	0	3fe89c9c38345785 0.7691174600356453
+1	reversed	1	3fcd8d8f1f2ea1ec 0.2308825399643547
+2	given	0	3fe26770f8cc1f8d 0.5751271113704078
+2	given	1	3fdb311e0e67c0e6 0.42487288862959216
+2	reversed	0	3fe26770f8cc1f8d 0.5751271113704078
+2	reversed	1	3fdb311e0e67c0e6 0.42487288862959216
+3	given	0	3fc9d0c6b2ac177b 0.2016838428900732
+3	given	1	3fe98bce5354fa21 0.7983161571099268
+3	reversed	0	3fc9d0c6b2ac177d 0.20168384289007327
+3	reversed	1	3fe98bce5354fa21 0.7983161571099268
+4	given	0	3fbf9948078d1acb 0.12343263801913477
+4	given	1	3fec0cd6ff0e5ca7 0.8765673619808653
+4	reversed	0	3fbf9948078d1acb 0.12343263801913477
+4	reversed	1	3fec0cd6ff0e5ca7 0.8765673619808653
+5	given	0	3fe2933503f4ad45 0.5804696156750785
+5	given	1	3fdad995f816a576 0.4195303843249215
+5	reversed	0	3fe2933503f4ad45 0.5804696156750785
+5	reversed	1	3fdad995f816a576 0.4195303843249215
+6	given	0	3fbc219bed8ddf20 0.10988783406889668
+6	given	1	3fec7bcc824e441c 0.8901121659311033
+6	reversed	0	3fbc219bed8ddf1d 0.10988783406889664
+6	reversed	1	3fec7bcc824e441c 0.8901121659311033
+7	given	0	3fc10855bd9744a2 0.13306686169975018
+7	given	1	3febbdea909a2ed8 0.8669331383002499
+7	reversed	0	3fc10855bd9744a2 0.13306686169975018
+7	reversed	1	3febbdea909a2ed8 0.8669331383002499
+8	given	0	3fbcc8300ac3c4ef 0.11242962134180677
+8	given	1	3fec66f9fea78762 0.8875703786581932
+8	reversed	0	3fbcc8300ac3c4f2 0.11242962134180681
+8	reversed	1	3fec66f9fea78762 0.8875703786581932
+9	given	0	3fdc10727c68b222 0.43850385808289805
+9	given	1	3fe1f7c6c1cba6ef 0.561496141917102
+9	reversed	0	3fdc10727c68b222 0.43850385808289805
+9	reversed	1	3fe1f7c6c1cba6ef 0.561496141917102
+10	given	0	3fbe5b10a6d3be55 0.11857704232147033
+10	given	1	3fec349deb258835 0.8814229576785296
+10	reversed	0	3fbe5b10a6d3be52 0.11857704232147029
+10	reversed	1	3fec349deb258836 0.8814229576785297
+11	given	0	3fb3db989a10c5e6 0.07756952058186747
+11	given	1	3fed848cecbde743 0.9224304794181325
+11	reversed	0	3fb3db989a10c5e3 0.07756952058186743
+11	reversed	1	3fed848cecbde744 0.9224304794181326
+12	given	0	3fe7f26be0fd9545 0.7483424562785009
+12	given	1	3fd01b283e04d576 0.25165754372149907
+12	reversed	0	3fe7f26be0fd9545 0.7483424562785009
+12	reversed	1	3fd01b283e04d576 0.25165754372149907
+13	given	0	3fbd6ff4609d0e91 0.1149895416138469
+13	given	1	3fec520173ec5e2e 0.8850104583861531
+13	reversed	0	3fbd6ff4609d0e94 0.11498954161384695
+13	reversed	1	3fec520173ec5e2e 0.8850104583861531
+14	given	0	3fbb677611054fb0 0.10704744258447252
+14	given	1	3fec93113ddf560a 0.8929525574155275
+14	reversed	0	3fbb677611054fb3 0.10704744258447256
+14	reversed	1	3fec93113ddf560a 0.8929525574155275
+15	given	0	3fd55b81cde5e583 0.3337101469729406
+15	given	1	3fe5523f190d0d3e 0.6662898530270593
+15	reversed	0	3fd55b81cde5e583 0.3337101469729406
+15	reversed	1	3fe5523f190d0d3e 0.6662898530270593
+16	given	0	3fe95c7bbd229839 0.7925394720121012
+16	given	1	3fca8e110b759f1c 0.20746052798789882
+16	reversed	0	3fe95c7bbd229839 0.7925394720121012
+16	reversed	1	3fca8e110b759f1c 0.20746052798789882
+17	given	0	3fe27ad2f0671cc4 0.5774931617132997
+17	given	1	3fdb0a5a1f31c678 0.4225068382867003
+17	reversed	0	3fe27ad2f0671cc4 0.5774931617132997
+17	reversed	1	3fdb0a5a1f31c678 0.4225068382867003
+18	given	0	3fcd04088427a32a 0.22668558552620627
+18	given	1	3fe8befddef61736 0.7733144144737938
+18	reversed	0	3fcd04088427a32a 0.22668558552620627
+18	reversed	1	3fe8befddef61736 0.7733144144737938
+19	given	0	3feca7213d8f17ee 0.8954015924762169
+19	given	1	3fbac6f613874090 0.10459840752378313
+19	reversed	0	3feca7213d8f17ee 0.8954015924762169
+19	reversed	1	3fbac6f613874090 0.10459840752378313
+20	given	0	3fe4b30feee91606 0.6468581835003426
+20	given	1	3fd699e0222dd3f4 0.35314181649965737
+20	reversed	0	3fe4b30feee91606 0.6468581835003426
+20	reversed	1	3fd699e0222dd3f4 0.35314181649965737
+21	given	0	3fcc043722d16591 0.21887864303679952
+21	given	1	3fe8fef2374ba69c 0.7811213569632005
+21	reversed	0	3fcc043722d16594 0.2188786430367996
+21	reversed	1	3fe8fef2374ba69b 0.7811213569632004
+22	given	0	3fe7ca7a25079ac5 0.7434664462315018
+22	given	1	3fd06b0bb5f0ca76 0.2565335537684982
+22	reversed	0	3fe7ca7a25079ac5 0.7434664462315018
+22	reversed	1	3fd06b0bb5f0ca76 0.2565335537684982
+23	given	0	3fbe9af001bcb626 0.11955165903483386
+23	given	1	3fec2ca1ffc8693b 0.8804483409651661
+23	reversed	0	3fbe9af001bcb629 0.1195516590348339
+23	reversed	1	3fec2ca1ffc8693b 0.8804483409651661
+24	given	0	3fe8c956c51686a5 0.7745775079130978
+24	given	1	3fccdaa4eba5e56c 0.22542249208690224
+24	reversed	0	3fe8c956c51686a5 0.7745775079130978
+24	reversed	1	3fccdaa4eba5e56c 0.22542249208690224
+25	given	0	3fe43779fc443612 0.6317720343665221
+25	given	1	3fd7910c077793dc 0.3682279656334779
+25	reversed	0	3fe43779fc443612 0.6317720343665221
+25	reversed	1	3fd7910c077793dc 0.3682279656334779
+26	given	0	3fc34d97d935cfa0 0.15080545526472822
+26	given	1	3feb2c9a09b28c18 0.8491945447352718
+26	reversed	0	3fc34d97d935cfa1 0.15080545526472824
+26	reversed	1	3feb2c9a09b28c18 0.8491945447352718
+27	given	0	3fb54c481f41f60a 0.08319521678091504
+27	given	1	3fed5676fc17c13f 0.916804783219085
+27	reversed	0	3fb54c481f41f60a 0.08319521678091504
+27	reversed	1	3fed5676fc17c13f 0.916804783219085
+28	given	0	3fbb18b9accced62 0.10584602803003443
+28	given	1	3fec9ce8ca666254 0.8941539719699656
+28	reversed	0	3fbb18b9accced65 0.10584602803003447
+28	reversed	1	3fec9ce8ca666253 0.8941539719699655
+29	given	0	3fc1871d2ae50b4a 0.13693585009067483
+29	given	1	3feb9e38b546bd2e 0.8630641499093252
+29	reversed	0	3fc1871d2ae50b4a 0.13693585009067483
+29	reversed	1	3feb9e38b546bd2e 0.8630641499093252
+30	given	0	3fe7e2fdd0ba7ab9 0.7464589192130325
+30	given	1	3fd03a045e8b0a8e 0.25354108078696747
+30	reversed	0	3fe7e2fdd0ba7ab9 0.7464589192130325
+30	reversed	1	3fd03a045e8b0a8e 0.25354108078696747
+31	given	0	3fe2a5dea1610c85 0.5827477600036138
+31	given	1	3fdab442bd3de6f6 0.41725223999638617
+31	reversed	0	3fe2a5dea1610c85 0.5827477600036138
+31	reversed	1	3fdab442bd3de6f6 0.41725223999638617
+32	given	0	3fb8ce0520ddb3eb 0.096893616222317
+32	given	1	3fece63f5be44983 0.903106383777683
+32	reversed	0	3fb8ce0520ddb3e8 0.09689361622231696
+32	reversed	1	3fece63f5be44983 0.903106383777683
+33	given	0	3fc9a1636bbd93e1 0.200237681968388
+33	given	1	3fe997a725109b08 0.799762318031612
+33	reversed	0	3fc9a1636bbd93e1 0.200237681968388
+33	reversed	1	3fe997a725109b08 0.799762318031612
+34	given	0	3fbcbe663a79e916 0.11228026321069637
+34	given	1	3fec683338b0c2dd 0.8877197367893036
+34	reversed	0	3fbcbe663a79e916 0.11228026321069637
+34	reversed	1	3fec683338b0c2dd 0.8877197367893036
+35	given	0	3fe74a1ae5f74a72 0.7277960292361298
+35	given	1	3fd16bca34116b1c 0.27220397076387015
+35	reversed	0	3fe74a1ae5f74a72 0.7277960292361298
+35	reversed	1	3fd16bca34116b1c 0.27220397076387015
+36	given	0	3fc7322120570da4 0.18121732787231537
+36	given	1	3fea3377b7ea3c97 0.8187826721276846
+36	reversed	0	3fc7322120570da2 0.18121732787231531
+36	reversed	1	3fea3377b7ea3c98 0.8187826721276847
+37	given	0	3fe982cf3fc2a203 0.7972179646795329
+37	given	1	3fc9f4c300f577f4 0.20278203532046712
+37	reversed	0	3fe982cf3fc2a203 0.7972179646795329
+37	reversed	1	3fc9f4c300f577f4 0.20278203532046712
+38	given	0	3fc86a8394166b5c 0.19075054865683228
+38	given	1	3fe9e55f1afa6529 0.8092494513431677
+38	reversed	0	3fc86a8394166b5e 0.19075054865683233
+38	reversed	1	3fe9e55f1afa6528 0.8092494513431676
+39	given	0	3fbda866bbf03864 0.11585084999407652
+39	given	1	3fec4af32881f8f4 0.8841491500059235
+39	reversed	0	3fbda866bbf03864 0.11585084999407652
+39	reversed	1	3fec4af32881f8f4 0.8841491500059235
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	80	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	s
+3	reversed	s
+4	given	s
+4	reversed	s
+5	given	n
+5	reversed	n
+6	given	s
+6	reversed	s
+7	given	s
+7	reversed	s
+8	given	s
+8	reversed	s
+9	given	s
+9	reversed	s
+10	given	s
+10	reversed	s
+11	given	s
+11	reversed	s
+12	given	n
+12	reversed	n
+13	given	s
+13	reversed	s
+14	given	s
+14	reversed	s
+15	given	s
+15	reversed	s
+16	given	n
+16	reversed	n
+17	given	n
+17	reversed	n
+18	given	s
+18	reversed	s
+19	given	n
+19	reversed	n
+20	given	n
+20	reversed	n
+21	given	s
+21	reversed	s
+22	given	n
+22	reversed	n
+23	given	s
+23	reversed	s
+24	given	n
+24	reversed	n
+25	given	n
+25	reversed	n
+26	given	s
+26	reversed	s
+27	given	s
+27	reversed	s
+28	given	s
+28	reversed	s
+29	given	s
+29	reversed	s
+30	given	n
+30	reversed	n
+31	given	n
+31	reversed	n
+32	given	s
+32	reversed	s
+33	given	s
+33	reversed	s
+34	given	s
+34	reversed	s
+35	given	n
+35	reversed	n
+36	given	s
+36	reversed	s
+37	given	n
+37	reversed	n
+38	given	s
+38	reversed	s
+39	given	s
+39	reversed	s
+end	turbo:liblinear-best

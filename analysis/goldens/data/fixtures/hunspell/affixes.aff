@@ -1,0 +1,62 @@
+# Affix rules with conditions, strip text, continuation classes, cross
+# products, the blocking flags and morphological fields.
+SET UTF-8
+TRY esianrtolcdugmphbyfvkwzESIANRTOLCDUGMPHBYFVKWZ'
+NEEDAFFIX X
+ONLYINCOMPOUND O
+FORBIDDENWORD !
+KEEPCASE K
+CIRCUMFIX C
+WARN W
+FORBIDWARN
+FULLSTRIP
+IGNORE ­
+ICONV 2
+ICONV ’ '
+ICONV ﬁ fi
+OCONV 1
+OCONV ' ’
+MAXDIFF 1
+
+PFX A Y 2
+PFX A 0 re . sp:re
+PFX A 0 un .
+
+SFX S Y 4
+SFX S y ies [^aeiou]y is:pl
+SFX S 0 s [aeiou]y is:pl
+SFX S 0 es [sxz] is:pl
+SFX S 0 s [^sxzy] is:pl
+
+SFX D Y 3
+SFX D 0 ed [^ey] is:past
+SFX D 0 d e is:past
+SFX D y ied [^aeiou]y is:past
+
+SFX G Y 2
+SFX G e ing/S e ds:ing
+SFX G 0 ing/S [^e] ds:ing
+
+SFX L N 1
+SFX L y ily/S y ds:ly
+
+PFX P Y 1
+PFX P 0 ge/C .
+
+SFX T Y 1
+SFX T 0 t/C .
+
+SFX Z Y 1
+SFX Z 0 er/XS .
+
+SFX Y Y 1
+SFX Y 0 s/O .
+
+SFX F Y 1
+SFX F abc xyz abc
+
+SFX M Y 1
+SFX M 0 's . is:poss
+
+SFX E N 1
+SFX E 0 0 . is:same

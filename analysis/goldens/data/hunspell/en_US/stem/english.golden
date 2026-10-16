@@ -1,0 +1,2829 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	stem/english	8560	8560	b6b12dce558f4ec7c55daa5cd0a7002d82b8ce2d6696db68ba7257c960788b78
+model	en_US.aff	2b4448dfdff03caf300914415f4642f8d2ba5b650c5f024a12355b420a279ffc12146649fce092ba591504476634a3d6fd4c079335a27085b396fa76bfd28b74
+model	en_US.dic	4be737249a8a436d20a02be575dcf6cf2f06f5f2abb840ea5ec0ef0ac73a71fa0e4669e527c703d5c6b50ef61713a6741b55bc136d559a54bcdeebcd62027988
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	991	word:str	stem:str	thrown:str
+'	'	
+abdicate	abdicate	
+abler	abler	
+abridge	abridge	
+abstruse	abstruse	
+acceptable	accept	
+accomplishment	accomplishment	
+accusations	accusation	
+acknowledges	acknowledge	
+across	across	
+adaptable	adapt	
+adieu	adieu	
+admirer	admirer	
+adorn	adorn	
+advantaging	advantage	
+advocation	advocation	
+affaire	affaire	
+affording	afford	
+agave	agave	
+agnes	agnes	
+ahungry	ahungry	
+aix	aix	
+albury	albury	
+algebra	algebra	
+allhallowmas	allhallowmas	
+almack	almack	
+alternating	alternate	
+amazedly	amazedly	
+amendments	amendment	
+amphibious	amphibious	
+anathematizing	anathematize	
+anecdotes	anecdote	
+animal	animal	
+announces	announce	
+anteater	anteater	
+antipodean	antipodean	
+apartment	apartment	
+apostrophe	apostrophe	
+appeles	appeles	
+appoint	appoint	
+appropriate	appropriate	
+aquitaine	aquitaine	
+archer	archer	
+argo	argo	
+arithmeticians	arithmetician	
+arose	arose	
+arrogant	arrogant	
+artois	artois	
+asiatiques	asiatiques	
+assailants	assailant	
+assiduously	assiduous	
+assured	assured	
+athene	athene	
+attainder	attainder	
+attorney	attorney	
+audubon	audubon	
+auspicious	auspicious	
+auvergne	auvergne	
+aviary	aviary	
+awards	award	
+azores	azores	
+backing	backing	
+bahawder	bahawder	
+balcony	balcony	
+bamboo	bamboo	
+bank	bank	
+barbarians	barbarian	
+barkloughly	barkloughly	
+barricade	barricade	
+basin	basin	
+batler	batler	
+bayard	bayard	
+beardless	beardless	
+beaver	beaver	
+bedlam	bedlam	
+befogged	befogged	
+begrudged	begrudge	
+beilby	beilby	
+bell	bell	
+bemoaned	bemoan	
+benighted	benighted	
+berkeley	berkeley	
+besieg	besieg	
+bete	bete	
+between	between	
+bibo	bibo	
+billet	billet	
+birth	birth	
+bizcacha	bizcacha	
+blades	blade	
+blatherwick	blatherwick	
+blesses	bless	
+blockhead	blockhead	
+blount	blount	
+bluntest	blunt	
+boasting	boast	
+boggle	boggle	
+bolter	bolter	
+bonpland	bonpland	
+booty	booty	
+boskos	boskos	
+bough	bough	
+bourne	bourne	
+brach	brach	
+branchial	branchial	
+brawny	brawny	
+breathest	breathest	
+brewster	brewster	
+brier	brier	
+briny	briny	
+brogden	brogden	
+brotherly	brother	
+brunswickers	brunswickers	
+bucks	buck	
+bulbous	bulbous	
+bums	bum	
+burglar	burglar	
+burthens	burthens	
+butchery	butchery	
+buzzed	buzz	
+cackle	cackle	
+caged	cage	
+calendar	calendar	
+calumniously	calumniously	
+can	can	
+cannes	cannes	
+canvass	canvass	
+capri	capri	
+caradori	caradori	
+carefully	careful	
+carnivorous	carnivorous	
+cartel	cartel	
+casque	casque	
+cataian	cataian	
+catlings	catlings	
+caveto	caveto	
+celebration	celebration	
+cents	cent	
+cessation	cessation	
+chalked	chalk	
+chandelier	chandelier	
+chapless	chapless	
+charing	charing	
+chase	chase	
+chaw	chaw	
+cheeseming	cheeseming	
+cheshire	cheshire	
+chiefly	chief	
+chimed	chime	
+chivalrous	chivalrous	
+choppy	choppy	
+chrysalis	chrysalis	
+cicatrices	cicatrices	
+circle	circle	
+cite	cite	
+clandestinely	clandestine	
+clattering	clatter	
+cleft	cleft	
+cliffs	cliff	
+clocks	clock	
+clotpoll	clotpoll	
+clustered	cluster	
+coated	coat	
+cocksure	cocksure	
+cogitations	cogitate	
+coldness	coldness	
+collnet	collnet	
+columbines	columbine	
+comer	come	
+commemorate	commemorate	
+committal	committal	
+communion	communion	
+compelled	compelled	
+completing	complete	
+compounded	compounded	
+con	con	
+concession	cession	
+condensed	condense	
+confabulations	confabulate	
+confineless	confineless	
+confuses	fuse	
+conjecture	conjecture	
+conquer	conquer	
+conservatives	conservative	
+consoling	consoling	
+constitution	constitution	
+contained	contain	
+contentment	contentment	
+contradicting	contradict	
+controlment	controlment	
+converses	verse	
+cony	cony	
+copiously	copious	
+cordon	cordon	
+coronal	coronal	
+corrigible	corrigible	
+costal	costal	
+councillors	councillors	
+counting	count	
+courted	court	
+coves	cove	
+cozenage	cozenage	
+cramping	cramping	
+crawling	crawl	
+credulous	credulous	
+crickets	cricket	
+criticised	criticised	
+crossgrained	crossgrained	
+crudest	crude	
+crust	crust	
+cudgel	cudgel	
+cumfbler	cumfbler	
+cure	cure	
+curst	curst	
+custodians	custodian	
+cymbeline	cymbeline	
+daguilet	daguilet	
+damnatory	damnatory	
+daniel	daniel	
+darling	darling	
+dauntless	dauntless	
+deadwood	deadwood	
+debasement	basement	
+deceit	deceit	
+decked	deck	
+decree	decree	
+deface	face	
+deficiencies	deficiency	
+degenerate	degenerate	
+deliberately	deliberate	
+deluges	deluge	
+demolished	demolish	
+denotes	note	
+dependency	dependency	
+deprecating	deprecating	
+derivable	derive	
+desdemona	desdemona	
+desolated	desolate	
+dessert	dessert	
+detenined	detenined	
+devastation	devastation	
+devour	devour	
+diameter	diameter	
+didelphis	didelphis	
+dig	dig	
+dilettanti	dilettanti	
+diodon	diodon	
+dirge	dirge	
+disarmed	arm	
+discharging	charge	
+discontented	contented	
+discredited	credit	
+disfigured	figure	
+dishonourable	dishonourable	
+dismask	dismask	
+dispelled	dispelled	
+disposition	disposition	
+disrespectfully	respectful	
+distaff	distaff	
+distort	distort	
+ditch	ditch	
+divideth	divideth	
+dobbs	dobbs	
+dogging	dogging	
+dominator	dominator	
+doom	doom	
+doted	dot	
+dovedale	dovedale	
+dozenth	dozen	
+dramatise	dramatise	
+dreamed	dreamed	
+drifts	drift	
+drones	drone	
+drudge	drudge	
+duchesses	duchess	
+dully	dully	
+duplicates	duplicate	
+dwells	dwell	
+earnestly	earnest	
+eater	eater	
+economizing	economize	
+editors	editor	
+effluvium	effluvium	
+eighteenpence	eighteenpence	
+elateridae	elateridae	
+elephant	elephant	
+elmo	elmo	
+embarassed	embarassed	
+embounded	embounded	
+emitted	emitted	
+empowered	empower	
+enchant	enchant	
+encouraging	encouraging	
+endowing	endow	
+enfranched	enfranched	
+engrafted	engrafted	
+enlarging	enlarge	
+enriches	enrich	
+enswathed	enswathed	
+entombed	entomb	
+envelope	envelope	
+epilogue	epilogue	
+equipments	equipments	
+erection	erection	
+erpaid	erpaid	
+ersway	ersway	
+eschara	eschara	
+essex	essex	
+ete	ete	
+evaded	evade	
+everything	everything	
+exaggerating	exaggerate	
+excelling	excelling	
+exclusive	exclusive	
+exempted	exempt	
+exigencies	exigency	
+expectant	expectant	
+expiation	expiation	
+exposition	exposition	
+extension	extension	
+extortion	extortion	
+eyeballs	eyeball	
+facile	facile	
+failing	failing	
+fake	fake	
+fame	fame	
+fanny	fanny	
+farthingales	farthingales	
+fathered	father	
+faver	faver	
+fearlessly	fearless	
+feedeth	feedeth	
+fellowship	fellowship	
+fernery	fernery	
+fetched	fetch	
+ficci	ficci	
+fiercer	fierce	
+filed	file	
+fineless	fineless	
+firelight	firelight	
+fissured	fissured	
+fixing	fix	
+flannel	flannel	
+flawed	flaw	
+flethers	flethers	
+flitted	flitted	
+flounce	flounce	
+fluids	fluid	
+focus	focus	
+folk	folk	
+football	football	
+forbid	forbid	
+forehorse	forehorse	
+foretold	foretold	
+forgotten	forgotten	
+fort	fort	
+fossils	fossil	
+fourteenth	fourteenth	
+frampold	frampold	
+fraughting	fraughting	
+frenzied	frenzied	
+friedland	friedland	
+frivolities	frivolity	
+frowningly	frowningly	
+fulcrum	fulcrum	
+fundamentally	fundamental	
+furtherer	furtherer	
+gaffer	gaffer	
+gallants	gallant	
+gambols	gambol	
+garbled	garble	
+garterd	garterd	
+gauchos	gaucho	
+gazingi	gazingi	
+generic	generic	
+gentlewoman	gentlewoman	
+german	german	
+gibbeted	gibbet	
+gimcrack	gimcrack	
+given	given	
+glaz	glaz	
+glistering	glister	
+glow	glow	
+goads	goad	
+goes	goes	
+goo	goo	
+gorgeously	gorgeous	
+governessing	governessing	
+grafters	graft	
+grandson	grandson	
+gratifying	gratifying	
+grazing	graze	
+greenstone	greenstone	
+grievous	grievous	
+griselda	griselda	
+grossness	grossness	
+grudge	grudge	
+guardsmen	guardsmen	
+guilbert	guilbert	
+gumm	gumm	
+guynes	guynes	
+haec	haec	
+hallo	hallo	
+hampton	hampton	
+handy	handy	
+harangues	harangue	
+hark	hark	
+harrington	harrington	
+hatband	hatband	
+haunting	haunting	
+hazelnut	hazelnut	
+hearest	hearest	
+heat	heat	
+hedges	hedge	
+helden	helden	
+hems	hem	
+hereby	hereby	
+hertfordshire	hertfordshire	
+hick	hick	
+highwayman	highwayman	
+hint	hint	
+hitched	hitch	
+hoch	hoch	
+holla	holla	
+homicide	homicide	
+honouring	honouring	
+hopelessly	hopeless	
+hors	hors	
+hostelry	hostelry	
+housekeeping	housekeeping	
+huapi	huapi	
+hum	hum	
+humorously	humorous	
+hurling	hurling	
+hussars	hussar	
+hymenoptera	hymenoptera	
+ices	ice	
+idol	idol	
+ill	ill	
+imaginary	imaginary	
+immersion	immersion	
+impartially	impartial	
+imperials	imperial	
+implying	imply	
+impracticality	impracticality	
+improvisatrice	improvisatrice	
+inappeasable	inappeasable	
+incentive	incentive	
+inclusive	inclusive	
+incony	incony	
+indecency	decency	
+indict	indict	
+indistinct	distinct	
+indulgent	indulgent	
+inexpressibles	inexpressibles	
+infest	infest	
+inform	inform	
+ingrained	grain	
+iniquity	iniquity	
+inlet	let	
+inquiry	inquiry	
+insignificance	significance	
+installed	install	
+insubordination	subordination	
+intelligis	intelligis	
+interchanged	interchange	
+interpose	interpose	
+intervals	interval	
+intricacies	intricacy	
+invalid	invalid	
+investments	vestment	
+ionic	ionic	
+irrefutable	irrefutable	
+isabel	isabel	
+itchen	itchen	
+jackson	jackson	
+jargonelle	jargonelle	
+jeer	jeer	
+jester	jester	
+jo	jo	
+jointing	joint	
+journals	journal	
+judiciously	judicious	
+jungles	jungle	
+justness	justness	
+keener	keen	
+kerr	kerr	
+killingworth	killingworth	
+kinswoman	kinswoman	
+kneaded	knead	
+knots	knot	
+kuffy	kuffy	
+lackbeard	lackbeard	
+laics	laics	
+lampass	lampass	
+langues	langues	
+larger	large	
+later	late	
+launces	launces	
+lawrence	lawrence	
+leadest	leadest	
+leases	lease	
+leer	leer	
+legislator	legislator	
+lenning	lenning	
+lestrake	lestrake	
+lewdsters	lewdsters	
+licentiousness	licentiousness	
+lifteth	lifteth	
+likenesses	likenesses	
+limping	limp	
+lion	lion	
+lithe	lithe	
+lizard	lizard	
+lobsters	lobster	
+loftiness	loftiness	
+londoners	londoners	
+loonching	loonching	
+losers	lose	
+loveable	loveable	
+lubberly	lubber	
+lug	lug	
+lunging	lung	
+luxuriating	luxuriate	
+maan	maan	
+maculate	maculate	
+magellan	magellan	
+mahogany	mahogany	
+maintenong	maintenong	
+maldonado	maldonado	
+malty	malty	
+mandrake	mandrake	
+manliness	manliness	
+manufacture	manufacture	
+marfa	marfa	
+marlow	marlow	
+martem	martem	
+mason	mason	
+mataco	mataco	
+mattress	mattress	
+maypu	maypu	
+measurable	measurable	
+medicine	medicine	
+mehercle	mehercle	
+membrane	membrane	
+mentally	mental	
+merited	merited	
+met	met	
+mewed	mew	
+mien	mien	
+militair	militair	
+mimicry	mimicry	
+minimus	minimus	
+minutus	minutus	
+miscalculation	miscalculation	
+miserably	miserably	
+misproud	misproud	
+misther	misther	
+mixtur	mixtur	
+moderation	moderation	
+mollified	mollify	
+moneyed	money	
+monsieur	monsieur	
+moods	mood	
+moralize	moralize	
+mortgages	mortgage	
+mottles	mottle	
+mourning	mourning	
+mown	mown	
+mugger	mugger	
+munches	munch	
+murrion	murrion	
+musquito	musquito	
+mutton	mutton	
+nae	nae	
+narborough	narborough	
+natty	natty	
+nayther	nayther	
+necessitates	necessitate	
+nefarious	nefarious	
+nemo	nemo	
+neuralgia	neuralgia	
+ni	ni	
+nightcap	nightcap	
+ningly	ningly	
+nobody	nobody	
+nominated	nominate	
+noronha	noronha	
+nothin	nothin	
+novels	novel	
+numerous	numerous	
+o	o	
+objectionable	objectionable	
+observable	observe	
+occasional	occasional	
+odder	odd	
+offenses	offense	
+oi	oi	
+omitted	omitted	
+ootside	ootside	
+opinionated	opinionated	
+opulency	opulency	
+ordinance	ordinance	
+orisons	orison	
+oscillates	oscillate	
+otherwhiles	otherwhiles	
+outcry	outcry	
+outlustres	outlustres	
+outstay	outstay	
+overcame	overcame	
+overlaid	overlaid	
+oversleep	oversleep	
+overwhelmingly	overwhelming	
+oysters	oyster	
+padlock	padlock	
+palaces	palace	
+palmes	palmes	
+pandarus	pandarus	
+pants	pant	
+parallelism	parallelism	
+pardoning	pardon	
+parlez	parlez	
+partiality	partiality	
+pashed	pashed	
+pastime	pastime	
+pathway	pathway	
+pattering	patter	
+pawn	pawn	
+peals	peal	
+pedagogue	pedagogue	
+peggy	peggy	
+pendulous	pendulous	
+penthesilea	penthesilea	
+percival	percival	
+performs	perform	
+perlen	perlen	
+persecuting	persecute	
+persons	person	
+pervaded	pervade	
+petitioning	petition	
+phantasime	phantasime	
+philister	philister	
+phosphuretted	phosphuretted	
+pichy	pichy	
+pieces	piece	
+pile	pile	
+pinching	pinch	
+piper	piper	
+pitfalls	pitfall	
+placing	place	
+planing	plane	
+platz	platz	
+pleasanter	pleasanter	
+plies	ply	
+plume	plume	
+pocketful	pocketful	
+poked	poke	
+politicly	politicly	
+pomaturn	pomaturn	
+poof	poof	
+pork	pork	
+portly	portly	
+posset	posset	
+pot	pot	
+poultice	poultice	
+pr	pr	
+prance	prance	
+precarious	precarious	
+predecessor	predecessor	
+prehensile	prehensile	
+preparing	prepare	
+presentimental	presentimental	
+presumptuously	presumptuous	
+prevents	prevent	
+primera	primera	
+prison	prison	
+problematical	problematical	
+prodigated	prodigated	
+profferer	profferer	
+prohibited	prohibit	
+promotion	motion	
+properer	proper	
+propositions	position	
+prospered	prosper	
+protrude	protrude	
+provoke	provoke	
+psyche	psyche	
+puffing	puff	
+pummelled	pummelled	
+puny	puny	
+purples	purple	
+purvided	purvided	
+pyrenean	pyrenean	
+quaker	quaker	
+quarters	quarter	
+querulous	querulous	
+quietest	quiet	
+quixote	quixote	
+racked	rack	
+raggedness	raggedness	
+raking	rake	
+rancho	rancho	
+raphael	raphael	
+rated	rated	
+ravenspurgh	ravenspurgh	
+re	re	
+realms	realm	
+reave	reave	
+recapitulation	capitulation	
+recklessness	recklessness	
+recommendation	commendation	
+recoverable	recoverable	
+redbreast	redbreast	
+reechy	reechy	
+reflex	flex	
+regained	gain	
+regress	regress	
+reiterate	reiterate	
+relatives	relative	
+relinquishing	relinquish	
+remensher	remensher	
+removedness	removedness	
+rents	rent	
+repents	repent	
+repossession	possession	
+reprovingly	reproving	
+requiring	require	
+reservoir	reservoir	
+resorting	sort	
+restaurateur	restaurateur	
+resurrections	resurrection	
+retraced	retrace	
+revell	revell	
+reversionary	reversionary	
+revolutionized	revolutionize	
+rhodes	rhodes	
+rickety	rickety	
+righted	right	
+rioting	rioting	
+rivall	rivall	
+robb	robb	
+rodionovitch	rodionovitch	
+rome	rome	
+ros	ros	
+rouen	rouen	
+rove	rove	
+rubinstein	rubinstein	
+ruinate	ruinate	
+runagate	runagate	
+ruth	ruth	
+sacrifices	sacrifice	
+sailed	sail	
+saliva	saliva	
+salver	salver	
+sandals	sandal	
+sarcasm	sarcasm	
+satisfactory	satisfactory	
+sav	sav	
+sborne	sborne	
+scandalous	scandalous	
+scars	scar	
+schlacht	schlacht	
+scienc	scienc	
+scores	score	
+scrap	scrap	
+scripter	scripter	
+scum	scum	
+searched	search	
+secrete	secrete	
+seduce	seduce	
+seething	seethe	
+semblances	semblance	
+senses	sense	
+sepulchre	sepulchre	
+serpentine	serpentine	
+setting	setting	
+sewed	sew	
+shake	shake	
+shaped	shaped	
+shaving	shaving	
+sheik	sheik	
+shift	shift	
+shirts	shirt	
+shopping	shopping	
+showed	show	
+shrive	shrive	
+shuns	shun	
+siddons	siddons	
+signature	signature	
+silkman	silkman	
+simpered	simper	
+singen	singen	
+sirrah	sirrah	
+sized	size	
+skinny	skinny	
+slackened	slacken	
+slaved	slave	
+sliced	slice	
+sliver	sliver	
+slumbers	slumber	
+smatch	smatch	
+smoaking	smoaking	
+snail	snail	
+sneezing	sneeze	
+snubbed	snubbed	
+socialist	socialist	
+sojourning	sojourn	
+solicitor	solicitor	
+someone	someone	
+soomat	soomat	
+sorrowed	sorrow	
+sourest	sour	
+spacious	spacious	
+spasms	spasm	
+specks	speck	
+spends	spend	
+spin	spin	
+spitzbergen	spitzbergen	
+sponsorial	sponsorial	
+spreads	spread	
+spurns	spurn	
+squatting	squatting	
+stabled	stable	
+stairs	stair	
+stands	stand	
+starvation	starvation	
+statutes	statute	
+steaming	steam	
+stepp	stepp	
+stiff	stiff	
+stinkingly	stinkingly	
+stockish	stockish	
+stopped	stopped	
+straggle	straggle	
+stratagem	stratagem	
+stretch	stretch	
+strips	strip	
+struggling	struggle	
+stumble	stumble	
+styx	styx	
+subordination	subordination	
+substituted	substitute	
+succinea	succinea	
+sufficiently	sufficient	
+suitors	suitor	
+summing	summing	
+sup	sup	
+superserviceable	superserviceable	
+supporting	support	
+surfeiting	surfeit	
+surrey	surrey	
+sustain	sustain	
+swarm	swarm	
+sweetened	sweetened	
+swindle	swindle	
+swounded	swounded	
+symptoms	symptom	
+tackles	tackle	
+taking	taking	
+tambourine	tambourine	
+tape	tape	
+tarre	tarre	
+tattled	tattle	
+teacups	teacup	
+telegraph	telegraph	
+temptation	temptation	
+tenfold	tenfold	
+terns	tern	
+testifying	testify	
+thanks	thank	
+theodoras	theodoras	
+thews	thew	
+thinnest	thinnest	
+thot	thot	
+three	three	
+throngs	throng	
+thunderbolts	thunderbolt	
+ticket	ticket	
+tighty	tighty	
+timour	timour	
+tipsy	tipsy	
+tn	tn	
+toilsome	toilsome	
+tongues	tongue	
+torchbearer	torchbearer	
+tot	tot	
+towards	toward	
+tradesfolk	tradesfolk	
+trammel	trammel	
+transgression	transgression	
+trapped	trapped	
+treasur	treasur	
+trenched	trench	
+tricking	trick	
+trinkets	trinket	
+trochus	trochus	
+trouble	trouble	
+truly	truly	
+tu	tu	
+tumbles	tumble	
+turkeys	turkey	
+tut	tut	
+twining	twin	
+tyburn	tyburn	
+ulcer	ulcer	
+unaffected	affected	
+unaware	unaware	
+unborn	born	
+unceasing	unceasing	
+unclerical	unclerical	
+unconsecrated	consecrated	
+und	und	
+underprop	underprop	
+undeviating	deviating	
+unduteous	unduteous	
+unexplained	explained	
+unflinchingly	unflinching	
+ungentlemanlike	ungentlemanlike	
+unhealed	healed	
+uninhabitable	inhabitable	
+unkindest	unkind	
+unloose	loose	
+unmingled	unmingled	
+unpacking	pack	
+unpolite	unpolite	
+unpublish	unpublish	
+unremovably	unremovably	
+unsatisfied	satisfied	
+unsex	unsex	
+unspeakably	unspeakably	
+unsway	unsway	
+untired	untired	
+unvalued	unvalued	
+unwisely	unwise	
+upjohn	upjohn	
+upwards	upward	
+usest	usest	
+uxbridge	uxbridge	
+vainness	vainness	
+values	value	
+vapoury	vapoury	
+vater	vater	
+vehor	vehor	
+venomous	venomous	
+verbose	verbose	
+version	version	
+vholes	vholes	
+victories	victory	
+vilified	vilify	
+vinegar	vinegar	
+virginius	virginius	
+vital	vital	
+vocal	vocal	
+voltemand	voltemand	
+voted	vote	
+vulgarians	vulgarian	
+wagers	wag	
+waiters	wait	
+walloon	walloon	
+wapshot	wapshot	
+warnings	warn	
+wassail	wassail	
+waterrugs	waterrugs	
+wayside	wayside	
+weasel	weasel	
+weekly	weekly	
+wells	well	
+wetting	wetting	
+wheezy	wheezy	
+whetstone	whetstone	
+whirled	whirl	
+whitewash	whitewash	
+whoremonger	whoremonger	
+widths	widths	
+willin	willin	
+winds	wind	
+wis	wis	
+withdrawed	withdrawed	
+wiv	wiv	
+women	women	
+wooing	woo	
+workshops	workshop	
+worthiest	worthy	
+wrappings	wrapping	
+wringer	wringer	
+wrymug	wrymug	
+xxx	xxx	
+yearly	yearly	
+yielder	yielder	
+yours	your	
+zest	zest	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	1058	word:u32	stem:str
+0	'
+1	abdicate
+2	abler
+3	abridge
+4	abstruse
+5	accept
+6	accomplishment
+6	accomplish
+7	accusation
+8	acknowledge
+9	across
+10	adapt
+11	adieu
+12	admirer
+12	admire
+13	adorn
+14	advantage
+15	advocation
+16	affaire
+17	afford
+18	agave
+19	agnes
+20	ahungry
+21	aix
+22	albury
+23	algebra
+24	allhallowmas
+25	almack
+26	alternate
+27	amazedly
+28	amendment
+29	amphibious
+30	anathematize
+31	anecdote
+32	animal
+33	announce
+34	anteater
+35	antipodean
+36	apartment
+37	apostrophe
+38	appeles
+39	appoint
+40	appropriate
+41	aquitaine
+42	archer
+42	arch
+43	argo
+44	arithmetician
+45	arose
+46	arrogant
+47	artois
+48	asiatiques
+49	assailant
+50	assiduous
+51	assured
+51	assure
+52	athene
+53	attainder
+54	attorney
+55	audubon
+56	auspicious
+57	auvergne
+58	aviary
+59	award
+60	azores
+61	backing
+61	back
+62	bahawder
+63	balcony
+64	bamboo
+65	bank
+66	barbarian
+67	barkloughly
+68	barricade
+69	basin
+70	batler
+71	bayard
+72	beardless
+73	beaver
+74	bedlam
+75	befogged
+76	begrudge
+77	beilby
+78	bell
+79	bemoan
+80	benighted
+81	berkeley
+82	besieg
+83	bete
+84	between
+85	bibo
+86	billet
+87	birth
+88	bizcacha
+89	blade
+90	blatherwick
+91	bless
+92	blockhead
+93	blount
+94	blunt
+95	boast
+96	boggle
+97	bolter
+98	bonpland
+99	booty
+100	boskos
+101	bough
+102	bourne
+103	brach
+104	branchial
+105	brawny
+106	breathest
+107	brewster
+108	brier
+108	brie
+109	briny
+110	brogden
+111	brother
+112	brunswickers
+113	buck
+114	bulbous
+115	bum
+116	burglar
+117	burthens
+118	butchery
+119	buzz
+120	cackle
+121	cage
+122	calendar
+123	calumniously
+124	can
+125	cannes
+126	canvass
+127	capri
+128	caradori
+129	careful
+130	carnivorous
+131	cartel
+132	casque
+133	cataian
+134	catlings
+135	caveto
+136	celebration
+136	celebrate
+137	cent
+138	cessation
+139	chalk
+140	chandelier
+141	chapless
+142	charing
+143	chase
+144	chaw
+145	cheeseming
+146	cheshire
+147	chief
+148	chime
+149	chivalrous
+150	choppy
+151	chrysalis
+152	cicatrices
+153	circle
+154	cite
+155	clandestine
+156	clatter
+157	cleft
+158	cliff
+159	clock
+160	clotpoll
+161	cluster
+162	coat
+163	cocksure
+164	cogitate
+165	coldness
+165	cold
+166	collnet
+167	columbine
+168	come
+169	commemorate
+170	committal
+171	communion
+171	commune
+172	compelled
+173	complete
+174	compounded
+174	compound
+175	con
+176	cession
+177	condense
+178	confabulate
+179	confineless
+180	fuse
+181	conjecture
+182	conquer
+183	conservative
+184	consoling
+184	sole
+185	constitution
+185	constitute
+186	contain
+187	contentment
+187	content
+188	contradict
+189	controlment
+190	verse
+191	cony
+191	y
+192	copious
+193	cordon
+194	coronal
+195	corrigible
+196	costal
+197	councillors
+198	count
+199	court
+200	cove
+201	cozenage
+202	cramping
+202	cramp
+203	crawl
+204	credulous
+205	cricket
+206	criticised
+207	crossgrained
+208	crude
+209	crust
+210	cudgel
+211	cumfbler
+212	cure
+213	curst
+214	custodian
+215	cymbeline
+216	daguilet
+217	damnatory
+218	daniel
+219	darling
+220	dauntless
+221	deadwood
+222	basement
+222	base
+223	deceit
+224	deck
+225	decree
+226	face
+227	deficiency
+228	degenerate
+228	generate
+229	deliberate
+230	deluge
+231	demolish
+232	note
+233	dependency
+234	deprecating
+234	deprecate
+235	derive
+236	desdemona
+237	desolate
+238	dessert
+239	detenined
+240	devastation
+240	devastate
+241	devour
+242	diameter
+243	didelphis
+244	dig
+245	dilettanti
+246	diodon
+247	dirge
+248	arm
+249	charge
+250	contented
+250	content
+251	credit
+252	figure
+253	dishonourable
+254	dismask
+255	dispelled
+256	disposition
+256	position
+257	respectful
+258	distaff
+259	distort
+259	tort
+260	ditch
+261	divideth
+262	dobbs
+263	dogging
+264	dominator
+265	doom
+266	dot
+267	dovedale
+268	dozen
+269	dramatise
+270	dreamed
+270	dream
+271	drift
+272	drone
+273	drudge
+274	duchess
+275	dully
+276	duplicate
+277	dwell
+278	earnest
+279	eater
+279	eat
+280	economize
+281	editor
+282	effluvium
+283	eighteenpence
+284	elateridae
+285	elephant
+286	elmo
+287	embarassed
+288	embounded
+289	emitted
+290	empower
+291	enchant
+292	encouraging
+292	encourage
+293	endow
+294	enfranched
+295	engrafted
+296	enlarge
+297	enrich
+298	enswathed
+299	entomb
+300	envelope
+301	epilogue
+302	equipments
+303	erection
+304	erpaid
+305	ersway
+306	eschara
+307	essex
+308	ete
+309	evade
+310	everything
+311	exaggerate
+312	excelling
+313	exclusive
+314	exempt
+315	exigency
+316	expectant
+317	expiation
+317	expiate
+318	exposition
+319	extension
+320	extortion
+321	eyeball
+322	facile
+323	failing
+323	fail
+324	fake
+325	fame
+326	fanny
+327	farthingales
+328	father
+329	faver
+330	fearless
+331	feedeth
+332	fellowship
+333	fernery
+334	fetch
+335	ficci
+336	fierce
+337	file
+338	fineless
+339	firelight
+340	fissured
+341	fix
+342	flannel
+343	flaw
+344	flethers
+345	flitted
+346	flounce
+347	fluid
+348	focus
+349	folk
+350	football
+351	forbid
+352	forehorse
+353	foretold
+354	forgotten
+355	fort
+356	fossil
+357	fourteenth
+357	fourteen
+358	frampold
+359	fraughting
+360	frenzied
+360	frenzy
+361	friedland
+362	frivolity
+363	frowningly
+364	fulcrum
+365	fundamental
+366	furtherer
+367	gaffer
+367	gaff
+368	gallant
+369	gambol
+370	garble
+371	garterd
+372	gaucho
+373	gazingi
+374	generic
+375	gentlewoman
+376	german
+377	gibbet
+378	gimcrack
+379	given
+380	glaz
+381	glister
+382	glow
+383	goad
+384	goes
+385	goo
+386	gorgeous
+387	governessing
+388	graft
+389	grandson
+390	gratifying
+390	gratify
+391	graze
+392	greenstone
+393	grievous
+394	griselda
+395	grossness
+395	gross
+396	grudge
+397	guardsmen
+398	guilbert
+399	gumm
+400	guynes
+401	haec
+402	hallo
+403	hampton
+404	handy
+405	harangue
+406	hark
+407	harrington
+408	hatband
+409	haunting
+409	haunt
+410	hazelnut
+411	hearest
+412	heat
+413	hedge
+414	helden
+415	hem
+416	hereby
+417	hertfordshire
+418	hick
+419	highwayman
+420	hint
+421	hitch
+422	hoch
+423	holla
+424	homicide
+425	honouring
+426	hopeless
+427	hors
+428	hostelry
+429	housekeeping
+430	huapi
+431	hum
+432	humorous
+433	hurling
+433	hurl
+434	hussar
+435	hymenoptera
+436	ice
+437	idol
+438	ill
+439	imaginary
+440	immersion
+440	immerse
+441	impartial
+442	imperial
+443	imply
+444	impracticality
+445	improvisatrice
+446	inappeasable
+447	incentive
+448	inclusive
+449	incony
+450	decency
+451	indict
+452	distinct
+453	indulgent
+454	inexpressibles
+455	infest
+455	inf
+456	inform
+456	form
+457	grain
+458	iniquity
+459	let
+460	inquiry
+461	significance
+462	install
+463	subordination
+464	intelligis
+465	interchange
+466	interpose
+467	interval
+468	intricacy
+469	invalid
+470	vestment
+471	ionic
+472	irrefutable
+473	isabel
+474	itchen
+475	jackson
+476	jargonelle
+477	jeer
+478	jester
+478	jest
+479	jo
+480	joint
+481	journal
+482	judicious
+483	jungle
+484	justness
+484	just
+485	keen
+486	kerr
+487	killingworth
+488	kinswoman
+489	knead
+490	knot
+491	kuffy
+492	lackbeard
+493	laics
+494	lampass
+495	langues
+496	large
+497	late
+498	launces
+499	lawrence
+500	leadest
+501	lease
+502	leer
+502	lee
+503	legislator
+504	lenning
+505	lestrake
+506	lewdsters
+507	licentiousness
+507	licentious
+508	lifteth
+509	likenesses
+510	limp
+511	lion
+512	lithe
+513	lizard
+514	lobster
+515	loftiness
+515	lofty
+516	londoners
+517	loonching
+518	lose
+519	loveable
+520	lubber
+521	lug
+522	lung
+523	luxuriate
+524	maan
+525	maculate
+526	magellan
+527	mahogany
+528	maintenong
+529	maldonado
+530	malty
+531	mandrake
+532	manliness
+533	manufacture
+534	marfa
+535	marlow
+536	martem
+537	mason
+538	mataco
+539	mattress
+540	maypu
+541	measurable
+542	medicine
+543	mehercle
+544	membrane
+545	mental
+546	merited
+547	met
+548	mew
+549	mien
+549	mi
+550	militair
+551	mimicry
+552	minimus
+553	minutus
+554	miscalculation
+554	miscalculate
+555	miserably
+556	misproud
+557	misther
+558	mixtur
+559	moderation
+559	moderate
+560	mollify
+561	money
+562	monsieur
+563	mood
+564	moralize
+565	mortgage
+566	mottle
+567	mourning
+567	mourn
+568	mown
+569	mugger
+570	munch
+571	murrion
+572	musquito
+573	mutton
+574	nae
+575	narborough
+576	natty
+577	nayther
+578	necessitate
+579	nefarious
+580	nemo
+581	neuralgia
+582	ni
+583	nightcap
+584	ningly
+585	nobody
+586	nominate
+587	noronha
+588	nothin
+589	novel
+590	numerous
+591	o
+592	objectionable
+592	objection
+593	observe
+594	occasional
+595	odd
+596	offense
+597	oi
+598	omitted
+599	ootside
+600	opinionated
+601	opulency
+602	ordinance
+603	orison
+604	oscillate
+605	otherwhiles
+606	outcry
+607	outlustres
+608	outstay
+609	overcame
+610	overlaid
+611	oversleep
+612	overwhelming
+613	oyster
+614	padlock
+615	palace
+616	palmes
+617	pandarus
+618	pant
+619	parallelism
+620	pardon
+621	parlez
+622	partiality
+623	pashed
+624	pastime
+625	pathway
+626	patter
+627	pawn
+628	peal
+629	pedagogue
+630	peggy
+631	pendulous
+632	penthesilea
+633	percival
+634	perform
+635	perlen
+636	persecute
+637	person
+638	pervade
+639	petition
+640	phantasime
+641	philister
+642	phosphuretted
+643	pichy
+644	piece
+645	pile
+646	pinch
+647	piper
+647	pip
+648	pitfall
+649	place
+650	plane
+651	platz
+652	pleasanter
+653	ply
+654	plume
+655	pocketful
+656	poke
+657	politicly
+658	pomaturn
+659	poof
+660	pork
+661	portly
+662	posset
+663	pot
+664	poultice
+665	pr
+666	prance
+667	precarious
+668	predecessor
+669	prehensile
+670	prepare
+671	presentimental
+672	presumptuous
+673	prevent
+674	primera
+675	prison
+676	problematical
+677	prodigated
+678	profferer
+679	prohibit
+680	motion
+680	mote
+681	proper
+682	position
+683	prosper
+684	protrude
+685	provoke
+686	psyche
+687	puff
+688	pummelled
+689	puny
+690	purple
+691	purvided
+692	pyrenean
+693	quaker
+694	quarter
+695	querulous
+696	quiet
+697	quixote
+698	rack
+699	raggedness
+699	ragged
+700	rake
+701	rancho
+702	raphael
+703	rated
+703	rate
+704	ravenspurgh
+705	re
+706	realm
+707	reave
+708	capitulation
+708	capitulate
+709	recklessness
+709	reckless
+710	commendation
+711	recoverable
+712	redbreast
+713	reechy
+714	flex
+715	gain
+716	regress
+717	reiterate
+717	iterate
+718	relative
+719	relinquish
+720	remensher
+721	removedness
+722	rent
+723	repent
+724	possession
+725	reproving
+726	require
+727	reservoir
+728	sort
+729	restaurateur
+730	resurrection
+731	retrace
+732	revell
+733	reversionary
+734	revolutionize
+735	rhodes
+736	rickety
+737	right
+738	rioting
+738	riot
+739	rivall
+740	robb
+741	rodionovitch
+742	rome
+743	ros
+744	rouen
+745	rove
+746	rubinstein
+747	ruinate
+748	runagate
+749	ruth
+750	sacrifice
+751	sail
+752	saliva
+753	salver
+753	salve
+754	sandal
+755	sarcasm
+756	satisfactory
+757	sav
+758	sborne
+759	scandalous
+760	scar
+761	schlacht
+762	scienc
+763	score
+764	scrap
+765	scripter
+766	scum
+767	search
+768	secrete
+769	seduce
+770	seethe
+771	semblance
+772	sense
+773	sepulchre
+774	serpentine
+775	setting
+775	sett
+776	sew
+777	shake
+778	shaped
+778	shape
+779	shaving
+779	shave
+780	sheik
+781	shift
+782	shirt
+783	shopping
+783	shoppe
+784	show
+785	shrive
+786	shun
+787	siddons
+788	signature
+789	silkman
+790	simper
+791	singen
+792	sirrah
+793	size
+794	skinny
+795	slacken
+796	slave
+797	slice
+798	sliver
+799	slumber
+800	smatch
+801	smoaking
+802	snail
+803	sneeze
+804	snubbed
+805	socialist
+806	sojourn
+807	solicitor
+808	someone
+809	soomat
+810	sorrow
+811	sour
+812	spacious
+813	spasm
+814	speck
+815	spend
+816	spin
+817	spitzbergen
+818	sponsorial
+819	spread
+820	spurn
+821	squatting
+822	stable
+823	stair
+824	stand
+825	starvation
+826	statute
+827	steam
+828	stepp
+829	stiff
+830	stinkingly
+831	stockish
+832	stopped
+833	straggle
+834	stratagem
+835	stretch
+836	strip
+837	struggle
+838	stumble
+839	styx
+840	subordination
+840	subordinate
+841	substitute
+842	succinea
+843	sufficient
+844	suitor
+845	summing
+846	sup
+847	superserviceable
+848	support
+849	surfeit
+850	surrey
+851	sustain
+852	swarm
+853	sweetened
+854	swindle
+855	swounded
+856	symptom
+857	tackle
+858	taking
+859	tambourine
+860	tape
+861	tarre
+862	tattle
+863	teacup
+864	telegraph
+865	temptation
+866	tenfold
+867	tern
+868	testify
+869	thank
+870	theodoras
+871	thew
+872	thinnest
+873	thot
+874	three
+875	throng
+876	thunderbolt
+877	ticket
+878	tighty
+879	timour
+880	tipsy
+881	tn
+882	toilsome
+883	tongue
+884	torchbearer
+885	tot
+886	toward
+887	tradesfolk
+888	trammel
+889	transgression
+890	trapped
+891	treasur
+892	trench
+893	trick
+894	trinket
+895	trochus
+896	trouble
+897	truly
+898	tu
+899	tumble
+900	turkey
+901	tut
+902	twin
+903	tyburn
+904	ulcer
+905	affected
+906	unaware
+906	aware
+907	born
+908	unceasing
+909	unclerical
+910	consecrated
+911	und
+912	underprop
+913	deviating
+914	unduteous
+915	explained
+916	unflinching
+917	ungentlemanlike
+918	healed
+919	inhabitable
+920	unkind
+921	loose
+922	unmingled
+923	pack
+924	unpolite
+925	unpublish
+926	unremovably
+927	satisfied
+928	unsex
+929	unspeakably
+930	unsway
+931	untired
+932	unvalued
+933	unwise
+934	upjohn
+935	upward
+936	usest
+937	uxbridge
+938	vainness
+939	value
+940	vapoury
+941	vater
+942	vehor
+943	venomous
+944	verbose
+945	version
+945	verse
+946	vholes
+947	victory
+948	vilify
+949	vinegar
+950	virginius
+951	vital
+952	vocal
+953	voltemand
+954	vote
+955	vulgarian
+956	wag
+957	wait
+958	walloon
+959	wapshot
+960	warn
+961	wassail
+962	waterrugs
+963	wayside
+964	weasel
+965	weekly
+965	week
+966	well
+967	wetting
+968	wheezy
+969	whetstone
+970	whirl
+971	whitewash
+972	whoremonger
+973	widths
+974	willin
+975	wind
+976	wis
+977	withdrawed
+978	wiv
+979	women
+980	woo
+981	workshop
+982	worthy
+983	wrapping
+984	wringer
+984	wring
+985	wrymug
+986	xxx
+987	yearly
+987	year
+988	yielder
+989	your
+990	zest
+990	z
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	758	word:u32	analysis:str
+1	st:abdicate
+2	st:abler
+3	st:abridge
+4	st:abstruse
+5	st:accept fl:B
+6	st:accomplishment
+6	st:accomplish fl:L
+7	st:accusation fl:S
+8	st:acknowledge fl:S
+9	st:across
+10	st:adapt fl:B
+11	st:adieu
+12	st:admirer
+12	st:admire fl:R
+13	st:adorn
+14	st:advantage fl:G
+17	st:afford fl:G
+18	st:agave
+23	st:algebra
+26	st:alternate fl:G
+28	st:amendment fl:S
+29	st:amphibious
+30	st:anathematize fl:G
+31	st:anecdote fl:S
+32	st:animal
+33	st:announce fl:S
+34	st:anteater
+35	st:antipodean
+36	st:apartment
+37	st:apostrophe
+39	st:appoint
+40	st:appropriate
+42	st:archer
+42	st:arch fl:R
+44	st:arithmetician fl:S
+45	st:arose
+46	st:arrogant
+49	st:assailant fl:S
+50	st:assiduous fl:Y
+51	st:assured
+51	st:assure fl:D
+53	st:attainder
+54	st:attorney
+56	st:auspicious
+58	st:aviary
+59	st:award fl:S
+61	st:backing
+61	st:back fl:G
+63	st:balcony
+64	st:bamboo
+65	st:bank
+66	st:barbarian fl:S
+68	st:barricade
+69	st:basin
+72	st:beardless
+73	st:beaver
+74	st:bedlam
+75	st:befogged
+76	st:begrudge fl:D
+78	st:bell
+79	st:bemoan fl:D
+80	st:benighted
+84	st:between
+86	st:billet
+87	st:birth
+89	st:blade fl:S
+91	st:bless fl:S
+92	st:blockhead
+94	st:blunt fl:T
+95	st:boast fl:G
+96	st:boggle
+99	st:booty
+101	st:bough
+105	st:brawny
+108	st:brier
+108	st:brie fl:R
+109	st:briny
+111	st:brother fl:Y
+113	st:buck fl:S
+114	st:bulbous
+115	st:bum fl:S
+116	st:burglar
+118	st:butchery
+119	st:buzz fl:D
+120	st:cackle
+121	st:cage fl:D
+122	st:calendar
+124	st:can
+126	st:canvass
+129	st:careful fl:Y
+130	st:carnivorous
+131	st:cartel
+136	st:celebration
+136	st:celebrate fl:N
+137	st:cent fl:S
+138	st:cessation
+139	st:chalk fl:D
+140	st:chandelier
+143	st:chase
+147	st:chief fl:Y
+148	st:chime fl:D
+149	st:chivalrous
+150	st:choppy
+151	st:chrysalis
+152	st:cicatrices
+153	st:circle
+154	st:cite
+155	st:clandestine fl:Y
+156	st:clatter fl:G
+157	st:cleft
+158	st:cliff fl:S
+159	st:clock fl:S
+161	st:cluster fl:D
+162	st:coat fl:D
+163	st:cocksure
+164	st:cogitate fl:X
+165	st:coldness
+165	st:cold fl:P
+167	st:columbine fl:S
+168	st:come fl:R
+169	st:commemorate
+170	st:committal
+171	st:communion
+171	st:commune fl:N
+172	st:compelled
+173	st:complete fl:G
+174	st:compounded
+174	st:compound fl:D
+175	st:con
+176	con st:cession fl:F
+177	st:condense fl:D
+178	st:confabulate fl:X
+180	fl:F st:fuse fl:S
+181	st:conjecture
+182	st:conquer
+183	st:conservative fl:S
+184	st:consoling
+184	fl:F st:sole fl:G
+185	st:constitution
+185	st:constitute fl:N
+186	st:contain fl:D
+187	st:contentment
+187	st:content fl:L
+188	st:contradict fl:G
+190	fl:F st:verse fl:S
+191	st:cony
+191	con st:y fl:F
+192	st:copious fl:Y
+193	st:cordon
+194	st:coronal
+198	st:count fl:G
+199	st:court fl:D
+200	st:cove fl:S
+201	st:cozenage
+202	st:cramping
+202	st:cramp fl:G
+203	st:crawl fl:G
+204	st:credulous
+205	st:cricket fl:S
+208	st:crude fl:T
+209	st:crust
+210	st:cudgel
+212	st:cure
+214	st:custodian fl:S
+219	st:darling
+220	st:dauntless
+221	st:deadwood
+222	de st:basement fl:C
+222	fl:C st:base fl:L
+223	st:deceit
+224	st:deck fl:D
+225	st:decree
+226	de st:face fl:C
+227	st:deficiency fl:S
+228	st:degenerate
+228	de st:generate fl:C
+229	st:deliberate fl:Y
+230	st:deluge fl:S
+231	st:demolish fl:D
+232	fl:C st:note fl:S
+233	st:dependency
+234	st:deprecating
+234	st:deprecate fl:G
+235	st:derive fl:B
+237	st:desolate fl:D
+238	st:dessert
+240	st:devastation
+240	st:devastate fl:N
+241	st:devour
+242	st:diameter
+244	st:dig
+247	st:dirge
+248	fl:E st:arm fl:D
+249	fl:E st:charge fl:G
+250	dis st:contented fl:E
+250	fl:E st:content fl:D
+251	fl:E st:credit fl:D
+252	fl:E st:figure fl:D
+255	st:dispelled
+256	st:disposition
+256	dis st:position fl:E
+257	fl:E st:respectful fl:Y
+258	st:distaff
+259	st:distort
+259	dis st:tort fl:E
+260	st:ditch
+263	st:dogging
+265	st:doom
+266	st:dot fl:D
+268	st:dozen fl:H
+270	st:dreamed
+270	st:dream fl:D
+271	st:drift fl:S
+272	st:drone fl:S
+273	st:drudge
+274	st:duchess fl:S
+275	st:dully
+276	st:duplicate fl:S
+277	st:dwell fl:S
+278	st:earnest fl:Y
+279	st:eater
+279	st:eat fl:R
+280	st:economize fl:G
+281	st:editor fl:S
+282	st:effluvium
+285	st:elephant
+289	st:emitted
+290	st:empower fl:D
+291	st:enchant
+292	st:encouraging
+292	st:encourage fl:G
+293	st:endow fl:G
+296	st:enlarge fl:G
+297	st:enrich fl:S
+299	st:entomb fl:D
+300	st:envelope
+301	st:epilogue
+303	st:erection
+309	st:evade fl:D
+310	st:everything
+311	st:exaggerate fl:G
+312	st:excelling
+313	st:exclusive
+314	st:exempt fl:D
+315	st:exigency fl:S
+316	st:expectant
+317	st:expiation
+317	st:expiate fl:N
+318	st:exposition
+319	st:extension
+320	st:extortion
+321	st:eyeball fl:S
+322	st:facile
+323	st:failing
+323	st:fail fl:G
+324	st:fake
+325	st:fame
+326	st:fanny
+328	st:father fl:D
+330	st:fearless fl:Y
+332	st:fellowship
+334	st:fetch fl:D
+336	st:fierce fl:R
+337	st:file fl:D
+339	st:firelight
+341	st:fix fl:G
+342	st:flannel
+343	st:flaw fl:D
+345	st:flitted
+346	st:flounce
+347	st:fluid fl:S
+348	st:focus
+349	st:folk
+350	st:football
+351	st:forbid
+353	st:foretold
+354	st:forgotten
+355	st:fort
+356	st:fossil fl:S
+357	st:fourteenth
+357	st:fourteen fl:H
+360	st:frenzied
+360	st:frenzy fl:D
+362	st:frivolity fl:S
+364	st:fulcrum
+365	st:fundamental fl:Y
+367	st:gaffer
+367	st:gaff fl:R
+368	st:gallant fl:S
+369	st:gambol fl:S
+370	st:garble fl:D
+372	st:gaucho fl:S
+374	st:generic
+375	st:gentlewoman
+377	st:gibbet fl:D
+378	st:gimcrack
+379	st:given
+381	st:glister fl:G
+382	st:glow
+383	st:goad fl:S
+384	st:goes
+385	st:goo
+386	st:gorgeous fl:Y
+388	st:graft fl:Z
+389	st:grandson
+390	st:gratifying
+390	st:gratify fl:G
+391	st:graze fl:G
+392	st:greenstone
+393	st:grievous
+395	st:grossness
+395	st:gross fl:P
+396	st:grudge
+397	st:guardsmen
+404	st:handy
+405	st:harangue fl:S
+406	st:hark
+408	st:hatband
+409	st:haunting
+409	st:haunt fl:G
+410	st:hazelnut
+412	st:heat
+413	st:hedge fl:S
+415	st:hem fl:S
+416	st:hereby
+418	st:hick
+419	st:highwayman
+420	st:hint
+421	st:hitch fl:D
+424	st:homicide
+426	st:hopeless fl:Y
+428	st:hostelry
+429	st:housekeeping
+431	st:hum
+432	st:humorous fl:Y
+433	st:hurling
+433	st:hurl fl:G
+434	st:hussar fl:S
+436	st:ice fl:S
+437	st:idol
+438	st:ill
+439	st:imaginary
+440	st:immersion
+440	st:immerse fl:N
+441	st:impartial fl:Y
+442	st:imperial fl:S
+443	st:imply fl:G
+444	st:impracticality
+447	st:incentive
+448	st:inclusive
+450	in st:decency fl:I
+451	st:indict
+452	in st:distinct fl:I
+453	st:indulgent
+455	st:infest
+455	st:inf fl:T
+456	st:inform
+456	in st:form fl:I
+457	fl:I st:grain fl:D
+458	st:iniquity
+459	in st:let fl:I
+460	st:inquiry
+461	in st:significance fl:I
+462	st:install fl:D
+463	in st:subordination fl:I
+465	st:interchange fl:D
+466	st:interpose
+467	st:interval fl:S
+468	st:intricacy fl:S
+469	st:invalid
+470	fl:I st:vestment fl:S
+471	st:ionic
+472	st:irrefutable
+477	st:jeer
+478	st:jester
+478	st:jest fl:R
+480	st:joint fl:G
+481	st:journal fl:S
+482	st:judicious fl:Y
+483	st:jungle fl:S
+484	st:justness
+484	st:just fl:P
+485	st:keen fl:R
+488	st:kinswoman
+489	st:knead fl:D
+490	st:knot fl:S
+496	st:large fl:R
+497	st:late fl:R
+501	st:lease fl:S
+502	st:leer
+502	st:lee fl:R
+503	st:legislator
+507	st:licentiousness
+507	st:licentious fl:P
+509	st:likenesses
+510	st:limp fl:G
+511	st:lion
+512	st:lithe
+513	st:lizard
+514	st:lobster fl:S
+515	st:loftiness
+515	st:lofty fl:P
+518	st:lose fl:Z
+520	st:lubber fl:Y
+521	st:lug
+522	st:lung fl:G
+523	st:luxuriate fl:G
+527	st:mahogany
+530	st:malty
+531	st:mandrake
+532	st:manliness
+533	st:manufacture
+537	st:mason
+539	st:mattress
+541	st:measurable
+542	st:medicine
+544	st:membrane
+545	st:mental fl:Y
+546	st:merited
+547	st:met
+548	st:mew fl:D
+549	st:mien
+549	st:mi fl:N
+551	st:mimicry
+554	st:miscalculation
+554	st:miscalculate fl:N
+555	st:miserably
+559	st:moderation
+559	st:moderate fl:N
+560	st:mollify fl:D
+561	st:money fl:D
+562	st:monsieur
+563	st:mood fl:S
+564	st:moralize
+565	st:mortgage fl:S
+566	st:mottle fl:S
+567	st:mourning
+567	st:mourn fl:G
+569	st:mugger
+570	st:munch fl:S
+573	st:mutton
+574	st:nae
+576	st:natty
+578	st:necessitate fl:S
+579	st:nefarious
+581	st:neuralgia
+583	st:nightcap
+585	st:nobody
+586	st:nominate fl:D
+589	st:novel fl:S
+590	st:numerous
+591	st:o
+592	st:objectionable
+592	st:objection fl:B
+593	st:observe fl:B
+594	st:occasional
+595	st:odd fl:R
+596	st:offense fl:S
+597	st:oi
+598	st:omitted
+600	st:opinionated
+602	st:ordinance
+603	st:orison fl:S
+604	st:oscillate fl:S
+606	st:outcry
+608	st:outstay
+609	st:overcame
+610	st:overlaid
+611	st:oversleep
+612	st:overwhelming fl:Y
+613	st:oyster fl:S
+614	st:padlock
+615	st:palace fl:S
+618	st:pant fl:S
+619	st:parallelism
+620	st:pardon fl:G
+622	st:partiality
+624	st:pastime
+625	st:pathway
+626	st:patter fl:G
+627	st:pawn
+628	st:peal fl:S
+629	st:pedagogue
+631	st:pendulous
+634	st:perform fl:S
+636	st:persecute fl:G
+637	st:person fl:S
+638	st:pervade fl:D
+639	st:petition fl:G
+644	st:piece fl:S
+645	st:pile
+646	st:pinch fl:G
+647	st:piper
+647	st:pip fl:R
+648	st:pitfall fl:S
+649	st:place fl:G
+650	st:plane fl:G
+652	st:pleasanter
+653	st:ply fl:S
+654	st:plume
+655	st:pocketful
+656	st:poke fl:D
+659	st:poof
+660	st:pork
+661	st:portly
+663	st:pot
+664	st:poultice
+665	st:pr
+666	st:prance
+667	st:precarious
+668	st:predecessor
+669	st:prehensile
+670	st:prepare fl:G
+672	st:presumptuous fl:Y
+673	st:prevent fl:S
+675	st:prison
+676	st:problematical
+679	st:prohibit fl:D
+680	pro st:motion fl:K
+680	fl:K st:mote fl:N
+681	st:proper fl:R
+682	fl:K st:position fl:S
+683	st:prosper fl:D
+684	st:protrude
+685	st:provoke
+686	st:psyche
+687	st:puff fl:G
+689	st:puny
+690	st:purple fl:S
+694	st:quarter fl:S
+695	st:querulous
+696	st:quiet fl:T
+698	st:rack fl:D
+699	st:raggedness
+699	st:ragged fl:P
+700	st:rake fl:G
+703	st:rated
+703	st:rate fl:D
+705	st:re
+706	st:realm fl:S
+708	re st:capitulation fl:A
+708	fl:A st:capitulate fl:N
+709	st:recklessness
+709	st:reckless fl:P
+710	re st:commendation fl:A
+711	st:recoverable
+712	st:redbreast
+714	re st:flex fl:A
+715	fl:A st:gain fl:D
+716	st:regress
+717	st:reiterate
+717	re st:iterate fl:A
+718	st:relative fl:S
+719	st:relinquish fl:G
+722	st:rent fl:S
+723	st:repent fl:S
+724	re st:possession fl:A
+725	st:reproving fl:Y
+726	st:require fl:G
+727	st:reservoir
+728	fl:A st:sort fl:G
+729	st:restaurateur
+730	st:resurrection fl:S
+731	st:retrace fl:D
+734	st:revolutionize fl:D
+736	st:rickety
+737	st:right fl:D
+738	st:rioting
+738	st:riot fl:G
+745	st:rove
+750	st:sacrifice fl:S
+751	st:sail fl:D
+752	st:saliva
+753	st:salver
+753	st:salve fl:R
+754	st:sandal fl:S
+755	st:sarcasm
+756	st:satisfactory
+759	st:scandalous
+760	st:scar fl:S
+763	st:score fl:S
+764	st:scrap
+766	st:scum
+767	st:search fl:D
+768	st:secrete
+769	st:seduce
+770	st:seethe fl:G
+771	st:semblance fl:S
+772	st:sense fl:S
+774	st:serpentine
+775	st:setting
+775	st:sett fl:G
+776	st:sew fl:D
+777	st:shake
+778	st:shaped
+778	st:shape fl:D
+779	st:shaving
+779	st:shave fl:G
+781	st:shift
+782	st:shirt fl:S
+783	st:shopping
+783	st:shoppe fl:G
+784	st:show fl:D
+785	st:shrive
+786	st:shun fl:S
+788	st:signature
+790	st:simper fl:D
+792	st:sirrah
+793	st:size fl:D
+794	st:skinny
+795	st:slacken fl:D
+796	st:slave fl:D
+797	st:slice fl:D
+798	st:sliver
+799	st:slumber fl:S
+802	st:snail
+803	st:sneeze fl:G
+804	st:snubbed
+805	st:socialist
+806	st:sojourn fl:G
+807	st:solicitor
+808	st:someone
+810	st:sorrow fl:D
+811	st:sour fl:T
+812	st:spacious
+813	st:spasm fl:S
+814	st:speck fl:S
+815	st:spend fl:S
+816	st:spin
+819	st:spread fl:S
+820	st:spurn fl:S
+821	st:squatting
+822	st:stable fl:D
+823	st:stair fl:S
+824	st:stand fl:S
+825	st:starvation
+826	st:statute fl:S
+827	st:steam fl:G
+829	st:stiff
+832	st:stopped
+833	st:straggle
+834	st:stratagem
+835	st:stretch
+836	st:strip fl:S
+837	st:struggle fl:G
+838	st:stumble
+840	st:subordination
+840	st:subordinate fl:N
+841	st:substitute fl:D
+843	st:sufficient fl:Y
+844	st:suitor fl:S
+845	st:summing
+846	st:sup
+848	st:support fl:G
+849	st:surfeit fl:G
+850	st:surrey
+851	st:sustain
+852	st:swarm
+853	st:sweetened
+854	st:swindle
+856	st:symptom fl:S
+857	st:tackle fl:S
+858	st:taking
+859	st:tambourine
+860	st:tape
+862	st:tattle fl:D
+863	st:teacup fl:S
+864	st:telegraph
+865	st:temptation
+866	st:tenfold
+867	st:tern fl:S
+868	st:testify fl:G
+869	st:thank fl:S
+871	st:thew fl:S
+872	st:thinnest
+874	st:three
+875	st:throng fl:S
+876	st:thunderbolt fl:S
+877	st:ticket
+880	st:tipsy
+881	st:tn
+882	st:toilsome
+883	st:tongue fl:S
+884	st:torchbearer
+885	st:tot
+886	st:toward fl:S
+888	st:trammel
+889	st:transgression
+890	st:trapped
+892	st:trench fl:D
+893	st:trick fl:G
+894	st:trinket fl:S
+896	st:trouble
+897	st:truly
+899	st:tumble fl:S
+900	st:turkey fl:S
+901	st:tut
+902	st:twin fl:G
+904	st:ulcer
+905	un st:affected fl:U
+906	st:unaware
+906	un st:aware fl:U
+907	un st:born fl:U
+908	st:unceasing
+910	un st:consecrated fl:U
+913	un st:deviating fl:U
+915	un st:explained fl:U
+916	st:unflinching fl:Y
+918	un st:healed fl:U
+919	un st:inhabitable fl:U
+920	st:unkind fl:T
+921	un st:loose fl:U
+923	fl:U st:pack fl:G
+927	un st:satisfied fl:U
+929	st:unspeakably
+933	st:unwise fl:Y
+935	st:upward fl:S
+939	st:value fl:S
+943	st:venomous
+944	st:verbose
+945	st:version
+945	st:verse fl:N
+947	st:victory fl:S
+948	st:vilify fl:D
+949	st:vinegar
+951	st:vital
+952	st:vocal
+954	st:vote fl:D
+955	st:vulgarian fl:S
+956	st:wag fl:Z
+957	st:wait fl:Z
+960	st:warn fl:J
+961	st:wassail
+963	st:wayside
+964	st:weasel
+965	st:weekly
+965	st:week fl:Y
+966	st:well fl:S
+967	st:wetting
+968	st:wheezy
+969	st:whetstone
+970	st:whirl fl:D
+971	st:whitewash
+973	st:widths
+975	st:wind fl:S
+979	st:women
+980	st:woo fl:G
+981	st:workshop fl:S
+982	st:worthy fl:T
+983	st:wrapping fl:S
+984	st:wringer
+984	st:wring fl:R
+986	st:xxx
+987	st:yearly
+987	st:year fl:Y
+989	st:your fl:S
+990	st:zest
+990	st:z fl:T
+end	turbo:hunspell-analyses

@@ -1,0 +1,60 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/lines	69	63	4bcc6c1f4e7e7175fa30748cd33aa08c34df747c65b40ec91e866cae6f8bff99
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	MAXENT_QN
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-qn
+layer	opennlp:tokens	text	14	start:u32	end:u32
+0	1
+2	8
+9	15
+16	20
+22	23
+24	30
+31	35
+36	40
+41	44
+45	48
+49	55
+56	58
+59	63
+64	68
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	23	feature:str
+a
+lovely
+garden
+💚
+a
+broken
+lamp
+💔
+the
+bus
+leaves
+at
+four
+😐
+emojiSentiment=2
+emojiType=HEART
+emojiCategory=SMILEYS_AND_EMOTION
+emojiSentiment=-2
+emojiType=HEART
+emojiCategory=SMILEYS_AND_EMOTION
+emojiSentiment=0
+emojiType=FACE
+emojiCategory=SMILEYS_AND_EMOTION
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+negative	3fe55d54e4ced120 0.667643019571674
+positive	3fd02323682dad3c 0.25214467214273717
+neutral	3fb488cb38d2c215 0.08021230828558885
+end	turbo:categories

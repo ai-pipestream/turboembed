@@ -1,0 +1,70 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/control-separators	14	14	4b8b0f0cf5b626b1f4d744c04f4396cb1a1b1d6684f1a13c3cae82102d1b807a
+annotator	LiblinearTrainer	train
+config	Cutoff	0
+config	DataIndexer	OnePass
+config	bias	-1
+config	c	0.5
+config	eps	0.1
+config	events	sorted
+config	p	0
+config	solverType	L2R_LR_DUAL
+config	source	postag
+layer	turbo:events	document	3	outcome:str	context:str	values:str
+L9	bias n=f p=*SB* pre=a\u001c suf=\u001fe w=a\u001cb\u001dc\u001ed\u001fe	
+L1	bias n=g p=a\u001cb\u001dc\u001ed\u001fe pre=f suf=f w=f	
+L1	bias n=*SE* p=f pre=g suf=g w=g	
+end	turbo:events
+layer	turbo:liblinear-text	document	22	line:str
+solver_type L2R_LR_DUAL
+nr_class 2
+label 0 1
+nr_feature 16
+bias -1.0000000000000000
+w
+-0.12973419639083456 
+-0.14776738272284337 
+0.16587176487631008 
+-0.14783857854430127 
+0.16587176487631008 
+-0.14783857854430127 
+-0.14776738272284337 
+0.16587176487631008 
+-0.14783857854430127 
+-0.14776738272284337 
+0.16587176487631008 
+-0.14783857854430127 
+-0.14776738272284337 
+0.16587176487631008 
+-0.14783857854430127 
+-0.14776738272284337 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+60a6276c2449c46d125aea82f40609955a8d0b4b843149806c12a8704d62e18b	634
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	12	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe5611cc6d5314c 0.6681045421078493
+0	given	1	3fd53dc672559d68 0.3318954578921507
+0	reversed	0	3fe5611cc6d5314c 0.6681045421078493
+0	reversed	1	3fd53dc672559d68 0.3318954578921507
+1	given	0	3fd2e91ae2c167f9 0.29547760147181595
+1	given	1	3fe68b728e9f4c04 0.7045223985281841
+1	reversed	0	3fd2e91ae2c167f9 0.29547760147181595
+1	reversed	1	3fe68b728e9f4c04 0.7045223985281841
+2	given	0	3fd2ea51b9854453 0.29555171124690566
+2	given	1	3fe68ad7233d5dd6 0.7044482887530943
+2	reversed	0	3fd2ea51b9854453 0.29555171124690566
+2	reversed	1	3fe68ad7233d5dd6 0.7044482887530943
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	6	event:u32	order:str	outcome:str
+0	given	L9
+0	reversed	L9
+1	given	L1
+1	reversed	L1
+2	given	L1
+2	reversed	L1
+end	turbo:liblinear-best

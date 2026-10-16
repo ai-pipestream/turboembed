@@ -1,0 +1,37 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/ellipses	67	61	ebe802ab1de2ac8701cb588a1dd9bfecb7930f7cb6f4b10b3aedcbc6ea3d88d9
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.01
+config	events	raw
+config	p	0
+config	solverType	L2R_LR
+config	source	sentdetect
+layer	turbo:events	document	16	outcome:str	context:str	values:str
+n	eos=. x=Wait 4 xcap v= s= n=.	
+n	eos=. x=. 1 v=Wait vcap s= n=what?	
+n	sn eos=. x=. 1 v=Wait. vcap s= n=what?	
+n	sn eos=? x=what 4 v=Wait... vcap s= n=Well… ncap	
+n	sn eos=. x=maybe 5 v=Well… vcap s= n=.	
+n	sp sn eos=. x= v=maybe. s= n=.	
+n	sp sn eos=. x= v=. s= n=.	
+n	sp sn eos=. x= v=. s= n=or	
+n	eos=. x=not 3 v=or s= n=Hmm...... ncap	
+n	sn eos=. x=. 1 v=not s= n=Hmm...... ncap	
+n	eos=. x=Hmm 3 xcap v=not.. s= n=....	
+n	eos=. x=. 1 v=Hmm vcap s= n=...	
+n	eos=. x=. 1 v=Hmm. vcap s= n=..	
+n	eos=. x=. 1 v=Hmm.. vcap s= n=.	
+n	eos=. x=. 1 v=Hmm... vcap s= n=ok……	
+s	sn eos=. x=. 1 v=Hmm.... vcap s= n=ok……	
+end	turbo:events
+layer	turbo:liblinear-error	document	1	class:str	message:str
+java.lang.IllegalArgumentException	feature nodes must be sorted by index in ascending order
+end	turbo:liblinear-error

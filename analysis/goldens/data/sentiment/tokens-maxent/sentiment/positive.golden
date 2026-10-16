@@ -1,0 +1,43 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/positive	49	47	4dd666b929667ad75ef92fd558413b679d71ceb433e32ff1560c739487e5e309
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	MAXENT
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.SentimentFactory
+config	language	en
+config	run	tokens-maxent
+layer	opennlp:tokens	text	10	start:u32	end:u32
+0	3
+4	9
+10	13
+14	19
+20	23
+24	27
+28	33
+34	38
+39	43
+44	48
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	10	feature:str
+the
+bread
+was
+fresh
+and
+the
+staff
+were
+kind
+😀
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+positive	3feca8d8ce179b0e 0.8956111932028266
+negative	3fb90db68b8e6f77 0.09786549479616534
+neutral	3f7ab8303b4b815c 0.006523312001008055
+end	turbo:categories

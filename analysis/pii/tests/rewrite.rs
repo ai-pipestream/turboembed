@@ -617,3 +617,48 @@ fn rewrites_on_every_thread() {
         }
     });
 }
+
+/// Every text of the `pii` input set, which holds sample values of every
+/// kind the packs find.
+fn sample_texts() -> Vec<(String, String)> {
+    let dir = turbo_goldens::data_dir().join("inputs/pii");
+    let mut texts: Vec<(String, String)> = std::fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+        .map(|e| {
+            let path = e.unwrap().path();
+            let id = path.file_stem().unwrap().to_string_lossy().into_owned();
+            (id, std::fs::read_to_string(&path).unwrap())
+        })
+        .collect();
+    texts.sort();
+    texts
+}
+
+#[test]
+fn no_value_of_any_pack_appears_in_the_audit() {
+    let texts = sample_texts();
+    assert!(texts.len() > 50, "only {} sample texts", texts.len());
+    let mut kinds = std::collections::HashSet::new();
+    for p in Pack::ALL {
+        let detector = pack(p);
+        let mut checked = 0;
+        for (id, text) in &texts {
+            let pii = layer(&detector, text);
+            let report = PiiAuditReport::of(&pii, &tokenizer(), usize::MAX);
+            let shown = [report.to_string(), format!("{report:?}")];
+            for m in pii.mentions() {
+                let covered = &text[m.span.start as usize..m.span.end as usize];
+                for value in [covered, m.normalized] {
+                    for out in &shown {
+                        assert!(!out.contains(value), "{} on {id}: {value:?} is in the audit:\n{out}", p.name());
+                    }
+                }
+                kinds.insert(m.kind);
+                checked += 1;
+            }
+            assert_eq!(report.total, pii.mentions().count());
+        }
+        assert!(checked > 0, "the {} pack found nothing in the sample texts", p.name());
+    }
+    assert_eq!(kinds.len(), PiiKind::ALL.len(), "kinds found: {kinds:?}");
+}

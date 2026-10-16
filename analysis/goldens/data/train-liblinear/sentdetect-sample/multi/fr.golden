@@ -1,0 +1,93 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/fr	212	209	56bdde2c4bdb4db6f3ef4837291e2727e705804bf1a29cccc5738304ca7c5c61
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	5	outcome:str	context:str	values:str
+n	6 eos=. n=On ncap s= sn v=huit x=heures	
+n	6 eos=. n=M. ncap s= sn v=de x=saison	
+n	1 eos=. n=Durand ncap s= sn v=saison. x=M xcap	
+n	eos=! n=Est-ce ncap s= sn sp v=ans x=	
+s	eos=? n= s= sn sp v=prochaine x=	
+end	turbo:events
+layer	turbo:liblinear-text	document	31	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 24
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+1.0982540429939330 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+4d11b306cfae4e197b88b19fe0de281b734169e95868e5742c97b8165f2dec21	447
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	20	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe7ff731e947940 0.7499328229203357
+0	given	1	3fd00119c2d70d80 0.2500671770796643
+0	reversed	0	3fe7ff731e947940 0.7499328229203357
+0	reversed	1	3fd00119c2d70d80 0.2500671770796643
+1	given	0	3fe7ff731e947940 0.7499328229203357
+1	given	1	3fd00119c2d70d80 0.2500671770796643
+1	reversed	0	3fe7ff731e947940 0.7499328229203357
+1	reversed	1	3fd00119c2d70d80 0.2500671770796643
+2	given	0	3fe7ff731e947940 0.7499328229203357
+2	given	1	3fd00119c2d70d80 0.2500671770796643
+2	reversed	0	3fe7ff731e947940 0.7499328229203357
+2	reversed	1	3fd00119c2d70d80 0.2500671770796643
+3	given	0	3fe7ff731e947940 0.7499328229203357
+3	given	1	3fd00119c2d70d80 0.2500671770796643
+3	reversed	0	3fe7ff731e947940 0.7499328229203357
+3	reversed	1	3fd00119c2d70d80 0.2500671770796643
+4	given	0	3fe0000000000000 0.5
+4	given	1	3fe0000000000000 0.5
+4	reversed	0	3fe0000000000000 0.5
+4	reversed	1	3fe0000000000000 0.5
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	10	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+4	given	n
+4	reversed	n
+end	turbo:liblinear-best
