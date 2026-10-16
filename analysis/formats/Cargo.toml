@@ -20,8 +20,11 @@ turbo-unicode = { path = "../unicode" }
 turbo-jvm = { path = "../jvm" }
 # The detokenizer the conversion streams rebuild text with.
 turbo-tokenize = { path = "../tokenize" }
-# The SAX-style XML reader the MASC stand-off files are parsed with.
+# The SAX-style XML reader the MASC stand-off files and the French
+# Treebank are parsed with.
 turbo-maxent = { path = "../maxent" }
+# The constituency parse the OntoNotes and French Treebank readers make.
+turbo-parser = { path = "../parser" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }

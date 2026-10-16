@@ -205,7 +205,7 @@ final class ParserGolden implements AnnotatorGolden {
     }
   }
 
-  private static List<Layer> layers(Input input, List<Parse> parses, FormatGolden.Columns errors) {
+  static List<Layer> layers(Input input, List<Parse> parses, FormatGolden.Columns errors) {
     FormatGolden.Columns written = new FormatGolden.Columns();
     FormatGolden.Columns texts = new FormatGolden.Columns();
     FormatGolden.Columns nodes = new FormatGolden.Columns(NODE_U32);

@@ -1,0 +1,47 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ontonotes/ontonotes-name-errors	953	950	b61c064436981c0c813205f30864637d48899046ec54ec6d5a0fc170376612a4
+annotator	opennlp.tools.formats.ontonotes.OntoNotesNameSampleStream	read
+layer	turbo:samples	document	5	written:str
+\none <START:org> Acme <END>
+two 
+\nfirst line .
+\n<START:person> Kari <END> sang .
+She left .
+end	turbo:samples
+layer	turbo:read-errors	document	4	after:u32	class:str	message:str
+0	java.lang.StringIndexOutOfBoundsException	Range [4, 3) out of bounds for length 6
+0	java.lang.IllegalArgumentException	start index must be zero or greater: -1
+2	java.lang.StringIndexOutOfBoundsException	Range [6, -1) out of bounds for length 25
+2	java.lang.StringIndexOutOfBoundsException	Range [5, 4) out of bounds for length 7
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	12	sample:u32	text:str
+0	one
+0	Acme
+1	two
+2	first
+2	line
+2	.
+3	Kari
+3	sang
+3	.
+4	She
+4	left
+4	.
+end	turbo:sample-tokens
+layer	turbo:names	document	2	sample:u32	start:u32	end:u32	type:str
+0	1	2	org
+3	0	1	person
+end	turbo:names
+layer	turbo:listing	document	7	file:str
+f_tagged.name
+e_end.name
+d_type.name
+c_tags.name
+b_good.name
+a_empty.name
+sub/later.name
+end	turbo:listing

@@ -1,0 +1,189 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ontonotes/ontonotes-parse	1704	1701	813e1e69b82a87b38f0a6739e8c6117a1b85bd801522d0fc4129b26d37b60622
+annotator	opennlp.tools.formats.ontonotes.OntoNotesParseSampleStream	read
+layer	turbo:samples	document	8	written:str
+(TOP (NP (NN tab\ttok)) )
+(TOP (FRAG (NN ok)) )
+(TOP (S (NP (NNP Lars)) (VP (VBD left))) )
+(TOP (SBARQ (WHNP (WP What)) (SQ (VBD did) (NP (PRP she)) (VP (VB buy) (NP (-NONE- *T*-1)))) (. ?)) )
+(TOP (S (NP (-NONE- *PRO*)) (VP (TO to) (VP (VB go) (PP (-LRB- -LRB-) (IN in) (NP (NNP Tromsø)) (-RRB- -RRB-) (SYM 😀))))) )
+(TOP (S (NP (NNP Anna) (NNP Berg)) (VP (MD will) (VP (VB join) (NP (DT the) (NN board)))) (. .)) )
+(TOP (S (NP (PRP We)) (VP (VBP begin))) )
+(TOP (INTJ (UH Hello)) )
+end	turbo:samples
+layer	turbo:read-errors	document	2	after:u32	class:str	message:str
+0	java.util.EmptyStackException	
+0	java.lang.NullPointerException	Cannot invoke "String.equals(Object)" because "type" is null
+end	turbo:read-errors
+layer	turbo:parse-texts	document	8	sample:u32	text:str
+0	tab\ttok 
+1	ok 
+2	Lars left 
+3	What did she buy *T*-1 ? 
+4	*PRO* to go ( in Tromsø ) 😀 
+5	Anna Berg will join the board . 
+6	We begin 
+7	Hello 
+end	turbo:parse-texts
+layer	turbo:parse-nodes	document	90	sample:u32	depth:u32	type:str	start:u32	end:u32	head-start:u32	head-end:u32	own-head:u32	head-index:u32
+0	0	TOP	0	8	0	8	1	0
+0	1	NP	0	7	0	7	1	0
+0	2	NN	0	7	0	7	1	0
+0	3	TK	0	7	0	7	1	0
+1	0	TOP	0	3	0	3	1	0
+1	1	FRAG	0	2	0	2	1	0
+1	2	NN	0	2	0	2	1	0
+1	3	TK	0	2	0	2	1	0
+2	0	TOP	0	10	0	10	1	0
+2	1	S	0	9	0	9	1	1
+2	2	NP	0	4	0	4	1	0
+2	3	NNP	0	4	0	4	1	0
+2	4	TK	0	4	0	4	1	0
+2	2	VP	5	9	5	9	1	1
+2	3	VBD	5	9	5	9	1	1
+2	4	TK	5	9	5	9	1	1
+3	0	TOP	0	25	0	25	1	0
+3	1	SBARQ	0	24	0	24	1	5
+3	2	WHNP	0	4	0	4	1	0
+3	3	WP	0	4	0	4	1	0
+3	4	TK	0	4	0	4	1	0
+3	2	SQ	5	22	5	22	1	4
+3	3	VBD	5	8	5	8	1	1
+3	4	TK	5	8	5	8	1	1
+3	3	NP	9	12	9	12	1	2
+3	4	PRP	9	12	9	12	1	2
+3	5	TK	9	12	9	12	1	2
+3	3	VP	13	22	13	22	1	4
+3	4	VB	13	16	13	16	1	3
+3	5	TK	13	16	13	16	1	3
+3	4	NP	17	22	17	22	1	4
+3	5	-NONE-	17	22	17	22	1	4
+3	6	TK	17	22	17	22	1	4
+3	2	.	23	24	23	24	1	5
+3	3	TK	23	24	23	24	1	5
+4	0	TOP	0	32	0	32	1	0
+4	1	S	0	31	0	31	1	7
+4	2	NP	0	5	0	5	1	0
+4	3	-NONE-	0	5	0	5	1	0
+4	4	TK	0	5	0	5	1	0
+4	2	VP	6	31	6	31	1	7
+4	3	TO	6	8	6	8	1	1
+4	4	TK	6	8	6	8	1	1
+4	3	VP	9	31	9	31	1	7
+4	4	VB	9	11	9	11	1	2
+4	5	TK	9	11	9	11	1	2
+4	4	PP	12	31	12	31	1	7
+4	5	-LRB-	12	13	12	13	1	3
+4	6	TK	12	13	12	13	1	3
+4	5	IN	14	16	14	16	1	4
+4	6	TK	14	16	14	16	1	4
+4	5	NP	17	24	17	24	1	5
+4	6	NNP	17	24	17	24	1	5
+4	7	TK	17	24	17	24	1	5
+4	5	-RRB-	25	26	25	26	1	6
+4	6	TK	25	26	25	26	1	6
+4	5	SYM	27	31	27	31	1	7
+4	6	TK	27	31	27	31	1	7
+5	0	TOP	0	32	0	32	1	0
+5	1	S	0	31	0	31	1	6
+5	2	NP	0	9	0	9	1	1
+5	3	NNP	0	4	0	4	1	0
+5	4	TK	0	4	0	4	1	0
+5	3	NNP	5	9	5	9	1	1
+5	4	TK	5	9	5	9	1	1
+5	2	VP	10	29	10	29	1	5
+5	3	MD	10	14	10	14	1	2
+5	4	TK	10	14	10	14	1	2
+5	3	VP	15	29	15	29	1	5
+5	4	VB	15	19	15	19	1	3
+5	5	TK	15	19	15	19	1	3
+5	4	NP	20	29	20	29	1	5
+5	5	DT	20	23	20	23	1	4
+5	6	TK	20	23	20	23	1	4
+5	5	NN	24	29	24	29	1	5
+5	6	TK	24	29	24	29	1	5
+5	2	.	30	31	30	31	1	6
+5	3	TK	30	31	30	31	1	6
+6	0	TOP	0	9	0	9	1	0
+6	1	S	0	8	0	8	1	1
+6	2	NP	0	2	0	2	1	0
+6	3	PRP	0	2	0	2	1	0
+6	4	TK	0	2	0	2	1	0
+6	2	VP	3	8	3	8	1	1
+6	3	VBP	3	8	3	8	1	1
+6	4	TK	3	8	3	8	1	1
+7	0	TOP	0	6	0	6	1	0
+7	1	INTJ	0	5	0	5	1	0
+7	2	UH	0	5	0	5	1	0
+7	3	TK	0	5	0	5	1	0
+end	turbo:parse-nodes
+layer	turbo:pos-samples	document	28	sample:u32	token:str	tag:str
+0	tab\ttok	NN
+1	ok	NN
+2	Lars	NNP
+2	left	VBD
+3	What	WP
+3	did	VBD
+3	she	PRP
+3	buy	VB
+3	*T*-1	-NONE-
+3	?	.
+4	*PRO*	-NONE-
+4	to	TO
+4	go	VB
+4	(	-LRB-
+4	in	IN
+4	Tromsø	NNP
+4	)	-RRB-
+4	😀	SYM
+5	Anna	NNP
+5	Berg	NNP
+5	will	MD
+5	join	VB
+5	the	DT
+5	board	NN
+5	.	.
+6	We	PRP
+6	begin	VBP
+7	Hello	UH
+end	turbo:pos-samples
+layer	turbo:chunk-samples	document	28	sample:u32	token:str	tag:str	pred:str
+0	tab\ttok	NN	S-NP
+1	ok	NN	S-FRAG
+2	Lars	NNP	S-NP
+2	left	VBD	S-VP
+3	What	WP	S-WHNP
+3	did	VBD	O
+3	she	PRP	S-NP
+3	buy	VB	O
+3	*T*-1	-NONE-	S-NP
+3	?	.	O
+4	*PRO*	-NONE-	S-NP
+4	to	TO	O
+4	go	VB	O
+4	(	-LRB-	O
+4	in	IN	O
+4	Tromsø	NNP	S-NP
+4	)	-RRB-	O
+4	😀	SYM	O
+5	Anna	NNP	S-NP
+5	Berg	NNP	C-NP
+5	will	MD	O
+5	join	VB	O
+5	the	DT	S-NP
+5	board	NN	C-NP
+5	.	.	O
+6	We	PRP	S-NP
+6	begin	VBP	S-VP
+7	Hello	UH	S-INTJ
+end	turbo:chunk-samples
+layer	turbo:listing	document	4	file:str
+data/english/annotations/nw/wsj/00/wsj_0003.parse
+data/english/annotations/nw/wsj/00/wsj_0002.parse
+data/english/annotations/nw/wsj/00/wsj_0001.parse
+data/english/annotations/bc/cnn/00/cnn_0004.parse
+end	turbo:listing
