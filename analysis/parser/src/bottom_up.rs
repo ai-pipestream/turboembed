@@ -145,7 +145,7 @@ pub fn advance_tags(p: &Parse, tagger: &PosModel) -> Vec<Parse> {
     for seq in &sequences {
         let tags = seq.outcomes();
         let probs = seq.probs();
-        let mut new_parse = p.clone();
+        let mut new_parse = p.clone_keeping_head();
         for (j, (&tag, &prob)) in tags.iter().zip(probs.iter()).enumerate() {
             let word = &children[j];
             new_parse
@@ -177,7 +177,7 @@ pub fn advance_chunks(
     for seq in &cs {
         let tags = seq.outcomes();
         let probs = seq.probs();
-        let mut new_parse = p.clone();
+        let mut new_parse = p.clone_keeping_head();
         let mut start = 0usize;
         let mut end = 0usize;
         let mut ctype: Option<&str> = None;

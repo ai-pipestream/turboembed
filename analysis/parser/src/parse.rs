@@ -251,7 +251,7 @@ pub struct Head {
 ///
 /// `Clone` copies the whole subtree. Java's `clone` copies the node and shares its children, and a
 /// clone of a node that is its own head keeps the original as its head; here the clone is its own
-/// head.
+/// head, and [`Parse::clone_keeping_head`] makes the copy the parsers make of a sentence's root.
 #[derive(Clone, Debug)]
 pub struct Parse {
     text: Arc<str>,
@@ -657,6 +657,19 @@ impl Parse {
     /// rules return a constituent itself.
     pub fn as_head(&self) -> Head {
         Head { span: self.span, head_index: self.head_index }
+    }
+
+    /// Copies this node as the bottom-up parsers' `(Parse) p.clone()` copies the sentence's root
+    /// for each derivation. Java's copy of a node that is its own head keeps that node as its
+    /// head, so when tree insertion later trims the copy's span by removing a first or last child,
+    /// the head still has the span the node has now. The copy takes that span as its head here.
+    /// [`Clone`] leaves a copy its own head.
+    pub fn clone_keeping_head(&self) -> Parse {
+        let mut copy = self.clone();
+        if copy.head.is_none() {
+            copy.head = Some(self.as_head());
+        }
+        copy
     }
 
     /// Returns `true` when this node is its own head (Java's `getHead() == this`).
