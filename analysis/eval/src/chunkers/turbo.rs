@@ -1,10 +1,10 @@
 //! turbo-chunker's optimizer as a pipeline chunker.
 
-use turbo_analysis::{Analyzer, Bound, Document, Ix, Key, Provenance};
-use turbo_analysis_layers::{Chunks, Sentences, Structure, Subwords, Vectors};
+use turbo_analysis::{Analyzer, Bound, Document, Ix, Key, Provenance, View};
+use turbo_analysis_layers::{Aspects, Categories, Chunks, Incivility, Sentences, Structure, Subwords, Tokens, Vectors};
 use turbo_chunker::{
     Budget, Chunker as Optimizer, Cohesion, CohesiveChunker, Costs, Drift, DriftBoundaries, STRUCTURE, Score,
-    StructureBoundaries, WeighBoundaries, Weight,
+    SentimentBoundaries, SentimentShift, StructureBoundaries, WeighAllBoundaries, WeighBoundaries, Weight,
 };
 
 use super::{Chunker, chunk_span, need, setting};
@@ -22,6 +22,14 @@ pub enum Signals {
     /// The structure's and the drift's costs, weighed
     /// (`WeighBoundaries`) with these weights.
     StructureDrift { drift: Drift, structure: Weight, weight: Weight },
+    /// The structure's, optional drift's, and sentiment/aspect shift's
+    /// costs (`SentimentBoundaries`), weighed with `WeighAllBoundaries`.
+    StructureSentiment {
+        drift: Option<(Drift, Weight)>,
+        sentiment: SentimentShift,
+        structure: Weight,
+        sentiment_weight: Weight,
+    },
 }
 
 /// The chunks turbo-chunker's `Chunker` (or `CohesiveChunker`, with a
@@ -42,7 +50,8 @@ pub struct TurboChunker {
 
 impl TurboChunker {
     fn needs_vectors(&self) -> bool {
-        matches!(self.signals, Signals::StructureDrift { .. }) || self.cohesion.is_some()
+        matches!(self.signals, Signals::StructureDrift { .. } | Signals::StructureSentiment { drift: Some(_), .. })
+            || self.cohesion.is_some()
     }
 
     /// Each sentence's vector, as the layer drift and cohesion read.
@@ -104,6 +113,33 @@ impl Chunker for TurboChunker {
                 setting("weigh.structure", structure.0),
                 setting("weigh.drift", weight.0),
             ]),
+            Signals::StructureSentiment { drift, sentiment: s, structure, sentiment_weight } => {
+                if let Some((d, dw)) = drift {
+                    out.extend([
+                        setting("signals", "structure+drift+sentiment"),
+                        setting("drift.window", d.window),
+                        setting("drift.smoothing", d.smoothing),
+                        setting("drift.score", score_name(d.score)),
+                        setting("drift.floor", d.floor),
+                        setting("drift.scale", d.scale),
+                        setting("drift.shift", d.shift),
+                        setting("weigh.drift", dw.0),
+                    ]);
+                } else {
+                    out.push(setting("signals", "structure+sentiment"));
+                }
+                out.extend([
+                    setting("sentiment.window", s.window),
+                    setting("sentiment.polarity_weight", s.polarity_weight),
+                    setting("sentiment.aspect_weight", s.aspect_weight),
+                    setting("sentiment.incivility_weight", s.incivility_weight),
+                    setting("sentiment.floor", s.floor),
+                    setting("sentiment.scale", s.scale),
+                    setting("sentiment.shift", s.shift),
+                    setting("weigh.structure", structure.0),
+                    setting("weigh.sentiment", sentiment_weight.0),
+                ]);
+            }
         }
         out.push(setting("cohesion.weight", self.cohesion.map_or_else(|| "none".into(), |c| c.weight.to_string())));
         if self.needs_vectors() {
@@ -130,6 +166,32 @@ impl Chunker for TurboChunker {
                 .step(Bound::new(StructureBoundaries { costs: self.costs }).write(0, STRUCTURE))
                 .step(DriftBoundaries { drift }.bound())
                 .step(WeighBoundaries { structure, drift: weight }.bound()),
+            Signals::StructureSentiment { drift, sentiment, structure, sentiment_weight } => {
+                if doc.get::<View>().is_some() {
+                    b = b.given(Key::<View>::DEFAULT);
+                }
+                if doc.get::<Tokens>().is_some() {
+                    b = b.given(Key::<Tokens>::DEFAULT);
+                }
+                if doc.get::<Categories<Sentences>>().is_some() {
+                    b = b.given(Key::<Categories<Sentences>>::DEFAULT);
+                }
+                if doc.get::<Aspects>().is_some() {
+                    b = b.given(Key::<Aspects>::DEFAULT);
+                }
+                if doc.get::<Incivility>().is_some() {
+                    b = b.given(Key::<Incivility>::DEFAULT);
+                }
+                b = b.step(Bound::new(StructureBoundaries { costs: self.costs }).write(0, STRUCTURE));
+                let drift_weight = if let Some((d, dw)) = drift {
+                    b = b.step(DriftBoundaries { drift: d }.bound());
+                    dw
+                } else {
+                    Weight(0)
+                };
+                b.step(SentimentBoundaries { shift: sentiment }.bound())
+                    .step(WeighAllBoundaries { structure, drift: drift_weight, sentiment: sentiment_weight }.bound())
+            }
         };
         let optimizer = Optimizer { budget: self.budget };
         b = match self.cohesion {
@@ -146,6 +208,7 @@ impl Chunker for TurboChunker {
 
 #[cfg(test)]
 mod tests {
+    use turbo_analysis::{Tag, TagSet};
     use turbo_structure::Syntax;
 
     use super::*;
@@ -223,5 +286,45 @@ mod tests {
         assert!(config.contains(&setting("signals", "structure+drift")));
         assert!(config.contains(&setting("weigh.drift", 4000)));
         assert!(config.contains(&setting("sentence_vectors", "each sentence embedded alone, document role")));
+    }
+
+    #[test]
+    fn sentiment_signal_is_off_at_zero_weight_and_splits_when_weighed() {
+        let text = "good food here\ngreat meal today\nawful service now\nrude staff here\n";
+        let mut e = Stub::new(&["food"]);
+        let mut doc = analyzed(text, &e, None);
+        let cat_set = TagSet::new("sentiment", &["positive", "negative"]);
+        let mut cats = Categories::<Sentences>::with_capacity(cat_set, 4);
+        cats.push(Tag(0), &[0.95, 0.05]);
+        cats.push(Tag(0), &[0.92, 0.08]);
+        cats.push(Tag(1), &[0.06, 0.94]);
+        cats.push(Tag(1), &[0.04, 0.96]);
+        doc.add(&Key::DEFAULT, cats, Provenance::by("test")).unwrap();
+
+        let mut c = TurboChunker {
+            budget: Budget { max: 20, target: 14, size_weight: 1000, overhead: 2 },
+            signals: Signals::StructureSentiment {
+                drift: None,
+                sentiment: SentimentShift::default(),
+                structure: Weight::ONE,
+                sentiment_weight: Weight(0),
+            },
+            ..plain(0, 0)
+        };
+        assert_eq!(c.chunk(&doc, &mut e).unwrap().len(), 1);
+
+        c.signals = Signals::StructureSentiment {
+            drift: None,
+            sentiment: SentimentShift::default(),
+            structure: Weight::ONE,
+            sentiment_weight: Weight(3000),
+        };
+        assert_eq!(
+            texts(text, &c.chunk(&doc, &mut e).unwrap()),
+            ["good food here\ngreat meal today", "awful service now\nrude staff here"]
+        );
+        let config = c.config();
+        assert!(config.contains(&setting("signals", "structure+sentiment")));
+        assert!(config.contains(&setting("weigh.sentiment", 3000)));
     }
 }

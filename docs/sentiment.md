@@ -503,3 +503,76 @@ repository.
   participate in our civic institutions.") is in the head's eight training
   rows, so the test shows the head firing on a sentence it was fitted to,
   not generalisation.
+
+## Sentiment and aspect shift as a boundary signal (`SentimentBoundaries` and `ChunkFacets`, `#325`)
+
+`turbo_chunker` generalizes `ChunkEmbedProcessor` and `Centroids` from
+`opennlp-sandbox` (`OPENNLP-1833-grpc-uber-server`): instead of forcing a hard
+chunk cut whenever the sentence sentiment label changes, sentiment, aspect, and
+incivility shifts write a soft boundary signal on `turbo:boundaries`
+(`Boundaries`, instance `SENTIMENT = "sentiment"`) that is weighed alongside
+document structure (`STRUCTURE`) and embedding drift (`DRIFT`).
+
+1. **Sentiment, aspect, and incivility shift scoring (`SentimentShift`,
+   `sentiment_shift`, `SentimentBoundaries`, `SentimentBoundariesProvider`)**:
+   - `SentimentBoundaries` (`ID = "turbo:sentiment-boundaries"`, provider name
+     `"sentiment-boundaries"`) reads
+     `(Sentences, Option<View>, Option<Tokens>, Option<Categories<Sentences>>, Option<Aspects>, Option<Incivility>)`
+     and writes `Boundaries` bound to the `SENTIMENT` instance.
+   - Across each sentence gap `g` (`0 <= g < n - 1`), `sentiment_shift` pools a
+     window of `window` sentences on each side (`default = 1`) and computes up
+     to three shift components in millionths (`MICRO = 1_000_000`):
+     - **Polarity shift (`polarity_weight`, default `1000`)**: signed polarity
+       change across the gap from `Categories<Sentences>` (`pos - neg` or best
+       category score) with fallback to `Aspects` compound polarity scores.
+     - **Aspect shift (`aspect_weight`, default `1000`)**: whether the two sides
+       of the gap discuss disjoint aspect categories/terms or flip polarity on
+       the same aspect category/term.
+     - **Incivility shift (`incivility_weight`, default `500`)**: onset/offset of
+       flagged `Incivility` labels or score jumps across the gap (omitted from
+       the active weight denominator at gaps where both windows have zero
+       incivility, so civil sentences do not dilute polarity or aspect shifts).
+   - Shifts at or above `floor` (`100_000` millionths by default) reduce the gap
+     cost by `-(shift * scale / 1_000_000)` (in `Boundaries::UNIT` thousandths),
+     and shifts at or above `shift` (`500_000` millionths by default) mark the
+     gap's reason as `Cut::TopicShift`.
+2. **Weighing with structure and drift (`weigh_with_sentiment`,
+   `WeighAllBoundaries`, `WeighProvider`, `Signals::StructureSentiment`)**:
+   - `weigh_with_sentiment` combines `(structure, drift, sentiment)` with weights
+     `(ws, wd, wsent)` in `i128` arithmetic rounded down via `div_euclid(1000)`
+     and saturated to `i32`.
+   - `WeighAllBoundaries::default()` sets `structure: Weight::ONE`,
+     `drift: Weight::ONE`, and `sentiment: Weight(0)`, so the sentiment boundary
+     signal is **off by default** unless a non-zero `sentiment` weight is
+     configured in `WeighAllBoundaries`, `WeighProvider` (`"weigh-boundaries"`
+     with `sentiment`), or `turbo_eval::chunkers::Signals::StructureSentiment`.
+3. **Per-chunk facets (`ChunkFacets` and `ChunkFacetBuilder`)**:
+   - `ChunkFacets` (`ID = "turbo:chunk-facets"`, `OF = Some(Chunks::NAME)`,
+     `Anchor::aligned::<Chunks>()`) is aligned 1-to-1 with `Chunks` and stores:
+     - `polarity: Vec<Polarity>` and `polarity_score: Vec<f64>` in `-1.0..=1.0`
+       for each chunk.
+     - Sparse-row aspect facets (`aspect_row`, `aspect: Vec<Ix<Aspects>>`,
+       `aspect_label: Strs`, `aspect_polarity: Vec<Polarity>`), accessed via
+       `aspect_ixs`, `aspect_polarities`, and `aspects_of`.
+     - Sparse-row incivility facets (`incivility_row`,
+       `incivility_label: Vec<IncivilityLabel>` in strictly ascending label
+       order per chunk, and `incivility_max: Vec<IncivilityScores>`), accessed
+       via `incivility_labels` and `incivility_scores`.
+4. **Boundary Similarity and span-containment evaluation (`boundary_similarity`,
+   `chunk_boundary_gaps`)**:
+   - `boundary_similarity(gold_gaps, pred_gaps, near_distance)` computes
+     Fournier (2013) Boundary Similarity ($B \in [0.0, 1.0]$), pairing exact
+     internal sentence-gap matches at weight `1.0` and near-miss transpositions
+     within `near_distance` gaps at weight `0.5`.
+   - In `analysis/chunker/src/sentiment.rs` and `analysis/chunker/tests/sentiment.rs`,
+     on multi-aspect polarity-flip and incivility-shift review fixtures where
+     sentence lengths are uniform (`6` sentences x `10` or `100` subwords under a
+     `4`-sentence budget), keeping `sentiment = 0` (off by default) cuts at gap
+     `1` (`B = 0.50`, splitting the first aspect's 3-sentence evidence span
+     across two chunks so single-chunk span containment is `1 / 2 = 50.0%`),
+     whereas enabling `sentiment = 1000` moves the cut to the aspect and
+     polarity transition at gap `2` with `Cut::TopicShift` (`B = 1.00`,
+     single-chunk span containment `2 / 2 = 100.0%`). Because standard
+     single-topic narrative retrieval corpora do not pivot on sentiment between
+     chunks, the weight remains `Weight(0)` by default.
+
