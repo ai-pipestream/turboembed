@@ -1,0 +1,18 @@
+# Words for the Hunspell goldens, one per line; a line starting with # is a
+# comment. \\, \t, \n, \r and \uXXXX are escapes (\uXXXX is one UTF-16 unit).
+# The fixture turkic.
+istanbul
+İstanbul
+ISTANBUL
+İSTANBUL
+istanbullar
+İstanbullar
+İSTANBULLAR
+ılık
+ILIK
+Ilık
+inci
+İnci
+INCI
+İNCİ
+inciler

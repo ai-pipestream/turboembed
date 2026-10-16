@@ -1,0 +1,66 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	svm-doccat/mixed	87	87	ba13482c7b39c06544a0a4f79d943f28ff66c4a07d1572a5a7ea33248d82a407
+annotator	opennlp.tools.ml.libsvm.doccat.DocumentCategorizerSVM	categorize
+config	coef0	0.0
+config	corpus	svm-doccat-train/topics
+config	cost	1.0
+config	degree	3
+config	gamma	0.0
+config	generators	bag-of-words
+config	kernel	LINEAR
+config	language	eng
+config	max-features	40
+config	run	topics-linear-lognorm-df
+config	scaling	0.0 1.0
+config	seed	1
+config	selection	DOCUMENT_FREQUENCY
+config	svm-type	C_SVC
+config	weighting	LOG_NORMALIZED_TF
+layer	opennlp:tokens	text	17	start:u32	end:u32
+0	3
+4	9
+10	13
+14	21
+22	25
+26	28
+29	33
+34	38
+39	40
+41	48
+49	54
+55	58
+59	64
+65	69
+70	73
+74	77
+78	86
+end	opennlp:tokens
+layer	turbo:svm-vector	document	6	index:u32	value:f64
+1	3ff0000000000000 1.0
+15	3fe2e653c1293b31 0.5906161091496412
+26	3fdad1e0210c4feb 0.41905978419640516
+29	3ff0000000000000 1.0
+31	3ff0000000000000 1.0
+34	3fe2e653c1293b31 0.5906161091496412
+end	turbo:svm-vector
+layer	turbo:svm-decisions	document	6	first:str	second:str	value:f64
+weather	cooking	3ff96f403847e612 1.5896608541937707
+weather	sports	3fd0bfaf993ec722 0.2616995808158312
+weather	finance	3ff14d8f7d696d79 1.0814356707477073
+cooking	sports	bfe153641aaaed4f -0.5414295693257517
+cooking	finance	bfd4a6fc58b3ffb0 -0.3226920000306519
+sports	finance	3fe602a2ac66bd40 0.6878217093671211
+end	turbo:svm-decisions
+layer	turbo:svm-vote	document	1	category:str
+weather
+end	turbo:svm-vote
+layer	turbo:categories	document	4	category:str	score:f64
+weather	3fe0e2ef0f42db1c 0.5277018831319285
+sports	3fd3db9f9aadee2a 0.3102797518292585
+finance	3fb764925fe97087 0.0913783535156104
+cooking	3fb21576bb47fdef 0.07064001152320264
+end	turbo:categories

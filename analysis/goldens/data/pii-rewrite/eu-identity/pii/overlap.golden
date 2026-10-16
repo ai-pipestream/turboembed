@@ -1,0 +1,40 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/overlap	77	77	c0ad12d8acbc61fcea4bb09077b085de7b656de489b448f0d59ed8496cd92c3c
+annotator	opennlp.tools.pii.PiiPacks	euIdentity
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	eu-identity
+layer	turbo:view	text	10	start:u32	end:u32	with:str
+52	53	*
+53	54	*
+54	55	*
+56	57	*
+57	58	*
+58	59	*
+60	61	*
+61	62	*
+62	63	*
+63	64	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+IBAN DE89 3704 0044 0532 0130 00 holds a phone; NHS ############ is one too.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	IBAN DE89 3704 0044 0532 0130 00 holds a phone; NHS UK-NHS-1 is one too.\n	
+hmac	IBAN DE89 3704 0044 0532 0130 00 holds a phone; NHS UK-NHS-8ab298778f89ab6b is one too.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	2	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	52	64	52	60	UK-NHS-1
+hmac	52	64	52	75	UK-NHS-8ab298778f89ab6b
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+uk-nhs	1	1	UK-NHS-8ab298778f89ab6b
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+uk-nhs: 1 mentions, 1 distinct [UK-NHS-8ab298778f89ab6b]
+end	turbo:pii-audit-report

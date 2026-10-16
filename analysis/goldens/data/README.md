@@ -268,6 +268,11 @@ are not taken from any corpus.
   letter code and malformed ones, and the `table-<kind>-<case>.txt` files
   small GeoNames, Overture, user and suppression tables, most with one
   error each loader reports.
+- `inputs/place-profiles/`: profile tables for `PlaceProfiles`, written
+  for this project with made up places and numbers: tables that load (a
+  ten town table, a 40 place generated one, extreme and subnormal values,
+  constant columns, ties between ids in different scripts, every kind of
+  skipped line and padding) and tables with one error each.
 - `inputs/sequence/`, `inputs/descriptor-errors/`, `inputs/codec/`,
   `inputs/tag-format/`: the inputs of the `turbo-sequence` goldens, written
   for this project: 16 tokenized sentences, tokens for `StringPattern`
@@ -289,6 +294,30 @@ are not taken from any corpus.
 - `inputs/glossary/`: texts for the glossary matchers and comma separated,
   tab separated and TBX glossaries, well formed and malformed, for the
   glossary readers, written for this project (`analysis/glossary/README.md`).
+- `inputs/svm-doccat-train/`: the corpora the SVM document categorizer
+  goldens train their models on, written for this project, one sample per
+  line (the category, a space and the text): `topics.txt`, 48 sentences,
+  12 each about weather, cooking, sports and finance, and `pair.txt`, 12
+  about weather and cooking.
+- `inputs/svm-doccat/`: 12 documents those models categorize, written for
+  this project: one per topic, a mixed one, repeated words, words no
+  corpus has, whitespace alone, punctuation, a long text, accents, an
+  ellipsis and emoji, and one word without a line end
+  (`docs/doccat.md`).
+- `inputs/sentiment-train/`: the corpus the sentiment goldens train their
+  models on, written for this project, one sample per line in OpenNLP's
+  sentiment sample format (the sentiment, a space and the tokens):
+  `feedback.txt`, 56 short invented remarks about everyday things, 20
+  `positive`, 20 `negative` and 16 `neutral`, each with one or two emoji,
+  among them hearts with and without the presentation selector, a skin
+  tone, a ZWJ sequence, country flags, a subdivision flag, and a word that
+  starts outside the Basic Multilingual Plane.
+- `inputs/sentiment/`: 12 documents those models score, written for this
+  project: one per sentiment, a mixed one, emoji alone, emoji joined to a
+  word and to each other, two flags in one token, accents and a character
+  outside the Basic Multilingual Plane, repeated words, words no corpus
+  has, whitespace alone, several lines, and one word without a line end
+  (`docs/sentiment.md`).
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 
@@ -659,9 +688,13 @@ outside the Basic Multilingual Plane, no-break spaces, fullwidth and
 Arabic-Indic digits). Every value is a documented test value, in a range
 set aside for examples (`example.com`, `192.0.2.0/24`, `2001:db8::/32`,
 555 and Ofcom drama numbers) or made up; none is real personal data.
-`pii/<pack>/pii/<id>.golden` holds the layer `turbo:pii`; see
-`analysis/goldens-tool/README.md`. Only the PII annotator runs on the
-set, and it has no dumps.
+`pii/<pack>/pii/<id>.golden` holds the layer `turbo:pii`, and
+`pii-rewrite/<pack>/pii/<id>.golden` what OpenNLP's `Masker`,
+`Pseudonymizer`, `HmacTokenizer` and `PiiAuditReport` make of those
+mentions under a fixed test key: the masked view's edits, the text with
+every mention masked, the two rewrites and their labels, and the audit
+report; see `analysis/goldens-tool/README.md`. Only the PII annotator and
+the rewrites run on the set, and they have no dumps.
 
 ## Decision point dumps
 

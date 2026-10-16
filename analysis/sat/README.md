@@ -1,0 +1,88 @@
+# turbo-sat
+
+Sentence boundaries from a SaT model (Segment any Text, the `wtpsplit`
+package, MIT) on the core's own encoder, written as `opennlp:sentences`.
+[docs/neural-annotators.md](../../docs/neural-annotators.md) describes
+the design, what it reproduces of wtpsplit and where it differs, the
+licences of the checkpoints, and what is not built yet.
+
+## Reference fixtures
+
+No real SaT checkpoint is in the repository. The tests compare the step
+with wtpsplit 2.2.2 itself on a small SaT model with random weights,
+`testdata/tiny-sat-bundle`, made in the container of `reference/`:
+
+- `reference/Dockerfile`: micromamba's image by digest,
+  `reference/conda.lock` (every conda-forge package by URL and MD5:
+  Python 3.12.15, PyTorch 2.14.1 for the CPU, transformers 5.17.0,
+  tokenizers 0.23.3, safetensors 0.8.0, NumPy 2.5.4) and
+  `reference/requirements.txt` (wtpsplit 2.2.2 and the five packages it
+  imports that conda-forge does not carry, each by SHA-256, installed
+  with `--no-deps`).
+- `reference/sat_reference.py`: three commands, `tiny`, `reference` and
+  `segment`, described at its top.
+
+The image the fixtures were made with is
+`sha256:d283c2464aecaae69c72d1757f7633280ac093dc85eedde67083cbf7a1764319`
+(the recipe's `container`). Building it again from the same files and
+making the fixtures again gave the same bytes.
+
+To make them again, from the repository root, with `W` an empty
+directory:
+
+```
+docker build -t turbo-sat-reference analysis/sat/reference
+cp testdata/bge-m3/tokenizer.json $W/tokenizer.json
+cp analysis/sat/tests/data/texts.jsonl testdata/tiny-sat-recipe/recipe.json $W/
+run() { docker run --rm --network none --user 0:0 -v $W:/w turbo-sat-reference "$@"; }
+
+# The model: two layers of width 32 over the cut-down XLM-R vocabulary.
+run tiny /w/tokenizer.json /w/out
+
+# The bundle: the reference vectors for the recipe's cases, then sealed.
+mkdir -p $W/bundle/reference $W/upstream
+run reference /w/out/model /w/out/tokenizer /w/recipe.json \
+    /w/bundle/reference/reference.safetensors /w/bundle/reference/report.json \
+    "turbo-sat-reference@$(docker image inspect --format '{{.Id}}' turbo-sat-reference)"
+cp $W/tokenizer.json $W/out/model/model.safetensors $W/upstream/
+cargo run -p turbo-bundle -- seal $W/recipe.json $W/upstream $W/bundle
+
+# The fixtures: threshold, stride and block size.
+run segment /w/out/model /w/tokenizer.json /w/texts.jsonl /w/t0.5-s16-b62.jsonl 0.5 16 62
+run segment /w/out/model /w/tokenizer.json /w/texts.jsonl /w/t0.25-s62-b62.jsonl 0.25 62 62
+run segment /w/out/model /w/tokenizer.json /w/texts.jsonl /w/t0.5-s7-b30.jsonl 0.5 7 30
+```
+
+The image runs as a user other than root; `--user 0:0` lets it write
+to the mounted directory.
+
+`tests/data/texts.jsonl` holds 90 texts, one JSON string per line: the
+54 of `testdata/tokenizer-texts.jsonl`, 22 more for sentence boundaries
+(lines 55 to 76: whitespace alone, text with and without punctuation,
+abbreviations, line feeds and carriage returns, Unicode line and
+paragraph separators and information separators, scripts with and
+without spaces, combining marks, emoji sequences, special-token strings,
+long runs of one word, and whitespace at either end), and the 14
+reference cases of the recipe not already among them. Each fixture's first line names the versions, the SHA-256
+of the weights and the settings; then, per text, the ids and offsets
+wtpsplit's tokenizer gives, the probability `SaT.predict_proba` gives
+every character, and the pieces `SaT.split` returns.
+
+## Tests
+
+```
+cargo test -p turbo-sat
+TURBO_TEST_BUNDLE=testdata/tiny-sat-bundle cargo test -p turbo --test conformance
+cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
+```
+
+- `tests/parity.rs`: the scores and pieces against the fixtures, and
+  the layer against wtpsplit's pieces with each cut moved to the end of
+  its grapheme cluster.
+- `tests/annotator.rs`: batching, texts longer than a window, texts
+  without words, the threshold and line feeds, the options, the
+  configuration hash, the provider and the analyzer.
+- The conformance test checks the bundle's encoder against the mean of
+  wtpsplit's encoder states for the recipe's cases.
+- `tests/speed.rs` times the step; `TURBO_SAT_BUNDLE` names another
+  bundle to time.

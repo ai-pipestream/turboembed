@@ -1,0 +1,157 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/ellipsis	144	142	edebdc578afc31b3243270390028ab0b7d1fc7416c7a001521b11cf8167c1de7
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	12	outcome:str	context:str	values:str
+n	4 eos=. n=. s= v=long x=time	
+n	1 eos=. n=Then ncap s= v=time x=.	
+n	1 eos=. n=Then ncap s= sn v=time. x=.	
+n	4 eos=. n=She ncap s= sn v=to x=stay	
+n	7 eos=. n=Wait. ncap s= sn v=and x=laughed	
+n	4 eos=. n=. s= sn v=laughed. x=Wait xcap	
+n	eos=. n=. s= sn sp v=Wait. vcap x=	
+n	eos=. n=what s= sn sp v=. x=	
+n	3 eos=? n=The ncap s= sn v=you x=say	
+n	2 eos=. n=. s= v=and x=on	
+n	1 eos=. n= s= v=on x=.	
+s	1 eos=. n= s= sn v=on. x=.	
+end	turbo:events
+layer	turbo:liblinear-text	document	46	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 39
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+1.6093553354702625 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+7209325c58d84a3625400a380e02ab47e90d8f0463b5ff80cf6086f62fe46923	639
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	48	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3feaaa929d1ccb09 0.8333218639948835
+0	given	1	3fc555b58b8cd3dc 0.1666781360051165
+0	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+0	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+1	given	0	3feaaa929d1ccb09 0.8333218639948835
+1	given	1	3fc555b58b8cd3dc 0.1666781360051165
+1	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+1	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+2	given	0	3feaaa929d1ccb09 0.8333218639948835
+2	given	1	3fc555b58b8cd3dc 0.1666781360051165
+2	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+2	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+3	given	0	3feaaa929d1ccb09 0.8333218639948835
+3	given	1	3fc555b58b8cd3dc 0.1666781360051165
+3	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+3	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+4	given	0	3feaaa929d1ccb09 0.8333218639948835
+4	given	1	3fc555b58b8cd3dc 0.1666781360051165
+4	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+4	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+5	given	0	3feaaa929d1ccb09 0.8333218639948835
+5	given	1	3fc555b58b8cd3dc 0.1666781360051165
+5	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+5	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+6	given	0	3feaaa929d1ccb09 0.8333218639948835
+6	given	1	3fc555b58b8cd3dc 0.1666781360051165
+6	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+6	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+7	given	0	3feaaa929d1ccb09 0.8333218639948835
+7	given	1	3fc555b58b8cd3dc 0.1666781360051165
+7	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+7	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+8	given	0	3feaaa929d1ccb09 0.8333218639948835
+8	given	1	3fc555b58b8cd3dc 0.1666781360051165
+8	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+8	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+9	given	0	3feaaa929d1ccb09 0.8333218639948835
+9	given	1	3fc555b58b8cd3dc 0.1666781360051165
+9	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+9	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+10	given	0	3feaaa929d1ccb09 0.8333218639948835
+10	given	1	3fc555b58b8cd3dc 0.1666781360051165
+10	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+10	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+11	given	0	3feaaa929d1ccb09 0.8333218639948835
+11	given	1	3fc555b58b8cd3dc 0.1666781360051165
+11	reversed	0	3feaaa929d1ccb09 0.8333218639948835
+11	reversed	1	3fc555b58b8cd3dc 0.1666781360051165
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	24	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+4	given	n
+4	reversed	n
+5	given	n
+5	reversed	n
+6	given	n
+6	reversed	n
+7	given	n
+7	reversed	n
+8	given	n
+8	reversed	n
+9	given	n
+9	reversed	n
+10	given	n
+10	reversed	n
+11	given	n
+11	reversed	n
+end	turbo:liblinear-best

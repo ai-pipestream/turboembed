@@ -55,6 +55,22 @@
       <artifactId>opennlp-ml-perceptron</artifactId>
       <version>${opennlp.version}</version>
     </dependency>
+    <!-- The SVM document categorizer and the zlibsvm and LIBSVM jars it trains with (SvmDoccatGolden). -->
+    <dependency>
+      <groupId>org.apache.opennlp</groupId>
+      <artifactId>opennlp-ml-libsvm</artifactId>
+      <version>${opennlp.version}</version>
+    </dependency>
+    <!--
+      liblinear-java, which the liblinear add-on trains with (LiblinearTrainGolden). The add-on's
+      own classes are loaded from a jar the image builds; this puts liblinear in target/lib.
+    -->
+    <dependency>
+      <groupId>de.bwaldvogel</groupId>
+      <artifactId>liblinear</artifactId>
+      <version>2.44</version>
+      <scope>runtime</scope>
+    </dependency>
     <!-- The sample conversion streams and the CoNLL-U readers (FormatGolden). -->
     <dependency>
       <groupId>org.apache.opennlp</groupId>

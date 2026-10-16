@@ -1,0 +1,51 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/mixed	56	50	e198258e5bcc4f132cf07dfb2ef1f0bbcb8d255de7d9331e54ea888fe1acba64
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	MAXENT
+config	Cutoff	5
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-default
+layer	opennlp:tokens	text	11	start:u32	end:u32
+0	3
+4	8
+9	12
+13	18
+19	22
+23	26
+27	31
+32	35
+36	41
+42	50
+51	55
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	17	feature:str
+the
+trip
+was
+great
+but
+the
+room
+was
+noisy
+🇯🇵
+🙁
+emojiType=FLAG
+emojiCategory=FLAGS
+emojiRegion=JP
+emojiSentiment=-1
+emojiType=FACE
+emojiCategory=SMILEYS_AND_EMOTION
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+positive	3fe1b22e56a7a8dc 0.5530006115416444
+negative	3fd0bdb9ad57db46 0.2615799134068094
+neutral	3fc7bbd34ab1a605 0.18541947505154624
+end	turbo:categories
