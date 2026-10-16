@@ -2,7 +2,6 @@
 //! `NormalizationProfiles`) and [`TermAnnotator`], the pipeline step that
 //! writes [`Terms`] (`turbo:terms`) aligned to `opennlp:tokens`.
 
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, OnceLock};
 
 use turbo_analysis::{Annotator, Error, Layer, Refs, View};
@@ -317,46 +316,34 @@ impl Annotator for TermAnnotator {
 
         let analyzer = self.resolve_analyzer(language);
         let text = view.text();
-        let token_strs: Vec<&str> = tokens.spans.iter().map(|(_, s)| &text[s.range()]).collect();
-        let tag_strs: Vec<Option<&str>> = match pos {
-            Some(p) => p.tags.iter().map(|&t| Some(p.tagset.label(t))).collect(),
-            None => vec![None; n],
-        };
-
-        let analyzed = analyzer
-            .analyze_tokens(&token_strs, &tag_strs)
-            .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
+        let (starts, ends) = tokens.spans.columns();
 
         let mut surface = Strs::default();
         let mut folded = Strs::default();
-        let write_stem = analyzer.has_stemmer();
-        let write_lemma = lemmas.is_some() || analyzer.has_lemmatizer();
-        let mut stem_col = write_stem.then(Strs::default);
-        let mut lemma_col = write_lemma.then(Strs::default);
+        let mut stem_col = analyzer.has_stemmer().then(Strs::default);
+        let mut lemma_col = (lemmas.is_some() || analyzer.has_lemmatizer()).then(Strs::default);
 
-        // Determine which dimension gives the character-folded slot: the last
-        // character-level dimension in `analyzer.dimensions()`, or `Original`
-        // when no character-level dimensions are configured.
-        let folded_dim =
-            analyzer.dimensions().iter().copied().rfind(|d| d.is_character_level()).unwrap_or(Dimension::Original);
+        for (i, (&start, &end)) in starts.iter().zip(ends).enumerate() {
+            let token = (start <= end).then(|| text.get(start as usize..end as usize)).flatten().ok_or_else(|| {
+                Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!("token {i} span {start}..{end} is not a valid slice of a {}-byte view", text.len()),
+                }
+            })?;
+            let pos_tag = pos.map(|p| p.tagset.label(p.tags[i]));
+            let (folded_tok, stem_tok, lemma_tok) = analyzer
+                .analyze_for_annotator(token, pos_tag, lemmas.is_some())
+                .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
 
-        for (i, term) in analyzed.iter().enumerate() {
-            surface.push(term.original());
-            let f = term.at(folded_dim).map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
-            folded.push(f);
-            if let Some(stems) = &mut stem_col {
-                let s = term
-                    .at(Dimension::Stem)
-                    .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
+            surface.push(token);
+            folded.push(&folded_tok);
+            if let (Some(stems), Some(s)) = (&mut stem_col, &stem_tok) {
                 stems.push(s);
             }
             if let Some(lemma_out) = &mut lemma_col {
                 if let Some(doc_lemmas) = lemmas {
                     lemma_out.push(doc_lemmas.lemma.get(i));
-                } else {
-                    let l = term
-                        .at(Dimension::Lemma)
-                        .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
+                } else if let Some(l) = &lemma_tok {
                     lemma_out.push(l);
                 }
             }
@@ -366,20 +353,41 @@ impl Annotator for TermAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = DefaultHasher::new();
-        match &self.choice {
-            AnalyzerChoice::Fixed(a) => {
-                0u8.hash(&mut h);
-                a.dimensions().hash(&mut h);
-                a.has_stemmer().hash(&mut h);
-                a.has_lemmatizer().hash(&mut h);
-            }
-            AnalyzerChoice::ByLanguage { fallback, .. } => {
-                1u8.hash(&mut h);
-                fallback.hash(&mut h);
+        const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+        const FNV_PRIME: u64 = 0x0100_0000_01b3;
+        fn write(h: &mut u64, bytes: &[u8]) {
+            for &b in bytes {
+                *h = (*h ^ u64::from(b)).wrapping_mul(FNV_PRIME);
             }
         }
-        h.finish()
+        let mut h = FNV_OFFSET;
+        match &self.choice {
+            AnalyzerChoice::Fixed(a) => {
+                write(&mut h, &[0u8]);
+                write(&mut h, &(a.dimensions().len() as u64).to_le_bytes());
+                for &dim in a.dimensions() {
+                    write(&mut h, &[dim.index() as u8]);
+                    if let Some((is_custom, id)) = a.normalizer_info(dim) {
+                        write(&mut h, &[u8::from(is_custom)]);
+                        write(&mut h, &(id.len() as u64).to_le_bytes());
+                        write(&mut h, id.as_bytes());
+                    }
+                }
+                write(&mut h, &[u8::from(a.has_stemmer()), u8::from(a.has_lemmatizer())]);
+            }
+            AnalyzerChoice::ByLanguage { fallback, .. } => {
+                write(&mut h, &[1u8]);
+                match fallback {
+                    Some(lang) => {
+                        write(&mut h, &[1u8]);
+                        write(&mut h, &(lang.len() as u64).to_le_bytes());
+                        write(&mut h, lang.as_bytes());
+                    }
+                    None => write(&mut h, &[0u8]),
+                }
+            }
+        }
+        h
     }
 }
 
@@ -555,6 +563,82 @@ mod tests {
         assert_eq!(
             terms.get(Ix::new(1)),
             TermSlot { surface: "Running", folded: "running", stem: Some("run"), lemma: Some("run") }
+        );
+    }
+
+    #[test]
+    fn term_annotator_rejects_invalid_token_spans_without_panicking() {
+        let doc = Document::new("café");
+        let view = doc.get::<View>().unwrap();
+        let annotator = TermAnnotator::default();
+
+        // Out-of-bounds span (end > text.len()).
+        let mut oob_spans = Spans::new(ViewId::SOURCE);
+        oob_spans.push(Span::new(0, 99));
+        let oob_tokens = Tokens { spans: oob_spans, sentence: None };
+        let err = annotator.annotate((view, &oob_tokens, None, None, None)).err().unwrap();
+        assert!(err.to_string().contains("not a valid slice"), "unexpected error: {err}");
+
+        // Mid-codepoint UTF-8 boundary ('é' is bytes 3..5 in "café").
+        let mut mid_spans = Spans::new(ViewId::SOURCE);
+        mid_spans.push(Span::new(0, 4));
+        let mid_tokens = Tokens { spans: mid_spans, sentence: None };
+        let err = annotator.annotate((view, &mid_tokens, None, None, None)).err().unwrap();
+        assert!(err.to_string().contains("not a valid slice"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn term_annotator_with_lemma_dimension_uses_doc_lemmas_without_requiring_pos_or_invoking_lemmatizer() {
+        let analyzer = TermAnalyzer::builder()
+            .case_fold()
+            .unwrap()
+            .lemmatize(|_tok: &str, _tag: &str| -> Option<String> {
+                panic!("analyzer lemmatizer must not be called when document Lemmas layer is present")
+            })
+            .build();
+        let annotator = TermAnnotator::new(analyzer);
+
+        let doc = Document::new("Was");
+        let view = doc.get::<View>().unwrap();
+        let mut tok_spans = Spans::new(ViewId::SOURCE);
+        tok_spans.push(Span::new(0, 3));
+        let tokens = Tokens { spans: tok_spans, sentence: None };
+
+        let mut lemma_strs = Strs::default();
+        lemma_strs.push("be");
+        let lemmas = Lemmas { lemma: lemma_strs };
+
+        // pos is None, but lemmas is Some(&lemmas): should succeed without MissingPosTag.
+        let (terms,) = annotator.annotate((view, &tokens, None, None, Some(&lemmas))).unwrap();
+        assert_eq!(terms.get(Ix::new(0)), TermSlot { surface: "Was", folded: "was", stem: None, lemma: Some("be") });
+    }
+
+    #[test]
+    fn term_annotator_config_hash_is_deterministic_and_distinguishes_custom_normalizers() {
+        let default_hash = TermAnnotator::default().config_hash();
+        assert_eq!(default_hash, TermAnnotator::by_language(None).config_hash());
+        assert_ne!(default_hash, TermAnnotator::by_language(Some("eng".to_owned())).config_hash());
+
+        let latin_accent = TermAnalyzer::builder().case_fold().unwrap().accent_fold().build();
+        let german_umlaut = TermAnalyzer::builder()
+            .case_fold()
+            .unwrap()
+            .transform(Dimension::AccentFold, GermanUmlauts::new())
+            .unwrap()
+            .build();
+        assert_ne!(TermAnnotator::new(latin_accent).config_hash(), TermAnnotator::new(german_umlaut).config_hash());
+
+        let tr_case = TermAnalyzer::builder().case_fold_locale("tr").unwrap().build();
+        let en_case = TermAnalyzer::builder().case_fold_locale("en").unwrap().build();
+        let root_case = TermAnalyzer::builder().case_fold().unwrap().build();
+        assert_ne!(
+            TermAnnotator::new(tr_case.clone()).config_hash(),
+            TermAnnotator::new(en_case.clone()).config_hash()
+        );
+        assert_ne!(TermAnnotator::new(tr_case).config_hash(), TermAnnotator::new(root_case).config_hash());
+        assert_ne!(
+            TermAnnotator::new(en_case).config_hash(),
+            TermAnnotator::new(TermAnalyzer::builder().case_fold().unwrap().build()).config_hash()
         );
     }
 }

@@ -2,21 +2,23 @@
 //! normalization with eager evaluation of configured dimensions and thread-safe
 //! lazy memoization of unconfigured dimensions.
 
+mod builder;
+#[cfg(test)]
+mod tests;
+
 use std::fmt;
-use std::num::{NonZeroU32, NonZeroUsize};
 use std::sync::{Arc, LazyLock, OnceLock};
 
+pub use builder::TermAnalyzerBuilder;
 use turbo_analysis::{Span, ViewBuilder};
 use turbo_analysis_layers::Strs;
 use turbo_lemmatizer::{DictionaryLemmatizer, MaxentLemmatizer, TokenTag};
 use turbo_normalize::{
-    AccentFold, CaseFold, ConfusableSkeleton, Dashes, DynNormalizer, EmojiToEmoticon, Normalizer, StrokeLetters,
-    UnicodeForm, Whitespace,
+    AccentFold, CaseFold, ConfusableSkeleton, Dashes, DynNormalizer, EmojiToEmoticon, Normalizer, UnicodeForm,
+    Whitespace,
 };
 use turbo_tokenize::{WordTokenizer, word_tokens};
-use turbo_unicode::script::Script;
 
-use crate::cache::CachingStemmer;
 use crate::stemmer::Stemmer;
 
 /// Total number of [`Dimension`] variants.
@@ -122,7 +124,7 @@ impl Dimension {
         }
     }
 
-    const fn index(self) -> usize {
+    pub(crate) const fn index(self) -> usize {
         self as usize
     }
 }
@@ -446,6 +448,48 @@ impl TermAnalyzer {
         self.inner.lemmatizer.is_some()
     }
 
+    /// Returns `(is_custom, normalizer_id)` for a character-level `dimension`,
+    /// or `None` for non-character dimensions.
+    pub(crate) fn normalizer_info(&self, dimension: Dimension) -> Option<(bool, &'static str)> {
+        if let Some(custom) = &self.inner.transforms[dimension.index()] {
+            Some((true, custom.id()))
+        } else {
+            dimension.default_normalizer().map(|n| (false, n.id()))
+        }
+    }
+
+    /// Evaluates the configured normalization chain for a single token in
+    /// [`crate::profile::TermAnnotator`], returning `(folded, stem, lemma)`
+    /// without allocating a [`Term`] or its [`OnceLock`] layer table.
+    ///
+    /// When `skip_lemma` is `true` (because the document already supplies an
+    /// `opennlp:lemmas` layer), [`Dimension::Lemma`] is not evaluated.
+    pub(crate) fn analyze_for_annotator(
+        &self,
+        token: &str,
+        pos_tag: Option<&str>,
+        skip_lemma: bool,
+    ) -> Result<(String, Option<String>, Option<String>), TermError> {
+        let mut folded = token.to_owned();
+        for &dim in &self.inner.chain {
+            if dim.is_character_level() {
+                folded = self.inner.apply(dim, &folded, pos_tag)?;
+            }
+        }
+        let stem = if self.inner.stemmer.is_some() {
+            Some(self.inner.apply(Dimension::Stem, &folded, pos_tag)?)
+        } else {
+            None
+        };
+        let lemma = if !skip_lemma && self.inner.lemmatizer.is_some() {
+            let input = stem.as_deref().unwrap_or(&folded);
+            Some(self.inner.apply(Dimension::Lemma, input, pos_tag)?)
+        } else {
+            None
+        };
+        Ok((folded, stem, lemma))
+    }
+
     /// Segments `text` with the configured UAX #29 [`WordTokenizer`] and
     /// returns one [`Term`] per word token, in order (`TermAnalyzer.analyze(CharSequence)`).
     ///
@@ -498,505 +542,27 @@ impl TermAnalyzer {
     }
 }
 
-/// Locale-aware lowercaser for `TermAnalyzerBuilder::case_fold_locale`:
-/// applies Turkic simple case folding for Turkish (`tr`/`tur`) and Azeri
-/// (`az`/`aze`), and `Locale.ROOT` lowercasing otherwise.
+/// Turkic simple case folding for `TermAnalyzerBuilder::case_fold_locale`
+/// when the locale is Turkish (`tr`/`tur`) or Azeri (`az`/`aze`).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-struct LocaleCaseFold {
-    turkic: bool,
+struct TurkicCaseFold;
+
+impl Normalizer for TurkicCaseFold {
+    const ID: &'static str = "turbo:normalize:turkic-case-fold";
+
+    fn normalize(&self, text: &str, out: &mut ViewBuilder<'_>) {
+        CaseFold::turkic_simple().normalize(text, out);
+    }
 }
+
+/// Non-Turkic `Locale.ROOT` lowercaser for `TermAnalyzerBuilder::case_fold_locale`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+struct LocaleCaseFold;
 
 impl Normalizer for LocaleCaseFold {
     const ID: &'static str = "turbo:normalize:locale-case-fold";
 
     fn normalize(&self, text: &str, out: &mut ViewBuilder<'_>) {
-        if self.turkic {
-            CaseFold::turkic_simple().normalize(text, out);
-        } else {
-            CaseFold::lowercase().normalize(text, out);
-        }
-    }
-}
-
-/// A builder for [`TermAnalyzer`] (`TermAnalyzer.Builder`).
-pub struct TermAnalyzerBuilder {
-    enabled: [bool; NUM_DIMENSIONS],
-    transforms: [Option<Box<dyn DynNormalizer>>; NUM_DIMENSIONS],
-    stemmer: Option<Box<dyn Stemmer>>,
-    lemmatizer: Option<Box<dyn TermLemmatizer>>,
-    tokenizer: WordTokenizer,
-}
-
-impl Default for TermAnalyzerBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl TermAnalyzerBuilder {
-    /// Creates a new builder with no dimensions enabled and the default
-    /// [`WordTokenizer`].
-    pub fn new() -> TermAnalyzerBuilder {
-        TermAnalyzerBuilder {
-            enabled: [false; NUM_DIMENSIONS],
-            transforms: std::array::from_fn(|_| None),
-            stemmer: None,
-            lemmatizer: None,
-            tokenizer: WordTokenizer::new(),
-        }
-    }
-
-    /// Enables [`Dimension::Nfc`].
-    pub fn nfc(mut self) -> Self {
-        self.enabled[Dimension::Nfc.index()] = true;
-        self
-    }
-
-    /// Enables [`Dimension::Nfkc`].
-    pub fn nfkc(mut self) -> Self {
-        self.enabled[Dimension::Nfkc.index()] = true;
-        self
-    }
-
-    /// Enables [`Dimension::Whitespace`].
-    pub fn whitespace(mut self) -> Self {
-        self.enabled[Dimension::Whitespace.index()] = true;
-        self
-    }
-
-    /// Enables [`Dimension::Whitespace`] with a custom [`Normalizer`].
-    pub fn whitespace_with<N: Normalizer>(self, normalizer: N) -> Result<Self, TermError> {
-        self.transform(Dimension::Whitespace, normalizer)
-    }
-
-    /// Enables [`Dimension::Dash`].
-    pub fn dash(mut self) -> Self {
-        self.enabled[Dimension::Dash.index()] = true;
-        self
-    }
-
-    /// Enables [`Dimension::Dash`] with a custom [`Normalizer`].
-    pub fn dash_with<N: Normalizer>(self, normalizer: N) -> Result<Self, TermError> {
-        self.transform(Dimension::Dash, normalizer)
-    }
-
-    /// Enables [`Dimension::CaseFold`] (`Locale.ROOT` lowercasing).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TermError::BothCaseFolds`] if [`Dimension::FullCaseFold`] is
-    /// already configured.
-    pub fn case_fold(mut self) -> Result<Self, TermError> {
-        self.require_not_both_case_folds(Dimension::CaseFold)?;
-        self.enabled[Dimension::CaseFold.index()] = true;
-        Ok(self)
-    }
-
-    /// Enables [`Dimension::CaseFold`] using the given locale tag's case rules
-    /// (for example `"tr"` for Turkish dotted/dotless `i`).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TermError::BothCaseFolds`] if [`Dimension::FullCaseFold`] is
-    /// already configured.
-    pub fn case_fold_locale(self, locale_tag: &str) -> Result<Self, TermError> {
-        let primary = locale_tag.split(['-', '_']).next().unwrap_or("").trim().to_ascii_lowercase();
-        let turkic = matches!(primary.as_str(), "tr" | "tur" | "az" | "aze");
-        self.transform(Dimension::CaseFold, LocaleCaseFold { turkic })
-    }
-
-    /// Enables [`Dimension::FullCaseFold`], Unicode full case folding.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TermError::BothCaseFolds`] if [`Dimension::CaseFold`] is
-    /// already configured.
-    pub fn full_case_fold(mut self) -> Result<Self, TermError> {
-        self.require_not_both_case_folds(Dimension::FullCaseFold)?;
-        self.enabled[Dimension::FullCaseFold.index()] = true;
-        Ok(self)
-    }
-
-    fn require_not_both_case_folds(&self, adding: Dimension) -> Result<(), TermError> {
-        let other = if adding == Dimension::CaseFold { Dimension::FullCaseFold } else { Dimension::CaseFold };
-        if self.enabled[other.index()] {
-            return Err(TermError::BothCaseFolds);
-        }
-        Ok(())
-    }
-
-    /// Enables [`Dimension::AccentFold`].
-    pub fn accent_fold(mut self) -> Self {
-        self.enabled[Dimension::AccentFold.index()] = true;
-        self
-    }
-
-    /// Enables [`Dimension::AccentFold`] restricted to `scripts` and whether
-    /// stroke letters (`ø`, `ł`, `ß`, ...) are folded.
-    pub fn accent_fold_scripts(self, scripts: &[Script], fold_stroke_letters: bool) -> Self {
-        let strokes = if fold_stroke_letters { StrokeLetters::OpenNlp } else { StrokeLetters::Off };
-        let norm = AccentFold::for_scripts(scripts).with_stroke_letters(strokes);
-        self.transform(Dimension::AccentFold, norm).expect("AccentFold is a character-level dimension")
-    }
-
-    /// Enables [`Dimension::EmojiFold`].
-    pub fn emoji_fold(mut self) -> Self {
-        self.enabled[Dimension::EmojiFold.index()] = true;
-        self
-    }
-
-    /// Enables [`Dimension::ConfusableFold`].
-    pub fn confusable_fold(mut self) -> Self {
-        self.enabled[Dimension::ConfusableFold.index()] = true;
-        self
-    }
-
-    /// Enables a character-level `dimension` with a specific `normalizer`,
-    /// overriding its default.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TermError::NonCharacterTransform`] if `dimension` is
-    /// [`Dimension::Original`], [`Dimension::Stem`], or [`Dimension::Lemma`],
-    /// or [`TermError::BothCaseFolds`] if `dimension` is a case fold and the
-    /// other case fold is already configured.
-    pub fn transform<N: Normalizer>(mut self, dimension: Dimension, normalizer: N) -> Result<Self, TermError> {
-        if !dimension.is_character_level() {
-            return Err(TermError::NonCharacterTransform(dimension));
-        }
-        if matches!(dimension, Dimension::CaseFold | Dimension::FullCaseFold) {
-            self.require_not_both_case_folds(dimension)?;
-        }
-        self.transforms[dimension.index()] = Some(Box::new(normalizer));
-        self.enabled[dimension.index()] = true;
-        Ok(self)
-    }
-
-    /// Enables [`Dimension::Stem`] through `stemmer`.
-    pub fn stem<S: Stemmer + 'static>(mut self, stemmer: S) -> Self {
-        self.stemmer = Some(Box::new(stemmer));
-        self.enabled[Dimension::Stem.index()] = true;
-        self
-    }
-
-    /// Enables [`Dimension::Stem`] wrapped in a [`CachingStemmer`] with
-    /// [`CachingStemmer::DEFAULT_CAPACITY`] (`Builder.stem(StemmerFactory)`).
-    pub fn stem_cached<S: Stemmer + 'static>(self, stemmer: S) -> Self {
-        self.stem(CachingStemmer::new(stemmer))
-    }
-
-    /// Enables [`Dimension::Stem`] wrapped in a [`CachingStemmer`] with an
-    /// explicit `cache_size` (`Builder.stem(StemmerFactory, int)`).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TermError::InvalidCacheCapacity`] if `cache_size == 0`.
-    pub fn stem_cached_with_capacity<S: Stemmer + 'static>(
-        self,
-        stemmer: S,
-        cache_size: usize,
-    ) -> Result<Self, TermError> {
-        let cap = NonZeroUsize::new(cache_size).ok_or(TermError::InvalidCacheCapacity(cache_size))?;
-        Ok(self.stem(CachingStemmer::with_capacity(stemmer, cap)))
-    }
-
-    /// Enables [`Dimension::Lemma`] through `lemmatizer`.
-    pub fn lemmatize<L: TermLemmatizer + 'static>(mut self, lemmatizer: L) -> Self {
-        self.lemmatizer = Some(Box::new(lemmatizer));
-        self.enabled[Dimension::Lemma.index()] = true;
-        self
-    }
-
-    /// Sets the [`WordTokenizer`] used by [`TermAnalyzer::analyze`].
-    pub fn tokenizer(mut self, tokenizer: WordTokenizer) -> Self {
-        self.tokenizer = tokenizer;
-        self
-    }
-
-    /// Sets the maximum token length (in UTF-16 code units) of the tokenizer
-    /// used by [`TermAnalyzer::analyze`].
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TermError::InvalidMaxTokenLength`] if `max_token_length == 0`.
-    pub fn max_token_length(mut self, max_token_length: u32) -> Result<Self, TermError> {
-        let len = NonZeroU32::new(max_token_length).ok_or(TermError::InvalidMaxTokenLength(max_token_length))?;
-        self.tokenizer = WordTokenizer::with_max_token_length(len);
-        Ok(self)
-    }
-
-    /// Builds the immutable [`TermAnalyzer`].
-    pub fn build(self) -> TermAnalyzer {
-        let mut chain = Vec::new();
-        for dim in Dimension::ALL {
-            if dim != Dimension::Original && self.enabled[dim.index()] {
-                chain.push(dim);
-            }
-        }
-        let final_dimension = chain.last().copied().unwrap_or(Dimension::Original);
-        TermAnalyzer {
-            inner: Arc::new(TermAnalyzerInner {
-                chain,
-                final_dimension,
-                transforms: self.transforms,
-                stemmer: self.stemmer,
-                lemmatizer: self.lemmatizer,
-                tokenizer: self.tokenizer,
-            }),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Barrier;
-
-    use turbo_normalize::{ConfusableSkeleton, GermanUmlauts, Whitespace, WhitespaceMode, apply};
-
-    use super::*;
-    use crate::porter::PorterStemmer;
-    use crate::snowball::{SnowballAlgorithm, SnowballStemmer};
-
-    #[test]
-    fn dimension_exposes_character_defaults_and_none_for_token_dimensions() {
-        for dim in [
-            Dimension::Nfc,
-            Dimension::Nfkc,
-            Dimension::Whitespace,
-            Dimension::Dash,
-            Dimension::CaseFold,
-            Dimension::FullCaseFold,
-            Dimension::AccentFold,
-            Dimension::EmojiFold,
-            Dimension::ConfusableFold,
-        ] {
-            assert!(dim.is_character_level(), "{dim}");
-            assert!(dim.default_normalizer().is_some(), "{dim}");
-        }
-        for dim in [Dimension::Original, Dimension::Stem, Dimension::Lemma] {
-            assert!(!dim.is_character_level(), "{dim}");
-            assert!(dim.default_normalizer().is_none(), "{dim}");
-        }
-    }
-
-    #[test]
-    fn no_dimensions_leaves_token_unchanged() {
-        let analyzer = TermAnalyzer::builder().build();
-        let terms = analyzer.analyze("Hello").unwrap();
-        let term = &terms[0];
-        assert_eq!(term.original(), "Hello");
-        assert_eq!(term.normalized(), "Hello");
-        assert_eq!(term.peel(), "Hello");
-        assert!(analyzer.dimensions().is_empty());
-    }
-
-    #[test]
-    fn chain_applies_in_pipeline_order_regardless_of_builder_order() {
-        let analyzer = TermAnalyzer::builder().accent_fold().case_fold().unwrap().build();
-        assert_eq!(analyzer.dimensions(), &[Dimension::CaseFold, Dimension::AccentFold]);
-        let terms = analyzer.analyze("CAF\u{00C9}").unwrap();
-        let term = &terms[0];
-        assert_eq!(term.original(), "CAF\u{00C9}");
-        assert_eq!(term.normalized(), "cafe");
-        assert_eq!(term.peel(), "caf\u{00E9}");
-    }
-
-    #[test]
-    fn full_case_fold_orders_before_accent_fold_regardless_of_builder_order() {
-        let analyzer = TermAnalyzer::builder().accent_fold().full_case_fold().unwrap().build();
-        assert_eq!(analyzer.dimensions(), &[Dimension::FullCaseFold, Dimension::AccentFold]);
-        let terms = analyzer.analyze("CAF\u{00C9}").unwrap();
-        let term = &terms[0];
-        assert_eq!(term.normalized(), "cafe");
-        assert_eq!(term.peel(), "caf\u{00E9}");
-    }
-
-    #[test]
-    fn stem_is_the_top_layer_and_peel_returns_layer_below() {
-        let analyzer = TermAnalyzer::builder().case_fold().unwrap().stem(PorterStemmer).build();
-        let terms = analyzer.analyze("Running").unwrap();
-        let term = &terms[0];
-        assert_eq!(term.peel(), "running");
-        assert_eq!(term.normalized(), "run");
-        assert_eq!(term.at(Dimension::Stem).unwrap(), "run");
-    }
-
-    #[test]
-    fn unconfigured_char_dimension_is_computed_lazily_and_memoized() {
-        let analyzer = TermAnalyzer::builder().build();
-        let terms = analyzer.analyze("HELLO").unwrap();
-        let term = &terms[0];
-        assert_eq!(term.normalized(), "HELLO");
-        let first = term.at(Dimension::CaseFold).unwrap();
-        let second = term.at(Dimension::CaseFold).unwrap();
-        assert_eq!(first, "hello");
-        assert!(std::ptr::eq(first, second));
-    }
-
-    #[test]
-    fn stem_and_lemma_without_engines_fail_loudly() {
-        let analyzer = TermAnalyzer::builder().case_fold().unwrap().build();
-        let terms = analyzer.analyze("running").unwrap();
-        let term = &terms[0];
-        assert_eq!(term.at(Dimension::Stem), Err(TermError::MissingStemmer));
-        assert_eq!(term.at(Dimension::Lemma), Err(TermError::MissingLemmatizer));
-    }
-
-    #[test]
-    fn analyze_text_produces_spans_and_analyze_tokens_has_none() {
-        let analyzer = TermAnalyzer::builder().case_fold().unwrap().build();
-        let terms = analyzer.analyze("The Cats").unwrap();
-        assert_eq!(terms.len(), 2);
-        assert_eq!(terms[0].original(), "The");
-        assert_eq!(terms[0].normalized(), "the");
-        assert_eq!(terms[0].span(), Some(Span::new(0, 3)));
-        assert_eq!(terms[1].original(), "Cats");
-        assert_eq!(terms[1].span(), Some(Span::new(4, 8)));
-
-        let pre = analyzer.analyze_tagged(&["Cats"], &["NNS"]).unwrap();
-        assert_eq!(pre[0].span(), None);
-        assert_eq!(pre[0].normalized(), "cats");
-    }
-
-    #[test]
-    fn lemma_dimension_with_lemmatizer_and_error_cases() {
-        let analyzer = TermAnalyzer::builder()
-            .case_fold()
-            .unwrap()
-            .lemmatize(|tok: &str, tag: &str| if tok == "was" && tag == "VBD" { Some("be".to_owned()) } else { None })
-            .build();
-        // Fails fast on raw text even if empty.
-        assert_eq!(analyzer.analyze(""), Err(TermError::LemmaRequiresPosTagsInAnalyzeText));
-        assert_eq!(analyzer.analyze("was"), Err(TermError::LemmaRequiresPosTagsInAnalyzeText));
-
-        let terms = analyzer.analyze_tagged(&["was"], &["VBD"]).unwrap();
-        assert_eq!(terms[0].normalized(), "be");
-
-        // Missing POS tag fails loudly.
-        assert_eq!(
-            analyzer.analyze_tokens(&["was"], &[None]).unwrap_err(),
-            TermError::MissingPosTag { token: "was".to_owned() }
-        );
-        // Lemmatizer returning None fails loudly instead of looping.
-        assert_eq!(
-            analyzer.analyze_tagged(&["unknown"], &["NN"]).unwrap_err(),
-            TermError::EmptyLemma { token: "unknown".to_owned() }
-        );
-    }
-
-    #[test]
-    fn builder_guards_and_options_match_opennlp() {
-        assert_eq!(TermAnalyzer::builder().case_fold().unwrap().full_case_fold().err(), Some(TermError::BothCaseFolds));
-        assert_eq!(TermAnalyzer::builder().full_case_fold().unwrap().case_fold().err(), Some(TermError::BothCaseFolds));
-        assert_eq!(
-            TermAnalyzer::builder().full_case_fold().unwrap().case_fold_locale("tr").err(),
-            Some(TermError::BothCaseFolds)
-        );
-        assert_eq!(
-            TermAnalyzer::builder().transform(Dimension::Stem, CaseFold::lowercase()).err(),
-            Some(TermError::NonCharacterTransform(Dimension::Stem))
-        );
-        assert_eq!(TermAnalyzer::builder().max_token_length(0).err(), Some(TermError::InvalidMaxTokenLength(0)));
-        assert_eq!(
-            TermAnalyzer::builder()
-                .stem_cached_with_capacity(SnowballStemmer::new(SnowballAlgorithm::English), 0)
-                .err(),
-            Some(TermError::InvalidCacheCapacity(0))
-        );
-    }
-
-    #[test]
-    fn multilingual_and_character_dimension_behaviors_match_opennlp() {
-        // German umlauts fold to digraphs.
-        let german = TermAnalyzer::builder()
-            .case_fold()
-            .unwrap()
-            .transform(Dimension::AccentFold, GermanUmlauts::new())
-            .unwrap()
-            .build();
-        assert_eq!(german.analyze("GR\u{00DC}\u{00DF}E").unwrap()[0].normalized(), "gruesse");
-        assert_eq!(german.analyze("\u{00DC}ber").unwrap()[0].normalized(), "ueber");
-
-        // Generic accent fold strips Romance diacritics.
-        let romance = TermAnalyzer::builder().case_fold().unwrap().accent_fold().build();
-        assert_eq!(romance.analyze("\u{00C9}l\u{00E8}ve").unwrap()[0].normalized(), "eleve");
-        assert_eq!(romance.analyze("Ni\u{00F1}o").unwrap()[0].normalized(), "nino");
-        assert_eq!(romance.analyze("Canci\u{00F3}n").unwrap()[0].normalized(), "cancion");
-
-        // Cyrillic case fold.
-        let cyrillic = TermAnalyzer::builder().case_fold().unwrap().build();
-        assert_eq!(
-            cyrillic.analyze("\u{041C}\u{041E}\u{0421}\u{041A}\u{0412}\u{0410}").unwrap()[0].normalized(),
-            "\u{043C}\u{043E}\u{0441}\u{043A}\u{0432}\u{0430}"
-        );
-
-        // Fullwidth A under NFKC + caseFold.
-        let nfkc = TermAnalyzer::builder().nfkc().case_fold().unwrap().build();
-        assert_eq!(nfkc.analyze("\u{FF21}").unwrap()[0].normalized(), "a");
-
-        // Kanji unchanged under NFC.
-        let nfc = TermAnalyzer::builder().nfc().build();
-        assert_eq!(nfc.analyze("\u{6771}").unwrap()[0].normalized(), "\u{6771}");
-
-        // Confusable fold composes with case fold.
-        let confusable = TermAnalyzer::builder().case_fold().unwrap().confusable_fold().build();
-        let spoof = "P\u{0430}yp\u{0430}l";
-        assert_eq!(confusable.analyze(spoof).unwrap()[0].normalized(), apply(&ConfusableSkeleton, "paypal"));
-
-        // Turkish locale case fold maps I to dotless i (U+0131).
-        let tr = TermAnalyzer::builder().case_fold_locale("tr").unwrap().build();
-        assert_eq!(tr.analyze("I").unwrap()[0].normalized(), "\u{0131}");
-
-        // Accent fold restricted to Latin without stroke letters.
-        let lat_only = TermAnalyzer::builder().accent_fold_scripts(&[Script::Latin], false).build();
-        assert_eq!(lat_only.analyze("caf\u{00E9}").unwrap()[0].normalized(), "cafe");
-
-        // Custom whitespace normalizer.
-        let ws =
-            TermAnalyzer::builder().whitespace_with(Whitespace::new(WhitespaceMode::KeepLineBreaks)).unwrap().build();
-        assert_eq!(ws.analyze_tagged(&["a\n\n\tb"], &["X"]).unwrap()[0].normalized(), "a\nb");
-
-        // Full case fold expands sharp s.
-        let full = TermAnalyzer::builder().full_case_fold().unwrap().build();
-        let term = &full.analyze("Ma\u{00DF}e").unwrap()[0];
-        assert_eq!(term.normalized(), "masse");
-        assert_eq!(term.at(Dimension::FullCaseFold).unwrap(), "masse");
-
-        // Emoji fold layers emoticon on token.
-        let emoji = TermAnalyzer::builder().emoji_fold().build();
-        let grin = &emoji.analyze("\u{1F600}").unwrap()[0];
-        assert_eq!(grin.at(Dimension::EmojiFold).unwrap(), ":D");
-        assert_eq!(grin.at(Dimension::Original).unwrap(), "\u{1F600}");
-        assert_eq!(emoji.analyze("hello").unwrap()[0].at(Dimension::EmojiFold).unwrap(), "hello");
-
-        // Max token length chops tokens in UTF-16 units.
-        let chopped = TermAnalyzer::builder().max_token_length(3).unwrap().build();
-        let parts = chopped.analyze("abcdefg").unwrap();
-        let originals: Vec<&str> = parts.iter().map(Term::original).collect();
-        assert_eq!(originals, ["abc", "def", "g"]);
-    }
-
-    #[test]
-    fn concurrent_lazy_access_returns_same_cached_slice() {
-        let analyzer = TermAnalyzer::builder().build();
-        let term = Arc::new(analyzer.analyze("HELLO").unwrap().into_iter().next().unwrap());
-        let threads = 8;
-        let barrier = Arc::new(Barrier::new(threads));
-        let mut handles = Vec::with_capacity(threads);
-        for _ in 0..threads {
-            let t = Arc::clone(&term);
-            let b = Arc::clone(&barrier);
-            handles.push(std::thread::spawn(move || {
-                b.wait();
-                let s = t.at(Dimension::CaseFold).unwrap();
-                (s.to_owned(), s.as_ptr() as usize)
-            }));
-        }
-        let first = handles.remove(0).join().unwrap();
-        assert_eq!(first.0, "hello");
-        for h in handles {
-            let res = h.join().unwrap();
-            assert_eq!(res, first);
-        }
+        CaseFold::lowercase().normalize(text, out);
     }
 }

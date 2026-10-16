@@ -145,7 +145,15 @@ pub(crate) fn words<'d>(
             detail: format!("{} tags for {} tokens", tags.tags.len(), starts.len()),
         });
     }
-    Ok(starts.iter().zip(ends).map(|(&s, &e)| &text[s as usize..e as usize]).collect())
+    let mut words = Vec::with_capacity(starts.len());
+    for (i, (&s, &e)) in starts.iter().zip(ends).enumerate() {
+        let word = (s <= e).then(|| text.get(s as usize..e as usize)).flatten().ok_or_else(|| Error::Annotator {
+            annotator,
+            detail: format!("token {i} span {s}..{e} is not a valid slice of a {}-byte view", text.len()),
+        })?;
+        words.push(word);
+    }
+    Ok(words)
 }
 
 impl Annotator for MaxentLemmatizer {
