@@ -38,8 +38,8 @@
 //! - `Math.max` and `Math.min` with Java's NaN and signed zero rules.
 //!
 //! liblinear-java calls `Math.exp` and `Math.log`, which HotSpot computes
-//! with its own routines. `log` here is `turbo_jvm::math::log`, correctly
-//! rounded, which matched HotSpot's on every argument sampled; `exp` is
+//! with its own routines. `log` here is fdlibm's (`turbo_jvm::strict_math`),
+//! which differs from HotSpot's in the last bit on some arguments; `exp` is
 //! the platform's `f64::exp`, which HotSpot's `Math.exp` (not correctly
 //! rounded, and not portable here) differs from in the last bit on a few
 //! arguments in a thousand. A difference in the last bit can grow through
@@ -104,14 +104,15 @@ pub(crate) fn exp(x: f64) -> f64 {
     x.exp()
 }
 
-/// `Math.log` as liblinear-java calls it: correctly rounded, as HotSpot's
-/// is on every argument compared. It costs some 0.8 microseconds a call:
-/// once per instance per function value in the Newton method and in
-/// newGLMNET's line search, and at every inner step of the dual solver,
-/// where it takes most of the training time.
+/// `Math.log` as liblinear-java calls it, through fdlibm's logarithm
+/// (`StrictMath.log`), which differs from HotSpot's `Math.log` in the
+/// last bit on some arguments but gives the same result on every
+/// platform. The correctly rounded `turbo_jvm::math::log` matches HotSpot
+/// more often but is some 60 times slower, and the dual solver takes a
+/// logarithm at every inner step.
 #[inline]
 pub(crate) fn log(x: f64) -> f64 {
-    turbo_jvm::math::log(x)
+    turbo_jvm::strict_math::log(x)
 }
 
 /// liblinear-java's `SolverType`, by its constant names.
