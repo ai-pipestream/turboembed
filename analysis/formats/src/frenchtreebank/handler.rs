@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use turbo_analysis::Span;
 use turbo_maxent::xml::{Attribute, Handler, Names, parse_with};
-use turbo_parser::{Parse, TOK_NODE, TOP_NODE};
+use turbo_parser::{Parse, TOK_NODE, TOP_NODE, TreeBuilder};
 
 use super::{ConstitParse, FtbError};
 
@@ -117,7 +117,10 @@ impl ConstitHandler<'_> {
     /// The parse of the sentence just ended.
     fn finish_sentence(&mut self, end: usize) {
         let text: Arc<str> = std::mem::take(&mut self.text).into();
-        let mut parse = Parse::new(Arc::clone(&text), Span::new(0, text.len() as u32), TOP_NODE, 1.0, 0);
+        // The nodes come as the elements close them, which the builder
+        // inserts in time linear in their number.
+        let mut parse =
+            TreeBuilder::new(Parse::new(Arc::clone(&text), Span::new(0, text.len() as u32), TOP_NODE, 1.0, 0));
         let source = Span::new(self.sentence_start, end as u32);
         let mut token_index = -1i32;
         for node in self.nodes.drain(..) {
@@ -132,7 +135,7 @@ impl ConstitHandler<'_> {
                 self.error.get_or_insert(FtbError::Parse { sentence: source, error });
             }
         }
-        self.parses.push(ConstitParse { parse, source, tokens: std::mem::take(&mut self.tokens) });
+        self.parses.push(ConstitParse { parse: parse.finish(), source, tokens: std::mem::take(&mut self.tokens) });
     }
 }
 

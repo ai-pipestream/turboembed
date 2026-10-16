@@ -258,6 +258,59 @@ pub struct TokenSource {
     pub label: Span,
 }
 
+/// Builds a tree by inserting constituents into its root as [`Parse::insert`] does, in less time
+/// when they come in the order a bracketed tree closes them: each after the constituents inside it
+/// and after those to its left.
+///
+/// `insert` looks at every child of the root for each constituent, so a flat sentence of `n`
+/// tokens takes time in `n` squared. While the constituents come in that order, the root's
+/// children are sorted, do not overlap and are not empty, and a new constituent that ends at or
+/// after the last child and starts at or after the end of the child before the first one it
+/// covers takes the children from that one on and goes last, which is what `insert` does with
+/// it. The builder finds that child by binary search and checks the conditions; the first
+/// constituent that does not meet them, and every one after it, goes through `insert`.
+#[derive(Debug)]
+pub struct TreeBuilder {
+    root: Parse,
+    ordered: bool,
+}
+
+impl TreeBuilder {
+    /// A builder over `root`, which has no children.
+    pub fn new(root: Parse) -> TreeBuilder {
+        let ordered = root.parts.is_empty();
+        TreeBuilder { root, ordered }
+    }
+
+    /// Inserts `constituent` into the tree, as [`Parse::insert`] does.
+    pub fn insert(&mut self, mut constituent: Parse) -> Result<(), ParseError> {
+        let ic = constituent.span;
+        if self.ordered && ic.start < ic.end && self.root.span.contains(ic) {
+            let parts = &mut self.root.parts;
+            let first = parts.partition_point(|p| p.span.start < ic.start);
+            let after_left = first == 0 || parts[first - 1].span.end <= ic.start;
+            let covers_rest = parts.last().is_none_or(|p| p.span.end <= ic.end);
+            if after_left && covers_rest {
+                if !self.root.text.is_char_boundary(ic.start as usize)
+                    || !self.root.text.is_char_boundary(ic.end as usize)
+                {
+                    return Err(ParseError::NotCharBoundary { span: ic });
+                }
+                constituent.parts.extend(parts.drain(first..));
+                parts.push(constituent);
+                return Ok(());
+            }
+        }
+        self.ordered = false;
+        self.root.insert(constituent)
+    }
+
+    /// The tree.
+    pub fn finish(self) -> Parse {
+        self.root
+    }
+}
+
 /// A constituency parse node (`opennlp.tools.parser.Parse`).
 ///
 /// All nodes in the same sentence share an `Arc<str>` holding the space-joined sentence text, and
@@ -338,14 +391,15 @@ impl Parse {
             text.push_str(tok.as_ref());
         }
         let text: Arc<str> = text.into();
-        let mut root = Parse::new(Arc::clone(&text), Span::new(0, text.len() as u32), INC_NODE, 0.0, 0);
+        let mut root =
+            TreeBuilder::new(Parse::new(Arc::clone(&text), Span::new(0, text.len() as u32), INC_NODE, 0.0, 0));
         let mut start = 0u32;
         for (i, tok) in tokens.iter().enumerate() {
             let len = tok.as_ref().len() as u32;
             root.insert(Parse::new(Arc::clone(&text), Span::new(start, start + len), TOK_NODE, 0.0, i as i32))?;
             start += len + 1;
         }
-        Ok(root)
+        Ok(root.finish())
     }
 
     /// Reads a Penn Treebank bracketed parse string without function tags or gap labeling
@@ -407,12 +461,13 @@ impl Parse {
     ) -> Result<Parse, ParseError> {
         let mut text = String::new();
         let mut offset = 0u32;
+        let mut types = TypeScan::default();
         let mut stack: Vec<Constituent<'_>> = Vec::new();
         let mut cons: Vec<Constituent<'_>> = Vec::new();
         for (ci, &c) in input.as_bytes().iter().enumerate() {
             if c == b'(' {
                 let rest = &input[ci + 1..];
-                let kind = java_type(rest, use_function_tags);
+                let kind = types.kind(input, ci + 1, use_function_tags);
                 let token = java_token(rest);
                 stack.push(Constituent::new(kind.map(Cow::Borrowed), Span::new(offset, offset)));
                 if let Some(token) = token {
@@ -449,17 +504,17 @@ impl Parse {
 
         let txt: Arc<str> = text.into();
         let mut token_index = -1i32;
-        let mut p = Parse::new(Arc::clone(&txt), Span::new(0, txt.len() as u32), TOP_NODE, 1.0, 0);
+        let mut tree = TreeBuilder::new(Parse::new(Arc::clone(&txt), Span::new(0, txt.len() as u32), TOP_NODE, 1.0, 0));
         for con in cons {
             let kind = con.label.ok_or(ParseError::MissingType { byte_offset: input.len() })?;
             if kind != TOP_NODE {
                 if kind == TOK_NODE {
                     token_index += 1;
                 }
-                p.insert(Parse::new(Arc::clone(&txt), con.span, kind.into_owned(), 1.0, token_index))?;
+                tree.insert(Parse::new(Arc::clone(&txt), con.span, kind.into_owned(), 1.0, token_index))?;
             }
         }
-        Ok(p)
+        Ok(tree.finish())
     }
 
     /// Inserts `constituent` into this parse tree based on its text span (`Parse.insert`).
@@ -1094,10 +1149,59 @@ impl fmt::Display for Parse {
     }
 }
 
+/// [`java_type`] for the text after each `(` of an input in turn, in time linear in the input.
+///
+/// The type ends at the first space, `=` or `-` after the `(`, so the types of the brackets of
+/// `((((x` each run to the end; looking for that character again for each `(` takes time in the
+/// square of the input's length, as Java's regular expression does. The scan keeps the first such
+/// character at or after the last place it looked, which is the first at or after any later place
+/// up to it, and the same for the function tag after a `-`.
+#[derive(Default)]
+struct TypeScan {
+    stop: usize,
+    tag_stop: usize,
+}
+
+impl TypeScan {
+    /// The first byte at or after `from` that ends a type, or the input's length.
+    fn next_stop(bytes: &[u8], from: usize) -> usize {
+        from + bytes[from..].iter().position(|&b| matches!(b, b' ' | b'=' | b'-')).unwrap_or(bytes.len() - from)
+    }
+
+    /// `java_type(&input[at..], use_function_tags)`, for `at` that never goes down between calls.
+    fn kind<'a>(&mut self, input: &'a str, at: usize, use_function_tags: bool) -> Option<&'a str> {
+        let rest = &input[at..];
+        if let Some(escaped) = ESCAPED_TYPES.iter().find(|t| rest.starts_with(**t)) {
+            return Some(escaped);
+        }
+        let bytes = input.as_bytes();
+        if self.stop < at {
+            self.stop = Self::next_stop(bytes, at);
+        }
+        let n = self.stop - at;
+        if n == 0 {
+            return None;
+        }
+        if use_function_tags && bytes.get(self.stop) == Some(&b'-') {
+            let from = self.stop + 1;
+            if self.tag_stop < from {
+                self.tag_stop = Self::next_stop(bytes, from);
+            }
+            let m = self.tag_stop - from;
+            if m > 0 {
+                return Some(&rest[..n + 1 + m]);
+            }
+        }
+        Some(&rest[..n])
+    }
+}
+
 /// `Parse.getType(rest)` for the text after a `(`: an escaped bracket type or `-NONE-` when the
 /// text starts with one, otherwise the leading run of characters other than space, `=` and `-`
 /// (`^([^ =-]+)`), and with function tags the first tag after it (`^[^ =-]+-([^ =-]+)`). The
-/// type is always a prefix of `rest`, so it is returned as a slice of it.
+/// type is always a prefix of `rest`, so it is returned as a slice of it. [`TypeScan`] gives the
+/// same for each `(` of an input in turn.
+#[cfg(test)]
 fn java_type(rest: &str, use_function_tags: bool) -> Option<&str> {
     if let Some(escaped) = ESCAPED_TYPES.iter().find(|t| rest.starts_with(**t)) {
         return Some(escaped);
@@ -1152,5 +1256,46 @@ impl TagPath {
     /// The path of the node's parent.
     fn parent(&self) -> &[usize] {
         &self.path[..self.path.len() - 1]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_type_scan_matches_java_type_at_every_bracket() {
+        let inputs = [
+            "(TOP (S (NP-SBJ-1 (NNP A)) (VP (VB b))))",
+            "((((((x y",
+            "(A-((((B-C= (-LRB- -LRB-) (-NONE-1 *) (=X) (-Y) (A--B) (A-",
+            "(NP-SBJ=2 (WHNP-1 x)) ( (S (A b)))",
+        ];
+        for input in inputs {
+            for tags in [false, true] {
+                let mut scan = TypeScan::default();
+                for (ci, _) in input.match_indices('(') {
+                    assert_eq!(scan.kind(input, ci + 1, tags), java_type(&input[ci + 1..], tags), "{input} at {ci}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_tree_builder_matches_insert() {
+        let text: Arc<str> = "a b c d e ".into();
+        let spans = [(0, 1), (2, 3), (0, 3), (0, 3), (4, 5), (6, 7), (4, 7), (8, 9), (0, 9), (3, 5), (8, 9), (8, 9)];
+        let root = || Parse::new(Arc::clone(&text), Span::new(0, 10), TOP_NODE, 1.0, 0);
+        let mut slow = root();
+        let mut fast = TreeBuilder::new(root());
+        for (i, (s, e)) in spans.into_iter().enumerate() {
+            let node = || Parse::new(Arc::clone(&text), Span::new(s, e), format!("N{i}"), 1.0, i as i32);
+            slow.insert(node()).unwrap();
+            fast.insert(node()).unwrap();
+            let (mut a, mut b) = (String::new(), String::new());
+            slow.show(&mut a);
+            fast.root.show(&mut b);
+            assert_eq!(a, b, "after {i}");
+        }
     }
 }

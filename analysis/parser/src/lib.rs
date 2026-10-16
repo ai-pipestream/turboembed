@@ -29,7 +29,7 @@ pub use head_rules::{
 };
 pub use parse::{
     BRACKET_LCB, BRACKET_LRB, BRACKET_LSB, BRACKET_RCB, BRACKET_RRB, BRACKET_RSB, COMPLETE, CONT, Constituent, Head,
-    INC_NODE, INCOMPLETE, OTHER, Parse, ParseError, START, TOK_NODE, TOP_NODE, TokenSource, decode_token, encode_token,
-    space_untokenized_parens,
+    INC_NODE, INCOMPLETE, OTHER, Parse, ParseError, START, TOK_NODE, TOP_NODE, TokenSource, TreeBuilder, decode_token,
+    encode_token, space_untokenized_parens,
 };
 pub use stream::{ParseSampleStream, ParserChunkSample, ParserPosSample};
