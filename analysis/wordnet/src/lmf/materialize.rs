@@ -210,6 +210,15 @@ impl<'a> Materializer<'a> {
                 if rel.rel_type == OTHER_RELATION {
                     continue;
                 }
+                if rel.target == sense.id {
+                    return Err(self.fail(
+                        Some(rel.line),
+                        format!(
+                            "SenseRelation {} at line {} from sense {} targets its own sense",
+                            rel.rel_type, rel.line, sense.id
+                        ),
+                    ));
+                }
                 let Some(target_sense) = self.lexicon.senses.get(&rel.target) else {
                     return Err(self.fail(
                         Some(rel.line),
@@ -226,6 +235,14 @@ impl<'a> Materializer<'a> {
         let mut typed: BTreeMap<WordNetRelation, Vec<String>> = BTreeMap::new();
         for (rel_type, target_id, line, sense_relation) in combined {
             let rel_enum = self.parse_relation(rel_type, raw.pos, line, sense_relation)?;
+            // A sense relation between two senses of one synset projects onto that synset and is
+            // kept; a synset relation naming its own synset is malformed.
+            if !sense_relation && target_id == raw.id {
+                return Err(self.fail(
+                    Some(line),
+                    format!("Relation {rel_type} at line {line} on synset {} targets its own synset", raw.id),
+                ));
+            }
             let Some(target) = self.lexicon.synsets.get(target_id) else {
                 return Err(self.fail(
                     Some(line),
@@ -244,19 +261,10 @@ impl<'a> Materializer<'a> {
     }
 
     fn member_lemmas(&self, raw: &RawSynset, senses: &[&RawSense]) -> Result<Vec<String>, WordNetError> {
-        let mut member_ids: Vec<&str> = Vec::new();
-        if let Some(ref members) = raw.members {
-            if !members.is_empty() {
-                member_ids.extend(split_on_spaces(members));
-            } else {
-                for sense in senses {
-                    member_ids.push(&sense.entry_id);
-                }
-            }
-        } else {
-            for sense in senses {
-                member_ids.push(&sense.entry_id);
-            }
+        // An absent, empty, or blank `members` attribute defaults to the synset's senses.
+        let mut member_ids: Vec<&str> = raw.members.as_deref().map(split_on_spaces).unwrap_or_default();
+        if member_ids.is_empty() {
+            member_ids.extend(senses.iter().map(|sense| sense.entry_id.as_str()));
         }
         for extra in &raw.extra_members {
             member_ids.push(extra);
@@ -356,5 +364,116 @@ fn pos_upper_name(pos: WordNetPos) -> &'static str {
         WordNetPos::Verb => "VERB",
         WordNetPos::Adjective => "ADJECTIVE",
         WordNetPos::Adverb => "ADVERB",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::super::{WnLmfReader, cat_lexicon, wrap_lexicon};
+    use super::*;
+    use crate::lexicon::LexicalKnowledgeBase;
+
+    fn read(doc: &str) -> Result<InMemoryWordNetLexicon, WordNetError> {
+        WnLmfReader::read_named(Cursor::new(doc.as_bytes()), "test.xml")
+    }
+
+    fn assert_err_contains(result: Result<impl std::fmt::Debug, WordNetError>, fragment: &str) {
+        let err = result.expect_err("expected a parse error");
+        assert!(err.to_string().contains(fragment), "expected '{fragment}' in '{err}'");
+    }
+
+    const TWO_CATS: &str = "<LexicalEntry id=\"t-cat-n\"><Lemma writtenForm=\"cat\" partOfSpeech=\"n\"/>\
+         <Sense id=\"t-cat-n-1\" synset=\"t-1\"/></LexicalEntry>\
+         <LexicalEntry id=\"t-feline-n\"><Lemma writtenForm=\"feline\" partOfSpeech=\"n\"/>\
+         <Sense id=\"t-feline-n-1\" synset=\"t-1\"/></LexicalEntry>";
+
+    #[test]
+    fn a_synset_relation_to_its_own_synset_is_rejected() {
+        assert_err_contains(
+            read(&cat_lexicon("", "<SynsetRelation relType=\"hypernym\" target=\"t-1\"/>")),
+            "Relation hypernym at line 4 on synset t-1 targets its own synset",
+        );
+    }
+
+    #[test]
+    fn a_sense_relation_to_its_own_sense_is_rejected() {
+        let doc = wrap_lexicon(
+            "<LexicalEntry id=\"t-cat-n\"><Lemma writtenForm=\"cat\" partOfSpeech=\"n\"/>\
+             <Sense id=\"t-cat-n-1\" synset=\"t-1\"><SenseRelation relType=\"antonym\" target=\"t-cat-n-1\"/></Sense>\
+             </LexicalEntry><Synset id=\"t-1\" partOfSpeech=\"n\"/>",
+        );
+        assert_err_contains(read(&doc), "SenseRelation antonym at line 4 from sense t-cat-n-1 targets its own sense");
+    }
+
+    #[test]
+    fn a_sense_relation_between_two_senses_of_one_synset_is_kept() {
+        let doc = wrap_lexicon(&format!(
+            "{}<Synset id=\"t-1\" partOfSpeech=\"n\"/>",
+            TWO_CATS.replace(
+                "<Sense id=\"t-cat-n-1\" synset=\"t-1\"/>",
+                "<Sense id=\"t-cat-n-1\" synset=\"t-1\"><SenseRelation relType=\"derivation\" target=\"t-feline-n-1\"/></Sense>",
+            )
+        ));
+        let kb = read(&doc).unwrap();
+        assert_eq!(&["t-1"], kb.related("t-1", WordNetRelation::DerivationallyRelated));
+    }
+
+    #[test]
+    fn members_default_to_the_senses_when_the_attribute_is_absent_empty_or_blank() {
+        for attrs in ["", " members=\"\"", " members=\" \"", " members=\"&#32;&#x20;\""] {
+            let kb = read(&wrap_lexicon(&format!("{TWO_CATS}<Synset id=\"t-1\" partOfSpeech=\"n\"{attrs}/>")))
+                .unwrap_or_else(|e| panic!("members attrs {attrs:?}: {e}"));
+            assert_eq!(&["cat", "feline"], kb.synset("t-1").unwrap().lemmas(), "{attrs:?}");
+        }
+    }
+
+    #[test]
+    fn explicit_members_set_the_lemma_order_and_may_name_entries_or_senses() {
+        for members in ["t-feline-n-1 t-cat-n-1", "t-feline-n t-cat-n", "t-feline-n-1 t-cat-n t-feline-n"] {
+            let kb = read(&wrap_lexicon(&format!(
+                "{TWO_CATS}<Synset id=\"t-1\" partOfSpeech=\"n\" members=\"{members}\"/>"
+            )))
+            .unwrap_or_else(|e| panic!("{members}: {e}"));
+            assert_eq!(&["feline", "cat"], kb.synset("t-1").unwrap().lemmas(), "{members}");
+        }
+    }
+
+    #[test]
+    fn dangling_and_mismatched_references_are_rejected() {
+        assert_err_contains(
+            read(&wrap_lexicon(&format!("{TWO_CATS}<Synset id=\"t-1\" partOfSpeech=\"n\" members=\"t-cat-n-1\"/>"))),
+            "Sense t-feline-n-1 at line 4 has lemma feline missing from members of synset t-1",
+        );
+        assert_err_contains(
+            read(&wrap_lexicon(&format!("{TWO_CATS}<Synset id=\"t-1\" partOfSpeech=\"n\" members=\"t-ghost\"/>"))),
+            "lists undeclared member sense or entry t-ghost",
+        );
+        assert_err_contains(
+            read(&cat_lexicon("", "<SynsetRelation relType=\"hypernym\" target=\"t-ghost\"/>")),
+            "references undeclared synset t-ghost",
+        );
+        assert_err_contains(
+            read(&cat_lexicon("", "").replace("synset=\"t-1\"", "synset=\"t-ghost\"")),
+            "Sense t-cat-n-1 at line 4 references undeclared synset t-ghost",
+        );
+        assert_err_contains(
+            read(&cat_lexicon("", "<SynsetRelation relType=\"derivation\" target=\"t-1\"/>")),
+            "Relation type derivation is not legal on SynsetRelation",
+        );
+    }
+
+    #[test]
+    fn relation_cycles_between_distinct_synsets_are_kept() {
+        let doc = wrap_lexicon(
+            "<LexicalEntry id=\"t-a-n\"><Lemma writtenForm=\"a\" partOfSpeech=\"n\"/>\
+             <Sense id=\"t-a-n-1\" synset=\"t-1\"/><Sense id=\"t-a-n-2\" synset=\"t-2\"/></LexicalEntry>\
+             <Synset id=\"t-1\" partOfSpeech=\"n\"><SynsetRelation relType=\"hypernym\" target=\"t-2\"/></Synset>\
+             <Synset id=\"t-2\" partOfSpeech=\"n\"><SynsetRelation relType=\"hypernym\" target=\"t-1\"/></Synset>",
+        );
+        let kb = read(&doc).unwrap();
+        assert_eq!(&["t-2"], kb.related("t-1", WordNetRelation::Hypernym));
+        assert_eq!(&["t-1"], kb.related("t-2", WordNetRelation::Hypernym));
     }
 }

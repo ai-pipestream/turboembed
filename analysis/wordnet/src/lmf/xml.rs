@@ -21,20 +21,23 @@ pub(super) struct XmlAttr {
 #[derive(Debug, Clone)]
 pub(super) enum XmlEvent {
     Start { namespace_uri: String, local_name: String, attrs: Vec<XmlAttr>, line: usize },
-    End { namespace_uri: String, local_name: String, line: usize },
+    End { local_name: String, line: usize },
     Text(String),
     Eof { line: usize },
 }
 
-type XmlElementFrame = (String, String, String, Vec<(String, String)>);
+/// `(raw_qname, local_name, namespace_bindings)` of an open element.
+type XmlElementFrame = (String, String, Vec<(String, String)>);
 
 pub(super) struct XmlPullParser<'a> {
     input: &'a str,
     resource_name: &'a str,
     pos: usize,
     line: usize,
-    pending_end: Option<(String, String, usize)>,
+    pending_end: Option<(String, usize)>,
     element_stack: Vec<XmlElementFrame>,
+    root_seen: bool,
+    doctype_seen: bool,
 }
 
 impl<'a> XmlPullParser<'a> {
@@ -43,7 +46,16 @@ impl<'a> XmlPullParser<'a> {
         if input.starts_with('\u{feff}') {
             pos = '\u{feff}'.len_utf8();
         }
-        Self { input, resource_name, pos, line: 1, pending_end: None, element_stack: Vec::new() }
+        Self {
+            input,
+            resource_name,
+            pos,
+            line: 1,
+            pending_end: None,
+            element_stack: Vec::new(),
+            root_seen: false,
+            doctype_seen: false,
+        }
     }
 
     fn err(&self, line: usize, msg: impl AsRef<str>) -> WordNetError {
@@ -64,7 +76,7 @@ impl<'a> XmlPullParser<'a> {
         if prefix == "xml" {
             return Some(XML_NAMESPACE.to_string());
         }
-        for (_, _, _, bindings) in self.element_stack.iter().rev() {
+        for (_, _, bindings) in self.element_stack.iter().rev() {
             for (k, v) in bindings.iter().rev() {
                 if k == prefix {
                     return Some(v.clone());
@@ -75,14 +87,14 @@ impl<'a> XmlPullParser<'a> {
     }
 
     pub(super) fn next_event(&mut self) -> Result<XmlEvent, WordNetError> {
-        if let Some((ns, local, line)) = self.pending_end.take() {
-            return Ok(XmlEvent::End { namespace_uri: ns, local_name: local, line });
+        if let Some((local, line)) = self.pending_end.take() {
+            return Ok(XmlEvent::End { local_name: local, line });
         }
 
         let bytes = self.input.as_bytes();
         loop {
             if self.pos >= bytes.len() {
-                if let Some((raw_qname, _, _, _)) = self.element_stack.last() {
+                if let Some((raw_qname, _, _)) = self.element_stack.last() {
                     return Err(self.err(self.line, format!("Unclosed XML element <{raw_qname}> at end of stream")));
                 }
                 return Ok(XmlEvent::Eof { line: self.line });
@@ -135,9 +147,12 @@ impl<'a> XmlPullParser<'a> {
                 self.advance(9 + end + 3);
                 return Ok(XmlEvent::Text(cdata));
             }
-            if rem.starts_with("<!DOCTYPE") || rem.starts_with("<!") {
-                self.skip_doctype_or_decl(tag_line)?;
+            if rem.starts_with("<!DOCTYPE") {
+                self.skip_doctype(tag_line)?;
                 continue;
+            }
+            if rem.starts_with("<!") {
+                return Err(self.err(tag_line, format!("Unexpected markup declaration '{}'", declaration_keyword(rem))));
             }
             if rem.starts_with("</") {
                 return self.parse_end_tag(tag_line);
@@ -146,10 +161,20 @@ impl<'a> XmlPullParser<'a> {
         }
     }
 
-    fn skip_doctype_or_decl(&mut self, start_line: usize) -> Result<(), WordNetError> {
+    /// Skips a `<!DOCTYPE ...>` without reading it. Only one is legal, before the root element.
+    /// Inside the internal subset, quoted literals, comments, and processing instructions are
+    /// opaque, so a `]`, `>`, or quote inside them does not end the declaration.
+    fn skip_doctype(&mut self, start_line: usize) -> Result<(), WordNetError> {
+        if self.root_seen {
+            return Err(self.err(start_line, "DOCTYPE after the root element"));
+        }
+        if self.doctype_seen {
+            return Err(self.err(start_line, "Repeated DOCTYPE"));
+        }
+        self.doctype_seen = true;
         let bytes = self.input.as_bytes();
-        self.advance(2); // skip "<!"
-        let mut bracket_depth = 0usize;
+        self.advance("<!DOCTYPE".len());
+        let mut in_subset = false;
         let mut quote: Option<u8> = None;
         while self.pos < bytes.len() {
             let b = bytes[self.pos];
@@ -160,27 +185,31 @@ impl<'a> XmlPullParser<'a> {
                 self.advance(1);
                 continue;
             }
+            // `pos` may sit inside a multibyte character here; only slice at an ASCII `<`.
+            let rem = if in_subset && b == b'<' { &self.input[self.pos..] } else { "" };
+            if let Some(comment) = rem.strip_prefix("<!--") {
+                let line = self.line;
+                let end = comment.find("-->").ok_or_else(|| self.err(line, "Unclosed XML comment '<!--'"))?;
+                self.advance(4 + end + 3);
+                continue;
+            }
+            if let Some(pi) = rem.strip_prefix("<?") {
+                let line = self.line;
+                let end = pi.find("?>").ok_or_else(|| self.err(line, "Unclosed XML processing instruction '<?'"))?;
+                self.advance(2 + end + 2);
+                continue;
+            }
             match b {
-                b'"' | b'\'' => {
-                    quote = Some(b);
-                    self.advance(1);
-                }
-                b'[' => {
-                    bracket_depth += 1;
-                    self.advance(1);
-                }
-                b']' => {
-                    bracket_depth = bracket_depth.saturating_sub(1);
-                    self.advance(1);
-                }
-                b'>' if bracket_depth == 0 => {
+                b'"' | b'\'' => quote = Some(b),
+                b'[' if !in_subset => in_subset = true,
+                b']' if in_subset => in_subset = false,
+                b'>' if !in_subset => {
                     self.advance(1);
                     return Ok(());
                 }
-                _ => {
-                    self.advance(1);
-                }
+                _ => {}
             }
+            self.advance(1);
         }
         Err(self.err(start_line, "Unclosed XML declaration or DOCTYPE"))
     }
@@ -201,7 +230,7 @@ impl<'a> XmlPullParser<'a> {
         }
         self.advance(1); // skip '>'
 
-        let Some((expected_qname, ns, local, _)) = self.element_stack.pop() else {
+        let Some((expected_qname, local, _)) = self.element_stack.pop() else {
             return Err(self.err(tag_line, format!("Unexpected closing tag </{raw_qname}> with empty element stack")));
         };
         if expected_qname != raw_qname {
@@ -209,7 +238,7 @@ impl<'a> XmlPullParser<'a> {
                 self.err(tag_line, format!("Mismatched closing tag </{raw_qname}>, expected </{expected_qname}>"))
             );
         }
-        Ok(XmlEvent::End { namespace_uri: ns, local_name: local, line: tag_line })
+        Ok(XmlEvent::End { local_name: local, line: tag_line })
     }
 
     fn parse_start_tag(&mut self, tag_line: usize) -> Result<XmlEvent, WordNetError> {
@@ -229,6 +258,12 @@ impl<'a> XmlPullParser<'a> {
         let raw_qname = self.input[name_start..self.pos].to_string();
         if raw_qname.is_empty() {
             return Err(self.err(tag_line, "Empty XML element tag '<>'"));
+        }
+        if self.element_stack.is_empty() {
+            if self.root_seen {
+                return Err(self.err(tag_line, format!("Unexpected second root element <{raw_qname}>")));
+            }
+            self.root_seen = true;
         }
 
         let mut raw_attrs: Vec<(String, String)> = Vec::new();
@@ -318,7 +353,7 @@ impl<'a> XmlPullParser<'a> {
             }
         }
 
-        self.element_stack.push((raw_qname.clone(), String::new(), String::new(), ns_bindings));
+        self.element_stack.push((raw_qname.clone(), String::new(), ns_bindings));
 
         let (elem_prefix, elem_local) = split_qname(&raw_qname, self.resource_name, tag_line)?;
         let elem_ns = self.resolve_prefix(elem_prefix).ok_or_else(|| {
@@ -327,8 +362,7 @@ impl<'a> XmlPullParser<'a> {
         let elem_local_owned = elem_local.to_string();
 
         if let Some(top) = self.element_stack.last_mut() {
-            top.1 = elem_ns.clone();
-            top.2 = elem_local_owned.clone();
+            top.1 = elem_local_owned.clone();
         }
 
         let mut resolved_attrs = Vec::with_capacity(raw_attrs.len());
@@ -356,7 +390,7 @@ impl<'a> XmlPullParser<'a> {
 
         if self_closing {
             self.element_stack.pop();
-            self.pending_end = Some((elem_ns.clone(), elem_local_owned.clone(), tag_line));
+            self.pending_end = Some((elem_local_owned.clone(), tag_line));
         }
 
         Ok(XmlEvent::Start {
@@ -366,6 +400,39 @@ impl<'a> XmlPullParser<'a> {
             line: tag_line,
         })
     }
+}
+
+/// Names a stray `<!` construct for diagnostics: `<!ELEMENT`, `<![IGNORE`, and so on.
+fn declaration_keyword(rem: &str) -> &str {
+    let rest = &rem[2..];
+    let lead = usize::from(rest.starts_with('['));
+    let len = rest[lead..].bytes().take_while(u8::is_ascii_alphanumeric).count();
+    &rem[..2 + lead + len]
+}
+
+/// Decodes the body of a numeric character reference (`#65` or `#x41`, without `&` and `;`).
+///
+/// XML 1.0 section 4.1 allows only ASCII digits (no sign, no blanks), and the result must match
+/// the `Char` production of section 2.2.
+fn character_reference(entity: &str, resource_name: &str, line: usize) -> Result<char, WordNetError> {
+    let (digits, radix) = match entity.strip_prefix("#x").or_else(|| entity.strip_prefix("#X")) {
+        Some(hex) => (hex, 16),
+        None => (&entity[1..], 10),
+    };
+    let well_formed = !digits.is_empty() && digits.chars().all(|c| c.is_digit(radix));
+    let code = u32::from_str_radix(digits, radix)
+        .ok()
+        .filter(|_| well_formed)
+        .ok_or_else(|| malformed(resource_name, Some(line), format!("Invalid character reference '&{entity};'")))?;
+    char::from_u32(code).filter(|&ch| is_xml_char(ch)).ok_or_else(|| {
+        malformed(resource_name, Some(line), format!("Character reference '&{entity};' is not a legal XML character"))
+    })
+}
+
+/// XML 1.0 section 2.2 `Char`: tab, newline, carriage return, and every scalar value from
+/// U+0020 except the surrogates (already excluded by [`char`]) and U+FFFE and U+FFFF.
+fn is_xml_char(ch: char) -> bool {
+    matches!(ch, '\t' | '\n' | '\r' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..)
 }
 
 fn split_qname<'a>(qname: &'a str, resource_name: &str, line: usize) -> Result<(&'a str, &'a str), WordNetError> {
@@ -415,28 +482,7 @@ pub(super) fn unescape_xml(
                 "gt" => out.push('>'),
                 "apos" => out.push('\''),
                 "quot" => out.push('"'),
-                _ if entity.starts_with("#x") || entity.starts_with("#X") => {
-                    let code = u32::from_str_radix(&entity[2..], 16).map_err(|_| {
-                        malformed(resource_name, Some(line), format!("Invalid hex character reference '&{entity};'"))
-                    })?;
-                    let ch = char::from_u32(code).ok_or_else(|| {
-                        malformed(resource_name, Some(line), format!("Invalid Unicode scalar '&{entity};'"))
-                    })?;
-                    out.push(ch);
-                }
-                _ if entity.starts_with('#') => {
-                    let code = entity[1..].parse::<u32>().map_err(|_| {
-                        malformed(
-                            resource_name,
-                            Some(line),
-                            format!("Invalid decimal character reference '&{entity};'"),
-                        )
-                    })?;
-                    let ch = char::from_u32(code).ok_or_else(|| {
-                        malformed(resource_name, Some(line), format!("Invalid Unicode scalar '&{entity};'"))
-                    })?;
-                    out.push(ch);
-                }
+                _ if entity.starts_with('#') => out.push(character_reference(entity, resource_name, line)?),
                 _ => {
                     return Err(malformed(
                         resource_name,
@@ -453,4 +499,196 @@ pub(super) fn unescape_xml(
         i += ch.len_utf8();
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn events(input: &str) -> Result<Vec<XmlEvent>, WordNetError> {
+        let mut parser = XmlPullParser::new(input, "test.xml");
+        let mut out = Vec::new();
+        loop {
+            let event = parser.next_event()?;
+            if let XmlEvent::Eof { .. } = event {
+                return Ok(out);
+            }
+            out.push(event);
+        }
+    }
+
+    fn start_names(events: &[XmlEvent]) -> Vec<&str> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                XmlEvent::Start { local_name, .. } => Some(local_name.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn text(input: &str) -> Result<String, WordNetError> {
+        unescape_xml(input, "test.xml", 1, false)
+    }
+
+    fn assert_err_contains(result: Result<impl std::fmt::Debug, WordNetError>, fragment: &str) {
+        let err = result.expect_err("expected a parse error");
+        assert!(err.to_string().contains(fragment), "expected '{fragment}' in '{err}'");
+    }
+
+    #[test]
+    fn numeric_character_references_decode_decimal_and_hex() {
+        assert_eq!("A", text("&#65;").unwrap());
+        assert_eq!("A", text("&#x41;").unwrap());
+        assert_eq!("A", text("&#X41;").unwrap());
+        assert_eq!("\u{e9}", text("&#xe9;").unwrap());
+        assert_eq!("\u{1F600}", text("&#x1F600;").unwrap());
+        assert_eq!("\u{1F600}", text("&#128512;").unwrap());
+        assert_eq!("\t\n\r", text("&#9;&#xA;&#13;").unwrap());
+    }
+
+    #[test]
+    fn numeric_character_references_reject_signs_and_empty_digits() {
+        for reference in ["&#+65;", "&#x+41;", "&#-65;", "&#x-41;", "&#;", "&#x;", "&# 65;", "&#x 41;", "&#65 ;"] {
+            assert!(text(reference).is_err(), "{reference} must be rejected");
+        }
+    }
+
+    #[test]
+    fn numeric_character_references_reject_code_points_outside_the_xml_char_production() {
+        for reference in ["&#0;", "&#x0;", "&#x1;", "&#8;", "&#xB;", "&#xC;", "&#x1F;", "&#xFFFE;", "&#xFFFF;"] {
+            assert_err_contains(text(reference), "not a legal XML character");
+        }
+        for reference in ["&#xD800;", "&#xDFFF;", "&#x110000;", "&#99999999999;"] {
+            assert!(text(reference).is_err(), "{reference} must be rejected");
+        }
+        for (reference, expected) in [
+            ("&#x20;", '\u{20}'),
+            ("&#xD7FF;", '\u{D7FF}'),
+            ("&#xE000;", '\u{E000}'),
+            ("&#xFFFD;", '\u{FFFD}'),
+            ("&#x10000;", '\u{10000}'),
+            ("&#x10FFFF;", '\u{10FFFF}'),
+        ] {
+            assert_eq!(expected.to_string(), text(reference).unwrap(), "{reference}");
+        }
+    }
+
+    #[test]
+    fn unknown_and_unterminated_entity_references_are_rejected() {
+        assert_err_contains(text("&nbsp;"), "Unknown XML entity reference '&nbsp;'");
+        assert_err_contains(text("fish & chips"), "Unescaped '&'");
+        assert_err_contains(text("&amp"), "Unescaped '&'");
+    }
+
+    #[test]
+    fn multibyte_text_survives_next_to_references_and_attribute_normalization() {
+        assert_eq!("caf\u{e9}\u{e9}&\u{fc}", text("caf&#xE9;\u{e9}&amp;\u{fc}").unwrap());
+        let attr = unescape_xml("\u{65e5}\t\u{672c}\n&#9;\u{8a9e}", "test.xml", 1, true).unwrap();
+        assert_eq!("\u{65e5} \u{672c} \t\u{8a9e}", attr);
+        let events = events("<r a=\"\u{1F600}&lt;\u{e9}\">\u{4e2d}&gt;\u{6587}</r>").unwrap();
+        let XmlEvent::Start { attrs, .. } = &events[0] else { panic!("expected start") };
+        assert_eq!("\u{1F600}<\u{e9}", attrs[0].value);
+        let XmlEvent::Text(body) = &events[1] else { panic!("expected text") };
+        assert_eq!("\u{4e2d}>\u{6587}", body);
+    }
+
+    #[test]
+    fn internal_entities_are_never_expanded() {
+        let mut doctype = String::from("<!DOCTYPE r [\n<!ENTITY lol0 \"lol\">\n");
+        for i in 1..10 {
+            let prev = format!("&lol{};", i - 1);
+            doctype.push_str(&format!("<!ENTITY lol{i} \"{}\">\n", prev.repeat(10)));
+        }
+        doctype.push_str("]>\n");
+        let doc = format!("{doctype}<r>&lol9;</r>");
+        assert_err_contains(events(&doc), "Unknown XML entity reference '&lol9;'");
+        let attr_doc = format!("{doctype}<r a=\"&lol9;\"/>");
+        assert_err_contains(events(&attr_doc), "Unknown XML entity reference '&lol9;'");
+    }
+
+    #[test]
+    fn doctype_internal_subset_may_hold_comments_and_processing_instructions_with_quotes_and_brackets() {
+        for subset in [
+            "<!-- don't panic -->",
+            "<!-- a ] in a comment -->",
+            "<!-- a ]> in a comment -->",
+            "<?pi it's \"odd\" ]> ?>",
+            "<!ENTITY e \"]>\"> <!-- ' -->",
+            "<!ATTLIST r a CDATA '\"]>'>",
+            "<!ENTITY \u{e9} \"\u{65e5}\u{1F600}\"> <!-- \u{e9}' --> <?\u{e9} ?>",
+        ] {
+            let doc = format!("<!DOCTYPE r [ {subset} ]>\n<r a='x'>it's</r>");
+            let events = events(&doc).unwrap_or_else(|e| panic!("{subset}: {e}"));
+            assert_eq!(vec!["r"], start_names(&events), "{subset}");
+            let XmlEvent::Text(body) = &events[1] else { panic!("expected text for {subset}") };
+            assert_eq!("it's", body);
+        }
+    }
+
+    #[test]
+    fn doctype_is_only_legal_once_before_the_root_element() {
+        assert_err_contains(events("<r><!DOCTYPE r></r>"), "DOCTYPE");
+        assert_err_contains(events("<r/><!DOCTYPE r>"), "DOCTYPE");
+        assert_err_contains(events("<!DOCTYPE r><!DOCTYPE r><r/>"), "DOCTYPE");
+        assert!(events("<?xml version=\"1.0\"?>\n<!-- c -->\n<!DOCTYPE r SYSTEM \"r.dtd\">\n<r/>").is_ok());
+    }
+
+    #[test]
+    fn markup_declarations_outside_a_doctype_are_rejected() {
+        assert_err_contains(events("<!ELEMENT r ANY><r/>"), "<!ELEMENT");
+        assert_err_contains(events("<r><!ENTITY e \"x\"></r>"), "<!ENTITY");
+        assert_err_contains(events("<r><![IGNORE[ x ]]></r>"), "<![IGNORE");
+    }
+
+    #[test]
+    fn a_second_root_element_is_rejected() {
+        assert_err_contains(events("<r/><s/>"), "second root element <s>");
+        assert_err_contains(events("<r></r>\n<r></r>"), "second root element <r>");
+        assert!(events("<r/>\n<!-- trailing comment -->\n<?pi trailing?>\n").is_ok());
+    }
+
+    #[test]
+    fn unclosed_constructs_are_reported_with_their_opening_line() {
+        assert_err_contains(events("<r>\n<!-- never closed"), "line 2: Unclosed XML comment");
+        assert_err_contains(events("<r>\n\n<?pi never closed"), "line 3: Unclosed XML processing instruction");
+        assert_err_contains(events("<r><![CDATA[ never closed"), "Unclosed CDATA section");
+        assert_err_contains(events("<!DOCTYPE r [ <!ENTITY e \"x\">"), "Unclosed XML declaration or DOCTYPE");
+        assert_err_contains(events("<!DOCTYPE r [ <!-- ]> never closed"), "Unclosed XML comment");
+        assert_err_contains(events("<r a=\"open"), "Unclosed attribute value for 'a'");
+        assert_err_contains(events("<r a=\"x\""), "Unclosed start tag <r>");
+        assert_err_contains(events("<r>\n<s>\n</s>"), "line 3: Unclosed XML element <r>");
+        assert_err_contains(events("<r></s>"), "Mismatched closing tag </s>, expected </r>");
+        assert_err_contains(events("<r>]]></r>"), "Unexpected ']]>'");
+    }
+
+    #[test]
+    fn line_numbers_count_newlines_inside_multibyte_text_comments_and_cdata() {
+        let doc = "<r>\n\u{e9}\u{1F600}\n<!-- \n\u{4e2d} -->\n<![CDATA[\n]]>\n<bad attr></r>";
+        assert_err_contains(events(doc), "line 7: Expected '=' after attribute 'attr'");
+    }
+
+    #[test]
+    fn namespaces_resolve_through_ancestors_and_reject_unbound_prefixes() {
+        let events = events("<r xmlns=\"urn:d\" xmlns:p=\"urn:p\"><p:c p:a=\"1\" b=\"2\"/><d/></r>").unwrap();
+        let resolved: Vec<(&str, &str)> = events
+            .iter()
+            .filter_map(|e| match e {
+                XmlEvent::Start { namespace_uri, local_name, .. } => {
+                    Some((namespace_uri.as_str(), local_name.as_str()))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(vec![("urn:d", "r"), ("urn:p", "c"), ("urn:d", "d")], resolved);
+        let XmlEvent::Start { attrs, .. } = &events[1] else { panic!("expected start") };
+        assert_eq!(("urn:p", "a"), (attrs[0].namespace_uri.as_str(), attrs[0].local_name.as_str()));
+        assert_eq!(("", "b"), (attrs[1].namespace_uri.as_str(), attrs[1].local_name.as_str()));
+
+        assert_err_contains(self::events("<q:r/>"), "Unbound XML namespace prefix 'q'");
+        assert_err_contains(
+            self::events("<r xmlns:a=\"urn:x\" xmlns:b=\"urn:x\" a:k=\"1\" b:k=\"2\"/>"),
+            "Duplicate expanded attribute",
+        );
+    }
 }

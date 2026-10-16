@@ -450,3 +450,22 @@ fn reject_same_document_base(lexicons: &[RawLexicon], resource_name: &str) -> Re
     }
     Ok(())
 }
+
+/// Wraps `body` in a `<LexicalResource>` with one `<Lexicon id="t">`.
+#[cfg(test)]
+fn wrap_lexicon(body: &str) -> String {
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<LexicalResource>\n\
+         <Lexicon id=\"t\" label=\"t\" language=\"en\" version=\"1\">\n{body}\n</Lexicon>\n</LexicalResource>\n"
+    )
+}
+
+/// One noun entry `t-cat-n` with sense `t-cat-n-1` in synset `t-1`, plus `synset_body` inside `t-1`.
+#[cfg(test)]
+fn cat_lexicon(synset_attrs: &str, synset_body: &str) -> String {
+    wrap_lexicon(&format!(
+        "<LexicalEntry id=\"t-cat-n\"><Lemma writtenForm=\"cat\" partOfSpeech=\"n\"/>\
+         <Sense id=\"t-cat-n-1\" synset=\"t-1\"/></LexicalEntry>\
+         <Synset id=\"t-1\" partOfSpeech=\"n\"{synset_attrs}>{synset_body}</Synset>"
+    ))
+}
