@@ -1334,8 +1334,11 @@ NormalizationProfile, NormalizationProfiles}`:
 - `TermAnnotator` runs in an `Analyzer` pipeline, reading `(View, Tokens,
   Option<Language>, Option<PosTags>, Option<Lemmas>)` and writing
   `Terms` (`turbo:terms`), selecting the profile from the top-ranked
-  code in `opennlp:language` when present and falling back to its
-  configured fallback language (`Some("eng")` by default).
+  code in `opennlp:language` when present, then its configured fallback
+  language, and otherwise an `[Nfc, CaseFold]` analyzer (the default has
+  no fallback language). The analyzer for each language is built once
+  and shared by every document in that language, so its stem cache
+  carries over between documents.
 
 ## The chunker
 

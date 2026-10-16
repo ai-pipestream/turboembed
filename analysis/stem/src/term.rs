@@ -429,6 +429,13 @@ impl TermAnalyzer {
         self.inner.final_dimension
     }
 
+    /// Whether `self` and `other` are clones of one built analyzer, sharing its
+    /// normalizers and stem cache.
+    #[cfg(test)]
+    pub(crate) fn shares_state_with(&self, other: &TermAnalyzer) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+
     /// Returns whether this analyzer has a configured [`Stemmer`].
     pub fn has_stemmer(&self) -> bool {
         self.inner.stemmer.is_some()

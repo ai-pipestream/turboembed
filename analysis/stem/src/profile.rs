@@ -3,6 +3,7 @@
 //! writes [`Terms`] (`turbo:terms`) aligned to `opennlp:tokens`.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::{Arc, OnceLock};
 
 use turbo_analysis::{Annotator, Error, Layer, Refs, View};
 use turbo_analysis_layers::{Language, Lemmas, PosTags, Strs, Terms, Tokens};
@@ -175,13 +176,21 @@ impl NormalizationProfiles {
     /// whitespace), or `None` if the language has no Snowball stemmer
     /// (`NormalizationProfiles.forLanguage(String)`).
     pub fn for_language(language: &str) -> Option<NormalizationProfile> {
+        Self::profile_index(language).map(Self::profile_at)
+    }
+
+    /// Index into [`PROFILES`] of `language`, resolved as [`Self::for_language`] does.
+    fn profile_index(language: &str) -> Option<usize> {
         let stripped = language.trim_matches(|c: char| is_java_whitespace(c as u32));
         let mut lower = String::with_capacity(stripped.len());
         to_lowercase(stripped, &mut lower);
         let code: &str = if lower.len() == 2 { iso1_to_iso3(&lower).unwrap_or(&lower) } else { &lower };
-        let idx = PROFILES.binary_search_by_key(&code, |&(lang, _, _)| lang).ok()?;
+        PROFILES.binary_search_by_key(&code, |&(lang, _, _)| lang).ok()
+    }
+
+    fn profile_at(idx: usize) -> NormalizationProfile {
         let (lang, alg, fold) = PROFILES[idx];
-        Some(NormalizationProfile { language: lang.to_owned(), stemmer_algorithm: alg, accent_fold: fold })
+        NormalizationProfile { language: lang.to_owned(), stemmer_algorithm: alg, accent_fold: fold }
     }
 
     /// Detects the best language of `text` with `detector` and returns its
@@ -208,7 +217,16 @@ enum AnalyzerChoice {
     /// Uses the `opennlp:language` layer's best language profile when present,
     /// falling back to `fallback` (or `NFC` + `CASE_FOLD` when the language has
     /// no Snowball profile).
-    ByLanguage { fallback: Option<String> },
+    ByLanguage { fallback: Option<String>, analyzers: Arc<ProfileAnalyzers> },
+}
+
+/// The analyzers [`AnalyzerChoice::ByLanguage`] has built so far, one per entry
+/// of [`PROFILES`] plus the `NFC` + `CASE_FOLD` default, so every document in
+/// a language shares one analyzer and its stem cache.
+#[derive(Debug, Default)]
+struct ProfileAnalyzers {
+    by_profile: [OnceLock<TermAnalyzer>; PROFILES.len()],
+    default: OnceLock<TermAnalyzer>,
 }
 
 /// Pipeline step that reads `opennlp:tokens` (and optionally `opennlp:language`,
@@ -243,25 +261,28 @@ impl TermAnnotator {
     /// document has no `opennlp:language` layer or its best language is not in
     /// [`NormalizationProfiles`].
     pub fn by_language(fallback: Option<String>) -> TermAnnotator {
-        TermAnnotator { choice: AnalyzerChoice::ByLanguage { fallback } }
+        TermAnnotator { choice: AnalyzerChoice::ByLanguage { fallback, analyzers: Arc::default() } }
     }
 
     fn resolve_analyzer(&self, language: Option<&Language>) -> TermAnalyzer {
         match &self.choice {
             AnalyzerChoice::Fixed(analyzer) => analyzer.clone(),
-            AnalyzerChoice::ByLanguage { fallback } => {
-                if let Some(lang_layer) = language
-                    && let Some((best_code, _)) = lang_layer.best()
-                    && let Some(profile) = NormalizationProfiles::for_language(best_code)
-                {
-                    return profile.matching_analyzer();
+            AnalyzerChoice::ByLanguage { fallback, analyzers } => {
+                let idx = language
+                    .and_then(Language::best)
+                    .and_then(|(best_code, _)| NormalizationProfiles::profile_index(best_code))
+                    .or_else(|| fallback.as_deref().and_then(NormalizationProfiles::profile_index));
+                match idx {
+                    Some(idx) => analyzers.by_profile[idx]
+                        .get_or_init(|| NormalizationProfiles::profile_at(idx).matching_analyzer())
+                        .clone(),
+                    None => analyzers
+                        .default
+                        .get_or_init(|| {
+                            TermAnalyzer::builder().nfc().case_fold().expect("only CaseFold is enabled").build()
+                        })
+                        .clone(),
                 }
-                if let Some(fb) = fallback
-                    && let Some(profile) = NormalizationProfiles::for_language(fb)
-                {
-                    return profile.matching_analyzer();
-                }
-                TermAnalyzer::builder().nfc().case_fold().expect("only CaseFold is enabled").build()
             }
         }
     }
@@ -353,7 +374,7 @@ impl Annotator for TermAnnotator {
                 a.has_stemmer().hash(&mut h);
                 a.has_lemmatizer().hash(&mut h);
             }
-            AnalyzerChoice::ByLanguage { fallback } => {
+            AnalyzerChoice::ByLanguage { fallback, .. } => {
                 1u8.hash(&mut h);
                 fallback.hash(&mut h);
             }
@@ -468,6 +489,32 @@ mod tests {
         for h in handles {
             h.join().unwrap();
         }
+    }
+
+    #[test]
+    fn by_language_annotator_reuses_one_analyzer_per_language() {
+        let annotator = TermAnnotator::by_language(Some("deu".to_owned()));
+        let mut code = Strs::default();
+        code.push("en");
+        let english = Language { code, score: vec![1.0] };
+
+        let first = annotator.resolve_analyzer(Some(&english));
+        let second = annotator.resolve_analyzer(Some(&english));
+        assert!(first.shares_state_with(&second));
+        assert_eq!(first.analyze("Cats").unwrap()[0].normalized(), "cat");
+
+        let fallback = annotator.resolve_analyzer(None);
+        assert!(fallback.shares_state_with(&annotator.resolve_analyzer(None)));
+        assert!(!fallback.shares_state_with(&first));
+        assert_eq!(fallback.analyze("B\u{00FC}cher").unwrap()[0].normalized(), "buch");
+
+        let plain = TermAnnotator::default();
+        let mut unknown = Strs::default();
+        unknown.push("jpn");
+        let japanese = Language { code: unknown, score: vec![1.0] };
+        let default = plain.resolve_analyzer(Some(&japanese));
+        assert!(default.shares_state_with(&plain.resolve_analyzer(None)));
+        assert_eq!(default.dimensions(), &[Dimension::Nfc, Dimension::CaseFold]);
     }
 
     #[test]
