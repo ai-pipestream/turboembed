@@ -533,6 +533,10 @@ fields mean bumps its `SCHEMA`.
 | `Pii` | `turbo:pii` | text | `turbo-analysis-layers` |
 | `Abbreviations` | `turbo:abbreviations` | text | `turbo-analysis-layers` |
 | `Matches` | `turbo:matches` | text | `turbo-analysis-layers` |
+| `Opinions` | `turbo:opinions` | the document (indexes `Tokens`) | `turbo-analysis-layers` |
+| `Aspects` | `turbo:aspects` | the document (indexes `Tokens`, `Sentences`, `Opinions` when used) | `turbo-analysis-layers` |
+| `Incivility` | `turbo:incivility` | the document (indexes `Tokens`, `Sentences`, `Chunks`, `Structure` when used) | `turbo-analysis-layers` |
+| `Pragmatics` | `turbo:pragmatics` | sentences (indexes `Tokens` when there is evidence) | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `GlossaryTerms` | `turbo:glossary-terms` | text (indexes `Tokens`) | `turbo-glossary-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
@@ -552,6 +556,45 @@ fields mean bumps its `SCHEMA`.
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
 chunker will write under that id.
+
+## Sentiment layers (`turbo:opinions`, `turbo:aspects`, `turbo:incivility`, `turbo:pragmatics`)
+
+Four layers in `turbo-analysis-layers` (`sentiment`) hold opinion
+expressions, aspect-based sentiment, multi-label incivility, and
+sentence-level sarcasm/irony. All scores are `f64`, and every span is an
+`Ix` or `IxRange` into `Tokens`, `Sentences`, `Chunks`, or `Structure`
+so byte offsets follow view alignment without duplicating `Spans`:
+
+- `Opinions` (`turbo:opinions`, anchored to `Document`, indexing
+  `Tokens`): `tokens: Vec<IxRange<Tokens>>` (non-empty ranges in
+  non-decreasing `(start, end)` order), `polarity: Vec<f64>` (prior
+  signed polarity), `intensity: Vec<f64>` (finite, `>= 0.0`), and
+  `negated: Vec<bool>`.
+- `Aspects` (`turbo:aspects`, anchored to `Document`, indexing, when
+  used, `Tokens`, `Sentences` and `Opinions`): `tokens:
+  Vec<Option<IxRange<Tokens>>>` (`Some` for explicit aspect terms,
+  `None` for implicit aspects), `sentence: Vec<Option<Ix<Sentences>>>`
+  (required when `tokens[i]` is `None`), `category: Vec<Option<Tag>>`
+  interned in `categories: Arc<TagSet>`, three polarity score columns
+  (`positive`, `negative`, `neutral` in `f64`, finite and `>= 0.0`), and
+  backing opinion links stored in CSR form (`opinions: Vec<Ix<Opinions>>`
+  and `opinion_end: Vec<u32>`, kept in strictly increasing order per
+  aspect).
+- `Incivility` (`turbo:incivility`, anchored to `Document`, indexing
+  `Tokens` when a row has evidence, and whichever of `Sentences`,
+  `Chunks`, or `Structure` its rows target): `target: Vec<IncivilityTarget>` in strictly increasing
+  target order, six `f64` label score columns (`insult`, `profanity`,
+  `threat`, `identity_attack`, `intolerance`, `severe_toxicity` in
+  `0.0..=1.0`), and CSR evidence spans (`evidence_label:
+  Vec<IncivilityLabel>`, `evidence_tokens: Vec<IxRange<Tokens>>`,
+  `evidence_end: Vec<u32>`) sorted by `(label, start, end)` within each
+  row so `Incivility::evidence_for_label` returns a contiguous
+  `&[IxRange<Tokens>]` slice by binary search.
+- `Pragmatics` (`turbo:pragmatics`, aligned to `Sentences` and indexing
+  `Tokens` when a sentence has evidence): `score: Vec<f64>` (`0.0..=1.0` per sentence) and `evidence:
+  Vec<Option<Incongruity>>` where `Incongruity { positive:
+  IxRange<Tokens>, negative: IxRange<Tokens> }` holds the two contrasted
+  token spans (`size_of::<Option<Incongruity>>() == 16`).
 
 ## Syntactic words and multi-word tokens (`turbo:words`)
 
@@ -1979,6 +2022,10 @@ The layers and their columns, in order:
 | `turbo:temporal` | `text` | `start:u32`, `end:u32`, `value:str`, `granularity:str`, `origin:str` |
 | `turbo:document-date` | `document` | `date:str`, `mention:u32` |
 | `turbo:pii` | `text` | `start:u32`, `end:u32`, `type:str`, `normalized:str` |
+| `turbo:opinions` | `document` | `token_start:u32`, `token_end:u32`, `polarity:f64`, `intensity:f64`, `negated:u32` |
+| `turbo:aspects` | `document` | `token_start:u32`, `token_end:u32`, `sentence:str`, `category:str`, `positive:f64`, `negative:f64`, `neutral:f64`, `opinions:str` |
+| `turbo:incivility` | `document` | `target_kind:str`, `target_index:u32`, `insult:f64`, `profanity:f64`, `threat:f64`, `identity_attack:f64`, `intolerance:f64`, `severe_toxicity:f64`, `evidence:str` |
+| `turbo:pragmatics` | `aligned:opennlp:sentences` | `score:f64`, `pos_start:u32`, `pos_end:u32`, `neg_start:u32`, `neg_end:u32` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
 | `opennlp:subwords` | `text` | `start:u32`, `end:u32`, `id:u32` |
 | `turbo:word-types` | `aligned:opennlp:tokens` | `kind:str` |

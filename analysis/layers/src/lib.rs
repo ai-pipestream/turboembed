@@ -30,6 +30,10 @@ pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
+pub use sentiment::{
+    Aspect, AspectTarget, Aspects, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget,
+    Incongruity, Opinion, Opinions, Polarity, PolarityScores, Pragmatics, PragmaticsItem,
+};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
 pub use words::{
@@ -100,6 +104,7 @@ mod numbers;
 mod ordinals;
 mod pii;
 mod quantities;
+mod sentiment;
 mod temporal;
 mod times;
 mod words;
