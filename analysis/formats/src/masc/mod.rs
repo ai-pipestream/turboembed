@@ -25,6 +25,15 @@
 //! so there are no goldens for it; what MASC 3.0.0's chunk layers hold,
 //! and so what the reader skips, is in turbo-train-recipes' README.
 //!
+//! The header also names the logical markup, `f.logical`.
+//! [`MascCorpus::read_with_logical`] reads it,
+//! [`MascDocument::add_logical`] resolves its regions, nodes and
+//! annotations by id and keeps each labelled stretch in UTF-16 units
+//! ([`MascLogical`]), and [`MascDocument::structure`] converts the
+//! document (`cesDoc`), heading (`head`) and paragraph (`p`) blocks
+//! into a `Structure` layer over the source text, ready for the
+//! structure projector when the text is normalized.
+//!
 //! MASC is licensed CC BY 3.0 US. The test corpora here hold no MASC
 //! text: they are written for the tests in its layout, and one is the
 //! corpus OpenNLP's own MASC tests read (Apache License 2.0).
@@ -128,15 +137,19 @@ mod corpus;
 mod document;
 mod error;
 pub(crate) mod java;
+mod logical;
 pub mod samples;
 
 pub use chunks::{ChunkSkip, MascChunk, MascChunkFiles, MascChunkKind, MascChunkRead, MascChunkReader};
-pub use corpus::{ChunkFiles, MascCorpus, SkippedDocument, read_document, read_document_with};
+pub use corpus::{
+    ChunkFiles, MascCorpus, SkippedDocument, read_document, read_document_with, read_document_with_logical,
+};
 pub use document::{
     MascDocument, MascEntity, MascFiles, MascName, MascSentence, MascToken, MascUnplacedEntity, MascWarning, Quark,
     Unplaced,
 };
 pub use error::{AnnotationFile, MascError, MascStream};
+pub use logical::MascLogical;
 pub use samples::{
     EmptySentence, MascNameReader, MascPosReader, MascSample, MascSentenceReader, MascSentenceSample, MascTokenReader,
 };

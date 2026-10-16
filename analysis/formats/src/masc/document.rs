@@ -10,6 +10,7 @@ use turbo_maxent::xml::{self, Attribute, Handler, Names};
 use super::chunks::{MascChunk, MascChunkKind};
 use super::error::{AnnotationFile, MascError};
 use super::java::{decode_utf8, equals_ignore_case_ascii, parse_int, split_on_spaces, split_space};
+use super::logical::MascLogical;
 
 /// The bytes of one document's files. The text is required; a document
 /// whose header names no segmentation or sentence file fails as OpenNLP
@@ -276,6 +277,9 @@ pub struct MascDocument {
     pub(super) has_penn_tags: bool,
     has_named_entities: bool,
     pub(super) has_chunks: bool,
+    /// The logical markup, when it was read, in text order.
+    pub(super) logical: Vec<MascLogical>,
+    pub(super) has_logical: bool,
     pub(super) warnings: Vec<MascWarning>,
     unplaced: Vec<MascUnplacedEntity>,
 }
@@ -312,6 +316,8 @@ impl MascDocument {
             has_penn_tags: false,
             has_named_entities: false,
             has_chunks: false,
+            logical: Vec::new(),
+            has_logical: false,
             warnings: Vec::new(),
             unplaced: Vec::new(),
         };
@@ -702,7 +708,7 @@ fn parse_ids(ids: Option<&str>, prefix: &str) -> Option<Vec<i32>> {
 }
 
 /// Whether `Span(start, end)` accepts the offsets.
-fn valid_span(start: i32, end: i32) -> bool {
+pub(super) fn valid_span(start: i32, end: i32) -> bool {
     start >= 0 && end >= 0 && start <= end
 }
 
