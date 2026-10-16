@@ -125,15 +125,21 @@ pub enum Codec {
 /// Writes `cols`, which must all have the same number of rows, to `path`,
 /// uncompressed.
 pub fn write(path: &Path, cols: &[Col]) {
+    write_chunks(path, cols, |offset, len| (offset as i64, len as i64));
+}
+
+/// As [`write`], with each column chunk's data page offset and compressed
+/// size in the footer given by `chunk` from its true offset and length.
+pub fn write_chunks(path: &Path, cols: &[Col], chunk: impl Fn(usize, usize) -> (i64, i64)) {
     let pages: Vec<Vec<u8>> = cols.iter().map(Col::plain).collect();
-    write_compressed(path, cols, Codec::Uncompressed, &pages);
+    write_pages(path, cols, Codec::Uncompressed, &pages, None, chunk);
 }
 
 /// Writes `cols` as [`write`] does, with `codec` and each column's page
 /// as `pages` gives it: the column's PLAIN values compressed, as the
 /// writer has no compressors of its own.
 pub fn write_compressed(path: &Path, cols: &[Col], codec: Codec, pages: &[Vec<u8>]) {
-    write_pages(path, cols, codec, pages, None);
+    write_pages(path, cols, codec, pages, None, |offset, len| (offset as i64, len as i64));
 }
 
 /// Writes `cols` as [`write`] does, every page header giving `sizes`
@@ -141,10 +147,17 @@ pub fn write_compressed(path: &Path, cols: &[Col], codec: Codec, pages: &[Vec<u8
 /// damage them.
 pub fn write_with_page_sizes(path: &Path, cols: &[Col], sizes: (i64, i64)) {
     let pages: Vec<Vec<u8>> = cols.iter().map(Col::plain).collect();
-    write_pages(path, cols, Codec::Uncompressed, &pages, Some(sizes));
+    write_pages(path, cols, Codec::Uncompressed, &pages, Some(sizes), |offset, len| (offset as i64, len as i64));
 }
 
-fn write_pages(path: &Path, cols: &[Col], codec: Codec, pages: &[Vec<u8>], sizes: Option<(i64, i64)>) {
+fn write_pages(
+    path: &Path,
+    cols: &[Col],
+    codec: Codec,
+    pages: &[Vec<u8>],
+    sizes: Option<(i64, i64)>,
+    chunk: impl Fn(usize, usize) -> (i64, i64),
+) {
     let rows = cols[0].rows();
     assert!(cols.iter().all(|c| c.rows() == rows));
     assert_eq!(cols.len(), pages.len());
@@ -202,9 +215,10 @@ fn write_pages(path: &Path, cols: &[Col], codec: Codec, pages: &[Vec<u8>], sizes
         m.out.extend(c.name().as_bytes());
         m.i32(4, codec as i64);
         m.int(5, rows as i64);
+        let (at, compressed) = chunk(offset, compressed);
         m.int(6, uncompressed as i64);
-        m.int(7, compressed as i64);
-        m.int(9, offset as i64);
+        m.int(7, compressed);
+        m.int(9, at);
         m.end();
         m.end();
     }

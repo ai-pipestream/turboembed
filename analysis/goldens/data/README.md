@@ -260,6 +260,20 @@ are not taken from any corpus.
   OpenNLP's test file `germeval2014.sample` holds them (Apache License
   2.0), unchanged after the comment lines that say so.
 
+- `inputs/ad/`: 11 files in the Arvores Deitadas format of the Floresta
+  Sinta(c)tica treebank, written for this project in Portuguese-like
+  text; they hold no Floresta text. They hold sentences with their
+  `SOURCE` lines in the newspaper (`CP` ids) and literary (`LIT`, `CIE`)
+  metadata styles, ids past the integer range, `&&` reanalyses,
+  paragraph, title, text and box markup, HAREM name tags of most types
+  with `<NER2>` continuations,
+  contractions across words and sentences, hyphenated and quoted words,
+  multiword expressions with underscores, nested phrases for the
+  chunker, tree lines each branch of the line parser takes (nodes with
+  secondary tags, punctuation, skipped and unparsable lines, `=` tags),
+  and sentences the parser gives up on: no `SOURCE` line, a short one,
+  no text line, no metadata and no text.
+
 - `inputs/parse/`: four files of Penn Treebank parses, one per line,
   written for this project: English trees with function tags, gap
   indexes, `-NONE-` traces in subject and object extraction chains,

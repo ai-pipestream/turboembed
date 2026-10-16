@@ -1,0 +1,18 @@
+<s>
+SOURCE: a
+SemMetadados
+UTT:n("dado")	dados
+.
+</s>
+<s>
+SOURCE: b
+4 Agora com metadados.
+UTT:n("metadado")	metadados
+.
+</s>
+<s>
+SOURCE: c
+4 Segunda frase do texto.
+UTT:n("frase")	frase
+.
+</s>

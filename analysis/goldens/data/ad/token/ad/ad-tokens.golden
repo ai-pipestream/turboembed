@@ -1,0 +1,68 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-tokens	583	553	fe85b7055de9985cd7b4807f773b7daa1b33df88a2cf588466f7fc12384d02c3
+model	pt-detokenizer.xml	36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555
+annotator	opennlp.tools.formats.convert.NameToTokenSampleStream	read
+config	splitHyphenatedTokens	true
+layer	turbo:samples	document	2	written:str
+«<SPLIT>Guarda<SPLIT>-<SPLIT>chuva <SPLIT>»<SPLIT>, disse ela<SPLIT>! pré<SPLIT>-<SPLIT>-<SPLIT>feira<SPLIT>-<SPLIT>x a<SPLIT>-<SPLIT>b<SPLIT>-<SPLIT>c ab<SPLIT>-<SPLIT>: «<SPLIT><SPLIT>» 7-a a-7 ç<SPLIT>-<SPLIT>ã<SPLIT>! 🙂🙂 🙂 dois espaços «<SPLIT>«<SPLIT>a<SPLIT>»<SPLIT>»
+«<SPLIT>a<SPLIT>» «<SPLIT>.
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+1	java.lang.StringIndexOutOfBoundsException	Index -1 out of bounds for length 0
+end	turbo:read-errors
+layer	turbo:sample-texts	document	2	text:str
+«Guarda-chuva », disse ela! pré--feira-x a-b-c ab-: «» 7-a a-7 ç-ã! 🙂🙂 🙂 dois espaços ««a»»
+«a» «.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	46	sample:u32	start:u32	end:u32
+0	0	2
+0	2	8
+0	8	9
+0	9	14
+0	15	15
+0	15	17
+0	17	18
+0	19	24
+0	25	28
+0	28	29
+0	30	34
+0	34	35
+0	35	36
+0	36	41
+0	41	42
+0	42	43
+0	44	45
+0	45	46
+0	46	47
+0	47	48
+0	48	49
+0	50	52
+0	52	53
+0	53	54
+0	55	57
+0	57	57
+0	57	59
+0	60	63
+0	64	67
+0	68	70
+0	70	71
+0	71	73
+0	73	74
+0	75	83
+0	84	88
+0	89	102
+0	103	105
+0	105	107
+0	107	108
+0	108	110
+0	110	112
+1	0	2
+1	2	3
+1	3	5
+1	6	8
+1	8	9
+end	turbo:sample-spans

@@ -1,0 +1,35 @@
+<s>
+SOURCE: a
+1 «Guarda-chuva», disse ela!
+STA:fcl
+=ACC:n("guarda-chuva" <NER:object> M S)	«Guarda-chuva»,
+=P:v-fin("dizer" PS 3S IND VFIN)	disse
+=SUBJ:pron-pers("ela" F 3S NOM)	ela!
+=X:n("pré-" )	pré-
+=X:n("-feira")	-feira-x
+=X:n("a-b-c")	a-b-c
+=X:n("ab-")	ab-:
+=X:n("x")	«»
+=X:n("7-a")	7-a
+=X:n("a-7")	a-7
+=X:n("ç-ã")	ç-ã!
+=X:n("emoji")	🙂🙂
+=X:n("emoji")	🙂
+=X:n("dois")	dois espaços
+=X:n("mix")	««a»»
+</s>
+<s>
+SOURCE: b
+1 ab-cd«
+STA:fcl
+=X:n("ab-cd")	ab-cd«
+=Y:n("fim")	fim
+</s>
+<s>
+SOURCE: c
+1 «
+STA:fcl
+=X:n("aspas" <hum>)	«a»
+=Y:n("só")	«
+.
+</s>

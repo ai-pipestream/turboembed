@@ -28,6 +28,9 @@
 //!   and the part-of-speech, token, sentence and name samples OpenNLP
 //!   reads from it. A corpus is a directory of files, so it is not in the
 //!   registry, which reads one text.
+//! - [`ad`]: the Floresta Sinta(c)tica treebank in the Arvores Deitadas
+//!   format, and the name, part-of-speech, chunk, sentence and token
+//!   samples OpenNLP reads from it.
 //! - [`ontonotes`]: the OntoNotes 4.0 name and parse files, and the
 //!   name, parse and part-of-speech samples OpenNLP reads from them.
 //! - [`frenchtreebank`]: the French Treebank's XML files and the parses
@@ -115,6 +118,7 @@
 //!   parser are `turbo_parser::Parse`, which the OntoNotes and French
 //!   Treebank readers make.
 
+pub mod ad;
 pub mod conll;
 pub mod conllu;
 pub mod convert;

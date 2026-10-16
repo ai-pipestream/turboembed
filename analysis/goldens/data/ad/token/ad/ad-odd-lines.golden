@@ -1,0 +1,37 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-odd-lines	584	572	e9e33d5083bef9cb3ea00c554dc5809daf67bbc0f7d7fd3a7e46551cf9afc363
+model	pt-detokenizer.xml	36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555
+annotator	opennlp.tools.formats.convert.NameToTokenSampleStream	read
+config	splitHyphenatedTokens	true
+layer	turbo:samples	document	2	written:str
+818-5817 12 palavra <NER:hum> Ana traço x xyz = linha solta sem nada aspas M) fim Lisboa palavra STA:fcl (nota) (<a>)<SPLIT>.
+Fim
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	2	text:str
+818-5817 12 palavra <NER:hum> Ana traço x xyz = linha solta sem nada aspas M) fim Lisboa palavra STA:fcl (nota) (<a>).
+Fim
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	16	sample:u32	start:u32	end:u32
+0	0	8
+0	9	11
+0	12	19
+0	20	33
+0	34	40
+0	41	42
+0	43	46
+0	47	48
+0	49	69
+0	70	75
+0	76	82
+0	83	89
+0	90	97
+0	98	118
+0	118	119
+1	0	3
+end	turbo:sample-spans

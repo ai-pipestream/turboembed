@@ -76,6 +76,64 @@ Copyright (c) 2001-2024 Unicode, Inc. The full license text is in
 analysis/unicode/ucd/LICENSE.
 
 ------------------------------------------------------------------------
+ftfy, by Robyn Speer
+------------------------------------------------------------------------
+
+The mojibake repair in analysis/encoding/src/repair/ (and the code page
+tables it uses in analysis/encoding/src/charmap.rs) is a port to Rust of
+the encoding fix of ftfy 6.3.1 ("fixes text for you"), written by Robyn
+Speer. Its character classes (analysis/encoding/src/repair/classes.rs)
+are generated from ftfy's badness.py and chardata.py, and the test
+fixture analysis/encoding/tests/data/ftfy_cases.tsv is made from ftfy's
+tests/test_cases.json. ftfy is used under the Apache License, Version
+2.0 (LICENSE):
+
+Copyright 2023 Robyn Speer
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+ftfy's author asks that every use of it attribute her work correctly and
+that no derived work obscure its authorship. The repair code is hers in
+design and in detail; this port changes the language and adds offset
+tracking. To cite ftfy: Robyn Speer. (2019). ftfy (Version 5.5).
+Zenodo. https://doi.org/10.5281/zenodo.2591652
+
+------------------------------------------------------------------------
+chardetng
+------------------------------------------------------------------------
+
+The encoding detector in analysis/encoding/src/detect/ is a port of
+chardetng 0.1.17 by Henri Sivonen. chardetng is copyright Mozilla
+Foundation and licensed under the Apache License, Version 2.0 or the MIT
+license, at your option; it is used here under the Apache License,
+Version 2.0. The detector's statistics (analysis/encoding/src/detect/
+data.rs) are copied from chardetng's data.rs, which its authors dedicate
+to the public domain under CC0 1.0. The test fixture
+analysis/encoding/tests/data/chardetng_cases.tsv is made from
+chardetng's tests.
+
+------------------------------------------------------------------------
+WHATWG Encoding Standard
+------------------------------------------------------------------------
+
+The decoders in analysis/encoding/src/decode/ implement the WHATWG
+Encoding Standard, and the tables in analysis/encoding/src/tables/ and
+the labels in analysis/encoding-layers/src/labels.rs are generated from
+its index files and encodings.json. Copyright (c) WHATWG (Apple, Google,
+Mozilla, Microsoft). Those portions are used under the BSD 3-Clause
+License; the full text is in analysis/encoding/src/tables/NOTICE.
+
+------------------------------------------------------------------------
 Natural Earth
 ------------------------------------------------------------------------
 

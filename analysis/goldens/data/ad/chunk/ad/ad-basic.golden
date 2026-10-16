@@ -1,0 +1,228 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-basic	3306	3280	64c57736c5c99822f6e0e52259ff772591be725abb50c3d72fed784b043bad82
+annotator	opennlp.tools.formats.ad.ADChunkSampleStream	read
+layer	turbo:samples	document	7	written:str
+Feira n B-NP\nde prp B-PP\nlivros n I-PP\nabre v-fin B-VP\nem prp B-PP\nRibeira_Alta prop I-PP\n
+A art B-NP\nfeira n I-NP\nde prp B-PP\na art B-NP\nvila n I-NP\ncomeça v-fin B-VP\nem prp B-PP\no art B-NP\nsábado n I-NP\n, , O\na prp B-PP\nas art B-NP\ndez num I-NP\nhoras n I-NP\n. . O\n
+O art B-NP\nescritor n I-NP\nTeodoro_Valim prop I-NP\nassina v-fin B-VP\n«Canções_do_Vale-Fundo», prop O\ndiz v-fin B-VP\na art B-NP\norganização n I-NP\n. . O\n
+O art B-NP\nescritor n I-NP\nassina v-fin B-VP\n. . O\n
+Entrada n B-NP\ngratuita adj I-NP\npara prp B-PP\nos art B-NP\nsócios n I-NP\n! ! O\n
+A art B-NP\nCompanhia_Fluvial_do_Sul prop I-NP\nanunciou v-fin B-VP\nontem adv O\nnovas adj B-NP\ncarreiras n I-NP\n. . O\n
+Os art B-NP\nbilhetes n I-NP\ncustam v-fin B-VP\n3,5 num B-NP\nmoedas n I-NP\ne conj-c O\npodem v-fin B-VP\nser v-inf I-VP\ncomprados v-pcp I-VP\na_bordo adv B-ADVP\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	57	sample:u32	text:str
+0	Feira
+0	de
+0	livros
+0	abre
+0	em
+0	Ribeira_Alta
+1	A
+1	feira
+1	de
+1	a
+1	vila
+1	começa
+1	em
+1	o
+1	sábado
+1	,
+1	a
+1	as
+1	dez
+1	horas
+1	.
+2	O
+2	escritor
+2	Teodoro_Valim
+2	assina
+2	«Canções_do_Vale-Fundo»,
+2	diz
+2	a
+2	organização
+2	.
+3	O
+3	escritor
+3	assina
+3	.
+4	Entrada
+4	gratuita
+4	para
+4	os
+4	sócios
+4	!
+5	A
+5	Companhia_Fluvial_do_Sul
+5	anunciou
+5	ontem
+5	novas
+5	carreiras
+5	.
+6	Os
+6	bilhetes
+6	custam
+6	3,5
+6	moedas
+6	e
+6	podem
+6	ser
+6	comprados
+6	a_bordo
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	57	tag:str
+n
+prp
+n
+v-fin
+prp
+prop
+art
+n
+prp
+art
+n
+v-fin
+prp
+art
+n
+,
+prp
+art
+num
+n
+.
+art
+n
+prop
+v-fin
+prop
+v-fin
+art
+n
+.
+art
+n
+v-fin
+.
+n
+adj
+prp
+art
+n
+!
+art
+prop
+v-fin
+adv
+adj
+n
+.
+art
+n
+v-fin
+num
+n
+conj-c
+v-fin
+v-inf
+v-pcp
+adv
+end	turbo:sample-tags
+layer	turbo:sample-chunks	aligned:turbo:sample-tokens	57	chunk:str
+B-NP
+B-PP
+I-PP
+B-VP
+B-PP
+I-PP
+B-NP
+I-NP
+B-PP
+B-NP
+I-NP
+B-VP
+B-PP
+B-NP
+I-NP
+O
+B-PP
+B-NP
+I-NP
+I-NP
+O
+B-NP
+I-NP
+I-NP
+B-VP
+O
+B-VP
+B-NP
+I-NP
+O
+B-NP
+I-NP
+B-VP
+O
+B-NP
+I-NP
+B-PP
+B-NP
+I-NP
+O
+B-NP
+I-NP
+B-VP
+O
+B-NP
+I-NP
+O
+B-NP
+I-NP
+B-VP
+B-NP
+I-NP
+O
+B-VP
+I-VP
+I-VP
+B-ADVP
+end	turbo:sample-chunks
+layer	turbo:phrases	document	29	sample:u32	start:u32	end:u32	type:str
+0	0	1	NP
+0	1	3	PP
+0	3	4	VP
+0	4	6	PP
+1	0	2	NP
+1	2	3	PP
+1	3	5	NP
+1	5	6	VP
+1	6	7	PP
+1	7	9	NP
+1	10	11	PP
+1	11	14	NP
+2	0	3	NP
+2	3	4	VP
+2	5	6	VP
+2	6	8	NP
+3	0	2	NP
+3	2	3	VP
+4	0	2	NP
+4	2	3	PP
+4	3	5	NP
+5	0	2	NP
+5	2	3	VP
+5	4	6	NP
+6	0	2	NP
+6	2	3	VP
+6	3	5	NP
+6	6	9	VP
+6	9	10	ADVP
+end	turbo:phrases
+layer	turbo:phrase-errors	document	0	sample:u32	class:str	message:str
+end	turbo:phrase-errors

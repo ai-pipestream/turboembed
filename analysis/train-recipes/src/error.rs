@@ -68,6 +68,9 @@ pub enum Error {
     /// A Tatoeba export could not be read, or its two files are not of one
     /// export.
     Tatoeba(crate::tatoeba::TatoebaError),
+    /// FineWeb-2's or FineWeb's files or ranges could not be read, or are
+    /// not the listed ones.
+    Web(crate::fineweb::WebError),
     /// A run on the recorded release whose reader skipped `count`
     /// sentences, not the `recorded` count the recipe records for it
     /// ([`crate::chunk::RECORDED_SKIPPED_SENTENCES`]).
@@ -164,6 +167,7 @@ impl fmt::Display for Error {
                 write!(f, "{count} of {of} {what}, more than the limit of {limit}")
             }
             Error::Tatoeba(e) => write!(f, "Tatoeba: {e}"),
+            Error::Web(e) => write!(f, "web text: {e}"),
             Error::SkippedNotRecorded { what, count, recorded } => {
                 write!(f, "{count} {what}, not the recorded release's {recorded}")
             }
@@ -221,6 +225,12 @@ impl From<turbo_train_components::Error> for Error {
 impl From<turbo_eval::model_gate::ModelGateError> for Error {
     fn from(e: turbo_eval::model_gate::ModelGateError) -> Error {
         Error::Gate(e)
+    }
+}
+
+impl From<crate::fineweb::WebError> for Error {
+    fn from(e: crate::fineweb::WebError) -> Error {
+        Error::Web(e)
     }
 }
 

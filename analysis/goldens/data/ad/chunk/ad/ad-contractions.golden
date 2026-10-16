@@ -1,0 +1,130 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-contractions	1119	1119	4ac3d133872020f041672bc291596be8d276f0375862892121daecaf42e5522a
+annotator	opennlp.tools.formats.ad.ADChunkSampleStream	read
+layer	turbo:samples	document	6	written:str
+Moro v-fin B-VP\nem prp B-PP\na_Rua_Nova prop I-PP\ne conj-c O\nDe prp B-PP\nela pron-pers I-PP\ngosto v-fin B-VP\n. . O\n
+Vem v-fin B-VP\npor prp B-PP\no art B-NP\ncaminho n I-NP\ne conj-c O\nxis prp O\no art O\nsobre_de prp O\n
+o art O\nresto n B-NP\nem prp O\n__ x O\nfim n B-NP\n. . O\n
+Em prp O\na art O\nSerra_Alta prop O\n. . O\n
+em prp O\no_Ponte_Velha prop O\na_b__ prp O\n
+fecho n B-NP\n. . O\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	31	sample:u32	text:str
+0	Moro
+0	em
+0	a_Rua_Nova
+0	e
+0	De
+0	ela
+0	gosto
+0	.
+1	Vem
+1	por
+1	o
+1	caminho
+1	e
+1	xis
+1	o
+1	sobre_de
+2	o
+2	resto
+2	em
+2	__
+2	fim
+2	.
+3	Em
+3	a
+3	Serra_Alta
+3	.
+4	em
+4	o_Ponte_Velha
+4	a_b__
+5	fecho
+5	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	31	tag:str
+v-fin
+prp
+prop
+conj-c
+prp
+pron-pers
+v-fin
+.
+v-fin
+prp
+art
+n
+conj-c
+prp
+art
+prp
+art
+n
+prp
+x
+n
+.
+prp
+art
+prop
+.
+prp
+prop
+prp
+n
+.
+end	turbo:sample-tags
+layer	turbo:sample-chunks	aligned:turbo:sample-tokens	31	chunk:str
+B-VP
+B-PP
+I-PP
+O
+B-PP
+I-PP
+B-VP
+O
+B-VP
+B-PP
+B-NP
+I-NP
+O
+O
+O
+O
+O
+B-NP
+O
+O
+B-NP
+O
+O
+O
+O
+O
+O
+O
+O
+B-NP
+O
+end	turbo:sample-chunks
+layer	turbo:phrases	document	10	sample:u32	start:u32	end:u32	type:str
+0	0	1	VP
+0	1	3	PP
+0	4	6	PP
+0	6	7	VP
+1	0	1	VP
+1	1	2	PP
+1	2	4	NP
+2	1	2	NP
+2	4	5	NP
+5	0	1	NP
+end	turbo:phrases
+layer	turbo:phrase-errors	document	0	sample:u32	class:str	message:str
+end	turbo:phrase-errors
