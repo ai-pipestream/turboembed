@@ -20,6 +20,7 @@ pub use turbo_analysis::{
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
+pub use categories::Categories;
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
@@ -27,6 +28,7 @@ pub use matches::Matches;
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
+pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
@@ -88,6 +90,7 @@ macro_rules! positional {
 }
 
 mod abbreviations;
+mod categories;
 mod date;
 mod language_spans;
 mod levels;
@@ -95,6 +98,7 @@ mod matches;
 mod money;
 mod numbers;
 mod ordinals;
+mod pii;
 mod quantities;
 mod temporal;
 mod times;

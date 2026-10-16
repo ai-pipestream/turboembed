@@ -1,0 +1,38 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/abbreviations	323	323	daae94d6ca8153be16e834da072d9f05a8437508fe55f4102378d0cfaae36036
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.01
+config	events	raw
+config	p	0
+config	solverType	L2R_LR
+config	source	sentdetect
+layer	turbo:events	document	17	outcome:str	context:str	values:str
+n	sn eos=. x=Dr 2 xcap v= s= n=Alvarez ncap	
+n	eos=. x=U 1 xcap v=the s=S scap n=in	
+n	sn eos=. x=.S 2 v=U vcap s= n=in	
+n	sn eos=. x=St 2 xcap v=on s= n=Mark's ncap	
+n	sn eos=. x=Place 5 xcap v=Mark's vcap s= n=She ncap	
+n	sn eos=. x=Mr 2 xcap v=with s= n=Chen ncap	
+n	sn eos=. x=Jan 3 xcap v=until s= n=2004,	
+n	sn eos=. x=closed 6 v=clinic s= n=Prof. ncap	
+n	sn eos=. x=Prof 4 xcap v=closed. s= n=Okafor, ncap	
+n	eos=. x=Ph 2 xcap v=Okafor, vcap s=D scap n=,	
+n	eos=. x=.D 2 v=Ph vcap s=, n=later	
+n	eos=. x=U 1 xcap v=the s=S scap n=health	
+n	sn eos=. x=.S 2 v=U vcap s= n=health	
+n	eos=. x=ideas 5 v=her s=" n=It ncap	
+n	eos=. x=i 1 v=nonprofit, s=e n=a	
+n	sn eos=. x=.e 2 v=i s= n=a	
+s	sn eos=. x=day 3 v=a s= n=	
+end	turbo:events
+layer	turbo:liblinear-error	document	1	class:str	message:str
+java.lang.IllegalArgumentException	feature nodes must be sorted by index in ascending order
+end	turbo:liblinear-error

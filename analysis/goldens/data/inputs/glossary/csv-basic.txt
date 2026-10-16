@@ -1,0 +1,6 @@
+﻿c1,hot dog,extra
+
+c2,"New, ""York""
+City"c3,naïve,,
+"c4","""q""",x
+c5, padded 

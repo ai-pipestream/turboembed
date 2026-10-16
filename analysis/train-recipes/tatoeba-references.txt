@@ -1,0 +1,9 @@
+# The OpenNLP language detector the gate of the language detector
+# release (release::TATOEBA_MODELS) scores beside the trained one: its
+# SHA-256 and the address the models-tatoeba workflow fetches it from.
+# The workflow saves it under the address's last segment and checks it
+# against the SHA-256 before it caches it. A test checks this line against
+# the recipe's reference (release::references). It is only scored, never
+# shipped or bundled: the terms of the Leipzig corpora it was trained on
+# are not confirmed (docs/licences.md).
+2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4 https://downloads.apache.org/opennlp/models/langdetect/1.8.3/langdetect-183.bin

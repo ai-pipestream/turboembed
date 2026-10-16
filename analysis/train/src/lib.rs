@@ -26,6 +26,9 @@
 //!   stop, and the model as `PerceptronModel` holds it.
 //! - [`naive_bayes`][]: `NaiveBayesTrainer` and `NaiveBayesModel`, with
 //!   Lidstone smoothing (`delta = 0.05`).
+//! - [`liblinear`][]: the liblinear trainer of the OpenNLP addons, with
+//!   liblinear-java's logistic regression solvers, the model it returns
+//!   and its serialized form.
 //! - [`trainer`][]: `TrainerFactory.getEventTrainer` and
 //!   `getEventModelSequenceTrainer`, the trainer the `Algorithm` parameter
 //!   names, and the model it trained.
@@ -75,6 +78,7 @@ pub mod error;
 pub mod event;
 pub mod gis;
 pub mod index;
+pub mod liblinear;
 pub mod monitor;
 pub mod naive_bayes;
 pub mod package;

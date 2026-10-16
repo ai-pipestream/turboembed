@@ -1,0 +1,61 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	svm-doccat/weather	97	97	9188fa32f94cb81a67a056a04333125282feeacf6de772771821830caa3c52ac
+annotator	opennlp.tools.ml.libsvm.doccat.DocumentCategorizerSVM	categorize
+config	coef0	0.0
+config	corpus	svm-doccat-train/pair
+config	cost	1.0
+config	degree	3
+config	gamma	0.0
+config	generators	bag-of-words
+config	kernel	LINEAR
+config	language	eng
+config	max-features	-1
+config	run	pair-linear-tfidf
+config	scaling	0.0 1.0
+config	seed	1
+config	selection	NONE
+config	svm-type	C_SVC
+config	weighting	TF_IDF
+layer	opennlp:tokens	text	17	start:u32	end:u32
+0	5
+6	10
+11	14
+15	21
+22	26
+27	30
+31	39
+40	45
+46	49
+50	55
+56	64
+65	69
+70	74
+75	78
+79	85
+86	89
+90	96
+end	opennlp:tokens
+layer	turbo:svm-vector	document	8	index:u32	value:f64
+1	3ff0000000000000 1.0
+10	3ff0000000000000 1.0
+39	3ff0000000000000 1.0
+53	3fe0000000000000 0.5
+56	3ff0000000000000 1.0
+62	3ff0000000000000 1.0
+66	3ff0000000000000 1.0
+69	3ff0000000000000 1.0
+end	turbo:svm-vector
+layer	turbo:svm-decisions	document	1	first:str	second:str	value:f64
+weather	cooking	3fdfbe610e6747a0 0.49599481970391857
+end	turbo:svm-decisions
+layer	turbo:svm-vote	document	1	category:str
+weather
+end	turbo:svm-vote
+layer	turbo:categories	document	2	category:str	score:f64
+weather	3fef7d5ec549a6f7 0.9840539792323558
+cooking	3f90542756cb2120 0.015946020767644176
+end	turbo:categories

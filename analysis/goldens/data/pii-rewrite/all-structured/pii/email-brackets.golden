@@ -1,0 +1,60 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/email-brackets	59	59	5c4dbca8d72f1008a77bfdc836127b225ffd8e2fb335e7833c0fcfc4f78824be
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	all-structured
+layer	turbo:view	text	28	start:u32	end:u32	with:str
+16	17	*
+17	18	*
+18	19	*
+19	20	*
+21	22	*
+22	23	*
+23	24	*
+24	25	*
+25	26	*
+26	27	*
+27	28	*
+29	30	*
+30	31	*
+31	32	*
+40	41	*
+41	42	*
+42	43	*
+43	44	*
+45	46	*
+46	47	*
+47	48	*
+48	49	*
+49	50	*
+50	51	*
+51	52	*
+53	54	*
+54	55	*
+55	56	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+From: The Desk <################>; Cc: (################).\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	From: The Desk <EMAIL-1>; Cc: (EMAIL-2).\n	
+hmac	From: The Desk <EMAIL-06b0ac92120f3b97>; Cc: (EMAIL-75aa2539d716cd33).\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	4	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	16	32	16	23	EMAIL-1
+pseudonymize	40	56	31	38	EMAIL-2
+hmac	16	32	16	38	EMAIL-06b0ac92120f3b97
+hmac	40	56	46	68	EMAIL-75aa2539d716cd33
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+email	2	2	EMAIL-06b0ac92120f3b97, EMAIL-75aa2539d716cd33
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+email: 2 mentions, 2 distinct [EMAIL-06b0ac92120f3b97, EMAIL-75aa2539d716cd33]
+end	turbo:pii-audit-report

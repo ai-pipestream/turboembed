@@ -24,6 +24,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
 | `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor, which writes `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor, which writes `turbo:quantities` ([quantities.md](quantities.md)); the temporal extractor, which writes `turbo:temporal`, the document date selector, which writes `turbo:document-date`, and the conversion step that reads it ([temporal.md](temporal.md)) |
+| `turbo-pii` | `analysis/pii/` | PII detection ported from OpenNLP's `opennlp.tools.pii`: e-mail, phone, IBAN, card, ABA routing, network, credential, Bitcoin and Ethereum, national and device identifiers, each checked with its check digit or checksum (Luhn, mod 97, mod 11, ISO 7064, base58check, bech32, EIP-55 over Keccak-256, all written in the crate), in the packs of `PiiPacks`; writes `turbo:pii` with a kind, a confidence and a normalized form per mention; masking in place or as the `masked` view (`MaskedView`), numbered and keyed (HMAC-SHA-256) labels and audit reports ([pii.md](pii.md)) |
 | `turbo-grammar` | `analysis/grammar/` | A rule grammar with a chart parser for numbers, ordinals and percentages in words or digits (English), which writes the `grammar` instances of `turbo:numbers` and `turbo:quantities` and the `turbo:ordinals` layer, with its Recognizers-Text conformance tests ([grammar.md](grammar.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
@@ -36,9 +37,12 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stem-layers` | `analysis/stem-layers/` | The stemmers' layer, `turbo:stems` |
 | `turbo-stopword` | `analysis/stopword/` | OpenNLP's eleven bundled stopword lists (Bulgarian, Danish, German, English, Spanish, Finnish, French, Italian, Dutch, Portuguese, Russian) and `StopwordFilter.isStopword`, and the step that reads `opennlp:tokens` and, optionally, `opennlp:language` and writes `turbo:stopwords`, a flag per token; it flags and never removes. `analysis/stopword/data/README.md` gives each list's origin and license, the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/stopword/README.md` describes its JVM golden files |
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
+| `turbo-glossary` | `analysis/glossary/` | OpenNLP's glossary matchers and readers: `TextMatcher` (`AhoCorasickGlossaryMatcher`, an Aho-Corasick automaton over code points whose matches must start and end on given boundaries), `TokenMatcher` (`TermAnalyzingGlossaryMatcher`, on turbo-matcher's phrase matcher, over token text or stems), their composite (`CompositeGlossaryMatcher`), `GlossaryAnnotator`, which reads a view, its `opennlp:tokens` and optionally `turbo:stems` and writes `turbo:glossary-terms`, and the comma or tab separated and TBX 2 and 3 readers (`CsvGlossaryReader`, `TbxGlossaryReader`, with a small XML parser of its own) and a TBX writer. The crate documentation lists where it differs from OpenNLP and the OpenNLP behaviour that is surprising; `analysis/glossary/README.md` describes its JVM golden files and the timing of the two matchers |
+| `turbo-glossary-layers` | `analysis/glossary-layers/` | The glossary (`Glossary`, an entry's id and term) and the `turbo:glossary-terms` layer, so a consumer of the matches does not depend on the matchers |
+| `turbo-doccat` | `analysis/doccat/` | OpenNLP's SVM document categorizer (`DocumentCategorizerSVM` of `opennlp-ml-libsvm`) at prediction: the LIBSVM text model reader and LIBSVM's prediction (C-SVC and nu-SVC, the linear, polynomial, RBF and sigmoid kernels, probability estimates), the sidecar that holds the rest of the model, the feature generators and term weightings, and the step that reads `opennlp:tokens` and writes `turbo:categories` ([doccat.md](doccat.md)) |
 | `turbo-langspan` | `analysis/langspan/` | Language by span (code switching): script runs, then OpenNLP's language detector model scoring words and clauses, written as `turbo:language-spans` with the document summary in `opennlp:language` ([langdetect.md](langdetect.md), "Language by span") |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
-| `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
+| `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the liblinear trainer of the OpenNLP addons with liblinear-java's logistic regression solvers ([liblinear.md](liblinear.md)), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
 | `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger, the lemmatizer, the phrase chunker and the language detector: `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`, `LemmaSampleEventStream`, `ChunkerEventStream` and `LanguageDetectorEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel`, `LemmatizerModel`, `ChunkerModel` and `LanguageDetectorModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order), and the recipes that train the eighteen published UD 1.3 models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the components" below |
 | `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger and chunker (`en-pos-maxent.bin`, `en-chunker.bin`); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner` and `evaluate` goldens |
@@ -130,6 +134,12 @@ one-to-one mapping per character, and a run replaced in one call is one
 edit over the whole run. A layer's spans
 name the view they are in, and `Document::to_source` maps them back
 through any chain of views to exact source bytes.
+
+turbo-pii's `MaskedView` writes the view named `masked` this way: the
+text with the mentions of the `turbo:pii` layer masked, the same byte
+length as its parent, and one edit per masked character, so each mask
+byte maps back to its own source character and every other offset maps
+to itself ([pii.md](pii.md#the-masked-view)).
 
 Inserted or deleted bytes (an edit with one empty side) belong to
 neither neighbour: a start offset at them maps to after them and an end
@@ -516,9 +526,11 @@ fields mean bumps its `SCHEMA`.
 | `Ordinals` | `turbo:ordinals` | text | `turbo-analysis-layers` |
 | `Temporals` | `turbo:temporal` | text | `turbo-analysis-layers` |
 | `DocumentDate` | `turbo:document-date` | the document (indexes `Temporals`) | `turbo-analysis-layers` |
+| `Pii` | `turbo:pii` | text | `turbo-analysis-layers` |
 | `Abbreviations` | `turbo:abbreviations` | text | `turbo-analysis-layers` |
 | `Matches` | `turbo:matches` | text | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
+| `GlossaryTerms` | `turbo:glossary-terms` | text (indexes `Tokens`) | `turbo-glossary-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
@@ -528,6 +540,7 @@ fields mean bumps its `SCHEMA`.
 | `NBest<L>` | `turbo:nbest<L>` | `L` | `turbo-analysis` |
 | `Language` | `opennlp:language` | the document | `turbo-analysis-layers` |
 | `LanguageSpans` | `turbo:language-spans` | text | `turbo-analysis-layers` |
+| `Categories` | `turbo:categories` | the document | `turbo-analysis-layers` |
 | `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
 | `Terms` | `turbo:terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
@@ -1188,9 +1201,9 @@ flag, each phrase token's flag comes from its text, and the flags that
 come from a layer or the context are refused for phrases. Phrases are
 tokenized by the caller, the same way the documents are, or they will
 not line up with the tokens. `find` reports every occurrence, overlapping
-ones too, in token order; `remove` drops a label's phrases. The
-glossary matcher (#202) is meant to sit on this: a glossary entry keeps
-the `PhraseId` of each of its terms, and a match names the phrase.
+ones too, in token order; `remove` drops a label's phrases. The token
+matcher of `turbo-glossary` sits on this: it keeps the glossary entry of
+each `PhraseId`, and a match names the entry.
 
 The phrase list is a trie over token ids, written here rather than taken
 from daachorse, aho-corasick or fst. The root's edges are an array
@@ -1903,11 +1916,13 @@ The layers and their columns, in order:
 | `turbo:utf16<opennlp:chunks>` | `aligned:opennlp:chunks` | `start16:u32`, `end16:u32`, `cut:u32` |
 | `opennlp:entities` | `text` | `start:u32`, `end:u32`, `token_start:u32`, `token_end:u32`, `kind:str`, `prob:f64` |
 | `opennlp:language` | `document` | `code:str`, `confidence:f64` |
+| `turbo:categories` | `document` | `category:str`, `score:f64` |
 | `turbo:numbers` | `text` | `start:u32`, `end:u32`, `numeral_end:u32`, `negative:u32`, `coefficient:str`, `scale:u32`, `plain:str` |
 | `turbo:money` | `text` | `start:u32`, `end:u32`, `coefficient:str`, `negative:u32`, `scale:u32`, `plain:str`, `currency:str` |
 | `turbo:quantities` | `text` | `start:u32`, `end:u32`, `coefficient:str`, `negative:u32`, `scale:u32`, `plain:str`, `unit:str` |
 | `turbo:temporal` | `text` | `start:u32`, `end:u32`, `value:str`, `granularity:str`, `origin:str` |
 | `turbo:document-date` | `document` | `date:str`, `mention:u32` |
+| `turbo:pii` | `text` | `start:u32`, `end:u32`, `type:str`, `normalized:str` |
 | `turbo:view` | `text` | `start:u32`, `end:u32`, `with:str` |
 | `opennlp:subwords` | `text` | `start:u32`, `end:u32`, `id:u32` |
 | `turbo:word-types` | `aligned:opennlp:tokens` | `kind:str` |
@@ -1927,7 +1942,8 @@ The layers and their columns, in order:
 | `turbo:gis-model` | `document` | `sha256:str`, `length:u32` |
 
 `opennlp:language` has a row per language the detector ranked, best
-first. A `turbo:view` block is what a normalizer produced: a row per
+first, and `turbo:categories` a row per category of a document
+categorizer, best first. A `turbo:view` block is what a normalizer produced: a row per
 edit, in text order, where `start..end` is the span of the source text
 the edit replaces (empty for an insertion) and `with` is the
 replacement (empty for a deletion). The JVM writes adjacent one-to-one
@@ -2012,7 +2028,8 @@ and a probability must be within the `Tolerance`: `Exact` compares the
 bits (so -0.0 and 0.0 differ), and `Abs(d)` takes two finite values at
 most `d` apart, or the same infinity, or two NaNs. `Language` holds
 every language the detector ranked, best first, and is compared row by
-row, so the ranking must match. POS tags without
+row, so the ranking must match; so is `Categories`, every category and
+its score. POS tags without
 probabilities do not match a golden that has them.
 
 `Utf16Spans<L>` (`turbo:utf16<L>`) is compared exactly, row by row: the
@@ -2095,8 +2112,8 @@ token's sentence is the one whose span contains it, and a token inside
 no sentence is refused (`LoadError::OutsideSentences`), since the JVM
 makes its tokens inside its sentences. The format writes sentences
 before tokens, so `load_document` finds them; without sentences under
-that name the column is `None`. `Language` holds every row of the
-golden, best first.
+that name the column is `None`. `Language` and `Categories` hold every
+row of the golden, best first.
 
 A block is checked against its layer type's shape before it is loaded,
 the same check the comparison makes, and the document then checks the
@@ -2254,6 +2271,14 @@ fixture as read, the same word in three cases in a case-sensitive and a
 case-insensitive dictionary, words and tags with the characters the
 serializer escapes and an entry with no tags, an empty one, forty
 entries, words whose lowercase is not ASCII).
+
+`analysis/goldens/data/train-liblinear/<run>/<set>/<id>.golden`
+(`LiblinearTrainGolden`) is the liblinear trainer of the OpenNLP addons on
+the same sources' events, with each logistic regression solver: the
+events, then the exception or the text model, the serialized model's
+SHA-256 and the probabilities `eval` gives. [liblinear.md](liblinear.md)
+lists the runs, and `analysis/train/tests/liblinear_goldens.rs` compares
+with them.
 
 ## Training the components
 
@@ -2432,9 +2457,14 @@ The generator writes these layers, in this order within a golden:
 | `money-convert` (`EcbFxRates.convert` in `MoneyConversionAnnotator`, per notation) | `turbo:money` |
 | `quantity` (`CursorQuantityExtractor.extract` in `QuantityAnnotator`, per notation) | `turbo:quantities` |
 | `temporal` (`CursorTemporalExtractor.extract` in `TemporalAnnotator`, then `DocumentDateAnnotator`, per reference mode) | `turbo:temporal`, `turbo:document-date` |
+| `pii` (the `PiiPacks` extractor in `PiiAnnotator`, per pack) | `turbo:pii` |
+| `pii-rewrite` (`Masker`, `Pseudonymizer`, `HmacTokenizer` and `PiiAuditReport` over those mentions, per pack) | `turbo:view`, `turbo:pii-mask-all`, `turbo:pii-rewrites`, `turbo:pii-labels`, `turbo:pii-audit`, `turbo:pii-audit-report` |
 | `subwords` (`WordpieceEncoder.encode`) | `opennlp:subwords` |
 | `unigram` (`UnigramSegmenter.tokenizePos`) | `opennlp:tokens` |
 | `lattice` (`LatticeTokenizer.analyze`) | `opennlp:tokens`, `turbo:morphemes` |
+| `train-liblinear` (`LiblinearTrainer.train`, `LiblinearModel.serialize`, `eval`) | `turbo:events`, then `turbo:liblinear-error`, or `turbo:liblinear-text`, `turbo:liblinear-model`, `turbo:liblinear-scores`, `turbo:liblinear-best` ([liblinear.md](liblinear.md)) |
+| `svm-doccat` (`DocumentCategorizerSVM.train` on a corpus) | `turbo:svm-model`, `turbo:svm-sidecar` |
+| `svm-doccat` (`DocumentCategorizerSVM.categorize` on a document) | `opennlp:tokens`, `turbo:svm-vector`, `turbo:svm-decisions`, `turbo:svm-vote`, `turbo:categories` |
 
 `numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
 `turbo:numbers`, anchored on the text, with one row per number mention:
@@ -2481,6 +2511,22 @@ with no row or one: `date` and `mention`, the index of the mention it
 came from. The `config reference` record is `dateline` (the reference date
 of relative mentions is the text's first absolute day) or `2026-03-15`.
 See [temporal.md](temporal.md#golden-files).
+
+`pii/<pack>/pii/<id>.golden` (`payment`, `contact`, `network`,
+`secrets`, `crypto`, `us-identity`, `eu-identity`, `ca-identity`,
+`device`, `all-structured`) holds `turbo:pii`, one row per mention in
+`PiiAnnotator`'s order, with the columns `start`, `end` (UTF-8 byte
+offsets), `type` (`PiiMention.type()`) and `normalized`. The `annotator`
+line names `opennlp.tools.pii.PiiPacks` and the factory method, and the
+`config pack` record names the pack. See [pii.md](pii.md#golden-files).
+
+`pii-rewrite/<pack>/pii/<id>.golden` holds what OpenNLP makes of those
+mentions under a fixed test key (`config key`): the masked text's edits as
+`turbo:view` (one row per changed character, a masked character written as
+one mask byte per UTF-8 byte), the text with every mention masked, the
+numbered and keyed rewrites or the exception each threw, their labels, and
+the audit report by type and as text. `analysis/goldens-tool/README.md`
+lists the columns. See [pii.md](pii.md#golden-files).
 
 When the OpenNLP annotator throws on an input, the golden holds the
 header records, the `config` records and then, as its last line,
@@ -2967,9 +3013,17 @@ each (`Task::LanguageDetector`, `Scoring::Labels`). The model's
 directory lists the ids of the sentences it was trained on
 (`training-sentences.txt`), the credit CC BY 2.0 FR asks for, as
 Tatoeba's sentence addresses. Tatoeba's download host refused the
-machine it was written on, so no export is recorded and no full run has
-been made; the README has the commands, the split, the thresholds and
-which way the gate leans.
+machine it was written on, so the full run was made on GitHub's runners
+(`.github/workflows/models-tatoeba.yml`) on Tatoeba's export of
+2026-10-10, which the recipe records: 71 languages with at least 1,500
+sentences after the licence check and de-duplication, 321,026 sentences
+trained on and 35,500 held out, and the
+trained model right on 92.19% of them against 83.91% for
+`langdetect-183.bin`, a pass. The model and `training-sentences.txt` go
+out as release `models-tatoeba-2026-10-10-1`, and the export's archives,
+which Tatoeba replaces every week, as release `data-tatoeba-2026-10-10`.
+The README has the record, the split, the thresholds and which way the
+gate leans.
 
 ## Differential fuzzing
 
@@ -3087,7 +3141,7 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz --seed 1 --count 1000
 
 writes the inputs of the corpus into `<out>/inputs/<set>/<id>.txt` for
 each set of `--sets` (`en`, `edge`, `norm`, `num`, `money`, `quantity`,
-`temporal` and `sentence-fixture` by default: between them every covered run reads
+`temporal`, `pii` and `sentence-fixture` by default: between them every covered run reads
 each text), runs the generator in the container over that inputs
 directory with `--skip-annotators` naming those annotators, writes the
 goldens under `<out>/jvm/`, compares them, writes the report
@@ -3137,7 +3191,8 @@ boundaries, mapping it forward covers the span, mapping that back gives
 the same source span, and where the span touches no edit the source
 bytes are the view's bytes. `check_document` finds every instance of the
 shared layer types that have spans (sentences, tokens, subwords, chunks,
-phrase chunks, entities, numbers, money, quantities, temporal mentions, structure);
+phrase chunks, entities, numbers, money, quantities, temporal mentions, PII
+mentions, structure);
 `check_spans` takes any span columns. A `Violation` names the layer, the
 view, the span and what failed.
 

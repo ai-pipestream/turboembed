@@ -1,0 +1,128 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/list	231	231	374002664b56c2b3d6cce83151f15ed288f1a976eb26ceb4019d9afdf2442431
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	9	outcome:str	context:str	values:str
+n	1 eos=. n=The ncap s= sn v=things: x=1	
+s	2 eos=. n=2. s= sn v=plugged x=in	
+n	1 eos=. n=The ncap s= sn v=in. x=2	
+s	2 eos=. n=3. s= sn v=is x=on	
+n	1 eos=. n=The ncap s= sn v=on. x=3	
+s	5 eos=. n=- s= sn v=is x=green	
+s	4 eos=. n=- s= sn v=the x=case	
+s	5 eos=. n=If ncap s= sn v=vents x=clear	
+s	6 eos=. n= s= sn v=the x=button	
+end	turbo:events
+layer	turbo:liblinear-text	document	38	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 31
+bias 0.0000000000000000
+w
+0.86118143735866790 
+0 
+0 
+0 
+0 
+-0.027214983791783425 
+0 
+0 
+0 
+0 
+0 
+0.52495603726244170 
+0 
+-0.44447155214771067 
+-0.22140832997258067 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+096978f9576bfbaf9627c95d6b6c8f07f2cbf68dca03f225a02aad2199f7ec01	603
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	36	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe5552499354826 0.6666434280725795
+0	given	1	3fd555b6cd956fb4 0.3333565719274205
+0	reversed	0	3fe5552499354826 0.6666434280725795
+0	reversed	1	3fd555b6cd956fb4 0.3333565719274205
+1	given	0	3fd5558618341070 0.3333449589119999
+1	given	1	3fe5553cf3e5f7c8 0.6666550410880001
+1	reversed	0	3fd5558618341070 0.3333449589119999
+1	reversed	1	3fe5553cf3e5f7c8 0.6666550410880001
+2	given	0	3fe5552499354826 0.6666434280725795
+2	given	1	3fd555b6cd956fb4 0.3333565719274205
+2	reversed	0	3fe5552499354826 0.6666434280725795
+2	reversed	1	3fd555b6cd956fb4 0.3333565719274205
+3	given	0	3fd5558618341070 0.3333449589119999
+3	given	1	3fe5553cf3e5f7c8 0.6666550410880001
+3	reversed	0	3fd5558618341070 0.3333449589119999
+3	reversed	1	3fe5553cf3e5f7c8 0.6666550410880001
+4	given	0	3fe5552499354826 0.6666434280725795
+4	given	1	3fd555b6cd956fb4 0.3333565719274205
+4	reversed	0	3fe5552499354826 0.6666434280725795
+4	reversed	1	3fd555b6cd956fb4 0.3333565719274205
+5	given	0	3fd5558618341070 0.3333449589119999
+5	given	1	3fe5553cf3e5f7c8 0.6666550410880001
+5	reversed	0	3fd5558618341070 0.3333449589119999
+5	reversed	1	3fe5553cf3e5f7c8 0.6666550410880001
+6	given	0	3fd5558618341070 0.3333449589119999
+6	given	1	3fe5553cf3e5f7c8 0.6666550410880001
+6	reversed	0	3fd5558618341070 0.3333449589119999
+6	reversed	1	3fe5553cf3e5f7c8 0.6666550410880001
+7	given	0	3fd5558618341070 0.3333449589119999
+7	given	1	3fe5553cf3e5f7c8 0.6666550410880001
+7	reversed	0	3fd5558618341070 0.3333449589119999
+7	reversed	1	3fe5553cf3e5f7c8 0.6666550410880001
+8	given	0	3fd5558618341070 0.3333449589119999
+8	given	1	3fe5553cf3e5f7c8 0.6666550410880001
+8	reversed	0	3fd5558618341070 0.3333449589119999
+8	reversed	1	3fe5553cf3e5f7c8 0.6666550410880001
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	18	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	s
+1	reversed	s
+2	given	n
+2	reversed	n
+3	given	s
+3	reversed	s
+4	given	n
+4	reversed	n
+5	given	s
+5	reversed	s
+6	given	s
+6	reversed	s
+7	given	s
+7	reversed	s
+8	given	s
+8	reversed	s
+end	turbo:liblinear-best

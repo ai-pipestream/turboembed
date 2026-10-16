@@ -1,0 +1,62 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/imei	61	61	e28422ecd2305fbbb0e6fbdabb13159c243e1c3a9c992d8ce7c882dbad12500e
+annotator	opennlp.tools.pii.PiiPacks	device
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	device
+layer	turbo:view	text	30	start:u32	end:u32	with:str
+6	7	*
+7	8	*
+8	9	*
+9	10	*
+10	11	*
+11	12	*
+12	13	*
+13	14	*
+14	15	*
+15	16	*
+16	17	*
+17	18	*
+18	19	*
+19	20	*
+20	21	*
+37	38	*
+38	39	*
+40	41	*
+41	42	*
+42	43	*
+43	44	*
+44	45	*
+45	46	*
+47	48	*
+48	49	*
+49	50	*
+50	51	*
+51	52	*
+52	53	*
+54	55	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+IMEI: ############### recorded; imei ################## too.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	IMEI: IMEI-1 recorded; imei IMEI-2 too.\n	
+hmac	IMEI: IMEI-d112aac93d89d69e recorded; imei IMEI-b4ca9cadc42ce43f too.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	4	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	6	21	6	12	IMEI-1
+pseudonymize	37	55	28	34	IMEI-2
+hmac	6	21	6	27	IMEI-d112aac93d89d69e
+hmac	37	55	43	64	IMEI-b4ca9cadc42ce43f
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+imei	2	2	IMEI-d112aac93d89d69e, IMEI-b4ca9cadc42ce43f
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+imei: 2 mentions, 2 distinct [IMEI-d112aac93d89d69e, IMEI-b4ca9cadc42ce43f]
+end	turbo:pii-audit-report

@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tsv-bad-header	14	14	cfe51e09d024ad2bd79218a59f8ba417caa3144435954e7cb433af5796c6041e
+annotator	opennlp.tools.formats.glossary.CsvGlossaryReader	read
+config	delimiter	\\t
+config	skipHeader	true
+error	opennlp.tools.util.InvalidFormatException	quote in unquoted field on line 1

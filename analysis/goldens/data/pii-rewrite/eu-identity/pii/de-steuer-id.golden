@@ -1,0 +1,41 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/de-steuer-id	49	49	7d5ae7c01f694adad6e5364624b2ebeb743f1c2f74c8cb008418a7f9b6a4b0e8
+annotator	opennlp.tools.pii.PiiPacks	euIdentity
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	eu-identity
+layer	turbo:view	text	11	start:u32	end:u32	with:str
+5	6	*
+6	7	*
+7	8	*
+8	9	*
+9	10	*
+10	11	*
+11	12	*
+12	13	*
+13	14	*
+14	15	*
+15	16	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+IdNr ########### recorded; 65929970488 is wrong.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	IdNr DE-STEUER-ID-1 recorded; 65929970488 is wrong.\n	
+hmac	IdNr DE-STEUER-ID-ed4c9c6df2d734e3 recorded; 65929970488 is wrong.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	2	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	5	16	5	19	DE-STEUER-ID-1
+hmac	5	16	5	34	DE-STEUER-ID-ed4c9c6df2d734e3
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+de-steuer-id	1	1	DE-STEUER-ID-ed4c9c6df2d734e3
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+de-steuer-id: 1 mentions, 1 distinct [DE-STEUER-ID-ed4c9c6df2d734e3]
+end	turbo:pii-audit-report

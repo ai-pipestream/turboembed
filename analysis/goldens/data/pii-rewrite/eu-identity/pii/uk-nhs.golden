@@ -1,0 +1,64 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/uk-nhs	60	60	99592c492b3273feae327d64add9e94cfafc2314c7437b593a59c246c66e832d
+annotator	opennlp.tools.pii.PiiPacks	euIdentity
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	eu-identity
+layer	turbo:view	text	30	start:u32	end:u32	with:str
+4	5	*
+5	6	*
+6	7	*
+8	9	*
+9	10	*
+10	11	*
+12	13	*
+13	14	*
+14	15	*
+15	16	*
+27	28	*
+28	29	*
+29	30	*
+30	31	*
+31	32	*
+32	33	*
+33	34	*
+34	35	*
+35	36	*
+36	37	*
+42	43	*
+43	44	*
+44	45	*
+46	47	*
+47	48	*
+48	49	*
+50	51	*
+51	52	*
+52	53	*
+53	54	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+NHS ############ recorded; ########## and ############ too.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	NHS UK-NHS-1 recorded; UK-NHS-1 and UK-NHS-1 too.\n	
+hmac	NHS UK-NHS-8ab298778f89ab6b recorded; UK-NHS-8ab298778f89ab6b and UK-NHS-8ab298778f89ab6b too.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	6	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	4	16	4	12	UK-NHS-1
+pseudonymize	27	37	23	31	UK-NHS-1
+pseudonymize	42	54	36	44	UK-NHS-1
+hmac	4	16	4	27	UK-NHS-8ab298778f89ab6b
+hmac	27	37	38	61	UK-NHS-8ab298778f89ab6b
+hmac	42	54	66	89	UK-NHS-8ab298778f89ab6b
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+uk-nhs	3	1	UK-NHS-8ab298778f89ab6b
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+uk-nhs: 3 mentions, 1 distinct [UK-NHS-8ab298778f89ab6b]
+end	turbo:pii-audit-report

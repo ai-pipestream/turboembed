@@ -1,0 +1,80 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ru	307	170	0694c88d949a90a29192dbe856add99bbd2f60b9be7448fa0d53b04407bfbbbf
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	4	outcome:str	context:str	values:str
+n	4 eos=. n=Уже ncap s= sn v=пришла x=рано	
+n	6 eos=. n=В ncap s= sn v=на x=санках	
+n	6 eos=. n=Многие ncap s= sn v=расчистили x=дороги	
+s	6 eos=. n= s= sn v=холодной x=погоде	
+end	turbo:events
+layer	turbo:liblinear-text	document	25	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 18
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0.69303339900345600 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+a695eef4db3c47866970e776a3117c6c281df7d36536e91ee407e0d4f7a8d46f	436
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	16	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe555204e685035 0.6666413813968634
+0	given	1	3fd555bf632f5f96 0.33335861860313665
+0	reversed	0	3fe555204e685035 0.6666413813968634
+0	reversed	1	3fd555bf632f5f96 0.33335861860313665
+1	given	0	3fe555204e685035 0.6666413813968634
+1	given	1	3fd555bf632f5f96 0.33335861860313665
+1	reversed	0	3fe555204e685035 0.6666413813968634
+1	reversed	1	3fd555bf632f5f96 0.33335861860313665
+2	given	0	3fe555204e685035 0.6666413813968634
+2	given	1	3fd555bf632f5f96 0.33335861860313665
+2	reversed	0	3fe555204e685035 0.6666413813968634
+2	reversed	1	3fd555bf632f5f96 0.33335861860313665
+3	given	0	3fe0000000000000 0.5
+3	given	1	3fe0000000000000 0.5
+3	reversed	0	3fe0000000000000 0.5
+3	reversed	1	3fe0000000000000 0.5
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	8	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+end	turbo:liblinear-best
