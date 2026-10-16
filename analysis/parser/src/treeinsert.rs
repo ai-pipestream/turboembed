@@ -640,7 +640,7 @@ impl Parser {
 }
 
 impl ParserTrait for Parser {
-    fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Vec<Parse> {
+    fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Result<Vec<Parse>, crate::parse::ParseError> {
         parse_bottom_up(
             tokens,
             num_parses,
@@ -650,8 +650,9 @@ impl ParserTrait for Parser {
             self.model.parser_tagger_model(),
             self.model.parser_chunker_model(),
             self.model.head_rules(),
-            |p, q| self.advance_parses(p, q),
+            |p, q| Ok(Some(self.advance_parses(p, q))),
             |p| self.advance_top(p),
+            |_| {},
         )
     }
 }

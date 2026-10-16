@@ -51,7 +51,7 @@ pub mod treeinsert;
 pub use annotator::{ParserAnnotator, ParserTool};
 pub use bottom_up::{
     DEFAULT_ADVANCE_PERCENTAGE, DEFAULT_BEAM_SIZE, Parser, ParserEngine, ParserFactory, build_dictionary,
-    collapse_punctuation,
+    collapse_punctuation, dictionary_key,
 };
 pub use chunking::ParserTrainingParameters;
 pub use context::{ChunkContextGenerator, Cons, ParserChunkerSequenceValidator};

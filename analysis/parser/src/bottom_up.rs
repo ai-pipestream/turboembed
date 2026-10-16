@@ -12,7 +12,7 @@ use turbo_sequence::BeamSearch;
 
 use crate::head_rules::HeadRules;
 use crate::model::{ParserChunkerModel, ParserModel, ParserType};
-use crate::parse::{CONT, OTHER, Parse, START, TOP_NODE, insert_by_prob};
+use crate::parse::{CONT, Parse, ParseError, START, TOP_NODE, insert_by_prob};
 
 /// Default beam width `M` (`AbstractBottomUpParser.defaultBeamSize`).
 pub const DEFAULT_BEAM_SIZE: usize = 20;
@@ -25,13 +25,14 @@ pub const ZERO_LOG: f64 = -100000.0;
 
 /// Interface for full syntactic constituency parsers (`opennlp.tools.parser.Parser`).
 pub trait Parser {
-    /// Returns up to `num_parses` highest-scoring constituency parses for `tokens`
-    /// (`Parser.parse(Parse, int)`).
-    fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Vec<Parse>;
+    /// Returns up to `num_parses` highest-scoring constituency parses for `tokens`, best first
+    /// (`Parser.parse(Parse, int)`). With no complete parse, it is the one incomplete guess, or
+    /// nothing where OpenNLP returns `{null}`. An error is where OpenNLP throws.
+    fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Result<Vec<Parse>, ParseError>;
 
-    /// Returns the single best constituency parse for `tokens` (`Parser.parse(Parse)`).
-    fn parse(&self, tokens: &Parse) -> Option<Parse> {
-        self.parse_n(tokens, 1).into_iter().next()
+    /// Returns the best constituency parse for `tokens` (`Parser.parse(Parse)`).
+    fn parse(&self, tokens: &Parse) -> Result<Option<Parse>, ParseError> {
+        Ok(self.parse_n(tokens, 1)?.into_iter().next())
     }
 }
 
@@ -45,14 +46,14 @@ pub enum ParserEngine {
 }
 
 impl Parser for ParserEngine {
-    fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Vec<Parse> {
+    fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Result<Vec<Parse>, ParseError> {
         match self {
             Self::Chunking(p) => p.parse_n(tokens, num_parses),
             Self::TreeInsert(p) => p.parse_n(tokens, num_parses),
         }
     }
 
-    fn parse(&self, tokens: &Parse) -> Option<Parse> {
+    fn parse(&self, tokens: &Parse) -> Result<Option<Parse>, ParseError> {
         match self {
             Self::Chunking(p) => p.parse(tokens),
             Self::TreeInsert(p) => p.parse(tokens),
@@ -132,7 +133,7 @@ pub fn collapse_punctuation(chunks: &[Parse], punct_set: &HashSet<String>) -> Ve
 }
 
 /// Advances POS tag assignments for `p` using `tagger` (`AbstractBottomUpParser.advanceTags`).
-pub fn advance_tags(p: &Parse, tagger: &PosModel, _beam_size: usize) -> Vec<Parse> {
+pub fn advance_tags(p: &Parse, tagger: &PosModel) -> Vec<Parse> {
     let children = p.children();
     let words: Vec<&str> = children.iter().map(Parse::covered_text).collect();
     let mut context = tagger.new_context().expect("validated PosModel descriptor");
@@ -219,9 +220,22 @@ pub fn advance_chunks(
     new_parses
 }
 
-/// Executes the shared bottom-up beam search loop (`AbstractBottomUpParser.parse(Parse, int)`).
+/// Executes the shared bottom-up derivation search (`AbstractBottomUpParser.parse(Parse, int)`).
+///
+/// Stage 0 tags `tokens`, stage 1 chunks each tagging and calls `after_chunks` on the result
+/// (tree insertion marks the chunks complete there), and every later stage calls
+/// `advance_parses`. A derivation that comes back complete goes through `advance_top` into the
+/// complete parses. `advance_parses` returning `None` is OpenNLP's `null`: the derivation itself
+/// is passed to `advance_top` and taken as complete. `Some` of an empty list drops it.
+///
+/// The search runs while there are derivations, fewer than `m_beam` complete parses or a best
+/// derivation below the lowest complete probability, and fewer than `2 * tokens + 3` stages;
+/// each stage advances at most `k_beam` derivations. Derivations and complete parses are kept as
+/// OpenNLP's `TreeSet`s keep them: by descending probability, one parse per probability. With no
+/// complete parse, the result is the best derivation of stage 2 (`guess`), or nothing when the
+/// search never reached stage 2.
 #[allow(clippy::too_many_arguments)]
-pub fn parse_bottom_up<FAdvance, FTop>(
+pub fn parse_bottom_up<FAdvance, FTop, FChunks>(
     tokens: &Parse,
     num_parses: usize,
     m_beam: usize,
@@ -232,103 +246,83 @@ pub fn parse_bottom_up<FAdvance, FTop>(
     head_rules: &dyn HeadRules,
     mut advance_parses: FAdvance,
     mut advance_top: FTop,
-) -> Vec<Parse>
+    mut after_chunks: FChunks,
+) -> Result<Vec<Parse>, ParseError>
 where
-    FAdvance: FnMut(&mut Parse, f64) -> Vec<Parse>,
+    FAdvance: FnMut(&mut Parse, f64) -> Result<Option<Vec<Parse>>, ParseError>,
     FTop: FnMut(&mut Parse),
+    FChunks: FnMut(&mut [Parse]),
 {
     if tokens.child_count() == 0 {
-        return Vec::new();
+        // `Parser.parse(Parse)` returns a parse without tokens as it is.
+        return Ok(vec![tokens.clone()]);
     }
-    let mut old_derivations: Vec<Parse> = Vec::new();
-    let mut new_derivations: Vec<Parse> = Vec::new();
+    let mut odh: Vec<Parse> = vec![tokens.clone()];
     let mut complete_parses: Vec<Parse> = Vec::new();
-    let max_stage_length = 2 * tokens.child_count() + 3;
-
-    let mut min_chunk_score = ZERO_LOG;
-    let tag_parses = advance_tags(tokens, tagger, m_beam);
-    for tp in &tag_parses {
-        let chunk_parses = advance_chunks(tp, min_chunk_score, chunker, head_rules);
-        for cp in chunk_parses {
-            insert_by_prob(&mut old_derivations, cp);
-        }
-        if old_derivations.len() > k_beam {
-            min_chunk_score = old_derivations[k_beam - 1].prob();
-        }
-    }
-
+    let mut guess: Option<Parse> = None;
+    let mut min_complete = 2.0;
+    let mut best_complete = ZERO_LOG;
+    let max_derivation_length = 2 * tokens.child_count() + 3;
     let mut derivation_stage = 0usize;
-    let mut min_complete_mass = ZERO_LOG;
-    let mut parse_over_mass = true;
 
-    while !old_derivations.is_empty()
-        && (complete_parses.len() < m_beam || parse_over_mass)
-        && derivation_stage < max_stage_length
+    while !odh.is_empty()
+        && (complete_parses.len() < m_beam || odh[0].prob() < min_complete)
+        && derivation_stage < max_derivation_length
     {
-        new_derivations.clear();
-        let mut derivation_rank = 0usize;
-
-        for old_p in &old_derivations {
-            if derivation_rank >= k_beam {
-                break;
+        let mut ndh: Vec<Parse> = Vec::new();
+        for tp in odh.iter().take(k_beam) {
+            if guess.is_none() && derivation_stage == 2 {
+                guess = Some(tp.clone());
             }
-            let mut p = old_p.clone();
-            if p.prob() < min_complete_mass && complete_parses.len() >= num_parses {
-                break;
-            }
-            derivation_rank += 1;
-            let next = advance_parses(&mut p, q_mass);
-            if !next.is_empty() {
-                for mut np in next {
-                    if np.complete() {
-                        advance_top(&mut np);
-                        insert_by_prob(&mut complete_parses, np);
-                        min_complete_mass = complete_parses[complete_parses.len() - 1].prob();
-                    } else {
-                        insert_by_prob(&mut new_derivations, np);
+            let nd = match derivation_stage {
+                0 => Some(advance_tags(tp, tagger)),
+                1 => {
+                    let min_chunk_score = if ndh.len() < k_beam { best_complete } else { ndh[ndh.len() - 1].prob() };
+                    let mut chunked = advance_chunks(tp, min_chunk_score, chunker, head_rules);
+                    after_chunks(&mut chunked);
+                    Some(chunked)
+                }
+                _ => {
+                    let mut p = tp.clone();
+                    match advance_parses(&mut p, q_mass)? {
+                        Some(nd) => Some(nd),
+                        None => {
+                            advance_top(&mut p);
+                            insert_by_prob(&mut complete_parses, p);
+                            None
+                        }
                     }
                 }
-            } else if complete_parses.is_empty() && derivation_rank == 1 && new_derivations.is_empty() {
-                guess_parse(p, head_rules, &mut complete_parses);
-                break;
+            };
+            for mut parse in nd.into_iter().flatten() {
+                if parse.complete() {
+                    advance_top(&mut parse);
+                    if parse.prob() > best_complete {
+                        best_complete = parse.prob();
+                    }
+                    if parse.prob() < min_complete {
+                        min_complete = parse.prob();
+                    }
+                    insert_by_prob(&mut complete_parses, parse);
+                } else {
+                    insert_by_prob(&mut ndh, parse);
+                }
             }
         }
         derivation_stage += 1;
-        std::mem::swap(&mut old_derivations, &mut new_derivations);
-        if complete_parses.len() >= num_parses
-            && !old_derivations.is_empty()
-            && old_derivations[0].prob() < min_complete_mass
-        {
-            parse_over_mass = false;
-        }
+        odh = ndh;
     }
 
     if complete_parses.is_empty() {
-        let mut gp = advance_tags(tokens, tagger, 1).into_iter().next().unwrap_or_else(|| tokens.clone());
-        let child_spans: Vec<Span> = gp.children().iter().map(Parse::span).collect();
-        for sp in child_spans {
-            gp.insert(Parse::new(Arc::clone(gp.text_arc()), sp, OTHER, 0.0, 0)).expect("child span inside root");
-        }
-        vec![gp]
+        Ok(guess.into_iter().collect())
     } else {
         complete_parses.truncate(num_parses);
-        complete_parses
+        Ok(complete_parses)
     }
 }
 
-fn guess_parse(mut p: Parse, head_rules: &dyn HeadRules, complete_parses: &mut Vec<Parse>) {
-    p.set_kind(TOP_NODE);
-    let first = &p.children()[0];
-    let last = &p.children()[p.child_count() - 1];
-    let head = head_rules.get_head(p.children(), TOP_NODE);
-    let top_span = Span::new(first.span().start, last.span().end);
-    p.insert(Parse::with_head(Arc::clone(p.text_arc()), top_span, TOP_NODE, 0.0, head))
-        .expect("children lie inside root");
-    insert_by_prob(complete_parses, p);
-}
-
-/// Builds the n-gram dictionary (`Set<String>` of comma-joined unigrams, bigrams, and trigrams)
-/// from training parses (`AbstractBottomUpParser.buildDictionary`).
+/// Builds the n-gram dictionary (the unigrams, bigrams and trigrams kept by the cutoff, each
+/// keyed by [`dictionary_key`]) from training parses (`AbstractBottomUpParser.buildDictionary`).
 pub fn build_dictionary(parses: &[Parse], rules: &dyn HeadRules, cutoff: usize) -> HashSet<String> {
     let mut counts: HashMap<Vec<String>, usize> = HashMap::new();
     let mut order: Vec<Vec<String>> = Vec::new();
@@ -425,8 +419,22 @@ pub fn build_dictionary(parses: &[Parse], rules: &dyn HeadRules, cutoff: usize) 
     let mut dict = HashSet::new();
     for ngram in order {
         if counts.get(&ngram).copied().unwrap_or(0) >= cutoff {
-            dict.insert(ngram.join(","));
+            dict.insert(dictionary_key(&ngram));
         }
     }
     dict
+}
+
+/// The key of an n-gram in a [`build_dictionary`] set: each token's byte length, `:` and the
+/// token. OpenNLP's `Dictionary` holds `StringList`s, so `1,000` and the bigram `1` `000` are
+/// different entries; a plain join would make them one.
+pub fn dictionary_key<S: AsRef<str>>(ngram: &[S]) -> String {
+    let mut key = String::with_capacity(ngram.iter().map(|t| t.as_ref().len() + 4).sum());
+    for token in ngram {
+        let token = token.as_ref();
+        key.push_str(&token.len().to_string());
+        key.push(':');
+        key.push_str(token);
+    }
+    key
 }

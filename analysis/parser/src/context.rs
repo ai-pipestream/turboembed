@@ -8,13 +8,11 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use turbo_sequence::chunker::TokenTag;
 use turbo_sequence::{ContextGenerator, Features, SequenceValidator};
 
+use crate::bottom_up::dictionary_key;
 use crate::parse::{CONT, OTHER, Parse, START};
 
 /// End-of-sentence boundary marker (`AbstractContextGenerator.EOS`).
 pub const EOS: &str = "eos";
-
-/// Zero probability marker (`AbstractContextGenerator.ZERO_PROB`).
-pub const ZERO_PROB: &str = "0.0";
 
 /// Holds feature strings and unigram visibility for a constituent slot
 /// (`opennlp.tools.parser.Cons`).
@@ -37,13 +35,18 @@ impl Cons {
     }
 }
 
-/// Builds a lexicalized constituent feature (`AbstractContextGenerator.cons(Parse, int)`).
-pub fn cons(node: Option<&Parse>, i: i32) -> String {
+/// Treats an empty punctuation set as Java's `null`: `Parse` creates the set on the first mark
+/// it adds, so a set OpenNLP reads is either `null` or not empty.
+fn punct_set_of(punctuation: Option<&[Parse]>) -> Option<&[Parse]> {
+    punctuation.filter(|s| !s.is_empty())
+}
+
+fn cons_with_label(node: Option<&Parse>, i: i32, use_label: bool) -> String {
     let mut feat = String::with_capacity(24);
     feat.push_str(&i.to_string());
     feat.push('=');
     if let Some(p) = node {
-        if i < 0 {
+        if use_label && i < 0 {
             feat.push_str(p.label().unwrap_or("null"));
             feat.push('|');
         }
@@ -56,13 +59,12 @@ pub fn cons(node: Option<&Parse>, i: i32) -> String {
     feat
 }
 
-/// Builds a backoff constituent feature (`AbstractContextGenerator.consbo(Parse, int)`).
-pub fn cons_bo(node: Option<&Parse>, i: i32) -> String {
+fn cons_bo_with_label(node: Option<&Parse>, i: i32, use_label: bool) -> String {
     let mut feat = String::with_capacity(16);
     feat.push_str(&i.to_string());
     feat.push_str("*=");
     if let Some(p) = node {
-        if i < 0 {
+        if use_label && i < 0 {
             feat.push_str(p.label().unwrap_or("null"));
             feat.push('|');
         }
@@ -73,12 +75,49 @@ pub fn cons_bo(node: Option<&Parse>, i: i32) -> String {
     feat
 }
 
-/// Formats the grammar production string for `p` (`AbstractContextGenerator.production`).
-pub fn production(p: &Parse, include_punctuation: bool) -> String {
+/// Builds a lexicalized constituent feature (`AbstractContextGenerator.cons(Parse, int)`) with
+/// `useLabel` false, as every generator but the chunking build generator has it.
+pub fn cons(node: Option<&Parse>, i: i32) -> String {
+    cons_with_label(node, i, false)
+}
+
+/// Builds a back-off constituent feature (`AbstractContextGenerator.consbo(Parse, int)`) with
+/// `useLabel` false.
+pub fn cons_bo(node: Option<&Parse>, i: i32) -> String {
+    cons_bo_with_label(node, i, false)
+}
+
+/// [`cons`] with `useLabel` true (`chunking.BuildContextGenerator`): a node before the current
+/// one carries its label, `null` when it has none.
+pub fn cons_labeled(node: Option<&Parse>, i: i32) -> String {
+    cons_with_label(node, i, true)
+}
+
+/// [`cons_bo`] with `useLabel` true (`chunking.BuildContextGenerator`).
+pub fn cons_bo_labeled(node: Option<&Parse>, i: i32) -> String {
+    cons_bo_with_label(node, i, true)
+}
+
+/// The punctuation back-off feature (`AbstractContextGenerator.punctbo`): `i=type`.
+fn punctbo(punct: &Parse, i: i32) -> String {
+    format!("{i}={}", punct.kind())
+}
+
+/// The index `cons2` and `cons3` give a mark before a node at `index`: one less at or before the
+/// current node, the node's own index after it.
+fn punct_index(index: i32) -> i32 {
+    if index <= 0 { index - 1 } else { index }
+}
+
+/// The grammar production `p` starts (`AbstractContextGenerator.production`): its type, `->` and
+/// the types of its children with punctuation collapsed by `punct_set`. With
+/// `include_punctuation`, the types of each child's following marks come after it, except after
+/// the last child.
+pub fn production_in(p: &Parse, include_punctuation: bool, punct_set: &HashSet<String>) -> String {
     let mut prod = String::with_capacity(32);
     prod.push_str(p.kind());
     prod.push_str("->");
-    let children = p.children();
+    let children = crate::bottom_up::collapse_punctuation(p.children(), punct_set);
     for (ci, child) in children.iter().enumerate() {
         prod.push_str(child.kind());
         if ci + 1 != children.len() {
@@ -94,601 +133,192 @@ pub fn production(p: &Parse, include_punctuation: bool) -> String {
     prod
 }
 
-/// Populates bigram constituent features (`AbstractContextGenerator.cons2`).
-pub fn cons2(features: &mut Vec<String>, c0: &Cons, c1: &Cons, punct_1s: Option<&[Parse]>, bigram: bool) {
-    if let Some(puncts) = punct_1s.filter(|s| !s.is_empty()) {
+/// [`production_in`] without collapsing punctuation: it is OpenNLP's production only when `p`
+/// has no punctuation children. Kept for the tree-insertion generators until they pass their
+/// punctuation set to [`production_in`].
+pub fn production(p: &Parse, include_punctuation: bool) -> String {
+    production_in(p, include_punctuation, &HashSet::new())
+}
+
+/// Adds the features of two nodes and the punctuation between them
+/// (`AbstractContextGenerator.cons2`, with `zeroBackOff` false as every generator has it).
+pub fn cons2(features: &mut Vec<String>, c0: &Cons, c1: &Cons, punct1s: Option<&[Parse]>, bigram: bool) {
+    if let Some(puncts) = punct_set_of(punct1s) {
         for p in puncts {
-            let punct = p.kind();
-            let punct_bo = format!("*={punct},");
-            let punct_lex = format!("={punct}|{},", p.covered_text());
-
-            //consbo(0)punctbo(1)consbo(1)
-            features.push(format!("{}{}{}", c0.cons_bo, punct_bo, c1.cons_bo));
-            if c0.unigram {
-                //cons(0)punctbo(1)consbo(1)
-                features.push(format!("{}{}{}", c0.cons, punct_bo, c1.cons_bo));
+            let pbo = punctbo(p, punct_index(c1.index));
+            features.push(pbo.clone());
+            if c0.index == 0 {
+                if c0.unigram {
+                    features.push(format!("{},{pbo}", c0.cons));
+                }
+                features.push(format!("{},{pbo}", c0.cons_bo));
             }
-            if c1.unigram {
-                //consbo(0)punctbo(1)cons(1)
-                features.push(format!("{}{}{}", c0.cons_bo, punct_bo, c1.cons));
-            }
-            if bigram {
-                //cons(0)punctbo(1)cons(1)
-                features.push(format!("{}{}{}", c0.cons, punct_bo, c1.cons));
-            }
-
-            //consbo(0)punct(1)consbo(1)
-            features.push(format!("{}{}{}", c0.cons_bo, punct_lex, c1.cons_bo));
-            if c0.unigram {
-                //cons(0)punct(1)consbo(1)
-                features.push(format!("{}{}{}", c0.cons, punct_lex, c1.cons_bo));
-            }
-            if c1.unigram {
-                //consbo(0)punct(1)cons(1)
-                features.push(format!("{}{}{}", c0.cons_bo, punct_lex, c1.cons));
+            if c1.index == 0 {
+                if c1.unigram {
+                    features.push(format!("{pbo},{}", c1.cons));
+                }
+                features.push(format!("{pbo},{}", c1.cons_bo));
             }
             if bigram {
-                //cons(0)punct(1)cons(1)
-                features.push(format!("{}{}{}", c0.cons, punct_lex, c1.cons));
+                features.push(format!("{},{pbo},{}", c0.cons, c1.cons));
             }
+            if c1.unigram {
+                features.push(format!("{},{pbo},{}", c0.cons_bo, c1.cons));
+            }
+            if c0.unigram {
+                features.push(format!("{},{pbo},{}", c0.cons, c1.cons_bo));
+            }
+            features.push(format!("{},{pbo},{}", c0.cons_bo, c1.cons_bo));
         }
     } else {
-        //consbo(0),consbo(1)
-        features.push(format!("{},{}", c0.cons_bo, c1.cons_bo));
-        if c0.unigram {
-            //cons(0),consbo(1)
-            features.push(format!("{},{}", c0.cons, c1.cons_bo));
-        }
-        if c1.unigram {
-            //consbo(0),cons(1)
-            features.push(format!("{},{}", c0.cons_bo, c1.cons));
-        }
         if bigram {
-            //cons(0),cons(1)
             features.push(format!("{},{}", c0.cons, c1.cons));
         }
+        if c1.unigram {
+            features.push(format!("{},{}", c0.cons_bo, c1.cons));
+        }
+        if c0.unigram {
+            features.push(format!("{},{}", c0.cons, c1.cons_bo));
+        }
+        features.push(format!("{},{}", c0.cons_bo, c1.cons_bo));
     }
 }
 
-/// Populates trigram constituent features (`AbstractContextGenerator.cons3`).
+/// Adds the eight (or fewer) three-node features for one choice of separators, in the order of
+/// `AbstractContextGenerator.cons3`. `s1` goes between `c0` and `c1`, `s2` between `c1` and `c2`.
+#[allow(clippy::too_many_arguments)]
+fn cons3_with(
+    features: &mut Vec<String>,
+    c0: &Cons,
+    c1: &Cons,
+    c2: &Cons,
+    s1: &str,
+    s2: &str,
+    trigram: bool,
+    bigram1: bool,
+    bigram2: bool,
+) {
+    if trigram {
+        features.push(format!("{}{s1}{}{s2}{}", c0.cons, c1.cons, c2.cons));
+    }
+    if bigram2 {
+        features.push(format!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons, c2.cons));
+    }
+    if c0.unigram && c2.unigram {
+        features.push(format!("{}{s1}{}{s2}{}", c0.cons, c1.cons_bo, c2.cons));
+    }
+    if bigram1 {
+        features.push(format!("{}{s1}{}{s2}{}", c0.cons, c1.cons, c2.cons_bo));
+    }
+    if c2.unigram {
+        features.push(format!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons_bo, c2.cons));
+    }
+    if c1.unigram {
+        features.push(format!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons, c2.cons_bo));
+    }
+    if c0.unigram {
+        features.push(format!("{}{s1}{}{s2}{}", c0.cons, c1.cons_bo, c2.cons_bo));
+    }
+    features.push(format!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons_bo, c2.cons_bo));
+}
+
+/// Adds the features of three nodes and the punctuation between them
+/// (`AbstractContextGenerator.cons3`, with `zeroBackOff` false as every generator has it).
 #[allow(clippy::too_many_arguments)]
 pub fn cons3(
     features: &mut Vec<String>,
     c0: &Cons,
     c1: &Cons,
     c2: &Cons,
-    punct_1s: Option<&[Parse]>,
-    punct_2s: Option<&[Parse]>,
+    punct1s: Option<&[Parse]>,
+    punct2s: Option<&[Parse]>,
     trigram: bool,
-    bo1: bool,
-    bo2: bool,
+    bigram1: bool,
+    bigram2: bool,
 ) {
-    let p1 = punct_1s.filter(|s| !s.is_empty());
-    let p2 = punct_2s.filter(|s| !s.is_empty());
-    if let Some(punct1s) = p1 {
-        if c0.index == -2 {
-            for p in punct1s {
-                let punct_bo = format!("*={},", p.kind());
-                let punct = format!("={}|{},", p.kind(), p.covered_text());
-                // -2,p,-1,0
-                if let Some(punct2s) = p2 {
-                    for p2_node in punct2s {
-                        let punct2_bo = format!("*={},", p2_node.kind());
-                        let punct2 = format!("={}|{},", p2_node.kind(), p2_node.covered_text());
-
-                        //consbo(-2),punctbo(-2),consbo(-1),punctbo(-1),consbo(0)
-                        features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons_bo, punct2_bo, c2.cons_bo));
-                        if c0.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons_bo, punct2_bo, c2.cons_bo));
-                        }
-                        if c1.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons, punct2_bo, c2.cons_bo));
-                        }
-                        if c2.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons_bo, punct2_bo, c2.cons));
-                        }
-                        if bo1 {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons, punct2_bo, c2.cons_bo));
-                        }
-                        if bo2 {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons, punct2_bo, c2.cons));
-                        }
-                        if trigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons, punct2_bo, c2.cons));
-                        }
-
-                        //consbo(-2),punct(-2),consbo(-1),punctbo(-1),consbo(0)
-                        features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons_bo, punct2_bo, c2.cons_bo));
-                        if c0.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons_bo, punct2_bo, c2.cons_bo));
-                        }
-                        if c1.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons, punct2_bo, c2.cons_bo));
-                        }
-                        if c2.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons_bo, punct2_bo, c2.cons));
-                        }
-                        if bo1 {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons, punct2_bo, c2.cons_bo));
-                        }
-                        if bo2 {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons, punct2_bo, c2.cons));
-                        }
-                        if trigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons, punct2_bo, c2.cons));
-                        }
-
-                        //consbo(-2),punctbo(-2),consbo(-1),punct(-1),consbo(0)
-                        features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons_bo, punct2, c2.cons_bo));
-                        if c0.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons_bo, punct2, c2.cons_bo));
-                        }
-                        if c1.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons, punct2, c2.cons_bo));
-                        }
-                        if c2.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons_bo, punct2, c2.cons));
-                        }
-                        if bo1 {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons, punct2, c2.cons_bo));
-                        }
-                        if bo2 {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons, punct2, c2.cons));
-                        }
-                        if trigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons, punct2, c2.cons));
-                        }
-
-                        //consbo(-2),punct(-2),consbo(-1),punct(-1),consbo(0)
-                        features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons_bo, punct2, c2.cons_bo));
-                        if c0.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons_bo, punct2, c2.cons_bo));
-                        }
-                        if c1.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons, punct2, c2.cons_bo));
-                        }
-                        if c2.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons_bo, punct2, c2.cons));
-                        }
-                        if bo1 {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons, punct2, c2.cons_bo));
-                        }
-                        if bo2 {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons, punct2, c2.cons));
-                        }
-                        if trigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons, punct2, c2.cons));
-                        }
-                    }
-                } else {
-                    //consbo(-2),punctbo(-2),consbo(-1),consbo(0)
-                    features.push(format!("{}{}{},{}", c0.cons_bo, punct_bo, c1.cons_bo, c2.cons_bo));
-                    if c0.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons, punct_bo, c1.cons_bo, c2.cons_bo));
-                    }
-                    if c1.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct_bo, c1.cons, c2.cons_bo));
-                    }
-                    if c2.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct_bo, c1.cons_bo, c2.cons));
-                    }
-                    if bo1 {
-                        features.push(format!("{}{}{},{}", c0.cons, punct_bo, c1.cons, c2.cons_bo));
-                    }
-                    if bo2 {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct_bo, c1.cons, c2.cons));
-                    }
-                    if trigram {
-                        features.push(format!("{}{}{},{}", c0.cons, punct_bo, c1.cons, c2.cons));
-                    }
-
-                    //consbo(-2),punct(-2),consbo(-1),consbo(0)
-                    features.push(format!("{}{}{},{}", c0.cons_bo, punct, c1.cons_bo, c2.cons_bo));
-                    if c0.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons, punct, c1.cons_bo, c2.cons_bo));
-                    }
-                    if c1.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct, c1.cons, c2.cons_bo));
-                    }
-                    if c2.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct, c1.cons_bo, c2.cons));
-                    }
-                    if bo1 {
-                        features.push(format!("{}{}{},{}", c0.cons, punct, c1.cons, c2.cons_bo));
-                    }
-                    if bo2 {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct, c1.cons, c2.cons));
-                    }
-                    if trigram {
-                        features.push(format!("{}{}{},{}", c0.cons, punct, c1.cons, c2.cons));
-                    }
-                }
-            }
-        } else {
-            // punct1s != null && c0.index != -2
-            for p in punct1s {
-                let punct_bo = format!("*={},", p.kind());
-                let punct = format!("={}|{},", p.kind(), p.covered_text());
-                // -1,p,0,1
-                if let Some(punct2s) = p2 {
-                    for p2_node in punct2s {
-                        let punct2_bo = format!("*={},", p2_node.kind());
-                        let punct2 = format!("={}|{},", p2_node.kind(), p2_node.covered_text());
-
-                        //consbo(-1),punctbo(-1),consbo(0),punctbo(0),consbo(1)
-                        features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons_bo, punct2_bo, c2.cons_bo));
-                        if c0.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons_bo, punct2_bo, c2.cons_bo));
-                        }
-                        if c1.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons, punct2_bo, c2.cons_bo));
-                        }
-                        if c2.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons_bo, punct2_bo, c2.cons));
-                        }
-                        if bo1 {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons, punct2_bo, c2.cons_bo));
-                        }
-                        if bo2 {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons, punct2_bo, c2.cons));
-                        }
-                        if trigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons, punct2_bo, c2.cons));
-                        }
-
-                        //consbo(-1),punct(-1),consbo(0),punctbo(0),consbo(1)
-                        features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons_bo, punct2_bo, c2.cons_bo));
-                        if c0.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons_bo, punct2_bo, c2.cons_bo));
-                        }
-                        if c1.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons, punct2_bo, c2.cons_bo));
-                        }
-                        if c2.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons_bo, punct2_bo, c2.cons));
-                        }
-                        if bo1 {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons, punct2_bo, c2.cons_bo));
-                        }
-                        if bo2 {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons, punct2_bo, c2.cons));
-                        }
-                        if trigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons, punct2_bo, c2.cons));
-                        }
-
-                        //consbo(-1),punctbo(-1),consbo(0),punct(0),consbo(1)
-                        features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons_bo, punct2, c2.cons_bo));
-                        if c0.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons_bo, punct2, c2.cons_bo));
-                        }
-                        if c1.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons, punct2, c2.cons_bo));
-                        }
-                        if c2.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons_bo, punct2, c2.cons));
-                        }
-                        if bo1 {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons, punct2, c2.cons_bo));
-                        }
-                        if bo2 {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct_bo, c1.cons, punct2, c2.cons));
-                        }
-                        if trigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct_bo, c1.cons, punct2, c2.cons));
-                        }
-
-                        //consbo(-1),punct(-1),consbo(0),punct(0),consbo(1)
-                        features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons_bo, punct2, c2.cons_bo));
-                        if c0.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons_bo, punct2, c2.cons_bo));
-                        }
-                        if c1.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons, punct2, c2.cons_bo));
-                        }
-                        if c2.unigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons_bo, punct2, c2.cons));
-                        }
-                        if bo1 {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons, punct2, c2.cons_bo));
-                        }
-                        if bo2 {
-                            features.push(format!("{}{}{}{}{}", c0.cons_bo, punct, c1.cons, punct2, c2.cons));
-                        }
-                        if trigram {
-                            features.push(format!("{}{}{}{}{}", c0.cons, punct, c1.cons, punct2, c2.cons));
-                        }
-                    }
-                } else {
-                    //consbo(-1),punctbo(-1),consbo(0),consbo(1)
-                    features.push(format!("{}{}{},{}", c0.cons_bo, punct_bo, c1.cons_bo, c2.cons_bo));
-                    if c0.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons, punct_bo, c1.cons_bo, c2.cons_bo));
-                    }
-                    if c1.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct_bo, c1.cons, c2.cons_bo));
-                    }
-                    if c2.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct_bo, c1.cons_bo, c2.cons));
-                    }
-                    if bo1 {
-                        features.push(format!("{}{}{},{}", c0.cons, punct_bo, c1.cons, c2.cons_bo));
-                    }
-                    if bo2 {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct_bo, c1.cons, c2.cons));
-                    }
-                    if trigram {
-                        features.push(format!("{}{}{},{}", c0.cons, punct_bo, c1.cons, c2.cons));
-                    }
-
-                    //consbo(-1),punct(-1),consbo(0),consbo(1)
-                    features.push(format!("{}{}{},{}", c0.cons_bo, punct, c1.cons_bo, c2.cons_bo));
-                    if c0.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons, punct, c1.cons_bo, c2.cons_bo));
-                    }
-                    if c1.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct, c1.cons, c2.cons_bo));
-                    }
-                    if c2.unigram {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct, c1.cons_bo, c2.cons));
-                    }
-                    if bo1 {
-                        features.push(format!("{}{}{},{}", c0.cons, punct, c1.cons, c2.cons_bo));
-                    }
-                    if bo2 {
-                        features.push(format!("{}{}{},{}", c0.cons_bo, punct, c1.cons, c2.cons));
-                    }
-                    if trigram {
-                        features.push(format!("{}{}{},{}", c0.cons, punct, c1.cons, c2.cons));
-                    }
-                }
+    let punct1s = punct_set_of(punct1s);
+    let punct2s = punct_set_of(punct2s);
+    if let Some(p1s) = punct1s
+        && c0.index == -2
+    {
+        for p in p1s {
+            features.push(punctbo(p, punct_index(c1.index)));
+        }
+    }
+    if let Some(p2s) = punct2s {
+        if c2.index == 2 {
+            for p in p2s {
+                features.push(punctbo(p, c2.index));
             }
         }
-    } else if let Some(punct2s) = p2 {
-        // punct1s == null && punct2s != null
-        for p2_node in punct2s {
-            let punct2_bo = format!("*={},", p2_node.kind());
-            let punct2 = format!("={}|{},", p2_node.kind(), p2_node.covered_text());
-
-            //consbo(-2),consbo(-1),punctbo(-1),consbo(0)
-            features.push(format!("{},{}{}{}", c0.cons_bo, c1.cons_bo, punct2_bo, c2.cons_bo));
-            if c0.unigram {
-                features.push(format!("{},{}{}{}", c0.cons, c1.cons_bo, punct2_bo, c2.cons_bo));
+        for punct2 in p2s {
+            let pbo2 = punctbo(punct2, punct_index(c2.index));
+            if let Some(p1s) = punct1s {
+                for punct1 in p1s {
+                    let pbo1 = punctbo(punct1, punct_index(c1.index));
+                    let s1 = format!(",{pbo1},");
+                    let s2 = format!(",{pbo2},");
+                    cons3_with(features, c0, c1, c2, &s1, &s2, trigram, bigram1, bigram2);
+                }
+            } else {
+                let s2 = format!(",{pbo2},");
+                cons3_with(features, c0, c1, c2, ",", &s2, trigram, bigram1, bigram2);
             }
-            if c1.unigram {
-                features.push(format!("{},{}{}{}", c0.cons_bo, c1.cons, punct2_bo, c2.cons_bo));
-            }
-            if c2.unigram {
-                features.push(format!("{},{}{}{}", c0.cons_bo, c1.cons_bo, punct2_bo, c2.cons));
-            }
-            if bo1 {
-                features.push(format!("{},{}{}{}", c0.cons, c1.cons, punct2_bo, c2.cons_bo));
-            }
-            if bo2 {
-                features.push(format!("{},{}{}{}", c0.cons_bo, c1.cons, punct2_bo, c2.cons));
-            }
-            if trigram {
-                features.push(format!("{},{}{}{}", c0.cons, c1.cons, punct2_bo, c2.cons));
-            }
-
-            //consbo(-2),consbo(-1),punct(-1),consbo(0)
-            features.push(format!("{},{}{}{}", c0.cons_bo, c1.cons_bo, punct2, c2.cons_bo));
-            if c0.unigram {
-                features.push(format!("{},{}{}{}", c0.cons, c1.cons_bo, punct2, c2.cons_bo));
-            }
-            if c1.unigram {
-                features.push(format!("{},{}{}{}", c0.cons_bo, c1.cons, punct2, c2.cons_bo));
-            }
-            if c2.unigram {
-                features.push(format!("{},{}{}{}", c0.cons_bo, c1.cons_bo, punct2, c2.cons));
-            }
-            if bo1 {
-                features.push(format!("{},{}{}{}", c0.cons, c1.cons, punct2, c2.cons_bo));
-            }
-            if bo2 {
-                features.push(format!("{},{}{}{}", c0.cons_bo, c1.cons, punct2, c2.cons));
-            }
-            if trigram {
-                features.push(format!("{},{}{}{}", c0.cons, c1.cons, punct2, c2.cons));
-            }
+        }
+    } else if let Some(p1s) = punct1s {
+        for punct1 in p1s {
+            let pbo1 = punctbo(punct1, punct_index(c1.index));
+            let s1 = format!(",{pbo1},");
+            cons3_with(features, c0, c1, c2, &s1, ",", trigram, bigram1, bigram2);
         }
     } else {
-        //consbo(-2),consbo(-1),consbo(0)
-        features.push(format!("{},{},{}", c0.cons_bo, c1.cons_bo, c2.cons_bo));
-        if c0.unigram {
-            features.push(format!("{},{},{}", c0.cons, c1.cons_bo, c2.cons_bo));
-        }
-        if c1.unigram {
-            features.push(format!("{},{},{}", c0.cons_bo, c1.cons, c2.cons_bo));
-        }
-        if c2.unigram {
-            features.push(format!("{},{},{}", c0.cons_bo, c1.cons_bo, c2.cons));
-        }
-        if bo1 {
-            features.push(format!("{},{},{}", c0.cons, c1.cons, c2.cons_bo));
-        }
-        if bo2 {
-            features.push(format!("{},{},{}", c0.cons_bo, c1.cons, c2.cons));
-        }
-        if trigram {
-            features.push(format!("{},{},{}", c0.cons, c1.cons, c2.cons));
-        }
+        cons3_with(features, c0, c1, c2, ",", ",", trigram, bigram1, bigram2);
     }
 }
 
-/// Appends surrounding constituent features (`AbstractContextGenerator.surround`).
+/// Adds the features of a node next to a completed node of type `kind`
+/// (`AbstractContextGenerator.surround`).
 pub fn surround(node: Option<&Parse>, i: i32, kind: &str, punctuation: Option<&[Parse]>, features: &mut Vec<String>) {
-    let mut feat = String::with_capacity(32);
-    feat.push('s');
-    feat.push_str(&i.to_string());
-    feat.push('=');
-    if let Some(puncts) = punctuation.filter(|s| !s.is_empty()) {
+    if let Some(puncts) = punct_set_of(punctuation) {
         for punct in puncts {
-            if let Some(n) = node {
-                write_surround_lex(&mut feat, i, kind, n, Some(punct));
-            } else {
-                write_surround_eos(&mut feat, i, kind, Some(punct));
-            }
-            features.push(feat.clone());
-
-            feat.clear();
-            feat.push('s');
-            feat.push_str(&i.to_string());
-            feat.push_str("*=");
-            if let Some(n) = node {
-                write_surround_bo(&mut feat, i, kind, n.kind(), Some(punct.kind()));
-            } else {
-                write_surround_bo(&mut feat, i, kind, EOS, Some(punct.kind()));
-            }
-            features.push(feat.clone());
-
-            feat.clear();
-            feat.push('s');
-            feat.push_str(&i.to_string());
-            feat.push_str("*=");
-            if let Some(n) = node {
-                write_surround_punct_lex(&mut feat, i, kind, n.kind(), punct);
-            } else {
-                write_surround_punct_lex(&mut feat, i, kind, EOS, punct);
-            }
-            features.push(feat.clone());
+            let ptype = punct.kind();
+            features.push(match node {
+                Some(n) => format!("s{i}={}|{kind}|{}|{ptype}", n.head_text(), n.kind()),
+                None => format!("s{i}={kind}|{EOS}|{ptype}"),
+            });
+            features.push(match node {
+                Some(n) => format!("s{i}*={kind}|{}|{ptype}", n.kind()),
+                None => format!("s{i}*={kind}|{EOS}|{ptype}"),
+            });
+            features.push(format!("s{i}*={kind}|{ptype}"));
         }
     } else {
-        if let Some(n) = node {
-            write_surround_lex(&mut feat, i, kind, n, None);
-        } else {
-            write_surround_eos(&mut feat, i, kind, None);
-        }
-        features.push(feat.clone());
-
-        feat.clear();
-        feat.push('s');
-        feat.push_str(&i.to_string());
-        feat.push_str("*=");
-        if let Some(n) = node {
-            write_surround_bo(&mut feat, i, kind, n.kind(), None);
-        } else {
-            write_surround_bo(&mut feat, i, kind, EOS, None);
-        }
-        features.push(feat);
+        features.push(match node {
+            Some(n) => format!("s{i}={}|{kind}|{}", n.head_text(), n.kind()),
+            None => format!("s{i}={kind}|{EOS}"),
+        });
+        features.push(match node {
+            Some(n) => format!("s{i}*={kind}|{}", n.kind()),
+            None => format!("s{i}*={kind}|{EOS}"),
+        });
     }
 }
 
-fn write_surround_lex(feat: &mut String, _i: i32, kind: &str, node: &Parse, punct: Option<&Parse>) {
-    feat.push_str(node.head_text());
-    feat.push('|');
-    feat.push_str(kind);
-    feat.push('|');
-    feat.push_str(node.kind());
-    if let Some(p) = punct {
-        feat.push('|');
-        feat.push_str(p.covered_text());
-        feat.push('|');
-        feat.push_str(p.kind());
-    }
-}
-
-fn write_surround_eos(feat: &mut String, _i: i32, kind: &str, punct: Option<&Parse>) {
-    feat.push_str(kind);
-    feat.push('|');
-    feat.push_str(EOS);
-    if let Some(p) = punct {
-        feat.push('|');
-        feat.push_str(p.covered_text());
-        feat.push('|');
-        feat.push_str(p.kind());
-    }
-}
-
-fn write_surround_bo(feat: &mut String, _i: i32, kind: &str, node_kind: &str, punct_kind: Option<&str>) {
-    feat.push_str(kind);
-    feat.push('|');
-    feat.push_str(node_kind);
-    if let Some(pk) = punct_kind {
-        feat.push('|');
-        feat.push_str(pk);
-    }
-}
-
-fn write_surround_punct_lex(feat: &mut String, _i: i32, kind: &str, node_kind: &str, punct: &Parse) {
-    feat.push_str(kind);
-    feat.push('|');
-    feat.push_str(node_kind);
-    feat.push('|');
-    feat.push_str(punct.covered_text());
-    feat.push('|');
-    feat.push_str(punct.kind());
-}
-
-/// Appends check constituent features for a single child (`AbstractContextGenerator.checkCons(Parse, String, String, List)`).
+/// Adds the features of one child of a constituent of type `kind` being checked
+/// (`AbstractContextGenerator.checkcons(Parse, String, String, List)`).
 pub fn check_cons(child: &Parse, index: &str, kind: &str, features: &mut Vec<String>) {
     features.push(format!("c{index}={}|{}|{kind}", child.kind(), child.head_text()));
     features.push(format!("c{index}*={}|{kind}", child.kind()));
 }
 
-/// Appends check constituent features for an adjacent child pair (`AbstractContextGenerator.checkCons(Parse, Parse, String, List)`).
+/// Adds the features of two children of a constituent of type `kind` being checked
+/// (`AbstractContextGenerator.checkcons(Parse, Parse, String, List)`).
 pub fn check_cons_pair(p1: &Parse, p2: &Parse, kind: &str, features: &mut Vec<String>) {
-    let mut feat = String::with_capacity(48);
-    feat.push_str("cil=");
-    feat.push_str(kind);
-    feat.push(',');
-    feat.push_str(p1.kind());
-    feat.push('|');
-    feat.push_str(p1.head_text());
-    for punct in p1.next_punctuation() {
-        feat.push(',');
-        feat.push_str(punct.kind());
-        feat.push('|');
-        feat.push_str(punct.covered_text());
-    }
-    feat.push(',');
-    feat.push_str(p2.kind());
-    feat.push('|');
-    feat.push_str(p2.head_text());
-    features.push(feat.clone());
-
-    feat.clear();
-    feat.push_str("ci*=");
-    feat.push_str(kind);
-    feat.push(',');
-    feat.push_str(p1.kind());
-    for punct in p1.next_punctuation() {
-        feat.push(',');
-        feat.push_str(punct.kind());
-    }
-    feat.push(',');
-    feat.push_str(p2.kind());
-    features.push(feat.clone());
-
-    feat.clear();
-    feat.push_str("cil*=");
-    feat.push_str(kind);
-    feat.push(',');
-    feat.push_str(p1.kind());
-    feat.push('|');
-    feat.push_str(p1.head_text());
-    for punct in p1.next_punctuation() {
-        feat.push(',');
-        feat.push_str(punct.kind());
-    }
-    feat.push(',');
-    feat.push_str(p2.kind());
-    features.push(feat.clone());
-
-    feat.clear();
-    feat.push_str("ci*l=");
-    feat.push_str(kind);
-    feat.push(',');
-    feat.push_str(p1.kind());
-    for punct in p1.next_punctuation() {
-        feat.push(',');
-        feat.push_str(punct.kind());
-    }
-    feat.push(',');
-    feat.push_str(p2.kind());
-    feat.push('|');
-    feat.push_str(p2.head_text());
-    features.push(feat);
+    let (t1, h1, t2, h2) = (p1.kind(), p1.head_text(), p2.kind(), p2.head_text());
+    features.push(format!("cil={kind},{t1}|{h1},{t2}|{h2}"));
+    features.push(format!("ci*l={kind},{t1},{t2}|{h2}"));
+    features.push(format!("cil*={kind},{t1}|{h1},{t2}"));
+    features.push(format!("ci*l*={kind},{t1},{t2}"));
 }
 
 /// Extracts the 5-constituent window `[c_2, c_1, c0, c1, c2]` around `index` in `chunks`
@@ -739,18 +369,18 @@ impl ConsWindow {
 
         let (u_2, u_1, u0, u1, u2, b_2_1, b_10, b01, b12, t_2_10, t_101, t012) = match dict {
             Some(words) => (
-                words.contains(w_2),
-                words.contains(w_1),
-                words.contains(w0),
-                words.contains(w1),
-                words.contains(w2),
-                words.contains(&format!("{w_2},{w_1}")),
-                words.contains(&format!("{w_1},{w0}")),
-                words.contains(&format!("{w0},{w1}")),
-                words.contains(&format!("{w1},{w2}")),
-                words.contains(&format!("{w_2},{w_1},{w0}")),
-                words.contains(&format!("{w_1},{w0},{w1}")),
-                words.contains(&format!("{w0},{w1},{w2}")),
+                words.contains(&dictionary_key(&[w_2])),
+                words.contains(&dictionary_key(&[w_1])),
+                words.contains(&dictionary_key(&[w0])),
+                words.contains(&dictionary_key(&[w1])),
+                words.contains(&dictionary_key(&[w2])),
+                words.contains(&dictionary_key(&[w_2, w_1])),
+                words.contains(&dictionary_key(&[w_1, w0])),
+                words.contains(&dictionary_key(&[w0, w1])),
+                words.contains(&dictionary_key(&[w1, w2])),
+                words.contains(&dictionary_key(&[w_2, w_1, w0])),
+                words.contains(&dictionary_key(&[w_1, w0, w1])),
+                words.contains(&dictionary_key(&[w0, w1, w2])),
             ),
             None => (true, true, true, true, true, true, true, true, true, true, true, true),
         };
@@ -767,8 +397,8 @@ impl ConsWindow {
 
 /// Context generator for the parser's basal chunking phase (`opennlp.tools.parser.ChunkContextGenerator`).
 ///
-/// Reproduces `ChunkContextGenerator` including its optional cache (`HashFMap` keyed by
-/// `i + t_2 + t1 + t0 + t1 + t2 + p_2 + p_1` when `words == wordsKey`) and its exact 45 features.
+/// Reproduces `ChunkContextGenerator`'s 19 features and its optional cache, keyed as OpenNLP keys
+/// it by `i + t_2 + t1 + t0 + t1 + t2 + p_2 + p_1`.
 #[derive(Clone, Debug, Default)]
 pub struct ChunkContextGenerator {
     cache_size: usize,
@@ -795,25 +425,20 @@ impl ChunkContextGenerator {
         self.tags_key.clear();
     }
 
-    /// Generates the 45 chunking features at token `i` (`ChunkContextGenerator.getContext`).
+    /// Generates the 19 chunking features at token `i` (`ChunkContextGenerator.getContext`):
+    /// `default`, the word and tag of each of the five positions with and without the word,
+    /// then four pairs of positions -1 and 0, and four of 0 and 1. A position outside the
+    /// sentence has `eos` for its word, tag and chunk tag.
     ///
     /// OpenNLP keeps the cache while `words` is the same array (`words == wordsKey`). A slice
     /// address can be reused by a later sentence, so the cache is kept here while `words` and
     /// `tags` hold the same strings, which gives the features a fresh call would.
     pub fn get_context(&mut self, i: usize, words: &[&str], tags: &[&str], preds: &[&str]) -> Vec<String> {
-        let w_2 = i.checked_sub(2).map_or("w_2=bos", |j| words[j]);
-        let t_2 = i.checked_sub(2).map_or("t_2=bos", |j| tags[j]);
-        let p_2 = i.checked_sub(2).map_or("p_2=bos", |j| preds[j]);
-
-        let w_1 = i.checked_sub(1).map_or("w_1=bos", |j| words[j]);
-        let t_1 = i.checked_sub(1).map_or("t_1=bos", |j| tags[j]);
-        let p_1 = i.checked_sub(1).map_or("p_1=bos", |j| preds[j]);
-
-        let w0 = words[i];
-        let t0 = tags[i];
-
-        let (w1, t1) = if i + 1 < words.len() { (words[i + 1], tags[i + 1]) } else { ("w1=eos", "t1=eos") };
-        let (w2, t2) = if i + 2 < words.len() { (words[i + 2], tags[i + 2]) } else { ("w2=eos", "t2=eos") };
+        let (w_2, t_2, p_2) = i.checked_sub(2).map_or((EOS, EOS, EOS), |j| (words[j], tags[j], preds[j]));
+        let (w_1, t_1, p_1) = i.checked_sub(1).map_or((EOS, EOS, EOS), |j| (words[j], tags[j], preds[j]));
+        let (w0, t0) = (words[i], tags[i]);
+        let (w1, t1) = if i + 1 < tags.len() { (words[i + 1], tags[i + 1]) } else { (EOS, EOS) };
+        let (w2, t2) = if i + 2 < tags.len() { (words[i + 2], tags[i + 2]) } else { (EOS, EOS) };
 
         let cache_key = if self.cache_size > 0 {
             if !same_strings(&self.words_key, words) || !same_strings(&self.tags_key, tags) {
@@ -821,7 +446,7 @@ impl ChunkContextGenerator {
                 self.words_key = words.iter().map(|w| (*w).to_owned()).collect();
                 self.tags_key = tags.iter().map(|t| (*t).to_owned()).collect();
             }
-            // Note: OpenNLP uses `i + t_2 + t1 + t0 + t1 + t2 + p_2 + p_1` (`t1` twice, no `t_1`).
+            // OpenNLP's key: `t1` twice and no `t_1`.
             let key = format!("{i}{t_2}{t1}{t0}{t1}{t2}{p_2}{p_1}");
             if let Some(pos) = self.cache.iter().position(|(k, _)| k == &key) {
                 let entry = self.cache.remove(pos).expect("pos in bounds");
@@ -834,7 +459,6 @@ impl ChunkContextGenerator {
             None
         };
 
-        let mut features = Vec::with_capacity(45);
         let ct_2 = Self::chunkandpostag(-2, w_2, t_2, p_2);
         let ctbo_2 = Self::chunkandpostagbo(-2, t_2, p_2);
         let ct_1 = Self::chunkandpostag(-1, w_1, t_1, p_1);
@@ -846,76 +470,19 @@ impl ChunkContextGenerator {
         let ct2 = Self::chunkandpostag(2, w2, t2, "");
         let ctbo2 = Self::chunkandpostagbo(2, t2, "");
 
-        // postag(-2)
-        features.push(ctbo_2.clone());
-        features.push(ct_2.clone());
-
-        // postag(-1)
-        features.push(ctbo_1.clone());
-        features.push(ct_1.clone());
-
-        // postag(0)
-        features.push(ctbo0.clone());
-        features.push(ct0.clone());
-
-        // postag(1)
-        features.push(ctbo1.clone());
-        features.push(ct1.clone());
-
-        // postag(2)
-        features.push(ctbo2.clone());
-        features.push(ct2.clone());
-
-        // postag(-2, -1)
-        features.push(format!("{ctbo_2},{ctbo_1}"));
-        features.push(format!("{ct_2},{ctbo_1}"));
-        features.push(format!("{ctbo_2},{ct_1}"));
-        features.push(format!("{ct_2},{ct_1}"));
-
-        // postag(-1, 0)
-        features.push(format!("{ctbo_1},{ctbo0}"));
-        features.push(format!("{ct_1},{ctbo0}"));
-        features.push(format!("{ctbo_1},{ct0}"));
-        features.push(format!("{ct_1},{ct0}"));
-
-        // postag(0, 1)
-        features.push(format!("{ctbo0},{ctbo1}"));
-        features.push(format!("{ct0},{ctbo1}"));
-        features.push(format!("{ctbo0},{ct1}"));
-        features.push(format!("{ct0},{ct1}"));
-
-        // postag(1, 2)
-        features.push(format!("{ctbo1},{ctbo2}"));
-        features.push(format!("{ct1},{ctbo2}"));
-        features.push(format!("{ctbo1},{ct2}"));
-        features.push(format!("{ct1},{ct2}"));
-
-        // postag(-2, -1, 0)
-        features.push(format!("{ctbo_2},{ctbo_1},{ctbo0}"));
-        features.push(format!("{ct_2},{ctbo_1},{ctbo0}"));
-        features.push(format!("{ctbo_2},{ct_1},{ctbo0}"));
-        features.push(format!("{ctbo_2},{ctbo_1},{ct0}"));
-        features.push(format!("{ct_2},{ct_1},{ctbo0}"));
-        features.push(format!("{ctbo_2},{ct_1},{ct0}"));
-        features.push(format!("{ct_2},{ct_1},{ct0}"));
-
-        // postag(-1, 0, 1)
-        features.push(format!("{ctbo_1},{ctbo0},{ctbo1}"));
-        features.push(format!("{ct_1},{ctbo0},{ctbo1}"));
-        features.push(format!("{ctbo_1},{ct0},{ctbo1}"));
-        features.push(format!("{ctbo_1},{ctbo0},{ct1}"));
-        features.push(format!("{ct_1},{ct0},{ctbo1}"));
-        features.push(format!("{ctbo_1},{ct0},{ct1}"));
-        features.push(format!("{ct_1},{ct0},{ct1}"));
-
-        // postag(0, 1, 2)
-        features.push(format!("{ctbo0},{ctbo1},{ctbo2}"));
-        features.push(format!("{ct0},{ctbo1},{ctbo2}"));
-        features.push(format!("{ctbo0},{ct1},{ctbo2}"));
-        features.push(format!("{ctbo0},{ctbo1},{ct2}"));
-        features.push(format!("{ct0},{ct1},{ctbo2}"));
-        features.push(format!("{ctbo0},{ct1},{ct2}"));
-        features.push(format!("{ct0},{ct1},{ct2}"));
+        let pairs = [
+            format!("{ct_1},{ct0}"),
+            format!("{ctbo_1},{ct0}"),
+            format!("{ct_1},{ctbo0}"),
+            format!("{ctbo_1},{ctbo0}"),
+            format!("{ct0},{ct1}"),
+            format!("{ctbo0},{ct1}"),
+            format!("{ct0},{ctbo1}"),
+            format!("{ctbo0},{ctbo1}"),
+        ];
+        let mut features = Vec::with_capacity(19);
+        features.extend(["default".to_owned(), ct_2, ctbo_2, ct_1, ctbo_1, ct0, ctbo0, ct1, ctbo1, ct2, ctbo2]);
+        features.extend(pairs);
 
         if let Some(key) = cache_key {
             if self.cache.len() >= self.cache_size {

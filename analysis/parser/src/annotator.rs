@@ -16,7 +16,7 @@ use turbo_analysis_layers::{Phrases, Sentences, Tag, TagSet, Tokens};
 
 use crate::bottom_up::{Parser, ParserEngine, ParserFactory};
 use crate::model::ParserModel;
-use crate::parse::{INC_NODE, Parse, TOK_NODE, TOP_NODE, space_untokenized_parens};
+use crate::parse::{INC_NODE, Parse, ParseError, TOK_NODE, TOP_NODE, space_untokenized_parens};
 
 /// Constituency parser annotator (`turbo-parser:constituency`).
 ///
@@ -104,7 +104,11 @@ impl Annotator for ParserAnnotator {
             let Ok(flat) = Parse::from_tokens(&words) else {
                 continue;
             };
-            let Some(parsed) = self.engine.parse(&flat) else {
+            let parsed = self
+                .engine
+                .parse(&flat)
+                .map_err(|e| Error::Annotator { annotator: Self::ID, detail: format!("sentence {si}: {e}") })?;
+            let Some(parsed) = parsed else {
                 continue;
             };
 
@@ -230,7 +234,7 @@ impl ParserTool {
     /// 3. Builds a flat `INC` tree with [`TOK_NODE`] children, runs
     ///    `parser.parse_n(&flat, num_parses)`, and adjusts every node's span
     ///    and the shared backing text back to `line`.
-    pub fn parse_line(line: &str, parser: &dyn Parser, num_parses: usize) -> Vec<Parse> {
+    pub fn parse_line(line: &str, parser: &dyn Parser, num_parses: usize) -> Result<Vec<Parse>, ParseError> {
         Self::parse_line_with_mode(line, parser, turbo_unicode::WhitespaceMode::Unicode, num_parses)
     }
 
@@ -240,14 +244,14 @@ impl ParserTool {
         parser: &dyn Parser,
         mode: turbo_unicode::WhitespaceMode,
         num_parses: usize,
-    ) -> Vec<Parse> {
+    ) -> Result<Vec<Parse>, ParseError> {
         if line.trim().is_empty() || num_parses == 0 {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let spaced = space_untokenized_parens(line, mode);
         let raw_tokens: Vec<&str> = spaced.split([' ', '\t', '\n', '\r', '\x0C']).filter(|s| !s.is_empty()).collect();
         if raw_tokens.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
         // Spacing only inserts spaces, so every token is a substring of `line`, in order.
@@ -260,18 +264,16 @@ impl ParserTool {
             search_from = end;
         }
 
-        let Ok(flat) = Parse::from_tokens(&raw_tokens) else {
-            return Vec::new();
-        };
+        let flat = Parse::from_tokens(&raw_tokens)?;
         let synthetic_starts: Vec<u32> = flat.children().iter().map(|ch| ch.span().start).collect();
         let synthetic_ends: Vec<u32> = flat.children().iter().map(|ch| ch.span().end).collect();
 
         let shared_line: Arc<str> = Arc::from(line);
-        let mut parses = parser.parse_n(&flat, num_parses);
+        let mut parses = parser.parse_n(&flat, num_parses)?;
         for p in &mut parses {
             remap_parse_to_line(p, &shared_line, &synthetic_starts, &synthetic_ends, &line_spans);
         }
-        parses
+        Ok(parses)
     }
 }
 
@@ -313,13 +315,13 @@ mod tests {
     struct Echo;
 
     impl Parser for Echo {
-        fn parse_n(&self, tokens: &Parse, _num_parses: usize) -> Vec<Parse> {
-            vec![tokens.clone()]
+        fn parse_n(&self, tokens: &Parse, _num_parses: usize) -> Result<Vec<Parse>, ParseError> {
+            Ok(vec![tokens.clone()])
         }
     }
 
     fn token_spans(line: &str) -> Vec<(u32, u32)> {
-        let parses = ParserTool::parse_line(line, &Echo, 1);
+        let parses = ParserTool::parse_line(line, &Echo, 1).unwrap();
         parses[0].children().iter().map(|c| (c.span().start, c.span().end)).collect()
     }
 

@@ -18,7 +18,7 @@ use turbo_formats::evaluate::{CrossValidation, FMeasure, LabeledSpan};
 use crate::bottom_up::Parser;
 use crate::chunking::{self, ParserTrainingParameters};
 use crate::model::{HeadRulesArtifact, ParserModelError, ParserType};
-use crate::parse::{Parse, TOK_NODE, TOP_NODE};
+use crate::parse::{Parse, ParseError, TOK_NODE, TOP_NODE};
 use crate::treeinsert;
 
 /// Evaluates a constituency [`Parser`] against gold-standard [`Parse`] trees,
@@ -76,17 +76,18 @@ impl<'a> ParserEvaluator<'a> {
     /// Mirrors `ParserEvaluator.processSample(Parse reference)`: extracts the
     /// token strings from `reference.tag_nodes()`, builds a fresh flat parse via
     /// `Parse::from_tokens` (identical to `ParserTool.parseLine`), and compares
-    /// [`Self::get_constituent_spans`] on reference and prediction.
-    pub fn evaluate_sample(&mut self, reference: &Parse) -> Option<Parse> {
+    /// [`Self::get_constituent_spans`] on reference and prediction. An error is
+    /// where the parser would throw.
+    pub fn evaluate_sample(&mut self, reference: &Parse) -> Result<Option<Parse>, ParseError> {
         let tag_nodes = reference.tag_nodes();
         let mut words: Vec<&str> = Vec::with_capacity(tag_nodes.len());
         for tok in &tag_nodes {
             words.push(tok.covered_text());
         }
         let Ok(flat) = Parse::from_tokens(&words) else {
-            return None;
+            return Ok(None);
         };
-        let predicted = self.parser.parse(&flat);
+        let predicted = self.parser.parse(&flat)?;
         let ref_spans = Self::get_constituent_spans(reference);
         match &predicted {
             Some(pred) => {
@@ -98,14 +99,15 @@ impl<'a> ParserEvaluator<'a> {
                 self.fmeasure.update(&ref_spans, &empty);
             }
         }
-        predicted
+        Ok(predicted)
     }
 
     /// Evaluates a slice of gold-standard [`Parse`] trees.
-    pub fn evaluate(&mut self, samples: &[Parse]) {
+    pub fn evaluate(&mut self, samples: &[Parse]) -> Result<(), ParseError> {
         for sample in samples {
-            self.evaluate_sample(sample);
+            self.evaluate_sample(sample)?;
         }
+        Ok(())
     }
 }
 
@@ -149,7 +151,7 @@ impl ParserCrossValidator {
                     let parser = chunking::Parser::new(model);
                     let mut evaluator = ParserEvaluator::new(&parser);
                     for test_sample in fold.test_of(samples) {
-                        evaluator.evaluate_sample(test_sample);
+                        evaluator.evaluate_sample(test_sample)?;
                     }
                     self.fmeasure.merge(evaluator.fmeasure());
                 }
@@ -157,7 +159,7 @@ impl ParserCrossValidator {
                     let parser = treeinsert::Parser::new(model);
                     let mut evaluator = ParserEvaluator::new(&parser);
                     for test_sample in fold.test_of(samples) {
-                        evaluator.evaluate_sample(test_sample);
+                        evaluator.evaluate_sample(test_sample)?;
                     }
                     self.fmeasure.merge(evaluator.fmeasure());
                 }

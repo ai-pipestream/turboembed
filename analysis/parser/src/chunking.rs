@@ -15,14 +15,16 @@ use turbo_train_components::postag::{BEAM_SIZE_KEY, PosTaggerFactory, train_pos_
 
 use crate::bottom_up::{
     DEFAULT_ADVANCE_PERCENTAGE, DEFAULT_BEAM_SIZE, Parser as ParserTrait, build_dictionary,
-    collapse_punctuation_in_place, parse_bottom_up,
+    collapse_punctuation_in_place, dictionary_key, parse_bottom_up,
 };
-use crate::context::{ChunkContextGenerator, ConsWindow, check_cons, cons2, cons3, get_nodes, surround};
+use crate::context::{
+    ChunkContextGenerator, Cons, check_cons, check_cons_pair, cons_bo_labeled, cons_labeled, cons2, cons3, surround,
+};
 use crate::head_rules::HeadRules;
 use crate::model::{
     HeadRulesArtifact, PARSER_CHUNKER_FACTORY, ParserEventType, ParserModel, ParserModelError, ParserType,
 };
-use crate::parse::{COMPLETE, CONT, INCOMPLETE, Parse, START, TOP_NODE};
+use crate::parse::{COMPLETE, CONT, INCOMPLETE, Parse, ParseError, START, TOP_NODE};
 use crate::stream::{ParserChunkSample, ParserPosSample};
 
 /// Top-start outcome (`AbstractBottomUpParser.TOP_START = "S-TOP"`).
@@ -35,83 +37,135 @@ pub struct BuildContextGenerator {
 }
 
 impl BuildContextGenerator {
-    /// Creates an unpruned [`BuildContextGenerator`] (`new BuildContextGenerator()`).
+    /// Creates a [`BuildContextGenerator`] without a dictionary, so every lexical feature is
+    /// used (`new BuildContextGenerator()`).
     pub fn new() -> Self {
         Self { dict: None }
     }
 
-    /// Creates a [`BuildContextGenerator`] backed by `dict` (`new BuildContextGenerator(Dictionary)`).
+    /// Creates a [`BuildContextGenerator`] whose lexical features are limited to the n-grams of
+    /// `dict`, keyed by [`dictionary_key`] (`new BuildContextGenerator(Dictionary)`).
     pub fn with_dictionary(dict: HashSet<String>) -> Self {
         Self { dict: Some(dict) }
     }
 
     /// Generates build features for `constituents[index]` (`BuildContextGenerator.getContext(Parse[], int)`).
     pub fn get_context(&self, constituents: &[Parse], index: usize) -> Vec<String> {
-        let mut features = Vec::with_capacity(64);
-        let nodes = get_nodes(constituents, index);
-        let [_, cf_1, cf0, cf1, _] = nodes;
-        let c0_node = cf0.expect("index in bounds of constituents");
+        let mut features = Vec::with_capacity(100);
+        let ps = constituents.len();
 
-        let punct1s = Some(c0_node.next_punctuation());
-        let punct2s = cf1.map(Parse::next_punctuation);
-        let punct_1s = Some(c0_node.previous_punctuation());
-        let punct_2s = cf_1.map(Parse::previous_punctuation);
+        let p_2 = index.checked_sub(2).map(|j| &constituents[j]);
+        let p_1 = index.checked_sub(1).map(|j| &constituents[j]);
+        let punct_2s = p_1.map(Parse::previous_punctuation);
+        let p0 = &constituents[index];
+        let punct_1s = Some(p0.previous_punctuation());
+        let punct1s = Some(p0.next_punctuation());
+        let p1 = constituents.get(index + 1);
+        let punct2s = p1.map(Parse::next_punctuation);
+        let p2 = constituents.get(index + 2);
 
-        let w = ConsWindow::build(nodes, self.dict.as_ref());
+        let mut u_2 = true;
+        let mut u_1 = true;
+        let mut u0 = true;
+        let mut u1 = true;
+        let mut u2 = true;
+        let mut b_2_1 = true;
+        let mut b_10 = true;
+        let mut b01 = true;
+        let mut b12 = true;
+        let mut t_2_10 = true;
+        let mut t_101 = true;
+        let mut t012 = true;
 
-        // default
+        if let Some(dict) = &self.dict {
+            let has = |ngram: &[&Parse]| {
+                let words: Vec<&str> = ngram.iter().map(|p| p.head_text()).collect();
+                dict.contains(&dictionary_key(&words))
+            };
+            if let Some(p_2) = p_2 {
+                u_2 = has(&[p_2]);
+            }
+            if let Some(p2) = p2 {
+                u2 = has(&[p2]);
+            }
+            u0 = has(&[p0]);
+            if let (Some(p_2), Some(p_1)) = (p_2, p_1) {
+                b_2_1 = has(&[p_2, p_1]);
+                t_2_10 = has(&[p_2, p_1, p0]);
+            }
+            if let (Some(p_1), Some(p1)) = (p_1, p1) {
+                t_101 = has(&[p_1, p0, p1]);
+            }
+            if let Some(p_1) = p_1 {
+                u_1 = has(&[p_1]);
+                // OpenNLP's "extra check for 2==null case"; `u1` is still true here.
+                b_2_1 = b_2_1 && u_1 && u_2;
+                t_2_10 = t_2_10 && u_1 && u_2 && u0;
+                t_101 = t_101 && u_1 && u0 && u1;
+                b_10 = has(&[p_1, p0]) && u_1 && u0;
+            }
+            if let (Some(p1), Some(p2)) = (p1, p2) {
+                b12 = has(&[p1, p2]);
+                t012 = has(&[p0, p1, p2]);
+            }
+            if let Some(p1) = p1 {
+                u1 = has(&[p1]);
+                b12 = b12 && u1 && u2;
+                t012 = t012 && u1 && u2 && u0;
+                t_101 = t_101 && u0 && u_1 && u1;
+                b01 = has(&[p0, p1]) && u0 && u1;
+            }
+        }
+
+        let c_2 = Cons::new(cons_labeled(p_2, -2), cons_bo_labeled(p_2, -2), -2, u_2);
+        let c_1 = Cons::new(cons_labeled(p_1, -1), cons_bo_labeled(p_1, -1), -1, u_1);
+        let c0 = Cons::new(cons_labeled(Some(p0), 0), cons_bo_labeled(Some(p0), 0), 0, u0);
+        let c1 = Cons::new(cons_labeled(p1, 1), cons_bo_labeled(p1, 1), 1, u1);
+        let c2 = Cons::new(cons_labeled(p2, 2), cons_bo_labeled(p2, 2), 2, u2);
+
         features.push("default".to_owned());
-        // first constituent label
-        if index == 0 {
-            features.push("fl".to_owned());
+        for c in [&c0, &c_2, &c_1, &c1, &c2] {
+            if c.unigram {
+                features.push(c.cons.clone());
+            }
+            features.push(c.cons_bo.clone());
         }
 
-        // unigrams
-        features.push(w.c_2.cons_bo.clone());
-        if w.u_2 {
-            features.push(w.c_2.cons.clone());
-        }
-        features.push(w.c_1.cons_bo.clone());
-        if w.u_1 {
-            features.push(w.c_1.cons.clone());
-        }
-        features.push(w.c0.cons_bo.clone());
-        if w.u0 {
-            features.push(w.c0.cons.clone());
-        }
-        features.push(w.c1.cons_bo.clone());
-        if w.u1 {
-            features.push(w.c1.cons.clone());
-        }
-        features.push(w.c2.cons_bo.clone());
-        if w.u2 {
-            features.push(w.c2.cons.clone());
-        }
+        cons2(&mut features, &c0, &c1, punct1s, b01);
+        cons2(&mut features, &c_1, &c0, punct_1s, b_10);
+        cons3(&mut features, &c0, &c1, &c2, punct1s, punct2s, t012, b01, b12);
+        cons3(&mut features, &c_2, &c_1, &c0, punct_2s, punct_1s, t_2_10, b_2_1, b_10);
+        cons3(&mut features, &c_1, &c0, &c1, punct_1s, punct1s, t_101, b_10, b01);
 
-        // bigrams
-        cons2(&mut features, &w.c_2, &w.c_1, punct_2s, w.b_2_1);
-        cons2(&mut features, &w.c_1, &w.c0, punct_1s, w.b_10);
-        cons2(&mut features, &w.c0, &w.c1, punct1s, w.b01);
-        cons2(&mut features, &w.c1, &w.c2, punct2s, w.b12);
-
-        // trigrams
-        cons3(&mut features, &w.c_2, &w.c_1, &w.c0, punct_2s, punct_1s, w.t_2_10, w.b_2_1, w.b_10);
-        cons3(&mut features, &w.c_1, &w.c0, &w.c1, punct_1s, punct1s, w.t_101, w.b_10, w.b01);
-        cons3(&mut features, &w.c0, &w.c1, &w.c2, punct1s, punct2s, w.t012, w.b01, w.b12);
-
-        // other
-        if nodes[0].is_none() && nodes[1].is_none() && nodes[3].is_none() && nodes[4].is_none() {
-            features.push("span".to_owned());
+        // Walks back to the closest start; a node before `index` always has a label here, where
+        // OpenNLP would throw `NullPointerException` on one without.
+        let starts_constituent = |p: &Parse| p.label().is_some_and(|l| l.starts_with(START));
+        let matches_back = |open: &str, feature: &str, features: &mut Vec<String>| {
+            for p in constituents[..index].iter().rev() {
+                if p.kind() == open {
+                    features.push(feature.to_owned());
+                    break;
+                }
+                if starts_constituent(p) {
+                    break;
+                }
+            }
+        };
+        match p0.kind() {
+            "-RRB-" => matches_back("-LRB-", "bracketsmatch", &mut features),
+            "-RCB-" => matches_back("-LCB-", "bracketsmatch", &mut features),
+            "''" => matches_back("``", "quotesmatch", &mut features),
+            "'" => matches_back("`", "quotesmatch", &mut features),
+            "," => matches_back(",", "iscomma", &mut features),
+            "." if index + 1 == ps => {
+                if let Some(pi) = constituents[..index].iter().rposition(starts_constituent)
+                    && pi == 0
+                {
+                    features.push("endofsentence".to_owned());
+                }
+            }
+            _ => {}
         }
-
-        let mut window = String::with_capacity(constituents.len() * 4 + 2);
-        window.push_str("ac");
-        for mp in constituents {
-            window.push('=');
-            window.push_str(mp.kind());
-        }
-        features.push(window);
-
         features
     }
 }
@@ -129,54 +183,46 @@ impl CheckContextGenerator {
     /// Generates completeness check features for reducing `constituents[start..=end]` into `kind`
     /// (`CheckContextGenerator.getContext(Parse[], String, int, int)`).
     pub fn get_context(&self, constituents: &[Parse], kind: &str, start: usize, end: usize) -> Vec<String> {
-        let mut features = Vec::with_capacity(32);
-        let p_start = &constituents[start];
-        let p_end = &constituents[end];
-        let p_1 = start.checked_sub(1).and_then(|j| constituents.get(j));
-        let p_2 = start.checked_sub(2).and_then(|j| constituents.get(j));
-        let p1 = constituents.get(end + 1);
-        let p2 = constituents.get(end + 2);
+        let ps = constituents.len();
+        let mut features = Vec::with_capacity(100);
 
-        // default
         features.push("default".to_owned());
-
-        // first constituent label
-        check_cons(p_start, "begin", kind, &mut features);
-        check_cons(p_end, "last", kind, &mut features);
-
-        // production
-        let mut production = String::with_capacity(32);
-        let mut punct_production = String::with_capacity(32);
-        production.push_str("p=");
-        production.push_str(kind);
-        production.push_str("->");
-        punct_production.push_str("pp=");
-        punct_production.push_str(kind);
-        punct_production.push_str("->");
-        for dep in &constituents[start..end] {
-            production.push_str(dep.kind());
+        features.push(format!("fl={}", constituents[0].label().unwrap_or("null")));
+        let pstart = &constituents[start];
+        let pend = &constituents[end];
+        check_cons(pstart, "begin", kind, &mut features);
+        check_cons(pend, "last", kind, &mut features);
+        let mut production = format!("p={kind}->");
+        let mut punct_production = format!("pp={kind}->");
+        for p in &constituents[start..end] {
+            check_cons_pair(p, pend, kind, &mut features);
+            production.push_str(p.kind());
             production.push(',');
-            punct_production.push_str(dep.kind());
+            punct_production.push_str(p.kind());
             punct_production.push(',');
-            for punct in dep.next_punctuation() {
+            for punct in p.next_punctuation() {
                 punct_production.push_str(punct.kind());
                 punct_production.push(',');
             }
         }
-        production.push_str(p_end.kind());
-        punct_production.push_str(p_end.kind());
+        production.push_str(pend.kind());
+        punct_production.push_str(pend.kind());
         features.push(production);
         features.push(punct_production);
 
-        let punct_1s = Some(p_start.previous_punctuation());
-        let punct_2s = p_1.map(Parse::previous_punctuation);
-        let punct1s = Some(p_end.next_punctuation());
-        let punct2s = p1.map(Parse::next_punctuation);
+        let p1s = Some(constituents[end].next_punctuation());
+        let p_1s = Some(constituents[start].previous_punctuation());
+        let p_2 = start.checked_sub(2).map(|j| &constituents[j]);
+        let p_1 = start.checked_sub(1).map(|j| &constituents[j]);
+        let p_2s = p_1.map(Parse::previous_punctuation);
+        let p1 = (end + 1 < ps).then(|| &constituents[end + 1]);
+        let p2s = p1.map(Parse::next_punctuation);
+        let p2 = (end + 2 < ps).then(|| &constituents[end + 2]);
 
-        surround(p_1, -1, kind, punct_1s, &mut features);
-        surround(p_2, -2, kind, punct_2s, &mut features);
-        surround(p1, 1, kind, punct1s, &mut features);
-        surround(p2, 2, kind, punct2s, &mut features);
+        surround(p_1, -1, kind, p_1s, &mut features);
+        surround(p_2, -2, kind, p_2s, &mut features);
+        surround(p1, 1, kind, p1s, &mut features);
+        surround(p2, 2, kind, p2s, &mut features);
 
         features
     }
@@ -425,7 +471,7 @@ impl Parser {
         let dict = build_dictionary(samples, &rules, params.dict_cutoff);
 
         // 1. Train build model
-        let build_events = ParserEventStream::generate_events(samples, &rules, ParserEventType::Build, Some(&dict));
+        let build_events = ParserEventStream::generate_events(samples, &rules, ParserEventType::Build, Some(&dict))?;
         let (build_trained, _) =
             trainer::train_events(&build_events, &params.build, &mut TrainingConfiguration::default())
                 .map_err(turbo_train_components::error::Error::Train)?;
@@ -451,7 +497,7 @@ impl Parser {
         let chunker_bytes = train_parser_chunker_bytes(language, samples, &params.chunker)?;
 
         // 4. Train check model
-        let check_events = ParserEventStream::generate_events(samples, &rules, ParserEventType::Check, None);
+        let check_events = ParserEventStream::generate_events(samples, &rules, ParserEventType::Check, None)?;
         let (check_trained, _) =
             trainer::train_events(&check_events, &params.check, &mut TrainingConfiguration::default())
                 .map_err(turbo_train_components::error::Error::Train)?;
@@ -473,7 +519,7 @@ impl Parser {
 }
 
 impl ParserTrait for Parser {
-    fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Vec<Parse> {
+    fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Result<Vec<Parse>, ParseError> {
         parse_bottom_up(
             tokens,
             num_parses,
@@ -483,8 +529,9 @@ impl ParserTrait for Parser {
             self.model.parser_tagger_model(),
             self.model.parser_chunker_model(),
             self.model.head_rules(),
-            |p, q| self.advance_parses(p, q),
+            |p, q| Ok(Some(self.advance_parses(p, q))),
             |p| self.advance_top(p),
+            |_| {},
         )
     }
 }
@@ -494,12 +541,14 @@ pub struct ParserEventStream;
 
 impl ParserEventStream {
     /// Generates training [`Event`]s of type `etype` over `samples` (`AbstractParserEventStream`).
+    ///
+    /// A sample `Parse::prune_parse` refuses is an error, where OpenNLP's stream throws.
     pub fn generate_events(
         samples: &[Parse],
         rules: &dyn HeadRules,
         etype: ParserEventType,
         dict: Option<&HashSet<String>>,
-    ) -> Vec<Event> {
+    ) -> Result<Vec<Event>, ParseError> {
         let mut events = Vec::new();
         let bcg = BuildContextGenerator::with_dictionary(dict.cloned().unwrap_or_default());
         let bcg_no_dict = BuildContextGenerator::new();
@@ -510,7 +559,7 @@ impl ParserEventStream {
 
         for orig in samples {
             let mut p = orig.clone();
-            let _ = Parse::prune_parse(&mut p);
+            Parse::prune_parse(&mut p)?;
             if rules_fix_possessives() {
                 Parse::fix_possessives(&mut p);
             }
@@ -546,7 +595,7 @@ impl ParserEventStream {
                 }
             }
         }
-        events
+        Ok(events)
     }
 
     fn add_parse_events(

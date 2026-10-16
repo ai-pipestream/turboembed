@@ -200,6 +200,9 @@ pub enum ParserModelError {
     UnsupportedHeadRulesSerializer(String),
     /// Packaging error.
     TrainComponents(turbo_train_components::error::Error),
+    /// A training or evaluation sample failed where OpenNLP throws, as `Parse.pruneParse` does
+    /// on a node whose only child has its type.
+    Sample(ParseError),
 }
 
 impl fmt::Display for ParserModelError {
@@ -218,6 +221,7 @@ impl fmt::Display for ParserModelError {
                 write!(f, "parser head rules: unsupported serializer class {s:?}")
             }
             Self::TrainComponents(e) => write!(f, "parser model packaging: {e}"),
+            Self::Sample(e) => write!(f, "parser sample: {e}"),
         }
     }
 }
@@ -245,6 +249,12 @@ impl From<turbo_postag::ModelError> for ParserModelError {
 impl From<HeadRulesError> for ParserModelError {
     fn from(e: HeadRulesError) -> Self {
         Self::HeadRules(e)
+    }
+}
+
+impl From<ParseError> for ParserModelError {
+    fn from(e: ParseError) -> Self {
+        Self::Sample(e)
     }
 }
 

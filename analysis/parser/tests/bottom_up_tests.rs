@@ -13,7 +13,7 @@ use turbo_parser::{
     ChunkContextGenerator, EnglishHeadRules, HeadRules, HeadRulesArtifact, Parse, ParseSampleStream, Parser,
     ParserAnnotator, ParserChunkerSequenceValidator, ParserCrossValidator, ParserEvaluator, ParserEventType,
     ParserFactory, ParserModel, ParserTool, ParserTrainingParameters, ParserType, build_dictionary, chunking,
-    collapse_punctuation, treeinsert,
+    collapse_punctuation, dictionary_key, treeinsert,
 };
 
 fn english_head_rules() -> EnglishHeadRules {
@@ -43,22 +43,43 @@ fn sample_parses() -> Vec<Parse> {
 
 #[test]
 fn chunk_context_generator_and_sequence_validator() {
+    // The 19 features of `ChunkContextGenerator.getContext`, in its order.
     let mut cg = ChunkContextGenerator::with_cache(4);
     let words = ["The", "quick", "fox", "jumped"];
     let tags = ["DT", "JJ", "NN", "VBD"];
     let preds = ["S-NP", "C-NP", "C-NP", "S-VP"];
-    let ctx0 = cg.get_context(0, &words, &tags, &preds);
-    assert_eq!(ctx0.len(), 47);
-    assert!(ctx0.iter().any(|f| f == "0=The|DT"));
-    assert!(ctx0.iter().any(|f| f == "0*=DT"));
-    assert!(ctx0.iter().any(|f| f == "-1=w_1=bos|t_1=bos|p_1=bos"));
-
     let ctx1 = cg.get_context(1, &words, &tags, &preds);
-    assert_eq!(ctx1.len(), 47);
-    assert!(ctx1.iter().any(|f| f == "-1=The|DT|S-NP"));
+    assert_eq!(
+        ctx1,
+        [
+            "default",
+            "-2=eos|eos|eos",
+            "-2*=eos|eos",
+            "-1=The|DT|S-NP",
+            "-1*=DT|S-NP",
+            "0=quick|JJ",
+            "0*=JJ",
+            "1=fox|NN",
+            "1*=NN",
+            "2=jumped|VBD",
+            "2*=VBD",
+            "-1=The|DT|S-NP,0=quick|JJ",
+            "-1*=DT|S-NP,0=quick|JJ",
+            "-1=The|DT|S-NP,0*=JJ",
+            "-1*=DT|S-NP,0*=JJ",
+            "0=quick|JJ,1=fox|NN",
+            "0*=JJ,1=fox|NN",
+            "0=quick|JJ,1*=NN",
+            "0*=JJ,1*=NN",
+        ]
+    );
     // Hit cache on repeated call
-    let ctx1_cached = cg.get_context(1, &words, &tags, &preds);
-    assert_eq!(ctx1, ctx1_cached);
+    assert_eq!(cg.get_context(1, &words, &tags, &preds), ctx1);
+
+    let ctx3 = cg.get_context(3, &words, &tags, &preds);
+    assert_eq!(ctx3.len(), 19);
+    assert_eq!(&ctx3[1..3], ["-2=quick|JJ|C-NP", "-2*=JJ|C-NP"]);
+    assert_eq!(&ctx3[7..11], ["1=eos|eos", "1*=eos", "2=eos|eos", "2*=eos"]);
 
     let validator = ParserChunkerSequenceValidator::new(&["S-NP", "C-NP", "S-VP", "C-VP", "O"]);
     assert!(validator.valid_outcome(&[], "S-NP"));
@@ -67,6 +88,109 @@ fn chunk_context_generator_and_sequence_validator() {
     assert!(validator.valid_outcome(&["S-NP"], "C-NP"));
     assert!(!validator.valid_outcome(&["S-NP"], "C-VP"));
     assert!(!validator.valid_outcome(&["O"], "C-NP"));
+}
+
+/// The chunks of `tree` after `collapsePunctuation`, with heads, the first labeled `S-S`.
+fn labeled_chunks(tree: &str) -> Vec<Parse> {
+    let rules = english_head_rules();
+    let mut p = Parse::parse(tree).unwrap();
+    p.update_heads(&rules);
+    let chunks: Vec<Parse> = p.initial_chunks().into_iter().cloned().collect();
+    let mut collapsed = collapse_punctuation(&chunks, rules.punctuation_tags());
+    collapsed[0].set_label(Some("S-S".to_owned()));
+    collapsed
+}
+
+#[test]
+fn chunking_build_context_matches_opennlp() {
+    // `chunking.BuildContextGenerator.getContext(chunks, 1)` without a dictionary: every lexical
+    // feature, labels on the nodes before the current one, and the comma before `VP` as `-1=,`.
+    let chunks = labeled_chunks("(TOP (S (NP (PRP She)) (, ,) (VP (VBD left))))");
+    let ctx = chunking::BuildContextGenerator::new().get_context(&chunks, 1);
+    let expected = [
+        "default",
+        "0=VP|left",
+        "0*=VP",
+        "-2=eos",
+        "-2*=eos",
+        "-1=S-S|NP|She",
+        "-1*=S-S|NP",
+        "1=eos",
+        "1*=eos",
+        "2=eos",
+        "2*=eos",
+        // cons2(c0, c1)
+        "0=VP|left,1=eos",
+        "0*=VP,1=eos",
+        "0=VP|left,1*=eos",
+        "0*=VP,1*=eos",
+        // cons2(c_1, c0) across the comma
+        "-1=,",
+        "-1=,,0=VP|left",
+        "-1=,,0*=VP",
+        "-1=S-S|NP|She,-1=,,0=VP|left",
+        "-1*=S-S|NP,-1=,,0=VP|left",
+        "-1=S-S|NP|She,-1=,,0*=VP",
+        "-1*=S-S|NP,-1=,,0*=VP",
+        // cons3(c0, c1, c2)
+        "0=VP|left,1=eos,2=eos",
+        "0*=VP,1=eos,2=eos",
+        "0=VP|left,1*=eos,2=eos",
+        "0=VP|left,1=eos,2*=eos",
+        "0*=VP,1*=eos,2=eos",
+        "0*=VP,1=eos,2*=eos",
+        "0=VP|left,1*=eos,2*=eos",
+        "0*=VP,1*=eos,2*=eos",
+        // cons3(c_2, c_1, c0), the comma between c_1 and c0
+        "-2=eos,-1=S-S|NP|She,-1=,,0=VP|left",
+        "-2*=eos,-1=S-S|NP|She,-1=,,0=VP|left",
+        "-2=eos,-1*=S-S|NP,-1=,,0=VP|left",
+        "-2=eos,-1=S-S|NP|She,-1=,,0*=VP",
+        "-2*=eos,-1*=S-S|NP,-1=,,0=VP|left",
+        "-2*=eos,-1=S-S|NP|She,-1=,,0*=VP",
+        "-2=eos,-1*=S-S|NP,-1=,,0*=VP",
+        "-2*=eos,-1*=S-S|NP,-1=,,0*=VP",
+        // cons3(c_1, c0, c1), the comma between c_1 and c0
+        "-1=S-S|NP|She,-1=,,0=VP|left,1=eos",
+        "-1*=S-S|NP,-1=,,0=VP|left,1=eos",
+        "-1=S-S|NP|She,-1=,,0*=VP,1=eos",
+        "-1=S-S|NP|She,-1=,,0=VP|left,1*=eos",
+        "-1*=S-S|NP,-1=,,0*=VP,1=eos",
+        "-1*=S-S|NP,-1=,,0=VP|left,1*=eos",
+        "-1=S-S|NP|She,-1=,,0*=VP,1*=eos",
+        "-1*=S-S|NP,-1=,,0*=VP,1*=eos",
+    ];
+    assert_eq!(ctx, expected);
+}
+
+#[test]
+fn chunking_check_context_matches_opennlp() {
+    // `chunking.CheckContextGenerator.getContext(chunks, "S", 0, 1)`.
+    let chunks = labeled_chunks("(TOP (S (NP (DT The) (NN dog)) (VP (VBD ran))))");
+    let ctx = chunking::CheckContextGenerator::new().get_context(&chunks, "S", 0, 1);
+    let expected = [
+        "default",
+        "fl=S-S",
+        "cbegin=NP|dog|S",
+        "cbegin*=NP|S",
+        "clast=VP|ran|S",
+        "clast*=VP|S",
+        "cil=S,NP|dog,VP|ran",
+        "ci*l=S,NP,VP|ran",
+        "cil*=S,NP|dog,VP",
+        "ci*l*=S,NP,VP",
+        "p=S->NP,VP",
+        "pp=S->NP,VP",
+        "s-1=S|eos",
+        "s-1*=S|eos",
+        "s-2=S|eos",
+        "s-2*=S|eos",
+        "s1=S|eos",
+        "s1*=S|eos",
+        "s2=S|eos",
+        "s2*=S|eos",
+    ];
+    assert_eq!(ctx, expected);
 }
 
 #[test]
@@ -85,8 +209,10 @@ fn collapse_punctuation_and_build_dictionary() {
 
     let samples = sample_parses();
     let dict = build_dictionary(&samples, &rules, 1);
-    assert!(dict.contains("fox"));
-    assert!(dict.contains("dog"));
+    assert!(dict.contains(&dictionary_key(&["fox"])));
+    assert!(dict.contains(&dictionary_key(&["dog"])));
+    // A token with a comma is not the bigram of its halves.
+    assert_ne!(dictionary_key(&["1,000"]), dictionary_key(&["1", "000"]));
 }
 
 #[test]
@@ -96,11 +222,12 @@ fn chunking_and_treeinsert_event_streams_generate_events() {
     let dict = build_dictionary(&samples, &rules, 1);
 
     let build_events =
-        chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Build, Some(&dict));
+        chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Build, Some(&dict)).unwrap();
     assert!(!build_events.is_empty());
     assert!(build_events.iter().any(|e| e.outcome() == "S-S" || e.outcome() == "S-VP"));
 
-    let check_events = chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Check, None);
+    let check_events =
+        chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Check, None).unwrap();
     assert!(!check_events.is_empty());
     assert!(check_events.iter().any(|e| e.outcome() == turbo_parser::COMPLETE));
     assert!(check_events.iter().any(|e| e.outcome() == turbo_parser::INCOMPLETE));
@@ -141,13 +268,13 @@ fn chunking_parser_trains_serializes_and_parses() {
 
     let parser = ParserFactory::create(Arc::new(reloaded));
     let flat = Parse::from_tokens(&["The", "quick", "fox", "jumped", "."]).unwrap();
-    let parsed = parser.parse(&flat).expect("produce parse");
+    let parsed = parser.parse(&flat).unwrap().expect("produce parse");
     assert_eq!(parsed.kind(), "TOP");
     assert!(parsed.complete());
     assert_eq!(parsed.text(), "The quick fox jumped .");
 
     // Top-k parses
-    let top2 = parser.parse_n(&flat, 2);
+    let top2 = parser.parse_n(&flat, 2).unwrap();
     assert!(!top2.is_empty());
     if top2.len() == 2 {
         assert!(top2[0].prob() >= top2[1].prob());
@@ -171,7 +298,7 @@ fn treeinsert_parser_trains_serializes_and_parses() {
 
     let parser = ParserFactory::create(Arc::new(reloaded));
     let flat = Parse::from_tokens(&["The", "lazy", "dog", "slept", "."]).unwrap();
-    let parsed = parser.parse(&flat).expect("produce treeinsert parse");
+    let parsed = parser.parse(&flat).unwrap().expect("produce treeinsert parse");
     assert_eq!(parsed.kind(), "TOP");
     assert!(parsed.complete());
     assert_eq!(parsed.text(), "The lazy dog slept .");
@@ -203,7 +330,7 @@ fn parser_evaluator_constituent_spans_and_evaluation() {
     let model = Arc::new(chunking::Parser::train("en", &samples, rules.clone(), &params).unwrap());
     let engine = ParserFactory::create(model);
     let mut evaluator = ParserEvaluator::new(&engine);
-    evaluator.evaluate(&samples[..4]);
+    evaluator.evaluate(&samples[..4]).unwrap();
     let fm = evaluator.fmeasure();
     assert!(fm.precision() > 0.0);
     assert!(fm.recall() > 0.0);
@@ -225,7 +352,7 @@ fn parser_annotator_and_parser_tool() {
     // Test ParserTool::parse_line with untokenized parens
     let engine = ParserFactory::create(Arc::clone(&model));
     let line = "The quick (fox) jumped .";
-    let parsed_lines = ParserTool::parse_line(line, &engine, 1);
+    let parsed_lines = ParserTool::parse_line(line, &engine, 1).unwrap();
     assert_eq!(parsed_lines.len(), 1);
     assert_eq!(parsed_lines[0].text(), line);
 
@@ -277,11 +404,11 @@ fn chunking_event_stream_revisits_constituent_reduced_at_index_zero() {
     let rules = english_head_rules();
     let samples = vec![Parse::parse("(TOP (S (NP (DT The) (NN dog)) (VP (VBD ran))))").unwrap()];
 
-    let build = chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Build, None);
+    let build = chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Build, None).unwrap();
     let outcomes: Vec<String> = build.iter().map(|e| e.outcome().to_string_lossy()).collect();
     assert_eq!(outcomes, ["S-S", "C-S", "S-TOP"]);
 
-    let check = chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Check, None);
+    let check = chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Check, None).unwrap();
     let outcomes: Vec<String> = check.iter().map(|e| e.outcome().to_string_lossy()).collect();
     assert_eq!(outcomes, [turbo_parser::INCOMPLETE, turbo_parser::COMPLETE, turbo_parser::COMPLETE]);
 }
