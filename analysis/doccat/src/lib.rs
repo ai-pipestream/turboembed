@@ -87,6 +87,19 @@ mod tests {
     }
 
     #[test]
+    fn bag_of_words_only_letters_reads_utf16_units_like_the_jvm() {
+        // StringPattern.recognize looks at one UTF-16 unit at a time, and a
+        // surrogate is not a letter, so a token holding a supplementary
+        // letter (U+20000, a CJK ideograph) is not all letters on the JVM.
+        let extra = BTreeMap::new();
+        let only_letters = BagOfWordsFeatureGenerator::only_all_letter_tokens();
+        assert_eq!(only_letters.pattern_mode(), turbo_sequence::PatternMode::Utf16Units);
+        assert_eq!(only_letters.collect_features(&["ab", "\u{20000}", "a\u{20000}"], &extra), vec!["bow=ab"]);
+        let code_points = only_letters.with_pattern_mode(turbo_sequence::PatternMode::CodePoints);
+        assert_eq!(code_points.collect_features(&["ab", "\u{20000}"], &extra), vec!["bow=ab", "bow=\u{20000}"]);
+    }
+
+    #[test]
     fn ngram_feature_generator_matches_opennlp_tests() {
         let extra = BTreeMap::new();
         let tokens = ["a", "b", "c", "d", "e", "f", "g"];

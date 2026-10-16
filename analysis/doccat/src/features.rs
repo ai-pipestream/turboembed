@@ -148,13 +148,15 @@ impl BagOfWordsFeatureGenerator {
     /// Creates a `BagOfWordsFeatureGenerator` that includes all tokens
     /// (`use_only_all_letter_tokens = false`).
     pub const fn new() -> Self {
-        Self { use_only_all_letter_tokens: false, pattern_mode: PatternMode::CodePoints }
+        Self::with_only_all_letter_tokens(false)
     }
 
     /// Creates a `BagOfWordsFeatureGenerator` configured with
-    /// `use_only_all_letter_tokens`.
+    /// `use_only_all_letter_tokens`. `StringPattern` reads one UTF-16 unit at a
+    /// time, as the JVM does, so a token with a supplementary letter is not
+    /// all letters.
     pub const fn with_only_all_letter_tokens(use_only_all_letter_tokens: bool) -> Self {
-        Self { use_only_all_letter_tokens, pattern_mode: PatternMode::CodePoints }
+        Self { use_only_all_letter_tokens, pattern_mode: PatternMode::Utf16Units }
     }
 
     /// Creates a `BagOfWordsFeatureGenerator` that emits features only for
