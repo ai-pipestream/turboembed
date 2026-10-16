@@ -1,0 +1,112 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-hungarian	436	397	30e382dfa5e5b35fb00bc3ba0f761d433047c5ea7d24c2b8caf2e1758cd92b96
+model	hungarian.aff	4c5f6a1913406ae7fa6b87fb137fa58ddaac6564ffce42a19fc96925767a1bd2e62b62a306b9e5867871e4a8769f1bef845dd0f08d5299e6b7bad7ad1519f880
+model	hungarian.dic	ceb67b26020bcae7d25c3fc9d165b88b784d89af3b1ea5122bd2198b0da2775aab09c42ce43e4f6560b3bd7339920e95aee2e6b603dcb387bca998f5ae4898c2
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	26	word:str	stem:str	thrown:str
+ház	ház	
+háztető	ház	
+tetőház	tető	
+házkert	ház	
+kertház	kert	
+házban	ház	
+kertházban	kert	
+házi	ház	
+házit	ház	
+háztetőkert	ház	
+ajtó	ajtó	
+ajtóház	ajtó	
+házajtó	ház	
+városház	város	
+városháza	városháza	
+házváros	ház	
+városi	város	
+épitész	épitész	
+építészház	építész	
+tető-	tető	
+tető-ház	tető	
+ház-tető	ház	
+legeslegház	legeslegház	
+legesleghaz	legesleghaz	
+kert-ház	kert	
+kertajtó	kert	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	42	word:u32	stem:str
+0	ház
+1	ház
+1	tető
+2	tető
+2	ház
+3	ház
+3	kert
+4	kert
+4	ház
+5	ház
+6	kert
+6	ház
+7	ház
+8	ház
+9	ház
+9	tető
+9	kert
+10	ajtó
+11	ajtó
+11	ház
+12	ház
+12	ajtó
+13	város
+13	ház
+14	városháza
+15	ház
+15	város
+16	város
+17	épitész
+18	építész
+18	ház
+19	tető
+20	tető
+20	ház
+21	ház
+21	tető
+22	legeslegház
+23	legesleghaz
+24	kert
+24	ház
+25	kert
+25	ajtó
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	22	word:u32	analysis:str
+0	st:ház
+1	pa:ház st:ház pa:tető
+2	pa:tető st:tető pa:ház
+3	pa:ház st:ház pa:kert
+4	pa:kert st:kert pa:ház
+5	st:ház fl:c
+6	pa:kert st:kert pa:házban st:ház fl:c
+7	st:ház fl:J
+8	st:ház fl:J fl:K
+9	pa:ház st:ház pa:tető st:tető pa:kert
+10	st:ajtó
+11	pa:ajtó st:ajtó pa:ház
+12	pa:ház st:ház pa:ajtó
+13	pa:város st:város pa:ház
+15	pa:ház st:ház pa:város
+16	st:város fl:J
+18	pa:építész st:építész pa:ház
+19	st:tető
+20	pa:tető st:tető pa:ház st:ház
+21	pa:ház st:ház pa:tető st:tető
+24	pa:kert st:kert pa:ház st:ház
+25	pa:kert st:kert pa:ajtó
+end	turbo:hunspell-analyses

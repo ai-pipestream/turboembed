@@ -1,0 +1,4 @@
+﻿# comment
+a	Alpha	Alfa| |Al	1	2	DE	CITY	5		Bayern||Mitte	k=v	k2 = v2 
+b	Beta							0,0,1,1
+c	Gamma		3	4

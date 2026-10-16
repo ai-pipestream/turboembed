@@ -88,6 +88,13 @@ final class Runs {
   static final String EN_HEAD_RULES = "en-head-rules.txt";
   static final String ES_HEAD_RULES = "es-head-rules.txt";
   static final String ES_REGEX_HEAD_RULES = "es-regex-head-rules.txt";
+  /** The gazetteer tables: GeoNames and Overture formats, a user table and its suppression rules. */
+  static final String GAZETTEER_GEONAMES = "gazetteer-geonames.txt";
+  static final String GAZETTEER_OVERTURE = "gazetteer-overture.txt";
+  static final String GAZETTEER_USER = "gazetteer-user.txt";
+  static final String GAZETTEER_SUPPRESSIONS = "gazetteer-suppressions.txt";
+  /** The glossary the glossary matchers are built from, tab separated with a header. */
+  static final String GLOSSARY_TERMS = "glossary-terms.tsv";
   /** The name finder models OpenNLP trained for the beam search goldens. */
   static final String NER_BIO_FIXTURE = "ner-bio-fixture.bin";
   static final String NER_BILOU_FIXTURE = "ner-bilou-fixture.bin";
@@ -123,6 +130,10 @@ final class Runs {
   static final String NER = "ner";
   static final String PARSE = "parse";
   static final String HEAD_RULES = "head-rules";
+  /** Names, record ids, region codes and whole tables for the gazetteers of the addons geo module. */
+  static final String GAZETTEER = "gazetteer";
+  /** Texts for the glossary matchers, and delimited lists and TBX termbases for the readers. */
+  static final String GLOSSARY = "glossary";
   /** The language samples the Rust language detector fixture was trained on. */
   static final String LANGDETECT = "langdetect";
   /** The tokenized sentences and the pattern tokens of the sequence goldens. */
@@ -139,6 +150,11 @@ final class Runs {
   static final String STEM = "stem";
   /** The words and language codes of the stopword goldens. */
   static final String STOPWORD = "stopword";
+  /** The words the Hunspell goldens stem with the published and the fixture dictionaries. */
+  static final String HUNSPELL = "hunspell";
+
+  /** Whole profile tables for PlaceProfiles of the addons geo module. */
+  static final String PLACE_PROFILES = "place-profiles";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -155,7 +171,12 @@ final class Runs {
 
   private Runs() {}
 
-  static All load(Path models, Path fixtures, Path moneySnapshot) throws IOException {
+  /**
+   * The runs, with the inputs directory, which the SVM document categorizer and sentiment runs
+   * train their models from ({@link SvmDoccatGolden}, {@link SentimentGolden}), and the models and
+   * fixtures directories.
+   */
+  static All load(Path inputs, Path models, Path fixtures, Path moneySnapshot) throws IOException {
     List<AnnotatorGolden> annotators = new ArrayList<>();
     List<AnnotatorDump> recorders = new ArrayList<>();
 
@@ -300,6 +321,8 @@ final class Runs {
     annotators.addAll(MoneyGolden.all(moneySnapshot));
     annotators.addAll(QuantityGolden.all());
     annotators.addAll(TemporalGolden.all());
+    annotators.addAll(PiiGolden.all());
+    annotators.addAll(PiiRewriteGolden.all());
 
     // The training stack: the events of the sentence detector, the tokenizer and a real valued
     // source on the texts, indexed and trained; the sentence detector runs on the fixture
@@ -309,6 +332,8 @@ final class Runs {
     annotators.addAll(QnTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The perceptron and the sequence perceptron trainers on the same events.
     annotators.addAll(PerceptronTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The liblinear add-on's trainer on the same events, with each logistic regression solver.
+    annotators.addAll(LiblinearTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The same event streams with the factory options TrainGolden leaves at their defaults, and
     // the model file around a trained model.
     annotators.addAll(EventGolden.all(fixtures.resolve(ENGLISH_ABBREVIATIONS)));
@@ -336,6 +361,11 @@ final class Runs {
     annotators.addAll(ParserGolden.all(fixtures.resolve(EN_HEAD_RULES), fixtures.resolve(ES_HEAD_RULES),
         fixtures.resolve(ES_REGEX_HEAD_RULES)));
     annotators.addAll(ParserGolden.Rules.all());
+    // The gazetteers: the bundled table, the fixture tables and an overlay, asked for names,
+    // record ids and regions, and the fixture loaders on whole tables.
+    annotators.addAll(GazetteerGolden.all(fixtures));
+    // The numeric place profiles of the same module, over whole tables.
+    annotators.add(new PlaceProfilesGolden());
     // The sequence machinery turbo-sequence ports: StringPattern in both versions, the feature
     // generators and malformed descriptors, the BIO and BILOU codecs, the beam search of the
     // tagger, chunker and name finder over the fixture and published models, and the tag
@@ -352,6 +382,18 @@ final class Runs {
     annotators.addAll(NameFindGolden.all(fixtures));
     annotators.addAll(StemGolden.all());
     annotators.addAll(StopwordGolden.all());
+    // The Hunspell stemmer of the compatibility branch over the published and the fixture
+    // dictionaries (turbo-hunspell).
+    annotators.addAll(HunspellGolden.all(models, fixtures));
+    // The glossary matchers over the fixture glossary, and the glossary readers.
+    annotators.addAll(GlossaryGolden.all(fixtures.resolve(GLOSSARY_TERMS)));
+
+    // The SVM document categorizer (turbo-doccat): models trained on the svm-doccat-train corpora,
+    // exported, and run on the svm-doccat documents.
+    annotators.addAll(SvmDoccatGolden.all(inputs));
+    // The sentiment detector (turbo-doccat, turbo-train-components): models trained on the
+    // sentiment-train corpus with each factory and trainer, and run on the sentiment documents.
+    annotators.addAll(SentimentGolden.all(inputs));
     return new All(annotators, recorders);
   }
 }

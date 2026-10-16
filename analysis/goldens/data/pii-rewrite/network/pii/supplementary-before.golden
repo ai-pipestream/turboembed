@@ -1,0 +1,36 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/supplementary-before	66	62	3fc1bc75c7562b3526bf9aa65058b481474e177c5e7e7d6dee165846981fb7e0
+annotator	opennlp.tools.pii.PiiPacks	network
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	network
+layer	turbo:view	text	6	start:u32	end:u32	with:str
+49	50	*
+50	51	*
+51	52	*
+53	54	*
+55	56	*
+57	58	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+𐐨𐐩 user@example.com after Deseret letters, ######### after.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	𐐨𐐩 user@example.com after Deseret letters, IPV4-1 after.\n	
+hmac	𐐨𐐩 user@example.com after Deseret letters, IPV4-e0e75e9e942c4572 after.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	2	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	49	58	49	55	IPV4-1
+hmac	49	58	49	70	IPV4-e0e75e9e942c4572
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+ipv4	1	1	IPV4-e0e75e9e942c4572
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+ipv4: 1 mentions, 1 distinct [IPV4-e0e75e9e942c4572]
+end	turbo:pii-audit-report

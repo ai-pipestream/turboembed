@@ -4,7 +4,11 @@
 //! docs/grammar.md lists what the rules read and how a reading is chosen.
 
 mod lexicon;
-mod rules;
+pub(crate) mod rules;
+pub(crate) mod time;
+pub(crate) mod unit;
+
+pub use time::{ENGLISH_TIMES, EnglishTimes};
 
 use std::sync::OnceLock;
 
@@ -45,7 +49,7 @@ pub(crate) const SIGN: Dim = Dim(21);
 pub(crate) const ORD: Dim = Dim(22);
 pub(crate) const REL: Dim = Dim(23);
 pub(crate) const PCT: Dim = Dim(24);
-const DIMS: u16 = 25;
+pub(crate) const DIMS: u16 = 25;
 
 /// An ordinal word that is only `first` or `second`, which never names a
 /// denominator (`a second` is no half).
@@ -104,7 +108,7 @@ impl Grammar for English {
     }
 
     fn style(&self) -> NumeralStyle {
-        NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true }
+        NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true, decimal_comma: false }
     }
 
     fn output(&self, dim: Dim) -> Option<Output> {
@@ -134,7 +138,7 @@ impl Grammar for English {
                 }
                 _ => true,
             },
-            Output::Percent => true,
+            Output::Percent | Output::Quantity | Output::Time => true,
         }
     }
 

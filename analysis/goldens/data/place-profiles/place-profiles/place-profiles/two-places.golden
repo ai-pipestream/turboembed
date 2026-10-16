@@ -1,0 +1,39 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	place-profiles/two-places	33	33	8181e0420f5fb0a5290f2603cd0e4aa1f7929e714479dbd2916a0a6187a70f60
+annotator	opennlp.geo.PlaceProfiles	load
+config	profilesCommit	07e1f670818917d74e9a94367080f51ae6365bfa
+layer	turbo:profiles-load	document	1	loaded:u32	error-class:str	error-message:str
+1		
+end	turbo:profiles-load
+layer	turbo:profiles-metrics	document	2	name:str
+a
+b
+end	turbo:profiles-metrics
+layer	turbo:profiles-places	document	2	id:str
+first
+second
+end	turbo:profiles-places
+layer	turbo:profiles-values	document	4	place:u32	metric:u32	value:f64
+0	0	bff0000000000000 -1.0
+0	1	3ff0000000000000 1.0
+1	0	3ff0000000000000 1.0
+1	1	bff0000000000000 -1.0
+end	turbo:profiles-values
+layer	turbo:profiles-similarity	document	4	a:u32	b:u32	similarity:f64
+0	0	3feffffffffffffe 0.9999999999999998
+0	1	bfeffffffffffffe -0.9999999999999998
+1	0	bfeffffffffffffe -0.9999999999999998
+1	1	3feffffffffffffe 0.9999999999999998
+end	turbo:profiles-similarity
+layer	turbo:profiles-neighbors	document	6	query:u32	count:u32	rank:u32	place:u32	similarity:f64
+0	1	0	1	bfeffffffffffffe -0.9999999999999998
+0	2	0	1	bfeffffffffffffe -0.9999999999999998
+0	2	0	1	bfeffffffffffffe -0.9999999999999998
+1	1	0	0	bfeffffffffffffe -0.9999999999999998
+1	2	0	0	bfeffffffffffffe -0.9999999999999998
+1	2	0	0	bfeffffffffffffe -0.9999999999999998
+end	turbo:profiles-neighbors

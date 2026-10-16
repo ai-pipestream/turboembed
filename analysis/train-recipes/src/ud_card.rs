@@ -24,14 +24,15 @@ use crate::card::{
 use crate::error::{Error, Result};
 use crate::postag::CANDIDATE_FORMAT;
 use crate::segmentation::TIMESTAMP_MS;
-use crate::treebank::{Grant, RELEASE, TextRights, TreebankFile};
+use crate::treebank::{Grant, RELEASE, TextRights, Treebank, TreebankFile};
 use crate::ud::{SENTENCES_PER_SAMPLE, TAG_FORMAT, UdRecipe};
 
-/// The schema version of [`UdModelCard`]: 3, with the held-out counts and
-/// the gate of the MASC card's version 3 ([`HeldOutCard`], [`GateCard`]),
-/// and a lemmatizer's held-out tokens counted as a tagger's are
-/// ([`crate::ud::ReferenceClasses`]).
-pub const UD_CARD_VERSION: u32 = 3;
+/// The schema version of [`UdModelCard`]: 4, with the training counts,
+/// held-out counts and gate of the MASC card's version 5
+/// ([`TrainingCard`], [`HeldOutCard`], [`GateCard`]), whose chunk and name
+/// counts a UD card leaves `null`, and a lemmatizer's held-out tokens
+/// counted as a tagger's are ([`crate::ud::ReferenceClasses`]).
+pub const UD_CARD_VERSION: u32 = 4;
 
 /// One file of the treebank as read.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -69,6 +70,27 @@ pub struct TreebankCard {
     pub train: TreebankFileCard,
     pub dev: TreebankFileCard,
     pub test: TreebankFileCard,
+}
+
+impl TreebankCard {
+    /// The record of `t` at the release the recipes read.
+    pub fn of(t: &Treebank) -> TreebankCard {
+        TreebankCard {
+            repository: t.repository.to_owned(),
+            release: RELEASE.to_owned(),
+            license: crate::treebank::LICENCE,
+            license_terms: t.licence_terms(),
+            other_licence_offered: match t.grant {
+                Grant::CcBy40 => None,
+                Grant::CcBy40OrOther { other } => Some(other),
+            },
+            licence_file: TreebankFileCard::of(&t.licence_file),
+            readme: TreebankFileCard::of(&t.readme),
+            train: TreebankFileCard::of(&t.train),
+            dev: TreebankFileCard::of(&t.dev),
+            test: TreebankFileCard::of(&t.test),
+        }
+    }
 }
 
 /// The model card of a UD recipe's model.
@@ -129,21 +151,7 @@ impl UdModelCard {
             class,
             attribution: t.attribution(),
             citation: t.citation.to_owned(),
-            treebank: TreebankCard {
-                repository: t.repository.to_owned(),
-                release: RELEASE.to_owned(),
-                license: crate::treebank::LICENCE,
-                license_terms: t.licence_terms(),
-                other_licence_offered: match t.grant {
-                    Grant::CcBy40 => None,
-                    Grant::CcBy40OrOther { other } => Some(other),
-                },
-                licence_file: TreebankFileCard::of(&t.licence_file),
-                readme: TreebankFileCard::of(&t.readme),
-                train: TreebankFileCard::of(&t.train),
-                dev: TreebankFileCard::of(&t.dev),
-                test: TreebankFileCard::of(&t.test),
-            },
+            treebank: TreebankCard::of(t),
             training: TrainingCard {
                 parameters: ParametersCard {
                     algorithm: "MAXENT".to_owned(),
@@ -177,9 +185,12 @@ impl UdModelCard {
     /// [`crate::ud::UD_RECIPES`] trains the model, the rights to its
     /// treebank's text are not settled ([`TextRights::NotSettled`], whatever
     /// its gate says), the gate was not run against the recipe's reference
-    /// (its id and SHA-256), or the gate failed; [`Error::InvalidCard`] for
-    /// a `class` other than the one the licences give, or an address or
-    /// field the index refuses.
+    /// (its id and SHA-256), the gate failed, or the card's treebank and
+    /// training data are not the recipe's treebank at the release, as
+    /// recorded with its files' sizes and digests; [`Error::InvalidCard`] for
+    /// a `class` other than the one the licences give, a component or
+    /// language other than its recipe's, or an address or field the index
+    /// refuses.
     pub fn artifact(&self, url: &str) -> Result<Artifact> {
         let class = class_of(std::iter::once(self.license).chain(self.trained_on.iter().map(|t| t.license)));
         if class != self.class {
@@ -200,7 +211,20 @@ impl UdModelCard {
         if !self.gate.pass {
             return Err(not("it failed its gate"));
         }
+        let t = &recipe.treebank;
+        if self.trained_on != [t.training_data()] || self.treebank != TreebankCard::of(t) {
+            return Err(not("it was not trained and gated on its recipe's treebank"));
+        }
         let bad = |field: &'static str, message: String| Error::InvalidCard { field, message };
+        if self.component != recipe.zoo_component() {
+            return Err(bad(
+                "component",
+                format!("{} is not {}, its recipe's", self.component, recipe.zoo_component()),
+            ));
+        }
+        if self.language != t.language {
+            return Err(bad("language", format!("{} is not {}, its recipe's", self.language, t.language)));
+        }
         Ok(Artifact {
             id: self.id.parse().map_err(|e| bad("id", e))?,
             kind: Kind::Model,

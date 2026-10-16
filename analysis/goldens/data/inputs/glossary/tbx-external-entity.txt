@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!DOCTYPE martif [
+  <!ENTITY ext SYSTEM "file:///etc/hostname">
+]>
+<martif><text><body><termEntry id="x"><langSet xml:lang="en"><tig><term>plain</term></tig></langSet></termEntry></body></text></martif>

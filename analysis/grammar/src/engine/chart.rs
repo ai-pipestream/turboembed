@@ -18,6 +18,7 @@
 
 use crate::value::{Num, NumKind, Value, flag};
 
+use super::interned::Interned;
 use super::lexer::{Kind, Lexed};
 use super::rule::{Ctx, Dim, Grammar, Item, Output, Rule};
 
@@ -114,6 +115,7 @@ pub struct Parser {
     by_word: Vec<(String, u16)>,
     lexed: Lexed,
     chart: Chart,
+    times: Interned,
     done: Vec<Done>,
     done_kids: Vec<u32>,
     stack: Vec<u32>,
@@ -151,6 +153,7 @@ impl Parser {
             by_word,
             lexed: Lexed::default(),
             chart: Chart::default(),
+            times: Interned::default(),
             done: Vec::new(),
             done_kids: Vec::new(),
             stack: Vec::new(),
@@ -174,14 +177,20 @@ impl Parser {
         &self.chart
     }
 
+    /// The time values of the last parse.
+    pub fn times(&self) -> &Interned {
+        &self.times
+    }
+
     /// Lexes and parses `text`, replacing the chart.
     pub fn parse(&mut self, text: &str) {
-        self.lexed.lex(text, &self.grammar.style());
+        self.lexed.lex_words(text, &self.grammar.style(), self.grammar.words());
         let n = self.lexed.len();
         self.chart.nodes.clear();
         self.chart.kids.clear();
         self.chart.head.clear();
         self.chart.head.resize(n, NONE);
+        self.times.clear();
         let rules = self.grammar.rules();
         for s in (0..n).rev() {
             let first = self.chart.nodes.len();
@@ -290,7 +299,7 @@ impl Parser {
                 score += child.score;
                 apps += child.apps;
             }
-            let ctx = Ctx { text, lexed: &self.lexed, start: s, end: end as usize };
+            let ctx = Ctx { text, lexed: &self.lexed, start: s, end: end as usize, times: &self.times };
             let Some(value) = (rule.build)(&self.values, &ctx) else { continue };
             let k0 = self.chart.kids.len() as u32;
             let node = Node {
@@ -363,7 +372,7 @@ impl Parser {
                     continue;
                 }
             }
-            let ctx = Ctx { text, lexed: &self.lexed, start: s, end: e };
+            let ctx = Ctx { text, lexed: &self.lexed, start: s, end: e, times: &self.times };
             if !self.grammar.keep(output, node, &ctx) {
                 continue;
             }
@@ -546,7 +555,7 @@ mod tests {
             N
         }
         fn style(&self) -> NumeralStyle {
-            NumeralStyle { mixed_separators: false, space_groups: false, indian_groups: false }
+            NumeralStyle { mixed_separators: false, space_groups: false, indian_groups: false, decimal_comma: false }
         }
         fn output(&self, dim: Dim) -> Option<Output> {
             (dim == S).then_some(Output::Number)

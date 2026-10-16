@@ -24,6 +24,9 @@
 //! - [`perceptron`][]: `PerceptronTrainer` and
 //!   `SimplePerceptronSequenceTrainer`, with averaging and the tolerance
 //!   stop, and the model as `PerceptronModel` holds it.
+//! - [`liblinear`][]: the liblinear trainer of the OpenNLP addons, with
+//!   liblinear-java's logistic regression solvers, the model it returns
+//!   and its serialized form.
 //! - [`trainer`][]: `TrainerFactory.getEventTrainer` and
 //!   `getEventModelSequenceTrainer`, the trainer the `Algorithm` parameter
 //!   names, and the model it trained.
@@ -73,6 +76,7 @@ pub mod error;
 pub mod event;
 pub mod gis;
 pub mod index;
+pub mod liblinear;
 pub mod monitor;
 pub mod package;
 pub mod params;

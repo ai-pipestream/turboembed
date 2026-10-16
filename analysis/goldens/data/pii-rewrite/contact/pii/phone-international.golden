@@ -1,0 +1,53 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/phone-international	52	52	e110664e2b49ee0998125fac3495d6367dd86780bb3dbbd748238eac2decaeae
+annotator	opennlp.tools.pii.PiiPacks	contact
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	contact
+layer	turbo:view	text	21	start:u32	end:u32	with:str
+6	7	*
+7	8	*
+9	10	*
+10	11	*
+12	13	*
+13	14	*
+14	15	*
+15	16	*
+17	18	*
+18	19	*
+19	20	*
+20	21	*
+26	27	*
+27	28	*
+30	31	*
+32	33	*
+33	34	*
+35	36	*
+36	37	*
+37	38	*
+38	39	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Call ################ or ############## 0123 today.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	Call PHONE-1 or PHONE-2 0123 today.\n	
+hmac	Call PHONE-a959e925a02fa145 or PHONE-da8daefe648e83c0 0123 today.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	4	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	5	21	5	12	PHONE-1
+pseudonymize	25	39	16	23	PHONE-2
+hmac	5	21	5	27	PHONE-a959e925a02fa145
+hmac	25	39	31	53	PHONE-da8daefe648e83c0
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+phone	2	2	PHONE-a959e925a02fa145, PHONE-da8daefe648e83c0
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+phone: 2 mentions, 2 distinct [PHONE-a959e925a02fa145, PHONE-da8daefe648e83c0]
+end	turbo:pii-audit-report

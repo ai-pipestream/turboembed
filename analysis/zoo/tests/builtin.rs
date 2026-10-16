@@ -1,7 +1,8 @@
 //! The index the crate carries: canonical, nothing refused, every class
 //! the one docs/licences.md gives, and in agreement with the model files
-//! the repository checks in. Beside the UD models it lists the models the
-//! MASC recipes train, which turbo-train-recipes checks (`release`).
+//! the repository checks in. Beside OpenNLP's UD models it lists the models
+//! the MASC and UD recipes train, which turbo-train-recipes checks
+//! (`release`).
 
 use std::collections::BTreeSet;
 
@@ -88,6 +89,32 @@ const MASC_MODELS: [&str; 4] = [
     "turbo-en-masc-3.0.0-chunks-1",
 ];
 
+/// The models the UD recipes train (analysis/train-recipes) that passed
+/// their gates and may ship, listed at their addresses in another release
+/// of this repository.
+const UD_RECIPE_MODELS: [&str; 10] = [
+    "turbo-es-ud-ancora-2.16-sentence-1",
+    "turbo-es-ud-ancora-2.16-tokens-1",
+    "turbo-es-ud-ancora-2.16-pos-1",
+    "turbo-es-ud-ancora-2.16-lemmas-1",
+    "turbo-ca-ud-ancora-2.16-sentence-1",
+    "turbo-ca-ud-ancora-2.16-tokens-1",
+    "turbo-ca-ud-ancora-2.16-pos-1",
+    "turbo-ca-ud-ancora-2.16-lemmas-1",
+    "turbo-fi-ud-ftb-2.16-pos-1",
+    "turbo-fi-ud-ftb-2.16-lemmas-1",
+];
+
+/// The language detector the Tatoeba recipe trains (analysis/train-recipes),
+/// listed with the ids of its training sentences at their addresses in a
+/// third release of this repository.
+const TATOEBA_MODEL: &str = "turbo-mul-tatoeba-langdetect-1";
+
+/// A model this repository's recipes train.
+fn trained_here(id: &str) -> bool {
+    MASC_MODELS.contains(&id) || UD_RECIPE_MODELS.contains(&id) || id == TATOEBA_MODEL
+}
+
 #[test]
 fn the_ud_models_carry_their_treebank_licences() {
     let index = Index::builtin();
@@ -119,6 +146,8 @@ fn the_ud_models_carry_their_treebank_licences() {
         }
     }
     expected.extend(MASC_MODELS.map(str::to_owned));
+    expected.extend(UD_RECIPE_MODELS.map(str::to_owned));
+    expected.insert(TATOEBA_MODEL.to_owned());
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {
@@ -127,11 +156,11 @@ fn the_ud_models_carry_their_treebank_licences() {
 }
 
 #[test]
-fn only_catalan_and_the_masc_models_need_no_acceptance() {
+fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
     let index = Index::builtin();
     for a in index.list() {
         let needs = a.licences_to_accept(Policy::default());
-        if a.id.as_str().starts_with("opennlp-ca-ud-ancora-") || MASC_MODELS.contains(&a.id.as_str()) {
+        if a.id.as_str().starts_with("opennlp-ca-ud-ancora-") || trained_here(a.id.as_str()) {
             assert!(needs.is_empty(), "{}", a.id);
         } else if a.id.as_str().starts_with("opennlp-ga-") {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap()], "{}", a.id);
@@ -171,9 +200,10 @@ fn fetched_test_models_match_the_index() {
 
 /// Fetches every artifact of the built-in index from its address and
 /// checks it: `cargo test -p turbo-zoo -- --ignored`. Needs the network.
-/// The MASC models' addresses answer only once the `models` workflow has
-/// published their release (analysis/train-recipes/README.md, "The
-/// models release"); until then this test fails on them.
+/// The addresses of the models trained here answer only once the `models`,
+/// `models-ud` and `models-tatoeba` workflows have published their releases
+/// (analysis/train-recipes/README.md, "The models releases"); until then
+/// this test fails on them.
 #[test]
 #[ignore]
 #[cfg(feature = "http")]
@@ -188,9 +218,12 @@ fn every_builtin_artifact_fetches_and_verifies() {
     let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &turbo_zoo::Http);
     for id in &ids {
         let f = zoo.fetch(id, &user, &acc).unwrap();
-        let bytes = std::fs::read(f.single().unwrap()).unwrap();
-        assert_eq!(turbo_zoo::Sha256::of(&bytes), f.artifact.files[0].sha256);
-        assert_eq!(turbo_zoo::Sha512::of(&bytes), f.artifact.files[0].sha512);
+        assert_eq!(f.files.len(), f.artifact.files.len(), "{id}");
+        for (path, file) in f.files.iter().zip(&f.artifact.files) {
+            let bytes = std::fs::read(path).unwrap();
+            assert_eq!(turbo_zoo::Sha256::of(&bytes), file.sha256, "{id}");
+            assert_eq!(turbo_zoo::Sha512::of(&bytes), file.sha512, "{id}");
+        }
     }
     std::fs::remove_dir_all(&cache).unwrap();
 }

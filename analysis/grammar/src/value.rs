@@ -8,6 +8,7 @@
 use turbo_analysis_layers::OrdinalBase;
 
 use crate::dec::Dec;
+use crate::unit::Unit;
 
 /// Flag bits on a [`Num`] or an [`Ordinal`]. The engine sets none of them
 /// itself except [`flag::DIGITS`] on a numeral; a grammar's rules set and
@@ -112,7 +113,41 @@ pub enum Value {
     Ordinal(Ordinal),
     Relative(Relative),
     Percent(Dec),
+    /// An amount in a unit: `5 km`, `$3.5m`, `five years old`.
+    Quantity(Quantity),
+    /// A unit named with no amount: `convert it to fahrenheit`.
+    Unit(Unit),
+    /// A time expression, kept in the parse's [`crate::engine::Interned`]
+    /// table.
+    Time(TimeId),
 }
+
+/// An amount and its unit. The amount is kept as the parts of a [`Dec`]
+/// so the unit shares the decimal's padding and a [`Value`] stays small.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Quantity {
+    mantissa: i128,
+    scale: i16,
+    unit: Unit,
+}
+
+impl Quantity {
+    pub fn new(value: Dec, unit: Unit) -> Quantity {
+        Quantity { mantissa: value.mantissa(), scale: value.scale(), unit }
+    }
+
+    pub fn value(&self) -> Dec {
+        Dec::new(self.mantissa, i32::from(self.scale)).expect("the parts of a Dec")
+    }
+
+    pub fn unit(&self) -> Unit {
+        self.unit
+    }
+}
+
+/// The index of a time value in its parse's table.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TimeId(pub u32);
 
 impl Value {
     pub fn num(&self) -> Option<&Num> {
@@ -125,6 +160,20 @@ impl Value {
     pub fn ordinal(&self) -> Option<&Ordinal> {
         match self {
             Value::Ordinal(o) => Some(o),
+            _ => None,
+        }
+    }
+
+    pub fn quantity(&self) -> Option<&Quantity> {
+        match self {
+            Value::Quantity(q) => Some(q),
+            _ => None,
+        }
+    }
+
+    pub fn unit(&self) -> Option<Unit> {
+        match *self {
+            Value::Unit(u) => Some(u),
             _ => None,
         }
     }

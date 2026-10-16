@@ -1,0 +1,42 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/separators	84	84	44f4a755fdf3384995eb3f8a186e156ec790738aed2aae69c1cc990a71b4c4a7
+annotator	opennlp.tools.pii.PiiPacks	payment
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	payment
+layer	turbo:view	text	12	start:u32	end:u32	with:str
+6	7	*
+7	8	*
+8	9	*
+9	10	*
+11	12	*
+12	13	*
+13	14	*
+14	15	*
+16	17	*
+17	18	*
+18	19	*
+19	20	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Mixed ################### and 4111..1111..1111..1111 and 4111 - 1111 - 1111 - 1111.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	Mixed CARD-1 and 4111..1111..1111..1111 and 4111 - 1111 - 1111 - 1111.\n	
+hmac	Mixed CARD-f04eb250c58c67b2 and 4111..1111..1111..1111 and 4111 - 1111 - 1111 - 1111.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	2	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	6	25	6	12	CARD-1
+hmac	6	25	6	27	CARD-f04eb250c58c67b2
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+card	1	1	CARD-f04eb250c58c67b2
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]
+end	turbo:pii-audit-report

@@ -1,0 +1,51 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/repeated	82	78	c72321b0078fbb041abdc1fd8b2f20c67d8e069cdaf52bac69932542b912b6f0
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	MAXENT_QN
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-qn
+layer	opennlp:tokens	text	14	start:u32	end:u32
+0	3
+4	11
+12	15
+16	23
+24	27
+28	35
+36	39
+40	47
+48	51
+52	59
+60	63
+64	71
+72	76
+77	81
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	14	feature:str
+the
+concert
+was
+amazing
+the
+concert
+was
+amazing
+the
+concert
+was
+amazing
+🎉
+🎉
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+positive	3fee91acb7bc4029 0.9552825535374768
+neutral	3f9baf5d72d47233 0.027036152013453395
+negative	3f921b0b95a3887d 0.01768129444906962
+end	turbo:categories

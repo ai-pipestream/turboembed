@@ -1,0 +1,13 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/tbx-v3	1185	1185	c6f4d273e0ca9c35c1be7a6d41f3bd9cb92d0f3efc3fd1b68aa5814935838bab
+annotator	opennlp.tools.formats.glossary.TbxGlossaryReader	read
+config	languageTag	en
+layer	turbo:glossary-entries	document	3	id:str	term:str
+ML	machine learning
+NN	neural network
+NN	neural net
+end	turbo:glossary-entries

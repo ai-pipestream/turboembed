@@ -10,10 +10,19 @@
 //! specifications print .NET doubles to 15 digits, and its subtype is
 //! compared when the case gives one.
 //!
+//! Dates and times are compared by [`datetime`].
+//!
 //! `tests/data/pass/<Language>/<File>.txt` lists the indices of the cases
 //! that pass. A listed case that fails fails the test; a case that passes
 //! and is not listed is printed. `BLESS=1` rewrites the lists from the
 //! run. `SPEC_SHOW=1` prints every failing case with what was found.
+
+#[path = "spec/datetime.rs"]
+mod datetime;
+#[path = "spec/dutch.rs"]
+mod dutch;
+#[path = "spec/spanish.rs"]
+mod spanish;
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -21,7 +30,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 use turbo_analysis::{OffsetTable, Utf16Offset};
-use turbo_grammar::{ENGLISH, Mention, Output, Parser, Value};
+use turbo_grammar::{ENGLISH, Grammar, Mention, Output, Parser, Value};
 
 #[derive(Deserialize)]
 struct Case {
@@ -145,21 +154,45 @@ fn describe(input: &str, got: &[Mention]) -> String {
     s
 }
 
-/// Checks one file against its pass list, or with `bless` and `BLESS`
-/// set rewrites the list; returns (eligible, passing).
-fn check(spec: &Spec, bless: bool) -> (usize, usize) {
-    let dir = data().join("recognizers-text").join(spec.language).join(spec.kind);
-    let json = std::fs::read_to_string(dir.join(spec.file)).expect("a specification file");
-    let cases: Vec<Case> = serde_json::from_str(&json).expect("a specification parses");
-    let list_path = data().join("pass").join(spec.language).join(spec.file.replace(".json", ".txt"));
+/// Checks the passing cases of a file against its pass list, or with
+/// `bless` and `BLESS` set rewrites the list.
+fn ratchet(language: &str, file: &str, passing: &BTreeSet<usize>, bless: bool) {
+    let list_path = data().join("pass").join(language).join(file.replace(".json", ".txt"));
     let listed: BTreeSet<usize> = std::fs::read_to_string(&list_path)
         .unwrap_or_default()
         .lines()
         .filter(|l| !l.trim().is_empty())
         .map(|l| l.trim().parse().expect("a case index per line"))
         .collect();
+    if bless && std::env::var_os("BLESS").is_some() {
+        let body: String = passing.iter().map(|i| format!("{i}\n")).collect();
+        std::fs::create_dir_all(list_path.parent().expect("a directory")).expect("the pass directory");
+        std::fs::write(&list_path, body).expect("the pass list is written");
+    } else {
+        let lost: Vec<&usize> = listed.difference(passing).collect();
+        assert!(lost.is_empty(), "{file}: listed cases fail: {lost:?}");
+        let gained: Vec<&usize> = passing.difference(&listed).collect();
+        if !gained.is_empty() {
+            println!("{file}: passing but not listed (BLESS=1 adds them): {gained:?}");
+        }
+    }
+}
+
+/// Checks one English file against its pass list, or with `bless` and
+/// `BLESS` set rewrites the list; returns (eligible, passing).
+fn check(spec: &Spec, bless: bool) -> (usize, usize) {
+    let dir = data().join("recognizers-text").join(spec.language).join(spec.kind);
+    let json = std::fs::read_to_string(dir.join(spec.file)).expect("a specification file");
+    let cases: Vec<Case> = serde_json::from_str(&json).expect("a specification parses");
+    check_cases(&ENGLISH, spec, &cases, bless)
+}
+
+/// Runs `grammar` on the cases of one file and checks them against its
+/// pass list, or with `bless` and `BLESS` set rewrites the list; returns
+/// (eligible, passing).
+fn check_cases(grammar: &'static dyn Grammar, spec: &Spec, cases: &[Case], bless: bool) -> (usize, usize) {
     let show = std::env::var_os("SPEC_SHOW").is_some();
-    let mut parser = Parser::new(&ENGLISH);
+    let mut parser = Parser::new(grammar);
     let mut passing = BTreeSet::new();
     let mut eligible = 0;
     for (i, case) in cases.iter().enumerate() {
@@ -174,18 +207,7 @@ fn check(spec: &Spec, bless: bool) -> (usize, usize) {
             println!("{} #{i} {:?} found{}", spec.file, case.input, describe(&case.input, &got));
         }
     }
-    if bless && std::env::var_os("BLESS").is_some() {
-        let body: String = passing.iter().map(|i| format!("{i}\n")).collect();
-        std::fs::create_dir_all(list_path.parent().expect("a directory")).expect("the pass directory");
-        std::fs::write(&list_path, body).expect("the pass list is written");
-    } else {
-        let lost: Vec<&usize> = listed.difference(&passing).collect();
-        assert!(lost.is_empty(), "{}: listed cases fail: {lost:?}", spec.file);
-        let gained: Vec<&usize> = passing.difference(&listed).collect();
-        if !gained.is_empty() {
-            println!("{}: passing but not listed (BLESS=1 adds them): {gained:?}", spec.file);
-        }
-    }
+    ratchet(spec.language, spec.file, &passing, bless);
     println!("{}/{}/{}: {} of {} eligible cases pass", spec.language, spec.kind, spec.file, passing.len(), eligible);
     (eligible, passing.len())
 }
@@ -212,15 +234,83 @@ fn english_percentages() {
     assert_eq!(eligible, 20);
 }
 
+#[path = "spec/units.rs"]
+mod units;
+
+/// The number-with-unit files: file, kind, eligible cases.
+const UNIT_FILES: [(&str, turbo_grammar::Measure, usize); 4] = [
+    ("AgeModel.json", turbo_grammar::Measure::Age, 19),
+    ("CurrencyModel.json", turbo_grammar::Measure::Currency, 177),
+    ("DimensionModel.json", turbo_grammar::Measure::Dimension, 100),
+    ("TemperatureModel.json", turbo_grammar::Measure::Temperature, 43),
+];
+
+fn check_units(k: usize, bless: bool) -> (usize, usize) {
+    let (file, measure, want) = UNIT_FILES[k];
+    let (eligible, passing) = units::run_file(file, measure);
+    ratchet("English", file, &passing, bless);
+    println!("English/NumberWithUnit/{file}: {} of {eligible} eligible cases pass", passing.len());
+    assert_eq!(eligible, want);
+    (eligible, passing.len())
+}
+
+#[test]
+fn english_ages() {
+    check_units(0, true);
+}
+
+#[test]
+fn english_currencies() {
+    check_units(1, true);
+}
+
+#[test]
+fn english_dimensions() {
+    check_units(2, true);
+}
+
+#[test]
+fn english_temperatures() {
+    check_units(3, true);
+}
+
+fn datetime_cases() -> Vec<datetime::TimeCase> {
+    let path = data().join("recognizers-text/English/DateTime/DateTimeModel.json");
+    let json = std::fs::read_to_string(path).expect("a specification file");
+    serde_json::from_str(json.trim_start_matches('\u{feff}')).expect("a specification parses")
+}
+
+/// Dates and times, with the cases whose spans alone match and the
+/// counts by expected type.
+#[test]
+fn english_datetimes() {
+    let cases = datetime_cases();
+    let run = datetime::run_all(&cases, std::env::var_os("SPEC_SHOW").is_some());
+    println!("English/DateTime/DateTimeModel.json: {} of {} eligible cases pass", run.passing.len(), run.eligible);
+    println!("spans match but values differ: {}", run.spans_only);
+    for (name, (eligible, passing)) in &run.by_type {
+        println!("  {name:<28}{eligible:>5}{passing:>6}");
+    }
+    ratchet("English", "DateTimeModel.json", &run.passing, true);
+    assert_eq!(run.eligible, 970);
+}
+
 /// The pass rate of every file, in one table.
 #[test]
 fn summary() {
-    let mut table = String::from("file                                eligible  passing\n");
+    let mut table = format!("{:<46}eligible  passing\n", "file");
     for spec in [&NUMBER, &ORDINAL, &PERCENT] {
         let (eligible, passing) = check(spec, false);
         let name = format!("{}/{}/{}", spec.language, spec.kind, spec.file);
-        let _ = writeln!(table, "{name:<36}{eligible:>8}{passing:>9}");
+        let _ = writeln!(table, "{name:<46}{eligible:>8}{passing:>9}");
     }
+    for (k, (file, _, _)) in UNIT_FILES.iter().enumerate() {
+        let (eligible, passing) = check_units(k, false);
+        let _ = writeln!(table, "{:<46}{eligible:>8}{passing:>9}", format!("English/NumberWithUnit/{file}"));
+    }
+    let run = datetime::run_all(&datetime_cases(), false);
+    ratchet("English", "DateTimeModel.json", &run.passing, false);
+    let _ = writeln!(table, "{:<46}{:>8}{:>9}", "English/DateTime/DateTimeModel.json", run.eligible, run.passing.len());
     println!("{table}");
 }
 

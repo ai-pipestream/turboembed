@@ -1,0 +1,1 @@
+1	Alpha			1.0	NaN	P	PPL	DE						10		0	Europe/Berlin	2026-01-01

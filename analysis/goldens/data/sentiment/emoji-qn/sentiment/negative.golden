@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/negative	48	46	eeda3b8a75c9a5134198d995ffbca20515b8d6d2f0c6b5bd5a31ae3fedd50f66
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	MAXENT_QN
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-qn
+layer	opennlp:tokens	text	10	start:u32	end:u32
+0	3
+4	9
+10	14
+15	20
+21	24
+25	28
+29	33
+34	37
+38	42
+43	47
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	13	feature:str
+the
+seats
+were
+dirty
+and
+the
+wait
+was
+long
+😭
+emojiSentiment=-2
+emojiType=FACE
+emojiCategory=SMILEYS_AND_EMOTION
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+negative	3fee85cf428338f5 0.9538341807435972
+positive	3fa36e74c186a131 0.037952087997214064
+neutral	3f80d25c59173ddd 0.008213731259188723
+end	turbo:categories
