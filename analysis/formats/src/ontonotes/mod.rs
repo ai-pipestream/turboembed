@@ -15,8 +15,10 @@
 //! [`OntoNotesFormat`] holds the factories' one parameter, the corpus
 //! directory (`OntoNotesFormatParameters`), and lists its files in the
 //! order the factories read them. The readers take the documents as text:
-//! the factories decode every file as UTF-8, and a file that is not valid
-//! UTF-8 is the caller's to refuse.
+//! the factories decode every file as UTF-8 and replace bytes that are not
+//! valid UTF-8 with U+FFFD. Decoding is the caller's; `String::from_utf8_lossy`
+//! also replaces them, though it has not been checked to replace the same
+//! runs of bytes as Java's decoder.
 //!
 //! Every token and tag keeps the byte span it was read from in its
 //! document. A name token whose tags are cut out of the middle and a token

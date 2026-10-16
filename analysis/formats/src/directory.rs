@@ -59,6 +59,10 @@ impl std::error::Error for DirectoryError {
     }
 }
 
+/// A `FileFilter` for [`directory_files`]: whether to take the entry at a
+/// path, given its metadata.
+pub type FileFilter<'f> = dyn Fn(&Path, &Metadata) -> bool + 'f;
+
 /// The files `new DirectorySampleStream(dir, filter, recursive)` gives, in
 /// its order. `accept` is the `FileFilter`: it is asked about every entry
 /// of a directory, with the entry's path and metadata (symbolic links
@@ -82,7 +86,7 @@ impl std::error::Error for DirectoryError {
 pub fn directory_files(
     dir: &Path,
     recursive: bool,
-    accept: Option<&dyn Fn(&Path, &Metadata) -> bool>,
+    accept: Option<&FileFilter<'_>>,
 ) -> Result<Vec<PathBuf>, DirectoryError> {
     if !fs::metadata(dir).is_ok_and(|m| m.is_dir()) {
         return Err(DirectoryError::NotADirectory { path: dir.to_owned() });
