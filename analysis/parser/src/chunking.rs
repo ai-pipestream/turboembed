@@ -473,12 +473,11 @@ impl Parser {
     ) -> Result<ParserModel, ParserModelError> {
         let dict = build_dictionary(samples, &rules, params.dict_cutoff);
 
+        let mut report = TrainingReports::default();
+
         // 1. Train build model
         let build_events = ParserEventStream::generate_events(samples, &rules, ParserEventType::Build, Some(&dict))?;
-        let (build_trained, _) =
-            trainer::train_events(&build_events, &params.build, &mut TrainingConfiguration::default())
-                .map_err(turbo_train_components::error::Error::Train)?;
-        let build_bytes = build_trained.write().map_err(turbo_train_components::error::Error::Train)?;
+        let build_bytes = report.train("build", &build_events, &params.build)?;
 
         // 2. Train POS tagger sub-model
         let pos_samples = collect_pos_samples(samples);
@@ -501,10 +500,7 @@ impl Parser {
 
         // 4. Train check model
         let check_events = ParserEventStream::generate_events(samples, &rules, ParserEventType::Check, None)?;
-        let (check_trained, _) =
-            trainer::train_events(&check_events, &params.check, &mut TrainingConfiguration::default())
-                .map_err(turbo_train_components::error::Error::Train)?;
-        let check_bytes = check_trained.write().map_err(turbo_train_components::error::Error::Train)?;
+        let check_bytes = report.train("check", &check_events, &params.check)?;
 
         ParserModel::from_serialized_parts(
             language,
@@ -515,7 +511,7 @@ impl Parser {
             chunker_bytes,
             rules,
             ParserType::Chunking,
-            &[],
+            &report.manifest_entries(),
             Stamp::at(0),
         )
     }
@@ -697,6 +693,35 @@ fn rules_fix_possessives() -> bool {
 pub(crate) fn event_from_strings(outcome: &str, ctx: &[String]) -> Event {
     let preds: Vec<JavaString> = ctx.iter().map(|s| JavaString::new(s.as_str())).collect();
     Event::new(outcome, preds)
+}
+
+/// The manifest entries a parser's `train` collects from the reports of the maxent models it
+/// trains (`chunking.Parser.mergeReportIntoManifest`): each report entry under its model's name and
+/// a `.`, as `build.Training-Eventhash`.
+#[derive(Debug, Default)]
+pub(crate) struct TrainingReports(Vec<(String, String)>);
+
+impl TrainingReports {
+    /// Trains the maxent model `namespace` names on `events`, keeps its report, and returns the
+    /// model's bytes.
+    pub(crate) fn train(
+        &mut self,
+        namespace: &str,
+        events: &[Event],
+        params: &TrainingParameters,
+    ) -> Result<Vec<u8>, ParserModelError> {
+        let (model, report) = trainer::train_events(events, params, &mut TrainingConfiguration::default())
+            .map_err(turbo_train_components::error::Error::Train)?;
+        for (key, value) in report.manifest_entries() {
+            self.0.push((format!("{namespace}.{key}"), value));
+        }
+        Ok(model.write().map_err(turbo_train_components::error::Error::Train)?)
+    }
+
+    /// The entries, for [`ParserModel::from_serialized_parts`].
+    pub(crate) fn manifest_entries(&self) -> Vec<(&str, &str)> {
+        self.0.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect()
+    }
 }
 
 pub(crate) fn collect_pos_samples(samples: &[Parse]) -> Vec<PosSample<'static>> {

@@ -48,6 +48,7 @@ use turbo_goldens::{
     GoldenLayer, Header, Input, Jdk, Model, OpenNlp, Shape, UnicodeVersion, sha256, sha512,
 };
 use turbo_maxent::{Properties, Zip};
+use turbo_parser::model::{CHUNKER_TAGGER_MODEL_ENTRY_NAME, PARSER_TAGGER_MODEL_ENTRY_NAME, PARSER_TYPE};
 use turbo_parser::treeinsert::{self, TreeInsertError};
 use turbo_parser::{
     COMPLETE, ChunkContextGenerator, EnglishHeadRules, HeadRules, HeadRulesArtifact, Parse, ParseError,
@@ -1015,6 +1016,59 @@ fn the_chunking_model_goldens_match() {
 #[test]
 fn the_tree_insertion_model_goldens_match() {
     check_runs(|k| matches!(k, Kind::Model(ParserType::TreeInsert)));
+}
+
+/// The parameters of the model runs: every model MAXENT with 100 iterations and cutoff 1, and the
+/// dictionary at cutoff 1. The run gives the tagger no beam size.
+fn model_run_parameters() -> ParserTrainingParameters {
+    let mut params = ParserTrainingParameters::with_iterations_and_cutoff(100, 1);
+    params.tagger = params.chunker.clone();
+    params
+}
+
+/// A model trained here on the corpus the JVM trained on, with the same parameters, is the model
+/// the JVM wrote: the same manifests (the parser type under `parser-type`, each maxent model's
+/// training report under its name, the serializer classes, and the tagger's and chunker's own
+/// entries) and the same bytes in every other entry. The JVM's manifests have no `Timestamp`,
+/// which this side writes, so the manifest files and the nested packages holding them are
+/// compared by their entries only.
+#[test]
+fn a_model_trained_here_is_the_model_the_jvm_wrote() {
+    let Some(root) = checked_in() else { return };
+    let rules = EnglishHeadRules::from_str(&rules_text()).unwrap();
+    let shapes = shapes();
+    let nested = [PARSER_TAGGER_MODEL_ENTRY_NAME, CHUNKER_TAGGER_MODEL_ENTRY_NAME];
+    let keep = |id: &str, row: &[String]| match id {
+        MANIFEST => row[1] != "Timestamp",
+        _ => !row[0].ends_with("manifest.properties") && !nested.contains(&row[0].as_str()),
+    };
+    for run in RUNS.iter().filter(|r| matches!(r.kind, Kind::Model(_))) {
+        let path = root.join(run.name).join(SET).join(format!("{}.golden", INPUTS[0]));
+        let golden = Golden::read_with(&path, &shapes).unwrap_or_else(|e| panic!("{e}"));
+        let input = golden.input_text(turbo_goldens::data_dir()).unwrap_or_else(|e| panic!("{e}"));
+        let samples = parsed(&sample_lines(&input));
+        let artifact = HeadRulesArtifact::English(rules.clone());
+        let params = model_run_parameters();
+        let model = match run.kind {
+            Kind::Model(ParserType::Chunking) => chunking::Parser::train("en", &samples, artifact, &params),
+            Kind::Model(ParserType::TreeInsert) => treeinsert::Parser::train("en", &samples, artifact, &params),
+            _ => unreachable!("a model run"),
+        }
+        .unwrap_or_else(|e| panic!("{}: {e}", run.name));
+        let mut rebuilt = Rebuilt::default();
+        model_layers(&mut rebuilt, model.as_bytes());
+        for id in [MANIFEST, MODEL_ENTRIES] {
+            let theirs: Vec<Vec<String>> =
+                cells(golden.layer(id).unwrap()).into_iter().filter(|row| keep(id, row)).collect();
+            let ours: Vec<Vec<String>> = rebuilt.0[id]
+                .iter()
+                .map(|row| row.cells.iter().map(|c| c.clone().unwrap()).collect::<Vec<String>>())
+                .filter(|row| keep(id, row))
+                .collect();
+            assert_eq!(ours, theirs, "{}: {id}", run.name);
+        }
+        assert_eq!(model.file().manifest().get(PARSER_TYPE), Some(model.parser_type().as_str()), "{}", run.name);
+    }
 }
 
 /// A project-written corpus for the self-test, with brackets so that the unlabeled chunking build

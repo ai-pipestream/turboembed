@@ -44,8 +44,13 @@ pub const CHUNKER_TAGGER_MODEL_ENTRY_NAME: &str = "parserchunker.chunker";
 /// `ParserModel.HEAD_RULES_MODEL_ENTRY_NAME`.
 pub const HEAD_RULES_MODEL_ENTRY_NAME: &str = "head-rules.headrules";
 
-/// `ParserModel.PARSER_TYPE_PARAMETER`.
-pub const PARSER_TYPE_PARAMETER: &str = "parserType";
+/// `ParserModel.PARSER_TYPE`: the manifest property naming the [`ParserType`].
+pub const PARSER_TYPE: &str = "parser-type";
+
+/// The serializer class `BaseModel.serialize` records for the tagger sub-model, a `POSModel`,
+/// under `serializer-class-parsertager.postagger`. The chunker sub-model and the maxent models are
+/// not `SerializableArtifact`s and get no such entry.
+pub const POS_MODEL_SERIALIZER: &str = "opennlp.tools.util.model.POSModelSerializer";
 
 /// `ParserChunkerFactory` class name stored in the chunker sub-model manifest.
 pub const PARSER_CHUNKER_FACTORY: &str = "opennlp.tools.parser.ParserChunkerFactory";
@@ -184,7 +189,7 @@ pub enum ParserModelError {
     Sequence(turbo_sequence::Error),
     /// The `Component-Name` of the outer archive is not `Parser`.
     Component(String),
-    /// Missing or unrecognized `parserType` manifest property.
+    /// Missing or unrecognized `parser-type` manifest property.
     InvalidParserType(Option<String>),
     /// Missing required model entry (`build.model`, `check.model`, `attach.model`, etc.).
     MissingArtifact(&'static str),
@@ -213,7 +218,7 @@ impl fmt::Display for ParserModelError {
             Self::Maxent(e) => write!(f, "parser model: {e}"),
             Self::Sequence(e) => write!(f, "parser model: {e}"),
             Self::Component(c) => write!(f, "parser model: component {c:?} is not {COMPONENT_NAME}"),
-            Self::InvalidParserType(t) => write!(f, "parser model: invalid parserType {t:?}"),
+            Self::InvalidParserType(t) => write!(f, "parser model: invalid {PARSER_TYPE} {t:?}"),
             Self::MissingArtifact(a) => write!(f, "parser model: missing artifact {a}"),
             Self::UnexpectedAttachModel => f.write_str("attachModel must be null for chunking parser!"),
             Self::PosModel(e) => write!(f, "parser tagger model: {e}"),
@@ -405,7 +410,7 @@ impl ParserModel {
         if file.component_name() != COMPONENT_NAME {
             return Err(ParserModelError::Component(file.component_name().into()));
         }
-        let type_str = file.manifest().get(PARSER_TYPE_PARAMETER);
+        let type_str = file.manifest().get(PARSER_TYPE);
         let parser_type = type_str
             .and_then(ParserType::parse)
             .ok_or_else(|| ParserModelError::InvalidParserType(type_str.map(str::to_owned)))?;
@@ -510,8 +515,9 @@ impl ParserModel {
         for &(k, v) in manifest_entries {
             manifest.set(k, v);
         }
-        manifest.set(PARSER_TYPE_PARAMETER, parser_type.as_str());
+        manifest.set(PARSER_TYPE, parser_type.as_str());
         manifest.set(&serializer_class_key(HEAD_RULES_MODEL_ENTRY_NAME), head_rules.serializer_class());
+        manifest.set(&serializer_class_key(PARSER_TAGGER_MODEL_ENTRY_NAME), POS_MODEL_SERIALIZER);
 
         let mut package = ModelPackage::new(manifest);
         let mut artifacts: Vec<(&str, Vec<u8>)> = Vec::with_capacity(6);

@@ -21,16 +21,17 @@ use std::sync::Arc;
 use turbo_analysis::Span;
 use turbo_formats::{Field, PosSample};
 use turbo_jvm::strict_math;
-use turbo_train::trainer;
 use turbo_train::{Event, TrainingConfiguration};
 use turbo_train_components::package::Stamp;
-use turbo_train_components::postag::{BEAM_SIZE_KEY, PosTaggerFactory, train_pos_model};
+use turbo_train_components::postag::{PosTaggerFactory, train_pos_model};
 
 use crate::bottom_up::{
     DEFAULT_ADVANCE_PERCENTAGE, DEFAULT_BEAM_SIZE, Parser as ParserTrait, build_dictionary,
     collapse_punctuation_in_place, parse_bottom_up,
 };
-use crate::chunking::{ParserTrainingParameters, collect_pos_samples, event_from_strings, train_parser_chunker_bytes};
+use crate::chunking::{
+    ParserTrainingParameters, TrainingReports, collect_pos_samples, event_from_strings, train_parser_chunker_bytes,
+};
 use crate::context::{ChunkContextGenerator, Cons, EOS, check_cons, cons, cons_bo, cons2, cons3, surround};
 use crate::head_rules::HeadRules;
 use crate::model::{HeadRulesArtifact, ParserEventType, ParserModel, ParserModelError, ParserType};
@@ -675,38 +676,29 @@ impl Parser {
     ) -> Result<ParserModel, ParserModelError> {
         let dict = build_dictionary(samples, &rules, params.dict_cutoff);
 
+        let mut report = TrainingReports::default();
+
         // 1. Train build model
         let build_events = ParserEventStream::generate_events(samples, &rules, ParserEventType::Build, Some(&dict))?;
-        let (build_trained, _) =
-            trainer::train_events(&build_events, &params.build, &mut TrainingConfiguration::default())
-                .map_err(turbo_train_components::error::Error::Train)?;
-        let build_bytes = build_trained.write().map_err(turbo_train_components::error::Error::Train)?;
+        let build_bytes = report.train("build", &build_events, &params.build)?;
 
         // 2. Train check model
         let check_events = ParserEventStream::generate_events(samples, &rules, ParserEventType::Check, None)?;
-        let (check_trained, _) =
-            trainer::train_events(&check_events, &params.check, &mut TrainingConfiguration::default())
-                .map_err(turbo_train_components::error::Error::Train)?;
-        let check_bytes = check_trained.write().map_err(turbo_train_components::error::Error::Train)?;
+        let check_bytes = report.train("check", &check_events, &params.check)?;
 
         // 3. Train attach model
         let attach_events = ParserEventStream::generate_events(samples, &rules, ParserEventType::Attach, None)?;
-        let (attach_trained, _) =
-            trainer::train_events(&attach_events, &params.attach, &mut TrainingConfiguration::default())
-                .map_err(turbo_train_components::error::Error::Train)?;
-        let attach_bytes = attach_trained.write().map_err(turbo_train_components::error::Error::Train)?;
+        let attach_bytes = report.train("attach", &attach_events, &params.attach)?;
 
-        // 4. Train POS tagger sub-model
+        // 4. Train POS tagger sub-model. Unlike the chunking parser, OpenNLP's tree-insertion
+        // `train` leaves the tagger's beam size alone, so it is the tagger's default of 3 unless the
+        // parameters give one.
         let pos_samples = collect_pos_samples(samples);
         let pos_factory = PosTaggerFactory::new(language, None, None)?;
-        let mut tagger_params = params.tagger.clone();
-        if tagger_params.get_int(BEAM_SIZE_KEY).ok().flatten().is_none() {
-            tagger_params.put(BEAM_SIZE_KEY, 10);
-        }
         let trained_pos = train_pos_model(
             &pos_samples,
             &pos_factory,
-            &tagger_params,
+            &params.tagger,
             &mut TrainingConfiguration::default(),
             Stamp::at(0),
         )?;
@@ -724,7 +716,7 @@ impl Parser {
             chunker_bytes,
             rules,
             ParserType::TreeInsert,
-            &[],
+            &report.manifest_entries(),
             Stamp::at(0),
         )
     }
