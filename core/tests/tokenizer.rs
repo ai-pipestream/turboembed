@@ -1045,9 +1045,11 @@ mod bpe {
         gpt2["tokenizer"]["special_tokens"] =
             json!([{ "role": "SPECIAL_UNK", "content": "<|endoftext|>", "id": 50256 }]);
         gpt2["tokenizer"]["template"] = json!(["$TEXT"]);
+        gpt2["architecture"]["vocab_size"] = json!(50257);
         check("gpt2", gpt2, &dir.join("gpt2/tokenizer.json"));
         let mut roberta = manifest_bpe();
         roberta["tokenizer"]["special_tokens"][4]["id"] = json!(50264);
+        roberta["architecture"]["vocab_size"] = json!(50265);
         check("roberta", roberta, &dir.join("roberta-base/tokenizer.json"));
     }
 
