@@ -51,6 +51,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`). `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
 | `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
+| `turbo-zstd` | `analysis/zstd/` | A Zstandard decoder after RFC 8878: frames one after another, skippable frames, raw, RLE and compressed blocks, every kind of literals and sequences section, and the content checksum (XXH64); frames that need a dictionary or a window over 128 MiB are refused. The Parquet reader of `turbo-eval` uses it for ZSTD pages |
 
 They need nothing beyond the standard library and each other, except
 `turbo-analysis-embed`, which runs the embedding model and so depends on
@@ -3587,12 +3588,15 @@ ConTEB's and GutenQA's tables are read from the published Parquet files
 by the crate's own reader (`read::parquet`): flat tables of string and
 integer columns, PLAIN and dictionary pages in data page versions 1 and
 2, nulls, and the SNAPPY (a decompressor in the crate), GZIP (`flate2`,
-already in the build) and UNCOMPRESSED codecs, which is what pyarrow
-writes by default. Other encodings and codecs (ZSTD among them) are
-refused with an error naming them, and a column is read by name, so a
-reader reads only the columns it uses. Each file with a recorded digest
-is checked on the bytes the reader parses, so it is read and hashed
-once. Dropping quotation marks in GutenQA's loose match can join words
+already in the build), ZSTD (`turbo-zstd`, in the workspace) and
+UNCOMPRESSED codecs. Without ZSTD that is what pyarrow writes by
+default; FineWeb-2's text column is ZSTD-compressed, as the
+models-fineweb run showed reading `data/afr_Latn/train/000_00000.parquet`.
+Other encodings and codecs (LZ4 and BROTLI among them) are refused
+with an error naming them, and a column is read by name, so a reader
+reads only the columns it uses. Each file with a recorded digest is
+checked on the bytes the reader parses, so it is read and hashed once.
+Dropping quotation marks in GutenQA's loose match can join words
 (“Yes”“No” matches "YesNo", "its" matches "it's"), which is unlikely
 to misplace a GutenQA passage. Chunked sets are joined into
 documents with a line break between chunks. Evidence a reader cannot
@@ -3668,10 +3672,11 @@ non-ASCII text, and errors with file and line (or row, for Parquet).
 The Parquet reader is checked on small files pyarrow wrote (SNAPPY and
 dictionary pages in version 1 pages, GZIP in version 2 pages, a
 dictionary that fills up and falls back to PLAIN, several row groups,
-nulls, PLAIN and uncompressed, and a ZSTD file it refuses; the script
-is in `analysis/eval/tests/parquet.rs`), on files a writer in the tests
-makes, for damaged values, and on hand made pages and footers for
-damaged sizes, counts and levels. None needs the network.
+nulls, PLAIN and uncompressed, and ZSTD; the script is in
+`analysis/eval/tests/parquet.rs`), on files a writer in the tests
+makes, for damaged values, a ZSTD page made by the `zstd` tool and a
+codec it refuses, and on hand made pages and footers for damaged
+sizes, counts and levels. None needs the network.
 
 ## Tests
 

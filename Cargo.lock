@@ -1855,6 +1855,7 @@ dependencies = [
  "turbo-maxent",
  "turbo-sentdetect",
  "turbo-structure",
+ "turbo-zstd",
  "ureq",
 ]
 
@@ -2367,6 +2368,10 @@ dependencies = [
  "turbo-goldens",
  "ureq",
 ]
+
+[[package]]
+name = "turbo-zstd"
+version = "0.1.0"
 
 [[package]]
 name = "typenum"
