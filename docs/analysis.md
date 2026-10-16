@@ -3446,7 +3446,11 @@ writes by default. Other encodings and codecs (ZSTD among them) are
 refused with an error naming them, and a column is read by name, so a
 reader reads only the columns it uses. Each file with a recorded digest
 is checked on the bytes the reader parses, so it is read and hashed
-once. Dropping quotation marks in GutenQA's loose match can join words
+once. A file too large to fetch whole can be read in part: its
+footer's length from its last 8 bytes, its schema and first row groups
+from the first bytes of its footer (`Leading`), and those row groups from
+the file's first bytes (`Parquet::open_head`), which is how the
+language detector's web recipe reads FineWeb-2. Dropping quotation marks in GutenQA's loose match can join words
 (“Yes”“No” matches "YesNo", "its" matches "it's"), which is unlikely
 to misplace a GutenQA passage. Chunked sets are joined into
 documents with a line break between chunks. Evidence a reader cannot

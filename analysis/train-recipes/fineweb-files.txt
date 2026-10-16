@@ -1,0 +1,3 @@
+# The FineWeb-2 and FineWeb files the language detector recipe reads (turbo_train_recipes::fineweb),
+# with each file's size and SHA-256 as the Hugging Face hub's API gives them at the revision.
+# repo	revision	path	size	sha256

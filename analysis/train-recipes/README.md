@@ -21,6 +21,8 @@ CC BY 4.0 Universal Dependencies treebanks are under "The UD recipes".
 | `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models, and `models-ud-2.16-1`, ten UD models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references its workflow fetches (`masc-references.txt`, `ud-references.txt`) |
 | `tatoeba` | Tatoeba's sentence exports: the strict reader of `sentences_detailed.csv` and `sentences_CC0.csv`, each sentence's licence from the two files, and the export's digest |
 | `langdetect` | The language detector recipe: the licence check, the table of Tatoeba's and `langdetect-183.bin`'s language codes, the split, training, the gate against `langdetect-183.bin`, its card and the model's directory |
+| `fineweb` | FineWeb-2 and FineWeb (ODC-By 1.0) at their pinned revisions: the files and the ranges of them the web language detector reads, their lists, what to fetch next, the checks of each range, and the choice of web windows |
+| `langdetect_web` | The web language detector recipe: the language detector recipe's sentences with FineWeb-2's and FineWeb's windows, training, the gates against `langdetect-183.bin` on held-out sentences and on held-out windows, the comparison with the language detector recipe's model, its card and the model's directory |
 
 ```
 cargo run --release -p turbo-train-recipes -- masc --corpus <masc-dir> \
@@ -1198,7 +1200,8 @@ and 2 on an error.
   differ in the last bits (docs/langdetect.md). 10,000 resamples, seed 154; a
   gate passes when the difference's interval does not start below -0.5.
 - Not used: FineWeb-2 (ODC-By 1.0, permissive), as Hugging Face could
-  not be reached; FLORES+ (evaluation only), for the same reason; the
+  not be reached when this recipe was made ("The web language detector
+  recipe" below adds it); FLORES+ (evaluation only), for the same reason; the
   Leipzig corpora, whose terms are not confirmed (docs/licences.md). The
   gate uses only the Tatoeba held-out split, which neither model trained
   on, so no evaluation-only data is fetched or kept.
@@ -1425,6 +1428,172 @@ languages trained on and left out, and the gate. To record the run:
    `tatoeba-export.txt`, and name the model's release in
    `release::MODELS_RELEASES`.
 
+## The web language detector recipe
+
+| Model | Reference | Data | Measure |
+|---|---|---|---|
+| `turbo-mul-tatoeba-fineweb-langdetect-1` | `opennlp-langdetect-183` (`langdetect-183.bin`) | the language detector recipe's Tatoeba sentences, and web text of the same 100 languages from FineWeb-2 and FineWeb (ODC-By 1.0): 1,000 windows of at most 300 characters per language | accuracy, one unit per held-out sentence and one per held-out window, in two gates |
+
+```
+cargo run --release -p turbo-train-recipes -- fineweb-ranges --paths
+cargo run --release -p turbo-train-recipes -- fineweb-ranges --web <dir> [--files <path>] (--need | --record)
+cargo run --release -p turbo-train-recipes -- tatoeba-fineweb --export <dir> --web <dir> \
+    --references <dir> --out <dir> [--unrecorded-export] [--files <path> --ranges <path> --unrecorded-web]
+```
+
+`--export` is the Tatoeba export, read and checked as `tatoeba` reads
+it. `--references` holds `langdetect-183.bin` and the language detector
+recipe's released model, `turbo-mul-tatoeba-langdetect-1.bin`, each
+checked against the digest the recipe records (`fineweb-references.txt`
+lists both with their addresses). `--web` holds the ranges of the web
+files, fetched as `fineweb-ranges` says (below). `--files` and
+`--ranges` name the two lists to read in place of the committed ones; a
+run on lists that are not the committed ones needs `--unrecorded-web`
+and writes a card with `recorded: false`, which is not a release. The
+model directory, both models and the lists are checked before anything
+is read, and every problem found is named. The exit status is 1 when a
+gate fails and 2 on an error.
+
+The language detector recipe trains on single Tatoeba sentences, which
+are short ("Which way the gate leans" above), and leaves out the 29
+languages with fewer than 1,500 of them. #429 asks for FineWeb-2 where
+it can be fetched; this recipe adds its web text, which is longer and
+less tidy, and with it those 29 languages.
+
+- Data and licence. FineWeb-2 (`HuggingFaceFW/fineweb-2` at revision
+  `af9c13333eb981300149d5ca60a8e9d659b276b9`) is CommonCrawl text in
+  over a thousand language and script configurations. It has no
+  English, which comes from FineWeb (`HuggingFaceFW/fineweb` at
+  revision `9bb295ddab0e05d785b879661af7260fed5140fc`). Both cards
+  publish the datasets under ODC-By 1.0 and say their use is also
+  subject to CommonCrawl's terms of use (`fineweb::FINEWEB_2`,
+  `fineweb::FINEWEB`, `fineweb::COMMONCRAWL_TERMS`). ODC-By 1.0 is
+  permissive and asks for attribution, which the card's and the zoo
+  entry's training data give. No web text is shipped: the model's
+  directory holds `training-documents.txt`
+  (`langdetect_web::DOCUMENTS_FILE`), each document trained on as its
+  repository, file, row and FineWeb id (`repo\tpath\trow\tid`), sorted.
+- Labels. Neither dataset's languages were given by people: FineWeb-2
+  labels each document with GlotLID and FineWeb with fastText's
+  language identifier. The recipe trains on those labels, and the web
+  gate scores both models against them.
+- Languages (`fineweb::WEB_LANGUAGES`): the 100 languages of
+  `langdetect::LANGUAGES`, in its order, each with the FineWeb-2
+  configuration of the language in the script Tatoeba writes it in.
+  Most configurations share Tatoeba's code. Where they do not, the
+  configuration is the language Tatoeba's code names or, for a
+  macrolanguage, the individual language its written standard is:
+  `arb` for `ara`, `azj` for `aze`, `ekk` for `est`, `plt` for `mlg`,
+  `khk` for `mon`, `pbt` for `pus`, `als` for `sqi`, `uzn` for `uzb`,
+  and `fas` for `pes` and `fil` for `tgl`, which FineWeb-2 has under
+  those codes only. Serbian and Uzbek, which Tatoeba writes in two
+  scripts, read two configurations each (`srp_Cyrl` and `srp_Latn`,
+  `uzn_Latn` and `uzn_Cyrl`), sharing the language's documents (the
+  first takes one more when they do not divide evenly). The romanized
+  configurations (`hin_Latn` and the like) are left out. English reads
+  FineWeb's 10BT sample.
+- Files. A source's training documents come from the first file of its
+  `train` split (`data/<configuration>/train/000_00000.parquet`) and its
+  held-out ones from the first file of its `test` split; FineWeb has no
+  test split, so English's come from `sample/10BT/000_00000.parquet` and
+  `sample/10BT/001_00000.parquet`. That is 204 files
+  (`fineweb-ranges --paths` lists them with their revisions).
+- Reading by range. FineWeb-2's files are large (German's first training
+  file is about 4.3 GB, with a footer of about 13 MB) and the recipe
+  reads a few thousand rows of each, so each file is read from three
+  ranges (`fineweb::FileRanges`): its last 8 bytes, which give the
+  footer's length; the first 64 KiB of its footer, which hold its schema
+  and its first row groups' metadata; and its first bytes up to the end
+  of the fewest leading row groups that hold two rows for each document
+  wanted (`WEB_SPLIT.rows_per_document`), or all of its row groups when
+  it has fewer rows. turbo-eval's reader reads those row groups
+  (`read::parquet::Leading` and `Parquet::open_head`), and refuses a
+  footer prefix that ends before the row groups needed.
+- Lists (`fineweb-files.txt` and `fineweb-ranges.txt`, compiled into the
+  binary). The first lists each file's repository, revision, path, size
+  and SHA-256, as the hub's API gives them at the revision; the second
+  lists each range's file, start, end and SHA-256. A run checks the
+  files listed are exactly the 204 the recipe reads, that the ranges
+  listed are exactly the ones those files give, and every range it reads
+  against its SHA-256; a changed byte, a missing range or one not listed
+  is refused. The card records both lists' digest (`lists_sha256`).
+  Both lists are empty until the workflow's first run makes them
+  (below).
+- Windows (`fineweb::WEB_SPLIT`). A document gives its first 300
+  characters (Unicode scalar values), or all of them when it has fewer;
+  one with fewer than 100 is passed over, and so is a window its
+  language already has. A file's documents are taken in row order, at
+  first at most one in 20 from one host (the URL's host, lowercased,
+  without `www.`); when that leaves the file short, the documents passed
+  over for their host are taken next, in row order. Every training file
+  is read before any held-out file, and a held-out window that is a
+  training window of any language is passed over. Per language, 1,000
+  windows are trained on and 500 held out. The card counts, for each
+  file, the rows and row groups read, the documents passed over and
+  why, and those chosen (`web.files`).
+- Training: the language detector recipe's sentences, split as it splits
+  them, then the windows, one event each, each language in the order of
+  `langdetect::LANGUAGES`, with the same parameters (`MAXENT`, 100
+  iterations, cutoff 5, one thread, the `OnePass` indexer) and the same
+  fixed `Timestamp`, so a run gives the same bytes. A language left out
+  of the Tatoeba split is trained on its windows alone, so the model
+  chooses among all 100 languages.
+- Gates, both against `langdetect-183.bin`, as the language detector
+  recipe gates (the table's codes counted right for the reference, 10,000
+  resamples, seed 154, a pass when the difference's interval does not
+  start below -0.5): on the language detector recipe's held-out
+  sentences, the set its model was gated on, with the same name and
+  digest (`gate.json`); and on the held-out windows (`gate-web.json`).
+  The model is a release only when it passes both.
+- Comparison: both sets scored again with `turbo-mul-tatoeba-langdetect-1`
+  in the reference's place (`compare-tatoeba.json`,
+  `compare-web.json`), so the card says what the web text changed
+  (`compared_on_sentences` and `compared_on_windows`, and per language in
+  `compared_per_language` and `web_per_language`). It is reported, not a gate. That model knows
+  only its 71 languages, so it is right on no window of the other 29.
+
+### Which way the web gate leans
+
+The web gate measures agreement with GlotLID's and fastText's labels, on
+windows from the test files of the same configurations the training
+windows come from, so the trained model, which learned from text the
+same classifiers labelled, has the advantage there, as it has on the
+Tatoeba sentences. The reference was trained on the Leipzig corpora's
+news and web text and is scored against the same labels; where a label
+is wrong, a model that is right is counted wrong. Windows of 100 to 300
+characters are closer in length to the reference's own evaluation
+samples (123 to 1,668 characters) than Tatoeba's sentences are. A pass
+says the trained model agrees with those labels at least as often as
+`langdetect-183.bin` does, less half a point; it does not say either
+model is right where the labels are wrong.
+
+### Full run
+
+Not made yet. The `models-fineweb` workflow
+(`.github/workflows/models-fineweb.yml`) runs when it is run by hand or
+a pull request changes it, this crate, the trainers, the gate
+(`analysis/eval`), the Zstandard decoder or `turbo-langdetect`, and
+publishes nothing. It fetches the Tatoeba export as `models-tatoeba`
+does (the same cache), the two models of `fineweb-references.txt`
+(checked against their digests before they are cached) and the web
+ranges, cached under the digest of both lists. While the committed
+lists are empty, the run makes them: the files list from the hub's API
+(`/api/datasets/<repo>/revision/<revision>?blobs=true`, whose `sha`
+must be the revision), then the ranges in rounds, each fetched as
+`fineweb-ranges --need` says and each answer required to be `206
+Partial Content` of the range's length, then `fineweb-ranges --record`.
+It trains twice, with `--unrecorded-web` while the lists are not
+committed, fails unless both runs write the same eight files, prints
+the card's per-language and per-file counts, and keeps the lists and
+the model's directory as the artifact `models-fineweb-run`.
+
+To record the run: commit the lists the artifact holds as
+`fineweb-files.txt` and `fineweb-ranges.txt`, run the workflow again,
+which then trains on them without `--unrecorded-web`, and record here
+the lists' digest, each language's windows and the files they came
+from, both gates and both comparisons, and the files' sizes and
+SHA-256s from both runs.
+
 ## Tests
 
 `tests/recipes.rs` writes corpora in MASC's layout (`tests/common`, no
@@ -1600,3 +1769,31 @@ the binary's refusal of a missing reference. With
 table's codes against the model's 103 outcomes, and that the binary
 refuses the export as not the recorded one and, given `--unrecorded-export`,
 refuses it for having no language with 1,500 sentences.
+
+`tests/fineweb.rs` runs the web recipe's reading on Parquet files a
+writer in the test makes (`text`, `id` and `url` columns, row groups of
+four rows), one for each of the 204 files, served from memory: the
+ranges fetched round by round as the workflow fetches them (the last 8
+bytes, the footer's first bytes, the head), recorded, listed and checked
+against what the files give; the windows chosen from them, with a
+document too short, a repeated window, documents passed over for their
+host and taken later when a file is short, held-out windows that are
+training windows passed over, two sources sharing a language's
+documents, and a file with fewer rows than wanted read whole; and
+`training-documents.txt`. A changed byte, a missing range, a range or a
+file not listed, a file the recipe does not read and a footer prefix
+too short for the rows wanted are refused. It runs the recipe end to
+end on the export of `tests/data/tatoeba` and web files of the nine
+languages `tests/langdetect.rs` uses, made of common words of each, with
+the language fixture as the reference and as the compared model: the
+same bytes from a second training, Turkish trained on its windows alone,
+both gates and both comparisons with the trained model's side the same
+in each pair, the card's counts, the model's directory, and the card
+refused a zoo entry. It also runs the binary: `fineweb-ranges --paths`
+lists the 204 files, `--need` with nothing fetched asks for each file's
+last 8 bytes, `--record` refuses ranges not fetched, and
+`tatoeba-fineweb` without its two models, and on the empty committed
+lists without `--unrecorded-web`, names each problem and writes
+nothing. turbo-eval's `tests/parquet.rs` reads the leading row groups
+of its pyarrow files from every first part of their footers, byte by
+byte, and from the head of the file.

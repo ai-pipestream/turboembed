@@ -1,0 +1,3 @@
+# The ranges of the files in fineweb-files.txt the language detector recipe reads
+# (turbo_train_recipes::fineweb), each with its SHA-256; end is not included.
+# repo	path	start	end	sha256

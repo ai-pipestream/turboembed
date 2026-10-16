@@ -41,6 +41,14 @@
 //!   2.0 FR sentences and gated against OpenNLP's `langdetect-183.bin`
 //!   on held-out sentences of the languages both cover, with its own
 //!   card.
+//! - [`langdetect_web`]: the language detector trained on those
+//!   sentences and on web text from FineWeb-2 and FineWeb, gated against
+//!   `langdetect-183.bin` on the held-out sentences and on held-out web
+//!   text, and compared with the Tatoeba model on both.
+//! - [`fineweb`]: FineWeb-2's and FineWeb's web text (ODC-By 1.0), read
+//!   by range from the leading row groups of one file per language and
+//!   side, and the windows of it the language detector trains on and
+//!   holds out.
 //!
 //! [`run`] runs one MASC recipe from a split corpus to the model, the
 //! card and the gate record, and [`ud::run_ud`] one UD recipe from a
@@ -54,7 +62,9 @@
 pub mod card;
 pub mod chunk;
 pub mod error;
+pub mod fineweb;
 pub mod langdetect;
+pub mod langdetect_web;
 pub mod masc;
 pub mod namefind;
 pub mod postag;
