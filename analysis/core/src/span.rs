@@ -297,15 +297,43 @@ impl<'a> TextSpans<'a> {
                 bs.iter().zip(be).any(|(&s2, &e2)| f1.overlaps(Span { start: s2, end: e2 }))
             })
         };
-        for a in 0..n {
-            let env_a = Span { start: self.start[a], end: self.end[a] };
-            for b in (a + 1)..n {
-                let env_b = Span { start: self.start[b], end: self.end[b] };
-                if env_a.overlaps(env_b) && shares_bytes(a, b) && !contains_item(a, b) && !contains_item(b, a) {
-                    return Err(format!(
-                        "item {b} ({}..{}) partially crosses item {a} ({}..{}) across fragments",
-                        env_b.start, env_b.end, env_a.start, env_a.end
-                    ));
+        let check_pair = |a: usize, b: usize| -> Result<(), String> {
+            let (first, second) = if a < b { (a, b) } else { (b, a) };
+            let env_first = Span { start: self.start[first], end: self.end[first] };
+            let env_second = Span { start: self.start[second], end: self.end[second] };
+            if env_first.overlaps(env_second)
+                && shares_bytes(first, second)
+                && !contains_item(first, second)
+                && !contains_item(second, first)
+            {
+                return Err(format!(
+                    "item {second} ({}..{}) partially crosses item {first} ({}..{}) across fragments",
+                    env_second.start, env_second.end, env_first.start, env_first.end
+                ));
+            }
+            Ok(())
+        };
+        if self.is_start_ordered() {
+            for a in 0..n {
+                let end_a = self.end[a];
+                for b in (a + 1)..n {
+                    if self.start[b] >= end_a {
+                        break;
+                    }
+                    check_pair(a, b)?;
+                }
+            }
+        } else {
+            let mut order: Vec<usize> = (0..n).collect();
+            order.sort_unstable_by_key(|&i| self.start[i]);
+            for i in 0..n {
+                let a = order[i];
+                let end_a = self.end[a];
+                for &b in &order[(i + 1)..] {
+                    if self.start[b] >= end_a {
+                        break;
+                    }
+                    check_pair(a, b)?;
                 }
             }
         }

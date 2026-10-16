@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use turbo_analysis::{Ix, IxRange, Span};
+use turbo_analysis::{Ix, IxRange, Span, ViewId};
 use turbo_analysis_layers::{Entities, Numbers, PosTags, Sentences, Strs, Tokens};
 
 use crate::attr::{Attr, Flag, Iob, text_flags};
@@ -16,6 +16,7 @@ use crate::vocab::Vocab;
 /// item per token (or, for entities, to index inside the tokens).
 #[derive(Clone, Copy)]
 pub struct Input<'a> {
+    view: ViewId,
     text: &'a str,
     starts: &'a [u32],
     ends: &'a [u32],
@@ -49,6 +50,7 @@ impl<'a> Input<'a> {
             }
         }
         Ok(Input {
+            view: tokens.spans.view(),
             text,
             starts,
             ends,
@@ -61,6 +63,15 @@ impl<'a> Input<'a> {
             stop: None,
             numbers: None,
         })
+    }
+
+    /// The view the input's tokens belong to.
+    pub fn view(&self) -> ViewId {
+        self.view
+    }
+
+    pub(crate) fn numbers(&self) -> Option<&'a Numbers> {
+        self.numbers
     }
 
     fn aligned(&self, layer: &'static str, len: usize) -> Result<(), MatchError> {
@@ -98,6 +109,13 @@ impl<'a> Input<'a> {
 
     /// Entities over these tokens.
     pub fn with_entities(mut self, entities: &'a Entities) -> Result<Self, MatchError> {
+        if entities.spans.view() != self.view {
+            return Err(MatchError::ViewMismatch {
+                layer: "opennlp:entities",
+                expected: self.view,
+                actual: entities.spans.view(),
+            });
+        }
         let past = entities.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0);
         if past > self.len() || entities.tokens.iter().any(|r| r.start > r.end) {
             return Err(MatchError::Misaligned { layer: "opennlp:entities", len: past, tokens: self.len() });
@@ -183,6 +201,13 @@ impl<'a> Input<'a> {
     /// the entities, or `u32::MAX` where none does.
     fn entity_of(&self, range: &Range<usize>) -> Result<Vec<u32>, MatchError> {
         let entities = self.entities.ok_or(MatchError::Missing("opennlp:entities"))?;
+        if entities.spans.view() != self.view {
+            return Err(MatchError::ViewMismatch {
+                layer: "opennlp:entities",
+                expected: self.view,
+                actual: entities.spans.view(),
+            });
+        }
         let mut of = vec![u32::MAX; range.len()];
         for (e, r) in entities.tokens.iter().enumerate() {
             let (a, b) = (r.start.get().max(range.start), r.end.get().min(range.end));
@@ -245,6 +270,15 @@ impl Columns {
         needs: Needs,
         vocab: &Vocab,
     ) -> Result<Columns, MatchError> {
+        if let Some(numbers) = input.numbers
+            && numbers.spans.view() != input.view
+        {
+            return Err(MatchError::ViewMismatch {
+                layer: "turbo:numbers",
+                expected: input.view,
+                actual: numbers.spans.view(),
+            });
+        }
         let mut c = Columns::default();
         let mut scratch = String::new();
         let entity_of = if needs.has(Attr::Entity) || needs.iob { Some(input.entity_of(range)?) } else { None };
@@ -336,6 +370,13 @@ fn flag_column(input: &Input<'_>, range: &Range<usize>, wanted: u32) -> Result<V
     }
     if wanted & Flag::Number.bit() != 0 {
         let numbers = input.numbers.ok_or(MatchError::Missing("turbo:numbers"))?;
+        if numbers.spans.view() != input.view {
+            return Err(MatchError::ViewMismatch {
+                layer: "turbo:numbers",
+                expected: input.view,
+                actual: numbers.spans.view(),
+            });
+        }
         let (n_starts, n_ends) = numbers.spans.columns();
         for (b, i) in bits.iter_mut().zip(range.clone()) {
             let token = Span::new(input.starts[i], input.ends[i]);

@@ -155,3 +155,20 @@ fn discontinuous_blocks_project_each_fragment_to_the_child_view() {
     assert_eq!(frags, ["Start here.", "Resume there."]);
     assert_eq!(&clean_text[projected.spans.get(Ix::new(1)).range()], "After.");
 }
+
+#[test]
+fn discontinuous_fragments_coalesce_when_normalization_deletes_the_gap() {
+    let text = "left GAP right";
+    let doc = Document::new(text);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    spans.push_fragments(&[Span::new(0, 4), Span::new(9, 14)]);
+    let structure = Structure { spans, kind: vec![Block::Paragraph], parent: vec![None], depth: vec![0] };
+    let mut builder = ViewBuilder::new(text);
+    builder.keep(4);
+    builder.replace(9, "");
+    let (clean_text, align) = builder.finish();
+    let clean = View::derived(doc.get::<View>().unwrap(), clean_text, align);
+    let (projected,) = StructureProjector.annotate((&clean, &structure)).unwrap();
+    assert!(!projected.spans.is_discontinuous(Ix::new(0)));
+    assert_eq!(&clean.text()[projected.spans.get(Ix::new(0)).range()], "leftright");
+}

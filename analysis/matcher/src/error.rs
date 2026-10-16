@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use turbo_analysis::ViewId;
+
 use crate::attr::Field;
 
 /// A pattern or phrase the matcher cannot take.
@@ -41,6 +43,9 @@ pub enum MatchError {
     Missing(&'static str),
     /// A layer given to the input that is not one item per token.
     Misaligned { layer: &'static str, len: usize, tokens: usize },
+    /// A span-bearing layer (`opennlp:entities`, `turbo:numbers`, or
+    /// `opennlp:tokens`) belongs to a different view than the tokens.
+    ViewMismatch { layer: &'static str, expected: ViewId, actual: ViewId },
     /// A token span outside the text, or off a character boundary.
     Token { index: usize, start: u32, end: u32 },
     /// A token range past the input's tokens.
@@ -55,6 +60,9 @@ impl fmt::Display for MatchError {
             MatchError::Missing(layer) => write!(f, "a pattern reads {layer}, which the input does not have"),
             MatchError::Misaligned { layer, len, tokens } => {
                 write!(f, "{layer} has {len} items for {tokens} tokens")
+            }
+            MatchError::ViewMismatch { layer, expected, actual } => {
+                write!(f, "{layer} is in view {}, expected view {}", actual.0, expected.0)
             }
             MatchError::Token { index, start, end } => {
                 write!(f, "token {index} at {start}..{end} is outside the text or cuts a character")

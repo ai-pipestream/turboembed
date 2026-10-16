@@ -174,6 +174,17 @@ fn discontinuous_entities_skip_gap_tokens_and_ruler_checks_entity_view() {
         child_tok_spans.push(s);
     }
     let child_tokens = Tokens { spans: child_tok_spans, sentence: None };
+    assert_eq!(
+        Input::new(clean.text(), &child_tokens).unwrap().with_entities(&entities).err(),
+        Some(MatchError::ViewMismatch { layer: "opennlp:entities", expected: clean.id(), actual: ViewId::SOURCE })
+    );
+    let source_numbers = Numbers::new(ViewId::SOURCE);
+    let child_input_with_source_numbers =
+        Input::new(clean.text(), &child_tokens).unwrap().with_numbers(&source_numbers);
+    assert_eq!(
+        one("N", &[Tok::flag(Flag::Number, true)]).find(&child_input_with_source_numbers),
+        Err(MatchError::ViewMismatch { layer: "turbo:numbers", expected: clean.id(), actual: ViewId::SOURCE })
+    );
     let err = ruler.annotate((clean, &child_tokens, None, None, Some(&entities), None, None, None)).err().unwrap();
     assert!(err.to_string().contains("entities are in another view"), "{err}");
 }
