@@ -47,6 +47,41 @@ impl Alignment {
         &self.edits
     }
 
+    /// An alignment from edits made elsewhere, checked: no span ending
+    /// before it starts, in text order on both sides, never overlapping, none empty on both sides, and the
+    /// unchanged stretch before each edit as long in the parent as in the
+    /// child. The texts themselves are not seen here; `SourceBytes::new`
+    /// checks the unchanged stretches byte for byte.
+    pub fn from_edits(edits: Vec<Edit>) -> Result<Alignment, String> {
+        let (mut parent_end, mut child_end) = (0u32, 0u32);
+        for (i, e) in edits.iter().enumerate() {
+            if e.parent.start > e.parent.end || e.child.start > e.child.end {
+                return Err(format!("edit {i} ends before it starts"));
+            }
+            if e.parent.is_empty() && e.child.is_empty() {
+                return Err(format!("edit {i} changes nothing"));
+            }
+            if e.parent.start < parent_end || e.child.start < child_end {
+                return Err(format!("edit {i} starts before the edit before it ends"));
+            }
+            if e.parent.start - parent_end != e.child.start - child_end {
+                return Err(format!(
+                    "the unchanged stretch before edit {i} is {} bytes in the parent and {} in the child",
+                    e.parent.start - parent_end,
+                    e.child.start - child_end
+                ));
+            }
+            (parent_end, child_end) = (e.parent.end, e.child.end);
+        }
+        Ok(Alignment { edits })
+    }
+
+    /// Edits a builder in this crate recorded, which are in order by
+    /// construction.
+    pub(crate) fn from_builder(edits: Vec<Edit>) -> Alignment {
+        Alignment { edits }
+    }
+
     /// A child offset in parent bytes.
     pub fn to_parent(&self, x: u32, side: Side) -> u32 {
         map(&self.edits, x, side, |e| e.child, |e| e.parent)
