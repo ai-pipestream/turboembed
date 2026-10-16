@@ -656,6 +656,40 @@ mod tests {
     }
 
     #[test]
+    fn negation_with_a_curly_apostrophe_still_negates() {
+        // A tokenizer that keeps contractions whole hands the extractor
+        // tokens like "isn’t" (U+2019): the negation cues, written with
+        // ASCII apostrophes, must still fire.
+        let text = "The screen isn\u{2019}t great.";
+        let mut doc = Document::new(text);
+        let mut sents = Spans::<Sentences>::new(ViewId(0));
+        sents.push(Span::new(0, text.len() as u32));
+        doc.add(&Key::DEFAULT, Sentences { spans: sents }, Provenance::by("test")).unwrap();
+        let mut spans = Spans::<Tokens>::new(ViewId(0));
+        for (a, b) in [(0, 3), (4, 10), (11, 18), (19, 24), (24, 25)] {
+            spans.push(Span::new(a, b));
+        }
+        let tokens = Tokens { spans, sentence: Some(vec![Ix::new(0); 5]) };
+        doc.add(&Key::DEFAULT, tokens, Provenance::by("test")).unwrap();
+
+        let pipe = Analyzer::builder()
+            .given(Key::<Sentences>::DEFAULT)
+            .given(Key::<Tokens>::DEFAULT)
+            .add(RuleAspectSentiment::new())
+            .build()
+            .unwrap();
+        let mut docs = [doc];
+        pipe.run(&mut docs).remove(0).unwrap();
+        let doc = &docs[0];
+        let opinions = doc.get::<Opinions>().unwrap();
+        let aspects = doc.get::<Aspects>().unwrap();
+        assert_eq!(opinions.len(), 1);
+        assert!(opinions.get(Ix::new(0)).negated, "the curly-apostrophe negation must reach the opinion");
+        assert_eq!(aspects.len(), 1);
+        assert_eq!(aspects.get(Ix::new(0)).polarity.label(), Polarity::Negative);
+    }
+
+    #[test]
     fn double_propagation_over_dependencies_extracts_new_targets_and_conjoined_aspects() {
         // "The sushi and tiramisu were delicious."
         // Notice "tiramisu" is not in SINGLE_WORD_ASPECT_TERMS, so R3 (`conj` from "sushi" or R12 from "delicious")

@@ -587,7 +587,14 @@ pub(super) const LEADING_DETERMINERS: &[&str] = &[
 ];
 
 pub(super) fn clean_word_lower(raw: &str) -> String {
-    raw.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-').to_ascii_lowercase()
+    let trimmed = raw.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-');
+    if trimmed.contains('\u{2019}') {
+        // The tables use ASCII apostrophes; a tokenizer that keeps
+        // contractions whole may write them with U+2019 instead.
+        trimmed.replace('\u{2019}', "'").to_ascii_lowercase()
+    } else {
+        trimmed.to_ascii_lowercase()
+    }
 }
 
 /// The domain opinion valence of `word`, if it is in [`DOMAIN_OPINION_LEXICON`].
@@ -692,5 +699,15 @@ mod tests {
         assert!(!is_aspect_stopword("zzz-not-a-word"));
         assert!(!is_negation_word("zzz-not-a-word"));
         assert!(is_negation_word("mustn't"));
+    }
+}
+
+#[cfg(test)]
+mod clean_tests {
+    #[test]
+    fn clean_word_lower_normalizes_curly_apostrophes() {
+        assert_eq!(super::clean_word_lower("ISN\u{2019}T"), "isn't");
+        assert_eq!(super::clean_word_lower("DON'T"), "don't");
+        assert_eq!(super::clean_word_lower("  Great! "), "great");
     }
 }
