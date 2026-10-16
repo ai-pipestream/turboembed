@@ -360,6 +360,13 @@ are not taken from any corpus.
 - `inputs/glossary/`: texts for the glossary matchers and comma separated,
   tab separated and TBX glossaries, well formed and malformed, for the
   glossary readers, written for this project (`analysis/glossary/README.md`).
+- `inputs/parse-treebank/`: Penn Treebank parses written for this
+  project, one per line, for the chunking and treeinsert parser goldens:
+  `treebank.txt`, 42 sentences the models are trained on, and
+  `held-out.txt`, 8 sentences they parse and are scored on, with commas,
+  brackets, quotes, sentence-final punctuation, possessives, unary chains,
+  a node whose only child has its own type and sister adjunctions
+  (`analysis/goldens-tool/README.md`, Bottom-up parser goldens).
 - `inputs/svm-doccat-train/`: the corpora the SVM document categorizer
   goldens train their models on, written for this project, one sample per
   line (the category, a space and the text): `topics.txt`, 48 sentences,

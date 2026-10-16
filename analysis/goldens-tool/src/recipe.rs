@@ -918,7 +918,7 @@ pub const FIXTURES: [Fixture; 109] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 48] = [
+pub const INPUT_SETS: [&str; 49] = [
     "en",
     "multi",
     "norm",
@@ -944,6 +944,7 @@ pub const INPUT_SETS: [&str; 48] = [
     "ner",
     "ad",
     "parse",
+    "parse-treebank",
     "ontonotes",
     "frenchtreebank",
     "head-rules",

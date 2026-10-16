@@ -2162,8 +2162,13 @@ name = "turbo-parser"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-jvm",
+ "turbo-maxent",
+ "turbo-postag",
+ "turbo-sequence",
+ "turbo-train",
  "turbo-unicode",
 ]
 

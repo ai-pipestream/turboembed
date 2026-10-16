@@ -1,0 +1,67 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	parse-treebank/held-out	750	750	8d041f54676e8bd9e65805089a538560e7ccafe0cfe95694963ee7323f381e46
+model	en-head-rules.txt	4924379ef7ca9376c6953e166512a556006e069e9ba319dc941a74342e3b46aa64313014d5a801030d5867dc6ea4be9208b75706579840bbcc12fa00aab0cca4
+annotator	opennlp.tools.parser.chunking.ParserEventStream	read
+config	etype	TAG
+config	rules	opennlp.tools.parser.lang.en.HeadRules
+layer	turbo:events	document	53	sample:u32	outcome:str	size:u32	context:str
+0	DT	14	default w=The suf=e suf=he suf=The suf=The pre=T pre=Th pre=The pre=The c p=*SB* n=dog nn=sat
+0	NN	15	default w=dog suf=g suf=og suf=dog suf=dog pre=d pre=do pre=dog pre=dog p=The t=DT pp=*SB* n=sat nn=on
+0	VBD	16	default w=sat suf=t suf=at suf=sat suf=sat pre=s pre=sa pre=sat pre=sat p=dog t=NN pp=The t2=DT,NN n=on nn=the
+0	IN	16	default w=on suf=n suf=on suf=on suf=on pre=o pre=on pre=on pre=on p=sat t=VBD pp=dog t2=NN,VBD n=the nn=sofa
+0	DT	16	default w=the suf=e suf=he suf=the suf=the pre=t pre=th pre=the pre=the p=on t=IN pp=sat t2=VBD,IN n=sofa nn=.
+0	NN	16	default w=sofa suf=a suf=fa suf=ofa suf=sofa pre=s pre=so pre=sof pre=sofa p=the t=DT pp=on t2=IN,DT n=. nn=*SE*
+0	.	15	default w=. suf=. suf=. suf=. suf=. pre=. pre=. pre=. pre=. p=sofa t=NN pp=the t2=DT,NN n=*SE*
+1	NNP	14	default w=Tom suf=m suf=om suf=Tom suf=Tom pre=T pre=To pre=Tom pre=Tom c p=*SB* n=baked nn=a
+1	VBD	15	default w=baked suf=d suf=ed suf=ked suf=aked pre=b pre=ba pre=bak pre=bake p=Tom t=NNP pp=*SB* n=a nn=cake
+1	DT	16	default w=a suf=a suf=a suf=a suf=a pre=a pre=a pre=a pre=a p=baked t=VBD pp=Tom t2=NNP,VBD n=cake nn=for
+1	NN	16	default w=cake suf=e suf=ke suf=ake suf=cake pre=c pre=ca pre=cak pre=cake p=a t=DT pp=baked t2=VBD,DT n=for nn=Anna
+1	IN	16	default w=for suf=r suf=or suf=for suf=for pre=f pre=fo pre=for pre=for p=cake t=NN pp=a t2=DT,NN n=Anna nn=.
+1	NNP	17	default w=Anna suf=a suf=na suf=nna suf=Anna pre=A pre=An pre=Ann pre=Anna c p=for t=IN pp=cake t2=NN,IN n=. nn=*SE*
+1	.	15	default w=. suf=. suf=. suf=. suf=. pre=. pre=. pre=. pre=. p=Anna t=NNP pp=for t2=IN,NNP n=*SE*
+2	NNP	14	default w=Sam suf=m suf=am suf=Sam suf=Sam pre=S pre=Sa pre=Sam pre=Sam c p=*SB* n='s nn=cat
+2	POS	15	default w='s suf=s suf='s suf='s suf='s pre=' pre='s pre='s pre='s p=Sam t=NNP pp=*SB* n=cat nn=slept
+2	NN	16	default w=cat suf=t suf=at suf=cat suf=cat pre=c pre=ca pre=cat pre=cat p='s t=POS pp=Sam t2=NNP,POS n=slept nn=.
+2	VBD	16	default w=slept suf=t suf=pt suf=ept suf=lept pre=s pre=sl pre=sle pre=slep p=cat t=NN pp='s t2=POS,NN n=. nn=*SE*
+2	.	15	default w=. suf=. suf=. suf=. suf=. pre=. pre=. pre=. pre=. p=slept t=VBD pp=cat t2=NN,VBD n=*SE*
+3	VBZ	14	default w=Is suf=s suf=Is suf=Is suf=Is pre=I pre=Is pre=Is pre=Is c p=*SB* n=the nn=soup
+3	DT	15	default w=the suf=e suf=he suf=the suf=the pre=t pre=th pre=the pre=the p=Is t=VBZ pp=*SB* n=soup nn=hot
+3	NN	16	default w=soup suf=p suf=up suf=oup suf=soup pre=s pre=so pre=sou pre=soup p=the t=DT pp=Is t2=VBZ,DT n=hot nn=?
+3	JJ	16	default w=hot suf=t suf=ot suf=hot suf=hot pre=h pre=ho pre=hot pre=hot p=soup t=NN pp=the t2=DT,NN n=? nn=*SE*
+3	.	15	default w=? suf=? suf=? suf=? suf=? pre=? pre=? pre=? pre=? p=hot t=JJ pp=soup t2=NN,JJ n=*SE*
+4	DT	14	default w=The suf=e suf=he suf=The suf=The pre=T pre=Th pre=The pre=The c p=*SB* n=rain nn=stopped
+4	NN	15	default w=rain suf=n suf=in suf=ain suf=rain pre=r pre=ra pre=rai pre=rain p=The t=DT pp=*SB* n=stopped nn=,
+4	VBD	16	default w=stopped suf=d suf=ed suf=ped suf=pped pre=s pre=st pre=sto pre=stop p=rain t=NN pp=The t2=DT,NN n=, nn=and
+4	,	16	default w=, suf=, suf=, suf=, suf=, pre=, pre=, pre=, pre=, p=stopped t=VBD pp=rain t2=NN,VBD n=and nn=the
+4	CC	16	default w=and suf=d suf=nd suf=and suf=and pre=a pre=an pre=and pre=and p=, t=, pp=stopped t2=VBD,, n=the nn=children
+4	DT	16	default w=the suf=e suf=he suf=the suf=the pre=t pre=th pre=the pre=the p=and t=CC pp=, t2=,,CC n=children nn=played
+4	NNS	16	default w=children suf=n suf=en suf=ren suf=dren pre=c pre=ch pre=chi pre=chil p=the t=DT pp=and t2=CC,DT n=played nn=.
+4	VBD	16	default w=played suf=d suf=ed suf=yed suf=ayed pre=p pre=pl pre=pla pre=play p=children t=NNS pp=the t2=DT,NNS n=. nn=*SE*
+4	.	15	default w=. suf=. suf=. suf=. suf=. pre=. pre=. pre=. pre=. p=played t=VBD pp=children t2=NNS,VBD n=*SE*
+5	PRP	14	default w=We suf=e suf=We suf=We suf=We pre=W pre=We pre=We pre=We c p=*SB* n=bought nn=bread
+5	VBD	15	default w=bought suf=t suf=ht suf=ght suf=ught pre=b pre=bo pre=bou pre=boug p=We t=PRP pp=*SB* n=bread nn=(
+5	NN	16	default w=bread suf=d suf=ad suf=ead suf=read pre=b pre=br pre=bre pre=brea p=bought t=VBD pp=We t2=PRP,VBD n=( nn=fresh
+5	-LRB-	16	default w=( suf=( suf=( suf=( suf=( pre=( pre=( pre=( pre=( p=bread t=NN pp=bought t2=VBD,NN n=fresh nn=)
+5	JJ	16	default w=fresh suf=h suf=sh suf=esh suf=resh pre=f pre=fr pre=fre pre=fres p=( t=-LRB- pp=bread t2=NN,-LRB- n=) nn=.
+5	-RRB-	16	default w=) suf=) suf=) suf=) suf=) pre=) pre=) pre=) pre=) p=fresh t=JJ pp=( t2=-LRB-,JJ n=. nn=*SE*
+5	.	15	default w=. suf=. suf=. suf=. suf=. pre=. pre=. pre=. pre=. p=) t=-RRB- pp=fresh t2=JJ,-RRB- n=*SE*
+6	``	13	default w=`` suf=` suf=`` suf=`` suf=`` pre=` pre=`` pre=`` pre=`` p=*SB* n=It nn=is
+6	PRP	16	default w=It suf=t suf=It suf=It suf=It pre=I pre=It pre=It pre=It c p=`` t=`` pp=*SB* n=is nn=late
+6	VBZ	16	default w=is suf=s suf=is suf=is suf=is pre=i pre=is pre=is pre=is p=It t=PRP pp=`` t2=``,PRP n=late nn=,
+6	JJ	16	default w=late suf=e suf=te suf=ate suf=late pre=l pre=la pre=lat pre=late p=is t=VBZ pp=It t2=PRP,VBZ n=, nn=''
+6	,	16	default w=, suf=, suf=, suf=, suf=, pre=, pre=, pre=, pre=, p=late t=JJ pp=is t2=VBZ,JJ n='' nn=she
+6	''	16	default w='' suf=' suf='' suf='' suf='' pre=' pre='' pre='' pre='' p=, t=, pp=late t2=JJ,, n=she nn=said
+6	PRP	16	default w=she suf=e suf=he suf=she suf=she pre=s pre=sh pre=she pre=she p='' t='' pp=, t2=,,'' n=said nn=.
+6	VBD	16	default w=said suf=d suf=id suf=aid suf=said pre=s pre=sa pre=sai pre=said p=she t=PRP pp='' t2='',PRP n=. nn=*SE*
+6	.	15	default w=. suf=. suf=. suf=. suf=. pre=. pre=. pre=. pre=. p=said t=VBD pp=she t2=PRP,VBD n=*SE*
+7	VB	14	default w=Close suf=e suf=se suf=ose suf=lose pre=C pre=Cl pre=Clo pre=Clos c p=*SB* n=the nn=window
+7	DT	15	default w=the suf=e suf=he suf=the suf=the pre=t pre=th pre=the pre=the p=Close t=VB pp=*SB* n=window nn=!
+7	NN	16	default w=window suf=w suf=ow suf=dow suf=ndow pre=w pre=wi pre=win pre=wind p=the t=DT pp=Close t2=VB,DT n=! nn=*SE*
+7	.	15	default w=! suf=! suf=! suf=! suf=! pre=! pre=! pre=! pre=! p=window t=NN pp=the t2=DT,NN n=*SE*
+end	turbo:events
+layer	turbo:sample-errors	document	0	sample:u32	class:str	message:str
+end	turbo:sample-errors
