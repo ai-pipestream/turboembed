@@ -97,3 +97,29 @@ fn configurations_hash_apart() {
         assert!(!hashes[i + 1..].contains(a));
     }
 }
+
+#[test]
+fn malformed_token_spans_and_foreign_views_are_rejected() {
+    use turbo_analysis::{Annotator, Error, View};
+    let doc = Document::new("the \u{00E9} dog");
+    let view = doc.get::<View>().unwrap();
+    let annotator = StopwordAnnotator::new(ListChoice::Fixed(StopwordLanguage::English));
+
+    // Foreign view ID.
+    let mut foreign = Spans::new(ViewId(7));
+    foreign.push(Span::new(0, 3));
+    assert!(matches!(
+        annotator.annotate((view, &Tokens { spans: foreign, sentence: None }, None)),
+        Err(Error::Annotator { annotator: StopwordAnnotator::ID, .. })
+    ));
+
+    // Inverted, out-of-bounds, and mid-codepoint UTF-8 boundaries.
+    for (s, e) in [(5, 3), (0, 99), (4, 5), (0, 5)] {
+        let mut spans = Spans::new(view.id());
+        spans.push(Span { start: s, end: e });
+        assert!(matches!(
+            annotator.annotate((view, &Tokens { spans, sentence: None }, None)),
+            Err(Error::Annotator { annotator: StopwordAnnotator::ID, .. })
+        ));
+    }
+}
