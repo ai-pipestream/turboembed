@@ -321,6 +321,7 @@ final class Runs {
     annotators.addAll(QuantityGolden.all());
     annotators.addAll(TemporalGolden.all());
     annotators.addAll(PiiGolden.all());
+    annotators.addAll(PiiRewriteGolden.all());
 
     // The training stack: the events of the sentence detector, the tokenizer and a real valued
     // source on the texts, indexed and trained; the sentence detector runs on the fixture
@@ -330,6 +331,8 @@ final class Runs {
     annotators.addAll(QnTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The perceptron and the sequence perceptron trainers on the same events.
     annotators.addAll(PerceptronTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The liblinear add-on's trainer on the same events, with each logistic regression solver.
+    annotators.addAll(LiblinearTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The same event streams with the factory options TrainGolden leaves at their defaults, and
     // the model file around a trained model.
     annotators.addAll(EventGolden.all(fixtures.resolve(ENGLISH_ABBREVIATIONS)));

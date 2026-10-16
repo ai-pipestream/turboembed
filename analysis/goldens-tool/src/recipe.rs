@@ -37,6 +37,12 @@ pub const HUNSPELL_COMMIT: &str = "fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc";
 /// into the `geo` module built from that one.
 pub const PLACE_PROFILES_COMMIT: &str = "07e1f670818917d74e9a94367080f51ae6365bfa";
 
+/// The commit of the OpenNLP addons, on their `main` branch, whose
+/// liblinear add-on (`liblinear-addon`) the generator runs. Its classes are
+/// in the default package; the container compiles them from this commit into
+/// a jar of their own.
+pub const LIBLINEAR_ADDON_COMMIT: &str = "84631d0111629110ebf094eadb6e938bbf7d738f";
+
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP and addons commits, so an image built from other commits has
 /// another tag.
@@ -934,6 +940,7 @@ pub const ANNOTATORS: [&str; 42] = [
     "quantity",
     "temporal",
     "pii",
+    "pii-rewrite",
     "detokenize",
     "subwords",
     "unigram",
@@ -942,6 +949,7 @@ pub const ANNOTATORS: [&str; 42] = [
     "train",
     "train-events",
     "train-langdetect",
+    "train-liblinear",
     "formats",
     "evaluate",
     "masc",
@@ -969,8 +977,9 @@ pub const ANNOTATORS: [&str; 42] = [
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
 /// normalizers, the number scan, the money, quantity, temporal and PII
-/// annotators, the detokenizer, the WordPiece encoder, the unigram
-/// segmenter, the BPE trainer and the lattice tokenizer, which ask no model.
+/// annotators, the PII rewrites, the detokenizer, the WordPiece encoder,
+/// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
+/// ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
@@ -999,8 +1008,8 @@ pub const TEMPORAL_INPUT_SET: &str = "temporal";
 pub const SVM_DOCCAT_INPUT_SET: &str = "svm-doccat";
 pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
 
-/// The input set the PII packs run on. They run on no other set, and the
-/// other annotators do not run on this one.
+/// The input set the PII packs and the PII rewrites run on. They run on no
+/// other set, and the other annotators do not run on this one.
 pub const PII_INPUT_SET: &str = "pii";
 
 /// The rate snapshot the money conversion reads: a directory beside the
@@ -1023,6 +1032,7 @@ mod tests {
         assert!(is_lower_hex(ADDONS_COMMIT, 40), "{ADDONS_COMMIT}");
         assert!(is_lower_hex(STRING_PATTERN_COMMIT, 40), "{STRING_PATTERN_COMMIT}");
         assert!(is_lower_hex(PLACE_PROFILES_COMMIT, 40), "{PLACE_PROFILES_COMMIT}");
+        assert!(is_lower_hex(LIBLINEAR_ADDON_COMMIT, 40), "{LIBLINEAR_ADDON_COMMIT}");
         assert!(IMAGE_TAG.contains(&format!("opennlp-{}", &OPENNLP_COMMIT[..12])));
         assert!(IMAGE_TAG.ends_with(&format!("addons-{}", &ADDONS_COMMIT[..12])));
     }
@@ -1060,6 +1070,10 @@ mod tests {
         assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
         let profiles = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PlaceProfilesGolden.java");
         assert!(profiles.contains(&format!("PROFILES_COMMIT = \"{PLACE_PROFILES_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG LIBLINEAR_ADDON_COMMIT={LIBLINEAR_ADDON_COMMIT}\n")));
+        let liblinear = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/LiblinearTrainGolden.java");
+        assert!(liblinear.contains(&format!("ADDON_COMMIT = \"{LIBLINEAR_ADDON_COMMIT}\";")));
+        assert!(liblinear.contains("ANNOTATOR = \"train-liblinear\""));
     }
 
     #[test]
@@ -1229,6 +1243,24 @@ mod tests {
         let temporal = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
         assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
         assert!(temporal.contains("ANNOTATOR = \"temporal\""));
+    }
+
+    #[test]
+    fn the_pii_packs_and_rewrites_have_their_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&PII_INPUT_SET));
+        for annotator in ["pii", "pii-rewrite"] {
+            assert!(ANNOTATORS.contains(&annotator));
+            assert!(!DUMPED_ANNOTATORS.contains(&annotator));
+        }
+        let pii = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PiiGolden.java");
+        assert!(pii.contains(&format!("INPUT_SET = \"{PII_INPUT_SET}\"")));
+        assert!(pii.contains("ANNOTATOR = \"pii\""));
+        let rewrite = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PiiRewriteGolden.java");
+        assert!(rewrite.contains("ANNOTATOR = \"pii-rewrite\""));
+        assert!(rewrite.contains("Set.of(PiiGolden.INPUT_SET)"));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains("annotators.addAll(PiiGolden.all());"));
+        assert!(runs.contains("annotators.addAll(PiiRewriteGolden.all());"));
     }
 
     #[test]

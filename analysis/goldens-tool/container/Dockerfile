@@ -1,6 +1,7 @@
 # The container that makes the golden layer files: a pinned JDK, OpenNLP built
 # from a pinned commit of the fork, the numeric and geo modules of the OpenNLP addons
 # built from a pinned commit, and the generator in ../java.
+# The liblinear add-on of the addons is compiled into a jar of its own beside them.
 #
 # Build it with `turbo-goldens image` (analysis/goldens-tool/README.md), which
 # passes ../java as the build context. The base image digest and the commits
@@ -117,11 +118,29 @@ RUN GIT_LFS_SKIP_SMUDGE=1 git fetch -q --depth 1 origin "$PLACE_PROFILES_COMMIT"
 COPY . /generator
 RUN /opennlp/mvnw -q -f /generator/pom.xml package
 
+# The liblinear add-on of the OpenNLP addons, on their main branch: its three
+# classes are in the default package, which the generator cannot import, so
+# they are compiled from this commit, against the jars the generator's build
+# copied to target/lib (OpenNLP and liblinear-java), into a jar of their own.
+# The generator loads it in a class loader of its own for the liblinear
+# trainer goldens (LiblinearTrainGolden.java) and checks the commit written
+# beside it.
+ARG LIBLINEAR_ADDON_COMMIT=84631d0111629110ebf094eadb6e938bbf7d738f
+WORKDIR /liblinear-addon
+RUN GIT_LFS_SKIP_SMUDGE=1 git -C /addons fetch -q --depth 1 origin "$LIBLINEAR_ADDON_COMMIT" \
+ && mkdir src classes \
+ && for f in LiblinearModel LiblinearModelSerializer LiblinearTrainer; do \
+      git -C /addons show "$LIBLINEAR_ADDON_COMMIT:liblinear-addon/src/main/java/$f.java" > "src/$f.java"; \
+    done \
+ && javac -encoding UTF-8 -d classes -cp '/generator/target/lib/*' src/*.java \
+ && jar cf liblinear-addon.jar -C classes . \
+ && echo "$LIBLINEAR_ADDON_COMMIT" > commit
+
 # The entrypoint passes any arguments given after the image name on to the
 # generator; the driver passes --dumps so the decision point dumps are written
 # beside the goldens.
 RUN printf '%s\n' '#!/bin/sh' \
-      'exec java -Dturbo.goldens.stringPatternJar=/string-pattern/string-pattern.jar -Dturbo.goldens.hunspellJar=/hunspell/hunspell.jar -jar /generator/target/turbo-goldens-java.jar /inputs /models /fixtures /out "$(cat /opennlp.commit)" "$@"' \
+      'exec java -Dturbo.goldens.stringPatternJar=/string-pattern/string-pattern.jar -Dturbo.goldens.hunspellJar=/hunspell/hunspell.jar -Dturbo.goldens.liblinearJar=/liblinear-addon/liblinear-addon.jar -jar /generator/target/turbo-goldens-java.jar /inputs /models /fixtures /out "$(cat /opennlp.commit)" "$@"' \
       > /usr/local/bin/turbo-goldens-java \
  && chmod 0755 /usr/local/bin/turbo-goldens-java
 

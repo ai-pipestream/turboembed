@@ -1,0 +1,65 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/german	113	111	e32a4213e4001ec2c47886e11da17717363d81f5d5b100507de304c1286f57d1
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	all-structured
+layer	turbo:view	text	35	start:u32	end:u32	with:str
+25	26	*
+26	27	*
+27	28	*
+28	29	*
+30	31	*
+31	32	*
+32	33	*
+33	34	*
+35	36	*
+36	37	*
+37	38	*
+38	39	*
+40	41	*
+41	42	*
+42	43	*
+43	44	*
+45	46	*
+46	47	*
+47	48	*
+48	49	*
+50	51	*
+51	52	*
+96	97	*
+97	98	*
+98	99	*
+99	100	*
+101	102	*
+102	103	*
+103	104	*
+104	105	*
+105	106	*
+106	107	*
+107	108	*
+109	110	*
+110	111	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Bitte überweisen Sie an ########################### und schreiben Sie an büro@example.de oder ###############.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize		mentions must not overlap: [24..51) and [39..51)
+hmac		mentions must not overlap: [24..51) and [39..51)
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	0	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	3	type:str	mentions:u32	distinct:u32	samples:str
+email	1	1	EMAIL-d0d506bf4ae9f414
+iban	1	1	IBAN-12d2a2b8c32b1193
+phone	1	1	PHONE-d93b376c99f48a80
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+email: 1 mentions, 1 distinct [EMAIL-d0d506bf4ae9f414]\niban: 1 mentions, 1 distinct [IBAN-12d2a2b8c32b1193]\nphone: 1 mentions, 1 distinct [PHONE-d93b376c99f48a80]
+end	turbo:pii-audit-report

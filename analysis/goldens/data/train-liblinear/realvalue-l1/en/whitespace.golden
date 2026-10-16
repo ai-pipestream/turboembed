@@ -1,0 +1,76 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/whitespace	153	153	76c94cbd1ae0247501def8fdbabdfc55204f1feee1130aff2020cfd2afd98a7a
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	bias	1
+config	c	2
+config	eps	0.01
+config	events	sorted
+config	p	0
+config	solverType	L1R_LR
+config	source	realvalue
+layer	turbo:events	document	3	outcome:str	context:str	values:str
+short	The ends first here. paragraph	1.0 1.0 1.0 1.0 1.0
+long	The a after line only paragraph second spaces. starts with	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+long	And a and before came line one. space tab this with	1.0 3.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:liblinear-text	document	28	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 21
+bias 1.0000000000000000
+w
+0 
+0 
+-1.0000889005813408e-12 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+-1.0963391237626978 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+1439029224cbc00788ed9f0e772fee79add3dfc274a91b179252593b27f9dd60	432
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	12	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe0000000000000 0.5
+0	given	1	3fe0000000000000 0.5
+0	reversed	0	3fe0000000000000 0.5
+0	reversed	1	3fe0000000000000 0.5
+1	given	0	3fd006fcb4924e1c 0.25042646058975193
+1	given	1	3fe7fc81a5b6d8f2 0.7495735394102481
+1	reversed	0	3fd006fcb4924e1c 0.25042646058975193
+1	reversed	1	3fe7fc81a5b6d8f2 0.7495735394102481
+2	given	0	3fd006fcb4924e1c 0.25042646058975193
+2	given	1	3fe7fc81a5b6d8f2 0.7495735394102481
+2	reversed	0	3fd006fcb4924e1c 0.25042646058975193
+2	reversed	1	3fe7fc81a5b6d8f2 0.7495735394102481
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	6	event:u32	order:str	outcome:str
+0	given	short
+0	reversed	short
+1	given	long
+1	reversed	long
+2	given	long
+2	reversed	long
+end	turbo:liblinear-best

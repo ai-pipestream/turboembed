@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/long-word-emoji	299	297	5dbd5bc952a059e356487829312c19b1326aefb63f1d30ac6deff30397496ebb
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	1
+config	c	1
+config	eps	0.01
+config	events	sorted
+config	p	0
+config	solverType	L2R_LR
+config	source	postag
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+L296	bias n=*SE* p=*SB* pre=aa suf=bb w=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa😀bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb	
+end	turbo:events
+layer	turbo:liblinear-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Training data must contain more than one outcome
+end	turbo:liblinear-error

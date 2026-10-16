@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/it	197	194	b62b80bfc802d2090eb6659bc69dda051e07499cd9c8ac88a7cbe182c464f283
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	bias	1
+config	c	2
+config	eps	0.01
+config	events	sorted
+config	p	0
+config	solverType	L1R_LR
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Il Liguria. Mia Ogni Perché al anche bellissimo. estate famiglia focaccia il in la lungo, ma mare non nonna nostra paesaggio per pranzo. prepara quest'anno? sempre tu va viaggio vieni è	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 2.0
+end	turbo:events
+layer	turbo:liblinear-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Training data must contain more than one outcome
+end	turbo:liblinear-error
