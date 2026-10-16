@@ -171,4 +171,28 @@ fn discontinuous_fragments_coalesce_when_normalization_deletes_the_gap() {
     let (projected,) = StructureProjector.annotate((&clean, &structure)).unwrap();
     assert!(!projected.spans.is_discontinuous(Ix::new(0)));
     assert_eq!(&clean.text()[projected.spans.get(Ix::new(0)).range()], "leftright");
+
+    let inv_text = "Start here.\u{200B}Resume.";
+    let mut inv_doc = Document::new(inv_text);
+    let mut inv_spans = Spans::new(ViewId::SOURCE);
+    inv_spans.push_fragments(&[Span::new(0, 11), Span::new(14, 21)]);
+    inv_doc
+        .add(
+            &Key::<Structure>::named("source"),
+            Structure { spans: inv_spans, kind: vec![Block::Paragraph], parent: vec![None], depth: vec![0] },
+            Provenance::by("test"),
+        )
+        .unwrap();
+    let pipeline = Analyzer::builder()
+        .given(Key::<Structure>::named("source"))
+        .step(Bound::new(NormalizeStep::new(turbo_normalize::Invisible)).write(0, "clean"))
+        .step(Bound::new(StructureProjector).read(0, "clean").read(1, "source"))
+        .build()
+        .unwrap();
+    let mut docs = [inv_doc];
+    assert_eq!(pipeline.run(&mut docs)[0], Ok(()));
+    let projected = docs[0].get::<Structure>().unwrap();
+    let clean_text = docs[0].text(projected.spans.view());
+    assert!(!projected.spans.is_discontinuous(Ix::new(0)));
+    assert_eq!(&clean_text[projected.spans.get(Ix::new(0)).range()], "Start here.Resume.");
 }

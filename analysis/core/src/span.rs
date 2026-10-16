@@ -67,9 +67,12 @@ pub enum Overlap {
     /// overlap (`end[i - 1] <= start[i]`).
     #[default]
     None,
-    /// Spans may nest (`a.contains(b)` or `b.contains(a)` whenever `a` and
-    /// `b` overlap), and never partially cross (`a.start < b.start &&
-    /// b.start < a.end && a.end < b.end`).
+    /// Spans and individual fragments never partially cross (`a.start <
+    /// b.start && b.start < a.end && a.end < b.end`), and whenever two
+    /// items share covered bytes, every fragment of one item lies inside a
+    /// fragment of the other (whilst a separate item in the uncovered gap
+    /// of a discontinuous item may overlap its bounding envelope without
+    /// sharing covered bytes).
     Nesting,
     /// Any valid spans in the view, including partially crossing spans.
     Any,

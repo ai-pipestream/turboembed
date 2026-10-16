@@ -121,10 +121,12 @@ impl<'a> Input<'a> {
             return Err(MatchError::Misaligned { layer: "opennlp:entities", len: past, tokens: self.len() });
         }
         if entities.spans.len() != entities.tokens.len() || entities.kind.len() != entities.tokens.len() {
+            let bad =
+                if entities.spans.len() != entities.tokens.len() { entities.spans.len() } else { entities.kind.len() };
             return Err(MatchError::Misaligned {
                 layer: "opennlp:entities",
-                len: entities.spans.len().min(entities.kind.len()),
-                tokens: entities.tokens.len(),
+                len: if bad == self.len() { entities.tokens.len() } else { bad },
+                tokens: self.len(),
             });
         }
         self.entities = Some(entities);

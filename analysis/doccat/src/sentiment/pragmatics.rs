@@ -816,7 +816,7 @@ impl Annotator for PragmaticsAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let mut h = crate::hash::FoldHasher::default();
         self.lexicon.sha256_hex().hash(&mut h);
         self.min_positive_polarity.to_bits().hash(&mut h);
         self.min_negative_polarity.to_bits().hash(&mut h);

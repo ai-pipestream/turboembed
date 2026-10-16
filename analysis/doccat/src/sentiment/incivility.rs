@@ -358,6 +358,18 @@ impl Annotator for IncivilityAnnotator {
         (view, tokens, sentences, chunks, structure, sent_vecs, chunk_vecs): Refs<'_, Self>,
     ) -> Result<Self::Writes, Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        if tokens.spans.view() != view.id() {
+            return Err(fail("tokens are in another view".into()));
+        }
+        if sentences.is_some_and(|s| s.spans.view() != view.id()) {
+            return Err(fail("sentences are in another view".into()));
+        }
+        if chunks.is_some_and(|c| c.spans.view() != view.id()) {
+            return Err(fail("chunks are in another view".into()));
+        }
+        if structure.is_some_and(|st| st.spans.view() != view.id()) {
+            return Err(fail("structure is in another view".into()));
+        }
         let text = view.text();
         let n_tokens = tokens.len();
         let (tok_starts, tok_ends) = tokens.spans.columns();

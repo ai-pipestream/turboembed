@@ -821,6 +821,15 @@ impl Annotator for RuleAspectSentiment {
         (view, sentences, tokens, deps, phrase_chunks, pos_tags): Refs<'_, Self>,
     ) -> Result<Self::Writes, Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        if sentences.spans.view() != view.id() {
+            return Err(fail("sentences are in another view".into()));
+        }
+        if tokens.spans.view() != view.id() {
+            return Err(fail("tokens are in another view".into()));
+        }
+        if phrase_chunks.is_some_and(|c| c.spans.view() != view.id()) {
+            return Err(fail("phrase chunks are in another view".into()));
+        }
         let text = view.text();
         let n_tokens = tokens.len();
         let (tok_starts, tok_ends) = tokens.spans.columns();
@@ -997,7 +1006,7 @@ impl Annotator for RuleAspectSentiment {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let mut h = crate::hash::FoldHasher::default();
         Self::ID.hash(&mut h);
         self.categories.name.hash(&mut h);
         for i in 0..self.categories.len() {

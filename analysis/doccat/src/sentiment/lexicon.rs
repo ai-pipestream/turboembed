@@ -1262,7 +1262,7 @@ impl Annotator for LexiconSentiment {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let mut h = crate::hash::FoldHasher::default();
         self.negation_mode.hash(&mut h);
         self.use_opennlp_emoji.hash(&mut h);
         self.alpha.to_bits().hash(&mut h);
