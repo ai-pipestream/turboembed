@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use turbo_analysis::export::{ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer, get_spans, put_spans};
 use turbo_analysis::{Edges, Ix, Layer, Overlap, Span, Spans, TagSet, ViewId};
 
 /// What one span of an abbreviation layer is.
@@ -87,6 +88,41 @@ impl Layer for Abbreviations {
             last = span;
         }
         Ok(())
+    }
+}
+
+impl LayerCodec for Abbreviations {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        for form in &self.form {
+            w.u8(match form {
+                AbbreviationForm::Short => 0,
+                AbbreviationForm::Long => 1,
+                AbbreviationForm::Mention => 2,
+            });
+        }
+        Ok(w.finish())
+    }
+
+    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let mut form = Vec::with_capacity(spans.len());
+        for _ in 0..spans.len() {
+            form.push(match r.u8()? {
+                0 => AbbreviationForm::Short,
+                1 => AbbreviationForm::Long,
+                2 => AbbreviationForm::Mention,
+                tag => {
+                    return Err(ExportError::Malformed(format!("an abbreviation form tag of {tag}")));
+                }
+            });
+        }
+        if !r.is_done() {
+            return Err(ExportError::Malformed("trailing bytes in an abbreviations payload".into()));
+        }
+        Ok(Abbreviations { spans, form })
     }
 }
 

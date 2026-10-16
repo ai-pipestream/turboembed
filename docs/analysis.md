@@ -520,6 +520,65 @@ skipped: no language evidence`, or `opennlp:tokens failed: ...`. So
 "skipped" is never mistaken for "found nothing", and a stored document
 says why a layer is missing.
 
+## Document graph export
+
+A search index or a coordinator that is not the process which ran the
+pipeline holds a document as a document graph
+(`turbo_analysis::export`): one typed, versioned record with the
+source bytes and the alignment that decoded them, every view with its
+parent and alignment edits, and one record per layer instance in the
+order the layers were added, each with its full layer name, instance
+name, `SCHEMA`, status and provenance. An item is named by a `NodeRef`
+(layer name, instance name and index, printed as
+`turbo:abbreviations@gold#2`), so an edge endpoint or a group member
+resolves against exactly the instance it was made on, and every span
+still maps through its view's alignment to exact source bytes.
+
+Internal layers stay typed Rust types on both sides. A layer crosses
+the boundary only through a `LayerCodec` registered for its type in a
+`Codecs` set; its record body is that codec's bytes, written and read
+with the boundary's `Writer` and `Reader` (`put_spans` and
+`put_tagset` cover the shared span and tag columns). Codecs ship for
+`Edges<From, To>` and `Groups<L>` in core and for `Abbreviations` in
+`turbo-analysis-layers`; an add-on registers its own layer types the
+same way. A layer with no codec refuses the whole export or import
+with `ExportError::NoCodec` rather than being dropped or flattened,
+and a skipped or failed layer needs a codec too, so its status and
+provenance are never silently lost either.
+
+Two numbers version a graph: `FORMAT_VERSION` for the boundary (the
+record shapes and the canonical byte encoding of
+`DocumentGraph::to_bytes` together) and each layer record's schema,
+copied from `Layer::SCHEMA`. Import is atomic and strict. The format
+version, every layer schema, codec coverage, duplicate instances,
+view parents, provenance references and, through the codecs, every
+edge and group endpoint are checked, and any failure returns a typed
+`ExportError` (`UnsupportedVersion`, `IncompatibleSchema`, `NoCodec`,
+`DanglingReference`, `DanglingEndpoint`, `UnknownView`,
+`InvalidSource`, `InvalidLayer`, `Malformed`) with no document: a
+consumer that meets a newer format or schema upgrades, and there is
+no partial recovery mode. Skipped and failed entries import back as
+skipped and failed with the same reasons and the same errors, variant
+for variant. A complete layer's provenance references must name
+instances the graph holds; a failed layer's may name the required
+input whose absence failed it, which no record holds, and those
+rebuild by layer type alone. The source view's provenance is fixed
+by the format (`turbo:source`) and a record claiming another is
+refused instead of being silently replaced. Rebuilding provenance
+turns its name strings into the `&'static str` the types hold through
+a process-wide interner that leaks one copy of each distinct name
+ever imported, so an importer that runs without end leaks the
+vocabulary of annotator, version and instance names, not a copy per
+document. The byte encoding is deterministic for a given graph,
+so a round trip through export, bytes and import re-exports to the
+same bytes (`analysis/core/tests/graph_export.rs` pins this against a
+checked-in fixture, and the `document_graph` example in
+`turbo-analysis-layers` shows a caller resolving nodes after the
+round trip). The encoding is this boundary's transport form at
+`FORMAT_VERSION`, not a persistence format with migration promises,
+and the diagnostic trace JSON under `docs/receipts/document-trace` is
+neither: it does not feed this boundary.
+
 ## Annotators
 
 An `Annotator` declares what it reads and writes as tuples of layer

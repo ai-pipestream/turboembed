@@ -14,6 +14,7 @@ pub mod annotate;
 pub mod bytes;
 pub mod doc;
 pub mod error;
+pub mod export;
 pub mod graph;
 pub mod layer;
 pub mod markup;
@@ -28,6 +29,11 @@ pub use annotate::{Annotator, Bound, Refs};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
 pub use doc::{Document, Status, View};
 pub use error::Error;
+pub use export::{
+    Codecs, DocumentGraph, ErrorRecord, ExportCx, ExportError, FORMAT_VERSION, ImportCx, LayerCodec, LayerRecord,
+    LayerRef, NodeRef, ProvenanceRecord, Reader, SourceRecord, StatusRecord, ViewRecord, Writer, export, get_spans,
+    get_tagset, import, layer_ref, node_ref, put_spans, put_tagset,
+};
 pub use graph::{Edge, Edges, Groups};
 pub use layer::{Anchor, Execution, Key, KeyId, Layer, LayerName, ModelRef, Provenance, Tag, TagSet};
 pub use markup::{MarkupError, MarkupText, TagKind, TagSpan, TextRun, TextRunKind};
