@@ -25,6 +25,7 @@ const FED: &[&str] = &[
     "alphanumeric",
     "bpe",
     "codec",
+    "corpora",
     "descriptor-errors",
     "detokenizer",
     "edge",

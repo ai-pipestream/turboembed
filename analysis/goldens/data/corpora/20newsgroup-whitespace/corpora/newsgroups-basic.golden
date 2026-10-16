@@ -1,0 +1,529 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/newsgroups-basic	3804	3799	cfb239fc933104df7c901a942035a382d30fffa938daf746438ca38f6a25141b
+annotator	opennlp.tools.formats.TwentyNewsgroupSampleStream	read
+config	dataDir	/tmp/turbo-20newsgroup
+config	tokenizer	whitespace
+layer	turbo:samples	document	16	written:str
+sci.example.waves\tFrom: nobody@host.invalid Malformed UTF-8: � and cé and €.
+rec.example.boats\tFrom: writer50163@host1.invalid (A. Writer) Subject: Re: We sailed past the i Organization: None Lines: 3 We sailed past the island at dawn. > quoted line from an earlier post -- signature line
+comp.example.text\tFrom: writer50142@host2.invalid (A. Writer) Subject: Re: The patch fixes the Organization: None Lines: 3 The patch fixes the line endings. > quoted line from an earlier post -- signature line
+sci.example.waves\tFrom: writer50177@host0.invalid (A. Writer) Subject: Re: Wave height doubles Organization: None Lines: 3 Wave height doubles in the storm model. > quoted line from an earlier post -- signature line
+rec.example.boats\tFrom: writer50170@host2.invalid (A. Writer) Subject: Re: Look for a used outb Organization: None Lines: 3 Look for a used outboard motor. > quoted line from an earlier post -- signature line
+sci.example.waves\tFrom: writer50198@host3.invalid (A. Writer) Subject: Re: A question about swe Organization: None Lines: 3 A question about swell periods. > quoted line from an earlier post -- signature line
+comp.example.text\tFrom: writer50149@host3.invalid (A. Writer) Subject: Re: Try the newer releas Organization: None Lines: 3 Try the newer release first. > quoted line from an earlier post -- signature line
+sci.example.waves\tFrom: writer50184@host1.invalid (A. Writer) Subject: Re: The buoy data has ga Organization: None Lines: 3 The buoy data has gaps in March. > quoted line from an earlier post -- signature line
+alt.example.misc\tFrom: writer50107@host0.invalid (A. Writer) Subject: Re: Has anyone seen the Organization: None Lines: 3 Has anyone seen the comet this week? > quoted line from an earlier post -- signature line
+comp.example.text\tTabs, no-break spaces and ♪ tokens. Second paragraph.
+comp.example.text\tFrom: writer50128@host0.invalid (A. Writer) Subject: Re: Which editor keeps t Organization: None Lines: 3 Which editor keeps tabs as tabs? > quoted line from an earlier post -- signature line
+sci.example.waves\tFrom: writer50191@host2.invalid (A. Writer) Subject: Re: Tidal records go bac Organization: None Lines: 3 Tidal records go back fifty years. > quoted line from an earlier post -- signature line
+rec.example.boats\tFrom: writer50156@host0.invalid (A. Writer) Subject: Re: The hull needs a sec Organization: None Lines: 3 The hull needs a second coat of paint. > quoted line from an earlier post -- signature line
+comp.example.text\tFrom: writer50135@host1.invalid (A. Writer) Subject: Re: My script reads the Organization: None Lines: 3 My script reads the file twice; why? > quoted line from an earlier post -- signature line
+alt.example.misc\tFrom: writer50121@host2.invalid (A. Writer) Subject: Re: Thanks to everyone w Organization: None Lines: 3 Thanks to everyone who replied. > quoted line from an earlier post -- signature line
+alt.example.misc\tFrom: writer50114@host1.invalid (A. Writer) Subject: Re: The meeting moved to Organization: None Lines: 3 The meeting moved to Thursday evening. > quoted line from an earlier post -- signature line
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:listing	document	16	file:str
+rec.example.boats/50170
+rec.example.boats/50163
+rec.example.boats/50156
+alt.example.misc/50114
+alt.example.misc/50107
+alt.example.misc/50121
+comp.example.text/50142
+comp.example.text/50998
+comp.example.text/50149
+comp.example.text/50135
+comp.example.text/50128
+sci.example.waves/50191
+sci.example.waves/50198
+sci.example.waves/50177
+sci.example.waves/50184
+sci.example.waves/50999
+end	turbo:listing
+layer	turbo:files	document	16	file:str
+sci.example.waves/50999
+rec.example.boats/50163
+comp.example.text/50142
+sci.example.waves/50177
+rec.example.boats/50170
+sci.example.waves/50198
+comp.example.text/50149
+sci.example.waves/50184
+alt.example.misc/50107
+comp.example.text/50998
+comp.example.text/50128
+sci.example.waves/50191
+rec.example.boats/50156
+comp.example.text/50135
+alt.example.misc/50121
+alt.example.misc/50114
+end	turbo:files
+layer	turbo:sample-labels	document	16	label:str
+sci.example.waves
+rec.example.boats
+comp.example.text
+sci.example.waves
+rec.example.boats
+sci.example.waves
+comp.example.text
+sci.example.waves
+alt.example.misc
+comp.example.text
+comp.example.text
+sci.example.waves
+rec.example.boats
+comp.example.text
+alt.example.misc
+alt.example.misc
+end	turbo:sample-labels
+layer	turbo:sample-tokens	document	444	sample:u32	text:str
+0	From:
+0	nobody@host.invalid
+0	Malformed
+0	UTF-8:
+0	�
+0	and
+0	cé
+0	and
+0	€.
+1	From:
+1	writer50163@host1.invalid
+1	(A.
+1	Writer)
+1	Subject:
+1	Re:
+1	We
+1	sailed
+1	past
+1	the
+1	i
+1	Organization:
+1	None
+1	Lines:
+1	3
+1	We
+1	sailed
+1	past
+1	the
+1	island
+1	at
+1	dawn.
+1	>
+1	quoted
+1	line
+1	from
+1	an
+1	earlier
+1	post
+1	--
+1	signature
+1	line
+2	From:
+2	writer50142@host2.invalid
+2	(A.
+2	Writer)
+2	Subject:
+2	Re:
+2	The
+2	patch
+2	fixes
+2	the
+2	Organization:
+2	None
+2	Lines:
+2	3
+2	The
+2	patch
+2	fixes
+2	the
+2	line
+2	endings.
+2	>
+2	quoted
+2	line
+2	from
+2	an
+2	earlier
+2	post
+2	--
+2	signature
+2	line
+3	From:
+3	writer50177@host0.invalid
+3	(A.
+3	Writer)
+3	Subject:
+3	Re:
+3	Wave
+3	height
+3	doubles
+3	Organization:
+3	None
+3	Lines:
+3	3
+3	Wave
+3	height
+3	doubles
+3	in
+3	the
+3	storm
+3	model.
+3	>
+3	quoted
+3	line
+3	from
+3	an
+3	earlier
+3	post
+3	--
+3	signature
+3	line
+4	From:
+4	writer50170@host2.invalid
+4	(A.
+4	Writer)
+4	Subject:
+4	Re:
+4	Look
+4	for
+4	a
+4	used
+4	outb
+4	Organization:
+4	None
+4	Lines:
+4	3
+4	Look
+4	for
+4	a
+4	used
+4	outboard
+4	motor.
+4	>
+4	quoted
+4	line
+4	from
+4	an
+4	earlier
+4	post
+4	--
+4	signature
+4	line
+5	From:
+5	writer50198@host3.invalid
+5	(A.
+5	Writer)
+5	Subject:
+5	Re:
+5	A
+5	question
+5	about
+5	swe
+5	Organization:
+5	None
+5	Lines:
+5	3
+5	A
+5	question
+5	about
+5	swell
+5	periods.
+5	>
+5	quoted
+5	line
+5	from
+5	an
+5	earlier
+5	post
+5	--
+5	signature
+5	line
+6	From:
+6	writer50149@host3.invalid
+6	(A.
+6	Writer)
+6	Subject:
+6	Re:
+6	Try
+6	the
+6	newer
+6	releas
+6	Organization:
+6	None
+6	Lines:
+6	3
+6	Try
+6	the
+6	newer
+6	release
+6	first.
+6	>
+6	quoted
+6	line
+6	from
+6	an
+6	earlier
+6	post
+6	--
+6	signature
+6	line
+7	From:
+7	writer50184@host1.invalid
+7	(A.
+7	Writer)
+7	Subject:
+7	Re:
+7	The
+7	buoy
+7	data
+7	has
+7	ga
+7	Organization:
+7	None
+7	Lines:
+7	3
+7	The
+7	buoy
+7	data
+7	has
+7	gaps
+7	in
+7	March.
+7	>
+7	quoted
+7	line
+7	from
+7	an
+7	earlier
+7	post
+7	--
+7	signature
+7	line
+8	From:
+8	writer50107@host0.invalid
+8	(A.
+8	Writer)
+8	Subject:
+8	Re:
+8	Has
+8	anyone
+8	seen
+8	the
+8	Organization:
+8	None
+8	Lines:
+8	3
+8	Has
+8	anyone
+8	seen
+8	the
+8	comet
+8	this
+8	week?
+8	>
+8	quoted
+8	line
+8	from
+8	an
+8	earlier
+8	post
+8	--
+8	signature
+8	line
+9	Tabs,
+9	no-break
+9	spaces
+9	and
+9	♪
+9	tokens.
+9	Second
+9	paragraph.
+10	From:
+10	writer50128@host0.invalid
+10	(A.
+10	Writer)
+10	Subject:
+10	Re:
+10	Which
+10	editor
+10	keeps
+10	t
+10	Organization:
+10	None
+10	Lines:
+10	3
+10	Which
+10	editor
+10	keeps
+10	tabs
+10	as
+10	tabs?
+10	>
+10	quoted
+10	line
+10	from
+10	an
+10	earlier
+10	post
+10	--
+10	signature
+10	line
+11	From:
+11	writer50191@host2.invalid
+11	(A.
+11	Writer)
+11	Subject:
+11	Re:
+11	Tidal
+11	records
+11	go
+11	bac
+11	Organization:
+11	None
+11	Lines:
+11	3
+11	Tidal
+11	records
+11	go
+11	back
+11	fifty
+11	years.
+11	>
+11	quoted
+11	line
+11	from
+11	an
+11	earlier
+11	post
+11	--
+11	signature
+11	line
+12	From:
+12	writer50156@host0.invalid
+12	(A.
+12	Writer)
+12	Subject:
+12	Re:
+12	The
+12	hull
+12	needs
+12	a
+12	sec
+12	Organization:
+12	None
+12	Lines:
+12	3
+12	The
+12	hull
+12	needs
+12	a
+12	second
+12	coat
+12	of
+12	paint.
+12	>
+12	quoted
+12	line
+12	from
+12	an
+12	earlier
+12	post
+12	--
+12	signature
+12	line
+13	From:
+13	writer50135@host1.invalid
+13	(A.
+13	Writer)
+13	Subject:
+13	Re:
+13	My
+13	script
+13	reads
+13	the
+13	Organization:
+13	None
+13	Lines:
+13	3
+13	My
+13	script
+13	reads
+13	the
+13	file
+13	twice;
+13	why?
+13	>
+13	quoted
+13	line
+13	from
+13	an
+13	earlier
+13	post
+13	--
+13	signature
+13	line
+14	From:
+14	writer50121@host2.invalid
+14	(A.
+14	Writer)
+14	Subject:
+14	Re:
+14	Thanks
+14	to
+14	everyone
+14	w
+14	Organization:
+14	None
+14	Lines:
+14	3
+14	Thanks
+14	to
+14	everyone
+14	who
+14	replied.
+14	>
+14	quoted
+14	line
+14	from
+14	an
+14	earlier
+14	post
+14	--
+14	signature
+14	line
+15	From:
+15	writer50114@host1.invalid
+15	(A.
+15	Writer)
+15	Subject:
+15	Re:
+15	The
+15	meeting
+15	moved
+15	to
+15	Organization:
+15	None
+15	Lines:
+15	3
+15	The
+15	meeting
+15	moved
+15	to
+15	Thursday
+15	evening.
+15	>
+15	quoted
+15	line
+15	from
+15	an
+15	earlier
+15	post
+15	--
+15	signature
+15	line
+end	turbo:sample-tokens

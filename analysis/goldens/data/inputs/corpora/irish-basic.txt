@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sentences>
+<!-- Sentences in the layout of the Irish Sentence Bank, written for this project. -->
+<sentence source="sample one">
+<flex slot="1" lemma="madra"/>
+<flex slot="2" lemma="mór"/>
+<translation>The big dog.</translation>
+<original><token slot="1">Madra</token> <token slot="2">mór</token>.</original>
+</sentence>
+<sentence source="two">
+<translation><!--c-->unused</translation>
+<original>Tá <token slot="1">sé</token>   ag cur báistí ,<token slot="2">inniu</token>
+</original>
+<flex slot="1" lemma="sé"/>
+</sentence>
+<sentence source="three"><original>Gan comharthaí &amp; 😀<token slot="3">x</token></original><original>Second original restarts</original><flex slot="3" lemma="x"/><flex slot="3" lemma="y"/></sentence>
+<sentence source="empty"><original/></sentence>
+<sentence source="tokens only"><original><token slot="1">a</token><token slot="1">b</token><token slot="2"><b>bold</b> tail</token></original><flex slot="2" lemma="z"/><flex slot="1" lemma="w"/></sentence>
+</sentences>

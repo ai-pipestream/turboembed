@@ -1,0 +1,8 @@
+# A text whose root differs in case, written for this project.
+
+@@ file text.xml
+<TEICORPUS><TEI><text xml:id="t"><body><div xml:id="d"><p xml:id="p">Tak.</p></div></body></text></TEI></TEICORPUS>
+@@ end
+@@ file ann_segmentation.xml
+<teiCorpus><TEI><text><body><p><s xml:id="n1"><seg corresp="t#r(p,0,3)" xml:id="n1-0"/></s></p></body></text></TEI></teiCorpus>
+@@ end

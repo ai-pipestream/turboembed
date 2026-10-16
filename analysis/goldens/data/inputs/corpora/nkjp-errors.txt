@@ -1,0 +1,8 @@
+# Pointers OpenNLP fails on, in the layout of the NKJP corpus, written for this project.
+
+@@ file text.xml
+<teiCorpus><TEI><text xml:id="t"><body><div xml:id="d"><p xml:id="p">Dobre zdanie. Drugie dobre.</p></div></body></text></TEI></teiCorpus>
+@@ end
+@@ file ann_segmentation.xml
+<teiCorpus><TEI><text><body><p><s xml:id="e1"><seg corresp="t#r(p,0,13)" xml:id="e1-0"/></s><s xml:id="e2"><seg corresp="t#r(missing,0,3)" xml:id="e2-0"/></s><s xml:id="e3"><seg corresp="t#r(p,14,13)" xml:id="e3-0"/></s><s xml:id="e4"><seg corresp="t#r(p,5,-1)" xml:id="e4-0"/></s><s xml:id="e5"><seg corresp="t#r(p,-2,3)" xml:id="e5-0"/></s><s xml:id="e6"><seg corresp="t#r(p,20,30)" xml:id="e6-0"/></s><s xml:id="e7"><seg corresp="t#r(p,14,6)" xml:id="e7-0"/><seg corresp="t#r(p,0,5)" xml:id="e7-1"/><seg corresp="t#r(missing,0,1)" xml:id="e7-2"/></s><s xml:id="e8"><seg corresp="t#r(p,14,6)" xml:id="e8-0"/></s><s xml:id="e9"><seg corresp="t#r(p,6,7)" xml:id="e9-0"/><seg corresp="t#r(p,0,3)" xml:id="e9-1"/></s><s xml:id="e10"><seg corresp="t#r(p,0,5)" xml:id="e10-0"/></s></p></body></text></TEI></teiCorpus>
+@@ end
