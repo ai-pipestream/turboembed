@@ -1,0 +1,18 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-unpenned	2989	2989	6942f4f6f09764acce64b0c9c802b2ba3d7033859096436f7af31f886730badc
+annotator	opennlp.tools.formats.masc.MascNamedEntitySampleStream	read
+layer	turbo:samples	document	0	pass:u32	written:str
+end	turbo:samples
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:open-errors	document	1	class:str	message:str
+java.io.IOException	None of the documents has named entity labelsCannot invoke "opennlp.tools.formats.masc.MascDocument.hasNamedEntities()" because "this.buffer" is null
+end	turbo:open-errors
+layer	turbo:sample-tokens	document	0	sample:u32	text:str
+end	turbo:sample-tokens
+layer	turbo:names	document	0	sample:u32	start:u32	end:u32	type:str	nulls:u32
+end	turbo:names
