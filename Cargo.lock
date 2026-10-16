@@ -2292,6 +2292,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-chunker",
+ "turbo-normalize",
 ]
 
 [[package]]

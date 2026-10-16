@@ -16,8 +16,11 @@
 mod line;
 mod marker;
 mod parse;
+mod project;
 mod table;
 mod tree;
+
+pub use project::StructureProjector;
 
 use turbo_analysis::annotate::Step;
 use turbo_analysis::registry::{Provider, Spec};
