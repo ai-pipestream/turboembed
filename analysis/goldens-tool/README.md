@@ -182,6 +182,7 @@ a directory with the same model run without them, and its options are
 | `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
 | `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
 | `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
+| `conllu` (`ConlluDependencySampleStream` of the `ready/agents-md` branch, `ConlluCorefDocumentStream` of the addons' `ready/coref` branch) | `dependency-u`, `dependency-x`, `dependency-u+legacy`; `corefud-u`, `corefud-x` | `conllu`, the inputs whose id starts with `dependency-` or `corefud-` | `tagset u` or `x`, `whitespace legacy`; `branchCommit`, `addonsCommit` |
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
 | `corpora` (the sentence, language and document corpus streams) | `moses`, `letsmt`, `letsmt-detokenized`, `nkjp`, `irish-sentences`, `irish-tokens`, `leipzig-2x3`, `leipzig-1x4-skip2`, `20newsgroup-whitespace` (also `+legacy`), `20newsgroup-simple` | `corpora`, the inputs whose id starts with the corpus's prefix (`moses-`, `letsmt-`, `nkjp-`, `irish-`, `leipzig-`, `newsgroups-`) | `detokenizer`; `sentencesPerSample`, `samplesPerLanguage`, `samplesToSkip`; `tokenizer`, `dataDir`, `whitespace legacy` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
@@ -534,6 +535,40 @@ sample's own text and the UTF-8 byte span of each token or sentence in
 it) and `turbo:sample-labels` (a category or language). The streams ask
 no model, so there are no dumps. `analysis/formats/tests/opennlp.rs`
 compares the Rust readers with these goldens.
+
+## CoNLL-U dependency and CorefUD goldens
+
+`conllu/<run>/conllu/<id>.golden` is what one of two CoNLL-U readers of
+branches later than the image's commits read from
+`inputs/conllu/<id>.txt`. The image compiles each from its branch into a
+jar of its own beside the generator, writes the commit beside the jar,
+and the entrypoint names the jar in a system property; the generator
+checks the commit and loads the jar's classes before its own OpenNLP
+jars (`BranchJar`).
+
+- `ConlluDependencySampleStream` (`ConlluDependencyGolden`), with the
+  `DependencySample`, `DependencyTree` and `DependencyArc` it builds, of
+  the fork's `ready/agents-md` branch (`CONLLU_DEPENDENCY_COMMIT` in
+  `src/recipe.rs`, `-Dturbo.goldens.conlluDependencyJar`), over the
+  `dependency-` inputs, in each tag set and for the universal tags also
+  in the legacy whitespace mode. The layers are those of the format
+  goldens' part-of-speech samples, `turbo:samples`, `turbo:read-errors`,
+  `turbo:sample-tokens` and `turbo:sample-tags`, with
+  `turbo:sample-heads` (the head's index plus one, 0 for the root) and
+  `turbo:sample-relations` aligned to the tokens.
+- `ConlluCorefDocumentStream` (`CorefUdGolden`) of the OpenNLP addons'
+  `ready/coref` branch, with `CorefAnnotator` and `CorefMention`
+  (`COREF_ADDONS_COMMIT`, `-Dturbo.goldens.corefJar`), over the
+  `corefud-` inputs, in each tag set. Per document read it records the
+  text (`turbo:coref-texts`), and as UTF-8 byte spans into that text the
+  sentences, the tokens with their tags, the gold chain layer's mentions
+  with their chain, kind and entity, and the speakers
+  (`turbo:coref-sentences`, `turbo:coref-tokens`, `turbo:coref-tags`,
+  `turbo:coref-mentions`, `turbo:coref-speakers`); each exception goes in
+  `turbo:read-errors` with the number of documents before it.
+
+`analysis/formats/tests/conllu_jvm.rs` compares the Rust readers with
+these goldens.
 
 ## MASC goldens
 
