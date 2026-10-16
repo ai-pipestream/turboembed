@@ -153,6 +153,6 @@ impl Annotator for BilstmPosTagger {
     }
 
     fn model(&self) -> Option<ModelRef> {
-        None
+        Some(self.model.model_ref().clone())
     }
 }

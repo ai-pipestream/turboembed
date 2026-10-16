@@ -2146,6 +2146,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
  "turbo-train",

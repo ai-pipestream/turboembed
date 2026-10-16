@@ -72,11 +72,11 @@ pub struct NeuralSequence {
 }
 
 impl NeuralSequence {
-    /// Creates a sequence whose score is the sum of log-probabilities (`ln(p)`), matching OpenNLP's `Sequence(List<String>, double[])`.
+    /// Creates a sequence whose score is the sum of log-probabilities (`StrictMath.log(p)`), matching OpenNLP's `Sequence(List<String>, double[])`.
     pub fn from_outcomes_and_probs(outcomes: Vec<String>, probs: Vec<f64>) -> Self {
         let mut score = 0.0f64;
         for &p in &probs {
-            score += p.ln();
+            score += turbo_jvm::strict_math::log(p);
         }
         Self { outcomes, probs, score }
     }
@@ -192,7 +192,7 @@ impl JavaRng {
         ((high + self.next(27) as i64) as f64) * Self::DOUBLE_UNIT
     }
 
-    /// Reproduces `Random.nextGaussian()` via the polar Marsaglia method.
+    /// Reproduces `Random.nextGaussian()` via the polar Marsaglia method and `StrictMath.log`.
     pub fn next_gaussian(&mut self) -> f64 {
         if let Some(g) = self.next_next_gaussian.take() {
             return g;
@@ -206,7 +206,7 @@ impl JavaRng {
                 break;
             }
         }
-        let multiplier = (-2.0 * s.ln() / s).sqrt();
+        let multiplier = (-2.0 * turbo_jvm::strict_math::log(s) / s).sqrt();
         self.next_next_gaussian = Some(v2 * multiplier);
         v1 * multiplier
     }
