@@ -55,6 +55,24 @@ fn unrelated_views_crossed_edges_and_erased_blocks_are_refused() {
     doc.add(&Key::named("erased"), edited, Provenance::by("test")).unwrap();
     let erased = doc.get_key(&Key::<View>::named("erased")).unwrap();
     assert!(StructureProjector.annotate((erased, &structure)).err().unwrap().to_string().contains("erased"));
+
+    let mut empty_spans = Spans::new(ViewId::SOURCE);
+    empty_spans.push(Span::new(0, 0));
+    empty_spans.push(Span::new(0, 6));
+    let with_empty = Structure {
+        spans: empty_spans,
+        kind: vec![Block::Heading, Block::Paragraph],
+        parent: vec![None; 2],
+        depth: vec![0; 2],
+    };
+    let builder = ViewBuilder::new(doc.get::<View>().unwrap().text());
+    let (text, alignment) = builder.finish();
+    let identity = View::derived(doc.get::<View>().unwrap(), text, alignment);
+    doc.add(&Key::named("identity"), identity, Provenance::by("test")).unwrap();
+    let identity = doc.get_key(&Key::<View>::named("identity")).unwrap();
+    let (projected,) = StructureProjector.annotate((identity, &with_empty)).unwrap();
+    assert_eq!(projected.spans.get(Ix::new(0)), Span::new(0, 0));
+    assert_eq!(projected.spans.get(Ix::new(1)), Span::new(0, 6));
 }
 
 #[test]

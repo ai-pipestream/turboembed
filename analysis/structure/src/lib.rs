@@ -7,6 +7,8 @@
 //! with their rows and cells, code blocks and block quotes, as a tree in
 //! text order. [`detect`] does the same outside a pipeline, and
 //! [`StructureProvider`] offers it to a registry as "structure".
+//! [`StructureProjector`] maps a `Structure` layer from a parent view into a
+//! normalized child view (`docs/structure-projection.md`).
 //!
 //! The rules are written here, with no Markdown library: one pass over
 //! the lines, every offset a UTF-8 byte offset into the view.

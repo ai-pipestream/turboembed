@@ -7,13 +7,17 @@ checkout=$(realpath "$TURBO_TRACE_CHECKOUT")
 case "$checkout" in
   *'"'*|*'\'*|*$'\n'*) echo 'Checkout path cannot contain quotes, backslashes or newlines' >&2; exit 2;;
 esac
-git -C "$checkout" diff --quiet HEAD -- analysis Cargo.toml Cargo.lock
+if [[ -n "$(git -C "$checkout" status --porcelain -- analysis Cargo.toml Cargo.lock)" ]]; then
+  echo 'Checkout has modified or untracked files under analysis/, Cargo.toml or Cargo.lock' >&2
+  exit 2
+fi
 export TURBO_TRACE_COMMIT
 TURBO_TRACE_COMMIT=$(git -C "$checkout" rev-parse HEAD)
 receipt_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 output=$(realpath -m "${1:?Usage: run.sh OUTPUT_DIRECTORY}")
 mkdir -p "$output"
 build_dir=$(mktemp -d "$output/build.XXXXXX")
+trap 'rm -rf "$build_dir"' EXIT
 mkdir "$build_dir/src"
 cp "$receipt_dir/main.rs" "$build_dir/src/main.rs"
 cp "$receipt_dir/Cargo.lock" "$build_dir/Cargo.lock"
