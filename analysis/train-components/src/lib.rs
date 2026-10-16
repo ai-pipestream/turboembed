@@ -25,8 +25,9 @@
 //! - [`sentiment`][]: the events of `SentimentEventStream` over
 //!   `SentimentFactory` or `EmojiSentimentFactory`, and the
 //!   `SentimentModel` file.
-//! - [`dictionary`][]: the abbreviation dictionary as `Dictionary.serialize`
-//!   writes it, entries in Java's hash set order.
+//! - [`dictionary`][]: the token n-gram dictionary as `Dictionary.serialize`
+//!   writes it (entries in Java's hash set order), `Dictionary.parseOneEntryPerLine`
+//!   (`DictionaryBuilderTool`) and `CensusDictionaryCreatorTool.createDictionary`.
 //! - [`tagdict`][]: the tag dictionary as `POSDictionary.serialize` writes
 //!   it, entries in Java's hash map order.
 //! - [`java_hash`][]: `String.hashCode` and the order a `java.util.HashMap`
@@ -156,7 +157,7 @@ pub mod tokenize;
 pub mod ud;
 
 pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_model};
-pub use dictionary::AbbreviationDictionary;
+pub use dictionary::{AbbreviationDictionary, build_census_dictionary_xml, build_dictionary_xml};
 pub use error::{Error, Result};
 pub use langdetect::{LanguageDetectorFactory, LanguageEventStream, language_events, train_language_model};
 pub use lemmatize::{LemmaEventStream, LemmatizerFactory, lemma_events, train_lemmatizer_model};
