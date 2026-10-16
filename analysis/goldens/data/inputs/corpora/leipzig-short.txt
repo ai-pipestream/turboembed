@@ -1,0 +1,19 @@
+# A sentence file with too few lines for the samples asked, written for this project.
+
+@@ file eng-short.txt
+1	Rain is expected over the hills by morning.
+2	The library opens late on Sundays.
+
+@@ end
+@@ file deu-long.txt
+1	Der Zug fährt um acht Uhr ab.
+2	Im Garten blühen die ersten Tulpen.
+3	Wir treffen uns morgen am Markt.
+4	Das Fenster bleibt heute offen.
+5	Ein Hund schläft vor der Tür.
+6	Die Straße ist nass vom Regen.
+7	Sie liest gern am Abend.
+	
+9	Der Bus kommt später als geplant.
+
+@@ end

@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	doccat/unicode	44	35	90370da82125d32746489fb8c6000fe08f49b3009252c4fce4df44a49b2a5697
+model	sms-spam-collection.tsv	2b454257f2d5eff9d829d5be9d0f99af68581367be6bad8e564e1d872112ce652e7e1d75a5752e4770eb682e7ffd2d0be68b6b015e9588bdf599a30a72307957
+annotator	opennlp.tools.doccat.DocumentCategorizerME	categorize
+config	Algorithm	PERCEPTRON
+config	Cutoff	1
+config	Iterations	100
+config	corpus	corpora/sms-spam-collection.tsv,doccat-train/emoji
+config	generators	opennlp.tools.doccat.BagOfWordsFeatureGenerator,opennlp.tools.doccat.NGramFeatureGenerator,opennlp.tools.doccat.EmojiFeatureGenerator
+config	language	en
+config	run	sms-perceptron
+layer	opennlp:tokens	text	8	start:u32	end:u32
+0	5
+6	8
+9	11
+12	18
+19	22
+23	29
+30	34
+35	43
+end	opennlp:tokens
+layer	turbo:doccat-features	document	15	feature:str
+bow=café
+bow=à
+bow=la
+bow=crème
+bow=£5
+bow=naïve
+bow=𠀀
+bow=résumé
+ng=:café:à
+ng=:à:la
+ng=:la:crème
+ng=:crème:£5
+ng=:£5:naïve
+ng=:naïve:𠀀
+ng=:𠀀:résumé
+end	turbo:doccat-features
+layer	turbo:categories	document	2	category:str	score:f64
+spam	3fec2f7d5a8a79ca 0.8807970779778824
+ham	3fbe84152bac31ae 0.11920292202211755
+end	turbo:categories

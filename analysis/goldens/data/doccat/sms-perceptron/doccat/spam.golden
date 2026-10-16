@@ -1,0 +1,64 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	doccat/spam	64	64	f755c1f06c37528b686d1037836af9d4d8ae786836fac255b4ab88512e99d7fd
+model	sms-spam-collection.tsv	2b454257f2d5eff9d829d5be9d0f99af68581367be6bad8e564e1d872112ce652e7e1d75a5752e4770eb682e7ffd2d0be68b6b015e9588bdf599a30a72307957
+annotator	opennlp.tools.doccat.DocumentCategorizerME	categorize
+config	Algorithm	PERCEPTRON
+config	Cutoff	1
+config	Iterations	100
+config	corpus	corpora/sms-spam-collection.tsv,doccat-train/emoji
+config	generators	opennlp.tools.doccat.BagOfWordsFeatureGenerator,opennlp.tools.doccat.NGramFeatureGenerator,opennlp.tools.doccat.EmojiFeatureGenerator
+config	language	en
+config	run	sms-perceptron
+layer	opennlp:tokens	text	14	start:u32	end:u32
+0	4
+5	10
+11	13
+14	17
+18	19
+20	24
+25	31
+32	35
+36	39
+40	42
+43	48
+49	53
+54	57
+58	63
+end	opennlp:tokens
+layer	turbo:doccat-features	document	27	feature:str
+bow=FREE
+bow=entry
+bow=to
+bow=win
+bow=a
+bow=cash
+bow=prize!
+bow=txt
+bow=WIN
+bow=to
+bow=80888
+bow=now,
+bow=T&C
+bow=apply
+ng=:FREE:entry
+ng=:entry:to
+ng=:to:win
+ng=:win:a
+ng=:a:cash
+ng=:cash:prize!
+ng=:prize!:txt
+ng=:txt:WIN
+ng=:WIN:to
+ng=:to:80888
+ng=:80888:now,
+ng=:now,:T&C
+ng=:T&C:apply
+end	turbo:doccat-features
+layer	turbo:categories	document	2	category:str	score:f64
+spam	3fec2f7d5a8a79ca 0.8807970779778824
+ham	3fbe84152bac31ae 0.11920292202211755
+end	turbo:categories

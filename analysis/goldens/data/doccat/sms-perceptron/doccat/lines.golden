@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	doccat/lines	48	44	37f0084f6379389d5236bd1791673edbae96bcfab88a4e5461162c8e4e866a3f
+model	sms-spam-collection.tsv	2b454257f2d5eff9d829d5be9d0f99af68581367be6bad8e564e1d872112ce652e7e1d75a5752e4770eb682e7ffd2d0be68b6b015e9588bdf599a30a72307957
+annotator	opennlp.tools.doccat.DocumentCategorizerME	categorize
+config	Algorithm	PERCEPTRON
+config	Cutoff	1
+config	Iterations	100
+config	corpus	corpora/sms-spam-collection.tsv,doccat-train/emoji
+config	generators	opennlp.tools.doccat.BagOfWordsFeatureGenerator,opennlp.tools.doccat.NGramFeatureGenerator,opennlp.tools.doccat.EmojiFeatureGenerator
+config	language	en
+config	run	sms-perceptron
+layer	opennlp:tokens	text	10	start:u32	end:u32
+0	3
+4	7
+8	12
+13	17
+19	25
+26	30
+31	35
+36	39
+40	44
+45	47
+end	opennlp:tokens
+layer	turbo:doccat-features	document	22	feature:str
+bow=see
+bow=you
+bow=soon
+bow=😀
+bow=URGENT
+bow=call
+bow=0800
+bow=now
+bow=🚨
+bow=ok
+ng=:see:you
+ng=:you:soon
+ng=:soon:😀
+ng=:😀:URGENT
+ng=:URGENT:call
+ng=:call:0800
+ng=:0800:now
+ng=:now:🚨
+ng=:🚨:ok
+emojiSentiment=2
+emojiType=FACE
+emojiCategory=SMILEYS_AND_EMOTION
+end	turbo:doccat-features
+layer	turbo:categories	document	2	category:str	score:f64
+spam	3fe2a46a460c25c3 0.5825702064623147
+ham	3fdab72b73e7b47c 0.4174297935376854
+end	turbo:categories

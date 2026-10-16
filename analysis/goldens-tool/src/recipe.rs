@@ -50,6 +50,19 @@ pub const LIBLINEAR_ADDON_COMMIT: &str = "84631d0111629110ebf094eadb6e938bbf7d73
 /// this commit against the OpenNLP fork above.
 pub const NEURAL_POSTAG_COMMIT: &str = "88767f8d09ffd350bd045e532bdd6f9d76cd9dd8";
 
+/// The commit of the OpenNLP fork's `ready/agents-md` branch whose
+/// `ConlluDependencySampleStream`, `DependencySample`, `DependencyTree` and
+/// `DependencyArc` the generator runs for the CoNLL-U dependency goldens.
+/// The container compiles them, with the branch's `ParamChecks`, into a jar
+/// of their own.
+pub const CONLLU_DEPENDENCY_COMMIT: &str = "2da0ee764cd7340b968a207b925cce852485cccb";
+
+/// The commit of the OpenNLP addons, on their `ready/coref` branch, whose
+/// `ConlluCorefDocumentStream` (with `CorefAnnotator` and `CorefMention`)
+/// the generator runs for the CorefUD goldens. The container compiles the
+/// three classes into a jar of their own.
+pub const COREF_ADDONS_COMMIT: &str = "be11df610e24a9a2a10f80b7199349fe5b3594a9";
+
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP and addons commits, so an image built from other commits has
 /// another tag.
@@ -306,6 +319,39 @@ pub const HUNSPELL_FILES: [HunspellFile; 6] = [
         license: "MPL-2.0 or LGPL-3.0-or-later (Magyar Ispell 1.9, README_hu_HU.txt)",
     },
 ];
+
+/// A training corpus the generator reads from the models directory: its
+/// path there, where it is fetched from, its SHA-512, the licence it is
+/// published under and where it is described.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Corpus {
+    pub file: &'static str,
+    pub url: &'static str,
+    pub sha512: &'static str,
+    pub license: &'static str,
+    pub source: &'static str,
+}
+
+/// The training corpora, fetched by `fetch-models` and never checked in.
+///
+/// The SMS Spam Collection (T. A. Almeida, J. M. Gomez Hidalgo and A.
+/// Yamakami, "Contributions to the Study of SMS Spam Filtering: New
+/// Collection and Results", DocEng 2011) is published by the UCI Machine
+/// Learning Repository under CC BY 4.0, as a zip holding the file
+/// `SMSSpamCollection`: 5,574 lines, each `ham` or `spam`, a tab and the
+/// message. The file is fetched from a copy in a GitHub repository, pinned
+/// by commit, which has those 5,574 lines (4,827 `ham`, 747 `spam`); the
+/// hash is of that copy, which has not been compared byte for byte with
+/// the file in the UCI archive. The maxent document categorizer goldens
+/// (`DoccatGolden.java`) train on it.
+pub const CORPORA: [Corpus; 1] = [Corpus {
+    file: "corpora/sms-spam-collection.tsv",
+    url: "https://raw.githubusercontent.com/justmarkham/pycon-2016-tutorial/5339710562cc46c4a32a369d63f1e8751a18a54e/data/sms.tsv",
+    sha512: "2b454257f2d5eff9d829d5be9d0f99af68581367be6bad8e564e1d872112ce6\
+             52e7e1d75a5752e4770eb682e7ffd2d0be68b6b015e9588bdf599a30a72307957",
+    license: "CC BY 4.0",
+    source: "https://archive.ics.uci.edu/dataset/228/sms+spam+collection",
+}];
 
 /// The suffix of the directory holding the UTF-8 copy of a dictionary
 /// that is not UTF-8.
@@ -879,7 +925,7 @@ pub const FIXTURES: [Fixture; 109] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 41] = [
+pub const INPUT_SETS: [&str; 45] = [
     "en",
     "multi",
     "norm",
@@ -921,6 +967,10 @@ pub const INPUT_SETS: [&str; 41] = [
     "svm-doccat-train",
     "sentiment",
     "sentiment-train",
+    "doccat",
+    "doccat-train",
+    "conllu",
+    "corpora",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -934,7 +984,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 46] = [
+pub const ANNOTATORS: [&str; 49] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -980,6 +1030,9 @@ pub const ANNOTATORS: [&str; 46] = [
     "glossary",
     "svm-doccat",
     "sentiment",
+    "doccat",
+    "conllu",
+    "corpora",
     "postag-neural",
 ];
 
@@ -1025,8 +1078,22 @@ pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
 pub const SENTIMENT_INPUT_SET: &str = "sentiment";
 pub const SENTIMENT_TRAIN_SET: &str = "sentiment-train";
 
+/// The input sets of the maxent document categorizer: the documents its
+/// models categorize, and the corpus written for this project that they
+/// are trained on after the downloaded one ([`CORPORA`]). No other
+/// annotator runs on them.
+pub const DOCCAT_INPUT_SET: &str = "doccat";
+pub const DOCCAT_TRAIN_SET: &str = "doccat-train";
+
 /// The input set the PII packs and the PII rewrites run on. They run on no
 /// other set, and the other annotators do not run on this one.
+/// The input set of the corpus readers: files and directories in the
+/// layouts of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig and
+/// 20 Newsgroups corpora. No other annotator runs on it.
+pub const CORPORA_INPUT_SET: &str = "corpora";
+
+/// The input set the PII packs run on. They run on no other set, and the
+/// other annotators do not run on this one.
 pub const PII_INPUT_SET: &str = "pii";
 
 /// The rate snapshot the money conversion reads: a directory beside the
@@ -1092,6 +1159,12 @@ mod tests {
         let liblinear = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/LiblinearTrainGolden.java");
         assert!(liblinear.contains(&format!("ADDON_COMMIT = \"{LIBLINEAR_ADDON_COMMIT}\";")));
         assert!(liblinear.contains("ANNOTATOR = \"train-liblinear\""));
+        assert!(dockerfile.contains(&format!("\nARG CONLLU_DEPENDENCY_COMMIT={CONLLU_DEPENDENCY_COMMIT}\n")));
+        let dependency = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/ConlluDependencyGolden.java");
+        assert!(dependency.contains(&format!("BRANCH_COMMIT = \"{CONLLU_DEPENDENCY_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG COREF_ADDONS_COMMIT={COREF_ADDONS_COMMIT}\n")));
+        let coref = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/CorefUdGolden.java");
+        assert!(coref.contains(&format!("ADDONS_COMMIT = \"{COREF_ADDONS_COMMIT}\";")));
         assert!(dockerfile.contains(&format!("\nARG NEURAL_POSTAG_COMMIT={NEURAL_POSTAG_COMMIT}\n")));
         let neural = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PostagNeuralGolden.java");
         assert!(neural.contains(&format!("NEURAL_POSTAG_COMMIT = \"{NEURAL_POSTAG_COMMIT}\";")));
@@ -1199,6 +1272,8 @@ mod tests {
                 SVM_DOCCAT_TRAIN_SET,
                 SENTIMENT_INPUT_SET,
                 SENTIMENT_TRAIN_SET,
+                DOCCAT_INPUT_SET,
+                DOCCAT_TRAIN_SET,
                 PII_INPUT_SET,
             ]
             .contains(s)
@@ -1311,6 +1386,32 @@ mod tests {
         assert!(golden.contains("ANNOTATOR = \"sentiment\""));
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
         assert!(runs.contains("SentimentGolden.all(inputs)"));
+    }
+
+    #[test]
+    fn the_maxent_categorizer_has_its_own_input_sets_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&DOCCAT_INPUT_SET));
+        assert!(INPUT_SETS.contains(&DOCCAT_TRAIN_SET));
+        assert!(ANNOTATORS.contains(&"doccat"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"doccat"));
+        let golden = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/DoccatGolden.java");
+        assert!(golden.contains(&format!("INPUT_SET = \"{DOCCAT_INPUT_SET}\"")));
+        assert!(golden.contains(&format!("TRAIN_SET = \"{DOCCAT_TRAIN_SET}\"")));
+        assert!(golden.contains("ANNOTATOR = \"doccat\""));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains("DoccatGolden.all(inputs, models)"));
+    }
+
+    #[test]
+    fn every_corpus_has_an_https_url_a_sha512_and_a_licence() {
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        for c in CORPORA {
+            assert!(is_lower_hex(c.sha512, 128), "{}: {}", c.file, c.sha512);
+            assert!(c.url.starts_with("https://") && c.source.starts_with("https://"), "{}", c.url);
+            assert!(c.file.starts_with("corpora/"), "{}", c.file);
+            assert!(!c.license.is_empty());
+            assert!(runs.contains(&format!("\"{}\"", c.file)), "Runs.java does not name {}", c.file);
+        }
     }
 
     #[test]

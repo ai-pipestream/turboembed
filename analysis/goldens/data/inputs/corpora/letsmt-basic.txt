@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A document in the layout of the LetsMT corpora, written for this project. -->
+<document id="sample-1">
+<head>Heading text before the first sentence</head>
+<s id="1">This sentence has no words .</s>
+<s id="2"><w>Words</w> <w>with</w>   <w>spaces</w><w>&amp;</w><w>refs</w> trailing text</s>
+<s id="3">
+  <w>  padded </w>
+  <w>tokens</w>
+</s>
+<w>orphan</w>
+<s id="4"><w>after</w><w>the</w><w>orphan</w></s>
+<s id="5"><![CDATA[Character data < here]]> and text</s>
+<s id="6"><!-- a comment -->A comment is skipped, é and 😀 are kept.</s>
+<s id="7"/>
+<p><s id="8">Nested in a paragraph</s> text after it</p>
+<s id="9"><w>(</w><w>Brackets</w><w>)</w><w>,</w><w>commas</w><w>and</w><w>"</w><w>quotes</w><w>"</w><w>.</w></s>
+<s id="10"><w>Sentence</w><w>10</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="11"><w>Sentence</w><w>11</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="12"><w>Sentence</w><w>12</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="13"><w>Sentence</w><w>13</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="14"><w>Sentence</w><w>14</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="15"><w>Sentence</w><w>15</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="16"><w>Sentence</w><w>16</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="17"><w>Sentence</w><w>17</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="18"><w>Sentence</w><w>18</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="19"><w>Sentence</w><w>19</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="20"><w>Sentence</w><w>20</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="21"><w>Sentence</w><w>21</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="22"><w>Sentence</w><w>22</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="23"><w>Sentence</w><w>23</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="24"><w>Sentence</w><w>24</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="25"><w>Sentence</w><w>25</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="26"><w>Sentence</w><w>26</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="27"><w>Sentence</w><w>27</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="28"><w>Sentence</w><w>28</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="29"><w>Sentence</w><w>29</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<s id="30"><w>Sentence</w><w>30</w><w>(</w><w>short</w><w>)</w><w>.</w></s>
+<x:s xmlns:x="urn:example:other">Prefixed is not a sentence</x:s>
+<s id="31">The last sentence , after a prefixed one .</s>
+</document>

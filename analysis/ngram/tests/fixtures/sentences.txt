@@ -1,0 +1,51 @@
+The ferry to the island leaves the harbor at seven every morning unless the wind is too strong for the small boat to cross safely
+On calm days the crossing takes about forty minutes and the passengers sit on the upper deck to watch the gulls follow the wake
+Most of the passengers are workers who keep the weather station running and a few are visitors who want to see the old lighthouse
+The weather station on the island records the temperature and the wind speed every ten minutes and sends the readings to the mainland
+Each reading is written to a small log file and the log file is copied to a server in the harbor office once an hour
+When the radio link fails the station keeps the readings in memory and sends them all at once when the link comes back
+The keeper of the station checks the instruments every morning and writes a short note about anything that looks wrong or broken
+Last winter a storm bent the wind vane so badly that the station reported the same wind direction for nine days in a row
+Nobody noticed the problem until a fisherman asked why the forecast said the wind came from the north when it clearly came from the west
+After that the keeper wrote a small program that compares each reading with the readings from the two nearest stations on the coast
+If a reading differs too much from its neighbors the program marks it as suspect and sends a message to the keeper
+The program is simple and it uses a moving average of the last twelve readings to decide what counts as too much
+Simple rules like this one catch most broken instruments but they also raise false alarms when a sudden squall passes over the island
+To reduce the false alarms the keeper started to count how often each kind of alarm turned out to be real
+Over a few months the counts showed that alarms about wind direction were usually real and alarms about temperature were usually noise
+The keeper then changed the program so that temperature alarms need three suspect readings in a row before a message is sent
+The ferry company also uses the readings from the station to decide whether the morning crossing should go ahead
+When the wind speed at the station is above a fixed limit the company cancels the crossing and posts a notice at the harbor
+Passengers who miss the morning crossing can usually take the afternoon boat because the wind tends to drop after midday
+The afternoon boat is slower than the morning boat but it has a covered cabin and a small kitchen that sells tea and bread
+On the island there is one shop one school and a small library that opens on tuesday and saturday afternoons
+The library keeps a shelf of old station logs written by hand in thick paper notebooks before the instruments were automated
+Students from the school sometimes copy numbers from the old notebooks into a spreadsheet to compare old winters with recent ones
+Their spreadsheet shows that the island has fewer days of frost now than it had fifty years ago
+It also shows that the strongest storms now arrive a few weeks later in the autumn than they did in the old notebooks
+The teacher uses the spreadsheet to explain averages and ranges and why a single cold week says little about the climate
+Some students find the old handwriting hard to read and they argue about whether a mark on the page is a seven or a one
+When they cannot agree they leave the cell empty and write a comment that explains why the value is missing
+The keeper likes this habit because an honest gap in the data is better than a guess that looks like a real number
+Every spring the keeper and the students walk around the island and check the rain gauges that sit in the fields
+The rain gauges are plain metal cylinders and the most common fault is a bird nest blocking the funnel at the top
+A blocked gauge reports no rain at all which is easy to spot when every other gauge on the island reports a wet day
+The students write down the state of each gauge in a notebook and the keeper later types the notes into the station log
+On the walk the students also count the sheep in each field because the farmer pays them a little for an accurate count
+The sheep count and the rain records are kept in separate files but the keeper once found that wet springs mean more lambs
+Nobody is sure whether that pattern is real or a coincidence because there are only a dozen years of sheep counts
+The keeper says that a pattern found in a dozen points should be treated as a question and not as an answer
+In the summer the island fills with visitors who come on the morning ferry and leave on the last boat in the evening
+Many visitors climb the hill to the old lighthouse and take pictures of the weather station from the gallery at the top
+The lighthouse has not been used for many years because a small automatic beacon on the rocks now does the same job
+The beacon flashes twice every ten seconds and its pattern is printed on the charts that the ferry crew use at night
+The ferry crew rarely sail at night but they keep the charts up to date in case of an emergency on the island
+Once a year a doctor comes over on the ferry and spends a week seeing patients in a room at the back of the school
+During that week the morning crossing is always full and the ferry company sometimes adds a second boat to carry everyone
+The second boat is an old fishing vessel with a loud engine and a captain who tells long stories about past storms
+His favorite story is about the winter the harbor froze and the island had no ferry for almost three weeks
+The weather station has no record of that winter because it was built many years later but the old notebooks mention it
+According to the notebooks the keeper at the time measured the ice every day by cutting a hole and dropping a weighted line
+The students like this story because it shows that careful measurement is possible even without any modern instruments
+At the end of each year the keeper writes a short report that lists every fault the station had and how it was fixed
+The report goes to the mainland office and a copy is placed on the library shelf next to the old notebooks

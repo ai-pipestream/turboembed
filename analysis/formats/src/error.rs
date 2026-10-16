@@ -11,6 +11,8 @@ use std::fmt;
 
 use turbo_analysis::Span;
 
+use crate::conllu::coref::CorefError;
+use crate::corpora::CorpusError;
 use crate::ner::NerError;
 
 /// A sample a reader cannot read, or a sample value that cannot be built.
@@ -56,6 +58,9 @@ pub enum FormatError {
     TooLong { len: usize },
     /// What a reader of a named entity corpus ([`crate::ner`]) refuses.
     Ner(NerError),
+    /// What a reader of a sentence, language or document corpus
+    /// ([`crate::corpora`]) refuses.
+    Corpus(CorpusError),
     /// A CoNLL-U word line without exactly ten tab-separated columns
     /// (after `StringUtil.split` drops the empty columns at its end).
     /// `text` is the line.
@@ -87,6 +92,13 @@ pub enum FormatError {
     /// A CoNLL-U sentence with no `# text = ...` comment, which
     /// `ConlluTokenSampleStream` needs.
     NoSentenceText { line: u32 },
+    /// A CoNLL-U word line that `ConlluDependencySampleStream` splits into
+    /// other than ten columns (empty columns at its end count). `count`
+    /// is the number of columns and `text` the line.
+    DependencyColumns { line: u32, count: usize, text: String },
+    /// What the CorefUD reader ([`crate::conllu::coref`]) refuses in a
+    /// document.
+    Coref(CorefError),
     /// A CoNLL-U `HEAD` that is not `0`, `_` or the id of another word of
     /// the sentence, which the word-preserving converter refuses rather
     /// than reading as a root. `head` is the column.
@@ -138,6 +150,7 @@ impl FormatError {
             }
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
             Ner(e) => Some(e.java_class()),
+            Corpus(e) => e.java_class(),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
             ConlluColumns { .. }
@@ -146,6 +159,7 @@ impl FormatError {
             | BackwardsMultiwordId { .. }
             | MissingMultiwordLine { .. } => Some("opennlp.tools.util.InvalidFormatException"),
             MultiwordRemoval { .. } => Some("java.lang.IndexOutOfBoundsException"),
+            DependencyColumns { .. } | Coref(_) => Some("opennlp.tools.util.InvalidFormatException"),
             TokenNotInText { .. } | NoSentenceText { .. } => Some("java.io.IOException"),
             ConlluHead { .. } | ConlluDocument { .. } | HeadOutsideSentence { .. } | NoTokens => None,
             Conll02Fields { .. } | Conll03Fields { .. } | InvalidNameTag { .. } | DocstartNotFollowedByEmpty { .. } => {
@@ -162,6 +176,7 @@ impl FormatError {
         use FormatError::*;
         match *self {
             Ner(ref e) => e.line(),
+            Coref(ref e) => Some(e.line()),
             NestedName { line, .. }
             | MissingNameType { line, .. }
             | UnexpectedEnd { line, .. }
@@ -173,6 +188,7 @@ impl FormatError {
             | BackwardsMultiwordId { line, .. }
             | MissingMultiwordLine { line, .. }
             | MultiwordRemoval { line, .. }
+            | DependencyColumns { line, .. }
             | TokenNotInText { line, .. }
             | NoSentenceText { line }
             | ConlluHead { line, .. }
@@ -194,6 +210,7 @@ impl fmt::Display for FormatError {
         use FormatError::*;
         match self {
             Ner(e) => e.fmt(f),
+            Corpus(e) => e.fmt(f),
             NestedName { context, .. } => {
                 write!(f, "Found unexpected annotation while handling a name sequence: {context}")
             }
@@ -230,6 +247,10 @@ impl fmt::Display for FormatError {
                 write!(f, "Multiword token {id} has no word line for id {missing}")
             }
             MultiwordRemoval { index, len, .. } => write!(f, "Index {index} out of bounds for length {len}"),
+            DependencyColumns { count, text, .. } => {
+                write!(f, "CoNLL-U word line has {count} columns, expected 10: {text}")
+            }
+            Coref(e) => e.fmt(f),
             TokenNotInText { token, sentence, text, .. } => write!(
                 f,
                 "Failed to match token [{token}] in sentence [{}] with text [{text}]",

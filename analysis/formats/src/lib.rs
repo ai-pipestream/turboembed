@@ -17,7 +17,10 @@
 //!   part-of-speech samples with a detokenizer.
 //! - [`conllu`]: the CoNLL-U format, `ConlluStream`, and the
 //!   part-of-speech, lemma, sentence and token samples OpenNLP reads
-//!   from it.
+//!   from it; the dependency samples of `ConlluDependencySampleStream`
+//!   ([`conllu::dependency`]) and the documents with CorefUD coreference
+//!   of the addons' `ConlluCorefDocumentStream` ([`conllu::coref`]), both
+//!   from branches later than the commit above.
 //! - [`conll`]: the CoNLL-2002 and CoNLL-2003 name formats and the
 //!   CoNLL-X part-of-speech format (CoNLL-2000 chunks are the native chunk
 //!   format).
@@ -27,6 +30,8 @@
 //!   registry, which reads one text.
 //! - [`ner`]: the GermEval 2014, BioNLP 2004, Evalita, MUC-6 and brat
 //!   name corpora and the 1990 US Census name lists.
+//! - [`corpora`]: the Moses, LetsMT, NKJP and Irish Sentence Bank sentence
+//!   corpora, the Leipzig language corpora and the 20 Newsgroups corpus.
 //! - [`registry`]: the formats of each sample kind by name, OpenNLP's
 //!   `StreamFactoryRegistry`.
 //! - [`evaluate`]: OpenNLP's scores, an evaluator per component and the
@@ -77,6 +82,17 @@
 //!   comment is `null` in a sentence sample; the token stream searches
 //!   each form in the text with the `<SPLIT>` markers it has inserted, so
 //!   a form can match inside a marker.
+//! - CoNLL-U dependency samples: a sentence of comments, multiword tokens
+//!   and empty nodes only does not end at its blank line but joins the
+//!   next; a line with the wrong number of columns drops the words read
+//!   into its sentence, and the rest of that sentence is read as a
+//!   sentence of its own; an id that holds a `-` or a `.` anywhere is
+//!   passed over as a multiword token or an empty node.
+//! - CorefUD: the byte order mark is kept; the parts of a discontinuous
+//!   mention are mentions of their own and a close takes the innermost
+//!   open mention of its entity whatever part it names; an empty node's
+//!   `Entity` and a multiword token's `SpaceAfter=No` are not read; a
+//!   speaker comment with no words after it goes to the next sentence.
 //!
 //! Where this port differs, deliberately:
 //!
@@ -95,6 +111,7 @@
 pub mod conll;
 pub mod conllu;
 pub mod convert;
+pub mod corpora;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;
@@ -111,8 +128,8 @@ pub use encoding::{DecodeError, Encoding, decode};
 pub use error::{FormatError, Warning};
 pub use registry::{Format, OPENNLP_FORMAT, ReadOptions, Registry, SampleKind};
 pub use sample::{
-    ChunkSample, DocumentSample, LanguageSample, LemmaSample, Name, NameSample, Phrase, PosSample, SentenceSample,
-    SplitMarker, TokenSample,
+    ChunkSample, DependencySample, DocumentSample, LanguageSample, LemmaSample, Name, NameSample, Phrase, PosSample,
+    SentenceSample, SplitMarker, TokenSample,
 };
 pub use source::{Field, Line, Lines, Piece};
 

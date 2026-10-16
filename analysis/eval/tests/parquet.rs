@@ -60,12 +60,25 @@
 //! The small page and dictionary limits give three row groups, several
 //! pages per column chunk, and dictionaries that fill up, after which
 //! pyarrow writes the rest of the chunk PLAIN.
+//!
+//! `zstd-page.zst` is a PLAIN page of 1000 strings, each after its
+//! length in 4 bytes, compressed as the pages of `zstd.parquet`, which
+//! pyarrow wrote, are (one frame with its content size and no checksum)
+//! by the `zstd` tool, version 1.5.5:
+//!
+//! ```text
+//! for i in $(seq 0 999); do
+//!   s="row $i: the quick brown fox jumps over the lazy dog $((i * i % 997))"
+//!   printf "\\$(printf %03o ${#s})\\000\\000\\000%s" "$s"
+//! done > page
+//! zstd -1 --no-check page -o zstd-page.zst
+//! ```
 
 mod common;
 
 use std::fs;
 
-use common::parquet::{Col, write};
+use common::parquet::{Codec, Col, write, write_compressed, write_with_page_sizes};
 use common::{data, scratch};
 use turbo_eval::read::parquet::Parquet;
 
@@ -116,6 +129,48 @@ fn reads_plain_uncompressed_required_columns() {
     check_table("plain-uncompressed.parquet");
 }
 
+/// The ZSTD file pyarrow wrote: the table's first two rows. FineWeb-2's
+/// text column is ZSTD-compressed, as the models-fineweb run showed
+/// reading `data/afr_Latn/train/000_00000.parquet`.
+#[test]
+fn reads_zstd_pages() {
+    let bytes = fs::read(data("parquet").join("zstd.parquet")).unwrap();
+    let t = Parquet::open("zstd.parquet", &bytes).unwrap();
+    assert_eq!(t.rows(), 2);
+    let name = t.strings("name").unwrap();
+    assert_eq!([name.at(0).unwrap(), name.at(1).unwrap()], names()[..2]);
+    let id = t.ints("id").unwrap();
+    assert_eq!([id.at(0).unwrap(), id.at(1).unwrap()], [-5, 999_998]);
+    let text = t.strings("text").unwrap();
+    assert_eq!([text.get(0), text.get(1)], [texts()[0].as_deref(), texts()[1].as_deref()]);
+    let small = t.ints("small").unwrap();
+    assert_eq!([small.at(0).unwrap(), small.at(1).unwrap()], [0, -1]);
+}
+
+fn zstd_rows() -> Vec<String> {
+    (0..1000).map(|i| format!("row {i}: the quick brown fox jumps over the lazy dog {}", i * i % 997)).collect()
+}
+
+#[test]
+fn reads_a_zstd_page() {
+    let rows = zstd_rows();
+    let col = || Col::Str("s", rows.iter().map(String::as_str).collect());
+    let page = fs::read(data("parquet").join("zstd-page.zst")).unwrap();
+    let path = scratch("parquet-zstd").join("z.parquet");
+    write_compressed(&path, &[col()], Codec::Zstd, std::slice::from_ref(&page));
+    let bytes = fs::read(&path).unwrap();
+    let s = Parquet::open("z.parquet", &bytes).unwrap().strings("s").unwrap();
+    assert_eq!((0..1000).map(|r| s.at(r).unwrap()).collect::<Vec<_>>(), rows);
+    // A damaged frame is an error that gives the decoder's reason.
+    let mut bad = page;
+    bad[0] ^= 1;
+    write_compressed(&path, &[col()], Codec::Zstd, &[bad]);
+    let bytes = fs::read(&path).unwrap();
+    let e = Parquet::open("z.parquet", &bytes).unwrap().strings("s").unwrap_err();
+    assert!(e.starts_with("z.parquet: column s: row group 0: page at byte 4: "), "{e}");
+    assert!(e.ends_with("zstd: bad magic number 0xfd2fb529"), "{e}");
+}
+
 #[test]
 fn a_null_is_an_error_where_a_value_is_needed() {
     let bytes = fs::read(data("parquet").join("snappy-dict-v1.parquet")).unwrap();
@@ -125,11 +180,13 @@ fn a_null_is_an_error_where_a_value_is_needed() {
 
 #[test]
 fn refusals_name_what_is_not_read() {
-    let bytes = fs::read(data("parquet").join("zstd.parquet")).unwrap();
-    let t = Parquet::open("z.parquet", &bytes).unwrap();
+    let path = scratch("parquet-refusals").join("l.parquet");
+    write_compressed(&path, &[Col::Str("name", vec!["a", "b"])], Codec::Lz4Raw, &[vec![0; 10]]);
+    let bytes = fs::read(&path).unwrap();
+    let t = Parquet::open("l.parquet", &bytes).unwrap();
     let e = t.strings("name").unwrap_err();
-    assert!(e.starts_with("z.parquet: column name: row group 0: page at byte 4: "), "{e}");
-    assert!(e.ends_with("the ZSTD codec is not read; SNAPPY, GZIP and UNCOMPRESSED are"), "{e}");
+    assert!(e.starts_with("l.parquet: column name: row group 0: page at byte 4: "), "{e}");
+    assert!(e.ends_with("the LZ4_RAW codec is not read; SNAPPY, GZIP, ZSTD and UNCOMPRESSED are"), "{e}");
 
     let bytes = fs::read(data("parquet").join("plain-uncompressed.parquet")).unwrap();
     let t = Parquet::open("p.parquet", &bytes).unwrap();
@@ -154,6 +211,33 @@ fn the_test_writer_round_trips() {
     assert_eq!((0..3).map(|r| n.at(r).unwrap()).collect::<Vec<_>>(), [i64::MIN, 0, i64::MAX]);
     assert_eq!(n.at_u32(1), Ok(0));
     assert_eq!(n.at_u32(0).unwrap_err(), format!("w.parquet: column n row 0 is {}, not a u32", i64::MIN));
+}
+
+/// `parquet.thrift` declares a page's sizes i32, so a size below 0 or
+/// past 2^31 - 1 is refused, before anything is allocated for it.
+#[test]
+fn page_sizes_outside_an_i32_are_refused() {
+    let path = scratch("parquet-page-sizes").join("s.parquet");
+    // Two values of 3 bytes, each after its length: 14 bytes.
+    let col = || Col::Str("s", vec!["abc", "def"]);
+    write_with_page_sizes(&path, &[col()], (14, 14));
+    let bytes = fs::read(&path).unwrap();
+    let s = Parquet::open("s.parquet", &bytes).unwrap().strings("s").unwrap();
+    assert_eq!([s.at(0).unwrap(), s.at(1).unwrap()], ["abc", "def"]);
+    let max = i64::from(i32::MAX);
+    let cases = [
+        ((-1, 14), "a page's uncompressed size is -1"),
+        ((max + 1, 14), "a page's uncompressed size is 2147483648"),
+        ((1 << 35, 14), "a page's uncompressed size is 34359738368"),
+        ((14, -14), "a page's compressed size is -14"),
+        ((14, max + 1), "a page's compressed size is 2147483648"),
+    ];
+    for (sizes, what) in cases {
+        write_with_page_sizes(&path, &[col()], sizes);
+        let bytes = fs::read(&path).unwrap();
+        let e = Parquet::open("s.parquet", &bytes).unwrap().strings("s").unwrap_err();
+        assert_eq!(e, format!("s.parquet: column s: row group 0: page at byte 4: {what}, outside 0 to 2147483647"));
+    }
 }
 
 #[test]

@@ -14,9 +14,9 @@ use crate::resources::{Resources, Unavailable};
 
 /// The annotator directories the generator writes that the differential
 /// does not cover: the training stack (`train`, `train-events`,
-/// `train-langdetect`, `train-liblinear`), the format readers (`formats`, `masc`, `ner`) and
-/// the parse and head rule readers (`parse`, `head-rules`) compare files,
-/// not layers of a text; the evaluators compare scores; the detokenizer
+/// `train-langdetect`, `train-liblinear`), the format readers (`formats`,
+/// `masc`, `ner`, `corpora`) and the parse and head rule readers (`parse`,
+/// `head-rules`) compare files, not layers of a text; the evaluators compare scores; the detokenizer
 /// runs on token lists; the BPE trainer learns merges from a whole set; the
 /// gazetteers answer queries line by line and load whole tables, and the
 /// place profiles load whole tables; the
@@ -29,11 +29,15 @@ use crate::resources::{Resources, Unavailable};
 /// `namefind` runs train name finders from name samples and find names in
 /// them, and the sentiment runs (`sentiment`) train models on a corpus of
 /// their own and score their own documents, which turbo-train-components
-/// compares with; the PII rewrites (`pii-rewrite`) compare whole rewritten
+/// compares with; the maxent document categorizer runs (`doccat`) train
+/// models on a downloaded corpus and categorize documents of their own; the
+/// PII rewrites (`pii-rewrite`) compare whole rewritten
 /// texts, labels and audit reports rather than layers, which turbo-pii
 /// compares with; the neural part-of-speech taggers (`postag-neural`) train
-/// models of their own and tag token lists rather than texts.
-pub const NOT_COVERED: [&str; 29] = [
+/// models of their own and tag token lists rather than texts; the CoNLL-U
+/// dependency and CorefUD readers (`conllu`) read files of their own, which
+/// turbo-formats compares with.
+pub const NOT_COVERED: [&str; 32] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -61,8 +65,11 @@ pub const NOT_COVERED: [&str; 29] = [
     "glossary",
     "svm-doccat",
     "sentiment",
+    "doccat",
     "pii-rewrite",
     "postag-neural",
+    "conllu",
+    "corpora",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

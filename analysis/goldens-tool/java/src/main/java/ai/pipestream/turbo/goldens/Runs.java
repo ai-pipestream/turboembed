@@ -47,6 +47,12 @@ final class Runs {
   static final String KO_DIC = "mecab-ko-dic-2.1.1-20180720";
 
   /**
+   * The training corpus the maxent document categorizer runs read from the models directory: the
+   * SMS Spam Collection (CC BY 4.0), downloaded by {@code fetch-models} and never checked in.
+   */
+  static final String SMS_SPAM_CORPUS = "corpora/sms-spam-collection.tsv";
+
+  /**
    * The files the generator loads from the fixtures directory: models and dictionaries made for
    * the tests or copied from OpenNLP, which are checked in (analysis/goldens/data/fixtures).
    */
@@ -128,6 +134,8 @@ final class Runs {
   /** The word and tag lines and the word, tag and lemma lines the Rust tagger fixtures were trained on. */
   static final String TAGGED = "tagged";
   static final String NER = "ner";
+  /** Sentence, language and document corpora in the formats of OpenNLP's corpus readers. */
+  static final String CORPORA = "corpora";
   static final String PARSE = "parse";
   static final String HEAD_RULES = "head-rules";
   /** Names, record ids, region codes and whole tables for the gazetteers of the addons geo module. */
@@ -153,6 +161,9 @@ final class Runs {
   /** The words the Hunspell goldens stem with the published and the fixture dictionaries. */
   static final String HUNSPELL = "hunspell";
 
+  /** CoNLL-U files for the dependency and CorefUD readers. */
+  static final String CONLLU = "conllu";
+
   /** Whole profile tables for PlaceProfiles of the addons geo module. */
   static final String PLACE_PROFILES = "place-profiles";
 
@@ -172,9 +183,9 @@ final class Runs {
   private Runs() {}
 
   /**
-   * The runs, with the inputs directory, which the SVM document categorizer and sentiment runs
-   * train their models from ({@link SvmDoccatGolden}, {@link SentimentGolden}), and the models and
-   * fixtures directories.
+   * The runs, with the inputs directory, which the SVM document categorizer, sentiment and maxent
+   * document categorizer runs train their models from ({@link SvmDoccatGolden},
+   * {@link SentimentGolden}, {@link DoccatGolden}), and the models and fixtures directories.
    */
   static All load(Path inputs, Path models, Path fixtures, Path moneySnapshot) throws IOException {
     List<AnnotatorGolden> annotators = new ArrayList<>();
@@ -354,8 +365,15 @@ final class Runs {
     annotators.addAll(NerGolden.all());
     // The MASC readers, over small corpora bundled in the formats set.
     annotators.addAll(MascGolden.all());
+    // The sentence, language and document corpus streams (Moses, LetsMT, NKJP, the Irish Sentence
+    // Bank, Leipzig and 20 Newsgroups), over the corpora set.
+    annotators.addAll(CorporaGolden.all());
     // The CoNLL-2002, CoNLL-2003 and CoNLL-X streams.
     annotators.addAll(ConllGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
+    // The CoNLL-U dependency samples and the CorefUD reader, of two branches later than the image's
+    // commits.
+    annotators.addAll(ConlluDependencyGolden.all());
+    annotators.addAll(CorefUdGolden.all());
     // The Penn Treebank parse reader and writer, alone and with the English and AnCora head rules,
     // and the head rule readers and writers.
     annotators.addAll(ParserGolden.all(fixtures.resolve(EN_HEAD_RULES), fixtures.resolve(ES_HEAD_RULES),
@@ -394,6 +412,9 @@ final class Runs {
     // The sentiment detector (turbo-doccat, turbo-train-components): models trained on the
     // sentiment-train corpus with each factory and trainer, and run on the sentiment documents.
     annotators.addAll(SentimentGolden.all(inputs));
+    // The maxent document categorizer (turbo-doccat): models trained on the downloaded SMS corpus
+    // and the doccat-train corpus with each trainer, and run on the doccat documents.
+    annotators.addAll(DoccatGolden.all(inputs, models));
     // The neural part-of-speech taggers of the addons (turbo-postag's neural module): BiLSTM and
     // feedforward models trained on the tagged word and tag lines, run on them and on the
     // sequence sentences.
