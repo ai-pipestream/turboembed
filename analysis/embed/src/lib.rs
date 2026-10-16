@@ -15,13 +15,20 @@
 //!
 //! This is the one analysis crate that depends on the core crate, `turbo`.
 
+pub mod centroids;
 pub mod encoder;
+pub mod heads;
 pub mod levels;
 pub mod subwords;
 pub mod vectors;
 pub mod window;
 
+pub use centroids::{CentroidNorm, LabelCentroids, add_categories, category_sentence_centroids, centroid};
 pub use encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
+pub use heads::{
+    AspectSpanHead, ChunkSpanHead, ClassifierHead, DenseLayer, HeadMode, HiddenActivation, IncivilityHeadAnnotator,
+    OpinionSpanHead, PragmaticsHeadAnnotator, ScoringHead, SentenceSpanHead, VectorHeadAnnotator,
+};
 pub use levels::LevelVectors;
 pub use subwords::{SubwordAnnotator, SubwordsProvider, align};
 pub use vectors::{

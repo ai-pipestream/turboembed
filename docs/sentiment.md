@@ -186,3 +186,74 @@ three-token window in two documented ways:
    `"good"`, whereas dependency mode checks whether the sentiment token or its
    governing complement head has a negation dependent and leaves `"good"`
    unnegated.
+
+## Embedding classifier heads and label centroids (`turbo_analysis_embed`, `#321`)
+
+`turbo_analysis_embed::centroids` and `turbo_analysis_embed::heads` classify
+document, sentence, chunk, opinion, and aspect vectors produced by the
+turboembed encoder (`#262` and `#263`):
+
+- **Centroids (`centroid`, `CentroidNorm`, `category_sentence_centroids`)**:
+  generalizes `org.apache.opennlp.grpc.chunk.Centroids` and
+  `ChunkEmbedProcessor.buildCategoryGroup` from `opennlp-sandbox`
+  (`OPENNLP-1833-grpc-uber-server`). `centroid` computes the element-wise
+  arithmetic mean of a non-empty slice of equal-length `f32` vectors in `f64`,
+  with optional post-mean L2 normalization (`CentroidNorm::None` or
+  `CentroidNorm::L2`), and is tested against all five cases of
+  `CentroidsTest.java`. `category_sentence_centroids` groups a document's
+  sentences by their `Categories<Sentences>` label and averages each category's
+  sentence vectors into one prototype vector.
+- **Prototype classification (`LabelCentroids`)**: each label in a `TagSet` is
+  defined by a set of example sentences (`LabelCentroids::from_text_examples`)
+  or example vectors (`LabelCentroids::from_vector_examples`) averaged into one
+  centroid vector. Inference computes one `f64` dot product per label followed
+  by temperature-scaled softmax (`score_single_label`) or scaled sigmoid
+  (`score_multi_label`). Centroids serialize to and from a plain typed binary
+  format (`TCENT001`) with no pickle and no JSON trickery.
+- **Fixed-weight linear and 2-layer MLP heads (`ClassifierHead`)**: runs a
+  1-layer linear (`y = W x + b`) or 2-layer MLP (`y = W2 * sigma(W1 * x + b1) + b2`,
+  with `HiddenActivation::Relu`, `Gelu`, or `Tanh`) forward pass in
+  deterministic `f64` arithmetic, with softmax (`HeadMode::SingleLabel`) or
+  independent logistic sigmoid (`HeadMode::MultiLabel`). Heads serialize to and
+  from a plain typed binary format (`THEAD001`) and can be fitted
+  deterministically from labeled embeddings via full-batch L2-regularized
+  cross-entropy gradient descent (`ClassifierHead::fit_single_label` and
+  `ClassifierHead::fit_multi_label`).
+- **Vector and span-pooling annotators (`ScoringHead`, `VectorHeadAnnotator`,
+  `SentenceSpanHead`, `ChunkSpanHead`, `OpinionSpanHead`, `AspectSpanHead`,
+  `IncivilityHeadAnnotator`, `PragmaticsHeadAnnotator`)**:
+  - `VectorHeadAnnotator<L>` reads `(L, Vectors<L>)` (`opennlp:embeddings<L>`)
+    and writes `Categories<L>` (`turbo:categories<L>`).
+  - `SentenceSpanHead`, `ChunkSpanHead`, `OpinionSpanHead`, and
+    `AspectSpanHead` pool exact subword ranges from `Subwords`
+    (`opennlp:subwords`) through the stage 2 range write (`#263`,
+    `VectorAnnotator::embed_spans`). Because `OpinionSpanHead` and
+    `AspectSpanHead` pool only the subword range of each opinion expression or
+    aspect term within its enclosing sentence window, two opinion spans or two
+    aspect terms with opposite polarity inside the same sentence receive
+    distinct span-pooled embeddings and distinct polarity predictions.
+  - `IncivilityHeadAnnotator` and `PragmaticsHeadAnnotator` score
+    `Vectors<Sentences>` with a multi-label `ClassifierHead` to populate
+    `Incivility` (`turbo:incivility`) and `Pragmatics` (`turbo:pragmatics`).
+
+### Sentiment classification comparison and CPU/GPU parity
+
+`analysis/embed/tests/heads.rs` compares `LexiconSentiment` (`#320`),
+`LabelCentroids` (`#321`), and `ClassifierHead` (`#321`) on a self-contained
+12-sentence evaluation benchmark (`testdata/tiny-bert-bundle`, 32-dim) and on
+471 MPQA subjective polarity spans from MASC 3.0.0 (`CC BY 3.0 US`, 376 train /
+95 test spans) embedded with `sentence-transformers/all-MiniLM-L6-v2` (384-dim,
+mean-pooled, L2-normalized):
+
+| Dataset | Embedding model | `LexiconSentiment` (`#320`) | `LabelCentroids` (`#321`) | `ClassifierHead` (`#321`) |
+| --- | --- | --- | --- | --- |
+| Self-contained benchmark (12 test sentences) | `tiny-bert-bundle` (32-dim) | `12 / 12` (`100.0%`) | `10 / 12` (`83.3%`) | `10 / 12` (`83.3%`) |
+| MASC 3.0.0 MPQA polarity spans (376 train, 95 test) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | `87 / 95` (`91.6%`) | `81 / 95` (`85.3%`) | `84 / 95` (`88.4%`) |
+
+CPU and CUDA parity (`heads_and_centroids_cpu_and_device_parity` in
+`analysis/embed/tests/heads.rs`) was verified on `NVIDIA GeForce RTX 4080 SUPER`
+(`Execution { backend: "cuda", device: "NVIDIA GeForce RTX 4080 SUPER", precision: "f32 (model)" }`):
+repeated GPU runs produce bit-for-bit identical probability vectors, and CPU
+and CUDA `LabelCentroids` and `ClassifierHead` scores agree within `1e-5` with
+identical predicted labels.
+

@@ -1768,7 +1768,9 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-chunker",
+ "turbo-doccat",
  "turbo-goldens",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 

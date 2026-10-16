@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use turbo_analysis::{Anchor, Layer, LayerName, Tag, TagSet, View};
 
-use crate::{Chunks, Sentences, Structure};
+use crate::{Aspects, Chunks, Opinions, Sentences, Structure};
 
 /// What a [`Categories`] layer can describe. `View` is the whole
 /// document: the layer is `turbo:categories`, anchored to the document,
@@ -52,6 +52,20 @@ impl CategoryScope for Chunks {
     const CATEGORIES_OF: Option<&'static LayerName> = Some(Chunks::NAME);
     fn categories_anchor() -> Anchor {
         Anchor::aligned::<Chunks>()
+    }
+}
+
+impl CategoryScope for Opinions {
+    const CATEGORIES_OF: Option<&'static LayerName> = Some(Opinions::NAME);
+    fn categories_anchor() -> Anchor {
+        Anchor::aligned::<Opinions>()
+    }
+}
+
+impl CategoryScope for Aspects {
+    const CATEGORIES_OF: Option<&'static LayerName> = Some(Aspects::NAME);
+    fn categories_anchor() -> Anchor {
+        Anchor::aligned::<Aspects>()
     }
 }
 
