@@ -22,15 +22,15 @@ use crate::resources::{Resources, Unavailable};
 /// place profiles load whole tables; the
 /// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
 /// `tag-dictionary`, `tag-format`), the name finders, the stemmers, the
-/// stopword lists, the glossary matchers and readers and the SVM document
-/// categorizer (`svm-doccat`) read input sets of their own, which
-/// turbo-sequence, turbo-namefind, turbo-stem, turbo-stopword,
-/// turbo-glossary and turbo-doccat compare with; the other
+/// Hunspell runs, the stopword lists, the glossary matchers and readers and
+/// the SVM document categorizer (`svm-doccat`) read input sets of their own,
+/// which turbo-sequence, turbo-namefind, turbo-stem, turbo-hunspell,
+/// turbo-stopword, turbo-glossary and turbo-doccat compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
 /// them, which turbo-train-components compares with; the PII rewrites
 /// (`pii-rewrite`) compare whole rewritten texts, labels and audit reports
 /// rather than layers, which turbo-pii compares with.
-pub const NOT_COVERED: [&str; 26] = [
+pub const NOT_COVERED: [&str; 27] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -53,6 +53,7 @@ pub const NOT_COVERED: [&str; 26] = [
     "tag-format",
     "namefind",
     "stem",
+    "hunspell",
     "stopword",
     "glossary",
     "svm-doccat",

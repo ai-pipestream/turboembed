@@ -150,6 +150,9 @@ final class Runs {
   static final String STEM = "stem";
   /** The words and language codes of the stopword goldens. */
   static final String STOPWORD = "stopword";
+  /** The words the Hunspell goldens stem with the published and the fixture dictionaries. */
+  static final String HUNSPELL = "hunspell";
+
   /** Whole profile tables for PlaceProfiles of the addons geo module. */
   static final String PLACE_PROFILES = "place-profiles";
 
@@ -378,6 +381,9 @@ final class Runs {
     annotators.addAll(NameFindGolden.all(fixtures));
     annotators.addAll(StemGolden.all());
     annotators.addAll(StopwordGolden.all());
+    // The Hunspell stemmer of the compatibility branch over the published and the fixture
+    // dictionaries (turbo-hunspell).
+    annotators.addAll(HunspellGolden.all(models, fixtures));
     // The glossary matchers over the fixture glossary, and the glossary readers.
     annotators.addAll(GlossaryGolden.all(fixtures.resolve(GLOSSARY_TERMS)));
 

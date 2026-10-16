@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/edge	592	560	28bc4140f764c243f0010d2a37035fa7d91b6074d15e74968b0e7c41e6a9b2bb
+model	error-alias.aff	072a776a420704e2103de13856934aac01072e035a6aad24d72a38c689f04feed6e7bebca996fa8b1e1385c5e446a2d095a5850908245bc4ed2c437ced2babfb
+model	error-alias.dic	d989c50a12d076caa0cc69a2d007262d8f2afabe5bc9bbec045bd95f2cc20e1ea8a3ed5b3f9310eb3dbf66aab008800789cd2d316384fe0caaf9f68580e9895b
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+java.io.IOException	flag alias 2 at line 2 is outside the AF table of 1 aliases
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	0	word:str	stem:str	thrown:str
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	0	word:u32	stem:str
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	0	word:u32	analysis:str
+end	turbo:hunspell-analyses

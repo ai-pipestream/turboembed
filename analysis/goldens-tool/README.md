@@ -68,6 +68,9 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   `en-chunker.bin`, only to score them in the MASC release's gates);
   `generate`, `verify` and `fuzz` always do, since the generator runs
   them.
+  It also fetches LibreOffice's `en_US`, `de_DE_frami` and `hu_HU` Hunspell
+  dictionaries (`HUNSPELL_FILES`) into `<dir>/hunspell/`, each checked
+  against the SHA-512 in the recipe.
   It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
@@ -189,6 +192,7 @@ a directory with the same model run without them, and its options are
 | `tag-format` (`POSTagFormatMapper`) | `pos-fixture` (fixture), `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron`; `guesses` | `sequence` (the `sentences` input); `guesses` on `tag-format` | |
 | `namefind` (`DictionaryNameFinder`, `RegexNameFinder`, `NameFinderME.dropOverlappingSpans`) | `generated`, `dictionary`, `regex-builtin`, `regex-factory`, `regex-user`, `merge`, with the fixtures in `namefind/` | `namefind` | |
 | `stem` (`PorterStemmer`, `SnowballStemmer`, the light and minimal stemmers) | `porter`, `snowball-<language>`, `snowball-<language>-repeat2`, `<language>-light`, `<language>-minimal`, and the Norwegian ones by variety | `stem`: `edge`, the stemmer's language and `generated-<language>` | `stemmer` |
+| `hunspell` (`HunspellDictionary`, `HunspellStemmer` of the `OPENNLP-1927-hunspell-compatibility` branch) | `en_US`, `de_DE_frami`, `hu_HU` (downloaded); `fixture-<name>` for each fixture in `hunspell/`, and `fixture-unsupported-directives+partial` | `hunspell`: `edge` and the run's own; `stem`: the Snowball sample of the dictionary's language | `mode`, `branchCommit` |
 | `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
 | `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
 | `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
@@ -978,11 +982,11 @@ the inputs directory may hold any subset of the sets.
 ## Sequence, name finder, stemmer, stopword and glossary goldens
 
 These runs are the parity tests of `turbo-sequence`, `turbo-namefind`,
-`turbo-stem`, `turbo-stopword` and `turbo-glossary`; each crate's README
-describes its inputs, fixtures and layers, and the Java class of each run says
-what it records. Their layers are anchored to the document, but for the
-glossary matchers' matches and analyzed terms, which are spans of the text;
-a string that can hold half of a surrogate pair is written as
+`turbo-stem`, `turbo-hunspell`, `turbo-stopword` and `turbo-glossary`; each
+crate's README describes its inputs, fixtures and layers, and the Java class of
+each run says what it records. Their layers are anchored to the document, but
+for the glossary matchers' matches and analyzed terms, which are spans of the
+text; a string that can hold half of a surrogate pair is written as
 `TrainGolden.lossless` writes it.
 
 The `code-points` run of `string-pattern` runs the code point
@@ -994,6 +998,19 @@ entrypoint names the jar in the system property
 `turbo.goldens.stringPatternJar`; the run loads the three classes from it in a
 class loader that looks there first, beside the generator's own. Run outside
 the container, the generator needs that property.
+
+The `hunspell` runs work the same way with the Hunspell classes of the fork's
+`OPENNLP-1927-hunspell-compatibility` branch (`HUNSPELL_COMMIT` in
+`src/recipe.rs`): the image compiles that commit's `HunspellStemmer`,
+`HunspellDictionary`, `HunspellAffixTable`, `HunspellCompoundRule`,
+`HunspellConversion` and `AffixCondition`, with `java/hunspell/HunspellBridge.java`,
+into `/hunspell/hunspell.jar` beside a file holding the commit, and the
+entrypoint names the jar in `turbo.goldens.hunspellJar`. The runs check the
+commit and load every class of the package from the jar first. The
+dictionaries come from `fetch-models`, which downloads `HUNSPELL_FILES` of
+the recipe into `<models>/hunspell/` and checks the SHA-512 the recipe holds
+for each (the repository publishes none); `analysis/hunspell/README.md` lists
+their licences. None is checked in.
 
 The fixture models `pos-fixture.bin`, `chunker-fixture.bin` and
 `ner-{bio,bilou,qn}-fixture.bin` are trained by `FixtureModels.java` from
@@ -1048,7 +1065,7 @@ GIT_LFS_SKIP_SMUDGE=1 git checkout FETCH_HEAD
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
 cargo run -p turbo-goldens-tool -- fetch-models <models dir> --local
-java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
+java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -Dturbo.goldens.hunspellJar=<hunspell.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
     <empty out dir> cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
 

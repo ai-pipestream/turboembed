@@ -1,0 +1,6 @@
+﻿SET UTF-8 # the encoding
+# a comment line
+SFX # Y 1 # a comment after the header
+SFX # 0 s . is:pl # a comment after the fields
+REP 1
+REP a b
