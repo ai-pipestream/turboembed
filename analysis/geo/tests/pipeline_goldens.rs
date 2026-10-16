@@ -220,11 +220,8 @@ fn run_pipeline<G: Geocoder + Send + Sync + 'static>(
         .map(|i| {
             let ix = Ix::new(i as u32);
             let span = cont.spans.get(ix);
-            let chain = cont
-                .ancestors(ix)
-                .map(|a| format!("{}|{}|{}", a.id, a.name, a.kind))
-                .collect::<Vec<_>>()
-                .join(">");
+            let chain =
+                cont.ancestors(ix).map(|a| format!("{}|{}|{}", a.id, a.name, a.kind)).collect::<Vec<_>>().join(">");
             format!("{}..{}:{}", span.start, span.end, chain)
         })
         .collect::<Vec<_>>()
