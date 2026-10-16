@@ -278,19 +278,27 @@ pub fn cons3(
 
 /// Adds the features of a node next to a completed node of type `kind`
 /// (`AbstractContextGenerator.surround`).
+///
+/// With punctuation, Java writes three features per punctuation node into one `StringBuilder`
+/// and clears it before the second and the third, not before the first. The first feature of the
+/// second and later nodes therefore starts with the last feature of the node before it, as in
+/// `s2*=VP|''she|VP|NP|,` for the set `'' ,` after `she`. A set holds more than one node only when
+/// their probabilities differ, so this shows when parsing, not on gold trees.
 pub fn surround(node: Option<&Parse>, i: i32, kind: &str, punctuation: Option<&[Parse]>, features: &mut Vec<String>) {
     if let Some(puncts) = punct_set_of(punctuation) {
+        let mut prefix = format!("s{i}=");
         for punct in puncts {
             let ptype = punct.kind();
             features.push(match node {
-                Some(n) => format!("s{i}={}|{kind}|{}|{ptype}", n.head_text(), n.kind()),
-                None => format!("s{i}={kind}|{EOS}|{ptype}"),
+                Some(n) => format!("{prefix}{}|{kind}|{}|{ptype}", n.head_text(), n.kind()),
+                None => format!("{prefix}{kind}|{EOS}|{ptype}"),
             });
             features.push(match node {
                 Some(n) => format!("s{i}*={kind}|{}|{ptype}", n.kind()),
                 None => format!("s{i}*={kind}|{EOS}|{ptype}"),
             });
-            features.push(format!("s{i}*={kind}|{ptype}"));
+            prefix = format!("s{i}*={kind}|{ptype}");
+            features.push(prefix.clone());
         }
     } else {
         features.push(match node {

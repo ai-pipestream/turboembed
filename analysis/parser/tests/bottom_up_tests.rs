@@ -193,6 +193,29 @@ fn chunking_check_context_matches_opennlp() {
     assert_eq!(ctx, expected);
 }
 
+/// With two punctuation nodes after a constituent, which only happens when their probabilities
+/// differ, the first surround feature of the second starts with the last feature of the first:
+/// OpenNLP's `surround` does not clear its `StringBuilder` before it.
+#[test]
+fn surround_features_after_two_punctuation_nodes_are_written_as_java_writes_them() {
+    let rules = english_head_rules();
+    let p = Parse::parse("(TOP (S (NP (DT The) (NN soup)) (VP (VBZ is)) (, ,) ('' '') (NP (PRP she))))").unwrap();
+    let mut chunks: Vec<Parse> = p.initial_chunks().into_iter().cloned().collect();
+    // The tagger's probabilities: `''` above `,`, so the set holds both, `''` first.
+    chunks[2].add_prob(0.5);
+    chunks[3].add_prob(0.9);
+    let mut chunks = collapse_punctuation(&chunks, rules.punctuation_tags());
+    for (c, label) in chunks.iter_mut().zip(["S-S", "C-S", "S-NP"]) {
+        c.set_label(Some(label.to_owned()));
+    }
+    let ctx = chunking::CheckContextGenerator::new().get_context(&chunks, "VP", 1, 1);
+    let surround: Vec<&str> = ctx.iter().map(String::as_str).filter(|f| f.starts_with("s1")).collect();
+    assert_eq!(
+        surround,
+        ["s1=she|VP|NP|''", "s1*=VP|NP|''", "s1*=VP|''", "s1*=VP|''she|VP|NP|,", "s1*=VP|NP|,", "s1*=VP|,"]
+    );
+}
+
 #[test]
 fn collapse_punctuation_and_build_dictionary() {
     let rules = english_head_rules();
