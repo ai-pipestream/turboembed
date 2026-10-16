@@ -313,6 +313,39 @@ pub const HUNSPELL_FILES: [HunspellFile; 6] = [
     },
 ];
 
+/// A training corpus the generator reads from the models directory: its
+/// path there, where it is fetched from, its SHA-512, the licence it is
+/// published under and where it is described.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Corpus {
+    pub file: &'static str,
+    pub url: &'static str,
+    pub sha512: &'static str,
+    pub license: &'static str,
+    pub source: &'static str,
+}
+
+/// The training corpora, fetched by `fetch-models` and never checked in.
+///
+/// The SMS Spam Collection (T. A. Almeida, J. M. Gomez Hidalgo and A.
+/// Yamakami, "Contributions to the Study of SMS Spam Filtering: New
+/// Collection and Results", DocEng 2011) is published by the UCI Machine
+/// Learning Repository under CC BY 4.0, as a zip holding the file
+/// `SMSSpamCollection`: 5,574 lines, each `ham` or `spam`, a tab and the
+/// message. The file is fetched from a copy in a GitHub repository, pinned
+/// by commit, which has those 5,574 lines (4,827 `ham`, 747 `spam`); the
+/// hash is of that copy, which has not been compared byte for byte with
+/// the file in the UCI archive. The maxent document categorizer goldens
+/// (`DoccatGolden.java`) train on it.
+pub const CORPORA: [Corpus; 1] = [Corpus {
+    file: "corpora/sms-spam-collection.tsv",
+    url: "https://raw.githubusercontent.com/justmarkham/pycon-2016-tutorial/5339710562cc46c4a32a369d63f1e8751a18a54e/data/sms.tsv",
+    sha512: "2b454257f2d5eff9d829d5be9d0f99af68581367be6bad8e564e1d872112ce6\
+             52e7e1d75a5752e4770eb682e7ffd2d0be68b6b015e9588bdf599a30a72307957",
+    license: "CC BY 4.0",
+    source: "https://archive.ics.uci.edu/dataset/228/sms+spam+collection",
+}];
+
 /// The suffix of the directory holding the UTF-8 copy of a dictionary
 /// that is not UTF-8.
 pub const UTF8_COPY_SUFFIX: &str = ".utf8";
@@ -885,7 +918,7 @@ pub const FIXTURES: [Fixture; 109] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 43] = [
+pub const INPUT_SETS: [&str; 46] = [
     "en",
     "multi",
     "norm",
@@ -909,6 +942,7 @@ pub const INPUT_SETS: [&str; 43] = [
     "tagged",
     "formats",
     "ner",
+    "ad",
     "parse",
     "head-rules",
     "gazetteer",
@@ -927,6 +961,8 @@ pub const INPUT_SETS: [&str; 43] = [
     "svm-doccat-train",
     "sentiment",
     "sentiment-train",
+    "doccat",
+    "doccat-train",
     "conllu",
     "corpora",
 ];
@@ -942,7 +978,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 47] = [
+pub const ANNOTATORS: [&str; 49] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -971,6 +1007,7 @@ pub const ANNOTATORS: [&str; 47] = [
     "evaluate",
     "masc",
     "ner",
+    "ad",
     "parse",
     "head-rules",
     "gazetteer",
@@ -988,6 +1025,7 @@ pub const ANNOTATORS: [&str; 47] = [
     "glossary",
     "svm-doccat",
     "sentiment",
+    "doccat",
     "conllu",
     "corpora",
 ];
@@ -1034,6 +1072,13 @@ pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
 pub const SENTIMENT_INPUT_SET: &str = "sentiment";
 pub const SENTIMENT_TRAIN_SET: &str = "sentiment-train";
 
+/// The input sets of the maxent document categorizer: the documents its
+/// models categorize, and the corpus written for this project that they
+/// are trained on after the downloaded one ([`CORPORA`]). No other
+/// annotator runs on them.
+pub const DOCCAT_INPUT_SET: &str = "doccat";
+pub const DOCCAT_TRAIN_SET: &str = "doccat-train";
+
 /// The input set the PII packs and the PII rewrites run on. They run on no
 /// other set, and the other annotators do not run on this one.
 /// The input set of the corpus readers: files and directories in the
@@ -1044,6 +1089,11 @@ pub const CORPORA_INPUT_SET: &str = "corpora";
 /// The input set the PII packs run on. They run on no other set, and the
 /// other annotators do not run on this one.
 pub const PII_INPUT_SET: &str = "pii";
+
+/// The input set the Arvores Deitadas streams read: files in the format of
+/// the Floresta Sinta(c)tica treebank, written for the goldens. The streams
+/// read no other set.
+pub const AD_INPUT_SET: &str = "ad";
 
 /// The rate snapshot the money conversion reads: a directory beside the
 /// inputs directory under `analysis/goldens/data`, which the container gets
@@ -1216,6 +1266,8 @@ mod tests {
                 SVM_DOCCAT_TRAIN_SET,
                 SENTIMENT_INPUT_SET,
                 SENTIMENT_TRAIN_SET,
+                DOCCAT_INPUT_SET,
+                DOCCAT_TRAIN_SET,
                 PII_INPUT_SET,
             ]
             .contains(s)
@@ -1328,6 +1380,45 @@ mod tests {
         assert!(golden.contains("ANNOTATOR = \"sentiment\""));
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
         assert!(runs.contains("SentimentGolden.all(inputs)"));
+    }
+
+    #[test]
+    fn the_ad_streams_have_their_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&AD_INPUT_SET));
+        assert!(ANNOTATORS.contains(&"ad"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"ad"));
+        let golden = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/AdGolden.java");
+        assert!(golden.contains("SET = Runs.AD;"));
+        assert!(golden.contains("return \"ad\";"));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains(&format!("AD = \"{AD_INPUT_SET}\";")));
+        assert!(runs.contains("annotators.addAll(AdGolden.all("));
+    }
+
+    #[test]
+    fn the_maxent_categorizer_has_its_own_input_sets_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&DOCCAT_INPUT_SET));
+        assert!(INPUT_SETS.contains(&DOCCAT_TRAIN_SET));
+        assert!(ANNOTATORS.contains(&"doccat"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"doccat"));
+        let golden = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/DoccatGolden.java");
+        assert!(golden.contains(&format!("INPUT_SET = \"{DOCCAT_INPUT_SET}\"")));
+        assert!(golden.contains(&format!("TRAIN_SET = \"{DOCCAT_TRAIN_SET}\"")));
+        assert!(golden.contains("ANNOTATOR = \"doccat\""));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains("DoccatGolden.all(inputs, models)"));
+    }
+
+    #[test]
+    fn every_corpus_has_an_https_url_a_sha512_and_a_licence() {
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        for c in CORPORA {
+            assert!(is_lower_hex(c.sha512, 128), "{}: {}", c.file, c.sha512);
+            assert!(c.url.starts_with("https://") && c.source.starts_with("https://"), "{}", c.url);
+            assert!(c.file.starts_with("corpora/"), "{}", c.file);
+            assert!(!c.license.is_empty());
+            assert!(runs.contains(&format!("\"{}\"", c.file)), "Runs.java does not name {}", c.file);
+        }
     }
 
     #[test]

@@ -71,6 +71,10 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   It also fetches LibreOffice's `en_US`, `de_DE_frami` and `hu_HU` Hunspell
   dictionaries (`HUNSPELL_FILES`) into `<dir>/hunspell/`, each checked
   against the SHA-512 in the recipe.
+  It also fetches the training corpora (`CORPORA`) into `<dir>/corpora/`,
+  each checked against the SHA-512 in the recipe: the SMS Spam Collection
+  (CC BY 4.0), which the `doccat` runs train on and which is never checked
+  in.
   It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
@@ -182,6 +186,7 @@ a directory with the same model run without them, and its options are
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
 | `corpora` (the sentence, language and document corpus streams) | `moses`, `letsmt`, `letsmt-detokenized`, `nkjp`, `irish-sentences`, `irish-tokens`, `leipzig-2x3`, `leipzig-1x4-skip2`, `20newsgroup-whitespace` (also `+legacy`), `20newsgroup-simple` | `corpora`, the inputs whose id starts with the corpus's prefix (`moses-`, `letsmt-`, `nkjp-`, `irish-`, `leipzig-`, `newsgroups-`) | `detokenizer`; `sentencesPerSample`, `samplesPerLanguage`, `samplesToSkip`; `tokenizer`, `dataDir`, `whitespace legacy` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
+| `ad` (the Arvores Deitadas streams) | `names`, `names-nosplit`, `pos`, `pos-expand-features`, `chunk`, `chunk-1-3`, `sentence`, `sentence-titles`, `token` (with `pt-detokenizer`, fixture) | `ad`; the `sentence` runs leave out `ad-null-text` | `splitHyphenatedTokens`, `expandME`, `includeFeatures`, `start`, `end`, `includeTitles` |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
 | `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
@@ -199,6 +204,7 @@ a directory with the same model run without them, and its options are
 | `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
 | `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
 | `sentiment` (`SentimentME.train`, `probabilities`) | `tokens-maxent`, `emoji-maxent`, `emoji-default`, `emoji-qn`, `emoji-perceptron` | `sentiment`; the corpus `feedback` in `sentiment-train` | `run`, `corpus`, `language`, `factory`, `Algorithm`, `Iterations`, `Cutoff` |
+| `doccat` (`DocumentCategorizerME.train`, `categorize`) | `sms-default`, `sms-maxent`, `sms-qn`, `sms-perceptron` | `doccat`; the corpus `emoji` in `doccat-train` | `run`, `corpus`, `language`, `generators`, `Algorithm`, `Iterations`, `Cutoff` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -680,9 +686,30 @@ Leipzig message that names a file writes the corpus directory as
 
 `analysis/formats/tests/corpora.rs` compares the readers of
 `turbo_formats::corpora` with these goldens. Only these runs read the
-`corpora` set, and they have no dumps. The goldens are not checked in; the
-test skips, naming the `generate` command, while
-`analysis/goldens/data/corpora` is absent.
+`corpora` set, and they have no dumps.
+
+## AD goldens
+
+`ad/<run>/ad/<id>.golden` is what one of OpenNLP's Arvores Deitadas
+streams (the format of the Floresta Sinta(c)tica treebank) read from
+`inputs/ad/<id>.txt`. `AdGolden` makes each stream as its factory does,
+over the file read as UTF-8: `ADNameSampleStream` with hyphenated tokens
+split (`names`) and not (`names-nosplit`), `ADPOSSampleStream` with its
+defaults (`pos`) and with multiword expressions expanded and features
+included (`pos-expand-features`), `ADChunkSampleStream` whole (`chunk`)
+and from sentence 1 to before sentence 3 (`chunk-1-3`),
+`ADSentenceSampleStream` without and with titles, and the token samples
+of `ADTokenSampleStreamFactory`, a `NameToTokenSampleStream` with the
+Portuguese detokenizer dictionary over the name stream (`token`).
+
+The streams are read until `read` returns null; an exception is recorded
+and reading goes on. `ADSentenceSampleStream` throws on every read after
+a sentence without a text and never returns null, so the sentence runs
+leave out `ad-null-text`. The layers are those the format goldens write
+for the sample kind. `analysis/formats/tests/ad.rs` compares the Rust
+readers with these goldens. They are not checked in yet: the test skips,
+naming `cargo run -p turbo-goldens-tool -- generate`, until they are
+generated.
 
 ## Parse goldens
 
@@ -956,6 +983,59 @@ from its serialized bytes.
 The corpus and documents are written for the project. Only these runs
 read them, and they have no dumps. The parity test skips, naming the
 `generate` command, while `analysis/goldens/data/sentiment` is absent.
+
+## Maxent document categorizer goldens
+
+These runs record what OpenNLP's maxent document categorizer
+(`DocumentCategorizerME`, which `turbo-doccat` ports) does with
+`BagOfWordsFeatureGenerator`, `NGramFeatureGenerator` (bigrams) and
+`EmojiFeatureGenerator`, in that order. Each run trains a model with
+`DocumentCategorizerME.train` on the SMS Spam Collection followed by
+`inputs/doccat-train/emoji.txt`, read with `DocumentSampleStream` (one
+sample per line: the category, whitespace and the tokens):
+`sms-default` (`ModelUtil.createDefaultTrainingParameters()`, GIS, 100
+iterations, cutoff 5), `sms-maxent` (GIS, cutoff 1), `sms-qn`
+(`MAXENT_QN`) and `sms-perceptron` (`PERCEPTRON`), each with 100
+iterations and cutoff 1. The `config` records name all of it.
+
+The SMS Spam Collection (T. A. Almeida, J. M. Gomez Hidalgo and A.
+Yamakami, DocEng 2011) is published by the UCI Machine Learning Repository
+under CC BY 4.0: 5,574 text messages, 4,827 `ham` and 747 `spam`.
+`fetch-models` downloads it into `<models>/corpora/` from a copy pinned
+by commit and checks the SHA-512 in the recipe (`CORPORA`, which gives the
+URL and notes that the copy was not compared byte for byte with the UCI
+archive); it is never checked in, and each golden's `model` record holds
+its SHA-512. The goldens hold no text of it: only counts, digests and
+what the models give for the documents written for this project. The
+corpus has no emoji, so `emoji.txt`, 25 messages written for this project
+(15 `ham`, 10 `spam`), each with emoji, is trained on after it.
+
+`doccat/<run>/doccat-train/emoji.golden` holds the samples per category
+(`turbo:doccat-samples`, in order of first appearance), the SHA-256 and
+length of the `doccat.model` entry (`turbo:doccat-model`), and the
+manifest without `Timestamp` and the zip entries of the serialized model
+(`turbo:manifest`, `turbo:package-entries`).
+
+`doccat/<run>/doccat/<id>.golden` holds, for one document,
+`opennlp:tokens` (the `WhitespaceTokenizer` tokens the categorizer is
+given) and, anchored on the document, `turbo:doccat-features` (the
+context the model's generators give for those tokens, a feature per row)
+and `turbo:categories` (every category with its probability, best
+first), from the model read back from its serialized bytes. The
+generators are built with their public constructors, which are the ones
+`DoccatFactory` builds again from the manifest.
+
+Only these runs read the `doccat` and `doccat-train` sets, and they have
+no dumps.
+
+Two tests read them. `analysis/doccat/tests/maxent_goldens.rs` needs no
+corpus: it compares the features of every document. The goldens hold no
+model file, so `analysis/train-components/tests/doccat_goldens.rs` trains
+each run's model on the downloaded corpus (from `TURBO_GOLDENS_MODELS`)
+and requires the `doccat.model` entry byte for byte, the manifest, the
+zip entries, and every document's features and probabilities with the
+JVM's bits. Without the corpus it skips, unless
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, as in CI, where it fails.
 
 ## PII goldens
 

@@ -1,0 +1,49 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	doccat/repeated	40	40	10ce2a6f3389237622706968c91106454353e43fee23dc3fe3413fb8e3e4b3aa
+model	sms-spam-collection.tsv	2b454257f2d5eff9d829d5be9d0f99af68581367be6bad8e564e1d872112ce652e7e1d75a5752e4770eb682e7ffd2d0be68b6b015e9588bdf599a30a72307957
+annotator	opennlp.tools.doccat.DocumentCategorizerME	categorize
+config	Algorithm	MAXENT
+config	Cutoff	5
+config	Iterations	100
+config	corpus	corpora/sms-spam-collection.tsv,doccat-train/emoji
+config	generators	opennlp.tools.doccat.BagOfWordsFeatureGenerator,opennlp.tools.doccat.NGramFeatureGenerator,opennlp.tools.doccat.EmojiFeatureGenerator
+config	language	en
+config	run	sms-default
+layer	opennlp:tokens	text	9	start:u32	end:u32
+0	4
+5	9
+10	14
+15	19
+20	23
+24	27
+28	31
+32	35
+36	39
+end	opennlp:tokens
+layer	turbo:doccat-features	document	17	feature:str
+bow=free
+bow=free
+bow=free
+bow=free
+bow=win
+bow=win
+bow=win
+bow=txt
+bow=txt
+ng=:free:free
+ng=:free:free
+ng=:free:free
+ng=:free:win
+ng=:win:win
+ng=:win:win
+ng=:win:txt
+ng=:txt:txt
+end	turbo:doccat-features
+layer	turbo:categories	document	2	category:str	score:f64
+spam	3fed30c2ff77b5eb 0.9122023572542138
+ham	3fb679e8044250a7 0.08779764274578615
+end	turbo:categories

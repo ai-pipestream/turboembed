@@ -1,0 +1,57 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-chunks	809	802	3d9a91ced7c7efb0dc7bed69c983c6a5051ca81121b7cf5daa93f8458256a3c4
+model	pt-detokenizer.xml	36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555
+annotator	opennlp.tools.formats.convert.NameToTokenSampleStream	read
+config	splitHyphenatedTokens	true
+layer	turbo:samples	document	5	written:str
+O rio muito largo<SPLIT>, corre devagar vai secar até agosto<SPLIT>, mês seco chuva cai bom<SPLIT>;<SPLIT>;<SPLIT>.
+,<SPLIT>.
+
+anda gato rabo pé
+de casa<SPLIT>, rua
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	5	text:str
+O rio muito largo, corre devagar vai secar até agosto, mês seco chuva cai bom;;.
+,.
+
+anda gato rabo pé
+de casa, rua
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	30	sample:u32	start:u32	end:u32
+0	0	1
+0	2	5
+0	6	11
+0	12	17
+0	17	18
+0	19	24
+0	25	32
+0	33	36
+0	37	42
+0	43	47
+0	48	54
+0	54	55
+0	56	60
+0	61	65
+0	66	71
+0	72	75
+0	76	79
+0	79	80
+0	80	81
+0	81	82
+1	0	1
+1	1	2
+3	0	4
+3	5	9
+3	10	14
+3	15	18
+4	0	2
+4	3	7
+4	7	8
+4	9	12
+end	turbo:sample-spans

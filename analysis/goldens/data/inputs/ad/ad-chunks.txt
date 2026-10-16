@@ -1,0 +1,64 @@
+<s>
+SOURCE: a
+1 x
+STA:fcl
+=SUBJ:np
+==>N:art("o" DET M S)	O
+==H:n("rio" M S)	rio
+==N<:adjp
+===>A:adv("muito")	muito
+===H:adj("largo" M S)	largo
+==,
+==N<:fcl
+===P:v-fin("correr" PR 3S IND VFIN)	corre
+===ADVL:advp-
+====H:adv("devagar")	devagar
+=P:vp
+==AUX:v-fin("ir" PR 3S IND VFIN)	vai
+==MV:v-inf("secar")	secar
+=ADVL:pp
+==H:prp("até")	até
+==P<:np
+===H:n("agosto" <NER:date> M S)	agosto
+===,
+===APP:np
+====H:n("mês" M S)	mês
+====N<:adj("seco" M S)	seco
+=n:n("chuva")	chuva
+=X:v-fin("cair")	cai
+=Y:ap
+==H:adj("bom")	bom
+==;
+=;
+.
+</s>
+<s>
+SOURCE: b
+1 y
+=,
+.
+</s>
+<s>
+SOURCE: c
+2 Sem árvore.
+</s>
+<s>
+SOURCE: d
+3 z
+STA:fcl
+=P:v-fin("andar")	anda
+=SUBJ:np--
+==H:n("gato")	gato
+==N<:np
+===H:n("rabo")	rabo
+==H:n("pé")	pé
+</s>
+<s>
+SOURCE: e
+4 w
+X:pp
+=H:prp("de")	de
+=P<:n("casa")	casa
+=,
+=P<:n("rua")	rua
+</s>

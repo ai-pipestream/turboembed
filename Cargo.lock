@@ -1831,11 +1831,33 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
+ "turbo-sequence",
  "turbo-train",
+]
+
+[[package]]
+name = "turbo-encoding"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-encoding-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-encoding-gen"
+version = "0.1.0"
+
+[[package]]
+name = "turbo-encoding-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
 ]
 
 [[package]]
@@ -2106,6 +2128,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-encoding",
  "turbo-goldens",
  "turbo-normalize-layers",
  "turbo-unicode",

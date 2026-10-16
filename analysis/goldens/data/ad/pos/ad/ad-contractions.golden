@@ -1,0 +1,85 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-contractions	1119	1119	4ac3d133872020f041672bc291596be8d276f0375862892121daecaf42e5522a
+annotator	opennlp.tools.formats.ad.ADPOSSampleStream	read
+config	expandME	false
+config	includeFeatures	false
+layer	turbo:samples	document	6	written:str
+Moro_v-fin em_prp a_Rua_Nova_prop e_conj-c De_prp ela_pron-pers gosto_v-fin ._.
+Vem_v-fin por_prp o_art caminho_n e_conj-c xis_prp o_art sobre_de_prp
+o_art resto_n em_prp ___x fim_n ._.
+Em_prp a_art Serra_Alta_prop ._.
+em_prp o_Ponte_Velha_prop a_b___prp
+fecho_n ._.
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	31	sample:u32	text:str
+0	Moro
+0	em
+0	a_Rua_Nova
+0	e
+0	De
+0	ela
+0	gosto
+0	.
+1	Vem
+1	por
+1	o
+1	caminho
+1	e
+1	xis
+1	o
+1	sobre_de
+2	o
+2	resto
+2	em
+2	__
+2	fim
+2	.
+3	Em
+3	a
+3	Serra_Alta
+3	.
+4	em
+4	o_Ponte_Velha
+4	a_b__
+5	fecho
+5	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	31	tag:str
+v-fin
+prp
+prop
+conj-c
+prp
+pron-pers
+v-fin
+.
+v-fin
+prp
+art
+n
+conj-c
+prp
+art
+prp
+art
+n
+prp
+x
+n
+.
+prp
+art
+prop
+.
+prp
+prop
+prp
+n
+.
+end	turbo:sample-tags

@@ -260,6 +260,20 @@ are not taken from any corpus.
   OpenNLP's test file `germeval2014.sample` holds them (Apache License
   2.0), unchanged after the comment lines that say so.
 
+- `inputs/ad/`: 11 files in the Arvores Deitadas format of the Floresta
+  Sinta(c)tica treebank, written for this project in Portuguese-like
+  text; they hold no Floresta text. They hold sentences with their
+  `SOURCE` lines in the newspaper (`CP` ids) and literary (`LIT`, `CIE`)
+  metadata styles, ids past the integer range, `&&` reanalyses,
+  paragraph, title, text and box markup, HAREM name tags of most types
+  with `<NER2>` continuations,
+  contractions across words and sentences, hyphenated and quoted words,
+  multiword expressions with underscores, nested phrases for the
+  chunker, tree lines each branch of the line parser takes (nodes with
+  secondary tags, punctuation, skipped and unparsable lines, `=` tags),
+  and sentences the parser gives up on: no `SOURCE` line, a short one,
+  no text line, no metadata and no text.
+
 - `inputs/parse/`: four files of Penn Treebank parses, one per line,
   written for this project: English trees with function tags, gap
   indexes, `-NONE-` traces in subject and object extraction chains,
@@ -366,6 +380,19 @@ are not taken from any corpus.
   with headers, quotes and signatures and malformed UTF-8, accented
   letters and characters outside the Basic Multilingual Plane. Their host
   names end in `.invalid` and their namespaces are `urn:example:` names.
+
+- `inputs/doccat-train/`: `emoji.txt`, 25 short text messages written for
+  this project in the SMS Spam Collection's format (`ham` or `spam`, a tab
+  and the message), 15 `ham` and 10 `spam`, each with emoji, which the
+  maxent document categorizer goldens train on after that downloaded
+  corpus, since it has none. The corpus itself is not checked in
+  (`analysis/goldens-tool/README.md`, "Maxent document categorizer
+  goldens").
+- `inputs/doccat/`: 12 documents those models categorize, written for this
+  project: one like each category, a mixed one, emoji alone, emoji joined
+  to words and to each other, accents and a character outside the Basic
+  Multilingual Plane, repeated words, words no corpus has, whitespace
+  alone, several lines, a long message, and one word without a line end.
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 

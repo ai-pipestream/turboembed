@@ -1,0 +1,56 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-literary	1206	1206	b5485314d1f941b05a792b0b901ac1014beaa7ea4a0df265b903c8443d03c854
+model	pt-detokenizer.xml	36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555
+annotator	opennlp.tools.formats.convert.NameToTokenSampleStream	read
+config	splitHyphenatedTokens	true
+layer	turbo:samples	document	8	written:str
+Era uma vez<SPLIT>.
+Nela vivia a Joaquina<SPLIT>.
+Fim<SPLIT>.
+letras
+As algas crescem<SPLIT>.
+Muito<SPLIT>.
+Vazio<SPLIT>.
+Rochas<SPLIT>.
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+7	java.lang.RuntimeException	Invalid metadata: CIE4 p=0 ref="CIE4"
+end	turbo:read-errors
+layer	turbo:sample-texts	document	8	text:str
+Era uma vez.
+Nela vivia a Joaquina.
+Fim.
+letras
+As algas crescem.
+Muito.
+Vazio.
+Rochas.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	22	sample:u32	start:u32	end:u32
+0	0	3
+0	4	7
+0	8	11
+0	11	12
+1	0	4
+1	5	10
+1	11	12
+1	13	21
+1	21	22
+2	0	3
+2	3	4
+3	0	6
+4	0	2
+4	3	8
+4	9	16
+4	16	17
+5	0	5
+5	5	6
+6	0	5
+6	5	6
+7	0	6
+7	6	7
+end	turbo:sample-spans

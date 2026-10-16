@@ -22,6 +22,7 @@ const COUNT: u64 = 40;
 /// below fails until it is in one of them.
 const FED: &[&str] = &[
     "abbreviations",
+    "ad",
     "alphanumeric",
     "bpe",
     "codec",
@@ -29,6 +30,8 @@ const FED: &[&str] = &[
     "corpora",
     "descriptor-errors",
     "detokenizer",
+    "doccat",
+    "doccat-train",
     "edge",
     "en",
     "formats",

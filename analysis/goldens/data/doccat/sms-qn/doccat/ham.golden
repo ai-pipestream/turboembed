@@ -1,0 +1,61 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	doccat/ham	64	64	3f4574729194f5eebeb2e64cf04a90ba5d3bfd0338578630ba9b5367942c6d9d
+model	sms-spam-collection.tsv	2b454257f2d5eff9d829d5be9d0f99af68581367be6bad8e564e1d872112ce652e7e1d75a5752e4770eb682e7ffd2d0be68b6b015e9588bdf599a30a72307957
+annotator	opennlp.tools.doccat.DocumentCategorizerME	categorize
+config	Algorithm	MAXENT_QN
+config	Cutoff	1
+config	Iterations	100
+config	corpus	corpora/sms-spam-collection.tsv,doccat-train/emoji
+config	generators	opennlp.tools.doccat.BagOfWordsFeatureGenerator,opennlp.tools.doccat.NGramFeatureGenerator,opennlp.tools.doccat.EmojiFeatureGenerator
+config	language	en
+config	run	sms-qn
+layer	opennlp:tokens	text	13	start:u32	end:u32
+0	3
+4	7
+8	11
+12	18
+19	21
+22	25
+26	31
+32	40
+41	45
+46	48
+49	53
+54	57
+58	63
+end	opennlp:tokens
+layer	turbo:doccat-features	document	25	feature:str
+bow=hey
+bow=are
+bow=you
+bow=coming
+bow=to
+bow=the
+bow=match
+bow=tonight?
+bow=text
+bow=me
+bow=when
+bow=you
+bow=leave
+ng=:hey:are
+ng=:are:you
+ng=:you:coming
+ng=:coming:to
+ng=:to:the
+ng=:the:match
+ng=:match:tonight?
+ng=:tonight?:text
+ng=:text:me
+ng=:me:when
+ng=:when:you
+ng=:you:leave
+end	turbo:doccat-features
+layer	turbo:categories	document	2	category:str	score:f64
+ham	3fefffcc4da4e12f 0.9999753490911071
+spam	3ef9d92d8f6a5c8a 2.4650908893333652E-5
+end	turbo:categories
