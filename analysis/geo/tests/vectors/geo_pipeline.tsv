@@ -1,0 +1,61 @@
+# generator=GeoPipelineVectors.java	opennlp.commit=cdf33c653d5d61d5af7d37ffee189a83bd8392ea	java.version=21.0.12.1	java.vm.version=21.0.12.1+1-LTS	columns=scenario,geocoder,layer,records
+multi-country-ballot	prior	locations	0..4:fixture:fr-lyon:FR:522250:4046e1cac083126f:401357c1bda5119d:3feccccccccccccd;6..11:fixture:it-turin:IT:848748:404688ff97247454:401ebf62b6ae7d56:3feccccccccccccd;16..21:fixture:pt-porto:PT:231800:40449436113404ea:c0214219652bd3c3:3feccccccccccccd
+multi-country-ballot	prior	regions	AU:3fc5e8efdb195e8e:0.17117117117117114;CI:3fc5e8efdb195e8e:0.17117117117117114;DE:3fc5e8efdb195e8e:0.17117117117117114;FR:3fc4c1bacf914c1b:0.16216216216216214;IT:3fc4c1bacf914c1b:0.16216216216216214;PT:3fc4c1bacf914c1b:0.16216216216216214
+multi-country-ballot	prior	winners	0.0=AU;0.05=-;0.25=-;0.5=-
+multi-country-ballot	prior	containment	0..4:21|Auvergne-Rhone-Alpes|region>2|France|country;6..11:30|Piedmont|region>3|Italy|country;16..21:40|Porto District|region>4|Portugal|country
+multi-country-ballot	prior	money	116..120:500:AUD
+multi-country-ballot	spatial	locations	0..4:fixture:fr-lyon:FR:522250:4046e1cac083126f:401357c1bda5119d:3feccccccccccccd;6..11:fixture:it-turin:IT:848748:404688ff97247454:401ebf62b6ae7d56:3feccccccccccccd;16..21:fixture:pt-porto:PT:231800:40449436113404ea:c0214219652bd3c3:3feccccccccccccd
+multi-country-ballot	spatial	regions	AU:3fc5e8efdb195e8e:0.17117117117117114;CI:3fc5e8efdb195e8e:0.17117117117117114;DE:3fc5e8efdb195e8e:0.17117117117117114;FR:3fc4c1bacf914c1b:0.16216216216216214;IT:3fc4c1bacf914c1b:0.16216216216216214;PT:3fc4c1bacf914c1b:0.16216216216216214
+multi-country-ballot	spatial	winners	0.0=AU;0.05=-;0.25=-;0.5=-
+multi-country-ballot	spatial	containment	0..4:21|Auvergne-Rhone-Alpes|region>2|France|country;6..11:30|Piedmont|region>3|Italy|country;16..21:40|Porto District|region>4|Portugal|country
+multi-country-ballot	spatial	money	116..120:500:AUD
+spatial-springfield-il	prior	locations	0..11:fixture:us-ma-springfield:US:155929:40450cfdf3b645a2:c05225bf487fcb92:3fe1f77a8fcfd4be;16..23:fixture:us-il-chicago:US:2746388:4044f06594af4f0e:c055e84ea4a8c155:3feccccccccccccd
+spatial-springfield-il	prior	regions	US:3ff0000000000000:1.0
+spatial-springfield-il	prior	winners	0.0=US;0.05=US;0.25=US;0.5=US
+spatial-springfield-il	prior	containment	0..11:10|Massachusetts|region>1|United States|country;16..23:12|Illinois|region>1|United States|country
+spatial-springfield-il	prior	money	36..45:1250.50:USD
+spatial-springfield-il	spatial	locations	0..11:fixture:us-il-springfield:US:114394:4043e40ebedfa440:c056699b3d07c84b:3fe9d37b89c8d7a6;16..23:fixture:us-il-chicago:US:2746388:4044f06594af4f0e:c055e84ea4a8c155:3feccccccccccccd
+spatial-springfield-il	spatial	regions	US:3ff0000000000000:1.0
+spatial-springfield-il	spatial	winners	0.0=US;0.05=US;0.25=US;0.5=US
+spatial-springfield-il	spatial	containment	0..11:11|Illinois|region>1|United States|country;16..23:12|Illinois|region>1|United States|country
+spatial-springfield-il	spatial	money	36..45:1250.50:USD
+spatial-springfield-ma	prior	locations	0..11:fixture:us-ma-springfield:US:155929:40450cfdf3b645a2:c05225bf487fcb92:3fe1f77a8fcfd4be;16..22:fixture:us-ma-boston:US:675647:40452e17c1bda512:c051c3c504816f00:3feccccccccccccd
+spatial-springfield-ma	prior	regions	US:3ff0000000000000:1.0
+spatial-springfield-ma	prior	winners	0.0=US;0.05=US;0.25=US;0.5=US
+spatial-springfield-ma	prior	containment	0..11:10|Massachusetts|region>1|United States|country;16..22:10|Massachusetts|region>1|United States|country
+spatial-springfield-ma	prior	money	35..44:1250.50:USD
+spatial-springfield-ma	spatial	locations	0..11:fixture:us-ma-springfield:US:155929:40450cfdf3b645a2:c05225bf487fcb92:3febc0e6e9463172;16..22:fixture:us-ma-boston:US:675647:40452e17c1bda512:c051c3c504816f00:3feccccccccccccd
+spatial-springfield-ma	spatial	regions	US:3ff0000000000000:1.0
+spatial-springfield-ma	spatial	winners	0.0=US;0.05=US;0.25=US;0.5=US
+spatial-springfield-ma	spatial	containment	0..11:10|Massachusetts|region>1|United States|country;16..22:10|Massachusetts|region>1|United States|country
+spatial-springfield-ma	spatial	money	35..44:1250.50:USD
+guadalajara-boston-mxn	prior	locations	0..11:fixture:mx-guadalajara:MX:1385629:4034a8e219652bd4:c059d65fd8adab9f:3feccccccccccccd;21..27:fixture:us-ma-boston:US:675647:40452e17c1bda512:c051c3c504816f00:3feccccccccccccd
+guadalajara-boston-mxn	prior	regions	MX:3fe0000000000000:0.5;US:3fe0000000000000:0.5
+guadalajara-boston-mxn	prior	winners	0.0=MX;0.05=-;0.25=-;0.5=-
+guadalajara-boston-mxn	prior	containment	0..11:60|Jalisco|region>6|Mexico|country;21..27:10|Massachusetts|region>1|United States|country
+guadalajara-boston-mxn	prior	money	64..66:8:MXN
+guadalajara-boston-mxn	spatial	locations	0..11:fixture:mx-guadalajara:MX:1385629:4034a8e219652bd4:c059d65fd8adab9f:3feccccccccccccd;21..27:fixture:us-ma-boston:US:675647:40452e17c1bda512:c051c3c504816f00:3feccccccccccccd
+guadalajara-boston-mxn	spatial	regions	MX:3fe0000000000000:0.5;US:3fe0000000000000:0.5
+guadalajara-boston-mxn	spatial	winners	0.0=MX;0.05=-;0.25=-;0.5=-
+guadalajara-boston-mxn	spatial	containment	0..11:60|Jalisco|region>6|Mexico|country;21..27:10|Massachusetts|region>1|United States|country
+guadalajara-boston-mxn	spatial	money	64..66:8:MXN
+paris-lyon-wof	prior	locations	0..5:fixture:fr-paris:FR:2161000:40486da5119ce076:4002d14e3bcd35a8:3fec8367570a47e2;7..11:fixture:fr-lyon:FR:522250:4046e1cac083126f:401357c1bda5119d:3feccccccccccccd;16..29:fixture:fr-st-germain:FR:50000:40486d4fdf3b645a:4002a95e9e1b089a:3feccccccccccccd
+paris-lyon-wof	prior	regions	FR:3ff0000000000000:1.0
+paris-lyon-wof	prior	winners	0.0=FR;0.05=FR;0.25=FR;0.5=FR
+paris-lyon-wof	prior	containment	0..5:20|Ile-de-France|region;7..11:21|Auvergne-Rhone-Alpes|region>2|France|country;16..29:20|Ile-de-France|region
+paris-lyon-wof	prior	money	37..43:500:EUR;48..52:200:USD
+paris-lyon-wof	spatial	locations	0..5:fixture:fr-paris:FR:2161000:40486da5119ce076:4002d14e3bcd35a8:3fec7bd031b48984;7..11:fixture:fr-lyon:FR:522250:4046e1cac083126f:401357c1bda5119d:3feccccccccccccd;16..29:fixture:fr-st-germain:FR:50000:40486d4fdf3b645a:4002a95e9e1b089a:3feccccccccccccd
+paris-lyon-wof	spatial	regions	FR:3ff0000000000000:1.0
+paris-lyon-wof	spatial	winners	0.0=FR;0.05=FR;0.25=FR;0.5=FR
+paris-lyon-wof	spatial	containment	0..5:20|Ile-de-France|region;7..11:21|Auvergne-Rhone-Alpes|region>2|France|country;16..29:20|Ile-de-France|region
+paris-lyon-wof	spatial	money	37..43:500:EUR;48..52:200:USD
+sydney-australia-aud	prior	locations	0..6:fixture:au-sydney:AU:5312163:c040ef34d6a161e5:4062e6b295e9e1b1:3feccccccccccccd
+sydney-australia-aud	prior	regions	AU:3ff0000000000000:1.0
+sydney-australia-aud	prior	winners	0.0=AU;0.05=AU;0.25=AU;0.5=AU
+sydney-australia-aud	prior	containment	0..6:50|New South Wales|region>5|Australia|country
+sydney-australia-aud	prior	money	39..49:3000000:AUD
+sydney-australia-aud	spatial	locations	0..6:fixture:au-sydney:AU:5312163:c040ef34d6a161e5:4062e6b295e9e1b1:3feccccccccccccd
+sydney-australia-aud	spatial	regions	AU:3ff0000000000000:1.0
+sydney-australia-aud	spatial	winners	0.0=AU;0.05=AU;0.25=AU;0.5=AU
+sydney-australia-aud	spatial	containment	0..6:50|New South Wales|region>5|Australia|country
+sydney-australia-aud	spatial	money	39..49:3000000:AUD

@@ -24,11 +24,36 @@ const fn code(c: &[u8; 3]) -> Currency {
 
 type RegionConfig = ([u8; 2], NumberNotation, Option<(char, Currency)>);
 
-/// Every two-letter country code whose JDK 21 locale resolution uses
-/// `LatinEu` notation or maps a single-code-point `Sc` currency symbol to
-/// the region's ISO 4217 currency (`CursorMoneyExtractor.forRegion`).
+/// Every two-letter country code for which `RegionAwareMoneyAnnotator.localeOf`
+/// resolves a locale with a single-code-point `Sc` currency symbol on the
+/// pinned JDK 21 runtime (`Temurin-21.0.12.1+1`,
+/// `eclipse-temurin@sha256:3e3c176ffed168beb42c607be9bc1639b466cf00261a0fb04425562c9d0c5c2b`),
+/// along with `CursorMoneyExtractor.forRegion(locale)`'s [`NumberNotation`]
+/// and symbol override (`(symbol, currency)`).
+///
+/// `RegionAwareMoneyAnnotator.localeOf(cc)` tries `Locale.of("en", cc)` first
+/// whenever `en-<CC>` writes the currency as a single `Sc` code point (so
+/// `en-CA` writes `$` instead of `fr-CA`'s `CA$`), and otherwise scans
+/// `Locale.getAvailableLocales()` for a usable locale with the
+/// lexicographically smallest `toLanguageTag()`:
+/// - Every Eurozone country resolves through `en-<CC>` because `en-<CC>` writes
+///   the euro as `€` (`U+20AC`). In JDK 21's CLDR data, `en-AT`, `en-BE`,
+///   `en-DE`, `en-FI`, `en-NL`, and `en-SI` use `,` as their decimal separator
+///   ([`NumberNotation::LatinEu`]), while the remaining Eurozone `en-<CC>`
+///   locales (`AD`, `AX`, `BG`, `BL`, `CY`, `EE`, `ES`, `FR`, `GF`, `GP`,
+///   `GR`, `HR`, `IE`, `IT`, `LT`, `LU`, `LV`, `MC`, `ME`, `MF`, `MQ`, `MT`,
+///   `PM`, `PT`, `RE`, `SK`, `SM`, `TF`, `VA`, `YT`) use `.`
+///   ([`NumberNotation::LatinUs`]). `BG` maps to `EUR` because
+///   `Temurin-21.0.12.1+1` includes Bulgaria's `2026-01-01` euro cutover.
+/// - When `en-<CC>` writes a multi-character symbol (`RUB` for `en-RU`, `CN¥`
+///   for `en-CN`, `AFN` for `en-AF`), the installed-locale scan selects the
+///   lexicographically first usable language tag (`ce-Cyrl-RU` with `.` ->
+///   `LatinUs` and `\u{20BD}` -> `RUB`; `bo-CN` with `.` -> `LatinUs` and
+///   `\u{00A5}` -> `CNY`; `fa-AF` with `.` -> `LatinUs` and `\u{060B}` ->
+///   `AFN`; `km-KH` with `,` -> `LatinEu` and `\u{17DB}` -> `KHR`).
+///
 /// Sorted by two-byte country code.
-const REGION_CONFIGS: [RegionConfig; 124] = [
+const REGION_CONFIGS: [RegionConfig; 122] = [
     (*b"AD", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"AF", NumberNotation::LatinUs, Some(('\u{060B}', code(b"AFN")))),
     (*b"AG", NumberNotation::LatinUs, Some(('\u{0024}', code(b"XCD")))),
@@ -64,18 +89,17 @@ const REGION_CONFIGS: [RegionConfig; 124] = [
     (*b"DM", NumberNotation::LatinUs, Some(('\u{0024}', code(b"XCD")))),
     (*b"EC", NumberNotation::LatinUs, Some(('\u{0024}', code(b"USD")))),
     (*b"EE", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
-    (*b"ES", NumberNotation::LatinEu, Some(('\u{20AC}', code(b"EUR")))),
+    (*b"ES", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"FI", NumberNotation::LatinEu, Some(('\u{20AC}', code(b"EUR")))),
     (*b"FJ", NumberNotation::LatinUs, Some(('\u{0024}', code(b"FJD")))),
     (*b"FK", NumberNotation::LatinUs, Some(('\u{00A3}', code(b"FKP")))),
-    (*b"FR", NumberNotation::LatinEu, Some(('\u{20AC}', code(b"EUR")))),
+    (*b"FR", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"GB", NumberNotation::LatinUs, Some(('\u{00A3}', code(b"GBP")))),
     (*b"GD", NumberNotation::LatinUs, Some(('\u{0024}', code(b"XCD")))),
     (*b"GE", NumberNotation::LatinEu, Some(('\u{20BE}', code(b"GEL")))),
     (*b"GF", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"GG", NumberNotation::LatinUs, Some(('\u{00A3}', code(b"GBP")))),
     (*b"GI", NumberNotation::LatinUs, Some(('\u{00A3}', code(b"GIP")))),
-    (*b"GN", NumberNotation::LatinUs, Some(('\u{07FF}', code(b"GNF")))),
     (*b"GP", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"GR", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"GS", NumberNotation::LatinUs, Some(('\u{00A3}', code(b"GBP")))),
@@ -86,11 +110,11 @@ const REGION_CONFIGS: [RegionConfig; 124] = [
     (*b"IL", NumberNotation::LatinUs, Some(('\u{20AA}', code(b"ILS")))),
     (*b"IM", NumberNotation::LatinUs, Some(('\u{00A3}', code(b"GBP")))),
     (*b"IN", NumberNotation::LatinUs, Some(('\u{20B9}', code(b"INR")))),
-    (*b"IT", NumberNotation::LatinEu, Some(('\u{20AC}', code(b"EUR")))),
+    (*b"IT", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"JE", NumberNotation::LatinUs, Some(('\u{00A3}', code(b"GBP")))),
     (*b"JM", NumberNotation::LatinUs, Some(('\u{0024}', code(b"JMD")))),
     (*b"JP", NumberNotation::LatinUs, Some(('\u{00A5}', code(b"JPY")))),
-    (*b"KH", NumberNotation::LatinUs, Some(('\u{17DB}', code(b"KHR")))),
+    (*b"KH", NumberNotation::LatinEu, Some(('\u{17DB}', code(b"KHR")))),
     (*b"KI", NumberNotation::LatinUs, Some(('\u{0024}', code(b"AUD")))),
     (*b"KN", NumberNotation::LatinUs, Some(('\u{0024}', code(b"XCD")))),
     (*b"KR", NumberNotation::LatinUs, Some(('\u{20A9}', code(b"KRW")))),
@@ -124,14 +148,14 @@ const REGION_CONFIGS: [RegionConfig; 124] = [
     (*b"PN", NumberNotation::LatinUs, Some(('\u{0024}', code(b"NZD")))),
     (*b"PR", NumberNotation::LatinUs, Some(('\u{0024}', code(b"USD")))),
     (*b"PS", NumberNotation::LatinUs, Some(('\u{20AA}', code(b"ILS")))),
-    (*b"PT", NumberNotation::LatinEu, Some(('\u{20AC}', code(b"EUR")))),
+    (*b"PT", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"RE", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"RU", NumberNotation::LatinUs, Some(('\u{20BD}', code(b"RUB")))),
     (*b"SB", NumberNotation::LatinUs, Some(('\u{0024}', code(b"SBD")))),
     (*b"SG", NumberNotation::LatinUs, Some(('\u{0024}', code(b"SGD")))),
     (*b"SH", NumberNotation::LatinUs, Some(('\u{00A3}', code(b"SHP")))),
     (*b"SI", NumberNotation::LatinEu, Some(('\u{20AC}', code(b"EUR")))),
-    (*b"SK", NumberNotation::LatinEu, Some(('\u{20AC}', code(b"EUR")))),
+    (*b"SK", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"SM", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"SR", NumberNotation::LatinEu, Some(('\u{0024}', code(b"SRD")))),
     (*b"SS", NumberNotation::LatinUs, Some(('\u{00A3}', code(b"SSP")))),
@@ -151,17 +175,17 @@ const REGION_CONFIGS: [RegionConfig; 124] = [
     (*b"VC", NumberNotation::LatinUs, Some(('\u{0024}', code(b"XCD")))),
     (*b"VI", NumberNotation::LatinUs, Some(('\u{0024}', code(b"USD")))),
     (*b"VN", NumberNotation::LatinUs, Some(('\u{20AB}', code(b"VND")))),
-    (*b"XK", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
     (*b"YT", NumberNotation::LatinUs, Some(('\u{20AC}', code(b"EUR")))),
 ];
 
 impl MoneyExtractor {
     /// Builds a [`MoneyExtractor`] configured for `country_code` as OpenNLP's
-    /// `CursorMoneyExtractor.forRegion(Locale)` does on JDK 21: selects the
-    /// country's [`NumberNotation`] and overrides its single-code-point `Sc`
-    /// currency symbol when one exists (`$` -> `AUD` for `AU`, `$` -> `CAD`
-    /// for `CA`, `\u{07FF}` -> `GNF` for `GN`, `€` -> `EUR` with `LatinEu`
-    /// for `DE`), keeping the rest of [`DEFAULT_SYMBOLS`](super::DEFAULT_SYMBOLS).
+    /// `RegionAwareMoneyAnnotator` and `CursorMoneyExtractor.forRegion(Locale)`
+    /// do on JDK 21: selects the country's [`NumberNotation`] and overrides its
+    /// single-code-point `Sc` currency symbol when one exists (`$` -> `AUD` for
+    /// `AU`, `$` -> `CAD` for `CA`, `¥` -> `CNY` for `CN`, `\u{060B}` -> `AFN`
+    /// for `AF`, `€` -> `EUR` with `LatinEu` for `DE`), keeping the rest of
+    /// [`DEFAULT_SYMBOLS`](super::DEFAULT_SYMBOLS).
     pub fn for_region(country_code: RegionCode) -> MoneyExtractor {
         let key = country_code.bytes();
         match REGION_CONFIGS.binary_search_by_key(&key, |&(k, _, _)| k) {
@@ -299,15 +323,20 @@ mod tests {
     }
 
     #[test]
-    fn locale_scan_skips_unusable_symbol_candidates_for_guinea() {
-        let doc = with_ballot("price 100\u{07FF} today", &[("GN", 1.0)]);
+    fn locale_scan_skips_unusable_symbol_candidates() {
         let a =
             Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
-        let out = run_one(&a, doc);
-        let money = out.get::<Money>().unwrap();
-        assert_eq!(money.len(), 1);
-        assert_eq!(money.get(Ix::new(0)).currency.as_str(), "GNF");
-        assert_eq!(money.amount(Ix::new(0)).to_plain_string(), "100");
+        let af = run_one(&a, with_ballot("price 100\u{060B} today", &[("AF", 1.0)]));
+        let af_money = af.get::<Money>().unwrap();
+        assert_eq!(af_money.len(), 1);
+        assert_eq!(af_money.get(Ix::new(0)).currency.as_str(), "AFN");
+        assert_eq!(af_money.amount(Ix::new(0)).to_plain_string(), "100");
+
+        let cn = run_one(&a, with_ballot("price \u{00A5}100 today", &[("CN", 1.0)]));
+        let cn_money = cn.get::<Money>().unwrap();
+        assert_eq!(cn_money.len(), 1);
+        assert_eq!(cn_money.get(Ix::new(0)).currency.as_str(), "CNY");
+        assert_eq!(cn_money.amount(Ix::new(0)).to_plain_string(), "100");
     }
 
     #[test]

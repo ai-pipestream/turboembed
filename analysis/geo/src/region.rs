@@ -11,10 +11,12 @@
 //!    ISO 3166-1 alpha-2 country code, scanned left-to-right non-overlapping)
 //!    across the document text (`0.95` weight).
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
 
 use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{Entities, MarginError, RegionCode, RegionVote, Regions};
+use turbo_jvm::hash_map::{JavaHash, JavaHashMap, string_hash};
 use turbo_unicode::GeneralCategory;
 use turbo_unicode::category::general_category;
 use turbo_unicode::java::to_lowercase;
@@ -352,13 +354,25 @@ fn is_regional_indicator(c: char) -> bool {
     (REGIONAL_INDICATOR_A..=REGIONAL_INDICATOR_Z).contains(&cp)
 }
 
-fn add_vote(weights: &mut BTreeMap<RegionCode, f64>, country: RegionCode, weight: f64) {
-    if weight > 0.0 {
-        *weights.entry(country).or_insert(0.0) += weight;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RegionKey(RegionCode);
+
+impl JavaHash for RegionKey {
+    #[inline]
+    fn java_hash(&self) -> i32 {
+        string_hash(self.0.as_str())
+    }
+
+    fn tree_order(&self, other: &Self) -> Option<Ordering> {
+        Some(self.0.cmp(&other.0))
     }
 }
 
-fn add_flag_emoji_votes(text: &str, weights: &mut BTreeMap<RegionCode, f64>) {
+fn add_vote(weights: &mut JavaHashMap<RegionKey, f64>, country: RegionCode, weight: f64) {
+    weights.merge(RegionKey(country), weight, |sum, w| *sum += w);
+}
+
+fn add_flag_emoji_votes(text: &str, weights: &mut JavaHashMap<RegionKey, f64>) {
     let mut chars = text.chars().peekable();
     while let Some(first) = chars.next() {
         if !is_regional_indicator(first) {
@@ -437,9 +451,10 @@ impl Annotator for DocumentRegionAnnotator {
             first_by_span.entry(span).or_insert(ix.get());
         }
 
-        // Ordered by country code, so the total below is summed in the same
-        // order on every run and the shares come out bit for bit the same.
-        let mut weights: BTreeMap<RegionCode, f64> = BTreeMap::new();
+        // Keyed by JavaHashMap<RegionKey, f64> so weights.merge(...) and the
+        // entrySet() iteration that sums `total` follow Java's HashMap<String, Double>
+        // order bit for bit.
+        let mut weights: JavaHashMap<RegionKey, f64> = JavaHashMap::new();
         let mut lower_buf = String::new();
         let text = view.text();
 
@@ -463,14 +478,21 @@ impl Annotator for DocumentRegionAnnotator {
 
         add_flag_emoji_votes(text, &mut weights);
 
-        let total: f64 = weights.values().sum();
+        let mut total = 0.0;
+        let mut positive: Vec<(RegionCode, f64)> = Vec::with_capacity(weights.len());
+        for (&RegionKey(country), &w) in weights.iter() {
+            if w > 0.0 {
+                total += w;
+                positive.push((country, w));
+            }
+        }
         let mut ballot = Regions::new();
         if total <= 0.0 {
             return Ok((ballot,));
         }
 
         let mut rows: Vec<RegionVote> =
-            weights.into_iter().filter_map(|(country, w)| RegionVote::new(country, w / total).ok()).collect();
+            positive.into_iter().filter_map(|(country, w)| RegionVote::new(country, w / total).ok()).collect();
         rows.sort_by(|a, b| b.share.total_cmp(&a.share).then_with(|| a.country_code.cmp(&b.country_code)));
         for row in rows {
             ballot.push(row);
