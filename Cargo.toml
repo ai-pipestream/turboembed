@@ -22,6 +22,7 @@ members = [
     "analysis/unicode-gen",
     "analysis/maxent",
     "analysis/namefind",
+    "analysis/ngram",
     "analysis/normalize",
     "analysis/normalize-layers",
     "analysis/numeric",
@@ -37,6 +38,7 @@ members = [
     "analysis/doccat",
     "analysis/langspan",
     "analysis/lemmatizer",
+    "analysis/morfologik",
     "analysis/phrase-chunker",
     "analysis/stem",
     "analysis/stem-layers",
@@ -50,6 +52,7 @@ members = [
     "analysis/geo",
     "analysis/fuzz",
     "analysis/grammar",
+    "analysis/wordnet",
     "analysis/hunspell",
     "analysis/zoo",
 ]

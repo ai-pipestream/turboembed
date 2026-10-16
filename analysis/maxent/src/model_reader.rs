@@ -1,10 +1,11 @@
 //! Reading OpenNLP's binary model format into a [`MaxentModel`].
 //!
-//! The layout, as `GISModelWriter`, `QNModelWriter` and
-//! `PerceptronModelWriter` write it through `DataOutputStream`, with every
-//! string read by `ModelParameterChunker.readUTF`:
+//! The layout, as `GISModelWriter`, `QNModelWriter`,
+//! `PerceptronModelWriter` and `NaiveBayesModelWriter` write it through
+//! `DataOutputStream`, with every string read by
+//! `ModelParameterChunker.readUTF`:
 //!
-//! 1. The type string: `GIS`, `QN` or `Perceptron`.
+//! 1. The type string: `GIS`, `QN`, `Perceptron` or `NaiveBayes`.
 //! 2. GIS only: an int and a double that the reader ignores (the writer
 //!    always writes 1 and 1.0; they were the correction constant and
 //!    parameter of older versions).
@@ -37,8 +38,8 @@ impl MaxentModel {
     ///
     /// Where the Java reader would load a model that fails later, this one
     /// refuses it now: a model with no outcomes, and an outcome pattern
-    /// naming an outcome the model does not have. `NaiveBayes` models, and
-    /// any other type string, are refused with the type in the error.
+    /// naming an outcome the model does not have. Any unknown type string
+    /// is refused with the type in the error.
     pub fn read(bytes: &[u8]) -> Result<MaxentModel> {
         let mut r = JavaData::new(bytes);
         let type_string = r.read_chunked_utf()?;
@@ -46,6 +47,7 @@ impl MaxentModel {
             b"GIS" => ModelKind::Gis,
             b"QN" => ModelKind::Qn,
             b"Perceptron" => ModelKind::Perceptron,
+            b"NaiveBayes" => ModelKind::NaiveBayes,
             other => return Err(Error::ModelType(decode_modified_utf8(other).into())),
         };
         if kind == ModelKind::Gis {
@@ -105,10 +107,30 @@ impl MaxentModel {
         let start = match kind {
             // UniformPrior.setLabels: StrictMath.log(1.0 / numOutcomes).
             ModelKind::Gis => strict_math::log(1.0 / f64::from(outcome_count)),
-            ModelKind::Qn | ModelKind::Perceptron => 0.0,
+            ModelKind::Qn | ModelKind::Perceptron | ModelKind::NaiveBayes => 0.0,
+        };
+        let (outcome_totals, vocabulary) = if kind == ModelKind::NaiveBayes {
+            let mut totals = vec![0.0; outcome_count as usize];
+            for (&o, &w) in pred_outcome.iter().zip(&pred_param) {
+                totals[o as usize] += w;
+            }
+            (totals, f64::from(predicate_count))
+        } else {
+            (Vec::new(), 0.0)
         };
         let outcome_texts = outcome_texts(&outcomes);
-        Ok(MaxentModel { kind, outcomes, outcome_texts, predicates, pred_start, pred_outcome, pred_param, start })
+        Ok(MaxentModel {
+            kind,
+            outcomes,
+            outcome_texts,
+            predicates,
+            pred_start,
+            pred_outcome,
+            pred_param,
+            start,
+            outcome_totals,
+            vocabulary,
+        })
     }
 }
 
@@ -228,22 +250,28 @@ mod tests {
     }
 
     #[test]
-    fn qn_and_perceptron_have_no_gis_header() {
-        for (name, kind) in [("QN", ModelKind::Qn), ("Perceptron", ModelKind::Perceptron)] {
+    fn qn_perceptron_and_naive_bayes_have_no_gis_header() {
+        for (name, kind) in
+            [("QN", ModelKind::Qn), ("Perceptron", ModelKind::Perceptron), ("NaiveBayes", ModelKind::NaiveBayes)]
+        {
             let mut w = Writer::default();
             w.utf(name).int(1).utf("only").int(1).utf("1 0").int(1).utf("p").double(3.0);
             let m = MaxentModel::read(&w.0).unwrap();
             assert_eq!(m.kind(), kind);
             assert_eq!(m.pred_param, [3.0]);
             assert_eq!(m.start, 0.0);
+            if kind == ModelKind::NaiveBayes {
+                assert_eq!(m.outcome_totals, [3.0]);
+                assert_eq!(m.vocabulary, 1.0);
+            }
         }
     }
 
     #[test]
-    fn unknown_and_naive_bayes_types_are_named() {
+    fn unknown_model_types_are_named() {
         let mut w = Writer::default();
-        w.utf("NaiveBayes");
-        assert!(matches!(MaxentModel::read(&w.0), Err(Error::ModelType(t)) if &*t == "NaiveBayes"));
+        w.utf("Mystery");
+        assert!(matches!(MaxentModel::read(&w.0), Err(Error::ModelType(t)) if &*t == "Mystery"));
     }
 
     #[test]

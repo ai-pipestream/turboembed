@@ -32,6 +32,10 @@ pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
+pub use sentiment::{
+    Aspect, AspectTarget, Aspects, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget,
+    Incongruity, Opinion, Opinions, Polarity, PolarityScores, Pragmatics, PragmaticsItem,
+};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
 pub use words::{
@@ -104,6 +108,7 @@ mod ordinals;
 mod pii;
 mod quantities;
 mod regions;
+mod sentiment;
 mod temporal;
 mod times;
 mod words;
@@ -332,6 +337,90 @@ impl Layer for Lemmas {
     }
     fn len(&self) -> usize {
         self.lemma.len()
+    }
+}
+
+/// A stem per token: item `i` is the stem of token `i`
+/// (OpenNLP's `StemmerAnnotator.STEMS`).
+#[derive(Clone, Debug, Default)]
+pub struct Stems {
+    pub stem: Strs,
+}
+
+impl Layer for Stems {
+    const ID: &'static str = "turbo:stems";
+    fn anchor() -> Anchor {
+        Anchor::aligned::<Tokens>()
+    }
+    fn len(&self) -> usize {
+        self.stem.len()
+    }
+}
+
+/// One token's layered term forms in [`Terms`]: surface, folded, stem and
+/// lemma slots.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct TermSlot<'a> {
+    pub surface: &'a str,
+    pub folded: &'a str,
+    pub stem: Option<&'a str>,
+    pub lemma: Option<&'a str>,
+}
+
+/// Layered term forms per token (`turbo:terms`), aligned to [`Tokens`]:
+/// `surface` (the original token text), `folded` (the character-normalized
+/// form), and optional `stem` and `lemma` columns when a stemmer or
+/// lemmatizer produced them.
+#[derive(Clone, Debug, Default)]
+pub struct Terms {
+    pub surface: Strs,
+    pub folded: Strs,
+    pub stem: Option<Strs>,
+    pub lemma: Option<Strs>,
+}
+
+impl Terms {
+    /// Returns the surface, folded, stem and lemma forms for token `i`.
+    pub fn get(&self, i: Ix<Tokens>) -> TermSlot<'_> {
+        let idx = i.get();
+        TermSlot {
+            surface: self.surface.get(idx),
+            folded: self.folded.get(idx),
+            stem: self.stem.as_ref().map(|s| s.get(idx)),
+            lemma: self.lemma.as_ref().map(|l| l.get(idx)),
+        }
+    }
+
+    /// Iterates over every token's term slots in token order.
+    pub fn iter(&self) -> impl Iterator<Item = TermSlot<'_>> {
+        (0..self.surface.len() as u32).map(|i| self.get(Ix::new(i)))
+    }
+}
+
+impl Layer for Terms {
+    const ID: &'static str = "turbo:terms";
+    fn anchor() -> Anchor {
+        Anchor::aligned::<Tokens>()
+    }
+    fn len(&self) -> usize {
+        self.surface.len()
+    }
+    fn check(&self) -> Result<(), String> {
+        let n = self.surface.len();
+        if self.folded.len() != n {
+            return Err(format!("{} surface forms and {} folded forms", n, self.folded.len()));
+        }
+        if let Some(stem) = &self.stem
+            && stem.len() != n
+        {
+            return Err(format!("{} surface forms and {} stems", n, stem.len()));
+        }
+        if let Some(lemma) = &self.lemma
+            && lemma.len() != n
+        {
+            return Err(format!("{} surface forms and {} lemmas", n, lemma.len()));
+        }
+        Ok(())
     }
 }
 
