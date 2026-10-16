@@ -149,6 +149,9 @@ impl<'a, I: Iterator<Item = &'a str>> Iterator for ParseStream<'a, I> {
                     segments.push((at, line.span));
                     text.push_str(line.text);
                     text.push(' ');
+                    if u32::try_from(text.len()).is_err() {
+                        return Some(Err(OntoNotesError::TooLong { len: text.len() }));
+                    }
                 }
                 _ if !text.is_empty() => return Some(self.read(&text, &segments)),
                 _ => {
