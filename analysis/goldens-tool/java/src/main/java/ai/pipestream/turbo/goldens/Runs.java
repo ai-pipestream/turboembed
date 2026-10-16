@@ -394,6 +394,10 @@ final class Runs {
     // The sentiment detector (turbo-doccat, turbo-train-components): models trained on the
     // sentiment-train corpus with each factory and trainer, and run on the sentiment documents.
     annotators.addAll(SentimentGolden.all(inputs));
+    // The neural part-of-speech taggers of the addons (turbo-postag's neural module): BiLSTM and
+    // feedforward models trained on the tagged word and tag lines, run on them and on the
+    // sequence sentences.
+    annotators.addAll(PostagNeuralGolden.all(inputs));
     return new All(annotators, recorders);
   }
 }

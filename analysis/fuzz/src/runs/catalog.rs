@@ -31,8 +31,9 @@ use crate::resources::{Resources, Unavailable};
 /// their own and score their own documents, which turbo-train-components
 /// compares with; the PII rewrites (`pii-rewrite`) compare whole rewritten
 /// texts, labels and audit reports rather than layers, which turbo-pii
-/// compares with.
-pub const NOT_COVERED: [&str; 28] = [
+/// compares with; the neural part-of-speech taggers (`postag-neural`) train
+/// models of their own and tag token lists rather than texts.
+pub const NOT_COVERED: [&str; 29] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -61,6 +62,7 @@ pub const NOT_COVERED: [&str; 28] = [
     "svm-doccat",
     "sentiment",
     "pii-rewrite",
+    "postag-neural",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

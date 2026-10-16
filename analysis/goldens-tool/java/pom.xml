@@ -71,6 +71,15 @@
       <version>2.44</version>
       <scope>runtime</scope>
     </dependency>
+    <!--
+      The neural part-of-speech taggers of the addons (PostagNeuralGolden), installed by the image
+      from the commit NEURAL_POSTAG_COMMIT of their ready/neural-postag-bilstm branch.
+    -->
+    <dependency>
+      <groupId>org.apache.opennlp.addons</groupId>
+      <artifactId>neural-postag</artifactId>
+      <version>${opennlp.addons.version}</version>
+    </dependency>
     <!-- The sample conversion streams and the CoNLL-U readers (FormatGolden). -->
     <dependency>
       <groupId>org.apache.opennlp</groupId>

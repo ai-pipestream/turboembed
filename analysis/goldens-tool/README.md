@@ -197,6 +197,7 @@ a directory with the same model run without them, and its options are
 | `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
 | `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
 | `sentiment` (`SentimentME.train`, `probabilities`) | `tokens-maxent`, `emoji-maxent`, `emoji-default`, `emoji-qn`, `emoji-perceptron` | `sentiment`; the corpus `feedback` in `sentiment-train` | `run`, `corpus`, `language`, `factory`, `Algorithm`, `Iterations`, `Cutoff` |
+| `postag-neural` (`BilstmPOSTagger`, `FeedforwardPOSTagger` of the addons `neural-postag` module, `topKSequences`) | `bilstm`, `bilstm-crf`, `bilstm-two-layer`, `bilstm-two-layer-crf`, `bilstm-vectors-crf`, `bilstm-adapter-crf`, `feedforward`, `feedforward-vectors` | `tagged` (the `wordtag` input, also the training corpus), `sequence` (the `sentences` input) | `run`, `corpus`, `neuralPostagCommit`, `settings`, `vectors` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -879,6 +880,47 @@ from its serialized bytes.
 The corpus and documents are written for the project. Only these runs
 read them, and they have no dumps. The parity test skips, naming the
 `generate` command, while `analysis/goldens/data/sentiment` is absent.
+
+## Neural part-of-speech goldens
+
+These runs record the neural taggers of the addons' `neural-postag`
+module, which the Dockerfile builds from `NEURAL_POSTAG_COMMIT`
+(`src/recipe.rs`, on the addons' `ready/neural-postag-bilstm` branch)
+against the OpenNLP fork; the `neuralPostagCommit` record names that
+commit. `PostagNeuralGolden.java` writes them. Each run trains one model on
+the word and tag lines of `inputs/tagged/wordtag.txt` (written for this
+project) with one worker thread, serializes it and tags with the model read
+back from those bytes:
+
+| Run | Trainer | Model file |
+|---|---|---|
+| `bilstm` | `BilstmPOSTrainer`, softmax scorer, one encoder layer | `ONLP-BLPT-1` |
+| `bilstm-crf` | CRF scorer, one encoder layer | `ONLP-BLPT-2` |
+| `bilstm-two-layer` | softmax scorer, two encoder layers | `ONLP-BLPT-3` |
+| `bilstm-two-layer-crf` | CRF scorer, two encoder layers | `ONLP-BLPT-4` |
+| `bilstm-vectors-crf` | CRF scorer, word vectors | `ONLP-BLPT-2` |
+| `bilstm-adapter-crf` | CRF scorer, word vectors through the linear adapter | `ONLP-BLPT-5` |
+| `feedforward` | `FeedforwardPOSTrainer` | `ONLP-FFPT-1` |
+| `feedforward-vectors` | `FeedforwardPOSTrainer`, word vectors | `ONLP-FFPT-2` |
+
+The `settings` record is the trainer's `Settings` record as Java writes
+it. The word vectors (`vectors`) have two components, the word's length in
+UTF-16 units times `0.1f`, and `0.5f`; they are stored in the model file.
+
+`postag-neural/<run>/tagged/wordtag.golden` tags the training sentences
+and holds the model file: `turbo:neural-model` (its magic string, length
+and SHA-256) and `turbo:neural-model-bytes` (its bytes as hex, 64 a row).
+`postag-neural/<run>/sequence/sentences.golden` tags the fixed token list
+`inputs/sequence/sentences.txt`. Both hold, anchored on the document,
+`turbo:sentence-tokens`, `turbo:neural-tags` (the model's tags in index
+order), `turbo:neural-emissions` (every tag's unnormalized score for each
+token), for a CRF model `turbo:crf-viterbi` and `turbo:crf-marginals`,
+for the feedforward tagger `turbo:neural-context` (the twelve context
+symbols of each token and their embedding rows, with the tagger's own
+earlier tags as history) and, with vectors, `turbo:neural-vector-rows`,
+and `turbo:neural-tagged` and `turbo:neural-sequences` (the tags,
+probabilities and score of `topKSequences`, checked against `tag`). These
+runs have no dumps, and no Rust test reads them yet.
 
 ## PII goldens
 
