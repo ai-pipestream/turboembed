@@ -14,6 +14,7 @@ members = [
     "analysis/layers",
     "analysis/chunker",
     "analysis/embed",
+    "analysis/sat",
     "analysis/goldens",
     "analysis/goldens-tool",
     "analysis/jvm",
@@ -49,6 +50,7 @@ members = [
     "analysis/geo",
     "analysis/fuzz",
     "analysis/grammar",
+    "analysis/hunspell",
     "analysis/zoo",
 ]
 resolver = "3"

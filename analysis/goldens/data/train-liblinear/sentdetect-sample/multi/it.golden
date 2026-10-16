@@ -1,0 +1,83 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/it	197	194	b62b80bfc802d2090eb6659bc69dda051e07499cd9c8ac88a7cbe182c464f283
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	4	outcome:str	context:str	values:str
+n	7 eos=. n=Il ncap s= sn v=in x=Liguria xcap	
+n	10 eos=. n=Mia ncap s= sn v=è x=bellissimo	
+n	6 eos=. n=Perché ncap s= sn v=il x=pranzo	
+s	10 eos=? n= s= sn v=tu x=quest'anno	
+end	turbo:events
+layer	turbo:liblinear-text	document	28	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 21
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0.69303339900345600 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+ee7c44e611d08fbb2a06ff9a1251c65d9652702283ea0c37927dea816306dcbb	411
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	16	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe555204e685035 0.6666413813968634
+0	given	1	3fd555bf632f5f96 0.33335861860313665
+0	reversed	0	3fe555204e685035 0.6666413813968634
+0	reversed	1	3fd555bf632f5f96 0.33335861860313665
+1	given	0	3fe555204e685035 0.6666413813968634
+1	given	1	3fd555bf632f5f96 0.33335861860313665
+1	reversed	0	3fe555204e685035 0.6666413813968634
+1	reversed	1	3fd555bf632f5f96 0.33335861860313665
+2	given	0	3fe555204e685035 0.6666413813968634
+2	given	1	3fd555bf632f5f96 0.33335861860313665
+2	reversed	0	3fe555204e685035 0.6666413813968634
+2	reversed	1	3fd555bf632f5f96 0.33335861860313665
+3	given	0	3fe0000000000000 0.5
+3	given	1	3fe0000000000000 0.5
+3	reversed	0	3fe0000000000000 0.5
+3	reversed	1	3fe0000000000000 0.5
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	8	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+end	turbo:liblinear-best

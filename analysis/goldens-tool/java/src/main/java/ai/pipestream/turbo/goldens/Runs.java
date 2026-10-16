@@ -152,6 +152,9 @@ final class Runs {
   static final String STEM = "stem";
   /** The words and language codes of the stopword goldens. */
   static final String STOPWORD = "stopword";
+  /** The words the Hunspell goldens stem with the published and the fixture dictionaries. */
+  static final String HUNSPELL = "hunspell";
+
   /** Whole profile tables for PlaceProfiles of the addons geo module. */
   static final String PLACE_PROFILES = "place-profiles";
 
@@ -171,8 +174,9 @@ final class Runs {
   private Runs() {}
 
   /**
-   * The runs, with the inputs directory, which the SVM document categorizer runs train their
-   * models from ({@link SvmDoccatGolden}), and the models and fixtures directories.
+   * The runs, with the inputs directory, which the SVM document categorizer and sentiment runs
+   * train their models from ({@link SvmDoccatGolden}, {@link SentimentGolden}), and the models and
+   * fixtures directories.
    */
   static All load(Path inputs, Path models, Path fixtures, Path moneySnapshot) throws IOException {
     List<AnnotatorGolden> annotators = new ArrayList<>();
@@ -320,6 +324,7 @@ final class Runs {
     annotators.addAll(QuantityGolden.all());
     annotators.addAll(TemporalGolden.all());
     annotators.addAll(PiiGolden.all());
+    annotators.addAll(PiiRewriteGolden.all());
 
     // The training stack: the events of the sentence detector, the tokenizer and a real valued
     // source on the texts, indexed and trained; the sentence detector runs on the fixture
@@ -329,6 +334,8 @@ final class Runs {
     annotators.addAll(QnTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The perceptron and the sequence perceptron trainers on the same events.
     annotators.addAll(PerceptronTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The liblinear add-on's trainer on the same events, with each logistic regression solver.
+    annotators.addAll(LiblinearTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The same event streams with the factory options TrainGolden leaves at their defaults, and
     // the model file around a trained model.
     annotators.addAll(EventGolden.all(fixtures.resolve(ENGLISH_ABBREVIATIONS)));
@@ -380,12 +387,18 @@ final class Runs {
     annotators.addAll(NameFindGolden.all(fixtures));
     annotators.addAll(StemGolden.all());
     annotators.addAll(StopwordGolden.all());
+    // The Hunspell stemmer of the compatibility branch over the published and the fixture
+    // dictionaries (turbo-hunspell).
+    annotators.addAll(HunspellGolden.all(models, fixtures));
     // The glossary matchers over the fixture glossary, and the glossary readers.
     annotators.addAll(GlossaryGolden.all(fixtures.resolve(GLOSSARY_TERMS)));
 
     // The SVM document categorizer (turbo-doccat): models trained on the svm-doccat-train corpora,
     // exported, and run on the svm-doccat documents.
     annotators.addAll(SvmDoccatGolden.all(inputs));
+    // The sentiment detector (turbo-doccat, turbo-train-components): models trained on the
+    // sentiment-train corpus with each factory and trainer, and run on the sentiment documents.
+    annotators.addAll(SentimentGolden.all(inputs));
     return new All(annotators, recorders);
   }
 }

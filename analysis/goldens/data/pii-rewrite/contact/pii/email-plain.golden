@@ -1,0 +1,64 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/email-plain	65	65	739c6fff1dc8a0e165a891a57e52fef80a35d9905e98da99f105b6eaa15ae05e
+annotator	opennlp.tools.pii.PiiPacks	contact
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	contact
+layer	turbo:view	text	32	start:u32	end:u32	with:str
+9	10	*
+10	11	*
+11	12	*
+12	13	*
+13	14	*
+14	15	*
+15	16	*
+17	18	*
+18	19	*
+19	20	*
+20	21	*
+21	22	*
+22	23	*
+23	24	*
+25	26	*
+26	27	*
+27	28	*
+32	33	*
+33	34	*
+34	35	*
+35	36	*
+36	37	*
+38	39	*
+39	40	*
+40	41	*
+41	42	*
+42	43	*
+43	44	*
+44	45	*
+46	47	*
+47	48	*
+48	49	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Write to ################### or ################# before Friday.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	Write to EMAIL-1 or EMAIL-2 before Friday.\n	
+hmac	Write to EMAIL-b5d08c9892fd5775 or EMAIL-1d6ee1efa78de87c before Friday.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	4	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	9	28	9	16	EMAIL-1
+pseudonymize	32	49	20	27	EMAIL-2
+hmac	9	28	9	31	EMAIL-b5d08c9892fd5775
+hmac	32	49	35	57	EMAIL-1d6ee1efa78de87c
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+email	2	2	EMAIL-b5d08c9892fd5775, EMAIL-1d6ee1efa78de87c
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+email: 2 mentions, 2 distinct [EMAIL-b5d08c9892fd5775, EMAIL-1d6ee1efa78de87c]
+end	turbo:pii-audit-report

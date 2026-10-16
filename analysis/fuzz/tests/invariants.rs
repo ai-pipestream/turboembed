@@ -47,6 +47,8 @@ const FED: &[&str] = &[
     "place-profiles",
     "quantity",
     "sentence-fixture",
+    "sentiment",
+    "sentiment-train",
     "sequence",
     "stopword",
     "subwords",
@@ -62,6 +64,11 @@ const FED: &[&str] = &[
 
 /// The input sets the runs are not given, each with the reason.
 const NOT_FED: &[(&str, &str)] = &[
+    (
+        "hunspell",
+        "words, one per line, read only by the Hunspell goldens with the \
+         dictionary each file is named after; the covered runs gain nothing from them",
+    ),
     (
         "gazetteer",
         "about half a megabyte of place names, record ids, region codes and small \

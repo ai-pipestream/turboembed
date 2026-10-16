@@ -61,6 +61,16 @@
       <artifactId>opennlp-ml-libsvm</artifactId>
       <version>${opennlp.version}</version>
     </dependency>
+    <!--
+      liblinear-java, which the liblinear add-on trains with (LiblinearTrainGolden). The add-on's
+      own classes are loaded from a jar the image builds; this puts liblinear in target/lib.
+    -->
+    <dependency>
+      <groupId>de.bwaldvogel</groupId>
+      <artifactId>liblinear</artifactId>
+      <version>2.44</version>
+      <scope>runtime</scope>
+    </dependency>
     <!-- The sample conversion streams and the CoNLL-U readers (FormatGolden). -->
     <dependency>
       <groupId>org.apache.opennlp</groupId>

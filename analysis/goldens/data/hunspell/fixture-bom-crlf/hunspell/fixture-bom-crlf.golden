@@ -1,0 +1,39 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-bom-crlf	210	210	130f085cdd93b478e02eaf304ffb8b87e25575279601a293d4ba2b9d3df656d8
+model	bom-crlf.aff	7adcf18c5802c807f864b3c6f9515a7583c81b2709010fe062f9771a29c85f27c7764f7a18802a03d73d934e9d5d569447f1c0983822f57ea7da8d78186c772d
+model	bom-crlf.dic	33984facc0489af2d8ce1cdee48bf57903a720502b3f8f9e6638044c2cf45637cb4ff8b4cd4a1eb86a30b51a7f131e41016c5fb961534e8b9566df26827753bc
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	7	word:str	stem:str	thrown:str
+cat	cat	
+cats	cat	
+dog	dog	
+dogs	dogs	
+#	#	
+cat#	cat#	
+b	b	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	7	word:u32	stem:str
+0	cat
+1	cat
+2	dog
+3	dogs
+4	#
+5	cat#
+6	b
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	3	word:u32	analysis:str
+0	st:cat po:noun
+1	st:cat po:noun is:pl
+2	st:dog
+end	turbo:hunspell-analyses

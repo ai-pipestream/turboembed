@@ -1,0 +1,50 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/ca-sin	64	64	85d00548dcd886f4970d5345b9552625fd7b3ac0301d2c10babfc7754a24ca7f
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	all-structured
+layer	turbo:view	text	18	start:u32	end:u32	with:str
+5	6	*
+6	7	*
+7	8	*
+9	10	*
+10	11	*
+11	12	*
+13	14	*
+14	15	*
+15	16	*
+51	52	*
+52	53	*
+53	54	*
+55	56	*
+56	57	*
+57	58	*
+59	60	*
+60	61	*
+61	62	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+SIN: ########### recorded. Social insurance number ###########.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	SIN: CA-SIN-1 recorded. Social insurance number CA-SIN-1.\n	
+hmac	SIN: CA-SIN-5f88fe4819659353 recorded. Social insurance number CA-SIN-5f88fe4819659353.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	4	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	5	16	5	13	CA-SIN-1
+pseudonymize	51	62	48	56	CA-SIN-1
+hmac	5	16	5	28	CA-SIN-5f88fe4819659353
+hmac	51	62	63	86	CA-SIN-5f88fe4819659353
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+ca-sin	2	1	CA-SIN-5f88fe4819659353
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+ca-sin: 2 mentions, 1 distinct [CA-SIN-5f88fe4819659353]
+end	turbo:pii-audit-report

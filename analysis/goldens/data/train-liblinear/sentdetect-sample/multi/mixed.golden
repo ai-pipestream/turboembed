@@ -1,0 +1,83 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/mixed	208	159	71ffe6d2d2efe18534c6caac3d4b4b2934977b4396111c647e9b0231c6370f99
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	4	outcome:str	context:str	values:str
+n	4 eos=. n=Mathematicians ncap s= sn v=for x=¥800	
+n	4 eos=. n=Мой ncap s= sn v=special x=sets	
+n	6 eos=! n=我喜欢𠀀这个字吗？ s= sn v=from x=Berlin xcap	
+s	2 eos=. n= s= sn v=end x=🎉	
+end	turbo:events
+layer	turbo:liblinear-text	document	28	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 21
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+6ec95d7fd9b1b1260b1578d4e0dc808d856152aab9d1a4ddb63d8c6df5b266a8	427
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	16	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe0000000000000 0.5
+0	given	1	3fe0000000000000 0.5
+0	reversed	0	3fe0000000000000 0.5
+0	reversed	1	3fe0000000000000 0.5
+1	given	0	3fe0000000000000 0.5
+1	given	1	3fe0000000000000 0.5
+1	reversed	0	3fe0000000000000 0.5
+1	reversed	1	3fe0000000000000 0.5
+2	given	0	3fe0000000000000 0.5
+2	given	1	3fe0000000000000 0.5
+2	reversed	0	3fe0000000000000 0.5
+2	reversed	1	3fe0000000000000 0.5
+3	given	0	3fe0000000000000 0.5
+3	given	1	3fe0000000000000 0.5
+3	reversed	0	3fe0000000000000 0.5
+3	reversed	1	3fe0000000000000 0.5
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	8	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+end	turbo:liblinear-best

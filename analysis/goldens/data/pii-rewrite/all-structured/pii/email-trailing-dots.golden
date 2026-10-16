@@ -1,0 +1,49 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/email-trailing-dots	48	48	7e269704188dbb93598e111464f9c68f7b84779c408b8ffa89d61b5100dd4acb
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	all-structured
+layer	turbo:view	text	19	start:u32	end:u32	with:str
+11	12	*
+12	13	*
+13	14	*
+14	15	*
+15	16	*
+17	18	*
+18	19	*
+19	20	*
+20	21	*
+22	23	*
+23	24	*
+24	25	*
+25	26	*
+26	27	*
+27	28	*
+28	29	*
+30	31	*
+31	32	*
+32	33	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Send it to ######################... then wait.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	Send it to EMAIL-1... then wait.\n	
+hmac	Send it to EMAIL-cfab778c7e5b129e... then wait.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	2	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	11	33	11	18	EMAIL-1
+hmac	11	33	11	33	EMAIL-cfab778c7e5b129e
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+email	1	1	EMAIL-cfab778c7e5b129e
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+email: 1 mentions, 1 distinct [EMAIL-cfab778c7e5b129e]
+end	turbo:pii-audit-report

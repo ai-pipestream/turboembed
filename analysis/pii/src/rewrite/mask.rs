@@ -72,6 +72,16 @@ impl MaskPolicy {
         self.mask as char
     }
 
+    /// Whether what is not a letter or digit stays readable.
+    pub const fn keeps_format(self) -> bool {
+        self.keep_format
+    }
+
+    /// How many trailing letters or digits stay readable.
+    pub const fn trailing(self) -> usize {
+        self.keep_trailing
+    }
+
     /// `MaskPolicy.apply`: `value` with this policy over all of it.
     pub fn masked(self, value: &str) -> String {
         assert!(u32::try_from(value.len()).is_ok(), "the value is longer than u32 offsets reach");
@@ -133,7 +143,7 @@ impl MaskPolicy {
     }
 }
 
-fn check(text: &str, span: Span) -> Result<(), MaskError> {
+pub(super) fn check(text: &str, span: Span) -> Result<(), MaskError> {
     let (start, end) = (span.start as usize, span.end as usize);
     if start > end || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
         return Err(MaskError::Span(span));

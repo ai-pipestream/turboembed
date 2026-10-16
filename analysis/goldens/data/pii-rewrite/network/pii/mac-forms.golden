@@ -1,0 +1,70 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/mac-forms	73	73	05546dfafc0287340b3852afea2127b2513667983dce788d6fb8509a723dfa5c
+annotator	opennlp.tools.pii.PiiPacks	network
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	network
+layer	turbo:view	text	36	start:u32	end:u32	with:str
+9	10	*
+10	11	*
+12	13	*
+13	14	*
+15	16	*
+16	17	*
+18	19	*
+19	20	*
+21	22	*
+22	23	*
+24	25	*
+25	26	*
+28	29	*
+29	30	*
+31	32	*
+32	33	*
+34	35	*
+35	36	*
+37	38	*
+38	39	*
+40	41	*
+41	42	*
+43	44	*
+44	45	*
+50	51	*
+51	52	*
+52	53	*
+53	54	*
+55	56	*
+56	57	*
+57	58	*
+58	59	*
+60	61	*
+61	62	*
+62	63	*
+63	64	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Adapters #################, ################# and ############## are up.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	Adapters MAC-1, MAC-2 and MAC-3 are up.\n	
+hmac	Adapters MAC-60457e2238f7a289, MAC-1272dea8a057954d and MAC-9ace9d665c38a59c are up.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	6	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	9	26	9	14	MAC-1
+pseudonymize	28	45	16	21	MAC-2
+pseudonymize	50	64	26	31	MAC-3
+hmac	9	26	9	29	MAC-60457e2238f7a289
+hmac	28	45	31	51	MAC-1272dea8a057954d
+hmac	50	64	56	76	MAC-9ace9d665c38a59c
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+mac	3	3	MAC-60457e2238f7a289, MAC-1272dea8a057954d, MAC-9ace9d665c38a59c
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+mac: 3 mentions, 3 distinct [MAC-60457e2238f7a289, MAC-1272dea8a057954d, MAC-9ace9d665c38a59c]
+end	turbo:pii-audit-report
