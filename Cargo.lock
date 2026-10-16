@@ -1895,7 +1895,9 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-normalize",
  "turbo-parser",
+ "turbo-structure",
  "turbo-tokenize",
  "turbo-unicode",
 ]
