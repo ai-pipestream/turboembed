@@ -3436,6 +3436,57 @@
           "sha512": "13775667c8f521b297f4d35e2af7d8f116036c6101de2a94662952d6f13522cf3ce1de6e376b031f09860eb19a6f0c6fe0fade79ca5ca8cfcd8a49831287373a"
         }
       ]
+    },
+    {
+      "id": "turbo-mul-tatoeba-fineweb-langdetect-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LANGUAGE_DETECTOR",
+      "language": "mul",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Tatoeba export 4421126b36dc0ce2",
+          "license": "LicenseRef-CC-BY-2.0-FR",
+          "license_terms": "https://tatoeba.org/en/terms_of_use"
+        },
+        {
+          "name": "FineWeb-2 af9c13333eb9",
+          "license": "ODC-By-1.0",
+          "license_terms": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-2#licensing-information"
+        },
+        {
+          "name": "FineWeb 9bb295ddab0e",
+          "license": "ODC-By-1.0",
+          "license_terms": "https://huggingface.co/datasets/HuggingFaceFW/fineweb#licensing-information"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-mul-tatoeba-fineweb-langdetect-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-fineweb-2026-10-10-1/turbo-mul-tatoeba-fineweb-langdetect-1.bin",
+          "size": 16734028,
+          "sha256": "6a1b88d5f1b14696810deadf44cec848195f46337dc46e2b0e69023c970af66c",
+          "sha512": "fbeab57434f0e31bb682ec837828f4fc987f9f9b9f27f5f7c2909cf4a5db6a287a239d0ea8166fa38a2c290141c7e25b035afc879761fe2300ee72663c8d3a5a"
+        },
+        {
+          "path": "training-sentences.txt",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-fineweb-2026-10-10-1/training-sentences.txt",
+          "size": 2648398,
+          "sha256": "423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9",
+          "sha512": "13775667c8f521b297f4d35e2af7d8f116036c6101de2a94662952d6f13522cf3ce1de6e376b031f09860eb19a6f0c6fe0fade79ca5ca8cfcd8a49831287373a"
+        },
+        {
+          "path": "training-documents.txt",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-fineweb-2026-10-10-1/training-documents.txt",
+          "size": 11345621,
+          "sha256": "1f5006aa1e4b44f392731f114c34f83d335dff9753084ea2abdec0c7faaa4959",
+          "sha512": "f742accdde85121c82321c877359ced14e7ef16abb3c04bbaf4abb3497b5f0c83caa052602fe8ac6dfd7ff7d354a9a6a9e793ce28f9d9b6c472b52e80b6ad0df"
+        }
+      ]
     }
   ]
 }

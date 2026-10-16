@@ -1,8 +1,8 @@
 //! The index the crate carries: canonical, nothing refused, every class
 //! the one docs/licences.md gives, and in agreement with the model files
 //! the repository checks in. Beside OpenNLP's UD models it lists the models
-//! the MASC and UD recipes train, which turbo-train-recipes checks
-//! (`release`).
+//! the MASC, UD and language detector recipes train, which
+//! turbo-train-recipes checks (`release`).
 
 use std::collections::BTreeSet;
 
@@ -109,10 +109,14 @@ const UD_RECIPE_MODELS: [&str; 10] = [
 /// listed with the ids of its training sentences at their addresses in a
 /// third release of this repository.
 const TATOEBA_MODEL: &str = "turbo-mul-tatoeba-langdetect-1";
+/// The language detector the web recipe trains on Tatoeba's sentences and
+/// FineWeb-2 and FineWeb text, listed with the ids of its training
+/// sentences and documents at their addresses in a fourth release.
+const WEB_MODEL: &str = "turbo-mul-tatoeba-fineweb-langdetect-1";
 
 /// A model this repository's recipes train.
 fn trained_here(id: &str) -> bool {
-    MASC_MODELS.contains(&id) || UD_RECIPE_MODELS.contains(&id) || id == TATOEBA_MODEL
+    MASC_MODELS.contains(&id) || UD_RECIPE_MODELS.contains(&id) || id == TATOEBA_MODEL || id == WEB_MODEL
 }
 
 #[test]
@@ -148,6 +152,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.extend(MASC_MODELS.map(str::to_owned));
     expected.extend(UD_RECIPE_MODELS.map(str::to_owned));
     expected.insert(TATOEBA_MODEL.to_owned());
+    expected.insert(WEB_MODEL.to_owned());
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {

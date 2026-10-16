@@ -1596,7 +1596,12 @@ model is right where the labels are wrong.
 
 ### Full run
 
-Not made yet. The `models-fineweb` workflow
+Made on 2026-10-16 by run 38848321968 of the `models-fineweb` workflow,
+from pull request #474, on the committed lists and the recorded Tatoeba
+export. Both runs wrote the same eight files, in about 1,100 seconds
+each on a GitHub runner, with a peak of 5.7 GB of memory.
+
+The `models-fineweb` workflow
 (`.github/workflows/models-fineweb.yml`) runs when it is run by hand or
 a pull request changes it, `models-publish.yml`, this crate, the
 trainers, the gate (`analysis/eval`), the Zstandard decoder,
@@ -1611,34 +1616,499 @@ whose `sha` must be the revision) and fails unless it is the committed
 one. It fetches the ranges not in the cache in rounds, each as
 `fineweb-ranges --need` says, curl stopping an answer more than 64 KiB
 longer than the range (such as the whole file) and the step refusing
-any answer that is not `206 Partial Content` of the range's length, then fails unless `fineweb-ranges --record` gives the
-committed ranges list. A cache made under other lists is restored as a
-start, and what it holds is checked like anything fetched. It trains
-twice, fails unless both runs write the same eight files, prints the
-card's per-language and per-file counts, and keeps the model's
-directory as the artifact `models-fineweb-run`. It then checks with
-`zoo-index --check` that the model's files are the bytes the zoo's
-index lists, printing the entry the run gives when they are not, and
-uploads the release's files as the artifact named by the tag. While the
-committed lists are empty, the run makes them in place of these checks, keyed
+any answer that is not `206 Partial Content` of the range's length,
+then fails unless `fineweb-ranges --record` gives the committed ranges
+list. A cache made under other lists is restored as a start, and what
+it holds is checked like anything fetched. It trains twice, fails
+unless both runs write the same eight files, prints the card's
+per-language and per-file counts, and keeps the model's directory as
+the artifact `models-fineweb-run`. It then checks with `zoo-index
+--check` that the model's files are the bytes the zoo's index lists,
+printing the entry the run gives when they are not, and uploads the
+release's files as the artifact named by the tag. While the committed
+lists are empty, the run makes them in place of these checks, keyed
 also by `src/fineweb.rs`, prints them and trains with
 `--unrecorded-web`.
 
-The lists were made by run 38836303379 from pull request #474, on
-2026-10-16: 204 files, 612 ranges, 550,033,792 bytes in all;
-`fineweb-files.txt` has SHA-256
-`73b924f48f8fee76019ca92e6c5f5bc1f579a3a16144b33b6c62eb80f114eeec` and
-`fineweb-ranges.txt`
-`9e7fa76c5d6c82ad16da3b4b4a65c168adb3b182b1c687fa6d2f9e4aeba3efea`. 16
-files have fewer rows than the recipe reads for them and are read
-whole: the test files of `ast`, `bre`, `che`, `gsw`, `lim`, `min`,
-`nan`, `nds`, `oci`, `pnb`, `san`, `sun`, `vol`, `war` and `zul`, and
-`min`'s training file; those languages may have fewer windows than
-wanted.
+The record:
 
-To record the run, record here the lists' digest, each language's
-windows and the files they came from, both gates and both comparisons,
-and the files' sizes and SHA-256s from both runs.
+- Lists: made by run 38836303379 from pull request #474, on
+  2026-10-16: 204 files, 612 ranges, 550,033,792 bytes in all.
+  `fineweb-files.txt` has SHA-256
+  `73b924f48f8fee76019ca92e6c5f5bc1f579a3a16144b33b6c62eb80f114eeec`,
+  `fineweb-ranges.txt`
+  `9e7fa76c5d6c82ad16da3b4b4a65c168adb3b182b1c687fa6d2f9e4aeba3efea`,
+  and their digest (`lists_digest`, the card's `lists_sha256`) is
+  `bd599877adb11071caa5c34ff8bf522797469540319d2267b6694b1a1cb74298`.
+  16 files have fewer rows than the recipe reads for them and are read
+  whole: the test files of `ast`, `bre`, `che`, `gsw`, `lim`, `min`,
+  `nan`, `nds`, `oci`, `pnb`, `san`, `sun`, `vol`, `war` and `zul`, and
+  `min`'s training file.
+- Export: the one the Tatoeba recipe records, digest
+  `4421126b36dc0ce206b222296d696aff04a399620f1ca5dbefbfa50a1890aa92`,
+  split as that recipe splits it: 71 languages with sentences, 321,026
+  trained on and 35,500 held out.
+- Languages: 100, the 71 with sentences and 29 trained on their web
+  windows alone (the 29 the Tatoeba recipe leaves out). 99,543 windows
+  trained on and 47,079 held out. Every language has 1,000 training
+  windows but `min` (543), and 500 held out but `che` (204), `lim`
+  (251), `min` (11), `nan` (38), `pnb` (256), `san` (233), `vol` (52)
+  and `war` (34): of the 16 files read whole, these 9 gave fewer
+  windows than wanted, and the binary named them.
+- How the windows were chosen, over the 204 files: no document was
+  shorter than 100 characters; 3 came from tatoeba.org hosts and 4
+  held a Tatoeba sentence of the other side, all passed over; 558
+  windows were duplicates; the host cap deferred 52,886 documents, of
+  which 9,787 were taken in the second pass. 146,622 windows were
+  chosen in all.
+- Gate on the held-out sentences, 35,500 units: the trained model
+  91.25% (90.96 to 91.54), `langdetect-183.bin` 83.91% (83.53 to
+  84.29), a difference of +7.34 points (+6.99 to +7.69): pass.
+- Gate on the held-out windows, 47,079 units: the trained model 96.46%
+  (96.30 to 96.63), `langdetect-183.bin` 93.45% (93.23 to 93.68), a
+  difference of +3.01 points (+2.81 to +3.21): pass.
+- Beside the Tatoeba model (not gates): on the 35,500 held-out
+  sentences 91.25% against its 92.19%, a difference of -1.12 to -0.75
+  points, so this model is about a point worse on Tatoeba's short
+  sentences; on the 34,586 held-out windows of the 71 languages the
+  Tatoeba model knows, 96.84% against its 90.88%, a difference of +5.70
+  to +6.23 points.
+- Files, the same from both runs: the model, 16,734,028 bytes, SHA-256
+  `6a1b88d5f1b14696810deadf44cec848195f46337dc46e2b0e69023c970af66c`;
+  `training-sentences.txt`, 2,648,398 bytes, SHA-256
+  `423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9`,
+  the Tatoeba model's file, as the split is the same;
+  `training-documents.txt`, 11,345,621 bytes (99,543 lines), SHA-256
+  `1f5006aa1e4b44f392731f114c34f83d335dff9753084ea2abdec0c7faaa4959`;
+  `card.json`
+  `090d221bf9528b006a83e5ac5d4e596e80a6639ed0fcf6578900f54089b3ba4e`,
+  `gate.json`
+  `aaf7d3bbb3d3b4d748b91124d80e206e999ddef155b641ac1c40869a6d79a611`,
+  `gate-web.json`
+  `b25ba75e09068a1f635b9aea5296de4c508058ff24dd369ffb9372fad51b4446`,
+  `compare-tatoeba.json`
+  `2d4ad16881a52277cef706cb95498497a0d6f773293a0a3c0b999e27e5fe143c` and
+  `compare-web.json`
+  `db40a0c1da0230950e03dc380b59e69c0cf902ae8737fc53fafdb7ae71924522`.
+
+Per language. On the held-out sentences the trained model is right more
+often than the reference in 53 languages, as often in 9 and less often
+in 9: Bosnian (0 against 58), Slovenian (341 against 393), Bulgarian
+(442 against 463), Portuguese (464 against 479), Welsh (447 against
+460), Norwegian Bokmål (388 against 400), Afrikaans and Mandarin (two
+sentences each) and Albanian (one). Beside the Tatoeba model it is
+right more often in 30 languages, as often in 12 and less often in 29,
+most of all in Cebuano (106 against 221), Waray (334 against 399),
+Slovenian (341 against 393), Indonesian (305 against 342) and Javanese
+(356 against 390). On the held-out windows it is right more often than
+the reference in 49 languages, as often in 21 and less often in 30,
+most of all in Bashkir (454 against 496), Tajik (472 against 495),
+English (480 against 500) and Bosnian (319 against 335).
+
+<details>
+<summary>The 71 languages' held-out sentences</summary>
+
+| Language | Held out | Trained model right | `langdetect-183.bin` right | Tatoeba model right |
+|---|---:|---:|---:|---:|
+| `afr` | 500 | 480 | 482 | 484 |
+| `ara` | 500 | 499 | 451 | 500 |
+| `aze` | 500 | 483 | 450 | 486 |
+| `bel` | 500 | 494 | 488 | 490 |
+| `ben` | 500 | 499 | 499 | 497 |
+| `bos` | 500 | 0 | 58 | 1 |
+| `bre` | 500 | 471 | 412 | 468 |
+| `bul` | 500 | 442 | 463 | 466 |
+| `cat` | 500 | 457 | 386 | 458 |
+| `ceb` | 500 | 106 | 98 | 221 |
+| `ces` | 500 | 465 | 447 | 459 |
+| `cmn` | 500 | 498 | 500 | 499 |
+| `cym` | 500 | 447 | 460 | 468 |
+| `dan` | 500 | 440 | 323 | 431 |
+| `deu` | 500 | 493 | 469 | 492 |
+| `ell` | 500 | 500 | 500 | 500 |
+| `eng` | 500 | 468 | 467 | 479 |
+| `epo` | 500 | 490 | 484 | 489 |
+| `est` | 500 | 477 | 451 | 484 |
+| `eus` | 500 | 493 | 485 | 491 |
+| `fin` | 500 | 493 | 478 | 493 |
+| `fra` | 500 | 486 | 454 | 489 |
+| `gle` | 500 | 489 | 487 | 492 |
+| `glg` | 500 | 465 | 396 | 459 |
+| `heb` | 500 | 500 | 500 | 499 |
+| `hin` | 500 | 494 | 488 | 494 |
+| `hrv` | 500 | 464 | 321 | 457 |
+| `hun` | 500 | 491 | 468 | 492 |
+| `hye` | 500 | 500 | 500 | 500 |
+| `ind` | 500 | 305 | 261 | 342 |
+| `isl` | 500 | 495 | 480 | 498 |
+| `ita` | 500 | 493 | 447 | 491 |
+| `jav` | 500 | 356 | 252 | 390 |
+| `jpn` | 500 | 500 | 500 | 500 |
+| `kat` | 500 | 500 | 500 | 500 |
+| `kaz` | 500 | 489 | 479 | 489 |
+| `kor` | 500 | 500 | 500 | 500 |
+| `lat` | 500 | 484 | 435 | 483 |
+| `lit` | 500 | 491 | 479 | 486 |
+| `lvs` | 500 | 498 | 488 | 496 |
+| `mar` | 500 | 498 | 495 | 499 |
+| `mkd` | 500 | 492 | 382 | 471 |
+| `mon` | 500 | 492 | 488 | 496 |
+| `nds` | 500 | 476 | 402 | 473 |
+| `nld` | 500 | 465 | 422 | 464 |
+| `nno` | 500 | 386 | 359 | 410 |
+| `nob` | 500 | 388 | 400 | 376 |
+| `npi` | 500 | 499 | 491 | 497 |
+| `oci` | 500 | 452 | 382 | 452 |
+| `pes` | 500 | 498 | 489 | 496 |
+| `pol` | 500 | 496 | 475 | 494 |
+| `por` | 500 | 464 | 479 | 469 |
+| `ron` | 500 | 492 | 478 | 490 |
+| `rus` | 500 | 456 | 384 | 477 |
+| `slk` | 500 | 465 | 390 | 466 |
+| `slv` | 500 | 341 | 393 | 393 |
+| `spa` | 500 | 458 | 405 | 455 |
+| `sqi` | 500 | 460 | 461 | 460 |
+| `srp` | 500 | 254 | 230 | 262 |
+| `swe` | 500 | 466 | 453 | 472 |
+| `swh` | 500 | 491 | 467 | 487 |
+| `tat` | 500 | 488 | 136 | 486 |
+| `tgl` | 500 | 496 | 462 | 493 |
+| `tha` | 500 | 500 | 500 | 500 |
+| `tur` | 500 | 488 | 482 | 489 |
+| `ukr` | 500 | 477 | 440 | 485 |
+| `urd` | 500 | 495 | 447 | 494 |
+| `vie` | 500 | 498 | 498 | 498 |
+| `vol` | 500 | 499 | 321 | 497 |
+| `war` | 500 | 334 | 16 | 399 |
+| `zsm` | 500 | 435 | 275 | 414 |
+
+</details>
+
+<details>
+<summary>The 100 languages' windows</summary>
+
+The Tatoeba model's column is empty for the 29 languages it does not
+know.
+
+| Language | Trained on | Held out | Trained model right | `langdetect-183.bin` right | Tatoeba model right |
+|---|---:|---:|---:|---:|---:|
+| `afr` | 1,000 | 500 | 489 | 472 | 427 |
+| `ara` | 1,000 | 500 | 499 | 499 | 500 |
+| `ast` | 1,000 | 500 | 415 | 417 |  |
+| `aze` | 1,000 | 500 | 500 | 500 | 500 |
+| `bak` | 1,000 | 500 | 454 | 496 |  |
+| `bel` | 1,000 | 500 | 495 | 496 | 491 |
+| `ben` | 1,000 | 500 | 500 | 499 | 500 |
+| `bos` | 1,000 | 500 | 319 | 335 | 0 |
+| `bre` | 1,000 | 500 | 488 | 488 | 479 |
+| `bul` | 1,000 | 500 | 495 | 496 | 479 |
+| `cat` | 1,000 | 500 | 497 | 498 | 494 |
+| `ceb` | 1,000 | 500 | 471 | 9 | 212 |
+| `ces` | 1,000 | 500 | 497 | 498 | 497 |
+| `che` | 1,000 | 204 | 201 | 203 |  |
+| `cmn` | 1,000 | 500 | 499 | 500 | 499 |
+| `cym` | 1,000 | 500 | 482 | 479 | 475 |
+| `dan` | 1,000 | 500 | 494 | 490 | 487 |
+| `deu` | 1,000 | 500 | 491 | 496 | 491 |
+| `ell` | 1,000 | 500 | 498 | 498 | 497 |
+| `eng` | 1,000 | 500 | 480 | 500 | 496 |
+| `epo` | 1,000 | 500 | 487 | 484 | 481 |
+| `est` | 1,000 | 500 | 492 | 493 | 488 |
+| `eus` | 1,000 | 500 | 481 | 481 | 473 |
+| `fao` | 1,000 | 500 | 476 | 488 |  |
+| `fin` | 1,000 | 500 | 497 | 496 | 488 |
+| `fra` | 1,000 | 500 | 498 | 498 | 498 |
+| `fry` | 1,000 | 500 | 469 | 483 |  |
+| `gle` | 1,000 | 500 | 476 | 461 | 452 |
+| `glg` | 1,000 | 500 | 491 | 488 | 489 |
+| `gsw` | 1,000 | 500 | 393 | 353 |  |
+| `guj` | 1,000 | 500 | 495 | 495 |  |
+| `heb` | 1,000 | 500 | 499 | 499 | 499 |
+| `hin` | 1,000 | 500 | 497 | 493 | 476 |
+| `hrv` | 1,000 | 500 | 443 | 448 | 487 |
+| `hun` | 1,000 | 500 | 494 | 493 | 490 |
+| `hye` | 1,000 | 500 | 490 | 488 | 489 |
+| `ind` | 1,000 | 500 | 431 | 250 | 255 |
+| `isl` | 1,000 | 500 | 497 | 498 | 495 |
+| `ita` | 1,000 | 500 | 499 | 498 | 496 |
+| `jav` | 1,000 | 500 | 463 | 436 | 30 |
+| `jpn` | 1,000 | 500 | 500 | 498 | 499 |
+| `kan` | 1,000 | 500 | 494 | 494 |  |
+| `kat` | 1,000 | 500 | 497 | 496 | 497 |
+| `kaz` | 1,000 | 500 | 490 | 490 | 489 |
+| `kir` | 1,000 | 500 | 487 | 496 |  |
+| `kor` | 1,000 | 500 | 498 | 495 | 495 |
+| `lat` | 1,000 | 500 | 481 | 470 | 470 |
+| `lim` | 1,000 | 251 | 210 | 197 |  |
+| `lit` | 1,000 | 500 | 496 | 494 | 492 |
+| `ltz` | 1,000 | 500 | 481 | 485 |  |
+| `lvs` | 1,000 | 500 | 494 | 493 | 492 |
+| `mal` | 1,000 | 500 | 496 | 495 |  |
+| `mar` | 1,000 | 500 | 496 | 496 | 494 |
+| `min` | 543 | 11 | 8 | 1 |  |
+| `mkd` | 1,000 | 500 | 496 | 498 | 499 |
+| `mlg` | 1,000 | 500 | 490 | 494 |  |
+| `mlt` | 1,000 | 500 | 487 | 475 |  |
+| `mon` | 1,000 | 500 | 492 | 494 | 494 |
+| `mri` | 1,000 | 500 | 492 | 487 |  |
+| `nan` | 1,000 | 38 | 33 | 26 |  |
+| `nds` | 1,000 | 500 | 407 | 353 | 320 |
+| `nld` | 1,000 | 500 | 495 | 497 | 489 |
+| `nno` | 1,000 | 500 | 468 | 451 | 314 |
+| `nob` | 1,000 | 500 | 477 | 481 | 454 |
+| `npi` | 1,000 | 500 | 499 | 499 | 499 |
+| `oci` | 1,000 | 500 | 422 | 401 | 380 |
+| `pan` | 1,000 | 500 | 490 | 495 |  |
+| `pes` | 1,000 | 500 | 497 | 500 | 485 |
+| `pnb` | 1,000 | 256 | 244 | 224 |  |
+| `pol` | 1,000 | 500 | 498 | 498 | 496 |
+| `por` | 1,000 | 500 | 498 | 498 | 495 |
+| `pus` | 1,000 | 500 | 484 | 496 |  |
+| `ron` | 1,000 | 500 | 499 | 498 | 495 |
+| `rus` | 1,000 | 500 | 500 | 500 | 496 |
+| `san` | 1,000 | 233 | 222 | 214 |  |
+| `sin` | 1,000 | 500 | 484 | 482 |  |
+| `slk` | 1,000 | 500 | 494 | 494 | 485 |
+| `slv` | 1,000 | 500 | 491 | 491 | 481 |
+| `som` | 1,000 | 500 | 496 | 494 |  |
+| `spa` | 1,000 | 500 | 499 | 498 | 497 |
+| `sqi` | 1,000 | 500 | 497 | 498 | 488 |
+| `srp` | 1,000 | 500 | 403 | 249 | 284 |
+| `sun` | 1,000 | 500 | 473 | 110 |  |
+| `swe` | 1,000 | 500 | 496 | 496 | 489 |
+| `swh` | 1,000 | 500 | 495 | 493 | 480 |
+| `tam` | 1,000 | 500 | 495 | 496 |  |
+| `tat` | 1,000 | 500 | 495 | 471 | 494 |
+| `tel` | 1,000 | 500 | 490 | 490 |  |
+| `tgk` | 1,000 | 500 | 472 | 495 |  |
+| `tgl` | 1,000 | 500 | 473 | 466 | 328 |
+| `tha` | 1,000 | 500 | 499 | 496 | 499 |
+| `tur` | 1,000 | 500 | 496 | 495 | 495 |
+| `ukr` | 1,000 | 500 | 494 | 493 | 492 |
+| `urd` | 1,000 | 500 | 496 | 496 | 495 |
+| `uzb` | 1,000 | 500 | 494 | 497 |  |
+| `vie` | 1,000 | 500 | 499 | 499 | 498 |
+| `vol` | 1,000 | 52 | 51 | 50 | 44 |
+| `war` | 1,000 | 34 | 33 | 0 | 8 |
+| `zsm` | 1,000 | 500 | 453 | 383 | 420 |
+| `zul` | 1,000 | 500 | 496 | 493 |  |
+
+</details>
+
+<details>
+<summary>The 204 files</summary>
+
+No file had a document shorter than 100 characters, so that column is
+left out.
+
+| Language | Side | File | Wanted | Rows in file | Row groups read | Rows read | Tatoeba host | Duplicates | Tatoeba sentence | Host deferred | Taken later | Chosen |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `afr` | training | `data/afr_Latn/train/000_00000.parquet` | 1,000 | 1,992,040 | 2 | 2,000 | 0 | 5 | 0 | 404 | 0 | 1,000 |
+| `ara` | training | `data/arb_Arab/train/000_00000.parquet` | 1,000 | 2,693,000 | 2 | 2,000 | 0 | 5 | 0 | 124 | 0 | 1,000 |
+| `ast` | training | `data/ast_Latn/train/000_00000.parquet` | 1,000 | 71,329 | 2 | 2,000 | 0 | 0 | 0 | 555 | 0 | 1,000 |
+| `aze` | training | `data/azj_Latn/train/000_00000.parquet` | 1,000 | 3,453,000 | 2 | 2,000 | 0 | 2 | 0 | 496 | 0 | 1,000 |
+| `bak` | training | `data/bak_Cyrl/train/000_00000.parquet` | 1,000 | 183,068 | 2 | 2,000 | 0 | 5 | 0 | 1,700 | 705 | 1,000 |
+| `bel` | training | `data/bel_Cyrl/train/000_00000.parquet` | 1,000 | 2,100,873 | 2 | 2,000 | 0 | 0 | 0 | 1,468 | 468 | 1,000 |
+| `ben` | training | `data/ben_Beng/train/000_00000.parquet` | 1,000 | 2,912,000 | 2 | 2,000 | 0 | 3 | 0 | 151 | 0 | 1,000 |
+| `bos` | training | `data/bos_Latn/train/000_00000.parquet` | 1,000 | 3,604,000 | 2 | 2,000 | 0 | 2 | 0 | 0 | 0 | 1,000 |
+| `bre` | training | `data/bre_Latn/train/000_00000.parquet` | 1,000 | 59,875 | 2 | 2,000 | 0 | 5 | 0 | 1,874 | 879 | 1,000 |
+| `bul` | training | `data/bul_Cyrl/train/000_00000.parquet` | 1,000 | 2,647,000 | 2 | 2,000 | 0 | 1 | 0 | 189 | 0 | 1,000 |
+| `cat` | training | `data/cat_Latn/train/000_00000.parquet` | 1,000 | 4,106,000 | 2 | 2,000 | 0 | 6 | 0 | 348 | 0 | 1,000 |
+| `ceb` | training | `data/ceb_Latn/train/000_00000.parquet` | 1,000 | 204,636 | 2 | 2,000 | 0 | 2 | 0 | 183 | 0 | 1,000 |
+| `ces` | training | `data/ces_Latn/train/000_00000.parquet` | 1,000 | 3,007,000 | 2 | 2,000 | 0 | 4 | 0 | 62 | 0 | 1,000 |
+| `che` | training | `data/che_Cyrl/train/000_00000.parquet` | 1,000 | 22,345 | 2 | 2,000 | 0 | 2 | 0 | 1,653 | 655 | 1,000 |
+| `cmn` | training | `data/cmn_Hani/train/000_00000.parquet` | 1,000 | 1,973,000 | 2 | 2,000 | 0 | 8 | 0 | 33 | 0 | 1,000 |
+| `cym` | training | `data/cym_Latn/train/000_00000.parquet` | 1,000 | 831,878 | 2 | 2,000 | 0 | 4 | 0 | 875 | 0 | 1,000 |
+| `dan` | training | `data/dan_Latn/train/000_00000.parquet` | 1,000 | 3,515,000 | 2 | 2,000 | 0 | 2 | 0 | 70 | 0 | 1,000 |
+| `deu` | training | `data/deu_Latn/train/000_00000.parquet` | 1,000 | 3,320,000 | 2 | 2,000 | 0 | 20 | 0 | 0 | 0 | 1,000 |
+| `ell` | training | `data/ell_Grek/train/000_00000.parquet` | 1,000 | 2,759,000 | 2 | 2,000 | 0 | 1 | 0 | 52 | 0 | 1,000 |
+| `eng` | training | `sample/10BT/000_00000.parquet` | 1,000 | 1,048,581 | 3 | 2,999 | 0 | 0 | 0 | 0 | 0 | 1,000 |
+| `epo` | training | `data/epo_Latn/train/000_00000.parquet` | 1,000 | 335,993 | 2 | 2,000 | 1 | 0 | 0 | 1,838 | 839 | 1,000 |
+| `est` | training | `data/ekk_Latn/train/000_00000.parquet` | 1,000 | 2,904,000 | 2 | 2,000 | 0 | 5 | 0 | 393 | 0 | 1,000 |
+| `eus` | training | `data/eus_Latn/train/000_00000.parquet` | 1,000 | 1,569,434 | 2 | 2,000 | 0 | 22 | 0 | 394 | 0 | 1,000 |
+| `fao` | training | `data/fao_Latn/train/000_00000.parquet` | 1,000 | 291,151 | 2 | 2,000 | 0 | 2 | 0 | 611 | 0 | 1,000 |
+| `fin` | training | `data/fin_Latn/train/000_00000.parquet` | 1,000 | 2,994,000 | 2 | 2,000 | 0 | 1 | 0 | 79 | 0 | 1,000 |
+| `fra` | training | `data/fra_Latn/train/000_00000.parquet` | 1,000 | 3,314,000 | 2 | 2,000 | 1 | 4 | 0 | 0 | 0 | 1,000 |
+| `fry` | training | `data/fry_Latn/train/000_00000.parquet` | 1,000 | 349,743 | 2 | 2,000 | 0 | 0 | 0 | 1,826 | 826 | 1,000 |
+| `gle` | training | `data/gle_Latn/train/000_00000.parquet` | 1,000 | 646,842 | 2 | 2,000 | 0 | 29 | 0 | 1,117 | 146 | 1,000 |
+| `glg` | training | `data/glg_Latn/train/000_00000.parquet` | 1,000 | 2,522,814 | 2 | 2,000 | 0 | 3 | 0 | 536 | 0 | 1,000 |
+| `gsw` | training | `data/gsw_Latn/train/000_00000.parquet` | 1,000 | 58,314 | 2 | 2,000 | 0 | 1 | 0 | 932 | 0 | 1,000 |
+| `guj` | training | `data/guj_Gujr/train/000_00000.parquet` | 1,000 | 2,127,094 | 2 | 2,000 | 0 | 4 | 0 | 37 | 0 | 1,000 |
+| `heb` | training | `data/heb_Hebr/train/000_00000.parquet` | 1,000 | 2,706,000 | 2 | 2,000 | 0 | 2 | 0 | 265 | 0 | 1,000 |
+| `hin` | training | `data/hin_Deva/train/000_00000.parquet` | 1,000 | 2,910,000 | 2 | 2,000 | 0 | 3 | 0 | 390 | 0 | 1,000 |
+| `hrv` | training | `data/hrv_Latn/train/000_00000.parquet` | 1,000 | 1,864,000 | 2 | 2,000 | 0 | 2 | 0 | 331 | 0 | 1,000 |
+| `hun` | training | `data/hun_Latn/train/000_00000.parquet` | 1,000 | 2,512,000 | 2 | 2,000 | 0 | 4 | 0 | 60 | 0 | 1,000 |
+| `hye` | training | `data/hye_Armn/train/000_00000.parquet` | 1,000 | 1,757,415 | 2 | 2,000 | 0 | 0 | 0 | 445 | 0 | 1,000 |
+| `ind` | training | `data/ind_Latn/train/000_00000.parquet` | 1,000 | 3,149,000 | 2 | 2,000 | 0 | 3 | 0 | 6 | 0 | 1,000 |
+| `isl` | training | `data/isl_Latn/train/000_00000.parquet` | 1,000 | 2,976,000 | 2 | 2,000 | 0 | 5 | 0 | 339 | 0 | 1,000 |
+| `ita` | training | `data/ita_Latn/train/000_00000.parquet` | 1,000 | 3,333,000 | 2 | 2,000 | 0 | 0 | 0 | 0 | 0 | 1,000 |
+| `jav` | training | `data/jav_Latn/train/000_00000.parquet` | 1,000 | 184,561 | 2 | 2,000 | 0 | 8 | 0 | 521 | 0 | 1,000 |
+| `jpn` | training | `data/jpn_Jpan/train/000_00000.parquet` | 1,000 | 2,762,000 | 2 | 2,000 | 0 | 9 | 0 | 63 | 0 | 1,000 |
+| `kan` | training | `data/kan_Knda/train/000_00000.parquet` | 1,000 | 2,390,982 | 2 | 2,000 | 0 | 0 | 0 | 528 | 0 | 1,000 |
+| `kat` | training | `data/kat_Geor/train/000_00000.parquet` | 1,000 | 2,634,000 | 2 | 2,000 | 0 | 7 | 0 | 757 | 0 | 1,000 |
+| `kaz` | training | `data/kaz_Cyrl/train/000_00000.parquet` | 1,000 | 2,360,000 | 2 | 2,000 | 0 | 1 | 0 | 581 | 0 | 1,000 |
+| `kir` | training | `data/kir_Cyrl/train/000_00000.parquet` | 1,000 | 1,069,582 | 2 | 2,000 | 0 | 0 | 0 | 1,741 | 741 | 1,000 |
+| `kor` | training | `data/kor_Hang/train/000_00000.parquet` | 1,000 | 2,783,000 | 2 | 2,000 | 0 | 2 | 0 | 450 | 0 | 1,000 |
+| `lat` | training | `data/lat_Latn/train/000_00000.parquet` | 1,000 | 1,473,541 | 2 | 2,000 | 0 | 19 | 0 | 185 | 0 | 1,000 |
+| `lim` | training | `data/lim_Latn/train/000_00000.parquet` | 1,000 | 37,165 | 2 | 2,000 | 0 | 3 | 0 | 1,075 | 78 | 1,000 |
+| `lit` | training | `data/lit_Latn/train/000_00000.parquet` | 1,000 | 2,590,000 | 2 | 2,000 | 0 | 4 | 0 | 397 | 0 | 1,000 |
+| `ltz` | training | `data/ltz_Latn/train/000_00000.parquet` | 1,000 | 354,553 | 2 | 2,000 | 0 | 0 | 0 | 559 | 0 | 1,000 |
+| `lvs` | training | `data/lvs_Latn/train/000_00000.parquet` | 1,000 | 2,752,000 | 2 | 2,000 | 0 | 4 | 0 | 492 | 0 | 1,000 |
+| `mal` | training | `data/mal_Mlym/train/000_00000.parquet` | 1,000 | 2,678,000 | 2 | 2,000 | 0 | 0 | 0 | 91 | 0 | 1,000 |
+| `mar` | training | `data/mar_Deva/train/000_00000.parquet` | 1,000 | 2,957,000 | 2 | 2,000 | 0 | 0 | 0 | 512 | 0 | 1,000 |
+| `min` | training | `data/min_Latn/train/000_00000.parquet` | 1,000 | 557 | 1 | 557 | 0 | 14 | 0 | 60 | 60 | 543 |
+| `mkd` | training | `data/mkd_Cyrl/train/000_00000.parquet` | 1,000 | 3,899,000 | 2 | 2,000 | 0 | 4 | 0 | 974 | 0 | 1,000 |
+| `mlg` | training | `data/plt_Latn/train/000_00000.parquet` | 1,000 | 272,871 | 2 | 2,000 | 0 | 4 | 0 | 499 | 0 | 1,000 |
+| `mlt` | training | `data/mlt_Latn/train/000_00000.parquet` | 1,000 | 489,190 | 2 | 2,000 | 0 | 14 | 0 | 191 | 0 | 1,000 |
+| `mon` | training | `data/khk_Cyrl/train/000_00000.parquet` | 1,000 | 1,622,882 | 2 | 2,000 | 0 | 31 | 0 | 88 | 0 | 1,000 |
+| `mri` | training | `data/mri_Latn/train/000_00000.parquet` | 1,000 | 166,938 | 2 | 2,000 | 0 | 2 | 0 | 362 | 0 | 1,000 |
+| `nan` | training | `data/nan_Latn/train/000_00000.parquet` | 1,000 | 2,891 | 2 | 2,000 | 0 | 3 | 0 | 1,277 | 280 | 1,000 |
+| `nds` | training | `data/nds_Latn/train/000_00000.parquet` | 1,000 | 64,394 | 2 | 2,000 | 1 | 1 | 0 | 1,405 | 407 | 1,000 |
+| `nld` | training | `data/nld_Latn/train/000_00000.parquet` | 1,000 | 4,004,000 | 2 | 2,000 | 0 | 1 | 0 | 0 | 0 | 1,000 |
+| `nno` | training | `data/nno_Latn/train/000_00000.parquet` | 1,000 | 1,214,870 | 2 | 2,000 | 0 | 0 | 0 | 616 | 0 | 1,000 |
+| `nob` | training | `data/nob_Latn/train/000_00000.parquet` | 1,000 | 2,891,000 | 2 | 2,000 | 0 | 2 | 0 | 145 | 0 | 1,000 |
+| `npi` | training | `data/npi_Deva/train/000_00000.parquet` | 1,000 | 3,496,000 | 2 | 2,000 | 0 | 2 | 0 | 0 | 0 | 1,000 |
+| `oci` | training | `data/oci_Latn/train/000_00000.parquet` | 1,000 | 69,376 | 2 | 2,000 | 0 | 2 | 0 | 999 | 1 | 1,000 |
+| `pan` | training | `data/pan_Guru/train/000_00000.parquet` | 1,000 | 944,160 | 2 | 2,000 | 0 | 2 | 0 | 52 | 0 | 1,000 |
+| `pes` | training | `data/fas_Arab/train/000_00000.parquet` | 1,000 | 2,645,000 | 2 | 2,000 | 0 | 3 | 1 | 29 | 0 | 1,000 |
+| `pnb` | training | `data/pnb_Arab/train/000_00000.parquet` | 1,000 | 20,767 | 2 | 2,000 | 0 | 4 | 0 | 1,429 | 433 | 1,000 |
+| `pol` | training | `data/pol_Latn/train/000_00000.parquet` | 1,000 | 3,183,000 | 2 | 2,000 | 0 | 1 | 0 | 160 | 0 | 1,000 |
+| `por` | training | `data/por_Latn/train/000_00000.parquet` | 1,000 | 3,502,000 | 2 | 2,000 | 0 | 0 | 0 | 0 | 0 | 1,000 |
+| `pus` | training | `data/pbt_Arab/train/000_00000.parquet` | 1,000 | 639,983 | 2 | 2,000 | 0 | 5 | 0 | 1,481 | 486 | 1,000 |
+| `ron` | training | `data/ron_Latn/train/000_00000.parquet` | 1,000 | 3,143,000 | 2 | 2,000 | 0 | 1 | 0 | 34 | 0 | 1,000 |
+| `rus` | training | `data/rus_Cyrl/train/000_00000.parquet` | 1,000 | 1,815,000 | 2 | 2,000 | 0 | 1 | 0 | 28 | 0 | 1,000 |
+| `san` | training | `data/san_Deva/train/000_00000.parquet` | 1,000 | 21,453 | 2 | 2,000 | 0 | 16 | 0 | 1,010 | 26 | 1,000 |
+| `sin` | training | `data/sin_Sinh/train/000_00000.parquet` | 1,000 | 1,185,323 | 2 | 2,000 | 0 | 1 | 0 | 57 | 0 | 1,000 |
+| `slk` | training | `data/slk_Latn/train/000_00000.parquet` | 1,000 | 3,288,000 | 2 | 2,000 | 0 | 8 | 0 | 154 | 0 | 1,000 |
+| `slv` | training | `data/slv_Latn/train/000_00000.parquet` | 1,000 | 3,171,000 | 2 | 2,000 | 0 | 8 | 0 | 303 | 0 | 1,000 |
+| `som` | training | `data/som_Latn/train/000_00000.parquet` | 1,000 | 1,070,384 | 2 | 2,000 | 0 | 0 | 0 | 77 | 0 | 1,000 |
+| `spa` | training | `data/spa_Latn/train/000_00000.parquet` | 1,000 | 3,329,000 | 2 | 2,000 | 0 | 0 | 0 | 0 | 0 | 1,000 |
+| `sqi` | training | `data/als_Latn/train/000_00000.parquet` | 1,000 | 4,439,000 | 2 | 2,000 | 0 | 2 | 0 | 214 | 0 | 1,000 |
+| `srp` | training | `data/srp_Cyrl/train/000_00000.parquet` | 500 | 2,269,000 | 1 | 1,000 | 0 | 1 | 0 | 625 | 126 | 500 |
+| `srp` | training | `data/srp_Latn/train/000_00000.parquet` | 500 | 586,381 | 1 | 1,000 | 0 | 0 | 0 | 19 | 0 | 500 |
+| `sun` | training | `data/sun_Latn/train/000_00000.parquet` | 1,000 | 106,542 | 2 | 2,000 | 0 | 8 | 0 | 151 | 0 | 1,000 |
+| `swe` | training | `data/swe_Latn/train/000_00000.parquet` | 1,000 | 3,626,000 | 2 | 2,000 | 0 | 2 | 0 | 7 | 0 | 1,000 |
+| `swh` | training | `data/swh_Latn/train/000_00000.parquet` | 1,000 | 1,206,300 | 2 | 2,000 | 0 | 8 | 0 | 490 | 0 | 1,000 |
+| `tam` | training | `data/tam_Taml/train/000_00000.parquet` | 1,000 | 2,598,000 | 2 | 2,000 | 0 | 1 | 0 | 242 | 0 | 1,000 |
+| `tat` | training | `data/tat_Cyrl/train/000_00000.parquet` | 1,000 | 161,354 | 2 | 2,000 | 0 | 2 | 0 | 416 | 0 | 1,000 |
+| `tel` | training | `data/tel_Telu/train/000_00000.parquet` | 1,000 | 1,964,395 | 2 | 2,000 | 0 | 29 | 0 | 74 | 0 | 1,000 |
+| `tgk` | training | `data/tgk_Cyrl/train/000_00000.parquet` | 1,000 | 688,384 | 2 | 2,000 | 0 | 0 | 0 | 1,684 | 684 | 1,000 |
+| `tgl` | training | `data/fil_Latn/train/000_00000.parquet` | 1,000 | 2,349,050 | 2 | 2,000 | 0 | 4 | 1 | 198 | 0 | 1,000 |
+| `tha` | training | `data/tha_Thai/train/000_00000.parquet` | 1,000 | 2,363,000 | 2 | 2,000 | 0 | 10 | 0 | 0 | 0 | 1,000 |
+| `tur` | training | `data/tur_Latn/train/000_00000.parquet` | 1,000 | 3,381,000 | 2 | 2,000 | 0 | 8 | 0 | 50 | 0 | 1,000 |
+| `ukr` | training | `data/ukr_Cyrl/train/000_00000.parquet` | 1,000 | 2,575,000 | 2 | 2,000 | 0 | 5 | 0 | 738 | 0 | 1,000 |
+| `urd` | training | `data/urd_Arab/train/000_00000.parquet` | 1,000 | 3,262,000 | 2 | 2,000 | 0 | 3 | 0 | 697 | 0 | 1,000 |
+| `uzb` | training | `data/uzn_Latn/train/000_00000.parquet` | 500 | 1,233,463 | 1 | 1,000 | 0 | 0 | 0 | 590 | 90 | 500 |
+| `uzb` | training | `data/uzn_Cyrl/train/000_00000.parquet` | 500 | 1,357,811 | 1 | 1,000 | 0 | 1 | 0 | 689 | 190 | 500 |
+| `vie` | training | `data/vie_Latn/train/000_00000.parquet` | 1,000 | 2,319,000 | 2 | 2,000 | 0 | 0 | 0 | 0 | 0 | 1,000 |
+| `vol` | training | `data/vol_Latn/train/000_00000.parquet` | 1,000 | 4,136 | 2 | 2,000 | 0 | 6 | 1 | 1,639 | 646 | 1,000 |
+| `war` | training | `data/war_Latn/train/000_00000.parquet` | 1,000 | 2,223 | 2 | 2,000 | 0 | 10 | 0 | 1,274 | 284 | 1,000 |
+| `zsm` | training | `data/zsm_Latn/train/000_00000.parquet` | 1,000 | 3,396,000 | 2 | 2,000 | 0 | 1 | 0 | 0 | 0 | 1,000 |
+| `zul` | training | `data/zul_Latn/train/000_00000.parquet` | 1,000 | 127,335 | 2 | 2,000 | 0 | 2 | 0 | 167 | 0 | 1,000 |
+| `afr` | held out | `data/afr_Latn/test/000_00000.parquet` | 500 | 15,138 | 1 | 1,000 | 0 | 2 | 0 | 38 | 0 | 500 |
+| `ara` | held out | `data/arb_Arab/test/000_00000.parquet` | 500 | 42,080 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `ast` | held out | `data/ast_Latn/test/000_00000.parquet` | 500 | 645 | 1 | 645 | 0 | 0 | 0 | 94 | 0 | 500 |
+| `aze` | held out | `data/azj_Latn/test/000_00000.parquet` | 500 | 23,948 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `bak` | held out | `data/bak_Cyrl/test/000_00000.parquet` | 500 | 1,940 | 1 | 1,000 | 0 | 0 | 0 | 171 | 0 | 500 |
+| `bel` | held out | `data/bel_Cyrl/test/000_00000.parquet` | 500 | 18,454 | 1 | 1,000 | 0 | 0 | 0 | 97 | 0 | 500 |
+| `ben` | held out | `data/ben_Beng/test/000_00000.parquet` | 500 | 59,078 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `bos` | held out | `data/bos_Latn/test/000_00000.parquet` | 500 | 49,273 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `bre` | held out | `data/bre_Latn/test/000_00000.parquet` | 500 | 514 | 1 | 514 | 0 | 0 | 0 | 202 | 188 | 500 |
+| `bul` | held out | `data/bul_Cyrl/test/000_00000.parquet` | 500 | 36,933 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `cat` | held out | `data/cat_Latn/test/000_00000.parquet` | 500 | 37,517 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `ceb` | held out | `data/ceb_Latn/test/000_00000.parquet` | 500 | 2,017 | 1 | 1,000 | 0 | 2 | 0 | 45 | 0 | 500 |
+| `ces` | held out | `data/ces_Latn/test/000_00000.parquet` | 500 | 28,051 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `che` | held out | `data/che_Cyrl/test/000_00000.parquet` | 500 | 204 | 1 | 204 | 0 | 0 | 0 | 133 | 133 | 204 |
+| `cmn` | held out | `data/cmn_Hani/test/000_00000.parquet` | 500 | 33,296 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `cym` | held out | `data/cym_Latn/test/000_00000.parquet` | 500 | 8,395 | 1 | 1,000 | 0 | 1 | 0 | 6 | 0 | 500 |
+| `dan` | held out | `data/dan_Latn/test/000_00000.parquet` | 500 | 27,945 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `deu` | held out | `data/deu_Latn/test/000_00000.parquet` | 500 | 65,176 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `ell` | held out | `data/ell_Grek/test/000_00000.parquet` | 500 | 32,936 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `eng` | held out | `sample/10BT/001_00000.parquet` | 500 | 1,046,615 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `epo` | held out | `data/epo_Latn/test/000_00000.parquet` | 500 | 3,375 | 1 | 1,000 | 0 | 0 | 0 | 364 | 0 | 500 |
+| `est` | held out | `data/ekk_Latn/test/000_00000.parquet` | 500 | 25,786 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `eus` | held out | `data/eus_Latn/test/000_00000.parquet` | 500 | 15,792 | 1 | 1,000 | 0 | 0 | 0 | 12 | 0 | 500 |
+| `fao` | held out | `data/fao_Latn/test/000_00000.parquet` | 500 | 2,991 | 1 | 1,000 | 0 | 2 | 0 | 14 | 0 | 500 |
+| `fin` | held out | `data/fin_Latn/test/000_00000.parquet` | 500 | 30,398 | 1 | 1,000 | 0 | 0 | 1 | 0 | 0 | 500 |
+| `fra` | held out | `data/fra_Latn/test/000_00000.parquet` | 500 | 44,245 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `fry` | held out | `data/fry_Latn/test/000_00000.parquet` | 500 | 3,383 | 1 | 1,000 | 0 | 1 | 0 | 642 | 143 | 500 |
+| `gle` | held out | `data/gle_Latn/test/000_00000.parquet` | 500 | 6,881 | 1 | 1,000 | 0 | 3 | 0 | 68 | 0 | 500 |
+| `glg` | held out | `data/glg_Latn/test/000_00000.parquet` | 500 | 3,292 | 1 | 1,000 | 0 | 2 | 0 | 0 | 0 | 500 |
+| `gsw` | held out | `data/gsw_Latn/test/000_00000.parquet` | 500 | 513 | 1 | 513 | 0 | 0 | 0 | 81 | 68 | 500 |
+| `guj` | held out | `data/guj_Gujr/test/000_00000.parquet` | 500 | 20,231 | 1 | 1,000 | 0 | 0 | 0 | 34 | 0 | 500 |
+| `heb` | held out | `data/heb_Hebr/test/000_00000.parquet` | 500 | 26,089 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `hin` | held out | `data/hin_Deva/test/000_00000.parquet` | 500 | 55,242 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `hrv` | held out | `data/hrv_Latn/test/000_00000.parquet` | 500 | 9,248 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `hun` | held out | `data/hun_Latn/test/000_00000.parquet` | 500 | 34,779 | 1 | 1,000 | 0 | 2 | 0 | 0 | 0 | 500 |
+| `hye` | held out | `data/hye_Armn/test/000_00000.parquet` | 500 | 16,131 | 1 | 1,000 | 0 | 1 | 0 | 31 | 0 | 500 |
+| `ind` | held out | `data/ind_Latn/test/000_00000.parquet` | 500 | 36,821 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `isl` | held out | `data/isl_Latn/test/000_00000.parquet` | 500 | 32,586 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `ita` | held out | `data/ita_Latn/test/000_00000.parquet` | 500 | 41,029 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `jav` | held out | `data/jav_Latn/test/000_00000.parquet` | 500 | 1,867 | 1 | 1,000 | 0 | 5 | 0 | 46 | 0 | 500 |
+| `jpn` | held out | `data/jpn_Jpan/test/000_00000.parquet` | 500 | 25,889 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `kan` | held out | `data/kan_Knda/test/000_00000.parquet` | 500 | 24,196 | 1 | 1,000 | 0 | 1 | 0 | 12 | 0 | 500 |
+| `kat` | held out | `data/kat_Geor/test/000_00000.parquet` | 500 | 31,598 | 1 | 1,000 | 0 | 1 | 0 | 18 | 0 | 500 |
+| `kaz` | held out | `data/kaz_Cyrl/test/000_00000.parquet` | 500 | 31,632 | 1 | 1,000 | 0 | 2 | 0 | 14 | 0 | 500 |
+| `kir` | held out | `data/kir_Cyrl/test/000_00000.parquet` | 500 | 10,331 | 1 | 1,000 | 0 | 2 | 0 | 240 | 0 | 500 |
+| `kor` | held out | `data/kor_Hang/test/000_00000.parquet` | 500 | 30,074 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `lat` | held out | `data/lat_Latn/test/000_00000.parquet` | 500 | 17,499 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `lim` | held out | `data/lim_Latn/test/000_00000.parquet` | 500 | 251 | 1 | 251 | 0 | 0 | 0 | 15 | 15 | 251 |
+| `lit` | held out | `data/lit_Latn/test/000_00000.parquet` | 500 | 27,694 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `ltz` | held out | `data/ltz_Latn/test/000_00000.parquet` | 500 | 3,936 | 1 | 1,000 | 0 | 2 | 0 | 91 | 0 | 500 |
+| `lvs` | held out | `data/lvs_Latn/test/000_00000.parquet` | 500 | 22,185 | 1 | 1,000 | 0 | 2 | 0 | 0 | 0 | 500 |
+| `mal` | held out | `data/mal_Mlym/test/000_00000.parquet` | 500 | 34,542 | 1 | 1,000 | 0 | 5 | 0 | 0 | 0 | 500 |
+| `mar` | held out | `data/mar_Deva/test/000_00000.parquet` | 500 | 38,137 | 1 | 1,000 | 0 | 0 | 0 | 9 | 0 | 500 |
+| `min` | held out | `data/min_Latn/test/000_00000.parquet` | 500 | 11 | 1 | 11 | 0 | 0 | 0 | 0 | 0 | 11 |
+| `mkd` | held out | `data/mkd_Cyrl/test/000_00000.parquet` | 500 | 41,949 | 1 | 1,000 | 0 | 1 | 0 | 7 | 0 | 500 |
+| `mlg` | held out | `data/plt_Latn/test/000_00000.parquet` | 500 | 2,447 | 1 | 1,000 | 0 | 1 | 0 | 178 | 0 | 500 |
+| `mlt` | held out | `data/mlt_Latn/test/000_00000.parquet` | 500 | 5,193 | 1 | 1,000 | 0 | 4 | 0 | 29 | 0 | 500 |
+| `mon` | held out | `data/khk_Cyrl/test/000_00000.parquet` | 500 | 15,115 | 1 | 1,000 | 0 | 5 | 0 | 0 | 0 | 500 |
+| `mri` | held out | `data/mri_Latn/test/000_00000.parquet` | 500 | 1,582 | 1 | 1,000 | 0 | 1 | 0 | 28 | 0 | 500 |
+| `nan` | held out | `data/nan_Latn/test/000_00000.parquet` | 500 | 38 | 1 | 38 | 0 | 0 | 0 | 0 | 0 | 38 |
+| `nds` | held out | `data/nds_Latn/test/000_00000.parquet` | 500 | 581 | 1 | 581 | 0 | 0 | 0 | 190 | 109 | 500 |
+| `nld` | held out | `data/nld_Latn/test/000_00000.parquet` | 500 | 33,283 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `nno` | held out | `data/nno_Latn/test/000_00000.parquet` | 500 | 12,227 | 1 | 1,000 | 0 | 0 | 0 | 39 | 0 | 500 |
+| `nob` | held out | `data/nob_Latn/test/000_00000.parquet` | 500 | 43,396 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `npi` | held out | `data/npi_Deva/test/000_00000.parquet` | 500 | 49,462 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `oci` | held out | `data/oci_Latn/test/000_00000.parquet` | 500 | 757 | 1 | 757 | 0 | 5 | 0 | 76 | 0 | 500 |
+| `pan` | held out | `data/pan_Guru/test/000_00000.parquet` | 500 | 9,653 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `pes` | held out | `data/fas_Arab/test/000_00000.parquet` | 500 | 43,470 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `pnb` | held out | `data/pnb_Arab/test/000_00000.parquet` | 500 | 256 | 1 | 256 | 0 | 0 | 0 | 59 | 59 | 256 |
+| `pol` | held out | `data/pol_Latn/test/000_00000.parquet` | 500 | 36,574 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `por` | held out | `data/por_Latn/test/000_00000.parquet` | 500 | 33,846 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `pus` | held out | `data/pbt_Arab/test/000_00000.parquet` | 500 | 6,522 | 1 | 1,000 | 0 | 1 | 0 | 165 | 0 | 500 |
+| `ron` | held out | `data/ron_Latn/test/000_00000.parquet` | 500 | 45,783 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `rus` | held out | `data/rus_Cyrl/test/000_00000.parquet` | 500 | 34,714 | 1 | 1,000 | 0 | 3 | 0 | 0 | 0 | 500 |
+| `san` | held out | `data/san_Deva/test/000_00000.parquet` | 500 | 233 | 1 | 233 | 0 | 0 | 0 | 13 | 13 | 233 |
+| `sin` | held out | `data/sin_Sinh/test/000_00000.parquet` | 500 | 11,428 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `slk` | held out | `data/slk_Latn/test/000_00000.parquet` | 500 | 32,557 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `slv` | held out | `data/slv_Latn/test/000_00000.parquet` | 500 | 32,447 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `som` | held out | `data/som_Latn/test/000_00000.parquet` | 500 | 10,523 | 1 | 1,000 | 0 | 3 | 0 | 0 | 0 | 500 |
+| `spa` | held out | `data/spa_Latn/test/000_00000.parquet` | 500 | 40,970 | 1 | 1,000 | 0 | 2 | 0 | 0 | 0 | 500 |
+| `sqi` | held out | `data/als_Latn/test/000_00000.parquet` | 500 | 63,178 | 1 | 1,000 | 0 | 1 | 0 | 11 | 0 | 500 |
+| `srp` | held out | `data/srp_Cyrl/test/000_00000.parquet` | 250 | 40,294 | 1 | 1,000 | 0 | 2 | 0 | 13 | 0 | 250 |
+| `srp` | held out | `data/srp_Latn/test/000_00000.parquet` | 250 | 5,350 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 250 |
+| `sun` | held out | `data/sun_Latn/test/000_00000.parquet` | 500 | 997 | 1 | 997 | 0 | 4 | 0 | 0 | 0 | 500 |
+| `swe` | held out | `data/swe_Latn/test/000_00000.parquet` | 500 | 24,692 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `swh` | held out | `data/swh_Latn/test/000_00000.parquet` | 500 | 12,669 | 1 | 1,000 | 0 | 8 | 0 | 26 | 0 | 500 |
+| `tam` | held out | `data/tam_Taml/test/000_00000.parquet` | 500 | 41,100 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `tat` | held out | `data/tat_Cyrl/test/000_00000.parquet` | 500 | 1,744 | 1 | 1,000 | 0 | 4 | 0 | 67 | 0 | 500 |
+| `tel` | held out | `data/tel_Telu/test/000_00000.parquet` | 500 | 18,933 | 1 | 1,000 | 0 | 3 | 0 | 0 | 0 | 500 |
+| `tgk` | held out | `data/tgk_Cyrl/test/000_00000.parquet` | 500 | 6,427 | 1 | 1,000 | 0 | 0 | 0 | 256 | 0 | 500 |
+| `tgl` | held out | `data/fil_Latn/test/000_00000.parquet` | 500 | 20,096 | 1 | 1,000 | 0 | 3 | 0 | 0 | 0 | 500 |
+| `tha` | held out | `data/tha_Thai/test/000_00000.parquet` | 500 | 24,037 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `tur` | held out | `data/tur_Latn/test/000_00000.parquet` | 500 | 36,146 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `ukr` | held out | `data/ukr_Cyrl/test/000_00000.parquet` | 500 | 40,288 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `urd` | held out | `data/urd_Arab/test/000_00000.parquet` | 500 | 49,136 | 1 | 1,000 | 0 | 0 | 0 | 2 | 0 | 500 |
+| `uzb` | held out | `data/uzn_Latn/test/000_00000.parquet` | 250 | 13,420 | 1 | 1,000 | 0 | 0 | 0 | 9 | 0 | 250 |
+| `uzb` | held out | `data/uzn_Cyrl/test/000_00000.parquet` | 250 | 13,662 | 1 | 1,000 | 0 | 1 | 0 | 37 | 0 | 250 |
+| `vie` | held out | `data/vie_Latn/test/000_00000.parquet` | 500 | 28,276 | 1 | 1,000 | 0 | 0 | 0 | 0 | 0 | 500 |
+| `vol` | held out | `data/vol_Latn/test/000_00000.parquet` | 500 | 52 | 1 | 52 | 0 | 0 | 0 | 9 | 9 | 52 |
+| `war` | held out | `data/war_Latn/test/000_00000.parquet` | 500 | 35 | 1 | 35 | 0 | 1 | 0 | 0 | 0 | 34 |
+| `zsm` | held out | `data/zsm_Latn/test/000_00000.parquet` | 500 | 36,509 | 1 | 1,000 | 0 | 1 | 0 | 0 | 0 | 500 |
+| `zul` | held out | `data/zul_Latn/test/000_00000.parquet` | 500 | 762 | 1 | 762 | 0 | 1 | 0 | 13 | 0 | 500 |
+
+</details>
 
 ## Tests
 
