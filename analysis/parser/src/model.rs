@@ -203,6 +203,8 @@ pub enum ParserModelError {
     /// A training or evaluation sample failed where OpenNLP throws, as `Parse.pruneParse` does
     /// on a node whose only child has its type.
     Sample(ParseError),
+    /// Generating tree-insertion training events failed where OpenNLP throws or exits.
+    TreeInsert(crate::treeinsert::TreeInsertError),
 }
 
 impl fmt::Display for ParserModelError {
@@ -222,6 +224,7 @@ impl fmt::Display for ParserModelError {
             }
             Self::TrainComponents(e) => write!(f, "parser model packaging: {e}"),
             Self::Sample(e) => write!(f, "parser sample: {e}"),
+            Self::TreeInsert(e) => write!(f, "parser training events: {e}"),
         }
     }
 }
@@ -249,6 +252,12 @@ impl From<turbo_postag::ModelError> for ParserModelError {
 impl From<HeadRulesError> for ParserModelError {
     fn from(e: HeadRulesError) -> Self {
         Self::HeadRules(e)
+    }
+}
+
+impl From<crate::treeinsert::TreeInsertError> for ParserModelError {
+    fn from(e: crate::treeinsert::TreeInsertError) -> Self {
+        Self::TreeInsert(e)
     }
 }
 

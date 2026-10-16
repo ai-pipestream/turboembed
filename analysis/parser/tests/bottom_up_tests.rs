@@ -233,11 +233,12 @@ fn chunking_and_treeinsert_event_streams_generate_events() {
     assert!(check_events.iter().any(|e| e.outcome() == turbo_parser::INCOMPLETE));
 
     let ti_build =
-        treeinsert::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Build, Some(&dict));
+        treeinsert::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Build, Some(&dict)).unwrap();
     assert!(!ti_build.is_empty());
     assert!(ti_build.iter().any(|e| e.outcome() == treeinsert::DONE));
 
-    let ti_attach = treeinsert::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Attach, None);
+    let ti_attach =
+        treeinsert::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Attach, None).unwrap();
     assert!(!ti_attach.is_empty());
     assert!(
         ti_attach
@@ -245,7 +246,8 @@ fn chunking_and_treeinsert_event_streams_generate_events() {
             .any(|e| e.outcome() == treeinsert::ATTACH_SISTER || e.outcome() == treeinsert::ATTACH_DAUGHTER)
     );
 
-    let ti_check = treeinsert::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Check, None);
+    let ti_check =
+        treeinsert::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Check, None).unwrap();
     assert!(!ti_check.is_empty());
 }
 
@@ -284,7 +286,15 @@ fn chunking_parser_trains_serializes_and_parses() {
 #[test]
 fn treeinsert_parser_trains_serializes_and_parses() {
     let rules = HeadRulesArtifact::English(english_head_rules());
-    let samples = sample_parses();
+    // OpenNLP's parser reads the attach model's sister outcome, so the corpus needs a constituent
+    // with a child of its own type for sister adjunction to be trained.
+    let mut samples = sample_parses();
+    samples.push(
+        Parse::parse(
+            "(TOP (S (NP-SBJ (NP (DT The) (NN dog)) (PP (IN in) (NP (DT the) (NN yard)))) (VP (VBD barked)) (. .)))",
+        )
+        .unwrap(),
+    );
     let params = ParserTrainingParameters::with_iterations_and_cutoff(50, 1);
 
     let model = treeinsert::Parser::train("en", &samples, rules, &params).expect("train treeinsert parser");
