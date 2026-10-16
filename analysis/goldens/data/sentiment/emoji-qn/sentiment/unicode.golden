@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/unicode	58	49	ea32aa47251a1b5821eb45d5a7a65a47399511a69a7eaa58ba14882a149236d4
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	MAXENT_QN
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-qn
+layer	opennlp:tokens	text	10	start:u32	end:u32
+0	3
+4	12
+13	18
+19	25
+26	29
+30	38
+39	42
+43	46
+47	52
+53	57
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	13	feature:str
+the
+𝔘nion
+café
+serves
+tea
+🇨🇦
+and
+the
+été
+menu
+emojiType=FLAG
+emojiCategory=FLAGS
+emojiRegion=CA
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+neutral	3fe47a6434f81338 0.6399403605033518
+positive	3fcb6bae322f703d 0.2142236466451112
+negative	3fc2aac0f9f042eb 0.14583599285153723
+end	turbo:categories

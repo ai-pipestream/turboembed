@@ -1,0 +1,42 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/japanese	89	65	c6b02a506b31c46b049a18d124754c59b5c15dda58f2e19b801cf1c0550f3142
+annotator	opennlp.tools.pii.PiiPacks	payment
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	payment
+layer	turbo:view	text	12	start:u32	end:u32	with:str
+69	70	*
+70	71	*
+71	72	*
+72	73	*
+73	74	*
+74	75	*
+75	76	*
+76	77	*
+77	78	*
+78	79	*
+79	80	*
+80	81	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+連絡先：support@example.jp、電話 +44 20 7946 0321、カード ################。\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	連絡先：support@example.jp、電話 +44 20 7946 0321、カード CARD-1。\n	
+hmac	連絡先：support@example.jp、電話 +44 20 7946 0321、カード CARD-f04eb250c58c67b2。\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	2	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	69	85	69	75	CARD-1
+hmac	69	85	69	90	CARD-f04eb250c58c67b2
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+card	1	1	CARD-f04eb250c58c67b2
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]
+end	turbo:pii-audit-report

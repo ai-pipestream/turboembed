@@ -39,3 +39,6 @@ ureq = "3"
 # Qasper is published as a gzip tar. flate2 is already in the build
 # through ureq's gzip support, so this adds no crate.
 flate2 = "1"
+# ZSTD pages: FineWeb-2's text column is ZSTD-compressed, as the
+# models-fineweb run showed reading data/afr_Latn/train/000_00000.parquet.
+turbo-zstd = { path = "../zstd" }

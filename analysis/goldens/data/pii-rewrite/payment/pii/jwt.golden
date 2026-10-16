@@ -1,0 +1,27 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/jwt	120	120	cfd14f40ae15c92feb267e1da86176c183acd78cca3a38c01600bae2408230a9
+annotator	opennlp.tools.pii.PiiPacks	payment
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	payment
+layer	turbo:view	text	0	start:u32	end:u32	with:str
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+JWT eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c found.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	JWT eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c found.\n	
+hmac	JWT eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c found.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	0	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	0	type:str	mentions:u32	distinct:u32	samples:str
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+no pii found
+end	turbo:pii-audit-report

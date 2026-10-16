@@ -9,6 +9,8 @@ OpenNLP numeric add-on:
 | Rust | OpenNLP |
 |---|---|
 | `MoneyExtractor` | `CursorMoneyExtractor` and `MoneyAnnotator` |
+| `MoneyExtractor::for_region` | `CursorMoneyExtractor.forRegion(Locale)` |
+| `RegionAwareMoneyAnnotator` | `RegionAwareMoneyAnnotator` |
 | `EcbRates` | `EcbFxRates` |
 | `FxRates` | `FxRates` |
 | `MoneyConverter` | `MoneyConversionAnnotator`, fixed-date mode |
@@ -85,10 +87,18 @@ The known codes are the 233 alphabetic codes of
 into the crate. OpenNLP takes the set from the running JDK, so a JVM of
 another version can know a few codes more or fewer.
 
-OpenNLP's `forRegion(Locale)` builds a table and a notation from the
-JDK's locale data. That lookup is not ported; a caller that knows the
-region builds the same extractor, for example
-`MoneyExtractor::new(LatinUs).with_symbol('$', AUD)` for Australia.
+`MoneyExtractor::for_region(RegionCode)` reproduces OpenNLP's
+`CursorMoneyExtractor.forRegion(Locale)` under JDK 21: it selects the
+region's number notation (`LatinEu` when the region's decimal separator
+is `,`, otherwise `LatinUs`) and overrides the region's local
+single-character `Sc` currency symbol (`$` -> `AUD` for `AU`, `$` ->
+`CAD` for `CA`, `\u{07FF}` -> `GNF` for `GN`) while preserving the default
+symbol mappings for all other symbols. `RegionAwareMoneyAnnotator`
+(`turbo-numeric:region-aware-money`) reads `(View, Regions)` and writes
+`(Money,)`, delegating to `MoneyExtractor::for_region` when
+`Regions::winner(min_margin)` elects a winning region and falling back to
+`MoneyExtractor::default()` when the ballot is empty or tied within
+`min_margin`.
 
 ## Rates
 

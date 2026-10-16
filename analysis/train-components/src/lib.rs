@@ -1,7 +1,7 @@
 //! Training OpenNLP's components: the event streams, the factories that
 //! set them up, the model files the `train` methods of `SentenceDetectorME`,
 //! `TokenizerME`, `POSTaggerME`, `LemmatizerME`, `ChunkerME`,
-//! `NameFinderME` and `LanguageDetectorME` return, and the reproduction
+//! `NameFinderME`, `LanguageDetectorME` and `SentimentME` return, and the reproduction
 //! of the published UD 1.3 models.
 //!
 //! - [`sentdetect`][]: `SentenceDetectorFactory`, the events of
@@ -17,13 +17,16 @@
 //!   events of `NameFinderEventStream`, the defaults `NameFinderME.train`
 //!   puts into the parameters, and the `TokenNameFinderModel` file.
 //! - [`chunk`][]: `ChunkerFactory`, the events of `ChunkerEventStream`,
-//!   and the `ChunkerModel` file, trained with `MAXENT`, `MAXENT_QN` or
-//!   `PERCEPTRON`; `NAIVEBAYES`, which `ChunkerME.train` also takes, is
-//!   not ported and fails with `turbo_train::Error::NotPorted`.
+//!   and the `ChunkerModel` file, trained with `MAXENT`, `MAXENT_QN`,
+//!   `PERCEPTRON` or `NAIVEBAYES`.
 //! - [`langdetect`][]: `LanguageDetectorFactory`, the events of
 //!   `LanguageDetectorEventStream`, and the `LanguageDetectorModel` file.
-//! - [`dictionary`][]: the abbreviation dictionary as `Dictionary.serialize`
-//!   writes it, entries in Java's hash set order.
+//! - [`sentiment`][]: the events of `SentimentEventStream` over
+//!   `SentimentFactory` or `EmojiSentimentFactory`, and the
+//!   `SentimentModel` file.
+//! - [`dictionary`][]: the token n-gram dictionary as `Dictionary.serialize`
+//!   writes it (entries in Java's hash set order), `Dictionary.parseOneEntryPerLine`
+//!   (`DictionaryBuilderTool`) and `CensusDictionaryCreatorTool.createDictionary`.
 //! - [`tagdict`][]: the tag dictionary as `POSDictionary.serialize` writes
 //!   it, entries in Java's hash map order.
 //! - [`java_hash`][]: `String.hashCode` and the order a `java.util.HashMap`
@@ -147,12 +150,13 @@ pub mod namefind;
 pub mod package;
 pub mod postag;
 pub mod sentdetect;
+pub mod sentiment;
 pub mod tagdict;
 pub mod tokenize;
 pub mod ud;
 
 pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_model};
-pub use dictionary::AbbreviationDictionary;
+pub use dictionary::{AbbreviationDictionary, build_census_dictionary_xml, build_dictionary_xml};
 pub use error::{Error, Result};
 pub use langdetect::{LanguageDetectorFactory, LanguageEventStream, language_events, train_language_model};
 pub use lemmatize::{LemmaEventStream, LemmatizerFactory, lemma_events, train_lemmatizer_model};
@@ -160,5 +164,6 @@ pub use namefind::{NameEventStream, TokenNameFinderFactory, name_events, train_n
 pub use package::Stamp;
 pub use postag::{PosEventStream, PosTaggerFactory, pos_events, train_pos_model};
 pub use sentdetect::{SdEventStream, SentenceDetectorFactory, sd_events, train_sentence_model};
+pub use sentiment::{SentimentEventStream, sentiment_events, train_sentiment_model};
 pub use tagdict::PosDictionary;
 pub use tokenize::{TokSpanEventStream, TokenizerFactory, tok_events, train_tokenizer_model};

@@ -1,0 +1,8 @@
+SET UTF-8
+FLAG UTF-8
+SFX é Y 1
+SFX é 0 s .
+SFX 😀 Y 1
+SFX 😀 0 😀 .
+PFX ★ Y 1
+PFX ★ 0 über .

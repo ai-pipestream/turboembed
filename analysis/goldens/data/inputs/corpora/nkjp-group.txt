@@ -1,0 +1,33 @@
+# Grouped texts with repeated ids in the layout of the NKJP corpus, written for this project.
+
+@@ file text.xml
+<teiCorpus xmlns="urn:example:tei">
+ <TEI>
+  <text>
+   <group>
+    <text xml:id="t1">
+     <body>
+      <div xml:id="d1"><p xml:id="p-a">Pierwszy tekst.</p><p xml:id="p-b">Drugi tekst.</p><p xml:id="p-a">Trzeci tekst.</p></div>
+      <div xml:id="d2" type="x"><p xml:id="p-c">Czwarty tekst.</p><ab xml:id="p-b">Piąty.</ab></div>
+      <div xml:id="d3"><p xml:id="p-d">Zgubiony.</p></div>
+      <div xml:id="d3"><p xml:id="p-e">Zostaje.</p></div>
+     </body>
+    </text>
+    <text xml:id="t2">
+     <body>
+      <div xml:id="d4"><p xml:id="p-c">Inny tekst w drugim.</p><p xml:id="p-f">Bez komentarza<!--k--> po tekście.</p></div>
+     </body>
+    </text>
+    <text xml:id="t3">
+     <body>
+      <div xml:id="d5"><p xml:id="p-g">Tekst <hi>z</hi> wyróżnieniem.</p><p xml:id="p-h"><hi>Sam</hi></p></div>
+     </body>
+    </text>
+   </group>
+  </text>
+ </TEI>
+</teiCorpus>
+@@ end
+@@ file ann_segmentation.xml
+<teiCorpus><TEI><text><body><p><s xml:id="g4"><seg corresp="t#r(p-d,0,4)" xml:id="g4-0"/></s><s xml:id="g1"><seg corresp="t#r(p-a,0,4)" xml:id="g1-0"/></s><s xml:id="g2"><seg corresp="t#r(p-b,0,4)" xml:id="g2-0"/></s><s xml:id="g3"><seg corresp="t#r(p-c,0,4)" xml:id="g3-0"/></s><s xml:id="g5"><seg corresp="t#r(p-e,0,4)" xml:id="g5-0"/></s><s xml:id="g6"><seg corresp="t#r(p-g,0,7)" xml:id="g6-0"/><seg corresp="t#r(p-g,8,5)" xml:id="g6-1"/></s><s xml:id="g7"><seg corresp="t#r(p-h,0,3)" xml:id="g7-0"/></s><s xml:id="g8"><seg corresp="t#r(p-f,15,11)" xml:id="g8-0"/></s></p></body></text></TEI></teiCorpus>
+@@ end

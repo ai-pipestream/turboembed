@@ -1,7 +1,8 @@
 //! A Parquet writer for tests: one row group, required columns, one
-//! uncompressed PLAIN data page per column. It lets a test write exactly
-//! the rows it needs, broken ones included; the files in
-//! `tests/data/parquet` cover what pyarrow writes.
+//! PLAIN data page per column, uncompressed or compressed beforehand by
+//! the test. It lets a test write exactly the rows it needs, broken ones
+//! included; the files in `tests/data/parquet` cover what pyarrow
+//! writes.
 
 use std::fs;
 use std::path::Path;
@@ -113,7 +114,16 @@ impl Thrift {
     }
 }
 
-/// Writes `cols`, which must all have the same number of rows, to `path`.
+/// A column chunk's codec, numbered as `parquet.thrift` numbers them.
+#[derive(Debug, Clone, Copy)]
+pub enum Codec {
+    Uncompressed = 0,
+    Zstd = 6,
+    Lz4Raw = 7,
+}
+
+/// Writes `cols`, which must all have the same number of rows, to `path`,
+/// uncompressed.
 pub fn write(path: &Path, cols: &[Col]) {
     write_chunks(path, cols, |offset, len| (offset as i64, len as i64));
 }
@@ -121,17 +131,46 @@ pub fn write(path: &Path, cols: &[Col]) {
 /// As [`write`], with each column chunk's data page offset and compressed
 /// size in the footer given by `chunk` from its true offset and length.
 pub fn write_chunks(path: &Path, cols: &[Col], chunk: impl Fn(usize, usize) -> (i64, i64)) {
+    let pages: Vec<Vec<u8>> = cols.iter().map(Col::plain).collect();
+    write_pages(path, cols, Codec::Uncompressed, &pages, None, chunk);
+}
+
+/// Writes `cols` as [`write`] does, with `codec` and each column's page
+/// as `pages` gives it: the column's PLAIN values compressed, as the
+/// writer has no compressors of its own.
+pub fn write_compressed(path: &Path, cols: &[Col], codec: Codec, pages: &[Vec<u8>]) {
+    write_pages(path, cols, codec, pages, None, |offset, len| (offset as i64, len as i64));
+}
+
+/// Writes `cols` as [`write`] does, every page header giving `sizes`
+/// (uncompressed, compressed) in place of the page's own, so a test can
+/// damage them.
+pub fn write_with_page_sizes(path: &Path, cols: &[Col], sizes: (i64, i64)) {
+    let pages: Vec<Vec<u8>> = cols.iter().map(Col::plain).collect();
+    write_pages(path, cols, Codec::Uncompressed, &pages, Some(sizes), |offset, len| (offset as i64, len as i64));
+}
+
+fn write_pages(
+    path: &Path,
+    cols: &[Col],
+    codec: Codec,
+    pages: &[Vec<u8>],
+    sizes: Option<(i64, i64)>,
+    chunk: impl Fn(usize, usize) -> (i64, i64),
+) {
     let rows = cols[0].rows();
     assert!(cols.iter().all(|c| c.rows() == rows));
+    assert_eq!(cols.len(), pages.len());
     let mut file = b"PAR1".to_vec();
     let mut chunks = Vec::new();
-    for c in cols {
-        let values = c.plain();
+    for (c, page) in cols.iter().zip(pages) {
+        let plain = c.plain().len();
         let mut h = Thrift::default();
         h.begin();
         h.i32(1, 0); // DATA_PAGE
-        h.i32(2, values.len() as i64);
-        h.i32(3, values.len() as i64);
+        let (uncompressed, compressed) = sizes.unwrap_or((plain as i64, page.len() as i64));
+        h.i32(2, uncompressed);
+        h.i32(3, compressed);
         h.begin_field(5);
         h.i32(1, rows as i64);
         h.i32(2, 0); // PLAIN
@@ -141,8 +180,9 @@ pub fn write_chunks(path: &Path, cols: &[Col], chunk: impl Fn(usize, usize) -> (
         h.end();
         let offset = file.len();
         file.extend(&h.out);
-        file.extend(&values);
-        chunks.push((offset, file.len() - offset));
+        file.extend(page);
+        // The chunk's offset, and its sizes uncompressed and compressed.
+        chunks.push((offset, h.out.len() + plain, file.len() - offset));
     }
     let mut m = Thrift::default();
     m.begin();
@@ -163,7 +203,7 @@ pub fn write_chunks(path: &Path, cols: &[Col], chunk: impl Fn(usize, usize) -> (
     m.list(4, 12, 1);
     m.begin();
     m.list(1, 12, cols.len());
-    for (c, &(offset, len)) in cols.iter().zip(&chunks) {
+    for (c, &(offset, uncompressed, compressed)) in cols.iter().zip(&chunks) {
         m.begin();
         m.int(2, offset as i64);
         m.begin_field(3);
@@ -173,10 +213,10 @@ pub fn write_chunks(path: &Path, cols: &[Col], chunk: impl Fn(usize, usize) -> (
         m.list(3, 8, 1);
         m.varint(c.name().len() as u64);
         m.out.extend(c.name().as_bytes());
-        m.i32(4, 0); // UNCOMPRESSED
+        m.i32(4, codec as i64);
         m.int(5, rows as i64);
-        let (at, compressed) = chunk(offset, len);
-        m.int(6, len as i64);
+        let (at, compressed) = chunk(offset, compressed);
+        m.int(6, uncompressed as i64);
         m.int(7, compressed);
         m.int(9, at);
         m.end();

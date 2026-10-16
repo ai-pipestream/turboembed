@@ -1,0 +1,2864 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	stem/german	10209	9992	219e5456a30c4844c2055f81857dfb37f0b9a4abe2ee45245251add9a055172b
+model	de_DE_frami.aff	6fec308258040c29e6b91bc51381c6e8a631bcdd66e59f84a673705f22a540f6819e6b4720add394a46ccceff775487cb6f6c240fe5bd357e4d60e21e8ba0ff0
+model	de_DE_frami.dic	ab9e7156f2f31a0fd1d6cad6487f43aec98f1767d46daf7a7a0048b9cbfbd9bc449f29225a10217ce2d0a722afd8b606f2f6b027dbde2720b093343334f874dd
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	974	word:str	stem:str	thrown:str
+a	a	
+abendsonne	Abend	
+abgab	abgab	
+abgekommen	abgekommen	
+abgeschieden	abgeschieden	
+abgewinnen	abgewinnen	
+abhaut	abhauen	
+ablehnung	ablehnung	
+abrechnen	abrechnen	
+abschließung	abschließung	
+absolutes	absolut	
+abstrakt	abstrakt	
+abwehrmassnahme	abwehrmassnahme	
+abzuflauen	abzuflauen	
+abzuwenden	abzuwenden	
+achtungsvolles	achtungsvoll	
+adelsgespons	adelsgespons	
+affizierten	affizieren	
+ahnliches	ahnliches	
+aktionen	Akt	
+alkoholverwaltung	Alkohol	
+allerhand	allerhand	
+allgemeiner	allgemein	
+allweil	allweil	
+ältern	ältern	
+amer	amer	
+amtsdauern	Amts	
+anbetete	anbeten	
+anderer	andere	
+aneigneten	aneignen	
+anfechter	anfechter	
+angeblichen	angeblich	
+angegeben	angegeben	
+angeknurrt	angeknurrt	
+angenehmes	angenehm	
+angesichte	angesichte	
+angfangt	angfangt	
+anhängsel	anhängsel	
+anklage	anklagen	
+anlegte	anlegen	
+annehmbaren	annehmbar	
+anrufung	anrufung	
+anschluß	anschluß	
+anständig	anständig	
+anteil	anteil	
+antworteten	antworten	
+anziehungskraft	Anziehungs	
+anzuschließen	anzuschließen	
+apparet	apparet	
+arbeitslohn	Arbeits	
+argloser	arglos	
+armselige	armselig	
+aschenbecher	Aschen	
+aster	aster	
+atmosphäre	atmosphäre	
+aufbrennenden	aufbrennenden	
+aufessen	aufessen	
+aufgangs	aufgangs	
+aufgeklärten	aufgeklärt	
+aufgeschrieben	aufgeschrieben	
+aufhängen	aufhängen	
+aufmachen	aufmachen	
+aufpassen	aufpassen	
+aufrühren	aufrühren	
+aufspringenden	aufspringen	
+auftragt	auftragen	
+aufzubrechen	aufzubrechen	
+aufzuweisen	aufzuweisen	
+ausbeutete	ausbeuten	
+ausdrücken	ausdrücken	
+ausflucht	ausflucht	
+ausgebrüteten	ausgebrütet	
+ausgehungerte	ausgehungert	
+ausgerüstet	ausgerüstet	
+ausgestreckt	ausgestreckt	
+ausginge	ausging	
+ausleeren	ausleeren	
+ausrottet	ausrotten	
+ausschnitte	ausschnitt	
+äußerlich	äußerlich	
+äußerungen	äußerungen	
+ausstattung	ausstattung	
+austrocknet	austrocknen	
+auszählung	auszählung	
+auszuputzen	auszuputzen	
+avanti	avanti	
+baco	baco	
+bände	bände	
+bankräuber	Bank	
+barthaare	Bart	
+bauamtsleiter	Bau	
+bauerssohn	bauerssohn	
+bauz	bauz	
+beatrix	beatrix	
+bedeckten	bedeckt	
+bedingt	bedingt	
+beeindruckt	beeindruckt	
+befasst	befassen	
+befrage	befragen	
+begabt	begabt	
+begib	begibt	
+begossenen	begossen	
+begründung	begründung	
+behaltet	behalten	
+beherrschung	beherrschung	
+beifälliges	beifällig	
+beim	beim	
+beistehen	beistehen	
+bekanntlich	bekannt	
+bekräftigung	bekräftigung	
+belegexemplar	Beleg	
+belobt	belobt	
+bemühungen	bemühungen	
+benützte	benützen	
+beraubte	berauben	
+bereiteten	bereiten	
+bergnase	Berg	
+berlinfergus	berlinfergus	
+beruhigung	beruhigung	
+besannen	besann	
+bescheidener	bescheiden	
+beschnüffelte	beschnüffeln	
+beschwören	beschwören	
+besitzerin	besitzerin	
+besprengung	besprengung	
+bestätigten	bestätigen	
+bestie	bestie	
+bestrebt	bestreben	
+betete	beten	
+betreibt	betreiben	
+betteljunge	Bettel	
+beuten	beuten	
+bewegen	bewegen	
+bewimpelt	bewimpeln	
+bewusstseins	bewusstseins	
+bezirksrat	Bezirks	
+bierkrug	Bier	
+billige	billig	
+bissen	biss	
+blankgepanzerte	blankgepanzerte	
+blaues	blau	
+bleihände	Blei	
+blinkend	blinken	
+blondhaar	blondhaar	
+blume	blume	
+blutschulden	Blut	
+böllerschüsse	Böller	
+bösewicht	bösewicht	
+brandenburg	brandenburg	
+braunem	braun	
+breiten	breiten	
+brille	brille	
+brüche	brüche	
+brunnenschwengeln	Brunnen	
+buchen	buchen	
+bücken	bücken	
+bundesebene	Bundes	
+bürger	bürger	
+bürstners	bürstners	
+castor	castor	
+chaussee	chaussee	
+chomers	chomers	
+close	close	
+council	council	
+dackel	dackel	
+daliegen	daliegen	
+danggen	danggen	
+darein	darein	
+das	da	
+dauernden	dauern	
+deckbett	Deck	
+delegationen	delegationen	
+denk	denken	
+derbe	derb	
+deshalben	deshalben	
+deutschen	deutsch	
+dichten	dichten	
+diemal	diemal	
+diente	dienen	
+diplom	diplom	
+diversa	diversa	
+donnerriesen	Donner	
+dornbusch	dornbusch	
+drängten	drängen	
+dreiröhrenhut	Drei	
+drittes	dritt	
+drunten	drunten	
+dummheit	dummheit	
+dunkler	dunkel	
+durcheinander	durcheinander	
+durchmass	durchmass	
+durchsuchungen	durchsuchungen	
+dursten	dursten	
+ebendaselbst	ebendaselbst	
+edelgeformten	edelgeformten	
+egal	egal	
+ehrbarem	ehrbar	
+ehrt	ehren	
+eiffelturm	eiffelturm	
+eigenstes	eigenste	
+eilfertig	eilfertig	
+eindeutig	eindeutig	
+einfällt	einfällt	
+einflösst	einflösst	
+eingebildetes	eingebildet	
+eingehen	eingehen	
+eingeredeten	eingeredet	
+eingetroffen	eingetroffen	
+einheitenkillenden	einheitenkillenden	
+einkäufe	Ein	
+einnehme	einnehmen	
+einsatz	Ein	
+einsichtsfähigkeit	einsichtsfähigkeit	
+einteilung	Ein	
+einwanderer	Ein	
+einzige	einzig	
+einzuwerfen	einzuwerfen	
+eitle	eitel	
+elender	elend	
+eminenten	eminent	
+emphatisch	emphatisch	
+ende	enden	
+engel	engel	
+engtälern	engtälern	
+entferne	entfernen	
+entgegengesetzt	entgegengesetzt	
+enthaltene	enthalten	
+entlastetder	entlastetder	
+entsandet	entsandet	
+entschluß	entschluß	
+entsprechungsverhältnis	entsprechungsverhältnis	
+entweiht	entweihen	
+entzücken	entzücken	
+erbat	erbat	
+erblich	erblich	
+erdharzes	Erd	
+erfahrungsgemäss	erfahrungsgemäss	
+erforscht	erforschen	
+ergeben	ergeben	
+ergriffen	ergriffen	
+erhellte	erhellen	
+erinnerungen	erinnerungen	
+erklären	erklären	
+erlebe	erleben	
+erlösen	erlösen	
+ermunterte	ermuntern	
+ernte	ernten	
+erretten	erretten	
+erschiene	erschiene	
+ersehnt	ersehnen	
+erstattete	erstatten	
+erstige	erstige	
+erwachend	erwachen	
+erwartungen	erwartungen	
+erworbene	erworben	
+erziehen	erziehen	
+essayistischen	essayistisch	
+euch	euch	
+evidenz	evidenz	
+experiment	experiment	
+fähigkeiten	fähigkeiten	
+fällen	fällen	
+familienglück	Familien	
+fasern	fasern	
+fäustchen	fäustchen	
+fehlschlug	fehlschlug	
+feinde	feinden	
+feldgeschrei	Feld	
+felsplatten	Fels	
+fernher	fernher	
+festivitatum	festivitatum	
+feuer	feuern	
+fiberchen	fiberchen	
+finanzieren	finanzieren	
+firlefanz	firlefanz	
+fladenkuchen	fladenkuchen	
+flehens	flehens	
+fliegt	fliegen	
+flössen	flösse	
+flügelmann	Flügel	
+focis	focis	
+force	force	
+forscherin	forscherin	
+fortgehender	fortgehen	
+fortschritt	fortschritt	
+fraglichen	fraglich	
+frauenkleider	Frauen	
+freies	frei	
+fremd	fremd	
+freuend	freuen	
+friedensopfers	Friedens	
+fritz	fritz	
+froschmaul	Frosch	
+frühlingslied	Frühlings	
+fügen	fügen	
+führten	führen	
+fünfunddreissigjährigen	fünfunddreissigjährigen	
+fürbittbuch	fürbittbuch	
+fürschlag	fürschlag	
+fusssohle	fusssohle	
+galion	galion	
+gänzlicher	gänzlich	
+gassenjungen	gassenjungen	
+gaumen	gaumen	
+gebären	gebären	
+gebietes	gebietes	
+gebotene	geboten	
+gebührend	gebühren	
+gedankenlos	gedankenlos	
+gediente	gedient	
+gefährde	gefährden	
+gefärbten	gefärbt	
+gefördert	gefördert	
+gegenargument	Gegen	
+gegessen	gegessen	
+gehängen	gehängen	
+geheimnisvollen	geheimnisvoll	
+gehorchend	gehorchen	
+geirrt	geirrt	
+geistlichkeit	geistlichkeit	
+gekräuselte	gekräuselt	
+gelassener	gelassen	
+gelebt	gelebt	
+geliebter	geliebt	
+gelüste	gelüsten	
+gemein	gemein	
+gemeisselt	gemeisselt	
+gemüts	gemüts	
+generäle	generäle	
+genossene	genossen	
+geöffnete	geöffnet	
+gepfropft	gepfropft	
+gerät	gerätst	
+gerettet	gerettet	
+geriet	geriet	
+gerötet	gerötet	
+gesalbt	gesalbt	
+geschäfte	geschäfte	
+geschehnisse	geschehnisse	
+geschirr	geschirr	
+geschmolzenes	geschmolzen	
+geschüttet	geschüttet	
+gesehene	gesehen	
+gesetzlichen	gesetzlich	
+gesinnungsart	Gesinnungs	
+gespreizten	gespreizt	
+gestemmt	gestemmt	
+gestrige	gestrig	
+geteilt	geteilt	
+getriebe	getriebe	
+gewährte	gewähren	
+gewärtigen	gewärtigen	
+gewillt	gewillt	
+gewissheit	gewissheit	
+geworfen	geworfen	
+geziert	geziert	
+gierig	gierig	
+gladiolos	gladiolos	
+glasziegeln	Glas	
+gläubigen	gläubig	
+gleichmässig	gleichmässig	
+glöckchen	glöckchen	
+glückseligkeit	glückseligkeit	
+gnädiglich	gnädiglich	
+goldgelbes	goldgelb	
+gopher	gopher	
+gottverlassene	gottverlassen	
+grafensohn	grafensohn	
+gratulierte	gratulieren	
+greinstimme	greinstimme	
+greulichen	greulichen	
+gröbern	gröbern	
+grössen	grössen	
+größte	größte	
+gründen	gründen	
+grüner	grün	
+gschicht	gschicht	
+gündem	gündem	
+guter	gut	
+haardenkmal	Haar	
+haderlumpen	haderlumpen	
+hains	hains	
+halbvermoderte	halbvermoderte	
+hältst	hältst	
+handelsfreunden	Handels	
+handlungsstarke	handlungsstark	
+hansnarren	hansnarren	
+harte	hart	
+haspelte	haspelte	
+hatte	hatte	
+häuptern	häuptern	
+hauptwert	Haupt	
+hausrat	Haus	
+hechte	hechten	
+heiland	heiland	
+heimgalopp	Heim	
+heinrichs	heinrichs	
+heks	heks	
+hemdchen	hemdchen	
+herabregnen	herabregnen	
+heraufbeschworen	heraufbeschworen	
+herausgezaubert	herausgezaubert	
+herauszugehen	herauszugehen	
+herbsteigen	Herbst	
+hergeführt	hergeführt	
+hernehmen	hernehmen	
+herrlichsten	herrlich	
+herüberzukommen	herüberzukommen	
+herumschweben	herumschweben	
+herumzusummen	herumzusummen	
+hervorbringung	hervorbringung	
+hervorsprudeln	hervorsprudeln	
+herzhafte	herzhaft	
+heteronomie	heteronomie	
+hexe	hexen	
+hierhin	hierhin	
+hilft	hilft	
+himmelszelt	Himmels	
+hinabtreibend	hinabtreibend	
+hinaufzukommen	hinaufzukommen	
+hinausspringenden	hinausspringen	
+hindurchgehende	hindurchgehen	
+hineinstrecken	hineinstrecken	
+hingeschickt	hingeschickt	
+hinrasen	hinrasen	
+hintereinander	hintereinander	
+hinübersehen	hinübersehen	
+hinweisen	hinweisen	
+hirn	hirn	
+hoben	hob	
+hochsitze	Hoch	
+höfen	höfen	
+hofstaats	Hof	
+höhnten	höhnen	
+hölzchen	hölzchen	
+hoppelt	hoppeln	
+hörte	hören	
+hügeligen	hüglig	
+humus	humus	
+hungrig	hungrig	
+hüteten	hüten	
+igel	igeln	
+immaterielle	immateriell	
+indischen	indisch	
+inne	inne	
+innewurde	innewurde	
+instinkten	instinkten	
+interessenvertretung	Interessen	
+inwendigster	inwendigster	
+irregeführt	irregeführt	
+issest	issest	
+jaels	jaels	
+jägerruhe	Jäger	
+jährlich	jährlich	
+jammerte	jammern	
+jefreut	jefreut	
+jerusalems	jerusalems	
+jobstens	jobstens	
+jubel	jubeln	
+jugendlicher	jugendlich	
+jüngling	jüngling	
+kaffeeklatsch	Kaffee	
+kälte	kälte	
+kammerjungfer	Kammer	
+kann	kannst	
+kapital	kapital	
+kartoffelgebirge	Kartoffel	
+katechismus	katechismus	
+käufer	käufer	
+kegelspiel	Kegel	
+kelter	keltern	
+kesselvolk	Kessel	
+kindergärten	Kinder	
+kino	kino	
+kirchensynoden	Kirchen	
+kitschige	kitschig	
+klappte	klappen	
+kleckse	klecksen	
+kleinlichen	kleinlich	
+klopfen	klopfen	
+knapp	knapp	
+knisternd	knistern	
+koalitionskrise	Koalitions	
+kolorit	kolorit	
+kommst	kommen	
+königlich	königlich	
+konstellationen	konstellationen	
+köpfen	köpfen	
+kornblumen	Korn	
+kostbarsten	kostbar	
+kräftige	kräftig	
+krankenwärter	Kranken	
+kreaturen	kreaturen	
+kreuzberger	kreuzberger	
+krieges	krieges	
+kristalle	kristalle	
+krummholzzweigen	krummholzzweigen	
+kuhknecht	Kuh	
+kümmerlicher	kümmerlich	
+kunstgriff	Kunst	
+kurasch	kurasch	
+kurzum	kurzum	
+labe	laben	
+lackl	lackl	
+lamechs	lamechs	
+landete	landen	
+lang	lang	
+langweilig	langweilig	
+lästerns	lästerns	
+laufendem	laufen	
+lautete	lauten	
+lebensfahrt	Lebens	
+lebenstrieb	Lebens	
+lechzten	lechzen	
+legislative	legislativ	
+lehrreicher	lehrreich	
+leibt	leibt	
+leidenden	leiden	
+leis	leis	
+lenkte	lenken	
+leuchtendem	leuchtend	
+liberaler	liberal	
+liebende	lieben	
+liebeswerke	Liebes	
+liebtätigkeit	liebtätigkeit	
+lieh	lieh	
+lippe	lippe	
+lobet	lobet	
+logwn	logwn	
+loskaufen	loskaufen	
+louison	louison	
+luftraum	Luft	
+lüste	lüste	
+lydier	lydier	
+machtlos	machtlos	
+magnet	magnet	
+main	main	
+mandieren	mandieren	
+mannigfaltigen	mannigfaltig	
+mardin	mardin	
+martin	martin	
+mässigen	mässigen	
+materieller	materiell	
+mäuslein	mäuslein	
+mehrerem	mehrerem	
+meinst	meinen	
+memorandum	memorandum	
+menschenverstandes	Menschen	
+merkwürdigkeiten	merkwürdigkeiten	
+metropolitane	metropolitan	
+milchstrassen	milchstrassen	
+minderheitensituation	Minderheiten	
+missbrauchen	missbrauchen	
+misslich	misslich	
+mitarbeitenden	mitarbeiten	
+mitgestaltet	mitgestalten	
+mitschuldigen	mitschuldig	
+mitteln	mitteln	
+mitzuteilen	mitzuteilen	
+möget	möge	
+mondblumen	Mond	
+monstra	monstra	
+mörders	mörders	
+mörtelbrocken	mörtelbrocken	
+mühlsteine	mühlsteine	
+mundraub	Mund	
+musikalisch	musikalisch	
+müsste	müssen	
+mutterliebe	Mutter	
+nachahmung	nachahmung	
+nachfolgt	nachfolgen	
+nachhausewege	nachhausewege	
+nachschicken	nachschicken	
+nachtgejaide	nachtgejaide	
+nachzuahmen	nachzuahmen	
+nah	nah	
+nahte	nahen	
+narrheit	narrheit	
+natura	natura	
+natürlieh	natürlieh	
+nebelwind	Nebel	
+nehmet	nehmet	
+nest	nest	
+neugeborenen	neugeboren	
+nichtadligen	nichtadlig	
+nichtwahrheiten	Nicht	
+niedergschlagen	niedergschlagen	
+niedlicher	niedlich	
+nimrien	nimrien	
+nordamerikanischen	nordamerikanisch	
+nötige	nötig	
+nüchternes	nüchtern	
+nutzniessung	nutzniessung	
+oberherrschaft	Ober	
+obstbäumen	Obst	
+offenbarung	offenbarung	
+öfteren	öfter	
+oleander	oleander	
+orangenbäume	Orangen	
+organisierte	organisiert	
+ostens	ostens	
+paar	paar	
+pankräzchens	pankräzchens	
+parat	parat	
+passende	passend	
+patsch	patsch	
+peinigt	peinigen	
+perlmutter	perlmutter	
+pfännchen	pfännchen	
+pferdchen	pferdchen	
+pflichtgemäss	pflichtgemäss	
+phänomene	phänomene	
+photographien	photographien	
+plagten	plagen	
+plauderei	plauderei	
+polackei	polackei	
+pomade	pomade	
+positives	positiv	
+praedestinatione	praedestinatione	
+prasselten	prasseln	
+primat	primat	
+probleme	probleme	
+prophetische	prophetisch	
+prüfen	prüfen	
+pudel	pudel	
+purpurlippen	purpurlippen	
+quale	quale	
+quirlte	quirlen	
+radmantel	Rad	
+rar	rar	
+ratgebern	ratgebern	
+raubtier	Raub	
+raus	raus	
+rechenbuch	Rechen	
+rechtmässigem	rechtmässigem	
+redete	reden	
+regelmässig	regelmässig	
+regierung	regierung	
+rehböcken	rehböcken	
+reichtümern	reichtümern	
+reinlichkeit	reinlichkeit	
+reist	reisen	
+religionsleuten	Religions	
+rest	rest	
+rezins	rezins	
+riechen	riechen	
+riesiger	riesig	
+ringvorlesung	Ring	
+ritterstab	Ritter	
+rolf	rolf	
+rosiges	rosig	
+rothäutigen	rothäutigen	
+rückgesetzten	rückgesetzt	
+rudels	rudels	
+ruhigsten	ruhig	
+rund	rund	
+rute	rute	
+sachs	sachs	
+sahet	sahet	
+sämann	sämann	
+sande	sande	
+sanken	sank	
+sattgegessen	sattgegessen	
+saugeröhrchen	saugeröhrchen	
+savoyardin	savoyardin	
+schafes	schafes	
+schämst	schämen	
+schattigen	schattig	
+schaukelpferdchen	Schaukel	
+scheiden	scheiden	
+schellenklang	schellenklang	
+scherzreden	scherzreden	
+schickt	schicken	
+schiffleute	schiffleute	
+schimmerte	schimmern	
+schlafkammer	Schlaf	
+schlangen	schlang	
+schlechthin	schlechthin	
+schleuse	schleusen	
+schlingt	schlingen	
+schlug	schlug	
+schmach	schmach	
+schmelzende	schmelzen	
+schmirgel	schmirgeln	
+schnallen	schnallen	
+schneelieder	Schnee	
+schnelle	schnell	
+schnupfennase	schnupfennase	
+schönern	schönern	
+schoten	schoten	
+schreibtisch	Schreib	
+schrörschnauzaschenbecher	schrörschnauzaschenbecher	
+schuldnern	schuldnern	
+schüsseln	schüsseln	
+schwaben	schwaben	
+schwankes	schwankes	
+schwarzgekleideter	schwarzgekleidet	
+schweifen	schweifen	
+schwellt	schwellen	
+schwiegen	schwieg	
+schwört	schwören	
+seehäfen	See	
+segelboot	Segel	
+seht	sehen	
+seinen	sein	
+sektierern	sektierern	
+selbstherrlichkeit	Selbst	
+seligkeiten	seligkeiten	
+senfkorn	Senf	
+setze	setzen	
+sicherheitskontrolle	Sicherheits	
+siebente	siebent	
+sieghaften	sieghaft	
+silbrige	silbrig	
+sinne	sinnen	
+sinnstiftung	sinnstiftung	
+sitzgelegenheit	Sitz	
+sofort	sofort	
+soldaten	soldaten	
+sommerferien	Sommer	
+sonderweg	Sonder	
+sonntag	sonntag	
+sorgen	sorgen	
+soziales	sozial	
+spärlichen	spärlich	
+spazierstöckchen	Spazier	
+spekulatives	spekulativ	
+spielenden	spielen	
+spiritualis	spiritualis	
+spöttische	spöttisch	
+sprichst	spricht	
+sprünge	sprünge	
+stab	stab	
+stadtpfarrer	Stadt	
+stammt	stammen	
+starken	stark	
+stattfindet	stattfinden	
+steckleinspringer	steckleinspringer	
+steifendem	steifen	
+steinigen	steinigen	
+sterbe	sterben	
+sternlein	sternlein	
+stiehlt	stiehlt	
+stimmberechtigten	stimmberechtigt	
+stöcken	stöcken	
+storb	storb	
+straft	strafen	
+straßenecke	Straßen	
+streckten	strecken	
+strengste	streng	
+strömte	strömen	
+studie	studie	
+stündel	stündel	
+stützend	stützen	
+sucht	suchen	
+sünder	sünder	
+symbol	symbol	
+tadel	tadeln	
+tägliche	täglich	
+tannenen	tannenen	
+tasche	tasche	
+tatsächlichen	tatsächlich	
+taunassen	taunass	
+tecnh	tecnh	
+telefone	telefone	
+terrasse	terrasse	
+theaterprinzessin	Theater	
+throns	throns	
+tieres	tieres	
+tischwein	Tisch	
+todeswerkzeuge	Todes	
+ton	ton	
+toreinfahrt	Tor	
+totgemacht	totgemacht	
+trägerschaft	Träger	
+trau	trauen	
+traumlicht	Traum	
+trennen	trennen	
+trieb	trieb	
+trockene	trocken	
+trost	trost	
+trübte	trüben	
+tüchtige	tüchtig	
+türe	türe	
+typik	typik	
+überbringen	überbringen	
+überflog	überflog	
+übergrosse	übergrosse	
+überlegt	überlegen	
+überquer	überquer	
+überschigg	überschigg	
+überstanden	überstanden	
+überwand	überwand	
+übliche	üblich	
+uhrkette	Uhr	
+umfassten	umfassen	
+umgekommenen	umgekommen	
+umherlief	umherlief	
+ummifahret	ummifahret	
+umsicht	umsicht	
+umwarf	umwarf	
+unangebautes	unangebautes	
+unaussprechliche	unaussprechlich	
+unbegründet	begründet	
+unbeschränkte	beschränkt	
+uneben	eben	
+unerfindlichen	unerfindlich	
+unerträgliche	erträglich	
+ungeduldig	geduldig	
+ungerächet	ungerächet	
+ungeübten	geübt	
+unglückes	unglückes	
+unifomierter	unifomierter	
+unliebsamen	unliebsam	
+unnütz	unnütz	
+unrichtig	richtig	
+unseligkeit	unseligkeit	
+unsrige	unsrig	
+unterdrückte	unterdrücken	
+unterhalb	unterhalb	
+unterlippe	Unter	
+unterschiede	unterschiede	
+untersuchungsraum	Untersuchungs	
+untier	untier	
+unverletzlich	verletzlich	
+unverwandt	unverwandt	
+unwidersprechlich	unwidersprechlich	
+unziemlich	ziemlich	
+urgrossvater	urgrossvater	
+ururgroßvater	ururgroßvater	
+vaterlande	vaterlande	
+verabschiedeten	verabschieden	
+verantworten	verantworten	
+verbinde	verbinden	
+verblüht	verblühen	
+verbum	verbum	
+verderblichen	verderblich	
+verdrehtheit	verdrehtheit	
+vereins	vereins	
+verfasst	verfassen	
+verfluche	verfluchen	
+vergass	vergass	
+vergiftet	vergiften	
+vergnügungssucht	Vergnügungs	
+verhältnis	verhältnis	
+verheissende	verheissende	
+verhütet	verhüten	
+verkleidet	verkleiden	
+verlages	verlages	
+verlegenheit	verlegenheit	
+verliess	verliess	
+vermag	magst	
+vermischungen	vermischungen	
+vernagelten	vernageln	
+vernunftbedürfnis	vernunftbedürfnis	
+vernünftler	vernünftler	
+verpichen	verpichen	
+versagte	versagt	
+verschiedenartigste	verschiedenartig	
+verschmachten	verschmachten	
+verschwenderisch	verschwenderisch	
+versiegen	versiegen	
+verspürt	verspüren	
+verständnisinnig	verständnisinnig	
+verstellung	verstellung	
+versuchend	versuchen	
+vertilgte	vertilgen	
+vertrocknet	vertrocknen	
+verwahrung	verwahrung	
+verwegenen	verwegen	
+verwildertem	verwildern	
+verwundet	verwundet	
+verzeihen	verzeihen	
+vexieren	vexieren	
+vielleicht	vielleicht	
+vierundzwanzigstündiger	vierundzwanzigstündiger	
+vögelchen	vögelchen	
+vollbesetzt	vollbesetzt	
+vollkommeneres	vollkommeneres	
+voranstellte	voranstellen	
+vorbeigehn	vorbeigehn	
+vorderhand	vorderhand	
+vorgebrachten	vorgebracht	
+vorgestreckten	vorgestreckt	
+vorhergesagt	vorhergesagt	
+vorlaut	vorlaut	
+vorort	Vor	
+vorsehung	vorsehung	
+vorsündflutlichen	vorsündflutlichen	
+vorüberkamen	vorüberkam	
+vorzogen	vorzog	
+vulkan	vulkan	
+wachtmeister	wachtmeister	
+wahlbeobachtung	Wahl	
+wahlmorgen	wahlmorgen	
+wahrhaftig	wahrhaftig	
+wald	wald	
+wallte	wallen	
+wanderte	wandern	
+warm	warm	
+wäschestück	Wäsche	
+wasserscheu	wasserscheu	
+wechselte	wechseln	
+weggeleugnet	weggeleugnet	
+wegtreiben	wegtreiben	
+wehmütig	wehmütig	
+weiberlaunischen	weiberlaunischen	
+weidenden	weiden	
+weihnachtsvesper	Weihnachts	
+weisen	weisen	
+weisshaupt	weisshaupt	
+weiters	weiters	
+welle	wellen	
+weltschmerzlich	weltschmerzlich	
+werben	werben	
+werteverfall	Werte	
+westtürkischen	westtürkisch	
+wickelte	wickeln	
+widerspenstige	widerspenstig	
+widerwärtige	widerwärtig	
+wiedergeborenen	wiedergeboren	
+wiegt	wiegen	
+wildgarten	Wild	
+willkommene	willkommen	
+winkeln	winkeln	
+wirbt	wirbt	
+wirte	wirte	
+wissenden	wissend	
+witwengehalt	Witwen	
+wohlbebaut	wohlbebaut	
+wohlgefütterten	wohlgefütterten	
+wohlriechenden	wohlriechend	
+wohnheim	Wohn	
+wolle	wollen	
+wortbedeutung	Wort	
+wulla	wulla	
+wundertier	Wunder	
+würdiger	würdig	
+wüßten	wüßten	
+zähe	zäh	
+zammraumen	zammraumen	
+zauberei	Zauber	
+zedern	zedern	
+zeigt	zeigen	
+zeitrechnung	Zeit	
+zerbräche	zerbräche	
+zerknitterten	zerknittert	
+zerschnitten	zerschnitten	
+zertrümmert	zertrümmern	
+ziegel	ziegel	
+zier	zieren	
+zimmer	zimmern	
+zischende	zischen	
+zog	zog	
+zubrachte	zubrachte	
+zufälle	zufälle	
+zugedacht	zugedacht	
+zugestehen	zugestehen	
+zukam	zukam	
+zumutung	zumutung	
+zurechtweisen	zurechtweisen	
+zurückgeben	zurückgeben	
+zurückhaltender	zurückhaltend	
+zurückzuführen	zurückzuführen	
+zusammengefasst	zusammengefasst	
+zusammenkommen	zusammenkommen	
+zusammenstösst	zusammenstösst	
+zusehen	zusehen	
+zuträgt	zuträgt	
+zuwider	zuwider	
+zweckdienliche	zweckdienlich	
+zweig	zweig	
+zwieback	zwieback	
+zylinderhüten	Zylinder	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	1141	word:u32	stem:str
+0	a
+1	Abend
+1	sonne
+2	abgab
+3	abgekommen
+4	abgeschieden
+5	abgewinnen
+6	abhauen
+7	ablehnung
+8	abrechnen
+9	abschließung
+10	absolut
+11	abstrakt
+12	abwehrmassnahme
+13	abzuflauen
+14	abzuwenden
+15	achtungsvoll
+16	adelsgespons
+17	affizieren
+18	ahnliches
+19	Akt
+19	ion
+20	Alkohol
+20	verwalten
+21	allerhand
+22	allgemein
+23	allweil
+24	ältern
+25	amer
+26	Amts
+26	dauer
+27	anbeten
+28	andere
+29	aneignen
+30	anfechter
+31	angeblich
+32	angegeben
+33	angeknurrt
+34	angenehm
+35	angesichte
+36	angfangt
+37	anhängsel
+38	anklagen
+39	anlegen
+40	annehmbar
+40	annehmen
+41	anrufung
+42	anschluß
+43	anständig
+44	anteil
+45	antworten
+46	Anziehungs
+46	kraft
+47	anzuschließen
+48	apparet
+49	Arbeits
+49	lohn
+50	arglos
+51	armselig
+52	Aschen
+52	becher
+53	aster
+54	atmosphäre
+55	aufbrennenden
+56	aufessen
+57	aufgangs
+58	aufgeklärt
+59	aufgeschrieben
+60	aufhängen
+61	aufmachen
+62	aufpassen
+63	aufrühren
+64	aufspringen
+65	auftragen
+66	aufzubrechen
+67	aufzuweisen
+68	ausbeuten
+69	ausdrücken
+70	ausflucht
+71	ausgebrütet
+72	ausgehungert
+73	ausgerüstet
+74	ausgestreckt
+75	ausging
+76	ausleeren
+77	ausrotten
+78	ausschnitt
+79	äußerlich
+80	äußerungen
+81	ausstattung
+82	austrocknen
+83	auszählung
+84	auszuputzen
+85	avanti
+86	baco
+87	bände
+88	Bank
+88	räuber
+89	Bart
+89	haar
+90	Bau
+90	amts
+90	leiter
+91	bauerssohn
+92	bauz
+93	beatrix
+94	bedeckt
+94	bedecken
+95	bedingt
+95	bedingen
+96	beeindruckt
+96	beeindrucken
+97	befassen
+98	befragen
+99	begabt
+99	begab
+100	begibt
+101	begossen
+102	begründung
+103	behalten
+104	beherrschung
+105	beifällig
+106	beim
+107	beistehen
+108	bekannt
+109	bekräftigung
+110	Beleg
+110	exemplar
+111	belobt
+112	bemühungen
+113	benützen
+114	berauben
+115	bereiten
+116	Berg
+116	nase
+117	berlinfergus
+118	beruhigung
+119	besann
+120	bescheiden
+121	beschnüffeln
+122	beschwören
+123	besitzerin
+124	besprengung
+125	bestätigen
+126	bestie
+127	bestreben
+128	beten
+129	betreiben
+130	Bettel
+130	junge
+131	beuten
+132	bewegen
+133	bewimpeln
+134	bewusstseins
+135	Bezirks
+135	rat
+136	Bier
+136	krug
+137	billig
+137	billigen
+138	biss
+139	blankgepanzerte
+140	blau
+141	Blei
+141	hände
+142	blinken
+143	blondhaar
+144	blume
+145	Blut
+145	schulden
+146	Böller
+146	schuss
+147	bösewicht
+148	brandenburg
+149	braun
+150	breiten
+150	breit
+151	brille
+152	brüche
+153	Brunnen
+153	schwengel
+154	buchen
+155	bücken
+156	Bundes
+156	ebene
+157	bürger
+158	bürstners
+159	castor
+160	chaussee
+161	chomers
+162	close
+163	council
+164	dackel
+165	daliegen
+166	danggen
+167	darein
+168	da
+169	dauern
+170	Deck
+170	bett
+171	delegationen
+172	denken
+173	derb
+174	deshalben
+175	deutsch
+176	dichten
+176	dicht
+177	diemal
+178	dienen
+179	diplom
+180	diversa
+181	Donner
+181	riese
+182	dornbusch
+183	drängen
+184	Drei
+184	röhren
+184	hut
+185	dritt
+186	drunten
+187	dummheit
+188	dunkel
+189	durcheinander
+190	durchmass
+191	durchsuchungen
+192	dursten
+193	ebendaselbst
+194	edelgeformten
+195	egal
+196	ehrbar
+196	ehren
+197	ehren
+198	eiffelturm
+199	eigenste
+200	eilfertig
+201	eindeutig
+202	einfällt
+203	einflösst
+204	eingebildet
+205	eingehen
+206	eingeredet
+207	eingetroffen
+208	einheitenkillenden
+209	Ein
+209	kauf
+210	einnehmen
+211	Ein
+211	satz
+212	einsichtsfähigkeit
+213	Ein
+213	teilen
+214	Ein
+214	wanderer
+215	einzig
+216	einzuwerfen
+217	eitel
+218	elend
+219	eminent
+220	emphatisch
+221	enden
+222	engel
+223	engtälern
+224	entfernen
+225	entgegengesetzt
+226	enthalten
+227	entlastetder
+228	entsandet
+229	entschluß
+230	entsprechungsverhältnis
+231	entweihen
+232	entzücken
+233	erbat
+234	erblich
+235	Erd
+235	harz
+236	erfahrungsgemäss
+237	erforschen
+238	ergeben
+239	ergriffen
+240	erhellen
+241	erinnerungen
+242	erklären
+243	erleben
+244	erlösen
+245	ermuntern
+246	ernten
+247	erretten
+248	erschiene
+249	ersehnen
+250	erstatten
+251	erstige
+252	erwachen
+253	erwartungen
+254	erworben
+255	erziehen
+256	essayistisch
+257	euch
+258	evidenz
+259	experiment
+260	fähigkeiten
+261	fällen
+262	Familien
+262	glück
+263	fasern
+264	fäustchen
+265	fehlschlug
+266	feinden
+267	Feld
+267	geschrei
+268	Fels
+268	platte
+269	fernher
+270	festivitatum
+271	feuern
+272	fiberchen
+273	finanzieren
+274	firlefanz
+275	fladenkuchen
+276	flehens
+277	fliegen
+278	flösse
+279	Flügel
+279	mann
+280	focis
+281	force
+282	forscherin
+283	fortgehen
+284	fortschritt
+285	fraglich
+286	Frauen
+286	kleid
+287	frei
+288	fremd
+289	freuen
+290	Friedens
+290	opfer
+291	fritz
+292	Frosch
+292	maul
+293	Frühlings
+293	lied
+294	fügen
+295	führen
+296	fünfunddreissigjährigen
+297	fürbittbuch
+298	fürschlag
+299	fusssohle
+300	galion
+301	gänzlich
+302	gassenjungen
+303	gaumen
+304	gebären
+305	gebietes
+306	geboten
+307	gebühren
+308	gedankenlos
+309	gedient
+310	gefährden
+311	gefärbt
+312	gefördert
+313	Gegen
+313	argument
+314	gegessen
+315	gehängen
+316	geheimnisvoll
+317	gehorchen
+318	geirrt
+319	geistlichkeit
+320	gekräuselt
+321	gelassen
+322	gelebt
+323	geliebt
+324	gelüsten
+325	gemein
+326	gemeisselt
+327	gemüts
+328	generäle
+329	genossen
+330	geöffnet
+331	gepfropft
+332	gerätst
+333	gerettet
+334	geriet
+335	gerötet
+336	gesalbt
+337	geschäfte
+338	geschehnisse
+339	geschirr
+340	geschmolzen
+341	geschüttet
+342	gesehen
+343	gesetzlich
+344	Gesinnungs
+344	art
+345	gespreizt
+346	gestemmt
+347	gestrig
+348	geteilt
+349	getriebe
+350	gewähren
+351	gewärtigen
+352	gewillt
+353	gewissheit
+354	geworfen
+355	geziert
+356	gierig
+357	gladiolos
+358	Glas
+358	ziegel
+359	gläubig
+360	gleichmässig
+361	glöckchen
+362	glückseligkeit
+363	gnädiglich
+364	goldgelb
+365	gopher
+366	gottverlassen
+367	grafensohn
+368	gratulieren
+369	greinstimme
+370	greulichen
+371	gröbern
+372	grössen
+373	größte
+374	gründen
+375	grün
+376	gschicht
+377	gündem
+378	gut
+379	Haar
+379	denk
+379	mal
+379	denkmal
+380	haderlumpen
+381	hains
+382	halbvermoderte
+383	hältst
+384	Handels
+384	freund
+385	handlungsstark
+386	hansnarren
+387	hart
+388	haspelte
+389	hatte
+390	häuptern
+391	Haupt
+391	wert
+392	Haus
+392	rat
+393	hechten
+394	heiland
+395	Heim
+395	galopp
+396	heinrichs
+397	heks
+398	hemdchen
+399	herabregnen
+400	heraufbeschworen
+400	heraufbeschwor
+401	herausgezaubert
+402	herauszugehen
+403	Herbst
+403	eigen
+404	hergeführt
+405	hernehmen
+406	herrlich
+407	herüberzukommen
+408	herumschweben
+409	herumzusummen
+410	hervorbringung
+411	hervorsprudeln
+412	herzhaft
+413	heteronomie
+414	hexen
+415	hierhin
+416	hilft
+417	Himmels
+417	zelt
+418	hinabtreibend
+419	hinaufzukommen
+420	hinausspringen
+421	hindurchgehen
+422	hineinstrecken
+423	hingeschickt
+424	hinrasen
+425	hintereinander
+426	hinübersehen
+427	hinweisen
+428	hirn
+429	hob
+430	Hoch
+430	sitz
+431	höfen
+432	Hof
+432	staat
+433	höhnen
+434	hölzchen
+435	hoppeln
+436	hören
+437	hüglig
+438	humus
+439	hungrig
+440	hüten
+441	igeln
+442	immateriell
+443	indisch
+444	inne
+445	innewurde
+446	instinkten
+447	Interessen
+447	vertreten
+448	inwendigster
+449	irregeführt
+450	issest
+451	jaels
+452	Jäger
+452	ruhe
+453	jährlich
+454	jammern
+455	jefreut
+456	jerusalems
+457	jobstens
+458	jubeln
+459	jugendlich
+460	jüngling
+461	Kaffee
+461	klatsch
+462	kälte
+463	Kammer
+463	jungfer
+464	kannst
+465	kapital
+466	Kartoffel
+466	gebirge
+467	katechismus
+468	käufer
+469	Kegel
+469	spiel
+470	keltern
+471	Kessel
+471	volk
+472	Kinder
+472	gärten
+473	kino
+474	Kirchen
+474	synode
+475	kitschig
+476	klappen
+477	klecksen
+478	kleinlich
+479	klopfen
+480	knapp
+481	knistern
+482	Koalitions
+482	krise
+483	kolorit
+484	kommen
+485	königlich
+486	konstellationen
+487	köpfen
+488	Korn
+488	blume
+489	kostbar
+490	kräftig
+490	kräftigen
+491	Kranken
+491	wärter
+492	kreaturen
+493	kreuzberger
+494	krieges
+495	kristalle
+496	krummholzzweigen
+497	Kuh
+497	knecht
+498	kümmerlich
+499	Kunst
+499	griff
+500	kurasch
+501	kurzum
+502	laben
+503	lackl
+504	lamechs
+505	landen
+506	lang
+507	langweilig
+508	lästerns
+509	laufen
+510	lauten
+511	Lebens
+511	fahrt
+512	Lebens
+512	trieb
+513	lechzen
+514	legislativ
+515	lehrreich
+516	leibt
+517	leiden
+518	leis
+519	lenken
+520	leuchtend
+520	leuchten
+521	liberal
+522	lieben
+523	Liebes
+523	werk
+524	liebtätigkeit
+525	lieh
+526	lippe
+527	lobet
+528	logwn
+529	loskaufen
+530	louison
+531	Luft
+531	raum
+532	lüste
+533	lydier
+534	machtlos
+535	magnet
+536	main
+537	mandieren
+538	mannigfaltig
+539	mardin
+540	martin
+541	mässigen
+542	materiell
+543	mäuslein
+544	mehrerem
+545	meinen
+546	memorandum
+547	Menschen
+547	verstand
+548	merkwürdigkeiten
+549	metropolitan
+550	milchstrassen
+551	Minderheiten
+551	situation
+552	missbrauchen
+553	misslich
+554	mitarbeiten
+555	mitgestalten
+556	mitschuldig
+557	mitteln
+558	mitzuteilen
+559	möge
+560	Mond
+560	blume
+561	monstra
+562	mörders
+563	mörtelbrocken
+564	mühlsteine
+565	Mund
+565	raub
+566	musikalisch
+567	müssen
+568	Mutter
+568	liebe
+569	nachahmung
+570	nachfolgen
+571	nachhausewege
+572	nachschicken
+573	nachtgejaide
+574	nachzuahmen
+575	nah
+576	nahen
+577	narrheit
+578	natura
+579	natürlieh
+580	Nebel
+580	wind
+581	nehmet
+582	nest
+583	neugeboren
+584	nichtadlig
+585	Nicht
+585	wahrheit
+586	niedergschlagen
+587	niedlich
+588	nimrien
+589	nordamerikanisch
+590	nötig
+590	nötigen
+591	nüchtern
+592	nutzniessung
+593	Ober
+593	herrschaft
+594	Obst
+594	baum
+595	offenbarung
+596	öfter
+597	oleander
+598	Orangen
+598	baum
+599	organisiert
+599	organisieren
+600	ostens
+601	paar
+602	pankräzchens
+603	parat
+604	passend
+605	patsch
+606	peinigen
+607	perlmutter
+608	pfännchen
+609	pferdchen
+610	pflichtgemäss
+611	phänomene
+612	photographien
+613	plagen
+614	plauderei
+615	polackei
+616	pomade
+617	positiv
+618	praedestinatione
+619	prasseln
+620	primat
+621	probleme
+622	prophetisch
+623	prüfen
+624	pudel
+625	purpurlippen
+626	quale
+627	quirlen
+628	Rad
+628	mantel
+629	rar
+630	ratgebern
+631	Raub
+631	tier
+632	raus
+633	Rechen
+633	buch
+634	rechtmässigem
+635	reden
+636	regelmässig
+637	regierung
+638	rehböcken
+639	reichtümern
+640	reinlichkeit
+641	reisen
+642	Religions
+642	leute
+643	rest
+644	rezins
+645	riechen
+646	riesig
+647	Ring
+647	vor
+647	lesen
+648	Ritter
+648	stab
+649	rolf
+650	rosig
+651	rothäutigen
+652	rückgesetzt
+653	rudels
+654	ruhig
+655	rund
+656	rute
+657	sachs
+658	sahet
+659	sämann
+660	sande
+661	sank
+662	sattgegessen
+663	saugeröhrchen
+664	savoyardin
+665	schafes
+666	schämen
+667	schattig
+668	Schaukel
+668	pferd
+669	scheiden
+670	schellenklang
+671	scherzreden
+672	schicken
+673	schiffleute
+674	schimmern
+675	Schlaf
+675	kammer
+676	schlang
+677	schlechthin
+678	schleusen
+679	schlingen
+680	schlug
+681	schmach
+682	schmelzen
+683	schmirgeln
+684	schnallen
+685	Schnee
+685	lied
+686	schnell
+686	schnellen
+687	schnupfennase
+688	schönern
+689	schoten
+690	Schreib
+690	tisch
+691	schrörschnauzaschenbecher
+692	schuldnern
+693	schüsseln
+694	schwaben
+695	schwankes
+696	schwarzgekleidet
+697	schweifen
+698	schwellen
+699	schwieg
+700	schwören
+701	See
+701	häfen
+702	Segel
+702	boot
+703	sehen
+704	sein
+705	sektierern
+706	Selbst
+706	herrlichkeit
+707	seligkeiten
+708	Senf
+708	korn
+709	setzen
+710	Sicherheits
+710	kontrolle
+711	siebent
+712	sieghaft
+713	silbrig
+714	sinnen
+715	sinnstiftung
+716	Sitz
+716	gelegenheit
+717	sofort
+718	soldaten
+719	Sommer
+719	ferien
+720	Sonder
+720	weg
+721	sonntag
+722	sorgen
+723	sozial
+724	spärlich
+725	Spazier
+725	stöcke
+726	spekulativ
+727	spielen
+728	spiritualis
+729	spöttisch
+730	spricht
+731	sprünge
+732	stab
+733	Stadt
+733	pfarrer
+734	stammen
+735	stark
+736	stattfinden
+737	steckleinspringer
+738	steifen
+739	steinigen
+739	steinig
+740	sterben
+741	sternlein
+742	stiehlt
+743	stimmberechtigt
+744	stöcken
+745	storb
+746	strafen
+747	Straßen
+747	ecke
+748	strecken
+749	streng
+750	strömen
+751	studie
+752	stündel
+753	stützen
+754	suchen
+755	sünder
+756	symbol
+757	tadeln
+758	täglich
+759	tannenen
+760	tasche
+761	tatsächlich
+762	taunass
+763	tecnh
+764	telefone
+765	terrasse
+766	Theater
+766	prinzessin
+767	throns
+768	tieres
+769	Tisch
+769	wein
+770	Todes
+770	werk
+770	zeug
+771	ton
+772	Tor
+772	ein
+772	fahrt
+772	einfahrt
+773	totgemacht
+774	Träger
+774	schaft
+775	trauen
+776	Traum
+776	licht
+777	trennen
+778	trieb
+779	trocken
+780	trost
+781	trüben
+782	tüchtig
+783	türe
+784	typik
+785	überbringen
+786	überflog
+786	überflogen
+787	übergrosse
+788	überlegen
+789	überquer
+790	überschigg
+791	überstanden
+792	überwand
+793	üblich
+794	Uhr
+794	kette
+795	umfassen
+796	umgekommen
+797	umherlief
+798	ummifahret
+799	umsicht
+800	umwarf
+801	unangebautes
+802	unaussprechlich
+803	begründet
+804	beschränkt
+805	eben
+806	unerfindlich
+807	erträglich
+808	geduldig
+809	ungerächet
+810	geübt
+811	unglückes
+812	unifomierter
+813	unliebsam
+814	unnütz
+815	richtig
+816	unseligkeit
+817	unsrig
+818	unterdrücken
+819	unterhalb
+820	Unter
+820	lippe
+821	unterschiede
+822	Untersuchungs
+822	raum
+823	untier
+824	verletzlich
+825	unverwandt
+826	unwidersprechlich
+827	ziemlich
+828	urgrossvater
+829	ururgroßvater
+830	vaterlande
+831	verabschieden
+832	verantworten
+832	antworten
+833	verbinden
+833	binden
+834	verblühen
+834	blühen
+835	verbum
+836	verderblich
+837	verdrehtheit
+838	vereins
+839	verfassen
+839	fassen
+840	verfluchen
+840	fluchen
+841	vergass
+842	vergiften
+842	giften
+843	Vergnügungs
+843	sucht
+844	verhältnis
+845	verheissende
+846	verhüten
+846	hüten
+847	verkleiden
+847	kleiden
+848	verlages
+849	verlegenheit
+850	verliess
+851	magst
+852	vermischungen
+853	vernageln
+853	nageln
+854	vernunftbedürfnis
+855	vernünftler
+856	verpichen
+857	versagt
+857	sagen
+858	verschiedenartig
+859	verschmachten
+859	schmachten
+860	verschwenderisch
+861	versiegen
+861	siegen
+862	verspüren
+862	spüren
+863	verständnisinnig
+864	verstellung
+865	versuchen
+865	suchen
+866	vertilgen
+866	tilgen
+867	vertrocknen
+867	trocknen
+868	verwahrung
+869	verwegen
+870	verwildern
+871	verwundet
+871	verwunden
+872	verzeihen
+873	vexieren
+874	vielleicht
+875	vierundzwanzigstündiger
+876	vögelchen
+877	vollbesetzt
+878	vollkommeneres
+879	voranstellen
+880	vorbeigehn
+881	vorderhand
+882	vorgebracht
+883	vorgestreckt
+884	vorhergesagt
+885	vorlaut
+886	Vor
+886	ort
+887	vorsehung
+888	vorsündflutlichen
+889	vorüberkam
+890	vorzog
+891	vulkan
+892	wachtmeister
+893	Wahl
+893	beobachten
+894	wahlmorgen
+895	wahrhaftig
+896	wald
+897	wallen
+898	wandern
+899	warm
+900	Wäsche
+900	stück
+901	wasserscheu
+902	wechseln
+903	weggeleugnet
+904	wegtreiben
+905	wehmütig
+906	weiberlaunischen
+907	weiden
+908	Weihnachts
+908	vesper
+909	weisen
+909	weise
+910	weisshaupt
+911	weiters
+912	wellen
+913	weltschmerzlich
+914	werben
+915	Werte
+915	verfall
+916	westtürkisch
+917	wickeln
+918	widerspenstig
+919	widerwärtig
+920	wiedergeboren
+921	wiegen
+922	Wild
+922	garten
+923	willkommen
+924	winkeln
+925	wirbt
+926	wirte
+927	wissend
+928	Witwen
+928	gehalt
+929	wohlbebaut
+930	wohlgefütterten
+931	wohlriechend
+932	Wohn
+932	heim
+933	wollen
+934	Wort
+934	bedeuten
+935	wulla
+936	Wunder
+936	tier
+937	würdig
+938	wüßten
+939	zäh
+940	zammraumen
+941	Zauber
+941	ei
+942	zedern
+943	zeigen
+944	Zeit
+944	rechnen
+945	zerbräche
+946	zerknittert
+946	zerknittern
+947	zerschnitten
+947	zerschnitt
+948	zertrümmern
+949	ziegel
+950	zieren
+951	zimmern
+952	zischen
+953	zog
+954	zubrachte
+955	zufälle
+956	zugedacht
+957	zugestehen
+958	zukam
+959	zumutung
+960	zurechtweisen
+961	zurückgeben
+962	zurückhaltend
+962	zurückhalten
+963	zurückzuführen
+964	zusammengefasst
+965	zusammenkommen
+966	zusammenstösst
+967	zusehen
+968	zuträgt
+969	zuwider
+970	zweckdienlich
+971	zweig
+972	zwieback
+973	Zylinder
+973	hüten
+973	hüte
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	727	word:u32	analysis:str
+0	st:a
+1	pa:Abend st:Abend fl:j pa:sonne
+2	st:abgab
+3	st:abgekommen
+4	st:abgeschieden
+5	st:abgewinnen
+6	st:abhauen fl:I
+6	st:abhauen fl:X
+8	st:abrechnen
+10	st:absolut fl:A
+11	st:abstrakt
+13	st:abzuflauen
+14	st:abzuwenden
+15	st:achtungsvoll fl:A
+17	st:affizieren fl:Y
+19	pa:Akt st:Akt fl:j pa:ionen st:ion fl:P
+20	pa:Alkohol st:Alkohol fl:j pa:verwaltung st:verwalten fl:J
+21	st:allerhand
+22	st:allgemein fl:A
+26	pa:Amts st:Amts fl:j pa:dauern st:dauer fl:N
+27	st:anbeten fl:Y
+28	st:andere fl:A
+29	st:aneignen fl:Y
+31	st:angeblich fl:A
+32	st:angegeben
+34	st:angenehm fl:A
+38	st:anklagen fl:I
+39	st:anlegen fl:Y
+40	st:annehmbar fl:A
+40	st:annehmen fl:B
+43	st:anständig
+45	st:antworten fl:Y
+46	pa:Anziehungs st:Anziehungs fl:j pa:kraft
+47	st:anzuschließen
+49	pa:Arbeits st:Arbeits fl:j pa:lohn
+50	st:arglos fl:A
+51	st:armselig fl:A
+52	pa:Aschen st:Aschen fl:j pa:becher
+56	st:aufessen
+58	st:aufgeklärt fl:A
+59	st:aufgeschrieben
+60	st:aufhängen
+61	st:aufmachen
+62	st:aufpassen
+63	st:aufrühren
+64	st:aufspringen fl:D
+65	st:auftragen fl:I
+66	st:aufzubrechen
+67	st:aufzuweisen
+68	st:ausbeuten fl:Y
+69	st:ausdrücken
+71	st:ausgebrütet fl:A
+72	st:ausgehungert fl:A
+73	st:ausgerüstet
+74	st:ausgestreckt
+75	st:ausging fl:E
+76	st:ausleeren
+77	st:ausrotten fl:I
+77	st:ausrotten fl:X
+78	st:ausschnitt fl:E
+79	st:äußerlich
+82	st:austrocknen fl:I
+82	st:austrocknen fl:X
+84	st:auszuputzen
+87	st:bände
+88	pa:Bank st:Bank fl:j pa:räuber
+89	pa:Bart st:Bart fl:j pa:haare st:haar fl:E
+90	pa:Bau st:Bau fl:j pa:amts st:amts fl:e pa:leiter
+90	pa:Bau st:Bau fl:j pa:amts  st:amts fl:k pa:leiter
+90	pa:Bau st:Bau fl:j pa:amts fl:k st:amts fl:e pa:leiter
+94	st:bedeckt fl:A
+94	st:bedecken fl:Y
+95	st:bedingt
+95	st:bedingen fl:I
+95	st:bedingen fl:X
+96	st:beeindruckt
+96	st:beeindrucken fl:I
+96	st:beeindrucken fl:X
+97	st:befassen fl:I
+97	st:befassen fl:X
+98	st:befragen fl:I
+99	st:begabt
+99	st:begab fl:Z
+100	st:begibt fl:W
+101	st:begossen fl:A
+103	st:behalten fl:I
+105	st:beifällig fl:A
+106	st:beim
+107	st:beistehen
+108	st:bekannt fl:L
+110	pa:Beleg st:Beleg fl:j pa:exemplar
+113	st:benützen fl:Y
+114	st:berauben fl:Y
+115	st:bereiten fl:Y
+116	pa:Berg st:Berg fl:j pa:nase
+119	st:besann fl:Z
+120	st:bescheiden fl:A
+121	st:beschnüffeln fl:Y
+122	st:beschwören
+125	st:bestätigen fl:Y
+127	st:bestreben fl:I
+127	st:bestreben fl:X
+128	st:beten fl:Y
+129	st:betreiben fl:I
+129	st:betreiben fl:X
+130	pa:Bettel st:Bettel fl:j pa:junge
+131	st:beuten
+132	st:bewegen
+133	st:bewimpeln fl:I
+133	st:bewimpeln fl:X
+135	pa:Bezirks st:Bezirks fl:j pa:rat
+136	pa:Bier st:Bier fl:j pa:krug
+137	st:billig fl:A
+137	st:billigen fl:I
+138	st:biss fl:Z
+140	st:blau fl:A
+141	pa:Blei st:Blei fl:j pa:hände
+142	st:blinken fl:D
+145	pa:Blut st:Blut fl:j pa:schulden
+146	pa:Böller st:Böller fl:j pa:schüsse st:schuss fl:p
+149	st:braun fl:A
+150	st:breiten
+150	st:breit fl:A
+153	pa:Brunnen st:Brunnen fl:j pa:schwengeln st:schwengel fl:N
+154	st:buchen
+155	st:bücken
+156	pa:Bundes st:Bundes fl:j pa:ebene
+165	st:daliegen
+167	st:darein
+168	st:da fl:S
+169	st:dauern fl:D
+170	pa:Deck st:Deck fl:j pa:bett
+172	st:denken fl:W
+173	st:derb fl:A
+175	st:deutsch fl:A
+176	st:dichten
+176	st:dicht fl:A
+178	st:dienen fl:Y
+181	pa:Donner st:Donner fl:j pa:riesen st:riese fl:N
+183	st:drängen fl:Y
+184	pa:Drei st:Drei fl:j pa:röhren st:röhren fl:e pa:hut
+184	pa:Drei st:Drei fl:j pa:röhren  st:röhren fl:k pa:hut
+184	pa:Drei st:Drei fl:j pa:röhren fl:k st:röhren fl:e pa:hut
+185	st:dritt fl:A
+186	st:drunten
+188	st:dunkel fl:A
+189	st:durcheinander
+192	st:dursten
+193	st:ebendaselbst
+195	st:egal
+196	st:ehrbar fl:A
+196	st:ehren fl:B
+197	st:ehren fl:I
+197	st:ehren fl:X
+199	st:eigenste fl:A
+200	st:eilfertig
+201	st:eindeutig
+202	st:einfällt
+204	st:eingebildet fl:A
+205	st:eingehen
+206	st:eingeredet fl:A
+207	st:eingetroffen
+209	pa:Ein st:Ein fl:j pa:käufe st:kauf fl:p
+210	st:einnehmen fl:I
+211	pa:Ein st:Ein fl:j pa:satz
+213	pa:Ein st:Ein fl:j pa:teilung st:teilen fl:J
+214	pa:Ein st:Ein fl:j pa:wanderer
+215	st:einzig fl:A
+216	st:einzuwerfen
+217	st:eitel fl:A
+218	st:elend fl:A
+219	st:eminent fl:A
+220	st:emphatisch
+221	st:enden fl:I
+224	st:entfernen fl:I
+225	st:entgegengesetzt
+226	st:enthalten fl:A
+231	st:entweihen fl:I
+231	st:entweihen fl:X
+232	st:entzücken
+233	st:erbat
+234	st:erblich
+235	pa:Erd st:Erd fl:j pa:harzes st:harz fl:T
+237	st:erforschen fl:I
+237	st:erforschen fl:X
+238	st:ergeben
+239	st:ergriffen
+240	st:erhellen fl:Y
+242	st:erklären
+243	st:erleben fl:I
+244	st:erlösen
+245	st:ermuntern fl:Y
+246	st:ernten fl:I
+247	st:erretten
+248	st:erschiene
+249	st:ersehnen fl:I
+249	st:ersehnen fl:X
+250	st:erstatten fl:Y
+252	st:erwachen fl:D
+254	st:erworben fl:A
+255	st:erziehen
+256	st:essayistisch fl:A
+257	st:euch
+261	st:fällen
+262	pa:Familien st:Familien fl:j pa:glück
+263	st:fasern
+265	st:fehlschlug
+266	st:feinden fl:I
+267	pa:Feld st:Feld fl:j pa:geschrei
+268	pa:Fels st:Fels fl:j pa:platten st:platte fl:N
+271	st:feuern fl:W
+273	st:finanzieren
+277	st:fliegen fl:I
+277	st:fliegen fl:X
+278	st:flösse fl:Z
+279	pa:Flügel st:Flügel fl:j pa:mann
+283	st:fortgehen fl:D
+284	st:fortschritt
+285	st:fraglich fl:A
+286	pa:Frauen st:Frauen fl:j pa:kleider st:kleid fl:R
+287	st:frei fl:A
+288	st:fremd
+289	st:freuen fl:D
+290	pa:Friedens st:Friedens fl:j pa:opfers st:opfer fl:S
+292	pa:Frosch st:Frosch fl:j pa:maul
+293	pa:Frühlings st:Frühlings fl:j pa:lied
+294	st:fügen
+295	st:führen fl:Y
+301	st:gänzlich fl:A
+304	st:gebären
+306	st:geboten fl:A
+307	st:gebühren fl:D
+308	st:gedankenlos
+309	st:gedient fl:A
+310	st:gefährden fl:I
+311	st:gefärbt fl:A
+312	st:gefördert
+313	pa:Gegen st:Gegen fl:j pa:argument
+314	st:gegessen
+316	st:geheimnisvoll fl:A
+317	st:gehorchen fl:D
+318	st:geirrt
+320	st:gekräuselt fl:A
+321	st:gelassen fl:A
+322	st:gelebt
+323	st:geliebt fl:A
+324	st:gelüsten fl:I
+325	st:gemein
+329	st:genossen fl:A
+330	st:geöffnet fl:A
+331	st:gepfropft
+332	st:gerätst fl:X
+333	st:gerettet
+334	st:geriet
+335	st:gerötet
+336	st:gesalbt
+340	st:geschmolzen fl:A
+341	st:geschüttet
+342	st:gesehen fl:A
+343	st:gesetzlich fl:A
+344	pa:Gesinnungs st:Gesinnungs fl:j pa:art
+345	st:gespreizt fl:A
+346	st:gestemmt
+347	st:gestrig fl:A
+348	st:geteilt
+350	st:gewähren fl:Y
+351	st:gewärtigen
+352	st:gewillt
+354	st:geworfen
+355	st:geziert
+356	st:gierig
+358	pa:Glas st:Glas fl:j pa:ziegeln st:ziegel fl:N
+359	st:gläubig fl:A
+364	st:goldgelb fl:A
+366	st:gottverlassen fl:A
+368	st:gratulieren fl:Y
+373	st:größte
+374	st:gründen
+375	st:grün fl:A
+378	st:gut fl:A
+379	pa:Haar st:Haar fl:j pa:denk st:denk fl:e pa:mal
+379	pa:Haar st:Haar fl:j pa:denk  st:denk fl:k pa:mal
+379	pa:Haar st:Haar fl:j pa:denk fl:k st:denk fl:e pa:mal
+379	pa:Haar st:Haar fl:j pa:denkmal
+383	st:hältst
+384	pa:Handels st:Handels fl:j pa:freunden st:freund fl:P
+385	st:handlungsstark fl:A
+387	st:hart fl:A
+389	st:hatte
+391	pa:Haupt st:Haupt fl:j pa:wert
+392	pa:Haus st:Haus fl:j pa:rat
+393	st:hechten fl:I
+395	pa:Heim st:Heim fl:j pa:galopp
+399	st:herabregnen
+400	st:heraufbeschworen
+400	st:heraufbeschwor fl:Z
+402	st:herauszugehen
+403	pa:Herbst st:Herbst fl:j pa:eigen
+404	st:hergeführt
+405	st:hernehmen
+406	st:herrlich fl:C
+407	st:herüberzukommen
+411	st:hervorsprudeln
+412	st:herzhaft fl:A
+414	st:hexen fl:I
+415	st:hierhin
+416	st:hilft
+417	pa:Himmels st:Himmels fl:j pa:zelt
+419	st:hinaufzukommen
+420	st:hinausspringen fl:D
+421	st:hindurchgehen fl:D
+423	st:hingeschickt
+425	st:hintereinander
+426	st:hinübersehen
+427	st:hinweisen
+429	st:hob fl:Z
+430	pa:Hoch st:Hoch fl:j pa:sitze st:sitz fl:E
+432	pa:Hof st:Hof fl:j pa:staats st:staat fl:S
+433	st:höhnen fl:Y
+435	st:hoppeln fl:I
+435	st:hoppeln fl:X
+436	st:hören fl:Y
+437	st:hüglig fl:A
+439	st:hungrig
+440	st:hüten fl:Y
+441	st:igeln fl:W
+442	st:immateriell fl:A
+443	st:indisch fl:A
+444	st:inne
+445	st:innewurde
+447	pa:Interessen st:Interessen fl:j pa:vertretung st:vertreten fl:J
+449	st:irregeführt
+452	pa:Jäger st:Jäger fl:j pa:ruhe
+453	st:jährlich
+454	st:jammern fl:Y
+458	st:jubeln fl:W
+459	st:jugendlich fl:A
+461	pa:Kaffee st:Kaffee fl:j pa:klatsch
+463	pa:Kammer st:Kammer fl:j pa:jungfer
+464	st:kannst fl:W
+465	st:kapital
+466	pa:Kartoffel st:Kartoffel fl:j pa:gebirge
+469	pa:Kegel st:Kegel fl:j pa:spiel
+470	st:keltern fl:W
+471	pa:Kessel st:Kessel fl:j pa:volk
+472	pa:Kinder st:Kinder fl:j pa:gärten
+474	pa:Kirchen st:Kirchen fl:j pa:synoden st:synode fl:N
+475	st:kitschig fl:A
+476	st:klappen fl:Y
+477	st:klecksen fl:I
+478	st:kleinlich fl:A
+479	st:klopfen
+480	st:knapp
+481	st:knistern fl:D
+482	pa:Koalitions st:Koalitions fl:j pa:krise
+484	st:kommen fl:X
+485	st:königlich
+487	st:köpfen
+488	pa:Korn st:Korn fl:j pa:blumen st:blume fl:N
+489	st:kostbar fl:C
+490	st:kräftig fl:A
+490	st:kräftigen fl:I
+491	pa:Kranken st:Kranken fl:j pa:wärter
+497	pa:Kuh st:Kuh fl:j pa:knecht
+498	st:kümmerlich fl:A
+499	pa:Kunst st:Kunst fl:j pa:griff
+501	st:kurzum
+502	st:laben fl:I
+505	st:landen fl:Y
+506	st:lang
+507	st:langweilig
+509	st:laufen fl:D
+510	st:lauten fl:Y
+511	pa:Lebens st:Lebens fl:j pa:fahrt
+512	pa:Lebens st:Lebens fl:j pa:trieb
+513	st:lechzen fl:Y
+514	st:legislativ fl:A
+515	st:lehrreich fl:A
+516	st:leibt
+517	st:leiden fl:D
+519	st:lenken fl:Y
+520	st:leuchtend fl:A
+520	st:leuchten fl:D
+521	st:liberal fl:A
+522	st:lieben fl:D
+523	pa:Liebes st:Liebes fl:j pa:werke st:werk fl:E
+525	st:lieh
+529	st:loskaufen
+531	pa:Luft st:Luft fl:j pa:raum
+534	st:machtlos
+538	st:mannigfaltig fl:A
+542	st:materiell fl:A
+545	st:meinen fl:X
+547	pa:Menschen st:Menschen fl:j pa:verstandes st:verstand fl:T
+549	st:metropolitan fl:A
+551	pa:Minderheiten st:Minderheiten fl:j pa:situation
+552	st:missbrauchen
+553	st:misslich
+554	st:mitarbeiten fl:D
+555	st:mitgestalten fl:I
+555	st:mitgestalten fl:X
+556	st:mitschuldig fl:A
+557	st:mitteln
+558	st:mitzuteilen
+559	st:möge fl:Z
+560	pa:Mond st:Mond fl:j pa:blumen st:blume fl:N
+565	pa:Mund st:Mund fl:j pa:raub
+566	st:musikalisch
+567	st:müssen fl:Y
+568	pa:Mutter st:Mutter fl:j pa:liebe
+570	st:nachfolgen fl:I
+570	st:nachfolgen fl:X
+572	st:nachschicken
+574	st:nachzuahmen
+575	st:nah
+576	st:nahen fl:Y
+578	st:natura
+580	pa:Nebel st:Nebel fl:j pa:wind
+583	st:neugeboren fl:A
+584	st:nichtadlig fl:A
+585	pa:Nicht st:Nicht fl:j pa:wahrheiten st:wahrheit fl:P
+587	st:niedlich fl:A
+589	st:nordamerikanisch fl:A
+590	st:nötig fl:A
+590	st:nötigen fl:I
+591	st:nüchtern fl:A
+593	pa:Ober st:Ober fl:j pa:herrschaft
+594	pa:Obst st:Obst fl:j pa:bäumen st:baum fl:p
+596	st:öfter fl:P
+598	pa:Orangen st:Orangen fl:j pa:bäume st:baum fl:p
+599	st:organisiert fl:A
+599	st:organisieren fl:Y
+601	st:paar
+603	st:parat
+604	st:passend fl:A
+606	st:peinigen fl:I
+606	st:peinigen fl:X
+613	st:plagen fl:Y
+617	st:positiv fl:A
+619	st:prasseln fl:Y
+622	st:prophetisch fl:A
+623	st:prüfen
+627	st:quirlen fl:Y
+628	pa:Rad st:Rad fl:j pa:mantel
+629	st:rar
+631	pa:Raub st:Raub fl:j pa:tier
+632	st:raus
+633	pa:Rechen st:Rechen fl:j pa:buch
+635	st:reden fl:Y
+641	st:reisen fl:I
+641	st:reisen fl:X
+642	pa:Religions st:Religions fl:j pa:leuten st:leute fl:N
+645	st:riechen
+646	st:riesig fl:A
+647	pa:Ring st:Ring fl:j pa:vor st:vor fl:e pa:lesung st:lesen fl:J
+647	pa:Ring st:Ring fl:j pa:vor  st:vor fl:k pa:lesung st:lesen fl:J
+647	pa:Ring st:Ring fl:j pa:vor fl:k st:vor fl:e pa:lesung st:lesen fl:J
+648	pa:Ritter st:Ritter fl:j pa:stab
+650	st:rosig fl:A
+652	st:rückgesetzt fl:A
+654	st:ruhig fl:C
+655	st:rund
+661	st:sank fl:Z
+666	st:schämen fl:X
+667	st:schattig fl:A
+668	pa:Schaukel st:Schaukel fl:j pa:pferdchen st:pferd fl:M
+669	st:scheiden
+672	st:schicken fl:I
+672	st:schicken fl:X
+674	st:schimmern fl:Y
+675	pa:Schlaf st:Schlaf fl:j pa:kammer
+676	st:schlang fl:Z
+677	st:schlechthin
+678	st:schleusen fl:I
+679	st:schlingen fl:I
+679	st:schlingen fl:X
+680	st:schlug
+682	st:schmelzen fl:D
+683	st:schmirgeln fl:W
+684	st:schnallen
+685	pa:Schnee st:Schnee fl:j pa:lieder st:lied fl:R
+686	st:schnell fl:A
+686	st:schnellen fl:I
+690	pa:Schreib st:Schreib fl:j pa:tisch
+696	st:schwarzgekleidet fl:A
+697	st:schweifen
+698	st:schwellen fl:I
+699	st:schwieg fl:Z
+700	st:schwören fl:I
+700	st:schwören fl:X
+701	pa:See st:See fl:j pa:häfen
+702	pa:Segel st:Segel fl:j pa:boot
+703	st:sehen fl:I
+704	st:sein fl:A
+706	pa:Selbst st:Selbst fl:j pa:herrlichkeit
+708	pa:Senf st:Senf fl:j pa:korn
+709	st:setzen fl:I
+710	pa:Sicherheits st:Sicherheits fl:j pa:kontrolle
+711	st:siebent fl:A
+712	st:sieghaft fl:A
+713	st:silbrig fl:A
+714	st:sinnen fl:I
+716	pa:Sitz st:Sitz fl:j pa:gelegenheit
+717	st:sofort
+719	pa:Sommer st:Sommer fl:j pa:ferien
+720	pa:Sonder st:Sonder fl:j pa:weg
+722	st:sorgen
+723	st:sozial fl:A
+724	st:spärlich fl:A
+725	pa:Spazier st:Spazier fl:j pa:stöckchen st:stöcke fl:M
+726	st:spekulativ fl:A
+727	st:spielen fl:D
+729	st:spöttisch fl:A
+730	st:spricht fl:X
+733	pa:Stadt st:Stadt fl:j pa:pfarrer
+734	st:stammen fl:I
+734	st:stammen fl:X
+735	st:stark fl:A
+736	st:stattfinden fl:I
+738	st:steifen fl:D
+739	st:steinigen
+739	st:steinig fl:A
+740	st:sterben fl:I
+742	st:stiehlt
+743	st:stimmberechtigt fl:A
+746	st:strafen fl:I
+746	st:strafen fl:X
+747	pa:Straßen st:Straßen fl:j pa:ecke
+748	st:strecken fl:Y
+749	st:streng fl:C
+750	st:strömen fl:Y
+753	st:stützen fl:D
+754	st:suchen fl:I
+754	st:suchen fl:X
+757	st:tadeln fl:W
+758	st:täglich fl:A
+761	st:tatsächlich fl:A
+762	st:taunass fl:A
+766	pa:Theater st:Theater fl:j pa:prinzessin
+769	pa:Tisch st:Tisch fl:j pa:wein
+770	pa:Todes st:Todes fl:j pa:werk st:werk fl:e pa:zeuge st:zeug fl:E
+770	pa:Todes st:Todes fl:j pa:werk  st:werk fl:k pa:zeuge st:zeug fl:E
+770	pa:Todes st:Todes fl:j pa:werk fl:k st:werk fl:e pa:zeuge st:zeug fl:E
+772	pa:Tor st:Tor fl:j pa:ein st:ein fl:e pa:fahrt
+772	pa:Tor st:Tor fl:j pa:ein  st:ein fl:k pa:fahrt
+772	pa:Tor st:Tor fl:j pa:ein fl:k st:ein fl:e pa:fahrt
+772	pa:Tor st:Tor fl:j pa:einfahrt
+773	st:totgemacht
+774	pa:Träger st:Träger fl:j pa:schaft
+775	st:trauen fl:W
+776	pa:Traum st:Traum fl:j pa:licht
+777	st:trennen
+778	st:trieb
+779	st:trocken fl:A
+781	st:trüben fl:Y
+782	st:tüchtig fl:A
+785	st:überbringen
+786	st:überflog
+786	st:überflogen fl:W
+788	st:überlegen fl:I
+788	st:überlegen fl:X
+791	st:überstanden
+792	st:überwand
+793	st:üblich fl:A
+794	pa:Uhr st:Uhr fl:j pa:kette
+795	st:umfassen fl:Y
+796	st:umgekommen fl:A
+797	st:umherlief
+800	st:umwarf
+802	st:unaussprechlich fl:A
+803	un st:begründet fl:U
+804	fl:U st:beschränkt fl:A
+805	un st:eben fl:U
+806	st:unerfindlich fl:A
+807	fl:U st:erträglich fl:A
+808	un st:geduldig fl:U
+810	fl:U st:geübt fl:A
+813	st:unliebsam fl:A
+814	st:unnütz
+815	un st:richtig fl:U
+817	st:unsrig fl:A
+818	st:unterdrücken fl:Y
+819	st:unterhalb
+820	pa:Unter st:Unter fl:j pa:lippe
+822	pa:Untersuchungs st:Untersuchungs fl:j pa:raum
+824	un st:verletzlich fl:U
+827	un st:ziemlich fl:U
+831	st:verabschieden fl:Y
+832	st:verantworten
+832	ver st:antworten fl:V
+833	st:verbinden fl:I
+833	fl:V st:binden fl:I
+834	st:verblühen fl:I
+834	st:verblühen fl:X
+834	fl:V st:blühen fl:I
+834	fl:V st:blühen fl:X
+836	st:verderblich fl:A
+839	st:verfassen fl:I
+839	st:verfassen fl:X
+839	fl:V st:fassen fl:I
+839	fl:V st:fassen fl:X
+840	st:verfluchen fl:I
+840	fl:V st:fluchen fl:I
+842	st:vergiften fl:I
+842	st:vergiften fl:X
+842	fl:V st:giften fl:I
+842	fl:V st:giften fl:X
+843	pa:Vergnügungs st:Vergnügungs fl:j pa:sucht
+846	st:verhüten fl:I
+846	st:verhüten fl:X
+846	fl:V st:hüten fl:I
+846	fl:V st:hüten fl:X
+847	st:verkleiden fl:I
+847	st:verkleiden fl:X
+847	fl:V st:kleiden fl:I
+847	fl:V st:kleiden fl:X
+851	fl:V st:magst fl:W
+853	st:vernageln fl:Y
+853	fl:V st:nageln fl:Y
+857	st:versagt fl:A
+857	fl:V st:sagen fl:Y
+858	st:verschiedenartig fl:C
+859	st:verschmachten
+859	ver st:schmachten fl:V
+860	st:verschwenderisch
+861	st:versiegen
+861	ver st:siegen fl:V
+862	st:verspüren fl:I
+862	st:verspüren fl:X
+862	fl:V st:spüren fl:I
+862	fl:V st:spüren fl:X
+863	st:verständnisinnig
+865	st:versuchen fl:D
+865	fl:V st:suchen fl:D
+866	st:vertilgen fl:Y
+866	fl:V st:tilgen fl:Y
+867	st:vertrocknen fl:I
+867	st:vertrocknen fl:X
+867	fl:V st:trocknen fl:I
+867	fl:V st:trocknen fl:X
+869	st:verwegen fl:A
+870	st:verwildern fl:O
+871	st:verwundet
+871	st:verwunden fl:I
+871	st:verwunden fl:X
+872	st:verzeihen
+873	st:vexieren
+874	st:vielleicht
+877	st:vollbesetzt
+879	st:voranstellen fl:Y
+881	st:vorderhand
+882	st:vorgebracht fl:A
+883	st:vorgestreckt fl:A
+884	st:vorhergesagt
+885	st:vorlaut
+886	pa:Vor st:Vor fl:j pa:ort
+889	st:vorüberkam fl:Z
+890	st:vorzog fl:Z
+893	pa:Wahl st:Wahl fl:j pa:beobachtung st:beobachten fl:J
+895	st:wahrhaftig
+897	st:wallen fl:Y
+898	st:wandern fl:Y
+899	st:warm
+900	pa:Wäsche st:Wäsche fl:j pa:stück
+901	st:wasserscheu
+902	st:wechseln fl:Y
+904	st:wegtreiben
+905	st:wehmütig
+907	st:weiden fl:D
+908	pa:Weihnachts st:Weihnachts fl:j pa:vesper
+909	st:weisen
+909	st:weise fl:A
+912	st:wellen fl:I
+914	st:werben
+915	pa:Werte st:Werte fl:j pa:verfall
+916	st:westtürkisch fl:A
+917	st:wickeln fl:Y
+918	st:widerspenstig fl:A
+919	st:widerwärtig fl:A
+920	st:wiedergeboren fl:A
+921	st:wiegen fl:I
+921	st:wiegen fl:X
+922	pa:Wild st:Wild fl:j pa:garten
+923	st:willkommen fl:A
+924	st:winkeln
+925	st:wirbt
+927	st:wissend fl:A
+928	pa:Witwen st:Witwen fl:j pa:gehalt
+931	st:wohlriechend fl:A
+932	pa:Wohn st:Wohn fl:j pa:heim
+933	st:wollen fl:I
+934	pa:Wort st:Wort fl:j pa:bedeutung st:bedeuten fl:J
+936	pa:Wunder st:Wunder fl:j pa:tier
+937	st:würdig fl:A
+939	st:zäh fl:A
+941	pa:Zauber st:Zauber fl:j pa:ei
+943	st:zeigen fl:I
+943	st:zeigen fl:X
+944	pa:Zeit st:Zeit fl:j pa:rechnung st:rechnen fl:J
+945	st:zerbräche
+946	st:zerknittert fl:A
+946	st:zerknittern fl:Y
+947	st:zerschnitten
+947	st:zerschnitt fl:Z
+948	st:zertrümmern fl:I
+948	st:zertrümmern fl:X
+950	st:zieren fl:W
+951	st:zimmern fl:W
+952	st:zischen fl:D
+953	st:zog
+954	st:zubrachte
+956	st:zugedacht
+957	st:zugestehen
+958	st:zukam
+960	st:zurechtweisen
+961	st:zurückgeben
+962	st:zurückhaltend fl:A
+962	st:zurückhalten fl:D
+963	st:zurückzuführen
+964	st:zusammengefasst
+965	st:zusammenkommen
+967	st:zusehen
+968	st:zuträgt
+969	st:zuwider
+970	st:zweckdienlich fl:A
+973	pa:Zylinder st:Zylinder fl:j pa:hüten
+973	pa:Zylinder st:Zylinder fl:j pa:hüten st:hüte fl:N
+end	turbo:hunspell-analyses

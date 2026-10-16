@@ -2,13 +2,13 @@
 //! the sets published on the Hugging Face hub are written (pyarrow's
 //! defaults): the footer, row groups, PLAIN and dictionary pages in data
 //! page versions 1 and 2, nulls by definition levels, and the SNAPPY,
-//! GZIP and UNCOMPRESSED codecs.
+//! GZIP, ZSTD and UNCOMPRESSED codecs.
 //!
 //! A column is read by name, all row groups in order, into one buffer.
 //! Nested and repeated columns, other value encodings (the DELTA ones,
-//! BYTE_STREAM_SPLIT) and other codecs (ZSTD, LZ4, BROTLI) are refused
-//! with an error that names them. The format is Apache Parquet's
-//! `parquet.thrift` and `Encodings.md`.
+//! BYTE_STREAM_SPLIT) and other codecs (LZ4, LZ4_RAW, BROTLI, LZO) are
+//! refused with an error that names them. The format is Apache
+//! Parquet's `parquet.thrift` and `Encodings.md`.
 //!
 //! A file's leading row groups can also be read from three of its
 //! ranges, without the rest of the file: its last 8 bytes

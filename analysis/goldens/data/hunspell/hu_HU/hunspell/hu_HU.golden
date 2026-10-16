@@ -1,0 +1,336 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/hu_HU	1081	985	8130e532930246080a86e68f5d7280b6e514c226c903cb8bfa33fc9f708c3206
+model	hu_HU.aff	c3e587793dc752aaf9b8dd9262047d8ff24dc7e620ebd4d9023e77bb6eb7c15e89f39a1851050f413410a298e2b1323cc9abf4627dc96aa15de0d91e26ae1a00
+model	hu_HU.dic	767ac7b9cf190cca8314142dc016ba9b593b6bfbc707eb55314a0a47e8dfdea33ceec35880057a6f96897fd289759ff59a2a0feff5cd108d832cb1cfb027d141
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	92	word:str	stem:str	thrown:str
+ház	ház	
+házak	ház	
+házban	ház	
+házakban	ház	
+házaiban	ház	
+Ház	ház	
+HÁZ	ház	
+kert	kert	
+kertek	kert	
+kertben	kert	
+ajtó	ajtó	
+ajtók	ajtó	
+ajtókat	ajtó	
+almafa	almafa	
+almafák	almafa	
+almafákon	almafa	
+kerékpár	kerékpár	
+kerékpárút	kerékpárút	
+kerékpárutak	kerékpárút	
+e-mail	e-mail	
+e-mailek	e-mail	
+Budapest	Budapest	
+budapesti	Budapest	
+BUDAPEST	Budapest	
+Budapesten	Budapest	
+legnagyobb	nagy	
+legeslegnagyobb	nagy	
+számítógép	számítógép	
+számítógépes	számítógépes	
+számítógépek	számítógép	
+országgyűlés	országgyűlés	
+országgyűlési	országgyűlés	
+tűzoltó	tűzoltó	
+tűzoltók	tűzoltó	
+ötvenhét	ötvenhét	
+huszonegy	huszonegy	
+kétezer-huszonöt	kétezer	
+Kossuth-díj	Kossuth	
+Kossuth-díjas	Kossuth	
+MTA-tag	MTA	
+MTA-tagok	MTA	
+bor-szőlő	bor	
+szép	szép	
+szebb	szép	
+legszebb	szép	
+megy	megy	
+ment	megy	
+menni	megy	
+jön	jön	
+jött	jön	
+jönni	jön	
+van	van	
+volt	volt	
+lesz	van	
+és	és	
+vagy	van	
+hogy	hogy	
+nem	nem	
+magyar	magyar	
+magyarul	magyar	
+Magyarország	Magyarország	
+magyarországi	Magyarország	
+egészségügyi	egészségügyi	
+egészségügy	egészségügy	
+kormány	kormány	
+kormányzat	kormányzat	
+kormányfő	kormányfő	
+miniszterelnök	miniszterelnök	
+miniszterelnökség	miniszter	
+rendőr	rendőr	
+rendőrség	rendőrség	
+rendőrségi	rendőrség	
+vasútállomás	vasútállomás	
+vasútállomások	vasútállomás	
+pályaudvar	pályaudvar	
+fővárosi	fővárosi	
+főváros	főváros	
+Duna-part	Duna-part	
+Balaton-felvidék	Balaton-felvidék	
+almáspite	almáspite	
+szilvás	szilvás	
+körte	körte	
+körtefa	körtefa	
+körtefák	körtefa	
+tehenek	tehén	
+tehén	tehén	
+lovak	ló	
+ló	ló	
+kutyák	kutya	
+kutya	kutya	
+macskák	macska	
+macska	macska	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	109	word:u32	stem:str
+0	ház
+1	ház
+2	ház
+3	ház
+4	ház
+5	ház
+6	ház
+7	kert
+8	kert
+9	kert
+10	ajtó
+11	ajtó
+12	ajtó
+13	almafa
+14	almafa
+15	almafa
+16	kerékpár
+17	kerékpárút
+17	kerékpár
+18	kerékpárút
+19	e-mail
+20	e-mail
+21	Budapest
+22	Budapest
+23	Budapest
+24	Budapest
+25	nagy
+26	nagy
+27	számítógép
+28	számítógépes
+29	számítógép
+30	országgyűlés
+31	országgyűlés
+32	tűzoltó
+33	tűzoltó
+34	ötvenhét
+34	hét
+35	huszonegy
+35	egy
+36	kétezer
+36	huszonöt
+36	öt
+37	Kossuth
+37	díj
+38	Kossuth
+38	díjas
+39	MTA
+39	tag
+40	MTA
+40	tag
+41	bor
+41	szőlő
+42	szép
+43	szép
+44	szép
+45	megy
+46	megy
+46	ment
+47	megy
+48	jön
+49	jön
+49	jött
+50	jön
+51	van
+52	volt
+52	van
+53	van
+54	és
+55	van
+55	vagy
+56	hogy
+57	nem
+58	magyar
+59	magyar
+60	Magyarország
+61	Magyarország
+62	egészségügyi
+62	egészségügy
+63	egészségügy
+64	kormány
+65	kormányzat
+66	kormányfő
+67	miniszterelnök
+68	miniszter
+68	elnökség
+69	rendőr
+70	rendőrség
+71	rendőrség
+72	vasútállomás
+73	vasútállomás
+74	pályaudvar
+75	fővárosi
+75	főváros
+76	főváros
+77	Duna-part
+78	Balaton-felvidék
+79	almáspite
+80	szilvás
+81	körte
+82	körtefa
+83	körtefa
+84	tehén
+85	tehén
+86	ló
+87	ló
+88	kutya
+89	kutya
+90	macska
+91	macska
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	113	word:u32	analysis:str
+0	st:ház po:noun ts:NOM al:házak
+1	st:ház po:noun ts:PLUR ts:NOM
+2	st:ház po:noun ts:NOM al:házak is:INE
+3	st:ház po:noun ts:PLUR ts:NOM is:PLUR is:INE
+4	st:ház po:noun ts:PLUR ts:NOM is:PLUR is:POSS_SG_3 is:INE
+5	st:ház po:noun ts:NOM al:házak
+6	st:ház po:noun ts:NOM al:házak
+7	st:kert po:noun ts:NOM
+8	st:kert po:noun ts:NOM is:PLUR is:NOM
+9	st:kert po:noun ts:NOM is:INE
+10	st:ajtó po:noun ts:NOM al:ajtaj
+11	st:ajtó po:noun ts:NOM al:ajtaj is:PLUR is:NOM
+12	st:ajtó po:noun ts:NOM al:ajtaj is:PLUR is:ACC
+13	st:almafa po:noun ts:NOM hy:4
+14	st:almafa po:noun ts:NOM hy:4 is:PLUR is:NOM
+15	st:almafa po:noun ts:NOM hy:4 is:PLUR is:SUE
+16	st:kerékpár po:noun ts:NOM hy:5
+17	st:kerékpárút po:noun ts:NOM al:kerékpárutak hy:5
+17	st:kerékpár po:noun ts:NOM hy:5 is:jÚ_PROPERTY_adj ts:NOM is:ACC
+18	st:kerékpárút po:noun ts:PLUR ts:NOM hy:5
+19	st:e-mail po:noun ts:NOM ph:í-mél
+20	st:e-mail po:noun ts:NOM ph:í-mél is:PLUR is:NOM
+21	st:Budapest po:noun_prs ts:NOM hy:4
+22	fl:" st:Budapest po:noun_prs ts:NOM hy:4 is:i_PLACE/TIME_adj ts:NOM
+23	st:Budapest po:noun_prs ts:NOM hy:4
+24	st:Budapest po:noun_prs ts:NOM hy:4 is:SUE
+25	ip:leg_SUPERLATIVE_adj st:nagy po:adj is:bb_COMPARATIVE_adj ts:NOM
+26	ip:legesleg_SUPERLATIVE_adj st:nagy po:adj is:bb_COMPARATIVE_adj ts:NOM
+27	st:számítógép po:noun ts:NOM hy:7
+28	st:számítógép po:noun ts:NOM hy:7 ds:s_OCCUPATION_noun ts:NOM
+28	st:számítógép po:noun ts:NOM hy:7 ds:s_ATTRIBUTE_adj ts:NOM
+29	st:számítógép po:noun ts:NOM hy:7 is:PLUR is:NOM
+30	st:országgyűlés po:noun ts:NOM hy:or-szág|gyű-lés
+31	st:országgyűlés po:noun ts:NOM hy:or-szág|gyű-lés is:i_PLACE/TIME_adj ts:NOM
+32	st:tűzoltó po:noun ts:NOM hy:3
+33	st:tűzoltó po:noun ts:NOM hy:3 is:PLUR is:NOM
+34	st:ötvenhét po:adj_num ts:NOM al:ötvenheten al:ötvenhetek al:ötvenhetedik hy:5
+34	po:adj_num pa:ötven st:hét po:noun ts:NOM al:nagyheti al:heti al:heten al:hetek al:hetediki al:hetedike al:hetedik al:heted al:hete al:hetek al:hetek al:hete al:hetek al:heted
+34	po:adj_num pa:ötven st:hét po:adj_num ts:NOM al:nagyheti al:heti al:heten al:hetek al:hetediki al:hetedike al:hetedik al:heted al:hete al:hetek al:hetek al:hete al:hetek al:heted
+35	st:huszonegy po:adj_num ts:NOM al:huszonegyen al:huszonegyediki al:huszonegyedike al:huszonegyedik hy:6
+35	po:adj_num pa:huszon st:egy po:adj_num ts:NOM al:első al:elseji al:elseje al:egyen al:egyedik al:egyed
+36	pa:kétezer st:kétezer po:adj_num ts:NOM al:kétezres al:kétezren al:kétezrek al:kétezredik al:kétezred al:egyezredik al:egyezred hy:3 pa:huszonöt st:huszonöt po:adj_num ts:NOM al:huszonötödiki al:huszonötödike al:huszonötödik al:huszonöten hy:6
+36	pa:kétezer st:kétezer po:adj_num ts:NOM al:kétezres al:kétezren al:kétezrek al:kétezredik al:kétezred al:egyezredik al:egyezred hy:3 pa:huszonöt po:adj_num pa:huszon st:öt po:adj_num ts:NOM al:ötük al:ötödiki al:ötödike al:ötödik al:ötöd al:öten al:ötöd
+37	pa:Kossuth st:Kossuth po:noun_prs ts:NOM ph:kosut pa:díj st:díj po:noun ts:NOM al:díjak
+38	pa:Kossuth st:Kossuth po:noun_prs ts:NOM ph:kosut pa:díjas st:díjas po:adj ts:NOM
+38	pa:Kossuth st:Kossuth po:noun_prs ts:NOM ph:kosut pa:díjas st:díj po:noun ts:PLUR ts:NOM ds:s_OCCUPATION_noun ts:NOM
+38	pa:Kossuth st:Kossuth po:noun_prs ts:NOM ph:kosut pa:díjas st:díj po:noun ts:PLUR ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+39	pa:MTA st:MTA po:abr ts:NOM al:MTA-vá al:MTA-val al:MTA-s al:MTA-i al:MTA- pa:tag st:tag po:noun ts:NOM
+40	pa:MTA st:MTA po:abr ts:NOM al:MTA-vá al:MTA-val al:MTA-s al:MTA-i al:MTA- pa:tagok st:tag po:noun ts:NOM is:PLUR is:NOM
+41	pa:bor st:bor po:noun ts:NOM pa:szőlő st:szőlő po:noun ts:NOM al:szőlej al:szől
+42	st:szép po:adj ts:NOM al:szépen al:szebbik al:szebben al:szebb
+43	st:szép po:adj is:bb_COMPARATIVE_adj ts:NOM
+44	ip:leg_SUPERLATIVE_adj st:szép po:adj is:bb_COMPARATIVE_adj ts:NOM
+45	st:megy po:vrb is:PRES_INDIC_INDEF_SG_3 al:menés al:megyen al:mész al:mégy al:menvén al:menve al:mentünk al:mentél al:mentetek al:mentem al:mentek al:mentek al:ment al:mennünk al:mennétek al:mennénk al:mennének al:mennél al:mennék al:menniük al:menniök al:mennie al:menni al:mennetek al:mennem al:mennek al:menned al:menne al:menjünk al:menjél al:menjetek al:menjenek al:menjen al:menjek al:menj al:mehet al:megyünk al:megyek al:menő al:ment
+46	st:megy po:vrb is:PAST_INDIC_INDEF_SG_3 al:mentet
+46	st:ment po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mentet
+46	st:megy po:vrb ds:tt_PASTPART_adj ts:NOM al:mentet
+46	st:ment po:adj ts:NOM al:mentet
+47	st:megy po:vrb is:ni_INFINITIVE_inf
+48	st:jön po:vrb is:PRES_INDIC_INDEF_SG_3 al:jövünk al:jövök al:jövés al:jöve al:jöttünk al:jöttünk al:jöttük al:jöttötök al:jöttöm al:jöttök al:jöttöd al:jöttél al:jöttetek al:jöttem al:jöttek al:jötte al:jött al:jössz al:jönnünk al:jönnötök al:jönnöm al:jönnöd al:jönnétek al:jönnénk al:jönnének al:jönnél al:jönnék al:jönniük al:jönniök al:jönnie al:jönni al:jönnek al:jönne al:jöjjünk al:jöjjön al:jöjjél al:jöjjetek al:jöjjenek al:jöjjek al:jöjj al:jővén al:jőve al:jőni al:jőnek al:jő al:gyerünk al:gyertek al:gyere al:jöhet al:jövő al:jött al:İzmiri
+49	st:jön po:vrb is:PAST_INDIC_INDEF_SG_3
+49	st:jön po:vrb ds:tt_PASTPART_adj ts:NOM
+49	st:jött po:adj ts:NOM
+50	st:jön po:vrb is:ni_INFINITIVE_inf
+51	st:van po:vrb is:PRES_INDIC_INDEF_SG_3 al:levés al:lehetőség al:lehetetlenség al:voltál al:voltunk al:voltatok al:voltam al:voltak al:volt al:volnék al:volnátok al:volnánk al:volnának al:volnál al:volna al:vannak al:vagyunk al:vagytok al:vagyok al:vagy al:odalehet al:meglehet al:leszünk al:lesztek al:lesznek al:leszel al:leszek al:lesz al:lennünk al:lennétek al:lennénk al:lennének al:lennél al:lennék al:lenniük al:lenniök al:lennie al:lenni al:lennetek al:lennem al:lenned al:lenne al:lehet al:legyünk al:legyél al:legyetek al:legyenek al:legyen al:legyek al:kilehet al:hátralehet al:ellehet al:lévő al:levő al:lehető al:lehetetlen al:İzmiri
+52	st:volt po:noun ts:NOM
+52	st:van po:vrb is:PAST_INDIC_INDEF_SG_3
+52	st:volt po:adj ts:NOM
+53	st:van po:vrb is:FUTURE_INDIC_INDEF_SG_3 al:lettünk al:lettél al:lettetek al:lettem al:lettek al:lett
+54	st:és po:con
+55	st:van po:vrb is:PRES_INDIC_INDEF_SG_2
+55	st:vagy po:con
+56	st:hogy po:adv
+56	st:hogy po:con
+57	st:nem po:noun ts:NOM
+57	st:nem po:neg
+58	st:magyar po:noun ts:NOM
+58	st:magyar
+59	st:magyar po:noun ts:NOM is:ESS
+60	st:Magyarország po:noun_prs ts:NOM hy:6
+61	fl:" st:Magyarország po:noun_prs ts:NOM hy:6 is:i_PLACE/TIME_adj ts:NOM
+62	st:egészségügyi po:adj ts:NOM hy:8
+62	st:egészségügy po:noun ts:NOM hy:8 is:i_PLACE/TIME_adj ts:NOM
+63	st:egészségügy po:noun ts:NOM hy:8
+64	st:kormány po:noun ts:NOM
+65	st:kormányzat po:noun ts:NOM
+66	st:kormányfő po:noun ts:NOM hy:7
+67	st:miniszterelnök po:noun ts:NOM hy:9
+68	pa:miniszter st:miniszter po:noun ts:NOM pa:elnökség st:elnökség po:noun ts:NOM
+69	st:rendőr po:noun ts:NOM hy:4
+70	st:rendőrség po:noun ts:NOM hy:4
+71	st:rendőrség po:noun ts:NOM hy:4 is:i_PLACE/TIME_adj ts:NOM
+72	st:vasútállomás po:noun ts:NOM hy:vas|út||állomás
+73	st:vasútállomás po:noun ts:NOM hy:vas|út||állomás is:PLUR is:NOM
+74	st:pályaudvar po:noun ts:NOM hy:5
+75	st:fővárosi po:adj ts:NOM hy:2
+75	st:főváros po:noun ts:NOM hy:2 is:i_PLACE/TIME_adj ts:NOM
+76	st:főváros po:noun ts:NOM hy:2
+77	st:Duna-part po:noun_prs ts:NOM
+78	st:Balaton-felvidék po:noun_prs ts:NOM hy:Balaton-fel|vidék
+80	st:szilva po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+80	st:szilva po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+81	st:körte po:noun ts:NOM
+82	st:körtefa po:noun ts:NOM hy:5
+83	st:körtefa po:noun ts:NOM hy:5 is:PLUR is:NOM
+84	st:tehén po:noun ts:PLUR ts:NOM
+85	st:tehén po:noun ts:NOM al:tehenek
+86	st:ló po:noun ts:PLUR ts:NOM
+87	st:ló po:noun ts:NOM al:lovak
+88	st:kutya po:noun ts:NOM is:PLUR is:NOM
+89	st:kutya po:noun ts:NOM
+90	st:macska po:noun ts:NOM is:PLUR is:NOM
+91	st:macska po:noun ts:NOM
+end	turbo:hunspell-analyses

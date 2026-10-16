@@ -1,0 +1,16 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/nkjp-bad-pointer	395	395	41400d3ca13934b6d78c2f3feced0e430e0227060bfc91af0a16fd646ff4a072
+annotator	opennlp.tools.formats.nkjp.NKJPSentenceSampleStream	read
+layer	turbo:samples	document	0	written:str
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+0	java.io.IOException	Failed to parse NKJP document
+end	turbo:read-errors
+layer	turbo:sample-texts	document	0	text:str
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	0	sample:u32	start:u32	end:u32
+end	turbo:sample-spans

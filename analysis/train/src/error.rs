@@ -43,8 +43,6 @@ pub enum Error {
     /// The algorithm named by the `Algorithm` parameter is none OpenNLP has
     /// built in (`IllegalArgumentException("Unknown algorithm type: ...")`).
     UnknownAlgorithm(String),
-    /// The algorithm is one OpenNLP has but this crate has no trainer for.
-    NotPorted(crate::params::Algorithm),
     /// The algorithm names a trainer of another kind than the one asked
     /// for: `TrainerFactory.getEventTrainer` cannot return the sequence
     /// perceptron, nor `getEventModelSequenceTrainer` an event trainer
@@ -145,7 +143,6 @@ impl fmt::Display for Error {
                 write!(f, "parameter {key:?} is a {found}, which Properties.store cannot write (ClassCastException)")
             }
             Error::UnknownAlgorithm(name) => write!(f, "Unknown algorithm type: {name}"),
-            Error::NotPorted(algorithm) => write!(f, "no trainer for {} here yet", algorithm.name()),
             Error::WrongTrainerType { algorithm, wanted } => {
                 write!(f, "{} is not a {} trainer (ClassCastException)", algorithm.name(), wanted.value())
             }

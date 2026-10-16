@@ -1,0 +1,92 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/emoji	194	176	988126c5cc162c43b57be5509c7c49796549ca909ed887ec66f50edf7e54b441
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	5	outcome:str	context:str	values:str
+n	5 eos=! n=🎉 s= sn v=the x=match	
+n	10 eos=. n=My ncap s= sn v=🍕 x=afterwards	
+n	2 eos=. n=The ncap s= sn v=heart x=❤️	
+n	7 eos=. n=What ncap s= sn v=the x=stadium	
+s	2 eos=. n= s= sn v=day x=😀	
+end	turbo:events
+layer	turbo:liblinear-text	document	30	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 23
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0.69261868638144350 
+0 
+0.00052774736578737880 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+dc89d33784e847006c023252192749080932aafe219c31ae4b8992a0d071fa81	464
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	20	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe00114b10cfdf3 0.5001319368383846
+0	given	1	3fdffdd69de6041a 0.49986806316161536
+0	reversed	0	3fe00114b10cfdf3 0.5001319368383846
+0	reversed	1	3fdffdd69de6041a 0.49986806316161536
+1	given	0	3fe55554fc3c2f2e 0.666666500708265
+1	given	1	3fd555560787a1a4 0.33333349929173495
+1	reversed	0	3fe55554fc3c2f2e 0.666666500708265
+1	reversed	1	3fd555560787a1a4 0.33333349929173495
+2	given	0	3fe55554fc3c2f2e 0.666666500708265
+2	given	1	3fd555560787a1a4 0.33333349929173495
+2	reversed	0	3fe55554fc3c2f2e 0.666666500708265
+2	reversed	1	3fd555560787a1a4 0.33333349929173495
+3	given	0	3fe55554fc3c2f2e 0.666666500708265
+3	given	1	3fd555560787a1a4 0.33333349929173495
+3	reversed	0	3fe55554fc3c2f2e 0.666666500708265
+3	reversed	1	3fd555560787a1a4 0.33333349929173495
+4	given	0	3fe00114b10cfdf3 0.5001319368383846
+4	given	1	3fdffdd69de6041a 0.49986806316161536
+4	reversed	0	3fe00114b10cfdf3 0.5001319368383846
+4	reversed	1	3fdffdd69de6041a 0.49986806316161536
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	10	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+4	given	n
+4	reversed	n
+end	turbo:liblinear-best

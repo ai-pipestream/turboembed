@@ -1834,6 +1834,8 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-normalize",
+ "turbo-train",
 ]
 
 [[package]]
@@ -1853,6 +1855,7 @@ dependencies = [
  "turbo-maxent",
  "turbo-sentdetect",
  "turbo-structure",
+ "turbo-zstd",
  "ureq",
 ]
 
@@ -1895,9 +1898,11 @@ name = "turbo-geo"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-normalize",
+ "turbo-numeric",
  "turbo-tokenize",
  "turbo-unicode",
 ]
@@ -1953,6 +1958,17 @@ dependencies = [
  "serde_json",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-hunspell"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-stem-layers",
  "turbo-unicode",
 ]
 
@@ -2052,6 +2068,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-morfologik"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-maxent",
+ "turbo-sequence",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-namefind"
 version = "0.1.0"
 dependencies = [
@@ -2059,6 +2086,15 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-ngram"
+version = "0.1.0"
+dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
@@ -2140,6 +2176,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-sat"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-sentdetect"
 version = "0.1.0"
 dependencies = [
@@ -2168,7 +2216,11 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
+ "turbo-normalize",
  "turbo-stem-layers",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 
@@ -2245,6 +2297,8 @@ name = "turbo-train-components"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-doccat",
  "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
@@ -2295,6 +2349,16 @@ name = "turbo-unicode-gen"
 version = "0.1.0"
 
 [[package]]
+name = "turbo-wordnet"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-zoo"
 version = "0.1.0"
 dependencies = [
@@ -2304,6 +2368,10 @@ dependencies = [
  "turbo-goldens",
  "ureq",
 ]
+
+[[package]]
+name = "turbo-zstd"
+version = "0.1.0"
 
 [[package]]
 name = "typenum"

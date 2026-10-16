@@ -1,0 +1,44 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/supplementary-before	66	62	3fc1bc75c7562b3526bf9aa65058b481474e177c5e7e7d6dee165846981fb7e0
+annotator	opennlp.tools.pii.PiiPacks	contact
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	contact
+layer	turbo:view	text	14	start:u32	end:u32	with:str
+9	10	*
+10	11	*
+11	12	*
+12	13	*
+14	15	*
+15	16	*
+16	17	*
+17	18	*
+18	19	*
+19	20	*
+20	21	*
+22	23	*
+23	24	*
+24	25	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+𐐨𐐩 ################ after Deseret letters, 192.0.2.1 after.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	𐐨𐐩 EMAIL-1 after Deseret letters, 192.0.2.1 after.\n	
+hmac	𐐨𐐩 EMAIL-8afbd74c31f47786 after Deseret letters, 192.0.2.1 after.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	2	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	9	25	9	16	EMAIL-1
+hmac	9	25	9	31	EMAIL-8afbd74c31f47786
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+email	1	1	EMAIL-8afbd74c31f47786
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+email: 1 mentions, 1 distinct [EMAIL-8afbd74c31f47786]
+end	turbo:pii-audit-report

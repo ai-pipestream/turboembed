@@ -1,0 +1,79 @@
+# A text and its segmentation in the layout of the NKJP corpus, written for this project.
+
+@@ file text.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<teiCorpus xmlns="urn:example:tei" xmlns:xi="urn:example:xinclude">
+ <!-- A text in the layout of the NKJP corpus, written for this project. -->
+ <TEI>
+  <text xml:id="txt_text">
+   <body>
+    <div xml:id="txt_1-div" decls="#bibl-1">
+     <ab n="p1" xml:id="txt_1-ab">Ala ma kota. Kot ma Alę, a pies - nie.</ab>
+     <ab xml:id="txt_2-ab">Drugi akapit 😀 z emoji. Trzecie zdanie?</ab>
+    </div>
+    <div xml:id="txt_2-div" type="article">
+     <p xml:id="txt_3-p">Akapit &amp; encja.</p>
+    </div>
+   </body>
+  </text>
+ </TEI>
+</teiCorpus>
+@@ end
+@@ file ann_segmentation.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<teiCorpus xmlns="urn:example:tei" xmlns:nkjp="urn:example:nkjp" xmlns:xi="urn:example:xinclude">
+ <!-- A segmentation in the layout of the NKJP corpus, written for this project. -->
+ <TEI>
+  <text xml:id="segm_text">
+   <body>
+    <p corresp="text.xml#txt_1-ab" xml:id="segm_1-p">
+     <s xml:id="segm_1.1-s">
+<seg corresp="text.xml#string-range(txt_1-ab,0,3)" xml:id="segm_1.1-seg"/>
+<seg corresp="text.xml#string-range(txt_1-ab,4,2)" xml:id="segm_1.2-seg"/>
+<seg corresp="text.xml#string-range(txt_1-ab,7,4)" xml:id="segm_1.3-seg"/>
+<seg corresp="text.xml#string-range(txt_1-ab,11,1)" nkjp:nps="true" xml:id="segm_1.4-seg"/>
+     </s>
+     <s xml:id="segm_1.2-s">
+<choice>
+<nkjp:paren><seg corresp="text.xml#string-range(txt_1-ab,13,3)" xml:id="segm_1.5-seg"/></nkjp:paren>
+<seg corresp="text.xml#string-range(txt_1-ab,13,3)" nkjp:rejected="true" xml:id="segm_1.6-seg"/>
+</choice>
+<seg corresp="text.xml#string-range(txt_1-ab,0,17,6)" xml:id="segm_1.7-seg"/>
+<choice>
+<nkjp:paren><seg corresp="text.xml#string-range(txt_1-ab,23,1)" nkjp:rejected="true" xml:id="segm_1.8-seg"/></nkjp:paren>
+<seg corresp="text.xml#string-range(txt_1-ab,23,3)" xml:id="segm_1.9-seg"/>
+<nkjp:paren>text only</nkjp:paren>
+<nkjp:paren/>
+</choice>
+<seg corresp="text.xml#string-range(txt_1-ab,34,4)" xml:id="segm_1.10-seg"/>
+     </s>
+     <s xml:id="segm_2.1-s">
+<seg corresp="text.xml#string-range(txt_1-ab,34,3)" xml:id="segm_2.1-seg"/>
+<seg corresp="text.xml#string-range(txt_2-ab,0,5)" xml:id="segm_2.2-seg"/>
+<seg corresp="text.xml#string-range(txt_2-ab,18,6)" xml:id="segm_2.3-seg"/>
+<seg corresp="text.xml#string-range(txt_1-ab,7,4)" xml:id="segm_2.4-seg"/>
+     </s>
+     <s xml:id="segm_2.2-s"/>
+     <s xml:id="segm_3.1-s">
+<seg corresp="text.xml#string-range(txt_2-ab,25,7)" xml:id="segm_3.1-seg"/>
+<seg corresp="text.xml#string-range(txt_2-ab,33,6)" xml:id="segm_3.2-seg"/>
+<seg corresp="text.xml#string-range(txt_2-ab,39,1)" xml:id="segm_3.1-seg"/>
+     </s>
+     <s>
+<seg corresp="text.xml#string-range(txt_1-ab,27,4)" xml:id="segm_5.1-seg"/>
+     </s>
+     <s xml:id="segm_1.1-s">
+<seg corresp="text.xml#string-range(txt_1-ab,0,11)" xml:id="segm_6.1-seg"/>
+     </s>
+    </p>
+    <p xml:id="segm_2-p">
+     <s xml:id="segm_4.1-s">
+<seg corresp="text.xml#string-range(txt_3-p,0,6)" xml:id="segm_4.1-seg"/>
+<seg corresp="text.xml#string-range(txt_3-p,9,6)" xml:id="segm_4.2-seg"/>
+     </s>
+    </p>
+   </body>
+  </text>
+ </TEI>
+</teiCorpus>
+@@ end
