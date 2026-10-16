@@ -1,0 +1,65 @@
+<s>
+SOURCE: a
+1 Moro na Rua Nova e dela gosto.
+STA:fcl
+=P:v-fin("morar" PR 1S IND VFIN)	Moro
+=ADVL:pp
+==H:prp("em" <sam->)	em
+==P<:prop("a_Rua_Nova" <-sam> <top> F S)	a_Rua_Nova
+=CO:conj-c("e")	e
+=PIV:pp
+==H:prp("de" <sam->)	De
+==P<:pron-pers("ela" <-sam> F 3S PIV)	ela
+=P:v-fin("gostar" PR 1S IND VFIN)	gosto
+.
+</s>
+<s>
+SOURCE: b
+1 Vem pelo caminho e xis o.
+STA:fcl
+=P:v-fin("vir" PR 3S IND VFIN)	Vem
+=ADVL:pp
+==H:prp("por" <sam->)	por
+==P<:np
+===>N:art("o" <-sam> DET M S)	o
+===H:n("caminho" M S)	caminho
+=CO:conj-c("e")	e
+=X:prp("xis" <sam->)	xis
+=Y:art("o" <-sam>)	o
+=Z:prp("sobre_de" <sam->)	sobre_de
+</s>
+<s>
+SOURCE: c
+1 o resto.
+STA:fcl
+=Y:art("o" <-sam>)	o
+=H:n("resto" M S)	resto
+=Z:prp("em" <sam->)	em
+=W:x("vazio" <-sam>)	__
+=V:n("fim" M S)	fim
+.
+</s>
+<s>
+SOURCE: d
+1 Na Serra Alta.
+STA:fcl
+=Z:prp("em" <sam->)	Em
+=W:art("a" <-sam> <NER:civ>)	a
+=H:prop("Serra_Alta" <civ> F S)	Serra_Alta
+.
+</s>
+<s>
+SOURCE: e
+1 Uma nota sobre o resto.
+STA:fcl
+=Z:prp("em" <sam->)	em
+=H:prop("Ponte_Velha" <-sam> <NER:top>)	o_Ponte_Velha
+=X:prp("x" <sam->)	a_b__
+</s>
+<s>
+SOURCE: f
+1 Fecho.
+STA:fcl
+=Y:n("fecho")	fecho
+.
+</s>

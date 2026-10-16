@@ -1,0 +1,49 @@
+<s>
+SOURCE: x
+ABC Sem número de texto.
+UTT:n("número")	número
+.
+</s>
+<p>
+<s>
+SOURCE: y
+1 Texto um.
+UTT:n("texto")	Texto
+.
+</s>
+<s>
+SOURCE: y
+SemEspaco
+UTT:n("espaço")	espaço
+.
+</s>
+<s>
+SOURCE: z
+ Comeca com espaco.
+UTT:n("espaço")	espaço
+.
+</s>
+<s>
+SOURCE: z
+2147483648 Grande demais.
+UTT:adj("grande")	Grande
+.
+</s>
+<s>
+SOURCE: z
+2147483647 Grande e certo.
+UTT:adj("certo")	certo
+.
+</s>
+<s>
+SOURCE: p=
+3 Paragrafo vazio.
+UTT:n("parágrafo")	Parágrafo
+.
+</s>
+<s>
+SOURCE: p=99999999999 p=4
+5 Dois paragrafos.
+UTT:n("parágrafo")	Parágrafos
+.
+</s>

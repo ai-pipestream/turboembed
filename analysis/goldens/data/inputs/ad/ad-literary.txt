@@ -1,0 +1,66 @@
+<s id="1">
+SOURCE: ref="LIT-ab1" source="Conto da serra"
+LIT-ab1 Era uma vez uma serra.
+STA:fcl
+=P:v-fin("ser" PI 3S IND VFIN)	Era
+=SC:np
+==>N:art("um" <arti> DET F S)	uma
+==H:n("vez" F S)	vez
+.
+</s>
+<s id="2">
+SOURCE: ref="LIT-ab2" source="Conto da serra"
+LIT-ab2 Nela vivia a Joaquina.
+STA:fcl
+=ADVL:pp
+==H:prp("em" <sam->)	Em
+==P<:pron-pers("ela" <-sam> F 3S PIV)	ela
+=P:v-fin("viver" PI 3S IND VFIN)	vivia
+=SUBJ:prop("Joaquina" <hum> F S)	a_Joaquina
+.
+</s>
+<s id="3">
+SOURCE: ref="LIT-cd1" source="Outro conto"
+LIT-cd1 Fim.
+UTT:n("fim" M S)	Fim
+.
+</s>
+<s id="4">
+SOURCE: ref="LIT7" source="Sem letras"
+LIT7 Sem letras.
+UTT:n("letra" F P)	letras
+</s>
+<s id="5">
+SOURCE: ref="CIE1" source="Estudo das algas"
+CIE1 As algas crescem.
+STA:fcl
+=SUBJ:np
+==>N:art("o" DET F P)	As
+==H:n("alga" F P)	algas
+=P:v-fin("crescer" PR 3P IND VFIN)	crescem
+.
+</s>
+<s id="6">
+SOURCE: ref="CIE2" source="Estudo das algas"
+CIE2 Muito.
+UTT:adv("muito")	Muito
+.
+</s>
+<s id="7">
+SOURCE: ref="CIE3" source=""
+CIE3 Vazio.
+UTT:adj("vazio")	Vazio
+.
+</s>
+<s id="8">
+SOURCE: ref="CIE4"
+CIE4 Sem fonte.
+UTT:n("fonte")	fonte
+.
+</s>
+<s id="9">
+SOURCE: ref="CIE5" source="Estudo das rochas"
+CIE5 Rochas.
+UTT:n("rocha" F P)	Rochas
+.
+</s>

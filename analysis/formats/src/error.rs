@@ -11,6 +11,7 @@ use std::fmt;
 
 use turbo_analysis::Span;
 
+use crate::ad::AdError;
 use crate::conllu::coref::CorefError;
 use crate::corpora::CorpusError;
 use crate::ner::NerError;
@@ -58,6 +59,8 @@ pub enum FormatError {
     TooLong { len: usize },
     /// What a reader of a named entity corpus ([`crate::ner`]) refuses.
     Ner(NerError),
+    /// What an Arvores Deitadas reader ([`crate::ad`]) refuses.
+    Ad(AdError),
     /// What a reader of a sentence, language or document corpus
     /// ([`crate::corpora`]) refuses.
     Corpus(CorpusError),
@@ -150,6 +153,7 @@ impl FormatError {
             }
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
             Ner(e) => Some(e.java_class()),
+            Ad(e) => Some(e.java_class()),
             Corpus(e) => e.java_class(),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
@@ -210,6 +214,7 @@ impl fmt::Display for FormatError {
         use FormatError::*;
         match self {
             Ner(e) => e.fmt(f),
+            Ad(e) => e.fmt(f),
             Corpus(e) => e.fmt(f),
             NestedName { context, .. } => {
                 write!(f, "Found unexpected annotation while handling a name sequence: {context}")
