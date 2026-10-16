@@ -49,6 +49,9 @@ nothing here is in the C header or the gRPC server.
 | `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger and chunker (`en-pos-maxent.bin`, `en-chunker.bin`); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the sentence corpus readers (Moses, LetsMT, NKJP, the Irish Sentence Bank, which also gives token samples), the Leipzig language corpus reader and the 20 Newsgroups reader, the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner`, `corpora` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`). `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
+| `turbo-encoding` | `analysis/encoding/` | Bytes to a document: decoders for the 40 encodings of the WHATWG Encoding Standard, each recording an alignment from the bytes to the text; encoding detection (a port of chardetng); `open`, which settles the encoding and writes `turbo:encoding`; and mojibake repair (a port of ftfy's encoding fix, by Robyn Speer), one edit per fix. `analysis/encoding/README.md` lists the generated files and their sources |
+| `turbo-encoding-layers` | `analysis/encoding-layers/` | The `Encoding` enum with the standard's labels, and the `turbo:encoding` layer (`SourceEncoding`) |
+| `turbo-encoding-gen` | `analysis/encoding-gen/` | The generator of the WHATWG tables, and `ftfy.py`, which generates the repair's character classes and test fixture from ftfy |
 | `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 | `turbo-zstd` | `analysis/zstd/` | A Zstandard decoder after RFC 8878: frames one after another, skippable frames, raw, RLE and compressed blocks, every kind of literals and sequences section, and the content checksum (XXH64); frames that need a dictionary or a window over 128 MiB are refused. The Parquet reader of `turbo-eval` uses it for ZSTD pages |
@@ -156,6 +159,91 @@ whole edit like any other span. `Document::offset_from_source` and
 `Document::offset_to_source` map one offset through the chain of views
 for the side given, so a start at an insertion point goes after every
 byte inserted there and an end goes before them.
+
+### Source bytes
+
+View 0 is text, but a file is bytes, and in any encoding but UTF-8 the
+two disagree: "é" is one byte in windows-1252 and two in the text, a
+Shift_JIS character is two bytes and three in the text, a UTF-16
+surrogate pair is four bytes and four, and a byte order mark is bytes
+with no text at all. A document opened from bytes
+(`Document::decoded`, which `turbo_encoding::open` calls) keeps them
+below view 0 as `SourceBytes`: the bytes and an `Alignment` whose parent
+side is offsets in the bytes and whose child side is offsets in view 0.
+It is the same `Alignment` every view has, so the mapping rules above
+hold for it unchanged, and the byte view is one more step at the bottom
+of the chain:
+
+```text
+bytes  --decoder alignment-->  view 0  --alignment-->  view 1  --> ...
+```
+
+`Document::to_source_bytes` and `offset_to_source_bytes` map a span or an
+offset of any view through `to_source` (or `offset_to_source`) to view 0
+and then through the decoder's alignment to the bytes;
+`from_source_bytes` and `offset_from_source_bytes` go the other way. A
+document made from text (`Document::new`) has no byte view: its bytes
+are the UTF-8 of view 0, and the byte functions return the same numbers
+as the text ones. Offsets stay `u32` on both sides; bytes or a decoded
+text longer than `u32::MAX` are refused with `Error::Source` before any
+offset is computed.
+
+A decoder writes view 0 through a `DecodeBuilder`, the byte-level twin
+of `ViewBuilder`, so no decoded text exists without the alignment that
+produced it:
+
+- Bytes that are already the text's UTF-8 (ASCII in an ASCII-compatible
+  encoding, a valid stretch of a UTF-8 file) are kept, with no edit.
+- Every other decoded character is one edit over its bytes: the smallest
+  unit an offset maps to, so a span that cuts a character's bytes widens
+  to the whole character. Four Big5 codes decode to two characters, which
+  share one edit. An edit takes 16 bytes, so mostly non-ASCII text in a
+  legacy encoding, or a UTF-16 file, carries about 16 bytes of alignment
+  per character.
+- A byte order mark and an ISO-2022-JP escape sequence are deletions.
+- A U+FFFD is one edit over exactly the bytes it replaced: the decoders
+  follow the WHATWG algorithms, which say which bytes an error consumes
+  and which are read again, so a lead byte followed by ASCII is a U+FFFD
+  for the lead byte alone, and a multi-byte sequence cut off at the end
+  of the input is one U+FFFD for the bytes that are there.
+
+`SourceBytes::new` checks the alignment against the bytes and the text
+(every edit in bounds, in order and on character boundaries, every
+unchanged stretch the same bytes on both sides), so a byte view cannot
+place text at bytes it did not come from outside an edit. The bytes
+inside an edit are not decoded again: that they encode the edit's text is
+the decoder's guarantee.
+
+The encoding a document was read with is the document layer
+`turbo:encoding` (`SourceEncoding`: the encoding, a confidence in
+[0, 1], and the evidence: a byte order mark, a declared label, valid
+UTF-8, ASCII, or the detector's guess). The confidence of a detected
+encoding is a heuristic from how far the guess's score is ahead of the
+next encoding's, not a calibrated probability.
+
+Mojibake repair (`turbo_normalize::Mojibake`, docs/normalizers.md) is an
+ordinary view above view 0. A file in UTF-8 that was opened as
+windows-1252 has "cafÃ©" in view 0; the repair writes "café" in its view
+with one edit over "Ã©", and the "é" maps through both alignments to the
+two bytes of its UTF-8 in the file.
+
+### Markup
+
+The analysis crates parse no HTML or XML. An extractor that does hands
+over a `MarkupText` (`turbo_analysis::markup`): the text it produced, a
+run per stretch of that text with the span of view 0 it came from, and
+the spans of the tags it dropped. A run is copied (character data,
+unchanged bytes), decoded (an entity such as `&amp;` standing for "&",
+one edit over the whole reference) or inserted (a line break the
+extractor adds for a block element, an edit with an empty source).
+`MarkupText::check` refuses runs that leave gaps, overlap, run out of
+bounds, cut a character or claim to be copied when they are not;
+`MarkupText::view` turns the runs into a view whose alignment deletes
+everything between them. A word found in the extracted text then maps
+through that view, view 0 and the byte view to the file's bytes, and
+the tags stay available as spans of view 0. Lucene's
+`HTMLStripCharFilter` keeps the same information as offset corrections;
+an `Alignment` maps both ways and composes with the other views.
 
 ## Layers
 
@@ -548,6 +636,7 @@ fields mean bumps its `SCHEMA`.
 | `Alternatives<L>` | `turbo:alternatives<L>` | text | `turbo-analysis` |
 | `NBest<L>` | `turbo:nbest<L>` | `L` | `turbo-analysis` |
 | `Language` | `opennlp:language` | the document | `turbo-analysis-layers` |
+| `SourceEncoding` | `turbo:encoding` | the document | `turbo-encoding-layers` |
 | `LanguageSpans` | `turbo:language-spans` | text | `turbo-analysis-layers` |
 | `Categories` | `turbo:categories` | the document | `turbo-analysis-layers` |
 | `Categories<L>` (`L` is `Sentences`, `Structure` or `Chunks`) | `turbo:categories<L>` | `L` | `turbo-analysis-layers` |
@@ -3707,6 +3796,15 @@ runs them on any machine:
   deleted, single offsets through a chain of two views, and every span
   of every alignment four `replace` calls can make over a three-byte
   text, checking that none panics.
+- The unit tests of `analysis/core/src/bytes.rs` and
+  `analysis/core/src/markup.rs` hold the byte view's checks (edits out
+  of order or bounds, unchanged stretches that differ, lengths past
+  `u32`) and the markup contract (`<p>Fish &amp; chips</p>`, with the
+  "&" mapping to the five bytes of the entity, and every broken run
+  refused). `cargo test -p turbo-encoding` adds the decoders, the
+  detector against chardetng's tests, the mojibake repair against
+  ftfy's tests and a windows-1252 HTML file through a markup view to
+  its bytes; `analysis/encoding/README.md` lists them.
 - `analysis/chunker/tests/chunker.rs` chunks hand-made layers: a cut
   where the topic shifts instead of where the budget fills, sections
   that are never crossed, and a paragraph break's token counted inside
