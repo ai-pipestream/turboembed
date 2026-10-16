@@ -7,6 +7,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
+use turbo_analysis::ModelRef;
 use turbo_unicode::java::to_lower_char;
 
 use crate::neural::lstm::{LstmLayer, MAX_HIDDEN_SIZE};
@@ -54,6 +55,7 @@ pub struct BilstmPosModel {
     adapter_weights: Option<Vec<Vec<f64>>>,
     adapter_bias: Option<Vec<f64>>,
     representation_cache: RepresentationCache,
+    model_ref: ModelRef,
 }
 
 type RepresentationCache = Arc<RwLock<Option<HashMap<String, Vec<f64>>>>>;
@@ -113,7 +115,7 @@ impl BilstmPosModel {
         for (k, v) in &pretrained_entries {
             pretrained_ids.insert(k.clone(), *v);
         }
-        Ok(Self {
+        let mut model = Self {
             word_entries,
             word_ids,
             char_entries,
@@ -139,7 +141,36 @@ impl BilstmPosModel {
             adapter_weights,
             adapter_bias,
             representation_cache: Arc::new(RwLock::new(None)),
-        })
+            model_ref: ModelRef { id: String::new(), revision: String::new(), sha256: String::new() },
+        };
+        model.refresh_model_ref()?;
+        Ok(model)
+    }
+
+    /// Returns the provenance [`ModelRef`] for this model (including the SHA-256 of its serialized bytes).
+    pub fn model_ref(&self) -> &ModelRef {
+        &self.model_ref
+    }
+
+    fn refresh_model_ref(&mut self) -> Result<(), NeuralError> {
+        let mut bytes = Vec::new();
+        self.serialize(&mut bytes)?;
+        let revision = if self.has_adapter() {
+            MAGIC_V5
+        } else {
+            match (self.is_stacked(), self.is_crf()) {
+                (false, false) => MAGIC_V1,
+                (false, true) => MAGIC_V2,
+                (true, false) => MAGIC_V3,
+                (true, true) => MAGIC_V4,
+            }
+        };
+        self.model_ref = ModelRef {
+            id: "opennlp:BilstmPOSModel".into(),
+            revision: revision.into(),
+            sha256: turbo_maxent::sha256(&bytes).to_hex(),
+        };
+        Ok(())
     }
 
     /// Normalizes a token for vocabulary lookup: tokens starting with `'*'` are returned unchanged;

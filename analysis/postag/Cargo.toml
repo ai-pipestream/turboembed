@@ -11,6 +11,7 @@ name = "turbo_postag"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-jvm = { path = "../jvm" }
 # The model archive and the classifier.
 turbo-maxent = { path = "../maxent" }
 # The beam search, the part-of-speech context generators, the tag

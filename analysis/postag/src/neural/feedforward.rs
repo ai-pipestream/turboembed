@@ -417,11 +417,11 @@ impl FeedforwardPosModel {
                 let offset = base + w_slot * self.pretrained_size;
                 for j in 0..hidden_size {
                     let hw = &self.hidden_weights[j];
-                    let mut sum = hidden[j];
+                    let mut sum = 0.0f64;
                     for i in 0..self.pretrained_size {
                         sum += f64::from(hw[offset + i]) * f64::from(vec[i]);
                     }
-                    hidden[j] = sum;
+                    hidden[j] += sum;
                 }
             }
         }
@@ -486,6 +486,18 @@ impl FeedforwardPosModel {
                 sum += f64::from(w[offset + i]) * f64::from(e[i]);
             }
             *h += sum;
+        }
+    }
+
+    /// Returns the provenance [`ModelRef`] for this model (including the SHA-256 of its serialized bytes).
+    pub fn model_ref(&self) -> ModelRef {
+        let mut bytes = Vec::new();
+        self.serialize(&mut bytes).expect("serializing an in-memory FeedforwardPosModel to Vec<u8> cannot fail");
+        let revision = if self.pretrained_size > 0 { MAGIC_V2 } else { MAGIC_V1 };
+        ModelRef {
+            id: "opennlp:FeedforwardPOSModel".into(),
+            revision: revision.into(),
+            sha256: turbo_maxent::sha256(&bytes).to_hex(),
         }
     }
 
@@ -811,6 +823,7 @@ fn read_count<R: Read>(inp: &mut DataReader<R>, name: &str, min: usize) -> Resul
 pub struct FeedforwardPosTagger {
     model: Arc<FeedforwardPosModel>,
     tagset: Arc<TagSet>,
+    model_ref: ModelRef,
 }
 
 impl FeedforwardPosTagger {
@@ -820,7 +833,8 @@ impl FeedforwardPosTagger {
         model.enable_scoring_cache();
         let labels: Vec<&str> = model.tags().iter().map(String::as_str).collect();
         let tagset = TagSet::new("feedforward", &labels);
-        Self { model, tagset }
+        let model_ref = model.model_ref();
+        Self { model, tagset, model_ref }
     }
 
     /// Returns a reference to the underlying [`FeedforwardPosModel`].
@@ -871,7 +885,7 @@ impl FeedforwardPosTagger {
             let max = scores[best];
             let mut sum_exp = 0.0f64;
             for &s in &scores {
-                sum_exp += (s - max).exp();
+                sum_exp += turbo_jvm::strict_math::exp(s - max);
             }
             probs.push(1.0 / sum_exp);
         }
@@ -930,7 +944,7 @@ impl Annotator for FeedforwardPosTagger {
     }
 
     fn model(&self) -> Option<ModelRef> {
-        None
+        Some(self.model_ref.clone())
     }
 }
 
