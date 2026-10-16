@@ -49,6 +49,7 @@ const FED: &[&str] = &[
     "num",
     "ontonotes",
     "parse",
+    "parse-treebank",
     "pii",
     "place-profiles",
     "quantity",

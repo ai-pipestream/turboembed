@@ -1,0 +1,13 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	parse-treebank/held-out	750	750	8d041f54676e8bd9e65805089a538560e7ccafe0cfe95694963ee7323f381e46
+model	en-head-rules.txt	4924379ef7ca9376c6953e166512a556006e069e9ba319dc941a74342e3b46aa64313014d5a801030d5867dc6ea4be9208b75706579840bbcc12fa00aab0cca4
+annotator	opennlp.tools.parser.AbstractBottomUpParser	buildDictionary
+config	cutoff	5
+config	rules	opennlp.tools.parser.lang.en.HeadRules
+layer	turbo:dictionary	document	1	ngram:u32	token:str
+0	.
+end	turbo:dictionary

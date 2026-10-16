@@ -17,6 +17,20 @@ It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the O
   - `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`): AnCora Spanish head rules, whose tags are Java regular expressions that must match the whole type. `TagPattern` reads the subset the rule files use (literals, `.`, classes, `\` before a character that is not a letter or digit, `*`, `+`, `?`, a leading `^` and a trailing `$`) and refuses the rest with `HeadRulesError::UnsupportedPattern`.
 - `stream`:
   - `ParseSampleStream` (`opennlp.tools.parser.ParseSampleStream`), `ParserPosSample` (`opennlp.tools.parser.PosSampleStream`), and `ParserChunkSample` (`opennlp.tools.parser.ChunkSampleStream`).
+- `context`:
+  - `AbstractContextGenerator` (`opennlp.tools.parser.AbstractContextGenerator`), `Cons` (`opennlp.tools.parser.Cons`), `ChunkContextGenerator` (`opennlp.tools.parser.ChunkContextGenerator`), and `ParserChunkerSequenceValidator` (`opennlp.tools.parser.ParserChunkerSequenceValidator`).
+- `model`:
+  - `ParserModel`, `ParserType`, `HeadRulesArtifact`, `ParserChunkerFactory`, and `ParserError` (`opennlp.tools.parser.ParserModel`, `ParserType`, `ParserChunkerFactory`), reading and writing `.bin` ZIP model packages (`build.model`, `check.model`, `attach.model`, `parsertager.postagger`, `parserchunker.chunker`, `head-rules`, `manifest.properties`).
+- `bottom_up`:
+  - `ConstituentParser` (`opennlp.tools.parser.Parser`), `ParserFactory` (`opennlp.tools.parser.ParserFactory`), `BottomUpParserConfig`, `collapse_punctuation`, `build_dictionary`, and `ParserTrainingParameters` (`opennlp.tools.parser.AbstractBottomUpParser`).
+- `chunking`:
+  - `chunking::Parser`, `chunking::BuildContextGenerator`, `chunking::CheckContextGenerator`, and `chunking::ParserEventStream` (`opennlp.tools.parser.chunking.*`).
+- `treeinsert`:
+  - `treeinsert::Parser`, `treeinsert::BuildContextGenerator`, `treeinsert::AttachContextGenerator`, `treeinsert::CheckContextGenerator`, and `treeinsert::ParserEventStream` (`opennlp.tools.parser.treeinsert.*`).
+- `evaluator`:
+  - `ParserEvaluator` and `ParserEvaluationMonitor` (`opennlp.tools.parser.ParserEvaluator`, `ParserEvaluationMonitor`), scoring non-POS constituent `(type, span)` pairs with precision, recall, and F1 (`FMeasure`).
+- `annotator`:
+  - `ParserTool` (`opennlp.tools.cmdline.parser.ParserTool`) and `ParserAnnotator`, projecting constituent trees onto the `Phrases` (`Phrase`, `PhraseId`, `PhrasesBuilder`) layer in `turbo-analysis-layers`.
 
 Both rule readers read the format OpenNLP reads: per line, the field count (`Integer.parseInt`), the type, the direction (`1` is left to right, anything else right to left) and the tags, split as `StringTokenizer` splits them. A count outside 0 to 1,000 tags is an `IOException` with OpenNLP's message, more tags than the count an `ArrayIndexOutOfBoundsException`, fewer a `NullPointerException`, and a line without the first three fields (a blank line too) a `NoSuchElementException`; `HeadRulesError::java_class` names each. A later rule for a type replaces the earlier one. `serialize` writes the rules in the order Java's `HashMap` iterates them.
 

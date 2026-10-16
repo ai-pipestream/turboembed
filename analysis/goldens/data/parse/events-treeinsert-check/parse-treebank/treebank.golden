@@ -1,0 +1,247 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	parse-treebank/treebank	4118	4118	ba079e24cdbd51f5693639045c6cf0e9f0ae1232c98b881cb88e6267e1ecd35d
+model	en-head-rules.txt	4924379ef7ca9376c6953e166512a556006e069e9ba319dc941a74342e3b46aa64313014d5a801030d5867dc6ea4be9208b75706579840bbcc12fa00aab0cca4
+annotator	opennlp.tools.parser.treeinsert.ParserEventStream	read
+config	etype	CHECK
+config	rules	opennlp.tools.parser.lang.en.HeadRules
+layer	turbo:events	document	233	sample:u32	outcome:str	size:u32	context:str
+0	i	15	default cbegin=NP|cat|S cbegin*=NP|S clast=NP|cat|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=sat|S|VBD s1*=S|VBD s2=on|S|IN s2*=S|IN
+0	i	15	default cbegin=VBD|sat|VP cbegin*=VBD|VP clast=VBD|sat|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=cat|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=on|VP|IN s1*=VP|IN s2=mat|VP|NP s2*=VP|NP
+0	c	15	default cbegin=NP|cat|S cbegin*=NP|S clast=VP|sat|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=on|S|IN s1*=S|IN s2=mat|S|NP s2*=S|NP
+0	i	16	default cbegin=IN|on|PP cbegin*=IN|PP clast=IN|on|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=sat|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=mat|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+0	c	16	default cbegin=VBD|sat|VP cbegin*=VBD|VP clast=PP|on|VP clast*=PP|VP p=VP->VBD,PP pp=VP->VBD,PP s-1=sat|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=mat|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+0	c	16	default cbegin=IN|on|PP cbegin*=IN|PP clast=NP|mat|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=sat|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+1	i	15	default cbegin=NP|dog|S cbegin*=NP|S clast=NP|dog|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=slept|S|VBD s1*=S|VBD s2=under|S|IN s2*=S|IN
+1	i	15	default cbegin=VBD|slept|VP cbegin*=VBD|VP clast=VBD|slept|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=dog|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=under|VP|IN s1*=VP|IN s2=table|VP|NP s2*=VP|NP
+1	c	15	default cbegin=NP|dog|S cbegin*=NP|S clast=VP|slept|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=under|S|IN s1*=S|IN s2=table|S|NP s2*=S|NP
+1	i	16	default cbegin=IN|under|PP cbegin*=IN|PP clast=IN|under|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=slept|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=table|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+1	c	16	default cbegin=VBD|slept|VP cbegin*=VBD|VP clast=PP|under|VP clast*=PP|VP p=VP->VBD,PP pp=VP->VBD,PP s-1=slept|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=table|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+1	c	16	default cbegin=IN|under|PP cbegin*=IN|PP clast=NP|table|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=slept|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+2	i	15	default cbegin=NP|'s|S cbegin*=NP|S clast=NP|'s|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=brother|S|NN s1*=S|NN s2=baked|S|VBD s2*=S|VBD
+2	c	15	default cbegin=NP|'s|NP cbegin*=NP|NP clast=NN|brother|NP clast*=NN|NP p=NP->NP,NN pp=NP->NP,NN s-1=brother|NP|S s-1*=NP|S s-2=NP|eos s-2*=NP|eos s1=baked|NP|VBD s1*=NP|VBD s2=cake|NP|NP s2*=NP|NP
+2	i	16	default cbegin=VBD|baked|VP cbegin*=VBD|VP clast=VBD|baked|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=brother|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=cake|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+2	c	16	default cbegin=NP|brother|S cbegin*=NP|S clast=VP|baked|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=cake|S|NP s1*=S|NP s2=S|eos|. s2*=S|eos|. s2*=S|.
+2	c	16	default cbegin=VBD|baked|VP cbegin*=VBD|VP clast=NP|cake|VP clast*=NP|VP p=VP->VBD,NP pp=VP->VBD,NP s-1=baked|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+3	i	16	default cbegin=NP|soup|S cbegin*=NP|S clast=NP|soup|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos|`` s-1*=S|eos|`` s-1*=S|`` s-2=S|eos s-2*=S|eos s1=is|S|VBZ s1*=S|VBZ s2=cold|S|ADJP s2*=S|ADJP
+3	i	17	default cbegin=VBZ|is|VP cbegin*=VBZ|VP clast=VBZ|is|VP clast*=VBZ|VP p=VP->VBZ pp=VP->VBZ s-1=soup|VP|NP s-1*=VP|NP s-2=VP|eos|`` s-2*=VP|eos|`` s-2*=VP|`` s1=cold|VP|ADJP s1*=VP|ADJP s2=she|VP|NP|, s2*=VP|NP|, s2*=VP|,
+3	c	16	default cbegin=NP|soup|S cbegin*=NP|S clast=VP|is|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=cold|S|ADJP s1*=S|ADJP s2=she|S|NP|, s2*=S|NP|, s2*=S|,
+3	c	17	default cbegin=VBZ|is|VP cbegin*=VBZ|VP clast=ADJP|cold|VP clast*=ADJP|VP p=VP->VBZ,ADJP pp=VP->VBZ,ADJP s-1=is|VP|S s-1*=VP|S s-2=VP|eos|`` s-2*=VP|eos|`` s-2*=VP|`` s1=she|VP|NP|, s1*=VP|NP|, s1*=VP|, s2=said|VP|VP s2*=VP|VP
+3	i	17	default cbegin=S|is|S cbegin*=S|S clast=NP|she|S clast*=NP|S p=S->S,NP pp=S->S,,,NP s-1=S|eos|, s-1*=S|eos|, s-1*=S|, s-2=S|eos s-2*=S|eos s1=said|S|VP s1*=S|VP s2=S|eos|. s2*=S|eos|. s2*=S|.
+3	c	16	default cbegin=S|is|S cbegin*=S|S clast=VP|said|S clast*=VP|S p=S->S,NP,VP pp=S->S,,,NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=S|eos|. s1*=S|eos|. s1*=S|. s2=S|eos s2*=S|eos
+4	i	15	default cbegin=NP|children|S cbegin*=NP|S clast=NP|children|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=played|S|VBD s1*=S|VBD s2=in|S|IN s2*=S|IN
+4	i	15	default cbegin=VBD|played|VP cbegin*=VBD|VP clast=VBD|played|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=children|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=in|VP|IN s1*=VP|IN s2=garden|VP|NP s2*=VP|NP
+4	c	15	default cbegin=NP|children|S cbegin*=NP|S clast=VP|played|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=in|S|IN s1*=S|IN s2=garden|S|NP s2*=S|NP
+4	i	16	default cbegin=IN|in|PP cbegin*=IN|PP clast=IN|in|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=played|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=garden|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+4	c	16	default cbegin=VBD|played|VP cbegin*=VBD|VP clast=PP|in|VP clast*=PP|VP p=VP->VBD,PP pp=VP->VBD,PP s-1=played|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=garden|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+4	c	16	default cbegin=IN|in|PP cbegin*=IN|PP clast=NP|garden|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=played|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+5	i	15	default cbegin=NP|Tom|S cbegin*=NP|S clast=NP|Tom|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=bought|S|VBD s1*=S|VBD s2=apples|S|NP s2*=S|NP
+5	i	15	default cbegin=VBD|bought|VP cbegin*=VBD|VP clast=VBD|bought|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=Tom|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=apples|VP|NP s1*=VP|NP s2=(|VP|-LRB- s2*=VP|-LRB-
+5	c	15	default cbegin=NP|Tom|S cbegin*=NP|S clast=VP|bought|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=apples|S|NP s1*=S|NP s2=(|S|-LRB- s2*=S|-LRB-
+5	c	15	default cbegin=VBD|bought|VP cbegin*=VBD|VP clast=NP|apples|VP clast*=NP|VP p=VP->VBD,NP pp=VP->VBD,NP s-1=bought|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=(|VP|-LRB- s1*=VP|-LRB- s2=red|VP|ADJP s2*=VP|ADJP
+5	i	15	default cbegin=-LRB-|(|PRN cbegin*=-LRB-|PRN clast=-LRB-|(|PRN clast*=-LRB-|PRN p=PRN->-LRB- pp=PRN->-LRB- s-1=apples|PRN|NP s-1*=PRN|NP s-2=bought|PRN|VP s-2*=PRN|VP s1=red|PRN|ADJP s1*=PRN|ADJP s2=)|PRN|-RRB- s2*=PRN|-RRB-
+5	c	15	default cbegin=NP|apples|NP cbegin*=NP|NP clast=PRN|(|NP clast*=PRN|NP p=NP->NP,PRN pp=NP->NP,PRN s-1=bought|NP|VP s-1*=NP|VP s-2=NP|eos s-2*=NP|eos s1=red|NP|ADJP s1*=NP|ADJP s2=)|NP|-RRB- s2*=NP|-RRB-
+5	i	16	default cbegin=-LRB-|(|PRN cbegin*=-LRB-|PRN clast=ADJP|red|PRN clast*=ADJP|PRN p=PRN->-LRB-,ADJP pp=PRN->-LRB-,ADJP s-1=apples|PRN|NP s-1*=PRN|NP s-2=bought|PRN|VP s-2*=PRN|VP s1=)|PRN|-RRB- s1*=PRN|-RRB- s2=PRN|eos|. s2*=PRN|eos|. s2*=PRN|.
+5	c	16	default cbegin=-LRB-|(|PRN cbegin*=-LRB-|PRN clast=-RRB-|)|PRN clast*=-RRB-|PRN p=PRN->-LRB-,ADJP,-RRB- pp=PRN->-LRB-,ADJP,-RRB- s-1=apples|PRN|NP s-1*=PRN|NP s-2=bought|PRN|VP s-2*=PRN|VP s1=PRN|eos|. s1*=PRN|eos|. s1*=PRN|. s2=PRN|eos s2*=PRN|eos
+6	i	15	default cbegin=VBZ|Is|SQ cbegin*=VBZ|SQ clast=VBZ|Is|SQ clast*=VBZ|SQ p=SQ->VBZ pp=SQ->VBZ s-1=SQ|eos s-1*=SQ|eos s-2=SQ|eos s-2*=SQ|eos s1=kettle|SQ|NP s1*=SQ|NP s2=hot|SQ|ADJP s2*=SQ|ADJP
+6	i	16	default cbegin=VBZ|Is|SQ cbegin*=VBZ|SQ clast=NP|kettle|SQ clast*=NP|SQ p=SQ->VBZ,NP pp=SQ->VBZ,NP s-1=SQ|eos s-1*=SQ|eos s-2=SQ|eos s-2*=SQ|eos s1=hot|SQ|ADJP s1*=SQ|ADJP s2=SQ|eos|. s2*=SQ|eos|. s2*=SQ|.
+6	c	16	default cbegin=VBZ|Is|SQ cbegin*=VBZ|SQ clast=ADJP|hot|SQ clast*=ADJP|SQ p=SQ->VBZ,NP,ADJP pp=SQ->VBZ,NP,ADJP s-1=SQ|eos s-1*=SQ|eos s-2=SQ|eos s-2*=SQ|eos s1=SQ|eos|. s1*=SQ|eos|. s1*=SQ|. s2=SQ|eos s2*=SQ|eos
+7	i	16	default cbegin=VB|Close|VP cbegin*=VB|VP clast=VB|Close|VP clast*=VB|VP p=VP->VB pp=VP->VB s-1=VP|eos s-1*=VP|eos s-2=VP|eos s-2*=VP|eos s1=door|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+7	c	16	default cbegin=VP|Close|S cbegin*=VP|S clast=VP|Close|S clast*=VP|S p=S->VP pp=S->VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=door|S|NP s1*=S|NP s2=S|eos|. s2*=S|eos|. s2*=S|.
+7	c	16	default cbegin=VB|Close|VP cbegin*=VB|VP clast=NP|door|VP clast*=NP|VP p=VP->VB,NP pp=VP->VB,NP s-1=Close|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+8	i	15	default cbegin=NP|cat|S cbegin*=NP|S clast=NP|cat|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=on|S|IN s1*=S|IN s2=roof|S|NP s2*=S|NP
+8	i	15	default cbegin=IN|on|PP cbegin*=IN|PP clast=IN|on|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=cat|PP|NP s-1*=PP|NP s-2=PP|eos s-2*=PP|eos s1=roof|PP|NP s1*=PP|NP s2=watched|PP|VBD s2*=PP|VBD
+8	c	15	default cbegin=NP|cat|NP cbegin*=NP|NP clast=PP|on|NP clast*=PP|NP p=NP->NP,PP pp=NP->NP,PP s-1=cat|NP|S s-1*=NP|S s-2=NP|eos s-2*=NP|eos s1=roof|NP|NP s1*=NP|NP s2=watched|NP|VBD s2*=NP|VBD
+8	c	15	default cbegin=IN|on|PP cbegin*=IN|PP clast=NP|roof|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=cat|PP|NP s-1*=PP|NP s-2=PP|eos s-2*=PP|eos s1=watched|PP|VBD s1*=PP|VBD s2=birds|PP|NP s2*=PP|NP
+8	i	16	default cbegin=VBD|watched|VP cbegin*=VBD|VP clast=VBD|watched|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=roof|VP|NP s-1*=VP|NP s-2=on|VP|PP s-2*=VP|PP s1=birds|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+8	c	16	default cbegin=NP|cat|S cbegin*=NP|S clast=VP|watched|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=birds|S|NP s1*=S|NP s2=S|eos|. s2*=S|eos|. s2*=S|.
+8	c	16	default cbegin=VBD|watched|VP cbegin*=VBD|VP clast=NP|birds|VP clast*=NP|VP p=VP->VBD,NP pp=VP->VBD,NP s-1=watched|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+9	i	15	default cbegin=NP|We|S cbegin*=NP|S clast=NP|We|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=walked|S|VBD s1*=S|VBD s2=to|S|IN s2*=S|IN
+9	i	15	default cbegin=VBD|walked|VP cbegin*=VBD|VP clast=VBD|walked|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=We|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=to|VP|IN s1*=VP|IN s2=market|VP|NP s2*=VP|NP
+9	c	15	default cbegin=NP|We|S cbegin*=NP|S clast=VP|walked|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=to|S|IN s1*=S|IN s2=market|S|NP s2*=S|NP
+9	i	15	default cbegin=IN|to|PP cbegin*=IN|PP clast=IN|to|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=walked|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=market|PP|NP s1*=PP|NP s2=in|PP|IN s2*=PP|IN
+9	c	15	default cbegin=VBD|walked|VP cbegin*=VBD|VP clast=PP|to|VP clast*=PP|VP p=VP->VBD,PP pp=VP->VBD,PP s-1=walked|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=market|VP|NP s1*=VP|NP s2=in|VP|IN s2*=VP|IN
+9	c	15	default cbegin=IN|to|PP cbegin*=IN|PP clast=NP|market|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=walked|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=in|PP|IN s1*=PP|IN s2=morning|PP|NP s2*=PP|NP
+9	i	16	default cbegin=IN|in|PP cbegin*=IN|PP clast=IN|in|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=market|PP|NP s-1*=PP|NP s-2=to|PP|PP s-2*=PP|PP s1=morning|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+9	c	16	default cbegin=VP|walked|VP cbegin*=VP|VP clast=PP|in|VP clast*=PP|VP p=VP->VP,PP pp=VP->VP,PP s-1=walked|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=morning|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+9	c	16	default cbegin=IN|in|PP cbegin*=IN|PP clast=NP|morning|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=walked|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+10	i	16	default cbegin=NP|sun|S cbegin*=NP|S clast=NP|sun|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=rose|S|VP s1*=S|VP s2=and|S|CC|, s2*=S|CC|, s2*=S|,
+10	c	16	default cbegin=NP|sun|S cbegin*=NP|S clast=VP|rose|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=and|S|CC|, s1*=S|CC|, s1*=S|, s2=birds|S|NP s2*=S|NP
+10	i	16	default cbegin=S|rose|S cbegin*=S|S clast=CC|and|S clast*=CC|S p=S->S,CC pp=S->S,,,CC s-1=S|eos|, s-1*=S|eos|, s-1*=S|, s-2=S|eos s-2*=S|eos s1=birds|S|NP s1*=S|NP s2=sang|S|VP s2*=S|VP
+10	i	16	default cbegin=NP|birds|S cbegin*=NP|S clast=NP|birds|S clast*=NP|S p=S->NP pp=S->NP s-1=rose|S|S s-1*=S|S s-2=S|eos s-2*=S|eos s1=sang|S|VP s1*=S|VP s2=S|eos|. s2*=S|eos|. s2*=S|.
+10	c	16	default cbegin=S|rose|S cbegin*=S|S clast=S|birds|S clast*=S|S p=S->S,CC,S pp=S->S,,,CC,S s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=sang|S|VP s1*=S|VP s2=S|eos|. s2*=S|eos|. s2*=S|.
+10	c	16	default cbegin=NP|birds|S cbegin*=NP|S clast=VP|sang|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=birds|S|S s-1*=S|S s-2=S|eos s-2*=S|eos s1=S|eos|. s1*=S|eos|. s1*=S|. s2=S|eos s2*=S|eos
+11	i	15	default cbegin=NP|Maria|S cbegin*=NP|S clast=NP|Maria|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=likes|S|VBZ s1*=S|VBZ s2=tea|S|NP s2*=S|NP
+11	i	16	default cbegin=VBZ|likes|VP cbegin*=VBZ|VP clast=VBZ|likes|VP clast*=VBZ|VP p=VP->VBZ pp=VP->VBZ s-1=Maria|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=tea|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+11	c	16	default cbegin=NP|Maria|S cbegin*=NP|S clast=VP|likes|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=tea|S|NP s1*=S|NP s2=S|eos|. s2*=S|eos|. s2*=S|.
+11	c	16	default cbegin=VBZ|likes|VP cbegin*=VBZ|VP clast=NP|tea|VP clast*=NP|VP p=VP->VBZ,NP pp=VP->VBZ,NP s-1=likes|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+12	i	15	default cbegin=NP|It|S cbegin*=NP|S clast=NP|It|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=rained|S|VBD s1*=S|VBD s2=day|S|NP s2*=S|NP
+12	i	16	default cbegin=VBD|rained|VP cbegin*=VBD|VP clast=VBD|rained|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=It|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=day|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+12	c	16	default cbegin=NP|It|S cbegin*=NP|S clast=VP|rained|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=day|S|NP s1*=S|NP s2=S|eos|. s2*=S|eos|. s2*=S|.
+12	c	16	default cbegin=VBD|rained|VP cbegin*=VBD|VP clast=NP|day|VP clast*=NP|VP p=VP->VBD,NP pp=VP->VBD,NP s-1=rained|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+13	c	16	default cbegin=NP|morning|FRAG cbegin*=NP|FRAG clast=NP|morning|FRAG clast*=NP|FRAG p=FRAG->NP pp=FRAG->NP s-1=FRAG|eos s-1*=FRAG|eos s-2=FRAG|eos s-2*=FRAG|eos s1=FRAG|eos|. s1*=FRAG|eos|. s1*=FRAG|. s2=FRAG|eos s2*=FRAG|eos
+14	i	15	default cbegin=NP|'s|S cbegin*=NP|S clast=NP|'s|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=oven|S|NN s1*=S|NN s2=broke|S|VP s2*=S|VP
+14	c	16	default cbegin=NP|'s|NP cbegin*=NP|NP clast=NN|oven|NP clast*=NN|NP p=NP->NP,NN pp=NP->NP,NN s-1=oven|NP|S s-1*=NP|S s-2=NP|eos s-2*=NP|eos s1=broke|NP|VP s1*=NP|VP s2=NP|eos|. s2*=NP|eos|. s2*=NP|.
+14	c	16	default cbegin=NP|oven|S cbegin*=NP|S clast=VP|broke|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=S|eos|. s1*=S|eos|. s1*=S|. s2=S|eos s2*=S|eos
+15	i	15	default cbegin=NP|Sam|S cbegin*=NP|S clast=NP|Sam|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=gave|S|VBD s1*=S|VBD s2=dog|S|NP s2*=S|NP
+15	i	15	default cbegin=VBD|gave|VP cbegin*=VBD|VP clast=VBD|gave|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=Sam|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=dog|VP|NP s1*=VP|NP s2=bone|VP|NP s2*=VP|NP
+15	c	15	default cbegin=NP|Sam|S cbegin*=NP|S clast=VP|gave|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=dog|S|NP s1*=S|NP s2=bone|S|NP s2*=S|NP
+15	i	16	default cbegin=VBD|gave|VP cbegin*=VBD|VP clast=NP|dog|VP clast*=NP|VP p=VP->VBD,NP pp=VP->VBD,NP s-1=gave|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=bone|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+15	c	16	default cbegin=VBD|gave|VP cbegin*=VBD|VP clast=NP|bone|VP clast*=NP|VP p=VP->VBD,NP,NP pp=VP->VBD,NP,NP s-1=gave|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+16	i	15	default cbegin=NP|train|S cbegin*=NP|S clast=NP|train|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=arrived|S|VBD s1*=S|VBD s2=late|S|ADVP s2*=S|ADVP
+16	i	16	default cbegin=VBD|arrived|VP cbegin*=VBD|VP clast=VBD|arrived|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=train|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=late|VP|ADVP s1*=VP|ADVP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+16	c	16	default cbegin=NP|train|S cbegin*=NP|S clast=VP|arrived|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=late|S|ADVP s1*=S|ADVP s2=S|eos|. s2*=S|eos|. s2*=S|.
+16	c	16	default cbegin=VBD|arrived|VP cbegin*=VBD|VP clast=ADVP|late|VP clast*=ADVP|VP p=VP->VBD,ADVP pp=VP->VBD,ADVP s-1=arrived|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+17	i	16	default cbegin=NP|He|S cbegin*=NP|S clast=NP|He|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=smiled|S|VBD s1*=S|VBD s2=waving|S|VBG|, s2*=S|VBG|, s2*=S|,
+17	i	16	default cbegin=VBD|smiled|VP cbegin*=VBD|VP clast=VBD|smiled|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=He|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=waving|VP|VBG|, s1*=VP|VBG|, s1*=VP|, s2=hand|VP|NP s2*=VP|NP
+17	c	16	default cbegin=NP|He|S cbegin*=NP|S clast=VP|smiled|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=waving|S|VBG|, s1*=S|VBG|, s1*=S|, s2=hand|S|NP s2*=S|NP
+17	i	17	default cbegin=VBG|waving|VP cbegin*=VBG|VP clast=VBG|waving|VP clast*=VBG|VP p=VP->VBG pp=VP->VBG s-1=smiled|VP|VP|, s-1*=VP|VP|, s-1*=VP|, s-2=VP|eos s-2*=VP|eos s1=hand|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+17	c	17	default cbegin=VP|waving|S cbegin*=VP|S clast=VP|waving|S clast*=VP|S p=S->VP pp=S->VP s-1=smiled|S|VP|, s-1*=S|VP|, s-1*=S|, s-2=S|eos s-2*=S|eos s1=hand|S|NP s1*=S|NP s2=S|eos|. s2*=S|eos|. s2*=S|.
+17	c	17	default cbegin=VBD|smiled|VP cbegin*=VBD|VP clast=S|waving|VP clast*=S|VP p=VP->VBD,S pp=VP->VBD,,,S s-1=smiled|VP|S|, s-1*=VP|S|, s-1*=VP|, s-2=VP|eos s-2*=VP|eos s1=hand|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+17	c	17	default cbegin=VBG|waving|VP cbegin*=VBG|VP clast=NP|hand|VP clast*=NP|VP p=VP->VBG,NP pp=VP->VBG,NP s-1=waving|VP|S s-1*=VP|S s-2=smiled|VP|VP|, s-2*=VP|VP|, s-2*=VP|, s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+18	i	15	default cbegin=NP|garden|S cbegin*=NP|S clast=NP|garden|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=(|S|-LRB- s1*=S|-LRB- s2='s|S|NP s2*=S|NP
+18	i	15	default cbegin=-LRB-|(|PRN cbegin*=-LRB-|PRN clast=-LRB-|(|PRN clast*=-LRB-|PRN p=PRN->-LRB- pp=PRN->-LRB- s-1=garden|PRN|NP s-1*=PRN|NP s-2=PRN|eos s-2*=PRN|eos s1='s|PRN|NP s1*=PRN|NP s2=)|PRN|-RRB- s2*=PRN|-RRB-
+18	c	15	default cbegin=NP|garden|NP cbegin*=NP|NP clast=PRN|(|NP clast*=PRN|NP p=NP->NP,PRN pp=NP->NP,PRN s-1=garden|NP|S s-1*=NP|S s-2=NP|eos s-2*=NP|eos s1='s|NP|NP s1*=NP|NP s2=)|NP|-RRB- s2*=NP|-RRB-
+18	i	15	default cbegin=-LRB-|(|PRN cbegin*=-LRB-|PRN clast=NP|'s|PRN clast*=NP|PRN p=PRN->-LRB-,NP pp=PRN->-LRB-,NP s-1=garden|PRN|NP s-1*=PRN|NP s-2=PRN|eos s-2*=PRN|eos s1=)|PRN|-RRB- s1*=PRN|-RRB- s2=needs|PRN|VBZ s2*=PRN|VBZ
+18	c	15	default cbegin=-LRB-|(|PRN cbegin*=-LRB-|PRN clast=-RRB-|)|PRN clast*=-RRB-|PRN p=PRN->-LRB-,NP,-RRB- pp=PRN->-LRB-,NP,-RRB- s-1=garden|PRN|NP s-1*=PRN|NP s-2=PRN|eos s-2*=PRN|eos s1=needs|PRN|VBZ s1*=PRN|VBZ s2=water|PRN|NP s2*=PRN|NP
+18	i	16	default cbegin=VBZ|needs|VP cbegin*=VBZ|VP clast=VBZ|needs|VP clast*=VBZ|VP p=VP->VBZ pp=VP->VBZ s-1=(|VP|PRN s-1*=VP|PRN s-2=garden|VP|NP s-2*=VP|NP s1=water|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+18	c	16	default cbegin=NP|garden|S cbegin*=NP|S clast=VP|needs|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=water|S|NP s1*=S|NP s2=S|eos|. s2*=S|eos|. s2*=S|.
+18	c	16	default cbegin=VBZ|needs|VP cbegin*=VBZ|VP clast=NP|water|VP clast*=NP|VP p=VP->VBZ,NP pp=VP->VBZ,NP s-1=needs|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+19	i	15	default cbegin=NP|Birds|S cbegin*=NP|S clast=NP|Birds|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=fly|S|VBP s1*=S|VBP s2=over|S|IN s2*=S|IN
+19	i	15	default cbegin=VBP|fly|VP cbegin*=VBP|VP clast=VBP|fly|VP clast*=VBP|VP p=VP->VBP pp=VP->VBP s-1=Birds|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=over|VP|IN s1*=VP|IN s2=river|VP|NP s2*=VP|NP
+19	c	15	default cbegin=NP|Birds|S cbegin*=NP|S clast=VP|fly|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=over|S|IN s1*=S|IN s2=river|S|NP s2*=S|NP
+19	i	15	default cbegin=IN|over|PP cbegin*=IN|PP clast=IN|over|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=fly|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=river|PP|NP s1*=PP|NP s2=near|PP|IN s2*=PP|IN
+19	c	15	default cbegin=VBP|fly|VP cbegin*=VBP|VP clast=PP|over|VP clast*=PP|VP p=VP->VBP,PP pp=VP->VBP,PP s-1=fly|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=river|VP|NP s1*=VP|NP s2=near|VP|IN s2*=VP|IN
+19	c	15	default cbegin=IN|over|PP cbegin*=IN|PP clast=NP|river|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=fly|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=near|PP|IN s1*=PP|IN s2=town|PP|NP s2*=PP|NP
+19	i	16	default cbegin=IN|near|PP cbegin*=IN|PP clast=IN|near|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=river|PP|NP s-1*=PP|NP s-2=over|PP|PP s-2*=PP|PP s1=town|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+19	c	16	default cbegin=NP|river|NP cbegin*=NP|NP clast=PP|near|NP clast*=PP|NP p=NP->NP,PP pp=NP->NP,PP s-1=over|NP|PP s-1*=NP|PP s-2=fly|NP|VP s-2*=NP|VP s1=town|NP|NP s1*=NP|NP s2=NP|eos|. s2*=NP|eos|. s2*=NP|.
+19	c	16	default cbegin=IN|near|PP cbegin*=IN|PP clast=NP|town|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=river|PP|NP s-1*=PP|NP s-2=over|PP|PP s-2*=PP|PP s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+20	i	15	default cbegin=WHNP|What|SBARQ cbegin*=WHNP|SBARQ clast=WHNP|What|SBARQ clast*=WHNP|SBARQ p=SBARQ->WHNP pp=SBARQ->WHNP s-1=SBARQ|eos s-1*=SBARQ|eos s-2=SBARQ|eos s-2*=SBARQ|eos s1=did|SBARQ|VBD s1*=SBARQ|VBD s2=you|SBARQ|NP s2*=SBARQ|NP
+20	i	15	default cbegin=VBD|did|SQ cbegin*=VBD|SQ clast=VBD|did|SQ clast*=VBD|SQ p=SQ->VBD pp=SQ->VBD s-1=What|SQ|WHNP s-1*=SQ|WHNP s-2=SQ|eos s-2*=SQ|eos s1=you|SQ|NP s1*=SQ|NP s2=see|SQ|VP s2*=SQ|VP
+20	c	15	default cbegin=WHNP|What|SBARQ cbegin*=WHNP|SBARQ clast=SQ|did|SBARQ clast*=SQ|SBARQ p=SBARQ->WHNP,SQ pp=SBARQ->WHNP,SQ s-1=SBARQ|eos s-1*=SBARQ|eos s-2=SBARQ|eos s-2*=SBARQ|eos s1=you|SBARQ|NP s1*=SBARQ|NP s2=see|SBARQ|VP s2*=SBARQ|VP
+20	i	16	default cbegin=VBD|did|SQ cbegin*=VBD|SQ clast=NP|you|SQ clast*=NP|SQ p=SQ->VBD,NP pp=SQ->VBD,NP s-1=did|SQ|SBARQ s-1*=SQ|SBARQ s-2=SQ|eos s-2*=SQ|eos s1=see|SQ|VP s1*=SQ|VP s2=SQ|eos|. s2*=SQ|eos|. s2*=SQ|.
+20	c	16	default cbegin=VBD|did|SQ cbegin*=VBD|SQ clast=VP|see|SQ clast*=VP|SQ p=SQ->VBD,NP,VP pp=SQ->VBD,NP,VP s-1=did|SQ|SBARQ s-1*=SQ|SBARQ s-2=SQ|eos s-2*=SQ|eos s1=SQ|eos|. s1*=SQ|eos|. s1*=SQ|. s2=SQ|eos s2*=SQ|eos
+21	i	15	default cbegin=NP|I|S cbegin*=NP|S clast=NP|I|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=heard|S|VBD s1*=S|VBD s2=that|S|IN s2*=S|IN
+21	i	15	default cbegin=VBD|heard|VP cbegin*=VBD|VP clast=VBD|heard|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=I|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=that|VP|IN s1*=VP|IN s2=shop|VP|NP s2*=VP|NP
+21	c	15	default cbegin=NP|I|S cbegin*=NP|S clast=VP|heard|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=that|S|IN s1*=S|IN s2=shop|S|NP s2*=S|NP
+21	i	15	default cbegin=IN|that|SBAR cbegin*=IN|SBAR clast=IN|that|SBAR clast*=IN|SBAR p=SBAR->IN pp=SBAR->IN s-1=heard|SBAR|VP s-1*=SBAR|VP s-2=SBAR|eos s-2*=SBAR|eos s1=shop|SBAR|NP s1*=SBAR|NP s2=closed|SBAR|VP s2*=SBAR|VP
+21	c	15	default cbegin=VBD|heard|VP cbegin*=VBD|VP clast=SBAR|that|VP clast*=SBAR|VP p=VP->VBD,SBAR pp=VP->VBD,SBAR s-1=heard|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=shop|VP|NP s1*=VP|NP s2=closed|VP|VP s2*=VP|VP
+21	i	16	default cbegin=NP|shop|S cbegin*=NP|S clast=NP|shop|S clast*=NP|S p=S->NP pp=S->NP s-1=that|S|SBAR s-1*=S|SBAR s-2=heard|S|VP s-2*=S|VP s1=closed|S|VP s1*=S|VP s2=S|eos|. s2*=S|eos|. s2*=S|.
+21	c	16	default cbegin=IN|that|SBAR cbegin*=IN|SBAR clast=S|shop|SBAR clast*=S|SBAR p=SBAR->IN,S pp=SBAR->IN,S s-1=heard|SBAR|VP s-1*=SBAR|VP s-2=SBAR|eos s-2*=SBAR|eos s1=closed|SBAR|VP s1*=SBAR|VP s2=SBAR|eos|. s2*=SBAR|eos|. s2*=SBAR|.
+21	c	16	default cbegin=NP|shop|S cbegin*=NP|S clast=VP|closed|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=that|S|SBAR s-1*=S|SBAR s-2=heard|S|VP s-2*=S|VP s1=S|eos|. s1*=S|eos|. s1*=S|. s2=S|eos s2*=S|eos
+22	i	17	default cbegin=NP|soup|S cbegin*=NP|S clast=NP|soup|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=bread|S|NP|, s1*=S|NP|, s1*=S|, s2=and|S|CC|, s2*=S|CC|, s2*=S|,
+22	i	17	default cbegin=NP|soup|NP cbegin*=NP|NP clast=NP|bread|NP clast*=NP|NP p=NP->NP,NP pp=NP->NP,,,NP s-1=soup|NP|S|, s-1*=NP|S|, s-1*=NP|, s-2=NP|eos s-2*=NP|eos s1=and|NP|CC|, s1*=NP|CC|, s1*=NP|, s2=cheese|NP|NP s2*=NP|NP
+22	i	16	default cbegin=NP|soup|NP cbegin*=NP|NP clast=CC|and|NP clast*=CC|NP p=NP->NP,NP,CC pp=NP->NP,,,NP,,,CC s-1=soup|NP|S|, s-1*=NP|S|, s-1*=NP|, s-2=NP|eos s-2*=NP|eos s1=cheese|NP|NP s1*=NP|NP s2=were|NP|VBD s2*=NP|VBD
+22	c	15	default cbegin=NP|soup|NP cbegin*=NP|NP clast=NP|cheese|NP clast*=NP|NP p=NP->NP,NP,CC,NP pp=NP->NP,,,NP,,,CC,NP s-1=soup|NP|S s-1*=NP|S s-2=NP|eos s-2*=NP|eos s1=were|NP|VBD s1*=NP|VBD s2=fresh|NP|ADJP s2*=NP|ADJP
+22	i	16	default cbegin=VBD|were|VP cbegin*=VBD|VP clast=VBD|were|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=cheese|VP|NP s-1*=VP|NP s-2=soup|VP|NP s-2*=VP|NP s1=fresh|VP|ADJP s1*=VP|ADJP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+22	c	16	default cbegin=NP|soup|S cbegin*=NP|S clast=VP|were|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=fresh|S|ADJP s1*=S|ADJP s2=S|eos|. s2*=S|eos|. s2*=S|.
+22	c	16	default cbegin=VBD|were|VP cbegin*=VBD|VP clast=ADJP|fresh|VP clast*=ADJP|VP p=VP->VBD,ADJP pp=VP->VBD,ADJP s-1=were|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+23	i	16	default cbegin=NP|We|S cbegin*=NP|S clast=NP|We|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos|`` s-1*=S|eos|`` s-1*=S|`` s-2=S|eos s-2*=S|eos s1=are|S|VBP s1*=S|VBP s2=ready|S|ADJP s2*=S|ADJP
+23	i	17	default cbegin=VBP|are|VP cbegin*=VBP|VP clast=VBP|are|VP clast*=VBP|VP p=VP->VBP pp=VP->VBP s-1=We|VP|NP s-1*=VP|NP s-2=VP|eos|`` s-2*=VP|eos|`` s-2*=VP|`` s1=ready|VP|ADJP s1*=VP|ADJP s2=Tom|VP|NP|, s2*=VP|NP|, s2*=VP|,
+23	i	16	default cbegin=NP|We|S cbegin*=NP|S clast=VP|are|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=ready|S|ADJP s1*=S|ADJP s2=Tom|S|NP|, s2*=S|NP|, s2*=S|,
+23	c	17	default cbegin=VBP|are|VP cbegin*=VBP|VP clast=ADJP|ready|VP clast*=ADJP|VP p=VP->VBP,ADJP pp=VP->VBP,ADJP s-1=are|VP|S s-1*=VP|S s-2=VP|eos|`` s-2*=VP|eos|`` s-2*=VP|`` s1=Tom|VP|NP|, s1*=VP|NP|, s1*=VP|, s2=said|VP|VP s2*=VP|VP
+23	i	17	default cbegin=NP|We|S cbegin*=NP|S clast=NP|Tom|S clast*=NP|S p=S->NP,VP,NP pp=S->NP,VP,,,NP s-1=S|eos|, s-1*=S|eos|, s-1*=S|, s-2=S|eos s-2*=S|eos s1=said|S|VP s1*=S|VP s2=S|eos|. s2*=S|eos|. s2*=S|.
+23	c	16	default cbegin=NP|We|S cbegin*=NP|S clast=VP|said|S clast*=VP|S p=S->NP,VP,NP,VP pp=S->NP,VP,,,NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=S|eos|. s1*=S|eos|. s1*=S|. s2=S|eos s2*=S|eos
+24	i	15	default cbegin=NP|man|S cbegin*=NP|S clast=NP|man|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=read|S|VBD s1*=S|VBD s2=book|S|NP s2*=S|NP
+24	i	15	default cbegin=VBD|read|VP cbegin*=VBD|VP clast=VBD|read|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=man|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=book|VP|NP s1*=VP|NP s2=by|VP|IN s2*=VP|IN
+24	c	15	default cbegin=NP|man|S cbegin*=NP|S clast=VP|read|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=book|S|NP s1*=S|NP s2=by|S|IN s2*=S|IN
+24	i	15	default cbegin=VBD|read|VP cbegin*=VBD|VP clast=NP|book|VP clast*=NP|VP p=VP->VBD,NP pp=VP->VBD,NP s-1=read|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=by|VP|IN s1*=VP|IN s2=window|VP|NP s2*=VP|NP
+24	i	16	default cbegin=IN|by|PP cbegin*=IN|PP clast=IN|by|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=book|PP|NP s-1*=PP|NP s-2=read|PP|VP s-2*=PP|VP s1=window|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+24	c	16	default cbegin=VBD|read|VP cbegin*=VBD|VP clast=PP|by|VP clast*=PP|VP p=VP->VBD,NP,PP pp=VP->VBD,NP,PP s-1=read|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=window|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+24	c	16	default cbegin=IN|by|PP cbegin*=IN|PP clast=NP|window|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=read|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+25	i	17	default cbegin=NP|Anna|S cbegin*=NP|S clast=NP|Anna|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=baker|S|NP|, s1*=S|NP|, s1*=S|, s2=laughed|S|VP|, s2*=S|VP|, s2*=S|,
+25	c	18	default cbegin=NP|Anna|NP cbegin*=NP|NP clast=NP|baker|NP clast*=NP|NP p=NP->NP,NP pp=NP->NP,,,NP s-1=Anna|NP|S|, s-1*=NP|S|, s-1*=NP|, s-2=NP|eos s-2*=NP|eos s1=laughed|NP|VP|, s1*=NP|VP|, s1*=NP|, s2=NP|eos|. s2*=NP|eos|. s2*=NP|.
+25	c	17	default cbegin=NP|Anna|S cbegin*=NP|S clast=VP|laughed|S clast*=VP|S p=S->NP,VP pp=S->NP,,,VP s-1=S|eos|, s-1*=S|eos|, s-1*=S|, s-2=S|eos s-2*=S|eos s1=S|eos|. s1*=S|eos|. s1*=S|. s2=S|eos s2*=S|eos
+26	i	15	default cbegin=NP|They|S cbegin*=NP|S clast=NP|They|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=will|S|MD s1*=S|MD s2=visit|S|VB s2*=S|VB
+26	i	15	default cbegin=MD|will|VP cbegin*=MD|VP clast=MD|will|VP clast*=MD|VP p=VP->MD pp=VP->MD s-1=They|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=visit|VP|VB s1*=VP|VB s2=museum|VP|NP s2*=VP|NP
+26	c	15	default cbegin=NP|They|S cbegin*=NP|S clast=VP|will|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=visit|S|VB s1*=S|VB s2=museum|S|NP s2*=S|NP
+26	i	16	default cbegin=VB|visit|VP cbegin*=VB|VP clast=VB|visit|VP clast*=VB|VP p=VP->VB pp=VP->VB s-1=will|VP|VP s-1*=VP|VP s-2=VP|eos s-2*=VP|eos s1=museum|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+26	c	16	default cbegin=MD|will|VP cbegin*=MD|VP clast=VP|visit|VP clast*=VP|VP p=VP->MD,VP pp=VP->MD,VP s-1=will|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=museum|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+26	c	16	default cbegin=VB|visit|VP cbegin*=VB|VP clast=NP|museum|VP clast*=NP|VP p=VP->VB,NP pp=VP->VB,NP s-1=will|VP|VP s-1*=VP|VP s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+27	i	15	default cbegin=NP|rain|S cbegin*=NP|S clast=NP|rain|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=stopped|S|VBD s1*=S|VBD s2=before|S|IN s2*=S|IN
+27	i	15	default cbegin=VBD|stopped|VP cbegin*=VBD|VP clast=VBD|stopped|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=rain|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=before|VP|IN s1*=VP|IN s2=game|VP|NP s2*=VP|NP
+27	c	15	default cbegin=NP|rain|S cbegin*=NP|S clast=VP|stopped|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=before|S|IN s1*=S|IN s2=game|S|NP s2*=S|NP
+27	i	15	default cbegin=IN|before|SBAR cbegin*=IN|SBAR clast=IN|before|SBAR clast*=IN|SBAR p=SBAR->IN pp=SBAR->IN s-1=stopped|SBAR|VP s-1*=SBAR|VP s-2=SBAR|eos s-2*=SBAR|eos s1=game|SBAR|NP s1*=SBAR|NP s2=began|SBAR|VP s2*=SBAR|VP
+27	c	15	default cbegin=VBD|stopped|VP cbegin*=VBD|VP clast=SBAR|before|VP clast*=SBAR|VP p=VP->VBD,SBAR pp=VP->VBD,SBAR s-1=stopped|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=game|VP|NP s1*=VP|NP s2=began|VP|VP s2*=VP|VP
+27	i	16	default cbegin=NP|game|S cbegin*=NP|S clast=NP|game|S clast*=NP|S p=S->NP pp=S->NP s-1=before|S|SBAR s-1*=S|SBAR s-2=stopped|S|VP s-2*=S|VP s1=began|S|VP s1*=S|VP s2=S|eos|. s2*=S|eos|. s2*=S|.
+27	c	16	default cbegin=IN|before|SBAR cbegin*=IN|SBAR clast=S|game|SBAR clast*=S|SBAR p=SBAR->IN,S pp=SBAR->IN,S s-1=stopped|SBAR|VP s-1*=SBAR|VP s-2=SBAR|eos s-2*=SBAR|eos s1=began|SBAR|VP s1*=SBAR|VP s2=SBAR|eos|. s2*=SBAR|eos|. s2*=SBAR|.
+27	c	16	default cbegin=NP|game|S cbegin*=NP|S clast=VP|began|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=before|S|SBAR s-1*=S|SBAR s-2=stopped|S|VP s-2*=S|VP s1=S|eos|. s1*=S|eos|. s1*=S|. s2=S|eos s2*=S|eos
+28	i	15	default cbegin=NP|She|S cbegin*=NP|S clast=NP|She|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=found|S|VBD s1*=S|VBD s2=key|S|NP s2*=S|NP
+28	i	15	default cbegin=VBD|found|VP cbegin*=VBD|VP clast=VBD|found|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=She|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=key|VP|NP s1*=VP|NP s2=under|VP|IN s2*=VP|IN
+28	c	15	default cbegin=NP|She|S cbegin*=NP|S clast=VP|found|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=key|S|NP s1*=S|NP s2=under|S|IN s2*=S|IN
+28	c	15	default cbegin=VBD|found|VP cbegin*=VBD|VP clast=NP|key|VP clast*=NP|VP p=VP->VBD,NP pp=VP->VBD,NP s-1=found|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=under|VP|IN s1*=VP|IN s2='s|VP|NP s2*=VP|NP
+28	i	15	default cbegin=IN|under|PP cbegin*=IN|PP clast=IN|under|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=key|PP|NP s-1*=PP|NP s-2=found|PP|VP s-2*=PP|VP s1='s|PP|NP s1*=PP|NP s2=coat|PP|NN s2*=PP|NN
+28	c	15	default cbegin=NP|key|NP cbegin*=NP|NP clast=PP|under|NP clast*=PP|NP p=NP->NP,PP pp=NP->NP,PP s-1=found|NP|VP s-1*=NP|VP s-2=NP|eos s-2*=NP|eos s1='s|NP|NP s1*=NP|NP s2=coat|NP|NN s2*=NP|NN
+28	c	16	default cbegin=IN|under|PP cbegin*=IN|PP clast=NP|'s|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=key|PP|NP s-1*=PP|NP s-2=found|PP|VP s-2*=PP|VP s1=coat|PP|NN s1*=PP|NN s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+28	c	16	default cbegin=NP|'s|NP cbegin*=NP|NP clast=NN|coat|NP clast*=NN|NP p=NP->NP,NN pp=NP->NP,NN s-1=under|NP|PP s-1*=NP|PP s-2=key|NP|NP s-2*=NP|NP s1=NP|eos|. s1*=NP|eos|. s1*=NP|. s2=NP|eos s2*=NP|eos
+29	i	15	default cbegin=NP|dog|S cbegin*=NP|S clast=NP|dog|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=barked|S|VP s1*=S|VP s2=and|S|CC s2*=S|CC
+29	c	15	default cbegin=NP|dog|S cbegin*=NP|S clast=VP|barked|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=and|S|CC s1*=S|CC s2=ran|S|VP s2*=S|VP
+29	i	16	default cbegin=VP|barked|VP cbegin*=VP|VP clast=CC|and|VP clast*=CC|VP p=VP->VP,CC pp=VP->VP,CC s-1=barked|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=ran|VP|VP s1*=VP|VP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+29	c	16	default cbegin=VP|barked|VP cbegin*=VP|VP clast=VP|ran|VP clast*=VP|VP p=VP->VP,CC,VP pp=VP->VP,CC,VP s-1=barked|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+30	i	15	default cbegin=VB|Look|VP cbegin*=VB|VP clast=VB|Look|VP clast*=VB|VP p=VP->VB pp=VP->VB s-1=VP|eos s-1*=VP|eos s-2=VP|eos s-2*=VP|eos s1=at|VP|IN s1*=VP|IN s2=sky|VP|NP s2*=VP|NP
+30	c	15	default cbegin=VP|Look|S cbegin*=VP|S clast=VP|Look|S clast*=VP|S p=S->VP pp=S->VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=at|S|IN s1*=S|IN s2=sky|S|NP s2*=S|NP
+30	i	16	default cbegin=IN|at|PP cbegin*=IN|PP clast=IN|at|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=Look|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=sky|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+30	c	16	default cbegin=VB|Look|VP cbegin*=VB|VP clast=PP|at|VP clast*=PP|VP p=VP->VB,PP pp=VP->VB,PP s-1=Look|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=sky|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+30	c	16	default cbegin=IN|at|PP cbegin*=IN|PP clast=NP|sky|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=Look|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+31	i	15	default cbegin=QP|about|NP cbegin*=QP|NP clast=QP|about|NP clast*=QP|NP p=NP->QP pp=NP->QP s-1=NP|eos s-1*=NP|eos s-2=NP|eos s-2*=NP|eos s1=people|NP|NNS s1*=NP|NNS s2=came|NP|VP s2*=NP|VP
+31	i	15	default cbegin=NP|about|S cbegin*=NP|S clast=NP|about|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=people|S|NNS s1*=S|NNS s2=came|S|VP s2*=S|VP
+31	c	16	default cbegin=QP|about|NP cbegin*=QP|NP clast=NNS|people|NP clast*=NNS|NP p=NP->QP,NNS pp=NP->QP,NNS s-1=about|NP|S s-1*=NP|S s-2=NP|eos s-2*=NP|eos s1=came|NP|VP s1*=NP|VP s2=NP|eos|. s2*=NP|eos|. s2*=NP|.
+31	c	16	default cbegin=NP|people|S cbegin*=NP|S clast=VP|came|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=S|eos|. s1*=S|eos|. s1*=S|. s2=S|eos s2*=S|eos
+32	i	15	default cbegin=NP|kettle|S cbegin*=NP|S clast=NP|kettle|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=boiled|S|VBD s1*=S|VBD s2=quickly|S|ADVP s2*=S|ADVP
+32	i	16	default cbegin=VBD|boiled|VP cbegin*=VBD|VP clast=VBD|boiled|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=kettle|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=quickly|VP|ADVP s1*=VP|ADVP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+32	c	16	default cbegin=NP|kettle|S cbegin*=NP|S clast=VP|boiled|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=quickly|S|ADVP s1*=S|ADVP s2=S|eos|. s2*=S|eos|. s2*=S|.
+32	c	16	default cbegin=VBD|boiled|VP cbegin*=VBD|VP clast=ADVP|quickly|VP clast*=ADVP|VP p=VP->VBD,ADVP pp=VP->VBD,ADVP s-1=boiled|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+33	i	15	default cbegin=NP|We|S cbegin*=NP|S clast=NP|We|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=ate|S|VBD s1*=S|VBD s2=cheese|S|NP s2*=S|NP
+33	i	15	default cbegin=VBD|ate|VP cbegin*=VBD|VP clast=VBD|ate|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=We|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=cheese|VP|NP s1*=VP|NP s2=(|VP|-LRB- s2*=VP|-LRB-
+33	c	15	default cbegin=NP|We|S cbegin*=NP|S clast=VP|ate|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=cheese|S|NP s1*=S|NP s2=(|S|-LRB- s2*=S|-LRB-
+33	i	15	default cbegin=VBD|ate|VP cbegin*=VBD|VP clast=NP|cheese|VP clast*=NP|VP p=VP->VBD,NP pp=VP->VBD,NP s-1=ate|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=(|VP|-LRB- s1*=VP|-LRB- s2=again|VP|ADVP s2*=VP|ADVP
+33	i	15	default cbegin=-LRB-|(|PRN cbegin*=-LRB-|PRN clast=-LRB-|(|PRN clast*=-LRB-|PRN p=PRN->-LRB- pp=PRN->-LRB- s-1=cheese|PRN|NP s-1*=PRN|NP s-2=ate|PRN|VP s-2*=PRN|VP s1=again|PRN|ADVP s1*=PRN|ADVP s2=)|PRN|-RRB- s2*=PRN|-RRB-
+33	c	15	default cbegin=VBD|ate|VP cbegin*=VBD|VP clast=PRN|(|VP clast*=PRN|VP p=VP->VBD,NP,PRN pp=VP->VBD,NP,PRN s-1=ate|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=again|VP|ADVP s1*=VP|ADVP s2=)|VP|-RRB- s2*=VP|-RRB-
+33	i	16	default cbegin=-LRB-|(|PRN cbegin*=-LRB-|PRN clast=ADVP|again|PRN clast*=ADVP|PRN p=PRN->-LRB-,ADVP pp=PRN->-LRB-,ADVP s-1=ate|PRN|VP s-1*=PRN|VP s-2=PRN|eos s-2*=PRN|eos s1=)|PRN|-RRB- s1*=PRN|-RRB- s2=PRN|eos|. s2*=PRN|eos|. s2*=PRN|.
+33	c	16	default cbegin=-LRB-|(|PRN cbegin*=-LRB-|PRN clast=-RRB-|)|PRN clast*=-RRB-|PRN p=PRN->-LRB-,ADVP,-RRB- pp=PRN->-LRB-,ADVP,-RRB- s-1=ate|PRN|VP s-1*=PRN|VP s-2=PRN|eos s-2*=PRN|eos s1=PRN|eos|. s1*=PRN|eos|. s1*=PRN|. s2=PRN|eos s2*=PRN|eos
+34	i	15	default cbegin=NP|Tea|S cbegin*=NP|S clast=NP|Tea|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=tastes|S|VBZ s1*=S|VBZ s2=good|S|ADJP s2*=S|ADJP
+34	i	16	default cbegin=VBZ|tastes|VP cbegin*=VBZ|VP clast=VBZ|tastes|VP clast*=VBZ|VP p=VP->VBZ pp=VP->VBZ s-1=Tea|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=good|VP|ADJP s1*=VP|ADJP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+34	c	16	default cbegin=NP|Tea|S cbegin*=NP|S clast=VP|tastes|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=good|S|ADJP s1*=S|ADJP s2=S|eos|. s2*=S|eos|. s2*=S|.
+34	c	16	default cbegin=VBZ|tastes|VP cbegin*=VBZ|VP clast=ADJP|good|VP clast*=ADJP|VP p=VP->VBZ,ADJP pp=VP->VBZ,ADJP s-1=tastes|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+35	i	15	default cbegin=NP|cats|S cbegin*=NP|S clast=NP|cats|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=slept|S|VBD s1*=S|VBD s2=on|S|IN s2*=S|IN
+35	i	15	default cbegin=VBD|slept|VP cbegin*=VBD|VP clast=VBD|slept|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=cats|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=on|VP|IN s1*=VP|IN s2=sofa|VP|NP s2*=VP|NP
+35	c	15	default cbegin=NP|cats|S cbegin*=NP|S clast=VP|slept|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=on|S|IN s1*=S|IN s2=sofa|S|NP s2*=S|NP
+35	i	15	default cbegin=IN|on|PP cbegin*=IN|PP clast=IN|on|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=slept|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=sofa|PP|NP s1*=PP|NP s2=after|PP|IN s2*=PP|IN
+35	i	15	default cbegin=VBD|slept|VP cbegin*=VBD|VP clast=PP|on|VP clast*=PP|VP p=VP->VBD,PP pp=VP->VBD,PP s-1=slept|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=sofa|VP|NP s1*=VP|NP s2=after|VP|IN s2*=VP|IN
+35	c	15	default cbegin=IN|on|PP cbegin*=IN|PP clast=NP|sofa|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=slept|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=after|PP|IN s1*=PP|IN s2=lunch|PP|NP s2*=PP|NP
+35	i	16	default cbegin=IN|after|PP cbegin*=IN|PP clast=IN|after|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=sofa|PP|NP s-1*=PP|NP s-2=on|PP|PP s-2*=PP|PP s1=lunch|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+35	c	16	default cbegin=VBD|slept|VP cbegin*=VBD|VP clast=PP|after|VP clast*=PP|VP p=VP->VBD,PP,PP pp=VP->VBD,PP,PP s-1=slept|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=lunch|VP|NP s1*=VP|NP s2=VP|eos|. s2*=VP|eos|. s2*=VP|.
+35	c	16	default cbegin=IN|after|PP cbegin*=IN|PP clast=NP|lunch|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=slept|PP|VP s-1*=PP|VP s-2=PP|eos s-2*=PP|eos s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+36	i	16	default cbegin=NP|Tom|S cbegin*=NP|S clast=NP|Tom|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=asked|S|VBD s1*=S|VBD s2=is|S|VBZ|, s2*=S|VBZ|, s2*=S|,
+36	i	16	default cbegin=VBD|asked|VP cbegin*=VBD|VP clast=VBD|asked|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=Tom|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=is|VP|VBZ|, s1*=VP|VBZ|, s1*=VP|, s2=it|VP|NP s2*=VP|NP
+36	c	16	default cbegin=NP|Tom|S cbegin*=NP|S clast=VP|asked|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=is|S|VBZ|, s1*=S|VBZ|, s1*=S|, s2=it|S|NP s2*=S|NP
+36	i	16	default cbegin=VBZ|is|SQ cbegin*=VBZ|SQ clast=VBZ|is|SQ clast*=VBZ|SQ p=SQ->VBZ pp=SQ->VBZ s-1=asked|SQ|VP|, s-1*=SQ|VP|, s-1*=SQ|, s-2=SQ|eos s-2*=SQ|eos s1=it|SQ|NP s1*=SQ|NP s2=late|SQ|ADJP s2*=SQ|ADJP
+36	c	16	default cbegin=VBD|asked|VP cbegin*=VBD|VP clast=SQ|is|VP clast*=SQ|VP p=VP->VBD,SQ pp=VP->VBD,,,SQ s-1=asked|VP|S|, s-1*=VP|S|, s-1*=VP|, s-2=VP|eos s-2*=VP|eos s1=it|VP|NP s1*=VP|NP s2=late|VP|ADJP s2*=VP|ADJP
+36	i	16	default cbegin=VBZ|is|SQ cbegin*=VBZ|SQ clast=NP|it|SQ clast*=NP|SQ p=SQ->VBZ,NP pp=SQ->VBZ,NP s-1=asked|SQ|VP s-1*=SQ|VP s-2=SQ|eos s-2*=SQ|eos s1=late|SQ|ADJP s1*=SQ|ADJP s2=SQ|eos|. s2*=SQ|eos|. s2*=SQ|.
+36	c	16	default cbegin=VBZ|is|SQ cbegin*=VBZ|SQ clast=ADJP|late|SQ clast*=ADJP|SQ p=SQ->VBZ,NP,ADJP pp=SQ->VBZ,NP,ADJP s-1=asked|SQ|VP s-1*=SQ|VP s-2=SQ|eos s-2*=SQ|eos s1=SQ|eos|. s1*=SQ|eos|. s1*=SQ|. s2=SQ|eos s2*=SQ|eos
+37	i	15	default cbegin=NP|wind|S cbegin*=NP|S clast=NP|wind|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=blew|S|VP s1*=S|VP s2=hard|S|ADVP s2*=S|ADVP
+37	c	16	default cbegin=NP|wind|S cbegin*=NP|S clast=VP|blew|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=hard|S|ADVP s1*=S|ADVP s2=S|eos|. s2*=S|eos|. s2*=S|.
+37	c	16	default cbegin=VP|blew|VP cbegin*=VP|VP clast=ADVP|hard|VP clast*=ADVP|VP p=VP->VP,ADVP pp=VP->VP,ADVP s-1=blew|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=VP|eos|. s1*=VP|eos|. s1*=VP|. s2=VP|eos s2*=VP|eos
+38	i	15	default cbegin=NP|I|S cbegin*=NP|S clast=NP|I|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=cooked|S|VP s1*=S|VP s2=;|S|: s2*=S|:
+38	c	15	default cbegin=NP|I|S cbegin*=NP|S clast=VP|cooked|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=;|S|: s1*=S|: s2=she|S|NP s2*=S|NP
+38	i	15	default cbegin=S|cooked|S cbegin*=S|S clast=:|;|S clast*=:|S p=S->S,: pp=S->S,: s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=she|S|NP s1*=S|NP s2=cleaned|S|VP s2*=S|VP
+38	i	16	default cbegin=NP|she|S cbegin*=NP|S clast=NP|she|S clast*=NP|S p=S->NP pp=S->NP s-1=cooked|S|S s-1*=S|S s-2=S|eos s-2*=S|eos s1=cleaned|S|VP s1*=S|VP s2=S|eos|. s2*=S|eos|. s2*=S|.
+38	c	16	default cbegin=S|cooked|S cbegin*=S|S clast=S|she|S clast*=S|S p=S->S,:,S pp=S->S,:,S s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=cleaned|S|VP s1*=S|VP s2=S|eos|. s2*=S|eos|. s2*=S|.
+38	c	16	default cbegin=NP|she|S cbegin*=NP|S clast=VP|cleaned|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=she|S|S s-1*=S|S s-2=S|eos s-2*=S|eos s1=S|eos|. s1*=S|eos|. s1*=S|. s2=S|eos s2*=S|eos
+39	i	15	default cbegin=NP|baker|S cbegin*=NP|S clast=NP|baker|S clast*=NP|S p=S->NP pp=S->NP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=sold|S|VBD s1*=S|VBD s2=loaves|S|NP s2*=S|NP
+39	i	15	default cbegin=VBD|sold|VP cbegin*=VBD|VP clast=VBD|sold|VP clast*=VBD|VP p=VP->VBD pp=VP->VBD s-1=baker|VP|NP s-1*=VP|NP s-2=VP|eos s-2*=VP|eos s1=loaves|VP|NP s1*=VP|NP s2=of|VP|IN s2*=VP|IN
+39	c	15	default cbegin=NP|baker|S cbegin*=NP|S clast=VP|sold|S clast*=VP|S p=S->NP,VP pp=S->NP,VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=loaves|S|NP s1*=S|NP s2=of|S|IN s2*=S|IN
+39	c	15	default cbegin=VBD|sold|VP cbegin*=VBD|VP clast=NP|loaves|VP clast*=NP|VP p=VP->VBD,NP pp=VP->VBD,NP s-1=sold|VP|S s-1*=VP|S s-2=VP|eos s-2*=VP|eos s1=of|VP|IN s1*=VP|IN s2=bread|VP|NP s2*=VP|NP
+39	i	16	default cbegin=IN|of|PP cbegin*=IN|PP clast=IN|of|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=loaves|PP|NP s-1*=PP|NP s-2=sold|PP|VP s-2*=PP|VP s1=bread|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+39	c	16	default cbegin=NP|loaves|NP cbegin*=NP|NP clast=PP|of|NP clast*=PP|NP p=NP->NP,PP pp=NP->NP,PP s-1=sold|NP|VP s-1*=NP|VP s-2=NP|eos s-2*=NP|eos s1=bread|NP|NP s1*=NP|NP s2=NP|eos|. s2*=NP|eos|. s2*=NP|.
+39	c	16	default cbegin=IN|of|PP cbegin*=IN|PP clast=NP|bread|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=loaves|PP|NP s-1*=PP|NP s-2=sold|PP|VP s-2*=PP|VP s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+40	c	15	default cbegin=VP|Wait|S cbegin*=VP|S clast=VP|Wait|S clast*=VP|S p=S->VP pp=S->VP s-1=S|eos s-1*=S|eos s-2=S|eos s-2*=S|eos s1=S|eos s1*=S|eos s2=S|eos s2*=S|eos
+41	i	16	default cbegin=IN|of|PP cbegin*=IN|PP clast=IN|of|PP clast*=IN|PP p=PP->IN pp=PP->IN s-1=cup|PP|NP s-1*=PP|NP s-2=PP|eos s-2*=PP|eos s1=tea|PP|NP s1*=PP|NP s2=PP|eos|. s2*=PP|eos|. s2*=PP|.
+41	c	16	default cbegin=NP|cup|NP cbegin*=NP|NP clast=PP|of|NP clast*=PP|NP p=NP->NP,PP pp=NP->NP,PP s-1=NP|eos s-1*=NP|eos s-2=NP|eos s-2*=NP|eos s1=tea|NP|NP s1*=NP|NP s2=NP|eos|. s2*=NP|eos|. s2*=NP|.
+41	c	16	default cbegin=IN|of|PP cbegin*=IN|PP clast=NP|tea|PP clast*=NP|PP p=PP->IN,NP pp=PP->IN,NP s-1=cup|PP|NP s-1*=PP|NP s-2=PP|eos s-2*=PP|eos s1=PP|eos|. s1*=PP|eos|. s1*=PP|. s2=PP|eos s2*=PP|eos
+end	turbo:events
+layer	turbo:sample-errors	document	0	sample:u32	class:str	message:str
+end	turbo:sample-errors
