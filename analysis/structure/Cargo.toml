@@ -13,4 +13,5 @@ turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 
 [dev-dependencies]
+turbo-normalize = { path = "../normalize" }
 turbo-chunker = { path = "../chunker" }
