@@ -31,11 +31,12 @@ pub struct Compact<'a> {
     buf: &'a [u8],
     pos: usize,
     depth: u32,
+    short: bool,
 }
 
 impl<'a> Compact<'a> {
     pub fn new(buf: &'a [u8]) -> Compact<'a> {
-        Compact { buf, pos: 0, depth: 0 }
+        Compact { buf, pos: 0, depth: 0, short: false }
     }
 
     /// Bytes read so far.
@@ -43,14 +44,31 @@ impl<'a> Compact<'a> {
         self.pos
     }
 
+    /// Whether a read has needed more bytes than the buffer holds: a
+    /// value ran past its end, or a list counted more elements than the
+    /// bytes left. Reading the first part of a footer, this is where the
+    /// part ends; reading a whole one, it is damage.
+    pub fn ran_short(&self) -> bool {
+        self.short
+    }
+
+    fn ends_inside(&mut self) -> String {
+        self.short = true;
+        "thrift: ends inside a value".into()
+    }
+
     fn byte(&mut self) -> Result<u8> {
-        let b = *self.buf.get(self.pos).ok_or("thrift: ends inside a value")?;
+        let Some(&b) = self.buf.get(self.pos) else {
+            return Err(self.ends_inside());
+        };
         self.pos += 1;
         Ok(b)
     }
 
     fn take(&mut self, n: usize) -> Result<&'a [u8]> {
-        let end = self.pos.checked_add(n).filter(|&e| e <= self.buf.len()).ok_or("thrift: ends inside a value")?;
+        let Some(end) = self.pos.checked_add(n).filter(|&e| e <= self.buf.len()) else {
+            return Err(self.ends_inside());
+        };
         let b = &self.buf[self.pos..end];
         self.pos = end;
         Ok(b)
@@ -102,6 +120,13 @@ impl<'a> Compact<'a> {
 
     /// A list or set header: the element type and the element count.
     pub fn list_header(&mut self) -> Result<(u8, usize)> {
+        self.list_header_in(self.buf.len())
+    }
+
+    /// A list or set header in the first bytes of a value `len` bytes
+    /// long, the buffer being those bytes: the count is checked against
+    /// the bytes left of `len`.
+    pub fn list_header_in(&mut self, len: usize) -> Result<(u8, usize)> {
         let b = self.byte()?;
         let n = match b >> 4 {
             15 => usize::try_from(self.varint()?).map_err(|_| "thrift: list too long")?,
@@ -109,8 +134,10 @@ impl<'a> Compact<'a> {
         };
         // Each element takes at least one byte, booleans included, so a
         // count past the bytes left is damage, not a long list.
-        if n > self.buf.len() - self.pos {
-            return Err(format!("thrift: a list of {n} elements in {} bytes", self.buf.len() - self.pos));
+        let left = len.saturating_sub(self.pos);
+        if n > left {
+            self.short = len == self.buf.len();
+            return Err(format!("thrift: a list of {n} elements in {left} bytes"));
         }
         Ok((b & 0x0f, n))
     }
@@ -131,26 +158,31 @@ impl<'a> Compact<'a> {
     pub fn read_struct(&mut self, mut f: impl FnMut(&mut Self, i16, u8) -> Result<bool>) -> Result<()> {
         self.enter()?;
         let mut last: i16 = 0;
-        loop {
-            let b = self.byte()?;
-            if b == 0 {
-                break;
-            }
-            let ty = b & 0x0f;
-            let id = match b >> 4 {
-                0 => {
-                    let v = self.i64()?;
-                    i16::try_from(v).map_err(|_| format!("thrift: field id {v}"))?
-                }
-                d => last.checked_add(i16::from(d)).ok_or("thrift: field id overflows")?,
-            };
-            last = id;
+        while let Some((id, ty)) = self.field_header(&mut last)? {
             if !f(self, id, ty)? {
                 self.skip_field(ty)?;
             }
         }
         self.depth -= 1;
         Ok(())
+    }
+
+    /// The next field's id and type in a struct whose last field had id
+    /// `last`, which is updated; `None` at the struct's stop byte.
+    pub fn field_header(&mut self, last: &mut i16) -> Result<Option<(i16, u8)>> {
+        let b = self.byte()?;
+        if b == 0 {
+            return Ok(None);
+        }
+        let id = match b >> 4 {
+            0 => {
+                let v = self.i64()?;
+                i16::try_from(v).map_err(|_| format!("thrift: field id {v}"))?
+            }
+            d => last.checked_add(i16::from(d)).ok_or("thrift: field id overflows")?,
+        };
+        *last = id;
+        Ok(Some((id, b & 0x0f)))
     }
 
     fn enter(&mut self) -> Result<()> {
@@ -263,5 +295,27 @@ mod tests {
         let deep = vec![0x1c; 200];
         let e = Compact::new(&deep).read_struct(|_, _, _| Ok(false)).unwrap_err();
         assert!(e.contains("nested"), "{e}");
+    }
+
+    #[test]
+    fn running_short_is_told_apart() {
+        let mut c = Compact::new(&[0x15, 2]);
+        assert!(c.read_struct(|_, _, _| Ok(false)).is_err());
+        assert!(c.ran_short());
+        let mut c = Compact::new(&[0xf5, 0x7f]);
+        assert!(c.list_header().is_err());
+        assert!(c.ran_short());
+        // Within a longer value, the same count fits.
+        let mut c = Compact::new(&[0xf5, 0x7f]);
+        assert_eq!(c.list_header_in(200).unwrap(), (5, 127));
+        // Past that value's end it is damage.
+        let mut c = Compact::new(&[0xf5, 0x7f]);
+        assert!(c.list_header_in(100).is_err());
+        assert!(!c.ran_short());
+        // A field id that overflows is damage, with bytes to spare.
+        let mut c = Compact::new(&[0x25, 2]);
+        let mut last = i16::MAX - 1;
+        assert!(c.field_header(&mut last).is_err());
+        assert!(!c.ran_short());
     }
 }

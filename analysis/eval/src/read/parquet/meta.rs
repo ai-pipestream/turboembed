@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use super::thrift::Compact;
+use super::thrift::{Compact, LIST, STRUCT};
 use crate::Result;
 
 /// A column's physical type.
@@ -196,21 +196,85 @@ impl FileMeta {
             Ok(true)
         })?;
         let schema: Vec<SchemaElement> = schema.ok_or("the footer has no schema")?;
-        // Every child is an element of its own, so no element has as
-        // many children as the schema has elements.
-        if let Some(e) = schema.iter().find(|e| e.num_children >= schema.len()) {
-            return Err(format!(
-                "schema element {} has {} children in a schema of {}",
-                e.name,
-                e.num_children,
-                schema.len()
-            ));
-        }
+        check_schema(&schema)?;
         Ok(FileMeta {
             num_rows: num_rows.ok_or("the footer has no row count")?,
             schema,
             row_groups: row_groups.ok_or("the footer has no row groups")?,
         })
+    }
+}
+
+/// Every child is an element of its own, so no element has as many
+/// children as the schema has elements.
+fn check_schema(schema: &[SchemaElement]) -> Result<()> {
+    if let Some(e) = schema.iter().find(|e| e.num_children >= schema.len()) {
+        return Err(format!(
+            "schema element {} has {} children in a schema of {}",
+            e.name,
+            e.num_children,
+            schema.len()
+        ));
+    }
+    Ok(())
+}
+
+/// What the first bytes of a footer hold: its schema and row count, the
+/// number of row groups it lists, and the leading ones wholly inside the
+/// bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FooterPrefix {
+    /// The schema, the file's row count and the leading row groups.
+    pub meta: FileMeta,
+    /// The row groups the footer lists.
+    pub row_groups: usize,
+}
+
+impl FooterPrefix {
+    /// Reads `buf`, the first bytes of a footer `len` bytes long. The
+    /// schema and the row count must come before the row groups, as
+    /// writers put them (`parquet.thrift` numbers them 2, 3 and 4); the
+    /// row groups are read up to the first one that runs past `buf`.
+    pub fn read(buf: &[u8], len: usize) -> Result<FooterPrefix> {
+        if buf.len() > len {
+            return Err(format!("{} bytes of a footer of {len}", buf.len()));
+        }
+        let mut c = Compact::new(buf);
+        let short = |c: &Compact, e: String| {
+            if c.ran_short() { format!("the first {} bytes end before the row groups", buf.len()) } else { e }
+        };
+        let (mut schema, mut num_rows) = (None, None);
+        let mut last = 0;
+        loop {
+            let header = c.field_header(&mut last).map_err(|e| short(&c, e))?;
+            let Some((id, ty)) = header else {
+                return Err("the footer has no row groups".into());
+            };
+            let read = match id {
+                2 => c.list(|c, _| schema_element(c)).map(|v| schema = Some(v)),
+                3 => c.i64().and_then(|v| count("the row count", v)).map(|v| num_rows = Some(v)),
+                4 if ty != LIST => return Err("the row groups are not a list".into()),
+                4 => break,
+                _ => c.skip_field(ty),
+            };
+            read.map_err(|e| short(&c, e))?;
+        }
+        let schema: Vec<SchemaElement> = schema.ok_or("the footer's row groups come before its schema")?;
+        check_schema(&schema)?;
+        let num_rows = num_rows.ok_or("the footer's row groups come before its row count")?;
+        let (ty, n) = c.list_header_in(len).map_err(|e| short(&c, e))?;
+        if ty != STRUCT {
+            return Err("the row groups are not structs".into());
+        }
+        let mut row_groups = Vec::new();
+        for _ in 0..n {
+            match row_group(&mut c) {
+                Ok(g) => row_groups.push(g),
+                Err(_) if c.ran_short() => break,
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(FooterPrefix { meta: FileMeta { num_rows, schema, row_groups }, row_groups: n })
     }
 }
 

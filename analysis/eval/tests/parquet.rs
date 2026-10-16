@@ -67,7 +67,7 @@ use std::fs;
 
 use common::parquet::{Col, write};
 use common::{data, scratch};
-use turbo_eval::read::parquet::Parquet;
+use turbo_eval::read::parquet::{Leading, Parquet, footer_len};
 
 fn names() -> Vec<&'static str> {
     vec!["alpha", "beta", "alpha", "gamma", "beta", "alpha", "delta", "alpha", "beta", "epsilon"]
@@ -176,4 +176,112 @@ fn damage_is_an_error() {
     assert_eq!(Parquet::open("d", &bad).unwrap().strings("s").err().unwrap(), "d: column s row 1 is not UTF-8");
     // A truncated file.
     assert!(Parquet::open("d", &good[..good.len() - 20]).is_err());
+}
+
+/// A file pyarrow wrote in three row groups, of 4, 4 and 2 rows, with its
+/// size, its footer's length and where the footer starts.
+fn three_groups(file: &str) -> (Vec<u8>, u64, u64, usize) {
+    let bytes = fs::read(data("parquet").join(file)).unwrap();
+    let size = bytes.len() as u64;
+    let len = footer_len(file, size, &bytes[bytes.len() - 8..]).unwrap();
+    let start = bytes.len() - 8 - len as usize;
+    (bytes, size, len, start)
+}
+
+#[test]
+fn leading_row_groups_from_every_first_part_of_a_footer() {
+    for file in ["snappy-dict-v1.parquet", "gzip-dict-v2.parquet"] {
+        let (bytes, size, len, start) = three_groups(file);
+        let footer = &bytes[start..bytes.len() - 8];
+        let whole = Leading::read(file, size, len, footer).unwrap();
+        assert_eq!((whole.rows(), whole.row_groups()), (10, 3));
+        let spans = whole.spans();
+        assert_eq!(spans.iter().map(|s| s.rows).collect::<Vec<_>>(), [4, 4, 2]);
+        // The row groups are back to back, from the magic number to the
+        // footer.
+        assert_eq!(spans[0].start, 4);
+        assert!(spans.windows(2).all(|w| w[0].end == w[1].start), "{spans:?}");
+        assert_eq!(spans[2].end, start as u64);
+        // Every first part of the footer: an error until the row groups
+        // start, then the row groups wholly inside it, never fewer than a
+        // shorter part held.
+        let mut read: Option<usize> = None;
+        for cut in 0..=footer.len() {
+            match Leading::read(file, size, len, &footer[..cut]) {
+                Err(e) => {
+                    assert_eq!(read, None, "{file}: {cut} bytes: {e}");
+                    assert_eq!(e, format!("{file}: footer: the first {cut} bytes end before the row groups"));
+                }
+                Ok(l) => {
+                    assert_eq!((l.rows(), l.row_groups()), (10, 3), "{file}: {cut} bytes");
+                    let n = l.spans().len();
+                    assert!(n >= read.unwrap_or(0), "{file}: {cut} bytes");
+                    assert_eq!(l.spans(), &spans[..n], "{file}: {cut} bytes");
+                    read = Some(n);
+                }
+            }
+        }
+        assert_eq!(read, Some(3));
+    }
+}
+
+#[test]
+fn the_leading_row_groups_are_read_from_the_head_of_the_file() {
+    for file in ["snappy-dict-v1.parquet", "gzip-dict-v2.parquet"] {
+        let (bytes, size, len, start) = three_groups(file);
+        let leading = Leading::read(file, size, len, &bytes[start..bytes.len() - 8]).unwrap();
+        for groups in 1..=3 {
+            let end = leading.spans()[groups - 1].end as usize;
+            let t = Parquet::open_head(file, &bytes[..end], &leading, groups).unwrap();
+            let rows = [4, 8, 10][groups - 1];
+            assert_eq!(t.rows(), rows);
+            let name = t.strings("name").unwrap();
+            assert_eq!(name.len(), rows);
+            assert_eq!((0..rows).map(|r| name.at(r).unwrap()).collect::<Vec<_>>(), names()[..rows]);
+            let id = t.ints("id").unwrap();
+            assert_eq!(id.len(), rows);
+            assert_eq!(id.at(rows - 1).unwrap(), (rows as i64 - 1) * 1_000_003 - 5);
+            let text = t.strings("text").unwrap();
+            for (r, w) in texts().iter().take(rows).enumerate() {
+                assert_eq!(text.get(r), w.as_deref(), "{file} row {r}");
+            }
+            let e = Parquet::open_head(file, &bytes[..end - 1], &leading, groups).err().unwrap();
+            assert_eq!(
+                e,
+                format!("{file}: the first {groups} row groups end at byte {end}, past the {} bytes read", end - 1)
+            );
+        }
+        let e = Parquet::open_head(file, &bytes, &leading, 4).err().unwrap();
+        assert_eq!(e, format!("{file}: 4 row groups wanted, the footer's first bytes hold 3"));
+        assert_eq!(Parquet::open_head(file, b"PAR", &leading, 1).err().unwrap(), format!("{file}: not a Parquet file"));
+        // A first part of the footer holding the first row group only.
+        let one = (0..len as usize)
+            .map(|cut| Leading::read(file, size, len, &bytes[start..start + cut]))
+            .find_map(|l| l.ok().filter(|l| l.spans().len() == 1))
+            .unwrap();
+        let e = Parquet::open_head(file, &bytes, &one, 2).err().unwrap();
+        assert_eq!(e, format!("{file}: 2 row groups wanted, the footer's first bytes hold 1"));
+        assert_eq!(Parquet::open_head(file, &bytes, &one, 1).unwrap().rows(), 4);
+    }
+}
+
+#[test]
+fn footer_lengths_and_spans_are_checked() {
+    assert_eq!(footer_len("x", 28, b"\x10\0\0\0PAR1"), Ok(16));
+    assert_eq!(footer_len("x", 27, b"\x10\0\0\0PAR1").unwrap_err(), "x: footer length 16 in a file of 27 bytes");
+    assert_eq!(footer_len("x", 100, b"\x10\0\0\0PARE").unwrap_err(), "x: an encrypted Parquet footer is not read");
+    assert_eq!(footer_len("x", 100, b"\x10\0\0\0PAR2").unwrap_err(), "x: not a Parquet file");
+    assert_eq!(footer_len("x", 100, b"PAR1").unwrap_err(), "x: 4 bytes where its last 8 were wanted");
+
+    let file = "snappy-dict-v1.parquet";
+    let (bytes, size, len, start) = three_groups(file);
+    let footer = &bytes[start..bytes.len() - 8];
+    // A file a byte shorter puts the footer's start inside the last row
+    // group.
+    let e = Leading::read(file, size - 1, len, footer).unwrap_err();
+    assert_eq!(e, format!("{file}: row group 2 has a column chunk outside the file's data"));
+    let e = Leading::read(file, size, len - 1, footer).unwrap_err();
+    assert_eq!(e, format!("{file}: footer: {} bytes of a footer of {}", len, len - 1));
+    let e = Leading::read(file, len + 11, len, footer).unwrap_err();
+    assert_eq!(e, format!("{file}: footer length {len} in a file of {} bytes", len + 11));
 }
