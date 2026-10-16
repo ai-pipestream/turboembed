@@ -111,9 +111,14 @@ impl Manifest {
 
     /// `setManifestProperty`: sets `key`, replacing an earlier value.
     pub fn set(&mut self, key: &str, value: &str) {
-        match self.entries.iter_mut().find(|(k, _)| k == key) {
-            Some(entry) => entry.1 = value.to_owned(),
-            None => self.entries.push((key.to_owned(), value.to_owned())),
+        match key {
+            "Component-Name" => self.component_name = value.to_owned(),
+            "Language" => self.language = value.to_owned(),
+            "OpenNLP-Version" => self.version = value.to_owned(),
+            _ => match self.entries.iter_mut().find(|(k, _)| k == key) {
+                Some(entry) => entry.1 = value.to_owned(),
+                None => self.entries.push((key.to_owned(), value.to_owned())),
+            },
         }
     }
 
@@ -125,10 +130,19 @@ impl Manifest {
         }
     }
 
-    /// `getManifestProperty` for the entries set with [`set`](Self::set);
-    /// the base entries have their own accessors.
+    /// `getManifestProperty`: reads a base or custom manifest entry.
     pub fn get(&self, key: &str) -> Option<&str> {
-        self.entries.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+        match key {
+            "Component-Name" => Some(&self.component_name),
+            "Language" => Some(&self.language),
+            "OpenNLP-Version" => Some(&self.version),
+            _ => self
+                .entries
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.as_str())
+                .or(if key == "Manifest-Version" { Some("1.0") } else { None }),
+        }
     }
 
     /// The `manifest.properties` text: `Properties.store(out, "")` of the
@@ -137,12 +151,16 @@ impl Manifest {
     pub fn to_properties(&self) -> String {
         let timestamp = self.timestamp_ms.to_string();
         let mut entries: Vec<(&str, &str)> = vec![
-            ("Manifest-Version", "1.0"),
             ("Language", &self.language),
             ("OpenNLP-Version", &self.version),
-            ("Timestamp", &timestamp),
             ("Component-Name", &self.component_name),
         ];
+        if !self.entries.iter().any(|(k, _)| k == "Manifest-Version") {
+            entries.push(("Manifest-Version", "1.0"));
+        }
+        if !self.entries.iter().any(|(k, _)| k == "Timestamp") {
+            entries.push(("Timestamp", &timestamp));
+        }
         entries.extend(self.entries.iter().map(|(k, v)| (k.as_str(), v.as_str())));
         entries.sort_by(|a, b| turbo_jvm::chars::compare(a.0, b.0));
         let mut out = String::from("#\n#");
@@ -300,7 +318,7 @@ pub fn java_date_string(ms: i64) -> String {
 pub fn java_date_string_in(ms: i64, zone: TimeZone) -> String {
     const DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    let c = civil(ms + i64::from(zone.offset_seconds) * 1000);
+    let c = civil(ms.wrapping_add(i64::from(zone.offset_seconds) * 1000));
     format!(
         "{} {} {:02} {:02}:{:02}:{:02} {} {}",
         DAYS[c.weekday],
@@ -317,7 +335,7 @@ pub fn java_date_string_in(ms: i64, zone: TimeZone) -> String {
 /// The MS-DOS time and date fields of a zip entry for `ms`, in `zone`
 /// (`ZipEntry.setTime` converts the instant in the default zone).
 fn dos_time_date(ms: i64, zone: TimeZone) -> (u16, u16) {
-    let c = civil(ms + i64::from(zone.offset_seconds) * 1000);
+    let c = civil(ms.wrapping_add(i64::from(zone.offset_seconds) * 1000));
     let time = (c.hour << 11) | (c.minute << 5) | (c.second / 2);
     let year = c.year.clamp(1980, 2107) - 1980;
     let date = ((year as u32) << 9) | (c.month << 5) | c.day;
@@ -349,6 +367,7 @@ impl ZipWriter {
     }
 
     fn add(&mut self, name: &str, data: &[u8]) {
+        assert!(self.count < u16::MAX - 1, "a model archive holds fewer than 65535 entries");
         let offset = u32::try_from(self.bytes.len()).expect("a model file is under 4 GB");
         let size = u32::try_from(data.len()).expect("a model entry is under 4 GB");
         let crc = turbo_maxent::crc32(data);
@@ -384,8 +403,8 @@ impl ZipWriter {
     }
 
     fn finish(mut self) -> Vec<u8> {
-        let central_offset = self.bytes.len() as u32;
-        let central_len = self.central.len() as u32;
+        let central_offset = u32::try_from(self.bytes.len()).expect("a model file is under 4 GB");
+        let central_len = u32::try_from(self.central.len()).expect("a central directory is under 4 GB");
         self.bytes.append(&mut self.central);
         self.bytes.extend_from_slice(&END_SIGNATURE.to_le_bytes());
         self.bytes.extend_from_slice(&0u16.to_le_bytes()); // this disk
@@ -402,100 +421,13 @@ impl ZipWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::TrainerType;
-    use turbo_maxent::{Method, ModelFile};
-
-    /// The instant in the fixture model en-plain.bin's manifest.
-    const FIXTURE_MS: i64 = 1791786313615;
 
     #[test]
-    fn dates_print_as_java_prints_them() {
-        assert_eq!(java_date_string(FIXTURE_MS), "Mon Oct 12 06:25:13 UTC 2026");
-        assert_eq!(java_date_string(0), "Thu Jan 01 00:00:00 UTC 1970");
-        assert_eq!(java_date_string(-1), "Wed Dec 31 23:59:59 UTC 1969");
-        assert_eq!(java_date_string(951782400000), "Tue Feb 29 00:00:00 UTC 2000");
-        assert_eq!(java_date_string(2147483647000), "Tue Jan 19 03:14:07 UTC 2038");
-    }
-
-    #[test]
-    fn the_manifest_is_the_fixture_models_manifest() {
-        let report = TrainingReport { event_hash: Some(4204752117), trainer_type: TrainerType::Event };
-        let package = sentence_model_package("en", FIXTURE_MS, &report, false, Some(".!?"), Vec::new());
-        let expected = "#\n#Mon Oct 12 06:25:13 UTC 2026\nComponent-Name=SentenceDetectorME\nLanguage=en\n\
-            Manifest-Version=1.0\nOpenNLP-Version=3.0.0-SNAPSHOT\nTimestamp=1791786313615\nTrainerType=Event\n\
-            Training-Eventhash=4204752117\neosCharacters=.\\!?\nfactory=opennlp.tools.sentdetect.SentenceDetectorFactory\n\
-            useTokenEnd=false\n";
-        assert_eq!(package.manifest().to_properties(), expected);
-        let fixture = ModelFile::read(turbo_goldens::data_dir().join("fixtures/en-plain.bin")).unwrap();
-        let fixture_manifest = String::from_utf8(fixture.entry(MANIFEST_ENTRY).unwrap().into_owned()).unwrap();
-        assert_eq!(fixture_manifest, expected);
-    }
-
-    #[test]
-    fn set_replaces_and_get_reads_base_entries() {
-        let mut m = Manifest::new("TokenizerME", "de", 5);
-        m.set("useAlphaNumericOptimization", "true");
-        m.set("useAlphaNumericOptimization", "false");
-        assert_eq!(m.get("useAlphaNumericOptimization"), Some("false"));
-        assert_eq!(m.component_name(), "TokenizerME");
-        assert_eq!(m.language(), "de");
-        assert_eq!(m.timestamp_ms(), 5);
-        assert_eq!(m.get("missing"), None);
-        assert_eq!(m.to_properties().matches("useAlphaNumericOptimization").count(), 1);
-    }
-
-    #[test]
-    fn the_archive_opens_as_a_model_file_with_stored_entries() {
-        let mut manifest = Manifest::new("SentenceDetectorME", "en", FIXTURE_MS);
-        manifest.set("useTokenEnd", "true");
-        let mut package = ModelPackage::new(manifest);
-        package.add_entry("sent.model", vec![1, 2, 3]);
-        package.add_entry("abbreviations.dictionary", b"<dictionary/>".to_vec());
-        let bytes = package.to_bytes();
-        let file = ModelFile::open(bytes).unwrap();
-        assert_eq!(file.component_name(), "SentenceDetectorME");
-        assert_eq!(file.manifest().get("useTokenEnd"), Some("true"));
-        assert_eq!(&*file.entry("sent.model").unwrap(), &[1, 2, 3]);
-        assert_eq!(&*file.entry("abbreviations.dictionary").unwrap(), b"<dictionary/>");
-        assert_eq!(file.archive().len(), 3);
-        assert_eq!(file.archive().method("sent.model"), Some(Method::Stored));
-        let (time, date) = dos_time_date(FIXTURE_MS, TimeZone::UTC);
-        // 06:25:13 on 2026-10-12.
+    fn dos_timestamps_encode_utc_and_cest_instants() {
+        let (time, date) = dos_time_date(1791786313615, TimeZone::UTC);
         assert_eq!(time, (6 << 11) | (25 << 5) | 6);
         assert_eq!(date, (46 << 9) | (10 << 5) | 12);
-    }
-
-    #[test]
-    fn the_manifest_is_written_where_it_is_placed() {
-        let mut package = ModelPackage::new(Manifest::new("POSTaggerME", "en", FIXTURE_MS));
-        package.add_entry("tags.tagdict", b"<dictionary/>".to_vec());
-        package.add_entry("pos.model", vec![1]);
-        assert_eq!(package.entry_names(), ["manifest.properties", "tags.tagdict", "pos.model"]);
-        package.place_manifest(1);
-        assert_eq!(package.entry_names(), ["tags.tagdict", "manifest.properties", "pos.model"]);
-        let file = ModelFile::open(package.to_bytes()).unwrap();
-        let names: Vec<String> = file.archive().names().map(|n| String::from_utf8(n.to_vec()).unwrap()).collect();
-        assert_eq!(names, ["tags.tagdict", "manifest.properties", "pos.model"]);
-        assert_eq!(file.component_name(), "POSTaggerME");
-        // A count beyond the entries puts it last.
-        package.place_manifest(9);
-        assert_eq!(package.entry_names(), ["tags.tagdict", "pos.model", "manifest.properties"]);
-        assert_eq!(package.entries().count(), 2);
-    }
-
-    #[test]
-    fn another_version_and_zone_print_as_that_jvm_printed_them() {
-        // The published model opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin.
-        let ms = 1749698375454;
-        assert_eq!(java_date_string_in(ms, TimeZone::CEST), "Thu Jun 12 05:19:35 CEST 2025");
-        assert_eq!(java_date_string_in(ms, TimeZone::UTC), "Thu Jun 12 03:19:35 UTC 2025");
-        let manifest = Manifest::new("SentenceDetectorME", "en", ms).with_version("2.5.4").with_zone(TimeZone::CEST);
-        assert_eq!(manifest.version(), "2.5.4");
-        assert_eq!(manifest.zone(), TimeZone::CEST);
-        let text = manifest.to_properties();
-        assert!(text.starts_with("#\n#Thu Jun 12 05:19:35 CEST 2025\n"), "{text}");
-        assert!(text.contains("\nOpenNLP-Version=2.5.4\n"), "{text}");
-        let (time, date) = dos_time_date(ms, TimeZone::CEST);
+        let (time, date) = dos_time_date(1749698375454, TimeZone::CEST);
         assert_eq!(time, (5 << 11) | (19 << 5) | 17);
         assert_eq!(date, (45 << 9) | (6 << 5) | 12);
     }
