@@ -350,9 +350,9 @@ goldens.
 - `NaiveBayesTrainer` defaults to `SORT = false` and sums raw counts (or
   real values when `events` is a `OnePassRealValueDataIndexer`) per
   `(predicate, outcome)`. `NaiveBayesModel` computes empirical outcome priors
-  and evaluates contexts with Lidstone smoothing (`delta = 0.05`,
-  `3 * delta` in the denominator) using `LogProbabilities` (`StrictMath.log`
-  and `StrictMath.exp`).
+  and evaluates contexts with Lidstone smoothing (`delta = 0.05`, and
+  `delta` times the number of predicates in the denominator) using
+  `LogProbabilities` (`StrictMath.log` and `StrictMath.exp`).
 
 The abbreviation dictionary entry of a sentence or tokenizer model
 (`abbreviations.dictionary`, `DictionarySerializer`) is written by

@@ -479,6 +479,29 @@ mod tests {
     }
 
     #[test]
+    fn naive_bayes_smooths_until_the_pattern_ends_then_adds_the_priors() {
+        // p has parameters for a and b only, so `NaiveBayesModel.eval` stops
+        // before c and c gets no smoothed term. c's total is negative, so its
+        // prior's log is NaN and its probability is 0.
+        let got = eval(&model(ModelKind::NaiveBayes), &["p", "unknown"]);
+        let total = 4.0 + 5.0 + -0.5;
+        let a = log((1.0 + 0.05) / (4.0 + 0.05 * 4.0)) + log(4.0 / total);
+        let b = log((2.0 + 0.05) / (5.0 + 0.05 * 4.0)) + log(5.0 / total);
+        let max = a.max(b);
+        let (ea, eb) = (exp(a - max), exp(b - max));
+        let s = ea + eb;
+        assert_eq!(got, vec![ea / s, eb / s, 0.0]);
+        // q has a parameter for c only: a and b get the smoothed zero count.
+        let got = eval(&model(ModelKind::NaiveBayes), &["q"]);
+        let a = log(0.05 / (4.0 + 0.05 * 4.0)) + log(4.0 / total);
+        let b = log(0.05 / (5.0 + 0.05 * 4.0)) + log(5.0 / total);
+        let max = a.max(b);
+        let (ea, eb) = (exp(a - max), exp(b - max));
+        let s = ea + eb;
+        assert_eq!(got, vec![ea / s, eb / s, 0.0]);
+    }
+
+    #[test]
     fn an_empty_context_gives_uniform_probabilities() {
         for kind in [ModelKind::Gis, ModelKind::Qn, ModelKind::Perceptron] {
             let got = eval(&model(kind), &[]);
