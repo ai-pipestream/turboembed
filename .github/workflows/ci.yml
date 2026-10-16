@@ -73,7 +73,12 @@ jobs:
       # LibreOffice's Hunspell dictionaries are not checked in either
       # (de_DE_frami is GPL, hu_HU MPL or LGPL; en_US, under SCOWL's
       # permissive terms, is downloaded with them); turbo-hunspell's
-      # goldens over them run here.
+      # goldens over them run here. The SMS Spam Collection (CC BY 4.0) is
+      # not checked in either: fetch-models downloads it into
+      # .opennlp-models/corpora by the URL and SHA-512 in the recipe, so the
+      # cache above, keyed by the recipe, keeps it until its digest changes.
+      # turbo-train-components trains the maxent document categorizer on it
+      # here and compares the models with the JVM's byte for byte.
       - name: parity against the JVM with the published models, models required
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
@@ -83,6 +88,7 @@ jobs:
           cargo test -p turbo-zoo --test builtin
           cargo test -p turbo-eval --lib
           cargo test -p turbo-train-recipes --test recipes
+          cargo test -p turbo-train-components --test doccat_goldens
       # The sentence detectors against the conformance suites (Pragmatic
       # Segmenter, pySBD, UAX #29) and the rule splitter's agreement with
       # the maxent detector, with the de, en and pt sentence models. The

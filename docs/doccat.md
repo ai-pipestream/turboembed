@@ -1,23 +1,70 @@
 # Document categorization
 
-`turbo-doccat` (`analysis/doccat/`) ports the SVM document categorizer of
-OpenNLP 3.x, `DocumentCategorizerSVM` in the `opennlp-ml-libsvm` module, at
-prediction. It reads a model OpenNLP trained, exported as two text files,
-and gives the categories and probabilities `categorize` gives on the JVM.
-It does not train.
+`turbo-doccat` (`analysis/doccat/`) ports the document categorizers of
+OpenNLP 3.x (`DocumentCategorizerME` and `DoccatModel` in
+`opennlp.tools.doccat.*`, and `DocumentCategorizerSVM` in the
+`opennlp-ml-libsvm` module), along with `SpanCategorizer<L>` for
+sentence-, structure-, and chunk-level categorization and
+`turbo_train_components::doccat` for training and packaging maxent and
+perceptron `DoccatModel` archives.
 
 The crate also holds OpenNLP's maxent sentiment detector, `SentimentME`,
 which [sentiment.md](sentiment.md) describes.
 
 It depends on `turbo-analysis`, `turbo-analysis-layers`, `turbo-jvm`
-(Java's `Double.toString`, `Double.parseDouble`, `Integer.parseInt` and
-`Math.log`), `turbo-maxent` (SHA-256, for the model reference, and the
-sentiment model's classifier) and `turbo-normalize` (the emoji features of
-the sentiment context), and on nothing outside the workspace.
+(Java's `Double.toString`, `Double.parseDouble`, `Integer.parseInt`,
+`String.hashCode` and `Math.log`), `turbo-maxent` (SHA-256, for the model
+reference, and the maxent/perceptron classifier), `turbo-normalize` (the
+emoji features), `turbo-sequence` (`StringPattern` for letter-only token
+checks) and `turbo-train` (event streams and indexing), and on nothing
+outside the workspace.
 
-## What it does
+## Maximum entropy and perceptron categorization (`DocumentCategorizerME`)
 
-OpenNLP's categorizer turns a document's tokens into a sparse vector and
+`DocumentCategorizerME` scores tokenized text with an OpenNLP `DoccatModel`
+(`.bin` zip archive containing `doccat.model` and `manifest.properties`):
+
+1. `DoccatContextGenerator` runs the configured `FeatureGenerator` chain over
+   the tokens and optional `extra_information` map:
+   - `BagOfWordsFeatureGenerator`: emits `bow=<token>` for every token (or,
+     with `BagOfWordsFeatureGenerator::only_all_letter_tokens()`, only tokens
+     where `StringPattern::recognize` reports `ALL_LETTERS`; by default it
+     checks UTF-16 code units as the JVM does, with `PatternMode::CodePoints`
+     available as an opt-in).
+   - `NGramFeatureGenerator`: emits `ng=:<t_i>:...:<t_{i+n-1}>` for sliding
+     token windows of length `min_gram..=max_gram` (default `2..=3`).
+   - `EmojiFeatureGenerator`: emits `emoji=<token>` for emoji code points.
+2. `categorize` (or `categorize_with_extra`) evaluates the underlying
+   `MaxentModel` on the extracted context features and returns the outcome
+   probability distribution.
+3. `best_category` returns the first highest-scoring category, `get_index` /
+   `get_category` map between category names and indices, `score_map` groups
+   categories by probability into a `BTreeMap<OrderedFloat, BTreeSet<String>>`,
+   and `sorted_score_map` orders categories by ascending score.
+4. As an annotator (`opennlp:DocumentCategorizerME`), `DocumentCategorizerME`
+   reads `opennlp:tokens` from the view and writes a single-item
+   `turbo_analysis_layers::Categories` (`turbo:categories`) layer anchored to
+   the document.
+5. `SpanCategorizer<L>` (`turbo:SpanCategorizer`) wraps a
+   `DocumentCategorizerME` and categorizes each span of a target layer `L:
+   SpanCategorizable` (`Sentences`, `Structure`, or `Chunks`) using the tokens
+   contained within that span, writing `Categories<L>` (`turbo:categories<L>`)
+   aligned 1-to-1 with `L`.
+6. `turbo_train_components::doccat::train` (and `train_from_samples` /
+   `package`) trains a `DoccatModel` from `DocumentSample`s using GIS, QN
+   (L-BFGS), Naive Bayes, or Perceptron and writes a byte-compatible OpenNLP
+   `.bin` model archive.
+
+`DoccatGolden.java` in `analysis/goldens-tool` trains 8 maxent/perceptron/naive
+bayes models on the UCI SMS Spam Collection and records the features and
+category probabilities on 12 test documents (`analysis/goldens/data/doccat`);
+`analysis/doccat/tests/maxent_goldens.rs` and
+`analysis/train-components/tests/doccat_goldens.rs` verify bit-for-bit feature,
+model binary, and probability parity against the JVM.
+
+## SVM categorization (`SvmCategorizer`)
+
+OpenNLP's SVM categorizer turns a document's tokens into a sparse vector and
 asks LIBSVM for it. `turbo-doccat` follows it step by step:
 
 1. The feature generators run over the tokens, in the model's order:
@@ -54,7 +101,8 @@ nu-SVC models; the reader takes every kind but the precomputed kernel.
 for -1), `category`, `num_categories` and `all_results` (`getAllResults`,
 scores written as `Double.toString` writes them). As an annotator
 (`turbo-doccat:svm`) it reads `opennlp:tokens` and writes
-`turbo:categories`: every category with its probability, best first,
+the document's `turbo:categories`: the best category and every
+category's probability, which `Categories::ranked` lists best first,
 ties in category order. The tokens are the strings the categorizer gets,
 so the annotator gives what `categorize` gives for those tokens.
 
@@ -77,7 +125,7 @@ A model's `ModelRef` is `opennlp:SvmDoccatModel:<language>` (`und` without
 one), revision `1`, and the SHA-256 of the LIBSVM file's bytes followed by
 the sidecar's.
 
-### OpenNLP behaviour worth knowing
+### OpenNLP SVM behaviour worth knowing
 
 - A model trained without probability estimates cannot categorize: zlibsvm
   hands LIBSVM empty `probA` and `probB` arrays, and OpenNLP throws
@@ -90,7 +138,7 @@ the sidecar's.
   vocabulary at training; prediction never looks at it. The sidecar
   records it for the reader.
 
-## The model files
+## The SVM model files
 
 OpenNLP saves an `SvmDoccatModel` with Java serialization, which this port
 does not read. The golden generator writes each model as two text files
@@ -131,7 +179,7 @@ Fields are separated by one tab, numbers are written as `Double.toString`
 writes them, and a name is the last field, escaped as golden files escape
 a string.
 
-## Parity with the JVM
+## SVM parity with the JVM
 
 ### The goldens
 
@@ -211,9 +259,9 @@ platform's `exp`. `Math.tanh` and `StrictMath.tanh` agreed on every
 argument, so a port of fdlibm's `tanh` would make the sigmoid kernel
 exact; it is not written.
 
-## Why a port and not linfa-svm
+## Why an SVM port and not linfa-svm
 
-The predictor is a port of LIBSVM's prediction code, a few hundred lines.
+The SVM predictor is a port of LIBSVM's prediction code, a few hundred lines.
 Running a model OpenNLP trained with the JVM's numbers needs three things:
 a reader for LIBSVM's model file, LIBSVM's one-against-one vote and
 pairwise probability coupling, and LIBSVM's order of `f64` operations.
@@ -224,17 +272,18 @@ build, and the C library's `exp` is the platform's too.
 
 The port reads the file OpenNLP's LIBSVM writes, keeps LIBSVM's order of
 operations, so the linear and polynomial kernels give the JVM's bits, and
-depends on nothing new. It predicts only; training stays on the JVM.
+depends on nothing new. It predicts only; SVM training stays on the JVM.
 
-## What it does not do
+## What the SVM categorizer does not do
 
-- Training and feature selection: models are trained by OpenNLP and
-  exported.
+- SVM training and feature selection: SVM models are trained by OpenNLP and
+  exported (whereas maxent, perceptron, and Naive Bayes `DoccatModel`s are
+  trained directly by `turbo_train_components::doccat`).
 - Java serialized `SvmDoccatModel` files: only the exported text files.
-- Feature generators other than `BagOfWordsFeatureGenerator()` and
+- SVM feature generators other than `BagOfWordsFeatureGenerator()` and
   `NGramFeatureGenerator`; the letters only variant of the bag of words
-  generator is package private in OpenNLP, and the sidecar has no form for
-  it.
+  generator is package private in OpenNLP's SVM module, and the sidecar has no
+  form for it.
 - The precomputed kernel, whose input is kernel values rather than
   features.
 - Bit for bit RBF and sigmoid decision values and probabilities, for the

@@ -4,7 +4,7 @@
 
 use crate::command::run;
 use crate::recipe::{
-    DICTIONARIES, Dictionary, DictionaryEncoding, FIXTURES, HUNSPELL_FILES, LOCAL_MODELS, MODELS, Model,
+    CORPORA, DICTIONARIES, Dictionary, DictionaryEncoding, FIXTURES, HUNSPELL_FILES, LOCAL_MODELS, MODELS, Model,
     UTF8_COPY_SUFFIX,
 };
 use crate::sha512::{Sha512, hex};
@@ -22,8 +22,9 @@ pub enum Models {
     WithLocal,
 }
 
-/// Makes sure every model of `which`, every MeCab dictionary and every
-/// Hunspell dictionary file of the recipe is in `dir` with its SHA-512. A file already there with the right hash is
+/// Makes sure every model of `which`, every MeCab dictionary, every
+/// Hunspell dictionary file and every training corpus of the recipe is in
+/// `dir` with its SHA-512. A file already there with the right hash is
 /// kept; one that is missing is downloaded with `curl`. A download whose
 /// hash differs is removed and reported; a file already there whose hash
 /// differs is reported and left for the caller to look at.
@@ -35,7 +36,8 @@ pub fn fetch(dir: &Path, which: Models) -> Result<(), String> {
     };
     let hunspell: Vec<Model> =
         HUNSPELL_FILES.iter().map(|f| Model { file: f.file, url: f.url, sha512: f.sha512 }).collect();
-    for m in MODELS.iter().chain(local).chain(&hunspell) {
+    let corpora: Vec<Model> = CORPORA.iter().map(|c| Model { file: c.file, url: c.url, sha512: c.sha512 }).collect();
+    for m in MODELS.iter().chain(local).chain(&hunspell).chain(&corpora) {
         let target = dir.join(m.file);
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
@@ -160,13 +162,14 @@ pub fn dictionary_files(dir: &Path) -> Result<Vec<String>, String> {
     Ok(names)
 }
 
-/// Checks that every model and Hunspell dictionary file the generator
-/// loads is in `dir` with the recipe's SHA-512.
+/// Checks that every model, Hunspell dictionary file and training corpus
+/// the generator loads is in `dir` with the recipe's SHA-512.
 pub fn check_all(dir: &Path) -> Result<(), String> {
     MODELS.iter().chain(&LOCAL_MODELS).try_for_each(|m| check(&dir.join(m.file), m))?;
     HUNSPELL_FILES
         .iter()
-        .try_for_each(|f| check(&dir.join(f.file), &Model { file: f.file, url: f.url, sha512: f.sha512 }))
+        .try_for_each(|f| check(&dir.join(f.file), &Model { file: f.file, url: f.url, sha512: f.sha512 }))?;
+    CORPORA.iter().try_for_each(|c| check(&dir.join(c.file), &Model { file: c.file, url: c.url, sha512: c.sha512 }))
 }
 
 /// Fails unless `dir` holds exactly the recipe's fixtures, each with its
