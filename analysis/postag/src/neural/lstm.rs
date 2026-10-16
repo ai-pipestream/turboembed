@@ -337,12 +337,13 @@ impl LstmLayer {
 /// intrinsic routine rather than fdlibm (`StrictMath.exp`). That routine is
 /// not correctly rounded and its source is GPL licensed, so it is not
 /// ported. The platform `exp` is used instead: it is the closest of the
-/// available functions (on the 4662 sigmoid arguments of the BiLSTM test
-/// models glibc differs from the JDK 21 intrinsic on 11, fdlibm on 456), so
-/// an emission can still differ from the JVM's in its last bits. This is a
-/// deliberate difference; tags and Viterbi paths are unaffected on the
-/// test models. `tanh` uses fdlibm, which is what JDK 21's `Math.tanh`
-/// returns, and every sum is formed in Java's order.
+/// available functions (on 4662 sigmoid arguments of small test models
+/// glibc differed from the JDK 21 intrinsic on 11, fdlibm on 456), so an
+/// emission can still differ from the JVM's in its last bits. This is a
+/// deliberate difference: on the `postag-neural` goldens 98.5% of the
+/// emissions are bit for bit, the rest within 1e-15, and every tag and
+/// Viterbi path is the JVM's. `tanh` uses fdlibm, which is what JDK 21's
+/// `Math.tanh` returns, and every sum is formed in Java's order.
 #[inline]
 fn sigmoid(x: f64) -> f64 {
     if x >= 0.0 {

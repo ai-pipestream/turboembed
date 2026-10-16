@@ -31,7 +31,8 @@
 //!
 //! Every function here is checked against vectors written by a real JVM
 //! (`tests/vectors/`, made by `java/Vectors.java`), except [`math::log`],
-//! whose JVM values are constants in its tests.
+//! [`strict_math::expm1`] and [`strict_math::tanh`], whose JVM values are
+//! constants in their tests.
 
 pub mod chars;
 pub mod hash_map;

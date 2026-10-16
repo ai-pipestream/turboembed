@@ -136,90 +136,10 @@ impl From<io::Error> for NeuralError {
     }
 }
 
-/// Reproduces `java.util.Random` (48-bit LCG) for deterministic weight initialization, dropout, and shuffling.
-#[derive(Clone, Debug)]
-pub struct JavaRng {
-    seed: u64,
-    next_next_gaussian: Option<f64>,
-}
-
-impl JavaRng {
-    const MULTIPLIER: u64 = 0x5_deec_e66d;
-    const ADDEND: u64 = 0xb;
-    const MASK: u64 = (1u64 << 48) - 1;
-    const DOUBLE_UNIT: f64 = 1.0 / ((1u64 << 53) as f64);
-
-    /// Creates a new `JavaRng` seeded identically to `new java.util.Random(seed)`.
-    pub fn new(seed: i64) -> Self {
-        Self { seed: ((seed as u64) ^ Self::MULTIPLIER) & Self::MASK, next_next_gaussian: None }
-    }
-
-    #[inline]
-    fn next(&mut self, bits: u32) -> i32 {
-        self.seed = (self.seed.wrapping_mul(Self::MULTIPLIER).wrapping_add(Self::ADDEND)) & Self::MASK;
-        (self.seed >> (48 - bits)) as i32
-    }
-
-    /// Reproduces `Random.nextInt(bound)`.
-    pub fn next_int_bounded(&mut self, bound: i32) -> i32 {
-        assert!(bound > 0, "bound must be positive");
-        let mut r = self.next(31);
-        let m = bound - 1;
-        if (bound & m) == 0 {
-            r = (((bound as i64) * (r as i64)) >> 31) as i32;
-        } else {
-            let mut u = r;
-            loop {
-                r = u % bound;
-                if u.wrapping_sub(r).wrapping_add(m) >= 0 {
-                    break;
-                }
-                u = self.next(31);
-            }
-        }
-        r
-    }
-
-    /// Reproduces `Random.nextLong()`.
-    pub fn next_long(&mut self) -> i64 {
-        let high = (self.next(32) as i64) << 32;
-        high.wrapping_add(self.next(32) as i64)
-    }
-
-    /// Reproduces `Random.nextDouble()`.
-    pub fn next_double(&mut self) -> f64 {
-        let high = (self.next(26) as i64) << 27;
-        ((high + self.next(27) as i64) as f64) * Self::DOUBLE_UNIT
-    }
-
-    /// Reproduces `Random.nextGaussian()` via the polar Marsaglia method and `StrictMath.log`.
-    pub fn next_gaussian(&mut self) -> f64 {
-        if let Some(g) = self.next_next_gaussian.take() {
-            return g;
-        }
-        let (mut v1, mut v2, mut s);
-        loop {
-            v1 = 2.0 * self.next_double() - 1.0;
-            v2 = 2.0 * self.next_double() - 1.0;
-            s = v1 * v1 + v2 * v2;
-            if !(s >= 1.0 || s == 0.0) {
-                break;
-            }
-        }
-        let multiplier = (-2.0 * turbo_jvm::strict_math::log(s) / s).sqrt();
-        self.next_next_gaussian = Some(v2 * multiplier);
-        v1 * multiplier
-    }
-
-    /// Reproduces `Collections.shuffle(list, rng)`.
-    pub fn shuffle<T>(&mut self, items: &mut [T]) {
-        let size = i32::try_from(items.len()).expect("list length fits in i32");
-        for i in (2..=size).rev() {
-            let j = self.next_int_bounded(i) as usize;
-            items.swap((i - 1) as usize, j);
-        }
-    }
-}
+/// `java.util.Random`, which the trainers draw weight initialization,
+/// dropout masks and shuffles from: `turbo_jvm`'s port, which is checked
+/// against values written by a JVM.
+pub use turbo_jvm::random::JavaRandom as JavaRng;
 
 /// Big-endian binary reader matching `java.io.DataInputStream`.
 pub(crate) struct DataReader<R> {
