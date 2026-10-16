@@ -388,8 +388,9 @@ impl Annotator for SpellCorrect {
 
     /// Corrects the view, writing a row of `Corrections` for each replaced
     /// stretch. With `use_placeholders`, the placeholders must be in the
-    /// view read.
+    /// view read and within the text bounds.
     fn annotate(&self, (src, placeholders): Refs<'_, Self>) -> Result<(View, Corrections), Error> {
+        let text = src.text();
         let skip = match placeholders {
             Some(p) if self.use_placeholders => {
                 if p.spans.view() != src.id() {
@@ -402,12 +403,37 @@ impl Annotator for SpellCorrect {
                         ),
                     });
                 }
-                let spans: Vec<Span> = p.spans.iter().map(|(_, s)| s).collect();
-                Some(spans)
+                let mut spans = Vec::with_capacity(p.spans.len());
+                for (i, s) in p.spans.iter() {
+                    let (start, end) = (s.start as usize, s.end as usize);
+                    if start > end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+                        return Err(Error::Annotator {
+                            annotator: <Self as Annotator>::ID,
+                            detail: format!(
+                                "placeholder {} span {}..{} is out of bounds for text of {} bytes",
+                                i.get(),
+                                s.start,
+                                s.end,
+                                text.len()
+                            ),
+                        });
+                    }
+                    if !s.is_empty() {
+                        spans.push(s);
+                    }
+                }
+                spans.sort_unstable();
+                let mut joined: Vec<Span> = Vec::with_capacity(spans.len());
+                for s in spans {
+                    match joined.last_mut() {
+                        Some(last) if s.start < last.end => last.end = last.end.max(s.end),
+                        _ => joined.push(s),
+                    }
+                }
+                Some(joined)
             }
             _ => None,
         };
-        let text = src.text();
         let mut out = ViewBuilder::new(text);
         let mut corrections = Corrections::new(src.id());
         self.run(text, &mut out, skip.as_deref(), &mut |s, with, distance| {

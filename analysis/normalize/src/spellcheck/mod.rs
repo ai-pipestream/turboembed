@@ -22,6 +22,7 @@ mod deletes;
 mod dictionary;
 mod distance;
 mod guards;
+mod lookup;
 mod model;
 mod suggestion;
 mod symspell;
@@ -43,5 +44,41 @@ pub use symspell::{LookupError, SymSpell};
 impl crate::noise::Dictionary for SymSpell {
     fn contains(&self, word: &str) -> bool {
         SymSpell::contains(self, word)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use turbo_analysis::{Annotator, Document, Span, Spans, View};
+    use turbo_normalize_layers::{PlaceholderKind, Placeholders};
+
+    #[test]
+    fn annotate_normalizes_nested_and_unsorted_placeholders_and_rejects_oob() {
+        let mut engine = SymSpell::default();
+        engine.add("hello", 100);
+        engine.add("world", 100);
+        let corrector = SpellCorrect::new(Arc::new(engine)).use_placeholders(true);
+
+        let doc = Document::new("helo wrld");
+        let view = doc.get::<View>().unwrap();
+
+        let mut spans = Spans::new(view.id());
+        spans.push(Span::new(0, 9));
+        spans.push(Span::new(1, 2));
+        let placeholders = Placeholders { spans, kind: vec![PlaceholderKind::Url, PlaceholderKind::Url] };
+        let (corrected_view, corrections) = corrector.annotate((view, Some(&placeholders))).unwrap();
+        assert_eq!(corrected_view.text(), "helo wrld");
+        assert!(corrections.spans.is_empty());
+
+        let mut oob = Spans::new(view.id());
+        oob.push(Span::new(0, 99));
+        let oob_placeholders = Placeholders { spans: oob, kind: vec![PlaceholderKind::Url] };
+        let err = corrector
+            .annotate((view, Some(&oob_placeholders)))
+            .err()
+            .expect("out-of-bounds placeholder span must fail");
+        assert!(err.to_string().contains("out of bounds"));
     }
 }
