@@ -155,6 +155,10 @@ impl<'t> Zoo<'t> {
                         message: "is a symlink; the zoo writes only plain files".into(),
                     });
                 }
+                Ok(m) if !m.is_file() => {
+                    return Err(ZooError::Io { path: local, message: "is not a plain file".into() });
+                }
+                Ok(m) if m.len() != f.size => false,
                 Ok(_) => {
                     let bytes =
                         fs::read(&local).map_err(|e| ZooError::Io { path: local.clone(), message: e.to_string() })?;
