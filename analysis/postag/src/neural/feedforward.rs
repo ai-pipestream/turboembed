@@ -400,17 +400,8 @@ impl FeedforwardPosModel {
                 }
             }
         } else {
-            for j in 0..hidden_size {
-                let w = &self.hidden_weights[j];
-                let mut sum = hidden[j];
-                for (slot, &row) in features.iter().enumerate() {
-                    let e = &self.embeddings[row];
-                    let offset = slot * self.embedding_size;
-                    for i in 0..self.embedding_size {
-                        sum += f64::from(w[offset + i]) * f64::from(e[i]);
-                    }
-                }
-                hidden[j] = sum;
+            for (slot, &row) in features.iter().enumerate() {
+                self.add_slot_contribution(&mut hidden, slot, row);
             }
         }
 
@@ -481,16 +472,20 @@ impl FeedforwardPosModel {
         contrib
     }
 
+    /// Adds one slot's contribution to `hidden` without caching it. The slot's
+    /// products are summed from zero before being added, the same order as a
+    /// cached contribution, so a score does not depend on whether the cache
+    /// was enabled or had room for this slot and row.
     fn add_slot_contribution(&self, hidden: &mut [f64], slot: usize, row: usize) {
         let e = &self.embeddings[row];
         let offset = slot * self.embedding_size;
         for (j, h) in hidden.iter_mut().enumerate() {
             let w = &self.hidden_weights[j];
-            let mut sum = *h;
+            let mut sum = 0.0f64;
             for i in 0..self.embedding_size {
                 sum += f64::from(w[offset + i]) * f64::from(e[i]);
             }
-            *h = sum;
+            *h += sum;
         }
     }
 
@@ -840,7 +835,7 @@ impl FeedforwardPosTagger {
 
     /// Tags a tokenized sentence greedily from left to right.
     pub fn tag(&self, sentence: &[impl AsRef<str>]) -> Result<Vec<String>, NeuralError> {
-        Ok(self.decode(sentence)?.into_Outcomes())
+        Ok(self.decode(sentence)?.into_outcomes())
     }
 
     /// Returns a 1-element array containing the greedy tag sequence with per-token softmax probabilities.
@@ -885,8 +880,7 @@ impl FeedforwardPosTagger {
 }
 
 impl NeuralSequence {
-    #[allow(non_snake_case)]
-    fn into_Outcomes(self) -> Vec<String> {
+    fn into_outcomes(self) -> Vec<String> {
         self.outcomes
     }
 }
@@ -1679,5 +1673,54 @@ mod tests {
             c.set_budget(0);
             assert_eq!(c.budget(), 0);
         }
+    }
+
+    /// Builds a one-row model whose single slot adds two products of 2^-53 to
+    /// a hidden bias of 1.0: summed one by one into the bias they round away,
+    /// summed from zero first they do not.
+    fn order_sensitive_model() -> FeedforwardPosModel {
+        let vocab = vec![(UNKNOWN.to_owned(), 0), (ABSENT.to_owned(), 0)];
+        let tiny = CrfScoreTable::scalb(1.0, -53) as f32;
+        let emb = vec![vec![tiny, tiny]];
+        let mut hw = vec![vec![0.0f32; 24]];
+        hw[0][0] = 1.0;
+        hw[0][1] = 1.0;
+        let scale = CrfScoreTable::scalb(1.0, 60) as f32;
+        FeedforwardPosModel::new(
+            vocab.clone(),
+            vocab.clone(),
+            vocab.clone(),
+            vocab,
+            vec!["A".into(), "B".into()],
+            2,
+            emb,
+            hw,
+            vec![1.0f32],
+            vec![vec![-scale], vec![scale]],
+            vec![0.0f32, 0.0f32],
+        )
+    }
+
+    #[test]
+    fn scores_do_not_depend_on_the_cache_state() {
+        let ctx = FeedforwardPosContext::extract(&["cat"], 0, None, None);
+
+        let uncached = order_sensitive_model();
+        let f_ids = uncached.feature_ids(&ctx);
+        let direct = uncached.score(&f_ids).unwrap();
+
+        let cached = order_sensitive_model();
+        cached.enable_scoring_cache();
+        let with_room = cached.score(&f_ids).unwrap();
+
+        let full = order_sensitive_model();
+        full.enable_scoring_cache();
+        if let Some(ref c) = *full.cache.read().unwrap() {
+            c.set_budget(0);
+        }
+        let without_room = full.score(&f_ids).unwrap();
+
+        assert_eq!(direct, with_room);
+        assert_eq!(without_room, with_room);
     }
 }
