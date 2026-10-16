@@ -2,9 +2,10 @@
 //! outcomes as `turbo:categories`.
 
 use std::cell::RefCell;
+use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Bound, Error, Key, ModelRef, Refs, View};
-use turbo_analysis_layers::{Categories, Strs, Tokens};
+use turbo_analysis::{Annotator, Bound, Error, Key, Layer, ModelRef, Refs, Tag, TagSet, View};
+use turbo_analysis_layers::{Categories, Tokens};
 use turbo_maxent::best_outcome;
 
 use super::model::SentimentModel;
@@ -19,7 +20,6 @@ pub const SENTIMENT: Key<Categories> = Key::named("sentiment");
 pub struct Scratch {
     extra: Vec<String>,
     probabilities: Vec<f64>,
-    order: Vec<usize>,
 }
 
 impl Scratch {
@@ -32,11 +32,15 @@ impl Scratch {
 #[derive(Debug, Clone)]
 pub struct SentimentMe {
     model: SentimentModel,
+    /// The model's outcomes by index, for the layer.
+    outcomes: Arc<TagSet>,
 }
 
 impl SentimentMe {
     pub fn new(model: SentimentModel) -> SentimentMe {
-        SentimentMe { model }
+        let names: Vec<&str> = (0..model.maxent().num_outcomes()).map(|i| model.label(i)).collect();
+        let outcomes = TagSet::new(<Categories>::ID, &names);
+        SentimentMe { model, outcomes }
     }
 
     pub fn model(&self) -> &SentimentModel {
@@ -72,20 +76,12 @@ impl SentimentMe {
         order.sort_by(|&a, &b| double_compare(probabilities[b], probabilities[a]));
     }
 
-    /// The `turbo:categories` layer of `tokens`: every outcome, best first,
-    /// with its probability.
+    /// The `turbo:categories` layer of `tokens`: the best outcome
+    /// (`getBestSentiment`) and every outcome's probability.
     pub fn categories(&self, tokens: &[&str], s: &mut Scratch) -> Categories {
-        self.probabilities(tokens, s);
-        let mut order = std::mem::take(&mut s.order);
-        self.rank(&s.probabilities, &mut order);
-        let mut category = Strs::default();
-        let mut score = Vec::with_capacity(order.len());
-        for &i in &order {
-            category.push(self.model.label(i));
-            score.push(s.probabilities[i]);
-        }
-        s.order = order;
-        Categories { category, score }
+        let probabilities = self.probabilities(tokens, s);
+        let best = Tag(best_outcome(probabilities) as u16);
+        Categories::document(Arc::clone(&self.outcomes), best, probabilities)
     }
 
     /// This annotator bound to write the [`SENTIMENT`] instance of
@@ -100,8 +96,8 @@ thread_local! {
     static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch::new());
 }
 
-/// Reads a view's tokens and writes `turbo:categories`: every outcome of
-/// the model, best first, with its probability. The default instance is
+/// Reads a view's tokens and writes `turbo:categories`: the best outcome
+/// and every outcome's probability. The default instance is
 /// written unless the step is bound otherwise ([`SentimentMe::bound`]).
 impl Annotator for SentimentMe {
     const ID: &'static str = "turbo-doccat:sentiment";

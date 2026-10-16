@@ -11,6 +11,8 @@ name = "turbo_geo"
 [dependencies]
 # Span, which the UAX #29 word tokenizer writes.
 turbo-analysis = { path = "../core" }
+# Entities, Regions, Containment and RegionCode layers.
+turbo-analysis-layers = { path = "../layers" }
 # Double.parseDouble and String.compareTo.
 turbo-jvm = { path = "../jvm" }
 # The accent fold's stroke letters and fold scripts.
@@ -22,3 +24,4 @@ turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
+turbo-numeric = { path = "../numeric" }

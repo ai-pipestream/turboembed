@@ -1,0 +1,25 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/nkjp-group	1638	1634	aee500dd4301049b65ad75218ac06058513b803c96f5102379f4b9d8cc93ff3b
+annotator	opennlp.tools.formats.nkjp.NKJPSentenceSampleStream	read
+layer	turbo:samples	document	1	written:str
+Trze\nPiąt\nInny\nZost\nTekst z wyróż\nSam\npo tekście.\n
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+0	java.lang.NullPointerException	Cannot invoke "String.substring(int, int)" because "currentParagraph" is null
+end	turbo:read-errors
+layer	turbo:sample-texts	document	1	text:str
+Trze Piąt Inny Zost Tekst z wyróż Sam po tekście. 
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	7	sample:u32	start:u32	end:u32
+0	0	4
+0	5	10
+0	11	15
+0	16	20
+0	21	36
+0	37	40
+0	41	53
+end	turbo:sample-spans

@@ -199,64 +199,10 @@ impl GeoBoundingBox {
     }
 }
 
-/// An ISO 3166-1 alpha-2 region code, two ASCII capital letters.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct RegionCode([u8; 2]);
+pub use turbo_analysis_layers::{InvalidRegionCode, RegionCode};
 
-/// A region code argument that is not two ASCII letters.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct InvalidRegionCode(pub String);
-
-impl fmt::Display for InvalidRegionCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "isoCountryCode must be an ISO 3166-1 alpha-2 code (two ASCII letters), got: {}", self.0)
-    }
-}
-
-impl std::error::Error for InvalidRegionCode {}
-
-impl RegionCode {
-    /// Two ASCII letters of either case, as `Gazetteer.byRegion` takes
-    /// them; they are upper-cased.
-    pub fn parse(code: &str) -> Result<RegionCode, InvalidRegionCode> {
-        match code.as_bytes() {
-            &[a, b] if a.is_ascii_alphabetic() && b.is_ascii_alphabetic() => {
-                Ok(RegionCode([a.to_ascii_uppercase(), b.to_ascii_uppercase()]))
-            }
-            _ => Err(InvalidRegionCode(code.to_string())),
-        }
-    }
-
-    /// A record's country code: exactly two ASCII capital letters.
-    pub(crate) fn from_record(code: &str) -> Result<RegionCode, EntryError> {
-        match code.as_bytes() {
-            &[a, b] if a.is_ascii_uppercase() && b.is_ascii_uppercase() => Ok(RegionCode([a, b])),
-            _ => Err(EntryError::CountryCode(code.to_string())),
-        }
-    }
-
-    pub(crate) fn from_bytes(bytes: [u8; 2]) -> Option<RegionCode> {
-        bytes.iter().all(u8::is_ascii_uppercase).then_some(RegionCode(bytes))
-    }
-
-    pub fn as_str(&self) -> &str {
-        std::str::from_utf8(&self.0).expect("two ASCII letters")
-    }
-
-    pub(crate) fn bytes(self) -> [u8; 2] {
-        self.0
-    }
-
-    /// The code's place in the 26 by 26 table of codes.
-    pub(crate) fn index(self) -> usize {
-        usize::from(self.0[0] - b'A') * 26 + usize::from(self.0[1] - b'A')
-    }
-}
-
-impl fmt::Display for RegionCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
+pub(crate) fn region_from_record(code: &str) -> Result<RegionCode, EntryError> {
+    RegionCode::from_uppercase(code).ok_or_else(|| EntryError::CountryCode(code.to_string()))
 }
 
 /// An attribute value with its provenance (`opennlp.tools.geo.AttributeValue`).
@@ -373,6 +319,71 @@ impl GazetteerEntry {
     pub(crate) fn country(&self) -> Option<RegionCode> {
         self.country
     }
+
+    /// The dataset identifier, such as `naturalearth` or `geonames`.
+    pub fn source(&self) -> &str {
+        &self.parts.source
+    }
+
+    /// The identifier within the source dataset.
+    pub fn record_id(&self) -> &str {
+        &self.parts.record_id
+    }
+
+    /// The canonical name.
+    pub fn name(&self) -> &str {
+        &self.parts.name
+    }
+
+    /// The alternate names, in the order the record gives them.
+    pub fn alternate_names(&self) -> &[String] {
+        &self.parts.alternate_names
+    }
+
+    /// The place's coordinates in WGS84 decimal degrees.
+    pub fn location(&self) -> GeoPoint {
+        self.parts.location
+    }
+
+    /// The place's bounding box, when present.
+    pub fn bounding_box(&self) -> Option<GeoBoundingBox> {
+        self.parts.bounding_box
+    }
+
+    /// The ISO 3166-1 alpha-2 country code, when present.
+    pub fn country_code(&self) -> Option<&str> {
+        self.parts.country_code.as_deref()
+    }
+
+    /// The typed [`RegionCode`], when present.
+    pub fn region_code(&self) -> Option<RegionCode> {
+        self.country
+    }
+
+    /// The administrative containment chain, outermost first.
+    pub fn containment(&self) -> &[String] {
+        &self.parts.containment
+    }
+
+    /// The population, 0 when unknown.
+    pub fn population(&self) -> i64 {
+        self.parts.population
+    }
+
+    /// The feature class, conventionally one of the `FEATURE_CLASS_*` constants.
+    pub fn feature_class(&self) -> Option<&str> {
+        self.parts.feature_class.as_deref()
+    }
+
+    /// The attributes in the order the record gives them.
+    pub fn attributes(&self) -> &[(String, AttributeValue)] {
+        &self.parts.attributes
+    }
+
+    /// Looks up the attribute with `key`.
+    pub fn attribute(&self, key: &str) -> Option<&AttributeValue> {
+        self.parts.attributes.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+    }
 }
 
 #[cfg(test)]
@@ -406,7 +417,7 @@ mod tests {
         assert!(RegionCode::parse("D").is_err());
         assert!(RegionCode::parse("D1").is_err());
         assert!(RegionCode::parse("ÄB").is_err());
-        assert!(RegionCode::from_record("de").is_err());
-        assert_eq!(RegionCode::from_record("DE").unwrap().index(), 3 * 26 + 4);
+        assert!(region_from_record("de").is_err());
+        assert_eq!(region_from_record("DE").unwrap().index(), 3 * 26 + 4);
     }
 }

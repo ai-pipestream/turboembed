@@ -1,0 +1,30 @@
+﻿# newdoc id = basic
+# sent_id = es-1
+# text = Vamos al mar.
+1	Vamos	ir	VERB	VMIP1P0	Mood=Ind	0	root	0:root	_
+2-3	al	_	_	_	_	_	_	_	_
+2	a	a	ADP	SPS00	_	4	case	4:case	_
+3	el	el	DET	DA0MS0	Definite=Def	4	det	4:det	_
+4	mar	mar	NOUN	NCMS000	Gender=Masc	1	obl	1:obl	SpaceAfter=No
+5	.	.	PUNCT	Fp	_	1	punct	1:punct	_
+
+# sent_id = en-2
+# text = Sue likes tea and Bob coffee.
+1	Sue	Sue	PROPN	NNP	_	2	nsubj	2:nsubj	_
+2	likes	like	VERB	VBZ	_	0	root	0:root	_
+3	tea	tea	NOUN	NN	_	2	obj	2:obj	_
+4	and	and	CCONJ	CC	_	5	cc	5:cc	_
+5	Bob	Bob	PROPN	NNP	_	2	conj	2:conj|5.1:nsubj	_
+5.1	likes	like	VERB	VBZ	_	_	_	2:conj	CopyOf=2
+6	coffee	coffee	NOUN	NN	_	2	orphan	5.1:obj	SpaceAfter=No
+7	.	.	PUNCT	.	_	2	punct	2:punct	_
+
+
+# a sentence whose X tags are _ is skipped in the x run only
+# text = Café ☕ 😀
+1	Café	café	NOUN	_	_	0	root	_	_
+2	☕	☕	SYM	_	_	1	dep	_	_
+3	😀	😀	SYM	_	_	1	discourse:emo	_	_
+
+# text = Ende
+1	Ende	Ende	NOUN	NN	_	0	root	_	_

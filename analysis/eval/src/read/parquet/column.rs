@@ -171,6 +171,13 @@ const EXPANSION_SLACK: usize = 1024;
 /// `src` expanded to `want` bytes. A size past what the codec can expand
 /// `src` to is refused before anything is allocated.
 fn decompress(codec: Codec, src: &[u8], want: usize) -> Result<Cow<'_, [u8]>> {
+    // parquet-java writes a version 2 page whose values are all null with
+    // an empty values area, which is not a valid SNAPPY, GZIP or ZSTD
+    // stream. Arrow reads it as no values without decompressing, and so
+    // does this, whatever the codec.
+    if want == 0 && src.is_empty() {
+        return Ok(Cow::Borrowed(src));
+    }
     let out = match codec {
         Codec::Uncompressed => Cow::Borrowed(src),
         Codec::Snappy => Cow::Owned(snappy::decompress(src, want)?),
@@ -184,7 +191,12 @@ fn decompress(codec: Codec, src: &[u8], want: usize) -> Result<Cow<'_, [u8]>> {
             MultiGzDecoder::new(src).take(want as u64 + 1).read_to_end(&mut out).map_err(|e| format!("gzip: {e}"))?;
             Cow::Owned(out)
         }
-        c => return Err(format!("the {c} codec is not read; SNAPPY, GZIP and UNCOMPRESSED are")),
+        // turbo_zstd reads the frame and block headers first and refuses a
+        // size past what they allow (the content sizes the frames give,
+        // or what their blocks can hold) before it allocates the output.
+        // What it returns is exactly `want` bytes.
+        Codec::Zstd => Cow::Owned(turbo_zstd::decompress(src, want).map_err(|e| format!("zstd: {e}"))?),
+        c => return Err(format!("the {c} codec is not read; SNAPPY, GZIP, ZSTD and UNCOMPRESSED are")),
     };
     if out.len() != want {
         return Err(format!("a page expands to {} bytes, its header says {want}", out.len()));
@@ -395,6 +407,46 @@ mod tests {
         assert_eq!(decompress(Codec::Gzip, &gz, 1000).unwrap().as_ref(), &[7; 1000][..]);
     }
 
+    #[test]
+    fn zstd_sizes_are_bounded() {
+        // The frame and block headers are read before the output is
+        // allocated: bytes that are no frame are refused whatever the size,
+        // and so is a size past what a frame's blocks hold.
+        let e = decompress(Codec::Zstd, &[0; 10], 1 << 40).unwrap_err();
+        assert_eq!(e, "zstd: bad magic number 0x00000000");
+        // A frame of 1000 sevens with no content size: the magic number, a
+        // header with a 1 KiB window, and one RLE block.
+        let frame = [0x28, 0xb5, 0x2f, 0xfd, 0x00, 0x00, 0x43, 0x1f, 0x00, 7];
+        assert_eq!(decompress(Codec::Zstd, &frame, 1000).unwrap().as_ref(), &[7; 1000][..]);
+        assert_eq!(
+            decompress(Codec::Zstd, &frame, 1 << 40).unwrap_err(),
+            "zstd: the frames decode to at most 1000 bytes, fewer than the 1099511627776 asked for"
+        );
+        // The same with a single-segment header giving the content size in
+        // 2 bytes (1000 - 256): any other size is refused.
+        let frame = [0x28, 0xb5, 0x2f, 0xfd, 0x60, 0xe8, 0x02, 0x43, 0x1f, 0x00, 7];
+        assert_eq!(decompress(Codec::Zstd, &frame, 1000).unwrap().as_ref(), &[7; 1000][..]);
+        assert_eq!(
+            decompress(Codec::Zstd, &frame, 10).unwrap_err(),
+            "zstd: the content is longer than the 10 bytes asked for"
+        );
+        assert_eq!(
+            decompress(Codec::Zstd, &frame, 1001).unwrap_err(),
+            "zstd: the content is 1000 bytes, not the 1001 asked for"
+        );
+    }
+
+    /// An empty page that expands to nothing is no bytes in every codec,
+    /// without decompressing; anything else is decompressed.
+    #[test]
+    fn an_empty_page_is_not_decompressed() {
+        for codec in [Codec::Uncompressed, Codec::Snappy, Codec::Gzip, Codec::Zstd, Codec::Other(7)] {
+            assert_eq!(decompress(codec, &[], 0).unwrap().as_ref(), &[] as &[u8], "{codec}");
+        }
+        assert_eq!(decompress(Codec::Zstd, &[], 1).unwrap_err(), "zstd: no frames: the input is empty");
+        assert_eq!(decompress(Codec::Snappy, &[], 1).unwrap_err(), "snappy: no length");
+    }
+
     /// Compact protocol bytes of a page header, every field in the long
     /// form: the type, then the id as a zigzag varint.
     struct Header(Vec<u8>);
@@ -461,6 +513,23 @@ mod tests {
         let mut out = Values::new(Physical::Int32).unwrap();
         read_chunk(&file, &chunk_of(&file, 3), false, &mut out).unwrap();
         assert_eq!(out.len(), 3);
+    }
+
+    /// parquet-java's version 2 page of an optional column whose values
+    /// are all null: definition levels, and a compressed values area of
+    /// no bytes.
+    #[test]
+    fn a_v2_page_of_nulls_has_no_values_to_decompress() {
+        // Three values, all null: a run of three 0 levels in 2 bytes.
+        let sub = [(1, 3), (2, 3), (3, 3), (4, 0), (5, 2), (6, 0)];
+        let mut file = Header::page(3, (2, 2), 8, &sub, Some(true));
+        file.extend([3 << 1, 0]);
+        for codec in [Codec::Snappy, Codec::Gzip, Codec::Zstd] {
+            let meta = ColumnMeta { codec, ..chunk_of(&file, 3) };
+            let mut out = Values::new(Physical::Int32).unwrap();
+            read_chunk(&file, &meta, true, &mut out).unwrap();
+            assert_eq!(out.nulls, [true; 3], "{codec}");
+        }
     }
 
     #[test]

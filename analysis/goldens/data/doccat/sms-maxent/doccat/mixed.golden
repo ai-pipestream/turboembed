@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	doccat/mixed	56	56	6afd10419b7fd41e93f90c0a73581cf81ee215198acf18d1a521fc9bbb4cfc0a
+model	sms-spam-collection.tsv	2b454257f2d5eff9d829d5be9d0f99af68581367be6bad8e564e1d872112ce652e7e1d75a5752e4770eb682e7ffd2d0be68b6b015e9588bdf599a30a72307957
+annotator	opennlp.tools.doccat.DocumentCategorizerME	categorize
+config	Algorithm	MAXENT
+config	Cutoff	1
+config	Iterations	100
+config	corpus	corpora/sms-spam-collection.tsv,doccat-train/emoji
+config	generators	opennlp.tools.doccat.BagOfWordsFeatureGenerator,opennlp.tools.doccat.NGramFeatureGenerator,opennlp.tools.doccat.EmojiFeatureGenerator
+config	language	en
+config	run	sms-maxent
+layer	opennlp:tokens	text	11	start:u32	end:u32
+0	4
+5	7
+8	13
+14	17
+18	23
+24	28
+29	37
+38	41
+42	46
+47	50
+51	55
+end	opennlp:tokens
+layer	turbo:doccat-features	document	21	feature:str
+bow=call
+bow=me
+bow=about
+bow=the
+bow=prize
+bow=draw
+bow=tonight,
+bow=the
+bow=kids
+bow=are
+bow=home
+ng=:call:me
+ng=:me:about
+ng=:about:the
+ng=:the:prize
+ng=:prize:draw
+ng=:draw:tonight,
+ng=:tonight,:the
+ng=:the:kids
+ng=:kids:are
+ng=:are:home
+end	turbo:doccat-features
+layer	turbo:categories	document	2	category:str	score:f64
+ham	3feb7efb66c45819 0.8592507369201058
+spam	3fc2041264ee9f9d 0.14074926307989424
+end	turbo:categories
