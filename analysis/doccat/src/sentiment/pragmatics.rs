@@ -443,9 +443,27 @@ impl PragmaticsAnnotator {
     ) -> Result<Option<f64>, Error> {
         let mut best: Option<f64> = None;
 
-        if let (Some(scorer), Some(vecs)) = (&self.vector_scorer, vectors) {
+        let ix = Ix::<Sentences>::new(sentence_index as u32);
+        if let (Some(scorer), Some(vecs)) = (&self.vector_scorer, vectors)
+            && !vecs.is_empty(ix)
+        {
+            // A row the encoder marked empty is zeros, not evidence: the
+            // scorer never sees it. Vectors from another encoder are a
+            // different feature space, so the scorer's model, when it
+            // names one, must be the vectors' model.
+            if let Some(m) = scorer.model_ref()
+                && m != vecs.model
+            {
+                return Err(Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!(
+                        "sentence vectors are from model {} (revision {}), scorer is for {} (revision {})",
+                        vecs.model.id, vecs.model.revision, m.id, m.revision
+                    ),
+                });
+            }
             let s = scorer
-                .score_sentence_vector(vecs.row(Ix::new(sentence_index as u32)))
+                .score_sentence_vector(vecs.row(ix))
                 .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
             if !s.is_finite() || !(0.0..=1.0).contains(&s) {
                 return Err(Error::Annotator {
@@ -1324,6 +1342,73 @@ mod tests {
         let s1 = prag.get(Ix::new(1));
         assert!(s1.score < 0.10, "expected head score < 0.10, got {}", s1.score);
         assert!(s1.evidence.is_none());
+    }
+
+    #[test]
+    fn an_empty_vector_row_gets_no_head_score() {
+        let mut doc = Document::new("Meeting notes.");
+        annotate_sentences_and_tokens(&mut doc);
+        let vecs = Vectors::<Sentences>::new(
+            2,
+            vec![0.0f32, 0.0],
+            vec![Ix::new(0)],
+            ModelRef { id: "test".into(), revision: "0".into(), sha256: "0".into() },
+        );
+        doc.add(&Key::DEFAULT, vecs, Provenance::by("test")).unwrap();
+        // A biased scorer that says 0.99 to anything.
+        let scorer = Arc::new(FixedMapVectorScorer { weights: vec![0.0, 0.0], bias: 4.6 });
+        let pipe = Analyzer::builder()
+            .given(Key::<Sentences>::DEFAULT)
+            .given(Key::<Tokens>::DEFAULT)
+            .given(Key::<Vectors<Sentences>>::DEFAULT)
+            .add(PragmaticsAnnotator::new().with_vector_scorer(scorer))
+            .build()
+            .unwrap();
+        let mut docs = [doc];
+        pipe.run(&mut docs).remove(0).unwrap();
+        let prag = docs[0].get::<Pragmatics>().unwrap();
+        assert_eq!(prag.get(Ix::new(0)).score, 0.0);
+        assert!(prag.get(Ix::new(0)).evidence.is_none());
+    }
+
+    #[derive(Debug)]
+    struct NamedScorer(ModelRef);
+
+    impl PragmaticsVectorScorer for NamedScorer {
+        fn score_sentence_vector(&self, _vec: &[f32]) -> Result<f64, String> {
+            Ok(0.99)
+        }
+        fn config_hash(&self) -> u64 {
+            1
+        }
+        fn model_ref(&self) -> Option<ModelRef> {
+            Some(self.0.clone())
+        }
+    }
+
+    #[test]
+    fn vectors_from_another_encoder_are_refused() {
+        let mut doc = Document::new("Meeting notes.");
+        annotate_sentences_and_tokens(&mut doc);
+        let vecs = Vectors::<Sentences>::new(
+            2,
+            vec![1.0f32, 1.0],
+            Vec::new(),
+            ModelRef { id: "encoder-B".into(), revision: "0".into(), sha256: "b".into() },
+        );
+        doc.add(&Key::DEFAULT, vecs, Provenance::by("test")).unwrap();
+        let scorer =
+            Arc::new(NamedScorer(ModelRef { id: "encoder-A".into(), revision: "0".into(), sha256: "a".into() }));
+        let pipe = Analyzer::builder()
+            .given(Key::<Sentences>::DEFAULT)
+            .given(Key::<Tokens>::DEFAULT)
+            .given(Key::<Vectors<Sentences>>::DEFAULT)
+            .add(PragmaticsAnnotator::new().with_vector_scorer(scorer))
+            .build()
+            .unwrap();
+        let mut docs = [doc];
+        let err = pipe.run(&mut docs).remove(0).unwrap_err();
+        assert!(err.to_string().contains("encoder-A"), "{err}");
     }
 
     #[test]
