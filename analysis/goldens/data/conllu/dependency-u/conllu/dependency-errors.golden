@@ -1,0 +1,79 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	conllu/dependency-errors	2390	2383	502042c5b640eb5987ad481517e07c577cbc1aa3922b4179e1927d7babe0e751
+annotator	opennlp.tools.formats.conllu.ConlluDependencySampleStream	read
+config	branchCommit	2da0ee764cd7340b968a207b925cce852485cccb
+config	tagset	u
+layer	turbo:samples	document	10	written:str
+1\ta\tX\t0\t\u001c\n
+1\tc\tX\t0\troot\n
+1\ta\tX\t0\troot\n
+1\ta\tX\t0\troot\n2\tb\tX\t1\tdep\n
+1\ta\tX\t0\troot\n
+1\tjoined\tX\t0\troot\n
+1\tafter-spaces\tX\t0\troot\n
+1\tafter-fs\tX\t0\troot\n
+1\tafter-nbsp\tX\t0\troot\n
+1\tcrlf\tX\t0\troot\n
+end	turbo:samples
+layer	turbo:read-errors	document	4	after:u32	class:str	message:str
+1	opennlp.tools.util.InvalidFormatException	CoNLL-U word line has 9 columns, expected 10: 2\tb\t_\tX\tx\t_\t1\tdep\t_
+3	opennlp.tools.util.InvalidFormatException	CoNLL-U word line has 11 columns, expected 10: 1\ta\t_\tX\tx\t_\t0\troot\t_\t_\t
+4	opennlp.tools.util.InvalidFormatException	CoNLL-U word line has 1 columns, expected 10:   # not a comment
+7	opennlp.tools.util.InvalidFormatException	CoNLL-U word line has 1 columns, expected 10: \u001c
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	11	sample:u32	text:str
+0	a
+1	c
+2	a
+3	a
+3	b
+4	a
+5	joined
+6	after-spaces
+7	after-fs
+8	after-nbsp
+9	crlf
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	11	tag:str
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+end	turbo:sample-tags
+layer	turbo:sample-heads	aligned:turbo:sample-tokens	11	head:u32
+0
+0
+0
+0
+1
+0
+0
+0
+0
+0
+0
+end	turbo:sample-heads
+layer	turbo:sample-relations	aligned:turbo:sample-tokens	11	relation:str
+\u001c
+root
+root
+root
+dep
+root
+root
+root
+root
+root
+root
+end	turbo:sample-relations

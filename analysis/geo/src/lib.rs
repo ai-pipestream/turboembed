@@ -86,10 +86,12 @@
 
 mod bundled;
 mod checksum;
+mod containment;
 mod entry;
 mod error;
 mod fold;
 mod gazetteer;
+mod geocode;
 mod geonames;
 mod in_memory;
 mod index;
@@ -98,6 +100,7 @@ mod overlay;
 mod overture;
 mod profiles;
 mod ranking;
+mod region;
 mod snapshot;
 mod store;
 mod suppression;
@@ -106,6 +109,10 @@ mod text;
 mod user;
 
 pub use bundled::{BUNDLED_TABLE, BUNDLED_TABLE_NAME, BundledGazetteer};
+pub use containment::{
+    Containment, ContainmentChain, ContainmentError, ContainmentSpine, ContainmentSpineBuilder, HierarchyAnnotator,
+    HierarchyError, MAX_CONTAINMENT_DEPTH, PlaceAncestor, PlaceAncestorRef, PlaceHierarchy,
+};
 pub use entry::{
     ATTRIBUTE_KEY_FIPS, ATTRIBUTE_KEY_GEOID, ATTRIBUTE_KEY_GEONAMES, ATTRIBUTE_KEY_WHOSONFIRST, ATTRIBUTE_KEY_WIKIDATA,
     ATTRIBUTE_KEY_ZCTA, AttributeValue, EntryError, EntryParts, FEATURE_CLASS_ADMIN, FEATURE_CLASS_CITY,
@@ -114,12 +121,18 @@ pub use entry::{
 pub use error::{ColumnCount, IndexError, LoadError, NumberFormat, RowProblem, TableKind};
 pub use fold::Folder;
 pub use gazetteer::Gazetteer;
+pub use geocode::{
+    DEFAULT_LOCATION_TYPE, GeoResolution, GeocodeAnnotator, GeocodeError, Geocoder, Locations, PopulationPriorGeocoder,
+    SpatialCoherenceGeocoder, by_prior_entry, by_prior_view,
+};
 pub use geonames::{GEONAMES_SOURCE, GeoNamesGazetteer};
 pub use in_memory::InMemoryGazetteer;
 pub use overlay::{EmptyOverlay, OverlayGazetteer};
 pub use overture::{OVERTURE_SOURCE, OvertureGazetteer};
 pub use profiles::{Neighbor, Place, PlaceProfiles, ProfileError, Similarity};
+pub use region::DocumentRegionAnnotator;
 pub use snapshot::{SnapshotError, SnapshotKind};
 pub use store::{Attribute, CapacityError, Entry};
 pub use suppression::{Suppression, SuppressionError};
+pub use turbo_analysis_layers::{MarginError, RegionVote, Regions, VoteError};
 pub use user::UserGazetteer;

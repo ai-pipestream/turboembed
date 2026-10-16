@@ -1855,6 +1855,7 @@ dependencies = [
  "turbo-maxent",
  "turbo-sentdetect",
  "turbo-structure",
+ "turbo-zstd",
  "ureq",
 ]
 
@@ -1897,9 +1898,11 @@ name = "turbo-geo"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-normalize",
+ "turbo-numeric",
  "turbo-tokenize",
  "turbo-unicode",
 ]
@@ -2365,6 +2368,10 @@ dependencies = [
  "turbo-goldens",
  "ureq",
 ]
+
+[[package]]
+name = "turbo-zstd"
+version = "0.1.0"
 
 [[package]]
 name = "typenum"

@@ -63,6 +63,24 @@ impl<G: Gazetteer + ?Sized> Gazetteer for Box<G> {
     }
 }
 
+impl<G: Gazetteer + ?Sized> Gazetteer for std::sync::Arc<G> {
+    fn lookup(&self, name: &str) -> Vec<Entry<'_>> {
+        (**self).lookup(name)
+    }
+
+    fn by_id(&self, source: &str, record_id: &str) -> Option<Entry<'_>> {
+        (**self).by_id(source, record_id)
+    }
+
+    fn by_region(&self, code: RegionCode) -> Option<Entry<'_>> {
+        (**self).by_region(code)
+    }
+
+    fn sources(&self) -> Vec<&str> {
+        (**self).sources()
+    }
+}
+
 /// Implements [`Gazetteer`] and the size accessors for a type with an
 /// `index: GazetteerIndex` field, its sources given by `$sources`.
 macro_rules! indexed_gazetteer {
