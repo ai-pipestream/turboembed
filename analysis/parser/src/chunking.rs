@@ -25,7 +25,7 @@ use crate::model::{
     HeadRulesArtifact, PARSER_CHUNKER_FACTORY, ParserEventType, ParserModel, ParserModelError, ParserType,
 };
 use crate::parse::{COMPLETE, CONT, INCOMPLETE, Parse, ParseError, START, TOP_NODE};
-use crate::stream::{ParserChunkSample, ParserPosSample};
+use crate::stream::{ParserChunkSample, ParserPosSample, add_tag_events};
 
 /// Top-start outcome (`AbstractBottomUpParser.TOP_START = "S-TOP"`).
 pub const TOP_START: &str = "S-TOP";
@@ -565,20 +565,7 @@ impl ParserEventStream {
             p.update_heads(rules);
 
             match etype {
-                ParserEventType::Tag => {
-                    let pos = ParserPosSample::from_parse(&p);
-                    if let Ok(factory) = PosTaggerFactory::new("en", None, None)
-                        && let Ok(mut stream) = turbo_train_components::postag::PosEventStream::new(&factory)
-                    {
-                        let toks: Vec<Field<'_>> =
-                            pos.sentence.iter().map(|s| Field::of(s.as_str(), Span::new(0, 0))).collect();
-                        let tags: Vec<Field<'_>> =
-                            pos.tags.iter().map(|s| Field::of(s.as_str(), Span::new(0, 0))).collect();
-                        if let Ok(sample) = PosSample::new(toks, tags, Span::new(0, 0)) {
-                            stream.events(&sample, &mut events);
-                        }
-                    }
-                }
+                ParserEventType::Tag => add_tag_events(&p, &mut events),
                 ParserEventType::Chunk => {
                     let cs = ParserChunkSample::from_parse(&p);
                     let words: Vec<&str> = cs.sentence.iter().map(String::as_str).collect();

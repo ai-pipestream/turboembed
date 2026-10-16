@@ -251,6 +251,39 @@ fn chunking_and_treeinsert_event_streams_generate_events() {
     assert!(!ti_check.is_empty());
 }
 
+/// Both streams make their `TAG` events as `AbstractParserEventStream.addTagEvents` does: one per
+/// token, the outcome its tag and the context `DefaultPOSContextGenerator(null)`'s, which reads the
+/// tags of the two tokens before it.
+#[test]
+fn tag_events_are_default_pos_contexts_in_both_streams() {
+    let rules = english_head_rules();
+    let samples = [Parse::parse("(TOP (S (NP (DT The) (NN cat-o)) (VP (VBD sat) (NP (CD 2))) (. .)))").unwrap()];
+    let events = |etype| {
+        let chunking = chunking::ParserEventStream::generate_events(&samples, &rules, etype, None).unwrap();
+        let tree_insertion = treeinsert::ParserEventStream::generate_events(&samples, &rules, etype, None).unwrap();
+        let show = |events: Vec<turbo_train::Event>| -> Vec<String> {
+            let context = |e: &turbo_train::Event| e.context().iter().map(|c| c.to_string_lossy()).collect::<Vec<_>>();
+            events.iter().map(|e| format!("{} | {}", e.outcome().to_string_lossy(), context(e).join(" "))).collect()
+        };
+        (show(chunking), show(tree_insertion))
+    };
+    let (chunking, tree_insertion) = events(ParserEventType::Tag);
+    assert_eq!(
+        chunking,
+        [
+            "DT | default w=The suf=e suf=he suf=The suf=The pre=T pre=Th pre=The pre=The c p=*SB* n=cat-o nn=sat",
+            "NN | default w=cat-o suf=o suf=-o suf=t-o suf=at-o pre=c pre=ca pre=cat pre=cat- h p=The t=DT \
+             pp=*SB* n=sat nn=2",
+            "VBD | default w=sat suf=t suf=at suf=sat suf=sat pre=s pre=sa pre=sat pre=sat p=cat-o t=NN pp=The \
+             t2=DT,NN n=2 nn=.",
+            "CD | default w=2 suf=2 suf=2 suf=2 suf=2 pre=2 pre=2 pre=2 pre=2 d p=sat t=VBD pp=cat-o t2=NN,VBD \
+             n=. nn=*SE*",
+            ". | default w=. suf=. suf=. suf=. suf=. pre=. pre=. pre=. pre=. p=2 t=CD pp=sat t2=VBD,CD n=*SE*",
+        ]
+    );
+    assert_eq!(tree_insertion, chunking);
+}
+
 #[test]
 fn chunking_parser_trains_serializes_and_parses() {
     let rules = HeadRulesArtifact::English(english_head_rules());

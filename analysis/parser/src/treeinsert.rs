@@ -19,7 +19,6 @@ use std::fmt;
 use std::sync::Arc;
 
 use turbo_analysis::Span;
-use turbo_formats::{Field, PosSample};
 use turbo_jvm::strict_math;
 use turbo_train::{Event, TrainingConfiguration};
 use turbo_train_components::package::Stamp;
@@ -36,7 +35,7 @@ use crate::context::{ChunkContextGenerator, Cons, EOS, check_cons, cons, cons_bo
 use crate::head_rules::HeadRules;
 use crate::model::{HeadRulesArtifact, ParserEventType, ParserModel, ParserModelError, ParserType};
 use crate::parse::{COMPLETE, INC_NODE, INCOMPLETE, Parse, ParseError, TOP_NODE, insert_by_prob};
-use crate::stream::{ParserChunkSample, ParserPosSample};
+use crate::stream::{ParserChunkSample, add_tag_events};
 
 /// Outcome indicating no further unary build levels (`treeinsert.Parser.DONE = "d"`).
 pub const DONE: &str = "d";
@@ -775,20 +774,7 @@ impl ParserEventStream {
             p.update_heads(rules);
 
             match etype {
-                ParserEventType::Tag => {
-                    let pos = ParserPosSample::from_parse(&p);
-                    if let Ok(factory) = PosTaggerFactory::new("en", None, None)
-                        && let Ok(mut stream) = turbo_train_components::postag::PosEventStream::new(&factory)
-                    {
-                        let toks: Vec<Field<'_>> =
-                            pos.sentence.iter().map(|s| Field::of(s.as_str(), Span::new(0, 0))).collect();
-                        let tags: Vec<Field<'_>> =
-                            pos.tags.iter().map(|s| Field::of(s.as_str(), Span::new(0, 0))).collect();
-                        if let Ok(sample) = PosSample::new(toks, tags, Span::new(0, 0)) {
-                            stream.events(&sample, &mut events);
-                        }
-                    }
-                }
+                ParserEventType::Tag => add_tag_events(&p, &mut events),
                 ParserEventType::Chunk => {
                     let cs = ParserChunkSample::from_parse(&p);
                     let words: Vec<&str> = cs.sentence.iter().map(String::as_str).collect();
