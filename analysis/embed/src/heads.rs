@@ -864,6 +864,24 @@ impl ScoringHead {
         }
     }
 
+    /// Checks that `vectors` come from this head's encoder, by `ModelRef`,
+    /// and have its input dimension: a different encoder of the same width
+    /// is a different feature space.
+    pub fn check_vectors<L: Layer>(&self, annotator: &'static str, vectors: &Vectors<L>) -> Result<(), Error> {
+        let fail = |detail: String| Error::Annotator { annotator, detail };
+        let model = self.model();
+        if vectors.model != *model {
+            return Err(fail(format!(
+                "vectors are from model {} (revision {}), head is for {} (revision {})",
+                vectors.model.id, vectors.model.revision, model.id, model.revision
+            )));
+        }
+        if vectors.dim != self.in_dim() {
+            return Err(fail(format!("vectors have dim {}, head expects dim {}", vectors.dim, self.in_dim())));
+        }
+        Ok(())
+    }
+
     /// Scores `vector` into `scores` (`f64` probabilities or multi-label
     /// scores) and returns the top `(Tag, score)`.
     pub fn score(&self, vector: &[f32], scores: &mut [f64]) -> Result<(Tag, f64), String> {
@@ -1120,6 +1138,7 @@ impl AspectSpanHead {
     ) -> Result<Aspects, Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
         let pooled = self.pool_aspects(subwords, tokens, sentences, aspects)?;
+        self.head.check_vectors(Self::ID, &pooled)?;
         let n_labels = self.head.tags().len();
         let mut probs = vec![0.0f64; n_labels];
         let mut out = Aspects::on(
