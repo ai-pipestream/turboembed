@@ -171,14 +171,14 @@ impl Decimal {
 
     /// The exact product, as `BigDecimal.multiply` computes it. The
     /// product's scale is the sum of the scales; when that is outside the
-    /// `int` range the product is refused, unless either operand is zero,
-    /// whose scale is then clamped to the range.
+    /// `int` range the product is refused, unless `a` is zero, whose
+    /// scale is then clamped to the range.
     pub fn multiply(a: DecimalRef<'_>, b: DecimalRef<'_>, out: &mut Decimal) -> Result<(), ScaleRangeError> {
         let scale = a.scale.saturating_add(b.scale);
-        let zero = a.digits == "0" || b.digits == "0";
+        let a_zero = a.digits == "0";
         let scale = match i32::try_from(scale) {
             Ok(s) => s,
-            Err(_) if zero => saturate(scale),
+            Err(_) if a_zero => saturate(scale),
             Err(_) => return Err(ScaleRangeError),
         };
         let product = Natural::from_digits(a.digits).mul(&Natural::from_digits(b.digits));
@@ -362,12 +362,11 @@ mod tests {
         assert_eq!((out.negative, out.digits.as_str(), out.scale), (false, "0", 2));
         let far = Decimal { negative: false, digits: "1".into(), scale: i32::MAX };
         assert_eq!(Decimal::multiply(far.as_ref(), d("0.1").as_ref(), &mut out), Err(ScaleRangeError));
+        assert_eq!(Decimal::multiply(far.as_ref(), Decimal::zero(1).as_ref(), &mut out), Err(ScaleRangeError));
         Decimal::multiply(Decimal::zero(i32::MAX).as_ref(), d("0.1").as_ref(), &mut out).unwrap();
         assert_eq!((out.negative, out.digits.as_str(), out.scale), (false, "0", i32::MAX));
-        Decimal::multiply(d("-0.1").as_ref(), Decimal::zero(i32::MAX).as_ref(), &mut out).unwrap();
-        assert_eq!((out.negative, out.digits.as_str(), out.scale), (false, "0", i32::MAX));
         let extreme_zero = DecimalRef { negative: true, digits: "0", scale: i64::MAX };
-        Decimal::multiply(d("2.5").as_ref(), extreme_zero, &mut out).unwrap();
+        Decimal::multiply(extreme_zero, d("2.5").as_ref(), &mut out).unwrap();
         assert_eq!((out.negative, out.digits.as_str(), out.scale), (false, "0", i32::MAX));
     }
 
