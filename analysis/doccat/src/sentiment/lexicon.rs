@@ -708,16 +708,22 @@ impl LexiconSentiment {
         for i in 0..n {
             let final_val = sentiments[i];
             let prior = priors[i];
-            if final_val == 0.0 || prior == 0.0 {
+            if final_val == 0.0 {
                 continue;
             }
             // `negated` must agree with the sign of the adjusted valence so that
             // `Opinion::effective_polarity` reproduces it: a doubly negated token
             // ("no", then "not") ends up positive and is reported as not negated.
-            let negated = final_val.signum() != prior.signum();
-            let intensity = (final_val / prior).abs();
+            // A token whose prior was zeroed ("NO" before a lexicon word) but
+            // that the ALLCAPS or booster rules still scored keeps its evidence
+            // row with the adjusted valence as its polarity.
+            let (polarity, intensity, negated) = if prior == 0.0 {
+                (final_val, 1.0, false)
+            } else {
+                (prior, (final_val / prior).abs(), final_val.signum() != prior.signum())
+            };
             let tok_ix = (start + i) as u32;
-            opinions.push(Opinion { tokens: IxRange::new(tok_ix, tok_ix + 1), polarity: prior, intensity, negated });
+            opinions.push(Opinion { tokens: IxRange::new(tok_ix, tok_ix + 1), polarity, intensity, negated });
         }
 
         let sent_text = &view_text[sentence_span.range()];
@@ -1365,6 +1371,24 @@ mod tests {
         c.insert("meh", -0.5);
         assert_ne!(a.sha256_hex(), c.sha256_hex());
         assert!(VaderLexicon::from_tsv("good\tnot-a-number\n").is_err());
+    }
+
+    #[test]
+    fn a_zeroed_no_that_still_scores_keeps_its_evidence_row() {
+        let text = "NO good";
+        let words = ["NO", "good"];
+        let (_s, tokens) = make_sentences_and_tokens(text, &words);
+        let scorer = LexiconSentiment::new().with_negation_mode(NegationMode::Window);
+        let res = scorer.score_sentence(text, Span::new(0, 7), &tokens, IxRange::new(0, 2), None, None);
+        assert_eq!(res.opinions.len(), 2);
+        let no = res.opinions[0];
+        assert_eq!(no.tokens, IxRange::new(0, 1));
+        assert!((no.effective_polarity() + C_INCR).abs() < 1e-12);
+        let good = res.opinions[1];
+        assert_eq!(good.tokens, IxRange::new(1, 2));
+        assert!((good.effective_polarity() - 1.9 * N_SCALAR).abs() < 1e-12);
+        let sum: f64 = res.opinions.iter().map(|o| o.effective_polarity()).sum();
+        assert!((normalize_score(sum, DEFAULT_ALPHA) - res.score.compound).abs() < 1e-12);
     }
 
     #[test]
