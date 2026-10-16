@@ -191,10 +191,11 @@ impl Regions {
 
     /// Iterates over the ballot rows in ranked order.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = RegionVote> + '_ {
-        self.country.iter().copied().zip(self.share.iter().copied()).map(|(country_code, share)| RegionVote {
-            country_code,
-            share,
-        })
+        self.country
+            .iter()
+            .copied()
+            .zip(self.share.iter().copied())
+            .map(|(country_code, share)| RegionVote { country_code, share })
     }
 
     /// Returns the winning vote when the top row's share leads the runner-up

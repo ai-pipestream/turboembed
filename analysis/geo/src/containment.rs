@@ -205,8 +205,7 @@ impl ContainmentSpineBuilder {
 
     /// Reads a four-column tab-separated containment table from `bytes`.
     pub fn add_table_bytes(&mut self, bytes: &[u8], source: &str) -> Result<&mut Self, HierarchyError> {
-        let text = std::str::from_utf8(bytes)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        let text = std::str::from_utf8(bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         for (line_no, _, line) in Lines::new(text) {
             if is_blank(line) || line.starts_with('#') {
                 continue;
@@ -236,8 +235,7 @@ impl ContainmentSpineBuilder {
 
     /// Reads a Who's On First meta CSV file from `bytes`.
     pub fn add_wof_meta_bytes(&mut self, bytes: &[u8], source: &str) -> Result<&mut Self, HierarchyError> {
-        let text = std::str::from_utf8(bytes)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        let text = std::str::from_utf8(bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         let mut records = CsvRecordReader::new(text, source);
         let Some((header, _)) = records.next_record()? else {
             return Err(HierarchyError::Format(format!("Empty WOF meta CSV: {source}")));
@@ -266,11 +264,8 @@ impl ContainmentSpineBuilder {
                 )));
             }
             let raw_parent = &row[parent_col];
-            let parent = if is_wof_root_parent(raw_parent, source, line_no)? {
-                None
-            } else {
-                Some(raw_parent.as_str())
-            };
+            let parent =
+                if is_wof_root_parent(raw_parent, source, line_no)? { None } else { Some(raw_parent.as_str()) };
             let name = &row[name_col];
             if is_blank(name) {
                 return Err(HierarchyError::Format(format!(
@@ -291,18 +286,17 @@ impl ContainmentSpineBuilder {
     /// Finishes building the [`ContainmentSpine`]; requires at least one place.
     pub fn build(&self) -> Result<ContainmentSpine, HierarchyError> {
         if self.nodes.is_empty() {
-            return Err(HierarchyError::InvalidArgument(
-                "ContainmentSpine requires at least one place".into(),
-            ));
+            return Err(HierarchyError::InvalidArgument("ContainmentSpine requires at least one place".into()));
         }
         Ok(ContainmentSpine { nodes: self.nodes.clone() })
     }
 }
 
 fn column_index(header: &[String], name: &str, source: &str) -> Result<usize, HierarchyError> {
-    header.iter().position(|h| h == name).ok_or_else(|| {
-        HierarchyError::Format(format!("WOF meta CSV at {source} is missing required column '{name}'"))
-    })
+    header
+        .iter()
+        .position(|h| h == name)
+        .ok_or_else(|| HierarchyError::Format(format!("WOF meta CSV at {source} is missing required column '{name}'")))
 }
 
 fn is_wof_root_parent(value: &str, source: &str, line_no: usize) -> Result<bool, HierarchyError> {
@@ -459,9 +453,7 @@ impl<H: PlaceHierarchy> HierarchyAnnotator<H> {
     ) -> Result<HierarchyAnnotator<H>, HierarchyError> {
         let attribute_key = attribute_key.into();
         if is_blank(&attribute_key) {
-            return Err(HierarchyError::InvalidArgument(
-                "attributeKey must not be null or blank".into(),
-            ));
+            return Err(HierarchyError::InvalidArgument("attributeKey must not be null or blank".into()));
         }
         Ok(HierarchyAnnotator { hierarchy, attribute_key })
     }
@@ -489,10 +481,10 @@ impl<H: PlaceHierarchy + Send + Sync + 'static> Annotator for HierarchyAnnotator
             let Some(join_id) = entry.attribute(&self.attribute_key) else {
                 continue;
             };
-            let ancestors = self.hierarchy.ancestors(join_id.value()).map_err(|e| Error::Annotator {
-                annotator: Self::ID,
-                detail: e.to_string(),
-            })?;
+            let ancestors = self
+                .hierarchy
+                .ancestors(join_id.value())
+                .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
             if ancestors.is_empty() {
                 continue;
             }
@@ -504,10 +496,8 @@ impl<H: PlaceHierarchy + Send + Sync + 'static> Annotator for HierarchyAnnotator
                     });
                 }
             }
-            out.push_ancestors(span, &ancestors).map_err(|e| Error::Annotator {
-                annotator: Self::ID,
-                detail: e.to_string(),
-            })?;
+            out.push_ancestors(span, &ancestors)
+                .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
         }
         Ok((out,))
     }
@@ -547,10 +537,9 @@ mod tests {
 
     fn entry_with_wof(name: &str, wof_id: Option<&str>) -> GazetteerEntry {
         let attributes = match wof_id {
-            Some(id) => vec![(
-                ATTRIBUTE_KEY_WHOSONFIRST.to_string(),
-                AttributeValue::new(id, "test", "fixture").unwrap(),
-            )],
+            Some(id) => {
+                vec![(ATTRIBUTE_KEY_WHOSONFIRST.to_string(), AttributeValue::new(id, "test", "fixture").unwrap())]
+            }
             None => Vec::new(),
         };
         GazetteerEntry::new(EntryParts {
@@ -673,10 +662,8 @@ mod tests {
         assert!(err.contains("unterminated quoted field") && err.contains("line 2"), "{err}");
 
         let empty_name = "id,parent_id,name,placetype\n123,456,\"Sao Paulo\nZona Norte\",locality\n456,-1,,country\n";
-        let err2 = ContainmentSpine::builder()
-            .add_wof_meta_bytes(empty_name.as_bytes(), "en.csv")
-            .unwrap_err()
-            .to_string();
+        let err2 =
+            ContainmentSpine::builder().add_wof_meta_bytes(empty_name.as_bytes(), "en.csv").unwrap_err().to_string();
         assert!(err2.contains("empty name") && err2.contains("line 4"), "{err2}");
 
         let stray = "id,parent_id,name,placetype\n123,456,Kings\"County,county\n";
@@ -754,14 +741,8 @@ mod tests {
             population: 1000,
             feature_class: Some(FEATURE_CLASS_CITY.into()),
             attributes: vec![
-                (
-                    ATTRIBUTE_KEY_WHOSONFIRST.to_string(),
-                    AttributeValue::new("77", "test", "fixture").unwrap(),
-                ),
-                (
-                    ATTRIBUTE_KEY_GEONAMES.to_string(),
-                    AttributeValue::new("85865587", "test", "fixture").unwrap(),
-                ),
+                (ATTRIBUTE_KEY_WHOSONFIRST.to_string(), AttributeValue::new("77", "test", "fixture").unwrap()),
+                (ATTRIBUTE_KEY_GEONAMES.to_string(), AttributeValue::new("85865587", "test", "fixture").unwrap()),
             ],
         })
         .unwrap();
@@ -797,35 +778,22 @@ mod tests {
                     attributes: Vec::new(),
                 })
                 .unwrap();
-                location_mentions
-                    .iter()
-                    .map(|&m| GeoResolution::new(m, entry.clone(), 0.9))
-                    .collect()
+                location_mentions.iter().map(|&m| GeoResolution::new(m, entry.clone(), 0.9)).collect()
             }
         }
 
         let rates = EcbRates::from_bytes(b"Date,USD,AUD,\n2026-07-10,1.2000,1.8000,\n").unwrap();
         let text = "a Sydney startup raised $3 million this week";
         let mut doc = Document::new(text);
-        doc.add(
-            &Key::DEFAULT,
-            Tokens { spans: Spans::new(ViewId::SOURCE), sentence: None },
-            Provenance::by("test"),
-        )
-        .unwrap();
+        doc.add(&Key::DEFAULT, Tokens { spans: Spans::new(ViewId::SOURCE), sentence: None }, Provenance::by("test"))
+            .unwrap();
         let kinds = TagSet::new("ner", &["location"]);
         let mut spans = Spans::new(ViewId::SOURCE);
         let start = text.find("Sydney").unwrap();
         spans.push(Span::new(start as u32, (start + 6) as u32));
         doc.add(
             &Key::DEFAULT,
-            Entities {
-                spans,
-                tokens: vec![IxRange::new(0, 0)],
-                kind: vec![Tag(0)],
-                kinds,
-                score: vec![1.0],
-            },
+            Entities { spans, tokens: vec![IxRange::new(0, 0)], kind: vec![Tag(0)], kinds, score: vec![1.0] },
             Provenance::by("test"),
         )
         .unwrap();

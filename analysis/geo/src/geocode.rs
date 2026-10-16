@@ -34,10 +34,7 @@ pub enum GeocodeError {
     /// A resolution confidence was outside `[0.0, 1.0]` or `NaN`.
     InvalidConfidence(f64),
     /// A mention span fell outside the input text or off a UTF-8 character boundary.
-    MentionOutOfBounds {
-        span: Span,
-        text_len: usize,
-    },
+    MentionOutOfBounds { span: Span, text_len: usize },
     /// The configured location entity type set was empty or contained a blank label.
     InvalidLocationTypes(&'static str),
     /// An underlying gazetteer or I/O failure occurred.
@@ -204,18 +201,12 @@ impl<G: Gazetteer> Geocoder for PopulationPriorGeocoder<G> {
                 continue;
             }
             if candidates.len() == 1 {
-                resolutions.push(GeoResolution::new(
-                    mention,
-                    candidates[0].to_entry(),
-                    SINGLE_CANDIDATE_CONFIDENCE,
-                )?);
+                resolutions.push(GeoResolution::new(mention, candidates[0].to_entry(), SINGLE_CANDIDATE_CONFIDENCE)?);
                 continue;
             }
             candidates.sort_by(by_prior_view);
-            let confidence = score_population_separation(
-                candidates[0].population() as f64,
-                candidates[1].population() as f64,
-            );
+            let confidence =
+                score_population_separation(candidates[0].population() as f64, candidates[1].population() as f64);
             resolutions.push(GeoResolution::new(mention, candidates[0].to_entry(), confidence)?);
         }
         Ok(resolutions)
@@ -291,11 +282,7 @@ impl<G: Gazetteer> Geocoder for SpatialCoherenceGeocoder<G> {
             }
             let mention = location_mentions[i];
             if candidates.len() == 1 {
-                resolutions.push(GeoResolution::new(
-                    mention,
-                    candidates[0].to_entry(),
-                    SINGLE_CANDIDATE_CONFIDENCE,
-                )?);
+                resolutions.push(GeoResolution::new(mention, candidates[0].to_entry(), SINGLE_CANDIDATE_CONFIDENCE)?);
                 continue;
             }
 
@@ -367,11 +354,7 @@ impl Locations {
     /// Returns resolution `i` as a [`GeoResolution`].
     pub fn get(&self, i: Ix<Locations>) -> GeoResolution {
         let idx = i.get();
-        GeoResolution {
-            mention: self.spans.get(i),
-            entry: self.entry[idx].clone(),
-            confidence: self.confidence[idx],
-        }
+        GeoResolution { mention: self.spans.get(i), entry: self.entry[idx].clone(), confidence: self.confidence[idx] }
     }
 
     /// Borrowed entry and confidence for resolution `i`.
@@ -419,9 +402,7 @@ pub(crate) fn normalize_location_types<'a>(
     let mut normalized = HashSet::new();
     for raw in types {
         if is_blank(raw) {
-            return Err(GeocodeError::InvalidLocationTypes(
-                "locationTypes must not contain a null or blank element",
-            ));
+            return Err(GeocodeError::InvalidLocationTypes("locationTypes must not contain a null or blank element"));
         }
         let mut lower = String::new();
         to_lowercase(raw, &mut lower);
@@ -466,10 +447,7 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
 
     fn annotate(&self, (view, entities): Refs<'_, Self>) -> Result<(Locations,), Error> {
         if entities.spans.view() != view.id() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: "entities are in a different view".into(),
-            });
+            return Err(Error::Annotator { annotator: Self::ID, detail: "entities are in a different view".into() });
         }
         let mut mentions = Vec::new();
         let mut lower_buf = String::new();
@@ -487,18 +465,15 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
         }
 
         let allowed: HashSet<Span> = mentions.iter().copied().collect();
-        let resolutions = self.geocoder.resolve(view.text(), &mentions).map_err(|e| Error::Annotator {
-            annotator: Self::ID,
-            detail: e.to_string(),
-        })?;
+        let resolutions = self
+            .geocoder
+            .resolve(view.text(), &mentions)
+            .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
         for resolution in resolutions {
             if !allowed.contains(&resolution.mention()) {
                 return Err(Error::Annotator {
                     annotator: Self::ID,
-                    detail: format!(
-                        "geocoder returned a mention outside locationMentions: {:?}",
-                        resolution.mention()
-                    ),
+                    detail: format!("geocoder returned a mention outside locationMentions: {:?}", resolution.mention()),
                 });
             }
             out.push(resolution);
@@ -749,12 +724,8 @@ mod tests {
         let kinds = TagSet::new("ner", &["PLACE", "place", "person"]);
         let text = "from Paris to Lyon with Alice";
         let mut doc = Document::new(text);
-        doc.add(
-            &Key::DEFAULT,
-            Tokens { spans: Spans::new(ViewId::SOURCE), sentence: None },
-            Provenance::by("test"),
-        )
-        .unwrap();
+        doc.add(&Key::DEFAULT, Tokens { spans: Spans::new(ViewId::SOURCE), sentence: None }, Provenance::by("test"))
+            .unwrap();
         let mut entities = Entities {
             spans: Spans::new(ViewId::SOURCE),
             tokens: vec![IxRange::new(0, 0), IxRange::new(0, 0), IxRange::new(0, 0)],
@@ -772,8 +743,7 @@ mod tests {
             place("lyon", "Lyon", 45.76, 4.83, Some("FR"), 500_000),
         ])
         .unwrap();
-        let annotator =
-            GeocodeAnnotator::with_location_types(PopulationPriorGeocoder::new(gaz), ["Place"]).unwrap();
+        let annotator = GeocodeAnnotator::with_location_types(PopulationPriorGeocoder::new(gaz), ["Place"]).unwrap();
         let analyzer = Analyzer::builder().add(annotator).given(Key::<Entities>::DEFAULT).build().unwrap();
         analyzer.run(std::slice::from_mut(&mut doc)).into_iter().next().unwrap().unwrap();
         let locs = doc.get::<Locations>().unwrap();
@@ -781,13 +751,12 @@ mod tests {
         assert_eq!(locs.get(Ix::new(0)).entry().name(), "Paris");
         assert_eq!(locs.get(Ix::new(1)).entry().name(), "Lyon");
 
-        assert!(GeocodeAnnotator::with_location_types(PopulationPriorGeocoder::new(BundledGazetteer::get()), []).is_err());
         assert!(
-            GeocodeAnnotator::with_location_types(
-                PopulationPriorGeocoder::new(BundledGazetteer::get()),
-                ["\u{00A0}"]
-            )
-            .is_err()
+            GeocodeAnnotator::with_location_types(PopulationPriorGeocoder::new(BundledGazetteer::get()), []).is_err()
+        );
+        assert!(
+            GeocodeAnnotator::with_location_types(PopulationPriorGeocoder::new(BundledGazetteer::get()), ["\u{00A0}"])
+                .is_err()
         );
     }
 }

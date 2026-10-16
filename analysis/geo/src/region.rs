@@ -371,10 +371,8 @@ fn add_flag_emoji_votes(text: &str, weights: &mut HashMap<RegionCode, f64>) {
             continue;
         }
         let _ = chars.next();
-        let bytes = [
-            b'A' + (first as u32 - REGIONAL_INDICATOR_A) as u8,
-            b'A' + (second as u32 - REGIONAL_INDICATOR_A) as u8,
-        ];
+        let bytes =
+            [b'A' + (first as u32 - REGIONAL_INDICATOR_A) as u8, b'A' + (second as u32 - REGIONAL_INDICATOR_A) as u8];
         if ISO_COUNTRIES.binary_search(&bytes).is_ok()
             && let Some(code) = RegionCode::new(bytes)
         {
@@ -469,10 +467,8 @@ impl Annotator for DocumentRegionAnnotator {
             return Ok((ballot,));
         }
 
-        let mut rows: Vec<RegionVote> = weights
-            .into_iter()
-            .filter_map(|(country, w)| RegionVote::new(country, w / total).ok())
-            .collect();
+        let mut rows: Vec<RegionVote> =
+            weights.into_iter().filter_map(|(country, w)| RegionVote::new(country, w / total).ok()).collect();
         rows.sort_by(|a, b| b.share.total_cmp(&a.share).then_with(|| a.country_code.cmp(&b.country_code)));
         for row in rows {
             ballot.push(row);
@@ -485,7 +481,7 @@ impl Annotator for DocumentRegionAnnotator {
 mod tests {
     use super::*;
     use crate::entry::{EntryParts, FEATURE_CLASS_CITY, GazetteerEntry, GeoPoint};
-    use crate::geocode::{GeoResolution, GeocodeAnnotator, Geocoder, GeocodeError};
+    use crate::geocode::{GeoResolution, GeocodeAnnotator, GeocodeError, Geocoder};
     use turbo_analysis::{Analyzer, Document, IxRange, Key, Layer, Provenance, Spans, Tag, TagSet, ViewId};
     use turbo_analysis_layers::Tokens;
 
@@ -520,8 +516,7 @@ mod tests {
         }
 
         fn scored(pairs: &[(&str, Option<&str>, f64)]) -> TableGeocoder {
-            let entries =
-                pairs.iter().map(|&(k, v, c)| (k.to_string(), (v.map(Into::into), c))).collect();
+            let entries = pairs.iter().map(|&(k, v, c)| (k.to_string(), (v.map(Into::into), c))).collect();
             TableGeocoder { entries }
         }
     }
@@ -532,11 +527,7 @@ mod tests {
             for &m in location_mentions {
                 let surface = &text[m.start as usize..m.end as usize];
                 if let Some((country, conf)) = self.entries.get(surface) {
-                    out.push(GeoResolution::new(
-                        m,
-                        make_entry(surface, surface, country.as_deref()),
-                        *conf,
-                    )?);
+                    out.push(GeoResolution::new(m, make_entry(surface, surface, country.as_deref()), *conf)?);
                 }
             }
             Ok(out)
@@ -545,12 +536,8 @@ mod tests {
 
     fn doc_with_location_entities(text: &str, names: &[&str]) -> Document {
         let mut doc = Document::new(text);
-        doc.add(
-            &Key::DEFAULT,
-            Tokens { spans: Spans::new(ViewId::SOURCE), sentence: None },
-            Provenance::by("test"),
-        )
-        .unwrap();
+        doc.add(&Key::DEFAULT, Tokens { spans: Spans::new(ViewId::SOURCE), sentence: None }, Provenance::by("test"))
+            .unwrap();
         let kinds = TagSet::new("ner", &["location"]);
         let mut spans = Spans::new(ViewId::SOURCE);
         let mut tokens = Vec::new();
@@ -586,7 +573,8 @@ mod tests {
 
     #[test]
     fn geocoded_mentions_vote_with_confidence() {
-        let geocoder = TableGeocoder::uniform(&[("Sydney", "AU"), ("Melbourne", "AU"), ("Auckland", "NZ")], TABLE_CONFIDENCE);
+        let geocoder =
+            TableGeocoder::uniform(&[("Sydney", "AU"), ("Melbourne", "AU"), ("Auckland", "NZ")], TABLE_CONFIDENCE);
         let doc = run_pipeline(
             geocoder,
             doc_with_location_entities(
@@ -647,9 +635,7 @@ mod tests {
         let ballot_out = doc_out.get::<Regions>().unwrap();
         assert_eq!(ballot_out.len(), 2);
         assert_eq!(ballot_out.get(0).unwrap().country_code(), "NZ");
-        assert!(
-            (ballot_out.get(0).unwrap().share() - 0.95 / (0.95 + TABLE_CONFIDENCE)).abs() < SHARE_DELTA
-        );
+        assert!((ballot_out.get(0).unwrap().share() - 0.95 / (0.95 + TABLE_CONFIDENCE)).abs() < SHARE_DELTA);
         assert_eq!(ballot_out.get(1).unwrap().country_code(), "AU");
         assert_eq!(DocumentRegionAnnotator::winner(ballot_out, 0.05).unwrap().unwrap().country_code(), "NZ");
         assert_eq!(DocumentRegionAnnotator::winner(ballot_out, 0.1).unwrap(), None);
@@ -720,10 +706,8 @@ mod tests {
 
         // Subdivision tag-sequence flag (England GB-ENG) does not vote.
         let england = "match report \u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F} today";
-        let doc5 = run_pipeline(
-            TableGeocoder::uniform(&[], TABLE_CONFIDENCE),
-            doc_with_location_entities(england, &[]),
-        );
+        let doc5 =
+            run_pipeline(TableGeocoder::uniform(&[], TABLE_CONFIDENCE), doc_with_location_entities(england, &[]));
         assert!(doc5.get::<Regions>().unwrap().is_empty());
 
         // Unassigned XX pair does not vote.

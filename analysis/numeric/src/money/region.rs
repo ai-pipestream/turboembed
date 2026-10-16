@@ -269,7 +269,8 @@ mod tests {
     #[test]
     fn winning_region_resolves_the_symbol() {
         let doc = with_ballot("the deal is worth $5", &[("AU", 1.0)]);
-        let a = Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
+        let a =
+            Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
         let out = run_one(&a, doc);
         let money = out.get::<Money>().unwrap();
         assert_eq!(money.len(), 1);
@@ -279,7 +280,8 @@ mod tests {
     #[test]
     fn empty_ballot_falls_back_to_default_table() {
         let doc = with_ballot("costs $5", &[]);
-        let a = Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
+        let a =
+            Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
         let out = run_one(&a, doc);
         let money = out.get::<Money>().unwrap();
         assert_eq!(money.len(), 1);
@@ -289,7 +291,8 @@ mod tests {
     #[test]
     fn country_with_minority_language_locales_resolves_symbol() {
         let doc = with_ballot("the grant is $5", &[("CA", 1.0)]);
-        let a = Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
+        let a =
+            Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
         let out = run_one(&a, doc);
         let money = out.get::<Money>().unwrap();
         assert_eq!(money.get(Ix::new(0)).currency.as_str(), "CAD");
@@ -298,7 +301,8 @@ mod tests {
     #[test]
     fn locale_scan_skips_unusable_symbol_candidates_for_guinea() {
         let doc = with_ballot("price 100\u{07FF} today", &[("GN", 1.0)]);
-        let a = Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
+        let a =
+            Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
         let out = run_one(&a, doc);
         let money = out.get::<Money>().unwrap();
         assert_eq!(money.len(), 1);
@@ -309,7 +313,8 @@ mod tests {
     #[test]
     fn letter_symbol_country_keeps_default_table() {
         let doc = with_ballot("the invoice totals $5", &[("CH", 1.0)]);
-        let a = Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
+        let a =
+            Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
         let out = run_one(&a, doc);
         let money = out.get::<Money>().unwrap();
         assert_eq!(money.get(Ix::new(0)).currency.as_str(), "USD");
@@ -318,7 +323,8 @@ mod tests {
     #[test]
     fn unknown_country_falls_back_to_default_table() {
         let doc = with_ballot("costs $5", &[("ZZ", 1.0)]);
-        let a = Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
+        let a =
+            Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
         let out = run_one(&a, doc);
         let money = out.get::<Money>().unwrap();
         assert_eq!(money.get(Ix::new(0)).currency.as_str(), "USD");
@@ -336,7 +342,8 @@ mod tests {
         let out_strict = run_one(&a_strict, tie_doc());
         assert_eq!(out_strict.get::<Money>().unwrap().get(Ix::new(0)).currency.as_str(), "USD");
 
-        let a_zero = Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
+        let a_zero =
+            Analyzer::builder().add(RegionAwareMoneyAnnotator::new()).given(Key::<Regions>::DEFAULT).build().unwrap();
         let out_zero = run_one(&a_zero, tie_doc());
         assert_eq!(out_zero.get::<Money>().unwrap().get(Ix::new(0)).currency.as_str(), "AUD");
     }
