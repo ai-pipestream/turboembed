@@ -603,11 +603,17 @@ pub fn put_tagset(w: &mut Writer, kinds: &TagSet) -> Result<(), ExportError> {
     Ok(())
 }
 
-/// Reads what [`put_tagset`] wrote.
+/// Reads what [`put_tagset`] wrote. A tag is a `u16`, so a set of more
+/// than 65,536 labels cannot be indexed and is refused instead of
+/// wrapping an index onto another label.
 pub fn get_tagset(r: &mut Reader<'_>) -> Result<Arc<TagSet>, ExportError> {
     let name = r.string()?;
+    let count = r.usize()?;
+    if count > usize::from(u16::MAX) + 1 {
+        return Err(malformed("a tag set longer than a u16 can index"));
+    }
     let mut labels = Vec::new();
-    for _ in 0..r.usize()? {
+    for _ in 0..count {
         labels.push(r.string()?);
     }
     let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
@@ -907,11 +913,17 @@ fn rebuild_provenance(
     codecs: &Codecs,
     cx: &mut ImportCx,
     layer: &str,
+    strict: bool,
 ) -> Result<Provenance, ExportError> {
     let resolve = |refs: &[LayerRef], cx: &mut ImportCx| -> Result<Vec<KeyId>, ExportError> {
         refs.iter()
             .map(|r| {
-                if !cx.known.contains(&(r.layer.clone(), r.instance.clone())) {
+                // A complete layer read what its provenance names, so
+                // every reference must be an instance the graph holds.
+                // A failed layer may name the required input whose
+                // absence failed it, which no record holds by
+                // construction; its references rebuild by type alone.
+                if strict && !cx.known.contains(&(r.layer.clone(), r.instance.clone())) {
                     return Err(ExportError::DanglingReference { layer: layer.to_owned(), reference: r.clone() });
                 }
                 codecs.key_id(r, cx).map_err(|e| match e {
@@ -995,15 +1007,27 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
 
     // The first view record is the source view, whatever follows it:
     // complete, the default instance, no parent, no edits, and the
-    // source text itself.
+    // source text itself. Its provenance is fixed by the format (the
+    // document gives the source view `turbo:source` and nothing else),
+    // so a record claiming another is refused rather than silently
+    // replaced on import.
     match graph.views.first() {
         None => return Err(ExportError::InvalidSource("the graph holds no views".into())),
         Some(first_view) => {
+            let p = &first_view.provenance;
+            let fixed = Provenance::by("turbo:source");
             if !matches!(first_view.status, StatusRecord::Complete)
                 || !first_view.instance.is_empty()
                 || first_view.parent.is_some()
                 || !first_view.edits.is_empty()
                 || first_view.text.as_deref() != Some(graph.source.text.as_str())
+                || p.annotator != fixed.annotator
+                || p.version != fixed.version
+                || p.config != fixed.config
+                || p.model.is_some()
+                || p.execution.is_some()
+                || !p.reads.is_empty()
+                || !p.on.is_empty()
             {
                 return Err(ExportError::InvalidSource(
                     "the first view is not the source view of the source text".into(),
@@ -1022,7 +1046,13 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
 
     for (index, record) in graph.views.iter().enumerate() {
         cx.layer = View::ID.to_owned();
-        let provenance = rebuild_provenance(&record.provenance, codecs, &mut cx, View::ID)?;
+        let provenance = rebuild_provenance(
+            &record.provenance,
+            codecs,
+            &mut cx,
+            View::ID,
+            !matches!(record.status, StatusRecord::Failed(_)),
+        )?;
         let key = Key::<View>::named(cx.intern(&record.instance.clone()));
         match (&record.status, &record.text) {
             (StatusRecord::Complete, Some(text)) => {
@@ -1063,7 +1093,13 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
 
     for record in &graph.layers {
         cx.layer = record.layer.clone();
-        let provenance = rebuild_provenance(&record.provenance, codecs, &mut cx, &record.layer)?;
+        let provenance = rebuild_provenance(
+            &record.provenance,
+            codecs,
+            &mut cx,
+            &record.layer,
+            !matches!(record.status, StatusRecord::Failed(_)),
+        )?;
         let codec = codecs.by_layer_name(&record.layer).expect("checked above");
         match &record.status {
             StatusRecord::Complete => {

@@ -8,8 +8,8 @@
 use turbo_analysis::export::{Codecs, DocumentGraph, ExportError, NodeRef, export, import, layer_ref, node_ref};
 use turbo_analysis::text::Edit;
 use turbo_analysis::{
-    Alignment, Document, Edge, Edges, Error, Groups, Ix, Key, Layer, ModelRef, Provenance, Span, Status, Tag, View,
-    ViewBuilder,
+    Alignment, Analyzer, Annotator, Document, Edge, Edges, Error, Groups, Ix, Key, Layer, ModelRef, Provenance, Refs,
+    Span, Status, Tag, View, ViewBuilder,
 };
 use turbo_analysis_layers::{AbbreviationForm, Abbreviations, abbreviation_links};
 
@@ -307,6 +307,85 @@ fn provenance_references_to_missing_instances_are_refused() {
     let mut graph = export(&doc, &codecs()).unwrap();
     graph.layers.retain(|l| l.layer != "turbo:abbreviations");
     assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::DanglingReference { .. })));
+}
+
+struct GroupAll;
+
+impl Annotator for GroupAll {
+    const ID: &'static str = "test:group-all";
+    type Reads = (Abbreviations,);
+    type Writes = (Groups<Abbreviations>,);
+
+    fn annotate(&self, (abbrev,): Refs<'_, Self>) -> Result<(Groups<Abbreviations>,), Error> {
+        let all: Vec<Ix<Abbreviations>> = (0..abbrev.spans.len() as u32).map(Ix::new).collect();
+        Ok((Groups::new([all]),))
+    }
+}
+
+#[test]
+fn a_failed_step_whose_required_input_is_absent_round_trips() {
+    // The pipeline is told the documents arrive with abbreviations and
+    // this one does not have them, so the step is recorded failed with
+    // the missing input in its error and its provenance reads. That
+    // unresolved output must cross the boundary like any other.
+    let pipeline = Analyzer::builder().given(Key::<Abbreviations>::DEFAULT).add(GroupAll).build().unwrap();
+    let mut docs = [Document::new("WHO")];
+    let _ = pipeline.run(&mut docs);
+    let doc = docs.into_iter().next().unwrap();
+    let groups_key = Key::<Groups<Abbreviations>>::DEFAULT.id();
+    assert_eq!(doc.status(groups_key), Some(&Status::Failed(Error::Missing(Key::<Abbreviations>::DEFAULT.id()))));
+    let graph = export(&doc, &codecs()).unwrap();
+    let back = import(&DocumentGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(), &codecs()).unwrap();
+    assert_eq!(back.status(groups_key), Some(&Status::Failed(Error::Missing(Key::<Abbreviations>::DEFAULT.id()))));
+    assert_eq!(back.provenance(groups_key).unwrap().reads, [Key::<Abbreviations>::DEFAULT.id()]);
+    assert!(back.get::<Abbreviations>().is_none());
+}
+
+fn edges_payload(labels: usize) -> Vec<u8> {
+    use turbo_analysis::export::Writer;
+    let mut w = Writer::new();
+    for _ in 0..2 {
+        w.str("turbo:abbreviations").unwrap();
+        w.str("").unwrap();
+    }
+    w.str("test:kinds").unwrap();
+    w.usize(labels).unwrap();
+    for i in 0..labels {
+        w.str(&format!("label-{i}")).unwrap();
+    }
+    w.usize(1).unwrap();
+    w.u32(1);
+    w.u32(0);
+    w.u32(0);
+    w.f64(1.0);
+    w.finish()
+}
+
+#[test]
+fn tag_sets_longer_than_a_u16_can_index_are_refused_on_import() {
+    let mut graph = export(&document(), &codecs()).unwrap();
+    let at = graph.layers.iter().position(|l| l.layer.starts_with("turbo:edges")).unwrap();
+    graph.layers[at].body = Some(edges_payload(65_537));
+    graph.layers[at].len = 1;
+    match import(&graph, &codecs()) {
+        Err(ExportError::Malformed(detail)) => assert!(detail.contains("tag set"), "{detail}"),
+        Ok(_) => panic!("a tag set of 65,537 labels imported"),
+        Err(other) => panic!("a tag set of 65,537 labels failed as {other}"),
+    }
+    // Exactly 65,536 labels still indexes, last label included.
+    graph.layers[at].body = Some(edges_payload(65_536));
+    let back = import(&graph, &codecs()).unwrap();
+    let links = back.get::<Edges<Abbreviations, Abbreviations>>().unwrap();
+    assert_eq!(links.kinds.tag("label-65535"), Some(Tag(65_535)));
+    assert_eq!(links.kinds.label(Tag(65_535)), "label-65535");
+}
+
+#[test]
+fn source_view_provenance_is_fixed_by_the_format() {
+    let mut graph = export(&document(), &codecs()).unwrap();
+    graph.views[0].provenance.annotator = "source:decoder".into();
+    graph.views[0].provenance.config = 42;
+    assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::InvalidSource(_))));
 }
 
 #[test]

@@ -559,11 +559,17 @@ edge and group endpoint are checked, and any failure returns a typed
 consumer that meets a newer format or schema upgrades, and there is
 no partial recovery mode. Skipped and failed entries import back as
 skipped and failed with the same reasons and the same errors, variant
-for variant. Rebuilding provenance turns its name strings into the
-`&'static str` the types hold through a process-wide interner that
-leaks one copy of each distinct name ever imported, so an importer
-that runs without end leaks the vocabulary of annotator, version and
-instance names, not a copy per document. The byte encoding is deterministic for a given graph,
+for variant. A complete layer's provenance references must name
+instances the graph holds; a failed layer's may name the required
+input whose absence failed it, which no record holds, and those
+rebuild by layer type alone. The source view's provenance is fixed
+by the format (`turbo:source`) and a record claiming another is
+refused instead of being silently replaced. Rebuilding provenance
+turns its name strings into the `&'static str` the types hold through
+a process-wide interner that leaks one copy of each distinct name
+ever imported, so an importer that runs without end leaks the
+vocabulary of annotator, version and instance names, not a copy per
+document. The byte encoding is deterministic for a given graph,
 so a round trip through export, bytes and import re-exports to the
 same bytes (`analysis/core/tests/graph_export.rs` pins this against a
 checked-in fixture, and the `document_graph` example in
