@@ -162,6 +162,25 @@ fn a_short_form_inside_another_is_not_a_mention() {
 }
 
 #[test]
+fn partially_overlapping_mentions_and_mentions_crossing_a_long_form_do_not_cross() {
+    // "AB-CD" and "CD-EF" are both defined; in "AB-CD-EF", "AB-CD" (0..5) and
+    // "CD-EF" (3..8) partially cross, so only the earlier mention is kept.
+    // And in "AB-CD Ef (AE)", "AB-CD" is nested inside the later long form
+    // "AB-CD Ef", whereas in "X AB-CD (XA)", if a mention "CD Ef" crossed into
+    // "X AB-CD" it must be rejected.
+    let text = "Alpha beta charlie delta (AB-CD) first. \
+Charlie delta echo foxtrot (CD-EF) second. \
+Delta echo (D E) third. \
+Later AB-CD-EF and Alpha Delta echo (ADE) appeared.";
+    let doc = run(text, false);
+    let layer = doc.get::<Abbreviations>().unwrap();
+    assert_eq!(layer.check(), Ok(()));
+    let mentions: Vec<&str> =
+        items(&doc).into_iter().filter(|i| i.2 == AbbreviationForm::Mention).map(|i| i.3).collect();
+    assert_eq!(mentions, ["AB-CD"]);
+}
+
+#[test]
 fn mentions_before_a_definition_are_not_linked() {
     let text = "WHO is first. Then the World Health Organization (WHO) speaks.";
     let doc = run(text, false);

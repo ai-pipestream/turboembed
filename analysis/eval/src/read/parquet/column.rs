@@ -135,7 +135,10 @@ pub fn rle_hybrid(buf: &[u8], width: u32, count: usize) -> Result<Vec<u32>> {
             }
         }
         if header & 1 == 0 {
-            let run = (header >> 1) as usize;
+            let run = usize::try_from(header >> 1).map_err(|_| "a run header past usize::MAX")?;
+            if run == 0 {
+                return Err("an empty run or bit-packed group".into());
+            }
             let b = buf.get(pos..pos + bytes).ok_or("levels or indices end early")?;
             pos += bytes;
             let v = b.iter().rev().fold(0u32, |a, &x| a << 8 | u32::from(x));
@@ -144,11 +147,14 @@ pub fn rle_hybrid(buf: &[u8], width: u32, count: usize) -> Result<Vec<u32>> {
             }
             out.extend(std::iter::repeat_n(v, run.min(count - out.len())));
         } else {
-            let groups = (header >> 1) as usize;
-            let len = groups * width as usize;
+            let groups = usize::try_from(header >> 1).map_err(|_| "a run header past usize::MAX")?;
+            if groups == 0 {
+                return Err("an empty run or bit-packed group".into());
+            }
+            let len = groups.checked_mul(width as usize).ok_or("bit-packed group length overflows")?;
             let packed = buf.get(pos..pos + len).ok_or("levels or indices end early")?;
             pos += len;
-            let total = (groups * 8).min(count - out.len());
+            let total = groups.checked_mul(8).ok_or("bit-packed group count overflows")?.min(count - out.len());
             for i in 0..total {
                 let bit = i * width as usize;
                 let mut v = 0u64;
@@ -320,6 +326,12 @@ fn page_values(
         }
         Encoding::RleDictionary | Encoding::PlainDictionary => {
             let dict = dict.ok_or("dictionary indices before a dictionary page")?;
+            if present == 0 && buf.is_empty() {
+                for _ in 0..num_values {
+                    out.push_null();
+                }
+                return Ok(());
+            }
             let width = u32::from(*buf.first().ok_or("no bit width")?);
             let idx = rle_hybrid(&buf[1..], width, present)?;
             let mut next = idx.iter();
@@ -530,6 +542,29 @@ mod tests {
             read_chunk(&file, &meta, true, &mut out).unwrap();
             assert_eq!(out.nulls, [true; 3], "{codec}");
         }
+    }
+
+    #[test]
+    fn an_all_null_dictionary_page_with_empty_values_buffer_is_accepted() {
+        let dict = Values { kind: Kind::Ints(vec![42]), nulls: vec![false] };
+        for encoding in [Encoding::RleDictionary, Encoding::PlainDictionary] {
+            let mut out = Values::new(Physical::Int32).unwrap();
+            page_values(Physical::Int32, encoding, Some(vec![0, 0, 0]), 3, &[], Some(&dict), &mut out).unwrap();
+            assert_eq!(out.nulls, [true; 3], "{encoding}");
+            let Kind::Ints(v) = &out.kind else { panic!("expected Ints") };
+            assert_eq!(v, &[0, 0, 0]);
+        }
+    }
+
+    #[test]
+    fn hybrid_zero_runs_zero_groups_and_overflowing_groups_are_refused() {
+        // An RLE header with run == 0 (0x00) makes no progress and must fail.
+        assert_eq!(rle_hybrid(&[0, 0], 1, 1).unwrap_err(), "an empty run or bit-packed group");
+        // A bit-packed header with groups == 0 (0x01) makes no progress and must fail.
+        assert_eq!(rle_hybrid(&[1], 1, 1).unwrap_err(), "an empty run or bit-packed group");
+        // A 5-byte varint header with huge groups and width == 0 must not spin or overflow.
+        let huge_groups = [0x81, 0x80, 0x80, 0x80, 0x7f];
+        assert!(rle_hybrid(&huge_groups, 32, 1).is_err());
     }
 
     #[test]

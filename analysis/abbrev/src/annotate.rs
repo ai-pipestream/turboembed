@@ -70,11 +70,12 @@ pub fn detect(
         items.push((d.short, AbbreviationForm::Short, Some(items.len() - 1)));
     }
     let mentions = find_mentions(text, &definitions, tokens);
-    // A mention inside a longer one ("IL" in "IL-2", both defined) is part
-    // of that one, not a mention of its own.
+    // A mention inside or partially crossing an earlier one ("IL" in "IL-2",
+    // or "CD-EF" crossing "AB-CD" in "AB-CD-EF", both defined) is skipped so
+    // mentions stay disjoint in text order.
     let mut reach = 0;
     for (span, long) in mentions {
-        if span.end <= reach {
+        if span.start < reach {
             continue;
         }
         reach = span.end;
@@ -160,7 +161,8 @@ fn find_mentions(text: &str, definitions: &[Definition], tokens: Option<(&[u32],
 
 /// Whether a match of a short form at `span` is a mention: no letter or
 /// digit on either side, whole tokens when there are tokens, no overlap
-/// with a defining short form, and not a long form.
+/// with a defining short form, and neither equal to nor partially crossing
+/// a defining long form.
 fn is_mention(text: &str, span: Span, definitions: &[Definition], tokens: Option<(&[u32], &[u32])>) -> bool {
     let (start, end) = (span.start as usize, span.end as usize);
     if text[..start].chars().next_back().is_some_and(is_letter_or_digit)
@@ -179,5 +181,11 @@ fn is_mention(text: &str, span: Span, definitions: &[Definition], tokens: Option
     if definitions.get(first).is_some_and(|d| d.short.start < span.end) {
         return false;
     }
-    definitions.binary_search_by(|d| d.long.cmp(&span)).is_err()
+    let first_long = definitions.partition_point(|d| d.long.end <= span.start);
+    for d in definitions[first_long..].iter().take_while(|d| d.long.start < span.end) {
+        if !(d.long.start <= span.start && span.end <= d.long.end && d.long != span) {
+            return false;
+        }
+    }
+    true
 }

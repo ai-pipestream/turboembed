@@ -152,6 +152,7 @@ fn is_valid_short_form(short: &str) -> bool {
 pub fn best_long_form(text: &str, short: Span, long: Span) -> Option<Span> {
     let short_text = &text[short.range()];
     let long_text = &text[long.range()];
+    let first_alnum = short_text.char_indices().find(|&(_, c)| is_letter_or_digit(to_lower_char(c))).map(|(i, _)| i)?;
     let mut at = long_text.len();
     for (si, sc) in short_text.char_indices().rev() {
         let c = to_lower_char(sc);
@@ -161,7 +162,8 @@ pub fn best_long_form(text: &str, short: Span, long: Span) -> Option<Span> {
         loop {
             let lc = long_text[..at].chars().next_back()?;
             at -= lc.len_utf8();
-            let starts_word = si != 0 || long_text[..at].chars().next_back().is_none_or(|p| !is_letter_or_digit(p));
+            let starts_word =
+                si != first_alnum || long_text[..at].chars().next_back().is_none_or(|p| !is_letter_or_digit(p));
             if to_lower_char(lc) == c && starts_word {
                 break;
             }
@@ -260,6 +262,10 @@ mod tests {
         // The A of "AR" must start a word: "receptor" has an r after an
         // a in "androgen", but "a" inside "the" does not count.
         assert_eq!(long_of("within the androgen receptor", "AR"), Some("androgen receptor"));
+        // Even when the short form starts with '(', its first letter or digit
+        // must still start a word in the long form.
+        assert_eq!(long_of("within beta receptor", "(AR"), None);
+        assert_eq!(long_of("within androgen beta receptor", "(AR"), Some("androgen beta receptor"));
         // A hyphen starts a word; the long form still widens to the space.
         assert_eq!(long_of("the pre-mRNA", "mR"), Some("pre-mRNA"));
     }
