@@ -20,8 +20,8 @@ use std::sync::Mutex;
 
 use turbo_analysis::{Anchor, Document, Key, KeyId, Layer, LayerName, Provenance};
 use turbo_analysis_layers::{
-    Aspects, Categories, ChunkTags, Confidence, Entities, Incivility, Language, Lemmas, Opinions, PhraseChunks, PosTags,
-    Pragmatics, Sentences, Tokens,
+    Aspects, Categories, ChunkTags, Confidence, Entities, Incivility, Language, Lemmas, Opinions, PhraseChunks,
+    PosTags, Pragmatics, Sentences, Tokens,
 };
 
 pub use error::LoadError;
