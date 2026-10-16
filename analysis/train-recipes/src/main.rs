@@ -51,11 +51,12 @@
 //! treebank without `--recipe`) through the zoo into
 //! `<home>/artifacts/<dataset id>/`.
 //!
-//! `zoo-index` reads the directories `masc`, `ud` or `tatoeba` wrote into
-//! `--models` for the models the release `--release` publishes
-//! (`release::MODELS_RELEASES`), checks each file (the model, and the
-//! language detector's `training-sentences.txt`) and gate record against
-//! its card, and prints the zoo's built-in index with each model's entry
+//! `zoo-index` reads the directories `masc`, `ud`, `tatoeba` or
+//! `tatoeba-fineweb` wrote into `--models` for the models the release
+//! `--release` publishes (`release::MODELS_RELEASES`), checks each file
+//! (the model, the language detectors' `training-sentences.txt` and the
+//! web one's `training-documents.txt`) and each gate and comparison
+//! record against its card, and prints the zoo's built-in index with each model's entry
 //! at its address in the release (`release::index_with`). With `--check`
 //! it prints nothing of the index and exits with 1 unless the built-in
 //! index is already that one and lists nothing else at the release's

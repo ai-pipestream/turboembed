@@ -1,11 +1,21 @@
 name: models-fineweb
 
-# Trains the web language detector (langdetect_web::LANGDETECT_WEB in
+# Trains the web language detector of release $TAG
+# (release::FINEWEB_MODELS and langdetect_web::LANGDETECT_WEB in
 # analysis/train-recipes) on the recorded Tatoeba export and on web text
 # from FineWeb-2 and FineWeb, twice, and checks that both runs write the
 # same bytes; gates it against langdetect-183.bin on held-out sentences
-# and on held-out web text, and scores it beside the Tatoeba model
-# (analysis/train-recipes/README.md, "The web language detector recipe").
+# and on held-out web text, and scores it beside the Tatoeba model;
+# checks that its files are the bytes the zoo's built-in index lists at
+# their addresses in the release; and, run by hand on main, publishes
+# the model with the ids of its training sentences and documents, its
+# card, its two gate records and its two comparison records as the
+# assets of release $TAG through models-publish.yml
+# (analysis/train-recipes/README.md, "The models releases" and "The web
+# language detector recipe"). A pull request that changes the workflow,
+# the recipes, the crates the run mostly rests on or the zoo's index
+# trains and checks, and keeps the files as an artifact; nothing is
+# published.
 #
 # The web text is read by range request from the Hugging Face hub: three
 # ranges of each file fineweb-files.txt lists, checked against the
@@ -14,19 +24,21 @@ name: models-fineweb
 # revisions, the ranges from each file's last bytes and footer, as
 # `turbo-train-recipes fineweb-ranges` says what to fetch next. It keeps
 # them as an artifact, to be committed, and trains on them as a run whose
-# model is not a release. Nothing is published.
+# model is not a release.
 
 on:
   workflow_dispatch:
   pull_request:
     paths:
       - ".github/workflows/models-fineweb.yml"
+      - ".github/workflows/models-publish.yml"
       - "analysis/train-recipes/**"
       - "analysis/train-components/**"
       - "analysis/train/**"
       - "analysis/eval/**"
       - "analysis/zstd/**"
       - "analysis/langdetect/**"
+      - "analysis/zoo/index/zoo.json"
 
 permissions:
   contents: read
@@ -34,11 +46,17 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RECIPES: target/release/turbo-train-recipes
+  # The release's tag and where its assets are published
+  # (release::FINEWEB_MODELS and release::RELEASES); tests check both.
+  TAG: models-tatoeba-fineweb-2026-10-10-1
+  RELEASES: https://github.com/ai-pipestream/turboembed/releases/download/
 
 jobs:
   fineweb:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    outputs:
+      tag: ${{ env.TAG }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -250,10 +268,43 @@ jobs:
                   .reference_correct, .compared_correct])
                  | @tsv' "$card"
           jq -r '["language", "side", "path", "wanted", "file_rows", "groups_read", "rows_read", "too_short",
-                  "duplicates", "host_deferred", "host_taken_later", "chosen"],
+                  "excluded_host", "duplicates", "tatoeba_overlap", "host_deferred", "host_taken_later", "chosen"],
                  (.web.files[] | [.tatoeba, .side, .path, .wanted, .file_rows, .row_groups_read, .rows_read,
-                  .too_short, .duplicates, .host_deferred, .host_taken_later, .chosen])
+                  .too_short, .excluded_host, .duplicates, .tatoeba_overlap, .host_deferred, .host_taken_later,
+                  .chosen])
                  | @tsv' "$card"
+      # Only a run on the committed lists can give the release's model. On
+      # a mismatch, the entry the run gives is printed to compare with the
+      # index.
+      - name: the model is the bytes the zoo's index lists
+        if: env.WEB_LISTS == 'committed'
+        run: |
+          set -euo pipefail
+          if ! "$RECIPES" zoo-index --models runs/run-a --release "$TAG" --check; then
+            "$RECIPES" zoo-index --models runs/run-a --release "$TAG" \
+              | jq --arg p "$RELEASES$TAG/" '.artifacts[] | select(.files[0].url | startswith($p))'
+            exit 1
+          fi
+      - name: the release's files
+        if: env.WEB_LISTS == 'committed'
+        run: |
+          set -euo pipefail
+          id=turbo-mul-tatoeba-fineweb-langdetect-1
+          d="runs/run-a/$id"
+          mkdir dist
+          cp "$d/$id.bin" "$d/training-sentences.txt" "$d/training-documents.txt" dist/
+          for f in card gate gate-web compare-tatoeba compare-web; do
+            cp "$d/$f.json" "dist/$id.$f.json"
+          done
+          cd dist
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+      - if: env.WEB_LISTS == 'committed'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG }}
+          path: dist
+          if-no-files-found: error
       # The made lists, kept and printed whole, so they can be committed
       # from the artifact or from this log.
       - name: keep the made lists
@@ -271,3 +322,14 @@ jobs:
         with:
           name: models-fineweb-run
           path: runs
+
+  # Publishes exactly the files the fineweb job checked and uploaded.
+  publish:
+    needs: fineweb
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/models-publish.yml
+    with:
+      tag: ${{ needs.fineweb.outputs.tag }}
+      summary: The language detector the web recipe trains on Tatoeba's export of 2026-10-10 (kept as release data-tatoeba-2026-10-10) and on FineWeb-2 and FineWeb documents, with the ids of the sentences (training-sentences.txt) and the documents (training-documents.txt) it was trained on.

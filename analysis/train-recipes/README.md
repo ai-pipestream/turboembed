@@ -733,6 +733,7 @@ the models it publishes (`release::MODELS_RELEASES`):
 | `models-masc-3.0.0-1` (`release::MASC_MODELS`) | the MASC sentence detector, tokenizer, tagger and chunker | `.github/workflows/models.yml` | `masc-references.txt` |
 | `models-ud-2.16-1` (`release::UD_MODELS`) | the Spanish and Catalan sentence detectors, tokenizers, taggers and lemmatizers, and the Finnish tagger and lemmatizer: every UD recipe's model but Porttinari's, whose text rights are not settled, and the Italian ones, which fail their gates | `.github/workflows/models-ud.yml` | `ud-references.txt` |
 | `models-tatoeba-2026-10-10-1` (`release::TATOEBA_MODELS`) | the language detector, with `training-sentences.txt`, the ids of the sentences it was trained on | `.github/workflows/models-tatoeba.yml` | `tatoeba-references.txt` |
+| `models-tatoeba-fineweb-2026-10-10-1` (`release::FINEWEB_MODELS`) | the web language detector, with `training-sentences.txt` and `training-documents.txt`, the ids of the sentences and of the documents it was trained on | `.github/workflows/models-fineweb.yml` | `fineweb-references.txt` |
 
 The Tatoeba export the language detector is trained on is kept as well,
 as release `data-tatoeba-2026-10-10` (`release::TATOEBA_EXPORT_RELEASE`):
@@ -743,25 +744,29 @@ two archives, unchanged, are the assets of that release, which
 
 A release does not exist until its workflow has been run by hand on
 main; until then its addresses answer 404 and fetching its models
-through the zoo fails. A recipe added later is in neither release: its
-model goes out in a release of its own, with its own tag, and a release
+through the zoo fails. A recipe added later is in none of these
+releases: its model goes out in a release of its own, with its own tag, and a release
 once published keeps its assets.
 
 `zoo-index --models <dir> --release <tag>` reads the directories
-`masc`, `ud` or `tatoeba` wrote into `<dir>` for the models the release
-`<tag>` publishes, checks each file of an entry (the model, and the
-language detector's `training-sentences.txt`) against its card and each
-card's gate against its gate record, makes each card's zoo entry at its
-address in the release, and prints the zoo's built-in index with those
-entries added or replaced. That is how `analysis/zoo/index/zoo.json` got
-them. The entry is made by `ModelCard::artifact`,
-`UdModelCard::artifact` or `LanguageCard::artifact`, which refuse a
-model that failed its gate or was gated against another model than its
-recipe's reference. The first also refuses one not trained on the
-recorded MASC release, and the third one not trained on the recorded
-Tatoeba export; the second refuses one of Porttinari, and a card that
-does not give its recipe's treebank at release 2.16, with the sizes and
-digests of its files, or its recipe's component and language.
+`masc`, `ud`, `tatoeba` or `tatoeba-fineweb` wrote into `<dir>` for the
+models the release `<tag>` publishes, checks each file of an entry (the
+model, the language detectors' `training-sentences.txt` and the web
+one's `training-documents.txt`) against its card, each card's gate
+against its gate record and, for the web language detector, its second
+gate and its two comparisons against theirs, makes each card's zoo
+entry at its address in the release, and prints the zoo's built-in
+index with those entries added or replaced. That is how
+`analysis/zoo/index/zoo.json` got them. The entry is made by
+`ModelCard::artifact`, `UdModelCard::artifact`, `LanguageCard::artifact`
+or `WebLanguageCard::artifact`, which refuse a model that failed a gate
+or was gated against another model than its recipe's reference. The
+first also refuses one not trained on the recorded MASC release, the
+third one not trained on the recorded Tatoeba export, and the fourth
+one not trained on that export and on the recorded web ranges; the
+second refuses one of Porttinari, and a card that does not give its
+recipe's treebank at release 2.16, with the sizes and digests of its
+files, or its recipe's component and language.
 With `--check` it prints no index and exits with 1 unless the built-in
 index is already that one and lists no other model at the release's
 addresses, naming the entries that differ with the size, SHA-256 and
@@ -770,25 +775,31 @@ there.
 
 Each workflow makes its release. Its training job fetches the data
 through the zoo (MASC, or the treebanks the release's UD models are
-trained on) or, for the language detector, from the release that keeps
-the Tatoeba export ("Full run" below), and the references from the
+trained on) or, for the language detectors, from the release that keeps
+the Tatoeba export ("Full run" below; the web one also from the Hugging
+Face hub, "The web language detector recipe"), and the references from
+the
 addresses its list gives, each checked against the SHA-256 listed with
 it: for MASC, OpenNLP's UD 1.3 English sentence and token models from
 `archive.apache.org` and `en-pos-maxent.bin` and `en-chunker.bin` from
 SourceForge; for UD, OpenNLP's UD 1.3 models from `archive.apache.org`;
-for the language detector, `langdetect-183.bin` from
-`downloads.apache.org`. The references are only scored, never shipped:
+for the language detectors, `langdetect-183.bin` from
+`downloads.apache.org`, and for the web one also the Tatoeba language
+detector from its release, to be compared with. The references are only scored, never shipped:
 the English, Spanish and Finnish UD models are trained on CC BY-SA
 treebanks, the licences of the two 1.5 models are refused, and the
 terms of the Leipzig corpora `langdetect-183.bin` was trained on are not
 confirmed. It saves each download in the repository's Actions cache as
 soon as it is checked, so a run that fails later does not fetch it
 again. It then runs `masc` or `ud` for the models the zoo's index lists
-at the release's addresses, or `tatoeba` twice, checking that both runs
-write the same files, runs `zoo-index --check`, and uploads each model
-with its card and gate record (`<model id>.bin`, `<model id>.card.json`,
-`<model id>.gate.json`; the language detector also with
-`training-sentences.txt`) and a `SHA256SUMS` file as an artifact. A pull
+at the release's addresses, or `tatoeba` or `tatoeba-fineweb` twice,
+checking that both runs write the same files, runs `zoo-index --check`,
+and uploads each model with its card and gate record (`<model id>.bin`,
+`<model id>.card.json`, `<model id>.gate.json`; the language detector
+also with `training-sentences.txt`, and the web one with
+`training-sentences.txt`, `training-documents.txt`,
+`<model id>.gate-web.json`, `<model id>.compare-tatoeba.json` and
+`<model id>.compare-web.json`) and a `SHA256SUMS` file as an artifact. A pull
 request that changes the workflow, this crate or the zoo's index runs it
 that far. Run by hand on main, a job of its own, which unlike the
 training job may write to the repository, runs
@@ -796,8 +807,8 @@ training job may write to the repository, runs
 which publishes exactly those files: it checks `SHA256SUMS`, stops if
 the tag exists, and creates the release at the run's commit, not marked
 as the repository's latest release, with notes that give the models'
-licence and the attribution of each card (MASC's, each treebank's, or
-Tatoeba's). Each `.card.json` asset carries its attribution as well. A
+licence and the attribution of each card (MASC's, each treebank's,
+Tatoeba's, or Tatoeba's, FineWeb-2's and FineWeb's). Each `.card.json` asset carries its attribution as well. A
 release whose tag exists is not made again, so models trained otherwise
 need a new model version and tag. `models-tatoeba.yml` first publishes
 the export's release, from another job that may write, with the archives
@@ -1587,9 +1598,11 @@ model is right where the labels are wrong.
 
 Not made yet. The `models-fineweb` workflow
 (`.github/workflows/models-fineweb.yml`) runs when it is run by hand or
-a pull request changes it, this crate, the trainers, the gate
-(`analysis/eval`), the Zstandard decoder or `turbo-langdetect`, and
-publishes nothing. It fetches the Tatoeba export as `models-tatoeba`
+a pull request changes it, `models-publish.yml`, this crate, the
+trainers, the gate (`analysis/eval`), the Zstandard decoder,
+`turbo-langdetect` or the zoo's index; only a run by hand on main
+publishes, as release `models-tatoeba-fineweb-2026-10-10-1` ("The
+models releases"). It fetches the Tatoeba export as `models-tatoeba`
 does (the same cache), the two models of `fineweb-references.txt`
 (checked against their digests before they are cached) and the web
 ranges, cached under the digest of both lists. It makes the files list
@@ -1603,8 +1616,11 @@ committed ranges list. A cache made under other lists is restored as a
 start, and what it holds is checked like anything fetched. It trains
 twice, fails unless both runs write the same eight files, prints the
 card's per-language and per-file counts, and keeps the model's
-directory as the artifact `models-fineweb-run`. While the committed
-lists are empty, the run makes them in place of these checks, keyed
+directory as the artifact `models-fineweb-run`. It then checks with
+`zoo-index --check` that the model's files are the bytes the zoo's
+index lists, printing the entry the run gives when they are not, and
+uploads the release's files as the artifact named by the tag. While the
+committed lists are empty, the run makes them in place of these checks, keyed
 also by `src/fineweb.rs`, prints them and trains with
 `--unrecorded-web`.
 

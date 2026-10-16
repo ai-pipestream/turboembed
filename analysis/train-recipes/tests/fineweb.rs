@@ -9,8 +9,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use turbo_eval::model_gate::{Counts, ModelGateRecord, ModelId, PairedUnit, Task};
 use turbo_train_recipes::Error;
-use turbo_train_recipes::card::GATE_FILE;
+use turbo_train_recipes::card::{GATE_FILE, GateCard};
 use turbo_train_recipes::fineweb::{
     self, Avoid, FileChoice, Overlap, Side, Span, Store, WEB, WebError, WebFile, WebRecipe, WebSplit, check_ranges,
     needed, plan_web, record,
@@ -21,6 +22,7 @@ use turbo_train_recipes::langdetect_web::{
     self, COMPARE_TATOEBA_FILE, COMPARE_WEB_FILE, DOCUMENTS_FILE, LANGDETECT_WEB, MODEL_ID, WEB_GATE_FILE, WebInput,
     WebLanguageCard, WebLanguageRecipe, write_web_language_dir,
 };
+use turbo_train_recipes::release::{self, FINEWEB_MODELS};
 use turbo_train_recipes::tatoeba::Export;
 use turbo_train_recipes::{RecordedReference, Reference};
 use turbo_zoo::Sha256;
@@ -606,6 +608,140 @@ fn the_web_recipe_trains_gates_and_compares_end_to_end() {
     let entry = card.artifact(url, url, url).unwrap();
     let names: Vec<&str> = entry.files.iter().map(|f| f.path.as_str()).collect();
     assert_eq!(names, [card.file.name.as_str(), SENTENCES_FILE, DOCUMENTS_FILE]);
+}
+
+/// The release's entry is made from the model's directory with its three
+/// files, each checked against the card, and with its two gate records
+/// and two comparison records checked against the card. The test model
+/// stands in for the release's: its card and records are rewritten to
+/// name the release's model and reference, with passing gates, and to
+/// come from the recorded export and web ranges.
+#[test]
+fn the_release_entry_checks_the_model_its_records_and_its_training_files() {
+    let dir = scratch("web-release");
+    let recipe = TEST_RECIPE;
+    let (files, bytes) = served_with(&recipe.web, word_rows);
+    fetch_all(&dir, &files, &recipe.web, &bytes);
+    let ranges = record(&files, &recipe.web, &Store::new(&dir, None)).unwrap();
+    let store = Store::new(&dir, Some(&ranges));
+    let web = WebInput::checked(recipe.web, &files, &ranges, false, &store).unwrap();
+    let export = Export::read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tatoeba")).unwrap();
+    let fixture = fixture();
+    let mut outcome = langdetect_web::run(&recipe, &export, false, &web, &fixture, &fixture).unwrap();
+
+    let card = &mut outcome.card;
+    card.id = MODEL_ID.to_owned();
+    card.file.name = format!("{MODEL_ID}.bin");
+    card.export.recorded = true;
+    card.web.recorded = true;
+    let candidate = ModelId { id: MODEL_ID.to_owned(), sha256: card.file.sha256.clone() };
+    let reference = LANGDETECT_WEB.tatoeba.reference;
+    let reference = ModelId { id: reference.id().to_owned(), sha256: reference.sha256().unwrap() };
+    let right = PairedUnit { candidate: Counts::accuracy(1, 1), reference: Counts::accuracy(1, 1) };
+    let passing = |r: &ModelGateRecord, g: &mut GateCard| {
+        let units = vec![right; r.units.len()];
+        let r =
+            ModelGateRecord::new(Task::LanguageDetector, r.set.clone(), candidate.clone(), reference.clone(), units)
+                .unwrap();
+        assert!(r.result.pass);
+        g.reference = r.reference.id.clone();
+        g.reference_sha256 = r.reference.sha256.clone();
+        g.candidate_score = r.result.candidate.score;
+        g.reference_score = r.result.reference.score;
+        g.difference_low = r.result.difference.low;
+        g.difference_high = r.result.difference.high;
+        g.pass = true;
+        r
+    };
+    let s = &mut outcome.scored;
+    s.tatoeba_gate = passing(&s.tatoeba_gate, &mut card.gate);
+    s.web_gate = passing(&s.web_gate, &mut card.web_gate);
+    // The comparisons keep their units, so their scores and the card's
+    // stay the same.
+    let renamed = |r: &ModelGateRecord| {
+        ModelGateRecord::new(
+            Task::LanguageDetector,
+            r.set.clone(),
+            candidate.clone(),
+            r.reference.clone(),
+            r.units.clone(),
+        )
+        .unwrap()
+    };
+    s.compare_tatoeba = renamed(&s.compare_tatoeba);
+    s.compare_web = renamed(&s.compare_web);
+
+    let out = dir.join("models");
+    write_web_language_dir(&out, &outcome).unwrap();
+    let card = &outcome.card;
+    let entries = release::entries(&out, &FINEWEB_MODELS).unwrap();
+    let urls = [&card.file.name, SENTENCES_FILE, DOCUMENTS_FILE].map(|f| FINEWEB_MODELS.url(f));
+    assert_eq!(entries, [card.artifact(&urls[0], &urls[1], &urls[2]).unwrap()]);
+    let listed: Vec<(&str, &str)> = entries[0].files.iter().map(|f| (f.path.as_str(), f.url.as_str())).collect();
+    assert_eq!(
+        listed,
+        [
+            (card.file.name.as_str(), urls[0].as_str()),
+            (SENTENCES_FILE, urls[1].as_str()),
+            (DOCUMENTS_FILE, urls[2].as_str())
+        ]
+    );
+    assert!(urls[2].starts_with(
+        "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-fineweb-2026-10-10-1/"
+    ));
+
+    // A record that is not the card's makes no entry: the web gate's with
+    // another outcome, and a comparison of another model or with other
+    // scores.
+    let model_dir = out.join(MODEL_ID);
+    let refused = |field: &str| match release::entries(&out, &FINEWEB_MODELS) {
+        Err(Error::InvalidCard { field: f, message }) => {
+            assert_eq!(f, field, "{message}");
+            message
+        }
+        other => panic!("{other:?}"),
+    };
+    // A record is written once, so the one replaced is removed first.
+    let replace = |file: &str, units: Vec<PairedUnit>, of: &ModelGateRecord, candidate: ModelId| {
+        let path = model_dir.join(file);
+        fs::remove_file(&path).unwrap();
+        let record =
+            ModelGateRecord::new(Task::LanguageDetector, of.set.clone(), candidate, of.reference.clone(), units);
+        record.unwrap().write(&path).unwrap();
+    };
+    let kept = |file: &str| fs::read(model_dir.join(file)).unwrap();
+    let s = &outcome.scored;
+    let wrong = PairedUnit { candidate: Counts::accuracy(0, 1), reference: Counts::accuracy(1, 1) };
+
+    let web_gate = kept(WEB_GATE_FILE);
+    replace(WEB_GATE_FILE, vec![wrong; s.web_gate.units.len()], &s.web_gate, candidate.clone());
+    assert_eq!(refused("gate"), format!("{WEB_GATE_FILE} of {MODEL_ID} has another outcome than its card"));
+    fs::write(model_dir.join(WEB_GATE_FILE), &web_gate).unwrap();
+
+    let compare_web = kept(COMPARE_WEB_FILE);
+    let r = &s.compare_web;
+    let other = ModelId { id: "other".to_owned(), ..candidate.clone() };
+    replace(COMPARE_WEB_FILE, r.units.clone(), r, other);
+    assert!(refused("compared").starts_with(&format!("{COMPARE_WEB_FILE} scores other (SHA-256 ")));
+    let mut units = r.units.clone();
+    units[0] = if units[0].candidate.true_positives == 1 { wrong } else { right };
+    replace(COMPARE_WEB_FILE, units, r, candidate.clone());
+    assert_eq!(refused("compared"), format!("{COMPARE_WEB_FILE} of {MODEL_ID} has other scores than its card"));
+    fs::write(model_dir.join(COMPARE_WEB_FILE), &compare_web).unwrap();
+    assert!(release::entries(&out, &FINEWEB_MODELS).is_ok());
+
+    // A changed or missing documents file makes no entry.
+    let documents = model_dir.join(DOCUMENTS_FILE);
+    let mut changed = outcome.trained.documents_file.clone();
+    changed[0] ^= 1;
+    fs::write(&documents, &changed).unwrap();
+    match release::entries(&out, &FINEWEB_MODELS) {
+        Err(Error::Zoo(turbo_zoo::ZooError::Integrity { id, .. })) => assert_eq!(id.as_str(), MODEL_ID),
+        other => panic!("{other:?}"),
+    }
+    fs::remove_file(&documents).unwrap();
+    assert!(matches!(release::entries(&out, &FINEWEB_MODELS), Err(Error::Io { .. })));
+    fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]

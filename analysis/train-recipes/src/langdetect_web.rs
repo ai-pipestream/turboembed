@@ -558,7 +558,8 @@ pub struct ComparisonCard {
 }
 
 impl ComparisonCard {
-    fn of(record: &ModelGateRecord, file: &str) -> ComparisonCard {
+    /// The card of the comparison `record`, written as `file`.
+    pub(crate) fn of(record: &ModelGateRecord, file: &str) -> ComparisonCard {
         let r = &record.result;
         ComparisonCard {
             record: file.to_owned(),
@@ -994,6 +995,11 @@ mod tests {
             assert!(workflow.contains(f), "{f}");
         }
         assert!(workflow.contains(COMPARE_WEB_FILE));
+        // The release publishes the card and each record as
+        // `<model id>.<file>`.
+        let records = [CARD_FILE, GATE_FILE, WEB_GATE_FILE, COMPARE_TATOEBA_FILE, COMPARE_WEB_FILE];
+        let stems = records.map(|f| f.strip_suffix(".json").unwrap()).join(" ");
+        assert!(workflow.contains(&format!("for f in {stems}; do")), "{stems}");
     }
 
     #[test]
