@@ -33,6 +33,61 @@ use super::layer::{Terms, Vocabulary};
 /// differ from the word tokenizer's, so the terms here are not Lucene's.
 pub struct TermIndexer;
 
+/// The linguistic column to index. Normalize queries with the same profile
+/// and column as the documents before constructing a BM25 [`super::Query`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum TermForm {
+    Surface,
+    Folded,
+    Stem,
+    Lemma,
+}
+
+/// Converts language-aware [`turbo_analysis_layers::Terms`] to retrieval
+/// IDs. Selects exactly one column; requesting a missing stem or lemma
+/// column is an error. Empty and punctuation-only forms have no term ID.
+/// The original linguistic layer remains available in the document.
+pub struct NormalizedTermIndexer {
+    pub form: TermForm,
+}
+
+impl Annotator for NormalizedTermIndexer {
+    const ID: &'static str = "turbo:normalized-term-indexer";
+    type Reads = (turbo_analysis_layers::Terms, Tokens);
+    type Writes = (Vocabulary, Terms);
+
+    fn annotate(&self, (terms, tokens): Refs<'_, Self>) -> Result<(Vocabulary, Terms), Error> {
+        if terms.surface.len() != tokens.spans.len() {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: "term forms are not aligned to tokens".into(),
+            });
+        }
+        let column = match self.form {
+            TermForm::Surface => Some(&terms.surface),
+            TermForm::Folded => Some(&terms.folded),
+            TermForm::Stem => terms.stem.as_ref(),
+            TermForm::Lemma => terms.lemma.as_ref(),
+        }
+        .ok_or_else(|| Error::Annotator {
+            annotator: Self::ID,
+            detail: format!("requested {:?} term column is missing", self.form),
+        })?;
+        let words: Vec<_> = column.iter().map(|w| Some(w).filter(|w| w.chars().any(char::is_alphanumeric))).collect();
+        let (vocabulary, term) = intern(&words);
+        Ok((vocabulary, Terms { term }))
+    }
+
+    fn config_hash(&self) -> u64 {
+        match self.form {
+            TermForm::Surface => 1,
+            TermForm::Folded => 2,
+            TermForm::Stem => 3,
+            TermForm::Lemma => 4,
+        }
+    }
+}
+
 impl Annotator for TermIndexer {
     const ID: &'static str = "turbo:term-indexer";
     type Reads = (View, Tokens);

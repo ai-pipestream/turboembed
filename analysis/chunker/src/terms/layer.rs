@@ -63,12 +63,12 @@ impl Layer for Vocabulary {
 
 /// The term of each token, or none for a token that is not a term (one
 /// with no letter or digit, such as a period).
-pub struct Terms {
+pub struct IndexedTerms {
     pub term: Vec<Option<Ix<Vocabulary>>>,
 }
 
-impl Layer for Terms {
-    const ID: &'static str = "turbo:terms";
+impl Layer for IndexedTerms {
+    const ID: &'static str = "turbo:indexed-terms";
     fn anchor() -> Anchor {
         Anchor::aligned::<Tokens>()
     }
@@ -80,6 +80,10 @@ impl Layer for Terms {
         vec![(Key::<Vocabulary>::DEFAULT.id(), bound)]
     }
 }
+
+/// Compatibility name for retrieval IDs. Linguistic text forms use
+/// [`turbo_analysis_layers::Terms`] and the separate `turbo:terms` identity.
+pub type Terms = IndexedTerms;
 
 /// Term counts for each item of layer `L`, the units of one level: each
 /// chunk of `Chunks`, each block of `Structure`, or the whole document as

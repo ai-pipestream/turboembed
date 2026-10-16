@@ -644,7 +644,7 @@ fields mean bumps its `SCHEMA`.
 | `Regions` | `turbo:regions` | the document | `turbo-analysis-layers` |
 | `Containment` | `turbo:containment` | text | `turbo-analysis-layers` |
 | `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
-| `Terms` | `turbo:terms` | tokens | `turbo-chunker` |
+| `IndexedTerms` (`Terms` alias) | `turbo:indexed-terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
@@ -4072,3 +4072,20 @@ runs them on any machine:
 - A gRPC surface, to be shared with the OpenNLP standard.
 - A reader for spaCy's JSON pattern files, building `Tok` patterns from
   them.
+
+### Using linguistic terms for BM25
+
+`turbo_chunker::terms::NormalizedTermIndexer { form: TermForm::Folded }`
+reads `turbo_analysis_layers::Terms` and `Tokens`, and writes `Vocabulary`
+and `IndexedTerms`. Put it after `turbo_stem::TermAnnotator`, then use the
+existing `TermCounter<L>` and `Query` APIs. Select `Surface`, `Folded`,
+`Stem` or `Lemma`; a requested stem or lemma column must exist. Query
+terms must use the same profile and form. Empty or punctuation-only
+forms receive no retrieval ID.
+
+`IndexedTerms` has layer ID `turbo:indexed-terms`; the old Rust name
+`turbo_chunker::terms::Terms` is an alias. This changes the retrieval
+layer's key from `turbo:terms`, which remains the linguistic text layer.
+Consumers of textual layer keys must update the retrieval key. The raw
+`TermIndexer` continues to index token text from a view and can coexist
+with linguistic terms.

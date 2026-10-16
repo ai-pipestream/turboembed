@@ -13,5 +13,6 @@ turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 
 [dev-dependencies]
+turbo-stem = { path = "../stem" }
 turbo-normalize = { path = "../normalize" }
 turbo-structure = { path = "../structure" }
