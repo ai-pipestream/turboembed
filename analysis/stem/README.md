@@ -1,13 +1,17 @@
 # turbo-stem
 
-OpenNLP 3.x's stemmers, ported to Rust: `PorterStemmer`, the 21 Snowball
-stemmers of `opennlp.tools.stemmer.snowball`, the 16 light and minimal
-stemmers of `opennlp.tools.stemmer.light` (the two Norwegian ones for each of
-three choices of written standard), `CachingStemmer`, and `StemmerAnnotator`
-(here `StemAnnotator`) as an analysis step that reads `opennlp:tokens` and
-writes `turbo:stems` (the layer is in `turbo-stem-layers`). The crate documentation
-(`src/lib.rs`) describes the modules and where OpenNLP's behaviour is
-surprising.
+OpenNLP 3.x's stemmers and layered term analyzer, ported to Rust:
+`PorterStemmer`, the 21 Snowball stemmers of `opennlp.tools.stemmer.snowball`,
+the 16 light and minimal stemmers of `opennlp.tools.stemmer.light` (the two
+Norwegian ones for each of three choices of written standard),
+`CachingStemmer`, `StemmerAnnotator` (here `StemAnnotator`) as an analysis step
+that reads `opennlp:tokens` and writes `turbo:stems`, and the layered term
+analyzer (`Dimension`, `Term`, `TermAnalyzer`, `NormalizationProfile`,
+`NormalizationProfiles`, and `TermAnnotator`, which reads `opennlp:tokens` and
+optional `opennlp:language`, `opennlp:pos`, and `opennlp:lemmas` and writes
+`turbo:terms`; both `Stems` and `Terms` are defined in `turbo-analysis-layers`
+and re-exported by `turbo-stem-layers`). The crate documentation (`src/lib.rs`)
+describes the modules and where OpenNLP's behaviour is surprising.
 
 It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
 OpenNLP fork. The light and minimal stemmers there are the same files as on

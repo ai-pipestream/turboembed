@@ -1,32 +1,13 @@
 //! The stemmers' layer, so another add-on can read stems without depending
 //! on the stemmers that make them.
 
-use turbo_analysis::{Anchor, Layer};
-use turbo_analysis_layers::{Strs, Tokens};
-
-/// The stem of every token: item i is the stem of token i. OpenNLP's
-/// `StemmerAnnotator.STEMS`, which the OpenNLP gRPC standard has no id
-/// for.
-#[derive(Default)]
-pub struct Stems {
-    pub stem: Strs,
-}
-
-impl Layer for Stems {
-    const ID: &'static str = "turbo:stems";
-
-    fn anchor() -> Anchor {
-        Anchor::aligned::<Tokens>()
-    }
-
-    fn len(&self) -> usize {
-        self.stem.len()
-    }
-}
+pub use turbo_analysis_layers::{Stems, TermSlot, Terms};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use turbo_analysis::{Anchor, Layer};
+    use turbo_analysis_layers::Tokens;
 
     #[test]
     fn aligned_to_tokens() {

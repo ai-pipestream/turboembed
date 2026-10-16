@@ -2065,6 +2065,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-morfologik"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-maxent",
+ "turbo-sequence",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-namefind"
 version = "0.1.0"
 dependencies = [
@@ -2072,6 +2083,15 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-ngram"
+version = "0.1.0"
+dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-unicode",
@@ -2193,7 +2213,11 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
+ "turbo-normalize",
  "turbo-stem-layers",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 
@@ -2320,6 +2344,16 @@ dependencies = [
 [[package]]
 name = "turbo-unicode-gen"
 version = "0.1.0"
+
+[[package]]
+name = "turbo-wordnet"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-unicode",
+]
 
 [[package]]
 name = "turbo-zoo"

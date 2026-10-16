@@ -13,8 +13,8 @@ use crate::backend::{
 };
 use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
-    Activation, Architecture, Artifact, Family, Format, GraphInput, Manifest, PositionEmbedding, StaticEmbedding,
-    TensorRole, role_name,
+    Activation, Architecture, Artifact, Classifier, Family, Format, GraphInput, Manifest, PositionEmbedding,
+    StaticEmbedding, TensorRole, role_name,
 };
 use crate::safetensors;
 use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, Result, invalid};
@@ -83,6 +83,9 @@ fn bert_shape(role: TensorRole, a: &Architecture) -> Vec<u64> {
         StaticEmbeddings | StaticWeights | StaticMapping => {
             unreachable!("an encoder's tensor_names has no static role (validate)")
         }
+        PoolerWeight | PoolerBias | ClassifierWeight | ClassifierBias => {
+            unreachable!("classifier roles are shaped by classifier_tensors")
+        }
     }
 }
 
@@ -134,6 +137,35 @@ pub fn bert_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Ve
 /// be in tensor_names.
 pub fn embedding_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Vec<Expected>> {
     tensors_of(index, art, a, 0)
+}
+
+/// The classification head tensors an artifact names, with the shapes
+/// the architecture and the classifier's label count imply.
+pub fn classifier_tensors(index: usize, art: &Artifact, a: &Architecture, c: &Classifier) -> Result<Vec<Expected>> {
+    let h = a.hidden as u64;
+    let labels = c.labels.len() as u64;
+    let mut out = Vec::with_capacity(4);
+    let pooler_w = art.tensor_names.get(&TensorRole::PoolerWeight);
+    let pooler_b = art.tensor_names.get(&TensorRole::PoolerBias);
+    if pooler_w.is_some() != pooler_b.is_some() {
+        return Err(invalid(format!(
+            "manifest.json: artifacts[{index}].tensor_names: pooler_weight and pooler_bias come together, or neither"
+        )));
+    }
+    if let (Some(w), Some(b)) = (pooler_w, pooler_b) {
+        out.push(Expected { name: w.clone(), shape: vec![h, h], what: role_name(TensorRole::PoolerWeight) });
+        out.push(Expected { name: b.clone(), shape: vec![h], what: role_name(TensorRole::PoolerBias) });
+    }
+    for (role, shape) in [(TensorRole::ClassifierWeight, vec![labels, h]), (TensorRole::ClassifierBias, vec![labels])] {
+        let name = art.tensor_names.get(&role).ok_or_else(|| {
+            invalid(format!(
+                "manifest.json: artifacts[{index}].tensor_names: no {}, which a classifier needs",
+                role_name(role)
+            ))
+        })?;
+        out.push(Expected { name: name.clone(), shape, what: role_name(role) });
+    }
+    Ok(out)
 }
 
 fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Result<Vec<Expected>> {
@@ -283,13 +315,13 @@ fn family(a: &Architecture) -> u32 {
 }
 
 /// A tensor found in one of the artifact's files.
-struct Placed {
+pub(crate) struct Placed {
     name: CString,
-    file: usize,
-    range: std::ops::Range<usize>,
+    pub(crate) file: usize,
+    pub(crate) range: std::ops::Range<usize>,
     shape: Vec<u64>,
     /// TURBO_DTYPE_* it is stored in.
-    dtype: u32,
+    pub(crate) dtype: u32,
 }
 
 /// The chosen artifact as the core holds it: the verified bytes of each
@@ -370,9 +402,16 @@ impl Weights {
         let (files, tensors, dtype) = match tensor_art {
             Some(t) => {
                 let ta = &m.artifacts[t];
-                let expected = if t == index { bert_tensors(t, ta, a)? } else { embedding_tensors(t, ta, a)? };
+                let mut expected = if t == index { bert_tensors(t, ta, a)? } else { embedding_tensors(t, ta, a)? };
+                let encoder_len = expected.len();
+                if t == index
+                    && let Some(c) = &m.classifier
+                {
+                    expected.extend(classifier_tensors(t, ta, a, c)?);
+                }
                 let files = ta.files.iter().map(|f| bundle.read_verified_aligned(f)).collect::<Result<Vec<_>>>()?;
-                let (tensors, dtype) = place(ta, &files, &expected)?;
+                let (mut tensors, dtype) = place(ta, &files, &expected)?;
+                tensors.truncate(encoder_len);
                 (files, tensors, dtype)
             }
             None => (Vec::new(), Vec::new(), 0),
@@ -515,7 +554,7 @@ impl Weights {
 
 /// Rule 8: find each of `expected` in `files`, the verified bytes of
 /// `art`'s files, with its shape, one dtype for all, and an aligned start.
-fn place(art: &Artifact, files: &[AlignedBytes], expected: &[Expected]) -> Result<(Vec<Placed>, u32)> {
+pub(crate) fn place(art: &Artifact, files: &[AlignedBytes], expected: &[Expected]) -> Result<(Vec<Placed>, u32)> {
     let parsed = art
         .files
         .iter()
