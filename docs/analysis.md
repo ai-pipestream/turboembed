@@ -3450,8 +3450,10 @@ once. A file too large to fetch whole can be read in part: its
 footer's length from its last 8 bytes, its schema and first row groups
 from the first bytes of its footer (`Leading`), and those row groups from
 the file's first bytes (`Parquet::open_head`), which is how the
-language detector's web recipe reads FineWeb-2. Dropping quotation marks in GutenQA's loose match can join words
-(“Yes”“No” matches "YesNo", "its" matches "it's"), which is unlikely
+language detector's web recipe reads FineWeb-2 and FineWeb. When the
+first bytes of the footer are all of it, every row group must be read
+from them. Dropping quotation marks in GutenQA's loose match can join
+words (“Yes”“No” matches "YesNo", "its" matches "it's"), which is unlikely
 to misplace a GutenQA passage. Chunked sets are joined into
 documents with a line break between chunks. Evidence a reader cannot
 place in its document is listed in `LoadedSet.unplaced` rather than

@@ -89,8 +89,9 @@
 //! `tatoeba-fineweb` runs the web language detector recipe
 //! (`langdetect_web::LANGDETECT_WEB`): the Tatoeba export as `tatoeba`
 //! reads it, and the web ranges fetched into `--web`, checked against the
-//! committed lists, or against `--files` and `--ranges` with
-//! `--unrecorded-web` (a model trained on those is not a release). It
+//! committed lists, or against `--files` and `--ranges`, given together,
+//! with `--unrecorded-web` (a model trained on those is not a release).
+//! The web ranges are checked before the export is read. It
 //! reads `langdetect-183.bin` and the Tatoeba recipe's model as the zoo
 //! lists it (`turbo-mul-tatoeba-langdetect-1.bin`) from `--references`,
 //! each checked against its digest, gates the model against the first on
@@ -150,6 +151,9 @@ struct Args {
     record: bool,
     /// The model ids `--recipe` names, resolved by the command.
     recipe_ids: Vec<String>,
+    /// Every flag given, for the commands that refuse flags they do not
+    /// read.
+    given: Vec<String>,
 }
 
 /// The recipes of `all` that `ids` name, in the order of `all` whatever
@@ -186,8 +190,10 @@ fn parse() -> Result<Args, String> {
         need: false,
         record: false,
         recipe_ids: Vec::new(),
+        given: Vec::new(),
     };
     while let Some(flag) = it.next() {
+        a.given.push(flag.clone());
         let mut value = || it.next().ok_or(format!("{flag} needs a value"));
         match flag.as_str() {
             "--corpus" => a.corpus = Some(value()?.into()),
@@ -217,6 +223,14 @@ fn parse() -> Result<Args, String> {
 
 fn need(v: Option<PathBuf>, flag: &str) -> Result<PathBuf, String> {
     v.ok_or_else(|| format!("{flag} is required\n{USAGE}"))
+}
+
+/// Refuses a flag of `a` that `command` does not read.
+fn only(a: &Args, command: &str, read: &[&str]) -> Result<(), String> {
+    match a.given.iter().find(|f| !read.contains(&f.as_str())) {
+        Some(f) => Err(format!("{command} does not read {f}\n{USAGE}")),
+        None => Ok(()),
+    }
 }
 
 fn masc_command(a: Args) -> Result<bool, String> {
@@ -452,7 +466,7 @@ fn files_list(path: Option<&Path>) -> Result<Vec<WebFile>, String> {
         None => fineweb::parse_files(fineweb::FILES_NAME, fineweb::FILES).map_err(|e| e.to_string()),
         Some(p) => {
             let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?;
-            fineweb::parse_files(fineweb::FILES_NAME, &text).map_err(|e| e.to_string())
+            fineweb::parse_files(&p.display().to_string(), &text).map_err(|e| e.to_string())
         }
     }
 }
@@ -463,7 +477,7 @@ fn ranges_list(path: Option<&Path>) -> Result<Vec<WebRange>, String> {
         None => fineweb::parse_ranges(fineweb::RANGES_NAME, fineweb::RANGES).map_err(|e| e.to_string()),
         Some(p) => {
             let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?;
-            fineweb::parse_ranges(fineweb::RANGES_NAME, &text).map_err(|e| e.to_string())
+            fineweb::parse_ranges(&p.display().to_string(), &text).map_err(|e| e.to_string())
         }
     }
 }
@@ -473,11 +487,13 @@ fn fineweb_ranges_command(a: Args) -> Result<bool, String> {
         return Err(format!("one of --paths, --need and --record is required\n{USAGE}"));
     }
     if a.paths {
+        only(&a, "fineweb-ranges --paths", &["--paths"])?;
         for w in WEB.wants() {
             println!("{}\t{}\t{}", w.repo(), w.source.dataset().revision, w.path());
         }
         return Ok(true);
     }
+    only(&a, "fineweb-ranges", &["--web", "--files", "--need", "--record"])?;
     let web = need(a.web, "--web")?;
     let files = files_list(a.files.as_deref())?;
     let store = Store::new(&web, None);
@@ -485,7 +501,7 @@ fn fineweb_ranges_command(a: Args) -> Result<bool, String> {
         for (f, span) in fineweb::needed(&files, &WEB, &store).map_err(|e| e.to_string())? {
             let dataset = [fineweb::FINEWEB_2, fineweb::FINEWEB].into_iter().find(|d| d.repo == f.repo);
             let url = dataset.expect("the files list names the two datasets").url(&f.path);
-            println!("{url}\t{}\t{}\t{}", store.file(&f.repo, &f.path, span).display(), span.start, span.end);
+            println!("{url}\t{}\t{}\t{}", store.file(f, span).display(), span.start, span.end);
         }
     } else {
         let ranges = fineweb::record(&files, &WEB, &store).map_err(|e| e.to_string())?;
@@ -495,6 +511,20 @@ fn fineweb_ranges_command(a: Args) -> Result<bool, String> {
 }
 
 fn tatoeba_fineweb_command(a: Args) -> Result<bool, String> {
+    only(
+        &a,
+        "tatoeba-fineweb",
+        &[
+            "--export",
+            "--web",
+            "--references",
+            "--out",
+            "--unrecorded-export",
+            "--files",
+            "--ranges",
+            "--unrecorded-web",
+        ],
+    )?;
     let export_dir = need(a.export, "--export")?;
     let web_dir = need(a.web, "--web")?;
     let references = need(a.references, "--references")?;
@@ -507,6 +537,12 @@ fn tatoeba_fineweb_command(a: Args) -> Result<bool, String> {
     }
     let reference = read_reference(recipe.tatoeba.reference, &references, &mut problems);
     let compared = read_reference(recipe.compared, &references, &mut problems);
+    if a.files.is_some() != a.ranges.is_some() {
+        problems.push("--files and --ranges are given together".to_owned());
+    }
+    if !web_dir.is_dir() {
+        problems.push(format!("{}: no such directory", web_dir.display()));
+    }
     let files = files_list(a.files.as_deref());
     let ranges = ranges_list(a.ranges.as_deref());
     let committed = files_list(None).and_then(|f| ranges_list(None).map(|r| (f, r)));
@@ -528,6 +564,14 @@ fn tatoeba_fineweb_command(a: Args) -> Result<bool, String> {
     let (Some(reference), Some(compared), true) = (reference, compared, problems.is_empty()) else {
         return Err(problems.join("\n"));
     };
+    // The web ranges are checked before the export is read.
+    let store = Store::new(&web_dir, Some(&ranges));
+    let web = WebInput::checked(recipe.web, &files, &ranges, recorded_web, &store).map_err(|e| e.to_string())?;
+    let lists = fineweb::lists_digest(&files, &ranges);
+    println!("web lists: {} files, {} ranges, digest {lists}", files.len(), ranges.len());
+    if !recorded_web {
+        println!("the web lists are not the committed ones: this run is not a release of the model");
+    }
     let export = Export::read(&export_dir).map_err(|e| e.to_string())?;
     println!("export {}: digest {}", export_dir.display(), export.digest());
     let recorded_export =
@@ -535,13 +579,6 @@ fn tatoeba_fineweb_command(a: Args) -> Result<bool, String> {
     if !recorded_export {
         println!("the export is not the recorded one: this run is not a release of the model");
     }
-    let lists = fineweb::lists_digest(&files, &ranges);
-    println!("web lists: {} files, {} ranges, digest {lists}", files.len(), ranges.len());
-    if !recorded_web {
-        println!("the web lists are not the committed ones: this run is not a release of the model");
-    }
-    let store = Store::new(&web_dir, Some(&ranges));
-    let web = WebInput { files: &files, ranges: &ranges, recorded: recorded_web, store: &store };
     let outcome = langdetect_web::run(&recipe, &export, recorded_export, &web, &reference, &compared)
         .map_err(|e| e.to_string())?;
     write_web_language_dir(&out, &outcome).map_err(|e| e.to_string())?;

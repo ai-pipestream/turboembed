@@ -24,18 +24,25 @@
 //! first bytes up to the end of the fewest leading row groups that hold
 //! [`WebSplit::rows_per_document`] rows for each document wanted, or all
 //! of its row groups when they hold fewer. The files are listed with their
-//! size and SHA-256 at the datasets' pinned revisions ([`FILES`]), and the
-//! ranges with theirs ([`RANGES`]); a run checks every range it reads
-//! against both, and that the ranges are the ones the files give.
+//! size and SHA-256 as the hub's API gives them at the datasets' pinned
+//! revisions ([`FILES`]), and the ranges with theirs ([`RANGES`]). No run
+//! reads a whole file, so a file's SHA-256 records which file it is and is
+//! not checked; a run checks every range it reads against its SHA-256, and
+//! that the ranges listed are the ones the files give.
 //!
 //! From those rows, in order, each document gives its first
 //! [`WebSplit::window`] characters, or all of them when it has fewer. A
 //! document with fewer than [`WebSplit::min_chars`] characters is passed
-//! over, and so is a window its language already has. A file's documents
-//! are taken in row order, at first at most one in [`WebSplit::host_share`]
-//! from one host; when that leaves the file short, the documents passed
-//! over for their host are taken next, in row order. A held-out window
-//! that is a training window of any language is passed over.
+//! over, and so is one from a host of [`EXCLUDED_HOSTS`], a window its
+//! language already has, and a window that holds a Tatoeba sentence of its
+//! language from the other side of the split ([`Avoid`]). A file's
+//! documents are taken in row order, at first at most one in
+//! [`WebSplit::host_share`] from one host; when that leaves the file short,
+//! the documents passed over for their host are taken next, in row order.
+//! A held-out window that is a training window of any language is passed
+//! over. A file gives at most the documents wanted of it: one with too few
+//! rows left gives fewer, and a language's other source does not make up
+//! the difference.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt;
@@ -219,14 +226,19 @@ pub struct WebSplit {
     pub rows_per_document: u64,
     /// The bytes read of each footer.
     pub footer_prefix: u64,
+    /// The fewest characters a Tatoeba sentence needs to be looked for in
+    /// the windows ([`Overlap`]). Shorter ones are common phrases, found in
+    /// web text whatever its source.
+    pub overlap_min_chars: usize,
 }
 
-/// The recipe's web split: per language 1,000 training windows of 300
-/// characters, a fifth of the Tatoeba sentences' count and about twice
-/// their text, which keeps the events of 100 languages within the
-/// runner's memory beside Tatoeba's; 500 held out, as many as Tatoeba's.
-/// 64 KiB of a footer holds its schema and over ten row groups of 1,000
-/// rows, more than two documents' rows each need.
+/// The recipe's web split: per language at most 1,000 training windows
+/// of at most 300 characters, a fifth of the Tatoeba sentences' count and
+/// about twice their text, which keeps the events of 100 languages within
+/// the runner's memory beside Tatoeba's; at most 500 held out, as many as
+/// Tatoeba's. 64 KiB of a footer holds its schema and the leading row
+/// groups the recipe reads of each of its files; a file whose footer's
+/// first bytes hold too few is refused.
 pub const WEB_SPLIT: WebSplit = WebSplit {
     training: 1_000,
     held_out: 500,
@@ -235,7 +247,80 @@ pub const WEB_SPLIT: WebSplit = WebSplit {
     host_share: 20,
     rows_per_document: 2,
     footer_prefix: 65_536,
+    overlap_min_chars: 20,
 };
+
+/// Hosts whose documents are passed over, with their subdomains:
+/// Tatoeba's own pages, whose sentences are on the other side of the
+/// recipe.
+pub const EXCLUDED_HOSTS: &[&str] = &["tatoeba.org"];
+
+/// Whether `host` ([`host`]) is one of [`EXCLUDED_HOSTS`] or a subdomain
+/// of one.
+pub fn excluded_host(host: &str) -> bool {
+    EXCLUDED_HOSTS.iter().any(|x| host == *x || host.strip_suffix(*x).is_some_and(|h| h.ends_with('.')))
+}
+
+/// The bytes of a sentence's start that [`Overlap`] looks up.
+pub const OVERLAP_KEY: usize = 16;
+
+/// Texts looked for in windows, per language of the recipe: each kept by
+/// its first [`OVERLAP_KEY`] bytes, so a window is searched in one pass.
+pub struct Overlap<'a> {
+    by_language: Vec<HashMap<&'a [u8], Vec<&'a str>>>,
+}
+
+impl<'a> Overlap<'a> {
+    /// The texts of `texts`, each with its language's index, that have at
+    /// least `min_chars` characters and [`OVERLAP_KEY`] bytes.
+    pub fn new(languages: usize, min_chars: usize, texts: impl IntoIterator<Item = (usize, &'a str)>) -> Overlap<'a> {
+        let mut by_language: Vec<HashMap<&'a [u8], Vec<&'a str>>> = vec![HashMap::new(); languages];
+        for (language, text) in texts {
+            if text.len() >= OVERLAP_KEY && text.chars().nth(min_chars.saturating_sub(1)).is_some() {
+                by_language[language].entry(&text.as_bytes()[..OVERLAP_KEY]).or_default().push(text);
+            }
+        }
+        Overlap { by_language }
+    }
+
+    /// No texts.
+    pub fn none(languages: usize) -> Overlap<'static> {
+        Overlap { by_language: vec![HashMap::new(); languages] }
+    }
+
+    /// Whether `window` holds a text of language `language`, byte for
+    /// byte.
+    pub fn found(&self, language: usize, window: &str) -> bool {
+        let texts = &self.by_language[language];
+        let b = window.as_bytes();
+        if texts.is_empty() || b.len() < OVERLAP_KEY {
+            return false;
+        }
+        // A text starts with a character's first byte, so a match found
+        // at any byte starts at a character.
+        (0..=b.len() - OVERLAP_KEY).any(|i| {
+            texts.get(&b[i..i + OVERLAP_KEY]).is_some_and(|ts| ts.iter().any(|t| b[i..].starts_with(t.as_bytes())))
+        })
+    }
+}
+
+/// The Tatoeba sentences the windows are checked against: a training
+/// window may not hold a held-out sentence of its language, which would
+/// favour the trained model on the Tatoeba gate, nor a held-out window a
+/// training sentence of its language.
+pub struct Avoid<'a> {
+    /// What a training window may not hold.
+    pub training: Overlap<'a>,
+    /// What a held-out window may not hold.
+    pub held_out: Overlap<'a>,
+}
+
+impl Avoid<'static> {
+    /// Nothing to avoid.
+    pub fn none(languages: usize) -> Avoid<'static> {
+        Avoid { training: Overlap::none(languages), held_out: Overlap::none(languages) }
+    }
+}
 
 /// The languages whose web text is read and how: the web side of a
 /// recipe.
@@ -308,7 +393,7 @@ pub enum WebError {
     /// A line of [`FILES`] or [`RANGES`] that is not as the recipe writes
     /// them.
     Line {
-        list: &'static str,
+        list: String,
         line: usize,
         message: String,
     },
@@ -336,6 +421,11 @@ pub enum WebError {
         path: String,
         message: String,
     },
+    /// What the Parquet reader refused, naming the file by its repository
+    /// and path.
+    Read {
+        message: String,
+    },
     Io {
         path: PathBuf,
         message: String,
@@ -353,6 +443,7 @@ impl fmt::Display for WebError {
                 write!(f, "{}: SHA-256 {found}, the list records {expected}", path.display())
             }
             WebError::File { repo, path, message } => write!(f, "{repo} {path}: {message}"),
+            WebError::Read { message } => write!(f, "{message}"),
             WebError::Io { path, message } => write!(f, "{}: {message}", path.display()),
         }
     }
@@ -419,7 +510,7 @@ fn dataset(repo: &str) -> Option<Dataset> {
 
 /// The tab separated fields of each line that is neither empty nor a
 /// comment, with its line number.
-fn lines<'a>(list: &'static str, text: &'a str, fields: usize) -> Result<Vec<(usize, Vec<&'a str>)>> {
+fn lines<'a>(list: &str, text: &'a str, fields: usize) -> Result<Vec<(usize, Vec<&'a str>)>> {
     let mut out = Vec::new();
     for (i, line) in text.lines().enumerate() {
         if line.is_empty() || line.starts_with('#') {
@@ -427,29 +518,35 @@ fn lines<'a>(list: &'static str, text: &'a str, fields: usize) -> Result<Vec<(us
         }
         let f: Vec<&str> = line.split('\t').collect();
         if f.len() != fields {
-            return Err(WebError::Line { list, line: i + 1, message: format!("{} fields, not {fields}", f.len()) });
+            return Err(WebError::Line {
+                list: list.to_owned(),
+                line: i + 1,
+                message: format!("{} fields, not {fields}", f.len()),
+            });
         }
         out.push((i + 1, f));
     }
     Ok(out)
 }
 
-fn number(list: &'static str, line: usize, what: &str, s: &str) -> Result<u64> {
+fn number(list: &str, line: usize, what: &str, s: &str) -> Result<u64> {
+    let err = |message: String| WebError::Line { list: list.to_owned(), line, message };
     // Decimal digits only, so each number has one spelling.
     if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) || (s.len() > 1 && s.starts_with('0')) {
-        return Err(WebError::Line { list, line, message: format!("the {what} {s:?} is not a number") });
+        return Err(err(format!("the {what} {s:?} is not a number")));
     }
-    s.parse().map_err(|_| WebError::Line { list, line, message: format!("the {what} {s} is too large") })
+    s.parse().map_err(|_| err(format!("the {what} {s} is too large")))
 }
 
 /// Reads a files list: `repo`, `revision`, `path`, `size` and `sha256`,
 /// tab separated. Each repository must be one of the two datasets at its
-/// revision, and no file may be listed twice.
-pub fn parse_files(list: &'static str, text: &str) -> Result<Vec<WebFile>> {
+/// revision, and no file may be listed twice. `list` names the list in
+/// errors.
+pub fn parse_files(list: &str, text: &str) -> Result<Vec<WebFile>> {
     let mut out: Vec<WebFile> = Vec::new();
     let mut seen = HashSet::new();
     for (line, f) in lines(list, text, 5)? {
-        let err = |message: String| WebError::Line { list, line, message };
+        let err = |message: String| WebError::Line { list: list.to_owned(), line, message };
         let d = dataset(f[0]).ok_or_else(|| err(format!("{} is not a dataset the recipe reads", f[0])))?;
         if f[1] != d.revision {
             return Err(err(format!("{} at {}, not the recipe's revision {}", d.repo, f[1], d.revision)));
@@ -473,12 +570,12 @@ pub fn parse_files(list: &'static str, text: &str) -> Result<Vec<WebFile>> {
 
 /// Reads a ranges list: `repo`, `path`, `start`, `end` and `sha256`, tab
 /// separated, `end` not included. No range may be listed twice or be
-/// empty.
-pub fn parse_ranges(list: &'static str, text: &str) -> Result<Vec<WebRange>> {
+/// empty. `list` names the list in errors.
+pub fn parse_ranges(list: &str, text: &str) -> Result<Vec<WebRange>> {
     let mut out: Vec<WebRange> = Vec::new();
     let mut seen = HashSet::new();
     for (line, f) in lines(list, text, 5)? {
-        let err = |message: String| WebError::Line { list, line, message };
+        let err = |message: String| WebError::Line { list: list.to_owned(), line, message };
         let span = Span { start: number(list, line, "start", f[2])?, end: number(list, line, "end", f[3])? };
         if span.end <= span.start {
             return Err(err(format!("the range {span} is empty")));
@@ -543,8 +640,10 @@ pub fn files_of<'a>(wants: &[Want], files: &'a [WebFile]) -> Result<Vec<&'a WebF
     Ok(out)
 }
 
-/// Fetched ranges in a directory: range `span` of `path` in `repo` is the
-/// file `<dir>/<repo>/<path>.<start>-<end>`.
+/// Fetched ranges in a directory: range `span` of a file at `path` in
+/// `repo` at `revision` is the file
+/// `<dir>/<repo>/<revision>/<path>.<start>-<end>`, so a range kept from
+/// one revision is never read as another's.
 pub struct Store<'a> {
     dir: &'a Path,
     /// The SHA-256 each recorded range must have; `None` when no list is
@@ -559,16 +658,16 @@ impl<'a> Store<'a> {
         Store { dir, recorded }
     }
 
-    /// Where range `span` of `path` in `repo` is kept.
-    pub fn file(&self, repo: &str, path: &str, span: Span) -> PathBuf {
-        self.dir.join(repo).join(format!("{path}.{span}"))
+    /// Where range `span` of `file` is kept.
+    pub fn file(&self, file: &WebFile, span: Span) -> PathBuf {
+        self.dir.join(&file.repo).join(&file.revision).join(format!("{}.{span}", file.path))
     }
 
     /// The bytes of range `span` of `file`, `None` when the directory does
     /// not hold it. They must be `span`'s length, and when a list is
     /// checked, the range must be in it with these bytes' SHA-256.
     pub fn get(&self, file: &WebFile, span: Span) -> Result<Option<Vec<u8>>> {
-        let at = self.file(&file.repo, &file.path, span);
+        let at = self.file(file, span);
         let expected = match &self.recorded {
             None => None,
             Some(r) => Some(r.get(&(file.repo.clone(), file.path.clone(), span)).ok_or_else(|| WebError::Ranges {
@@ -628,6 +727,15 @@ fn file_err(file: &WebFile, message: String) -> WebError {
     WebError::File { repo: file.repo.clone(), path: file.path.clone(), message }
 }
 
+/// The name the Parquet reader gives `file` in its errors.
+fn reader_name(file: &WebFile) -> String {
+    format!("{} {}", file.repo, file.path)
+}
+
+fn read_err(message: String) -> WebError {
+    WebError::Read { message }
+}
+
 /// The ranges of `file` the recipe reads for `rows` rows.
 fn plan_file(file: &WebFile, rows: u64, split: &WebSplit, store: &Store) -> Result<Planned> {
     if file.size < 12 {
@@ -638,14 +746,15 @@ fn plan_file(file: &WebFile, rows: u64, split: &WebSplit, store: &Store) -> Resu
     let Some(t) = store.get(file, tail)? else {
         return Ok(Planned { ranges, leading: None });
     };
-    let len = footer_len(&file.path, file.size, &t).map_err(|e| file_err(file, e))?;
+    let name = reader_name(file);
+    let len = footer_len(&name, file.size, &t).map_err(read_err)?;
     let start = file.size - 8 - len;
     let prefix = Span { start, end: start + len.min(split.footer_prefix) };
     ranges.prefix = Some(prefix);
     let Some(p) = store.get(file, prefix)? else {
         return Ok(Planned { ranges, leading: None });
     };
-    let leading = Leading::read(&file.path, file.size, len, &p).map_err(|e| file_err(file, e))?;
+    let leading = Leading::read(&name, file.size, len, &p).map_err(read_err)?;
     let spans = leading.spans();
     let mut held = 0u64;
     let mut groups = None;
@@ -707,11 +816,10 @@ pub fn record(files: &[WebFile], web: &WebRecipe, store: &Store) -> Result<Vec<W
         let known = planned.ranges.known();
         if known.len() < 3 {
             let missing = known.last().expect("the tail is always known");
-            return Err(WebError::Missing { path: store.file(&f.repo, &f.path, *missing) });
+            return Err(WebError::Missing { path: store.file(f, *missing) });
         }
         for span in known {
-            let bytes =
-                store.get(f, span)?.ok_or_else(|| WebError::Missing { path: store.file(&f.repo, &f.path, span) })?;
+            let bytes = store.get(f, span)?.ok_or_else(|| WebError::Missing { path: store.file(f, span) })?;
             out.push(WebRange {
                 repo: f.repo.clone(),
                 path: f.path.clone(),
@@ -759,11 +867,12 @@ pub fn lists_digest(files: &[WebFile], ranges: &[WebRange]) -> String {
     Sha256::of(text.as_bytes()).to_string()
 }
 
-/// The host of a URL, in lowercase and without a leading `www.`: what
-/// lies between `://` and the next `/`, `?` or `#`, less a user name and a
-/// port. A string without `://` is read from its start.
+/// The host of a URL, in lowercase and without a leading `www.` or a
+/// trailing dot: what lies between `://` (or a leading `//`) and the next
+/// `/`, `?` or `#`, less a user name and a port. A string without either
+/// is read from its start.
 pub fn host(url: &str) -> String {
-    let rest = url.split_once("://").map_or(url, |(_, r)| r);
+    let rest = url.split_once("://").map_or_else(|| url.strip_prefix("//").unwrap_or(url), |(_, r)| r);
     let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
     let authority = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
     // A port follows the last colon, except inside an IPv6 address's
@@ -772,7 +881,7 @@ pub fn host(url: &str) -> String {
         Some(i) if !authority[i..].contains(']') => &authority[..i],
         _ => authority,
     };
-    let h = h.to_ascii_lowercase();
+    let h = h.strip_suffix('.').unwrap_or(h).to_lowercase();
     match h.strip_prefix("www.") {
         Some(s) => s.to_owned(),
         None => h,
@@ -809,7 +918,7 @@ pub struct FileChoice {
     pub repo: String,
     pub path: String,
     pub side: Side,
-    /// The documents wanted of the file.
+    /// The documents wanted of the file, the most it gives.
     pub wanted: usize,
     pub file_rows: u64,
     pub file_row_groups: usize,
@@ -818,9 +927,14 @@ pub struct FileChoice {
     /// Rows passed over for having fewer than [`WebSplit::min_chars`]
     /// characters.
     pub too_short: usize,
+    /// Rows passed over for their host ([`EXCLUDED_HOSTS`]).
+    pub excluded_host: usize,
     /// Windows passed over as one the language already has, or, held
     /// out, one any language trains on.
     pub duplicates: usize,
+    /// Windows passed over for holding a Tatoeba sentence of their
+    /// language from the other side of the split ([`Avoid`]).
+    pub tatoeba_overlap: usize,
     /// Documents passed over at first for their host's share.
     pub host_deferred: usize,
     /// Of those, the ones taken afterwards to fill the file's share.
@@ -841,13 +955,14 @@ pub struct WebPlan {
 }
 
 /// Reads the documents of every file of `files` from the directory and
-/// chooses each language's training and held-out windows.
+/// chooses each language's training and held-out windows, none holding a
+/// sentence of `avoid`.
 ///
 /// # Errors
 ///
 /// A range missing or not the listed bytes, a file whose leading row
 /// groups cannot be read, or a null `text` or `id`.
-pub fn plan_web(files: &[WebFile], web: &WebRecipe, store: &Store) -> Result<WebPlan> {
+pub fn plan_web(files: &[WebFile], web: &WebRecipe, store: &Store, avoid: &Avoid) -> Result<WebPlan> {
     let (wants, split) = (web.wants(), &web.split);
     let chosen_files = files_of(&wants, files)?;
     let index: HashMap<(&str, &str), usize> =
@@ -859,16 +974,15 @@ pub fn plan_web(files: &[WebFile], web: &WebRecipe, store: &Store) -> Result<Web
     for (w, f) in wants.iter().zip(chosen_files) {
         let planned = plan_file(f, split.rows(w.documents), split, store)?;
         let leading = planned.leading.ok_or_else(|| WebError::Missing {
-            path: store.file(&f.repo, &f.path, *planned.ranges.known().last().expect("the tail is always known")),
+            path: store.file(f, *planned.ranges.known().last().expect("the tail is always known")),
         })?;
         let (head_span, groups) = planned.ranges.head.expect("known once the footer's first bytes are read");
-        let head = store
-            .get(f, head_span)?
-            .ok_or_else(|| WebError::Missing { path: store.file(&f.repo, &f.path, head_span) })?;
-        let table = Parquet::open_head(&f.path, &head, &leading, groups).map_err(|e| file_err(f, e))?;
-        let texts = table.strings("text").map_err(|e| file_err(f, e))?;
-        let urls = table.strings("url").map_err(|e| file_err(f, e))?;
-        let ids = table.strings("id").map_err(|e| file_err(f, e))?;
+        let head = store.get(f, head_span)?.ok_or_else(|| WebError::Missing { path: store.file(f, head_span) })?;
+        let name = reader_name(f);
+        let table = Parquet::open_head(&name, &head, &leading, groups).map_err(read_err)?;
+        let texts = table.strings("text").map_err(read_err)?;
+        let urls = table.strings("url").map_err(read_err)?;
+        let ids = table.strings("id").map_err(read_err)?;
         let mut choice = FileChoice {
             tatoeba: web.languages[w.language].tatoeba.to_owned(),
             repo: f.repo.clone(),
@@ -880,28 +994,44 @@ pub fn plan_web(files: &[WebFile], web: &WebRecipe, store: &Store) -> Result<Web
             row_groups_read: groups,
             rows_read: table.rows() as u64,
             too_short: 0,
+            excluded_host: 0,
             duplicates: 0,
+            tatoeba_overlap: 0,
             host_deferred: 0,
             host_taken_later: 0,
             chosen: 0,
         };
         // The rows that give a window, in order, with their hosts.
         let seen = &mut by_language[w.language];
+        let overlap = match w.side {
+            Side::Training => &avoid.training,
+            Side::HeldOut => &avoid.held_out,
+        };
         let mut candidates: Vec<(usize, String, &str)> = Vec::new();
         let mut in_file: HashSet<&str> = HashSet::new();
         for row in 0..table.rows() {
-            let text = texts.at(row).map_err(|e| file_err(f, e))?;
+            let text = texts.at(row).map_err(read_err)?;
             if text.chars().take(split.min_chars).count() < split.min_chars {
                 choice.too_short += 1;
                 continue;
             }
+            let h = host(urls.get(row).unwrap_or(""));
+            if excluded_host(&h) {
+                choice.excluded_host += 1;
+                continue;
+            }
             let win = window(text, split.window);
             let other_side = w.side == Side::HeldOut && training.contains(win);
-            if other_side || seen.contains(win) || !in_file.insert(win) {
+            if other_side || seen.contains(win) || in_file.contains(win) {
                 choice.duplicates += 1;
                 continue;
             }
-            candidates.push((row, host(urls.get(row).unwrap_or("")), win));
+            if overlap.found(w.language, win) {
+                choice.tatoeba_overlap += 1;
+                continue;
+            }
+            in_file.insert(win);
+            candidates.push((row, h, win));
         }
         let limit = split.host_limit(w.documents);
         let mut per_host: HashMap<&str, usize> = HashMap::new();
@@ -932,7 +1062,7 @@ pub fn plan_web(files: &[WebFile], web: &WebRecipe, store: &Store) -> Result<Web
         let file = index[&(f.repo.as_str(), f.path.as_str())];
         for k in taken {
             let (row, _, win) = candidates[k];
-            let id = ids.at(row).map_err(|e| file_err(f, e))?;
+            let id = ids.at(row).map_err(read_err)?;
             seen.insert(win.to_owned());
             if w.side == Side::Training {
                 training.insert(win.to_owned());
@@ -1021,10 +1151,29 @@ mod tests {
         assert_eq!(host("http://[2001:db8::1]:80/x"), "[2001:db8::1]");
         assert_eq!(host("http://[2001:db8::1]/x"), "[2001:db8::1]");
         assert_eq!(host("example.com/path"), "example.com");
+        assert_eq!(host("//Example.com./x"), "example.com");
+        assert_eq!(host("https://ÜBER.example/"), "über.example");
         assert_eq!(host(""), "");
+        assert!(excluded_host("tatoeba.org") && excluded_host("en.tatoeba.org"));
+        assert!(!excluded_host("nottatoeba.org") && !excluded_host("tatoeba.org.example"));
         assert_eq!(window("héllo wörld", 5), "héllo");
         assert_eq!(window("short", 300), "short");
         assert_eq!(window("日本語のテキスト", 3), "日本語");
+    }
+
+    #[test]
+    fn overlaps_are_found_byte_for_byte() {
+        let o =
+            Overlap::new(2, 16, [(0, "Ein Satz über München."), (0, "zu kurz"), (1, "another language's sentence")]);
+        assert!(o.found(0, "Er sagte: Ein Satz über München. Und mehr."));
+        assert!(o.found(0, "Ein Satz über München."));
+        assert!(!o.found(0, "Ein Satz über München"));
+        assert!(!o.found(0, "ein satz über münchen."));
+        // Too short to be looked for.
+        assert!(!o.found(0, "zu kurz, und noch etwas mehr"));
+        assert!(!o.found(0, "another language's sentence"));
+        assert!(o.found(1, "and another language's sentence"));
+        assert!(!Overlap::none(2).found(0, "Ein Satz über München."));
     }
 
     #[test]

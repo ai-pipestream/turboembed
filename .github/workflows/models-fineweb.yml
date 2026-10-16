@@ -101,35 +101,45 @@ jobs:
           path: ${{ runner.temp }}/references
           key: ${{ steps.references-cache.outputs.cache-primary-key }}
       - run: cargo build -q --release -p turbo-train-recipes
-      # The web ranges, cached under the two lists. With the lists
-      # committed, the cache holds exactly the listed ranges; while they
-      # are empty, it holds the lists the run made beside the ranges.
+      # The web ranges, cached under the two lists when they are
+      # committed. While they are empty the run makes them, and the cache,
+      # which then holds the made lists beside the ranges, is also keyed
+      # by the code that says which files and ranges are read.
+      - name: the web lists
+        id: web-lists
+        run: |
+          set -euo pipefail
+          if grep -q -v -e '^#' -e '^$' analysis/train-recipes/fineweb-files.txt; then
+            echo "WEB_LISTS=committed" >> "$GITHUB_ENV"
+            echo "key=fineweb-web-${{ hashFiles('analysis/train-recipes/fineweb-files.txt', 'analysis/train-recipes/fineweb-ranges.txt') }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "WEB_LISTS=made" >> "$GITHUB_ENV"
+            echo "key=fineweb-web-made-${{ hashFiles('analysis/train-recipes/fineweb-files.txt', 'analysis/train-recipes/fineweb-ranges.txt', 'analysis/train-recipes/src/fineweb.rs') }}" >> "$GITHUB_OUTPUT"
+          fi
       - id: web-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/web
-          key: fineweb-ranges-${{ hashFiles('analysis/train-recipes/fineweb-files.txt', 'analysis/train-recipes/fineweb-ranges.txt') }}
-          # Ranges cached under other lists are only a start: what is
-          # fetched next is checked against the lists before it is used.
-          restore-keys: fineweb-ranges-
-      - name: the web lists
+          key: ${{ steps.web-lists.outputs.key }}
+          # Ranges cached under other lists are only a start: each is kept
+          # under its file's revision, and what a run reads is checked
+          # against the lists.
+          restore-keys: fineweb-web-
+      - name: use the committed lists
+        if: env.WEB_LISTS == 'committed'
+        run: |
+          mkdir -p "$RUNNER_TEMP/web/lists"
+          cp analysis/train-recipes/fineweb-files.txt analysis/train-recipes/fineweb-ranges.txt "$RUNNER_TEMP/web/lists/"
+      # The files list, made from the hub's API at each dataset's
+      # revision: each file's size and its SHA-256 as the API gives them.
+      # A run never reads a whole file, so the committed list is checked
+      # here, against the API, and the made one is used.
+      - name: the files list from the hub's API
+        if: env.WEB_LISTS == 'committed' || steps.web-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           web="$RUNNER_TEMP/web"
           mkdir -p "$web/lists"
-          if grep -q -v '^#' analysis/train-recipes/fineweb-files.txt; then
-            cp analysis/train-recipes/fineweb-files.txt analysis/train-recipes/fineweb-ranges.txt "$web/lists/"
-            echo "WEB_LISTS=committed" >> "$GITHUB_ENV"
-          else
-            echo "WEB_LISTS=made" >> "$GITHUB_ENV"
-          fi
-      # The files list, made from the hub's API at each dataset's
-      # revision: each file's size and its SHA-256 as the API gives them.
-      - name: make the files list
-        if: env.WEB_LISTS == 'made' && steps.web-cache.outputs.cache-hit != 'true'
-        run: |
-          set -euo pipefail
-          web="$RUNNER_TEMP/web"
           "$RECIPES" fineweb-ranges --paths > paths.tsv
           cut -f1,2 paths.tsv | sort -u | while IFS=$'\t' read -r repo revision; do
             curl -fsSL --retry 5 -o "api-${repo##*/}.json" "https://huggingface.co/api/datasets/$repo/revision/$revision?blobs=true"
@@ -145,11 +155,17 @@ jobs:
                 '.siblings[] | select(.rfilename == $p) | [$repo, $rev, $p, .lfs.size, .lfs.sha256] | @tsv' \
                 "api-${repo##*/}.json"
             done < paths.tsv
-          } > "$web/lists/fineweb-files.txt"
-          wc -l "$web/lists/fineweb-files.txt"
+          } > api-files.txt
+          wc -l api-files.txt
+          if [ "$WEB_LISTS" = committed ]; then
+            diff analysis/train-recipes/fineweb-files.txt api-files.txt
+          else
+            cp api-files.txt "$web/lists/fineweb-files.txt"
+          fi
       # Round by round, the ranges the bytes at hand give: each file's
       # last 8 bytes, then its footer's first bytes, then its head. Each
-      # answer must be a 206 of the range's length.
+      # answer must be a 206 of the range's length; curl refuses an answer
+      # longer than the range, such as the whole file.
       - name: fetch the web ranges
         if: steps.web-cache.outputs.cache-hit != 'true'
         run: |
@@ -162,7 +178,8 @@ jobs:
             echo "round $round: $(wc -l < need.tsv) ranges, $(awk -F'\t' '{ s += $4 - $3 } END { print s }' need.tsv) bytes"
             while IFS=$'\t' read -r url file start end; do
               mkdir -p "$(dirname "$file")"
-              code=$(curl -sSL --retry 5 -r "$start-$((end - 1))" -o "$file.part" -w '%{http_code}' "$url")
+              code=$(curl -sSL --retry 5 --max-filesize $((end - start)) -r "$start-$((end - 1))" -o "$file.part" \
+                -w '%{http_code}' "$url")
               size=$(stat -c %s "$file.part")
               if [ "$code" != 206 ] || [ "$size" != $((end - start)) ]; then
                 echo "$url $start-$end: HTTP $code, $size bytes" >&2

@@ -115,6 +115,12 @@ impl Thrift {
 
 /// Writes `cols`, which must all have the same number of rows, to `path`.
 pub fn write(path: &Path, cols: &[Col]) {
+    write_chunks(path, cols, |offset, len| (offset as i64, len as i64));
+}
+
+/// As [`write`], with each column chunk's data page offset and compressed
+/// size in the footer given by `chunk` from its true offset and length.
+pub fn write_chunks(path: &Path, cols: &[Col], chunk: impl Fn(usize, usize) -> (i64, i64)) {
     let rows = cols[0].rows();
     assert!(cols.iter().all(|c| c.rows() == rows));
     let mut file = b"PAR1".to_vec();
@@ -169,9 +175,10 @@ pub fn write(path: &Path, cols: &[Col]) {
         m.out.extend(c.name().as_bytes());
         m.i32(4, 0); // UNCOMPRESSED
         m.int(5, rows as i64);
+        let (at, compressed) = chunk(offset, len);
         m.int(6, len as i64);
-        m.int(7, len as i64);
-        m.int(9, offset as i64);
+        m.int(7, compressed);
+        m.int(9, at);
         m.end();
         m.end();
     }

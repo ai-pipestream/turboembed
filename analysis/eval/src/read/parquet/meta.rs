@@ -234,14 +234,18 @@ impl FooterPrefix {
     /// Reads `buf`, the first bytes of a footer `len` bytes long. The
     /// schema and the row count must come before the row groups, as
     /// writers put them (`parquet.thrift` numbers them 2, 3 and 4); the
-    /// row groups are read up to the first one that runs past `buf`.
+    /// row groups are read up to the first one that runs past `buf`. When
+    /// `buf` is the whole footer, every row group must be read.
     pub fn read(buf: &[u8], len: usize) -> Result<FooterPrefix> {
         if buf.len() > len {
             return Err(format!("{} bytes of a footer of {len}", buf.len()));
         }
+        // Running out of bytes is the end of a part of the footer, and
+        // damage in the whole of it.
+        let whole = buf.len() == len;
         let mut c = Compact::new(buf);
         let short = |c: &Compact, e: String| {
-            if c.ran_short() { format!("the first {} bytes end before the row groups", buf.len()) } else { e }
+            if c.ran_short() && !whole { format!("the first {} bytes end before the row groups", buf.len()) } else { e }
         };
         let (mut schema, mut num_rows) = (None, None);
         let mut last = 0;
@@ -270,7 +274,7 @@ impl FooterPrefix {
         for _ in 0..n {
             match row_group(&mut c) {
                 Ok(g) => row_groups.push(g),
-                Err(_) if c.ran_short() => break,
+                Err(_) if c.ran_short() && !whole => break,
                 Err(e) => return Err(e),
             }
         }

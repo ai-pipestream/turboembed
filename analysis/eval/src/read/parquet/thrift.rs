@@ -136,7 +136,7 @@ impl<'a> Compact<'a> {
         // count past the bytes left is damage, not a long list.
         let left = len.saturating_sub(self.pos);
         if n > left {
-            self.short = len == self.buf.len();
+            self.short |= len == self.buf.len();
             return Err(format!("thrift: a list of {n} elements in {left} bytes"));
         }
         Ok((b & 0x0f, n))

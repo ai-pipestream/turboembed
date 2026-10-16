@@ -65,7 +65,7 @@ mod common;
 
 use std::fs;
 
-use common::parquet::{Col, write};
+use common::parquet::{Col, write, write_chunks};
 use common::{data, scratch};
 use turbo_eval::read::parquet::{Leading, Parquet, footer_len};
 
@@ -284,4 +284,44 @@ fn footer_lengths_and_spans_are_checked() {
     assert_eq!(e, format!("{file}: footer: {} bytes of a footer of {}", len, len - 1));
     let e = Leading::read(file, len + 11, len, footer).unwrap_err();
     assert_eq!(e, format!("{file}: footer length {len} in a file of {} bytes", len + 11));
+}
+
+#[test]
+fn a_whole_footer_that_ends_inside_a_row_group_is_damage() {
+    let file = "snappy-dict-v1.parquet";
+    let (bytes, _, len, start) = three_groups(file);
+    let footer = &bytes[start..bytes.len() - 8];
+    // The first part of the footer that holds two row groups, and five
+    // bytes of the third, read as if it were the whole footer.
+    let two = (0..len as usize)
+        .find(|&cut| Leading::read(file, bytes.len() as u64, len, &footer[..cut]).is_ok_and(|l| l.spans().len() == 2))
+        .unwrap();
+    let cut = two + 5;
+    let e = Leading::read(file, (start + cut + 8) as u64, cut as u64, &footer[..cut]).unwrap_err();
+    assert!(e.starts_with(&format!("{file}: footer: ")) && !e.contains("end before"), "{e}");
+}
+
+#[test]
+fn a_column_chunk_outside_the_file_s_data_is_refused() {
+    let dir = scratch("parquet-chunks");
+    let cols = [Col::Str("s", vec!["abc", "def"])];
+    // Each case gives a column chunk's (offset, compressed size) from the
+    // writer's (offset, size).
+    type Chunk = fn(usize, usize) -> (i64, i64);
+    let cases: [(&str, Chunk); 2] = [
+        // Inside the magic number at the start.
+        ("start.parquet", |_, len| (3, len as i64)),
+        // Past the footer's start.
+        ("size.parquet", |offset, _| (offset as i64, i64::MAX)),
+    ];
+    for (name, chunk) in cases {
+        let path = dir.join(name);
+        write_chunks(&path, &cols, chunk);
+        let bytes = fs::read(&path).unwrap();
+        let size = bytes.len() as u64;
+        let len = footer_len(name, size, &bytes[bytes.len() - 8..]).unwrap();
+        let footer = &bytes[bytes.len() - 8 - len as usize..bytes.len() - 8];
+        let e = Leading::read(name, size, len, footer).unwrap_err();
+        assert_eq!(e, format!("{name}: row group 0 has a column chunk outside the file's data"));
+    }
 }

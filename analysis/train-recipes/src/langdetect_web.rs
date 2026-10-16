@@ -4,9 +4,11 @@
 //!
 //! - Data: the training sentences of [`crate::langdetect::LANGDETECT`],
 //!   read, checked and split exactly as that recipe does, and the
-//!   training windows of [`crate::fineweb`] ([`fineweb::WEB`]): 1,000 web
-//!   windows of at most 300 characters per language beside at most 5,000
-//!   sentences. One event each, the sentences first, then the windows,
+//!   training windows of [`crate::fineweb`] ([`fineweb::WEB`]): at most
+//!   1,000 web windows of at most 300 characters per language beside at
+//!   most 5,000 sentences. No training window holds a held-out sentence of
+//!   its language, and no held-out window a training sentence
+//!   ([`fineweb::Avoid`]). One event each, the sentences first, then the windows,
 //!   each language by language in the order of
 //!   [`crate::langdetect::LANGUAGES`].
 //! - Training: the Tatoeba recipe's parameters (`MAXENT`, 100
@@ -18,8 +20,9 @@
 //!   is its language, as written for the trained model and through
 //!   [`crate::langdetect::LANGUAGES`] for the reference. The model is a
 //!   release only when it passes both.
-//! - Comparison: both sets scored again with the Tatoeba recipe's model
-//!   as the zoo lists it ([`COMPARED`]) in the reference's place
+//! - Comparison: the held-out sentences, and the held-out windows of the
+//!   languages it has, scored again with the Tatoeba recipe's model as the
+//!   zoo lists it ([`COMPARED`]) in the reference's place
 //!   ([`COMPARE_TATOEBA_FILE`], [`COMPARE_WEB_FILE`]), so the card says
 //!   what the web text changed. It is reported, not a gate.
 //!
@@ -51,8 +54,8 @@ use crate::card::{
 };
 use crate::error::{Error, Result, io};
 use crate::fineweb::{
-    self, COMMONCRAWL_TERMS, Dataset, FINEWEB, FINEWEB_2, FileChoice, Store, WEB, WebFile, WebPlan, WebRange,
-    WebRecipe, WebSplit,
+    self, Avoid, COMMONCRAWL_TERMS, Dataset, FINEWEB, FINEWEB_2, FileChoice, Overlap, Store, WEB, WebFile, WebPlan,
+    WebRange, WebRecipe, WebSample, WebSplit,
 };
 use crate::langdetect::{
     self, CARD_FILE, ExcludedLanguage, ExportCard, LANGDETECT, LanguageCount, LanguageRecipe, LanguageTrainingCard,
@@ -75,7 +78,8 @@ pub const WEB_GATE_FILE: &str = "gate-web.json";
 /// The comparison with [`COMPARED`] on the held-out sentences.
 pub const COMPARE_TATOEBA_FILE: &str = "compare-tatoeba.json";
 
-/// The comparison with [`COMPARED`] on the held-out web windows.
+/// The comparison with [`COMPARED`] on the held-out web windows of the
+/// languages it has.
 pub const COMPARE_WEB_FILE: &str = "compare-web.json";
 
 /// The Tatoeba recipe's model as the zoo lists it, which both held-out
@@ -112,7 +116,8 @@ pub struct WebLanguageCount {
     pub candidate_correct: usize,
     /// Held-out windows the reference got right.
     pub reference_correct: usize,
-    /// Held-out windows [`COMPARED`] got right.
+    /// Held-out windows [`COMPARED`] got right: none of a language it
+    /// does not have.
     pub compared_correct: usize,
 }
 
@@ -143,6 +148,7 @@ pub struct Scored {
     pub tatoeba_gate: ModelGateRecord,
     pub web_gate: ModelGateRecord,
     pub compare_tatoeba: ModelGateRecord,
+    /// On the held-out windows of the languages [`COMPARED`] has.
     pub compare_web: ModelGateRecord,
     /// For each language of the plan, the held-out sentences
     /// [`COMPARED`] got right.
@@ -208,12 +214,16 @@ impl WebLanguageRecipe {
         out
     }
 
-    /// The SHA-256 of the held-out windows as scored: for each, its
+    /// The SHA-256 of held-out windows as scored: for each, its
     /// language, its length in bytes and its text, then each of
     /// `mappings`.
-    pub fn web_samples_digest(&self, web: &WebPlan, mappings: &[LabelMapping]) -> String {
+    pub fn web_samples_digest<'s>(
+        &self,
+        samples: impl IntoIterator<Item = &'s WebSample>,
+        mappings: &[LabelMapping],
+    ) -> String {
         let mut text = String::new();
-        for s in &web.held_out {
+        for s in samples {
             text.push_str(&format!("{}\t{}\t{}\n", self.web.languages[s.language].tatoeba, s.window.len(), s.window));
         }
         for m in mappings {
@@ -225,7 +235,7 @@ impl WebLanguageRecipe {
     /// The name of the held-out web set in the gate record.
     pub fn web_held_out_name(&self, lists_digest: &str) -> String {
         format!(
-            "FineWeb-2 and FineWeb held out ({} windows of at most {} characters per language, lists {})",
+            "FineWeb-2 and FineWeb held out (at most {} windows of at most {} characters per language, lists {})",
             self.web.split.held_out,
             self.web.split.window,
             &lists_digest[..16.min(lists_digest.len())]
@@ -267,6 +277,7 @@ impl WebLanguageRecipe {
             }
         }
         let compared_model = open(self.compared.id(), compared)?;
+        let compared_known: std::collections::HashSet<&str> = compared_model.model().supported_languages().collect();
         let mut scratch = Scratch::new();
         let mut right = |model: &LanguageDetector, text: &str, codes: &[&str]| {
             codes.contains(&model.predict_language(text, &mut scratch).code)
@@ -327,6 +338,7 @@ impl WebLanguageRecipe {
         }
         let mut gate_units = Vec::with_capacity(web.held_out.len());
         let mut compare_units = Vec::with_capacity(web.held_out.len());
+        let mut compared_windows = Vec::with_capacity(web.held_out.len());
         for s in &web.held_out {
             let p = self.tatoeba.languages[s.language];
             let c = right(&candidate, &s.window, &[p.tatoeba]);
@@ -338,26 +350,37 @@ impl WebLanguageRecipe {
             count.reference_correct += usize::from(r);
             count.compared_correct += usize::from(o);
             gate_units.push(pair(c, r));
-            compare_units.push(pair(c, o));
+            // The compared model cannot be right on a language it does
+            // not have, so those windows say nothing of what the web text
+            // changed.
+            if compared_known.contains(p.tatoeba) {
+                compare_units.push(pair(c, o));
+                compared_windows.push(s);
+            }
         }
         let mappings = self.web_mappings();
-        let web_set = |mappings: Vec<LabelMapping>| HeldOutSet {
-            name: self.web_held_out_name(lists_digest),
+        let web_set = |name: String, samples: &[&WebSample], mappings: Vec<LabelMapping>| HeldOutSet {
+            name,
             corpus_sha256: lists_digest.to_owned(),
-            samples_sha256: self.web_samples_digest(web, &mappings),
+            samples_sha256: self.web_samples_digest(samples.iter().copied(), &mappings),
             skipped_sentences: 0,
-            scoring: Scoring::Labels(LabelScoring { samples: web.held_out.len() as u64, reference_mappings: mappings }),
+            scoring: Scoring::Labels(LabelScoring { samples: samples.len() as u64, reference_mappings: mappings }),
         };
+        let all: Vec<&WebSample> = web.held_out.iter().collect();
         let web_gate = ModelGateRecord::new(
             Task::LanguageDetector,
-            web_set(mappings),
+            web_set(self.web_held_out_name(lists_digest), &all, mappings),
             candidate_id.clone(),
             reference_id,
             gate_units,
         )?;
         let compare_web = ModelGateRecord::new(
             Task::LanguageDetector,
-            web_set(Vec::new()),
+            web_set(
+                format!("{}, the languages of {}", self.web_held_out_name(lists_digest), self.compared.id()),
+                &compared_windows,
+                Vec::new(),
+            ),
             candidate_id,
             compared_id,
             compare_units,
@@ -376,12 +399,37 @@ pub struct WebOutcome {
 
 /// The web data a run reads: the files and ranges lists, whether they
 /// are the recorded ones ([`fineweb::FILES`] and [`fineweb::RANGES`]),
-/// and the directory the ranges were fetched into.
+/// and the directory the ranges were fetched into, made by
+/// [`WebInput::checked`].
+#[non_exhaustive]
 pub struct WebInput<'a> {
+    pub web: WebRecipe,
     pub files: &'a [WebFile],
     pub ranges: &'a [WebRange],
     pub recorded: bool,
     pub store: &'a Store<'a>,
+}
+
+impl<'a> WebInput<'a> {
+    /// The web data of `files` and `ranges` in `store`, once the ranges
+    /// listed are checked to be the ones `web` reads of the files, from
+    /// the bytes the directory holds ([`fineweb::record`]).
+    ///
+    /// # Errors
+    ///
+    /// A range missing or not the listed bytes, a file not read as the
+    /// recipe needs, or ranges listed that are not the ones the files give.
+    pub fn checked(
+        web: WebRecipe,
+        files: &'a [WebFile],
+        ranges: &'a [WebRange],
+        recorded: bool,
+        store: &'a Store<'a>,
+    ) -> Result<WebInput<'a>> {
+        let made = fineweb::record(files, &web, store)?;
+        fineweb::check_ranges(ranges, &made)?;
+        Ok(WebInput { web, files, ranges, recorded, store })
+    }
 }
 
 /// Reads the recipe's sentences from `export` and its windows from
@@ -392,9 +440,9 @@ pub struct WebInput<'a> {
 ///
 /// # Errors
 ///
-/// A reference or compared model that is not the recorded one, the web
-/// ranges not the listed ones, or what reading, training or scoring fail
-/// on.
+/// A reference or compared model that is not the recorded one, web data
+/// checked for another web recipe, or what reading, training or scoring
+/// fail on.
 pub fn run(
     recipe: &WebLanguageRecipe,
     export: &Export,
@@ -413,10 +461,18 @@ pub fn run(
             recipe.model_id
         )));
     }
-    let made = fineweb::record(web.files, &recipe.web, web.store)?;
-    fineweb::check_ranges(web.ranges, &made)?;
+    if web.web != recipe.web {
+        return Err(Error::Model(format!("{}: the web data was checked for another web recipe", recipe.model_id)));
+    }
     let mut plan = recipe.tatoeba.plan(recipe.tatoeba.sentences(export)?)?;
-    let web_plan = fineweb::plan_web(web.files, &recipe.web, web.store)?;
+    let web_plan = {
+        let (n, min) = (recipe.web.languages.len(), recipe.web.split.overlap_min_chars);
+        let avoid = Avoid {
+            training: Overlap::new(n, min, plan.held_out.iter().map(|s| (s.language, s.text.as_ref()))),
+            held_out: Overlap::new(n, min, plan.training.iter().map(|s| (s.language, s.text.as_ref()))),
+        };
+        fineweb::plan_web(web.files, &recipe.web, web.store, &avoid)?
+    };
     let trained = recipe.train(&plan, &web_plan, web.files)?;
     let digest = export.digest();
     let lists = fineweb::lists_digest(web.files, web.ranges);
@@ -487,6 +543,34 @@ pub struct WebTrainingCard {
     pub windows: usize,
 }
 
+/// A comparison with [`COMPARED`] as the card records it: the record's
+/// units, both scores and the interval of their difference. It is not a
+/// gate, so the record's pass is left out.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComparisonCard {
+    pub record: String,
+    pub units: usize,
+    pub candidate_score: f64,
+    pub compared_score: f64,
+    pub difference_low: f64,
+    pub difference_high: f64,
+}
+
+impl ComparisonCard {
+    fn of(record: &ModelGateRecord, file: &str) -> ComparisonCard {
+        let r = &record.result;
+        ComparisonCard {
+            record: file.to_owned(),
+            units: record.units.len(),
+            candidate_score: r.candidate.score,
+            compared_score: r.reference.score,
+            difference_low: r.difference.low,
+            difference_high: r.difference.high,
+        }
+    }
+}
+
 /// One language's held-out sentences the compared model got right.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -535,8 +619,11 @@ pub struct WebLanguageCard {
     pub gate: GateCard,
     /// The gate on the held-out windows.
     pub web_gate: GateCard,
-    pub compared_on_sentences: GateCard,
-    pub compared_on_windows: GateCard,
+    /// The comparison on the held-out sentences.
+    pub compared_on_sentences: ComparisonCard,
+    /// The comparison on the held-out windows of the languages
+    /// [`COMPARED`] has.
+    pub compared_on_windows: ComparisonCard,
 }
 
 /// The card of the record `record`, written as `file`.
@@ -662,8 +749,8 @@ impl WebLanguageCard {
             held_out_windows: web_plan.held_out.len(),
             gate: gate_card(&scored.tatoeba_gate, GATE_FILE),
             web_gate: gate_card(&scored.web_gate, WEB_GATE_FILE),
-            compared_on_sentences: gate_card(&scored.compare_tatoeba, COMPARE_TATOEBA_FILE),
-            compared_on_windows: gate_card(&scored.compare_web, COMPARE_WEB_FILE),
+            compared_on_sentences: ComparisonCard::of(&scored.compare_tatoeba, COMPARE_TATOEBA_FILE),
+            compared_on_windows: ComparisonCard::of(&scored.compare_web, COMPARE_WEB_FILE),
         }
     }
 }
@@ -765,9 +852,10 @@ impl WebLanguageCard {
         Ok(card)
     }
 
-    /// A line of what was trained on and held out, and a line per score.
+    /// A line of what was trained on and held out, a line per gate and
+    /// comparison, and the files that gave fewer windows than wanted.
     pub fn summary(&self) -> String {
-        let score = |g: &GateCard| {
+        let gate = |g: &GateCard| {
             format!(
                 "{:.4} against {} {:.4} (difference {:+.4} to {:+.4}){}",
                 g.candidate_score,
@@ -775,13 +863,35 @@ impl WebLanguageCard {
                 g.reference_score,
                 g.difference_low,
                 g.difference_high,
-                if g.pass { "" } else { ", below the margin" }
+                if g.pass { ": pass" } else { ": below the margin" }
             )
         };
+        let compared = |c: &ComparisonCard| {
+            format!(
+                "{:.4} beside {:.4} over {} units (difference {:+.4} to {:+.4})",
+                c.candidate_score, c.compared_score, c.units, c.difference_low, c.difference_high
+            )
+        };
+        let short: Vec<String> = self
+            .web
+            .files
+            .iter()
+            .filter(|f| f.chosen < f.wanted)
+            .map(|f| {
+                format!(
+                    "{} {} {} of {}",
+                    f.path,
+                    if f.side == fineweb::Side::Training { "training" } else { "held out" },
+                    f.chosen,
+                    f.wanted
+                )
+            })
+            .collect();
         format!(
             "{}: {} languages, trained on {} sentences and {} web windows ({} events), held out {} sentences and \
              {} windows; {} languages left out of the sentences\n  sentences: {}\n  windows: {}\n  sentences, \
-             beside the Tatoeba model: {}\n  windows, beside the Tatoeba model: {}",
+             beside the Tatoeba model: {}\n  windows of its languages, beside the Tatoeba model: {}\n  files short \
+             of windows: {}",
             self.id,
             self.languages.len(),
             self.training.sentences,
@@ -790,10 +900,11 @@ impl WebLanguageCard {
             self.held_out_sentences,
             self.held_out_windows,
             self.excluded_languages.len(),
-            score(&self.gate),
-            score(&self.web_gate),
-            score(&self.compared_on_sentences),
-            score(&self.compared_on_windows),
+            gate(&self.gate),
+            gate(&self.web_gate),
+            compared(&self.compared_on_sentences),
+            compared(&self.compared_on_windows),
+            if short.is_empty() { "none".to_owned() } else { short.join(", ") },
         )
     }
 }

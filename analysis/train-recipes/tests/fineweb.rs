@@ -12,14 +12,14 @@ use std::process::Command;
 use turbo_train_recipes::Error;
 use turbo_train_recipes::card::GATE_FILE;
 use turbo_train_recipes::fineweb::{
-    self, FileChoice, Side, Span, Store, WEB, WebError, WebFile, WebRecipe, WebSplit, check_ranges, needed, plan_web,
-    record,
+    self, Avoid, FileChoice, Overlap, Side, Span, Store, WEB, WebError, WebFile, WebRecipe, WebSplit, check_ranges,
+    needed, plan_web, record,
 };
 use turbo_train_recipes::fineweb::{Source, WebLanguage};
-use turbo_train_recipes::langdetect::{CARD_FILE, LanguagePair, LanguageRecipe, SENTENCES_FILE, Split};
+use turbo_train_recipes::langdetect::{self, CARD_FILE, LanguagePair, LanguageRecipe, SENTENCES_FILE, Split};
 use turbo_train_recipes::langdetect_web::{
-    self, COMPARE_TATOEBA_FILE, COMPARE_WEB_FILE, DOCUMENTS_FILE, MODEL_ID, WEB_GATE_FILE, WebInput, WebLanguageCard,
-    WebLanguageRecipe, write_web_language_dir,
+    self, COMPARE_TATOEBA_FILE, COMPARE_WEB_FILE, DOCUMENTS_FILE, LANGDETECT_WEB, MODEL_ID, WEB_GATE_FILE, WebInput,
+    WebLanguageCard, WebLanguageRecipe, write_web_language_dir,
 };
 use turbo_train_recipes::tatoeba::Export;
 use turbo_train_recipes::{RecordedReference, Reference};
@@ -174,7 +174,8 @@ fn scratch(name: &str) -> PathBuf {
 /// The recipe's languages with the test's split: 6 training and 3
 /// held-out windows per language, of at most 12 characters, from
 /// documents of at least 5; at first at most one in three of a file's
-/// documents from one host.
+/// documents from one host; Tatoeba sentences of 16 characters or more
+/// looked for in the windows.
 const SPLIT: WebRecipe = WebRecipe { split: SMALL, ..WEB };
 
 const SMALL: WebSplit = WebSplit {
@@ -185,6 +186,7 @@ const SMALL: WebSplit = WebSplit {
     host_share: 3,
     rows_per_document: 2,
     footer_prefix: 600,
+    overlap_min_chars: 16,
 };
 
 /// The rows of one file: `n` documents, in row groups of 4. Row 1 is too
@@ -250,11 +252,16 @@ fn fetch_all(dir: &Path, files: &[WebFile], split: &WebRecipe, bytes: &HashMap<S
         rounds += 1;
         for (f, span) in need {
             let b = &bytes[&format!("{} {}", f.repo, f.path)];
-            let at = store.file(&f.repo, &f.path, span);
+            let at = store.file(f, span);
             fs::create_dir_all(at.parent().unwrap()).unwrap();
             fs::write(at, &b[span.start as usize..span.end as usize]).unwrap();
         }
     }
+}
+
+/// Nothing to avoid, for the recipe's languages.
+fn none() -> Avoid<'static> {
+    Avoid::none(WEB.languages.len())
 }
 
 fn choice<'a>(plan: &'a [FileChoice], tatoeba: &str, side: Side) -> Vec<&'a FileChoice> {
@@ -282,7 +289,8 @@ fn ranges_are_fetched_recorded_checked_and_read() {
     let listed = fineweb::parse_ranges("r", &fineweb::write_ranges(&made)).unwrap();
     check_ranges(&listed, &made).unwrap();
 
-    let plan = plan_web(&files, &SPLIT, &Store::new(&dir, Some(&listed))).unwrap();
+    let plan = plan_web(&files, &SPLIT, &Store::new(&dir, Some(&listed)), &none()).unwrap();
+    assert!(plan.files.iter().all(|c| c.excluded_host == 0 && c.tatoeba_overlap == 0));
     // A language of one source: 6 training documents from 12 rows, three
     // row groups; row 1 too short, row 2 a repeat; at most 2 of rows 3 to
     // 7 at first, so rows 0, 3, 4, 8, 9 and 10.
@@ -334,20 +342,22 @@ fn a_range_that_differs_or_is_missing_is_refused() {
     let store = Store::new(&dir, Some(&made));
     // One byte of a head changed.
     let head = &made[2];
-    let at = store.file(&head.repo, &head.path, head.span);
+    let head_file = files.iter().find(|f| f.repo == head.repo && f.path == head.path).unwrap();
+    let at = store.file(head_file, head.span);
+    assert!(at.to_string_lossy().contains(&head_file.revision), "{}", at.display());
     let mut b = fs::read(&at).unwrap();
     b[100] ^= 1;
     fs::write(&at, &b).unwrap();
-    match plan_web(&files, &SPLIT, &store) {
+    match plan_web(&files, &SPLIT, &store, &none()) {
         Err(WebError::Digest { path, expected, .. }) => assert_eq!((path, expected), (at.clone(), head.sha256.clone())),
         other => panic!("{other:?}"),
     }
     // Removed.
     fs::remove_file(&at).unwrap();
-    assert_eq!(plan_web(&files, &SPLIT, &store).unwrap_err(), WebError::Missing { path: at });
+    assert_eq!(plan_web(&files, &SPLIT, &store, &none()).unwrap_err(), WebError::Missing { path: at });
     // A range the list does not have.
     let fewer: Vec<_> = made.iter().skip(1).cloned().collect();
-    let e = plan_web(&files, &SPLIT, &Store::new(&dir, Some(&fewer))).unwrap_err();
+    let e = plan_web(&files, &SPLIT, &Store::new(&dir, Some(&fewer)), &none()).unwrap_err();
     assert!(e.to_string().contains("which the recipe reads, is not listed"), "{e}");
     // A file the recipe does not read, or one it reads missing.
     let mut extra = files.clone();
@@ -371,7 +381,7 @@ fn a_footer_prefix_too_short_for_the_rows_is_refused() {
         Ok(need) => {
             for (f, span) in need {
                 let b = &bytes[&format!("{} {}", f.repo, f.path)];
-                let at = store.file(&f.repo, &f.path, span);
+                let at = store.file(f, span);
                 fs::create_dir_all(at.parent().unwrap()).unwrap();
                 fs::write(at, &b[span.start as usize..span.end as usize]).unwrap();
             }
@@ -452,6 +462,7 @@ const TEST_RECIPE: WebLanguageRecipe = WebLanguageRecipe {
             host_share: 3,
             rows_per_document: 2,
             footer_prefix: 2_000,
+            overlap_min_chars: 16,
         },
     },
     compared: Reference::Recorded(FIXTURE),
@@ -499,7 +510,7 @@ fn the_web_recipe_trains_gates_and_compares_end_to_end() {
     fetch_all(&dir, &files, &recipe.web, &bytes);
     let ranges = record(&files, &recipe.web, &Store::new(&dir, None)).unwrap();
     let store = Store::new(&dir, Some(&ranges));
-    let web = WebInput { files: &files, ranges: &ranges, recorded: false, store: &store };
+    let web = WebInput::checked(recipe.web, &files, &ranges, false, &store).unwrap();
     let export = Export::read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tatoeba")).unwrap();
     let fixture = fixture();
     let outcome = langdetect_web::run(&recipe, &export, false, &web, &fixture, &fixture).unwrap();
@@ -528,6 +539,10 @@ fn the_web_recipe_trains_gates_and_compares_end_to_end() {
     assert_eq!((s.tatoeba_gate.units.len(), s.web_gate.units.len()), (32, 36));
     assert_eq!((s.compare_tatoeba.units.len(), s.compare_web.units.len()), (32, 36));
     assert_eq!(s.compare_web.reference.id, FIXTURE.id);
+    // The Tatoeba gate's set is the one the Tatoeba recipe gates on.
+    let plain =
+        langdetect::run(&LanguageRecipe { model_id: "plain", ..recipe.tatoeba }, &export, false, &fixture).unwrap();
+    assert_eq!(s.tatoeba_gate.set, plain.gate.set);
     assert_eq!(s.tatoeba_gate.set.name, recipe.tatoeba.held_out_name(&export.digest()));
     // The compared model's records score the gates' units with its own
     // answers: the trained model's side is the same.
@@ -568,6 +583,80 @@ fn the_web_recipe_trains_gates_and_compares_end_to_end() {
         }
         other => panic!("{other:?}"),
     }
+    // Under the recipe's id and reference, the refusals that follow, then
+    // an entry.
+    let reference = LANGDETECT_WEB.tatoeba.reference;
+    let mut card = renamed;
+    for g in [&mut card.gate, &mut card.web_gate] {
+        g.reference = reference.id().to_owned();
+        g.reference_sha256 = reference.sha256().unwrap();
+        g.pass = true;
+    }
+    card.web_gate.pass = false;
+    let refused = |c: &WebLanguageCard| match c.artifact(url, url, url) {
+        Err(Error::NotShippable { reason, .. }) => reason,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(refused(&card), "it failed a gate");
+    card.web_gate.pass = true;
+    assert_eq!(refused(&card), "it was trained on a Tatoeba export that is not the recorded one");
+    card.export.recorded = true;
+    assert_eq!(refused(&card), "it was trained on web ranges that are not the recorded ones");
+    card.web.recorded = true;
+    let entry = card.artifact(url, url, url).unwrap();
+    let names: Vec<&str> = entry.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(names, [card.file.name.as_str(), SENTENCES_FILE, DOCUMENTS_FILE]);
+}
+
+#[test]
+fn windows_from_tatoeba_or_holding_a_sentence_of_the_other_side_are_passed_over() {
+    let dir = scratch("fineweb-overlap");
+    let split = WebRecipe { split: WebSplit { window: 40, ..SMALL }, ..WEB };
+    let afr = 0;
+    let deu = WEB.languages.iter().position(|l| l.tatoeba == "deu").unwrap();
+    let (files, bytes) = served_with(&split, |tatoeba, side| {
+        (0..30)
+            .map(|i| {
+                let text = match (tatoeba, side, i) {
+                    ("afr", Side::Training, 0) => "A page of Tatoeba's own, in Afrikaans.".to_owned(),
+                    ("afr", Side::Training, 1) => "Ek het die boek gelees, en meer.".to_owned(),
+                    ("afr", Side::Training, 2) => "Sy het gesê: Ich habe das Buch gelesen.".to_owned(),
+                    ("afr", Side::HeldOut, 0) => "Toe: Hy loop elke dag skool toe.".to_owned(),
+                    ("afr", Side::HeldOut, 1) => "Kort sin. En nog iets daarby.".to_owned(),
+                    _ => format!("{i:03} {tatoeba} {side:?} document"),
+                };
+                let host = if (tatoeba, side, i) == ("afr", Side::Training, 0) {
+                    "en.tatoeba.org".to_owned()
+                } else {
+                    format!("h{i}.example")
+                };
+                [text, format!("<urn:{i}>"), format!("https://{host}/{i}")]
+            })
+            .collect()
+    });
+    fetch_all(&dir, &files, &split, &bytes);
+    let ranges = record(&files, &split, &Store::new(&dir, None)).unwrap();
+    let n = WEB.languages.len();
+    // A held-out sentence of Afrikaans and one of German, a training
+    // sentence of Afrikaans, and one too short to be looked for.
+    let avoid = Avoid {
+        training: Overlap::new(n, 16, [(afr, "Ek het die boek gelees"), (deu, "Ich habe das Buch gelesen.")]),
+        held_out: Overlap::new(n, 16, [(afr, "Hy loop elke dag skool toe."), (afr, "Kort sin.")]),
+    };
+    let plan = plan_web(&files, &split, &Store::new(&dir, Some(&ranges)), &avoid).unwrap();
+    let t = choice(&plan.files, "afr", Side::Training)[0];
+    assert_eq!((t.excluded_host, t.tatoeba_overlap, t.chosen), (1, 1, 6));
+    let rows: Vec<u64> = plan.training.iter().filter(|s| s.language == afr).map(|s| s.row).collect();
+    // Another language's held-out sentence is kept in an Afrikaans window.
+    assert_eq!(rows[0], 2);
+    let h = choice(&plan.files, "afr", Side::HeldOut)[0];
+    assert_eq!((h.tatoeba_overlap, h.chosen), (1, 3));
+    let held: Vec<u64> = plan.held_out.iter().filter(|s| s.language == afr).map(|s| s.row).collect();
+    assert_eq!(held[0], 1);
+    // Every other file is untouched.
+    let others = plan.files.iter().filter(|c| c.tatoeba != "afr");
+    assert!(others.clone().all(|c| c.excluded_host == 0 && c.tatoeba_overlap == 0));
+    assert!(plan.files.iter().all(|c| c.chosen == c.wanted));
 }
 
 #[test]
@@ -606,7 +695,7 @@ fn the_binary_says_what_to_fetch_and_needs_its_inputs() {
     let line = format!(
         "{}\t{}\t{}\t{}",
         fineweb::FINEWEB_2.url(&f.path),
-        Store::new(&web, None).file(&f.repo, &f.path, Span { start: f.size - 8, end: f.size }).display(),
+        Store::new(&web, None).file(f, Span { start: f.size - 8, end: f.size }).display(),
         f.size - 8,
         f.size
     );
@@ -621,9 +710,14 @@ fn the_binary_says_what_to_fetch_and_needs_its_inputs() {
     assert_eq!(record.status.code(), Some(2), "{record:?}");
     assert!(String::from_utf8_lossy(&record.stderr).contains("not fetched"), "{record:?}");
 
-    // The recipe needs both models and, while the committed lists are
-    // empty, --unrecorded-web; every problem is named before anything is
-    // read.
+    // A flag a command does not read is refused.
+    let paths = Command::new(exe).args(["fineweb-ranges", "--paths", "--web", "x"]).output().unwrap();
+    assert_eq!(paths.status.code(), Some(2), "{paths:?}");
+    assert!(String::from_utf8_lossy(&paths.stderr).starts_with("fineweb-ranges --paths does not read --web"));
+
+    // The recipe needs both models, the web directory, --files and
+    // --ranges together and, while the committed lists are empty,
+    // --unrecorded-web; every problem is named before anything is read.
     let references = dir.join("references");
     fs::create_dir(&references).unwrap();
     let run = Command::new(exe)
@@ -636,14 +730,16 @@ fn the_binary_says_what_to_fetch_and_needs_its_inputs() {
         .arg(&references)
         .arg("--out")
         .arg(dir.join("models"))
+        .arg("--files")
+        .arg(&list)
         .output()
         .unwrap();
     assert_eq!(run.status.code(), Some(2), "{run:?}");
     let stderr = String::from_utf8_lossy(&run.stderr);
     assert!(stderr.contains("langdetect-183.bin"), "{stderr}");
     assert!(stderr.contains("turbo-mul-tatoeba-langdetect-1.bin"), "{stderr}");
-    if fineweb::parse_files(fineweb::FILES_NAME, fineweb::FILES).unwrap().is_empty() {
-        assert!(stderr.contains("--unrecorded-web"), "{stderr}");
-    }
+    assert!(stderr.contains("--files and --ranges are given together"), "{stderr}");
+    assert!(stderr.contains(&format!("{}: no such directory", web.display())), "{stderr}");
+    assert!(stderr.contains("--unrecorded-web"), "{stderr}");
     assert!(!dir.join("models").exists());
 }
