@@ -38,6 +38,7 @@ pub(super) struct XmlPullParser<'a> {
     element_stack: Vec<XmlElementFrame>,
     root_seen: bool,
     doctype_seen: bool,
+    chars_checked: bool,
 }
 
 impl<'a> XmlPullParser<'a> {
@@ -55,6 +56,7 @@ impl<'a> XmlPullParser<'a> {
             element_stack: Vec::new(),
             root_seen: false,
             doctype_seen: false,
+            chars_checked: false,
         }
     }
 
@@ -87,6 +89,9 @@ impl<'a> XmlPullParser<'a> {
     }
 
     pub(super) fn next_event(&mut self) -> Result<XmlEvent, WordNetError> {
+        if !self.chars_checked {
+            self.check_chars()?;
+        }
         if let Some((local, line)) = self.pending_end.take() {
             return Ok(XmlEvent::End { local_name: local, line });
         }
@@ -164,6 +169,18 @@ impl<'a> XmlPullParser<'a> {
     /// Skips a `<!DOCTYPE ...>` without reading it. Only one is legal, before the root element.
     /// Inside the internal subset, quoted literals, comments, and processing instructions are
     /// opaque, so a `]`, `>`, or quote inside them does not end the declaration.
+    /// XML 1.0 section 2.2: every literal character of the document must match `Char`, the same
+    /// production [`character_reference`] applies to `&#...;`.
+    fn check_chars(&mut self) -> Result<(), WordNetError> {
+        self.chars_checked = true;
+        let rest = &self.input[self.pos..];
+        if let Some((at, ch)) = rest.char_indices().find(|&(_, ch)| !is_xml_char(ch)) {
+            let line = self.line + rest[..at].bytes().filter(|&b| b == b'\n').count();
+            return Err(self.err(line, format!("Illegal XML character U+{:04X}", u32::from(ch))));
+        }
+        Ok(())
+    }
+
     fn skip_doctype(&mut self, start_line: usize) -> Result<(), WordNetError> {
         if self.root_seen {
             return Err(self.err(start_line, "DOCTYPE after the root element"));
@@ -412,10 +429,10 @@ fn declaration_keyword(rem: &str) -> &str {
 
 /// Decodes the body of a numeric character reference (`#65` or `#x41`, without `&` and `;`).
 ///
-/// XML 1.0 section 4.1 allows only ASCII digits (no sign, no blanks), and the result must match
-/// the `Char` production of section 2.2.
+/// XML 1.0 section 4.1 allows only ASCII digits (no sign, no blanks) after `#` or a lowercase `#x`,
+/// and the result must match the `Char` production of section 2.2.
 fn character_reference(entity: &str, resource_name: &str, line: usize) -> Result<char, WordNetError> {
-    let (digits, radix) = match entity.strip_prefix("#x").or_else(|| entity.strip_prefix("#X")) {
+    let (digits, radix) = match entity.strip_prefix("#x") {
         Some(hex) => (hex, 16),
         None => (&entity[1..], 10),
     };
@@ -540,11 +557,32 @@ mod tests {
     fn numeric_character_references_decode_decimal_and_hex() {
         assert_eq!("A", text("&#65;").unwrap());
         assert_eq!("A", text("&#x41;").unwrap());
-        assert_eq!("A", text("&#X41;").unwrap());
         assert_eq!("\u{e9}", text("&#xe9;").unwrap());
         assert_eq!("\u{1F600}", text("&#x1F600;").unwrap());
         assert_eq!("\u{1F600}", text("&#128512;").unwrap());
         assert_eq!("\t\n\r", text("&#9;&#xA;&#13;").unwrap());
+    }
+
+    #[test]
+    fn hex_character_references_need_a_lowercase_x() {
+        assert_err_contains(text("&#X41;"), "Invalid character reference '&#X41;'");
+        assert_eq!("\u{AB}", text("&#xAb;").unwrap(), "hex digits themselves may be either case");
+    }
+
+    #[test]
+    fn literal_characters_outside_the_xml_char_production_are_rejected() {
+        for (doc, line) in [
+            ("<r>a\u{0}b</r>", 1),
+            ("<r>\n\n\u{1}</r>", 3),
+            ("<r a=\"\u{8}\"/>", 1),
+            ("<r><!-- \u{1F} --></r>", 1),
+            ("<r><![CDATA[\u{B}]]></r>", 1),
+            ("<r>\u{FFFE}</r>", 1),
+            ("\u{C}<r/>", 1),
+        ] {
+            assert_err_contains(events(doc), &format!("line {line}: Illegal XML character"));
+        }
+        assert!(events("\u{feff}<r a=\"\t\">\t\n\u{D7FF}\u{E000}\u{FFFD}\u{10FFFF}</r>").is_ok());
     }
 
     #[test]
