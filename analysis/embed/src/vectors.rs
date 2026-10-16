@@ -351,6 +351,20 @@ impl VectorAnnotator {
         Ok(Vectors::new(c.dim, c.data, empty, c.model))
     }
 
+    /// Extracts one contextual vector per subword piece in `subwords`
+    /// through the encoder's stage 2 range write (`turbo_embed_write_ranges`,
+    /// `#263`), returning `Vectors<Subwords>`.
+    pub fn embed_subwords(
+        &self,
+        annotator: &'static str,
+        subwords: &Subwords,
+        sentences: Option<&Spans<Sentences>>,
+    ) -> Result<Vectors<Subwords>, Error> {
+        let spans: Vec<Span> = (0..subwords.len()).map(|i| subwords.spans.get(Ix::new(i as u32))).collect();
+        self.embed_spans(annotator, subwords, sentences, subwords.spans.view(), &spans)
+    }
+
+
     /// Zero vectors for every item of `i`, or why its layers do not fit
     /// together: subwords of another model, a layer in another view, a
     /// piece without its id, pieces out of text order, or a span that
@@ -564,6 +578,24 @@ impl Annotator for SentenceChunkVectors {
 
     provenance!(Which::Sentences);
 }
+
+/// Writes `opennlp:embeddings<opennlp:subwords>`: a contextual vector per
+/// subword piece, extracted from the sentence windows via `#263`.
+#[derive(Clone)]
+pub struct SubwordVectors(pub Arc<VectorAnnotator>);
+
+impl Annotator for SubwordVectors {
+    const ID: &'static str = "turbo:subword-vectors";
+    type Reads = (Subwords, Option<Sentences>);
+    type Writes = (Vectors<Subwords>,);
+
+    fn annotate(&self, (subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        Ok((self.0.embed_subwords(Self::ID, subwords, sentences.map(|s| &s.spans))?,))
+    }
+
+    provenance!(Which::Sentences);
+}
+
 
 /// Offers the vector steps to pipelines built from configuration, as
 /// "vectors". The spec's location is the bundle directory; its options:
