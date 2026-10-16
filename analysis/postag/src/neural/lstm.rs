@@ -189,11 +189,7 @@ impl LstmLayer {
     }
 
     /// Runs the LSTM forward over `xs`, optionally populating `cache` for backpropagation.
-    pub fn run(
-        &self,
-        xs: &[Vec<f64>],
-        mut cache: Option<&mut ForwardCache>,
-    ) -> Result<Vec<Vec<f64>>, NeuralError> {
+    pub fn run(&self, xs: &[Vec<f64>], mut cache: Option<&mut ForwardCache>) -> Result<Vec<Vec<f64>>, NeuralError> {
         if xs.is_empty() {
             return Err(NeuralError::InvalidArgument("xs must not be empty".into()));
         }
@@ -386,10 +382,7 @@ mod tests {
 
     fn assert_close(analytic: f64, numerical: f64, what: &str) {
         let scale = 1.0f64.max(analytic.abs().max(numerical.abs()));
-        assert!(
-            (analytic - numerical).abs() <= TOLERANCE * scale,
-            "{what}: analytic={analytic} numerical={numerical}"
-        );
+        assert!((analytic - numerical).abs() <= TOLERANCE * scale, "{what}: analytic={analytic} numerical={numerical}");
     }
 
     #[test]

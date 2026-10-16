@@ -1,11 +1,8 @@
-use turbo_analysis::{
-    Analyzer, Annotator, Document, Error, Ix, Key, Layer, Provenance, Span, Spans, View, ViewId,
-};
+use turbo_analysis::{Analyzer, Annotator, Document, Error, Ix, Key, Layer, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_layers::{PosTags, Sentences, Tokens};
 use turbo_postag::neural::{
-    BilstmPosModel, BilstmPosTagger, BilstmPosTrainer, BilstmSettings, FeedforwardPosModel,
-    FeedforwardPosTagger, FeedforwardPosTrainer, FeedforwardSettings, MultiTaskSample, NeuralError,
-    PosSample,
+    BilstmPosModel, BilstmPosTagger, BilstmPosTrainer, BilstmSettings, FeedforwardPosModel, FeedforwardPosTagger,
+    FeedforwardPosTrainer, FeedforwardSettings, MultiTaskSample, NeuralError, PosSample,
 };
 
 fn build_tokens(view: ViewId, triples: &[(u32, u32, u32)]) -> Tokens {
@@ -15,10 +12,7 @@ fn build_tokens(view: ViewId, triples: &[(u32, u32, u32)]) -> Tokens {
         spans.push(Span::new(start, end));
         sentence.push(Ix::new(sent));
     }
-    Tokens {
-        spans,
-        sentence: Some(sentence),
-    }
+    Tokens { spans, sentence: Some(sentence) }
 }
 
 fn tiny_samples() -> Vec<PosSample> {
@@ -31,10 +25,9 @@ fn tiny_samples() -> Vec<PosSample> {
 #[test]
 fn bilstm_and_feedforward_annotators_in_pipeline_and_view_validation() {
     let samples = tiny_samples();
-    let bilstm_settings = BilstmSettings::new(
-        8, 4, 4, 8, 5, 2, 0.02, 5.0, 0.0, 1, 12, 7, 1, 0.0, 0, true, 1, 0.0, 0.0, 1.0, 0.0, false,
-    )
-    .unwrap();
+    let bilstm_settings =
+        BilstmSettings::new(8, 4, 4, 8, 5, 2, 0.02, 5.0, 0.0, 1, 12, 7, 1, 0.0, 0, true, 1, 0.0, 0.0, 1.0, 0.0, false)
+            .unwrap();
     let bilstm_model = BilstmPosTrainer::train(&samples, bilstm_settings).unwrap();
     let bilstm_tagger = BilstmPosTagger::new(bilstm_model);
 
@@ -45,10 +38,7 @@ fn bilstm_and_feedforward_annotators_in_pipeline_and_view_validation() {
     // Refuse tokens in another view
     let doc_wrong = Document::new("The cat sat");
     let wrong_tokens = build_tokens(ViewId(2), &[(0, 3, 0), (4, 7, 0), (8, 11, 0)]);
-    let err_bilstm = bilstm_tagger
-        .annotate((doc_wrong.get::<View>().unwrap(), &wrong_tokens))
-        .err()
-        .unwrap();
+    let err_bilstm = bilstm_tagger.annotate((doc_wrong.get::<View>().unwrap(), &wrong_tokens)).err().unwrap();
     assert_eq!(
         err_bilstm,
         Error::Annotator {
@@ -56,10 +46,7 @@ fn bilstm_and_feedforward_annotators_in_pipeline_and_view_validation() {
             detail: "the tokens are in view 2, not in view 0 that is tagged".into(),
         }
     );
-    let err_ff = ff_tagger
-        .annotate((doc_wrong.get::<View>().unwrap(), &wrong_tokens))
-        .err()
-        .unwrap();
+    let err_ff = ff_tagger.annotate((doc_wrong.get::<View>().unwrap(), &wrong_tokens)).err().unwrap();
     assert_eq!(
         err_ff,
         Error::Annotator {
@@ -70,34 +57,15 @@ fn bilstm_and_feedforward_annotators_in_pipeline_and_view_validation() {
 
     // Run both in an Analyzer pipeline over two sentences
     let text = "The cat sat A dog ran";
-    for (expected_id, use_bilstm) in [
-        ("turbo-postag:bilstm", true),
-        ("turbo-postag:feedforward", false),
-    ] {
+    for (expected_id, use_bilstm) in [("turbo-postag:bilstm", true), ("turbo-postag:feedforward", false)] {
         let mut doc = Document::new(text);
         let view = doc.get::<View>().unwrap().id();
         let mut s = Spans::new(view);
         s.push(Span::new(0, 11));
         s.push(Span::new(12, 21));
-        doc.add(
-            &Key::<Sentences>::DEFAULT,
-            Sentences { spans: s },
-            Provenance::by("test"),
-        )
-        .unwrap();
-        let toks = build_tokens(
-            view,
-            &[
-                (0, 3, 0),
-                (4, 7, 0),
-                (8, 11, 0),
-                (12, 13, 1),
-                (14, 17, 1),
-                (18, 21, 1),
-            ],
-        );
-        doc.add(&Key::<Tokens>::DEFAULT, toks, Provenance::by("test"))
-            .unwrap();
+        doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: s }, Provenance::by("test")).unwrap();
+        let toks = build_tokens(view, &[(0, 3, 0), (4, 7, 0), (8, 11, 0), (12, 13, 1), (14, 17, 1), (18, 21, 1)]);
+        doc.add(&Key::<Tokens>::DEFAULT, toks, Provenance::by("test")).unwrap();
 
         let analyzer = if use_bilstm {
             Analyzer::builder()
@@ -149,19 +117,13 @@ fn bilstm_fine_tuning_dropout_schedule_and_representation_cache() {
 
     // Train with fine-tuning, word/pretrained/encoder dropout, lr half-life, and validation set
     let settings = BilstmSettings::new(
-        6, 4, 4, 6, 4, 1, 0.01, 5.0, 0.1, 1, 10, 17, 1, 0.1, 2, true, 2, 0.1, 0.1, 0.5, 0.25,
-        false,
+        6, 4, 4, 6, 4, 1, 0.01, 5.0, 0.1, 1, 10, 17, 1, 0.1, 2, true, 2, 0.1, 0.1, 0.5, 0.25, false,
     )
     .unwrap();
     let vec_fn = |w: &str| Some(vec![w.len() as f32 * 0.1, 0.5]);
-    let model = BilstmPosTrainer::train_multi_task(
-        &corpus,
-        settings,
-        Some(vec_fn),
-        Some(&["unseen".to_owned()]),
-        Some(&dev),
-    )
-    .unwrap();
+    let model =
+        BilstmPosTrainer::train_multi_task(&corpus, settings, Some(vec_fn), Some(&["unseen".to_owned()]), Some(&dev))
+            .unwrap();
 
     model.enable_representation_cache();
     let r1 = model.word_representation("The").unwrap();
@@ -173,14 +135,8 @@ fn bilstm_fine_tuning_dropout_schedule_and_representation_cache() {
 #[test]
 fn binary_format_rejects_corrupt_streams() {
     let bad_magic = b"\x00\x0bONLP-BAD-99";
-    assert!(matches!(
-        BilstmPosModel::load(&bad_magic[..]),
-        Err(NeuralError::Format(_))
-    ));
-    assert!(matches!(
-        FeedforwardPosModel::load(&bad_magic[..]),
-        Err(NeuralError::Format(_))
-    ));
+    assert!(matches!(BilstmPosModel::load(&bad_magic[..]), Err(NeuralError::Format(_))));
+    assert!(matches!(FeedforwardPosModel::load(&bad_magic[..]), Err(NeuralError::Format(_))));
 
     // Truncated stream after valid header
     let samples = tiny_samples();

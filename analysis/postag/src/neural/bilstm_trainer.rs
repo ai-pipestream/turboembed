@@ -3,11 +3,11 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::neural::adam::AdamOptimizer;
-use crate::neural::bilstm_model::{char_key_from_unit, BilstmPosModel, UNKNOWN};
+use crate::neural::bilstm_model::{BilstmPosModel, UNKNOWN, char_key_from_unit};
 use crate::neural::bilstm_tagger::BilstmPosTagger;
 use crate::neural::crf::CrfScorer;
 use crate::neural::lstm::{ForwardCache, LstmGradients, LstmLayer};
-use crate::neural::{encode_str_modified_utf8, JavaRng, NeuralError, PosSample};
+use crate::neural::{JavaRng, NeuralError, PosSample, encode_str_modified_utf8};
 
 /// A training sentence annotated with primary POS tags and optional auxiliary XPOS and morphological feature tags.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,23 +33,17 @@ impl MultiTaskSample {
         let sentence: Vec<String> = sentence.into_iter().map(Into::into).collect();
         let tags: Vec<String> = tags.into_iter().map(Into::into).collect();
         if sentence.len() != tags.len() {
-            return Err(NeuralError::InvalidArgument(
-                "tags must have the same length as sentence".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("tags must have the same length as sentence".into()));
         }
         if let Some(ref x) = xpos
             && x.len() != sentence.len()
         {
-            return Err(NeuralError::InvalidArgument(
-                "xpos must have the same length as sentence".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("xpos must have the same length as sentence".into()));
         }
         if let Some(ref f) = feats
             && f.len() != sentence.len()
         {
-            return Err(NeuralError::InvalidArgument(
-                "feats must have the same length as sentence".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("feats must have the same length as sentence".into()));
         }
         Ok(Self { sentence, tags, xpos, feats })
     }
@@ -110,54 +104,34 @@ impl BilstmSettings {
         pretrained_adapter: bool,
     ) -> Result<Self, NeuralError> {
         if word_dim <= 0 || char_dim <= 0 || char_hidden <= 0 || word_hidden <= 0 {
-            return Err(NeuralError::InvalidArgument(
-                "all dimensions must be > 0".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("all dimensions must be > 0".into()));
         }
         if epochs <= 0 || batch_size <= 0 {
-            return Err(NeuralError::InvalidArgument(
-                "epochs and batchSize must be > 0".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("epochs and batchSize must be > 0".into()));
         }
         if !learning_rate.is_finite() || learning_rate <= 0.0 {
-            return Err(NeuralError::InvalidArgument(
-                "learningRate must be finite and > 0".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("learningRate must be finite and > 0".into()));
         }
         if !max_grad_norm.is_finite() || max_grad_norm <= 0.0 {
-            return Err(NeuralError::InvalidArgument(
-                "clipNorm must be finite and > 0".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("clipNorm must be finite and > 0".into()));
         }
         if !dropout.is_finite() || !(0.0..1.0).contains(&dropout) {
-            return Err(NeuralError::InvalidArgument(
-                "dropout must be in [0, 1)".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("dropout must be in [0, 1)".into()));
         }
         if !word_dropout.is_finite() || !(0.0..1.0).contains(&word_dropout) {
-            return Err(NeuralError::InvalidArgument(
-                "wordDropout must be in [0, 1)".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("wordDropout must be in [0, 1)".into()));
         }
         if !pretrained_dropout.is_finite() || !(0.0..1.0).contains(&pretrained_dropout) {
-            return Err(NeuralError::InvalidArgument(
-                "pretrainedDropout must be in [0, 1)".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("pretrainedDropout must be in [0, 1)".into()));
         }
         if !encoder_dropout.is_finite() || !(0.0..1.0).contains(&encoder_dropout) {
-            return Err(NeuralError::InvalidArgument(
-                "encoderDropout must be in [0, 1)".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("encoderDropout must be in [0, 1)".into()));
         }
         if !aux_loss_weight.is_finite() || aux_loss_weight < 0.0 {
-            return Err(NeuralError::InvalidArgument(
-                "auxLossWeight must be finite and >= 0".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("auxLossWeight must be finite and >= 0".into()));
         }
         if !pretrained_tuning.is_finite() || pretrained_tuning < 0.0 {
-            return Err(NeuralError::InvalidArgument(
-                "pretrainedTuning must be finite and >= 0".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("pretrainedTuning must be finite and >= 0".into()));
         }
         if pretrained_adapter && pretrained_tuning > 0.0 {
             return Err(NeuralError::InvalidArgument(
@@ -165,22 +139,16 @@ impl BilstmSettings {
             ));
         }
         if word_cutoff <= 0 || max_word_length <= 0 {
-            return Err(NeuralError::InvalidArgument(
-                "wordCutoff and maxWordLength must be > 0".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("wordCutoff and maxWordLength must be > 0".into()));
         }
         if threads <= 0 {
             return Err(NeuralError::InvalidArgument("threads must be >= 1".into()));
         }
         if learning_rate_half_life < 0 {
-            return Err(NeuralError::InvalidArgument(
-                "learningRateHalfLife must be >= 0".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("learningRateHalfLife must be >= 0".into()));
         }
         if !(1..=2).contains(&encoder_layers) {
-            return Err(NeuralError::InvalidArgument(
-                "encoderLayers must be 1 or 2".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("encoderLayers must be 1 or 2".into()));
         }
         Ok(Self {
             word_dim: word_dim as usize,
@@ -210,11 +178,8 @@ impl BilstmSettings {
 
     /// Default hyperparameters matching `BilstmPOSTrainer.Settings.defaults()`.
     pub fn defaults() -> Self {
-        Self::new(
-            100, 25, 50, 128, 20, 16, 1e-3, 5.0, 0.33, 2, 40, 17, 1, 0.0, 0, false, 1, 0.0, 0.0,
-            1.0, 0.0, false,
-        )
-        .unwrap()
+        Self::new(100, 25, 50, 128, 20, 16, 1e-3, 5.0, 0.33, 2, 40, 17, 1, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.0, false)
+            .unwrap()
     }
 }
 
@@ -435,9 +400,7 @@ impl TrainingContext {
             for word in candidates {
                 if let Some(vec) = f(&word) {
                     if vec.is_empty() {
-                        return Err(NeuralError::InvalidArgument(format!(
-                            "empty pretrained vector for '{word}'"
-                        )));
+                        return Err(NeuralError::InvalidArgument(format!("empty pretrained vector for '{word}'")));
                     }
                     if pretrained_dim == 0 {
                         pretrained_dim = vec.len();
@@ -471,18 +434,8 @@ impl TrainingContext {
         };
 
         let mut rng = JavaRng::new(settings.seed);
-        let word_embeddings = random_matrix(
-            word_entries.len(),
-            settings.word_dim,
-            0.1,
-            &mut rng,
-        );
-        let char_embeddings = random_matrix(
-            char_entries.len(),
-            settings.char_dim,
-            0.1,
-            &mut rng,
-        );
+        let word_embeddings = random_matrix(word_entries.len(), settings.word_dim, 0.1, &mut rng);
+        let char_embeddings = random_matrix(char_entries.len(), settings.char_dim, 0.1, &mut rng);
         let char_forward = LstmLayer::new(settings.char_dim, settings.char_hidden, &mut rng)?;
         let char_backward = LstmLayer::new(settings.char_dim, settings.char_hidden, &mut rng)?;
         let word_input_dim = settings.word_dim + 2 * settings.char_hidden + pretrained_dim;
@@ -493,11 +446,7 @@ impl TrainingContext {
         let output_weights = xavier_output(num_tags, 2 * settings.word_hidden, &mut rng);
         let output_bias = vec![0.0; num_tags];
 
-        let crf_tr = if settings.crf {
-            Some(random_matrix(num_tags, num_tags, 0.1, &mut rng))
-        } else {
-            None
-        };
+        let crf_tr = if settings.crf { Some(random_matrix(num_tags, num_tags, 0.1, &mut rng)) } else { None };
         let xpos_init = if !xpos_list.is_empty() {
             Some(xavier_output(xpos_list.len(), 2 * settings.word_hidden, &mut rng))
         } else {
@@ -562,42 +511,35 @@ impl TrainingContext {
 
         let (idx_xpos_w, idx_xpos_b) = if let Some(xw) = xpos_init {
             let xb = vec![0.0; xpos_list.len()];
-            (
-                Some(optimizer.register_matrix(xw)),
-                Some(optimizer.register_vector(xb)),
-            )
+            (Some(optimizer.register_matrix(xw)), Some(optimizer.register_vector(xb)))
         } else {
             (None, None)
         };
 
         let (idx_feats_w, idx_feats_b) = if let Some(fw) = feats_init {
             let fb = vec![0.0; feats_list.len()];
-            (
-                Some(optimizer.register_matrix(fw)),
-                Some(optimizer.register_vector(fb)),
-            )
+            (Some(optimizer.register_matrix(fw)), Some(optimizer.register_vector(fb)))
         } else {
             (None, None)
         };
 
-        let (pretrained_trainable, tuning_m, tuning_v) =
-            if pretrained_dim > 0 && settings.pretrained_tuning > 0.0 {
-                let p_vecs = pretrained_vectors.as_ref().unwrap();
-                let rows = p_vecs.len();
-                let mut trainable = vec![vec![0.0f64; pretrained_dim]; rows];
-                for r in 0..rows {
-                    for i in 0..pretrained_dim {
-                        trainable[r][i] = f64::from(p_vecs[r][i]);
-                    }
+        let (pretrained_trainable, tuning_m, tuning_v) = if pretrained_dim > 0 && settings.pretrained_tuning > 0.0 {
+            let p_vecs = pretrained_vectors.as_ref().unwrap();
+            let rows = p_vecs.len();
+            let mut trainable = vec![vec![0.0f64; pretrained_dim]; rows];
+            for r in 0..rows {
+                for i in 0..pretrained_dim {
+                    trainable[r][i] = f64::from(p_vecs[r][i]);
                 }
-                (
-                    Some(trainable),
-                    Some(vec![vec![0.0f64; pretrained_dim]; rows]),
-                    Some(vec![vec![0.0f64; pretrained_dim]; rows]),
-                )
-            } else {
-                (None, None, None)
-            };
+            }
+            (
+                Some(trainable),
+                Some(vec![vec![0.0f64; pretrained_dim]; rows]),
+                Some(vec![vec![0.0f64; pretrained_dim]; rows]),
+            )
+        } else {
+            (None, None, None)
+        };
 
         let (idx_adapter_w, idx_adapter_b) = if pretrained_dim > 0 && settings.pretrained_adapter {
             let mut aw = vec![vec![0.0f64; pretrained_dim]; pretrained_dim];
@@ -605,10 +547,7 @@ impl TrainingContext {
                 row[i] = 1.0;
             }
             let ab = vec![0.0f64; pretrained_dim];
-            (
-                Some(optimizer.register_matrix(aw)),
-                Some(optimizer.register_vector(ab)),
-            )
+            (Some(optimizer.register_matrix(aw)), Some(optimizer.register_vector(ab)))
         } else {
             (None, None)
         };
@@ -886,11 +825,7 @@ impl TrainingContext {
                 }
             }
             for i in 0..in_dim {
-                let m = if rng.next_double() < keep_prob {
-                    1.0 / keep_prob
-                } else {
-                    0.0
-                };
+                let m = if rng.next_double() < keep_prob { 1.0 / keep_prob } else { 0.0 };
                 input_masks[t][i] = m;
                 rep[i] *= m;
             }
@@ -905,12 +840,8 @@ impl TrainingContext {
                 worker.word_bwd2_cache = Some(ForwardCache::of(n, word_hidden));
             }
         }
-        let mut word_fwd_h = self
-            .word_forward
-            .run(&word_fwd_in, worker.word_fwd_cache.as_mut())?;
-        let mut word_bwd_h = self
-            .word_backward
-            .run(&word_bwd_in, worker.word_bwd_cache.as_mut())?;
+        let mut word_fwd_h = self.word_forward.run(&word_fwd_in, worker.word_fwd_cache.as_mut())?;
+        let mut word_bwd_h = self.word_backward.run(&word_bwd_in, worker.word_bwd_cache.as_mut())?;
 
         let encoder_keep = 1.0 - self.settings.encoder_dropout;
         let mut l1_mask: Option<Vec<Vec<f64>>> = None;
@@ -920,21 +851,14 @@ impl TrainingContext {
         if let (Some(wf2), Some(wb2)) = (&self.word_forward2, &self.word_backward2) {
             let mut f_in = vec![vec![0.0; 2 * word_hidden]; n];
             let mut b_in = vec![vec![0.0; 2 * word_hidden]; n];
-            let mut mask = if self.settings.encoder_dropout > 0.0 {
-                Some(vec![vec![0.0; 2 * word_hidden]; n])
-            } else {
-                None
-            };
+            let mut mask =
+                if self.settings.encoder_dropout > 0.0 { Some(vec![vec![0.0; 2 * word_hidden]; n]) } else { None };
             for t in 0..n {
                 f_in[t][..word_hidden].copy_from_slice(&word_fwd_h[t]);
                 f_in[t][word_hidden..].copy_from_slice(&word_bwd_h[n - 1 - t]);
                 if let Some(ref mut m) = mask {
                     for j in 0..(2 * word_hidden) {
-                        let scale = if rng.next_double() < encoder_keep {
-                            1.0 / encoder_keep
-                        } else {
-                            0.0
-                        };
+                        let scale = if rng.next_double() < encoder_keep { 1.0 / encoder_keep } else { 0.0 };
                         m[t][j] = scale;
                         f_in[t][j] *= scale;
                     }
@@ -952,20 +876,12 @@ impl TrainingContext {
             let mut mask = vec![vec![0.0; 2 * word_hidden]; n];
             for t in 0..n {
                 for j in 0..word_hidden {
-                    let sf = if rng.next_double() < encoder_keep {
-                        1.0 / encoder_keep
-                    } else {
-                        0.0
-                    };
+                    let sf = if rng.next_double() < encoder_keep { 1.0 / encoder_keep } else { 0.0 };
                     mask[t][j] = sf;
                     word_fwd_h[t][j] *= sf;
                 }
                 for j in 0..word_hidden {
-                    let sb = if rng.next_double() < encoder_keep {
-                        1.0 / encoder_keep
-                    } else {
-                        0.0
-                    };
+                    let sb = if rng.next_double() < encoder_keep { 1.0 / encoder_keep } else { 0.0 };
                     mask[t][word_hidden + j] = sb;
                     word_bwd_h[n - 1 - t][j] *= sb;
                 }
@@ -1105,32 +1021,17 @@ impl TrainingContext {
             }
         }
 
-        if let (Some(wf2), Some(wb2), Some(f_in), Some(b_in)) = (
-            &self.word_forward2,
-            &self.word_backward2,
-            l2_fwd_in.as_ref(),
-            l2_bwd_in.as_ref(),
-        ) {
+        if let (Some(wf2), Some(wb2), Some(f_in), Some(b_in)) =
+            (&self.word_forward2, &self.word_backward2, l2_fwd_in.as_ref(), l2_bwd_in.as_ref())
+        {
             let mut d_l2_fwd_in = vec![vec![0.0; 2 * word_hidden]; n];
             let mut d_l2_bwd_in = vec![vec![0.0; 2 * word_hidden]; n];
             let wf2_grads = worker.word_fwd2_grads.as_mut().unwrap();
             let wb2_grads = worker.word_bwd2_grads.as_mut().unwrap();
             wf2_grads.zero();
             wb2_grads.zero();
-            wf2.backward(
-                f_in,
-                worker.word_fwd2_cache.as_mut().unwrap(),
-                &d_word_fwd_h,
-                &mut d_l2_fwd_in,
-                wf2_grads,
-            );
-            wb2.backward(
-                b_in,
-                worker.word_bwd2_cache.as_mut().unwrap(),
-                &d_word_bwd_h,
-                &mut d_l2_bwd_in,
-                wb2_grads,
-            );
+            wf2.backward(f_in, worker.word_fwd2_cache.as_mut().unwrap(), &d_word_fwd_h, &mut d_l2_fwd_in, wf2_grads);
+            wb2.backward(b_in, worker.word_bwd2_cache.as_mut().unwrap(), &d_word_bwd_h, &mut d_l2_bwd_in, wb2_grads);
             accumulate_lstm_grads(
                 &mut worker.buffers,
                 self.idx_wf2_w.unwrap(),
@@ -1176,20 +1077,8 @@ impl TrainingContext {
             &mut d_word_bwd_in,
             &mut worker.word_bwd_grads,
         );
-        accumulate_lstm_grads(
-            &mut worker.buffers,
-            self.idx_wf_w,
-            self.idx_wf_u,
-            self.idx_wf_b,
-            &worker.word_fwd_grads,
-        );
-        accumulate_lstm_grads(
-            &mut worker.buffers,
-            self.idx_wb_w,
-            self.idx_wb_u,
-            self.idx_wb_b,
-            &worker.word_bwd_grads,
-        );
+        accumulate_lstm_grads(&mut worker.buffers, self.idx_wf_w, self.idx_wf_u, self.idx_wf_b, &worker.word_fwd_grads);
+        accumulate_lstm_grads(&mut worker.buffers, self.idx_wb_w, self.idx_wb_u, self.idx_wb_b, &worker.word_bwd_grads);
 
         let mut d_char_fwd_h: Vec<Vec<f64>> = Vec::new();
         let mut d_char_bwd_h: Vec<Vec<f64>> = Vec::new();
@@ -1223,10 +1112,8 @@ impl TrainingContext {
                         worker.buffers[idx_ab][0][i] += dx[offset + i];
                     }
                 } else if self.pretrained_trainable.is_some() {
-                    let d_p_emb = worker
-                        .tuning_row_grads
-                        .entry(p_row_idx)
-                        .or_insert_with(|| vec![0.0; self.pretrained_dim]);
+                    let d_p_emb =
+                        worker.tuning_row_grads.entry(p_row_idx).or_insert_with(|| vec![0.0; self.pretrained_dim]);
                     for i in 0..self.pretrained_dim {
                         d_p_emb[i] += dx[offset + i];
                     }
@@ -1369,9 +1256,7 @@ impl TrainingContext {
         self.optimizer.absorb(&worker.buffers);
         if self.pretrained_trainable.is_some() {
             for (&row, src) in &worker.tuning_row_grads {
-                let dst = touched_tuning_rows
-                    .entry(row)
-                    .or_insert_with(|| vec![0.0; self.pretrained_dim]);
+                let dst = touched_tuning_rows.entry(row).or_insert_with(|| vec![0.0; self.pretrained_dim]);
                 for i in 0..self.pretrained_dim {
                     dst[i] += src[i];
                 }
@@ -1421,15 +1306,12 @@ impl TrainingContext {
         self.optimizer.step(lr, step_num)?;
         self.sync_optimizer_to_layers();
 
-        if let (Some(trainable), Some(tm), Some(tv)) = (
-            &mut self.pretrained_trainable,
-            &mut self.tuning_m,
-            &mut self.tuning_v,
-        ) && !touched_tuning_rows.is_empty()
+        if let (Some(trainable), Some(tm), Some(tv)) =
+            (&mut self.pretrained_trainable, &mut self.tuning_m, &mut self.tuning_v)
+            && !touched_tuning_rows.is_empty()
         {
             let tuning_lr = lr * self.settings.pretrained_tuning;
-            let bias_correction =
-                (1.0 - 0.999_f64.powi(step_num)).sqrt() / (1.0 - 0.9_f64.powi(step_num));
+            let bias_correction = (1.0 - 0.999_f64.powi(step_num)).sqrt() / (1.0 - 0.9_f64.powi(step_num));
             let step_size = tuning_lr * bias_correction;
             for (&row, g) in touched_tuning_rows.iter() {
                 let p = &mut trainable[row];
@@ -1475,12 +1357,8 @@ impl TrainingContext {
         let transition_weights = self.idx_crf_tr.map(|idx| copy_matrix(self.optimizer.params(idx)));
         let start_weights = self.idx_crf_st.map(|idx| self.optimizer.params(idx)[0].clone());
         let end_weights = self.idx_crf_en.map(|idx| self.optimizer.params(idx)[0].clone());
-        let adapter_weights = self
-            .idx_adapter_w
-            .map(|idx| copy_matrix(self.optimizer.params(idx)));
-        let adapter_bias = self
-            .idx_adapter_b
-            .map(|idx| self.optimizer.params(idx)[0].clone());
+        let adapter_weights = self.idx_adapter_w.map(|idx| copy_matrix(self.optimizer.params(idx)));
+        let adapter_bias = self.idx_adapter_b.map(|idx| self.optimizer.params(idx)[0].clone());
 
         BilstmPosModel::new(
             self.word_entries.clone(),
@@ -1497,11 +1375,7 @@ impl TrainingContext {
             output_weights,
             output_bias,
             self.settings.max_word_length,
-            if pretrained_out.is_some() {
-                Some(self.pretrained_entries.clone())
-            } else {
-                None
-            },
+            if pretrained_out.is_some() { Some(self.pretrained_entries.clone()) } else { None },
             pretrained_out,
             transition_weights,
             start_weights,
@@ -1554,13 +1428,11 @@ impl TrainingContext {
     }
 
     pub fn testing_start_weights_mut(&mut self) -> Option<&mut [f64]> {
-        self.idx_crf_st
-            .map(|idx| &mut self.optimizer.params_mut(idx)[0][..])
+        self.idx_crf_st.map(|idx| &mut self.optimizer.params_mut(idx)[0][..])
     }
 
     pub fn testing_end_weights_mut(&mut self) -> Option<&mut [f64]> {
-        self.idx_crf_en
-            .map(|idx| &mut self.optimizer.params_mut(idx)[0][..])
+        self.idx_crf_en.map(|idx| &mut self.optimizer.params_mut(idx)[0][..])
     }
 
     pub fn testing_xpos_weights_mut(&mut self) -> Option<&mut [Vec<f64>]> {
@@ -1568,8 +1440,7 @@ impl TrainingContext {
     }
 
     pub fn testing_xpos_bias_mut(&mut self) -> Option<&mut [f64]> {
-        self.idx_xpos_b
-            .map(|idx| &mut self.optimizer.params_mut(idx)[0][..])
+        self.idx_xpos_b.map(|idx| &mut self.optimizer.params_mut(idx)[0][..])
     }
 
     pub fn testing_feats_weights_mut(&mut self) -> Option<&mut [Vec<f64>]> {
@@ -1585,18 +1456,11 @@ impl TrainingContext {
     }
 
     pub fn testing_adapter_bias_mut(&mut self) -> Option<&mut [f64]> {
-        self.idx_adapter_b
-            .map(|idx| &mut self.optimizer.params_mut(idx)[0][..])
+        self.idx_adapter_b.map(|idx| &mut self.optimizer.params_mut(idx)[0][..])
     }
 }
 
-fn accumulate_lstm_grads(
-    buffers: &mut [Vec<Vec<f64>>],
-    idx_w: usize,
-    idx_u: usize,
-    idx_b: usize,
-    src: &LstmGradients,
-) {
+fn accumulate_lstm_grads(buffers: &mut [Vec<Vec<f64>>], idx_w: usize, idx_u: usize, idx_b: usize, src: &LstmGradients) {
     let gates = src.db.len();
     for r in 0..gates {
         let dw_dst = &mut buffers[idx_w][r];
@@ -1647,17 +1511,8 @@ pub struct BilstmPosTrainer;
 
 impl BilstmPosTrainer {
     /// Trains a [`BilstmPosModel`] on single-task [`PosSample`]s without pretrained word vectors.
-    pub fn train(
-        samples: &[PosSample],
-        settings: BilstmSettings,
-    ) -> Result<BilstmPosModel, NeuralError> {
-        Self::train_with_vectors(
-            samples,
-            settings,
-            None::<fn(&str) -> Option<Vec<f32>>>,
-            None,
-            None,
-        )
+    pub fn train(samples: &[PosSample], settings: BilstmSettings) -> Result<BilstmPosModel, NeuralError> {
+        Self::train_with_vectors(samples, settings, None::<fn(&str) -> Option<Vec<f32>>>, None, None)
     }
 
     /// Trains a [`BilstmPosModel`] on single-task [`PosSample`]s with optional pretrained word vectors, lexicon, and validation samples.
@@ -1674,21 +1529,10 @@ impl BilstmPosTrainer {
         let mut corpus = Vec::with_capacity(samples.len());
         for s in samples {
             if !s.sentence.is_empty() {
-                corpus.push(MultiTaskSample::new(
-                    s.sentence.clone(),
-                    s.tags.clone(),
-                    None,
-                    None,
-                )?);
+                corpus.push(MultiTaskSample::new(s.sentence.clone(), s.tags.clone(), None, None)?);
             }
         }
-        Self::train_multi_task(
-            &corpus,
-            settings,
-            pretrained_vectors,
-            additional_vocabulary,
-            validation_samples,
-        )
+        Self::train_multi_task(&corpus, settings, pretrained_vectors, additional_vocabulary, validation_samples)
     }
 
     /// Trains a [`BilstmPosModel`] on [`MultiTaskSample`]s with optional auxiliary XPOS/FEATS heads, pretrained vectors, and early stopping.
@@ -1702,29 +1546,14 @@ impl BilstmPosTrainer {
     where
         F: Fn(&str) -> Option<Vec<f32>>,
     {
-        let corpus: Vec<MultiTaskSample> = samples
-            .iter()
-            .filter(|s| !s.sentence.is_empty())
-            .cloned()
-            .collect();
+        let corpus: Vec<MultiTaskSample> = samples.iter().filter(|s| !s.sentence.is_empty()).cloned().collect();
         if corpus.is_empty() {
-            return Err(NeuralError::InvalidArgument(
-                "Training stream produced no samples".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("Training stream produced no samples".into()));
         }
-        let validation: Vec<PosSample> = validation_samples
-            .unwrap_or(&[])
-            .iter()
-            .filter(|s| !s.sentence.is_empty())
-            .cloned()
-            .collect();
+        let validation: Vec<PosSample> =
+            validation_samples.unwrap_or(&[]).iter().filter(|s| !s.sentence.is_empty()).cloned().collect();
 
-        let mut ctx = TrainingContext::build(
-            &corpus,
-            settings.clone(),
-            pretrained_vectors,
-            additional_vocabulary,
-        )?;
+        let mut ctx = TrainingContext::build(&corpus, settings.clone(), pretrained_vectors, additional_vocabulary)?;
         let mut worker = ctx.new_worker();
         let mut touched_tuning_rows: HashMap<usize, Vec<f64>> = HashMap::new();
 
@@ -1737,8 +1566,7 @@ impl BilstmPosTrainer {
 
         for epoch in 1..=settings.epochs {
             let lr = if settings.learning_rate_half_life > 0 {
-                settings.learning_rate
-                    * 0.5_f64.powf((epoch - 1) as f64 / settings.learning_rate_half_life as f64)
+                settings.learning_rate * 0.5_f64.powf((epoch - 1) as f64 / settings.learning_rate_half_life as f64)
             } else {
                 settings.learning_rate
             };
@@ -1755,10 +1583,8 @@ impl BilstmPosTrainer {
                     let sample = &corpus[sample_idx];
                     batch_tokens += sample.sentence.len();
                     ctx.reset_worker(&mut worker);
-                    let mask_seed = settings
-                        .seed
-                        .wrapping_add((epoch as i64).wrapping_mul(1_000_003))
-                        .wrapping_add(pos as i64);
+                    let mask_seed =
+                        settings.seed.wrapping_add((epoch as i64).wrapping_mul(1_000_003)).wrapping_add(pos as i64);
                     let mut sentence_rng = JavaRng::new(mask_seed);
                     ctx.sentence_gradients(sample, &mut sentence_rng, &mut worker)?;
                     ctx.absorb_worker(&worker, &mut touched_tuning_rows);
@@ -1801,11 +1627,7 @@ fn evaluate(model: &BilstmPosModel, dev: &[PosSample]) -> Result<f64, NeuralErro
             total += 1;
         }
     }
-    Ok(if total == 0 {
-        0.0
-    } else {
-        correct as f64 / total as f64
-    })
+    Ok(if total == 0 { 0.0 } else { correct as f64 / total as f64 })
 }
 
 #[cfg(test)]
@@ -1838,8 +1660,7 @@ mod tests {
     #[test]
     fn serialization_round_trip_preserves_scores_pretrained_and_adapter() {
         let settings = BilstmSettings::new(
-            8, 4, 4, 8, 3, 2, 5e-3, 5.0, 0.1, 1, 12, 7, 2, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.0,
-            false,
+            8, 4, 4, 8, 3, 2, 5e-3, 5.0, 0.1, 1, 12, 7, 2, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.0, false,
         )
         .unwrap();
         let model = BilstmPosTrainer::train(&tiny_corpus(), settings.clone()).unwrap();
@@ -1853,36 +1674,21 @@ mod tests {
         // Pretrained table + unseen lexicon word
         let vec_fn = |w: &str| Some(vec![w.len() as f32, 1.0]);
         let extra = vec!["unseen".to_owned()];
-        let model_p = BilstmPosTrainer::train_with_vectors(
-            &tiny_corpus(),
-            settings,
-            Some(vec_fn),
-            Some(&extra),
-            None,
-        )
-        .unwrap();
+        let model_p =
+            BilstmPosTrainer::train_with_vectors(&tiny_corpus(), settings, Some(vec_fn), Some(&extra), None).unwrap();
         buf.clear();
         model_p.serialize(&mut buf).unwrap();
         let loaded_p = BilstmPosModel::load(&buf[..]).unwrap();
-        assert_eq!(
-            model_p.word_representation("unseen").unwrap(),
-            loaded_p.word_representation("unseen").unwrap()
-        );
+        assert_eq!(model_p.word_representation("unseen").unwrap(), loaded_p.word_representation("unseen").unwrap());
 
         // Adapter model (ONLP-BLPT-5)
         let adapter_settings = BilstmSettings::new(
-            8, 4, 4, 8, 3, 2, 5e-3, 5.0, 0.1, 1, 12, 7, 2, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.0,
-            true,
+            8, 4, 4, 8, 3, 2, 5e-3, 5.0, 0.1, 1, 12, 7, 2, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.0, true,
         )
         .unwrap();
-        let model_a = BilstmPosTrainer::train_with_vectors(
-            &tiny_corpus(),
-            adapter_settings,
-            Some(vec_fn),
-            Some(&extra),
-            None,
-        )
-        .unwrap();
+        let model_a =
+            BilstmPosTrainer::train_with_vectors(&tiny_corpus(), adapter_settings, Some(vec_fn), Some(&extra), None)
+                .unwrap();
         buf.clear();
         model_a.serialize(&mut buf).unwrap();
         assert_eq!(&buf[2..2 + buf[1] as usize], b"ONLP-BLPT-5");
@@ -1895,18 +1701,13 @@ mod tests {
     fn serialization_round_trip_preserves_one_and_two_layer_crf() {
         for layers in [1, 2] {
             let settings = BilstmSettings::new(
-                8, 4, 4, 8, 3, 2, 5e-3, 5.0, 0.1, 1, 12, 7, 2, 0.0, 0, true, layers, 0.0, 0.0, 1.0,
-                0.0, false,
+                8, 4, 4, 8, 3, 2, 5e-3, 5.0, 0.1, 1, 12, 7, 2, 0.0, 0, true, layers, 0.0, 0.0, 1.0, 0.0, false,
             )
             .unwrap();
             let model = BilstmPosTrainer::train(&tiny_corpus(), settings).unwrap();
             let mut buf = Vec::new();
             model.serialize(&mut buf).unwrap();
-            let expected_magic = if layers == 1 {
-                b"ONLP-BLPT-2"
-            } else {
-                b"ONLP-BLPT-4"
-            };
+            let expected_magic = if layers == 1 { b"ONLP-BLPT-2" } else { b"ONLP-BLPT-4" };
             assert_eq!(&buf[2..2 + buf[1] as usize], expected_magic);
             let loaded = BilstmPosModel::load(&buf[..]).unwrap();
             assert!(loaded.is_crf());
@@ -1921,17 +1722,13 @@ mod tests {
     #[test]
     fn usage_and_edge_cases_match_java_deterministic_outputs() {
         let settings = BilstmSettings::new(
-            16, 8, 8, 16, 60, 8, 0.05, 5.0, 0.0, 1, 16, 17, 1, 0.0, 0, false, 1, 0.0, 0.0, 1.0,
-            0.0, false,
+            16, 8, 8, 16, 60, 8, 0.05, 5.0, 0.0, 1, 16, 17, 1, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.0, false,
         )
         .unwrap();
         let model = BilstmPosTrainer::train(&usage_corpus(), settings).unwrap();
         let tagger = BilstmPosTagger::new(model.clone());
 
-        assert_eq!(
-            tagger.tag(&["the", "cat", "barks"]).unwrap(),
-            vec!["DT", "NN", "VBZ"]
-        );
+        assert_eq!(tagger.tag(&["the", "cat", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
         assert_eq!(tagger.tag(&["dogs", "bark"]).unwrap(), vec!["NNS", "VBP"]);
         assert_eq!(tagger.tag(&["dog"]).unwrap(), vec!["VBZ"]);
         assert!(tagger.tag(&Vec::<&str>::new()).unwrap().is_empty());
@@ -1946,21 +1743,12 @@ mod tests {
 
         // 2-layer CRF usage test
         let accurate = BilstmSettings::new(
-            16, 8, 8, 16, 60, 8, 0.05, 5.0, 0.0, 1, 16, 17, 1, 0.0, 0, true, 2, 0.0, 0.0, 1.0,
-            0.0, false,
+            16, 8, 8, 16, 60, 8, 0.05, 5.0, 0.0, 1, 16, 17, 1, 0.0, 0, true, 2, 0.0, 0.0, 1.0, 0.0, false,
         )
         .unwrap();
-        let crf_tagger = BilstmPosTagger::new(
-            BilstmPosTrainer::train(&usage_corpus(), accurate).unwrap(),
-        );
-        assert_eq!(
-            crf_tagger.tag(&["the", "cat", "barks"]).unwrap(),
-            vec!["DT", "NN", "VBZ"]
-        );
-        assert_eq!(
-            crf_tagger.tag(&["dogs", "bark"]).unwrap(),
-            vec!["NNS", "VBP"]
-        );
+        let crf_tagger = BilstmPosTagger::new(BilstmPosTrainer::train(&usage_corpus(), accurate).unwrap());
+        assert_eq!(crf_tagger.tag(&["the", "cat", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
+        assert_eq!(crf_tagger.tag(&["dogs", "bark"]).unwrap(), vec!["NNS", "VBP"]);
     }
 
     #[test]
@@ -1995,16 +1783,14 @@ mod tests {
 
         // Check CRF + 2-layer + Aux + Adapter gradients
         let crf_settings = BilstmSettings::new(
-            4, 3, 3, 4, 1, 2, 1e-3, 5.0, 0.0, 1, 10, 7, 1, 0.0, 0, true, 2, 0.0, 0.0, 0.7, 0.0,
-            true,
+            4, 3, 3, 4, 1, 2, 1e-3, 5.0, 0.0, 1, 10, 7, 1, 0.0, 0, true, 2, 0.0, 0.0, 0.7, 0.0, true,
         )
         .unwrap();
         let vec_fn = |_: &str| Some(vec![0.5f32, -0.25f32]);
         let mut ctx = TrainingContext::build(&corpus, crf_settings, Some(vec_fn), None).unwrap();
         let mut worker = ctx.new_worker();
         ctx.reset_worker(&mut worker);
-        ctx.sentence_gradients(sample, &mut JavaRng::new(0), &mut worker)
-            .unwrap();
+        ctx.sentence_gradients(sample, &mut JavaRng::new(0), &mut worker).unwrap();
         let analytic_out_w = worker.buffers()[ctx.idx_out_w].clone();
         let analytic_tr = worker.buffers()[ctx.idx_crf_tr.unwrap()].clone();
         let analytic_aw = worker.buffers()[ctx.idx_adapter_w.unwrap()].clone();
@@ -2013,13 +1799,9 @@ mod tests {
             for j in 0..analytic_out_w[o].len() {
                 let orig = ctx.testing_output_weights_mut()[o][j];
                 ctx.testing_output_weights_mut()[o][j] = orig + EPSILON;
-                let plus = ctx
-                    .sentence_gradients(sample, &mut JavaRng::new(0), &mut worker)
-                    .unwrap();
+                let plus = ctx.sentence_gradients(sample, &mut JavaRng::new(0), &mut worker).unwrap();
                 ctx.testing_output_weights_mut()[o][j] = orig - EPSILON;
-                let minus = ctx
-                    .sentence_gradients(sample, &mut JavaRng::new(0), &mut worker)
-                    .unwrap();
+                let minus = ctx.sentence_gradients(sample, &mut JavaRng::new(0), &mut worker).unwrap();
                 ctx.testing_output_weights_mut()[o][j] = orig;
                 let num = (plus - minus) / (2.0 * EPSILON);
                 assert!((analytic_out_w[o][j] - num).abs() <= TOLERANCE);
@@ -2029,13 +1811,9 @@ mod tests {
             for k in 0..analytic_tr[j].len() {
                 let orig = ctx.testing_transition_weights_mut().unwrap()[j][k];
                 ctx.testing_transition_weights_mut().unwrap()[j][k] = orig + EPSILON;
-                let plus = ctx
-                    .sentence_gradients(sample, &mut JavaRng::new(0), &mut worker)
-                    .unwrap();
+                let plus = ctx.sentence_gradients(sample, &mut JavaRng::new(0), &mut worker).unwrap();
                 ctx.testing_transition_weights_mut().unwrap()[j][k] = orig - EPSILON;
-                let minus = ctx
-                    .sentence_gradients(sample, &mut JavaRng::new(0), &mut worker)
-                    .unwrap();
+                let minus = ctx.sentence_gradients(sample, &mut JavaRng::new(0), &mut worker).unwrap();
                 ctx.testing_transition_weights_mut().unwrap()[j][k] = orig;
                 let num = (plus - minus) / (2.0 * EPSILON);
                 assert!((analytic_tr[j][k] - num).abs() <= TOLERANCE);
@@ -2045,13 +1823,9 @@ mod tests {
             for c in 0..analytic_aw[r].len() {
                 let orig = ctx.testing_adapter_weights_mut().unwrap()[r][c];
                 ctx.testing_adapter_weights_mut().unwrap()[r][c] = orig + EPSILON;
-                let plus = ctx
-                    .sentence_gradients(sample, &mut JavaRng::new(0), &mut worker)
-                    .unwrap();
+                let plus = ctx.sentence_gradients(sample, &mut JavaRng::new(0), &mut worker).unwrap();
                 ctx.testing_adapter_weights_mut().unwrap()[r][c] = orig - EPSILON;
-                let minus = ctx
-                    .sentence_gradients(sample, &mut JavaRng::new(0), &mut worker)
-                    .unwrap();
+                let minus = ctx.sentence_gradients(sample, &mut JavaRng::new(0), &mut worker).unwrap();
                 ctx.testing_adapter_weights_mut().unwrap()[r][c] = orig;
                 let num = (plus - minus) / (2.0 * EPSILON);
                 assert!((analytic_aw[r][c] - num).abs() <= TOLERANCE);

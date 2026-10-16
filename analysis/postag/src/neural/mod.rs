@@ -31,8 +31,7 @@ pub use bilstm_tagger::BilstmPosTagger;
 pub use bilstm_trainer::{BilstmPosTrainer, BilstmSettings, MultiTaskSample};
 pub use crf::{CrfScoreTable, CrfScorer};
 pub use feedforward::{
-    FeedforwardPosContext, FeedforwardPosModel, FeedforwardPosTagger, FeedforwardPosTrainer,
-    FeedforwardSettings,
+    FeedforwardPosContext, FeedforwardPosModel, FeedforwardPosTagger, FeedforwardPosTrainer, FeedforwardSettings,
 };
 pub use lstm::{ForwardCache, LstmGradients, LstmLayer};
 
@@ -152,10 +151,7 @@ impl JavaRng {
 
     /// Creates a new `JavaRng` seeded identically to `new java.util.Random(seed)`.
     pub fn new(seed: i64) -> Self {
-        Self {
-            seed: ((seed as u64) ^ Self::MULTIPLIER) & Self::MASK,
-            next_next_gaussian: None,
-        }
+        Self { seed: ((seed as u64) ^ Self::MULTIPLIER) & Self::MASK, next_next_gaussian: None }
     }
 
     #[inline]
@@ -326,18 +322,16 @@ impl<W: Write> DataWriter<W> {
     pub(crate) fn write_utf(&mut self, s: &str) -> Result<(), NeuralError> {
         self.scratch.clear();
         push_str_modified_utf8(&mut self.scratch, s);
-        let len = u16::try_from(self.scratch.len()).map_err(|_| {
-            NeuralError::Format(format!("UTF string too long: {} bytes", self.scratch.len()))
-        })?;
+        let len = u16::try_from(self.scratch.len())
+            .map_err(|_| NeuralError::Format(format!("UTF string too long: {} bytes", self.scratch.len())))?;
         self.inner.write_all(&len.to_be_bytes())?;
         self.inner.write_all(&self.scratch)?;
         Ok(())
     }
 
     pub(crate) fn write_utf_bytes(&mut self, bytes: &[u8]) -> Result<(), NeuralError> {
-        let len = u16::try_from(bytes.len()).map_err(|_| {
-            NeuralError::Format(format!("UTF string too long: {} bytes", bytes.len()))
-        })?;
+        let len = u16::try_from(bytes.len())
+            .map_err(|_| NeuralError::Format(format!("UTF string too long: {} bytes", bytes.len())))?;
         self.inner.write_all(&len.to_be_bytes())?;
         self.inner.write_all(bytes)?;
         Ok(())
@@ -427,11 +421,7 @@ pub(crate) fn decode_modified_utf8(bytes: &[u8]) -> Result<String, NeuralError> 
                 if (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80 {
                     return Err(NeuralError::Format("invalid 3-byte modified UTF-8".into()));
                 }
-                units.push(
-                    ((u16::from(b1 & 0x0F)) << 12)
-                        | ((u16::from(b2 & 0x3F)) << 6)
-                        | u16::from(b3 & 0x3F),
-                );
+                units.push(((u16::from(b1 & 0x0F)) << 12) | ((u16::from(b2 & 0x3F)) << 6) | u16::from(b3 & 0x3F));
                 i += 3;
             }
             _ => {
@@ -441,9 +431,7 @@ pub(crate) fn decode_modified_utf8(bytes: &[u8]) -> Result<String, NeuralError> 
     }
     let mut out = String::with_capacity(units.len());
     for decoded in char::decode_utf16(units) {
-        let ch = decoded.map_err(|_| {
-            NeuralError::Format("unpaired UTF-16 surrogate in string".into())
-        })?;
+        let ch = decoded.map_err(|_| NeuralError::Format("unpaired UTF-16 surrogate in string".into()))?;
         out.push(ch);
     }
     Ok(out)

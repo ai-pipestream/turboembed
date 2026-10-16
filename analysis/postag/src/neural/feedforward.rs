@@ -70,11 +70,7 @@ impl FeedforwardPosContext {
     }
 
     fn token<S: AsRef<str>>(tokens: &[S], index: isize) -> Option<&str> {
-        if index < 0 || (index as usize) >= tokens.len() {
-            None
-        } else {
-            Some(tokens[index as usize].as_ref())
-        }
+        if index < 0 || (index as usize) >= tokens.len() { None } else { Some(tokens[index as usize].as_ref()) }
     }
 
     fn word<S: AsRef<str>>(tokens: &[S], index: isize) -> String {
@@ -85,11 +81,7 @@ impl FeedforwardPosContext {
     }
 
     pub(crate) fn lowercase(word: &str) -> String {
-        if word.starts_with('*') {
-            word.to_owned()
-        } else {
-            word.chars().map(to_lower_char).collect()
-        }
+        if word.starts_with('*') { word.to_owned() } else { word.chars().map(to_lower_char).collect() }
     }
 
     /// Returns the last `length` Unicode code points of `word` (or `word` itself if shorter).
@@ -99,10 +91,7 @@ impl FeedforwardPosContext {
             return word.to_owned();
         }
         let skip = count - length;
-        let byte_start = word
-            .char_indices()
-            .nth(skip)
-            .map_or(0, |(idx, _)| idx);
+        let byte_start = word.char_indices().nth(skip).map_or(0, |(idx, _)| idx);
         word[byte_start..].to_owned()
     }
 
@@ -157,14 +146,7 @@ impl FeedforwardPosContext {
 
     /// All six coarse orthographic shape symbols in registration order.
     pub fn all_shapes() -> [&'static str; 6] {
-        [
-            SHAPE_LOWER,
-            SHAPE_CAP,
-            SHAPE_ALLCAPS,
-            SHAPE_DIGIT,
-            SHAPE_ALNUM,
-            SHAPE_OTHER,
-        ]
+        [SHAPE_LOWER, SHAPE_CAP, SHAPE_ALLCAPS, SHAPE_DIGIT, SHAPE_ALNUM, SHAPE_OTHER]
     }
 }
 
@@ -182,10 +164,7 @@ impl ContributionCache {
             slot_vec.resize_with(row_count, OnceLock::new);
             by_slot.push(slot_vec);
         }
-        Self {
-            by_slot,
-            remaining: AtomicIsize::new(CACHE_ENTRY_LIMIT),
-        }
+        Self { by_slot, remaining: AtomicIsize::new(CACHE_ENTRY_LIMIT) }
     }
 
     #[cfg(test)]
@@ -200,11 +179,7 @@ impl ContributionCache {
 
     #[cfg(test)]
     fn cached_entries(&self) -> usize {
-        self.by_slot
-            .iter()
-            .flat_map(|slot| slot.iter())
-            .filter(|cell| cell.get().is_some())
-            .count()
+        self.by_slot.iter().flat_map(|slot| slot.iter()).filter(|cell| cell.get().is_some()).count()
     }
 }
 
@@ -331,10 +306,7 @@ impl FeedforwardPosModel {
     }
 
     fn lookup(&self, table: &HashMap<String, usize>, symbol: &str) -> usize {
-        table
-            .get(symbol)
-            .copied()
-            .unwrap_or_else(|| table[UNKNOWN])
+        table.get(symbol).copied().unwrap_or_else(|| table[UNKNOWN])
     }
 
     /// Resolves the 5 pretrained word-vector row indices (`-1` when absent) around `tokens[index]`.
@@ -395,9 +367,7 @@ impl FeedforwardPosModel {
             }
         } else {
             let Some(rows) = pretrained_rows else {
-                return Err(NeuralError::InvalidArgument(format!(
-                    "expected {PRETRAINED_SLOTS} pretrained rows"
-                )));
+                return Err(NeuralError::InvalidArgument(format!("expected {PRETRAINED_SLOTS} pretrained rows")));
             };
             if rows.len() != PRETRAINED_SLOTS {
                 return Err(NeuralError::InvalidArgument(format!(
@@ -489,11 +459,7 @@ impl FeedforwardPosModel {
             if rem <= 0 {
                 return false;
             }
-            if cache
-                .remaining
-                .compare_exchange(rem, rem - 1, Ordering::SeqCst, Ordering::SeqCst)
-                .is_ok()
-            {
+            if cache.remaining.compare_exchange(rem, rem - 1, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
                 return true;
             }
         }
@@ -586,11 +552,7 @@ impl FeedforwardPosModel {
     /// Serializes this model in `ONLP-FFPT-1` or `ONLP-FFPT-2` format to `writer`.
     pub fn serialize<W: Write>(&self, writer: W) -> Result<(), NeuralError> {
         let mut out = DataWriter::new(writer);
-        out.write_utf(if self.pretrained_size > 0 {
-            MAGIC_V2
-        } else {
-            MAGIC_V1
-        })?;
+        out.write_utf(if self.pretrained_size > 0 { MAGIC_V2 } else { MAGIC_V1 })?;
         write_vocab(&mut out, &self.word_entries)?;
         write_vocab(&mut out, &self.suffix_entries)?;
         write_vocab(&mut out, &self.shape_entries)?;
@@ -628,9 +590,7 @@ impl FeedforwardPosModel {
         let mut inp = DataReader::new(reader);
         let magic = inp.read_utf()?;
         if magic != MAGIC_V1 && magic != MAGIC_V2 {
-            return Err(NeuralError::Format(format!(
-                "not a FeedforwardPOSModel stream (magic '{magic}')"
-            )));
+            return Err(NeuralError::Format(format!("not a FeedforwardPOSModel stream (magic '{magic}')")));
         }
         let word_entries = read_vocab(&mut inp, true)?;
         let suffix_entries = read_vocab(&mut inp, true)?;
@@ -661,10 +621,7 @@ impl FeedforwardPosModel {
             let p_vecs = read_f32_matrix(&mut inp, "pretrained vectors", true)?;
             validate_rows(&p_entries, p_vecs.len(), "pretrained")?;
             if !p_vecs.is_empty() && p_vecs[0].len() != p_size {
-                return Err(NeuralError::Format(format!(
-                    "pretrained vector width {} != {p_size}",
-                    p_vecs[0].len()
-                )));
+                return Err(NeuralError::Format(format!("pretrained vector width {} != {p_size}", p_vecs[0].len())));
             }
             (p_size, p_entries, p_vecs)
         } else {
@@ -677,18 +634,11 @@ impl FeedforwardPosModel {
         validate_rows(&tag_feature_entries, embeddings.len(), "tags")?;
 
         if embeddings[0].len() != embedding_size {
-            return Err(NeuralError::Format(format!(
-                "embedding width {} != {embedding_size}",
-                embeddings[0].len()
-            )));
+            return Err(NeuralError::Format(format!("embedding width {} != {embedding_size}", embeddings[0].len())));
         }
         let expected_input = SLOTS
             .checked_mul(embedding_size)
-            .and_then(|a| {
-                PRETRAINED_SLOTS
-                    .checked_mul(pretrained_size)
-                    .and_then(|b| a.checked_add(b))
-            })
+            .and_then(|a| PRETRAINED_SLOTS.checked_mul(pretrained_size).and_then(|b| a.checked_add(b)))
             .ok_or_else(|| NeuralError::Format("input width overflow".into()))?;
         if hidden_weights[0].len() != expected_input {
             return Err(NeuralError::Format(format!(
@@ -704,11 +654,7 @@ impl FeedforwardPosModel {
             )));
         }
         if output_weights.len() != tags.len() {
-            return Err(NeuralError::Format(format!(
-                "output row count {} != {}",
-                output_weights.len(),
-                tags.len()
-            )));
+            return Err(NeuralError::Format(format!("output row count {} != {}", output_weights.len(), tags.len())));
         }
         if output_weights[0].len() != hidden_weights.len() {
             return Err(NeuralError::Format(format!(
@@ -718,11 +664,7 @@ impl FeedforwardPosModel {
             )));
         }
         if output_bias.len() != tags.len() {
-            return Err(NeuralError::Format(format!(
-                "output bias length {} != {}",
-                output_bias.len(),
-                tags.len()
-            )));
+            return Err(NeuralError::Format(format!("output bias length {} != {}", output_bias.len(), tags.len())));
         }
 
         Ok(Self::with_pretrained(
@@ -758,10 +700,7 @@ fn entries_to_map(entries: &[(String, usize)]) -> HashMap<String, usize> {
     map
 }
 
-fn write_vocab<W: Write>(
-    out: &mut DataWriter<W>,
-    entries: &[(String, usize)],
-) -> Result<(), NeuralError> {
+fn write_vocab<W: Write>(out: &mut DataWriter<W>, entries: &[(String, usize)]) -> Result<(), NeuralError> {
     out.write_i32(entries.len() as i32)?;
     for (k, v) in entries {
         out.write_utf(k)?;
@@ -770,10 +709,7 @@ fn write_vocab<W: Write>(
     Ok(())
 }
 
-fn read_vocab<R: Read>(
-    inp: &mut DataReader<R>,
-    require_unknown: bool,
-) -> Result<Vec<(String, usize)>, NeuralError> {
+fn read_vocab<R: Read>(inp: &mut DataReader<R>, require_unknown: bool) -> Result<Vec<(String, usize)>, NeuralError> {
     let size = read_count(inp, "vocabulary size", usize::from(require_unknown))?;
     let mut entries = Vec::with_capacity(size.min(INITIAL_CAPACITY));
     let mut seen = HashSet::with_capacity(size.min(INITIAL_CAPACITY));
@@ -785,9 +721,7 @@ fn read_vocab<R: Read>(
             return Err(NeuralError::Format(format!("negative row index: {row}")));
         }
         if !seen.insert(key.clone()) {
-            return Err(NeuralError::Format(format!(
-                "duplicate vocabulary entry: {key}"
-            )));
+            return Err(NeuralError::Format(format!("duplicate vocabulary entry: {key}")));
         }
         if key == UNKNOWN {
             has_unk = true;
@@ -795,32 +729,21 @@ fn read_vocab<R: Read>(
         entries.push((key, row as usize));
     }
     if require_unknown && !has_unk {
-        return Err(NeuralError::Format(format!(
-            "missing required vocabulary entry: {UNKNOWN}"
-        )));
+        return Err(NeuralError::Format(format!("missing required vocabulary entry: {UNKNOWN}")));
     }
     Ok(entries)
 }
 
-fn validate_rows(
-    entries: &[(String, usize)],
-    row_count: usize,
-    name: &str,
-) -> Result<(), NeuralError> {
+fn validate_rows(entries: &[(String, usize)], row_count: usize, name: &str) -> Result<(), NeuralError> {
     for (k, r) in entries {
         if *r >= row_count {
-            return Err(NeuralError::Format(format!(
-                "{name} row index for '{k}' out of bounds: {r} >= {row_count}"
-            )));
+            return Err(NeuralError::Format(format!("{name} row index for '{k}' out of bounds: {r} >= {row_count}")));
         }
     }
     Ok(())
 }
 
-fn write_f32_matrix<W: Write>(
-    out: &mut DataWriter<W>,
-    m: &[Vec<f32>],
-) -> Result<(), NeuralError> {
+fn write_f32_matrix<W: Write>(out: &mut DataWriter<W>, m: &[Vec<f32>]) -> Result<(), NeuralError> {
     let cols = m.first().map_or(0, Vec::len);
     out.write_i32(m.len() as i32)?;
     out.write_i32(cols as i32)?;
@@ -841,16 +764,12 @@ fn read_f32_matrix<R: Read>(
     let cols = read_count(inp, &format!("{name} columns"), 0)?;
     if rows == 0 {
         if cols != 0 {
-            return Err(NeuralError::Format(format!(
-                "{name} columns must be 0 when rows is 0: {cols}"
-            )));
+            return Err(NeuralError::Format(format!("{name} columns must be 0 when rows is 0: {cols}")));
         }
         return Ok(Vec::new());
     }
     if cols < 1 {
-        return Err(NeuralError::Format(format!(
-            "invalid {name} columns: {cols}"
-        )));
+        return Err(NeuralError::Format(format!("invalid {name} columns: {cols}")));
     }
     let mut m = Vec::with_capacity(rows.min(INITIAL_CAPACITY));
     for _ in 0..rows {
@@ -867,38 +786,24 @@ fn write_f32_vector<W: Write>(out: &mut DataWriter<W>, v: &[f32]) -> Result<(), 
     Ok(())
 }
 
-fn read_f32_vector<R: Read>(
-    inp: &mut DataReader<R>,
-    name: &str,
-    min: usize,
-) -> Result<Vec<f32>, NeuralError> {
+fn read_f32_vector<R: Read>(inp: &mut DataReader<R>, name: &str, min: usize) -> Result<Vec<f32>, NeuralError> {
     let len = read_count(inp, &format!("{name} length"), min)?;
     read_f32_values(inp, name, len)
 }
 
-fn read_f32_values<R: Read>(
-    inp: &mut DataReader<R>,
-    name: &str,
-    len: usize,
-) -> Result<Vec<f32>, NeuralError> {
+fn read_f32_values<R: Read>(inp: &mut DataReader<R>, name: &str, len: usize) -> Result<Vec<f32>, NeuralError> {
     let mut out = Vec::with_capacity(len.min(INITIAL_CAPACITY));
     for _ in 0..len {
         let v = inp.read_f32()?;
         if !v.is_finite() {
-            return Err(NeuralError::Format(format!(
-                "non-finite value in {name}: {v}"
-            )));
+            return Err(NeuralError::Format(format!("non-finite value in {name}: {v}")));
         }
         out.push(v);
     }
     Ok(out)
 }
 
-fn read_count<R: Read>(
-    inp: &mut DataReader<R>,
-    name: &str,
-    min: usize,
-) -> Result<usize, NeuralError> {
+fn read_count<R: Read>(inp: &mut DataReader<R>, name: &str, min: usize) -> Result<usize, NeuralError> {
     let val = inp.read_i32()?;
     if val < (min as i32) || val > MAX_LENGTH {
         return Err(NeuralError::Format(format!("invalid {name}: {val}")));
@@ -939,10 +844,7 @@ impl FeedforwardPosTagger {
     }
 
     /// Returns a 1-element array containing the greedy tag sequence with per-token softmax probabilities.
-    pub fn top_k_sequences(
-        &self,
-        sentence: &[impl AsRef<str>],
-    ) -> Result<Vec<NeuralSequence>, NeuralError> {
+    pub fn top_k_sequences(&self, sentence: &[impl AsRef<str>]) -> Result<Vec<NeuralSequence>, NeuralError> {
         Ok(vec![self.decode(sentence)?])
     }
 
@@ -953,29 +855,17 @@ impl FeedforwardPosTagger {
         let tags = self.model.tags();
 
         for i in 0..n {
-            let prev = if i >= 1 {
-                Some(assigned[i - 1].as_str())
-            } else {
-                None
-            };
-            let prev_prev = if i >= 2 {
-                Some(assigned[i - 2].as_str())
-            } else {
-                None
-            };
+            let prev = if i >= 1 { Some(assigned[i - 1].as_str()) } else { None };
+            let prev_prev = if i >= 2 { Some(assigned[i - 2].as_str()) } else { None };
             let ctx = FeedforwardPosContext::extract(sentence, i, prev, prev_prev);
             let f_ids = self.model.feature_ids(&ctx);
             let p_rows = self.model.pretrained_rows(sentence, i);
-            let scores = self
-                .model
-                .score_with_pretrained(&f_ids, p_rows.as_ref().map(|r| &r[..]))?;
+            let scores = self.model.score_with_pretrained(&f_ids, p_rows.as_ref().map(|r| &r[..]))?;
 
             let mut best = 0usize;
             for (o, &s) in scores.iter().enumerate() {
                 if !s.is_finite() {
-                    return Err(NeuralError::NonFiniteScore(
-                        "model produced a non-finite tag score".into(),
-                    ));
+                    return Err(NeuralError::NonFiniteScore("model produced a non-finite tag score".into()));
                 }
                 if o > 0 && s > scores[best] {
                     best = o;
@@ -1032,10 +922,8 @@ impl Annotator for FeedforwardPosTagger {
             words.clear();
             words.extend((from..to).map(|i| &text[starts[i] as usize..ends[i] as usize]));
             if !words.is_empty() {
-                let seq = self.decode(&words).map_err(|e| Error::Annotator {
-                    annotator: Self::ID,
-                    detail: e.to_string(),
-                })?;
+                let seq =
+                    self.decode(&words).map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
                 for outcome in seq.outcomes() {
                     let tag = self.tagset.tag(outcome).expect("outcome is in tagset");
                     tags.push(tag);
@@ -1044,11 +932,7 @@ impl Annotator for FeedforwardPosTagger {
             }
             from = to;
         }
-        Ok((PosTags {
-            tagset: self.tagset.clone(),
-            tags,
-            prob: Some(probs),
-        },))
+        Ok((PosTags { tagset: self.tagset.clone(), tags, prob: Some(probs) },))
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -1087,24 +971,16 @@ impl FeedforwardSettings {
         seed: i64,
     ) -> Result<Self, NeuralError> {
         if embedding_size <= 0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "embeddingSize must be positive: {embedding_size}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("embeddingSize must be positive: {embedding_size}")));
         }
         if hidden_size <= 0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "hiddenSize must be positive: {hidden_size}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("hiddenSize must be positive: {hidden_size}")));
         }
         if epochs <= 0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "epochs must be positive: {epochs}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("epochs must be positive: {epochs}")));
         }
         if batch_size <= 0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "batchSize must be positive: {batch_size}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("batchSize must be positive: {batch_size}")));
         }
         if !learning_rate.is_finite() || learning_rate <= 0.0 {
             return Err(NeuralError::InvalidArgument(format!(
@@ -1112,24 +988,16 @@ impl FeedforwardSettings {
             )));
         }
         if !l2.is_finite() || l2 < 0.0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "l2 must be finite and non-negative: {l2}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("l2 must be finite and non-negative: {l2}")));
         }
         if !dropout.is_finite() || !(0.0..1.0).contains(&dropout) {
-            return Err(NeuralError::InvalidArgument(format!(
-                "dropout must be finite and in [0, 1): {dropout}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("dropout must be finite and in [0, 1): {dropout}")));
         }
         if word_cutoff < 0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "wordCutoff must be non-negative: {word_cutoff}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("wordCutoff must be non-negative: {word_cutoff}")));
         }
         if suffix_cutoff < 0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "suffixCutoff must be non-negative: {suffix_cutoff}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("suffixCutoff must be non-negative: {suffix_cutoff}")));
         }
         Ok(Self {
             embedding_size: embedding_size as usize,
@@ -1162,16 +1030,8 @@ pub struct FeedforwardPosTrainer;
 
 impl FeedforwardPosTrainer {
     /// Trains a [`FeedforwardPosModel`] without pretrained word vectors (`ONLP-FFPT-1`).
-    pub fn train(
-        samples: &[PosSample],
-        settings: FeedforwardSettings,
-    ) -> Result<FeedforwardPosModel, NeuralError> {
-        Self::train_internal(
-            samples,
-            settings,
-            None::<fn(&str) -> Option<Vec<f32>>>,
-            None,
-        )
+    pub fn train(samples: &[PosSample], settings: FeedforwardSettings) -> Result<FeedforwardPosModel, NeuralError> {
+        Self::train_internal(samples, settings, None::<fn(&str) -> Option<Vec<f32>>>, None)
     }
 
     /// Trains a [`FeedforwardPosModel`] with pretrained word vectors (`ONLP-FFPT-2`).
@@ -1250,9 +1110,7 @@ impl FeedforwardPosTrainer {
             }
         }
         if corpus.is_empty() {
-            return Err(NeuralError::InvalidArgument(
-                "Training stream produced no non-empty POS samples.".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("Training stream produced no non-empty POS samples.".into()));
         }
 
         let mut next_row = 0usize;
@@ -1295,9 +1153,7 @@ impl FeedforwardPosTrainer {
                 }
             }
             if pretrained_rows_vec.is_empty() {
-                return Err(NeuralError::InvalidArgument(
-                    "vectors returned null for every vocabulary word".into(),
-                ));
+                return Err(NeuralError::InvalidArgument("vectors returned null for every vocabulary word".into()));
             }
         }
 
@@ -1334,16 +1190,8 @@ impl FeedforwardPosTrainer {
             let sent = &sample.sentence;
             let gold_tags = &sample.tags;
             for i in 0..sent.len() {
-                let prev = if i >= 1 {
-                    Some(gold_tags[i - 1].as_str())
-                } else {
-                    None
-                };
-                let prev_prev = if i >= 2 {
-                    Some(gold_tags[i - 2].as_str())
-                } else {
-                    None
-                };
+                let prev = if i >= 1 { Some(gold_tags[i - 1].as_str()) } else { None };
+                let prev_prev = if i >= 2 { Some(gold_tags[i - 2].as_str()) } else { None };
                 let ctx = FeedforwardPosContext::extract(sent, i, prev, prev_prev);
                 examples.push(Example {
                     features: shell.feature_ids(&ctx),
@@ -1355,19 +1203,11 @@ impl FeedforwardPosTrainer {
 
         let mut init_rng = JavaRng::new(settings.seed);
         let mut embeddings = uniform_f32_matrix(&mut init_rng, total_rows, emb_size, 0.01);
-        let mut hidden_weights = uniform_f32_matrix(
-            &mut init_rng,
-            hid_size,
-            input_size,
-            (6.0 / (input_size + hid_size) as f64).sqrt(),
-        );
+        let mut hidden_weights =
+            uniform_f32_matrix(&mut init_rng, hid_size, input_size, (6.0 / (input_size + hid_size) as f64).sqrt());
         let mut hidden_bias = vec![0.0f32; hid_size];
-        let mut output_weights = uniform_f32_matrix(
-            &mut init_rng,
-            num_tags,
-            hid_size,
-            (6.0 / (hid_size + num_tags) as f64).sqrt(),
-        );
+        let mut output_weights =
+            uniform_f32_matrix(&mut init_rng, num_tags, hid_size, (6.0 / (hid_size + num_tags) as f64).sqrt());
         let mut output_bias = vec![0.0f32; num_tags];
 
         let mut g2_emb = vec![vec![0.0f64; emb_size]; total_rows];
@@ -1561,15 +1401,9 @@ impl FeedforwardPosTrainer {
     }
 }
 
-fn check_vector(
-    word: &str,
-    found: &[f32],
-    pretrained_size: &mut usize,
-) -> Result<Vec<f32>, NeuralError> {
+fn check_vector(word: &str, found: &[f32], pretrained_size: &mut usize) -> Result<Vec<f32>, NeuralError> {
     if found.is_empty() {
-        return Err(NeuralError::InvalidArgument(format!(
-            "empty vector returned for '{word}'"
-        )));
+        return Err(NeuralError::InvalidArgument(format!("empty vector returned for '{word}'")));
     }
     if *pretrained_size == 0 {
         *pretrained_size = found.len();
@@ -1634,12 +1468,7 @@ fn register_all<'a>(
     next_row
 }
 
-fn uniform_f32_matrix(
-    rng: &mut JavaRng,
-    rows: usize,
-    cols: usize,
-    scale: f64,
-) -> Vec<Vec<f32>> {
+fn uniform_f32_matrix(rng: &mut JavaRng, rows: usize, cols: usize, scale: f64) -> Vec<Vec<f32>> {
     let mut m = vec![vec![0.0f32; cols]; rows];
     for row in &mut m {
         for val in row {
@@ -1670,13 +1499,7 @@ fn adagrad_matrix(
     Ok(())
 }
 
-fn adagrad_vector(
-    b: &mut [f32],
-    db: &[f64],
-    g2: &mut [f64],
-    batch: f64,
-    lr: f64,
-) -> Result<(), NeuralError> {
+fn adagrad_vector(b: &mut [f32], db: &[f64], g2: &mut [f64], batch: f64, lr: f64) -> Result<(), NeuralError> {
     for i in 0..b.len() {
         let g = db[i] / batch;
         g2[i] += g * g;
@@ -1686,14 +1509,8 @@ fn adagrad_vector(
 }
 
 #[inline]
-fn update_weight(
-    weight: f32,
-    gradient: f64,
-    accumulator: f64,
-    learning_rate: f64,
-) -> Result<f32, NeuralError> {
-    let updated = (f64::from(weight)
-        - learning_rate * gradient / (accumulator.sqrt() + ADAGRAD_EPS)) as f32;
+fn update_weight(weight: f32, gradient: f64, accumulator: f64, learning_rate: f64) -> Result<f32, NeuralError> {
+    let updated = (f64::from(weight) - learning_rate * gradient / (accumulator.sqrt() + ADAGRAD_EPS)) as f32;
     if !gradient.is_finite() || !accumulator.is_finite() || !updated.is_finite() {
         return Err(NeuralError::NonFiniteScore(
             "training produced non-finite values; check learningRate, l2 and word vectors".into(),
@@ -1762,23 +1579,11 @@ mod tests {
         let model = FeedforwardPosTrainer::train(&corpus(), settings).unwrap();
         let tagger = FeedforwardPosTagger::new(model.clone());
 
-        assert_eq!(
-            tagger.tag(&["the", "dog", "barks"]).unwrap(),
-            vec!["DT", "NN", "VBZ"]
-        );
-        assert_eq!(
-            tagger.tag(&["she", "eats", "fish"]).unwrap(),
-            vec!["PRP", "VBZ", "NN"]
-        );
+        assert_eq!(tagger.tag(&["the", "dog", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
+        assert_eq!(tagger.tag(&["she", "eats", "fish"]).unwrap(), vec!["PRP", "VBZ", "NN"]);
         assert_eq!(tagger.tag(&["dog"]).unwrap(), vec!["NN"]);
-        assert_eq!(
-            tagger.tag(&["the", "wug", "barks"]).unwrap(),
-            vec!["DT", "NN", "VBZ"]
-        );
-        assert_eq!(
-            tagger.tag(&["blorp", "quexination"]).unwrap(),
-            vec!["NNS", "VBZ"]
-        );
+        assert_eq!(tagger.tag(&["the", "wug", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
+        assert_eq!(tagger.tag(&["blorp", "quexination"]).unwrap(), vec!["NNS", "VBZ"]);
         assert!(tagger.tag(&Vec::<&str>::new()).unwrap().is_empty());
 
         let seqs = tagger.top_k_sequences(&["the", "dog", "barks"]).unwrap();
@@ -1810,21 +1615,9 @@ mod tests {
             samples.push(PosSample::new([w], ["B"]).unwrap());
         }
         let settings = FeedforwardSettings::new(8, 16, 60, 4, 0.1, 1e-8, 0.0, 2, 2, 17).unwrap();
-        let vec_fn = |w: &str| {
-            Some(if w.as_bytes()[0] <= b'd' {
-                vec![1.0f32, 0.0f32]
-            } else {
-                vec![0.0f32, 1.0f32]
-            })
-        };
+        let vec_fn = |w: &str| Some(if w.as_bytes()[0] <= b'd' { vec![1.0f32, 0.0f32] } else { vec![0.0f32, 1.0f32] });
         let lexicon = vec!["aazqy".to_owned(), "eezqy".to_owned()];
-        let model = FeedforwardPosTrainer::train_with_lexicon(
-            &samples,
-            settings,
-            vec_fn,
-            &lexicon,
-        )
-        .unwrap();
+        let model = FeedforwardPosTrainer::train_with_lexicon(&samples, settings, vec_fn, &lexicon).unwrap();
         assert!(model.uses_pretrained_vectors());
         let tagger = FeedforwardPosTagger::new(model.clone());
         for w in class_a {
@@ -1841,20 +1634,14 @@ mod tests {
         assert_eq!(&buf[2..2 + buf[1] as usize], b"ONLP-FFPT-2");
         let loaded = FeedforwardPosModel::load(&buf[..]).unwrap();
         assert_eq!(
-            FeedforwardPosTagger::new(loaded)
-                .tag(&["aazqx", "eezqx", "zzzqx"])
-                .unwrap(),
+            FeedforwardPosTagger::new(loaded).tag(&["aazqx", "eezqx", "zzzqx"]).unwrap(),
             tagger.tag(&["aazqx", "eezqx", "zzzqx"]).unwrap()
         );
     }
 
     #[test]
     fn scoring_cache_budget_and_cancellation() {
-        let vocab = vec![
-            (UNKNOWN.to_owned(), 0),
-            (ABSENT.to_owned(), 0),
-            ("cat".to_owned(), 0),
-        ];
+        let vocab = vec![(UNKNOWN.to_owned(), 0), (ABSENT.to_owned(), 0), ("cat".to_owned(), 0)];
         let emb = vec![vec![1.0f32, CrfScoreTable::scalb(1.0, -24) as f32]];
         let mut hw = vec![vec![0.0f32; 24]];
         hw[0][0] = 1.0;

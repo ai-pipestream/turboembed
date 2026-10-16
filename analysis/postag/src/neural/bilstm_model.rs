@@ -10,9 +10,7 @@ use std::sync::{Arc, RwLock};
 use turbo_unicode::java::to_lower_char;
 
 use crate::neural::lstm::{LstmLayer, MAX_HIDDEN_SIZE};
-use crate::neural::{
-    encode_str_modified_utf8, encode_unit_modified_utf8, DataReader, DataWriter, NeuralError,
-};
+use crate::neural::{DataReader, DataWriter, NeuralError, encode_str_modified_utf8, encode_unit_modified_utf8};
 
 /// Unknown word and character symbol, always stored at row `0`.
 pub const UNKNOWN: &str = "*UNK*";
@@ -87,9 +85,7 @@ impl BilstmPosModel {
         adapter_bias: Option<Vec<f64>>,
     ) -> Result<Self, NeuralError> {
         if tags.is_empty() || max_word_length == 0 {
-            return Err(NeuralError::InvalidArgument(
-                "tags must not be empty and maxWordLength must be >= 1".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("tags must not be empty and maxWordLength must be >= 1".into()));
         }
         if word_Forward2_mismatch(&word_forward2, &word_backward2) {
             return Err(NeuralError::InvalidArgument(
@@ -102,9 +98,7 @@ impl BilstmPosModel {
             ));
         }
         if adapter_weights.is_some() != adapter_bias.is_some() {
-            return Err(NeuralError::InvalidArgument(
-                "adapter weights and bias must be provided together".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("adapter weights and bias must be provided together".into()));
         }
         let mut word_ids = HashMap::with_capacity(word_entries.len());
         for (k, v) in &word_entries {
@@ -151,11 +145,7 @@ impl BilstmPosModel {
     /// Normalizes a token for vocabulary lookup: tokens starting with `'*'` are returned unchanged;
     /// all other tokens are lowercased character-by-character via `Character.toLowerCase(int)`.
     pub fn normalize(token: &str) -> String {
-        if token.starts_with('*') {
-            token.to_owned()
-        } else {
-            token.chars().map(to_lower_char).collect()
-        }
+        if token.starts_with('*') { token.to_owned() } else { token.chars().map(to_lower_char).collect() }
     }
 
     /// Returns the word embedding row index for `token` (`0` for unseen words).
@@ -255,9 +245,7 @@ impl BilstmPosModel {
         }
         for &val in &rep {
             if !val.is_finite() {
-                return Err(NeuralError::NonFiniteScore(format!(
-                    "Non-finite word representation: {val}"
-                )));
+                return Err(NeuralError::NonFiniteScore(format!("Non-finite word representation: {val}")));
             }
         }
         Ok(rep)
@@ -266,9 +254,7 @@ impl BilstmPosModel {
     /// Runs the full BiLSTM stack over `tokens` and returns raw per-token tag scores `[tokens.len()][tags.len()]`.
     pub fn score(&self, tokens: &[impl AsRef<str>]) -> Result<Vec<Vec<f64>>, NeuralError> {
         if tokens.is_empty() {
-            return Err(NeuralError::InvalidArgument(
-                "tokens must not be null or empty".into(),
-            ));
+            return Err(NeuralError::InvalidArgument("tokens must not be null or empty".into()));
         }
         let n = tokens.len();
         let mut fwd_in = Vec::with_capacity(n);
@@ -329,9 +315,7 @@ impl BilstmPosModel {
         for (t, step) in states.iter().enumerate() {
             for &v in step {
                 if !v.is_finite() {
-                    return Err(NeuralError::NonFiniteScore(format!(
-                        "Non-finite {name} state at token {t}: {v}"
-                    )));
+                    return Err(NeuralError::NonFiniteScore(format!("Non-finite {name} state at token {t}: {v}")));
                 }
             }
         }
@@ -384,9 +368,7 @@ impl BilstmPosModel {
                 if let Some(first) = vecs.first() {
                     first.len()
                 } else {
-                    self.word_forward.input_size()
-                        - self.word_embeddings[0].len()
-                        - 2 * self.char_forward.hidden_size()
+                    self.word_forward.input_size() - self.word_embeddings[0].len() - 2 * self.char_forward.hidden_size()
                 }
             }
             None => 0,
@@ -429,9 +411,7 @@ impl BilstmPosModel {
         }
         write_f64_matrix(&mut data, &self.output_weights)?;
         write_f64_vector(&mut data, &self.output_bias)?;
-        if let (Some(tr), Some(st), Some(en)) =
-            (&self.transition_weights, &self.start_weights, &self.end_weights)
-        {
+        if let (Some(tr), Some(st), Some(en)) = (&self.transition_weights, &self.start_weights, &self.end_weights) {
             write_f64_matrix(&mut data, tr)?;
             write_f64_vector(&mut data, st)?;
             write_f64_vector(&mut data, en)?;
@@ -483,9 +463,7 @@ impl BilstmPosModel {
                 (s, c, true)
             }
             _ => {
-                return Err(NeuralError::Format(format!(
-                    "Unrecognized BiLSTM POS model header: {magic}"
-                )));
+                return Err(NeuralError::Format(format!("Unrecognized BiLSTM POS model header: {magic}")));
             }
         };
 
@@ -501,50 +479,26 @@ impl BilstmPosModel {
         let char_dim = char_embeddings[0].len();
         let word_dim = word_embeddings[0].len();
         let char_forward = read_lstm(&mut data, "charForward", Some(char_dim), None)?;
-        let char_backward = read_lstm(
-            &mut data,
-            "charBackward",
-            Some(char_dim),
-            Some(char_forward.hidden_size()),
-        )?;
+        let char_backward = read_lstm(&mut data, "charBackward", Some(char_dim), Some(char_forward.hidden_size()))?;
         let word_forward = read_lstm(&mut data, "wordForward", None, None)?;
-        let word_backward = read_lstm(
-            &mut data,
-            "wordBackward",
-            Some(word_forward.input_size()),
-            Some(word_forward.hidden_size()),
-        )?;
+        let word_backward =
+            read_lstm(&mut data, "wordBackward", Some(word_forward.input_size()), Some(word_forward.hidden_size()))?;
 
         let mut encoder_width = 2 * word_forward.hidden_size();
         let (word_forward2, word_backward2) = if stacked {
             let wf2 = read_lstm(&mut data, "wordForward2", Some(encoder_width), None)?;
-            let wb2 = read_lstm(
-                &mut data,
-                "wordBackward2",
-                Some(encoder_width),
-                Some(wf2.hidden_size()),
-            )?;
+            let wb2 = read_lstm(&mut data, "wordBackward2", Some(encoder_width), Some(wf2.hidden_size()))?;
             encoder_width = 2 * wf2.hidden_size();
             (Some(wf2), Some(wb2))
         } else {
             (None, None)
         };
 
-        let output_weights = read_f64_matrix_exact(
-            &mut data,
-            "outputWeights",
-            tags.len(),
-            encoder_width,
-        )?;
+        let output_weights = read_f64_matrix_exact(&mut data, "outputWeights", tags.len(), encoder_width)?;
         let output_bias = read_f64_vector_exact(&mut data, "outputBias", tags.len())?;
 
         let (transition_weights, start_weights, end_weights) = if crf {
-            let tr = read_f64_matrix_exact(
-                &mut data,
-                "transitionWeights",
-                tags.len(),
-                tags.len(),
-            )?;
+            let tr = read_f64_matrix_exact(&mut data, "transitionWeights", tags.len(), tags.len())?;
             let st = read_f64_vector_exact(&mut data, "startWeights", tags.len())?;
             let en = read_f64_vector_exact(&mut data, "endWeights", tags.len())?;
             (Some(tr), Some(st), Some(en))
@@ -627,18 +581,11 @@ fn word_Forward2_mismatch(a: &Option<LstmLayer>, b: &Option<LstmLayer>) -> bool 
     a.is_some() != b.is_some()
 }
 
-fn crf_mismatch(
-    tr: &Option<Vec<Vec<f64>>>,
-    st: &Option<Vec<f64>>,
-    en: &Option<Vec<f64>>,
-) -> bool {
+fn crf_mismatch(tr: &Option<Vec<Vec<f64>>>, st: &Option<Vec<f64>>, en: &Option<Vec<f64>>) -> bool {
     !(tr.is_some() == st.is_some() && st.is_some() == en.is_some())
 }
 
-fn write_str_vocabulary<W: Write>(
-    data: &mut DataWriter<W>,
-    entries: &[(String, usize)],
-) -> Result<(), NeuralError> {
+fn write_str_vocabulary<W: Write>(data: &mut DataWriter<W>, entries: &[(String, usize)]) -> Result<(), NeuralError> {
     data.write_i32(entries.len() as i32)?;
     for (k, v) in entries {
         data.write_utf(k)?;
@@ -647,10 +594,7 @@ fn write_str_vocabulary<W: Write>(
     Ok(())
 }
 
-fn write_bytes_vocabulary<W: Write>(
-    data: &mut DataWriter<W>,
-    entries: &[(Vec<u8>, usize)],
-) -> Result<(), NeuralError> {
+fn write_bytes_vocabulary<W: Write>(data: &mut DataWriter<W>, entries: &[(Vec<u8>, usize)]) -> Result<(), NeuralError> {
     data.write_i32(entries.len() as i32)?;
     for (k, v) in entries {
         data.write_utf_bytes(k)?;
@@ -659,10 +603,7 @@ fn write_bytes_vocabulary<W: Write>(
     Ok(())
 }
 
-fn write_f64_matrix<W: Write>(
-    data: &mut DataWriter<W>,
-    m: &[Vec<f64>],
-) -> Result<(), NeuralError> {
+fn write_f64_matrix<W: Write>(data: &mut DataWriter<W>, m: &[Vec<f64>]) -> Result<(), NeuralError> {
     let cols = m.first().map_or(0, Vec::len);
     data.write_i32(m.len() as i32)?;
     data.write_i32(cols as i32)?;
@@ -693,22 +634,15 @@ fn write_lstm<W: Write>(data: &mut DataWriter<W>, layer: &LstmLayer) -> Result<(
 fn read_positive_dim<R: Read>(data: &mut DataReader<R>, name: &str) -> Result<usize, NeuralError> {
     let value = data.read_i32()?;
     if !(1..=MAX_DIMENSION).contains(&value) {
-        return Err(NeuralError::Format(format!(
-            "Invalid BiLSTM POS model: {name} = {value}"
-        )));
+        return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} = {value}")));
     }
     Ok(value as usize)
 }
 
-fn read_non_negative_count<R: Read>(
-    data: &mut DataReader<R>,
-    name: &str,
-) -> Result<usize, NeuralError> {
+fn read_non_negative_count<R: Read>(data: &mut DataReader<R>, name: &str) -> Result<usize, NeuralError> {
     let value = data.read_i32()?;
     if !(0..=MAX_DIMENSION).contains(&value) {
-        return Err(NeuralError::Format(format!(
-            "Invalid BiLSTM POS model: {name} = {value}"
-        )));
+        return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} = {value}")));
     }
     Ok(value as usize)
 }
@@ -729,14 +663,10 @@ fn read_str_vocabulary<R: Read>(
         let key = data.read_utf()?;
         let row = data.read_i32()?;
         if row < 0 {
-            return Err(NeuralError::Format(format!(
-                "Invalid BiLSTM POS model: negative {name} row {row}"
-            )));
+            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: negative {name} row {row}")));
         }
         if !seen.insert(key.clone()) {
-            return Err(NeuralError::Format(format!(
-                "Invalid BiLSTM POS model: duplicate {name} entry {key}"
-            )));
+            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: duplicate {name} entry {key}")));
         }
         entries.push((key, row as usize));
     }
@@ -759,40 +689,28 @@ fn read_bytes_vocabulary<R: Read>(
         let key = data.read_utf_bytes()?;
         let row = data.read_i32()?;
         if row < 0 {
-            return Err(NeuralError::Format(format!(
-                "Invalid BiLSTM POS model: negative {name} row {row}"
-            )));
+            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: negative {name} row {row}")));
         }
         if !seen.insert(key.clone()) {
-            return Err(NeuralError::Format(format!(
-                "Invalid BiLSTM POS model: duplicate {name} entry"
-            )));
+            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: duplicate {name} entry")));
         }
         entries.push((key, row as usize));
     }
     Ok(entries)
 }
 
-fn validate_vocabulary_rows(
-    entries: &[(String, usize)],
-    row_count: usize,
-    name: &str,
-) -> Result<(), NeuralError> {
+fn validate_vocabulary_rows(entries: &[(String, usize)], row_count: usize, name: &str) -> Result<(), NeuralError> {
     let mut unk_row = None;
     for (k, r) in entries {
         if *r >= row_count {
-            return Err(NeuralError::Format(format!(
-                "Invalid BiLSTM POS model: {name} row {r} >= {row_count}"
-            )));
+            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} row {r} >= {row_count}")));
         }
         if k == UNKNOWN {
             unk_row = Some(*r);
         }
     }
     if unk_row != Some(0) {
-        return Err(NeuralError::Format(format!(
-            "Invalid BiLSTM POS model: {name} must map {UNKNOWN} to row 0"
-        )));
+        return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} must map {UNKNOWN} to row 0")));
     }
     Ok(())
 }
@@ -805,31 +723,22 @@ fn validate_bytes_vocabulary_rows(
     let mut unk_row = None;
     for (k, r) in entries {
         if *r >= row_count {
-            return Err(NeuralError::Format(format!(
-                "Invalid BiLSTM POS model: {name} row {r} >= {row_count}"
-            )));
+            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} row {r} >= {row_count}")));
         }
         if k.as_slice() == UNKNOWN_BYTES {
             unk_row = Some(*r);
         }
     }
     if unk_row != Some(0) {
-        return Err(NeuralError::Format(format!(
-            "Invalid BiLSTM POS model: {name} must map {UNKNOWN} to row 0"
-        )));
+        return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} must map {UNKNOWN} to row 0")));
     }
     Ok(())
 }
 
-fn validate_pretrained_rows(
-    entries: &[(String, usize)],
-    row_count: usize,
-) -> Result<(), NeuralError> {
+fn validate_pretrained_rows(entries: &[(String, usize)], row_count: usize) -> Result<(), NeuralError> {
     for (_, r) in entries {
         if *r >= row_count {
-            return Err(NeuralError::Format(format!(
-                "Invalid BiLSTM POS model: pretrained row {r} >= {row_count}"
-            )));
+            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: pretrained row {r} >= {row_count}")));
         }
     }
     Ok(())
@@ -842,9 +751,7 @@ fn read_tags<R: Read>(data: &mut DataReader<R>) -> Result<Vec<String>, NeuralErr
     for _ in 0..count {
         let tag = data.read_utf()?;
         if !seen.insert(tag.clone()) {
-            return Err(NeuralError::Format(format!(
-                "Invalid BiLSTM POS model: duplicate tag {tag}"
-            )));
+            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: duplicate tag {tag}")));
         }
         tags.push(tag);
     }
@@ -860,9 +767,7 @@ fn read_lstm<R: Read>(
     let input_size = read_positive_dim(data, &format!("{name} inputSize"))?;
     let hidden_size = read_positive_dim(data, &format!("{name} hiddenSize"))?;
     if hidden_size > MAX_HIDDEN_SIZE {
-        return Err(NeuralError::Format(format!(
-            "Invalid BiLSTM POS model: {name} hiddenSize = {hidden_size}"
-        )));
+        return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} hiddenSize = {hidden_size}")));
     }
     if let Some(exp_in) = expected_input
         && input_size != exp_in
@@ -885,10 +790,7 @@ fn read_lstm<R: Read>(
     LstmLayer::of_weights(input_size, hidden_size, w, u, b)
 }
 
-fn read_f64_matrix<R: Read>(
-    data: &mut DataReader<R>,
-    name: &str,
-) -> Result<Vec<Vec<f64>>, NeuralError> {
+fn read_f64_matrix<R: Read>(data: &mut DataReader<R>, name: &str) -> Result<Vec<Vec<f64>>, NeuralError> {
     let rows = read_positive_dim(data, &format!("{name} rows"))?;
     let cols = read_positive_dim(data, &format!("{name} cols"))?;
     read_f64_rows(data, name, rows, cols)
@@ -930,36 +832,24 @@ fn read_f64_vector_exact<R: Read>(
 ) -> Result<Vec<f64>, NeuralError> {
     let len = read_positive_dim(data, &format!("{name} length"))?;
     if len != expected_len {
-        return Err(NeuralError::Format(format!(
-            "Invalid BiLSTM POS model: {name} length {len} != {expected_len}"
-        )));
+        return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} length {len} != {expected_len}")));
     }
     read_f64_values(data, name, len)
 }
 
-fn read_f64_values<R: Read>(
-    data: &mut DataReader<R>,
-    name: &str,
-    len: usize,
-) -> Result<Vec<f64>, NeuralError> {
+fn read_f64_values<R: Read>(data: &mut DataReader<R>, name: &str, len: usize) -> Result<Vec<f64>, NeuralError> {
     let mut out = Vec::with_capacity(len.min(INITIAL_CAPACITY));
     for _ in 0..len {
         let v = data.read_f64()?;
         if !v.is_finite() {
-            return Err(NeuralError::Format(format!(
-                "Invalid BiLSTM POS model: non-finite {name} value {v}"
-            )));
+            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: non-finite {name} value {v}")));
         }
         out.push(v);
     }
     Ok(out)
 }
 
-fn read_f32_rows<R: Read>(
-    data: &mut DataReader<R>,
-    rows: usize,
-    cols: usize,
-) -> Result<Vec<Vec<f32>>, NeuralError> {
+fn read_f32_rows<R: Read>(data: &mut DataReader<R>, rows: usize, cols: usize) -> Result<Vec<Vec<f32>>, NeuralError> {
     let mut matrix = Vec::with_capacity(rows.min(INITIAL_CAPACITY));
     for _ in 0..rows {
         let mut row = Vec::with_capacity(cols.min(INITIAL_CAPACITY));
@@ -983,10 +873,7 @@ where
     I: IntoIterator<Item = (S, usize)>,
     S: AsRef<str>,
 {
-    entries
-        .into_iter()
-        .map(|(k, v)| (encode_str_modified_utf8(k.as_ref()), v))
-        .collect()
+    entries.into_iter().map(|(k, v)| (encode_str_modified_utf8(k.as_ref()), v)).collect()
 }
 
 /// Helper to build a character vocabulary entry from a single UTF-16 code unit.

@@ -30,14 +30,7 @@ pub struct CrfScoreTable {
 impl CrfScoreTable {
     /// Creates a table holding `size` exact scores.
     pub fn new(size: usize) -> Self {
-        Self {
-            high: vec![0; size],
-            low: vec![0; size],
-            words: None,
-            scale: i32::MIN,
-            filled: 0,
-            index: None,
-        }
+        Self { high: vec![0; size], low: vec![0; size], words: None, scale: i32::MIN, filled: 0, index: None }
     }
 
     /// Resets the table for reuse without reallocating `high` and `low`.
@@ -436,12 +429,7 @@ impl CrfScoreTable {
         if high_word == 0 && low_word == 0 {
             return Vec::new();
         }
-        let raw = [
-            (high_word >> 32) as i32,
-            high_word as i32,
-            (low_word >> 32) as i32,
-            low_word as i32,
-        ];
+        let raw = [(high_word >> 32) as i32, high_word as i32, (low_word >> 32) as i32, low_word as i32];
         Self::shift_left(&Self::trim(&raw), shift)
     }
 
@@ -486,16 +474,8 @@ impl CrfScoreTable {
         let first_sign = if first[0] < 0 { WORD_MASK } else { 0 };
         let second_sign = if second[0] < 0 { WORD_MASK } else { 0 };
         for i in 0..length {
-            let a = if i < first.len() {
-                (first[first.len() - 1 - i] as i64) & WORD_MASK
-            } else {
-                first_sign
-            };
-            let b = if i < second.len() {
-                (second[second.len() - 1 - i] as i64) & WORD_MASK
-            } else {
-                second_sign
-            };
+            let a = if i < first.len() { (first[first.len() - 1 - i] as i64) & WORD_MASK } else { first_sign };
+            let b = if i < second.len() { (second[second.len() - 1 - i] as i64) & WORD_MASK } else { second_sign };
             let sum = a + b + carry;
             result[length - 1 - i] = sum as i32;
             carry = (sum as u64 >> 32) as i64;
@@ -527,9 +507,7 @@ impl CrfScoreTable {
     fn trim(value: &[i32]) -> Vec<i32> {
         let mut start = 0;
         while start < value.len() - 1 {
-            if (value[start] == 0 && value[start + 1] >= 0)
-                || (value[start] == -1 && value[start + 1] < 0)
-            {
+            if (value[start] == 0 && value[start + 1] >= 0) || (value[start] == -1 && value[start + 1] < 0) {
                 start += 1;
             } else {
                 break;
@@ -547,8 +525,7 @@ impl CrfScoreTable {
         }
         let negative = value[0] < 0;
         let magnitude = if negative { Self::negate(value) } else { value.to_vec() };
-        let bit_length = (magnitude.len() as i32 - 1) * 32
-            + (32 - (magnitude[0] as u32).leading_zeros() as i32);
+        let bit_length = (magnitude.len() as i32 - 1) * 32 + (32 - (magnitude[0] as u32).leading_zeros() as i32);
         let shift = bit_length - 53;
         let mut significand: u64;
         let mut exponent = WORD_SCALE;
@@ -626,11 +603,7 @@ impl CrfScoreTable {
     }
 
     fn test_bit(high_word: i64, low_word: i64, bit: i32) -> bool {
-        if bit < 64 {
-            ((low_word as u64 >> bit) & 1) != 0
-        } else {
-            ((high_word as u64 >> (bit - 64)) & 1) != 0
-        }
+        if bit < 64 { ((low_word as u64 >> bit) & 1) != 0 } else { ((high_word as u64 >> (bit - 64)) & 1) != 0 }
     }
 
     fn has_low_bits(high_word: i64, low_word: i64, count: i32) -> bool {
@@ -690,20 +663,8 @@ impl CrfScorer {
                     candidate.reset(1);
                     candidate.copy_from(0, &previous, j);
                     let mut count = 1;
-                    count = candidate.add_term(
-                        &mut exponents,
-                        &mut mantissas,
-                        count,
-                        0,
-                        transitions[j][k],
-                    )?;
-                    count = candidate.add_term(
-                        &mut exponents,
-                        &mut mantissas,
-                        count,
-                        0,
-                        emissions[t][k],
-                    )?;
+                    count = candidate.add_term(&mut exponents, &mut mantissas, count, 0, transitions[j][k])?;
+                    count = candidate.add_term(&mut exponents, &mut mantissas, count, 0, emissions[t][k])?;
                     if is_last {
                         count = candidate.add_term(&mut exponents, &mut mantissas, count, 0, end[k])?;
                     }
@@ -766,8 +727,7 @@ impl CrfScorer {
             return Ok(0.0);
         }
         let num_tags = start.len();
-        let (loss, marginals) =
-            Self::infer(emissions, transitions, start, end, Some(gold), Some(d_transitions))?;
+        let (loss, marginals) = Self::infer(emissions, transitions, start, end, Some(gold), Some(d_transitions))?;
         for t in 0..steps {
             for k in 0..num_tags {
                 d_emissions[t][k] += marginals[t][k];
@@ -825,13 +785,7 @@ impl CrfScorer {
                 let mut best_next = 0usize;
                 for k in 0..num_tags {
                     candidates.copy_from(k, &next, k);
-                    let count = candidates.add_term(
-                        &mut exponents,
-                        &mut mantissas,
-                        1,
-                        k,
-                        transitions[j][k],
-                    )?;
+                    let count = candidates.add_term(&mut exponents, &mut mantissas, 1, k, transitions[j][k])?;
                     candidates.store_with_base(k, k, &exponents, &mantissas, count);
                     if k > 0 && candidates.difference(k, best_next) > 0.0 {
                         best_next = k;
@@ -874,21 +828,14 @@ impl CrfScorer {
             candidates.reset(num_tags);
             for k in 0..num_tags {
                 candidates.copy_from(k, &best[t + 1], k);
-                let count =
-                    candidates.add_term(&mut exponents, &mut mantissas, 1, k, emissions[t + 1][k])?;
+                let count = candidates.add_term(&mut exponents, &mut mantissas, 1, k, emissions[t + 1][k])?;
                 candidates.store_with_base(k, k, &exponents, &mantissas, count);
             }
             for j in 0..num_tags {
                 for k in 0..num_tags {
                     candidate.reset(2);
                     candidate.copy_from(0, &candidates, k);
-                    let count = candidate.add_term(
-                        &mut exponents,
-                        &mut mantissas,
-                        1,
-                        0,
-                        transitions[j][k],
-                    )?;
+                    let count = candidate.add_term(&mut exponents, &mut mantissas, 1, 0, transitions[j][k])?;
                     candidate.store_with_base(0, 0, &exponents, &mantissas, count);
                     candidate.copy_from(1, &best[t], j);
                     conditional[k] = candidate.difference(0, 1) + log_mass[t + 1][k];
@@ -930,11 +877,7 @@ impl CrfScorer {
         for v in values.iter_mut() {
             *v /= total;
         }
-        if gold.is_some() {
-            (max - selected) + total.ln()
-        } else {
-            0.0
-        }
+        if gold.is_some() { (max - selected) + total.ln() } else { 0.0 }
     }
 
     fn log_sum_exp(xs: &[f64]) -> f64 {
@@ -1000,17 +943,8 @@ mod tests {
 
     #[test]
     fn viterbi_matches_brute_force_and_marginals_sum_to_one() {
-        let emissions = vec![
-            vec![0.4, -0.3, 0.1],
-            vec![-0.2, 0.5, 0.2],
-            vec![0.3, 0.1, -0.4],
-            vec![-0.1, 0.2, 0.6],
-        ];
-        let transitions = vec![
-            vec![0.1, -0.5, 0.3],
-            vec![0.4, 0.2, -0.2],
-            vec![-0.3, 0.5, 0.1],
-        ];
+        let emissions = vec![vec![0.4, -0.3, 0.1], vec![-0.2, 0.5, 0.2], vec![0.3, 0.1, -0.4], vec![-0.1, 0.2, 0.6]];
+        let transitions = vec![vec![0.1, -0.5, 0.3], vec![0.4, 0.2, -0.2], vec![-0.3, 0.5, 0.1]];
         let start = vec![0.2, -0.1, 0.05];
         let end = vec![-0.15, 0.25, 0.1];
 

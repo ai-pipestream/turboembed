@@ -24,8 +24,7 @@ impl AdamOptimizer {
 
     /// Registers a 2D parameter matrix with a learning-rate multiplier of `1.0`.
     pub fn register_matrix(&mut self, param: Vec<Vec<f64>>) -> usize {
-        self.register_matrix_with_multiplier(param, 1.0)
-            .expect("1.0 is a valid multiplier")
+        self.register_matrix_with_multiplier(param, 1.0).expect("1.0 is a valid multiplier")
     }
 
     /// Registers a 2D parameter matrix with a custom positive finite learning-rate multiplier.
@@ -35,9 +34,7 @@ impl AdamOptimizer {
         rate_multiplier: f64,
     ) -> Result<usize, NeuralError> {
         if !rate_multiplier.is_finite() || rate_multiplier <= 0.0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "rateMultiplier must be > 0, got {rate_multiplier}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("rateMultiplier must be > 0, got {rate_multiplier}")));
         }
         let g: Vec<Vec<f64>> = param.iter().map(|row| vec![0.0; row.len()]).collect();
         let m_buf: Vec<Vec<f64>> = param.iter().map(|row| vec![0.0; row.len()]).collect();
@@ -78,10 +75,7 @@ impl AdamOptimizer {
 
     /// Allocates a fresh set of zeroed gradient buffers matching the shapes of all registered parameters.
     pub fn new_gradient_buffers(&self) -> Vec<Vec<Vec<f64>>> {
-        self.params
-            .iter()
-            .map(|p| p.iter().map(|row| vec![0.0; row.len()]).collect())
-            .collect()
+        self.params.iter().map(|p| p.iter().map(|row| vec![0.0; row.len()]).collect()).collect()
     }
 
     /// Zeros every element of a set of gradient buffers.
@@ -128,9 +122,7 @@ impl AdamOptimizer {
             for row in g {
                 for &value in row {
                     if !value.is_finite() {
-                        return Err(NeuralError::NonFiniteScore(
-                            "gradient must be finite".into(),
-                        ));
+                        return Err(NeuralError::NonFiniteScore("gradient must be finite".into()));
                     }
                     sum_squares += value * value;
                     scale = scale.max(value.abs());
@@ -194,24 +186,19 @@ impl AdamOptimizer {
     /// Runs one bias-corrected Adam update step (`timestep` is 1-based).
     pub fn step(&mut self, learning_rate: f64, timestep: i32) -> Result<(), NeuralError> {
         if timestep <= 0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "timestep must be positive, got {timestep}"
-            )));
+            return Err(NeuralError::InvalidArgument(format!("timestep must be positive, got {timestep}")));
         }
         if !learning_rate.is_finite() || learning_rate < 0.0 {
             return Err(NeuralError::InvalidArgument(format!(
                 "learningRate must be finite and nonnegative, got {learning_rate}"
             )));
         }
-        let bias_correction =
-            (1.0 - BETA2.powi(timestep)).sqrt() / (1.0 - BETA1.powi(timestep));
+        let bias_correction = (1.0 - BETA2.powi(timestep)).sqrt() / (1.0 - BETA1.powi(timestep));
 
         for p in 0..self.params.len() {
             let scaled_rate = learning_rate * self.rate_multipliers[p];
             if !scaled_rate.is_finite() {
-                return Err(NeuralError::NonFiniteScore(
-                    "scaled learning rate must be finite".into(),
-                ));
+                return Err(NeuralError::NonFiniteScore("scaled learning rate must be finite".into()));
             }
             let weight = &mut self.params[p];
             let gradient = &self.grads[p];
@@ -226,13 +213,9 @@ impl AdamOptimizer {
                     let g = g_row[i];
                     let first_moment = BETA1 * m_row[i] + (1.0 - BETA1) * g;
                     let second_moment = BETA2 * v_row[i] + (1.0 - BETA2) * g * g;
-                    let updated = p_row[i]
-                        - scaled_rate * bias_correction * first_moment
-                            / (second_moment.sqrt() + EPS);
-                    if !g.is_finite()
-                        || !first_moment.is_finite()
-                        || !second_moment.is_finite()
-                        || !updated.is_finite()
+                    let updated =
+                        p_row[i] - scaled_rate * bias_correction * first_moment / (second_moment.sqrt() + EPS);
+                    if !g.is_finite() || !first_moment.is_finite() || !second_moment.is_finite() || !updated.is_finite()
                     {
                         return Err(NeuralError::NonFiniteScore(format!(
                             "Adam update must be finite at parameter {p}, row {r}, component {i}"
@@ -295,11 +278,7 @@ mod tests {
             (&[f64::MAX, -f64::MAX], 1.0, &[1.0 / s2, -1.0 / s2]),
             (&[f64::MAX], f64::from_bits(1), &[f64::from_bits(1)]),
             (&[f64::MAX], 1e-15, &[1e-15]),
-            (
-                &[f64::MAX, f64::MAX, 1e-100],
-                f64::MAX,
-                &[f64::MAX / s2, f64::MAX / s2, 1e-100 / s2],
-            ),
+            (&[f64::MAX, f64::MAX, 1e-100], f64::MAX, &[f64::MAX / s2, f64::MAX / s2, 1e-100 / s2]),
             (&[0.0, -0.0], f64::from_bits(1), &[0.0, -0.0]),
         ];
         for &(values, limit, expected) in cases {
@@ -311,12 +290,7 @@ mod tests {
                     assert_eq!(actual[i], expected[i]);
                 } else {
                     let tol = 4.0 * expected[i].abs() * f64::EPSILON;
-                    assert!(
-                        (actual[i] - expected[i]).abs() <= tol,
-                        "expected {}, got {}",
-                        expected[i],
-                        actual[i]
-                    );
+                    assert!((actual[i] - expected[i]).abs() <= tol, "expected {}, got {}", expected[i], actual[i]);
                 }
             }
         }

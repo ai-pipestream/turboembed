@@ -24,10 +24,7 @@ impl BilstmPosTagger {
         model.enable_representation_cache();
         let labels: Vec<&str> = model.tags().iter().map(String::as_str).collect();
         let tagset = TagSet::new("bilstm", &labels);
-        let outcome_tags = labels
-            .iter()
-            .map(|&l| tagset.tag(l).expect("tag is in tagset"))
-            .collect();
+        let outcome_tags = labels.iter().map(|&l| tagset.tag(l).expect("tag is in tagset")).collect();
         Self { model, tagset, outcome_tags }
     }
 
@@ -57,23 +54,14 @@ impl BilstmPosTagger {
             )?;
             Ok(best.into_iter().map(|idx| tags[idx].clone()).collect())
         } else {
-            Ok(scores
-                .iter()
-                .map(|s| tags[argmax(s)].clone())
-                .collect())
+            Ok(scores.iter().map(|s| tags[argmax(s)].clone()).collect())
         }
     }
 
     /// Returns the single best tag sequence with per-token posterior or softmax probabilities.
-    pub fn top_k_sequences(
-        &self,
-        sentence: &[impl AsRef<str>],
-    ) -> Result<Vec<NeuralSequence>, NeuralError> {
+    pub fn top_k_sequences(&self, sentence: &[impl AsRef<str>]) -> Result<Vec<NeuralSequence>, NeuralError> {
         if sentence.is_empty() {
-            return Ok(vec![NeuralSequence::from_outcomes_and_probs(
-                Vec::new(),
-                Vec::new(),
-            )]);
+            return Ok(vec![NeuralSequence::from_outcomes_and_probs(Vec::new(), Vec::new())]);
         }
         let scores = self.model.score(sentence)?;
         let tags = self.model.tags();
@@ -153,10 +141,9 @@ impl Annotator for BilstmPosTagger {
             words.clear();
             words.extend((from..to).map(|i| &text[starts[i] as usize..ends[i] as usize]));
             if !words.is_empty() {
-                let seqs = self.top_k_sequences(&words).map_err(|e| Error::Annotator {
-                    annotator: Self::ID,
-                    detail: e.to_string(),
-                })?;
+                let seqs = self
+                    .top_k_sequences(&words)
+                    .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
                 let seq = &seqs[0];
                 for outcome in seq.outcomes() {
                     let tag = self.tagset.tag(outcome).expect("outcome is in tagset");
@@ -167,11 +154,7 @@ impl Annotator for BilstmPosTagger {
             from = to;
         }
         let _ = &self.outcome_tags;
-        Ok((PosTags {
-            tagset: self.tagset.clone(),
-            tags,
-            prob: Some(probs),
-        },))
+        Ok((PosTags { tagset: self.tagset.clone(), tags, prob: Some(probs) },))
     }
 
     fn model(&self) -> Option<ModelRef> {
