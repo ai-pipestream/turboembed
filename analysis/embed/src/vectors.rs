@@ -11,7 +11,7 @@ use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::{TURBO_POOLING_MEAN, turbo_token_range};
 use turbo_analysis::annotate::Step;
 use turbo_analysis::registry::{Provider, Spec};
-use turbo_analysis::{Annotator, Bound, Error, Execution, Layer, ModelRef, Refs, Spans};
+use turbo_analysis::{Annotator, Bound, Error, Execution, Ix, Layer, ModelRef, Refs, Span, Spans, ViewId};
 use turbo_analysis_layers::{Chunks, Levels, Sentences, Subwords, VectorKind, Vectors};
 
 use crate::encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
@@ -317,6 +317,40 @@ impl VectorAnnotator {
             }
         }
         out
+    }
+
+    /// Pools one vector per span in `spans` from `subwords` through the
+    /// encoder's stage 2 range write (`turbo_embed_write_ranges`, `#263`),
+    /// returning `Vectors<L>` anchored to any layer `L` (sentences, chunks,
+    /// opinions, aspects, or arbitrary spans).
+    ///
+    /// When `sentences` is `Some`, the encoder windows are laid out by the
+    /// sentences and each span in `spans` is pooled over the exact subword
+    /// piece range (`pieces_of`) overlapping that span inside its enclosing
+    /// sentence window. When `sentences` is `None`, the spans lay out the
+    /// windows directly.
+    pub fn embed_spans<L: Layer>(
+        &self,
+        annotator: &'static str,
+        subwords: &Subwords,
+        sentences: Option<&Spans<Sentences>>,
+        view: ViewId,
+        spans: &[Span],
+    ) -> Result<Vectors<L>, Error> {
+        let mut target_spans = Spans::<Chunks>::new(view);
+        for &span in spans {
+            target_spans.push(span);
+        }
+        let mut out = self.embed(
+            annotator,
+            &[Input { subwords, sentences, chunks: Some(&target_spans), levels: None }],
+        );
+        let c = out
+            .remove(0)?
+            .chunks
+            .ok_or_else(|| Error::Annotator { annotator, detail: "VectorAnnotator did not return span vectors".into() })?;
+        let empty = c.empty.into_iter().map(|ix| Ix::<L>::new(ix.get() as u32)).collect();
+        Ok(Vectors::new(c.dim, c.data, empty, c.model))
     }
 
     /// Zero vectors for every item of `i`, or why its layers do not fit
