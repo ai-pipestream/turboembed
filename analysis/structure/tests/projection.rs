@@ -124,3 +124,34 @@ fn projected_sections_constrain_chunks_in_the_clean_view() {
         .collect();
     assert_eq!(leaves, ["SUMMARY Café and trees.", "DETAILS More text."]);
 }
+
+#[test]
+fn discontinuous_blocks_project_each_fragment_to_the_child_view() {
+    let text = "Start  here.  [note]  Resume  there.  After.";
+    let mut doc = Document::new(text);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    spans.push_fragments(&[Span::new(0, 12), Span::new(22, 36)]);
+    spans.push(Span::new(38, 44));
+    let structure = Structure {
+        spans,
+        kind: vec![Block::Paragraph, Block::Paragraph],
+        parent: vec![None, None],
+        depth: vec![0, 0],
+    };
+    doc.add(&Key::<Structure>::named("source"), structure, Provenance::by("test")).unwrap();
+    let pipeline = Analyzer::builder()
+        .given(Key::<Structure>::named("source"))
+        .step(Bound::new(NormalizeStep::new(Whitespace::collapse())).write(0, "clean"))
+        .step(Bound::new(StructureProjector).read(0, "clean").read(1, "source"))
+        .build()
+        .unwrap();
+    let mut docs = [doc];
+    assert_eq!(pipeline.run(&mut docs)[0], Ok(()));
+    let doc = &docs[0];
+    let projected = doc.get::<Structure>().unwrap();
+    let clean_text = doc.text(projected.spans.view());
+    assert!(projected.spans.is_discontinuous(Ix::new(0)));
+    let frags: Vec<&str> = projected.spans.fragments(Ix::new(0)).map(|f| &clean_text[f.range()]).collect();
+    assert_eq!(frags, ["Start here.", "Resume there."]);
+    assert_eq!(&clean_text[projected.spans.get(Ix::new(1)).range()], "After.");
+}

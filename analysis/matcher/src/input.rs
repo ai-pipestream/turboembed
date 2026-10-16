@@ -102,6 +102,13 @@ impl<'a> Input<'a> {
         if past > self.len() || entities.tokens.iter().any(|r| r.start > r.end) {
             return Err(MatchError::Misaligned { layer: "opennlp:entities", len: past, tokens: self.len() });
         }
+        if entities.spans.len() != entities.tokens.len() || entities.kind.len() != entities.tokens.len() {
+            return Err(MatchError::Misaligned {
+                layer: "opennlp:entities",
+                len: entities.spans.len().min(entities.kind.len()),
+                tokens: entities.tokens.len(),
+            });
+        }
         self.entities = Some(entities);
         Ok(self)
     }
@@ -179,8 +186,17 @@ impl<'a> Input<'a> {
         let mut of = vec![u32::MAX; range.len()];
         for (e, r) in entities.tokens.iter().enumerate() {
             let (a, b) = (r.start.get().max(range.start), r.end.get().min(range.end));
-            for slot in of.iter_mut().take(b.saturating_sub(range.start)).skip(a.saturating_sub(range.start)) {
+            let e_ix = Ix::new(e as u32);
+            let disc = entities.spans.is_discontinuous(e_ix);
+            for t in a..b {
+                let slot = &mut of[t - range.start];
                 if *slot == u32::MAX {
+                    if disc {
+                        let tok_span = Span::new(self.starts[t], self.ends[t]);
+                        if !entities.spans.fragments(e_ix).any(|frag| frag.overlaps(tok_span)) {
+                            continue;
+                        }
+                    }
                     *slot = e as u32;
                 }
             }

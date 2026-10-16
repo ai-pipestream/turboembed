@@ -26,18 +26,37 @@ impl Annotator for StructureProjector {
         let alignment = view.alignment();
         let edits = alignment.edits();
         let mut spans = Spans::new(view.id());
+        let mut mapped_frags = Vec::new();
         for (row, span) in source.spans.iter() {
-            for edge in [span.start, span.end] {
-                let k = edits.partition_point(|edit| edit.parent.end <= edge);
-                if edits.get(k).is_some_and(|edit| edit.parent.start < edge) {
-                    return Err(fail(format!("block {} has an edge inside a text edit", row.get())));
+            if source.spans.is_discontinuous(row) {
+                mapped_frags.clear();
+                for frag in source.spans.fragments(row) {
+                    for edge in [frag.start, frag.end] {
+                        let k = edits.partition_point(|edit| edit.parent.end <= edge);
+                        if edits.get(k).is_some_and(|edit| edit.parent.start < edge) {
+                            return Err(fail(format!("block {} has an edge inside a text edit", row.get())));
+                        }
+                    }
+                    let mapped = alignment.span_to_child(frag);
+                    if mapped.is_empty() || view.text().get(mapped.range()).is_none() {
+                        return Err(fail(format!("block {} is erased or outside the target text", row.get())));
+                    }
+                    mapped_frags.push(mapped);
                 }
+                spans.try_push_fragments(&mapped_frags).map_err(|e| fail(format!("block {}: {e}", row.get())))?;
+            } else {
+                for edge in [span.start, span.end] {
+                    let k = edits.partition_point(|edit| edit.parent.end <= edge);
+                    if edits.get(k).is_some_and(|edit| edit.parent.start < edge) {
+                        return Err(fail(format!("block {} has an edge inside a text edit", row.get())));
+                    }
+                }
+                let mapped = alignment.span_to_child(span);
+                if (!span.is_empty() && mapped.is_empty()) || view.text().get(mapped.range()).is_none() {
+                    return Err(fail(format!("block {} is erased or outside the target text", row.get())));
+                }
+                spans.push(mapped);
             }
-            let mapped = alignment.span_to_child(span);
-            if (!span.is_empty() && mapped.is_empty()) || view.text().get(mapped.range()).is_none() {
-                return Err(fail(format!("block {} is erased or outside the target text", row.get())));
-            }
-            spans.push(mapped);
         }
         let projected =
             Structure { spans, kind: source.kind.clone(), parent: source.parent.clone(), depth: source.depth.clone() };

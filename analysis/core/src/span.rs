@@ -258,8 +258,9 @@ impl<'a> TextSpans<'a> {
                 Ok(())
             }
             Overlap::Nesting => {
-                check_no_crossing(self.start, self.end, "span")?;
-                if !self.frag_item_end.is_empty() {
+                if self.frag_item_end.is_empty() {
+                    check_no_crossing(self.start, self.end, "span")?;
+                } else {
                     check_no_crossing(self.frag_start, self.frag_end, "fragment")?;
                     self.check_fragment_nesting()?;
                 }
@@ -1015,6 +1016,14 @@ mod tests {
         ok.push(Span::new(0, 20));
         ok.push_fragments(&[Span::new(2, 5), Span::new(10, 15)]);
         assert_eq!(ok.check(Overlap::Nesting), Ok(()));
+
+        // Valid: two discontinuous items whose fragments are completely
+        // disjoint (0..4; 10..13 and 5..8; 14..16), even though their
+        // bounding envelopes (0..13 and 5..16) cross.
+        let mut disjoint_interleaved = Spans::<Dummy>::new(ViewId::SOURCE);
+        disjoint_interleaved.push_fragments(&[Span::new(0, 4), Span::new(10, 13)]);
+        disjoint_interleaved.push_fragments(&[Span::new(5, 8), Span::new(14, 16)]);
+        assert_eq!(disjoint_interleaved.check(Overlap::Nesting), Ok(()));
 
         // Invalid: item 0 has fragments 0..6 and 15..20 (envelope 0..20),
         // item 1 is 4..10 (inside envelope 0..20, but partially crosses

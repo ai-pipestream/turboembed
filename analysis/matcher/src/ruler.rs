@@ -282,6 +282,9 @@ impl Annotator for SpanRuler {
         if tokens.spans.view() != view.id() {
             return Err(fail("the tokens are in another view".into()));
         }
+        if entities.is_some_and(|e| e.spans.view() != view.id()) {
+            return Err(fail("the entities are in another view".into()));
+        }
         if numbers.is_some_and(|n| n.spans.view() != view.id()) {
             return Err(fail("the numbers are in another view".into()));
         }

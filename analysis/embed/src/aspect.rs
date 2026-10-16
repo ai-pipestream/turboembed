@@ -300,6 +300,18 @@ impl Annotator for LearnedAspectSentiment {
         (view, sentences, tokens, subwords, subword_vectors, deps, phrase_chunks): Refs<'_, Self>,
     ) -> Result<Self::Writes, Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        if sentences.spans.view() != view.id() {
+            return Err(fail("sentences are not in the given view".into()));
+        }
+        if tokens.spans.view() != view.id() {
+            return Err(fail("tokens are not in the given view".into()));
+        }
+        if subwords.spans.view() != view.id() {
+            return Err(fail("subwords are not in the given view".into()));
+        }
+        if phrase_chunks.is_some_and(|pc| pc.spans.view() != view.id()) {
+            return Err(fail("phrase chunks are not in the given view".into()));
+        }
         let text = view.text();
         let n_tokens = tokens.len();
         let (tok_starts, tok_ends) = tokens.spans.columns();
