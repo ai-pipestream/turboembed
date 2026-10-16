@@ -50,6 +50,16 @@ impl NGramCharModel {
     /// Lowercases `ngram` code point by code point (`StringUtil.toLowerCase`)
     /// and increments its count by `1` (inserting it with count `1` if absent).
     pub fn add(&mut self, ngram: &str) {
+        if !needs_java_lowercase(ngram) {
+            // Already lowercase: probe with the borrowed key and allocate only
+            // when the n-gram is new.
+            if let Some(count) = self.ngrams.get_mut(ngram) {
+                *count = count.wrapping_add(1);
+            } else {
+                self.ngrams.insert(ngram.to_owned(), 1);
+            }
+            return;
+        }
         let lowered = java_lowercase(ngram);
         if let Some(count) = self.ngrams.get_mut(&lowered) {
             *count = count.wrapping_add(1);

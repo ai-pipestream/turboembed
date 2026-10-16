@@ -17,6 +17,10 @@ use crate::error::{Error, Result};
 
 const COUNT_ATTR: &str = "count";
 
+/// Removed slots are only compacted away once there are more than this many,
+/// so small models do not rebuild their lookup table on every removal.
+const MIN_COMPACT_REMOVED: usize = 32;
+
 /// A counted collection of token n-grams, porting `opennlp.tools.ngram.NGramModel`.
 ///
 /// Entries are ordered by first insertion (`LinkedHashMap` semantics): updating an
@@ -180,6 +184,7 @@ impl NGramModel {
                 self.buckets.remove(&hash);
             }
         }
+        self.compact_if_sparse();
         true
     }
 
@@ -232,6 +237,7 @@ impl NGramModel {
                 }
             }
         }
+        self.compact_if_sparse();
     }
 
     /// Converts this model's n-grams into a [`Dictionary`], folding case when
@@ -273,6 +279,23 @@ impl NGramModel {
         }
         out.push_str(if any { "</dictionary>\n" } else { "/>\n" });
         Ok(out.into_bytes())
+    }
+
+    /// Drops the slots of removed entries once they outnumber the live ones,
+    /// so repeated `remove` and `add` calls or a large `cutoff` do not leave
+    /// the slot vector growing. Live entries keep their relative order.
+    fn compact_if_sparse(&mut self) {
+        let removed = self.entries.len() - self.active_len;
+        if removed <= self.active_len.max(MIN_COMPACT_REMOVED) {
+            return;
+        }
+        self.entries.retain(Option::is_some);
+        self.buckets.clear();
+        for slot in 0..self.entries.len() {
+            let Some((tokens, _)) = &self.entries[slot] else { continue };
+            let hash = self.hash_tokens(tokens);
+            self.buckets.entry(hash).or_default().push(slot);
+        }
     }
 
     fn hash_tokens<S: AsRef<str>>(&self, ngram: &[S]) -> u64 {
@@ -376,4 +399,33 @@ fn push_xml_text(out: &mut String, text: &str) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn removed_slots_are_reclaimed() {
+        let mut model = NGramModel::new();
+        model.add(&["kept"]).unwrap();
+        for _ in 0..1000 {
+            model.add(&["cycled"]).unwrap();
+            assert!(model.remove(&["cycled"]));
+        }
+        assert!(model.entries.len() <= 2 + MIN_COMPACT_REMOVED, "{} slots", model.entries.len());
+        assert_eq!(model.get_count(&["kept"]), 1);
+
+        for i in 0..100 {
+            model.add(&[format!("t{i}")]).unwrap();
+        }
+        model.set_count(&["kept"], 5).unwrap();
+        model.cutoff(2, i32::MAX);
+        assert_eq!(model.entries.len(), 1);
+        assert_eq!(model.iter_with_counts().collect::<Vec<_>>(), vec![(&["kept".to_string()][..], 5)]);
+        model.add(&["kept"]).unwrap();
+        model.add(&["new"]).unwrap();
+        assert_eq!(model.get_count(&["kept"]), 6);
+        assert_eq!(model.iter().map(|t| t[0].as_str()).collect::<Vec<_>>(), ["kept", "new"]);
+    }
 }
