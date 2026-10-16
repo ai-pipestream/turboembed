@@ -14,6 +14,7 @@ import opennlp.tools.formats.ad.ADNameSampleStream;
 import opennlp.tools.formats.ad.ADPOSSampleStream;
 import opennlp.tools.formats.ad.ADSentenceSampleStream;
 import opennlp.tools.formats.convert.NameToTokenSampleStream;
+import opennlp.tools.sentdetect.lang.Factory;
 import opennlp.tools.tokenize.DetokenizationDictionary;
 import opennlp.tools.tokenize.Detokenizer;
 import opennlp.tools.tokenize.DictionaryDetokenizer;
@@ -186,6 +187,11 @@ final class AdGolden implements AnnotatorGolden {
   public List<Layer> layers(Input input) {
     List<Object> samples = new ArrayList<>();
     FormatGolden.Columns errors = new FormatGolden.Columns();
+    // ADSentenceSampleStream sorts Factory.ptEosCharacters in place and keeps
+    // searching it while it reads. The Portuguese sentence detector runs of
+    // EventGolden read the same array for their manifests, so its order is put
+    // back once the stream is done.
+    char[] eos = Factory.ptEosCharacters.clone();
     try (ObjectStream<?> stream = open(input)) {
       for (int reads = 0; ; reads++) {
         if (reads > MAX_READS) {
@@ -206,6 +212,8 @@ final class AdGolden implements AnnotatorGolden {
       }
     } catch (IOException e) {
       throw new IllegalStateException(input.inputId() + ": the line stream failed", e);
+    } finally {
+      System.arraycopy(eos, 0, Factory.ptEosCharacters, 0, eos.length);
     }
 
     List<Layer> layers = new ArrayList<>();
