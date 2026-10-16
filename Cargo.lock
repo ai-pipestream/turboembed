@@ -1959,6 +1959,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-hunspell"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-stem-layers",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-jvm"
 version = "0.1.0"
 

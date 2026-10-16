@@ -1,0 +1,27 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/card-in-words	88	88	880b86a7bc79e90497a7ea57620bbfe04ce7d7a090cced50a9521e5862b5ea81
+annotator	opennlp.tools.pii.PiiPacks	crypto
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	crypto
+layer	turbo:view	text	0	start:u32	end:u32	with:str
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+The number4111111111111111 is joined; 4111111111111111x too; (4111111111111111) is not.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	The number4111111111111111 is joined; 4111111111111111x too; (4111111111111111) is not.\n	
+hmac	The number4111111111111111 is joined; 4111111111111111x too; (4111111111111111) is not.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	0	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	0	type:str	mentions:u32	distinct:u32	samples:str
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+no pii found
+end	turbo:pii-audit-report

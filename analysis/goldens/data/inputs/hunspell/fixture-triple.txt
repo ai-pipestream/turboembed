@@ -1,0 +1,10 @@
+# Words for the Hunspell goldens, one per line; a line starting with # is a
+# comment. \\, \t, \n, \r and \uXXXX are escapes (\uXXXX is one UTF-16 unit).
+# The fixture triple.
+schiffahrt
+schifffahrt
+bettuch
+betttuch
+schiff
+fahrt
+Schiffahrt

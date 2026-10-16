@@ -25,11 +25,23 @@ pub const ADDONS_COMMIT: &str = "33e95a4956f1535cdc074056b29246fe88b3c81a";
 /// the two it needs from this commit into a jar of their own.
 pub const STRING_PATTERN_COMMIT: &str = "b2473ca80d65ae2ef10a24b08b1d0ae6a9231109";
 
+/// The commit of the OpenNLP fork's `OPENNLP-1927-hunspell-compatibility`
+/// branch whose Hunspell classes the generator runs for the Hunspell
+/// goldens. The container compiles them into a jar of their own, as it does
+/// the string pattern classes.
+pub const HUNSPELL_COMMIT: &str = "fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc";
+
 /// The commit of the OpenNLP addons fork, on its `ready/geo-place-profiles`
 /// branch, whose `PlaceProfiles` the generator runs. The class is not in
 /// [`ADDONS_COMMIT`]; the container compiles its source from this commit
 /// into the `geo` module built from that one.
 pub const PLACE_PROFILES_COMMIT: &str = "07e1f670818917d74e9a94367080f51ae6365bfa";
+
+/// The commit of the OpenNLP addons, on their `main` branch, whose
+/// liblinear add-on (`liblinear-addon`) the generator runs. Its classes are
+/// in the default package; the container compiles them from this commit into
+/// a jar of their own.
+pub const LIBLINEAR_ADDON_COMMIT: &str = "84631d0111629110ebf094eadb6e938bbf7d738f";
 
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP and addons commits, so an image built from other commits has
@@ -221,6 +233,73 @@ pub const DICTIONARIES: [Dictionary; 2] = [
     },
 ];
 
+/// A file of a published Hunspell dictionary the generator loads from the
+/// models directory: its path there, where it is published, its SHA-512
+/// and the licence it is published under.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HunspellFile {
+    pub file: &'static str,
+    pub url: &'static str,
+    pub sha512: &'static str,
+    pub license: &'static str,
+}
+
+/// The commit of LibreOffice's dictionaries repository the Hunspell
+/// dictionaries are fetched at.
+pub const HUNSPELL_DICTIONARIES_COMMIT: &str = "67032ee957631908098a72edf48dc81cac27e369";
+
+/// The published Hunspell dictionaries the Hunspell goldens read, from
+/// LibreOffice's dictionaries repository at
+/// [`HUNSPELL_DICTIONARIES_COMMIT`]. The repository publishes no hashes;
+/// these are the hashes of the files at that commit. `de_DE_frami` is under
+/// the GPL and `hu_HU` under the MPL or the LGPL, so none of them is checked
+/// in; `fetch-models` fetches them into `<models>/hunspell`, and CI caches
+/// them with the models.
+pub const HUNSPELL_FILES: [HunspellFile; 6] = [
+    HunspellFile {
+        file: "hunspell/en_US.aff",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/en/en_US.aff",
+        sha512: "2b4448dfdff03caf300914415f4642f8d2ba5b650c5f024a12355b420a279ffc\
+                 12146649fce092ba591504476634a3d6fd4c079335a27085b396fa76bfd28b74",
+        license: "SCOWL (Kevin Atkinson's notice in README_en_US.txt: permissive, MIT-like)",
+    },
+    HunspellFile {
+        file: "hunspell/en_US.dic",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/en/en_US.dic",
+        sha512: "4be737249a8a436d20a02be575dcf6cf2f06f5f2abb840ea5ec0ef0ac73a71fa\
+                 0e4669e527c703d5c6b50ef61713a6741b55bc136d559a54bcdeebcd62027988",
+        license: "SCOWL (Kevin Atkinson's notice in README_en_US.txt: permissive, MIT-like)",
+    },
+    HunspellFile {
+        file: "hunspell/de_DE_frami.aff",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/de/de_DE_frami.aff",
+        sha512: "6fec308258040c29e6b91bc51381c6e8a631bcdd66e59f84a673705f22a540f6\
+                 819e6b4720add394a46ccceff775487cb6f6c240fe5bd357e4d60e21e8ba0ff0",
+        license: "GPL-2.0 or GPL-3.0 (igerman98, README_de_DE_frami.txt)",
+    },
+    HunspellFile {
+        file: "hunspell/de_DE_frami.dic",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/de/de_DE_frami.dic",
+        sha512: "ab9e7156f2f31a0fd1d6cad6487f43aec98f1767d46daf7a7a0048b9cbfbd9bc\
+                 449f29225a10217ce2d0a722afd8b606f2f6b027dbde2720b093343334f874dd",
+        license: "GPL-2.0 or GPL-3.0 (igerman98, README_de_DE_frami.txt)",
+    },
+    HunspellFile {
+        file: "hunspell/hu_HU.aff",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/hu_HU/hu_HU.aff",
+        sha512: "c3e587793dc752aaf9b8dd9262047d8ff24dc7e620ebd4d9023e77bb6eb7c15e\
+                 89f39a1851050f413410a298e2b1323cc9abf4627dc96aa15de0d91e26ae1a00",
+        license: "MPL-2.0 or LGPL-3.0-or-later (Magyar Ispell 1.9, README_hu_HU.txt)",
+    },
+    HunspellFile {
+        file: "hunspell/hu_HU.dic",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/hu_HU/hu_HU.dic",
+        sha512: "767ac7b9cf190cca8314142dc016ba9b593b6bfbc707eb55314a0a47e8dfdea3\
+                 3ceec35880057a6f96897fd289759ff59a2a0feff5cd108d832cb1cfb027d141",
+        license: "MPL-2.0 or LGPL-3.0-or-later (Magyar Ispell 1.9, README_hu_HU.txt)",
+    },
+];
+
 /// The suffix of the directory holding the UTF-8 copy of a dictionary
 /// that is not UTF-8.
 pub const UTF8_COPY_SUFFIX: &str = ".utf8";
@@ -241,9 +320,10 @@ pub struct Fixture {
 /// file names are the ones the generator's `Runs` class opens there; a
 /// fixture in a subdirectory is a file of a MeCab dictionary directory, of
 /// the feature generator descriptors and their resources (`featuregen`) or
-/// of the name finder's dictionaries and patterns (`namefind`), and `Runs`
-/// opens the directory.
-pub const FIXTURES: [Fixture; 63] = [
+/// of the name finder's dictionaries and patterns (`namefind`) or a
+/// hand-written Hunspell dictionary (`hunspell`), and `Runs` opens the
+/// directory.
+pub const FIXTURES: [Fixture; 109] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -559,10 +639,240 @@ pub const FIXTURES: [Fixture; 63] = [
         sha512: "b725f09c0bd409be2bb5f9b19ade0a3bc658b78bdc09532ffde7cf62dab0c9a5\
                  9f9a1378df7dcbcf5db66f2dbd6132437f4d9c2693bc8c6879b5066a635163fd",
     },
+    Fixture {
+        file: "hunspell/affixes.aff",
+        sha512: "ccd685453c3cfd7261c575c61c9432eae526e81e471562d503f80464c94cd107\
+                 2e69dcc0d6e1df71106bbcd5982458f9f8df59afd048787cd6781ec5cb17cb4f",
+    },
+    Fixture {
+        file: "hunspell/affixes.dic",
+        sha512: "eb7fbf055253cb690992e15003930143bb244c06ad1b49b4766950cc5ebceb3b\
+                 2b2d361c5c9533e4486c0246b6959686b30c5c011c3091527da0d74be307aeee",
+    },
+    Fixture {
+        file: "hunspell/bom-crlf.aff",
+        sha512: "7adcf18c5802c807f864b3c6f9515a7583c81b2709010fe062f9771a29c85f27\
+                 c7764f7a18802a03d73d934e9d5d569447f1c0983822f57ea7da8d78186c772d",
+    },
+    Fixture {
+        file: "hunspell/bom-crlf.dic",
+        sha512: "33984facc0489af2d8ce1cdee48bf57903a720502b3f8f9e6638044c2cf45637\
+                 cb4ff8b4cd4a1eb86a30b51a7f131e41016c5fb961534e8b9566df26827753bc",
+    },
+    Fixture {
+        file: "hunspell/complex.aff",
+        sha512: "c5f24f865986104940fdef8d9c11a8962aee9ab4f83f6d8283f64075ef46ba65\
+                 c86836e91b37d1870b0c278a056d68d7f714d62fffafc8c1522ff7be1e4a6ce4",
+    },
+    Fixture {
+        file: "hunspell/complex.dic",
+        sha512: "99b6056e7ee47a469c6dab3a48d8fe019669a3e73a38e8cb011c3e606ced3730\
+                 41da636cc8f87b9c4af3ed36af3d8ad1ce3d43502f10fd73394d0b3656185062",
+    },
+    Fixture {
+        file: "hunspell/compound-rule.aff",
+        sha512: "af2cd9d6433a08963bb489c9851b88cd9618e88160c7806973c5048babcd9799\
+                 50e108ceae2db6753b1e6c3abcc347fa63d3ae2739026530e90b9152aab4e501",
+    },
+    Fixture {
+        file: "hunspell/compound-rule.dic",
+        sha512: "0c6fe9b0aed1b4f88636ff9de1e573bc8b9c39de301d60c5737b6577d4899787\
+                 71d9f364559ee50a9e64a701e8845b36826ef21301f2767640caf466cb7fc6a4",
+    },
+    Fixture {
+        file: "hunspell/compound.aff",
+        sha512: "61da3813545fd68df09904a6679e6f5886e9b32ad866e6c61ffe807eb055099a\
+                 edbab03a734a0ac2956e0fbc0ad203994245633f99c7e87b154446a745d085dc",
+    },
+    Fixture {
+        file: "hunspell/compound.dic",
+        sha512: "fbad7ebac56842da3313a8f9db5b52812af69959b9f3ffc9388de43caff8d7a2\
+                 96eb9bba2426b5686c8ef49164b676bf71185be9d513ef6fdb12ee9f649d0d80",
+    },
+    Fixture {
+        file: "hunspell/error-alias.aff",
+        sha512: "072a776a420704e2103de13856934aac01072e035a6aad24d72a38c689f04fee\
+                 d6e7bebca996fa8b1e1385c5e446a2d095a5850908245bc4ed2c437ced2babfb",
+    },
+    Fixture {
+        file: "hunspell/error-alias.dic",
+        sha512: "d989c50a12d076caa0cc69a2d007262d8f2afabe5bc9bbec045bd95f2cc20e1e\
+                 a8a3ed5b3f9310eb3dbf66aab008800789cd2d316384fe0caaf9f68580e9895b",
+    },
+    Fixture {
+        file: "hunspell/error-compound-rule.aff",
+        sha512: "04c5ba03a3a961064a70ae4f325e71c24c331fbf3590e5e9e9b518e32e0cd3c0\
+                 d3162cf782b9e9df5c22ce12e775a6969de0e0aee5ac13783873ea06fae6cef6",
+    },
+    Fixture {
+        file: "hunspell/error-compound-rule.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-condition.aff",
+        sha512: "0acafa9721653d526cb1905a8bd55e11246724f75b8c8b63366111c6786973b0\
+                 0fe9ec7431348d4ebe93dad51acc6ea74b7460a56f3ca119120cf784899eaf60",
+    },
+    Fixture {
+        file: "hunspell/error-condition.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-encoding.aff",
+        sha512: "714adf253b070a850519d825b1af0a102c1b8f2ec33465562a7af13966cfdf4a\
+                 b21dde49107eb7cb549df29994f2e1d74447d697e04653c9b2f8fd90a28e8e76",
+    },
+    Fixture {
+        file: "hunspell/error-encoding.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-flag-mode.aff",
+        sha512: "16bacb0c6fb34e7ac74f62ec95eba0c058d4f4cf2c73a1161c060af64cefbc69\
+                 99fb019462f9d3cfbb5009f02b841d0ee686e9e081537b3b231a3f12a72ecbed",
+    },
+    Fixture {
+        file: "hunspell/error-flag-mode.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-long-flag.aff",
+        sha512: "20093efc6e53cecba32681e69d269c9a87cfd54c4cf3592539d860a016e54b48\
+                 51b44382497582da9e9e79e25f361a134cf7737feabb43146ec62bb20f2041c2",
+    },
+    Fixture {
+        file: "hunspell/error-long-flag.dic",
+        sha512: "53a755054b0d9c79034b86b44a72bcf5b3ea76ba06da37d705b0349294b05462\
+                 302f689f6c29d9c0db133b72635a23713e3fa565eade23d26346321d8fd375fd",
+    },
+    Fixture {
+        file: "hunspell/error-morphology.aff",
+        sha512: "8f8d8bbc81afa5a00d6d4adf535b6319d35c8753bc3671d09f7408281bd61027\
+                 5783fc6215649b0fa7542c98adad734db1d3ae9936d2cca8df4279072aadcd61",
+    },
+    Fixture {
+        file: "hunspell/error-morphology.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-truncated.aff",
+        sha512: "547ea039f89e0c4976dd4f72aded285e07912c3180033c9501fdfd6879e2cd96\
+                 1a502cdd2faf56764581b9b9605064631c2f6b98932e82d89ced23004c142800",
+    },
+    Fixture {
+        file: "hunspell/error-truncated.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-utf8.aff",
+        sha512: "e15cb93c173f8401c828632bd01bf5e139ac37b3699de575d68c99f3a0f18448\
+                 518afcab6a22296e877b606bda37784ecdb9bd016962569241c0eb749b005d8f",
+    },
+    Fixture {
+        file: "hunspell/error-utf8.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/flag-long.aff",
+        sha512: "a1316980dbc434051b6950fe8c0528f2a44a55e005fa20c9234a13db0d9dc76a\
+                 570fcaac771f018f35c8f5ab87ef04e676fd0dbe05dafb36b909267e56c05677",
+    },
+    Fixture {
+        file: "hunspell/flag-long.dic",
+        sha512: "ce93f3dd05c7e28c1d04fdd3b4e55853a361616a3de83737dbeb60c988a77942\
+                 8c43d0ad2f14f244b384c7482b261147b80290d2fc99d0beecd64b3183c37b73",
+    },
+    Fixture {
+        file: "hunspell/flag-num.aff",
+        sha512: "b083752a3e70ae5413991074ebf9a2e85299ce238fa6ce2629c437b0a3ef8289\
+                 c157bcc5ac3d46a10c068e7faadc76426c0bce632d9d89a3518d6aa1344cbe1a",
+    },
+    Fixture {
+        file: "hunspell/flag-num.dic",
+        sha512: "71c0c4165f998b7aa00e9a5ac66aaaa0ed9c5aa0aa1d1a32edf91d42e1bca23c\
+                 73d26ecb90464b6f539bc24f91bb060e11affc038ab8660d3146ef981623f5fd",
+    },
+    Fixture {
+        file: "hunspell/flag-utf8.aff",
+        sha512: "2747b89d50e91b939839c2d8bb89188529a7e5e2474477ce7551a904f8e2d92e\
+                 e0b492f068c0fc4261924b9ee8dbb6d4f06463c224fb9a72d27c3bc00a1700de",
+    },
+    Fixture {
+        file: "hunspell/flag-utf8.dic",
+        sha512: "1b38fc7af8bbf2750b479f9d122608a40d0becd141845acd88060274ae48e9b0\
+                 19e8f8561656812d4529871d0900ea694cf016f217511f5c6765b783d8ec0bfe",
+    },
+    Fixture {
+        file: "hunspell/hungarian.aff",
+        sha512: "4c5f6a1913406ae7fa6b87fb137fa58ddaac6564ffce42a19fc96925767a1bd2\
+                 e62b62a306b9e5867871e4a8769f1bef845dd0f08d5299e6b7bad7ad1519f880",
+    },
+    Fixture {
+        file: "hunspell/hungarian.dic",
+        sha512: "ceb67b26020bcae7d25c3fc9d165b88b784d89af3b1ea5122bd2198b0da2775a\
+                 ab09c42ce43e4f6560b3bd7339920e95aee2e6b603dcb387bca998f5ae4898c2",
+    },
+    Fixture {
+        file: "hunspell/latin1.aff",
+        sha512: "c66022c6e5938d378fb808b2e34a40eea804229e5ab8238674eeb8b0f6eaec2b\
+                 a0e6e41d95e6bb8e0d6bbabb2f5baed0c943791bb3bc57bdb762eca0569b29c8",
+    },
+    Fixture {
+        file: "hunspell/latin1.dic",
+        sha512: "98f7c364ed1ccc66e1ef6d77f0692a791f6a165dc0f5cfb999c68cb74a5abb92\
+                 94cb0a2962b6a2e1f207022206c33549e7949ba619b9eb079002720f850714d7",
+    },
+    Fixture {
+        file: "hunspell/raw-flags.aff",
+        sha512: "4c0b7dac00021063f7f7ec1653e56a3973fad794317f130ce62e2e15110587be\
+                 18c6e5aba46644120e66fb8941bc6a2b886c1b6b259f8d7cc734c44ed4efade0",
+    },
+    Fixture {
+        file: "hunspell/raw-flags.dic",
+        sha512: "c9e6cb2c59506cc6cc191a029a243a946803943fe58187b768ce464a9309b4f8\
+                 2e7751f149b5d6661a1795c1506f91529b8654fa558592109fd8033ff6cabf33",
+    },
+    Fixture {
+        file: "hunspell/triple.aff",
+        sha512: "9e7cb401f60d478df635d86196da743cc325019e6115f1a9ada63e8e7b5668aa\
+                 66bae9cee8e330b22ecef903a8c29fa9cbb2ba976019d2e5a40587744b0628de",
+    },
+    Fixture {
+        file: "hunspell/triple.dic",
+        sha512: "063cab07493fdab849751570d4a5c3eb4f67122143e936cf9f30d2571aa7f01d\
+                 9e8a19c4e69ed0c05686b44499214d151fd2569b5f0125fcf1ce89da6df78411",
+    },
+    Fixture {
+        file: "hunspell/turkic.aff",
+        sha512: "a70955a5127e470a5789b8424845569e96f216e4c60645d57abd406a794f4c74\
+                 56af852af7e7bd8fe2073ad8aa84c0a459c898fca8319db0b37e3012454f9ea7",
+    },
+    Fixture {
+        file: "hunspell/turkic.dic",
+        sha512: "7ea5a0446d7a16ed514a57288548d8ee573960f8a0e8345386e2bf5d39ea4b40\
+                 297d7256d60f674a691e6f40a35cd0472f50f9caad88fc3b71962c8ff587226e",
+    },
+    Fixture {
+        file: "hunspell/unsupported-directives.aff",
+        sha512: "4af39d97f627aacb95cb7b1d55c4aea7cdaae411d79cbd36c6fa524b58e66f8f\
+                 ec532bee524d2bbe30917cec2bc7d8a9cd59569a572c8b5e94874e9299ea639d",
+    },
+    Fixture {
+        file: "hunspell/unsupported-directives.dic",
+        sha512: "21e28574e31224641376918eac322f33935dcdc06c36ece9a191b18c20eb366d\
+                 76d0e3e928be63d4c8278952cd6486a4a088d1b7c06d4d8704cfc0b432dd6ea5",
+    },
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 40] = [
+pub const INPUT_SETS: [&str; 41] = [
     "en",
     "multi",
     "norm",
@@ -598,6 +908,7 @@ pub const INPUT_SETS: [&str; 40] = [
     "namefind",
     "stem",
     "stopword",
+    "hunspell",
     "glossary",
     "svm-doccat",
     "svm-doccat-train",
@@ -616,7 +927,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 42] = [
+pub const ANNOTATORS: [&str; 45] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -631,6 +942,7 @@ pub const ANNOTATORS: [&str; 42] = [
     "quantity",
     "temporal",
     "pii",
+    "pii-rewrite",
     "detokenize",
     "subwords",
     "unigram",
@@ -639,6 +951,7 @@ pub const ANNOTATORS: [&str; 42] = [
     "train",
     "train-events",
     "train-langdetect",
+    "train-liblinear",
     "formats",
     "evaluate",
     "masc",
@@ -656,6 +969,7 @@ pub const ANNOTATORS: [&str; 42] = [
     "namefind",
     "stem",
     "stopword",
+    "hunspell",
     "glossary",
     "svm-doccat",
     "sentiment",
@@ -666,8 +980,9 @@ pub const ANNOTATORS: [&str; 42] = [
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
 /// normalizers, the number scan, the money, quantity, temporal and PII
-/// annotators, the detokenizer, the WordPiece encoder, the unigram
-/// segmenter, the BPE trainer and the lattice tokenizer, which ask no model.
+/// annotators, the PII rewrites, the detokenizer, the WordPiece encoder,
+/// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
+/// ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
@@ -702,8 +1017,8 @@ pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
 pub const SENTIMENT_INPUT_SET: &str = "sentiment";
 pub const SENTIMENT_TRAIN_SET: &str = "sentiment-train";
 
-/// The input set the PII packs run on. They run on no other set, and the
-/// other annotators do not run on this one.
+/// The input set the PII packs and the PII rewrites run on. They run on no
+/// other set, and the other annotators do not run on this one.
 pub const PII_INPUT_SET: &str = "pii";
 
 /// The rate snapshot the money conversion reads: a directory beside the
@@ -726,6 +1041,7 @@ mod tests {
         assert!(is_lower_hex(ADDONS_COMMIT, 40), "{ADDONS_COMMIT}");
         assert!(is_lower_hex(STRING_PATTERN_COMMIT, 40), "{STRING_PATTERN_COMMIT}");
         assert!(is_lower_hex(PLACE_PROFILES_COMMIT, 40), "{PLACE_PROFILES_COMMIT}");
+        assert!(is_lower_hex(LIBLINEAR_ADDON_COMMIT, 40), "{LIBLINEAR_ADDON_COMMIT}");
         assert!(IMAGE_TAG.contains(&format!("opennlp-{}", &OPENNLP_COMMIT[..12])));
         assert!(IMAGE_TAG.ends_with(&format!("addons-{}", &ADDONS_COMMIT[..12])));
     }
@@ -757,9 +1073,35 @@ mod tests {
         assert!(dockerfile.contains(&format!("\nARG STRING_PATTERN_COMMIT={STRING_PATTERN_COMMIT}\n")));
         let patterns = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/StringPatternGolden.java");
         assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG HUNSPELL_COMMIT={HUNSPELL_COMMIT}\n")));
+        let hunspell = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
+        assert!(hunspell.contains(&format!("BRANCH_COMMIT = \"{HUNSPELL_COMMIT}\";")));
         assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
         let profiles = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PlaceProfilesGolden.java");
         assert!(profiles.contains(&format!("PROFILES_COMMIT = \"{PLACE_PROFILES_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG LIBLINEAR_ADDON_COMMIT={LIBLINEAR_ADDON_COMMIT}\n")));
+        let liblinear = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/LiblinearTrainGolden.java");
+        assert!(liblinear.contains(&format!("ADDON_COMMIT = \"{LIBLINEAR_ADDON_COMMIT}\";")));
+        assert!(liblinear.contains("ANNOTATOR = \"train-liblinear\""));
+    }
+
+    #[test]
+    fn every_hunspell_file_names_the_commit_and_a_sha512() {
+        for f in HUNSPELL_FILES {
+            assert!(is_lower_hex(f.sha512, 128), "{}: {}", f.file, f.sha512);
+            let name = f.file.strip_prefix("hunspell/").expect("a file of the hunspell directory");
+            assert!(name.ends_with(".aff") || name.ends_with(".dic"), "{}", f.file);
+            let prefix =
+                format!("https://raw.githubusercontent.com/LibreOffice/dictionaries/{HUNSPELL_DICTIONARIES_COMMIT}/");
+            assert!(f.url.starts_with(&prefix), "{}", f.url);
+            assert!(f.url.ends_with(&format!("/{name}")), "{} does not end in {name}", f.url);
+            assert!(!f.license.is_empty());
+        }
+        let golden = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
+        for f in HUNSPELL_FILES.iter().filter(|f| f.file.ends_with(".aff")) {
+            let name = &f.file["hunspell/".len()..f.file.len() - ".aff".len()];
+            assert!(golden.contains(&format!("\"{name}\"")), "HunspellGolden.java does not name {name}");
+        }
     }
 
     #[test]
@@ -781,6 +1123,7 @@ mod tests {
                     let extensions: &[&str] = match dir {
                         "featuregen" => &[".xml", ".cluster", ".dictionary"],
                         "namefind" => &[".xml", ".txt"],
+                        "hunspell" => &[".aff", ".dic"],
                         _ => {
                             assert!(dir.starts_with("mecab-"), "{}", f.file);
                             &[".csv", ".def"]
@@ -911,6 +1254,24 @@ mod tests {
         let temporal = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
         assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
         assert!(temporal.contains("ANNOTATOR = \"temporal\""));
+    }
+
+    #[test]
+    fn the_pii_packs_and_rewrites_have_their_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&PII_INPUT_SET));
+        for annotator in ["pii", "pii-rewrite"] {
+            assert!(ANNOTATORS.contains(&annotator));
+            assert!(!DUMPED_ANNOTATORS.contains(&annotator));
+        }
+        let pii = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PiiGolden.java");
+        assert!(pii.contains(&format!("INPUT_SET = \"{PII_INPUT_SET}\"")));
+        assert!(pii.contains("ANNOTATOR = \"pii\""));
+        let rewrite = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PiiRewriteGolden.java");
+        assert!(rewrite.contains("ANNOTATOR = \"pii-rewrite\""));
+        assert!(rewrite.contains("Set.of(PiiGolden.INPUT_SET)"));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains("annotators.addAll(PiiGolden.all());"));
+        assert!(runs.contains("annotators.addAll(PiiRewriteGolden.all());"));
     }
 
     #[test]

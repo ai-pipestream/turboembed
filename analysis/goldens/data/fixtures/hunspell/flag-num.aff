@@ -1,0 +1,7 @@
+FLAG num
+SFX 101 Y 1
+SFX 101 0 s .
+PFX 65535 Y 1
+PFX 65535 0 re .
+SFX 7 Y 1
+SFX 7 0 ing/101 .

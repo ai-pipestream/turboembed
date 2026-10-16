@@ -1,0 +1,176 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/edge	592	560	28bc4140f764c243f0010d2a37035fa7d91b6074d15e74968b0e7c41e6a9b2bb
+model	hu_HU.aff	c3e587793dc752aaf9b8dd9262047d8ff24dc7e620ebd4d9023e77bb6eb7c15e89f39a1851050f413410a298e2b1323cc9abf4627dc96aa15de0d91e26ae1a00
+model	hu_HU.dic	767ac7b9cf190cca8314142dc016ba9b593b6bfbc707eb55314a0a47e8dfdea33ceec35880057a6f96897fd289759ff59a2a0feff5cd108d832cb1cfb027d141
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	51	word:str	stem:str	thrown:str
+		
+.	.	
+...	...	
+a	a	
+A	A	
+'	'	
+-	-	
+--	-	
+---	-	
+-a	a	
+a-	a	
+a--b	a	
+a-b-c-d-e-f-g-h	a	
+word.	word.	
+word..	word..	
+WORD	Word	
+Word	Word	
+wOrD	wOrD	
+x\ty	x\ty	
+x\u0000y	x\u0000y	
+😀	😀	
+😀s	😀s	
+­	­	
+a­b	a­b	
+’	’	
+it’s	it’s	
+ﬁne	ﬁne	
+STRASSE	STRASSE	
+Straße	Straße	
+STRAẞE	STRAẞE	
+SSSS	SSSS	
+MASSSTAB	MASSSTAB	
+İSTANBUL	İSTANBUL	
+İstanbul	İstanbul	
+ISTANBUL	ISTANBUL	
+L'HOMME	L'HOMME	
+D'ARTAGNAN	D'ARTAGNAN	
+'S	'S	
+1	1	
+1st	1st	
+2nd	2nd	
+11th	11th	
+123rd	123rd	
+1000000	1	
+ǅungla	ǅungla	
+ǄUNGLA	ǄUNGLA	
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	
+ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab	ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab	
+été	été	
+ΑΘΗΝΑ	ΑΘΗΝΑ	
+москва	москва	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	65	word:u32	stem:str
+0	
+1	.
+2	...
+3	a
+4	A
+4	a
+5	'
+6	-
+7	-
+8	-
+9	a
+10	a
+11	a
+11	b
+12	a
+12	b
+12	c
+12	d
+12	e
+12	f
+12	g
+12	h
+13	word.
+14	word..
+15	Word
+16	Word
+17	wOrD
+18	x\ty
+19	x\u0000y
+20	😀
+21	😀s
+22	­
+23	a­b
+24	’
+25	it’s
+26	ﬁne
+27	STRASSE
+28	Straße
+29	STRAẞE
+30	SSSS
+31	MASSSTAB
+32	İSTANBUL
+33	İstanbul
+34	ISTANBUL
+35	L'HOMME
+36	D'ARTAGNAN
+37	'S
+38	1
+39	1st
+40	2nd
+41	11th
+42	123rd
+43	1
+43	0
+43	000
+43	10
+43	100
+43	1000
+44	ǅungla
+45	ǄUNGLA
+46	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+47	ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab
+48	été
+49	ΑΘΗΝΑ
+50	москва
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	38	word:u32	analysis:str
+3	st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s
+3	st:a po:det_def al:a-vá al:a-val al:a- al:A-s
+4	st:A po:noun_prs ts:NOM al:A-ré al:A-rel al:A-es al:A-
+4	st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s
+4	st:a po:det_def al:a-vá al:a-val al:a- al:A-s
+5	st:' po:punct
+6	st:- po:suffix
+6	st:- po:punct
+7	st:- po:suffix
+7	st:- po:punct
+8	pa:- st:- po:suffix pa:- st:- po:suffix
+8	pa:- st:- po:suffix pa:- st:- po:punct
+8	pa:- st:- po:punct pa:- st:- po:suffix
+8	pa:- st:- po:punct pa:- st:- po:punct
+8	st:- po:suffix
+8	st:- po:punct
+9	st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s
+9	st:a po:det_def al:a-vá al:a-val al:a- al:A-s
+10	st:a po:noun ts:NOM
+11	pa:a st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s pa:-b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s
+11	pa:a st:a po:det_def al:a-vá al:a-val al:a- al:A-s pa:-b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s
+11	pa:a- st:a po:noun ts:NOM pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s
+12	pa:a st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c st:c po:noun ts:NOM al:c-vé al:c-vel al:c- al:C-s pa:d st:d po:noun ts:NOM al:d-vé al:d-vel al:d- al:D-s pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-
+12	pa:a st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c-d st:c po:noun ts:NOM is:POSS_SG_2 is:ACC pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-
+12	pa:a st:a po:noun ts:NOM al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c-d st:c po:noun ts:NOM is:POSS_SG_2 is:NOM pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-
+12	pa:a st:a po:det_def al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c st:c po:noun ts:NOM al:c-vé al:c-vel al:c- al:C-s pa:d st:d po:noun ts:NOM al:d-vé al:d-vel al:d- al:D-s pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-
+12	pa:a st:a po:det_def al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c-d st:c po:noun ts:NOM is:POSS_SG_2 is:ACC pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-
+12	pa:a st:a po:det_def al:a-vá al:a-val al:a- al:A-s pa:b st:b po:noun ts:NOM al:b-vé al:b-vel al:b- al:B-s pa:c-d st:c po:noun ts:NOM is:POSS_SG_2 is:NOM pa:e st:e po:noun ts:NOM al:e-vé al:e-vel al:e- al:E-s pa:f st:f po:noun ts:NOM al:f-fé al:f-fel al:f- al:F-s pa:g st:g po:noun ts:NOM al:g-vé al:g-vel al:g-os al:g-má al:g-mal al:g- pa:h st:h po:noun ts:NOM al:h-vá al:h-val al:h-
+15	st:Word po:noun_prs ts:NOM
+16	st:Word po:noun_prs ts:NOM
+38	st:1 po:adj_num ts:NOM al:1-ji al:1-ji al:1-jei al:1-je al:1-i al:1-gyé al:1-gyel al:1-es al:1-en al:1-ed al:1- al:1-
+43	pa:1 st:1 po:adj_num ts:NOM al:1-ji al:1-ji al:1-jei al:1-je al:1-i al:1-gyé al:1-gyel al:1-es al:1-en al:1-ed al:1- al:1- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000-
+43	pa:1 st:1 po:adj_num ts:NOM al:1-ji al:1-ji al:1-jei al:1-je al:1-i al:1-gyé al:1-gyel al:1-es al:1-en al:1-ed al:1- al:1- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00-
+43	pa:10 st:10 po:adj_num ts:NOM al:10-zé al:10-zel al:10-i al:10-i al:10-es al:10-en al:10-ed al:10-e al:10- al:10- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000-
+43	pa:10 st:10 po:adj_num ts:NOM al:10-zé al:10-zel al:10-i al:10-i al:10-es al:10-en al:10-ed al:10-e al:10- al:10- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00-
+43	pa:100 st:100 po:adj_num ts:NOM al:100-zá al:100-zal al:100-at al:100-as al:100- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000-
+43	pa:100 st:100 po:adj_num ts:NOM al:100-zá al:100-zal al:100-at al:100-as al:100- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000- pa:0 st:0 po:adj_num ts:NOM al:0-vá al:0-val al:0-s al:0-i al:0- al:0- al:00-
+43	pa:1000 st:1000 po:adj_num ts:NOM al:1000-ré al:1000-rel al:1000-es al:1000- pa:000 st:000 po:adj_num ts:NOM al:000-vá al:000-val al:000-s al:000-ré al:000-rel al:000-ot al:000-os al:000-es al:000-en al:000-ed al:000-dá al:000-dal al:000- al:000-
+end	turbo:hunspell-analyses

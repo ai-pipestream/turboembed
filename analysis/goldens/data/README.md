@@ -688,9 +688,13 @@ outside the Basic Multilingual Plane, no-break spaces, fullwidth and
 Arabic-Indic digits). Every value is a documented test value, in a range
 set aside for examples (`example.com`, `192.0.2.0/24`, `2001:db8::/32`,
 555 and Ofcom drama numbers) or made up; none is real personal data.
-`pii/<pack>/pii/<id>.golden` holds the layer `turbo:pii`; see
-`analysis/goldens-tool/README.md`. Only the PII annotator runs on the
-set, and it has no dumps.
+`pii/<pack>/pii/<id>.golden` holds the layer `turbo:pii`, and
+`pii-rewrite/<pack>/pii/<id>.golden` what OpenNLP's `Masker`,
+`Pseudonymizer`, `HmacTokenizer` and `PiiAuditReport` make of those
+mentions under a fixed test key: the masked view's edits, the text with
+every mention masked, the two rewrites and their labels, and the audit
+report; see `analysis/goldens-tool/README.md`. Only the PII annotator and
+the rewrites run on the set, and they have no dumps.
 
 ## Decision point dumps
 
