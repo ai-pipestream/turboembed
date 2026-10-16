@@ -10,10 +10,11 @@ use crate::event::Event;
 use crate::gis::{self, GisModel, TrainingReport};
 use crate::index::DataIndex;
 use crate::monitor::TrainingConfiguration;
+use crate::naive_bayes::{self, NaiveBayesModel};
 use crate::params::{Algorithm, TrainerType, TrainingParameters};
 use crate::perceptron::{self, PerceptronModel, SequenceSource};
 use crate::qn::{self, QnModel};
-use crate::writer::{WritableModel, write_gis, write_perceptron, write_qn};
+use crate::writer::{WritableModel, write_gis, write_naive_bayes, write_perceptron, write_qn};
 
 /// A model an event trainer produced, by the trainer that produced it.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +23,7 @@ pub enum TrainedModel {
     Qn(QnModel),
     /// From the perceptron or the sequence perceptron trainer.
     Perceptron(PerceptronModel),
+    NaiveBayes(NaiveBayesModel),
 }
 
 impl TrainedModel {
@@ -31,6 +33,7 @@ impl TrainedModel {
             TrainedModel::Gis(_) => Algorithm::Maxent,
             TrainedModel::Qn(_) => Algorithm::MaxentQn,
             TrainedModel::Perceptron(_) => Algorithm::Perceptron,
+            TrainedModel::NaiveBayes(_) => Algorithm::NaiveBayes,
         }
     }
 
@@ -40,6 +43,7 @@ impl TrainedModel {
             TrainedModel::Gis(m) => write_gis(m),
             TrainedModel::Qn(m) => write_qn(m),
             TrainedModel::Perceptron(m) => write_perceptron(m),
+            TrainedModel::NaiveBayes(m) => write_naive_bayes(m),
         }
     }
 
@@ -49,22 +53,21 @@ impl TrainedModel {
             TrainedModel::Gis(m) => m,
             TrainedModel::Qn(m) => m,
             TrainedModel::Perceptron(m) => m,
+            TrainedModel::NaiveBayes(m) => m,
         }
     }
 }
 
-/// The event trainer `Algorithm` names: `MAXENT` when absent. An algorithm
-/// OpenNLP has but this crate does not train yet is [`Error::NotPorted`];
-/// the sequence perceptron is [`Error::WrongTrainerType`].
+/// The event trainer `Algorithm` names: `MAXENT` when absent. The sequence
+/// perceptron is [`Error::WrongTrainerType`].
 fn event_trainer(params: &TrainingParameters) -> Result<Algorithm> {
     let algorithm = match params.algorithm()? {
         None => Algorithm::Maxent,
         Some(name) => Algorithm::from_name(name)?,
     };
     match algorithm {
-        Algorithm::Maxent | Algorithm::MaxentQn | Algorithm::Perceptron => Ok(algorithm),
+        Algorithm::Maxent | Algorithm::MaxentQn | Algorithm::Perceptron | Algorithm::NaiveBayes => Ok(algorithm),
         Algorithm::PerceptronSequence => Err(Error::WrongTrainerType { algorithm, wanted: TrainerType::Event }),
-        other => Err(Error::NotPorted(other)),
     }
 }
 
@@ -105,6 +108,10 @@ pub fn train_events(
             let (model, report) = perceptron::train_events(events, params, config)?;
             (TrainedModel::Perceptron(model), report)
         }
+        Algorithm::NaiveBayes => {
+            let (model, report) = naive_bayes::train_events(events, params)?;
+            (TrainedModel::NaiveBayes(model), report)
+        }
         _ => {
             let (model, report) = gis::train_events(events, params, config)?;
             (TrainedModel::Gis(model), report)
@@ -121,6 +128,7 @@ pub fn train(
     Ok(match event_trainer(params)? {
         Algorithm::MaxentQn => TrainedModel::Qn(qn::train(index, params)?),
         Algorithm::Perceptron => TrainedModel::Perceptron(perceptron::train(index, params, config)?),
+        Algorithm::NaiveBayes => TrainedModel::NaiveBayes(naive_bayes::train(index, params)?),
         _ => TrainedModel::Gis(gis::train(index, params, config)?),
     })
 }
@@ -157,13 +165,16 @@ mod tests {
         let (perceptron, _) = train_events(&events(), &p, &mut config).unwrap();
         assert_eq!(perceptron.algorithm(), Algorithm::Perceptron);
         assert_eq!(&perceptron.write().unwrap()[..12], b"\0\x0aPerceptron");
+        p.put(Key::ALGORITHM, Algorithm::NaiveBayes.name());
+        let (nb, _) = train_events(&events(), &p, &mut config).unwrap();
+        assert_eq!(nb.algorithm(), Algorithm::NaiveBayes);
+        assert_eq!(&nb.write().unwrap()[..12], b"\0\x0aNaiveBayes");
+        assert_eq!(nb.as_writable().num_predicates(), 4);
         p.put(Key::ALGORITHM, Algorithm::PerceptronSequence.name());
         assert_eq!(
             train_events(&events(), &p, &mut config).err(),
             Some(Error::WrongTrainerType { algorithm: Algorithm::PerceptronSequence, wanted: TrainerType::Event })
         );
-        p.put(Key::ALGORITHM, Algorithm::NaiveBayes.name());
-        assert_eq!(train_events(&events(), &p, &mut config).err(), Some(Error::NotPorted(Algorithm::NaiveBayes)));
         p.put(Key::ALGORITHM, "Mystery");
         assert_eq!(train_events(&events(), &p, &mut config).err(), Some(Error::UnknownAlgorithm("Mystery".into())));
     }
