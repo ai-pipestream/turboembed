@@ -74,11 +74,11 @@ impl FeedforwardPosContext {
         if index < 0 || (index as usize) >= tokens.len() { None } else { Some(tokens[index as usize].as_ref()) }
     }
 
+    /// The word symbol at `index`: the token as written, as Java's
+    /// `extract` gives it; [`FeedforwardPosModel::feature_ids`] lowercases
+    /// it for the vocabulary lookup.
     fn word<S: AsRef<str>>(tokens: &[S], index: isize) -> String {
-        match Self::token(tokens, index) {
-            None => ABSENT.to_owned(),
-            Some(w) => Self::lowercase(w),
-        }
+        Self::token(tokens, index).unwrap_or(ABSENT).to_owned()
     }
 
     pub(crate) fn lowercase(word: &str) -> String {
@@ -92,30 +92,16 @@ impl FeedforwardPosContext {
         word.chars().map(to_lower_char).collect()
     }
 
-    /// Returns the last `length` UTF-16 code units of `word`, or `word`
-    /// itself when it is no longer, as Java's `substring` does.
-    ///
-    /// When the cut falls between the two halves of a surrogate pair, Java
-    /// returns a string starting with a lone low surrogate, which a Rust
-    /// string cannot hold. That half is replaced by U+FFFD. A model file
-    /// whose vocabulary holds a lone surrogate is rejected on load, so on
-    /// a Java model such a suffix maps to the unknown symbol either way.
+    /// Returns the last `length` code points of `word`, or `word` itself
+    /// when it is no longer, as Java's `FeedforwardPOSContext.suffix` does.
     pub fn suffix(word: &str, length: usize) -> String {
-        let mut units = 0;
-        for (start, c) in word.char_indices().rev() {
-            units += c.len_utf16();
-            if units == length {
-                return word[start..].to_owned();
-            }
-            if units > length {
-                let rest = &word[start + c.len_utf8()..];
-                let mut out = String::with_capacity(rest.len() + 3);
-                out.push('\u{FFFD}');
-                out.push_str(rest);
-                return out;
-            }
+        let Some(last) = length.checked_sub(1) else {
+            return String::new();
+        };
+        match word.char_indices().rev().nth(last) {
+            Some((start, _)) => word[start..].to_owned(),
+            None => word.to_owned(),
         }
-        word.to_owned()
     }
 
     fn shape_opt(word: Option<&str>) -> &'static str {
@@ -127,18 +113,18 @@ impl FeedforwardPosContext {
 
     /// Classifies `word` into one of the six coarse orthographic shape
     /// symbols, as Java's `FeedforwardPOSContext.shape` does: it walks the
-    /// UTF-16 code units, so a supplementary character (a surrogate pair)
-    /// is neither a letter nor a digit, and a letter that is not uppercase
-    /// counts as lowercase. A word with letters and no digit is all caps
-    /// when no letter is lowercase, capitalized when its first code unit
-    /// is uppercase, and lowercase otherwise.
+    /// code points and asks whether each is a digit, a letter and
+    /// uppercase, and a letter that is not uppercase counts as lowercase.
+    /// A word with letters and no digit is all caps when no letter is
+    /// lowercase, capitalized when its first code point is uppercase (a
+    /// letter or not), and lowercase otherwise.
     pub fn shape(word: &str) -> &'static str {
         let mut letter = false;
         let mut digit = false;
         let mut upper = false;
         let mut lower = false;
-        for unit in word.encode_utf16() {
-            let cp = u32::from(unit);
+        for c in word.chars() {
+            let cp = u32::from(c);
             if is_digit(cp) {
                 digit = true;
             } else if is_letter(cp) {
@@ -158,7 +144,7 @@ impl FeedforwardPosContext {
             SHAPE_OTHER
         } else if upper && !lower {
             SHAPE_ALLCAPS
-        } else if word.encode_utf16().next().is_some_and(|unit| is_upper_case(u32::from(unit))) {
+        } else if word.chars().next().is_some_and(|c| is_upper_case(u32::from(c))) {
             SHAPE_CAP
         } else {
             SHAPE_LOWER
@@ -313,8 +299,9 @@ impl FeedforwardPosModel {
     /// Maps the 12 context feature strings to their embedding row indices.
     pub fn feature_ids(&self, context: &[impl AsRef<str>; SLOTS]) -> [usize; SLOTS] {
         let mut ids = [0usize; SLOTS];
+        // Words are matched case-insensitively, as Java's `normalize` does.
         for s in 0..5 {
-            ids[s] = self.lookup(&self.word_ids, context[s].as_ref());
+            ids[s] = self.lookup(&self.word_ids, &FeedforwardPosContext::lowercase(context[s].as_ref()));
         }
         ids[5] = self.lookup(&self.suffix_ids, context[5].as_ref());
         ids[6] = self.lookup(&self.suffix_ids, context[6].as_ref());
@@ -1601,11 +1588,14 @@ mod tests {
             ("\u{4E2D}\u{6587}", "*lower*"),
             // Non-ASCII decimal digits are digits.
             ("\u{0663}", "*digit*"),
-            // Java walks UTF-16 code units, so a surrogate pair is neither a letter nor a digit.
-            ("\u{10400}\u{10428}", "*other*"),
-            ("\u{10428}1", "*digit*"),
-            ("\u{10400}a", "*lower*"),
-            ("\u{10400}A", "*allcaps*"),
+            // Supplementary characters are classified by code point.
+            ("\u{10400}\u{10428}", "*cap*"),
+            ("\u{10400}\u{10401}", "*allcaps*"),
+            ("\u{10428}\u{10429}", "*lower*"),
+            ("\u{10428}1", "*alnum*"),
+            ("\u{1D400}\u{1D401}\u{1D402}", "*allcaps*"),
+            ("\u{1D7CE}", "*digit*"),
+            ("\u{1F600}", "*other*"),
             // A circled letter is uppercase but not a letter.
             ("\u{24B6}b", "*cap*"),
         ];
@@ -1613,7 +1603,7 @@ mod tests {
             assert_eq!(FeedforwardPosContext::shape(word), expected, "{word}");
         }
 
-        // Java takes the last UTF-16 code units; a cut inside a surrogate pair leaves U+FFFD.
+        // Java takes the last code points.
         let suffix_cases = [
             ("dog", 2, "og"),
             ("dog", 3, "dog"),
@@ -1621,12 +1611,10 @@ mod tests {
             ("a", 3, "a"),
             ("", 2, ""),
             ("running", 3, "ing"),
-            ("a\u{10428}", 2, "\u{10428}"),
-            ("a\u{10428}", 3, "a\u{10428}"),
-            ("\u{10428}\u{10429}\u{1042A}", 2, "\u{1042A}"),
-            ("\u{10428}\u{10429}\u{1042A}", 3, "\u{FFFD}\u{1042A}"),
-            ("ab\u{10428}", 2, "\u{10428}"),
-            ("ab\u{10428}", 3, "b\u{10428}"),
+            ("a\u{10428}", 2, "a\u{10428}"),
+            ("\u{10428}\u{10429}\u{1042A}", 2, "\u{10429}\u{1042A}"),
+            ("ab\u{10428}", 2, "b\u{10428}"),
+            ("caf\u{E9}", 3, "af\u{E9}"),
         ];
         for (word, len, expected) in suffix_cases {
             assert_eq!(FeedforwardPosContext::suffix(word, len), expected, "{word} {len}");
@@ -1635,7 +1623,7 @@ mod tests {
         // Java lowercases the whole token for the suffixes; only the word
         // lookup passes symbols starting with `*` through unchanged.
         let symbols = FeedforwardPosContext::extract(&["*ABCD", "Mr."], 0, None, None);
-        assert_eq!(symbols[2], "*ABCD");
+        assert_eq!(&symbols[..5], [ABSENT, ABSENT, "*ABCD", "Mr.", ABSENT]);
         assert_eq!(&symbols[5..10], ["cd", "bcd", ABSENT, "*allcaps*", "*cap*"]);
     }
 
