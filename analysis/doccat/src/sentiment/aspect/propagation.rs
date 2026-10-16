@@ -4,8 +4,8 @@ use turbo_analysis_layers::{Dependencies, PhraseChunks, PosTags, Tokens};
 use super::RuleAspectSentiment;
 use super::link::{has_adversative_between, range_contains};
 use super::tables::{
-    ADVERSATIVE_CONJUNCTIONS, ASPECT_STOPWORDS, DEGREE_MODIFIERS, LEADING_DETERMINERS, MULTIWORD_ASPECT_TERMS,
-    SINGLE_WORD_ASPECT_TERMS, is_negation_word, lookup_category_hint,
+    ADVERSATIVE_CONJUNCTIONS, DEGREE_MODIFIERS, LEADING_DETERMINERS, MULTIWORD_ASPECT_TERMS, is_aspect_stopword,
+    is_negation_word, lookup_category_hint, single_word_aspect_category,
 };
 
 #[derive(Clone, Debug)]
@@ -88,7 +88,7 @@ impl RuleAspectSentiment {
                 continue;
             }
             let w = token_lower[tok].as_str();
-            if let Some(&(_, cat)) = SINGLE_WORD_ASPECT_TERMS.iter().find(|&&(term, _)| term == w) {
+            if let Some(cat) = single_word_aspect_category(w) {
                 // Expand left/right if attached to adjacent noun compound in POS or Dependencies.
                 let (span_start, span_end) = expand_noun_compound(
                     tok,
@@ -139,10 +139,7 @@ impl RuleAspectSentiment {
                 }
                 let head = c_end - 1;
                 let head_w = token_lower[head].as_str();
-                if head_w.is_empty()
-                    || ASPECT_STOPWORDS.contains(&head_w)
-                    || self.token_opinion_valence(head_w).is_some()
-                {
+                if head_w.is_empty() || is_aspect_stopword(head_w) || self.token_opinion_valence(head_w).is_some() {
                     continue;
                 }
                 if (a_start..c_end).any(|i| covered_aspect_tokens[i - sent_start]) {
@@ -173,7 +170,7 @@ impl RuleAspectSentiment {
                 let w = token_lower[tok].as_str();
                 if is_noun_pos(tag_str)
                     && !w.is_empty()
-                    && !ASPECT_STOPWORDS.contains(&w)
+                    && !is_aspect_stopword(w)
                     && self.token_opinion_valence(w).is_none()
                 {
                     let mut end = tok + 1;
@@ -182,7 +179,7 @@ impl RuleAspectSentiment {
                         let next_w = token_lower[end].as_str();
                         if is_noun_pos(next_tag)
                             && !next_w.is_empty()
-                            && !ASPECT_STOPWORDS.contains(&next_w)
+                            && !is_aspect_stopword(next_w)
                             && self.token_opinion_valence(next_w).is_none()
                         {
                             end += 1;
@@ -417,7 +414,7 @@ impl RuleAspectSentiment {
                         let w = token_lower[cand].as_str();
                         if is_conj_rel(rel)
                             && !w.is_empty()
-                            && !ASPECT_STOPWORDS.contains(&w)
+                            && !is_aspect_stopword(w)
                             && !LEADING_DETERMINERS.contains(&w)
                             && !opinions.iter().any(|o| range_contains(o.tokens, cand))
                             && !aspects.iter().any(|a| range_contains(a.tokens, cand))
@@ -457,7 +454,7 @@ impl RuleAspectSentiment {
         aspects: &[ExtractedAspect],
     ) -> bool {
         let w = token_lower[tok].as_str();
-        if w.is_empty() || LEADING_DETERMINERS.contains(&w) || ASPECT_STOPWORDS.contains(&w) {
+        if w.is_empty() || LEADING_DETERMINERS.contains(&w) || is_aspect_stopword(w) {
             return false;
         }
         if opinions.iter().any(|o| range_contains(o.tokens, tok))
@@ -541,7 +538,7 @@ fn expand_noun_compound(
             if d.head[tok].map(|ix| ix.get()) == Some(e)
                 && is_compound_rel(rel)
                 && !w.is_empty()
-                && !ASPECT_STOPWORDS.contains(&w)
+                && !is_aspect_stopword(w)
                 && extractor.token_opinion_valence(w).is_none()
             {
                 e += 1;
@@ -555,7 +552,7 @@ fn expand_noun_compound(
             if is_noun_pos(ptag)
                 && !w.is_empty()
                 && !LEADING_DETERMINERS.contains(&w)
-                && !ASPECT_STOPWORDS.contains(&w)
+                && !is_aspect_stopword(w)
                 && extractor.token_opinion_valence(w).is_none()
             {
                 s -= 1;

@@ -59,8 +59,8 @@ use link::{
 };
 use propagation::{ExtractedOpinion, assign_clauses};
 use tables::{
-    DOMAIN_OPINION_LEXICON, IMPLICIT_OPINION_CATEGORY_CUES, SINGLE_WORD_ASPECT_TERMS, clean_word_lower,
-    is_pure_aspect_noun,
+    IMPLICIT_OPINION_CATEGORY_CUES, clean_word_lower, domain_opinion_valence, is_pure_aspect_noun,
+    single_word_aspect_category,
 };
 
 /// Optional scorer that assigns an aspect category [`Tag`] from a [`TagSet`]
@@ -156,10 +156,8 @@ impl RuleAspectSentiment {
     pub fn token_opinion_valence(&self, lower: &str) -> Option<f64> {
         // Do not treat aspect head nouns with neutral/mild VADER scores (like "value" or "support")
         // as opinion expressions when they appear as aspect nouns, unless they are strong opinions.
-        for &(w, score) in DOMAIN_OPINION_LEXICON {
-            if w == lower {
-                return Some(score);
-            }
+        if let Some(score) = domain_opinion_valence(lower) {
+            return Some(score);
         }
         if let Some(v) = self.lexicon.get(lower)
             && v.abs() >= 0.8
@@ -395,7 +393,7 @@ impl RuleAspectSentiment {
             if let Some(tag) = self.categories.tag(w.as_str()) {
                 return Some(tag);
             }
-            if let Some(&(_, cat)) = SINGLE_WORD_ASPECT_TERMS.iter().find(|&&(term, _)| term == w.as_str())
+            if let Some(cat) = single_word_aspect_category(w)
                 && let Some(tag) = self.categories.tag(cat)
             {
                 return Some(tag);
