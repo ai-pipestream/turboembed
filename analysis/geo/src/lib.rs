@@ -122,8 +122,8 @@ pub use error::{ColumnCount, IndexError, LoadError, NumberFormat, RowProblem, Ta
 pub use fold::Folder;
 pub use gazetteer::Gazetteer;
 pub use geocode::{
-    DEFAULT_LOCATION_TYPE, GeoResolution, GeocodeAnnotator, GeocodeError, Geocoder, Locations, PopulationPriorGeocoder,
-    SpatialCoherenceGeocoder, by_prior_entry, by_prior_view,
+    DEFAULT_LOCATION_TYPE, GeoResolution, GeocodeAnnotator, GeocodeError, Geocoder, Locations, MentionPolicy,
+    PopulationPriorGeocoder, SpatialCoherenceGeocoder, by_prior_entry, by_prior_view,
 };
 pub use geonames::{GEONAMES_SOURCE, GeoNamesGazetteer};
 pub use in_memory::InMemoryGazetteer;
