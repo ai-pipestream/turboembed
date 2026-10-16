@@ -1,0 +1,52 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-chunks	809	802	3d9a91ced7c7efb0dc7bed69c983c6a5051ca81121b7cf5daa93f8458256a3c4
+annotator	opennlp.tools.formats.ad.ADNameSampleStream	read
+config	splitHyphenatedTokens	true
+layer	turbo:samples	document	5	written:str
+\nO rio muito largo , corre devagar vai secar até <START:time> agosto <END> , mês seco chuva cai bom ; ; .
+, .
+\n
+\nanda gato rabo pé
+\nde casa , rua
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	30	sample:u32	text:str
+0	O
+0	rio
+0	muito
+0	largo
+0	,
+0	corre
+0	devagar
+0	vai
+0	secar
+0	até
+0	agosto
+0	,
+0	mês
+0	seco
+0	chuva
+0	cai
+0	bom
+0	;
+0	;
+0	.
+1	,
+1	.
+3	anda
+3	gato
+3	rabo
+3	pé
+4	de
+4	casa
+4	,
+4	rua
+end	turbo:sample-tokens
+layer	turbo:names	document	1	sample:u32	start:u32	end:u32	type:str
+0	10	11	time
+end	turbo:names

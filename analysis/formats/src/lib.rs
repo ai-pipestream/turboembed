@@ -28,6 +28,9 @@
 //!   and the part-of-speech, token, sentence and name samples OpenNLP
 //!   reads from it. A corpus is a directory of files, so it is not in the
 //!   registry, which reads one text.
+//! - [`ad`]: the Floresta Sinta(c)tica treebank in the Arvores Deitadas
+//!   format, and the name, part-of-speech, chunk, sentence and token
+//!   samples OpenNLP reads from it.
 //! - [`ner`]: the GermEval 2014, BioNLP 2004, Evalita, MUC-6 and brat
 //!   name corpora and the 1990 US Census name lists.
 //! - [`corpora`]: the Moses, LetsMT, NKJP and Irish Sentence Bank sentence
@@ -108,6 +111,7 @@
 //!   and the samples here do not hold them. The parse samples of the
 //!   parser are not ported.
 
+pub mod ad;
 pub mod conll;
 pub mod conllu;
 pub mod convert;

@@ -1,0 +1,10 @@
+<s>
+&&
+UTT:n("nada")	nada
+</s>
+<s>
+SOURCE: a
+8 Depois.
+UTT:adv("depois")	Depois
+.
+</s>

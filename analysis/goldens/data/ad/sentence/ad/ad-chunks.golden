@@ -1,0 +1,25 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-chunks	809	802	3d9a91ced7c7efb0dc7bed69c983c6a5051ca81121b7cf5daa93f8458256a3c4
+annotator	opennlp.tools.formats.ad.ADSentenceSampleStream	read
+config	includeTitles	false
+layer	turbo:samples	document	4	written:str
+
+Sem árvore.\n
+
+
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	4	text:str
+
+Sem árvore.
+
+
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	1	sample:u32	start:u32	end:u32
+1	0	12
+end	turbo:sample-spans

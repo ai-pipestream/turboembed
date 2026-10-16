@@ -8,12 +8,13 @@
 //! ([`ModelsRelease`]), so a recipe added later goes out in a later
 //! release and a published release keeps its assets. [`entries`] makes
 //! a release's entries from the model directories `turbo-train-recipes
-//! masc`, `ud` or `tatoeba` writes, after checking each file and gate
-//! record against its card, and [`index_with`] is the built-in index with
-//! them added. `turbo-train-recipes zoo-index` prints that index, and with
-//! `--check` fails unless the zoo already carries it, which the `models`,
-//! `models-ud` and `models-tatoeba` workflows check before they publish
-//! anything.
+//! masc`, `ud`, `tatoeba` or `tatoeba-fineweb` writes, after checking each
+//! file, gate record and comparison record against its card, and
+//! [`index_with`] is the built-in index with them added.
+//! `turbo-train-recipes zoo-index` prints that index, and with `--check`
+//! fails unless the zoo already carries it, which the `models`,
+//! `models-ud`, `models-tatoeba` and `models-fineweb` workflows check
+//! before they publish anything.
 
 use std::path::Path;
 
@@ -23,6 +24,10 @@ use turbo_zoo::{Artifact, Index, verify};
 use crate::card::{CARD_FILE, GATE_FILE, GateCard, ModelCard, ModelFileCard};
 use crate::error::{Error, Result, io};
 use crate::langdetect::{LANGDETECT, LanguageCard, LanguageRecipe};
+use crate::langdetect_web::{
+    COMPARE_TATOEBA_FILE, COMPARE_WEB_FILE, ComparisonCard, LANGDETECT_WEB, WEB_GATE_FILE, WebLanguageCard,
+    WebLanguageRecipe,
+};
 use crate::ud::{UD_RECIPES, UdRecipe};
 use crate::ud_card::UdModelCard;
 use crate::{RECIPES, Recipe, Reference};
@@ -32,8 +37,8 @@ use crate::{RECIPES, Recipe, Reference};
 pub const RELEASES: &str = "https://github.com/ai-pipestream/turboembed/releases/download/";
 
 /// A release of this repository whose assets are models the recipes of
-/// [`RECIPES`] and [`UD_RECIPES`] or the language detector recipe
-/// ([`LANGDETECT`]) train.
+/// [`RECIPES`] and [`UD_RECIPES`] or the language detector recipes
+/// ([`LANGDETECT`] and [`LANGDETECT_WEB`]) train.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelsRelease {
     /// The release's tag: ASCII letters, digits, `.`, `_` and `-`,
@@ -42,7 +47,7 @@ pub struct ModelsRelease {
     pub tag: &'static str,
     /// The ids of the models it publishes: those of [`RECIPES`] in its
     /// order, then those of [`UD_RECIPES`] in its order, then the language
-    /// detector's.
+    /// detector's, then the web language detector's.
     pub models: &'static [&'static str],
 }
 
@@ -85,8 +90,15 @@ pub const UD_MODELS: ModelsRelease = ModelsRelease {
 pub const TATOEBA_MODELS: ModelsRelease =
     ModelsRelease { tag: "models-tatoeba-2026-10-10-1", models: &[crate::langdetect::MODEL_ID] };
 
+/// The release that publishes the language detector the web recipe
+/// trains on the same Tatoeba export and on the FineWeb-2 and FineWeb
+/// documents of the recorded lists (`fineweb::FILES`), with the ids of
+/// the sentences and the documents it was trained on.
+pub const FINEWEB_MODELS: ModelsRelease =
+    ModelsRelease { tag: "models-tatoeba-fineweb-2026-10-10-1", models: &[crate::langdetect_web::MODEL_ID] };
+
 /// Every release of the recipes' models.
-pub const MODELS_RELEASES: [ModelsRelease; 3] = [MASC_MODELS, UD_MODELS, TATOEBA_MODELS];
+pub const MODELS_RELEASES: [ModelsRelease; 4] = [MASC_MODELS, UD_MODELS, TATOEBA_MODELS, FINEWEB_MODELS];
 
 /// The release of this repository that keeps the Tatoeba export the
 /// language detector is trained on (`langdetect::EXPORT`): its two
@@ -131,22 +143,36 @@ impl ModelsRelease {
         [LANGDETECT].into_iter().filter(|r| self.models.contains(&r.model_id)).collect()
     }
 
+    /// The web language detector recipe, when it publishes its model.
+    pub fn web_language_recipes(&self) -> Vec<WebLanguageRecipe> {
+        [LANGDETECT_WEB].into_iter().filter(|r| self.models.contains(&r.model_id)).collect()
+    }
+
     /// The references of the recipes that train its models, in the order
-    /// of its models.
+    /// of its models: for the web language detector, its gates' reference
+    /// and then the model it is compared with.
     fn recipe_references(&self) -> Vec<Reference> {
         let masc = self.recipes().into_iter().map(|r| r.reference());
         let ud = self.ud_recipes().into_iter().map(|r| r.reference);
-        masc.chain(ud).chain(self.language_recipes().into_iter().map(|r| r.reference)).collect()
+        let language = self.language_recipes().into_iter().map(|r| r.reference);
+        let web = self.web_language_recipes().into_iter().flat_map(|r| [r.tatoeba.reference, r.compared]);
+        masc.chain(ud).chain(language).chain(web).collect()
     }
 }
 
 /// What [`entries`] reads of a model's card: the MASC recipes' card, the
-/// UD recipes' one or the language detector's.
+/// UD recipes' one or the language detectors'.
 trait Card: Sized {
     fn read(path: &Path) -> Result<Self>;
     fn id(&self) -> &str;
     fn file(&self) -> &ModelFileCard;
     fn gate(&self) -> &GateCard;
+    /// Checks the records written beside the card in `dir` against it:
+    /// the gate record ([`GATE_FILE`]), and for the web language detector
+    /// its second gate and its two comparisons as well.
+    fn check_records(&self, dir: &Path) -> Result<()> {
+        check_gate(self.id(), self.file(), GATE_FILE, self.gate(), &ModelGateRecord::read(&dir.join(GATE_FILE))?)
+    }
     /// The model's zoo entry, its files at their addresses in `release`.
     fn artifact(&self, release: &ModelsRelease) -> Result<Artifact>;
 }
@@ -205,22 +231,73 @@ impl Card for LanguageCard {
     }
 }
 
+impl Card for WebLanguageCard {
+    fn read(path: &Path) -> Result<Self> {
+        WebLanguageCard::read(path)
+    }
+    fn id(&self) -> &str {
+        &self.id
+    }
+    fn file(&self) -> &ModelFileCard {
+        &self.file
+    }
+    fn gate(&self) -> &GateCard {
+        &self.gate
+    }
+    fn check_records(&self, dir: &Path) -> Result<()> {
+        let read = |file: &str| ModelGateRecord::read(&dir.join(file));
+        check_gate(&self.id, &self.file, GATE_FILE, &self.gate, &read(GATE_FILE)?)?;
+        check_gate(&self.id, &self.file, WEB_GATE_FILE, &self.web_gate, &read(WEB_GATE_FILE)?)?;
+        for (file, card) in
+            [(COMPARE_TATOEBA_FILE, &self.compared_on_sentences), (COMPARE_WEB_FILE, &self.compared_on_windows)]
+        {
+            let record = read(file)?;
+            let mismatch = |message: String| Err(Error::InvalidCard { field: "compared", message });
+            if record.candidate.id != self.id || record.candidate.sha256 != self.file.sha256 {
+                return mismatch(format!(
+                    "{file} scores {} (SHA-256 {}), not {} (SHA-256 {})",
+                    record.candidate.id, record.candidate.sha256, self.id, self.file.sha256
+                ));
+            }
+            if record.reference.id != self.compared || record.reference.sha256 != self.compared_sha256 {
+                return mismatch(format!(
+                    "{file} compares with {} (SHA-256 {}), not {} (SHA-256 {})",
+                    record.reference.id, record.reference.sha256, self.compared, self.compared_sha256
+                ));
+            }
+            if ComparisonCard::of(&record, file) != *card {
+                return mismatch(format!("{file} of {} has other scores than its card", self.id));
+            }
+        }
+        Ok(())
+    }
+    fn artifact(&self, release: &ModelsRelease) -> Result<Artifact> {
+        WebLanguageCard::artifact(
+            self,
+            &release.url(&self.file.name),
+            &release.url(&self.training_sentences.name),
+            &release.url(&self.training_documents.name),
+        )
+    }
+}
+
 /// The zoo entries of `release`'s models, in its order, made from the
-/// model directories in `models` as `turbo-train-recipes masc`, `ud` and
-/// `tatoeba` write them: each file of an entry (the model, and for the
-/// language detector the ids of the sentences it was trained on) is
-/// checked against its card's size and digests, and the card's gate
-/// against the gate record beside it.
+/// model directories in `models` as `turbo-train-recipes masc`, `ud`,
+/// `tatoeba` and `tatoeba-fineweb` write them: each file of an entry (the
+/// model, and for the language detectors the ids of the sentences, and of
+/// the documents, they were trained on) is checked against its card's
+/// size and digests, and the card's gates and comparisons against the
+/// records beside it.
 ///
 /// # Errors
 ///
-/// A model directory, card, gate record or file that is missing or cannot
-/// be read; a card in another model's directory, or a gate record of
-/// another model or with another outcome than the card's
+/// A model directory, card, record or file that is missing or cannot be
+/// read; a card in another model's directory, or a gate or comparison
+/// record of another model or with another outcome than the card's
 /// ([`Error::InvalidCard`]); a card that may not become a zoo entry
 /// ([`ModelCard::artifact`], [`UdModelCard::artifact`],
-/// [`LanguageCard::artifact`]); or a file that is not the one its card
-/// describes ([`Error::Zoo`]).
+/// [`LanguageCard::artifact`], [`WebLanguageCard::artifact`]); or a file
+/// that is not the one its card describes ([`Error::Zoo`]).
 pub fn entries(models: &Path, release: &ModelsRelease) -> Result<Vec<Artifact>> {
     release
         .models
@@ -228,6 +305,7 @@ pub fn entries(models: &Path, release: &ModelsRelease) -> Result<Vec<Artifact>> 
         .map(|id| match Recipe::trains(id) {
             Some(_) => entry::<ModelCard>(models, id, release),
             None if *id == LANGDETECT.model_id => entry::<LanguageCard>(models, id, release),
+            None if *id == LANGDETECT_WEB.model_id => entry::<WebLanguageCard>(models, id, release),
             None => entry::<UdModelCard>(models, id, release),
         })
         .collect()
@@ -241,7 +319,7 @@ fn entry<C: Card>(models: &Path, id: &str, release: &ModelsRelease) -> Result<Ar
     if card.id() != id {
         return Err(Error::InvalidCard { field: "id", message: format!("{} in the directory of {id}", card.id()) });
     }
-    check_gate(card.id(), card.file(), card.gate(), &ModelGateRecord::read(&dir.join(GATE_FILE))?)?;
+    card.check_records(&dir)?;
     let artifact = card.artifact(release)?;
     for file in &artifact.files {
         let path = dir.join(file.path.as_str());
@@ -251,19 +329,29 @@ fn entry<C: Card>(models: &Path, id: &str, release: &ModelsRelease) -> Result<Ar
     Ok(artifact)
 }
 
-/// Checks that `record` is the gate of model `id` (its file `file`), with
-/// the outcome its card gives (`gate`), so the gate record published
-/// beside a model never contradicts its card.
-fn check_gate(id: &str, file: &ModelFileCard, gate: &GateCard, record: &ModelGateRecord) -> Result<()> {
+/// Checks that `record`, read from `record_file`, is the gate of model
+/// `id` (its file `file`), with the outcome its card gives (`gate`), so a
+/// gate record published beside a model never contradicts its card.
+fn check_gate(
+    id: &str,
+    file: &ModelFileCard,
+    record_file: &str,
+    gate: &GateCard,
+    record: &ModelGateRecord,
+) -> Result<()> {
     let mismatch = |message: String| Err(Error::InvalidCard { field: "gate", message });
     if record.candidate.id != id || record.candidate.sha256 != file.sha256 {
         return mismatch(format!(
-            "{GATE_FILE} gates {} (SHA-256 {}), not {id} (SHA-256 {})",
+            "{record_file} gates {} (SHA-256 {}), not {id} (SHA-256 {})",
             record.candidate.id, record.candidate.sha256, file.sha256
         ));
     }
-    if GateCard::of(record, gate.candidate_tag_format, gate.reference_tag_format) != *gate {
-        return mismatch(format!("{GATE_FILE} of {id} has another outcome than its card"));
+    let of = GateCard {
+        record: record_file.to_owned(),
+        ..GateCard::of(record, gate.candidate_tag_format, gate.reference_tag_format)
+    };
+    if of != *gate {
+        return mismatch(format!("{record_file} of {id} has another outcome than its card"));
     }
     Ok(())
 }
@@ -334,9 +422,10 @@ pub fn differences(index: &Index, entries: &[Artifact], release: &ModelsRelease)
 
 /// The reference models a run of `release`'s recipes reads, as
 /// `(SHA-256, address)` pairs in the order of its models, each once: what
-/// `analysis/train-recipes/masc-references.txt`, `ud-references.txt` and
-/// `tatoeba-references.txt` list for the `models`, `models-ud` and
-/// `models-tatoeba` workflows to fetch and check.
+/// `analysis/train-recipes/masc-references.txt`, `ud-references.txt`,
+/// `tatoeba-references.txt` and `fineweb-references.txt` list for the
+/// `models`, `models-ud`, `models-tatoeba` and `models-fineweb` workflows
+/// to fetch and check.
 ///
 /// # Errors
 ///
@@ -365,6 +454,7 @@ mod tests {
     use super::*;
     use crate::card::{MODEL_LICENCE, MODEL_LICENCE_TERMS, MODEL_VERSION};
     use crate::langdetect::{self, MODEL_ID, SENTENCES_FILE, ZOO_LANGUAGE};
+    use crate::langdetect_web::{self, DOCUMENTS_FILE};
     use crate::treebank::TextRights;
     use crate::{masc, tatoeba};
 
@@ -379,8 +469,9 @@ mod tests {
             assert!(!tag.contains("..") && !tag.ends_with('.') && !tag.ends_with(".lock"), "{tag}");
             let masc = release.recipes().into_iter().map(|r| r.model_id());
             let ud = release.ud_recipes().into_iter().map(|r| r.model_id);
-            let ids: Vec<&str> =
-                masc.chain(ud).chain(release.language_recipes().into_iter().map(|r| r.model_id)).collect();
+            let language = release.language_recipes().into_iter().map(|r| r.model_id);
+            let web = release.web_language_recipes().into_iter().map(|r| r.model_id);
+            let ids: Vec<&str> = masc.chain(ud).chain(language).chain(web).collect();
             assert_eq!(ids, release.models, "{tag}: a model no recipe trains, or out of order");
             assert_eq!(ModelsRelease::tagged(tag).unwrap(), release);
         }
@@ -393,7 +484,7 @@ mod tests {
             match ModelsRelease::tagged(unknown) {
                 Err(Error::UnknownRelease { tag, known }) => {
                     assert_eq!(tag, unknown);
-                    assert_eq!(known, [MASC_MODELS.tag, UD_MODELS.tag, TATOEBA_MODELS.tag]);
+                    assert_eq!(known, [MASC_MODELS.tag, UD_MODELS.tag, TATOEBA_MODELS.tag, FINEWEB_MODELS.tag]);
                 }
                 other => panic!("{unknown:?}: {other:?}"),
             }
@@ -415,15 +506,15 @@ mod tests {
 
     /// The zoo lists `id`'s model at its address in `release`, as its card
     /// makes the entry: permissive, needing no acceptance, trained on
-    /// `trained_on` alone, its files the model and then `extra`, each at
-    /// its address in the release.
+    /// `trained_on` and nothing else, its files the model and then
+    /// `extra`, each at its address in the release.
     fn listed(
         index: &Index,
         release: &ModelsRelease,
         id: &str,
         component: Component,
         language: &str,
-        trained_on: TrainingData,
+        trained_on: &[TrainingData],
         extra: &[&str],
     ) {
         let entry = index.get(id).unwrap();
@@ -436,7 +527,7 @@ mod tests {
         assert_eq!(entry.license_terms.as_str(), MODEL_LICENCE_TERMS, "{id}");
         assert_eq!(entry.class, LicenceClass::Permissive, "{id}");
         assert!(entry.licences_to_accept(turbo_zoo::Policy::default()).is_empty(), "{id}");
-        assert_eq!(entry.trained_on, [trained_on], "{id}");
+        assert_eq!(entry.trained_on, trained_on, "{id}");
         let files: Vec<String> =
             std::iter::once(format!("{id}.bin")).chain(extra.iter().map(|f| (*f).to_owned())).collect();
         assert_eq!(entry.files.len(), files.len(), "{id}");
@@ -455,11 +546,11 @@ mod tests {
     fn the_builtin_index_lists_every_model_at_its_release_address() {
         let index = Index::builtin();
         for recipe in MASC_MODELS.recipes() {
-            listed(&index, &MASC_MODELS, recipe.model_id(), recipe.component(), "en", masc::training_data(), &[]);
+            listed(&index, &MASC_MODELS, recipe.model_id(), recipe.component(), "en", &[masc::training_data()], &[]);
         }
         for recipe in UD_MODELS.ud_recipes() {
             let (language, trained_on) = (recipe.treebank.language, recipe.treebank.training_data());
-            listed(&index, &UD_MODELS, recipe.model_id, recipe.zoo_component(), language, trained_on, &[]);
+            listed(&index, &UD_MODELS, recipe.model_id, recipe.zoo_component(), language, &[trained_on], &[]);
         }
         let export = langdetect::EXPORT.digest().unwrap();
         let tatoeba = TrainingData {
@@ -469,7 +560,12 @@ mod tests {
         };
         assert_eq!(langdetect::training_data(export), tatoeba);
         let (id, component) = (MODEL_ID, Component::LanguageDetector);
-        listed(&index, &TATOEBA_MODELS, id, component, ZOO_LANGUAGE, tatoeba, &[SENTENCES_FILE]);
+        listed(&index, &TATOEBA_MODELS, id, component, ZOO_LANGUAGE, std::slice::from_ref(&tatoeba), &[SENTENCES_FILE]);
+        let web = langdetect_web::training_data(export);
+        assert_eq!(web[0], tatoeba);
+        assert_eq!(web.len(), 3);
+        let id = langdetect_web::MODEL_ID;
+        listed(&index, &FINEWEB_MODELS, id, component, ZOO_LANGUAGE, &web, &[SENTENCES_FILE, DOCUMENTS_FILE]);
         for release in MODELS_RELEASES {
             assert_eq!(listed_at(&index, &release), release.models, "{}", release.tag);
         }
@@ -549,6 +645,7 @@ mod tests {
         published_by(&MASC_MODELS, "models.yml", "masc-references.txt");
         published_by(&UD_MODELS, "models-ud.yml", "ud-references.txt");
         published_by(&TATOEBA_MODELS, "models-tatoeba.yml", "tatoeba-references.txt");
+        published_by(&FINEWEB_MODELS, "models-fineweb.yml", "fineweb-references.txt");
     }
 
     /// The `models-tatoeba` workflow names the release that keeps the
