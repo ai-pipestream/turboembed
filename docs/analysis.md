@@ -560,9 +560,10 @@ consumer that meets a newer format or schema upgrades, and there is
 no partial recovery mode. Skipped and failed entries import back as
 skipped and failed with the same reasons and the same errors, variant
 for variant. Rebuilding provenance turns its name strings into the
-`&'static str` the types hold by leaking one copy of each distinct
-name per import call, bounded by the graph's annotator, version and
-instance names. The byte encoding is deterministic for a given graph,
+`&'static str` the types hold through a process-wide interner that
+leaks one copy of each distinct name ever imported, so an importer
+that runs without end leaks the vocabulary of annotator, version and
+instance names, not a copy per document. The byte encoding is deterministic for a given graph,
 so a round trip through export, bytes and import re-exports to the
 same bytes (`analysis/core/tests/graph_export.rs` pins this against a
 checked-in fixture, and the `document_graph` example in

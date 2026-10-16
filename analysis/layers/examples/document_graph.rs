@@ -49,7 +49,7 @@ fn main() {
         .register::<Abbreviations>()
         .register::<Edges<Abbreviations, Abbreviations>>()
         .register::<Groups<Abbreviations>>();
-    let bytes = export(&doc, &codecs).unwrap().to_bytes();
+    let bytes = export(&doc, &codecs).unwrap().to_bytes().unwrap();
     println!("exported {} bytes (format {})", bytes.len(), turbo_analysis::export::FORMAT_VERSION);
     let back = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs).unwrap();
 

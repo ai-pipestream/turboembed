@@ -28,9 +28,10 @@
 //! silent loss. Skipped and failed layers are records too and import
 //! back as skipped and failed entries with the same reasons and the
 //! same errors, variant for variant. Importing rebuilds provenance names as
-//! `&'static str` by leaking one copy of each distinct name per import
-//! call, which bounds the leak to the graph's vocabulary of annotator,
-//! version and instance names.
+//! `&'static str` through a process-wide interner that leaks one copy
+//! of each distinct name ever seen, so importing without end leaks the
+//! vocabulary of annotator, version and instance names, not a copy per
+//! document.
 //!
 //! [`DocumentGraph::to_bytes`] is the canonical encoding of the record:
 //! deterministic for a given graph, so two exports of one document
@@ -38,9 +39,9 @@
 //! this boundary, not a persistence promise beyond [`FORMAT_VERSION`].
 
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::doc::{Document, Status, View};
 use crate::error::Error;
@@ -321,8 +322,9 @@ impl<'a> Reader<'a> {
     }
 
     fn take(&mut self, n: usize) -> Result<&'a [u8], ExportError> {
-        let some = self.buf.get(self.at..self.at + n).ok_or_else(|| malformed("truncated"))?;
-        self.at += n;
+        let end = self.at.checked_add(n).ok_or_else(|| malformed("truncated"))?;
+        let some = self.buf.get(self.at..end).ok_or_else(|| malformed("truncated"))?;
+        self.at = end;
         Ok(some)
     }
 
@@ -387,9 +389,12 @@ pub trait LayerCodec: Layer {
 
 /// What an exporting codec needs beyond its own layer: the instance
 /// name of each view, so span columns name their view across the
-/// boundary instead of carrying a process-local [`ViewId`].
+/// boundary instead of carrying a process-local [`ViewId`], and the
+/// instance a layer was actually made on (see [`ExportCx::resolve`]).
 pub struct ExportCx {
     views: HashMap<ViewId, String>,
+    on: Vec<KeyId>,
+    reads: Vec<KeyId>,
 }
 
 impl ExportCx {
@@ -399,15 +404,34 @@ impl ExportCx {
             .map(String::as_str)
             .ok_or_else(|| ExportError::UnknownView { instance: format!("view {}", view.0) })
     }
+
+    /// The instance a reference through `key` actually names on the
+    /// document being exported. Relation layers built with
+    /// `Edges::new` or `Groups::new` carry the default key even when
+    /// the step that wrote them was bound to a named instance; the
+    /// document resolved the empty name through the layer's provenance
+    /// when it took the layer, and this applies the same resolution,
+    /// so an exported endpoint names the instance it indexes. Codecs
+    /// that write layer references (relation endpoints above all) must
+    /// resolve them through here.
+    pub fn resolve<L: Layer>(&self, key: &Key<L>) -> LayerRef {
+        if key.name.is_empty() {
+            let ty = TypeId::of::<L>();
+            if let Some(found) = self.on.iter().chain(&self.reads).find(|r| r.ty == ty) {
+                return ref_of(*found);
+            }
+        }
+        layer_ref(key)
+    }
 }
 
 /// What an importing codec needs: view instances resolved to the new
 /// document's [`ViewId`]s, the item counts of the layers restored so
-/// far, and `&'static str` names for keys, leaked once each per import.
+/// far, and `&'static str` names for keys from a process-wide interner.
 pub struct ImportCx {
     views: HashMap<String, ViewId>,
     lens: HashMap<(String, String), usize>,
-    interned: HashMap<String, &'static str>,
+    known: HashSet<(String, String)>,
     layer: String,
 }
 
@@ -433,18 +457,33 @@ impl ImportCx {
         Ok(())
     }
 
-    /// An instance name as the `&'static str` a [`Key`] needs, leaked
-    /// once per distinct name in this import.
+    /// An instance name as the `&'static str` a [`Key`] needs. Names
+    /// are interned process-wide: one leaked copy per distinct name
+    /// ever imported, however many documents cross.
     pub fn intern(&mut self, name: &str) -> &'static str {
-        if name.is_empty() {
-            return "";
-        }
-        self.interned.entry(name.to_owned()).or_insert_with(|| Box::leak(name.to_owned().into_boxed_str()))
+        intern_name(name)
     }
 
     /// The key of an instance of `L`, by the name a record carries.
     pub fn key<L: Layer>(&mut self, instance: &str) -> Key<L> {
         Key::named(self.intern(instance))
+    }
+}
+
+/// The process-wide name interner behind [`ImportCx::intern`].
+fn intern_name(name: &str) -> &'static str {
+    if name.is_empty() {
+        return "";
+    }
+    static NAMES: OnceLock<Mutex<HashSet<&'static str>>> = OnceLock::new();
+    let mut names = NAMES.get_or_init(|| Mutex::new(HashSet::new())).lock().expect("the name interner is not poisoned");
+    match names.get(name) {
+        Some(&found) => found,
+        None => {
+            let leaked: &'static str = Box::leak(name.to_owned().into_boxed_str());
+            names.insert(leaked);
+            leaked
+        }
     }
 }
 
@@ -585,10 +624,10 @@ fn get_layer_ref(r: &mut Reader<'_>) -> Result<LayerRef, ExportError> {
 }
 
 impl<From: Layer, To: Layer> LayerCodec for Edges<From, To> {
-    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
-        put_layer_ref(&mut w, &layer_ref(&self.from_key))?;
-        put_layer_ref(&mut w, &layer_ref(&self.to_key))?;
+        put_layer_ref(&mut w, &cx.resolve(&self.from_key))?;
+        put_layer_ref(&mut w, &cx.resolve(&self.to_key))?;
         put_tagset(&mut w, &self.kinds)?;
         w.usize(self.len())?;
         for (_, edge) in self.iter() {
@@ -612,6 +651,8 @@ impl<From: Layer, To: Layer> LayerCodec for Edges<From, To> {
                 });
             }
         }
+        cx.layer_len(&from)?;
+        cx.layer_len(&to)?;
         let kinds = get_tagset(&mut r)?;
         let mut rows = Vec::new();
         for _ in 0..r.usize()? {
@@ -630,9 +671,9 @@ impl<From: Layer, To: Layer> LayerCodec for Edges<From, To> {
 }
 
 impl<L: Layer> LayerCodec for Groups<L> {
-    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
-        put_layer_ref(&mut w, &layer_ref(&self.of_key))?;
+        put_layer_ref(&mut w, &cx.resolve(&self.of_key))?;
         w.usize(self.len())?;
         for (_, members) in self.iter() {
             w.usize(members.len())?;
@@ -652,6 +693,7 @@ impl<L: Layer> LayerCodec for Groups<L> {
                 detail: format!("groups of {}, not {}", of.layer, L::NAME),
             });
         }
+        cx.layer_len(&of)?;
         let mut groups: Vec<Vec<Ix<L>>> = Vec::new();
         for _ in 0..r.usize()? {
             let mut members = Vec::new();
@@ -772,10 +814,14 @@ pub fn export(doc: &Document, codecs: &Codecs) -> Result<DocumentGraph, ExportEr
             view_instances.insert(view.id(), entry.key.name.to_owned());
         }
     }
-    let cx = ExportCx { views: view_instances.clone() };
     let mut views = Vec::new();
     let mut layers = Vec::new();
     for entry in doc.entries() {
+        let cx = ExportCx {
+            views: view_instances.clone(),
+            on: entry.provenance.on.clone(),
+            reads: entry.provenance.reads.clone(),
+        };
         let provenance = provenance_record(&entry.provenance);
         let status = status_record(&entry.status, &cx)?;
         if entry.key.ty == TypeId::of::<View>() {
@@ -783,7 +829,12 @@ pub fn export(doc: &Document, codecs: &Codecs) -> Result<DocumentGraph, ExportEr
                 Some(view) => {
                     let parent = match view.parent() {
                         None => None,
-                        Some(p) => Some(cx.view_instance(p)?.to_owned()),
+                        Some(p) => Some(
+                            view_instances
+                                .get(&p)
+                                .ok_or_else(|| ExportError::UnknownView { instance: format!("view {}", p.0) })?
+                                .clone(),
+                        ),
                     };
                     (parent, Some(view.text().to_owned()), view.alignment().edits().to_vec())
                 }
@@ -819,6 +870,38 @@ pub fn export(doc: &Document, codecs: &Codecs) -> Result<DocumentGraph, ExportEr
     Ok(DocumentGraph { version: FORMAT_VERSION, source, views, layers })
 }
 
+/// Checks an alignment against the two texts it joins, with the same
+/// rules the source record's decoder alignment is held to: every edit
+/// inside both texts and on character boundaries on both sides, and
+/// the unchanged stretches (before, between and after the edits) byte
+/// equal. Without this, an imported view could claim to map to its
+/// parent while mapping spans to the wrong bytes.
+fn check_view_alignment(parent: &str, text: &str, edits: &[Edit]) -> Result<(), String> {
+    let (mut p, mut c) = (0usize, 0usize);
+    for (i, edit) in edits.iter().enumerate() {
+        let unchanged_parent = parent
+            .get(p..edit.parent.start as usize)
+            .ok_or_else(|| format!("edit {i} starts past the parent text or off a character boundary"))?;
+        let unchanged_child = text
+            .get(c..edit.child.start as usize)
+            .ok_or_else(|| format!("edit {i} starts past the view text or off a character boundary"))?;
+        if unchanged_parent != unchanged_child {
+            return Err(format!("the unchanged text before edit {i} differs between the view and its parent"));
+        }
+        if parent.get(edit.parent.start as usize..edit.parent.end as usize).is_none()
+            || text.get(edit.child.start as usize..edit.child.end as usize).is_none()
+        {
+            return Err(format!("edit {i} ends past a text or off a character boundary"));
+        }
+        p = edit.parent.end as usize;
+        c = edit.child.end as usize;
+    }
+    match (parent.get(p..), text.get(c..)) {
+        (Some(a), Some(b)) if a == b => Ok(()),
+        _ => Err("the unchanged text after the last edit differs between the view and its parent".into()),
+    }
+}
+
 fn rebuild_provenance(
     record: &ProvenanceRecord,
     codecs: &Codecs,
@@ -828,6 +911,9 @@ fn rebuild_provenance(
     let resolve = |refs: &[LayerRef], cx: &mut ImportCx| -> Result<Vec<KeyId>, ExportError> {
         refs.iter()
             .map(|r| {
+                if !cx.known.contains(&(r.layer.clone(), r.instance.clone())) {
+                    return Err(ExportError::DanglingReference { layer: layer.to_owned(), reference: r.clone() });
+                }
                 codecs.key_id(r, cx).map_err(|e| match e {
                     ExportError::NoCodec { .. } => {
                         ExportError::DanglingReference { layer: layer.to_owned(), reference: r.clone() }
@@ -859,13 +945,12 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
     if graph.version != FORMAT_VERSION {
         return Err(ExportError::UnsupportedVersion { found: graph.version, supported: FORMAT_VERSION });
     }
-    let mut seen: Vec<(String, String)> = Vec::new();
+    let mut seen: HashSet<(String, String)> = HashSet::new();
     for view in &graph.views {
         let id = (View::ID.to_owned(), view.instance.clone());
-        if seen.contains(&id) {
+        if !seen.insert(id.clone()) {
             return Err(ExportError::DuplicateLayer { layer: id.0, instance: id.1 });
         }
-        seen.push(id);
     }
     for record in &graph.layers {
         if record.layer == View::ID {
@@ -875,10 +960,9 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
             });
         }
         let id = (record.layer.clone(), record.instance.clone());
-        if seen.contains(&id) {
+        if !seen.insert(id.clone()) {
             return Err(ExportError::DuplicateLayer { layer: id.0, instance: id.1 });
         }
-        seen.push(id);
         let codec =
             codecs.by_layer_name(&record.layer).ok_or_else(|| ExportError::NoCodec { layer: record.layer.clone() })?;
         if codec.schema != record.schema {
@@ -909,27 +993,41 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
         }
     };
 
+    // The first view record is the source view, whatever follows it:
+    // complete, the default instance, no parent, no edits, and the
+    // source text itself.
+    match graph.views.first() {
+        None => return Err(ExportError::InvalidSource("the graph holds no views".into())),
+        Some(first_view) => {
+            if !matches!(first_view.status, StatusRecord::Complete)
+                || !first_view.instance.is_empty()
+                || first_view.parent.is_some()
+                || !first_view.edits.is_empty()
+                || first_view.text.as_deref() != Some(graph.source.text.as_str())
+            {
+                return Err(ExportError::InvalidSource(
+                    "the first view is not the source view of the source text".into(),
+                ));
+            }
+        }
+    }
+
     let mut cx = ImportCx {
         views: HashMap::from([(String::new(), ViewId::SOURCE)]),
         lens: HashMap::new(),
-        interned: HashMap::new(),
+        known: seen,
         layer: View::ID.to_owned(),
     };
     cx.lens.insert((View::ID.to_owned(), String::new()), 1);
 
-    let mut first = true;
-    for record in &graph.views {
+    for (index, record) in graph.views.iter().enumerate() {
         cx.layer = View::ID.to_owned();
         let provenance = rebuild_provenance(&record.provenance, codecs, &mut cx, View::ID)?;
         let key = Key::<View>::named(cx.intern(&record.instance.clone()));
         match (&record.status, &record.text) {
             (StatusRecord::Complete, Some(text)) => {
-                if first {
-                    if record.parent.is_some() || !record.instance.is_empty() || *text != graph.source.text {
-                        return Err(ExportError::InvalidSource(
-                            "the first view is not the source view of the source text".into(),
-                        ));
-                    }
+                if index == 0 {
+                    // The source view, already on the document.
                 } else {
                     let parent = record.parent.as_deref().ok_or_else(|| malformed("a derived view with no parent"))?;
                     let parent_key = Key::<View>::named(cx.intern(parent));
@@ -937,6 +1035,8 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
                         .get_key(&parent_key)
                         .ok_or_else(|| ExportError::UnknownView { instance: parent.to_owned() })?;
                     let alignment = Alignment::from_edits(record.edits.clone())
+                        .map_err(|detail| ExportError::InvalidLayer { layer: View::ID.to_owned(), detail })?;
+                    check_view_alignment(parent_view.text(), text, alignment.edits())
                         .map_err(|detail| ExportError::InvalidLayer { layer: View::ID.to_owned(), detail })?;
                     let view = View::derived(parent_view, text.clone(), alignment);
                     doc.add(&key, view, provenance)
@@ -959,10 +1059,6 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
                     .map_err(|e| ExportError::InvalidLayer { layer: View::ID.to_owned(), detail: e.to_string() })?;
             }
         }
-        first = false;
-    }
-    if first {
-        return Err(ExportError::InvalidSource("the graph holds no views".into()));
     }
 
     for record in &graph.layers {
@@ -1227,8 +1323,9 @@ fn get_edits(r: &mut Reader<'_>) -> Result<Vec<Edit>, ExportError> {
 
 impl DocumentGraph {
     /// The canonical bytes of this graph: deterministic for a given
-    /// graph, versioned by [`FORMAT_VERSION`].
-    pub fn to_bytes(&self) -> Vec<u8> {
+    /// graph, versioned by [`FORMAT_VERSION`]. A hand-built graph whose
+    /// counts overflow a `u32` is refused rather than truncated.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, ExportError> {
         fn put(graph: &DocumentGraph) -> Result<Vec<u8>, ExportError> {
             let mut w = Writer::new();
             w.out.extend_from_slice(MAGIC);
@@ -1281,10 +1378,7 @@ impl DocumentGraph {
             }
             Ok(w.finish())
         }
-        // The only fallible steps count values a document already
-        // bounded by u32 offsets; a hand-built graph that exceeds them
-        // is a programming error, not data.
-        put(self).expect("a graph whose counts fit u32")
+        put(self)
     }
 
     /// Reads what [`DocumentGraph::to_bytes`] wrote.

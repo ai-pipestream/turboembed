@@ -107,7 +107,7 @@ fn edge_rows(doc: &Document) -> Vec<(NodeRef, NodeRef, String, f64)> {
 fn round_trip_through_the_fixture_bytes() {
     let doc = document();
     let graph = export(&doc, &codecs()).unwrap();
-    let bytes = graph.to_bytes();
+    let bytes = graph.to_bytes().unwrap();
     if std::env::var_os("TURBO_UPDATE_FIXTURE").is_some() {
         std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/document-graph.bin"), &bytes).unwrap();
     }
@@ -155,7 +155,7 @@ fn round_trip_through_the_fixture_bytes() {
     );
 
     // Re-exporting the import is byte stable.
-    assert_eq!(export(&back, &codecs()).unwrap().to_bytes(), FIXTURE);
+    assert_eq!(export(&back, &codecs()).unwrap().to_bytes().unwrap(), FIXTURE);
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn unknown_versions_and_schemas_are_refused() {
         Some(ExportError::IncompatibleSchema { layer: "turbo:abbreviations".into(), exported: 9, supported: 1 })
     );
 
-    let mut bytes = graph.to_bytes();
+    let mut bytes = graph.to_bytes().unwrap();
     bytes[4] = 2;
     bytes[5] = 0;
     assert_eq!(DocumentGraph::from_bytes(&bytes), Err(ExportError::UnsupportedVersion { found: 2, supported: 1 }));
@@ -219,6 +219,94 @@ fn dangling_endpoints_and_references_are_refused() {
         Ok(_) => panic!("a graph with endpoints past its layer imported"),
         Err(other) => panic!("a graph with endpoints past its layer failed as {other}"),
     }
+}
+
+#[test]
+fn view_alignments_are_checked_against_both_texts() {
+    // An alignment whose edits point outside both texts.
+    let mut graph = export(&document(), &codecs()).unwrap();
+    graph.views[1].edits = vec![Edit { parent: Span::new(500, 600), child: Span::new(500, 500) }];
+    assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::InvalidLayer { .. })));
+
+    // Identity claimed for a view whose text differs from its parent.
+    let mut graph = export(&document(), &codecs()).unwrap();
+    graph.views[1].edits = Vec::new();
+    assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::InvalidLayer { .. })));
+
+    // The first view record is the source view, whatever its status.
+    let mut graph = export(&document(), &codecs()).unwrap();
+    graph.views[0].status = turbo_analysis::export::StatusRecord::Skipped("not here".into());
+    assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::InvalidSource(_))));
+}
+
+#[test]
+fn relations_on_named_instances_round_trip() {
+    // Annotators build relations with the default key even when the
+    // step is bound to a named instance; the document resolves the
+    // endpoints through provenance, and the export must name the
+    // resolved instance, not the empty one.
+    let mut doc = Document::new("World Health Organization (WHO) met. The WHO met again.");
+    let text = doc.source().to_owned();
+    let span = |needle: &str, from: usize| {
+        let at = text[from..].find(needle).unwrap() + from;
+        Span::new(at as u32, (at + needle.len()) as u32)
+    };
+    let mut abbrev = Abbreviations::new(turbo_analysis::ViewId::SOURCE);
+    let long = abbrev.push(span("World Health Organization", 0), AbbreviationForm::Long);
+    let short = abbrev.push(span("WHO", 0), AbbreviationForm::Short);
+    let mention = abbrev.push(span("WHO", span("WHO", 0).end as usize), AbbreviationForm::Mention);
+    let gold = Key::<Abbreviations>::named("gold");
+    doc.add(&gold, abbrev, Provenance::by("test:abbrev")).unwrap();
+    let reads_gold = provenance("test:abbrev", 1, vec![gold.id()]);
+    let links =
+        Edges::new(abbreviation_links(), [Edge::new(short, long, Tag(0), 1.0), Edge::new(mention, long, Tag(1), 1.0)]);
+    doc.add(&Key::DEFAULT, links, reads_gold.clone()).unwrap();
+    doc.add(&Key::DEFAULT, Groups::<Abbreviations>::new([[short, mention]]), reads_gold).unwrap();
+
+    let graph = export(&doc, &codecs()).unwrap();
+    let back = import(&graph, &codecs()).unwrap();
+    assert!(back.get::<Abbreviations>().is_none(), "no default instance was exported");
+    assert!(back.get_key(&gold).is_some());
+    let links = back.get::<Edges<Abbreviations, Abbreviations>>().unwrap();
+    assert_eq!(links.from_key.name, "gold");
+    assert_eq!(node_ref(&links.from_key, Ix::new(1)).to_string(), "turbo:abbreviations@gold#1");
+    assert_eq!(back.get::<Groups<Abbreviations>>().unwrap().of_key.name, "gold");
+    // The in-memory original still carries the empty key the annotator
+    // built it with; the imported copy names the resolved instance.
+    // Endpoints, kinds and scores are the same rows.
+    let rows =
+        |d: &Document| edge_rows(d).iter().map(|(a, b, k, s)| (a.index, b.index, k.clone(), *s)).collect::<Vec<_>>();
+    assert_eq!(rows(&back), rows(&doc));
+}
+
+#[test]
+fn provenance_references_to_missing_instances_are_refused() {
+    let mut graph = export(&document(), &codecs()).unwrap();
+    graph.layers[1]
+        .provenance
+        .reads
+        .push(turbo_analysis::export::LayerRef { layer: "turbo:abbreviations".into(), instance: "ghost".into() });
+    match import(&graph, &codecs()) {
+        Err(ExportError::DanglingReference { reference, .. }) => assert_eq!(reference.instance, "ghost"),
+        Ok(_) => panic!("a graph with a ghost provenance reference imported"),
+        Err(other) => panic!("a graph with a ghost provenance reference failed as {other}"),
+    }
+
+    // An empty relation layer still names its endpoint layer: with
+    // that layer gone it is a dangling reference, not an invalid layer.
+    let mut doc = Document::new("WHO");
+    let mut abbrev = Abbreviations::new(turbo_analysis::ViewId::SOURCE);
+    abbrev.push(Span::new(0, 3), AbbreviationForm::Short);
+    doc.add(&Key::DEFAULT, abbrev, Provenance::by("test:abbrev")).unwrap();
+    doc.add(
+        &Key::DEFAULT,
+        Edges::<Abbreviations, Abbreviations>::new(abbreviation_links(), []),
+        Provenance::by("test:abbrev"),
+    )
+    .unwrap();
+    let mut graph = export(&doc, &codecs()).unwrap();
+    graph.layers.retain(|l| l.layer != "turbo:abbreviations");
+    assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::DanglingReference { .. })));
 }
 
 #[test]

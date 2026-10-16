@@ -39,8 +39,17 @@ cargo clippy -p turbo-analysis -p turbo-analysis-layers --all-targets -- -D warn
 cargo run -p turbo-analysis-layers --example document_graph
 ```
 
+Review rounds after the first receipts added, each with a regression
+test: view alignments are checked against both texts on import (a
+view could previously claim a mapping to its parent that mapped spans
+to the wrong bytes), relation endpoints are exported under the
+instance the document resolved them to rather than the empty key an
+annotator built them with, provenance references must name instances
+the graph actually holds, provenance names are interned process-wide
+instead of leaking per import, and `to_bytes` refuses overflow
+instead of panicking.
+
 Review focus: strictness choices (no partial import, a codec required
-even for skipped and failed layers), the per-import name leak when
-rebuilding provenance, the hand-rolled encoding's field rules, and
-which layer types still need codecs before a given pipeline's output
-can cross.
+even for skipped and failed layers), the process-wide name interner,
+the hand-rolled encoding's field rules, and which layer types still
+need codecs before a given pipeline's output can cross.
