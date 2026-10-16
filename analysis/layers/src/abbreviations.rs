@@ -87,6 +87,7 @@ impl Layer for Abbreviations {
             }
             last = span;
         }
+        self.spans.text_spans().check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -165,5 +166,9 @@ mod tests {
         a.push(Span::new(0, 3), AbbreviationForm::Short);
         a.form.pop();
         assert_eq!(a.check().unwrap_err(), "a form for every span");
+        let mut a = Abbreviations::new(ViewId::SOURCE);
+        a.push(Span::new(0, 5), AbbreviationForm::Mention);
+        a.push(Span::new(3, 8), AbbreviationForm::Mention);
+        assert!(a.check().unwrap_err().contains("crosses"));
     }
 }
