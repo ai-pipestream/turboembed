@@ -54,7 +54,9 @@ pub struct Manifest {
     component_name: String,
     language: String,
     timestamp_ms: i64,
+    timestamp: String,
     version: String,
+    manifest_version: String,
     zone: TimeZone,
     /// `factory` and the entries of the trainer and of the tool factory,
     /// in the order they were set.
@@ -69,7 +71,9 @@ impl Manifest {
             component_name: component_name.to_owned(),
             language: language.to_owned(),
             timestamp_ms,
+            timestamp: timestamp_ms.to_string(),
             version: OPENNLP_VERSION.to_owned(),
+            manifest_version: String::from("1.0"),
             zone: TimeZone::UTC,
             entries: Vec::new(),
         }
@@ -115,6 +119,8 @@ impl Manifest {
             "Component-Name" => self.component_name = value.to_owned(),
             "Language" => self.language = value.to_owned(),
             "OpenNLP-Version" => self.version = value.to_owned(),
+            "Timestamp" => self.timestamp = value.to_owned(),
+            "Manifest-Version" => self.manifest_version = value.to_owned(),
             _ => match self.entries.iter_mut().find(|(k, _)| k == key) {
                 Some(entry) => entry.1 = value.to_owned(),
                 None => self.entries.push((key.to_owned(), value.to_owned())),
@@ -136,12 +142,9 @@ impl Manifest {
             "Component-Name" => Some(&self.component_name),
             "Language" => Some(&self.language),
             "OpenNLP-Version" => Some(&self.version),
-            _ => self
-                .entries
-                .iter()
-                .find(|(k, _)| k == key)
-                .map(|(_, v)| v.as_str())
-                .or(if key == "Manifest-Version" { Some("1.0") } else { None }),
+            "Timestamp" => Some(&self.timestamp),
+            "Manifest-Version" => Some(&self.manifest_version),
+            _ => self.entries.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str()),
         }
     }
 
@@ -149,18 +152,13 @@ impl Manifest {
     /// entries, which is `#`, then `#` and the date, then the entries
     /// sorted by `String.compareTo` of their keys.
     pub fn to_properties(&self) -> String {
-        let timestamp = self.timestamp_ms.to_string();
         let mut entries: Vec<(&str, &str)> = vec![
+            ("Manifest-Version", &self.manifest_version),
             ("Language", &self.language),
             ("OpenNLP-Version", &self.version),
+            ("Timestamp", &self.timestamp),
             ("Component-Name", &self.component_name),
         ];
-        if !self.entries.iter().any(|(k, _)| k == "Manifest-Version") {
-            entries.push(("Manifest-Version", "1.0"));
-        }
-        if !self.entries.iter().any(|(k, _)| k == "Timestamp") {
-            entries.push(("Timestamp", &timestamp));
-        }
         entries.extend(self.entries.iter().map(|(k, v)| (k.as_str(), v.as_str())));
         entries.sort_by(|a, b| turbo_jvm::chars::compare(a.0, b.0));
         let mut out = String::from("#\n#");

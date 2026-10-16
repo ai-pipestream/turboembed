@@ -45,6 +45,7 @@ fn set_replaces_and_get_reads_base_entries() {
     assert_eq!(m.get("Language"), Some("de"));
     assert_eq!(m.get("OpenNLP-Version"), Some("3.0.0-SNAPSHOT"));
     assert_eq!(m.get("Manifest-Version"), Some("1.0"));
+    assert_eq!(m.get("Timestamp"), Some("5"));
     assert_eq!(m.timestamp_ms(), 5);
     assert_eq!(m.get("missing"), None);
     assert_eq!(m.to_properties().matches("useAlphaNumericOptimization").count(), 1);
@@ -52,16 +53,24 @@ fn set_replaces_and_get_reads_base_entries() {
     m.set("Language", "fr");
     m.set("Component-Name", "POSTaggerME");
     m.set("OpenNLP-Version", "2.5.4");
+    m.set("Timestamp", "999");
+    m.set("Manifest-Version", "2.0");
     assert_eq!(m.language(), "fr");
     assert_eq!(m.get("Language"), Some("fr"));
     assert_eq!(m.component_name(), "POSTaggerME");
     assert_eq!(m.get("Component-Name"), Some("POSTaggerME"));
     assert_eq!(m.version(), "2.5.4");
     assert_eq!(m.get("OpenNLP-Version"), Some("2.5.4"));
+    assert_eq!(m.get("Timestamp"), Some("999"));
+    assert_eq!(m.get("Manifest-Version"), Some("2.0"));
     let props = m.to_properties();
     assert_eq!(props.matches("Language=").count(), 1);
     assert_eq!(props.matches("Component-Name=").count(), 1);
     assert_eq!(props.matches("OpenNLP-Version=").count(), 1);
+    assert_eq!(props.matches("Timestamp=").count(), 1);
+    assert!(props.contains("Timestamp=999\n"));
+    assert_eq!(props.matches("Manifest-Version=").count(), 1);
+    assert!(props.contains("Manifest-Version=2.0\n"));
 }
 
 #[test]
