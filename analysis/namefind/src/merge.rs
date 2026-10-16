@@ -29,7 +29,7 @@ fn compare(a: (u32, u32, &str), b: (u32, u32, &str)) -> Ordering {
 
 /// `Span.intersects`.
 fn intersects(a: (u32, u32), b: (u32, u32)) -> bool {
-    let contains = |x: (u32, u32), y: (u32, u32)| x.0 <= y.0 && y.1 <= x.1;
+    let contains = |x: (u32, u32), y: (u32, u32)| x.0 <= x.1 && y.0 <= y.1 && x.0 <= y.0 && y.1 <= x.1;
     contains(a, b) || contains(b, a) || (a.0 <= b.0 && b.0 < a.1) || (b.0 <= a.0 && a.0 < b.1)
 }
 
@@ -61,6 +61,33 @@ pub fn merge(layers: &[&Entities]) -> Result<Entities, String> {
     let view = first.spans.view();
     if layers.iter().any(|l| l.spans.view() != view) {
         return Err("entities in different views".into());
+    }
+    for (l, layer) in layers.iter().enumerate() {
+        let n = layer.spans.len();
+        if layer.tokens.len() != n || layer.kind.len() != n || layer.score.len() != n {
+            return Err(format!(
+                "entity layer {l} has mismatched column lengths (spans={n}, tokens={}, kind={}, score={})",
+                layer.tokens.len(),
+                layer.kind.len(),
+                layer.score.len()
+            ));
+        }
+        for (e, r) in layer.tokens.iter().enumerate() {
+            if r.start.get() > r.end.get() {
+                return Err(format!(
+                    "entity {e} in layer {l} has inverted token range {}..{}",
+                    r.start.get(),
+                    r.end.get()
+                ));
+            }
+            if (layer.kind[e].0 as usize) >= layer.kinds.len() {
+                return Err(format!(
+                    "entity {e} in layer {l} has tag {} outside TagSet of size {}",
+                    layer.kind[e].0,
+                    layer.kinds.len()
+                ));
+            }
+        }
     }
     let labels: Vec<&str> =
         layers.iter().flat_map(|l| (0..l.kinds.len()).map(|i| l.kinds.label(Tag(i as u16)))).collect();
@@ -159,6 +186,10 @@ macro_rules! merge_annotator {
                 let layers = [$(input.$i),+];
                 merge(&layers).map(|e| (e,)).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
             }
+
+            fn config_hash(&self) -> u64 {
+                $n as u64
+            }
         }
     };
     (@entities $i:tt) => { Entities };
@@ -172,6 +203,8 @@ merge_annotator!(6, 0, 1, 2, 3, 4, 5);
 
 #[cfg(test)]
 mod tests {
+    use turbo_analysis::{IxRange, Span, ViewId};
+
     use super::*;
 
     fn dropped(spans: &[(u32, u32, &str)]) -> Vec<(u32, u32, String)> {
@@ -195,5 +228,20 @@ mod tests {
         // U+1F600 sorts after U+FF21 by code point, before it by unit.
         let got = dropped(&[(0, 1, "\u{FF21}"), (0, 1, "\u{1F600}")]);
         assert_eq!(got, [(0, 1, "\u{1F600}".into())]);
+    }
+
+    #[test]
+    fn merge_rejects_inverted_token_ranges_and_merge_entities_config_hash_distinguishes_arity() {
+        assert_ne!(MergeEntities::<2>.config_hash(), MergeEntities::<3>.config_hash());
+
+        let kinds = TagSet::new("ner", &["person"]);
+        let mut spans = Spans::new(ViewId::SOURCE);
+        spans.push(Span::new(0, 4));
+        let inverted =
+            Entities { spans, tokens: vec![IxRange::new(3, 1)], kind: vec![Tag(0)], kinds, score: vec![0.0] };
+        let Err(err) = merge(&[&inverted]) else {
+            panic!("expected Err for inverted token range");
+        };
+        assert!(err.contains("inverted token range"), "unexpected error: {err}");
     }
 }
