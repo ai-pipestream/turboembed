@@ -5,13 +5,14 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use turbo_analysis::Span;
-use turbo_formats::{Field, PosSample};
 use turbo_jvm::strict_math;
 use turbo_sequence::chunker::DEFAULT_BEAM_SIZE as CHUNKER_DEFAULT_BEAM_SIZE;
-use turbo_train::trainer;
-use turbo_train::{Event, JavaString, ModelPackage, TrainingConfiguration, TrainingParameters};
-use turbo_train_components::package::{FACTORY_KEY, Stamp, add_artifacts};
-use turbo_train_components::postag::{BEAM_SIZE_KEY, PosTaggerFactory, train_pos_model};
+use turbo_sequence::featuregen::descriptor;
+use turbo_sequence::postag::{ConfigurablePosContext, DEFAULT_DESCRIPTOR};
+use turbo_sequence::{ContextGenerator, Features, PatternMode};
+use turbo_train::{
+    Event, JavaString, ModelPackage, TrainingConfiguration, TrainingParameters, gis, trainer, write_gis,
+};
 
 use crate::bottom_up::{
     DEFAULT_ADVANCE_PERCENTAGE, DEFAULT_BEAM_SIZE, Parser as ParserTrait, build_dictionary,
@@ -22,10 +23,14 @@ use crate::context::{
 };
 use crate::head_rules::HeadRules;
 use crate::model::{
-    HeadRulesArtifact, PARSER_CHUNKER_FACTORY, ParserEventType, ParserModel, ParserModelError, ParserType,
+    FACTORY_KEY, HeadRulesArtifact, PARSER_CHUNKER_FACTORY, ParserEventType, ParserModel, ParserModelError, ParserType,
+    Stamp, add_artifacts,
 };
 use crate::parse::{COMPLETE, CONT, INCOMPLETE, Parse, ParseError, START, TOP_NODE};
 use crate::stream::{ParserChunkSample, ParserPosSample, add_tag_events};
+
+/// `BeamSearch.BEAM_SIZE_PARAMETER`: the training parameter and the manifest entry.
+pub const BEAM_SIZE_KEY: &str = "BeamSize";
 
 /// Top-start outcome (`AbstractBottomUpParser.TOP_START = "S-TOP"`).
 pub const TOP_START: &str = "S-TOP";
@@ -480,20 +485,11 @@ impl Parser {
         let build_bytes = report.train("build", &build_events, &params.build)?;
 
         // 2. Train POS tagger sub-model
-        let pos_samples = collect_pos_samples(samples);
-        let pos_factory = PosTaggerFactory::new(language, None, None)?;
         let mut tagger_params = params.tagger.clone();
         if tagger_params.get_int(BEAM_SIZE_KEY).ok().flatten().is_none() {
             tagger_params.put(BEAM_SIZE_KEY, 10);
         }
-        let trained_pos = train_pos_model(
-            &pos_samples,
-            &pos_factory,
-            &tagger_params,
-            &mut TrainingConfiguration::default(),
-            Stamp::at(0),
-        )?;
-        let tagger_bytes = trained_pos.package.to_bytes();
+        let tagger_bytes = train_parser_tagger_bytes(language, samples, &tagger_params)?;
 
         // 3. Train chunker sub-model with ParserChunkerFactory
         let chunker_bytes = train_parser_chunker_bytes(language, samples, &params.chunker)?;
@@ -697,12 +693,11 @@ impl TrainingReports {
         events: &[Event],
         params: &TrainingParameters,
     ) -> Result<Vec<u8>, ParserModelError> {
-        let (model, report) = trainer::train_events(events, params, &mut TrainingConfiguration::default())
-            .map_err(turbo_train_components::error::Error::Train)?;
+        let (model, report) = trainer::train_events(events, params, &mut TrainingConfiguration::default())?;
         for (key, value) in report.manifest_entries() {
             self.0.push((format!("{namespace}.{key}"), value));
         }
-        Ok(model.write().map_err(turbo_train_components::error::Error::Train)?)
+        Ok(model.write()?)
     }
 
     /// The entries, for [`ParserModel::from_serialized_parts`].
@@ -711,17 +706,44 @@ impl TrainingReports {
     }
 }
 
-pub(crate) fn collect_pos_samples(samples: &[Parse]) -> Vec<PosSample<'static>> {
-    let mut out = Vec::with_capacity(samples.len());
+pub(crate) fn train_parser_tagger_bytes(
+    language: &str,
+    samples: &[Parse],
+    params: &TrainingParameters,
+) -> Result<Vec<u8>, ParserModelError> {
+    let descriptor = DEFAULT_DESCRIPTOR.as_bytes();
+    let generator = descriptor::build(descriptor, None, PatternMode::Utf16Units)?;
+    let mut context = ConfigurablePosContext::new(generator, 0);
+    let mut features = Features::new();
+    let mut events = Vec::new();
     for p in samples {
         let pos = ParserPosSample::from_parse(p);
-        let toks: Vec<Field<'static>> = pos.sentence.into_iter().map(|s| Field::made(s, Span::new(0, 0))).collect();
-        let tags: Vec<Field<'static>> = pos.tags.into_iter().map(|s| Field::made(s, Span::new(0, 0))).collect();
-        if let Ok(sample) = PosSample::new(toks, tags, Span::new(0, 0)) {
-            out.push(sample);
+        if pos.sentence.is_empty() || pos.sentence.len() != pos.tags.len() {
+            continue;
+        }
+        let tokens: Vec<&str> = pos.sentence.iter().map(String::as_str).collect();
+        let tags: Vec<&str> = pos.tags.iter().map(String::as_str).collect();
+        context.start_sequence();
+        for i in 0..tokens.len() {
+            features.clear();
+            context.context(i, &tokens, &tags, &mut features);
+            let ctx = features
+                .iter()
+                .map(|f| JavaString::from_modified_utf8(f).expect("a feature is modified UTF-8"))
+                .collect();
+            events.push(Event::new(tags[i], ctx));
         }
     }
-    out
+    let beam = params.get_int(BEAM_SIZE_KEY)?.unwrap_or(3);
+    let (model, report) = gis::train_events(&events, params, &mut TrainingConfiguration::default())?;
+    let model_bytes = write_gis(&model)?;
+    let mut manifest = Stamp::at(0).manifest("POSTaggerME", language);
+    manifest.set_training(&report);
+    manifest.set(FACTORY_KEY, "opennlp.tools.postag.POSTaggerFactory");
+    manifest.set(BEAM_SIZE_KEY, &beam.to_string());
+    let mut package = ModelPackage::new(manifest);
+    add_artifacts(&mut package, vec![("pos.model", model_bytes), ("generator.featuregen", descriptor.to_vec())]);
+    Ok(package.to_bytes())
 }
 
 /// The chunker training events (`ChunkerEventStream` over `ChunkSampleStream`), one per token.
@@ -748,16 +770,15 @@ pub(crate) fn train_parser_chunker_bytes(
 ) -> Result<Vec<u8>, ParserModelError> {
     let events = parser_chunker_events(samples);
     let beam = params.get_int(BEAM_SIZE_KEY).ok().flatten().unwrap_or(CHUNKER_DEFAULT_BEAM_SIZE as i32);
-    let (model, report) = trainer::train_events(&events, params, &mut TrainingConfiguration::default())
-        .map_err(turbo_train_components::error::Error::Train)?;
-    let model_bytes = model.write().map_err(turbo_train_components::error::Error::Train)?;
+    let (model, report) = trainer::train_events(&events, params, &mut TrainingConfiguration::default())?;
+    let model_bytes = model.write()?;
 
     let mut manifest = Stamp::at(0).manifest("ChunkerME", language);
     manifest.set_training(&report);
     manifest.set(FACTORY_KEY, PARSER_CHUNKER_FACTORY);
     manifest.set(BEAM_SIZE_KEY, &beam.to_string());
     let mut package = ModelPackage::new(manifest);
-    add_artifacts(&mut package, vec![(turbo_sequence::chunker::MODEL_ENTRY_NAME, model_bytes)])?;
+    add_artifacts(&mut package, vec![(turbo_sequence::chunker::MODEL_ENTRY_NAME, model_bytes)]);
     Ok(package.to_bytes())
 }
 

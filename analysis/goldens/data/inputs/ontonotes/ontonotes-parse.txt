@@ -1,0 +1,53 @@
+# Written for this project in the layout and format of the OntoNotes 4.0 parse files (Penn Treebank trees over several lines); it holds no text
+# of the corpus, which is licensed and not redistributable. Trees with
+# function tags, traces, bracket escapes and non-ASCII tokens, separated by empty and
+# blank lines, with and without a line feed at the end, with carriage returns, and trees
+# the reader throws on or reads oddly: an extra close, an untyped outer bracket, a tab in a
+# token, two spaces before a token and brackets left open.
+
+@@ file data/english/annotations/nw/wsj/00/wsj_0001.parse
+(TOP (S (NP-SBJ (NNP Anna) (NNP Berg))
+        (VP (MD will)
+            (VP (VB join)
+                (NP (DT the) (NN board))))
+        (. .)))
+
+@@ end
+@@ file data/english/annotations/nw/wsj/00/wsj_0002.parse
+(TOP (SBARQ (WHNP-1 (WP What))
+            (SQ (VBD did)
+                (NP-SBJ (PRP she))
+                (VP (VB buy)
+                    (NP (-NONE- *T*-1))))
+            (. ?)))
+   	
+(TOP (S (NP-SBJ (-NONE- *PRO*))
+        (VP (TO to)
+            (VP (VB go)
+                (PP (-LRB- -LRB-) (IN in) (NP (NNP Tromsø)) (-RRB- -RRB-) (SYM 😀))))))
+@@ end
+@@ file data/english/annotations/nw/wsj/00/wsj_0003.parse
+(TOP (NP (NN x))))
+
+( (S (NP (NN y))) )
+
+(TOP (NP (NN tab	tok)))
+
+(TOP (FRAG (NN  double) (NN ok)))
+
+(TOP (S (NP (NNP Lars)) (VP (VBD left)))
+
+@@ end
+@@ file data/english/annotations/bc/cnn/00/cnn_0004.parse
+(TOP (S (NP (PRP We))
+   (VP (VBP begin))))
+
+(TOP (INTJ (UH Hello)))
+
+@@ end
+@@ file data/english/annotations/bc/cnn/00/cnn_0004.name
+<DOC DOCNO="bc/cnn/00/cnn_0004@0004@cnn@bc@en@on">
+Good evening from <ENAMEX TYPE="FAC">Studio 4</ENAMEX> .
+</DOC>
+
+@@ end

@@ -1,0 +1,53 @@
+# Written for this project in the layout and format of the OntoNotes 4.0 corpus (.name files with inline ENAMEX tags, .parse files); it holds no text
+# of the corpus, which is licensed and not redistributable. The name runs
+# read the .name files, the parse runs the .parse files, and neither reads the notes. The
+# names hold multiword, nested, untyped and unclosed names, bracket escapes, tags inside
+# tokens, non-ASCII types, document lines, lines after </DOC>, carriage returns and the
+# whitespace the two modes disagree on.
+
+@@ file data/english/annotations/nw/wsj/00/wsj_0001.name
+<DOC DOCNO="nw/wsj/00/wsj_0001@0001@wsj@nw@en@on">
+<ENAMEX TYPE="PERSON">Anna Berg</ENAMEX> , 61 years old , will join the board as a nonexecutive director <ENAMEX TYPE="DATE">Nov. 29</ENAMEX> .
+Ms. <ENAMEX TYPE="PERSON">Berg</ENAMEX> is chairman of <ENAMEX TYPE="ORG">Norsk Kabel -AMP- Rør A/S</ENAMEX> , the <ENAMEX TYPE="NORP" E_OFF="1">Norwegian</ENAMEX>s ' cable group .
+
+The group -LRB- based in <ENAMEX TYPE="GPE">Oslo</ENAMEX> -RRB- had sales of <ENAMEX TYPE="MONEY">$ 4.1 billion</ENAMEX> -LSB- sic -RSB- -LCB- x -RCB- .
+<ENAMEX TYPE="ORG">Bank of <ENAMEX TYPE="GPE">Norway</ENAMEX></ENAMEX> said so .
+</DOC>
+
+@@ end
+@@ file data/english/annotations/nw/wsj/00/wsj_0001.parse
+(TOP (S (NP-SBJ (NNP Anna) (NNP Berg))
+        (VP (MD will)
+            (VP (VB join)
+                (NP (DT the) (NN board))))
+        (. .)))
+
+@@ end
+@@ file data/english/annotations/nw/wsj/00/wsj_0002.name
+<DOC DOCNO="nw/wsj/00/wsj_0002@0002@wsj@nw@en@on">
+<ENAMEX TYPE="ORG">Fjord Shipping</ENAMEX> <ENAMEX S_OFF="1">Holding</ENAMEX> bought <ENAMEX TYPE="CARDINAL">three</ENAMEX> ships .
+<ENAMEX TYPE="MONEY"> $ 4 </ENAMEX>
+<ENAMEX TYPE="PERSON">Ola Nordmann said <ENAMEX>it</ENAMEX> was a<b>c and x><y , then <ENAMEX TYPE="ÉVÉNEMENT">Olsok</ENAMEX> came .
+<ENAMEX TYPE="İL">Ankara</ENAMEX> and <ENAMEX TYPE="WORK_OF_ART">Peer Gynt 😀</ENAMEX> < > <ENAMEX TYPE="LAW">open
+   
+</DOC> x
+<DOCUMENT> is skipped as a document line
+a b cd ef <ENAMEX TYPE="LOC">Nord Kapp</ENAMEX>
+</DOC>
+this line comes after the end of the document
+
+@@ end
+@@ file data/english/annotations/bc/cnn/00/cnn_0004.name
+<DOC DOCNO="bc/cnn/00/cnn_0004@0004@cnn@bc@en@on">
+Good evening from <ENAMEX TYPE="FAC">Studio 4</ENAMEX> .
+</DOC>
+
+@@ end
+@@ file data/english/annotations/zz.name/inner.name
+A directory named like a name file .
+
+@@ end
+@@ file notes.txt
+Not a name file .
+
+@@ end

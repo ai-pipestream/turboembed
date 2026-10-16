@@ -1,0 +1,11 @@
+# Written for this project in the layout and format of the OntoNotes 4.0 corpus; it holds no text
+# of the corpus, which is licensed and not redistributable. Empty name and parse
+# files, which end the streams at once, and an empty directory.
+
+@@ dir empty
+@@ hex z.name
+
+@@ end
+@@ hex z.parse
+
+@@ end

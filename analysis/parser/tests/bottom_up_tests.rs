@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Phrases, Sentences, Tokens};
-use turbo_formats::evaluate::LabeledSpan;
+use turbo_parser::evaluator::LabeledSpan;
 use turbo_parser::{
     ChunkContextGenerator, EnglishHeadRules, HeadRules, HeadRulesArtifact, INC_NODE, Parse, ParseSampleStream, Parser,
     ParserAnnotator, ParserChunkerSequenceValidator, ParserCrossValidator, ParserEvaluator, ParserEventType,

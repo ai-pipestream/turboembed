@@ -119,6 +119,21 @@ impl<'a> NameSample<'a> {
         Ok(NameSample { tokens, names, clear_adaptive_data, source })
     }
 
+    /// A sample of `tokens` with `names` that are already in
+    /// `NameSample`'s order, do not overlap and lie inside the tokens, so
+    /// [`NameSample::new`]'s checks are left out. A reader whose names
+    /// cannot break them by construction makes its samples with this.
+    pub(crate) fn from_ordered_names(
+        tokens: Vec<Field<'a>>,
+        names: Vec<Name<'a>>,
+        clear_adaptive_data: bool,
+        source: Span,
+    ) -> NameSample<'a> {
+        debug_assert!(names.windows(2).all(|p| p[0].end <= p[1].start));
+        debug_assert!(names.iter().all(|n| n.start <= n.end && n.end as usize <= tokens.len()));
+        NameSample { tokens, names, clear_adaptive_data, source }
+    }
+
     pub fn tokens(&self) -> &[Field<'a>] {
         &self.tokens
     }

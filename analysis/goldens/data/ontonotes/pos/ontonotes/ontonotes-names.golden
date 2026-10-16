@@ -1,0 +1,33 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ontonotes/ontonotes-names	2449	2440	7f30d04d332cbca77effa1ed8cedd7171add1960d8d8f0553936fd1172be63df
+annotator	opennlp.tools.formats.convert.ParseToPOSSampleStream	read
+layer	turbo:samples	document	1	written:str
+Anna_NNP Berg_NNP will_MD join_VB the_DT board_NN ._.
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	7	sample:u32	text:str
+0	Anna
+0	Berg
+0	will
+0	join
+0	the
+0	board
+0	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	7	tag:str
+NNP
+NNP
+MD
+VB
+DT
+NN
+.
+end	turbo:sample-tags
+layer	turbo:listing	document	1	file:str
+data/english/annotations/nw/wsj/00/wsj_0001.parse
+end	turbo:listing

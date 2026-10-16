@@ -27,6 +27,7 @@
 //! nothing unless a handler overrides them.
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 
 use crate::error::{Error, Result};
 
@@ -156,6 +157,10 @@ pub fn parse(text: &str, handler: &mut impl Handler) -> Result<()> {
     parse_with(text, Names::Local, handler)
 }
 
+/// How many attributes a start tag holds before the names given twice are
+/// looked for in a hash set rather than by scanning those before.
+const SCANNED_ATTRIBUTES: usize = 16;
+
 /// Parses a decoded document, calling `handler` for its content with the
 /// `names` asked for. `xmlns` attributes are not reported either way.
 pub fn parse_with(text: &str, names: Names, handler: &mut impl Handler) -> Result<()> {
@@ -168,6 +173,7 @@ pub fn parse_with(text: &str, names: Names, handler: &mut impl Handler) -> Resul
         stack: Vec::new(),
         attributes: Vec::new(),
         qualified: Vec::new(),
+        seen: HashSet::new(),
         root_seen: false,
         names,
     };
@@ -212,6 +218,10 @@ struct Parser<'a> {
     /// The qualified names of all the current start tag's attributes,
     /// for refusing one given twice.
     qualified: Vec<&'a str>,
+    /// The same names, kept once a start tag has more than
+    /// [`SCANNED_ATTRIBUTES`], so a tag with many attributes is checked in
+    /// time linear in their number. Empty otherwise.
+    seen: HashSet<&'a str>,
     root_seen: bool,
     names: Names,
 }
@@ -343,6 +353,11 @@ impl<'a> Parser<'a> {
         let name = self.name()?;
         self.attributes.clear();
         self.qualified.clear();
+        if !self.seen.is_empty() {
+            // Dropped rather than cleared: clearing walks the whole table,
+            // as large as the largest tag's.
+            self.seen = HashSet::new();
+        }
         loop {
             let spaced = self.skip_spaces();
             match self.text.as_bytes().get(self.pos) {
@@ -398,7 +413,15 @@ impl<'a> Parser<'a> {
         if let Some(i) = raw.find('<') {
             return self.err(value_start + i, "'<' in an attribute value");
         }
-        if self.qualified.contains(&qualified) {
+        let twice = if self.qualified.len() < SCANNED_ATTRIBUTES {
+            self.qualified.contains(&qualified)
+        } else {
+            if self.seen.is_empty() {
+                self.seen.extend(self.qualified.iter().copied());
+            }
+            !self.seen.insert(qualified)
+        };
+        if twice {
             return self.err(at, "an attribute is given twice");
         }
         let value = attribute_value(raw, value_start)?;
@@ -629,6 +652,13 @@ mod tests {
         assert_eq!(error("<d>&#0;</d>"), (3, "a character reference to a character XML does not allow"));
         assert_eq!(error("<d>\u{1}</d>"), (3, "a character XML does not allow"));
         assert_eq!(error("<d a='1' a='2'/>"), (9, "an attribute is given twice"));
+        // Past the scanned attributes the names are looked up in a set,
+        // which the next tag starts again.
+        let many: String = (0..40).map(|i| format!(" a{i}='x'")).collect();
+        let twice = format!("<d{many} a3='y'/>");
+        assert_eq!(error(&twice), (2 + many.len() + 1, "an attribute is given twice"));
+        let tags = format!("<d{many}><e{many}/><e a1='1' a2='2'/></d>");
+        assert!(parse(&tags, &mut Log::default()).is_ok());
         assert_eq!(error("<d a='<'/>"), (6, "'<' in an attribute value"));
         assert_eq!(error("<d a=1/>"), (5, "an attribute value must be quoted"));
         assert_eq!(error("<d>"), (3, "the document ends inside an element"));

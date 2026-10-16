@@ -141,6 +141,10 @@ final class Runs {
   /** Sentence, language and document corpora in the formats of OpenNLP's corpus readers. */
   static final String CORPORA = "corpora";
   static final String PARSE = "parse";
+  /** Corpus directories of OntoNotes 4.0 name and parse files, written for the goldens. */
+  static final String ONTONOTES = "ontonotes";
+  /** Data directories of French Treebank XML files, written for the goldens. */
+  static final String FRENCH_TREEBANK = "frenchtreebank";
   static final String HEAD_RULES = "head-rules";
   /** The Penn Treebank parses the bottom-up parsers are trained on and parse. */
   static final String PARSE_TREEBANK = "parse-treebank";
@@ -391,6 +395,10 @@ final class Runs {
     // The chunking and treeinsert parsers with the English rules: the n-gram dictionary, the event
     // streams, the context generators, and models trained on the parse-treebank corpus.
     annotators.addAll(ParserTrainGolden.all(fixtures.resolve(EN_HEAD_RULES), inputs));
+    // The OntoNotes name, parse and part-of-speech streams and the French Treebank parse stream,
+    // over corpus directories bundled in their own sets.
+    annotators.addAll(OntoNotesGolden.all());
+    annotators.addAll(FrenchTreebankGolden.all());
     // The gazetteers: the bundled table, the fixture tables and an overlay, asked for names,
     // record ids and regions, and the fixture loaders on whole tables.
     annotators.addAll(GazetteerGolden.all(fixtures));

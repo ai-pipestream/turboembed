@@ -918,7 +918,7 @@ pub const FIXTURES: [Fixture; 109] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 47] = [
+pub const INPUT_SETS: [&str; 49] = [
     "en",
     "multi",
     "norm",
@@ -945,6 +945,8 @@ pub const INPUT_SETS: [&str; 47] = [
     "ad",
     "parse",
     "parse-treebank",
+    "ontonotes",
+    "frenchtreebank",
     "head-rules",
     "gazetteer",
     "place-profiles",
@@ -979,7 +981,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 49] = [
+pub const ANNOTATORS: [&str; 51] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -1010,6 +1012,8 @@ pub const ANNOTATORS: [&str; 49] = [
     "ner",
     "ad",
     "parse",
+    "ontonotes",
+    "frenchtreebank",
     "head-rules",
     "gazetteer",
     "place-profiles",
@@ -1086,6 +1090,12 @@ pub const DOCCAT_TRAIN_SET: &str = "doccat-train";
 /// layouts of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig and
 /// 20 Newsgroups corpora. No other annotator runs on it.
 pub const CORPORA_INPUT_SET: &str = "corpora";
+
+/// The input sets of the OntoNotes and French Treebank streams: bundles of
+/// corpus directories in their layouts, written for the goldens. Each set is
+/// read by its own streams only.
+pub const ONTONOTES_INPUT_SET: &str = "ontonotes";
+pub const FRENCH_TREEBANK_INPUT_SET: &str = "frenchtreebank";
 
 /// The input set the PII packs run on. They run on no other set, and the
 /// other annotators do not run on this one.
@@ -1381,6 +1391,24 @@ mod tests {
         assert!(golden.contains("ANNOTATOR = \"sentiment\""));
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
         assert!(runs.contains("SentimentGolden.all(inputs)"));
+    }
+
+    #[test]
+    fn the_treebank_streams_have_their_own_input_sets_and_no_dumps() {
+        for (set, class) in
+            [(ONTONOTES_INPUT_SET, "OntoNotesGolden"), (FRENCH_TREEBANK_INPUT_SET, "FrenchTreebankGolden")]
+        {
+            assert!(INPUT_SETS.contains(&set));
+            assert!(ANNOTATORS.contains(&set));
+            assert!(!DUMPED_ANNOTATORS.contains(&set));
+            let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+            assert!(runs.contains(&format!("= \"{set}\";")));
+            assert!(runs.contains(&format!("annotators.addAll({class}.all());")));
+        }
+        let onto = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/OntoNotesGolden.java");
+        assert!(onto.contains("SET = Runs.ONTONOTES;") && onto.contains("return \"ontonotes\";"));
+        let ftb = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/FrenchTreebankGolden.java");
+        assert!(ftb.contains("SET = Runs.FRENCH_TREEBANK;") && ftb.contains("return \"frenchtreebank\";"));
     }
 
     #[test]

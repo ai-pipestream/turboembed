@@ -20,20 +20,19 @@ use std::sync::Arc;
 
 use turbo_analysis::Span;
 use turbo_jvm::strict_math;
-use turbo_train::{Event, TrainingConfiguration};
-use turbo_train_components::package::Stamp;
-use turbo_train_components::postag::{PosTaggerFactory, train_pos_model};
+use turbo_train::Event;
 
 use crate::bottom_up::{
     DEFAULT_ADVANCE_PERCENTAGE, DEFAULT_BEAM_SIZE, Parser as ParserTrait, build_dictionary,
     collapse_punctuation_in_place, parse_bottom_up,
 };
 use crate::chunking::{
-    ParserTrainingParameters, TrainingReports, collect_pos_samples, event_from_strings, train_parser_chunker_bytes,
+    ParserTrainingParameters, TrainingReports, event_from_strings, train_parser_chunker_bytes,
+    train_parser_tagger_bytes,
 };
 use crate::context::{ChunkContextGenerator, Cons, EOS, check_cons, cons, cons_bo, cons2, cons3, surround};
 use crate::head_rules::HeadRules;
-use crate::model::{HeadRulesArtifact, ParserEventType, ParserModel, ParserModelError, ParserType};
+use crate::model::{HeadRulesArtifact, ParserEventType, ParserModel, ParserModelError, ParserType, Stamp};
 use crate::parse::{COMPLETE, INC_NODE, INCOMPLETE, Parse, ParseError, TOP_NODE, insert_by_prob};
 use crate::stream::{ParserChunkSample, add_tag_events};
 
@@ -692,16 +691,7 @@ impl Parser {
         // 4. Train POS tagger sub-model. Unlike the chunking parser, OpenNLP's tree-insertion
         // `train` leaves the tagger's beam size alone, so it is the tagger's default of 3 unless the
         // parameters give one.
-        let pos_samples = collect_pos_samples(samples);
-        let pos_factory = PosTaggerFactory::new(language, None, None)?;
-        let trained_pos = train_pos_model(
-            &pos_samples,
-            &pos_factory,
-            &params.tagger,
-            &mut TrainingConfiguration::default(),
-            Stamp::at(0),
-        )?;
-        let tagger_bytes = trained_pos.package.to_bytes();
+        let tagger_bytes = train_parser_tagger_bytes(language, samples, &params.tagger)?;
 
         // 5. Train chunker sub-model with ParserChunkerFactory
         let chunker_bytes = train_parser_chunker_bytes(language, samples, &params.chunker)?;

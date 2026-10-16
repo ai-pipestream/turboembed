@@ -1,0 +1,32 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ontonotes/ontonotes-parse-stops	492	492	75579d3ad496d0caa2e91debbb4b8bfe13a12463846d0597339180c1e6eb385b
+annotator	opennlp.tools.formats.ontonotes.OntoNotesParseSampleStream	read
+layer	turbo:samples	document	1	written:str
+(TOP (NN one) )
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+0	java.lang.ArrayIndexOutOfBoundsException	Index -1 out of bounds for length 0
+end	turbo:read-errors
+layer	turbo:parse-texts	document	1	sample:u32	text:str
+0	one 
+end	turbo:parse-texts
+layer	turbo:parse-nodes	document	3	sample:u32	depth:u32	type:str	start:u32	end:u32	head-start:u32	head-end:u32	own-head:u32	head-index:u32
+0	0	TOP	0	4	0	4	1	0
+0	1	NN	0	3	0	3	1	0
+0	2	TK	0	3	0	3	1	0
+end	turbo:parse-nodes
+layer	turbo:pos-samples	document	1	sample:u32	token:str	tag:str
+0	one	NN
+end	turbo:pos-samples
+layer	turbo:chunk-samples	document	1	sample:u32	token:str	tag:str	pred:str
+0	one	NN	S-TOP
+end	turbo:chunk-samples
+layer	turbo:listing	document	3	file:str
+c_feeds.parse
+b_stop.parse
+a_more.parse
+end	turbo:listing

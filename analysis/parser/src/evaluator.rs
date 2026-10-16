@@ -11,15 +11,183 @@
 //!   trains either a [`chunking::Parser`] or [`treeinsert::Parser`] per fold,
 //!   and accumulates the held-out [`FMeasure`].
 
+use std::fmt;
 use std::sync::Arc;
-
-use turbo_formats::evaluate::{CrossValidation, FMeasure, LabeledSpan};
 
 use crate::bottom_up::Parser;
 use crate::chunking::{self, ParserTrainingParameters};
 use crate::model::{HeadRulesArtifact, ParserModelError, ParserType};
 use crate::parse::{Parse, ParseError};
 use crate::treeinsert;
+
+/// A span with an optional constituent type, compared as `opennlp.tools.util.Span.equals`
+/// compares: by start, end, and type.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct LabeledSpan<'t> {
+    pub start: u32,
+    pub end: u32,
+    pub kind: Option<&'t str>,
+}
+
+impl<'t> LabeledSpan<'t> {
+    /// Creates a [`LabeledSpan`] at `[start..end)` with optional label `kind`.
+    pub fn new(start: u32, end: u32, kind: Option<&'t str>) -> LabeledSpan<'t> {
+        LabeledSpan { start, end, kind }
+    }
+
+    /// `Span.toString`: `[start..end)`, then a space and the type when there is one.
+    pub fn java_string(&self) -> String {
+        match self.kind {
+            Some(k) => format!("[{}..{}) {k}", self.start, self.end),
+            None => format!("[{}..{})", self.start, self.end),
+        }
+    }
+}
+
+impl fmt::Display for LabeledSpan<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.java_string())
+    }
+}
+
+/// Precision, recall, and F-measure over all evaluated samples (`opennlp.tools.util.eval.FMeasure`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct FMeasure {
+    selected: u64,
+    target: u64,
+    true_positives: u64,
+}
+
+impl FMeasure {
+    /// `updateScores`: adds the true positives of `predictions` against `references`, the number
+    /// of predictions, and the number of references.
+    pub fn update<T: PartialEq>(&mut self, references: &[T], predictions: &[T]) {
+        self.true_positives += count_true_positives(references, predictions);
+        self.selected += predictions.len() as u64;
+        self.target += references.len() as u64;
+    }
+
+    /// `mergeInto`: adds the counts of `other` to these.
+    pub fn merge(&mut self, other: &FMeasure) {
+        self.selected += other.selected;
+        self.target += other.target;
+        self.true_positives += other.true_positives;
+    }
+
+    /// The true positives over the predictions, or `0.0` with no predictions.
+    pub fn precision(&self) -> f64 {
+        if self.selected > 0 { self.true_positives as f64 / self.selected as f64 } else { 0.0 }
+    }
+
+    /// The true positives over the references, or `0.0` with no references.
+    pub fn recall(&self) -> f64 {
+        if self.target > 0 { self.true_positives as f64 / self.target as f64 } else { 0.0 }
+    }
+
+    /// `2 * (precision * recall) / (precision + recall)`, or `-1.0` when precision and recall add
+    /// up to `0.0` or less, as Java returns.
+    pub fn f_measure(&self) -> f64 {
+        let (p, r) = (self.precision(), self.recall());
+        if p + r > 0.0 { 2.0 * (p * r) / (p + r) } else { -1.0 }
+    }
+
+    /// The number of predictions.
+    pub fn selected(&self) -> u64 {
+        self.selected
+    }
+
+    /// The number of references.
+    pub fn target(&self) -> u64 {
+        self.target
+    }
+
+    /// The number of true positives.
+    pub fn true_positives(&self) -> u64 {
+        self.true_positives
+    }
+}
+
+fn count_true_positives<T: PartialEq>(references: &[T], predictions: &[T]) -> u64 {
+    let mut remaining: Vec<&T> = predictions.iter().collect();
+    let mut true_positives = 0;
+    let mut matched: Option<&T> = None;
+    for reference in references {
+        for &prediction in &remaining {
+            if reference == prediction {
+                matched = Some(prediction);
+                true_positives += 1;
+            }
+        }
+        if let Some(m) = matched
+            && let Some(at) = remaining.iter().position(|&p| p == m)
+        {
+            remaining.remove(at);
+        }
+    }
+    true_positives
+}
+
+/// One fold of n-fold cross-validation (`opennlp.tools.util.eval.CrossValidationPartitioner`).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Fold {
+    /// The fold's index from `0`.
+    pub index: usize,
+    pub training: Vec<usize>,
+    pub test: Vec<usize>,
+}
+
+impl Fold {
+    /// The training samples of `samples`.
+    pub fn training_of<'s, T>(&self, samples: &'s [T]) -> impl Iterator<Item = &'s T> {
+        self.training.iter().map(move |&i| &samples[i])
+    }
+
+    /// The test samples of `samples`.
+    pub fn test_of<'s, T>(&self, samples: &'s [T]) -> impl Iterator<Item = &'s T> {
+        self.test.iter().map(move |&i| &samples[i])
+    }
+}
+
+/// The folds over `len` samples in `partitions` partitions (`CrossValidationPartitioner`).
+#[derive(Clone, Debug)]
+pub struct CrossValidation {
+    len: usize,
+    partitions: usize,
+    next: usize,
+}
+
+impl CrossValidation {
+    /// Creates a new partitioner over `len` samples in `partitions` folds.
+    pub fn new(len: usize, partitions: usize) -> CrossValidation {
+        CrossValidation { len, partitions, next: 0 }
+    }
+}
+
+impl Iterator for CrossValidation {
+    type Item = Fold;
+
+    fn next(&mut self) -> Option<Fold> {
+        if self.next >= self.partitions {
+            return None;
+        }
+        let (n, t, len) = (self.partitions, self.next, self.len);
+        self.next += 1;
+        let mut training = Vec::new();
+        let mut at = 0;
+        loop {
+            if at % n == t {
+                at += 1;
+            }
+            if at >= len {
+                break;
+            }
+            training.push(at);
+            at += 1;
+        }
+        let test = (t..len).step_by(n).collect();
+        Some(Fold { index: t, training, test })
+    }
+}
 
 /// Evaluates a constituency [`Parser`] against gold-standard [`Parse`] trees,
 /// accumulating labeled constituent precision, recall, and F1 in [`FMeasure`].

@@ -8,6 +8,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use turbo_analysis::ModelRef;
+use turbo_jvm::hash_map::put_order;
 use turbo_maxent::{Digest, MaxentModel, ModelFile};
 use turbo_postag::PosModel;
 use turbo_sequence::BeamSearch;
@@ -16,12 +17,64 @@ use turbo_sequence::chunker::{
     MODEL_ENTRY_NAME as CHUNKER_MODEL_ENTRY_NAME, TokenTag,
 };
 use turbo_sequence::manifest_beam_size;
-use turbo_train::ModelPackage;
-use turbo_train_components::package::{Stamp, add_artifacts, serializer_class_key};
+use turbo_train::package::OPENNLP_VERSION;
+use turbo_train::{Manifest, ModelPackage, TimeZone};
 
 use crate::context::{ChunkContextGenerator, ParserChunkerSequenceValidator};
 use crate::head_rules::{AncoraSpanishHeadRules, EnglishHeadRules, GapLabeler, HeadRules, HeadRulesError};
 use crate::parse::{Constituent, Head, Parse, ParseError};
+
+/// `BaseModel.FACTORY_NAME`: the manifest entry naming the factory class.
+pub const FACTORY_KEY: &str = "factory";
+
+/// When and by which OpenNLP a model file was written: the instant `BaseModel` records as
+/// `Timestamp`, the `OpenNLP-Version`, and the time zone the date line and the zip entries' times
+/// are in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stamp<'v> {
+    pub timestamp_ms: i64,
+    pub version: &'v str,
+    pub zone: TimeZone,
+}
+
+impl Stamp<'static> {
+    /// A model written by this port at `timestamp_ms`, in UTC.
+    pub fn at(timestamp_ms: i64) -> Stamp<'static> {
+        Stamp { timestamp_ms, version: OPENNLP_VERSION, zone: TimeZone::UTC }
+    }
+}
+
+impl Stamp<'_> {
+    /// The base manifest of a model of `component` for `language`.
+    pub fn manifest(&self, component: &str, language: &str) -> Manifest {
+        Manifest::new(component, language, self.timestamp_ms).with_version(self.version).with_zone(self.zone)
+    }
+}
+
+/// The manifest key `serializer-class-<entry>`.
+pub(crate) fn serializer_class_key(entry: &str) -> String {
+    format!("serializer-class-{entry}")
+}
+
+/// Adds `artifacts` (name and bytes) to `package` in the JVM's zip order for a map that held the
+/// manifest and then these names in this order, and places the manifest where the JVM writes it.
+pub(crate) fn add_artifacts(package: &mut ModelPackage, artifacts: Vec<(&str, Vec<u8>)>) {
+    let mut names: Vec<&str> = vec![turbo_train::package::MANIFEST_ENTRY];
+    names.extend(artifacts.iter().map(|(n, _)| *n));
+    let (order, exact) = put_order(names.iter().copied());
+    debug_assert!(exact, "strings are compared in a tree bucket");
+    let mut artifacts: Vec<Option<(&str, Vec<u8>)>> = artifacts.into_iter().map(Some).collect();
+    let mut added = 0;
+    for i in order {
+        if i == 0 {
+            package.place_manifest(added);
+            continue;
+        }
+        let (name, bytes) = artifacts[i - 1].take().expect("each index once");
+        package.add_entry(name, bytes);
+        added += 1;
+    }
+}
 
 /// `ParserModel.COMPONENT_NAME`.
 pub const COMPONENT_NAME: &str = "Parser";
@@ -203,8 +256,8 @@ pub enum ParserModelError {
     HeadRules(HeadRulesError),
     /// Unsupported head rules serializer class.
     UnsupportedHeadRulesSerializer(String),
-    /// Packaging error.
-    TrainComponents(turbo_train_components::error::Error),
+    /// Training or packaging error.
+    Train(turbo_train::Error),
     /// A training or evaluation sample failed where OpenNLP throws, as `Parse.pruneParse` does
     /// on a node whose only child has its type.
     Sample(ParseError),
@@ -227,7 +280,7 @@ impl fmt::Display for ParserModelError {
             Self::UnsupportedHeadRulesSerializer(s) => {
                 write!(f, "parser head rules: unsupported serializer class {s:?}")
             }
-            Self::TrainComponents(e) => write!(f, "parser model packaging: {e}"),
+            Self::Train(e) => write!(f, "parser model training: {e}"),
             Self::Sample(e) => write!(f, "parser sample: {e}"),
             Self::TreeInsert(e) => write!(f, "parser training events: {e}"),
         }
@@ -272,9 +325,9 @@ impl From<ParseError> for ParserModelError {
     }
 }
 
-impl From<turbo_train_components::error::Error> for ParserModelError {
-    fn from(e: turbo_train_components::error::Error) -> Self {
-        Self::TrainComponents(e)
+impl From<turbo_train::Error> for ParserModelError {
+    fn from(e: turbo_train::Error) -> Self {
+        Self::Train(e)
     }
 }
 
@@ -529,7 +582,7 @@ impl ParserModel {
         artifacts.push((PARSER_TAGGER_MODEL_ENTRY_NAME, tagger_bytes));
         artifacts.push((CHUNKER_TAGGER_MODEL_ENTRY_NAME, chunker_bytes));
         artifacts.push((HEAD_RULES_MODEL_ENTRY_NAME, head_rules.serialize_to_bytes()));
-        add_artifacts(&mut package, artifacts)?;
+        add_artifacts(&mut package, artifacts);
         Self::from_bytes(package.to_bytes())
     }
 

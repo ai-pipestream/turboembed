@@ -1768,7 +1768,10 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-chunker",
+ "turbo-doccat",
  "turbo-goldens",
+ "turbo-normalize",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 
@@ -1836,6 +1839,7 @@ dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-normalize",
+ "turbo-normalize-layers",
  "turbo-sequence",
  "turbo-train",
 ]
@@ -1890,6 +1894,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-parser",
  "turbo-tokenize",
  "turbo-unicode",
 ]
@@ -2158,14 +2163,12 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-postag",
  "turbo-sequence",
  "turbo-train",
- "turbo-train-components",
  "turbo-unicode",
 ]
 

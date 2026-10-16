@@ -61,7 +61,13 @@ pub use layer::SpanCategorizable;
 pub use model::{
     COMPONENT_NAME, DoccatModel, FACTORY_NAME, FEATURE_GENERATORS_KEY, MODEL_ENTRY, parse_feature_generators,
 };
-pub use sentiment::{SentimentFactory, SentimentMe, SentimentModel};
+pub use sentiment::{
+    AbsaMetrics, AbsaTriplet, AspectCategoryScorer, DEFAULT_ASPECT_CATEGORIES, DEFAULT_INCIVILITY_THRESHOLD,
+    GoldIncivilityUnit, IncivilityAnnotator, IncivilityLexicon, IncivilityMetrics, IncivilityUnit,
+    IncivilityVectorScorer, LabelMetrics, LexiconSentiment, NegationMode, PragmaticsAnnotator, PragmaticsVectorScorer,
+    RuleAspectSentiment, SENTENCE_SENTIMENT, SentenceSentiment, SentimentFactory, SentimentMe, SentimentModel,
+    VaderLexicon, VaderScore, evaluate_absa_corpus, evaluate_incivility_corpus, extract_triplets,
+};
 pub use svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};
 pub use train::{DoccatEventStream, DoccatFactory, doccat_events, doccat_index};
 

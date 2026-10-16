@@ -1,0 +1,47 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	frenchtreebank/ftb-encodings	688	688	f60ec3263e57cd056de278bbe9a5c66b797fbca4285d9dd9d5c50e91a40955c7
+annotator	opennlp.tools.formats.frenchtreebank.ConstitParseSampleStream	read
+layer	turbo:samples	document	2	written:str
+(TOP (S (ADV déjà)) )
+(TOP (S (NC été) (PC à) (NC Noël)) )
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:parse-texts	document	2	sample:u32	text:str
+0	déjà 
+1	été à Noël 
+end	turbo:parse-texts
+layer	turbo:parse-nodes	document	12	sample:u32	depth:u32	type:str	start:u32	end:u32	head-start:u32	head-end:u32	own-head:u32	head-index:u32
+0	0	TOP	0	7	0	7	1	0
+0	1	S	0	6	0	6	1	0
+0	2	ADV	0	6	0	6	1	0
+0	3	TK	0	6	0	6	1	0
+1	0	TOP	0	15	0	15	1	0
+1	1	S	0	14	0	14	1	2
+1	2	NC	0	5	0	5	1	0
+1	3	TK	0	5	0	5	1	0
+1	2	PC	6	8	6	8	1	1
+1	3	TK	6	8	6	8	1	1
+1	2	NC	9	14	9	14	1	2
+1	3	TK	9	14	9	14	1	2
+end	turbo:parse-nodes
+layer	turbo:pos-samples	document	4	sample:u32	token:str	tag:str
+0	déjà	ADV
+1	été	NC
+1	à	PC
+1	Noël	NC
+end	turbo:pos-samples
+layer	turbo:chunk-samples	document	4	sample:u32	token:str	tag:str	pred:str
+0	déjà	ADV	S-S
+1	été	NC	S-S
+1	à	PC	C-S
+1	Noël	NC	C-S
+end	turbo:chunk-samples
+layer	turbo:listing	document	2	file:str
+b_bom.xml
+a_latin1.xml
+end	turbo:listing
