@@ -1,0 +1,43 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-literary	1206	1206	b5485314d1f941b05a792b0b901ac1014beaa7ea4a0df265b903c8443d03c854
+annotator	opennlp.tools.formats.ad.ADSentenceSampleStream	read
+config	includeTitles	false
+layer	turbo:samples	document	9	written:str
+Era uma vez uma serra.\n
+Nela vivia a Joaquina.\n
+Fim.\n
+Sem letras.\n
+As algas crescem.\n
+Muito.\n
+Vazio.\n
+Sem fonte.\n
+Rochas.\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	9	text:str
+Era uma vez uma serra.
+Nela vivia a Joaquina.
+Fim.
+Sem letras.
+As algas crescem.
+Muito.
+Vazio.
+Sem fonte.
+Rochas.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	9	sample:u32	start:u32	end:u32
+0	0	22
+1	0	22
+2	0	4
+3	0	11
+4	0	17
+5	0	6
+6	0	6
+7	0	10
+8	0	7
+end	turbo:sample-spans

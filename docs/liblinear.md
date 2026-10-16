@@ -103,34 +103,31 @@ twice, ids from zero, and only logistic regression models.
 
 ## Math functions and tolerances
 
-liblinear-java calls `Math.exp` and `Math.log`. On the JDK 21 HotSpot of
-the goldens (x86-64), `Math.log` matched a correctly rounded logarithm on
-all 199,972 arguments sampled, and the port uses `turbo_jvm::math::log`;
-glibc's `ln` differs from it on 62 of them. HotSpot's `Math.exp` is not
-correctly rounded and is not portable here; the port uses `f64::exp`,
-which differs from it in the last bit on 472 of the 199,972. A last bit
+liblinear-java calls `Math.exp` and `Math.log`. The port does not try
+to reproduce HotSpot's last bits: it uses fdlibm's logarithm
+(`turbo_jvm::strict_math::log`, the same result on every platform) and
+`f64::exp`. HotSpot's `Math.exp` is not correctly rounded and differs
+from `f64::exp` in the last bit on 472 of 199,972 arguments sampled; its
+`Math.log` differs from fdlibm's on some arguments too. A last bit
 difference can grow through the solver's iterations, so the weights are
-compared to a tolerance.
+compared to a tolerance, and the best outcome must be the JVM's.
 
-Against a JVM oracle on 21 trainings of events written for the purpose
-(two, three and many outcomes, each solver, tight and loose tolerances):
+The logarithm was chosen for speed. A correctly rounded logarithm
+(`turbo_jvm::math::log`) matched HotSpot's `Math.log` on every argument
+sampled and made a few more models byte-identical to the JVM's, but it
+costs about 0.8 microseconds a call, some 60 times fdlibm's, and the dual
+solver takes one at every step of its inner Newton method. On the goldens
+below, in a release build (training and checking all 285, the median of
+three runs):
 
-- 2,827 of 4,232 weights the same to the bit, the largest difference
-  3.4e-13; six of the 17 models have the JVM's serialized bytes exactly;
-- 10,134 of 17,800 probabilities the same to the bit, the largest
-  difference 6.4e-14; the best outcome the same on all 4,100 contexts;
-- the four refusals (unknown solver, `c` and `eps` of zero, an SVM
-  solver) with the JVM's messages.
+| Logarithm | Time | Text models identical (of 133) | Weights identical (of 112,188) |
+|---|---|---|---|
+| fdlibm (`strict_math::log`, used) | 0.30 s | 83 | 83,020 |
+| platform `f64::ln` (glibc) | 0.33 s | 124 | 95,752 |
+| correctly rounded (`math::log`) | 0.56 s | 128 | 95,788 |
 
-With `f64::ln` in place of the correctly rounded logarithm, 2,407 of the
-4,232 weights are the same to the bit, and on the goldens below 124 text
-models in place of 128 are the JVM's exactly. The correctly rounded
-logarithm costs about 0.8 microseconds a call, and the dual solver takes
-one at every step of its inner Newton method, so it dominates there: in
-a release build, `L2R_LR_DUAL` on the part-of-speech shaped events of
-`analysis/goldens/data/inputs/train/sentences.txt` (13 outcomes, `c` 100,
-`eps` 1e-8) trains in about 1.2 s, against about 0.08 s with `f64::ln`.
-The 21 oracle trainings take about 2.3 s, against about 0.6 s.
+All three pass the same tolerances. fdlibm is as fast as the platform's
+`ln` and, unlike it, gives the same model on every platform.
 
 ## Goldens
 
@@ -167,11 +164,11 @@ with `cargo run -p turbo-goldens-tool -- generate`.
 On goldens of these runs made outside the image (the same generator and
 add-on commit on an Ubuntu build of JDK 21.0.12, x86-64), the test gave:
 285 goldens, 152 refusals with the JVM's messages, 133 models of which
-128 have the JVM's text model exactly; 95,788 of 112,188 weights the same
-to the bit, the largest difference 3.3e-14; the JVM's model scored here
+83 have the JVM's text model exactly; 83,020 of 112,188 weights the same
+to the bit, the largest difference 3.7e-14; the JVM's model scored here
 34,652 of 34,772 probabilities the same to the bit, the largest
 difference 1.1e-16, with every one of the 4,736 best outcomes the JVM's;
-the model trained here 33,455 of 34,772, the largest difference 3.8e-15,
+the model trained here 27,160 of 34,772, the largest difference 3.8e-15,
 with the same best outcomes.
 
 The fuzz differential does not cover the trainer (`train-liblinear` is in

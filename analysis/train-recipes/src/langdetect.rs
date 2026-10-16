@@ -477,11 +477,18 @@ impl LanguageRecipe {
     /// mapping, so two records scoring the same samples the same way have
     /// the same digest.
     pub fn samples_digest(&self, plan: &Plan<'_>) -> String {
+        self.samples_digest_with(plan, &self.reference_mappings(plan))
+    }
+
+    /// The same digest with `mappings` in place of the reference's, as
+    /// for a model scored in the reference's place that has Tatoeba's
+    /// codes.
+    pub fn samples_digest_with(&self, plan: &Plan<'_>, mappings: &[LabelMapping]) -> String {
         let mut text = String::new();
         for s in &plan.held_out {
             text.push_str(&format!("{}\t{}\t{}\n", self.languages[s.language].tatoeba, s.text.len(), s.text));
         }
-        for m in self.reference_mappings(plan) {
+        for m in mappings {
             text.push_str(&format!("mapping\t{}\t{}\n", m.held_out, m.reference));
         }
         Sha256::of(text.as_bytes()).to_string()
@@ -684,6 +691,24 @@ pub struct LanguageCard {
     pub gate: GateCard,
 }
 
+/// The card's record of `export` and what `plan` read of it; `recorded`
+/// is whether it is [`EXPORT`].
+pub fn export_card(export: &Export, recorded: bool, plan: &Plan<'_>) -> ExportCard {
+    ExportCard {
+        detailed: export.detailed.clone(),
+        cc0: export.cc0.clone(),
+        digest: export.digest(),
+        recorded,
+        records: plan.records,
+        no_language: plan.no_language,
+        other_languages: plan.other_languages,
+        cc0_records: plan.cc0_records,
+        cc0_differing: plan.cc0_differing,
+        cc0_not_in_detailed: plan.cc0_not_in_detailed,
+        accepted_licences: ACCEPTED_LICENCES.to_vec(),
+    }
+}
+
 /// The data the model is trained on, as the zoo lists it: the export of
 /// digest `digest` ([`Export::digest`]).
 pub fn training_data(digest: &str) -> TrainingData {
@@ -737,19 +762,7 @@ impl LanguageCard {
                 sha256: Sha256::of(&trained.sentences).to_string(),
                 sha512: Sha512::of(&trained.sentences).to_string(),
             },
-            export: ExportCard {
-                detailed: export.detailed.clone(),
-                cc0: export.cc0.clone(),
-                digest,
-                recorded,
-                records: plan.records,
-                no_language: plan.no_language,
-                other_languages: plan.other_languages,
-                cc0_records: plan.cc0_records,
-                cc0_differing: plan.cc0_differing,
-                cc0_not_in_detailed: plan.cc0_not_in_detailed,
-                accepted_licences: ACCEPTED_LICENCES.to_vec(),
-            },
+            export: export_card(export, recorded, plan),
             split: recipe.split,
             per_language: plan.languages.clone(),
             excluded_languages: plan.excluded.clone(),

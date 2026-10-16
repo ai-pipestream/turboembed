@@ -376,7 +376,7 @@ final class FormatGolden implements AnnotatorGolden {
     layers.add(aligned("turbo:sample-lemmas", "lemma", lemmas));
   }
 
-  private static void chunks(List<Object> samples, List<Layer> layers) {
+  static void chunks(List<Object> samples, List<Layer> layers) {
     List<String[]> toks = new ArrayList<>();
     List<String[]> tags = new ArrayList<>();
     List<String[]> preds = new ArrayList<>();

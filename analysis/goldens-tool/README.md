@@ -186,6 +186,7 @@ a directory with the same model run without them, and its options are
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
 | `corpora` (the sentence, language and document corpus streams) | `moses`, `letsmt`, `letsmt-detokenized`, `nkjp`, `irish-sentences`, `irish-tokens`, `leipzig-2x3`, `leipzig-1x4-skip2`, `20newsgroup-whitespace` (also `+legacy`), `20newsgroup-simple` | `corpora`, the inputs whose id starts with the corpus's prefix (`moses-`, `letsmt-`, `nkjp-`, `irish-`, `leipzig-`, `newsgroups-`) | `detokenizer`; `sentencesPerSample`, `samplesPerLanguage`, `samplesToSkip`; `tokenizer`, `dataDir`, `whitespace legacy` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
+| `ad` (the Arvores Deitadas streams) | `names`, `names-nosplit`, `pos`, `pos-expand-features`, `chunk`, `chunk-1-3`, `sentence`, `sentence-titles`, `token` (with `pt-detokenizer`, fixture) | `ad`; the `sentence` runs leave out `ad-null-text` | `splitHyphenatedTokens`, `expandME`, `includeFeatures`, `start`, `end`, `includeTitles` |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `parse` (`buildDictionary`, the `chunking` and `treeinsert` event streams and context generators, `Parser.train`, `ParserTool.parseLine`, `ParserEvaluator`) | `dictionary-cutoff-1`, `dictionary-cutoff-5`; `events-chunking-build`, `events-chunking-build+dictionary`, `events-chunking-check`, `events-treeinsert-build`, `events-treeinsert-check`, `events-treeinsert-attach`, `events-chunk`, `events-tag`; `generators`; `model-chunking`, `model-treeinsert` (all with `en-head-rules`, fixture) | `parse-treebank`; the models are trained on its `treebank` input | `rules`, `cutoff`, `etype`, `dictionary-cutoff`, `check-types`; `corpus`, `language`, `<model>.Algorithm`, `<model>.Iterations`, `<model>.Cutoff`, `dict.Cutoff`, `searches`, `parse-counts` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
@@ -686,9 +687,30 @@ Leipzig message that names a file writes the corpus directory as
 
 `analysis/formats/tests/corpora.rs` compares the readers of
 `turbo_formats::corpora` with these goldens. Only these runs read the
-`corpora` set, and they have no dumps. The goldens are not checked in; the
-test skips, naming the `generate` command, while
-`analysis/goldens/data/corpora` is absent.
+`corpora` set, and they have no dumps.
+
+## AD goldens
+
+`ad/<run>/ad/<id>.golden` is what one of OpenNLP's Arvores Deitadas
+streams (the format of the Floresta Sinta(c)tica treebank) read from
+`inputs/ad/<id>.txt`. `AdGolden` makes each stream as its factory does,
+over the file read as UTF-8: `ADNameSampleStream` with hyphenated tokens
+split (`names`) and not (`names-nosplit`), `ADPOSSampleStream` with its
+defaults (`pos`) and with multiword expressions expanded and features
+included (`pos-expand-features`), `ADChunkSampleStream` whole (`chunk`)
+and from sentence 1 to before sentence 3 (`chunk-1-3`),
+`ADSentenceSampleStream` without and with titles, and the token samples
+of `ADTokenSampleStreamFactory`, a `NameToTokenSampleStream` with the
+Portuguese detokenizer dictionary over the name stream (`token`).
+
+The streams are read until `read` returns null; an exception is recorded
+and reading goes on. `ADSentenceSampleStream` throws on every read after
+a sentence without a text and never returns null, so the sentence runs
+leave out `ad-null-text`. The layers are those the format goldens write
+for the sample kind. `analysis/formats/tests/ad.rs` compares the Rust
+readers with these goldens. They are not checked in yet: the test skips,
+naming `cargo run -p turbo-goldens-tool -- generate`, until they are
+generated.
 
 ## Parse goldens
 

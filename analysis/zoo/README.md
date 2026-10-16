@@ -33,9 +33,13 @@ Catalan and Finnish models the UD recipes train, at their addresses in
 its release `models-ud-2.16-1`, and the language detector the Tatoeba
 recipe trains, with `training-sentences.txt` (the ids of the sentences
 it was trained on) as its second file, at their addresses in its release
-`models-tatoeba-2026-10-10-1`. `.github/workflows/models.yml`,
-`models-ud.yml` and `models-tatoeba.yml` create those releases when they
-are run by hand on main; until then fetching those models fails. The recipes
+`models-tatoeba-2026-10-10-1`, and the language detector the web recipe
+trains on those sentences and FineWeb-2 and FineWeb text, with
+`training-sentences.txt` and `training-documents.txt`, at their
+addresses in its release `models-tatoeba-fineweb-2026-10-10-1`.
+`.github/workflows/models.yml`, `models-ud.yml`, `models-tatoeba.yml`
+and `models-fineweb.yml` create those releases when they are run by
+hand on main; until then fetching those models fails. The recipes
 write their entries: `turbo-train-recipes zoo-index` prints this index
 with them added. The 32 models trained
 on the eight non-commercial treebanks (four per treebank) are

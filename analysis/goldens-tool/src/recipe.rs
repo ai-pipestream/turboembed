@@ -918,7 +918,7 @@ pub const FIXTURES: [Fixture; 109] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 46] = [
+pub const INPUT_SETS: [&str; 47] = [
     "en",
     "multi",
     "norm",
@@ -942,6 +942,7 @@ pub const INPUT_SETS: [&str; 46] = [
     "tagged",
     "formats",
     "ner",
+    "ad",
     "parse",
     "parse-treebank",
     "head-rules",
@@ -978,7 +979,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 48] = [
+pub const ANNOTATORS: [&str; 49] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -1007,6 +1008,7 @@ pub const ANNOTATORS: [&str; 48] = [
     "evaluate",
     "masc",
     "ner",
+    "ad",
     "parse",
     "head-rules",
     "gazetteer",
@@ -1088,6 +1090,11 @@ pub const CORPORA_INPUT_SET: &str = "corpora";
 /// The input set the PII packs run on. They run on no other set, and the
 /// other annotators do not run on this one.
 pub const PII_INPUT_SET: &str = "pii";
+
+/// The input set the Arvores Deitadas streams read: files in the format of
+/// the Floresta Sinta(c)tica treebank, written for the goldens. The streams
+/// read no other set.
+pub const AD_INPUT_SET: &str = "ad";
 
 /// The rate snapshot the money conversion reads: a directory beside the
 /// inputs directory under `analysis/goldens/data`, which the container gets
@@ -1374,6 +1381,19 @@ mod tests {
         assert!(golden.contains("ANNOTATOR = \"sentiment\""));
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
         assert!(runs.contains("SentimentGolden.all(inputs)"));
+    }
+
+    #[test]
+    fn the_ad_streams_have_their_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&AD_INPUT_SET));
+        assert!(ANNOTATORS.contains(&"ad"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"ad"));
+        let golden = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/AdGolden.java");
+        assert!(golden.contains("SET = Runs.AD;"));
+        assert!(golden.contains("return \"ad\";"));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains(&format!("AD = \"{AD_INPUT_SET}\";")));
+        assert!(runs.contains("annotators.addAll(AdGolden.all("));
     }
 
     #[test]
