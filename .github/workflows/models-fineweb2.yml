@@ -2,10 +2,11 @@ name: models-fineweb2
 
 # A first look at FineWeb-2 for the language detector recipe (#429): its
 # current revision, licence, configurations, the files and bytes of each
-# configuration's splits, and the Parquet footer of one small test file,
-# so the recipe can be written against what the dataset holds. Hugging
-# Face refuses the containers the recipes are written in; GitHub's
-# runners are not refused. Nothing is trained or kept.
+# configuration's splits, and the Parquet footers of a few files, fetched
+# with range requests; and the same for FineWeb, which holds the English
+# that FineWeb-2 leaves out. The recipe is written against what this
+# prints. Hugging Face refuses the containers the recipes are written in;
+# GitHub's runners are not refused. Nothing is trained or kept.
 
 on:
   pull_request:
@@ -17,6 +18,7 @@ permissions:
 
 env:
   DATASET: HuggingFaceFW/fineweb-2
+  FINEWEB: HuggingFaceFW/fineweb
 
 jobs:
   probe:
@@ -62,3 +64,42 @@ jobs:
           echo "footer length $len"
           tail -c $((len + 8)) test.parquet | xxd -p | tr -d '\n' | fold -w 200
           echo
+      # Each footer is fetched with two range requests, its length from the
+      # last 8 bytes and then the footer itself, and printed in base64.
+      - name: footers by range requests
+        run: |
+          set -euo pipefail
+          footer() {
+            local url=$1 code len
+            code=$(curl -sSL --retry 3 -r -8 -o tail8 -w '%{http_code}' "$url")
+            len=$(head -c 4 tail8 | od -An -tu4 | tr -d ' ')
+            echo "$url: status $code, footer length $len, trailer $(tail -c 4 tail8)"
+            curl -fsSL --retry 3 -r -$((len + 8)) -o footer "$url"
+            echo "fetched $(stat -c %s footer) bytes; base64:"
+            base64 -w 0 footer
+            echo
+          }
+          for f in data/deu_Latn/train/000_00000.parquet data/deu_Latn/test/000_00000.parquet \
+                   data/fao_Latn/train/000_00000.parquet; do
+            footer "https://huggingface.co/datasets/$DATASET/resolve/$sha/$f"
+          done
+      - name: FineWeb's revision, licence and sample files
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o fineweb.json "https://huggingface.co/api/datasets/$FINEWEB?blobs=true"
+          ls -l fineweb.json
+          jq -r '"sha \(.sha)", "lastModified \(.lastModified)", "license \(.cardData.license // "-")",
+                 "siblings \(.siblings | length)"' fineweb.json
+          jq -r '.siblings[] | select(.rfilename | startswith("sample/10BT/"))
+                 | [.rfilename, (.size // .lfs.size // 0), (.lfs.sha256 // "-")] | @tsv' fineweb.json | head -20
+          jq -r '.siblings[] | .rfilename | split("/") | .[0:2] | join("/")' fineweb.json | sort | uniq -c | head -60
+          fsha=$(jq -r .sha fineweb.json)
+          u="https://huggingface.co/datasets/$FINEWEB/resolve/$fsha/sample/10BT/000_00000.parquet"
+          code=$(curl -sSL --retry 3 -r -8 -o tail8 -w '%{http_code}' "$u")
+          len=$(head -c 4 tail8 | od -An -tu4 | tr -d ' ')
+          echo "$u: status $code, footer length $len"
+          curl -fsSL --retry 3 -r -$((len + 8)) -o footer "$u"
+          base64 -w 0 footer
+          echo
+          curl -fsSL --retry 3 "https://huggingface.co/datasets/$FINEWEB/resolve/$fsha/README.md" \
+            | grep -n -i -E 'licen|odc|common crawl|terms of use' | head -20
