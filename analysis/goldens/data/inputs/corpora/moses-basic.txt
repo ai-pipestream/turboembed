@@ -1,0 +1,32 @@
+
+  	
+  The first line has spaces around it.  
+Une phrase en français, avec é et ü.
+
+
+ 	 
+A line after a run of empty lines.
+Tabs	inside	are kept.
+Emoji 😀 outside the Basic Multilingual Plane.Control characters up to the space are trimmed.
+Numbered sentence 1 of the long sample.
+Numbered sentence 2 of the long sample.
+Numbered sentence 3 of the long sample.
+Numbered sentence 4 of the long sample.
+Numbered sentence 5 of the long sample.
+Numbered sentence 6 of the long sample.
+Numbered sentence 7 of the long sample.
+Numbered sentence 8 of the long sample.
+Numbered sentence 9 of the long sample.
+Numbered sentence 10 of the long sample.
+Numbered sentence 11 of the long sample.
+Numbered sentence 12 of the long sample.
+Numbered sentence 13 of the long sample.
+Numbered sentence 14 of the long sample.
+Numbered sentence 15 of the long sample.
+Numbered sentence 16 of the long sample.
+Numbered sentence 17 of the long sample.
+Numbered sentence 18 of the long sample.
+The twenty-sixth sentence starts the second sample.
+Last line before the trailing empty lines.
+
+

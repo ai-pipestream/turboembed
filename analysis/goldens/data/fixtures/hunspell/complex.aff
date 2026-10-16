@@ -1,0 +1,7 @@
+COMPLEXPREFIXES
+PFX A Y 1
+PFX A 0 a/B .
+PFX B Y 1
+PFX B 0 b .
+SFX S Y 1
+SFX S 0 s .

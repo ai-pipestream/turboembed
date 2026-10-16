@@ -9,9 +9,12 @@ OpenNLP numeric add-on:
 | Rust | OpenNLP |
 |---|---|
 | `MoneyExtractor` | `CursorMoneyExtractor` and `MoneyAnnotator` |
+| `MoneyExtractor::for_region` | `CursorMoneyExtractor.forRegion(Locale)` |
+| `RegionAwareMoneyAnnotator` | `RegionAwareMoneyAnnotator` |
 | `EcbRates` | `EcbFxRates` |
 | `FxRates` | `FxRates` |
 | `MoneyConverter` | `MoneyConversionAnnotator`, fixed-date mode |
+| `DatedMoneyConverter` | `MoneyConversionAnnotator`, document-date mode |
 | `Decimal`, `Date` | `BigDecimal`, `LocalDate`, as far as these need them |
 
 The number inside a mention is read by the number scan of
@@ -84,10 +87,18 @@ The known codes are the 233 alphabetic codes of
 into the crate. OpenNLP takes the set from the running JDK, so a JVM of
 another version can know a few codes more or fewer.
 
-OpenNLP's `forRegion(Locale)` builds a table and a notation from the
-JDK's locale data. That lookup is not ported; a caller that knows the
-region builds the same extractor, for example
-`MoneyExtractor::new(LatinUs).with_symbol('$', AUD)` for Australia.
+`MoneyExtractor::for_region(RegionCode)` reproduces OpenNLP's
+`CursorMoneyExtractor.forRegion(Locale)` under JDK 21: it selects the
+region's number notation (`LatinEu` when the region's decimal separator
+is `,`, otherwise `LatinUs`) and overrides the region's local
+single-character `Sc` currency symbol (`$` -> `AUD` for `AU`, `$` ->
+`CAD` for `CA`, `\u{07FF}` -> `GNF` for `GN`) while preserving the default
+symbol mappings for all other symbols. `RegionAwareMoneyAnnotator`
+(`turbo-numeric:region-aware-money`) reads `(View, Regions)` and writes
+`(Money,)`, delegating to `MoneyExtractor::for_region` when
+`Regions::winner(min_margin)` elects a winning region and falling back to
+`MoneyExtractor::default()` when the ballot is empty or tied within
+`min_margin`.
 
 ## Rates
 
@@ -145,9 +156,15 @@ the Java interface's default method does.
 
 `MoneyConverter` converts the default money instance into one target
 currency as of one date and is added to a pipeline with
-`MoneyConverter::bound`, which names its output instance. The Java
-annotator can instead read the date from a document date layer; there
-is no such layer here.
+`MoneyConverter::bound`, which names its output instance.
+
+`DatedMoneyConverter` is the Java annotator's document-date mode: it
+converts as of the date in the `turbo:document-date` layer, which
+`DocumentDateSelector` writes ([temporal.md](temporal.md)), and is added
+with `DatedMoneyConverter::bound` after that step. A pipeline without a
+step that writes the date layer is refused when it is built. A document
+without a date gets an empty converted layer and the rates are not
+asked, as in the Java.
 
 ## Differences from OpenNLP
 

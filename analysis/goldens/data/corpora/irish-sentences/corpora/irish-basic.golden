@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/irish-basic	1046	1036	a8ea7c6dc373c0b4550dda08d601c6e94f22d26a4f6c86ab8b6625b27765c604
+annotator	opennlp.tools.formats.irishsentencebank.IrishSentenceBankSentenceStream	read
+layer	turbo:samples	document	1	written:str
+Madra mór.\nTá sé   ag cur báistí ,inniu<LF>\nGan comharthaí & 😀xSecond original restarts\n\nabbold\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	1	text:str
+Madra mór. Tá sé   ag cur báistí ,inniu\n Gan comharthaí & 😀xSecond original restarts  abbold 
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	5	sample:u32	start:u32	end:u32
+0	0	11
+0	12	45
+0	46	93
+0	94	94
+0	95	101
+end	turbo:sample-spans

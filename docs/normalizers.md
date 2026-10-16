@@ -69,12 +69,13 @@ time and look characters up only outside them.
 | Module | Contents |
 |---|---|
 | `category` | `GeneralCategory` and `general_category`. |
-| `props` | White_Space, Default_Ignorable_Code_Point, Dash, Quotation_Mark, Alphabetic, Lowercase, Uppercase, Cased, Case_Ignorable, Regional_Indicator, Variation_Selector and the emoji properties. |
+| `props` | White_Space, Default_Ignorable_Code_Point, Dash, Quotation_Mark, Alphabetic, Lowercase, Uppercase, Cased, Case_Ignorable, Regional_Indicator, Variation_Selector, the emoji properties, and `complex_context` (Line_Break=SA, from LineBreak.txt, the one Line_Break value the segmenters use). |
 | `script` | `Script` (the Scripts.txt values; `OldItalic` for `Old_Italic`, which `java.lang.Character.UnicodeScript` calls `OLD_ITALIC`) and `script`. |
 | `java` | `java.lang.Character` methods (`isWhitespace`, `isLetter`, `digit`, simple case mappings) and `String.toLowerCase(Locale.ROOT)`, on Unicode 18.0 data. |
 | `java::code_point` | The `int` overloads of `java.lang.Character` the segmentation ports use (`getType` with Java's numbering, `isLetter`, `isDigit`, `isUpperCase`, `isAlphabetic`, `isWhitespace`, `isSpaceChar`, `toLowerCase`, `UnicodeScript.of`) on a code point given as `u32`, which may be a lone surrogate code unit. Read from the same tables as the rest of the crate. |
 | `whitespace` | `WhitespaceMode`: OpenNLP's legacy (`Character.isWhitespace` or `Zs`) and Unicode (`White_Space`) whitespace. |
 | `word_break` | `WordBreak` (UAX #29 Word_Break, from WordBreakProperty.txt, in the order of OpenNLP's enum), `word_break`, `is_extended_pictographic` and `is_regional_indicator`, on `u32` code points. OpenNLP 3.x bundles WordBreakProperty-17.0.0.txt; against these 18.0 tables 558 code points differ, all newly assigned in 18.0 and `Other` in 17.0 (515 `ALetter`, 37 `Extend`, 6 `Katakana` here), so golden mismatches on those characters are expected. |
+| `grapheme` | `GraphemeBreak` (UAX #29 Grapheme_Cluster_Break, from GraphemeBreakProperty.txt), `IndicConjunctBreak` (Indic_Conjunct_Break, from DerivedCoreProperties.txt), and `grapheme_boundaries`, the extended grapheme cluster boundaries of a text by rules GB1 to GB999 of Unicode 18.0, checked against every case of GraphemeBreakTest.txt. |
 | `utf16` | `Utf16Cursor`, which steps over UTF-8 text one UTF-16 code unit at a time, and offset conversions between the two. |
 | `modified_utf8` | Java's modified UTF-8, the encoding of the strings in OpenNLP model files. |
 | `casefold` | Full and simple case folding and their Turkic variants (CaseFolding.txt). |

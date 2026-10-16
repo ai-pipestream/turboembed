@@ -3024,6 +3024,418 @@
           "sha512": "2455272134cc9dc7be2a69ce9fe3e504edc5630395848bb30e1e26118a60f0a32b5577cbf6f6d87d70753ff497a6908e156fe3ce7ac3b4a109cc4936f26fe5a9"
         }
       ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-sentence-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-sentence-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-sentence-1.bin",
+          "size": 44601,
+          "sha256": "d03253a5559a230d1f42e1cf881119204302fbb7fefb613ff1af11bcbd3c261e",
+          "sha512": "874eeadaecdf8d864ca983143bf2aec560a1d874115ffe284234643e39e6e83a1c9a85affdacdf4b9a5c716e7c50d0bf57ce32f9bbc48ec46bf09c236f4b0b08"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-tokens-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-tokens-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-tokens-1.bin",
+          "size": 916027,
+          "sha256": "2c5fe73121c41300e6eae4a3c4d7a2247ade20a1e182d8e36d7781124aa9b7db",
+          "sha512": "a6c0731cf1d9e5c2578830ea6b544d999e475a35f0a20abdcadaed3ae0dc91a6157c8fa458bcbc06173c7419ffb6f64e4e634340340b8c7e59b64af95b5619c3"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-pos-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-pos-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-pos-1.bin",
+          "size": 3671103,
+          "sha256": "391d7f79c7246e9e56ed9d8849fde129c5bed8683fa33af31e532cb0c37f96ea",
+          "sha512": "2987b6cca8b204e455099306b53be01958f7335f7d8eb18318b27ceeb495cba1fedfc928a0c2902ad1fe57f1edb1dd66cd38952cd79e051e1d14eed1abc22523"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-chunks-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_CHUNKER",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-chunks-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-chunks-1.bin",
+          "size": 6042700,
+          "sha256": "8629b99af79f4cac2f997f3f9042ecb0739776f1e49f1b01c713877a1f997e09",
+          "sha512": "93947c20b3e34d6c757644653a70eeb7fb5fc6e3fa5c2a283e87e7cdbf124616ff8b65ff398b5c16d66af179790de5dd427c6a0483d9da99cb859ab740190675"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-sentence-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-sentence-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-es-ud-ancora-2.16-sentence-1.bin",
+          "size": 22579,
+          "sha256": "6b7de28227cf5d36c59c60625693a17b40543730669c3b265215d2cdcf935975",
+          "sha512": "cbd89cf6f6789f1c96455e99cf1769a63e5cc7a25d1a9b2ecbc38d566170f48d222271fc036056e6a0da0b6c3b03cb1fa4d11ad052d0dca1bc1454c14b6d58bc"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-tokens-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-tokens-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-es-ud-ancora-2.16-tokens-1.bin",
+          "size": 1032908,
+          "sha256": "3099b1f109e6cace9f144e7eda0f28bdfc978b107424a3453c93a745f986c603",
+          "sha512": "1702e0bc1eb7136736a0425b1a9ec1f0118a0e28277ed628c3829af5630b5c522270b908bfa23a5653e46510275143130a25af4c92e1be1ee965799a1262157a"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-pos-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-pos-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-es-ud-ancora-2.16-pos-1.bin",
+          "size": 2655007,
+          "sha256": "d5be48e3efee5223d69d43a2dc9383719c60330e9fedf19e776490761ac3c82d",
+          "sha512": "093f3137030782fa089a7c4bf6a911e1992534da7ebc8716cecfb7a27642ad851f7d7b4188f054a6a9b6880158506bf77bfe3770e08ba1a687f3ee6a2ecabae9"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-lemmas-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-lemmas-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-es-ud-ancora-2.16-lemmas-1.bin",
+          "size": 1828462,
+          "sha256": "e00c951c6f60b5907f15ffa475a6a013483ba2b8c370cfc261c1c70114e70c61",
+          "sha512": "0df0cb7472f7d24af10ca95486a682f31e98b4bf9b4da232ac4fbcd682a935975862a908bcb790291e42b8c9de134d96bda070013136ddcfbefb58989236601f"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-sentence-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-sentence-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-ca-ud-ancora-2.16-sentence-1.bin",
+          "size": 20201,
+          "sha256": "239bd63b77121ecb62c0d03b46df660f332b96a7d67ba718eca8c6303e2e5bed",
+          "sha512": "abb36ef36ec19d4408266fb2514d30677814d4fc9ca9500fa51800207f2f685a2dbdd18a6e7e1ed36c08348088be1663f6ffa0edd61dfad9c2a3b8bcb91a7f2d"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-tokens-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-tokens-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-ca-ud-ancora-2.16-tokens-1.bin",
+          "size": 964108,
+          "sha256": "67c9ea0f6a440904f581870d6760582cb11dc28f30077078077cc5a67253856b",
+          "sha512": "82e3ab189d6f4ddb4ffd2adaedd1d63b3a52340e845395a0b88b4060a95dba291d0d3998fac2fa013a2c2407bb2b704eaf01655d2fe5863bbe67e4c585908875"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-pos-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-pos-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-ca-ud-ancora-2.16-pos-1.bin",
+          "size": 2342514,
+          "sha256": "e656a6ffcf5fab26ca989ad6f56d38112c475baa2a1c7ff4bd7ad9775b26d891",
+          "sha512": "a9fdd0e5ee568ddfc0eee978cb2a1913781ad503d36d879f1d53e76e68b172b455cbb839eea38364267833ab0ddfc45109949583a6027f324d52a41808c84b4e"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-lemmas-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-lemmas-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-ca-ud-ancora-2.16-lemmas-1.bin",
+          "size": 1600232,
+          "sha256": "86f07881a6f325253b7e285b915aecbf88d7b2fc1d280b6d4032ea9689ff3cf1",
+          "sha512": "1510b994ac9fd2586c10f4877c300620873e090c54bc58977f243c9b706903a0975f8e7ea863d62348cc68e41441122a039fec08111361eddb2212807b0076d9"
+        }
+      ]
+    },
+    {
+      "id": "turbo-fi-ud-ftb-2.16-pos-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-FTB r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-fi-ud-ftb-2.16-pos-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-fi-ud-ftb-2.16-pos-1.bin",
+          "size": 1031466,
+          "sha256": "06a9bb9d12fd7a9a0ef4ed22b0e53da0e3ed7f4d792c349a0cf58ce52f586880",
+          "sha512": "517d82e9d395793db12428f84ad421b85ed5457b682abca2c83c161e6bfcda4369c75aa137bafabedb7efbe260d75dba7644b9c13598edc14c95eb6dd6d80f98"
+        }
+      ]
+    },
+    {
+      "id": "turbo-fi-ud-ftb-2.16-lemmas-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-FTB r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-fi-ud-ftb-2.16-lemmas-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-fi-ud-ftb-2.16-lemmas-1.bin",
+          "size": 2932578,
+          "sha256": "9650fcdeb459cea1565175cdf37ee1a8d90306414f287b5205e1e25b421b6278",
+          "sha512": "743e5a701239ce46229eb76cd24a305e643414e5b14f639ca68e1efa0133d76d94df7286ce0de6555310f17bf8e851f6ac0624172d41be222c9b3757271ce6c3"
+        }
+      ]
+    },
+    {
+      "id": "turbo-mul-tatoeba-langdetect-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LANGUAGE_DETECTOR",
+      "language": "mul",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Tatoeba export 4421126b36dc0ce2",
+          "license": "LicenseRef-CC-BY-2.0-FR",
+          "license_terms": "https://tatoeba.org/en/terms_of_use"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-mul-tatoeba-langdetect-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-2026-10-10-1/turbo-mul-tatoeba-langdetect-1.bin",
+          "size": 4755070,
+          "sha256": "89f8e570f2f27184267de91ce26433e848ee341b94b7ef9fe623a56236e4e64e",
+          "sha512": "38cd9cf63e0fab021478e6bbf76ab5f9f72bc67c7613158e75851ae3fed97cf4472e0f0cc26c843b0b28327e1a12550bb35c649d5f6b1a3686ce224895bf6185"
+        },
+        {
+          "path": "training-sentences.txt",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-2026-10-10-1/training-sentences.txt",
+          "size": 2648398,
+          "sha256": "423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9",
+          "sha512": "13775667c8f521b297f4d35e2af7d8f116036c6101de2a94662952d6f13522cf3ce1de6e376b031f09860eb19a6f0c6fe0fade79ca5ca8cfcd8a49831287373a"
+        }
+      ]
     }
   ]
 }

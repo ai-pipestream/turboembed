@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/email-subdomain	60	60	1a07bb47d806b562a4c0e34860e6cd3b925a3094f77809095eb575eabf4065f9
+annotator	opennlp.tools.pii.PiiPacks	usIdentity
+config	pack	us-identity
+layer	turbo:pii	text	0	start:u32	end:u32	type:str	normalized:str
+end	turbo:pii

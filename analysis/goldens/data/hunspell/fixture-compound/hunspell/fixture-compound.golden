@@ -1,0 +1,140 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-compound	588	588	5ddbac096fca2d8496636065b621fce69970d11367c8344fd73290dd779b8d77
+model	compound.aff	61da3813545fd68df09904a6679e6f5886e9b32ad866e6c61ffe807eb055099aedbab03a734a0ac2956e0fbc0ad203994245633f99c7e87b154446a745d085dc
+model	compound.dic	fbad7ebac56842da3313a8f9db5b52812af69959b9f3ffc9388de43caff8d7a296eb9bba2426b5686c8ef49164b676bf71185be9d513ef6fdb12ee9f649d0d80
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	42	word:str	stem:str	thrown:str
+football	foot	
+footballs	foot	
+ballfoot	ball	
+sunflower	sunflower	
+sunflowers	sun	
+sunroomflower	sun	
+sunroomroomflower	sunroomroomflower	
+flowersun	flowersun	
+badfoot	badfoot	
+footbad	foot	
+seesea	see	
+seasea	seasea	
+seaseasea	seaseasea	
+footfoot	footfoot	
+manfoot	man	
+footman	footman	
+Footman	foot	
+FOOTMAN	FOOTMAN	
+handfoot	hand	
+handhandfoot	handhandfoot	
+footlink	footlink	
+linkfoot	linkfoot	
+footlinkball	footlinkball	
+footballsball	footballsball	
+footsball	foot	
+refootball	refootball	
+footreball	footreball	
+radiobob	radiobob	
+radiouxa	radiouxa	
+uxaradio	uxa	
+boatsz	boatsz	
+boats	boat	
+boatsball	boat	
+foot-ball	foot	
+-football	foot	
+football-	football-	
+foot--	foot	
+footBall	footBall	
+FootBall	FootBall	
+FOOTBALL	FOOTBALL	
+sun flower	sun flower	
+sunflowerroom	sunflowerroom	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	58	word:u32	stem:str
+0	foot
+0	ball
+1	foot
+1	ball
+2	ball
+2	foot
+3	sunflower
+4	sun
+4	flower
+5	sun
+5	room
+5	flower
+6	sunroomroomflower
+7	flowersun
+8	badfoot
+9	foot
+9	bad
+10	see
+10	sea
+11	seasea
+12	seaseasea
+13	footfoot
+14	man
+14	foot
+15	footman
+16	foot
+16	man
+17	FOOTMAN
+18	hand
+18	foot
+19	handhandfoot
+20	footlink
+21	linkfoot
+22	footlinkball
+23	footballsball
+24	foot
+24	ball
+25	refootball
+26	footreball
+27	radiobob
+28	radiouxa
+29	uxa
+29	radio
+30	boatsz
+31	boat
+32	boat
+32	ball
+33	foot
+33	ball
+34	foot
+34	ball
+35	football-
+36	foot
+37	footBall
+38	FootBall
+39	FOOTBALL
+40	sun flower
+41	sunflowerroom
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	18	word:u32	analysis:str
+0	pa:foot st:foot pa:ball
+1	pa:foot st:foot pa:balls st:ball fl:S
+2	pa:ball st:ball pa:foot
+4	pa:sun st:sun pa:flowers st:flower fl:S
+5	pa:sun st:sun pa:room st:room pa:flower
+9	pa:foot st:foot pa:bad
+10	pa:see st:see pa:sea
+14	pa:man st:man pa:foot
+16	pa:foot st:foot pa:man
+18	pa:hand st:hand pa:foot
+24	pa:foots st:foot fl:S pa:ball
+29	pa:uxa st:uxa pa:radio
+31	st:boat fl:S
+32	pa:boats st:boat fl:S pa:ball
+33	pa:foot st:foot pa:ball st:ball
+34	pa:foot st:foot pa:ball
+36	st:foot
+40	st:sun flower
+end	turbo:hunspell-analyses

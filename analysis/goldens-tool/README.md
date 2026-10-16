@@ -13,8 +13,12 @@ everything that makes them:
   per run and input; for the `num` set it runs `NumberScan` of the addons
   module, and for the `money` set `MoneyAnnotator` with
   `CursorMoneyExtractor` and `MoneyConversionAnnotator` with `EcbFxRates`,
-  and for the `quantity` set `QuantityAnnotator` with
-  `CursorQuantityExtractor` (see below). With `--dumps` it also writes a decision point dump
+  for the `quantity` set `QuantityAnnotator` with
+  `CursorQuantityExtractor`, and for the `temporal` set `TemporalAnnotator`
+  with `CursorTemporalExtractor` and `DocumentDateAnnotator`, and for the
+  `pii` set `PiiAnnotator` with each extractor of `PiiPacks` and then
+  OpenNLP's masking, labels and audit report over what it found (see
+  below). With `--dumps` it also writes a decision point dump
   beside each golden of a run that asks a maxent model (the sentence
   detector, the tokenizer, the part-of-speech tagger, the maxent
   lemmatizer, the chunker and the language detector): every context the annotator gave
@@ -44,7 +48,7 @@ Run from the repository's root. Each needs Docker except `fetch-models`.
 
 ```
 cargo run -p turbo-goldens-tool -- image
-cargo run -p turbo-goldens-tool -- fetch-models <dir>
+cargo run -p turbo-goldens-tool -- fetch-models <dir> [--local]
 cargo run -p turbo-goldens-tool -- generate [--out <dir>] [--models <dir>]
 cargo run -p turbo-goldens-tool -- verify [--models <dir>]
 cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n>] [--sets <a,b>] [--out <dir>] [--models <dir>] [--image <tag>] [--reduce <n>] [--no-reduce] [--reduce-documented] [--rounds <n>] [--reuse]
@@ -55,6 +59,18 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
 - `fetch-models <dir>` downloads the published models into `<dir>` with `curl`
   and checks each one's SHA-512 against the value published beside it on
   downloads.apache.org. A model already there with the right hash is kept.
+  With `--local` it also downloads the OpenNLP 1.5 English models
+  (`LOCAL_MODELS` in `src/recipe.rs`) from opennlp.sourceforge.net, which
+  publishes no hash beside them: the recipe has the SHA-512 of the files
+  whose SHA-256 the sequence crate's README lists. Their training corpora
+  are LDC corpora or undocumented, so the `ci` workflow does not fetch
+  them (the `models` workflow fetches `en-pos-maxent.bin` and
+  `en-chunker.bin`, only to score them in the MASC release's gates);
+  `generate`, `verify` and `fuzz` always do, since the generator runs
+  them.
+  It also fetches LibreOffice's `en_US`, `de_DE_frami` and `hu_HU` Hunspell
+  dictionaries (`HUNSPELL_FILES`) into `<dir>/hunspell/`, each checked
+  against the SHA-512 in the recipe.
   It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
@@ -79,8 +95,8 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   whose header parses, except a golden with an error record (the annotator
   threw on that input), which must have none. A golden that names no model
   (a tokenizer or sentence detector without one, a normalizer) has no dump,
-  and neither has a detokenizer, number, money, quantity, unigram or
-  lattice golden.
+  and neither has a detokenizer, number, money, quantity, temporal, PII,
+  PII rewrite, unigram or lattice golden.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
@@ -127,11 +143,15 @@ a directory with the same model run without them, and its options are
 | `lemmatize-dictionary` (`DictionaryLemmatizer`) | `lemmatizer-dictionary` (fixture) | `en`, `multi`, `edge` | |
 | `chunk` (`ChunkerME`) | `chunker-fixture` (fixture) | `en`, `multi`, `edge` | |
 | | `chunker-fixture+beam1` | `en` | `beamSize 1` |
-| `langdetect` (`LanguageDetectorME`) | `langdetect-183` | `en`, `multi` | |
+| | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
+| `langdetect` (`LanguageDetectorME`) | `langdetect-183`, `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
 | `quantity` (`QuantityAnnotator`) | `latin-us`, `latin-eu` | `quantity` | `notation` |
+| `temporal` (`TemporalAnnotator`, `DocumentDateAnnotator`) | `dateline`, `fixed` | `temporal` | `reference` |
+| `pii` (`PiiAnnotator` over a `PiiPacks` extractor) | `payment`, `contact`, `network`, `secrets`, `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`, `all-structured` | `pii` | `pack` |
+| `pii-rewrite` (`Masker`, `Pseudonymizer`, `HmacTokenizer`, `PiiAuditReport` over the `pii` runs' mentions) | the same packs | `pii` | `pack`, `key`, `mask`, `mask-all` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
@@ -140,6 +160,11 @@ a directory with the same model run without them, and its options are
 | `train` (`SimplePerceptronSequenceTrainer`) | the same, with `-perceptron-sequence` appended, then `-raw` without averaging: three runs over sequences of five events of `sentdetect` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Algorithm`, `Iterations`, `UseAverage` |
 | `train-events` (`SDEventStream`, `TokSpanEventStream` with factory options) | `sentdetect-dictionary-pt`, `sentdetect-th`, `sentdetect-conllu`, `tokenize-dictionary-alnum-de`, `tokenize-conllu` | `en`, `multi`, `edge`, `train`, `abbreviations`, `alphanumeric`, `formats` by run | `run`, `source`, `language`, `format`, and when given `abbreviations`, `useTokenEnd`, `eosCharacters`, `useAlphaNumericOptimization`, `alphaNumericPattern`, `sentencesPerSample` |
 | `train-events` (`POSSampleEventStream`, `LemmaSampleEventStream`) | `postag-wordtag`, `postag-wordtag-tagdict`, `postag-conllu-u`, `postag-conllu-x`, `lemma-text`, `lemma-conllu-u` | `tagged`, `formats` by run; the `wordtag`, `lemma` or `conllu` inputs by source and format | `run`, `source`, `language`, `format`, and when given `tagset`, `tagDictionary` |
+| `namefind` (`NameFinderEventStream`, `NameFinderME.train`) | `train-bio`, `train-bilou`, `train-type`, `train-perceptron`, `train-qn` | `tagged`, `formats`: the inputs whose id starts with `name` | `run`, `language`, `codec`, and when given `type`, `algorithm` |
+| `namefind` (`NameFinderME`) | `ner-fixture-rust` (fixture) | the same | `run find` |
+| `train-events` (`ChunkerEventStream`, `ChunkerME.train`) | `chunker-defaults`, `chunker-perceptron`, `chunker-qn`, `chunker-perceptron-sequence` | `tagged`, `formats`; the `chunk` inputs | `run`, `source`, `language`, and every training parameter the run puts (`Algorithm`, `Iterations`, `Cutoff`, `TrainerType`, `BeamSize`) |
+| `train-liblinear` (`LiblinearTrainer.train` of the addons' `liblinear-addon`) | `sentdetect-sample`, `postag-l2`, `postag-dual`, `sentdetect-dual-newton`, `realvalue-l1`, `sentdetect-l2`, `sentdetect-raw` | `en`, `multi`, `edge`, `train` by run | `source`, `DataIndexer`, `Cutoff`, `solverType`, `c`, `eps`, `p`, `bias`, `events` |
+| `train-langdetect` (`LanguageDetectorME.train`) | `default`, `cutoff1` | `langdetect`, and the `formats` inputs whose id starts with `language-` | `run`, `Algorithm`, `Cutoff`, `DataIndexer`, `Iterations` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -153,10 +178,27 @@ a directory with the same model run without them, and its options are
 | `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
 | `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
 | `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
+| `conllu` (`ConlluDependencySampleStream` of the `ready/agents-md` branch, `ConlluCorefDocumentStream` of the addons' `ready/coref` branch) | `dependency-u`, `dependency-x`, `dependency-u+legacy`; `corefud-u`, `corefud-x` | `conllu`, the inputs whose id starts with `dependency-` or `corefud-` | `tagset u` or `x`, `whitespace legacy`; `branchCommit`, `addonsCommit` |
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
+| `corpora` (the sentence, language and document corpus streams) | `moses`, `letsmt`, `letsmt-detokenized`, `nkjp`, `irish-sentences`, `irish-tokens`, `leipzig-2x3`, `leipzig-1x4-skip2`, `20newsgroup-whitespace` (also `+legacy`), `20newsgroup-simple` | `corpora`, the inputs whose id starts with the corpus's prefix (`moses-`, `letsmt-`, `nkjp-`, `irish-`, `leipzig-`, `newsgroups-`) | `detokenizer`; `sentencesPerSample`, `samplesPerLanguage`, `samplesToSkip`; `tokenizer`, `dataDir`, `whitespace legacy` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
+| `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
+| `place-profiles` (`PlaceProfiles` of the addons `geo` module) | `place-profiles` | `place-profiles` | `profilesCommit` |
+| `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
+| `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
+| `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
+| `beam` (`BeamSearch` as `POSTaggerME`, `ChunkerME` and `NameFinderME` wire it) | `pos-fixture`, `pos-fixture+default-context`, `chunker-fixture`, `ner-bio-fixture`, `ner-bilou-fixture`, `ner-qn-fixture`, `ner-qn-fixture+fresh-sums` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4`; `en-pos-maxent`, `en-pos-perceptron`, `en-chunker`, `en-ner-person`, `en-ner-location` (OpenNLP 1.5) | `sequence` (the `sentences` input) | `kind` |
+| `tag-dictionary` (`POSDictionary`) | `tags`, `tags-cases`, `tags-exact`, `pos-fixture` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron` | `sequence` (the `sentences` input) | |
+| `tag-format` (`POSTagFormatMapper`) | `pos-fixture` (fixture), `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron`; `guesses` | `sequence` (the `sentences` input); `guesses` on `tag-format` | |
+| `namefind` (`DictionaryNameFinder`, `RegexNameFinder`, `NameFinderME.dropOverlappingSpans`) | `generated`, `dictionary`, `regex-builtin`, `regex-factory`, `regex-user`, `merge`, with the fixtures in `namefind/` | `namefind` | |
+| `stem` (`PorterStemmer`, `SnowballStemmer`, the light and minimal stemmers) | `porter`, `snowball-<language>`, `snowball-<language>-repeat2`, `<language>-light`, `<language>-minimal`, and the Norwegian ones by variety | `stem`: `edge`, the stemmer's language and `generated-<language>` | `stemmer` |
+| `hunspell` (`HunspellDictionary`, `HunspellStemmer` of the `OPENNLP-1927-hunspell-compatibility` branch) | `en_US`, `de_DE_frami`, `hu_HU` (downloaded); `fixture-<name>` for each fixture in `hunspell/`, and `fixture-unsupported-directives+partial` | `hunspell`: `edge` and the run's own; `stem`: the Snowball sample of the dictionary's language | `mode`, `branchCommit` |
+| `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
+| `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
+| `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
+| `sentiment` (`SentimentME.train`, `probabilities`) | `tokens-maxent`, `emoji-maxent`, `emoji-default`, `emoji-qn`, `emoji-perceptron` | `sentiment`; the corpus `feedback` in `sentiment-train` | `run`, `corpus`, `language`, `factory`, `Algorithm`, `Iterations`, `Cutoff` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -239,6 +281,54 @@ a directory with the same model run without them, and its options are
   A predicate of these sources holds a token, which the sample streams
   never let hold a space; the generator stops if one does, so the space
   separated `context` field is never ambiguous.
+- A `train-events` run of `ChunkerTrainGolden` is `ChunkerME.train` with
+  `new ChunkerFactory()` over the input read with `ChunkSampleStream`, as
+  the trainer tool reads it: the events of `ChunkerEventStream` over the
+  factory's `DefaultChunkerContextGenerator`, then the model trained. The
+  runs are the training parameters: `TrainingParameters.defaultParams()`
+  (`chunker-defaults`: `MAXENT`, 100 iterations, cutoff 5), the
+  perceptron with cutoff 1 and a beam size of 5 (`chunker-perceptron`),
+  `MAXENT_QN` with cutoff 1 (`chunker-qn`), and the sequence perceptron
+  (`chunker-perceptron-sequence`), which `ChunkerME.train` refuses. It
+  records the events, `turbo:stream-errors` and the checksum as the
+  tagger's runs do, then either `turbo:train-error` (the class and
+  message of what training threw) or the model: `turbo:model-entry`
+  (the algorithm, and the `chunker.model` entry's length and SHA-256),
+  `turbo:model-outcomes` and `turbo:model-predicates` (the labels in the
+  model's order), `turbo:model-parameters` (every parameter with its
+  predicate and outcome index), and `turbo:manifest` and
+  `turbo:package-entries` of the model file.
+  `analysis/train-components/tests/chunker.rs` compares with them.
+- A `train-liblinear` run (`LiblinearTrainGolden`) trains the liblinear
+  add-on of the OpenNLP addons (`main` branch, the commit
+  `LIBLINEAR_ADDON_COMMIT` in `src/recipe.rs`) on the events of a `train`
+  source, sorted within each event (liblinear refuses features that do
+  not ascend) or as the stream made them (`events raw`). The add-on's
+  classes are in the default package, so the image compiles them into a
+  jar of their own, which the generator loads by reflection
+  (`-Dturbo.goldens.liblinearJar`), checking the commit written beside
+  it; liblinear-java 2.44 is a dependency of the generator. It records
+  the events, then `turbo:liblinear-error` (the class and message of what
+  training threw), or the text model inside the serialized bytes
+  (`turbo:liblinear-text`), their SHA-256 and length
+  (`turbo:liblinear-model`), and `eval` and `getBestOutcome` on the
+  contexts of the first 40 events, given and reversed
+  (`turbo:liblinear-scores`, `turbo:liblinear-best`).
+  `analysis/train/tests/liblinear_goldens.rs` compares with them
+  (`docs/liblinear.md`).
+- A `train-langdetect` run (`LanguageTrainGolden`) trains a language
+  detector as `LanguageDetectorME.train` does, on the samples
+  `LanguageDetectorSampleStream` reads from the input, with the
+  parameters the command line trainer uses when given none (`MAXENT`, 100
+  iterations) and the run's cutoff (5 for `default`, 1 for `cutoff1`).
+  It records the events in `turbo:language-events` (outcome and number
+  of predicates, a row each) and `turbo:language-predicates` (a row per
+  predicate, since an n-gram can hold a space or a tab), then the
+  checksum, the index and the GIS training as a `train` run does, and the
+  manifest without `Timestamp` and the zip entries of the model
+  `LanguageDetectorME.train` returns, after checking that its weights and
+  its `langdetect.model` entry are those of the monitored training.
+  `analysis/train-components/tests/langdetect.rs` compares with them.
 - `en-plain-rust.bin` is the `.bin` the Rust trainer writes when it trains
   `en-plain.bin`'s events again (`analysis/train/tests/roundtrip.rs`), and
   `en-plain-qn-rust.bin` and `en-plain-perceptron-rust.bin` the ones it
@@ -248,11 +338,38 @@ a directory with the same model run without them, and its options are
   of the same). The JVM loads all three with `SentenceModel` like the other
   fixtures, so their goldens show what the JVM makes of a model file
   written here.
-  `pos-fixture-rust.bin` and `lemma-fixture-rust.bin` are the `.bin` files
-  the Rust trainer writes from `inputs/tagged/wordtag.txt` (with
-  `tags.tagdict`) and `inputs/tagged/lemmas.txt`
+  `pos-fixture-rust.bin`, `lemma-fixture-rust.bin` and
+  `chunker-fixture-rust.bin` are the `.bin` files the Rust trainer writes
+  from `inputs/tagged/wordtag.txt` (with `tags.tagdict`),
+  `inputs/tagged/lemmas.txt` and `inputs/tagged/chunks.txt`
   (`analysis/train-components/tests/fixtures.rs`); the JVM loads them with
-  `POSModel` and `LemmatizerModel` and tags with them.
+  `POSModel`, `LemmatizerModel` and `ChunkerModel` and tags, lemmatizes or
+  chunks with them.
+  `langdetect-fixture-rust.bin` is the one it writes from
+  `inputs/langdetect/samples.txt` with the default parameters (the same
+  test); the JVM loads it with `LanguageDetectorModel` and detects with
+  it, and `analysis/langdetect/tests/fixture.rs` compares with those
+  goldens.
+- A `namefind` training run (`NameEventGolden`) reads the input with
+  `NameSampleDataStream` and makes the events of `NameFinderEventStream`
+  over the context generator and codec of a `TokenNameFinderFactory` with
+  the default descriptor, with or without a type given to every name; it
+  records the events, the checksum and `turbo:stream-errors` as a
+  `train-events` run does. It then trains with `NameFinderME.train` from
+  a fresh read of the input with empty parameters (or only `Algorithm`),
+  and records `turbo:name-training` (the exception that ended training,
+  or an empty row), `turbo:name-parameters` (the parameters afterwards,
+  with their Java classes: the defaults `NameFinderME.train` puts in and
+  the trainer's `sort`) and, for a trained model, `turbo:manifest`,
+  `turbo:package-entries`, `turbo:name-model` (the SHA-256 and length of
+  `nameFinder.model`) and `turbo:name-weights` (every predicate, outcome
+  and weight as `GenericModelReader` reads the entry back).
+  `ner-fixture-rust.bin` is the `.bin` the Rust trainer writes from
+  `inputs/tagged/names.txt`; `NameFinderFixtureGolden` loads it with
+  `TokenNameFinderModel` and records `turbo:name-found` and
+  `turbo:name-probs`, the names `find` returns and `probs()` for each
+  sample, clearing the adaptive data where a sample follows an empty
+  line.
 - A `postag` run cuts the input with the English (or, for the German
   model, German) sentence and tokenizer models, which are its second and
   third `model` records, and tags each sentence with `tag`; its golden has
@@ -414,6 +531,40 @@ it) and `turbo:sample-labels` (a category or language). The streams ask
 no model, so there are no dumps. `analysis/formats/tests/opennlp.rs`
 compares the Rust readers with these goldens.
 
+## CoNLL-U dependency and CorefUD goldens
+
+`conllu/<run>/conllu/<id>.golden` is what one of two CoNLL-U readers of
+branches later than the image's commits read from
+`inputs/conllu/<id>.txt`. The image compiles each from its branch into a
+jar of its own beside the generator, writes the commit beside the jar,
+and the entrypoint names the jar in a system property; the generator
+checks the commit and loads the jar's classes before its own OpenNLP
+jars (`BranchJar`).
+
+- `ConlluDependencySampleStream` (`ConlluDependencyGolden`), with the
+  `DependencySample`, `DependencyTree` and `DependencyArc` it builds, of
+  the fork's `ready/agents-md` branch (`CONLLU_DEPENDENCY_COMMIT` in
+  `src/recipe.rs`, `-Dturbo.goldens.conlluDependencyJar`), over the
+  `dependency-` inputs, in each tag set and for the universal tags also
+  in the legacy whitespace mode. The layers are those of the format
+  goldens' part-of-speech samples, `turbo:samples`, `turbo:read-errors`,
+  `turbo:sample-tokens` and `turbo:sample-tags`, with
+  `turbo:sample-heads` (the head's index plus one, 0 for the root) and
+  `turbo:sample-relations` aligned to the tokens.
+- `ConlluCorefDocumentStream` (`CorefUdGolden`) of the OpenNLP addons'
+  `ready/coref` branch, with `CorefAnnotator` and `CorefMention`
+  (`COREF_ADDONS_COMMIT`, `-Dturbo.goldens.corefJar`), over the
+  `corefud-` inputs, in each tag set. Per document read it records the
+  text (`turbo:coref-texts`), and as UTF-8 byte spans into that text the
+  sentences, the tokens with their tags, the gold chain layer's mentions
+  with their chain, kind and entity, and the speakers
+  (`turbo:coref-sentences`, `turbo:coref-tokens`, `turbo:coref-tags`,
+  `turbo:coref-mentions`, `turbo:coref-speakers`); each exception goes in
+  `turbo:read-errors` with the number of documents before it.
+
+`analysis/formats/tests/conllu_jvm.rs` compares the Rust readers with
+these goldens.
+
 ## MASC goldens
 
 `masc/<run>/formats/<id>.golden` is what OpenNLP's MASC classes read from
@@ -492,6 +643,47 @@ and reading goes on. The layers are `turbo:samples`,
 format goldens write them. `analysis/formats/tests/ner.rs` compares the
 Rust readers with these goldens.
 
+## Corpora goldens
+
+`corpora/<run>/corpora/<id>.golden` is what one of OpenNLP's sentence,
+language or document corpus streams read from `inputs/corpora/<id>.txt`.
+`CorporaGolden` makes each stream as its factory does:
+`MosesSentenceSampleStream` over the file's lines; `LetsmtSentenceStream`
+over the parsed document, alone and behind
+`DetokenizeSentenceSampleStream` with the dictionary of the `detokenizer`
+record; `NKJPSentenceSampleStream` over the `ann_segmentation.xml` and
+`text.xml` of a bundle; `IrishSentenceBankSentenceStream` and
+`IrishSentenceBankTokenSampleStream`; `LeipzigLanguageSampleStream` behind
+`SampleShuffleStream` and `SampleSkipStream` over a bundled directory, with
+the counts of the `sentencesPerSample`, `samplesPerLanguage` and
+`samplesToSkip` records; and `TwentyNewsgroupSampleStream` over a bundled
+directory with the tokenizer of the `tokenizer` record. The bundles are
+those of the MASC inputs.
+
+What the factory does before the stream reads (parsing a document, and
+for Leipzig reading every file) is recorded as a read error before any
+sample when it throws. The stream is then read until `read` returns null;
+an exception is recorded and reading goes on. The layers are
+`turbo:samples` and `turbo:read-errors`, then for sentence and token
+samples `turbo:sample-texts` and `turbo:sample-spans`, for language
+samples `turbo:sample-labels` and `turbo:sample-texts`, and for document
+samples `turbo:sample-labels` and `turbo:sample-tokens`, as in the format
+goldens.
+
+The 20 Newsgroups stream keeps its files in a `HashMap` keyed by path, so
+the order of its samples depends on where the corpus is: the runs write it
+under `java.io.tmpdir` and give the directory as the `dataDir` record, and
+add `turbo:listing` (the files in the order the directories list them) and
+`turbo:files` (the order the map gives them) after the read errors. A
+Leipzig message that names a file writes the corpus directory as
+`<corpus>`.
+
+`analysis/formats/tests/corpora.rs` compares the readers of
+`turbo_formats::corpora` with these goldens. Only these runs read the
+`corpora` set, and they have no dumps. The goldens are not checked in; the
+test skips, naming the `generate` command, while
+`analysis/goldens/data/corpora` is absent.
+
 ## Parse goldens
 
 `parse/<run>/parse/<id>.golden` is what OpenNLP's Penn Treebank reader
@@ -519,6 +711,53 @@ from the rule file `inputs/head-rules/<id>.txt`: `turbo:head-rules`, the
 lines `serialize` wrote, or `turbo:rules-errors`, what the reader threw.
 `analysis/parser/tests/goldens.rs` compares the Rust reader, writer and
 rule classes with both.
+
+## Gazetteer goldens
+
+`gazetteer/<run>/gazetteer/<id>.golden` is what a gazetteer of the addons
+`geo` module (built from the same addons commit as the `numeric` module)
+answered for each line of `inputs/gazetteer/<id>.txt`, the input split at
+line feeds: `lookup` for a `names` input, `byId` for an `ids` input (a
+source and a record id per line, split at the first tab) and `byRegion`
+for a `regions` input. `GazetteerGolden` asks the bundled gazetteer
+(`BundledGazetteer.getInstance()`, whose resource's SHA-512 is the
+golden's model record), the GeoNames, Overture and user gazetteers over
+the fixture tables, and an `OverlayGazetteer` with the bundled gazetteer
+as its base, the user table as additions and the fixture suppression
+rules. The layers are `turbo:gazetteer-sources` (sorted, since the
+module's sets have no order), `turbo:gazetteer-queries` (per line, how
+many entries came back, or the exception), `turbo:gazetteer-candidates`
+(the entries of each line in order, as indices into the next layer),
+`turbo:gazetteer-entries` (each entry found, once, with every field),
+`turbo:gazetteer-alternates`, `turbo:gazetteer-containment` and
+`turbo:gazetteer-attributes` (sorted by key). The `load-<kind>` runs load
+each `table-<kind>-` input as a table of that kind and write
+`turbo:gazetteer-load` (whether it loaded, or the exception) and
+`turbo:gazetteer-suppressions` (the rules of a suppression table).
+`analysis/geo/tests/jvm_goldens.rs` asks the Rust gazetteers the same and
+compares every cell.
+
+The OpenNLP commit of the recipe has no `StringUtil.stripByteOrderMark`, which
+two readers of the module call; the Dockerfile replaces both calls with
+the expression the method returns before building the module.
+
+## Place profile goldens
+
+`place-profiles/place-profiles/place-profiles/<id>.golden` is what
+`PlaceProfiles.load` made of the table `inputs/place-profiles/<id>.txt`.
+The class is not in the addons commit the rest of the `geo` module is built
+from, so the Dockerfile takes `PlaceProfiles.java` from
+`PLACE_PROFILES_COMMIT` (`src/recipe.rs`, on the addons'
+`ready/geo-place-profiles` branch) and compiles it into the module; the
+golden's `profilesCommit` record names that commit. The layers are
+`turbo:profiles-load` (whether it loaded, or the exception),
+`turbo:profiles-metrics`, `turbo:profiles-places` (the ids sorted by
+`String.compareTo`, since the class keeps them in a map),
+`turbo:profiles-values` (the standardized profiles, read from the class's
+private map by reflection), `turbo:profiles-similarity` (every ordered pair)
+and `turbo:profiles-neighbors` (`mostSimilar` of every place with the
+counts 1, 2 and the number of places). `analysis/geo/tests/profile_goldens.rs`
+rebuilds every layer and compares the doubles bit for bit.
 
 ## Evaluator goldens
 
@@ -636,6 +875,137 @@ value with a negative scale is written with scale 0, as for money.
 The `quantity` inputs are written for the project. Only the quantity
 annotator runs on them, and it has no dumps.
 
+## Temporal goldens
+
+`temporal/<mode>/temporal/<id>.golden` is what `TemporalAnnotator` over
+`CursorTemporalExtractor`, followed by `DocumentDateAnnotator`, found in
+`inputs/temporal/<id>.txt`. In the `dateline` mode the annotator takes the
+reference date of relative mentions from the text's first absolute day,
+and a text without one has no relative mentions; in the `fixed` mode the
+reference date is 2026-03-15. The `config reference` record is `dateline`
+or `2026-03-15`; the mode takes the model's place in the path.
+
+Each golden has two layers. `turbo:temporal` has one row per mention with
+`start`, `end` (UTF-8 byte offsets), `value` (`TemporalExpression.value()`:
+`2026-07-14`, `2026-W29`, `2026-07`, `2024-Q3` or `2026`), and
+`granularity` and `origin`, the names of the enum constants.
+`turbo:document-date` is anchored on the document and has no row or one:
+`date`, the chosen `LocalDate`, and `mention`, the index in
+`turbo:temporal` of the mention the date annotation spans.
+
+The `temporal` inputs are written for the project. Only the temporal
+annotators run on them, and they have no dumps.
+
+## SVM document categorizer goldens
+
+These runs are the parity test of `turbo-doccat`
+(`analysis/doccat/tests/goldens.rs`, described in `docs/doccat.md`). Each
+run trains a model with `DocumentCategorizerSVM.train` on one corpus of
+`inputs/svm-doccat-train` (one sample per line: the category, a space and
+the text), with its own term weighting, feature selection, scaling, SVM
+type and kernel and probability estimates on, seeding LIBSVM's random
+numbers first so the model is the same on every run of the generator. The
+`config` records name all of it.
+
+`svm-doccat/<run>/svm-doccat-train/<corpus>.golden` holds the model as the
+two files `turbo-doccat` reads, one line per row: `turbo:svm-model`, the
+LIBSVM model as `svm.svm_save_model` writes it, and `turbo:svm-sidecar`, the
+vocabulary, inverse document frequencies, feature ranges, weighting,
+scaling, generators and categories (`SvmDoccatExport.java`).
+
+`svm-doccat/<run>/svm-doccat/<id>.golden` holds, for one document,
+`opennlp:tokens` (the `WhitespaceTokenizer` tokens the categorizer is
+given) and, anchored on the document, `turbo:svm-vector` (the feature
+vector `categorize` hands LIBSVM), `turbo:svm-decisions` (the
+`svm_predict_values` decision value of each class pair, in LIBSVM's
+order), `turbo:svm-vote` (the category the pairwise vote picks) and
+`turbo:categories` (every category with its probability, best first).
+
+The corpora and documents are written for the project. Only these runs read
+them, and they have no dumps. The parity test skips, naming the `generate`
+command, while `analysis/goldens/data/svm-doccat` is absent.
+
+## Sentiment goldens
+
+These runs are the parity test of the sentiment detector
+(`analysis/train-components/tests/sentiment.rs`, described in
+`docs/sentiment.md`). Each run trains a model with `SentimentME.train` on
+`inputs/sentiment-train/feedback.txt` (one sample per line: the
+sentiment, a space and the tokens) with its factory and parameters:
+`tokens-maxent` (`SentimentFactory`, GIS, 100 iterations, cutoff 1),
+`emoji-maxent` (`EmojiSentimentFactory`, the same parameters),
+`emoji-default` (`EmojiSentimentFactory`,
+`ModelUtil.createDefaultTrainingParameters()`, cutoff 5), `emoji-qn`
+(`MAXENT_QN`) and `emoji-perceptron` (`PERCEPTRON`), each with 100
+iterations and cutoff 1. The `config` records name all of it.
+
+`sentiment/<run>/sentiment-train/feedback.golden` holds the events of
+`SentimentEventStream` (`turbo:sentiment-events`, a row per event, and
+`turbo:sentiment-predicates`, a row per predicate), the SHA-256 and length
+of the `sentiment.model` entry (`turbo:sentiment-model`), and the manifest
+without `Timestamp` and the zip entries of the serialized model
+(`turbo:manifest`, `turbo:package-entries`).
+
+`sentiment/<run>/sentiment/<id>.golden` holds, for one document,
+`opennlp:tokens` (the `WhitespaceTokenizer` tokens the detector is given)
+and, anchored on the document, `turbo:sentiment-context` (the factory's
+context for those tokens, a feature per row) and `turbo:categories` (every
+outcome with its probability, best first), scored by the model read back
+from its serialized bytes.
+
+The corpus and documents are written for the project. Only these runs
+read them, and they have no dumps. The parity test skips, naming the
+`generate` command, while `analysis/goldens/data/sentiment` is absent.
+
+## PII goldens
+
+`pii/<pack>/pii/<id>.golden` is what `PiiAnnotator` found in
+`inputs/pii/<id>.txt` with the extractor the `PiiPacks` factory of that
+pack builds (`payment()`, `usIdentity()`, `allStructured()` and so on).
+The header names `opennlp.tools.pii.PiiPacks` and the factory method, and
+the `config pack` record is the pack's directory name, which takes the
+model's place in the path.
+
+Each golden has one layer, `turbo:pii`, with one row per mention in the
+order `PiiAnnotator` writes them: `start`, `end` (UTF-8 byte offsets),
+`type` (`PiiMention.type()`: `email`, `card`, `us-ssn` and so on) and
+`normalized`, the value as the extractor normalized it.
+
+The `pii` inputs are written for the project and hold no real personal
+data: documented test IBANs and card numbers, `example.com` addresses,
+fictional phone ranges, documentation IP ranges and made up crypto
+addresses. Only the PII annotator and the PII rewrites run on them, and
+they have no dumps. `analysis/pii/tests/goldens.rs` compares them with
+`turbo-pii`.
+
+### PII rewrite goldens
+
+`pii-rewrite/<pack>/pii/<id>.golden` is what OpenNLP does with the
+mentions of the `pii` golden of the same pack and input. The header is
+that golden's, with three more `config` records: `key`, the HMAC key as
+text (32 ASCII bytes, a test key that protects nothing), `mask` (`*`,
+the mask of `MaskPolicies.byType()`) and `mask-all` (`#`). The layers, in
+order:
+
+| Layer | Anchor | Columns | From |
+|---|---|---|---|
+| `turbo:view` | text | `start:u32`, `end:u32`, `with:str` | `Masker.mask(document, PiiAnnotator.PII, MaskPolicies.byType())`: one row per character the mask changed |
+| `turbo:pii-mask-all` | document | `text:str` | `Masker.mask(document, PiiAnnotator.PII, '#')`, one row |
+| `turbo:pii-rewrites` | document | `operation:str`, `text:str`, `error:str` | `new Pseudonymizer().rewrite(document)` (`pseudonymize`) and `new HmacTokenizer(key).rewrite(document)` (`hmac`): the new text, or the message of the exception the rewrite threw (both refuse overlapping mentions) |
+| `turbo:pii-labels` | document | `operation:str`, `source_start:u32`, `source_end:u32`, `start:u32`, `end:u32`, `label:str` | per label of a rewrite that did not throw: the replaced mention in the input, the label in the new text |
+| `turbo:pii-audit` | document | `type:str`, `mentions:u32`, `distinct:u32`, `samples:str` | `PiiAuditReport.of(document, tokenizer)`, one row per type in its order, the sample tokens joined with `, ` |
+| `turbo:pii-audit-report` | document | `text:str` | the report's `toString()`, one row |
+
+Offsets are UTF-8 bytes: `start` and `end` of `turbo:pii-labels` in the
+new text, the others in the input. OpenNLP masks one UTF-16 unit with
+one mask character; the generator writes a masked character as one mask
+byte per UTF-8 byte of it, as `turbo-pii` masks, so the masked text keeps
+the input's byte length. Which characters are masked is OpenNLP's, read
+from where its masked text differs from the input. The error messages
+give UTF-16 offsets. `analysis/pii/tests/rewrite_goldens.rs` compares
+the goldens with `turbo-pii`; while `analysis/goldens/data/pii-rewrite`
+is absent it says so, naming the `generate` command, and passes.
+
 ## Fuzzing against the Rust ports
 
 `turbo-goldens fuzz` compares the JVM and the Rust ports on generated
@@ -654,7 +1024,7 @@ The command:
 1. writes the first `<count>` texts of the seed's corpus
    (`turbo_goldens::fuzz::corpus`) as `<out>/inputs/<set>/s<seed>-<index>.txt`
    for each set named by `--sets`, `en`, `edge`, `norm`, `num`, `money`,
-   `quantity` and `sentence-fixture` by default, so that every run the
+   `quantity`, `temporal`, `pii` and `sentence-fixture` by default, so that every run the
    differential covers reads each text; `<out>` is
    `target/turbo-goldens/fuzz/s<seed>-<count>` unless `--out` names a
    directory; the inputs and the `jvm` directory of an earlier run there
@@ -662,7 +1032,9 @@ The command:
 2. runs the generator in the container (`--image`, the recipe's tag by
    default) over that inputs directory with the models, the fixtures and
    the rate snapshot mounted as `generate` mounts them, and with
-   `--skip-annotators train,train-events,formats,evaluate,detokenize,bpe,masc,ner,parse,head-rules`,
+   `--skip-annotators` set to `turbo_fuzz::runs::NOT_COVERED` (the training,
+   format reader, evaluator, detokenizer, BPE, parse, sequence, name finder,
+   stemmer, stopword and glossary annotators),
    the annotators the differential does not cover; the goldens go under
    `<out>/jvm/`;
 3. compares every golden with the Rust side (`turbo_fuzz::compare_tree`),
@@ -716,6 +1088,58 @@ The generator's two options behind this are general: `--skip-annotators
 follow the five positional arguments, in any order with `--dumps`, and
 the inputs directory may hold any subset of the sets.
 
+## Sequence, name finder, stemmer, stopword and glossary goldens
+
+These runs are the parity tests of `turbo-sequence`, `turbo-namefind`,
+`turbo-stem`, `turbo-hunspell`, `turbo-stopword` and `turbo-glossary`; each
+crate's README describes its inputs, fixtures and layers, and the Java class of
+each run says what it records. Their layers are anchored to the document, but
+for the glossary matchers' matches and analyzed terms, which are spans of the
+text; a string that can hold half of a surrogate pair is written as
+`TrainGolden.lossless` writes it.
+
+The `code-points` run of `string-pattern` runs the code point
+`StringPattern` of the fork's `ready/string-pattern-unicode` branch
+(`STRING_PATTERN_COMMIT` in `src/recipe.rs`). The image compiles that commit's
+`StringPattern`, `FeatureGeneratorUtil` and `ParamChecks` against the
+generator's OpenNLP build into `/string-pattern/string-pattern.jar`, and the
+entrypoint names the jar in the system property
+`turbo.goldens.stringPatternJar`; the run loads the three classes from it in a
+class loader that looks there first, beside the generator's own. Run outside
+the container, the generator needs that property.
+
+The `hunspell` runs work the same way with the Hunspell classes of the fork's
+`OPENNLP-1927-hunspell-compatibility` branch (`HUNSPELL_COMMIT` in
+`src/recipe.rs`): the image compiles that commit's `HunspellStemmer`,
+`HunspellDictionary`, `HunspellAffixTable`, `HunspellCompoundRule`,
+`HunspellConversion` and `AffixCondition`, with `java/hunspell/HunspellBridge.java`,
+into `/hunspell/hunspell.jar` beside a file holding the commit, and the
+entrypoint names the jar in `turbo.goldens.hunspellJar`. The runs check the
+commit and load every class of the package from the jar first. The
+dictionaries come from `fetch-models`, which downloads `HUNSPELL_FILES` of
+the recipe into `<models>/hunspell/` and checks the SHA-512 the recipe holds
+for each (the repository publishes none); `analysis/hunspell/README.md` lists
+their licences. None is checked in.
+
+The fixture models `pos-fixture.bin`, `chunker-fixture.bin` and
+`ner-{bio,bilou,qn}-fixture.bin` are trained by `FixtureModels.java` from
+`analysis/goldens/data/train-fixtures/`. It is not one of the runs; it is run
+by hand in the image, and the models it writes have a new manifest timestamp,
+so the recipe's SHA-512 of each and every golden made from it change:
+
+```
+docker run --rm --network none --entrypoint java \
+    -v "$PWD/analysis/goldens/data/train-fixtures:/train:ro" \
+    -v "$PWD/analysis/goldens/data/fixtures:/fixtures" \
+    <image> -cp /generator/target/turbo-goldens-java.jar \
+    ai.pipestream.turbo.goldens.FixtureModels /train /fixtures
+```
+
+`ner-bio-fixture.bin` stores its cluster resources through
+`golden.StoredClusters`, whose serializers its manifest names, so OpenNLP loads
+it only with that class on the class path and its package registered with
+`ExtensionLoader`; the generator does both.
+
 ## How the checked in goldens and dumps were made
 
 The goldens and dumps checked in now were made in the container, with
@@ -740,7 +1164,7 @@ git init opennlp && cd opennlp
 git remote add origin https://github.com/ai-pipestream/opennlp.git
 git fetch --depth 1 origin cdf33c653d5d61d5af7d37ffee189a83bd8392ea
 git checkout FETCH_HEAD
-./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats -am install
+./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats,opennlp-core/opennlp-ml/opennlp-ml-libsvm -am install
 cd ..
 git init opennlp-addons && cd opennlp-addons
 git remote add origin https://github.com/ai-pipestream/opennlp-addons.git
@@ -749,8 +1173,8 @@ GIT_LFS_SKIP_SMUDGE=1 git checkout FETCH_HEAD
 ../opennlp/mvnw -q -DskipTests -pl numeric -am install
 cd <repository>/analysis/goldens-tool/java
 mvn -q package
-cargo run -p turbo-goldens-tool -- fetch-models <models dir>
-java -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
+cargo run -p turbo-goldens-tool -- fetch-models <models dir> --local
+java -Dturbo.goldens.stringPatternJar=<string-pattern.jar> -Dturbo.goldens.hunspellJar=<hunspell.jar> -jar target/turbo-goldens-java.jar ../../goldens/data/inputs <models dir> ../../goldens/data/fixtures \
     <empty out dir> cdf33c653d5d61d5af7d37ffee189a83bd8392ea --dumps
 ```
 

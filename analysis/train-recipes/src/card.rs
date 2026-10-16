@@ -14,7 +14,6 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use turbo_eval::model_gate::{ModelGateRecord, TagMapping};
 use turbo_postag::PosTagFormat;
-use turbo_train_components::ud;
 use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
 
 use crate::error::{Error, Result, io};
@@ -22,10 +21,13 @@ use crate::masc::{self, Split};
 use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
 use crate::{Recipe, Trained, postag};
 
-/// The card's schema version: 3, with the held-out counts, the tag
+/// The card's schema version: 5, with the held-out counts, the tag
 /// formats and the reference's digest, the documents the split leaves
-/// out, and how a tagger's held-out tokens were scored.
-pub const CARD_VERSION: u32 = 3;
+/// out, how a tagger's held-out tokens were scored, the parameters of
+/// each recipe, the chunks in no sentence a chunker's reader reads, and
+/// what a name finder's reader counted of the named entities. Version 4
+/// had either the chunks or the names.
+pub const CARD_VERSION: u32 = 5;
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -66,7 +68,9 @@ pub struct CorpusCard {
     pub excluded_documents: Vec<masc::ExcludedDocument>,
 }
 
-/// The trainer's parameters, as the parameters file gives them.
+/// The trainer's parameters, as the parameters file gives them or, for a
+/// name finder, as `NameFinderME.train` puts its defaults into empty
+/// parameters (the trainer's default of one thread).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ParametersCard {
@@ -74,6 +78,62 @@ pub struct ParametersCard {
     pub iterations: i32,
     pub cutoff: i32,
     pub threads: i32,
+}
+
+/// What a name finder's reader counted of the named entities of one side
+/// of the split ([`crate::namefind::read_samples`]). `names`,
+/// `overlapping` and `other_types` count an entity once for each sentence
+/// it has a token in; `outside_sentences` and `in_dropped_sentences`
+/// count the entities of the recipe's type in no sentence, once each.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamesCard {
+    /// The documents read: those with a named entity file.
+    pub documents: usize,
+    /// The names of the recipe's type in the samples.
+    pub names: u64,
+    /// Of those, names whose entity's tokens have a gap, kept as the span
+    /// from the first token to one past the last.
+    pub gapped: u64,
+    /// Entities of the recipe's type left out for overlapping a name kept
+    /// before them in `Span.compareTo` order, a repeat of the same tokens
+    /// among them.
+    pub overlapping: u64,
+    /// Entities of other types in the sentences, left out.
+    pub other_types: u64,
+    /// Entities of the recipe's type none of whose tokens is in a region
+    /// of the sentence file, so in no sample
+    /// ([`turbo_formats::masc::Unplaced::OutsideSentences`]).
+    pub outside_sentences: u64,
+    /// Entities of the recipe's type whose tokens are in regions of the
+    /// sentence file the reader drops, so in no sample
+    /// ([`turbo_formats::masc::Unplaced::DroppedSentence`]).
+    pub in_dropped_sentences: u64,
+}
+
+/// The chunks of one side of the split that are in no sentence the
+/// chunker's reader reads, by why ([`crate::chunk::chunk_counts`]), and
+/// the chunks of that side's chunk files. A sentence the reader skips
+/// loses the chunks it holds too; those are not counted here.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChunksCard {
+    /// The noun and verb chunks of the chunk files of the documents read
+    /// with Penn tokens.
+    pub chunks: u64,
+    /// Chunks that name a Penn token no kept sentence has
+    /// (`MascWarning::ChunkOutsideSentences`): MASC's sentence layer does
+    /// not cover all of the text, and a sentence region that does not end
+    /// before the next one starts is dropped, as OpenNLP drops it. The
+    /// other MASC recipes read the same sentences, so the text of these
+    /// chunks is in none of their samples either.
+    pub outside_sentences: u64,
+    /// Chunks whose tokens are all in kept sentences but not all in one
+    /// (`MascWarning::ChunkCrossesSentences`).
+    pub across_sentences: u64,
+    /// Chunks with no edge to a Penn token
+    /// (`MascWarning::ChunkWithoutTokens`).
+    pub without_tokens: u64,
 }
 
 /// What training read and made.
@@ -85,8 +145,8 @@ pub struct TrainingCard {
     /// components.
     pub sentences_per_sample: Option<usize>,
     /// `legacy` (OpenNLP 2.5.4's `Character.isWhitespace` or `Zs`) for the
-    /// sentence detector and the tokenizer; `null` for the tagger, which
-    /// reads tokens.
+    /// sentence detector and the tokenizer; `null` for the tagger and the
+    /// chunker, which read tokens.
     pub whitespace: Option<String>,
     /// The manifest's `Timestamp`.
     pub timestamp_ms: i64,
@@ -97,6 +157,12 @@ pub struct TrainingCard {
     pub skipped_sentences: usize,
     pub events: usize,
     pub event_hash: u32,
+    /// For a name finder, what its reader counted of the training
+    /// documents' named entities; `null` for the other components.
+    pub names: Option<NamesCard>,
+    /// For a chunker, the training documents' chunks in no sentence its
+    /// reader reads; `null` for the other components.
+    pub chunks: Option<ChunksCard>,
 }
 
 /// What the gate read from the held-out documents.
@@ -109,42 +175,56 @@ pub struct HeldOutCard {
     /// skips training sentences ([`TrainingCard::skipped_sentences`]);
     /// at most [`crate::MAX_SKIPPED_SENTENCES`] of those read.
     pub skipped_sentences: usize,
-    /// For a tagger, how its held-out tokens were scored; `null` for the
-    /// other components.
+    /// For a tagger, or a UD lemmatizer ([`crate::ud::ReferenceClasses`]),
+    /// how its held-out tokens were scored; `null` for the other
+    /// components.
     pub tokens: Option<TokenCoverage>,
+    /// For a name finder, what its reader counted of the held-out
+    /// documents' named entities; `null` for the other components.
+    pub names: Option<NamesCard>,
+    /// For a chunker, the held-out documents' chunks in no sentence its
+    /// reader reads; `null` for the other components.
+    pub chunks: Option<ChunksCard>,
 }
 
 /// How a tagger's held-out tokens were scored: over the tokens whose tag
 /// the reference can give, as written or through the mapping of its tags
 /// ([`postag::ReferenceTags`]), the trained model's tag compared with the
-/// held-out tag as written and the reference's through
-/// [`postag::REFERENCE_MAPPINGS`].
+/// held-out tag as written and the reference's through the recipe's
+/// mappings ([`postag::PosRecipe::reference_mappings`]:
+/// [`postag::REFERENCE_MAPPINGS`] for the MASC tagger, none for the UD
+/// taggers). A UD lemmatizer's are scored the same way, with no mapping,
+/// leaving out the tokens whose gold lemma class gives their lemma and no
+/// class of the reference's does ([`crate::ud::ReferenceClasses`]).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TokenCoverage {
     /// The tokens of the held-out samples.
     pub tokens: u64,
     /// The reference's tags counted right for another held-out tag
-    /// ([`postag::REFERENCE_MAPPINGS`]).
+    /// ([`postag::PosRecipe::reference_mappings`]).
     pub reference_mappings: Vec<TagMapping>,
     /// The tokens left out of both models' scores because the reference
-    /// cannot give their tag, by that tag as written, sorted by tag; at
-    /// most [`crate::MAX_TOKENS_LEFT_OUT`] of `tokens`.
+    /// cannot give their tag (for a lemmatizer, cannot give the lemma their
+    /// gold lemma class gives), by their tag as written, sorted by tag; at most
+    /// the recipe's limit ([`postag::PosRecipe::max_left_out`],
+    /// [`crate::ud::MAX_TOKENS_LEFT_OUT`]) of `tokens`.
     pub left_out: Vec<TagCount>,
     /// The reference's most frequent mismatches on the scored tokens, at
     /// most [`postag::MISMATCHES_LISTED`], most frequent first: where it
-    /// and MASC differ by convention or by its tag dictionary as much as
-    /// where it errs.
+    /// and the held-out data differ by convention or by its tag
+    /// dictionary as much as where it errs. A lemmatizer's are of lemmas.
     pub reference_mismatches: Vec<Mismatch>,
 }
 
-/// How many scored held-out tokens of a tag a model gave another tag.
+/// How many scored held-out tokens of a tag a model gave another tag, or
+/// for a lemmatizer, of a lemma another lemma.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Mismatch {
-    /// The held-out tag, as written.
+    /// The held-out tag or lemma, as written.
     pub held_out: String,
-    /// The tag the model gave.
+    /// The tag or lemma the model gave.
     pub given: String,
     pub tokens: u64,
 }
@@ -195,7 +275,7 @@ pub struct GateCard {
     pub reference: String,
     pub reference_sha256: String,
     /// For a tagger, the tags the trained model was scored in; `null`
-    /// for the other components.
+    /// for the other components (a chunker is given MASC's Penn tags).
     pub candidate_tag_format: Option<TagFormat>,
     /// For a tagger, the tags the reference was scored in; `null` for the
     /// other components.
@@ -205,6 +285,30 @@ pub struct GateCard {
     pub difference_low: f64,
     pub difference_high: f64,
     pub pass: bool,
+}
+
+impl GateCard {
+    /// The card of the gate `record`, for a tagger with the formats its
+    /// two models' tags were scored in.
+    pub(crate) fn of(
+        record: &ModelGateRecord,
+        candidate_tag_format: Option<TagFormat>,
+        reference_tag_format: Option<TagFormat>,
+    ) -> GateCard {
+        let r = &record.result;
+        GateCard {
+            record: GATE_FILE.to_owned(),
+            reference: record.reference.id.clone(),
+            reference_sha256: record.reference.sha256.clone(),
+            candidate_tag_format,
+            reference_tag_format,
+            candidate_score: r.candidate.score,
+            reference_score: r.reference.score,
+            difference_low: r.difference.low,
+            difference_high: r.difference.high,
+            pass: r.pass,
+        }
+    }
 }
 
 /// The model card.
@@ -241,7 +345,6 @@ impl ModelCard {
     ) -> ModelCard {
         let trained_on = vec![masc::training_data()];
         let class = class_of(std::iter::once(MODEL_LICENCE).chain(trained_on.iter().map(|t| t.license)));
-        let r = &gate.result;
         let (sentences_per_sample, whitespace, candidate_tag_format, reference_tag_format) = match recipe {
             Recipe::Segmentation(s) => (
                 (s.component == Component::Sentence).then_some(SENTENCES_PER_SAMPLE),
@@ -250,6 +353,8 @@ impl ModelCard {
                 None,
             ),
             Recipe::Pos(p) => (None, None, TagFormat::of(postag::CANDIDATE_FORMAT), TagFormat::of(p.reference_format)),
+            Recipe::Name(_) => (None, None, None, None),
+            Recipe::Chunk(_) => (None, None, None, None),
         };
         ModelCard {
             card_version: CARD_VERSION,
@@ -269,12 +374,7 @@ impl ModelCard {
             attribution: masc::ATTRIBUTION.to_owned(),
             corpus,
             training: TrainingCard {
-                parameters: ParametersCard {
-                    algorithm: "MAXENT".to_owned(),
-                    iterations: ud::ITERATIONS,
-                    cutoff: ud::CUTOFF,
-                    threads: ud::THREADS,
-                },
+                parameters: recipe.parameters(),
                 sentences_per_sample,
                 whitespace,
                 timestamp_ms: TIMESTAMP_MS,
@@ -283,20 +383,11 @@ impl ModelCard {
                 skipped_sentences: trained.skipped_sentences,
                 events: trained.events,
                 event_hash: trained.event_hash,
+                names: trained.names.clone(),
+                chunks: trained.chunks.clone(),
             },
             held_out,
-            gate: GateCard {
-                record: GATE_FILE.to_owned(),
-                reference: gate.reference.id.clone(),
-                reference_sha256: gate.reference.sha256.clone(),
-                candidate_tag_format,
-                reference_tag_format,
-                candidate_score: r.candidate.score,
-                reference_score: r.reference.score,
-                difference_low: r.difference.low,
-                difference_high: r.difference.high,
-                pass: r.pass,
-            },
+            gate: GateCard::of(gate, candidate_tag_format, reference_tag_format),
         }
     }
 
@@ -373,60 +464,123 @@ impl ModelCard {
     /// A file that cannot be read, is not JSON with a `card_version`, is of
     /// another version, or is not a card of this version.
     pub fn read(path: &Path) -> Result<ModelCard> {
-        /// The one field every version of the card has.
-        #[derive(Deserialize)]
-        struct Version {
-            card_version: u32,
-        }
-        let bytes = std::fs::read(path).map_err(io(path))?;
-        let json = |e: serde_json::Error| Error::Json { path: path.to_owned(), message: e.to_string() };
-        let Version { card_version } = serde_json::from_slice(&bytes).map_err(json)?;
-        if card_version != CARD_VERSION {
-            return Err(Error::CardVersion { path: path.to_owned(), found: card_version });
-        }
-        serde_json::from_slice(&bytes).map_err(json)
+        read_card(path, CARD_VERSION)
+    }
+
+    /// The card's [`Summary`].
+    pub fn summary(&self) -> Summary<'_> {
+        Summary::new(&self.id, &self.training, &self.held_out, LeftOutFor::Tag)
     }
 }
 
-/// What a run prints of a card before its gate record
-/// ([`ModelCard::summary`]): a line of the training and held-out samples
-/// and the sentences each side skipped, and for a tagger a second line of
-/// the held-out tokens left out of the scores, with their tags as written.
-#[derive(Clone, Copy, Debug)]
-pub struct Summary<'c>(&'c ModelCard);
+/// Reads a card of the schema version `expected` from `path`: its
+/// `card_version` first, alone, so a card of another version is
+/// [`Error::CardVersion`] whatever fields it has, then the card.
+///
+/// # Errors
+///
+/// A file that cannot be read, is not JSON with a `card_version`, is of
+/// another version, or is not a card of this version.
+pub(crate) fn read_card<T: serde::de::DeserializeOwned>(path: &Path, expected: u32) -> Result<T> {
+    /// The one field every version of a card has.
+    #[derive(Deserialize)]
+    struct Version {
+        card_version: u32,
+    }
+    let bytes = std::fs::read(path).map_err(io(path))?;
+    let json = |e: serde_json::Error| Error::Json { path: path.to_owned(), message: e.to_string() };
+    let Version { card_version } = serde_json::from_slice(&bytes).map_err(json)?;
+    if card_version != expected {
+        return Err(Error::CardVersion { path: path.to_owned(), found: card_version, expected });
+    }
+    serde_json::from_slice(&bytes).map_err(json)
+}
 
-impl ModelCard {
-    /// The card's [`Summary`].
-    pub fn summary(&self) -> Summary<'_> {
-        Summary(self)
+/// Why the held-out tokens a card lists were left out of the scores.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LeftOutFor {
+    /// The reference tagger cannot give their tag.
+    Tag,
+    /// The reference lemmatizer cannot give the lemma their gold lemma
+    /// class gives ([`crate::ud::ReferenceClasses`]); they are listed by
+    /// tag.
+    Lemma,
+}
+
+/// What a run prints of a card before its gate record
+/// ([`ModelCard::summary`], and [`crate::ud_card::UdModelCard::summary`]):
+/// a line of the training and held-out samples and the sentences each
+/// side skipped; for a tagger or a UD lemmatizer a second line of the
+/// held-out tokens left out of the scores, by their tags as written; and
+/// for a chunker a line for each side of its chunks in no sentence its
+/// reader reads ([`ChunksCard`]).
+#[derive(Clone, Copy, Debug)]
+pub struct Summary<'c> {
+    id: &'c str,
+    training: &'c TrainingCard,
+    held_out: &'c HeldOutCard,
+    left_out_for: LeftOutFor,
+}
+
+impl<'c> Summary<'c> {
+    /// The summary of the card of the model `id`, whose held-out tokens
+    /// are left out for `left_out_for`.
+    pub(crate) fn new(
+        id: &'c str,
+        training: &'c TrainingCard,
+        held_out: &'c HeldOutCard,
+        left_out_for: LeftOutFor,
+    ) -> Summary<'c> {
+        Summary { id, training, held_out, left_out_for }
     }
 }
 
 impl fmt::Display for Summary<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Summary(card) = *self;
+        let Summary { id, training, held_out, left_out_for } = *self;
         write!(
             f,
-            "{}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped",
-            card.id,
-            card.training.samples,
-            card.training.skipped_sentences,
-            card.training.events,
-            card.held_out.samples,
-            card.held_out.skipped_sentences,
+            "{id}: trained on {} samples, {} sentences skipped, {} events; held out {} samples, {} sentences skipped",
+            training.samples, training.skipped_sentences, training.events, held_out.samples, held_out.skipped_sentences,
         )?;
-        if let Some(tokens) = &card.held_out.tokens {
+        if let Some(tokens) = &held_out.tokens {
             let count: u64 = tokens.left_out.iter().map(|t| t.tokens).sum();
-            write!(
-                f,
-                "\n{}: {count} of {} held-out tokens left out, their tags not the reference's:",
-                card.id, tokens.tokens
-            )?;
+            let why = match left_out_for {
+                LeftOutFor::Tag => "their tags not the reference's",
+                LeftOutFor::Lemma => "their lemmas not the reference's, by tag",
+            };
+            write!(f, "\n{id}: {count} of {} held-out tokens left out, {why}:", tokens.tokens)?;
             if tokens.left_out.is_empty() {
                 f.write_str(" none")?;
             }
             for (i, t) in tokens.left_out.iter().enumerate() {
                 write!(f, "{} {} ({})", if i == 0 { "" } else { "," }, t.tag, t.tokens)?;
+            }
+        }
+        for (side, names) in [("training", &training.names), ("held-out", &held_out.names)] {
+            if let Some(n) = names {
+                write!(
+                    f,
+                    "\n{id}: {} names in the {side} samples of {} documents, {} with a gap; {} overlapping and {} of \
+                     other types left out; {} outside every sentence region and {} in sentence regions the reader \
+                     drops, in no sample",
+                    n.names,
+                    n.documents,
+                    n.gapped,
+                    n.overlapping,
+                    n.other_types,
+                    n.outside_sentences,
+                    n.in_dropped_sentences
+                )?;
+            }
+        }
+        for (side, chunks) in [("training", &training.chunks), ("held-out", &held_out.chunks)] {
+            if let Some(c) = chunks {
+                write!(
+                    f,
+                    "\n{id}: of {} {side} chunks, {} outside every kept sentence, {} across sentences, {} without tokens",
+                    c.chunks, c.outside_sentences, c.across_sentences, c.without_tokens
+                )?;
             }
         }
         Ok(())
@@ -465,13 +619,26 @@ pub fn publishable_class(id: &str, license: Licence, trained_on: &[TrainingData]
 ///
 /// An existing directory, or a write that fails.
 pub fn write_model_dir(dir: &Path, card: &ModelCard, model: &[u8], gate: &ModelGateRecord) -> Result<()> {
-    let out = dir.join(&card.id);
+    write_dir(dir, &card.id, (&card.file.name, model), &card.to_json(), gate)
+}
+
+/// Writes `dir/<id>/` with the model file (its name and bytes),
+/// [`CARD_FILE`] (`card_json`) and [`GATE_FILE`]; the directory must not
+/// exist yet.
+pub(crate) fn write_dir(
+    dir: &Path,
+    id: &str,
+    (model_name, model): (&str, &[u8]),
+    card_json: &str,
+    gate: &ModelGateRecord,
+) -> Result<()> {
+    let out = dir.join(id);
     std::fs::create_dir_all(dir).map_err(io(dir))?;
     std::fs::create_dir(&out).map_err(io(&out))?;
-    let model_path = out.join(&card.file.name);
+    let model_path = out.join(model_name);
     std::fs::write(&model_path, model).map_err(io(&model_path))?;
     let card_path = out.join(CARD_FILE);
-    std::fs::write(&card_path, card.to_json()).map_err(io(&card_path))?;
+    std::fs::write(&card_path, card_json).map_err(io(&card_path))?;
     Ok(gate.write(&out.join(GATE_FILE))?)
 }
 

@@ -1,0 +1,209 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/text-en	461	461	156a1d7a17ff2a3995e74fa16e85ca10c813b28aabd24b19292b6677c1f1789b
+annotator	opennlp.tools.glossary.TermAnalyzingGlossaryMatcher	match
+config	analyzer	caseFold stem(PorterStemmer)
+layer	turbo:analyzed-terms	text	94	start:u32	end:u32	normalized:str
+0	1	i
+2	5	at
+6	7	a
+8	11	hot
+12	15	dog
+16	19	and
+20	21	a
+22	25	hot
+26	29	dog
+31	35	then
+36	39	hot
+40	44	dog
+46	49	hot
+51	55	dog
+56	59	and
+60	63	hot
+64	67	dog
+68	70	in
+71	74	new
+75	79	york
+80	84	citi
+86	89	new
+90	94	york
+95	98	and
+99	103	york
+104	108	citi
+109	112	and
+113	117	york
+119	122	the
+123	126	cat
+127	132	can't
+133	144	concaten
+146	150	cat
+151	154	can
+156	160	scan
+161	165	can
+167	168	c
+171	174	and
+175	176	c
+178	181	and
+182	185	u.
+187	190	and
+191	196	u.s.a
+198	201	and
+202	203	e
+204	208	mail
+210	211	e
+212	216	mail
+217	220	and
+221	226	email
+228	235	machin
+236	244	learn
+245	249	with
+250	256	neural
+257	265	network
+266	269	and
+270	271	a
+272	278	neural
+279	282	net
+284	291	machin
+292	300	learn
+302	306	data
+307	313	driven
+314	318	data
+319	325	driven
+326	329	ish
+331	338	run
+339	343	dog
+344	347	run
+348	351	dog
+353	356	ic
+357	362	cream
+364	367	ic
+368	373	cream
+374	377	and
+378	381	ic
+382	388	cream
+390	394	gmbh
+397	399	co
+401	403	kg
+405	406	x
+407	410	rai
+412	413	x
+414	415	x
+417	420	3.5
+421	424	and
+425	429	13.5
+430	433	and
+434	438	3.55
+440	443	a.b
+444	447	and
+448	453	a.b.c
+454	457	and
+458	459	a
+end	turbo:analyzed-terms
+layer	turbo:analyzed-entries	document	61	entry:u32	token:str
+0	hot
+0	dog
+1	frankfurt
+2	new
+2	york
+3	new
+3	york
+3	citi
+4	york
+5	cat
+6	can
+7	c
+8	u.
+9	e
+9	mail
+10	größe
+11	東
+11	京
+12	東
+12	京
+12	タワー
+13	カタカナ
+14	서울
+15	naïv
+16	machin
+16	learn
+17	neural
+17	network
+18	neural
+18	net
+19	hot
+19	dog
+20	dog
+21	über
+22	hot
+22	dog
+23	σίσυφος
+24	i̇stanbul
+25	🙂
+26	data
+26	driven
+27	a
+28	a.b
+29	run
+29	dog
+30	can't
+31	york
+31	citi
+32	ic
+32	cream
+33	ic
+33	cream
+34	ic
+34	cream
+35	x
+36	gmbh
+36	co
+37	3.5
+38	𝐀𝐁
+39	são
+39	paulo
+end	turbo:analyzed-entries
+layer	turbo:glossary-terms	text	40	start:u32	end:u32	entry:u32
+6	7	27
+8	15	0
+20	21	27
+22	29	0
+36	44	0
+46	55	0
+60	67	0
+71	84	3
+86	94	2
+99	108	31
+113	117	4
+123	126	5
+127	132	30
+146	150	5
+151	154	6
+161	165	6
+167	168	7
+175	176	7
+182	185	8
+202	208	9
+210	216	9
+228	244	16
+250	265	17
+270	271	27
+272	282	18
+284	300	16
+302	313	26
+314	325	26
+331	343	29
+344	351	29
+353	362	32
+364	373	32
+378	388	32
+390	399	36
+405	406	35
+412	413	35
+414	415	35
+417	420	37
+440	443	28
+458	459	27
+end	turbo:glossary-terms

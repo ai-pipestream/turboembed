@@ -1,5 +1,6 @@
 //! Binary character properties from PropList.txt,
-//! DerivedCoreProperties.txt and emoji-data.txt.
+//! DerivedCoreProperties.txt and emoji-data.txt, and the one Line_Break
+//! value the segmenters need, from LineBreak.txt.
 
 use crate::tables::props::*;
 use crate::trie::lookup;
@@ -98,4 +99,12 @@ pub fn emoji_component(c: char) -> bool {
 /// Extended_Pictographic (emoji-data.txt).
 pub fn extended_pictographic(c: char) -> bool {
     has(c, EXTENDED_PICTOGRAPHIC)
+}
+
+/// Line_Break=SA, Complex_Context (LineBreak.txt): the letters and marks
+/// of the Southeast Asian scripts written without spaces between words
+/// (Thai, Lao, Khmer, Myanmar, Tai Tham and others), whose word and line
+/// boundaries need a dictionary or a model.
+pub fn complex_context(c: char) -> bool {
+    has(c, COMPLEX_CONTEXT)
 }

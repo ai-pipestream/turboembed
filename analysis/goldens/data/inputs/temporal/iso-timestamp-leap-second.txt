@@ -1,0 +1,1 @@
+A leap second at 2016-12-31T23:59:60Z and a bad second at 2016-12-31T23:59:61Z.

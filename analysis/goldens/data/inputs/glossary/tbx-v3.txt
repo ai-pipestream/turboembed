@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="TBXcoreStructV03.rng" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<tbx type="TBX-Basic" style="dca" xml:lang="en" xmlns="urn:iso:std:iso:30042:ed-2" xmlns:ext="urn:example:ext">
+  <tbxHeader><fileDesc><sourceDesc><p>Written for these tests.</p></sourceDesc></fileDesc></tbxHeader>
+  <text>
+    <body>
+      <conceptEntry id="ML">
+        <ext:note><term>not a term</term></ext:note>
+        <langSec xml:lang="en">
+          <termSec><term>machine learning</term></termSec>
+          <ext:termSec><term>foreign container</term></ext:termSec>
+        </langSec>
+        <langSec xml:lang="de"><termSec><term>maschinelles Lernen</term></termSec></langSec>
+      </conceptEntry>
+      <conceptEntry id="NN" ext:id="ignored">
+        <langSec xml:lang="en">
+          <termSec><term>neural network</term></termSec>
+          <termSec><term>neural net</term><termNote type="termType">shortForm</termNote></termSec>
+        </langSec>
+      </conceptEntry>
+    </body>
+    <back><refObjectSec type="respPerson"><refObject id="p1"><item>someone</item></refObject></refObjectSec></back>
+  </text>
+</tbx>

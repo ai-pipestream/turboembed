@@ -19,13 +19,52 @@ pub const OPENNLP_COMMIT: &str = "cdf33c653d5d61d5af7d37ffee189a83bd8392ea";
 pub const ADDONS_REPO: &str = "https://github.com/ai-pipestream/opennlp-addons";
 pub const ADDONS_COMMIT: &str = "33e95a4956f1535cdc074056b29246fe88b3c81a";
 
+/// The commit of the OpenNLP fork whose code point `StringPattern` the
+/// generator runs beside the one of [`OPENNLP_COMMIT`], for the sequence
+/// crate's string pattern goldens. The container compiles that class and
+/// the two it needs from this commit into a jar of their own.
+pub const STRING_PATTERN_COMMIT: &str = "b2473ca80d65ae2ef10a24b08b1d0ae6a9231109";
+
+/// The commit of the OpenNLP fork's `OPENNLP-1927-hunspell-compatibility`
+/// branch whose Hunspell classes the generator runs for the Hunspell
+/// goldens. The container compiles them into a jar of their own, as it does
+/// the string pattern classes.
+pub const HUNSPELL_COMMIT: &str = "fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc";
+
+/// The commit of the OpenNLP addons fork, on its `ready/geo-place-profiles`
+/// branch, whose `PlaceProfiles` the generator runs. The class is not in
+/// [`ADDONS_COMMIT`]; the container compiles its source from this commit
+/// into the `geo` module built from that one.
+pub const PLACE_PROFILES_COMMIT: &str = "07e1f670818917d74e9a94367080f51ae6365bfa";
+
+/// The commit of the OpenNLP addons, on their `main` branch, whose
+/// liblinear add-on (`liblinear-addon`) the generator runs. Its classes are
+/// in the default package; the container compiles them from this commit into
+/// a jar of their own.
+pub const LIBLINEAR_ADDON_COMMIT: &str = "84631d0111629110ebf094eadb6e938bbf7d738f";
+
+/// The commit of the OpenNLP fork's `ready/agents-md` branch whose
+/// `ConlluDependencySampleStream`, `DependencySample`, `DependencyTree` and
+/// `DependencyArc` the generator runs for the CoNLL-U dependency goldens.
+/// The container compiles them, with the branch's `ParamChecks`, into a jar
+/// of their own.
+pub const CONLLU_DEPENDENCY_COMMIT: &str = "2da0ee764cd7340b968a207b925cce852485cccb";
+
+/// The commit of the OpenNLP addons, on their `ready/coref` branch, whose
+/// `ConlluCorefDocumentStream` (with `CorefAnnotator` and `CorefMention`)
+/// the generator runs for the CorefUD goldens. The container compiles the
+/// three classes into a jar of their own.
+pub const COREF_ADDONS_COMMIT: &str = "be11df610e24a9a2a10f80b7199349fe5b3594a9";
+
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP and addons commits, so an image built from other commits has
 /// another tag.
 pub const IMAGE_TAG: &str = "turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1";
 
-/// A model file the generator loads, where it is published and the SHA-512
-/// published beside it.
+/// A model file the generator loads, where it is published and its
+/// SHA-512: the one published beside it, or for the OpenNLP 1.5 models,
+/// which are published with no hash, the hash of the download, whose
+/// SHA-256 matched the one the sequence crate's README lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Model {
     pub file: &'static str,
@@ -117,6 +156,45 @@ pub const MODELS: [Model; 13] = [
     },
 ];
 
+/// The OpenNLP 1.5 English models the sequence crate's beam search, tag
+/// dictionary and tag format goldens run, which the generator also loads
+/// from the models directory. Their training corpora are LDC corpora or
+/// undocumented, so CI does not fetch them: `fetch-models` fetches them
+/// only when asked (`--local`), and `generate`, `verify` and `fuzz`
+/// always do, since the generator runs them.
+pub const LOCAL_MODELS: [Model; 5] = [
+    Model {
+        file: "en-pos-maxent.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin",
+        sha512: "7810d7e7c24ed1c6a202dad64ed021310ee62cf324ee866e2e63bf8054199716\
+                 2bb5fa2da91fdcfddda39ee275efcdbde738647274d586ba8896940a0467d6cc",
+    },
+    Model {
+        file: "en-pos-perceptron.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-pos-perceptron.bin",
+        sha512: "01d296d8dc7fdc5e7e93ef8c415e9af752e04d7ce77008b5a864f14cd1a5e53b\
+                 2d22fc9b7cbd37ecaa814c6b7a83f2f22fdf531dac2a6784fae723d6ab173e03",
+    },
+    Model {
+        file: "en-chunker.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-chunker.bin",
+        sha512: "43e83ac9b1b9b0e52d7813e6f4ed2fb3b94dd4146d9b36028795c273ad6ef191\
+                 68f1ad5ced3ca11f1b91f81f6fa1324d2070c96342cf538eccadc957a0721730",
+    },
+    Model {
+        file: "en-ner-person.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-ner-person.bin",
+        sha512: "c62b3460527f103ea1e9b8e0b794822ceb0536b03a843e0ca86f9ae559c1cca0\
+                 a4fa03e81ecfec468628be3ee09c17adef08cd460214bd10bb089326427eb04c",
+    },
+    Model {
+        file: "en-ner-location.bin",
+        url: "https://opennlp.sourceforge.net/models-1.5/en-ner-location.bin",
+        sha512: "f75be6fb88a18ad3bb6f196a72931fa259091cf22e4c05230aace4aa990a6340\
+                 d83937c00431165704fe6762a030fe944bae157f4d4a914c4a01deefc52f61b3",
+    },
+];
+
 /// A MeCab dictionary the generator loads from the models directory: the
 /// archive it is published in, the SHA-512 of the archive, the directory
 /// the archive unpacks to (where the dictionary's files are) and the
@@ -168,6 +246,73 @@ pub const DICTIONARIES: [Dictionary; 2] = [
     },
 ];
 
+/// A file of a published Hunspell dictionary the generator loads from the
+/// models directory: its path there, where it is published, its SHA-512
+/// and the licence it is published under.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HunspellFile {
+    pub file: &'static str,
+    pub url: &'static str,
+    pub sha512: &'static str,
+    pub license: &'static str,
+}
+
+/// The commit of LibreOffice's dictionaries repository the Hunspell
+/// dictionaries are fetched at.
+pub const HUNSPELL_DICTIONARIES_COMMIT: &str = "67032ee957631908098a72edf48dc81cac27e369";
+
+/// The published Hunspell dictionaries the Hunspell goldens read, from
+/// LibreOffice's dictionaries repository at
+/// [`HUNSPELL_DICTIONARIES_COMMIT`]. The repository publishes no hashes;
+/// these are the hashes of the files at that commit. `de_DE_frami` is under
+/// the GPL and `hu_HU` under the MPL or the LGPL, so none of them is checked
+/// in; `fetch-models` fetches them into `<models>/hunspell`, and CI caches
+/// them with the models.
+pub const HUNSPELL_FILES: [HunspellFile; 6] = [
+    HunspellFile {
+        file: "hunspell/en_US.aff",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/en/en_US.aff",
+        sha512: "2b4448dfdff03caf300914415f4642f8d2ba5b650c5f024a12355b420a279ffc\
+                 12146649fce092ba591504476634a3d6fd4c079335a27085b396fa76bfd28b74",
+        license: "SCOWL (Kevin Atkinson's notice in README_en_US.txt: permissive, MIT-like)",
+    },
+    HunspellFile {
+        file: "hunspell/en_US.dic",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/en/en_US.dic",
+        sha512: "4be737249a8a436d20a02be575dcf6cf2f06f5f2abb840ea5ec0ef0ac73a71fa\
+                 0e4669e527c703d5c6b50ef61713a6741b55bc136d559a54bcdeebcd62027988",
+        license: "SCOWL (Kevin Atkinson's notice in README_en_US.txt: permissive, MIT-like)",
+    },
+    HunspellFile {
+        file: "hunspell/de_DE_frami.aff",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/de/de_DE_frami.aff",
+        sha512: "6fec308258040c29e6b91bc51381c6e8a631bcdd66e59f84a673705f22a540f6\
+                 819e6b4720add394a46ccceff775487cb6f6c240fe5bd357e4d60e21e8ba0ff0",
+        license: "GPL-2.0 or GPL-3.0 (igerman98, README_de_DE_frami.txt)",
+    },
+    HunspellFile {
+        file: "hunspell/de_DE_frami.dic",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/de/de_DE_frami.dic",
+        sha512: "ab9e7156f2f31a0fd1d6cad6487f43aec98f1767d46daf7a7a0048b9cbfbd9bc\
+                 449f29225a10217ce2d0a722afd8b606f2f6b027dbde2720b093343334f874dd",
+        license: "GPL-2.0 or GPL-3.0 (igerman98, README_de_DE_frami.txt)",
+    },
+    HunspellFile {
+        file: "hunspell/hu_HU.aff",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/hu_HU/hu_HU.aff",
+        sha512: "c3e587793dc752aaf9b8dd9262047d8ff24dc7e620ebd4d9023e77bb6eb7c15e\
+                 89f39a1851050f413410a298e2b1323cc9abf4627dc96aa15de0d91e26ae1a00",
+        license: "MPL-2.0 or LGPL-3.0-or-later (Magyar Ispell 1.9, README_hu_HU.txt)",
+    },
+    HunspellFile {
+        file: "hunspell/hu_HU.dic",
+        url: "https://raw.githubusercontent.com/LibreOffice/dictionaries/67032ee957631908098a72edf48dc81cac27e369/hu_HU/hu_HU.dic",
+        sha512: "767ac7b9cf190cca8314142dc016ba9b593b6bfbc707eb55314a0a47e8dfdea3\
+                 3ceec35880057a6f96897fd289759ff59a2a0feff5cd108d832cb1cfb027d141",
+        license: "MPL-2.0 or LGPL-3.0-or-later (Magyar Ispell 1.9, README_hu_HU.txt)",
+    },
+];
+
 /// The suffix of the directory holding the UTF-8 copy of a dictionary
 /// that is not UTF-8.
 pub const UTF8_COPY_SUFFIX: &str = ".utf8";
@@ -186,9 +331,12 @@ pub struct Fixture {
 
 /// The fixtures, which are all the files of the fixtures directory. The
 /// file names are the ones the generator's `Runs` class opens there; a
-/// fixture in a subdirectory is a file of a dictionary directory, and
-/// `Runs` opens the directory.
-pub const FIXTURES: [Fixture; 38] = [
+/// fixture in a subdirectory is a file of a MeCab dictionary directory, of
+/// the feature generator descriptors and their resources (`featuregen`) or
+/// of the name finder's dictionaries and patterns (`namefind`) or a
+/// hand-written Hunspell dictionary (`hunspell`), and `Runs` opens the
+/// directory.
+pub const FIXTURES: [Fixture; 109] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14\
@@ -235,6 +383,16 @@ pub const FIXTURES: [Fixture; 38] = [
                  61765d97a3c5e4ca0d22b251e4dc01401f432d6a394d6a6d3fd4b06fecb41402",
     },
     Fixture {
+        file: "ner-fixture-rust.bin",
+        sha512: "c9e30b48571cd106396a9f84c0692216b5934cd7cae4ec277ceb867b93a5b9ed\
+                 4285349d48c2e3d7c508bb824697a2e68055b54817b0f9fbc06e011c510ef070",
+    },
+    Fixture {
+        file: "langdetect-fixture-rust.bin",
+        sha512: "631c804500a2a2cbd3c1b88febdf21332487760abc40efcee217159e3e694a01\
+                 dbbc82ee9d5102dccc9f5a889775aad4c93efedf3621df9d4622448a1d58ae99",
+    },
+    Fixture {
         file: "tags.tagdict",
         sha512: "cbd3dee98987711b48b42967df8e6e3e8400dcba70336fa2c83bfdba03a8c42b\
                  3bd7d5f6f0c80c2f35dc01173795792e117489f11fd23f03f9fcba3fa453417d",
@@ -248,6 +406,11 @@ pub const FIXTURES: [Fixture; 38] = [
         file: "chunker-fixture.bin",
         sha512: "be8e0bfd341644705a652b85b978e4138056922ddb9caea1ac9a2395f0648e55\
                  ad1f1b035d90f6febc0f057f832cecac377f397552fdbdfefadaa27cfa232d6a",
+    },
+    Fixture {
+        file: "chunker-fixture-rust.bin",
+        sha512: "71caec6c87065f0872d0ef255ed95443b0c675acf273c2d19a1aefd6c006f1ab\
+                 99846bbb28b56d2e78abcb3f78074d00b1135a6dffc4e14ed3957101cf80ee44",
     },
     Fixture {
         file: "english-dictionary.xml",
@@ -268,6 +431,31 @@ pub const FIXTURES: [Fixture; 38] = [
         file: "es-regex-head-rules.txt",
         sha512: "d75363b131a71c1b6fd243e9f339ee97393fe36a9ed89d857c49d89da793dc9b\
                  1e48b92ca0e67fb65c04305fba81d17754b896b2cba90a166348c00feff19a6b",
+    },
+    Fixture {
+        file: "gazetteer-geonames.txt",
+        sha512: "69e2ef02c7ae86751635496c5b46895854cd95977fb4e6a6756df9aa69dc6bbf\
+                 8487983af8803650627067167e3f5212ef0c9adb6a9b225e3a99837cfeb9a95d",
+    },
+    Fixture {
+        file: "gazetteer-overture.txt",
+        sha512: "851543d2634344f6764f3210f18a8da8f1e5400a637b312960e4c0eb1e3e6419\
+                 af3c22f4b2917753f4b141158d15a1500e5cf0491b1f7211f13ecc352171db57",
+    },
+    Fixture {
+        file: "gazetteer-user.txt",
+        sha512: "68f44c6be8bbc9c3d3d697681eb121f0593087066eaf3dba7b5e6a44780f0c05\
+                 bcfe79894c8cc26d609459c8362ab1f65d8540ba4799468d69356746e72aac49",
+    },
+    Fixture {
+        file: "gazetteer-suppressions.txt",
+        sha512: "50db213abd6c0dab3409a1e8ad77aee22bd05920f2fb23c393fccec01f342d12\
+                 8a336761acb8bb3df401549ad319cd6551ba3b06558e4d4cf0604025d1ef39d6",
+    },
+    Fixture {
+        file: "glossary-terms.tsv",
+        sha512: "9356e730339664c7fcbf3cd6c0aef6287ac07f0db2e13d03927a9c5f05730596\
+                 5cb13a1b0df0d5f5e5072a9dded43c07f406cfad9fcad5416d07fef80fb0623a",
     },
     Fixture {
         file: "en-detokenizer.xml",
@@ -379,16 +567,333 @@ pub const FIXTURES: [Fixture; 38] = [
         sha512: "7a0d6be9beaf23fec933e7142dc79c20508e9ef7414181996203be9f3ab5b1cd\
                  5cca26be772b523e0ff4d0bf0e895f2c33ec9c615957b9d85cfd271257614d20",
     },
+    Fixture {
+        file: "ner-bio-fixture.bin",
+        sha512: "429f451debd80c724c96cc08e7fc83ecc56047a9ca604f3ae98e9a61a5d55c97\
+                 2b786448dc6c5650130117144488adc61edc31994b9d8b8f84072ce6f01ebe89",
+    },
+    Fixture {
+        file: "ner-bilou-fixture.bin",
+        sha512: "b19000b06acefcfd6a1293f91353412f679d3499ef12ce4c909e92d15179dc1b\
+                 51931796a4b6e50ac8eff7c45bc8a2c3cb838516ae0acaca289e0e8dc8e221a4",
+    },
+    Fixture {
+        file: "ner-qn-fixture.bin",
+        sha512: "26740433be9cb394e721cda1422e25b4daa25f13b0a2b9bfe66c2aacd0b35291\
+                 0c46f99e26377d2c0b46c3a14253b6ea8f34fa7bcc4c00c9711fcc7bfe469b85",
+    },
+    Fixture {
+        file: "tags-cases.tagdict",
+        sha512: "5ea821ccd9d28e5d10fbf3c05a56847f61c59c50f5dd52b9bf037e5612ab72c0\
+                 79d5b988180ee64ad95dc0a0dce0750457aa020b74a6287240bb69e1673cd64d",
+    },
+    Fixture {
+        file: "tags-exact.tagdict",
+        sha512: "6f0d506cb466377bc9e583c25365ad11a9dfd14dafc5cc0d3c6ac18d3442374e\
+                 697c313cc0fdec7df62a7306671baac2e6da35c4ee969c04e795f167be109eba",
+    },
+    Fixture {
+        file: "featuregen/pos-default.xml",
+        sha512: "dc3dfbfaefc8ef5ddc096a0b64605a5ab3af873fb9f5fc8fca94e9a781e35153\
+                 732fb47558a8cf276bf198ba008103a8981a770870ca701e2284322e5e0ed314",
+    },
+    Fixture {
+        file: "featuregen/ner-default.xml",
+        sha512: "ebf4d1eb4746ee7644c58ef01730facbe4354cfdf52708c6acfb431d238a553d\
+                 153839f53a5f1f40fdfbe659fb01b025a2c08be3784af63ef09edff27e354105",
+    },
+    Fixture {
+        file: "featuregen/everything.xml",
+        sha512: "383fa7feb02a3d443f50f046358fcb520dd909271c681ed601ef3d0e845df94c\
+                 b128304ae0855460ba521739c48164ba5270fae3f7e7bc47f0c29bc81dd955b8",
+    },
+    Fixture {
+        file: "featuregen/nesting.xml",
+        sha512: "ca01053da8a8ca8f27b52dc7d7199b9813f4987baa294032ae983fb5b1212250\
+                 b61268162902c3bb8d4974f6cf496557642f91afdf8e90575a766779d3a21f0d",
+    },
+    Fixture {
+        file: "featuregen/brown.cluster",
+        sha512: "0e250a649cfd9444563e76085d999081ea97d359d2e861d3f8d4f955a555338e\
+                 cf3d9a9fca91d88eecb0366a237207d484e27ab5898ee814d7c34e1f31202c28",
+    },
+    Fixture {
+        file: "featuregen/word.cluster",
+        sha512: "f6d195f9f881b735fad37d3477a11fe3c5eebc6263ec62c2f833ed8b0c0211ed\
+                 973f03746077085426fe6c7e37079c1bb8b5fa6cab9a356bf40eb8a56c25ff27",
+    },
+    Fixture {
+        file: "featuregen/names.dictionary",
+        sha512: "d1d6630c2689154da78e901d4b3b0849ae20859e8948c66e9851576aa5ec3f72\
+                 ffffbae34518516740a345e6afa31734bac58c44469766f62bc1156c8d78c57d",
+    },
+    Fixture {
+        file: "namefind/places.xml",
+        sha512: "8aeff78b3dd35b9dc064a9968b7ab98e99f9b312ce615e23ff1c2424d466c6b6\
+                 6d7bf8a4651c6f8996fa69c0443276f8ca6a68467dc9b848bced0919f9a788b8",
+    },
+    Fixture {
+        file: "namefind/people.xml",
+        sha512: "38baf8b0ce7d9d4bf4e27d985e02110823f60b38362a945963cc7dfde74ebd7c\
+                 871e32260b536338337b8629a04526fee57760bb45bbb9972404f2b8f1e44bde",
+    },
+    Fixture {
+        file: "namefind/overlap.xml",
+        sha512: "9257b73ff0e915c78d641174e1ecc75b5f76077ac8a77831745b5fb89b3b4767\
+                 2aefb307f45c954da43490962f3e212687aaef5b970009a92cd2b78eeaad1086",
+    },
+    Fixture {
+        file: "namefind/empty.xml",
+        sha512: "a2f1d40b1336f5d68bc719625b38aebf9d4c0264b5b4e605699fcba812e2c585\
+                 1bc1d54e9a7d87ef3ba1a8875c6d116baa7f0bd714cd7869d58d15b18b706d25",
+    },
+    Fixture {
+        file: "namefind/patterns.txt",
+        sha512: "b725f09c0bd409be2bb5f9b19ade0a3bc658b78bdc09532ffde7cf62dab0c9a5\
+                 9f9a1378df7dcbcf5db66f2dbd6132437f4d9c2693bc8c6879b5066a635163fd",
+    },
+    Fixture {
+        file: "hunspell/affixes.aff",
+        sha512: "ccd685453c3cfd7261c575c61c9432eae526e81e471562d503f80464c94cd107\
+                 2e69dcc0d6e1df71106bbcd5982458f9f8df59afd048787cd6781ec5cb17cb4f",
+    },
+    Fixture {
+        file: "hunspell/affixes.dic",
+        sha512: "eb7fbf055253cb690992e15003930143bb244c06ad1b49b4766950cc5ebceb3b\
+                 2b2d361c5c9533e4486c0246b6959686b30c5c011c3091527da0d74be307aeee",
+    },
+    Fixture {
+        file: "hunspell/bom-crlf.aff",
+        sha512: "7adcf18c5802c807f864b3c6f9515a7583c81b2709010fe062f9771a29c85f27\
+                 c7764f7a18802a03d73d934e9d5d569447f1c0983822f57ea7da8d78186c772d",
+    },
+    Fixture {
+        file: "hunspell/bom-crlf.dic",
+        sha512: "33984facc0489af2d8ce1cdee48bf57903a720502b3f8f9e6638044c2cf45637\
+                 cb4ff8b4cd4a1eb86a30b51a7f131e41016c5fb961534e8b9566df26827753bc",
+    },
+    Fixture {
+        file: "hunspell/complex.aff",
+        sha512: "c5f24f865986104940fdef8d9c11a8962aee9ab4f83f6d8283f64075ef46ba65\
+                 c86836e91b37d1870b0c278a056d68d7f714d62fffafc8c1522ff7be1e4a6ce4",
+    },
+    Fixture {
+        file: "hunspell/complex.dic",
+        sha512: "99b6056e7ee47a469c6dab3a48d8fe019669a3e73a38e8cb011c3e606ced3730\
+                 41da636cc8f87b9c4af3ed36af3d8ad1ce3d43502f10fd73394d0b3656185062",
+    },
+    Fixture {
+        file: "hunspell/compound-rule.aff",
+        sha512: "af2cd9d6433a08963bb489c9851b88cd9618e88160c7806973c5048babcd9799\
+                 50e108ceae2db6753b1e6c3abcc347fa63d3ae2739026530e90b9152aab4e501",
+    },
+    Fixture {
+        file: "hunspell/compound-rule.dic",
+        sha512: "0c6fe9b0aed1b4f88636ff9de1e573bc8b9c39de301d60c5737b6577d4899787\
+                 71d9f364559ee50a9e64a701e8845b36826ef21301f2767640caf466cb7fc6a4",
+    },
+    Fixture {
+        file: "hunspell/compound.aff",
+        sha512: "61da3813545fd68df09904a6679e6f5886e9b32ad866e6c61ffe807eb055099a\
+                 edbab03a734a0ac2956e0fbc0ad203994245633f99c7e87b154446a745d085dc",
+    },
+    Fixture {
+        file: "hunspell/compound.dic",
+        sha512: "fbad7ebac56842da3313a8f9db5b52812af69959b9f3ffc9388de43caff8d7a2\
+                 96eb9bba2426b5686c8ef49164b676bf71185be9d513ef6fdb12ee9f649d0d80",
+    },
+    Fixture {
+        file: "hunspell/error-alias.aff",
+        sha512: "072a776a420704e2103de13856934aac01072e035a6aad24d72a38c689f04fee\
+                 d6e7bebca996fa8b1e1385c5e446a2d095a5850908245bc4ed2c437ced2babfb",
+    },
+    Fixture {
+        file: "hunspell/error-alias.dic",
+        sha512: "d989c50a12d076caa0cc69a2d007262d8f2afabe5bc9bbec045bd95f2cc20e1e\
+                 a8a3ed5b3f9310eb3dbf66aab008800789cd2d316384fe0caaf9f68580e9895b",
+    },
+    Fixture {
+        file: "hunspell/error-compound-rule.aff",
+        sha512: "04c5ba03a3a961064a70ae4f325e71c24c331fbf3590e5e9e9b518e32e0cd3c0\
+                 d3162cf782b9e9df5c22ce12e775a6969de0e0aee5ac13783873ea06fae6cef6",
+    },
+    Fixture {
+        file: "hunspell/error-compound-rule.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-condition.aff",
+        sha512: "0acafa9721653d526cb1905a8bd55e11246724f75b8c8b63366111c6786973b0\
+                 0fe9ec7431348d4ebe93dad51acc6ea74b7460a56f3ca119120cf784899eaf60",
+    },
+    Fixture {
+        file: "hunspell/error-condition.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-encoding.aff",
+        sha512: "714adf253b070a850519d825b1af0a102c1b8f2ec33465562a7af13966cfdf4a\
+                 b21dde49107eb7cb549df29994f2e1d74447d697e04653c9b2f8fd90a28e8e76",
+    },
+    Fixture {
+        file: "hunspell/error-encoding.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-flag-mode.aff",
+        sha512: "16bacb0c6fb34e7ac74f62ec95eba0c058d4f4cf2c73a1161c060af64cefbc69\
+                 99fb019462f9d3cfbb5009f02b841d0ee686e9e081537b3b231a3f12a72ecbed",
+    },
+    Fixture {
+        file: "hunspell/error-flag-mode.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-long-flag.aff",
+        sha512: "20093efc6e53cecba32681e69d269c9a87cfd54c4cf3592539d860a016e54b48\
+                 51b44382497582da9e9e79e25f361a134cf7737feabb43146ec62bb20f2041c2",
+    },
+    Fixture {
+        file: "hunspell/error-long-flag.dic",
+        sha512: "53a755054b0d9c79034b86b44a72bcf5b3ea76ba06da37d705b0349294b05462\
+                 302f689f6c29d9c0db133b72635a23713e3fa565eade23d26346321d8fd375fd",
+    },
+    Fixture {
+        file: "hunspell/error-morphology.aff",
+        sha512: "8f8d8bbc81afa5a00d6d4adf535b6319d35c8753bc3671d09f7408281bd61027\
+                 5783fc6215649b0fa7542c98adad734db1d3ae9936d2cca8df4279072aadcd61",
+    },
+    Fixture {
+        file: "hunspell/error-morphology.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-truncated.aff",
+        sha512: "547ea039f89e0c4976dd4f72aded285e07912c3180033c9501fdfd6879e2cd96\
+                 1a502cdd2faf56764581b9b9605064631c2f6b98932e82d89ced23004c142800",
+    },
+    Fixture {
+        file: "hunspell/error-truncated.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/error-utf8.aff",
+        sha512: "e15cb93c173f8401c828632bd01bf5e139ac37b3699de575d68c99f3a0f18448\
+                 518afcab6a22296e877b606bda37784ecdb9bd016962569241c0eb749b005d8f",
+    },
+    Fixture {
+        file: "hunspell/error-utf8.dic",
+        sha512: "23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f1\
+                 1b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c",
+    },
+    Fixture {
+        file: "hunspell/flag-long.aff",
+        sha512: "a1316980dbc434051b6950fe8c0528f2a44a55e005fa20c9234a13db0d9dc76a\
+                 570fcaac771f018f35c8f5ab87ef04e676fd0dbe05dafb36b909267e56c05677",
+    },
+    Fixture {
+        file: "hunspell/flag-long.dic",
+        sha512: "ce93f3dd05c7e28c1d04fdd3b4e55853a361616a3de83737dbeb60c988a77942\
+                 8c43d0ad2f14f244b384c7482b261147b80290d2fc99d0beecd64b3183c37b73",
+    },
+    Fixture {
+        file: "hunspell/flag-num.aff",
+        sha512: "b083752a3e70ae5413991074ebf9a2e85299ce238fa6ce2629c437b0a3ef8289\
+                 c157bcc5ac3d46a10c068e7faadc76426c0bce632d9d89a3518d6aa1344cbe1a",
+    },
+    Fixture {
+        file: "hunspell/flag-num.dic",
+        sha512: "71c0c4165f998b7aa00e9a5ac66aaaa0ed9c5aa0aa1d1a32edf91d42e1bca23c\
+                 73d26ecb90464b6f539bc24f91bb060e11affc038ab8660d3146ef981623f5fd",
+    },
+    Fixture {
+        file: "hunspell/flag-utf8.aff",
+        sha512: "2747b89d50e91b939839c2d8bb89188529a7e5e2474477ce7551a904f8e2d92e\
+                 e0b492f068c0fc4261924b9ee8dbb6d4f06463c224fb9a72d27c3bc00a1700de",
+    },
+    Fixture {
+        file: "hunspell/flag-utf8.dic",
+        sha512: "1b38fc7af8bbf2750b479f9d122608a40d0becd141845acd88060274ae48e9b0\
+                 19e8f8561656812d4529871d0900ea694cf016f217511f5c6765b783d8ec0bfe",
+    },
+    Fixture {
+        file: "hunspell/hungarian.aff",
+        sha512: "4c5f6a1913406ae7fa6b87fb137fa58ddaac6564ffce42a19fc96925767a1bd2\
+                 e62b62a306b9e5867871e4a8769f1bef845dd0f08d5299e6b7bad7ad1519f880",
+    },
+    Fixture {
+        file: "hunspell/hungarian.dic",
+        sha512: "ceb67b26020bcae7d25c3fc9d165b88b784d89af3b1ea5122bd2198b0da2775a\
+                 ab09c42ce43e4f6560b3bd7339920e95aee2e6b603dcb387bca998f5ae4898c2",
+    },
+    Fixture {
+        file: "hunspell/latin1.aff",
+        sha512: "c66022c6e5938d378fb808b2e34a40eea804229e5ab8238674eeb8b0f6eaec2b\
+                 a0e6e41d95e6bb8e0d6bbabb2f5baed0c943791bb3bc57bdb762eca0569b29c8",
+    },
+    Fixture {
+        file: "hunspell/latin1.dic",
+        sha512: "98f7c364ed1ccc66e1ef6d77f0692a791f6a165dc0f5cfb999c68cb74a5abb92\
+                 94cb0a2962b6a2e1f207022206c33549e7949ba619b9eb079002720f850714d7",
+    },
+    Fixture {
+        file: "hunspell/raw-flags.aff",
+        sha512: "4c0b7dac00021063f7f7ec1653e56a3973fad794317f130ce62e2e15110587be\
+                 18c6e5aba46644120e66fb8941bc6a2b886c1b6b259f8d7cc734c44ed4efade0",
+    },
+    Fixture {
+        file: "hunspell/raw-flags.dic",
+        sha512: "c9e6cb2c59506cc6cc191a029a243a946803943fe58187b768ce464a9309b4f8\
+                 2e7751f149b5d6661a1795c1506f91529b8654fa558592109fd8033ff6cabf33",
+    },
+    Fixture {
+        file: "hunspell/triple.aff",
+        sha512: "9e7cb401f60d478df635d86196da743cc325019e6115f1a9ada63e8e7b5668aa\
+                 66bae9cee8e330b22ecef903a8c29fa9cbb2ba976019d2e5a40587744b0628de",
+    },
+    Fixture {
+        file: "hunspell/triple.dic",
+        sha512: "063cab07493fdab849751570d4a5c3eb4f67122143e936cf9f30d2571aa7f01d\
+                 9e8a19c4e69ed0c05686b44499214d151fd2569b5f0125fcf1ce89da6df78411",
+    },
+    Fixture {
+        file: "hunspell/turkic.aff",
+        sha512: "a70955a5127e470a5789b8424845569e96f216e4c60645d57abd406a794f4c74\
+                 56af852af7e7bd8fe2073ad8aa84c0a459c898fca8319db0b37e3012454f9ea7",
+    },
+    Fixture {
+        file: "hunspell/turkic.dic",
+        sha512: "7ea5a0446d7a16ed514a57288548d8ee573960f8a0e8345386e2bf5d39ea4b40\
+                 297d7256d60f674a691e6f40a35cd0472f50f9caad88fc3b71962c8ff587226e",
+    },
+    Fixture {
+        file: "hunspell/unsupported-directives.aff",
+        sha512: "4af39d97f627aacb95cb7b1d55c4aea7cdaae411d79cbd36c6fa524b58e66f8f\
+                 ec532bee524d2bbe30917cec2bc7d8a9cd59569a572c8b5e94874e9299ea639d",
+    },
+    Fixture {
+        file: "hunspell/unsupported-directives.dic",
+        sha512: "21e28574e31224641376918eac322f33935dcdc06c36ece9a191b18c20eb366d\
+                 76d0e3e928be63d4c8278952cd6486a4a088d1b7c06d4d8704cfc0b432dd6ea5",
+    },
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 23] = [
+pub const INPUT_SETS: [&str; 43] = [
     "en",
     "multi",
     "norm",
     "num",
     "money",
     "quantity",
+    "temporal",
+    "pii",
     "edge",
     "surrogate",
     "abbreviations",
@@ -406,6 +911,24 @@ pub const INPUT_SETS: [&str; 23] = [
     "ner",
     "parse",
     "head-rules",
+    "gazetteer",
+    "place-profiles",
+    "langdetect",
+    "sequence",
+    "descriptor-errors",
+    "codec",
+    "tag-format",
+    "namefind",
+    "stem",
+    "stopword",
+    "hunspell",
+    "glossary",
+    "svm-doccat",
+    "svm-doccat-train",
+    "sentiment",
+    "sentiment-train",
+    "conllu",
+    "corpora",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -419,7 +942,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 25] = [
+pub const ANNOTATORS: [&str; 47] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -432,6 +955,9 @@ pub const ANNOTATORS: [&str; 25] = [
     "money",
     "money-convert",
     "quantity",
+    "temporal",
+    "pii",
+    "pii-rewrite",
     "detokenize",
     "subwords",
     "unigram",
@@ -439,21 +965,41 @@ pub const ANNOTATORS: [&str; 25] = [
     "lattice",
     "train",
     "train-events",
+    "train-langdetect",
+    "train-liblinear",
     "formats",
     "evaluate",
     "masc",
     "ner",
     "parse",
     "head-rules",
+    "gazetteer",
+    "place-profiles",
+    "string-pattern",
+    "features",
+    "codec",
+    "beam",
+    "tag-dictionary",
+    "tag-format",
+    "namefind",
+    "stem",
+    "stopword",
+    "hunspell",
+    "glossary",
+    "svm-doccat",
+    "sentiment",
+    "conllu",
+    "corpora",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
 /// each golden of theirs whose header names a model has a decision point
 /// dump beside it. Their runs without a model (the simple, whitespace and
 /// UAX #29 tokenizers and the newline detector) have none, nor do the
-/// normalizers, the number scan, the money and quantity annotators,
-/// the detokenizer, the WordPiece encoder, the unigram segmenter, the
-/// BPE trainer and the lattice tokenizer, which ask no model.
+/// normalizers, the number scan, the money, quantity, temporal and PII
+/// annotators, the PII rewrites, the detokenizer, the WordPiece encoder,
+/// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
+/// ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
 
 /// The input set the normalizers run on. They run on no other set, and the
@@ -471,6 +1017,33 @@ pub const MONEY_INPUT_SET: &str = "money";
 /// The input set the quantity extractor runs on. It runs on no other set,
 /// and the other annotators do not run on this one.
 pub const QUANTITY_INPUT_SET: &str = "quantity";
+
+/// The input set the temporal extractor runs on. It runs on no other set,
+/// and the other annotators do not run on this one.
+pub const TEMPORAL_INPUT_SET: &str = "temporal";
+
+/// The input sets of the SVM document categorizer: the documents its models
+/// categorize, and the corpora they are trained on. No other annotator runs
+/// on them.
+pub const SVM_DOCCAT_INPUT_SET: &str = "svm-doccat";
+pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
+
+/// The input sets of the sentiment detector: the documents its models
+/// score, and the corpus they are trained on. No other annotator runs on
+/// them.
+pub const SENTIMENT_INPUT_SET: &str = "sentiment";
+pub const SENTIMENT_TRAIN_SET: &str = "sentiment-train";
+
+/// The input set the PII packs and the PII rewrites run on. They run on no
+/// other set, and the other annotators do not run on this one.
+/// The input set of the corpus readers: files and directories in the
+/// layouts of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig and
+/// 20 Newsgroups corpora. No other annotator runs on it.
+pub const CORPORA_INPUT_SET: &str = "corpora";
+
+/// The input set the PII packs run on. They run on no other set, and the
+/// other annotators do not run on this one.
+pub const PII_INPUT_SET: &str = "pii";
 
 /// The rate snapshot the money conversion reads: a directory beside the
 /// inputs directory under `analysis/goldens/data`, which the container gets
@@ -490,6 +1063,9 @@ mod tests {
     fn the_commit_is_forty_hex_digits() {
         assert!(is_lower_hex(OPENNLP_COMMIT, 40), "{OPENNLP_COMMIT}");
         assert!(is_lower_hex(ADDONS_COMMIT, 40), "{ADDONS_COMMIT}");
+        assert!(is_lower_hex(STRING_PATTERN_COMMIT, 40), "{STRING_PATTERN_COMMIT}");
+        assert!(is_lower_hex(PLACE_PROFILES_COMMIT, 40), "{PLACE_PROFILES_COMMIT}");
+        assert!(is_lower_hex(LIBLINEAR_ADDON_COMMIT, 40), "{LIBLINEAR_ADDON_COMMIT}");
         assert!(IMAGE_TAG.contains(&format!("opennlp-{}", &OPENNLP_COMMIT[..12])));
         assert!(IMAGE_TAG.ends_with(&format!("addons-{}", &ADDONS_COMMIT[..12])));
     }
@@ -502,7 +1078,7 @@ mod tests {
 
     #[test]
     fn every_model_has_a_file_an_https_url_and_a_sha512() {
-        for m in MODELS {
+        for m in MODELS.iter().chain(&LOCAL_MODELS) {
             assert!(is_lower_hex(m.sha512, 128), "{}: {}", m.file, m.sha512);
             assert!(m.url.starts_with("https://"), "{}", m.url);
             assert!(m.url.ends_with(&format!("/{}", m.file)), "{} does not end in {}", m.url, m.file);
@@ -518,6 +1094,44 @@ mod tests {
         assert!(dockerfile.contains(&format!("\nARG OPENNLP_REPO={OPENNLP_REPO}\n")));
         assert!(dockerfile.contains(&format!("\nARG ADDONS_COMMIT={ADDONS_COMMIT}\n")));
         assert!(dockerfile.contains(&format!("\nARG ADDONS_REPO={ADDONS_REPO}\n")));
+        assert!(dockerfile.contains(&format!("\nARG STRING_PATTERN_COMMIT={STRING_PATTERN_COMMIT}\n")));
+        let patterns = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/StringPatternGolden.java");
+        assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG HUNSPELL_COMMIT={HUNSPELL_COMMIT}\n")));
+        let hunspell = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
+        assert!(hunspell.contains(&format!("BRANCH_COMMIT = \"{HUNSPELL_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
+        let profiles = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PlaceProfilesGolden.java");
+        assert!(profiles.contains(&format!("PROFILES_COMMIT = \"{PLACE_PROFILES_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG LIBLINEAR_ADDON_COMMIT={LIBLINEAR_ADDON_COMMIT}\n")));
+        let liblinear = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/LiblinearTrainGolden.java");
+        assert!(liblinear.contains(&format!("ADDON_COMMIT = \"{LIBLINEAR_ADDON_COMMIT}\";")));
+        assert!(liblinear.contains("ANNOTATOR = \"train-liblinear\""));
+        assert!(dockerfile.contains(&format!("\nARG CONLLU_DEPENDENCY_COMMIT={CONLLU_DEPENDENCY_COMMIT}\n")));
+        let dependency = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/ConlluDependencyGolden.java");
+        assert!(dependency.contains(&format!("BRANCH_COMMIT = \"{CONLLU_DEPENDENCY_COMMIT}\";")));
+        assert!(dockerfile.contains(&format!("\nARG COREF_ADDONS_COMMIT={COREF_ADDONS_COMMIT}\n")));
+        let coref = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/CorefUdGolden.java");
+        assert!(coref.contains(&format!("ADDONS_COMMIT = \"{COREF_ADDONS_COMMIT}\";")));
+    }
+
+    #[test]
+    fn every_hunspell_file_names_the_commit_and_a_sha512() {
+        for f in HUNSPELL_FILES {
+            assert!(is_lower_hex(f.sha512, 128), "{}: {}", f.file, f.sha512);
+            let name = f.file.strip_prefix("hunspell/").expect("a file of the hunspell directory");
+            assert!(name.ends_with(".aff") || name.ends_with(".dic"), "{}", f.file);
+            let prefix =
+                format!("https://raw.githubusercontent.com/LibreOffice/dictionaries/{HUNSPELL_DICTIONARIES_COMMIT}/");
+            assert!(f.url.starts_with(&prefix), "{}", f.url);
+            assert!(f.url.ends_with(&format!("/{name}")), "{} does not end in {name}", f.url);
+            assert!(!f.license.is_empty());
+        }
+        let golden = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
+        for f in HUNSPELL_FILES.iter().filter(|f| f.file.ends_with(".aff")) {
+            let name = &f.file["hunspell/".len()..f.file.len() - ".aff".len()];
+            assert!(golden.contains(&format!("\"{name}\"")), "HunspellGolden.java does not name {name}");
+        }
     }
 
     #[test]
@@ -529,13 +1143,23 @@ mod tests {
                     f.file.ends_with(".bin")
                         || f.file.ends_with(".xml")
                         || f.file.ends_with(".txt")
+                        || f.file.ends_with(".tsv")
                         || f.file.ends_with(".tagdict"),
                     "{}",
                     f.file
                 ),
                 Some((dir, file)) => {
-                    assert!(dir.starts_with("mecab-") && !file.contains('/'), "{}", f.file);
-                    assert!(file.ends_with(".csv") || file.ends_with(".def"), "{}", f.file);
+                    assert!(!file.contains('/'), "{}", f.file);
+                    let extensions: &[&str] = match dir {
+                        "featuregen" => &[".xml", ".cluster", ".dictionary"],
+                        "namefind" => &[".xml", ".txt"],
+                        "hunspell" => &[".aff", ".dic"],
+                        _ => {
+                            assert!(dir.starts_with("mecab-"), "{}", f.file);
+                            &[".csv", ".def"]
+                        }
+                    };
+                    assert!(extensions.iter().any(|e| file.ends_with(e)), "{}", f.file);
                 }
             }
         }
@@ -551,8 +1175,8 @@ mod tests {
         }
     }
 
-    /// The name of a fixture as `Runs` opens it: the directory of a
-    /// dictionary's file, the file itself otherwise.
+    /// The name of a fixture as `Runs` opens it: the directory of a file in
+    /// a subdirectory, the file itself otherwise.
     fn opened(file: &str) -> &str {
         file.split_once('/').map_or(file, |(dir, _)| dir)
     }
@@ -568,6 +1192,7 @@ mod tests {
             .collect();
         for file in MODELS
             .iter()
+            .chain(&LOCAL_MODELS)
             .map(|m| m.file)
             .chain(FIXTURES.iter().map(|f| opened(f.file)))
             .chain(dictionaries)
@@ -580,10 +1205,21 @@ mod tests {
     #[test]
     fn the_generator_names_the_same_input_sets() {
         let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
-        for set in INPUT_SETS
-            .iter()
-            .filter(|s| ![NORMALIZER_INPUT_SET, NUMBER_INPUT_SET, MONEY_INPUT_SET, QUANTITY_INPUT_SET].contains(s))
-        {
+        for set in INPUT_SETS.iter().filter(|s| {
+            ![
+                NORMALIZER_INPUT_SET,
+                NUMBER_INPUT_SET,
+                MONEY_INPUT_SET,
+                QUANTITY_INPUT_SET,
+                TEMPORAL_INPUT_SET,
+                SVM_DOCCAT_INPUT_SET,
+                SVM_DOCCAT_TRAIN_SET,
+                SENTIMENT_INPUT_SET,
+                SENTIMENT_TRAIN_SET,
+                PII_INPUT_SET,
+            ]
+            .contains(s)
+        }) {
             assert!(runs.contains(&format!("= \"{set}\";")), "Runs.java does not name the input set {set}");
         }
     }
@@ -638,6 +1274,60 @@ mod tests {
         assert!(!DUMPED_ANNOTATORS.contains(&"quantity"));
         let quantity = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/QuantityGolden.java");
         assert!(quantity.contains(&format!("INPUT_SET = \"{QUANTITY_INPUT_SET}\"")));
+    }
+
+    #[test]
+    fn the_temporal_extractor_has_its_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&TEMPORAL_INPUT_SET));
+        assert!(ANNOTATORS.contains(&"temporal"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"temporal"));
+        let temporal = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
+        assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
+        assert!(temporal.contains("ANNOTATOR = \"temporal\""));
+    }
+
+    #[test]
+    fn the_pii_packs_and_rewrites_have_their_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&PII_INPUT_SET));
+        for annotator in ["pii", "pii-rewrite"] {
+            assert!(ANNOTATORS.contains(&annotator));
+            assert!(!DUMPED_ANNOTATORS.contains(&annotator));
+        }
+        let pii = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PiiGolden.java");
+        assert!(pii.contains(&format!("INPUT_SET = \"{PII_INPUT_SET}\"")));
+        assert!(pii.contains("ANNOTATOR = \"pii\""));
+        let rewrite = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/PiiRewriteGolden.java");
+        assert!(rewrite.contains("ANNOTATOR = \"pii-rewrite\""));
+        assert!(rewrite.contains("Set.of(PiiGolden.INPUT_SET)"));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains("annotators.addAll(PiiGolden.all());"));
+        assert!(runs.contains("annotators.addAll(PiiRewriteGolden.all());"));
+    }
+
+    #[test]
+    fn the_svm_categorizer_has_its_own_input_sets_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&SVM_DOCCAT_INPUT_SET));
+        assert!(INPUT_SETS.contains(&SVM_DOCCAT_TRAIN_SET));
+        assert!(ANNOTATORS.contains(&"svm-doccat"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"svm-doccat"));
+        let svm = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/SvmDoccatGolden.java");
+        assert!(svm.contains(&format!("INPUT_SET = \"{SVM_DOCCAT_INPUT_SET}\"")));
+        assert!(svm.contains(&format!("TRAIN_SET = \"{SVM_DOCCAT_TRAIN_SET}\"")));
+        assert!(svm.contains("ANNOTATOR = \"svm-doccat\""));
+    }
+
+    #[test]
+    fn the_sentiment_detector_has_its_own_input_sets_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&SENTIMENT_INPUT_SET));
+        assert!(INPUT_SETS.contains(&SENTIMENT_TRAIN_SET));
+        assert!(ANNOTATORS.contains(&"sentiment"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"sentiment"));
+        let golden = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/SentimentGolden.java");
+        assert!(golden.contains(&format!("INPUT_SET = \"{SENTIMENT_INPUT_SET}\"")));
+        assert!(golden.contains(&format!("TRAIN_SET = \"{SENTIMENT_TRAIN_SET}\"")));
+        assert!(golden.contains("ANNOTATOR = \"sentiment\""));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains("SentimentGolden.all(inputs)"));
     }
 
     #[test]

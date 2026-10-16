@@ -1,0 +1,21 @@
+# Converted from spec/pragmatic_segmenter/languages/hindi_spec.rb of Pragmatic Segmenter
+# (github.com/diasks2/pragmatic_segmenter, commit 358fe97e62902cd86fa6b85063c3bf91aa6c156a),
+# MIT License, Copyright (c) 2015 Kevin S. Dias (LICENSE in this directory).
+# One case per expectation, in file order; `name` is the spec's context and test name,
+# `option` the segmenter options the spec passes, `skipped-upstream` a test the spec skips.
+
+case pragmatic-segmenter/hindi_spec/001
+lang hi
+name Golden Rules: Full stop #001
+text सच्चाई यह है कि इसे कोई नहीं जानता। हो सकता है यह फ़्रेन्को के खिलाफ़ कोई विद्रोह रहा हो, या फिर बेकाबू हो गया कोई आनंदोत्सव।
+sentence सच्चाई यह है कि इसे कोई नहीं जानता।
+sentence हो सकता है यह फ़्रेन्को के खिलाफ़ कोई विद्रोह रहा हो, या फिर बेकाबू हो गया कोई आनंदोत्सव।
+end
+
+case pragmatic-segmenter/hindi_spec/002
+lang hi
+name #segment: correctly segments text #001
+text सच्चाई यह है कि इसे कोई नहीं जानता। हो सकता है यह फ़्रेन्को के खिलाफ़ कोई विद्रोह रहा हो, या फिर बेकाबू हो गया कोई आनंदोत्सव।
+sentence सच्चाई यह है कि इसे कोई नहीं जानता।
+sentence हो सकता है यह फ़्रेन्को के खिलाफ़ कोई विद्रोह रहा हो, या फिर बेकाबू हो गया कोई आनंदोत्सव।
+end

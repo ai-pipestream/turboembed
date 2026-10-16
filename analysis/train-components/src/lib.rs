@@ -1,7 +1,8 @@
 //! Training OpenNLP's components: the event streams, the factories that
 //! set them up, the model files the `train` methods of `SentenceDetectorME`,
-//! `TokenizerME`, `POSTaggerME` and `LemmatizerME` return, and the
-//! reproduction of the published UD 1.3 models.
+//! `TokenizerME`, `POSTaggerME`, `LemmatizerME`, `ChunkerME`,
+//! `NameFinderME`, `LanguageDetectorME` and `SentimentME` return, and the reproduction
+//! of the published UD 1.3 models.
 //!
 //! - [`sentdetect`][]: `SentenceDetectorFactory`, the events of
 //!   `SDEventStream`, and the `SentenceModel` file.
@@ -12,8 +13,20 @@
 //!   dictionary.
 //! - [`lemmatize`][]: `LemmatizerFactory`, the events of
 //!   `LemmaSampleEventStream`, and the `LemmatizerModel` file.
-//! - [`dictionary`][]: the abbreviation dictionary as `Dictionary.serialize`
-//!   writes it, entries in Java's hash set order.
+//! - [`namefind`][]: `TokenNameFinderFactory` without resources, the
+//!   events of `NameFinderEventStream`, the defaults `NameFinderME.train`
+//!   puts into the parameters, and the `TokenNameFinderModel` file.
+//! - [`chunk`][]: `ChunkerFactory`, the events of `ChunkerEventStream`,
+//!   and the `ChunkerModel` file, trained with `MAXENT`, `MAXENT_QN`,
+//!   `PERCEPTRON` or `NAIVEBAYES`.
+//! - [`langdetect`][]: `LanguageDetectorFactory`, the events of
+//!   `LanguageDetectorEventStream`, and the `LanguageDetectorModel` file.
+//! - [`sentiment`][]: the events of `SentimentEventStream` over
+//!   `SentimentFactory` or `EmojiSentimentFactory`, and the
+//!   `SentimentModel` file.
+//! - [`dictionary`][]: the token n-gram dictionary as `Dictionary.serialize`
+//!   writes it (entries in Java's hash set order), `Dictionary.parseOneEntryPerLine`
+//!   (`DictionaryBuilderTool`) and `CensusDictionaryCreatorTool.createDictionary`.
 //! - [`tagdict`][]: the tag dictionary as `POSDictionary.serialize` writes
 //!   it, entries in Java's hash map order.
 //! - [`java_hash`][]: `String.hashCode` and the order a `java.util.HashMap`
@@ -24,13 +37,13 @@
 //!   with, as typed recipes, and the comparison with the published files.
 //!
 //! The samples come from `turbo-formats`, the context generators from
-//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence` and
-//! `turbo-lemmatizer`, and the trainer, writer and packaging from
-//! `turbo-train`; this crate connects them as the `train` methods do, so
-//! training and inference share one implementation of each context
-//! generator. It is a crate of its own because `turbo-formats` depends on
-//! `turbo-tokenize`, so a training module inside the annotator crates
-//! would close a cycle.
+//! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence` (the tagger's
+//! and the chunker's), `turbo-lemmatizer` and `turbo-langdetect`, and the
+//! trainer, writer and packaging from `turbo-train`; this crate connects
+//! them as the `train` methods do, so training and inference share one
+//! implementation of each context generator. It is a crate of its own
+//! because `turbo-formats` depends on `turbo-tokenize`, so a training
+//! module inside the annotator crates would close a cycle.
 //!
 //! OpenNLP behaviour a reader may not expect, all kept and tested:
 //!
@@ -93,23 +106,64 @@
 //!   as the JVM's modified UTF-8.
 //! - The published UD 1.3 models were trained with 300 iterations, not
 //!   the 150 their training configuration file says ([`ud`][]).
+//! - `NameFinderME.train` puts `Algorithm=MAXENT`, `Cutoff=0` and
+//!   `Iterations=300` into the caller's parameters where they are absent,
+//!   so a name finder trained without a parameters file uses cutoff 0,
+//!   not the trainer's default of 5.
+//! - `NameFinderEventStream` gives a name without a type the type
+//!   `default`, and with a type given to the stream gives every name that
+//!   type. An empty name (`<START> <END>`) marks its first token's place
+//!   as a start with the BIO codec, and the token before it as a unit
+//!   with the BILOU codec; at the sentence's end, or at its start with
+//!   BILOU, that place is outside the outcomes and the JVM throws
+//!   `ArrayIndexOutOfBoundsException`, which ends training
+//!   ([`Error::UnencodableName`]). With BILOU, an empty name right after a
+//!   name overwrites that name's last outcome with a unit, which leaves a
+//!   start without a last; when no other name of that type has a last,
+//!   `TokenNameFinderModel` refuses the outcomes
+//!   ([`Error::IncompatibleOutcomes`]).
+//! - The trainers put `sort` into the caller's parameters before they read
+//!   the events (`false` for the perceptron); this crate's trainers put it
+//!   into a copy, so the parameters a caller passes are left as they were.
+//! - `ChunkerME.train` takes only event trainers: the sequence perceptron,
+//!   which the tagger and the name finder train with, is refused with
+//!   `Trainer type is not supported: EVENT_MODEL_SEQUENCE_TRAINER`
+//!   ([`Error::UnsupportedTrainerType`]). The chunker model file has
+//!   `chunker.model` before `manifest.properties`, the order of the JVM's
+//!   artifact map.
+//! - A language detector event's predicates are the n-grams in the
+//!   iteration order of the `HashMap` `getContext` counts them in, not the
+//!   order `predictLanguages` hands the model; the two differ only where a
+//!   bucket became a red-black tree. A text the normalizers leave empty
+//!   gives an event with no predicates, which the indexer drops.
+//! - The published `langdetect-183.bin` records no training parameters in
+//!   its manifest, only `TrainerType=Event` and the event hash
+//!   ([`langdetect::default_training_parameters`]).
 
+pub mod chunk;
 pub mod dictionary;
 pub mod error;
 pub mod java_hash;
+pub mod langdetect;
 pub mod lemmatize;
+pub mod namefind;
 pub mod package;
 pub mod postag;
 pub mod sentdetect;
+pub mod sentiment;
 pub mod tagdict;
 pub mod tokenize;
 pub mod ud;
 
-pub use dictionary::AbbreviationDictionary;
+pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_model};
+pub use dictionary::{AbbreviationDictionary, build_census_dictionary_xml, build_dictionary_xml};
 pub use error::{Error, Result};
+pub use langdetect::{LanguageDetectorFactory, LanguageEventStream, language_events, train_language_model};
 pub use lemmatize::{LemmaEventStream, LemmatizerFactory, lemma_events, train_lemmatizer_model};
+pub use namefind::{NameEventStream, TokenNameFinderFactory, name_events, train_name_model};
 pub use package::Stamp;
 pub use postag::{PosEventStream, PosTaggerFactory, pos_events, train_pos_model};
 pub use sentdetect::{SdEventStream, SentenceDetectorFactory, sd_events, train_sentence_model};
+pub use sentiment::{SentimentEventStream, sentiment_events, train_sentiment_model};
 pub use tagdict::PosDictionary;
 pub use tokenize::{TokSpanEventStream, TokenizerFactory, tok_events, train_tokenizer_model};

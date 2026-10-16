@@ -17,8 +17,10 @@ starts at events.
 | `gis` | `GISTrainer`, `GISModel`'s data structures, `UniformPrior`, `AbstractEventTrainer.train` |
 | `qn` | `QNTrainer`, `QNMinimizer`, `LineSearch`, `NegLogLikelihood`, `ParallelNegLogLikelihood`, `QNModel`'s data structures |
 | `perceptron` | `PerceptronTrainer`, `SimplePerceptronSequenceTrainer`, `SequenceStream.updateContext`, `PerceptronModel`'s data structures and `eval` |
+| `naive_bayes` | `NaiveBayesTrainer`, `NaiveBayesModel`'s data structures and Lidstone-smoothed log-probability evaluation |
+| `liblinear` | the OpenNLP addons' `LiblinearTrainer`, `LiblinearModel` and `LiblinearModelSerializer`, with liblinear-java 2.44's `Linear.train` for `L2R_LR`, `L2R_LR_DUAL` and `L1R_LR`, `saveModel` and `loadModel` |
 | `trainer` | `TrainerFactory.getEventTrainer` and `getEventModelSequenceTrainer`: the trainer `Algorithm` names |
-| `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `BinaryQNModelWriter`, `BinaryPerceptronModelWriter`, `GISModelWriter.persist`, `QNModelWriter.persist`, `PerceptronModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
+| `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `BinaryQNModelWriter`, `BinaryPerceptronModelWriter`, `BinaryNaiveBayesModelWriter`, `GISModelWriter.persist`, `QNModelWriter.persist`, `PerceptronModelWriter.persist`, `NaiveBayesModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
 | `package` | `BaseModel.serialize`, the manifest `BaseModel` builds and `PropertiesSerializer` writes, `SentenceModel`'s entries |
 | `context` | `BasicContextGenerator` |
 | `crc32c` | `java.util.zip.CRC32C` |
@@ -204,6 +206,17 @@ on the sentence fixture inputs (`analysis/goldens/data/sentdetect/en-plain-perce
 `analysis/sentdetect/tests/golden.rs` checks that the Rust detector gives
 the spans and probabilities the JVM recorded with it.
 
+## liblinear trainer
+
+`liblinear::train_events` is the liblinear add-on of the OpenNLP addons:
+`new LiblinearTrainer(params)`, `init` and `train`, with the logistic
+regression solvers of liblinear-java ported in the module, the model's
+`eval`, and its serialized form (`liblinear::format`). Only the solvers
+whose models the add-on can score are ported. `docs/liblinear.md` lists
+the add-on's quirks, the tolerances and the measured agreement with the
+JVM; `tests/liblinear_goldens.rs` compares with the `train-liblinear`
+goldens.
+
 ## OpenNLP behaviour worth knowing
 
 - `FileEventStream` throws `NoSuchElementException` on an empty line, so
@@ -334,7 +347,13 @@ the spans and probabilities the JVM recorded with it.
 - The tokenizer's event stream over the golden inputs has one outcome (no
   text carries a split mark), so no trainer golden trains on it.
 
-Not ported: the abbreviation dictionary entry of a sentence or tokenizer model
-(`abbreviations.dictionary`, `DictionarySerializer`) has no writer here
-yet; `ModelPackage::add_entry` takes its bytes. Nor is the naive Bayes
-trainer (`Error::NotPorted`).
+- `NaiveBayesTrainer` defaults to `SORT = false` and sums raw counts (or
+  real values when `events` is a `OnePassRealValueDataIndexer`) per
+  `(predicate, outcome)`. `NaiveBayesModel` computes empirical outcome priors
+  and evaluates contexts with Lidstone smoothing (`delta = 0.05`, and
+  `delta` times the number of predicates in the denominator) using
+  `LogProbabilities` (`StrictMath.log` and `StrictMath.exp`).
+
+The abbreviation dictionary entry of a sentence or tokenizer model
+(`abbreviations.dictionary`, `DictionarySerializer`) is written by
+`turbo-train-components::dictionary`; `ModelPackage::add_entry` takes its bytes.

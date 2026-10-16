@@ -3,24 +3,45 @@
 //! fixtures.
 
 use crate::command::run;
-use crate::recipe::{DICTIONARIES, Dictionary, DictionaryEncoding, FIXTURES, MODELS, Model, UTF8_COPY_SUFFIX};
+use crate::recipe::{
+    DICTIONARIES, Dictionary, DictionaryEncoding, FIXTURES, HUNSPELL_FILES, LOCAL_MODELS, MODELS, Model,
+    UTF8_COPY_SUFFIX,
+};
 use crate::sha512::{Sha512, hex};
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::Path;
 use std::process::Command;
 
-/// Makes sure every model in the recipe is in `dir` with its published
-/// SHA-512. A file already there with the right hash is kept; one that is
-/// missing is downloaded with `curl`. A download whose hash differs is
-/// removed and reported; a file already there whose hash differs is
-/// reported and left for the caller to look at.
-pub fn fetch(dir: &Path) -> Result<(), String> {
+/// Which models [`fetch`] makes sure of.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Models {
+    /// [`MODELS`], the ones CI fetches.
+    Published,
+    /// [`MODELS`] and [`LOCAL_MODELS`], every model the generator loads.
+    WithLocal,
+}
+
+/// Makes sure every model of `which`, every MeCab dictionary and every
+/// Hunspell dictionary file of the recipe is in `dir` with its SHA-512. A file already there with the right hash is
+/// kept; one that is missing is downloaded with `curl`. A download whose
+/// hash differs is removed and reported; a file already there whose hash
+/// differs is reported and left for the caller to look at.
+pub fn fetch(dir: &Path, which: Models) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    for m in MODELS {
+    let local: &[Model] = match which {
+        Models::Published => &[],
+        Models::WithLocal => &LOCAL_MODELS,
+    };
+    let hunspell: Vec<Model> =
+        HUNSPELL_FILES.iter().map(|f| Model { file: f.file, url: f.url, sha512: f.sha512 }).collect();
+    for m in MODELS.iter().chain(local).chain(&hunspell) {
         let target = dir.join(m.file);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+        }
         if target.exists() {
-            check(&target, &m)?;
+            check(&target, m)?;
             println!("{}: present, SHA-512 matches", m.file);
             continue;
         }
@@ -29,7 +50,7 @@ pub fn fetch(dir: &Path) -> Result<(), String> {
             .args(["--fail", "--silent", "--show-error", "--location", "--proto", "=https", "--output"])
             .arg(&part)
             .arg(m.url))?;
-        if let Err(e) = check(&part, &m) {
+        if let Err(e) = check(&part, m) {
             let _ = fs::remove_file(&part);
             return Err(e);
         }
@@ -139,9 +160,13 @@ pub fn dictionary_files(dir: &Path) -> Result<Vec<String>, String> {
     Ok(names)
 }
 
-/// Checks that every model in the recipe is in `dir` with its published SHA-512.
+/// Checks that every model and Hunspell dictionary file the generator
+/// loads is in `dir` with the recipe's SHA-512.
 pub fn check_all(dir: &Path) -> Result<(), String> {
-    MODELS.iter().try_for_each(|m| check(&dir.join(m.file), m))
+    MODELS.iter().chain(&LOCAL_MODELS).try_for_each(|m| check(&dir.join(m.file), m))?;
+    HUNSPELL_FILES
+        .iter()
+        .try_for_each(|f| check(&dir.join(f.file), &Model { file: f.file, url: f.url, sha512: f.sha512 }))
 }
 
 /// Fails unless `dir` holds exactly the recipe's fixtures, each with its
@@ -188,7 +213,7 @@ fn list_files(dir: &Path, prefix: &str, out: &mut Vec<String>) -> Result<(), Str
 fn check(path: &Path, m: &Model) -> Result<(), String> {
     let actual = sha512_file(path)?;
     if actual != m.sha512 {
-        return Err(format!("{}: SHA-512 is {actual}, {} publishes {}", path.display(), m.url, m.sha512));
+        return Err(format!("{}: SHA-512 is {actual}, the recipe has {} for {}", path.display(), m.sha512, m.url));
     }
     Ok(())
 }

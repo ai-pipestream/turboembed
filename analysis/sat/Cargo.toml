@@ -1,0 +1,23 @@
+[package]
+name = "turbo-sat"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_sat"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The encoder behind its safe type, and the rows it is given.
+turbo-analysis-embed = { path = "../embed" }
+# The bundle, its tokenizer and the classifier's tensors in its weights.
+turbo = { path = "../../core" }
+# Grapheme clusters, which no sentence boundary falls inside.
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+# The reference fixtures are JSON lines.
+serde_json = "1"

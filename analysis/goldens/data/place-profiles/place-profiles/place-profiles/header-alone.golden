@@ -1,0 +1,21 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	place-profiles/header-alone	3	3	984a644ec3b56d32b0404777e1eb73390c4b0742a6a0e183f07861056b6746de
+annotator	opennlp.geo.PlaceProfiles	load
+config	profilesCommit	07e1f670818917d74e9a94367080f51ae6365bfa
+layer	turbo:profiles-load	document	1	loaded:u32	error-class:str	error-message:str
+0	opennlp.tools.util.InvalidFormatException	the header must be: id, then at least one metric
+end	turbo:profiles-load
+layer	turbo:profiles-metrics	document	0	name:str
+end	turbo:profiles-metrics
+layer	turbo:profiles-places	document	0	id:str
+end	turbo:profiles-places
+layer	turbo:profiles-values	document	0	place:u32	metric:u32	value:f64
+end	turbo:profiles-values
+layer	turbo:profiles-similarity	document	0	a:u32	b:u32	similarity:f64
+end	turbo:profiles-similarity
+layer	turbo:profiles-neighbors	document	0	query:u32	count:u32	rank:u32	place:u32	similarity:f64
+end	turbo:profiles-neighbors

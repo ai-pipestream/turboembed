@@ -3,21 +3,68 @@
 use super::language::Detector;
 use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
 use super::numeric::{MoneyLayer, Numeric};
+use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
-use super::tagging::{Chunker, Lemmatizer, Tagger};
+use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
+use super::temporal::Temporal;
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
 use crate::resources::{Resources, Unavailable};
 
 /// The annotator directories the generator writes that the differential
-/// does not cover: the training stack (`train`, `train-events`), the
-/// format readers (`formats`, `masc`, `ner`) and the parse and head rule
-/// readers (`parse`, `head-rules`) compare files, not layers of a text;
-/// the evaluators compare scores; the detokenizer runs on token lists;
-/// the BPE trainer learns merges from a whole set.
-pub const NOT_COVERED: [&str; 10] =
-    ["train", "train-events", "formats", "evaluate", "detokenize", "bpe", "masc", "ner", "parse", "head-rules"];
+/// does not cover: the training stack (`train`, `train-events`,
+/// `train-langdetect`, `train-liblinear`), the format readers (`formats`,
+/// `masc`, `ner`, `corpora`) and the parse and head rule readers (`parse`,
+/// `head-rules`) compare files, not layers of a text; the evaluators compare scores; the detokenizer
+/// runs on token lists; the BPE trainer learns merges from a whole set; the
+/// gazetteers answer queries line by line and load whole tables, and the
+/// place profiles load whole tables; the
+/// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
+/// `tag-dictionary`, `tag-format`), the name finders, the stemmers, the
+/// Hunspell runs, the stopword lists, the glossary matchers and readers and
+/// the SVM document categorizer (`svm-doccat`) read input sets of their own,
+/// which turbo-sequence, turbo-namefind, turbo-stem, turbo-hunspell,
+/// turbo-stopword, turbo-glossary and turbo-doccat compare with; the other
+/// `namefind` runs train name finders from name samples and find names in
+/// them, and the sentiment runs (`sentiment`) train models on a corpus of
+/// their own and score their own documents, which turbo-train-components
+/// compares with; the PII rewrites (`pii-rewrite`) compare whole rewritten
+/// texts, labels and audit reports rather than layers, which turbo-pii
+/// compares with; the CoNLL-U dependency and CorefUD readers (`conllu`)
+/// read files of their own, which turbo-formats compares with.
+pub const NOT_COVERED: [&str; 30] = [
+    "train",
+    "train-events",
+    "train-langdetect",
+    "train-liblinear",
+    "formats",
+    "evaluate",
+    "detokenize",
+    "bpe",
+    "masc",
+    "ner",
+    "parse",
+    "head-rules",
+    "gazetteer",
+    "place-profiles",
+    "string-pattern",
+    "features",
+    "codec",
+    "beam",
+    "tag-dictionary",
+    "tag-format",
+    "namefind",
+    "stem",
+    "hunspell",
+    "stopword",
+    "glossary",
+    "svm-doccat",
+    "sentiment",
+    "pii-rewrite",
+    "conllu",
+    "corpora",
+];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden
 /// directories under `analysis/goldens/data`. A run whose model is not
@@ -84,7 +131,9 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lemmatize-dictionary", "lemmatizer-dictionary"),
     ("chunk", "chunker-fixture"),
     ("chunk", "chunker-fixture+beam1"),
+    ("chunk", "chunker-fixture-rust"),
     ("langdetect", "langdetect-183"),
+    ("langdetect", "langdetect-fixture-rust"),
     ("normalize", "whitespace"),
     ("normalize", "whitespace-keep-lines"),
     ("normalize", "whitespace-keep-paragraphs"),
@@ -121,6 +170,18 @@ pub const RUNS: &[(&str, &str)] = &[
     ("money-convert", "latin-us"),
     ("quantity", "latin-eu"),
     ("quantity", "latin-us"),
+    ("temporal", "dateline"),
+    ("temporal", "fixed"),
+    ("pii", "payment"),
+    ("pii", "contact"),
+    ("pii", "network"),
+    ("pii", "secrets"),
+    ("pii", "crypto"),
+    ("pii", "us-identity"),
+    ("pii", "eu-identity"),
+    ("pii", "ca-identity"),
+    ("pii", "device"),
+    ("pii", "all-structured"),
     ("subwords", VOCABULARY),
 ];
 
@@ -142,13 +203,15 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "postag" => Tagger::open(base, &options, res),
         "lemmatize" if options.is_empty() => Lemmatizer::open_maxent(base, res),
         "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
-        "chunk" if base == "chunker-fixture" => Chunker::open(&options, res),
+        "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" if options.is_empty() => Detector::open(base, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
         "money" => Numeric::open_money(run, MoneyLayer::Extracted, res),
         "money-convert" => Numeric::open_money(run, MoneyLayer::Converted, res),
         "quantity" => Numeric::open_quantities(run),
+        "temporal" => Temporal::open(run),
+        "pii" => PiiRun::open(run),
         "subwords" if run == VOCABULARY => WordPiece::open(res),
         _ => Err(not_covered()),
     }
@@ -168,7 +231,8 @@ mod tests {
             if !annotator.file_type().unwrap().is_dir() || NOT_COVERED.contains(&name.as_str()) {
                 continue;
             }
-            if ["inputs", "fixtures", "rates"].contains(&name.as_str()) {
+            // Inputs and test data, not golden runs.
+            if ["inputs", "fixtures", "train-fixtures", "rates", "conformance"].contains(&name.as_str()) {
                 continue;
             }
             for run in std::fs::read_dir(annotator.path()).unwrap() {
@@ -179,6 +243,11 @@ mod tests {
         on_disk.sort();
         let mut listed: Vec<(String, String)> = RUNS.iter().map(|(a, r)| (a.to_string(), r.to_string())).collect();
         listed.sort();
+        // The PII goldens come with the first `generate` that knows the
+        // packs; until they are on disk, their runs have nothing to match.
+        if !data.join("pii").is_dir() {
+            listed.retain(|(a, _)| a != "pii");
+        }
         // One run has goldens the differential leaves out: the Turkish
         // locale case fold, which the port has no counterpart of.
         on_disk.retain(|(a, r)| !(a == "normalize" && r == "case-fold-tr"));
@@ -195,6 +264,8 @@ mod tests {
             ("normalize", "default-chain"),
             ("money-convert", "latin-eu"),
             ("chunk", "chunker-fixture+beam1"),
+            ("chunk", "chunker-fixture-rust"),
+            ("pii", "all-structured"),
         ] {
             open(annotator, run, &res).unwrap_or_else(|e| panic!("{annotator}/{run}: {e}"));
         }

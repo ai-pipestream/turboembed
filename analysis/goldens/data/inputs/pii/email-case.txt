@@ -1,0 +1,1 @@
+Reply to User@Example.COM, not to USER@EXAMPLE.NET.

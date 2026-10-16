@@ -24,11 +24,16 @@
 //! - [`perceptron`][]: `PerceptronTrainer` and
 //!   `SimplePerceptronSequenceTrainer`, with averaging and the tolerance
 //!   stop, and the model as `PerceptronModel` holds it.
+//! - [`naive_bayes`][]: `NaiveBayesTrainer` and `NaiveBayesModel`, with
+//!   Lidstone smoothing (`delta = 0.05`).
+//! - [`liblinear`][]: the liblinear trainer of the OpenNLP addons, with
+//!   liblinear-java's logistic regression solvers, the model it returns
+//!   and its serialized form.
 //! - [`trainer`][]: `TrainerFactory.getEventTrainer` and
 //!   `getEventModelSequenceTrainer`, the trainer the `Algorithm` parameter
 //!   names, and the model it trained.
-//! - [`writer`][]: `GenericModelWriter` for a GIS, QN or perceptron model,
-//!   the bytes of a `.model` entry, chunked strings included.
+//! - [`writer`][]: `GenericModelWriter` for a GIS, QN, perceptron or naive
+//!   Bayes model, the bytes of a `.model` entry, chunked strings included.
 //! - [`package`][]: the `.bin` file, `BaseModel.serialize`: a zip archive
 //!   with the `manifest.properties` entry, typed.
 //! - [`context`][]: `BasicContextGenerator`.
@@ -73,7 +78,9 @@ pub mod error;
 pub mod event;
 pub mod gis;
 pub mod index;
+pub mod liblinear;
 pub mod monitor;
+pub mod naive_bayes;
 pub mod package;
 pub mod params;
 pub mod perceptron;
@@ -94,9 +101,10 @@ pub use monitor::{
     DefaultProgressMonitor, IterDeltaAccuracyUnderTolerance, LogLikelihoodThresholdBreached, ProgressMonitor,
     StopCriteria, TrainingConfiguration, TrainingMeasure,
 };
+pub use naive_bayes::NaiveBayesModel;
 pub use package::{Manifest, ModelPackage, TimeZone, sentence_model_package};
 pub use params::{Algorithm, Key, TrainerType, TrainingParameters, Value};
 pub use perceptron::{PerceptronIteration, PerceptronModel, PerceptronParams, Sequence, SequenceSource};
 pub use qn::{QnIteration, QnModel, QnParams, QnStop};
 pub use trainer::TrainedModel;
-pub use writer::{WritableModel, write_gis, write_perceptron, write_qn};
+pub use writer::{WritableModel, write_gis, write_naive_bayes, write_perceptron, write_qn};

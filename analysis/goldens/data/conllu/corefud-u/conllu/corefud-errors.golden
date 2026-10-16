@@ -1,0 +1,65 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	conllu/corefud-errors	2245	2244	88c8ff868bb0b5af7b74539afa7ae2ced9c1aaca97a92cd4d6f3693c42c42133
+annotator	opennlp.tools.coref.formats.ConlluCorefDocumentStream	read
+config	addonsCommit	be11df610e24a9a2a10f80b7199349fe5b3594a9
+config	tagset	u
+layer	turbo:read-errors	document	24	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	speaker label must not be blank
+0	opennlp.tools.util.InvalidFormatException	expected 10 columns: 1\ta\t_\tX\tx\t_\t0\troot\t_
+0	opennlp.tools.util.InvalidFormatException	column 10 must not be blank: 1\ta\ta\tX\tx\t_\t0\troot\t_\t
+0	opennlp.tools.util.InvalidFormatException	column 5 must not be blank: 1\ta\ta\tX\t \t_\t0\troot\t_\t_
+0	opennlp.tools.util.InvalidFormatException	invalid token id: 01
+0	opennlp.tools.util.InvalidFormatException	invalid token id: 2-1
+0	opennlp.tools.util.InvalidFormatException	invalid token id: 1-1
+0	opennlp.tools.util.InvalidFormatException	invalid token id: 1.0
+1	opennlp.tools.util.InvalidFormatException	expected token id 2 but found 3
+2	opennlp.tools.util.InvalidFormatException	expected 10 columns:   
+2	opennlp.tools.util.InvalidFormatException	entity id must not be empty
+2	opennlp.tools.util.InvalidFormatException	entity id must not be empty
+2	opennlp.tools.util.InvalidFormatException	entity close is missing ')': (e1)e2
+2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open
+2	opennlp.tools.util.InvalidFormatException	entity e1(e2 is closed but not open
+2	opennlp.tools.util.InvalidFormatException	entity e1 crosses a sentence boundary
+2	opennlp.tools.util.InvalidFormatException	entity e1 is never closed
+2	opennlp.tools.util.InvalidFormatException	entity zz is never closed
+2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open
+2	opennlp.tools.util.InvalidFormatException	entity e80 is never closed
+2	opennlp.tools.util.InvalidFormatException	entity e3 is never closed
+2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open
+2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open
+2	opennlp.tools.util.InvalidFormatException	entity close is missing ')': (e1)x
+end	turbo:read-errors
+layer	turbo:coref-texts	document	3	text:str
+a
+a\nb c
+fine
+end	turbo:coref-texts
+layer	turbo:coref-sentences	document	4	document:u32	start:u32	end:u32	text:str
+0	0	1	a
+1	0	1	a
+1	2	5	b c
+2	0	4	fine
+end	turbo:coref-sentences
+layer	turbo:coref-tokens	document	5	document:u32	start:u32	end:u32	text:str
+0	0	1	a
+1	0	1	a
+1	2	3	b
+1	4	5	c
+2	0	4	fine
+end	turbo:coref-tokens
+layer	turbo:coref-tags	aligned:turbo:coref-tokens	5	start:u32	end:u32	tag:str
+0	1	X
+0	1	X
+2	3	X
+4	5	X
+0	4	X
+end	turbo:coref-tags
+layer	turbo:coref-mentions	document	1	document:u32	start:u32	end:u32	chain:u32	kind:str	entity:str
+2	0	4	0	gold	-1
+end	turbo:coref-mentions
+layer	turbo:coref-speakers	document	0	document:u32	start:u32	end:u32	label:str
+end	turbo:coref-speakers

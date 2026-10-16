@@ -22,6 +22,11 @@ turbo-tokenize = { path = "../tokenize" }
 turbo-sequence = { path = "../sequence" }
 # The lemmatizer's context generator and the edit scripts its classes are.
 turbo-lemmatizer = { path = "../lemmatizer" }
+# The language detector's context generator: the n-grams of a text in the
+# JVM's hash map order.
+turbo-langdetect = { path = "../langdetect" }
+# The sentiment detector's context generators and model file names.
+turbo-doccat = { path = "../doccat" }
 # The abbreviation dictionary the context generators look up, dictionary
 # XML, and the published model files the reproduction is compared with.
 turbo-maxent = { path = "../maxent" }
@@ -34,8 +39,13 @@ turbo-jvm = { path = "../jvm" }
 turbo-zoo = { path = "../zoo" }
 
 [dev-dependencies]
-# `Span`, to build a sample by hand.
+# `Span`, to build a sample by hand; the analyzer the sentiment detector
+# runs in.
 turbo-analysis = { path = "../core" }
+# The tokens and categories layers of the sentiment goldens.
+turbo-analysis-layers = { path = "../layers" }
 # The JVM's events over the golden inputs, which the event streams are
 # compared with, and the fixture models.
 turbo-goldens = { path = "../goldens" }
+# Opens the chunker models trained here as the chunker opens them.
+turbo-phrase-chunker = { path = "../phrase-chunker" }

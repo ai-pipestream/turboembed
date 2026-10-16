@@ -3,8 +3,8 @@
   The golden file generator: runs OpenNLP 3.x annotators over the input texts
   and writes what they produced in the golden layer format (docs/analysis.md).
   It depends on nothing but the OpenNLP runtime built from the pinned fork
-  commit and the numeric module of the OpenNLP addons built from a pinned
-  commit; JUnit is used for its tests only.
+  commit and the numeric and geo modules of the OpenNLP addons built from a
+  pinned commit; JUnit is used for its tests only.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
@@ -34,6 +34,12 @@
       <artifactId>numeric</artifactId>
       <version>${opennlp.addons.version}</version>
     </dependency>
+    <!-- The gazetteers (GazetteerGolden). -->
+    <dependency>
+      <groupId>org.apache.opennlp.addons</groupId>
+      <artifactId>geo</artifactId>
+      <version>${opennlp.addons.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.opennlp</groupId>
       <artifactId>opennlp-runtime</artifactId>
@@ -48,6 +54,22 @@
       <groupId>org.apache.opennlp</groupId>
       <artifactId>opennlp-ml-perceptron</artifactId>
       <version>${opennlp.version}</version>
+    </dependency>
+    <!-- The SVM document categorizer and the zlibsvm and LIBSVM jars it trains with (SvmDoccatGolden). -->
+    <dependency>
+      <groupId>org.apache.opennlp</groupId>
+      <artifactId>opennlp-ml-libsvm</artifactId>
+      <version>${opennlp.version}</version>
+    </dependency>
+    <!--
+      liblinear-java, which the liblinear add-on trains with (LiblinearTrainGolden). The add-on's
+      own classes are loaded from a jar the image builds; this puts liblinear in target/lib.
+    -->
+    <dependency>
+      <groupId>de.bwaldvogel</groupId>
+      <artifactId>liblinear</artifactId>
+      <version>2.44</version>
+      <scope>runtime</scope>
     </dependency>
     <!-- The sample conversion streams and the CoNLL-U readers (FormatGolden). -->
     <dependency>

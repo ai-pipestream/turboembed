@@ -1,0 +1,77 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/emoji	77	69	f784851aa4da1acee43a12c1737f1c8a7f776ec382094e1458a57e7f6f7d0797
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	all-structured
+layer	turbo:view	text	41	start:u32	end:u32	with:str
+5	6	*
+6	7	*
+7	8	*
+8	9	*
+9	10	*
+10	11	*
+11	12	*
+13	14	*
+14	15	*
+15	16	*
+16	17	*
+17	18	*
+18	19	*
+19	20	*
+21	22	*
+22	23	*
+23	24	*
+31	32	*
+32	33	*
+34	35	*
+35	36	*
+37	38	*
+38	39	*
+39	40	*
+40	41	*
+42	43	*
+43	44	*
+44	45	*
+45	46	*
+52	53	*
+53	54	*
+54	55	*
+55	56	*
+57	58	*
+58	59	*
+59	60	*
+60	61	*
+62	63	*
+63	64	*
+64	65	*
+65	66	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+📧 ################### 📞 ################ 💳 ################### 😀\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	📧 EMAIL-1 📞 PHONE-1 💳 CARD-1 😀\n	
+hmac	📧 EMAIL-b5d08c9892fd5775 📞 PHONE-a959e925a02fa145 💳 CARD-f04eb250c58c67b2 😀\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	6	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	5	24	5	12	EMAIL-1
+pseudonymize	30	46	18	25	PHONE-1
+pseudonymize	52	71	31	37	CARD-1
+hmac	5	24	5	27	EMAIL-b5d08c9892fd5775
+hmac	30	46	33	55	PHONE-a959e925a02fa145
+hmac	52	71	61	82	CARD-f04eb250c58c67b2
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	3	type:str	mentions:u32	distinct:u32	samples:str
+card	1	1	CARD-f04eb250c58c67b2
+email	1	1	EMAIL-b5d08c9892fd5775
+phone	1	1	PHONE-a959e925a02fa145
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+card: 1 mentions, 1 distinct [CARD-f04eb250c58c67b2]\nemail: 1 mentions, 1 distinct [EMAIL-b5d08c9892fd5775]\nphone: 1 mentions, 1 distinct [PHONE-a959e925a02fa145]
+end	turbo:pii-audit-report

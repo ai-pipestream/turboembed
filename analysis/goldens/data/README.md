@@ -110,7 +110,37 @@ are not taken from any corpus.
   fixture tag dictionary `tags.tagdict` occurs in them. The fixtures
   `pos-fixture-rust.bin` and `lemma-fixture-rust.bin` were trained on
   them, and the `train-events` goldens of the tagger and the lemmatizer
-  run on them.
+  run on them. `chunks.txt` holds 30 other English sentences written for
+  this project as word, Penn Treebank tag and chunk tag lines with a
+  blank line between sentences, in the layout of CoNLL-2000, with `NP`,
+  `VP`, `PP`, `ADJP`, `ADVP`, `SBAR` and `PRT` chunks; the fixture
+  `chunker-fixture-rust.bin` was trained on it, and the chunker's
+  `train-events` goldens run on it.
+  `names.txt` holds 23 English sentences written for this project in
+  OpenNLP's name format, in five documents separated by empty lines, with
+  `person`, `organization`, `location` and `date` names, one name without
+  a type, and non-ASCII names and an emoji; the fixture
+  `ner-fixture-rust.bin` was trained on it, and the `namefind` training
+  and fixture goldens run on it.
+
+- `inputs/langdetect/samples.txt`: 56 language samples written for this
+  project, a language code, a tab and the text per line: six to nine
+  each of English, German, French, Spanish, Italian, Dutch, Russian and
+  Greek, among them numbers, a URL, an e-mail address and a hashtag, and
+  lines in capitals, a Turkish line with dotted capital I, an empty
+  text, text holding tabs, a run of spaces, a run of one letter, a
+  backslash, a CR LF line end and no newline at the end; and two lines
+  the sample stream skips (one starting with a tab, one without a tab).
+  The fixture `langdetect-fixture-rust.bin` was trained on them, and the
+  `train-langdetect` goldens run on them.
+
+- `inputs/langdetect/tree-bucket.txt`: six language samples written for
+  this project, three of the local-use code `qaa` and three of `qab`,
+  each a rotation of thirteen characters whose unigram hash codes (31
+  plus the code unit) are multiples of 64, so they share one bucket of
+  the n-gram maps, which becomes a tree; the order `getContext` gives
+  them (which training reads) then differs from the order `predict`
+  counts them in. The `train-langdetect` goldens run on them.
 
 - `inputs/formats/`: 41 small files in OpenNLP's native sample formats,
   in CoNLL-U, CoNLL-2002, CoNLL-2003, CoNLL-X and in MASC's layout, written for this project except as
@@ -177,6 +207,35 @@ are not taken from any corpus.
   test corpus (`opennlp-core/opennlp-formats/src/test/resources/opennlp/tools/formats/masc/`
   at the goldens' OpenNLP commit, Apache License 2.0), unchanged.
 
+- `inputs/conllu/`: 5 CoNLL-U files written for this project (no text of
+  a Universal Dependencies or CorefUD treebank), read by the `conllu`
+  goldens; the part of the id before the first hyphen names the reader
+  (`dependency`, `corefud`). The `dependency-` files hold Spanish and
+  English sentences with a multiword token, empty nodes with enhanced
+  dependencies, a byte order mark, emoji and accented letters, and the
+  sentences `ConlluDependencySampleStream` skips or refuses: ids that do
+  not count from 1, with a leading zero, past Java's `int` or out of
+  order, `_` tags, relations and heads, heads with a sign, a leading
+  zero, an Arabic-Indic digit, an empty node's id or past the sentence,
+  self heads, two roots, none, a cycle, blank relations in one
+  whitespace mode or both, nine and eleven columns, an empty last
+  column, a comment after spaces, sentences of a multiword token or an
+  empty node only, separator lines of spaces, `U+0085`, `U+001C` and
+  no-break spaces, CR LF and no line feed at the end. The `corefud-`
+  files hold documents with `Entity` brackets in the CorefUD 1.x
+  notation: one-word, nested and discontinuous mentions, mentions of one
+  span by two entities, a mention on a multiword token's word and on an
+  empty node, `SpaceAfter=No` on words and on a multiword token,
+  speakers (one with no words after it), a document of comments only,
+  emoji and accented letters, a byte order mark, CR LF, and a document
+  for each error of `ConlluCorefDocumentStream`: blank speaker, nine
+  columns, a blank column, ids that are not words, multiword tokens or
+  empty nodes, ids out of order, a line of spaces, an empty value or id,
+  a close without `)` or with a `(`, a close of no open mention
+  (also before a bracket Java refuses later in the same value), a
+  mention across a sentence boundary or never closed, several mentions
+  open at the end, and a mention opened on an empty node.
+
 - `inputs/ner/`: 12 files in the named entity corpus formats OpenNLP
   reads, written for this project except as noted below; the part of
   the id before the first hyphen names the corpus (`germeval`,
@@ -223,7 +282,102 @@ are not taken from any corpus.
   1,002, one above the `int` range and one below 2, more and fewer tags
   than the count, and a missing direction.
 
+- `inputs/gazetteer/`: names, record ids, region codes and whole tables
+  for the gazetteers, written with a script for this project:
+  `names-bundled.txt` holds every distinct name and alternate name of the
+  bundled Natural Earth table (public domain) once, `names-variants.txt`
+  every seventh of them upper cased, lower cased, with doubled spaces and
+  a full stop, and every 29th with accents added, and `names-edge.txt`
+  the names of the fixture tables with their spellings in other scripts,
+  case, accent and composition variants, punctuation, whitespace other
+  than spaces, a soft hyphen, ligatures, title case letters, emoji,
+  supplementary characters and words longer than the token limit.
+  `ids.txt` holds a source and record id per line (every bundled record,
+  then hits and misses in the fixture tables), `regions.txt` every two
+  letter code and malformed ones, and the `table-<kind>-<case>.txt` files
+  small GeoNames, Overture, user and suppression tables, most with one
+  error each loader reports.
+- `inputs/place-profiles/`: profile tables for `PlaceProfiles`, written
+  for this project with made up places and numbers: tables that load (a
+  ten town table, a 40 place generated one, extreme and subnormal values,
+  constant columns, ties between ids in different scripts, every kind of
+  skipped line and padding) and tables with one error each.
+- `inputs/sequence/`, `inputs/descriptor-errors/`, `inputs/codec/`,
+  `inputs/tag-format/`: the inputs of the `turbo-sequence` goldens, written
+  for this project: 16 tokenized sentences, tokens for `StringPattern`
+  (escaped, lone surrogates among them), 16 malformed feature generator
+  descriptors, the label alphabets of the BIO and BILOU codecs and lists of
+  part-of-speech outcomes; `analysis/sequence/README.md` describes them.
+- `inputs/namefind/`: 31 tokenized sentences with phone numbers, emails,
+  URLs, MGRS references, coordinates and the name finder dictionaries'
+  entries, written for this project (`analysis/namefind/README.md`).
+- `inputs/stem/`: the words the stemmers get: samples of Snowball's
+  reference vocabularies for the 16 languages whose snowball-data files are
+  under its BSD license (`voc.txt` at snowball-data commit
+  `da07690d20ce69ee16b5fb95796f92090cc9b4a1`, every n-th line), 135 edge
+  case words and 1,000 generated words per language
+  (`analysis/stem/README.md`).
+- `inputs/stopword/`: words and language codes the stopword lookup is asked
+  about besides the lists' own, written for this project
+  (`analysis/stopword/README.md`).
+- `inputs/glossary/`: texts for the glossary matchers and comma separated,
+  tab separated and TBX glossaries, well formed and malformed, for the
+  glossary readers, written for this project (`analysis/glossary/README.md`).
+- `inputs/svm-doccat-train/`: the corpora the SVM document categorizer
+  goldens train their models on, written for this project, one sample per
+  line (the category, a space and the text): `topics.txt`, 48 sentences,
+  12 each about weather, cooking, sports and finance, and `pair.txt`, 12
+  about weather and cooking.
+- `inputs/svm-doccat/`: 12 documents those models categorize, written for
+  this project: one per topic, a mixed one, repeated words, words no
+  corpus has, whitespace alone, punctuation, a long text, accents, an
+  ellipsis and emoji, and one word without a line end
+  (`docs/doccat.md`).
+- `inputs/sentiment-train/`: the corpus the sentiment goldens train their
+  models on, written for this project, one sample per line in OpenNLP's
+  sentiment sample format (the sentiment, a space and the tokens):
+  `feedback.txt`, 56 short invented remarks about everyday things, 20
+  `positive`, 20 `negative` and 16 `neutral`, each with one or two emoji,
+  among them hearts with and without the presentation selector, a skin
+  tone, a ZWJ sequence, country flags, a subdivision flag, and a word that
+  starts outside the Basic Multilingual Plane.
+- `inputs/sentiment/`: 12 documents those models score, written for this
+  project: one per sentiment, a mixed one, emoji alone, emoji joined to a
+  word and to each other, two flags in one token, accents and a character
+  outside the Basic Multilingual Plane, repeated words, words no corpus
+  has, whitespace alone, several lines, and one word without a line end
+  (`docs/sentiment.md`).
+- `inputs/corpora/`: 27 files in the layouts of the sentence, language and
+  document corpora OpenNLP reads, all written for this project; they hold
+  no text of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig or 20
+  Newsgroups corpora. The part of the id before the first hyphen names the
+  corpus (`moses`, `letsmt`, `nkjp`, `irish`, `leipzig`, `newsgroups`).
+  The `nkjp-`, `leipzig-` and `newsgroups-` files are bundles (see "MASC
+  goldens" in `analysis/goldens-tool/README.md`): a text and its
+  segmentation, a directory of sentence files, a directory of newsgroup
+  directories. They hold empty and whitespace-only lines, CR LF and lone
+  CR, XML comments, CDATA and character references, a document type
+  declaration and XML that is not well formed, NKJP pointers with two and
+  three numbers, into paragraphs that are missing, empty, repeated or of
+  mixed content, and numbers that are empty or not numbers, Irish Sentence
+  Bank slots that are zero or not numbers, a sentence without a source, a
+  token without content and token gaps of several spaces, Leipzig files
+  with too few lines and file names that are not read, newsgroup messages
+  with headers, quotes and signatures and malformed UTF-8, accented
+  letters and characters outside the Basic Multilingual Plane. Their host
+  names end in `.invalid` and their namespaces are `urn:example:` names.
+
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
+
+## Conformance suites
+
+`conformance/sentences/` holds sentence segmentation test data from
+other projects: the Pragmatic Segmenter specs and the pySBD tests (both
+MIT), converted to typed `.cases` files, and Unicode's
+`SentenceBreakTest.txt` (Unicode License v3). They are not goldens: no
+JVM run made them. `conformance/sentences/README.md` names the sources,
+commits and format, and `analysis/sentdetect/tests/conformance.rs` runs
+the sentence detectors over them.
 
 ## Fixtures
 
@@ -238,12 +392,19 @@ that differs.
 | `en-plain-rust.bin` | the `.bin` the Rust trainer writes when it trains `en-plain`'s events again (`analysis/train/tests/roundtrip.rs`, which checks that the fixture is that file): the `sent.model` entry and the manifest of `en-plain.bin`, byte for byte, in an archive written here (entries stored, manifest first); the JVM loads it so the goldens of the two files can be compared |
 | `en-plain-qn-rust.bin` | the `.bin` the Rust trainer writes when it trains `en-plain`'s events with `MAXENT_QN` (cutoff 1, the trainer's defaults; `analysis/train/tests/roundtrip.rs` checks that the fixture is that file and that its `sent.model` entry has the bytes the training golden `train/sentdetect-twopass-cutoff1-qn/train/sentences` recorded from the JVM's `QNTrainer`); the JVM loads it so the goldens show how it splits the fixture inputs |
 | `en-plain-perceptron-rust.bin` | the same for `PERCEPTRON` (cutoff 1, the trainer's defaults), checked against the training golden `train/sentdetect-twopass-cutoff1-unsorted-perceptron/train/sentences` |
-| `pos-fixture.bin` | a copy of `analysis/sequence/golden/models/pos-fixture.bin`, a part-of-speech model OpenNLP trained by GIS on 15 sentences with Penn Treebank tags, the default descriptor and the case-insensitive tag dictionary `tags.tagdict` (`the`, `Run`, `fell`, `Paris`; `analysis/sequence/README.md`); `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
-| `tags.tagdict` | a copy of `analysis/sequence/golden/resources/tags.tagdict`, the case-insensitive tag dictionary above, as the generator reads it for the `postag-wordtag-tagdict` run and the Rust trainer for `pos-fixture-rust.bin` |
+| `pos-fixture.bin` | a part-of-speech model OpenNLP trained by GIS on 15 sentences with Penn Treebank tags (`train-fixtures/train-pos.txt`, by `FixtureModels.java` in `analysis/goldens-tool`), the default descriptor and the case-insensitive tag dictionary `tags.tagdict` (`the`, `Run`, `fell`, `Paris`; `analysis/sequence/README.md`); `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
+| `tags.tagdict` | the case-insensitive tag dictionary above, as the generator reads it for the `postag-wordtag-tagdict` run and the Rust trainer for `pos-fixture-rust.bin` |
 | `pos-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/wordtag.txt` with the default descriptor and `tags.tagdict` (GIS, 100 iterations, cutoff 1, one thread; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `POSModel` so the goldens of the two taggers can be compared |
 | `lemma-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/lemmas.txt` (GIS, 100 iterations, cutoff 1, one thread; the same test); the JVM loads it with `LemmatizerModel` |
+| `ner-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/names.txt` as `NameFinderME.train` does with no parameters file (the default descriptor, the BIO codec, GIS, 300 iterations, cutoff 0, one thread, beam size 3; the same test); the JVM loads it with `TokenNameFinderModel` and finds names with it |
+| `langdetect-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/langdetect/samples.txt` as `LanguageDetectorME.train` does with the command line trainer's defaults (GIS, 100 iterations, cutoff 5, one thread; the same test); the JVM loads it with `LanguageDetectorModel`, and its `langdetect` goldens are compared by `analysis/langdetect/tests/fixture.rs` |
 | `lemmatizer-dictionary.txt` | a `DictionaryLemmatizer` dictionary written for this project: 48 `word<tab>tag<tab>lemma` lines with Universal Dependencies tags for words of the `en` and `multi` inputs, among them entries with several lemmas (`leave#leaf`), a word listed twice with one tag (the last wins), a word with two tags, an empty lemma field (`#`), fields after the lemma and a trailing tab (both ignored), entries with a capital letter (never found, since a lookup lowercases the token) and non-ASCII words |
-| `chunker-fixture.bin` | a copy of `analysis/sequence/golden/models/chunker-fixture.bin`, a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`analysis/sequence/golden/inputs/train-chunk.txt`, `analysis/sequence/README.md`); the only chunker model here, since the published chunker models are OpenNLP 1.5 models, which this project does not use |
+| `chunker-fixture.bin` | a chunker model OpenNLP trained by perceptron on 8 sentences with Penn Treebank tags and `B-`, `I-` and `O` chunk tags for `NP`, `VP`, `PP`, `ADJP` and `SBAR` (`train-fixtures/train-chunk.txt`, by `FixtureModels.java`; `analysis/sequence/README.md`); the only chunker model OpenNLP trained here, since the published chunker models are OpenNLP 1.5 models, which only the sequence crate's beam search goldens run; `analysis/train-components/tests/fixtures.rs` trains it again byte for byte |
+| `chunker-fixture-rust.bin` | the `.bin` the Rust trainer writes from `inputs/tagged/chunks.txt` (GIS, 100 iterations, cutoff 1, one thread, beam size 10; `analysis/train-components/tests/fixtures.rs`, which checks that the fixture is that file); the JVM loads it with `ChunkerModel` and chunks with it (`chunk/chunker-fixture-rust`) |
+| `ner-bio-fixture.bin`, `ner-bilou-fixture.bin`, `ner-qn-fixture.bin` | name finder models OpenNLP trained on the names in 14 sentences (`train-fixtures/train-names.txt`, by `FixtureModels.java`): perceptron with `featuregen/everything.xml` and BIO, GIS with `featuregen/nesting.xml` and BILOU, QN with the default descriptor and BIO (`analysis/sequence/README.md`) |
+| `tags-cases.tagdict`, `tags-exact.tagdict` | the same 40 entries case-insensitive and case sensitive, with words that lowercase to the same word, a word listed twice, and tags separated by two spaces or ending in one, written for this project |
+| `featuregen/` | feature generator descriptors (OpenNLP's default part-of-speech and name finder ones, and two written for this project) with a Brown cluster file, a word cluster file and a names dictionary, written for this project (`analysis/sequence/README.md`) |
+| `namefind/` | the name finder's dictionaries (`places`, `people`, `overlap`, `empty`) and 114 Java patterns with their flags, written for this project (`analysis/namefind/README.md`) |
 | `tokenizer-abbreviations.bin` | a copy of `analysis/maxent/tests/fixtures/models/tokenizer.bin`, a tokenizer model OpenNLP trained on six sentences with the case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` (`analysis/maxent/tests/fixtures/README.md`) |
 | `english-dictionary.xml` | an abbreviation dictionary written for this project, added to the English tokenizer model |
 | `latin-detokenizer.xml` | Apache OpenNLP's test resource of `DictionaryDetokenizerTest`, unchanged (license header kept) |
@@ -259,6 +420,16 @@ that differs.
 | `en-head-rules.txt` | Apache OpenNLP's English head rules (`opennlp-tools/lang/en/parser/en-head_rules` at the goldens' OpenNLP commit, the same bytes as the test resource `opennlp-core/opennlp-runtime/src/test/resources/opennlp/tools/parser/en_head_rules`; Apache License 2.0, rules after Collins and Magerman), unchanged |
 | `es-head-rules.txt` | Apache OpenNLP's AnCora Spanish head rules (`opennlp-tools/lang/es/parser/es-head-rules` at the same commit, Apache License 2.0), unchanged; its tags double their backslashes, so OpenNLP never matches those |
 | `es-regex-head-rules.txt` | AnCora head rules written for this project whose tags use classes, ranges, negation, `?`, `+`, `^`, `$` and escapes, for the patterns OpenNLP's file does not reach |
+| `gazetteer-geonames.txt` | a table in the GeoNames main format written for this project: 32 rows with a byte order mark, some CRLF line ends, names and alternate names in several scripts, padding with a no-break and an ideographic space, a soft hyphen, a coordinate with Java's `d` suffix, a population with spaces around it, an alternate that folds to nothing and records that share a name. The rows were written by hand; some record ids, coordinates and populations are those GeoNames gives for the places (GeoNames, CC BY 4.0) |
+| `gazetteer-overture.txt` | a table in the format of the addons' `OvertureGenerator` output written for this project: 10 divisions of several subtypes, comment and blank lines, and an alternate that folds to nothing |
+| `gazetteer-user.txt` | a user gazetteer table written for this project, with every column: alternates with a blank element, a bounding box with and without coordinates (one across the antimeridian), containment, attributes with padding, a feature class in lower case and a population with a plus sign |
+| `gazetteer-suppressions.txt` | suppression rules written for this project for the overlay: by name alone, with a country in either case and with a feature class in either case |
+| `glossary-terms.tsv` | a glossary of 40 entries written for this project, tab separated with an `id`, `term` header: terms of several words, case and spacing variants, punctuation, accented, Greek, Turkish, CJK, Korean and emoji terms and characters outside the BMP; the glossary matchers' goldens match with it (`analysis/glossary/README.md`) |
+
+`train-fixtures/` beside `fixtures/` holds the training data of the fixture
+models above (tagged sentences, chunks and names, written for this project);
+`FixtureModels.java` in `analysis/goldens-tool` trains them from it (the
+goldens-tool README says how).
 
 `jieba-dict-subset.txt` was written from the repository root with
 
@@ -450,7 +621,36 @@ entries and dictionary entry of a model file built from the factory
 (docs/analysis.md, "Training goldens"). The `postag-*` and `lemma-*` runs
 are the same for the tagger's and the lemmatizer's event streams, with
 the tag dictionary entry and `POSDictionary.serialize` cases.
-`analysis/train-components/tests/goldens.rs` compares with them.
+`analysis/train-components/tests/goldens.rs` compares with them. The
+`chunker-*` runs are `ChunkerME.train` itself on the chunk inputs, one
+run per set of training parameters: the events, the checksum, what the
+sample stream threw, and what training threw or the model it trained
+(outcomes, predicates, every parameter, the `chunker.model` entry's
+length and SHA-256, the manifest and the zip entries);
+`analysis/train-components/tests/chunker.rs` compares with them.
+
+`namefind/train-<run>/<set>/<id>.golden` is what `NameFinderEventStream`
+and `NameFinderME.train` did with the name inputs (`inputs/tagged/names`
+and the `name-` inputs of `inputs/formats/`): the events, the checksum,
+the exceptions the sample stream or the event stream threw, the exception
+that ended training if one did, the parameters after training, and of the
+trained model the manifest without `Timestamp`, the zip entries, the
+SHA-256 of `nameFinder.model` and every weight as the JVM reads the
+entry back. The runs are `train-bio` and `train-bilou` (the codecs),
+`train-type` (BIO with the type `person` given to every name),
+`train-perceptron` (BIO, `PERCEPTRON`) and `train-qn` (BILOU,
+`MAXENT_QN`). `namefind/ner-fixture-rust/<set>/<id>.golden` holds the
+names and the probabilities of every outcome of each best sequence the
+JVM's `NameFinderME` finds over the same inputs with
+`ner-fixture-rust.bin`. `analysis/train-components/tests/namefind.rs`
+compares with them.
+
+`train-langdetect/<run>/<set>/<id>.golden` is what
+`LanguageDetectorME.train` did on `inputs/<set>/<id>.txt` with cutoff 5
+(`default`) or 1 (`cutoff1`): the events, a row each and a row per
+predicate, the checksum, the index, the GIS training iteration by
+iteration, and the manifest and zip entries of the model file.
+`analysis/train-components/tests/langdetect.rs` compares with them.
 
 ## Normalizer goldens
 
@@ -519,6 +719,30 @@ read, amounts that money extraction takes first, and non-ASCII text around
 the values. `quantity/<notation>/quantity/<id>.golden` holds the layer
 `turbo:quantities`; see `analysis/goldens-tool/README.md`. Only the
 quantity annotator runs on the set, and it has no dumps.
+
+## PII goldens
+
+`inputs/pii/` holds 61 short texts written for the PII packs: e-mail
+addresses in every case and with sub domains, tags, brackets and
+`mailto:`, phone numbers in international and national forms, grouped,
+compact and lower case IBANs, test card numbers with and without
+separators, ABA routing numbers, IPv4, IPv6 (compressed, with an IPv4
+tail) and MAC addresses, AWS keys, GitHub tokens, a JWT and URL
+credentials, Bitcoin and Ethereum addresses, SSNs, ITINs, NHS numbers, a
+Steuer-ID, a labelled SIN and IMEIs; for each, near misses (a wrong check
+digit, a reserved value, a missing label, letters running into the value)
+and non-ASCII text around the values (German, Japanese, emoji, letters
+outside the Basic Multilingual Plane, no-break spaces, fullwidth and
+Arabic-Indic digits). Every value is a documented test value, in a range
+set aside for examples (`example.com`, `192.0.2.0/24`, `2001:db8::/32`,
+555 and Ofcom drama numbers) or made up; none is real personal data.
+`pii/<pack>/pii/<id>.golden` holds the layer `turbo:pii`, and
+`pii-rewrite/<pack>/pii/<id>.golden` what OpenNLP's `Masker`,
+`Pseudonymizer`, `HmacTokenizer` and `PiiAuditReport` make of those
+mentions under a fixed test key: the masked view's edits, the text with
+every mention masked, the two rewrites and their labels, and the audit
+report; see `analysis/goldens-tool/README.md`. Only the PII annotator and
+the rewrites run on the set, and they have no dumps.
 
 ## Decision point dumps
 

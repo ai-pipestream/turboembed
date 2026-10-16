@@ -8,7 +8,8 @@
 //! `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` (the light and minimal
 //! stemmers there are the same as on the `ready/light-stemmers` branch of
 //! opennlp-addons), and the tests compare it with what the Java classes
-//! return (`golden/`, see `README.md`).
+//! return (the goldens under `analysis/goldens/data/stem`, see
+//! `README.md`).
 //!
 //! # Modules
 //!
@@ -21,6 +22,11 @@
 //! - [`algorithm`]: [`Algorithm`], any of the above as one value.
 //! - [`cache`]: [`CachingStemmer`], a cache of recent stems.
 //! - [`annotate`]: [`StemAnnotator`], the analysis step.
+//! - [`term`]: [`Dimension`], [`Term`], [`TermAnalyzer`], and
+//!   [`TermAnalyzerBuilder`], OpenNLP's layered term analyzer.
+//! - [`profile`]: [`NormalizationProfile`], [`NormalizationProfiles`], and
+//!   [`TermAnnotator`], per-language normalization profiles and the analysis
+//!   step writing [`Terms`] (`turbo:terms`).
 //!
 //! # UTF-16
 //!
@@ -32,7 +38,7 @@
 //! does, lone surrogates included; [`Stemmer::stem`] and the annotator
 //! hold UTF-8 and would put U+FFFD in place of a lone surrogate in a stem.
 //! None of the stemmers returned a lone surrogate for a well-formed word in
-//! the golden files or in a run over two million random words mixing
+//! the goldens or in a run over two million random words mixing
 //! letters and supplementary characters.
 //!
 //! # OpenNLP behaviour worth knowing
@@ -97,14 +103,18 @@ pub mod annotate;
 pub mod cache;
 pub mod light;
 pub mod porter;
+pub mod profile;
 pub mod snowball;
 pub mod stemmer;
+pub mod term;
 
 pub use algorithm::Algorithm;
 pub use annotate::StemAnnotator;
 pub use cache::CachingStemmer;
 pub use light::{LightStemmer, NorwegianStandard};
 pub use porter::PorterStemmer;
+pub use profile::{AccentFoldKind, NormalizationProfile, NormalizationProfiles, TermAnnotator};
 pub use snowball::{SnowballAlgorithm, SnowballStemmer};
 pub use stemmer::Stemmer;
-pub use turbo_stem_layers::Stems;
+pub use term::{Dimension, Term, TermAnalyzer, TermAnalyzerBuilder, TermError, TermLemmatizer};
+pub use turbo_stem_layers::{Stems, TermSlot, Terms};

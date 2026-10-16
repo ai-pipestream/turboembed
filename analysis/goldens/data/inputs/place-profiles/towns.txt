@@ -1,0 +1,11 @@
+id	density	median-income	elevation	rainfall	growth
+alder-ford	1520.5	48210	112	820.4	0.012
+birch-hollow	310.25	39100	640	1210.0	-0.004
+cedar-point	4890	61300	8	640.75	0.031
+dunmore	2210.125	52040	95	790.2	0.009
+elm-crossing	95.5	33870	1210	1530.6	-0.011
+fen-market	1780	49990	40	700	0.015
+glen-ash	120.75	35500	980	1410.3	-0.008
+harbor-view	5320.4	64010	3	610.9	0.027
+iron-gate	860	44120	310	905.5	0.002
+juniper-flat	45.2	31010	1550	380.1	-0.019

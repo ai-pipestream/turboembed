@@ -1,0 +1,47 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/moses-basic	1076	1071	75fe88d2bb53c1f0387c637bf200509bbf33b02bc5b9c10de5a01d0d2d37328f
+annotator	opennlp.tools.formats.moses.MosesSentenceSampleStream	read
+layer	turbo:samples	document	2	written:str
+The first line has spaces around it.\nUne phrase en français, avec é et ü.\n\nA line after a run of empty lines.\nTabs\tinside\tare kept.\nEmoji 😀 outside the Basic Multilingual Plane.\nControl characters up to the space are trimmed.\nNumbered sentence 1 of the long sample.\nNumbered sentence 2 of the long sample.\nNumbered sentence 3 of the long sample.\nNumbered sentence 4 of the long sample.\nNumbered sentence 5 of the long sample.\nNumbered sentence 6 of the long sample.\nNumbered sentence 7 of the long sample.\nNumbered sentence 8 of the long sample.\nNumbered sentence 9 of the long sample.\nNumbered sentence 10 of the long sample.\nNumbered sentence 11 of the long sample.\nNumbered sentence 12 of the long sample.\nNumbered sentence 13 of the long sample.\nNumbered sentence 14 of the long sample.\nNumbered sentence 15 of the long sample.\nNumbered sentence 16 of the long sample.\nNumbered sentence 17 of the long sample.\nNumbered sentence 18 of the long sample.\n
+The twenty-sixth sentence starts the second sample.\nLast line before the trailing empty lines.\n\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	2	text:str
+The first line has spaces around it. Une phrase en français, avec é et ü.  A line after a run of empty lines. Tabs\tinside\tare kept. Emoji 😀 outside the Basic Multilingual Plane. Control characters up to the space are trimmed. Numbered sentence 1 of the long sample. Numbered sentence 2 of the long sample. Numbered sentence 3 of the long sample. Numbered sentence 4 of the long sample. Numbered sentence 5 of the long sample. Numbered sentence 6 of the long sample. Numbered sentence 7 of the long sample. Numbered sentence 8 of the long sample. Numbered sentence 9 of the long sample. Numbered sentence 10 of the long sample. Numbered sentence 11 of the long sample. Numbered sentence 12 of the long sample. Numbered sentence 13 of the long sample. Numbered sentence 14 of the long sample. Numbered sentence 15 of the long sample. Numbered sentence 16 of the long sample. Numbered sentence 17 of the long sample. Numbered sentence 18 of the long sample. 
+The twenty-sixth sentence starts the second sample. Last line before the trailing empty lines.  
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	28	sample:u32	start:u32	end:u32
+0	0	36
+0	37	76
+0	77	77
+0	78	112
+0	113	134
+0	135	183
+0	184	231
+0	232	271
+0	272	311
+0	312	351
+0	352	391
+0	392	431
+0	432	471
+0	472	511
+0	512	551
+0	552	591
+0	592	632
+0	633	673
+0	674	714
+0	715	755
+0	756	796
+0	797	837
+0	838	878
+0	879	919
+0	920	960
+1	0	51
+1	52	94
+1	95	95
+end	turbo:sample-spans

@@ -30,6 +30,13 @@ final class Runs {
   static final String LEMMA_MODEL_EN = "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin";
   static final String LEMMA_MODEL_DE = "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin";
 
+  /** The OpenNLP 1.5 English models the beam search, tag dictionary and tag format goldens run. */
+  static final String POS_MODEL_EN_15_MAXENT = "en-pos-maxent.bin";
+  static final String POS_MODEL_EN_15_PERCEPTRON = "en-pos-perceptron.bin";
+  static final String CHUNKER_MODEL_EN_15 = "en-chunker.bin";
+  static final String PERSON_MODEL_EN_15 = "en-ner-person.bin";
+  static final String LOCATION_MODEL_EN_15 = "en-ner-location.bin";
+
   /**
    * The MeCab dictionaries the generator loads from the models directory, each unpacked from its
    * published archive, and the UTF-8 copy of the one that is not UTF-8.
@@ -57,9 +64,15 @@ final class Runs {
   static final String POS_FIXTURE_RUST = "pos-fixture-rust.bin";
   /** The lemmatizer model the Rust trainer wrote from inputs/tagged/lemmas.txt. */
   static final String LEMMA_FIXTURE_RUST = "lemma-fixture-rust.bin";
-  /** The tag dictionary the tagger fixtures were trained with, a copy of analysis/sequence/golden/resources/tags.tagdict. */
+  /** The name finder model the Rust trainer wrote from inputs/tagged/names.txt. */
+  static final String NAME_FIXTURE_RUST = "ner-fixture-rust.bin";
+  /** The language detector model the Rust trainer wrote from inputs/langdetect/samples.txt. */
+  static final String LANGUAGE_FIXTURE_RUST = "langdetect-fixture-rust.bin";
+  /** The tag dictionary the tagger fixtures were trained with. */
   static final String TAG_DICTIONARY = "tags.tagdict";
   static final String CHUNKER_FIXTURE = "chunker-fixture.bin";
+  /** The chunker model the Rust trainer wrote from inputs/tagged/chunks.txt. */
+  static final String CHUNKER_FIXTURE_RUST = "chunker-fixture-rust.bin";
   static final String LEMMA_DICTIONARY = "lemmatizer-dictionary.txt";
   static final String ENGLISH_ABBREVIATIONS = "english-dictionary.xml";
   static final List<String> DETOKENIZER_DICTIONARIES = List.of("en-detokenizer.xml", "fr-detokenizer.xml",
@@ -75,6 +88,25 @@ final class Runs {
   static final String EN_HEAD_RULES = "en-head-rules.txt";
   static final String ES_HEAD_RULES = "es-head-rules.txt";
   static final String ES_REGEX_HEAD_RULES = "es-regex-head-rules.txt";
+  /** The gazetteer tables: GeoNames and Overture formats, a user table and its suppression rules. */
+  static final String GAZETTEER_GEONAMES = "gazetteer-geonames.txt";
+  static final String GAZETTEER_OVERTURE = "gazetteer-overture.txt";
+  static final String GAZETTEER_USER = "gazetteer-user.txt";
+  static final String GAZETTEER_SUPPRESSIONS = "gazetteer-suppressions.txt";
+  /** The glossary the glossary matchers are built from, tab separated with a header. */
+  static final String GLOSSARY_TERMS = "glossary-terms.tsv";
+  /** The name finder models OpenNLP trained for the beam search goldens. */
+  static final String NER_BIO_FIXTURE = "ner-bio-fixture.bin";
+  static final String NER_BILOU_FIXTURE = "ner-bilou-fixture.bin";
+  static final String NER_QN_FIXTURE = "ner-qn-fixture.bin";
+  /** The tag dictionary's 40 entries, case insensitive and case sensitive. */
+  static final String TAG_DICTIONARY_CASES = "tags-cases.tagdict";
+  static final String TAG_DICTIONARY_EXACT = "tags-exact.tagdict";
+  /** The directory of the feature generator descriptors and the resources they name. */
+  static final String FEATUREGEN = "featuregen";
+  /** The directory of the name finder dictionaries and the user patterns. */
+  static final String NAMEFIND_FIXTURES = "namefind";
+  static final String NAMEFIND_PATTERNS = "patterns.txt";
 
   /** The input sets, the directories of the inputs directory. */
   static final String EN = "en";
@@ -96,8 +128,38 @@ final class Runs {
   /** The word and tag lines and the word, tag and lemma lines the Rust tagger fixtures were trained on. */
   static final String TAGGED = "tagged";
   static final String NER = "ner";
+  /** Sentence, language and document corpora in the formats of OpenNLP's corpus readers. */
+  static final String CORPORA = "corpora";
   static final String PARSE = "parse";
   static final String HEAD_RULES = "head-rules";
+  /** Names, record ids, region codes and whole tables for the gazetteers of the addons geo module. */
+  static final String GAZETTEER = "gazetteer";
+  /** Texts for the glossary matchers, and delimited lists and TBX termbases for the readers. */
+  static final String GLOSSARY = "glossary";
+  /** The language samples the Rust language detector fixture was trained on. */
+  static final String LANGDETECT = "langdetect";
+  /** The tokenized sentences and the pattern tokens of the sequence goldens. */
+  static final String SEQUENCE = "sequence";
+  /** One malformed feature generator descriptor per input. */
+  static final String DESCRIPTOR_ERRORS = "descriptor-errors";
+  /** The label alphabets of the BIO and BILOU codecs. */
+  static final String CODEC = "codec";
+  /** Lists of outcomes for the tag format guess. */
+  static final String TAG_FORMAT = "tag-format";
+  /** The hand-made sentences of the name finder goldens. */
+  static final String NAMEFIND = "namefind";
+  /** The words the stemmers stem. */
+  static final String STEM = "stem";
+  /** The words and language codes of the stopword goldens. */
+  static final String STOPWORD = "stopword";
+  /** The words the Hunspell goldens stem with the published and the fixture dictionaries. */
+  static final String HUNSPELL = "hunspell";
+
+  /** CoNLL-U files for the dependency and CorefUD readers. */
+  static final String CONLLU = "conllu";
+
+  /** Whole profile tables for PlaceProfiles of the addons geo module. */
+  static final String PLACE_PROFILES = "place-profiles";
 
   /** The numbers of merges the BPE trainer runs with: few, so the tokens are pieces of words, and many. */
   static final List<Integer> BPE_MERGES = List.of(40, 400);
@@ -114,7 +176,12 @@ final class Runs {
 
   private Runs() {}
 
-  static All load(Path models, Path fixtures, Path moneySnapshot) throws IOException {
+  /**
+   * The runs, with the inputs directory, which the SVM document categorizer and sentiment runs
+   * train their models from ({@link SvmDoccatGolden}, {@link SentimentGolden}), and the models and
+   * fixtures directories.
+   */
+  static All load(Path inputs, Path models, Path fixtures, Path moneySnapshot) throws IOException {
     List<AnnotatorGolden> annotators = new ArrayList<>();
     List<AnnotatorDump> recorders = new ArrayList<>();
 
@@ -236,24 +303,31 @@ final class Runs {
     annotators.add(DictionaryLemmaGolden.load(fixtures.resolve(LEMMA_DICTIONARY), taggedEnglish, Set.of(EN, MULTI, EDGE)));
 
     // Phrase chunking, on the sentences and tokens of the English models and the Penn Treebank
-    // tags the English part-of-speech model is asked for, since the fixture chunker was trained
-    // on Penn Treebank tags: the fixture model as it is, and rebuilt with a beam of one.
+    // tags the English part-of-speech model is asked for, since the fixture chunkers were trained
+    // on Penn Treebank tags: the fixture model as it is, rebuilt with a beam of one, and the model
+    // the Rust trainer wrote.
     ChunkGolden.Pipeline pennEnglish = ChunkGolden.Pipeline.load(models.resolve(SENTENCE_MODEL_EN),
         models.resolve(TOKEN_MODEL_EN), models.resolve(POS_MODEL_EN), POSTagFormat.PENN);
     for (ChunkGolden c : List.of(ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, Set.of(EN, MULTI, EDGE)),
-        ChunkGolden.withBeamSize(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, 1, Set.of(EN)))) {
+        ChunkGolden.withBeamSize(fixtures.resolve(CHUNKER_FIXTURE), pennEnglish, 1, Set.of(EN)),
+        ChunkGolden.load(fixtures.resolve(CHUNKER_FIXTURE_RUST), pennEnglish, Set.of(EN, MULTI, EDGE)))) {
       annotators.add(c);
       recorders.add(ChunkDump.of(c));
     }
 
-    LanguageGolden languages = LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI));
-    annotators.add(languages);
-    recorders.add(LanguageDump.of(languages));
+    for (LanguageGolden languages : List.of(LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI)),
+        LanguageGolden.load(fixtures.resolve(LANGUAGE_FIXTURE_RUST), Set.of(EN, MULTI)))) {
+      annotators.add(languages);
+      recorders.add(LanguageDump.of(languages));
+    }
 
     annotators.addAll(NormalizerGolden.all());
     annotators.addAll(NumberGolden.all());
     annotators.addAll(MoneyGolden.all(moneySnapshot));
     annotators.addAll(QuantityGolden.all());
+    annotators.addAll(TemporalGolden.all());
+    annotators.addAll(PiiGolden.all());
+    annotators.addAll(PiiRewriteGolden.all());
 
     // The training stack: the events of the sentence detector, the tokenizer and a real valued
     // source on the texts, indexed and trained; the sentence detector runs on the fixture
@@ -263,11 +337,19 @@ final class Runs {
     annotators.addAll(QnTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The perceptron and the sequence perceptron trainers on the same events.
     annotators.addAll(PerceptronTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
+    // The liblinear add-on's trainer on the same events, with each logistic regression solver.
+    annotators.addAll(LiblinearTrainGolden.all(Set.of(EN, MULTI, EDGE), Set.of(TRAIN)));
     // The same event streams with the factory options TrainGolden leaves at their defaults, and
     // the model file around a trained model.
     annotators.addAll(EventGolden.all(fixtures.resolve(ENGLISH_ABBREVIATIONS)));
     // The tagger's and the lemmatizer's event streams, and the model files around them.
     annotators.addAll(TaggerEventGolden.all(fixtures.resolve(TAG_DICTIONARY)));
+    // The chunker's event stream and ChunkerME.train with each kind of event trainer.
+    annotators.addAll(ChunkerTrainGolden.all(Set.of(TAGGED, FORMATS)));
+    // The name finder's event stream and NameFinderME.train, and NameFinderME over the Rust fixture.
+    annotators.addAll(NameEventGolden.all(fixtures.resolve(NAME_FIXTURE_RUST)));
+    // The language detector's training, from the events to the model file.
+    annotators.addAll(LanguageTrainGolden.all());
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
@@ -277,13 +359,53 @@ final class Runs {
     annotators.addAll(NerGolden.all());
     // The MASC readers, over small corpora bundled in the formats set.
     annotators.addAll(MascGolden.all());
+    // The sentence, language and document corpus streams (Moses, LetsMT, NKJP, the Irish Sentence
+    // Bank, Leipzig and 20 Newsgroups), over the corpora set.
+    annotators.addAll(CorporaGolden.all());
     // The CoNLL-2002, CoNLL-2003 and CoNLL-X streams.
     annotators.addAll(ConllGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
+    // The CoNLL-U dependency samples and the CorefUD reader, of two branches later than the image's
+    // commits.
+    annotators.addAll(ConlluDependencyGolden.all());
+    annotators.addAll(CorefUdGolden.all());
     // The Penn Treebank parse reader and writer, alone and with the English and AnCora head rules,
     // and the head rule readers and writers.
     annotators.addAll(ParserGolden.all(fixtures.resolve(EN_HEAD_RULES), fixtures.resolve(ES_HEAD_RULES),
         fixtures.resolve(ES_REGEX_HEAD_RULES)));
     annotators.addAll(ParserGolden.Rules.all());
+    // The gazetteers: the bundled table, the fixture tables and an overlay, asked for names,
+    // record ids and regions, and the fixture loaders on whole tables.
+    annotators.addAll(GazetteerGolden.all(fixtures));
+    // The numeric place profiles of the same module, over whole tables.
+    annotators.add(new PlaceProfilesGolden());
+    // The sequence machinery turbo-sequence ports: StringPattern in both versions, the feature
+    // generators and malformed descriptors, the BIO and BILOU codecs, the beam search of the
+    // tagger, chunker and name finder over the fixture and published models, and the tag
+    // dictionary and tag format mapper.
+    annotators.addAll(StringPatternGolden.all());
+    annotators.addAll(FeatureGolden.all(fixtures));
+    annotators.add(new DescriptorErrorGolden());
+    annotators.addAll(CodecGolden.all());
+    annotators.addAll(BeamGolden.all(models, fixtures));
+    annotators.addAll(TagDictionaryGolden.all(models, fixtures));
+    annotators.addAll(TagFormatGolden.all(models, fixtures));
+    // The name finders without a model and the merge of overlapping names (turbo-namefind), the
+    // stemmers (turbo-stem) and the stopword lists (turbo-stopword).
+    annotators.addAll(NameFindGolden.all(fixtures));
+    annotators.addAll(StemGolden.all());
+    annotators.addAll(StopwordGolden.all());
+    // The Hunspell stemmer of the compatibility branch over the published and the fixture
+    // dictionaries (turbo-hunspell).
+    annotators.addAll(HunspellGolden.all(models, fixtures));
+    // The glossary matchers over the fixture glossary, and the glossary readers.
+    annotators.addAll(GlossaryGolden.all(fixtures.resolve(GLOSSARY_TERMS)));
+
+    // The SVM document categorizer (turbo-doccat): models trained on the svm-doccat-train corpora,
+    // exported, and run on the svm-doccat documents.
+    annotators.addAll(SvmDoccatGolden.all(inputs));
+    // The sentiment detector (turbo-doccat, turbo-train-components): models trained on the
+    // sentiment-train corpus with each factory and trainer, and run on the sentiment documents.
+    annotators.addAll(SentimentGolden.all(inputs));
     return new All(annotators, recorders);
   }
 }

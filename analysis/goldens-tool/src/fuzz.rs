@@ -28,7 +28,8 @@ use crate::{docker, models, paths, recipe};
 /// English sentence and token models; `edge` every tokenizer, segmenter,
 /// sentence detector and the WordPiece encoder; the others their own
 /// annotators.
-pub const DEFAULT_SETS: [&str; 7] = ["en", "edge", "norm", "num", "money", "quantity", "sentence-fixture"];
+pub const DEFAULT_SETS: [&str; 9] =
+    ["en", "edge", "norm", "num", "money", "quantity", "temporal", "pii", "sentence-fixture"];
 
 /// The annotators the container is told to skip: the differential does
 /// not cover them (`turbo_fuzz::runs::NOT_COVERED`).
@@ -182,7 +183,7 @@ pub fn run(opts: &Options) -> Result<Summary, String> {
             opts.sets.len(),
             inputs.display()
         );
-        models::fetch(&opts.models)?;
+        models::fetch(&opts.models, models::Models::WithLocal)?;
         models::check_fixtures(&paths::fixtures_dir())?;
         fresh_dir(&jvm)?;
         let skipped = skipped_annotators();

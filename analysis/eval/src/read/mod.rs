@@ -1,6 +1,8 @@
 //! The readers of the sets' own file formats, one per format, and what
-//! they share: reading a set's files while hashing them, and parsing JSON
-//! and JSON Lines with errors that name the file and line.
+//! they share: reading a set's files while hashing them, parsing JSON
+//! and JSON Lines with errors that name the file and line, and reading
+//! Parquet tables ([`parquet`]) with errors that name the file, column
+//! and row.
 //!
 //! A reader takes the set's directory and returns a [`LoadedSet`]; it
 //! knows nothing of fetching or licences, which are the
@@ -14,6 +16,7 @@ pub mod gutenqa;
 pub mod hicbench;
 pub mod legalbench_rag;
 pub mod offsets;
+pub mod parquet;
 pub mod pyrandom;
 pub mod qasper;
 pub mod tar;
@@ -32,18 +35,39 @@ use crate::Result;
 pub struct SetDir {
     root: PathBuf,
     digests: BTreeMap<String, [u8; 32]>,
+    /// The set's name and the digests recorded for its files, checked as
+    /// each file is read.
+    recorded: Option<(String, BTreeMap<String, String>)>,
 }
 
 impl SetDir {
     pub fn new(root: &Path) -> SetDir {
-        SetDir { root: root.to_path_buf(), digests: BTreeMap::new() }
+        SetDir { root: root.to_path_buf(), digests: BTreeMap::new(), recorded: None }
+    }
+
+    /// The directory of set `set`, whose files at the paths in `recorded`
+    /// must have the SHA-256 (lower case hex) given with them. Each is
+    /// checked on the bytes the reader is given, so a file is read and
+    /// hashed once.
+    pub fn checked(root: &Path, set: &str, recorded: BTreeMap<String, String>) -> SetDir {
+        SetDir { recorded: Some((set.to_owned(), recorded)), ..SetDir::new(root) }
     }
 
     /// The bytes of `rel`, a `/` separated path under the directory.
+    /// Refused when a digest is recorded for `rel` and the bytes differ.
     pub fn bytes(&mut self, rel: &str) -> Result<Vec<u8>> {
         let path = self.root.join(rel);
         let bytes = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        self.digests.insert(rel.to_owned(), sha256(&bytes));
+        let digest = sha256(&bytes);
+        if let Some((set, recorded)) = &self.recorded
+            && let Some(want) = recorded.get(rel)
+        {
+            let have = to_hex(&digest);
+            if &have != want {
+                return Err(format!("{}: SHA-256 is {have}, set {set} records {want}", path.display()));
+            }
+        }
+        self.digests.insert(rel.to_owned(), digest);
         Ok(bytes)
     }
 

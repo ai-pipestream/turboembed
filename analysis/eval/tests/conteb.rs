@@ -2,13 +2,12 @@
 
 mod common;
 
-use std::fs;
-
+use common::parquet::{Col, write};
 use common::{copy_dir, data, query_ids, quoted, spans, text};
 use turbo_eval::read::conteb;
 
-const DOCS: &str = "documents/train-00000-of-00001.jsonl";
-const QUERIES: &str = "queries/train-00000-of-00001.jsonl";
+const DOCS: &str = "documents/train-00000-of-00001.parquet";
+const QUERIES: &str = "queries/train-00000-of-00001.parquet";
 
 #[test]
 fn reads_the_sample() {
@@ -30,27 +29,20 @@ fn reads_the_sample() {
     assert_eq!(quoted(&s, "1", "paperB"), ["Masks reduced transmission in households."]);
 }
 
-fn broken(name: &str, file: &str, body: &str) -> String {
+fn broken(name: &str, file: &str, cols: &[Col]) -> String {
     let dir = common::scratch(name);
     copy_dir(&data("conteb"), &dir);
-    fs::write(dir.join(file), body).unwrap();
+    write(&dir.join(file), cols);
     conteb::read("c", &dir, DOCS, QUERIES).unwrap_err()
 }
 
 #[test]
-fn errors_name_the_file_and_line() {
-    let e = broken(
-        "conteb-id",
-        DOCS,
-        "{\"chunk_id\": \"a_0\", \"chunk\": \"x\"}\n{\"chunk_id\": \"a_b_1\", \"chunk\": \"y\"}\n",
-    );
-    assert_eq!(e, format!("{DOCS}:2: chunk id \"a_b_1\" is not <doc id>_<position>"));
-    let e = broken(
-        "conteb-twice",
-        DOCS,
-        "{\"chunk_id\": \"a_0\", \"chunk\": \"x\"}\n{\"chunk_id\": \"a_0\", \"chunk\": \"y\"}\n",
-    );
-    assert_eq!(e, format!("{DOCS}:2: chunk a_0 appears twice"));
-    let e = broken("conteb-missing", QUERIES, "{\"chunk_id\": \"paperA_7\", \"query\": \"q\"}\n");
-    assert_eq!(e, format!("{QUERIES}:1: chunk paperA_7 is not in {DOCS}"));
+fn errors_name_the_file_and_row() {
+    let e = broken("conteb-id", DOCS, &[Col::Str("chunk_id", vec!["a_0", "a_b_1"]), Col::Str("chunk", vec!["x", "y"])]);
+    assert_eq!(e, format!("{DOCS}: row 1: chunk id \"a_b_1\" is not <doc id>_<position>"));
+    let e =
+        broken("conteb-twice", DOCS, &[Col::Str("chunk_id", vec!["a_0", "a_0"]), Col::Str("chunk", vec!["x", "y"])]);
+    assert_eq!(e, format!("{DOCS}: row 1: chunk a_0 appears twice"));
+    let e = broken("conteb-missing", QUERIES, &[Col::Str("chunk_id", vec!["paperA_7"]), Col::Str("query", vec!["q"])]);
+    assert_eq!(e, format!("{QUERIES}: row 0: chunk paperA_7 is not in {DOCS}"));
 }

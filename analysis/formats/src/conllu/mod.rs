@@ -27,7 +27,10 @@
 //! The other columns are the multiword line's own. Empty nodes (ids like
 //! `8.1`) are word lines like any other.
 //!
-//! The sample readers are in [`samples`].
+//! The sample readers are in [`samples`]. [`dependency`] reads
+//! dependency samples and [`coref`] documents with CorefUD coreference;
+//! neither goes through [`ConlluReader`], as their Java streams read the
+//! lines themselves.
 //!
 //! # What OpenNLP does here
 //!
@@ -49,7 +52,12 @@
 //! - An error in a sentence discards the whole sentence, and reading goes
 //!   on with the next.
 
+pub mod coref;
+pub mod dependency;
+pub mod document;
+pub mod node_ids;
 pub mod samples;
+pub mod words;
 
 use std::collections::HashMap;
 
@@ -58,7 +66,14 @@ use turbo_analysis::Span;
 use crate::error::FormatError;
 use crate::source::{Field, Line, Lines, Piece, java_trim, split_fields};
 
+pub use coref::{ConlluCorefReader, CorefDocument};
+pub use dependency::ConlluDependencyReader;
+pub use document::write_document_conllu;
 pub use samples::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader};
+pub use words::{
+    ConlluWordReader, MultiwordToken, SyntacticSentence, misc_spaces_in_token, misc_trailing_space,
+    write_conllu_sentences,
+};
 
 /// The tag column a sample takes its tags from: `ConlluTagset`.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -69,6 +84,18 @@ pub enum Tagset {
     U,
     /// The language-specific tag, column 5 (`XPOS`).
     X,
+}
+
+impl Tagset {
+    /// `ConlluTagset.fromParameter`: `u` or `x`, the value of the format
+    /// factories' `tagset` parameter.
+    pub fn from_parameter(parameter: &str) -> Option<Tagset> {
+        match parameter {
+            "u" => Some(Tagset::U),
+            "x" => Some(Tagset::X),
+            _ => None,
+        }
+    }
 }
 
 /// One word line of a sentence, or the merged line of a multiword token.

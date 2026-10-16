@@ -1,0 +1,22 @@
+[package]
+name = "turbo-hunspell"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_hunspell"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The stems layer the annotator writes.
+turbo-stem-layers = { path = "../stem-layers" }
+# Character.isLowerCase, isUpperCase, isTitleCase, toLowerCase and
+# toUpperCase, and the White_Space property StringUtil.isWhitespace reads.
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+# The goldens of the stemmer, made by OpenNLP on a JVM.
+turbo-goldens = { path = "../goldens" }

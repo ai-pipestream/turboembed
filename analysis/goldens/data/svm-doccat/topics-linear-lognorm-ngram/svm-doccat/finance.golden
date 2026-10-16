@@ -1,0 +1,73 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	svm-doccat/finance	81	81	ad4e89c4289ede792f52961b9e0def9ab61218d96776b8c43c30007ee69e9a9f
+annotator	opennlp.tools.ml.libsvm.doccat.DocumentCategorizerSVM	categorize
+config	coef0	0.0
+config	corpus	svm-doccat-train/topics
+config	cost	1.0
+config	degree	3
+config	gamma	0.0
+config	generators	bag-of-words ngram(2,3)
+config	kernel	LINEAR
+config	language	eng
+config	max-features	-1
+config	run	topics-linear-lognorm-ngram
+config	scaling	0.0 1.0
+config	seed	1
+config	selection	NONE
+config	svm-type	C_SVC
+config	weighting	LOG_NORMALIZED_TF
+layer	opennlp:tokens	text	13	start:u32	end:u32
+0	9
+10	14
+15	19
+20	26
+27	32
+33	36
+37	44
+45	49
+50	56
+57	62
+63	66
+67	74
+75	80
+end	opennlp:tokens
+layer	turbo:svm-vector	document	17	index:u32	value:f64
+17	3ff0000000000000 1.0
+37	3ff0000000000000 1.0
+180	3fe2e653c1293b31 0.5906161091496412
+200	3ff0000000000000 1.0
+214	3ff0000000000000 1.0
+349	3ff0000000000000 1.0
+379	3ff0000000000000 1.0
+398	3ff0000000000000 1.0
+407	3ff0000000000000 1.0
+474	3ff0000000000000 1.0
+728	3ff0000000000000 1.0
+832	3ff0000000000000 1.0
+849	3ff0000000000000 1.0
+855	3ff0000000000000 1.0
+1098	3ff0000000000000 1.0
+1136	3ff0000000000000 1.0
+1145	3fdad1e0210c4feb 0.41905978419640516
+end	turbo:svm-vector
+layer	turbo:svm-decisions	document	6	first:str	second:str	value:f64
+weather	cooking	3fb5b1a34b47d5aa 0.08474178874879237
+weather	sports	3f92c16b36cb54c0 0.018315959185959185
+weather	finance	bfe8d86d7e341e92 -0.7764193978227516
+cooking	sports	bfb3f232a3ae30c7 -0.07791439529518406
+cooking	finance	bfea78dc07230a19 -0.8272533549682662
+sports	finance	bfe96a3ea43f3aac -0.794219322962666
+end	turbo:svm-decisions
+layer	turbo:svm-vote	document	1	category:str
+finance
+end	turbo:svm-vote
+layer	turbo:categories	document	4	category:str	score:f64
+weather	3fdb12a312388ffd 0.4230125120104729
+finance	3fdabcf56a63067a 0.41778312100732473
+sports	3fbb31dd6a0bcd20 0.10622962798133928
+cooking	3fab1f81470bb210 0.052974739000863136
+end	turbo:categories

@@ -1,0 +1,8 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	descriptor-errors/blank-class	61	61	171c097bb16729c841b13a5fd52828b97f7cc688a6bc1e3629f16c54b721b4b0
+annotator	opennlp.tools.util.featuregen.GeneratorFactory	create
+error	opennlp.tools.util.InvalidFormatException	generator must have class attribute

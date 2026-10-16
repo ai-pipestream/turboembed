@@ -7,7 +7,8 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 use turbo::bundle::{Bundle, sha256_hex};
-use turbo::manifest::{Manifest, Normalize};
+use turbo::head::Head;
+use turbo::manifest::{ClassifierKind, Manifest, Normalize};
 use turbo::safetensors::{self, Dtype};
 use turbo::tokenizer::Tokenizer;
 
@@ -22,6 +23,7 @@ pub fn stage(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
 /// As `stage`, copying a local file only when `keep` names its bundle
 /// path. `None` copies every local file.
 fn stage_named(recipe: &Recipe, upstream: &Path, bundle: &Path, keep: Option<&BTreeSet<String>>) -> Result<()> {
+    check_classifier_config(recipe, upstream, keep.is_none())?;
     for u in &recipe.upstream {
         if let Some(to) = &u.to {
             if keep.is_some_and(|k| !k.contains(to)) {
@@ -43,6 +45,53 @@ fn stage_named(recipe: &Recipe, upstream: &Path, bundle: &Path, keep: Option<&BT
             return Err(format!("local {}: sha256 {got}, the recipe pins {}", l.path, l.sha256));
         }
         crate::fetch::write_atomic(&bundle.join(&l.to), &bytes)?;
+    }
+    Ok(())
+}
+
+/// When the recipe's manifest carries a `classifier` block and `upstream`
+/// has `config.json`, verify that `id2label` in `config.json` matches
+/// `manifest.classifier.labels` in id order `0..n`.
+pub fn check_classifier_config(recipe: &Recipe, upstream: &Path, require_listed: bool) -> Result<()> {
+    let Some(c) = recipe.manifest.get("classifier").filter(|v| !v.is_null()) else {
+        return Ok(());
+    };
+    let labels = c["labels"]
+        .as_array()
+        .ok_or("manifest.classifier.labels: missing or not a list")?
+        .iter()
+        .enumerate()
+        .map(|(i, v)| v.as_str().ok_or_else(|| format!("manifest.classifier.labels[{i}]: not a string")))
+        .collect::<Result<Vec<_>>>()?;
+    let config_path = upstream.join("config.json");
+    let listed = recipe.upstream.iter().any(|u| u.path == "config.json");
+    if !config_path.is_file() {
+        if require_listed && listed {
+            return Err(format!("upstream config.json: {} is missing", config_path.display()));
+        }
+        return Ok(());
+    }
+    let cfg = read_json(&config_path)?;
+    let Some(id2label) = cfg.get("id2label").and_then(Value::as_object) else {
+        return Err("upstream config.json: id2label is missing or not an object".into());
+    };
+    if id2label.len() != labels.len() {
+        return Err(format!(
+            "upstream config.json: id2label has {} entries, manifest.classifier.labels has {}",
+            id2label.len(),
+            labels.len()
+        ));
+    }
+    for (i, &want) in labels.iter().enumerate() {
+        let key = i.to_string();
+        let Some(got) = id2label.get(&key).and_then(Value::as_str) else {
+            return Err(format!("upstream config.json: id2label[{key:?}] is missing or not a string"));
+        };
+        if got != want {
+            return Err(format!(
+                "upstream config.json: id2label[{key:?}] is {got:?}, manifest.classifier.labels[{i}] is {want:?}"
+            ));
+        }
     }
     Ok(())
 }
@@ -377,6 +426,24 @@ pub fn verify(bundle: &Path) -> Result<()> {
         }
         if embed.normalize == Normalize::L2 && norm != 0.0 && (norm - 1.0).abs() > tolerance {
             return Err(format!("{}: case {i} has norm {norm}, and the bundle says NORMALIZE_L2", m.reference.file));
+        }
+    }
+    if let Some(c) = &m.classifier {
+        Head::load(&b).map_err(|e| e.message)?;
+        let logits = st.get("logits", Dtype::F32, 2).map_err(|e| e.message)?;
+        let want_rows = match c.kind {
+            ClassifierKind::Sequence => n as u64,
+            ClassifierKind::Token => {
+                let lengths = st.get("lengths", Dtype::I32, 1).map_err(|e| e.message)?;
+                lengths.i32s().into_iter().map(|l| l.max(0) as u64).sum()
+            }
+        };
+        let want_cols = c.labels.len() as u64;
+        if logits.shape != [want_rows, want_cols] {
+            return Err(format!("{}: logits are {:?}, not [{want_rows}, {want_cols}]", m.reference.file, logits.shape));
+        }
+        if !logits.f32s().iter().all(|v| v.is_finite()) {
+            return Err(format!("{}: logits contain non-finite values", m.reference.file));
         }
     }
     Ok(())

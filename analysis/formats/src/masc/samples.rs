@@ -132,13 +132,13 @@ impl<'c> Cursor<'c> {
 }
 
 /// The token fields of a sentence, borrowed from its document's text.
-fn token_fields<'c>(doc: &'c MascDocument, sentence: &MascSentence) -> Result<Vec<Field<'c>>, MascError> {
+pub(super) fn token_fields<'c>(doc: &'c MascDocument, sentence: &MascSentence) -> Result<Vec<Field<'c>>, MascError> {
     Ok(doc.token_spans(sentence)?.into_iter().map(|span| Field::of(doc.text(), span)).collect())
 }
 
 /// The bytes from the first token field's start to the furthest end, or
 /// an empty span at the start of the sentence's region (or of the text).
-fn cover(doc: &MascDocument, sentence: &MascSentence, fields: &[Field<'_>]) -> Span {
+pub(super) fn cover(doc: &MascDocument, sentence: &MascSentence, fields: &[Field<'_>]) -> Span {
     match (fields.iter().map(|f| f.span.start).min(), fields.iter().map(|f| f.span.end).max()) {
         (Some(start), Some(end)) if start <= end => Span::new(start, end),
         (Some(start), _) => Span::new(start, start),

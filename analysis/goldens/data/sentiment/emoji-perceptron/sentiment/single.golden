@@ -1,0 +1,25 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/single	5	5	87e1315329cf22c9ce1432d1626cbbb1f8e2798faf0494040d7c4616ba9ea854
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	PERCEPTRON
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-perceptron
+layer	opennlp:tokens	text	1	start:u32	end:u32
+0	5
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	1	feature:str
+awful
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+negative	3fe0b4b6d1c394ea 0.5220598313286733
+neutral	3fd35d6198d39344 0.3025745384641605
+positive	3fc67261874a85d1 0.17536563020716625
+end	turbo:categories

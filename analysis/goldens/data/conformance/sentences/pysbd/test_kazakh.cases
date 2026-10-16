@@ -1,0 +1,99 @@
+# Converted from tests/lang/test_kazakh.py of pySBD
+# (github.com/nipunsadvilkar/pySBD, commit 5905f13be4fc95f407b98392e0ec303617a33d86),
+# MIT License, Copyright (c) 2019 Nipun Sadvilkar (LICENSE in this directory).
+# One case per entry of each test list, in file order; `name` is the list's name and,
+# for the regression tests, the issue number; `option` the segmenter options its test uses.
+
+case pysbd/test_kazakh/001
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Мұхитқа тікелей шыға алмайтын мемлекеттердің ішінде Қазақстан - ең үлкені.
+sentence Мұхитқа тікелей шыға алмайтын мемлекеттердің ішінде Қазақстан - ең үлкені.
+end
+
+case pysbd/test_kazakh/002
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Оқушылар үйі, Достық даңғылы, Абай даналығы, ауыл шаруашылығы – кім? не?
+sentence Оқушылар үйі, Достық даңғылы, Абай даналығы, ауыл шаруашылығы – кім?
+sentence не?
+end
+
+case pysbd/test_kazakh/003
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Әр түрлі өлшемнің атауы болып табылатын м (метр), см (сантиметр), кг (киллограмм), т (тонна), га (гектар), ц (центнер), т. б. (тағы басқа), тәрізді белгілер де қысқарған сөздер болып табылады.
+sentence Әр түрлі өлшемнің атауы болып табылатын м (метр), см (сантиметр), кг (киллограмм), т (тонна), га (гектар), ц (центнер), т. б. (тағы басқа), тәрізді белгілер де қысқарған сөздер болып табылады.
+end
+
+case pysbd/test_kazakh/004
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Мысалы: обкомға (облыстық комитетке) барды, ауаткомда (аудандық атқару комитетінде) болды, педучилищеге (педагогтік училищеге) түсті, медпункттің (медициналық пункттің) алдында т. б.
+sentence Мысалы: обкомға (облыстық комитетке) барды, ауаткомда (аудандық атқару комитетінде) болды, педучилищеге (педагогтік училищеге) түсті, медпункттің (медициналық пункттің) алдында т. б.
+end
+
+case pysbd/test_kazakh/005
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Елдің жалпы ішкі өнімі ЖІӨ (номинал) = $225.619 млрд (2014)
+sentence Елдің жалпы ішкі өнімі ЖІӨ (номинал) = $225.619 млрд (2014)
+end
+
+case pysbd/test_kazakh/006
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Ресейдiң әлеуметтiк-экономикалық жағдайы.XVIII ғасырдың бiрiншi ширегiнде Ресейге тән нәрсе.
+sentence Ресейдiң әлеуметтiк-экономикалық жағдайы.
+sentence XVIII ғасырдың бiрiншi ширегiнде Ресейге тән нәрсе.
+end
+
+case pysbd/test_kazakh/007
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text («Егемен Қазақстан», 7 қыркүйек 2012 жыл. №590-591); Бұл туралы кеше санпедқадағалау комитетінің облыыстық департаменті хабарлады. («Айқын», 23 сəуір 2010 жыл. № 70).
+sentence («Егемен Қазақстан», 7 қыркүйек 2012 жыл. №590-591); Бұл туралы кеше санпедқадағалау комитетінің облыыстық департаменті хабарлады.
+sentence («Айқын», 23 сəуір 2010 жыл. № 70).
+end
+
+case pysbd/test_kazakh/008
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Иран революциясы (1905 — 11) және азаматтық қозғалыс (1918 — 21) кезінде А. Фарахани, М. Кермани, М. Т. Бехар, т.б. ақындар демократиялық идеяның жыршысы болды.
+sentence Иран революциясы (1905 — 11) және азаматтық қозғалыс (1918 — 21) кезінде А. Фарахани, М. Кермани, М. Т. Бехар, т.б. ақындар демократиялық идеяның жыршысы болды.
+end
+
+case pysbd/test_kazakh/009
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Владимир Федосеев: Аттар магиясы енді жоқ http://www.vremya.ru/2003/179/10/80980.html
+sentence Владимир Федосеев: Аттар магиясы енді жоқ http://www.vremya.ru/2003/179/10/80980.html
+end
+
+case pysbd/test_kazakh/010
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Бірақ оның енді не керегі бар? — деді.
+sentence Бірақ оның енді не керегі бар? — деді.
+end
+
+case pysbd/test_kazakh/011
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Сондықтан шапаныма жегізіп отырғаным! - деп, жауап береді.
+sentence Сондықтан шапаныма жегізіп отырғаным! - деп, жауап береді.
+end
+
+case pysbd/test_kazakh/012
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text Б.з.б. 6 – 3 ғасырларда конфуцийшілдік, моизм, легизм мектептерінің қалыптасуы нәтижесінде Қытай философиясы пайда болды.
+sentence Б.з.б. 6 – 3 ғасырларда конфуцийшілдік, моизм, легизм мектептерінің қалыптасуы нәтижесінде Қытай философиясы пайда болды.
+end
+
+case pysbd/test_kazakh/013
+lang kk
+name GOLDEN_KK_RULES_TEST_CASES
+text 'Та марбута' тек сөз соңында екі түрде жазылады:
+sentence 'Та марбута' тек сөз соңында екі түрде жазылады:
+end
