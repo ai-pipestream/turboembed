@@ -2168,7 +2168,6 @@ dependencies = [
  "turbo-maxent",
  "turbo-postag",
  "turbo-sequence",
- "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2338,6 +2337,7 @@ dependencies = [
  "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-maxent",
+ "turbo-parser",
  "turbo-phrase-chunker",
  "turbo-sentdetect",
  "turbo-sequence",

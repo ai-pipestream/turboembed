@@ -87,6 +87,16 @@ pub enum Error {
     MissingManifestEntry(&'static str),
     /// A file could not be read.
     Io { path: std::path::PathBuf, message: String },
+    /// A constituency parser model written here could not be read back,
+    /// or its parts do not fit its parser type.
+    ParserModel(turbo_parser::model::ParserModelError),
+    /// A parse sample a parser's event stream or `ParserEvaluator` fails
+    /// on where OpenNLP throws, as `Parse.pruneParse` throws on a node
+    /// whose only child has its type.
+    ParseSample(turbo_parser::ParseError),
+    /// The tree insertion event stream failed where OpenNLP throws or
+    /// exits.
+    TreeInsert(turbo_parser::treeinsert::TreeInsertError),
 }
 
 impl fmt::Display for Error {
@@ -138,6 +148,9 @@ impl fmt::Display for Error {
             Error::Model(e) => write!(f, "model file: {e}"),
             Error::MissingManifestEntry(k) => write!(f, "the published manifest has no {k}"),
             Error::Io { path, message } => write!(f, "{}: {message}", path.display()),
+            Error::ParserModel(e) => write!(f, "{e}"),
+            Error::ParseSample(e) => write!(f, "parser sample: {e}"),
+            Error::TreeInsert(e) => write!(f, "parser training events: {e}"),
         }
     }
 }
@@ -171,6 +184,24 @@ impl From<turbo_sequence::Error> for Error {
 impl From<turbo_zoo::ZooError> for Error {
     fn from(e: turbo_zoo::ZooError) -> Error {
         Error::Zoo(e)
+    }
+}
+
+impl From<turbo_parser::model::ParserModelError> for Error {
+    fn from(e: turbo_parser::model::ParserModelError) -> Error {
+        Error::ParserModel(e)
+    }
+}
+
+impl From<turbo_parser::ParseError> for Error {
+    fn from(e: turbo_parser::ParseError) -> Error {
+        Error::ParseSample(e)
+    }
+}
+
+impl From<turbo_parser::treeinsert::TreeInsertError> for Error {
+    fn from(e: turbo_parser::treeinsert::TreeInsertError) -> Error {
+        Error::TreeInsert(e)
     }
 }
 

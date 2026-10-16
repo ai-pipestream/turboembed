@@ -1025,7 +1025,9 @@ impl Parse {
         Ok(())
     }
 
-    pub(crate) fn node_at_path(&self, path: &[usize]) -> &Parse {
+    /// The node at `path`, the child indices from this node down; this node for an empty path.
+    /// Panics when an index is past the children of the node it indexes.
+    pub fn node_at_path(&self, path: &[usize]) -> &Parse {
         let mut cur = self;
         for &idx in path {
             cur = &cur.parts[idx];
@@ -1033,7 +1035,8 @@ impl Parse {
         cur
     }
 
-    pub(crate) fn node_at_path_mut(&mut self, path: &[usize]) -> &mut Parse {
+    /// The node at `path`, as [`Parse::node_at_path`] finds it, to change.
+    pub fn node_at_path_mut(&mut self, path: &[usize]) -> &mut Parse {
         let mut cur = self;
         for &idx in path {
             cur = &mut cur.parts[idx];
@@ -1041,7 +1044,9 @@ impl Parse {
         cur
     }
 
-    pub(crate) fn initial_chunk_paths(&self) -> Vec<Vec<usize>> {
+    /// The paths ([`Parse::node_at_path`]) of the nodes [`Parse::initial_chunks`] returns, in
+    /// the same order.
+    pub fn initial_chunk_paths(&self) -> Vec<Vec<usize>> {
         let mut paths = Vec::new();
         let mut cur = Vec::new();
         self.collect_initial_chunk_paths(&mut cur, &mut paths);

@@ -802,6 +802,10 @@ read again for every call, since the streams and generators change it.
 
 `ParserTool` and `ParserEvaluator` are in OpenNLP's `opennlp-cli` module,
 which the image installs with the runtime for these runs.
+`analysis/parser/tests/goldens/treebank.rs` compares the dictionary and
+generator runs and the parses of the model runs;
+`analysis/train-components/tests/parser_goldens.rs` compares the event
+runs and the model runs in full, and trains the models again.
 
 ## OntoNotes and French Treebank goldens
 

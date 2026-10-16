@@ -37,11 +37,14 @@ turbo-jvm = { path = "../jvm" }
 # The treebanks the published models were trained on, fetched by digest
 # after the user accepts their licence.
 turbo-zoo = { path = "../zoo" }
+# The constituency parse trees, head rules, context generators and model
+# reader the parsers' event streams, trainers and evaluator use.
+turbo-parser = { path = "../parser" }
+# `Span`, which the part-of-speech samples made of parse trees carry and
+# the tests build samples with; the analyzer the sentiment detector runs in.
+turbo-analysis = { path = "../core" }
 
 [dev-dependencies]
-# `Span`, to build a sample by hand; the analyzer the sentiment detector
-# runs in.
-turbo-analysis = { path = "../core" }
 # The tokens and categories layers of the sentiment goldens.
 turbo-analysis-layers = { path = "../layers" }
 # The JVM's events over the golden inputs, which the event streams are

@@ -1,10 +1,6 @@
 //! Stream readers and sample converters for Penn Treebank parses (`opennlp.tools.parser.ParseSampleStream`,
 //! `opennlp.tools.parser.PosSampleStream`, and `opennlp.tools.parser.ChunkSampleStream`).
 
-use turbo_sequence::Features;
-use turbo_sequence::postag::DefaultPosContext;
-use turbo_train::{Event, JavaString};
-
 use crate::head_rules::{GapLabeler, JavaLineIter};
 use crate::parse::{CONT, OTHER, Parse, ParseError, START};
 
@@ -114,30 +110,5 @@ impl ParserChunkSample {
             }
         }
         Self { sentence, tags, preds }
-    }
-}
-
-/// Adds the part-of-speech events of `p`, a parse pruned and with its heads updated, to `events`
-/// (`AbstractParserEventStream.addTagEvents`): one per token of its initial chunks, the outcome
-/// the token's tag and the context what `DefaultPOSContextGenerator(null)` makes of the tokens and
-/// all of the sentence's tags.
-pub(crate) fn add_tag_events(p: &Parse, events: &mut Vec<Event>) {
-    let mut tokens = Vec::new();
-    let mut tags = Vec::new();
-    for chunk in p.initial_chunks() {
-        let nodes = if chunk.is_pos_tag() { std::slice::from_ref(chunk) } else { chunk.children() };
-        for node in nodes {
-            tokens.push(node.covered_text());
-            tags.push(node.kind());
-        }
-    }
-    let mut generator = DefaultPosContext::new(None);
-    let mut features = Features::new();
-    for (i, tag) in tags.iter().enumerate() {
-        features.clear();
-        generator.features(&mut features, i, &tokens, &tags);
-        let context =
-            features.iter().map(|f| JavaString::from_modified_utf8(f).expect("a feature is modified UTF-8")).collect();
-        events.push(Event::new(*tag, context));
     }
 }
