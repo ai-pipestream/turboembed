@@ -2501,4 +2501,68 @@ mod tests {
             metrics.triplet_recall
         );
     }
+
+    #[test]
+    fn foreign_view_layers_are_rejected() {
+        let doc = Document::new("The battery is great.");
+        let view = doc.get::<View>().unwrap();
+        let (clean_text, align) = turbo_analysis::ViewBuilder::new(view.text()).finish();
+        let child_view = View::derived(view, clean_text, align);
+        let foreign = child_view.id();
+
+        let mut ok_sent_spans = Spans::new(ViewId::SOURCE);
+        ok_sent_spans.push(Span::new(0, 21));
+        let ok_sentences = Sentences { spans: ok_sent_spans };
+        let bad_sentences = Sentences {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 21));
+                s
+            },
+        };
+        let mut ok_tok_spans = Spans::new(ViewId::SOURCE);
+        for (a, b) in [(0, 3), (4, 11), (12, 14), (15, 20), (20, 21)] {
+            ok_tok_spans.push(Span::new(a, b));
+        }
+        let ok_tokens = Tokens { spans: ok_tok_spans, sentence: None };
+        let bad_tokens = Tokens {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 3));
+                s
+            },
+            sentence: None,
+        };
+        let bad_chunks = PhraseChunks {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 11));
+                s
+            },
+            tokens: vec![IxRange::new(0, 2)],
+            kind: vec![Tag(0)],
+            kinds: TagSet::new("chunk", &["NP"]),
+        };
+
+        let rule = RuleAspectSentiment::new();
+        let err = rule.annotate((view, &bad_sentences, &ok_tokens, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("sentences are in another view"), "{err}");
+
+        let err = rule.annotate((view, &ok_sentences, &bad_tokens, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("tokens are in another view"), "{err}");
+
+        let err = rule.annotate((view, &ok_sentences, &ok_tokens, None, Some(&bad_chunks), None)).unwrap_err();
+        assert!(err.to_string().contains("phrase chunks are in another view"), "{err}");
+    }
+
+    #[test]
+    fn config_hash_is_deterministic_and_pinned() {
+        let base = RuleAspectSentiment::new().config_hash();
+        let no_implicit = RuleAspectSentiment::new().with_implicit_aspects(false).config_hash();
+        let custom_cats = RuleAspectSentiment::new().with_categories(TagSet::new("custom", &["a", "b"])).config_hash();
+        assert_eq!(base, 0xac9c_00d5_eeec_addd, "got 0x{base:016x}");
+        assert_ne!(base, no_implicit);
+        assert_ne!(base, custom_cats);
+        assert_ne!(no_implicit, custom_cats);
+    }
 }

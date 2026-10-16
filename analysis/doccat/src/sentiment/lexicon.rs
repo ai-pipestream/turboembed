@@ -1622,4 +1622,15 @@ mod tests {
         assert_eq!(opinions.get(Ix::new(1)).tokens, IxRange::new(2, 3));
         assert!(opinions.get(Ix::new(1)).polarity > 0.0);
     }
+
+    #[test]
+    fn config_hash_is_deterministic_and_pinned() {
+        let base = LexiconSentiment::new().config_hash();
+        let win = LexiconSentiment::new().with_negation_mode(NegationMode::Window).config_hash();
+        let no_emoji = LexiconSentiment::new().with_opennlp_emoji(false).config_hash();
+        assert_eq!(base, 0x0af1_182c_9c89_0240, "got 0x{base:016x}");
+        assert_ne!(base, win);
+        assert_ne!(base, no_emoji);
+        assert_ne!(win, no_emoji);
+    }
 }

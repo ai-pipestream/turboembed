@@ -1312,4 +1312,67 @@ mod tests {
             assert!((m.f1 - 1.0).abs() < 1e-12, "{lbl}: expected F1 1.0, got {}", m.f1);
         }
     }
+
+    #[test]
+    fn foreign_view_layers_are_rejected() {
+        let doc = Document::new("Hello world.");
+        let view = doc.get::<View>().unwrap();
+        let (clean_text, align) = turbo_analysis::ViewBuilder::new(view.text()).finish();
+        let child_view = View::derived(view, clean_text, align);
+        let foreign = child_view.id();
+
+        let ok_tokens = Tokens { spans: spans_from_pairs([(0, 5), (6, 11), (11, 12)]), sentence: None };
+        let bad_tokens = Tokens {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 5));
+                s
+            },
+            sentence: None,
+        };
+        let bad_sentences = Sentences {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 12));
+                s
+            },
+        };
+        let bad_chunks = Chunks {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 12));
+                s
+            },
+            level: vec![0],
+            parent: vec![None],
+            sentences: vec![IxRange::new(0, 1)],
+            cut: vec![Cut::DocumentStart],
+            cost: vec![0],
+            model_tokens: vec![3],
+            over_budget: vec![false],
+        };
+        let bad_structure = Structure {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 12));
+                s
+            },
+            kind: vec![Block::Paragraph],
+            parent: vec![None],
+            depth: vec![0],
+        };
+
+        let annotator = IncivilityAnnotator::new();
+        let err = annotator.annotate((view, &bad_tokens, None, None, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("tokens are in another view"), "{err}");
+
+        let err = annotator.annotate((view, &ok_tokens, Some(&bad_sentences), None, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("sentences are in another view"), "{err}");
+
+        let err = annotator.annotate((view, &ok_tokens, None, Some(&bad_chunks), None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("chunks are in another view"), "{err}");
+
+        let err = annotator.annotate((view, &ok_tokens, None, None, Some(&bad_structure), None, None)).unwrap_err();
+        assert!(err.to_string().contains("structure is in another view"), "{err}");
+    }
 }
