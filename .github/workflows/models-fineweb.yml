@@ -109,6 +109,9 @@ jobs:
         with:
           path: ${{ runner.temp }}/web
           key: fineweb-ranges-${{ hashFiles('analysis/train-recipes/fineweb-files.txt', 'analysis/train-recipes/fineweb-ranges.txt') }}
+          # Ranges cached under other lists are only a start: what is
+          # fetched next is checked against the lists before it is used.
+          restore-keys: fineweb-ranges-
       - name: the web lists
         run: |
           set -euo pipefail
@@ -181,10 +184,11 @@ jobs:
           path: ${{ runner.temp }}/web
           key: ${{ steps.web-cache.outputs.cache-primary-key }}
       # Two runs must write the same bytes. `tatoeba-fineweb` exits with 1
-      # when a gate fails and 2 on an error; both runs are kept either way.
+      # when a gate fails and 2 on an error; both runs are kept either way,
+      # so the step does not stop at the first failing command.
       - name: train, gate and compare, twice
         run: |
-          set -uo pipefail
+          set +e -uo pipefail
           web="$RUNNER_TEMP/web"
           lists=()
           if [ "$WEB_LISTS" = made ]; then
@@ -233,11 +237,18 @@ jobs:
                  (.web.files[] | [.tatoeba, .side, .path, .wanted, .file_rows, .row_groups_read, .rows_read,
                   .too_short, .duplicates, .host_deferred, .host_taken_later, .chosen])
                  | @tsv' "$card"
+      # The made lists, kept and printed whole, so they can be committed
+      # from the artifact or from this log.
       - name: keep the made lists
         if: always() && env.WEB_LISTS == 'made'
         run: |
           mkdir -p runs/lists
-          cp "$RUNNER_TEMP"/web/lists/*.txt runs/lists/ 2>/dev/null || true
+          for f in fineweb-files.txt fineweb-ranges.txt; do
+            [ -f "$RUNNER_TEMP/web/lists/$f" ] || continue
+            cp "$RUNNER_TEMP/web/lists/$f" runs/lists/
+            echo "----- $f ($(sha256sum < "runs/lists/$f" | cut -d' ' -f1))"
+            cat "runs/lists/$f"
+          done
       - if: always()
         uses: actions/upload-artifact@v4
         with:

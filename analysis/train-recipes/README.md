@@ -1576,7 +1576,9 @@ a pull request changes it, this crate, the trainers, the gate
 publishes nothing. It fetches the Tatoeba export as `models-tatoeba`
 does (the same cache), the two models of `fineweb-references.txt`
 (checked against their digests before they are cached) and the web
-ranges, cached under the digest of both lists. While the committed
+ranges, cached under the digest of both lists (a cache made under
+other lists is restored as a start, and what it holds is checked
+against the lists like anything fetched). While the committed
 lists are empty, the run makes them: the files list from the hub's API
 (`/api/datasets/<repo>/revision/<revision>?blobs=true`, whose `sha`
 must be the revision), then the ranges in rounds, each fetched as
@@ -1584,8 +1586,9 @@ must be the revision), then the ranges in rounds, each fetched as
 Partial Content` of the range's length, then `fineweb-ranges --record`.
 It trains twice, with `--unrecorded-web` while the lists are not
 committed, fails unless both runs write the same eight files, prints
-the card's per-language and per-file counts, and keeps the lists and
-the model's directory as the artifact `models-fineweb-run`.
+the card's per-language and per-file counts, and keeps the made lists
+(also printed in the log) and the model's directory as the artifact
+`models-fineweb-run`.
 
 To record the run: commit the lists the artifact holds as
 `fineweb-files.txt` and `fineweb-ranges.txt`, run the workflow again,
