@@ -154,19 +154,8 @@ impl TokenMatcher {
                 Some(v)
             }
         };
+        check_tokens(text, tokens)?;
         let (starts, ends) = tokens.spans.columns();
-        for (index, (&start, &end)) in starts.iter().zip(ends).enumerate() {
-            if start > end
-                || end as usize > text.len()
-                || !text.is_char_boundary(start as usize)
-                || !text.is_char_boundary(end as usize)
-            {
-                return Err(MatchError::Token { index, start, end });
-            }
-            if index > 0 && start < ends[index - 1] {
-                return Err(MatchError::Unordered { index });
-            }
-        }
         let value = |i: usize| match values {
             Some(v) => v.get(i),
             None => &text[starts[i] as usize..ends[i] as usize],
@@ -221,6 +210,25 @@ impl TokenMatcher {
         }
         self.phrases.find(&input).map_err(convert)
     }
+}
+
+/// Validates that `tokens.spans` are in bounds of `text`, lie on UTF-8
+/// character boundaries, and are in non-overlapping text order.
+pub(crate) fn check_tokens(text: &str, tokens: &Tokens) -> Result<(), MatchError> {
+    let (starts, ends) = tokens.spans.columns();
+    for (index, (&start, &end)) in starts.iter().zip(ends).enumerate() {
+        if start > end
+            || end as usize > text.len()
+            || !text.is_char_boundary(start as usize)
+            || !text.is_char_boundary(end as usize)
+        {
+            return Err(MatchError::Token { index, start, end });
+        }
+        if index > 0 && start < ends[index - 1] {
+            return Err(MatchError::Unordered { index });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
