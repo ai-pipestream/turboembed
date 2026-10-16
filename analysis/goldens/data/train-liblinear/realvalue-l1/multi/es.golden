@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/es	195	188	e6648dc645a34890e99a4bccb177dacd99597c9983c54a84975b139deae7d2f5
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	bias	1
+config	c	2
+config	eps	0.01
+config	events	sorted
+config	p	0
+config	solverType	L1R_LR
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Abrió Gómez La Sra. barrio? biblioteca de del diez el encantados! están jueves. la lectura libros. los mes mil más niños nueva organiza pasado talleres tiene todos visto y ya ¡Los ¿Has	1.0 1.0 1.0 1.0 1.0 1.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:liblinear-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Training data must contain more than one outcome
+end	turbo:liblinear-error

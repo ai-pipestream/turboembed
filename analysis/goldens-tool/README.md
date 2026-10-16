@@ -157,6 +157,7 @@ a directory with the same model run without them, and its options are
 | `namefind` (`NameFinderEventStream`, `NameFinderME.train`) | `train-bio`, `train-bilou`, `train-type`, `train-perceptron`, `train-qn` | `tagged`, `formats`: the inputs whose id starts with `name` | `run`, `language`, `codec`, and when given `type`, `algorithm` |
 | `namefind` (`NameFinderME`) | `ner-fixture-rust` (fixture) | the same | `run find` |
 | `train-events` (`ChunkerEventStream`, `ChunkerME.train`) | `chunker-defaults`, `chunker-perceptron`, `chunker-qn`, `chunker-perceptron-sequence` | `tagged`, `formats`; the `chunk` inputs | `run`, `source`, `language`, and every training parameter the run puts (`Algorithm`, `Iterations`, `Cutoff`, `TrainerType`, `BeamSize`) |
+| `train-liblinear` (`LiblinearTrainer.train` of the addons' `liblinear-addon`) | `sentdetect-sample`, `postag-l2`, `postag-dual`, `sentdetect-dual-newton`, `realvalue-l1`, `sentdetect-l2`, `sentdetect-raw` | `en`, `multi`, `edge`, `train` by run | `source`, `DataIndexer`, `Cutoff`, `solverType`, `c`, `eps`, `p`, `bias`, `events` |
 | `train-langdetect` (`LanguageDetectorME.train`) | `default`, `cutoff1` | `langdetect`, and the `formats` inputs whose id starts with `language-` | `run`, `Algorithm`, `Cutoff`, `DataIndexer`, `Iterations` |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
@@ -288,6 +289,23 @@ a directory with the same model run without them, and its options are
   predicate and outcome index), and `turbo:manifest` and
   `turbo:package-entries` of the model file.
   `analysis/train-components/tests/chunker.rs` compares with them.
+- A `train-liblinear` run (`LiblinearTrainGolden`) trains the liblinear
+  add-on of the OpenNLP addons (`main` branch, the commit
+  `LIBLINEAR_ADDON_COMMIT` in `src/recipe.rs`) on the events of a `train`
+  source, sorted within each event (liblinear refuses features that do
+  not ascend) or as the stream made them (`events raw`). The add-on's
+  classes are in the default package, so the image compiles them into a
+  jar of their own, which the generator loads by reflection
+  (`-Dturbo.goldens.liblinearJar`), checking the commit written beside
+  it; liblinear-java 2.44 is a dependency of the generator. It records
+  the events, then `turbo:liblinear-error` (the class and message of what
+  training threw), or the text model inside the serialized bytes
+  (`turbo:liblinear-text`), their SHA-256 and length
+  (`turbo:liblinear-model`), and `eval` and `getBestOutcome` on the
+  contexts of the first 40 events, given and reversed
+  (`turbo:liblinear-scores`, `turbo:liblinear-best`).
+  `analysis/train/tests/liblinear_goldens.rs` compares with them
+  (`docs/liblinear.md`).
 - A `train-langdetect` run (`LanguageTrainGolden`) trains a language
   detector as `LanguageDetectorME.train` does, on the samples
   `LanguageDetectorSampleStream` reads from the input, with the
