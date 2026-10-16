@@ -1,0 +1,59 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/ipv4-documentation	58	58	bab0f8cf57d85bba1094b64910c82838f69212bd36f1ea640e3b1a2628cdf6b2
+annotator	opennlp.tools.pii.PiiPacks	network
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	network
+layer	turbo:view	text	25	start:u32	end:u32	with:str
+6	7	*
+7	8	*
+8	9	*
+10	11	*
+12	13	*
+14	15	*
+17	18	*
+18	19	*
+19	20	*
+21	22	*
+22	23	*
+24	25	*
+25	26	*
+26	27	*
+28	29	*
+34	35	*
+35	36	*
+36	37	*
+38	39	*
+40	41	*
+41	42	*
+42	43	*
+44	45	*
+45	46	*
+46	47	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Hosts #########, ############ and ############# answered.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	Hosts IPV4-1, IPV4-2 and IPV4-3 answered.\n	
+hmac	Hosts IPV4-e0e75e9e942c4572, IPV4-0d7ae2ca452c386e and IPV4-b1a6089bde94074b answered.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	6	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	6	15	6	12	IPV4-1
+pseudonymize	17	29	14	20	IPV4-2
+pseudonymize	34	47	25	31	IPV4-3
+hmac	6	15	6	27	IPV4-e0e75e9e942c4572
+hmac	17	29	29	50	IPV4-0d7ae2ca452c386e
+hmac	34	47	55	76	IPV4-b1a6089bde94074b
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+ipv4	3	3	IPV4-e0e75e9e942c4572, IPV4-0d7ae2ca452c386e, IPV4-b1a6089bde94074b
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+ipv4: 3 mentions, 3 distinct [IPV4-e0e75e9e942c4572, IPV4-0d7ae2ca452c386e, IPV4-b1a6089bde94074b]
+end	turbo:pii-audit-report

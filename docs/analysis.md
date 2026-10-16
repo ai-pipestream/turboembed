@@ -24,7 +24,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
 | `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor, which writes `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor, which writes `turbo:quantities` ([quantities.md](quantities.md)); the temporal extractor, which writes `turbo:temporal`, the document date selector, which writes `turbo:document-date`, and the conversion step that reads it ([temporal.md](temporal.md)) |
-| `turbo-pii` | `analysis/pii/` | PII detection ported from OpenNLP's `opennlp.tools.pii`: e-mail, phone, IBAN, card, ABA routing, network, credential, Bitcoin and Ethereum, national and device identifiers, each checked with its check digit or checksum (Luhn, mod 97, mod 11, ISO 7064, base58check, bech32, EIP-55 over Keccak-256, all written in the crate), in the packs of `PiiPacks`; writes `turbo:pii` with a kind, a confidence and a normalized form per mention; masking, numbered and keyed (HMAC-SHA-256) labels and audit reports ([pii.md](pii.md)) |
+| `turbo-pii` | `analysis/pii/` | PII detection ported from OpenNLP's `opennlp.tools.pii`: e-mail, phone, IBAN, card, ABA routing, network, credential, Bitcoin and Ethereum, national and device identifiers, each checked with its check digit or checksum (Luhn, mod 97, mod 11, ISO 7064, base58check, bech32, EIP-55 over Keccak-256, all written in the crate), in the packs of `PiiPacks`; writes `turbo:pii` with a kind, a confidence and a normalized form per mention; masking in place or as the `masked` view (`MaskedView`), numbered and keyed (HMAC-SHA-256) labels and audit reports ([pii.md](pii.md)) |
 | `turbo-grammar` | `analysis/grammar/` | A rule grammar with a chart parser for numbers, ordinals and percentages in words or digits (English), which writes the `grammar` instances of `turbo:numbers` and `turbo:quantities` and the `turbo:ordinals` layer, with its Recognizers-Text conformance tests ([grammar.md](grammar.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
@@ -134,6 +134,12 @@ one-to-one mapping per character, and a run replaced in one call is one
 edit over the whole run. A layer's spans
 name the view they are in, and `Document::to_source` maps them back
 through any chain of views to exact source bytes.
+
+turbo-pii's `MaskedView` writes the view named `masked` this way: the
+text with the mentions of the `turbo:pii` layer masked, the same byte
+length as its parent, and one edit per masked character, so each mask
+byte maps back to its own source character and every other offset maps
+to itself ([pii.md](pii.md#the-masked-view)).
 
 Inserted or deleted bytes (an edit with one empty side) belong to
 neither neighbour: a start offset at them maps to after them and an end
@@ -2453,6 +2459,7 @@ The generator writes these layers, in this order within a golden:
 | `quantity` (`CursorQuantityExtractor.extract` in `QuantityAnnotator`, per notation) | `turbo:quantities` |
 | `temporal` (`CursorTemporalExtractor.extract` in `TemporalAnnotator`, then `DocumentDateAnnotator`, per reference mode) | `turbo:temporal`, `turbo:document-date` |
 | `pii` (the `PiiPacks` extractor in `PiiAnnotator`, per pack) | `turbo:pii` |
+| `pii-rewrite` (`Masker`, `Pseudonymizer`, `HmacTokenizer` and `PiiAuditReport` over those mentions, per pack) | `turbo:view`, `turbo:pii-mask-all`, `turbo:pii-rewrites`, `turbo:pii-labels`, `turbo:pii-audit`, `turbo:pii-audit-report` |
 | `subwords` (`WordpieceEncoder.encode`) | `opennlp:subwords` |
 | `unigram` (`UnigramSegmenter.tokenizePos`) | `opennlp:tokens` |
 | `lattice` (`LatticeTokenizer.analyze`) | `opennlp:tokens`, `turbo:morphemes` |
@@ -2513,6 +2520,14 @@ See [temporal.md](temporal.md#golden-files).
 offsets), `type` (`PiiMention.type()`) and `normalized`. The `annotator`
 line names `opennlp.tools.pii.PiiPacks` and the factory method, and the
 `config pack` record names the pack. See [pii.md](pii.md#golden-files).
+
+`pii-rewrite/<pack>/pii/<id>.golden` holds what OpenNLP makes of those
+mentions under a fixed test key (`config key`): the masked text's edits as
+`turbo:view` (one row per changed character, a masked character written as
+one mask byte per UTF-8 byte), the text with every mention masked, the
+numbered and keyed rewrites or the exception each threw, their labels, and
+the audit report by type and as text. `analysis/goldens-tool/README.md`
+lists the columns. See [pii.md](pii.md#golden-files).
 
 When the OpenNLP annotator throws on an input, the golden holds the
 header records, the `config` records and then, as its last line,
