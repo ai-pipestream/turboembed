@@ -1,0 +1,49 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-literary	1206	1206	b5485314d1f941b05a792b0b901ac1014beaa7ea4a0df265b903c8443d03c854
+annotator	opennlp.tools.formats.ad.ADChunkSampleStream	read
+config	end	3
+config	start	1
+layer	turbo:samples	document	2	written:str
+Em prp B-PP\nela pron-pers I-PP\nvivia v-fin B-VP\na_Joaquina prop O\n. . O\n
+Fim n B-NP\n. . O\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	7	sample:u32	text:str
+0	Em
+0	ela
+0	vivia
+0	a_Joaquina
+0	.
+1	Fim
+1	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	7	tag:str
+prp
+pron-pers
+v-fin
+prop
+.
+n
+.
+end	turbo:sample-tags
+layer	turbo:sample-chunks	aligned:turbo:sample-tokens	7	chunk:str
+B-PP
+I-PP
+B-VP
+O
+O
+B-NP
+O
+end	turbo:sample-chunks
+layer	turbo:phrases	document	3	sample:u32	start:u32	end:u32	type:str
+0	0	2	PP
+0	2	3	VP
+1	0	1	NP
+end	turbo:phrases
+layer	turbo:phrase-errors	document	0	sample:u32	class:str	message:str
+end	turbo:phrase-errors

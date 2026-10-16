@@ -1,0 +1,154 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-basic	3306	3280	64c57736c5c99822f6e0e52259ff772591be725abb50c3d72fed784b043bad82
+annotator	opennlp.tools.formats.ad.ADPOSSampleStream	read
+config	expandME	true
+config	includeFeatures	true
+layer	turbo:samples	document	7	written:str
+Feira_n=F=S de_prp livros_n=M=P abre_v-fin=PR=3S=IND=VFIN em_prp Ribeira_B-prop=F=S Alta_I-prop=F=S
+A_art=DET=F=S feira_n=F=S de_prp a_art=DET=F=S vila_n=F=S começa_v-fin=PR=3S=IND=VFIN em_prp o_art=DET=M=S sábado_n=M=S ,_, a_prp as_art=DET=F=P dez_num=F=P horas_n=F=P ._.
+O_art=DET=M=S escritor_n=M=S Teodoro_B-prop=M=S Valim_I-prop=M=S assina_v-fin=PR=3S=IND=VFIN «Canções_B-prop=F=P do_I-prop=F=P Vale-Fundo»,_I-prop=F=P diz_v-fin=PR=3S=IND=VFIN a_art=DET=F=S organização_n=F=S ._.
+O_art=DET=M=S escritor_n=M=S assina_v-fin=PR=3S=IND=VFIN ._.
+Entrada_n=F=S gratuita_adj=F=S para_prp os_art=DET=M=P sócios_n=M=P !_!
+A_art=DET=F=S Companhia_B-prop=F=S Fluvial_I-prop=F=S do_I-prop=F=S Sul_I-prop=F=S anunciou_v-fin=PS=3S=IND=VFIN ontem_adv novas_adj=F=P carreiras_n=F=P ._.
+Os_art=DET=M=P bilhetes_n=M=P custam_v-fin=PR=3P=IND=VFIN 3,5_num=F=P moedas_n=F=P e_conj-c podem_v-fin=PR=3P=IND=VFIN ser_v-inf comprados_v-pcp=M=P a_B-adv bordo_I-adv
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	65	sample:u32	text:str
+0	Feira
+0	de
+0	livros
+0	abre
+0	em
+0	Ribeira
+0	Alta
+1	A
+1	feira
+1	de
+1	a
+1	vila
+1	começa
+1	em
+1	o
+1	sábado
+1	,
+1	a
+1	as
+1	dez
+1	horas
+1	.
+2	O
+2	escritor
+2	Teodoro
+2	Valim
+2	assina
+2	«Canções
+2	do
+2	Vale-Fundo»,
+2	diz
+2	a
+2	organização
+2	.
+3	O
+3	escritor
+3	assina
+3	.
+4	Entrada
+4	gratuita
+4	para
+4	os
+4	sócios
+4	!
+5	A
+5	Companhia
+5	Fluvial
+5	do
+5	Sul
+5	anunciou
+5	ontem
+5	novas
+5	carreiras
+5	.
+6	Os
+6	bilhetes
+6	custam
+6	3,5
+6	moedas
+6	e
+6	podem
+6	ser
+6	comprados
+6	a
+6	bordo
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	65	tag:str
+n=F=S
+prp
+n=M=P
+v-fin=PR=3S=IND=VFIN
+prp
+B-prop=F=S
+I-prop=F=S
+art=DET=F=S
+n=F=S
+prp
+art=DET=F=S
+n=F=S
+v-fin=PR=3S=IND=VFIN
+prp
+art=DET=M=S
+n=M=S
+,
+prp
+art=DET=F=P
+num=F=P
+n=F=P
+.
+art=DET=M=S
+n=M=S
+B-prop=M=S
+I-prop=M=S
+v-fin=PR=3S=IND=VFIN
+B-prop=F=P
+I-prop=F=P
+I-prop=F=P
+v-fin=PR=3S=IND=VFIN
+art=DET=F=S
+n=F=S
+.
+art=DET=M=S
+n=M=S
+v-fin=PR=3S=IND=VFIN
+.
+n=F=S
+adj=F=S
+prp
+art=DET=M=P
+n=M=P
+!
+art=DET=F=S
+B-prop=F=S
+I-prop=F=S
+I-prop=F=S
+I-prop=F=S
+v-fin=PS=3S=IND=VFIN
+adv
+adj=F=P
+n=F=P
+.
+art=DET=M=P
+n=M=P
+v-fin=PR=3P=IND=VFIN
+num=F=P
+n=F=P
+conj-c
+v-fin=PR=3P=IND=VFIN
+v-inf
+v-pcp=M=P
+B-adv
+I-adv
+end	turbo:sample-tags

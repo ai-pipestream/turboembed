@@ -1,0 +1,36 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-markup	401	395	df6b606e1b7be681f184aae6d7ed269edb8f91506094d921f2f688097b0f0725
+model	pt-detokenizer.xml	36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555
+annotator	opennlp.tools.formats.convert.NameToTokenSampleStream	read
+config	splitHyphenatedTokens	true
+layer	turbo:samples	document	5	written:str
+Título<SPLIT>.
+Corpo
+Caixa<SPLIT>.
+caixa<SPLIT>.
+fim<SPLIT>.
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	5	text:str
+Título.
+Corpo
+Caixa.
+caixa.
+fim.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	9	sample:u32	start:u32	end:u32
+0	0	7
+0	7	8
+1	0	5
+2	0	5
+2	5	6
+3	0	5
+3	5	6
+4	0	3
+4	3	4
+end	turbo:sample-spans

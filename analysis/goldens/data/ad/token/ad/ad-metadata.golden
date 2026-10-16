@@ -1,0 +1,43 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-metadata	555	544	2a285d397aa6f1baa26ae75aa100e12245fc2af0e42fe9e98f2c41207c3bf30b
+model	pt-detokenizer.xml	36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555
+annotator	opennlp.tools.formats.convert.NameToTokenSampleStream	read
+config	splitHyphenatedTokens	true
+layer	turbo:samples	document	6	written:str
+Texto<SPLIT>.
+espaço<SPLIT>.
+espaço<SPLIT>.
+certo<SPLIT>.
+Parágrafo<SPLIT>.
+Parágrafos<SPLIT>.
+end	turbo:samples
+layer	turbo:read-errors	document	2	after:u32	class:str	message:str
+0	java.lang.RuntimeException	Invalid metadata: ABC p=0 x
+3	java.lang.RuntimeException	Invalid metadata: 2147483648 p=1 z
+end	turbo:read-errors
+layer	turbo:sample-texts	document	6	text:str
+Texto.
+espaço.
+espaço.
+certo.
+Parágrafo.
+Parágrafos.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	12	sample:u32	start:u32	end:u32
+0	0	5
+0	5	6
+1	0	7
+1	7	8
+2	0	7
+2	7	8
+3	0	5
+3	5	6
+4	0	10
+4	10	11
+5	0	11
+5	11	12
+end	turbo:sample-spans

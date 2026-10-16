@@ -1,0 +1,25 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-basic	3306	3280	64c57736c5c99822f6e0e52259ff772591be725abb50c3d72fed784b043bad82
+annotator	opennlp.tools.formats.ad.ADSentenceSampleStream	read
+config	includeTitles	false
+layer	turbo:samples	document	2	written:str
+A feira da vila começa no sábado, às dez horas.\nO escritor Teodoro Valim assina «Canções do Vale-Fundo», diz a organização.\nO escritor Teodoro Valim assina «Canções do Vale-Fundo», diz a organização.\nEntrada gratuita para os sócios!\n
+A Companhia_Fluvial do Sul anunciou ontem novas carreiras.\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	2	text:str
+A feira da vila começa no sábado, às dez horas. O escritor Teodoro Valim assina «Canções do Vale-Fundo», diz a organização. O escritor Teodoro Valim assina «Canções do Vale-Fundo», diz a organização. Entrada gratuita para os sócios!
+A Companhia_Fluvial do Sul anunciou ontem novas carreiras.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	5	sample:u32	start:u32	end:u32
+0	0	50
+0	51	132
+0	133	214
+0	215	248
+1	0	58
+end	turbo:sample-spans

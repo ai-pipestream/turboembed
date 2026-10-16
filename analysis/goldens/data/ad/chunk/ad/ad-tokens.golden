@@ -1,0 +1,102 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-tokens	583	553	fe85b7055de9985cd7b4807f773b7daa1b33df88a2cf588466f7fc12384d02c3
+annotator	opennlp.tools.formats.ad.ADChunkSampleStream	read
+layer	turbo:samples	document	3	written:str
+«Guarda-chuva», n B-NP\ndisse v-fin B-VP\nela! pron-pers O\npré- n B-NP\n-feira-x n B-NP\na-b-c n B-NP\nab-: n B-NP\n«» n B-NP\n7-a n B-NP\na-7 n B-NP\nç-ã! n B-NP\n🙂🙂 n B-NP\n🙂 n B-NP\ndois espaços n B-NP\n««a»» n B-NP\n
+ab-cd« n B-NP\nfim n B-NP\n
+«a» n B-NP\n« n B-NP\n. . O\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	20	sample:u32	text:str
+0	«Guarda-chuva»,
+0	disse
+0	ela!
+0	pré-
+0	-feira-x
+0	a-b-c
+0	ab-:
+0	«»
+0	7-a
+0	a-7
+0	ç-ã!
+0	🙂🙂
+0	🙂
+0	dois espaços
+0	««a»»
+1	ab-cd«
+1	fim
+2	«a»
+2	«
+2	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	20	tag:str
+n
+v-fin
+pron-pers
+n
+n
+n
+n
+n
+n
+n
+n
+n
+n
+n
+n
+n
+n
+n
+n
+.
+end	turbo:sample-tags
+layer	turbo:sample-chunks	aligned:turbo:sample-tokens	20	chunk:str
+B-NP
+B-VP
+O
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+B-NP
+O
+end	turbo:sample-chunks
+layer	turbo:phrases	document	18	sample:u32	start:u32	end:u32	type:str
+0	0	1	NP
+0	1	2	VP
+0	3	4	NP
+0	4	5	NP
+0	5	6	NP
+0	6	7	NP
+0	7	8	NP
+0	8	9	NP
+0	9	10	NP
+0	10	11	NP
+0	11	12	NP
+0	12	13	NP
+0	13	14	NP
+0	14	15	NP
+1	0	1	NP
+1	1	2	NP
+2	0	1	NP
+2	1	2	NP
+end	turbo:phrases
+layer	turbo:phrase-errors	document	0	sample:u32	class:str	message:str
+end	turbo:phrase-errors
