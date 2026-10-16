@@ -34,7 +34,7 @@ pub use aspect::{
 pub use detector::{SENTIMENT, Scratch, SentimentMe};
 pub use incivility::{
     DEFAULT_INCIVILITY_THRESHOLD, GoldIncivilityUnit, IncivilityAnnotator, IncivilityLexicon, IncivilityMetrics,
-    IncivilityRule, IncivilityUnit, IncivilityVectorScorer, LabelMetrics, evaluate_incivility_corpus,
+    IncivilityUnit, IncivilityVectorScorer, LabelMetrics, evaluate_incivility_corpus,
 };
 pub use lexicon::{
     B_DECR, B_INCR, C_INCR, COMPOUND_THRESHOLD, DEFAULT_ALPHA, LexiconSentiment, N_SCALAR, NegationMode,
