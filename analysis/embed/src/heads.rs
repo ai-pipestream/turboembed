@@ -523,6 +523,25 @@ impl ClassifierHead {
         Ok(map)
     }
 
+    /// Scores a single embedding vector `vector` (`&[f32]`) with a
+    /// [`HeadMode::MultiLabel`] incivility head and returns its six
+    /// [`IncivilityScores`] (`0.0..=1.0`).
+    pub fn score_incivility_vector(&self, vector: &[f32]) -> Result<IncivilityScores, String> {
+        if self.mode != HeadMode::MultiLabel {
+            return Err("incivility head must have HeadMode::MultiLabel".into());
+        }
+        let mut buf = vec![0.0f64; self.tags.len()];
+        self.score(vector, &mut buf)?;
+        let mut out = IncivilityScores::default();
+        for (i, &val) in buf.iter().enumerate() {
+            let label = self.tags.label(Tag(i as u16));
+            let parsed = IncivilityLabel::from_name(label)
+                .ok_or_else(|| format!("head label {label:?} is not a valid IncivilityLabel"))?;
+            out.set(parsed, val);
+        }
+        Ok(out)
+    }
+
     /// Scores `vectors` (`Vectors<Sentences>`) with a multi-label incivility
     /// head and writes [`Incivility`] (`turbo:incivility`).
     pub fn score_incivility_sentences(
