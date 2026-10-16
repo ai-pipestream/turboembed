@@ -662,3 +662,17 @@ fn no_value_of_any_pack_appears_in_the_audit() {
     }
     assert_eq!(kinds.len(), PiiKind::ALL.len(), "kinds found: {kinds:?}");
 }
+
+#[test]
+fn empty_normalized_mention_is_refused_in_hmac_rewrite_and_skipped_in_audit_samples() {
+    let pii = manual(&[(0, 5, PiiKind::Email, "")]);
+    assert_eq!(
+        tokenizer().rewrite("hello world", &pii).map(|r| r.into_text()),
+        Err(RewriteError::EmptyValue(Span::new(0, 5)))
+    );
+    let report = PiiAuditReport::of(&pii, &tokenizer(), 3);
+    assert_eq!(report.total, 1);
+    let email = report.kind(PiiKind::Email).unwrap();
+    assert_eq!((email.mentions, email.distinct), (1, 1));
+    assert!(email.samples.is_empty());
+}

@@ -47,8 +47,10 @@ impl PiiAuditReport {
             k.mentions += 1;
             if seen.insert((m.kind, m.normalized)) {
                 k.distinct += 1;
-                if k.samples.len() < samples {
-                    k.samples.push(tokenizer.token(m.kind, m.normalized).expect("a layer's values are not empty"));
+                if k.samples.len() < samples
+                    && let Ok(token) = tokenizer.token(m.kind, m.normalized)
+                {
+                    k.samples.push(token);
                 }
             }
         }

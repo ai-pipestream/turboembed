@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, Ix, ModelRef, Refs, Span, Tag, View};
+use turbo_analysis::{Annotator, Error, Ix, ModelRef, Refs, Tag, View};
 use turbo_analysis_layers::{Categories, Tokens};
 use turbo_maxent::{MaxentModel, best_outcome};
 
@@ -245,15 +245,16 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
         let extra = BTreeMap::new();
 
         for i in 0..n_units {
-            let unit_span: Span = units.span_at(i);
-            let a = tok_starts.partition_point(|&s| s < unit_span.start);
             tok_strs.clear();
-            for t in a..n_tokens {
-                if tok_starts[t] >= unit_span.end {
-                    break;
-                }
-                if tok_ends[t] <= unit_span.end {
-                    tok_strs.push(&text[tok_starts[t] as usize..tok_ends[t] as usize]);
+            for frag in units.layer_spans().fragments(Ix::new(i as u32)) {
+                let a = tok_starts.partition_point(|&s| s < frag.start);
+                for t in a..n_tokens {
+                    if tok_starts[t] >= frag.end {
+                        break;
+                    }
+                    if tok_ends[t] <= frag.end {
+                        tok_strs.push(&text[tok_starts[t] as usize..tok_ends[t] as usize]);
+                    }
                 }
             }
             self.categorizer.categorize_into(&tok_strs, &extra, &mut scratch, &mut probs);
@@ -266,5 +267,52 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.categorizer.model().model_ref().clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::{Document, Layer, Span, Spans, ViewId};
+    use turbo_analysis_layers::{Block, Structure};
+    use turbo_train::{Event, Key as Param, TrainingConfiguration, TrainingParameters, trainer};
+
+    #[test]
+    fn span_categorizer_excludes_gap_tokens_in_discontinuous_structure_block() {
+        let events = vec![
+            Event::from_strs("pos", &["bow=good", "bow=good"]),
+            Event::from_strs("neg", &["bow=good", "bow=bad", "bow=good"]),
+            Event::from_strs("neg", &["bow=bad"]),
+        ];
+        let mut params = TrainingParameters::new();
+        params.put(Param::ALGORITHM, "MAXENT");
+        params.put(Param::ITERATIONS, 50);
+        params.put(Param::CUTOFF, 0);
+        let (trained, _) = trainer::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        let maxent = MaxentModel::read(&trained.write().unwrap()).unwrap();
+        let model = DoccatModel::from_maxent("eng", maxent, DoccatContextGenerator::default()).unwrap();
+        let doc_cat = DocumentCategorizerME::new(model.clone());
+        assert_eq!(doc_cat.best_category(&doc_cat.categorize(&["good", "bad", "good"])), "neg");
+        assert_eq!(doc_cat.best_category(&doc_cat.categorize(&["good", "good"])), "pos");
+
+        let categorizer = doc_cat.for_spans::<Structure>();
+
+        // "good bad good": discontinuous Structure block has fragments [0..4, 9..13] ("good", "good"),
+        // with gap [4..9] holding "bad".
+        let doc = Document::new("good bad good");
+        let view = doc.get::<View>().unwrap();
+        let mut tok_spans = Spans::new(ViewId::SOURCE);
+        tok_spans.push(Span::new(0, 4));
+        tok_spans.push(Span::new(5, 8));
+        tok_spans.push(Span::new(9, 13));
+        let tokens = Tokens { spans: tok_spans, sentence: None };
+
+        let mut st_spans = Spans::new(ViewId::SOURCE);
+        st_spans.push_fragments(&[Span::new(0, 4), Span::new(9, 13)]);
+        let structure = Structure { spans: st_spans, kind: vec![Block::Paragraph], parent: vec![None], depth: vec![0] };
+
+        let (cats,) = categorizer.annotate((view, &tokens, &structure)).unwrap();
+        assert_eq!(cats.len(), 1);
+        assert_eq!(cats.get(0).unwrap().best, "pos");
     }
 }

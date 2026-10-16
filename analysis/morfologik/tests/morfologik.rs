@@ -774,3 +774,25 @@ fsa.dict.input-conversion=a b,\\\n  \\uD83D\\uDE00 c\r\
     let lone = b"fsa.dict.separator=+\nfsa.dict.encoding=UTF-8\nfsa.dict.encoder=none\nx=\\uD83D\n";
     assert!(MorfologikMetadata::parse(lone).is_err());
 }
+
+#[test]
+fn dictionary_lemmatizer_rejects_tokens_from_another_view() {
+    use turbo_analysis::{Annotator, Document, Span, Spans, Tag, TagSet, View, ViewId};
+    use turbo_analysis_layers::{PosTags, Tokens};
+    let lemmatizer = PoliMorfDictionaryReader::read(b"kotow\tkot\tsubst:pl:gen:m2\n").unwrap();
+    let doc = Document::new("kotow");
+    let src = doc.get::<View>().unwrap();
+    let mut tok_spans = Spans::new(ViewId(1));
+    tok_spans.push(Span::new(0, 5));
+    let tokens = Tokens { spans: tok_spans, sentence: None };
+    let tagset = TagSet::new("test", &["subst:pl:gen:m2"]);
+    let tags = PosTags { tagset, tags: vec![Tag(0)], prob: None };
+    let Err(err) = lemmatizer.annotate((src, &tokens, &tags)) else {
+        panic!("expected view mismatch error");
+    };
+    assert!(err.to_string().contains("the tokens are in view 1, the text in view 0"), "got: {err}");
+    let mut src_tok_spans = Spans::new(ViewId::SOURCE);
+    src_tok_spans.push(Span::new(0, 5));
+    let src_tokens = Tokens { spans: src_tok_spans, sentence: None };
+    assert!(lemmatizer.annotate((src, &src_tokens, &tags)).is_ok());
+}
