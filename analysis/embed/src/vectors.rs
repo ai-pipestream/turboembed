@@ -341,14 +341,12 @@ impl VectorAnnotator {
         for &span in spans {
             target_spans.push(span);
         }
-        let mut out = self.embed(
+        let mut out =
+            self.embed(annotator, &[Input { subwords, sentences, chunks: Some(&target_spans), levels: None }]);
+        let c = out.remove(0)?.chunks.ok_or_else(|| Error::Annotator {
             annotator,
-            &[Input { subwords, sentences, chunks: Some(&target_spans), levels: None }],
-        );
-        let c = out
-            .remove(0)?
-            .chunks
-            .ok_or_else(|| Error::Annotator { annotator, detail: "VectorAnnotator did not return span vectors".into() })?;
+            detail: "VectorAnnotator did not return span vectors".into(),
+        })?;
         let empty = c.empty.into_iter().map(|ix| Ix::<L>::new(ix.get() as u32)).collect();
         Ok(Vectors::new(c.dim, c.data, empty, c.model))
     }

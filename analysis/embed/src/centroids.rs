@@ -193,8 +193,7 @@ impl LabelCentroids {
             if vecs.is_empty() {
                 return Err(format!("label {trimmed:?} has no example vectors"));
             }
-            let c = centroid(vecs, norm)?
-                .ok_or_else(|| format!("label {trimmed:?} produced an empty centroid"))?;
+            let c = centroid(vecs, norm)?.ok_or_else(|| format!("label {trimmed:?} produced an empty centroid"))?;
             if c.len() != dim as usize {
                 return Err(format!("label {trimmed:?} centroid has length {}, expected {dim}", c.len()));
             }
@@ -265,7 +264,8 @@ impl LabelCentroids {
                 )));
             }
             let rows: Vec<&[f32]> = (0..spans.len()).map(|i| sent_vecs.row(Ix::new(i as u32))).collect();
-            let c = centroid(&rows, norm).map_err(fail)?
+            let c = centroid(&rows, norm)
+                .map_err(fail)?
                 .ok_or_else(|| fail(format!("label {trimmed:?} produced an empty centroid")))?;
             labels.push(trimmed);
             flat.extend_from_slice(&c);
@@ -341,13 +341,7 @@ impl LabelCentroids {
     /// Scores `vector` across all labels for multi-label classification by
     /// mapping each dot product `d` through `sigmoid((d - bias) * scale)` in
     /// `f64` (`0.0..=1.0`).
-    pub fn score_multi_label(
-        &self,
-        vector: &[f32],
-        bias: f64,
-        scale: f64,
-        scores: &mut [f64],
-    ) -> Result<(), String> {
+    pub fn score_multi_label(&self, vector: &[f32], bias: f64, scale: f64, scores: &mut [f64]) -> Result<(), String> {
         self.dot_scores(vector, scores)?;
         for s in scores.iter_mut() {
             let z = (*s - bias) * scale;
@@ -440,11 +434,7 @@ impl LabelCentroids {
         let n_labels = cur.read_u32()? as usize;
         let norm = CentroidNorm::from_byte(cur.read_u8()?)?;
         let temperature = cur.read_f64()?;
-        let model = ModelRef {
-            id: cur.read_string()?,
-            revision: cur.read_string()?,
-            sha256: cur.read_string()?,
-        };
+        let model = ModelRef { id: cur.read_string()?, revision: cur.read_string()?, sha256: cur.read_string()? };
         let tag_set_name = cur.read_string()?;
         if n_labels == 0 {
             return Err("TCENT001 file has 0 labels".into());
@@ -456,9 +446,8 @@ impl LabelCentroids {
         for _ in 0..n_labels {
             labels.push(cur.read_string()?);
         }
-        let total = n_labels
-            .checked_mul(dim as usize)
-            .ok_or_else(|| "TCENT001 dimensions overflow usize".to_string())?;
+        let total =
+            n_labels.checked_mul(dim as usize).ok_or_else(|| "TCENT001 dimensions overflow usize".to_string())?;
         let mut centroids = Vec::with_capacity(total);
         for _ in 0..total {
             centroids.push(cur.read_f32()?);
@@ -669,11 +658,7 @@ mod tests {
     use super::*;
 
     fn test_model() -> ModelRef {
-        ModelRef {
-            id: "tiny-bert".into(),
-            revision: "rev1".into(),
-            sha256: "0123456789abcdef".into(),
-        }
+        ModelRef { id: "tiny-bert".into(), revision: "rev1".into(), sha256: "0123456789abcdef".into() }
     }
 
     // Parity tests matching CentroidsTest.java on OPENNLP-1833-grpc-uber-server.

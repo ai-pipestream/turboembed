@@ -30,9 +30,8 @@ use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, Execution, Ix, Layer, ModelRef, Refs, Span, Tag, TagSet};
 use turbo_analysis_layers::{
-    Aspect, Aspects, Categories, CategoryScope, Chunks, Incivility, IncivilityItem, IncivilityLabel,
-    IncivilityScores, IncivilityTarget, Opinions, PolarityScores, Pragmatics, PragmaticsItem, Sentences, Subwords,
-    Tokens, Vectors,
+    Aspect, Aspects, Categories, CategoryScope, Chunks, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores,
+    IncivilityTarget, Opinions, PolarityScores, Pragmatics, PragmaticsItem, Sentences, Subwords, Tokens, Vectors,
 };
 
 use crate::centroids::{Cursor, LabelCentroids, argmax_tag, fnv1a, sigmoid, softmax_in_place, write_str};
@@ -237,14 +236,7 @@ impl ClassifierHead {
         }
         let l1 = DenseLayer::new(in_dim, hidden_dim, w1, b1)?;
         let l2 = DenseLayer::new(hidden_dim, tags.len() as u32, w2, b2)?;
-        let mut head = ClassifierHead {
-            model,
-            tags,
-            mode,
-            hidden_activation,
-            layers: vec![l1, l2],
-            hash: 0,
-        };
+        let mut head = ClassifierHead { model, tags, mode, hidden_activation, layers: vec![l1, l2], hash: 0 };
         head.hash = fnv1a(&head.to_bytes());
         Ok(head)
     }
@@ -727,11 +719,7 @@ impl ClassifierHead {
         if n_layers == 0 || n_layers > 2 {
             return Err(format!("THEAD001 supports 1 or 2 layers, got {n_layers}"));
         }
-        let model = ModelRef {
-            id: cur.read_string()?,
-            revision: cur.read_string()?,
-            sha256: cur.read_string()?,
-        };
+        let model = ModelRef { id: cur.read_string()?, revision: cur.read_string()?, sha256: cur.read_string()? };
         let tag_set_name = cur.read_string()?;
         let n_labels = cur.read_u32()? as usize;
         if n_labels == 0 {
@@ -973,13 +961,8 @@ impl Annotator for SentenceSpanHead {
 
     fn annotate(&self, (subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         let spans: Vec<Span> = (0..sentences.len()).map(|i| sentences.spans.get(Ix::new(i as u32))).collect();
-        let pooled: Vectors<Sentences> = self.vectors.embed_spans(
-            Self::ID,
-            subwords,
-            Some(&sentences.spans),
-            sentences.spans.view(),
-            &spans,
-        )?;
+        let pooled: Vectors<Sentences> =
+            self.vectors.embed_spans(Self::ID, subwords, Some(&sentences.spans), sentences.spans.view(), &spans)?;
         Ok((self.head.categorize_vectors(Self::ID, &pooled)?,))
     }
 
@@ -1018,13 +1001,8 @@ impl Annotator for ChunkSpanHead {
 
     fn annotate(&self, (subwords, sentences, chunks): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         let spans: Vec<Span> = (0..chunks.len()).map(|i| chunks.spans.get(Ix::new(i as u32))).collect();
-        let pooled: Vectors<Chunks> = self.vectors.embed_spans(
-            Self::ID,
-            subwords,
-            sentences.map(|s| &s.spans),
-            chunks.spans.view(),
-            &spans,
-        )?;
+        let pooled: Vectors<Chunks> =
+            self.vectors.embed_spans(Self::ID, subwords, sentences.map(|s| &s.spans), chunks.spans.view(), &spans)?;
         Ok((self.head.categorize_vectors(Self::ID, &pooled)?,))
     }
 
@@ -1066,13 +1044,7 @@ impl OpinionSpanHead {
         opinions: &Opinions,
     ) -> Result<Vectors<Opinions>, Error> {
         let spans: Vec<Span> = (0..opinions.len()).map(|i| opinions.span(Ix::new(i as u32), tokens)).collect();
-        self.vectors.embed_spans(
-            Self::ID,
-            subwords,
-            sentences.map(|s| &s.spans),
-            tokens.spans.view(),
-            &spans,
-        )
+        self.vectors.embed_spans(Self::ID, subwords, sentences.map(|s| &s.spans), tokens.spans.view(), &spans)
     }
 }
 
@@ -1133,13 +1105,7 @@ impl AspectSpanHead {
             })?;
             spans.push(span);
         }
-        self.vectors.embed_spans(
-            Self::ID,
-            subwords,
-            sentences.map(|s| &s.spans),
-            tokens.spans.view(),
-            &spans,
-        )
+        self.vectors.embed_spans(Self::ID, subwords, sentences.map(|s| &s.spans), tokens.spans.view(), &spans)
     }
 
     /// Pools each aspect's exact subword range and populates its three-way
@@ -1260,9 +1226,7 @@ fn erf_f64(x: f64) -> f64 {
     let sign = if x < 0.0 { -1.0 } else { 1.0 };
     let ax = x.abs();
     let t = 1.0 / (1.0 + 0.3275911 * ax);
-    let poly = t
-        * (0.254829592
-            + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+    let poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
     sign * (1.0 - poly * (-ax * ax).exp())
 }
 
@@ -1271,11 +1235,7 @@ mod tests {
     use super::*;
 
     fn test_model() -> ModelRef {
-        ModelRef {
-            id: "tiny-bert".into(),
-            revision: "rev1".into(),
-            sha256: "0123456789abcdef".into(),
-        }
+        ModelRef { id: "tiny-bert".into(), revision: "rev1".into(), sha256: "0123456789abcdef".into() }
     }
 
     #[test]
@@ -1348,14 +1308,12 @@ mod tests {
     #[test]
     fn fit_single_and_multi_label_converge_deterministically() {
         let tags = TagSet::new("sentiment", &["positive", "negative"]);
-        let examples: &[([f32; 2], Tag)] = &[
-            ([1.0, 0.1], Tag(0)),
-            ([0.9, 0.2], Tag(0)),
-            ([-1.0, -0.1], Tag(1)),
-            ([-0.8, -0.2], Tag(1)),
-        ];
-        let h1 = ClassifierHead::fit_single_label(test_model(), 2, Arc::clone(&tags), examples, 1e-3, 150, 0.5).unwrap();
-        let h2 = ClassifierHead::fit_single_label(test_model(), 2, Arc::clone(&tags), examples, 1e-3, 150, 0.5).unwrap();
+        let examples: &[([f32; 2], Tag)] =
+            &[([1.0, 0.1], Tag(0)), ([0.9, 0.2], Tag(0)), ([-1.0, -0.1], Tag(1)), ([-0.8, -0.2], Tag(1))];
+        let h1 =
+            ClassifierHead::fit_single_label(test_model(), 2, Arc::clone(&tags), examples, 1e-3, 150, 0.5).unwrap();
+        let h2 =
+            ClassifierHead::fit_single_label(test_model(), 2, Arc::clone(&tags), examples, 1e-3, 150, 0.5).unwrap();
         assert_eq!(h1, h2);
 
         let mut probs = [0.0f64; 2];

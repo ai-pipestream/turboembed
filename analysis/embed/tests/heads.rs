@@ -27,8 +27,8 @@ use std::sync::Arc;
 use turbo_analysis::*;
 use turbo_analysis_embed::*;
 use turbo_analysis_layers::{
-    Aspect, AspectTarget, Aspects, Categories, Chunks, Cut, Incivility, IncivilityLabel, Opinion,
-    Opinions, Polarity, PolarityScores, Pragmatics, Sentences, Subwords, Tokens, Vectors,
+    Aspect, AspectTarget, Aspects, Categories, Chunks, Cut, Incivility, IncivilityLabel, Opinion, Opinions, Polarity,
+    PolarityScores, Pragmatics, Sentences, Subwords, Tokens, Vectors,
 };
 use turbo_doccat::sentiment::LexiconSentiment;
 use turbo_tokenize::SimpleTokenizer;
@@ -47,10 +47,8 @@ fn open_subwords() -> SubwordAnnotator {
 
 fn open_cpu(max_seq: u32) -> (SubwordAnnotator, Arc<VectorAnnotator>) {
     let sub = open_subwords();
-    let o = VectorOptions {
-        encoder: EncoderOptions { max_seq, ..EncoderOptions::default() },
-        ..VectorOptions::default()
-    };
+    let o =
+        VectorOptions { encoder: EncoderOptions { max_seq, ..EncoderOptions::default() }, ..VectorOptions::default() };
     let vec = Arc::new(VectorAnnotator::open(&bert(), &o).unwrap_or_else(|e| panic!("{e}")));
     (sub, vec)
 }
@@ -74,11 +72,7 @@ fn embed_single_sentence(vec_ann: &Arc<VectorAnnotator>, text: &str) -> Vec<f32>
         .unwrap();
     let mut docs = [make_doc_with_sentences(text, &[(0, text.len() as u32)])];
     a.run(&mut docs).remove(0).unwrap();
-    docs[0]
-        .get::<Vectors<Sentences>>()
-        .unwrap()
-        .row(Ix::new(0))
-        .to_vec()
+    docs[0].get::<Vectors<Sentences>>().unwrap().row(Ix::new(0)).to_vec()
 }
 
 #[test]
@@ -102,10 +96,7 @@ fn centroids_match_opennlp_grpc_centroids_test() {
     // 3. zeroVectorWithL2Norm is rejected with a clear error (no NaN)
     let z = [0.0f32, 0.0, 0.0];
     assert!(centroid(&[&z[..], &z[..]], CentroidNorm::L2).is_err());
-    assert_eq!(
-        centroid(&[&z[..], &z[..]], CentroidNorm::None).unwrap().unwrap(),
-        vec![0.0f32, 0.0, 0.0]
-    );
+    assert_eq!(centroid(&[&z[..], &z[..]], CentroidNorm::None).unwrap().unwrap(), vec![0.0f32, 0.0, 0.0]);
 
     // 4. empty input returns Ok(None)
     let empty: [&[f32]; 0] = [];
@@ -144,8 +135,7 @@ fn category_sentence_centroids_matches_chunk_embed_processor_group() {
     cats.push(Tag(1), &[0.2, 0.8]);
     cats.push(Tag(0), &[0.85, 0.15]);
 
-    let grouped =
-        category_sentence_centroids(sentences, &cats, &vecs, None, CentroidNorm::L2).unwrap();
+    let grouped = category_sentence_centroids(sentences, &cats, &vecs, None, CentroidNorm::L2).unwrap();
     assert_eq!(grouped.len(), 2);
     assert_eq!(grouped[0].0, Tag(0));
     assert_eq!(grouped[0].1, vec![Ix::new(0), Ix::new(2)]);
@@ -192,8 +182,7 @@ fn label_centroids_from_text_examples_and_binary_roundtrip() {
     assert_eq!(centroids, decoded);
 
     // Run VectorHeadAnnotator<Sentences> with LabelCentroids through an Analyzer.
-    let head_step =
-        Bound::new(VectorHeadAnnotator::<Sentences>::new(decoded)).write(0, "sentiment");
+    let head_step = Bound::new(VectorHeadAnnotator::<Sentences>::new(decoded)).write(0, "sentiment");
     let analyzer = Analyzer::builder()
         .given(Key::<Sentences>::DEFAULT)
         .add(sub)
@@ -204,9 +193,7 @@ fn label_centroids_from_text_examples_and_binary_roundtrip() {
 
     let mut docs = [make_doc_with_sentences(pos_examples[0], &[(0, pos_examples[0].len() as u32)])];
     analyzer.run(&mut docs).remove(0).unwrap();
-    let cats = docs[0]
-        .get_key::<Categories<Sentences>>(&Key::named("sentiment"))
-        .unwrap();
+    let cats = docs[0].get_key::<Categories<Sentences>>(&Key::named("sentiment")).unwrap();
     assert_eq!(cats.len(), 1);
     assert_eq!(cats.best_category(0), "positive");
     let scores = cats.row_scores(0);
@@ -241,16 +228,8 @@ fn classifier_head_linear_and_mlp_fit_and_binary_roundtrip() {
     let model = vec_ann.model().clone();
 
     // 1. Fit a 1-layer linear ClassifierHead.
-    let linear = ClassifierHead::fit_single_label(
-        model.clone(),
-        32,
-        Arc::clone(&tags),
-        &examples,
-        1e-4,
-        150,
-        1.5,
-    )
-    .unwrap();
+    let linear =
+        ClassifierHead::fit_single_label(model.clone(), 32, Arc::clone(&tags), &examples, 1e-4, 150, 1.5).unwrap();
     let bytes = linear.to_bytes();
     let linear_rt = ClassifierHead::from_bytes(&bytes).unwrap();
     assert_eq!(linear, linear_rt);
@@ -273,19 +252,9 @@ fn classifier_head_linear_and_mlp_fit_and_binary_roundtrip() {
             -2.0, 2.0, // class 1
         ];
         let b2 = vec![0.0, 0.0];
-        let mlp = ClassifierHead::mlp(
-            model.clone(),
-            32,
-            2,
-            Arc::clone(&tags),
-            HeadMode::SingleLabel,
-            act,
-            w1,
-            b1,
-            w2,
-            b2,
-        )
-        .unwrap();
+        let mlp =
+            ClassifierHead::mlp(model.clone(), 32, 2, Arc::clone(&tags), HeadMode::SingleLabel, act, w1, b1, w2, b2)
+                .unwrap();
         let mlp_rt = ClassifierHead::from_bytes(&mlp.to_bytes()).unwrap();
         assert_eq!(mlp, mlp_rt);
         for (i, (v, want_tag)) in examples.iter().enumerate() {
@@ -299,16 +268,7 @@ fn classifier_head_linear_and_mlp_fit_and_binary_roundtrip() {
         .iter()
         .map(|(v, t)| (v.as_slice(), if *t == Tag(0) { [true, false] } else { [false, true] }))
         .collect();
-    let multi = ClassifierHead::fit_multi_label(
-        model,
-        32,
-        Arc::clone(&tags),
-        &multi_examples,
-        1e-5,
-        400,
-        2.5,
-    )
-    .unwrap();
+    let multi = ClassifierHead::fit_multi_label(model, 32, Arc::clone(&tags), &multi_examples, 1e-5, 400, 2.5).unwrap();
     assert_eq!(multi.mode(), HeadMode::MultiLabel);
     for (v, want_tag) in &examples {
         multi.score(v, &mut probs).unwrap();
@@ -429,18 +389,9 @@ fn vector_head_and_span_heads_write_expected_layers() {
         let tokens = doc.get::<Tokens>().unwrap();
         let sentences = doc.get::<Sentences>().unwrap();
         let subwords = doc.get::<Subwords>().unwrap();
-        let op_spans = [
-            opinions.span(Ix::new(0), tokens),
-            opinions.span(Ix::new(1), tokens),
-        ];
+        let op_spans = [opinions.span(Ix::new(0), tokens), opinions.span(Ix::new(1), tokens)];
         let opinion_vecs: Vectors<Opinions> = vec_ann
-            .embed_spans(
-                "test:opinions",
-                subwords,
-                Some(&sentences.spans),
-                tokens.spans.view(),
-                &op_spans,
-            )
+            .embed_spans("test:opinions", subwords, Some(&sentences.spans), tokens.spans.view(), &op_spans)
             .unwrap();
         assert_eq!(opinion_vecs.len(), 2);
         assert_ne!(opinion_vecs.row(Ix::new(0)), opinion_vecs.row(Ix::new(1)));
@@ -450,13 +401,7 @@ fn vector_head_and_span_heads_write_expected_layers() {
             aspects.span(Ix::new(1), tokens, Some(sentences)).unwrap(),
         ];
         let aspect_vecs: Vectors<Aspects> = vec_ann
-            .embed_spans(
-                "test:aspects",
-                subwords,
-                Some(&sentences.spans),
-                tokens.spans.view(),
-                &asp_spans,
-            )
+            .embed_spans("test:aspects", subwords, Some(&sentences.spans), tokens.spans.view(), &asp_spans)
             .unwrap();
         assert_eq!(aspect_vecs.len(), 2);
         assert_ne!(aspect_vecs.row(Ix::new(0)), aspect_vecs.row(Ix::new(1)));
@@ -470,10 +415,7 @@ fn vector_head_and_span_heads_write_expected_layers() {
         vec_ann.model().clone(),
         32,
         Arc::clone(&pol_tags),
-        &[
-            (opinion_vecs.row(Ix::new(0)), Tag(0)),
-            (opinion_vecs.row(Ix::new(1)), Tag(1)),
-        ],
+        &[(opinion_vecs.row(Ix::new(0)), Tag(0)), (opinion_vecs.row(Ix::new(1)), Tag(1))],
         1e-4,
         100,
         2.0,
@@ -483,10 +425,7 @@ fn vector_head_and_span_heads_write_expected_layers() {
         vec_ann.model().clone(),
         32,
         Arc::clone(&pol_tags),
-        &[
-            (aspect_vecs.row(Ix::new(0)), Tag(0)),
-            (aspect_vecs.row(Ix::new(1)), Tag(1)),
-        ],
+        &[(aspect_vecs.row(Ix::new(0)), Tag(0)), (aspect_vecs.row(Ix::new(1)), Tag(1))],
         1e-4,
         100,
         2.0,
@@ -637,11 +576,7 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
             .map(|&(text, label)| {
                 let mut docs = [make_doc_with_sentences(text, &[(0, text.len() as u32)])];
                 a.run(&mut docs).remove(0).unwrap();
-                let v = docs[0]
-                    .get::<Vectors<Sentences>>()
-                    .unwrap()
-                    .row(Ix::new(0))
-                    .to_vec();
+                let v = docs[0].get::<Vectors<Sentences>>().unwrap().row(Ix::new(0)).to_vec();
                 (v, Tag(label as u16))
             })
             .collect()
@@ -651,16 +586,8 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
     let eval_vecs = embed_items(&vec_ann, &bert(), eval_data);
     let dim = vec_ann.dim();
 
-    let pos_vecs: Vec<&[f32]> = train_vecs
-        .iter()
-        .filter(|(_, t)| *t == Tag(0))
-        .map(|(v, _)| v.as_slice())
-        .collect();
-    let neg_vecs: Vec<&[f32]> = train_vecs
-        .iter()
-        .filter(|(_, t)| *t == Tag(1))
-        .map(|(v, _)| v.as_slice())
-        .collect();
+    let pos_vecs: Vec<&[f32]> = train_vecs.iter().filter(|(_, t)| *t == Tag(0)).map(|(v, _)| v.as_slice()).collect();
+    let neg_vecs: Vec<&[f32]> = train_vecs.iter().filter(|(_, t)| *t == Tag(1)).map(|(v, _)| v.as_slice()).collect();
 
     let tags = TagSet::new("sentiment", &["positive", "negative"]);
     let centroids = LabelCentroids::from_vector_examples(
@@ -673,16 +600,9 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
     )
     .unwrap();
 
-    let linear_head = ClassifierHead::fit_single_label(
-        vec_ann.model().clone(),
-        dim,
-        Arc::clone(&tags),
-        &train_vecs,
-        1e-4,
-        250,
-        1.5,
-    )
-    .unwrap();
+    let linear_head =
+        ClassifierHead::fit_single_label(vec_ann.model().clone(), dim, Arc::clone(&tags), &train_vecs, 1e-4, 250, 1.5)
+            .unwrap();
 
     let lexicon = LexiconSentiment::new();
     let mut probs = [0.0f64; 2];
@@ -754,21 +674,15 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
             .build()
             .unwrap();
         let embed_masc = |slice: &[(String, usize)]| -> Vec<(Vec<f32>, Tag)> {
-            let mut docs: Vec<Document> = slice
-                .iter()
-                .map(|(t, _)| make_doc_with_sentences(t, &[(0, t.len() as u32)]))
-                .collect();
+            let mut docs: Vec<Document> =
+                slice.iter().map(|(t, _)| make_doc_with_sentences(t, &[(0, t.len() as u32)])).collect();
             for r in m_pipe.run(&mut docs) {
                 r.unwrap();
             }
             docs.iter()
                 .zip(slice)
                 .map(|(d, (_, l))| {
-                    let v = d
-                        .get::<Vectors<Sentences>>()
-                        .unwrap()
-                        .row(Ix::new(0))
-                        .to_vec();
+                    let v = d.get::<Vectors<Sentences>>().unwrap().row(Ix::new(0)).to_vec();
                     (v, Tag(*l as u16))
                 })
                 .collect()
@@ -777,16 +691,8 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
         let m_train_vecs = embed_masc(m_train);
         let m_test_vecs = embed_masc(m_test);
 
-        let m_pos: Vec<&[f32]> = m_train_vecs
-            .iter()
-            .filter(|(_, t)| *t == Tag(0))
-            .map(|(v, _)| v.as_slice())
-            .collect();
-        let m_neg: Vec<&[f32]> = m_train_vecs
-            .iter()
-            .filter(|(_, t)| *t == Tag(1))
-            .map(|(v, _)| v.as_slice())
-            .collect();
+        let m_pos: Vec<&[f32]> = m_train_vecs.iter().filter(|(_, t)| *t == Tag(0)).map(|(v, _)| v.as_slice()).collect();
+        let m_neg: Vec<&[f32]> = m_train_vecs.iter().filter(|(_, t)| *t == Tag(1)).map(|(v, _)| v.as_slice()).collect();
 
         let m_centroids = LabelCentroids::from_vector_examples(
             m_vec_ann.model().clone(),
@@ -855,21 +761,12 @@ fn load_masc_mpqa_samples(root: &Path) -> Vec<(String, usize)> {
 
     let mut samples = Vec::new();
     for mpqa_path in mpqa_files {
-        let stem = mpqa_path
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .strip_suffix("-mpqa.xml")
-            .unwrap();
+        let stem = mpqa_path.file_name().unwrap().to_str().unwrap().strip_suffix("-mpqa.xml").unwrap();
         let txt_path = mpqa_path.with_file_name(format!("{stem}.txt"));
         let Ok(raw_txt) = std::fs::read_to_string(&txt_path) else { continue };
         let Ok(xml) = std::fs::read_to_string(&mpqa_path) else { continue };
-        let char_to_byte: Vec<usize> = raw_txt
-            .char_indices()
-            .map(|(b, _)| b)
-            .chain(std::iter::once(raw_txt.len()))
-            .collect();
+        let char_to_byte: Vec<usize> =
+            raw_txt.char_indices().map(|(b, _)| b).chain(std::iter::once(raw_txt.len())).collect();
 
         let mut regions: BTreeMap<String, (usize, usize)> = BTreeMap::new();
         let mut nodes: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -877,8 +774,7 @@ fn load_masc_mpqa_samples(root: &Path) -> Vec<(String, usize)> {
         for line in xml.lines() {
             let trimmed = line.trim();
             if trimmed.starts_with("<region ")
-                && let (Some(id), Some(anchors)) =
-                    (attr_val(trimmed, "xml:id"), attr_val(trimmed, "anchors"))
+                && let (Some(id), Some(anchors)) = (attr_val(trimmed, "xml:id"), attr_val(trimmed, "anchors"))
             {
                 let mut parts = anchors.split_whitespace();
                 if let (Some(s), Some(e)) = (parts.next(), parts.next())
@@ -900,10 +796,7 @@ fn load_masc_mpqa_samples(root: &Path) -> Vec<(String, usize)> {
                 cur_node = attr_val(trimmed, "xml:id").map(str::to_string);
             } else if trimmed.starts_with("<link ") {
                 if let (Some(nid), Some(targets)) = (&cur_node, attr_val(trimmed, "targets")) {
-                    nodes.insert(
-                        nid.clone(),
-                        targets.split_whitespace().map(str::to_string).collect(),
-                    );
+                    nodes.insert(nid.clone(), targets.split_whitespace().map(str::to_string).collect());
                 }
             } else if trimmed == "</node>" {
                 cur_node = None;
@@ -947,11 +840,7 @@ fn collect_mpqa_files(dir: &Path, out: &mut Vec<PathBuf>) {
         let p = entry.path();
         if p.is_dir() {
             collect_mpqa_files(&p, out);
-        } else if p
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| n.ends_with("-mpqa.xml"))
-        {
+        } else if p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.ends_with("-mpqa.xml")) {
             out.push(p);
         }
     }
@@ -969,9 +858,7 @@ fn attr_val<'a>(line: &'a str, key: &str) -> Option<&'a str> {
 fn heads_and_centroids_cpu_and_device_parity() {
     let want = match std::env::var("TURBO_TEST_DEVICE") {
         Ok(w) => w,
-        Err(_) if std::env::var("TURBO_TEST_REQUIRE_CUDA").as_deref() == Ok("1") => {
-            "cuda".to_string()
-        }
+        Err(_) if std::env::var("TURBO_TEST_REQUIRE_CUDA").as_deref() == Ok("1") => "cuda".to_string(),
         Err(_) => {
             println!("skipped: neither TURBO_TEST_DEVICE nor TURBO_TEST_REQUIRE_CUDA=1 is set");
             return;
@@ -986,10 +873,8 @@ fn heads_and_centroids_cpu_and_device_parity() {
         encoder: EncoderOptions { device, max_seq: 64, ..EncoderOptions::default() },
         ..VectorOptions::default()
     };
-    let dev_vec = Arc::new(
-        VectorAnnotator::open(&bert(), &dev_opts)
-            .unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={want}: {e}")),
-    );
+    let dev_vec =
+        Arc::new(VectorAnnotator::open(&bert(), &dev_opts).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={want}: {e}")));
     let exec = &dev_vec.info().execution;
     assert_ne!(exec.backend, "cpu", "{exec:?}");
 
@@ -997,10 +882,8 @@ fn heads_and_centroids_cpu_and_device_parity() {
         "We loved the friendly staff and the delicious breakfast.",
         "This camera takes crisp photos and works wonderfully.",
     ];
-    let neg_examples = [
-        "We hated the rude service and the cold soggy meal.",
-        "This camera crashes constantly and wastes battery.",
-    ];
+    let neg_examples =
+        ["We hated the rude service and the cold soggy meal.", "This camera crashes constantly and wastes battery."];
     let centroids = LabelCentroids::from_text_examples(
         &cpu_vec,
         &sub,
@@ -1016,27 +899,22 @@ fn heads_and_centroids_cpu_and_device_parity() {
         cpu_vec.model().clone(),
         32,
         tags,
-        &[
-            (centroids.centroid_of(Tag(0)), Tag(0)),
-            (centroids.centroid_of(Tag(1)), Tag(1)),
-        ],
+        &[(centroids.centroid_of(Tag(0)), Tag(0)), (centroids.centroid_of(Tag(1)), Tag(1))],
         1e-4,
         150,
         1.5,
     )
     .unwrap();
 
-    let text = "We loved the friendly staff and the delicious breakfast. We hated the rude service and the cold soggy meal.";
+    let text =
+        "We loved the friendly staff and the delicious breakfast. We hated the rude service and the cold soggy meal.";
     let s0 = (0, 56);
     let s1 = (57, text.len() as u32);
 
     let run_pipeline = |vec_ann: &Arc<VectorAnnotator>| -> (Vec<f64>, Vec<f64>) {
         let doc = make_doc_with_sentences(text, &[s0, s1]);
-        let tok_pipe = Analyzer::builder()
-            .given(Key::<Sentences>::DEFAULT)
-            .add(SimpleTokenizer::default())
-            .build()
-            .unwrap();
+        let tok_pipe =
+            Analyzer::builder().given(Key::<Sentences>::DEFAULT).add(SimpleTokenizer::default()).build().unwrap();
         let mut docs = [doc];
         tok_pipe.run(&mut docs).remove(0).unwrap();
         let mut doc = docs.into_iter().next().unwrap();
@@ -1046,12 +924,7 @@ fn heads_and_centroids_cpu_and_device_parity() {
             Opinions::from_items(
                 tokens,
                 [
-                    Opinion {
-                        tokens: IxRange::new(0, 10),
-                        polarity: 0.0,
-                        intensity: 1.0,
-                        negated: false,
-                    },
+                    Opinion { tokens: IxRange::new(0, 10), polarity: 0.0, intensity: 1.0, negated: false },
                     Opinion {
                         tokens: IxRange::new(10, tokens.len() as u32),
                         polarity: 0.0,
@@ -1070,43 +943,23 @@ fn heads_and_centroids_cpu_and_device_parity() {
             .given(Key::<Opinions>::DEFAULT)
             .add(open_subwords())
             .add(SentenceVectors(Arc::clone(vec_ann)))
-            .step(
-                Bound::new(VectorHeadAnnotator::<Sentences>::new(centroids.clone()))
-                    .write(0, "cent-sentiment"),
-            )
-            .step(
-                Bound::new(OpinionSpanHead::new(Arc::clone(vec_ann), head.clone()))
-                    .write(0, "head-sentiment"),
-            )
+            .step(Bound::new(VectorHeadAnnotator::<Sentences>::new(centroids.clone())).write(0, "cent-sentiment"))
+            .step(Bound::new(OpinionSpanHead::new(Arc::clone(vec_ann), head.clone())).write(0, "head-sentiment"))
             .build()
             .unwrap();
 
         let mut docs = [doc];
         pipe.run(&mut docs).remove(0).unwrap();
 
-        let cent_cats = docs[0]
-            .get_key::<Categories<Sentences>>(&Key::named("cent-sentiment"))
-            .unwrap();
-        let head_cats = docs[0]
-            .get_key::<Categories<Opinions>>(&Key::named("head-sentiment"))
-            .unwrap();
+        let cent_cats = docs[0].get_key::<Categories<Sentences>>(&Key::named("cent-sentiment")).unwrap();
+        let head_cats = docs[0].get_key::<Categories<Opinions>>(&Key::named("head-sentiment")).unwrap();
         assert_eq!(cent_cats.best_category(0), "positive");
         assert_eq!(cent_cats.best_category(1), "negative");
         assert_eq!(head_cats.best_category(0), "positive");
         assert_eq!(head_cats.best_category(1), "negative");
         (
-            cent_cats
-                .row_scores(0)
-                .iter()
-                .chain(cent_cats.row_scores(1))
-                .copied()
-                .collect(),
-            head_cats
-                .row_scores(0)
-                .iter()
-                .chain(head_cats.row_scores(1))
-                .copied()
-                .collect(),
+            cent_cats.row_scores(0).iter().chain(cent_cats.row_scores(1)).copied().collect(),
+            head_cats.row_scores(0).iter().chain(head_cats.row_scores(1)).copied().collect(),
         )
     };
 
