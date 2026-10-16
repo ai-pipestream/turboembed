@@ -916,37 +916,29 @@ impl Parse {
 
     /// Returns all POS-tag nodes under this parse in left-to-right order (`Parse.getTagNodes`).
     pub fn tag_nodes(&self) -> Vec<&Parse> {
-        let mut tags = Vec::new();
-        self.collect_tag_nodes(&mut tags);
-        tags
+        self.collect_nodes(Parse::is_pos_tag)
     }
 
-    fn collect_tag_nodes<'a>(&'a self, out: &mut Vec<&'a Parse>) {
-        for part in &self.parts {
-            if part.is_pos_tag() {
-                out.push(part);
+    /// The nodes under this parse for which `wanted` holds, left to right, without looking under
+    /// them. The walk keeps its own stack, so a tree as deep as a hostile input can make it does
+    /// not overflow the thread's.
+    fn collect_nodes(&self, wanted: impl Fn(&Parse) -> bool) -> Vec<&Parse> {
+        let mut out = Vec::new();
+        let mut pending: Vec<&Parse> = self.parts.iter().rev().collect();
+        while let Some(node) = pending.pop() {
+            if wanted(node) {
+                out.push(node);
             } else {
-                part.collect_tag_nodes(out);
+                pending.extend(node.parts.iter().rev());
             }
         }
+        out
     }
 
     /// Returns all `TK` token leaf nodes under this parse in left-to-right order
     /// (`Parse.getTokenNodes`).
     pub fn token_nodes(&self) -> Vec<&Parse> {
-        let mut tokens = Vec::new();
-        self.collect_token_nodes(&mut tokens);
-        tokens
-    }
-
-    fn collect_token_nodes<'a>(&'a self, out: &mut Vec<&'a Parse>) {
-        for part in &self.parts {
-            if part.kind == TOK_NODE {
-                out.push(part);
-            } else {
-                part.collect_token_nodes(out);
-            }
-        }
+        self.collect_nodes(|p| p.kind == TOK_NODE)
     }
 
     /// Returns the basal phrase chunks and unchunked POS nodes under this parse in left-to-right
@@ -1143,6 +1135,30 @@ impl Hash for Parse {
 }
 
 /// `Parse.toString`: the covered text.
+/// Drops the nodes under a parse one by one rather than recursively: a tree read from a few
+/// megabytes of nested brackets is deep enough to overflow the stack if each level's drop calls
+/// the next.
+impl Drop for Parse {
+    fn drop(&mut self) {
+        if self.parts.is_empty() && self.prev_punct.is_empty() && self.next_punct.is_empty() {
+            return;
+        }
+        let mut pending = Vec::new();
+        take_children(self, &mut pending);
+        while let Some(mut node) = pending.pop() {
+            // Once its children are taken, `node` drops without recursing.
+            take_children(&mut node, &mut pending);
+        }
+    }
+}
+
+/// Moves the children and punctuation of `node` onto `into`.
+fn take_children(node: &mut Parse, into: &mut Vec<Parse>) {
+    into.append(&mut node.parts);
+    into.append(&mut node.prev_punct);
+    into.append(&mut node.next_punct);
+}
+
 impl fmt::Display for Parse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.covered_text())
@@ -1279,6 +1295,17 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn deep_trees_are_walked_and_dropped_without_recursion() {
+        let depth = 100_000;
+        let input = format!("{}(NN x){}", "(A ".repeat(depth), ")".repeat(depth));
+        let (parse, sources) = Parse::parse_with_sources(&input, false).unwrap();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(parse.tag_nodes().len(), 1);
+        assert_eq!(parse.token_nodes().len(), 1);
+        drop(parse);
     }
 
     #[test]
