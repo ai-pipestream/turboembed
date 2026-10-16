@@ -4,9 +4,9 @@
 //! reads the archive with this crate's own [`zip`] and [`inflate`]
 //! modules, and the manifest as `java.util.Properties` reads it
 //! ([`Properties`]). From the archive it reads the classifier
-//! ([`MaxentModel`], for models of type `GIS`, `QN` and `Perceptron`) and
-//! the dictionary XML ([`Dictionary`] as a set, [`Entries`] with each
-//! entry's attributes).
+//! ([`MaxentModel`], for models of type `GIS`, `QN`, `Perceptron` and
+//! `NaiveBayes`) and the dictionary XML ([`Dictionary`] as a set,
+//! [`Entries`] with each entry's attributes).
 //!
 //! [`MaxentModel::eval`] takes a context's features as strings and writes
 //! one probability per outcome into the caller's buffer;
