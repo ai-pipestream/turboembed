@@ -24,18 +24,21 @@
 //! first bytes up to the end of the fewest leading row groups that hold
 //! [`WebSplit::rows_per_document`] rows for each document wanted, or all
 //! of its row groups when they hold fewer. The files are listed with their
-//! size and SHA-256 as the hub's API gives them at the datasets' pinned
-//! revisions ([`FILES`]), and the ranges with theirs ([`RANGES`]). No run
-//! reads a whole file, so a file's SHA-256 records which file it is and is
-//! not checked; a run checks every range it reads against its SHA-256, and
-//! that the ranges listed are the ones the files give.
+//! size and SHA-256 as the hub's API gives them at the datasets'
+//! revisions ([`FILES`]), and the ranges with theirs ([`RANGES`]). The
+//! binary checks ranges, not whole files, so a file's SHA-256 records
+//! which file it is and is not checked; a run checks every range it
+//! reads against its SHA-256, and that the ranges listed are the ones the
+//! files give.
 //!
 //! From those rows, in order, each document gives its first
 //! [`WebSplit::window`] characters, or all of them when it has fewer. A
 //! document with fewer than [`WebSplit::min_chars`] characters is passed
 //! over, and so is one from a host of [`EXCLUDED_HOSTS`], a window its
-//! language already has, and a window that holds a Tatoeba sentence of its
-//! language from the other side of the split ([`Avoid`]). A file's
+//! language already has or an earlier row of its file gave, and a window
+//! that holds a Tatoeba sentence of its language of at least
+//! [`WebSplit::overlap_min_chars`] characters from the other side of the
+//! split, byte for byte ([`Avoid`]). A file's
 //! documents are taken in row order, at first at most one in
 //! [`WebSplit::host_share`] from one host; when that leaves the file short,
 //! the documents passed over for their host are taken next, in row order.
@@ -307,7 +310,9 @@ impl<'a> Overlap<'a> {
 /// The Tatoeba sentences the windows are checked against: a training
 /// window may not hold a held-out sentence of its language, which would
 /// favour the trained model on the Tatoeba gate, nor a held-out window a
-/// training sentence of its language.
+/// training sentence of its language. Only sentences of at least
+/// [`WebSplit::overlap_min_chars`] characters are looked for, byte for
+/// byte.
 pub struct Avoid<'a> {
     /// What a training window may not hold.
     pub training: Overlap<'a>,
@@ -838,14 +843,16 @@ pub fn check_ranges(listed: &[WebRange], made: &[WebRange]) -> Result<()> {
         if l != m {
             return Err(WebError::Ranges {
                 message: format!(
-                    "range {} is {} {} {}, the files give {} {} {}",
+                    "range {} is {} {} {} {}, the files give {} {} {} {}",
                     i + 1,
                     l.repo,
                     l.path,
                     l.span,
+                    l.sha256,
                     m.repo,
                     m.path,
-                    m.span
+                    m.span,
+                    m.sha256
                 ),
             });
         }
@@ -929,8 +936,9 @@ pub struct FileChoice {
     pub too_short: usize,
     /// Rows passed over for their host ([`EXCLUDED_HOSTS`]).
     pub excluded_host: usize,
-    /// Windows passed over as one the language already has, or, held
-    /// out, one any language trains on.
+    /// Windows passed over as one the language already has or an earlier
+    /// row of the file gave (taken or not), or, held out, one any language
+    /// trains on.
     pub duplicates: usize,
     /// Windows passed over for holding a Tatoeba sentence of their
     /// language from the other side of the split ([`Avoid`]).
@@ -1219,22 +1227,25 @@ mod tests {
         assert_eq!(check_ranges(&[r(0, 4), r(4, 8)], &[r(0, 4), r(4, 8)]), Ok(()));
         let e = check_ranges(&[r(0, 4)], &[r(0, 4), r(4, 8)]).unwrap_err();
         assert_eq!(e.to_string(), "fineweb-ranges.txt: 1 ranges are listed, and the files give 2");
+        let zeros = "0".repeat(64);
         let e = check_ranges(&[r(0, 5)], &[r(0, 4)]).unwrap_err();
-        assert!(e.to_string().contains("range 1 is HuggingFaceFW/fineweb p 0-5, the files give"), "{e}");
+        let want = format!(
+            "range 1 is HuggingFaceFW/fineweb p 0-5 {zeros}, the files give HuggingFaceFW/fineweb p 0-4 {zeros}"
+        );
+        assert!(e.to_string().contains(&want), "{e}");
+        // A range that differs only in its digest names both.
+        let other = WebRange { sha256: "1".repeat(64), ..r(0, 4) };
+        let e = check_ranges(&[other], &[r(0, 4)]).unwrap_err();
+        assert!(e.to_string().contains(&format!("p 0-4 {}, the files give", "1".repeat(64))), "{e}");
     }
 
     #[test]
     fn the_committed_lists_are_read() {
         let files = parse_files(FILES_NAME, FILES).unwrap();
         let ranges = parse_ranges(RANGES_NAME, RANGES).unwrap();
-        // Until the ranges are first fetched both lists are empty; once
-        // they are, the files are exactly the ones the recipe reads, and
-        // each has its three ranges.
-        if !files.is_empty() {
-            files_of(&WEB.wants(), &files).unwrap();
-            assert_eq!(ranges.len(), 3 * files.len());
-        } else {
-            assert!(ranges.is_empty());
-        }
+        // The files are exactly the ones the recipe reads, and each has
+        // its three ranges.
+        assert_eq!((files.len(), ranges.len()), (204, 612));
+        files_of(&WEB.wants(), &files).unwrap();
     }
 }

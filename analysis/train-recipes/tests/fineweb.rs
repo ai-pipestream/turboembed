@@ -499,6 +499,14 @@ fn word_rows(tatoeba: &str, side: Side) -> Vec<[String; 3]> {
         .collect()
 }
 
+/// The digest of the committed lists, which the release's model's card
+/// names.
+fn recorded_lists() -> String {
+    let files = fineweb::parse_files(fineweb::FILES_NAME, fineweb::FILES).unwrap();
+    let ranges = fineweb::parse_ranges(fineweb::RANGES_NAME, fineweb::RANGES).unwrap();
+    fineweb::lists_digest(&files, &ranges)
+}
+
 fn fixture() -> Vec<u8> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures").join(FIXTURE.file);
     fs::read(path).unwrap()
@@ -546,6 +554,22 @@ fn the_web_recipe_trains_gates_and_compares_end_to_end() {
         langdetect::run(&LanguageRecipe { model_id: "plain", ..recipe.tatoeba }, &export, false, &fixture).unwrap();
     assert_eq!(s.tatoeba_gate.set, plain.gate.set);
     assert_eq!(s.tatoeba_gate.set.name, recipe.tatoeba.held_out_name(&export.digest()));
+    // Compared with a model that does not know Turkish (the Tatoeba side
+    // leaves it out), the windows' comparison keeps the other languages'
+    // 32 windows, and the web gate all 36.
+    let bytes = &plain.trained.bytes;
+    let without_turkish = RecordedReference {
+        id: "plain",
+        file: "plain.bin",
+        url: "plain.bin",
+        size: bytes.len() as u64,
+        sha256: Box::leak(Sha256::of(bytes).to_string().into_boxed_str()),
+    };
+    let narrower = WebLanguageRecipe { compared: Reference::Recorded(without_turkish), ..recipe };
+    let o = langdetect_web::run(&narrower, &export, false, &web, &fixture, bytes).unwrap();
+    assert_eq!((o.scored.web_gate.units.len(), o.scored.compare_web.units.len()), (36, 32));
+    assert_eq!(o.card.compared_on_windows.units, 32);
+    assert_eq!(o.scored.compare_tatoeba.units.len(), 32);
     // The compared model's records score the gates' units with its own
     // answers: the trained model's side is the same.
     let candidate = |r: &turbo_eval::model_gate::ModelGateRecord| -> Vec<u64> {
@@ -605,6 +629,11 @@ fn the_web_recipe_trains_gates_and_compares_end_to_end() {
     card.export.recorded = true;
     assert_eq!(refused(&card), "it was trained on web ranges that are not the recorded ones");
     card.web.recorded = true;
+    assert_eq!(refused(&card), "its card names other web lists than the recorded ones");
+    card.web.lists_sha256 = recorded_lists();
+    assert_eq!(refused(&card), "it was not compared with its recipe's model");
+    card.compared = LANGDETECT_WEB.compared.id().to_owned();
+    card.compared_sha256 = LANGDETECT_WEB.compared.sha256().unwrap();
     let entry = card.artifact(url, url, url).unwrap();
     let names: Vec<&str> = entry.files.iter().map(|f| f.path.as_str()).collect();
     assert_eq!(names, [card.file.name.as_str(), SENTENCES_FILE, DOCUMENTS_FILE]);
@@ -634,6 +663,11 @@ fn the_release_entry_checks_the_model_its_records_and_its_training_files() {
     card.file.name = format!("{MODEL_ID}.bin");
     card.export.recorded = true;
     card.web.recorded = true;
+    card.web.lists_sha256 = recorded_lists();
+    let compared = LANGDETECT_WEB.compared;
+    card.compared = compared.id().to_owned();
+    card.compared_sha256 = compared.sha256().unwrap();
+    let compared = ModelId { id: card.compared.clone(), sha256: card.compared_sha256.clone() };
     let candidate = ModelId { id: MODEL_ID.to_owned(), sha256: card.file.sha256.clone() };
     let reference = LANGDETECT_WEB.tatoeba.reference;
     let reference = ModelId { id: reference.id().to_owned(), sha256: reference.sha256().unwrap() };
@@ -657,13 +691,13 @@ fn the_release_entry_checks_the_model_its_records_and_its_training_files() {
     s.tatoeba_gate = passing(&s.tatoeba_gate, &mut card.gate);
     s.web_gate = passing(&s.web_gate, &mut card.web_gate);
     // The comparisons keep their units, so their scores and the card's
-    // stay the same.
+    // stay the same; they name the recipe's compared model.
     let renamed = |r: &ModelGateRecord| {
         ModelGateRecord::new(
             Task::LanguageDetector,
             r.set.clone(),
             candidate.clone(),
-            r.reference.clone(),
+            compared.clone(),
             r.units.clone(),
         )
         .unwrap()
@@ -852,7 +886,7 @@ fn the_binary_says_what_to_fetch_and_needs_its_inputs() {
     assert!(String::from_utf8_lossy(&paths.stderr).starts_with("fineweb-ranges --paths does not read --web"));
 
     // The recipe needs both models, the web directory, --files and
-    // --ranges together and, while the committed lists are empty,
+    // --ranges together and, for lists other than the committed ones,
     // --unrecorded-web; every problem is named before anything is read.
     let references = dir.join("references");
     fs::create_dir(&references).unwrap();

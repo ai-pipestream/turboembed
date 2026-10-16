@@ -59,7 +59,7 @@ jobs:
           {
             echo "${SUMMARY} Built from commit ${GITHUB_SHA}."
             echo
-            echo "Each model passed its gate against the OpenNLP model for the same task; the gate records and the README give the scores: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/analysis/train-recipes/README.md"
+            echo "Each model passed its recipe's gates against the OpenNLP model for the same task; the gate records and the README give the scores: https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/analysis/train-recipes/README.md"
             echo
             echo "The models are under Apache-2.0. Each model's card (\`<model id>.card.json\`) gives the data it was trained on and its attribution:"
             echo

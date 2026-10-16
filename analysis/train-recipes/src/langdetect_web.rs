@@ -7,9 +7,10 @@
 //!   training windows of [`crate::fineweb`] ([`fineweb::WEB`]): at most
 //!   1,000 web windows of at most 300 characters per language beside at
 //!   most 5,000 sentences. No training window holds a held-out sentence of
-//!   its language, and no held-out window a training sentence
-//!   ([`fineweb::Avoid`]). One event each, the sentences first, then the windows,
-//!   each language by language in the order of
+//!   its language of at least [`fineweb::WebSplit::overlap_min_chars`]
+//!   characters, byte for byte, and no held-out window such a training
+//!   sentence ([`fineweb::Avoid`]). One event each, the sentences first,
+//!   then the windows, each language by language in the order of
 //!   [`crate::langdetect::LANGUAGES`].
 //! - Training: the Tatoeba recipe's parameters (`MAXENT`, 100
 //!   iterations, cutoff 5, one thread, the `OnePass` indexer) and its
@@ -796,6 +797,15 @@ impl WebLanguageCard {
         }
         if !self.web.recorded {
             return Err(not("it was trained on web ranges that are not the recorded ones"));
+        }
+        let files = fineweb::parse_files(fineweb::FILES_NAME, fineweb::FILES)?;
+        let ranges = fineweb::parse_ranges(fineweb::RANGES_NAME, fineweb::RANGES)?;
+        if self.web.lists_sha256 != fineweb::lists_digest(&files, &ranges) {
+            return Err(not("its card names other web lists than the recorded ones"));
+        }
+        let compared = LANGDETECT_WEB.compared;
+        if self.compared != compared.id() || self.compared_sha256 != compared.sha256()? {
+            return Err(not("it was not compared with its recipe's model"));
         }
         let bad = |field: &'static str, message: String| Error::InvalidCard { field, message };
         let file = |name: &str, url: &str, size: u64, sha256: &str, sha512: &str| -> Result<File> {

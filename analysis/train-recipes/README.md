@@ -21,7 +21,7 @@ CC BY 4.0 Universal Dependencies treebanks are under "The UD recipes".
 | `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models, and `models-ud-2.16-1`, ten UD models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references its workflow fetches (`masc-references.txt`, `ud-references.txt`) |
 | `tatoeba` | Tatoeba's sentence exports: the strict reader of `sentences_detailed.csv` and `sentences_CC0.csv`, each sentence's licence from the two files, and the export's digest |
 | `langdetect` | The language detector recipe: the licence check, the table of Tatoeba's and `langdetect-183.bin`'s language codes, the split, training, the gate against `langdetect-183.bin`, its card and the model's directory |
-| `fineweb` | FineWeb-2 and FineWeb (ODC-By 1.0) at their pinned revisions: the files and the ranges of them the web language detector reads, their lists, what to fetch next, the checks of each range, and the choice of web windows |
+| `fineweb` | FineWeb-2 and FineWeb (ODC-By 1.0) at the revisions their lists record: the files and the ranges of them the web language detector reads, their lists, what to fetch next, the checks of each range, and the choice of web windows |
 | `langdetect_web` | The web language detector recipe: the language detector recipe's sentences with FineWeb-2's and FineWeb's windows, training, the gates against `langdetect-183.bin` on held-out sentences and on held-out windows, the comparison with the language detector recipe's model, its card and the model's directory |
 
 ```
@@ -745,8 +745,8 @@ two archives, unchanged, are the assets of that release, which
 A release does not exist until its workflow has been run by hand on
 main; until then its addresses answer 404 and fetching its models
 through the zoo fails. A recipe added later is in none of these
-releases: its model goes out in a release of its own, with its own tag, and a release
-once published keeps its assets.
+releases: its model goes out in a release of its own, with its own
+tag, and a release once published keeps its assets.
 
 `zoo-index --models <dir> --release <tag>` reads the directories
 `masc`, `ud`, `tatoeba` or `tatoeba-fineweb` wrote into `<dir>` for the
@@ -763,7 +763,8 @@ or `WebLanguageCard::artifact`, which refuse a model that failed a gate
 or was gated against another model than its recipe's reference. The
 first also refuses one not trained on the recorded MASC release, the
 third one not trained on the recorded Tatoeba export, and the fourth
-one not trained on that export and on the recorded web ranges; the
+one not trained on that export and on the recorded web ranges, or not
+compared with the Tatoeba language detector; the
 second refuses one of Porttinari, and a card that does not give its
 recipe's treebank at release 2.16, with the sizes and digests of its
 files, or its recipe's component and language.
@@ -778,15 +779,14 @@ through the zoo (MASC, or the treebanks the release's UD models are
 trained on) or, for the language detectors, from the release that keeps
 the Tatoeba export ("Full run" below; the web one also from the Hugging
 Face hub, "The web language detector recipe"), and the references from
-the
-addresses its list gives, each checked against the SHA-256 listed with
+the addresses its list gives, each checked against the SHA-256 listed with
 it: for MASC, OpenNLP's UD 1.3 English sentence and token models from
 `archive.apache.org` and `en-pos-maxent.bin` and `en-chunker.bin` from
 SourceForge; for UD, OpenNLP's UD 1.3 models from `archive.apache.org`;
 for the language detectors, `langdetect-183.bin` from
 `downloads.apache.org`, and for the web one also the Tatoeba language
-detector from its release, to be compared with. The references are only scored, never shipped:
-the English, Spanish and Finnish UD models are trained on CC BY-SA
+detector from its release, to be compared with. The references are
+only scored, never shipped: the English, Spanish and Finnish UD models are trained on CC BY-SA
 treebanks, the licences of the two 1.5 models are refused, and the
 terms of the Leipzig corpora `langdetect-183.bin` was trained on are not
 confirmed. It saves each download in the repository's Actions cache as
@@ -799,8 +799,8 @@ and uploads each model with its card and gate record (`<model id>.bin`,
 also with `training-sentences.txt`, and the web one with
 `training-sentences.txt`, `training-documents.txt`,
 `<model id>.gate-web.json`, `<model id>.compare-tatoeba.json` and
-`<model id>.compare-web.json`) and a `SHA256SUMS` file as an artifact. A pull
-request that changes the workflow, this crate or the zoo's index runs it
+`<model id>.compare-web.json`) and a `SHA256SUMS` file as an artifact.
+A pull request that changes the workflow, this crate or the zoo's index runs it
 that far. Run by hand on main, a job of its own, which unlike the
 training job may write to the repository, runs
 `.github/workflows/models-publish.yml`,
@@ -808,8 +808,8 @@ which publishes exactly those files: it checks `SHA256SUMS`, stops if
 the tag exists, and creates the release at the run's commit, not marked
 as the repository's latest release, with notes that give the models'
 licence and the attribution of each card (MASC's, each treebank's,
-Tatoeba's, or Tatoeba's, FineWeb-2's and FineWeb's). Each `.card.json` asset carries its attribution as well. A
-release whose tag exists is not made again, so models trained otherwise
+Tatoeba's, or Tatoeba's, FineWeb-2's and FineWeb's). Each `.card.json`
+asset carries its attribution as well. A release whose tag exists is not made again, so models trained otherwise
 need a new model version and tag. `models-tatoeba.yml` first publishes
 the export's release, from another job that may write, with the archives
 its run read and `NOTICE.md`, the licence notice of its release notes;
@@ -1481,8 +1481,8 @@ less tidy, and with it those 29 languages.
   publish the datasets under ODC-By 1.0 and say their use is also
   subject to CommonCrawl's terms of use (`fineweb::FINEWEB_2`,
   `fineweb::FINEWEB`, `fineweb::COMMONCRAWL_TERMS`). ODC-By 1.0 is
-  permissive and asks for attribution, which the card's and the zoo
-  entry's training data give. No web text is shipped: the model's
+  permissive and asks for attribution, which the card gives; the zoo
+  entry names both datasets and their licence. No web text is shipped: the model's
   directory holds `training-documents.txt`
   (`langdetect_web::DOCUMENTS_FILE`), each document trained on as its
   repository, file, row and FineWeb id (`repo\tpath\trow\tid`), sorted.
@@ -1512,11 +1512,11 @@ less tidy, and with it those 29 languages.
   `sample/10BT/001_00000.parquet`. That is 204 files
   (`fineweb-ranges --paths` lists them with their revisions).
 - Reading by range. FineWeb-2's files are large (German's first training
-  file is about 4.3 GB, with a footer of about 13 MB) and the recipe
+  file is about 4.8 GB, with a footer of about 13 MB) and the recipe
   reads a few thousand rows of each, so each file is read from three
   ranges (`fineweb::FileRanges`): its last 8 bytes, which give the
-  footer's length; the first 64 KiB of its footer, which hold its schema
-  and its first row groups' metadata; and its first bytes up to the end
+  footer's length; the first 64 KiB of its footer (all of it when
+  shorter), which hold its schema and its first row groups' metadata; and its first bytes up to the end
   of the fewest leading row groups that hold two rows for each document
   wanted (`WEB_SPLIT.rows_per_document`), or all of its row groups when
   it has fewer rows. turbo-eval's reader reads those row groups
@@ -1529,8 +1529,9 @@ less tidy, and with it those 29 languages.
   files listed are exactly the 204 the recipe reads, that the ranges
   listed are exactly the ones those files give, and every range it reads
   against its SHA-256; a changed byte, a missing range or one not listed
-  is refused. No run reads a whole file, so a file's SHA-256 is not
-  checked by the binary; the workflow checks the files list against the
+  is refused. The binary checks ranges, not files (only for 16 small
+  files do the three ranges cover the whole file), so a file's SHA-256
+  is not checked by it; the workflow checks the files list against the
   hub's API on every run (below). Fetched ranges are kept under their
   file's revision (`<dir>/<repo>/<revision>/<path>.<start>-<end>`). The
   card records both lists' digest (`lists_sha256`).
@@ -1538,7 +1539,8 @@ less tidy, and with it those 29 languages.
   characters (Unicode scalar values), or all of them when it has fewer.
   One with fewer than 100 is passed over, and so is one from
   `tatoeba.org` or a subdomain of it (`fineweb::EXCLUDED_HOSTS`), a
-  window its language already has, and a window that holds a Tatoeba
+  window its language already has or an earlier row of its file gave,
+  and a window that holds a Tatoeba
   sentence of its language from the other side of the split, byte for
   byte: a training window a held-out sentence, which would favour the
   trained model on the Tatoeba gate, and a held-out window a training
@@ -1598,8 +1600,11 @@ model is right where the labels are wrong.
 
 Made on 2026-10-16 by run 38848321968 of the `models-fineweb` workflow,
 from pull request #474, on the committed lists and the recorded Tatoeba
-export. Both runs wrote the same eight files, in about 1,100 seconds
-each on a GitHub runner, with a peak of 5.7 GB of memory.
+export. It trained twice, and both runs wrote the same eight files, in
+about 1,100 seconds each on a GitHub runner, with a peak of 5.8 GB of
+memory. The run then failed its check of the zoo's index, which did not
+list the model yet, so it built no release files; the entry it printed
+is the one `analysis/zoo/index/zoo.json` now holds.
 
 The `models-fineweb` workflow
 (`.github/workflows/models-fineweb.yml`) runs when it is run by hand or
@@ -1621,8 +1626,8 @@ then fails unless `fineweb-ranges --record` gives the committed ranges
 list. A cache made under other lists is restored as a start, and what
 it holds is checked like anything fetched. It trains twice, fails
 unless both runs write the same eight files, prints the card's
-per-language and per-file counts, and keeps the model's directory as
-the artifact `models-fineweb-run`. It then checks with `zoo-index
+per-language and per-file counts, and keeps both runs' directories,
+with their logs and digests, as the artifact `models-fineweb-run`. It then checks with `zoo-index
 --check` that the model's files are the bytes the zoo's index lists,
 printing the entry the run gives when they are not, and uploads the
 release's files as the artifact named by the tag. While the committed
@@ -1632,8 +1637,8 @@ also by `src/fineweb.rs`, prints them and trains with
 
 The record:
 
-- Lists: made by run 38836303379 from pull request #474, on
-  2026-10-16: 204 files, 612 ranges, 550,033,792 bytes in all.
+- Lists: made by run 38835162381 from pull request #474, on
+  2026-10-16 (run 38836303379 printed them again from the cache): 204 files, 612 ranges, 550,033,792 bytes in all.
   `fineweb-files.txt` has SHA-256
   `73b924f48f8fee76019ca92e6c5f5bc1f579a3a16144b33b6c62eb80f114eeec`,
   `fineweb-ranges.txt`

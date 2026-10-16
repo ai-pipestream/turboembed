@@ -87,6 +87,8 @@ jobs:
           done < analysis/train-recipes/tatoeba-export.txt > "$RUNNER_TEMP/export.sha256"
           cd "$RUNNER_TEMP/tatoeba/archives"
           sha256sum -c "$RUNNER_TEMP/export.sha256"
+          [ "$(ls | sort)" = "$(cut -c67- "$RUNNER_TEMP/export.sha256" | sort)" ] \
+            || { echo "the archives are not the files tatoeba-export.txt lists" >&2; exit 1; }
           for a in *.tar.bz2; do
             tar -xjf "$a" -C "$RUNNER_TEMP/tatoeba/export"
           done
@@ -150,8 +152,8 @@ jobs:
           cp analysis/train-recipes/fineweb-files.txt analysis/train-recipes/fineweb-ranges.txt "$RUNNER_TEMP/web/lists/"
       # The files list, made from the hub's API at each dataset's
       # revision: each file's size and its SHA-256 as the API gives them.
-      # A run never reads a whole file, so the committed list is checked
-      # here, against the API, and the made one is used.
+      # The binary checks ranges, not whole files, so the committed list
+      # is checked here, against the API, and the made one is used.
       - name: the files list from the hub's API
         if: env.WEB_LISTS == 'committed' || steps.web-cache.outputs.cache-hit != 'true'
         run: |

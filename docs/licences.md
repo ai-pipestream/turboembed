@@ -107,9 +107,11 @@ detector Tatoeba's, FineWeb-2's and FineWeb's under ODC-By 1.0) is in
 each model's card
 (the `attribution` field, published as `<model id>.card.json` beside the
 model) and in the release notes; the zoo's entries have no field for
-it. The language detector's credit names its sentences by id in
-`training-sentences.txt`, which the zoo lists as the model's second
-file. The Tatoeba export it is trained on is kept, unchanged, as release
+it. The language detectors name the sentences they were trained on by
+id in `training-sentences.txt`, which the zoo lists as each model's
+second file, and the web language detector names its documents
+(repository, file, row and FineWeb id) in `training-documents.txt`, its
+third. The Tatoeba export it is trained on is kept, unchanged, as release
 `data-tatoeba-2026-10-10`, with the CC BY 2.0 FR and CC0 1.0 notices in
 its release notes. The Portuguese Porttinari models and the Italian
 MarkIT models are in no release (the first for the rights to the text,
@@ -132,7 +134,7 @@ the second for failing their gates).
 | `turbo-fi-ud-ftb-2.16-pos-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
 | `turbo-fi-ud-ftb-2.16-lemmas-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
 | `turbo-mul-tatoeba-langdetect-1` | the CC BY 2.0 FR sentences of [Tatoeba](https://tatoeba.org)'s export of 2026-10-10, in the 71 languages with at least 1,500 of them after the licence check and de-duplication | CC BY 2.0 FR | permissive | as Tatoeba's row under Datasets |
-| `turbo-mul-tatoeba-fineweb-langdetect-1` | the same Tatoeba sentences, and windows of [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) and [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) documents at their pinned revisions, in 100 languages | CC BY 2.0 FR; ODC-By 1.0 | permissive | as Tatoeba's, FineWeb-2's and FineWeb's rows under Datasets |
+| `turbo-mul-tatoeba-fineweb-langdetect-1` | the same Tatoeba sentences, and windows of [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) and [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) documents at the revisions `fineweb-files.txt` records, in 100 languages | CC BY 2.0 FR; ODC-By 1.0 | permissive | as Tatoeba's, FineWeb-2's and FineWeb's rows under Datasets |
 
 ## OpenNLP models (refused)
 
@@ -171,10 +173,12 @@ and compares that score with the trained model's.
 
 The goldens tool fetches `langdetect-183.bin` to make the language
 detector's goldens (`analysis/goldens-tool/src/recipe.rs`); the zoo does
-not list it. The language detector recipe (`analysis/train-recipes`, #429)
-scores it as its gate's reference: it reads the file from a directory the
-user names and checks its size and SHA-256 (`langdetect::LANGDETECT_183`),
-and ships, bundles and trains on nothing of it.
+not list it. The language detector recipe and the web language detector
+recipe (`analysis/train-recipes`, #429) score it as their gates'
+reference, the web one in both of its gates: each reads the file from a
+directory the user names and checks its size and SHA-256
+(`langdetect::LANGDETECT_183`), and ships, bundles and trains on nothing
+of it.
 
 ## Neural annotator checkpoints (not in the index)
 

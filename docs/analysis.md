@@ -3152,10 +3152,10 @@ gate leans.
 The web language detector recipe (`langdetect_web`, #429) trains on the
 same sentences and on windows of at most 300 characters from FineWeb-2
 and FineWeb (English) documents, 100 languages in all, read from three
-ranges of each of 204 Parquet files at the datasets' pinned revisions
+ranges of each of 204 Parquet files at fixed revisions
 (`fineweb-files.txt` and `fineweb-ranges.txt` list them with their
 digests). Windows from tatoeba.org and windows holding a Tatoeba
-sentence of the other side are passed over. It is gated twice against
+sentence of 20 characters or more from the other side are passed over. It is gated twice against
 `langdetect-183.bin`: on the 35,500 held-out sentences, 91.25% against
 83.91%, and on 47,079 held-out windows, 96.46% against 93.45%, both a
 pass, in run 38848321968 of `.github/workflows/models-fineweb.yml`.
