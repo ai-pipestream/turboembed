@@ -328,14 +328,17 @@ impl Parser {
         p.set_kind(TOP_NODE);
     }
 
-    fn advance_parses(&self, p: &mut Parse, prob_mass: f64) -> Vec<Parse> {
+    /// `chunking.Parser.advanceParses`. `None` is OpenNLP's `null`, for a parse without
+    /// non-punctuation children. Where every child is labeled already OpenNLP indexes past the
+    /// children and throws; this returns no derivations instead.
+    fn advance_parses(&self, p: &mut Parse, prob_mass: f64) -> Option<Vec<Parse>> {
         let q = 1.0 - prob_mass;
         let punct_set = self.model.head_rules().punctuation_tags();
         let non_punct_indices = collapse_punctuation_in_place(p.children_mut(), punct_set);
         let children: Vec<Parse> = non_punct_indices.iter().map(|&idx| p.children()[idx].clone()).collect();
         let num_nodes = children.len();
         if num_nodes == 0 {
-            return Vec::new();
+            return None;
         }
 
         let mut last_start_node: Option<Parse> = None;
@@ -356,7 +359,7 @@ impl Parser {
             }
         }
         if advance_node_index >= num_nodes {
-            return Vec::new();
+            return Some(Vec::new());
         }
         let advance_node = children[advance_node_index].clone();
         let original_advance_index = non_punct_indices[advance_node_index];
@@ -458,7 +461,7 @@ impl Parser {
             }
         }
 
-        new_parses_list
+        Some(new_parses_list)
     }
 
     /// Trains a `CHUNKING` [`ParserModel`] from `samples` (`chunking.Parser.train`).
@@ -529,7 +532,7 @@ impl ParserTrait for Parser {
             self.model.parser_tagger_model(),
             self.model.parser_chunker_model(),
             self.model.head_rules(),
-            |p, q| Ok(Some(self.advance_parses(p, q))),
+            |p, q| Ok(self.advance_parses(p, q)),
             |p| self.advance_top(p),
             |_| {},
         )
