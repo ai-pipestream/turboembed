@@ -32,8 +32,10 @@ use crate::resources::{Resources, Unavailable};
 /// compares with; the PII rewrites (`pii-rewrite`) compare whole rewritten
 /// texts, labels and audit reports rather than layers, which turbo-pii
 /// compares with; the CoNLL-U dependency and CorefUD readers (`conllu`)
-/// read files of their own, which turbo-formats compares with.
-pub const NOT_COVERED: [&str; 30] = [
+/// and the OntoNotes and French Treebank readers (`ontonotes`,
+/// `frenchtreebank`) read files of their own, which turbo-formats compares
+/// with.
+pub const NOT_COVERED: [&str; 32] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -64,6 +66,8 @@ pub const NOT_COVERED: [&str; 30] = [
     "pii-rewrite",
     "conllu",
     "corpora",
+    "ontonotes",
+    "frenchtreebank",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

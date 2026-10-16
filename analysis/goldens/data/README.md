@@ -272,6 +272,29 @@ are not taken from any corpus.
   letters, a no-break space, `U+2028`, an ideographic space and an emoji
   outside the Basic Multilingual Plane, with CR line ends. They hold no
   text of the Penn Treebank or AnCora corpora.
+- `inputs/ontonotes/`: five bundles of OntoNotes 4.0 corpus directories
+  (`.name` files with inline `ENAMEX` tags and `.parse` files of Penn
+  Treebank trees over several lines), written for this project; they hold
+  no OntoNotes text, which is licensed by the LDC and not redistributable.
+  They hold names of most OntoNotes types with `S_OFF` and `E_OFF`
+  attributes, nested, untyped and unclosed names, bracket escapes and
+  `-AMP-`, tags inside tokens, non-ASCII and dotted capital types,
+  document lines, lines after `</DOC>`, CR LF, the whitespace the two
+  modes disagree on and lines each name error is thrown on; trees with
+  function tags, traces, bracket escapes and non-ASCII tokens over several
+  lines, blank separator lines, trees the parse reader throws on or reads
+  leniently, files of nothing but line feeds, two empty lines in a row,
+  empty files and an empty directory.
+- `inputs/frenchtreebank/`: four bundles of French Treebank data
+  directories (constituent XML files), written for this project in
+  French-like text; they hold no French Treebank text, which is
+  distributed under a signed research licence. They hold phrases and
+  words with `cat`, `subcat` and `catint` attributes, compounds,
+  categories carried over by empty and missing attributes, references,
+  comments, CDATA sections, CR LF inside a word, empty words and
+  sentences, elements named `TOP` and `TK`, sentences inside sentences, a
+  prefixed `SENT`, text outside words, ISO-8859-1 and a byte order mark,
+  and documents that are not well formed or declare a document type.
 - `inputs/head-rules/`: 13 head rule files written for this project:
   rules with each direction, a later rule for a type already read, a
   sign and tabs in a line, CR line ends, 60 types (more than

@@ -1,0 +1,26 @@
+# Written for this project in the layout and format of the French Treebank; it holds no text
+# of the corpus, which is licensed and not redistributable. Read in the reverse
+# of their sorted order: an undefined entity, a mismatched end tag after a whole sentence
+# and a document type declaration each throw; b_nosent has no sentence and ends the
+# stream, so a_ok is not read; the subdirectory is not read at all.
+
+@@ file a_ok.xml
+<text><SENT><w cat="N">lu</w></SENT></text>
+@@ end
+@@ file b_nosent.xml
+<text><p>pas de phrase</p></text>
+@@ end
+@@ file c_doctype.xml
+<?xml version="1.0"?>
+<!DOCTYPE text>
+<text><SENT><w cat="N">x</w></SENT></text>
+@@ end
+@@ file d_broken.xml
+<text><SENT><w cat="N">entière</w></SENT><SENT><w cat="N">x</SENT></text>
+@@ end
+@@ file e_entity.xml
+<text><SENT><w cat="N">a&nbsp;b</w></SENT></text>
+@@ end
+@@ file sub/f.xml
+<text><SENT><w cat="N">sous</w></SENT></text>
+@@ end

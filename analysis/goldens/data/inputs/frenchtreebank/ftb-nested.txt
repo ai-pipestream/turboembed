@@ -1,0 +1,14 @@
+# Written for this project in the layout and format of the French Treebank; it holds no text
+# of the corpus, which is licensed and not redistributable. A word outside
+# any sentence that sets the category, a sentence inside a sentence, phrases with text
+# after their words, an element inside a word, a prefixed SENT and empty attributes.
+
+@@ file nested.xml
+<text>
+<w cat="X" subcat="Y">hors</w>
+<SENT><w>avant</w><SENT><w>dedans</w></SENT><w>après</w></SENT>
+<SENT><w catint="Z">z</w><MWN><w cat="N">a</w>b</MWN> <w>texte <i>italique</i> fin</w></SENT>
+<x:SENT xmlns:x="urn:x"><w cat="N">préfixe</w></x:SENT>
+<SENT><w cat=""><w subcat="">vide</w></w></SENT>
+</text>
+@@ end
