@@ -1,18 +1,7 @@
 {
-  "checkout_commit": "0a5cf9ee484a779f14d95a258877d88531c104f8",
-  "reference_base_commit": "272b9298",
-  "reference_patch_commits": [
-    "98bee392",
-    "c958b17d",
-    "cc62410b"
-  ],
-  "normalized_term_integration_probe": null,
+  "checkout_commit": "0dcf0828276048f19b0c90db93400517e37ce35e",
   "documents": [
     {
-      "name": "dublin",
-      "source_sha256": "ec416a95af0a514f8f192e70fbce208986f37f67da19ef300acec44dacfed660",
-      "source_bytes": 7820,
-      "token_source_mapping_checks": 1344,
       "counts": {
         "abbreviation_edges": 1,
         "abbreviations": 2,
@@ -38,22 +27,22 @@
         "vector_dimension": 384,
         "vocabulary": 516
       },
+      "execution": {
+        "backend": "cpu",
+        "device": "AMD Ryzen 9 9950X3D 16-Core Processor",
+        "precision": "f32 (model)"
+      },
       "model": {
         "id": "sentence-transformers/all-MiniLM-L6-v2",
         "revision": "trace-1110a243",
         "sha256": "aa4fe6835aad81378f69103998c05aab05b3170c72b2536c230d016979ff9c27"
       },
-      "execution": {
-        "backend": "cpu",
-        "device": "AMD Ryzen 9 9950X3D 16-Core Processor",
-        "precision": "f32 (model)"
-      }
+      "name": "dublin",
+      "source_bytes": 7820,
+      "source_sha256": "ec416a95af0a514f8f192e70fbce208986f37f67da19ef300acec44dacfed660",
+      "token_source_mapping_checks": 1344
     },
     {
-      "name": "pulmonary-fibrosis",
-      "source_sha256": "11054580c6b94fe3c62085cabfae4a1c7c15343c6de197c670e5da37ac403933",
-      "source_bytes": 22439,
-      "token_source_mapping_checks": 3870,
       "counts": {
         "abbreviation_edges": 74,
         "abbreviations": 80,
@@ -79,16 +68,27 @@
         "vector_dimension": 384,
         "vocabulary": 866
       },
+      "execution": {
+        "backend": "cpu",
+        "device": "AMD Ryzen 9 9950X3D 16-Core Processor",
+        "precision": "f32 (model)"
+      },
       "model": {
         "id": "sentence-transformers/all-MiniLM-L6-v2",
         "revision": "trace-1110a243",
         "sha256": "aa4fe6835aad81378f69103998c05aab05b3170c72b2536c230d016979ff9c27"
       },
-      "execution": {
-        "backend": "cpu",
-        "device": "AMD Ryzen 9 9950X3D 16-Core Processor",
-        "precision": "f32 (model)"
-      }
+      "name": "pulmonary-fibrosis",
+      "source_bytes": 22439,
+      "source_sha256": "11054580c6b94fe3c62085cabfae4a1c7c15343c6de197c670e5da37ac403933",
+      "token_source_mapping_checks": 3870
     }
+  ],
+  "normalized_term_integration_probe": null,
+  "reference_base_commit": "272b9298",
+  "reference_patch_commits": [
+    "98bee392",
+    "c958b17d",
+    "cc62410b"
   ]
 }

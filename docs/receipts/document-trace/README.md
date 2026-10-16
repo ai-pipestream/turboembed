@@ -15,13 +15,24 @@ bash docs/receipts/document-trace/run.sh /path/to/output
 ```
 
 The runner generates a standalone Cargo project with the checked-in lock
-file and dependencies from the selected checkout. It requires the real
-MiniLM bundle; a load failure stops the run. It checks the MASC source
-hashes, 5,214 token mappings back to original bytes, model identity,
-384-dimensional normalized vectors, selected layer/edge counts, filtered
-geo mentions and leaf chunk budgets. Output includes the checkout commit,
-model identity and execution information. Output JSON includes excerpts
-from the caller's corpus files; the committed reference has counts only.
+file and dependencies from the selected checkout, and removes the temporary
+build directory when it exits. It requires the real MiniLM bundle; a load
+failure stops the run. It checks the MASC source hashes, 5,214 token
+mappings back to original bytes, model identity, 384-dimensional normalized
+vectors, selected layer/edge counts, filtered geo mentions and leaf chunk
+budgets.
+
+Each run writes `<output>/trace.json` (and `<output>/<name>-trace.json`),
+which include timings, layer provenance and text excerpts from the caller's
+corpus files, alongside `<output>/reference.json`, which holds the count-only
+summary, model identity and execution metadata without timings or corpus
+excerpts. Compare a rerun against the committed `reference.json` with:
+
+```sh
+diff -u \
+  <(jq 'del(.checkout_commit)' docs/receipts/document-trace/reference.json) \
+  <(jq 'del(.checkout_commit)' /path/to/output/reference.json)
+```
 
 `reference.json` contains the CPU results. It excludes timings because this
 is a debug integration run, not a benchmark. Existing benchmark records

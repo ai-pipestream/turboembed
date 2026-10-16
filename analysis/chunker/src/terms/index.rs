@@ -57,12 +57,6 @@ impl Annotator for NormalizedTermIndexer {
     type Writes = (Vocabulary, Terms);
 
     fn annotate(&self, (terms, tokens): Refs<'_, Self>) -> Result<(Vocabulary, Terms), Error> {
-        if terms.surface.len() != tokens.spans.len() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: "term forms are not aligned to tokens".into(),
-            });
-        }
         let column = match self.form {
             TermForm::Surface => Some(&terms.surface),
             TermForm::Folded => Some(&terms.folded),
@@ -73,6 +67,12 @@ impl Annotator for NormalizedTermIndexer {
             annotator: Self::ID,
             detail: format!("requested {:?} term column is missing", self.form),
         })?;
+        if terms.surface.len() != tokens.spans.len() || column.len() != tokens.spans.len() {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: "term forms are not aligned to tokens".into(),
+            });
+        }
         let words: Vec<_> = column.iter().map(|w| Some(w).filter(|w| w.chars().any(char::is_alphanumeric))).collect();
         let (vocabulary, term) = intern(&words);
         Ok((vocabulary, Terms { term }))
