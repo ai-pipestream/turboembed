@@ -89,8 +89,13 @@ pub enum IncivilityUnit {
 /// SHA-256 content digest for [`ModelRef::sha256`].
 #[derive(Clone, Debug)]
 pub struct IncivilityLexicon {
-    /// Canonical map from `(tokens, label)` to weight in `0.0..=1.0`.
-    entries: BTreeMap<(Vec<String>, IncivilityLabel), f64>,
+    /// The `(tokens, label, weight)` entries in canonical `(tokens, label)`
+    /// order; the digest reads this order, so it must never change.
+    entries: Vec<(Vec<String>, IncivilityLabel, f64)>,
+    /// First token of at least one entry to the half-open run of its entries
+    /// in `entries`, sorted by token, so a scan visits only the patterns that
+    /// can start at a unit's token.
+    first_token: Vec<(String, u32, u32)>,
     sha256: String,
 }
 
@@ -103,7 +108,7 @@ impl Default for IncivilityLexicon {
 impl IncivilityLexicon {
     /// Builds an empty [`IncivilityLexicon`].
     pub fn empty() -> Self {
-        let mut lex = IncivilityLexicon { entries: BTreeMap::new(), sha256: String::new() };
+        let mut lex = IncivilityLexicon { entries: Vec::new(), first_token: Vec::new(), sha256: String::new() };
         lex.recompute_digest();
         lex
     }
@@ -118,7 +123,9 @@ impl IncivilityLexicon {
                 entries.insert((toks, label), weight.clamp(0.0, 1.0));
             }
         }
-        let mut lex = IncivilityLexicon { entries, sha256: String::new() };
+        let entries = entries.into_iter().map(|((toks, label), weight)| (toks, label, weight)).collect();
+        let mut lex = IncivilityLexicon { entries, first_token: Vec::new(), sha256: String::new() };
+        lex.rebuild_index();
         lex.recompute_digest();
         lex
     }
@@ -133,7 +140,16 @@ impl IncivilityLexicon {
             .filter(|w| !w.is_empty())
             .collect();
         if !toks.is_empty() {
-            self.entries.insert((toks, label), weight.clamp(0.0, 1.0));
+            let at = self
+                .entries
+                .binary_search_by(|(t, l, _)| (t.as_slice(), l).cmp(&(toks.as_slice(), &label)))
+                .unwrap_or_else(|i| i);
+            if at < self.entries.len() && self.entries[at].0 == toks && self.entries[at].1 == label {
+                self.entries[at].2 = weight.clamp(0.0, 1.0);
+            } else {
+                self.entries.insert(at, (toks, label, weight.clamp(0.0, 1.0)));
+            }
+            self.rebuild_index();
             self.recompute_digest();
         }
     }
@@ -153,9 +169,24 @@ impl IncivilityLexicon {
         &self.sha256
     }
 
+    /// Groups the entries by their first token; entries share their canonical
+    /// order, so one token's patterns are always a contiguous run.
+    fn rebuild_index(&mut self) {
+        self.first_token.clear();
+        for (i, (toks, _, _)) in self.entries.iter().enumerate() {
+            if let Some(last) = self.first_token.last_mut()
+                && last.0 == toks[0]
+            {
+                last.2 = i as u32 + 1;
+            } else {
+                self.first_token.push((toks[0].clone(), i as u32, i as u32 + 1));
+            }
+        }
+    }
+
     fn recompute_digest(&mut self) {
         let mut canonical = String::new();
-        for ((toks, label), &weight) in &self.entries {
+        for (toks, label, weight) in &self.entries {
             canonical.push_str(&toks.join(" "));
             canonical.push('\t');
             canonical.push_str(label.name());
@@ -653,13 +684,26 @@ fn scan_lexicon(
     let mut scores = IncivilityScores::default();
     let mut evidence: Vec<(IncivilityLabel, IxRange<Tokens>)> = Vec::new();
 
-    for ((pat, label), &weight) in &lexicon.entries {
-        let pat_len = pat.len();
-        if pat_len == 0 || tok_start + pat_len > tok_end {
-            continue;
-        }
-        let mut i = tok_start;
-        while i + pat_len <= tok_end {
+    // Walk the unit once: at each token, try only the patterns starting with
+    // that token (the lexicon's first-token index). A pattern's matches stay
+    // non-overlapping: after a match at `i`, `next_from` skips it forward past
+    // the matched run. `score_unit` sorts evidence afterwards, so the
+    // position-major order here is not observable.
+    let mut next_from = vec![0usize; lexicon.entries.len()];
+    for i in tok_start..tok_end {
+        let w = token_lower[i].as_str();
+        let Ok(group) = lexicon.first_token.binary_search_by(|(t, _, _)| t.as_str().cmp(w)) else { continue };
+        let (_, lo, hi) = lexicon.first_token[group];
+        let entry_run = &lexicon.entries[lo as usize..hi as usize];
+        let next_run = &mut next_from[lo as usize..hi as usize];
+        for ((pat, label, weight), next) in entry_run.iter().zip(next_run.iter_mut()) {
+            if i < *next {
+                continue;
+            }
+            let pat_len = pat.len();
+            if i + pat_len > tok_end {
+                continue;
+            }
             let mut matched = true;
             for k in 0..pat_len {
                 if token_lower[i + k] != pat[k] {
@@ -676,13 +720,11 @@ fn scan_lexicon(
                 if !negated_mild {
                     let prev = scores.get(*label);
                     let combined =
-                        if prev > 0.0 { (1.0 - (1.0 - prev) * (1.0 - weight)).clamp(0.0, 1.0) } else { weight };
+                        if prev > 0.0 { (1.0 - (1.0 - prev) * (1.0 - *weight)).clamp(0.0, 1.0) } else { *weight };
                     scores.set(*label, combined);
                     evidence.push((*label, IxRange::new(i as u32, (i + pat_len) as u32)));
                 }
-                i += pat_len;
-            } else {
-                i += 1;
+                *next = i + pat_len;
             }
         }
     }
@@ -983,6 +1025,92 @@ mod tests {
             spans.push(Span::new(s, e));
         }
         spans
+    }
+
+    /// The pre-#507 per-pattern whole-unit scan, frozen as the reference the
+    /// first-token index in `scan_lexicon` must reproduce exactly. The
+    /// `negated_mild` rule is duplicated from `scan_lexicon` on purpose: the
+    /// two copies must change together.
+    fn reference_scan_lexicon(
+        lexicon: &IncivilityLexicon,
+        token_lower: &[String],
+        tok_start: usize,
+        tok_end: usize,
+    ) -> (IncivilityScores, Vec<(IncivilityLabel, IxRange<Tokens>)>) {
+        let mut scores = IncivilityScores::default();
+        let mut evidence: Vec<(IncivilityLabel, IxRange<Tokens>)> = Vec::new();
+        for (pat, label, weight) in &lexicon.entries {
+            let pat_len = pat.len();
+            if pat_len == 0 || tok_start + pat_len > tok_end {
+                continue;
+            }
+            let mut i = tok_start;
+            while i + pat_len <= tok_end {
+                let mut matched = true;
+                for k in 0..pat_len {
+                    if token_lower[i + k] != pat[k] {
+                        matched = false;
+                        break;
+                    }
+                }
+                if matched {
+                    let negated_mild = pat_len == 1
+                        && matches!(pat[0].as_str(), "stupid" | "dumb" | "hell" | "damn")
+                        && i > tok_start
+                        && matches!(token_lower[i - 1].as_str(), "not" | "never" | "no");
+                    if !negated_mild {
+                        let prev = scores.get(*label);
+                        let combined =
+                            if prev > 0.0 { (1.0 - (1.0 - prev) * (1.0 - *weight)).clamp(0.0, 1.0) } else { *weight };
+                        scores.set(*label, combined);
+                        evidence.push((*label, IxRange::new(i as u32, (i + pat_len) as u32)));
+                    }
+                    i += pat_len;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+        (scores, evidence)
+    }
+
+    #[test]
+    fn scan_lexicon_matches_the_naive_reference_scan() {
+        let mut lexicon = IncivilityLexicon::empty();
+        lexicon.insert("a a", IncivilityLabel::Insult, 0.5);
+        lexicon.insert("a", IncivilityLabel::Profanity, 0.4);
+        lexicon.insert("stupid", IncivilityLabel::Insult, 0.7);
+        lexicon.insert("not", IncivilityLabel::Threat, 0.3);
+        lexicon.insert("kill you", IncivilityLabel::Threat, 0.9);
+
+        let cases: &[&[&str]] = &[
+            &["a", "a", "a"],
+            &["a", "a", "a", "a"],
+            &["not", "stupid"],
+            &["stupid", "not", "stupid"],
+            &["not"],
+            &["x", "y", "z"],
+            &["kill", "you", "kill", "you"],
+            &[],
+        ];
+        for case in cases {
+            let token_lower: Vec<String> = case.iter().map(|s| s.to_string()).collect();
+            for (start, end) in [(0, case.len()), (1, case.len()), (0, case.len().saturating_sub(1))] {
+                if start > end || end > case.len() {
+                    continue;
+                }
+                let (got_scores, mut got_evidence) = scan_lexicon(&lexicon, &token_lower, start, end);
+                let (want_scores, mut want_evidence) = reference_scan_lexicon(&lexicon, &token_lower, start, end);
+                assert_eq!(got_scores, want_scores, "score mismatch on {case:?} over {start}..{end}");
+                // `scan_lexicon` is position-major now; `score_unit` sorts and
+                // dedups evidence by (label, start, end), so parity is checked
+                // in that canonical order.
+                let key = |&(l, r): &(IncivilityLabel, IxRange<Tokens>)| (l, r.start, r.end);
+                got_evidence.sort_unstable_by_key(key);
+                want_evidence.sort_unstable_by_key(key);
+                assert_eq!(got_evidence, want_evidence, "evidence mismatch on {case:?} over {start}..{end}");
+            }
+        }
     }
 
     fn make_doc_with_sentences(text: &str, sent_ranges: &[(u32, u32)]) -> Document {
