@@ -14,7 +14,8 @@ use turbo_analysis::{Bound, Error};
 
 use crate::boundaries::{Costs, StructureBoundaries};
 use crate::drift::{Drift, DriftBoundaries, Score};
-use crate::weigh::{STRUCTURE, WeighBoundaries, Weight};
+use crate::sentiment::{SentimentBoundaries, SentimentShift};
+use crate::weigh::{STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight};
 
 /// Whether every option of `spec` is one of `keys` and there is no
 /// location.
@@ -92,8 +93,40 @@ impl Provider<dyn Step> for DriftProvider {
     }
 }
 
-/// Offers `WeighBoundaries` as "weigh-boundaries". Options `structure` and
-/// `drift`: each signal's weight in thousandths, 1000 by default.
+/// Offers `SentimentBoundaries` as "sentiment-boundaries", writing the
+/// `sentiment` instance. Options, each defaulting to
+/// `SentimentShift::default()`: `window`, `polarity_weight`,
+/// `aspect_weight`, `incivility_weight`, `floor`, `scale`, and `shift`.
+pub struct SentimentBoundariesProvider;
+
+impl Provider<dyn Step> for SentimentBoundariesProvider {
+    fn name(&self) -> &'static str {
+        "sentiment-boundaries"
+    }
+
+    fn supports(&self, spec: &Spec) -> bool {
+        only(spec, &["window", "polarity_weight", "aspect_weight", "incivility_weight", "floor", "scale", "shift"])
+    }
+
+    fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
+        let p = self.name();
+        let d = SentimentShift::default();
+        let shift = SentimentShift {
+            window: number(p, spec, "window", d.window)?,
+            polarity_weight: number(p, spec, "polarity_weight", d.polarity_weight)?,
+            aspect_weight: number(p, spec, "aspect_weight", d.aspect_weight)?,
+            incivility_weight: number(p, spec, "incivility_weight", d.incivility_weight)?,
+            floor: number(p, spec, "floor", d.floor)?,
+            scale: number(p, spec, "scale", d.scale)?,
+            shift: number(p, spec, "shift", d.shift)?,
+        };
+        Ok(Box::new(SentimentBoundaries { shift }.bound()))
+    }
+}
+
+/// Offers `WeighBoundaries` (or `WeighAllBoundaries` when `sentiment` is
+/// given) as "weigh-boundaries". Options `structure` and `drift` default
+/// to `1000`; `sentiment` defaults to `0` (off by default).
 pub struct WeighProvider;
 
 impl Provider<dyn Step> for WeighProvider {
@@ -102,15 +135,20 @@ impl Provider<dyn Step> for WeighProvider {
     }
 
     fn supports(&self, spec: &Spec) -> bool {
-        only(spec, &["structure", "drift"])
+        only(spec, &["structure", "drift", "sentiment"])
     }
 
     fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
         let p = self.name();
-        let w = WeighBoundaries {
-            structure: Weight(number(p, spec, "structure", Weight::ONE.0)?),
-            drift: Weight(number(p, spec, "drift", Weight::ONE.0)?),
-        };
-        Ok(Box::new(w.bound()))
+        let structure = Weight(number(p, spec, "structure", Weight::ONE.0)?);
+        let drift = Weight(number(p, spec, "drift", Weight::ONE.0)?);
+        if spec.options.iter().any(|(k, _)| k == "sentiment") {
+            let sentiment = Weight(number(p, spec, "sentiment", 0)?);
+            let w = WeighAllBoundaries { structure, drift, sentiment };
+            Ok(Box::new(w.bound()))
+        } else {
+            let w = WeighBoundaries { structure, drift };
+            Ok(Box::new(w.bound()))
+        }
     }
 }

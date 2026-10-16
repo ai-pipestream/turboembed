@@ -16,15 +16,22 @@ mod drift;
 mod gaps;
 mod limits;
 mod providers;
+mod sentiment;
 mod sums;
 mod weigh;
 
 pub use boundaries::{Costs, StructureBoundaries};
 pub use cohesion::{Cohesion, CohesiveChunker};
 pub use drift::{Drift, DriftBoundaries, Score, drift};
-pub use providers::{DriftProvider, StructureBoundariesProvider, WeighProvider};
+pub use providers::{DriftProvider, SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider};
+pub use sentiment::{
+    ChunkFacetBuilder, ChunkFacets, SentimentBoundaries, SentimentShift, boundary_similarity, chunk_boundary_gaps,
+    sentiment_shift,
+};
 pub use sums::{Rows, Sums};
-pub use weigh::{DRIFT, STRUCTURE, WeighBoundaries, Weight, weigh};
+pub use weigh::{
+    DRIFT, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_sentiment,
+};
 
 pub mod levels;
 pub mod terms;

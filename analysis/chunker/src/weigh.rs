@@ -8,6 +8,8 @@ use turbo_analysis_layers::{Boundaries, Cut, Sentences};
 pub const STRUCTURE: &str = "structure";
 /// The instance the drift costs are written to.
 pub const DRIFT: &str = "drift";
+/// The instance the sentiment, aspect, and incivility shift costs are written to.
+pub const SENTIMENT: &str = "sentiment";
 
 /// A signal's weight, in thousandths: `Weight(1000)` takes its costs as
 /// they are, `Weight(500)` at half, `Weight(0)` leaves the signal out.
@@ -45,6 +47,53 @@ pub fn weigh(structure: &Boundaries, drift: &Boundaries, (ws, wd): (Weight, Weig
         .iter()
         .zip(&drift.reason)
         .map(|(&s, &d)| if s == Cut::Sentence && d == Cut::TopicShift && wd.0 != 0 { d } else { s })
+        .collect();
+    Some(Boundaries { cost, reason })
+}
+
+/// Weighs structure, embedding drift, and sentiment/aspect shift boundary
+/// costs at each gap: `(structure * ws + drift * wd + sentiment * wsent) / 1000`,
+/// computed in `i128` so three products of `2^62` cannot wrap, rounded down
+/// with `div_euclid(1000)`, and saturated to `i32`.
+///
+/// The reason is the structure's unless the structure saw only `Cut::Sentence`
+/// and an active (`Weight != 0`) drift or sentiment signal marked `Cut::TopicShift`.
+/// Returns `None` if the layers do not all have the same length.
+pub fn weigh_with_sentiment(
+    structure: &Boundaries,
+    drift: &Boundaries,
+    sentiment: &Boundaries,
+    (ws, wd, wsent): (Weight, Weight, Weight),
+) -> Option<Boundaries> {
+    let n = structure.cost.len();
+    if drift.cost.len() != n
+        || sentiment.cost.len() != n
+        || structure.reason.len() != n
+        || drift.reason.len() != n
+        || sentiment.reason.len() != n
+    {
+        return None;
+    }
+    let cost = (0..n)
+        .map(|i| {
+            let sum = i128::from(structure.cost[i]) * i128::from(ws.0)
+                + i128::from(drift.cost[i]) * i128::from(wd.0)
+                + i128::from(sentiment.cost[i]) * i128::from(wsent.0);
+            sum.div_euclid(1000).clamp(i128::from(i32::MIN), i128::from(i32::MAX)) as i32
+        })
+        .collect();
+    let reason = (0..n)
+        .map(|i| {
+            let s = structure.reason[i];
+            let d = drift.reason[i];
+            let sent = sentiment.reason[i];
+            if s == Cut::Sentence && ((d == Cut::TopicShift && wd.0 != 0) || (sent == Cut::TopicShift && wsent.0 != 0))
+            {
+                Cut::TopicShift
+            } else {
+                s
+            }
+        })
         .collect();
     Some(Boundaries { cost, reason })
 }
@@ -97,6 +146,90 @@ impl Annotator for WeighBoundaries {
 
     fn config_hash(&self) -> u64 {
         [self.structure.0, self.drift.0]
+            .iter()
+            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u32 as u64).wrapping_mul(0x0100_0000_01b3))
+    }
+}
+
+/// Weighs structure (`STRUCTURE`), embedding drift (`DRIFT`), and optional
+/// sentiment/aspect shift (`SENTIMENT`) into the default `Boundaries` instance.
+///
+/// By default `sentiment` is `Weight(0)` (off by default) so existing chunking
+/// pipelines are unchanged unless a non-zero sentiment weight is configured.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct WeighAllBoundaries {
+    pub structure: Weight,
+    pub drift: Weight,
+    pub sentiment: Weight,
+}
+
+impl Default for WeighAllBoundaries {
+    fn default() -> WeighAllBoundaries {
+        WeighAllBoundaries { structure: Weight::ONE, drift: Weight::ONE, sentiment: Weight(0) }
+    }
+}
+
+impl WeighAllBoundaries {
+    /// Binds the step to read `STRUCTURE`, `DRIFT`, and `SENTIMENT`.
+    pub fn bound(self) -> Bound<WeighAllBoundaries> {
+        Bound::new(self).read(1, STRUCTURE).read(2, DRIFT).read(3, SENTIMENT)
+    }
+}
+
+impl Annotator for WeighAllBoundaries {
+    const ID: &'static str = "turbo:weigh-all-boundaries";
+    type Reads = (Sentences, Boundaries, Option<Boundaries>, Option<Boundaries>);
+    type Writes = (Boundaries,);
+
+    fn annotate(&self, (sentences, structure, drift, sentiment): Refs<'_, Self>) -> Result<(Boundaries,), Error> {
+        let n = sentences.spans.len();
+        if structure.cost.len() != n {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("{} structural boundaries for {n} sentences", structure.cost.len()),
+            });
+        }
+        let zero;
+        let drift_ref = match drift {
+            Some(d) => {
+                if d.cost.len() != n {
+                    return Err(Error::Annotator {
+                        annotator: Self::ID,
+                        detail: format!("{} drift boundaries for {n} sentences", d.cost.len()),
+                    });
+                }
+                d
+            }
+            None => {
+                zero = Boundaries { cost: vec![0; n], reason: vec![Cut::Sentence; n] };
+                &zero
+            }
+        };
+        let zero_sent;
+        let sent_ref = match sentiment {
+            Some(s) => {
+                if s.cost.len() != n {
+                    return Err(Error::Annotator {
+                        annotator: Self::ID,
+                        detail: format!("{} sentiment boundaries for {n} sentences", s.cost.len()),
+                    });
+                }
+                s
+            }
+            None => {
+                zero_sent = Boundaries { cost: vec![0; n], reason: vec![Cut::Sentence; n] };
+                &zero_sent
+            }
+        };
+        let wd = if drift.is_some() { self.drift } else { Weight(0) };
+        let wsent = if sentiment.is_some() { self.sentiment } else { Weight(0) };
+        let out = weigh_with_sentiment(structure, drift_ref, sent_ref, (self.structure, wd, wsent))
+            .ok_or_else(|| Error::Annotator { annotator: Self::ID, detail: "a reason for every boundary".into() })?;
+        Ok((out,))
+    }
+
+    fn config_hash(&self) -> u64 {
+        [self.structure.0, self.drift.0, self.sentiment.0]
             .iter()
             .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u32 as u64).wrapping_mul(0x0100_0000_01b3))
     }
