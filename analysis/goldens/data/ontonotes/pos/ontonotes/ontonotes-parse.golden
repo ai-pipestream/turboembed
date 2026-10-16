@@ -1,0 +1,87 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ontonotes/ontonotes-parse	1704	1701	813e1e69b82a87b38f0a6739e8c6117a1b85bd801522d0fc4129b26d37b60622
+annotator	opennlp.tools.formats.convert.ParseToPOSSampleStream	read
+layer	turbo:samples	document	8	written:str
+tab\ttok_NN
+ok_NN
+Lars_NNP left_VBD
+What_WP did_VBD she_PRP buy_VB *T*-1_-NONE- ?_.
+*PRO*_-NONE- to_TO go_VB (_-LRB- in_IN Tromsø_NNP )_-RRB- 😀_SYM
+Anna_NNP Berg_NNP will_MD join_VB the_DT board_NN ._.
+We_PRP begin_VBP
+Hello_UH
+end	turbo:samples
+layer	turbo:read-errors	document	2	after:u32	class:str	message:str
+0	java.util.EmptyStackException	
+0	java.lang.NullPointerException	Cannot invoke "String.equals(Object)" because "type" is null
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	28	sample:u32	text:str
+0	tab\ttok
+1	ok
+2	Lars
+2	left
+3	What
+3	did
+3	she
+3	buy
+3	*T*-1
+3	?
+4	*PRO*
+4	to
+4	go
+4	(
+4	in
+4	Tromsø
+4	)
+4	😀
+5	Anna
+5	Berg
+5	will
+5	join
+5	the
+5	board
+5	.
+6	We
+6	begin
+7	Hello
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	28	tag:str
+NN
+NN
+NNP
+VBD
+WP
+VBD
+PRP
+VB
+-NONE-
+.
+-NONE-
+TO
+VB
+-LRB-
+IN
+NNP
+-RRB-
+SYM
+NNP
+NNP
+MD
+VB
+DT
+NN
+.
+PRP
+VBP
+UH
+end	turbo:sample-tags
+layer	turbo:listing	document	4	file:str
+data/english/annotations/nw/wsj/00/wsj_0003.parse
+data/english/annotations/nw/wsj/00/wsj_0002.parse
+data/english/annotations/nw/wsj/00/wsj_0001.parse
+data/english/annotations/bc/cnn/00/cnn_0004.parse
+end	turbo:listing

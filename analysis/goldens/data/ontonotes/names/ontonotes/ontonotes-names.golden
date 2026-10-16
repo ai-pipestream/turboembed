@@ -1,0 +1,165 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ontonotes/ontonotes-names	2449	2440	7f30d04d332cbca77effa1ed8cedd7171add1960d8d8f0553936fd1172be63df
+annotator	opennlp.tools.formats.ontonotes.OntoNotesNameSampleStream	read
+layer	turbo:samples	document	14	written:str
+\nA directory named like a name file .
+\n<START:org> Fjord Shipping <END> <START:org> Holding <END> bought <START:cardinal> three <END> ships .
+<START:money>  $ 4  <END>
+Ola Nordmann said ac and x><y , then <START:événement> Olsok <END> came .
+<START:il> Ankara <END> and <START:work_of_art> Peer Gynt 😀 <END> < > open
+
+ x
+a b c d e\u001cf <START:loc> Nord Kapp <END>
+\n<START:person> Anna Berg <END> , 61 years old , will join the board as a nonexecutive director <START:date> Nov. 29 <END> .
+Ms. <START:person> Berg <END> is chairman of <START:org> Norsk Kabel & Rør A/S <END> , the Norwegians ' cable group .
+
+The group ( based in <START:gpe> Oslo <END> ) had sales of <START:money> $ 4.1 billion <END> [ sic ] { x } .
+Bank of <START:gpe> Norway</ENAMEX> <END> said so .
+\nGood evening from <START:fac> Studio 4 <END> .
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	114	sample:u32	text:str
+0	A
+0	directory
+0	named
+0	like
+0	a
+0	name
+0	file
+0	.
+1	Fjord
+1	Shipping
+1	Holding
+1	bought
+1	three
+1	ships
+1	.
+2	
+2	$
+2	4
+2	
+3	Ola
+3	Nordmann
+3	said
+3	ac
+3	and
+3	x><y
+3	,
+3	then
+3	Olsok
+3	came
+3	.
+4	Ankara
+4	and
+4	Peer
+4	Gynt
+4	😀
+4	<
+4	>
+4	open
+6	
+6	x
+7	a
+7	b
+7	c
+7	d
+7	e\u001cf
+7	Nord
+7	Kapp
+8	Anna
+8	Berg
+8	,
+8	61
+8	years
+8	old
+8	,
+8	will
+8	join
+8	the
+8	board
+8	as
+8	a
+8	nonexecutive
+8	director
+8	Nov.
+8	29
+8	.
+9	Ms.
+9	Berg
+9	is
+9	chairman
+9	of
+9	Norsk
+9	Kabel
+9	&
+9	Rør
+9	A/S
+9	,
+9	the
+9	Norwegians
+9	'
+9	cable
+9	group
+9	.
+11	The
+11	group
+11	(
+11	based
+11	in
+11	Oslo
+11	)
+11	had
+11	sales
+11	of
+11	$
+11	4.1
+11	billion
+11	[
+11	sic
+11	]
+11	{
+11	x
+11	}
+11	.
+12	Bank
+12	of
+12	Norway</ENAMEX>
+12	said
+12	so
+12	.
+13	Good
+13	evening
+13	from
+13	Studio
+13	4
+13	.
+end	turbo:sample-tokens
+layer	turbo:names	document	16	sample:u32	start:u32	end:u32	type:str
+1	0	2	org
+1	2	3	org
+1	4	5	cardinal
+2	0	4	money
+3	8	9	événement
+4	0	1	il
+4	2	5	work_of_art
+7	5	7	loc
+8	0	2	person
+8	15	17	date
+9	1	2	person
+9	5	10	org
+11	5	6	gpe
+11	10	13	money
+12	2	3	gpe
+13	3	5	fac
+end	turbo:names
+layer	turbo:listing	document	4	file:str
+data/english/annotations/zz.name/inner.name
+data/english/annotations/nw/wsj/00/wsj_0002.name
+data/english/annotations/nw/wsj/00/wsj_0001.name
+data/english/annotations/bc/cnn/00/cnn_0004.name
+end	turbo:listing
