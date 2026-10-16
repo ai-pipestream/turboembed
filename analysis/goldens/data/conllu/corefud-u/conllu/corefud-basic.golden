@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	conllu/corefud-basic	1764	1744	ffc3859257e011133ec9732b1261136d9f63ea1d409b93cfccfa4a4ad544960f
+annotator	opennlp.tools.coref.formats.ConlluCorefDocumentStream	read
+config	addonsCommit	be11df610e24a9a2a10f80b7199349fe5b3594a9
+config	tagset	u
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	entity e5 is closed but not open
+end	turbo:read-errors
+layer	turbo:coref-texts	document	2	text:str
+😀 Zoë and Zoë
+Rex ran
+end	turbo:coref-texts
+layer	turbo:coref-sentences	document	2	document:u32	start:u32	end:u32	text:str
+0	0	18	😀 Zoë and Zoë
+1	0	7	Rex ran
+end	turbo:coref-sentences
+layer	turbo:coref-tokens	document	6	document:u32	start:u32	end:u32	text:str
+0	0	4	😀
+0	5	9	Zoë
+0	10	13	and
+0	14	18	Zoë
+1	0	3	Rex
+1	4	7	ran
+end	turbo:coref-tokens
+layer	turbo:coref-tags	aligned:turbo:coref-tokens	6	start:u32	end:u32	tag:str
+0	4	SYM
+5	9	PROPN
+10	13	CCONJ
+14	18	PROPN
+0	3	PROPN
+4	7	VERB
+end	turbo:coref-tags
+layer	turbo:coref-mentions	document	6	document:u32	start:u32	end:u32	chain:u32	kind:str	entity:str
+0	0	13	0	gold	-1
+0	0	9	1	gold	-1
+0	14	18	1	gold	-1
+1	0	7	0	gold	-1
+1	0	7	1	gold	-1
+1	0	3	2	gold	-1
+end	turbo:coref-mentions
+layer	turbo:coref-speakers	document	0	document:u32	start:u32	end:u32	label:str
+end	turbo:coref-speakers
