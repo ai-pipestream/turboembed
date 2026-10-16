@@ -1,0 +1,18 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	parse-treebank/treebank	4118	4118	ba079e24cdbd51f5693639045c6cf0e9f0ae1232c98b881cb88e6267e1ecd35d
+model	en-head-rules.txt	4924379ef7ca9376c6953e166512a556006e069e9ba319dc941a74342e3b46aa64313014d5a801030d5867dc6ea4be9208b75706579840bbcc12fa00aab0cca4
+annotator	opennlp.tools.parser.AbstractBottomUpParser	buildDictionary
+config	cutoff	5
+config	rules	opennlp.tools.parser.lang.en.HeadRules
+layer	turbo:dictionary	document	6	ngram:u32	token:str
+0	,
+1	.
+2	The
+3	We
+3	walked
+4	the
+end	turbo:dictionary
