@@ -42,6 +42,7 @@
 use crate::error::{Error, Result};
 use crate::gis::GisModel;
 use crate::java_string::JavaString;
+use crate::naive_bayes::NaiveBayesModel;
 use crate::perceptron::PerceptronModel;
 use crate::qn::QnModel;
 
@@ -51,6 +52,8 @@ pub const GIS_TYPE: &str = "GIS";
 pub const QN_TYPE: &str = "QN";
 /// The type string `PerceptronModelWriter.persist` starts with.
 pub const PERCEPTRON_TYPE: &str = "Perceptron";
+/// The type string `NaiveBayesModelWriter.persist` starts with.
+pub const NAIVE_BAYES_TYPE: &str = "NaiveBayes";
 /// `ModelParameterChunker.SIGNATURE_CHUNKED_PARAMS`.
 pub const CHUNKED_SIGNATURE: &str = "CHUNKED-MODEL-PARAMS:";
 /// `writeUTF`'s limit on a string's modified UTF-8 bytes.
@@ -128,6 +131,24 @@ impl WritableModel for PerceptronModel {
     }
 }
 
+impl WritableModel for NaiveBayesModel {
+    fn outcome_labels(&self) -> &[JavaString] {
+        NaiveBayesModel::outcome_labels(self)
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        NaiveBayesModel::pred_labels(self)
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        NaiveBayesModel::pattern(self, p)
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        NaiveBayesModel::parameters(self, p)
+    }
+}
+
 /// `GenericModelWriter(model, DataOutputStream).persist()` for a GIS
 /// model: the bytes of the `.model` entry.
 pub fn write_gis(model: &GisModel) -> Result<Vec<u8>> {
@@ -159,6 +180,15 @@ pub fn write_perceptron(model: &PerceptronModel) -> Result<Vec<u8>> {
     let mut out = ModelOutput { bytes: Vec::new() };
     out.write_utf(&JavaString::new(PERCEPTRON_TYPE))?;
     write_body(&mut out, &pruned)?;
+    Ok(out.bytes)
+}
+
+/// `GenericModelWriter(model, DataOutputStream).persist()` for a naive
+/// Bayes model: the bytes of the `.model` entry (`NaiveBayesModelWriter.persist`).
+pub fn write_naive_bayes(model: &NaiveBayesModel) -> Result<Vec<u8>> {
+    let mut out = ModelOutput { bytes: Vec::new() };
+    out.write_utf(&JavaString::new(NAIVE_BAYES_TYPE))?;
+    write_body(&mut out, model)?;
     Ok(out.bytes)
 }
 

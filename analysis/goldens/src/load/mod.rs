@@ -20,7 +20,8 @@ use std::sync::Mutex;
 
 use turbo_analysis::{Anchor, Document, Key, KeyId, Layer, LayerName, Provenance};
 use turbo_analysis_layers::{
-    Categories, ChunkTags, Confidence, Entities, Language, Lemmas, PhraseChunks, PosTags, Sentences, Tokens,
+    Aspects, Categories, ChunkTags, Confidence, Entities, Incivility, Language, Lemmas, Opinions, PhraseChunks,
+    PosTags, Pragmatics, Sentences, Tokens,
 };
 
 pub use error::LoadError;
@@ -139,6 +140,10 @@ const LOADERS: &[(&LayerName, LoadFn)] = &[
     (PhraseChunks::NAME, add::<PhraseChunks>),
     (Language::NAME, add::<Language>),
     (<Categories>::NAME, add::<Categories>),
+    (Opinions::NAME, add::<Opinions>),
+    (Aspects::NAME, add::<Aspects>),
+    (Incivility::NAME, add::<Incivility>),
+    (Pragmatics::NAME, add::<Pragmatics>),
 ];
 
 /// Whether a golden block's id is this layer name, as `LayerName` prints

@@ -22,6 +22,11 @@
 //! - [`algorithm`]: [`Algorithm`], any of the above as one value.
 //! - [`cache`]: [`CachingStemmer`], a cache of recent stems.
 //! - [`annotate`]: [`StemAnnotator`], the analysis step.
+//! - [`term`]: [`Dimension`], [`Term`], [`TermAnalyzer`], and
+//!   [`TermAnalyzerBuilder`], OpenNLP's layered term analyzer.
+//! - [`profile`]: [`NormalizationProfile`], [`NormalizationProfiles`], and
+//!   [`TermAnnotator`], per-language normalization profiles and the analysis
+//!   step writing [`Terms`] (`turbo:terms`).
 //!
 //! # UTF-16
 //!
@@ -98,14 +103,18 @@ pub mod annotate;
 pub mod cache;
 pub mod light;
 pub mod porter;
+pub mod profile;
 pub mod snowball;
 pub mod stemmer;
+pub mod term;
 
 pub use algorithm::Algorithm;
 pub use annotate::StemAnnotator;
 pub use cache::CachingStemmer;
 pub use light::{LightStemmer, NorwegianStandard};
 pub use porter::PorterStemmer;
+pub use profile::{AccentFoldKind, NormalizationProfile, NormalizationProfiles, TermAnnotator};
 pub use snowball::{SnowballAlgorithm, SnowballStemmer};
 pub use stemmer::Stemmer;
-pub use turbo_stem_layers::Stems;
+pub use term::{Dimension, Term, TermAnalyzer, TermAnalyzerBuilder, TermError, TermLemmatizer};
+pub use turbo_stem_layers::{Stems, TermSlot, Terms};
