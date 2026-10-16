@@ -1161,7 +1161,8 @@ fn the_tagger_is_scored_over_the_tags_the_reference_can_give_mapping_only_the_re
 /// (`IllegalArgumentException`): the recipe reads the same samples in the
 /// same order and skips one sentence for each exception. A corpus the
 /// stream could not open (`masc-aborts`) is refused when it is read, with
-/// the JVM's exception. The recipe's other skip, a sentence of no tokens,
+/// the JVM's exception, and a corpus with no Penn tags (`masc-unpenned`)
+/// is refused by the sample stream with the JVM's exception. The recipe's other skip, a sentence of no tokens,
 /// is in none of these corpora; `skipped_sentences_are_recorded_and_bounded`
 /// reads one.
 #[test]
@@ -1228,6 +1229,19 @@ fn the_tagger_recipe_reads_the_jvm_s_samples_from_the_checked_in_masc_corpora() 
     let err = MascCorpus::read(&root).unwrap_err();
     assert_eq!(err.java_class(), Some(opened[0][0].as_str()), "{err}");
     assert_eq!(err.to_string(), opened[0][1]);
+    std::fs::remove_dir_all(&root).unwrap();
+
+    let opened = jvm("masc-unpenned", "turbo:open-errors");
+    assert_eq!(opened.len(), 1);
+    let root = write("masc-unpenned");
+    let corpus = MascCorpus::read(&root).unwrap();
+    match postag::read_samples(&corpus, |s| panic!("masc-unpenned: a sample {s}")) {
+        Err(Error::Masc(e)) => {
+            assert_eq!(e.java_class(), Some(opened[0][0].as_str()), "{e}");
+            assert_eq!(e.to_string(), opened[0][1]);
+        }
+        other => panic!("masc-unpenned: {other:?}"),
+    }
     std::fs::remove_dir_all(&root).unwrap();
 }
 
