@@ -155,6 +155,9 @@ final class Runs {
   /** The words the Hunspell goldens stem with the published and the fixture dictionaries. */
   static final String HUNSPELL = "hunspell";
 
+  /** CoNLL-U files for the dependency and CorefUD readers. */
+  static final String CONLLU = "conllu";
+
   /** Whole profile tables for PlaceProfiles of the addons geo module. */
   static final String PLACE_PROFILES = "place-profiles";
 
@@ -361,6 +364,10 @@ final class Runs {
     annotators.addAll(CorporaGolden.all());
     // The CoNLL-2002, CoNLL-2003 and CoNLL-X streams.
     annotators.addAll(ConllGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
+    // The CoNLL-U dependency samples and the CorefUD reader, of two branches later than the image's
+    // commits.
+    annotators.addAll(ConlluDependencyGolden.all());
+    annotators.addAll(CorefUdGolden.all());
     // The Penn Treebank parse reader and writer, alone and with the English and AnCora head rules,
     // and the head rule readers and writers.
     annotators.addAll(ParserGolden.all(fixtures.resolve(EN_HEAD_RULES), fixtures.resolve(ES_HEAD_RULES),

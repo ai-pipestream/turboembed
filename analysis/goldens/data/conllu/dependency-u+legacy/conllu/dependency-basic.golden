@@ -1,0 +1,90 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	conllu/dependency-basic	937	920	07a09b6209700df4da5bf9d95cacf8506c66116c8889a6f4b217519596a4ffc9
+annotator	opennlp.tools.formats.conllu.ConlluDependencySampleStream	read
+config	branchCommit	2da0ee764cd7340b968a207b925cce852485cccb
+config	tagset	u
+config	whitespace	legacy
+layer	turbo:samples	document	4	written:str
+1\tVamos\tVERB\t0\troot\n2\ta\tADP\t4\tcase\n3\tel\tDET\t4\tdet\n4\tmar\tNOUN\t1\tobl\n5\t.\tPUNCT\t1\tpunct\n
+1\tSue\tPROPN\t2\tnsubj\n2\tlikes\tVERB\t0\troot\n3\ttea\tNOUN\t2\tobj\n4\tand\tCCONJ\t5\tcc\n5\tBob\tPROPN\t2\tconj\n6\tcoffee\tNOUN\t2\torphan\n7\t.\tPUNCT\t2\tpunct\n
+1\tCafé\tNOUN\t0\troot\n2\t☕\tSYM\t1\tdep\n3\t😀\tSYM\t1\tdiscourse:emo\n
+1\tEnde\tNOUN\t0\troot\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	16	sample:u32	text:str
+0	Vamos
+0	a
+0	el
+0	mar
+0	.
+1	Sue
+1	likes
+1	tea
+1	and
+1	Bob
+1	coffee
+1	.
+2	Café
+2	☕
+2	😀
+3	Ende
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	16	tag:str
+VERB
+ADP
+DET
+NOUN
+PUNCT
+PROPN
+VERB
+NOUN
+CCONJ
+PROPN
+NOUN
+PUNCT
+NOUN
+SYM
+SYM
+NOUN
+end	turbo:sample-tags
+layer	turbo:sample-heads	aligned:turbo:sample-tokens	16	head:u32
+0
+4
+4
+1
+1
+2
+0
+2
+5
+2
+2
+2
+0
+1
+1
+0
+end	turbo:sample-heads
+layer	turbo:sample-relations	aligned:turbo:sample-tokens	16	relation:str
+root
+case
+det
+obl
+punct
+nsubj
+root
+obj
+cc
+conj
+orphan
+punct
+root
+dep
+discourse:emo
+root
+end	turbo:sample-relations
