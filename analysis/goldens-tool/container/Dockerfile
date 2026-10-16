@@ -2,7 +2,8 @@
 # from a pinned commit of the fork, the numeric and geo modules of the OpenNLP addons
 # built from a pinned commit, and the generator in ../java.
 # The liblinear add-on of the addons is compiled into a jar of its own beside them,
-# and so are the CoNLL-U dependency and CorefUD readers of two later branches.
+# and so are the CoNLL-U dependency and CorefUD readers of two later branches;
+# the neural-postag module of the addons is built from a commit of its own branch.
 #
 # Build it with `turbo-goldens image` (analysis/goldens-tool/README.md), which
 # passes ../java as the build context. The base image digest and the commits
@@ -115,6 +116,20 @@ RUN GIT_LFS_SKIP_SMUDGE=1 git fetch -q --depth 1 origin "$PLACE_PROFILES_COMMIT"
       geo/src/main/java/opennlp/geo/PlaceProfiles.java \
  && ! grep -rq stripByteOrderMark geo/src/main \
  && /opennlp/mvnw -q -Dmaven.test.skip=true -f /addons/pom.xml -pl geo install
+
+# The neural part-of-speech taggers of the OpenNLP addons (neural-postag: the
+# BiLSTM-CRF and the feedforward tagger, PostagNeuralGolden.java), which the
+# commit above does not have. The module's pom and main sources are taken from
+# the commit below, on the ready/neural-postag-bilstm branch, and installed
+# against the runtime above with the parent pom of the commit above. Its tests
+# are not compiled. The empty .mvn directory makes /addons the project
+# directory Maven reports when it builds the module on its own, where the
+# parent's checkstyle configuration looks for checkstyle.xml.
+ARG NEURAL_POSTAG_COMMIT=88767f8d09ffd350bd045e532bdd6f9d76cd9dd8
+RUN GIT_LFS_SKIP_SMUDGE=1 git fetch -q --depth 1 origin "$NEURAL_POSTAG_COMMIT" \
+ && git archive "$NEURAL_POSTAG_COMMIT" neural-postag/pom.xml neural-postag/src/main | tar -x \
+ && mkdir -p .mvn \
+ && /opennlp/mvnw -q -Dmaven.test.skip=true -f /addons/neural-postag/pom.xml install
 
 # The generator, built with the same Maven as OpenNLP. Its tests run here.
 COPY . /generator

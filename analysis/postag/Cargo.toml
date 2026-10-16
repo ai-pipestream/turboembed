@@ -11,14 +11,15 @@ name = "turbo_postag"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-jvm = { path = "../jvm" }
 # The model archive and the classifier.
 turbo-maxent = { path = "../maxent" }
 # The beam search, the part-of-speech context generators, the tag
 # dictionary and the tag format conversion.
 turbo-sequence = { path = "../sequence" }
+turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
-turbo-unicode = { path = "../unicode" }
 # Writes a small model whose outcome holds half of a surrogate pair.
 turbo-train = { path = "../train" }

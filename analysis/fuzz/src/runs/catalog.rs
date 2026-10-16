@@ -33,11 +33,12 @@ use crate::resources::{Resources, Unavailable};
 /// models on a downloaded corpus and categorize documents of their own; the
 /// PII rewrites (`pii-rewrite`) compare whole rewritten
 /// texts, labels and audit reports rather than layers, which turbo-pii
-/// compares with; the CoNLL-U dependency and CorefUD readers (`conllu`)
-/// and the OntoNotes and French Treebank readers (`ontonotes`,
-/// `frenchtreebank`) read files of their own, which turbo-formats compares
-/// with.
-pub const NOT_COVERED: [&str; 34] = [
+/// compares with; the neural part-of-speech taggers (`postag-neural`) train
+/// models of their own and tag token lists rather than texts; the CoNLL-U
+/// dependency and CorefUD readers (`conllu`) and the OntoNotes and French
+/// Treebank readers (`ontonotes`, `frenchtreebank`) read files of their own,
+/// which turbo-formats compares with.
+pub const NOT_COVERED: [&str; 35] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -68,6 +69,7 @@ pub const NOT_COVERED: [&str; 34] = [
     "sentiment",
     "doccat",
     "pii-rewrite",
+    "postag-neural",
     "conllu",
     "corpora",
     "ontonotes",

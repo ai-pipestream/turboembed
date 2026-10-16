@@ -435,6 +435,10 @@ final class Runs {
     // The maxent document categorizer (turbo-doccat): models trained on the downloaded SMS corpus
     // and the doccat-train corpus with each trainer, and run on the doccat documents.
     annotators.addAll(DoccatGolden.all(inputs, models));
+    // The neural part-of-speech taggers of the addons (turbo-postag's neural module): BiLSTM and
+    // feedforward models trained on the tagged word and tag lines, run on them and on the
+    // sequence sentences.
+    annotators.addAll(PostagNeuralGolden.all(inputs));
     return new All(annotators, recorders);
   }
 }

@@ -42,6 +42,7 @@
 
 pub mod error;
 pub mod model;
+pub mod neural;
 pub mod tagger;
 
 pub use error::ModelError;
