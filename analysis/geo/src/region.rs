@@ -11,7 +11,7 @@
 //!    ISO 3166-1 alpha-2 country code, scanned left-to-right non-overlapping)
 //!    across the document text (`0.95` weight).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{Entities, MarginError, RegionCode, RegionVote, Regions};
@@ -352,13 +352,13 @@ fn is_regional_indicator(c: char) -> bool {
     (REGIONAL_INDICATOR_A..=REGIONAL_INDICATOR_Z).contains(&cp)
 }
 
-fn add_vote(weights: &mut HashMap<RegionCode, f64>, country: RegionCode, weight: f64) {
+fn add_vote(weights: &mut BTreeMap<RegionCode, f64>, country: RegionCode, weight: f64) {
     if weight > 0.0 {
         *weights.entry(country).or_insert(0.0) += weight;
     }
 }
 
-fn add_flag_emoji_votes(text: &str, weights: &mut HashMap<RegionCode, f64>) {
+fn add_flag_emoji_votes(text: &str, weights: &mut BTreeMap<RegionCode, f64>) {
     let mut chars = text.chars().peekable();
     while let Some(first) = chars.next() {
         if !is_regional_indicator(first) {
@@ -437,7 +437,9 @@ impl Annotator for DocumentRegionAnnotator {
             first_by_span.entry(span).or_insert(ix.get());
         }
 
-        let mut weights: HashMap<RegionCode, f64> = HashMap::new();
+        // Ordered by country code, so the total below is summed in the same
+        // order on every run and the shares come out bit for bit the same.
+        let mut weights: BTreeMap<RegionCode, f64> = BTreeMap::new();
         let mut lower_buf = String::new();
         let text = view.text();
 
@@ -563,6 +565,26 @@ mod tests {
             .unwrap();
         a.run(std::slice::from_mut(&mut doc)).into_iter().next().unwrap().unwrap();
         doc
+    }
+
+    #[test]
+    fn shares_are_the_same_on_every_run() {
+        // 0.1 + 0.2 + 0.3 sums to a different double depending on the order
+        // the weights are added in, so a ballot summed in hash map order
+        // changes from run to run.
+        let geocoder = || {
+            TableGeocoder::scored(&[("Lyon", Some("FR"), 0.1), ("Turin", Some("IT"), 0.2), ("Porto", Some("PT"), 0.3)])
+        };
+        let text = "Lyon, Turin and Porto";
+        let shares = |doc: &Document| -> Vec<u64> {
+            let ballot = doc.get::<Regions>().unwrap();
+            (0..ballot.len()).map(|i| ballot.get(i).unwrap().share().to_bits()).collect()
+        };
+        let first = shares(&run_pipeline(geocoder(), doc_with_location_entities(text, &["Lyon", "Turin", "Porto"])));
+        for _ in 0..40 {
+            let doc = run_pipeline(geocoder(), doc_with_location_entities(text, &["Lyon", "Turin", "Porto"]));
+            assert_eq!(shares(&doc), first);
+        }
     }
 
     #[test]
