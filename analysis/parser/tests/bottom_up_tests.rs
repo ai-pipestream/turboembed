@@ -10,7 +10,7 @@ use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Span, Spans, ViewI
 use turbo_analysis_layers::{Phrases, Sentences, Tokens};
 use turbo_formats::evaluate::LabeledSpan;
 use turbo_parser::{
-    ChunkContextGenerator, EnglishHeadRules, HeadRules, HeadRulesArtifact, Parse, ParseSampleStream, Parser,
+    ChunkContextGenerator, EnglishHeadRules, HeadRules, HeadRulesArtifact, INC_NODE, Parse, ParseSampleStream, Parser,
     ParserAnnotator, ParserChunkerSequenceValidator, ParserCrossValidator, ParserEvaluator, ParserEventType,
     ParserFactory, ParserModel, ParserTool, ParserTrainingParameters, ParserType, build_dictionary, chunking,
     collapse_punctuation, dictionary_key, treeinsert,
@@ -320,18 +320,28 @@ fn parser_evaluator_constituent_spans_and_evaluation() {
     let parse_str = "(TOP (S (NP-SBJ (NNP Mr.) (NNP Vinken) )(VP (VBZ is)(NP-PRD (NP (NN chairman) )(PP (IN of)(NP (NP (NNP Elsevier) (NNP N.V.) )(, ,)(NP (DT the) (NNP Dutch) (VBG publishing) (NN group) )))))(. .) ))";
     let p = Parse::parse(parse_str).unwrap();
     let spans = ParserEvaluator::get_constituent_spans(&p);
+    // OpenNLP pops a stack of each node's children, so a node comes before its children and the
+    // last child of a node first.
     let expected = [
         LabeledSpan::new(0, 70, Some("S")),
-        LabeledSpan::new(0, 10, Some("NP")),
         LabeledSpan::new(11, 68, Some("VP")),
         LabeledSpan::new(14, 68, Some("NP")),
-        LabeledSpan::new(14, 22, Some("NP")),
         LabeledSpan::new(23, 68, Some("PP")),
         LabeledSpan::new(26, 68, Some("NP")),
-        LabeledSpan::new(26, 39, Some("NP")),
         LabeledSpan::new(42, 68, Some("NP")),
+        LabeledSpan::new(26, 39, Some("NP")),
+        LabeledSpan::new(14, 22, Some("NP")),
+        LabeledSpan::new(0, 10, Some("NP")),
     ];
     assert_eq!(spans, expected);
+
+    // The root is left out whatever its type, so an `INC` guess gives only the spans below it.
+    let mut guess = Parse::parse("(NP (DT The) (NN cat)) (VP (VBD sat))").unwrap();
+    guess.set_kind(INC_NODE);
+    assert_eq!(
+        ParserEvaluator::get_constituent_spans(&guess),
+        [LabeledSpan::new(8, 11, Some("VP")), LabeledSpan::new(0, 7, Some("NP"))]
+    );
 
     // Evaluate trained model on training corpus
     let rules = HeadRulesArtifact::English(english_head_rules());

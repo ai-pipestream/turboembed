@@ -2,9 +2,9 @@
 //!
 //! Mirrors `opennlp.tools.parser.ParserEvaluator` and
 //! `opennlp.tools.parser.ParserCrossValidator`:
-//! - [`ParserEvaluator::get_constituent_spans`] extracts labeled constituent
-//!   spans (excluding `TOP`, `TK`, and POS tag nodes) in character/byte
-//!   coordinates matching OpenNLP's `getConstituencySpans`.
+//! - [`ParserEvaluator::get_constituent_spans`] extracts the labeled spans of
+//!   the nodes below the root that are not POS tag nodes, in the order of
+//!   OpenNLP's `getConstituencySpans`.
 //! - [`ParserEvaluator`] runs a [`Parser`] on the tokens of each reference
 //!   [`Parse`] and updates an [`FMeasure`] over labeled spans.
 //! - [`ParserCrossValidator`] partitions a corpus with [`CrossValidation`],
@@ -18,7 +18,7 @@ use turbo_formats::evaluate::{CrossValidation, FMeasure, LabeledSpan};
 use crate::bottom_up::Parser;
 use crate::chunking::{self, ParserTrainingParameters};
 use crate::model::{HeadRulesArtifact, ParserModelError, ParserType};
-use crate::parse::{Parse, ParseError, TOK_NODE, TOP_NODE};
+use crate::parse::{Parse, ParseError};
 use crate::treeinsert;
 
 /// Evaluates a constituency [`Parser`] against gold-standard [`Parse`] trees,
@@ -41,30 +41,21 @@ impl<'a> ParserEvaluator<'a> {
         &self.fmeasure
     }
 
-    /// Extracts all constituent spans from `parse` in the same order and
-    /// coordinates as `opennlp.tools.parser.ParserEvaluator.getConstituencySpans`.
+    /// Extracts the constituent spans of `parse` as OpenNLP's `getConstituencySpans` does: every
+    /// node below the root that is not a POS tag node, whatever the root's type (an `INC` guess
+    /// included), each as `LabeledSpan::new(span.start, span.end, Some(kind))`.
     ///
-    /// Specifically, performs a pre-order stack walk (pushing children in
-    /// reverse so the leftmost child is visited first), skips `TOP`, `TK`, and
-    /// POS-tag nodes, and records `LabeledSpan::new(span.start, span.end, Some(kind))`.
+    /// The order is OpenNLP's too, a stack of the root's children: each node comes before its
+    /// children and the last child of a node first. [`FMeasure::update`] counts true positives
+    /// in an order-dependent way when spans repeat, so the order is part of the score.
     pub fn get_constituent_spans(parse: &Parse) -> Vec<LabeledSpan<'_>> {
-        let mut stack: Vec<&Parse> = Vec::new();
-        if parse.kind() == TOP_NODE {
-            for child in parse.children().iter().rev() {
-                stack.push(child);
-            }
-        } else {
-            stack.push(parse);
-        }
-
+        let mut stack: Vec<&Parse> = parse.children().iter().collect();
         let mut out = Vec::new();
         while let Some(node) = stack.pop() {
-            if !node.is_pos_tag() && node.kind() != TOK_NODE && node.kind() != TOP_NODE {
+            if !node.is_pos_tag() {
                 let sp = node.span();
                 out.push(LabeledSpan::new(sp.start, sp.end, Some(node.kind())));
-            }
-            for child in node.children().iter().rev() {
-                stack.push(child);
+                stack.extend(node.children());
             }
         }
         out
