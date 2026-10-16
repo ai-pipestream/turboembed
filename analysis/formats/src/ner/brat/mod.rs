@@ -45,6 +45,14 @@
 //!   [`BratParser`]).
 //! - The configuration parser throws `NullPointerException` for a type
 //!   before any section ([`NerError::BratConfigNoSection`]).
+//!
+//! # Where this differs from OpenNLP
+//!
+//! A relation argument is read from its sixth UTF-16 code unit on
+//! (`RelationAnnotationParser.parseArg`). When that cut falls between the
+//! two halves of a surrogate pair, Java keeps the pair's second half at the
+//! start of the argument; a Rust string cannot hold half a pair, so here
+//! the argument starts after the whole pair.
 
 mod annotation;
 mod document;

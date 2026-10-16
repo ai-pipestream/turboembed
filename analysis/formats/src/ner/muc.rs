@@ -1,5 +1,10 @@
 //! The MUC-6 reader: `MucNameSampleStream` with its `SgmlParser` and
 //! `MucNameContentHandler`.
+//!
+//! Each file is read whole and parsed as one text, as
+//! `Muc6NameSampleStreamFactory` does. OpenNLP's `DocumentSplitterStream`,
+//! which cuts a text into its `<DOC>` elements, is not ported: that factory
+//! does not use it.
 
 use std::collections::HashMap;
 use std::io;
