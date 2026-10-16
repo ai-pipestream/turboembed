@@ -468,40 +468,35 @@ fn language_model_from_sentences_corpus() {
         let array: Vec<&str> = line.split(' ').collect();
         model.add(&array).unwrap();
     }
-    let tokens = model.predict_next_tokens(&["neural", "network", "language"]);
-    assert_eq!(tokens, Some(vec!["models".to_string()]));
+    // "the afternoon" is followed only by "boat" in the corpus, so the
+    // trigram score for that continuation is 1.
+    let tokens = model.predict_next_tokens(&["take", "the", "afternoon"]);
+    assert_eq!(tokens, Some(vec!["boat".to_string()]));
 
-    let p1 = model.calculate_probability(&[
-        "use",
-        "the",
-        "word2vec",
-        "to",
-        "train",
-        "larry",
-        "crust",
-        "apple",
-        "uncharted",
-        "once",
-        "upon",
-        "a",
-        "time",
-    ]);
+    // Unseen words have a unigram count of 0, so the log score is -inf.
+    let p1 = model
+        .calculate_probability(&["keeper", "of", "the", "station", "checks", "the", "zeppelin", "quartz", "vortex"]);
+    // Every trigram here is in the corpus. The exact product of the trigram
+    // ratios is 1/280; summing logs and exponentiating with StrictMath lands
+    // four ulps below the nearest double to 1/280 (0x3F6D_41D4_1D41_D41D).
     let p2 = model.calculate_probability(&[
-        "use",
+        "keeper",
+        "of",
         "the",
-        "word2vec",
-        "to",
-        "train",
-        "wikitravel",
-        "corpus",
+        "station",
+        "checks",
+        "the",
+        "instruments",
+        "every",
+        "morning",
         "and",
-        "got",
-        "the",
-        "word",
-        "vector",
+        "writes",
+        "a",
+        "short",
+        "note",
     ]);
     assert_eq!(p1, 0.0);
-    assert_eq!(p2.to_bits(), 0x3FC0_0000_0000_0001);
+    assert_eq!(p2.to_bits(), 0x3F6D_41D4_1D41_D419);
 }
 
 #[test]
