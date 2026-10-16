@@ -784,6 +784,23 @@ fn decode_refuses_an_id_outside_the_vocabulary() {
     assert_eq!(tok.decode(&[], false).unwrap(), "");
 }
 
+/// Every id's piece is upstream's token for it, and there is none past
+/// the vocabulary.
+#[test]
+fn pieces_are_upstream_tokens() {
+    let path = testdata().join("bge-m3/tokenizer.json");
+    let f = Fixture::with_tokenizer("m3-pieces", unigram::manifest_m3(), &path);
+    let tok = core_tokenizer(&f);
+    let up = upstream_at(&path);
+    let n = tok.vocab_size() as i32;
+    for id in 0..n {
+        assert_eq!(tok.piece(id), up.id_to_token(id as u32).as_deref(), "id {id}");
+    }
+    assert_eq!(tok.piece(6), Some("\u{2581}"));
+    assert_eq!(tok.piece(-1), None);
+    assert_eq!(tok.piece(n), None);
+}
+
 // ---- Byte-level BPE, on a tokenizer trained for the tests ----------------------------
 
 /// A RoBERTa-style byte-level BPE (testdata/README.md).

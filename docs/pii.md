@@ -16,6 +16,7 @@ package of the OpenNLP fork the other ports follow (commit `cdf33c6`):
 | `Pii`, `PiiMention`, `PiiKind` | `PiiMention`, the type strings, `PiiTypePriority` |
 | `PiiConfidence` | none (below) |
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | `Masker`, `MaskPolicy`, `MaskPolicies` |
+| `rewrite::MaskedView`, `mask_view` | `Masker` with `MaskPolicies.byType()`, as a view |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | `Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` |
 | `rewrite::PiiAuditReport` | `PiiAuditReport` |
 | `checksum::luhn`, `mod97`, `sha256`, `keccak`, `base58`, `bech32` | `Luhn`, the IBAN check, `MessageDigest` and `Mac`, `Keccak256`, `Base58Check`, `Bech32` |
@@ -137,7 +138,57 @@ same in every text for one key. Both return a `PiiRewrite` with the new
 text, the labels as a layer of it, and `map_offset` and `map_span` from
 the original to the new text; both refuse overlapping mentions
 (`RewriteError`). `PiiAuditReport` counts mentions by kind, with keyed
-tokens in place of values.
+tokens in place of values. `analysis/pii/tests/rewrite.rs` checks, for
+every pack over every text of the `pii` input set, that no mention's
+covered text or normalized value appears in the report's `Display` or
+`Debug` output.
+
+The key comes from the caller and is at least 32 bytes. `HmacTokenizer`
+copies it and leaves it out of its `Debug` output. Tokens made with one
+key are linkable across texts, so they need the access control of the
+values they stand for.
+
+### The masked view
+
+`MaskedView` is an annotator that reads a `View` and the `turbo:pii`
+layer over it and writes the masked text as a `View` derived from it,
+bound by `MaskedView::bound` as the instance named `masked`
+(`rewrite::MASKED`):
+
+```rust
+use turbo_analysis::{Analyzer, Document};
+use turbo_pii::rewrite::{MASKED, MaskedView};
+use turbo_pii::{Pack, PiiDetector};
+
+let analyzer = Analyzer::builder()
+    .add(PiiDetector::pack(Pack::Contact))
+    .step(MaskedView::by_kind('*')?.bound())
+    .build()?;
+let mut docs = vec![Document::new("Write to desk@example.com.")];
+for result in analyzer.run(&mut docs) {
+    result?;
+}
+assert_eq!(docs[0].get_key(&MASKED).unwrap().text(), "Write to ****@*******.***.");
+```
+
+`MaskedView::by_kind` masks each kind with `MaskPolicy::for_kind`,
+`MaskedView::all` every mention with one policy, and `with` sets the
+policy of one kind. `MaskedView::view` and `mask_view` make the view
+outside an analyzer, and `mask_into` writes into a caller's
+`ViewBuilder`. The text is the one `mask` writes for the same spans and
+policies, overlapping spans included; the view is built with
+`ViewBuilder` as it is written, with no copy of the text beyond the view
+itself.
+
+The view has the byte length of its parent, and each masked character
+is its own edit, so the alignment maps exactly in UTF-8 bytes both ways:
+every character boundary of the source maps to the same offset of the
+view, a mask byte maps back to the one character it stands for (a byte
+inside the four mask bytes of `𝕒` maps to `𝕒`), and adjacent mentions
+keep the boundary between them. A character whose bytes already are the
+mask (a `*` masked with `*`) is not an edit.
+`analysis/pii/tests/masked_view.rs` checks every offset of every pair of
+spans over multi-byte texts, and that the text equals `mask`.
 
 ## Differences from OpenNLP
 
@@ -205,6 +256,15 @@ the other OpenNLP ports ([analysis.md](analysis.md#golden-files)).
   `all-structured`), from `PiiAnnotator` over the `PiiPacks` extractor.
   Layer `turbo:pii` with the columns `start`, `end` (UTF-8 byte offsets),
   `type` and `normalized`; the `config pack` record names the pack.
+- Rewrite goldens: `pii-rewrite/<pack>/pii/<id>.golden` under the same
+  data directory, what `Masker` (with `MaskPolicies.byType()` and with
+  `#`), `Pseudonymizer`, `HmacTokenizer` and `PiiAuditReport` make of
+  the pack's mentions under the test key in the `config key` record: the
+  masked text's edits as `turbo:view`, the text with every mention
+  masked, both rewrites or the exception each threw, their labels with
+  the spans they replaced, and the audit report by type and as text.
+  `analysis/goldens-tool/README.md` lists the columns. A character
+  OpenNLP masks is written as one mask byte per UTF-8 byte, as here.
 
 Make them in the recipe container with
 
@@ -217,6 +277,16 @@ the layer with the goldens row for row; while the `pii` golden directory
 is not on disk it says so and passes. The differential fuzzer covers the
 ten packs (`analysis/fuzz/src/runs/pii.rs`), and the `pii` set is among
 the sets it writes generated texts into.
+
+`analysis/pii/tests/rewrite_goldens.rs` runs every pack and `MaskedView`
+over the set and compares the masked view's edits, the fully masked
+text, both rewrites (or that both sides refuse overlapping mentions; the
+Java message gives UTF-16 offsets, so only the refusal is compared), the
+labels with the spans they replaced and the offset map at them, and the
+audit report, exactly. While the `pii-rewrite` golden directory is not on
+disk it says so and passes. The differential fuzzer leaves these runs out
+(`NOT_COVERED` in `analysis/fuzz/src/runs/catalog.rs`), since they compare
+texts and reports rather than layers.
 
 ## Precision and recall
 
@@ -249,4 +319,10 @@ Besides the goldens, a scratch differential (a JVM oracle over the same
 OpenNLP commit and a Rust one, kept out of the tree) compared every pack
 and the default cursor extractor on more than 500,000 generated texts, and the
 masking, pseudonymizing, keyed labels, offset maps and audit reports on
-20,000, with no difference.
+20,000, with no difference. A second one ran the generator's
+`PiiRewriteGolden` over 20,000 texts (a quarter from the fuzz corpus,
+the rest values of the `pii` set run together, cut and mixed with
+non-ASCII text) with every pack, and compared its 200,000 goldens with
+the masked view, the rewrites, the labels and the audit report: no
+difference over 955,007 masked characters, 102,992 labels, 4,562
+refused rewrites and 60,496 audited mentions.

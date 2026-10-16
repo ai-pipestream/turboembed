@@ -1834,6 +1834,8 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-normalize",
+ "turbo-train",
 ]
 
 [[package]]
@@ -1955,6 +1957,17 @@ dependencies = [
  "serde_json",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-hunspell"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-stem-layers",
  "turbo-unicode",
 ]
 
@@ -2142,6 +2155,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-sat"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-sentdetect"
 version = "0.1.0"
 dependencies = [
@@ -2247,6 +2272,8 @@ name = "turbo-train-components"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-doccat",
  "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
