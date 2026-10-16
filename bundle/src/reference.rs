@@ -42,7 +42,11 @@ pub fn cases(recipe: &Recipe) -> Result<Value> {
         let role = c["prompt_role"].as_str().ok_or(format!("reference.cases[{i}].prompt_role: missing"))?;
         out.push(json!({ "text": text, "prefix": prefix(role)? }));
     }
-    Ok(json!({ "max_seq": max_seq, "max_batch": max_batch, "cases": out }))
+    let mut spec = json!({ "max_seq": max_seq, "max_batch": max_batch, "cases": out });
+    if let Some(c) = m.get("classifier").filter(|v| !v.is_null()) {
+        spec["classifier"] = c.clone();
+    }
+    Ok(spec)
 }
 
 /// Run the container on `upstream` and put the reference file in `bundle`.

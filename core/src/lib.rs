@@ -22,6 +22,7 @@ pub mod cpu;
 pub mod cuda;
 #[cfg(feature = "hailo")]
 pub mod hailo;
+pub mod head;
 #[cfg(feature = "levelzero")]
 pub mod levelzero;
 pub mod manifest;
