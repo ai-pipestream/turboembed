@@ -20,6 +20,11 @@
 //! [`ConllXSentences`] `conll02`, `conll03` and `conllx`; readers of other
 //! corpora register the same way.
 //!
+//! OpenNLP has no format of its own for dependency samples: it registers
+//! the CoNLL-U dependency format both as the default
+//! ([`NativeDependencies`], [`OPENNLP_FORMAT`]) and as [`CONLLU_FORMAT`]
+//! ([`ConlluDependencies`]).
+//!
 //! A duplicate name is refused and the first format kept, as
 //! `StreamFactoryRegistry.registerFactory` keeps it.
 
@@ -33,14 +38,17 @@ use crate::conll::{
     CONLL02_FORMAT, CONLL03_FORMAT, CONLLX_FORMAT, Conll02Language, Conll02Reader, Conll03Language, Conll03Reader,
     ConllXPosReader, EntityTypes,
 };
-use crate::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
+use crate::conllu::{
+    ConlluDependencyReader, ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset,
+};
 use crate::convert::{ChunkSize, ToSentenceSamples, ToTokenSamples};
 use crate::error::FormatError;
 use crate::native::{
     ChunkReader, DocumentReader, LanguageReader, LemmaReader, NameReader, SentenceReader, TokenReader, WordTagReader,
 };
 use crate::sample::{
-    ChunkSample, DocumentSample, LanguageSample, LemmaSample, NameSample, PosSample, SentenceSample, TokenSample,
+    ChunkSample, DependencySample, DocumentSample, LanguageSample, LemmaSample, NameSample, PosSample, SentenceSample,
+    TokenSample,
 };
 
 /// The name of OpenNLP's own format of every kind
@@ -89,6 +97,8 @@ kinds! {
     DocumentSamples => DocumentSample, "opennlp.tools.doccat.DocumentSample";
     /// [`LanguageSample`]s.
     LanguageSamples => LanguageSample, "opennlp.tools.langdetect.LanguageSample";
+    /// [`DependencySample`]s.
+    DependencySamples => DependencySample, "opennlp.tools.depparse.DependencySample";
 }
 
 /// A stream of samples of kind `K` read from a source text.
@@ -386,6 +396,55 @@ impl Format<TokenSamples> for ConlluTokens {
     }
 }
 
+/// Dependency samples from CoNLL-U (`ConlluDependencySampleStreamFactory`,
+/// whose tag set defaults to [`Tagset::U`]), registered as [`CONLLU_FORMAT`].
+/// Blank lines and relations are tested in [`ReadOptions::whitespace`].
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ConlluDependencies {
+    pub tagset: Tagset,
+}
+
+impl Format<DependencySamples> for ConlluDependencies {
+    fn name(&self) -> &str {
+        CONLLU_FORMAT
+    }
+
+    fn open<'a>(
+        &'a self,
+        source: &'a str,
+        options: ReadOptions,
+    ) -> Result<Samples<'a, DependencySamples>, FormatError> {
+        Ok(Box::new(ConlluDependencyReader::new(source, self.tagset, options.whitespace)?))
+    }
+}
+
+/// The same format as [`ConlluDependencies`], registered as
+/// [`OPENNLP_FORMAT`], the default format of dependency samples.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct NativeDependencies {
+    pub tagset: Tagset,
+}
+
+impl Format<DependencySamples> for NativeDependencies {
+    fn name(&self) -> &str {
+        OPENNLP_FORMAT
+    }
+
+    fn open<'a>(
+        &'a self,
+        source: &'a str,
+        options: ReadOptions,
+    ) -> Result<Samples<'a, DependencySamples>, FormatError> {
+        Ok(Box::new(ConlluDependencyReader::new(source, self.tagset, options.whitespace)?))
+    }
+}
+
+impl NativeFormat for DependencySamples {
+    fn native() -> Box<dyn Format<Self>> {
+        Box::new(NativeDependencies::default())
+    }
+}
+
 /// Name samples from CoNLL-2002 (`Conll02NameSampleStreamFactory`, whose
 /// `lang` and `types` parameters have no default).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -507,6 +566,20 @@ mod tests {
         let samples: Vec<_> =
             r.open("namefinder", "<START:x> a <END> b", ReadOptions::default()).unwrap().map(Result::unwrap).collect();
         assert_eq!(samples[0].text(), "a b");
+    }
+
+    #[test]
+    fn dependency_formats_register_as_java_registers_them() {
+        let mut r = Registry::<DependencySamples>::with_native();
+        r.register(ConlluDependencies { tagset: Tagset::from_parameter("x").unwrap() }).unwrap();
+        assert_eq!(r.names().collect::<Vec<_>>(), [OPENNLP_FORMAT, CONLLU_FORMAT]);
+        let src = "1\ta\t_\tU\tX\t_\t0\troot\t_\t_\n";
+        let read = |name: &str| -> Vec<String> {
+            r.open(name, src, ReadOptions::default()).unwrap().map(|s| s.unwrap().to_string()).collect()
+        };
+        assert_eq!(read(OPENNLP_FORMAT), ["1\ta\tU\t0\troot\n"]);
+        assert_eq!(read(CONLLU_FORMAT), ["1\ta\tX\t0\troot\n"]);
+        assert_eq!(Tagset::from_parameter("U"), None);
     }
 
     #[test]

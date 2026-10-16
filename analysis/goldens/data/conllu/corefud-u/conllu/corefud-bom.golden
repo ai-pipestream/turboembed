@@ -1,0 +1,29 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	conllu/corefud-bom	100	98	891bc6fe8d2a191d6c5bb0ec647cef598c369a6b9ae837059256792d737f7fa4
+annotator	opennlp.tools.coref.formats.ConlluCorefDocumentStream	read
+config	addonsCommit	be11df610e24a9a2a10f80b7199349fe5b3594a9
+config	tagset	u
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	expected 10 columns: ﻿# newdoc id = bom
+end	turbo:read-errors
+layer	turbo:coref-texts	document	1	text:str
+b
+end	turbo:coref-texts
+layer	turbo:coref-sentences	document	1	document:u32	start:u32	end:u32	text:str
+0	0	1	b
+end	turbo:coref-sentences
+layer	turbo:coref-tokens	document	1	document:u32	start:u32	end:u32	text:str
+0	0	1	b
+end	turbo:coref-tokens
+layer	turbo:coref-tags	aligned:turbo:coref-tokens	1	start:u32	end:u32	tag:str
+0	1	X
+end	turbo:coref-tags
+layer	turbo:coref-mentions	document	1	document:u32	start:u32	end:u32	chain:u32	kind:str	entity:str
+0	0	1	0	gold	-1
+end	turbo:coref-mentions
+layer	turbo:coref-speakers	document	0	document:u32	start:u32	end:u32	label:str
+end	turbo:coref-speakers
