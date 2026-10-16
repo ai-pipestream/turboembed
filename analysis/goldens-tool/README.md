@@ -181,6 +181,7 @@ a directory with the same model run without them, and its options are
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
+| `parse` (`buildDictionary`, the `chunking` and `treeinsert` event streams and context generators, `Parser.train`, `ParserTool.parseLine`, `ParserEvaluator`) | `dictionary-cutoff-1`, `dictionary-cutoff-5`; `events-chunking-build`, `events-chunking-build+dictionary`, `events-chunking-check`, `events-treeinsert-build`, `events-treeinsert-check`, `events-treeinsert-attach`, `events-chunk`, `events-tag`; `generators`; `model-chunking`, `model-treeinsert` (all with `en-head-rules`, fixture) | `parse-treebank`; the models are trained on its `treebank` input | `rules`, `cutoff`, `etype`, `dictionary-cutoff`, `check-types`; `corpus`, `language`, `<model>.Algorithm`, `<model>.Iterations`, `<model>.Cutoff`, `dict.Cutoff`, `searches`, `parse-counts` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
 | `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
 | `place-profiles` (`PlaceProfiles` of the addons `geo` module) | `place-profiles` | `place-profiles` | `profilesCommit` |
@@ -635,6 +636,67 @@ lines `serialize` wrote, or `turbo:rules-errors`, what the reader threw.
 `analysis/parser/tests/goldens.rs` compares the Rust reader, writer and
 rule classes with both.
 
+### Bottom-up parser goldens
+
+`parse/<run>/parse-treebank/<id>.golden` is what OpenNLP's chunking and
+treeinsert parsers (`opennlp.tools.parser.chunking`, `.treeinsert`) make
+of `inputs/parse-treebank/<id>.txt`, one bracketed parse per line, with the
+English head rules fixture (`ParserTrainGolden`). The inputs are written
+for this project: `treebank` (42 sentences, the training corpus) and
+`held-out` (8 sentences). Between them they have commas, brackets, quotes,
+sentence-final `.`, `?` and `!`, possessives, unary chains, a node whose
+only child has its own type (which `pruneParse` removes) and sister
+adjunctions (`NP -> NP PP`, `VP -> VP PP`, `S -> S , CC S`). A sample is a
+line that is not blank, numbered from 0, read with `Parse.parseParse` and
+read again for every call, since the streams and generators change it.
+
+- `dictionary-cutoff-1`, `dictionary-cutoff-5`:
+  `AbstractBottomUpParser.buildDictionary` over the input's samples.
+  `turbo:dictionary` has a row per token of each n-gram (the n-gram's
+  number and the token), the n-grams sorted by their tokens.
+- `events-<parser>-<type>` (and `events-chunking-build+dictionary`, with
+  the input's own cutoff 1 dictionary, as `chunking.Parser.train` builds
+  it), `events-chunk` and `events-tag`: the events of the parser's
+  `ParserEventStream` of that event type, one sample at a time.
+  `turbo:events` has a row per event: the sample, the outcome, the number
+  of context strings and the context strings in order joined by single
+  spaces. `turbo:sample-errors` has the sample, class and message of each
+  exception.
+- `generators`: the context generators called directly on each sample's
+  chunk array (after `pruneParse` and `updateHeads`, `getInitialChunks`
+  then `collapsePunctuation`), as it is (`unlabeled`) and with every
+  chunk's label set to `c` (`complete`): `ChunkContextGenerator` at every
+  token, the chunking build generator at every index without and with the
+  dictionary, the chunking check generator for each start, each end up to
+  two chunks later and the types `NP`, `VP`, `S`, the treeinsert build
+  generator at every index, the treeinsert attach generator at every index
+  from 1 against the chunks before it (nearest first) at every frontier
+  index, and the treeinsert check generator with every chunk that is not a
+  tag as the parent, with `trim` false and true. `turbo:chunks` lists each
+  array (type, UTF-8 span in `turbo:parse-texts`, head span, head index)
+  and `turbo:generator-errors` each call that threw.
+- `model-chunking`, `model-treeinsert`: `Parser.train` on the `treebank`
+  input (`ParseSampleStream` over the lines, read again on each reset) with
+  GIS (`MAXENT`), 100 iterations and cutoff 1 for the build, check, attach,
+  tagger and chunker models and cutoff 1 for the dictionary. The
+  `treebank` golden holds the model file with `Timestamp` taken out of
+  every manifest and every zip entry, the nested tagger and chunker
+  packages too, written again with a fixed time, so that each run writes
+  the same bytes: `turbo:model-file` (SHA-256 and length),
+  `turbo:model-hex` (the bytes as hex, 64 a row), `turbo:model-entries`
+  and `turbo:manifest`. Both goldens hold, with the model read back from
+  that file, `ParserTool.parseLine` on each sample's tokens joined by
+  spaces at beam 1 and advance 0.5 and at beam 3 and advance 0.95, asking
+  for 1 and 3 parses: `turbo:parses` (rank, `getProb`, `show`),
+  `turbo:parse-nodes` (every node in preorder: depth, type, UTF-8 span,
+  head span, head index) and `turbo:parse-errors`; and `turbo:evaluation`,
+  the precision, recall and F-measure of `ParserEvaluator` over the input
+  at those two settings and at `ParserFactory.create(model)`'s beam 20 and
+  advance 0.95.
+
+`ParserTool` and `ParserEvaluator` are in OpenNLP's `opennlp-cli` module,
+which the image installs with the runtime for these runs.
+
 ## Gazetteer goldens
 
 `gazetteer/<run>/gazetteer/<id>.golden` is what a gazetteer of the addons
@@ -1087,7 +1149,7 @@ git init opennlp && cd opennlp
 git remote add origin https://github.com/ai-pipestream/opennlp.git
 git fetch --depth 1 origin cdf33c653d5d61d5af7d37ffee189a83bd8392ea
 git checkout FETCH_HEAD
-./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats,opennlp-core/opennlp-ml/opennlp-ml-libsvm -am install
+./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats,opennlp-core/opennlp-ml/opennlp-ml-libsvm,opennlp-core/opennlp-cli -am install
 cd ..
 git init opennlp-addons && cd opennlp-addons
 git remote add origin https://github.com/ai-pipestream/opennlp-addons.git
