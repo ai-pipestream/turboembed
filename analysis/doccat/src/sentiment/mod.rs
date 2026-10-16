@@ -42,4 +42,3 @@ pub use pragmatics::{
     DEFAULT_MIN_NEGATIVE_POLARITY, DEFAULT_MIN_POSITIVE_POLARITY, DEFAULT_PRAGMATICS_THRESHOLD, PragmaticsAnnotator,
     PragmaticsVectorScorer,
 };
-

@@ -470,22 +470,150 @@ const IMPLICIT_OPINION_CATEGORY_CUES: &[(&str, &str)] = &[
 /// Words that are syntactic nouns or pronouns or discourse markers but never
 /// valid aspect targets on their own.
 const ASPECT_STOPWORDS: &[&str] = &[
-    "i", "me", "my", "mine", "myself", "we", "us", "our", "ours", "you", "your", "yours", "he", "him", "his", "she",
-    "her", "hers", "it", "its", "they", "them", "their", "theirs", "this", "that", "these", "those", "who", "whom",
-    "which", "what", "whatever", "everything", "nothing", "something", "anything", "everyone", "someone", "anyone",
-    "nobody", "way", "ways", "thing", "things", "lot", "lots", "bit", "bits", "kind", "sort", "type", "part", "parts",
-    "time", "times", "day", "days", "week", "weeks", "month", "months", "year", "years", "today", "yesterday",
-    "tomorrow", "fact", "point", "reason", "place", "person", "people", "one", "ones", "all", "both", "each", "other",
-    "others", "none", "much", "many", "more", "most", "some", "any", "few", "little", "less", "least",
+    "i",
+    "me",
+    "my",
+    "mine",
+    "myself",
+    "we",
+    "us",
+    "our",
+    "ours",
+    "you",
+    "your",
+    "yours",
+    "he",
+    "him",
+    "his",
+    "she",
+    "her",
+    "hers",
+    "it",
+    "its",
+    "they",
+    "them",
+    "their",
+    "theirs",
+    "this",
+    "that",
+    "these",
+    "those",
+    "who",
+    "whom",
+    "which",
+    "what",
+    "whatever",
+    "everything",
+    "nothing",
+    "something",
+    "anything",
+    "everyone",
+    "someone",
+    "anyone",
+    "nobody",
+    "way",
+    "ways",
+    "thing",
+    "things",
+    "lot",
+    "lots",
+    "bit",
+    "bits",
+    "kind",
+    "sort",
+    "type",
+    "part",
+    "parts",
+    "time",
+    "times",
+    "day",
+    "days",
+    "week",
+    "weeks",
+    "month",
+    "months",
+    "year",
+    "years",
+    "today",
+    "yesterday",
+    "tomorrow",
+    "fact",
+    "point",
+    "reason",
+    "place",
+    "person",
+    "people",
+    "one",
+    "ones",
+    "all",
+    "both",
+    "each",
+    "other",
+    "others",
+    "none",
+    "much",
+    "many",
+    "more",
+    "most",
+    "some",
+    "any",
+    "few",
+    "little",
+    "less",
+    "least",
 ];
 
 /// Negation cues used to detect negated opinions.
 const NEGATION_CUES: &[&str] = &[
-    "not", "no", "never", "neither", "nor", "none", "nobody", "nothing", "nowhere", "hardly", "barely", "scarcely",
-    "seldom", "rarely", "without", "lack", "lacks", "lacked", "lacking", "cannot", "cant", "won't", "wont", "don't",
-    "dont", "doesn't", "doesnt", "didn't", "didnt", "isn't", "isnt", "aren't", "arent", "wasn't", "wasnt", "weren't",
-    "werent", "hasn't", "hasnt", "haven't", "havent", "hadn't", "hadnt", "wouldn't", "wouldnt", "shouldn't",
-    "shouldnt", "couldn't", "couldnt",
+    "not",
+    "no",
+    "never",
+    "neither",
+    "nor",
+    "none",
+    "nobody",
+    "nothing",
+    "nowhere",
+    "hardly",
+    "barely",
+    "scarcely",
+    "seldom",
+    "rarely",
+    "without",
+    "lack",
+    "lacks",
+    "lacked",
+    "lacking",
+    "cannot",
+    "cant",
+    "won't",
+    "wont",
+    "don't",
+    "dont",
+    "doesn't",
+    "doesnt",
+    "didn't",
+    "didnt",
+    "isn't",
+    "isnt",
+    "aren't",
+    "arent",
+    "wasn't",
+    "wasnt",
+    "weren't",
+    "werent",
+    "hasn't",
+    "hasnt",
+    "haven't",
+    "havent",
+    "hadn't",
+    "hadnt",
+    "wouldn't",
+    "wouldnt",
+    "shouldn't",
+    "shouldnt",
+    "couldn't",
+    "couldnt",
 ];
 
 /// Degree booster and dampener modifiers with their intensity multiplier delta.
@@ -515,8 +643,20 @@ const DEGREE_MODIFIERS: &[(&str, f64)] = &[
 
 /// Adversative and clause-splitting conjunctions.
 const ADVERSATIVE_CONJUNCTIONS: &[&str] = &[
-    "but", "however", "yet", "although", "though", "even", "whereas", "while", "except", "despite", "nevertheless",
-    "nonetheless", "unfortunately", "sadly",
+    "but",
+    "however",
+    "yet",
+    "although",
+    "though",
+    "even",
+    "whereas",
+    "while",
+    "except",
+    "despite",
+    "nevertheless",
+    "nonetheless",
+    "unfortunately",
+    "sadly",
 ];
 
 /// Determiners and leading articles stripped from the front of noun-phrase
@@ -676,7 +816,10 @@ impl Annotator for RuleAspectSentiment {
     type Reads = (View, Sentences, Tokens, Option<Dependencies>, Option<PhraseChunks>, Option<PosTags>);
     type Writes = (Opinions, Aspects);
 
-    fn annotate(&self, (view, sentences, tokens, deps, phrase_chunks, pos_tags): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+    fn annotate(
+        &self,
+        (view, sentences, tokens, deps, phrase_chunks, pos_tags): Refs<'_, Self>,
+    ) -> Result<Self::Writes, Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
         let text = view.text();
         let n_tokens = tokens.len();
@@ -973,7 +1116,9 @@ impl RuleAspectSentiment {
                 }
                 let head = c_end - 1;
                 let head_w = token_lower[head].as_str();
-                if head_w.is_empty() || ASPECT_STOPWORDS.contains(&head_w) || self.token_opinion_valence(head_w).is_some()
+                if head_w.is_empty()
+                    || ASPECT_STOPWORDS.contains(&head_w)
+                    || self.token_opinion_valence(head_w).is_some()
                 {
                     continue;
                 }
@@ -1050,14 +1195,7 @@ impl RuleAspectSentiment {
                 continue;
             }
             if let Some(prior) = self.token_opinion_valence(w) {
-                let negated = is_token_negated(
-                    tok,
-                    sent_start,
-                    sent_end,
-                    token_lower,
-                    clause_ids,
-                    deps,
-                );
+                let negated = is_token_negated(tok, sent_start, sent_end, token_lower, clause_ids, deps);
                 let intensity = compute_token_intensity(tok, sent_start, token_lower, text, tok_starts, tok_ends);
                 opinions.push(ExtractedOpinion {
                     tokens: IxRange::new(tok as u32, (tok + 1) as u32),
@@ -1177,8 +1315,7 @@ impl RuleAspectSentiment {
                 for cand in sent_start..sent_end {
                     if deps.head[cand].map(|ix| ix.get()) == Some(t_tok) {
                         let rel = deps.relations.label(deps.relation[cand]);
-                        if is_conj_rel(rel)
-                            && self.can_be_aspect_target(cand, pos_tags, token_lower, opinions, aspects)
+                        if is_conj_rel(rel) && self.can_be_aspect_target(cand, pos_tags, token_lower, opinions, aspects)
                         {
                             let (s, e) = expand_dep_noun_span(cand, sent_start, sent_end, deps, token_lower, opinions);
                             aspects.push(ExtractedAspect {
@@ -1227,7 +1364,8 @@ impl RuleAspectSentiment {
                                 && !opinions.iter().any(|o| range_contains(o.tokens, cand))
                                 && !aspects.iter().any(|a| range_contains(a.tokens, cand))
                             {
-                                let negated = is_token_negated(cand, sent_start, sent_end, token_lower, clause_ids, Some(deps));
+                                let negated =
+                                    is_token_negated(cand, sent_start, sent_end, token_lower, clause_ids, Some(deps));
                                 let prior = self.lexicon.get(w).unwrap_or(1.0);
                                 if prior.abs() > 0.0 {
                                     opinions.push(ExtractedOpinion {
@@ -1262,10 +1400,11 @@ impl RuleAspectSentiment {
                             && !aspects.iter().any(|a| range_contains(a.tokens, cand))
                         {
                             let adversative = has_adversative_between(o_tok, cand, token_lower);
-                            let negated = is_token_negated(cand, sent_start, sent_end, token_lower, clause_ids, Some(deps));
-                            let base_pol = self.token_opinion_valence(w).unwrap_or_else(|| {
-                                if adversative { -op.polarity } else { op.polarity }
-                            });
+                            let negated =
+                                is_token_negated(cand, sent_start, sent_end, token_lower, clause_ids, Some(deps));
+                            let base_pol = self
+                                .token_opinion_valence(w)
+                                .unwrap_or_else(|| if adversative { -op.polarity } else { op.polarity });
                             opinions.push(ExtractedOpinion {
                                 tokens: IxRange::new(cand as u32, (cand + 1) as u32),
                                 head_token: cand,
@@ -1372,8 +1511,7 @@ impl RuleAspectSentiment {
 }
 
 fn clean_word_lower(raw: &str) -> String {
-    raw.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
-        .to_ascii_lowercase()
+    raw.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-').to_ascii_lowercase()
 }
 
 fn span_text<'a>(text: &'a str, tok_starts: &[u32], tok_ends: &[u32], range: IxRange<Tokens>) -> &'a str {
@@ -1523,9 +1661,7 @@ fn is_adj_pos(tag: &str) -> bool {
 }
 
 fn is_compound_rel(rel: &str) -> bool {
-    rel.eq_ignore_ascii_case("compound")
-        || rel.eq_ignore_ascii_case("nn")
-        || rel.eq_ignore_ascii_case("flat")
+    rel.eq_ignore_ascii_case("compound") || rel.eq_ignore_ascii_case("nn") || rel.eq_ignore_ascii_case("flat")
 }
 
 fn is_conj_rel(rel: &str) -> bool {
@@ -1699,9 +1835,7 @@ fn link_opinions_to_aspect(
             let o_tok = op.head_token;
             let o_head = d.head[o_tok].map(|ix| ix.get());
             let direct = o_head == Some(t_tok) || t_head == Some(o_tok);
-            let shared_head = t_head.is_some()
-                && t_head == o_head
-                && !has_adversative_between(t_tok, o_tok, &[]);
+            let shared_head = t_head.is_some() && t_head == o_head && !has_adversative_between(t_tok, o_tok, &[]);
             // Also check conjunction chain (`t_tok` conjoined with another aspect linked to `o_tok`,
             // or `o_tok` conjoined with another opinion linked to `t_tok`).
             let conj_target = if let Some(th) = t_head
@@ -1736,10 +1870,8 @@ fn link_opinions_to_aspect(
         if op.clause_id != asp.clause_id {
             continue;
         }
-        let best_asp = same_clause_aspects
-            .iter()
-            .min_by_key(|(_, a)| token_distance(a.tokens, op.tokens))
-            .map(|(idx, _)| *idx);
+        let best_asp =
+            same_clause_aspects.iter().min_by_key(|(_, a)| token_distance(a.tokens, op.tokens)).map(|(idx, _)| *idx);
         if best_asp == Some(asp_pos) {
             linked.push(o_idx);
         }
@@ -1762,10 +1894,8 @@ fn link_opinions_to_aspect(
 
     // 4. Fallback: closest opinion in the sentence, provided no adversative conjunction separates them.
     let _ = sent_start;
-    if let Some((o_idx, _)) = sent_opinions
-        .iter()
-        .enumerate()
-        .min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
+    if let Some((o_idx, _)) =
+        sent_opinions.iter().enumerate().min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
     {
         linked.push(o_idx);
     }

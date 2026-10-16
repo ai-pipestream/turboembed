@@ -319,3 +319,94 @@ the three signals end to end over `tiny-bert-bundle` with a fitted
 `ClassifierHead` as the sentence scorer and a `LabelCentroids` head written
 beside it, and compares CPU with a device when `TURBO_TEST_DEVICE` is set.
 
+## Aspect and opinion extraction (`RuleAspectSentiment` and `LearnedAspectSentiment`, `#322`)
+
+Aspect-based sentiment analysis (ABSA) is implemented through two annotator
+paths that write the same `(Opinions, Aspects)` layers (`turbo:opinions` and
+`turbo:aspects`) while recording their distinct annotator IDs in provenance:
+
+1. **Rule path (`turbo_doccat::sentiment::aspect::RuleAspectSentiment`,
+   `ID = "turbo-doccat:aspect-sentiment-rule"`)**:
+   - Reads `(View, Sentences, Tokens, Option<Dependencies>, Option<PosTags>, Option<PhraseChunks>, Option<Opinions>, Option<Vectors<Aspects>>)`
+     and writes `(Opinions, Aspects)`.
+   - **Qiu, Liu, Bu, and Chen (2011) double propagation (`R1`..`R4`)**: when
+     `opennlp:dependencies` (`Dependencies`) is present on the document,
+     propagates seed opinion expressions from the VADER lexicon (or an
+     upstream `turbo:opinions` layer) and seed aspect terms across modifier
+     (`amod`, `advmod`, `acomp`, `xcomp`), subject/object (`nsubj`,
+     `nsubjpass`, `dobj`, `iobj`, `pobj`, `attr`), and conjunction (`conj`)
+     arcs until a fixed point is reached:
+     - `R1`: known opinion extracts target aspect (`O -> Dep -> A`) and
+       predicative/complement pairs (`A <- nsubj - Pred - amod/acomp -> O`).
+     - `R2`: known opinion extracts conjunctive opinion (`O_i - conj -> O_j`),
+       inverting polarity when connected across an adversative conjunction
+       (`"but"`, `"however"`, `"yet"`, `"although"`, `"though"`, `"whereas"`).
+     - `R3`: known aspect extracts governing or modifying opinion (`A -> Dep -> O`)
+       when the candidate modifier carries a lexicon prior or adjectival/verbal
+       POS tag.
+     - `R4`: known aspect extracts conjunctive aspect (`A_i - conj -> A_j`),
+       expanding multi-token noun compounds (`nn`, `compound`).
+   - **Clause-aware fallback**: when `opennlp:dependencies` is absent (or
+     alongside it), extracts candidate aspect spans from `opennlp:chunks`
+     (`PhraseChunks` `NP` spans), `opennlp:pos` (`PosTags` noun sequences),
+     and the English aspect phrase table, and links each aspect to the closest
+     opinion(s) in the same clause (or dependency arc when available).
+   - **Implicit aspects (`AspectTarget::Implicit`)**: when a sentence contains
+     opinion expressions (`"Way too expensive and completely overpriced."`)
+     and no explicit aspect term, emits one sentence-anchored
+     `AspectTarget::Implicit { sentence }` item linking the sentence's opinion
+     indices.
+   - **Aspect categories**: assigns a coarse category `Tag` from the aspect
+     layer's `TagSet` (`DEFAULT_ASPECT_CATEGORIES`: `"general"`, `"battery"`,
+     `"display"`, `"performance"`, `"build"`, `"camera"`, `"food"`,
+     `"service"`, `"price"`, `"ambience"`, `"software"`, `"connectivity"`)
+     using an optional `AspectCategoryScorer` over `Vectors<Aspects>` (such as
+     `LabelCentroids` or `ClassifierHead`) with surface-keyword fallback.
+
+2. **Learned path (`turbo_analysis_embed::aspect::LearnedAspectSentiment`,
+   `ID = "turbo:aspect-sentiment-learned"`)**:
+   - Reads `(View, Sentences, Tokens, Subwords, Option<Vectors<Subwords>>, Option<PhraseChunks>, Option<Dependencies>)`
+     and writes `(Opinions, Aspects)`.
+   - **Contextual subword vectors (`SubwordVectors`, `VectorAnnotator::embed_subwords`)**:
+     extracts each subword piece's contextual hidden state (`Vectors<Subwords>`)
+     from its enclosing sentence window via the stage 2 range write (`#263`).
+   - **Subword BIO tagging mapped to `Tokens`**: scores each subword piece with
+     a 5-class `ClassifierHead` (`["O", "B-ASP", "I-ASP", "B-OP", "I-OP"]`),
+     maps subword piece probabilities back to `Tokens` through `Subwords`
+     alignments (`subwords.token` or byte-span overlap), and decodes
+     clause-bounded `IxRange<Tokens>` spans for aspects and opinions (expanding
+     compound noun phrases when `PhraseChunks` is present).
+   - **Span-pooled polarity and category heads (`#263`)**: pools the exact
+     subword range of each decoded opinion span (`Vectors<Opinions>`) and
+     aspect span (`Vectors<Aspects>`) via `VectorAnnotator::embed_spans` and
+     scores them with the polarity `ClassifierHead` and optional
+     `LabelCentroids` category head, so two aspects with opposite opinions in
+     the same sentence (`"battery life is great but the screen scratches"`)
+     receive distinct span-pooled embeddings and opposite polarities.
+
+### Tests and license posture
+
+Per `#326`, SemEval ABSA XML datasets (`SemEval-2014 Task 4`, `SemEval-2015 Task 12`,
+`SemEval-2016 Task 5`) are non-commercial or carry unspecified redistribution
+terms and are not committed to the repository.
+
+- `analysis/doccat/src/sentiment/aspect.rs` tests `RuleAspectSentiment` across
+  10 unit tests: `"battery life is great but the screen scratches"`, double
+  propagation `R1`..`R4` over `Dependencies` (propagating an unseen opinion
+  adjective `"phenomenal"` and an unseen conjunctive aspect `"hinge"`),
+  `PhraseChunks` `NP` extraction, `PosTags` noun-sequence extraction,
+  implicit sentence-anchored aspects, custom `AspectCategoryScorer`
+  integration, and exact-span `evaluate_absa_corpus` metrics (`aspect_f1`,
+  `opinion_f1`, `triplet_f1`) on an 11-sentence regression fixture written
+  beside the rules.
+- `analysis/embed/tests/heads.rs`
+  (`learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device`)
+  trains `LearnedAspectSentiment::fit` on a 9-sentence fixture over
+  `tiny-bert-bundle` (32-dim) and runs both `RuleAspectSentiment` and
+  `LearnedAspectSentiment` on the 9 training sentences and on a separate
+  4-sentence held-out set recombining those aspect and opinion words, checking
+  that both annotators write the same `(Opinions, Aspects)` layer types with
+  distinct `Provenance.annotator` IDs and that CPU and device (`TURBO_TEST_DEVICE` /
+  `TURBO_TEST_REQUIRE_CUDA=1`) outputs agree within `1e-5`.
+
+

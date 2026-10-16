@@ -1360,18 +1360,8 @@ fn learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device() {
             aspects: &[],
             opinions: &[(IxRange::new(2, 3), "negative"), (IxRange::new(5, 6), "negative")],
             gold: &[
-                AbsaTriplet {
-                    aspect_tokens: None,
-                    sentence: 0,
-                    opinion_tokens: (2, 3),
-                    polarity: Polarity::Negative,
-                },
-                AbsaTriplet {
-                    aspect_tokens: None,
-                    sentence: 0,
-                    opinion_tokens: (5, 6),
-                    polarity: Polarity::Negative,
-                },
+                AbsaTriplet { aspect_tokens: None, sentence: 0, opinion_tokens: (2, 3), polarity: Polarity::Negative },
+                AbsaTriplet { aspect_tokens: None, sentence: 0, opinion_tokens: (5, 6), polarity: Polarity::Negative },
             ],
         },
     ];
@@ -1384,10 +1374,8 @@ fn learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device() {
         .build()
         .unwrap();
 
-    let mut prep_docs: Vec<Document> = benchmark
-        .iter()
-        .map(|row| make_doc_with_sentences(row.text, &[(0, row.text.len() as u32)]))
-        .collect();
+    let mut prep_docs: Vec<Document> =
+        benchmark.iter().map(|row| make_doc_with_sentences(row.text, &[(0, row.text.len() as u32)])).collect();
     for res in prep_pipe.run(&mut prep_docs) {
         res.unwrap();
     }
@@ -1404,15 +1392,9 @@ fn learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device() {
         })
         .collect();
 
-    let learned = LearnedAspectSentiment::fit(
-        Arc::clone(&vec_ann),
-        DEFAULT_ASPECT_CATEGORIES,
-        &labeled_docs,
-        1e-5,
-        600,
-        5.0,
-    )
-    .unwrap();
+    let learned =
+        LearnedAspectSentiment::fit(Arc::clone(&vec_ann), DEFAULT_ASPECT_CATEGORIES, &labeled_docs, 1e-5, 600, 5.0)
+            .unwrap();
 
     let rule_pipe = Analyzer::builder()
         .given(Key::<Sentences>::DEFAULT)
@@ -1430,18 +1412,14 @@ fn learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device() {
         .build()
         .unwrap();
 
-    let mut rule_docs: Vec<Document> = benchmark
-        .iter()
-        .map(|row| make_doc_with_sentences(row.text, &[(0, row.text.len() as u32)]))
-        .collect();
+    let mut rule_docs: Vec<Document> =
+        benchmark.iter().map(|row| make_doc_with_sentences(row.text, &[(0, row.text.len() as u32)])).collect();
     for res in rule_pipe.run(&mut rule_docs) {
         res.unwrap();
     }
 
-    let mut learned_docs: Vec<Document> = benchmark
-        .iter()
-        .map(|row| make_doc_with_sentences(row.text, &[(0, row.text.len() as u32)]))
-        .collect();
+    let mut learned_docs: Vec<Document> =
+        benchmark.iter().map(|row| make_doc_with_sentences(row.text, &[(0, row.text.len() as u32)])).collect();
     for res in learned_pipe.run(&mut learned_docs) {
         res.unwrap();
     }
@@ -1492,10 +1470,8 @@ fn learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device() {
     }
 
     let gold_corpus: Vec<Vec<AbsaTriplet>> = benchmark.iter().map(|r| r.gold.to_vec()).collect();
-    let rule_pred: Vec<Vec<AbsaTriplet>> = rule_docs
-        .iter()
-        .map(|d| extract_triplets(d.get::<Opinions>().unwrap(), d.get::<Aspects>().unwrap()))
-        .collect();
+    let rule_pred: Vec<Vec<AbsaTriplet>> =
+        rule_docs.iter().map(|d| extract_triplets(d.get::<Opinions>().unwrap(), d.get::<Aspects>().unwrap())).collect();
     let learned_pred: Vec<Vec<AbsaTriplet>> = learned_docs
         .iter()
         .map(|d| extract_triplets(d.get::<Opinions>().unwrap(), d.get::<Aspects>().unwrap()))
@@ -1565,32 +1541,18 @@ fn learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device() {
         (
             "Way too expensive and completely overpriced!",
             &[
-                AbsaTriplet {
-                    aspect_tokens: None,
-                    sentence: 0,
-                    opinion_tokens: (2, 3),
-                    polarity: Polarity::Negative,
-                },
-                AbsaTriplet {
-                    aspect_tokens: None,
-                    sentence: 0,
-                    opinion_tokens: (5, 6),
-                    polarity: Polarity::Negative,
-                },
+                AbsaTriplet { aspect_tokens: None, sentence: 0, opinion_tokens: (2, 3), polarity: Polarity::Negative },
+                AbsaTriplet { aspect_tokens: None, sentence: 0, opinion_tokens: (5, 6), polarity: Polarity::Negative },
             ],
         ),
     ];
-    let mut held_rule_docs: Vec<Document> = held_out
-        .iter()
-        .map(|(text, _)| make_doc_with_sentences(text, &[(0, text.len() as u32)]))
-        .collect();
+    let mut held_rule_docs: Vec<Document> =
+        held_out.iter().map(|(text, _)| make_doc_with_sentences(text, &[(0, text.len() as u32)])).collect();
     for res in rule_pipe.run(&mut held_rule_docs) {
         res.unwrap();
     }
-    let mut held_learned_docs: Vec<Document> = held_out
-        .iter()
-        .map(|(text, _)| make_doc_with_sentences(text, &[(0, text.len() as u32)]))
-        .collect();
+    let mut held_learned_docs: Vec<Document> =
+        held_out.iter().map(|(text, _)| make_doc_with_sentences(text, &[(0, text.len() as u32)])).collect();
     for res in learned_pipe.run(&mut held_learned_docs) {
         res.unwrap();
     }
@@ -1647,10 +1609,8 @@ fn learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device() {
             .build()
             .unwrap();
 
-        let mut dev_docs: Vec<Document> = benchmark
-            .iter()
-            .map(|row| make_doc_with_sentences(row.text, &[(0, row.text.len() as u32)]))
-            .collect();
+        let mut dev_docs: Vec<Document> =
+            benchmark.iter().map(|row| make_doc_with_sentences(row.text, &[(0, row.text.len() as u32)])).collect();
         for res in dev_pipe.run(&mut dev_docs) {
             res.unwrap();
         }
@@ -1675,4 +1635,3 @@ fn learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device() {
         }
     }
 }
-

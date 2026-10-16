@@ -189,8 +189,7 @@ impl LearnedAspectSentiment {
 
             // Pool opinion spans via #263 for polarity head training.
             if !doc.opinions.is_empty() {
-                let op_spans: Vec<Span> =
-                    doc.opinions.iter().map(|&(r, _)| token_range_span(r, doc.tokens)).collect();
+                let op_spans: Vec<Span> = doc.opinions.iter().map(|&(r, _)| token_range_span(r, doc.tokens)).collect();
                 let pooled_ops: Vectors<Opinions> = vectors
                     .embed_spans(
                         "turbo:aspect-sentiment-learned:fit",
@@ -241,8 +240,7 @@ impl LearnedAspectSentiment {
         }
 
         let bio_refs: Vec<(&[f32], Tag)> = bio_vecs.iter().map(|(v, t)| (v.as_slice(), *t)).collect();
-        let bio_head =
-            ClassifierHead::fit_single_label(model.clone(), dim, bio_tags, &bio_refs, l2_reg, epochs, lr)?;
+        let bio_head = ClassifierHead::fit_single_label(model.clone(), dim, bio_tags, &bio_refs, l2_reg, epochs, lr)?;
 
         // Ensure `pol_vecs` has at least one example; if neutral was unseen in training,
         // add a zero-vector neutral anchor so 3-way softmax stays calibrated.
@@ -262,19 +260,10 @@ impl LearnedAspectSentiment {
                 bucket.push(fallback);
             }
         }
-        let cat_pairs: Vec<(&str, &[Vec<f32>])> = category_labels
-            .iter()
-            .zip(&cat_buckets)
-            .map(|(&lbl, bucket)| (lbl, bucket.as_slice()))
-            .collect();
-        let centroids = LabelCentroids::from_vector_examples(
-            model,
-            dim,
-            "aspect-categories",
-            &cat_pairs,
-            CentroidNorm::L2,
-            0.1,
-        )?;
+        let cat_pairs: Vec<(&str, &[Vec<f32>])> =
+            category_labels.iter().zip(&cat_buckets).map(|(&lbl, bucket)| (lbl, bucket.as_slice())).collect();
+        let centroids =
+            LabelCentroids::from_vector_examples(model, dim, "aspect-categories", &cat_pairs, CentroidNorm::L2, 0.1)?;
 
         Ok(Self::new(vectors, bio_head, polarity_head, Some(Arc::new(centroids))))
     }
@@ -302,15 +291,8 @@ struct DecodedAspect {
 
 impl Annotator for LearnedAspectSentiment {
     const ID: &'static str = "turbo:aspect-sentiment-learned";
-    type Reads = (
-        View,
-        Sentences,
-        Tokens,
-        Subwords,
-        Option<Vectors<Subwords>>,
-        Option<Dependencies>,
-        Option<PhraseChunks>,
-    );
+    type Reads =
+        (View, Sentences, Tokens, Subwords, Option<Vectors<Subwords>>, Option<Dependencies>, Option<PhraseChunks>);
     type Writes = (Opinions, Aspects);
 
     fn annotate(
@@ -410,11 +392,8 @@ impl Annotator for LearnedAspectSentiment {
         let mut token_lower: Vec<String> = Vec::with_capacity(n_tokens);
         for t in 0..n_tokens {
             let slice = text.get(tok_starts[t] as usize..tok_ends[t] as usize).unwrap_or("");
-            token_lower.push(
-                slice
-                    .trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
-                    .to_ascii_lowercase(),
-            );
+            token_lower
+                .push(slice.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-').to_ascii_lowercase());
         }
 
         struct PendingAspect {
@@ -450,14 +429,8 @@ impl Annotator for LearnedAspectSentiment {
             let clause_ids = assign_clauses(&token_lower, text, tok_starts, tok_ends, sent_tok_start, sent_tok_end);
 
             // Decode BIO spans inside `sent_tok_start..sent_tok_end`.
-            let (raw_asp_ranges, raw_op_ranges) = decode_bio_spans(
-                &tok_tags,
-                &token_lower,
-                &clause_ids,
-                sent_tok_start,
-                sent_tok_end,
-                phrase_chunks,
-            );
+            let (raw_asp_ranges, raw_op_ranges) =
+                decode_bio_spans(&tok_tags, &token_lower, &clause_ids, sent_tok_start, sent_tok_end, phrase_chunks);
 
             // Pool each opinion span via #263 and score with `self.polarity_head`.
             let op_spans: Vec<Span> = raw_op_ranges.iter().map(|&r| token_range_span(r, tokens)).collect();
@@ -535,14 +508,8 @@ impl Annotator for LearnedAspectSentiment {
                 )?;
 
                 for (a_pos, asp) in sent_aspects.iter().enumerate() {
-                    let linked_local = link_decoded_opinions(
-                        asp,
-                        a_pos,
-                        &sent_aspects,
-                        &sent_opinions,
-                        deps,
-                        sent_tok_end,
-                    );
+                    let linked_local =
+                        link_decoded_opinions(asp, a_pos, &sent_aspects, &sent_opinions, deps, sent_tok_end);
                     let linked_ixs: Vec<Ix<Opinions>> =
                         linked_local.iter().map(|&k| Ix::new((base_op_idx + k) as u32)).collect();
 
@@ -581,7 +548,8 @@ impl Annotator for LearnedAspectSentiment {
                     let category = if let Some(centroids) = &self.category_centroids
                         && !pooled_asps.is_empty(asp_ix)
                     {
-                        let (cat_tag, _) = centroids.score_single_label(pooled_asps.row(asp_ix), &mut cat_buf).map_err(fail)?;
+                        let (cat_tag, _) =
+                            centroids.score_single_label(pooled_asps.row(asp_ix), &mut cat_buf).map_err(fail)?;
                         Some(cat_tag)
                     } else {
                         self.categories.tag("general")
@@ -811,7 +779,20 @@ fn decode_bio_spans(
 fn is_determiner(w: &str) -> bool {
     matches!(
         w,
-        "the" | "a" | "an" | "this" | "that" | "these" | "those" | "my" | "our" | "your" | "his" | "her" | "its" | "their"
+        "the"
+            | "a"
+            | "an"
+            | "this"
+            | "that"
+            | "these"
+            | "those"
+            | "my"
+            | "our"
+            | "your"
+            | "his"
+            | "her"
+            | "its"
+            | "their"
     )
 }
 
@@ -829,18 +810,8 @@ fn assign_clauses(
         let w = token_lower[tok].as_str();
         let raw = text.get(tok_starts[tok] as usize..tok_ends[tok] as usize).unwrap_or("");
         if tok > sent_start
-            && (matches!(
-                w,
-                "but"
-                    | "however"
-                    | "yet"
-                    | "although"
-                    | "though"
-                    | "whereas"
-                    | "while"
-                    | "except"
-                    | "and"
-            ) || raw == ";"
+            && (matches!(w, "but" | "however" | "yet" | "although" | "though" | "whereas" | "while" | "except" | "and")
+                || raw == ";"
                 || raw == ",")
         {
             current += 1;
@@ -942,10 +913,7 @@ fn link_decoded_opinions(
         if op.clause_id != asp.clause_id {
             continue;
         }
-        let closest = same_clause
-            .iter()
-            .min_by_key(|(_, a)| token_distance(a.tokens, op.tokens))
-            .map(|(idx, _)| *idx);
+        let closest = same_clause.iter().min_by_key(|(_, a)| token_distance(a.tokens, op.tokens)).map(|(idx, _)| *idx);
         if closest == Some(asp_pos) {
             linked.push(o_idx);
         }
@@ -964,10 +932,8 @@ fn link_decoded_opinions(
         return linked;
     }
 
-    if let Some((o_idx, _)) = sent_opinions
-        .iter()
-        .enumerate()
-        .min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
+    if let Some((o_idx, _)) =
+        sent_opinions.iter().enumerate().min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
     {
         linked.push(o_idx);
     }

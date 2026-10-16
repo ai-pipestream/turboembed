@@ -364,7 +364,6 @@ impl VectorAnnotator {
         self.embed_spans(annotator, subwords, sentences, subwords.spans.view(), &spans)
     }
 
-
     /// Zero vectors for every item of `i`, or why its layers do not fit
     /// together: subwords of another model, a layer in another view, a
     /// piece without its id, pieces out of text order, or a span that
@@ -595,7 +594,6 @@ impl Annotator for SubwordVectors {
 
     provenance!(Which::Sentences);
 }
-
 
 /// Offers the vector steps to pipelines built from configuration, as
 /// "vectors". The spec's location is the bundle directory; its options:
