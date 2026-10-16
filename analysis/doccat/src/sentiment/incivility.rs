@@ -653,13 +653,31 @@ fn scan_lexicon(
     let mut scores = IncivilityScores::default();
     let mut evidence: Vec<(IncivilityLabel, IxRange<Tokens>)> = Vec::new();
 
+    // Index the unit's token positions by text, so each phrase only visits
+    // the positions where its first token occurs instead of scanning the
+    // whole unit. A phrase's matches stay non-overlapping: after a match,
+    // positions before the end of that match are skipped.
+    let mut positions: Vec<(&str, usize)> = Vec::with_capacity(tok_end - tok_start);
+    for (i, w) in token_lower.iter().enumerate().take(tok_end).skip(tok_start) {
+        positions.push((w.as_str(), i));
+    }
+    positions.sort_unstable();
+
     for ((pat, label), &weight) in &lexicon.entries {
         let pat_len = pat.len();
         if pat_len == 0 || tok_start + pat_len > tok_end {
             continue;
         }
-        let mut i = tok_start;
-        while i + pat_len <= tok_end {
+        let first = pat[0].as_str();
+        let run = positions.partition_point(|&(w, _)| w < first);
+        let mut next_from = tok_start;
+        for &(w, i) in &positions[run..] {
+            if w != first || i + pat_len > tok_end {
+                break;
+            }
+            if i < next_from {
+                continue;
+            }
             let mut matched = true;
             for k in 0..pat_len {
                 if token_lower[i + k] != pat[k] {
@@ -680,9 +698,7 @@ fn scan_lexicon(
                     scores.set(*label, combined);
                     evidence.push((*label, IxRange::new(i as u32, (i + pat_len) as u32)));
                 }
-                i += pat_len;
-            } else {
-                i += 1;
+                next_from = i + pat_len;
             }
         }
     }
@@ -983,6 +999,83 @@ mod tests {
             spans.push(Span::new(s, e));
         }
         spans
+    }
+
+    /// The pre-#507 per-pattern whole-unit scan, frozen as the reference the
+    /// first-token index in `scan_lexicon` must reproduce exactly.
+    fn reference_scan_lexicon(
+        lexicon: &IncivilityLexicon,
+        token_lower: &[String],
+        tok_start: usize,
+        tok_end: usize,
+    ) -> (IncivilityScores, Vec<(IncivilityLabel, IxRange<Tokens>)>) {
+        let mut scores = IncivilityScores::default();
+        let mut evidence: Vec<(IncivilityLabel, IxRange<Tokens>)> = Vec::new();
+        for ((pat, label), &weight) in &lexicon.entries {
+            let pat_len = pat.len();
+            if pat_len == 0 || tok_start + pat_len > tok_end {
+                continue;
+            }
+            let mut i = tok_start;
+            while i + pat_len <= tok_end {
+                let mut matched = true;
+                for k in 0..pat_len {
+                    if token_lower[i + k] != pat[k] {
+                        matched = false;
+                        break;
+                    }
+                }
+                if matched {
+                    let negated_mild = pat_len == 1
+                        && matches!(pat[0].as_str(), "stupid" | "dumb" | "hell" | "damn")
+                        && i > tok_start
+                        && matches!(token_lower[i - 1].as_str(), "not" | "never" | "no");
+                    if !negated_mild {
+                        let prev = scores.get(*label);
+                        let combined =
+                            if prev > 0.0 { (1.0 - (1.0 - prev) * (1.0 - weight)).clamp(0.0, 1.0) } else { weight };
+                        scores.set(*label, combined);
+                        evidence.push((*label, IxRange::new(i as u32, (i + pat_len) as u32)));
+                    }
+                    i += pat_len;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+        (scores, evidence)
+    }
+
+    #[test]
+    fn scan_lexicon_matches_the_naive_reference_scan() {
+        let mut lexicon = IncivilityLexicon::empty();
+        lexicon.insert("a a", IncivilityLabel::Insult, 0.5);
+        lexicon.insert("a", IncivilityLabel::Profanity, 0.4);
+        lexicon.insert("stupid", IncivilityLabel::Insult, 0.7);
+        lexicon.insert("not", IncivilityLabel::Threat, 0.3);
+        lexicon.insert("kill you", IncivilityLabel::Threat, 0.9);
+
+        let cases: &[&[&str]] = &[
+            &["a", "a", "a"],
+            &["a", "a", "a", "a"],
+            &["not", "stupid"],
+            &["stupid", "not", "stupid"],
+            &["not"],
+            &["x", "y", "z"],
+            &["kill", "you", "kill", "you"],
+            &[],
+        ];
+        for case in cases {
+            let token_lower: Vec<String> = case.iter().map(|s| s.to_string()).collect();
+            for (start, end) in [(0, case.len()), (1, case.len()), (0, case.len().saturating_sub(1))] {
+                if start > end || end > case.len() {
+                    continue;
+                }
+                let got = scan_lexicon(&lexicon, &token_lower, start, end);
+                let want = reference_scan_lexicon(&lexicon, &token_lower, start, end);
+                assert_eq!(got, want, "scan mismatch on {case:?} over {start}..{end}");
+            }
+        }
     }
 
     fn make_doc_with_sentences(text: &str, sent_ranges: &[(u32, u32)]) -> Document {
