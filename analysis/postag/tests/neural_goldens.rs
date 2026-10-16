@@ -232,6 +232,30 @@ fn bilstm_models_and_tagger_match_jvm_goldens() {
                 "bilstm_marginals" => {
                     let s_idx: usize = cols[2].parse().unwrap();
                     let exp = parse_hex_matrix(cols[3]);
+                    // On the JVM's own emissions the CRF gives the JVM's
+                    // marginals bit for bit; the tolerance below only covers
+                    // the emissions (see the BiLSTM model documentation).
+                    let jvm_emissions = VECTORS
+                        .lines()
+                        .map(|l| l.split('\t').collect::<Vec<_>>())
+                        .find(|c| c[0] == "bilstm_emissions" && c[1] == model_id && c[2] == cols[2])
+                        .map(|c| parse_hex_matrix(c[3]))
+                        .expect("emissions row for the marginals row");
+                    let from_jvm = CrfScorer::marginals(
+                        &jvm_emissions,
+                        model.transition_weights().unwrap(),
+                        model.start_weights().unwrap(),
+                        model.end_weights().unwrap(),
+                    )
+                    .unwrap();
+                    for (t, row) in exp.iter().enumerate() {
+                        assert_f64_slice_close(
+                            &from_jvm[t],
+                            row,
+                            0.0,
+                            &format!("{model_id} marginals of JVM emissions[{s_idx}][{t}]"),
+                        );
+                    }
                     let emissions = model.score(&sentences[s_idx]).unwrap();
                     let marginals = CrfScorer::marginals(
                         &emissions,
