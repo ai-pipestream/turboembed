@@ -126,11 +126,11 @@ fn ties_keep_the_outcome_order() {
     let d = detector(SentimentFactory::Emoji);
     let mut s = Scratch::new();
     let c = d.categories(&["zebra"], &mut s);
-    let labels: Vec<&str> = c.iter().map(|(l, _)| l).collect();
+    let labels: Vec<&str> = c.ranked().into_iter().map(|(l, _)| l).collect();
     let outcomes: Vec<&str> = (0..3).map(|i| d.model().label(i)).collect();
     assert_eq!(labels, outcomes);
     assert_eq!(d.best_sentiment(&[1.0 / 3.0; 3]), outcomes[0]);
-    assert!(c.iter().all(|(_, p)| p == 1.0 / 3.0));
+    assert!(c.ranked().into_iter().all(|(_, p)| p == 1.0 / 3.0));
 }
 
 fn tokens(text: &str) -> Tokens {
@@ -156,10 +156,11 @@ fn the_annotator_writes_the_sentiment_instance_best_first() {
     }
     let c = docs[0].get_key(&SENTIMENT).unwrap();
     assert_eq!(c.best().unwrap().0, "positive");
-    assert!(c.score.windows(2).all(|w| w[0] >= w[1]));
+    let ranked: Vec<f64> = c.ranked().into_iter().map(|(_, p)| p).collect();
+    assert!(ranked.windows(2).all(|w| w[0] >= w[1]));
     let mut s = Scratch::new();
     let words: Vec<&str> = text.split(' ').collect();
-    assert_eq!(c.score, d.categories(&words, &mut s).score);
+    assert_eq!(*c, d.categories(&words, &mut s));
     assert!(docs[0].get::<Categories>().is_none());
     let p = docs[0].provenance(SENTIMENT.id()).unwrap();
     assert_eq!(p.annotator, "turbo-doccat:sentiment");

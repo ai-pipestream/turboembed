@@ -139,7 +139,7 @@ const LOADERS: &[(&LayerName, LoadFn)] = &[
     (ChunkTags::NAME, add::<ChunkTags>),
     (PhraseChunks::NAME, add::<PhraseChunks>),
     (Language::NAME, add::<Language>),
-    (Categories::NAME, add::<Categories>),
+    (<Categories>::NAME, add::<Categories>),
     (Opinions::NAME, add::<Opinions>),
     (Aspects::NAME, add::<Aspects>),
     (Incivility::NAME, add::<Incivility>),

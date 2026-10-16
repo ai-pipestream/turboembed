@@ -41,7 +41,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-glossary` | `analysis/glossary/` | OpenNLP's glossary matchers and readers: `TextMatcher` (`AhoCorasickGlossaryMatcher`, an Aho-Corasick automaton over code points whose matches must start and end on given boundaries), `TokenMatcher` (`TermAnalyzingGlossaryMatcher`, on turbo-matcher's phrase matcher, over token text or stems), their composite (`CompositeGlossaryMatcher`), `GlossaryAnnotator`, which reads a view, its `opennlp:tokens` and optionally `turbo:stems` and writes `turbo:glossary-terms`, and the comma or tab separated and TBX 2 and 3 readers (`CsvGlossaryReader`, `TbxGlossaryReader`, with a small XML parser of its own) and a TBX writer. The crate documentation lists where it differs from OpenNLP and the OpenNLP behaviour that is surprising; `analysis/glossary/README.md` describes its JVM golden files and the timing of the two matchers |
 | `turbo-glossary-layers` | `analysis/glossary-layers/` | The glossary (`Glossary`, an entry's id and term) and the `turbo:glossary-terms` layer, so a consumer of the matches does not depend on the matchers |
-| `turbo-doccat` | `analysis/doccat/` | OpenNLP's SVM document categorizer (`DocumentCategorizerSVM` of `opennlp-ml-libsvm`) at prediction: the LIBSVM text model reader and LIBSVM's prediction (C-SVC and nu-SVC, the linear, polynomial, RBF and sigmoid kernels, probability estimates), the sidecar that holds the rest of the model, the feature generators and term weightings, and the step that reads `opennlp:tokens` and writes `turbo:categories` ([doccat.md](doccat.md)); and OpenNLP's sentiment detector (`SentimentME` with `SentimentFactory` or `EmojiSentimentFactory`): the `SentimentModel` file, the token and emoji contexts, and the step that reads `opennlp:tokens` and writes the `sentiment` instance of `turbo:categories` ([sentiment.md](sentiment.md)) |
+| `turbo-doccat` | `analysis/doccat/` | OpenNLP's SVM document categorizer (`DocumentCategorizerSVM` of `opennlp-ml-libsvm`) at prediction: the LIBSVM text model reader and LIBSVM's prediction (C-SVC and nu-SVC, the linear, polynomial, RBF and sigmoid kernels, probability estimates), the sidecar that holds the rest of the model, the feature generators and term weightings, and the step that reads `opennlp:tokens` and writes `turbo:categories` ([doccat.md](doccat.md)); OpenNLP's maximum entropy document categorizer (`DocumentCategorizerME`) with its model file, feature generators and training events, and the steps that write `turbo:categories` for the document and `turbo:categories<L>` for each sentence, structure block or chunk; and OpenNLP's sentiment detector (`SentimentME` with `SentimentFactory` or `EmojiSentimentFactory`): the `SentimentModel` file, the token and emoji contexts, and the step that reads `opennlp:tokens` and writes the `sentiment` instance of `turbo:categories` ([sentiment.md](sentiment.md)) |
 | `turbo-langspan` | `analysis/langspan/` | Language by span (code switching): script runs, then OpenNLP's language detector model scoring words and clauses, written as `turbo:language-spans` with the document summary in `opennlp:language` ([langdetect.md](langdetect.md), "Language by span") |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the liblinear trainer of the OpenNLP addons with liblinear-java's logistic regression solvers ([liblinear.md](liblinear.md)), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
@@ -550,6 +550,7 @@ fields mean bumps its `SCHEMA`.
 | `Language` | `opennlp:language` | the document | `turbo-analysis-layers` |
 | `LanguageSpans` | `turbo:language-spans` | text | `turbo-analysis-layers` |
 | `Categories` | `turbo:categories` | the document | `turbo-analysis-layers` |
+| `Categories<L>` (`L` is `Sentences`, `Structure` or `Chunks`) | `turbo:categories<L>` | `L` | `turbo-analysis-layers` |
 | `Locations` | `turbo:locations` | text | `turbo-geo` |
 | `Regions` | `turbo:regions` | the document | `turbo-analysis-layers` |
 | `Containment` | `turbo:containment` | text | `turbo-analysis-layers` |
@@ -560,6 +561,17 @@ fields mean bumps its `SCHEMA`.
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
 chunker will write under that id.
+
+`Categories<L>` is the one categories layer every categorizer writes:
+the document categorizers (maximum entropy and SVM) and the sentiment
+detector. Each item holds the best category and the score of every
+category in the categorizer's order; `CategoryRow::ranked` lists them
+best first, ties in category order. `L` defaults to `View`, the whole
+document: `Categories` is `turbo:categories`, anchored to the document,
+with one item. `Categories<Sentences>`, `Categories<Structure>` and
+`Categories<Chunks>` are aligned to their layer, an item per sentence,
+block or chunk. A crate categorizing units of its own layer implements
+`CategoryScope` for it.
 
 ## Sentiment layers (`turbo:opinions`, `turbo:aspects`, `turbo:incivility`, `turbo:pragmatics`)
 
@@ -2050,7 +2062,7 @@ The layers and their columns, in order:
 
 `opennlp:language` has a row per language the detector ranked, best
 first, and `turbo:categories` a row per category of a document
-categorizer, best first. A `turbo:view` block is what a normalizer produced: a row per
+categorizer, best first, ties in category order. A `turbo:view` block is what a normalizer produced: a row per
 edit, in text order, where `start..end` is the span of the source text
 the edit replaces (empty for an insertion) and `with` is the
 replacement (empty for a deletion). The JVM writes adjacent one-to-one
@@ -2135,8 +2147,8 @@ and a probability must be within the `Tolerance`: `Exact` compares the
 bits (so -0.0 and 0.0 differ), and `Abs(d)` takes two finite values at
 most `d` apart, or the same infinity, or two NaNs. `Language` holds
 every language the detector ranked, best first, and is compared row by
-row, so the ranking must match; so is `Categories`, every category and
-its score. POS tags without
+row, so the ranking must match; so is `Categories`, every category of
+its one item and its score, ranked best first, ties in category order. POS tags without
 probabilities do not match a golden that has them.
 
 `Utf16Spans<L>` (`turbo:utf16<L>`) is compared exactly, row by row: the
@@ -2219,8 +2231,9 @@ token's sentence is the one whose span contains it, and a token inside
 no sentence is refused (`LoadError::OutsideSentences`), since the JVM
 makes its tokens inside its sentences. The format writes sentences
 before tokens, so `load_document` finds them; without sentences under
-that name the column is `None`. `Language` and `Categories` hold every
-row of the golden, best first.
+that name the column is `None`. `Language` holds every row of the
+golden, best first; `Categories` is one item whose categories are the
+golden's rows in their order, the first the best.
 
 A block is checked against its layer type's shape before it is loaded,
 the same check the comparison makes, and the document then checks the
