@@ -3,11 +3,11 @@ generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
 jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
-input	conllu/corefud-errors	2024	2023	cb1c4d460153fc420fb9dc9f1dcab09c8658166693e9aa6a2311c075365a64f6
+input	conllu/corefud-errors	2245	2244	88c8ff868bb0b5af7b74539afa7ae2ced9c1aaca97a92cd4d6f3693c42c42133
 annotator	opennlp.tools.coref.formats.ConlluCorefDocumentStream	read
 config	addonsCommit	be11df610e24a9a2a10f80b7199349fe5b3594a9
 config	tagset	x
-layer	turbo:read-errors	document	21	after:u32	class:str	message:str
+layer	turbo:read-errors	document	24	after:u32	class:str	message:str
 0	opennlp.tools.util.InvalidFormatException	speaker label must not be blank
 0	opennlp.tools.util.InvalidFormatException	expected 10 columns: 1\ta\t_\tX\tx\t_\t0\troot\t_
 0	opennlp.tools.util.InvalidFormatException	column 10 must not be blank: 1\ta\ta\tX\tx\t_\t0\troot\t_\t
@@ -29,6 +29,9 @@ layer	turbo:read-errors	document	21	after:u32	class:str	message:str
 2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open
 2	opennlp.tools.util.InvalidFormatException	entity e80 is never closed
 2	opennlp.tools.util.InvalidFormatException	entity e3 is never closed
+2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open
+2	opennlp.tools.util.InvalidFormatException	entity e1 is closed but not open
+2	opennlp.tools.util.InvalidFormatException	entity close is missing ')': (e1)x
 end	turbo:read-errors
 layer	turbo:coref-texts	document	3	text:str
 a

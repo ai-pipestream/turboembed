@@ -62,5 +62,11 @@
 # newdoc id = thirteen-open-then-a-resize
 1	a	a	X	x	_	0	root	_	Entity=(e3(e10(e17(e24(e31(e38(e45(e52(e59(e66(e73(e80(e87
 2	b	b	X	x	_	0	root	_	Entity=e10)e17)e24)e31)e38)e45)e52)e59)e66)e73)e87)(e3
+# newdoc id = close-before-empty-id
+1	a	a	X	x	_	0	root	_	Entity=e1)(
+# newdoc id = close-before-missing-paren
+1	a	a	X	x	_	0	root	_	Entity=e1)x
+# newdoc id = one-word-before-missing-paren
+1	a	a	X	x	_	0	root	_	Entity=(e1)x
 # newdoc id = after-errors
 1	fine	fine	X	x	_	0	root	_	Entity=(e1)

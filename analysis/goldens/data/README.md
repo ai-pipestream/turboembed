@@ -231,7 +231,8 @@ are not taken from any corpus.
   for each error of `ConlluCorefDocumentStream`: blank speaker, nine
   columns, a blank column, ids that are not words, multiword tokens or
   empty nodes, ids out of order, a line of spaces, an empty value or id,
-  a close without `)` or with a `(`, a close of no open mention, a
+  a close without `)` or with a `(`, a close of no open mention
+  (also before a bracket Java refuses later in the same value), a
   mention across a sentence boundary or never closed, several mentions
   open at the end, and a mention opened on an empty node.
 
