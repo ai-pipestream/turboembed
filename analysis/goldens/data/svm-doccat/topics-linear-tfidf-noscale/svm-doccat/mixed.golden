@@ -1,0 +1,69 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	svm-doccat/mixed	87	87	ba13482c7b39c06544a0a4f79d943f28ff66c4a07d1572a5a7ea33248d82a407
+annotator	opennlp.tools.ml.libsvm.doccat.DocumentCategorizerSVM	categorize
+config	coef0	0.0
+config	corpus	svm-doccat-train/topics
+config	cost	1.0
+config	degree	3
+config	gamma	0.0
+config	generators	bag-of-words
+config	kernel	LINEAR
+config	language	eng
+config	max-features	-1
+config	run	topics-linear-tfidf-noscale
+config	scaling	none
+config	seed	1
+config	selection	NONE
+config	svm-type	C_SVC
+config	weighting	TF_IDF
+layer	opennlp:tokens	text	17	start:u32	end:u32
+0	3
+4	9
+10	13
+14	21
+22	25
+26	28
+29	33
+34	38
+39	40
+41	48
+49	54
+55	58
+59	64
+65	69
+70	73
+74	77
+78	86
+end	opennlp:tokens
+layer	turbo:svm-vector	document	9	index:u32	value:f64
+1	400218174059f4db 2.2617630984737906
+68	3ff09b98f4ac77f6 1.037987666851675
+156	40096ca77c922cf9 3.1780538303479458
+197	400ef8383c50bb75 3.871201010907891
+200	400218174059f4db 2.2617630984737906
+202	3fe39e8d4582829f 0.6131044728864089
+225	40096ca77c922cf9 3.1780538303479458
+274	3fa5ca5fb01e4227 0.0425596144187959
+280	40062e42fefa39ef 2.772588722239781
+end	turbo:svm-vector
+layer	turbo:svm-decisions	document	6	first:str	second:str	value:f64
+weather	cooking	3fe0a3264f002ae1 0.5199157278996972
+weather	sports	3fcebcdafd4f3996 0.2401384102690371
+weather	finance	3fe27b5e24bc94e1 0.5775595395577079
+cooking	sports	bfd3289c189cd099 -0.2993536224705707
+cooking	finance	3fa4d5269390534e 0.04068871070209089
+sports	finance	3fd7d38b95a394a9 0.37228669751341187
+end	turbo:svm-decisions
+layer	turbo:svm-vote	document	1	category:str
+weather
+end	turbo:svm-vote
+layer	turbo:categories	document	4	category:str	score:f64
+weather	3feb471f103e8d76 0.8524318043968566
+sports	3fb37b2c22562f26 0.07609821165368355
+finance	3facd7180c519fb2 0.05632853651405813
+cooking	3f8f027aac64aa8f 0.015141447435401715
+end	turbo:categories

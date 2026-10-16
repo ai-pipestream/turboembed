@@ -14,7 +14,7 @@ use crate::resources::{Resources, Unavailable};
 
 /// The annotator directories the generator writes that the differential
 /// does not cover: the training stack (`train`, `train-events`,
-/// `train-langdetect`), the format readers (`formats`, `masc`, `ner`) and
+/// `train-langdetect`, `train-liblinear`), the format readers (`formats`, `masc`, `ner`) and
 /// the parse and head rule readers (`parse`, `head-rules`) compare files,
 /// not layers of a text; the evaluators compare scores; the detokenizer
 /// runs on token lists; the BPE trainer learns merges from a whole set; the
@@ -22,15 +22,21 @@ use crate::resources::{Resources, Unavailable};
 /// place profiles load whole tables; the
 /// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
 /// `tag-dictionary`, `tag-format`), the name finders, the stemmers, the
-/// stopword lists and the glossary matchers and readers read input sets of
-/// their own, which turbo-sequence, turbo-namefind, turbo-stem,
-/// turbo-stopword and turbo-glossary compare with; the other
+/// Hunspell runs, the stopword lists, the glossary matchers and readers and
+/// the SVM document categorizer (`svm-doccat`) read input sets of their own,
+/// which turbo-sequence, turbo-namefind, turbo-stem, turbo-hunspell,
+/// turbo-stopword, turbo-glossary and turbo-doccat compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
-/// them, which turbo-train-components compares with.
-pub const NOT_COVERED: [&str; 22] = [
+/// them, and the sentiment runs (`sentiment`) train models on a corpus of
+/// their own and score their own documents, which turbo-train-components
+/// compares with; the PII rewrites (`pii-rewrite`) compare whole rewritten
+/// texts, labels and audit reports rather than layers, which turbo-pii
+/// compares with.
+pub const NOT_COVERED: [&str; 28] = [
     "train",
     "train-events",
     "train-langdetect",
+    "train-liblinear",
     "formats",
     "evaluate",
     "detokenize",
@@ -49,8 +55,12 @@ pub const NOT_COVERED: [&str; 22] = [
     "tag-format",
     "namefind",
     "stem",
+    "hunspell",
     "stopword",
     "glossary",
+    "svm-doccat",
+    "sentiment",
+    "pii-rewrite",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

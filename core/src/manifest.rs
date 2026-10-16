@@ -28,6 +28,8 @@ pub struct Manifest {
     pub architecture: Option<Architecture>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub static_embedding: Option<StaticEmbedding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub classifier: Option<Classifier>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,
@@ -316,6 +318,24 @@ pub struct Quality {
     pub similarity_spearman: f64,
 }
 
+/// A classification head carried beside the encoder: the labels in id
+/// order (`0..labels.len()`) and whether the head classifies each token
+/// (`CLASSIFIER_TOKEN`) or the pooled sequence (`CLASSIFIER_SEQUENCE`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Classifier {
+    pub kind: ClassifierKind,
+    pub labels: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ClassifierKind {
+    #[serde(rename = "CLASSIFIER_TOKEN")]
+    Token,
+    #[serde(rename = "CLASSIFIER_SEQUENCE")]
+    Sequence,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Family {
     #[serde(rename = "FAMILY_BERT")]
@@ -487,6 +507,16 @@ pub enum TensorRole {
     StaticWeights,
     /// A static model's table row per token, `[vocab_size]`; optional.
     StaticMapping,
+    /// A BERT pooler's linear weight, `[hidden, hidden]`; optional with
+    /// `CLASSIFIER_SEQUENCE`.
+    PoolerWeight,
+    /// A BERT pooler's linear bias, `[hidden]`; optional with
+    /// `CLASSIFIER_SEQUENCE`.
+    PoolerBias,
+    /// A classification head's linear weight, `[labels, hidden]`.
+    ClassifierWeight,
+    /// A classification head's linear bias, `[labels]`.
+    ClassifierBias,
 }
 
 impl TensorRole {
@@ -502,12 +532,27 @@ impl TensorRole {
                 | TensorRole::StaticEmbeddings
                 | TensorRole::StaticWeights
                 | TensorRole::StaticMapping
+                | TensorRole::PoolerWeight
+                | TensorRole::PoolerBias
+                | TensorRole::ClassifierWeight
+                | TensorRole::ClassifierBias
         )
     }
 
     /// Roles a static model's weights have, and an encoder's do not.
     pub fn is_static(self) -> bool {
         matches!(self, TensorRole::StaticEmbeddings | TensorRole::StaticWeights | TensorRole::StaticMapping)
+    }
+
+    /// Roles a classification head has.
+    pub fn is_classifier(self) -> bool {
+        matches!(
+            self,
+            TensorRole::PoolerWeight
+                | TensorRole::PoolerBias
+                | TensorRole::ClassifierWeight
+                | TensorRole::ClassifierBias
+        )
     }
 }
 
@@ -897,6 +942,41 @@ impl Manifest {
             }
         }
 
+        // classifier
+        if let Some(c) = &self.classifier {
+            if self.architecture.is_none() {
+                return Err(invalid("manifest.json: classifier: requires an encoder architecture"));
+            }
+            if c.labels.is_empty() {
+                return Err(invalid("manifest.json: classifier.labels: empty"));
+            }
+            for (i, l) in c.labels.iter().enumerate() {
+                required(&format!("classifier.labels[{i}]"), l)?;
+            }
+            for (i, a) in self.artifacts.iter().enumerate().filter(|(_, a)| a.format == Format::Safetensors) {
+                for role in [TensorRole::ClassifierWeight, TensorRole::ClassifierBias] {
+                    if !a.tensor_names.contains_key(&role) {
+                        return Err(invalid(format!(
+                            "manifest.json: artifacts[{i}].tensor_names: no {}, which a classifier needs",
+                            role_name(role)
+                        )));
+                    }
+                }
+                let pooler_w = a.tensor_names.contains_key(&TensorRole::PoolerWeight);
+                let pooler_b = a.tensor_names.contains_key(&TensorRole::PoolerBias);
+                if pooler_w != pooler_b {
+                    return Err(invalid(format!(
+                        "manifest.json: artifacts[{i}].tensor_names: pooler_weight and pooler_bias come together, or neither"
+                    )));
+                }
+                if c.kind == ClassifierKind::Token && pooler_w {
+                    return Err(invalid(format!(
+                        "manifest.json: artifacts[{i}].tensor_names: CLASSIFIER_TOKEN has no pooler"
+                    )));
+                }
+            }
+        }
+
         // artifacts
         if self.artifacts.is_empty() {
             return Err(invalid("manifest.json: artifacts: empty"));
@@ -1025,6 +1105,11 @@ impl Manifest {
                 if role.is_static() != self.static_embedding.is_some() {
                     let whose = if role.is_static() { "a static model's" } else { "an encoder's" };
                     return Err(invalid(format!("manifest.json: {field}: {whose} role, and the bundle is not one")));
+                }
+                if role.is_classifier() && self.classifier.is_none() {
+                    return Err(invalid(format!(
+                        "manifest.json: {field}: a classifier role, and the bundle has no classifier"
+                    )));
                 }
                 if role.per_layer() != name.contains("{layer}") {
                     let want = if role.per_layer() { "must" } else { "must not" };

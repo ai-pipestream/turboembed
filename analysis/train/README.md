@@ -17,6 +17,7 @@ starts at events.
 | `gis` | `GISTrainer`, `GISModel`'s data structures, `UniformPrior`, `AbstractEventTrainer.train` |
 | `qn` | `QNTrainer`, `QNMinimizer`, `LineSearch`, `NegLogLikelihood`, `ParallelNegLogLikelihood`, `QNModel`'s data structures |
 | `perceptron` | `PerceptronTrainer`, `SimplePerceptronSequenceTrainer`, `SequenceStream.updateContext`, `PerceptronModel`'s data structures and `eval` |
+| `liblinear` | the OpenNLP addons' `LiblinearTrainer`, `LiblinearModel` and `LiblinearModelSerializer`, with liblinear-java 2.44's `Linear.train` for `L2R_LR`, `L2R_LR_DUAL` and `L1R_LR`, `saveModel` and `loadModel` |
 | `trainer` | `TrainerFactory.getEventTrainer` and `getEventModelSequenceTrainer`: the trainer `Algorithm` names |
 | `writer` | `GenericModelWriter`, `BinaryGISModelWriter`, `BinaryQNModelWriter`, `BinaryPerceptronModelWriter`, `GISModelWriter.persist`, `QNModelWriter.persist`, `PerceptronModelWriter.persist`, `ComparablePredicate`, `ModelParameterChunker` |
 | `package` | `BaseModel.serialize`, the manifest `BaseModel` builds and `PropertiesSerializer` writes, `SentenceModel`'s entries |
@@ -203,6 +204,17 @@ generator loads that fixture in the JVM with `SentenceModel` and runs it
 on the sentence fixture inputs (`analysis/goldens/data/sentdetect/en-plain-perceptron-rust`);
 `analysis/sentdetect/tests/golden.rs` checks that the Rust detector gives
 the spans and probabilities the JVM recorded with it.
+
+## liblinear trainer
+
+`liblinear::train_events` is the liblinear add-on of the OpenNLP addons:
+`new LiblinearTrainer(params)`, `init` and `train`, with the logistic
+regression solvers of liblinear-java ported in the module, the model's
+`eval`, and its serialized form (`liblinear::format`). Only the solvers
+whose models the add-on can score are ported. `docs/liblinear.md` lists
+the add-on's quirks, the tolerances and the measured agreement with the
+JVM; `tests/liblinear_goldens.rs` compares with the `train-liblinear`
+goldens.
 
 ## OpenNLP behaviour worth knowing
 

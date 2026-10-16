@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/edge	592	560	28bc4140f764c243f0010d2a37035fa7d91b6074d15e74968b0e7c41e6a9b2bb
+model	error-utf8.aff	e15cb93c173f8401c828632bd01bf5e139ac37b3699de575d68c99f3a0f18448518afcab6a22296e877b606bda37784ecdb9bd016962569241c0eb749b005d8f
+model	error-utf8.dic	23099098334d7665269632fe6575c3f065a897eddc70de6ecd0ad8d6ea26e3f11b25cb5c49865307eb9accf1980f855e3afecfae3d6c93e5202b1c2a7ed2634c
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+java.io.IOException	affix stream is not valid UTF-8
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	0	word:str	stem:str	thrown:str
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	0	word:u32	stem:str
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	0	word:u32	analysis:str
+end	turbo:hunspell-analyses

@@ -1,0 +1,50 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/us-itin	44	44	b6e34197942eebb83d1381df3134e43f70b3636ab4ba0060e987b3ab0d4f5074
+annotator	opennlp.tools.pii.PiiPacks	usIdentity
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	us-identity
+layer	turbo:view	text	18	start:u32	end:u32	with:str
+5	6	*
+6	7	*
+7	8	*
+9	10	*
+10	11	*
+12	13	*
+13	14	*
+14	15	*
+15	16	*
+27	28	*
+28	29	*
+29	30	*
+31	32	*
+32	33	*
+34	35	*
+35	36	*
+36	37	*
+37	38	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+ITIN ########### recorded; ########### too.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	ITIN US-ITIN-1 recorded; US-ITIN-2 too.\n	
+hmac	ITIN US-ITIN-eef36e278cbc6043 recorded; US-ITIN-68a7e36711f0c8f3 too.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	4	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	5	16	5	14	US-ITIN-1
+pseudonymize	27	38	25	34	US-ITIN-2
+hmac	5	16	5	29	US-ITIN-eef36e278cbc6043
+hmac	27	38	40	64	US-ITIN-68a7e36711f0c8f3
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+us-itin	2	2	US-ITIN-eef36e278cbc6043, US-ITIN-68a7e36711f0c8f3
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+us-itin: 2 mentions, 2 distinct [US-ITIN-eef36e278cbc6043, US-ITIN-68a7e36711f0c8f3]
+end	turbo:pii-audit-report

@@ -1,0 +1,58 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-complex	264	264	f21214dad1eb1404716bd2ac75d7fd68490074f60b7d34477b0960f9c11d5268
+model	complex.aff	c5f24f865986104940fdef8d9c11a8962aee9ab4f83f6d8283f64075ef46ba65c86836e91b37d1870b0c278a056d68d7f714d62fffafc8c1522ff7be1e4a6ce4
+model	complex.dic	99b6056e7ee47a469c6dab3a48d8fe019669a3e73a38e8cb011c3e606ced373041da636cc8f87b9c4af3ed36af3d8ad1ce3d43502f10fd73394d0b3656185062
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	13	word:str	stem:str	thrown:str
+word	word	
+words	word	
+aword	word	
+awords	word	
+baword	word	
+bawords	word	
+bword	bword	
+abword	abword	
+other	other	
+bother	other	
+bothers	other	
+others	other	
+aother	aother	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	13	word:u32	stem:str
+0	word
+1	word
+2	word
+3	word
+4	word
+5	word
+6	bword
+7	abword
+8	other
+9	other
+10	other
+11	other
+12	aother
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	10	word:u32	analysis:str
+0	st:word
+1	st:word fl:S
+2	a st:word fl:A
+3	fl:A st:word fl:S
+4	b a st:word fl:A
+5	fl:B fl:A st:word fl:S
+8	st:other
+9	b st:other fl:B
+10	fl:B st:other fl:S
+11	st:other fl:S
+end	turbo:hunspell-analyses
