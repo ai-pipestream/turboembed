@@ -6,10 +6,14 @@ prediction. It reads a model OpenNLP trained, exported as two text files,
 and gives the categories and probabilities `categorize` gives on the JVM.
 It does not train.
 
+The crate also holds OpenNLP's maxent sentiment detector, `SentimentME`,
+which [sentiment.md](sentiment.md) describes.
+
 It depends on `turbo-analysis`, `turbo-analysis-layers`, `turbo-jvm`
 (Java's `Double.toString`, `Double.parseDouble`, `Integer.parseInt` and
-`Math.log`) and `turbo-maxent` (SHA-256, for the model reference), and on
-nothing outside the workspace.
+`Math.log`), `turbo-maxent` (SHA-256, for the model reference, and the
+sentiment model's classifier) and `turbo-normalize` (the emoji features of
+the sentiment context), and on nothing outside the workspace.
 
 ## What it does
 

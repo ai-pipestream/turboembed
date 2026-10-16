@@ -15,14 +15,17 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-formats = { path = "../formats" }
 # Java's Double.toString, parseDouble and parseInt, and Math.log.
 turbo-jvm = { path = "../jvm" }
-# MaxEnt evaluation and SHA-256 of the model files, for the layers' model reference.
+# MaxEnt evaluation and SHA-256 of the model files, for the layers' model
+# reference; the sentiment model file and its maxent classifier.
 turbo-maxent = { path = "../maxent" }
+# OpenNLP's emoji annotation features, for EmojiFeatureGenerator and the
+# emoji sentiment context.
 turbo-normalize = { path = "../normalize" }
+# StringPattern, for BagOfWordsFeatureGenerator's all-letter tokens.
 turbo-sequence = { path = "../sequence" }
+# Training events and the data indexer. Training and packaging a model
+# file is in turbo-train-components, which depends on this crate.
 turbo-train = { path = "../train" }
-turbo-train-components = { path = "../train-components" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
-turbo-sentdetect = { path = "../sentdetect" }
-turbo-tokenize = { path = "../tokenize" }

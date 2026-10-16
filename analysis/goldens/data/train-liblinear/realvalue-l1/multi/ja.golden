@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ja	172	58	d3061ebd06c3c878e31d5458e694849ea9a81a9ef20ca024233c46366645e824
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	bias	1
+config	c	2
+config	eps	0.01
+config	events	sorted
+config	p	0
+config	solverType	L1R_LR
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+short	今日は朝から雨が降っています。駅まで歩くのに傘が必要でした。午後には晴れるそうです。週末は友達と山に登る予定です！	1.0
+end	turbo:events
+layer	turbo:liblinear-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Training data must contain more than one outcome
+end	turbo:liblinear-error

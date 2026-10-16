@@ -13,8 +13,8 @@ members = [
     "analysis/bpe-trainer",
     "analysis/layers",
     "analysis/chunker",
-    "analysis/doccat",
     "analysis/embed",
+    "analysis/sat",
     "analysis/goldens",
     "analysis/goldens-tool",
     "analysis/jvm",
@@ -50,6 +50,7 @@ members = [
     "analysis/geo",
     "analysis/fuzz",
     "analysis/grammar",
+    "analysis/hunspell",
     "analysis/zoo",
 ]
 resolver = "3"

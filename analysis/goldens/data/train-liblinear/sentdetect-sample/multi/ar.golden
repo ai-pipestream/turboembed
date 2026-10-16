@@ -1,0 +1,68 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ar	224	124	421843fa20516ed200f358d541cb8ecd397177813c10f6207e75b9f1632bc013
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	3	outcome:str	context:str	values:str
+n	6 eos=. n=كانت s= sn v=الصباح x=الباكر	
+n	6 eos=. n=اشترت s= sn v=والأسعار x=مناسبة	
+s	6 eos=. n=هل s= sn v=البرتقال x=والعنب	
+end	turbo:events
+layer	turbo:liblinear-text	document	20	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 13
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+e0f995479cba85cf273e2ac4f5b770898cf15f2774c0fa77b6008675ffd26009	348
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	12	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe0000000000000 0.5
+0	given	1	3fe0000000000000 0.5
+0	reversed	0	3fe0000000000000 0.5
+0	reversed	1	3fe0000000000000 0.5
+1	given	0	3fe0000000000000 0.5
+1	given	1	3fe0000000000000 0.5
+1	reversed	0	3fe0000000000000 0.5
+1	reversed	1	3fe0000000000000 0.5
+2	given	0	3fe0000000000000 0.5
+2	given	1	3fe0000000000000 0.5
+2	reversed	0	3fe0000000000000 0.5
+2	reversed	1	3fe0000000000000 0.5
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	6	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+end	turbo:liblinear-best

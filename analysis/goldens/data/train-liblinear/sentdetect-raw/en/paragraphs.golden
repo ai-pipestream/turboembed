@@ -1,0 +1,28 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/paragraphs	356	356	eaca16d3efa3ea3ed6853381c5ad6ccb382a2096f35004fa4557113f9454a1a0
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.01
+config	events	raw
+config	p	0
+config	solverType	L2R_LR
+config	source	sentdetect
+layer	turbo:events	document	7	outcome:str	context:str	values:str
+n	sn eos=. x=them 4 v=around s= n=Over ncap	
+s	sn eos=. x=plains 6 v=up s= n=	
+n	sn eos=. x=silt 4 v=fine s= n=Farmers ncap	
+n	sn eos=. x=farms 5 v=been s= n=The ncap	
+s	sn eos=. x=example 7 v=known s= n=	
+n	sn eos=. x=dams 4 v=by s= n=That ncap	
+s	sn eos=. x=silt 4 v=the s= n=	
+end	turbo:events
+layer	turbo:liblinear-error	document	1	class:str	message:str
+java.lang.IllegalArgumentException	feature nodes must be sorted by index in ascending order
+end	turbo:liblinear-error

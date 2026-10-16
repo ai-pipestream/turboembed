@@ -1,0 +1,64 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-turkic	301	291	d6a1cbc4f75be6a79b957c1af309e3e6646dcfc4e692b1773773130b490ff923
+model	turkic.aff	a70955a5127e470a5789b8424845569e96f216e4c60645d57abd406a794f4c7456af852af7e7bd8fe2073ad8aa84c0a459c898fca8319db0b37e3012454f9ea7
+model	turkic.dic	7ea5a0446d7a16ed514a57288548d8ee573960f8a0e8345386e2bf5d39ea4b40297d7256d60f674a691e6f40a35cd0472f50f9caad88fc3b71962c8ff587226e
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	15	word:str	stem:str	thrown:str
+istanbul	istanbul	
+İstanbul	istanbul	
+ISTANBUL	ISTANBUL	
+İSTANBUL	istanbul	
+istanbullar	istanbul	
+İstanbullar	istanbul	
+İSTANBULLAR	istanbul	
+ılık	ılık	
+ILIK	ılık	
+Ilık	ılık	
+inci	inci	
+İnci	inci	
+INCI	INCI	
+İNCİ	inci	
+inciler	inciler	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	15	word:u32	stem:str
+0	istanbul
+1	istanbul
+2	ISTANBUL
+3	istanbul
+4	istanbul
+5	istanbul
+6	istanbul
+7	ılık
+8	ılık
+9	ılık
+10	inci
+11	inci
+12	INCI
+13	inci
+14	inciler
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	12	word:u32	analysis:str
+0	st:istanbul
+1	st:istanbul
+3	st:istanbul
+4	st:istanbul fl:L
+5	st:istanbul fl:L
+6	st:istanbul fl:L
+7	st:ılık
+8	st:ılık
+9	st:ılık
+10	st:inci
+11	st:inci
+13	st:inci
+end	turbo:hunspell-analyses

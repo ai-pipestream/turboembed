@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/positive	49	47	4dd666b929667ad75ef92fd558413b679d71ceb433e32ff1560c739487e5e309
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	MAXENT_QN
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-qn
+layer	opennlp:tokens	text	10	start:u32	end:u32
+0	3
+4	9
+10	13
+14	19
+20	23
+24	27
+28	33
+34	38
+39	43
+44	48
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	13	feature:str
+the
+bread
+was
+fresh
+and
+the
+staff
+were
+kind
+😀
+emojiSentiment=2
+emojiType=FACE
+emojiCategory=SMILEYS_AND_EMOTION
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+positive	3fef52405027a5db 0.9787904325032132
+negative	3f90cdc2890282f5 0.016409911739745337
+neutral	3f73a8cdc823053b 0.004799655757041161
+end	turbo:categories

@@ -24,8 +24,8 @@ pub enum DoccatError {
     /// An outcome in `doccat.model` contains lone UTF-16 surrogates and is
     /// not valid UTF-8 text.
     OutcomeNotText(JavaString),
-    /// Training or packaging a model failed.
-    Train(turbo_train_components::Error),
+    /// Indexing training events failed, or a training parameter is invalid.
+    Train(turbo_train::Error),
 }
 
 impl fmt::Display for DoccatError {
@@ -71,14 +71,8 @@ impl From<turbo_maxent::Error> for DoccatError {
     }
 }
 
-impl From<turbo_train_components::Error> for DoccatError {
-    fn from(e: turbo_train_components::Error) -> Self {
-        DoccatError::Train(e)
-    }
-}
-
 impl From<turbo_train::Error> for DoccatError {
     fn from(e: turbo_train::Error) -> Self {
-        DoccatError::Train(turbo_train_components::Error::from(e))
+        DoccatError::Train(e)
     }
 }
