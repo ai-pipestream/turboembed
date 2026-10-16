@@ -1109,6 +1109,15 @@ fn pragmatics_annotator_combines_incongruity_emoji_and_embedding_head() {
     let prag = doc.get::<Pragmatics>().unwrap();
     assert_eq!(prag.len(), 4);
 
+    // The centroid head wrote its own Categories<Sentences> instance; it is not
+    // what PragmaticsAnnotator read (that was the lexicon polarity at the
+    // default instance), so check it on its own: the implicit-irony training
+    // sentence lands on "sarcastic" and the literal one on "literal".
+    let cent = doc.get_key::<Categories<Sentences>>(&Key::named("prag-centroids")).unwrap();
+    assert_eq!(cent.len(), 4);
+    assert_eq!(cent.best_category(2), "sarcastic");
+    assert_eq!(cent.best_category(3), "literal");
+
     // Sentence 0: Riloff incongruity -> high score and Some(Incongruity).
     let p0 = prag.get(Ix::new(0));
     assert!(p0.score >= 0.65, "expected high Riloff incongruity score, got {}", p0.score);

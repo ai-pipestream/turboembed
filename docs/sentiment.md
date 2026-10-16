@@ -265,9 +265,8 @@ and combines three signals:
    `"oh great"`, `"love waiting"`, `"just what I needed"`, `"thrilled to"`, or
    positive lexicon spans) against a negative situation phrase (`"waiting in
    line"`, `"on hold"`, `"stuck in traffic"`, `"flight cancelled"`, `"server
-   crashed"`, `"working on saturday"`, etc., plus general verb + negative
-   prepositional state patterns) or a negative opinion span in the same
-   sentence. Clauses separated by an adversative conjunction (`"but"`,
+   crashed"`, `"working on saturday"`, from a fixed English phrase table) or
+   a negative opinion span in the same sentence. Clauses separated by an adversative conjunction (`"but"`,
    `"however"`, `"although"`, `"though"`, `"yet"`, `"whereas"`, `"while"`,
    `"except"`) without an explicit sarcastic cue are treated as literal mixed
    sentiment (for example, *"The hotel room was lovely, but the flight was
@@ -285,25 +284,24 @@ and combines three signals:
    surface contrast. When the embedding head fires without explicit contrast,
    `PragmaticsItem.evidence` is `None`.
 
-### Evaluation and license posture
+### Tests and license posture
 
 Per `#326`, external sarcasm datasets with Twitter/Reddit platform terms or
-unspecified licenses (`iSarcasm`, `SARC`, `SemEval-2018 Task 3`) are not redistributed in the
-repository. `PragmaticsAnnotator` is evaluated in
-`analysis/doccat/src/sentiment/pragmatics.rs` (`pragmatics_benchmark_f1_and_evidence_invariants`)
-and `analysis/embed/tests/heads.rs` (`pragmatics_annotator_combines_incongruity_emoji_and_embedding_head`)
-on a 32-sentence project-authored (`Apache-2.0`) benchmark covering Riloff
-positive-sentiment + negative-situation incongruity, text-against-emoji
-polarity mismatch, embedding-head implicit irony, and literal positive,
-negative, and adversative (`"but"` / `"although"`) controls:
-
-| Benchmark | Sarcastic (`TP / P`) | Literal (`TN / N`) | Precision | Recall | F1 |
-| --- | --- | --- | --- | --- | --- |
-| Project-authored pragmatics benchmark (32 sentences) | `18 / 18` | `14 / 14` | `1.000` | `1.000` | `1.000` |
-
-Every positive incongruity and emoji-mismatch prediction carries non-empty,
-non-overlapping `Some(Incongruity { positive, negative })` token spans bounded
-to its enclosing sentence, while embedding-head-only predictions carry
-`evidence: None`, and CPU vs CUDA (`NVIDIA GeForce RTX 4080 SUPER`) scores
-match within `1e-5` with identical `Incongruity` evidence spans.
+unspecified licenses (`iSarcasm`, `SARC`, `SemEval-2018 Task 3`) are not
+redistributed in the repository, so there is no measured accuracy for this
+annotator yet. What exists is a 32-sentence project-written regression
+fixture (`pragmatics_benchmark_f1_and_evidence_invariants` in
+`analysis/doccat/src/sentiment/pragmatics.rs`): 18 sarcastic and 14 literal
+sentences written beside the cue and situation tables, with the
+embedding-head cases scored from hand-set two-dimensional vectors. It pins
+the behaviour of the rules and the evidence invariants (every incongruity
+and emoji-mismatch positive carries non-empty, non-overlapping
+`Some(Incongruity { positive, negative })` token spans inside its sentence;
+head-only positives carry `evidence: None`). It says nothing about how the
+rules generalise, and the scores are rule weights on a `0.0..=1.0` scale,
+not calibrated probabilities. `analysis/embed/tests/heads.rs`
+(`pragmatics_annotator_combines_incongruity_emoji_and_embedding_head`) runs
+the three signals end to end over `tiny-bert-bundle` with a fitted
+`ClassifierHead` as the sentence scorer and a `LabelCentroids` head written
+beside it, and compares CPU with a device when `TURBO_TEST_DEVICE` is set.
 
