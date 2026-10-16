@@ -85,6 +85,8 @@ final class Runs {
   static final String LATTICE_KO = "mecab-fixture-ko";
   static final String LATTICE_PARTIAL = "mecab-fixture-partial";
   static final String FORMAT_DETOKENIZER = "en-detokenizer.xml";
+  /** The dictionary the Arvores Deitadas token run detokenizes with. */
+  static final String AD_DETOKENIZER = "pt-detokenizer.xml";
   static final String EN_HEAD_RULES = "en-head-rules.txt";
   static final String ES_HEAD_RULES = "es-head-rules.txt";
   static final String ES_REGEX_HEAD_RULES = "es-regex-head-rules.txt";
@@ -128,6 +130,8 @@ final class Runs {
   /** The word and tag lines and the word, tag and lemma lines the Rust tagger fixtures were trained on. */
   static final String TAGGED = "tagged";
   static final String NER = "ner";
+  /** Files in the Arvores Deitadas format of the Floresta Sinta(c)tica treebank, written for the goldens. */
+  static final String AD = "ad";
   static final String PARSE = "parse";
   static final String HEAD_RULES = "head-rules";
   /** Names, record ids, region codes and whole tables for the gazetteers of the addons geo module. */
@@ -356,6 +360,9 @@ final class Runs {
     annotators.addAll(MascGolden.all());
     // The CoNLL-2002, CoNLL-2003 and CoNLL-X streams.
     annotators.addAll(ConllGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
+    // The Arvores Deitadas streams of the Floresta treebank, over the ad set; the token run
+    // detokenizes with the Portuguese dictionary.
+    annotators.addAll(AdGolden.all(fixtures.resolve(AD_DETOKENIZER)));
     // The Penn Treebank parse reader and writer, alone and with the English and AnCora head rules,
     // and the head rule readers and writers.
     annotators.addAll(ParserGolden.all(fixtures.resolve(EN_HEAD_RULES), fixtures.resolve(ES_HEAD_RULES),

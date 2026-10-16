@@ -1,0 +1,39 @@
+<s>
+SOURCE: a
+1 Linhas estranhas.
+### comentário
+### outro
+STA:fcl
+=H==CJT:num("818-5817" <card> M P) 818-5817
+=H=num("12") 12
+=H=X(M S) palavra
+==APP=np(F) <NER:hum> Ana
+=-SUBJ:np
+=--H:n("traço" M S)	traço
+=-:np
+==H:n("x")	x
+_
+<lixo>
+pause
+=a.b
+=é=xyz
+=_=fim>
+==
+linha solta sem nada
+=H:n("aspas "dentro" fim" <hum> M S) aspas
+=H:n('lema' <a> <b>) (<c>) M) fim
+=H:n("lema" <civ> M S) Lisboa
+=H:n("x" <x)>  y) palavra
+=H:n("x")
+=H:n("x") 
+STA:fcl (nota) (<a>)
+STA:fcl(nota) (<a>) 
+=P:v-fin("y" <x>)
+.
+</s>
+<s>
+SOURCE: b
+1 «Ela» , disse» . Fim
+STA:fcl
+=H:n("fim")	Fim
+</s>

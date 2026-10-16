@@ -1,0 +1,36 @@
+<p>
+<s>
+SOURCE: a
+1 Primeira frase.
+UTT:n("frase")	frase
+.
+</s>
+<s>
+1 Sem fonte nenhuma.
+UTT:n("fonte")	fonte
+</s>
+<s>
+SOURCE: b
+1 Terceira frase.
+UTT:n("frase")	Terceira
+.
+</s>
+<s>
+SOURCE
+1 Fonte curta.
+</s>
+<s>
+SOURCE: c
+2 Quinta frase.
+UTT:n("frase")	Quinta
+.
+</s>
+<s>
+SOURCE: d
+</s>
+<s>
+SOURCE: e
+3 Ultima frase.
+UTT:n("frase")	Ultima
+.
+</s>

@@ -180,6 +180,7 @@ a directory with the same model run without them, and its options are
 | `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
 | `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
+| `ad` (the Arvores Deitadas streams) | `names`, `names-nosplit`, `pos`, `pos-expand-features`, `chunk`, `chunk-1-3`, `sentence`, `sentence-titles`, `token` (with `pt-detokenizer`, fixture) | `ad`; the `sentence` runs leave out `ad-null-text` | `splitHyphenatedTokens`, `expandME`, `includeFeatures`, `start`, `end`, `includeTitles` |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
 | `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
@@ -606,6 +607,29 @@ and reading goes on. The layers are `turbo:samples`,
 `turbo:read-errors`, `turbo:sample-tokens` and `turbo:names`, as the
 format goldens write them. `analysis/formats/tests/ner.rs` compares the
 Rust readers with these goldens.
+
+## AD goldens
+
+`ad/<run>/ad/<id>.golden` is what one of OpenNLP's Arvores Deitadas
+streams (the format of the Floresta Sinta(c)tica treebank) read from
+`inputs/ad/<id>.txt`. `AdGolden` makes each stream as its factory does,
+over the file read as UTF-8: `ADNameSampleStream` with hyphenated tokens
+split (`names`) and not (`names-nosplit`), `ADPOSSampleStream` with its
+defaults (`pos`) and with multiword expressions expanded and features
+included (`pos-expand-features`), `ADChunkSampleStream` whole (`chunk`)
+and from sentence 1 to before sentence 3 (`chunk-1-3`),
+`ADSentenceSampleStream` without and with titles, and the token samples
+of `ADTokenSampleStreamFactory`, a `NameToTokenSampleStream` with the
+Portuguese detokenizer dictionary over the name stream (`token`).
+
+The streams are read until `read` returns null; an exception is recorded
+and reading goes on. `ADSentenceSampleStream` throws on every read after
+a sentence without a text and never returns null, so the sentence runs
+leave out `ad-null-text`. The layers are those the format goldens write
+for the sample kind. `analysis/formats/tests/ad.rs` compares the Rust
+readers with these goldens. They are not checked in yet: the test skips,
+naming `cargo run -p turbo-goldens-tool -- generate`, until they are
+generated.
 
 ## Parse goldens
 
