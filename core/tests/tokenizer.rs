@@ -939,13 +939,19 @@ mod bpe {
     /// spans and decode.
     fn check(name: &str, m: serde_json::Value, path: &std::path::Path) {
         let prefixed = m["tokenizer"]["bpe"]["add_prefix_space"] == true;
+        let specials: Vec<i32> = m["tokenizer"]["special_tokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["id"].as_i64().unwrap() as i32)
+            .collect();
         let f = fixture(name, m, path);
         let tok = core_tokenizer(&f);
         let mut up = upstream_at(path);
         up.with_truncation(None).unwrap();
         for text in texts() {
             let (ours, theirs) = both_spans(&tok, &up, &text);
-            spans_near_upstream(&text, &ours, &theirs, prefixed);
+            spans_near_upstream(&text, &ours, &theirs, prefixed, &specials);
             check_well_formed(&text, &ours);
             decode_matches_upstream(&tok, &up, &text);
         }
@@ -958,9 +964,14 @@ mod bpe {
     /// text's start, where upstream's trim counts the space put in front
     /// as one of the text's and starts it a byte late (inside a character
     /// that is more than one).
-    fn spans_near_upstream(text: &str, ours: &[(i32, [u32; 2])], theirs: &[(i32, [u32; 2])], prefixed: bool) {
+    fn spans_near_upstream(
+        text: &str,
+        ours: &[(i32, [u32; 2])],
+        theirs: &[(i32, [u32; 2])],
+        prefixed: bool,
+        specials: &[i32],
+    ) {
         assert_eq!(ours.len(), theirs.len(), "{text:?}");
-        // The ids under 5 are the special tokens.
         let first = ours.iter().position(|o| o.1 != [0, 0]);
         for (i, (o, t)) in ours.iter().zip(theirs).enumerate() {
             assert_eq!(o.0, t.0, "{text:?}");
@@ -969,7 +980,7 @@ mod bpe {
             // The first token of a piece of text a space was put in front
             // of (the text, or what follows a special token in it); the
             // space alone comes from the character it is put before.
-            let starts_piece = Some(i) == first || (i > 0 && ours[i - 1].0 <= 4);
+            let starts_piece = Some(i) == first || (i > 0 && specials.contains(&ours[i - 1].0));
             let lead = text[a[0] as usize..].chars().next().map_or(0, char::len_utf8) as u32;
             let late_start = prefixed
                 && starts_piece
@@ -1021,6 +1032,23 @@ mod bpe {
             check(variant, m, &path);
             std::fs::remove_file(path).unwrap();
         }
+    }
+
+    /// GPT-2's and RoBERTa's own tokenizer files, from the directory
+    /// TURBO_BPE_FILES names: gpt2/tokenizer.json and
+    /// roberta-base/tokenizer.json.
+    #[test]
+    #[ignore = "needs TURBO_BPE_FILES"]
+    fn matches_upstream_on_gpt2_and_roberta() {
+        let dir = std::path::PathBuf::from(std::env::var("TURBO_BPE_FILES").expect("TURBO_BPE_FILES"));
+        let mut gpt2 = manifest_bpe();
+        gpt2["tokenizer"]["special_tokens"] =
+            json!([{ "role": "SPECIAL_UNK", "content": "<|endoftext|>", "id": 50256 }]);
+        gpt2["tokenizer"]["template"] = json!(["$TEXT"]);
+        check("gpt2", gpt2, &dir.join("gpt2/tokenizer.json"));
+        let mut roberta = manifest_bpe();
+        roberta["tokenizer"]["special_tokens"][4]["id"] = json!(50264);
+        check("roberta", roberta, &dir.join("roberta-base/tokenizer.json"));
     }
 
     /// A file that is not what the manifest says, or not what the core
