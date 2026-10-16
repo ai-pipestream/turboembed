@@ -182,8 +182,10 @@ jobs:
           fi
       # Round by round, the ranges the bytes at hand give: each file's
       # last 8 bytes, then its footer's first bytes, then its head. Each
-      # answer must be a 206 of the range's length; curl refuses an answer
-      # longer than the range, such as the whole file.
+      # answer must be a 206 of the range's length. curl stops an answer
+      # more than 64 KiB longer than the range, such as the whole file;
+      # the limit also applies to the hub's redirect, whose body is longer
+      # than an 8-byte range.
       - name: fetch the web ranges
         if: steps.web-cache.outputs.cache-hit != 'true'
         run: |
@@ -196,7 +198,7 @@ jobs:
             echo "round $round: $(wc -l < need.tsv) ranges, $(awk -F'\t' '{ s += $4 - $3 } END { print s }' need.tsv) bytes"
             while IFS=$'\t' read -r url file start end; do
               mkdir -p "$(dirname "$file")"
-              code=$(curl -sSL --retry 5 --max-filesize $((end - start)) -r "$start-$((end - 1))" -o "$file.part" \
+              code=$(curl -sSL --retry 5 --max-filesize $((end - start + 65536)) -r "$start-$((end - 1))" -o "$file.part" \
                 -w '%{http_code}' "$url")
               size=$(stat -c %s "$file.part")
               if [ "$code" != 206 ] || [ "$size" != $((end - start)) ]; then

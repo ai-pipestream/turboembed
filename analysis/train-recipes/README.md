@@ -1609,9 +1609,9 @@ ranges, cached under the digest of both lists. It makes the files list
 from the hub's API (`/api/datasets/<repo>/revision/<revision>?blobs=true`,
 whose `sha` must be the revision) and fails unless it is the committed
 one. It fetches the ranges not in the cache in rounds, each as
-`fineweb-ranges --need` says, curl refusing an answer longer than the
-range and the step any answer that is not `206 Partial Content` of the
-range's length, then fails unless `fineweb-ranges --record` gives the
+`fineweb-ranges --need` says, curl stopping an answer more than 64 KiB
+longer than the range (such as the whole file) and the step refusing
+any answer that is not `206 Partial Content` of the range's length, then fails unless `fineweb-ranges --record` gives the
 committed ranges list. A cache made under other lists is restored as a
 start, and what it holds is checked like anything fetched. It trains
 twice, fails unless both runs write the same eight files, prints the
