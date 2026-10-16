@@ -1,0 +1,52 @@
+   Compiling turbo-parser v0.1.0 (/work/worktrees/turboembed/codex-turboembed/analysis/parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.43s
+     Running tests/feature_buffers.rs (target/debug/deps/feature_buffers-bca13f8902905648)
+
+running 3 tests
+chunk: 19 features, 0 warmed allocations
+test chunk_beam_features_allocate_nothing_after_warmup ... ok
+chunk: 19 features, 0 warmed allocations
+chunk: 19 features, 0 warmed allocations
+test chunk_buffer_preserves_unicode_and_cached_context_behavior ... ok
+chunking build: 224 features, 0 warmed allocations
+dictionary build: 224 features, 0 warmed allocations
+chunking check: 37 features, 0 warmed allocations
+tree build: 226 features, 0 warmed allocations
+tree attach: 225 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree attach: 225 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree attach: 226 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+chunking build: 275 features, 0 warmed allocations
+dictionary build: 275 features, 0 warmed allocations
+chunking check: 41 features, 0 warmed allocations
+tree build: 224 features, 0 warmed allocations
+tree attach: 225 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree attach: 225 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree check: 43 features, 0 warmed allocations
+tree attach: 226 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+chunking build: 224 features, 0 warmed allocations
+dictionary build: 224 features, 0 warmed allocations
+chunking check: 38 features, 0 warmed allocations
+tree build: 173 features, 0 warmed allocations
+tree attach: 225 features, 0 warmed allocations
+tree check: 29 features, 0 warmed allocations
+tree check: 29 features, 0 warmed allocations
+tree attach: 225 features, 0 warmed allocations
+tree check: 29 features, 0 warmed allocations
+tree check: 36 features, 0 warmed allocations
+tree attach: 226 features, 0 warmed allocations
+tree check: 29 features, 0 warmed allocations
+tree check: 29 features, 0 warmed allocations
+test all_parser_feature_buffers_match_string_contexts_without_allocations ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

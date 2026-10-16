@@ -167,7 +167,7 @@ pub enum ParseError {
     UnmatchedClose { byte_offset: usize },
     /// `Parse::from_tokens` was given an empty token slice (`IllegalArgumentException`).
     EmptyTokens,
-    /// `Parse::insert` was given a constituent whose span is outside the receiving node's span
+    /// `Parse::insert` was given a constituent whose span is reversed or outside the receiving node's span
     /// (`IllegalArgumentException`).
     NotContained { parent: Span, child: Span },
     /// A span that does not start and end on character boundaries of the sentence text. Java
@@ -523,7 +523,7 @@ impl Parse {
     /// children of that node that it contains, a child with the same span included.
     pub fn insert(&mut self, mut constituent: Parse) -> Result<(), ParseError> {
         let ic = constituent.span;
-        if !self.span.contains(ic) {
+        if ic.start > ic.end || !self.span.contains(ic) {
             return Err(ParseError::NotContained { parent: self.span, child: ic });
         }
         if !self.text.is_char_boundary(ic.start as usize) || !self.text.is_char_boundary(ic.end as usize) {
