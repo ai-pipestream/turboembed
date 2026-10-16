@@ -1031,17 +1031,7 @@ mod bpe {
                 // A raw token inside a normalized one is matched first,
                 // as upstream matches raw added tokens before normalized
                 // ones: "</s>" is "<" and "/" around "s>".
-                "mixed" => {
-                    let v = json["model"]["vocab"].as_object_mut().unwrap();
-                    let id = v.remove("<s>").unwrap();
-                    v.insert("s>".into(), id);
-                    json["added_tokens"][0]["content"] = json!("s>");
-                    json["added_tokens"][2]["normalized"] = json!(true);
-                    let t = &mut m["tokenizer"];
-                    t["special_tokens"][0]["content"] = json!("s>");
-                    t["special_tokens"][2]["normalized"] = json!(true);
-                    t["template"] = json!(["s>", "$TEXT", "</s>"]);
-                }
+                "mixed" => mixed(&mut json, &mut m),
                 // Theirs also mark the special tokens normalized, which
                 // with no normalizer matches them in the text as it is.
                 "normalized" => {
@@ -1062,6 +1052,40 @@ mod bpe {
             check(variant, m, &path);
             std::fs::remove_file(path).unwrap();
         }
+    }
+
+    /// "<s>" (id 0) renamed "s>" and kept raw, and "</s>" (id 2) marked
+    /// normalized, so the raw token sits inside the normalized one.
+    fn mixed(json: &mut serde_json::Value, m: &mut serde_json::Value) {
+        let v = json["model"]["vocab"].as_object_mut().unwrap();
+        let id = v.remove("<s>").unwrap();
+        v.insert("s>".into(), id);
+        json["added_tokens"][0]["content"] = json!("s>");
+        json["added_tokens"][2]["normalized"] = json!(true);
+        let t = &mut m["tokenizer"];
+        t["special_tokens"][0]["content"] = json!("s>");
+        t["special_tokens"][2]["normalized"] = json!(true);
+        t["template"] = json!(["s>", "$TEXT", "</s>"]);
+    }
+
+    /// The text "</s>" alone: the raw "s>" is taken first and "</" is
+    /// encoded, then the template's own tokens go around it, as upstream
+    /// gives it; the normalized "</s>" whole would be [0, 2, 2].
+    #[test]
+    fn a_raw_token_inside_a_normalized_one_is_taken_first() {
+        let mut json: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
+        let mut m = manifest_bpe();
+        mixed(&mut json, &mut m);
+        let path = std::env::temp_dir().join(format!("turbo-bpe-raw-first-{}.json", std::process::id()));
+        std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
+        let tok = core_tokenizer(&fixture("raw-first", m, &path));
+        let mut up = upstream_at(&path);
+        up.with_truncation(None).unwrap();
+        let (ours, theirs) = both_spans(&tok, &up, "</s>");
+        std::fs::remove_file(path).unwrap();
+        let ids = |t: &[(i32, [u32; 2])]| t.iter().map(|x| x.0).collect::<Vec<_>>();
+        assert_eq!(ids(&theirs), [0, 1137, 0, 2]);
+        assert_eq!(ids(&ours), ids(&theirs));
     }
 
     /// GPT-2's and RoBERTa's own tokenizer files, from the directory
