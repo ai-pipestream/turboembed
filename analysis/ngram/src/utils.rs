@@ -4,6 +4,8 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 
+use turbo_jvm::hash_map::{JavaHash, put_order};
+
 use crate::error::{Error, Result};
 
 /// Generates string n-grams joined by a separator from token lists or character
@@ -158,24 +160,32 @@ impl NGramUtils {
 
     /// Calculates the missing probability mass for `ngram` under `discount` over
     /// `set` (`NGramUtils.calculateMissingNgramProbabilityMass`).
+    ///
+    /// The distinct words of `set` are visited in the iteration order of the
+    /// `java.util.HashSet` OpenNLP collects them into, so the terms are summed
+    /// in the same order and the result matches the JVM bit for bit.
     pub fn calculate_missing_ngram_probability_mass<T, S>(ngram: &[T], discount: f64, set: &[S]) -> f64
     where
-        T: PartialEq + Eq + Hash + Clone,
+        T: JavaHash + Eq + Hash + Clone,
         S: AsRef<[T]>,
     {
         let mut missing_mass = 0.0;
         let count_word = Self::count(ngram, set);
         let mut seen = HashSet::new();
-        let mut extended = Vec::with_capacity(ngram.len() + 1);
+        let mut words = Vec::new();
         for sentence in set {
             for word in sentence.as_ref() {
                 if seen.insert(word) {
-                    extended.clear();
-                    extended.extend_from_slice(ngram);
-                    extended.push(word.clone());
-                    missing_mass += (Self::count(&extended, set) - discount) / count_word;
+                    words.push(word);
                 }
             }
+        }
+        let mut extended = Vec::with_capacity(ngram.len() + 1);
+        for i in put_order(words.iter().copied()).0 {
+            extended.clear();
+            extended.extend_from_slice(ngram);
+            extended.push(words[i].clone());
+            missing_mass += (Self::count(&extended, set) - discount) / count_word;
         }
         1.0 - missing_mass
     }

@@ -314,6 +314,13 @@ fn ngram_utils_probabilities_and_slices() {
     let p_mass = NGramUtils::calculate_missing_ngram_probability_mass(&["<s>"], 0.5, &set);
     assert_eq!(p_mass.to_bits(), 0x4001_5555_5555_5555);
 
+    // The distinct words are summed in `java.util.HashSet` order (zz, q, b, c,
+    // d, x, I for this set), not first occurrence order, which would give
+    // 0x3FE6_6666_6666_6665.
+    let order_set = [vec!["c", "b"], vec!["x", "d", "q", "I", "zz"]];
+    let p_mass = NGramUtils::calculate_missing_ngram_probability_mass(&["c"], 0.1, &order_set);
+    assert_eq!(p_mass.to_bits(), 0x3FE6_6666_6666_6666);
+
     let interp_set = [
         vec!["the", "green", "book", "STOP"],
         vec!["my", "blue", "book", "STOP"],
