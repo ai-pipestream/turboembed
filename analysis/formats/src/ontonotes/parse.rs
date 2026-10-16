@@ -215,6 +215,51 @@ mod tests {
     }
 
     #[test]
+    fn malformed_trees_give_typed_errors_or_lenient_drops() {
+        // A `)` with no open bracket is a typed parse error naming the byte.
+        let [Err(e)] = &read(&["(TOP (NN a)) )"])[..] else { panic!("an unmatched close parses") };
+        assert!(e.contains("closing bracket without an open one"), "{e}");
+
+        // Brackets still open at the end are dropped, and a token is kept
+        // only when its bracket closes, so "(NN dog" holds nothing.
+        assert_eq!(read(&["(TOP (S (NN dog"]), [Ok("(TOP )".to_owned())]);
+
+        // An empty terminal holds no token, and the phrase it would make is
+        // dropped with it.
+        assert_eq!(read(&["(TOP (NN ) (VB x))"]), [Ok("(TOP (VB x) )".to_owned())]);
+        assert_eq!(read(&["(TOP (NN) (VB x))"]), [Ok("(TOP (VB x) )".to_owned())]);
+
+        // Without a gap labeler a trace is an ordinary token and `-NONE-` an
+        // ordinary type; the function tag strips at the first `-`.
+        assert_eq!(
+            read(&["(TOP (S (NP-SBJ-1 *T*-1) (VP (VBD ran))))"]),
+            [Ok("(TOP (S (NP *T*-1) (VP (VBD ran))) )".to_owned())]
+        );
+        assert_eq!(
+            read(&["(TOP (S (-NONE- *T*) (VP (VBD ran))))"]),
+            [Ok("(TOP (S (-NONE- *T*) (VP (VBD ran))) )".to_owned())]
+        );
+
+        // Text between brackets is ignored.
+        assert_eq!(read(&["(TOP (S a b))"]), [Ok("(TOP )".to_owned())]);
+    }
+
+    #[test]
+    fn tokens_with_multibyte_text_keep_their_document_spans() {
+        let doc = "(TOP (NN h\u{e9}llo))";
+        let p = ParseStream::new([doc]).next().unwrap().unwrap();
+        assert_eq!(p.parse().text(), "h\u{e9}llo ");
+        let pos = p.pos_sample();
+        let toks: Vec<(&str, &str, &str)> = pos
+            .tokens()
+            .iter()
+            .zip(pos.tags())
+            .map(|(t, g)| (t.as_str(), &doc[t.span.range()], &doc[g.span.range()]))
+            .collect();
+        assert_eq!(toks, [("h\u{e9}llo", "h\u{e9}llo", "NN")]);
+    }
+
+    #[test]
     fn tokens_map_back_to_the_document() {
         let doc = "  (TOP (S (NP (-LRB- -LRB-) (NN dog))\n (VP (VB runs))))\n";
         let p = ParseStream::new([doc]).next().unwrap().unwrap();
