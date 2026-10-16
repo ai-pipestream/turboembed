@@ -15,11 +15,24 @@ use crate::parse::{CONT, OTHER, Parse, START};
 // Both public string contexts and inference buffers use the same feature order.
 pub(crate) trait FeatureSink {
     fn emit(&mut self, value: fmt::Arguments<'_>);
+
+    fn prepare<T: Display>(&self, value: T) -> Prepared<T> {
+        Prepared::Direct(value)
+    }
 }
 
 impl FeatureSink for Vec<String> {
+    fn prepare<T: Display>(&self, value: T) -> Prepared<T> {
+        let mut rendered = String::with_capacity(32);
+        write!(rendered, "{value}").expect("string writes cannot fail");
+        Prepared::Rendered(rendered)
+    }
+
     fn emit(&mut self, value: fmt::Arguments<'_>) {
-        self.push(value.to_string());
+        // Reserve room for a typical combined feature instead of growing per piece.
+        let mut rendered = String::with_capacity(64);
+        rendered.write_fmt(value).expect("string writes cannot fail");
+        self.push(rendered);
     }
 }
 
@@ -34,6 +47,21 @@ impl FeatureSink for Features {
         }
         Writer(self).write_fmt(value).expect("feature buffer writes cannot fail");
         self.finish();
+    }
+}
+
+// String contexts reuse rendered pieces; inference keeps streaming into Features.
+pub(crate) enum Prepared<T> {
+    Direct(T),
+    Rendered(String),
+}
+
+impl<T: Display> Display for Prepared<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Direct(value) => value.fmt(f),
+            Self::Rendered(value) => f.write_str(value),
+        }
     }
 }
 
@@ -74,17 +102,17 @@ impl Display for ConsFeature<'_> {
 }
 
 pub(crate) struct ConsRef<'a> {
-    pub cons: ConsFeature<'a>,
-    pub cons_bo: ConsFeature<'a>,
+    pub cons: Prepared<ConsFeature<'a>>,
+    pub cons_bo: Prepared<ConsFeature<'a>>,
     pub index: i32,
     pub unigram: bool,
 }
 
 impl<'a> ConsRef<'a> {
-    pub fn new(node: Option<&'a Parse>, index: i32, labeled: bool, unigram: bool) -> Self {
+    pub fn new(node: Option<&'a Parse>, index: i32, labeled: bool, unigram: bool, sink: &impl FeatureSink) -> Self {
         Self {
-            cons: ConsFeature::Node { node, index, labeled, backoff: false },
-            cons_bo: ConsFeature::Node { node, index, labeled, backoff: true },
+            cons: sink.prepare(ConsFeature::Node { node, index, labeled, backoff: false }),
+            cons_bo: sink.prepare(ConsFeature::Node { node, index, labeled, backoff: true }),
             index,
             unigram,
         }
@@ -94,8 +122,8 @@ impl<'a> ConsRef<'a> {
 impl<'a> From<&'a Cons> for ConsRef<'a> {
     fn from(c: &'a Cons) -> Self {
         Self {
-            cons: ConsFeature::Text(&c.cons),
-            cons_bo: ConsFeature::Text(&c.cons_bo),
+            cons: Prepared::Direct(ConsFeature::Text(&c.cons)),
+            cons_bo: Prepared::Direct(ConsFeature::Text(&c.cons_bo)),
             index: c.index,
             unigram: c.unigram,
         }
@@ -237,7 +265,8 @@ pub(crate) fn cons2_into(
 ) {
     if let Some(puncts) = punct_set_of(punct1s) {
         for p in puncts {
-            let pbo = DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, "{}={}", punct_index(c1.index), p.kind()));
+            let pbo = features
+                .prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, "{}={}", punct_index(c1.index), p.kind())));
             features.emit(format_args!("{pbo}"));
             if c0.index == 0 {
                 if c0.unigram {
@@ -350,19 +379,19 @@ pub(crate) fn cons3_into(
                     let pbo1 = DisplayFn(|f: &mut fmt::Formatter<'_>| {
                         write!(f, "{}={}", punct_index(c1.index), punct1.kind())
                     });
-                    let s1 = DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo1},"));
-                    let s2 = DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo2},"));
+                    let s1 = features.prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo1},")));
+                    let s2 = features.prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo2},")));
                     cons3_with(features, c0, c1, c2, &s1, &s2, trigram, bigram1, bigram2);
                 }
             } else {
-                let s2 = DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo2},"));
+                let s2 = features.prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo2},")));
                 cons3_with(features, c0, c1, c2, ",", &s2, trigram, bigram1, bigram2);
             }
         }
     } else if let Some(p1s) = punct1s {
         for punct1 in p1s {
             let pbo1 = DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, "{}={}", punct_index(c1.index), punct1.kind()));
-            let s1 = DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo1},"));
+            let s1 = features.prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo1},")));
             cons3_with(features, c0, c1, c2, &s1, ",", trigram, bigram1, bigram2);
         }
     } else {
@@ -663,6 +692,9 @@ impl ChunkContextGenerator {
                 Ok(())
             })
         };
+        let pieces =
+            std::array::from_fn::<_, 5, _>(|n| [out.prepare(lexical(n, false)), out.prepare(lexical(n, true))]);
+        let lexical = |n: usize, backoff: bool| &pieces[n][usize::from(backoff)];
         out.emit(format_args!("default"));
         for n in 0..5 {
             out.emit(format_args!("{}", lexical(n, false)));

@@ -1,5 +1,5 @@
-   Compiling turbo-postag v0.1.0 (/work/worktrees/turboembed/codex-turboembed/analysis/postag)
-   Compiling turbo-parser v0.1.0 (/work/worktrees/turboembed/codex-turboembed/analysis/parser)
+   Compiling turbo-postag v0.1.0 (analysis/postag)
+   Compiling turbo-parser v0.1.0 (analysis/parser)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 1.34s
      Running tests/feature_buffers.rs (target/debug/deps/feature_buffers-bca13f8902905648)
 

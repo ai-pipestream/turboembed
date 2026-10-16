@@ -1,6 +1,6 @@
 # Parser feature buffers and candidate cloning: issue #506
 
-Implementer: codex. Host: krick. Date: 2026-10-16.
+CPU: AMD Ryzen 9 9950X3D, x86_64. Date: 2026-10-16.
 Base: `0dcf0828276048f19b0c90db93400517e37ce35e` (`origin/main`).
 
 The parser build, check, attach, and chunk contexts now have reusable `Features`
@@ -69,8 +69,7 @@ frontier selection with the existing path traversal for all three-valued head
 patterns through depth six, and check equal-probability punctuation precedence.
 
 These allocation counts cover feature population after capacity growth. Parser
-state, output trees, and the optional legacy cache still allocate. No elapsed-time
-speedup or hardware throughput claim is made.
+state, output trees, and the optional legacy cache still allocate. Timing measurements for the training-path follow-up are recorded below.
 
 ## Logs
 
@@ -81,10 +80,59 @@ speedup or hardware throughput claim is made.
 - `clippy.log`: required warning-free lint check.
 - `fmt.log`: root formatting check.
 
-The red span log includes temporary unused-item warnings from the feature-buffer
-implementation in progress. The final lint run is clean.
+## Training-path follow-up
 
-## Review gate
+String contexts now render constituent slots, chunk slots, punctuation separators,
+and repeated productions once per context call. The string sink reserves 64 bytes
+per output feature to avoid growth on each formatted piece. This trades some spare
+string capacity for fewer reallocations. The buffered inference sink retains direct
+formatting and zero allocations after warm-up.
 
-Requires two independent adversary PASS reviews before merge. Codex is the
-implementer and does not count as an adversary reviewer for this PR.
+The reproducible harness is
+`analysis/train-components/examples/parser_context_bench.rs`:
+
+```sh
+CARGO_TARGET_DIR=target cargo build --release -p turbo-train-components --example parser_context_bench
+taskset -c 8 target/release/examples/parser_context_bench
+```
+
+The same harness was built on main `a7cf38a8`, the prior PR head `c02a4a41`,
+and the corrected sources in this commit. Each executable uses the same checked-in
+JVM model fixture under `analysis/goldens/data/parse/model-{chunking,treeinsert}`
+and the 50 trees in `inputs/parse-treebank/{treebank,held-out}.txt`. Inference
+uses beam 20, advance percentage 0.95, and k=1 or k=5. Event streams use the gold
+trees and each model's own parses, accept only trees supported by that event
+stream, then repeat them 20 times: 2,000 samples for each chunking stream and
+1,100 for each tree-insertion stream. No corpus or model was downloaded.
+
+Each workload runs one warm-up and five timed repetitions. The clock excludes
+result hashing and destruction. Runs were sequential on logical CPU 8, with no
+build running. Run order was main, after, before, after, main, after, main.
+Numbers below are milliseconds: medians of three run medians for main and after,
+and one five-repetition median for before. Raw run medians, sample counts and
+output digests are in `training-timing.log`.
+
+```text
+workload                        main    before     after after/main
+parse-chunking-k1            480.484   291.359   293.432     0.611
+parse-chunking-k5            522.765   298.135   289.633     0.554
+events-chunking-build         93.908   138.814    71.600     0.762
+events-chunking-check         45.205    44.441    39.376     0.871
+events-chunking-chunk         21.788    31.131    21.604     0.992
+parse-treeinsert-k1          264.943   303.373   298.793     1.128
+parse-treeinsert-k5          272.553   319.050   305.291     1.120
+events-treeinsert-build       43.064    59.242    33.538     0.779
+events-treeinsert-check       21.060    20.365    17.470     0.830
+events-treeinsert-attach      58.175    80.492    43.592     0.749
+```
+
+All six training streams are at or below main's median in this fixture run.
+Chunking inference retains its improvement. Tree-insertion inference remains
+about 12% slower than main here, compared with 15% to 17% before this follow-up;
+this change does not establish a general inference speedup for tree insertion.
+These fixture measurements differ from the published-model workload used in the
+original review. They are local timing evidence, not a CI performance guarantee.
+
+Every event outcome, context and value digest, and every parse Penn-string and
+probability-bit digest, matched across all three executables and every run.
+The allocation test still checks the real warmed buffers independently of timing.

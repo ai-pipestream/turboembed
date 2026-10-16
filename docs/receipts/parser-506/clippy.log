@@ -1,5 +1,2 @@
-    Checking turbo-parser v0.1.0 (/work/worktrees/turboembed/codex-turboembed/analysis/parser)
-    Checking turbo-formats v0.1.0 (/work/worktrees/turboembed/codex-turboembed/analysis/formats)
-    Checking turbo-doccat v0.1.0 (/work/worktrees/turboembed/codex-turboembed/analysis/doccat)
-    Checking turbo-train-components v0.1.0 (/work/worktrees/turboembed/codex-turboembed/analysis/train-components)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.00s
+    Checking turbo-train-components v0.1.0 (analysis/train-components)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s

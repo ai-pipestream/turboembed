@@ -170,11 +170,11 @@ impl BuildContextGenerator {
             }
         }
 
-        let c_2 = ConsRef::new(p_2, -2, true, u_2);
-        let c_1 = ConsRef::new(p_1, -1, true, u_1);
-        let c0 = ConsRef::new(Some(p0), 0, true, u0);
-        let c1 = ConsRef::new(p1, 1, true, u1);
-        let c2 = ConsRef::new(p2, 2, true, u2);
+        let c_2 = ConsRef::new(p_2, -2, true, u_2, features);
+        let c_1 = ConsRef::new(p_1, -1, true, u_1, features);
+        let c0 = ConsRef::new(Some(p0), 0, true, u0, features);
+        let c1 = ConsRef::new(p1, 1, true, u1, features);
+        let c2 = ConsRef::new(p2, 2, true, u2, features);
 
         features.emit(format_args!("default"));
         for c in [&c0, &c_2, &c_1, &c1, &c2] {

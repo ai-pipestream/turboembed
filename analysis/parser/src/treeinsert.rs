@@ -105,8 +105,8 @@ fn punct(set: &[Parse]) -> Option<&[Parse]> {
 }
 
 /// `new Cons(cons(p, i), consbo(p, i), i, true)` with `useLabel` false.
-fn cons_slot(p: Option<&Parse>, i: i32) -> ConsRef<'_> {
-    ConsRef::new(p, i, false, true)
+fn cons_slot<'a>(p: Option<&'a Parse>, i: i32, sink: &impl FeatureSink) -> ConsRef<'a> {
+    ConsRef::new(p, i, false, true, sink)
 }
 
 /// Formats a production without cloning subtrees or collecting child references.
@@ -259,11 +259,11 @@ impl BuildContextGenerator {
         };
         let punct_2s = p_1.and_then(|p| punct(p.previous_punctuation()));
 
-        let c_2 = cons_slot(p_2, -2);
-        let c_1 = cons_slot(p_1, -1);
-        let c0 = cons_slot(Some(p0), 0);
-        let c1 = cons_slot(p1, 1);
-        let c2 = cons_slot(p2, 2);
+        let c_2 = cons_slot(p_2, -2, features);
+        let c_1 = cons_slot(p_1, -1, features);
+        let c0 = cons_slot(Some(p0), 0, features);
+        let c1 = cons_slot(p1, 1, features);
+        let c2 = cons_slot(p2, 2, features);
 
         features.emit(format_args!("default"));
         for c in [&c_2, &c_1, &c0, &c1, &c2] {
@@ -345,11 +345,11 @@ impl AttachContextGenerator {
         let punct_1s = punct(p0.previous_punctuation());
         let punct1s = punct(p0.next_punctuation());
 
-        let cfp = cons_slot(fp, -3);
-        let cf = cons_slot(Some(fnode), -2);
-        let c_1 = cons_slot(p_1, -1);
-        let c0 = cons_slot(Some(p0), 0);
-        let c1 = cons_slot(p1, 1);
+        let cfp = cons_slot(fp, -3, features);
+        let cf = cons_slot(Some(fnode), -2, features);
+        let c_1 = cons_slot(p_1, -1, features);
+        let c0 = cons_slot(Some(p0), 0, features);
+        let c1 = cons_slot(p1, 1, features);
 
         features.emit(format_args!("default"));
         for c in [&cfp, &cf, &c_1, &c0, &c1] {
@@ -357,7 +357,7 @@ impl AttachContextGenerator {
             features.emit(format_args!("{}", c.cons_bo));
         }
 
-        let prod = production(fnode, false, &self.punct_set);
+        let prod = features.prepare(production(fnode, false, &self.punct_set));
         features.emit(format_args!("pn={prod}"));
         features.emit(format_args!("pd={prod},{}", p0.kind()));
         features.emit(format_args!("ps={}->{},{}", fnode.kind(), fnode.kind(), p0.kind()));

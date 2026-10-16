@@ -1,4 +1,4 @@
-   Compiling turbo-parser v0.1.0 (/work/worktrees/turboembed/codex-turboembed/analysis/parser)
+   Compiling turbo-parser v0.1.0 (analysis/parser)
 warning: variant `Node` is never constructed
   --> analysis/parser/src/context.rs:50:5
    |
