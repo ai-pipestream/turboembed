@@ -114,14 +114,22 @@ impl TokenizerMe {
             prob *= probs[outcome.index];
             if outcome.split {
                 if abbreviation {
-                    out.push((span(base + start, base + end), prob));
+                    if start < end {
+                        out.push((span(base + start, base + end), prob));
+                    }
                     let dots = unit.bytes().filter(|&b| b == b'.').count();
                     for _ in 0..dots {
                         at.step_forward();
                     }
                     let mut next = at;
                     next.step_forward();
-                    start = if next.char_start() { next.byte_offset() } else { next.byte_offset() + 4 };
+                    if !next.char_start() {
+                        next.step_forward();
+                    }
+                    start = next.byte_offset();
+                    at = next;
+                    prob = 1.0;
+                    continue;
                 } else if at.char_start() {
                     out.push((span(base + start, base + at.byte_offset()), prob));
                     start = at.byte_offset();
@@ -216,16 +224,19 @@ mod tests {
     #[test]
     fn an_abbreviation_jump_does_not_start_a_token_inside_a_pair() {
         // Java gives (0,5) and (4,5) in UTF-16 offsets: the unit, then the
-        // low half after the jump. Here the low half has no token.
+        // low half after the jump. Here the low half has no token, and `at`
+        // stays synchronized with `start` at the end of the supplementary char.
         let unit = "\u{1f600}.\u{1f600}";
         let xml = format!(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\"><entry><token>{unit}</token></entry></dictionary>"
         );
         let dictionary = turbo_maxent::Dictionary::read(xml.as_bytes()).unwrap();
-        let Some(t) = english() else { return };
-        // Without the dictionary the model splits the unit.
-        assert!(tokens(&t, unit).len() > 1);
-        let t = TokenizerMe::new(t.model.with_abbreviations(Some(dictionary)), TokenizerOptions::default());
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../goldens/data/fixtures/tokenizer-abbreviations.bin");
+        let base_model = english().map(|t| t.model).unwrap_or_else(|| TokenizerModel::read(&fixture).unwrap());
+        let without_dict = TokenizerMe::new(base_model.clone().with_abbreviations(None), TokenizerOptions::default());
+        assert!(tokens(&without_dict, unit).len() > 1);
+        let t = TokenizerMe::new(base_model.with_abbreviations(Some(dictionary)), TokenizerOptions::default());
         let got = tokens(&t, unit);
         assert_eq!(got.len(), 1);
         assert_eq!(got[0].0, unit);
