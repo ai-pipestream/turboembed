@@ -34,7 +34,7 @@ use crate::resources::{Resources, Unavailable};
 /// PII rewrites (`pii-rewrite`) compare whole rewritten
 /// texts, labels and audit reports rather than layers, which turbo-pii
 /// compares with.
-pub const NOT_COVERED: [&str; 29] = [
+pub const NOT_COVERED: [&str; 30] = [
     "train",
     "train-events",
     "train-langdetect",
