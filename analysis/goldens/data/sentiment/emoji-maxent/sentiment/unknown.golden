@@ -1,0 +1,31 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/unknown	35	35	fdc789a8c9b70a48ab839c0f5743155b7cf38bdb791820de6828f73c263f201a
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	MAXENT
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-maxent
+layer	opennlp:tokens	text	4	start:u32	end:u32
+0	5
+6	13
+14	24
+25	34
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	4	feature:str
+zebra
+quantum
+lighthouse
+marmalade
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+positive	3fd5555555555555 0.3333333333333333
+negative	3fd5555555555555 0.3333333333333333
+neutral	3fd5555555555555 0.3333333333333333
+end	turbo:categories

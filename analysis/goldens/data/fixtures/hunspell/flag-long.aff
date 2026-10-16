@@ -1,0 +1,17 @@
+FLAG long
+AF 3
+AF AaBb
+AF Cc
+AF AaCcDd
+AM 3
+AM po:noun is:sg
+AM po:verb
+AM is:pl
+SFX Aa Y 1
+SFX Aa 0 s . 3
+SFX Bb Y 1
+SFX Bb 0 ed .
+PFX Cc Y 1
+PFX Cc 0 re .
+SFX Dd Y 1
+SFX Dd 0 ing/Aa .

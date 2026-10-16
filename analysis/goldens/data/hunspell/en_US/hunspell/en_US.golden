@@ -1,0 +1,333 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/en_US	878	872	d6b6208b9a36e2cf4bd0f4cec25ea29067959aff2066545b0ea85db7f9ee7685
+model	en_US.aff	2b4448dfdff03caf300914415f4642f8d2ba5b650c5f024a12355b420a279ffc12146649fce092ba591504476634a3d6fd4c079335a27085b396fa76bfd28b74
+model	en_US.dic	4be737249a8a436d20a02be575dcf6cf2f06f5f2abb840ea5ec0ef0ac73a71fa0e4669e527c703d5c6b50ef61713a6741b55bc136d559a54bcdeebcd62027988
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	97	word:str	stem:str	thrown:str
+walk	walk	
+walked	walk	
+walks	walk	
+walking	walking	
+Walking	walking	
+WALKING	walking	
+ponies	pony	
+flies	fly	
+happily	happily	
+unhappy	unhappy	
+reenter	enter	
+re-enter	re	
+eBook	eBook	
+eBooks	eBooks	
+EBOOKS	EBOOKS	
+Ebooks	Ebooks	
+ACME	acme	
+ACME'S	acme	
+NASA	NASA	
+nasa	nasa	
+Nasa	Nasa	
+Paris	Paris	
+PARIS	Paris	
+paris	paris	
+Dr.	Dr	
+dr.	dr.	
+DR.	Dr	
+U.S.	U.S.	
+e.g.	e.g.	
+etc.	etc	
+co-op	co	
+ice-cream	ice	
+mother-in-law	mother	
+mothers-in-law	mother	
+running	running	
+Running	running	
+RUNNING	running	
+they're	they're	
+o'clock	o'clock	
+O'CLOCK	o'clock	
+can't	can't	
+won't	won't	
+1st	1st	
+2nd	2nd	
+3rd	3rd	
+4th	4th	
+11th	1	
+12th	1	
+13th	1	
+21st	2	
+22nd	2	
+101st	1	
+111th	1	
+1990s	1990s	
+children	children	
+children's	children	
+mice	mice	
+geese	geese	
+unbelievable	believable	
+unbelievably	believably	
+nationalization	nationalization	
+denationalization	denationalization	
+reorganizations	organization	
+antidisestablishmentarianism	antidisestablishmentarianism	
+McDonald	McDonald	
+MCDONALD	Mcdonald	
+iPhone	iPhone	
+IPHONE	Iphone	
+Jones's	Jones	
+Joneses	Joneses	
+JONESES	JONESES	
+OK	OK	
+ok	ok	
+Ok	Ok	
+TV	TV	
+TVs	TV	
+I	I	
+i	i	
+I'm	I'm	
+café	café	
+cafe	cafe	
+naïve	naïve	
+résumé	résumé	
+Zürich	Zürich	
+fiancée	fiancée	
+x-ray	x	
+X-rays	X	
+well-known	well	
+self-esteem	self	
+high-school	high	
+e-mail	e	
+emails	email	
+sang	sang	
+sung	sung	
+better	better	
+best	best	
+worse	worse	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	128	word:u32	stem:str
+0	walk
+1	walk
+2	walk
+3	walking
+3	walk
+4	walking
+4	walk
+5	walking
+5	walk
+6	pony
+7	fly
+8	happily
+9	unhappy
+9	happy
+10	enter
+11	re
+11	enter
+12	eBook
+13	eBooks
+14	EBOOKS
+15	Ebooks
+16	acme
+17	acme
+18	NASA
+18	Nasa
+19	nasa
+20	Nasa
+21	Paris
+22	Paris
+23	paris
+24	Dr
+25	dr.
+26	Dr
+27	U.S.
+28	e.g.
+29	etc
+30	co
+30	op
+31	ice
+31	cream
+32	mother
+32	in
+32	law
+33	mother
+33	in
+33	law
+34	running
+35	running
+36	running
+37	they're
+38	o'clock
+39	o'clock
+40	can't
+41	won't
+42	1st
+43	2nd
+44	3rd
+45	4th
+46	1
+46	1th
+47	1
+47	2th
+48	1
+48	3th
+49	2
+49	1st
+50	2
+50	2nd
+51	1
+51	0
+51	1st
+52	1
+52	1th
+53	1990s
+54	children
+55	children
+56	mice
+57	geese
+58	believable
+59	believably
+60	nationalization
+61	denationalization
+62	organization
+63	antidisestablishmentarianism
+64	McDonald
+65	Mcdonald
+66	iPhone
+67	Iphone
+68	Jones
+69	Joneses
+70	JONESES
+71	OK
+71	Ok
+72	ok
+73	Ok
+74	TV
+74	Tv
+75	TV
+76	I
+76	i
+77	i
+78	I'm
+79	café
+80	cafe
+81	naïve
+82	résumé
+83	Zürich
+84	fiancée
+85	x
+85	ray
+86	X
+86	x
+86	ray
+87	well
+87	known
+88	self
+88	esteem
+89	high
+89	school
+90	e
+90	mail
+91	email
+92	sang
+93	sung
+94	better
+95	best
+95	b
+96	worse
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	86	word:u32	analysis:str
+0	st:walk
+1	st:walk fl:D
+2	st:walk fl:S
+3	st:walking
+3	st:walk fl:G
+4	st:walking
+4	st:walk fl:G
+5	st:walking
+5	st:walk fl:G
+6	st:pony fl:S
+7	st:fly fl:S
+8	st:happily
+9	st:unhappy
+9	un st:happy fl:U
+10	re st:enter fl:A
+11	pa:re st:re pa:enter st:enter
+16	st:acme
+17	st:acme fl:M
+18	st:NASA
+18	st:Nasa
+21	st:Paris
+22	st:Paris
+24	st:Dr
+26	st:Dr
+29	st:etc
+30	pa:co st:co pa:op st:op
+31	pa:ice st:ice pa:cream st:cream
+32	pa:mother st:mother pa:in st:in pa:law st:law
+33	pa:mothers st:mother fl:S pa:in st:in pa:law st:law
+34	st:running
+35	st:running
+36	st:running
+37	st:they're
+38	st:o'clock
+39	st:o'clock
+40	st:can't
+41	st:won't
+42	st:1st
+43	st:2nd
+44	st:3rd
+45	st:4th
+46	pa:1 st:1 pa:1th
+47	pa:1 st:1 pa:2th
+48	pa:1 st:1 pa:3th
+49	pa:2 st:2 pa:1st
+50	pa:2 st:2 pa:2nd
+51	pa:1 st:1 pa:0 st:0 pa:1st
+52	pa:1 st:1 pa:1 st:1 pa:1th
+54	st:children
+55	st:children fl:M
+56	st:mice
+57	st:geese
+58	un st:believable fl:U
+59	un st:believably fl:U
+60	st:nationalization
+61	st:denationalization
+62	fl:A st:organization fl:S
+64	st:McDonald
+65	st:Mcdonald
+66	st:iPhone
+67	st:Iphone
+68	st:Jones fl:M
+71	st:OK
+71	st:Ok
+74	st:TV
+74	st:Tv
+75	st:TV fl:S
+76	st:I
+76	st:i
+77	st:i
+78	st:I'm
+80	st:cafe
+85	pa:x st:x pa:ray st:ray
+86	pa:X st:X pa:rays st:ray fl:S
+86	pa:X st:x pa:rays st:ray fl:S
+87	pa:well st:well pa:known st:known
+88	pa:self st:self pa:esteem st:esteem
+89	pa:high st:high pa:school st:school
+90	pa:e st:e pa:mail st:mail
+91	st:email fl:S
+92	st:sang
+93	st:sung
+94	st:better
+95	st:best
+95	st:b fl:T
+96	st:worse
+end	turbo:hunspell-analyses

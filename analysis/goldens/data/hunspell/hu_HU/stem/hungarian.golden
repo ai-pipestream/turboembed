@@ -1,0 +1,3776 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	stem/hungarian	12896	11520	c879cbf3aab6e4186acaad2ca52c89a86b417b7a683c3e3274b40b501695976a
+model	hu_HU.aff	c3e587793dc752aaf9b8dd9262047d8ff24dc7e620ebd4d9023e77bb6eb7c15e89f39a1851050f413410a298e2b1323cc9abf4627dc96aa15de0d91e26ae1a00
+model	hu_HU.dic	767ac7b9cf190cca8314142dc016ba9b593b6bfbc707eb55314a0a47e8dfdea33ceec35880057a6f96897fd289759ff59a2a0feff5cd108d832cb1cfb027d141
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	1000	word:str	stem:str	thrown:str
+abazinok	abazinok	
+ablakait	ablak	
+ablakrés	ablak	
+accountok	accountok	
+adag	adag	
+adataira	adat	
+adatbejelentési	adat	
+adatbázisra	adatbázis	
+adatcsomagokba	adat	
+adathordozóról	adathordozóról	
+adatközpontokhoz	adat	
+adatszolgáltatási	adat	
+adattárház-menedzserének	adat	
+adassék	adatik	
+adminisztráció	adminisztráció	
+adományoznék	adományozik	
+adod	ad	
+adás	adás	
+adó-államra	adó	
+adója	adó	
+adóhatóságnál	adóhatóság	
+adóssága	adósság	
+adózó	adózó	
+agenda-setting	agenda-setting	
+aggályt	aggály	
+agresszívabb	agresszív	
+agyakban	agy	
+agyagfalak	agyag	
+agyrémeinek	agy	
+ahányfajta	ahányfajta	
+ajtójában	ajtó	
+ajándékunkért	ajándék	
+ajánlott	ajánlott	
+ajánlattétel	ajánlat	
+akadva	akad	
+akadálytalan	akadálytalan	
+akaratát	akarat	
+akarnám	akar	
+akasztott	akasztott	
+akciófilmet	akció	
+akkorára	akkora	
+aktivizálni	aktivizál	
+akár	akár	
+alacsonyabbak	alacsony	
+alakhoz	alak	
+alakulatnál	alakulat	
+alakzatainál	alakzat	
+alakítsanak	alakít	
+alapbeállítás	alap	
+alapeszméi	alap	
+alapjogok	alap	
+alapjául	alap	
+alapkövetelményem	alap	
+alapoz	alapoz	
+alapszabályukban	alapszabály	
+alaptípusai	alaptípus	
+alaptőkére	alaptőke	
+alapérzése	alap	
+alkonyzónájába	alkony	
+alkosson	alkot	
+alkotásokhoz	alkotás	
+alkotóművész	alkotó	
+alkönyvtárra	alkönyvtár	
+almenüjéből	almenü	
+alszámlára	alszámla	
+altemplomban	altemplom	
+aludt	aludt	
+alulértékelésre	alulértékelés	
+alább	alább	
+alátervezésének	alátervezés	
+aláírásgyűjtésbe	aláírásgyűjtésbe	
+ambivalens	ambivalens	
+amelyekből	amely	
+amennyinek	amennyi	
+amikkel	ami	
+amnesztiát	amnesztia	
+anconai	anconai	
+angyalföldi	angyal	
+anonimitását	anonimitás	
+antológiát	antológia	
+anyagos	anyagos	
+anyakönyvezték	anyakönyvezik	
+anyától	anya	
+anyukámnak	anyuka	
+apartman-házat	apartman	
+apportként	apport	
+aprólékossággal	aprólékosság	
+apjától	apa	
+apáca	apáca	
+aranyosan	aranyos	
+aranyszerdájával	aranyszerdájával	
+arcbűnnek	arc	
+arculatuk	arculat	
+art	art	
+arányokkal	arány	
+asszonyra	asszony	
+asztalon	asztal	
+asztallapokra	asztallap	
+atombombák	atom	
+babrálgatta	babrálgat	
+bajlódtam	bajlódik	
+bajom	baj	
+baktériumok	baktérium	
+balgaság	balgaság	
+baloldalról	baloldal	
+bandukolt	bandukolt	
+bankkártyát	bank	
+bankokról	bank	
+barangolunk	barangol	
+barlangját	barlang	
+barátomnál	barát	
+barátaimmal	barát	
+barátkoztak	barátkozik	
+barátnőmnél	barátnő	
+barátságra	barátság	
+beavatkozik	beavatkozik	
+becsöngettek	becsönget	
+becsülni	becsül	
+bedobáltuk	bedobál	
+befagyassza	befagyaszt	
+befejezze	befejezik	
+befektetésünk	befektetés	
+befelé	befelé	
+befizetéséről	befizetés	
+befolyások	befolyás	
+befolyásos	befolyásos	
+begyalogolunk	begyalogol	
+behajthatunk	behajt	
+behozatalukat	behozatal	
+beigazolódik	beigazolódik	
+bekapjam	bekap	
+bekezdéséből	bekezdés	
+bekukkantó	bekukkantó	
+bekövetkeznie	bekövetkezik	
+belebuksz	belebukik	
+beleerősített	beleerősített	
+belegondolunk	belegondol	
+belekerülnek	belekerül	
+belendítésére	belendítés	
+belerohant	belerohant	
+beleszólok	beleszól	
+beleunnánk	beleun	
+beleültünk	beleül	
+belsejében	belseje	
+belvárosi	belváros	
+berendezéseket	berendezés	
+beruházásra	beruházás	
+bestseller-klauzula	bestseller	
+beszereznie	beszerezik	
+beszorultam	beszorul	
+beszámolási	beszámolási	
+beszédbe	beszéd	
+beszédstílusban	beszéd	
+beszélgetéseinek	beszélgetés	
+beszélj	beszél	
+beszélírral	beszélírral	
+betakarítása	betakarítás	
+betegeihez	beteg	
+betegséget	betegség	
+beteljesüljön	beteljesül	
+betolni	betol	
+betéteit	betét	
+betölteni	betölt	
+betörés	betörés	
+betűző	betűző	
+beverekedik	beverekedik	
+bevetésével	bevetés	
+bevezetését	bevezetés	
+bevont	bevont	
+bevonásától	bevonás	
+bevártál	bevár	
+bevételeinek	bevétel	
+bezárják	bezár	
+beálltunk	beáll	
+beállítunk	beállít	
+beállító	beállító	
+beépülve	beépül	
+beírható	beírható	
+beülés	beülés	
+bicikliket	bicikli	
+bicskája	bicska	
+billentyűleütés	billentyű	
+birkaszerű	birkaszerű	
+birtokolják	birtokol	
+bizalmát	bizalom	
+bizonyosan	bizonyos	
+bizonyuló	bizonyuló	
+bizonyítványomba	bizonyítvány	
+bizottsággal	bizottság	
+biztonságis	biztonságis	
+biztonságtechnikailag	biztonság	
+biztosított	biztosított	
+biztosítékaként	biztosíték	
+blues	blues	
+bocsátaná	bocsát	
+bogarakra	bogár	
+bokrai	bokor	
+boldoggá	boldog	
+bolondulni	bolondul	
+bolygó	bolygó	
+bombázása	bombázás	
+bontjuk	bont	
+bonyolultnak	bonyolult	
+bordáira	borda	
+borotvapengére	borotva	
+borzadott	borzadott	
+borítom	borít	
+bosszulni	bosszul	
+botfülűnek	botfülű	
+botrányokról	botrány	
+breakpontot	break	
+brummogó	brummogó	
+bujdostam	bujdosik	
+buktató	buktató	
+bulimiát	bulimia	
+burkolózókkal	burkolózó	
+buszunk	busz	
+busók	busó	
+buzgólkodik	buzgólkodik	
+bácsiért	bácsi	
+bámulta	bámul	
+bánta	bánik	
+bányajáradékot	bánya	
+bányászjárások	bányászjárások	
+bárkik	bárki	
+bármikori	bármikori	
+bátorságra	bátorság	
+bátyámék	bátya	
+békavadászatra	béka	
+békés	békés	
+bér	bér	
+bérelnek	bérel	
+bérköltségére	bér	
+bérszínvonal-különbségét	bér	
+bírod	bír	
+bírálatában	bírálat	
+bírótársai	bíró	
+bízzuk	bízik	
+bókot	bók	
+bőröndöket	bőrönd	
+bölcseinek	bölcs	
+börtönből	börtön	
+búcsúzkodás	búcsúzkodás	
+búskomor	búskomor	
+bűn	bűn	
+bűntette	bűntett	
+bűnözéstől	bűnözés	
+bűzös	bűzös	
+büntetik	büntet	
+bürokratikus	bürokratikus	
+januárig	január	
+javarészt	javarészt	
+javuljanak	javul	
+javíthassunk	javít	
+jegyzőkönyvbe	jegyzőkönyv	
+járuló	járuló	
+játszótérnek	játszótér	
+játékában	játék	
+játékost	játékos	
+játékvezetésre	játék	
+jóakaratúlag	jóakaratúlag	
+jóbarátok	jóbarát	
+jókedvvel	jókedv	
+jólétnek	jólét	
+jósol	jósol	
+jóváhagyja	jóváhagy	
+jóváírásra	jóváírás	
+jöhetnek	jön	
+jött-ment	jön	
+jövedelmeik	jövedelem	
+jövetel	jövetel	
+jövőre	jövőre	
+kabalisztikus	kabalisztikus	
+kabinkulcsot	kabin	
+kacérkodik	kacérkodik	
+kajára	kaja	
+kalandjaikról	kaland	
+kalappal	kalap	
+kalkulációi	kalkuláció	
+kamarabeli	kamarabeli	
+kamaszok	kamasz	
+kamat	kamat	
+kamatszintjét	kamat	
+kamionok	kamion	
+kancellárja	kancellár	
+kantonokra	kanton	
+kapacitása	kapacitás	
+kapaszkodik	kapaszkodik	
+kapcsolatoknak	kapcsolat	
+kapcsolatához	kapcsolat	
+kapcsol	kapcsol	
+kapcsolódnak	kapcsolódik	
+kapcsolóközpontot	kapcsoló	
+kapitalistának	kapitalista	
+kapitányságvezetők	kapitányság	
+kapkodjam	kapkod	
+kapujának	kapu	
+kapván	kap	
+karakternél	karakter	
+karatés	karatés	
+karddal	kard	
+karjába	kar	
+karom	karom	
+karton	karton	
+kassaiak	Kassa	
+katakombákba	katakomba	
+katasztrófának	katasztrófa	
+kategóriánál	kategória	
+katonaságtól	katonaság	
+kattinthatunk	kattint	
+kavicsos	kavicsos	
+kazánházban	kazánház	
+keddtől	kedd	
+kedvre	kedv	
+kedvesemmel	kedves	
+kedvezményét	kedvezmény	
+kegyeinek	kegy	
+kegyetlenkedünk	kegyetlenkedik	
+keletkezett	keletkezett	
+kellemesség	kellemesség	
+kellékeken	kellék	
+keltem	kel	
+kelő	kelő	
+kenek	ken	
+kenyérüzletben	kenyér	
+keresete	kereset	
+kereskedelem	kereskedelem	
+kereskedőházban	kereskedő	
+keresse	keres	
+keresztapja	keresztapa	
+kereszteződésnél	kereszteződés	
+keresztény	keresztény	
+keresztülvillant	keresztülvillant	
+keresőmotor-optimalizációként	kereső	
+keretektől	keret	
+kerettörvény	keret	
+kertem	kert	
+kerekem	kerek	
+kerített	kerített	
+kerületet	kerület	
+kerülnek	kerül	
+keseredve	keseredik	
+kettes	kettes	
+kettőnél	kettő	
+keverjük	kever	
+kezdeményezhető	kezdeményezhető	
+kezdenem	kezd	
+kezdhet	kezd	
+kezdesz	kezd	
+kezdőrúgása	kezdőrúgás	
+kezelése	kezelés	
+kezelőfelületéhez	kezelő	
+kft.-kel	kft.	
+kht.-t	kht.	
+kiadványban	kiadvány	
+kiadásának	kiadás	
+kiaknázni	kiaknázik	
+kialakítva	kialakít	
+kibeszélték	kibeszél	
+kibocsátott	kibocsát	
+kibogarászniuk	kibogarászik	
+kibérelte	kibérel	
+kicsatolta	kicsatol	
+kicsinek	kicsi	
+kicsöngetés	kicsöngetés	
+kidobnak	kidob	
+kidolgozásának	kidolgozás	
+kiegyenlítésre	kiegyenlítés	
+kiegészítésére	kiegészítés	
+kielégítene	kielégít	
+kiemelkedni	kiemelkedik	
+kijárjon	kijár	
+kijövet	kijövet	
+kikapta	kikap	
+kikeveredtünk	kikeveredik	
+kikényszerítésének	kikényszerítés	
+kiköthetik	kiköt	
+kikötötték	kiköt	
+kilakoltatás	kilakoltatás	
+kilencvenkilenc	kilencvenkilenc	
+kilométerdíjat	kilométer	
+kilábaló	kilábaló	
+kilépek	kilép	
+kilós	kilós	
+kimehessünk	kimegy	
+kimentünk	kimegy	
+kimerültség	kimerültség	
+kimondásán	kimondás	
+kiművelődnek	kiművelődik	
+kinevezésüket	kinevezés	
+kinyithatom	kinyit	
+kinyújtania	kinyújt	
+kinézett	kinézett	
+kiosztották	kioszt	
+kipihentem	kipihen	
+kipróbálása	kipróbálás	
+kirajzolódni	kirajzolódik	
+kirendelt	kirendelt	
+királyfihoz	királyfi	
+kirándult	kirándult	
+kirángattam	kirángat	
+kisasztal	kisasztal	
+kisebb-nagyobb	kicsi	
+kisembert	kisember	
+kisgyerekes	kisgyerekes	
+kisjogdíjak	kisjogdíjak	
+kiskoromtól	kiskorom	
+kislánykoromban	kislánykoromban	
+kisrészvényes	kisrészvényes	
+kisvállalkozás	kisvállalkozás	
+kiszakadt	kiszakadt	
+kiszolgáltatottan	kiszolgáltatott	
+kiszolgálógép	kiszolgáló	
+kiszolgálóra	kiszolgáló	
+kiszorító	kiszorító	
+kiszámításakor	kiszámítás	
+kisétáltunk	kisétál	
+kitaláltuk	kitalál	
+kitegyen	kitesz	
+kiterjesztett	kiterjesztett	
+kiterveltem	kitervel	
+kitárult	kitárult	
+kitöltésén	kitöltés	
+kitörli	kitöröl	
+kitüntetéseit	kitüntetés	
+kiveszi	kivesz	
+kiviszik	kivisz	
+kivonat	kivonat	
+kivágjuk	kivág	
+kiválasztást	kiválasztás	
+kiváltása	kiváltás	
+kivédeni	kivéd	
+kivételezett	kivételezett	
+kizárják	kizár	
+kizárólagosság	kizárólagosság	
+kiállítja	kiállít	
+kiállító	kiállító	
+kiáltványában	kiáltvány	
+kiépítettségtől	kiépítettség	
+kiérve	kiérik	
+kiülhetek	kiül	
+klasszicizáló	klasszicizáló	
+klippek	klippek	
+klubtag	klub	
+koalíciót	koalíció	
+kockázattól	kockázat	
+kockáztatásával	kockáztatás	
+kocsink	kocsi	
+kocsmát	kocsma	
+koleganőm	koleganőm	
+kollégiumához	kollégium	
+kolostorhoz	kolostor	
+komfortosan	komfortos	
+kommunikációkezelésére	kommunikációkezelésére	
+komolyabban	komoly	
+kompatibilitásban	kompatibilitás	
+komponens	komponens	
+kompromisszum	kompromisszum	
+koncentrál	koncentrál	
+koncertdarabjaim	koncert	
+kondor	kondor	
+konfigurációjának	konfiguráció	
+konfliktusokkal	konfliktus	
+konkretizálja	konkretizál	
+konstrukcióját	konstrukció	
+konszerntényállás	konszern	
+kontinentális	kontinentális	
+konténerhajójával	konténer	
+konyhahelyiség	konyhahelyiség	
+konzisztens	konzisztens	
+kooperatív	kooperatív	
+kopogva	kopog	
+koproducernek	koproducernek	
+kordéra	kord	
+korlátoktól	korlát	
+korlátozottan	korlátozott	
+korlátozódó	korlátozódó	
+kormánybiztossal	kormány	
+kormánymegrendelések	kormánymegrendelések	
+kormányszerv	kormány	
+kormányzásra	kormányzás	
+korban	kor	
+koromszínű	korom	
+korrekcióját	korrekció	
+korszakokban	korszak	
+korsót	korsó	
+korúnál	kor	
+kosárral	kosár	
+krajinákat	krajinákat	
+kritizálta	kritizál	
+krákogást	krákogás	
+kudarctapasztalat	kudarc	
+kulcsfogalom	kulcs	
+kultikust	kultikus	
+kultúránkban	kultúra	
+kupát	kupa	
+kurzusokat	kurzus	
+kutatták	kutat	
+kutatói	kutató	
+kutyakiállításra	kutya	
+kutyánk	kutya	
+kvótakezelésre	kvótakezelésre	
+kábelezés	kábelezés	
+kábítószerek	kábítószer	
+káoszból	káosz	
+kármentés	kár	
+kártyáikat	kártya	
+kártérítésnek	kártérítés	
+kávé	kávé	
+kávézók	kávézó	
+kémhatást	kém	
+kényelmet	kényelem	
+kényszer-társszerzői	kényszer	
+kényszerérzettel	kényszerérzettel	
+kénytelen	kénytelen	
+képhez	kép	
+képernyőt	képernyő	
+képességét	képesség	
+képezte	képezik	
+képletesen	képletes	
+képpontos	kép	
+képviseleti	képviseleti	
+képviseltek	képviselt	
+képviselőjére	képviselő	
+képzeli	képzel	
+képzettségétől	képzettség	
+képzőművészetekben	képzőművészet	
+kérdezni	kérdez	
+kérdéseddel	kérdés	
+kérdésének	kérdés	
+kéreg	kéreg	
+kérelmének	kérelem	
+kérni	kér	
+kéréseink	kérés	
+kések	kés	
+késni	késik	
+készletgazdálkodásban	készletgazdálkodásban	
+készáruraktár	készáru	
+készítsem	készít	
+készülhetek	készül	
+készülékek	készülék	
+készülődnek	készülődik	
+két-háromféle	két	
+kétféleképpen	kétféle	
+kétnapos	napos	
+kétszínűséget	kétszínűség	
+kétértelműek	kétértelmű	
+kezük	kéz	
+kézbentartása	kézbentartása	
+kézigépekre	kézigépekre	
+kéziratokból	kézirat	
+kézügyességgel	kézügyesség	
+kínjaikat	kín	
+kínzókamrában	kínzó	
+kínálják	kínál	
+kísérletei	kísérlet	
+kísértetbe	kísértet	
+kísérőkkel	kísérő	
+kíváncsiskodunk	kíváncsiskodik	
+kívánságműsorral	kívánság	
+kócos	kócos	
+kódolhatók	kódolható	
+kópiák	kópia	
+kórtörténeteket	kór	
+kődarab	kődarab	
+kőtáblát	kőtábla	
+köhögés	köhögés	
+kölcsönöz	kölcsönöz	
+költségcsökkentés	költség	
+költségére	költség	
+költségvetésben	költségvetés	
+költészettel	költészet	
+költöztetéstől	költöztetés	
+könnyedségre	könnyedség	
+könnyítéseket	könnyítés	
+könyvnek	könyv	
+könyvelő	könyvelő	
+könyvtár-automatizálási	könyvtár	
+könyvtárbejegyzések	könyv	
+könyvtárszerkezete	könyv	
+könyökcsövén	könyökcső	
+köpenye	köpeny	
+köréhez	kör	
+körbenézünk	körbenéz	
+körképhez	körkép	
+környezetrekörnyezeten	környezetrekörnyezeten	
+környezetrészt	környezet	
+körszakállas	kör	
+körzetében	körzet	
+körűen	kör	
+körülményekben	körülmény	
+körültekintést	körültekintés	
+kössek	köt	
+köszönni	köszön	
+kötöttem	köt	
+kötelességemnek	kötelesség	
+kötelezettségeiért	kötelezettség	
+kötelezettségvállalásnál	kötelezettségvállalás	
+kötelékben	kötelék	
+kötetének	kötet	
+kötvényeik	kötvény	
+kötélből	kötél	
+kötődésének	kötődés	
+követünk	követ	
+követelményébe	követelmény	
+követelései	követelés	
+követheti	követ	
+következményeit	következmény	
+következtetésre	következtetés	
+követség	követség	
+köz	köz	
+közbe-közbe	közbe-közbe	
+közel-keleti	közel	
+közeleg	közeleg	
+közelítésére	közelítés	
+közgazdaságtan	közgazdaságtan	
+latolgatta	latolgat	
+leadása	leadás	
+lebontva	lebont	
+lecibáltam	lecibál	
+lecsökken	lecsökken	
+leegyszerűsíthető	leegyszerűsíthető	
+lefaraghatnak	lefarag	
+lefeküdjék	lefekszik	
+lefolytatott	lefolytatott	
+lefényképezheti	lefényképezhet	
+legalkalmasabb	alkalmas	
+legcsúnyább	csúnya	
+legelésző	legelésző	
+legfelkészültebb	felkészültebb	
+legfürgébb	fürge	
+legidősebb	idős	
+legkalandorabb	legkalandorabb	
+legkomplexebb	komplex	
+legkülönlegesebb	különleges	
+legnagyobb	nagy	
+legpimaszabb	pimasz	
+legszabadabb	szabad	
+legsötétebb	sötét	
+legtöbbjüket	sok	
+legvégül	végül	
+legyőzé	legyőzé	
+legénységből	legénység	
+lehatolt	lehatolt	
+lehettek	van	
+lehetőségeit	lehetőség	
+lehetőséges	lehetőséges	
+lehűteni	lehűt	
+lejtenek	lejt	
+lejártához	lejárta	
+lejött	lejön	
+lekérdezőablak	lekérdező	
+lelem	lel	
+lelkesedést	lelkesedés	
+lelkiismeretfurdalásában	lelkiismeretfurdalásában	
+lelkén	lélek	
+lelohad	lelohad	
+lemaradni	lemarad	
+lemez-alrendszerrel	lemez	
+lemezről	lemez	
+lemezkombinációkat	lemez	
+lemondhatok	lemond	
+lemásolt	lemásolt	
+lendületes	lendületes	
+lennék	van	
+lenyúlt	lenyúlt	
+lepecsételt	lepecsételt	
+lepte	lep	
+lerakták	lerak	
+lerontását	lerontás	
+lessük	les	
+leszoktam	leszokik	
+leszállításakor	leszállítás	
+leszórja	leszór	
+lesújthat	lesújt	
+letartóztatni	letartóztat	
+leterheltsége	leterheltség	
+lettek	lesz	
+letölthető	letölthető	
+letörten	letört	
+levegővel	levegő	
+levelet	levél	
+levelezés	levelezés	
+lezuhanyoztunk	lezuhanyoz	
+leáll	leáll	
+leányával	leány	
+leépítését	leépítés	
+leír	leír	
+leírásának	leírás	
+leültettek	leültet	
+licencdíjat	licenc	
+ligetbe	liget	
+limitáltabbak	limitáltabb	
+listában	lista	
+litográfia	litográfia	
+loccsanást	loccsanás	
+logikáját	logika	
+lokomotív	lokomotív	
+loptak	lop	
+lovagiasabbá	lovagias	
+lovardába	lovarda	
+lustálkodik	lustálkodik	
+lyukain	lyuk	
+lábainál	láb	
+lábát	láb	
+lábujját	lábujj	
+lámpafényben	lámpafény	
+láncfűrésszel	lánc	
+lángoló	lángoló	
+lányának	lány	
+lássák	lát	
+látták	lát	
+láthatták	lát	
+látogatják	látogat	
+látogatásáról	látogatás	
+látszani	látszik	
+látványát	látvány	
+látószögébe	látószög	
+lázálomképtől	láz	
+légiposta-küldeménye	légiposta	
+légkörében	légkör	
+légörvénylésről	légörvénylésről	
+lélektani	lélektani	
+lényegtelen	lényegtelen	
+lépcsőhöz	lépcső	
+lépik	lép	
+léptetéséről	léptetés	
+lépésre	lépés	
+létesítsen	létesít	
+létezhetett	létezhetett	
+lézer	lézer	
+lóerős	lóerős	
+lőfegyvert	lőfegyver	
+lökdösődés	lökdösődés	
+lövéssel	lövés	
+madaras	madaras	
+magabiztossága	magabiztosság	
+magáról	maga	
+magasból	magas	
+magatartásokra	magatartás	
+magvakat	mag	
+magukból	maga	
+magyar-zsidó	magyar	
+magyarázatként	magyarázat	
+magyarázta	magyaráz	
+magángazdaságban	magángazdaság	
+magánkereskedési	magán	
+magánszemélyeket	magánszemély	
+magányosság	magányosság	
+mahagóniággyal	mahagóniággyal	
+majálisokat	majális	
+malomkerék	malom	
+mamától	mama	
+manipulált	manipulált	
+mappákhoz	mappa	
+maradjunk	marad	
+maradék	maradék	
+marinírozott	marinírozott	
+marketingtényező	marketing	
+marxistát	marxista	
+maszkírozva	maszkíroz	
+matricához	matrica	
+maximumát	maximum	
+mechanikailag	mechanika	
+medgyesi	Medgyes	
+megadhatná	megad	
+megadásához	megadás	
+megakadályozza	megakadályozik	
+megalakítandó	megalakítandó	
+megalapozónak	megalapozó	
+megalázkodással	megalázkodás	
+megbecsülnek	megbecsül	
+megbeszélések	megbeszélés	
+megbocsátottak	megbocsát	
+megbukik	megbukik	
+megbélyegezni	megbélyegezik	
+megbízhatóbb	megbízhatóbb	
+megbízottjától	megbízott	
+megerőszakolták	megerőszakol	
+megette	megeszik	
+megfelelni	megfelel	
+megfenyegetik	megfenyeget	
+megfigyelésére	megfigyelés	
+megfizettetni	megfizettet	
+megfogalmazásához	megfogalmazás	
+megfontolásból	megfontolás	
+megfosztva	megfoszt	
+megfőzésig	megfőzés	
+meggondolták	meggondol	
+meggyógyult	meggyógyult	
+meggyőzőnek	meggyőző	
+meghajtókat	meghajtó	
+meghaladóan	meghaladó	
+meghallottuk	meghall	
+meghatalmazotti	meghatalmazott	
+meghatározatlanul	meghatározatlan	
+meghatározásakor	meghatározás	
+meghibásodáskor	meghibásodás	
+meghonosodott	meghonosodott	
+meghozottnak	meghozott	
+meghívás	meghívás	
+meghökkent	meghökkent	
+megijeszteni	megijeszt	
+megjelentek	megjelent	
+megjelenésére	megjelenés	
+megjelenítőjén	megjelenítő	
+megjutalmaz	megjutalmaz	
+megkapaszkodáshoz	megkapaszkodás	
+megkegyelmeznek	megkegyelmezik	
+megkeresésünkre	megkeresés	
+megkezdése	megkezdés	
+megkárosítani	megkárosít	
+megkérni	megkér	
+megkísértette	megkísértet	
+megkönnyítve	megkönnyít	
+megkötöttségtől	megkötöttség	
+megküldi	megküld	
+meglapul	meglapul	
+meglepetésről	meglepetés	
+meglincselnek	meglincsel	
+megláttak	meglát	
+megmaradtak	megmarad	
+megmenthette	megmegy	
+megmondja	megmond	
+megmérhetik	megmér	
+megnevezésében	megnevezés	
+megnyilvánulásról	megnyilvánulás	
+megnyitásával	megnyitás	
+megnyugtatott	megnyugtatott	
+megnézném	megnéz	
+megnövekvő	megnövekvő	
+megoldják	megold	
+megoldáson	megoldás	
+megoltalmazzon	megoltalmazik	
+megosztottsága	megosztottság	
+megpakolva	megpakol	
+megpróbálkoztak	megpróbálkozik	
+megpucolom	megpucol	
+megrakodva	megrakodik	
+megrendelései	megrendelés	
+megrendeztük	megrendezik	
+megrohamoztuk	megrohamozik	
+megrémültek	megrémült	
+megsejtettem	megsejtet	
+megsimogassam	megsimogat	
+megszabta	megszab	
+megszegik	megszeg	
+megszereted	megszeret	
+megszervezhetjük	megszervezhet	
+megszerzőjére	megszerző	
+megszorítás	megszorítás	
+megszárítottuk	megszárít	
+megszólítására	megszólítás	
+megszűnésnél	megszűnés	
+megszülető	megszülető	
+megsárgított	megsárgított	
+megsütni	megsüt	
+megtakarítja	megtakarít	
+megtalálnom	megtalál	
+megtanulunk	megtanul	
+megtartaná	megtart	
+megtehetik	megtesz	
+megtudható	megtudható	
+megtámadása	megtámadás	
+megtérül	megtérül	
+megtöltötte	megtölt	
+megtörténtét	megtörténte	
+megvallom	megvall	
+megvalósíthatóságának	megvalósíthatóság	
+megvették	megvesz	
+megvigasztaljam	megvigasztal	
+megvizsgálta	megvizsgál	
+megválasztott	megválasztott	
+megváltozna	megváltozik	
+megváltoztatásakor	megváltoztatás	
+megvárnál	megvár	
+megvédhetné	megvéd	
+megyéknek	megye	
+megállapodás	megállapodás	
+megállapíthatóság	megállapíthatóság	
+megállapításában	megállapítás	
+megállíthatatlanul	megállíthatatlan	
+megégette	megéget	
+megépítették	megépít	
+megérik	megérik	
+megérkezésünket	megérkezés	
+megértést	megértés	
+miket	mi	
+mielőtt	mielőtt	
+mikrohullámú	mikrohullám	
+milliszekundum	milliszekundum	
+milliós	milliós	
+mindazokhoz	mindaz	
+mindemellett	mindemellett	
+mindenfelé	mindenfelé	
+mindenkiért	mindenki	
+mindezekért	mindez	
+mindmostanig	mindmostanig	
+minimumjogdíjként	minimum	
+minisztertől	miniszter	
+minisztériumokban	minisztérium	
+mintából	minta	
+minőségéről	minőség	
+minősítési	minősítési	
+mirelitpiac	mirelitpiac	
+mivan	mivan	
+mobilbanki	mobil	
+mobillal	mobil	
+mobiltelefonban	mobiltelefon	
+mocskot	mocsok	
+mozaikot	mozaik	
+mozdulatsorok	mozdulat	
+mozgatjuk	mozgat	
+mozgásközpont	mozgás	
+mozik	mozi	
+mozzanata	mozzanat	
+mulathattunk	mulat	
+multimediális	multimediális	
+munkabérét	munkabér	
+munkaerőigényük	munka	
+munkahelyemen	munka	
+munkaigényesebb	munkaigényes	
+munkalehetőség	munkalehetőség	
+munkaszerető	munka	
+munkatársunknak	munka	
+munkavállalója	munkavállalója	
+munkáimmal	munka	
+munkámnál	munka	
+munkálják	munkál	
+munícióval	muníció	
+mutatnia	mutat	
+mutatókat	mutató	
+muzsikákkal	muzsika	
+májjal	máj	
+mámorító	mámorító	
+márkaépítési	márka	
+más-más	más-más	
+másról	más	
+másikért	másik	
+másodikon	második	
+másodszorra	másodszor	
+másolható	másolható	
+másoló-nyomtató	másoló	
+másztak	mászik	
+mécsest	mécses	
+médiatípusok	média	
+mégy	megy	
+méltóan	méltó	
+mélyén	mély	
+mélységében	mélység	
+mérgében	méreg	
+méreteivel	méret	
+mérgezi	mérgezik	
+mérleghez	mérleg	
+mérnöki	mérnöki	
+mértékén	mérték	
+mérése	mérés	
+mínusz	mínusz	
+módjára	mód	
+módosítanak	módosít	
+módosításnál	módosítás	
+módszerben	módszer	
+módszertanokon	módszertan	
+mögötti	mögötti	
+múltjával	múlt	
+múzeumként	múzeum	
+műemléket	műemlék	
+műfelhasználásokért	mű	
+műkereskedelem	műkereskedelem	
+működtethet	működtet	
+működésképtelenné	működésképtelen	
+működők	működő	
+műsorajánlók	műsorajánlók	
+műsorszolgáltató	mű	
+műsorokat	műsor	
+műszert	műszer	
+műtárgyárverések	mű	
+műveik	mű	
+művük	mű	
+műveljen	művel	
+művelőinek	művelői	
+művészettörténet	művészet	
+nadrág	nadrág	
+nagyszobába	nagyszoba	
+nagysága	nagyság	
+nagyvilági	nagyvilág	
+nagyágyúk	nagyágyú	
+napfényben	napfény	
+napirendre	napirend	
+napját	nap	
+naposra	napos	
+narancsvirág	narancs	
+negatívan	negatív	
+negyedekben	négy	
+negyvenig	negyven	
+nehéz	nehéz	
+objektum	objektum	
+offenzív	offenzív	
+okoknak	ok	
+perce	perc	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	1247	word:u32	stem:str
+0	abazinok
+1	ablak
+2	ablak
+2	rés
+3	accountok
+4	adag
+5	adat
+6	adat
+6	bejelentés
+6	bejelentési
+7	adatbázis
+8	adat
+8	csomag
+9	adathordozóról
+10	adat
+10	központ
+11	adat
+11	szolgáltatási
+12	adat
+12	tár
+12	ház
+12	tárház
+12	menedzser
+13	adatik
+14	adminisztráció
+15	adományozik
+15	adományoz
+16	ad
+17	adás
+18	adó
+18	állam
+18	áll
+19	adó
+20	adóhatóság
+21	adósság
+22	adózó
+23	agenda-setting
+24	aggály
+25	agresszív
+26	agy
+27	agyag
+27	fa
+27	lak
+27	fal
+28	agy
+28	rém
+29	ahányfajta
+30	ajtó
+31	ajándék
+32	ajánlott
+32	ajánl
+33	ajánlat
+33	tétel
+34	akad
+35	akadálytalan
+36	akarat
+37	akar
+38	akasztott
+38	akaszt
+39	akció
+39	film
+40	akkora
+41	aktivizál
+42	akár
+43	alacsony
+44	alak
+45	alakulat
+46	alakzat
+47	alakít
+48	alap
+48	beállítás
+49	alap
+49	eszme
+50	alap
+50	jog
+51	alap
+52	alap
+52	követelmény
+53	alapoz
+54	alapszabály
+55	alaptípus
+56	alaptőke
+57	alap
+57	érzés
+58	alkony
+58	zóna
+59	alkot
+60	alkotás
+61	alkotó
+61	mű
+61	vész
+61	művész
+62	alkönyvtár
+63	almenü
+64	alszámla
+65	altemplom
+66	aludt
+66	alszik
+67	alulértékelés
+68	alább
+69	alátervezés
+70	aláírásgyűjtésbe
+71	ambivalens
+72	amely
+73	amennyi
+74	ami
+75	amnesztia
+76	anconai
+77	angyal
+77	föld
+78	anonimitás
+79	antológia
+80	anyagos
+81	anyakönyvezik
+81	anyakönyvez
+82	anya
+83	anyuka
+84	apartman
+84	ház
+85	apport
+86	aprólékosság
+87	apa
+88	apáca
+89	aranyos
+90	aranyszerdájával
+91	arc
+91	bűn
+92	arculat
+93	art
+94	arány
+95	asszony
+96	asztal
+97	asztallap
+98	atom
+98	bomba
+99	babrálgat
+100	bajlódik
+101	baj
+102	baktérium
+103	balgaság
+104	baloldal
+105	bandukolt
+105	bandukol
+106	bank
+106	kártya
+107	bank
+108	barangol
+109	barlang
+110	barát
+111	barát
+112	barátkozik
+113	barátnő
+114	barátság
+115	beavatkozik
+116	becsönget
+117	becsül
+118	bedobál
+119	befagyaszt
+120	befejezik
+120	befejez
+121	befektetés
+122	befelé
+123	befizetés
+124	befolyás
+125	befolyásos
+126	begyalogol
+127	behajt
+128	behozatal
+129	beigazolódik
+130	bekap
+131	bekezdés
+132	bekukkantó
+133	bekövetkezik
+134	belebukik
+135	beleerősített
+135	beleerősít
+136	belegondol
+137	belekerül
+138	belendítés
+139	belerohant
+139	belerohan
+140	beleszól
+141	beleun
+142	beleül
+142	beleült
+143	belseje
+144	belváros
+145	berendezés
+146	beruházás
+147	bestseller
+147	klauzula
+148	beszerezik
+148	beszerez
+149	beszorul
+149	beszorult
+150	beszámolási
+151	beszéd
+152	beszéd
+152	stílus
+153	beszélgetés
+154	beszél
+155	beszélírral
+156	betakarítás
+157	beteg
+158	betegség
+159	beteljesül
+160	betol
+161	betét
+162	betölt
+163	betörés
+164	betűző
+165	beverekedik
+166	bevetés
+167	bevezetés
+168	bevont
+168	bevon
+169	bevonás
+170	bevár
+171	bevétel
+172	bezár
+173	beáll
+173	beállt
+174	beállít
+175	beállító
+176	beépül
+177	beírható
+178	beülés
+179	bicikli
+180	bicska
+181	billentyű
+181	leütés
+182	birkaszerű
+183	birtokol
+184	bizalom
+185	bizonyos
+186	bizonyuló
+187	bizonyítvány
+188	bizottság
+189	biztonságis
+190	biztonság
+190	technika
+191	biztosított
+191	biztosít
+192	biztosíték
+193	blues
+194	bocsát
+195	bogár
+196	bokor
+197	boldog
+198	bolondul
+199	bolygó
+200	bombázás
+201	bont
+202	bonyolult
+203	borda
+204	borotva
+204	penge
+205	borzadott
+205	borzad
+206	borít
+207	bosszul
+208	botfülű
+209	botrány
+210	break
+210	pont
+211	brummogó
+212	bujdosik
+212	bujdos
+213	buktató
+214	bulimia
+215	burkolózó
+216	busz
+217	busó
+218	buzgólkodik
+219	bácsi
+219	Bács
+220	bámul
+221	bánik
+221	bán
+222	bánya
+222	járadék
+223	bányászjárások
+224	bárki
+225	bármikori
+226	bátorság
+227	bátya
+228	béka
+228	vadászat
+229	békés
+230	bér
+231	bérel
+232	bér
+232	költség
+233	bér
+233	szín
+233	vonal
+233	színvonal
+233	különbség
+234	bír
+235	bírálat
+236	bíró
+236	társ
+237	bízik
+238	bók
+239	bőrönd
+240	bölcs
+241	börtön
+242	búcsúzkodás
+243	búskomor
+244	bűn
+245	bűntett
+246	bűnözés
+247	bűzös
+248	büntet
+249	bürokratikus
+250	január
+251	javarészt
+252	javul
+253	javít
+254	jegyzőkönyv
+255	járuló
+256	játszótér
+257	játék
+258	játékos
+259	játék
+259	vezetés
+260	jóakaratúlag
+261	jóbarát
+262	jókedv
+263	jólét
+264	jósol
+265	jóváhagy
+266	jóváírás
+267	jön
+268	jön
+268	jött
+268	megy
+268	ment
+269	jövedelem
+270	jövetel
+271	jövőre
+271	jövő
+272	kabalisztikus
+273	kabin
+273	kulcs
+274	kacérkodik
+275	kaja
+276	kaland
+277	kalap
+278	kalkuláció
+279	kamarabeli
+280	kamasz
+281	kamat
+282	kamat
+282	szint
+283	kamion
+284	kancellár
+285	kanton
+286	kapacitás
+287	kapaszkodik
+288	kapcsolat
+289	kapcsolat
+290	kapcsol
+291	kapcsolódik
+291	kapcsoló
+292	kapcsoló
+292	köz
+292	pont
+292	központ
+293	kapitalista
+294	kapitányság
+294	vezető
+295	kapkod
+296	kapu
+297	kap
+298	karakter
+299	karatés
+300	kard
+301	kar
+302	karom
+302	kar
+303	karton
+304	Kassa
+305	katakomba
+306	katasztrófa
+307	kategória
+308	katonaság
+309	kattint
+310	kavicsos
+311	kazánház
+312	kedd
+313	kedv
+314	kedves
+315	kedvezmény
+316	kegy
+316	Kegye
+317	kegyetlenkedik
+318	keletkezett
+318	keletkezik
+319	kellemesség
+320	kellék
+321	kel
+321	kelt
+322	kelő
+323	ken
+324	kenyér
+324	üzlet
+325	kereset
+326	kereskedelem
+327	kereskedő
+327	ház
+328	keres
+329	keresztapa
+330	kereszteződés
+331	keresztény
+332	keresztülvillant
+332	keresztülvillan
+333	kereső
+333	motor
+333	optimalizáció
+334	keret
+335	keret
+335	törvény
+336	kert
+337	kerek
+337	kerék
+338	kerített
+338	kerít
+339	kerület
+340	kerül
+341	keseredik
+342	kettes
+343	kettő
+344	kever
+345	kezdeményezhető
+346	kezd
+347	kezd
+348	kezd
+349	kezdőrúgás
+350	kezelés
+351	kezelő
+351	felület
+352	kft.
+352	kel
+353	kht.
+353	t
+354	kiadvány
+355	kiadás
+356	kiaknázik
+356	kiaknáz
+357	kialakít
+358	kibeszél
+358	kibeszélt
+359	kibocsát
+359	kibocsátott
+360	kibogarászik
+360	kibogarász
+361	kibérel
+362	kicsatol
+363	kicsi
+364	kicsöngetés
+365	kidob
+366	kidolgozás
+367	kiegyenlítés
+368	kiegészítés
+369	kielégít
+370	kiemelkedik
+371	kijár
+372	kijövet
+373	kikap
+374	kikeveredik
+375	kikényszerítés
+376	kiköt
+377	kiköt
+377	kikötött
+378	kilakoltatás
+379	kilencvenkilenc
+379	kilenc
+380	kilométer
+380	díj
+381	kilábaló
+382	kilép
+383	kilós
+384	kimegy
+385	kimegy
+385	kiment
+386	kimerültség
+387	kimondás
+388	kiművelődik
+388	kiművelő
+389	kinevezés
+390	kinyit
+391	kinyújt
+392	kinézett
+392	kinéz
+393	kioszt
+394	kipihen
+394	kipihent
+395	kipróbálás
+396	kirajzolódik
+397	kirendelt
+397	kirendel
+398	királyfi
+399	kirándult
+399	kirándul
+400	kirángat
+401	kisasztal
+402	kicsi
+402	nagy
+403	kisember
+404	kisgyerekes
+405	kisjogdíjak
+406	kiskorom
+407	kislánykoromban
+408	kisrészvényes
+409	kisvállalkozás
+410	kiszakadt
+410	kiszakad
+411	kiszolgáltatott
+412	kiszolgáló
+412	gép
+413	kiszolgáló
+414	kiszorító
+415	kiszámítás
+416	kisétál
+416	kisétált
+417	kitalál
+418	kitesz
+419	kiterjesztett
+419	kiterjeszt
+420	kitervel
+420	kitervelt
+421	kitárult
+421	kitárul
+422	kitöltés
+423	kitöröl
+424	kitüntetés
+425	kivesz
+426	kivisz
+427	kivonat
+428	kivág
+429	kiválasztás
+430	kiváltás
+431	kivéd
+432	kivételezett
+432	kivételez
+433	kizár
+434	kizárólagosság
+435	kiállít
+436	kiállító
+437	kiáltvány
+438	kiépítettség
+439	kiérik
+439	kiér
+440	kiül
+441	klasszicizáló
+442	klippek
+443	klub
+443	tag
+444	koalíció
+445	kockázat
+446	kockáztatás
+447	kocsi
+448	kocsma
+449	koleganőm
+450	kollégium
+451	kolostor
+452	komfortos
+453	kommunikációkezelésére
+454	komoly
+455	kompatibilitás
+456	komponens
+457	kompromisszum
+458	koncentrál
+459	koncert
+459	darab
+460	kondor
+461	konfiguráció
+462	konfliktus
+463	konkretizál
+464	konstrukció
+465	konszern
+465	tény
+465	állás
+466	kontinentális
+467	konténer
+467	hajó
+468	konyhahelyiség
+469	konzisztens
+470	kooperatív
+471	kopog
+472	koproducernek
+473	kord
+473	kordé
+474	korlát
+475	korlátozott
+476	korlátozódó
+477	kormány
+477	biztos
+478	kormánymegrendelések
+479	kormány
+479	szerv
+480	kormányzás
+481	kor
+482	korom
+482	szín
+483	korrekció
+484	korszak
+485	korsó
+486	kor
+487	kosár
+488	krajinákat
+489	kritizál
+490	krákogás
+491	kudarc
+491	tapasztalat
+492	kulcs
+492	fog
+492	alom
+492	fogalom
+493	kultikus
+494	kultúra
+495	kupa
+496	kurzus
+497	kutat
+498	kutató
+498	kutatói
+499	kutya
+499	kiállítás
+500	kutya
+501	kvótakezelésre
+502	kábelezés
+503	kábítószer
+504	káosz
+505	kár
+505	mentés
+506	kártya
+507	kártérítés
+508	kávé
+509	kávézó
+510	kém
+510	hatás
+511	kényelem
+512	kényszer
+512	társ
+512	szerző
+513	kényszerérzettel
+514	kénytelen
+515	kép
+516	képernyő
+517	képesség
+518	képezik
+518	képez
+519	képletes
+520	kép
+520	pontos
+521	képviseleti
+521	képviselet
+522	képviselt
+522	képvisel
+523	képviselő
+524	képzel
+525	képzettség
+526	képzőművészet
+527	kérdez
+528	kérdés
+529	kérdés
+530	kéreg
+531	kérelem
+532	kér
+533	kérés
+534	kés
+534	késik
+535	késik
+536	készletgazdálkodásban
+537	készáru
+537	raktár
+538	készít
+539	készül
+540	készülék
+541	készülődik
+541	készülő
+542	két
+542	háromféle
+543	kétféle
+544	napos
+545	kétszínűség
+545	színűség
+546	kétértelmű
+546	értelem
+547	kéz
+548	kézbentartása
+549	kézigépekre
+550	kézirat
+551	kézügyesség
+552	kín
+553	kínzó
+553	kamra
+554	kínál
+555	kísérlet
+556	kísértet
+557	kísérő
+558	kíváncsiskodik
+559	kívánság
+559	mű
+559	sor
+559	műsor
+560	kócos
+561	kódolható
+562	kópia
+563	kór
+563	történet
+564	kődarab
+565	kőtábla
+566	köhögés
+567	kölcsönöz
+568	költség
+568	csökkentés
+569	költség
+570	költségvetés
+571	költészet
+572	költöztetés
+573	könnyedség
+574	könnyítés
+575	könyv
+576	könyvelő
+577	könyvtár
+577	automatizálási
+578	könyv
+578	tár
+578	bejegyzés
+578	könyvtár
+579	könyv
+579	tár
+579	szerkezet
+579	könyvtár
+580	könyökcső
+581	köpeny
+582	kör
+583	körbenéz
+584	körkép
+585	környezetrekörnyezeten
+586	környezet
+586	rész
+587	kör
+587	szakállas
+588	körzet
+589	kör
+590	körülmény
+591	körültekintés
+592	köt
+593	köszön
+594	köt
+594	kötött
+595	kötelesség
+596	kötelezettség
+597	kötelezettségvállalás
+598	kötelék
+599	kötet
+600	kötvény
+601	kötél
+602	kötődés
+603	követ
+604	követelmény
+605	követelés
+606	követ
+607	következmény
+608	következtetés
+609	követség
+610	köz
+611	közbe-közbe
+612	közel
+612	keleti
+612	kelet
+613	közeleg
+614	közelítés
+615	közgazdaságtan
+616	latolgat
+617	leadás
+618	lebont
+619	lecibál
+619	lecibált
+620	lecsökken
+621	leegyszerűsíthető
+622	lefarag
+623	lefekszik
+624	lefolytatott
+624	lefolytat
+625	lefényképezhet
+625	lefényképez
+626	alkalmas
+627	csúnya
+628	legelésző
+629	felkészültebb
+629	felkészült
+630	fürge
+631	idős
+632	legkalandorabb
+633	komplex
+634	különleges
+635	nagy
+636	pimasz
+637	szabad
+638	sötét
+639	sok
+640	végül
+641	legyőzé
+642	legénység
+643	lehatolt
+643	lehatol
+644	van
+645	lehetőség
+646	lehetőséges
+647	lehűt
+648	lejt
+649	lejárta
+650	lejön
+651	lekérdező
+651	ablak
+652	lel
+653	lelkesedés
+654	lelkiismeretfurdalásában
+655	lélek
+656	lelohad
+657	lemarad
+658	lemez
+658	alrendszer
+659	lemez
+660	lemez
+660	kombináció
+661	lemond
+662	lemásolt
+662	lemásol
+663	lendületes
+664	van
+664	lenné
+665	lenyúlt
+665	lenyúlik
+665	lenyúl
+666	lepecsételt
+666	lepecsétel
+667	lep
+668	lerak
+669	lerontás
+670	les
+671	leszokik
+672	leszállítás
+673	leszór
+674	lesújt
+675	letartóztat
+676	leterheltség
+677	lesz
+677	lett
+678	letölthető
+679	letört
+680	levegő
+681	levél
+682	levelezés
+683	lezuhanyoz
+683	lezuhanyozik
+684	leáll
+685	leány
+686	leépítés
+687	leír
+688	leírás
+689	leültet
+690	licenc
+690	díj
+691	liget
+692	limitáltabb
+692	limitált
+693	lista
+694	litográfia
+695	loccsanás
+696	logika
+697	lokomotív
+698	lop
+699	lovagias
+700	lovarda
+701	lustálkodik
+702	lyuk
+703	láb
+704	láb
+705	lábujj
+706	lámpafény
+707	lánc
+707	fű
+707	rész
+707	fűrész
+708	lángoló
+709	lány
+710	lát
+711	lát
+712	lát
+713	látogat
+714	látogatás
+715	látszik
+716	látvány
+717	látószög
+718	láz
+718	álom
+718	kép
+719	légiposta
+719	küldemény
+720	légkör
+721	légörvénylésről
+722	lélektani
+722	lélektan
+723	lényegtelen
+724	lépcső
+725	lép
+726	léptetés
+727	lépés
+728	létesít
+729	létezhetett
+729	létezik
+730	lézer
+731	lóerős
+732	lőfegyver
+733	lökdösődés
+734	lövés
+735	madaras
+736	magabiztosság
+737	maga
+738	magas
+739	magatartás
+740	mag
+741	maga
+742	magyar
+742	zsidó
+743	magyarázat
+744	magyaráz
+745	magángazdaság
+746	magán
+746	kereskedési
+747	magánszemély
+748	magányosság
+749	mahagóniággyal
+750	majális
+751	malom
+751	kerék
+752	mama
+753	manipulált
+753	manipulál
+754	mappa
+755	marad
+756	maradék
+757	marinírozott
+757	mariníroz
+758	marketing
+758	tényező
+759	marxista
+760	maszkíroz
+761	matrica
+762	maximum
+763	mechanika
+764	Medgyes
+765	megad
+766	megadás
+767	megakadályozik
+767	megakadályoz
+768	megalakítandó
+769	megalapozó
+770	megalázkodás
+771	megbecsül
+772	megbeszélés
+773	megbocsát
+773	megbocsátott
+774	megbukik
+775	megbélyegezik
+775	megbélyegez
+776	megbízhatóbb
+776	megbízható
+777	megbízott
+778	megerőszakol
+779	megeszik
+780	megfelel
+781	megfenyeget
+782	megfigyelés
+783	megfizettet
+784	megfogalmazás
+785	megfontolás
+786	megfoszt
+787	megfőzés
+788	meggondol
+789	meggyógyult
+789	meggyógyul
+790	meggyőző
+791	meghajtó
+792	meghaladó
+793	meghall
+794	meghatalmazott
+795	meghatározatlan
+796	meghatározás
+797	meghibásodás
+798	meghonosodott
+798	meghonosodik
+799	meghozott
+800	meghívás
+801	meghökkent
+801	meghökken
+802	megijeszt
+803	megjelent
+803	megjelenik
+804	megjelenés
+805	megjelenítő
+806	megjutalmaz
+807	megkapaszkodás
+808	megkegyelmezik
+808	megkegyelmez
+809	megkeresés
+810	megkezdés
+811	megkárosít
+812	megkér
+813	megkísértet
+813	megkísért
+814	megkönnyít
+815	megkötöttség
+816	megküld
+817	meglapul
+818	meglepetés
+819	meglincsel
+820	meglát
+821	megmarad
+821	megmaradt
+822	megmegy
+822	megment
+823	megmond
+824	megmér
+825	megnevezés
+826	megnyilvánulás
+827	megnyitás
+828	megnyugtatott
+828	megnyugtat
+829	megnéz
+830	megnövekvő
+831	megold
+832	megoldás
+833	megoltalmazik
+833	megoltalmaz
+834	megosztottság
+835	megpakol
+836	megpróbálkozik
+837	megpucol
+838	megrakodik
+839	megrendelés
+840	megrendezik
+840	megrendez
+841	megrohamozik
+841	megrohamoz
+842	megrémült
+842	megrémül
+843	megsejtet
+843	megsejt
+843	megsejtett
+844	megsimogat
+845	megszab
+846	megszeg
+847	megszeret
+848	megszervezhet
+848	megszervez
+849	megszerző
+850	megszorítás
+851	megszárít
+852	megszólítás
+853	megszűnés
+854	megszülető
+855	megsárgított
+855	megsárgít
+856	megsüt
+857	megtakarít
+858	megtalál
+859	megtanul
+860	megtart
+861	megtesz
+862	megtudható
+863	megtámadás
+864	megtérül
+865	megtölt
+866	megtörténte
+866	megtörtént
+867	megvall
+868	megvalósíthatóság
+869	megvesz
+870	megvigasztal
+871	megvizsgál
+872	megválasztott
+872	megválaszt
+873	megváltozik
+874	megváltoztatás
+875	megvár
+876	megvéd
+877	megye
+878	megállapodás
+879	megállapíthatóság
+880	megállapítás
+881	megállíthatatlan
+882	megéget
+883	megépít
+883	megépített
+884	megérik
+884	megér
+885	megérkezés
+886	megértés
+887	mi
+887	én
+888	mielőtt
+889	mikrohullám
+890	milliszekundum
+891	milliós
+892	mindaz
+893	mindemellett
+894	mindenfelé
+895	mindenki
+896	mindez
+897	mindmostanig
+898	minimum
+898	jog
+898	díj
+898	kén
+898	jogdíj
+899	miniszter
+900	minisztérium
+901	minta
+902	minőség
+903	minősítési
+904	mirelitpiac
+905	mivan
+906	mobil
+906	bank
+907	mobil
+908	mobiltelefon
+909	mocsok
+910	mozaik
+911	mozdulat
+911	sor
+912	mozgat
+913	mozgás
+913	központ
+914	mozi
+915	mozzanat
+916	mulat
+917	multimediális
+918	munkabér
+919	munka
+919	erő
+919	igény
+920	munka
+920	hely
+921	munkaigényes
+922	munkalehetőség
+923	munka
+923	szerető
+924	munka
+924	társ
+925	munkavállalója
+926	munka
+927	munka
+928	munkál
+929	muníció
+930	mutat
+931	mutató
+932	muzsika
+933	máj
+934	mámorító
+935	márka
+935	építési
+936	más-más
+937	más
+938	másik
+939	második
+940	másodszor
+941	másolható
+942	másoló
+942	nyomtató
+943	mászik
+944	mécses
+945	média
+945	típus
+946	megy
+947	méltó
+948	mély
+949	mélység
+950	méreg
+951	méret
+952	mérgezik
+952	mérgez
+953	mérleg
+954	mérnöki
+954	mérnök
+955	mérték
+955	mért
+956	mérés
+957	mínusz
+958	mód
+959	módosít
+960	módosítás
+961	módszer
+962	módszertan
+963	mögötti
+964	múlt
+965	múzeum
+966	műemlék
+967	mű
+967	felhasználás
+968	műkereskedelem
+969	működtet
+970	működésképtelen
+971	működő
+972	műsorajánlók
+973	mű
+973	sor
+973	szolgáltató
+973	műsor
+974	műsor
+975	műszer
+976	mű
+976	tárgy
+976	árverés
+976	műtárgy
+977	mű
+978	mű
+979	művel
+980	művelői
+980	művelő
+981	művészet
+981	történet
+982	nadrág
+983	nagyszoba
+984	nagyság
+985	nagyvilág
+986	nagyágyú
+987	napfény
+988	napirend
+989	nap
+990	napos
+991	narancs
+991	virág
+992	negatív
+993	négy
+993	negyed
+994	negyven
+995	nehéz
+996	objektum
+997	offenzív
+998	ok
+999	perc
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	1507	word:u32	analysis:str
+1	st:ablak po:noun ts:NOM is:PLUR is:POSS_SG_3 is:ACC
+2	pa:ablak st:ablak po:noun ts:NOM pa:rés st:rés po:noun ts:NOM
+4	st:adag po:noun ts:NOM
+5	st:adat po:noun ts:NOM is:PLUR is:POSS_SG_3 is:SBL
+6	pa:adat st:adat po:noun ts:NOM pa:bejelentési st:bejelentés po:noun ts:NOM hy:2 is:i_PLACE/TIME_adj ts:NOM
+6	pa:adat st:adat po:noun ts:NOM pa:bejelentési ip:PREF sp:be st:jelent po:vrb ts:PRES_INDIC_INDEF_SG_3 al:jelentet ds:Ás_PROCESS/RESULT_noun is:i_PLACE/TIME_adj ts:NOM
+7	st:adatbázis po:noun ts:NOM hy:4 is:SBL
+8	pa:adat st:adat po:noun ts:NOM pa:csomagokba st:csomag po:noun ts:NOM is:PLUR is:ILL
+10	pa:adat st:adat po:noun ts:NOM pa:központokhoz st:központ po:noun ts:NOM hy:3 is:PLUR is:ALL
+11	pa:adat st:adat po:noun ts:NOM pa:szolgáltatási st:szolgáltat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun is:i_PLACE/TIME_adj ts:NOM
+11	pa:adat st:adat po:noun ts:NOM pa:szolgáltatási st:szolgál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ás_PROCESS/RESULT_noun is:i_PLACE/TIME_adj ts:NOM
+12	pa:adat st:adat po:noun ts:NOM pa:tár st:tár po:noun ts:NOM al:tárat al:tárak pa:ház st:ház po:noun ts:NOM al:házak pa:menedzserének st:menedzser po:noun ts:NOM ph:manager is:POSSESSEE is:DAT
+12	pa:adat st:adat po:noun ts:NOM pa:tár st:tár po:noun ts:NOM al:tárat al:tárak pa:ház st:ház po:noun ts:NOM al:házak pa:menedzserének st:menedzser po:noun ts:NOM ph:manager is:POSS_SG_3 is:DAT
+12	pa:adat st:adat po:noun ts:NOM pa:tárház st:tárház po:noun ts:NOM al:tárházak hy:3 pa:menedzserének st:menedzser po:noun ts:NOM ph:manager is:POSSESSEE is:DAT
+12	pa:adat st:adat po:noun ts:NOM pa:tárház st:tárház po:noun ts:NOM al:tárházak hy:3 pa:menedzserének st:menedzser po:noun ts:NOM ph:manager is:POSS_SG_3 is:DAT
+13	st:adatik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_3
+14	st:adminisztráció po:noun ts:NOM
+15	st:adomány po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_COND_INDEF_SG_1
+15	st:adományoz po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_COND_INDEF_SG_1
+16	st:ad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:adat is:PRES_INDIC_DEF_SG_2
+17	st:ad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:adat ds:Ás_PROCESS/RESULT_noun ts:NOM
+18	pa:adó st:adó po:noun ts:NOM pa:államra st:állam po:noun ts:NOM is:SBL
+18	pa:adó st:adó po:noun ts:NOM pa:államra st:áll po:noun ts:PLUR ts:NOM is:POSS_SG_1 is:SBL
+18	pa:adó st:ad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:adat ds:Ó_PRESPART_adj ts:NOM pa:államra st:állam po:noun ts:NOM is:SBL
+18	pa:adó st:ad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:adat ds:Ó_PRESPART_adj ts:NOM pa:államra st:áll po:noun ts:PLUR ts:NOM is:POSS_SG_1 is:SBL
+19	st:adó po:noun ts:NOM is:POSS_SG_3 is:NOM
+19	st:ad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:adat ds:Ó_PRESPART_adj ts:NOM is:POSS_SG_3 is:NOM
+20	st:adóhatóság po:noun ts:NOM hy:3 is:ADE
+21	st:adósság po:noun ts:NOM is:POSS_SG_3 is:NOM
+21	st:adó po:noun ts:NOM ds:s_ATTRIBUTE_adj ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:NOM
+22	st:adó po:noun ts:NOM ds:z_ACTION_vrb ds:Ó_PRESPART_adj ts:NOM
+22	st:adózik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+24	st:aggály po:noun ts:NOM is:ACC
+25	st:agresszív po:adj ts:NOM is:bb_COMPARATIVE_adj is:NOM
+26	st:agy po:noun ts:PLUR ts:NOM is:PLUR is:INE
+27	pa:agyag st:agyag po:noun ts:NOM pa:fa st:fa po:noun ts:NOM pa:lak st:lak po:noun ts:NOM al:lakat
+27	pa:agyag st:agyag po:noun ts:NOM pa:falak st:fal po:noun ts:PLUR ts:NOM
+28	pa:agy st:agy po:noun ts:NOM al:agyak pa:rémeinek st:rém po:noun ts:NOM is:PLUR is:POSS_SG_3 is:DAT
+29	st:ahányfajta po:adj_wh
+30	st:ajtó po:noun ts:NOM al:ajtaj is:POSS_SG_3 is:INE
+31	st:ajándék po:noun ts:NOM is:POSS_PL_1 is:CAUS/FIN
+32	st:ajánlott po:adj ts:NOM
+32	st:ajánl po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+32	st:ajánl po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+33	pa:ajánlat st:ajánlat po:noun ts:NOM pa:tétel st:tétel po:noun ts:NOM
+34	st:akad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:akadt al:akadt is:vA_PART_adv
+35	st:akadálytalan po:adj ts:NOM
+35	st:akadály po:noun ts:NOM ds:tAlAn_LESS_adj ts:NOM
+36	st:akarat po:noun ts:NOM is:POSS_SG_3 is:ACC
+37	st:akar po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_COND_DEF_SG_1
+38	st:akaszt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:akasztat ds:tt_PASTPART_adj ts:NOM
+38	st:akaszt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:akasztat is:PAST_INDIC_INDEF_SG_3
+39	pa:akció st:akció po:noun ts:NOM pa:filmet st:film po:noun ts:NOM is:ACC
+40	st:akkora po:adv is:SBL
+41	st:aktivizál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+42	st:akár po:adv
+42	st:akár po:con
+43	st:alacsony po:adj ts:NOM is:bb_COMPARATIVE_adj is:PLUR is:NOM
+44	st:alak po:noun ts:NOM is:ALL
+45	st:alakulat po:noun ts:NOM is:ADE
+46	st:alakzat po:noun ts:NOM is:PLUR is:POSS_SG_3 is:ADE
+47	st:alakít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_PL_3
+48	pa:alap st:alap po:noun ts:NOM pa:beállítás st:beállítás po:noun ts:NOM hy:2
+48	pa:alap st:alap po:noun ts:NOM pa:beállítás ip:PREF sp:be st:állít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+49	pa:alap st:alap po:noun ts:NOM pa:eszméi st:eszme po:noun ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+50	pa:alap st:alap po:noun ts:NOM pa:jogok st:jog po:noun ts:NOM is:PLUR is:NOM
+51	st:alap po:noun ts:NOM is:POSS_SG_3 is:ESS
+52	pa:alap st:alap po:noun ts:NOM pa:követelményem st:követelmény po:noun ts:NOM is:POSS_SG_1 is:ACC
+52	pa:alap st:alap po:noun ts:NOM pa:követelményem st:követelmény po:noun ts:NOM is:POSS_SG_1 is:NOM
+53	st:alapoz po:vrb ts:PRES_INDIC_INDEF_SG_3
+53	st:alap po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3
+54	st:alapszabály po:noun ts:NOM hy:4 is:POSS_PL_3 is:INE
+55	st:alaptípus po:noun ts:NOM hy:4 is:PLUR is:POSS_SG_3 is:NOM
+56	st:alaptőke po:noun ts:NOM hy:4 is:SBL
+57	pa:alap st:alap po:noun ts:NOM pa:érzése st:érez po:vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+57	pa:alap st:alap po:noun ts:NOM pa:érzése st:érzés po:noun ts:NOM is:POSS_SG_3 is:NOM
+58	pa:alkony st:alkony po:noun ts:NOM pa:zónájába st:zóna po:noun ts:NOM is:POSS_SG_3 is:ILL
+59	st:alkot po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_3
+60	st:alkot po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:ALL
+61	pa:alkotó st:alkotó po:noun ts:NOM pa:mű st:mű po:noun ts:NOM al:művi al:művek pa:vész st:vész po:noun ts:NOM
+61	pa:alkotó st:alkotó po:noun ts:NOM pa:művész st:művész po:noun ts:NOM
+61	pa:alkotó st:alkot po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:mű st:mű po:noun ts:NOM al:művi al:művek pa:vész st:vész po:noun ts:NOM
+61	pa:alkotó st:alkot po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:művész st:művész po:noun ts:NOM
+62	st:alkönyvtár po:noun ts:NOM al:alkönyvtárak hy:al||könyv|tár is:SBL
+63	st:almenü po:noun ts:NOM hy:2 is:POSS_SG_3 is:ELA
+64	st:alszámla po:noun ts:NOM hy:2 is:SBL
+65	st:altemplom po:noun ts:NOM hy:2 is:INE
+66	st:alszik po:vrb ds:tt_PASTPART_adj ts:NOM
+66	st:alszik po:vrb is:PAST_INDIC_INDEF_SG_3
+67	st:alulértékel po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:4 ds:Ás_PROCESS/RESULT_noun ts:NOM is:SBL
+68	st:alább po:adv
+69	ip:PREF sp:alá st:terv po:noun ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:DAT
+69	ip:PREF sp:alá st:tervez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:DAT
+69	ip:PREF sp:alá st:terv po:noun ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+69	ip:PREF sp:alá st:tervez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+71	st:ambivalens po:adj ts:NOM
+72	st:amely po:adj_wh is:PLUR ts:NOM is:ELA
+73	st:amennyi po:adj_num_wh al:amennyiünk al:amennyiük al:amennyien is:DAT
+74	st:ami po:noun_pron is:PLUR ts:NOM is:INSTR
+74	st:ami po:noun_pron al:amik is:PLUR is:INSTR
+75	st:amnesztia po:noun ts:NOM is:ACC
+77	pa:angyal st:angyal po:noun ts:NOM pa:földi st:föld po:noun ts:NOM is:i_PLACE/TIME_adj ts:NOM
+78	st:anonimitás po:noun ts:NOM is:POSS_SG_3 is:ACC
+79	st:antológia po:noun ts:NOM is:ACC
+80	st:anyag po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+80	st:anyag po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+81	st:anyakönyv po:noun ts:NOM hy:4 ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_3
+81	st:anyakönyvez po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:4 is:PAST_INDIC_DEF_PL_3
+82	st:anya po:noun ts:NOM al:anyjáék al:any is:ABL
+83	st:anyuka po:noun ts:NOM is:POSS_SG_1 is:DAT
+84	pa:apartman st:apartman po:noun ts:NOM pa:házat st:ház po:noun ts:PLUR ts:NOM is:ACC
+85	st:apport po:noun ts:NOM is:FORM
+86	st:aprólék po:noun ts:NOM ds:s_ATTRIBUTE_adj ds:sÁg_ABSTRACT_noun ts:NOM is:INSTR
+86	st:aprólékos po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:INSTR
+87	st:apa po:noun is:POSS_SG_3 is:ABL
+88	st:apáca po:noun ts:NOM
+89	st:aranyos po:adj ts:NOM is:An_MODE_adv
+91	pa:arc st:arc po:noun ts:NOM pa:bűnnek st:bűn po:noun ts:NOM is:DAT
+92	st:arculat po:noun ts:NOM is:POSS_PL_3 is:ACC
+92	st:arculat po:noun ts:NOM is:POSS_PL_3 is:NOM
+93	st:art po:adv
+94	st:arány po:noun ts:NOM is:PLUR is:INSTR
+95	st:asszony po:noun ts:NOM is:SBL
+96	st:asztal po:noun ts:NOM is:SUE
+97	st:asztallap po:noun ts:NOM hy:6 is:PLUR is:SBL
+98	pa:atom st:atom po:noun ts:NOM pa:bombák st:bomba po:noun ts:NOM is:PLUR is:NOM
+99	st:babrálgat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+99	st:babrál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:gAt_FREQ_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+100	st:bajlódik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+101	st:baj po:noun ts:NOM is:POSS_SG_1 is:ACC
+101	st:baj po:noun ts:NOM is:POSS_SG_1 is:NOM
+102	st:baktérium po:noun ts:NOM is:PLUR is:NOM
+103	st:balga po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM
+104	st:baloldal po:noun ts:NOM al:baloldalak hy:3 is:DEL
+105	st:bandukol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+105	st:bandukol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+106	pa:bank st:bank po:noun ts:NOM pa:kártyát st:kártya po:noun ts:NOM is:ACC
+107	st:bank po:noun ts:NOM is:PLUR is:DEL
+108	st:barangol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_1
+109	st:barlang po:noun ts:NOM is:POSS_SG_3 is:ACC
+110	st:barát po:noun ts:NOM is:POSS_SG_1 is:ADE
+110	st:barát po:adj ts:NOM is:POSS_SG_1 is:ADE
+111	st:barát po:noun ts:NOM is:PLUR is:POSS_SG_1 is:INSTR
+112	st:barátkozik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_3
+113	st:barátnő po:noun ts:NOM hy:5 is:POSS_SG_1 is:ADE
+114	st:barát po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:SBL
+115	ip:PREF sp:be st:avatkozik po:vrb ts:PRES_INDIC_INDEF_SG_3
+116	ip:PREF sp:be st:csönget po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_2
+116	ip:PREF sp:be st:csönget po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_3
+117	st:becsül po:vrb ts:PRES_INDIC_INDEF_SG_3 al:becslünk al:becslitek al:becslik al:becsli al:becsletek al:becslesz al:becslem al:becslek al:becsled is:ni_INFINITIVE_inf
+118	ip:PREF sp:be st:dobál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_1
+119	ip:PREF sp:be st:fagyaszt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:fagyasztat is:SUBJ/IMPER_DEF_SG_3
+120	ip:PREF sp:be st:fej po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_3
+120	ip:PREF sp:be st:fej po:noun ts:NOM al:fejet al:fejek ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_3
+120	ip:PREF sp:be st:fejez po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_3
+121	st:befektetés po:noun ts:NOM hy:2 is:POSS_PL_1 is:ACC
+121	st:befektetés po:noun ts:NOM hy:2 is:POSS_PL_1 is:NOM
+121	ip:PREF sp:be st:fekszik po:vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_PL_1 is:ACC
+121	ip:PREF sp:be st:fektet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_PL_1 is:ACC
+121	ip:PREF sp:be st:fekszik po:vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_PL_1 is:NOM
+121	ip:PREF sp:be st:fektet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_PL_1 is:NOM
+122	st:befelé po:adv hy:2
+123	ip:PREF sp:be st:fizet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:DEL
+123	ip:PREF sp:be st:fizet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DEL
+124	st:befolyás po:noun ts:NOM hy:2 is:PLUR is:NOM
+124	ip:PREF sp:be st:folyik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:folyt ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:NOM
+125	st:befolyásos po:adj ts:NOM hy:2
+125	st:befolyás po:noun ts:NOM hy:2 ds:s_OCCUPATION_noun ts:NOM
+125	st:befolyás po:noun ts:NOM hy:2 ds:s_ATTRIBUTE_adj ts:NOM
+125	ip:PREF sp:be st:folyik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:folyt ds:Ás_PROCESS/RESULT_noun ds:s_ATTRIBUTE_adj ts:NOM
+126	ip:PREF sp:be st:gyalogol po:vrb ts:PRES_INDIC_INDEF_SG_3 al:gyalogló al:gyaloglás is:PRES_INDIC_INDEF_PL_1
+127	ip:PREF sp:be st:hajt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:hajtat is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_1
+128	st:behozatal po:noun ts:NOM hy:2 is:POSS_PL_3 is:ACC
+128	ip:PREF sp:be st:hozatal po:noun ts:NOM is:POSS_PL_3 is:ACC
+129	ip:PREF sp:be st:igazolódik po:vrb ts:PRES_INDIC_INDEF_SG_3
+129	ip:PREF sp:be st:igazol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ts:PRES_INDIC_INDEF_SG_3
+130	ip:PREF sp:be st:kap po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_1
+131	st:bekezdés po:noun ts:NOM is:POSSESSEE is:ELA
+131	st:bekezdés po:noun ts:NOM is:POSS_SG_3 is:ELA
+131	ip:PREF sp:be st:kezd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kezdet ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:ELA
+131	ip:PREF sp:be st:kezd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kezdet ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:ELA
+132	ip:PREF sp:be st:kukkant po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+133	ip:PREF sp:be st:következik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:INF_SG_3
+134	ip:PREF sp:bele st:bukik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_SG_2
+135	ip:PREF sp:bele st:erő po:noun ts:NOM al:erej ds:sít_SUPPLY_vrb_tr ds:tt_PASTPART_adj ts:NOM
+135	ip:PREF sp:bele st:erő po:noun ts:NOM al:erej ds:sít_SUPPLY_vrb_tr is:PAST_INDIC_INDEF_SG_3
+135	ip:PREF sp:bele st:erősít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+135	ip:PREF sp:bele st:erősít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+136	ip:PREF sp:bele st:gondol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_1
+137	ip:PREF sp:bele st:kerül po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+138	ip:PREF sp:be st:lendít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:SBL
+138	ip:PREF sp:be st:lendít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:SBL
+139	ip:PREF sp:bele st:rohan po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+139	ip:PREF sp:bele st:rohan po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+140	ip:PREF sp:bele st:szól po:vrb ts:PRES_INDIC_INDEF_SG_3 al:szólott al:szólani is:PRES_INDIC_INDEF_SG_1
+141	ip:PREF sp:bele st:un po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_COND_DEF_PL_1
+141	ip:PREF sp:bele st:un po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_COND_INDEF_PL_1
+142	ip:PREF sp:bele st:ül po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_1
+142	ip:PREF sp:bele st:ül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_PL_1 is:ACC
+142	ip:PREF sp:bele st:ül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_PL_1 is:NOM
+143	st:belseje po:noun ts:NOM is:POSS_SG_3 is:INE
+144	st:belváros po:noun ts:NOM hy:3 is:i_PLACE/TIME_adj ts:NOM
+145	st:berendezés po:noun ts:NOM hy:2 is:PLUR is:ACC
+145	ip:PREF sp:be st:rend po:noun ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:ACC
+145	ip:PREF sp:be st:rendez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:ACC
+146	ip:PREF sp:be st:ruha po:noun ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:SBL
+146	ip:PREF sp:be st:ruház po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:SBL
+147	pa:bestseller st:bestseller po:noun ts:NOM hy:4 ph:besztszeller ph:beszceller ph:besszeller ph:besszeller pa:klauzula st:klauzula po:noun ts:NOM
+148	ip:PREF sp:be st:szer po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:INF_SG_3
+148	ip:PREF sp:be st:szerez po:vrb ts:PRES_INDIC_INDEF_SG_3 al:szerző al:szerzés al:szerzendő is:INF_SG_3
+149	ip:PREF sp:be st:szorul po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+149	ip:PREF sp:be st:szorul po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:ACC
+149	ip:PREF sp:be st:szorul po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:NOM
+150	ip:PREF sp:be st:számol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun is:i_PLACE/TIME_adj ts:NOM
+151	st:beszéd po:noun ts:NOM is:ILL
+152	pa:beszéd st:beszéd po:noun ts:NOM pa:stílusban st:stílus po:noun ts:NOM is:INE
+153	st:beszélgetés po:noun ts:NOM is:PLUR is:POSS_SG_3 is:DAT
+153	st:beszélget po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:POSS_SG_3 is:DAT
+153	st:beszél po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:gAt_FREQ_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:POSS_SG_3 is:DAT
+154	st:beszél po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_2
+156	ip:PREF sp:be st:takarít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+157	st:beteg po:noun ts:NOM is:PLUR is:POSS_SG_3 is:ALL
+157	st:beteg po:adj ts:NOM is:PLUR is:POSS_SG_3 is:ALL
+158	st:betegség po:noun ts:NOM is:ACC
+158	st:beteg po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:ACC
+159	ip:PREF sp:be st:teljesül po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_3
+160	ip:PREF sp:be st:tol po:vrb ts:PRES_INDIC_INDEF_SG_3 al:tolat is:ni_INFINITIVE_inf
+161	st:betét po:noun ts:NOM hy:2 is:PLUR is:POSS_SG_3 is:ACC
+162	ip:PREF sp:be st:tölt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:töltet is:ni_INFINITIVE_inf
+163	st:betörés po:noun ts:NOM hy:2
+163	ip:PREF sp:be st:törik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:törött ds:Ás_PROCESS/RESULT_noun ts:NOM
+163	ip:PREF sp:be st:tör po:vrb ts:PRES_INDIC_INDEF_SG_3 al:töret ds:Ás_PROCESS/RESULT_noun ts:NOM
+164	st:betű po:noun ts:NOM ds:z_ACTION_vrb ds:Ó_PRESPART_adj ts:NOM
+164	st:betűz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+164	ip:PREF sp:be st:tű po:noun ts:NOM ds:z_ACTION_vrb ds:Ó_PRESPART_adj ts:NOM
+164	ip:PREF sp:be st:tűz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:tűzet al:tüzek ds:Ó_PRESPART_adj ts:NOM
+165	ip:PREF sp:be st:verekedik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:verekszünk al:verekszik al:verekszi al:verekszetek al:verekszenek al:verekszem al:verekszel al:verekszek
+166	st:bevetés po:noun ts:NOM hy:2 is:POSSESSEE is:INSTR
+166	st:bevetés po:noun ts:NOM hy:2 is:POSS_SG_3 is:INSTR
+166	ip:PREF sp:be st:vet po:vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:INSTR
+166	ip:PREF sp:be st:vet po:vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:INSTR
+167	st:bevezetés po:noun ts:NOM hy:2 is:POSSESSEE is:ACC
+167	st:bevezetés po:noun ts:NOM hy:2 is:POSS_SG_3 is:ACC
+167	ip:PREF sp:be st:vezet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:ACC
+167	ip:PREF sp:be st:vezet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:ACC
+168	st:bevont po:adj ts:NOM hy:2
+168	ip:PREF sp:be st:von po:vrb ts:PRES_INDIC_INDEF_SG_3 al:vonat ds:tt_PASTPART_adj ts:NOM
+168	ip:PREF sp:be st:von po:vrb ts:PRES_INDIC_INDEF_SG_3 al:vonat is:PAST_INDIC_INDEF_SG_3
+169	st:bevonás po:noun ts:NOM hy:2 is:POSS_SG_3 is:ABL
+169	ip:PREF sp:be st:von po:vrb ts:PRES_INDIC_INDEF_SG_3 al:vonat ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:ABL
+170	ip:PREF sp:be st:vár po:vrb ts:PRES_INDIC_INDEF_SG_3 al:várat al:várak is:PAST_INDIC_INDEF_SG_2
+171	st:bevétel po:noun ts:NOM hy:2 is:PLUR is:POSS_SG_3 is:DAT
+172	ip:PREF sp:be st:zár po:vrb ts:PRES_INDIC_INDEF_SG_3 al:zárat al:zárak is:SUBJ/IMPER_DEF_PL_3
+172	ip:PREF sp:be st:zár po:vrb ts:PRES_INDIC_INDEF_SG_3 al:zárat al:zárak is:PRES_INDIC_DEF_PL_3
+173	ip:PREF sp:be st:áll po:vrb ts:PRES_INDIC_INDEF_SG_3 al:állak is:PAST_INDIC_INDEF_PL_1
+173	ip:PREF sp:be st:áll po:vrb ts:PRES_INDIC_INDEF_SG_3 al:állak ds:tt_PASTPART_adj ts:NOM is:POSS_PL_1 is:ACC
+173	ip:PREF sp:be st:áll po:vrb ts:PRES_INDIC_INDEF_SG_3 al:állak ds:tt_PASTPART_adj ts:NOM is:POSS_PL_1 is:NOM
+174	ip:PREF sp:be st:állít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_1
+175	ip:PREF sp:be st:állít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+176	ip:PREF sp:be st:épül po:vrb ts:PRES_INDIC_INDEF_SG_3 is:vA_PART_adv
+177	ip:PREF sp:be st:ír po:vrb ts:PRES_INDIC_INDEF_SG_3 al:írat ds:hAtÓ_ABLE_(adj,present_part) ts:NOM
+178	ip:PREF sp:be st:ül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+179	st:bicikli po:noun ts:NOM is:PLUR is:ACC
+180	st:bicska po:noun ts:NOM is:POSS_SG_3 is:NOM
+181	pa:billentyű st:billentyű po:noun ts:NOM pa:leütés ip:PREF sp:le st:üt po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+182	st:birka po:noun ts:NOM ds:szerű_SORT_adj ts:NOM
+183	st:birtokol po:vrb ts:PRES_INDIC_INDEF_SG_3 al:birtokló al:birtoklás is:SUBJ/IMPER_DEF_PL_3
+183	st:birtokol po:vrb ts:PRES_INDIC_INDEF_SG_3 al:birtokló al:birtoklás is:PRES_INDIC_DEF_PL_3
+184	st:bizalom po:noun ts:PLUR ts:NOM is:POSS_SG_3 is:ACC
+185	st:bizonyos po:adj ts:NOM is:An_MODE_adv
+186	st:bizonyul po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+187	st:bizonyítvány po:noun ts:NOM is:POSS_SG_1 is:ILL
+188	st:bizottság po:noun ts:NOM is:INSTR
+190	pa:biztonság st:biztonság po:noun ts:NOM pa:technikailag st:technika po:noun ts:NOM is:i_PLACE/TIME_adj is:lAg_MODE_adv
+191	st:biztosított po:noun ts:NOM
+191	st:biztosított po:adj ts:NOM
+191	st:biztosít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+191	st:biztosít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+192	st:biztosíték po:noun ts:NOM is:POSS_SG_3 is:FORM
+193	st:blues po:noun ts:NOM al:blueszá al:blueszal ph:bluz
+194	st:bocsát po:vrb is:PRES_COND_DEF_SG_3
+194	st:bocsát po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bocsátván al:bocsátva al:bocsátunk al:bocsáttok al:bocsátsz al:bocsátottátok al:bocsátottál al:bocsátották al:bocsátottunk al:bocsátottuk al:bocsátottatok al:bocsátottam al:bocsátottam al:bocsátottalak al:bocsátottak al:bocsátottad al:bocsátotta al:bocsátott al:bocsátotok al:bocsátom al:bocsátok al:bocsátod al:bocsátnátok al:bocsátnátok al:bocsátnánk al:bocsátnánk al:bocsátnának al:bocsátnák al:bocsátná al:bocsátnotok al:bocsátniuk al:bocsátnak al:bocsátna al:bocsátlak al:bocsátjátok al:bocsátják al:bocsátjuk al:bocsátja al:bocsátasz al:bocsátanék al:bocsátanátok al:bocsátanátok al:bocsátanánk al:bocsátanánk al:bocsátanának al:bocsátanám al:bocsátanálak al:bocsátanál al:bocsátanák al:bocsátanád al:bocsátaná al:bocsátanunk al:bocsátanom al:bocsátanod al:bocsátania al:bocsátani al:bocsátanak al:bocsátana al:bocsátalak al:bocsássátok al:bocsássál al:bocsássák al:bocsássunk al:bocsássuk al:bocsásson al:bocsássatok al:bocsássanak al:bocsássam al:bocsássalak al:bocsássak al:bocsássad al:bocsássa al:bocsáss al:bocsásd is:PRES_COND_DEF_SG_3
+195	st:bogár po:noun ts:PLUR ts:NOM is:PLUR is:SBL
+196	st:bokor po:noun ts:PLUR ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+197	st:boldog po:adj ts:NOM is:TRANS
+198	st:bolondul po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+199	st:bolygó po:noun ts:NOM
+200	st:bomba po:noun ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+200	st:bombáz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+201	st:bont po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bontat is:PRES_INDIC_DEF_PL_1
+202	st:bonyolult po:adj ts:NOM is:DAT
+203	st:borda po:noun ts:NOM is:PLUR is:POSS_SG_3 is:SBL
+204	pa:borotva st:borotva po:noun ts:NOM pa:pengére st:penge po:noun ts:NOM is:SBL
+205	st:borzad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:borzadt ds:tt_PASTPART_adj ts:NOM
+205	st:borzad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:borzadt is:PAST_INDIC_INDEF_SG_3
+206	st:borít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_1
+207	st:bosszul po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+208	st:botfülű po:adj ts:NOM hy:3 is:DAT
+209	st:botrány po:noun ts:NOM is:PLUR is:DEL
+210	pa:break st:break po:noun ts:NOM hy:0 ph:brék pa:pontot st:pont po:noun ts:NOM is:ACC
+211	st:brummog po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+212	st:bujdosik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+212	st:bujdos po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+213	st:buktat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+213	st:bukik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ó_PRESPART_adj ts:NOM
+214	st:bulimia po:noun ts:NOM is:ACC
+215	st:burkolózik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:PLUR is:INSTR
+216	st:busz po:noun ts:NOM is:POSS_PL_1 is:ACC
+216	st:busz po:noun ts:NOM is:POSS_PL_1 is:NOM
+217	st:busó po:noun ts:NOM is:PLUR is:NOM
+218	st:buzgólkodik po:vrb ts:PRES_INDIC_INDEF_SG_3
+219	st:bácsi po:noun ts:NOM is:CAUS/FIN
+219	fl:" st:Bács po:noun_prs ts:NOM is:i_PLACE/TIME_adj ts:NOM is:CAUS/FIN
+220	st:bámul po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+221	st:bánik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+221	st:bán po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+222	pa:bánya st:bánya po:noun ts:NOM pa:járadékot st:járadék po:noun ts:NOM is:ACC
+224	st:bárki po:noun_pron is:PLUR ts:NOM hy:3
+224	st:bárki po:noun_pron al:bárkik hy:3 is:PLUR is:NOM
+225	st:bármikori po:adj al:bármikoriak hy:bár|mi|kori
+226	st:bátorság po:noun ts:NOM is:SBL
+227	st:bátya po:noun ts:NOM is:POSS_SG_1 is:ék_FAMILIAR_noun is:NOM
+228	pa:béka st:béka po:noun ts:NOM pa:vadászatra st:vadászat po:noun ts:NOM is:SBL
+229	st:békés po:adj ts:NOM
+229	st:béke po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+229	st:béke po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+230	st:bér po:noun ts:NOM
+231	st:bérel po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bérlő al:bérlés al:bérlendő is:PRES_INDIC_INDEF_PL_3
+232	pa:bér st:bér po:noun ts:NOM pa:költségére st:költség po:noun ts:NOM is:POSSESSEE is:SBL
+232	pa:bér st:bér po:noun ts:NOM pa:költségére st:költség po:noun ts:NOM is:POSS_SG_3 is:SBL
+233	pa:bér st:bér po:noun ts:NOM pa:szín st:szín po:noun ts:NOM pa:vonal st:vonal po:noun ts:NOM al:vonalak pa:különbségét st:különbség po:noun ts:NOM is:POSSESSEE is:ACC
+233	pa:bér st:bér po:noun ts:NOM pa:szín st:szín po:noun ts:NOM pa:vonal st:vonal po:noun ts:NOM al:vonalak pa:különbségét st:különbség po:noun ts:NOM is:POSS_SG_3 is:ACC
+233	pa:bér st:bér po:noun ts:NOM pa:színvonal st:színvonal po:noun ts:NOM al:színvonalak hy:4 pa:különbségét st:különbség po:noun ts:NOM is:POSSESSEE is:ACC
+233	pa:bér st:bér po:noun ts:NOM pa:színvonal st:színvonal po:noun ts:NOM al:színvonalak hy:4 pa:különbségét st:különbség po:noun ts:NOM is:POSS_SG_3 is:ACC
+234	st:bír po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_2
+235	st:bírálat po:noun ts:NOM is:POSS_SG_3 is:INE
+236	pa:bíró st:bíró po:noun ts:NOM al:bírát al:bíra pa:társai st:társ po:noun ts:PLUR ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+236	pa:bíró st:bír po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:társai st:társ po:noun ts:PLUR ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+237	st:bízik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:biztat is:SUBJ/IMPER_DEF_PL_1
+237	st:bízik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:biztat is:PRES_INDIC_DEF_PL_1
+238	st:bók po:noun ts:NOM is:ACC
+239	st:bőrönd po:noun ts:NOM is:PLUR is:ACC
+240	st:bölcs po:adj ts:NOM is:PLUR is:POSS_SG_3 is:DAT
+241	st:börtön po:noun ts:NOM is:ELA
+242	st:búcsúzkodik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+243	st:búskomor po:adj ts:NOM hy:3
+244	st:bűn po:noun ts:NOM
+245	st:bűntett po:noun ts:NOM hy:3 is:POSS_SG_3 is:NOM
+246	st:bűn po:noun ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:ABL
+246	st:bűnözik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ABL
+247	st:bűzös po:adj ts:NOM
+247	st:bűz po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+247	st:bűz po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+248	st:büntet po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_3
+249	st:bürokratikus po:adj ts:NOM
+250	st:január po:noun ts:NOM is:TERM
+251	st:javarészt po:adv hy:4
+252	st:javul po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_PL_3
+253	st:javít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_PL_1
+254	st:jegyzőkönyv po:noun ts:NOM hy:6 is:ILL
+255	st:járul po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+256	st:játszótér po:noun ts:NOM al:játszóterek hy:6 is:DAT
+257	st:játék po:noun ts:NOM is:POSS_SG_3 is:INE
+258	st:játékos po:noun ts:NOM is:ACC
+258	st:játékos po:adj ts:NOM is:ACC
+258	st:játék po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM is:ACC
+258	st:játék po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM is:ACC
+259	pa:játék st:játék po:noun ts:NOM pa:vezetésre st:vezetés po:noun ts:NOM is:SBL
+260	st:jóakaratúlag po:adv hy:2
+261	st:jóbarát po:noun ts:NOM hy:2 is:PLUR is:NOM
+262	st:jókedv po:noun ts:NOM hy:2 is:INSTR
+263	st:jólét po:noun ts:NOM hy:2 is:DAT
+264	st:jósol po:vrb ts:PRES_INDIC_INDEF_SG_3 al:jósló al:jóslás
+265	st:jóváhagy po:vrb ts:PRES_INDIC_INDEF_SG_3 al:jóváhagyat hy:4 is:SUBJ/IMPER_DEF_SG_3
+265	st:jóváhagy po:vrb ts:PRES_INDIC_INDEF_SG_3 al:jóváhagyat hy:4 is:PRES_INDIC_DEF_SG_3
+265	ip:PREF sp:jóvá st:hagy po:vrb ts:PRES_INDIC_INDEF_SG_3 al:hagyat is:SUBJ/IMPER_DEF_SG_3
+265	ip:PREF sp:jóvá st:hagy po:vrb ts:PRES_INDIC_INDEF_SG_3 al:hagyat is:PRES_INDIC_DEF_SG_3
+266	st:jóváírás po:noun ts:NOM hy:4 is:SBL
+266	ip:PREF sp:jóvá st:ír po:vrb ts:PRES_INDIC_INDEF_SG_3 al:írat ds:Ás_PROCESS/RESULT_noun ts:NOM is:SBL
+267	st:jön po:vrb is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+268	pa:jött st:jön po:vrb is:PAST_INDIC_INDEF_SG_3 pa:ment st:megy po:vrb is:PAST_INDIC_INDEF_SG_3 al:mentet
+268	pa:jött st:jön po:vrb is:PAST_INDIC_INDEF_SG_3 pa:ment st:ment po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mentet
+268	pa:jött st:jön po:vrb is:PAST_INDIC_INDEF_SG_3 pa:ment st:megy po:vrb ds:tt_PASTPART_adj ts:NOM al:mentet
+268	pa:jött st:jön po:vrb is:PAST_INDIC_INDEF_SG_3 pa:ment st:ment po:adj ts:NOM al:mentet
+268	pa:jött st:jön po:vrb ds:tt_PASTPART_adj ts:NOM pa:ment st:megy po:vrb is:PAST_INDIC_INDEF_SG_3 al:mentet
+268	pa:jött st:jön po:vrb ds:tt_PASTPART_adj ts:NOM pa:ment st:ment po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mentet
+268	pa:jött st:jön po:vrb ds:tt_PASTPART_adj ts:NOM pa:ment st:megy po:vrb ds:tt_PASTPART_adj ts:NOM al:mentet
+268	pa:jött st:jön po:vrb ds:tt_PASTPART_adj ts:NOM pa:ment st:ment po:adj ts:NOM al:mentet
+268	pa:jött st:jött po:adj ts:NOM pa:ment st:megy po:vrb is:PAST_INDIC_INDEF_SG_3 al:mentet
+268	pa:jött st:jött po:adj ts:NOM pa:ment st:ment po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mentet
+268	pa:jött st:jött po:adj ts:NOM pa:ment st:megy po:vrb ds:tt_PASTPART_adj ts:NOM al:mentet
+268	pa:jött st:jött po:adj ts:NOM pa:ment st:ment po:adj ts:NOM al:mentet
+269	st:jövedelem po:noun ts:PLUR ts:NOM is:PLUR is:POSS_PL_3 is:NOM
+270	st:jövetel po:noun ts:NOM
+271	st:jövőre po:adv
+271	st:jövő po:noun ts:NOM is:SBL
+271	st:jön po:vrb ds:Ó_PRESPART_adj ts:NOM is:SBL
+271	st:jövő po:adj ts:NOM is:SBL
+273	pa:kabin st:kabin po:noun ts:NOM pa:kulcsot st:kulcs po:noun ts:NOM is:ACC
+274	st:kacérkodik po:vrb ts:PRES_INDIC_INDEF_SG_3
+275	st:kaja po:noun ts:NOM is:SBL
+276	st:kaland po:noun ts:NOM is:PLUR is:POSS_PL_3 is:DEL
+277	st:kalap po:noun ts:NOM is:INSTR
+278	st:kalkuláció po:noun ts:NOM is:i_PLACE/TIME_adj ts:NOM
+278	st:kalkuláció po:noun ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+279	st:kamara po:noun ts:NOM ds:beli_LOCATIVE_adj ts:NOM
+280	st:kamasz po:noun ts:NOM is:PLUR is:NOM
+281	st:kamat po:noun ts:NOM
+282	pa:kamat st:kamat po:noun ts:NOM pa:szintjét st:szint po:noun ts:NOM is:POSS_SG_3 is:ACC
+283	st:kamion po:noun ts:NOM is:PLUR is:NOM
+284	st:kancellár po:noun ts:NOM is:POSS_SG_3 is:NOM
+285	st:kanton po:noun ts:NOM is:PLUR is:SBL
+286	st:kapacitás po:noun ts:NOM is:POSS_SG_3 is:NOM
+287	st:kapaszkodik po:vrb ts:PRES_INDIC_INDEF_SG_3
+288	st:kapcsolat po:noun ts:NOM is:PLUR is:DAT
+289	st:kapcsolat po:noun ts:NOM is:POSS_SG_3 is:ALL
+290	st:kapcsol po:vrb ts:PRES_INDIC_INDEF_SG_3
+291	st:kapcsolódik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+291	st:kapcsol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+291	st:kapcsol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:POSS_SG_2 is:DAT
+292	pa:kapcsoló st:kapcsol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:köz st:köz po:noun ts:NOM pa:pontot st:pont po:noun ts:NOM is:ACC
+292	pa:kapcsoló st:kapcsol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:központot st:központ po:noun ts:NOM hy:3 is:ACC
+293	st:kapitalista po:adj ts:NOM is:DAT
+294	pa:kapitányság st:kapitányság po:noun ts:NOM pa:vezetők st:vezető po:noun ts:NOM is:PLUR is:NOM
+295	st:kapkod po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_1
+296	st:kapu po:noun ts:NOM is:POSS_SG_3 is:DAT
+297	st:kap po:vrb ts:PRES_INDIC_INDEF_SG_3 is:vÁn_PART_adv
+298	st:karakter po:noun ts:NOM is:ADE
+299	st:karate po:noun is:NOM al:karaté ds:s_OCCUPATION_noun ts:NOM
+299	st:karate po:noun ds:s_OCCUPATION_noun ts:NOM
+299	st:karate po:noun is:NOM al:karaté ds:s_ATTRIBUTE_adj ts:NOM
+299	st:karate po:noun ds:s_ATTRIBUTE_adj ts:NOM
+300	st:kard po:noun ts:NOM is:INSTR
+301	st:kar po:noun ts:NOM is:POSS_SG_3 is:ILL
+302	st:karom po:noun ts:NOM al:karmok
+302	st:kar po:noun ts:NOM is:POSS_SG_1 is:ACC
+302	st:kar po:noun ts:NOM is:POSS_SG_1 is:NOM
+303	st:karton po:noun ts:NOM
+304	fl:" st:Kassa po:noun_prs ts:NOM is:i_PLACE/TIME_adj ts:NOM is:PLUR is:NOM
+305	st:katakomba po:noun ts:NOM is:PLUR is:ILL
+306	st:katasztrófa po:noun ts:NOM is:DAT
+307	st:kategória po:noun ts:NOM is:ADE
+308	st:katonaság po:noun ts:NOM is:ABL
+309	st:kattint po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kattintat is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_1
+310	st:kavicsos po:adj ts:NOM
+310	st:kavics po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+310	st:kavics po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+311	st:kazánház po:noun ts:NOM al:kazánházak hy:5 is:INE
+312	st:kedd po:noun ts:NOM is:ABL
+313	st:kedv po:noun ts:NOM is:SBL
+314	st:kedves po:adj ts:NOM is:POSS_SG_1 is:INSTR
+314	st:kedv po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM is:POSS_SG_1 is:INSTR
+315	st:kedvezmény po:noun ts:NOM is:POSSESSEE is:ACC
+315	st:kedvezmény po:noun ts:NOM is:POSS_SG_3 is:ACC
+316	st:kegy po:noun ts:NOM is:PLUR is:POSS_SG_3 is:DAT
+316	fl:" st:Kegye po:noun_prs ts:NOM is:i_PLACE/TIME_adj ts:NOM is:DAT
+317	st:kegyetlenkedik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_1
+318	st:keletkezik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+318	st:keletkezik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+319	st:kellem po:noun ts:NOM ds:s_ATTRIBUTE_adj ds:sÁg_ABSTRACT_noun ts:NOM
+319	st:kellemes po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM
+320	st:kellék po:noun ts:NOM is:PLUR is:SUE
+321	st:kel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_1
+321	st:kelt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:keltet is:PRES_INDIC_DEF_SG_1
+321	st:kel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:ACC
+321	st:kel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:NOM
+321	st:kel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+322	st:kel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+323	st:ken po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kenet is:PRES_INDIC_INDEF_SG_1
+324	pa:kenyér st:kenyér po:noun ts:NOM al:kenyerek pa:üzletben st:üzlet po:noun ts:NOM is:INE
+325	st:kereset po:noun ts:NOM is:POSS_SG_3 is:NOM
+326	st:kereskedelem po:noun ts:NOM al:kereskedelmek
+327	pa:kereskedő st:kereskedő po:noun ts:NOM pa:házban st:ház po:noun ts:NOM al:házak is:INE
+327	pa:kereskedő st:kereskedik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:házban st:ház po:noun ts:NOM al:házak is:INE
+328	st:keres po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_3
+329	st:keresztapa po:noun hy:7 is:POSS_SG_3 is:NOM
+330	st:kereszteződik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ADE
+330	st:keresztez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ds:Ás_PROCESS/RESULT_noun ts:NOM is:ADE
+331	st:keresztény po:noun ts:NOM
+331	st:keresztény po:adj ts:NOM
+332	ip:PREF sp:keresztül st:villant po:vrb ts:PRES_INDIC_INDEF_SG_3 al:villantat
+332	ip:PREF sp:keresztül st:villan po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+332	ip:PREF sp:keresztül st:villan po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+333	pa:kereső st:kereső po:noun ts:NOM pa:motor st:motor po:noun ts:NOM pa:optimalizációként st:optimalizáció po:noun ts:NOM is:FORM
+333	pa:kereső st:keres po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:motor st:motor po:noun ts:NOM pa:optimalizációként st:optimalizáció po:noun ts:NOM is:FORM
+334	st:keret po:noun ts:NOM is:PLUR is:ABL
+335	pa:keret st:keret po:noun ts:NOM pa:törvény st:törvény po:noun ts:NOM
+336	st:kert po:noun ts:NOM is:POSS_SG_1 is:ACC
+336	st:kert po:noun ts:NOM is:POSS_SG_1 is:NOM
+337	st:kerek po:adj ts:NOM is:POSS_SG_1 is:ACC
+337	st:kerek po:adj ts:NOM is:POSS_SG_1 is:NOM
+337	st:kerék po:noun ts:PLUR ts:NOM is:POSS_SG_1 is:ACC
+337	st:kerék po:noun ts:PLUR ts:NOM is:POSS_SG_1 is:NOM
+338	st:kerít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+338	st:kerít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+339	st:kerület po:noun ts:NOM is:ACC
+340	st:kerül po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+341	st:keseredik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:vA_PART_adv
+342	st:kettes po:noun ts:NOM
+342	st:kettes po:adj ts:NOM
+343	st:kettő po:adj_num ts:NOM al:másodiki al:másodikak al:másodika al:második al:másod al:ketten al:kettejük al:ketteje al:kettedik al:ketted al:másod is:ADE
+344	st:kever po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_PL_1
+344	st:kever po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_1
+345	st:kezdemény po:noun ts:NOM ds:z_ACTION_vrb ds:hAt_MODAL_vrb ds:Ó_PRESPART_adj ts:NOM
+345	st:kezdeményez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:hAtÓ_ABLE_(adj,present_part) ts:NOM
+346	st:kezd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kezdet is:INF_SG_1
+347	st:kezd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kezdet is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3
+348	st:kezd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kezdet is:PRES_INDIC_INDEF_SG_2
+349	st:kezdőrúgás po:noun ts:NOM hy:5 is:POSS_SG_3 is:NOM
+350	st:kezel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+351	pa:kezelő st:kezelő po:noun ts:NOM pa:felületéhez st:felület po:noun ts:NOM is:POSSESSEE is:ALL
+351	pa:kezelő st:kezelő po:noun ts:NOM pa:felületéhez st:felület po:noun ts:NOM is:POSS_SG_3 is:ALL
+351	pa:kezelő st:kezel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:felületéhez st:felület po:noun ts:NOM is:POSSESSEE is:ALL
+351	pa:kezelő st:kezel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:felületéhez st:felület po:noun ts:NOM is:POSS_SG_3 is:ALL
+352	pa:kft. st:kft. po:abr ts:NOM al:kft.-vé al:kft.-vel al:kft.-s al:kft.-beli al:kft.- pa:kel st:kel po:noun ts:NOM
+352	pa:kft. st:kft. po:abr ts:NOM al:kft.-vé al:kft.-vel al:kft.-s al:kft.-beli al:kft.- pa:kel st:kel po:vrb ts:PRES_INDIC_INDEF_SG_3
+353	pa:kht. st:kht. po:abr pa:t st:t po:noun ts:NOM al:t-vé al:t-vel al:t-s al:t-
+354	st:kiadvány po:noun ts:NOM hy:2 is:INE
+355	st:kiadás po:noun ts:NOM hy:2 is:POSS_SG_3 is:DAT
+355	ip:PREF sp:ki st:ad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:adat ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+356	ip:PREF sp:ki st:akna po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+356	ip:PREF sp:ki st:aknáz po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+357	ip:PREF sp:ki st:alakít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:vA_PART_adv
+358	ip:PREF sp:ki st:beszél po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_3
+358	ip:PREF sp:ki st:beszél po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:ék_FAMILIAR_noun is:NOM
+359	ip:PREF sp:ki st:bocsát po:vrb is:PAST_INDIC_INDEF_SG_3
+359	ip:PREF sp:ki st:bocsát po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bocsátván al:bocsátva al:bocsátunk al:bocsáttok al:bocsátsz al:bocsátottátok al:bocsátottál al:bocsátották al:bocsátottunk al:bocsátottuk al:bocsátottatok al:bocsátottam al:bocsátottam al:bocsátottalak al:bocsátottak al:bocsátottad al:bocsátotta al:bocsátott al:bocsátotok al:bocsátom al:bocsátok al:bocsátod al:bocsátnátok al:bocsátnátok al:bocsátnánk al:bocsátnánk al:bocsátnának al:bocsátnák al:bocsátná al:bocsátnotok al:bocsátniuk al:bocsátnak al:bocsátna al:bocsátlak al:bocsátjátok al:bocsátják al:bocsátjuk al:bocsátja al:bocsátasz al:bocsátanék al:bocsátanátok al:bocsátanátok al:bocsátanánk al:bocsátanánk al:bocsátanának al:bocsátanám al:bocsátanálak al:bocsátanál al:bocsátanák al:bocsátanád al:bocsátaná al:bocsátanunk al:bocsátanom al:bocsátanod al:bocsátania al:bocsátani al:bocsátanak al:bocsátana al:bocsátalak al:bocsássátok al:bocsássál al:bocsássák al:bocsássunk al:bocsássuk al:bocsásson al:bocsássatok al:bocsássanak al:bocsássam al:bocsássalak al:bocsássak al:bocsássad al:bocsássa al:bocsáss al:bocsásd ds:tt_PASTPART_adj ts:NOM
+359	ip:PREF sp:ki st:bocsát po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bocsátván al:bocsátva al:bocsátunk al:bocsáttok al:bocsátsz al:bocsátottátok al:bocsátottál al:bocsátották al:bocsátottunk al:bocsátottuk al:bocsátottatok al:bocsátottam al:bocsátottam al:bocsátottalak al:bocsátottak al:bocsátottad al:bocsátotta al:bocsátott al:bocsátotok al:bocsátom al:bocsátok al:bocsátod al:bocsátnátok al:bocsátnátok al:bocsátnánk al:bocsátnánk al:bocsátnának al:bocsátnák al:bocsátná al:bocsátnotok al:bocsátniuk al:bocsátnak al:bocsátna al:bocsátlak al:bocsátjátok al:bocsátják al:bocsátjuk al:bocsátja al:bocsátasz al:bocsátanék al:bocsátanátok al:bocsátanátok al:bocsátanánk al:bocsátanánk al:bocsátanának al:bocsátanám al:bocsátanálak al:bocsátanál al:bocsátanák al:bocsátanád al:bocsátaná al:bocsátanunk al:bocsátanom al:bocsátanod al:bocsátania al:bocsátani al:bocsátanak al:bocsátana al:bocsátalak al:bocsássátok al:bocsássál al:bocsássák al:bocsássunk al:bocsássuk al:bocsásson al:bocsássatok al:bocsássanak al:bocsássam al:bocsássalak al:bocsássak al:bocsássad al:bocsássa al:bocsáss al:bocsásd is:PAST_INDIC_INDEF_SG_3
+360	ip:PREF sp:ki st:bogarászik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:INF_PL_3
+360	ip:PREF sp:ki st:bogarász po:vrb ts:PRES_INDIC_INDEF_SG_3 is:INF_PL_3
+361	ip:PREF sp:ki st:bérel po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bérlő al:bérlés al:bérlendő is:PAST_INDIC_DEF_SG_3
+362	ip:PREF sp:ki st:csatol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+363	st:kicsi po:adj ts:NOM al:kisebbik al:kisebben al:kisebb is:DAT
+364	ip:PREF sp:ki st:csönget po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+365	ip:PREF sp:ki st:dob po:vrb ts:PRES_INDIC_INDEF_SG_3 al:dobat is:PRES_INDIC_INDEF_PL_3
+366	st:kidolgozás po:noun ts:NOM hy:2 is:POSS_SG_3 is:DAT
+366	ip:PREF sp:ki st:dolog po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+366	ip:PREF sp:ki st:dolgozik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+366	ip:PREF sp:ki st:dolgoz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+367	st:kiegyenlítés po:noun ts:NOM hy:2 is:SBL
+367	ip:PREF sp:ki st:egyenlít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:SBL
+368	st:kiegészítés po:noun ts:NOM hy:2 is:POSSESSEE is:SBL
+368	st:kiegészítés po:noun ts:NOM hy:2 is:POSS_SG_3 is:SBL
+368	ip:PREF sp:ki st:egészít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:SBL
+368	ip:PREF sp:ki st:egészít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:SBL
+369	ip:PREF sp:ki st:elégít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_COND_INDEF_SG_3
+370	ip:PREF sp:ki st:emelkedik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+371	ip:PREF sp:ki st:jár po:vrb ts:PRES_INDIC_INDEF_SG_3 al:járat is:SUBJ/IMPER_INDEF_SG_3
+372	st:kijövet po:adv hy:2
+373	ip:PREF sp:ki st:kap po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+374	ip:PREF sp:ki st:keveredik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_1
+375	st:kikényszerítés po:noun ts:NOM hy:2 is:POSSESSEE is:DAT
+375	st:kikényszerítés po:noun ts:NOM hy:2 is:POSS_SG_3 is:DAT
+375	ip:PREF sp:ki st:kényszerít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:DAT
+375	ip:PREF sp:ki st:kényszerít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+376	ip:PREF sp:ki st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_3
+377	ip:PREF sp:ki st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_3
+377	ip:PREF sp:ki st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:ék_FAMILIAR_noun is:NOM
+378	ip:PREF sp:ki st:lakoltat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+378	ip:PREF sp:ki st:lakol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ás_PROCESS/RESULT_noun ts:NOM
+379	st:kilencvenkilenc po:adj_num ts:NOM al:kilencvenkilencen al:kilencvenkilencedik hy:9
+379	po:adj_num pa:kilencven st:kilenc po:adj_num ts:NOM al:kilencen al:kilencediki al:kilencedike al:kilencedik al:kilenced al:kilenced
+380	pa:kilométer st:kilométer po:noun ts:NOM hy:4 pa:díjat st:díj po:noun ts:PLUR ts:NOM is:ACC
+381	st:kilábal po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:2 ds:Ó_PRESPART_adj ts:NOM
+381	ip:PREF sp:ki st:lábal po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+382	ip:PREF sp:ki st:lép po:vrb ts:PRES_INDIC_INDEF_SG_3 al:léptet al:lépet is:PRES_INDIC_INDEF_SG_1
+383	st:kiló po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+383	st:kiló po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+384	ip:PREF sp:ki st:megy po:vrb is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_PL_1
+385	ip:PREF sp:ki st:megy po:vrb is:PAST_INDIC_INDEF_PL_1
+385	ip:PREF sp:ki st:megy po:vrb is:PAST_INDIC_INDEF_SG_3 al:mentet is:PRES_INDIC_INDEF_PL_1
+385	ip:PREF sp:ki st:ment po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mentet is:PRES_INDIC_INDEF_PL_1
+386	st:kimerült po:adj ts:NOM hy:2 ds:sÁg_ABSTRACT_noun ts:NOM
+386	ip:PREF sp:ki st:merül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ds:sÁg_ABSTRACT_noun ts:NOM
+387	st:kimondás po:noun ts:NOM hy:2 is:POSS_SG_3 is:SUE
+387	ip:PREF sp:ki st:mond po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mondá al:mondhatnók al:mondat ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:SUE
+388	ip:PREF sp:ki st:művelődik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+388	ip:PREF sp:ki st:művel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+388	ip:PREF sp:ki st:művel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:POSS_SG_2 is:DAT
+389	st:kinevezés po:noun ts:NOM hy:2 is:POSS_PL_3 is:ACC
+389	ip:PREF sp:ki st:név po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_PL_3 is:ACC
+389	ip:PREF sp:ki st:nevez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_PL_3 is:ACC
+390	ip:PREF sp:ki st:nyit po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_1
+391	ip:PREF sp:ki st:nyújt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:nyújtat is:INF_SG_3
+392	ip:PREF sp:ki st:néz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:nézet ds:tt_PASTPART_adj ts:NOM
+392	ip:PREF sp:ki st:néz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:nézet is:PAST_INDIC_INDEF_SG_3
+393	ip:PREF sp:ki st:oszt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:osztat is:PAST_INDIC_DEF_PL_3
+394	ip:PREF sp:ki st:pihen po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_1
+394	ip:PREF sp:ki st:pihen po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:ACC
+394	ip:PREF sp:ki st:pihen po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:NOM
+394	ip:PREF sp:ki st:pihen po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+395	st:kipróbálás po:noun ts:NOM hy:2 is:POSS_SG_3 is:NOM
+395	ip:PREF sp:ki st:próbál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+396	ip:PREF sp:ki st:rajzolódik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+396	ip:PREF sp:ki st:rajzol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+397	ip:PREF sp:ki st:rendel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+397	ip:PREF sp:ki st:rendel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+398	st:királyfi po:noun ts:NOM al:királyfiak hy:6 is:ALL
+399	st:kirándul po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:2 ds:tt_PASTPART_adj ts:NOM
+399	st:kirándul po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:2 is:PAST_INDIC_INDEF_SG_3
+399	ip:PREF sp:ki st:rándul po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+399	ip:PREF sp:ki st:rándul po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+400	ip:PREF sp:ki st:rángat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_1
+400	ip:PREF sp:ki st:rángat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+402	pa:kisebb st:kicsi po:adj is:bb_COMPARATIVE_adj ts:NOM pa:nagyobb st:nagy po:adj is:bb_COMPARATIVE_adj ts:NOM
+403	st:kisember po:noun ts:NOM hy:3 is:ACC
+404	st:kisgyerek po:noun ts:NOM hy:3 ds:s_OCCUPATION_noun ts:NOM
+404	st:kisgyerek po:noun ts:NOM hy:3 ds:s_ATTRIBUTE_adj ts:NOM
+406	st:kiskorom po:noun hy:3 is:ABL
+408	st:kisrészvényes po:adj ts:NOM hy:3
+409	st:kisvállalkozás po:noun ts:NOM hy:3
+410	ip:PREF sp:ki st:szakad po:vrb ds:tt_PASTPART_adj
+410	ip:PREF sp:ki st:szakad po:vrb is:PAST_INDIC_INDEF_SG_3
+411	ip:PREF sp:ki st:szolgáltat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:An_MODE_adv
+411	ip:PREF sp:ki st:szolgál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:tt_PASTPART_adj ts:NOM is:An_MODE_adv
+412	pa:kiszolgáló st:kiszolgáló po:noun ts:NOM hy:2 pa:gép st:gép po:noun ts:NOM
+412	pa:kiszolgáló ip:PREF sp:ki st:szolgál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:gép st:gép po:noun ts:NOM
+413	st:kiszolgáló po:noun ts:NOM hy:2 is:SBL
+413	ip:PREF sp:ki st:szolgál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:SBL
+414	ip:PREF sp:ki st:szorít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+415	st:kiszámítás po:noun ts:NOM hy:2 is:POSS_SG_3 is:TEMP
+415	ip:PREF sp:ki st:számít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:TEMP
+416	ip:PREF sp:ki st:sétál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_1
+416	ip:PREF sp:ki st:sétál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_PL_1 is:ACC
+416	ip:PREF sp:ki st:sétál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_PL_1 is:NOM
+417	ip:PREF sp:ki st:talál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_1
+418	ip:PREF sp:ki st:tesz po:vrb is:SUBJ/IMPER_INDEF_SG_3
+419	st:kiterjesztett po:adj ts:NOM hy:2
+419	ip:PREF sp:ki st:terjeszt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:terjesztet ds:tt_PASTPART_adj ts:NOM
+419	ip:PREF sp:ki st:terjeszt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:terjesztet is:PAST_INDIC_INDEF_SG_3
+420	ip:PREF sp:ki st:tervel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_1
+420	ip:PREF sp:ki st:tervel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:ACC
+420	ip:PREF sp:ki st:tervel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:NOM
+420	ip:PREF sp:ki st:tervel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+421	ip:PREF sp:ki st:tárul po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+421	ip:PREF sp:ki st:tárul po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+422	ip:PREF sp:ki st:tölt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:töltet ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:SUE
+422	ip:PREF sp:ki st:tölt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:töltet ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:SUE
+423	ip:PREF sp:ki st:töröl po:vrb ts:PRES_INDIC_INDEF_SG_3 al:törlő al:törlés is:PRES_INDIC_DEF_SG_3
+424	st:kitüntetés po:noun ts:NOM hy:2 is:PLUR is:POSS_SG_3 is:ACC
+424	ip:PREF sp:ki st:tüntet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:POSS_SG_3 is:ACC
+425	ip:PREF sp:ki st:vesz po:vrb is:PRES_INDIC_DEF_SG_3
+426	ip:PREF sp:ki st:visz po:vrb is:PRES_INDIC_DEF_PL_3
+427	st:kivonat po:noun ts:NOM hy:2
+427	ip:PREF sp:ki st:von po:vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3
+427	ip:PREF sp:ki st:vonat po:vrb ts:PRES_INDIC_INDEF_SG_3
+428	ip:PREF sp:ki st:vág po:vrb ts:PRES_INDIC_INDEF_SG_3 al:vágat is:SUBJ/IMPER_DEF_PL_1
+428	ip:PREF sp:ki st:vág po:vrb ts:PRES_INDIC_INDEF_SG_3 al:vágat is:PRES_INDIC_DEF_PL_1
+429	ip:PREF sp:ki st:választ po:vrb ts:PRES_INDIC_INDEF_SG_3 al:választat ds:Ás_PROCESS/RESULT_noun ts:NOM is:ACC
+430	ip:PREF sp:ki st:vált po:vrb ts:PRES_INDIC_INDEF_SG_3 al:váltat ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+431	ip:PREF sp:ki st:véd po:vrb is:ni_INFINITIVE_inf
+432	st:kivétel po:noun ts:NOM hy:2 ds:z_ACTION_vrb ds:tt_PASTPART_adj ts:NOM
+432	st:kivétel po:noun ts:NOM hy:2 ds:z_ACTION_vrb is:PAST_INDIC_INDEF_SG_3
+432	ip:PREF sp:ki st:vétel po:noun ts:NOM ds:z_ACTION_vrb ds:tt_PASTPART_adj ts:NOM
+432	ip:PREF sp:ki st:vétel po:noun ts:NOM ds:z_ACTION_vrb is:PAST_INDIC_INDEF_SG_3
+432	ip:PREF sp:ki st:vételez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+432	ip:PREF sp:ki st:vételez po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+433	ip:PREF sp:ki st:zár po:vrb ts:PRES_INDIC_INDEF_SG_3 al:zárat al:zárak is:SUBJ/IMPER_DEF_PL_3
+433	ip:PREF sp:ki st:zár po:vrb ts:PRES_INDIC_INDEF_SG_3 al:zárat al:zárak is:PRES_INDIC_DEF_PL_3
+434	st:kizárólagos po:adj ts:NOM hy:2 ds:sÁg_ABSTRACT_noun ts:NOM
+435	ip:PREF sp:ki st:állít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+436	ip:PREF sp:ki st:állít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+437	st:kiáltvány po:noun ts:NOM is:POSS_SG_3 is:INE
+438	ip:PREF sp:ki st:épít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ds:sÁg_ABSTRACT_noun ts:NOM is:ABL
+439	ip:PREF sp:ki st:érik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:érett is:vA_PART_adv
+439	ip:PREF sp:ki st:ér po:vrb ts:PRES_INDIC_INDEF_SG_3 al:erek is:vA_PART_adv
+440	ip:PREF sp:ki st:ül po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_SG_1
+441	st:klasszicizáló po:adj ts:NOM
+441	st:klasszicizál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+443	pa:klub st:klub po:noun ts:NOM ph:club pa:tag st:tag po:noun ts:NOM
+444	st:koalíció po:noun ts:NOM is:ACC
+445	st:kockázat po:noun ts:NOM is:ABL
+446	st:kocka po:noun ts:NOM ds:z_ACTION_vrb ds:tAt_FACTITIVE_vrb_tr ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:INSTR
+446	st:kockáztat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:INSTR
+446	st:kockázik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:INSTR
+446	st:kockáz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:INSTR
+447	st:kocsi po:noun ts:NOM is:POSS_PL_1 is:ACC
+447	st:kocsi po:noun ts:NOM is:POSS_PL_1 is:NOM
+448	st:kocsma po:noun ts:NOM is:ACC
+450	st:kollégium po:noun ts:NOM is:POSS_SG_3 is:ALL
+451	st:kolostor po:noun ts:NOM is:ALL
+452	st:komfortos po:adj ts:NOM is:An_MODE_adv
+452	st:komfort po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM is:An_MODE_adv
+454	st:komoly po:adj ts:NOM is:bb_COMPARATIVE_adj is:INE
+454	st:komoly po:adj ts:NOM is:bb_COMPARATIVE_adj is:An_MODE_adv
+455	st:kompatibilitás po:noun ts:NOM is:INE
+456	st:komponens po:noun ts:NOM
+457	st:kompromisszum po:noun ts:NOM
+458	st:koncentrál po:vrb ts:PRES_INDIC_INDEF_SG_3
+459	pa:koncert st:koncert po:noun ts:NOM pa:darabjaim st:darab po:noun ts:NOM is:PLUR is:POSS_SG_1 is:NOM
+460	st:kondor po:noun ts:NOM
+461	st:konfiguráció po:noun ts:NOM is:POSS_SG_3 is:DAT
+462	st:konfliktus po:noun ts:NOM is:PLUR is:INSTR
+463	st:konkretizál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_3
+463	st:konkretizál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+464	st:konstrukció po:noun ts:NOM is:POSS_SG_3 is:ACC
+465	pa:konszern st:konszern po:noun ts:NOM pa:tény st:tény po:noun ts:NOM pa:állás st:állás po:noun ts:NOM
+465	pa:konszern st:konszern po:noun ts:NOM pa:tény st:tény po:noun ts:NOM pa:állás st:áll po:vrb ts:PRES_INDIC_INDEF_SG_3 al:állak ds:Ás_PROCESS/RESULT_noun ts:NOM
+466	st:kontinentális po:adj ts:NOM
+467	pa:konténer st:konténer po:noun ts:NOM pa:hajójával st:hajó po:noun ts:NOM is:POSS_SG_3 is:INSTR
+469	st:konzisztens po:adj ts:NOM
+470	st:kooperatív po:adj ts:NOM
+471	st:kopog po:vrb ts:PRES_INDIC_INDEF_SG_3 is:vA_PART_adv
+473	st:kord po:noun ts:NOM is:POSSESSEE is:SBL
+473	st:kordé po:noun ts:NOM is:SBL
+474	st:korlát po:noun ts:NOM is:PLUR is:ABL
+475	st:korlátozott po:adj ts:NOM is:An_MODE_adv
+475	st:korlát po:noun ts:NOM ds:z_ACTION_vrb ds:tt_PASTPART_adj ts:NOM is:An_MODE_adv
+475	st:korlátoz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:An_MODE_adv
+476	st:korlátozódik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+476	st:korlátoz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ds:Ó_PRESPART_adj ts:NOM
+477	pa:kormány st:kormány po:noun ts:NOM pa:biztossal st:biztos po:noun ts:NOM is:INSTR
+479	pa:kormány st:kormány po:noun ts:NOM pa:szerv st:szerv po:noun ts:NOM
+480	st:kormányoz po:vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:SBL
+480	st:kormányzás po:noun ts:NOM is:SBL
+481	st:kor po:noun ts:NOM is:INE
+482	pa:korom st:korom po:noun ts:NOM al:kormok pa:színű st:szín po:noun ts:NOM is:jÚ_PROPERTY_adj ts:NOM
+483	st:korrekció po:noun ts:NOM is:POSS_SG_3 is:ACC
+484	st:korszak po:noun ts:NOM hy:3 is:PLUR is:INE
+485	st:korsó po:noun ts:NOM is:ACC
+486	st:kor po:noun ts:NOM is:jÚ_PROPERTY_adj ts:NOM is:ADE
+487	st:kosár po:noun ts:NOM al:kosarak is:INSTR
+489	st:kritizál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+490	st:krákog po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ACC
+491	pa:kudarc st:kudarc po:noun ts:NOM pa:tapasztalat st:tapasztalat po:noun ts:NOM
+492	pa:kulcs st:kulcs po:noun ts:NOM pa:fog st:fog po:noun ts:NOM al:fogat al:fogak pa:alom st:alom po:noun ts:NOM al:almok
+492	pa:kulcs st:kulcs po:noun ts:NOM pa:fogalom st:fogalom po:noun ts:NOM al:fogalmak
+493	st:kultikus po:adj ts:NOM is:ACC
+494	st:kultúra po:noun ts:NOM is:POSS_PL_1 is:INE
+495	st:kupa po:noun ts:NOM is:ACC
+496	st:kurzus po:noun ts:NOM is:PLUR is:ACC
+497	st:kutat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_3
+498	st:kutató po:noun ts:NOM is:i_PLACE/TIME_adj ts:NOM
+498	st:kutat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj is:i_PLACE/TIME_adj ts:NOM
+498	st:kutató po:noun ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+498	st:kutat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+499	pa:kutya st:kutya po:noun ts:NOM pa:kiállításra st:kiállítás po:noun ts:NOM hy:2 is:SBL
+500	st:kutya po:noun ts:NOM is:POSS_PL_1 is:ACC
+500	st:kutya po:noun ts:NOM is:POSS_PL_1 is:NOM
+502	st:kábel po:noun ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM
+502	st:kábelez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+503	st:kábítószer po:noun ts:NOM hy:6 is:PLUR is:NOM
+504	st:káosz po:noun ts:NOM is:ELA
+505	pa:kár st:kár po:noun ts:NOM pa:mentés st:mente po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+505	pa:kár st:kár po:noun ts:NOM pa:mentés st:mente po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+505	pa:kár st:kár po:noun ts:NOM pa:mentés st:megy po:vrb is:PAST_INDIC_INDEF_SG_3 al:mentet ds:Ás_PROCESS/RESULT_noun ts:NOM
+505	pa:kár st:kár po:noun ts:NOM pa:mentés st:ment po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mentet ds:Ás_PROCESS/RESULT_noun ts:NOM
+506	st:kártya po:noun ts:NOM is:PLUR is:POSS_PL_3 is:ACC
+507	st:kártérítés po:noun ts:NOM hy:3 is:DAT
+508	st:kávé po:noun ts:NOM
+509	st:kávé po:noun ts:NOM ds:z_ACTION_vrb ds:Ó_PRESPART_adj ts:NOM is:PLUR is:NOM
+509	st:kávézik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:PLUR is:NOM
+510	pa:kém st:kém po:noun ts:NOM pa:hatást st:hatás po:noun ts:NOM is:ACC
+511	st:kényelem po:noun ts:PLUR ts:NOM is:ACC
+512	pa:kényszer st:kényszer po:noun ts:NOM hy:4 pa:társ st:társ po:noun ts:NOM al:társak pa:szerzői st:szerez po:vrb ds:Ó_PRESPART_adj ts:NOM is:i_PLACE/TIME_adj ts:NOM
+512	pa:kényszer st:kényszer po:noun ts:NOM hy:4 pa:társ st:társ po:noun ts:NOM al:társak pa:szerzői st:szerző po:noun ts:NOM is:i_PLACE/TIME_adj ts:NOM
+512	pa:kényszer st:kényszer po:noun ts:NOM hy:4 pa:társ st:társ po:noun ts:NOM al:társak pa:szerzői st:szerez po:vrb ds:Ó_PRESPART_adj ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+512	pa:kényszer st:kényszer po:noun ts:NOM hy:4 pa:társ st:társ po:noun ts:NOM al:társak pa:szerzői st:szerző po:noun ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+514	st:kénytelen po:adj ts:NOM
+514	st:kény po:noun ts:NOM ds:tAlAn_LESS_adj ts:NOM
+515	st:kép po:noun ts:NOM is:ALL
+516	st:képernyő po:noun ts:NOM hy:3 is:ACC
+517	st:képesség po:noun ts:NOM is:POSSESSEE is:ACC
+517	st:kép po:noun ts:NOM ds:s_ATTRIBUTE_adj ds:sÁg_ABSTRACT_noun ts:NOM is:POSSESSEE is:ACC
+517	st:képes po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:POSSESSEE is:ACC
+517	st:képesség po:noun ts:NOM is:POSS_SG_3 is:ACC
+517	st:kép po:noun ts:NOM ds:s_ATTRIBUTE_adj ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:ACC
+517	st:képes po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:ACC
+518	st:kép po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+518	st:képez po:vrb ts:PRES_INDIC_INDEF_SG_3 al:képző al:képzés al:képzendő is:PAST_INDIC_DEF_SG_3
+519	st:képletes po:adj ts:NOM is:SUE
+519	st:képlet po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM is:SUE
+519	st:képlet po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM is:SUE
+519	st:képletes po:adj ts:NOM is:An_MODE_adv
+519	st:képlet po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM is:An_MODE_adv
+520	pa:kép st:kép po:noun ts:NOM pa:pontos st:pont po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+520	pa:kép st:kép po:noun ts:NOM pa:pontos st:pont po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+521	st:képviseleti po:adj ts:NOM hy:3
+521	st:képviselet po:noun ts:NOM hy:3 is:i_PLACE/TIME_adj ts:NOM
+522	st:képvisel po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:3 ds:tt_PASTPART_adj ts:NOM is:PLUR is:NOM
+522	st:képvisel po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:3 is:PRES_INDIC_INDEF_PL_2
+522	st:képvisel po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:3 is:PAST_INDIC_INDEF_PL_3
+523	st:képviselő po:noun ts:NOM hy:3 is:POSS_SG_3 is:SBL
+523	st:képvisel po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:3 ds:Ó_PRESPART_adj ts:NOM is:POSS_SG_3 is:SBL
+524	st:képzel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+525	st:képzett po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:POSSESSEE is:ABL
+525	st:képzett po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:ABL
+526	st:képzőművészet po:noun ts:NOM hy:5 is:PLUR is:INE
+527	st:kérdez po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+528	st:kérdés po:noun ts:NOM is:POSS_SG_2 is:INSTR
+528	st:kérd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kérdé al:kérdet ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_2 is:INSTR
+529	st:kérdés po:noun ts:NOM is:POSSESSEE is:DAT
+529	st:kérd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kérdé al:kérdet ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:DAT
+529	st:kérdés po:noun ts:NOM is:POSS_SG_3 is:DAT
+529	st:kérd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kérdé al:kérdet ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+530	st:kéreg po:noun ts:NOM al:kérgek
+531	st:kérelem po:noun ts:PLUR ts:NOM is:POSS_SG_3 is:DAT
+532	st:kér po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kéret is:ni_INFINITIVE_inf
+533	st:kér po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kéret ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:POSS_PL_1 is:NOM
+534	st:kés po:noun ts:NOM al:késet is:PLUR is:NOM
+534	st:késik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_SG_1
+535	st:késik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+537	pa:készáru st:készáru po:noun ts:NOM hy:4 pa:raktár st:raktár po:noun ts:NOM al:raktárak hy:3
+538	st:készít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_1
+539	st:készül po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_SG_1
+540	st:készülék po:noun ts:NOM is:PLUR is:NOM
+541	st:készülődik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+541	st:készül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+541	st:készül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:POSS_SG_2 is:DAT
+542	pa:két st:két po:adj_num ts:NOM pa:háromféle st:háromféle po:adj ts:NOM hy:5
+542	pa:két st:két po:adj_num ts:NOM pa:háromféle st:három po:adj_num ts:NOM al:hármótok al:hármótok al:hármónk al:hármónk al:hármójuk al:hármójuk al:hárman al:hármak al:harmadiki al:harmadikak al:harmadika al:harmadik al:harmad al:harmad ds:féle_SORT_adj ts:NOM
+543	st:kétféle po:adj ts:NOM hy:3 is:képpen_MODE_adv
+543	st:két po:adj_num ts:NOM ds:féle_SORT_adj ts:NOM is:képpen_MODE_adv
+544	po:adj_num pa:két st:nap po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+544	po:adj_num pa:két st:nap po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+545	st:kétszínű po:adj ts:NOM hy:3 ds:sÁg_ABSTRACT_noun ts:NOM is:ACC
+545	po:adj_num pa:két st:szín po:noun ts:NOM ds:jÚ_PROPERTY_adj ds:sÁg_ABSTRACT_noun ts:NOM is:ACC
+546	st:kétértelmű po:adj ts:NOM hy:3 is:PLUR is:NOM
+546	po:adj_num pa:két st:értelem po:noun ts:PLUR ts:NOM is:jÚ_PROPERTY_adj ts:NOM is:PLUR is:NOM
+547	st:kéz po:noun ts:PLUR ts:NOM is:POSS_PL_3 is:ACC
+547	st:kéz po:noun ts:PLUR ts:NOM is:POSS_PL_3 is:NOM
+550	st:kézirat po:noun ts:NOM hy:3 is:PLUR is:ELA
+551	st:kézügyesség po:noun ts:NOM hy:3 is:INSTR
+552	st:kín po:noun ts:NOM is:PLUR is:POSS_PL_3 is:ACC
+553	pa:kínzó st:kínoz po:vrb ds:Ó_PRESPART_adj ts:NOM pa:kamrában st:kamra po:noun ts:NOM is:INE
+553	pa:kínzó st:kínzó po:noun ts:NOM pa:kamrában st:kamra po:noun ts:NOM is:INE
+554	st:kínál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_PL_3
+554	st:kínál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_3
+555	st:kísérlet po:noun ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+556	st:kísértet po:noun ts:NOM is:ILL
+557	st:kísérő po:noun ts:NOM is:PLUR is:INSTR
+557	st:kísér po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:PLUR is:INSTR
+558	st:kíváncsiskodik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_1
+559	pa:kívánság st:kívánság po:noun ts:NOM pa:mű st:mű po:noun ts:NOM al:művi al:művek pa:sorral st:sor po:noun ts:NOM is:INSTR
+559	pa:kívánság st:kívánság po:noun ts:NOM pa:műsorral st:műsor po:noun ts:NOM hy:2 is:INSTR
+560	st:kócos po:adj ts:NOM
+560	st:kóc po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+560	st:kóc po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+561	st:kódol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:hAtÓ_ABLE_(adj,present_part) ts:NOM is:PLUR is:NOM
+562	st:kópia po:noun ts:NOM is:PLUR is:NOM
+563	pa:kór st:kór po:noun ts:NOM pa:történeteket st:történet po:noun ts:NOM is:PLUR is:ACC
+564	st:kődarab po:noun ts:NOM hy:2
+565	st:kőtábla po:noun ts:NOM hy:2 is:ACC
+566	st:köhög po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+567	st:kölcsönöz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kölcsönző al:kölcsönzés
+567	st:kölcsön po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3
+568	pa:költség st:költség po:noun ts:NOM pa:csökkentés st:csökkent po:vrb ts:PRES_INDIC_INDEF_SG_3 al:csökkentet ds:Ás_PROCESS/RESULT_noun ts:NOM
+569	st:költség po:noun ts:NOM is:POSSESSEE is:SBL
+569	st:költség po:noun ts:NOM is:POSS_SG_3 is:SBL
+570	st:költségvetés po:noun ts:NOM hy:7 is:INE
+571	st:költészet po:noun ts:NOM is:INSTR
+572	st:költöztet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ABL
+572	st:költözik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ás_PROCESS/RESULT_noun ts:NOM is:ABL
+573	st:könnyed po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:SBL
+574	st:könnyít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:ACC
+575	st:könyv po:noun ts:NOM is:DAT
+576	st:könyvel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+577	pa:könyvtár st:könyvtár po:noun ts:NOM al:könyvtárak hy:5 pa:automatizálási st:automatizál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun is:i_PLACE/TIME_adj ts:NOM
+578	pa:könyv st:könyv po:noun ts:NOM pa:tár st:tár po:noun ts:NOM al:tárat al:tárak pa:bejegyzések st:bejegyzés po:noun ts:NOM hy:2 is:PLUR is:NOM
+578	pa:könyv st:könyv po:noun ts:NOM pa:tár st:tár po:noun ts:NOM al:tárat al:tárak pa:bejegyzések ip:PREF sp:be st:jegyez po:vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:NOM
+578	pa:könyv st:könyv po:noun ts:NOM pa:tár st:tár po:noun ts:NOM al:tárat al:tárak pa:bejegyzések ip:PREF sp:be st:jegyzés po:noun ts:NOM is:PLUR is:NOM
+578	pa:könyvtár st:könyvtár po:noun ts:NOM al:könyvtárak hy:5 pa:bejegyzések st:bejegyzés po:noun ts:NOM hy:2 is:PLUR is:NOM
+578	pa:könyvtár st:könyvtár po:noun ts:NOM al:könyvtárak hy:5 pa:bejegyzések ip:PREF sp:be st:jegyez po:vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:NOM
+578	pa:könyvtár st:könyvtár po:noun ts:NOM al:könyvtárak hy:5 pa:bejegyzések ip:PREF sp:be st:jegyzés po:noun ts:NOM is:PLUR is:NOM
+579	pa:könyv st:könyv po:noun ts:NOM pa:tár st:tár po:noun ts:NOM al:tárat al:tárak pa:szerkezete st:szerkezet po:noun ts:NOM is:POSS_SG_3 is:NOM
+579	pa:könyvtár st:könyvtár po:noun ts:NOM al:könyvtárak hy:5 pa:szerkezete st:szerkezet po:noun ts:NOM is:POSS_SG_3 is:NOM
+580	st:könyökcső po:noun ts:PLUR ts:NOM hy:6 is:POSS_SG_3 is:SUE
+581	st:köpeny po:noun ts:NOM is:POSS_SG_3 is:NOM
+582	st:kör po:noun ts:NOM is:POSSESSEE is:ALL
+582	st:kör po:noun ts:NOM is:POSS_SG_3 is:ALL
+583	ip:PREF sp:körbe st:néz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:nézet is:PRES_INDIC_INDEF_PL_1
+584	st:körkép po:noun ts:NOM hy:3 is:ALL
+586	pa:környezet st:környezet po:noun ts:NOM pa:részt st:rész po:noun ts:NOM is:ACC
+587	pa:kör st:kör po:noun ts:NOM pa:szakállas st:szakáll po:noun ts:PLUR ts:NOM ds:s_OCCUPATION_noun ts:NOM
+587	pa:kör st:kör po:noun ts:NOM pa:szakállas st:szakáll po:noun ts:PLUR ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+588	st:körzet po:noun ts:NOM is:POSSESSEE is:INE
+588	st:körzet po:noun ts:NOM is:POSS_SG_3 is:INE
+589	st:kör po:noun ts:NOM is:jÚ_PROPERTY_adj ts:NOM is:An_MODE_adv
+590	st:körülmény po:noun ts:NOM is:PLUR is:INE
+591	st:körültekintés po:noun ts:NOM hy:5 is:ACC
+591	ip:PREF sp:körül st:tekint po:vrb ts:PRES_INDIC_INDEF_SG_3 al:tekintet ds:Ás_PROCESS/RESULT_noun ts:NOM is:ACC
+592	st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_1
+593	st:köszön po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+594	st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_1
+594	st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+594	st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:ACC
+594	st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:NOM
+595	st:kötél po:noun ts:PLUR ts:NOM ds:s_ATTRIBUTE_adj ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_1 is:DAT
+595	st:köteles po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_1 is:DAT
+596	st:kötelezettség po:noun ts:NOM is:PLUR is:POSS_SG_3 is:CAUS/FIN
+596	st:kötél po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ds:tt_PASTPART_adj ds:sÁg_ABSTRACT_noun ts:NOM is:PLUR is:POSS_SG_3 is:CAUS/FIN
+596	st:kötelezett po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:PLUR is:POSS_SG_3 is:CAUS/FIN
+596	st:kötelez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ds:sÁg_ABSTRACT_noun ts:NOM is:PLUR is:POSS_SG_3 is:CAUS/FIN
+597	st:kötelezettségvállalás po:noun ts:NOM hy:13 is:ADE
+598	st:kötelék po:noun ts:NOM is:INE
+599	st:kötet po:noun ts:NOM is:POSSESSEE is:DAT
+599	st:kötet po:noun ts:NOM is:POSS_SG_3 is:DAT
+600	st:kötvény po:noun ts:NOM is:PLUR is:POSS_PL_3 is:NOM
+601	st:kötél po:noun ts:NOM al:kötelek is:ELA
+602	st:kötődik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:DAT
+602	st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:DAT
+602	st:kötődik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+602	st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+603	st:követ po:noun ts:NOM is:POSS_PL_1 is:ACC
+603	st:követ po:noun ts:NOM is:POSS_PL_1 is:NOM
+603	st:követ po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_1
+604	st:követelmény po:noun ts:NOM is:POSSESSEE is:ILL
+604	st:követelmény po:noun ts:NOM is:POSS_SG_3 is:ILL
+605	st:követel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+606	st:követ po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+607	st:következmény po:noun ts:NOM is:PLUR is:POSS_SG_3 is:ACC
+608	st:következtet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:SBL
+608	st:következik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ás_PROCESS/RESULT_noun ts:NOM is:SBL
+609	st:követség po:noun ts:NOM
+610	st:köz po:noun ts:NOM
+611	st:közbe-közbe po:twin
+612	pa:közel st:közel po:adv al:közelünkből al:közelünkben al:közelünkbe al:közelükből al:közelükben al:közelükbe al:közeléből al:közelében al:közelébe al:közelről al:közelre al:közeletekből al:közeletekben al:közeletekbe al:közelemből al:közelemben al:közelembe al:közeledből al:közeledben al:közeledbe al:közelből al:közelben al:közelbe pa:keleti st:keleti po:adj ts:NOM
+612	pa:közel st:közel po:adv al:közelünkből al:közelünkben al:közelünkbe al:közelükből al:közelükben al:közelükbe al:közeléből al:közelében al:közelébe al:közelről al:közelre al:közeletekből al:közeletekben al:közeletekbe al:közelemből al:közelemben al:közelembe al:közeledből al:közeledben al:közeledbe al:közelből al:közelben al:közelbe pa:keleti st:kelet po:noun ts:NOM is:i_PLACE/TIME_adj ts:NOM
+613	st:közeleg po:vrb ts:PRES_INDIC_INDEF_SG_3 al:közelgő al:közelgés
+614	st:közelít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:SBL
+614	st:közelít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:SBL
+615	st:közgazdaságtan po:noun ts:NOM hy:köz|gazdaság|tan
+616	st:latolgat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+616	st:latol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:gAt_FREQ_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+617	st:leadás po:noun ts:NOM hy:2 is:POSS_SG_3 is:NOM
+617	ip:PREF sp:le st:ad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:adat ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+618	ip:PREF sp:le st:bont po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bontat is:vA_PART_adv
+619	ip:PREF sp:le st:cibál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_1
+619	ip:PREF sp:le st:cibál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+619	ip:PREF sp:le st:cibál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:ACC
+619	ip:PREF sp:le st:cibál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:NOM
+620	ip:PREF sp:le st:csökken po:vrb ts:PRES_INDIC_INDEF_SG_3
+621	ip:PREF sp:le st:egyszerűsít po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:3 ds:hAtÓ_ABLE_(adj,present_part) ts:NOM
+622	ip:PREF sp:le st:farag po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+623	ip:PREF sp:le st:fekszik po:vrb is:SUBJ/IMPER_DEF_PL_3
+624	ip:PREF sp:le st:folytat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+624	ip:PREF sp:le st:folytat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+624	ip:PREF sp:le st:folyik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:folyt ds:tAt_FACTITIVE_vrb_tr ds:tt_PASTPART_adj ts:NOM
+624	ip:PREF sp:le st:folyik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:folyt ds:tAt_FACTITIVE_vrb_tr is:PAST_INDIC_INDEF_SG_3
+625	ip:PREF sp:le st:fénykép po:noun ts:NOM hy:4 ds:z_ACTION_vrb is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+625	ip:PREF sp:le st:fényképez po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:4 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+626	ip:leg_SUPERLATIVE_adj st:alkalmas po:adj ts:NOM is:bb_COMPARATIVE_adj is:NOM
+627	ip:leg_SUPERLATIVE_adj st:csúnya po:adj ts:NOM is:bb_COMPARATIVE_adj is:NOM
+628	st:legelészik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+628	st:legelész po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+629	ip:leg_SUPERLATIVE_adj ip:PREF sp:fel st:készül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj is:bb_COMPARATIVE_adj ts:NOM
+629	ip:leg_SUPERLATIVE_adj st:felkészült po:adj ts:NOM hy:3 is:bb_COMPARATIVE_adj is:NOM
+630	ip:leg_SUPERLATIVE_adj st:fürge po:adj ts:NOM is:bb_COMPARATIVE_adj is:NOM
+631	ip:leg_SUPERLATIVE_adj st:idős po:adj ts:NOM al:idősb is:bb_COMPARATIVE_adj is:NOM
+633	ip:leg_SUPERLATIVE_adj st:komplex po:adj ts:NOM is:bb_COMPARATIVE_adj is:NOM
+634	ip:leg_SUPERLATIVE_adj st:különleges po:adj ts:NOM is:bb_COMPARATIVE_adj is:NOM
+635	ip:leg_SUPERLATIVE_adj st:nagy po:adj is:bb_COMPARATIVE_adj ts:NOM
+636	ip:leg_SUPERLATIVE_adj st:pimasz po:adj ts:NOM is:bb_COMPARATIVE_adj is:NOM
+637	ip:leg_SUPERLATIVE_adj st:szabad po:adj ts:NOM al:szabadott al:szabadna al:szabadjon is:bb_COMPARATIVE_adj is:NOM
+638	ip:leg_SUPERLATIVE_adj st:sötét po:adj ts:NOM is:bb_COMPARATIVE_adj is:NOM
+639	ip:leg_SUPERLATIVE_adj st:sok po:adj_num is:bb_COMPARATIVE_adj ts:NOM is:POSS_PL_3 is:ACC
+640	ip:leg_SUPERLATIVE_adj st:végül po:adv
+642	st:legénység po:noun ts:NOM is:ELA
+643	ip:PREF sp:le st:hatol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+643	ip:PREF sp:le st:hatol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+644	st:van po:vrb is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_2
+644	st:van po:vrb is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_3
+645	st:van po:vrb ds:hAtÓ_ABLE_(adj,present_part) ds:sÁg_ABSTRACT_noun ts:NOM is:PLUR is:POSS_SG_3 is:ACC
+645	st:lehetőség po:noun ts:NOM is:PLUR is:POSS_SG_3 is:ACC
+646	st:van po:vrb ds:hAtÓ_ABLE_(adj,present_part) ds:sÁg_ABSTRACT_noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+646	st:lehetőség po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+646	st:van po:vrb ds:hAtÓ_ABLE_(adj,present_part) ds:sÁg_ABSTRACT_noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+646	st:lehetőség po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+647	ip:PREF sp:le st:hűt po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+648	st:lejt po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+649	ip:PREF sp:le st:járta po:noun is:POSS_SG_3 ts:NOM al:jártunk al:jártuk al:jártatok al:jártam al:jártad al:járta is:ALL
+649	ip:PREF sp:le st:járta po:noun ts:NOM al:jártunk al:jártuk al:jártatok al:jártam al:jártad al:járta is:ALL
+650	ip:PREF sp:le st:jön po:vrb is:PAST_INDIC_INDEF_SG_3
+651	pa:lekérdező ip:PREF sp:le st:kérdez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:ablak st:ablak po:noun ts:NOM
+652	st:lel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_1
+653	st:lélek po:noun ts:PLUR ts:NOM ds:s_ATTRIBUTE_adj ds:Odik_MEDIAL_vrb_it ds:Ás_PROCESS/RESULT_noun ts:NOM is:ACC
+653	st:lelkesedik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ACC
+655	st:lélek po:noun ts:PLUR ts:NOM is:POSS_SG_3 is:SUE
+656	ip:PREF sp:le st:lohad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:lohadt al:lohadt
+657	ip:PREF sp:le st:marad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:maradt al:maradt is:ni_INFINITIVE_inf
+658	pa:lemez st:lemez po:noun ts:NOM pa:alrendszerrel st:alrendszer po:noun ts:NOM hy:al||rend|szer is:INSTR
+659	st:lemez po:noun ts:NOM is:DEL
+660	pa:lemez st:lemez po:noun ts:NOM pa:kombinációkat st:kombináció po:noun ts:NOM is:PLUR is:ACC
+661	ip:PREF sp:le st:mond po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mondá al:mondhatnók al:mondat is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_SG_1
+662	ip:PREF sp:le st:másol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+662	ip:PREF sp:le st:másol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+663	st:lendületes po:adj ts:NOM
+663	st:lendület po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM
+663	st:lendület po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+664	st:van po:vrb is:PRES_COND_INDEF_SG_1
+664	st:len po:noun ts:NOM ds:né_MRS_noun ts:NOM is:PLUR is:NOM
+665	ip:PREF sp:le st:nyúlik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:nyúlott ds:tt_PASTPART_adj ts:NOM
+665	ip:PREF sp:le st:nyúlik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:nyúlott is:PAST_INDIC_INDEF_SG_3
+665	ip:PREF sp:le st:nyúl po:vrb ts:PRES_INDIC_INDEF_SG_3 al:nyulak ds:tt_PASTPART_adj ts:NOM
+665	ip:PREF sp:le st:nyúl po:vrb ts:PRES_INDIC_INDEF_SG_3 al:nyulak is:PAST_INDIC_INDEF_SG_3
+666	ip:PREF sp:le st:pecsétel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+666	ip:PREF sp:le st:pecsétel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+667	st:lep po:vrb ts:PRES_INDIC_INDEF_SG_3 al:lepet is:PAST_INDIC_DEF_SG_3
+668	ip:PREF sp:le st:rak po:vrb is:PAST_INDIC_DEF_PL_3
+669	ip:PREF sp:le st:ront po:vrb ts:PRES_INDIC_INDEF_SG_3 al:rontat ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:ACC
+670	st:les po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_PL_1
+670	st:les po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_1
+671	ip:PREF sp:le st:szokik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_1
+671	ip:PREF sp:le st:szokik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+672	st:leszállítás po:noun ts:NOM hy:2 is:POSS_SG_3 is:TEMP
+672	ip:PREF sp:le st:szállít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:TEMP
+673	ip:PREF sp:le st:szór po:vrb ts:PRES_INDIC_INDEF_SG_3 al:szórat is:SUBJ/IMPER_DEF_SG_3
+673	ip:PREF sp:le st:szór po:vrb ts:PRES_INDIC_INDEF_SG_3 al:szórat is:PRES_INDIC_DEF_SG_3
+674	ip:PREF sp:le st:sújt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:sújtat is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3
+675	ip:PREF sp:le st:tartóztat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+675	ip:PREF sp:le st:tartó po:noun ts:NOM ds:z_ACTION_vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+676	ip:PREF sp:le st:terhel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:NOM
+677	st:lesz po:vrb is:PAST_INDIC_INDEF_PL_3
+677	st:lett po:noun ts:NOM is:PLUR is:NOM
+677	st:lett po:adj ts:NOM is:PLUR is:NOM
+678	ip:PREF sp:le st:tölt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:töltet ds:hAtÓ_ABLE_(adj,present_part) ts:NOM
+679	st:letört po:adj ts:NOM hy:2 is:An_MODE_adv
+679	ip:PREF sp:le st:törik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:törött ds:tt_PASTPART_adj ts:NOM is:An_MODE_adv
+679	ip:PREF sp:le st:tör po:vrb ts:PRES_INDIC_INDEF_SG_3 al:töret ds:tt_PASTPART_adj ts:NOM is:An_MODE_adv
+680	st:levegő po:noun ts:NOM is:INSTR
+681	st:levél po:noun ts:PLUR ts:NOM is:ACC
+682	st:levél po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM
+682	st:levelezik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+682	st:levelez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+683	st:lezuhanyoz po:vrb ts:PRES_INDIC_INDEF_SG_3 hy:2 is:PAST_INDIC_INDEF_PL_1
+683	ip:PREF sp:le st:zuhanyozik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_1
+683	ip:PREF sp:le st:zuhany po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_1
+684	ip:PREF sp:le st:áll po:vrb ts:PRES_INDIC_INDEF_SG_3 al:állak
+685	st:leány po:noun ts:NOM is:POSS_SG_3 is:INSTR
+686	ip:PREF sp:le st:épít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:ACC
+686	ip:PREF sp:le st:épít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:ACC
+687	ip:PREF sp:le st:ír po:vrb ts:PRES_INDIC_INDEF_SG_3 al:írat
+688	st:leírás po:noun ts:NOM hy:2 is:POSS_SG_3 is:DAT
+688	ip:PREF sp:le st:ír po:vrb ts:PRES_INDIC_INDEF_SG_3 al:írat ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DAT
+689	ip:PREF sp:le st:ültet po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_2
+689	ip:PREF sp:le st:ül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_2
+689	ip:PREF sp:le st:ültet po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_3
+689	ip:PREF sp:le st:ül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_3
+690	pa:licenc st:licenc po:noun ts:NOM ph:licensz ph:licens pa:díjat st:díj po:noun ts:PLUR ts:NOM is:ACC
+691	st:liget po:noun ts:NOM is:ILL
+692	st:limitál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj is:bb_COMPARATIVE_adj ts:NOM is:PLUR is:NOM
+692	st:limitál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:bb_COMPARATIVE_adj is:PLUR is:NOM
+693	st:lista po:noun ts:NOM is:INE
+694	st:litográfia po:noun ts:NOM
+695	st:loccsan po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ACC
+696	st:logika po:noun ts:NOM is:POSS_SG_3 is:ACC
+697	st:lokomotív po:noun ts:NOM
+698	st:lop po:vrb ts:PRES_INDIC_INDEF_SG_3 al:lopat is:PAST_INDIC_INDEF_PL_3
+699	st:lovagias po:adj ts:NOM is:bb_COMPARATIVE_adj is:TRANS
+700	st:lovarda po:noun ts:NOM is:ILL
+701	st:lustálkodik po:vrb ts:PRES_INDIC_INDEF_SG_3
+702	st:lyuk po:noun ts:PLUR ts:NOM is:PLUR is:POSS_SG_3 is:SUE
+703	st:láb po:noun ts:PLUR ts:NOM is:PLUR is:POSS_SG_3 is:ADE
+704	st:láb po:noun ts:PLUR ts:NOM is:POSS_SG_3 is:ACC
+705	st:lábujj po:noun ts:PLUR ts:NOM hy:3 is:POSS_SG_3 is:ACC
+706	st:lámpafény po:noun ts:NOM hy:5 is:INE
+707	pa:lánc st:lánc po:noun ts:NOM pa:fű st:fű po:noun ts:NOM al:füvi al:füvek pa:résszel st:rész po:noun ts:NOM is:INSTR
+707	pa:lánc st:lánc po:noun ts:NOM pa:fűrésszel st:fűrész po:noun ts:NOM is:INSTR
+708	st:lángol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+709	st:lány po:noun ts:NOM al:lányáék is:POSS_SG_3 is:DAT
+710	st:lát po:vrb is:SUBJ/IMPER_DEF_PL_3
+711	st:lát po:vrb is:PAST_INDIC_DEF_PL_3
+712	st:lát po:vrb is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_3
+713	st:látogat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_3
+714	st:látogat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DEL
+715	st:látszik po:vrb is:ni_INFINITIVE_inf
+716	st:látvány po:noun ts:NOM is:POSS_SG_3 is:ACC
+717	st:látószög po:noun ts:NOM hy:4 is:POSSESSEE is:ILL
+717	st:látószög po:noun ts:NOM hy:4 is:POSS_SG_3 is:ILL
+718	pa:láz st:láz po:noun ts:NOM al:lázak pa:álom st:álom po:noun ts:NOM al:álmok pa:képtől st:kép po:noun ts:NOM is:ABL
+719	pa:légiposta st:légiposta po:noun ts:NOM hy:4 pa:küldeménye st:küldemény po:noun ts:NOM is:POSS_SG_3 is:NOM
+720	st:légkör po:noun ts:NOM hy:3 is:POSSESSEE is:INE
+720	st:légkör po:noun ts:NOM hy:3 is:POSS_SG_3 is:INE
+722	st:lélektani po:adj ts:NOM hy:5
+722	st:lélektan po:noun ts:NOM hy:5 is:i_PLACE/TIME_adj ts:NOM
+723	st:lényegtelen po:adj ts:NOM
+723	st:lényeg po:noun ts:NOM ds:tAlAn_LESS_adj ts:NOM
+724	st:lépcső po:noun ts:NOM is:ALL
+725	st:lép po:vrb ts:PRES_INDIC_INDEF_SG_3 al:léptet al:lépet is:PRES_INDIC_DEF_PL_3
+726	st:lép po:vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:DEL
+726	st:léptet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:DEL
+726	st:lép po:vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DEL
+726	st:léptet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:DEL
+727	st:lépés po:noun ts:NOM is:SBL
+727	st:lép po:vrb ts:PRES_INDIC_INDEF_SG_3 al:léptet al:lépet ds:Ás_PROCESS/RESULT_noun ts:NOM is:SBL
+728	st:létesít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_3
+728	st:lét po:noun ts:NOM ds:sít_SUPPLY_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_3
+729	st:lét po:noun ts:NOM ds:z_ACTION_vrb is:hAt_MODAL_vrb is:PAST_INDIC_INDEF_SG_3
+729	st:létezik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb is:PAST_INDIC_INDEF_SG_3
+730	st:lézer po:noun ts:NOM ph:laser
+731	st:lóerő po:noun ts:NOM al:lóerej hy:2 ds:s_OCCUPATION_noun ts:NOM
+731	st:lóerő po:noun ts:NOM al:lóerej hy:2 ds:s_ATTRIBUTE_adj ts:NOM
+732	st:lőfegyver po:noun ts:NOM hy:2 is:ACC
+733	st:lökdösődik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+733	st:lökdös po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ódik_PASSIVE_vrb_it ds:Ás_PROCESS/RESULT_noun ts:NOM
+734	st:lő po:vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:INSTR
+734	st:lövés po:noun ts:NOM is:INSTR
+735	st:madár po:noun ts:PLUR ts:NOM ds:s_OCCUPATION_noun ts:NOM
+735	st:madár po:noun ts:PLUR ts:NOM ds:s_ATTRIBUTE_adj ts:NOM
+736	st:magabiztos po:adj ts:NOM hy:4 ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:NOM
+737	st:maga po:noun_ref_SG_3 ts:NOM al:önnönmagunk al:önnönmaguk al:önnönmagatok al:önnönmagam al:önnönmagad al:önnönmaga al:önmagunk al:önmaguk al:önmagatok al:önmagam al:önmagad al:önmaga al:magunk al:maguk al:magatok al:magam al:magad al:jómagam al:enmagam al:egymagunk al:egymaguk al:egymagatok al:egymagam al:egymagad al:egymaga is:DEL
+738	st:magas po:adj ts:NOM is:ELA
+739	st:magatartás po:noun ts:NOM hy:4 is:PLUR is:SBL
+740	st:mag po:noun ts:PLUR ts:NOM is:PLUR is:ACC
+741	st:maga po:noun_ref_PL_3 ts:NOM is:ELA
+742	pa:magyar st:magyar po:noun ts:NOM pa:zsidó st:zsidó po:noun ts:NOM
+742	pa:magyar st:magyar po:noun ts:NOM pa:zsidó st:zsidó po:adj ts:NOM
+742	pa:magyar st:magyar pa:zsidó st:zsidó po:noun ts:NOM
+742	pa:magyar st:magyar pa:zsidó st:zsidó po:adj ts:NOM
+743	st:magyarázat po:noun ts:NOM is:FORM
+744	st:magyaráz po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+745	st:magángazdaság po:noun ts:NOM hy:5 is:INE
+746	pa:magán st:magán po:noun pa:kereskedési st:kereskedik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun is:i_PLACE/TIME_adj ts:NOM
+747	st:magánszemély po:noun ts:NOM hy:5 is:PLUR is:ACC
+748	st:magány po:noun ts:NOM ds:s_ATTRIBUTE_adj ds:sÁg_ABSTRACT_noun ts:NOM
+748	st:magányos po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM
+750	st:majális po:noun ts:NOM is:PLUR is:ACC
+751	pa:malom st:malom po:noun ts:NOM al:malmok pa:kerék st:kerék po:noun ts:NOM al:kerekek
+752	st:mama po:noun ts:NOM al:mamájáék is:ABL
+753	st:manipulál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+753	st:manipulál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+754	st:mappa po:noun ts:NOM is:PLUR is:ALL
+755	st:marad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:maradt al:maradt is:SUBJ/IMPER_INDEF_PL_1
+756	st:maradék po:noun ts:NOM
+757	st:mariníroz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+757	st:mariníroz po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+758	pa:marketing st:marketing po:noun ts:NOM pa:tényező st:tényező po:noun ts:NOM
+758	pa:marketing st:marketing po:noun ts:NOM pa:tényező st:tény po:noun ts:NOM ds:z_ACTION_vrb ds:Ó_PRESPART_adj ts:NOM
+759	st:marxista po:adj ts:NOM is:ACC
+760	st:maszkíroz po:vrb ts:PRES_INDIC_INDEF_SG_3 is:vA_PART_adv
+761	st:matrica po:noun ts:NOM is:ALL
+762	st:maximum po:noun ts:NOM is:POSS_SG_3 is:ACC
+763	st:mechanika po:noun ts:NOM is:i_PLACE/TIME_adj is:lAg_MODE_adv
+764	fl:" st:Medgyes po:noun_prs ts:NOM is:i_PLACE/TIME_adj ts:NOM
+765	ip:PREF sp:meg st:ad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:adat is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_COND_DEF_SG_3
+766	st:megadás po:noun ts:NOM hy:3 is:POSS_SG_3 is:ALL
+766	ip:PREF sp:meg st:ad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:adat ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:ALL
+767	ip:PREF sp:meg st:akadály po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_3
+767	ip:PREF sp:meg st:akadály po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+767	ip:PREF sp:meg st:akadályoz po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+767	ip:PREF sp:meg st:akadályoz po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_3
+768	ip:PREF sp:meg st:alakít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:AndÓ_FUTPART_adj ts:NOM
+769	ip:PREF sp:meg st:alap po:noun ts:NOM ds:z_ACTION_vrb ds:Ó_PRESPART_adj ts:NOM is:DAT
+769	ip:PREF sp:meg st:alapoz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:DAT
+770	ip:PREF sp:meg st:alázkodik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:INSTR
+771	ip:PREF sp:meg st:becsül po:vrb ts:PRES_INDIC_INDEF_SG_3 al:becslünk al:becslitek al:becslik al:becsli al:becsletek al:becslesz al:becslem al:becslek al:becsled is:PRES_INDIC_INDEF_PL_3
+772	st:megbeszélés po:noun ts:NOM hy:3 is:PLUR is:NOM
+772	ip:PREF sp:meg st:beszél po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:NOM
+773	ip:PREF sp:meg st:bocsát po:vrb is:PAST_INDIC_INDEF_PL_3
+773	ip:PREF sp:meg st:bocsát po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bocsátván al:bocsátva al:bocsátunk al:bocsáttok al:bocsátsz al:bocsátottátok al:bocsátottál al:bocsátották al:bocsátottunk al:bocsátottuk al:bocsátottatok al:bocsátottam al:bocsátottam al:bocsátottalak al:bocsátottak al:bocsátottad al:bocsátotta al:bocsátott al:bocsátotok al:bocsátom al:bocsátok al:bocsátod al:bocsátnátok al:bocsátnátok al:bocsátnánk al:bocsátnánk al:bocsátnának al:bocsátnák al:bocsátná al:bocsátnotok al:bocsátniuk al:bocsátnak al:bocsátna al:bocsátlak al:bocsátjátok al:bocsátják al:bocsátjuk al:bocsátja al:bocsátasz al:bocsátanék al:bocsátanátok al:bocsátanátok al:bocsátanánk al:bocsátanánk al:bocsátanának al:bocsátanám al:bocsátanálak al:bocsátanál al:bocsátanák al:bocsátanád al:bocsátaná al:bocsátanunk al:bocsátanom al:bocsátanod al:bocsátania al:bocsátani al:bocsátanak al:bocsátana al:bocsátalak al:bocsássátok al:bocsássál al:bocsássák al:bocsássunk al:bocsássuk al:bocsásson al:bocsássatok al:bocsássanak al:bocsássam al:bocsássalak al:bocsássak al:bocsássad al:bocsássa al:bocsáss al:bocsásd is:PAST_INDIC_INDEF_PL_3
+773	ip:PREF sp:meg st:bocsát po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bocsátván al:bocsátva al:bocsátunk al:bocsáttok al:bocsátsz al:bocsátottátok al:bocsátottál al:bocsátották al:bocsátottunk al:bocsátottuk al:bocsátottatok al:bocsátottam al:bocsátottam al:bocsátottalak al:bocsátottak al:bocsátottad al:bocsátotta al:bocsátott al:bocsátotok al:bocsátom al:bocsátok al:bocsátod al:bocsátnátok al:bocsátnátok al:bocsátnánk al:bocsátnánk al:bocsátnának al:bocsátnák al:bocsátná al:bocsátnotok al:bocsátniuk al:bocsátnak al:bocsátna al:bocsátlak al:bocsátjátok al:bocsátják al:bocsátjuk al:bocsátja al:bocsátasz al:bocsátanék al:bocsátanátok al:bocsátanátok al:bocsátanánk al:bocsátanánk al:bocsátanának al:bocsátanám al:bocsátanálak al:bocsátanál al:bocsátanák al:bocsátanád al:bocsátaná al:bocsátanunk al:bocsátanom al:bocsátanod al:bocsátania al:bocsátani al:bocsátanak al:bocsátana al:bocsátalak al:bocsássátok al:bocsássál al:bocsássák al:bocsássunk al:bocsássuk al:bocsásson al:bocsássatok al:bocsássanak al:bocsássam al:bocsássalak al:bocsássak al:bocsássad al:bocsássa al:bocsáss al:bocsásd ds:tt_PASTPART_adj ts:NOM is:PLUR is:NOM
+774	ip:PREF sp:meg st:bukik po:vrb ts:PRES_INDIC_INDEF_SG_3
+775	ip:PREF sp:meg st:bélyeg po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+775	ip:PREF sp:meg st:bélyegez po:vrb ts:PRES_INDIC_INDEF_SG_3 al:bélyegző al:bélyegzés al:bélyegzendő is:ni_INFINITIVE_inf
+776	st:megbíz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:megbízat hy:3 ds:hAtÓ_ABLE_(adj,present_part) is:bb_COMPARATIVE_adj ts:NOM
+776	st:megbízható po:adj ts:NOM hy:3 is:bb_COMPARATIVE_adj is:NOM
+776	st:megbíz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:megbízat hy:3 ds:hAtÓ_ABLE_(adj,present_part) ts:NOM is:bb_COMPARATIVE_adj is:NOM
+776	ip:PREF sp:meg st:bízik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:biztat ds:hAtÓ_ABLE_(adj,present_part) is:bb_COMPARATIVE_adj ts:NOM
+776	ip:PREF sp:meg st:bíz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:hAtÓ_ABLE_(adj,present_part) is:bb_COMPARATIVE_adj ts:NOM
+776	ip:PREF sp:meg st:bízik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:biztat ds:hAtÓ_ABLE_(adj,present_part) ts:NOM is:bb_COMPARATIVE_adj is:NOM
+776	ip:PREF sp:meg st:bíz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:hAtÓ_ABLE_(adj,present_part) ts:NOM is:bb_COMPARATIVE_adj is:NOM
+777	st:megbízott po:noun ts:NOM hy:3 is:POSS_SG_3 is:ABL
+777	st:megbízott po:adj ts:NOM hy:3 is:POSS_SG_3 is:ABL
+777	st:megbíz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:megbízat hy:3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_3 is:ABL
+777	ip:PREF sp:meg st:bízik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:biztat ds:tt_PASTPART_adj ts:NOM is:POSS_SG_3 is:ABL
+777	ip:PREF sp:meg st:bíz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSS_SG_3 is:ABL
+778	ip:PREF sp:meg st:erőszakol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_3
+779	ip:PREF sp:meg st:eszik po:vrb is:PAST_INDIC_DEF_SG_3
+780	ip:PREF sp:meg st:felel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+781	ip:PREF sp:meg st:fenyeget po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_3
+782	st:megfigyelés po:noun ts:NOM hy:3 is:POSSESSEE is:SBL
+782	st:megfigyelés po:noun ts:NOM hy:3 is:POSS_SG_3 is:SBL
+782	ip:PREF sp:meg st:figyel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:SBL
+782	ip:PREF sp:meg st:figyel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:SBL
+783	ip:PREF sp:meg st:fizettet po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+783	ip:PREF sp:meg st:fizet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+784	st:megfogalmazás po:noun ts:NOM hy:3 is:POSS_SG_3 is:ALL
+784	ip:PREF sp:meg st:fogalom po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:ALL
+784	ip:PREF sp:meg st:fogalmaz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:ALL
+785	st:megfontolás po:noun ts:NOM hy:3 is:ELA
+785	ip:PREF sp:meg st:fontol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ELA
+786	ip:PREF sp:meg st:foszt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:fosztat is:vA_PART_adv
+787	ip:PREF sp:meg st:főz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:főzet ds:Ás_PROCESS/RESULT_noun ts:NOM is:TERM
+788	ip:PREF sp:meg st:gondol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_3
+789	st:meggyógyult po:adj ts:NOM hy:meg|gyógyult
+789	ip:PREF sp:meg st:gyógyul po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+789	ip:PREF sp:meg st:gyógyul po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+790	st:meggyőző po:noun ts:NOM hy:meg|győ-ző is:DAT
+790	ip:PREF sp:meg st:győz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:győzet ds:Ó_PRESPART_adj ts:NOM is:DAT
+791	st:meghajtó po:noun ts:NOM hy:3 is:PLUR is:ACC
+791	ip:PREF sp:meg st:hajt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:hajtat ds:Ó_PRESPART_adj ts:NOM is:PLUR is:ACC
+792	ip:PREF sp:meg st:halad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:haladt al:haladt ds:Ó_PRESPART_adj ts:NOM is:An_MODE_adv
+793	ip:PREF sp:meg st:hall po:vrb is:PAST_INDIC_DEF_PL_1
+794	st:meghatalmazott po:noun ts:NOM hy:3 is:i_PLACE/TIME_adj ts:NOM
+795	st:meghatározatlan po:adj ts:NOM hy:3 is:ESS
+795	ip:PREF sp:meg st:határ po:noun ts:NOM ds:z_ACTION_vrb ds:tAlAn_LESS_adj ts:NOM is:ESS
+795	ip:PREF sp:meg st:határoz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAlAn_LESS_adj ts:NOM is:ESS
+796	st:meghatározás po:noun ts:NOM hy:3 is:POSS_SG_3 is:TEMP
+796	ip:PREF sp:meg st:határ po:noun ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:TEMP
+796	ip:PREF sp:meg st:határoz po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:TEMP
+797	st:meghibásodás po:noun ts:NOM hy:3 is:TEMP
+797	ip:PREF sp:meg st:hiba po:noun ts:NOM ds:s_ATTRIBUTE_adj ds:Odik_MEDIAL_vrb_it ds:Ás_PROCESS/RESULT_noun ts:NOM is:TEMP
+797	ip:PREF sp:meg st:hibásodik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:TEMP
+798	ip:PREF sp:meg st:hon po:noun ts:NOM ds:s_ATTRIBUTE_adj ds:Odik_MEDIAL_vrb_it ds:tt_PASTPART_adj ts:NOM
+798	ip:PREF sp:meg st:hon po:noun ts:NOM ds:s_ATTRIBUTE_adj ds:Odik_MEDIAL_vrb_it is:PAST_INDIC_INDEF_SG_3
+798	ip:PREF sp:meg st:honosodik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+798	ip:PREF sp:meg st:honosodik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+799	ip:PREF sp:meg st:hoz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:hozat ds:tt_PASTPART_adj ts:NOM is:DAT
+800	st:meghívás po:noun ts:NOM hy:3
+800	ip:PREF sp:meg st:hív po:vrb ts:PRES_INDIC_INDEF_SG_3 al:hívebben al:hívebb al:híván al:hívunk al:hívom al:hívok al:hívod al:hívat al:híva al:híttátok al:híttál al:hítták al:híttunk al:híttuk al:híttatok al:híttam al:híttam al:híttalak al:híttak al:híttad al:hítta al:hítt al:hítok al:hísz al:hínék al:hínátok al:hínátok al:hínánk al:hínánk al:hínának al:hínám al:hínálak al:hínál al:hínák al:hínád al:híná al:hínunk al:hínotok al:hínom al:hínod al:híniuk al:híniok al:hínia al:híni al:hínak al:hína al:hílak al:híjátok al:híjál al:híják al:híjunk al:híjuk al:híjuk al:híjon al:híjatok al:híjanak al:híjam al:híjalak al:híjak al:híjad al:híja al:híj al:hídd al:hí ds:Ás_PROCESS/RESULT_noun ts:NOM
+801	st:meghökkent po:adj ts:NOM hy:3
+801	ip:PREF sp:meg st:hökkent po:vrb ts:PRES_INDIC_INDEF_SG_3 al:hökkentet
+801	ip:PREF sp:meg st:hökken po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+801	ip:PREF sp:meg st:hökken po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+802	ip:PREF sp:meg st:ijeszt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:ijesztet is:ni_INFINITIVE_inf
+803	ip:PREF sp:meg st:jelenik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:PLUR is:NOM
+803	ip:PREF sp:meg st:jelenik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_2
+803	ip:PREF sp:meg st:jelenik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_3
+803	ip:PREF sp:meg st:jelent po:vrb ts:PRES_INDIC_INDEF_SG_3 al:jelentet is:PRES_INDIC_INDEF_SG_1
+804	st:megjelenés po:noun ts:NOM hy:3 is:POSSESSEE is:SBL
+804	st:megjelenés po:noun ts:NOM hy:3 is:POSS_SG_3 is:SBL
+804	ip:PREF sp:meg st:jelenik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:SBL
+804	ip:PREF sp:meg st:jelenik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:SBL
+805	ip:PREF sp:meg st:jelenít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:POSS_SG_3 is:SUE
+806	ip:PREF sp:meg st:jutalmaz po:vrb ts:PRES_INDIC_INDEF_SG_3
+806	ip:PREF sp:meg st:jutalom po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3
+807	ip:PREF sp:meg st:kapaszkodik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ALL
+808	ip:PREF sp:meg st:kegyelem po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+808	ip:PREF sp:meg st:kegyelmez po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+809	ip:PREF sp:meg st:keres po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_PL_1 is:SBL
+810	ip:PREF sp:meg st:kezd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kezdet ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+811	ip:PREF sp:meg st:károsít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+811	ip:PREF sp:meg st:kár po:noun ts:NOM ds:sít_SUPPLY_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+812	ip:PREF sp:meg st:kér po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kéret is:ni_INFINITIVE_inf
+813	ip:PREF sp:meg st:kísért po:vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+813	ip:PREF sp:meg st:kísértet po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+813	ip:PREF sp:meg st:kísér po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+813	ip:PREF sp:meg st:kísért po:vrb ts:PRES_INDIC_INDEF_SG_3 al:kísértet is:PAST_INDIC_DEF_SG_3
+814	ip:PREF sp:meg st:könnyít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:vA_PART_adv
+815	st:megkötött po:adj ts:NOM hy:3 ds:sÁg_ABSTRACT_noun ts:NOM is:ABL
+815	ip:PREF sp:meg st:köt po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ds:sÁg_ABSTRACT_noun ts:NOM is:ABL
+816	ip:PREF sp:meg st:küld po:vrb ts:PRES_INDIC_INDEF_SG_3 al:küldet is:PRES_INDIC_DEF_SG_3
+817	ip:PREF sp:meg st:lapul po:vrb ts:PRES_INDIC_INDEF_SG_3
+818	st:meglepetés po:noun ts:NOM hy:3 is:DEL
+818	ip:PREF sp:meg st:lep po:vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:DEL
+818	ip:PREF sp:meg st:lepet po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:DEL
+819	ip:PREF sp:meg st:lincsel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+820	ip:PREF sp:meg st:lát po:vrb is:PAST_INDIC_INDEF_PL_3
+821	ip:PREF sp:meg st:marad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:maradt al:maradt is:PAST_INDIC_INDEF_PL_3
+821	ip:PREF sp:meg st:marad po:vrb ds:tt_PASTPART_adj ts:NOM is:PLUR is:NOM
+821	ip:PREF sp:meg st:marad po:vrb is:PAST_INDIC_INDEF_SG_3 is:PLUR is:NOM
+822	ip:PREF sp:meg st:megy po:vrb is:PAST_INDIC_INDEF_SG_3 al:mentet is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+822	ip:PREF sp:meg st:ment po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mentet is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+823	ip:PREF sp:meg st:mond po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mondá al:mondhatnók al:mondat is:SUBJ/IMPER_DEF_SG_3
+823	ip:PREF sp:meg st:mond po:vrb ts:PRES_INDIC_INDEF_SG_3 al:mondá al:mondhatnók al:mondat is:PRES_INDIC_DEF_SG_3
+824	ip:PREF sp:meg st:mér po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_3
+825	st:megnevezés po:noun ts:NOM hy:3 is:POSSESSEE is:INE
+825	st:megnevezés po:noun ts:NOM hy:3 is:POSS_SG_3 is:INE
+825	ip:PREF sp:meg st:név po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:INE
+825	ip:PREF sp:meg st:nevez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSSESSEE is:INE
+825	ip:PREF sp:meg st:név po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:INE
+825	ip:PREF sp:meg st:nevez po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:INE
+826	ip:PREF sp:meg st:nyilvánul po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:DEL
+827	st:megnyitás po:noun ts:NOM hy:3 is:POSS_SG_3 is:INSTR
+827	ip:PREF sp:meg st:nyit po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:INSTR
+828	ip:PREF sp:meg st:nyugtat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+828	ip:PREF sp:meg st:nyugtat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+829	ip:PREF sp:meg st:néz po:vrb ts:PRES_INDIC_INDEF_SG_3 al:nézet is:PRES_COND_DEF_SG_1
+830	ip:PREF sp:meg st:növekszik po:vrb ds:Ó_PRESPART_adj ts:NOM
+830	ip:PREF sp:meg st:növekvő po:adj ts:NOM
+831	ip:PREF sp:meg st:old po:vrb ts:PRES_INDIC_INDEF_SG_3 al:oldat is:SUBJ/IMPER_DEF_PL_3
+831	ip:PREF sp:meg st:old po:vrb ts:PRES_INDIC_INDEF_SG_3 al:oldat is:PRES_INDIC_DEF_PL_3
+832	st:megoldás po:noun ts:NOM hy:3 is:SUE
+832	ip:PREF sp:meg st:old po:vrb ts:PRES_INDIC_INDEF_SG_3 al:oldat ds:Ás_PROCESS/RESULT_noun ts:NOM is:SUE
+833	ip:PREF sp:meg st:oltalom po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_3
+833	ip:PREF sp:meg st:oltalmaz po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_3
+834	st:megosztottság po:noun ts:NOM is:POSS_SG_3 is:NOM
+834	ip:PREF sp:meg st:oszt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:osztat ds:tt_PASTPART_adj ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:NOM
+835	ip:PREF sp:meg st:pakol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:vA_PART_adv
+836	ip:PREF sp:meg st:próbálkozik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_3
+837	ip:PREF sp:meg st:pucol po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_1
+838	ip:PREF sp:meg st:rakodik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:vA_PART_adv
+839	ip:PREF sp:meg st:rendel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:PLUR is:POSS_SG_3 is:NOM
+840	ip:PREF sp:meg st:rend po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_1
+840	ip:PREF sp:meg st:rendez po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_1
+841	ip:PREF sp:meg st:roham po:noun ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_1
+841	ip:PREF sp:meg st:rohamoz po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_1
+842	st:megrémült po:adj ts:NOM hy:3 is:PLUR is:NOM
+842	ip:PREF sp:meg st:rémül po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_3
+842	ip:PREF sp:meg st:rémül po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:PLUR is:NOM
+843	ip:PREF sp:meg st:sejt po:vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_1
+843	ip:PREF sp:meg st:sejtet po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_1
+843	ip:PREF sp:meg st:sejt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:sejtet is:PAST_INDIC_DEF_SG_1
+843	ip:PREF sp:meg st:sejt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:sejtet ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:ACC
+843	ip:PREF sp:meg st:sejt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:sejtet ds:tt_PASTPART_adj ts:NOM is:POSS_SG_1 is:NOM
+843	ip:PREF sp:meg st:sejt po:vrb ds:tAt_FACTITIVE_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+843	ip:PREF sp:meg st:sejtet po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_1
+843	ip:PREF sp:meg st:sejt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:sejtet is:PAST_INDIC_INDEF_SG_1
+844	ip:PREF sp:meg st:simogat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_1
+845	ip:PREF sp:meg st:szab po:vrb ts:PRES_INDIC_INDEF_SG_3 al:szabat is:PAST_INDIC_DEF_SG_3
+846	ip:PREF sp:meg st:szeg po:vrb ts:PRES_INDIC_INDEF_SG_3 al:szeget is:PRES_INDIC_DEF_PL_3
+847	ip:PREF sp:meg st:szeret po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_2
+848	ip:PREF sp:meg st:szerv po:noun ts:NOM ds:z_ACTION_vrb is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_1
+848	ip:PREF sp:meg st:szervez po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_1
+849	ip:PREF sp:meg st:szerez po:vrb ds:Ó_PRESPART_adj ts:NOM is:POSS_SG_3 is:SBL
+849	ip:PREF sp:meg st:szerző po:noun ts:NOM is:POSS_SG_3 is:SBL
+849	ip:PREF sp:meg st:szerző po:adj ts:NOM is:POSS_SG_3 is:SBL
+850	st:megszorítás po:noun ts:NOM hy:3
+850	ip:PREF sp:meg st:szorít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+851	ip:PREF sp:meg st:szárít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_1
+852	st:megszólítás po:noun ts:NOM hy:3 is:POSS_SG_3 is:SBL
+852	ip:PREF sp:meg st:szólít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:SBL
+853	st:megszűnés po:noun ts:NOM hy:3 is:ADE
+853	ip:PREF sp:meg st:szűnik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ADE
+854	ip:PREF sp:meg st:születik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+855	ip:PREF sp:meg st:sárgít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM
+855	ip:PREF sp:meg st:sárgít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_SG_3
+856	ip:PREF sp:meg st:süt po:vrb ts:PRES_INDIC_INDEF_SG_3 is:ni_INFINITIVE_inf
+857	ip:PREF sp:meg st:takarít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+858	ip:PREF sp:meg st:talál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:INF_SG_1
+859	ip:PREF sp:meg st:tanul po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_1
+860	ip:PREF sp:meg st:tart po:vrb ts:PRES_INDIC_INDEF_SG_3 al:tartat is:PRES_COND_DEF_SG_3
+861	ip:PREF sp:meg st:tesz po:vrb is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_3
+862	ip:PREF sp:meg st:tud po:vrb ts:PRES_INDIC_INDEF_SG_3 al:tudat ds:hAtÓ_ABLE_(adj,present_part) ts:NOM
+863	ip:PREF sp:meg st:támad po:vrb ts:PRES_INDIC_INDEF_SG_3 al:támadt al:támadt ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+864	ip:PREF sp:meg st:térül po:vrb ts:PRES_INDIC_INDEF_SG_3
+865	ip:PREF sp:meg st:tölt po:vrb ts:PRES_INDIC_INDEF_SG_3 al:töltet is:PAST_INDIC_DEF_SG_3
+866	st:megtörténte po:noun ts:NOM is:ACC
+866	ip:PREF sp:meg st:történik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:POSSESSEE is:ACC
+867	ip:PREF sp:meg st:vall po:vrb ts:PRES_INDIC_INDEF_SG_3 al:vallat is:PRES_INDIC_DEF_SG_1
+868	ip:PREF sp:meg st:való po:noun ts:NOM ds:sít_SUPPLY_vrb_tr ds:hAt_MODAL_vrb ds:Ó_PRESPART_adj ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:DAT
+868	ip:PREF sp:meg st:valósít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:hAtÓ_ABLE_(adj,present_part) ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:DAT
+869	ip:PREF sp:meg st:vesz po:vrb is:PAST_INDIC_DEF_PL_3
+870	ip:PREF sp:meg st:vigasztal po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_SG_1
+871	ip:PREF sp:meg st:vizsgál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+872	ip:PREF sp:meg st:választott po:adj ts:NOM
+872	ip:PREF sp:meg st:választ po:vrb ts:PRES_INDIC_INDEF_SG_3 al:választat ds:tt_PASTPART_adj ts:NOM
+872	ip:PREF sp:meg st:választ po:vrb ts:PRES_INDIC_INDEF_SG_3 al:választat is:PAST_INDIC_INDEF_SG_3
+873	ip:PREF sp:meg st:változik po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_COND_INDEF_SG_3
+874	st:megváltoztatás po:noun ts:NOM hy:3 is:POSS_SG_3 is:TEMP
+874	ip:PREF sp:meg st:változtat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:TEMP
+874	ip:PREF sp:meg st:változik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:TEMP
+875	ip:PREF sp:meg st:vár po:vrb ts:PRES_INDIC_INDEF_SG_3 al:várat al:várak is:PRES_COND_INDEF_SG_2
+876	ip:PREF sp:meg st:véd po:vrb ts:PRES_INDIC_INDEF_SG_3 al:védet al:védesz al:védenünk al:védenétek al:védenétek al:védenénk al:védenénk al:védenének al:védeném al:védenélek al:védenél al:védenék al:védenék al:védenéd al:védené al:védeniük al:védeniök al:védenie al:védeni al:védenetek al:védenem al:védenek al:védened al:védene al:védelek al:védel is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_COND_DEF_SG_3
+877	st:megye po:noun ts:NOM is:PLUR is:DAT
+878	st:megállapodás po:noun ts:NOM hy:3
+878	ip:PREF sp:meg st:állapodik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM
+879	ip:PREF sp:meg st:állapít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:hAtÓ_ABLE_(adj,present_part) ds:sÁg_ABSTRACT_noun ts:NOM
+880	st:megállapítás po:noun ts:NOM hy:3 is:POSS_SG_3 is:INE
+880	ip:PREF sp:meg st:állapít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:INE
+881	ip:PREF sp:meg st:állít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:hAtAtlAn_UNABLE_adj ts:NOM is:ESS
+882	ip:PREF sp:meg st:éget po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_SG_3
+883	ip:PREF sp:meg st:épít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_DEF_PL_3
+883	ip:PREF sp:meg st:épít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:ék_FAMILIAR_noun is:NOM
+884	ip:PREF sp:meg st:érik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:érett
+884	ip:PREF sp:meg st:ér po:vrb ts:PRES_INDIC_INDEF_SG_3 al:erek is:PRES_INDIC_DEF_PL_3
+885	st:megérkezés po:noun ts:NOM hy:3 is:POSS_PL_1 is:ACC
+885	ip:PREF sp:meg st:érkezik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_PL_1 is:ACC
+886	st:megértés po:noun ts:NOM hy:3 is:ACC
+886	ip:PREF sp:meg st:ért po:vrb ts:PRES_INDIC_INDEF_SG_3 al:értet ds:Ás_PROCESS/RESULT_noun ts:NOM is:ACC
+887	st:mi po:noun_pron is:PLUR ts:NOM is:ACC
+887	st:én po:noun_pron is:PL_1 is:NOM al:mik is:PLUR is:ACC
+887	st:mi po:noun_pron al:mik is:PLUR is:ACC
+887	st:mi po:noun al:mik is:PLUR is:ACC
+888	st:mielőtt po:adv hy:2
+889	st:mikrohullám po:noun ts:NOM hy:5 is:jÚ_PROPERTY_adj ts:NOM
+890	st:milliszekundum po:noun ts:NOM hy:5
+891	st:milliós po:adj ts:NOM
+891	st:millió po:adj_num ts:NOM al:millióan al:milliomodik al:milliomod al:milliomod ds:s_ATTRIBUTE_adj ts:NOM
+892	st:mindaz po:noun_pron is:PLUR ts:NOM hy:4 is:ALL
+893	st:mindemellett po:adv hy:4
+894	st:mindenfelé po:adv hy:6
+895	st:mindenki po:noun_pron hy:6 is:CAUS/FIN
+896	st:mindez po:noun_pron is:PLUR ts:NOM hy:4 is:CAUS/FIN
+898	pa:minimum st:minimum po:noun ts:NOM pa:jog st:jog po:noun ts:NOM pa:díj st:díj po:noun ts:NOM al:díjak pa:ként st:kén po:noun ts:NOM is:ACC
+898	pa:minimum st:minimum po:noun ts:NOM pa:jog st:jog po:noun ts:NOM pa:díjként st:díj po:noun ts:NOM al:díjak is:FORM
+898	pa:minimum st:minimum po:noun ts:NOM pa:jogdíj st:jogdíj po:noun ts:NOM hy:3 pa:ként st:kén po:noun ts:NOM is:ACC
+898	pa:minimum st:minimum po:noun ts:NOM pa:jogdíjként st:jogdíj po:noun ts:NOM hy:3 is:FORM
+899	st:miniszter po:noun ts:NOM is:ABL
+900	st:minisztérium po:noun ts:NOM is:PLUR is:INE
+901	st:minta po:noun ts:NOM is:ELA
+902	st:minőség po:noun ts:NOM is:POSSESSEE is:DEL
+902	st:minőség po:noun ts:NOM is:POSS_SG_3 is:DEL
+903	st:minősít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun is:i_PLACE/TIME_adj ts:NOM
+906	pa:mobil st:mobil po:noun ts:NOM pa:banki st:bank po:noun ts:NOM is:i_PLACE/TIME_adj ts:NOM
+907	st:mobil po:noun ts:NOM is:INSTR
+907	st:mobil po:adj ts:NOM is:INSTR
+908	st:mobiltelefon po:noun ts:NOM hy:5 is:INE
+909	st:mocsok po:noun ts:PLUR ts:NOM is:ACC
+910	st:mozaik po:noun ts:NOM is:ACC
+911	pa:mozdulat st:mozdulat po:noun ts:NOM pa:sorok st:sor po:noun ts:NOM is:PLUR is:NOM
+912	st:mozgat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_1
+913	pa:mozgás st:mozog po:vrb ds:Ás_PROCESS/RESULT_noun ts:NOM pa:központ st:központ po:noun ts:NOM hy:3
+913	pa:mozgás st:mozgás po:noun ts:NOM pa:központ st:központ po:noun ts:NOM hy:3
+914	st:mozi po:noun ts:NOM is:PLUR is:NOM
+915	st:mozzanat po:noun ts:NOM is:POSS_SG_3 is:NOM
+916	st:mulat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3 is:PAST_INDIC_INDEF_PL_1
+917	st:multimediális po:adj ts:NOM hy:5
+918	st:munkabér po:noun ts:NOM hy:5 is:POSSESSEE is:ACC
+918	st:munkabér po:noun ts:NOM hy:5 is:POSS_SG_3 is:ACC
+919	pa:munka st:munka po:noun ts:NOM pa:erő st:erő po:noun ts:NOM al:erej pa:igényük st:igény po:noun ts:NOM is:POSS_PL_3 is:NOM
+920	pa:munka st:munka po:noun ts:NOM pa:helyemen st:hely po:noun ts:NOM is:POSS_SG_1 is:SUE
+921	st:munkaigényes po:adj ts:NOM hy:5 is:bb_COMPARATIVE_adj is:NOM
+923	pa:munka st:munka po:noun ts:NOM pa:szerető st:szerető po:noun ts:NOM
+923	pa:munka st:munka po:noun ts:NOM pa:szerető st:szeret po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+924	pa:munka st:munka po:noun ts:NOM pa:társunknak st:társ po:noun ts:PLUR ts:NOM is:POSS_PL_1 is:DAT
+926	st:munka po:noun ts:NOM is:PLUR is:POSS_SG_1 is:INSTR
+927	st:munka po:noun ts:NOM is:POSS_SG_1 is:ADE
+928	st:munkál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_DEF_PL_3
+928	st:munkál po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_PL_3
+929	st:muníció po:noun ts:NOM is:INSTR
+930	st:mutat po:vrb ts:PRES_INDIC_INDEF_SG_3 is:INF_SG_3
+931	st:mutató po:noun ts:NOM is:PLUR is:ACC
+931	st:mutat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:PLUR is:ACC
+932	st:muzsika po:noun ts:NOM is:PLUR is:INSTR
+933	st:máj po:noun ts:NOM al:májak is:INSTR
+934	st:mámorít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+935	pa:márka st:márka po:noun ts:NOM pa:építési st:épít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun is:i_PLACE/TIME_adj ts:NOM
+936	st:más-más po:twin
+937	st:más po:adj ts:NOM is:DEL
+937	st:ma po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM is:DEL
+938	st:másik po:noun_pron ts:NOM al:másikak is:CAUS/FIN
+938	st:másik po:noun ts:NOM al:másikak is:CAUS/FIN
+939	st:kettő po:adj_num ds:dik_ORDINAL_adj ts:NOM is:SUE
+940	st:másodszor po:adj_num ts:SBL
+941	st:másol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:hAtÓ_ABLE_(adj,present_part) ts:NOM
+942	pa:másoló st:másol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:nyomtató st:nyomtató po:noun ts:NOM
+942	pa:másoló st:másol po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM pa:nyomtató st:nyomtat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+943	st:mászik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:másztat al:mászat is:PAST_INDIC_INDEF_PL_3
+944	st:mécses po:noun ts:NOM is:ACC
+944	st:mécs po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM is:ACC
+944	st:mécs po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM is:ACC
+945	pa:média st:média po:noun ts:NOM pa:típusok st:típus po:noun ts:NOM is:PLUR is:NOM
+946	st:megy po:vrb is:PRES_INDIC_INDEF_SG_2
+947	st:méltó po:adj ts:NOM is:An_MODE_adv
+948	st:mély po:adj ts:NOM is:POSSESSEE is:SUE
+948	st:mély po:adj ts:NOM is:POSS_SG_3 is:SUE
+949	st:mély po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:POSSESSEE is:INE
+949	st:mély po:adj ts:NOM ds:sÁg_ABSTRACT_noun ts:NOM is:POSS_SG_3 is:INE
+950	st:méreg po:noun ts:PLUR ts:NOM is:POSS_SG_3 is:INE
+951	st:méret po:noun ts:NOM is:PLUR is:POSS_SG_3 is:INSTR
+952	st:méreg po:noun ts:PLUR ts:NOM ds:z_ACTION_vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+952	st:mérgez po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_DEF_SG_3
+953	st:mérleg po:noun ts:NOM is:ALL
+954	st:mérnöki po:adj ts:NOM
+954	st:mérnök po:noun ts:NOM is:i_PLACE/TIME_adj ts:NOM
+955	st:mérték po:noun ts:NOM is:POSSESSEE is:SUE
+955	st:mérték po:noun ts:NOM is:POSS_SG_3 is:SUE
+955	st:mér po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tt_PASTPART_adj ts:NOM is:ék_FAMILIAR_noun is:POSSESSEE is:SUE
+956	st:mér po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:POSS_SG_3 is:NOM
+957	st:mínusz po:adj ts:NOM
+958	st:mód po:noun ts:NOM is:POSS_SG_3 is:SBL
+959	st:módosít po:vrb ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+959	st:mód po:noun ts:NOM ds:sít_SUPPLY_vrb_tr ts:PRES_INDIC_INDEF_SG_3 is:PRES_INDIC_INDEF_PL_3
+960	st:módosítás po:noun ts:NOM is:ADE
+960	st:mód po:noun ts:NOM ds:sít_SUPPLY_vrb_tr ds:Ás_PROCESS/RESULT_noun ts:NOM is:ADE
+960	st:módosít po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ás_PROCESS/RESULT_noun ts:NOM is:ADE
+961	st:módszer po:noun ts:NOM hy:3 is:INE
+962	st:módszertan po:noun ts:NOM hy:mód|szer||tan is:PLUR is:SUE
+963	st:mögötti po:adj ts:NOM al:mögöttiek
+964	st:múlt po:noun ts:NOM al:múltak is:POSS_SG_3 is:INSTR
+964	st:múlt po:adj ts:NOM al:múltak is:POSS_SG_3 is:INSTR
+964	st:múlik po:vrb ts:PRES_INDIC_INDEF_SG_3 al:múlottál al:múlottunk al:múlottatok al:múlottam al:múlottak al:múlott al:múlasz al:múlanátok al:múlanánk al:múlanának al:múlanám al:múlanál al:múlanák al:múlanak al:múlana ds:tt_PASTPART_adj ts:NOM is:POSS_SG_3 is:INSTR
+965	st:múzeum po:noun ts:NOM is:FORM
+966	st:műemlék po:noun ts:NOM hy:2 is:ACC
+967	pa:mű st:mű po:noun ts:NOM al:művi al:művek pa:felhasználásokért st:felhasználás po:noun ts:NOM hy:3 is:PLUR is:CAUS/FIN
+968	st:műkereskedelem po:noun ts:NOM al:műkereskedelmek hy:2
+969	st:működtet po:vrb ts:PRES_INDIC_INDEF_SG_3 is:hAt_MODAL_vrb ts:PRES_INDIC_INDEF_SG_3
+970	st:működésképtelen po:adj ts:NOM hy:7 is:TRANS
+971	st:működő po:noun ts:NOM is:PLUR is:NOM
+971	st:működik po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:PLUR is:NOM
+973	pa:mű st:mű po:noun ts:NOM al:művi al:művek pa:sor st:sor po:noun ts:NOM pa:szolgáltató st:szolgáltat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+973	pa:mű st:mű po:noun ts:NOM al:művi al:művek pa:sor st:sor po:noun ts:NOM pa:szolgáltató st:szolgál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ó_PRESPART_adj ts:NOM
+973	pa:műsor st:műsor po:noun ts:NOM hy:2 pa:szolgáltató st:szolgáltat po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM
+973	pa:műsor st:műsor po:noun ts:NOM hy:2 pa:szolgáltató st:szolgál po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:tAt_FACTITIVE_vrb_tr ds:Ó_PRESPART_adj ts:NOM
+974	st:műsor po:noun ts:NOM hy:2 is:PLUR is:ACC
+975	st:műszer po:noun ts:NOM hy:2 is:ACC
+976	pa:mű st:mű po:noun ts:NOM al:művi al:művek pa:tárgy st:tárgy po:noun ts:NOM al:tárgyak pa:árverések st:árverés po:noun ts:NOM hy:2 is:PLUR is:NOM
+976	pa:műtárgy st:műtárgy po:noun ts:NOM al:műtárgyak hy:2 pa:árverések st:árverés po:noun ts:NOM hy:2 is:PLUR is:NOM
+977	st:mű po:noun ts:PLUR ts:NOM is:PLUR is:POSS_PL_3 is:NOM
+978	st:mű po:noun ts:PLUR ts:NOM is:POSS_PL_3 is:ACC
+978	st:mű po:noun ts:PLUR ts:NOM is:POSS_PL_3 is:NOM
+979	st:művel po:vrb ts:PRES_INDIC_INDEF_SG_3 is:SUBJ/IMPER_INDEF_SG_3
+980	st:művel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj is:i_PLACE/TIME_adj ts:NOM is:DAT
+980	st:művel po:vrb ts:PRES_INDIC_INDEF_SG_3 ds:Ó_PRESPART_adj ts:NOM is:PLUR is:POSS_SG_3 is:DAT
+981	pa:művészet st:művészet po:noun ts:NOM pa:történet st:történet po:noun ts:NOM
+982	st:nadrág po:noun ts:NOM
+983	st:nagyszoba po:noun ts:NOM hy:4 is:ILL
+984	st:nagyság po:noun ts:NOM is:POSS_SG_3 is:NOM
+985	st:nagyvilág po:noun ts:NOM hy:4 is:i_PLACE/TIME_adj ts:NOM
+986	st:nagyágyú po:noun ts:NOM hy:4 is:PLUR is:NOM
+987	st:napfény po:noun ts:NOM hy:3 is:INE
+988	st:napirend po:noun ts:NOM hy:4 is:SBL
+989	st:nap po:noun ts:NOM is:POSS_SG_3 is:ACC
+990	st:napos po:adj ts:NOM is:SBL
+990	st:nap po:noun ts:NOM ds:s_OCCUPATION_noun ts:NOM is:SBL
+990	st:nap po:noun ts:NOM ds:s_ATTRIBUTE_adj ts:NOM is:SBL
+991	pa:narancs st:narancs po:noun ts:NOM pa:virág st:virág po:noun ts:NOM
+992	st:negatív po:adj ts:NOM is:An_MODE_adv
+993	st:négy po:adj_num is:d_FRACTION_num ts:NOM al:negyed is:PLUR is:INE
+993	st:negyed po:noun ts:NOM al:negyed is:PLUR is:INE
+994	st:negyven po:adj_num ts:NOM al:negyvenen al:negyvenedik al:negyvened al:negyvened is:TERM
+995	st:nehéz po:adj ts:NOM al:nehezen al:nehezek al:nehezebbik al:nehezebben al:nehezebb
+996	st:objektum po:noun ts:NOM
+997	st:offenzív po:adj ts:NOM
+998	st:ok po:noun ts:NOM is:PLUR is:DAT
+999	st:perc po:noun ts:NOM is:POSS_SG_3 is:NOM
+end	turbo:hunspell-analyses

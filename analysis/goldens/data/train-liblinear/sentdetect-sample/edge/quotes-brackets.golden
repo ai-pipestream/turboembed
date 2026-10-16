@@ -1,0 +1,60 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/quotes-brackets	139	127	0ddef673358aac174b9cf1cbd5157e01eb8bc8e78395b51f7a218e42c177ed7b
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	2	outcome:str	context:str	values:str
+n	5 eos=! n=and s=" v=said, x="Stop	
+s	3 eos=. n=[See s=' v=replied x='No	
+end	turbo:events
+layer	turbo:liblinear-text	document	19	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 12
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+cd959e033dc943f1d6bbe1eaaf68350182198d45a9b827d10e2346c6ba2d851a	266
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	8	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe0000000000000 0.5
+0	given	1	3fe0000000000000 0.5
+0	reversed	0	3fe0000000000000 0.5
+0	reversed	1	3fe0000000000000 0.5
+1	given	0	3fe0000000000000 0.5
+1	given	1	3fe0000000000000 0.5
+1	reversed	0	3fe0000000000000 0.5
+1	reversed	1	3fe0000000000000 0.5
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	4	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+end	turbo:liblinear-best

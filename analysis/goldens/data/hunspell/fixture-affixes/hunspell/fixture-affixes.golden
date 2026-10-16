@@ -1,0 +1,221 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-affixes	635	630	632657b154149c7437d17b9ab629e7c17ebef797847fabf1a4847b862467f659
+model	affixes.aff	ccd685453c3cfd7261c575c61c9432eae526e81e471562d503f80464c94cd1072e69dcc0d6e1df71106bbcd5982458f9f8df59afd048787cd6781ec5cb17cb4f
+model	affixes.dic	eb7fbf055253cb690992e15003930143bb244c06ad1b49b4766950cc5ebceb3b2b2d361c5c9533e4486c0246b6959686b30c5c011c3091527da0d74be307aeee
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	73	word:str	stem:str	thrown:str
+walk	walk	
+walked	walk	
+walks	walks	
+Walks	Walks	
+rewalk	rewalk	
+unwalk	walk	
+rewalked	rewalk	
+walk's	walk	
+walk’s	walk	
+ponies	pony	
+pony	pony	
+pony's	pony	
+plays	play	
+played	played	
+playing	playing	
+replay	replay	
+replays	replay	
+makings	making	
+making	making	
+make	make	
+flies	fly	
+happily	happily	
+happilies	happily	
+eBook	eBook	
+eBooks	eBook	
+EBOOKS	Ebook	
+EBOOK	Ebook	
+Ebook	Ebook	
+ACME	ACME	
+ACMES	Acme	
+ACME'S	Acme	
+Acmes	Acmes	
+NASA	NASA	
+NASAS	NASAS	
+Paris	Paris	
+PARIS	PARIS	
+paris	paris	
+lach	lach	
+gelacht	lach	
+gelach	gelach	
+lacht	lacht	
+bake	bake	
+baker	baker	
+bakers	bakers	
+virt	virt	
+virts	virt	
+forbid	forbid	
+forbids	forbids	
+walks.	walks.	
+abc	abc	
+xyz	abc	
+Dr.	Dr.	
+Dr	Dr	
+dr.	dr.	
+co-op	co-op	
+ice cream	ice cream	
+ice creams	ice cream	
+warn	warn	
+warns	warns	
+crowd	crowd	
+crowded	crowd	
+pass	pass	
+passes	pass	
+passed	pass	
+wa­lk	walk	
+ﬁ	ﬁ	
+walk.	walk	
+WALK	walk	
+Walk	walk	
+WaLk	WaLk	
+reuse	reuse	
+un	un	
+re	re	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	74	word:u32	stem:str
+0	walk
+1	walk
+2	walks
+3	Walks
+4	rewalk
+5	walk
+6	rewalk
+7	walk
+8	walk
+9	pony
+10	pony
+11	pony
+12	play
+13	played
+14	playing
+15	replay
+16	replay
+17	making
+18	making
+19	make
+20	fly
+21	happily
+22	happily
+23	eBook
+24	eBook
+25	Ebook
+26	Ebook
+27	Ebook
+28	ACME
+28	Acme
+29	Acme
+30	Acme
+31	Acmes
+32	NASA
+33	NASAS
+34	Paris
+35	PARIS
+36	paris
+37	lach
+38	lach
+39	gelach
+40	lacht
+41	bake
+42	baker
+43	bakers
+44	virt
+45	virt
+46	forbid
+47	forbids
+48	walks.
+49	abc
+50	abc
+51	Dr.
+52	Dr
+53	dr.
+54	co-op
+55	ice cream
+56	ice cream
+57	warn
+58	warns
+59	crowd
+60	crowd
+61	pass
+62	pass
+63	pass
+64	walk
+65	ﬁ
+66	walk
+67	walk
+68	walk
+69	WaLk
+70	reuse
+71	un
+72	re
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	52	word:u32	analysis:str
+0	st:walk po:verb
+1	st:walk po:verb is:past
+4	sp:re st:walk po:verb
+5	un st:walk po:verb
+6	sp:re st:walk po:verb is:past
+7	st:walk po:verb is:poss
+8	st:walk po:verb is:poss
+9	st:pony po:noun is:pl
+10	st:pony po:noun
+11	st:pony po:noun is:poss
+12	st:play po:verb is:pl
+12	st:play po:noun is:pl
+14	st:play po:verb ds:ing
+15	sp:re st:play po:verb
+16	sp:re st:play po:verb is:pl
+17	st:make ds:ing is:pl
+18	st:make ds:ing
+19	st:make
+20	st:fly is:pl
+21	st:happy ds:ly
+22	st:happy ds:ly is:pl
+23	st:eBook
+24	st:eBook is:pl
+25	st:Ebook is:pl
+26	st:Ebook
+28	st:ACME
+28	st:Acme
+29	st:Acme is:pl
+30	st:Acme is:poss
+32	st:NASA
+34	st:Paris
+37	st:lach
+38	fl:P st:lach fl:T
+41	st:bake
+45	st:virt is:pl
+49	st:abc
+50	st:abc fl:F
+51	st:Dr.
+54	st:co-op
+55	st:ice cream
+56	st:ice cream is:pl
+59	st:crowd
+59	st:crowd ph:krowd
+59	st:crowd is:same
+60	st:crowd ph:krowd is:past
+61	st:pass
+62	st:pass is:pl
+63	st:pass is:past
+64	st:walk po:verb
+66	st:walk po:verb
+67	st:walk po:verb
+68	st:walk po:verb
+end	turbo:hunspell-analyses

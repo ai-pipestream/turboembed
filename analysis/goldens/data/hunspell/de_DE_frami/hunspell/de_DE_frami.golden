@@ -1,0 +1,411 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/de_DE_frami	1313	1273	7b1b5daa36437516c6c24232b69eff88228a042dd129a1a8ab24cb6a047ade68
+model	de_DE_frami.aff	6fec308258040c29e6b91bc51381c6e8a631bcdd66e59f84a673705f22a540f6819e6b4720add394a46ccceff775487cb6f6c240fe5bd357e4d60e21e8ba0ff0
+model	de_DE_frami.dic	ab9e7156f2f31a0fd1d6cad6487f43aec98f1767d46daf7a7a0048b9cbfbd9bc449f29225a10217ce2d0a722afd8b606f2f6b027dbde2720b093343334f874dd
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	99	word:str	stem:str	thrown:str
+Haus	Haus	
+Häuser	Haus	
+Hauses	Haus	
+Häusern	Haus	
+Haustür	Haus	
+Haustüren	Haus	
+Donaudampfschifffahrt	Donau	
+Donaudampfschiffahrt	Donaudampfschiffahrt	
+Schifffahrt	Schifffahrt	
+Schiffahrt	Schiffahrt	
+Straße	Straße	
+Straßen	Straße	
+STRASSE	Straße	
+STRASSEN	Straße	
+Strasse	Strasse	
+Fußball	Fuß	
+FUSSBALL	Fuß	
+Fussball	Fussball	
+gelacht	gelacht	
+gemacht	gemacht	
+lachte	lachen	
+machten	machen	
+Kinderbuch	Kinder	
+Kinderbücher	Kinder	
+Arbeitszimmer	Arbeits	
+Arbeitszimmern	Arbeits	
+Bundesverfassungsgericht	Bundes	
+Bundesverfassungsgerichtsurteil	Bundes	
+ÄRZTE	Ärzte	
+Ärzte	Ärzte	
+ärzte	ärzte	
+aufgeben	aufgeben	
+aufgegeben	aufgegeben	
+Aufgabe	Aufgabe	
+schön	schön	
+schöner	schön	
+schönsten	schön	
+Schönheit	Schönheit	
+Weihnachtsbaum	Weihnachts	
+Weihnachtsbäume	Weihnachts	
+E-Mail	e	
+E-Mails	e	
+Know-how	Know-how	
+Mitte-links-Bündnis	Mitte	
+Autobahn	Auto	
+Autobahnraststätte	Auto	
+Raststätte	Rast	
+Fahrradweg	Fahr	
+Fahrradwege	Fahr	
+Lebensversicherungsgesellschaft	Lebens	
+Vergangenheitsbewältigung	Vergangenheitsbewältigung	
+Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz	Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz	
+Maßstab	Maß	
+MASSSTAB	Maß	
+Massstab	Massstab	
+groß	groß	
+GROSS	groß	
+größer	größer	
+GRÖSSER	größer	
+Grüße	Gruß	
+GRÜSSE	grüßen	
+Glück	Glück	
+glücklich	glücklich	
+unglücklicherweise	glücklicherweise	
+Bäckerei	Bäckerei	
+Bäckereien	Bäckerei	
+Kaffee	Kaffee	
+Kaffeetasse	Kaffee	
+Kaffeeernte	Kaffee	
+Teeei	Tee	
+Teeeier	Tee	
+Schwimmmeister	Schwimm	
+Schwimmeister	Schwimmeister	
+Ballettänzer	Ballettänzer	
+Balletttänzer	Ballett	
+Stofffetzen	Stoff	
+Krankenhaus	Kranken	
+krankenhaus	Kranken	
+KRANKENHAUS	Kranken	
+Krankenhäuser	Kranken	
+Zugfahrt	Zug	
+Hauptbahnhof	Haupt	
+Hauptbahnhöfe	Haupt	
+Weg	Weg	
+Wege	Weg	
+Weges	Weg	
+gehen	gehen	
+ging	ging	
+gegangen	gegangen	
+Ü-Ei	ü	
+U-Bahn	u	
+U-Bahnhof	u	
+S-Bahn-Station	s	
+Dr.	Dr.	
+z.B.	z	
+usw.	usw.	
+Hamburg	Hamburg	
+Hamburger	Hamburger	
+hamburger	hamburger	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	164	word:u32	stem:str
+0	Haus
+1	Haus
+2	Haus
+3	Haus
+4	Haus
+4	tür
+5	Haus
+5	tür
+6	Donau
+6	dampf
+6	schifffahrt
+7	Donaudampfschiffahrt
+8	Schifffahrt
+9	Schiffahrt
+10	Straße
+11	Straße
+12	Straße
+13	Straße
+14	Strasse
+15	Fuß
+15	ball
+16	Fuß
+16	ball
+17	Fussball
+18	gelacht
+19	gemacht
+20	lachen
+21	machen
+22	Kinder
+22	buch
+23	Kinder
+23	bücher
+24	Arbeits
+24	zimmer
+25	Arbeits
+25	zimmer
+26	Bundes
+26	verfassungs
+26	gericht
+27	Bundes
+27	verfassungs
+27	gerichts
+27	urteil
+28	Ärzte
+29	Ärzte
+30	ärzte
+31	aufgeben
+32	aufgegeben
+33	Aufgabe
+34	schön
+35	schön
+36	schön
+37	Schönheit
+38	Weihnachts
+38	baum
+39	Weihnachts
+39	baum
+40	e
+40	Mail
+41	e
+41	Mail
+42	Know-how
+43	Mitte
+43	Links
+43	bündnis
+43	links
+43	Bündnis
+44	Auto
+44	bahn
+45	Auto
+45	bahn
+45	rast
+45	stätte
+46	Rast
+46	stätte
+47	Fahr
+47	rad
+47	weg
+48	Fahr
+48	rad
+48	weg
+49	Lebens
+49	versicherungs
+49	gesellschaft
+50	Vergangenheitsbewältigung
+51	Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz
+52	Maß
+52	stab
+53	Maß
+53	stab
+54	Massstab
+55	groß
+56	groß
+57	größer
+58	größer
+59	Gruß
+59	grüßen
+60	grüßen
+60	Gruß
+61	Glück
+62	glücklich
+63	glücklicherweise
+64	Bäckerei
+65	Bäckerei
+66	Kaffee
+67	Kaffee
+67	tasse
+68	Kaffee
+68	ernte
+69	Tee
+69	ei
+70	Tee
+70	ei
+71	Schwimm
+71	meister
+72	Schwimmeister
+73	Ballettänzer
+74	Ballett
+74	tänzer
+75	Stoff
+75	fetzen
+76	Kranken
+76	haus
+77	Kranken
+77	haus
+78	Kranken
+78	haus
+79	Kranken
+79	haus
+80	Zug
+80	fahrt
+81	Haupt
+81	bahn
+81	hof
+82	Haupt
+82	bahn
+82	höfe
+83	Weg
+83	weg
+84	Weg
+85	Weg
+86	gehen
+87	ging
+88	gegangen
+89	ü
+89	Ei
+90	u
+90	Bahn
+90	bahnen
+91	u
+91	Bahn
+91	hof
+92	s
+92	Bahn
+92	station
+92	bahnen
+92	Station
+93	Dr.
+94	z
+94	b
+95	usw.
+96	Hamburg
+97	Hamburger
+98	hamburger
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	126	word:u32	analysis:str
+0	st:Haus
+1	st:Haus fl:p
+2	st:Haus fl:T
+3	st:Haus fl:p
+4	pa:Haus st:Haus fl:j pa:tür
+5	pa:Haus st:Haus fl:j pa:türen st:tür fl:P
+6	pa:Donau st:Donau fl:j pa:dampf st:dampf fl:e pa:schifffahrt
+6	pa:Donau st:Donau fl:j pa:dampf  st:dampf fl:k pa:schifffahrt
+6	pa:Donau st:Donau fl:j pa:dampf fl:k st:dampf fl:e pa:schifffahrt
+8	st:Schifffahrt
+10	st:Straße
+11	st:Straße fl:N
+12	st:Straße
+13	st:Straße fl:N
+15	pa:Fuß st:Fuß fl:j pa:ball
+16	pa:Fuß st:Fuß fl:j pa:ball
+18	st:gelacht
+19	st:gemacht
+20	st:lachen fl:Y
+21	st:machen fl:Y
+22	pa:Kinder st:Kinder fl:j pa:buch
+23	pa:Kinder st:Kinder fl:j pa:bücher
+24	pa:Arbeits st:Arbeits fl:j pa:zimmer
+25	pa:Arbeits st:Arbeits fl:j pa:zimmern st:zimmer fl:N
+26	pa:Bundes st:Bundes fl:j pa:verfassungs st:verfassungs fl:e pa:gericht
+26	pa:Bundes st:Bundes fl:j pa:verfassungs  st:verfassungs fl:k pa:gericht
+26	pa:Bundes st:Bundes fl:j pa:verfassungs fl:k st:verfassungs fl:e pa:gericht
+27	pa:Bundes st:Bundes fl:j pa:verfassungs st:verfassungs fl:e pa:gerichts st:gerichts fl:e pa:urteil
+27	pa:Bundes st:Bundes fl:j pa:verfassungs st:verfassungs fl:e pa:gerichts  st:gerichts fl:k pa:urteil
+27	pa:Bundes st:Bundes fl:j pa:verfassungs st:verfassungs fl:e pa:gerichts fl:k st:gerichts fl:e pa:urteil
+27	pa:Bundes st:Bundes fl:j pa:verfassungs  st:verfassungs fl:k pa:gerichts st:gerichts fl:e pa:urteil
+27	pa:Bundes st:Bundes fl:j pa:verfassungs  st:verfassungs fl:k pa:gerichts  st:gerichts fl:k pa:urteil
+27	pa:Bundes st:Bundes fl:j pa:verfassungs  st:verfassungs fl:k pa:gerichts fl:k st:gerichts fl:e pa:urteil
+27	pa:Bundes st:Bundes fl:j pa:verfassungs fl:k st:verfassungs fl:e pa:gerichts st:gerichts fl:e pa:urteil
+27	pa:Bundes st:Bundes fl:j pa:verfassungs fl:k st:verfassungs fl:e pa:gerichts  st:gerichts fl:k pa:urteil
+27	pa:Bundes st:Bundes fl:j pa:verfassungs fl:k st:verfassungs fl:e pa:gerichts fl:k st:gerichts fl:e pa:urteil
+28	st:Ärzte
+29	st:Ärzte
+31	st:aufgeben
+32	st:aufgegeben
+33	st:Aufgabe
+34	st:schön
+35	st:schön fl:A
+36	st:schön fl:C
+37	st:Schönheit
+38	pa:Weihnachts st:Weihnachts fl:j pa:baum
+39	pa:Weihnachts st:Weihnachts fl:j pa:bäume st:baum fl:p
+40	pa:E st:e pa:Mail st:Mail
+41	pa:E st:e pa:Mails st:Mail fl:S
+43	pa:Mitte st:Mitte pa:Links st:Links fl:j pa:-Bündnis -B st:bündnis fl:m
+43	pa:Mitte st:Mitte pa:links st:links pa:Bündnis st:Bündnis
+44	pa:Auto st:Auto fl:j pa:bahn
+45	pa:Auto st:Auto fl:j pa:bahn st:bahn fl:e pa:rast st:rast fl:e pa:stätte
+45	pa:Auto st:Auto fl:j pa:bahn st:bahn fl:e pa:rast  st:rast fl:k pa:stätte
+45	pa:Auto st:Auto fl:j pa:bahn st:bahn fl:e pa:rast fl:k st:rast fl:e pa:stätte
+45	pa:Auto st:Auto fl:j pa:bahn  st:bahn fl:k pa:rast st:rast fl:e pa:stätte
+45	pa:Auto st:Auto fl:j pa:bahn  st:bahn fl:k pa:rast  st:rast fl:k pa:stätte
+45	pa:Auto st:Auto fl:j pa:bahn  st:bahn fl:k pa:rast fl:k st:rast fl:e pa:stätte
+45	pa:Auto st:Auto fl:j pa:bahn fl:k st:bahn fl:e pa:rast st:rast fl:e pa:stätte
+45	pa:Auto st:Auto fl:j pa:bahn fl:k st:bahn fl:e pa:rast  st:rast fl:k pa:stätte
+45	pa:Auto st:Auto fl:j pa:bahn fl:k st:bahn fl:e pa:rast fl:k st:rast fl:e pa:stätte
+46	pa:Rast st:Rast fl:j pa:stätte
+47	pa:Fahr st:Fahr fl:j pa:rad st:rad fl:e pa:weg
+47	pa:Fahr st:Fahr fl:j pa:rad  st:rad fl:k pa:weg
+47	pa:Fahr st:Fahr fl:j pa:rad fl:k st:rad fl:e pa:weg
+48	pa:Fahr st:Fahr fl:j pa:rad st:rad fl:e pa:wege st:weg fl:E
+48	pa:Fahr st:Fahr fl:j pa:rad  st:rad fl:k pa:wege st:weg fl:E
+48	pa:Fahr st:Fahr fl:j pa:rad fl:k st:rad fl:e pa:wege st:weg fl:E
+49	pa:Lebens st:Lebens fl:j pa:versicherungs st:versicherungs fl:e pa:gesellschaft
+49	pa:Lebens st:Lebens fl:j pa:versicherungs  st:versicherungs fl:k pa:gesellschaft
+49	pa:Lebens st:Lebens fl:j pa:versicherungs fl:k st:versicherungs fl:e pa:gesellschaft
+50	st:Vergangenheitsbewältigung
+51	st:Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz
+52	pa:Maß st:Maß fl:j pa:stab
+53	pa:Maß st:Maß fl:j pa:stab
+55	st:groß
+56	st:groß
+57	st:größer
+58	st:größer
+59	st:Gruß fl:p
+59	st:grüßen fl:I
+60	st:grüßen fl:I
+60	st:Gruß fl:p
+61	st:Glück
+62	st:glücklich
+63	un st:glücklicherweise fl:U
+64	st:Bäckerei
+65	st:Bäckerei fl:P
+66	st:Kaffee
+67	pa:Kaffee st:Kaffee fl:j pa:tasse
+68	pa:Kaffee st:Kaffee fl:j pa:ernte
+69	pa:Tee st:Tee fl:j pa:ei
+70	pa:Tee st:Tee fl:j pa:eier st:ei fl:R
+71	pa:Schwimm st:Schwimm fl:j pa:meister
+74	pa:Ballett st:Ballett fl:j pa:tänzer
+75	pa:Stoff st:Stoff fl:j pa:fetzen
+76	pa:Kranken st:Kranken fl:j pa:haus
+77	pa:Kranken st:Kranken fl:j pa:haus
+78	pa:Kranken st:Kranken fl:j pa:haus
+79	pa:Kranken st:Kranken fl:j pa:häuser st:haus fl:p
+80	pa:Zug st:Zug fl:j pa:fahrt
+81	pa:Haupt st:Haupt fl:j pa:bahn st:bahn fl:e pa:hof
+81	pa:Haupt st:Haupt fl:j pa:bahn  st:bahn fl:k pa:hof
+81	pa:Haupt st:Haupt fl:j pa:bahn fl:k st:bahn fl:e pa:hof
+82	pa:Haupt st:Haupt fl:j pa:bahn st:bahn fl:e pa:höfe
+82	pa:Haupt st:Haupt fl:j pa:bahn  st:bahn fl:k pa:höfe
+82	pa:Haupt st:Haupt fl:j pa:bahn fl:k st:bahn fl:e pa:höfe
+83	st:Weg
+83	st:weg
+84	st:Weg fl:E
+85	st:Weg fl:T
+86	st:gehen
+87	st:ging
+88	st:gegangen
+89	pa:Ü st:ü pa:Ei st:Ei
+90	pa:U st:u pa:Bahn st:Bahn
+90	pa:U st:u pa:Bahn st:bahnen fl:W
+91	pa:U st:u pa:Bahn st:Bahn fl:j pa:hof
+92	pa:S st:s pa:Bahn st:Bahn fl:j pa:-Station -S st:station fl:m
+92	pa:S st:s pa:Bahn st:Bahn pa:Station st:Station
+92	pa:S st:s pa:Bahn st:bahnen fl:W pa:Station st:Station
+93	st:Dr.
+94	pa:z st:z pa:B st:b
+95	st:usw.
+96	st:Hamburg
+97	st:Hamburger
+end	turbo:hunspell-analyses

@@ -1,0 +1,121 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/list	231	231	374002664b56c2b3d6cce83151f15ed288f1a976eb26ceb4019d9afdf2442431
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	bias	1
+config	c	2
+config	eps	0.01
+config	events	sorted
+config	p	0
+config	solverType	L1R_LR
+config	source	realvalue
+layer	turbo:events	document	7	outcome:str	context:str	values:str
+short	Before check start, things: three you	1.0 1.0 1.0 1.0 1.0 1.0
+short	1. The cable in. is plugged power	1.0 1.0 1.0 1.0 1.0 1.0 1.0
+long	2. The back is on on. switch the	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+long	3. The front green. is light on the	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+short	- Do case. not open the	1.0 1.0 1.0 1.0 1.0 1.0
+short	- Keep clear. the vents	1.0 1.0 1.0 1.0 1.0
+long	If all button. is of press that the true,	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:liblinear-text	document	45	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 38
+bias 1.0000000000000000
+w
+1.0750993129536515 
+0.020239680939139193 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0.00054400313728701510 
+0 
+0 
+0 
+0 
+0 
+0 
+-0.043747222108945175 
+0 
+0 
+0 
+-1.0783688693368083 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0.022963531890551635 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+c83c080a55fcb21e9df8b378be36553d70ec8d05e65c1aee504fc4b2cfa4c5f6	719
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	28	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe0000000000000 0.5
+0	given	1	3fe0000000000000 0.5
+0	reversed	0	3fe0000000000000 0.5
+0	reversed	1	3fe0000000000000 0.5
+1	given	0	3fdfa1f20b0fb7b0 0.49425936775412094
+1	given	1	3fe02f06fa782428 0.5057406322458791
+1	reversed	0	3fdfa1f20b0fb7b0 0.49425936775412094
+1	reversed	1	3fe02f06fa782428 0.5057406322458791
+2	given	0	3fcf70715a00b6bc 0.2456189813105335
+2	given	1	3fe823e3a97fd251 0.7543810186894665
+2	reversed	0	3fcf70715a00b6bc 0.2456189813105335
+2	reversed	1	3fe823e3a97fd251 0.7543810186894665
+3	given	0	3fcf70715a00b6bc 0.2456189813105335
+3	given	1	3fe823e3a97fd251 0.7543810186894665
+3	reversed	0	3fcf70715a00b6bc 0.2456189813105335
+3	reversed	1	3fe823e3a97fd251 0.7543810186894665
+4	given	0	3fe7dbac1540c732 0.7455654540155818
+4	given	1	3fd048a7d57e719c 0.25443454598441817
+4	reversed	0	3fe7dbac1540c732 0.7455654540155818
+4	reversed	1	3fd048a7d57e719c 0.25443454598441817
+5	given	0	3fe7dbac1540c732 0.7455654540155818
+5	given	1	3fd048a7d57e719c 0.25443454598441817
+5	reversed	0	3fe7dbac1540c732 0.7455654540155818
+5	reversed	1	3fd048a7d57e719c 0.25443454598441817
+6	given	0	3fdf4cd70701b1dc 0.48906493839493037
+6	given	1	3fe059947c7f2712 0.5109350616050696
+6	reversed	0	3fdf4cd70701b1dc 0.48906493839493037
+6	reversed	1	3fe059947c7f2712 0.5109350616050696
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	14	event:u32	order:str	outcome:str
+0	given	short
+0	reversed	short
+1	given	long
+1	reversed	long
+2	given	long
+2	reversed	long
+3	given	long
+3	reversed	long
+4	given	short
+4	reversed	short
+5	given	short
+5	reversed	short
+6	given	long
+6	reversed	long
+end	turbo:liblinear-best
