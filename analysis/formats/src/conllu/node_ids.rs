@@ -12,7 +12,9 @@
 //!   overlap the range of the multiword token before it.
 //! - An empty node's id is `N.M`: `N` is the id of the word before it, or
 //!   `0` before the first word, and `M` counts the empty nodes after that
-//!   word from 1.
+//!   word from 1. The empty nodes after word `N` come right after it, so
+//!   before the line of a multiword token that starts at word `N + 1`
+//!   (`4`, `4.1`, `5-6`, `5`, `6`, not `4`, `5-6`, `4.1`, `5`, `6`).
 //!
 //! The words' own ids are not checked here; the reader skips a sentence
 //! whose words are not numbered `1`, `2`, ... ([`super::dependency::SkipReason::WordId`]).
@@ -52,6 +54,9 @@ pub enum NodeIdError {
     EmptyNodeWord { expected: u32 },
     /// An empty node whose `M` does not count on from the one before it.
     EmptyNodeIndex { expected: u32 },
+    /// An empty node whose line comes after the line of a multiword token
+    /// that starts at the next word.
+    EmptyNodeAfterMultiword,
 }
 
 /// One line that breaks the rules.
@@ -72,12 +77,17 @@ pub fn check_node_ids(nodes: &[NodeLine<'_>], words: u32) -> Vec<NodeIdIssue> {
     let mut previous_end = 0u32;
     // The word the empty nodes being counted follow, and how many so far.
     let mut empty_after: Option<(u32, u32)> = None;
+    // The words before the last multiword token line.
+    let mut multiword_after: Option<u32> = None;
     for node in nodes {
         let text = node.id.text;
         let error = if text.contains('-') {
+            multiword_after = Some(node.words_before);
             multiword(text, node.words_before, words, &mut previous_end)
         } else {
-            empty_node(text, node.words_before, &mut empty_after)
+            empty_node(text, node.words_before, &mut empty_after).or_else(|| {
+                (multiword_after == Some(node.words_before)).then_some(NodeIdError::EmptyNodeAfterMultiword)
+            })
         };
         if let Some(error) = error {
             issues.push(NodeIdIssue { line: node.line, id: node.id.span, error });
@@ -185,6 +195,17 @@ mod tests {
         // The count starts again after the next word.
         assert_eq!(check(&[("1.1", 1), ("2.1", 2)], 2), []);
         assert_eq!(check(&[("1.1.1", 1)], 2), [(1, EmptyNodeSyntax)]);
+    }
+
+    #[test]
+    fn empty_nodes_come_before_the_next_multiword_token() {
+        // 1 1.1 2-3 2 3 is in order; 1 2-3 1.1 2 3 is not, nor is the
+        // second empty node of 1 1.1 2-3 1.2 2 3.
+        assert_eq!(check(&[("1.1", 1), ("2-3", 1)], 3), []);
+        assert_eq!(check(&[("2-3", 1), ("1.1", 1)], 3), [(2, EmptyNodeAfterMultiword)]);
+        assert_eq!(check(&[("1.1", 1), ("2-3", 1), ("1.2", 1)], 3), [(3, EmptyNodeAfterMultiword)]);
+        // A multiword token before an earlier word does not count.
+        assert_eq!(check(&[("1-2", 0), ("2.1", 2)], 3), []);
     }
 
     #[test]

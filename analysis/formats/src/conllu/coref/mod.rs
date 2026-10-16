@@ -308,6 +308,9 @@ struct Builder<'a> {
     /// is a model of the Java `HashMap` because the error for a mention
     /// left open names the first entity in that map's order.
     open: JavaHashMap<&'a str, Vec<(u32, Bracket<'a>)>>,
+    /// The number of mentions open in `open`, so a boundary with none open
+    /// does not walk the map, whose keys are every entity opened so far.
+    open_mentions: usize,
     /// The finished mentions of each entity, entities in the order they
     /// first appeared (`entities`, a `LinkedHashMap`).
     entities: Vec<(&'a str, Vec<Pending<'a>>)>,
@@ -330,6 +333,7 @@ impl<'a> Builder<'a> {
             tokens: Vec::new(),
             warnings: Vec::new(),
             open: JavaHashMap::new(),
+            open_mentions: 0,
             entities: Vec::new(),
             entity_index: HashMap::new(),
             sentence: None,
@@ -385,6 +389,9 @@ impl<'a> Builder<'a> {
     /// `rejectOpenMentions`: the first entity in `HashMap` order that has a
     /// mention open.
     fn reject_open(&self, error: impl FnOnce(String) -> CorefError) -> Result<(), CorefError> {
+        if self.open_mentions == 0 {
+            return Ok(());
+        }
         match self.open.iter().find(|(_, open)| !open.is_empty()) {
             Some((entity, _)) => Err(error((*entity).to_owned())),
             None => Ok(()),
@@ -393,8 +400,7 @@ impl<'a> Builder<'a> {
 
     fn word(&mut self, line: Line<'a>) -> Result<(), CorefError> {
         let number = line.number;
-        let columns = split_all(line.piece);
-        let Ok(columns) = <[Piece<'a>; COLUMNS]>::try_from(columns) else {
+        let Some(columns) = split_columns(line.piece) else {
             return Err(CorefError::Columns { line: number, text: line.text().to_owned() });
         };
         if let Some(blank) = columns.iter().position(|c| unicode_trim(*c).text.is_empty()) {
@@ -417,7 +423,9 @@ impl<'a> Builder<'a> {
             }
             Id::Invalid => return Err(CorefError::InvalidId { line: number, id: id.text.to_owned() }),
         }
-        if id.text != self.expected.to_string() {
+        // `fields[0].equals(Integer.toString(expectedWordId))`: the id is a
+        // decimal without a leading zero, so it is equal when its value is.
+        if id.text.parse::<u32>() != Ok(self.expected) {
             return Err(CorefError::UnexpectedId { line: number, expected: self.expected, found: id.text.to_owned() });
         }
         self.expected = self.expected.wrapping_add(1);
@@ -469,11 +477,13 @@ impl<'a> Builder<'a> {
                 // Java's `computeIfAbsent(id, ...).add(start)`: resizes and
                 // inserts at the head of a bin as `merge` does.
                 self.open.merge(key, vec![(token, b)], |open, new| open.extend(new));
+                self.open_mentions += 1;
             }
             BracketKind::Close => {
                 let Some((first, open)) = self.open.get_mut(key).and_then(Vec::pop) else {
                     return Err(CorefError::NotOpen { line, entity: key.to_owned() });
                 };
+                self.open_mentions -= 1;
                 self.entity(key).push(Pending { first, last: token, open, close: Some(b) });
             }
         }
@@ -589,15 +599,18 @@ fn positive(s: &str) -> bool {
     !b.is_empty() && (b'1'..=b'9').contains(&b[0]) && b[1..].iter().all(u8::is_ascii_digit)
 }
 
-/// The columns between every tab, the empty ones at the end included.
-fn split_all(line: Piece<'_>) -> Vec<Piece<'_>> {
-    let mut out = Vec::with_capacity(COLUMNS);
+/// The columns between every tab, the empty ones at the end included,
+/// when there are ten of them.
+fn split_columns(line: Piece<'_>) -> Option<[Piece<'_>; COLUMNS]> {
+    let mut columns = [line.slice(0, 0); COLUMNS];
+    let mut count = 0;
     let mut start = 0;
     for end in line.text.match_indices('\t').map(|(i, _)| i).chain([line.text.len()]) {
-        out.push(line.slice(start, end));
+        *columns.get_mut(count)? = line.slice(start, end);
+        count += 1;
         start = end + 1;
     }
-    out
+    (count == COLUMNS).then_some(columns)
 }
 
 /// `StringUtil.trimUnicodeWhitespace`: the piece without the Unicode

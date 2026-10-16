@@ -223,3 +223,39 @@ fn crossing_mentions_close_by_entity() {
     let ids: Vec<&str> = d.clusters().iter().map(|c| c.entity.as_str()).collect();
     assert_eq!(ids, ["e2", "e1"]);
 }
+
+#[test]
+fn many_entities_with_one_hash_code() {
+    // 4096 ids with one Java hash code share a tree bin of the open map;
+    // each close finds its entity by descending the tree.
+    let ids: Vec<String> =
+        (0..1u32 << 12).map(|i| (0..12).map(|b| if i >> b & 1 == 1 { "Aa" } else { "BB" }).collect()).collect();
+    let open: String = ids.iter().map(|id| format!("({id}")).collect();
+    let close: String = ids.iter().rev().map(|id| format!("{id})")).collect();
+    let src = format!("{}{}", w("1", "a", &format!("Entity={open}")), w("2", "b", &format!("Entity={close}")));
+    let d = one(&src);
+    assert_eq!(d.mentions().len(), ids.len());
+    assert!(d.mentions().iter().all(|m| m.tokens == (0..2)));
+    assert_eq!(d.clusters()[0].entity.as_str(), ids[0]);
+    // Left open, one of them is named.
+    let src = format!("{}{}", w("1", "a", &format!("Entity={open}")), w("2", "b", "_"));
+    assert!(error(&src).ends_with(" is never closed"));
+}
+
+#[test]
+fn sentences_after_many_entities() {
+    // Every entity stays a key of the open map once opened; sentence ends
+    // with no mention open are accepted without looking at them.
+    let n = 5_000;
+    let opens: String = (0..n).map(|i| format!("(e{i}")).collect();
+    let closes: String = (0..n).rev().map(|i| format!("e{i})")).collect();
+    let mut src = format!("{}{}", w("1", "a", &format!("Entity={opens}")), w("2", "b", &format!("Entity={closes}")));
+    for _ in 0..n {
+        src.push('\n');
+        src.push_str(&w("1", "c", "_"));
+    }
+    src.push('\n');
+    src.push_str(&w("1", "d", "Entity=(e7"));
+    src.push('\n');
+    assert_eq!(error(&src), "entity e7 crosses a sentence boundary");
+}
