@@ -28,6 +28,12 @@
 //!   and the part-of-speech, token, sentence and name samples OpenNLP
 //!   reads from it. A corpus is a directory of files, so it is not in the
 //!   registry, which reads one text.
+//! - [`ontonotes`]: the OntoNotes 4.0 name and parse files, and the
+//!   name, parse and part-of-speech samples OpenNLP reads from them.
+//! - [`frenchtreebank`]: the French Treebank's XML files and the parses
+//!   OpenNLP reads from them.
+//! - [`directory`]: the files of a corpus directory in the order OpenNLP's
+//!   `DirectorySampleStream` lists them.
 //! - [`ner`]: the GermEval 2014, BioNLP 2004, Evalita, MUC-6 and brat
 //!   name corpora and the 1990 US Census name lists.
 //! - [`corpora`]: the Moses, LetsMT, NKJP and Irish Sentence Bank sentence
@@ -106,18 +112,22 @@
 //! - `NameSample` and `POSSample` can carry additional context and
 //!   `DocumentSample` extra information; no native format writes them,
 //!   and the samples here do not hold them. The parse samples of the
-//!   parser are not ported.
+//!   parser are `turbo_parser::Parse`, which the OntoNotes and French
+//!   Treebank readers make.
 
 pub mod conll;
 pub mod conllu;
 pub mod convert;
 pub mod corpora;
+pub mod directory;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;
+pub mod frenchtreebank;
 pub mod masc;
 pub mod native;
 pub mod ner;
+pub mod ontonotes;
 pub mod registry;
 pub mod sample;
 pub mod source;

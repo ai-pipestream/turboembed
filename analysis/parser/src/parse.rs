@@ -243,6 +243,21 @@ pub struct Head {
     pub head_index: i32,
 }
 
+/// Where one token of a parse read by [`Parse::parse_with_sources`] came from: its span in the
+/// parse's sentence text and, in the bracketed input, the token as written (before an escape such
+/// as `-LRB-` is decoded) and the type of the bracket around it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TokenSource {
+    /// The token's span in the sentence text ([`Parse::text`]).
+    pub text: Span,
+    /// The token's bytes in the input.
+    pub token: Span,
+    /// The bytes in the input of the type of the bracket that holds the token: the type alone,
+    /// without a function tag, unless function tags are kept. Empty, after the `(`, for a bracket
+    /// without a type.
+    pub label: Span,
+}
+
 /// A constituency parse node (`opennlp.tools.parser.Parse`).
 ///
 /// All nodes in the same sentence share an `Arc<str>` holding the space-joined sentence text, and
@@ -372,6 +387,24 @@ impl Parse {
         use_function_tags: bool,
         gap_labeler: Option<&dyn GapLabeler>,
     ) -> Result<Parse, ParseError> {
+        Self::read_brackets(input, use_function_tags, gap_labeler, None)
+    }
+
+    /// Reads a Penn Treebank bracketed parse string as [`Parse::parse_with_options`] does, without
+    /// a gap labeler, and also gives where each token of the parse came from in `input`, one
+    /// [`TokenSource`] per token node in the order of the sentence text.
+    pub fn parse_with_sources(input: &str, use_function_tags: bool) -> Result<(Parse, Vec<TokenSource>), ParseError> {
+        let mut sources = Vec::new();
+        let parse = Self::read_brackets(input, use_function_tags, None, Some(&mut sources))?;
+        Ok((parse, sources))
+    }
+
+    fn read_brackets(
+        input: &str,
+        use_function_tags: bool,
+        gap_labeler: Option<&dyn GapLabeler>,
+        mut sources: Option<&mut Vec<TokenSource>>,
+    ) -> Result<Parse, ParseError> {
         let mut text = String::new();
         let mut offset = 0u32;
         let mut stack: Vec<Constituent<'_>> = Vec::new();
@@ -386,6 +419,15 @@ impl Parse {
                     match gap_labeler {
                         Some(gl) if kind == Some("-NONE-") => gl.label_gaps(&mut stack, ci)?,
                         _ => {
+                            if let Some(sources) = sources.as_deref_mut() {
+                                let at = token.as_ptr() as usize - input.as_ptr() as usize;
+                                let label = kind.map_or(0, str::len);
+                                sources.push(TokenSource {
+                                    text: Span::new(offset, offset + decode_token(token).len() as u32),
+                                    token: Span::new(at as u32, (at + token.len()) as u32),
+                                    label: Span::new(ci as u32 + 1, (ci + 1 + label) as u32),
+                                });
+                            }
                             let token = decode_token(token);
                             let len = token.len() as u32;
                             let tk = Constituent::new(Some(Cow::Borrowed(TOK_NODE)), Span::new(offset, offset + len));
