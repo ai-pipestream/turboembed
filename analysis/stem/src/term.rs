@@ -448,13 +448,13 @@ impl TermAnalyzer {
         self.inner.lemmatizer.is_some()
     }
 
-    /// Returns `(is_custom, normalizer_id)` for a character-level `dimension`,
-    /// or `None` for non-character dimensions.
-    pub(crate) fn normalizer_info(&self, dimension: Dimension) -> Option<(bool, &'static str)> {
+    /// Returns `(is_custom, normalizer_id, config_hash)` for a character-level
+    /// `dimension`, or `None` for non-character dimensions.
+    pub(crate) fn normalizer_info(&self, dimension: Dimension) -> Option<(bool, &'static str, u64)> {
         if let Some(custom) = &self.inner.transforms[dimension.index()] {
-            Some((true, custom.id()))
+            Some((true, custom.id(), custom.config_hash_dyn()))
         } else {
-            dimension.default_normalizer().map(|n| (false, n.id()))
+            dimension.default_normalizer().map(|n| (false, n.id(), n.config_hash_dyn()))
         }
     }
 

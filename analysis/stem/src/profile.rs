@@ -367,10 +367,11 @@ impl Annotator for TermAnnotator {
                 write(&mut h, &(a.dimensions().len() as u64).to_le_bytes());
                 for &dim in a.dimensions() {
                     write(&mut h, &[dim.index() as u8]);
-                    if let Some((is_custom, id)) = a.normalizer_info(dim) {
+                    if let Some((is_custom, id, norm_hash)) = a.normalizer_info(dim) {
                         write(&mut h, &[u8::from(is_custom)]);
                         write(&mut h, &(id.len() as u64).to_le_bytes());
                         write(&mut h, id.as_bytes());
+                        write(&mut h, &norm_hash.to_le_bytes());
                     }
                 }
                 write(&mut h, &[u8::from(a.has_stemmer()), u8::from(a.has_lemmatizer())]);
@@ -398,6 +399,7 @@ mod tests {
 
     use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Span, Spans, ViewId};
     use turbo_analysis_layers::TermSlot;
+    use turbo_unicode::Script;
 
     use super::*;
 
@@ -627,6 +629,12 @@ mod tests {
             .unwrap()
             .build();
         assert_ne!(TermAnnotator::new(latin_accent).config_hash(), TermAnnotator::new(german_umlaut).config_hash());
+
+        let preserve = TermAnalyzer::builder().accent_fold_scripts(&[Script::Latin], false).build();
+        let convert = TermAnalyzer::builder().accent_fold_scripts(&[Script::Latin], true).build();
+        assert_eq!(preserve.analyze_tokens(&["ø"], &[None]).unwrap()[0].normalized(), "ø");
+        assert_eq!(convert.analyze_tokens(&["ø"], &[None]).unwrap()[0].normalized(), "o");
+        assert_ne!(TermAnnotator::new(preserve).config_hash(), TermAnnotator::new(convert).config_hash());
 
         let tr_case = TermAnalyzer::builder().case_fold_locale("tr").unwrap().build();
         let en_case = TermAnalyzer::builder().case_fold_locale("en").unwrap().build();
