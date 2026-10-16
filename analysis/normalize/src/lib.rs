@@ -21,7 +21,8 @@
 //!   composes their alignments into one.
 //!
 //! The crate depends on `turbo-unicode` for Unicode 18.0 character data
-//! and on nothing else. docs/normalizers.md describes every normalizer,
+//! and on `turbo-encoding` for mojibake repair, besides the analysis
+//! crates. docs/normalizers.md describes every normalizer,
 //! its OpenNLP counterpart and the tests that hold them together.
 
 use std::borrow::Cow;
@@ -47,6 +48,7 @@ mod fold_runs;
 pub mod german;
 pub mod invisible;
 pub mod language_detection;
+pub mod mojibake;
 pub mod noise;
 pub mod number;
 mod placeholder;
@@ -76,6 +78,7 @@ pub use ellipsis::Ellipsis;
 pub use emoji::{EmojiAnnotate, EmojiRemove, EmojiRemoveMode, EmojiToEmoticon, EmoticonToEmoji};
 pub use german::GermanUmlauts;
 pub use invisible::Invisible;
+pub use mojibake::Mojibake;
 pub use noise::{Dictionary, NoiseFinding, NoiseScorer, NoiseStats};
 pub use number::Numbers;
 pub use quotes::Quotes;

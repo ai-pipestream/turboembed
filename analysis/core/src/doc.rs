@@ -3,6 +3,7 @@
 use std::any::{Any, TypeId};
 use std::sync::{Arc, OnceLock};
 
+use crate::bytes::SourceBytes;
 use crate::error::Error;
 use crate::layer::{Anchor, Key, KeyId, Layer, Provenance, as_any_mut};
 use crate::offsets::OffsetTable;
@@ -95,10 +96,17 @@ pub enum Status {
 /// its layers. Layers are added once and never changed; a document clones
 /// cheaply (every layer is shared), so branches of a pipeline can grow
 /// copies and merge them.
+///
+/// A document decoded from bytes (`Document::decoded`) also keeps those
+/// bytes below view 0, with the decoder's alignment, so any span maps to
+/// the bytes of the original file (`to_source_bytes`).
 #[derive(Clone)]
 pub struct Document {
     views: Vec<Arc<View>>,
     entries: Vec<Arc<Entry>>,
+    /// None when the document was made from text: its bytes are then the
+    /// UTF-8 of view 0 itself.
+    bytes: Option<Arc<SourceBytes>>,
 }
 
 impl Document {
@@ -118,11 +126,84 @@ impl Document {
             provenance: Arc::new(Provenance::by("turbo:source")),
             status: Status::Complete,
         };
-        Document { views: vec![source], entries: vec![Arc::new(entry)] }
+        Document { views: vec![source], entries: vec![Arc::new(entry)], bytes: None }
+    }
+
+    /// A document decoded from `bytes`: `text` is view 0 and `alignment`
+    /// runs from the bytes (parent) to the text (child), as a decoder's
+    /// `DecodeBuilder` records it. Refused when either side is longer than
+    /// a `u32` offset reaches or the alignment does not turn these bytes
+    /// into this text.
+    pub fn decoded(
+        bytes: impl Into<Arc<[u8]>>,
+        text: impl Into<Arc<str>>,
+        alignment: Alignment,
+    ) -> Result<Document, Error> {
+        let text = text.into();
+        let source = SourceBytes::new(bytes.into(), &text, alignment).map_err(Error::Source)?;
+        let mut doc = Document::new(text);
+        doc.bytes = Some(Arc::new(source));
+        Ok(doc)
     }
 
     pub fn source(&self) -> &str {
         &self.views[0].text
+    }
+
+    /// The bytes the document was decoded from, with their alignment to
+    /// view 0; None for a document made from text.
+    pub fn source_bytes(&self) -> Option<&SourceBytes> {
+        self.bytes.as_deref()
+    }
+
+    /// The bytes of the original file: the decoded bytes, or for a
+    /// document made from text, that text's UTF-8.
+    pub fn bytes(&self) -> &[u8] {
+        match &self.bytes {
+            Some(b) => b.bytes(),
+            None => self.source().as_bytes(),
+        }
+    }
+
+    /// A span of any view in bytes of the original file: `to_source`, then
+    /// one step more through the decoder's alignment, widening where a
+    /// character's bytes are cut.
+    pub fn to_source_bytes(&self, v: ViewId, s: Span) -> Span {
+        let s = self.to_source(v, s);
+        match &self.bytes {
+            Some(b) => b.alignment().span_to_parent(s),
+            None => s,
+        }
+    }
+
+    /// A span of the original file's bytes in a view: through the
+    /// decoder's alignment to view 0, then down the chain.
+    pub fn from_source_bytes(&self, v: ViewId, s: Span) -> Span {
+        let s = match &self.bytes {
+            Some(b) => b.alignment().span_to_child(s),
+            None => s,
+        };
+        self.from_source(v, s)
+    }
+
+    /// An offset of a view in bytes of the original file, for one side of
+    /// a span.
+    pub fn offset_to_source_bytes(&self, v: ViewId, x: u32, side: Side) -> u32 {
+        let x = self.offset_to_source(v, x, side);
+        match &self.bytes {
+            Some(b) => b.alignment().to_parent(x, side),
+            None => x,
+        }
+    }
+
+    /// An offset of the original file's bytes in a view, for one side of a
+    /// span.
+    pub fn offset_from_source_bytes(&self, v: ViewId, x: u32, side: Side) -> u32 {
+        let x = match &self.bytes {
+            Some(b) => b.alignment().to_child(x, side),
+            None => x,
+        };
+        self.offset_from_source(v, x, side)
     }
 
     /// The text of a view.

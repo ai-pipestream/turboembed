@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::bytes::SourceError;
 use crate::layer::KeyId;
 use crate::offsets::{OffsetError, OffsetUnit};
 use crate::text::ViewId;
@@ -40,6 +41,10 @@ pub enum Error {
     /// A UTF-16 or code point offset from outside (Java, the wire) that
     /// names no place in the view: `at`, in `unit`, and why.
     Offset { unit: OffsetUnit, at: u32, reason: OffsetError },
+    /// Source bytes refused when a document is decoded from them: too long
+    /// for `u32` offsets, or not what the alignment says the text came
+    /// from.
+    Source(SourceError),
 }
 
 impl fmt::Display for Error {
@@ -66,6 +71,7 @@ impl fmt::Display for Error {
             Error::Offset { unit, at, reason: OffsetError::InsideCharacter } => {
                 write!(f, "{unit} {at} falls between the two halves of a surrogate pair")
             }
+            Error::Source(e) => write!(f, "{e}"),
         }
     }
 }
