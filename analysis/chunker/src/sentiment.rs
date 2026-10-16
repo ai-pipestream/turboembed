@@ -548,7 +548,7 @@ impl Layer for ChunkFacets {
 pub struct ChunkFacetBuilder;
 
 impl Annotator for ChunkFacetBuilder {
-    const ID: &'static str = "turbo:chunk-facets";
+    const ID: &'static str = "turbo:chunk-facet-builder";
     type Reads = (
         Chunks,
         Sentences,

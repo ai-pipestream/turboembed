@@ -546,7 +546,7 @@ document structure (`STRUCTURE`) and embedding drift (`DRIFT`).
      signal is **off by default** unless a non-zero `sentiment` weight is
      configured in `WeighAllBoundaries`, `WeighProvider` (`"weigh-boundaries"`
      with `sentiment`), or `turbo_eval::chunkers::Signals::StructureSentiment`.
-3. **Per-chunk facets (`ChunkFacets` and `ChunkFacetBuilder`)**:
+3. **Per-chunk facets (`ChunkFacets` and `ChunkFacetBuilder`, `ID = "turbo:chunk-facet-builder"`)**:
    - `ChunkFacets` (`ID = "turbo:chunk-facets"`, `OF = Some(Chunks::NAME)`,
      `Anchor::aligned::<Chunks>()`) is aligned 1-to-1 with `Chunks` and stores:
      - `polarity: Vec<Polarity>` and `polarity_score: Vec<f64>` in `-1.0..=1.0`
