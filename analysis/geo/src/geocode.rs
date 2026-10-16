@@ -21,6 +21,28 @@ use crate::text::is_blank;
 /// The conventional entity type label for location mentions.
 pub const DEFAULT_LOCATION_TYPE: &str = "location";
 
+/// Admission before geocoding. This is a candidate filter, not a place-name
+/// classifier. Population separation scores do not measure mention validity.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MentionPolicy {
+    /// Resolve every entity with an accepted location type (OpenNLP parity).
+    #[default]
+    All,
+    /// Reject a single ASCII letter, including surrounding whitespace.
+    /// Useful for dictionary candidates: bundled aliases `S` and `C` can
+    /// otherwise turn possessives or scientific symbols into cities.
+    /// Non-ASCII names and multi-character names remain eligible. Legitimate
+    /// single-letter names also need the `All` policy or a separate pipeline.
+    ExcludeSingleAsciiLetters,
+}
+
+impl MentionPolicy {
+    fn admits(self, text: &str) -> bool {
+        let text = text.trim();
+        self == Self::All || !(text.len() == 1 && text.as_bytes()[0].is_ascii_alphabetic())
+    }
+}
+
 const SINGLE_CANDIDATE_CONFIDENCE: f64 = 0.9;
 const TIE_CONFIDENCE: f64 = 0.5;
 const POPULATION_CONFIDENCE_SPAN: f64 = 0.4;
@@ -419,6 +441,7 @@ pub(crate) fn normalize_location_types<'a>(
 pub struct GeocodeAnnotator<G> {
     geocoder: G,
     location_types: HashSet<String>,
+    mention_policy: MentionPolicy,
 }
 
 impl<G: Geocoder> GeocodeAnnotator<G> {
@@ -427,7 +450,7 @@ impl<G: Geocoder> GeocodeAnnotator<G> {
     pub fn new(geocoder: G) -> GeocodeAnnotator<G> {
         let mut location_types = HashSet::new();
         location_types.insert(DEFAULT_LOCATION_TYPE.to_string());
-        GeocodeAnnotator { geocoder, location_types }
+        GeocodeAnnotator { geocoder, location_types, mention_policy: MentionPolicy::All }
     }
 
     /// Creates an annotator that resolves entities whose type label matches
@@ -436,7 +459,18 @@ impl<G: Geocoder> GeocodeAnnotator<G> {
         geocoder: G,
         location_types: impl IntoIterator<Item = &'a str>,
     ) -> Result<GeocodeAnnotator<G>, GeocodeError> {
-        Ok(GeocodeAnnotator { geocoder, location_types: normalize_location_types(location_types)? })
+        Ok(GeocodeAnnotator {
+            geocoder,
+            location_types: normalize_location_types(location_types)?,
+            mention_policy: MentionPolicy::All,
+        })
+    }
+
+    /// Applies admission before the geocoder sees the mentions, so rejected
+    /// candidates cannot affect a spatial geocoder's context either.
+    pub fn with_mention_policy(mut self, policy: MentionPolicy) -> Self {
+        self.mention_policy = policy;
+        self
     }
 }
 
@@ -455,7 +489,13 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
             lower_buf.clear();
             to_lowercase(entities.kinds.label(entities.kind[ix.get()]), &mut lower_buf);
             if self.location_types.contains(&lower_buf) {
-                mentions.push(span);
+                let surface = view.text().get(span.range()).ok_or_else(|| Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!("mention span {span:?} is outside the text or off a UTF-8 boundary"),
+                })?;
+                if self.mention_policy.admits(surface) {
+                    mentions.push(span);
+                }
             }
         }
 
@@ -479,6 +519,22 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
             out.push(resolution);
         }
         Ok((out,))
+    }
+
+    fn config_hash(&self) -> u64 {
+        let mut labels: Vec<_> = self.location_types.iter().collect();
+        labels.sort_unstable();
+        let policy = match self.mention_policy {
+            MentionPolicy::All => 0,
+            MentionPolicy::ExcludeSingleAsciiLetters => 1,
+        };
+        let mut hash = (0xcbf2_9ce4_8422_2325_u64 ^ policy).wrapping_mul(0x0100_0000_01b3);
+        for label in labels {
+            for byte in label.bytes().chain(std::iter::once(0xff)) {
+                hash = (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        hash
     }
 }
 

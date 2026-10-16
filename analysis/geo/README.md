@@ -58,3 +58,18 @@ cargo run --release -p turbo-geo --example load_report -- geonames all.txt all.s
 `synthesize` writes a made up table in the GeoNames format with as many
 rows as `allCountries.txt` and a similar spread of alternate names and
 scripts, for when the real file is not at hand.
+
+## Dictionary mention admission
+
+Gazetteer aliases are lookup keys, not evidence that every matching token
+is a place. The bundled `S` and `C` aliases can resolve possessive `s` or a
+scientific `c` to Sao Paulo or Cordoba with a population-prior score of 0.9.
+That score describes candidate separation, not entity recognition accuracy.
+
+For dictionary-generated candidates, use
+`GeocodeAnnotator::new(geocoder).with_mention_policy(MentionPolicy::ExcludeSingleAsciiLetters)`.
+This rejects single ASCII letters before the geocoder receives any context.
+It keeps original entity annotations and preserves eligible mention spans.
+The default `All` policy retains OpenNLP behavior. Non-ASCII names remain
+eligible; legitimate single-letter ASCII names require `All` or a separate
+pipeline. This narrow filter does not replace contextual disambiguation.
