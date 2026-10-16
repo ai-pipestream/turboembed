@@ -243,6 +243,74 @@ pub struct Head {
     pub head_index: i32,
 }
 
+/// Where one token of a parse read by [`Parse::parse_with_sources`] came from: its span in the
+/// parse's sentence text and, in the bracketed input, the token as written (before an escape such
+/// as `-LRB-` is decoded) and the type of the bracket around it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TokenSource {
+    /// The token's span in the sentence text ([`Parse::text`]).
+    pub text: Span,
+    /// The token's bytes in the input.
+    pub token: Span,
+    /// The bytes in the input of the type of the bracket that holds the token: the type alone,
+    /// without a function tag, unless function tags are kept. Empty, after the `(`, for a bracket
+    /// without a type.
+    pub label: Span,
+}
+
+/// Builds a tree by inserting constituents into its root as [`Parse::insert`] does, in less time
+/// when they come in the order a bracketed tree closes them: each after the constituents inside it
+/// and after those to its left.
+///
+/// `insert` looks at every child of the root for each constituent, so a flat sentence of `n`
+/// tokens takes time in `n` squared. While the constituents come in that order, the root's
+/// children are sorted, do not overlap and are not empty, and a new constituent that ends at or
+/// after the last child and starts at or after the end of the child before the first one it
+/// covers takes the children from that one on and goes last, which is what `insert` does with
+/// it. The builder finds that child by binary search and checks the conditions; the first
+/// constituent that does not meet them, and every one after it, goes through `insert`.
+#[derive(Debug)]
+pub struct TreeBuilder {
+    root: Parse,
+    ordered: bool,
+}
+
+impl TreeBuilder {
+    /// A builder over `root`, which has no children.
+    pub fn new(root: Parse) -> TreeBuilder {
+        let ordered = root.parts.is_empty();
+        TreeBuilder { root, ordered }
+    }
+
+    /// Inserts `constituent` into the tree, as [`Parse::insert`] does.
+    pub fn insert(&mut self, mut constituent: Parse) -> Result<(), ParseError> {
+        let ic = constituent.span;
+        if self.ordered && ic.start < ic.end && self.root.span.contains(ic) {
+            let parts = &mut self.root.parts;
+            let first = parts.partition_point(|p| p.span.start < ic.start);
+            let after_left = first == 0 || parts[first - 1].span.end <= ic.start;
+            let covers_rest = parts.last().is_none_or(|p| p.span.end <= ic.end);
+            if after_left && covers_rest {
+                if !self.root.text.is_char_boundary(ic.start as usize)
+                    || !self.root.text.is_char_boundary(ic.end as usize)
+                {
+                    return Err(ParseError::NotCharBoundary { span: ic });
+                }
+                constituent.parts.extend(parts.drain(first..));
+                parts.push(constituent);
+                return Ok(());
+            }
+        }
+        self.ordered = false;
+        self.root.insert(constituent)
+    }
+
+    /// The tree.
+    pub fn finish(self) -> Parse {
+        self.root
+    }
+}
+
 /// A constituency parse node (`opennlp.tools.parser.Parse`).
 ///
 /// All nodes in the same sentence share an `Arc<str>` holding the space-joined sentence text, and
@@ -251,7 +319,7 @@ pub struct Head {
 ///
 /// `Clone` copies the whole subtree. Java's `clone` copies the node and shares its children, and a
 /// clone of a node that is its own head keeps the original as its head; here the clone is its own
-/// head.
+/// head, and [`Parse::clone_keeping_head`] makes the copy the parsers make of a sentence's root.
 #[derive(Clone, Debug)]
 pub struct Parse {
     text: Arc<str>,
@@ -323,14 +391,15 @@ impl Parse {
             text.push_str(tok.as_ref());
         }
         let text: Arc<str> = text.into();
-        let mut root = Parse::new(Arc::clone(&text), Span::new(0, text.len() as u32), INC_NODE, 0.0, 0);
+        let mut root =
+            TreeBuilder::new(Parse::new(Arc::clone(&text), Span::new(0, text.len() as u32), INC_NODE, 0.0, 0));
         let mut start = 0u32;
         for (i, tok) in tokens.iter().enumerate() {
             let len = tok.as_ref().len() as u32;
             root.insert(Parse::new(Arc::clone(&text), Span::new(start, start + len), TOK_NODE, 0.0, i as i32))?;
             start += len + 1;
         }
-        Ok(root)
+        Ok(root.finish())
     }
 
     /// Reads a Penn Treebank bracketed parse string without function tags or gap labeling
@@ -372,20 +441,48 @@ impl Parse {
         use_function_tags: bool,
         gap_labeler: Option<&dyn GapLabeler>,
     ) -> Result<Parse, ParseError> {
+        Self::read_brackets(input, use_function_tags, gap_labeler, None)
+    }
+
+    /// Reads a Penn Treebank bracketed parse string as [`Parse::parse_with_options`] does, without
+    /// a gap labeler, and also gives where each token of the parse came from in `input`, one
+    /// [`TokenSource`] per token node in the order of the sentence text.
+    pub fn parse_with_sources(input: &str, use_function_tags: bool) -> Result<(Parse, Vec<TokenSource>), ParseError> {
+        let mut sources = Vec::new();
+        let parse = Self::read_brackets(input, use_function_tags, None, Some(&mut sources))?;
+        Ok((parse, sources))
+    }
+
+    fn read_brackets(
+        input: &str,
+        use_function_tags: bool,
+        gap_labeler: Option<&dyn GapLabeler>,
+        mut sources: Option<&mut Vec<TokenSource>>,
+    ) -> Result<Parse, ParseError> {
         let mut text = String::new();
         let mut offset = 0u32;
+        let mut types = TypeScan::default();
         let mut stack: Vec<Constituent<'_>> = Vec::new();
         let mut cons: Vec<Constituent<'_>> = Vec::new();
         for (ci, &c) in input.as_bytes().iter().enumerate() {
             if c == b'(' {
                 let rest = &input[ci + 1..];
-                let kind = java_type(rest, use_function_tags);
+                let kind = types.kind(input, ci + 1, use_function_tags);
                 let token = java_token(rest);
                 stack.push(Constituent::new(kind.map(Cow::Borrowed), Span::new(offset, offset)));
                 if let Some(token) = token {
                     match gap_labeler {
                         Some(gl) if kind == Some("-NONE-") => gl.label_gaps(&mut stack, ci)?,
                         _ => {
+                            if let Some(sources) = sources.as_deref_mut() {
+                                let at = token.as_ptr() as usize - input.as_ptr() as usize;
+                                let label = kind.map_or(0, str::len);
+                                sources.push(TokenSource {
+                                    text: Span::new(offset, offset + decode_token(token).len() as u32),
+                                    token: Span::new(at as u32, (at + token.len()) as u32),
+                                    label: Span::new(ci as u32 + 1, (ci + 1 + label) as u32),
+                                });
+                            }
                             let token = decode_token(token);
                             let len = token.len() as u32;
                             let tk = Constituent::new(Some(Cow::Borrowed(TOK_NODE)), Span::new(offset, offset + len));
@@ -407,17 +504,17 @@ impl Parse {
 
         let txt: Arc<str> = text.into();
         let mut token_index = -1i32;
-        let mut p = Parse::new(Arc::clone(&txt), Span::new(0, txt.len() as u32), TOP_NODE, 1.0, 0);
+        let mut tree = TreeBuilder::new(Parse::new(Arc::clone(&txt), Span::new(0, txt.len() as u32), TOP_NODE, 1.0, 0));
         for con in cons {
             let kind = con.label.ok_or(ParseError::MissingType { byte_offset: input.len() })?;
             if kind != TOP_NODE {
                 if kind == TOK_NODE {
                     token_index += 1;
                 }
-                p.insert(Parse::new(Arc::clone(&txt), con.span, kind.into_owned(), 1.0, token_index))?;
+                tree.insert(Parse::new(Arc::clone(&txt), con.span, kind.into_owned(), 1.0, token_index))?;
             }
         }
-        Ok(p)
+        Ok(tree.finish())
     }
 
     /// Inserts `constituent` into this parse tree based on its text span (`Parse.insert`).
@@ -659,6 +756,19 @@ impl Parse {
         Head { span: self.span, head_index: self.head_index }
     }
 
+    /// Copies this node as the bottom-up parsers' `(Parse) p.clone()` copies the sentence's root
+    /// for each derivation. Java's copy of a node that is its own head keeps that node as its
+    /// head, so when tree insertion later trims the copy's span by removing a first or last child,
+    /// the head still has the span the node has now. The copy takes that span as its head here.
+    /// [`Clone`] leaves a copy its own head.
+    pub fn clone_keeping_head(&self) -> Parse {
+        let mut copy = self.clone();
+        if copy.head.is_none() {
+            copy.head = Some(self.as_head());
+        }
+        copy
+    }
+
     /// Returns `true` when this node is its own head (Java's `getHead() == this`).
     pub fn is_own_head(&self) -> bool {
         self.head.is_none()
@@ -819,37 +929,29 @@ impl Parse {
 
     /// Returns all POS-tag nodes under this parse in left-to-right order (`Parse.getTagNodes`).
     pub fn tag_nodes(&self) -> Vec<&Parse> {
-        let mut tags = Vec::new();
-        self.collect_tag_nodes(&mut tags);
-        tags
+        self.collect_nodes(Parse::is_pos_tag)
     }
 
-    fn collect_tag_nodes<'a>(&'a self, out: &mut Vec<&'a Parse>) {
-        for part in &self.parts {
-            if part.is_pos_tag() {
-                out.push(part);
+    /// The nodes under this parse for which `wanted` holds, left to right, without looking under
+    /// them. The walk keeps its own stack, so a tree as deep as a hostile input can make it does
+    /// not overflow the thread's.
+    fn collect_nodes(&self, wanted: impl Fn(&Parse) -> bool) -> Vec<&Parse> {
+        let mut out = Vec::new();
+        let mut pending: Vec<&Parse> = self.parts.iter().rev().collect();
+        while let Some(node) = pending.pop() {
+            if wanted(node) {
+                out.push(node);
             } else {
-                part.collect_tag_nodes(out);
+                pending.extend(node.parts.iter().rev());
             }
         }
+        out
     }
 
     /// Returns all `TK` token leaf nodes under this parse in left-to-right order
     /// (`Parse.getTokenNodes`).
     pub fn token_nodes(&self) -> Vec<&Parse> {
-        let mut tokens = Vec::new();
-        self.collect_token_nodes(&mut tokens);
-        tokens
-    }
-
-    fn collect_token_nodes<'a>(&'a self, out: &mut Vec<&'a Parse>) {
-        for part in &self.parts {
-            if part.kind == TOK_NODE {
-                out.push(part);
-            } else {
-                part.collect_token_nodes(out);
-            }
-        }
+        self.collect_nodes(|p| p.kind == TOK_NODE)
     }
 
     /// Returns the basal phrase chunks and unchunked POS nodes under this parse in left-to-right
@@ -923,12 +1025,44 @@ impl Parse {
         Ok(())
     }
 
-    fn node_at_path_mut(&mut self, path: &[usize]) -> &mut Parse {
+    pub(crate) fn node_at_path(&self, path: &[usize]) -> &Parse {
+        let mut cur = self;
+        for &idx in path {
+            cur = &cur.parts[idx];
+        }
+        cur
+    }
+
+    pub(crate) fn node_at_path_mut(&mut self, path: &[usize]) -> &mut Parse {
         let mut cur = self;
         for &idx in path {
             cur = &mut cur.parts[idx];
         }
         cur
+    }
+
+    pub(crate) fn initial_chunk_paths(&self) -> Vec<Vec<usize>> {
+        let mut paths = Vec::new();
+        let mut cur = Vec::new();
+        self.collect_initial_chunk_paths(&mut cur, &mut paths);
+        paths
+    }
+
+    fn collect_initial_chunk_paths(&self, cur: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
+        if self.is_pos_tag() || self.parts.iter().all(Parse::is_pos_tag) {
+            out.push(cur.clone());
+        } else {
+            for (i, kid) in self.parts.iter().enumerate() {
+                cur.push(i);
+                kid.collect_initial_chunk_paths(cur, out);
+                cur.pop();
+            }
+        }
+    }
+
+    pub(crate) fn replace_text_and_span(&mut self, text: Arc<str>, span: Span) {
+        self.text = text;
+        self.span = span;
     }
 
     /// Returns the punctuation parses immediately preceding this node, in the order of
@@ -1002,7 +1136,7 @@ fn java_double_compare(a: f64, b: f64) -> Ordering {
 
 /// `TreeSet.add` under `Parse.compareTo`: keeps `set` sorted and drops `punct` when an element
 /// compares equal to it.
-fn insert_by_prob(set: &mut Vec<Parse>, punct: Parse) {
+pub(crate) fn insert_by_prob(set: &mut Vec<Parse>, punct: Parse) {
     if let Err(pos) = set.binary_search_by(|p| p.cmp_prob(&punct)) {
         set.insert(pos, punct);
     }
@@ -1046,16 +1180,89 @@ impl Hash for Parse {
 }
 
 /// `Parse.toString`: the covered text.
+/// Drops the nodes under a parse one by one rather than recursively: a tree read from a few
+/// megabytes of nested brackets is deep enough to overflow the stack if each level's drop calls
+/// the next.
+impl Drop for Parse {
+    fn drop(&mut self) {
+        if self.parts.is_empty() && self.prev_punct.is_empty() && self.next_punct.is_empty() {
+            return;
+        }
+        let mut pending = Vec::new();
+        take_children(self, &mut pending);
+        while let Some(mut node) = pending.pop() {
+            // Once its children are taken, `node` drops without recursing.
+            take_children(&mut node, &mut pending);
+        }
+    }
+}
+
+/// Moves the children and punctuation of `node` onto `into`.
+fn take_children(node: &mut Parse, into: &mut Vec<Parse>) {
+    into.append(&mut node.parts);
+    into.append(&mut node.prev_punct);
+    into.append(&mut node.next_punct);
+}
+
 impl fmt::Display for Parse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.covered_text())
     }
 }
 
+/// [`java_type`] for the text after each `(` of an input in turn, in time linear in the input.
+///
+/// The type ends at the first space, `=` or `-` after the `(`, so the types of the brackets of
+/// `((((x` each run to the end; looking for that character again for each `(` takes time in the
+/// square of the input's length, as Java's regular expression does. The scan keeps the first such
+/// character at or after the last place it looked, which is the first at or after any later place
+/// up to it, and the same for the function tag after a `-`.
+#[derive(Default)]
+struct TypeScan {
+    stop: usize,
+    tag_stop: usize,
+}
+
+impl TypeScan {
+    /// The first byte at or after `from` that ends a type, or the input's length.
+    fn next_stop(bytes: &[u8], from: usize) -> usize {
+        from + bytes[from..].iter().position(|&b| matches!(b, b' ' | b'=' | b'-')).unwrap_or(bytes.len() - from)
+    }
+
+    /// `java_type(&input[at..], use_function_tags)`, for `at` that never goes down between calls.
+    fn kind<'a>(&mut self, input: &'a str, at: usize, use_function_tags: bool) -> Option<&'a str> {
+        let rest = &input[at..];
+        if let Some(escaped) = ESCAPED_TYPES.iter().find(|t| rest.starts_with(**t)) {
+            return Some(escaped);
+        }
+        let bytes = input.as_bytes();
+        if self.stop < at {
+            self.stop = Self::next_stop(bytes, at);
+        }
+        let n = self.stop - at;
+        if n == 0 {
+            return None;
+        }
+        if use_function_tags && bytes.get(self.stop) == Some(&b'-') {
+            let from = self.stop + 1;
+            if self.tag_stop < from {
+                self.tag_stop = Self::next_stop(bytes, from);
+            }
+            let m = self.tag_stop - from;
+            if m > 0 {
+                return Some(&rest[..n + 1 + m]);
+            }
+        }
+        Some(&rest[..n])
+    }
+}
+
 /// `Parse.getType(rest)` for the text after a `(`: an escaped bracket type or `-NONE-` when the
 /// text starts with one, otherwise the leading run of characters other than space, `=` and `-`
 /// (`^([^ =-]+)`), and with function tags the first tag after it (`^[^ =-]+-([^ =-]+)`). The
-/// type is always a prefix of `rest`, so it is returned as a slice of it.
+/// type is always a prefix of `rest`, so it is returned as a slice of it. [`TypeScan`] gives the
+/// same for each `(` of an input in turn.
+#[cfg(test)]
 fn java_type(rest: &str, use_function_tags: bool) -> Option<&str> {
     if let Some(escaped) = ESCAPED_TYPES.iter().find(|t| rest.starts_with(**t)) {
         return Some(escaped);
@@ -1110,5 +1317,57 @@ impl TagPath {
     /// The path of the node's parent.
     fn parent(&self) -> &[usize] {
         &self.path[..self.path.len() - 1]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_type_scan_matches_java_type_at_every_bracket() {
+        let inputs = [
+            "(TOP (S (NP-SBJ-1 (NNP A)) (VP (VB b))))",
+            "((((((x y",
+            "(A-((((B-C= (-LRB- -LRB-) (-NONE-1 *) (=X) (-Y) (A--B) (A-",
+            "(NP-SBJ=2 (WHNP-1 x)) ( (S (A b)))",
+        ];
+        for input in inputs {
+            for tags in [false, true] {
+                let mut scan = TypeScan::default();
+                for (ci, _) in input.match_indices('(') {
+                    assert_eq!(scan.kind(input, ci + 1, tags), java_type(&input[ci + 1..], tags), "{input} at {ci}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn deep_trees_are_walked_and_dropped_without_recursion() {
+        let depth = 100_000;
+        let input = format!("{}(NN x){}", "(A ".repeat(depth), ")".repeat(depth));
+        let (parse, sources) = Parse::parse_with_sources(&input, false).unwrap();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(parse.tag_nodes().len(), 1);
+        assert_eq!(parse.token_nodes().len(), 1);
+        drop(parse);
+    }
+
+    #[test]
+    fn the_tree_builder_matches_insert() {
+        let text: Arc<str> = "a b c d e ".into();
+        let spans = [(0, 1), (2, 3), (0, 3), (0, 3), (4, 5), (6, 7), (4, 7), (8, 9), (0, 9), (3, 5), (8, 9), (8, 9)];
+        let root = || Parse::new(Arc::clone(&text), Span::new(0, 10), TOP_NODE, 1.0, 0);
+        let mut slow = root();
+        let mut fast = TreeBuilder::new(root());
+        for (i, (s, e)) in spans.into_iter().enumerate() {
+            let node = || Parse::new(Arc::clone(&text), Span::new(s, e), format!("N{i}"), 1.0, i as i32);
+            slow.insert(node()).unwrap();
+            fast.insert(node()).unwrap();
+            let (mut a, mut b) = (String::new(), String::new());
+            slow.show(&mut a);
+            fast.root.show(&mut b);
+            assert_eq!(a, b, "after {i}");
+        }
     }
 }

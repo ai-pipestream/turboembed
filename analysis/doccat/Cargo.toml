@@ -19,8 +19,9 @@ turbo-jvm = { path = "../jvm" }
 # reference; the sentiment model file and its maxent classifier.
 turbo-maxent = { path = "../maxent" }
 # OpenNLP's emoji annotation features, for EmojiFeatureGenerator and the
-# emoji sentiment context.
+# emoji sentiment context, plus the Emoji layer for LexiconSentiment.
 turbo-normalize = { path = "../normalize" }
+turbo-normalize-layers = { path = "../normalize-layers" }
 # StringPattern, for BagOfWordsFeatureGenerator's all-letter tokens.
 turbo-sequence = { path = "../sequence" }
 # Training events and the data indexer. Training and packaging a model

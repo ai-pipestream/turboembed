@@ -108,3 +108,398 @@ context and probabilities bit for bit. It skips, naming
 
 `analysis/doccat/tests/sentiment.rs` covers the contexts, the model
 checks and the annotator on small models trained in the test.
+
+## Lexicon and negation sentiment baseline (`LexiconSentiment`, #320)
+
+`turbo_doccat::sentiment::lexicon` (`LexiconSentiment`, `VaderLexicon`,
+`VaderScore`, `SentenceSentiment`, `NegationMode`) provides a deterministic,
+explainable rule- and lexicon-based sentiment baseline that produces exact
+token evidence spans (`turbo:opinions`) and sentence-level polarity
+(`turbo:categories<opennlp:sentences>`):
+
+- **Lexicon (`VaderLexicon`)**: bundles the MIT-licensed VADER lexicon
+  (`vader_lexicon.txt`, 7,506 entries, Copyright (c) 2016 C.J. Hutto) and
+  also reads caller-supplied TSV tables (`VaderLexicon::from_tsv`).
+- **Emoji features**: Unicode emoji tokens that are not in the ASCII VADER
+  lexicon fall back to OpenNLP's Apache-2.0 `emoji-annotations.txt` coarse
+  polarity scores (`-2..=2`, via `turbo_normalize::emoji::opennlp_annotation`
+  or the document's `turbo:emoji` layer when present). The Emoji Sentiment
+  Ranking (CC BY-SA 4.0) is never used.
+- **VADER-compatible mode (`LexiconSentiment::score_text`)**: reproduces
+  Python `vaderSentiment`'s `SentimentIntensityAnalyzer.polarity_scores`:
+  punctuation stripping that preserves short emoticons (`:)`, `:D`),
+  ALLCAPS differential emphasis (`C_INCR = 0.733`), degree boosters and
+  dampeners (`B_INCR = 0.293`, `B_DECR = -0.293`) with distance damping
+  (`1.0`, `0.95`, `0.9`), negation scope (`N_SCALAR = -0.74`), special-case
+  idioms (`SPECIAL_CASES`, `never so/this`, `without doubt`, `least`),
+  contrastive `"but"` weighting (`0.5` before `"but"`, `1.5` after `"but"`),
+  exclamation/question punctuation emphasis, and `score / sqrt(score^2 + 15)`
+  compound normalization. Tested against all 28 sentences of
+  `vaderSentiment.py`'s reference suite plus a handful of sentences where an
+  earlier port diverged (`"NO good"`: a `"no"` that negates the next word
+  keeps its `0.0` valence through the ALLCAPS and booster rules). A random
+  differential run of 5,000 sentences built from lexicon words, boosters,
+  negators, idioms and punctuation against `vaderSentiment` 3.3.2 on
+  Python 3.13 matched on all but three, which differ only in floating
+  point: `sum()` is compensated since Python 3.12, so a valence list that
+  cancels to exactly `0.0` here can leave a residue of about `1e-16` there
+  and pick up the punctuation emphasis, and a proportion that lands within
+  `1e-12` of a rounding half rounds to even here. Those are not chased.
+- **`score_sentence` and the "but" rule**: `vaderSentiment` rescales the
+  first token carrying a repeated valence (`sentiments.index(sentiment)`)
+  rather than the token at that position; `score_text` keeps that quirk for
+  parity, `score_sentence` scales by token position so that the evidence
+  spans point at the tokens that were actually rescaled.
+- **Evidence spans and sentence categories (`Annotator` for `LexiconSentiment`)**:
+  reads `(View, Sentences, Tokens, Option<Dependencies>, Option<Emoji>)` and
+  writes `(Opinions, Categories<Sentences>)`:
+  - Every token with a non-zero effective valence emits an `Opinion` item in
+    `turbo:opinions` pointing at its exact token span (`IxRange<Tokens>`),
+    with its prior `polarity`, non-negative `intensity`, and `negated` flag
+    such that `opinion.effective_polarity()` equals the token's final
+    adjusted valence.
+  - Each sentence gets a `Categories<Sentences>` row over the tag set
+    `["positive", "negative", "neutral"]` with VADER's `[pos, neg, neu]`
+    proportions and the best category selected by the standard `+/- 0.05`
+    compound threshold.
+
+### How dependency negation mode differs from VADER's three-token window
+
+`NegationMode::Auto` (the default) uses `opennlp:dependencies` when present
+on the document and falls back to VADER's three-token preceding window when
+absent, recording the active inputs in the layer's `Provenance.reads` and
+the mode in `ModelRef` (`vader:lexicon:auto`, `vader:lexicon:window`, or
+`vader:lexicon:dependency`). Dependency mode differs from the fixed
+three-token window in two documented ways:
+
+1. **Long-distance negation (`> 3` tokens away)**: in sentences where prepositional
+   or adverbial material separates the negator from its predicate head (for
+   example, *"The service is not in any way good."* where `"not"` is four
+   tokens before `"good"`), VADER's three-token window misses `"not"` and
+   scores `"good"` as positive, whereas dependency mode sees `"not"` attached
+    directly to `"good"` (`neg` / `advmod`) and negates it.
+2. **Clause and constituent boundaries within 3 tokens**: in sentences where a
+   negation word appears within three tokens of a sentiment word that belongs
+   to a different constituent whose head is not negated (for example, *"Not
+   saying everything good."* where `"Not"` modifies `"saying"` while `"good"`
+   modifies `"everything"`), VADER's three-token window blindly negates
+   `"good"`, whereas dependency mode checks whether the sentiment token or its
+   governing complement head has a negation dependent and leaves `"good"`
+   unnegated.
+
+## Embedding classifier heads and label centroids (`turbo_analysis_embed`, `#321`)
+
+`turbo_analysis_embed::centroids` and `turbo_analysis_embed::heads` classify
+document, sentence, chunk, opinion, and aspect vectors produced by the
+turboembed encoder (`#262` and `#263`):
+
+- **Centroids (`centroid`, `CentroidNorm`, `category_sentence_centroids`)**:
+  generalizes `org.apache.opennlp.grpc.chunk.Centroids` and
+  `ChunkEmbedProcessor.buildCategoryGroup` from `opennlp-sandbox`
+  (`OPENNLP-1833-grpc-uber-server`). `centroid` computes the element-wise
+  arithmetic mean of a non-empty slice of equal-length `f32` vectors in `f64`,
+  with optional post-mean L2 normalization (`CentroidNorm::None` or
+  `CentroidNorm::L2`), and is tested against all five cases of
+  `CentroidsTest.java`. `category_sentence_centroids` groups a document's
+  sentences by their `Categories<Sentences>` label and averages each category's
+  sentence vectors into one prototype vector.
+- **Prototype classification (`LabelCentroids`)**: each label in a `TagSet` is
+  defined by a set of example sentences (`LabelCentroids::from_text_examples`)
+  or example vectors (`LabelCentroids::from_vector_examples`) averaged into one
+  centroid vector. Inference computes one `f64` dot product per label followed
+  by temperature-scaled softmax (`score_single_label`) or scaled sigmoid
+  (`score_multi_label`). Centroids serialize to and from a plain typed binary
+  format (`TCENT001`) with no pickle and no JSON trickery.
+- **Fixed-weight linear and 2-layer MLP heads (`ClassifierHead`)**: runs a
+  1-layer linear (`y = W x + b`) or 2-layer MLP (`y = W2 * sigma(W1 * x + b1) + b2`,
+  with `HiddenActivation::Relu`, `Gelu`, or `Tanh`) forward pass in
+  deterministic `f64` arithmetic, with softmax (`HeadMode::SingleLabel`) or
+  independent logistic sigmoid (`HeadMode::MultiLabel`). Heads serialize to and
+  from a plain typed binary format (`THEAD001`) and can be fitted
+  deterministically from labeled embeddings via full-batch L2-regularized
+  cross-entropy gradient descent (`ClassifierHead::fit_single_label` and
+  `ClassifierHead::fit_multi_label`).
+- **Vector and span-pooling annotators (`ScoringHead`, `VectorHeadAnnotator`,
+  `SentenceSpanHead`, `ChunkSpanHead`, `OpinionSpanHead`, `AspectSpanHead`,
+  `IncivilityHeadAnnotator`, `PragmaticsHeadAnnotator`)**:
+  - `VectorHeadAnnotator<L>` reads `(L, Vectors<L>)` (`opennlp:embeddings<L>`)
+    and writes `Categories<L>` (`turbo:categories<L>`).
+  - `SentenceSpanHead`, `ChunkSpanHead`, `OpinionSpanHead`, and
+    `AspectSpanHead` pool exact subword ranges from `Subwords`
+    (`opennlp:subwords`) through the stage 2 range write (`#263`,
+    `VectorAnnotator::embed_spans`). Because `OpinionSpanHead` and
+    `AspectSpanHead` pool only the subword range of each opinion expression or
+    aspect term within its enclosing sentence window, two opinion spans or two
+    aspect terms with opposite polarity inside the same sentence receive
+    distinct span-pooled embeddings and distinct polarity predictions.
+  - `IncivilityHeadAnnotator` and `PragmaticsHeadAnnotator` score
+    `Vectors<Sentences>` with a multi-label `ClassifierHead` to populate
+    `Incivility` (`turbo:incivility`) and `Pragmatics` (`turbo:pragmatics`).
+
+### Sentiment classification comparison and CPU/GPU parity
+
+`analysis/embed/tests/heads.rs` compares `LexiconSentiment` (`#320`),
+`LabelCentroids` (`#321`), and `ClassifierHead` (`#321`) on a self-contained
+12-sentence evaluation benchmark (`testdata/tiny-bert-bundle`, 32-dim) and on
+471 MPQA subjective polarity spans from MASC 3.0.0 (`CC BY 3.0 US`, 376 train /
+95 test spans) embedded with `sentence-transformers/all-MiniLM-L6-v2` (384-dim,
+mean-pooled, L2-normalized):
+
+| Dataset | Embedding model | `LexiconSentiment` (`#320`) | `LabelCentroids` (`#321`) | `ClassifierHead` (`#321`) |
+| --- | --- | --- | --- | --- |
+| Self-contained benchmark (12 test sentences) | `tiny-bert-bundle` (32-dim) | `12 / 12` (`100.0%`) | `10 / 12` (`83.3%`) | `10 / 12` (`83.3%`) |
+| MASC 3.0.0 MPQA polarity spans (376 train, 95 test) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | `87 / 95` (`91.6%`) | `81 / 95` (`85.3%`) | `84 / 95` (`88.4%`) |
+
+CPU and CUDA parity (`heads_and_centroids_cpu_and_device_parity` in
+`analysis/embed/tests/heads.rs`) was verified on `NVIDIA GeForce RTX 4080 SUPER`
+(`Execution { backend: "cuda", device: "NVIDIA GeForce RTX 4080 SUPER", precision: "f32 (model)" }`):
+repeated GPU runs produce bit-for-bit identical probability vectors, and CPU
+and CUDA `LabelCentroids` and `ClassifierHead` scores agree within `1e-5` with
+identical predicted labels.
+
+## Sarcasm and irony detection (`PragmaticsAnnotator`, `#324`)
+
+`turbo_doccat::sentiment::pragmatics` (`PragmaticsAnnotator`,
+`PragmaticsVectorScorer`, `DEFAULT_MIN_POSITIVE_POLARITY`,
+`DEFAULT_MIN_NEGATIVE_POLARITY`, `DEFAULT_PRAGMATICS_THRESHOLD`) detects
+sentence-level sarcasm and irony and writes `Pragmatics` (`turbo:pragmatics`),
+aligned to `Sentences`. Scores are never folded into `turbo:categories`
+polarity, so a literal positive sentence's polarity is never flipped by the
+sarcasm detector; downstream consumers inspect `turbo:pragmatics` alongside
+`turbo:categories` and `turbo:opinions` to decide whether to flip or discount
+a positive polarity score.
+
+`PragmaticsAnnotator` (`turbo-doccat:pragmatics`) reads
+`(View, Sentences, Tokens, Option<Opinions>, Option<Categories<Sentences>>, Option<Emoji>, Option<Vectors<Sentences>>)`
+and combines three signals:
+
+1. **Riloff et al. (EMNLP 2013) incongruity (`Some(Incongruity)`)**: contrasts
+   a positive sentiment expression (`Opinions` with effective polarity
+   `>= min_positive_polarity`, sarcastic positive framing cues such as
+   `"oh great"`, `"love waiting"`, `"just what I needed"`, `"thrilled to"`, or
+   positive lexicon spans) against a negative situation phrase (`"waiting in
+   line"`, `"on hold"`, `"stuck in traffic"`, `"flight cancelled"`, `"server
+   crashed"`, `"working on saturday"`, from a fixed English phrase table) or
+   a negative opinion span in the same sentence. Clauses separated by an adversative conjunction (`"but"`,
+   `"however"`, `"although"`, `"though"`, `"yet"`, `"whereas"`, `"while"`,
+   `"except"`) without an explicit sarcastic cue are treated as literal mixed
+   sentiment (for example, *"The hotel room was lovely, but the flight was
+   delayed."*) and excluded from incongruity triggering.
+2. **Text against emoji polarity mismatch (`Some(Incongruity)`)**: contrasts
+   positive text opinions against negative emoji (`turbo:emoji` from `#183`,
+   scored via OpenNLP's `opennlp_annotation` and Unicode 18.0 CLDR short names,
+   such as `😭`, `😒`, `🙄`, `💔`, `😡`), or negative text opinions and
+   situations against positive emoji (`😍`, `🎉`, `🥳`, `😂`, `👍`), recording
+   the positive and negative token spans in `Incongruity { positive, negative }`.
+3. **Sentence embedding head (`evidence: None`)**: scores `Vectors<Sentences>`
+   with a `PragmaticsVectorScorer` (such as a `ClassifierHead` or
+   `LabelCentroids` head from `#321`) or reads `sarcasm`/`irony` probabilities
+   from `Categories<Sentences>` to catch implicit irony with no explicit
+   surface contrast. When the embedding head fires without explicit contrast,
+   `PragmaticsItem.evidence` is `None`.
+
+### Tests and license posture
+
+Per `#326`, external sarcasm datasets with Twitter/Reddit platform terms or
+unspecified licenses (`iSarcasm`, `SARC`, `SemEval-2018 Task 3`) are not
+redistributed in the repository, so there is no measured accuracy for this
+annotator yet. What exists is a 32-sentence project-written regression
+fixture (`pragmatics_benchmark_f1_and_evidence_invariants` in
+`analysis/doccat/src/sentiment/pragmatics.rs`): 18 sarcastic and 14 literal
+sentences written beside the cue and situation tables, with the
+embedding-head cases scored from hand-set two-dimensional vectors. It pins
+the behaviour of the rules and the evidence invariants (every incongruity
+and emoji-mismatch positive carries non-empty, non-overlapping
+`Some(Incongruity { positive, negative })` token spans inside its sentence;
+head-only positives carry `evidence: None`). It says nothing about how the
+rules generalise, and the scores are rule weights on a `0.0..=1.0` scale,
+not calibrated probabilities. `analysis/embed/tests/heads.rs`
+(`pragmatics_annotator_combines_incongruity_emoji_and_embedding_head`) runs
+the three signals end to end over `tiny-bert-bundle` with a fitted
+`ClassifierHead` as the sentence scorer and a `LabelCentroids` head written
+beside it, and compares CPU with a device when `TURBO_TEST_DEVICE` is set.
+
+## Aspect and opinion extraction (`RuleAspectSentiment` and `LearnedAspectSentiment`, `#322`)
+
+Aspect-based sentiment analysis (ABSA) is implemented through two annotator
+paths that write the same `(Opinions, Aspects)` layers (`turbo:opinions` and
+`turbo:aspects`) while recording their distinct annotator IDs in provenance:
+
+1. **Rule path (`turbo_doccat::sentiment::aspect::RuleAspectSentiment`,
+   `ID = "turbo-doccat:aspect-sentiment-rule"`)**:
+   - Reads `(View, Sentences, Tokens, Option<Dependencies>, Option<PhraseChunks>, Option<PosTags>)`
+     and writes `(Opinions, Aspects)`.
+   - **Qiu, Liu, Bu, and Chen (2011) double propagation (`R1`..`R4`)**: when
+     `opennlp:dependencies` (`Dependencies`) is present on the document,
+     propagates seed opinion words from the VADER lexicon and the seed
+     aspect terms across dependency arcs for up to three passes or until
+     nothing new is found. Relation labels are matched on their part before
+     any `:` subtype, so `nsubj:pass` counts as `nsubj`:
+     - `R1`: a known opinion extracts its target: the opinion's governor
+       when the opinion hangs off it by `amod`, `acl`, `advmod`, `nmod`,
+       `dep`, `xcomp`, `acomp` or `ccomp`; a child of the opinion by
+       `nsubj`, `obj`, `dobj`, `iobj`, `obl` or `nmod`; or a sibling under a
+       shared governor when the opinion is a complement (`acomp`, `xcomp`,
+       `ccomp`, `attr`, `advmod`, `amod`, `obj`, `dobj`).
+     - `R2`: with `opennlp:pos` present, a known aspect extracts its `amod`
+       children that carry an adjectival POS tag; the opinion takes the
+       lexicon prior when the lexicon has the word and `+1.0` otherwise.
+     - `R3`: a known aspect extracts conjoined aspects over `conj` and `appos`,
+       expanding noun compounds (`compound`, `nn`, `flat`) to the left.
+     - `R4`: a known opinion extracts conjoined opinions over `conj`, inverting
+       the polarity when an adversative conjunction (`"but"`, `"however"`,
+       `"yet"`, `"although"`, `"though"`, `"whereas"`) sits between them.
+     Without POS tags any word in those positions can become a target, so
+     verbs and pronouns are extracted as aspects on bare dependency input;
+     `opennlp:pos` restricts targets to nouns.
+   - **Clause-aware fallback**: when `opennlp:dependencies` is absent (or
+     alongside it), extracts candidate aspect spans from `opennlp:chunks`
+     (`PhraseChunks` `NP` spans), `opennlp:pos` (`PosTags` noun sequences),
+     and the English aspect phrase table, and links each aspect to the closest
+     opinion(s) in the same clause (or dependency arc when available).
+   - **Implicit aspects (`AspectTarget::Implicit`)**: when a sentence contains
+     opinion expressions (`"Way too expensive and completely overpriced."`)
+     and no explicit aspect term, emits one sentence-anchored
+     `AspectTarget::Implicit { sentence }` item linking the sentence's opinion
+     indices.
+   - **Aspect categories**: assigns a coarse category `Tag` from the aspect
+     layer's `TagSet` (`DEFAULT_ASPECT_CATEGORIES`: `"general"`, `"battery"`,
+     `"display"`, `"performance"`, `"build"`, `"camera"`, `"food"`,
+     `"service"`, `"price"`, `"ambience"`, `"software"`, `"connectivity"`)
+     using an optional `AspectCategoryScorer` over `Vectors<Aspects>` (such as
+     `LabelCentroids` or `ClassifierHead`) with surface-keyword fallback.
+
+2. **Learned path (`turbo_analysis_embed::aspect::LearnedAspectSentiment`,
+   `ID = "turbo:aspect-sentiment-learned"`)**:
+   - Reads `(View, Sentences, Tokens, Subwords, Option<Vectors<Subwords>>, Option<Dependencies>, Option<PhraseChunks>)`
+     and writes `(Opinions, Aspects)`.
+   - **Contextual subword vectors (`SubwordVectors`, `VectorAnnotator::embed_subwords`)**:
+     extracts each subword piece's contextual hidden state (`Vectors<Subwords>`)
+     from its enclosing sentence window via the stage 2 range write (`#263`).
+   - **Subword BIO tagging mapped to `Tokens`**: scores each subword piece with
+     a 5-class `ClassifierHead` (`["O", "B-ASP", "I-ASP", "B-OP", "I-OP"]`),
+     maps subword piece probabilities back to `Tokens` through `Subwords`
+     alignments (`subwords.token` or byte-span overlap), and decodes
+     clause-bounded `IxRange<Tokens>` spans for aspects and opinions (expanding
+     compound noun phrases when `PhraseChunks` is present).
+   - **Span-pooled polarity and category heads (`#263`)**: pools the exact
+     subword range of each decoded opinion span (`Vectors<Opinions>`) and
+     aspect span (`Vectors<Aspects>`) via `VectorAnnotator::embed_spans` and
+     scores them with the polarity `ClassifierHead` and optional
+     `LabelCentroids` category head, so two aspects with opposite opinions in
+     the same sentence (`"battery life is great but the screen scratches"`)
+     receive distinct span-pooled embeddings and opposite polarities.
+
+### Tests and license posture
+
+Per `#326`, SemEval ABSA XML datasets (`SemEval-2014 Task 4`, `SemEval-2015 Task 12`,
+`SemEval-2016 Task 5`) are non-commercial or carry unspecified redistribution
+terms and are not committed to the repository.
+
+- `analysis/doccat/src/sentiment/aspect.rs` tests `RuleAspectSentiment` in
+  five unit tests: `"battery life is great but the screen scratches"`,
+  double propagation over `Dependencies` extracting the conjoined aspect
+  `"tiramisu"`, an aspect and an opinion under one governor (`"The battery
+  works well"`), implicit sentence-anchored aspects, and exact-span
+  `evaluate_absa_corpus` metrics (`aspect_f1`, `opinion_f1`, `triplet_f1`)
+  on a 10-sentence regression fixture written beside the rules. The
+  `PhraseChunks` and `PosTags` extraction paths and the
+  `AspectCategoryScorer` hook have no test yet.
+- `analysis/embed/tests/heads.rs`
+  (`learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device`)
+  trains `LearnedAspectSentiment::fit` on a 9-sentence fixture over
+  `tiny-bert-bundle` (32-dim) and runs both `RuleAspectSentiment` and
+  `LearnedAspectSentiment` on the 9 training sentences and on a 4-sentence
+  held-out set that recombines the training aspect and opinion words (so it
+  checks generalisation across sentences, not across vocabulary), checking
+  that both annotators write the same `(Opinions, Aspects)` layer types with
+  distinct `Provenance.annotator` IDs and that CPU and device (`TURBO_TEST_DEVICE` /
+  `TURBO_TEST_REQUIRE_CUDA=1`) outputs agree within `1e-5`.
+
+## Incivility and toxicity annotator (`IncivilityAnnotator`, `#323`)
+
+`turbo_doccat::sentiment::incivility` (`IncivilityAnnotator`,
+`IncivilityLexicon`, `IncivilityVectorScorer`, `IncivilityUnit`,
+`DEFAULT_INCIVILITY_THRESHOLD`, `evaluate_incivility_corpus`) scores
+sentences, retrieval chunks, or structure blocks across the six multi-label
+dimensions of `Incivility` (`turbo:incivility` from `#319`), following the
+Oasis (ICDMW 2019) and HKBU (ICA 2026) label set:
+
+- `IncivilityLabel::Insult` (`"insult"`)
+- `IncivilityLabel::Profanity` (`"profanity"`)
+- `IncivilityLabel::Threat` (`"threat"`)
+- `IncivilityLabel::IdentityAttack` (`"identity_attack"`)
+- `IncivilityLabel::Intolerance` (`"intolerance"`)
+- `IncivilityLabel::SevereToxicity` (`"severe_toxicity"`)
+
+`IncivilityAnnotator` (`turbo-doccat:incivility`) reads
+`(View, Tokens, Option<Sentences>, Option<Chunks>, Option<Structure>, Option<Vectors<Sentences>>, Option<Vectors<Chunks>>)`
+and writes `Incivility`:
+
+1. **Lexicon and phrase matching (`IncivilityLexicon`)**: deterministic,
+   zero-regex token and multi-token phrase matching over `opennlp:tokens`
+   that assigns per-label weights in `0.0..=1.0`, guards against negated mild
+   adjectives (`"not stupid"`, `"not dumb"`), and records the exact
+   `IxRange<Tokens>` evidence span for every matched expression. Each
+   `IncivilityLexicon` computes a canonical SHA-256 hex digest over its sorted
+   `(phrase, label, weight)` entries for `ModelRef::sha256`.
+2. **Multi-label embedding head (`IncivilityVectorScorer`)**: scores
+   `Vectors<Sentences>` (`IncivilityUnit::Sentences`) or `Vectors<Chunks>`
+   (`IncivilityUnit::Chunks`) through an `IncivilityVectorScorer`. Neither
+   head type implements the trait itself: a small wrapper calls
+   `ClassifierHead::score_incivility_vector` or
+   `LabelCentroids::score_incivility_vector` from `#321` (the adapters in
+   `analysis/embed/tests/heads.rs` show both). A scorer that names its
+   encoder makes the annotator refuse vectors from any other encoder. A
+   unit with no tokens is scored by the head but gets no evidence span,
+   since there is nothing to attribute it to. When the embedding
+   head predicts a positive label (`score >= threshold`) that had no direct
+   lexicon match in that unit, the annotator attributes evidence to the unit's
+   highest-salience content token span so every positive label carries at
+   least one non-empty `IxRange<Tokens>` evidence span.
+3. **Co-occurrence rule for `SevereToxicity`**: when `Threat` co-occurs with
+   `Insult`, `Profanity`, `IdentityAttack`, or `Intolerance` at or above
+   `threshold` (`0.5` by default), `SevereToxicity` is elevated and inherits
+   the supporting token evidence spans so multiple labels can fire on the same
+   unit with their own evidence spans.
+4. **Optional reply-context conflict scoring (`with_reply_context`)**:
+   following Opinion Conflicts (Zhang et al., 2018, arXiv:1809.00289), when
+   `use_reply_context` is enabled and `turbo:structure` (`Structure`) is
+   present with a parent block or a preceding `Block::Quote` block, scores
+   antagonistic second-person reply patterns against the quoted or parent
+   block. `ModelRef::id` ends in `:reply-context` or `:no-reply-context`
+   after the setting (`oasis-incivility:lexicon:no-reply-context` or
+   `<head>+lexicon:no-reply-context`); it does not record whether the
+   document had a `Structure` layer.
+
+### Tests and license posture
+
+Per `#326`, external toxicity corpora with custom platform terms (`Jigsaw`,
+`Civil Comments`, `Social Bias Frames`) are not redistributed in the
+repository.
+
+- `analysis/doccat/src/sentiment/incivility.rs` tests `IncivilityAnnotator`
+  on project-authored regression fixtures covering canonical lexicon SHA-256
+  digests, multi-label co-occurrence (`Profanity` + `Insult` + `Threat` +
+  `SevereToxicity` on one sentence with per-label `IxRange<Tokens>` evidence
+  spans), chunk-level `IncivilityUnit::Chunks` scoring with a vector head,
+  reply-context conflict scoring (`with_reply_context(false)` vs
+  `with_reply_context(true)` over `Block::Quote` + `Block::Paragraph`), and
+  per-label precision, recall, F1, and evidence-span coverage via
+  `evaluate_incivility_corpus` on a 10-sentence regression fixture written
+  beside the lexicon rules. As with `#324`, this fixture pins the rule and
+  layer invariants rather than claiming generalisation accuracy on external
+  benchmarks.
+- `analysis/embed/tests/heads.rs`
+  (`incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device`)
+  fits a multi-label `ClassifierHead` (`HeadMode::MultiLabel`) and a 6-label
+  `LabelCentroids` head on `tiny-bert-bundle` (32-dim), runs
+  `IncivilityAnnotator` end to end with lexicon matching, embedding-head
+  scoring, and reply-context conflict detection, verifies that every positive
+  prediction carries a non-empty `IxRange<Tokens>` evidence span, and checks
+  that CPU and a device (`TURBO_TEST_DEVICE` / `TURBO_TEST_REQUIRE_CUDA=1`)
+  agree within `1e-5` with identical evidence spans. The one sentence the
+  head must catch without a lexicon hit ("Outsiders have no right to
+  participate in our civic institutions.") is in the head's eight training
+  rows, so the test shows the head firing on a sentence it was fitted to,
+  not generalisation.

@@ -1,0 +1,15 @@
+# Written for this project in the layout and format of the French Treebank; it holds no text
+# of the corpus, which is licensed and not redistributable. A file in
+# ISO-8859-1, which its XML declaration names, and a UTF-8 file with a byte order mark.
+
+@@ hex a_latin1.xml
+3c3f786d6c2076657273696f6e3d22312e302220656e636f64696e673d224953
+4f2d383835392d31223f3e0a3c746578743e3c53454e543e3c77206361743d22
+4e22207375626361743d2243223ee974e93c2f773e203c77206361743d225022
+3ee03c2f773e203c77206361743d224e223e4e6feb6c3c2f773e3c2f53454e54
+3e3c2f746578743e0a
+@@ end
+@@ hex b_bom.xml
+efbbbf3c746578743e3c53454e543e3c77206361743d22414456223e64c3a96a
+c3a03c2f773e3c2f53454e543e3c2f746578743e
+@@ end

@@ -1,0 +1,8 @@
+(TOP (S (NP (DT The) (NN dog)) (VP (VBD sat) (PP (IN on) (NP (DT the) (NN sofa)))) (. .)))
+(TOP (S (NP (NNP Tom)) (VP (VBD baked) (NP (NP (DT a) (NN cake)) (PP (IN for) (NP (NNP Anna))))) (. .)))
+(TOP (S (NP (NP (NNP Sam) (POS 's)) (NN cat)) (VP (VBD slept)) (. .)))
+(TOP (SQ (VBZ Is) (NP (DT the) (NN soup)) (ADJP (JJ hot)) (. ?)))
+(TOP (S (S (NP (DT The) (NN rain)) (VP (VBD stopped))) (, ,) (CC and) (S (NP (DT the) (NNS children)) (VP (VBD played))) (. .)))
+(TOP (S (NP (PRP We)) (VP (VBD bought) (NP (NN bread)) (PRN (-LRB- -LRB-) (ADJP (JJ fresh)) (-RRB- -RRB-))) (. .)))
+(TOP (S (`` ``) (NP (PRP It)) (VP (VBZ is) (ADJP (JJ late))) (, ,) ('' '') (NP (PRP she)) (VP (VBD said)) (. .)))
+(TOP (S (VP (VB Close) (NP (DT the) (NN window))) (. !)))

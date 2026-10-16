@@ -842,7 +842,7 @@ fn on_the_device_turbo_test_device_names() {
         turbo::record::tolerance(info.compute_dtype).expect("a tolerance for the dtype")
     };
     let (text, s) = text_of(12);
-    let chunks = [(0, 12, 0, None), (0, 6, 1, Some(0)), (6, 12, 1, Some(0))];
+    let chunks = [(0, 12, 1, None), (0, 6, 0, Some(0)), (6, 12, 0, Some(0))];
     let mut on_dev = [document(&text, &s, &chunks)];
     let mut on_cpu = [document(&text, &s, &chunks)];
     run(SentenceChunkVectors(dev.clone()), &mut on_dev);

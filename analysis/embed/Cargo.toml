@@ -18,8 +18,15 @@ turbo = { path = "../../core" }
 [dev-dependencies]
 # The tests build the levels with the chunker crate's builder.
 turbo-chunker = { path = "../chunker" }
+# The lexicon sentiment baseline (#320), which tests/heads.rs compares
+# against label centroids and classifier heads (#321).
+turbo-doccat = { path = "../doccat" }
 # The JVM's WordPiece goldens, which the pieces are compared with.
 turbo-goldens = { path = "../goldens" }
+# Emoji layer (#183) for sarcasm/irony pragmatics integration tests (#324).
+turbo-normalize = { path = "../normalize" }
+# Tokenization for the lexicon sentiment baseline comparison.
+turbo-tokenize = { path = "../tokenize" }
 # Unicode's nonspacing marks, which the JVM's spans run over and ours
 # do not (tests/goldens.rs).
 turbo-unicode = { path = "../unicode" }

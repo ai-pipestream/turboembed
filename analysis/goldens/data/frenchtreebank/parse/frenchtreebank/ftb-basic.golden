@@ -1,0 +1,147 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	frenchtreebank/ftb-basic	1944	1938	57968612ef289e89d77770cdc3c2d48ae82bd65e48487d0e5bbee32ae6cc5b7a
+annotator	opennlp.tools.formats.frenchtreebank.ConstitParseSampleStream	read
+layer	turbo:samples	document	5	written:str
+(TOP (S (N ignoré) (N jeton) (NP (N fin))) )
+(TOP )
+(TOP (S (Ssub (C que))) )
+(TOP (S (NP (Ddef La) (NC société)) (VN (VC annonce)) (NP (Dind un) (NC chiffre) (NC d') (NC affaires) (Aqual record)) (PONCTS .)) )
+(TOP (S (CLsuj Il) (VN (Vsuj a) (Vsuj dit)) (PONCTW «) (ADVW d'accord ) (PONCTW ») (ETW C&A) (NW <x>) (NW deux\nlignes) (ADVW (ADVW au) (ADVW fur) et à mesure)) )
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:parse-texts	document	5	sample:u32	text:str
+0	ignoré jeton fin 
+1	
+2	que 
+3	La société annonce un chiffre d' affaires record . 
+4	Il a dit « d'accord  » C&A <x> deux\nlignes au fur et à mesure 
+end	turbo:parse-texts
+layer	turbo:parse-nodes	document	66	sample:u32	depth:u32	type:str	start:u32	end:u32	head-start:u32	head-end:u32	own-head:u32	head-index:u32
+0	0	TOP	0	18	0	18	1	0
+0	1	S	0	17	0	17	1	3
+0	2	N	0	7	0	7	1	0
+0	3	TK	0	7	0	7	1	0
+0	2	TK	8	13	8	13	1	2
+0	3	N	8	13	8	13	1	1
+0	4	TK	8	13	8	13	1	1
+0	2	NP	14	17	14	17	1	3
+0	3	N	14	17	14	17	1	3
+0	4	TK	14	17	14	17	1	3
+1	0	TOP	0	0	0	0	1	0
+2	0	TOP	0	4	0	4	1	0
+2	1	S	0	3	0	3	1	0
+2	2	Ssub	0	3	0	3	1	0
+2	3	C	0	3	0	3	1	0
+2	4	TK	0	3	0	3	1	0
+3	0	TOP	0	53	0	53	1	0
+3	1	S	0	52	0	52	1	8
+3	2	NP	0	12	0	12	1	1
+3	3	Ddef	0	2	0	2	1	0
+3	4	TK	0	2	0	2	1	0
+3	3	NC	3	12	3	12	1	1
+3	4	TK	3	12	3	12	1	1
+3	2	VN	13	20	13	20	1	2
+3	3	VC	13	20	13	20	1	2
+3	4	TK	13	20	13	20	1	2
+3	2	NP	21	50	21	50	1	7
+3	3	Dind	21	23	21	23	1	3
+3	4	TK	21	23	21	23	1	3
+3	3	NC	24	31	24	31	1	4
+3	4	TK	24	31	24	31	1	4
+3	3	NC	32	34	32	34	1	5
+3	4	TK	32	34	32	34	1	5
+3	3	NC	35	43	35	43	1	6
+3	4	TK	35	43	35	43	1	6
+3	3	Aqual	44	50	44	50	1	7
+3	4	TK	44	50	44	50	1	7
+3	2	PONCTS	51	52	51	52	1	8
+3	3	TK	51	52	51	52	1	8
+4	0	TOP	0	66	0	66	1	0
+4	1	S	0	65	0	65	1	11
+4	2	CLsuj	0	2	0	2	1	0
+4	3	TK	0	2	0	2	1	0
+4	2	VN	3	8	3	8	1	2
+4	3	Vsuj	3	4	3	4	1	1
+4	4	TK	3	4	3	4	1	1
+4	3	Vsuj	5	8	5	8	1	2
+4	4	TK	5	8	5	8	1	2
+4	2	PONCTW	9	11	9	11	1	3
+4	3	TK	9	11	9	11	1	3
+4	2	ADVW	12	22	12	22	1	4
+4	3	TK	12	22	12	22	1	4
+4	2	PONCTW	23	25	23	25	1	5
+4	3	TK	23	25	23	25	1	5
+4	2	ETW	26	29	26	29	1	6
+4	3	TK	26	29	26	29	1	6
+4	2	NW	30	33	30	33	1	7
+4	3	TK	30	33	30	33	1	7
+4	2	NW	34	45	34	45	1	8
+4	3	TK	34	45	34	45	1	8
+4	2	ADVW	46	65	46	65	1	11
+4	3	ADVW	46	48	46	48	1	9
+4	4	TK	46	48	46	48	1	9
+4	3	ADVW	49	52	49	52	1	10
+4	4	TK	49	52	49	52	1	10
+4	3	TK	53	65	53	65	1	11
+end	turbo:parse-nodes
+layer	turbo:pos-samples	document	24	sample:u32	token:str	tag:str
+0	ignoré	N
+0	jeton	N
+0	fin	N
+2	que	C
+3	La	Ddef
+3	société	NC
+3	annonce	VC
+3	un	Dind
+3	chiffre	NC
+3	d'	NC
+3	affaires	NC
+3	record	Aqual
+3	.	PONCTS
+4	Il	CLsuj
+4	a	Vsuj
+4	dit	Vsuj
+4	«	PONCTW
+4	d'accord 	ADVW
+4	»	PONCTW
+4	C&A	ETW
+4	<x>	NW
+4	deux\nlignes	NW
+4	au	ADVW
+4	fur	ADVW
+end	turbo:pos-samples
+layer	turbo:chunk-samples	document	24	sample:u32	token:str	tag:str	pred:str
+0	ignoré	N	O
+0	jeton	N	S-TK
+0	fin	N	S-NP
+2	que	C	S-Ssub
+3	La	Ddef	S-NP
+3	société	NC	C-NP
+3	annonce	VC	S-VN
+3	un	Dind	S-NP
+3	chiffre	NC	C-NP
+3	d'	NC	C-NP
+3	affaires	NC	C-NP
+3	record	Aqual	C-NP
+3	.	PONCTS	O
+4	Il	CLsuj	O
+4	a	Vsuj	S-VN
+4	dit	Vsuj	C-VN
+4	«	PONCTW	O
+4	d'accord 	ADVW	O
+4	»	PONCTW	O
+4	C&A	ETW	O
+4	<x>	NW	O
+4	deux\nlignes	NW	O
+4	au	ADVW	O
+4	fur	ADVW	O
+end	turbo:chunk-samples
+layer	turbo:listing	document	2	file:str
+lmf3_00002.xml
+lmf3_00001.xml
+end	turbo:listing

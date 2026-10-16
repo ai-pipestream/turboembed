@@ -612,6 +612,81 @@ impl Layer for PhraseChunks {
     }
 }
 
+/// Constituency phrases from a parser (`ParserAnnotator.PHRASES`,
+/// `"opennlp:phrases"`): every non-terminal phrase node above the
+/// part-of-speech level (excluding `TOP`, `INC` and `TK`), in pre-order,
+/// with its span in the document text, its token range, its syntactic
+/// category (`NP`, `VP`, `S`, ...), its head token and its enclosing
+/// parent phrase when nested.
+#[derive(Clone, Debug)]
+pub struct Phrases {
+    pub spans: Spans<Phrases>,
+    pub tokens: Vec<IxRange<Tokens>>,
+    pub kind: Vec<Tag>,
+    pub kinds: Arc<TagSet>,
+    /// The head token of each phrase (`Parse.getHead` / `Parse.getHeadIndex`).
+    pub head: Vec<Ix<Tokens>>,
+    /// The enclosing phrase in this layer, or `None` for a top-level phrase
+    /// directly under `TOP` or `INC`.
+    pub parent: Vec<Option<Ix<Phrases>>>,
+}
+
+impl Phrases {
+    /// Returns the document byte span of the head token of phrase `i`
+    /// (`ParserAnnotator.Head.span`).
+    pub fn head_span(&self, i: Ix<Phrases>, tokens: &Tokens) -> Span {
+        tokens.spans.get(self.head[i.get()])
+    }
+}
+
+impl Layer for Phrases {
+    const ID: &'static str = "opennlp:phrases";
+    /// Two UTF-16 tokens that split a character outside the Basic
+    /// Multilingual Plane are both widened to that character, so two
+    /// adjacent phrases meeting there share its bytes.
+    const OVERLAP: Overlap = Overlap::Any;
+    positional!(Phrases);
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn check(&self) -> Result<(), String> {
+        let n = self.spans.len();
+        if self.tokens.len() != n || self.kind.len() != n || self.head.len() != n || self.parent.len() != n {
+            return Err("tokens, a kind, a head and a parent for every phrase".into());
+        }
+        if self.tokens.iter().any(|r| r.start >= r.end) {
+            return Err("a phrase has at least one token".into());
+        }
+        if self.kind.iter().any(|k| k.0 as usize >= self.kinds.len()) {
+            return Err(format!("a kind outside {}", self.kinds.name));
+        }
+        for i in 0..n {
+            let range = self.tokens[i];
+            let head = self.head[i];
+            if head < range.start || head >= range.end {
+                return Err(format!(
+                    "phrase {i} has head token {} outside its tokens {}..{}",
+                    head.get(),
+                    range.start.get(),
+                    range.end.get()
+                ));
+            }
+            if let Some(p) = self.parent[i] {
+                let p = p.get();
+                if p >= i {
+                    return Err(format!("phrase {i} has a parent at or after it"));
+                }
+                let parent_range = self.tokens[p];
+                if range.start < parent_range.start || range.end > parent_range.end {
+                    return Err(format!("phrase {i} is outside its parent {p}"));
+                }
+            }
+        }
+        self.spans.check(Self::OVERLAP)?;
+        Ok(())
+    }
+}
+
 /// Why a chunk starts where it does: the evaluation and the debugger read
 /// this, and so does a person asking why a chunk was cut.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -1131,5 +1206,43 @@ mod tests {
         };
         let err = doc.add(&Key::DEFAULT, bad, Provenance::by("test")).unwrap_err();
         assert!(err.to_string().contains("cuts a character"), "{err}");
+    }
+
+    #[test]
+    fn phrases_check_columns_heads_and_parents() {
+        let kinds = TagSet::new("phrase", &["S", "NP", "VP"]);
+        let mut t_spans = Spans::new(ViewId::SOURCE);
+        t_spans.push(Span::new(0, 3));
+        t_spans.push(Span::new(4, 7));
+        t_spans.push(Span::new(8, 11));
+        let tokens = Tokens { spans: t_spans, sentence: None };
+
+        let mut spans = Spans::new(ViewId::SOURCE);
+        spans.push(Span::new(0, 11)); // S: 0..3
+        spans.push(Span::new(0, 7)); // NP: 0..2
+        spans.push(Span::new(8, 11)); // VP: 2..3
+        let phrases = Phrases {
+            spans,
+            tokens: vec![IxRange::new(0, 3), IxRange::new(0, 2), IxRange::new(2, 3)],
+            kind: vec![Tag(0), Tag(1), Tag(2)],
+            kinds: Arc::clone(&kinds),
+            head: vec![Ix::new(2), Ix::new(1), Ix::new(2)],
+            parent: vec![None, Some(Ix::new(0)), Some(Ix::new(0))],
+        };
+        assert_eq!(Phrases::ID, "opennlp:phrases");
+        assert_eq!(phrases.check(), Ok(()));
+        assert_eq!(phrases.head_span(Ix::new(1), &tokens), Span::new(4, 7));
+
+        let mut bad_head = phrases.clone();
+        bad_head.head[1] = Ix::new(2);
+        assert!(bad_head.check().unwrap_err().contains("outside its tokens"));
+
+        let mut bad_parent = phrases.clone();
+        bad_parent.parent[0] = Some(Ix::new(0));
+        assert!(bad_parent.check().unwrap_err().contains("parent at or after it"));
+
+        let mut outside_parent = phrases;
+        outside_parent.parent[2] = Some(Ix::new(1));
+        assert!(outside_parent.check().unwrap_err().contains("outside its parent"));
     }
 }

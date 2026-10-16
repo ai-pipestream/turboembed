@@ -86,6 +86,12 @@
       <artifactId>opennlp-formats</artifactId>
       <version>${opennlp.version}</version>
     </dependency>
+    <!-- ParserTool.parseLine and ParserEvaluator, which the parser model goldens run (ParserTrainGolden). -->
+    <dependency>
+      <groupId>org.apache.opennlp</groupId>
+      <artifactId>opennlp-cli</artifactId>
+      <version>${opennlp.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>

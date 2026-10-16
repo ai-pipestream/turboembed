@@ -9,6 +9,9 @@
 //! the exception. Each test does the same here and rebuilds every layer. Exception messages are
 //! compared only where this crate writes Java's message (`IOException` from the rule readers);
 //! the others are the JVM's own texts.
+//!
+//! The `parse-treebank` runs of `ParserTrainGolden.java`, which share the `parse` directory, are
+//! compared in `goldens/treebank.rs`.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -19,6 +22,9 @@ use turbo_parser::{
     AncoraSpanishHeadRules, EnglishHeadRules, GapLabeler, HeadRules, HeadRulesError, Parse, ParseError,
     ParseSampleStream, ParserChunkSample, ParserPosSample,
 };
+
+#[path = "goldens/treebank.rs"]
+mod treebank;
 
 const U32: ColumnType = ColumnType::U32;
 const STR: ColumnType = ColumnType::Str;
@@ -239,13 +245,19 @@ fn rebuild_rules(run_name: &str, input: &str) -> Rebuilt {
     out
 }
 
+/// The goldens of the runs under `annotator` on its own input set, the one of the same name; the
+/// `parse-treebank` runs beside them are `treebank`'s.
 fn goldens(annotator: &str) -> Vec<(String, PathBuf)> {
     let root = turbo_goldens::data_dir().join(annotator);
     let mut out = Vec::new();
     for run in std::fs::read_dir(&root).unwrap() {
         let run = run.unwrap().path();
         let name = run.file_name().unwrap().to_str().unwrap().to_owned();
-        for file in std::fs::read_dir(run.join(annotator)).unwrap() {
+        let set = run.join(annotator);
+        if !set.is_dir() {
+            continue;
+        }
+        for file in std::fs::read_dir(set).unwrap() {
             out.push((name.clone(), file.unwrap().path()));
         }
     }

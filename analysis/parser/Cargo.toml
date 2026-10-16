@@ -10,7 +10,12 @@ name = "turbo_parser"
 
 [dependencies]
 turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
 turbo-jvm = { path = "../jvm" }
+turbo-maxent = { path = "../maxent" }
+turbo-postag = { path = "../postag" }
+turbo-sequence = { path = "../sequence" }
+turbo-train = { path = "../train" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]

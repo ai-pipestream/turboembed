@@ -133,6 +133,24 @@ fn creates_the_initial_tree_from_tokens() {
     assert_eq!(Parse::from_tokens(&[] as &[&str]).unwrap_err(), ParseError::EmptyTokens);
 }
 
+/// The parsers copy the sentence's root for each derivation with Java's `clone`, whose copy of a
+/// node that is its own head keeps the original as its head. Tree insertion can then trim the
+/// copy's span, and the head keeps the whole sentence.
+#[test]
+fn a_root_copied_for_a_derivation_keeps_its_head_when_its_span_shrinks() {
+    let p = Parse::from_tokens(&["The", "cat", "sat"]).unwrap();
+    let mut copy = p.clone_keeping_head();
+    assert!(!copy.is_own_head());
+    copy.remove(2);
+    assert_eq!(copy.span(), Span::new(0, 7));
+    assert_eq!((copy.head().span, copy.head_index(), copy.head_text()), (Span::new(0, 11), 0, "The cat sat"));
+    let mut plain = p.clone();
+    plain.remove(2);
+    assert_eq!(plain.head().span, Span::new(0, 7));
+    // A copy of a copy keeps the first node's head.
+    assert_eq!(copy.clone_keeping_head().head().span, Span::new(0, 11));
+}
+
 #[test]
 fn bracket_tokens_round_trip() {
     for tok in ["(", ")", "{", "}", "[", "]", "word"] {
