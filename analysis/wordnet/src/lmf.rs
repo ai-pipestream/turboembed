@@ -1195,6 +1195,10 @@ fn parse_raw<R: Read>(
 ) -> Result<Vec<RawLexicon>, WordNetError> {
     let mut xml_string = String::new();
     reader.read_to_string(&mut xml_string)?;
+    // XML 1.0 section 2.11: a parser hands `\r\n` and a lone `\r` to the application as `\n`.
+    if xml_string.contains('\r') {
+        xml_string = xml_string.replace("\r\n", "\n").replace('\r', "\n");
+    }
     let mut parser = XmlPullParser::new(&xml_string, resource_name);
 
     let mut lexicons: Vec<RawLexicon> = Vec::new();

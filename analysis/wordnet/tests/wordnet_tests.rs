@@ -386,6 +386,18 @@ fn test_lmf_preserves_multiple_definitions() {
 }
 
 #[test]
+fn test_lmf_normalizes_line_ends_in_text() {
+    let document = wrap_lmf(
+        "<LexicalEntry id=\"t-cat-n\"><Lemma writtenForm=\"cat\" partOfSpeech=\"n\"/>\
+         <Sense id=\"t-cat-n-1\" synset=\"t-1\"/></LexicalEntry>\
+         <Synset id=\"t-1\" partOfSpeech=\"n\">\
+         <Definition>a small\r\ndomesticated\rfeline</Definition></Synset>",
+    );
+    let lexicon = parse_lmf(&document).unwrap();
+    assert_eq!("a small\ndomesticated\nfeline", lexicon.lookup("cat", WordNetPos::Noun)[0].gloss());
+}
+
+#[test]
 fn test_lmf_lookup_is_pos_scoped() {
     let lexicon = lmf_fixture();
     assert_eq!(1, lexicon.lookup("run", WordNetPos::Verb).len());
