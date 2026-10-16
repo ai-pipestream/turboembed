@@ -2441,9 +2441,8 @@ probabilities with them against the Rust annotators'.
 The `chunk` module is `ChunkerME.train` with `ChunkerFactory`: the
 events of `ChunkerEventStream` over the default context generator of
 `turbo-sequence`, which `turbo-phrase-chunker` infers with, trained by
-`MAXENT` (the default), `MAXENT_QN` or `PERCEPTRON` (`ChunkerME.train`
-also takes `NAIVEBAYES`, an event trainer not ported here, which fails
-with `NotPorted`), in a model file with `chunker.model` before `manifest.properties`, as
+`MAXENT` (the default), `MAXENT_QN`, `PERCEPTRON` or `NAIVEBAYES`, in a
+model file with `chunker.model` before `manifest.properties`, as
 the JVM's artifact map orders them. `ChunkerME.train` refuses the
 sequence perceptron, an event model sequence trainer, with
 `IllegalArgumentException`, and so does the port. The goldens of

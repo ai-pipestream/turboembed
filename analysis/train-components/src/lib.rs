@@ -17,9 +17,8 @@
 //!   events of `NameFinderEventStream`, the defaults `NameFinderME.train`
 //!   puts into the parameters, and the `TokenNameFinderModel` file.
 //! - [`chunk`][]: `ChunkerFactory`, the events of `ChunkerEventStream`,
-//!   and the `ChunkerModel` file, trained with `MAXENT`, `MAXENT_QN` or
-//!   `PERCEPTRON`; `NAIVEBAYES`, which `ChunkerME.train` also takes, is
-//!   not ported and fails with `turbo_train::Error::NotPorted`.
+//!   and the `ChunkerModel` file, trained with `MAXENT`, `MAXENT_QN`,
+//!   `PERCEPTRON` or `NAIVEBAYES`.
 //! - [`langdetect`][]: `LanguageDetectorFactory`, the events of
 //!   `LanguageDetectorEventStream`, and the `LanguageDetectorModel` file.
 //! - [`sentiment`][]: the events of `SentimentEventStream` over
