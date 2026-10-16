@@ -135,7 +135,21 @@ token evidence spans (`turbo:opinions`) and sentence-level polarity
   contrastive `"but"` weighting (`0.5` before `"but"`, `1.5` after `"but"`),
   exclamation/question punctuation emphasis, and `score / sqrt(score^2 + 15)`
   compound normalization. Tested against all 28 sentences of
-  `vaderSentiment.py`'s reference suite.
+  `vaderSentiment.py`'s reference suite plus a handful of sentences where an
+  earlier port diverged (`"NO good"`: a `"no"` that negates the next word
+  keeps its `0.0` valence through the ALLCAPS and booster rules). A random
+  differential run of 5,000 sentences built from lexicon words, boosters,
+  negators, idioms and punctuation against `vaderSentiment` 3.3.2 on
+  Python 3.13 matched on all but three, which differ only in floating
+  point: `sum()` is compensated since Python 3.12, so a valence list that
+  cancels to exactly `0.0` here can leave a residue of about `1e-16` there
+  and pick up the punctuation emphasis, and a proportion that lands within
+  `1e-12` of a rounding half rounds to even here. Those are not chased.
+- **`score_sentence` and the "but" rule**: `vaderSentiment` rescales the
+  first token carrying a repeated valence (`sentiments.index(sentiment)`)
+  rather than the token at that position; `score_text` keeps that quirk for
+  parity, `score_sentence` scales by token position so that the evidence
+  spans point at the tokens that were actually rescaled.
 - **Evidence spans and sentence categories (`Annotator` for `LexiconSentiment`)**:
   reads `(View, Sentences, Tokens, Option<Dependencies>, Option<Emoji>)` and
   writes `(Opinions, Categories<Sentences>)`:
