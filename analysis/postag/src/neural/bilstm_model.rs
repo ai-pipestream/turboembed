@@ -87,7 +87,7 @@ impl BilstmPosModel {
         if tags.is_empty() || max_word_length == 0 {
             return Err(NeuralError::InvalidArgument("tags must not be empty and maxWordLength must be >= 1".into()));
         }
-        if word_Forward2_mismatch(&word_forward2, &word_backward2) {
+        if layer_pair_mismatch(&word_forward2, &word_backward2) {
             return Err(NeuralError::InvalidArgument(
                 "second-layer forward and backward LSTMs must be provided together".into(),
             ));
@@ -576,8 +576,7 @@ impl BilstmPosModel {
     }
 }
 
-#[allow(non_snake_case)]
-fn word_Forward2_mismatch(a: &Option<LstmLayer>, b: &Option<LstmLayer>) -> bool {
+fn layer_pair_mismatch(a: &Option<LstmLayer>, b: &Option<LstmLayer>) -> bool {
     a.is_some() != b.is_some()
 }
 

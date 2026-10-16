@@ -63,29 +63,29 @@ impl BilstmPosTagger {
         if sentence.is_empty() {
             return Ok(vec![NeuralSequence::from_outcomes_and_probs(Vec::new(), Vec::new())]);
         }
-        let scores = self.model.score(sentence)?;
+        let (best, probs) = self.best_path(sentence)?;
         let tags = self.model.tags();
-        let n = sentence.len();
-        let mut outcomes = Vec::with_capacity(n);
-        let mut probs = Vec::with_capacity(n);
+        let outcomes = best.into_iter().map(|idx| tags[idx].clone()).collect();
+        Ok(vec![NeuralSequence::from_outcomes_and_probs(outcomes, probs)])
+    }
+
+    /// The best tag index for each token of a non-empty sentence, with its
+    /// CRF posterior or softmax probability.
+    fn best_path(&self, sentence: &[impl AsRef<str>]) -> Result<(Vec<usize>, Vec<f64>), NeuralError> {
+        let scores = self.model.score(sentence)?;
         if self.model.is_crf() {
             let tr = self.model.transition_weights().unwrap();
             let st = self.model.start_weights().unwrap();
             let en = self.model.end_weights().unwrap();
             let best = CrfScorer::viterbi(&scores, tr, st, en)?;
             let marginals = CrfScorer::marginals(&scores, tr, st, en)?;
-            for t in 0..n {
-                outcomes.push(tags[best[t]].clone());
-                probs.push(marginals[t][best[t]]);
-            }
+            let probs = best.iter().zip(&marginals).map(|(&b, m)| m[b]).collect();
+            Ok((best, probs))
         } else {
-            for s in &scores {
-                let best = argmax(s);
-                outcomes.push(tags[best].clone());
-                probs.push(softmax_at(s, best));
-            }
+            let best: Vec<usize> = scores.iter().map(|s| argmax(s)).collect();
+            let probs = best.iter().zip(&scores).map(|(&b, s)| softmax_at(s, b)).collect();
+            Ok((best, probs))
         }
-        Ok(vec![NeuralSequence::from_outcomes_and_probs(outcomes, probs)])
     }
 }
 
@@ -141,19 +141,14 @@ impl Annotator for BilstmPosTagger {
             words.clear();
             words.extend((from..to).map(|i| &text[starts[i] as usize..ends[i] as usize]));
             if !words.is_empty() {
-                let seqs = self
-                    .top_k_sequences(&words)
+                let (best, sentence_probs) = self
+                    .best_path(&words)
                     .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
-                let seq = &seqs[0];
-                for outcome in seq.outcomes() {
-                    let tag = self.tagset.tag(outcome).expect("outcome is in tagset");
-                    tags.push(tag);
-                }
-                probs.extend_from_slice(seq.probs());
+                tags.extend(best.into_iter().map(|idx| self.outcome_tags[idx]));
+                probs.extend(sentence_probs);
             }
             from = to;
         }
-        let _ = &self.outcome_tags;
         Ok((PosTags { tagset: self.tagset.clone(), tags, prob: Some(probs) },))
     }
 
