@@ -207,6 +207,35 @@ are not taken from any corpus.
   test corpus (`opennlp-core/opennlp-formats/src/test/resources/opennlp/tools/formats/masc/`
   at the goldens' OpenNLP commit, Apache License 2.0), unchanged.
 
+- `inputs/conllu/`: 5 CoNLL-U files written for this project (no text of
+  a Universal Dependencies or CorefUD treebank), read by the `conllu`
+  goldens; the part of the id before the first hyphen names the reader
+  (`dependency`, `corefud`). The `dependency-` files hold Spanish and
+  English sentences with a multiword token, empty nodes with enhanced
+  dependencies, a byte order mark, emoji and accented letters, and the
+  sentences `ConlluDependencySampleStream` skips or refuses: ids that do
+  not count from 1, with a leading zero, past Java's `int` or out of
+  order, `_` tags, relations and heads, heads with a sign, a leading
+  zero, an Arabic-Indic digit, an empty node's id or past the sentence,
+  self heads, two roots, none, a cycle, blank relations in one
+  whitespace mode or both, nine and eleven columns, an empty last
+  column, a comment after spaces, sentences of a multiword token or an
+  empty node only, separator lines of spaces, `U+0085`, `U+001C` and
+  no-break spaces, CR LF and no line feed at the end. The `corefud-`
+  files hold documents with `Entity` brackets in the CorefUD 1.x
+  notation: one-word, nested and discontinuous mentions, mentions of one
+  span by two entities, a mention on a multiword token's word and on an
+  empty node, `SpaceAfter=No` on words and on a multiword token,
+  speakers (one with no words after it), a document of comments only,
+  emoji and accented letters, a byte order mark, CR LF, and a document
+  for each error of `ConlluCorefDocumentStream`: blank speaker, nine
+  columns, a blank column, ids that are not words, multiword tokens or
+  empty nodes, ids out of order, a line of spaces, an empty value or id,
+  a close without `)` or with a `(`, a close of no open mention
+  (also before a bracket Java refuses later in the same value), a
+  mention across a sentence boundary or never closed, several mentions
+  open at the end, and a mention opened on an empty node.
+
 - `inputs/ner/`: 12 files in the named entity corpus formats OpenNLP
   reads, written for this project except as noted below; the part of
   the id before the first hyphen names the corpus (`germeval`,
@@ -325,6 +354,38 @@ are not taken from any corpus.
   outside the Basic Multilingual Plane, repeated words, words no corpus
   has, whitespace alone, several lines, and one word without a line end
   (`docs/sentiment.md`).
+- `inputs/corpora/`: 27 files in the layouts of the sentence, language and
+  document corpora OpenNLP reads, all written for this project; they hold
+  no text of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig or 20
+  Newsgroups corpora. The part of the id before the first hyphen names the
+  corpus (`moses`, `letsmt`, `nkjp`, `irish`, `leipzig`, `newsgroups`).
+  The `nkjp-`, `leipzig-` and `newsgroups-` files are bundles (see "MASC
+  goldens" in `analysis/goldens-tool/README.md`): a text and its
+  segmentation, a directory of sentence files, a directory of newsgroup
+  directories. They hold empty and whitespace-only lines, CR LF and lone
+  CR, XML comments, CDATA and character references, a document type
+  declaration and XML that is not well formed, NKJP pointers with two and
+  three numbers, into paragraphs that are missing, empty, repeated or of
+  mixed content, and numbers that are empty or not numbers, Irish Sentence
+  Bank slots that are zero or not numbers, a sentence without a source, a
+  token without content and token gaps of several spaces, Leipzig files
+  with too few lines and file names that are not read, newsgroup messages
+  with headers, quotes and signatures and malformed UTF-8, accented
+  letters and characters outside the Basic Multilingual Plane. Their host
+  names end in `.invalid` and their namespaces are `urn:example:` names.
+
+- `inputs/doccat-train/`: `emoji.txt`, 25 short text messages written for
+  this project in the SMS Spam Collection's format (`ham` or `spam`, a tab
+  and the message), 15 `ham` and 10 `spam`, each with emoji, which the
+  maxent document categorizer goldens train on after that downloaded
+  corpus, since it has none. The corpus itself is not checked in
+  (`analysis/goldens-tool/README.md`, "Maxent document categorizer
+  goldens").
+- `inputs/doccat/`: 12 documents those models categorize, written for this
+  project: one like each category, a mixed one, emoji alone, emoji joined
+  to words and to each other, accents and a character outside the Basic
+  Multilingual Plane, repeated words, words no corpus has, whitespace
+  alone, several lines, a long message, and one word without a line end.
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 

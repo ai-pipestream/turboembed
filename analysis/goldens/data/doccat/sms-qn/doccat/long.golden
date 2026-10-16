@@ -1,0 +1,139 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	doccat/long	208	203	454756affd3b256e0fe185866a69ce79261c36108f9e94ea567206423957e623
+model	sms-spam-collection.tsv	2b454257f2d5eff9d829d5be9d0f99af68581367be6bad8e564e1d872112ce652e7e1d75a5752e4770eb682e7ffd2d0be68b6b015e9588bdf599a30a72307957
+annotator	opennlp.tools.doccat.DocumentCategorizerME	categorize
+config	Algorithm	MAXENT_QN
+config	Cutoff	1
+config	Iterations	100
+config	corpus	corpora/sms-spam-collection.tsv,doccat-train/emoji
+config	generators	opennlp.tools.doccat.BagOfWordsFeatureGenerator,opennlp.tools.doccat.NGramFeatureGenerator,opennlp.tools.doccat.EmojiFeatureGenerator
+config	language	en
+config	run	sms-qn
+layer	opennlp:tokens	text	39	start:u32	end:u32
+0	8
+9	13
+14	18
+19	21
+22	25
+26	31
+32	38
+39	44
+45	48
+49	55
+56	58
+59	63
+64	70
+71	78
+79	80
+81	87
+88	93
+94	96
+97	105
+106	111
+112	117
+118	120
+121	125
+126	131
+132	135
+136	139
+140	146
+147	153
+154	158
+159	161
+162	165
+166	171
+172	176
+177	180
+181	183
+184	188
+189	192
+193	200
+201	207
+end	opennlp:tokens
+layer	turbo:doccat-features	document	77	feature:str
+bow=URGENT!!
+bow=🚨
+bow=This
+bow=is
+bow=the
+bow=final
+bow=notice
+bow=about
+bow=the
+bow=reward
+bow=on
+bow=your
+bow=mobile
+bow=number,
+bow=a
+bow=£2000
+bow=bonus
+bow=is
+bow=waiting.
+bow=Reply
+bow=CLAIM
+bow=or
+bow=call
+bow=08000
+bow=123
+bow=456
+bow=before
+bow=Friday
+bow=📞
+bow=or
+bow=the
+bow=offer
+bow=ends
+bow=and
+bow=we
+bow=will
+bow=try
+bow=another
+bow=number
+ng=:URGENT!!:🚨
+ng=:🚨:This
+ng=:This:is
+ng=:is:the
+ng=:the:final
+ng=:final:notice
+ng=:notice:about
+ng=:about:the
+ng=:the:reward
+ng=:reward:on
+ng=:on:your
+ng=:your:mobile
+ng=:mobile:number,
+ng=:number,:a
+ng=:a:£2000
+ng=:£2000:bonus
+ng=:bonus:is
+ng=:is:waiting.
+ng=:waiting.:Reply
+ng=:Reply:CLAIM
+ng=:CLAIM:or
+ng=:or:call
+ng=:call:08000
+ng=:08000:123
+ng=:123:456
+ng=:456:before
+ng=:before:Friday
+ng=:Friday:📞
+ng=:📞:or
+ng=:or:the
+ng=:the:offer
+ng=:offer:ends
+ng=:ends:and
+ng=:and:we
+ng=:we:will
+ng=:will:try
+ng=:try:another
+ng=:another:number
+end	turbo:doccat-features
+layer	turbo:categories	document	2	category:str	score:f64
+ham	3fe35844eb6c4a51 0.6045250509362835
+spam	3fd94f7629276b5d 0.39547494906371644
+end	turbo:categories

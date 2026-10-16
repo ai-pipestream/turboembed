@@ -20,6 +20,11 @@
 //! tags, a second root, text outside the root, a character XML does not
 //! allow, an undefined entity) are errors naming the byte offset in the
 //! document's UTF-8 text.
+//!
+//! A handler that builds a tree, as a DOM parser does, can also take the
+//! byte ranges of elements, text runs, CDATA sections, comments and
+//! processing instructions: [`Handler`]'s provided methods, which do
+//! nothing unless a handler overrides them.
 
 use std::borrow::Cow;
 
@@ -43,6 +48,38 @@ pub trait Handler {
     /// Character data inside the root element. One run of text may arrive
     /// in several calls.
     fn characters(&mut self, text: &str);
+
+    /// The element whose end tag (or empty-element tag) was just reported
+    /// to [`Handler::end_element`] ends before byte `end`.
+    fn element_closed(&mut self, end: usize) {
+        let _ = end;
+    }
+
+    /// A run of text inside the root element ends: its characters came in
+    /// the [`Handler::characters`] calls since the last markup, and its
+    /// bytes, references included, are `start..end`. A DOM builder makes
+    /// one text node of each run.
+    fn text_run(&mut self, start: usize, end: usize) {
+        let _ = (start, end);
+    }
+
+    /// A CDATA section ends: its characters came in the
+    /// [`Handler::characters`] calls since the last markup, and the
+    /// section, `<![CDATA[` and `]]>` included, is `start..end`.
+    fn cdata_section(&mut self, start: usize, end: usize) {
+        let _ = (start, end);
+    }
+
+    /// A comment, inside or outside the root element, at `start..end`.
+    fn comment(&mut self, start: usize, end: usize) {
+        let _ = (start, end);
+    }
+
+    /// A processing instruction other than the XML declaration, inside or
+    /// outside the root element, at `start..end`; `target` is its name.
+    fn processing_instruction(&mut self, target: &str, start: usize, end: usize) {
+        let _ = (target, start, end);
+    }
 }
 
 /// Decodes the document's bytes to text: UTF-8 (with or without a byte
@@ -203,9 +240,9 @@ impl<'a> Parser<'a> {
         while self.pos < self.text.len() {
             let rest = self.rest();
             if rest.starts_with("<!--") {
-                self.comment()?;
+                self.comment(handler)?;
             } else if rest.starts_with("<?") {
-                self.processing_instruction()?;
+                self.processing_instruction(handler)?;
             } else if rest.starts_with("<!DOCTYPE") {
                 return self.err(self.pos, "document type declarations are not allowed");
             } else if rest.starts_with("<![CDATA[") {
@@ -242,17 +279,18 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn comment(&mut self) -> Result<()> {
+    fn comment(&mut self, handler: &mut impl Handler) -> Result<()> {
         let start = self.pos;
         self.pos += 4;
         let body = self.skip_past("-->", "a comment is not closed")?;
         if body.contains("--") || body.ends_with('-') {
             return self.err(start, "a comment contains \"--\"");
         }
+        handler.comment(start, self.pos);
         Ok(())
     }
 
-    fn processing_instruction(&mut self) -> Result<()> {
+    fn processing_instruction(&mut self, handler: &mut impl Handler) -> Result<()> {
         let start = self.pos;
         self.pos += 2;
         let body = self.skip_past("?>", "a processing instruction is not closed")?;
@@ -263,13 +301,16 @@ impl<'a> Parser<'a> {
         if target.eq_ignore_ascii_case("xml") {
             return self.err(start, "an XML declaration that is not at the start of the document");
         }
+        handler.processing_instruction(target, start, self.pos);
         Ok(())
     }
 
     fn cdata(&mut self, handler: &mut impl Handler) -> Result<()> {
+        let start = self.pos;
         self.pos += 9;
         let body = self.skip_past("]]>", "a CDATA section is not closed")?;
         emit_normalized(body, handler);
+        handler.cdata_section(start, self.pos);
         Ok(())
     }
 
@@ -317,7 +358,9 @@ impl<'a> Parser<'a> {
                     if self.stack.is_empty() {
                         self.root_seen = true;
                     }
-                    return handler.end_element(self.reported(name), start);
+                    handler.end_element(self.reported(name), start)?;
+                    handler.element_closed(self.pos);
+                    return Ok(());
                 }
                 Some(_) if spaced => self.attribute()?,
                 Some(_) => return self.err(self.pos, "a start tag needs a space before each attribute"),
@@ -376,7 +419,11 @@ impl<'a> Parser<'a> {
         }
         self.pos += 1;
         match self.stack.pop() {
-            Some(open) if open == name => handler.end_element(self.reported(name), start),
+            Some(open) if open == name => {
+                handler.end_element(self.reported(name), start)?;
+                handler.element_closed(self.pos);
+                Ok(())
+            }
             Some(_) => self.err(start, "an end tag does not match its start tag"),
             None => self.err(start, "an end tag with no open element"),
         }
@@ -407,6 +454,7 @@ impl<'a> Parser<'a> {
             offset += amp + used;
         }
         emit_normalized(rest, handler);
+        handler.text_run(start, start + len);
         Ok(())
     }
 }
@@ -590,6 +638,64 @@ mod tests {
         assert_eq!(
             error("<d/><?xml version='1.0'?>"),
             (4, "an XML declaration that is not at the start of the document")
+        );
+    }
+
+    /// Records the node boundaries a tree builder is given.
+    #[derive(Default)]
+    struct Nodes(Vec<String>);
+
+    impl Handler for Nodes {
+        fn start_element(&mut self, name: &str, _: &[Attribute<'_>], offset: usize) -> Result<()> {
+            self.0.push(format!("<{name}@{offset}"));
+            Ok(())
+        }
+        fn end_element(&mut self, name: &str, offset: usize) -> Result<()> {
+            self.0.push(format!("/{name}@{offset}"));
+            Ok(())
+        }
+        fn characters(&mut self, text: &str) {
+            self.0.push(format!("'{text}'"));
+        }
+        fn element_closed(&mut self, end: usize) {
+            self.0.push(format!("closed@{end}"));
+        }
+        fn text_run(&mut self, start: usize, end: usize) {
+            self.0.push(format!("text {start}..{end}"));
+        }
+        fn cdata_section(&mut self, start: usize, end: usize) {
+            self.0.push(format!("cdata {start}..{end}"));
+        }
+        fn comment(&mut self, start: usize, end: usize) {
+            self.0.push(format!("comment {start}..{end}"));
+        }
+        fn processing_instruction(&mut self, target: &str, start: usize, end: usize) {
+            self.0.push(format!("pi {target} {start}..{end}"));
+        }
+    }
+
+    #[test]
+    fn tree_builders_get_the_bytes_of_each_node() {
+        let mut n = Nodes::default();
+        parse("<!--x--><d>a&amp;b<e/><![CDATA[c]]><?p q?></d >", &mut n).unwrap();
+        assert_eq!(
+            n.0,
+            [
+                "comment 0..8",
+                "<d@8",
+                "'a'",
+                "'&'",
+                "'b'",
+                "text 11..18",
+                "<e@18",
+                "/e@18",
+                "closed@22",
+                "'c'",
+                "cdata 22..35",
+                "pi p 35..42",
+                "/d@42",
+                "closed@47",
+            ]
         );
     }
 

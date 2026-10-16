@@ -1,0 +1,19 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/leipzig-short	504	498	8e01d9c52486f423944d264d825543a25984f55383e1649162400bf58767274d
+annotator	opennlp.tools.formats.leipzig.LeipzigLanguageSampleStream	read
+config	samplesPerLanguage	3
+config	samplesToSkip	0
+config	sentencesPerSample	2
+layer	turbo:samples	document	0	written:str
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+0	opennlp.tools.util.InvalidFormatException	<corpus>/eng-short.txt does not contain enough lines (2 lines < 6 required lines).
+end	turbo:read-errors
+layer	turbo:sample-labels	document	0	label:str
+end	turbo:sample-labels
+layer	turbo:sample-texts	document	0	text:str
+end	turbo:sample-texts

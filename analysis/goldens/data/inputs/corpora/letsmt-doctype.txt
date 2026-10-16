@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE document [<!ENTITY e "x">]>
+<document><s>&e;</s></document>

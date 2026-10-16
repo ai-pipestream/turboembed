@@ -23,19 +23,33 @@ use crate::source::{Line, Lines, java_trim};
 /// Reads sentence samples from the sentence format.
 #[derive(Clone, Debug)]
 pub struct SentenceReader<'a> {
-    lines: Lines<'a>,
-    last_was_empty: bool,
+    lines: EmptyLinePreprocessor<'a>,
 }
 
 impl<'a> SentenceReader<'a> {
     pub fn new(source: &'a str) -> Result<SentenceReader<'a>, FormatError> {
-        Ok(SentenceReader { lines: Lines::new(source)?, last_was_empty: true })
+        Ok(SentenceReader { lines: EmptyLinePreprocessor::new(source)? })
+    }
+}
+
+/// `EmptyLinePreprocessorStream`: the lines of a text, with each run of
+/// empty lines (empty after `String.trim`) given as one empty line, and
+/// the empty lines at the start skipped.
+#[derive(Clone, Debug)]
+pub(crate) struct EmptyLinePreprocessor<'a> {
+    lines: Lines<'a>,
+    last_was_empty: bool,
+}
+
+impl<'a> EmptyLinePreprocessor<'a> {
+    pub(crate) fn new(source: &'a str) -> Result<EmptyLinePreprocessor<'a>, FormatError> {
+        Ok(EmptyLinePreprocessor { lines: Lines::new(source)?, last_was_empty: true })
     }
 
-    /// `EmptyLinePreprocessorStream.read`: the next line, `Err(())` for an
-    /// empty line (after skipping the empty lines that follow an empty
+    /// `EmptyLinePreprocessorStream.read`: the next line, `Err(line)` for
+    /// an empty line (after skipping the empty lines that follow an empty
     /// line or the start).
-    fn next_line(&mut self) -> Option<Result<Line<'a>, ()>> {
+    pub(crate) fn next_line(&mut self) -> Option<Result<Line<'a>, Line<'a>>> {
         let blank = |l: &Line<'_>| java_trim(l.piece).text.is_empty();
         let mut line = self.lines.next();
         if self.last_was_empty {
@@ -47,7 +61,7 @@ impl<'a> SentenceReader<'a> {
         let line = line?;
         if blank(&line) {
             self.last_was_empty = true;
-            return Some(Err(()));
+            return Some(Err(line));
         }
         Some(Ok(line))
     }
@@ -65,7 +79,7 @@ impl<'a> Iterator for SentenceReader<'a> {
         // its terminator (one more for a last line without one), and the
         // escapes shrink, so no sentence ends past the source's length and
         // the `u32` offsets below cannot overflow.
-        while let Some(Ok(line)) = self.next_line() {
+        while let Some(Ok(line)) = self.lines.next_line() {
             let trimmed = java_trim(line.piece);
             let start = document.len() as u32;
             push_unescaped(&mut document, trimmed.text);

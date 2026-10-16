@@ -1,7 +1,8 @@
 # The container that makes the golden layer files: a pinned JDK, OpenNLP built
 # from a pinned commit of the fork, the numeric and geo modules of the OpenNLP addons
 # built from a pinned commit, and the generator in ../java.
-# The liblinear add-on of the addons is compiled into a jar of its own beside them.
+# The liblinear add-on of the addons is compiled into a jar of its own beside them,
+# and so are the CoNLL-U dependency and CorefUD readers of two later branches.
 #
 # Build it with `turbo-goldens image` (analysis/goldens-tool/README.md), which
 # passes ../java as the build context. The base image digest and the commits
@@ -137,11 +138,46 @@ RUN GIT_LFS_SKIP_SMUDGE=1 git -C /addons fetch -q --depth 1 origin "$LIBLINEAR_A
  && jar cf liblinear-addon.jar -C classes . \
  && echo "$LIBLINEAR_ADDON_COMMIT" > commit
 
+# The CoNLL-U dependency stream of the fork's ready/agents-md branch, with the
+# DependencySample, DependencyTree and DependencyArc it builds and the branch's
+# ParamChecks, which the commit above does not have, compiled against the jars
+# the generator's build copied to target/lib into a jar of their own. The
+# generator loads the jar in a class loader that takes these classes from it
+# first (ConlluDependencyGolden.java) and checks the commit written beside it.
+ARG CONLLU_DEPENDENCY_COMMIT=2da0ee764cd7340b968a207b925cce852485cccb
+WORKDIR /conllu-dependency
+RUN git -C /opennlp fetch -q --depth 1 origin "$CONLLU_DEPENDENCY_COMMIT" \
+ && mkdir src classes \
+ && git -C /opennlp show "$CONLLU_DEPENDENCY_COMMIT:opennlp-core/opennlp-formats/src/main/java/opennlp/tools/formats/conllu/ConlluDependencySampleStream.java" > src/ConlluDependencySampleStream.java \
+ && git -C /opennlp show "$CONLLU_DEPENDENCY_COMMIT:opennlp-api/src/main/java/opennlp/tools/util/ParamChecks.java" > src/ParamChecks.java \
+ && for f in DependencySample DependencyTree DependencyArc; do \
+      git -C /opennlp show "$CONLLU_DEPENDENCY_COMMIT:opennlp-api/src/main/java/opennlp/tools/depparse/$f.java" > "src/$f.java"; \
+    done \
+ && javac -encoding UTF-8 -d classes -cp '/generator/target/lib/*' src/*.java \
+ && jar cf conllu-dependency.jar -C classes . \
+ && echo "$CONLLU_DEPENDENCY_COMMIT" > commit
+
+# The CorefUD reader of the OpenNLP addons' ready/coref branch,
+# ConlluCorefDocumentStream of its coref-formats module, with CorefAnnotator
+# and CorefMention of its coref module, compiled the same way into a jar of
+# their own (CorefUdGolden.java).
+ARG COREF_ADDONS_COMMIT=be11df610e24a9a2a10f80b7199349fe5b3594a9
+WORKDIR /coref
+RUN GIT_LFS_SKIP_SMUDGE=1 git -C /addons fetch -q --depth 1 origin "$COREF_ADDONS_COMMIT" \
+ && mkdir src classes \
+ && git -C /addons show "$COREF_ADDONS_COMMIT:coref-formats/src/main/java/opennlp/tools/coref/formats/ConlluCorefDocumentStream.java" > src/ConlluCorefDocumentStream.java \
+ && for f in CorefAnnotator CorefMention; do \
+      git -C /addons show "$COREF_ADDONS_COMMIT:coref/src/main/java/opennlp/tools/coref/$f.java" > "src/$f.java"; \
+    done \
+ && javac -encoding UTF-8 -d classes -cp '/generator/target/lib/*' src/*.java \
+ && jar cf coref.jar -C classes . \
+ && echo "$COREF_ADDONS_COMMIT" > commit
+
 # The entrypoint passes any arguments given after the image name on to the
 # generator; the driver passes --dumps so the decision point dumps are written
 # beside the goldens.
 RUN printf '%s\n' '#!/bin/sh' \
-      'exec java -Dturbo.goldens.stringPatternJar=/string-pattern/string-pattern.jar -Dturbo.goldens.hunspellJar=/hunspell/hunspell.jar -Dturbo.goldens.liblinearJar=/liblinear-addon/liblinear-addon.jar -jar /generator/target/turbo-goldens-java.jar /inputs /models /fixtures /out "$(cat /opennlp.commit)" "$@"' \
+      'exec java -Dturbo.goldens.stringPatternJar=/string-pattern/string-pattern.jar -Dturbo.goldens.hunspellJar=/hunspell/hunspell.jar -Dturbo.goldens.liblinearJar=/liblinear-addon/liblinear-addon.jar -Dturbo.goldens.conlluDependencyJar=/conllu-dependency/conllu-dependency.jar -Dturbo.goldens.corefJar=/coref/coref.jar -jar /generator/target/turbo-goldens-java.jar /inputs /models /fixtures /out "$(cat /opennlp.commit)" "$@"' \
       > /usr/local/bin/turbo-goldens-java \
  && chmod 0755 /usr/local/bin/turbo-goldens-java
 
