@@ -171,6 +171,23 @@ scores it as its gate's reference: it reads the file from a directory the
 user names and checks its size and SHA-256 (`langdetect::LANGDETECT_183`),
 and ships, bundles and trains on nothing of it.
 
+## Neural annotator checkpoints (not in the index)
+
+The SaT and GLiNER checkpoints docs/neural-annotators.md considers. None
+is in the zoo's index yet: no file was fetched, so no entry has the
+SHA-512s an entry needs. "Checked" is **here**: the `license` of the
+model card's metadata at the revision named, read on 2026-10-15 from
+the hub's model API.
+
+| Checkpoint | Revision | Licence | Base and data | Class | Checked |
+|---|---|---|---|---|---|
+| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | local-only unless the mixture left out UD's non-commercial treebanks (English GUM and others, under Datasets); to be confirmed against wtpsplit's training configuration | here |
+| [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | as `sat-1l-sm` | here |
+| [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; needs limited lookahead, which the core lacks | here |
+| [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive | here |
+| [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive | here |
+| [urchade/gliner_small](https://huggingface.co/urchade/gliner_small) (v1) | `0f0f4e7d3f10e48844110162d6b5c6072ddd5a4e` | CC BY-NC 4.0 | | local-only; not used | here |
+
 ## Datasets
 
 | Dataset | Use | Licence | Class | Notes | Checked |
