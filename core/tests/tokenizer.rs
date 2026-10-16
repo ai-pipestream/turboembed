@@ -1002,12 +1002,12 @@ mod bpe {
     }
 
     /// The same with a space put in front, merges written as "left right",
-    /// whole words taken as pieces, no model type named, and special tokens
-    /// marked normalized.
+    /// whole words taken as pieces, no model type named, special tokens
+    /// marked normalized, and raw and normalized ones overlapping.
     #[test]
     fn matches_upstream_with_each_option() {
         let base: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
-        for variant in ["prefix", "legacy", "ignore_merges", "untyped", "normalized"] {
+        for variant in ["prefix", "legacy", "ignore_merges", "untyped", "normalized", "mixed"] {
             let mut json = base.clone();
             let mut m = manifest_bpe();
             match variant {
@@ -1027,6 +1027,20 @@ mod bpe {
                 // upstream takes a model with merges for BPE.
                 "untyped" => {
                     json["model"].as_object_mut().unwrap().remove("type");
+                }
+                // A raw token inside a normalized one is matched first,
+                // as upstream matches raw added tokens before normalized
+                // ones: "</s>" is "<" and "/" around "s>".
+                "mixed" => {
+                    let v = json["model"]["vocab"].as_object_mut().unwrap();
+                    let id = v.remove("<s>").unwrap();
+                    v.insert("s>".into(), id);
+                    json["added_tokens"][0]["content"] = json!("s>");
+                    json["added_tokens"][2]["normalized"] = json!(true);
+                    let t = &mut m["tokenizer"];
+                    t["special_tokens"][0]["content"] = json!("s>");
+                    t["special_tokens"][2]["normalized"] = json!(true);
+                    t["template"] = json!(["s>", "$TEXT", "</s>"]);
                 }
                 // Theirs also mark the special tokens normalized, which
                 // with no normalizer matches them in the text as it is.
