@@ -923,12 +923,44 @@ impl Parse {
         Ok(())
     }
 
-    fn node_at_path_mut(&mut self, path: &[usize]) -> &mut Parse {
+    pub(crate) fn node_at_path(&self, path: &[usize]) -> &Parse {
+        let mut cur = self;
+        for &idx in path {
+            cur = &cur.parts[idx];
+        }
+        cur
+    }
+
+    pub(crate) fn node_at_path_mut(&mut self, path: &[usize]) -> &mut Parse {
         let mut cur = self;
         for &idx in path {
             cur = &mut cur.parts[idx];
         }
         cur
+    }
+
+    pub(crate) fn initial_chunk_paths(&self) -> Vec<Vec<usize>> {
+        let mut paths = Vec::new();
+        let mut cur = Vec::new();
+        self.collect_initial_chunk_paths(&mut cur, &mut paths);
+        paths
+    }
+
+    fn collect_initial_chunk_paths(&self, cur: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
+        if self.is_pos_tag() || self.parts.iter().all(Parse::is_pos_tag) {
+            out.push(cur.clone());
+        } else {
+            for (i, kid) in self.parts.iter().enumerate() {
+                cur.push(i);
+                kid.collect_initial_chunk_paths(cur, out);
+                cur.pop();
+            }
+        }
+    }
+
+    pub(crate) fn replace_text_and_span(&mut self, text: Arc<str>, span: Span) {
+        self.text = text;
+        self.span = span;
     }
 
     /// Returns the punctuation parses immediately preceding this node, in the order of
@@ -1002,7 +1034,7 @@ fn java_double_compare(a: f64, b: f64) -> Ordering {
 
 /// `TreeSet.add` under `Parse.compareTo`: keeps `set` sorted and drops `punct` when an element
 /// compares equal to it.
-fn insert_by_prob(set: &mut Vec<Parse>, punct: Parse) {
+pub(crate) fn insert_by_prob(set: &mut Vec<Parse>, punct: Parse) {
     if let Err(pos) = set.binary_search_by(|p| p.cmp_prob(&punct)) {
         set.insert(pos, punct);
     }
