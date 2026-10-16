@@ -269,3 +269,36 @@ fn parser_annotator_and_parser_tool() {
         assert!(phrase_sp.contains(head_sp));
     }
 }
+
+#[test]
+fn chunking_event_stream_revisits_constituent_reduced_at_index_zero() {
+    // After `NP VP` reduce into `S` at index 0, OpenNLP's loop sets `ci = reduceStart - 1` and
+    // increments, so it visits `S` next and emits its `S-TOP` build event and `TOP` check event.
+    let rules = english_head_rules();
+    let samples = vec![Parse::parse("(TOP (S (NP (DT The) (NN dog)) (VP (VBD ran))))").unwrap()];
+
+    let build = chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Build, None);
+    let outcomes: Vec<String> = build.iter().map(|e| e.outcome().to_string_lossy()).collect();
+    assert_eq!(outcomes, ["S-S", "C-S", "S-TOP"]);
+
+    let check = chunking::ParserEventStream::generate_events(&samples, &rules, ParserEventType::Check, None);
+    let outcomes: Vec<String> = check.iter().map(|e| e.outcome().to_string_lossy()).collect();
+    assert_eq!(outcomes, [turbo_parser::INCOMPLETE, turbo_parser::COMPLETE, turbo_parser::COMPLETE]);
+}
+
+#[test]
+fn chunk_context_cache_does_not_leak_into_another_sentence() {
+    // The second vector can be allocated where the first one was; its words must still be used.
+    let mut cg = ChunkContextGenerator::with_cache(10);
+    let tags = ["DT", "NN"];
+    let preds = ["S-NP", "C-NP"];
+    let first = {
+        let words: Vec<&str> = vec!["The", "dog"];
+        cg.get_context(0, &words, &tags, &preds)
+    };
+    assert!(first.iter().any(|f| f == "0=The|DT"));
+    let words: Vec<&str> = vec!["A", "cat"];
+    let second = cg.get_context(0, &words, &tags, &preds);
+    assert!(second.iter().any(|f| f == "0=A|DT"), "{second:?}");
+    assert!(second.iter().any(|f| f == "1=cat|NN"), "{second:?}");
+}

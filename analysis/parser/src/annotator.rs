@@ -250,23 +250,12 @@ impl ParserTool {
             return Vec::new();
         }
 
-        // Locate each token inside `line` while reconstructing the joined text.
+        // Spacing only inserts spaces, so every token is a substring of `line`, in order.
         let mut line_spans = Vec::with_capacity(raw_tokens.len());
         let mut search_from = 0usize;
         for &tok in &raw_tokens {
-            let unescaped = match tok {
-                "-LRB-" => "(",
-                "-RRB-" => ")",
-                other => other,
-            };
-            let rel = line[search_from..].find(unescaped).or_else(|| line[search_from..].find(tok)).unwrap_or(0);
-            let start = search_from + rel;
-            let matched_len = if line[start..].starts_with(unescaped) {
-                unescaped.len()
-            } else {
-                tok.len().min(line.len().saturating_sub(start))
-            };
-            let end = start + matched_len;
+            let start = search_from + line[search_from..].find(tok).expect("each token is a substring of line");
+            let end = start + tok.len();
             line_spans.push(Span::new(start as u32, end as u32));
             search_from = end;
         }
@@ -313,5 +302,31 @@ fn remap_parse_to_line(
     node.replace_text_and_span(Arc::clone(shared_line), Span::new(new_start, new_end));
     for child in node.children_mut() {
         remap_parse_to_line(child, shared_line, synthetic_starts, synthetic_ends, line_spans);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Returns the flat token tree unchanged, so the test sees only `parse_line`'s remapping.
+    struct Echo;
+
+    impl Parser for Echo {
+        fn parse_n(&self, tokens: &Parse, _num_parses: usize) -> Vec<Parse> {
+            vec![tokens.clone()]
+        }
+    }
+
+    fn token_spans(line: &str) -> Vec<(u32, u32)> {
+        let parses = ParserTool::parse_line(line, &Echo, 1);
+        parses[0].children().iter().map(|c| (c.span().start, c.span().end)).collect()
+    }
+
+    #[test]
+    fn parse_line_maps_each_token_to_its_own_bytes_in_the_line() {
+        // A literal `-LRB-` token is its own five bytes, not the next `(` in the line.
+        assert_eq!(token_spans("-LRB- x ("), [(0, 5), (6, 7), (8, 9)]);
+        assert_eq!(token_spans("a(b) é"), [(0, 1), (1, 2), (2, 3), (3, 4), (5, 7)]);
     }
 }

@@ -623,10 +623,10 @@ impl ParserEventStream {
                         chunks.clear();
                         paths.clear();
                     }
-                    if reduce_start == 0 {
-                        continue;
-                    }
-                    ci = reduce_start - 1;
+                    // OpenNLP sets `ci = reduceStart - 1` and increments, so the reduced node is
+                    // visited next, including when the reduction starts at index 0.
+                    ci = reduce_start;
+                    continue;
                 } else if etype == ParserEventType::Check {
                     let ctx = kcg.get_context(&chunks, &parent_type, start, ci);
                     events.push(event_from_strings(INCOMPLETE, &ctx));
@@ -660,11 +660,8 @@ pub(crate) fn collect_pos_samples(samples: &[Parse]) -> Vec<PosSample<'static>> 
     out
 }
 
-pub(crate) fn train_parser_chunker_bytes(
-    language: &str,
-    samples: &[Parse],
-    params: &TrainingParameters,
-) -> Result<Vec<u8>, ParserModelError> {
+/// The chunker training events (`ChunkerEventStream` over `ChunkSampleStream`), one per token.
+fn parser_chunker_events(samples: &[Parse]) -> Vec<Event> {
     let mut cg = ChunkContextGenerator::with_cache(CHUNKER_DEFAULT_BEAM_SIZE);
     let mut events = Vec::new();
     for p in samples {
@@ -677,6 +674,15 @@ pub(crate) fn train_parser_chunker_bytes(
             events.push(event_from_strings(preds[i], &ctx));
         }
     }
+    events
+}
+
+pub(crate) fn train_parser_chunker_bytes(
+    language: &str,
+    samples: &[Parse],
+    params: &TrainingParameters,
+) -> Result<Vec<u8>, ParserModelError> {
+    let events = parser_chunker_events(samples);
     let beam = params.get_int(BEAM_SIZE_KEY).ok().flatten().unwrap_or(CHUNKER_DEFAULT_BEAM_SIZE as i32);
     let (model, report) = trainer::train_events(&events, params, &mut TrainingConfiguration::default())
         .map_err(turbo_train_components::error::Error::Train)?;
@@ -734,5 +740,25 @@ impl ParserTrainingParameters {
             tagger,
             chunker: make(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chunker_events_use_each_sample_s_own_words() {
+        // Same tags and outcomes, so the cache keys match; only the words differ.
+        let samples: Vec<Parse> = ["(TOP (NP (DT The) (NN dog)))", "(TOP (NP (DT A) (NN cat)))"]
+            .iter()
+            .map(|s| Parse::parse(s).unwrap())
+            .collect();
+        let events = parser_chunker_events(&samples);
+        assert_eq!(events.len(), 4);
+        let has = |e: &Event, f: &str| e.context().iter().any(|c| c == f);
+        assert!(has(&events[0], "0=The|DT"));
+        assert!(has(&events[2], "0=A|DT"), "{:?}", events[2].context());
+        assert!(has(&events[3], "0=cat|NN"), "{:?}", events[3].context());
     }
 }

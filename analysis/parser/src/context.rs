@@ -772,7 +772,8 @@ impl ConsWindow {
 #[derive(Clone, Debug, Default)]
 pub struct ChunkContextGenerator {
     cache_size: usize,
-    words_identity: Option<(usize, usize)>,
+    words_key: Vec<String>,
+    tags_key: Vec<String>,
     cache: VecDeque<(String, Vec<String>)>,
 }
 
@@ -784,10 +785,21 @@ impl ChunkContextGenerator {
 
     /// Creates a [`ChunkContextGenerator`] with `cache_size` cached contexts.
     pub fn with_cache(cache_size: usize) -> Self {
-        Self { cache_size, words_identity: None, cache: VecDeque::with_capacity(cache_size) }
+        Self { cache_size, words_key: Vec::new(), tags_key: Vec::new(), cache: VecDeque::with_capacity(cache_size) }
+    }
+
+    /// Empties the cache, as a new `words` array does in OpenNLP.
+    pub fn reset(&mut self) {
+        self.cache.clear();
+        self.words_key.clear();
+        self.tags_key.clear();
     }
 
     /// Generates the 45 chunking features at token `i` (`ChunkContextGenerator.getContext`).
+    ///
+    /// OpenNLP keeps the cache while `words` is the same array (`words == wordsKey`). A slice
+    /// address can be reused by a later sentence, so the cache is kept here while `words` and
+    /// `tags` hold the same strings, which gives the features a fresh call would.
     pub fn get_context(&mut self, i: usize, words: &[&str], tags: &[&str], preds: &[&str]) -> Vec<String> {
         let w_2 = i.checked_sub(2).map_or("w_2=bos", |j| words[j]);
         let t_2 = i.checked_sub(2).map_or("t_2=bos", |j| tags[j]);
@@ -804,10 +816,10 @@ impl ChunkContextGenerator {
         let (w2, t2) = if i + 2 < words.len() { (words[i + 2], tags[i + 2]) } else { ("w2=eos", "t2=eos") };
 
         let cache_key = if self.cache_size > 0 {
-            let ident = (words.as_ptr() as usize, words.len());
-            if self.words_identity != Some(ident) {
+            if !same_strings(&self.words_key, words) || !same_strings(&self.tags_key, tags) {
                 self.cache.clear();
-                self.words_identity = Some(ident);
+                self.words_key = words.iter().map(|w| (*w).to_owned()).collect();
+                self.tags_key = tags.iter().map(|t| (*t).to_owned()).collect();
             }
             // Note: OpenNLP uses `i + t_2 + t1 + t0 + t1 + t2 + p_2 + p_1` (`t1` twice, no `t_1`).
             let key = format!("{i}{t_2}{t1}{t0}{t1}{t2}{p_2}{p_1}");
@@ -923,10 +935,13 @@ impl ChunkContextGenerator {
     }
 }
 
+fn same_strings(kept: &[String], current: &[&str]) -> bool {
+    kept.len() == current.len() && kept.iter().zip(current).all(|(k, c)| k == c)
+}
+
 impl<'a> ContextGenerator<TokenTag<'a>> for ChunkContextGenerator {
     fn start_sequence(&mut self) {
-        self.cache.clear();
-        self.words_identity = None;
+        self.reset();
     }
 
     fn context(&mut self, index: usize, sequence: &[TokenTag<'a>], prior: &[&str], out: &mut Features) {
