@@ -27,9 +27,9 @@
 //!    when `use_reply_context` is enabled and `turbo:structure` ([`Structure`])
 //!    is present with a parent block or a preceding [`Block::Quote`] block,
 //!    scores antagonistic second-person reply patterns against the quoted or
-//!    parent block. When `use_reply_context` is `false` (the default) or no
-//!    [`Structure`] layer is present on the document, provenance records
-//!    `:no-reply-context` in [`ModelRef::id`].
+//!    parent block. [`ModelRef::id`] ends in `:reply-context` or
+//!    `:no-reply-context` after the setting; it does not say whether a
+//!    [`Structure`] layer was present on the document.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -50,9 +50,12 @@ pub const DEFAULT_INCIVILITY_THRESHOLD: f64 = 0.5;
 /// to a contiguous token slice.
 pub type IncivilityEvidenceSpan = (IncivilityLabel, IxRange<Tokens>);
 
-/// Trait implemented by multi-label embedding heads (`ClassifierHead` and
-/// `LabelCentroids` in `turbo-analysis-embed`) that score a sentence or chunk
-/// vector (`&[f32]`) into [`IncivilityScores`] (`0.0..=1.0` per label).
+/// A multi-label embedding head that scores a sentence or chunk vector
+/// (`&[f32]`) into [`IncivilityScores`] (`0.0..=1.0` per label). Neither
+/// `ClassifierHead` nor `LabelCentroids` in `turbo-analysis-embed` implements
+/// it; a wrapper calls their `score_incivility_vector` (see the adapters in
+/// `analysis/embed/tests/heads.rs`). When [`IncivilityVectorScorer::model`]
+/// names an encoder, the annotator refuses vectors from any other encoder.
 pub trait IncivilityVectorScorer: Send + Sync {
     /// Scores a single embedding vector `vec` (`&[f32]`) and returns its six
     /// [`IncivilityScores`] values in `0.0..=1.0`.
@@ -80,15 +83,6 @@ pub enum IncivilityUnit {
     Chunks = 1,
     /// Score each structure block in `turbo:structure` (`IncivilityTarget::Block`).
     Blocks = 2,
-}
-
-/// One lexicon rule entry mapping a lowercase token sequence to an
-/// [`IncivilityLabel`] and a score weight in `0.0..=1.0`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct IncivilityRule {
-    pub tokens: Vec<String>,
-    pub label: IncivilityLabel,
-    pub weight: f64,
 }
 
 /// Deterministic phrase lexicon for [`IncivilityAnnotator`], with a canonical
@@ -372,6 +366,29 @@ impl Annotator for IncivilityAnnotator {
         for t in 0..n_tokens {
             let slice = text.get(tok_starts[t] as usize..tok_ends[t] as usize).unwrap_or("");
             token_lower.push(slice.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'').to_ascii_lowercase());
+        }
+
+        let scorer_model = self.vector_scorer.as_ref().and_then(|s| s.model());
+        let check_encoder = |vectors_model: &ModelRef| -> Result<(), Error> {
+            if let Some(m) = &scorer_model
+                && *vectors_model != *m
+            {
+                return Err(fail(format!(
+                    "vectors are from model {} (revision {}), the scorer is for {} (revision {})",
+                    vectors_model.id, vectors_model.revision, m.id, m.revision
+                )));
+            }
+            Ok(())
+        };
+        if let Some(v) = sent_vecs
+            && self.unit == IncivilityUnit::Sentences
+        {
+            check_encoder(&v.model)?;
+        }
+        if let Some(v) = chunk_vecs
+            && self.unit == IncivilityUnit::Chunks
+        {
+            check_encoder(&v.model)?;
         }
 
         let mut out = Incivility::new();
@@ -1124,6 +1141,40 @@ mod tests {
         let ev: Vec<(IncivilityLabel, IxRange<Tokens>)> = inciv.evidence_of(c0).collect();
         assert!(!ev.is_empty());
         assert!(ev.iter().any(|&(l, r)| l == IncivilityLabel::Intolerance && !r.is_empty()));
+    }
+
+    #[test]
+    fn sentence_vectors_from_another_encoder_are_refused() {
+        struct NamedScorer;
+        impl IncivilityVectorScorer for NamedScorer {
+            fn score_incivility(&self, _vec: &[f32]) -> Result<IncivilityScores, String> {
+                Ok(IncivilityScores::default())
+            }
+
+            fn model(&self) -> Option<ModelRef> {
+                Some(ModelRef { id: "head-encoder".into(), revision: "1".into(), sha256: "00".into() })
+            }
+        }
+
+        let text = "The patch fixes the parser.";
+        let mut doc = make_doc_with_sentences(text, &[(0, text.len() as u32)]);
+        let vecs = Vectors::<Sentences>::new(
+            2,
+            vec![0.5, 0.5],
+            vec![],
+            ModelRef { id: "other-encoder".into(), revision: "1".into(), sha256: "11".into() },
+        );
+        doc.add(&Key::<Vectors<Sentences>>::DEFAULT, vecs, Provenance::by("test")).unwrap();
+        let pipe = Analyzer::builder()
+            .given(Key::<Sentences>::DEFAULT)
+            .given(Key::<Tokens>::DEFAULT)
+            .given(Key::<Vectors<Sentences>>::DEFAULT)
+            .add(IncivilityAnnotator::new().with_vector_scorer(Arc::new(NamedScorer)))
+            .build()
+            .unwrap();
+        let err = pipe.run(std::slice::from_mut(&mut doc)).remove(0).unwrap_err();
+        assert!(err.to_string().contains("other-encoder"), "{err}");
+        assert!(err.to_string().contains("head-encoder"), "{err}");
     }
 
     #[test]

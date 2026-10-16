@@ -445,9 +445,14 @@ and writes `Incivility`:
    `(phrase, label, weight)` entries for `ModelRef::sha256`.
 2. **Multi-label embedding head (`IncivilityVectorScorer`)**: scores
    `Vectors<Sentences>` (`IncivilityUnit::Sentences`) or `Vectors<Chunks>`
-   (`IncivilityUnit::Chunks`) with a multi-label `ClassifierHead`
-   (`ClassifierHead::score_incivility_vector`) or prototype `LabelCentroids`
-   (`LabelCentroids::score_incivility_vector`) from `#321`. When the embedding
+   (`IncivilityUnit::Chunks`) through an `IncivilityVectorScorer`. Neither
+   head type implements the trait itself: a small wrapper calls
+   `ClassifierHead::score_incivility_vector` or
+   `LabelCentroids::score_incivility_vector` from `#321` (the adapters in
+   `analysis/embed/tests/heads.rs` show both). A scorer that names its
+   encoder makes the annotator refuse vectors from any other encoder. A
+   unit with no tokens is scored by the head but gets no evidence span,
+   since there is nothing to attribute it to. When the embedding
    head predicts a positive label (`score >= threshold`) that had no direct
    lexicon match in that unit, the annotator attributes evidence to the unit's
    highest-salience content token span so every positive label carries at
@@ -462,10 +467,10 @@ and writes `Incivility`:
    `use_reply_context` is enabled and `turbo:structure` (`Structure`) is
    present with a parent block or a preceding `Block::Quote` block, scores
    antagonistic second-person reply patterns against the quoted or parent
-   block. When `use_reply_context` is `false` (the default) or no `Structure`
-   layer is present on the document, provenance records `:no-reply-context`
-   in `ModelRef::id` (`oasis-incivility:lexicon:no-reply-context` or
-   `<head>+lexicon:no-reply-context`).
+   block. `ModelRef::id` ends in `:reply-context` or `:no-reply-context`
+   after the setting (`oasis-incivility:lexicon:no-reply-context` or
+   `<head>+lexicon:no-reply-context`); it does not record whether the
+   document had a `Structure` layer.
 
 ### Tests and license posture
 
@@ -492,5 +497,9 @@ repository.
   `IncivilityAnnotator` end to end with lexicon matching, embedding-head
   scoring, and reply-context conflict detection, verifies that every positive
   prediction carries a non-empty `IxRange<Tokens>` evidence span, and checks
-  that CPU and CUDA (`NVIDIA GeForce RTX 4080 SUPER`) scores agree within
-  `1e-5` with identical evidence spans.
+  that CPU and a device (`TURBO_TEST_DEVICE` / `TURBO_TEST_REQUIRE_CUDA=1`)
+  agree within `1e-5` with identical evidence spans. The one sentence the
+  head must catch without a lexicon hit ("Outsiders have no right to
+  participate in our civic institutions.") is in the head's eight training
+  rows, so the test shows the head firing on a sentence it was fitted to,
+  not generalisation.

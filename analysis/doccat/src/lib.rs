@@ -63,7 +63,7 @@ pub use model::{
 };
 pub use sentiment::{
     AbsaMetrics, AbsaTriplet, AspectCategoryScorer, DEFAULT_ASPECT_CATEGORIES, DEFAULT_INCIVILITY_THRESHOLD,
-    GoldIncivilityUnit, IncivilityAnnotator, IncivilityLexicon, IncivilityMetrics, IncivilityRule, IncivilityUnit,
+    GoldIncivilityUnit, IncivilityAnnotator, IncivilityLexicon, IncivilityMetrics, IncivilityUnit,
     IncivilityVectorScorer, LabelMetrics, LexiconSentiment, NegationMode, PragmaticsAnnotator, PragmaticsVectorScorer,
     RuleAspectSentiment, SENTENCE_SENTIMENT, SentenceSentiment, SentimentFactory, SentimentMe, SentimentModel,
     VaderLexicon, VaderScore, evaluate_absa_corpus, evaluate_incivility_corpus, extract_triplets,
