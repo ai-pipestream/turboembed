@@ -62,7 +62,9 @@ impl<'d> Stemmer<'d> {
     /// The first of [`Stemmer::stems`], `None` when there is none. OpenNLP's
     /// `stem` returns the word itself in that case.
     pub fn stem(&self, word: &str) -> Option<String> {
-        self.stems(word).into_iter().next()
+        let input = self.dictionary.input_form(word);
+        let found = self.find_word(&input, false);
+        found.first().map(|stem| self.dictionary.output_form(stem).into_owned())
     }
 
     /// The morphological analyses of `word`: each a space separated list

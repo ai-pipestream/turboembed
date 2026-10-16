@@ -44,10 +44,15 @@ impl Annotator for HunspellAnnotator {
         let (starts, ends) = tokens.spans.columns();
         let mut stems = Stems::default();
         // The item that holds the stem of each word stemmed so far.
-        let mut seen: HashMap<&str, usize> = HashMap::new();
+        let mut seen: HashMap<&str, usize> = HashMap::with_capacity(starts.len());
         let mut repeated = String::new();
         for (i, (&start, &end)) in starts.iter().zip(ends).enumerate() {
-            let token = &text[start as usize..end as usize];
+            let Some(token) = text.get(start as usize..end as usize) else {
+                return Err(Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!("token span {start}..{end} is out of bounds or not on UTF-8 character boundaries"),
+                });
+            };
             if let Some(&first) = seen.get(token) {
                 // the column cannot lend an item to itself while it grows
                 repeated.clear();
@@ -66,5 +71,48 @@ impl Annotator for HunspellAnnotator {
 
     fn config_hash(&self) -> u64 {
         self.dictionary.fingerprint()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::LoadMode;
+    use turbo_analysis::{Document, Span, Spans};
+
+    fn sample_annotator() -> HunspellAnnotator {
+        let aff = b"SET UTF-8\nSFX S Y 1\nSFX S 0 s .\n";
+        let dic = b"1\nwalk/S\n";
+        let dict = Dictionary::from_bytes(aff, dic, LoadMode::Strict).expect("valid dictionary");
+        HunspellAnnotator::new(Arc::new(dict))
+    }
+
+    #[test]
+    fn stems_tokens_and_reuses_repeated_words() {
+        let annotator = sample_annotator();
+        let doc = Document::new("walks walks unknown");
+        let view = doc.get::<View>().expect("source view");
+        let mut spans = Spans::new(view.id());
+        spans.push(Span::new(0, 5));
+        spans.push(Span::new(6, 11));
+        spans.push(Span::new(12, 19));
+        let tokens = Tokens { spans, sentence: None };
+        let (stems,) = annotator.annotate((view, &tokens)).expect("valid annotation");
+        let collected: Vec<&str> = (0..3).map(|i| stems.stem.get(i)).collect();
+        assert_eq!(collected, ["walk", "walk", "unknown"]);
+    }
+
+    #[test]
+    fn rejects_invalid_token_spans() {
+        let annotator = sample_annotator();
+        let doc = Document::new("café");
+        let view = doc.get::<View>().expect("source view");
+        for bad in [Span::new(0, 99), Span::new(0, 4), Span::new(4, 5)] {
+            let mut spans = Spans::new(view.id());
+            spans.push(bad);
+            let tokens = Tokens { spans, sentence: None };
+            let err = annotator.annotate((view, &tokens)).expect_err("invalid span must fail");
+            assert!(err.to_string().contains("token span"), "unexpected error: {err}");
+        }
     }
 }
