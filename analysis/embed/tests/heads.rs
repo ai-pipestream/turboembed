@@ -509,6 +509,29 @@ fn vector_head_and_span_heads_write_expected_layers() {
     assert_eq!(scored_aspects.get(Ix::new(0)).polarity.label(), Polarity::Positive);
     assert_eq!(scored_aspects.get(Ix::new(1)).polarity.label(), Polarity::Negative);
 
+    // A head of the same width for another encoder is refused on this path
+    // too, as categorize_vectors refuses it.
+    let other_head = ClassifierHead::fit_single_label(
+        ModelRef { id: "different-encoder".into(), revision: "0".into(), sha256: "0".into() },
+        32,
+        Arc::clone(&pol_tags),
+        &[(aspect_vecs.row(Ix::new(0)), Tag(0)), (aspect_vecs.row(Ix::new(1)), Tag(1))],
+        1e-4,
+        10,
+        2.0,
+    )
+    .unwrap();
+    let err = AspectSpanHead::new(Arc::clone(&vec_ann), other_head)
+        .score_aspects_polarity(
+            doc.get::<Subwords>().unwrap(),
+            doc.get::<Tokens>().unwrap(),
+            Some(doc.get::<Sentences>().unwrap()),
+            Some(&opinions),
+            &aspects,
+        )
+        .unwrap_err();
+    assert!(err.to_string().contains("different-encoder"), "{err}");
+
     // Verify sentence and chunk categories and Incivility/Pragmatics layers were populated.
     assert_eq!(doc.get::<Categories<Sentences>>().unwrap().len(), 1);
     assert_eq!(doc.get::<Categories<Chunks>>().unwrap().len(), 1);
@@ -662,13 +685,14 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
             },
             ..VectorOptions::default()
         };
-        let (eval_bundle_path, m_vec_ann) = if minilm_path.is_dir()
-            && let Ok(va) = VectorAnnotator::open(&minilm_path, &o)
-        {
-            (minilm_path.clone(), Arc::new(va))
-        } else {
-            (bert(), Arc::clone(&vec_ann))
-        };
+        // The bundle and device were asked for by name, so a bundle that does
+        // not open, or a CUDA device that is not there, fails the test rather
+        // than quietly scoring the tiny fixture under the MiniLM name.
+        let m_vec_ann = Arc::new(
+            VectorAnnotator::open(&minilm_path, &o)
+                .unwrap_or_else(|e| panic!("TURBO_MINILM_BUNDLE={}: {e}", minilm_path.display())),
+        );
+        let eval_bundle_path = minilm_path.clone();
         let m_dim = m_vec_ann.dim();
         let m_sub = SubwordAnnotator::open(&eval_bundle_path).unwrap();
         let m_pipe = Analyzer::builder()

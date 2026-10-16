@@ -327,25 +327,31 @@ paths that write the same `(Opinions, Aspects)` layers (`turbo:opinions` and
 
 1. **Rule path (`turbo_doccat::sentiment::aspect::RuleAspectSentiment`,
    `ID = "turbo-doccat:aspect-sentiment-rule"`)**:
-   - Reads `(View, Sentences, Tokens, Option<Dependencies>, Option<PosTags>, Option<PhraseChunks>, Option<Opinions>, Option<Vectors<Aspects>>)`
+   - Reads `(View, Sentences, Tokens, Option<Dependencies>, Option<PhraseChunks>, Option<PosTags>)`
      and writes `(Opinions, Aspects)`.
    - **Qiu, Liu, Bu, and Chen (2011) double propagation (`R1`..`R4`)**: when
      `opennlp:dependencies` (`Dependencies`) is present on the document,
-     propagates seed opinion expressions from the VADER lexicon (or an
-     upstream `turbo:opinions` layer) and seed aspect terms across modifier
-     (`amod`, `advmod`, `acomp`, `xcomp`), subject/object (`nsubj`,
-     `nsubjpass`, `dobj`, `iobj`, `pobj`, `attr`), and conjunction (`conj`)
-     arcs until a fixed point is reached:
-     - `R1`: known opinion extracts target aspect (`O -> Dep -> A`) and
-       predicative/complement pairs (`A <- nsubj - Pred - amod/acomp -> O`).
-     - `R2`: known opinion extracts conjunctive opinion (`O_i - conj -> O_j`),
-       inverting polarity when connected across an adversative conjunction
-       (`"but"`, `"however"`, `"yet"`, `"although"`, `"though"`, `"whereas"`).
-     - `R3`: known aspect extracts governing or modifying opinion (`A -> Dep -> O`)
-       when the candidate modifier carries a lexicon prior or adjectival/verbal
-       POS tag.
-     - `R4`: known aspect extracts conjunctive aspect (`A_i - conj -> A_j`),
-       expanding multi-token noun compounds (`nn`, `compound`).
+     propagates seed opinion words from the VADER lexicon and the seed
+     aspect terms across dependency arcs for up to three passes or until
+     nothing new is found. Relation labels are matched on their part before
+     any `:` subtype, so `nsubj:pass` counts as `nsubj`:
+     - `R1`: a known opinion extracts its target: the opinion's governor
+       when the opinion hangs off it by `amod`, `acl`, `advmod`, `nmod`,
+       `dep`, `xcomp`, `acomp` or `ccomp`; a child of the opinion by
+       `nsubj`, `obj`, `dobj`, `iobj`, `obl` or `nmod`; or a sibling under a
+       shared governor when the opinion is a complement (`acomp`, `xcomp`,
+       `ccomp`, `attr`, `advmod`, `amod`, `obj`, `dobj`).
+     - `R2`: with `opennlp:pos` present, a known aspect extracts its `amod`
+       children that carry an adjectival POS tag; the opinion takes the
+       lexicon prior when the lexicon has the word and `+1.0` otherwise.
+     - `R3`: a known aspect extracts conjoined aspects over `conj` and `appos`,
+       expanding noun compounds (`compound`, `nn`, `flat`) to the left.
+     - `R4`: a known opinion extracts conjoined opinions over `conj`, inverting
+       the polarity when an adversative conjunction (`"but"`, `"however"`,
+       `"yet"`, `"although"`, `"though"`, `"whereas"`) sits between them.
+     Without POS tags any word in those positions can become a target, so
+     verbs and pronouns are extracted as aspects on bare dependency input;
+     `opennlp:pos` restricts targets to nouns.
    - **Clause-aware fallback**: when `opennlp:dependencies` is absent (or
      alongside it), extracts candidate aspect spans from `opennlp:chunks`
      (`PhraseChunks` `NP` spans), `opennlp:pos` (`PosTags` noun sequences),
@@ -365,7 +371,7 @@ paths that write the same `(Opinions, Aspects)` layers (`turbo:opinions` and
 
 2. **Learned path (`turbo_analysis_embed::aspect::LearnedAspectSentiment`,
    `ID = "turbo:aspect-sentiment-learned"`)**:
-   - Reads `(View, Sentences, Tokens, Subwords, Option<Vectors<Subwords>>, Option<PhraseChunks>, Option<Dependencies>)`
+   - Reads `(View, Sentences, Tokens, Subwords, Option<Vectors<Subwords>>, Option<Dependencies>, Option<PhraseChunks>)`
      and writes `(Opinions, Aspects)`.
    - **Contextual subword vectors (`SubwordVectors`, `VectorAnnotator::embed_subwords`)**:
      extracts each subword piece's contextual hidden state (`Vectors<Subwords>`)
@@ -390,21 +396,22 @@ Per `#326`, SemEval ABSA XML datasets (`SemEval-2014 Task 4`, `SemEval-2015 Task
 `SemEval-2016 Task 5`) are non-commercial or carry unspecified redistribution
 terms and are not committed to the repository.
 
-- `analysis/doccat/src/sentiment/aspect.rs` tests `RuleAspectSentiment` across
-  10 unit tests: `"battery life is great but the screen scratches"`, double
-  propagation `R1`..`R4` over `Dependencies` (propagating an unseen opinion
-  adjective `"phenomenal"` and an unseen conjunctive aspect `"hinge"`),
-  `PhraseChunks` `NP` extraction, `PosTags` noun-sequence extraction,
-  implicit sentence-anchored aspects, custom `AspectCategoryScorer`
-  integration, and exact-span `evaluate_absa_corpus` metrics (`aspect_f1`,
-  `opinion_f1`, `triplet_f1`) on an 11-sentence regression fixture written
-  beside the rules.
+- `analysis/doccat/src/sentiment/aspect.rs` tests `RuleAspectSentiment` in
+  five unit tests: `"battery life is great but the screen scratches"`,
+  double propagation over `Dependencies` extracting the conjoined aspect
+  `"tiramisu"`, an aspect and an opinion under one governor (`"The battery
+  works well"`), implicit sentence-anchored aspects, and exact-span
+  `evaluate_absa_corpus` metrics (`aspect_f1`, `opinion_f1`, `triplet_f1`)
+  on a 10-sentence regression fixture written beside the rules. The
+  `PhraseChunks` and `PosTags` extraction paths and the
+  `AspectCategoryScorer` hook have no test yet.
 - `analysis/embed/tests/heads.rs`
   (`learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device`)
   trains `LearnedAspectSentiment::fit` on a 9-sentence fixture over
   `tiny-bert-bundle` (32-dim) and runs both `RuleAspectSentiment` and
-  `LearnedAspectSentiment` on the 9 training sentences and on a separate
-  4-sentence held-out set recombining those aspect and opinion words, checking
+  `LearnedAspectSentiment` on the 9 training sentences and on a 4-sentence
+  held-out set that recombines the training aspect and opinion words (so it
+  checks generalisation across sentences, not across vocabulary), checking
   that both annotators write the same `(Opinions, Aspects)` layer types with
   distinct `Provenance.annotator` IDs and that CPU and device (`TURBO_TEST_DEVICE` /
   `TURBO_TEST_REQUIRE_CUDA=1`) outputs agree within `1e-5`.
