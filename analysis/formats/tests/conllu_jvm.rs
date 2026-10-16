@@ -116,7 +116,9 @@ fn tagset(run: &str) -> Tagset {
     if run.contains("-x") { Tagset::X } else { Tagset::U }
 }
 
-fn dependencies(run: &str, input: &str) -> Rebuilt {
+/// `well_formed` says the input's multiword token and empty node ids
+/// keep the UD rules, which Java does not check.
+fn dependencies(run: &str, input: &str, well_formed: bool) -> Rebuilt {
     let mode = if run.ends_with("+legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode };
     let mut out = Rebuilt::default();
     out.layers(&[
@@ -128,12 +130,14 @@ fn dependencies(run: &str, input: &str) -> Rebuilt {
         "turbo:sample-relations",
     ]);
     let mut samples = Vec::new();
-    for item in ConlluDependencyReader::new(input, tagset(run), mode).unwrap() {
+    let mut reader = ConlluDependencyReader::new(input, tagset(run), mode).unwrap();
+    for item in reader.by_ref() {
         match item {
             Ok(s) => samples.push(s),
             Err(e) => out.error(samples.len(), &e),
         }
     }
+    assert_eq!(reader.node_id_issues().is_empty(), well_formed, "{:?}", reader.node_id_issues());
     for (i, s) in samples.iter().enumerate() {
         out.row("turbo:samples", vec![s.to_string()]);
         for ((token, tag), arc) in s.tokens().iter().zip(s.tags()).zip(s.tree().arcs()) {
@@ -239,8 +243,12 @@ fn every_conllu_golden_matches() {
     for (run, path) in all {
         let golden = Golden::read_with(&path, &shapes).unwrap();
         let input = golden.input_text(&data).unwrap();
-        let mut rebuilt =
-            if run.starts_with("dependency") { dependencies(&run, &input) } else { coref(&run, &input) }.0;
+        let mut rebuilt = if run.starts_with("dependency") {
+            dependencies(&run, &input, path.ends_with("dependency-basic.golden"))
+        } else {
+            coref(&run, &input)
+        }
+        .0;
         for layer in &golden.layers {
             let ours =
                 rebuilt.remove(layer.id.as_str()).unwrap_or_else(|| panic!("{}: no {}", path.display(), layer.id));

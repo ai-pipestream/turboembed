@@ -15,7 +15,7 @@
 //! (a discontinuous mention) writes each part as a mention of its own
 //! with `[k/n]` after the id: `(e5[1/2]-place-1-` ... `e5[1/2])`.
 //!
-//! [`parse_entity`] reads a value as `ConlluCorefDocumentStream.brackets`
+//! [`entity_brackets`] reads a value as `ConlluCorefDocumentStream.brackets`
 //! does, so it refuses what Java refuses and accepts what it accepts:
 //!
 //! - An opening bracket runs from `(` to the next `(` or `)`; it is a
@@ -100,30 +100,60 @@ impl std::error::Error for EntityError {}
 
 /// The brackets of an `Entity` value, in order.
 pub fn parse_entity(value: Piece<'_>) -> Result<Vec<Bracket<'_>>, EntityError> {
-    let text = value.text.as_bytes();
-    if text.is_empty() {
-        return Err(EntityError::EmptyId);
-    }
-    let mut brackets = Vec::new();
-    let mut i = 0;
-    while i < text.len() {
-        if text[i] == b'(' {
+    entity_brackets(value).collect()
+}
+
+/// The brackets of an `Entity` value one at a time, as Java reads them:
+/// a bracket it refuses ends the run, so a caller that acts on each
+/// bracket before reading the next meets the errors in Java's order.
+pub fn entity_brackets(value: Piece<'_>) -> EntityBrackets<'_> {
+    EntityBrackets { value, at: 0, done: false }
+}
+
+/// The iterator of [`entity_brackets`].
+#[derive(Clone, Debug)]
+pub struct EntityBrackets<'a> {
+    value: Piece<'a>,
+    at: usize,
+    done: bool,
+}
+
+impl<'a> Iterator for EntityBrackets<'a> {
+    type Item = Result<Bracket<'a>, EntityError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let value = self.value;
+        let text = value.text.as_bytes();
+        if self.done {
+            return None;
+        }
+        if text.is_empty() {
+            self.done = true;
+            return Some(Err(EntityError::EmptyId));
+        }
+        let i = self.at;
+        if i >= text.len() {
+            return None;
+        }
+        let item = if text[i] == b'(' {
             let j = i + 1 + text[i + 1..].iter().take_while(|&&b| b != b'(' && b != b')').count();
             let content = value.slice(i + 1, j);
             let (kind, end) =
                 if text.get(j) == Some(&b')') { (BracketKind::Single, j + 1) } else { (BracketKind::Open, j) };
-            brackets.push(bracket(kind, value.slice(i, end).span, content)?);
-            i = end;
+            self.at = end;
+            bracket(kind, value.slice(i, end).span, content)
         } else {
             let j = i + text[i..].iter().take_while(|&&b| b != b')').count();
             if j == text.len() {
-                return Err(EntityError::MissingClose { value: value.text.to_owned() });
+                Err(EntityError::MissingClose { value: value.text.to_owned() })
+            } else {
+                self.at = j + 1;
+                bracket(BracketKind::Close, value.slice(i, j + 1).span, value.slice(i, j))
             }
-            brackets.push(bracket(BracketKind::Close, value.slice(i, j + 1).span, value.slice(i, j))?);
-            i = j + 1;
-        }
+        };
+        self.done = item.is_err();
+        Some(item)
     }
-    Ok(brackets)
 }
 
 /// `canonicalId` of `content`, with the part and the attributes.
@@ -235,6 +265,14 @@ mod tests {
         assert_eq!(parse_entity(piece(")")), Err(EntityError::EmptyId));
         assert_eq!(parse_entity(piece("(e1)e2")), Err(EntityError::MissingClose { value: "(e1)e2".into() }));
         assert_eq!(EntityError::MissingClose { value: "x".into() }.to_string(), "entity close is missing ')': x");
+    }
+
+    #[test]
+    fn brackets_come_one_at_a_time_up_to_the_first_refusal() {
+        let kinds = |s| entity_brackets(piece(s)).map(|b| b.map(|b| b.kind)).collect::<Vec<_>>();
+        assert_eq!(kinds("e1)("), [Ok(Close), Err(EntityError::EmptyId)]);
+        assert_eq!(kinds("(e1)x"), [Ok(Single), Err(EntityError::MissingClose { value: "(e1)x".into() })]);
+        assert_eq!(kinds(""), [Err(EntityError::EmptyId)]);
     }
 
     #[test]

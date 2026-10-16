@@ -55,6 +55,7 @@
 pub mod coref;
 pub mod dependency;
 pub mod document;
+pub mod node_ids;
 pub mod samples;
 pub mod words;
 

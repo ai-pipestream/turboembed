@@ -62,7 +62,7 @@ use turbo_unicode::WhitespaceMode;
 use super::Tagset;
 use crate::error::FormatError;
 use crate::source::{Field, Line, Lines, Piece};
-use entity::{Bracket, BracketKind, EntityError, misc_attribute, parse_entity};
+use entity::{Bracket, BracketKind, EntityError, entity_brackets, misc_attribute};
 
 /// The comment that starts a document.
 const NEWDOC: &str = "# newdoc";
@@ -447,8 +447,10 @@ impl<'a> Builder<'a> {
         });
         self.glue = misc_attribute(misc, "SpaceAfter").is_some_and(|v| v.text == "No");
         if let Some(value) = misc_attribute(misc, "Entity") {
-            let brackets = parse_entity(value).map_err(|error| CorefError::Entity { line: number, error })?;
-            for b in brackets {
+            // Each bracket is applied before the next is read, so an
+            // earlier bracket's error comes first, as in Java.
+            for b in entity_brackets(value) {
+                let b = b.map_err(|error| CorefError::Entity { line: number, error })?;
                 self.bracket(b, token, number)?;
             }
         }

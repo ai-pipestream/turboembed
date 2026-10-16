@@ -31,11 +31,18 @@
 //!
 //! The enhanced dependencies (the `DEPS` column) and the empty nodes they
 //! use are not read, as Java does not read them.
+//!
+//! Beyond Java, the reader checks the ids of the multiword token and empty
+//! node lines of each sentence it reads against the UD rules
+//! ([`super::node_ids`]) and keeps each line that breaks them
+//! ([`ConlluDependencyReader::node_id_issues`]); the samples and the
+//! skipped sentences are Java's whatever the check finds.
 
 use turbo_analysis::Span;
 use turbo_unicode::WhitespaceMode;
 
 use super::Tagset;
+use super::node_ids::{NodeIdIssue, NodeLine, check_node_ids};
 use crate::error::FormatError;
 use crate::sample::dependency::{DependencySample, DependencyTree, Head, TreeError};
 use crate::source::{Line, Lines, Piece};
@@ -110,13 +117,24 @@ pub struct ConlluDependencyReader<'a> {
     tagset: Tagset,
     mode: WhitespaceMode,
     skipped: Vec<Skipped>,
+    /// The multiword token and empty node lines of the sentence being read.
+    nodes: Vec<NodeLine<'a>>,
+    node_id_issues: Vec<NodeIdIssue>,
 }
 
 impl<'a> ConlluDependencyReader<'a> {
     /// A reader of `source` that takes its tags from `tagset` and tests
     /// lines and relations for whitespace in `mode`.
     pub fn new(source: &'a str, tagset: Tagset, mode: WhitespaceMode) -> Result<Self, FormatError> {
-        Ok(ConlluDependencyReader { lines: Lines::new(source)?, first_line: true, tagset, mode, skipped: Vec::new() })
+        Ok(ConlluDependencyReader {
+            lines: Lines::new(source)?,
+            first_line: true,
+            tagset,
+            mode,
+            skipped: Vec::new(),
+            nodes: Vec::new(),
+            node_id_issues: Vec::new(),
+        })
     }
 
     /// The sentences skipped so far, in the order read.
@@ -124,10 +142,19 @@ impl<'a> ConlluDependencyReader<'a> {
         &self.skipped
     }
 
+    /// The multiword token and empty node lines read so far whose ids
+    /// break the UD rules, in the order read. The lines of a sentence are
+    /// checked when the sentence ends, whether it gives a sample or is
+    /// skipped; a sentence dropped for a line without ten columns is not.
+    pub fn node_id_issues(&self) -> &[NodeIdIssue] {
+        &self.node_id_issues
+    }
+
     /// `nextSentence`: the word lines of the next sentence, none at the end
     /// of the text.
     fn next_sentence(&mut self) -> Result<Vec<WordColumns<'a>>, FormatError> {
         let mut words = Vec::new();
+        self.nodes.clear();
         while let Some(mut line) = self.lines.next() {
             if std::mem::take(&mut self.first_line) && line.text().starts_with(BYTE_ORDER_MARK) {
                 let len = line.text().len();
@@ -146,6 +173,8 @@ impl<'a> ConlluDependencyReader<'a> {
             let id = word.id().text;
             if !id.contains('-') && !id.contains('.') {
                 words.push(word);
+            } else {
+                self.nodes.push(NodeLine { id: word.id(), line: word.line, words_before: words.len() as u32 });
             }
         }
         Ok(words)
@@ -196,6 +225,7 @@ impl<'a> Iterator for ConlluDependencyReader<'a> {
             if words.is_empty() {
                 return None;
             }
+            self.node_id_issues.extend(check_node_ids(&self.nodes, words.len() as u32));
             match self.convert(&words) {
                 Ok(sample) => return Some(Ok(sample)),
                 Err(reason) => {
@@ -271,6 +301,28 @@ mod tests {
         assert_eq!(&src[s.tree().relations()[1].span.range()], "case");
         assert!(src[s.source().range()].starts_with("1\tVamos") && src[s.source().range()].ends_with("obl\t_\t_"));
         assert!(r.next().is_none());
+    }
+
+    #[test]
+    fn node_ids_are_checked_without_changing_the_samples() {
+        use crate::conllu::node_ids::NodeIdError;
+        let src = format!(
+            "{}{}{}{}{}\n{}",
+            line("1", "a", "X", "0", "root"),
+            line("1.2", "e", "X", "_", "_"),
+            line("3-2", "bc", "_", "_", "_"),
+            line("2", "b", "X", "1", "dep"),
+            line("3", "c", "X", "1", "dep"),
+            line("1", "d", "X", "0", "root"),
+        );
+        let mut r = ConlluDependencyReader::new(&src, Tagset::U, WhitespaceMode::Unicode).unwrap();
+        assert_eq!(r.by_ref().filter(Result::is_ok).count(), 2);
+        let issues: Vec<(u32, NodeIdError, &str)> =
+            r.node_id_issues().iter().map(|i| (i.line, i.error, &src[i.id.range()])).collect();
+        assert_eq!(
+            issues,
+            [(2, NodeIdError::EmptyNodeIndex { expected: 1 }, "1.2"), (3, NodeIdError::MultiwordSyntax, "3-2")]
+        );
     }
 
     #[test]

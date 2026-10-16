@@ -137,6 +137,11 @@ fn refusals() {
     assert_eq!(error(&w("1", "a", "Entity=")), "entity id must not be empty");
     assert_eq!(error(&w("1", "a", "Entity=e1")), "entity close is missing ')': e1");
     assert_eq!(error(&w("1", "a", "Entity=e1)")), "entity e1 is closed but not open");
+    // A bracket is applied before the next is read: the close of e1 fails
+    // before the empty id or the missing `)` after it is seen.
+    assert_eq!(error(&w("1", "a", "Entity=e1)(")), "entity e1 is closed but not open");
+    assert_eq!(error(&w("1", "a", "Entity=e1)x")), "entity e1 is closed but not open");
+    assert_eq!(error(&w("1", "a", "Entity=(e1)x")), "entity close is missing ')': (e1)x");
     assert_eq!(
         error(&format!("{}\n{}", w("1", "a", "Entity=(e1"), w("1", "b", "Entity=e1)"))),
         "entity e1 crosses a sentence boundary"
