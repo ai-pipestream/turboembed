@@ -134,6 +134,8 @@ final class Runs {
   /** The word and tag lines and the word, tag and lemma lines the Rust tagger fixtures were trained on. */
   static final String TAGGED = "tagged";
   static final String NER = "ner";
+  /** Sentence, language and document corpora in the formats of OpenNLP's corpus readers. */
+  static final String CORPORA = "corpora";
   static final String PARSE = "parse";
   static final String HEAD_RULES = "head-rules";
   /** Names, record ids, region codes and whole tables for the gazetteers of the addons geo module. */
@@ -360,6 +362,9 @@ final class Runs {
     annotators.addAll(NerGolden.all());
     // The MASC readers, over small corpora bundled in the formats set.
     annotators.addAll(MascGolden.all());
+    // The sentence, language and document corpus streams (Moses, LetsMT, NKJP, the Irish Sentence
+    // Bank, Leipzig and 20 Newsgroups), over the corpora set.
+    annotators.addAll(CorporaGolden.all());
     // The CoNLL-2002, CoNLL-2003 and CoNLL-X streams.
     annotators.addAll(ConllGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
     // The Penn Treebank parse reader and writer, alone and with the English and AnCora head rules,

@@ -1,0 +1,26 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/nkjp-basic	3210	3207	1dbb909db7b1dfa0a648a471d66961808fc316bd8e58a1b5cab3f6ebf1b1e6a2
+annotator	opennlp.tools.formats.nkjp.NKJPSentenceSampleStream	read
+layer	turbo:samples	document	1	written:str
+Ala ma kota\nKot ma Alę, a pies - nie.\nnie\nDrugi akapit 😀 z emoji.\nkota\n\n\npies\nAkapit & encja.\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	1	text:str
+Ala ma kota Kot ma Alę, a pies - nie. nie Drugi akapit 😀 z emoji. kota   pies Akapit & encja. 
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	9	sample:u32	start:u32	end:u32
+0	0	11
+0	12	38
+0	39	42
+0	43	69
+0	70	74
+0	75	75
+0	76	76
+0	77	81
+0	82	97
+end	turbo:sample-spans

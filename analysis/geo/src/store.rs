@@ -79,7 +79,7 @@ impl Row<'_> {
         if self.alternates.iter().any(|n| is_blank(n)) {
             return Err(EntryError::BlankElement("alternateNames", java_list(self.alternates)));
         }
-        let country = self.country.map(RegionCode::from_record).transpose()?;
+        let country = self.country.map(crate::entry::region_from_record).transpose()?;
         if self.containment.iter().any(|n| is_blank(n)) {
             return Err(EntryError::BlankElement("containment", java_list(self.containment)));
         }
@@ -423,7 +423,7 @@ impl<'a> Entry<'a> {
     }
 
     pub(crate) fn region(&self) -> Option<RegionCode> {
-        RegionCode::from_bytes(self.store.country[self.i()])
+        RegionCode::new(self.store.country[self.i()])
     }
 
     /// The administrative containment chain, outermost first.
