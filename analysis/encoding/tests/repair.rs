@@ -180,4 +180,13 @@ fn unchanged_replacement_characters_produce_an_empty_plan() {
         assert!(r.plan.is_empty(), "expected empty plan for {input:?}, got {:?}", r.plan);
         assert!(r.alignment.edits().is_empty());
     }
+    // Unassigned windows-1252 C1 controls remain unchanged with no alignment edits,
+    // while recording ftfy's `transcode:fix_c1_controls` step (as in ftfy_cases.tsv lines 284-285).
+    for code in [0x81u32, 0x8d, 0x8f, 0x90, 0x9d] {
+        let input = char::from_u32(code).unwrap().to_string();
+        let r = fix_encoding(&input);
+        assert_eq!(r.text, input);
+        assert!(r.alignment.edits().is_empty());
+        assert_eq!(r.plan, vec![PlanStep { action: Action::Transcode, parameter: "fix_c1_controls" }]);
+    }
 }

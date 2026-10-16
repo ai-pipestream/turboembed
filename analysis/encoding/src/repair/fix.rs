@@ -76,6 +76,10 @@ fn one_step(t: &Tracked) -> (Option<Tracked>, Vec<PlanStep>) {
     {
         return (Some(fixed), vec![step(Action::Encode, "latin-1"), step(Action::Decode, "windows-1252")]);
     }
+    // ftfy's C1 fallback always records `transcode:fix_c1_controls` when a
+    // C1 control is present, even when only the five unassigned windows-1252
+    // bytes (0x81, 0x8D, 0x8F, 0x90, 0x9D) appear and the text is unchanged
+    // (tested by ftfy_cases.tsv "don't leak our internal use of byte 0x1A").
     if t.chars.iter().any(|&c| is_c1(c)) {
         return (Some(fix_c1_controls(t)), vec![step(Action::Transcode, "fix_c1_controls")]);
     }
