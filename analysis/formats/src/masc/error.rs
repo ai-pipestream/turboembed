@@ -21,6 +21,8 @@ pub enum AnnotationFile {
     NounChunks,
     /// The verb chunks, `f.vc`, which OpenNLP does not read.
     VerbChunks,
+    /// The logical markup, `f.logical`.
+    Logical,
 }
 
 impl AnnotationFile {
@@ -33,6 +35,7 @@ impl AnnotationFile {
             AnnotationFile::NamedEntities => "f.ne",
             AnnotationFile::NounChunks => "f.nc",
             AnnotationFile::VerbChunks => "f.vc",
+            AnnotationFile::Logical => "f.logical",
         }
     }
 
@@ -47,6 +50,7 @@ impl AnnotationFile {
             AnnotationFile::NamedEntities => "Could not parse the named entity annotation file",
             AnnotationFile::NounChunks => "Could not parse the noun chunk annotation file",
             AnnotationFile::VerbChunks => "Could not parse the verb chunk annotation file",
+            AnnotationFile::Logical => "Could not parse the logical annotation file",
         }
     }
 }
@@ -131,6 +135,9 @@ pub enum MascError {
     /// chunk files, or its documents have no Penn tokens. OpenNLP has no
     /// chunk reader for MASC.
     NoChunks,
+    /// The logical blocks a conversion keeps do not form a structure
+    /// tree: two of them cross.
+    LogicalStructure { detail: String },
 }
 
 impl MascError {
@@ -139,7 +146,10 @@ impl MascError {
     pub fn java_class(&self) -> Option<&'static str> {
         use MascError::*;
         match self {
-            Annotation { file: AnnotationFile::NounChunks | AnnotationFile::VerbChunks, .. } => None,
+            Annotation {
+                file: AnnotationFile::NounChunks | AnnotationFile::VerbChunks | AnnotationFile::Logical,
+                ..
+            } => None,
             NotADirectory { .. }
             | Header { .. }
             | MissingFile { .. }
@@ -155,7 +165,12 @@ impl MascError {
             Substring { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             NegativeTokenStart { .. } | TokenOutOfBounds { .. } | NullTag => Some("java.lang.IllegalArgumentException"),
             Sample(e) => e.java_class(),
-            Io { .. } | DirectoryCycle { .. } | SplitsSurrogatePair { .. } | TooLong { .. } | NoChunks => None,
+            Io { .. }
+            | DirectoryCycle { .. }
+            | SplitsSurrogatePair { .. }
+            | TooLong { .. }
+            | NoChunks
+            | LogicalStructure { .. } => None,
         }
     }
 
@@ -226,6 +241,7 @@ impl fmt::Display for MascError {
             NullTag => f.write_str("null elements are not allowed in tags!"),
             Sample(e) => e.fmt(f),
             NoChunks => f.write_str("no document has chunks: read the corpus with its chunk files"),
+            LogicalStructure { detail } => f.write_str(detail),
         }
     }
 }

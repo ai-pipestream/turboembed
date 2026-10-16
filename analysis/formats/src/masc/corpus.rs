@@ -80,7 +80,7 @@ impl MascCorpus {
         recursive: bool,
         filter: impl FnMut(&Path) -> bool,
     ) -> Result<MascCorpus, MascError> {
-        MascCorpus::walk(dir.as_ref(), recursive, filter, ChunkFiles::Ignored)
+        MascCorpus::walk(dir.as_ref(), recursive, filter, ChunkFiles::Ignored, false)
     }
 
     /// Reads every document under `dir` as [`MascCorpus::read`] does, and
@@ -91,7 +91,18 @@ impl MascCorpus {
     /// As [`MascCorpus::read_with`]. A chunk file that cannot be parsed
     /// skips its document, as a file OpenNLP reads does.
     pub fn read_with_chunks(dir: impl AsRef<Path>) -> Result<MascCorpus, MascError> {
-        MascCorpus::walk(dir.as_ref(), true, |_| true, ChunkFiles::Read)
+        MascCorpus::walk(dir.as_ref(), true, |_| true, ChunkFiles::Read, false)
+    }
+
+    /// Reads every document under `dir` as [`MascCorpus::read`] does, and
+    /// each document's logical markup ([`MascDocument::add_logical`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`MascCorpus::read_with`]. A logical file that cannot be parsed
+    /// skips its document, as any annotation file that cannot be parsed does.
+    pub fn read_with_logical(dir: impl AsRef<Path>) -> Result<MascCorpus, MascError> {
+        MascCorpus::walk(dir.as_ref(), true, |_| true, ChunkFiles::Ignored, true)
     }
 
     fn walk(
@@ -99,6 +110,7 @@ impl MascCorpus {
         recursive: bool,
         mut filter: impl FnMut(&Path) -> bool,
         chunks: ChunkFiles,
+        logical: bool,
     ) -> Result<MascCorpus, MascError> {
         if !dir.is_dir() {
             return Err(MascError::NotADirectory { path: dir.to_owned() });
@@ -125,7 +137,7 @@ impl MascCorpus {
                 }
                 if path.is_file() {
                     if name.as_encoded_bytes().ends_with(b".hdr") {
-                        match read_document_with(&path, chunks) {
+                        match read_document_as(&path, chunks, logical) {
                             Ok(doc) => corpus.documents.push(doc),
                             Err(error) if error.skips_document() => {
                                 corpus.skipped.push(SkippedDocument { path, error })
@@ -172,7 +184,7 @@ impl MascCorpus {
 ///
 /// What the constructor and `parseDocument` throw for the document.
 pub fn read_document(hdr: &Path) -> Result<MascDocument, MascError> {
-    read_document_with(hdr, ChunkFiles::Ignored)
+    read_document_as(hdr, ChunkFiles::Ignored, false)
 }
 
 /// [`read_document`], and then, under [`ChunkFiles::Read`], the chunk
@@ -182,6 +194,20 @@ pub fn read_document(hdr: &Path) -> Result<MascDocument, MascError> {
 ///
 /// As [`read_document`], and what [`MascDocument::add_chunks`] fails on.
 pub fn read_document_with(hdr: &Path, chunks: ChunkFiles) -> Result<MascDocument, MascError> {
+    read_document_as(hdr, chunks, false)
+}
+
+/// [`read_document`], and then the logical markup file the header names
+/// ([`MascDocument::add_logical`]).
+///
+/// # Errors
+///
+/// As [`read_document`], and what [`MascDocument::add_logical`] fails on.
+pub fn read_document_with_logical(hdr: &Path) -> Result<MascDocument, MascError> {
+    read_document_as(hdr, ChunkFiles::Ignored, true)
+}
+
+fn read_document_as(hdr: &Path, chunks: ChunkFiles, logical: bool) -> Result<MascDocument, MascError> {
     let bytes = read(hdr)?;
     let header = |cause| MascError::Header { path: hdr.to_owned(), cause };
     let text = turbo_maxent::xml::decode(&bytes).map_err(header)?;
@@ -217,6 +243,10 @@ pub fn read_document_with(hdr: &Path, chunks: ChunkFiles) -> Result<MascDocument
         let noun = load(AnnotationFile::NounChunks)?;
         let verb = load(AnnotationFile::VerbChunks)?;
         doc.add_chunks(MascChunkFiles { noun: noun.as_deref(), verb: verb.as_deref() })?;
+    }
+    if logical {
+        let markup = load(AnnotationFile::Logical)?;
+        doc.add_logical(markup.as_deref())?;
     }
     Ok(doc)
 }

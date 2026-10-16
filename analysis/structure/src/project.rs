@@ -34,7 +34,7 @@ impl Annotator for StructureProjector {
                 }
             }
             let mapped = alignment.span_to_child(span);
-            if mapped.is_empty() || view.text().get(mapped.range()).is_none() {
+            if (!span.is_empty() && mapped.is_empty()) || view.text().get(mapped.range()).is_none() {
                 return Err(fail(format!("block {} is erased or outside the target text", row.get())));
             }
             spans.push(mapped);
