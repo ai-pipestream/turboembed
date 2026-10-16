@@ -1002,11 +1002,11 @@ mod bpe {
     }
 
     /// The same with a space put in front, merges written as "left right",
-    /// and whole words taken as pieces.
+    /// whole words taken as pieces, and no model type named.
     #[test]
     fn matches_upstream_with_each_option() {
         let base: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
-        for variant in ["prefix", "legacy", "ignore_merges"] {
+        for variant in ["prefix", "legacy", "ignore_merges", "untyped"] {
             let mut json = base.clone();
             let mut m = manifest_bpe();
             match variant {
@@ -1021,6 +1021,11 @@ mod bpe {
                         .map(|p| format!("{} {}", p[0].as_str().unwrap(), p[1].as_str().unwrap()))
                         .collect();
                     json["model"]["merges"] = json!(legacy);
+                }
+                // GPT-2's and RoBERTa's own files name no model type, and
+                // upstream takes a model with merges for BPE.
+                "untyped" => {
+                    json["model"].as_object_mut().unwrap().remove("type");
                 }
                 _ => {
                     json["model"]["ignore_merges"] = json!(true);
