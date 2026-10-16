@@ -1,6 +1,9 @@
 //! Constituency parser models, parser types, and event types
 //! (`opennlp.tools.parser.ParserModel`, `opennlp.tools.parser.ParserType`,
 //! `opennlp.tools.parser.ParserEventTypeEnum`, and `opennlp.tools.parser.ParserChunkerFactory`).
+//!
+//! This module reads a model file. Writing one (`new ParserModel(...)` and the
+//! `update*Model` copies) is `turbo_train_components::parser::model`, beside the trainers.
 
 use std::collections::HashSet;
 use std::fmt;
@@ -8,7 +11,6 @@ use std::path::Path;
 use std::str::FromStr;
 
 use turbo_analysis::ModelRef;
-use turbo_jvm::hash_map::put_order;
 use turbo_maxent::{Digest, MaxentModel, ModelFile};
 use turbo_postag::PosModel;
 use turbo_sequence::BeamSearch;
@@ -17,64 +19,10 @@ use turbo_sequence::chunker::{
     MODEL_ENTRY_NAME as CHUNKER_MODEL_ENTRY_NAME, TokenTag,
 };
 use turbo_sequence::manifest_beam_size;
-use turbo_train::package::OPENNLP_VERSION;
-use turbo_train::{Manifest, ModelPackage, TimeZone};
 
 use crate::context::{ChunkContextGenerator, ParserChunkerSequenceValidator};
 use crate::head_rules::{AncoraSpanishHeadRules, EnglishHeadRules, GapLabeler, HeadRules, HeadRulesError};
 use crate::parse::{Constituent, Head, Parse, ParseError};
-
-/// `BaseModel.FACTORY_NAME`: the manifest entry naming the factory class.
-pub const FACTORY_KEY: &str = "factory";
-
-/// When and by which OpenNLP a model file was written: the instant `BaseModel` records as
-/// `Timestamp`, the `OpenNLP-Version`, and the time zone the date line and the zip entries' times
-/// are in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Stamp<'v> {
-    pub timestamp_ms: i64,
-    pub version: &'v str,
-    pub zone: TimeZone,
-}
-
-impl Stamp<'static> {
-    /// A model written by this port at `timestamp_ms`, in UTC.
-    pub fn at(timestamp_ms: i64) -> Stamp<'static> {
-        Stamp { timestamp_ms, version: OPENNLP_VERSION, zone: TimeZone::UTC }
-    }
-}
-
-impl Stamp<'_> {
-    /// The base manifest of a model of `component` for `language`.
-    pub fn manifest(&self, component: &str, language: &str) -> Manifest {
-        Manifest::new(component, language, self.timestamp_ms).with_version(self.version).with_zone(self.zone)
-    }
-}
-
-/// The manifest key `serializer-class-<entry>`.
-pub(crate) fn serializer_class_key(entry: &str) -> String {
-    format!("serializer-class-{entry}")
-}
-
-/// Adds `artifacts` (name and bytes) to `package` in the JVM's zip order for a map that held the
-/// manifest and then these names in this order, and places the manifest where the JVM writes it.
-pub(crate) fn add_artifacts(package: &mut ModelPackage, artifacts: Vec<(&str, Vec<u8>)>) {
-    let mut names: Vec<&str> = vec![turbo_train::package::MANIFEST_ENTRY];
-    names.extend(artifacts.iter().map(|(n, _)| *n));
-    let (order, exact) = put_order(names.iter().copied());
-    debug_assert!(exact, "strings are compared in a tree bucket");
-    let mut artifacts: Vec<Option<(&str, Vec<u8>)>> = artifacts.into_iter().map(Some).collect();
-    let mut added = 0;
-    for i in order {
-        if i == 0 {
-            package.place_manifest(added);
-            continue;
-        }
-        let (name, bytes) = artifacts[i - 1].take().expect("each index once");
-        package.add_entry(name, bytes);
-        added += 1;
-    }
-}
 
 /// `ParserModel.COMPONENT_NAME`.
 pub const COMPONENT_NAME: &str = "Parser";
@@ -99,6 +47,10 @@ pub const HEAD_RULES_MODEL_ENTRY_NAME: &str = "head-rules.headrules";
 
 /// `ParserModel.PARSER_TYPE`: the manifest property naming the [`ParserType`].
 pub const PARSER_TYPE: &str = "parser-type";
+
+/// The manifest property `BaseModel.serialize` records the head rules' serializer class under,
+/// `serializer-class-` and [`HEAD_RULES_MODEL_ENTRY_NAME`].
+pub const HEAD_RULES_SERIALIZER_KEY: &str = "serializer-class-head-rules.headrules";
 
 /// The serializer class `BaseModel.serialize` records for the tagger sub-model, a `POSModel`,
 /// under `serializer-class-parsertager.postagger`. The chunker sub-model and the maxent models are
@@ -256,13 +208,6 @@ pub enum ParserModelError {
     HeadRules(HeadRulesError),
     /// Unsupported head rules serializer class.
     UnsupportedHeadRulesSerializer(String),
-    /// Training or packaging error.
-    Train(turbo_train::Error),
-    /// A training or evaluation sample failed where OpenNLP throws, as `Parse.pruneParse` does
-    /// on a node whose only child has its type.
-    Sample(ParseError),
-    /// Generating tree-insertion training events failed where OpenNLP throws or exits.
-    TreeInsert(crate::treeinsert::TreeInsertError),
 }
 
 impl fmt::Display for ParserModelError {
@@ -280,9 +225,6 @@ impl fmt::Display for ParserModelError {
             Self::UnsupportedHeadRulesSerializer(s) => {
                 write!(f, "parser head rules: unsupported serializer class {s:?}")
             }
-            Self::Train(e) => write!(f, "parser model training: {e}"),
-            Self::Sample(e) => write!(f, "parser sample: {e}"),
-            Self::TreeInsert(e) => write!(f, "parser training events: {e}"),
         }
     }
 }
@@ -310,24 +252,6 @@ impl From<turbo_postag::ModelError> for ParserModelError {
 impl From<HeadRulesError> for ParserModelError {
     fn from(e: HeadRulesError) -> Self {
         Self::HeadRules(e)
-    }
-}
-
-impl From<crate::treeinsert::TreeInsertError> for ParserModelError {
-    fn from(e: crate::treeinsert::TreeInsertError) -> Self {
-        Self::TreeInsert(e)
-    }
-}
-
-impl From<ParseError> for ParserModelError {
-    fn from(e: ParseError) -> Self {
-        Self::Sample(e)
-    }
-}
-
-impl From<turbo_train::Error> for ParserModelError {
-    fn from(e: turbo_train::Error) -> Self {
-        Self::Train(e)
     }
 }
 
@@ -513,8 +437,7 @@ impl ParserModel {
         let head_rules_bytes = file.entry(HEAD_RULES_MODEL_ENTRY_NAME)?;
         let head_rules_str = std::str::from_utf8(&head_rules_bytes)
             .map_err(|e| HeadRulesError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))?;
-        let serializer_key = serializer_class_key(HEAD_RULES_MODEL_ENTRY_NAME);
-        let head_rules = match file.manifest().get(&serializer_key) {
+        let head_rules = match file.manifest().get(HEAD_RULES_SERIALIZER_KEY) {
             None | Some(EN_HEAD_RULES_SERIALIZER) | Some(PARSER_HEAD_RULES_SERIALIZER) => {
                 HeadRulesArtifact::English(EnglishHeadRules::from_str(head_rules_str)?)
             }
@@ -541,95 +464,6 @@ impl ParserModel {
             head_rules,
             model_ref,
         })
-    }
-
-    /// Packages and opens a new [`ParserModel`] from serialized sub-model artifacts (`new ParserModel(...)`).
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_serialized_parts(
-        language: &str,
-        build_bytes: Vec<u8>,
-        check_bytes: Vec<u8>,
-        attach_bytes: Option<Vec<u8>>,
-        tagger_bytes: Vec<u8>,
-        chunker_bytes: Vec<u8>,
-        head_rules: HeadRulesArtifact,
-        parser_type: ParserType,
-        manifest_entries: &[(&str, &str)],
-        stamp: Stamp<'_>,
-    ) -> Result<Self, ParserModelError> {
-        if parser_type == ParserType::Chunking && attach_bytes.is_some() {
-            return Err(ParserModelError::UnexpectedAttachModel);
-        }
-        if parser_type == ParserType::TreeInsert && attach_bytes.is_none() {
-            return Err(ParserModelError::MissingArtifact(ATTACH_MODEL_ENTRY_NAME));
-        }
-
-        let mut manifest = stamp.manifest(COMPONENT_NAME, language);
-        for &(k, v) in manifest_entries {
-            manifest.set(k, v);
-        }
-        manifest.set(PARSER_TYPE, parser_type.as_str());
-        manifest.set(&serializer_class_key(HEAD_RULES_MODEL_ENTRY_NAME), head_rules.serializer_class());
-        manifest.set(&serializer_class_key(PARSER_TAGGER_MODEL_ENTRY_NAME), POS_MODEL_SERIALIZER);
-
-        let mut package = ModelPackage::new(manifest);
-        let mut artifacts: Vec<(&str, Vec<u8>)> = Vec::with_capacity(6);
-        artifacts.push((BUILD_MODEL_ENTRY_NAME, build_bytes));
-        artifacts.push((CHECK_MODEL_ENTRY_NAME, check_bytes));
-        if let Some(attach) = attach_bytes {
-            artifacts.push((ATTACH_MODEL_ENTRY_NAME, attach));
-        }
-        artifacts.push((PARSER_TAGGER_MODEL_ENTRY_NAME, tagger_bytes));
-        artifacts.push((CHUNKER_TAGGER_MODEL_ENTRY_NAME, chunker_bytes));
-        artifacts.push((HEAD_RULES_MODEL_ENTRY_NAME, head_rules.serialize_to_bytes()));
-        add_artifacts(&mut package, artifacts);
-        Self::from_bytes(package.to_bytes())
-    }
-
-    /// Returns a copy of this model with `build.model` replaced by `build_bytes` (`ParserModel.updateBuildModel`).
-    pub fn update_build_model(&self, build_bytes: Vec<u8>) -> Result<Self, ParserModelError> {
-        self.with_replaced_entry(BUILD_MODEL_ENTRY_NAME, build_bytes)
-    }
-
-    /// Returns a copy of this model with `check.model` replaced by `check_bytes` (`ParserModel.updateCheckModel`).
-    pub fn update_check_model(&self, check_bytes: Vec<u8>) -> Result<Self, ParserModelError> {
-        self.with_replaced_entry(CHECK_MODEL_ENTRY_NAME, check_bytes)
-    }
-
-    /// Returns a copy of this model with `parsertager.postagger` replaced by `tagger_bytes` (`ParserModel.updateTaggerModel`).
-    pub fn update_tagger_model(&self, tagger_bytes: Vec<u8>) -> Result<Self, ParserModelError> {
-        self.with_replaced_entry(PARSER_TAGGER_MODEL_ENTRY_NAME, tagger_bytes)
-    }
-
-    /// Returns a copy of this model with `parserchunker.chunker` replaced by `chunker_bytes` (`ParserModel.updateChunkerModel`).
-    pub fn update_chunker_model(&self, chunker_bytes: Vec<u8>) -> Result<Self, ParserModelError> {
-        self.with_replaced_entry(CHUNKER_TAGGER_MODEL_ENTRY_NAME, chunker_bytes)
-    }
-
-    fn with_replaced_entry(&self, target_name: &'static str, new_bytes: Vec<u8>) -> Result<Self, ParserModelError> {
-        let get = |name: &'static str| -> Vec<u8> {
-            if name == target_name {
-                new_bytes.clone()
-            } else {
-                self.file.entry(name).expect("validated entry").into_owned()
-            }
-        };
-        let attach = match self.parser_type {
-            ParserType::Chunking => None,
-            ParserType::TreeInsert => Some(get(ATTACH_MODEL_ENTRY_NAME)),
-        };
-        Self::from_serialized_parts(
-            self.language(),
-            get(BUILD_MODEL_ENTRY_NAME),
-            get(CHECK_MODEL_ENTRY_NAME),
-            attach,
-            get(PARSER_TAGGER_MODEL_ENTRY_NAME),
-            get(CHUNKER_TAGGER_MODEL_ENTRY_NAME),
-            self.head_rules.clone(),
-            self.parser_type,
-            &[],
-            Stamp::at(0),
-        )
     }
 
     /// Returns the parser architecture type (`ParserModel.getParserType`).

@@ -11,7 +11,9 @@
 //! the others are the JVM's own texts.
 //!
 //! The `parse-treebank` runs of `ParserTrainGolden.java`, which share the `parse` directory, are
-//! compared in `goldens/treebank.rs`.
+//! compared in `goldens/treebank.rs` (the dictionary, the generators and the parses of the models
+//! the JVM trained) and in `turbo-train-components`' `tests/parser_goldens.rs` (the event streams,
+//! the evaluation and training the models), with what both share in `goldens/treebank_runs.rs`.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -25,6 +27,8 @@ use turbo_parser::{
 
 #[path = "goldens/treebank.rs"]
 mod treebank;
+#[path = "goldens/treebank_runs.rs"]
+mod treebank_runs;
 
 const U32: ColumnType = ColumnType::U32;
 const STR: ColumnType = ColumnType::Str;
