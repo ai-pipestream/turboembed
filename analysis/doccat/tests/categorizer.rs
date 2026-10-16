@@ -260,8 +260,9 @@ fn the_annotator_writes_every_category_best_first() {
     for r in analyzer.run(&mut docs) {
         r.unwrap();
     }
-    let rows =
-        |d: &Document| d.get::<Categories>().unwrap().iter().map(|(c, p)| (c.to_string(), p)).collect::<Vec<_>>();
+    let rows = |d: &Document| {
+        d.get::<Categories>().unwrap().ranked().into_iter().map(|(c, p)| (c.to_string(), p)).collect::<Vec<_>>()
+    };
     let [a, b] = probabilities(-1.25);
     assert_eq!(rows(&docs[0]), [("b".to_string(), b), ("a".to_string(), a)]);
     let [a, b] = probabilities(1.75);

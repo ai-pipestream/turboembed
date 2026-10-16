@@ -20,7 +20,7 @@ pub use turbo_analysis::{
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, LayerName, ModelRef, Span, Spans};
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
-pub use categories::Categories;
+pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};

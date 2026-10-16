@@ -46,8 +46,8 @@ used in any form, and neither this port nor its test data uses it.
   outcome order).
 
 As an annotator (`turbo-doccat:sentiment`) `SentimentMe` reads
-`opennlp:tokens` and writes `turbo:categories`: every outcome with its
-probability, best first. That is the layer a document categorizer writes,
+`opennlp:tokens` and writes `turbo:categories`: the best outcome and
+every outcome's probability, ranked best first by `Categories::ranked`. That is the layer a document categorizer writes,
 so no layer type of its own is needed. `SentimentMe::bound` binds the
 output to the `sentiment` instance (`turbo_doccat::sentiment::SENTIMENT`),
 so a pipeline can run a topic categorizer into the default instance and

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 publish = false
+description = "Document categorization ported from OpenNLP 3.x onto the analysis API"
 
 [lib]
 name = "turbo_doccat"
@@ -11,16 +12,20 @@ name = "turbo_doccat"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-formats = { path = "../formats" }
 # Java's Double.toString, parseDouble and parseInt, and Math.log.
 turbo-jvm = { path = "../jvm" }
-# SHA-256 of the model files, for the layers' model reference; the
-# sentiment model file and its maxent classifier.
+# MaxEnt evaluation and SHA-256 of the model files, for the layers' model
+# reference; the sentiment model file and its maxent classifier.
 turbo-maxent = { path = "../maxent" }
-# OpenNLP's emoji annotation features, which the emoji sentiment context
-# appends to the tokens.
+# OpenNLP's emoji annotation features, for EmojiFeatureGenerator and the
+# emoji sentiment context.
 turbo-normalize = { path = "../normalize" }
+# StringPattern, for BagOfWordsFeatureGenerator's all-letter tokens.
+turbo-sequence = { path = "../sequence" }
+# Training events and the data indexer. Training and packaging a model
+# file is in turbo-train-components, which depends on this crate.
+turbo-train = { path = "../train" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
-# Trains and packages the small maxent models the sentiment tests open.
-turbo-train = { path = "../train" }

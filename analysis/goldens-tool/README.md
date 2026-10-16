@@ -71,6 +71,10 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   It also fetches LibreOffice's `en_US`, `de_DE_frami` and `hu_HU` Hunspell
   dictionaries (`HUNSPELL_FILES`) into `<dir>/hunspell/`, each checked
   against the SHA-512 in the recipe.
+  It also fetches the training corpora (`CORPORA`) into `<dir>/corpora/`,
+  each checked against the SHA-512 in the recipe: the SMS Spam Collection
+  (CC BY 4.0), which the `doccat` runs train on and which is never checked
+  in.
   It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
@@ -199,6 +203,7 @@ a directory with the same model run without them, and its options are
 | `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
 | `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
 | `sentiment` (`SentimentME.train`, `probabilities`) | `tokens-maxent`, `emoji-maxent`, `emoji-default`, `emoji-qn`, `emoji-perceptron` | `sentiment`; the corpus `feedback` in `sentiment-train` | `run`, `corpus`, `language`, `factory`, `Algorithm`, `Iterations`, `Cutoff` |
+| `doccat` (`DocumentCategorizerME.train`, `categorize`) | `sms-default`, `sms-maxent`, `sms-qn`, `sms-perceptron` | `doccat`; the corpus `emoji` in `doccat-train` | `run`, `corpus`, `language`, `generators`, `Algorithm`, `Iterations`, `Cutoff` |
 
 - `+english-dictionary` is the English model rebuilt through
   `TokenizerModel(MaxentModel, Map, TokenizerFactory)` with the
@@ -956,6 +961,59 @@ from its serialized bytes.
 The corpus and documents are written for the project. Only these runs
 read them, and they have no dumps. The parity test skips, naming the
 `generate` command, while `analysis/goldens/data/sentiment` is absent.
+
+## Maxent document categorizer goldens
+
+These runs record what OpenNLP's maxent document categorizer
+(`DocumentCategorizerME`, which `turbo-doccat` ports) does with
+`BagOfWordsFeatureGenerator`, `NGramFeatureGenerator` (bigrams) and
+`EmojiFeatureGenerator`, in that order. Each run trains a model with
+`DocumentCategorizerME.train` on the SMS Spam Collection followed by
+`inputs/doccat-train/emoji.txt`, read with `DocumentSampleStream` (one
+sample per line: the category, whitespace and the tokens):
+`sms-default` (`ModelUtil.createDefaultTrainingParameters()`, GIS, 100
+iterations, cutoff 5), `sms-maxent` (GIS, cutoff 1), `sms-qn`
+(`MAXENT_QN`) and `sms-perceptron` (`PERCEPTRON`), each with 100
+iterations and cutoff 1. The `config` records name all of it.
+
+The SMS Spam Collection (T. A. Almeida, J. M. Gomez Hidalgo and A.
+Yamakami, DocEng 2011) is published by the UCI Machine Learning Repository
+under CC BY 4.0: 5,574 text messages, 4,827 `ham` and 747 `spam`.
+`fetch-models` downloads it into `<models>/corpora/` from a copy pinned
+by commit and checks the SHA-512 in the recipe (`CORPORA`, which gives the
+URL and notes that the copy was not compared byte for byte with the UCI
+archive); it is never checked in, and each golden's `model` record holds
+its SHA-512. The goldens hold no text of it: only counts, digests and
+what the models give for the documents written for this project. The
+corpus has no emoji, so `emoji.txt`, 25 messages written for this project
+(15 `ham`, 10 `spam`), each with emoji, is trained on after it.
+
+`doccat/<run>/doccat-train/emoji.golden` holds the samples per category
+(`turbo:doccat-samples`, in order of first appearance), the SHA-256 and
+length of the `doccat.model` entry (`turbo:doccat-model`), and the
+manifest without `Timestamp` and the zip entries of the serialized model
+(`turbo:manifest`, `turbo:package-entries`).
+
+`doccat/<run>/doccat/<id>.golden` holds, for one document,
+`opennlp:tokens` (the `WhitespaceTokenizer` tokens the categorizer is
+given) and, anchored on the document, `turbo:doccat-features` (the
+context the model's generators give for those tokens, a feature per row)
+and `turbo:categories` (every category with its probability, best
+first), from the model read back from its serialized bytes. The
+generators are built with their public constructors, which are the ones
+`DoccatFactory` builds again from the manifest.
+
+Only these runs read the `doccat` and `doccat-train` sets, and they have
+no dumps.
+
+Two tests read them. `analysis/doccat/tests/maxent_goldens.rs` needs no
+corpus: it compares the features of every document. The goldens hold no
+model file, so `analysis/train-components/tests/doccat_goldens.rs` trains
+each run's model on the downloaded corpus (from `TURBO_GOLDENS_MODELS`)
+and requires the `doccat.model` entry byte for byte, the manifest, the
+zip entries, and every document's features and probabilities with the
+JVM's bits. Without the corpus it skips, unless
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, as in CI, where it fails.
 
 ## PII goldens
 
