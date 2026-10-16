@@ -158,7 +158,7 @@ impl Dec {
         if self.is_zero() {
             return Some(self);
         }
-        Dec::new(self.mantissa, i32::from(self.scale) - e)
+        Dec::new(self.mantissa, i32::from(self.scale).checked_sub(e)?)
     }
 
     /// The order of magnitude: digits before the point, minus the scale.
@@ -212,25 +212,33 @@ impl Dec {
         if self.is_zero() {
             return Some(Dec::ZERO);
         }
-        // A divisor of at most 19 digits keeps ten times a remainder in
-        // range during the long division.
-        let mut b = other;
-        let db = digits(b.mantissa);
-        if db > 19 {
-            b = Dec::new(shed(b.mantissa, db - 19), i32::from(b.scale) - (db - 19) as i32)?;
-        }
-        let negative = self.is_negative() != b.is_negative();
-        let (a_m, b_m) = (self.mantissa.abs(), b.mantissa.abs());
+        // Mantissas have at most MAX_DIGITS (36) digits, so ten times a
+        // remainder is below 10^37 and stays well inside i128::MAX (~1.7e38).
+        let negative = self.is_negative() != other.is_negative();
+        let (a_m, b_m) = (self.mantissa.abs(), other.mantissa.abs());
         let mut q = a_m / b_m;
         let mut r = a_m % b_m;
-        let mut scale = i32::from(self.scale) - i32::from(b.scale);
-        while r != 0 && digits(q) < PRECISION {
-            q = q * 10 + (r * 10) / b_m;
-            r = (r * 10) % b_m;
-            scale += 1;
-        }
-        if r * 2 >= b_m {
-            q += 1;
+        let mut scale = i32::from(self.scale) - i32::from(other.scale);
+        let dq = digits(q);
+        if dq > PRECISION {
+            let drop = dq - PRECISION;
+            let d = pow10(drop);
+            let rem = (q % d) * b_m + r;
+            let denom = d * b_m;
+            q /= d;
+            if rem * 2 >= denom {
+                q += 1;
+            }
+            scale -= drop as i32;
+        } else {
+            while r != 0 && digits(q) < PRECISION {
+                q = q * 10 + (r * 10) / b_m;
+                r = (r * 10) % b_m;
+                scale += 1;
+            }
+            if r * 2 >= b_m {
+                q += 1;
+            }
         }
         Dec::new(if negative { -q } else { q }, scale)
     }
@@ -425,5 +433,37 @@ mod tests {
         assert_eq!(s, "5");
         assert_eq!(d("-0.05").to_string(), "-0.05");
         assert_eq!(d("-0.05").to_f64(), -0.05);
+    }
+
+    #[test]
+    fn divisors_over_nineteen_digits_and_wide_quotients_keep_full_precision() {
+        // 2.5^14 has a 20-digit mantissa (5^28 = 37252902984619140625); 2.5^-14
+        // must equal 0.4^14 (0.00000268435456) exactly without truncating the
+        // divisor at 19 digits.
+        assert_eq!(d("2.5").pow(-14).unwrap(), d("0.4").pow(14).unwrap());
+        let d36 = d(&"3".repeat(36));
+        assert_eq!(d36.checked_div(d36).unwrap(), Dec::ONE);
+
+        // When a_m / b_m has more than PRECISION (34) digits, the quotient is
+        // rounded to PRECISION significant digits in a single step.
+        let eight36 = d(&"8".repeat(36));
+        let q = eight36.checked_div(d("3")).unwrap();
+        assert_eq!(digits(q.mantissa()), PRECISION);
+        assert_eq!(q.to_string(), format!("{}300", "296296296296296296296296296296296"));
+
+        // Single-step rounding avoids double-rounding: a 35-digit integer
+        // quotient ending in 4 with remainder 1/2 (4.5 in the last two places)
+        // rounds down to ...00, not up to ...10.
+        let m = pow10(34) * 2 + 9; // m / 2 = 10^34 + 4 (35 digits) with r = 1
+        let a = Dec::new(m, 0).unwrap();
+        let half = a.checked_div(d("2")).unwrap();
+        assert_eq!(half, Dec::new(1, -34).unwrap());
+    }
+
+    #[test]
+    fn shift_handles_extreme_exponents_without_overflow() {
+        assert_eq!(Dec::ONE.shift(i32::MIN), None);
+        assert_eq!(Dec::ONE.shift(i32::MAX), None);
+        assert_eq!(Dec::ZERO.shift(i32::MIN), Some(Dec::ZERO));
     }
 }
