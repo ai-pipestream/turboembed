@@ -517,7 +517,8 @@ fields mean bumps its `SCHEMA`.
 | `MorphFeatures<A>` | `turbo:feats<turbo:words>` / `turbo:feats` | `Words` or `Tokens` | `turbo-analysis-layers` |
 | `ChunkTags` | `opennlp:chunk-tags` | tokens | `turbo-analysis-layers` |
 | `PhraseChunks` | `opennlp:chunks` | text | `turbo-analysis-layers` |
-| `Stems` | `turbo:stems` | tokens | `turbo-stem-layers` |
+| `Stems` | `turbo:stems` | tokens | `turbo-analysis-layers` (`turbo-stem-layers`) |
+| `Terms` | `turbo:terms` | tokens | `turbo-analysis-layers` (`turbo-stem-layers`) |
 | `Dependencies<A>` | `opennlp:dependencies` / `opennlp:dependencies<turbo:words>` | `Tokens` or `Words` | `turbo-analysis-layers` |
 | `Entities` | `opennlp:entities` | text | `turbo-analysis-layers` |
 | `Boundaries` | `turbo:boundaries` | sentences | `turbo-analysis-layers` |
@@ -1302,6 +1303,58 @@ here with the words joined by a space. Not ported:
   span ruler: there is no serialization or Python pipeline here, the
   ruler writes `turbo:matches` rather than entities, and a rule number
   stands in for an `id`.
+
+## Term analyzer and per-language normalization profiles (`turbo:terms`, `turbo:stems`)
+
+`Stems` (`turbo:stems`) and `Terms` (`turbo:terms`) in
+`turbo-analysis-layers` (re-exported by `turbo-stem-layers` and
+`turbo-stem`) hold token-aligned stem and layered term forms:
+
+- `Stems` (`turbo:stems`, aligned to `Tokens`): one stem per token in a
+  packed `Strs` buffer. Written by `StemAnnotator` in `turbo-stem`.
+- `Terms` (`turbo:terms`, aligned to `Tokens`): `surface: Strs` (the
+  original token text), `folded: Strs` (the character-normalized form),
+  and optional `stem: Option<Strs>` and `lemma: Option<Strs>` columns
+  when a stemmer or lemmatizer produced them. `Terms::get(i)` returns a
+  borrowed `TermSlot<'_>` with the four slots for token `i`, and
+  `Terms::check` verifies that `folded` and any present `stem` or `lemma`
+  column match `surface.len()`.
+
+`Dimension`, `Term`, `TermAnalyzer`, `NormalizationProfile`,
+`NormalizationProfiles`, and `TermAnnotator` in `turbo-stem` port OpenNLP
+3.x's `opennlp.tools.util.normalizer.{Dimension, Term, TermAnalyzer,
+NormalizationProfile, NormalizationProfiles}`:
+
+- `Dimension` has twelve variants in canonical application order:
+  `Original`, `Nfc`, `Nfkc`, `Whitespace`, `Dash`, `CaseFold`,
+  `FullCaseFold`, `AccentFold`, `EmojiFold`, `ConfusableFold`, `Stem`,
+  and `Lemma`.
+- `TermAnalyzer` applies the configured dimensions in canonical order,
+  eagerly computing and caching each configured dimension in `Term` and
+  evaluating any unconfigured character-level dimension lazily on first
+  `Term::at(dim)` call (and memoizing it in a `OnceLock<String>` slot).
+  `Term::peel()` returns the character-folded layer below `Stem` or
+  `Lemma` when the final configured dimension is token-level.
+- `NormalizationProfiles` registers the 22 built-in language profiles by
+  ISO 639-3 code (`ara`, `cat`, `dan`, `deu`, `ell`, `eng`, `fin`,
+  `fra`, `gle`, `hun`, `ind`, `ita`, `nld`, `nno`, `nob`, `nor`, `por`,
+  `ron`, `rus`, `spa`, `swe`, `tur`) and resolves ISO 639-1 two-letter
+  codes (`en` -> `eng`, `de` -> `deu`, `fr` -> `fra`, `es` -> `spa`,
+  `nb` -> `nob`, `nn` -> `nno`, `no` -> `nor`, `in` -> `ind`, etc.) as
+  JDK 21's `Locale.of(code).getISO3Language()` does. Each profile pairs a
+  `SnowballAlgorithm` with `AccentFoldKind::Latin` (`AccentFold`, for
+  `cat`, `eng`, `fra`, `ita`, `por`, `spa`), `AccentFoldKind::German`
+  (`GermanUmlauts`, for `deu`), or `None` (for the Nordic and other
+  languages), and `profile.matching_analyzer()` builds the corresponding
+  `[Nfc, CaseFold, AccentFold?, Stem]` chain.
+- `TermAnnotator` runs in an `Analyzer` pipeline, reading `(View, Tokens,
+  Option<Language>, Option<PosTags>, Option<Lemmas>)` and writing
+  `Terms` (`turbo:terms`), selecting the profile from the top-ranked
+  code in `opennlp:language` when present, then its configured fallback
+  language, and otherwise an `[Nfc, CaseFold]` analyzer (the default has
+  no fallback language). The analyzer for each language is built once
+  and shared by every document in that language, so its stem cache
+  carries over between documents.
 
 ## The chunker
 
