@@ -1,12 +1,13 @@
 //! The categorizer, OpenNLP's `DocumentCategorizerSVM` at prediction:
 //! `categorize`, `getBestCategory`, `getIndex`, `getCategory`,
 //! `getNumberOfCategories` and `getAllResults`, and the annotator that
-//! writes `turbo:categories`.
+//! writes the document's `turbo:categories`.
 
 use std::cell::RefCell;
+use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
-use turbo_analysis_layers::{Categories, Strs, Tokens};
+use turbo_analysis::{Annotator, Error, Layer, ModelRef, Refs, Tag, TagSet, View};
+use turbo_analysis_layers::{Categories, Tokens};
 use turbo_jvm::text::double_to_string;
 
 use super::error::ModelError;
@@ -18,6 +19,8 @@ use crate::java::double_compare;
 #[derive(Debug)]
 pub struct SvmCategorizer {
     model: SvmDoccatModel,
+    /// The model's categories by index, for the layer.
+    categories: Arc<TagSet>,
 }
 
 impl SvmCategorizer {
@@ -28,7 +31,9 @@ impl SvmCategorizer {
         if !model.libsvm().has_probability() {
             return Err(ModelError::NoProbabilityEstimates);
         }
-        Ok(SvmCategorizer { model })
+        let names: Vec<&str> = model.categories().iter().map(String::as_str).collect();
+        let categories = TagSet::new(<Categories>::ID, &names);
+        Ok(SvmCategorizer { model, categories })
     }
 
     pub fn model(&self) -> &SvmDoccatModel {
@@ -53,13 +58,7 @@ impl SvmCategorizer {
 
     /// `getBestCategory`: the category of the first highest score.
     pub fn best_category(&self, outcome: &[f64]) -> &str {
-        let mut best = 0;
-        for i in 1..outcome.len() {
-            if outcome[i] > outcome[best] {
-                best = i;
-            }
-        }
-        self.category(best)
+        self.category(best_index(outcome))
     }
 
     /// `getIndex`: `None` where OpenNLP returns -1.
@@ -102,13 +101,24 @@ impl SvmCategorizer {
     }
 }
 
-thread_local! {
-    /// The annotator's buffers, one set per thread.
-    static SCRATCH: RefCell<(Scratch, Vec<usize>)> = RefCell::new((Scratch::new(), Vec::new()));
+/// The index of the first highest score, as `getBestCategory` picks it.
+fn best_index(outcome: &[f64]) -> usize {
+    let mut best = 0;
+    for i in 1..outcome.len() {
+        if outcome[i] > outcome[best] {
+            best = i;
+        }
+    }
+    best
 }
 
-/// Reads a view's tokens and writes `turbo:categories`: every category of
-/// the model, best first, with its probability.
+thread_local! {
+    /// The annotator's buffers, one set per thread.
+    static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch::new());
+}
+
+/// Reads a view's tokens and writes the document's `turbo:categories`:
+/// the best category (`getBestCategory`) and every category's probability.
 impl Annotator for SvmCategorizer {
     const ID: &'static str = "turbo-doccat:svm";
     type Reads = (View, Tokens);
@@ -120,16 +130,10 @@ impl Annotator for SvmCategorizer {
         }
         let text = view.text();
         let words: Vec<&str> = tokens.spans.iter().map(|(_, s)| &text[s.range()]).collect();
-        SCRATCH.with_borrow_mut(|(scratch, order)| {
+        SCRATCH.with_borrow_mut(|scratch| {
             let outcome = self.categorize(&words, scratch);
-            self.rank(outcome, order);
-            let mut category = Strs::default();
-            let mut score = Vec::with_capacity(order.len());
-            for &i in order.iter() {
-                category.push(self.category(i));
-                score.push(outcome[i]);
-            }
-            Ok((Categories { category, score },))
+            let best = Tag(best_index(outcome) as u16);
+            Ok((Categories::document(Arc::clone(&self.categories), best, outcome),))
         })
     }
 

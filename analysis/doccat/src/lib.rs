@@ -1,14 +1,16 @@
 //! Document categorization (`DocumentCategorizerME`, `DoccatModel`,
-//! `DoccatFactory`, `SvmCategorizer`, `SvmDoccatModel`, feature generators,
-//! and `Categories<L>`), ported from OpenNLP 3.x (`opennlp.tools.doccat.*`
+//! `DoccatFactory`, `SvmCategorizer`, `SvmDoccatModel`, feature generators
+//! and `SpanCategorizer`), ported from OpenNLP 3.x (`opennlp.tools.doccat.*`
 //! and `opennlp.tools.ml.libsvm.doccat.*`) onto the analysis API.
 //!
 //! # Overview
 //!
-//! - [`Categories`]: layer `turbo:categories<L>` aligned to `View` (whole
-//!   document), `Sentences` (sentence-level), `Structure` (paragraph/section),
-//!   or `Chunks` (chunk-level), alongside the document-scoped
-//!   [`turbo_analysis_layers::Categories`] (`turbo:categories`).
+//! - The layer every categorizer here writes is the shared
+//!   [`turbo_analysis_layers::Categories`]: `Categories` (`turbo:categories`)
+//!   for the whole document, `Categories<Sentences>`, `Categories<Structure>`
+//!   and `Categories<Chunks>` for each sentence, block or chunk.
+//!   [`SpanCategorizable`] is a layer of spans [`SpanCategorizer`] can
+//!   categorize.
 //! - [`DoccatFeatureGenerator`] and [`FeatureGenerator`]: feature extraction
 //!   from tokenized text, with built-in implementations
 //!   [`BagOfWordsFeatureGenerator`], [`NGramFeatureGenerator`], and
@@ -17,8 +19,8 @@
 //!   `.bin` model archives (`doccat.model` and `manifest.properties`).
 //! - [`DocumentCategorizerME`] and [`SpanCategorizer`]: categorize tokenized
 //!   text or run in an [`turbo_analysis::Analyzer`] pipeline to write
-//!   `turbo:categories`, `Categories<View>`, `Categories<Sentences>`,
-//!   `Categories<Structure>`, or `Categories<Chunks>`.
+//!   `turbo:categories`, `Categories<Sentences>`, `Categories<Structure>`,
+//!   or `Categories<Chunks>`.
 //! - [`DoccatFactory`] and [`DoccatEventStream`]: the feature generators a
 //!   model is trained with and the training events of `DocumentSample`s.
 //!   `turbo_train_components::doccat` trains and packages the model file.
@@ -55,7 +57,7 @@ pub use features::{
     BAG_OF_WORDS_CLASS, BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator,
     DoccatFeatureGenerator, EMOJI_CLASS, EmojiFeatureGenerator, FeatureGenerator, NGRAM_CLASS, NGramFeatureGenerator,
 };
-pub use layer::{Categories, CategoryRow, SpanCategorizable};
+pub use layer::SpanCategorizable;
 pub use model::{
     COMPONENT_NAME, DoccatModel, FACTORY_NAME, FEATURE_GENERATORS_KEY, MODEL_ENTRY, parse_feature_generators,
 };

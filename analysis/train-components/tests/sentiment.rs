@@ -207,11 +207,12 @@ fn check_document(at: &str, g: &Golden, detector: &SentimentMe, totals: &mut Tot
     }
     let ours = docs[0].get_key(&SENTIMENT).unwrap();
     let theirs = layer(g, "turbo:categories").f64s("score").unwrap();
+    let ours: Vec<f64> = ours.ranked().into_iter().map(|(_, p)| p).collect();
     let bits = |xs: &[f64]| xs.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
-    assert_eq!(bits(&ours.score), bits(theirs), "{at}: probabilities bit for bit");
+    assert_eq!(bits(&ours), bits(theirs), "{at}: probabilities bit for bit");
     assert!(docs[0].get::<Categories>().is_none(), "{at}: the default instance is left for a topic categorizer");
     totals.documents += 1;
-    totals.probabilities += ours.score.len();
+    totals.probabilities += ours.len();
 }
 
 fn check_run(run: &Path, shapes: &[Shape], totals: &mut Totals) {

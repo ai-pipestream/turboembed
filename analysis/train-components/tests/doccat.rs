@@ -3,10 +3,10 @@
 //! `DocumentCategorizerMETest` and the annotators on views, sentences,
 //! structure blocks and chunks.
 
-use turbo_analysis::{Analyzer, Document, IxRange, Key, Layer, Provenance, Span, Spans, View, ViewId};
-use turbo_analysis_layers::{Block, Chunks, Cut, Sentences, Structure};
+use turbo_analysis::{Analyzer, Anchor, Document, IxRange, Key, Layer, Provenance, Span, Spans, ViewId};
+use turbo_analysis_layers::{Block, Categories, Chunks, Cut, Sentences, Structure};
 use turbo_doccat::{
-    BAG_OF_WORDS_CLASS, BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, Categories, DoccatFactory, DoccatModel,
+    BAG_OF_WORDS_CLASS, BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatFactory, DoccatModel,
     DocumentCategorizerME, EMOJI_CLASS, EmojiFeatureGenerator, NGRAM_CLASS, NGramFeatureGenerator, SpanCategorizer,
 };
 use turbo_formats::DocumentSample;
@@ -252,12 +252,18 @@ tech\trust kernel thread allocator latency
     }
     let doc = &docs[0];
 
-    // 1. Whole-document Categories<View>
-    let view_cats = doc.get::<Categories<View>>().unwrap();
+    // 1. The document's Categories, turbo:categories: one item, every
+    // category's probability, ranked best first.
+    let view_cats = doc.get::<Categories>().unwrap();
     assert_eq!(view_cats.len(), 1);
-    assert_eq!(Categories::<View>::NAME.to_string(), "turbo:categories<turbo:view>");
+    assert_eq!(<Categories>::NAME.to_string(), "turbo:categories");
+    assert_eq!(<Categories>::anchor(), Anchor::Document);
     let row0 = view_cats.get(0).unwrap();
     assert!((row0.scores.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+    let ranked = view_cats.ranked();
+    assert_eq!(ranked.len(), 2);
+    assert_eq!(ranked[0], view_cats.best().unwrap());
+    assert!(ranked[0].1 >= ranked[1].1);
 
     // 2. Sentence-level Categories<Sentences>
     let sent_cats = doc.get::<Categories<Sentences>>().unwrap();
@@ -281,9 +287,4 @@ tech\trust kernel thread allocator latency
     assert_eq!(chunk_cats.best_category(1), "tech");
     assert!(chunk_cats.score_of(0, "sports").unwrap() > 0.7);
     assert!(chunk_cats.score_of(1, "tech").unwrap() > 0.7);
-
-    // 5. Document-scoped turbo_analysis_layers::Categories
-    let doc_cats = doc.get::<turbo_analysis_layers::Categories>().unwrap();
-    assert_eq!(doc_cats.len(), 2);
-    assert_eq!(doc_cats.best().unwrap().0, view_cats.best_category(0));
 }

@@ -54,7 +54,8 @@ nu-SVC models; the reader takes every kind but the precomputed kernel.
 for -1), `category`, `num_categories` and `all_results` (`getAllResults`,
 scores written as `Double.toString` writes them). As an annotator
 (`turbo-doccat:svm`) it reads `opennlp:tokens` and writes
-`turbo:categories`: every category with its probability, best first,
+the document's `turbo:categories`: the best category and every
+category's probability, which `Categories::ranked` lists best first,
 ties in category order. The tokens are the strings the categorizer gets,
 so the annotator gives what `categorize` gives for those tokens.
 

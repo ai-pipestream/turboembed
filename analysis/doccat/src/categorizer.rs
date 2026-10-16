@@ -7,19 +7,19 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, Ix, ModelRef, Refs, Span, Tag, View};
-use turbo_analysis_layers::Tokens;
+use turbo_analysis_layers::{Categories, Tokens};
 use turbo_maxent::{MaxentModel, best_outcome};
 
 use crate::features::DoccatContextGenerator;
-use crate::layer::{Categories, SpanCategorizable};
+use crate::layer::SpanCategorizable;
 use crate::model::DoccatModel;
 
 /// Maximum-entropy (or Perceptron / Naive Bayes) document categorizer, ported
 /// from `opennlp.tools.doccat.DocumentCategorizerME`.
 ///
 /// As an [`Annotator`], `DocumentCategorizerME` reads `(View, Tokens)` and
-/// writes a 1-row `Categories<View>` (`turbo:categories<turbo:view>`) layer
-/// describing the whole document. To categorize sentences (`Sentences`),
+/// writes the document's `Categories` (`turbo:categories`): one item, the
+/// best category with every category's probability. To categorize sentences (`Sentences`),
 /// structural blocks (`Structure`), or chunks (`Chunks`), use
 /// [`DocumentCategorizerME::for_spans`] (`SpanCategorizer<L>`).
 #[derive(Clone, Debug)]
@@ -175,7 +175,7 @@ impl DocumentCategorizerME {
 impl Annotator for DocumentCategorizerME {
     const ID: &'static str = "opennlp:doccat";
     type Reads = (View, Tokens);
-    type Writes = (turbo_analysis_layers::Categories, Categories<View>);
+    type Writes = (Categories,);
 
     fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         if tokens.spans.view() != view.id() {
@@ -192,23 +192,8 @@ impl Annotator for DocumentCategorizerME {
         let mut scratch = Vec::new();
         let extra = BTreeMap::new();
         self.categorize_into(&tok_strs, &extra, &mut scratch, &mut probs);
-        let best_idx = self.best_index(&probs);
-
-        let mut order: Vec<usize> = (0..probs.len()).collect();
-        order.sort_by(|&a, &b| crate::java::double_compare(probs[b], probs[a]));
-        let mut category = turbo_analysis_layers::Strs::default();
-        let mut score = Vec::with_capacity(order.len());
-        for &i in &order {
-            if let Some(cat) = self.get_category(i) {
-                category.push(cat);
-                score.push(probs[i]);
-            }
-        }
-        let doc_categories = turbo_analysis_layers::Categories { category, score };
-
-        let mut view_categories = Categories::<View>::with_capacity(Arc::clone(self.model.categories()), 1);
-        view_categories.push(Tag(best_idx as u16), &probs);
-        Ok((doc_categories, view_categories))
+        let best = Tag(self.best_index(&probs) as u16);
+        Ok((Categories::document(Arc::clone(self.model.categories()), best, &probs),))
     }
 
     fn model(&self) -> Option<ModelRef> {

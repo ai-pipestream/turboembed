@@ -138,7 +138,7 @@ const LOADERS: &[(&LayerName, LoadFn)] = &[
     (ChunkTags::NAME, add::<ChunkTags>),
     (PhraseChunks::NAME, add::<PhraseChunks>),
     (Language::NAME, add::<Language>),
-    (Categories::NAME, add::<Categories>),
+    (<Categories>::NAME, add::<Categories>),
 ];
 
 /// Whether a golden block's id is this layer name, as `LayerName` prints

@@ -214,14 +214,17 @@ impl GoldenLoad for Language {
     }
 }
 
-/// Every category the categorizer scored, best first, as the golden lists
-/// them. A golden with no rows names no category and is refused.
+/// The document's categories: the golden lists every category the
+/// categorizer scored, best first, so its order is the layer's category
+/// order and the first is the best. A golden with no rows names no
+/// category and is refused.
 impl GoldenLoad for Categories {
     fn load(g: &GoldenLayer, cx: &LoadCx<'_>) -> Result<Categories, LoadError> {
         if g.is_empty() {
             return Err(LoadError::Empty { layer: cx.key });
         }
-        let category = g.strs("category").expect("a str column the shape checked").clone();
-        Ok(Categories { category, score: f64s(g, "score").to_vec() })
+        let category = g.strs("category").expect("a str column the shape checked");
+        let names: Vec<&str> = category.iter().collect();
+        Ok(Categories::document(TagSet::new(<Categories>::ID, &names), Tag(0), f64s(g, "score")))
     }
 }

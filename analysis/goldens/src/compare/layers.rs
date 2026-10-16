@@ -5,7 +5,7 @@
 use turbo_analysis::{Layer, ViewId};
 use turbo_analysis_layers::{
     Categories, ChunkTags, Confidence, DocumentDate, Entities, Language, Lemmas, Money, Numbers, PhraseChunks, Pii,
-    PosTags, Quantities, Sentences, Strs, Subwords, Temporals, Tokens, Utf16Spans,
+    PosTags, Quantities, Sentences, Strs, Subwords, Tag, Temporals, Tokens, Utf16Spans,
 };
 
 use super::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, compare_items};
@@ -337,14 +337,18 @@ impl GoldenCompare for Categories {
     /// Row by row, best first: the category, then its score, so the
     /// ranking must be the golden's.
     fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
+        let (tags, scores): (Vec<Tag>, Vec<f64>) = match self.get(0) {
+            Some(row) => row.ranked_tags().into_iter().map(|t| (t, row.scores[t.0 as usize])).unzip(),
+            None => (Vec::new(), Vec::new()),
+        };
         let rust = Items {
-            len: self.category.len(),
+            len: tags.len(),
             spans: None,
             context: None,
             tokens: None,
             units: None,
-            labels: Some(Labels::Strs(&self.category)),
-            values: Some(&self.score),
+            labels: Some(Labels::Tags(&self.categories, &tags)),
+            values: Some(&scores),
         };
         let golden = Items {
             len: golden.len(),
