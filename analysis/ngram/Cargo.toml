@@ -1,0 +1,11 @@
+[package]
+name = "turbo-ngram"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "N-gram models, character n-gram models, n-gram probabilities, and Stupid Backoff language modeling for turboembed, porting Apache OpenNLP's opennlp.tools.ngram and opennlp.tools.languagemodel packages."
+
+[dependencies]
+turbo-jvm = { path = "../jvm" }
+turbo-maxent = { path = "../maxent" }
+turbo-unicode = { path = "../unicode" }

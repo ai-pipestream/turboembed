@@ -872,7 +872,7 @@ pub const FIXTURES: [Fixture; 109] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 42] = [
+pub const INPUT_SETS: [&str; 43] = [
     "en",
     "multi",
     "norm",
@@ -915,6 +915,7 @@ pub const INPUT_SETS: [&str; 42] = [
     "svm-doccat-train",
     "sentiment",
     "sentiment-train",
+    "corpora",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -928,7 +929,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 46] = [
+pub const ANNOTATORS: [&str; 47] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -975,6 +976,7 @@ pub const ANNOTATORS: [&str; 46] = [
     "glossary",
     "svm-doccat",
     "sentiment",
+    "corpora",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -1021,6 +1023,13 @@ pub const SENTIMENT_TRAIN_SET: &str = "sentiment-train";
 
 /// The input set the PII packs and the PII rewrites run on. They run on no
 /// other set, and the other annotators do not run on this one.
+/// The input set of the corpus readers: files and directories in the
+/// layouts of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig and
+/// 20 Newsgroups corpora. No other annotator runs on it.
+pub const CORPORA_INPUT_SET: &str = "corpora";
+
+/// The input set the PII packs run on. They run on no other set, and the
+/// other annotators do not run on this one.
 pub const PII_INPUT_SET: &str = "pii";
 
 /// The input set the Arvores Deitadas streams read: files in the format of

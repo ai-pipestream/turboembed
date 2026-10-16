@@ -439,7 +439,7 @@ final class FormatGolden implements AnnotatorGolden {
     texts(texts, spans, input, layers);
   }
 
-  private static void documents(List<Object> samples, List<Layer> layers) {
+  static void documents(List<Object> samples, List<Layer> layers) {
     Columns labels = new Columns();
     List<String[]> toks = new ArrayList<>();
     for (Object o : samples) {
@@ -451,7 +451,7 @@ final class FormatGolden implements AnnotatorGolden {
     layers.add(tokens(toks));
   }
 
-  private static void languages(List<Object> samples, List<Layer> layers) {
+  static void languages(List<Object> samples, List<Layer> layers) {
     Columns labels = new Columns();
     Columns texts = new Columns();
     for (Object o : samples) {

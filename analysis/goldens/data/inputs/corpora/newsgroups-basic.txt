@@ -1,0 +1,196 @@
+# Messages in the layout of the 20 Newsgroups corpus, written for this project. A message is its whole
+# file, headers, quotes and signature included.
+
+@@ file alt.example.misc/50107
+From: writer50107@host0.invalid (A. Writer)
+Subject: Re: Has anyone seen the 
+Organization: None
+Lines: 3
+
+Has anyone seen the comet this week?
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file alt.example.misc/50114
+From: writer50114@host1.invalid (A. Writer)
+Subject: Re: The meeting moved to
+Organization: None
+Lines: 3
+
+The meeting moved to Thursday evening.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file alt.example.misc/50121
+From: writer50121@host2.invalid (A. Writer)
+Subject: Re: Thanks to everyone w
+Organization: None
+Lines: 3
+
+Thanks to everyone who replied.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file comp.example.text/50128
+From: writer50128@host0.invalid (A. Writer)
+Subject: Re: Which editor keeps t
+Organization: None
+Lines: 3
+
+Which editor keeps tabs as tabs?
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file comp.example.text/50135
+From: writer50135@host1.invalid (A. Writer)
+Subject: Re: My script reads the 
+Organization: None
+Lines: 3
+
+My script reads the file twice; why?
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file comp.example.text/50142
+From: writer50142@host2.invalid (A. Writer)
+Subject: Re: The patch fixes the 
+Organization: None
+Lines: 3
+
+The patch fixes the line endings.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file comp.example.text/50149
+From: writer50149@host3.invalid (A. Writer)
+Subject: Re: Try the newer releas
+Organization: None
+Lines: 3
+
+Try the newer release first.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file rec.example.boats/50156
+From: writer50156@host0.invalid (A. Writer)
+Subject: Re: The hull needs a sec
+Organization: None
+Lines: 3
+
+The hull needs a second coat of paint.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file rec.example.boats/50163
+From: writer50163@host1.invalid (A. Writer)
+Subject: Re: We sailed past the i
+Organization: None
+Lines: 3
+
+We sailed past the island at dawn.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file rec.example.boats/50170
+From: writer50170@host2.invalid (A. Writer)
+Subject: Re: Look for a used outb
+Organization: None
+Lines: 3
+
+Look for a used outboard motor.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file sci.example.waves/50177
+From: writer50177@host0.invalid (A. Writer)
+Subject: Re: Wave height doubles 
+Organization: None
+Lines: 3
+
+Wave height doubles in the storm model.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file sci.example.waves/50184
+From: writer50184@host1.invalid (A. Writer)
+Subject: Re: The buoy data has ga
+Organization: None
+Lines: 3
+
+The buoy data has gaps in March.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file sci.example.waves/50191
+From: writer50191@host2.invalid (A. Writer)
+Subject: Re: Tidal records go bac
+Organization: None
+Lines: 3
+
+Tidal records go back fifty years.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file sci.example.waves/50198
+From: writer50198@host3.invalid (A. Writer)
+Subject: Re: A question about swe
+Organization: None
+Lines: 3
+
+A question about swell periods.
+
+> quoted line from an earlier post
+-- 
+signature line
+
+@@ end
+@@ file top-level-file
+Not in a newsgroup directory, so not read.
+@@ end
+@@ hex sci.example.waves/50999
+46726f6d3a206e6f626f647940686f73742e696e76616c69640a0a4d616c666f726d6564205554462d383a20ff20616e642063c3a920616e6420e282ac2e0a
+@@ end
+@@ file comp.example.text/50998
+	Tabs, no-break spaces and ♪ tokens.
+
+Second paragraph.
+@@ end

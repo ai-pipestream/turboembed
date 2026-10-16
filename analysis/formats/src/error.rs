@@ -12,6 +12,7 @@ use std::fmt;
 use turbo_analysis::Span;
 
 use crate::ad::AdError;
+use crate::corpora::CorpusError;
 use crate::ner::NerError;
 
 /// A sample a reader cannot read, or a sample value that cannot be built.
@@ -59,6 +60,9 @@ pub enum FormatError {
     Ner(NerError),
     /// What an Arvores Deitadas reader ([`crate::ad`]) refuses.
     Ad(AdError),
+    /// What a reader of a sentence, language or document corpus
+    /// ([`crate::corpora`]) refuses.
+    Corpus(CorpusError),
     /// A CoNLL-U word line without exactly ten tab-separated columns
     /// (after `StringUtil.split` drops the empty columns at its end).
     /// `text` is the line.
@@ -142,6 +146,7 @@ impl FormatError {
             OverlappingNames { .. } => Some("java.lang.RuntimeException"),
             Ner(e) => Some(e.java_class()),
             Ad(e) => Some(e.java_class()),
+            Corpus(e) => e.java_class(),
             ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
             Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
             ConlluColumns { .. }
@@ -199,6 +204,7 @@ impl fmt::Display for FormatError {
         match self {
             Ner(e) => e.fmt(f),
             Ad(e) => e.fmt(f),
+            Corpus(e) => e.fmt(f),
             NestedName { context, .. } => {
                 write!(f, "Found unexpected annotation while handling a name sequence: {context}")
             }

@@ -30,6 +30,8 @@
 //!   samples OpenNLP reads from it.
 //! - [`ner`]: the GermEval 2014, BioNLP 2004, Evalita, MUC-6 and brat
 //!   name corpora and the 1990 US Census name lists.
+//! - [`corpora`]: the Moses, LetsMT, NKJP and Irish Sentence Bank sentence
+//!   corpora, the Leipzig language corpora and the 20 Newsgroups corpus.
 //! - [`registry`]: the formats of each sample kind by name, OpenNLP's
 //!   `StreamFactoryRegistry`.
 //! - [`evaluate`]: OpenNLP's scores, an evaluator per component and the
@@ -99,6 +101,7 @@ pub mod ad;
 pub mod conll;
 pub mod conllu;
 pub mod convert;
+pub mod corpora;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;

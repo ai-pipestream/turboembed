@@ -1,0 +1,16 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/irish-no-content	255	255	498687479841ae160822f28d145fe1e1c5b0832f891b5f2b8133a471a95ebbaf
+annotator	opennlp.tools.formats.irishsentencebank.IrishSentenceBankTokenSampleStream	read
+layer	turbo:samples	document	0	written:str
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+0	java.lang.NullPointerException	Cannot invoke "org.w3c.dom.Node.getTextContent()" because the return value of "org.w3c.dom.Node.getFirstChild()" is null
+end	turbo:read-errors
+layer	turbo:sample-texts	document	0	text:str
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	0	sample:u32	start:u32	end:u32
+end	turbo:sample-spans
