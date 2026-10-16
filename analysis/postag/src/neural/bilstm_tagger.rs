@@ -105,7 +105,7 @@ fn softmax_at(scores: &[f64], index: usize) -> f64 {
     let max = scores[index];
     let mut sum = 0.0f64;
     for &s in scores {
-        sum += (s - max).exp();
+        sum += turbo_jvm::strict_math::exp(s - max);
     }
     1.0 / sum
 }
@@ -138,8 +138,7 @@ impl Annotator for BilstmPosTagger {
                 Some(col) => from + col[from..].partition_point(|&s| s == col[from]),
                 None => n,
             };
-            words.clear();
-            words.extend((from..to).map(|i| &text[starts[i] as usize..ends[i] as usize]));
+            crate::tagger::slice_sentence_words(Self::ID, text, starts, ends, from, to, &mut words)?;
             if !words.is_empty() {
                 let (best, sentence_probs) = self
                     .best_path(&words)
@@ -154,5 +153,47 @@ impl Annotator for BilstmPosTagger {
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.model.model_ref().clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::neural::PosSample;
+    use crate::neural::bilstm_trainer::{BilstmPosTrainer, BilstmSettings};
+    use turbo_analysis::{Document, Span, Spans, ViewId};
+
+    #[test]
+    fn softmax_at_uses_strict_math_exp() {
+        let scores = [0.5f64, -0.25f64, 1.25f64];
+        let expected_sum: f64 = scores.iter().map(|&s| turbo_jvm::strict_math::exp(s - scores[2])).sum();
+        assert_eq!(softmax_at(&scores, 2).to_bits(), (1.0 / expected_sum).to_bits());
+    }
+
+    #[test]
+    fn bilstm_annotator_rejects_invalid_token_spans_without_panicking() {
+        let samples = vec![PosSample::new(["café", "barks"], ["NN", "VBZ"]).unwrap()];
+        let mut settings = BilstmSettings::defaults();
+        settings.epochs = 1;
+        settings.word_cutoff = 1;
+        let model = BilstmPosTrainer::train(&samples, settings).unwrap();
+        let tagger = BilstmPosTagger::new(model);
+
+        let doc = Document::new("café");
+        let view = doc.get::<View>().unwrap();
+        for bad_span in [
+            Span::new(0, 99),          // past end of text
+            Span { start: 3, end: 1 }, // inverted span
+            Span::new(0, 4),           // splits 2-byte UTF-8 'é' (bytes 3..5)
+        ] {
+            let mut spans = Spans::new(ViewId::SOURCE);
+            spans.push(bad_span);
+            let tokens = Tokens { spans, sentence: None };
+            let err = tagger.annotate((view, &tokens)).err().unwrap();
+            assert!(
+                matches!(&err, Error::Annotator { annotator: BilstmPosTagger::ID, detail } if detail.contains("outside the text or off a UTF-8 boundary")),
+                "unexpected error for {bad_span:?}: {err:?}"
+            );
+        }
     }
 }
