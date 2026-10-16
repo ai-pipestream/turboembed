@@ -13,34 +13,34 @@ use super::duration::{length, unit_of};
 use super::lexicon::NIGHT;
 use super::{AMOUNT, CLOCK, MDAY, PART, PLURAL, SET, SETWORD, UNIT, WEEKDAY, clock_of, emit, r, term, tval};
 
-fn set_of(c: &Ctx<'_>, v: &Value) -> Option<Recurrence> {
+pub(crate) fn set_of(c: &Ctx<'_>, v: &Value) -> Option<Recurrence> {
     match tval(c, v)? {
         TimeValue::Set(r) => Some(r),
         _ => None,
     }
 }
 
-fn emit_set(c: &Ctx<'_>, r: Recurrence) -> Option<Value> {
+pub(crate) fn emit_set(c: &Ctx<'_>, r: Recurrence) -> Option<Value> {
     emit(c, TimeValue::Set(r))
 }
 
-fn every(c: &Ctx<'_>, d: Duration) -> Option<Value> {
+pub(crate) fn every(c: &Ctx<'_>, d: Duration) -> Option<Value> {
     emit_set(c, Recurrence::Every(d))
 }
 
-fn at(c: &Ctx<'_>, p: Point) -> Option<Value> {
+pub(crate) fn at(c: &Ctx<'_>, p: Point) -> Option<Value> {
     emit_set(c, Recurrence::At(p))
 }
 
-fn weekday_point(wd: u8) -> Point {
+pub(crate) fn weekday_point(wd: u8) -> Point {
     Point::date(DateSpec::Cal { year: YearRef::Any, month: 0, day: 0, weekday: wd })
 }
 
-fn is_daily(r: Recurrence) -> bool {
+pub(crate) fn is_daily(r: Recurrence) -> bool {
     matches!(r, Recurrence::Every(d) if d.parts() == [(Unit::Day, MILLI)])
 }
 
-const UNITS: [Unit; 10] = [
+pub(crate) const UNITS: [Unit; 10] = [
     Unit::Year,
     Unit::Month,
     Unit::Week,
@@ -54,28 +54,28 @@ const UNITS: [Unit; 10] = [
 ];
 
 /// A set word: its unit index and amount, `amount << 8 | unit`.
-fn set_word(v: &Value) -> Option<(Unit, i32)> {
+pub(crate) fn set_word(v: &Value) -> Option<(Unit, i32)> {
     let x = term(v).0;
     Some((*UNITS.get(usize::try_from(x & 255).ok()?)?, i32::try_from(x >> 8).ok()?))
 }
 
-fn b_word(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_word(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (u, milli) = set_word(&v[0])?;
     every(c, Duration::of(u, milli))
 }
 
-fn b_semi(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_semi(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (u, milli) = set_word(&v[0])?;
     every(c, Duration::of(u, milli / 2))
 }
 
-fn b_bi(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_bi(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (u, milli) = set_word(&v[0])?;
     (milli == MILLI).then(|| every(c, Duration::of(u, milli * 2)))?
 }
 
 /// `every day`, `each week`, `any weekend`; `every night` is the night.
-fn b_every_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_every_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (_, flags) = term(&v[0]);
     if flags & NIGHT != 0 {
         return at(c, Point::time(TimeOfDay::Part(Part::Night)));
@@ -86,35 +86,35 @@ fn b_every_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     every(c, length(i64::from(MILLI), &v[0])?)
 }
 
-fn b_every_n_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_every_n_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     every(c, length(term(&v[0]).0, &v[1])?)
 }
 
 /// `every other day`, `every second week`: twice the unit.
-fn b_every_other_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_every_other_unit(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     every(c, length(i64::from(2 * MILLI), &v[0])?)
 }
 
 /// `weekends`: every weekend.
-fn b_weekends(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_weekends(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (flags, (unit, _)) = (term(&v[0]).1, unit_of(&v[0])?);
     (flags & PLURAL != 0 && unit == Unit::Weekend).then(|| every(c, Duration::of(Unit::Weekend, MILLI)))?
 }
 
 /// `every Friday`; `every other Friday` has the same TIMEX3 value in
 /// Recognizers-Text, which writes no interval for a weekday.
-fn b_every_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_every_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     at(c, weekday_point(term(&v[0]).0 as u8))
 }
 
-fn b_weekdays(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_weekdays(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (wd, flags) = term(&v[0]);
     (flags & PLURAL != 0).then(|| at(c, weekday_point(wd as u8)))?
 }
 
 /// A point of a set at a clock time: `every Monday at 4pm`, `every day
 /// at 7:13 p.m.`, `every evening at 7:13 p.m.`.
-fn with_clock(c: &Ctx<'_>, set: &Value, clock: &Value) -> Option<Value> {
+pub(crate) fn with_clock(c: &Ctx<'_>, set: &Value, clock: &Value) -> Option<Value> {
     let k = clock_of(c, clock)?;
     let r = set_of(c, set)?;
     let p = match r {
@@ -130,16 +130,16 @@ fn with_clock(c: &Ctx<'_>, set: &Value, clock: &Value) -> Option<Value> {
     at(c, Point { time: TimeOfDay::Clock(k), ..p })
 }
 
-fn b_set_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_set_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     with_clock(c, &v[0], &v[1])
 }
 
-fn b_clock_set(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_clock_set(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let r = set_of(c, &v[1])?;
     is_daily(r).then(|| with_clock(c, &v[1], &v[0]))?
 }
 
-fn b_weekdays_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_weekdays_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (wd, flags) = term(&v[0]);
     if flags & PLURAL == 0 {
         return None;
@@ -148,16 +148,16 @@ fn b_weekdays_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     at(c, Point { time: TimeOfDay::Clock(k), ..weekday_point(wd as u8) })
 }
 
-fn b_every_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_every_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     at(c, Point::time(TimeOfDay::Part(part(&v[0])?)))
 }
 
-fn b_parts(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_parts(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     (term(&v[0]).1 & PLURAL != 0).then(|| b_every_part(v, c))?
 }
 
 /// `Tuesday afternoons`.
-fn b_weekday_parts(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_weekday_parts(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let (wd, flags) = term(&v[0]);
     if flags & PLURAL != 0 || term(&v[1]).1 & PLURAL == 0 {
         return None;
@@ -165,7 +165,7 @@ fn b_weekday_parts(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     at(c, Point { time: TimeOfDay::Part(part(&v[1])?), ..weekday_point(wd as u8) })
 }
 
-fn b_day_of_every_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(crate) fn b_day_of_every_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let d = term(&v[0]).0 as u8;
     at(c, Point::date(DateSpec::Cal { year: YearRef::Any, month: 0, day: d, weekday: 0 }))
 }

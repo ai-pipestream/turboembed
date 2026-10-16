@@ -70,6 +70,10 @@ impl GrammarAnnotator {
         GrammarAnnotator::new(&ENGLISH_UNITS)
     }
 
+    pub fn spanish() -> GrammarAnnotator {
+        GrammarAnnotator::new(&crate::lang::es::SPANISH)
+    }
+
     /// The step for a pipeline: writes numbers under [`GRAMMAR_NUMBERS`],
     /// percentages and quantities under [`GRAMMAR_PERCENTS`], money under
     /// [`GRAMMAR_MONEY`] and ordinals to the default instance.
@@ -97,7 +101,7 @@ impl GrammarAnnotator {
         parser.select(text, Output::Number, &mut mentions);
         for m in &mentions {
             if let Value::Num(n) = m.value {
-                push_number(&mut found.numbers, m, n.value, &mut digits);
+                push_number(&mut found.numbers, m, n.value, self.grammar.notation(), &mut digits);
             }
         }
         mentions.clear();
@@ -205,7 +209,7 @@ fn merge(percents: &Quantities, quantities: &Quantities) -> Quantities {
     out
 }
 
-fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, digits: &mut String) {
+fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, notation: NumberNotation, digits: &mut String) {
     digits.clear();
     let scale = value.write_coefficient(digits);
     numbers.push(NumberMention {
@@ -216,7 +220,7 @@ fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, digits: &mut Stri
         scale,
         multiplier: Multiplier::One,
         marker: ScaleMarker::None,
-        notation: NumberNotation::LatinUs,
+        notation,
     });
 }
 
@@ -310,6 +314,18 @@ mod tests {
         assert_eq!(doc.get_key(&GRAMMAR_MONEY).unwrap().len(), 1);
         let ordinals = doc.get::<Ordinals>().unwrap();
         assert_eq!(ordinals.get(Ix::new(0)).base, OrdinalBase::Current);
+    }
+
+    #[test]
+    fn spanish_numbers_take_the_decimal_comma() {
+        let text = "1.234,56 y veintiún";
+        let f = GrammarAnnotator::spanish().find(text, ViewId::SOURCE);
+        assert_eq!(f.numbers.check(), Ok(()));
+        assert_eq!(f.numbers.len(), 2);
+        assert_eq!(f.numbers.value(Ix::new(0)).to_plain_string(), "1234.56");
+        assert_eq!(f.numbers.notation[0], NumberNotation::LatinEu);
+        assert_eq!(&text[f.numbers.spans.get(Ix::new(1)).range()], "veintiún");
+        assert_eq!(f.numbers.value(Ix::new(1)).to_plain_string(), "21");
     }
 
     #[test]

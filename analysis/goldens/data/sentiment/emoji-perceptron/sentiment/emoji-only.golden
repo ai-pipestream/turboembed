@@ -1,0 +1,43 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/emoji-only	22	12	4338a7e934a2e4517c58deace2ce1a665d9f28d32756dc8437f65df77ab2b3dc
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	PERCEPTRON
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-perceptron
+layer	opennlp:tokens	text	4	start:u32	end:u32
+0	4
+5	9
+10	16
+17	21
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	16	feature:str
+😀
+😀
+❤️
+💔
+emojiSentiment=2
+emojiType=FACE
+emojiCategory=SMILEYS_AND_EMOTION
+emojiSentiment=2
+emojiType=FACE
+emojiCategory=SMILEYS_AND_EMOTION
+emojiSentiment=2
+emojiType=HEART
+emojiCategory=SMILEYS_AND_EMOTION
+emojiSentiment=-2
+emojiType=HEART
+emojiCategory=SMILEYS_AND_EMOTION
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+positive	3fe0fe887903af72 0.531070934635393
+negative	3fd7ae5f0f24730b 0.37001778105495536
+neutral	3fb9523ffb50b844 0.09891128430965163
+end	turbo:categories

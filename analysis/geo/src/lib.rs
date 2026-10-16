@@ -13,6 +13,9 @@
 //!   [`InMemoryGazetteer`] indexes records built in code.
 //! - [`OverlayGazetteer`] lays additions and [`Suppression`] rules over a
 //!   base gazetteer.
+//! - [`PlaceProfiles`] compares places by the cosine of their standardized
+//!   numeric measurements from a table the caller supplies; it needs no
+//!   gazetteer (`profiles` module documentation).
 //!
 //! Every gazetteer matches by one rule. A name is cut into its UAX #29
 //! word tokens, each token is put in NFC, lowercased with
@@ -93,6 +96,7 @@ mod index;
 mod load;
 mod overlay;
 mod overture;
+mod profiles;
 mod ranking;
 mod snapshot;
 mod store;
@@ -114,6 +118,7 @@ pub use geonames::{GEONAMES_SOURCE, GeoNamesGazetteer};
 pub use in_memory::InMemoryGazetteer;
 pub use overlay::{EmptyOverlay, OverlayGazetteer};
 pub use overture::{OVERTURE_SOURCE, OvertureGazetteer};
+pub use profiles::{Neighbor, Place, PlaceProfiles, ProfileError, Similarity};
 pub use snapshot::{SnapshotError, SnapshotKind};
 pub use store::{Attribute, CapacityError, Entry};
 pub use suppression::{Suppression, SuppressionError};

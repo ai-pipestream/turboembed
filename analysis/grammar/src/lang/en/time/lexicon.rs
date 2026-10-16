@@ -91,7 +91,7 @@ pub(crate) const VETERANS: i64 = 20;
 
 /// A set word's value: a unit index and an amount in thousandths, as
 /// `amount << 8 | unit`.
-const fn every(u: u8, milli: i64) -> i64 {
+pub(crate) const fn every(u: u8, milli: i64) -> i64 {
     milli << 8 | u as i64
 }
 

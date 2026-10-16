@@ -1,7 +1,7 @@
 //! Training OpenNLP's components: the event streams, the factories that
 //! set them up, the model files the `train` methods of `SentenceDetectorME`,
 //! `TokenizerME`, `POSTaggerME`, `LemmatizerME`, `ChunkerME`,
-//! `NameFinderME` and `LanguageDetectorME` return, and the reproduction
+//! `NameFinderME`, `LanguageDetectorME` and `SentimentME` return, and the reproduction
 //! of the published UD 1.3 models.
 //!
 //! - [`sentdetect`][]: `SentenceDetectorFactory`, the events of
@@ -22,6 +22,9 @@
 //!   not ported and fails with `turbo_train::Error::NotPorted`.
 //! - [`langdetect`][]: `LanguageDetectorFactory`, the events of
 //!   `LanguageDetectorEventStream`, and the `LanguageDetectorModel` file.
+//! - [`sentiment`][]: the events of `SentimentEventStream` over
+//!   `SentimentFactory` or `EmojiSentimentFactory`, and the
+//!   `SentimentModel` file.
 //! - [`dictionary`][]: the token n-gram dictionary as `Dictionary.serialize`
 //!   writes it (entries in Java's hash set order), `Dictionary.parseOneEntryPerLine`
 //!   (`DictionaryBuilderTool`) and `CensusDictionaryCreatorTool.createDictionary`.
@@ -148,6 +151,7 @@ pub mod namefind;
 pub mod package;
 pub mod postag;
 pub mod sentdetect;
+pub mod sentiment;
 pub mod tagdict;
 pub mod tokenize;
 pub mod ud;
@@ -161,5 +165,6 @@ pub use namefind::{NameEventStream, TokenNameFinderFactory, name_events, train_n
 pub use package::Stamp;
 pub use postag::{PosEventStream, PosTaggerFactory, pos_events, train_pos_model};
 pub use sentdetect::{SdEventStream, SentenceDetectorFactory, sd_events, train_sentence_model};
+pub use sentiment::{SentimentEventStream, sentiment_events, train_sentiment_model};
 pub use tagdict::PosDictionary;
 pub use tokenize::{TokSpanEventStream, TokenizerFactory, tok_events, train_tokenizer_model};

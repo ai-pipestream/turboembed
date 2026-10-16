@@ -184,7 +184,7 @@ impl Parser {
 
     /// Lexes and parses `text`, replacing the chart.
     pub fn parse(&mut self, text: &str) {
-        self.lexed.lex(text, &self.grammar.style());
+        self.lexed.lex_words(text, &self.grammar.style(), self.grammar.words());
         let n = self.lexed.len();
         self.chart.nodes.clear();
         self.chart.kids.clear();
@@ -555,7 +555,7 @@ mod tests {
             N
         }
         fn style(&self) -> NumeralStyle {
-            NumeralStyle { mixed_separators: false, space_groups: false, indian_groups: false }
+            NumeralStyle { mixed_separators: false, space_groups: false, indian_groups: false, decimal_comma: false }
         }
         fn output(&self, dim: Dim) -> Option<Output> {
             (dim == S).then_some(Output::Number)

@@ -16,5 +16,13 @@ Corporation.
 | `English/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/English/CurrencyModel.json` |
 | `English/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/English/DimensionModel.json` |
 | `English/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/English/TemperatureModel.json` |
+| `Dutch/Number/NumberModel.json` | `Specs/Number/Dutch/NumberModel.json` |
+| `Dutch/Number/OrdinalModel.json` | `Specs/Number/Dutch/OrdinalModel.json` |
+| `Dutch/Number/PercentModel.json` | `Specs/Number/Dutch/PercentModel.json` |
+| `Dutch/DateTime/DateTimeModel.json` | `Specs/DateTime/Dutch/DateTimeModel.json` |
+| `Spanish/Number/NumberModel.json` | `Specs/Number/Spanish/NumberModel.json` |
+| `Spanish/Number/OrdinalModel.json` | `Specs/Number/Spanish/OrdinalModel.json` |
+| `Spanish/Number/PercentModel.json` | `Specs/Number/Spanish/PercentModel.json` |
+| `Spanish/DateTime/DateTimeModel.json` | `Specs/DateTime/Spanish/DateTimeModel.json` |
 
 `tests/spec.rs` reads them; docs/grammar.md says how a case is judged.

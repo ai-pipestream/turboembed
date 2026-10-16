@@ -1,0 +1,41 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/imei-unlabelled	38	38	b2094ed329287a788ae60ea7d3d90ee971e75da88d6eab853867b03bd15b7f00
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	all-structured
+layer	turbo:view	text	11	start:u32	end:u32	with:str
+7	8	*
+8	9	*
+9	10	*
+10	11	*
+11	12	*
+12	13	*
+13	14	*
+14	15	*
+15	16	*
+16	17	*
+17	18	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+Serial ############### with no label.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize	Serial CARD-1 with no label.\n	
+hmac	Serial CARD-562fad218fa2f0bb with no label.\n	
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	2	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+pseudonymize	7	22	7	13	CARD-1
+hmac	7	22	7	28	CARD-562fad218fa2f0bb
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	1	type:str	mentions:u32	distinct:u32	samples:str
+card	1	1	CARD-562fad218fa2f0bb
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+card: 1 mentions, 1 distinct [CARD-562fad218fa2f0bb]
+end	turbo:pii-audit-report

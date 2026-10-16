@@ -91,19 +91,25 @@ Trained by the recipes in `analysis/train-recipes` only on permissive
 data, each gated against the OpenNLP model for the same task, under
 Apache-2.0. The index lists each at its address in a release of this
 repository: `models-masc-3.0.0-1` for the MASC models, which
-`.github/workflows/models.yml` creates, and `models-ud-2.16-1` for the
-UD models, which `.github/workflows/models-ud.yml` creates, each with
-every model's card and gate record, when it is run by hand on main.
+`.github/workflows/models.yml` creates, `models-ud-2.16-1` for the UD
+models, which `.github/workflows/models-ud.yml` creates, and
+`models-tatoeba-2026-10-10-1` for the language detector, which
+`.github/workflows/models-tatoeba.yml` creates, each with every model's
+card and gate record, when it is run by hand on main.
 Until it has been, the release's addresses answer 404 and fetching its
 models through the zoo fails. Every file's size, SHA-256 and SHA-512 in
 the index are the ones its card records, and a workflow publishes
 nothing unless the models it trains have them. The CC BY attribution of
-the data (MASC's, or the treebank's) is in each model's card (the
-`attribution` field, published as `<model id>.card.json` beside the
+the data (MASC's, the treebank's, or Tatoeba's) is in each model's card
+(the `attribution` field, published as `<model id>.card.json` beside the
 model) and in the release notes; the zoo's entries have no field for
-it. The Portuguese Porttinari models and the Italian MarkIT models are
-in neither release (the first for the rights to the text, the second
-for failing their gates).
+it. The language detector's credit names its sentences by id in
+`training-sentences.txt`, which the zoo lists as the model's second
+file. The Tatoeba export it is trained on is kept, unchanged, as release
+`data-tatoeba-2026-10-10`, with the CC BY 2.0 FR and CC0 1.0 notices in
+its release notes. The Portuguese Porttinari models and the Italian
+MarkIT models are in no release (the first for the rights to the text,
+the second for failing their gates).
 
 | Model | Trained on | Licence of the data | Class | Checked |
 |---|---|---|---|---|
@@ -121,6 +127,7 @@ for failing their gates).
 | `turbo-ca-ud-ancora-2.16-lemmas-1` | [UD_Catalan-AnCora r2.16](https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Catalan-AnCora's row under Datasets |
 | `turbo-fi-ud-ftb-2.16-pos-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
 | `turbo-fi-ud-ftb-2.16-lemmas-1` | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Finnish-FTB's row under Datasets |
+| `turbo-mul-tatoeba-langdetect-1` | the CC BY 2.0 FR sentences of [Tatoeba](https://tatoeba.org)'s export of 2026-10-10, in the 71 languages with at least 1,500 of them after the licence check and de-duplication | CC BY 2.0 FR | permissive | as Tatoeba's row under Datasets |
 
 ## OpenNLP models (refused)
 
@@ -164,6 +171,23 @@ scores it as its gate's reference: it reads the file from a directory the
 user names and checks its size and SHA-256 (`langdetect::LANGDETECT_183`),
 and ships, bundles and trains on nothing of it.
 
+## Neural annotator checkpoints (not in the index)
+
+The SaT and GLiNER checkpoints docs/neural-annotators.md considers. None
+is in the zoo's index yet: no file was fetched, so no entry has the
+SHA-512s an entry needs. "Checked" is **here**: the `license` of the
+model card's metadata at the revision named, read on 2026-10-15 from
+the hub's model API.
+
+| Checkpoint | Revision | Licence | Base and data | Class | Checked |
+|---|---|---|---|---|---|
+| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | local-only unless the mixture left out UD's non-commercial treebanks (English GUM and others, under Datasets); to be confirmed against wtpsplit's training configuration | here |
+| [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | as `sat-1l-sm` | here |
+| [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; needs limited lookahead, which the core lacks | here |
+| [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive | here |
+| [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive | here |
+| [urchade/gliner_small](https://huggingface.co/urchade/gliner_small) (v1) | `0f0f4e7d3f10e48844110162d6b5c6072ddd5a4e` | CC BY-NC 4.0 | | local-only; not used | here |
+
 ## Datasets
 
 | Dataset | Use | Licence | Class | Notes | Checked |
@@ -180,7 +204,7 @@ and ships, bundles and trains on nothing of it.
 | [GermEval 2014](https://sites.google.com/site/germeval2014ner/) | German NER | CC BY 4.0 | permissive | | plan |
 | [MultiCoNER v2](https://registry.opendata.aws/multiconer/) | NER, 12 languages | CC BY 4.0 | permissive | | plan |
 | [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) | language detection | ODC-By 1.0 | permissive | also subject to Common Crawl's terms of use; not used by the language detector recipe, as Hugging Face could not be reached | plan |
-| [Tatoeba](https://tatoeba.org/en/downloads) | language detection | CC BY 2.0 FR | permissive | by default; a sentence is CC BY 2.0 FR, CC0 1.0 or has no licence (tatoeba2 at commit 0fbb4506: `docs/database/tables/sentences.sql`, `src/Lib/Licenses.php`). `sentences_detailed.csv` holds the sentences with a licence and `sentences_CC0.csv` the CC0 1.0 ones, so each sentence's licence is read from the two, which relies on Tatoeba having exactly these two sentence licences (recording a run re-checks it); the language detector recipe (`analysis/train-recipes`, #429) keeps the CC BY 2.0 FR ones only and leaves out the CC0 ones, as #429 asks. CC BY 2.0 FR asks for the authors to be credited, and Tatoeba's terms accept the addresses of the sentences used: the model ships with `training-sentences.txt`, the ids of the sentences it was trained on, each at `https://tatoeba.org/sentences/show/<id>`. The zoo names the licence `LicenseRef-CC-BY-2.0-FR` (SPDX has no identifier for it). The exports could not be fetched from the machine the recipe was written on (downloads.tatoeba.org refused it) | here, the licence rules; no export checked |
+| [Tatoeba](https://tatoeba.org/en/downloads) | language detection | CC BY 2.0 FR | permissive | by default; a sentence is CC BY 2.0 FR, CC0 1.0 or has no licence (tatoeba2 at commit 0fbb4506: `docs/database/tables/sentences.sql`, `src/Lib/Licenses.php`). `sentences_detailed.csv` holds the sentences with a licence and `sentences_CC0.csv` the CC0 1.0 ones, so each sentence's licence is read from the two, which relies on Tatoeba having exactly these two sentence licences (recording a run re-checks it); the language detector recipe (`analysis/train-recipes`, #429) keeps the CC BY 2.0 FR ones only and leaves out the CC0 ones, as #429 asks. CC BY 2.0 FR asks for the authors to be credited, and Tatoeba's terms accept the addresses of the sentences used: the model ships with `training-sentences.txt`, the ids of the sentences it was trained on, each at `https://tatoeba.org/sentences/show/<id>`. The zoo names the licence `LicenseRef-CC-BY-2.0-FR` (SPDX has no identifier for it). The export of 2026-10-10 was read on GitHub's runners (downloads.tatoeba.org refused the machine the recipe was written on); on 2026-10-15 the three tatoeba2 files had not changed since 2025-10-28 at the latest, so the export was written with the two sentence licences. It is kept unchanged as release `data-tatoeba-2026-10-10` of this repository, as Tatoeba replaces its export each week | here, the licence rules; the export of 2026-10-10 (`analysis/train-recipes` README, "Full run") |
 | [WNUT-17](https://noisy-text.github.io/2017/emerging-rare-entities.html) | NER | CC BY 4.0 | permissive, pending | its text comes from Twitter, Reddit and YouTube; platform terms need a look before it is used | plan |
 | Other UD treebanks (the plan counts 280 of 359 in UD 2.18; not recounted here), including English EWT, German GSD and HDT, French GSD, Dutch Alpino | sentence, token, POS, lemma | CC BY-SA (3.0 or 4.0) | share-alike | check each treebank's README at the release used | plan; the ones above here |
 | [UniMorph](https://unimorph.github.io/) | lemmas | mostly CC BY-SA 3.0, some LGPL-LR | share-alike | check per language | plan |

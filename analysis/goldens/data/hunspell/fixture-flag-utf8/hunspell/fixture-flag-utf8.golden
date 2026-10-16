@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-flag-utf8	242	234	a7523da1b846b8e78895b56f122a65ee8f72eb1962d039e3216fead12fcd7fd0
+model	flag-utf8.aff	2747b89d50e91b939839c2d8bb89188529a7e5e2474477ce7551a904f8e2d92ee0b492f068c0fc4261924b9ee8dbb6d4f06463c224fb9a72d27c3bc00a1700de
+model	flag-utf8.dic	1b38fc7af8bbf2750b479f9d122608a40d0becd141845acd88060274ae48e9b019e8f8561656812d4529871d0900ea694cf016f217511f5c6765b783d8ec0bfe
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	8	word:str	stem:str	thrown:str
+Haus	Haus	
+Hauss	Haus	
+überHaus	Haus	
+überHauss	Haus	
+smile	smile	
+smile😀	smile	
+𝐀bc	𝐀bc	
+𝐀bcs	𝐀bc	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	8	word:u32	stem:str
+0	Haus
+1	Haus
+2	Haus
+3	Haus
+4	smile
+5	smile
+6	𝐀bc
+7	𝐀bc
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	8	word:u32	analysis:str
+0	st:Haus
+1	st:Haus fl:é
+2	über st:Haus fl:★
+3	fl:★ st:Haus fl:é
+4	st:smile
+5	st:smile fl:😀
+6	st:𝐀bc
+7	st:𝐀bc fl:é
+end	turbo:hunspell-analyses

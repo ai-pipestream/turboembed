@@ -173,12 +173,23 @@ impl ExportRecord {
     pub fn is(&self, digest: &str) -> bool {
         matches!(self, ExportRecord::Recorded { digest: d } if *d == digest)
     }
+
+    /// The recorded export's digest; `None` when none is recorded.
+    pub fn digest(&self) -> Option<&'static str> {
+        match self {
+            ExportRecord::NotRecorded => None,
+            ExportRecord::Recorded { digest } => Some(digest),
+        }
+    }
 }
 
-/// The export the recipe ships from. No full run has been made (see the
-/// crate's README), so none is recorded, and every card is marked
-/// `recorded: false`.
-pub const EXPORT: ExportRecord = ExportRecord::NotRecorded;
+/// The export the recipe ships from: Tatoeba's weekly export of
+/// 2026-10-10, which the full run read (the crate's README, "Full run").
+/// Tatoeba replaces its export every week at the same addresses, so a
+/// release of this repository ([`crate::release::TATOEBA_EXPORT_RELEASE`])
+/// keeps this one's two archives.
+pub const EXPORT: ExportRecord =
+    ExportRecord::Recorded { digest: "4421126b36dc0ce206b222296d696aff04a399620f1ca5dbefbfa50a1890aa92" };
 
 /// Checks the export's digest against `record`: `Ok(true)` for the
 /// recorded export, `Ok(false)` for another when `allow_unrecorded`.
@@ -673,10 +684,11 @@ pub struct LanguageCard {
     pub gate: GateCard,
 }
 
-/// The data the model is trained on, as the zoo lists it.
-pub fn training_data(export: &Export) -> TrainingData {
+/// The data the model is trained on, as the zoo lists it: the export of
+/// digest `digest` ([`Export::digest`]).
+pub fn training_data(digest: &str) -> TrainingData {
     TrainingData {
-        name: format!("Tatoeba export {}", &export.digest()[..16]),
+        name: format!("Tatoeba export {}", &digest[..16.min(digest.len())]),
         license: Licence::CcBy20Fr,
         license_terms: tatoeba::TERMS_URL.parse().expect("a valid address"),
     }
@@ -691,10 +703,10 @@ impl LanguageCard {
         trained: &TrainedLanguages,
         gate: &ModelGateRecord,
     ) -> LanguageCard {
-        let trained_on = vec![training_data(export)];
+        let digest = export.digest();
+        let trained_on = vec![training_data(&digest)];
         let class = class_of(std::iter::once(MODEL_LICENCE).chain(trained_on.iter().map(|t| t.license)));
         let r = &gate.result;
-        let digest = export.digest();
         LanguageCard {
             card_version: CARD_VERSION,
             id: recipe.model_id.to_owned(),

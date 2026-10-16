@@ -1,0 +1,63 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/fixture-flag-long	273	273	bfcd061b35c09a2b9386152e5f03ccac951ec67a6f0afba02458c7fa5ffd6d78
+model	flag-long.aff	a1316980dbc434051b6950fe8c0528f2a44a55e005fa20c9234a13db0d9dc76a570fcaac771f018f35c8f5ab87ef04e676fd0dbe05dafb36b909267e56c05677
+model	flag-long.dic	ce93f3dd05c7e28c1d04fdd3b4e55853a361616a3de83737dbeb60c988a779428c43d0ad2f14f244b384c7482b261147b80290d2fc99d0beecd64b3183c37b73
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	14	word:str	stem:str	thrown:str
+cat	cat	
+cats	cat	
+jump	jump	
+jumps	jump	
+jumped	jump	
+do	do	
+redo	do	
+work	work	
+rework	work	
+working	work	
+workings	work	
+reworking	work	
+reworkings	work	
+reworked	reworked	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	14	word:u32	stem:str
+0	cat
+1	cat
+2	jump
+3	jump
+4	jump
+5	do
+6	do
+7	work
+8	work
+9	work
+10	work
+11	work
+12	work
+13	reworked
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	13	word:u32	analysis:str
+0	st:cat po:noun is:sg
+1	st:cat po:noun is:sg is:pl
+2	st:jump po:verb
+3	st:jump po:verb is:pl
+4	st:jump po:verb fl:Bb
+5	st:do
+6	re st:do fl:Cc
+7	st:work po:verb
+8	re st:work po:verb
+9	st:work po:verb fl:Dd
+10	st:work po:verb fl:Dd is:pl
+11	fl:Cc st:work po:verb fl:Dd
+12	fl:Cc st:work po:verb fl:Dd is:pl
+end	turbo:hunspell-analyses

@@ -23,6 +23,11 @@ pub struct NumeralStyle {
     pub space_groups: bool,
     /// Whether Indian grouping with commas is read: `12,34,567`.
     pub indian_groups: bool,
+    /// Whether a lone comma always marks a fraction (`4,800` is 4.8, `1,000`
+    /// is 1) and a lone dot groups three digits after one to three that do
+    /// not start with a zero (`1.000` is 1000, `0.683` and `1111.121` are
+    /// fractions), as Spanish writes them. Needs `mixed_separators`.
+    pub decimal_comma: bool,
 }
 
 /// What a chain of digits starting at a position is.
@@ -110,9 +115,10 @@ impl NumeralStyle {
         }
         let end = runs[n - 1].1;
         let len = |i: usize| runs[i].1 - runs[i].0;
-        let (int_runs, frac_run) = if n == 1 || self.groups(&seps[1..n], &len, n, false) {
+        let lead_zero = b[start] == b'0';
+        let (int_runs, frac_run) = if n == 1 || self.groups(&seps[1..n], &len, n, false, lead_zero) {
             (n, None)
-        } else if self.decimal_after(&seps[1..n], &len, n) {
+        } else if self.decimal_after(&seps[1..n], &len, n, lead_zero) {
             (n - 1, Some(n - 1))
         } else {
             return Reading::List { end };
@@ -130,17 +136,20 @@ impl NumeralStyle {
 
     /// Whether runs `0..n`, joined by `seps`, are one grouped integer.
     /// `prefix` says the chain goes on with a fraction, which lets a lone
-    /// dot group (`1.111,11`).
-    fn groups(&self, seps: &[Sep], len: &impl Fn(usize) -> usize, n: usize, prefix: bool) -> bool {
+    /// dot group (`1.111,11`). `lead_zero` says the first run starts with a
+    /// zero.
+    fn groups(&self, seps: &[Sep], len: &impl Fn(usize) -> usize, n: usize, prefix: bool, lead_zero: bool) -> bool {
         let g = seps[0];
         if seps.iter().any(|&s| s != g) || n < 2 {
             return false;
         }
         let allowed = match g {
             Sep::Space => true,
-            Sep::Comma => true,
-            // A dot groups only where it cannot be the decimal point.
-            Sep::Dot => self.mixed_separators && (n > 2 || prefix),
+            // With a decimal comma, a lone comma is the decimal point.
+            Sep::Comma => !self.decimal_comma || n > 2 || prefix,
+            // A dot groups only where it cannot be the decimal point, or,
+            // with a decimal comma, before three digits.
+            Sep::Dot => self.mixed_separators && (n > 2 || prefix || (self.decimal_comma && !lead_zero)),
         };
         if !allowed {
             return false;
@@ -157,7 +166,7 @@ impl NumeralStyle {
 
     /// Whether the last run is a fraction after a grouped (or plain)
     /// integer part.
-    fn decimal_after(&self, seps: &[Sep], len: &impl Fn(usize) -> usize, n: usize) -> bool {
+    fn decimal_after(&self, seps: &[Sep], len: &impl Fn(usize) -> usize, n: usize, lead_zero: bool) -> bool {
         let last = seps[seps.len() - 1];
         let decimal = match last {
             Sep::Dot => true,
@@ -171,7 +180,7 @@ impl NumeralStyle {
             return true;
         }
         let prefix = &seps[..seps.len() - 1];
-        prefix.iter().all(|&s| s != last) && self.groups(prefix, len, n - 1, true)
+        prefix.iter().all(|&s| s != last) && self.groups(prefix, len, n - 1, true, lead_zero)
     }
 }
 
@@ -179,7 +188,8 @@ impl NumeralStyle {
 mod tests {
     use super::*;
 
-    const EN: NumeralStyle = NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true };
+    const EN: NumeralStyle =
+        NumeralStyle { mixed_separators: true, space_groups: true, indian_groups: true, decimal_comma: false };
 
     fn one(text: &str) -> (usize, String) {
         match EN.read(text, 0, &mut Vec::new()) {
@@ -237,8 +247,29 @@ mod tests {
     }
 
     #[test]
+    fn a_decimal_comma_reads_a_lone_comma_as_the_fraction() {
+        let es = NumeralStyle { decimal_comma: true, ..EN };
+        let read = |t: &str| match es.read(t, 0, &mut Vec::new()) {
+            Reading::One { end, value } => (end, value.to_string()),
+            r => panic!("{t:?}: {r:?}"),
+        };
+        assert_eq!(read("4,800"), (5, "4.8".into()));
+        assert_eq!(read("1,000"), (5, "1".into()));
+        assert_eq!(read("1.000"), (5, "1000".into()));
+        assert_eq!(read("0.683"), (5, "0.683".into()));
+        assert_eq!(read("1111.121"), (8, "1111.121".into()));
+        assert_eq!(read("0.0638"), (6, "0.0638".into()));
+        assert_eq!(read("5.00"), (4, "5".into()));
+        assert_eq!(read("1.234.567,51274"), (15, "1234567.51274".into()));
+        assert_eq!(read("1,111.11"), (8, "1111.11".into()));
+        assert_eq!(read("1,234,567"), (9, "1234567".into()));
+        assert_eq!(read("1 234 567,89"), (12, "1234567.89".into()));
+    }
+
+    #[test]
     fn strict_style_reads_one_convention() {
-        let strict = NumeralStyle { mixed_separators: false, space_groups: false, indian_groups: false };
+        let strict =
+            NumeralStyle { mixed_separators: false, space_groups: false, indian_groups: false, decimal_comma: false };
         let read = |t: &str| strict.read(t, 0, &mut Vec::new());
         assert_eq!(read("1,3"), Reading::List { end: 3 });
         assert!(matches!(read("1.234.567"), Reading::List { .. }));

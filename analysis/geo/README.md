@@ -32,6 +32,19 @@ the rules of a suppression table. A second test checks that the bundled
 table is the bytes of the resource in the OpenNLP jar (the SHA-512 in the
 golden's model record).
 
+## Place profiles
+
+`PlaceProfiles` ports `opennlp.geo.PlaceProfiles`: a tab separated table of
+numeric metrics per place (no data is bundled, in OpenNLP or here), each
+column standardized to mean zero and unit population variance, and places
+ranked by cosine similarity. The standardization is OpenNLP's `BigDecimal`
+arithmetic, exact but for the same 34-digit roundings, so profiles and
+similarities match the JVM bit for bit. `tests/profile_goldens.rs` compares
+every `place-profiles` golden ("Place profile goldens" in
+`analysis/goldens-tool/README.md`): the load result or OpenNLP's message,
+the standardized profiles, the similarity of every pair and `mostSimilar`
+with the counts 1, 2 and all.
+
 ## Load time and memory
 
 `examples/load_report.rs` measures them:
