@@ -1,0 +1,20 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-null-text	87	87	90f6db3f149e18be16fc338c088eeb746b4059b09059a7b4595b0232a754cd51
+annotator	opennlp.tools.formats.ad.ADNameSampleStream	read
+config	splitHyphenatedTokens	false
+layer	turbo:samples	document	1	written:str
+\nDepois .
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+0	java.lang.NullPointerException	Cannot invoke "String.startsWith(String)" because "meta" is null
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	2	sample:u32	text:str
+0	Depois
+0	.
+end	turbo:sample-tokens
+layer	turbo:names	document	0	sample:u32	start:u32	end:u32	type:str
+end	turbo:names

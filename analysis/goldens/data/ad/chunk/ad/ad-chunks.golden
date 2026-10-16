@@ -1,0 +1,130 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-chunks	809	802	3d9a91ced7c7efb0dc7bed69c983c6a5051ca81121b7cf5daa93f8458256a3c4
+annotator	opennlp.tools.formats.ad.ADChunkSampleStream	read
+layer	turbo:samples	document	4	written:str
+O art B-NP\nrio n I-NP\nmuito adv B-ADJP\nlargo adj I-ADJP\n, , O\ncorre v-fin B-VP\ndevagar adv B-ADVP\nvai v-fin B-VP\nsecar v-inf I-VP\naté prp B-PP\nagosto n B-NP\n, , O\nmês n B-NP\nseco adj I-NP\nchuva n B-NP\ncai v-fin B-VP\nbom adj B-AP\n; ; O\n; ; O\n. . O\n
+, , O\n. . O\n
+anda v-fin B-VP\ngato n B-NP\nrabo n B-NP\npé n I-NP\n
+de prp B-PP\ncasa n I-PP\n, , I-PP\nrua n I-PP\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	30	sample:u32	text:str
+0	O
+0	rio
+0	muito
+0	largo
+0	,
+0	corre
+0	devagar
+0	vai
+0	secar
+0	até
+0	agosto
+0	,
+0	mês
+0	seco
+0	chuva
+0	cai
+0	bom
+0	;
+0	;
+0	.
+1	,
+1	.
+2	anda
+2	gato
+2	rabo
+2	pé
+3	de
+3	casa
+3	,
+3	rua
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	30	tag:str
+art
+n
+adv
+adj
+,
+v-fin
+adv
+v-fin
+v-inf
+prp
+n
+,
+n
+adj
+n
+v-fin
+adj
+;
+;
+.
+,
+.
+v-fin
+n
+n
+n
+prp
+n
+,
+n
+end	turbo:sample-tags
+layer	turbo:sample-chunks	aligned:turbo:sample-tokens	30	chunk:str
+B-NP
+I-NP
+B-ADJP
+I-ADJP
+O
+B-VP
+B-ADVP
+B-VP
+I-VP
+B-PP
+B-NP
+O
+B-NP
+I-NP
+B-NP
+B-VP
+B-AP
+O
+O
+O
+O
+O
+B-VP
+B-NP
+B-NP
+I-NP
+B-PP
+I-PP
+I-PP
+I-PP
+end	turbo:sample-chunks
+layer	turbo:phrases	document	15	sample:u32	start:u32	end:u32	type:str
+0	0	2	NP
+0	2	4	ADJP
+0	5	6	VP
+0	6	7	ADVP
+0	7	9	VP
+0	9	10	PP
+0	10	11	NP
+0	12	14	NP
+0	14	15	NP
+0	15	16	VP
+0	16	17	AP
+2	0	1	VP
+2	1	2	NP
+2	2	4	NP
+3	0	4	PP
+end	turbo:phrases
+layer	turbo:phrase-errors	document	0	sample:u32	class:str	message:str
+end	turbo:phrase-errors

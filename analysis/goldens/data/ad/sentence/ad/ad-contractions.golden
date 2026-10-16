@@ -1,0 +1,24 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-contractions	1119	1119	4ac3d133872020f041672bc291596be8d276f0375862892121daecaf42e5522a
+annotator	opennlp.tools.formats.ad.ADSentenceSampleStream	read
+config	includeTitles	false
+layer	turbo:samples	document	1	written:str
+Moro na Rua Nova e dela gosto.\nVem pelo caminho e xis o.\no resto.\nNa Serra Alta.\nUma nota sobre o resto.\nFecho.\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	1	text:str
+Moro na Rua Nova e dela gosto. Vem pelo caminho e xis o. o resto. Na Serra Alta. Uma nota sobre o resto. Fecho.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	6	sample:u32	start:u32	end:u32
+0	0	30
+0	31	56
+0	57	65
+0	66	80
+0	81	104
+0	105	111
+end	turbo:sample-spans

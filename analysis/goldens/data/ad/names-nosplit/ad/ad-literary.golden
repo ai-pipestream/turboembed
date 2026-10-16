@@ -1,0 +1,48 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-literary	1206	1206	b5485314d1f941b05a792b0b901ac1014beaa7ea4a0df265b903c8443d03c854
+annotator	opennlp.tools.formats.ad.ADNameSampleStream	read
+config	splitHyphenatedTokens	false
+layer	turbo:samples	document	8	written:str
+\nEra uma vez .
+Nela vivia <START:person> a Joaquina <END> .
+\nFim .
+\nletras 
+\nAs algas crescem .
+Muito .
+\nVazio .
+\nRochas .
+end	turbo:samples
+layer	turbo:read-errors	document	1	after:u32	class:str	message:str
+7	java.lang.RuntimeException	Invalid metadata: CIE4 p=0 ref="CIE4"
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	22	sample:u32	text:str
+0	Era
+0	uma
+0	vez
+0	.
+1	Nela
+1	vivia
+1	a
+1	Joaquina
+1	.
+2	Fim
+2	.
+3	letras
+4	As
+4	algas
+4	crescem
+4	.
+5	Muito
+5	.
+6	Vazio
+6	.
+7	Rochas
+7	.
+end	turbo:sample-tokens
+layer	turbo:names	document	1	sample:u32	start:u32	end:u32	type:str
+1	2	4	person
+end	turbo:names

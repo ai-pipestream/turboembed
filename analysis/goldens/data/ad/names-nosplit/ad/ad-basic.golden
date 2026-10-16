@@ -1,0 +1,98 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-basic	3306	3280	64c57736c5c99822f6e0e52259ff772591be725abb50c3d72fed784b043bad82
+annotator	opennlp.tools.formats.ad.ADNameSampleStream	read
+config	splitHyphenatedTokens	false
+layer	turbo:samples	document	7	written:str
+\nFeira de livros abre em <START:place> Ribeira Alta <END>
+A feira da vila começa no <START:time> sábado <END> , às <START:time> dez horas <END> .
+O escritor <START:person> Teodoro Valim <END> assina <START:artprod> « Canções do Vale-Fundo » , <END> diz a <START:organization> organização <END> .
+O escritor assina .
+Entrada gratuita para os sócios !
+\nA <START:organization> Companhia Fluvial do Sul <END> anunciou <START:time> ontem <END> novas carreiras .
+Os bilhetes custam <START:numeric> 3,5 <END> <START:numeric> moedas <END> e podem ser comprados a bordo
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	65	sample:u32	text:str
+0	Feira
+0	de
+0	livros
+0	abre
+0	em
+0	Ribeira
+0	Alta
+1	A
+1	feira
+1	da
+1	vila
+1	começa
+1	no
+1	sábado
+1	,
+1	às
+1	dez
+1	horas
+1	.
+2	O
+2	escritor
+2	Teodoro
+2	Valim
+2	assina
+2	«
+2	Canções
+2	do
+2	Vale-Fundo
+2	»
+2	,
+2	diz
+2	a
+2	organização
+2	.
+3	O
+3	escritor
+3	assina
+3	.
+4	Entrada
+4	gratuita
+4	para
+4	os
+4	sócios
+4	!
+5	A
+5	Companhia
+5	Fluvial
+5	do
+5	Sul
+5	anunciou
+5	ontem
+5	novas
+5	carreiras
+5	.
+6	Os
+6	bilhetes
+6	custam
+6	3,5
+6	moedas
+6	e
+6	podem
+6	ser
+6	comprados
+6	a
+6	bordo
+end	turbo:sample-tokens
+layer	turbo:names	document	10	sample:u32	start:u32	end:u32	type:str
+0	5	7	place
+1	6	7	time
+1	9	11	time
+2	2	4	person
+2	5	11	artprod
+2	13	14	organization
+5	1	5	organization
+5	6	7	time
+6	3	4	numeric
+6	4	5	numeric
+end	turbo:names

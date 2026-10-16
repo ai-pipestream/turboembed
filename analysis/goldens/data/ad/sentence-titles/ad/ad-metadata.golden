@@ -1,0 +1,33 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-metadata	555	544	2a285d397aa6f1baa26ae75aa100e12245fc2af0e42fe9e98f2c41207c3bf30b
+annotator	opennlp.tools.formats.ad.ADSentenceSampleStream	read
+config	includeTitles	true
+layer	turbo:samples	document	5	written:str
+Sem número de texto.\n
+Grande demais.\n
+Grande e certo.\n
+Paragrafo vazio.\n
+Dois paragrafos.\n
+end	turbo:samples
+layer	turbo:read-errors	document	2	after:u32	class:str	message:str
+0	java.lang.RuntimeException	Invalid metadata: ABC p=0 x
+1	java.lang.RuntimeException	Invalid metadata: 2147483648 p=1 z
+end	turbo:read-errors
+layer	turbo:sample-texts	document	5	text:str
+Sem número de texto.
+Grande demais.
+Grande e certo.
+Paragrafo vazio.
+Dois paragrafos.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	5	sample:u32	start:u32	end:u32
+0	0	21
+1	0	14
+2	0	15
+3	0	16
+4	0	16
+end	turbo:sample-spans
