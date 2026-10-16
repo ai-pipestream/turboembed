@@ -171,3 +171,13 @@ fn a_double_encoding_is_undone_in_two_rounds_of_steps() {
     assert_eq!(r.alignment.edits().len(), 1);
     assert_eq!(r.plan.iter().filter(|s| s.action == Action::Decode).count(), 2);
 }
+
+#[test]
+fn unchanged_replacement_characters_produce_an_empty_plan() {
+    for input in ["\u{FFFD}\u{FFFD}", "(\u{FFFD}", "[\u{FFFD}]"] {
+        let r = fix_encoding(input);
+        assert_eq!(r.text, input);
+        assert!(r.plan.is_empty(), "expected empty plan for {input:?}, got {:?}", r.plan);
+        assert!(r.alignment.edits().is_empty());
+    }
+}

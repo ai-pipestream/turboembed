@@ -71,13 +71,16 @@ fn a_lone_curly_apostrophe_is_windows_1252() {
 
 #[test]
 fn the_numero_sign_is_found_however_it_is_fed() {
-    // chardetng's streaming tests: "n.\xBA1" (n.º1) split in five ways.
-    let feeds: [&[&[u8]]; 5] = [
+    // chardetng's streaming tests: "n.\xBA1" (n.º1) split in five ways,
+    // plus splits after a two-byte ASCII prefix where the non-ASCII byte is
+    // at index 1 of the second chunk.
+    let feeds: [&[&[u8]]; 6] = [
         &[b"n", b".", b"\xBA", b"1"],
         &[b"n.", b"\xBA", b"1"],
         &[b" n", b".", b"\xBA", b"1"],
         &[b"n", b".\xBA", b"1"],
         &[b"rrn.", b"\xBA", b"1"],
+        &[b"xn", b".\xBA1"],
     ];
     for feed in feeds {
         let mut det = EncodingDetector::new();
@@ -85,6 +88,18 @@ fn the_numero_sign_is_found_however_it_is_fed() {
             det.feed(part, i + 1 == feed.len());
         }
         assert_eq!(det.guess(false), Encoding::Windows1252, "{feed:?}");
+    }
+
+    let whole_input = b"xn.\xBA1";
+    let mut whole = EncodingDetector::new();
+    whole.feed(whole_input, true);
+    let expected_score = whole.score(Encoding::Windows1252);
+    for split in 0..=whole_input.len() {
+        let mut split_det = EncodingDetector::new();
+        split_det.feed(&whole_input[..split], false);
+        split_det.feed(&whole_input[split..], true);
+        assert_eq!(split_det.score(Encoding::Windows1252), expected_score, "split at {split}");
+        assert_eq!(split_det.guess(false), Encoding::Windows1252, "split at {split}");
     }
 }
 
