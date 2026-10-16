@@ -304,6 +304,25 @@ are not taken from any corpus.
   corpus has, whitespace alone, punctuation, a long text, accents, an
   ellipsis and emoji, and one word without a line end
   (`docs/doccat.md`).
+- `inputs/corpora/`: 27 files in the layouts of the sentence, language and
+  document corpora OpenNLP reads, all written for this project; they hold
+  no text of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig or 20
+  Newsgroups corpora. The part of the id before the first hyphen names the
+  corpus (`moses`, `letsmt`, `nkjp`, `irish`, `leipzig`, `newsgroups`).
+  The `nkjp-`, `leipzig-` and `newsgroups-` files are bundles (see "MASC
+  goldens" in `analysis/goldens-tool/README.md`): a text and its
+  segmentation, a directory of sentence files, a directory of newsgroup
+  directories. They hold empty and whitespace-only lines, CR LF and lone
+  CR, XML comments, CDATA and character references, a document type
+  declaration and XML that is not well formed, NKJP pointers with two and
+  three numbers, into paragraphs that are missing, empty, repeated or of
+  mixed content, and numbers that are empty or not numbers, Irish Sentence
+  Bank slots that are zero or not numbers, a sentence without a source, a
+  token without content and token gaps of several spaces, Leipzig files
+  with too few lines and file names that are not read, newsgroup messages
+  with headers, quotes and signatures and malformed UTF-8, accented
+  letters and characters outside the Basic Multilingual Plane. Their host
+  names end in `.invalid` and their namespaces are `urn:example:` names.
 
 `analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
 

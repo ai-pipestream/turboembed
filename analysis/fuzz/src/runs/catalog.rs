@@ -14,8 +14,8 @@ use crate::resources::{Resources, Unavailable};
 
 /// The annotator directories the generator writes that the differential
 /// does not cover: the training stack (`train`, `train-events`,
-/// `train-langdetect`), the format readers (`formats`, `masc`, `ner`) and
-/// the parse and head rule readers (`parse`, `head-rules`) compare files,
+/// `train-langdetect`), the format readers (`formats`, `masc`, `ner`,
+/// `corpora`) and the parse and head rule readers (`parse`, `head-rules`) compare files,
 /// not layers of a text; the evaluators compare scores; the detokenizer
 /// runs on token lists; the BPE trainer learns merges from a whole set; the
 /// gazetteers answer queries line by line and load whole tables, and the
@@ -28,7 +28,7 @@ use crate::resources::{Resources, Unavailable};
 /// turbo-glossary and turbo-doccat compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
 /// them, which turbo-train-components compares with.
-pub const NOT_COVERED: [&str; 24] = [
+pub const NOT_COVERED: [&str; 25] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -53,6 +53,7 @@ pub const NOT_COVERED: [&str; 24] = [
     "stopword",
     "glossary",
     "svm-doccat",
+    "corpora",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

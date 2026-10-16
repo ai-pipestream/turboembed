@@ -1,0 +1,8 @@
+# A pointer without a document, written for this project.
+
+@@ file text.xml
+<teiCorpus><TEI><text xml:id="t"><body><div xml:id="d"><p xml:id="p">Dobre zdanie. Drugie dobre.</p></div></body></text></TEI></teiCorpus>
+@@ end
+@@ file ann_segmentation.xml
+<teiCorpus><TEI><text><body><p><s xml:id="n1"><seg corresp="string-range(p,0,3)" xml:id="n1-0"/></s></p></body></text></TEI></teiCorpus>
+@@ end

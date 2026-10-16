@@ -562,7 +562,7 @@ pub const FIXTURES: [Fixture; 63] = [
 ];
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 38] = [
+pub const INPUT_SETS: [&str; 39] = [
     "en",
     "multi",
     "norm",
@@ -601,6 +601,7 @@ pub const INPUT_SETS: [&str; 38] = [
     "glossary",
     "svm-doccat",
     "svm-doccat-train",
+    "corpora",
 ];
 
 /// The arguments the driver passes to the generator after the fixed ones
@@ -614,7 +615,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 41] = [
+pub const ANNOTATORS: [&str; 42] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -656,6 +657,7 @@ pub const ANNOTATORS: [&str; 41] = [
     "stopword",
     "glossary",
     "svm-doccat",
+    "corpora",
 ];
 
 /// The annotators with runs that ask a maxent model for their decisions:
@@ -692,6 +694,11 @@ pub const TEMPORAL_INPUT_SET: &str = "temporal";
 /// on them.
 pub const SVM_DOCCAT_INPUT_SET: &str = "svm-doccat";
 pub const SVM_DOCCAT_TRAIN_SET: &str = "svm-doccat-train";
+
+/// The input set of the corpus readers: files and directories in the
+/// layouts of the Moses, LetsMT, NKJP, Irish Sentence Bank, Leipzig and
+/// 20 Newsgroups corpora. No other annotator runs on it.
+pub const CORPORA_INPUT_SET: &str = "corpora";
 
 /// The input set the PII packs run on. They run on no other set, and the
 /// other annotators do not run on this one.
@@ -912,6 +919,19 @@ mod tests {
         assert!(svm.contains(&format!("INPUT_SET = \"{SVM_DOCCAT_INPUT_SET}\"")));
         assert!(svm.contains(&format!("TRAIN_SET = \"{SVM_DOCCAT_TRAIN_SET}\"")));
         assert!(svm.contains("ANNOTATOR = \"svm-doccat\""));
+    }
+
+    #[test]
+    fn the_corpus_readers_have_their_own_input_set_and_no_dumps() {
+        assert!(INPUT_SETS.contains(&CORPORA_INPUT_SET));
+        assert!(ANNOTATORS.contains(&"corpora"));
+        assert!(!DUMPED_ANNOTATORS.contains(&"corpora"));
+        let corpora = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/CorporaGolden.java");
+        assert!(corpora.contains("INPUT_SET = Runs.CORPORA"));
+        assert!(corpora.contains("ANNOTATOR = \"corpora\""));
+        let runs = include_str!("../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+        assert!(runs.contains(&format!("CORPORA = \"{CORPORA_INPUT_SET}\";")));
+        assert!(runs.contains("CorporaGolden.all()"));
     }
 
     #[test]
