@@ -46,7 +46,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the liblinear trainer of the OpenNLP addons with liblinear-java's logistic regression solvers ([liblinear.md](liblinear.md)), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
 | `turbo-train-components` | `analysis/train-components/` | Training the sentence detector, the tokenizer, the part-of-speech tagger, the lemmatizer, the phrase chunker, the language detector and the sentiment detector (`SentimentEventStream` and the `SentimentModel` file, [sentiment.md](sentiment.md)): `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`, `LemmaSampleEventStream`, `ChunkerEventStream` and `LanguageDetectorEventStream` with their factories (end characters, alphanumeric pattern, abbreviation dictionary, feature generator descriptor, tag dictionary), the `SentenceModel`, `TokenizerModel`, `POSModel`, `LemmatizerModel`, `ChunkerModel` and `LanguageDetectorModel` files with every manifest entry and artifact the JVM writes (the dictionaries as `Dictionary.serialize` and `POSDictionary.serialize` write them, zip entries in the JVM's order), and the recipes that train the eighteen published UD 1.3 models again from their treebanks and compare them with the published files. Its own crate because `turbo-formats` depends on `turbo-tokenize`; "Training the components" below |
-| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger and chunker (`en-pos-maxent.bin`, `en-chunker.bin`); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
+| `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger and chunker (`en-pos-maxent.bin`, `en-chunker.bin`); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the web language detector trained on those sentences and on FineWeb-2 and FineWeb (ODC-By 1.0) windows read by range request, gated on held-out sentences and held-out windows; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the sentence corpus readers (Moses, LetsMT, NKJP, the Irish Sentence Bank, which also gives token samples), the Leipzig language corpus reader and the 20 Newsgroups reader, the Arvores Deitadas readers of the Floresta Sinta(c)tica treebank (name, part-of-speech, chunk, sentence and token samples), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner`, `corpora` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`). `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
 | `turbo-encoding` | `analysis/encoding/` | Bytes to a document: decoders for the 40 encodings of the WHATWG Encoding Standard, each recording an alignment from the bytes to the text; encoding detection (a port of chardetng); `open`, which settles the encoding and writes `turbo:encoding`; and mojibake repair (a port of ftfy's encoding fix, by Robyn Speer), one edit per fix. `analysis/encoding/README.md` lists the generated files and their sources |
@@ -3255,6 +3255,22 @@ which Tatoeba replaces every week, as release `data-tatoeba-2026-10-10`.
 The README has the record, the split, the thresholds and which way the
 gate leans.
 
+The web language detector recipe (`langdetect_web`, #429) trains on the
+same sentences and on windows of at most 300 characters from FineWeb-2
+and FineWeb (English) documents, 100 languages in all, read from three
+ranges of each of 204 Parquet files at fixed revisions
+(`fineweb-files.txt` and `fineweb-ranges.txt` list them with their
+digests). Windows from tatoeba.org and windows holding a Tatoeba
+sentence of 20 characters or more from the other side are passed over. It is gated twice against
+`langdetect-183.bin`: on the 35,500 held-out sentences, 91.25% against
+83.91%, and on 47,079 held-out windows, 96.46% against 93.45%, both a
+pass, in run 38848321968 of `.github/workflows/models-fineweb.yml`.
+Beside the Tatoeba model it is about a point worse on the sentences
+(91.25% against 92.19%) and about six points better on the windows of
+the languages that model knows (96.84% against 90.88%). It goes out as
+release `models-tatoeba-fineweb-2026-10-10-1`, with the ids of the
+sentences and the documents it was trained on.
+
 ## Differential fuzzing
 
 The golden tests compare the ports with what OpenNLP wrote for a few
@@ -3695,15 +3711,21 @@ by the crate's own reader (`read::parquet`): flat tables of string and
 integer columns, PLAIN and dictionary pages in data page versions 1 and
 2, nulls, and the SNAPPY (a decompressor in the crate), GZIP (`flate2`,
 already in the build), ZSTD (`turbo-zstd`, in the workspace) and
-UNCOMPRESSED codecs. Without ZSTD that is what pyarrow writes by
-default; FineWeb-2's text column is ZSTD-compressed, as the
-models-fineweb run showed reading `data/afr_Latn/train/000_00000.parquet`.
-Other encodings and codecs (LZ4 and BROTLI among them) are refused
-with an error naming them, and a column is read by name, so a reader
-reads only the columns it uses. Each file with a recorded digest is
-checked on the bytes the reader parses, so it is read and hashed once.
-Dropping quotation marks in GutenQA's loose match can join words
-(“Yes”“No” matches "YesNo", "its" matches "it's"), which is unlikely
+UNCOMPRESSED codecs. pyarrow writes SNAPPY by default; FineWeb-2's text
+column is ZSTD-compressed, as the models-fineweb run showed reading
+`data/afr_Latn/train/000_00000.parquet`. Other encodings and codecs
+(LZ4 and BROTLI among them) are refused with an error naming them, and
+a column is read by name, so a reader reads only the columns it uses.
+Each file with a recorded digest is checked on the bytes the reader
+parses, so it is read and hashed once. A file too large to fetch whole
+can be read in part: its footer's length from its last 8 bytes, its
+schema and first row groups from the first bytes of its footer
+(`Leading`), and those row groups from the file's first bytes
+(`Parquet::open_head`), which is how the language detector's web recipe
+reads FineWeb-2 and FineWeb. When the first bytes of the footer are all
+of it, every row group must be read from them. Dropping quotation marks
+in GutenQA's loose match can join words (“Yes”“No” matches "YesNo",
+"its" matches "it's"), which is unlikely
 to misplace a GutenQA passage. Chunked sets are joined into
 documents with a line break between chunks. Evidence a reader cannot
 place in its document is listed in `LoadedSet.unplaced` rather than

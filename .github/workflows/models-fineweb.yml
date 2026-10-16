@@ -1,0 +1,339 @@
+name: models-fineweb
+
+# Trains the web language detector of release $TAG
+# (release::FINEWEB_MODELS and langdetect_web::LANGDETECT_WEB in
+# analysis/train-recipes) on the recorded Tatoeba export and on web text
+# from FineWeb-2 and FineWeb, twice, and checks that both runs write the
+# same bytes; gates it against langdetect-183.bin on held-out sentences
+# and on held-out web text, and scores it beside the Tatoeba model;
+# checks that its files are the bytes the zoo's built-in index lists at
+# their addresses in the release; and, run by hand on main, publishes
+# the model with the ids of its training sentences and documents, its
+# card, its two gate records and its two comparison records as the
+# assets of release $TAG through models-publish.yml
+# (analysis/train-recipes/README.md, "The models releases" and "The web
+# language detector recipe"). A pull request that changes the workflow,
+# the recipes, the crates the run mostly rests on or the zoo's index
+# trains and checks, and keeps the files as an artifact; nothing is
+# published.
+#
+# The web text is read by range request from the Hugging Face hub: three
+# ranges of each file fineweb-files.txt lists, checked against the
+# SHA-256s fineweb-ranges.txt lists. While those two lists are empty, the
+# run makes them: the files list from the hub's API at the datasets'
+# revisions, the ranges from each file's last bytes and footer, as
+# `turbo-train-recipes fineweb-ranges` says what to fetch next. It keeps
+# them as an artifact, to be committed, and trains on them as a run whose
+# model is not a release.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/models-fineweb.yml"
+      - ".github/workflows/models-publish.yml"
+      - "analysis/train-recipes/**"
+      - "analysis/train-components/**"
+      - "analysis/train/**"
+      - "analysis/eval/**"
+      - "analysis/zstd/**"
+      - "analysis/langdetect/**"
+      - "analysis/zoo/index/zoo.json"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RECIPES: target/release/turbo-train-recipes
+  # The release's tag and where its assets are published
+  # (release::FINEWEB_MODELS and release::RELEASES); tests check both.
+  TAG: models-tatoeba-fineweb-2026-10-10-1
+  RELEASES: https://github.com/ai-pipestream/turboembed/releases/download/
+
+jobs:
+  fineweb:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    outputs:
+      tag: ${{ env.TAG }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The Tatoeba export, as models-tatoeba.yml fetches and caches it
+      # (the same cache key), from the release that keeps it.
+      - id: export-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/tatoeba/archives
+          key: tatoeba-export-${{ hashFiles('analysis/train-recipes/tatoeba-export.txt') }}
+      - name: fetch the Tatoeba export from its release
+        if: steps.export-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tatoeba/archives"
+          while read -r sha256 url; do
+            case "$sha256" in ''|'#'*) continue ;; esac
+            curl -fsSL --retry 3 -o "$RUNNER_TEMP/tatoeba/archives/${url##*/}" "$url"
+          done < analysis/train-recipes/tatoeba-export.txt
+      - name: check and extract the export
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tatoeba/export"
+          while read -r sha256 url; do
+            case "$sha256" in ''|'#'*) continue ;; esac
+            echo "$sha256  ${url##*/}"
+          done < analysis/train-recipes/tatoeba-export.txt > "$RUNNER_TEMP/export.sha256"
+          cd "$RUNNER_TEMP/tatoeba/archives"
+          sha256sum -c "$RUNNER_TEMP/export.sha256"
+          [ "$(ls | sort)" = "$(cut -c67- "$RUNNER_TEMP/export.sha256" | sort)" ] \
+            || { echo "the archives are not the files tatoeba-export.txt lists" >&2; exit 1; }
+          for a in *.tar.bz2; do
+            tar -xjf "$a" -C "$RUNNER_TEMP/tatoeba/export"
+          done
+      - if: steps.export-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/tatoeba/archives
+          key: ${{ steps.export-cache.outputs.cache-primary-key }}
+      # The reference and the Tatoeba model, from the addresses
+      # fineweb-references.txt lists, checked against the SHA-256 listed
+      # with each before they are cached.
+      - id: references-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/references
+          key: fineweb-references-${{ hashFiles('analysis/train-recipes/fineweb-references.txt') }}
+      - name: fetch the reference and the Tatoeba model
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/references"
+          while read -r sha256 url; do
+            case "$sha256" in ''|'#'*) continue ;; esac
+            f="$RUNNER_TEMP/references/${url##*/}"
+            [ -f "$f" ] || curl -fsSL --retry 3 -o "$f" "$url"
+            echo "$sha256  $f" | sha256sum -c -
+          done < analysis/train-recipes/fineweb-references.txt
+      - if: steps.references-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/references
+          key: ${{ steps.references-cache.outputs.cache-primary-key }}
+      - run: cargo build -q --release -p turbo-train-recipes
+      # The web ranges, cached under the two lists when they are
+      # committed. While they are empty the run makes them, and the cache,
+      # which then holds the made lists beside the ranges, is also keyed
+      # by the code that says which files and ranges are read.
+      - name: the web lists
+        id: web-lists
+        run: |
+          set -euo pipefail
+          if grep -q -v -e '^#' -e '^$' analysis/train-recipes/fineweb-files.txt; then
+            echo "WEB_LISTS=committed" >> "$GITHUB_ENV"
+            echo "key=fineweb-web-${{ hashFiles('analysis/train-recipes/fineweb-files.txt', 'analysis/train-recipes/fineweb-ranges.txt') }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "WEB_LISTS=made" >> "$GITHUB_ENV"
+            echo "key=fineweb-web-made-${{ hashFiles('analysis/train-recipes/fineweb-files.txt', 'analysis/train-recipes/fineweb-ranges.txt', 'analysis/train-recipes/src/fineweb.rs') }}" >> "$GITHUB_OUTPUT"
+          fi
+      - id: web-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/web
+          key: ${{ steps.web-lists.outputs.key }}
+          # Ranges cached under other lists are only a start: each is kept
+          # under its file's revision, and what a run reads is checked
+          # against the lists.
+          restore-keys: fineweb-web-
+      - name: use the committed lists
+        if: env.WEB_LISTS == 'committed'
+        run: |
+          mkdir -p "$RUNNER_TEMP/web/lists"
+          cp analysis/train-recipes/fineweb-files.txt analysis/train-recipes/fineweb-ranges.txt "$RUNNER_TEMP/web/lists/"
+      # The files list, made from the hub's API at each dataset's
+      # revision: each file's size and its SHA-256 as the API gives them.
+      # The binary checks ranges, not whole files, so the committed list
+      # is checked here, against the API, and the made one is used.
+      - name: the files list from the hub's API
+        if: env.WEB_LISTS == 'committed' || steps.web-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          web="$RUNNER_TEMP/web"
+          mkdir -p "$web/lists"
+          "$RECIPES" fineweb-ranges --paths > paths.tsv
+          cut -f1,2 paths.tsv | sort -u | while IFS=$'\t' read -r repo revision; do
+            curl -fsSL --retry 5 -o "api-${repo##*/}.json" "https://huggingface.co/api/datasets/$repo/revision/$revision?blobs=true"
+            jq -e --arg r "$revision" '.sha == $r' "api-${repo##*/}.json" > /dev/null \
+              || { echo "$repo: the API answered for another revision" >&2; exit 1; }
+          done
+          {
+            printf '# The FineWeb-2 and FineWeb files the language detector recipe reads (turbo_train_recipes::fineweb),\n'
+            printf "# with each file's size and SHA-256 as the Hugging Face hub's API gives them at the revision.\n"
+            printf '# repo\trevision\tpath\tsize\tsha256\n'
+            while IFS=$'\t' read -r repo revision path; do
+              jq -r -e --arg p "$path" --arg repo "$repo" --arg rev "$revision" \
+                '.siblings[] | select(.rfilename == $p) | [$repo, $rev, $p, .lfs.size, .lfs.sha256] | @tsv' \
+                "api-${repo##*/}.json"
+            done < paths.tsv
+          } > api-files.txt
+          wc -l api-files.txt
+          if [ "$WEB_LISTS" = committed ]; then
+            diff analysis/train-recipes/fineweb-files.txt api-files.txt
+          else
+            cp api-files.txt "$web/lists/fineweb-files.txt"
+          fi
+      # Round by round, the ranges the bytes at hand give: each file's
+      # last 8 bytes, then its footer's first bytes, then its head. Each
+      # answer must be a 206 of the range's length. curl stops an answer
+      # more than 64 KiB longer than the range, such as the whole file;
+      # the limit also applies to the hub's redirect, whose body is longer
+      # than an 8-byte range.
+      - name: fetch the web ranges
+        if: steps.web-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          web="$RUNNER_TEMP/web"
+          for round in 1 2 3 4; do
+            "$RECIPES" fineweb-ranges --files "$web/lists/fineweb-files.txt" --web "$web" --need > need.tsv
+            [ -s need.tsv ] || break
+            [ "$round" -lt 4 ] || { echo "ranges still needed after three rounds" >&2; exit 1; }
+            echo "round $round: $(wc -l < need.tsv) ranges, $(awk -F'\t' '{ s += $4 - $3 } END { print s }' need.tsv) bytes"
+            while IFS=$'\t' read -r url file start end; do
+              mkdir -p "$(dirname "$file")"
+              code=$(curl -sSL --retry 5 --max-filesize $((end - start + 65536)) -r "$start-$((end - 1))" -o "$file.part" \
+                -w '%{http_code}' "$url")
+              size=$(stat -c %s "$file.part")
+              if [ "$code" != 206 ] || [ "$size" != $((end - start)) ]; then
+                echo "$url $start-$end: HTTP $code, $size bytes" >&2
+                exit 1
+              fi
+              mv "$file.part" "$file"
+            done < need.tsv
+          done
+          "$RECIPES" fineweb-ranges --files "$web/lists/fineweb-files.txt" --web "$web" --record > made-ranges.txt
+          if [ "$WEB_LISTS" = committed ]; then
+            diff <(grep -v '^#' "$web/lists/fineweb-ranges.txt") <(grep -v '^#' made-ranges.txt)
+          else
+            cp made-ranges.txt "$web/lists/fineweb-ranges.txt"
+          fi
+          du -sh "$web"
+      - if: steps.web-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/web
+          key: ${{ steps.web-cache.outputs.cache-primary-key }}
+      # Two runs must write the same bytes. `tatoeba-fineweb` exits with 1
+      # when a gate fails and 2 on an error; both runs are kept either way,
+      # so the step does not stop at the first failing command.
+      - name: train, gate and compare, twice
+        run: |
+          set +e -uo pipefail
+          web="$RUNNER_TEMP/web"
+          lists=()
+          if [ "$WEB_LISTS" = made ]; then
+            lists=(--files "$web/lists/fineweb-files.txt" --ranges "$web/lists/fineweb-ranges.txt" --unrecorded-web)
+          fi
+          # GNU time, where the runner has it, reports the run's peak memory.
+          timer=()
+          [ -x /usr/bin/time ] && timer=(/usr/bin/time -v)
+          mkdir -p runs
+          status=0
+          for r in a b; do
+            start=$SECONDS
+            "${timer[@]}" "$RECIPES" tatoeba-fineweb --export "$RUNNER_TEMP/tatoeba/export" --web "$web" \
+              --references "$RUNNER_TEMP/references" --out "runs/run-$r" "${lists[@]}" > "runs/run-$r.log" 2>&1
+            s=$?
+            cat "runs/run-$r.log"
+            echo "run $r: exit status $s, $((SECONDS - start)) s" | tee -a "runs/run-$r.log"
+            [ "$s" -gt "$status" ] && status=$s
+          done
+          id=turbo-mul-tatoeba-fineweb-langdetect-1
+          for f in "$id.bin" training-sentences.txt training-documents.txt card.json gate.json gate-web.json \
+                   compare-tatoeba.json compare-web.json; do
+            cmp "runs/run-a/$id/$f" "runs/run-b/$id/$f" || status=2
+          done
+          sha256sum runs/run-*/"$id"/* | tee runs/SHA256SUMS
+          exit "$status"
+      # What the README records of the run: each language's sentences and
+      # windows, and how each file's documents were chosen.
+      - name: the card's languages and files
+        if: always()
+        run: |
+          set -euo pipefail
+          card=runs/run-a/turbo-mul-tatoeba-fineweb-langdetect-1/card.json
+          [ -f "$card" ] || exit 0
+          jq -r '["language", "held_out", "candidate", "reference", "compared"],
+                 (.per_language as $p | .compared_per_language as $c | range(0; $p | length)
+                  | [$p[.].tatoeba, $p[.].held_out, $p[.].candidate_correct, $p[.].reference_correct,
+                     $c[.].compared_correct])
+                 | @tsv' "$card"
+          jq -r '["language", "training", "held_out", "candidate", "reference", "compared"],
+                 (.web_per_language[] | [.tatoeba, .training, .held_out, .candidate_correct,
+                  .reference_correct, .compared_correct])
+                 | @tsv' "$card"
+          jq -r '["language", "side", "path", "wanted", "file_rows", "groups_read", "rows_read", "too_short",
+                  "excluded_host", "duplicates", "tatoeba_overlap", "host_deferred", "host_taken_later", "chosen"],
+                 (.web.files[] | [.tatoeba, .side, .path, .wanted, .file_rows, .row_groups_read, .rows_read,
+                  .too_short, .excluded_host, .duplicates, .tatoeba_overlap, .host_deferred, .host_taken_later,
+                  .chosen])
+                 | @tsv' "$card"
+      # Only a run on the committed lists can give the release's model. On
+      # a mismatch, the entry the run gives is printed to compare with the
+      # index.
+      - name: the model is the bytes the zoo's index lists
+        if: env.WEB_LISTS == 'committed'
+        run: |
+          set -euo pipefail
+          if ! "$RECIPES" zoo-index --models runs/run-a --release "$TAG" --check; then
+            "$RECIPES" zoo-index --models runs/run-a --release "$TAG" \
+              | jq --arg p "$RELEASES$TAG/" '.artifacts[] | select(.files[0].url | startswith($p))'
+            exit 1
+          fi
+      - name: the release's files
+        if: env.WEB_LISTS == 'committed'
+        run: |
+          set -euo pipefail
+          id=turbo-mul-tatoeba-fineweb-langdetect-1
+          d="runs/run-a/$id"
+          mkdir dist
+          cp "$d/$id.bin" "$d/training-sentences.txt" "$d/training-documents.txt" dist/
+          for f in card gate gate-web compare-tatoeba compare-web; do
+            cp "$d/$f.json" "dist/$id.$f.json"
+          done
+          cd dist
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+      - if: env.WEB_LISTS == 'committed'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG }}
+          path: dist
+          if-no-files-found: error
+      # The made lists, kept and printed whole, so they can be committed
+      # from the artifact or from this log.
+      - name: keep the made lists
+        if: always() && env.WEB_LISTS == 'made'
+        run: |
+          mkdir -p runs/lists
+          for f in fineweb-files.txt fineweb-ranges.txt; do
+            [ -f "$RUNNER_TEMP/web/lists/$f" ] || continue
+            cp "$RUNNER_TEMP/web/lists/$f" runs/lists/
+            echo "----- $f ($(sha256sum < "runs/lists/$f" | cut -d' ' -f1))"
+            cat "runs/lists/$f"
+          done
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: models-fineweb-run
+          path: runs
+
+  # Publishes exactly the files the fineweb job checked and uploaded.
+  publish:
+    needs: fineweb
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/models-publish.yml
+    with:
+      tag: ${{ needs.fineweb.outputs.tag }}
+      summary: The language detector the web recipe trains on Tatoeba's export of 2026-10-10 (kept as release data-tatoeba-2026-10-10) and on FineWeb-2 and FineWeb documents, with the ids of the sentences (training-sentences.txt) and the documents (training-documents.txt) it was trained on.
