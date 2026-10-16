@@ -21,7 +21,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use turbo_analysis::{Document, Error, Ix, Key, Layer, ModelRef, Provenance, Span, Spans, Tag, TagSet, ViewId};
-use turbo_analysis_layers::{Categories, CategoryScope, Sentences, Vectors};
+use turbo_analysis_layers::{Categories, CategoryScope, IncivilityLabel, IncivilityScores, Sentences, Vectors};
 
 use crate::subwords::SubwordAnnotator;
 use crate::vectors::{Input, VectorAnnotator};
@@ -348,6 +348,22 @@ impl LabelCentroids {
             *s = sigmoid(z);
         }
         Ok(())
+    }
+
+    /// Scores `vector` across all labels for multi-label incivility
+    /// classification (`sigmoid((dot - bias) * scale)`) and maps the tag names
+    /// into [`IncivilityScores`].
+    pub fn score_incivility_vector(&self, vector: &[f32], bias: f64, scale: f64) -> Result<IncivilityScores, String> {
+        let mut buf = vec![0.0f64; self.tags.len()];
+        self.score_multi_label(vector, bias, scale, &mut buf)?;
+        let mut out = IncivilityScores::default();
+        for (i, &val) in buf.iter().enumerate() {
+            let label = self.tags.label(Tag(i as u16));
+            let parsed = IncivilityLabel::from_name(label)
+                .ok_or_else(|| format!("centroid label {label:?} is not a valid IncivilityLabel"))?;
+            out.set(parsed, val);
+        }
+        Ok(out)
     }
 
     /// Classifies every item in `vectors` (`opennlp:embeddings<L>`) into

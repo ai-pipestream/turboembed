@@ -416,4 +416,90 @@ terms and are not committed to the repository.
   distinct `Provenance.annotator` IDs and that CPU and device (`TURBO_TEST_DEVICE` /
   `TURBO_TEST_REQUIRE_CUDA=1`) outputs agree within `1e-5`.
 
+## Incivility and toxicity annotator (`IncivilityAnnotator`, `#323`)
 
+`turbo_doccat::sentiment::incivility` (`IncivilityAnnotator`,
+`IncivilityLexicon`, `IncivilityVectorScorer`, `IncivilityUnit`,
+`DEFAULT_INCIVILITY_THRESHOLD`, `evaluate_incivility_corpus`) scores
+sentences, retrieval chunks, or structure blocks across the six multi-label
+dimensions of `Incivility` (`turbo:incivility` from `#319`), following the
+Oasis (ICDMW 2019) and HKBU (ICA 2026) label set:
+
+- `IncivilityLabel::Insult` (`"insult"`)
+- `IncivilityLabel::Profanity` (`"profanity"`)
+- `IncivilityLabel::Threat` (`"threat"`)
+- `IncivilityLabel::IdentityAttack` (`"identity_attack"`)
+- `IncivilityLabel::Intolerance` (`"intolerance"`)
+- `IncivilityLabel::SevereToxicity` (`"severe_toxicity"`)
+
+`IncivilityAnnotator` (`turbo-doccat:incivility`) reads
+`(View, Tokens, Option<Sentences>, Option<Chunks>, Option<Structure>, Option<Vectors<Sentences>>, Option<Vectors<Chunks>>)`
+and writes `Incivility`:
+
+1. **Lexicon and phrase matching (`IncivilityLexicon`)**: deterministic,
+   zero-regex token and multi-token phrase matching over `opennlp:tokens`
+   that assigns per-label weights in `0.0..=1.0`, guards against negated mild
+   adjectives (`"not stupid"`, `"not dumb"`), and records the exact
+   `IxRange<Tokens>` evidence span for every matched expression. Each
+   `IncivilityLexicon` computes a canonical SHA-256 hex digest over its sorted
+   `(phrase, label, weight)` entries for `ModelRef::sha256`.
+2. **Multi-label embedding head (`IncivilityVectorScorer`)**: scores
+   `Vectors<Sentences>` (`IncivilityUnit::Sentences`) or `Vectors<Chunks>`
+   (`IncivilityUnit::Chunks`) through an `IncivilityVectorScorer`. Neither
+   head type implements the trait itself: a small wrapper calls
+   `ClassifierHead::score_incivility_vector` or
+   `LabelCentroids::score_incivility_vector` from `#321` (the adapters in
+   `analysis/embed/tests/heads.rs` show both). A scorer that names its
+   encoder makes the annotator refuse vectors from any other encoder. A
+   unit with no tokens is scored by the head but gets no evidence span,
+   since there is nothing to attribute it to. When the embedding
+   head predicts a positive label (`score >= threshold`) that had no direct
+   lexicon match in that unit, the annotator attributes evidence to the unit's
+   highest-salience content token span so every positive label carries at
+   least one non-empty `IxRange<Tokens>` evidence span.
+3. **Co-occurrence rule for `SevereToxicity`**: when `Threat` co-occurs with
+   `Insult`, `Profanity`, `IdentityAttack`, or `Intolerance` at or above
+   `threshold` (`0.5` by default), `SevereToxicity` is elevated and inherits
+   the supporting token evidence spans so multiple labels can fire on the same
+   unit with their own evidence spans.
+4. **Optional reply-context conflict scoring (`with_reply_context`)**:
+   following Opinion Conflicts (Zhang et al., 2018, arXiv:1809.00289), when
+   `use_reply_context` is enabled and `turbo:structure` (`Structure`) is
+   present with a parent block or a preceding `Block::Quote` block, scores
+   antagonistic second-person reply patterns against the quoted or parent
+   block. `ModelRef::id` ends in `:reply-context` or `:no-reply-context`
+   after the setting (`oasis-incivility:lexicon:no-reply-context` or
+   `<head>+lexicon:no-reply-context`); it does not record whether the
+   document had a `Structure` layer.
+
+### Tests and license posture
+
+Per `#326`, external toxicity corpora with custom platform terms (`Jigsaw`,
+`Civil Comments`, `Social Bias Frames`) are not redistributed in the
+repository.
+
+- `analysis/doccat/src/sentiment/incivility.rs` tests `IncivilityAnnotator`
+  on project-authored regression fixtures covering canonical lexicon SHA-256
+  digests, multi-label co-occurrence (`Profanity` + `Insult` + `Threat` +
+  `SevereToxicity` on one sentence with per-label `IxRange<Tokens>` evidence
+  spans), chunk-level `IncivilityUnit::Chunks` scoring with a vector head,
+  reply-context conflict scoring (`with_reply_context(false)` vs
+  `with_reply_context(true)` over `Block::Quote` + `Block::Paragraph`), and
+  per-label precision, recall, F1, and evidence-span coverage via
+  `evaluate_incivility_corpus` on a 10-sentence regression fixture written
+  beside the lexicon rules. As with `#324`, this fixture pins the rule and
+  layer invariants rather than claiming generalisation accuracy on external
+  benchmarks.
+- `analysis/embed/tests/heads.rs`
+  (`incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device`)
+  fits a multi-label `ClassifierHead` (`HeadMode::MultiLabel`) and a 6-label
+  `LabelCentroids` head on `tiny-bert-bundle` (32-dim), runs
+  `IncivilityAnnotator` end to end with lexicon matching, embedding-head
+  scoring, and reply-context conflict detection, verifies that every positive
+  prediction carries a non-empty `IxRange<Tokens>` evidence span, and checks
+  that CPU and a device (`TURBO_TEST_DEVICE` / `TURBO_TEST_REQUIRE_CUDA=1`)
+  agree within `1e-5` with identical evidence spans. The one sentence the
+  head must catch without a lexicon hit ("Outsiders have no right to
+  participate in our civic institutions.") is in the head's eight training
+  rows, so the test shows the head firing on a sentence it was fitted to,
+  not generalisation.
