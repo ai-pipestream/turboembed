@@ -46,6 +46,8 @@ const FED: &[&str] = &[
     "place-profiles",
     "quantity",
     "sentence-fixture",
+    "sentiment",
+    "sentiment-train",
     "sequence",
     "stopword",
     "subwords",
