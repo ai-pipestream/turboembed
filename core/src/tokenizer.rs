@@ -498,11 +498,12 @@ impl Tokenizer {
         let id_of = |content: &str| t.special_tokens.iter().find(|s| s.content == content).map(|s| s.id as i32);
         let role = |r: SpecialRole| t.special_tokens.iter().find(|s| s.role == r).map_or(-1, |s| s.id as i32);
         // The library matches no special token in the text: a control
-        // piece written there is its characters.
+        // piece written there is its characters. A bpe tokenizer has no
+        // normalizer, so its normalized tokens are matched here too.
         let mut specials: Vec<Special> = t
             .special_tokens
             .iter()
-            .filter(|s| !s.normalized && !sentencepiece)
+            .filter(|s| (!s.normalized || matches!(kind, Kind::Bpe(_))) && !sentencepiece)
             .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip, single_word: false })
             .collect();
         specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));

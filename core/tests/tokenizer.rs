@@ -1002,11 +1002,12 @@ mod bpe {
     }
 
     /// The same with a space put in front, merges written as "left right",
-    /// whole words taken as pieces, and no model type named.
+    /// whole words taken as pieces, no model type named, and special tokens
+    /// marked normalized.
     #[test]
     fn matches_upstream_with_each_option() {
         let base: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
-        for variant in ["prefix", "legacy", "ignore_merges", "untyped"] {
+        for variant in ["prefix", "legacy", "ignore_merges", "untyped", "normalized"] {
             let mut json = base.clone();
             let mut m = manifest_bpe();
             match variant {
@@ -1026,6 +1027,16 @@ mod bpe {
                 // upstream takes a model with merges for BPE.
                 "untyped" => {
                     json["model"].as_object_mut().unwrap().remove("type");
+                }
+                // Theirs also mark the special tokens normalized, which
+                // with no normalizer matches them in the text as it is.
+                "normalized" => {
+                    for a in json["added_tokens"].as_array_mut().unwrap() {
+                        a["normalized"] = json!(true);
+                    }
+                    for s in m["tokenizer"]["special_tokens"].as_array_mut().unwrap() {
+                        s["normalized"] = json!(true);
+                    }
                 }
                 _ => {
                     json["model"]["ignore_merges"] = json!(true);
@@ -1048,12 +1059,15 @@ mod bpe {
         let dir = std::path::PathBuf::from(std::env::var("TURBO_BPE_FILES").expect("TURBO_BPE_FILES"));
         let mut gpt2 = manifest_bpe();
         gpt2["tokenizer"]["special_tokens"] =
-            json!([{ "role": "SPECIAL_UNK", "content": "<|endoftext|>", "id": 50256 }]);
+            json!([{ "role": "SPECIAL_UNK", "content": "<|endoftext|>", "id": 50256, "normalized": true }]);
         gpt2["tokenizer"]["template"] = json!(["$TEXT"]);
         gpt2["architecture"]["vocab_size"] = json!(50257);
         check("gpt2", gpt2, &dir.join("gpt2/tokenizer.json"));
         let mut roberta = manifest_bpe();
         roberta["tokenizer"]["special_tokens"][4]["id"] = json!(50264);
+        for s in roberta["tokenizer"]["special_tokens"].as_array_mut().unwrap() {
+            s["normalized"] = json!(true);
+        }
         roberta["architecture"]["vocab_size"] = json!(50265);
         check("roberta", roberta, &dir.join("roberta-base/tokenizer.json"));
     }
