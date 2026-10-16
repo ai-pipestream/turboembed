@@ -257,3 +257,65 @@ repeated GPU runs produce bit-for-bit identical probability vectors, and CPU
 and CUDA `LabelCentroids` and `ClassifierHead` scores agree within `1e-5` with
 identical predicted labels.
 
+## Sarcasm and irony detection (`PragmaticsAnnotator`, `#324`)
+
+`turbo_doccat::sentiment::pragmatics` (`PragmaticsAnnotator`,
+`PragmaticsVectorScorer`, `DEFAULT_MIN_POSITIVE_POLARITY`,
+`DEFAULT_MIN_NEGATIVE_POLARITY`, `DEFAULT_PRAGMATICS_THRESHOLD`) detects
+sentence-level sarcasm and irony and writes `Pragmatics` (`turbo:pragmatics`),
+aligned to `Sentences`. Scores are never folded into `turbo:categories`
+polarity, so a literal positive sentence's polarity is never flipped by the
+sarcasm detector; downstream consumers inspect `turbo:pragmatics` alongside
+`turbo:categories` and `turbo:opinions` to decide whether to flip or discount
+a positive polarity score.
+
+`PragmaticsAnnotator` (`turbo-doccat:pragmatics`) reads
+`(View, Sentences, Tokens, Option<Opinions>, Option<Categories<Sentences>>, Option<Emoji>, Option<Vectors<Sentences>>)`
+and combines three signals:
+
+1. **Riloff et al. (EMNLP 2013) incongruity (`Some(Incongruity)`)**: contrasts
+   a positive sentiment expression (`Opinions` with effective polarity
+   `>= min_positive_polarity`, sarcastic positive framing cues such as
+   `"oh great"`, `"love waiting"`, `"just what I needed"`, `"thrilled to"`, or
+   positive lexicon spans) against a negative situation phrase (`"waiting in
+   line"`, `"on hold"`, `"stuck in traffic"`, `"flight cancelled"`, `"server
+   crashed"`, `"working on saturday"`, from a fixed English phrase table) or
+   a negative opinion span in the same sentence. Clauses separated by an adversative conjunction (`"but"`,
+   `"however"`, `"although"`, `"though"`, `"yet"`, `"whereas"`, `"while"`,
+   `"except"`) without an explicit sarcastic cue are treated as literal mixed
+   sentiment (for example, *"The hotel room was lovely, but the flight was
+   delayed."*) and excluded from incongruity triggering.
+2. **Text against emoji polarity mismatch (`Some(Incongruity)`)**: contrasts
+   positive text opinions against negative emoji (`turbo:emoji` from `#183`,
+   scored via OpenNLP's `opennlp_annotation` and Unicode 18.0 CLDR short names,
+   such as `😭`, `😒`, `🙄`, `💔`, `😡`), or negative text opinions and
+   situations against positive emoji (`😍`, `🎉`, `🥳`, `😂`, `👍`), recording
+   the positive and negative token spans in `Incongruity { positive, negative }`.
+3. **Sentence embedding head (`evidence: None`)**: scores `Vectors<Sentences>`
+   with a `PragmaticsVectorScorer` (such as a `ClassifierHead` or
+   `LabelCentroids` head from `#321`) or reads `sarcasm`/`irony` probabilities
+   from `Categories<Sentences>` to catch implicit irony with no explicit
+   surface contrast. When the embedding head fires without explicit contrast,
+   `PragmaticsItem.evidence` is `None`.
+
+### Tests and license posture
+
+Per `#326`, external sarcasm datasets with Twitter/Reddit platform terms or
+unspecified licenses (`iSarcasm`, `SARC`, `SemEval-2018 Task 3`) are not
+redistributed in the repository, so there is no measured accuracy for this
+annotator yet. What exists is a 32-sentence project-written regression
+fixture (`pragmatics_benchmark_f1_and_evidence_invariants` in
+`analysis/doccat/src/sentiment/pragmatics.rs`): 18 sarcastic and 14 literal
+sentences written beside the cue and situation tables, with the
+embedding-head cases scored from hand-set two-dimensional vectors. It pins
+the behaviour of the rules and the evidence invariants (every incongruity
+and emoji-mismatch positive carries non-empty, non-overlapping
+`Some(Incongruity { positive, negative })` token spans inside its sentence;
+head-only positives carry `evidence: None`). It says nothing about how the
+rules generalise, and the scores are rule weights on a `0.0..=1.0` scale,
+not calibrated probabilities. `analysis/embed/tests/heads.rs`
+(`pragmatics_annotator_combines_incongruity_emoji_and_embedding_head`) runs
+the three signals end to end over `tiny-bert-bundle` with a fitted
+`ClassifierHead` as the sentence scorer and a `LabelCentroids` head written
+beside it, and compares CPU with a device when `TURBO_TEST_DEVICE` is set.
+

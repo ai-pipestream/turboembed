@@ -1770,6 +1770,7 @@ dependencies = [
  "turbo-chunker",
  "turbo-doccat",
  "turbo-goldens",
+ "turbo-normalize",
  "turbo-tokenize",
  "turbo-unicode",
 ]
