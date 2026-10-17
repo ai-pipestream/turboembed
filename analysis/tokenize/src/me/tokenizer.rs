@@ -77,8 +77,10 @@ impl TokenizerMe {
     /// either side of that split, each of which can hold more than half a
     /// character, come out as one with the product of their probabilities.
     /// Likewise a token start that the abbreviation jump would put between
-    /// two halves moves to the end of the character, so a half-character
-    /// token Java returns after the jump has no counterpart here.
+    /// two halves moves to the end of the character, and the cursor moves
+    /// with it so the low half before the new start is not evaluated and a
+    /// half-character token Java returns after the jump has no counterpart
+    /// here.
     pub fn tokenize_with(&self, text: &str, scratch: &mut Scratch, out: &mut Vec<(Span, f64)>) {
         let maxent = self.model.maxent();
         scratch.probs.resize(maxent.num_outcomes(), 0.0);
@@ -227,19 +229,30 @@ mod tests {
         // low half after the jump. Here the low half has no token, and `at`
         // stays synchronized with `start` at the end of the supplementary char.
         let unit = "\u{1f600}.\u{1f600}";
+        let unit_with_suffix = "\u{1f600}.\u{1f600}a";
         let xml = format!(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\"><entry><token>{unit}</token></entry></dictionary>"
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dictionary case_sensitive=\"false\"><entry><token>{unit}</token></entry><entry><token>{unit_with_suffix}</token></entry></dictionary>"
         );
         let dictionary = turbo_maxent::Dictionary::read(xml.as_bytes()).unwrap();
         let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../goldens/data/fixtures/tokenizer-abbreviations.bin");
-        let base_model = english().map(|t| t.model).unwrap_or_else(|| TokenizerModel::read(&fixture).unwrap());
+        let base_model = TokenizerModel::read(&fixture).unwrap();
         let without_dict = TokenizerMe::new(base_model.clone().with_abbreviations(None), TokenizerOptions::default());
         assert!(tokens(&without_dict, unit).len() > 1);
         let t = TokenizerMe::new(base_model.with_abbreviations(Some(dictionary)), TokenizerOptions::default());
         let got = tokens(&t, unit);
         assert_eq!(got.len(), 1);
         assert_eq!(got[0].0, unit);
+
+        // When a suffix follows the supplementary char that the abbreviation
+        // jump lands inside, the cursor resumes at `start` (byte 9) without
+        // multiplying in the low-surrogate decision before byte 9.
+        let mut spans = Vec::new();
+        t.tokenize(unit_with_suffix, &mut spans);
+        assert_eq!(spans.len(), 2);
+        assert_eq!(spans[0].0, Span::new(0, 10));
+        assert_eq!(spans[1].0, Span::new(9, 10));
+        assert_eq!(spans[1].1.to_bits(), 0.9018922705167963_f64.to_bits());
     }
 
     /// A unit with no whitespace in it, 6000 bytes long, that the model
