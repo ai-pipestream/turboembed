@@ -183,7 +183,14 @@ impl OpenNlpBpe {
         for (i, line) in text.lines().enumerate() {
             let mut parts = line.split(' ');
             match (parts.next(), parts.next(), parts.next()) {
-                (Some(l), Some(r), None) if !l.is_empty() && !r.is_empty() => pairs.push((l.to_owned(), r.to_owned())),
+                (Some(l), Some(r), None)
+                    if !l.is_empty()
+                        && !r.is_empty()
+                        && !l.chars().any(char::is_whitespace)
+                        && !r.chars().any(char::is_whitespace) =>
+                {
+                    pairs.push((l.to_owned(), r.to_owned()));
+                }
                 _ => return Err(TrainError::BadMergeLine { line: i + 1 }),
             }
         }
@@ -242,7 +249,7 @@ impl OpenNlpTokenizer {
 
     /// `tokenizePos`, in UTF-8 bytes: each token's span, from the start of
     /// its word on by the length of the tokens before it, `</w>` taken off
-    /// each that ends with it.
+    /// the last token of each word.
     pub fn tokenize_pos(&self, text: &str) -> Vec<(u32, u32)> {
         let mut spans = Vec::new();
         whitespace_spans(text, WHITESPACE, &mut spans);
@@ -250,8 +257,10 @@ impl OpenNlpTokenizer {
         for s in spans {
             let word = &text[s.start as usize..s.end as usize];
             let mut at = s.start;
-            for token in self.apply(symbols(word)) {
-                let clean = token.strip_suffix(END_OF_WORD).unwrap_or(&token);
+            let merged = self.apply(symbols(word));
+            let last = merged.len().saturating_sub(1);
+            for (i, token) in merged.into_iter().enumerate() {
+                let clean = if i == last { token.strip_suffix(END_OF_WORD).unwrap_or(&token) } else { &token };
                 let len = clean.len() as u32;
                 out.push((at, at + len));
                 at += len;
@@ -338,6 +347,14 @@ mod tests {
         let t = m.tokenizer();
         assert_eq!(t.tokenize(" low  lower\tl"), ["low", "lo", "w", "e", "r", "l"]);
         assert_eq!(t.tokenize_pos("ab low"), [(0, 1), (1, 2), (3, 6)]);
+
+        // A non-final piece ending with literal "</w>" from the input word
+        // must keep its bytes so subsequent spans stay aligned.
+        let m_literal =
+            OpenNlpBpe::from_merges([("<".into(), "/".into()), ("</".into(), "w".into()), ("</w".into(), ">".into())]);
+        let t_literal = m_literal.tokenizer();
+        assert_eq!(t_literal.tokenize("</w>a😀"), ["</w>", "a", "😀"]);
+        assert_eq!(t_literal.tokenize_pos("</w>a😀"), [(0, 4), (4, 5), (5, 9)]);
     }
 
     #[test]
@@ -347,5 +364,6 @@ mod tests {
         let back = OpenNlpBpe::parse_merges_text(&text).unwrap();
         assert_eq!(pairs(&back), pairs(&m));
         assert!(matches!(OpenNlpBpe::parse_merges_text("a b c\n"), Err(TrainError::BadMergeLine { line: 1 })));
+        assert!(matches!(OpenNlpBpe::parse_merges_text("a\tb c\n"), Err(TrainError::BadMergeLine { line: 1 })));
     }
 }
