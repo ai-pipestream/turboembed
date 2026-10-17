@@ -40,8 +40,17 @@ impl LanguageModel {
             return Err(ModelError::Factory(factory.into()));
         }
         let maxent = file.maxent(MODEL_ENTRY)?;
-        if let Err(outcome) = maxent.outcome_texts() {
-            return Err(ModelError::OutcomeNotText(outcome.clone()));
+        let outcomes = match maxent.outcome_texts() {
+            Ok(outcomes) => outcomes,
+            Err(outcome) => return Err(ModelError::OutcomeNotText(outcome.clone())),
+        };
+        for (i, code) in outcomes.iter().enumerate() {
+            if code.is_empty() {
+                return Err(ModelError::EmptyOutcome);
+            }
+            if outcomes[..i].contains(code) {
+                return Err(ModelError::DuplicateOutcome((*code).into()));
+            }
         }
         let model_ref = ModelRef {
             id: format!("opennlp:{COMPONENT}:{}", file.language()),
@@ -62,10 +71,20 @@ impl LanguageModel {
         (0..self.maxent.num_outcomes()).map(|i| self.code(i))
     }
 
+    /// The language code of outcome `i`, or `None` when `i` is out of bounds.
+    pub fn try_code(&self, i: usize) -> Option<&str> {
+        (i < self.maxent.num_outcomes()).then(|| self.maxent.outcome_str(i)).flatten()
+    }
+
     /// The language code of outcome `i`; `open` refused any model whose
     /// outcomes are not text.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `i >= self.maxent().num_outcomes()`.
     pub fn code(&self, i: usize) -> &str {
-        self.maxent.outcome_str(i).expect("the outcomes were checked to be text when the model was opened")
+        self.try_code(i)
+            .unwrap_or_else(|| panic!("outcome index {i} out of bounds for {} outcomes", self.maxent.num_outcomes()))
     }
 
     /// What layers record as their model: `opennlp:LanguageDetectorME:`

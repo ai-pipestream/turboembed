@@ -191,6 +191,31 @@ impl ContextGenerator {
         self.first_exact
     }
 
+    /// Shrinks internal buffers when a previous document grew them past
+    /// typical capacities so long-lived thread-local scratch does not
+    /// retain outlier allocations forever.
+    pub fn shrink_excess(&mut self) {
+        const MAX_RETAINED_UNITS: usize = 16 * 1024;
+        const MAX_RETAINED_GRAMS: usize = 16 * 1024;
+        const MAX_RETAINED_BYTES: usize = 64 * 1024;
+
+        if self.units.capacity() > MAX_RETAINED_UNITS {
+            self.units = Vec::new();
+        }
+        if self.grams.capacity() > MAX_RETAINED_GRAMS {
+            self.grams = Vec::new();
+            self.slots = Vec::new();
+            self.spread = Vec::new();
+            self.counted = Vec::new();
+            self.order = Vec::new();
+            self.ends = Vec::new();
+            self.order_scratch = HashMapOrder::default();
+        }
+        if self.bytes.capacity() > MAX_RETAINED_BYTES {
+            self.bytes = Vec::new();
+        }
+    }
+
     /// `StringUtil.toLowerCaseCharBuffer`: each code point through
     /// `Character.toLowerCase(int)`, written as UTF-16. No simple
     /// lowercase mapping changes how many code units a character takes

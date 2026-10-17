@@ -17,6 +17,10 @@ pub enum ModelError {
     /// A classifier outcome holds half of a surrogate pair, which no
     /// language code can hold.
     OutcomeNotText(turbo_maxent::JavaString),
+    /// A classifier outcome is the empty string, which `Language` layers refuse.
+    EmptyOutcome,
+    /// Two classifier outcomes have the same language code.
+    DuplicateOutcome(String),
 }
 
 impl fmt::Display for ModelError {
@@ -32,6 +36,12 @@ impl fmt::Display for ModelError {
             ),
             ModelError::OutcomeNotText(o) => {
                 write!(f, "language detector model: the outcome {o:?} holds half of a surrogate pair")
+            }
+            ModelError::EmptyOutcome => {
+                write!(f, "language detector model: an outcome is the empty string")
+            }
+            ModelError::DuplicateOutcome(c) => {
+                write!(f, "language detector model: duplicate outcome {c:?}")
             }
         }
     }
