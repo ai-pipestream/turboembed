@@ -40,8 +40,8 @@ impl Scratch {
         &self.probabilities
     }
 
-    /// Shrinks internal context buffers when a previous document grew them
-    /// past typical capacities.
+    /// Releases an oversized context. Its feature iterators become empty;
+    /// the last prediction probabilities remain available.
     pub fn shrink_excess(&mut self) {
         self.context.shrink_excess();
     }
@@ -194,6 +194,7 @@ thread_local! {
 /// every language at the same probability. [`LanguageDetector::predict_languages`]
 /// returns what OpenNLP returns.
 impl Annotator for LanguageDetector {
+    const VERSION: &'static str = "2";
     const ID: &'static str = "turbo-langdetect:maxent";
     type Reads = (View,);
     type Writes = (Language,);
