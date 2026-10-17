@@ -3,6 +3,7 @@
 //! a reference date-time ([`resolve`]) and TIMEX3 values ([`timex`]).
 
 pub mod calendar;
+pub mod clock;
 pub mod duration;
 pub mod resolve;
 pub mod spec;

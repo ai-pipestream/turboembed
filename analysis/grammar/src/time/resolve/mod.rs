@@ -180,8 +180,11 @@ pub fn resolve(value: &TimeValue, now: DateTime) -> Option<Resolved> {
         TimeValue::Point { point, modifier, clip } => points::resolve(&point, modifier, clip, now),
         TimeValue::Range { range, modifier } => ranges::resolve(&range, modifier, now),
         TimeValue::Duration { length, modifier } => {
-            let alternative =
-                Alternative { timex: Timex::Duration(length), value: Resolution::Duration { millis: length.millis() } };
+            let millis = length.millis();
+            if millis < 0 {
+                return None;
+            }
+            let alternative = Alternative { timex: Timex::Duration(length), value: Resolution::Duration { millis } };
             let grain = unit_grain(length.finest()?);
             Some(Resolved { kind: TimeKind::Duration, grain, modifier, alternatives: vec![alternative], preferred: 0 })
         }

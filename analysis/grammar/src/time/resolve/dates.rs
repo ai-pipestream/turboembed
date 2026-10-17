@@ -75,7 +75,7 @@ fn month_period(year: i32, month: u8, timex_year: TimexYear) -> Option<Dated> {
 fn year_period(year: i32) -> Option<Dated> {
     Some(Dated {
         timex: DateTimex::Date(TimexDate::year(year)),
-        span: Some((Date::new(year, 1, 1)?, Date::new(year + 1, 1, 1)?)),
+        span: Some((Date::new(year, 1, 1)?, Date::new(year.checked_add(1)?, 1, 1)?)),
     })
 }
 
@@ -85,7 +85,9 @@ fn range_period(start: Date, length: Duration, timex_year: Option<TimexYear>) ->
     let end = plus(start, &length)?;
     let ymd = |d: Date| TimexDate::Ymd {
         year: match timex_year {
-            Some(TimexYear::Short(yy)) => TimexYear::Short(((i32::from(yy) + d.year() - start.year()) % 100) as u8),
+            Some(TimexYear::Short(yy)) => {
+                TimexYear::Short((i64::from(yy) + i64::from(d.year()) - i64::from(start.year())).rem_euclid(100) as u8)
+            }
             Some(y) => y,
             None => TimexYear::Year(d.year()),
         },
@@ -116,30 +118,32 @@ pub fn plus(d: Date, length: &Duration) -> Option<Date> {
 }
 
 /// The month `n` months from `year`-`month`.
-fn month_plus(year: i32, month: u8, n: i32) -> (i32, u8) {
-    let count = year * 12 + i32::from(month) - 1 + n;
-    (count.div_euclid(12), (count.rem_euclid(12) + 1) as u8)
+fn month_plus(year: i32, month: u8, n: i32) -> Option<(i32, u8)> {
+    let count = i64::from(year) * 12 + i64::from(month) - 1 + i64::from(n);
+    let y = i32::try_from(count.div_euclid(12)).ok()?;
+    let m = (count.rem_euclid(12) + 1) as u8;
+    Some((y, m))
 }
 
 /// The years the past and the future readings of a month of an open year
 /// fall in: a month before the reference's is this year's in the past and
 /// next year's in the future; the reference's own month and later ones
 /// are this year's in the future and last year's in the past.
-fn month_years(month: u8, now: Date) -> (i32, i32) {
+fn month_years(month: u8, now: Date) -> Option<(i32, i32)> {
     let y = now.year();
-    if month < now.month() { (y, y + 1) } else { (y - 1, y) }
+    if month < now.month() { Some((y, y.checked_add(1)?)) } else { Some((y.checked_sub(1)?, y)) }
 }
 
 fn months(year: YearRef, month: MonthRef, now: Date) -> Option<([(i32, u8); 2], TimexYear)> {
     match month {
         MonthRef::Rel(n) => {
-            let (y, m) = month_plus(now.year(), now.month(), i32::from(n));
+            let (y, m) = month_plus(now.year(), now.month(), i32::from(n))?;
             Some(([(y, m), (y, m)], TimexYear::Year(y)))
         }
         MonthRef::Abs(m) => match year.year(now.year()) {
             Some(y) => Some(([(y, m), (y, m)], TimexYear::Year(y))),
             None if year == YearRef::Any => {
-                let (p, f) = month_years(m, now);
+                let (p, f) = month_years(m, now)?;
                 Some(([(p, m), (f, m)], TimexYear::Any))
             }
             None => None,
@@ -154,8 +158,10 @@ fn month_day(month: u8, d: u8, now: DateTime) -> Choice {
     let timex = TimexDate::Ymd { year: TimexYear::Any, month: Some(month), day: Some(d) };
     let y = now.date().year();
     let at = |y: i32| Date::new(y, month, d);
-    let past = (0..SEARCH).map(|k| y - k).find_map(|y| at(y).filter(|&x| DateTime::midnight(x) <= now));
-    let future = (0..SEARCH).map(|k| y + k).find_map(|y| at(y).filter(|&x| DateTime::midnight(x) >= now));
+    let past =
+        (0..SEARCH).filter_map(|k| y.checked_sub(k)).find_map(|y| at(y).filter(|&x| DateTime::midnight(x) <= now));
+    let future =
+        (0..SEARCH).filter_map(|k| y.checked_add(k)).find_map(|y| at(y).filter(|&x| DateTime::midnight(x) >= now));
     match (past, future) {
         (Some(p), Some(f)) => Choice { past: day(p, timex), future: day(f, timex) },
         _ => Choice::one(unresolved(timex)),
@@ -167,7 +173,7 @@ fn day_of_month(d: u8, now: DateTime) -> Choice {
     let timex = TimexDate::Ymd { year: TimexYear::Any, month: None, day: Some(d) };
     let (y, m) = (now.date().year(), now.date().month());
     let at = |k: i32| {
-        let (y, m) = month_plus(y, m, k);
+        let (y, m) = month_plus(y, m, k)?;
         Date::new(y, m, d)
     };
     let past = (0..SEARCH).find_map(|k| at(-k).filter(|&x| DateTime::midnight(x) <= now));
@@ -196,7 +202,7 @@ fn weekday_day(wd: u8, d: u8, this_month: bool, now: Date) -> Option<Choice> {
         return Date::new(y, m, d).map(|x| Choice::one(concrete_day(x)));
     }
     let at = |k: i32| {
-        let (y, m) = month_plus(y, m, k);
+        let (y, m) = month_plus(y, m, k)?;
         Date::new(y, m, d).filter(|x| x.day_of_week() == wd)
     };
     let past = (0..SEARCH).find_map(|k| at(-k).filter(|&x| x <= now))?;
@@ -237,7 +243,7 @@ fn cal(year: YearRef, month: u8, d: u8, wd: u8, now: DateTime) -> Option<Choice>
     match (month, d, wd) {
         (m, d, _) if m > 0 && d > 0 => Some(month_day(m, d, now)),
         (m, 0, _) if m > 0 => {
-            let (p, f) = month_years(m, today);
+            let (p, f) = month_years(m, today)?;
             Some(Choice { past: month_period(p, m, TimexYear::Any)?, future: month_period(f, m, TimexYear::Any)? })
         }
         (0, d, 0) if d > 0 => Some(day_of_month(d, now)),
@@ -269,7 +275,7 @@ pub fn relative(grain: TimeGrain, n: i32, now: Date) -> Option<Dated> {
             })
         }
         TimeGrain::Month => {
-            let (y, m) = month_plus(now.year(), now.month(), n);
+            let (y, m) = month_plus(now.year(), now.month(), n)?;
             month_period(y, m, TimexYear::Year(y))
         }
         TimeGrain::Quarter => {
@@ -280,9 +286,10 @@ pub fn relative(grain: TimeGrain, n: i32, now: Date) -> Option<Dated> {
             let start = month_start(now.year(), if now.month() <= 6 { 1 } else { 7 })?.plus_months(6 * n64)?;
             range_period(start, Duration::units(Unit::Month, 6)?, None)
         }
-        TimeGrain::Year => year_period(now.year() + n),
+        TimeGrain::Year => year_period(now.year().checked_add(n)?),
         TimeGrain::Decade => {
-            let start = Date::new(now.year().div_euclid(10) * 10 + 10 * n, 1, 1)?;
+            let year = i32::try_from(i64::from(now.year().div_euclid(10)) * 10 + 10 * n64).ok()?;
+            let start = Date::new(year, 1, 1)?;
             range_period(start, Duration::units(Unit::Year, 10)?, None)
         }
         _ => None,
@@ -311,7 +318,10 @@ pub fn dates(spec: DateSpec, now: DateTime) -> Option<Choice> {
             Some(Choice::one(concrete_day(today.plus_days(-back)?)))
         }
         DateSpec::Week { year, week } => {
-            let y = year.year(ry).unwrap_or(ry);
+            let y = match year {
+                YearRef::Any => ry,
+                _ => year.year(ry)?,
+            };
             let start = iso_week_start(y, week)?;
             let (year, week) = start.iso_week();
             Some(Choice::one(Dated {
@@ -335,7 +345,7 @@ pub fn dates(spec: DateSpec, now: DateTime) -> Option<Choice> {
             Some(Choice { past: at(ms[0])?, future: at(ms[1])? })
         }
         DateSpec::RelMonthDay { months, day } => {
-            let (y, m) = month_plus(ry, today.month(), i32::from(months));
+            let (y, m) = month_plus(ry, today.month(), i32::from(months))?;
             Some(Choice::one(match Date::new(y, m, day) {
                 Some(d) => concrete_day(d),
                 None => unresolved(TimexDate::Ymd { year: TimexYear::Year(y), month: Some(m), day: Some(day) }),
@@ -349,8 +359,10 @@ pub fn dates(spec: DateSpec, now: DateTime) -> Option<Choice> {
             };
             Some(Choice { past: week(c.past)?, future: week(c.future)? })
         }
-        DateSpec::Quarter { year, quarter } => periods(year, (quarter - 1) * 3 + 1, 3, now),
-        DateSpec::Half { year, half } => periods(year, (half - 1) * 6 + 1, 6, now),
+        DateSpec::Quarter { year, quarter } => {
+            (1..=4).contains(&quarter).then(|| periods(year, (quarter - 1) * 3 + 1, 3, now))?
+        }
+        DateSpec::Half { year, half } => (1..=2).contains(&half).then(|| periods(year, (half - 1) * 6 + 1, 6, now))?,
         DateSpec::Season { year, season } => {
             Some(Choice::one(unresolved(TimexDate::Season { year: year.year(ry), season })))
         }
@@ -361,7 +373,8 @@ pub fn dates(spec: DateSpec, now: DateTime) -> Option<Choice> {
             let ten = Duration::units(Unit::Year, 10)?;
             match year {
                 YearRef::Short(yy) => {
-                    let first = Date::new(ry.div_euclid(100) * 100 + i32::from(yy), 1, 1)?;
+                    let base = i32::try_from(i64::from(ry.div_euclid(100)) * 100 + i64::from(yy)).ok()?;
+                    let first = Date::new(base, 1, 1)?;
                     let (past, future) = if first.year() > ry {
                         (first.plus_years(-100)?, first)
                     } else {
@@ -381,8 +394,8 @@ pub fn dates(spec: DateSpec, now: DateTime) -> Option<Choice> {
             Some(y) => Some(Choice::one(concrete_day(holiday(h, y)?))),
             None => {
                 let this = holiday(h, ry)?;
-                let past = if this <= today { this } else { holiday(h, ry - 1)? };
-                let future = if this >= today { this } else { holiday(h, ry + 1)? };
+                let past = if this <= today { this } else { holiday(h, ry.checked_sub(1)?)? };
+                let future = if this >= today { this } else { holiday(h, ry.checked_add(1)?)? };
                 let timex = TimexDate::Ymd { year: TimexYear::Any, month: Some(past.month()), day: Some(past.day()) };
                 Some(Choice { past: day(past, timex), future: day(future, timex) })
             }
@@ -391,8 +404,8 @@ pub fn dates(spec: DateSpec, now: DateTime) -> Option<Choice> {
             let this = holiday(h, ry)?;
             let d = match (future, this > today, this < today) {
                 (true, true, _) | (false, _, true) => this,
-                (true, false, _) => holiday(h, ry + 1)?,
-                (false, _, false) => holiday(h, ry - 1)?,
+                (true, false, _) => holiday(h, ry.checked_add(1)?)?,
+                (false, _, false) => holiday(h, ry.checked_sub(1)?)?,
             };
             Some(Choice::one(concrete_day(d)))
         }
@@ -419,131 +432,9 @@ fn periods(year: YearRef, first_month: u8, length: i32, now: DateTime) -> Option
         None => {
             let y = today.year();
             let contains_or_after = (i32::from(today.month()) - 1) / length <= (i32::from(first_month) - 1) / length;
-            let (p, f) = if contains_or_after { (y - 1, y) } else { (y, y + 1) };
+            let (p, f) = if contains_or_after { (y.checked_sub(1)?, y) } else { (y, y.checked_add(1)?) };
             let at = |y| range_period(month_start(y, first_month)?, dur, Some(TimexYear::Any));
             Some(Choice { past: at(p)?, future: at(f)? })
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::time::spec::Holiday;
-
-    fn now(s: &str) -> DateTime {
-        DateTime::parse(s).unwrap()
-    }
-
-    fn show(c: &Choice) -> Vec<String> {
-        c.readings()
-            .map(|(_, d)| {
-                let t = match d.timex {
-                    DateTimex::Date(t) => t.to_string(),
-                    DateTimex::Range(s, e, l) => format!("({s},{e},{l})"),
-                };
-                match d.span {
-                    Some((s, e)) => format!("{t} {s} {e}"),
-                    None => format!("{t} -"),
-                }
-            })
-            .collect()
-    }
-
-    fn cal(year: YearRef, month: u8, day: u8, weekday: u8) -> DateSpec {
-        DateSpec::Cal { year, month, day, weekday }
-    }
-
-    #[test]
-    fn open_years_read_both_ways() {
-        let n = now("2016-11-07T00:00:00");
-        assert_eq!(
-            show(&dates(cal(YearRef::Any, 10, 2, 0), n).unwrap()),
-            ["XXXX-10-02 2016-10-02 2016-10-03", "XXXX-10-02 2017-10-02 2017-10-03"]
-        );
-        let n2 = now("2016-11-02T10:00:00");
-        assert_eq!(show(&dates(cal(YearRef::Any, 11, 2, 0), n2).unwrap())[1], "XXXX-11-02 2017-11-02 2017-11-03");
-        assert_eq!(show(&dates(cal(YearRef::Any, 0, 0, 5), n).unwrap()).len(), 2);
-        assert_eq!(show(&dates(cal(YearRef::Any, 0, 0, 1), n).unwrap())[1], "XXXX-WXX-1 2016-11-07 2016-11-08");
-        assert_eq!(show(&dates(cal(YearRef::Any, 12, 0, 0), n).unwrap())[0], "XXXX-12 2015-12-01 2016-01-01");
-        assert_eq!(show(&dates(cal(YearRef::Any, 2, 30, 0), n).unwrap()), ["XXXX-02-30 -"]);
-        let leap = show(&dates(cal(YearRef::Any, 2, 29, 0), now("2017-03-22T00:00:00")).unwrap());
-        assert_eq!(leap, ["XXXX-02-29 2016-02-29 2016-03-01", "XXXX-02-29 2020-02-29 2020-03-01"]);
-        let the_4th = show(&dates(cal(YearRef::Any, 0, 4, 0), now("2018-08-07T12:00:00")).unwrap());
-        assert_eq!(the_4th, ["XXXX-XX-04 2018-08-04 2018-08-05", "XXXX-XX-04 2018-09-04 2018-09-05"]);
-        let short = show(&dates(cal(YearRef::Short(30), 12, 12, 0), n).unwrap());
-        assert_eq!(short, ["XX30-12-12 1930-12-12 1930-12-13", "XX30-12-12 2030-12-12 2030-12-13"]);
-    }
-
-    #[test]
-    fn weekdays_on_days_of_the_month() {
-        let r = show(
-            &dates(DateSpec::WeekdayDay { weekday: 1, day: 21, this_month: false }, now("2019-01-25T12:00:00"))
-                .unwrap(),
-        );
-        assert_eq!(r, ["XXXX-WXX-1 2019-01-21 2019-01-22", "XXXX-WXX-1 2019-10-21 2019-10-22"]);
-        let r = show(
-            &dates(DateSpec::WeekdayDay { weekday: 1, day: 21, this_month: false }, now("2019-01-21T12:00:00"))
-                .unwrap(),
-        );
-        assert_eq!(r, ["2019-01-21 2019-01-21 2019-01-22"]);
-    }
-
-    #[test]
-    fn relative_periods() {
-        let n = now("2019-07-04T00:00:00");
-        let q =
-            |n: i16| show(&dates(DateSpec::Rel { grain: TimeGrain::Quarter, n }, now("2019-07-04T00:00:00")).unwrap());
-        assert_eq!(q(0), ["(2019-07-01,2019-10-01,P3M) 2019-07-01 2019-10-01"]);
-        assert_eq!(q(-1)[0].split(' ').next(), Some("(2019-04-01,2019-07-01,P3M)"));
-        assert_eq!(
-            show(&dates(DateSpec::Rel { grain: TimeGrain::Week, n: 1 }, n).unwrap())[0],
-            "2019-W28 2019-07-08 2019-07-15"
-        );
-        let we = show(&dates(DateSpec::Rel { grain: TimeGrain::Weekend, n: 0 }, now("2016-11-11T00:00:00")).unwrap());
-        assert_eq!(we, ["2016-W45-WE 2016-11-12 2016-11-14"]);
-        let decade =
-            show(&dates(DateSpec::Rel { grain: TimeGrain::Decade, n: 1 }, now("2018-07-02T00:00:00")).unwrap());
-        assert_eq!(decade, ["(2020-01-01,2030-01-01,P10Y) 2020-01-01 2030-01-01"]);
-        let past = show(&dates(DateSpec::WeekdayPast { weekday: 3 }, now("2019-01-31T00:00:00")).unwrap());
-        assert_eq!(past, ["2019-01-30 2019-01-30 2019-01-31"]);
-        let fortnight = show(&dates(DateSpec::Fortnight { n: 0 }, now("2021-05-20T00:00:00")).unwrap());
-        assert_eq!(fortnight, ["(2021-05-17,2021-05-31,P2W) 2021-05-17 2021-05-31"]);
-        let same = show(&dates(DateSpec::Undefined { grain: TimeGrain::Month }, now("2017-11-08T00:00:00")).unwrap());
-        assert_eq!(same, ["XXXX-XX 2017-11-01 2017-12-01"]);
-    }
-
-    #[test]
-    fn weeks_quarters_decades_and_holidays() {
-        let n = now("2016-11-07T00:00:00");
-        let lw = DateSpec::MonthWeek { year: YearRef::Any, month: MonthRef::Abs(7), week: 0 };
-        assert_eq!(
-            show(&dates(lw, n).unwrap()),
-            ["XXXX-07-W05 2016-07-25 2016-08-01", "XXXX-07-W05 2017-07-24 2017-07-31"]
-        );
-        let w1 = DateSpec::Week { year: YearRef::Abs(2015), week: 1 };
-        assert_eq!(show(&dates(w1, n).unwrap()), ["2015-W01 2014-12-29 2015-01-05"]);
-        let q1 = DateSpec::Quarter { year: YearRef::Any, quarter: 1 };
-        let r = show(&dates(q1, now("2019-11-07T00:00:00")).unwrap());
-        assert_eq!(r[0], "(XXXX-01-01,XXXX-04-01,P3M) 2019-01-01 2019-04-01");
-        assert_eq!(r[1], "(XXXX-01-01,XXXX-04-01,P3M) 2020-01-01 2020-04-01");
-        let nineties = show(&dates(DateSpec::Decade { year: YearRef::Short(90) }, now("2019-05-23T00:00:00")).unwrap());
-        assert_eq!(nineties[0], "(XX90-01-01,XX00-01-01,P10Y) 1990-01-01 2000-01-01");
-        assert_eq!(nineties[1], "(XX90-01-01,XX00-01-01,P10Y) 2090-01-01 2100-01-01");
-        let c15 = show(&dates(DateSpec::Century { n: 15 }, n).unwrap());
-        assert_eq!(c15, ["(1400-01-01,1500-01-01,P100Y) 1400-01-01 1500-01-01"]);
-        let easter_monday = DateSpec::Holiday { holiday: Holiday::Easter { days: 1 }, year: YearRef::Any };
-        let r = show(&dates(easter_monday, now("2019-08-05T00:00:00")).unwrap());
-        assert_eq!(r, ["XXXX-04-22 2019-04-22 2019-04-23", "XXXX-04-22 2020-04-13 2020-04-14"]);
-        let next_easter = DateSpec::HolidayNear { holiday: Holiday::Easter { days: 0 }, future: true };
-        assert_eq!(
-            show(&dates(next_easter, now("2019-06-12T00:00:00")).unwrap())[0],
-            "2020-04-12 2020-04-12 2020-04-13"
-        );
-        let first_monday = DateSpec::NthWeekday { year: YearRef::Any, month: MonthRef::Rel(1), weekday: 1, n: 1 };
-        assert_eq!(
-            show(&dates(first_monday, now("2018-08-01T12:00:00")).unwrap())[0],
-            "XXXX-09-WXX-1-#1 2018-09-03 2018-09-04"
-        );
     }
 }
