@@ -75,13 +75,22 @@ fn read_index(dir: &Path, stem: &str) -> Index {
             continue;
         }
         let mut fields = line.split_whitespace();
-        let (Some(pointer), Some(code_point)) = (fields.next(), fields.next()) else { continue };
+        let Some(pointer) = fields.next() else { continue };
+        let Some(code_point) = fields.next() else {
+            panic!("{name}:{}: missing code point", n + 1);
+        };
         let pointer: u32 = pointer.parse().unwrap_or_else(|_| panic!("{name}:{}: bad pointer", n + 1));
         let hex = code_point.strip_prefix("0x").unwrap_or_else(|| panic!("{name}:{}: bad code point", n + 1));
         let code_point = u32::from_str_radix(hex, 16).unwrap_or_else(|_| panic!("{name}:{}: bad code point", n + 1));
+        assert!(
+            code_point != 0 && char::from_u32(code_point).is_some(),
+            "{name}:{}: invalid scalar code point 0x{code_point:04X}",
+            n + 1
+        );
         rows.push((pointer, code_point));
     }
     assert!(!identifier.is_empty() && !date.is_empty(), "{name}: no identifier or date");
+    assert!(!rows.is_empty(), "{name}: empty index");
     assert!(rows.windows(2).all(|w| w[0].0 < w[1].0), "{name}: pointers out of order");
     Index { name, identifier, date, rows }
 }
@@ -176,6 +185,8 @@ fn single_byte(dir: &Path) -> String {
     for (index, name) in &indexes {
         let mut table = vec![0u32; 128];
         for &(p, cp) in &index.rows {
+            assert!(p < 128, "{}: pointer {p} out of 0..128", index.name);
+            assert!(cp <= 0xFFFF, "{}: code point 0x{cp:04X} past the BMP", index.name);
             table[p as usize] = cp;
         }
         out.array(&format!("{}.", index.name), name, "u16", &table);
@@ -205,7 +216,14 @@ fn gb18030(dir: &Path) -> String {
         &[&index, &ranges],
     );
     assert_eq!(index.rows.len(), 23940);
-    out.array("index-gb18030.txt.", "GB18030", "u16", &dense(&index, 0));
+    let table = dense(&index, 0);
+    assert!(table.iter().all(|&cp| cp != 0 && cp <= 0xFFFF), "{}: missing or non-BMP code point", index.name);
+    out.array("index-gb18030.txt.", "GB18030", "u16", &table);
+    assert!(
+        ranges.rows.windows(2).all(|w| w[0].0 < w[1].0 && w[0].1 < w[1].1),
+        "{}: range pointers and code points must be strictly ascending",
+        ranges.name
+    );
     let pointers: Vec<u32> = ranges.rows.iter().map(|r| r.0).collect();
     let code_points: Vec<u32> = ranges.rows.iter().map(|r| r.1).collect();
     out.array("The pointers that start a range, ascending.", "GB18030_RANGE_POINTERS", "u32", &pointers);
@@ -258,19 +276,27 @@ fn labels(dir: &Path) -> Vec<(String, String)> {
     for line in text.lines() {
         let line = line.trim();
         if line.starts_with("\"labels\"") {
+            assert!(!in_labels && pending.is_empty(), "encodings.json: nested or unconsumed labels block");
             in_labels = true;
-            pending.clear();
         } else if in_labels && line.starts_with(']') {
+            assert!(!pending.is_empty(), "encodings.json: empty labels block");
             in_labels = false;
         } else if in_labels {
-            pending.push(line.trim_end_matches(',').trim_matches('"').to_string());
+            let label = line.trim_end_matches(',').trim_matches('"');
+            assert!(
+                !label.is_empty() && label.bytes().all(|b| !b.is_ascii_uppercase()),
+                "encodings.json: bad label {label:?}"
+            );
+            pending.push(label.to_string());
         } else if let Some(rest) = line.strip_prefix("\"name\": ") {
+            assert!(!pending.is_empty(), "encodings.json: name without labels");
             let name = rest.trim_end_matches(',').trim_matches('"').to_string();
             for label in pending.drain(..) {
                 pairs.push((label, name.clone()));
             }
         }
     }
+    assert!(!in_labels && pending.is_empty() && !pairs.is_empty(), "encodings.json: incomplete or empty labels");
     pairs.sort();
     assert!(pairs.windows(2).all(|w| w[0].0 != w[1].0), "a label named twice");
     pairs
@@ -334,4 +360,102 @@ fn main() -> ExitCode {
         println!("{} ({} bytes)", path.display(), text.len());
     }
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::*;
+
+    fn scratch(tag: &str) -> PathBuf {
+        static N: AtomicU64 = AtomicU64::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "turbo-encoding-gen-{tag}-{}-{}",
+            std::process::id(),
+            N.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_index(dir: &Path, stem: &str, rows: &str) {
+        let text = format!("# Identifier: abc123\n# Date: 2026-01-01\n\n{rows}");
+        fs::write(dir.join(format!("index-{stem}.txt")), text).unwrap();
+    }
+
+    #[test]
+    fn read_index_parses_valid_rows_and_two_byte_emits_table() {
+        let dir = scratch("ok");
+        write_index(&dir, "jis0208", "0\t0x3000\tIDEOGRAPHIC SPACE\n2\t0x3001\tIDEOGRAPHIC COMMA\n");
+        let idx = read_index(&dir, "jis0208");
+        assert_eq!(idx.rows, [(0, 0x3000), (2, 0x3001)]);
+        let code = two_byte(&dir, "jis0208", "JIS0208", "JIS X 0208.", "u16");
+        assert!(code.contains("pub(crate) static JIS0208: [u16; 3]"));
+        assert!(code.contains("0x3000, 0x0000, 0x3001,"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_index_rejects_malformed_lines_and_code_points() {
+        let dir = scratch("bad-index");
+        for (stem, body) in [
+            ("missing-cp", "0\n"),
+            ("nul-cp", "0\t0x0000\n"),
+            ("surrogate-cp", "0\t0xD800\n"),
+            ("oob-cp", "0\t0x110000\n"),
+            ("empty", ""),
+            ("order", "1\t0x0041\n1\t0x0042\n"),
+        ] {
+            write_index(&dir, stem, body);
+            let res = std::panic::catch_unwind(|| read_index(&dir, stem));
+            assert!(res.is_err(), "expected {stem} to panic");
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn single_byte_and_gb18030_validate_pointer_and_range_bounds() {
+        let dir = scratch("bounds");
+        for &(stem, _) in &SINGLE_BYTE {
+            write_index(&dir, stem, "0\t0x0080\n127\t0x00FF\n");
+        }
+        assert!(single_byte(&dir).contains("pub(crate) static WINDOWS_1252: [u16; 128]"));
+        write_index(&dir, "ibm866", "128\t0x0080\n");
+        assert!(std::panic::catch_unwind(|| single_byte(&dir)).is_err());
+
+        let mut gb = String::new();
+        for p in 0..23940u32 {
+            writeln!(gb, "{p}\t0x{:04X}", 0x0080 + (p % 0x3000)).unwrap();
+        }
+        write_index(&dir, "gb18030", &gb);
+        write_index(&dir, "gb18030-ranges", "0\t0x0080\n39420\t0x0080\n");
+        assert!(std::panic::catch_unwind(|| gb18030(&dir)).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn labels_validates_encodings_json_structure() {
+        let dir = scratch("labels");
+        fs::write(
+            dir.join("encodings.json"),
+            "[\n{\n\"encodings\": [\n{\n\"labels\": [\n\"utf-8\",\n\"unicode-1-1-utf-8\"\n],\n\"name\": \"UTF-8\"\n}\n]\n}\n]\n",
+        )
+        .unwrap();
+        assert_eq!(labels(&dir), vec![("unicode-1-1-utf-8".into(), "UTF-8".into()), ("utf-8".into(), "UTF-8".into())]);
+        assert!(labels_file(&dir).contains("(\"utf-8\", Encoding::Utf8)"));
+
+        for bad in [
+            "[\n{\n\"labels\": [\n\"utf-8\"\n",
+            "[\n{\n\"labels\": [\n\"utf-8\"\n]\n}\n]\n",
+            "[\n{\n\"labels\": [\n]\n\"name\": \"UTF-8\"\n}\n]\n",
+            "[\n{\n\"labels\": [\n\"UTF-8\"\n],\n\"name\": \"UTF-8\"\n}\n]\n",
+            "[\n{\n\"name\": \"UTF-8\"\n}\n]\n",
+        ] {
+            fs::write(dir.join("encodings.json"), bad).unwrap();
+            assert!(std::panic::catch_unwind(|| labels(&dir)).is_err(), "expected {bad:?} to panic");
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
