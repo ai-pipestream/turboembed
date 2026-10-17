@@ -3513,7 +3513,7 @@ dictionaries loading.
 
 ### The offset invariants
 
-`turbo_goldens::invariants` (`analysis/goldens/src/invariants.rs`) checks
+`turbo_goldens::invariants` (`analysis/goldens/src/invariants/mod.rs`) checks
 every span of every text anchored layer of a document, in the view the
 spans are in: it is in bounds and ordered, both ends are on character
 boundaries of the view's text, UTF-8 to UTF-16 to UTF-8 round trips
@@ -4085,7 +4085,7 @@ runs them on any machine:
   and that the sentence detector's `acceptable` records are on exactly
   the points whose best outcome is a split. `dump.rs`'s unit tests hold
   the dump reader on hand written dumps, malformed ones included.
-- `analysis/goldens/src/fuzz/mod.rs` and `analysis/goldens/src/invariants.rs`
+- `analysis/goldens/src/fuzz/mod.rs` and `analysis/goldens/src/invariants/mod.rs`
   hold their own unit tests: the corpus is deterministic and an input
   does not depend on the count, the texts are varied, and no text holds
   a noncharacter or one of a sample of code points assigned after
