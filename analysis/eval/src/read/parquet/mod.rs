@@ -279,15 +279,14 @@ impl<'a> Parquet<'a> {
         let Kind::Bytes { data, ends } = kind else {
             return Err(format!("{}: column {name} is not a BYTE_ARRAY column", self.file));
         };
-        let text = String::from_utf8(data).map_err(|e| {
-            let row = ends.partition_point(|&end| end <= e.utf8_error().valid_up_to());
-            format!("{}: column {name} row {row} is not UTF-8", self.file)
-        })?;
-        // Valid as a whole, each value must also start and end on a
-        // character boundary.
-        if let Some(row) = ends.iter().position(|&end| !text.is_char_boundary(end)) {
-            return Err(format!("{}: column {name} row {row} is not UTF-8", self.file));
+        let mut start = 0;
+        for (row, &end) in ends.iter().enumerate() {
+            if std::str::from_utf8(&data[start..end]).is_err() {
+                return Err(format!("{}: column {name} row {row} is not UTF-8", self.file));
+            }
+            start = end;
         }
+        let text = String::from_utf8(data).expect("every row slice was checked as UTF-8");
         Ok(Strings { file: self.file.to_owned(), column: name.to_owned(), text, ends, nulls })
     }
 
