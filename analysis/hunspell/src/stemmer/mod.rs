@@ -253,3 +253,20 @@ impl Analysis<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::LoadMode;
+
+    #[test]
+    fn stem_is_the_first_of_stems() {
+        let aff = b"SET UTF-8\nOCONV 1\nOCONV k K\nSFX S Y 1\nSFX S 0 s .\n";
+        let dic = b"2\nwalk/S\nwalks\n";
+        let dict = Dictionary::from_bytes(aff, dic, LoadMode::Strict).unwrap();
+        let s = Stemmer::new(&dict);
+        for w in ["walks", "walk", "walks.", "walkss", "unknown", ""] {
+            assert_eq!(s.stem(w), s.stems(w).into_iter().next(), "{w:?}");
+        }
+    }
+}

@@ -107,7 +107,7 @@ mod tests {
         let annotator = sample_annotator();
         let doc = Document::new("café");
         let view = doc.get::<View>().expect("source view");
-        for bad in [Span::new(0, 99), Span::new(0, 4), Span::new(4, 5)] {
+        for bad in [Span::new(0, 99), Span::new(0, 4), Span::new(4, 5), Span { start: 3, end: 1 }] {
             let mut spans = Spans::new(view.id());
             spans.push(bad);
             let tokens = Tokens { spans, sentence: None };
