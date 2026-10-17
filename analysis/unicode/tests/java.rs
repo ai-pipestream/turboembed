@@ -300,3 +300,9 @@ fn to_lowercase_applies_unconditional_special_casing_only() {
     java::to_lowercase("ABC", &mut out);
     assert_eq!(out, "kept abc", "appends to the output");
 }
+
+#[test]
+#[should_panic(expected = "c is not the character at byte 0")]
+fn lowercase_at_rejects_mismatched_character() {
+    java::lowercase_at("ABC", 0, '\u{3A3}');
+}
