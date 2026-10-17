@@ -105,7 +105,7 @@ fn softmax_at(scores: &[f64], index: usize) -> f64 {
     let max = scores[index];
     let mut sum = 0.0f64;
     for &s in scores {
-        sum += turbo_jvm::strict_math::exp(s - max);
+        sum += (s - max).exp();
     }
     1.0 / sum
 }
@@ -162,13 +162,6 @@ mod tests {
     use crate::neural::PosSample;
     use crate::neural::bilstm_trainer::{BilstmPosTrainer, BilstmSettings};
     use turbo_analysis::{Document, Span, Spans, ViewId};
-
-    #[test]
-    fn softmax_at_uses_strict_math_exp() {
-        let scores = [0.5f64, -0.25f64, 1.25f64];
-        let expected_sum: f64 = scores.iter().map(|&s| turbo_jvm::strict_math::exp(s - scores[2])).sum();
-        assert_eq!(softmax_at(&scores, 2).to_bits(), (1.0 / expected_sum).to_bits());
-    }
 
     #[test]
     fn bilstm_annotator_rejects_invalid_token_spans_without_panicking() {
