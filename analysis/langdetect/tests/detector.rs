@@ -203,3 +203,37 @@ fn a_model_without_its_classifier_is_refused() {
     assert!(matches!(e, ModelError::File(_)), "{e:?}");
     assert!(e.to_string().contains("langdetect.model"), "{e}");
 }
+
+#[test]
+fn models_with_empty_or_duplicate_outcomes_are_refused() {
+    let units = |s: &str| s.encode_utf16().collect::<Vec<u16>>();
+    let empty_cls = gis_model(&["aaa", ""], &[(units("x"), vec![(0, 1.0)])]);
+    let e = LanguageModel::open(model_file(MANIFEST, &[("langdetect.model", &empty_cls)])).unwrap_err();
+    assert!(matches!(e, ModelError::EmptyOutcome), "{e:?}");
+    assert!(e.to_string().contains("empty string"), "{e}");
+
+    let dup_cls = gis_model(&["aaa", "bbb", "aaa"], &[(units("x"), vec![(0, 1.0)])]);
+    let e = LanguageModel::open(model_file(MANIFEST, &[("langdetect.model", &dup_cls)])).unwrap_err();
+    assert!(matches!(&e, ModelError::DuplicateOutcome(c) if c == "aaa"), "{e:?}");
+    assert!(e.to_string().contains("duplicate outcome \"aaa\""), "{e}");
+}
+
+#[test]
+#[should_panic(expected = "outcome index 99 out of bounds for 3 outcomes")]
+fn code_out_of_bounds_reports_bounds_panic_and_try_code_returns_none() {
+    let d = detector();
+    assert_eq!(d.model().try_code(0), Some("aaa"));
+    assert_eq!(d.model().try_code(3), None);
+    let _ = d.model().code(99);
+}
+
+#[test]
+fn shrink_excess_reclaims_large_scratch_buffers() {
+    let d = detector();
+    let mut scratch = Scratch::new();
+    let big: String = (0..25_000).map(|i| char::from_u32(0x0100 + (i % 512)).unwrap()).collect();
+    let _ = d.predict_language(&big, &mut scratch);
+    scratch.shrink_excess();
+    let best = d.predict_language("x", &mut scratch);
+    assert_eq!(best.code, "bbb");
+}

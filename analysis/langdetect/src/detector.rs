@@ -39,6 +39,12 @@ impl Scratch {
     pub fn probabilities(&self) -> &[f64] {
         &self.probabilities
     }
+
+    /// Shrinks internal context buffers when a previous document grew them
+    /// past typical capacities.
+    pub fn shrink_excess(&mut self) {
+        self.context.shrink_excess();
+    }
 }
 
 /// Every language the model knows, best first, as `predictLanguages`
@@ -195,14 +201,17 @@ impl Annotator for LanguageDetector {
     fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Language,), Error> {
         SCRATCH.with_borrow_mut(|(scratch, ranking)| {
             self.predict_languages(view.text(), scratch, ranking);
-            if !ranking.has_evidence() {
-                return Err(Error::Skipped(NO_EVIDENCE.into()));
-            }
-            let mut code = Strs::default();
-            for &o in ranking.outcomes() {
-                code.push(self.model.code(o as usize));
-            }
-            Ok((Language { code, score: ranking.probabilities().to_vec() },))
+            let res = if !ranking.has_evidence() {
+                Err(Error::Skipped(NO_EVIDENCE.into()))
+            } else {
+                let mut code = Strs::default();
+                for &o in ranking.outcomes() {
+                    code.push(self.model.code(o as usize));
+                }
+                Ok((Language { code, score: ranking.probabilities().to_vec() },))
+            };
+            scratch.shrink_excess();
+            res
         })
     }
 
