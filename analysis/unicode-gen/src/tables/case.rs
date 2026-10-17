@@ -26,6 +26,10 @@ pub struct CaseData {
 
 impl CaseData {
     pub fn read(dir: &Path) -> CaseData {
+        Self::parse(&UcdFile::read(dir, "CaseFolding.txt"), &UcdFile::read(dir, "SpecialCasing.txt"))
+    }
+
+    fn parse(folding: &UcdFile, special: &UcdFile) -> CaseData {
         let mut data = CaseData {
             common: BTreeMap::new(),
             full: BTreeMap::new(),
@@ -33,7 +37,6 @@ impl CaseData {
             turkic: BTreeMap::new(),
             special_lower: BTreeMap::new(),
         };
-        let folding = UcdFile::read(dir, "CaseFolding.txt");
         for record in folding.records() {
             if record.field_count() != 4 || !record.field(3).is_empty() {
                 record.fail("expected `code; status; mapping;`");
@@ -45,8 +48,16 @@ impl CaseData {
                 _ => record.fail("a simple folding maps to one code point"),
             };
             let previous = match record.field(1) {
-                "C" => data.common.insert(cp, mapping.clone()).map(|_| ()),
-                "F" => data.full.insert(cp, mapping.clone()).map(|_| ()),
+                "C" => {
+                    single();
+                    data.common.insert(cp, mapping.clone()).map(|_| ())
+                }
+                "F" => {
+                    if mapping.is_empty() {
+                        record.fail("empty case folding");
+                    }
+                    data.full.insert(cp, mapping.clone()).map(|_| ())
+                }
                 "S" => data.simple.insert(cp, single()).map(|_| ()),
                 "T" => data.turkic.insert(cp, single()).map(|_| ()),
                 status => record.fail(&format!("unknown status {status}")),
@@ -55,7 +66,6 @@ impl CaseData {
                 record.fail("code point listed twice with one status");
             }
         }
-        let special = UcdFile::read(dir, "SpecialCasing.txt");
         for record in special.records() {
             let unconditional = record.field_count() == 5 && record.field(4).is_empty();
             let conditional = record.field_count() == 6 && record.field(5).is_empty();
@@ -63,7 +73,13 @@ impl CaseData {
                 record.fail("expected `code; lower; title; upper; (conditions;)`");
             }
             if unconditional {
-                data.special_lower.insert(record.code_point(0), record.code_points(1));
+                let lower = record.code_points(1);
+                if lower.is_empty() {
+                    record.fail("empty special lowercase mapping");
+                }
+                if data.special_lower.insert(record.code_point(0), lower).is_some() {
+                    record.fail("code point listed twice");
+                }
             }
         }
         data
@@ -179,4 +195,40 @@ pub fn folded_code_points(case: &CaseData) -> Vec<u32> {
     cps.sort_unstable();
     cps.dedup();
     cps
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(folding: &str, special: &str) -> CaseData {
+        CaseData::parse(
+            &UcdFile::from_text("CaseFolding.txt", folding),
+            &UcdFile::from_text("SpecialCasing.txt", special),
+        )
+    }
+
+    #[test]
+    #[should_panic(expected = "CaseFolding.txt:1: a simple folding maps to one code point")]
+    fn status_c_rejects_multi_code_point_mapping() {
+        parse("00DF; C; 0073 0073;\n", "");
+    }
+
+    #[test]
+    #[should_panic(expected = "CaseFolding.txt:1: empty case folding")]
+    fn status_f_rejects_empty_mapping() {
+        parse("00DF; F; ;\n", "");
+    }
+
+    #[test]
+    #[should_panic(expected = "SpecialCasing.txt:1: empty special lowercase mapping")]
+    fn special_casing_rejects_empty_unconditional_lowercase() {
+        parse("", "0130; ; 0130; 0130;\n");
+    }
+
+    #[test]
+    #[should_panic(expected = "SpecialCasing.txt:2: code point listed twice")]
+    fn special_casing_rejects_duplicate_unconditional_code_point() {
+        parse("", "0130; 0069 0307; 0130; 0130;\n0130; 0069; 0130; 0130;\n");
+    }
 }

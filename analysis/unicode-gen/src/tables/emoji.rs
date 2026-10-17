@@ -143,13 +143,7 @@ fn names(file: &UcdFile) -> (BTreeMap<String, Named>, Vec<String>) {
 }
 
 fn parse_sequence(file: &UcdFile, line: usize, cps: &str) -> String {
-    let cps: Vec<u32> = cps
-        .split_ascii_whitespace()
-        .map(|cp| match u32::from_str_radix(cp, 16) {
-            Ok(value) if (4..=6).contains(&cp.len()) && value < 0x11_0000 => value,
-            _ => file.fail(line, &format!("`{cp}` is not a code point")),
-        })
-        .collect();
+    let cps: Vec<u32> = cps.split_ascii_whitespace().map(|cp| file.parse_code_point(line, cp)).collect();
     if cps.is_empty() {
         file.fail(line, "empty sequence");
     }
@@ -170,4 +164,19 @@ fn comment_name(file: &UcdFile, line: usize, comment: &str, sequence: &str) -> S
         file.fail(line, "expected `E<major>.<minor> <name>`");
     }
     name.trim().to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "emoji-test.txt:3: `+041` is not a code point")]
+    fn parse_sequence_rejects_signed_hex() {
+        let file = UcdFile::from_text(
+            "emoji-test.txt",
+            "# group: Smileys & Emotion\n# subgroup: face-smiling\n+041 ; fully-qualified # A E1.0 letter\n",
+        );
+        names(&file);
+    }
 }
