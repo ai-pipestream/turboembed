@@ -196,6 +196,20 @@ fn data_uri_with_unknown_header_keeps_the_declared_format() {
 }
 
 #[test]
+fn data_uri_with_an_empty_subtype_declares_nothing() {
+    // A declared type needs a non-empty subtype, as the layer asks: the
+    // sniffed format stands in for it, and with none the URI is not an asset.
+    for media_type in ["text/", "text/;charset=utf-8"] {
+        let text = format!("data:{media_type};base64,{}", std64(&png(1, 1)));
+        let layer = check_layer(&AssetDetector::new(), &text);
+        assert_eq!((layer.len(), layer.format[0], layer.declared_type.get(0)), (1, AssetFormat::Png, ""));
+        assert_eq!(one(&text).media_type(&text), "image/png");
+        let plain = format!("data:{media_type};base64,{}", std64(b"just some plain bytes padded out"));
+        assert!(detect(&plain).is_empty(), "{media_type}");
+    }
+}
+
+#[test]
 fn gif_jpeg_riff_pdf_zip_all_identify() {
     let runs = [
         std64(&padded(&gif(12, 34), 30)),
