@@ -6,7 +6,7 @@ use crate::boundaries::Boundaries;
 use crate::error::{BuildError, MatchError};
 use crate::select::{GlossaryMatch, merge};
 use crate::text::TextMatcher;
-use crate::token::{TokenMatcher, TokenValue};
+use crate::token::{TokenMatcher, TokenValue, check_tokens};
 
 /// What a matcher reads of one text: the text, its tokens, the offsets
 /// a character match may start and end at, and a value per token for a
@@ -53,20 +53,60 @@ impl GlossaryMatcher {
         }
     }
 
+    /// Whether some character matcher in it reads `boundaries`.
+    pub(crate) fn has_text(&self) -> bool {
+        match self {
+            GlossaryMatcher::Text(_) => true,
+            GlossaryMatcher::Tokens(_) => false,
+            GlossaryMatcher::Composite(ms) => ms.iter().any(GlossaryMatcher::has_text),
+        }
+    }
+
+    /// Whether some token matcher in it reads `tokens`.
+    fn has_tokens(&self) -> bool {
+        match self {
+            GlossaryMatcher::Text(_) => false,
+            GlossaryMatcher::Tokens(_) => true,
+            GlossaryMatcher::Composite(ms) => ms.iter().any(GlossaryMatcher::has_tokens),
+        }
+    }
+
+    /// Validates `values` alignment for any token matcher in `self`.
+    pub(crate) fn check_values(&self, tokens: &Tokens, values: Option<&Strs>) -> Result<(), MatchError> {
+        match self {
+            GlossaryMatcher::Text(_) => Ok(()),
+            GlossaryMatcher::Tokens(t) => t.check_values(tokens, values).map(|_| ()),
+            GlossaryMatcher::Composite(ms) => ms.iter().try_for_each(|m| m.check_values(tokens, values)),
+        }
+    }
+
     /// Appends the matches in `input` to `out`, in text order.
     pub fn find(&self, input: &MatchInput<'_>, out: &mut Vec<GlossaryMatch>) -> Result<(), MatchError> {
+        if self.has_tokens() {
+            self.check_values(input.tokens, input.values)?;
+            check_tokens(input.text, input.tokens)?;
+        }
+        self.find_checked(input, out)
+    }
+
+    /// Runs matching assuming token spans and `values` alignment have
+    /// already been validated.
+    pub(crate) fn find_checked(&self, input: &MatchInput<'_>, out: &mut Vec<GlossaryMatch>) -> Result<(), MatchError> {
         match self {
             GlossaryMatcher::Text(t) => {
                 t.find(input.text, input.boundaries, out);
                 Ok(())
             }
-            GlossaryMatcher::Tokens(t) => t.find(input.text, input.tokens, input.values, out),
+            GlossaryMatcher::Tokens(t) => {
+                let values = (t.value() == TokenValue::Values).then_some(input.values).flatten();
+                t.find_checked(input.text, input.tokens, values, out)
+            }
             GlossaryMatcher::Composite(ms) => {
                 let mut accepted = Vec::new();
                 let mut next = Vec::new();
                 for m in ms {
                     next.clear();
-                    m.find(input, &mut next)?;
+                    m.find_checked(input, &mut next)?;
                     merge(&mut accepted, &next);
                 }
                 out.append(&mut accepted);

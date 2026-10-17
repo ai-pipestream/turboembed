@@ -3,6 +3,8 @@
 use turbo_analysis::Span;
 use turbo_analysis_layers::Tokens;
 
+use crate::error::MatchError;
+
 /// A set of byte offsets of one text, `0..=len`, as a bit per offset. A
 /// character match is kept only when both its ends are in the set: the
 /// word boundaries of UAX #29 for OpenNLP's matcher, or the edges of a
@@ -43,6 +45,30 @@ impl Boundaries {
             b.insert(e);
         }
         b
+    }
+
+    /// Like [`Boundaries::of_tokens`], while validating in the same pass
+    /// that every token span is in bounds of `text`, lies on UTF-8
+    /// character boundaries, and is in non-overlapping text order.
+    pub(crate) fn of_checked_tokens(text: &str, len: u32, tokens: &Tokens) -> Result<Boundaries, MatchError> {
+        let mut b = Boundaries::none(len);
+        let bits = b.bits.as_mut_slice();
+        bits[0] |= 1;
+        bits[len as usize / 64] |= 1 << (len % 64);
+        let (starts, ends) = tokens.spans.columns();
+        let mut prev_end = 0u32;
+        for (index, (&s, &e)) in starts.iter().zip(ends).enumerate() {
+            if s > e || e > len || !text.is_char_boundary(s as usize) || !text.is_char_boundary(e as usize) {
+                return Err(MatchError::Token { index, start: s, end: e });
+            }
+            if s < prev_end {
+                return Err(MatchError::Unordered { index });
+            }
+            prev_end = e;
+            bits[s as usize / 64] |= 1 << (s % 64);
+            bits[e as usize / 64] |= 1 << (e % 64);
+        }
+        Ok(b)
     }
 
     pub fn insert(&mut self, x: u32) {
