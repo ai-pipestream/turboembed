@@ -7,7 +7,7 @@
 //! sets, which is how OpenNLP's UTF-16 scan treats non-ASCII characters.
 
 use turbo_analysis::Span;
-use turbo_normalize_layers::{AssetEncoding, AssetFormat};
+use turbo_normalize_layers::{AssetEncoding, AssetFormat, subtype};
 use turbo_unicode::props::white_space;
 
 use super::payload::{Header, Payload, Wrapping, is_any_base64, is_base64, is_base64_url, line_break_end, scan_base64};
@@ -136,8 +136,8 @@ impl Scanner<'_, '_> {
     /// but holds no white space and no quote. The payload is not wrapped,
     /// may be of any length, and uses the standard alphabet. Its format is
     /// sniffed from the header; the media type is the declared one when it
-    /// has a slash after its first character, else the sniffed format's.
-    /// A URI with neither is not reported.
+    /// has a non-empty type and subtype around its slash, else the sniffed
+    /// format's. A URI with neither is not reported.
     fn data_uri(&mut self, start: usize) -> Option<usize> {
         if !self.bytes[start..].starts_with(DATA_URI_SCHEME) {
             return None;
@@ -163,7 +163,7 @@ impl Scanner<'_, '_> {
         }
         let header = Header::read(self.bytes, &payload);
         let sniffed = sniff::format_of(header.bytes(), self.bytes, &payload);
-        let declares = declared.find('/').is_some_and(|slash| slash > 0);
+        let declares = declared.contains('/') && !subtype(declared).is_empty();
         let (format, declared) = match (sniffed, declares) {
             (_, true) => (sniffed.unwrap_or(AssetFormat::Declared), Some(span(media_start, i))),
             (Some(format), false) => (format, None),

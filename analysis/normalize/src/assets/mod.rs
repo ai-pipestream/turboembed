@@ -56,8 +56,8 @@ pub struct Asset {
     /// For a token, its claims segment.
     pub payload: Span,
     pub format: AssetFormat,
-    /// The media type a `data:` URI declared, when it has a slash after
-    /// its first character; OpenNLP then reports it instead of the
+    /// The media type a `data:` URI declared, when it has a non-empty type
+    /// and subtype around its slash; OpenNLP then reports it instead of the
     /// format's own.
     pub declared: Option<Span>,
     pub encoding: AssetEncoding,
