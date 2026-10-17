@@ -313,36 +313,42 @@ fn for_length(start: &Point, length: &Duration, now: DateTime) -> Option<(TimeKi
     let grain = super::points::grain(start)?;
     match (start.date, start.time) {
         (DateSpec::None, TimeOfDay::Clock(c)) => {
-            let h = c.hours().0[0];
-            let st = c.seconds_at(h);
-            let et = i64::from(st).checked_add(length.millis() / 1000)?;
-            let et = u32::try_from(et).ok()?;
-            let timex = Timex::Range(
-                TimexPoint { date: TimexDate::None, time: clock_timex(h, &c) },
-                TimexPoint { date: TimexDate::None, time: TimexTime::seconds(et) },
-                clock_duration(i64::from(et) - i64::from(st))?,
-            );
-            let span = Some(Span::Range(Some(Instant::Time(st)), Some(Instant::Time(et % 86_400))));
-            Some((TimeKind::TimeRange, grain, vec![Moment { timex, span, future: true, first: true }]))
+            let (hours, n) = c.hours();
+            let mut out = Vec::new();
+            for (k, &h) in hours[..n].iter().enumerate() {
+                let st = c.seconds_at(h);
+                let et = i64::from(st).checked_add(length.millis() / 1000)?;
+                let et = u32::try_from(et).ok()?;
+                let timex = Timex::Range(
+                    TimexPoint { date: TimexDate::None, time: clock_timex(h, &c) },
+                    TimexPoint { date: TimexDate::None, time: TimexTime::seconds(et) },
+                    clock_duration(i64::from(et) - i64::from(st))?,
+                );
+                let span = Some(Span::Range(Some(Instant::Time(st)), Some(Instant::Time(et % 86_400))));
+                out.push(Moment { timex, span, future: true, first: k == 0 });
+            }
+            Some((TimeKind::TimeRange, grain, out))
         }
         (date, TimeOfDay::Clock(c)) => {
-            let h = c.hours().0[0];
+            let (hours, n) = c.hours();
             let mut out = Vec::new();
             for (future, d) in dates(date, now)?.readings() {
                 let DateTimex::Date(dt) = d.timex else { return None };
-                let a = at(d.span?.0, c.seconds_at(h))?;
-                let b = shift(a, length)?;
-                if b < a {
-                    return None;
+                for (k, &h) in hours[..n].iter().enumerate() {
+                    let a = at(d.span?.0, c.seconds_at(h))?;
+                    let b = shift(a, length)?;
+                    if b < a {
+                        return None;
+                    }
+                    let end_date = if b.date() == a.date() { dt } else { next_day(dt, b.date()) };
+                    let timex = Timex::Range(
+                        TimexPoint { date: dt, time: clock_timex(h, &c) },
+                        TimexPoint { date: end_date, time: TimexTime::seconds(b.second_of_day()) },
+                        clock_duration(b.local_seconds() - a.local_seconds())?,
+                    );
+                    let span = Some(Span::Range(Some(Instant::DateTime(a)), Some(Instant::DateTime(b))));
+                    out.push(Moment { timex, span, future, first: k == 0 });
                 }
-                let end_date = if b.date() == a.date() { dt } else { next_day(dt, b.date()) };
-                let timex = Timex::Range(
-                    TimexPoint { date: dt, time: clock_timex(h, &c) },
-                    TimexPoint { date: end_date, time: TimexTime::seconds(b.second_of_day()) },
-                    clock_duration(b.local_seconds() - a.local_seconds())?,
-                );
-                let span = Some(Span::Range(Some(Instant::DateTime(a)), Some(Instant::DateTime(b))));
-                out.push(Moment { timex, span, future, first: true });
             }
             Some((TimeKind::DateTimeRange, grain, out))
         }

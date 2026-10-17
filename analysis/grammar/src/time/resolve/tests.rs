@@ -316,6 +316,36 @@ fn stretches_from_the_reference() {
     let week = Duration::units(Unit::Week, 1).unwrap();
     let r#for = TimeValue::range(Range::For { start: Point::date(day(1)), length: week });
     assert_eq!(show(&resolve(&r#for, n).unwrap()), ["(2016-11-08,2016-11-15,P1W) 2016-11-08..2016-11-15"]);
+    let hour = Duration::units(Unit::Hour, 1).unwrap();
+    let open_clock =
+        TimeValue::range(Range::For { start: Point::time(clock(5, 0, Shown::Hour, Meridiem::Unknown)), length: hour });
+    let r = resolve(&open_clock, n).unwrap();
+    assert_eq!(r.kind, TimeKind::TimeRange);
+    assert_eq!(r.preferred, 0);
+    assert_eq!(show(&r), ["(T05,T06:00:00,PT1H) 05:00:00..06:00:00", "(T17,T18:00:00,PT1H) 17:00:00..18:00:00"]);
+    let dated_clock = TimeValue::range(Range::For {
+        start: Point {
+            date: cal(YearRef::Abs(2018), 5, 29, 0),
+            time: clock(5, 0, Shown::Hour, Meridiem::Unknown),
+            ..Point::default()
+        },
+        length: hour,
+    });
+    let r = resolve(&dated_clock, now("2018-05-28T12:00:00")).unwrap();
+    assert_eq!(r.kind, TimeKind::DateTimeRange);
+    assert_eq!(r.preferred, 0);
+    assert_eq!(
+        show(&r),
+        [
+            "(2018-05-29T05,2018-05-29T06:00:00,PT1H) 2018-05-29 05:00:00..2018-05-29 06:00:00",
+            "(2018-05-29T17,2018-05-29T18:00:00,PT1H) 2018-05-29 17:00:00..2018-05-29 18:00:00",
+        ]
+    );
+    let cross_midnight = TimeValue::range(Range::For {
+        start: Point::time(clock(11, 0, Shown::Hour, Meridiem::Pm)),
+        length: Duration::units(Unit::Hour, 2).unwrap(),
+    });
+    assert_eq!(show(&resolve(&cross_midnight, n).unwrap()), ["(T23,T01:00:00,PT2H) 23:00:00..01:00:00"]);
     assert!(depends_on_reference(&next));
 }
 

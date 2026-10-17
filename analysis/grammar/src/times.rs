@@ -175,6 +175,29 @@ mod tests {
         let m = t.get(t.spans.iter().next().unwrap().0);
         assert!(m.ambiguous);
         assert_eq!(m.start, Some(DateTime::parse("2016-11-11T00:00").unwrap().local_seconds()));
+
+        let t = TimeAnnotator::english().find(
+            "from 5 for 1 hour",
+            ViewId::SOURCE,
+            Some(DateTime::parse("2018-05-28T12:00:00").unwrap()),
+        );
+        assert_eq!(t.check(), Ok(()));
+        assert_eq!(t.len(), 1);
+        let m = t.get(t.spans.iter().next().unwrap().0);
+        assert_eq!(m.kind, TimeKind::TimeRange);
+        assert!(m.ambiguous);
+        assert_eq!(
+            (m.timex, m.start, m.end, m.duration_ms),
+            ("(T05,T06:00:00,PT1H)", Some(18_000), Some(21_600), Some(3_600_000))
+        );
+
+        let late = TimeAnnotator::english().find("from 11pm for 2 hours", ViewId::SOURCE, Some(reference()));
+        assert_eq!(late.check(), Ok(()));
+        let m = late.get(late.spans.iter().next().unwrap().0);
+        assert_eq!(
+            (m.kind, m.start, m.end, m.duration_ms),
+            (TimeKind::TimeRange, Some(82_800), Some(3_600), Some(7_200_000))
+        );
     }
 
     #[test]
