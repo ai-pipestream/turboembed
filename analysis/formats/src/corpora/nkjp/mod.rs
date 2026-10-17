@@ -47,9 +47,9 @@ pub struct NkjpSentence {
 }
 
 /// The sentences of a segmentation file, `NKJPSegmentationDocument`: the
-/// `s` elements at `/teiCorpus/TEI/text/body/p/s`, by id in the order
-/// first seen (a sentence id given twice, or two sentences without one,
-/// keep the first place and the last segments).
+/// `s` elements at `/teiCorpus/TEI/text/body/p/s`, in the order first seen
+/// (a sentence id given twice keeps its first place and its last segments;
+/// sentences without an `xml:id` are each kept at their own place).
 ///
 /// The segments of a sentence are its `seg` children and the segments of
 /// its `choice` children: of a `choice`, each `nkjp:paren` whose `seg`
@@ -77,7 +77,7 @@ impl NkjpSegmentation {
     pub fn parse(text: &str) -> Result<NkjpSegmentation, FormatError> {
         let (root, _) = parse_xml(text)?;
         let mut sentences: Vec<NkjpSentence> = Vec::new();
-        let mut by_id: HashMap<Option<String>, usize> = HashMap::new();
+        let mut by_id: HashMap<String, usize> = HashMap::new();
         if root.name != "teiCorpus" {
             return Ok(NkjpSegmentation { sentences });
         }
@@ -118,15 +118,18 @@ impl NkjpSegmentation {
                 }
             }
             let sentence = NkjpSentence { id: id.clone(), segments: segments.list, source: s.span };
-            match by_id.get(&id) {
-                Some(&i) => {
-                    sentences[i].segments = sentence.segments;
-                    sentences[i].source = sentence.source;
-                }
-                None => {
-                    by_id.insert(id, sentences.len());
-                    sentences.push(sentence);
-                }
+            match id {
+                Some(id) => match by_id.get(&id) {
+                    Some(&i) => {
+                        sentences[i].segments = sentence.segments;
+                        sentences[i].source = sentence.source;
+                    }
+                    None => {
+                        by_id.insert(id, sentences.len());
+                        sentences.push(sentence);
+                    }
+                },
+                None => sentences.push(sentence),
             }
         }
         Ok(NkjpSegmentation { sentences })

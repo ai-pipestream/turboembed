@@ -39,6 +39,16 @@ fn duplicate_sentence_ids_do_not_invert_sample_source_span() {
 }
 
 #[test]
+fn anonymous_sentences_are_kept_independently() {
+    let xml = r#"<teiCorpus><TEI><text><body><p><s><seg xml:id="a" corresp="text.xml#string-range(p1,0,3)"/></s><s><seg xml:id="b" corresp="text.xml#string-range(p1,4,2)"/></s></p></body></text></TEI></teiCorpus>"#;
+    let parsed = NkjpSegmentation::parse(xml).unwrap();
+    assert_eq!(parsed.sentences.len(), 2);
+    assert_eq!(parsed.sentences[0].id, None);
+    assert_eq!(parsed.sentences[1].id, None);
+    assert_eq!(read(xml), [Ok("Ala ma ".to_owned())]);
+}
+
+#[test]
 fn a_sentence_that_throws_loses_the_sample_so_far() {
     let src = segmentation(&[
         ("s1", seg("a", "p1", 0, 3)),
