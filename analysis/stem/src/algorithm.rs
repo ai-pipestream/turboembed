@@ -64,4 +64,8 @@ impl Stemmer for Algorithm {
             Algorithm::Light(l) => l.stem_utf16(word, out),
         }
     }
+
+    fn config_hash(&self) -> u64 {
+        Algorithm::config_hash(self)
+    }
 }
