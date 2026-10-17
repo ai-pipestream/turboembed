@@ -233,7 +233,7 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
         commands: log.commands,
         procedure: procedure.into(),
         measured: None,
-        not_run: Some(why),
+        not_run: Some(crate::openvino::redact_user_paths(&why)),
     }
 }
 

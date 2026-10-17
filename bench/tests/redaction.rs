@@ -183,6 +183,17 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
         iterations: 5,
     })
     .unwrap_or_else(|e| panic!("{e}"));
+    let too_short_dense = measure(&Plan {
+        bundle: bundle.clone(),
+        device: "cpu".into(),
+        precision: TURBO_PRECISION_MODEL,
+        batch: Some(4),
+        seq: Some(1),
+        rows: RowKind::Dense,
+        warmup: 1,
+        iterations: 5,
+    });
+    assert!(too_short_dense.is_err());
 
     let model = home.join("upstream");
     std::fs::create_dir_all(&model).unwrap();
