@@ -86,20 +86,37 @@ impl MaxentLemmatizer {
     /// error, which no class of a trained model is.
     pub fn lemmatize(&self, words: &[TokenTag<'_>], lemmas: &mut Strs, probs: &mut Vec<f64>) -> Result<bool, Error> {
         let mut classes = Vec::with_capacity(words.len());
-        if !self.classes(words, &mut classes, probs) {
+        let mut next_probs = Vec::with_capacity(words.len());
+        if !self.classes(words, &mut classes, &mut next_probs) {
             return Ok(false);
         }
-        let mut scratch = DecodeScratch::default();
-        for (item, class) in words.iter().zip(&classes) {
-            let word = item.token;
-            let lemma = scratch.decode(word, class).map_err(|e| Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("{word:?} with the class {class:?}: {e}"),
-            })?;
-            lemmas.push(lemma);
-        }
+        decode_classes_into(words, &classes, &next_probs, lemmas, probs)?;
         Ok(true)
     }
+}
+
+fn decode_classes_into(
+    words: &[TokenTag<'_>],
+    classes: &[&JavaString],
+    next_probs: &[f64],
+    lemmas: &mut Strs,
+    probs: &mut Vec<f64>,
+) -> Result<(), Error> {
+    let mut scratch = DecodeScratch::default();
+    let mut decoded = Vec::with_capacity(words.len());
+    for (item, class) in words.iter().zip(classes) {
+        let word = item.token;
+        let lemma = scratch.decode(word, class).map_err(|e| Error::Annotator {
+            annotator: MaxentLemmatizer::ID,
+            detail: format!("{word:?} with the class {class:?}: {e}"),
+        })?;
+        decoded.push(lemma.to_owned());
+    }
+    for lemma in &decoded {
+        lemmas.push(lemma);
+    }
+    probs.extend_from_slice(next_probs);
+    Ok(())
 }
 
 /// The `(from, to)` token ranges of each sentence of `tokens`, or one
@@ -119,8 +136,8 @@ pub(crate) fn sentence_ranges(tokens: &Tokens) -> Vec<(usize, usize)> {
     ranges
 }
 
-/// Checks that the tokens are spans of the view and the tags are one per
-/// token, and gives the word of each token.
+/// Checks that the tokens are valid UTF-8 spans of the view and the tags
+/// are one in-bounds tag per token, and gives the word of each token.
 pub(crate) fn words<'d>(
     annotator: &'static str,
     view: &'d View,
@@ -145,7 +162,23 @@ pub(crate) fn words<'d>(
             detail: format!("{} tags for {} tokens", tags.tags.len(), starts.len()),
         });
     }
-    Ok(starts.iter().zip(ends).map(|(&s, &e)| &text[s as usize..e as usize]).collect())
+    let mut out = Vec::with_capacity(starts.len());
+    for (i, ((&s, &e), &tag)) in starts.iter().zip(ends).zip(&tags.tags).enumerate() {
+        let Some(word) = text.get(s as usize..e as usize) else {
+            return Err(Error::Annotator {
+                annotator,
+                detail: format!("token {i} span {s}..{e} is not a valid slice of {} bytes", text.len()),
+            });
+        };
+        if usize::from(tag.0) >= tags.tagset.len() {
+            return Err(Error::Annotator {
+                annotator,
+                detail: format!("token {i} tag {} is outside tagset of {}", tag.0, tags.tagset.len()),
+            });
+        }
+        out.push(word);
+    }
+    Ok(out)
 }
 
 impl Annotator for MaxentLemmatizer {
@@ -277,5 +310,20 @@ mod tests {
         assert_eq!(p.annotator, MaxentLemmatizer::ID);
         assert_eq!(p.model.as_ref().map(|m| m.id.as_str()), Some("opennlp:StatisticalLemmatizer:en"));
         assert_eq!(p.reads[1..], [Key::<Tokens>::DEFAULT.id(), Key::<PosTags>::DEFAULT.id()]);
+    }
+
+    #[test]
+    fn decode_classes_into_leaves_outputs_untouched_on_decode_error() {
+        let mut lemmas = Strs::default();
+        lemmas.push("prior");
+        let mut probs = vec![0.9];
+        let words = [TokenTag { token: "dogs", tag: "NOUN" }, TokenTag { token: "x", tag: "NOUN" }];
+        let c0 = JavaString::new("D0s");
+        let c1 = JavaString::new("D0");
+        let classes = [&c0, &c1];
+        let err = decode_classes_into(&words, &classes, &[0.8, 0.7], &mut lemmas, &mut probs).unwrap_err();
+        assert!(matches!(err, Error::Annotator { annotator: MaxentLemmatizer::ID, .. }));
+        assert_eq!(lemmas.iter().collect::<Vec<_>>(), ["prior"]);
+        assert_eq!(probs, [0.9]);
     }
 }

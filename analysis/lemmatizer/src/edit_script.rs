@@ -206,6 +206,7 @@ fn decode_units_into(word: &[u16], script: &[u16], lemma: &mut Vec<u16>) -> Resu
             }
             0x44 => {
                 let i = index(p)?;
+                let _unit = at(p + 1)?;
                 if lemma.len() <= i {
                     lemma.clear();
                     lemma.extend_from_slice(word);
@@ -373,6 +374,8 @@ mod tests {
         let class = |s: &str| JavaString::new(s);
         assert_eq!(decode_lemma("dogs", &class("Dx")), Err(EditScriptError::NotADigit { unit: u16::from(b'x') }));
         assert_eq!(decode_lemma("dogs", &class("D")), Err(EditScriptError::Truncated));
+        assert_eq!(decode_lemma("dogs", &class("D0")), Err(EditScriptError::Truncated));
+        assert_eq!(decode_lemma("dogs", &class("D9")), Err(EditScriptError::Truncated));
         assert_eq!(decode_lemma("dogs", &class("R0s")), Err(EditScriptError::Truncated));
         assert_eq!(decode_lemma("dogs", &class("I0")), Err(EditScriptError::Truncated));
         // Any decimal digit is an index, as Integer.parseInt reads it.

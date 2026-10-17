@@ -154,6 +154,9 @@ impl Annotator for DictionaryLemmatizer {
 
 #[cfg(test)]
 mod tests {
+    use turbo_analysis::{Document, Span, Spans};
+    use turbo_analysis_layers::{Tag, TagSet};
+
     use super::*;
 
     fn dictionary(text: &str) -> DictionaryLemmatizer {
@@ -224,5 +227,24 @@ mod tests {
         assert_eq!(java_split("", '\t'), [""]);
         assert_eq!(java_split("\t", '\t'), Vec::<&str>::new());
         assert_eq!(java_split("a\t\tb\t", '\t'), ["a", "", "b"]);
+    }
+
+    #[test]
+    fn annotate_rejects_out_of_bounds_token_spans_and_tags() {
+        let d = dictionary("dogs\tNNS\tdog\n");
+        let doc = Document::new("é");
+        let view = doc.get::<View>().unwrap();
+
+        let mut bad_span = Spans::new(view.id());
+        bad_span.push(Span::new(0, 1));
+        let tokens = Tokens { spans: bad_span, sentence: None };
+        let tags = PosTags { tagset: TagSet::new("ptb", &["NNS"]), tags: vec![Tag(0)], prob: None };
+        assert!(d.annotate((view, &tokens, &tags)).is_err());
+
+        let mut ok_span = Spans::new(view.id());
+        ok_span.push(Span::new(0, 2));
+        let tokens = Tokens { spans: ok_span, sentence: None };
+        let bad_tags = PosTags { tagset: TagSet::new("ptb", &["NNS"]), tags: vec![Tag(5)], prob: None };
+        assert!(d.annotate((view, &tokens, &bad_tags)).is_err());
     }
 }
