@@ -241,6 +241,9 @@ fn decode_infer_reply(batch: i64, r: ModelInferResponse) -> Result<Value, String
     let Some(out) = r.outputs.first() else {
         return Err("the reply has no output".into());
     };
+    if out.datatype != "FP32" {
+        return Err(format!("output datatype {:?} is not FP32", out.datatype));
+    }
     let shape = out.shape.clone();
     let &[rows, cols] = shape.as_slice() else {
         return Err(format!("output shape {shape:?} is not [batch, dim]"));
@@ -306,27 +309,41 @@ mod tests {
         assert_eq!(decode_infer_reply(1, ModelInferResponse::default()), Err("the reply has no output".into()));
         assert_eq!(bad_gateway("the reply has no output".into()).status(), StatusCode::BAD_GATEWAY);
 
+        let wrong_datatype = ModelInferResponse {
+            outputs: vec![InferOutputTensor { datatype: "INT32".into(), shape: vec![1, 1], ..Default::default() }],
+            raw_output_contents: vec![42i32.to_le_bytes().to_vec()],
+            ..Default::default()
+        };
+        assert!(decode_infer_reply(1, wrong_datatype).unwrap_err().contains("not FP32"));
+
+        let missing_datatype = ModelInferResponse {
+            outputs: vec![InferOutputTensor { shape: vec![1, 1], ..Default::default() }],
+            raw_output_contents: vec![1.0f32.to_le_bytes().to_vec()],
+            ..Default::default()
+        };
+        assert!(decode_infer_reply(1, missing_datatype).unwrap_err().contains("not FP32"));
+
         let wrong_rank = ModelInferResponse {
-            outputs: vec![InferOutputTensor { shape: vec![2], ..Default::default() }],
+            outputs: vec![InferOutputTensor { datatype: "FP32".into(), shape: vec![2], ..Default::default() }],
             ..Default::default()
         };
         assert!(decode_infer_reply(1, wrong_rank).unwrap_err().contains("not [batch, dim]"));
 
         let wrong_batch = ModelInferResponse {
-            outputs: vec![InferOutputTensor { shape: vec![2, 2], ..Default::default() }],
+            outputs: vec![InferOutputTensor { datatype: "FP32".into(), shape: vec![2, 2], ..Default::default() }],
             ..Default::default()
         };
         assert!(decode_infer_reply(1, wrong_batch).unwrap_err().contains("does not match batch 1"));
 
         let unaligned_raw = ModelInferResponse {
-            outputs: vec![InferOutputTensor { shape: vec![1, 1], ..Default::default() }],
+            outputs: vec![InferOutputTensor { datatype: "FP32".into(), shape: vec![1, 1], ..Default::default() }],
             raw_output_contents: vec![vec![1, 2, 3]],
             ..Default::default()
         };
         assert!(decode_infer_reply(1, unaligned_raw).unwrap_err().contains("not a multiple of 4"));
 
         let short_raw = ModelInferResponse {
-            outputs: vec![InferOutputTensor { shape: vec![1, 2], ..Default::default() }],
+            outputs: vec![InferOutputTensor { datatype: "FP32".into(), shape: vec![1, 2], ..Default::default() }],
             raw_output_contents: vec![1.0f32.to_le_bytes().to_vec()],
             ..Default::default()
         };
@@ -336,6 +353,7 @@ mod tests {
             model_name: "m".into(),
             model_version: "1".into(),
             outputs: vec![InferOutputTensor {
+                datatype: "FP32".into(),
                 shape: vec![2, 2],
                 contents: Some(InferTensorContents { fp32_contents: vec![1.0, 2.0, 3.0, 4.0], ..Default::default() }),
                 ..Default::default()
