@@ -38,6 +38,18 @@ pub fn reduce(text: &str, oracle: &mut dyn Oracle, max_rounds: usize) -> Result<
     let chars: Vec<String> = joined.chars().map(String::from).collect();
     let chars = ddmin(chars, oracle, &mut state, max_rounds)?;
     state.text = chars.concat();
+    if !state.text.is_empty() && state.rounds < max_rounds {
+        let empty = [String::new()];
+        let fails = oracle.fails(&empty)?;
+        state.rounds += 1;
+        state.candidates += 1;
+        if fails.len() != 1 {
+            return Err(format!("the oracle answered {} of 1 candidates", fails.len()));
+        }
+        if fails[0] {
+            state.text.clear();
+        }
+    }
     Ok(state)
 }
 
@@ -55,8 +67,15 @@ fn ddmin(
     while units.len() >= 2 && state.rounds < max_rounds {
         let chunks = partition(&units, n);
         let mut candidates: Vec<Vec<String>> = Vec::with_capacity(2 * chunks.len());
+        let mut texts: Vec<String> = Vec::with_capacity(2 * chunks.len());
+        let mut is_subset: Vec<bool> = Vec::with_capacity(2 * chunks.len());
         for (i, chunk) in chunks.iter().enumerate() {
-            candidates.push(chunk.clone());
+            let sub_text = chunk.concat();
+            if !texts.contains(&sub_text) {
+                texts.push(sub_text);
+                candidates.push(chunk.clone());
+                is_subset.push(true);
+            }
             if n > 2 {
                 let mut complement = Vec::new();
                 for (j, other) in chunks.iter().enumerate() {
@@ -64,10 +83,14 @@ fn ddmin(
                         complement.extend(other.iter().cloned());
                     }
                 }
-                candidates.push(complement);
+                let comp_text = complement.concat();
+                if !texts.contains(&comp_text) {
+                    texts.push(comp_text);
+                    candidates.push(complement);
+                    is_subset.push(false);
+                }
             }
         }
-        let texts: Vec<String> = candidates.iter().map(|c| c.concat()).collect();
         let fails = oracle.fails(&texts)?;
         state.rounds += 1;
         state.candidates += texts.len();
@@ -75,8 +98,8 @@ fn ddmin(
             return Err(format!("the oracle answered {} of {} candidates", fails.len(), texts.len()));
         }
         // A subset first (it is the smaller), then a complement.
-        let subset = (0..candidates.len()).filter(|&k| fails[k]).find(|&k| n == 2 || k % 2 == 0);
-        let complement = (0..candidates.len()).filter(|&k| fails[k]).find(|&k| n > 2 && k % 2 == 1);
+        let subset = (0..candidates.len()).find(|&k| fails[k] && is_subset[k]);
+        let complement = (0..candidates.len()).find(|&k| fails[k] && !is_subset[k]);
         if let Some(k) = subset {
             units = candidates[k].clone();
             n = 2;
@@ -123,6 +146,27 @@ mod tests {
         let r = reduce(text, &mut oracle, 100).unwrap();
         assert_eq!(r.text, "z");
         assert!(r.rounds > 1 && r.candidates >= r.rounds);
+    }
+
+    #[test]
+    fn an_unconditional_failure_reduces_to_the_empty_string_and_deduplicates_batches() {
+        let mut oracle = |texts: &[String]| {
+            for (i, a) in texts.iter().enumerate() {
+                assert!(!texts[..i].contains(a), "duplicate candidate {a:?} in batch {texts:?}");
+            }
+            Ok(vec![true; texts.len()])
+        };
+        let r = reduce("aaaa\naaaa\n", &mut oracle, 100).unwrap();
+        assert_eq!(r.text, "");
+
+        let mut keep_two_as = |texts: &[String]| {
+            for (i, a) in texts.iter().enumerate() {
+                assert!(!texts[..i].contains(a), "duplicate candidate {a:?} in batch {texts:?}");
+            }
+            Ok(texts.iter().map(|t| t == "aaaa").collect())
+        };
+        let r = reduce("aaaa", &mut keep_two_as, 100).unwrap();
+        assert_eq!(r.text, "aaaa");
     }
 
     #[test]
