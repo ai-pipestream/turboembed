@@ -33,9 +33,7 @@ pub fn train(
 
     // 2. Train POS tagger sub-model
     let mut tagger_params = params.tagger.clone();
-    if tagger_params.get_int(BEAM_SIZE_KEY).ok().flatten().is_none() {
-        tagger_params.put(BEAM_SIZE_KEY, 10);
-    }
+    tagger_params.put_if_absent(BEAM_SIZE_KEY, 10);
     let tagger_bytes = train_parser_tagger_bytes(language, samples, &tagger_params)?;
 
     // 3. Train chunker sub-model with ParserChunkerFactory

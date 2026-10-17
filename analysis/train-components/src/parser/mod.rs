@@ -158,9 +158,9 @@ pub(crate) fn train_parser_chunker_bytes(
     samples: &[Parse],
     params: &TrainingParameters,
 ) -> Result<Vec<u8>> {
+    crate::chunk::check_trainer_type(params)?;
+    let beam = crate::chunk::beam_size(params)?;
     let events = stream::parser_chunker_events(samples);
-    let beam =
-        params.get_int(BEAM_SIZE_KEY).ok().flatten().unwrap_or(turbo_sequence::chunker::DEFAULT_BEAM_SIZE as i32);
     let (model, report) = trainer::train_events(&events, params, &mut TrainingConfiguration::default())?;
     let model_bytes = model.write()?;
 
@@ -171,4 +171,47 @@ pub(crate) fn train_parser_chunker_bytes(
     let mut package = ModelPackage::new(manifest);
     add_artifacts(&mut package, vec![(turbo_sequence::chunker::MODEL_ENTRY_NAME, model_bytes)])?;
     Ok(package.to_bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::Error;
+    use std::str::FromStr;
+    use turbo_parser::{EnglishHeadRules, ParseSampleStream};
+    use turbo_train::{Key, TrainerType};
+
+    fn tiny_samples_and_rules() -> (Vec<Parse>, HeadRulesArtifact) {
+        let treebank = "\
+(TOP (S (NP-SBJ (DT The) (NN dog)) (VP (VBD ran)) (. .)))
+(TOP (S (NP-SBJ (DT A) (NN cat)) (VP (VBD slept)) (. .)))
+";
+        let samples = ParseSampleStream::new(treebank).collect::<std::result::Result<Vec<_>, _>>().unwrap();
+        let rules = EnglishHeadRules::from_str("").unwrap();
+        (samples, HeadRulesArtifact::English(rules))
+    }
+
+    #[test]
+    fn train_parser_chunker_rejects_invalid_beam_size_and_unsupported_trainer_type() {
+        let (samples, _) = tiny_samples_and_rules();
+
+        let mut bad_beam = TrainingParameters::new();
+        bad_beam.put_str(BEAM_SIZE_KEY, "not-an-int");
+        let err = train_parser_chunker_bytes("en", &samples, &bad_beam).unwrap_err();
+        assert!(matches!(err, Error::Train(turbo_train::Error::ParameterFormat { .. })), "{err}");
+
+        let mut seq_params = TrainingParameters::new();
+        seq_params.put_str(Key::ALGORITHM, "PERCEPTRON_SEQUENCE");
+        let err = train_parser_chunker_bytes("en", &samples, &seq_params).unwrap_err();
+        assert!(matches!(err, Error::UnsupportedTrainerType(Some(TrainerType::EventModelSequence))), "{err}");
+    }
+
+    #[test]
+    fn chunking_train_propagates_invalid_tagger_beam_size() {
+        let (samples, rules) = tiny_samples_and_rules();
+        let mut params = ParserTrainingParameters::with_iterations_and_cutoff(5, 0);
+        params.tagger.put_str(BEAM_SIZE_KEY, "not-an-int");
+        let err = chunking::train("en", &samples, rules, &params).unwrap_err();
+        assert!(matches!(err, Error::Train(turbo_train::Error::ParameterFormat { .. })), "{err}");
+    }
 }
