@@ -183,6 +183,7 @@ pub(crate) fn words<'d>(
 
 impl Annotator for MaxentLemmatizer {
     const ID: &'static str = "turbo-lemmatizer:maxent";
+    const VERSION: &'static str = "2";
     type Reads = (View, Tokens, PosTags);
     type Writes = (Lemmas, Confidence<Lemmas>);
 
@@ -259,6 +260,11 @@ mod tests {
     }
 
     #[test]
+    fn annotator_version_tracks_validation_changes() {
+        assert_eq!(MaxentLemmatizer::VERSION, "2");
+    }
+
+    #[test]
     fn plain_english_lemmas() {
         let Some(l) = english() else { return };
         let got = lemmas(&l, &[("The", "DET"), ("dogs", "NOUN"), ("were", "AUX"), ("barking", "VERB"), (".", "PUNCT")]);
@@ -308,6 +314,7 @@ mod tests {
         assert_eq!(confidence.value.len(), 6);
         let p = doc.provenance(Key::<Lemmas>::DEFAULT.id()).unwrap();
         assert_eq!(p.annotator, MaxentLemmatizer::ID);
+        assert_eq!(p.version, "2");
         assert_eq!(p.model.as_ref().map(|m| m.id.as_str()), Some("opennlp:StatisticalLemmatizer:en"));
         assert_eq!(p.reads[1..], [Key::<Tokens>::DEFAULT.id(), Key::<PosTags>::DEFAULT.id()]);
     }
