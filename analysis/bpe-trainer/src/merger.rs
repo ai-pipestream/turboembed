@@ -118,8 +118,10 @@ impl<O: Order> Merger<O> {
             raised: Vec::new(),
         };
         for (w, (symbols, count)) in words.into_iter().enumerate() {
-            for p in symbols.windows(2) {
-                m.add(Pair { left: p[0], right: p[1] }, w as u32, count);
+            if count > 0 {
+                for p in symbols.windows(2) {
+                    m.add(Pair { left: p[0], right: p[1] }, w as u32, count);
+                }
             }
             m.words.push(symbols);
             m.counts.push(count);
@@ -127,7 +129,9 @@ impl<O: Order> Merger<O> {
         m.raised.clear();
         let mut entries = Vec::with_capacity(m.pairs.len());
         for (&pair, stat) in &m.pairs {
-            if let Some(key) = &stat.key {
+            if let Some(key) = &stat.key
+                && stat.count > 0
+            {
                 entries.push(Entry { count: stat.count, key: key.clone(), pair });
             }
         }
@@ -189,7 +193,7 @@ impl<O: Order> Merger<O> {
         while let Some(top) = self.heap.peek() {
             let pair = top.pair;
             match self.pairs.get(&pair) {
-                Some(stat) if stat.key.is_some() && stat.count == top.count => {
+                Some(stat) if stat.key.is_some() && stat.count > 0 && stat.count == top.count => {
                     return Some(Candidate { pair, count: stat.count });
                 }
                 Some(stat) if stat.key.is_some() && stat.count > 0 => {
@@ -277,6 +281,9 @@ impl<O: Order> Merger<O> {
     /// One more occurrence of `pair` in word `w`, which occurs `count`
     /// times.
     fn add(&mut self, pair: Pair, w: u32, count: u64) {
+        if count == 0 {
+            return;
+        }
         let stat = match self.pairs.entry(pair) {
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
             std::collections::hash_map::Entry::Vacant(e) => {
@@ -394,5 +401,13 @@ mod tests {
         let mut m = merger(&[("ba", 2), ("ab", 2)]);
         let best = m.best().unwrap();
         assert_eq!((m.pieces.text(best.pair.left), m.pieces.text(best.pair.right)), ("a", "b"));
+    }
+
+    #[test]
+    fn zero_count_words_produce_no_candidates_or_spent_pairs() {
+        let mut m = merger(&[("ab", 0)]);
+        assert_eq!(m.best(), None);
+        assert!(m.spent().is_empty());
+        assert_eq!(m.counts().count(), 0);
     }
 }
