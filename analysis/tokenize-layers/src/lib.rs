@@ -66,6 +66,7 @@ impl WordType {
 }
 
 /// The word type of every token: item i is the type of token i.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WordTypes {
     pub kind: Vec<WordType>,
 }
@@ -80,6 +81,13 @@ impl Layer for WordTypes {
     fn len(&self) -> usize {
         self.kind.len()
     }
+
+    fn check(&self) -> Result<(), String> {
+        if u32::try_from(self.kind.len()).is_err() {
+            return Err(format!("{} word types do not fit in u32", self.kind.len()));
+        }
+        Ok(())
+    }
 }
 
 /// What a MeCab dictionary says of each token, from the feature columns of
@@ -87,6 +95,7 @@ impl Layer for WordTypes {
 /// dictionary's format has no such column (mecab-ko-dic has no lemma), and
 /// an empty string where the token's entry leaves it out: an unknown word,
 /// whose `unk.def` template has fewer columns, or the dictionary's `*`.
+#[derive(Clone, Debug, Default)]
 pub struct Readings {
     /// How the token is read: katakana for a Japanese dictionary, Hangul
     /// for a Korean one.
@@ -97,6 +106,24 @@ pub struct Readings {
     /// The base form of an inflected token, as written.
     pub lemma: Option<Strs>,
 }
+
+fn strs_eq(a: &Option<Strs>, b: &Option<Strs>) -> bool {
+    match (a, b) {
+        (Some(x), Some(y)) => x.len() == y.len() && x.iter().eq(y.iter()),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+impl PartialEq for Readings {
+    fn eq(&self, other: &Self) -> bool {
+        strs_eq(&self.reading, &other.reading)
+            && strs_eq(&self.pronunciation, &other.pronunciation)
+            && strs_eq(&self.lemma, &other.lemma)
+    }
+}
+
+impl Eq for Readings {}
 
 impl Readings {
     fn columns(&self) -> impl Iterator<Item = &Strs> {
@@ -116,7 +143,7 @@ impl Layer for Readings {
         self.columns().next().map_or(0, Strs::len)
     }
 
-    /// At least one column, all of one length.
+    /// At least one column, all of one length that fits in `u32`.
     fn check(&self) -> Result<(), String> {
         let n = self.len();
         if self.columns().next().is_none() {
@@ -124,6 +151,9 @@ impl Layer for Readings {
         }
         if self.columns().any(|c| c.len() != n) {
             return Err("the reading, pronunciation and lemma columns of one length".into());
+        }
+        if u32::try_from(n).is_err() {
+            return Err(format!("{n} readings do not fit in u32"));
         }
         Ok(())
     }
@@ -148,6 +178,9 @@ mod tests {
     fn aligned_to_tokens() {
         assert_eq!(WordTypes::anchor(), Anchor::aligned::<Tokens>());
         let types = WordTypes { kind: vec![WordType::Numeric, WordType::Emoji] };
+        assert_eq!(types.clone(), types);
+        assert_eq!(WordTypes::default().len(), 0);
+        assert!(types.check().is_ok());
         assert_eq!(types.len(), 2);
         assert_eq!(WordTypes::ID, "turbo:word-types");
     }
@@ -163,11 +196,12 @@ mod tests {
         assert_eq!(Readings::ID, "turbo:readings");
         assert_eq!(Readings::anchor(), Anchor::aligned::<Tokens>());
         let r = Readings { reading: None, pronunciation: Some(strs(&["a", ""])), lemma: Some(strs(&["x", "y"])) };
+        assert_eq!(r.clone(), r);
         assert_eq!(r.len(), 2);
         assert!(r.check().is_ok());
         let r = Readings { reading: Some(strs(&["a"])), pronunciation: None, lemma: Some(strs(&["x", "y"])) };
         assert!(r.check().is_err());
-        let r = Readings { reading: None, pronunciation: None, lemma: None };
+        let r = Readings::default();
         assert_eq!(r.len(), 0);
         assert!(r.check().is_err());
     }

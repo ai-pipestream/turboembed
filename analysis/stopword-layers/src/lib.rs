@@ -94,6 +94,7 @@ impl StopwordLanguage {
 /// Whether each token is a stopword of one bundled list: item i is token
 /// i. Tokens are flagged, never removed; what OpenNLP's
 /// `StopwordFilter.filter` would keep is [`Stopwords::kept`].
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stopwords {
     /// The list the flags come from.
     pub language: StopwordLanguage,
@@ -119,6 +120,13 @@ impl Layer for Stopwords {
 
     fn len(&self) -> usize {
         self.stop.len()
+    }
+
+    fn check(&self) -> Result<(), String> {
+        if u32::try_from(self.stop.len()).is_err() {
+            return Err(format!("{} stopword flags do not fit in u32", self.stop.len()));
+        }
+        Ok(())
     }
 }
 
@@ -155,6 +163,8 @@ mod tests {
         assert_eq!(Stopwords::anchor(), Anchor::aligned::<Tokens>());
         assert_eq!(Stopwords::ID, "turbo:stopwords");
         let flags = Stopwords { language: StopwordLanguage::English, stop: vec![true, false, true, false] };
+        assert_eq!(flags.clone(), flags);
+        assert!(flags.check().is_ok());
         assert_eq!(flags.len(), 4);
         assert_eq!(flags.kept().map(Ix::get).collect::<Vec<_>>(), [1, 3]);
     }
