@@ -80,12 +80,12 @@ state, output trees, and the optional legacy cache still allocate. Timing measur
 - `clippy.log`: required warning-free lint check.
 - `fmt.log`: root formatting check.
 
-## Training-path follow-up
+## Training-path follow-up (historical)
 
 String contexts now render constituent slots, chunk slots, punctuation separators,
 and repeated productions once per context call. The string sink reserves 64 bytes
 per output feature to avoid growth on each formatted piece. This trades some spare
-string capacity for fewer reallocations. The buffered inference sink retains direct
+string capacity for fewer reallocations. At that revision, the buffered inference sink retained direct
 formatting and zero allocations after warm-up.
 
 The reproducible harness is
@@ -129,10 +129,62 @@ events-treeinsert-attach      58.175    80.492    43.592     0.749
 All six training streams are at or below main's median in this fixture run.
 Chunking inference retains its improvement. Tree-insertion inference remains
 about 12% slower than main here, compared with 15% to 17% before this follow-up;
-this change does not establish a general inference speedup for tree insertion.
+that revision did not establish a general inference speedup for tree insertion.
+The inference follow-up below replaces this limitation on the same fixtures.
 These fixture measurements differ from the published-model workload used in the
 original review. They are local timing evidence, not a CI performance guarantee.
 
 Every event outcome, context and value digest, and every parse Penn-string and
 probability-bit digest, matched across all three executables and every run.
 The allocation test still checks the real warmed buffers independently of timing.
+
+## Inference follow-up
+
+Code revision `9ea7cd6d` caches prepared feature pieces up to 128 UTF-8 bytes
+on the stack. Each bounded piece is formatted once per context call. Larger
+pieces use direct formatting without truncation or heap allocation. The
+string/training sink keeps the existing behavior. Tests cover the capacity
+boundary, overflow, and long supplementary Unicode text.
+
+The committed harness was built on main
+`bc0954506743b3d4020fe88f0891629c2a20493e`, previous PR head
+`a94619e1656750522e7f2e3fe59dbbec0c5fee5f`, and corrected code `9ea7cd6d`.
+Main used a temporary copy of that harness, removed after building. Each
+executable used dependencies from the corresponding revision and the same
+checked-in model/treebank fixtures. Builds finished before timing.
+
+CPU: AMD Ryzen 9 9950X3D, x86_64, logical CPU 8.
+Compiler: rustc 1.99.0 (b940084d7 2026-09-28), release profile.
+Run order: before, main, after, after, main, main, after, after, main, main,
+after, before. Each run has a warm-up and 5 timed repetitions. The table uses
+medians of 5 run medians for main and after, and 2 for before.
+The system was shared; these are fixture measurements, not a CI timing gate.
+
+```text
+workload                         main    before     after after/main
+parse-chunking-k1             457.093   285.200   255.978      0.560
+parse-chunking-k5             455.008   281.387   254.237      0.559
+events-chunking-build          85.562    71.510    70.221      0.821
+events-chunking-check          43.215    39.192    38.685      0.895
+events-chunking-chunk          21.565    20.953    21.092      0.978
+parse-treeinsert-k1           249.574   282.300   212.708      0.852
+parse-treeinsert-k5           248.795   285.039   217.954      0.876
+events-treeinsert-build        39.416    34.875    33.240      0.843
+events-treeinsert-check        20.332    17.361    16.665      0.820
+events-treeinsert-attach       53.270    45.320    43.517      0.817
+
+```
+
+Both tree-insertion workloads are below main, removing the previous regression.
+All 6 training-stream medians are below main. Parse strings and probability-bit
+digests, event outcome/context/value digests, and sample counts match across
+all 12 runs. Raw timings and digests are in `inference-timing.log`.
+
+Validation:
+
+- `cargo fmt --all --check`: pass (`inference-fmt.log`).
+- `cargo clippy --locked -p turbo-parser -p turbo-train-components --all-targets -- -D warnings`: pass (`inference-clippy.log`).
+- `cargo test --locked -p turbo-parser -p turbo-train-components`: 173 passed,
+  0 failed, 1 existing ignored download/training test (`inference-tests.log`).
+- All 4 feature-buffer tests pass, including the long Unicode fallback:
+  exact bytes/order and zero allocations after warm-up (`inference-allocations.log`).
