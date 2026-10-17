@@ -26,12 +26,28 @@ impl<'a> SyntacticSentence<'a> {
         let mut search = 0usize;
 
         let mut w_idx = 0usize;
-        let mut mwt_iter = self.multiwords.iter().peekable();
+        let mut sorted_mwt: Vec<_> = self.multiwords.iter().collect();
+        sorted_mwt.sort_by_key(|m| (m.words.start, m.words.end));
+        let mut mwt_iter = sorted_mwt.into_iter().peekable();
         while w_idx < self.words.len() {
+            if let Some(mwt) = mwt_iter.peek()
+                && mwt.words.start.get() < w_idx
+            {
+                return Err(FormatError::ConlluDocument {
+                    line: mwt.line_data.line,
+                    detail: format!("overlapping multiword token {}", mwt.line_data.id.as_str()),
+                });
+            }
             if let Some(mwt) = mwt_iter.peek()
                 && mwt.words.start.get() == w_idx
             {
                 let mwt = mwt_iter.next().unwrap();
+                if mwt.words.end.get() <= w_idx || mwt.words.end.get() > self.words.len() {
+                    return Err(FormatError::ConlluDocument {
+                        line: mwt.line_data.line,
+                        detail: format!("invalid multiword token range for {}", mwt.line_data.id.as_str()),
+                    });
+                }
                 let surface = mwt.line_data.form.as_str();
                 let Some(at) = surface_text[search..].find(surface).map(|i| search + i) else {
                     return Err(FormatError::TokenNotInText {
@@ -76,6 +92,12 @@ impl<'a> SyntacticSentence<'a> {
                 words.push_token(tok_ix);
                 w_idx += 1;
             }
+        }
+        if let Some(mwt) = mwt_iter.next() {
+            return Err(FormatError::ConlluDocument {
+                line: mwt.line_data.line,
+                detail: format!("invalid multiword token range for {}", mwt.line_data.id.as_str()),
+            });
         }
 
         let mut sent_spans = Spans::<Sentences>::new(ViewId::SOURCE);
