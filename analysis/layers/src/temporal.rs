@@ -232,9 +232,13 @@ impl Layer for Temporals {
         if columns.iter().any(|&l| l != n) {
             return Err("every column as long as the spans".into());
         }
-        if !self.spans.is_ordered() {
-            return Err("temporal mentions in text order, not overlapping".into());
-        }
+        self.spans.check(Self::OVERLAP).map_err(|e| {
+            if e == "spans in text order, not overlapping" {
+                "temporal mentions in text order, not overlapping".into()
+            } else {
+                e
+            }
+        })?;
         for (i, span) in self.spans.iter() {
             if span.is_empty() {
                 return Err(format!("temporal mention {} is empty at {}", i.get(), span.start));
@@ -378,6 +382,12 @@ mod tests {
         let mut t = Temporals::new(ViewId::SOURCE);
         t.push(mention(3, 3, TemporalValue::Year(2026)));
         assert!(t.check().unwrap_err().contains("empty"));
+        let mut bad_frags = Temporals::new(ViewId::SOURCE);
+        bad_frags.push(mention(0, 10, TemporalValue::Year(2026)));
+        let mut frag_spans = Spans::new(ViewId::SOURCE);
+        frag_spans.push_fragments(&[Span::new(0, 4), Span::new(6, 10)]);
+        bad_frags.spans = frag_spans;
+        assert!(bad_frags.check().unwrap_err().contains("discontinuous"));
     }
 
     #[test]
