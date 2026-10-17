@@ -29,14 +29,16 @@ impl Linear {
                 format!("linear layer dimensions [{out_dim}, {in_dim}] must be positive"),
             ));
         }
-        if weight.len() != out_dim * in_dim {
+        let Some(expected) = out_dim.checked_mul(in_dim) else {
             return Err(Error::new(
                 INVALID_SHAPE,
-                format!(
-                    "linear weight has {} values, expected {} ({out_dim}x{in_dim})",
-                    weight.len(),
-                    out_dim * in_dim
-                ),
+                format!("linear layer dimensions [{out_dim}, {in_dim}] overflow usize"),
+            ));
+        };
+        if weight.len() != expected {
+            return Err(Error::new(
+                INVALID_SHAPE,
+                format!("linear weight has {} values, expected {expected} ({out_dim}x{in_dim})", weight.len()),
             ));
         }
         if bias.len() != out_dim {
@@ -151,30 +153,32 @@ impl Head {
     /// vector is passed through `tanh(x * W_pool^T + b_pool)` before the
     /// linear classifier; otherwise the linear classifier is applied directly.
     pub fn logits(&self, states: &[f32]) -> Result<Vec<f32>> {
-        let rows = self.check_states(states)?;
-        let mut out = vec![0.0f32; rows * self.labels.len()];
+        let (rows, total) = self.check_states(states)?;
+        let _ = rows;
+        let mut out = vec![0.0f32; total];
         self.logits_into(states, &mut out)?;
         Ok(out)
     }
 
     /// Compute logits for `states` (`[n, hidden]`) into `out` (`[n, num_labels]`).
     pub fn logits_into(&self, states: &[f32], out: &mut [f32]) -> Result<()> {
-        let rows = self.check_states(states)?;
+        let (rows, total) = self.check_states(states)?;
         let num_labels = self.labels.len();
-        if out.len() != rows * num_labels {
+        if out.len() != total {
             return Err(Error::new(
                 INVALID_SHAPE,
-                format!("logits output has {} values, expected {} ({rows}x{num_labels})", out.len(), rows * num_labels),
+                format!("logits output has {} values, expected {total} ({rows}x{num_labels})", out.len()),
             ));
         }
-        if let Some(pooler) = &self.pooler {
-            let mut pooled = vec![0.0f32; self.hidden];
-            for (state, dst) in states.chunks_exact(self.hidden).zip(out.chunks_exact_mut(num_labels)) {
+        let mut pooled = if self.pooler.is_some() { vec![0.0f32; self.hidden] } else { Vec::new() };
+        for (state, dst) in states.chunks_exact(self.hidden).zip(out.chunks_exact_mut(num_labels)) {
+            if !state.iter().all(|v| v.is_finite()) {
+                return Err(Error::new(INVALID_ARGUMENT, "hidden state contains non-finite value"));
+            }
+            if let Some(pooler) = &self.pooler {
                 pooler.apply_tanh(state, &mut pooled);
                 self.classifier.apply(&pooled, dst);
-            }
-        } else {
-            for (state, dst) in states.chunks_exact(self.hidden).zip(out.chunks_exact_mut(num_labels)) {
+            } else {
                 self.classifier.apply(state, dst);
             }
         }
@@ -184,8 +188,9 @@ impl Head {
     /// Compute softmax probabilities (`[n, num_labels]`) in `f64` for `n`
     /// hidden states (`[n, hidden]`).
     pub fn probabilities(&self, states: &[f32]) -> Result<Vec<f64>> {
-        let rows = self.check_states(states)?;
-        let mut out = vec![0.0f64; rows * self.labels.len()];
+        let (rows, total) = self.check_states(states)?;
+        let _ = rows;
+        let mut out = vec![0.0f64; total];
         self.probabilities_into(states, &mut out)?;
         Ok(out)
     }
@@ -193,16 +198,12 @@ impl Head {
     /// Compute softmax probabilities for `states` (`[n, hidden]`) into `out`
     /// (`[n, num_labels]`).
     pub fn probabilities_into(&self, states: &[f32], out: &mut [f64]) -> Result<()> {
-        let rows = self.check_states(states)?;
+        let (rows, total) = self.check_states(states)?;
         let num_labels = self.labels.len();
-        if out.len() != rows * num_labels {
+        if out.len() != total {
             return Err(Error::new(
                 INVALID_SHAPE,
-                format!(
-                    "probabilities output has {} values, expected {} ({rows}x{num_labels})",
-                    out.len(),
-                    rows * num_labels
-                ),
+                format!("probabilities output has {} values, expected {total} ({rows}x{num_labels})", out.len()),
             ));
         }
         let mut row_logits = vec![0.0f32; num_labels];
@@ -222,14 +223,47 @@ impl Head {
         Ok(())
     }
 
-    fn check_states(&self, states: &[f32]) -> Result<usize> {
+    fn check_states(&self, states: &[f32]) -> Result<(usize, usize)> {
+        if self.hidden == 0 {
+            return Err(Error::new(INVALID_ARGUMENT, "head hidden width must be positive"));
+        }
+        if self.labels.is_empty() {
+            return Err(Error::new(INVALID_SHAPE, "head labels must not be empty"));
+        }
+        if self.classifier.in_dim != self.hidden || self.classifier.out_dim != self.labels.len() {
+            return Err(Error::new(
+                INVALID_SHAPE,
+                format!(
+                    "classifier dimensions [{}, {}] do not match head [{}, {}]",
+                    self.classifier.out_dim,
+                    self.classifier.in_dim,
+                    self.labels.len(),
+                    self.hidden
+                ),
+            ));
+        }
+        if let Some(pooler) = &self.pooler
+            && (pooler.in_dim != self.hidden || pooler.out_dim != self.hidden)
+        {
+            return Err(Error::new(
+                INVALID_SHAPE,
+                format!(
+                    "pooler dimensions [{}, {}] do not match head hidden width {}",
+                    pooler.out_dim, pooler.in_dim, self.hidden
+                ),
+            ));
+        }
         if !states.len().is_multiple_of(self.hidden) {
             return Err(Error::new(
                 INVALID_SHAPE,
                 format!("states length {} is not a multiple of hidden width {}", states.len(), self.hidden),
             ));
         }
-        Ok(states.len() / self.hidden)
+        let rows = states.len() / self.hidden;
+        let total = rows.checked_mul(self.labels.len()).ok_or_else(|| {
+            Error::new(INVALID_SHAPE, format!("head output dimensions [{rows}, {}] overflow usize", self.labels.len()))
+        })?;
+        Ok((rows, total))
     }
 }
 
@@ -296,4 +330,32 @@ fn f16_to_f32(h: u16) -> f32 {
 /// A bfloat16 is the top half of the single it names.
 fn bf16_to_f32(h: u16) -> f32 {
     f32::from_bits((h as u32) << 16)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn linear_and_head_reject_overflowing_misaligned_and_non_finite_inputs() {
+        let err = Linear::new(usize::MAX, 2, vec![], vec![0.0, 0.0]).unwrap_err();
+        assert_eq!(err.code, INVALID_SHAPE);
+
+        let cls = Linear::new(2, 2, vec![1.0, 0.0, 0.0, 1.0], vec![0.0, 0.0]).unwrap();
+        let head = Head {
+            kind: ClassifierKind::Sequence,
+            hidden: 2,
+            labels: vec!["neg".into(), "pos".into()],
+            pooler: None,
+            classifier: cls.clone(),
+        };
+        assert_eq!(head.logits(&[1.0, 2.0]).unwrap(), vec![1.0, 2.0]);
+        assert_eq!(head.logits(&[f32::NAN, 1.0]).unwrap_err().code, INVALID_ARGUMENT);
+
+        let zero_hidden = Head { hidden: 0, ..head.clone() };
+        assert_eq!(zero_hidden.logits(&[]).unwrap_err().code, INVALID_ARGUMENT);
+
+        let bad_cls = Head { hidden: 3, ..head };
+        assert_eq!(bad_cls.logits(&[1.0, 2.0, 3.0]).unwrap_err().code, INVALID_SHAPE);
+    }
 }

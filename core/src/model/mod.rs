@@ -3,7 +3,9 @@
 //! artifact the device loads, its files read once and verified, and every
 //! tensor a BERT encoder needs checked against the architecture.
 
-use std::ffi::{CString, c_void};
+mod place;
+
+use std::ffi::c_void;
 
 use serde::Serialize;
 
@@ -14,14 +16,12 @@ use crate::backend::{
 use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
     Activation, Architecture, Artifact, Classifier, Family, Format, GraphInput, Manifest, PositionEmbedding,
-    StaticEmbedding, TensorRole, role_name,
+    TensorRole, role_name,
 };
-use crate::safetensors;
-use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, Result, invalid};
-use crate::{
-    TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_F64, TURBO_DTYPE_I8, TURBO_DTYPE_I32,
-    TURBO_DTYPE_I64,
-};
+use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, INVALID_ARGUMENT, Result, invalid};
+
+use place::place_static;
+pub(crate) use place::{Placed, place};
 
 /// The manifest's name for an enum value, as it is written there.
 fn enum_name(v: impl Serialize) -> String {
@@ -198,112 +198,6 @@ fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Re
 pub const STATIC_ROLES: [TensorRole; TURBO_STATIC_TENSORS as usize] =
     [TensorRole::StaticEmbeddings, TensorRole::StaticWeights, TensorRole::StaticMapping];
 
-/// The dtypes a static model's tensor in each role may be stored in.
-fn static_dtypes(role: TensorRole) -> &'static [safetensors::Dtype] {
-    use safetensors::Dtype::*;
-    match role {
-        TensorRole::StaticEmbeddings => &[F32, F16, Bf16, F64, I8],
-        TensorRole::StaticWeights => &[F32, F16, F64],
-        _ => &[I32, I64],
-    }
-}
-
-/// Rule 8 for a static model: each role the artifact names, found in its
-/// files with the shape the static_embedding block implies, a dtype the
-/// role takes and an aligned start; a role it does not name is None. Every
-/// mapping value is checked to be a row of the table.
-fn place_static(
-    index: usize,
-    art: &Artifact,
-    files: &[AlignedBytes],
-    st: &StaticEmbedding,
-    dim: u32,
-) -> Result<Vec<Option<Placed>>> {
-    let parsed = art
-        .files
-        .iter()
-        .zip(files)
-        .map(|(name, bytes)| safetensors::File::parse(name, &bytes[..]))
-        .collect::<Result<Vec<_>>>()?;
-    let rows = if st.rows == 0 { st.vocab_size } else { st.rows };
-    let mut out = Vec::with_capacity(STATIC_ROLES.len());
-    for role in STATIC_ROLES {
-        let Some(name) = art.tensor_names.get(&role) else {
-            out.push(None);
-            continue;
-        };
-        let what = role_name(role);
-        let mut found = parsed.iter().enumerate().filter_map(|(i, f)| f.tensor(name).map(|t| (i, t)));
-        let Some((file, t)) = found.next() else {
-            return Err(invalid(format!("{}: no tensor {name:?} ({what})", art.files.join(", "))));
-        };
-        if let Some((other, _)) = found.next() {
-            return Err(invalid(format!("{name:?} ({what}) is in both {} and {}", art.files[file], art.files[other])));
-        }
-        let at = &art.files[file];
-        let allowed = static_dtypes(role);
-        if !allowed.contains(&t.dtype) {
-            let names: Vec<&str> = allowed.iter().map(|d| d.name()).collect();
-            return Err(invalid(format!("{at}: {name} ({what}) is {}; it may be {}", t.dtype_name, names.join(", "))));
-        }
-        let shape = match role {
-            TensorRole::StaticEmbeddings => vec![rows as u64, dim as u64],
-            _ => vec![st.vocab_size as u64],
-        };
-        if t.shape != shape {
-            return Err(invalid(format!(
-                "{at}: {name} ({what}) has shape {:?}; static_embedding implies {shape:?}",
-                t.shape
-            )));
-        }
-        let begin = t.data.as_ptr() as usize - files[file].as_ptr() as usize;
-        let size = t.dtype.size().expect("a static dtype has a size");
-        if !begin.is_multiple_of(size) {
-            return Err(invalid(format!(
-                "{at}: {name} ({what}) starts at byte {begin}, not a multiple of its {size}-byte elements"
-            )));
-        }
-        if role == TensorRole::StaticMapping {
-            let bad = match t.dtype {
-                safetensors::Dtype::I32 => t
-                    .data
-                    .as_chunks::<4>()
-                    .0
-                    .iter()
-                    .position(|b| !(0..rows as i64).contains(&(i32::from_le_bytes(*b) as i64))),
-                _ => t.data.as_chunks::<8>().0.iter().position(|b| !(0..rows as i64).contains(&i64::from_le_bytes(*b))),
-            };
-            if let Some(id) = bad {
-                return Err(invalid(format!(
-                    "{at}: {name} ({what}) maps token {id} outside the table's {rows} rows (artifacts[{index}])"
-                )));
-            }
-        }
-        out.push(Some(Placed {
-            name: CString::new(name.as_str()).map_err(|_| invalid(format!("{name:?}: a NUL in the name")))?,
-            file,
-            range: begin..begin + t.data.len(),
-            shape: t.shape.clone(),
-            dtype: backend_dtype(t.dtype),
-        }));
-    }
-    Ok(out)
-}
-
-/// TURBO_DTYPE_* for a safetensors dtype the core hands a backend.
-fn backend_dtype(d: safetensors::Dtype) -> u32 {
-    use safetensors::Dtype::*;
-    match d {
-        I8 => TURBO_DTYPE_I8,
-        I32 => TURBO_DTYPE_I32,
-        I64 => TURBO_DTYPE_I64,
-        F16 => TURBO_DTYPE_F16,
-        Bf16 => TURBO_DTYPE_BF16,
-        F64 => TURBO_DTYPE_F64,
-        _ => TURBO_DTYPE_F32,
-    }
-}
-
 /// The family model_load is told. Every combination the manifest can name
 /// is listed, so a new family, activation or position embedding does not
 /// compile until it has a place here.
@@ -312,16 +206,6 @@ fn family(a: &Architecture) -> u32 {
         (Family::Bert, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_BERT,
         (Family::Roberta, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_ROBERTA,
     }
-}
-
-/// A tensor found in one of the artifact's files.
-pub(crate) struct Placed {
-    name: CString,
-    pub(crate) file: usize,
-    pub(crate) range: std::ops::Range<usize>,
-    shape: Vec<u64>,
-    /// TURBO_DTYPE_* it is stored in.
-    pub(crate) dtype: u32,
 }
 
 /// The chosen artifact as the core holds it: the verified bytes of each
@@ -361,7 +245,9 @@ impl Weights {
     /// embedding tensors, and one that starts at token ids none.
     pub fn load(bundle: &Bundle, index: usize) -> Result<Weights> {
         let m = &bundle.manifest;
-        let art = &m.artifacts[index];
+        let art = m.artifacts.get(index).ok_or_else(|| {
+            Error::new(INVALID_ARGUMENT, format!("artifact {index}: bundle has {} artifacts", m.artifacts.len()))
+        })?;
         // A static model's artifacts are raw weights alone (validate()).
         if let Some(st) = &m.static_embedding {
             let dim = m.embed().dim;
@@ -552,82 +438,20 @@ impl Weights {
     }
 }
 
-/// Rule 8: find each of `expected` in `files`, the verified bytes of
-/// `art`'s files, with its shape, one dtype for all, and an aligned start.
-pub(crate) fn place(art: &Artifact, files: &[AlignedBytes], expected: &[Expected]) -> Result<(Vec<Placed>, u32)> {
-    let parsed = art
-        .files
-        .iter()
-        .zip(files)
-        .map(|(name, bytes)| safetensors::File::parse(name, &bytes[..]))
-        .collect::<Result<Vec<_>>>()?;
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
 
-    let mut dtype = None;
-    let mut tensors = Vec::with_capacity(expected.len());
-    for e in expected {
-        let mut found = parsed.iter().enumerate().filter_map(|(i, f)| f.tensor(&e.name).map(|t| (i, t)));
-        let Some((file, t)) = found.next() else {
-            return Err(invalid(format!("{}: no tensor {:?} ({})", art.files.join(", "), e.name, e.what)));
-        };
-        if let Some((other, _)) = found.next() {
-            return Err(invalid(format!(
-                "{:?} ({}) is in both {} and {}",
-                e.name, e.what, art.files[file], art.files[other]
-            )));
-        }
-        let at = &art.files[file];
-        let d = match t.dtype {
-            safetensors::Dtype::F32 => TURBO_DTYPE_F32,
-            safetensors::Dtype::F16 => TURBO_DTYPE_F16,
-            safetensors::Dtype::Bf16 => TURBO_DTYPE_BF16,
-            _ => {
-                return Err(invalid(format!(
-                    "{at}: {} ({}) is {}; weights are F32, F16 or BF16",
-                    e.name, e.what, t.dtype_name
-                )));
-            }
-        };
-        let want = *dtype.get_or_insert(d);
-        if d != want {
-            return Err(invalid(format!(
-                "{at}: {} ({}) is {}; the other weights are {}",
-                e.name,
-                e.what,
-                t.dtype_name,
-                dtype_name(want)
-            )));
-        }
-        if t.shape != e.shape {
-            return Err(invalid(format!(
-                "{at}: {} ({}) has shape {:?}; the architecture implies {:?}",
-                e.name, e.what, t.shape, e.shape
-            )));
-        }
-        // The file starts on a 64-byte boundary, so an offset that is a
-        // multiple of the element size is an aligned address.
-        let begin = t.data.as_ptr() as usize - files[file].as_ptr() as usize;
-        let size = t.dtype.size().expect("a weights dtype has a size");
-        if !begin.is_multiple_of(size) {
-            return Err(invalid(format!(
-                "{at}: {} ({}) starts at byte {begin}, not a multiple of its {size}-byte elements",
-                e.name, e.what
-            )));
-        }
-        tensors.push(Placed {
-            name: CString::new(e.name.as_str()).map_err(|_| invalid(format!("{:?}: a NUL in the name", e.name)))?,
-            file,
-            range: begin..begin + t.data.len(),
-            shape: t.shape.clone(),
-            dtype: d,
-        });
-    }
-    Ok((tensors, dtype.expect("a model has tensors")))
-}
+    use super::*;
 
-fn dtype_name(d: u32) -> &'static str {
-    match d {
-        TURBO_DTYPE_F16 => "F16",
-        TURBO_DTYPE_BF16 => "BF16",
-        _ => "F32",
+    #[test]
+    fn weights_load_rejects_out_of_bounds_artifact_index() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
+        let bundle = Bundle::open(&dir).expect("tiny-bert-bundle opens");
+        let err = match Weights::load(&bundle, bundle.manifest.artifacts.len()) {
+            Ok(_) => panic!("out-of-bounds artifact index must fail"),
+            Err(e) => e,
+        };
+        assert_eq!(err.code, INVALID_ARGUMENT);
     }
 }
