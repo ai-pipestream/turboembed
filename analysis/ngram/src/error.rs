@@ -61,7 +61,7 @@ impl PartialEq for Error {
             (
                 Error::InvalidInterpolationWeights { lambda1: a1, lambda2: a2, lambda3: a3 },
                 Error::InvalidInterpolationWeights { lambda1: b1, lambda2: b2, lambda3: b3 },
-            ) => a1 == b1 && a2 == b2 && a3 == b3,
+            ) => a1.to_bits() == b1.to_bits() && a2.to_bits() == b2.to_bits() && a3.to_bits() == b3.to_bits(),
             (Error::DictionaryXml(a), Error::DictionaryXml(b)) => a.to_string() == b.to_string(),
             (Error::MissingCountAttribute { entry_index: a }, Error::MissingCountAttribute { entry_index: b }) => {
                 a == b
