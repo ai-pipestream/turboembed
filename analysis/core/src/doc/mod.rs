@@ -369,7 +369,7 @@ impl Document {
             let Some(parent_view) = self.views.get(parent.0 as usize) else {
                 return Err(Error::Bounds { layer: id, view: parent, detail: "no such parent view".into() });
             };
-            check_view_alignment(&parent_view.text, &view.alignment).map_err(|detail| Error::Bounds {
+            check_view_alignment(&parent_view.text, &view.text, &view.alignment).map_err(|detail| Error::Bounds {
                 layer: id,
                 view: parent,
                 detail,

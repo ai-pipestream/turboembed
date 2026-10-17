@@ -98,16 +98,25 @@ impl Layer for View {
     }
 }
 
-/// Checks a derived view's alignment edits against its parent view's text.
-pub(crate) fn check_view_alignment(parent_text: &str, alignment: &Alignment) -> Result<(), String> {
+/// Checks a derived view's alignment edits and unchanged stretches against
+/// its parent view's text.
+pub(crate) fn check_view_alignment(parent_text: &str, child_text: &str, alignment: &Alignment) -> Result<(), String> {
+    let (mut parent_end, mut child_end) = (0usize, 0usize);
     for (i, e) in alignment.edits().iter().enumerate() {
-        let p = e.parent.range();
+        let (p, c) = (e.parent.range(), e.child.range());
         if p.end > parent_text.len() {
             return Err(format!("edit {i} ends at {}, past {}", p.end, parent_text.len()));
         }
         if !parent_text.is_char_boundary(p.start) || !parent_text.is_char_boundary(p.end) {
             return Err(format!("edit {i} cuts a character of the parent view"));
         }
+        if parent_text.as_bytes()[parent_end..p.start] != child_text.as_bytes()[child_end..c.start] {
+            return Err(format!("the unchanged stretch before edit {i} differs between parent and child"));
+        }
+        (parent_end, child_end) = (p.end, c.end);
+    }
+    if parent_text.as_bytes()[parent_end..] != child_text.as_bytes()[child_end..] {
+        return Err("the unchanged suffix after the last edit differs between parent and child".into());
     }
     Ok(())
 }
@@ -145,5 +154,23 @@ mod tests {
             Alignment::from_edits(vec![Edit { parent: Span::new(0, 10), child: Span::new(0, 4) }]).unwrap();
         let bad_past = View::derived(doc.get::<View>().unwrap(), "éab".into(), past_parent);
         assert!(doc.add(&Key::<View>::named("bad_past"), bad_past, Provenance::by("test")).is_err());
+
+        // Identity alignment with extra child bytes or different unchanged bytes.
+        let mut doc_a = Document::new("a");
+        let extra_child = View::derived(doc_a.get::<View>().unwrap(), "ab".into(), Alignment::identity());
+        assert!(doc_a.add(&Key::<View>::named("extra_child"), extra_child, Provenance::by("test")).is_err());
+
+        let mut doc_utf8 = Document::new("é");
+        let diff_bytes = View::derived(doc_utf8.get::<View>().unwrap(), "ab".into(), Alignment::identity());
+        assert!(doc_utf8.add(&Key::<View>::named("diff_bytes"), diff_bytes, Provenance::by("test")).is_err());
+
+        // Valid edit followed by unrecorded extra child byte or mismatched prefix gap.
+        let rep = Alignment::from_edits(vec![Edit { parent: Span::new(0, 2), child: Span::new(0, 1) }]).unwrap();
+        let extra_suffix = View::derived(doc.get::<View>().unwrap(), "eabc".into(), rep);
+        assert!(doc.add(&Key::<View>::named("extra_suffix"), extra_suffix, Provenance::by("test")).is_err());
+
+        let rep2 = Alignment::from_edits(vec![Edit { parent: Span::new(2, 3), child: Span::new(2, 3) }]).unwrap();
+        let bad_gap = View::derived(doc.get::<View>().unwrap(), "xxb".into(), rep2);
+        assert!(doc.add(&Key::<View>::named("bad_gap"), bad_gap, Provenance::by("test")).is_err());
     }
 }
