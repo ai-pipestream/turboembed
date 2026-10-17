@@ -36,7 +36,25 @@ impl Golden {
             return Err(invalid(format!("a run that threw {} has layers; such a file has none", e.class)));
         }
         write_header(&self.header, out)?;
-        for layer in &self.layers {
+        for (idx, layer) in self.layers.iter().enumerate() {
+            if self.layers[..idx].iter().any(|prev| prev.id == layer.id) {
+                return Err(invalid(format!("a second block for {}", layer.id)));
+            }
+            if let GoldenAnchor::Aligned(of) = &layer.anchor {
+                if self.layers[idx..].iter().any(|later| &later.id == of) {
+                    return Err(invalid(format!("{} is aligned to {of}, expected {of} earlier in the file", layer.id)));
+                }
+                if let Some(target) = self.layers[..idx].iter().find(|prev| &prev.id == of)
+                    && target.len() != layer.len()
+                {
+                    return Err(invalid(format!(
+                        "{} declares {} rows, expected {}, as many as {of} has",
+                        layer.id,
+                        layer.len(),
+                        target.len()
+                    )));
+                }
+            }
             write_layer(layer, out)?;
         }
         Ok(())
@@ -124,9 +142,7 @@ fn record(out: &mut String, fields: &[&str]) -> io::Result<()> {
 }
 
 fn write_layer(l: &GoldenLayer, out: &mut String) -> io::Result<()> {
-    if l.id.contains(['\t', '\n', '\r']) {
-        return Err(invalid(format!("the layer id {:?} holds a tab or a line end", l.id)));
-    }
+    field("the layer id", &l.id)?;
     if l.columns.is_empty() {
         return Err(invalid(format!("the layer {} has no columns", l.id)));
     }
@@ -148,10 +164,13 @@ fn write_layer(l: &GoldenLayer, out: &mut String) -> io::Result<()> {
     out.push_str(&l.anchor.to_string());
     out.push('\t');
     out.push_str(&rows.to_string());
-    for c in &l.columns {
+    for (idx, c) in l.columns.iter().enumerate() {
         field("the column name", &c.name)?;
         if c.name.contains(':') {
             return Err(invalid(format!("the column name {:?} holds a ':'", c.name)));
+        }
+        if l.columns[..idx].iter().any(|prev| prev.name == c.name) {
+            return Err(invalid(format!("the layer {} has two columns named {:?}", l.id, c.name)));
         }
         out.push('\t');
         out.push_str(&c.name);
@@ -354,5 +373,61 @@ mod tests {
         let mut s = String::new();
         push_f64(&mut s, 0.5);
         assert_eq!(s, "3fe0000000000000 0.5");
+    }
+
+    #[test]
+    fn writer_rejects_empty_duplicate_and_misaligned_layers() {
+        use crate::format::{AnnotatorRef, Column, Generator, Input, Jdk, OpenNlp, UnicodeVersion};
+
+        let base_header = Header {
+            generator: Generator { name: "g".into(), version: 1 },
+            opennlp: OpenNlp { commit: [0; 20], version: "v".into() },
+            jdk: Jdk { version: "21".into(), vm_version: "21+1".into(), vendor: "V".into() },
+            unicode: UnicodeVersion { major: 15, minor: 0 },
+            input: Input { set: "s".into(), id: "i".into(), utf8_len: 5, utf16_len: 5, sha256: [0; 32] },
+            models: Vec::new(),
+            annotator: AnnotatorRef { class: "C".into(), method: "m".into() },
+            config: Vec::new(),
+            error: None,
+        };
+        let tokens = GoldenLayer {
+            id: "opennlp:tokens".into(),
+            anchor: GoldenAnchor::Text,
+            columns: vec![
+                Column { name: "start".into(), data: ColumnData::U32(vec![0, 3]) },
+                Column { name: "end".into(), data: ColumnData::U32(vec![2, 5]) },
+            ],
+        };
+
+        // Empty layer id.
+        let mut g = Golden { header: base_header.clone(), layers: vec![tokens.clone()] };
+        g.layers[0].id.clear();
+        assert!(g.to_text().is_err());
+
+        // Duplicate column names.
+        let mut g = Golden { header: base_header.clone(), layers: vec![tokens.clone()] };
+        g.layers[0].columns[1].name = "start".into();
+        assert!(g.to_text().is_err());
+
+        // Duplicate layer ids.
+        let g = Golden { header: base_header.clone(), layers: vec![tokens.clone(), tokens.clone()] };
+        assert!(g.to_text().is_err());
+
+        // Aligned layer appearing before its anchor, or with mismatched row count.
+        let conf_bad_rows = GoldenLayer {
+            id: "turbo:confidence<opennlp:tokens>".into(),
+            anchor: GoldenAnchor::Aligned("opennlp:tokens".into()),
+            columns: vec![Column { name: "value".into(), data: ColumnData::F64(vec![0.9]) }],
+        };
+        let g = Golden { header: base_header.clone(), layers: vec![tokens.clone(), conf_bad_rows] };
+        assert!(g.to_text().is_err());
+
+        let conf_ok_rows = GoldenLayer {
+            id: "turbo:confidence<opennlp:tokens>".into(),
+            anchor: GoldenAnchor::Aligned("opennlp:tokens".into()),
+            columns: vec![Column { name: "value".into(), data: ColumnData::F64(vec![0.9, 0.8]) }],
+        };
+        let g = Golden { header: base_header, layers: vec![conf_ok_rows, tokens] };
+        assert!(g.to_text().is_err());
     }
 }
