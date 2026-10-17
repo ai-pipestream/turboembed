@@ -360,10 +360,21 @@ fn annotator_and_sequence_validator_and_disk_builder_round_trip() {
     assert_eq!(collected2, vec!["casar", "menino", "O"]);
 
     // Mismatched view ID between Tokens and View is rejected cleanly without panicking.
-    let other_doc = Document::new("x");
-    let other_view = other_doc.get::<View>().unwrap();
-    assert!(lemmatizer.annotate((other_view, &tokens, &pos)).is_err());
-    assert!(expanded.annotate((other_view, &tokens, &pos)).is_err());
+    let mut foreign = Spans::new(turbo_analysis::ViewId(7));
+    foreign.push(Span::new(0, 4));
+    foreign.push(Span::new(5, 13));
+    foreign.push(Span::new(14, 17));
+    let foreign_tokens = Tokens { spans: foreign, sentence: None };
+    let err1 = lemmatizer.annotate((view, &foreign_tokens, &pos)).err().expect("foreign view must fail");
+    assert!(
+        err1.to_string().contains("the tokens are in view 7, not in view 0 that is lemmatized"),
+        "unexpected error: {err1}"
+    );
+    let err2 = expanded.annotate((view, &foreign_tokens, &pos)).err().expect("foreign view must fail");
+    assert!(
+        err2.to_string().contains("the tokens are in view 7, not in view 0 that is lemmatized"),
+        "unexpected error: {err2}"
+    );
 
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }
