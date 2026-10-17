@@ -148,3 +148,31 @@ fn a_document_writes_the_gaps_between_its_tokens_and_refuses_a_head_across_sente
     let err = write_document_conllu(&doc).unwrap_err();
     assert!(matches!(err, FormatError::HeadOutsideSentence { word: 4, head: 0 }), "{err}");
 }
+
+#[test]
+fn non_contiguous_multiword_component_words_are_rejected_and_out_of_order_ranges_are_sorted() {
+    let reversed = "\
+1-2\tal\t_\t_\t_\t_\t_\t_\t_\t_
+2\tel\tel\tDET\t_\t_\t0\troot\t_\t_
+1\ta\ta\tADP\t_\t_\t2\tcase\t_\t_
+
+";
+    let err = ConlluWordReader::new(reversed).unwrap().next().unwrap().unwrap_err();
+    assert!(matches!(err, FormatError::ConlluDocument { line: 1, .. }), "{err}");
+
+    let out_of_order_mwt = "\
+# text = al del
+3-4\tdel\t_\t_\t_\t_\t_\t_\t_\t_
+1-2\tal\t_\t_\t_\t_\t_\t_\t_\t_
+1\ta\ta\tADP\t_\t_\t2\tcase\t_\t_
+2\tel\tel\tDET\t_\t_\t0\troot\t_\t_
+3\tde\tde\tADP\t_\t_\t4\tcase\t_\t_
+4\tel\tel\tDET\t_\t_\t2\tnmod\t_\t_
+
+";
+    let sent = ConlluWordReader::new(out_of_order_mwt).unwrap().next().unwrap().unwrap();
+    assert_eq!(sent.reconstruct_surface_text(), "al del");
+    let doc = sent.to_document().unwrap();
+    assert_eq!(doc.get::<Tokens>().unwrap().len(), 2);
+    assert_eq!(doc.get::<Words>().unwrap().len(), 4);
+}

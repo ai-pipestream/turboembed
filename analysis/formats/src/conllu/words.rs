@@ -187,7 +187,7 @@ fn read_syntactic_sentence<'a>(
 
     for (start_id, end_id, line_data) in pending_mwt {
         let mut first_idx = None;
-        let mut last_idx = None;
+        let mut prev_idx = None;
         for j in u64::from(start_id)..=u64::from(end_id) {
             let target = j.to_string();
             let Some(pos) = sentence.words.iter().position(|w| w.id.as_str() == target) else {
@@ -197,12 +197,21 @@ fn read_syntactic_sentence<'a>(
                     missing: j,
                 });
             };
+            if let Some(prev) = prev_idx
+                && pos != prev + 1
+            {
+                return Err(FormatError::ConlluDocument {
+                    line: line_data.line,
+                    detail: format!("multiword token {} words are not contiguous in order", line_data.id.as_str()),
+                });
+            }
             if first_idx.is_none() {
                 first_idx = Some(pos);
             }
-            last_idx = Some(pos + 1);
+            prev_idx = Some(pos);
         }
-        let words = IxRange::new(first_idx.unwrap_or(0) as u32, last_idx.unwrap_or(0) as u32);
+        let last_idx = prev_idx.map_or(0, |p| p + 1);
+        let words = IxRange::new(first_idx.unwrap_or(0) as u32, last_idx as u32);
         sentence.multiwords.push(MultiwordToken { start_id, end_id, words, line_data });
     }
 
@@ -289,10 +298,19 @@ impl<'a> SyntacticSentence<'a> {
     pub fn reconstruct_surface_text(&self) -> String {
         let mut out = String::new();
         let mut w_idx = 0usize;
-        let mut mwt_iter = self.multiwords.iter().peekable();
+        let mut sorted_mwt: Vec<&MultiwordToken<'a>> = self.multiwords.iter().collect();
+        sorted_mwt.sort_by_key(|m| (m.words.start, m.words.end));
+        let mut mwt_iter = sorted_mwt.into_iter().peekable();
         while w_idx < self.words.len() {
+            while let Some(mwt) = mwt_iter.peek()
+                && mwt.words.start.get() < w_idx
+            {
+                mwt_iter.next();
+            }
             if let Some(mwt) = mwt_iter.peek()
                 && mwt.words.start.get() == w_idx
+                && mwt.words.end.get() > w_idx
+                && mwt.words.end.get() <= self.words.len()
             {
                 let mwt = mwt_iter.next().unwrap();
                 out.push_str(mwt.line_data.form.as_str());
@@ -357,7 +375,9 @@ impl<'a> SyntacticSentence<'a> {
             }
         }
 
-        let mut mwt_iter = self.multiwords.iter().peekable();
+        let mut sorted_mwt: Vec<&MultiwordToken<'a>> = self.multiwords.iter().collect();
+        sorted_mwt.sort_by_key(|m| (m.words.start, m.words.end));
+        let mut mwt_iter = sorted_mwt.into_iter().peekable();
         let mut empty_iter = self.empty_nodes.iter().peekable();
 
         for (w_idx, word) in self.words.iter().enumerate() {
