@@ -84,8 +84,10 @@ impl MaxentModel {
         // Predicates beyond those the patterns describe have no parameters:
         // the Java reader leaves their Context null, which contributes
         // nothing to a sum, the same as an empty range here.
-        let parameters: usize = patterns.iter().map(|p| p.predicates as usize * p.outcomes.len()).sum();
-        if parameters > r.remaining() / 8 {
+        let parameters: usize = patterns
+            .iter()
+            .fold(0usize, |acc, p| acc.saturating_add((p.predicates as usize).saturating_mul(p.outcomes.len())));
+        if parameters > r.remaining() / 8 || u32::try_from(parameters).is_err() {
             return Err(Error::Data { offset: r.position(), message: "the data ends inside the parameters" });
         }
         let mut pred_start = Vec::with_capacity(predicate_count as usize + 1);
