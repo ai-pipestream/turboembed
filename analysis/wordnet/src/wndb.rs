@@ -66,6 +66,7 @@ struct RawPointer {
 struct RawSynset {
     id: String,
     pos: WordNetPos,
+    word_count: usize,
     lemmas: Vec<String>,
     gloss: String,
     pointers: Vec<RawPointer>,
@@ -83,6 +84,14 @@ fn read_all(file: &Path) -> Result<Vec<u8>, WordNetError> {
     Ok(fs::read(file)?)
 }
 
+fn decode_latin1(bytes: &[u8]) -> std::borrow::Cow<'_, str> {
+    if bytes.is_ascii() {
+        std::borrow::Cow::Borrowed(std::str::from_utf8(bytes).expect("ASCII bytes are valid UTF-8"))
+    } else {
+        std::borrow::Cow::Owned(bytes.iter().map(|&b| b as char).collect())
+    }
+}
+
 fn malformed(file_name: &str, line_number: usize, message: impl AsRef<str>) -> WordNetError {
     WordNetError::invalid(format!("Malformed WNDB file {file_name} at line {line_number}: {}", message.as_ref()))
 }
@@ -98,18 +107,29 @@ fn parse_data_file(
     let file_name = format!("data.{suffix}");
     let bytes = read_all(&directory.join(&file_name))?;
     let mut line_start = 0usize;
+    let mut lf_offset = 0usize;
     let mut line_number = 0usize;
     while line_start < bytes.len() {
         line_number += 1;
-        let mut line_end = line_start;
-        while line_end < bytes.len() && bytes[line_end] != b'\n' {
-            line_end += 1;
-        }
-        let line: String = bytes[line_start..line_end].iter().map(|&b| b as char).collect();
+        let line_end = bytes[line_start..].iter().position(|&b| b == b'\n').map_or(bytes.len(), |i| line_start + i);
+        let raw_line = &bytes[line_start..line_end];
+        let trimmed = raw_line.strip_suffix(b"\r").unwrap_or(raw_line);
+        let line = decode_latin1(trimmed);
         if !line.is_empty() && !line.starts_with(' ') {
-            parse_data_line(&line, line_start, &file_name, line_number, pos, pos_char, raw_synsets, raw_index)?;
+            parse_data_line(
+                &line,
+                line_start,
+                lf_offset,
+                &file_name,
+                line_number,
+                pos,
+                pos_char,
+                raw_synsets,
+                raw_index,
+            )?;
         }
         line_start = line_end + 1;
+        lf_offset += trimmed.len() + 1;
     }
     Ok(())
 }
@@ -118,6 +138,7 @@ fn parse_data_file(
 fn parse_data_line(
     line: &str,
     byte_offset: usize,
+    lf_offset: usize,
     file_name: &str,
     line_number: usize,
     pos: WordNetPos,
@@ -127,7 +148,8 @@ fn parse_data_line(
 ) -> Result<(), WordNetError> {
     let mut tokens = Tokenizer::new(line, file_name, line_number);
     let offset_field = tokens.next_field("synset_offset")?;
-    if parse_offset(offset_field, &tokens)? != byte_offset {
+    let parsed_offset = parse_offset(offset_field, &tokens)?;
+    if parsed_offset != byte_offset && parsed_offset != lf_offset {
         return Err(malformed(
             file_name,
             line_number,
@@ -230,7 +252,7 @@ fn parse_data_line(
     }
     let gloss = tokens.gloss()?;
     let id = synset_id(offset_field, pos_char);
-    let raw = RawSynset { id: id.clone(), pos, lemmas, gloss, pointers, file_name: file_name.to_string() };
+    let raw = RawSynset { id: id.clone(), pos, word_count, lemmas, gloss, pointers, file_name: file_name.to_string() };
     if let Some(&existing_idx) = raw_index.get(&id) {
         raw_synsets[existing_idx] = (id, raw);
     } else {
@@ -260,14 +282,13 @@ fn resolve_synsets(
                 ));
             };
             let target = &raw_synsets[target_idx].1;
-            if pointer.target_word > target.lemmas.len() {
+            if pointer.target_word > target.word_count {
                 return Err(malformed(
                     &raw.file_name,
                     pointer.line_number,
                     format!(
                         "Pointer target word {} exceeds target word count {}",
-                        pointer.target_word,
-                        target.lemmas.len()
+                        pointer.target_word, target.word_count
                     ),
                 ));
             }
@@ -292,15 +313,16 @@ fn parse_index_file(
 ) -> Result<(), WordNetError> {
     let file_name = format!("index.{suffix}");
     let bytes = read_all(&directory.join(&file_name))?;
-    let content: String = bytes.iter().map(|&b| b as char).collect();
     let mut line_number = 0usize;
     let mut line_start = 0usize;
-    while line_start < content.len() {
+    while line_start < bytes.len() {
         line_number += 1;
-        let line_end = content[line_start..].find('\n').map_or(content.len(), |i| line_start + i);
-        let line = &content[line_start..line_end];
+        let line_end = bytes[line_start..].iter().position(|&b| b == b'\n').map_or(bytes.len(), |i| line_start + i);
+        let raw_line = &bytes[line_start..line_end];
+        let trimmed = raw_line.strip_suffix(b"\r").unwrap_or(raw_line);
+        let line = decode_latin1(trimmed);
         if !line.is_empty() && !line.starts_with(' ') {
-            parse_index_line(line, &file_name, line_number, pos, pos_char, suffix, raw_index, senses)?;
+            parse_index_line(&line, &file_name, line_number, pos, pos_char, suffix, raw_index, senses)?;
         }
         line_start = line_end + 1;
     }
