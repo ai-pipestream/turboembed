@@ -30,6 +30,7 @@ use crate::recipe::Recipe;
 /// The table as stored, read value by value.
 struct Table<'a> {
     rows: &'a Tensor<'a>,
+    vocab_size: usize,
     dim: usize,
     weights: Option<Vec<f64>>,
     mapping: Option<Vec<usize>>,
@@ -53,11 +54,16 @@ impl Table<'_> {
     }
 
     /// The mean of the rows of `ids`, the arithmetic in the module comment.
-    fn mean(&self, ids: &[i32]) -> Vec<f32> {
+    fn mean(&self, ids: &[i32]) -> Result<Vec<f32>> {
         let n = ids.len();
         let mut out = vec![0f32; self.dim];
         if n == 0 {
-            return out;
+            return Ok(out);
+        }
+        for &id in ids {
+            if id < 0 || id as usize >= self.vocab_size {
+                return Err(format!("token id {id} is outside vocabulary size {}", self.vocab_size));
+            }
         }
         for (j, o) in out.iter_mut().enumerate() {
             if self.wide {
@@ -83,7 +89,7 @@ impl Table<'_> {
                 *o = acc / n as f32;
             }
         }
-        out
+        Ok(out)
     }
 
     fn row_of(&self, id: i32) -> usize {
@@ -121,25 +127,31 @@ fn round_f16(x: &mut [f32]) {
     }
 }
 
-/// A staged static bundle's vector for each of `texts` (each with its
-/// prompt role), and its ids, from the tokenizer and the table.
-fn vectors(m: &Manifest, bundle: &Bundle, tok: &Tokenizer, texts: &[(&str, PromptRole)]) -> Result<Rows> {
-    let st = m.static_embedding.as_ref().ok_or("not a static bundle")?;
-    let art = m.artifacts.first().ok_or("manifest.artifacts: empty")?;
-    let file = &art.files[0];
-    let bytes = bundle.read_verified(file).map_err(|e| e.message)?;
-    let sf = safetensors::File::parse(file, &bytes).map_err(|e| e.message)?;
-    let name = |role: TensorRole| art.tensor_names.get(&role).map(String::as_str);
+fn parse_table<'a>(
+    file: &str,
+    sf: &'a safetensors::File<'a>,
+    tensor_names: &std::collections::BTreeMap<TensorRole, String>,
+    vocab_size: u32,
+    declared_rows: u32,
+    expected_dim: u32,
+) -> Result<Table<'a>> {
+    let name = |role: TensorRole| tensor_names.get(&role).map(String::as_str);
     let tensor = |n: &str| sf.tensor(n).ok_or_else(|| format!("{file}: no tensor {n}"));
     let rows = tensor(name(TensorRole::StaticEmbeddings).ok_or("artifacts[0].tensor_names: no static_embeddings")?)?;
-    if !matches!(rows.dtype, Dtype::F32 | Dtype::F16 | Dtype::Bf16 | Dtype::F64 | Dtype::I8) || rows.shape.len() != 2 {
+    let expected_rows = if declared_rows == 0 { vocab_size } else { declared_rows };
+    if !matches!(rows.dtype, Dtype::F32 | Dtype::F16 | Dtype::Bf16 | Dtype::F64 | Dtype::I8)
+        || rows.shape != [expected_rows as u64, expected_dim as u64]
+    {
         return Err(format!("{file}: the table is {} {:?}", rows.dtype_name, rows.shape));
     }
-    let dim = rows.shape[1] as usize;
+    let dim = expected_dim as usize;
     let weights = match name(TensorRole::StaticWeights) {
         None => None,
         Some(n) => {
             let w = tensor(n)?;
+            if w.shape != [vocab_size as u64] {
+                return Err(format!("{file}: weights have shape {:?}, expected [{vocab_size}]", w.shape));
+            }
             let d = w.data;
             let v: Vec<f64> = match w.dtype {
                 Dtype::F32 => d.as_chunks::<4>().0.iter().map(|&c| f32::from_le_bytes(c) as f64).collect(),
@@ -154,27 +166,49 @@ fn vectors(m: &Manifest, bundle: &Bundle, tok: &Tokenizer, texts: &[(&str, Promp
         None => None,
         Some(n) => {
             let t = tensor(n)?;
-            let v: Vec<usize> = match t.dtype {
-                Dtype::I32 => t.i32s().into_iter().map(|x| x as usize).collect(),
-                Dtype::I64 => t.data.as_chunks::<8>().0.iter().map(|&c| i64::from_le_bytes(c) as usize).collect(),
+            if t.shape != [vocab_size as u64] {
+                return Err(format!("{file}: the mapping has shape {:?}, expected [{vocab_size}]", t.shape));
+            }
+            let raw: Vec<i64> = match t.dtype {
+                Dtype::I32 => t.i32s().into_iter().map(i64::from).collect(),
+                Dtype::I64 => t.data.as_chunks::<8>().0.iter().map(|&c| i64::from_le_bytes(c)).collect(),
                 _ => return Err(format!("{file}: the mapping is {}", t.dtype_name)),
             };
+            let mut v = Vec::with_capacity(raw.len());
+            for (id, x) in raw.into_iter().enumerate() {
+                if !(0..expected_rows as i64).contains(&x) {
+                    return Err(format!("{file}: the mapping maps token {id} to {x}, outside 0..{expected_rows}"));
+                }
+                v.push(x as usize);
+            }
             Some(v)
         }
     };
-    let table = Table {
+    Ok(Table {
         rows,
+        vocab_size: vocab_size as usize,
         dim,
         wide: matches!(rows.dtype, Dtype::I8 | Dtype::F64) || weights.as_ref().is_some_and(|w| w.1),
         weights: weights.map(|w| w.0),
         mapping,
-    };
+    })
+}
+
+/// A staged static bundle's vector for each of `texts` (each with its
+/// prompt role), and its ids, from the tokenizer and the table.
+fn vectors(m: &Manifest, bundle: &Bundle, tok: &Tokenizer, texts: &[(&str, PromptRole)]) -> Result<Rows> {
+    let st = m.static_embedding.as_ref().ok_or("not a static bundle")?;
+    let art = m.artifacts.first().ok_or("manifest.artifacts: empty")?;
+    let file = &art.files[0];
+    let bytes = bundle.read_verified(file).map_err(|e| e.message)?;
+    let sf = safetensors::File::parse(file, &bytes).map_err(|e| e.message)?;
     let embed = m.embed();
+    let table = parse_table(file, &sf, &art.tensor_names, st.vocab_size, st.rows, embed.dim)?;
     if embed.pooling != Pooling::Mean {
         return Err("the tool computes a static bundle's reference under POOLING_MEAN only".into());
     }
     let l2 = embed.normalize == Normalize::L2;
-    let half = rows.dtype == Dtype::F16;
+    let half = table.rows.dtype == Dtype::F16;
     let opts = Encode {
         add_special_tokens: true,
         truncation: Truncation::Right,
@@ -184,7 +218,7 @@ fn vectors(m: &Manifest, bundle: &Bundle, tok: &Tokenizer, texts: &[(&str, Promp
     let mut out = Rows { ids: Vec::new(), vectors: Vec::new() };
     for &(text, prompt) in texts {
         let ids = tok.encode(text, Encode { prompt, ..opts }).map_err(|e| e.message)?;
-        let mut v = table.mean(&ids);
+        let mut v = table.mean(&ids)?;
         if half {
             round_f16(&mut v);
         }
@@ -362,6 +396,8 @@ fn safetensors_file(rows: &Rows, pad: i32, dim: usize) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
 
     /// The pairwise sum against the sum in F64 of the same F32 squares:
@@ -373,5 +409,61 @@ mod tests {
             let want: f64 = x.iter().map(|v| (v * v) as f64).sum();
             assert_eq!(pairwise_squares(&x) as f64, want, "{n}");
         }
+    }
+
+    fn make_st(entries: &[(&str, &str, &[u64], &[u8])]) -> Vec<u8> {
+        let mut header = serde_json::Map::new();
+        let mut data = Vec::new();
+        for &(name, dtype, shape, bytes) in entries {
+            let a = data.len();
+            data.extend_from_slice(bytes);
+            let b = data.len();
+            header.insert(name.into(), json!({ "dtype": dtype, "shape": shape, "data_offsets": [a, b] }));
+        }
+        let mut h = serde_json::to_vec(&header).unwrap();
+        while !h.len().is_multiple_of(8) {
+            h.push(b' ');
+        }
+        let mut out = Vec::from((h.len() as u64).to_le_bytes());
+        out.extend(h);
+        out.extend(data);
+        out
+    }
+
+    #[test]
+    fn parse_table_validates_shapes_mapping_bounds_and_token_ids() {
+        let emb: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0].iter().flat_map(|v| v.to_le_bytes()).collect();
+        let w_ok: Vec<u8> = [0.5f32, 1.5, 2.0].iter().flat_map(|v| v.to_le_bytes()).collect();
+        let m_ok: Vec<u8> = [1i32, 0, 1].iter().flat_map(|v| v.to_le_bytes()).collect();
+        let bytes = make_st(&[
+            ("embeddings", "F32", &[2, 2], &emb),
+            ("weights", "F32", &[3], &w_ok),
+            ("mapping", "I32", &[3], &m_ok),
+        ]);
+        let sf = safetensors::File::parse("t", &bytes).unwrap();
+        let names = BTreeMap::from([
+            (TensorRole::StaticEmbeddings, "embeddings".into()),
+            (TensorRole::StaticWeights, "weights".into()),
+            (TensorRole::StaticMapping, "mapping".into()),
+        ]);
+        let table = parse_table("t", &sf, &names, 3, 2, 2).unwrap();
+        assert_eq!(table.mean(&[0, 1]).unwrap(), vec![(3.0 * 0.5 + 1.0 * 1.5) / 2.0, (4.0 * 0.5 + 2.0 * 1.5) / 2.0]);
+        assert!(table.mean(&[-1]).is_err());
+        assert!(table.mean(&[3]).is_err());
+        assert!(parse_table("t", &sf, &names, 4, 2, 2).is_err());
+
+        let m_neg: Vec<u8> = [-1i32, 0, 1].iter().flat_map(|v| v.to_le_bytes()).collect();
+        let neg_bytes = make_st(&[("embeddings", "F32", &[2, 2], &emb), ("mapping", "I32", &[3], &m_neg)]);
+        let neg_sf = safetensors::File::parse("t", &neg_bytes).unwrap();
+        let map_names = BTreeMap::from([
+            (TensorRole::StaticEmbeddings, "embeddings".into()),
+            (TensorRole::StaticMapping, "mapping".into()),
+        ]);
+        assert!(parse_table("t", &neg_sf, &map_names, 3, 2, 2).is_err());
+
+        let m_oob: Vec<u8> = [0i32, 2, 1].iter().flat_map(|v| v.to_le_bytes()).collect();
+        let oob_bytes = make_st(&[("embeddings", "F32", &[2, 2], &emb), ("mapping", "I32", &[3], &m_oob)]);
+        let oob_sf = safetensors::File::parse("t", &oob_bytes).unwrap();
+        assert!(parse_table("t", &oob_sf, &map_names, 3, 2, 2).is_err());
     }
 }
