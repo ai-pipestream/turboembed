@@ -47,10 +47,10 @@ impl JavaRandom {
     ///
     /// # Panics
     ///
-    /// In debug builds, if `bits` is not in 1..=32.
+    /// If `bits` is not in `1..=32`.
     #[inline]
     pub fn next(&mut self, bits: u32) -> i32 {
-        debug_assert!((1..=32).contains(&bits), "next({bits})");
+        assert!((1..=32).contains(&bits), "next({bits})");
         self.seed = (self.seed.wrapping_mul(MULTIPLIER).wrapping_add(ADDEND)) & MASK;
         (self.seed >> (48 - bits)) as i32
     }
@@ -242,5 +242,17 @@ mod tests {
         assert_eq!(one, [5]);
         // Nothing was drawn.
         assert_eq!(r.seed, scramble(9));
+    }
+
+    #[test]
+    #[should_panic(expected = "next(0)")]
+    fn next_rejects_zero_bits() {
+        JavaRandom::new(1).next(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "next(33)")]
+    fn next_rejects_above_32_bits() {
+        JavaRandom::new(1).next(33);
     }
 }
