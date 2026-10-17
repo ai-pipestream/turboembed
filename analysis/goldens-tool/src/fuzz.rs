@@ -90,14 +90,19 @@ impl Options {
                 "--models" => opts.models = PathBuf::from(value()?),
                 "--image" => opts.image = value()?.clone(),
                 "--sets" => {
-                    let sets: Vec<String> = value()?.split(',').filter(|s| !s.is_empty()).map(str::to_string).collect();
-                    for s in &sets {
-                        if !recipe::INPUT_SETS.contains(&s.as_str()) {
+                    let raw = value()?;
+                    let mut sets = Vec::new();
+                    for s in raw.split(',') {
+                        if s.is_empty() {
+                            return Err("--sets: empty set name".into());
+                        }
+                        if !recipe::INPUT_SETS.contains(&s) {
                             return Err(format!("--sets: {s} is not an input set of the recipe"));
                         }
-                    }
-                    if sets.is_empty() {
-                        return Err("--sets needs at least one set".into());
+                        if sets.iter().any(|existing| existing == s) {
+                            return Err(format!("--sets: duplicate set {s}"));
+                        }
+                        sets.push(s.to_string());
                     }
                     opts.sets = sets;
                 }
@@ -111,6 +116,9 @@ impl Options {
         }
         if opts.count == 0 {
             return Err("--count must be at least 1".into());
+        }
+        if opts.rounds == 0 {
+            return Err("--rounds must be at least 1".into());
         }
         Ok(opts)
     }
@@ -374,7 +382,11 @@ mod tests {
         assert!(bad(&["--seed"]).contains("needs a value"));
         assert!(bad(&["--seed", "x"]).contains("not a number"));
         assert!(bad(&["--count", "0"]).contains("at least 1"));
+        assert!(bad(&["--rounds", "0"]).contains("at least 1"));
         assert!(bad(&["--sets", "nope"]).contains("not an input set"));
+        assert!(bad(&["--sets", ""]).contains("empty set name"));
+        assert!(bad(&["--sets", "en,"]).contains("empty set name"));
+        assert!(bad(&["--sets", "en,en"]).contains("duplicate set en"));
         assert!(bad(&["--what"]).contains("unknown argument"));
         assert!(Options::parse(&["--reuse".to_string()]).unwrap().reuse);
     }

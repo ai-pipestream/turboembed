@@ -27,6 +27,9 @@ impl Differences {
         self.differ.extend(other.differ.into_iter().map(|p| prefix.join(p)));
         self.missing.extend(other.missing.into_iter().map(|p| prefix.join(p)));
         self.extra.extend(other.extra.into_iter().map(|p| prefix.join(p)));
+        self.differ.sort();
+        self.missing.sort();
+        self.extra.sort();
     }
 
     /// One line per path: `differs`, `missing` or `extra`, a tab, the path.
@@ -148,5 +151,29 @@ mod tests {
         assert_eq!(d.missing, vec![PathBuf::from("x.golden")]);
         let d = trees(&a.0.join("no-such-dir"), &a.0).unwrap();
         assert_eq!(d.extra, vec![PathBuf::from("x.golden")]);
+    }
+
+    #[test]
+    fn extend_under_keeps_lists_sorted() {
+        let mut all = Differences::default();
+        all.extend_under(
+            Path::new("sentdetect"),
+            Differences {
+                differ: vec![PathBuf::from("m/en/a.golden")],
+                missing: vec![PathBuf::from("m/en/b.golden")],
+                extra: vec![PathBuf::from("m/en/c.golden")],
+            },
+        );
+        all.extend_under(
+            Path::new("chunk"),
+            Differences {
+                differ: vec![PathBuf::from("m/en/a.golden")],
+                missing: vec![PathBuf::from("m/en/b.golden")],
+                extra: vec![PathBuf::from("m/en/c.golden")],
+            },
+        );
+        assert_eq!(all.differ, vec![PathBuf::from("chunk/m/en/a.golden"), PathBuf::from("sentdetect/m/en/a.golden")]);
+        assert_eq!(all.missing, vec![PathBuf::from("chunk/m/en/b.golden"), PathBuf::from("sentdetect/m/en/b.golden")]);
+        assert_eq!(all.extra, vec![PathBuf::from("chunk/m/en/c.golden"), PathBuf::from("sentdetect/m/en/c.golden")]);
     }
 }

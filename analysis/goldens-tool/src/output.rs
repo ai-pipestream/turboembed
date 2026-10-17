@@ -101,6 +101,7 @@ pub fn check_dumps(root: &Path) -> Result<usize, String> {
             if !dumped {
                 continue;
             }
+            stem_parts(rel).map_err(|e| format!("{}: {e}", dir.join(rel).display()))?;
             let dump = dump_beside(rel).expect("a golden's path");
             if !golden_names_a_model(&dir.join(rel))? {
                 if files.contains(&dump) {
@@ -129,13 +130,26 @@ pub fn check_dumps(root: &Path) -> Result<usize, String> {
     Ok(count)
 }
 
+/// Reads a golden file and verifies it starts with `golden 1\n` and has an
+/// `annotator\t` header record before any `layer\t` record.
+fn read_golden(path: &Path) -> Result<String, String> {
+    let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let text = std::str::from_utf8(&bytes).map_err(|e| format!("{}: not UTF-8: {e}", path.display()))?;
+    if !text.starts_with("golden 1\n") {
+        return Err(format!("{}: does not start with `golden 1`", path.display()));
+    }
+    if !header_has(text, "annotator\t") {
+        return Err(format!("{}: has no `annotator` header record", path.display()));
+    }
+    Ok(text.to_owned())
+}
+
 /// Whether the golden at `path` has an error record: a line `error\t...`
 /// among its header records, before the first `layer` line. A layer row
 /// can start with any text, so the search stops at the first layer.
 pub fn golden_threw(path: &Path) -> Result<bool, String> {
-    let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let text = std::str::from_utf8(&bytes).map_err(|e| format!("{}: not UTF-8: {e}", path.display()))?;
-    Ok(header_has_error(text))
+    let text = read_golden(path)?;
+    Ok(header_has_error(&text))
 }
 
 /// Whether a golden's text has an error record before its first layer.
@@ -146,9 +160,8 @@ fn header_has_error(text: &str) -> bool {
 /// Whether the golden at `path` names a model: a `model\t...` record among
 /// its header records.
 pub fn golden_names_a_model(path: &Path) -> Result<bool, String> {
-    let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let text = std::str::from_utf8(&bytes).map_err(|e| format!("{}: not UTF-8: {e}", path.display()))?;
-    Ok(header_has(text, "model\t"))
+    let text = read_golden(path)?;
+    Ok(header_has(&text, "model\t"))
 }
 
 /// Whether a header record, a line before the first layer, starts with `prefix`.
@@ -156,20 +169,30 @@ fn header_has(text: &str, prefix: &str) -> bool {
     text.split('\n').take_while(|l| !l.starts_with("layer\t")).any(|l| l.starts_with(prefix))
 }
 
+fn stem_parts(rel: &Path) -> Result<[String; 3], String> {
+    let ext = rel.extension().and_then(|e| e.to_str()).unwrap_or("dump");
+    let stem = rel.with_extension("");
+    let mut parts = Vec::new();
+    for c in stem.iter() {
+        let s = c.to_str().ok_or_else(|| "non-UTF-8 path component".to_string())?;
+        parts.push(s.to_owned());
+    }
+    let [dir, set, id] = &parts[..] else {
+        return Err(format!("not at <model>/<set>/<id>.{ext}"));
+    };
+    Ok([dir.clone(), set.clone(), id.clone()])
+}
+
 /// Fails unless a dump at `<model>/<set>/<id>.dump` (relative to its
 /// annotator directory) names the input `<set>/<id>` and, as its first
 /// model, the file `<model>.bin`. A run with options has the directory
 /// `<model>+<options>`, and the part before the first `+` is the model.
 fn check_names(rel: &Path, header: &DumpHeader) -> Result<(), String> {
-    let stem = rel.with_extension("");
-    let parts: Vec<&str> = stem.iter().filter_map(|p| p.to_str()).collect();
-    let [dir, set, id] = parts[..] else {
-        return Err("not at <model>/<set>/<id>.dump".into());
-    };
+    let [dir, set, id] = stem_parts(rel)?;
     if header.input.id != format!("{set}/{id}") {
         return Err(format!("the header names the input {}", header.input.id));
     }
-    let model = dir.split('+').next().unwrap_or(dir);
+    let model = dir.split('+').next().unwrap_or(&dir);
     match header.models.first() {
         Some(m) if m.file.strip_suffix(".bin") == Some(model) => {}
         None => return Err("the header names no model".into()),
@@ -253,6 +276,17 @@ mod tests {
         put("tokenize/simple/en/a.dump", &dump_text("en/a"));
         let e = check_dumps(&root).unwrap_err();
         assert!(e.contains("names no model"), "{e}");
+        fs::remove_dir_all(root.join("tokenize/simple")).unwrap();
+
+        // A misplaced golden or one without `golden 1` / `annotator\t` is rejected.
+        put("tokenize/simple/a.golden", "golden 1\nannotator\ta.B\trun\n");
+        assert!(check_dumps(&root).unwrap_err().contains("not at <model>/<set>/<id>.golden"));
+        fs::remove_dir_all(root.join("tokenize/simple")).unwrap();
+
+        put("tokenize/simple/en/a.golden", "not a golden\n");
+        assert!(check_dumps(&root).unwrap_err().contains("does not start with `golden 1`"));
+        put("tokenize/simple/en/a.golden", "golden 1\n");
+        assert!(check_dumps(&root).unwrap_err().contains("has no `annotator` header record"));
         fs::remove_dir_all(root.join("tokenize/simple")).unwrap();
 
         put("tokenize/m/en/a.dump", &dump_text("en/b"));
