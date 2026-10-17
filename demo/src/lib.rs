@@ -57,6 +57,9 @@ impl Demo {
     /// each call connects as needed.
     pub async fn start(listen: SocketAddr, server: &str, models: Vec<String>) -> Result<Demo, String> {
         let endpoint = Endpoint::from_shared(server.to_string()).map_err(|e| format!("server {server}: {e}"))?;
+        if !matches!(endpoint.uri().scheme_str(), Some("http" | "https")) || endpoint.uri().authority().is_none() {
+            return Err(format!("server {server}: must be an http:// or https:// URL"));
+        }
         let client = GrpcInferenceServiceClient::new(endpoint.connect_lazy())
             .max_decoding_message_size(MAX_REPLY_BYTES)
             .max_encoding_message_size(MAX_REPLY_BYTES);
@@ -118,6 +121,10 @@ fn failure(s: tonic::Status) -> Response {
         "turbo_field": meta("turbo-field"),
     }});
     (StatusCode::BAD_GATEWAY, Json(body)).into_response()
+}
+
+fn bad_gateway(message: String) -> Response {
+    (StatusCode::BAD_GATEWAY, Json(json!({ "error": { "grpc": null, "message": message } }))).into_response()
 }
 
 fn refused(message: String) -> Response {
@@ -224,14 +231,43 @@ async fn infer(State(app): State<App>, body: Result<Json<Infer>, axum::extract::
         Ok(r) => r.into_inner(),
         Err(e) => return failure(e),
     };
+    match decode_infer_reply(batch, r) {
+        Ok(v) => Json(v).into_response(),
+        Err(msg) => bad_gateway(msg),
+    }
+}
+
+fn decode_infer_reply(batch: i64, r: ModelInferResponse) -> Result<Value, String> {
     let Some(out) = r.outputs.first() else {
-        return refused("the reply has no output".into());
+        return Err("the reply has no output".into());
     };
+    if out.datatype != "FP32" {
+        return Err(format!("output datatype {:?} is not FP32", out.datatype));
+    }
     let shape = out.shape.clone();
-    let dim = shape.get(1).copied().unwrap_or(0).max(0) as usize;
-    let raw = r.raw_output_contents.first().map(Vec::as_slice).unwrap_or(&[]);
-    let floats: Vec<f32> = raw.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
-    let vectors: Vec<&[f32]> = if dim == 0 { vec![] } else { floats.chunks(dim).collect() };
+    let &[rows, cols] = shape.as_slice() else {
+        return Err(format!("output shape {shape:?} is not [batch, dim]"));
+    };
+    if rows != batch || cols < 0 {
+        return Err(format!("output shape {shape:?} does not match batch {batch}"));
+    }
+    let dim = cols as usize;
+    let Some(expected_len) = (batch as usize).checked_mul(dim) else {
+        return Err(format!("output shape {shape:?} overflows"));
+    };
+    let floats: Vec<f32> = if let Some(raw) = r.raw_output_contents.first() {
+        let (chunks, rem) = raw.as_chunks::<4>();
+        if !rem.is_empty() {
+            return Err(format!("raw output length {} is not a multiple of 4", raw.len()));
+        }
+        chunks.iter().map(|b| f32::from_le_bytes(*b)).collect()
+    } else {
+        out.contents.as_ref().map(|c| c.fp32_contents.clone()).unwrap_or_default()
+    };
+    if floats.len() != expected_len {
+        return Err(format!("output length {} does not match shape {shape:?}", floats.len()));
+    }
+    let vectors: Vec<&[f32]> = if dim == 0 { vec![&[][..]; batch as usize] } else { floats.chunks(dim).collect() };
     let summary: serde_json::Map<String, Value> = r
         .parameters
         .into_iter()
@@ -246,12 +282,85 @@ async fn infer(State(app): State<App>, body: Result<Json<Infer>, axum::extract::
             Some((k, v))
         })
         .collect();
-    Json(json!({
+    Ok(json!({
         "model": r.model_name,
         "version": r.model_version,
         "shape": shape,
         "vectors": vectors,
         "summary": summary,
     }))
-    .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proto::model_infer_response::InferOutputTensor;
+
+    #[tokio::test]
+    async fn start_rejects_server_without_http_or_https_scheme() {
+        let listen: SocketAddr = "127.0.0.1:0".parse().unwrap();
+        for bad in ["127.0.0.1:8081", "ftp://127.0.0.1:8081", "ws://127.0.0.1:8081", "/ just-a-path"] {
+            assert!(Demo::start(listen, bad, vec![]).await.is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn decode_infer_reply_validates_outputs_shape_and_float_count() {
+        assert_eq!(decode_infer_reply(1, ModelInferResponse::default()), Err("the reply has no output".into()));
+        assert_eq!(bad_gateway("the reply has no output".into()).status(), StatusCode::BAD_GATEWAY);
+
+        let wrong_datatype = ModelInferResponse {
+            outputs: vec![InferOutputTensor { datatype: "INT32".into(), shape: vec![1, 1], ..Default::default() }],
+            raw_output_contents: vec![42i32.to_le_bytes().to_vec()],
+            ..Default::default()
+        };
+        assert!(decode_infer_reply(1, wrong_datatype).unwrap_err().contains("not FP32"));
+
+        let missing_datatype = ModelInferResponse {
+            outputs: vec![InferOutputTensor { shape: vec![1, 1], ..Default::default() }],
+            raw_output_contents: vec![1.0f32.to_le_bytes().to_vec()],
+            ..Default::default()
+        };
+        assert!(decode_infer_reply(1, missing_datatype).unwrap_err().contains("not FP32"));
+
+        let wrong_rank = ModelInferResponse {
+            outputs: vec![InferOutputTensor { datatype: "FP32".into(), shape: vec![2], ..Default::default() }],
+            ..Default::default()
+        };
+        assert!(decode_infer_reply(1, wrong_rank).unwrap_err().contains("not [batch, dim]"));
+
+        let wrong_batch = ModelInferResponse {
+            outputs: vec![InferOutputTensor { datatype: "FP32".into(), shape: vec![2, 2], ..Default::default() }],
+            ..Default::default()
+        };
+        assert!(decode_infer_reply(1, wrong_batch).unwrap_err().contains("does not match batch 1"));
+
+        let unaligned_raw = ModelInferResponse {
+            outputs: vec![InferOutputTensor { datatype: "FP32".into(), shape: vec![1, 1], ..Default::default() }],
+            raw_output_contents: vec![vec![1, 2, 3]],
+            ..Default::default()
+        };
+        assert!(decode_infer_reply(1, unaligned_raw).unwrap_err().contains("not a multiple of 4"));
+
+        let short_raw = ModelInferResponse {
+            outputs: vec![InferOutputTensor { datatype: "FP32".into(), shape: vec![1, 2], ..Default::default() }],
+            raw_output_contents: vec![1.0f32.to_le_bytes().to_vec()],
+            ..Default::default()
+        };
+        assert!(decode_infer_reply(1, short_raw).unwrap_err().contains("output length 1 does not match shape [1, 2]"));
+
+        let fp32_fallback = ModelInferResponse {
+            model_name: "m".into(),
+            model_version: "1".into(),
+            outputs: vec![InferOutputTensor {
+                datatype: "FP32".into(),
+                shape: vec![2, 2],
+                contents: Some(InferTensorContents { fp32_contents: vec![1.0, 2.0, 3.0, 4.0], ..Default::default() }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let v = decode_infer_reply(2, fp32_fallback).unwrap();
+        assert_eq!(v["vectors"], json!([[1.0, 2.0], [3.0, 4.0]]));
+    }
 }
