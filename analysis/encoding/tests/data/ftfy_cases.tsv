@@ -320,3 +320,6 @@ Synthetic, negative: Camel-cased Serbian that looks like a UTF-8 / Windows-1251 
 Synthetic, negative: Camel-cased Serbian that looks like a UTF-8 / Windows-1251 mixup (extra layer)	-	Ð\u{9F}Ð¾Ð·Ð´Ñ\u{80}Ð°Ð²Ð\u{82}Ð°Ð²Ð¾	ПоздравЂаво		encode:latin-1,decode:utf-8
 Synthetic: mojibake with trademark sign at the end of a word	pass	OÃ™ ET QUAND?	OÙ ET QUAND?	OÙ ET QUAND?	encode:sloppy-windows-1252,decode:utf-8
 Synthetic: mojibake with trademark sign at the end of a word (extra layer)	-	OÃ\u{83}â\u{84}¢ ET QUAND?	OÙ ET QUAND?		encode:latin-1,decode:utf-8,encode:sloppy-windows-1252,decode:utf-8
+Synthetic: pair of U+FFFD replacement characters	-	��	��		encode:sloppy-windows-1252,transcode:replace_lossy_sequences,decode:utf-8
+Synthetic: parenthesis before U+FFFD	-	(�	(�		-
+Synthetic: bracketed U+FFFD	-	[�]	[�]		-
