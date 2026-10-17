@@ -1,5 +1,9 @@
 //! The document: its text views and its layers.
 
+mod view;
+
+pub use view::View;
+
 use std::any::{Any, TypeId};
 use std::sync::{Arc, OnceLock};
 
@@ -10,63 +14,7 @@ use crate::offsets::OffsetTable;
 use crate::span::Span;
 use crate::text::{Alignment, Side, ViewId};
 
-/// A text view as a layer. The source text is the default `View`; a
-/// normalizer writes a named one ("nfkc", "dehyphenated"), and annotators
-/// that should work on normalized text read that one instead. A layer's
-/// spans name the view they are in, and the document maps any of them back
-/// to the source.
-#[derive(Clone, Debug)]
-pub struct View {
-    id: ViewId,
-    parent: Option<ViewId>,
-    text: Arc<str>,
-    alignment: Alignment,
-    /// UTF-16 and code point checkpoints, built on first use.
-    offsets: OnceLock<OffsetTable>,
-}
-
-impl View {
-    /// A view made from `parent` (alignment from a `ViewBuilder`). Its id is
-    /// given when the document takes it.
-    pub fn derived(parent: &View, text: String, alignment: Alignment) -> View {
-        View { id: ViewId(u16::MAX), parent: Some(parent.id), text: text.into(), alignment, offsets: OnceLock::new() }
-    }
-
-    pub fn id(&self) -> ViewId {
-        self.id
-    }
-
-    pub fn text(&self) -> &str {
-        &self.text
-    }
-
-    pub fn parent(&self) -> Option<ViewId> {
-        self.parent
-    }
-
-    pub fn alignment(&self) -> &Alignment {
-        &self.alignment
-    }
-
-    /// The table that converts this view's byte offsets to UTF-16 units
-    /// and code points and back, for Java and the wire. It is built the
-    /// first time it is asked for and kept.
-    pub fn offsets(&self) -> &OffsetTable {
-        self.offsets.get_or_init(|| OffsetTable::build(&self.text))
-    }
-}
-
-impl Layer for View {
-    const ID: &'static str = "turbo:view";
-
-    fn anchor() -> Anchor {
-        Anchor::Document
-    }
-
-    fn len(&self) -> usize {
-        1
-    }
-}
+use view::check_view_alignment;
 
 pub(crate) struct Entry {
     pub(crate) key: KeyId,
@@ -418,9 +366,14 @@ impl Document {
             let view = as_any_mut(&mut layer).downcast_mut::<View>().expect("a View");
             let parent =
                 view.parent.ok_or_else(|| Error::Invalid { layer: id, detail: "a view needs a parent".into() })?;
-            if parent.0 as usize >= self.views.len() {
+            let Some(parent_view) = self.views.get(parent.0 as usize) else {
                 return Err(Error::Bounds { layer: id, view: parent, detail: "no such parent view".into() });
-            }
+            };
+            check_view_alignment(&parent_view.text, &view.alignment).map_err(|detail| Error::Bounds {
+                layer: id,
+                view: parent,
+                detail,
+            })?;
             view.id = ViewId(self.views.len() as u16);
             let shared = Arc::new(view.clone());
             self.views.push(shared.clone());
