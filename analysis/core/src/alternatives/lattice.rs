@@ -159,10 +159,9 @@ impl<L> Alternatives<L> {
         for i in 0..self.spans.len() {
             let u = self.position[i] as usize;
             let len = self.position_length[i] as usize;
-            if len == 0 || u >= p_len {
+            let Some(v) = u.checked_add(len).filter(|&v| len > 0 && v <= p_len) else {
                 continue;
-            }
-            let v = u.saturating_add(len).min(p_len);
+            };
             start_at[u] = starts[i];
             end_at[v] = ends[i];
         }
@@ -178,10 +177,9 @@ impl<L> Alternatives<L> {
             }
             let u = self.position[r] as usize;
             let len = self.position_length[r] as usize;
-            if len == 0 || u >= p_len {
+            let Some(v) = u.checked_add(len).filter(|&v| len > 0 && v <= p_len) else {
                 continue;
-            }
-            let v = u.saturating_add(len).min(p_len);
+            };
             for p in u..v {
                 let (s, e) = (start_at[p], end_at[p + 1]);
                 if s <= e {
@@ -219,6 +217,14 @@ mod tests {
         alt.num_positions = 1;
         assert_eq!(alt.best_path(), vec![Ix::new(1)]);
         assert_eq!(alt.covered_bytes(&[Ix::new(1), Ix::new(2)]), vec![Span::new(0, 3)]);
+
+        let mut a = Alternatives::<()>::new(ViewId::SOURCE);
+        let ix0 = a.push(Span::new(0, 1), 0, 1, ModeSet::BEST);
+        let ix1 = a.push(Span::new(1, 2), 1, 1, ModeSet::BEST);
+        a.push(Span::new(1, 3), 1, 2, ModeSet::BEST);
+        a.num_positions = 2;
+        assert_eq!(a.best_path(), vec![ix0, ix1]);
+        assert_eq!(a.covered_bytes(&[ix0, ix1]), vec![Span::new(0, 2)]);
     }
 
     #[test]
