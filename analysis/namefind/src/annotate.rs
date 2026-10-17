@@ -199,5 +199,16 @@ mod tests {
             panic!("expected Err for out-of-bounds token span");
         };
         assert!(matches!(err, Error::Annotator { annotator: RegexNameFinder::ID, .. }));
+
+        // 3. Mid-character UTF-8 token span ('é' is bytes 3..5 in "café")
+        let utf8_doc = Document::new("café".to_string());
+        let utf8_view = utf8_doc.get::<View>().unwrap();
+        let mut mid_spans = Spans::new(ViewId::SOURCE);
+        mid_spans.push(Span::new(0, 4));
+        let mid_tokens = Tokens { spans: mid_spans, sentence: None };
+        let Err(err) = finder.annotate((utf8_view, &mid_tokens)) else {
+            panic!("expected Err for mid-character UTF-8 token span");
+        };
+        assert!(matches!(err, Error::Annotator { annotator: RegexNameFinder::ID, .. }));
     }
 }

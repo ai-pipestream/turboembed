@@ -29,7 +29,7 @@ fn compare(a: (u32, u32, &str), b: (u32, u32, &str)) -> Ordering {
 
 /// `Span.intersects`.
 fn intersects(a: (u32, u32), b: (u32, u32)) -> bool {
-    let contains = |x: (u32, u32), y: (u32, u32)| x.0 <= x.1 && y.0 <= y.1 && x.0 <= y.0 && y.1 <= x.1;
+    let contains = |x: (u32, u32), y: (u32, u32)| x.0 <= y.0 && y.1 <= x.1;
     contains(a, b) || contains(b, a) || (a.0 <= b.0 && b.0 < a.1) || (b.0 <= a.0 && a.0 < b.1)
 }
 
@@ -243,5 +243,27 @@ mod tests {
             panic!("expected Err for inverted token range");
         };
         assert!(err.contains("inverted token range"), "unexpected error: {err}");
+
+        let mut short_spans = Spans::new(ViewId::SOURCE);
+        short_spans.push(Span::new(0, 4));
+        let short = Entities {
+            spans: short_spans,
+            tokens: vec![],
+            kind: vec![Tag(0)],
+            kinds: TagSet::new("ner", &["person"]),
+            score: vec![0.0],
+        };
+        assert!(merge(&[&short]).err().unwrap().contains("mismatched column lengths"));
+
+        let mut bad_tag_spans = Spans::new(ViewId::SOURCE);
+        bad_tag_spans.push(Span::new(0, 4));
+        let bad_tag = Entities {
+            spans: bad_tag_spans,
+            tokens: vec![IxRange::new(0, 1)],
+            kind: vec![Tag(1)],
+            kinds: TagSet::new("ner", &["person"]),
+            score: vec![0.0],
+        };
+        assert!(merge(&[&bad_tag]).err().unwrap().contains("outside TagSet"));
     }
 }
