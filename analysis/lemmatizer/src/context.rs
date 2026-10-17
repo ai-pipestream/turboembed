@@ -78,8 +78,9 @@ impl LemmaContext {
 
 impl<'a> ContextGenerator<TokenTag<'a>, JavaString> for LemmaContext {
     fn context(&mut self, index: usize, sequence: &[TokenTag<'a>], prior: &[&JavaString], out: &mut Features) {
-        let item = sequence[index];
-        self.features(out, item.token, item.tag, if index == 0 { None } else { Some(prior[index - 1]) });
+        let Some(&item) = sequence.get(index) else { return };
+        let previous = index.checked_sub(1).and_then(|i| prior.get(i).copied());
+        self.features(out, item.token, item.tag, previous);
     }
 }
 
@@ -167,5 +168,16 @@ mod tests {
     fn capitals_and_digits_outside_ascii_do_not_count() {
         let f = features("Ärger٣", "NOUN", None);
         assert!(!f.contains(&"c".to_string()) && !f.contains(&"d".to_string()));
+    }
+
+    #[test]
+    fn context_guards_out_of_bounds_index_and_short_prior() {
+        let mut context = LemmaContext;
+        let mut out = Features::new();
+        let seq = [TokenTag { token: "dogs", tag: "NNS" }, TokenTag { token: "bark", tag: "VBP" }];
+        context.context(5, &seq, &[], &mut out);
+        assert_eq!(out.len(), 0);
+        context.context(1, &seq, &[], &mut out);
+        assert_eq!(out.to_string_lossy(2), "p_1=bos");
     }
 }
