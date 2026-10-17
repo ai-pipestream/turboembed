@@ -156,15 +156,15 @@ pub fn compare_to(a: &str, b: &str) -> i32 {
     }
     // Both characters exist, since a byte differs inside them, and they
     // differ, so one of their first two units differs.
-    let mut ua = Utf16Units::new(&a[i..]);
-    let mut ub = Utf16Units::new(&b[i..]);
-    loop {
-        match (ua.next(), ub.next()) {
-            (Some(p), Some(q)) if p.unit != q.unit => return p.unit as i32 - q.unit as i32,
-            (Some(_), Some(_)) => {}
-            _ => unreachable!("two different characters have different UTF-16 units"),
+    let ca = a[i..].chars().next().expect("character at differing byte");
+    let cb = b[i..].chars().next().expect("character at differing byte");
+    let (mut buf_a, mut buf_b) = ([0u16; 2], [0u16; 2]);
+    for (&p, &q) in ca.encode_utf16(&mut buf_a).iter().zip(cb.encode_utf16(&mut buf_b).iter()) {
+        if p != q {
+            return i32::from(p) - i32::from(q);
         }
     }
+    unreachable!("two different characters have different UTF-16 units")
 }
 
 /// Java's `String.compareTo` order as an [`Ordering`]; see [`compare_to`].
