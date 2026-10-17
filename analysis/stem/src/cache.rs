@@ -57,6 +57,10 @@ impl<S: Stemmer> Stemmer for CachingStemmer<S> {
         self.inner.stem_utf16(word, out);
         self.lock().put(word, out);
     }
+
+    fn config_hash(&self) -> u64 {
+        self.inner.config_hash()
+    }
 }
 
 const NONE: usize = usize::MAX;
