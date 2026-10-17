@@ -30,10 +30,12 @@ impl Golden {
     }
 
     fn write_to_string(&self, out: &mut String) -> io::Result<()> {
-        if let Some(e) = &self.header.error
-            && !self.layers.is_empty()
-        {
-            return Err(invalid(format!("a run that threw {} has layers; such a file has none", e.class)));
+        if let Some(e) = &self.header.error {
+            if !self.layers.is_empty() {
+                return Err(invalid(format!("a run that threw {} has layers; such a file has none", e.class)));
+            }
+        } else if self.layers.is_empty() {
+            return Err(invalid("a file that did not throw has no layers".into()));
         }
         write_header(&self.header, out)?;
         for (idx, layer) in self.layers.iter().enumerate() {
@@ -41,12 +43,10 @@ impl Golden {
                 return Err(invalid(format!("a second block for {}", layer.id)));
             }
             if let GoldenAnchor::Aligned(of) = &layer.anchor {
-                if self.layers[idx..].iter().any(|later| &later.id == of) {
+                let Some(target) = self.layers[..idx].iter().find(|prev| &prev.id == of) else {
                     return Err(invalid(format!("{} is aligned to {of}, expected {of} earlier in the file", layer.id)));
-                }
-                if let Some(target) = self.layers[..idx].iter().find(|prev| &prev.id == of)
-                    && target.len() != layer.len()
-                {
+                };
+                if target.len() != layer.len() {
                     return Err(invalid(format!(
                         "{} declares {} rows, expected {}, as many as {of} has",
                         layer.id,
@@ -427,7 +427,15 @@ mod tests {
             anchor: GoldenAnchor::Aligned("opennlp:tokens".into()),
             columns: vec![Column { name: "value".into(), data: ColumnData::F64(vec![0.9, 0.8]) }],
         };
-        let g = Golden { header: base_header, layers: vec![conf_ok_rows, tokens] };
+        let g = Golden { header: base_header.clone(), layers: vec![conf_ok_rows.clone(), tokens] };
+        assert!(g.to_text().is_err());
+
+        // Aligned layer whose anchor is absent from the file entirely.
+        let g = Golden { header: base_header.clone(), layers: vec![conf_ok_rows] };
+        assert!(g.to_text().is_err());
+
+        // Successful golden with no layers.
+        let g = Golden { header: base_header, layers: Vec::new() };
         assert!(g.to_text().is_err());
     }
 }
