@@ -222,10 +222,13 @@ impl Annotator for ChunkFacetBuilder {
         incivility_row.push(0);
 
         // Pre-resolve aspects by sentence index once: O(n_aspects).
-        let mut sent_aspects: Vec<Vec<ResolvedAspect>> = vec![Vec::new(); n_sents];
+        let mut sent_aspects: Vec<Vec<ResolvedAspect>> = Vec::new();
         let mut aspects_in_sent_order = true;
-        let mut last_sent = 0usize;
-        if let Some(asp) = aspects {
+        if let Some(asp) = aspects
+            && !asp.is_empty()
+        {
+            sent_aspects.resize_with(n_sents, Vec::new);
+            let mut last_sent = 0usize;
             for (a_ix, item) in asp.iter() {
                 if let Some(s_idx) = resolve_aspect_sentence(a_ix, asp, sents, toks)
                     && s_idx < n_sents
@@ -253,9 +256,13 @@ impl Annotator for ChunkFacetBuilder {
         };
 
         // Pre-aggregate incivility by sentence and by chunk once: O(n_incivility).
-        let mut sent_incivility = vec![(IncivilityScores::default(), 0u8); n_sents];
-        let mut chunk_incivility = vec![(IncivilityScores::default(), 0u8); n_chunks];
-        if let Some(inc) = incivility {
+        let mut sent_incivility = Vec::new();
+        let mut chunk_incivility = Vec::new();
+        if let Some(inc) = incivility
+            && !inc.is_empty()
+        {
+            sent_incivility.resize(n_sents, (IncivilityScores::default(), 0u8));
+            chunk_incivility.resize(n_chunks, (IncivilityScores::default(), 0u8));
             for i in 0..inc.len() {
                 let item_ix = Ix::<Incivility>::new(i as u32);
                 let entry = item_incivility(inc, item_ix);
@@ -272,7 +279,7 @@ impl Annotator for ChunkFacetBuilder {
         }
 
         let mut chunk_resolved: Vec<&ResolvedAspect> = Vec::new();
-        for (&sr, &chunk_inc) in chunks.sentences.iter().zip(&chunk_incivility) {
+        for (ch_idx, &sr) in chunks.sentences.iter().enumerate() {
             let s_end = sr.end.get().min(n_sents);
             let s_start = sr.start.get().min(s_end);
 
@@ -280,7 +287,7 @@ impl Annotator for ChunkFacetBuilder {
             let chunk_aspect_start = aspect_ixs.len();
             let mut aspect_compound_sum = 0.0f64;
             let mut aspect_compound_n = 0usize;
-            if aspects.is_some() {
+            if !sent_aspects.is_empty() {
                 chunk_resolved.clear();
                 for items in &sent_aspects[s_start..s_end] {
                     chunk_resolved.extend(items.iter());
@@ -338,8 +345,8 @@ impl Annotator for ChunkFacetBuilder {
 
             // 3. Aggregate incivility scores and distinct flagged labels over sentences in chunk `c`
             //    or direct `IncivilityTarget::Chunk(c_ix)` entries.
-            let mut agg = chunk_inc;
-            if incivility.is_some() {
+            let mut agg = chunk_incivility.get(ch_idx).copied().unwrap_or((IncivilityScores::default(), 0u8));
+            if !sent_incivility.is_empty() {
                 for &entry in &sent_incivility[s_start..s_end] {
                     merge_incivility(&mut agg, entry);
                 }
