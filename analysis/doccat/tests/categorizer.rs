@@ -153,6 +153,7 @@ fn categories_are_named_and_indexed_as_in_opennlp() {
     assert_eq!(c.all_results(&[0.2, 0.3, 0.5]), "");
     // The first highest score wins a tie.
     assert_eq!(c.best_category(&[0.5, 0.5]), "a");
+    assert_eq!(c.best_category(&[]), "");
     assert_eq!(c.best_category(&[0.1, 0.2, 0.9]), "");
 }
 

@@ -196,8 +196,9 @@ impl Annotator for DocumentCategorizerME {
 }
 
 /// Categorizes each span of a positional layer `L` (`Sentences`, `Structure`,
-/// or `Chunks`) using the tokens contained within that span, writing
-/// `Categories<L>` (`turbo:categories<L>`).
+/// or `Chunks`) using the tokens contained within that span
+/// (`token.start >= unit.start && token.end <= unit.end`, including empty
+/// tokens at either boundary), writing `Categories<L>` (`turbo:categories<L>`).
 #[derive(Debug)]
 pub struct SpanCategorizer<L: SpanCategorizable> {
     categorizer: DocumentCategorizerME,
@@ -241,7 +242,7 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
         let n_units = units.len();
         let n_tokens = tokens.spans.len();
         let (tok_starts, tok_ends) = tokens.spans.columns();
-        let tokens_ordered = tokens.spans.is_ordered();
+        let tokens_ordered = tokens.spans.is_start_ordered();
         let mut out = Categories::<L>::with_capacity(Arc::clone(self.categorizer.model().categories()), n_units);
         let mut probs = vec![0.0; self.categorizer.number_of_categories()];
         let mut scratch = Vec::new();
@@ -299,10 +300,12 @@ mod tests {
     }
 
     fn test_categorizer() -> DocumentCategorizerME {
+        // Outcome 0 is "pos", so categorize(&[]) picks "pos", while "bow=" is
+        // associated with "neg", so categorize(&[""]) picks "neg".
         let events = vec![
-            Event::from_strs("pos", &["bow=good", "bow="]),
             Event::from_strs("pos", &["bow=good"]),
-            Event::from_strs("neg", &["bow=bad"]),
+            Event::from_strs("pos", &["bow=good", "bow=great"]),
+            Event::from_strs("neg", &["bow=bad", "bow="]),
             Event::from_strs("neg", &["bow=bad", "bow=awful"]),
         ];
         let mut params = TrainingParameters::new();
@@ -332,10 +335,12 @@ mod tests {
     #[test]
     fn span_categorizer_validates_spans_and_handles_empty_and_unordered_tokens() {
         let cat = test_categorizer();
+        assert_eq!(cat.best_category(&cat.categorize(&[])), "pos");
+        assert_eq!(cat.best_category(&cat.categorize(&[""])), "neg");
         let span_cat: SpanCategorizer<Sentences> = cat.for_spans();
 
-        // Empty token [0..0] inside empty sentence [0..0] must be included.
-        let mut doc_empty = Document::new("bad");
+        // Empty token [0..0] inside empty sentence [0..0] must be included (yielding "neg", not "pos").
+        let mut doc_empty = Document::new("good");
         doc_empty
             .add(&Key::DEFAULT, Tokens { spans: spans(&[(0, 0)]), sentence: None }, Provenance::by("test"))
             .unwrap();
@@ -351,8 +356,18 @@ mod tests {
             r.unwrap();
         }
         let cats = docs[0].get::<Categories<Sentences>>().unwrap();
-        assert_eq!(cats.best_category(0), "pos");
+        assert_eq!(cats.best_category(0), "neg");
         assert_eq!(docs[0].provenance(Key::<Categories<Sentences>>::DEFAULT.id()).unwrap().version, "1");
+
+        // Start-ordered overlapping tokens keep the fast path.
+        let overlap_spans = spans(&[(0, 3), (0, 3)]);
+        assert!(overlap_spans.is_start_ordered() && !overlap_spans.is_ordered());
+        let doc_overlap = Document::new("bad");
+        let overlap_tokens = Tokens { spans: overlap_spans, sentence: None };
+        let overlap_sents = Sentences { spans: spans(&[(0, 3)]) };
+        let (cats_overlap,) =
+            span_cat.annotate((doc_overlap.get::<View>().unwrap(), &overlap_tokens, &overlap_sents)).unwrap();
+        assert_eq!(cats_overlap.best_category(0), "neg");
 
         // Unordered token spans: "good" at 4..8 listed before "bad" at 0..3.
         let doc_unordered = Document::new("bad good");

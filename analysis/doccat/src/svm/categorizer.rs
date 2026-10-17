@@ -58,6 +58,9 @@ impl SvmCategorizer {
 
     /// `getBestCategory`: the category of the first highest score.
     pub fn best_category(&self, outcome: &[f64]) -> &str {
+        if outcome.is_empty() {
+            return "";
+        }
         self.model.categories().get(best_index(outcome)).map_or("", String::as_str)
     }
 
