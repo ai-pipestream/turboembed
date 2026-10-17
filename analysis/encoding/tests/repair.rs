@@ -89,7 +89,7 @@ fn cases() -> Vec<Case> {
 #[test]
 fn every_ftfy_case_gives_ftfys_text_and_explanation() {
     let cases = cases();
-    assert_eq!(cases.len(), 161 + 151);
+    assert_eq!(cases.len(), 161 + 151 + 3);
     let mut failures = Vec::new();
     for case in &cases {
         let r = fix_encoding(&case.original);
@@ -173,13 +173,24 @@ fn a_double_encoding_is_undone_in_two_rounds_of_steps() {
 }
 
 #[test]
-fn unchanged_replacement_characters_produce_an_empty_plan() {
-    for input in ["\u{FFFD}\u{FFFD}", "(\u{FFFD}", "[\u{FFFD}]"] {
+fn unchanged_replacement_characters_and_c1_controls_match_ftfy_explanations() {
+    for input in ["(\u{FFFD}", "[\u{FFFD}]"] {
         let r = fix_encoding(input);
         assert_eq!(r.text, input);
         assert!(r.plan.is_empty(), "expected empty plan for {input:?}, got {:?}", r.plan);
         assert!(r.alignment.edits().is_empty());
     }
+    let pair = fix_encoding("\u{FFFD}\u{FFFD}");
+    assert_eq!(pair.text, "\u{FFFD}\u{FFFD}");
+    assert!(pair.alignment.edits().is_empty());
+    assert_eq!(
+        pair.plan,
+        vec![
+            PlanStep { action: Action::Encode, parameter: "sloppy-windows-1252" },
+            PlanStep { action: Action::Transcode, parameter: "replace_lossy_sequences" },
+            PlanStep { action: Action::Decode, parameter: "utf-8" },
+        ]
+    );
     // Unassigned windows-1252 C1 controls remain unchanged with no alignment edits,
     // while recording ftfy's `transcode:fix_c1_controls` step (as in ftfy_cases.tsv lines 284-285).
     for code in [0x81u32, 0x8d, 0x8f, 0x90, 0x9d] {

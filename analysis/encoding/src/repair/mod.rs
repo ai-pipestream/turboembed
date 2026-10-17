@@ -118,10 +118,11 @@ pub struct Repaired {
     pub text: String,
     pub alignment: Alignment,
     /// The steps, in order, as ftfy's `fix_encoding_and_explain` lists
-    /// them. Empty when nothing changed, except when ftfy's
-    /// `fix_c1_controls` step runs on the five C1 controls (`0x81`,
-    /// `0x8D`, `0x8F`, `0x90`, `0x9D`) that Windows-1252 leaves
-    /// unassigned.
+    /// them. Empty when nothing changed, except when a single step of
+    /// ftfy's `fix_encoding_and_explain` decodes back to the input text
+    /// (such as `replace_lossy_sequences` on `"\u{FFFD}\u{FFFD}"` or
+    /// `fix_c1_controls` on the five C1 controls `0x81`, `0x8D`, `0x8F`,
+    /// `0x90`, `0x9D` that Windows-1252 leaves unassigned).
     pub plan: Vec<PlanStep>,
 }
 

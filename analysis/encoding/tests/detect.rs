@@ -74,13 +74,14 @@ fn the_numero_sign_is_found_however_it_is_fed() {
     // chardetng's streaming tests: "n.\xBA1" (n.º1) split in five ways,
     // plus splits after a two-byte ASCII prefix where the non-ASCII byte is
     // at index 1 of the second chunk.
-    let feeds: [&[&[u8]]; 6] = [
+    let feeds: [&[&[u8]]; 7] = [
         &[b"n", b".", b"\xBA", b"1"],
         &[b"n.", b"\xBA", b"1"],
         &[b" n", b".", b"\xBA", b"1"],
         &[b"n", b".\xBA", b"1"],
         &[b"rrn.", b"\xBA", b"1"],
         &[b"xn", b".\xBA1"],
+        &[b"xn", b"", b".\xBA1"],
     ];
     for feed in feeds {
         let mut det = EncodingDetector::new();
@@ -97,6 +98,7 @@ fn the_numero_sign_is_found_however_it_is_fed() {
     for split in 0..=whole_input.len() {
         let mut split_det = EncodingDetector::new();
         split_det.feed(&whole_input[..split], false);
+        split_det.feed(b"", false);
         split_det.feed(&whole_input[split..], true);
         assert_eq!(split_det.score(Encoding::Windows1252), expected_score, "split at {split}");
         assert_eq!(split_det.guess(false), Encoding::Windows1252, "split at {split}");

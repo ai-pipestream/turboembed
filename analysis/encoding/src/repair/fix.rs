@@ -53,9 +53,7 @@ fn one_step(t: &Tracked) -> (Option<Tracked>, Vec<PlanStep>) {
             }
         }
         let variants = bytes.bytes.iter().any(|&b| b == 0xED || b == 0xC0);
-        if let Some(fixed) = decode_utf8(&bytes, variants)
-            && fixed.chars != t.chars
-        {
+        if let Some(fixed) = decode_utf8(&bytes, variants) {
             steps.push(step(Action::Decode, if variants { "utf-8-variants" } else { "utf-8" }));
             return (Some(fixed), steps);
         }
