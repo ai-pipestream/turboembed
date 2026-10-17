@@ -287,14 +287,15 @@ pub fn train_events(
     // AbstractTrainer.validate, before the indexer runs: Cutoff and
     // Iterations must parse (the indexer reads Cutoff itself).
     params.get_int(Key::ITERATIONS)?;
-    params.get_int(Key::CUTOFF)?;
     let mut checksum = EventChecksum::new();
     for e in events {
         checksum.update(e);
     }
     let mut indexing = params.clone();
     indexing.put(Key::SORT, false);
-    indexing.put_if_absent(Key::CUTOFF, DEFAULT_CUTOFF);
+    if indexing.get_int(Key::CUTOFF)?.unwrap_or(-1) == -1 {
+        indexing.put(Key::CUTOFF, DEFAULT_CUTOFF);
+    }
     let index = DataIndex::index(events, &IndexParams::from_training_parameters(&indexing)?)?;
     let model = train(&index, params, config)?;
     Ok((model, TrainingReport { event_hash: Some(checksum.value()), trainer_type: TrainerType::Event }))

@@ -161,7 +161,9 @@ pub fn train_events(events: &[Event], params: &TrainingParameters) -> Result<(Na
     }
     let mut indexing = params.clone();
     indexing.put(Key::SORT, false);
-    indexing.put_if_absent(Key::CUTOFF, DEFAULT_CUTOFF);
+    if indexing.get_int(Key::CUTOFF)?.unwrap_or(-1) == -1 {
+        indexing.put(Key::CUTOFF, DEFAULT_CUTOFF);
+    }
     let index = DataIndex::index(events, &IndexParams::from_training_parameters(&indexing)?)?;
     let model = train(&index, params)?;
     Ok((model, TrainingReport { event_hash: Some(checksum.value()), trainer_type: TrainerType::Event }))
@@ -290,7 +292,7 @@ mod tests {
         let mut params = TrainingParameters::new();
         params.put(Key::ALGORITHM, "NAIVEBAYES");
         params.put(Key::DATA_INDEXER, "OnePassRealValue");
-        params.put(Key::CUTOFF, -1);
+        params.put(Key::CUTOFF, 0);
         let (model, report) = train_events(&events, &params).unwrap();
         assert_eq!(report.trainer_type, TrainerType::Event);
         assert_eq!(model.outcome_totals(), &[3.5, 4.0]);

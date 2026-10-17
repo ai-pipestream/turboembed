@@ -69,13 +69,14 @@ fn iterations_must_parse_before_the_events_are_looked_at() {
 }
 
 #[test]
-fn negative_cutoff_minus_one_keeps_singletons() {
+fn cutoff_minus_one_uses_default_cutoff_as_in_opennlp() {
     let mut p = TrainingParameters::defaults();
     p.put(Key::CUTOFF, -1);
     p.put(Key::ITERATIONS, 5);
     let mut config = TrainingConfiguration::default();
-    let (model, _) = train_events(&events(), &p, &mut config).unwrap();
-    assert_eq!(model.num_predicates(), 8);
+    // All predicates in events() occur at most 3 times (< DEFAULT_CUTOFF 5),
+    // so OpenNLP's Cutoff == -1 -> 5 rule drops them and refuses training.
+    assert!(matches!(train_events(&events(), &p, &mut config), Err(Error::InsufficientTrainingData(_))));
 }
 
 #[test]

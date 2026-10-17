@@ -429,4 +429,13 @@ mod tests {
         assert_eq!(time, (5 << 11) | (19 << 5) | 17);
         assert_eq!(date, (45 << 9) | (6 << 5) | 12);
     }
+
+    #[test]
+    #[should_panic(expected = "a model archive holds fewer than 65535 entries")]
+    fn zip_writer_panics_when_adding_65535th_entry() {
+        let mut zip = ZipWriter::new(0, TimeZone::UTC);
+        for _ in 0..=u16::MAX - 1 {
+            zip.add("e", b"");
+        }
+    }
 }

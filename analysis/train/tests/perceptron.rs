@@ -86,7 +86,7 @@ fn one_outcome_is_refused_before_training() {
 #[test]
 fn training_fits_the_events_and_reports_some_iterations() {
     let mut p = TrainingParameters::defaults();
-    p.put(Key::CUTOFF, -1);
+    p.put(Key::CUTOFF, 0);
     p.put(Key::ITERATIONS, 100);
     p.put(Key::TOLERANCE, 0.0);
     // The raw parameters: the mean over the iterations can leave an
