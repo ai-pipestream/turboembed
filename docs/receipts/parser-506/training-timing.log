@@ -1,0 +1,125 @@
+run 1: main
+parse-chunking-k1	580.975	34a394923a60e4d1
+parse-chunking-k5	538.735	3e947624dc64b10e
+samples-chunking-build	2000
+events-chunking-build	96.102	5c01e4f4fb6d22f4
+samples-chunking-check	2000
+events-chunking-check	47.264	0de41a53cbf6b731
+samples-chunking-chunk	2000
+events-chunking-chunk	21.788	5dc9df18264606bb
+parse-treeinsert-k1	276.624	6972ae3ea561eb07
+parse-treeinsert-k5	276.125	08e5fd46baa8f3ee
+samples-treeinsert-build	1100
+events-treeinsert-build	43.137	db1c5604c7ab2396
+samples-treeinsert-check	1100
+events-treeinsert-check	21.060	be1d5d6b8997588d
+samples-treeinsert-attach	1100
+events-treeinsert-attach	61.014	4f93b750347e013b
+
+run 2: after
+parse-chunking-k1	286.410	34a394923a60e4d1
+parse-chunking-k5	289.633	3e947624dc64b10e
+samples-chunking-build	2000
+events-chunking-build	71.600	5c01e4f4fb6d22f4
+samples-chunking-check	2000
+events-chunking-check	39.306	0de41a53cbf6b731
+samples-chunking-chunk	2000
+events-chunking-chunk	21.604	5dc9df18264606bb
+parse-treeinsert-k1	298.793	6972ae3ea561eb07
+parse-treeinsert-k5	305.291	08e5fd46baa8f3ee
+samples-treeinsert-build	1100
+events-treeinsert-build	33.447	db1c5604c7ab2396
+samples-treeinsert-check	1100
+events-treeinsert-check	17.229	be1d5d6b8997588d
+samples-treeinsert-attach	1100
+events-treeinsert-attach	43.348	4f93b750347e013b
+
+run 3: before
+parse-chunking-k1	291.359	34a394923a60e4d1
+parse-chunking-k5	298.135	3e947624dc64b10e
+samples-chunking-build	2000
+events-chunking-build	138.814	5c01e4f4fb6d22f4
+samples-chunking-check	2000
+events-chunking-check	44.441	0de41a53cbf6b731
+samples-chunking-chunk	2000
+events-chunking-chunk	31.131	5dc9df18264606bb
+parse-treeinsert-k1	303.373	6972ae3ea561eb07
+parse-treeinsert-k5	319.050	08e5fd46baa8f3ee
+samples-treeinsert-build	1100
+events-treeinsert-build	59.242	db1c5604c7ab2396
+samples-treeinsert-check	1100
+events-treeinsert-check	20.365	be1d5d6b8997588d
+samples-treeinsert-attach	1100
+events-treeinsert-attach	80.492	4f93b750347e013b
+
+run 4: after
+parse-chunking-k1	293.432	34a394923a60e4d1
+parse-chunking-k5	289.606	3e947624dc64b10e
+samples-chunking-build	2000
+events-chunking-build	71.524	5c01e4f4fb6d22f4
+samples-chunking-check	2000
+events-chunking-check	39.376	0de41a53cbf6b731
+samples-chunking-chunk	2000
+events-chunking-chunk	21.048	5dc9df18264606bb
+parse-treeinsert-k1	294.502	6972ae3ea561eb07
+parse-treeinsert-k5	294.595	08e5fd46baa8f3ee
+samples-treeinsert-build	1100
+events-treeinsert-build	33.538	db1c5604c7ab2396
+samples-treeinsert-check	1100
+events-treeinsert-check	17.470	be1d5d6b8997588d
+samples-treeinsert-attach	1100
+events-treeinsert-attach	43.592	4f93b750347e013b
+
+run 5: main
+parse-chunking-k1	480.484	34a394923a60e4d1
+parse-chunking-k5	522.765	3e947624dc64b10e
+samples-chunking-build	2000
+events-chunking-build	93.908	5c01e4f4fb6d22f4
+samples-chunking-check	2000
+events-chunking-check	45.205	0de41a53cbf6b731
+samples-chunking-chunk	2000
+events-chunking-chunk	30.034	5dc9df18264606bb
+parse-treeinsert-k1	264.943	6972ae3ea561eb07
+parse-treeinsert-k5	272.553	08e5fd46baa8f3ee
+samples-treeinsert-build	1100
+events-treeinsert-build	43.064	db1c5604c7ab2396
+samples-treeinsert-check	1100
+events-treeinsert-check	21.692	be1d5d6b8997588d
+samples-treeinsert-attach	1100
+events-treeinsert-attach	54.807	4f93b750347e013b
+
+run 6: after
+parse-chunking-k1	330.659	34a394923a60e4d1
+parse-chunking-k5	350.817	3e947624dc64b10e
+samples-chunking-build	2000
+events-chunking-build	76.640	5c01e4f4fb6d22f4
+samples-chunking-check	2000
+events-chunking-check	39.839	0de41a53cbf6b731
+samples-chunking-chunk	2000
+events-chunking-chunk	21.978	5dc9df18264606bb
+parse-treeinsert-k1	308.139	6972ae3ea561eb07
+parse-treeinsert-k5	306.700	08e5fd46baa8f3ee
+samples-treeinsert-build	1100
+events-treeinsert-build	33.696	db1c5604c7ab2396
+samples-treeinsert-check	1100
+events-treeinsert-check	18.219	be1d5d6b8997588d
+samples-treeinsert-attach	1100
+events-treeinsert-attach	44.438	4f93b750347e013b
+
+run 7: main
+parse-chunking-k1	473.642	34a394923a60e4d1
+parse-chunking-k5	470.811	3e947624dc64b10e
+samples-chunking-build	2000
+events-chunking-build	86.441	5c01e4f4fb6d22f4
+samples-chunking-check	2000
+events-chunking-check	44.070	0de41a53cbf6b731
+samples-chunking-chunk	2000
+events-chunking-chunk	21.581	5dc9df18264606bb
+parse-treeinsert-k1	255.104	6972ae3ea561eb07
+parse-treeinsert-k5	260.353	08e5fd46baa8f3ee
+samples-treeinsert-build	1100
+events-treeinsert-build	39.725	db1c5604c7ab2396
+samples-treeinsert-check	1100
+events-treeinsert-check	20.958	be1d5d6b8997588d
+samples-treeinsert-attach	1100
+events-treeinsert-attach	58.175	4f93b750347e013b

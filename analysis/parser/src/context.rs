@@ -4,12 +4,168 @@
 //! `opennlp.tools.parser.ParserChunkerSequenceValidator`).
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::{self, Display, Write};
 
 use turbo_sequence::chunker::TokenTag;
 use turbo_sequence::{ContextGenerator, Features, SequenceValidator};
 
 use crate::bottom_up::dictionary_key;
 use crate::parse::{CONT, OTHER, Parse, START};
+
+// Both public string contexts and inference buffers use the same feature order.
+pub(crate) trait FeatureSink {
+    fn emit(&mut self, value: fmt::Arguments<'_>);
+
+    fn prepare<T: Display>(&self, value: T) -> Prepared<T> {
+        Prepared::Direct(value)
+    }
+}
+
+impl FeatureSink for Vec<String> {
+    fn prepare<T: Display>(&self, value: T) -> Prepared<T> {
+        let mut rendered = String::with_capacity(32);
+        write!(rendered, "{value}").expect("string writes cannot fail");
+        Prepared::Rendered(rendered)
+    }
+
+    fn emit(&mut self, value: fmt::Arguments<'_>) {
+        // Reserve room for a typical combined feature instead of growing per piece.
+        let mut rendered = String::with_capacity(64);
+        rendered.write_fmt(value).expect("string writes cannot fail");
+        self.push(rendered);
+    }
+}
+
+impl FeatureSink for Features {
+    fn prepare<T: Display>(&self, value: T) -> Prepared<T> {
+        let mut rendered = InlineFeature::default();
+        if write!(rendered, "{value}").is_ok() { Prepared::Inline(rendered) } else { Prepared::Direct(value) }
+    }
+
+    fn emit(&mut self, value: fmt::Arguments<'_>) {
+        struct Writer<'a>(&'a mut Features);
+        impl Write for Writer<'_> {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                self.0.push_str(s);
+                Ok(())
+            }
+        }
+        Writer(self).write_fmt(value).expect("feature buffer writes cannot fail");
+        self.finish();
+    }
+}
+
+// Common inference pieces are rendered once on the stack. Oversized pieces
+// retain direct formatting, so inference does not allocate for cache overflow.
+#[derive(Clone)]
+pub(crate) struct InlineFeature {
+    bytes: [u8; 128],
+    len: usize,
+}
+
+impl Default for InlineFeature {
+    fn default() -> Self {
+        Self { bytes: [0; 128], len: 0 }
+    }
+}
+
+impl Write for InlineFeature {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        let Some(end) = self.len.checked_add(text.len()).filter(|&end| end <= self.bytes.len()) else {
+            return Err(fmt::Error);
+        };
+        self.bytes[self.len..end].copy_from_slice(text.as_bytes());
+        self.len = end;
+        Ok(())
+    }
+}
+
+impl Display for InlineFeature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(std::str::from_utf8(&self.bytes[..self.len]).expect("only complete strings are written"))
+    }
+}
+
+pub(crate) enum Prepared<T> {
+    Direct(T),
+    Rendered(String),
+    Inline(InlineFeature),
+}
+
+impl<T: Display> Display for Prepared<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Direct(value) => value.fmt(f),
+            Self::Rendered(value) => f.write_str(value),
+            Self::Inline(value) => value.fmt(f),
+        }
+    }
+}
+
+pub(crate) struct DisplayFn<F>(pub F);
+impl<F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result> Display for DisplayFn<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (self.0)(f)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ConsFeature<'a> {
+    Text(&'a str),
+    Node { node: Option<&'a Parse>, index: i32, labeled: bool, backoff: bool },
+}
+
+impl Display for ConsFeature<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Text(s) => f.write_str(s),
+            Self::Node { node, index, labeled, backoff } => {
+                write!(f, "{index}{}=", if backoff { "*" } else { "" })?;
+                if let Some(p) = node {
+                    if labeled && index < 0 {
+                        write!(f, "{}|", p.label().unwrap_or("null"))?;
+                    }
+                    f.write_str(p.kind())?;
+                    if !backoff {
+                        write!(f, "|{}", p.head_text())?;
+                    }
+                    Ok(())
+                } else {
+                    f.write_str(EOS)
+                }
+            }
+        }
+    }
+}
+
+pub(crate) struct ConsRef<'a> {
+    pub cons: Prepared<ConsFeature<'a>>,
+    pub cons_bo: Prepared<ConsFeature<'a>>,
+    pub index: i32,
+    pub unigram: bool,
+}
+
+impl<'a> ConsRef<'a> {
+    pub fn new(node: Option<&'a Parse>, index: i32, labeled: bool, unigram: bool, sink: &impl FeatureSink) -> Self {
+        Self {
+            cons: sink.prepare(ConsFeature::Node { node, index, labeled, backoff: false }),
+            cons_bo: sink.prepare(ConsFeature::Node { node, index, labeled, backoff: true }),
+            index,
+            unigram,
+        }
+    }
+}
+
+impl<'a> From<&'a Cons> for ConsRef<'a> {
+    fn from(c: &'a Cons) -> Self {
+        Self {
+            cons: Prepared::Direct(ConsFeature::Text(&c.cons)),
+            cons_bo: Prepared::Direct(ConsFeature::Text(&c.cons_bo)),
+            index: c.index,
+            unigram: c.unigram,
+        }
+    }
+}
 
 /// End-of-sentence boundary marker (`AbstractContextGenerator.EOS`).
 pub const EOS: &str = "eos";
@@ -98,11 +254,6 @@ pub fn cons_bo_labeled(node: Option<&Parse>, i: i32) -> String {
     cons_bo_with_label(node, i, true)
 }
 
-/// The punctuation back-off feature (`AbstractContextGenerator.punctbo`): `i=type`.
-fn punctbo(punct: &Parse, i: i32) -> String {
-    format!("{i}={}", punct.kind())
-}
-
 /// The index `cons2` and `cons3` give a mark before a node at `index`: one less at or before the
 /// current node, the node's own index after it.
 fn punct_index(index: i32) -> i32 {
@@ -142,45 +293,52 @@ pub fn production(p: &Parse, include_punctuation: bool) -> String {
 
 /// Adds the features of two nodes and the punctuation between them
 /// (`AbstractContextGenerator.cons2`, with `zeroBackOff` false as every generator has it).
-pub fn cons2(features: &mut Vec<String>, c0: &Cons, c1: &Cons, punct1s: Option<&[Parse]>, bigram: bool) {
+pub(crate) fn cons2_into(
+    features: &mut impl FeatureSink,
+    c0: &ConsRef<'_>,
+    c1: &ConsRef<'_>,
+    punct1s: Option<&[Parse]>,
+    bigram: bool,
+) {
     if let Some(puncts) = punct_set_of(punct1s) {
         for p in puncts {
-            let pbo = punctbo(p, punct_index(c1.index));
-            features.push(pbo.clone());
+            let pbo = features
+                .prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, "{}={}", punct_index(c1.index), p.kind())));
+            features.emit(format_args!("{pbo}"));
             if c0.index == 0 {
                 if c0.unigram {
-                    features.push(format!("{},{pbo}", c0.cons));
+                    features.emit(format_args!("{},{pbo}", c0.cons));
                 }
-                features.push(format!("{},{pbo}", c0.cons_bo));
+                features.emit(format_args!("{},{pbo}", c0.cons_bo));
             }
             if c1.index == 0 {
                 if c1.unigram {
-                    features.push(format!("{pbo},{}", c1.cons));
+                    features.emit(format_args!("{pbo},{}", c1.cons));
                 }
-                features.push(format!("{pbo},{}", c1.cons_bo));
+                features.emit(format_args!("{pbo},{}", c1.cons_bo));
             }
             if bigram {
-                features.push(format!("{},{pbo},{}", c0.cons, c1.cons));
+                features.emit(format_args!("{},{pbo},{}", c0.cons, c1.cons));
             }
             if c1.unigram {
-                features.push(format!("{},{pbo},{}", c0.cons_bo, c1.cons));
+                features.emit(format_args!("{},{pbo},{}", c0.cons_bo, c1.cons));
             }
             if c0.unigram {
-                features.push(format!("{},{pbo},{}", c0.cons, c1.cons_bo));
+                features.emit(format_args!("{},{pbo},{}", c0.cons, c1.cons_bo));
             }
-            features.push(format!("{},{pbo},{}", c0.cons_bo, c1.cons_bo));
+            features.emit(format_args!("{},{pbo},{}", c0.cons_bo, c1.cons_bo));
         }
     } else {
         if bigram {
-            features.push(format!("{},{}", c0.cons, c1.cons));
+            features.emit(format_args!("{},{}", c0.cons, c1.cons));
         }
         if c1.unigram {
-            features.push(format!("{},{}", c0.cons_bo, c1.cons));
+            features.emit(format_args!("{},{}", c0.cons_bo, c1.cons));
         }
         if c0.unigram {
-            features.push(format!("{},{}", c0.cons, c1.cons_bo));
+            features.emit(format_args!("{},{}", c0.cons, c1.cons_bo));
         }
-        features.push(format!("{},{}", c0.cons_bo, c1.cons_bo));
+        features.emit(format_args!("{},{}", c0.cons_bo, c1.cons_bo));
     }
 }
 
@@ -188,48 +346,48 @@ pub fn cons2(features: &mut Vec<String>, c0: &Cons, c1: &Cons, punct1s: Option<&
 /// `AbstractContextGenerator.cons3`. `s1` goes between `c0` and `c1`, `s2` between `c1` and `c2`.
 #[allow(clippy::too_many_arguments)]
 fn cons3_with(
-    features: &mut Vec<String>,
-    c0: &Cons,
-    c1: &Cons,
-    c2: &Cons,
-    s1: &str,
-    s2: &str,
+    features: &mut impl FeatureSink,
+    c0: &ConsRef<'_>,
+    c1: &ConsRef<'_>,
+    c2: &ConsRef<'_>,
+    s1: impl Display,
+    s2: impl Display,
     trigram: bool,
     bigram1: bool,
     bigram2: bool,
 ) {
     if trigram {
-        features.push(format!("{}{s1}{}{s2}{}", c0.cons, c1.cons, c2.cons));
+        features.emit(format_args!("{}{s1}{}{s2}{}", c0.cons, c1.cons, c2.cons));
     }
     if bigram2 {
-        features.push(format!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons, c2.cons));
+        features.emit(format_args!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons, c2.cons));
     }
     if c0.unigram && c2.unigram {
-        features.push(format!("{}{s1}{}{s2}{}", c0.cons, c1.cons_bo, c2.cons));
+        features.emit(format_args!("{}{s1}{}{s2}{}", c0.cons, c1.cons_bo, c2.cons));
     }
     if bigram1 {
-        features.push(format!("{}{s1}{}{s2}{}", c0.cons, c1.cons, c2.cons_bo));
+        features.emit(format_args!("{}{s1}{}{s2}{}", c0.cons, c1.cons, c2.cons_bo));
     }
     if c2.unigram {
-        features.push(format!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons_bo, c2.cons));
+        features.emit(format_args!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons_bo, c2.cons));
     }
     if c1.unigram {
-        features.push(format!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons, c2.cons_bo));
+        features.emit(format_args!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons, c2.cons_bo));
     }
     if c0.unigram {
-        features.push(format!("{}{s1}{}{s2}{}", c0.cons, c1.cons_bo, c2.cons_bo));
+        features.emit(format_args!("{}{s1}{}{s2}{}", c0.cons, c1.cons_bo, c2.cons_bo));
     }
-    features.push(format!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons_bo, c2.cons_bo));
+    features.emit(format_args!("{}{s1}{}{s2}{}", c0.cons_bo, c1.cons_bo, c2.cons_bo));
 }
 
 /// Adds the features of three nodes and the punctuation between them
 /// (`AbstractContextGenerator.cons3`, with `zeroBackOff` false as every generator has it).
 #[allow(clippy::too_many_arguments)]
-pub fn cons3(
-    features: &mut Vec<String>,
-    c0: &Cons,
-    c1: &Cons,
-    c2: &Cons,
+pub(crate) fn cons3_into(
+    features: &mut impl FeatureSink,
+    c0: &ConsRef<'_>,
+    c1: &ConsRef<'_>,
+    c2: &ConsRef<'_>,
     punct1s: Option<&[Parse]>,
     punct2s: Option<&[Parse]>,
     trigram: bool,
@@ -242,33 +400,35 @@ pub fn cons3(
         && c0.index == -2
     {
         for p in p1s {
-            features.push(punctbo(p, punct_index(c1.index)));
+            features.emit(format_args!("{}={}", punct_index(c1.index), p.kind()));
         }
     }
     if let Some(p2s) = punct2s {
         if c2.index == 2 {
             for p in p2s {
-                features.push(punctbo(p, c2.index));
+                features.emit(format_args!("{}={}", c2.index, p.kind()));
             }
         }
         for punct2 in p2s {
-            let pbo2 = punctbo(punct2, punct_index(c2.index));
+            let pbo2 = DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, "{}={}", punct_index(c2.index), punct2.kind()));
             if let Some(p1s) = punct1s {
                 for punct1 in p1s {
-                    let pbo1 = punctbo(punct1, punct_index(c1.index));
-                    let s1 = format!(",{pbo1},");
-                    let s2 = format!(",{pbo2},");
+                    let pbo1 = DisplayFn(|f: &mut fmt::Formatter<'_>| {
+                        write!(f, "{}={}", punct_index(c1.index), punct1.kind())
+                    });
+                    let s1 = features.prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo1},")));
+                    let s2 = features.prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo2},")));
                     cons3_with(features, c0, c1, c2, &s1, &s2, trigram, bigram1, bigram2);
                 }
             } else {
-                let s2 = format!(",{pbo2},");
+                let s2 = features.prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo2},")));
                 cons3_with(features, c0, c1, c2, ",", &s2, trigram, bigram1, bigram2);
             }
         }
     } else if let Some(p1s) = punct1s {
         for punct1 in p1s {
-            let pbo1 = punctbo(punct1, punct_index(c1.index));
-            let s1 = format!(",{pbo1},");
+            let pbo1 = DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, "{}={}", punct_index(c1.index), punct1.kind()));
+            let s1 = features.prepare(DisplayFn(|f: &mut fmt::Formatter<'_>| write!(f, ",{pbo1},")));
             cons3_with(features, c0, c1, c2, &s1, ",", trigram, bigram1, bigram2);
         }
     } else {
@@ -284,49 +444,89 @@ pub fn cons3(
 /// second and later nodes therefore starts with the last feature of the node before it, as in
 /// `s2*=VP|''she|VP|NP|,` for the set `'' ,` after `she`. A set holds more than one node only when
 /// their probabilities differ, so this shows when parsing, not on gold trees.
-pub fn surround(node: Option<&Parse>, i: i32, kind: &str, punctuation: Option<&[Parse]>, features: &mut Vec<String>) {
+pub(crate) fn surround_into(
+    node: Option<&Parse>,
+    i: i32,
+    kind: &str,
+    punctuation: Option<&[Parse]>,
+    features: &mut impl FeatureSink,
+) {
     if let Some(puncts) = punct_set_of(punctuation) {
-        let mut prefix = format!("s{i}=");
+        let mut previous = None;
         for punct in puncts {
             let ptype = punct.kind();
-            features.push(match node {
-                Some(n) => format!("{prefix}{}|{kind}|{}|{ptype}", n.head_text(), n.kind()),
-                None => format!("{prefix}{kind}|{EOS}|{ptype}"),
+            let prefix = DisplayFn(|f: &mut fmt::Formatter<'_>| match previous {
+                None => write!(f, "s{i}="),
+                Some(ptype) => write!(f, "s{i}*={kind}|{ptype}"),
             });
-            features.push(match node {
-                Some(n) => format!("s{i}*={kind}|{}|{ptype}", n.kind()),
-                None => format!("s{i}*={kind}|{EOS}|{ptype}"),
-            });
-            prefix = format!("s{i}*={kind}|{ptype}");
-            features.push(prefix.clone());
+            match node {
+                Some(n) => features.emit(format_args!("{prefix}{}|{kind}|{}|{ptype}", n.head_text(), n.kind())),
+                None => features.emit(format_args!("{prefix}{kind}|{EOS}|{ptype}")),
+            }
+            features.emit(format_args!("s{i}*={kind}|{}|{ptype}", node.map_or(EOS, Parse::kind)));
+            features.emit(format_args!("s{i}*={kind}|{ptype}"));
+            previous = Some(ptype);
         }
     } else {
-        features.push(match node {
-            Some(n) => format!("s{i}={}|{kind}|{}", n.head_text(), n.kind()),
-            None => format!("s{i}={kind}|{EOS}"),
-        });
-        features.push(match node {
-            Some(n) => format!("s{i}*={kind}|{}", n.kind()),
-            None => format!("s{i}*={kind}|{EOS}"),
-        });
+        match node {
+            Some(n) => features.emit(format_args!("s{i}={}|{kind}|{}", n.head_text(), n.kind())),
+            None => features.emit(format_args!("s{i}={kind}|{EOS}")),
+        }
+        features.emit(format_args!("s{i}*={kind}|{}", node.map_or(EOS, Parse::kind)));
     }
 }
 
 /// Adds the features of one child of a constituent of type `kind` being checked
 /// (`AbstractContextGenerator.checkcons(Parse, String, String, List)`).
-pub fn check_cons(child: &Parse, index: &str, kind: &str, features: &mut Vec<String>) {
-    features.push(format!("c{index}={}|{}|{kind}", child.kind(), child.head_text()));
-    features.push(format!("c{index}*={}|{kind}", child.kind()));
+pub(crate) fn check_cons_into(child: &Parse, index: &str, kind: &str, features: &mut impl FeatureSink) {
+    features.emit(format_args!("c{index}={}|{}|{kind}", child.kind(), child.head_text()));
+    features.emit(format_args!("c{index}*={}|{kind}", child.kind()));
 }
 
 /// Adds the features of two children of a constituent of type `kind` being checked
 /// (`AbstractContextGenerator.checkcons(Parse, Parse, String, List)`).
-pub fn check_cons_pair(p1: &Parse, p2: &Parse, kind: &str, features: &mut Vec<String>) {
+pub(crate) fn check_cons_pair_into(p1: &Parse, p2: &Parse, kind: &str, features: &mut impl FeatureSink) {
     let (t1, h1, t2, h2) = (p1.kind(), p1.head_text(), p2.kind(), p2.head_text());
-    features.push(format!("cil={kind},{t1}|{h1},{t2}|{h2}"));
-    features.push(format!("ci*l={kind},{t1},{t2}|{h2}"));
-    features.push(format!("cil*={kind},{t1}|{h1},{t2}"));
-    features.push(format!("ci*l*={kind},{t1},{t2}"));
+    features.emit(format_args!("cil={kind},{t1}|{h1},{t2}|{h2}"));
+    features.emit(format_args!("ci*l={kind},{t1},{t2}|{h2}"));
+    features.emit(format_args!("cil*={kind},{t1}|{h1},{t2}"));
+    features.emit(format_args!("ci*l*={kind},{t1},{t2}"));
+}
+
+/// Adds two-node features to a string context.
+pub fn cons2(features: &mut Vec<String>, c0: &Cons, c1: &Cons, punct1s: Option<&[Parse]>, bigram: bool) {
+    cons2_into(features, &c0.into(), &c1.into(), punct1s, bigram);
+}
+
+/// Adds three-node features to a string context.
+#[allow(clippy::too_many_arguments)]
+pub fn cons3(
+    features: &mut Vec<String>,
+    c0: &Cons,
+    c1: &Cons,
+    c2: &Cons,
+    punct1s: Option<&[Parse]>,
+    punct2s: Option<&[Parse]>,
+    trigram: bool,
+    bigram1: bool,
+    bigram2: bool,
+) {
+    cons3_into(features, &c0.into(), &c1.into(), &c2.into(), punct1s, punct2s, trigram, bigram1, bigram2);
+}
+
+/// Adds surrounding-node features to a string context.
+pub fn surround(node: Option<&Parse>, i: i32, kind: &str, punctuation: Option<&[Parse]>, features: &mut Vec<String>) {
+    surround_into(node, i, kind, punctuation, features);
+}
+
+/// Adds one-child check features to a string context.
+pub fn check_cons(child: &Parse, index: &str, kind: &str, features: &mut Vec<String>) {
+    check_cons_into(child, index, kind, features);
+}
+
+/// Adds two-child check features to a string context.
+pub fn check_cons_pair(p1: &Parse, p2: &Parse, kind: &str, features: &mut Vec<String>) {
+    check_cons_pair_into(p1, p2, kind, features);
 }
 
 /// Extracts the 5-constituent window `[c_2, c_1, c0, c1, c2]` around `index` in `chunks`
@@ -442,17 +642,33 @@ impl ChunkContextGenerator {
     /// address can be reused by a later sentence, so the cache is kept here while `words` and
     /// `tags` hold the same strings, which gives the features a fresh call would.
     pub fn get_context(&mut self, i: usize, words: &[&str], tags: &[&str], preds: &[&str]) -> Vec<String> {
-        let (w_2, t_2, p_2) = i.checked_sub(2).map_or((EOS, EOS, EOS), |j| (words[j], tags[j], preds[j]));
-        let (w_1, t_1, p_1) = i.checked_sub(1).map_or((EOS, EOS, EOS), |j| (words[j], tags[j], preds[j]));
-        let (w0, t0) = (words[i], tags[i]);
-        let (w1, t1) = if i + 1 < tags.len() { (words[i + 1], tags[i + 1]) } else { (EOS, EOS) };
-        let (w2, t2) = if i + 2 < tags.len() { (words[i + 2], tags[i + 2]) } else { (EOS, EOS) };
+        self.context_strings(i, tags.len(), |j| (words[j], tags[j]), preds)
+    }
+
+    fn context_strings<'a>(
+        &mut self,
+        i: usize,
+        len: usize,
+        token: impl Fn(usize) -> (&'a str, &'a str),
+        preds: &[&str],
+    ) -> Vec<String> {
+        let (t_2, p_2) = i.checked_sub(2).map_or((EOS, EOS), |j| (token(j).1, preds[j]));
+        let p_1 = i.checked_sub(1).map_or(EOS, |j| preds[j]);
+        let t0 = token(i).1;
+        let t1 = if i + 1 < len { token(i + 1).1 } else { EOS };
+        let t2 = if i + 2 < len { token(i + 2).1 } else { EOS };
 
         let cache_key = if self.cache_size > 0 {
-            if !same_strings(&self.words_key, words) || !same_strings(&self.tags_key, tags) {
+            let same = self.words_key.len() == len
+                && self.tags_key.len() == len
+                && (0..len).all(|j| {
+                    let (word, tag) = token(j);
+                    self.words_key[j] == word && self.tags_key[j] == tag
+                });
+            if !same {
                 self.cache.clear();
-                self.words_key = words.iter().map(|w| (*w).to_owned()).collect();
-                self.tags_key = tags.iter().map(|t| (*t).to_owned()).collect();
+                self.words_key = (0..len).map(|j| token(j).0.to_owned()).collect();
+                self.tags_key = (0..len).map(|j| token(j).1.to_owned()).collect();
             }
             // OpenNLP's key: `t1` twice and no `t_1`.
             let key = format!("{i}{t_2}{t1}{t0}{t1}{t2}{p_2}{p_1}");
@@ -467,30 +683,8 @@ impl ChunkContextGenerator {
             None
         };
 
-        let ct_2 = Self::chunkandpostag(-2, w_2, t_2, p_2);
-        let ctbo_2 = Self::chunkandpostagbo(-2, t_2, p_2);
-        let ct_1 = Self::chunkandpostag(-1, w_1, t_1, p_1);
-        let ctbo_1 = Self::chunkandpostagbo(-1, t_1, p_1);
-        let ct0 = Self::chunkandpostag(0, w0, t0, "");
-        let ctbo0 = Self::chunkandpostagbo(0, t0, "");
-        let ct1 = Self::chunkandpostag(1, w1, t1, "");
-        let ctbo1 = Self::chunkandpostagbo(1, t1, "");
-        let ct2 = Self::chunkandpostag(2, w2, t2, "");
-        let ctbo2 = Self::chunkandpostagbo(2, t2, "");
-
-        let pairs = [
-            format!("{ct_1},{ct0}"),
-            format!("{ctbo_1},{ct0}"),
-            format!("{ct_1},{ctbo0}"),
-            format!("{ctbo_1},{ctbo0}"),
-            format!("{ct0},{ct1}"),
-            format!("{ctbo0},{ct1}"),
-            format!("{ct0},{ctbo1}"),
-            format!("{ctbo0},{ctbo1}"),
-        ];
         let mut features = Vec::with_capacity(19);
-        features.extend(["default".to_owned(), ct_2, ctbo_2, ct_1, ctbo_1, ct0, ctbo0, ct1, ctbo1, ct2, ctbo2]);
-        features.extend(pairs);
+        Self::populate(i, len, token, preds, &mut features);
 
         if let Some(key) = cache_key {
             if self.cache.len() >= self.cache_size {
@@ -501,17 +695,54 @@ impl ChunkContextGenerator {
         features
     }
 
-    fn chunkandpostag(i: i32, tok: &str, tag: &str, chunk: &str) -> String {
-        if i < 0 { format!("{i}={tok}|{tag}|{chunk}") } else { format!("{i}={tok}|{tag}") }
+    /// Replaces `out` with the uncached chunk features, reusing its byte storage.
+    pub fn get_features(&self, i: usize, words: &[&str], tags: &[&str], preds: &[&str], out: &mut Features) {
+        out.clear();
+        Self::populate(i, tags.len(), |j| (words[j], tags[j]), preds, out);
     }
 
-    fn chunkandpostagbo(i: i32, tag: &str, chunk: &str) -> String {
-        if i < 0 { format!("{i}*={tag}|{chunk}") } else { format!("{i}*={tag}") }
+    fn populate<'a>(
+        i: usize,
+        len: usize,
+        token: impl Fn(usize) -> (&'a str, &'a str),
+        preds: &[&str],
+        out: &mut impl FeatureSink,
+    ) {
+        assert!(i < len, "chunk token index out of bounds");
+        let slots = [-2, -1, 0, 1, 2].map(|offset| {
+            let at = i.checked_add_signed(offset);
+            let (word, tag) = at.filter(|&j| j < len).map_or((EOS, EOS), &token);
+            let prior = if offset < 0 { at.map_or(EOS, |j| preds[j]) } else { "" };
+            (offset, word, tag, prior)
+        });
+        let lexical = |n: usize, backoff: bool| {
+            let (offset, word, tag, prior) = slots[n];
+            DisplayFn(move |f: &mut fmt::Formatter<'_>| {
+                write!(f, "{offset}{}=", if backoff { "*" } else { "" })?;
+                if !backoff {
+                    write!(f, "{word}|")?;
+                }
+                f.write_str(tag)?;
+                if offset < 0 {
+                    write!(f, "|{prior}")?;
+                }
+                Ok(())
+            })
+        };
+        let pieces =
+            std::array::from_fn::<_, 5, _>(|n| [out.prepare(lexical(n, false)), out.prepare(lexical(n, true))]);
+        let lexical = |n: usize, backoff: bool| &pieces[n][usize::from(backoff)];
+        out.emit(format_args!("default"));
+        for n in 0..5 {
+            out.emit(format_args!("{}", lexical(n, false)));
+            out.emit(format_args!("{}", lexical(n, true)));
+        }
+        for (a, b) in [(1, 2), (2, 3)] {
+            for (ab, bb) in [(false, false), (true, false), (false, true), (true, true)] {
+                out.emit(format_args!("{},{}", lexical(a, ab), lexical(b, bb)));
+            }
+        }
     }
-}
-
-fn same_strings(kept: &[String], current: &[&str]) -> bool {
-    kept.len() == current.len() && kept.iter().zip(current).all(|(k, c)| k == c)
 }
 
 impl<'a> ContextGenerator<TokenTag<'a>> for ChunkContextGenerator {
@@ -520,12 +751,16 @@ impl<'a> ContextGenerator<TokenTag<'a>> for ChunkContextGenerator {
     }
 
     fn context(&mut self, index: usize, sequence: &[TokenTag<'a>], prior: &[&str], out: &mut Features) {
-        let words: Vec<&str> = sequence.iter().map(|t| t.token).collect();
-        let tags: Vec<&str> = sequence.iter().map(|t| t.tag).collect();
-        let feats = self.get_context(index, &words, &tags, prior);
-        for f in &feats {
-            out.push_str(f);
-            out.finish();
+        let token = |j: usize| (sequence[j].token, sequence[j].tag);
+        if self.cache_size == 0 {
+            Self::populate(index, sequence.len(), token, prior, out);
+        } else {
+            // Preserve the opt-in JVM cache's key and eviction behavior. The parser's
+            // default uncached beam path writes directly from TokenTag without collections.
+            for feature in self.context_strings(index, sequence.len(), token, prior) {
+                out.push_str(&feature);
+                out.finish();
+            }
         }
     }
 }

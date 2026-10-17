@@ -22,15 +22,19 @@ use std::sync::Arc;
 
 use turbo_analysis::Span;
 use turbo_jvm::strict_math;
+use turbo_sequence::Features;
 
 use crate::bottom_up::{
     DEFAULT_ADVANCE_PERCENTAGE, DEFAULT_BEAM_SIZE, Parser as ParserTrait, collapse_punctuation_in_place,
     parse_bottom_up,
 };
-use crate::context::{Cons, EOS, check_cons, cons, cons_bo, cons2, cons3, surround};
+use crate::context::{
+    ConsRef, DisplayFn, EOS, FeatureSink, check_cons_into as check_cons, cons2_into as cons2, cons3_into as cons3,
+    surround_into as surround,
+};
 use crate::head_rules::HeadRules;
 use crate::model::ParserModel;
-use crate::parse::{COMPLETE, INC_NODE, Parse, ParseError, TOP_NODE, insert_by_prob};
+use crate::parse::{COMPLETE, INC_NODE, Parse, ParseError, TOP_NODE};
 
 /// Outcome indicating no further unary build levels (`treeinsert.Parser.DONE = "d"`).
 pub const DONE: &str = "d";
@@ -101,73 +105,75 @@ fn punct(set: &[Parse]) -> Option<&[Parse]> {
 }
 
 /// `new Cons(cons(p, i), consbo(p, i), i, true)` with `useLabel` false.
-fn cons_slot(p: Option<&Parse>, i: i32) -> Cons {
-    Cons::new(cons(p, i), cons_bo(p, i), i, true)
+fn cons_slot<'a>(p: Option<&'a Parse>, i: i32, sink: &impl FeatureSink) -> ConsRef<'a> {
+    ConsRef::new(p, i, false, true, sink)
 }
 
-/// The non-punctuation children of a node, each with the next-punctuation set it has after
-/// `collapsePunctuation` runs over them: its own set plus the punctuation that follows it.
-fn collapsed_children<'a>(children: &'a [Parse], punct_set: &HashSet<String>) -> Vec<(&'a Parse, Vec<Parse>)> {
-    let mut out: Vec<(&Parse, Vec<Parse>)> = Vec::with_capacity(children.len());
-    for c in children {
-        if punct_set.contains(c.kind()) {
-            if let Some((_, next)) = out.last_mut() {
-                insert_by_prob(next, c.clone());
-            }
-        } else {
-            out.push((c, c.next_punctuation().to_vec()));
-        }
-    }
-    out
-}
-
-/// `AbstractContextGenerator.production`, as [`crate::context::production_in`] computes it but
-/// without copying the children, since the attach features need it for every frontier node.
-fn production(p: &Parse, include_punctuation: bool, punct_set: &HashSet<String>) -> String {
-    let mut prod = format!("{}->", p.kind());
-    if include_punctuation {
-        let children = collapsed_children(p.children(), punct_set);
-        for (ci, (child, next)) in children.iter().enumerate() {
-            prod.push_str(child.kind());
-            if ci + 1 != children.len() {
-                prod.push(',');
-                for punct in next {
-                    prod.push_str(punct.kind());
-                    prod.push(',');
+/// Formats a production without cloning subtrees or collecting child references.
+fn production<'a>(p: &'a Parse, include_punctuation: bool, punct_set: &'a HashSet<String>) -> impl fmt::Display + 'a {
+    DisplayFn(move |f: &mut fmt::Formatter<'_>| {
+        write!(f, "{}->", p.kind())?;
+        let mut children = p.children().iter().enumerate().filter(|(_, c)| !punct_set.contains(c.kind())).peekable();
+        while let Some((ci, child)) = children.next() {
+            f.write_str(child.kind())?;
+            if let Some(&(next_index, _)) = children.peek() {
+                f.write_str(",")?;
+                if include_punctuation {
+                    // TreeSet ordering and equality use probability, with the existing set's
+                    // entries inserted first. Select each next entry without allocating a union.
+                    let added = &p.children()[ci + 1..next_index];
+                    let candidates = || child.next_punctuation().iter().chain(added);
+                    let mut previous: Option<&Parse> = None;
+                    loop {
+                        let next = candidates()
+                            .filter(|c| previous.is_none_or(|prev| prev.cmp_prob(c).is_lt()))
+                            .min_by(|a, b| a.cmp_prob(b));
+                        let Some(mark) = next else {
+                            break;
+                        };
+                        write!(f, "{},", mark.kind())?;
+                        previous = Some(mark);
+                    }
                 }
             }
         }
-    } else {
-        let mut first = true;
-        for child in p.children().iter().filter(|c| !punct_set.contains(c.kind())) {
-            if !first {
-                prod.push(',');
-            }
-            prod.push_str(child.kind());
-            first = false;
-        }
-    }
-    prod
+        Ok(())
+    })
 }
 
-/// `AbstractContextGenerator.getFrontierNodes` for two nodes: the first frontier nodes with
-/// different head indices.
-fn frontier_nodes<'a>(rf: &[&'a Parse]) -> [Option<&'a Parse>; 2] {
-    let mut nodes = [None, None];
-    let mut left = 0;
-    let mut prev_head_index = -1;
-    for fnode in rf {
-        let head_index = fnode.head_index();
-        if head_index != prev_head_index {
-            nodes[left] = Some(*fnode);
-            left += 1;
-            prev_head_index = head_index;
-            if left == nodes.len() {
-                break;
-            }
+/// The two deepest frontier nodes with distinct heads. Walking down keeps only the
+/// three most recent head runs; a deepest head of -1 is skipped just as on the JVM.
+/// A trim selects the ancestors above the deepest matching parent.
+fn frontier_nodes<'a>(
+    root: &'a Parse,
+    punct_set: &HashSet<String>,
+    trim: Option<&Parse>,
+) -> Result<([Option<&'a Parse>; 2], bool), TreeInsertError> {
+    let mut node = if root.kind() == TOP_NODE || root.kind() == INC_NODE {
+        root.children().iter().find(|c| !punct_set.contains(c.kind()))
+    } else {
+        Some(root)
+    };
+    let mut recent: [Option<&Parse>; 3] = [None; 3];
+    let mut trimmed = None;
+    let mut any = false;
+    while let Some(current) = node.filter(|n| !n.is_pos_tag()) {
+        any = true;
+        if trim.is_some_and(|parent| current == parent) {
+            trimmed = Some(recent);
         }
+        if recent[0].is_none_or(|n| n.head_index() != current.head_index()) {
+            recent[2] = recent[1];
+            recent[1] = recent[0];
+        }
+        recent[0] = Some(current);
+        node = current.children().last();
     }
-    nodes
+    if trim.is_some() {
+        recent = trimmed.ok_or(TreeInsertError::ParentNotInFrontier)?;
+    }
+    let offset = usize::from(recent[0].is_some_and(|n| n.head_index() == -1));
+    Ok(([recent[offset], recent[offset + 1]], any))
 }
 
 /// `AbstractBottomUpParser.collapsePunctuation` run for its effect on the children of `node`:
@@ -226,6 +232,18 @@ impl BuildContextGenerator {
     ///
     /// When `index` is out of bounds, where OpenNLP throws `ArrayIndexOutOfBoundsException`.
     pub fn get_context(&self, constituents: &[&Parse], index: usize) -> Vec<String> {
+        let mut features = Vec::with_capacity(64);
+        self.populate(constituents, index, &mut features);
+        features
+    }
+
+    /// Replaces `out` with build features, reusing its byte storage.
+    pub fn get_features(&self, constituents: &[&Parse], index: usize, out: &mut Features) {
+        out.clear();
+        self.populate(constituents, index, out);
+    }
+
+    fn populate(&self, constituents: &[&Parse], index: usize, features: &mut impl FeatureSink) {
         let p0 = constituents[index];
         let p1 = constituents.get(index + 1).copied();
         let p2 = constituents.get(index + 2).copied();
@@ -234,36 +252,35 @@ impl BuildContextGenerator {
         let punct1s = punct(p0.next_punctuation());
         let punct2s = p1.and_then(|p| punct(p.next_punctuation()));
 
-        let empty = HashSet::new();
-        let rf_paths = if index == 0 { Vec::new() } else { right_frontier_paths(constituents[0], &empty) };
-        let rf: Vec<&Parse> = rf_paths.iter().map(|path| constituents[0].node_at_path(path)).collect();
-        let [p_1, p_2] = frontier_nodes(&rf);
+        let ([p_1, p_2], has_frontier) = if index == 0 {
+            ([None, None], false)
+        } else {
+            frontier_nodes(constituents[0], &HashSet::new(), None).expect("no frontier trim")
+        };
         let punct_2s = p_1.and_then(|p| punct(p.previous_punctuation()));
 
-        let c_2 = cons_slot(p_2, -2);
-        let c_1 = cons_slot(p_1, -1);
-        let c0 = cons_slot(Some(p0), 0);
-        let c1 = cons_slot(p1, 1);
-        let c2 = cons_slot(p2, 2);
+        let c_2 = cons_slot(p_2, -2, features);
+        let c_1 = cons_slot(p_1, -1, features);
+        let c0 = cons_slot(Some(p0), 0, features);
+        let c1 = cons_slot(p1, 1, features);
+        let c2 = cons_slot(p2, 2, features);
 
-        let mut features = Vec::with_capacity(64);
-        features.push("default".to_owned());
+        features.emit(format_args!("default"));
         for c in [&c_2, &c_1, &c0, &c1, &c2] {
-            features.push(c.cons.clone());
-            features.push(c.cons_bo.clone());
+            features.emit(format_args!("{}", c.cons));
+            features.emit(format_args!("{}", c.cons_bo));
         }
 
-        cons2(&mut features, &c0, &c1, punct1s, true);
-        cons2(&mut features, &c_1, &c0, punct_1s, true);
-        cons3(&mut features, &c0, &c1, &c2, punct1s, punct2s, true, true, true);
-        cons3(&mut features, &c_2, &c_1, &c0, punct_2s, punct_1s, true, true, true);
-        cons3(&mut features, &c_1, &c0, &c1, punct_1s, punct_1s, true, true, true);
+        cons2(features, &c0, &c1, punct1s, true);
+        cons2(features, &c_1, &c0, punct_1s, true);
+        cons3(features, &c0, &c1, &c2, punct1s, punct2s, true, true, true);
+        cons3(features, &c_2, &c_1, &c0, punct_2s, punct_1s, true, true, true);
+        cons3(features, &c_1, &c0, &c1, punct_1s, punct_1s, true, true, true);
 
-        if rf.is_empty() {
-            features.push(format!("{EOS},{}", c0.cons));
-            features.push(format!("{EOS},{}", c0.cons_bo));
+        if !has_frontier {
+            features.emit(format_args!("{EOS},{}", c0.cons));
+            features.emit(format_args!("{EOS},{}", c0.cons_bo));
         }
-        features
     }
 }
 
@@ -292,6 +309,32 @@ impl AttachContextGenerator {
         right_frontier: &[&Parse],
         rfi: usize,
     ) -> Vec<String> {
+        let mut features = Vec::with_capacity(100);
+        self.populate(constituents, index, right_frontier, rfi, &mut features);
+        features
+    }
+
+    /// Replaces `out` with attachment features, reusing its byte storage.
+    pub fn get_features(
+        &self,
+        constituents: &[&Parse],
+        index: usize,
+        right_frontier: &[&Parse],
+        rfi: usize,
+        out: &mut Features,
+    ) {
+        out.clear();
+        self.populate(constituents, index, right_frontier, rfi, out);
+    }
+
+    fn populate(
+        &self,
+        constituents: &[&Parse],
+        index: usize,
+        right_frontier: &[&Parse],
+        rfi: usize,
+        features: &mut impl FeatureSink,
+    ) {
         let fnode = right_frontier[rfi];
         let fp = right_frontier.get(rfi + 1).copied();
         let p_1 = right_frontier.first().copied();
@@ -302,43 +345,41 @@ impl AttachContextGenerator {
         let punct_1s = punct(p0.previous_punctuation());
         let punct1s = punct(p0.next_punctuation());
 
-        let cfp = cons_slot(fp, -3);
-        let cf = cons_slot(Some(fnode), -2);
-        let c_1 = cons_slot(p_1, -1);
-        let c0 = cons_slot(Some(p0), 0);
-        let c1 = cons_slot(p1, 1);
+        let cfp = cons_slot(fp, -3, features);
+        let cf = cons_slot(Some(fnode), -2, features);
+        let c_1 = cons_slot(p_1, -1, features);
+        let c0 = cons_slot(Some(p0), 0, features);
+        let c1 = cons_slot(p1, 1, features);
 
-        let mut features = Vec::with_capacity(100);
-        features.push("default".to_owned());
+        features.emit(format_args!("default"));
         for c in [&cfp, &cf, &c_1, &c0, &c1] {
-            features.push(c.cons.clone());
-            features.push(c.cons_bo.clone());
+            features.emit(format_args!("{}", c.cons));
+            features.emit(format_args!("{}", c.cons_bo));
         }
 
-        let prod = production(fnode, false, &self.punct_set);
-        features.push(format!("pn={prod}"));
-        features.push(format!("pd={prod},{}", p0.kind()));
-        features.push(format!("ps={}->{},{}", fnode.kind(), fnode.kind(), p0.kind()));
+        let prod = features.prepare(production(fnode, false, &self.punct_set));
+        features.emit(format_args!("pn={prod}"));
+        features.emit(format_args!("pd={prod},{}", p0.kind()));
+        features.emit(format_args!("ps={}->{},{}", fnode.kind(), fnode.kind(), p0.kind()));
 
-        cons2(&mut features, &cfp, &c0, punct_1s, true);
-        cons2(&mut features, &cf, &c0, punct_1s, true);
-        cons2(&mut features, &c_1, &c0, punct_1s, true);
-        cons2(&mut features, &c0, &c1, punct1s, true);
-        cons3(&mut features, &cf, &c_1, &c0, None, punct_1s, true, true, true);
-        cons3(&mut features, &cf, &c0, &c1, punct_1s, punct1s, true, true, true);
-        cons3(&mut features, &cfp, &cf, &c0, None, punct_1s, true, true, true);
+        cons2(features, &cfp, &c0, punct_1s, true);
+        cons2(features, &cf, &c0, punct_1s, true);
+        cons2(features, &c_1, &c0, punct_1s, true);
+        cons2(features, &c0, &c1, punct1s, true);
+        cons3(features, &cf, &c_1, &c0, None, punct_1s, true, true, true);
+        cons3(features, &cf, &c0, &c1, punct_1s, punct1s, true, true, true);
+        cons3(features, &cfp, &cf, &c0, None, punct_1s, true, true, true);
 
         let head_distance = p0.head_index() - fnode.head_index();
-        features.push(format!("hd={head_distance}"));
-        features.push(format!("nd={rfi}"));
-        features.push(format!("nd={}.{rfi}", p0.kind()));
-        features.push(format!("hd={}.{head_distance}", p0.kind()));
+        features.emit(format_args!("hd={head_distance}"));
+        features.emit(format_args!("nd={rfi}"));
+        features.emit(format_args!("nd={}.{rfi}", p0.kind()));
+        features.emit(format_args!("hd={}.{head_distance}", p0.kind()));
 
         let contains = |set: Option<&[Parse]>, mark: &str| set.is_some_and(|s| s.iter().any(|p| p.kind() == mark));
         if contains(punct_1s, "''") && contains(punct_1fs, "``") {
-            features.push("quotematch".to_owned());
+            features.emit(format_args!("quotematch"));
         }
-        features
     }
 }
 
@@ -371,37 +412,59 @@ impl CheckContextGenerator {
         trim_frontier: bool,
     ) -> Result<Vec<String>, TreeInsertError> {
         let mut features = Vec::with_capacity(100);
-        features.push("default".to_owned());
-        let children = collapsed_children(parent.children(), &self.punct_set);
+        self.populate(parent, constituents, index, trim_frontier, &mut features)?;
+        Ok(features)
+    }
+
+    /// Replaces `out` with completeness features, reusing its byte storage.
+    pub fn get_features(
+        &self,
+        parent: &Parse,
+        constituents: &[&Parse],
+        index: usize,
+        trim_frontier: bool,
+        out: &mut Features,
+    ) -> Result<(), TreeInsertError> {
+        out.clear();
+        self.populate(parent, constituents, index, trim_frontier, out)
+    }
+
+    fn populate(
+        &self,
+        parent: &Parse,
+        constituents: &[&Parse],
+        index: usize,
+        trim_frontier: bool,
+        features: &mut impl FeatureSink,
+    ) -> Result<(), TreeInsertError> {
+        features.emit(format_args!("default"));
+        let mut children = parent.children().iter().filter(|c| !self.punct_set.contains(c.kind()));
+        let first = children.next().expect("parent has a non-punctuation child");
+        let last = children.next_back().unwrap_or(first);
         let kind = parent.kind();
-        check_cons(children[0].0, "begin", kind, &mut features);
-        check_cons(children[children.len() - 1].0, "last", kind, &mut features);
-        features.push(format!("p={}", production(parent, false, &self.punct_set)));
-        features.push(format!("pp={}", production(parent, true, &self.punct_set)));
+        check_cons(first, "begin", kind, features);
+        check_cons(last, "last", kind, features);
+        features.emit(format_args!("p={}", production(parent, false, &self.punct_set)));
+        features.emit(format_args!("pp={}", production(parent, true, &self.punct_set)));
 
         let p1s = punct(constituents[index].next_punctuation());
         let p_1s = punct(constituents[index].previous_punctuation());
 
-        let mut rf: Vec<&Parse> = Vec::new();
-        if index != 0 {
-            let root = constituents[0];
-            rf = right_frontier_paths(root, &self.punct_set).iter().map(|path| root.node_at_path(path)).collect();
-            if trim_frontier {
-                let pi = rf.iter().position(|n| *n == parent).ok_or(TreeInsertError::ParentNotInFrontier)?;
-                rf.drain(..=pi);
-            }
-        }
-        let [p_1, p_2] = frontier_nodes(&rf);
+        let [p_1, p_2] = if index == 0 {
+            [None, None]
+        } else {
+            frontier_nodes(constituents[0], &self.punct_set, trim_frontier.then_some(parent))?.0
+        };
         let p_2s = p_1.and_then(|p| punct(p.previous_punctuation()));
         let p1 = constituents.get(index + 1).copied();
         let p2s = p1.and_then(|p| punct(p.next_punctuation()));
         let p2 = constituents.get(index + 2).copied();
 
-        surround(p_1, -1, kind, p_1s, &mut features);
-        surround(p_2, -2, kind, p_2s, &mut features);
-        surround(p1, 1, kind, p1s, &mut features);
-        surround(p2, 2, kind, p2s, &mut features);
-        Ok(features)
+        surround(p_1, -1, kind, p_1s, features);
+        surround(p_2, -2, kind, p_2s, features);
+        surround(p1, 1, kind, p1s, features);
+        surround(p2, 2, kind, p2s, features);
+        Ok(())
     }
 }
 
@@ -522,6 +585,15 @@ impl Parser {
     /// changes, or when every top-level constituent is already built, where OpenNLP reads past
     /// the end of the constituents.
     pub fn advance_parses(&self, p: &mut Parse, prob_mass: f64) -> Result<Option<Vec<Parse>>, ParseError> {
+        self.advance_parses_with_features(p, prob_mass, &mut Features::new())
+    }
+
+    fn advance_parses_with_features(
+        &self,
+        p: &mut Parse,
+        prob_mass: f64,
+        features: &mut Features,
+    ) -> Result<Option<Vec<Parse>>, ParseError> {
         let q = 1.0 - prob_mass;
         let rules = self.model.head_rules();
         let punct_set = rules.punctuation_tags();
@@ -551,8 +623,8 @@ impl Parser {
         let mut aprobs: Vec<Vec<f64>> = Vec::new();
         {
             let children: Vec<&Parse> = kept.iter().map(|&i| &p.children()[i]).collect();
-            let ctx = self.build_cg.get_context(&children, advance_node_index);
-            build_model.eval(&ctx.iter().map(String::as_str).collect::<Vec<_>>(), &mut bprobs);
+            self.build_cg.get_features(&children, advance_node_index, features);
+            build_model.eval_features(features.iter(), &mut bprobs);
         }
         let done_prob = bprobs[outcome_index(self.done_index, &bprobs)?];
 
@@ -562,9 +634,9 @@ impl Parser {
                 let children: Vec<&Parse> = kept.iter().map(|&i| &p.children()[i]).collect();
                 let rf_nodes: Vec<&Parse> = rf.iter().map(|path| p.node_at_path(path)).collect();
                 for fi in 0..rf.len() {
-                    let ctx = self.attach_cg.get_context(&children, advance_node_index, &rf_nodes, fi);
+                    self.attach_cg.get_features(&children, advance_node_index, &rf_nodes, fi, features);
                     let mut probs = vec![0.0; attach_model.num_outcomes()];
-                    attach_model.eval(&ctx.iter().map(String::as_str).collect::<Vec<_>>(), &mut probs);
+                    attach_model.eval_features(features.iter(), &mut probs);
                     aprobs.push(probs);
                 }
             }
@@ -610,13 +682,16 @@ impl Parser {
         }
 
         if done_prob > q {
-            let mut done_parse = p.clone();
-            let built = &mut done_parse.children_mut()[original_advance_index];
-            built.set_label(Some(BUILT.to_owned()));
-            Self::clear_punctuation(built);
-            done_parse.add_prob(strict_math::log(done_prob));
+            let prepare_done = || {
+                let mut branch = p.clone();
+                let built = &mut branch.children_mut()[original_advance_index];
+                built.set_label(Some(BUILT.to_owned()));
+                Self::clear_punctuation(built);
+                branch.add_prob(strict_math::log(done_prob));
+                branch
+            };
             if advance_node_index == 0 {
-                new_parses.push(done_parse);
+                new_parses.push(prepare_done());
             } else {
                 for (fi, probs) in aprobs.iter().enumerate() {
                     let daughter = outcome_index(self.daughter_attach_index, probs)?;
@@ -628,7 +703,7 @@ impl Parser {
                             continue;
                         }
                         // `cloneRoot(fn, originalZeroIndex)` copies the nodes from the top down to fn.
-                        let mut new_parse = done_parse.clone();
+                        let mut new_parse = prepare_done();
                         for path in &rf[fi..] {
                             Self::clear_punctuation(new_parse.node_at_path_mut(path));
                         }
@@ -660,6 +735,7 @@ impl Parser {
 
 impl ParserTrait for Parser {
     fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Result<Vec<Parse>, ParseError> {
+        let mut features = Features::new();
         parse_bottom_up(
             tokens,
             num_parses,
@@ -669,9 +745,66 @@ impl ParserTrait for Parser {
             self.model.parser_tagger_model(),
             self.model.parser_chunker_model(),
             self.model.head_rules(),
-            |p, q| self.advance_parses(p, q),
+            |p, q| self.advance_parses_with_features(p, q, &mut features),
             |p| p.set_kind(TOP_NODE),
             Self::mark_chunks_complete,
         )
+    }
+}
+
+#[cfg(test)]
+mod feature_tests {
+    use super::*;
+
+    #[test]
+    fn compact_frontier_matches_path_walk_for_repeated_and_missing_heads() {
+        let punct_set = HashSet::new();
+        for depth in 1..=6 {
+            for mut pattern in 0..3usize.pow(depth) {
+                let mut root = None;
+                for level in 0..depth {
+                    let mut node = Parse::new("x", Span::new(0, 1), format!("N{level}"), 1.0, (pattern % 3) as i32 - 1);
+                    pattern /= 3;
+                    if let Some(child) = root {
+                        node.insert(child).unwrap();
+                    }
+                    root = Some(node);
+                }
+                let root = root.unwrap();
+                let paths = right_frontier_paths(&root, &punct_set);
+                let nodes: Vec<&Parse> = paths.iter().map(|path| root.node_at_path(path)).collect();
+                for trim_at in 0..=nodes.len() {
+                    let trim = nodes.get(trim_at).copied();
+                    let retained = if trim.is_some() { &nodes[trim_at + 1..] } else { &nodes[..] };
+                    let mut previous = -1;
+                    let expected: Vec<&str> = retained
+                        .iter()
+                        .filter_map(|node| {
+                            if node.head_index() == previous {
+                                None
+                            } else {
+                                previous = node.head_index();
+                                Some(node.kind())
+                            }
+                        })
+                        .take(2)
+                        .collect();
+                    let (actual, any) = frontier_nodes(&root, &punct_set, trim).unwrap();
+                    assert!(any);
+                    assert_eq!(actual.into_iter().flatten().map(Parse::kind).collect::<Vec<_>>(), expected);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn production_keeps_existing_punctuation_on_equal_probability() {
+        let tree = Parse::parse("(TOP (S (NP (NN cat)) (, ,) (: :) (VP (VB runs))))").unwrap();
+        let mut parent = tree.children()[0].clone();
+        let existing = Parse::new(parent.text_arc().clone(), Span::new(0, 0), "EXISTING", 1.0, 0);
+        parent.children_mut()[0].add_next_punctuation(existing);
+        let punctuation = [",".to_owned(), ":".to_owned()].into();
+        assert_eq!(production(&parent, true, &punctuation).to_string(), "S->NP,EXISTING,VP");
+        assert_eq!(production(&parent, false, &punctuation).to_string(), "S->NP,VP");
     }
 }
