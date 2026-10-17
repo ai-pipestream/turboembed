@@ -9,6 +9,11 @@ impl Script {
     pub fn name(self) -> &'static str {
         NAMES[self as usize]
     }
+
+    /// The script with this long name, the inverse of [`Script::name`].
+    pub fn from_name(name: &str) -> Option<Script> {
+        ALL.iter().copied().find(|s| s.name() == name)
+    }
 }
 
 /// The script of `c`; unassigned code points are [`Script::Unknown`].

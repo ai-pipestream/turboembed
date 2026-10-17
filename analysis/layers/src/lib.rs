@@ -99,6 +99,7 @@ mod abbreviations;
 mod categories;
 mod containment;
 mod date;
+pub mod export;
 mod language_spans;
 mod levels;
 mod matches;
