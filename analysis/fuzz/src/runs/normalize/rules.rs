@@ -69,6 +69,12 @@ pub(super) fn chain_rule(text: &str, d: &Disagreement) -> bool {
     if rust == folded {
         return true;
     }
+    // Spaces already adjacent in the JVM result are a shared whitespace
+    // normalization error, not a consequence of our extra deletions.
+    if golden.contains("  ") {
+        return false;
+    }
+    let removed = |c| ('\u{206A}'..='\u{206F}').contains(&c);
     let mut collapsed = String::with_capacity(folded.len());
     for c in folded.chars() {
         if !(c == ' ' && collapsed.ends_with(' ')) {
@@ -76,10 +82,10 @@ pub(super) fn chain_rule(text: &str, d: &Disagreement) -> bool {
         }
     }
     let mut slice = collapsed.as_str();
-    if text[..d.start].chars().all(is_whitespace) {
+    if golden.chars().next().is_some_and(removed) && text[..d.start].chars().all(is_whitespace) {
         slice = slice.strip_prefix(' ').unwrap_or(slice);
     }
-    if text[d.end..].chars().all(is_whitespace) {
+    if golden.chars().next_back().is_some_and(removed) && text[d.end..].chars().all(is_whitespace) {
         slice = slice.strip_suffix(' ').unwrap_or(slice);
     }
     rust == slice
