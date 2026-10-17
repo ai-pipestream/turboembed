@@ -95,23 +95,31 @@ impl Annotator for GlossaryAnnotator {
             return Err(fail("the tokens are in another view".into()));
         }
         let values = if self.matcher.reads_values() {
-            Some(&stems.ok_or_else(|| fail("the token matcher reads turbo:stems, which is missing".into()))?.stem)
+            let v = &stems.ok_or_else(|| fail("the token matcher reads turbo:stems, which is missing".into()))?.stem;
+            self.matcher.check_values(tokens, Some(v)).map_err(|e| fail(e.to_string()))?;
+            Some(v)
         } else {
             None
         };
         let text = view.text();
         let len = u32::try_from(text.len()).map_err(|_| fail("the text is longer than u32::MAX bytes".into()))?;
-        check_tokens(text, tokens).map_err(|e| fail(e.to_string()))?;
-        let boundaries = Boundaries::of_tokens(len, tokens);
+        let boundaries = if self.matcher.has_text() {
+            Boundaries::of_checked_tokens(text, len, tokens).map_err(|e| fail(e.to_string()))?
+        } else {
+            check_tokens(text, tokens).map_err(|e| fail(e.to_string()))?;
+            Boundaries::none(0)
+        };
         let input = MatchInput { text, tokens, boundaries: &boundaries, values };
         let mut found = Vec::new();
-        self.matcher.find(&input, &mut found).map_err(|e| fail(e.to_string()))?;
+        self.matcher.find_checked(&input, &mut found).map_err(|e| fail(e.to_string()))?;
         let mut layer = GlossaryTerms {
             spans: turbo_analysis::Spans::with_capacity(view.id(), found.len()),
             tokens: Vec::with_capacity(found.len()),
             entry: Vec::with_capacity(found.len()),
             glossary: self.glossary.clone(),
         };
+        let (starts, ends) = tokens.spans.columns();
+        let mut cursor = 0usize;
         for m in found {
             if m.entry.get() >= self.glossary.len() {
                 return Err(fail(format!(
@@ -120,7 +128,10 @@ impl Annotator for GlossaryAnnotator {
                     self.glossary.len()
                 )));
             }
-            layer.push(m.span, tokens.spans.within(m.span), m.entry);
+            let a = cursor + starts[cursor..].partition_point(|&s| s < m.span.start);
+            let b = a + ends[a..].partition_point(|&e| e <= m.span.end);
+            cursor = a;
+            layer.push(m.span, turbo_analysis::IxRange::new(a as u32, b as u32), m.entry);
         }
         Ok((layer,))
     }
@@ -134,10 +145,12 @@ impl Annotator for GlossaryAnnotator {
 mod tests {
     use super::*;
     use crate::text::{Case, TextMatcher};
+    use crate::token::{TokenMatcher, TokenValue};
     use turbo_analysis::{Document, Span, Spans};
+    use turbo_analysis_layers::Strs;
 
     #[test]
-    fn text_matcher_rejects_unordered_or_out_of_bounds_token_spans() {
+    fn text_matcher_rejects_unordered_or_out_of_bounds_or_mid_char_token_spans() {
         let mut g = Glossary::new();
         g.push("c1", "dogs").unwrap();
         let g = Arc::new(g);
@@ -164,6 +177,38 @@ mod tests {
             .err()
             .expect("out-of-bounds span must fail");
         assert!(err.to_string().contains("token 0"), "unexpected error: {err}");
+
+        // Mid-character UTF-8 token span: 'é' in "café" is bytes 3..5.
+        let doc_utf8 = Document::new("café");
+        let view_utf8 = doc_utf8.get::<View>().unwrap();
+        let mut mid_char = Spans::new(view_utf8.id());
+        mid_char.push(Span::new(0, 4));
+        let err = annotator
+            .annotate((view_utf8, &Tokens { spans: mid_char, sentence: None }, None))
+            .err()
+            .expect("mid-char span must fail");
+        assert!(err.to_string().contains("token 0 (0..4)"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn token_matcher_reports_misaligned_stems_before_bad_token_spans() {
+        let mut g = Glossary::new();
+        g.push("c1", "dog").unwrap();
+        let g = Arc::new(g);
+        let matcher = GlossaryMatcher::Tokens(
+            TokenMatcher::new(&g, TokenValue::Values, |t, out| out.push(t.to_string())).unwrap(),
+        );
+        let annotator = GlossaryAnnotator::new(g, matcher);
+        let doc = Document::new("dog");
+        let view = doc.get::<View>().unwrap();
+        let mut bad_spans = Spans::new(view.id());
+        bad_spans.push(Span::new(0, 99));
+        let stems = Stems { stem: Strs::default() };
+        let err = annotator
+            .annotate((view, &Tokens { spans: bad_spans, sentence: None }, Some(&stems)))
+            .err()
+            .expect("misaligned stems must fail");
+        assert!(err.to_string().contains("0 token values for 1 tokens"), "unexpected error: {err}");
     }
 
     #[test]

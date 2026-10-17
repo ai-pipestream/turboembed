@@ -143,18 +143,40 @@ impl TokenMatcher {
         values: Option<&Strs>,
         out: &mut Vec<GlossaryMatch>,
     ) -> Result<(), MatchError> {
+        let values = self.check_values(tokens, values)?;
+        check_tokens(text, tokens)?;
+        self.find_checked(text, tokens, values, out)
+    }
+
+    pub(crate) fn check_values<'a>(
+        &self,
+        tokens: &Tokens,
+        values: Option<&'a Strs>,
+    ) -> Result<Option<&'a Strs>, MatchError> {
         let n = tokens.spans.len();
-        let values = match self.value {
-            TokenValue::Text => None,
+        match self.value {
+            TokenValue::Text => Ok(None),
             TokenValue::Values => {
                 let v = values.ok_or(MatchError::NoValues)?;
                 if v.len() != n {
                     return Err(MatchError::Misaligned { values: v.len(), tokens: n });
                 }
-                Some(v)
+                Ok(Some(v))
             }
-        };
-        check_tokens(text, tokens)?;
+        }
+    }
+
+    /// Runs token matching assuming `tokens.spans` have already been
+    /// checked against `text` and `values` has been checked by
+    /// [`TokenMatcher::check_values`].
+    pub(crate) fn find_checked(
+        &self,
+        text: &str,
+        tokens: &Tokens,
+        values: Option<&Strs>,
+        out: &mut Vec<GlossaryMatch>,
+    ) -> Result<(), MatchError> {
+        let n = tokens.spans.len();
         let (starts, ends) = tokens.spans.columns();
         let value = |i: usize| match values {
             Some(v) => v.get(i),
@@ -216,6 +238,7 @@ impl TokenMatcher {
 /// character boundaries, and are in non-overlapping text order.
 pub(crate) fn check_tokens(text: &str, tokens: &Tokens) -> Result<(), MatchError> {
     let (starts, ends) = tokens.spans.columns();
+    let mut prev_end = 0u32;
     for (index, (&start, &end)) in starts.iter().zip(ends).enumerate() {
         if start > end
             || end as usize > text.len()
@@ -224,9 +247,10 @@ pub(crate) fn check_tokens(text: &str, tokens: &Tokens) -> Result<(), MatchError
         {
             return Err(MatchError::Token { index, start, end });
         }
-        if index > 0 && start < ends[index - 1] {
+        if start < prev_end {
             return Err(MatchError::Unordered { index });
         }
+        prev_end = end;
     }
     Ok(())
 }
