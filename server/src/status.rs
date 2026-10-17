@@ -41,7 +41,8 @@ pub const EMBED_OPTIONS: [&str; 6] = ["truncate", "max_tokens", "prompt_role", "
 
 /// The fields of turbo_session_desc, 1-based: what turbo_session_create's
 /// turbo_error.field names.
-pub const SESSION_DESC: [&str; 5] = ["max_batch", "max_seq", "precision", "tuning", "tuning_budget_ms"];
+pub const SESSION_DESC: [&str; 7] =
+    ["max_batch", "max_seq", "precision", "tuning", "tuning_budget_ms", "cpu_threads", "max_ranges"];
 
 /// `<name>: <message>`, or `<name> field <n> (<field>): <message>` when the
 /// failure names a field of `fields`, the struct the call took.
@@ -138,5 +139,9 @@ mod tests {
         assert_eq!(s.metadata().get("turbo-code").unwrap(), "4242");
         let f = Failure::new(TURBO_E_UNSUPPORTED_OPTION, 3, "not in F16");
         assert_eq!(describe(&f, &SESSION_DESC), "TURBO_E_UNSUPPORTED_OPTION field 3 (precision): not in F16");
+        let f6 = Failure::new(TURBO_E_INVALID_ARGUMENT, 6, "bad thread count");
+        assert_eq!(describe(&f6, &SESSION_DESC), "TURBO_E_INVALID_ARGUMENT field 6 (cpu_threads): bad thread count");
+        let f7 = Failure::new(TURBO_E_INVALID_ARGUMENT, 7, "bad range count");
+        assert_eq!(describe(&f7, &SESSION_DESC), "TURBO_E_INVALID_ARGUMENT field 7 (max_ranges): bad range count");
     }
 }
