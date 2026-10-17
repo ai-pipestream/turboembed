@@ -46,7 +46,7 @@ impl Span {
     }
 
     fn len(self) -> usize {
-        self.end - self.start
+        self.end.saturating_sub(self.start)
     }
 
     fn contains(self, other: Span) -> bool {
@@ -204,13 +204,13 @@ fn union(mut spans: Vec<Span>) -> Vec<Span> {
 }
 
 /// The bytes two merged unions share.
-fn overlap(a: &[Span], b: &[Span]) -> usize {
-    let (mut i, mut j, mut total) = (0, 0, 0);
+fn overlap(a: &[Span], b: &[Span]) -> u128 {
+    let (mut i, mut j, mut total) = (0, 0, 0u128);
     while i < a.len() && j < b.len() {
         let start = a[i].start.max(b[j].start);
         let end = a[i].end.min(b[j].end);
         if start < end {
-            total += end - start;
+            total += (end - start) as u128;
         }
         if a[i].end < b[j].end {
             i += 1;
@@ -229,22 +229,22 @@ pub fn span_scores(hits: &[ChunkHit], relevant: &BTreeMap<String, Vec<Span>>, k:
         retrieved.entry(h.doc.as_str()).or_default().push(h.span);
     }
     let retrieved: BTreeMap<&str, Vec<Span>> = retrieved.into_iter().map(|(d, s)| (d, union(s))).collect();
-    let retrieved_bytes: usize = retrieved.values().flatten().map(|s| s.len()).sum();
+    let retrieved_bytes: u128 = retrieved.values().flatten().map(|s| s.len() as u128).sum();
 
-    let (mut relevant_bytes, mut shared, mut spans, mut contained) = (0, 0, 0, 0);
+    let (mut relevant_bytes, mut shared, mut spans, mut contained) = (0u128, 0u128, 0usize, 0usize);
     for (doc, rel) in relevant {
         let chunks = retrieved.get(doc.as_str()).map_or(&[][..], Vec::as_slice);
         let merged = union(rel.clone());
-        relevant_bytes += merged.iter().map(|s| s.len()).sum::<usize>();
+        relevant_bytes += merged.iter().map(|s| s.len() as u128).sum::<u128>();
         shared += overlap(&merged, chunks);
         spans += rel.len();
         contained += rel.iter().filter(|&&s| hits.iter().take(k).any(|h| h.doc == *doc && h.span.contains(s))).count();
     }
-    let ratio = |a: usize, b: usize| if b == 0 { 0.0 } else { a as f64 / b as f64 };
+    let ratio = |a: u128, b: u128| if b == 0 { 0.0 } else { a as f64 / b as f64 };
     SpanScores {
         precision: ratio(shared, retrieved_bytes),
         recall: ratio(shared, relevant_bytes),
-        contained: ratio(contained, spans),
+        contained: ratio(contained as u128, spans as u128),
     }
 }
 
@@ -394,5 +394,15 @@ mod tests {
             hits: vec![ChunkHit { doc: "d".into(), span: Span { start: 3, end: 1 }, score: 1.0 }],
         };
         assert!(ChunkRun::new([bad]).is_err());
+
+        let rel = BTreeMap::from([
+            ("d1".into(), vec![Span::new(0, usize::MAX).unwrap()]),
+            ("d2".into(), vec![Span::new(0, usize::MAX).unwrap()]),
+        ]);
+        let hits = [
+            ChunkHit { doc: "d1".into(), span: Span::new(0, usize::MAX).unwrap(), score: 1.0 },
+            ChunkHit { doc: "d2".into(), span: Span::new(0, usize::MAX).unwrap(), score: 0.9 },
+        ];
+        assert_eq!(span_scores(&hits, &rel, 2), SpanScores { precision: 1.0, recall: 1.0, contained: 1.0 });
     }
 }

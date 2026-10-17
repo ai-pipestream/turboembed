@@ -93,7 +93,12 @@ impl Pipeline {
             let chunks = self.chunker.chunk(doc, embedder).map_err(|e| format!("document {}: {e}", d.id))?;
             let mut seen = BTreeSet::new();
             for s in chunks {
-                if s.end > d.text.len() || !seen.insert(s) {
+                if s.start >= s.end
+                    || s.end > d.text.len()
+                    || !d.text.is_char_boundary(s.start)
+                    || !d.text.is_char_boundary(s.end)
+                    || !seen.insert(s)
+                {
                     return Err(format!(
                         "document {}: the chunker gave the span [{}, {}) twice or past the text",
                         d.id, s.start, s.end
@@ -384,5 +389,27 @@ mod tests {
         assert!(!report.pass);
         assert_eq!(report.sets[0].difference.mean, 0.0);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn invalid_chunker_spans_are_refused() {
+        struct BadChunker(Span);
+        impl Chunker for BadChunker {
+            fn name(&self) -> &'static str {
+                "bad"
+            }
+            fn config(&self) -> Vec<crate::record::Setting> {
+                Vec::new()
+            }
+            fn chunk(&self, _: &turbo_analysis::Document, _: &mut dyn Embedder) -> Result<Vec<Span>> {
+                Ok(vec![self.0])
+            }
+        }
+        let mut s = set(None);
+        s.docs[0].text = "caf\u{e9}".into();
+        for bad in [Span { start: 3, end: 1 }, Span { start: 1, end: 1 }, Span { start: 0, end: 4 }] {
+            let mut p = pipeline(Box::new(BadChunker(bad)), Titles::Ignore);
+            assert!(p.evaluate(&s).is_err(), "{bad:?}");
+        }
     }
 }
