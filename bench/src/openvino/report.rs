@@ -83,7 +83,7 @@ pub fn parse(out: &str, percentile: u32) -> Result<Report> {
 /// record does not name the account that ran it. Commands are already
 /// recorded with placeholders; this is the failure text.
 pub fn redact_user_paths(text: &str) -> String {
-    const PREFIXES: [&str; 6] = ["/home/", "/root/", "/var/home/", "/Users/", "C:\\Users\\", "C:/Users/"];
+    const PREFIXES: [&str; 6] = ["/home/", "/root", "/var/home/", "/Users/", "C:\\Users\\", "C:/Users/"];
     const END_CHARS: [char; 13] = ['/', '\\', ' ', '\t', '\n', '\r', ':', ';', ',', '"', '\'', ')', ']'];
     let mut out = text.to_owned();
     let mut i = 0;
@@ -91,11 +91,25 @@ pub fn redact_user_paths(text: &str) -> String {
         let rest_lower = out[i..].to_ascii_lowercase();
         let found = PREFIXES
             .iter()
-            .filter_map(|p| rest_lower.find(&p.to_ascii_lowercase()).map(|at| (at, *p)))
+            .filter_map(|&p| {
+                let p_lower = p.to_ascii_lowercase();
+                if p == "/root" {
+                    rest_lower
+                        .match_indices(&p_lower)
+                        .find(|&(at, _)| {
+                            let after = at + p.len();
+                            after == rest_lower.len()
+                                || rest_lower[after..].chars().next().is_some_and(|c| END_CHARS.contains(&c))
+                        })
+                        .map(|(at, _)| (at, p))
+                } else {
+                    rest_lower.find(&p_lower).map(|at| (at, p))
+                }
+            })
             .min_by_key(|(at, _)| *at);
         let Some((at, prefix)) = found else { break };
         let start = i + at;
-        if prefix.eq_ignore_ascii_case("/root/") {
+        if prefix == "/root" {
             let root_end = start + "/root".len();
             out.replace_range(start..root_end, "<home>");
             i = start + "<home>".len();

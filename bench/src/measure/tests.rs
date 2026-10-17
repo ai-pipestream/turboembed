@@ -105,10 +105,14 @@ fn a_batch_of_one_cycles_every_fitting_case_in_its_own_frame() {
 
 #[test]
 fn redact_user_paths_preserves_trailing_text_after_root_and_bare_user_paths() {
+    assert_eq!(crate::openvino::redact_user_paths("failed /root"), "failed <home>");
+    assert_eq!(crate::openvino::redact_user_paths("/root: permission denied"), "<home>: permission denied");
     assert_eq!(
         crate::openvino::redact_user_paths("/root/model.xml: permission denied"),
         "<home>/model.xml: permission denied"
     );
+    assert_eq!(crate::openvino::redact_user_paths("/rooted/file and /rooted"), "/rooted/file and /rooted");
+    assert_eq!(crate::openvino::redact_user_paths("/rooted /root/a"), "/rooted <home>/a");
     assert_eq!(
         crate::openvino::redact_user_paths("/home/alice: I/O error on /Users/bob/run"),
         "<home>: I/O error on <home>/run"
