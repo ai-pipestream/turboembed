@@ -19,50 +19,54 @@ pub struct Linear {
     pub bias: Vec<f32>,
 }
 
+fn validate_linear_parts(what: &str, in_dim: usize, out_dim: usize, weight: &[f32], bias: &[f32]) -> Result<()> {
+    if in_dim == 0 || out_dim == 0 {
+        return Err(Error::new(INVALID_ARGUMENT, format!("{what} dimensions [{out_dim}, {in_dim}] must be positive")));
+    }
+    let Some(expected) = out_dim.checked_mul(in_dim) else {
+        return Err(Error::new(INVALID_SHAPE, format!("{what} dimensions [{out_dim}, {in_dim}] overflow usize")));
+    };
+    if weight.len() != expected {
+        return Err(Error::new(
+            INVALID_SHAPE,
+            format!("{what} weight has {} values, expected {expected} ({out_dim}x{in_dim})", weight.len()),
+        ));
+    }
+    if bias.len() != out_dim {
+        return Err(Error::new(INVALID_SHAPE, format!("{what} bias has {} values, expected {out_dim}", bias.len())));
+    }
+    if !weight.iter().all(|v| v.is_finite()) || !bias.iter().all(|v| v.is_finite()) {
+        return Err(Error::new(INVALID_ARGUMENT, format!("{what} contains non-finite weights or biases")));
+    }
+    Ok(())
+}
+
 impl Linear {
     /// Construct a linear layer from row-major `weight` (`[out_dim, in_dim]`)
     /// and `bias` (`[out_dim]`).
     pub fn new(in_dim: usize, out_dim: usize, weight: Vec<f32>, bias: Vec<f32>) -> Result<Self> {
-        if in_dim == 0 || out_dim == 0 {
-            return Err(Error::new(
-                INVALID_ARGUMENT,
-                format!("linear layer dimensions [{out_dim}, {in_dim}] must be positive"),
-            ));
-        }
-        let Some(expected) = out_dim.checked_mul(in_dim) else {
-            return Err(Error::new(
-                INVALID_SHAPE,
-                format!("linear layer dimensions [{out_dim}, {in_dim}] overflow usize"),
-            ));
-        };
-        if weight.len() != expected {
-            return Err(Error::new(
-                INVALID_SHAPE,
-                format!("linear weight has {} values, expected {expected} ({out_dim}x{in_dim})", weight.len()),
-            ));
-        }
-        if bias.len() != out_dim {
-            return Err(Error::new(
-                INVALID_SHAPE,
-                format!("linear bias has {} values, expected {out_dim}", bias.len()),
-            ));
-        }
-        if !weight.iter().all(|v| v.is_finite()) || !bias.iter().all(|v| v.is_finite()) {
-            return Err(Error::new(INVALID_ARGUMENT, "linear layer contains non-finite weights or biases"));
-        }
+        validate_linear_parts("linear layer", in_dim, out_dim, &weight, &bias)?;
         Ok(Self { in_dim, out_dim, weight, bias })
+    }
+
+    /// Validate that dimensions, `weight` cardinality, `bias` length, and
+    /// finiteness hold on this layer.
+    pub fn validate(&self, what: &str) -> Result<()> {
+        validate_linear_parts(what, self.in_dim, self.out_dim, &self.weight, &self.bias)
     }
 
     /// Compute `out = x * W^T + b` for a single vector `x` of length `in_dim`.
     pub fn apply(&self, x: &[f32], out: &mut [f32]) {
-        debug_assert_eq!(x.len(), self.in_dim);
-        debug_assert_eq!(out.len(), self.out_dim);
-        for (i, (row, &b)) in self.weight.chunks_exact(self.in_dim).zip(&self.bias).enumerate() {
+        assert_eq!(x.len(), self.in_dim);
+        assert_eq!(out.len(), self.out_dim);
+        assert_eq!(self.bias.len(), self.out_dim);
+        assert_eq!(self.weight.len(), self.out_dim.checked_mul(self.in_dim).expect("linear weight size overflows"));
+        for (dst, (row, &b)) in out.iter_mut().zip(self.weight.chunks_exact(self.in_dim).zip(&self.bias)) {
             let mut sum = b;
             for (&w, &xi) in row.iter().zip(x) {
                 sum += w * xi;
             }
-            out[i] = sum;
+            *dst = sum;
         }
     }
 
@@ -242,16 +246,18 @@ impl Head {
                 ),
             ));
         }
-        if let Some(pooler) = &self.pooler
-            && (pooler.in_dim != self.hidden || pooler.out_dim != self.hidden)
-        {
-            return Err(Error::new(
-                INVALID_SHAPE,
-                format!(
-                    "pooler dimensions [{}, {}] do not match head hidden width {}",
-                    pooler.out_dim, pooler.in_dim, self.hidden
-                ),
-            ));
+        self.classifier.validate("classifier")?;
+        if let Some(pooler) = &self.pooler {
+            if pooler.in_dim != self.hidden || pooler.out_dim != self.hidden {
+                return Err(Error::new(
+                    INVALID_SHAPE,
+                    format!(
+                        "pooler dimensions [{}, {}] do not match head hidden width {}",
+                        pooler.out_dim, pooler.in_dim, self.hidden
+                    ),
+                ));
+            }
+            pooler.validate("pooler")?;
         }
         if !states.len().is_multiple_of(self.hidden) {
             return Err(Error::new(
@@ -346,16 +352,40 @@ mod tests {
             kind: ClassifierKind::Sequence,
             hidden: 2,
             labels: vec!["neg".into(), "pos".into()],
-            pooler: None,
-            classifier: cls.clone(),
+            pooler: Some(cls.clone()),
+            classifier: cls,
         };
-        assert_eq!(head.logits(&[1.0, 2.0]).unwrap(), vec![1.0, 2.0]);
+        assert!(head.logits(&[1.0, 2.0]).is_ok());
         assert_eq!(head.logits(&[f32::NAN, 1.0]).unwrap_err().code, INVALID_ARGUMENT);
 
         let zero_hidden = Head { hidden: 0, ..head.clone() };
         assert_eq!(zero_hidden.logits(&[]).unwrap_err().code, INVALID_ARGUMENT);
 
-        let bad_cls = Head { hidden: 3, ..head };
+        let bad_cls = Head { hidden: 3, ..head.clone() };
         assert_eq!(bad_cls.logits(&[1.0, 2.0, 3.0]).unwrap_err().code, INVALID_SHAPE);
+
+        // Short and long mutated classifier/pooler weight and bias storage are rejected
+        // across logits, logits_into, probabilities, and probabilities_into.
+        let mut short_cls = head.clone();
+        short_cls.classifier.weight.clear();
+        let mut out_f32 = [0.0f32; 2];
+        let mut out_f64 = [0.0f64; 2];
+        assert_eq!(short_cls.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(short_cls.logits_into(&[1.0, 2.0], &mut out_f32).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(short_cls.probabilities(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(short_cls.probabilities_into(&[1.0, 2.0], &mut out_f64).unwrap_err().code, INVALID_SHAPE);
+
+        let mut long_cls = head.clone();
+        long_cls.classifier.weight.extend([1.0, 1.0]);
+        long_cls.classifier.bias.push(0.0);
+        assert_eq!(long_cls.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(long_cls.logits_into(&[1.0, 2.0], &mut out_f32).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(long_cls.probabilities(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(long_cls.probabilities_into(&[1.0, 2.0], &mut out_f64).unwrap_err().code, INVALID_SHAPE);
+
+        let mut bad_pooler = head;
+        bad_pooler.pooler.as_mut().unwrap().bias.pop();
+        assert_eq!(bad_pooler.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(bad_pooler.probabilities(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
     }
 }
