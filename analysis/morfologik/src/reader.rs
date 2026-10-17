@@ -103,6 +103,12 @@ impl Annotator for ExpandedDictionaryLemmatizer {
     type Writes = (Lemmas,);
 
     fn annotate(&self, (view, tokens, tags): Refs<'_, Self>) -> Result<(Lemmas,), Error> {
+        if tokens.spans.view() != view.id() {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("the tokens are in view {}, the text in view {}", tokens.spans.view().0, view.id().0),
+            });
+        }
         if tokens.spans.len() != tags.tags.len() {
             return Err(Error::Annotator {
                 annotator: Self::ID,

@@ -153,9 +153,8 @@ fn resolve_aspect_label(a_ix: Ix<Aspects>, aspects: &Aspects, toks: Option<&Toke
         let start = toks.spans.get(r.start).start as usize;
         let last = Ix::new(r.end.get() as u32 - 1);
         let end = toks.spans.get(last).end as usize;
-        let text = v.text();
-        if start <= end && end <= text.len() {
-            return text[start..end].trim().to_owned();
+        if let Some(slice) = v.text().get(start..end) {
+            return slice.trim().to_owned();
         }
     }
     String::new()
@@ -391,6 +390,23 @@ impl Annotator for SentimentBoundaries {
     type Writes = (Boundaries,);
 
     fn annotate(&self, (sents, view, toks, cats, aspects, incivility): Refs<'_, Self>) -> Result<(Boundaries,), Error> {
+        let target_view = sents.spans.view();
+        if let Some(v) = view
+            && v.id() != target_view
+        {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("the text is in view {}, the sentences in view {}", v.id().0, target_view.0),
+            });
+        }
+        if let Some(t) = toks
+            && t.spans.view() != target_view
+        {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("the tokens are in view {}, the sentences in view {}", t.spans.view().0, target_view.0),
+            });
+        }
         if let Some(c) = cats
             && c.len() != sents.spans.len()
         {
@@ -564,6 +580,33 @@ impl Annotator for ChunkFacetBuilder {
         &self,
         (chunks, sents, view, toks, cats, aspects, incivility): Refs<'_, Self>,
     ) -> Result<(ChunkFacets,), Error> {
+        let target_view = chunks.spans.view();
+        if sents.spans.view() != target_view {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!(
+                    "the sentences are in view {}, the chunks in view {}",
+                    sents.spans.view().0,
+                    target_view.0
+                ),
+            });
+        }
+        if let Some(v) = view
+            && v.id() != target_view
+        {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("the text is in view {}, the chunks in view {}", v.id().0, target_view.0),
+            });
+        }
+        if let Some(t) = toks
+            && t.spans.view() != target_view
+        {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("the tokens are in view {}, the chunks in view {}", t.spans.view().0, target_view.0),
+            });
+        }
         let n_chunks = chunks.len();
         let n_sents = sents.spans.len();
         let mut polarity = Vec::with_capacity(n_chunks);
@@ -993,5 +1036,57 @@ mod tests {
         assert!((boundary_similarity(&[2, 5], &[2, 5], 1) - 1.0).abs() < 1e-12);
         assert!((boundary_similarity(&[2, 5], &[2, 6], 1) - 0.75).abs() < 1e-12);
         assert!((boundary_similarity(&[2, 5], &[2, 8], 1) - (1.0 / 3.0)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn sentiment_boundaries_and_chunk_facet_builder_reject_mismatched_views() {
+        use turbo_analysis::{Alignment, Document, Key, Provenance};
+        let mut doc = Document::new("Great food.");
+        let derived_view = View::derived(doc.get::<View>().unwrap(), "Great food.".to_owned(), Alignment::identity());
+        doc.add(&Key::<View>::named("norm"), derived_view, Provenance::by("test")).unwrap();
+        let src = doc.get::<View>().unwrap();
+        let derived = doc.get_key(&Key::<View>::named("norm")).unwrap();
+
+        let mut sent_spans = Spans::new(ViewId::SOURCE);
+        sent_spans.push(Span::new(0, 11));
+        let sents = Sentences { spans: sent_spans };
+
+        let mut bad_tok_spans = Spans::new(derived.id());
+        bad_tok_spans.push(Span::new(0, 5));
+        let bad_toks = Tokens { spans: bad_tok_spans, sentence: None };
+
+        let sb = SentimentBoundaries::default();
+        let Err(err) = sb.annotate((&sents, Some(derived), None, None, None, None)) else {
+            panic!("expected view mismatch error");
+        };
+        assert!(err.to_string().contains("the text is in view 1, the sentences in view 0"), "got: {err}");
+        let Err(err) = sb.annotate((&sents, Some(src), Some(&bad_toks), None, None, None)) else {
+            panic!("expected view mismatch error");
+        };
+        assert!(err.to_string().contains("the tokens are in view 1, the sentences in view 0"), "got: {err}");
+
+        let mut chunk_spans = Spans::new(ViewId::SOURCE);
+        chunk_spans.push(Span::new(0, 11));
+        let chunks = Chunks {
+            spans: chunk_spans,
+            level: vec![0],
+            parent: vec![None],
+            sentences: vec![IxRange::new(0, 1)],
+            cut: vec![Cut::DocumentStart],
+            cost: vec![0],
+            model_tokens: vec![2],
+            over_budget: vec![false],
+        };
+        let mut bad_sent_spans = Spans::new(derived.id());
+        bad_sent_spans.push(Span::new(0, 11));
+        let bad_sents = Sentences { spans: bad_sent_spans };
+
+        let err = ChunkFacetBuilder.annotate((&chunks, &bad_sents, None, None, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("the sentences are in view 1, the chunks in view 0"), "got: {err}");
+        let err = ChunkFacetBuilder.annotate((&chunks, &sents, Some(derived), None, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("the text is in view 1, the chunks in view 0"), "got: {err}");
+        let err =
+            ChunkFacetBuilder.annotate((&chunks, &sents, Some(src), Some(&bad_toks), None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("the tokens are in view 1, the chunks in view 0"), "got: {err}");
     }
 }

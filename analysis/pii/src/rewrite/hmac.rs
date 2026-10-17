@@ -98,11 +98,13 @@ impl HmacTokenizer {
     }
 
     /// Replaces every mention of `pii`, a layer over `text`, with its
-    /// token. The mentions must not overlap.
+    /// token. The mentions must not overlap or have empty normalized forms.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        // A layer's normalized forms are never empty, so no token fails.
+        if let Some(m) = pii.mentions().find(|m| m.normalized.is_empty()) {
+            return Err(RewriteError::EmptyValue(m.span));
+        }
         PiiRewrite::replace(text, pii.mentions(), |m, out| {
-            self.write_token(m.kind, m.normalized, out).expect("a layer's values are not empty");
+            self.write_token(m.kind, m.normalized, out).expect("checked non-empty normalized values");
         })
     }
 }

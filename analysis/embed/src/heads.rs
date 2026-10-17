@@ -552,6 +552,13 @@ impl ClassifierHead {
         vectors: &Vectors<Sentences>,
     ) -> Result<Incivility, Error> {
         let fail = |detail: String| Error::Annotator { annotator, detail };
+        if tokens.spans.view() != sentences.spans.view() {
+            return Err(fail(format!(
+                "the tokens are in view {}, the sentences in view {}",
+                tokens.spans.view().0,
+                sentences.spans.view().0
+            )));
+        }
         if vectors.model != self.model {
             return Err(fail(format!(
                 "vectors are from model {} (revision {}), head is for {} (revision {})",
@@ -602,6 +609,13 @@ impl ClassifierHead {
         vectors: &Vectors<Chunks>,
     ) -> Result<Incivility, Error> {
         let fail = |detail: String| Error::Annotator { annotator, detail };
+        if tokens.spans.view() != chunks.spans.view() {
+            return Err(fail(format!(
+                "the tokens are in view {}, the chunks in view {}",
+                tokens.spans.view().0,
+                chunks.spans.view().0
+            )));
+        }
         if vectors.model != self.model {
             return Err(fail(format!(
                 "vectors are from model {} (revision {}), head is for {} (revision {})",
@@ -649,6 +663,13 @@ impl ClassifierHead {
         vectors: &Vectors<Sentences>,
     ) -> Result<Pragmatics, Error> {
         let fail = |detail: String| Error::Annotator { annotator, detail };
+        if tokens.spans.view() != sentences.spans.view() {
+            return Err(fail(format!(
+                "the tokens are in view {}, the sentences in view {}",
+                tokens.spans.view().0,
+                sentences.spans.view().0
+            )));
+        }
         if vectors.model != self.model {
             return Err(fail(format!(
                 "vectors are from model {} (revision {}), head is for {} (revision {})",
@@ -1364,5 +1385,51 @@ mod tests {
         let (tag_neg, p_neg) = h1.score(&[-0.95, -0.15], &mut probs).unwrap();
         assert_eq!(tag_neg, Tag(1));
         assert!(p_neg > 0.9, "p_neg={p_neg}");
+    }
+
+    #[test]
+    fn incivility_and_pragmatics_scoring_reject_tokens_from_another_view() {
+        use turbo_analysis::{IxRange, Spans, ViewId};
+        use turbo_analysis_layers::Cut;
+        let inciv_names = IncivilityLabel::ALL.map(|l| l.name());
+        let inciv_tags = TagSet::new("incivility", &inciv_names);
+        let inciv_head =
+            ClassifierHead::linear(test_model(), 2, inciv_tags, HeadMode::MultiLabel, vec![0.0; 12], vec![0.0; 6])
+                .unwrap();
+        let prag_tags = TagSet::new("pragmatics", &["sarcastic", "literal"]);
+        let prag_head =
+            ClassifierHead::linear(test_model(), 2, prag_tags, HeadMode::SingleLabel, vec![0.0; 4], vec![0.0; 2])
+                .unwrap();
+
+        let mut sent_spans = Spans::new(ViewId::SOURCE);
+        sent_spans.push(Span::new(0, 5));
+        let sentences = Sentences { spans: sent_spans };
+
+        let mut chunk_spans = Spans::new(ViewId::SOURCE);
+        chunk_spans.push(Span::new(0, 5));
+        let chunks = Chunks {
+            spans: chunk_spans,
+            level: vec![0],
+            parent: vec![None],
+            sentences: vec![IxRange::new(0, 1)],
+            cut: vec![Cut::Sentence],
+            cost: vec![0],
+            model_tokens: vec![0],
+            over_budget: vec![false],
+        };
+
+        let mut tok_spans = Spans::new(ViewId(1));
+        tok_spans.push(Span::new(0, 5));
+        let bad_tokens = Tokens { spans: tok_spans, sentence: None };
+
+        let vecs = Vectors::<Sentences>::new(2, vec![0.1, 0.2], Vec::new(), test_model());
+        let err = inciv_head.score_incivility_sentences("test", &bad_tokens, &sentences, &vecs).unwrap_err();
+        assert!(err.to_string().contains("the tokens are in view 1, the sentences in view 0"), "got: {err}");
+        let err = prag_head.score_pragmatics_sentences("test", &sentences, &bad_tokens, &vecs).unwrap_err();
+        assert!(err.to_string().contains("the tokens are in view 1, the sentences in view 0"), "got: {err}");
+
+        let chunk_vecs = Vectors::<Chunks>::new(2, vec![0.1, 0.2], Vec::new(), test_model());
+        let err = inciv_head.score_incivility_chunks("test", &bad_tokens, &chunks, &chunk_vecs).unwrap_err();
+        assert!(err.to_string().contains("the tokens are in view 1, the chunks in view 0"), "got: {err}");
     }
 }

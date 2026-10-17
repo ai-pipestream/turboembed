@@ -14,6 +14,8 @@ pub enum RewriteError {
     Span(Span),
     /// Two mentions overlap, so one replacement would cut the other.
     Overlap(Span, Span),
+    /// A mention has an empty normalized form that cannot be tokenized.
+    EmptyValue(Span),
 }
 
 impl fmt::Display for RewriteError {
@@ -22,6 +24,9 @@ impl fmt::Display for RewriteError {
             RewriteError::Span(s) => write!(f, "the span {}..{} is not a range of the text", s.start, s.end),
             RewriteError::Overlap(a, b) => {
                 write!(f, "mentions must not overlap: {}..{} and {}..{}", a.start, a.end, b.start, b.end)
+            }
+            RewriteError::EmptyValue(s) => {
+                write!(f, "mention at {}..{} has an empty normalized form", s.start, s.end)
             }
         }
     }
