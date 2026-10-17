@@ -1,8 +1,9 @@
-use turbo_analysis_layers::{DateTime, Modifier, Portion, Relation, TimeGrain, TimeKind};
+use turbo_analysis_layers::{Date, DateTime, Modifier, Portion, Relation, TimeGrain, TimeKind};
 
+use super::dates::{Choice, DateTimex, dates};
 use super::*;
 use crate::time::duration::{Duration, Unit};
-use crate::time::spec::{Clock, Edge, Meridiem, Part, Point, Range, Recurrence, Shown, TimeOfDay};
+use crate::time::spec::{Clock, Edge, Holiday, Meridiem, MonthRef, Part, Point, Range, Recurrence, Shown, TimeOfDay};
 
 fn now(s: &str) -> DateTime {
     DateTime::parse(s).unwrap()
@@ -24,6 +25,21 @@ fn show(r: &Resolved) -> Vec<String> {
         .collect()
 }
 
+fn show_choice(c: &Choice) -> Vec<String> {
+    c.readings()
+        .map(|(_, d)| {
+            let t = match d.timex {
+                DateTimex::Date(t) => t.to_string(),
+                DateTimex::Range(s, e, l) => format!("({s},{e},{l})"),
+            };
+            match d.span {
+                Some((s, e)) => format!("{t} {s} {e}"),
+                None => format!("{t} -"),
+            }
+        })
+        .collect()
+}
+
 fn day(n: i16) -> DateSpec {
     DateSpec::Rel { grain: TimeGrain::Day, n }
 }
@@ -38,6 +54,101 @@ fn cal(year: YearRef, month: u8, day: u8, weekday: u8) -> DateSpec {
 
 fn point(p: Point) -> Resolved {
     resolve(&TimeValue::point(p), now("2016-11-07T16:12:00")).unwrap()
+}
+
+#[test]
+fn open_years_read_both_ways() {
+    let n = now("2016-11-07T00:00:00");
+    assert_eq!(
+        show_choice(&dates(cal(YearRef::Any, 10, 2, 0), n).unwrap()),
+        ["XXXX-10-02 2016-10-02 2016-10-03", "XXXX-10-02 2017-10-02 2017-10-03"]
+    );
+    let n2 = now("2016-11-02T10:00:00");
+    assert_eq!(show_choice(&dates(cal(YearRef::Any, 11, 2, 0), n2).unwrap())[1], "XXXX-11-02 2017-11-02 2017-11-03");
+    assert_eq!(show_choice(&dates(cal(YearRef::Any, 0, 0, 5), n).unwrap()).len(), 2);
+    assert_eq!(show_choice(&dates(cal(YearRef::Any, 0, 0, 1), n).unwrap())[1], "XXXX-WXX-1 2016-11-07 2016-11-08");
+    assert_eq!(show_choice(&dates(cal(YearRef::Any, 12, 0, 0), n).unwrap())[0], "XXXX-12 2015-12-01 2016-01-01");
+    assert_eq!(show_choice(&dates(cal(YearRef::Any, 2, 30, 0), n).unwrap()), ["XXXX-02-30 -"]);
+    let leap = show_choice(&dates(cal(YearRef::Any, 2, 29, 0), now("2017-03-22T00:00:00")).unwrap());
+    assert_eq!(leap, ["XXXX-02-29 2016-02-29 2016-03-01", "XXXX-02-29 2020-02-29 2020-03-01"]);
+    let the_4th = show_choice(&dates(cal(YearRef::Any, 0, 4, 0), now("2018-08-07T12:00:00")).unwrap());
+    assert_eq!(the_4th, ["XXXX-XX-04 2018-08-04 2018-08-05", "XXXX-XX-04 2018-09-04 2018-09-05"]);
+    let short = show_choice(&dates(cal(YearRef::Short(30), 12, 12, 0), n).unwrap());
+    assert_eq!(short, ["XX30-12-12 1930-12-12 1930-12-13", "XX30-12-12 2030-12-12 2030-12-13"]);
+}
+
+#[test]
+fn weekdays_on_days_of_the_month() {
+    let r = show_choice(
+        &dates(DateSpec::WeekdayDay { weekday: 1, day: 21, this_month: false }, now("2019-01-25T12:00:00")).unwrap(),
+    );
+    assert_eq!(r, ["XXXX-WXX-1 2019-01-21 2019-01-22", "XXXX-WXX-1 2019-10-21 2019-10-22"]);
+    let r = show_choice(
+        &dates(DateSpec::WeekdayDay { weekday: 1, day: 21, this_month: false }, now("2019-01-21T12:00:00")).unwrap(),
+    );
+    assert_eq!(r, ["2019-01-21 2019-01-21 2019-01-22"]);
+}
+
+#[test]
+fn relative_periods() {
+    let n = now("2019-07-04T00:00:00");
+    let q = |n: i16| {
+        show_choice(&dates(DateSpec::Rel { grain: TimeGrain::Quarter, n }, now("2019-07-04T00:00:00")).unwrap())
+    };
+    assert_eq!(q(0), ["(2019-07-01,2019-10-01,P3M) 2019-07-01 2019-10-01"]);
+    assert_eq!(q(-1)[0].split(' ').next(), Some("(2019-04-01,2019-07-01,P3M)"));
+    assert_eq!(
+        show_choice(&dates(DateSpec::Rel { grain: TimeGrain::Week, n: 1 }, n).unwrap())[0],
+        "2019-W28 2019-07-08 2019-07-15"
+    );
+    let we =
+        show_choice(&dates(DateSpec::Rel { grain: TimeGrain::Weekend, n: 0 }, now("2016-11-11T00:00:00")).unwrap());
+    assert_eq!(we, ["2016-W45-WE 2016-11-12 2016-11-14"]);
+    let decade =
+        show_choice(&dates(DateSpec::Rel { grain: TimeGrain::Decade, n: 1 }, now("2018-07-02T00:00:00")).unwrap());
+    assert_eq!(decade, ["(2020-01-01,2030-01-01,P10Y) 2020-01-01 2030-01-01"]);
+    let past = show_choice(&dates(DateSpec::WeekdayPast { weekday: 3 }, now("2019-01-31T00:00:00")).unwrap());
+    assert_eq!(past, ["2019-01-30 2019-01-30 2019-01-31"]);
+    let fortnight = show_choice(&dates(DateSpec::Fortnight { n: 0 }, now("2021-05-20T00:00:00")).unwrap());
+    assert_eq!(fortnight, ["(2021-05-17,2021-05-31,P2W) 2021-05-17 2021-05-31"]);
+    let same =
+        show_choice(&dates(DateSpec::Undefined { grain: TimeGrain::Month }, now("2017-11-08T00:00:00")).unwrap());
+    assert_eq!(same, ["XXXX-XX 2017-11-01 2017-12-01"]);
+}
+
+#[test]
+fn weeks_quarters_decades_and_holidays() {
+    let n = now("2016-11-07T00:00:00");
+    let lw = DateSpec::MonthWeek { year: YearRef::Any, month: MonthRef::Abs(7), week: 0 };
+    assert_eq!(
+        show_choice(&dates(lw, n).unwrap()),
+        ["XXXX-07-W05 2016-07-25 2016-08-01", "XXXX-07-W05 2017-07-24 2017-07-31"]
+    );
+    let w1 = DateSpec::Week { year: YearRef::Abs(2015), week: 1 };
+    assert_eq!(show_choice(&dates(w1, n).unwrap()), ["2015-W01 2014-12-29 2015-01-05"]);
+    let q1 = DateSpec::Quarter { year: YearRef::Any, quarter: 1 };
+    let r = show_choice(&dates(q1, now("2019-11-07T00:00:00")).unwrap());
+    assert_eq!(r[0], "(XXXX-01-01,XXXX-04-01,P3M) 2019-01-01 2019-04-01");
+    assert_eq!(r[1], "(XXXX-01-01,XXXX-04-01,P3M) 2020-01-01 2020-04-01");
+    let nineties =
+        show_choice(&dates(DateSpec::Decade { year: YearRef::Short(90) }, now("2019-05-23T00:00:00")).unwrap());
+    assert_eq!(nineties[0], "(XX90-01-01,XX00-01-01,P10Y) 1990-01-01 2000-01-01");
+    assert_eq!(nineties[1], "(XX90-01-01,XX00-01-01,P10Y) 2090-01-01 2100-01-01");
+    let c15 = show_choice(&dates(DateSpec::Century { n: 15 }, n).unwrap());
+    assert_eq!(c15, ["(1400-01-01,1500-01-01,P100Y) 1400-01-01 1500-01-01"]);
+    let easter_monday = DateSpec::Holiday { holiday: Holiday::Easter { days: 1 }, year: YearRef::Any };
+    let r = show_choice(&dates(easter_monday, now("2019-08-05T00:00:00")).unwrap());
+    assert_eq!(r, ["XXXX-04-22 2019-04-22 2019-04-23", "XXXX-04-22 2020-04-13 2020-04-14"]);
+    let next_easter = DateSpec::HolidayNear { holiday: Holiday::Easter { days: 0 }, future: true };
+    assert_eq!(
+        show_choice(&dates(next_easter, now("2019-06-12T00:00:00")).unwrap())[0],
+        "2020-04-12 2020-04-12 2020-04-13"
+    );
+    let first_monday = DateSpec::NthWeekday { year: YearRef::Any, month: MonthRef::Rel(1), weekday: 1, n: 1 };
+    assert_eq!(
+        show_choice(&dates(first_monday, now("2018-08-01T12:00:00")).unwrap())[0],
+        "XXXX-09-WXX-1-#1 2018-09-03 2018-09-04"
+    );
 }
 
 #[test]
@@ -95,6 +206,11 @@ fn modifiers_bound_and_cut() {
         (r.kind, r.modifier, show(&r)),
         (TimeKind::DateTime, Modifier::NONE, vec!["2018-05-29T23:59:59 2018-05-29 23:59:59".to_string()])
     );
+    // A day with both a portion and a relation stays DateTimeRange.
+    let since_end_day =
+        TimeValue::Point { point: Point::date(day(1)), modifier: m(Relation::Since, Portion::End), clip: false };
+    let r = resolve(&since_end_day, n).unwrap();
+    assert_eq!((r.kind, show(&r)), (TimeKind::DateTimeRange, vec!["2018-05-29 2018-05-29 12:00:00..".to_string()]));
     // `mid 1989` is May to August, as Recognizers-Text gives it.
     let mid = TimeValue::Point { point: year(1989), modifier: Modifier::portion(Portion::Mid), clip: false };
     assert_eq!(show(&resolve(&mid, n).unwrap()), ["1989 1989-05-01..1989-09-01"]);
@@ -129,6 +245,30 @@ fn modifiers_bound_and_cut() {
         clip: false,
     };
     assert_eq!(show(&resolve(&around, n).unwrap()), ["T13 13:00:00"]);
+}
+
+#[test]
+fn extreme_dates_and_invalid_inputs_do_not_overflow_or_invert() {
+    let min_now = DateTime::midnight(Date::MIN);
+    let max_now = DateTime::midnight(Date::MAX);
+    assert!(dates(DateSpec::Quarter { year: YearRef::Any, quarter: 0 }, now("2019-11-07T00:00:00")).is_none());
+    assert!(dates(DateSpec::Quarter { year: YearRef::Any, quarter: 5 }, now("2019-11-07T00:00:00")).is_none());
+    assert!(dates(DateSpec::Half { year: YearRef::Any, half: 0 }, now("2019-11-07T00:00:00")).is_none());
+    assert!(dates(DateSpec::Half { year: YearRef::Any, half: 3 }, now("2019-11-07T00:00:00")).is_none());
+    assert!(dates(DateSpec::Rel { grain: TimeGrain::Decade, n: i16::MAX }, max_now).is_none());
+    assert!(dates(DateSpec::Rel { grain: TimeGrain::Decade, n: i16::MIN }, min_now).is_none());
+    assert!(dates(DateSpec::Rel { grain: TimeGrain::Month, n: -1 }, min_now).is_none());
+    assert!(dates(DateSpec::Rel { grain: TimeGrain::Year, n: 1 }, max_now).is_none());
+    let past_week_clipped = TimeValue::Point {
+        point: Point::date(DateSpec::Rel { grain: TimeGrain::Week, n: -2 }),
+        modifier: Modifier::portion(Portion::End),
+        clip: true,
+    };
+    assert!(resolve(&past_week_clipped, now("2018-05-28T00:00:00")).is_none());
+    let neg_dur = Duration::of(Unit::Day, -1000);
+    assert!(resolve(&TimeValue::Duration { length: neg_dur, modifier: Modifier::NONE }, min_now).is_none());
+    assert!(resolve(&TimeValue::range(Range::For { start: Point::date(day(0)), length: neg_dur }), min_now).is_none());
+    assert!(resolve(&TimeValue::range(Range::Within { length: neg_dur }), min_now).is_none());
 }
 
 #[test]

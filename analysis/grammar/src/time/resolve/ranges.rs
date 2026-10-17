@@ -23,6 +23,9 @@ pub(super) fn resolve(r: &Range, modifier: Modifier, now: DateTime) -> Option<Re
 
 /// A duration of `seconds` in hours, minutes and seconds: `PT2H30M`.
 fn clock_duration(seconds: i64) -> Option<Duration> {
+    if seconds < 0 {
+        return None;
+    }
     let mut d = Duration::ZERO;
     for (unit, size) in [(Unit::Hour, 3600), (Unit::Minute, 60), (Unit::Second, 1)] {
         let n = seconds / size % if size == 3600 { i64::MAX } else { 60 };
@@ -37,8 +40,11 @@ fn clock_duration(seconds: i64) -> Option<Duration> {
 /// grains call for.
 fn date_duration(a: Date, b: Date, unit: Unit) -> Option<Duration> {
     let n = match unit {
-        Unit::Year => b.year() - a.year(),
-        Unit::Month => (b.year() - a.year()) * 12 + i32::from(b.month()) - i32::from(a.month()),
+        Unit::Year => b.year().checked_sub(a.year())?,
+        Unit::Month => i32::try_from(
+            (i64::from(b.year()) - i64::from(a.year())) * 12 + i64::from(b.month()) - i64::from(a.month()),
+        )
+        .ok()?,
         _ => i32::try_from(b.epoch_day() - a.epoch_day()).ok()?,
     };
     Duration::units(unit, n)
@@ -282,10 +288,13 @@ fn clock_range(start: &Point, end: &Point, now: DateTime) -> Option<(TimeKind, T
 
 /// `from now until 3 min later`: now to a shifted now.
 fn now_to_shift(start: &Point, end: &Point, now: DateTime) -> Option<(TimeKind, TimeGrain, Vec<Moment>)> {
-    if start.time != TimeOfDay::Now || end.time != TimeOfDay::Now || !start.shift.is_zero() {
+    if start.time != TimeOfDay::Now || end.time != TimeOfDay::Now || !start.shift.is_zero() || end.shift.millis() < 0 {
         return None;
     }
     let b = shift(now, &end.shift)?;
+    if b < now {
+        return None;
+    }
     let end_timex = TimexPoint { date: TimexDate::day(b.date()), time: TimexTime::seconds(b.second_of_day()) };
     let timex = Timex::Range(TimexPoint { date: TimexDate::Present, time: TimexTime::None }, end_timex, end.shift);
     let span = Some(Span::Range(Some(Instant::DateTime(now)), Some(Instant::DateTime(b))));
@@ -298,12 +307,15 @@ fn datetime_timex(t: DateTime) -> TimexPoint {
 }
 
 fn for_length(start: &Point, length: &Duration, now: DateTime) -> Option<(TimeKind, TimeGrain, Vec<Moment>)> {
+    if length.millis() < 0 {
+        return None;
+    }
     let grain = super::points::grain(start)?;
     match (start.date, start.time) {
         (DateSpec::None, TimeOfDay::Clock(c)) => {
             let h = c.hours().0[0];
             let st = c.seconds_at(h);
-            let et = i64::from(st) + length.millis() / 1000;
+            let et = i64::from(st).checked_add(length.millis() / 1000)?;
             let et = u32::try_from(et).ok()?;
             let timex = Timex::Range(
                 TimexPoint { date: TimexDate::None, time: clock_timex(h, &c) },
@@ -320,6 +332,9 @@ fn for_length(start: &Point, length: &Duration, now: DateTime) -> Option<(TimeKi
                 let DateTimex::Date(dt) = d.timex else { return None };
                 let a = at(d.span?.0, c.seconds_at(h))?;
                 let b = shift(a, length)?;
+                if b < a {
+                    return None;
+                }
                 let end_date = if b.date() == a.date() { dt } else { next_day(dt, b.date()) };
                 let timex = Timex::Range(
                     TimexPoint { date: dt, time: clock_timex(h, &c) },
@@ -343,6 +358,9 @@ fn for_length(start: &Point, length: &Duration, now: DateTime) -> Option<(TimeKi
             let choice = dates(date, now)?;
             let s = choice.future.span?.0;
             let e = plus(s, length)?;
+            if e < s {
+                return None;
+            }
             let timex = Timex::Range(day_timex(s, false), day_timex(e, false), *length);
             let span = Some(Span::Range(Some(Instant::Date(s)), Some(Instant::Date(e))));
             Some((TimeKind::DateRange, TimeGrain::Day, vec![Moment { timex, span, future: true, first: true }]))
@@ -370,10 +388,16 @@ fn business_days(from: Date, n: i32) -> Option<(Date, Date)> {
 fn next(length: &Duration, align: TimeGrain, now: DateTime) -> Option<(TimeKind, TimeGrain, Vec<Moment>)> {
     let back = length.parts().first()?.1 < 0;
     let forward = if back { length.negated() } else { *length };
+    if forward.millis() < 0 {
+        return None;
+    }
     let grain = super::unit_grain(length.finest()?);
     let one = |timex, span| vec![Moment { timex, span: Some(span), future: true, first: true }];
     if length.parts().iter().any(|(u, _)| u.is_clock()) {
         let (a, b) = if back { (shift(now, length)?, now) } else { (now, shift(now, length)?) };
+        if b < a {
+            return None;
+        }
         let timex = Timex::Range(datetime_timex(a), datetime_timex(b), forward);
         let span = Span::Range(Some(Instant::DateTime(a)), Some(Instant::DateTime(b)));
         return Some((TimeKind::DateTimeRange, grain, one(timex, span)));
@@ -396,22 +420,34 @@ fn next(length: &Duration, align: TimeGrain, now: DateTime) -> Option<(TimeKind,
             (s, plus(s, &forward)?)
         }
     };
+    if e < s {
+        return None;
+    }
     let timex = Timex::Range(day_timex(s, false), day_timex(e, false), forward);
     let span = Span::Range(Some(Instant::Date(s)), Some(Instant::Date(e)));
     Some((TimeKind::DateRange, grain, one(timex, span)))
 }
 
 fn within(length: &Duration, now: DateTime) -> Option<(TimeKind, TimeGrain, Vec<Moment>)> {
+    if length.millis() < 0 {
+        return None;
+    }
     let grain = super::unit_grain(length.finest()?);
     let moment = |timex, span| vec![Moment { timex, span: Some(span), future: true, first: true }];
     if length.parts().iter().any(|(u, _)| u.is_clock()) {
         let b = shift(now, length)?;
+        if b < now {
+            return None;
+        }
         let timex = Timex::Range(datetime_timex(now), datetime_timex(b), *length);
         let span = Span::Range(Some(Instant::DateTime(now)), Some(Instant::DateTime(b)));
         return Some((TimeKind::DateTimeRange, grain, moment(timex, span)));
     }
     let s = now.date();
     let e = plus(s, length)?;
+    if e < s {
+        return None;
+    }
     let timex = Timex::Range(day_timex(s, false), day_timex(e, false), *length);
     let span = Span::Range(Some(Instant::Date(s)), Some(Instant::Date(e)));
     Some((TimeKind::DateRange, grain, moment(timex, span)))

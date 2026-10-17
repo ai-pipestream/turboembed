@@ -40,7 +40,7 @@ pub(super) fn shift(t: DateTime, length: &Duration) -> Option<DateTime> {
     let mut out = t;
     for &(unit, milli) in length.parts() {
         out = if unit.is_clock() {
-            out.plus_seconds(unit.seconds() * i64::from(milli) / 1000)?
+            out.plus_seconds(unit.seconds().checked_mul(i64::from(milli))? / 1000)?
         } else {
             let d = plus(out.date(), &Duration::of(unit, milli))?;
             DateTime::at(d, out.second_of_day())?
@@ -247,7 +247,7 @@ fn portion_of(
         // eighties` is 1980 to 1983, the middle 1984 to 1986, the late
         // 1987 to 1989.
         TimeGrain::Decade => {
-            let at = |n: i32| Date::new(ds.year() + n, 1, 1);
+            let at = |n: i32| Date::new(ds.year().checked_add(n)?, 1, 1);
             match portion {
                 Portion::Start => (ds, early(at(4)?)),
                 Portion::Mid => (at(4)?, at(7)?),
@@ -266,7 +266,7 @@ fn portion_of(
         }
         _ => return None,
     };
-    Some((Instant::Date(start), Instant::Date(end)))
+    (start <= end).then_some((Instant::Date(start), Instant::Date(end)))
 }
 
 /// A day's portion as date-times: `early in the day` is its first half,
@@ -315,7 +315,18 @@ pub(super) fn modify(
         return Some(kind);
     }
     let portion = modifier.portion;
-    let mut out = kind;
+    let mut out = if matches!(portion, Portion::Start | Portion::Mid | Portion::End) && kind == TimeKind::Date {
+        if portion == Portion::End && !clip && modifier.relation == Relation::None {
+            TimeKind::DateTime
+        } else {
+            TimeKind::DateTimeRange
+        }
+    } else {
+        kind
+    };
+    if modifier.relation != Relation::None {
+        out = range_kind(out);
+    }
     for m in moments.iter_mut() {
         let Some(span) = m.span else { continue };
         let (s, e) = match span {
@@ -328,10 +339,8 @@ pub(super) fn modify(
                 let d = date_of(s)?;
                 if portion == Portion::End && !clip && modifier.relation == Relation::None {
                     end_of_day(m, d)?;
-                    out = TimeKind::DateTime;
                     continue;
                 }
-                out = TimeKind::DateTimeRange;
                 day_portion(d, portion)?
             }
             Portion::Start | Portion::Mid | Portion::End => portion_of(s, e, portion, spec, grain, clip, now)?,
@@ -345,9 +354,6 @@ pub(super) fn modify(
             Relation::Until => Span::Range(None, Some(pe)),
             _ => return None,
         });
-        if modifier.relation != Relation::None {
-            out = range_kind(kind);
-        }
     }
     Some(out)
 }

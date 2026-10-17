@@ -17,9 +17,11 @@ use crate::engine::{Grammar, Output, Parser};
 use crate::lang::en::ENGLISH_TIMES;
 use crate::time::{Resolution, Resolved, Timex, depends_on_reference, resolve};
 
-/// Resolves values that name no reference; any fixed instant gives the
-/// same kind and grain.
-const NEUTRAL: Date = Date::MIN;
+/// Resolves values that name no reference, and gives open mentions a
+/// mid-range anchor with room in both directions for their kind and grain.
+fn neutral() -> DateTime {
+    DateTime::midnight(Date::from_epoch_day(0).unwrap())
+}
 
 /// Runs a time grammar over a text view. Parsers are pooled, so their
 /// buffers are reused between documents.
@@ -62,10 +64,10 @@ impl TimeAnnotator {
         parser.select(text, Output::Time, &mut mentions);
         let mut times = Times::new(view);
         let mut timex = String::new();
+        let now = reference.unwrap_or_else(neutral);
         for m in &mentions {
             let Some(value) = parser.times().get(&m.value) else { continue };
             let open = reference.is_none() && depends_on_reference(&value);
-            let now = reference.unwrap_or(DateTime::midnight(NEUTRAL));
             let Some(r) = resolve(&value, now) else { continue };
             push(&mut times, Span::new(m.start, m.end), &r, open, &mut timex);
         }
@@ -177,15 +179,20 @@ mod tests {
 
     #[test]
     fn without_a_reference_relative_mentions_stay_unresolved() {
-        let t = TimeAnnotator::english().find("tomorrow, not on 2016-11-07", ViewId::SOURCE, None);
+        let text = "tomorrow, yesterday, last week, Monday or May 29, not on 2016-11-07";
+        let t = TimeAnnotator::english().find(text, ViewId::SOURCE, None);
         assert_eq!(t.check(), Ok(()));
-        assert_eq!(t.len(), 2);
-        let tomorrow = t.get(t.spans.iter().next().unwrap().0);
-        assert_eq!(
-            (tomorrow.kind, tomorrow.grain, tomorrow.timex, tomorrow.start),
-            (TimeKind::Date, TimeGrain::Day, "", None)
-        );
-        let fixed = t.get(t.spans.iter().nth(1).unwrap().0);
+        let got: Vec<_> = t.spans.iter().map(|(i, s)| (&text[s.start as usize..s.end as usize], t.get(i))).collect();
+        assert_eq!(got.len(), 6, "{got:?}");
+        for &(s, m) in &got[..5] {
+            assert_eq!((s, m.timex, m.start, m.end), (s, "", None, None));
+        }
+        assert_eq!((got[0].1.kind, got[0].1.grain), (TimeKind::Date, TimeGrain::Day));
+        assert_eq!((got[1].1.kind, got[1].1.grain), (TimeKind::Date, TimeGrain::Day));
+        assert_eq!((got[2].1.kind, got[2].1.grain), (TimeKind::DateRange, TimeGrain::Week));
+        assert_eq!((got[3].1.kind, got[3].1.grain), (TimeKind::Date, TimeGrain::Day));
+        assert_eq!((got[4].1.kind, got[4].1.grain), (TimeKind::Date, TimeGrain::Day));
+        let fixed = got[5].1;
         assert_eq!(fixed.timex, "2016-11-07");
         assert!(fixed.start.is_some());
     }
