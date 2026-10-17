@@ -24,7 +24,7 @@
 //! candidates are exactly OpenNLP's. A lookup allocates only the arena of
 //! its own deletes and the code points of the query.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
 use super::config::{MAX_COUNT, SymSpellConfig};
@@ -47,6 +47,13 @@ pub struct SymSpell {
     lists: Vec<Vec<u32>>,
     pub(crate) bigrams: HashMap<String, u64>,
     pub(crate) min_bigram_count: u64,
+    /// Number of bigrams currently holding `min_bigram_count`, so incrementing
+    /// one of several tied minimum bigrams updates in O(1) without rescanning.
+    min_bigram_ties: usize,
+    /// Lazily populated histogram of bigram counts once all initial ties at
+    /// `min_bigram_count` have been incremented, keeping subsequent minimum
+    /// updates O(log d).
+    by_count: BTreeMap<u64, usize>,
     max_bigram_count: u64,
     /// The length in code points of the longest indexed word.
     pub(super) max_length: usize,
@@ -111,6 +118,8 @@ impl SymSpell {
             lists: Vec::new(),
             bigrams: HashMap::new(),
             min_bigram_count: MAX_COUNT,
+            min_bigram_ties: 0,
+            by_count: BTreeMap::new(),
             max_bigram_count: 0,
             max_length: 0,
             total_count: 0,
@@ -180,7 +189,7 @@ impl SymSpell {
     /// calls have the same fingerprint, so it can stand for the dictionary
     /// in a normalizer's configuration hash.
     pub fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        fmix(self.fingerprint ^ self.min_bigram_count)
     }
 
     fn mix(&mut self, parts: &[u64]) {
@@ -241,7 +250,11 @@ impl SymSpell {
     }
 
     /// Adds `count` to the bigram `w1 w2` for compound correction. A zero
-    /// count records the call in the fingerprint and changes nothing else.
+    /// count records the call in the fingerprint and changes nothing else
+    /// (matching [`SymSpell::add`]). Unlike OpenNLP's `SymSpell.addBigram`,
+    /// which stores zero counts and leaves `minBigramCount` at its stale
+    /// pre-increment value when an existing minimum bigram is updated, this
+    /// keeps `min_bigram_count` equal to the minimum positive bigram count.
     /// Counts saturate at [`MAX_COUNT`].
     pub fn add_bigram(&mut self, w1: &str, w2: &str, count: u64) {
         let count = count.min(MAX_COUNT);
@@ -255,10 +268,36 @@ impl SymSpell {
         let updated = saturated_add(previous, count);
         *entry = updated;
         self.max_bigram_count = self.max_bigram_count.max(updated);
-        if previous == 0 {
-            self.min_bigram_count = self.min_bigram_count.min(updated);
+        if !self.by_count.is_empty() {
+            if previous > 0
+                && let Some(ties) = self.by_count.get_mut(&previous)
+            {
+                *ties -= 1;
+                if *ties == 0 {
+                    self.by_count.remove(&previous);
+                }
+            }
+            *self.by_count.entry(updated).or_insert(0) += 1;
+            let (&min, &ties) = self.by_count.first_key_value().expect("at least one bigram");
+            self.min_bigram_count = min;
+            self.min_bigram_ties = ties;
+        } else if previous == 0 {
+            if updated < self.min_bigram_count {
+                self.min_bigram_count = updated;
+                self.min_bigram_ties = 1;
+            } else if updated == self.min_bigram_count {
+                self.min_bigram_ties += 1;
+            }
         } else if previous == self.min_bigram_count && updated > previous {
-            self.min_bigram_count = self.bigrams.values().copied().min().unwrap_or(MAX_COUNT);
+            self.min_bigram_ties -= 1;
+            if self.min_bigram_ties == 0 {
+                for &c in self.bigrams.values() {
+                    *self.by_count.entry(c).or_insert(0) += 1;
+                }
+                let (&min, &ties) = self.by_count.first_key_value().expect("at least one bigram");
+                self.min_bigram_count = min;
+                self.min_bigram_ties = ties;
+            }
         }
     }
 

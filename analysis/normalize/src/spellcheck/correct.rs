@@ -371,6 +371,7 @@ impl<'s> Skip<'s> {
 
 impl Normalizer for SpellCorrect {
     const ID: &'static str = "turbo:normalize:spell-correct";
+    const VERSION: &'static str = "1";
 
     fn normalize(&self, text: &str, out: &mut ViewBuilder<'_>) {
         self.run(text, out, None, &mut |_, _, _| {});
@@ -383,6 +384,7 @@ impl Normalizer for SpellCorrect {
 
 impl Annotator for SpellCorrect {
     const ID: &'static str = <SpellCorrect as Normalizer>::ID;
+    const VERSION: &'static str = <SpellCorrect as Normalizer>::VERSION;
     type Reads = (View, Option<Placeholders>);
     type Writes = (View, Corrections);
 

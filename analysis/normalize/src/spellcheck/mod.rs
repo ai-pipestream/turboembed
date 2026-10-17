@@ -12,7 +12,11 @@
 //!   exact alignment, and as an annotator a `Corrections` layer.
 //!
 //! The SymSpell algorithm is Wolf Garbe's (MIT licensed reference
-//! implementation); the behaviour ported is OpenNLP's.
+//! implementation); the behaviour ported is OpenNLP's, except that
+//! [`SymSpell::add_bigram`] ignores zero counts and keeps the true minimum
+//! positive bigram count when existing bigrams are incremented (rather than
+//! OpenNLP's `SymSpell.addBigram`, which inserts zero counts and leaves a
+//! stale pre-increment minimum).
 
 mod casing;
 mod compound;
@@ -64,10 +68,20 @@ mod tests {
         let doc = Document::new("helo wrld");
         let view = doc.get::<View>().unwrap();
 
-        let mut spans = Spans::new(view.id());
-        spans.push(Span::new(0, 9));
-        spans.push(Span::new(1, 2));
-        let placeholders = Placeholders { spans, kind: vec![PlaceholderKind::Url, PlaceholderKind::Url] };
+        // Unsorted non-overlapping placeholders: [5, 9) before [0, 1) must still protect "helo".
+        let mut unsorted = Spans::new(view.id());
+        unsorted.push(Span::new(5, 9));
+        unsorted.push(Span::new(0, 1));
+        let placeholders = Placeholders { spans: unsorted, kind: vec![PlaceholderKind::Url, PlaceholderKind::Url] };
+        let (corrected_view, corrections) = corrector.annotate((view, Some(&placeholders))).unwrap();
+        assert_eq!(corrected_view.text(), "helo wrld");
+        assert!(corrections.spans.is_empty());
+
+        // Nested placeholders: [0, 9) containing [1, 2).
+        let mut nested = Spans::new(view.id());
+        nested.push(Span::new(0, 9));
+        nested.push(Span::new(1, 2));
+        let placeholders = Placeholders { spans: nested, kind: vec![PlaceholderKind::Url, PlaceholderKind::Url] };
         let (corrected_view, corrections) = corrector.annotate((view, Some(&placeholders))).unwrap();
         assert_eq!(corrected_view.text(), "helo wrld");
         assert!(corrections.spans.is_empty());
