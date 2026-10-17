@@ -107,16 +107,19 @@ impl<L> NBest<L> {
 
     /// The tag sequence of candidate `rank`, one tag per item of `L`.
     pub fn tags_of(&self, rank: usize) -> &[Tag] {
+        assert!(rank < self.score.len(), "rank {rank} of {}", self.score.len());
         &self.tags[rank * self.items..(rank + 1) * self.items]
     }
 
     /// The per-item probabilities of candidate `rank`, when present.
     pub fn probs_of(&self, rank: usize) -> Option<&[f64]> {
+        assert!(rank < self.score.len(), "rank {rank} of {}", self.score.len());
         self.prob.as_ref().map(|p| &p[rank * self.items..(rank + 1) * self.items])
     }
 
     /// The tag and optional probability assigned to `item` in candidate `rank`.
     pub fn at(&self, rank: usize, item: Ix<L>) -> (Tag, Option<f64>) {
+        assert!(rank < self.score.len(), "rank {rank} of {}", self.score.len());
         assert!(item.get() < self.items, "item {} of {}", item.get(), self.items);
         let idx = rank * self.items + item.get();
         (self.tags[idx], self.prob.as_ref().map(|p| p[idx]))
