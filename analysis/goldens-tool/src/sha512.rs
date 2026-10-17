@@ -122,7 +122,7 @@ impl Sha512 {
 
     /// Adds the next bytes of the message.
     pub fn update(&mut self, mut data: &[u8]) {
-        self.length += data.len() as u128;
+        self.length = self.length.wrapping_add(data.len() as u128);
         if self.filled > 0 {
             let take = (128 - self.filled).min(data.len());
             self.block[self.filled..self.filled + take].copy_from_slice(&data[..take]);
@@ -145,16 +145,14 @@ impl Sha512 {
 
     /// Pads the message (section 5.1.2) and returns the 64 byte digest.
     pub fn finish(mut self) -> [u8; 64] {
-        let bits = self.length * 8;
-        let mut pad = [0u8; 256];
+        let bits = self.length.wrapping_mul(8);
+        let mut pad = [0u8; 144];
         pad[0] = 0x80;
         // One 0x80 byte, zeros up to 112 mod 128, then the length in 16 bytes.
         let zeros = (128 + 112 - (self.filled + 1) % 128) % 128;
         let n = 1 + zeros;
         pad[n..n + 16].copy_from_slice(&bits.to_be_bytes());
-        let length = self.length;
         self.update(&pad[..n + 16]);
-        self.length = length;
         debug_assert_eq!(self.filled, 0);
         let mut out = [0u8; 64];
         for (i, word) in self.state.iter().enumerate() {

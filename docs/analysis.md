@@ -2796,7 +2796,7 @@ is `(-1)^negative * coefficient / 10^scale`. The `annotator` line names
 `opennlp.tools.extraction.NumberScan` and `parse`, and a `config notation`
 record gives `LATIN_US` or `LATIN_EU`. The scan is the mention loop of
 `CursorQuantityExtractor` of the `numeric` module of `opennlp-addons`
-(recorded in `analysis/goldens-tool/src/recipe.rs`) without the money
+(recorded in `analysis/goldens-tool/src/recipe/mod.rs`) without the money
 exclusion and without units; there is no model and no dump.
 
 `money/<notation>/money/<id>.golden` and
@@ -3025,7 +3025,7 @@ nothing the annotator computed.
 
 `Main` writes the dumps when given `--dumps` after its five arguments.
 The driver always passes it (`GENERATOR_ARGS` in
-`analysis/goldens-tool/src/recipe.rs`, forwarded by the container's
+`analysis/goldens-tool/src/recipe/mod.rs`, forwarded by the container's
 entrypoint), so `turbo-goldens generate` writes and installs goldens and
 dumps together, and `turbo-goldens verify` compares both byte for byte.
 `verify` and `generate` also check, at the header level only, that every
