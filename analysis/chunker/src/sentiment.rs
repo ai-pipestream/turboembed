@@ -1056,8 +1056,14 @@ mod tests {
         let bad_toks = Tokens { spans: bad_tok_spans, sentence: None };
 
         let sb = SentimentBoundaries::default();
-        assert!(sb.annotate((&sents, Some(derived), None, None, None, None)).is_err());
-        assert!(sb.annotate((&sents, Some(src), Some(&bad_toks), None, None, None)).is_err());
+        let Err(err) = sb.annotate((&sents, Some(derived), None, None, None, None)) else {
+            panic!("expected view mismatch error");
+        };
+        assert!(err.to_string().contains("the text is in view 1, the sentences in view 0"), "got: {err}");
+        let Err(err) = sb.annotate((&sents, Some(src), Some(&bad_toks), None, None, None)) else {
+            panic!("expected view mismatch error");
+        };
+        assert!(err.to_string().contains("the tokens are in view 1, the sentences in view 0"), "got: {err}");
 
         let mut chunk_spans = Spans::new(ViewId::SOURCE);
         chunk_spans.push(Span::new(0, 11));
@@ -1075,8 +1081,12 @@ mod tests {
         bad_sent_spans.push(Span::new(0, 11));
         let bad_sents = Sentences { spans: bad_sent_spans };
 
-        assert!(ChunkFacetBuilder.annotate((&chunks, &bad_sents, None, None, None, None, None)).is_err());
-        assert!(ChunkFacetBuilder.annotate((&chunks, &sents, Some(derived), None, None, None, None)).is_err());
-        assert!(ChunkFacetBuilder.annotate((&chunks, &sents, Some(src), Some(&bad_toks), None, None, None)).is_err());
+        let err = ChunkFacetBuilder.annotate((&chunks, &bad_sents, None, None, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("the sentences are in view 1, the chunks in view 0"), "got: {err}");
+        let err = ChunkFacetBuilder.annotate((&chunks, &sents, Some(derived), None, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("the text is in view 1, the chunks in view 0"), "got: {err}");
+        let err =
+            ChunkFacetBuilder.annotate((&chunks, &sents, Some(src), Some(&bad_toks), None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("the tokens are in view 1, the chunks in view 0"), "got: {err}");
     }
 }

@@ -224,6 +224,7 @@ impl<L: SpanCategorizable> SpanCategorizer<L> {
 
 impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
     const ID: &'static str = "opennlp:doccat-spans";
+    const VERSION: &'static str = "1";
     type Reads = (View, Tokens, L);
     type Writes = (Categories<L>,);
 
