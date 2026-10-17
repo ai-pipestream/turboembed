@@ -58,9 +58,12 @@ pub struct UnicodeData {
 impl UnicodeData {
     /// Reads and parses `UnicodeData.txt` from `dir`.
     pub fn read(dir: &Path) -> UnicodeData {
-        let file = UcdFile::read(dir, "UnicodeData.txt");
+        Self::parse(&UcdFile::read(dir, "UnicodeData.txt"))
+    }
+
+    fn parse(file: &UcdFile) -> UnicodeData {
         let mut chars: Vec<Option<CharData>> = vec![None; CODE_POINTS];
-        let mut range_start: Option<(u32, String)> = None;
+        let mut range_start: Option<(usize, u32, String)> = None;
         for record in file.records() {
             if record.field_count() != 15 {
                 record.fail("expected 15 fields");
@@ -69,14 +72,28 @@ impl UnicodeData {
             let name = record.field(1);
             let data = parse_char(&record);
             if let Some(prefix) = name.strip_suffix(", First>") {
-                range_start = Some((cp, prefix.to_owned()));
+                if range_start.is_some() {
+                    record.fail("range start without an end");
+                }
+                if chars[cp as usize].is_some() {
+                    record.fail("code point listed twice");
+                }
+                range_start = Some((record.line(), cp, prefix.to_owned()));
                 chars[cp as usize] = Some(data);
             } else if let Some(prefix) = name.strip_suffix(", Last>") {
-                let Some((first, first_prefix)) = range_start.take() else { record.fail("range end without a start") };
+                let Some((_, first, first_prefix)) = range_start.take() else {
+                    record.fail("range end without a start");
+                };
                 if first_prefix != prefix {
                     record.fail("range end does not match its start");
                 }
-                for c in first..=cp {
+                if cp < first {
+                    record.fail("range runs backwards");
+                }
+                for c in (first + 1)..=cp {
+                    if chars[c as usize].is_some() {
+                        record.fail("code point listed twice");
+                    }
                     chars[c as usize] = Some(data.clone());
                 }
             } else {
@@ -88,6 +105,9 @@ impl UnicodeData {
                 }
                 chars[cp as usize] = Some(data);
             }
+        }
+        if let Some((line, _, _)) = range_start {
+            file.fail(line, "range start without an end");
         }
         UnicodeData { chars }
     }
@@ -152,15 +172,64 @@ fn parse_decomposition(record: &Record<'_>) -> Option<Decomposition> {
         },
         None => (false, field),
     };
-    let cps = rest.split_ascii_whitespace();
-    let mapping: Vec<u32> = cps
-        .map(|cp| match u32::from_str_radix(cp, 16) {
-            Ok(value) if (4..=6).contains(&cp.len()) => value,
-            _ => record.fail(&format!("`{cp}` is not a code point")),
-        })
-        .collect();
+    let mapping: Vec<u32> = rest.split_ascii_whitespace().map(|cp| record.parse_code_point(cp)).collect();
     if mapping.is_empty() {
         record.fail("empty decomposition");
     }
     Some(Decomposition { compatibility, mapping })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(text: &str) -> UnicodeData {
+        UnicodeData::parse(&UcdFile::from_text("UnicodeData.txt", text))
+    }
+
+    #[test]
+    #[should_panic(expected = "UnicodeData.txt:1: range start without an end")]
+    fn unclosed_range_start_at_eof_is_rejected() {
+        parse("3400;<CJK Ideograph Extension A, First>;Lo;0;L;;;;;N;;;;;\n");
+    }
+
+    #[test]
+    #[should_panic(expected = "UnicodeData.txt:2: range start without an end")]
+    fn consecutive_range_starts_are_rejected() {
+        parse(
+            "3400;<CJK Ideograph Extension A, First>;Lo;0;L;;;;;N;;;;;\n\
+             4E00;<CJK Ideograph, First>;Lo;0;L;;;;;N;;;;;\n",
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "UnicodeData.txt:2: range runs backwards")]
+    fn backwards_range_is_rejected() {
+        parse(
+            "3405;<CJK Ideograph Extension A, First>;Lo;0;L;;;;;N;;;;;\n\
+             3400;<CJK Ideograph Extension A, Last>;Lo;0;L;;;;;N;;;;;\n",
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "UnicodeData.txt:3: code point listed twice")]
+    fn overlapping_range_is_rejected() {
+        parse(
+            "3401;TEST;Lo;0;L;;;;;N;;;;;\n\
+             3400;<CJK Ideograph Extension A, First>;Lo;0;L;;;;;N;;;;;\n\
+             3402;<CJK Ideograph Extension A, Last>;Lo;0;L;;;;;N;;;;;\n",
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "UnicodeData.txt:1: `+041` is not a code point")]
+    fn decomposition_rejects_signed_hex() {
+        parse("00C0;LATIN CAPITAL LETTER A WITH GRAVE;Lu;0;L;+041 0300;;;;N;;;;00E0;\n");
+    }
+
+    #[test]
+    #[should_panic(expected = "UnicodeData.txt:1: `110000` is not a code point")]
+    fn decomposition_rejects_code_point_beyond_code_space() {
+        parse("00C0;LATIN CAPITAL LETTER A WITH GRAVE;Lu;0;L;110000 0300;;;;N;;;;00E0;\n");
+    }
 }
