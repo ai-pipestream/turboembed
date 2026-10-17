@@ -152,3 +152,23 @@ fn chunk_buffer_preserves_unicode_and_cached_context_behavior() {
         assert_eq!(actual, wanted);
     }
 }
+
+#[test]
+fn oversized_unicode_pieces_keep_exact_features_without_allocations() {
+    use turbo_parser::{Parse, treeinsert};
+    for length in [31, 32, 33, 127, 128, 129, 1024] {
+        let word = "🦀".repeat(length);
+        let words = [word.as_str(), "next"];
+        let tags = ["NN", "VB"];
+        let mut chunk = ChunkContextGenerator::new();
+        assert_buffered("long chunk", chunk.get_context(0, &words, &tags, &[]), |out| {
+            chunk.get_features(0, &words, &tags, &[], out);
+        });
+        let tree = Parse::parse(&format!("(TOP (NP (NN {word})) (VP (VB next)))")).unwrap();
+        let refs: Vec<&Parse> = tree.children().iter().collect();
+        let build = treeinsert::BuildContextGenerator::new();
+        assert_buffered("long constituent", build.get_context(&refs, 0), |out| {
+            build.get_features(&refs, 0, out);
+        });
+    }
+}

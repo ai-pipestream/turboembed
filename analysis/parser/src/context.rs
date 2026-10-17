@@ -37,6 +37,11 @@ impl FeatureSink for Vec<String> {
 }
 
 impl FeatureSink for Features {
+    fn prepare<T: Display>(&self, value: T) -> Prepared<T> {
+        let mut rendered = InlineFeature::default();
+        if write!(rendered, "{value}").is_ok() { Prepared::Inline(rendered) } else { Prepared::Direct(value) }
+    }
+
     fn emit(&mut self, value: fmt::Arguments<'_>) {
         struct Writer<'a>(&'a mut Features);
         impl Write for Writer<'_> {
@@ -50,10 +55,41 @@ impl FeatureSink for Features {
     }
 }
 
-// String contexts reuse rendered pieces; inference keeps streaming into Features.
+// Common inference pieces are rendered once on the stack. Oversized pieces
+// retain direct formatting, so inference does not allocate for cache overflow.
+#[derive(Clone)]
+pub(crate) struct InlineFeature {
+    bytes: [u8; 128],
+    len: usize,
+}
+
+impl Default for InlineFeature {
+    fn default() -> Self {
+        Self { bytes: [0; 128], len: 0 }
+    }
+}
+
+impl Write for InlineFeature {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        let Some(end) = self.len.checked_add(text.len()).filter(|&end| end <= self.bytes.len()) else {
+            return Err(fmt::Error);
+        };
+        self.bytes[self.len..end].copy_from_slice(text.as_bytes());
+        self.len = end;
+        Ok(())
+    }
+}
+
+impl Display for InlineFeature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(std::str::from_utf8(&self.bytes[..self.len]).expect("only complete strings are written"))
+    }
+}
+
 pub(crate) enum Prepared<T> {
     Direct(T),
     Rendered(String),
+    Inline(InlineFeature),
 }
 
 impl<T: Display> Display for Prepared<T> {
@@ -61,6 +97,7 @@ impl<T: Display> Display for Prepared<T> {
         match self {
             Self::Direct(value) => value.fmt(f),
             Self::Rendered(value) => f.write_str(value),
+            Self::Inline(value) => value.fmt(f),
         }
     }
 }
