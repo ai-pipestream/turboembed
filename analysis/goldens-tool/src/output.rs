@@ -98,18 +98,20 @@ pub fn check_dumps(root: &Path) -> Result<usize, String> {
             if ext != Some(GOLDEN_EXTENSION) {
                 return Err(format!("{}: neither a golden nor a dump", dir.join(rel).display()));
             }
+            stem_parts(rel).map_err(|e| format!("{}: {e}", dir.join(rel).display()))?;
+            let golden_path = dir.join(rel);
+            read_golden(&golden_path)?;
             if !dumped {
                 continue;
             }
-            stem_parts(rel).map_err(|e| format!("{}: {e}", dir.join(rel).display()))?;
             let dump = dump_beside(rel).expect("a golden's path");
-            if !golden_names_a_model(&dir.join(rel))? {
+            if !golden_names_a_model(&golden_path)? {
                 if files.contains(&dump) {
                     return Err(format!("{}: the golden names no model, so it has no dump", dir.join(&dump).display()));
                 }
                 continue;
             }
-            if golden_threw(&dir.join(rel))? {
+            if golden_threw(&golden_path)? {
                 if files.contains(&dump) {
                     return Err(format!(
                         "{}: the golden has an error record, so it has no dump",
@@ -311,11 +313,35 @@ mod tests {
         assert!(e.contains("without a golden"), "{e}");
         fs::remove_file(root.join("tokenize/m/en/b.dump")).unwrap();
 
-        put("normalize/dash/norm/a.golden", "golden 1\n");
+        put("normalize/dash/norm/a.golden", "golden 1\nannotator\ta.B\trun\n");
         assert_eq!(check_dumps(&root).unwrap(), 1);
         put("normalize/dash/norm/a.dump", &dump_text("norm/a"));
         let e = check_dumps(&root).unwrap_err();
         assert!(e.contains("without a model"), "{e}");
+        fs::remove_file(root.join("normalize/dash/norm/a.dump")).unwrap();
+
+        // Non-dumped annotators still validate golden framing and path layout.
+        put("numbers/m/en/x.golden", "");
+        assert!(check_dumps(&root).unwrap_err().contains("does not start with `golden 1`"));
+        put("numbers/m/en/x.golden", "golden 1\n");
+        assert!(check_dumps(&root).unwrap_err().contains("has no `annotator` header record"));
+        fs::remove_dir_all(root.join("numbers")).unwrap();
+
+        put("numbers/x.golden", "golden 1\nannotator\ta.B\trun\n");
+        assert!(check_dumps(&root).unwrap_err().contains("not at <model>/<set>/<id>.golden"));
+        fs::remove_dir_all(root.join("numbers")).unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::ffi::OsStr;
+            use std::os::unix::ffi::OsStrExt;
+            let bad_dir = root.join("numbers").join("m").join(OsStr::from_bytes(b"bad\xffset"));
+            fs::create_dir_all(&bad_dir).unwrap();
+            fs::write(bad_dir.join("x.golden"), "golden 1\nannotator\ta.B\trun\n").unwrap();
+            assert!(check_dumps(&root).unwrap_err().contains("non-UTF-8 path component"));
+            fs::remove_dir_all(root.join("numbers")).unwrap();
+        }
+
         fs::remove_dir_all(&root).unwrap();
     }
 

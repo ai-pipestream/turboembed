@@ -78,7 +78,7 @@ Portuguese sentence models and the English, German, Spanish, French and
 Portuguese tokenizer models. Under the 2026-10-14 decision share-alike
 files are not checked in, so the tests fetch them: `cargo run -p
 turbo-goldens-tool -- fetch-models <dir>` downloads them and checks their
-SHA-512 (`analysis/goldens-tool/src/recipe.rs`), the tests read them from
+SHA-512 (`analysis/goldens-tool/src/recipe/mod.rs`), the tests read them from
 that directory, and CI fetches them and requires them. The READMEs in
 `analysis/sentdetect/tests/models/` and `analysis/tokenize/tests/models/`
 list them. The small fixture models trained for this project
@@ -172,7 +172,7 @@ bytes, `postag::EN_POS_MAXENT`), scores it on MASC's held-out documents
 and compares that score with the trained model's.
 
 The goldens tool fetches `langdetect-183.bin` to make the language
-detector's goldens (`analysis/goldens-tool/src/recipe.rs`); the zoo does
+detector's goldens (`analysis/goldens-tool/src/recipe/mod.rs`); the zoo does
 not list it. The language detector recipe and the web language detector
 recipe (`analysis/train-recipes`, #429) score it as their gates'
 reference, the web one in both of its gates: each reads the file from a
