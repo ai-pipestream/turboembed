@@ -53,6 +53,7 @@ pub fn summary(detector: &SpanDetector, runs: &[Run]) -> Language {
 /// an empty `opennlp:language`.
 impl Annotator for SpanDetector {
     const ID: &'static str = "turbo-langspan:script-ngram";
+    const VERSION: &'static str = "1";
     type Reads = (View, Option<Sentences>, Option<Tokens>);
     type Writes = (LanguageSpans, Language);
 
