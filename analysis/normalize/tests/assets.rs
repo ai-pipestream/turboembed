@@ -10,9 +10,9 @@
 mod assets_support;
 
 use assets_support::*;
-use turbo_analysis::{Annotator, Document, Layer, Span, View};
+use turbo_analysis::{Analyzer, Annotator, Bound, Document, Key, Layer, Span, View};
 use turbo_normalize::assets::{DecodeError, MAGICS, magic_format};
-use turbo_normalize::{Asset, AssetDetector, AssetFold, Normalizer, normalize};
+use turbo_normalize::{Asset, AssetDetector, AssetFold, Chain, NormalizeStep, Normalizer, hash_config, normalize};
 use turbo_normalize_layers::{AssetEncoding, AssetFormat, Assets, PlaceholderKind, Placeholders};
 
 /// `CursorAssetDetectorTest.embed`.
@@ -629,6 +629,40 @@ fn config_hashes_tell_the_configurations_apart() {
     assert_ne!(Normalizer::config_hash(&custom), Normalizer::config_hash(&other));
     assert_ne!(Normalizer::config_hash(&fold), Normalizer::config_hash(&AssetFold::with_detector(hex)));
     assert_eq!(Normalizer::config_hash(&fold), Annotator::config_hash(&fold));
+}
+
+// A malformed declared media type changed what is detected and folded, so
+// the producers record version 1 where they recorded 0: output of the old
+// and the new rule never carries one identity.
+#[test]
+fn producers_record_the_detector_version() {
+    assert_eq!(<AssetDetector as Annotator>::VERSION, "1");
+    assert_eq!(<AssetFold as Normalizer>::VERSION, "1");
+    assert_eq!(<AssetFold as Annotator>::VERSION, "1");
+    let text = "data:text//plain;base64,anVzdCBzb21lIHBsYWluIGJ5dGVzIHBhZGRlZCBvdXQ=";
+
+    let fold = Bound::new(AssetFold::new()).write(0, "folded");
+    let analyzer = Analyzer::builder().add(AssetDetector::new()).step(fold).build().unwrap();
+    let mut docs = vec![Document::new(text)];
+    assert!(analyzer.run(&mut docs)[0].is_ok());
+    let detected = docs[0].provenance(Key::<Assets>::DEFAULT.id()).unwrap();
+    assert_eq!((detected.annotator, detected.version), ("turbo:assets", "1"));
+    let folded = docs[0].provenance(Key::<Placeholders>::DEFAULT.id()).unwrap();
+    assert_eq!((folded.annotator, folded.version), ("turbo:normalize:asset-fold", "1"));
+
+    let step = Bound::new(NormalizeStep::new(AssetFold::new())).write(0, "folded");
+    let analyzer = Analyzer::builder().step(step).build().unwrap();
+    let mut docs = vec![Document::new(text)];
+    assert!(analyzer.run(&mut docs)[0].is_ok());
+    let p = docs[0].provenance(Key::<View>::named("folded").id()).unwrap();
+    assert_eq!((p.annotator, p.version), ("turbo:normalize:asset-fold", "1"));
+
+    let fold = AssetFold::new();
+    let parts = |version| vec![("turbo:normalize:asset-fold", version, Normalizer::config_hash(&fold))];
+    let (old, new) = (hash_config(&parts("0")), hash_config(&parts("1")));
+    let chain = Chain::new().then(AssetFold::new()).config_hash();
+    assert_eq!(chain, new);
+    assert_ne!(chain, old);
 }
 
 // ---------------------------------------------------------------------------

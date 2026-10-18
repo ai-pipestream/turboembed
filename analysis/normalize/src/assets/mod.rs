@@ -157,6 +157,9 @@ impl AssetDetector {
 
 impl Annotator for AssetDetector {
     const ID: &'static str = "turbo:assets";
+    /// Changes whenever what is detected changes. 1: a declared media type
+    /// counts only when [`subtype`] reads a type and subtype from it.
+    const VERSION: &'static str = "1";
     type Reads = (View,);
     type Writes = (Assets,);
 
