@@ -121,7 +121,14 @@ impl Embedder for Counted<'_> {
 pub fn unit(v: &mut [f32]) {
     let norm = v.iter().map(|&x| f64::from(x) * f64::from(x)).sum::<f64>().sqrt();
     if norm > 0.0 {
-        v.iter_mut().for_each(|x| *x = (f64::from(*x) / norm) as f32);
+        let inv = (1.0 / norm) as f32;
+        if inv.is_finite() {
+            v.iter_mut().for_each(|x| *x *= inv);
+        } else {
+            // A subnormal vector: its inverse norm is past f32, so divide
+            // in f64.
+            v.iter_mut().for_each(|x| *x = (f64::from(*x) / norm) as f32);
+        }
     }
 }
 
