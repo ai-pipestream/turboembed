@@ -167,8 +167,9 @@ pub enum Lowercase {
 /// writing the results gives the same string as [`to_lowercase`], so a
 /// caller can lowercase character by character and see which ones change.
 pub fn lowercase_at(text: &str, at: usize, c: char) -> Lowercase {
-    assert!(text.get(at..).is_some_and(|s| s.starts_with(c)), "c is not the character at byte {at}");
+    debug_assert!(text[at..].starts_with(c), "c is not the character at byte {at}");
     if c == CAPITAL_SIGMA {
+        assert!(text.get(at..).is_some_and(|s| s.starts_with(c)), "c is not the character at byte {at}");
         return Lowercase::Char(if is_final_sigma(text, at) { FINAL_SIGMA } else { SMALL_SIGMA });
     }
     if bits(c) & HAS_SPECIAL_LOWER != 0
