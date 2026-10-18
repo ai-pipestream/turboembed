@@ -280,11 +280,21 @@ impl<'a> Parquet<'a> {
             return Err(format!("{}: column {name} is not a BYTE_ARRAY column", self.file));
         };
         let text = String::from_utf8(data).map_err(|e| {
-            let row = ends.partition_point(|&end| end <= e.utf8_error().valid_up_to());
+            // The first bad row is the one holding the first invalid byte,
+            // unless a row before it ends inside a character of the valid
+            // prefix.
+            let valid = e.utf8_error().valid_up_to();
+            let prefix = std::str::from_utf8(&e.as_bytes()[..valid]).expect("valid_up_to bytes are UTF-8");
+            let row = ends
+                .iter()
+                .take_while(|&&end| end <= valid)
+                .position(|&end| !prefix.is_char_boundary(end))
+                .unwrap_or_else(|| ends.partition_point(|&end| end <= valid));
             format!("{}: column {name} row {row} is not UTF-8", self.file)
         })?;
         // Valid as a whole, each value must also start and end on a
-        // character boundary.
+        // character boundary: a character split between two rows is
+        // valid in the buffer but in neither row.
         if let Some(row) = ends.iter().position(|&end| !text.is_char_boundary(end)) {
             return Err(format!("{}: column {name} row {row} is not UTF-8", self.file));
         }

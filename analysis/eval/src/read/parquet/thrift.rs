@@ -79,6 +79,9 @@ impl<'a> Compact<'a> {
         let mut v = 0u64;
         for shift in (0..70).step_by(7) {
             let b = self.byte()?;
+            if shift == 63 && b > 1 {
+                return Err("thrift: varint overflows u64".into());
+            }
             v |= u64::from(b & 0x7f) << shift;
             if b & 0x80 == 0 {
                 return Ok(v);
@@ -295,6 +298,12 @@ mod tests {
         let deep = vec![0x1c; 200];
         let e = Compact::new(&deep).read_struct(|_, _, _| Ok(false)).unwrap_err();
         assert!(e.contains("nested"), "{e}");
+        // A 10-byte varint whose 10th byte is 1 is u64::MAX; 2 overflows u64.
+        let mut max = [0xffu8; 10];
+        max[9] = 1;
+        assert_eq!(Compact::new(&max).varint().unwrap(), u64::MAX);
+        max[9] = 2;
+        assert!(Compact::new(&max).varint().is_err());
     }
 
     #[test]
