@@ -345,8 +345,9 @@ impl Annotator for ChunkFacetBuilder {
 
             // 3. Aggregate incivility scores and distinct flagged labels over sentences in chunk `c`
             //    or direct `IncivilityTarget::Chunk(c_ix)` entries.
-            let mut agg = chunk_incivility.get(ch_idx).copied().unwrap_or((IncivilityScores::default(), 0u8));
+            let mut agg = (IncivilityScores::default(), 0u8);
             if !sent_incivility.is_empty() {
+                agg = chunk_incivility[ch_idx];
                 for &entry in &sent_incivility[s_start..s_end] {
                     merge_incivility(&mut agg, entry);
                 }
