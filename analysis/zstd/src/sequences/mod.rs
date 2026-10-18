@@ -268,6 +268,12 @@ pub struct History {
     pub window: u64,
 }
 
+/// `e`, or [`Error::StreamNotConsumed`] when the bits ran out first.
+#[cold]
+fn truncated(b: &mut BackBits<'_>, e: Error) -> Error {
+    if b.overflowed() { Error::StreamNotConsumed } else { e }
+}
+
 /// Decodes the sequences section `src` of a block and executes it: each
 /// sequence's literals, then its match, then the literals left after the
 /// last sequence.
@@ -319,25 +325,26 @@ pub fn execute(
                 ml_s = usize::from(mlc.next) + (all >> of_n & low(ml_n)) as usize;
                 of_s = usize::from(ofc.next) + (all & low(of_n)) as usize;
             }
-            if b.overflowed() {
-                return Err(Error::StreamNotConsumed);
-            }
-            let offset = resolve(value, ll, reps)?;
+            // Past a truncated stream's start the bits mean nothing; report
+            // the truncation rather than what they decode to. Checking only
+            // when a sequence fails keeps the reload out of the loop, and a
+            // stream that runs out without a failure fails `finished` below.
+            let offset = resolve(value, ll, reps).map_err(|e| truncated(&mut b, e))?;
             if ll > lits.len - used {
-                return Err(Error::LiteralsOverrun);
+                return Err(truncated(&mut b, Error::LiteralsOverrun));
             }
             let end = out.pos + ll + ml;
             if end > limit.end {
-                return Err(limit.error(end));
+                return Err(truncated(&mut b, limit.error(end)));
             }
             out.literals(lits.bytes, used, ll);
             used += ll;
             let available = out.pos - history.start;
             if offset > available {
-                return Err(Error::OffsetBeforeStart { offset, available });
+                return Err(truncated(&mut b, Error::OffsetBeforeStart { offset, available }));
             }
             if offset as u64 > history.window {
-                return Err(Error::OffsetPastWindow { offset, window: history.window });
+                return Err(truncated(&mut b, Error::OffsetPastWindow { offset, window: history.window }));
             }
             out.copy_match(offset, ml);
         }

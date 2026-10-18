@@ -9,7 +9,8 @@ use crate::Error;
 /// A backward reader over one bitstream. It keeps the eight bytes at
 /// `pos` in `container` and counts the bits read from the top of them;
 /// [`reload`](Self::reload) moves the eight bytes back over what has been
-/// read. Past the stream's start it reads zeros, and
+/// read. Past the stream's start the bits it gives are not meaningful:
+/// [`overflowed`](Self::overflowed) reports that, and
 /// [`finished`](Self::finished) tells whether exactly every bit was read.
 pub struct BackBits<'a> {
     src: &'a [u8],
@@ -46,10 +47,11 @@ impl<'a> BackBits<'a> {
     /// The next `n` bits without reading them, `n` at most 56.
     #[inline(always)]
     pub fn peek(&self, n: u32) -> u64 {
-        if n == 0 || self.consumed >= 64 {
-            return 0;
-        }
-        (self.container << self.consumed) >> (64 - n)
+        // The shift in two steps gives 0 for `n` = 0. Past the stream's
+        // start `consumed` is over 64 and the bits are meaningless, which
+        // `overflowed` reports; checking for that here would cost every
+        // read.
+        (self.container << (self.consumed & 63)) >> 1 >> (63 - n)
     }
 
     #[inline(always)]
@@ -105,17 +107,16 @@ mod tests {
         assert_eq!(b.read(0), 0);
         assert_eq!(b.read(5), 0b10001);
         assert!(b.finished());
-        // Past the start, zeros, and the stream reports it even when the
-        // container's top bits are 1.
+        // Past the start the stream reports it, even when the container's
+        // top bits are 1.
         assert_eq!(b.read(3), 0);
         assert!(b.overflowed() && !b.finished());
         let mut high = BackBits::new(&[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]).unwrap();
         assert_eq!(high.read(7), 0x7f);
         assert_eq!(high.read(56), (1u64 << 56) - 1);
         assert!(high.finished());
-        assert_eq!(high.peek(4), 0);
-        assert_eq!(high.read(4), 0);
-        assert!(high.overflowed());
+        high.read(4);
+        assert!(high.overflowed() && !high.finished());
     }
 
     #[test]
