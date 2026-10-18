@@ -159,7 +159,7 @@ impl Numbers {
     /// marker.
     pub fn numeral(&self, i: Ix<Numbers>) -> Span {
         let span = self.spans.get(i);
-        Span::new(span.start + u32::from(self.negative[i.get()]), self.numeral_end[i.get()])
+        Span::new(span.start.saturating_add(u32::from(self.negative[i.get()])), self.numeral_end[i.get()])
     }
 
     /// The value of mention `i`.
@@ -190,8 +190,10 @@ impl Layer for Numbers {
         self.spans.check(Self::OVERLAP).map_err(|_| "numbers in text order, not overlapping")?;
         for (i, span) in self.spans.iter() {
             let i = i.get();
-            let numeral_start = span.start + u32::from(self.negative[i]);
             let end = self.numeral_end[i];
+            let Some(numeral_start) = span.start.checked_add(u32::from(self.negative[i])) else {
+                return Err(format!("number {i} has its numeral end {end} outside {}..{}", span.start, span.end));
+            };
             if end <= numeral_start || end > span.end {
                 return Err(format!("number {i} has its numeral end {end} outside {}..{}", span.start, span.end));
             }
@@ -231,13 +233,18 @@ pub struct DecimalRef<'a> {
 }
 
 impl DecimalRef<'_> {
+    fn is_zero(&self) -> bool {
+        !self.digits.is_empty() && self.digits.bytes().all(|b| b == b'0')
+    }
+
     /// Appends the value written out without an exponent, as
     /// `BigDecimal.toPlainString` writes it: `-1500.0`, `0.05`, `0.00`,
     /// and `1000` for the digits `1` at the scale -3. A zero with a scale
     /// below zero is `0`.
     pub fn write_plain(&self, out: &mut String) {
+        let zero = self.is_zero();
         if self.scale < 0 {
-            if self.digits == "0" {
+            if zero {
                 out.push('0');
                 return;
             }
@@ -248,13 +255,13 @@ impl DecimalRef<'_> {
             out.extend(std::iter::repeat_n('0', self.scale.unsigned_abs() as usize));
             return;
         }
-        if self.negative {
+        if self.negative && !zero {
             out.push('-');
         }
         let scale = self.scale as usize;
         let len = self.digits.len();
         if scale == 0 {
-            out.push_str(self.digits);
+            out.push_str(if zero { "0" } else { self.digits });
         } else if len > scale {
             out.push_str(&self.digits[..len - scale]);
             out.push('.');
@@ -277,6 +284,9 @@ impl DecimalRef<'_> {
     /// beyond the `f64` range is infinite, as `BigDecimal.doubleValue`
     /// gives.
     pub fn to_f64(&self) -> f64 {
+        if self.is_zero() {
+            return 0.0;
+        }
         // The digits with an exponent, so a scale far from zero does not
         // write out its zeros.
         let mut s = String::with_capacity(self.digits.len() + 24);
@@ -285,7 +295,7 @@ impl DecimalRef<'_> {
         }
         s.push_str(self.digits);
         s.push('e');
-        s.push_str(&(-self.scale).to_string());
+        s.push_str(&self.scale.saturating_neg().to_string());
         s.parse().expect("digits with an exponent parse as f64")
     }
 }
@@ -348,12 +358,15 @@ mod tests {
         assert_eq!(plain(false, "15", 2), "0.15");
         assert_eq!(plain(true, "5", 3), "-0.005");
         assert_eq!(plain(false, "0", 2), "0.00");
+        assert_eq!(plain(true, "0", 0), "0");
+        assert_eq!(plain(true, "0", 2), "0.00");
         assert_eq!(plain(false, "0", 1), "0.0");
         assert_eq!(DecimalRef { negative: false, digits: "120", scale: 1 }.to_string(), "12.0");
         // A scale below zero appends zeros; a zero stays `0`.
         assert_eq!(plain(false, "12", -3), "12000");
         assert_eq!(plain(true, "12", -1), "-120");
         assert_eq!(plain(false, "0", -5), "0");
+        assert_eq!(plain(true, "0", -5), "0");
     }
 
     #[test]
@@ -362,6 +375,7 @@ mod tests {
         assert_eq!(DecimalRef { negative: true, digits: "15000", scale: 1 }.to_f64(), -1500.0);
         assert_eq!(DecimalRef { negative: false, digits: "0", scale: 2 }.to_f64(), 0.0);
         assert!(DecimalRef { negative: false, digits: "0", scale: 2 }.to_f64().is_sign_positive());
+        assert!(DecimalRef { negative: true, digits: "0", scale: 2 }.to_f64().is_sign_positive());
         // 2^53 + 1 is not a double; it rounds to even, 2^53.
         assert_eq!(DecimalRef { negative: false, digits: "9007199254740993", scale: 0 }.to_f64(), 9007199254740992.0);
         let huge = "9".repeat(400);
@@ -435,6 +449,9 @@ mod tests {
         let mut n = Numbers::new(ViewId::SOURCE);
         n.push(NumberMention { negative: true, numeral_end: 1, ..mention(0, 1, "1") });
         assert!(n.check().unwrap_err().contains("outside"));
+        let mut max_span = Numbers::new(ViewId::SOURCE);
+        max_span.push(NumberMention { negative: true, numeral_end: u32::MAX, ..mention(u32::MAX, u32::MAX, "1") });
+        assert!(max_span.check().unwrap_err().contains("outside"));
     }
 
     #[test]
@@ -464,12 +481,8 @@ mod tests {
         n.push(NumberMention { numeral_end: 1, ..mention(0, 2, "12") });
         assert!(n.check().unwrap_err().contains("not a scale marker"));
         let mut n = Numbers::new(ViewId::SOURCE);
-        n.push(NumberMention {
-            multiplier: Multiplier::Million,
-            marker: ScaleMarker::Word,
-            numeral_end: 1,
-            ..mention(0, 9, "3000000")
-        });
+        let m = mention(0, 9, "3000000");
+        n.push(NumberMention { multiplier: Multiplier::Million, marker: ScaleMarker::Word, numeral_end: 1, ..m });
         assert_eq!(n.check(), Ok(()));
     }
 
