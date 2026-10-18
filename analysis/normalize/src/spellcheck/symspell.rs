@@ -24,8 +24,9 @@
 //! candidates are exactly OpenNLP's. A lookup allocates only the arena of
 //! its own deletes and the code points of the query.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::config::{MAX_COUNT, SymSpellConfig};
 use super::deletes::Deletes;
@@ -34,6 +35,16 @@ use super::table::{BuildPrehashed, IdTable, fmix, hash_str};
 /// Marks an index entry that points into `lists` instead of holding a word
 /// id itself.
 const LIST: u32 = 1 << 31;
+
+/// [`SymSpell`]'s scanned minimum bigram count, 0 when not scanned.
+#[derive(Debug, Default)]
+struct MinCache(AtomicU64);
+
+impl Clone for MinCache {
+    fn clone(&self) -> MinCache {
+        MinCache(AtomicU64::new(self.0.load(Ordering::Relaxed)))
+    }
+}
 
 /// A symmetric delete spelling corrector over a frequency dictionary.
 #[derive(Clone)]
@@ -46,14 +57,11 @@ pub struct SymSpell {
     deletes: HashMap<u64, u32, BuildPrehashed>,
     lists: Vec<Vec<u32>>,
     pub(crate) bigrams: HashMap<String, u64>,
-    pub(crate) min_bigram_count: u64,
-    /// Number of bigrams currently holding `min_bigram_count`, so incrementing
-    /// one of several tied minimum bigrams updates in O(1) without rescanning.
-    min_bigram_ties: usize,
-    /// Lazily populated histogram of bigram counts once all initial ties at
-    /// `min_bigram_count` have been incremented, keeping subsequent minimum
-    /// updates O(log d).
-    by_count: BTreeMap<u64, usize>,
+    /// The smallest bigram count as [`min_bigram_count`](Self::min_bigram_count)
+    /// last found it, or 0 (never a count) when a bigram was added since.
+    /// Finding it when it is read, once, keeps adding a bigram as cheap as
+    /// on a map that tracks no minimum.
+    min_cache: MinCache,
     max_bigram_count: u64,
     /// The length in code points of the longest indexed word.
     pub(super) max_length: usize,
@@ -117,9 +125,7 @@ impl SymSpell {
             deletes: HashMap::default(),
             lists: Vec::new(),
             bigrams: HashMap::new(),
-            min_bigram_count: MAX_COUNT,
-            min_bigram_ties: 0,
-            by_count: BTreeMap::new(),
+            min_cache: MinCache(AtomicU64::new(0)),
             max_bigram_count: 0,
             max_length: 0,
             total_count: 0,
@@ -164,6 +170,17 @@ impl SymSpell {
         self.max_bigram_count
     }
 
+    /// The smallest bigram count, [`MAX_COUNT`] before any bigram.
+    pub(crate) fn min_bigram_count(&self) -> u64 {
+        let cached = self.min_cache.0.load(Ordering::Relaxed);
+        if cached != 0 {
+            return cached;
+        }
+        let min = self.bigrams.values().copied().min().unwrap_or(MAX_COUNT);
+        self.min_cache.0.store(min, Ordering::Relaxed);
+        min
+    }
+
     /// The accumulated count of `word`, whether or not it reached the
     /// threshold.
     pub fn count(&self, word: &str) -> Option<u64> {
@@ -189,7 +206,7 @@ impl SymSpell {
     /// calls have the same fingerprint, so it can stand for the dictionary
     /// in a normalizer's configuration hash.
     pub fn fingerprint(&self) -> u64 {
-        fmix(self.fingerprint ^ self.min_bigram_count)
+        fmix(self.fingerprint ^ self.min_bigram_count())
     }
 
     fn mix(&mut self, parts: &[u64]) {
@@ -264,41 +281,10 @@ impl SymSpell {
         }
         let key = format!("{w1} {w2}");
         let entry = self.bigrams.entry(key).or_insert(0);
-        let previous = *entry;
-        let updated = saturated_add(previous, count);
+        let updated = saturated_add(*entry, count);
         *entry = updated;
         self.max_bigram_count = self.max_bigram_count.max(updated);
-        if !self.by_count.is_empty() {
-            if previous > 0
-                && let Some(ties) = self.by_count.get_mut(&previous)
-            {
-                *ties -= 1;
-                if *ties == 0 {
-                    self.by_count.remove(&previous);
-                }
-            }
-            *self.by_count.entry(updated).or_insert(0) += 1;
-            let (&min, &ties) = self.by_count.first_key_value().expect("at least one bigram");
-            self.min_bigram_count = min;
-            self.min_bigram_ties = ties;
-        } else if previous == 0 {
-            if updated < self.min_bigram_count {
-                self.min_bigram_count = updated;
-                self.min_bigram_ties = 1;
-            } else if updated == self.min_bigram_count {
-                self.min_bigram_ties += 1;
-            }
-        } else if previous == self.min_bigram_count && updated > previous {
-            self.min_bigram_ties -= 1;
-            if self.min_bigram_ties == 0 {
-                for &c in self.bigrams.values() {
-                    *self.by_count.entry(c).or_insert(0) += 1;
-                }
-                let (&min, &ties) = self.by_count.first_key_value().expect("at least one bigram");
-                self.min_bigram_count = min;
-                self.min_bigram_ties = ties;
-            }
-        }
+        *self.min_cache.0.get_mut() = 0;
     }
 
     /// Puts word `id` under every delete of its prefix, as OpenNLP's
@@ -400,20 +386,33 @@ mod tests {
         let mut engine = SymSpell::default();
         engine.add_bigram("a", "b", 0);
         assert_eq!(engine.bigram_count(), 0);
-        assert_eq!(engine.min_bigram_count, MAX_COUNT);
+        assert_eq!(engine.min_bigram_count(), MAX_COUNT);
 
         engine.add_bigram("a", "b", 5);
-        assert_eq!(engine.min_bigram_count, 5);
+        assert_eq!(engine.min_bigram_count(), 5);
         assert_eq!(engine.max_bigram_count(), 5);
 
         engine.add_bigram("a", "b", 10);
         assert_eq!(engine.bigram("a", "b"), Some(15));
-        assert_eq!(engine.min_bigram_count, 15);
+        assert_eq!(engine.min_bigram_count(), 15);
         assert_eq!(engine.max_bigram_count(), 15);
 
         engine.add_bigram("c", "d", 8);
-        assert_eq!(engine.min_bigram_count, 8);
+        assert_eq!(engine.min_bigram_count(), 8);
         engine.add_bigram("c", "d", 12);
-        assert_eq!(engine.min_bigram_count, 15);
+        assert_eq!(engine.min_bigram_count(), 15);
+    }
+
+    #[test]
+    fn min_bigram_count_is_the_smallest_count_after_every_add() {
+        let mut engine = SymSpell::default();
+        let mut state = 7u64;
+        for _ in 0..2000 {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let (a, b, count) = ((state >> 33) % 5, (state >> 40) % 5, (state >> 50) % 4);
+            engine.add_bigram(&a.to_string(), &b.to_string(), count);
+            let want = engine.bigrams.values().copied().min().unwrap_or(MAX_COUNT);
+            assert_eq!(engine.min_bigram_count(), want);
+        }
     }
 }
