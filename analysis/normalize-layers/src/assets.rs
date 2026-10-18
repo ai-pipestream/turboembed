@@ -64,7 +64,7 @@ impl Assets {
     /// media type.
     pub fn format_name(&self, i: usize) -> &str {
         match self.format[i] {
-            AssetFormat::Declared => subtype(self.declared_type.get(i)),
+            AssetFormat::Declared => subtype(self.declared_type.get(i)).unwrap_or_default(),
             format => format.name(),
         }
     }
@@ -106,12 +106,12 @@ impl Layer for Assets {
                 return Err(format!("asset {i}: a non-empty payload {payload:?} inside its span {span:?}"));
             }
             let declared = self.declared_type.get(i);
-            let valid_declared = declared.contains('/') && !subtype(declared).is_empty();
-            if (self.format[i] == AssetFormat::Unknown && !declared.is_empty())
-                || (self.format[i] == AssetFormat::Declared && !valid_declared)
-                || (!declared.is_empty() && !valid_declared)
-            {
-                return Err(format!("asset {i}: a declared media type {declared:?} with a subtype"));
+            let declares = !declared.is_empty() || self.format[i] == AssetFormat::Declared;
+            if declares && subtype(declared).is_none() {
+                return Err(format!("asset {i}: a declared media type {declared:?} of a type and subtype"));
+            }
+            if self.format[i] == AssetFormat::Unknown && !declared.is_empty() {
+                return Err(format!("asset {i}: an unknown run declares no media type, got {declared:?}"));
             }
             let positive = |d: Option<u32>| d.is_none_or(|d| d > 0 && d <= i32::MAX as u32);
             let (w, h) = (self.width[i], self.height[i]);

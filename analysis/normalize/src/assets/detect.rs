@@ -135,8 +135,8 @@ impl Scanner<'_, '_> {
     /// (`tryDataUri`). The media type may be empty or carry parameters,
     /// but holds no white space and no quote. The payload is not wrapped,
     /// may be of any length, and uses the standard alphabet. Its format is
-    /// sniffed from the header; the media type is the declared one when it
-    /// has a non-empty type and subtype around its slash, else the sniffed
+    /// sniffed from the header; the media type is the declared one when
+    /// [`subtype`] reads a type and subtype from it, else the sniffed
     /// format's. A URI with neither is not reported.
     fn data_uri(&mut self, start: usize) -> Option<usize> {
         if !self.bytes[start..].starts_with(DATA_URI_SCHEME) {
@@ -163,7 +163,7 @@ impl Scanner<'_, '_> {
         }
         let header = Header::read(self.bytes, &payload);
         let sniffed = sniff::format_of(header.bytes(), self.bytes, &payload);
-        let declares = declared.contains('/') && !subtype(declared).is_empty();
+        let declares = subtype(declared).is_some();
         let (format, declared) = match (sniffed, declares) {
             (_, true) => (sniffed.unwrap_or(AssetFormat::Declared), Some(span(media_start, i))),
             (Some(format), false) => (format, None),

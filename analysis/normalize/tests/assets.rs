@@ -196,10 +196,11 @@ fn data_uri_with_unknown_header_keeps_the_declared_format() {
 }
 
 #[test]
-fn data_uri_with_an_empty_subtype_declares_nothing() {
-    // A declared type needs a non-empty subtype, as the layer asks: the
-    // sniffed format stands in for it, and with none the URI is not an asset.
-    for media_type in ["text/", "text/;charset=utf-8"] {
+fn data_uri_with_a_malformed_media_type_declares_nothing() {
+    // A declared type needs a type and subtype that are tokens, as the layer
+    // asks: the sniffed format stands in for one that is not, and with none
+    // the URI is not an asset.
+    for media_type in ["text/", "text/;charset=utf-8", "/plain", "plain", "text//plain", "te(x)t/plain"] {
         let text = format!("data:{media_type};base64,{}", std64(&png(1, 1)));
         let layer = check_layer(&AssetDetector::new(), &text);
         assert_eq!((layer.len(), layer.format[0], layer.declared_type.get(0)), (1, AssetFormat::Png, ""));
@@ -3184,8 +3185,11 @@ fn media_type_may_not_hold_white_space_or_quotes() {
         let text = format!("data:{bad};base64,{body}");
         assert!(detect(&text).iter().all(|a| a.span.start > 0), "{bad:?}");
     }
+    // A character outside a token does not end the media type, but it is
+    // no media type: the URI is still found, with the sniffed one.
     let text = format!("data:image/p\u{e9}ng;base64,{body}");
-    assert_eq!(one(&text).media_type(&text), "image/p\u{e9}ng");
+    let a = one(&text);
+    assert_eq!((a.span.start, a.media_type(&text)), (0, "image/png"));
 }
 
 // ---------------------------------------------------------------------------

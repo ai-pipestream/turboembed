@@ -417,13 +417,30 @@ mod tests {
         assert!(sample_assets(Span::new(8, 12), AssetFormat::Png, "").check().is_ok());
         assert!(sample_assets(Span { start: 10, end: 8 }, AssetFormat::Png, "").check().is_err());
         assert!(sample_assets(Span::new(8, 12), AssetFormat::Unknown, "text/plain").check().is_err());
-        for bad in ["text/", "text/;charset=utf-8", "/plain", "/"] {
+        assert!(sample_assets(Span::new(8, 12), AssetFormat::Declared, "").check().is_err());
+        for bad in [
+            "text/",
+            "text/;charset=utf-8",
+            "/plain",
+            "/",
+            "plain",
+            "text//plain",
+            "text/a/b",
+            "te(x)t/plain",
+            "text/pl\u{e4}in",
+        ] {
             assert!(sample_assets(Span::new(8, 12), AssetFormat::Declared, bad).check().is_err(), "{bad:?}");
             assert!(sample_assets(Span::new(8, 12), AssetFormat::Png, bad).check().is_err(), "{bad:?}");
-            assert_eq!(subtype(bad), "", "{bad:?}");
+            assert_eq!(subtype(bad), None, "{bad:?}");
         }
-        assert_eq!(subtype("text/plain;charset=utf-8"), "plain");
-        assert_eq!(subtype("plain"), "plain");
+        for (good, sub) in [
+            ("text/plain;charset=utf-8", "plain"),
+            ("image/svg+xml", "svg+xml"),
+            ("application/vnd.ms-excel", "vnd.ms-excel"),
+        ] {
+            assert!(sample_assets(Span::new(8, 12), AssetFormat::Declared, good).check().is_ok(), "{good:?}");
+            assert_eq!(subtype(good), Some(sub), "{good:?}");
+        }
     }
 
     #[test]

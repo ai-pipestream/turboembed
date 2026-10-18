@@ -232,14 +232,22 @@ impl AssetFormat {
 }
 
 /// The subtype of a media type, which OpenNLP takes as the format name of
-/// a `data:` URI whose header it does not recognize: the text between the
-/// first `/` (after a non-empty type) and the first `;` after it
-/// (`text/plain;charset=UTF-8` gives `plain`). Returns `""` when the type
-/// or subtype around `/` is empty, or the input whole when it contains no `/`.
-pub fn subtype(media_type: &str) -> &str {
-    let Some(slash) = media_type.find('/') else { return media_type };
-    let end = media_type[slash + 1..].find(';').map_or(media_type.len(), |k| slash + 1 + k);
-    if slash > 0 && slash + 1 < end { &media_type[slash + 1..end] } else { "" }
+/// a `data:` URI whose header it does not recognize: `plain` for
+/// `text/plain;charset=UTF-8`.
+///
+/// `None` unless the text before any `;` is a type and a subtype around
+/// one `/`, each a non-empty token (RFC 9110 section 5.6.2, the code
+/// points the WHATWG MIME type parser accepts). Parameters after the `;`
+/// are not checked: the WHATWG parser skips ones it cannot read.
+pub fn subtype(media_type: &str) -> Option<&str> {
+    let essence = media_type.split_once(';').map_or(media_type, |(essence, _)| essence);
+    let (kind, subtype) = essence.split_once('/')?;
+    (is_token(kind) && is_token(subtype)).then_some(subtype)
+}
+
+/// Whether `s` is a non-empty run of token characters (RFC 9110 `tchar`).
+fn is_token(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b))
 }
 
 /// How an asset's payload is written in the text.
