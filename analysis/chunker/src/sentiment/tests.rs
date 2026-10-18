@@ -333,3 +333,29 @@ fn multi_level_chunk_facets_preserve_aspect_order_and_merge_chunk_incivility() {
     assert_eq!(facets.aspect_ixs(Ix::new(1)), &[a1]);
     assert_eq!(facets.aspect_ixs(Ix::new(2)), &[a0]);
 }
+
+#[test]
+fn chunk_incivility_is_kept_without_sentences() {
+    let mut c_spans = Spans::new(ViewId::SOURCE);
+    c_spans.push(Span::new(0, 4));
+    let chunks = Chunks {
+        spans: c_spans,
+        level: vec![0],
+        parent: vec![None],
+        sentences: vec![IxRange::new(0, 0)],
+        cut: vec![Cut::DocumentStart],
+        cost: vec![0],
+        model_tokens: vec![1],
+        over_budget: vec![false],
+    };
+    let sents = Sentences { spans: Spans::new(ViewId::SOURCE) };
+    let mut inc = Incivility::new();
+    inc.push(IncivilityItem {
+        target: IncivilityTarget::Chunk(Ix::new(0)),
+        scores: IncivilityScores { threat: 0.75, ..IncivilityScores::default() },
+        evidence: &[],
+    });
+    let (facets,) = ChunkFacetBuilder.annotate((&chunks, &sents, None, None, None, None, Some(&inc))).unwrap();
+    facets.check().unwrap();
+    assert_eq!(facets.incivility_labels(Ix::new(0)), &[IncivilityLabel::Threat]);
+}
