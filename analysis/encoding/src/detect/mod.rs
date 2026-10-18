@@ -24,6 +24,7 @@
 
 mod cjk;
 mod data;
+mod scores;
 mod single_byte;
 mod stream;
 
@@ -32,120 +33,11 @@ use turbo_encoding_layers::Encoding;
 use crate::decode::{Iso2022Jp, Step, Stepper};
 use cjk::{Big5Candidate, EucJpCandidate, EucKrCandidate, GbkCandidate, ShiftJisCandidate};
 use data::*;
+use scores::*;
 use single_byte::{
     ArabicFrenchCandidate, CaselessCandidate, LatinCandidate, LogicalCandidate, NonLatinCasedCandidate, VisualCandidate,
 };
 use stream::Utf8Stream;
-
-// The scores below are chardetng's, with its comments.
-
-const LATIN_ADJACENCY_PENALTY: i64 = -50;
-
-const IMPLAUSIBILITY_PENALTY: i64 = -220;
-
-const ORDINAL_BONUS: i64 = 300;
-
-/// Must match the ISO-8859-2 score for " Š ". Note: There
-/// are four Slovenian Wikipedia list page titles where the
-/// list is split by letter so that Š stands alone for the
-/// list part for Š. Let's assume that's a special case not
-/// worth detecting even though the copyright sign detection
-/// makes Slovenian title detection round to one percentage
-/// point worse.
-const COPYRIGHT_BONUS: i64 = 222;
-
-const IMPLAUSIBLE_LATIN_CASE_TRANSITION_PENALTY: i64 = -180;
-
-const NON_LATIN_CAPITALIZATION_BONUS: i64 = 40;
-
-const NON_LATIN_ALL_CAPS_PENALTY: i64 = -40;
-
-const NON_LATIN_MIXED_CASE_PENALTY: i64 = -20;
-
-// Manually calibrated relative to windows-1256 Arabic
-const CJK_BASE_SCORE: i64 = 41;
-
-const CJK_SECONDARY_BASE_SCORE: i64 = 20;
-
-const SHIFT_JIS_SCORE_PER_KANA: i64 = 20;
-
-const SHIFT_JIS_SCORE_PER_LEVEL_1_KANJI: i64 = CJK_BASE_SCORE;
-
-const SHIFT_JIS_SCORE_PER_LEVEL_2_KANJI: i64 = CJK_SECONDARY_BASE_SCORE;
-
-// Manually calibrated relative to windows-1256 Persian and Urdu
-const SHIFT_JIS_INITIAL_HALF_WIDTH_KATAKANA_PENALTY: i64 = -75;
-
-const HALF_WIDTH_KATAKANA_SCORE: i64 = 1;
-
-// Unclear if this is a good idea; seems not harmful, but can't be sure.
-const HALF_WIDTH_KATAKANA_VOICING_SCORE: i64 = 10;
-
-const SHIFT_JIS_PUA_PENALTY: i64 = -(CJK_BASE_SCORE * 10);
-
-const SHIFT_JIS_EXTENSION_PENALTY: i64 = SHIFT_JIS_PUA_PENALTY * 2;
-
-const SHIFT_JIS_SINGLE_BYTE_EXTENSION_PENALTY: i64 = SHIFT_JIS_EXTENSION_PENALTY;
-
-const EUC_JP_SCORE_PER_KANA: i64 = CJK_BASE_SCORE + (CJK_BASE_SCORE / 3); // Relative to Big5
-
-const EUC_JP_SCORE_PER_NEAR_OBSOLETE_KANA: i64 = CJK_BASE_SCORE - 1;
-
-const EUC_JP_SCORE_PER_LEVEL_1_KANJI: i64 = CJK_BASE_SCORE;
-
-const EUC_JP_SCORE_PER_LEVEL_2_KANJI: i64 = CJK_SECONDARY_BASE_SCORE;
-
-const EUC_JP_SCORE_PER_OTHER_KANJI: i64 = CJK_SECONDARY_BASE_SCORE / 4;
-
-const EUC_JP_INITIAL_KANA_PENALTY: i64 = -((CJK_BASE_SCORE / 3) + 1);
-
-// Needs to be more severe than for Shift_JIS to avoid misdetecting EUC-KR!
-const EUC_JP_EXTENSION_PENALTY: i64 = -(CJK_BASE_SCORE * 50);
-
-const BIG5_SCORE_PER_LEVEL_1_HANZI: i64 = CJK_BASE_SCORE;
-
-const BIG5_SCORE_PER_OTHER_HANZI: i64 = CJK_SECONDARY_BASE_SCORE;
-
-// More severe than other PUA penalties to avoid misdetecting EUC-KR! (25 as
-// the multiplier is too little)
-const BIG5_PUA_PENALTY: i64 = -(CJK_BASE_SCORE * 30);
-
-const BIG5_SINGLE_BYTE_EXTENSION_PENALTY: i64 = -(CJK_BASE_SCORE * 40);
-
-const EUC_KR_SCORE_PER_EUC_HANGUL: i64 = CJK_BASE_SCORE + 1;
-
-const EUC_KR_SCORE_PER_NON_EUC_HANGUL: i64 = CJK_SECONDARY_BASE_SCORE / 5;
-
-const EUC_KR_SCORE_PER_HANJA: i64 = CJK_SECONDARY_BASE_SCORE / 2;
-
-const EUC_KR_HANJA_AFTER_HANGUL_PENALTY: i64 = -(CJK_BASE_SCORE * 10);
-
-const EUC_KR_LONG_WORD_PENALTY: i64 = -6;
-
-const EUC_KR_PUA_PENALTY: i64 = GBK_PUA_PENALTY - 1; // Break tie in favor of GBK
-
-const EUC_KR_MAC_KOREAN_PENALTY: i64 = EUC_KR_PUA_PENALTY * 2;
-
-const EUC_KR_SINGLE_BYTE_EXTENSION_PENALTY: i64 = EUC_KR_MAC_KOREAN_PENALTY;
-
-const GBK_SCORE_PER_LEVEL_1: i64 = CJK_BASE_SCORE;
-
-const GBK_SCORE_PER_LEVEL_2: i64 = CJK_SECONDARY_BASE_SCORE;
-
-const GBK_SCORE_PER_NON_EUC: i64 = CJK_SECONDARY_BASE_SCORE / 4;
-
-const GBK_PUA_PENALTY: i64 = -(CJK_BASE_SCORE * 10);
-
-const GBK_SINGLE_BYTE_EXTENSION_PENALTY: i64 = GBK_PUA_PENALTY * 4;
-
-const CJK_LATIN_ADJACENCY_PENALTY: i64 = -CJK_BASE_SCORE; // smaller penalty than LATIN_ADJACENCY_PENALTY
-
-const CJ_PUNCTUATION: i64 = CJK_BASE_SCORE / 2;
-
-const CJK_OTHER: i64 = CJK_SECONDARY_BASE_SCORE / 4;
-
-/// Latin letter caseless class
-const LATIN_LETTER: u8 = 1;
 
 /// The ISO-2022-JP candidate: valid or not, no score.
 #[derive(Default)]
@@ -407,7 +299,9 @@ impl EncodingDetector {
             }
             if start < 2 {
                 let before = std::mem::take(&mut self.last_before_non_ascii);
-                self.feed_all(before.as_slice(), false);
+                let prev = before.as_slice();
+                let keep = 2 - start;
+                self.feed_all(&prev[prev.len().saturating_sub(keep)..], false);
                 0
             } else {
                 start - 2
