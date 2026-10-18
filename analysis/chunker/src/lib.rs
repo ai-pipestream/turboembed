@@ -267,6 +267,16 @@ impl Chunker {
             return Err(Error::Annotator { annotator: id, detail: "its inputs are in different views".into() });
         }
         let n = sentences.spans.len();
+        if bounds.cost.len() != n || bounds.reason.len() != n {
+            return Err(Error::Annotator {
+                annotator: id,
+                detail: format!(
+                    "{} boundary costs and {} reasons for {n} sentences",
+                    bounds.cost.len(),
+                    bounds.reason.len()
+                ),
+            });
+        }
         let lengths = Lengths::new(&sentences.spans, &subwords.spans);
         let b = self.budget;
         let size = |r: Range<usize>| u64::from(lengths.run(r.start, r.end)) + u64::from(b.overhead);
