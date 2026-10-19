@@ -112,15 +112,30 @@ impl Counts {
         Counts { true_positives: correct, selected: total, target: total }
     }
 
-    fn add(&mut self, other: &Counts) {
-        self.true_positives = self.true_positives.saturating_add(other.true_positives);
-        self.selected = self.selected.saturating_add(other.selected);
-        self.target = self.target.saturating_add(other.target);
-    }
-
     /// The score of these counts under `measure`, in points.
     pub fn score(&self, measure: Measure) -> f64 {
-        let ratio = |n: u64, d: u64| if d > 0 { n as f64 / d as f64 } else { 0.0 };
+        let mut t = Totals::default();
+        t.add(self);
+        t.score(measure)
+    }
+}
+
+#[derive(Copy, Clone, Default)]
+struct Totals {
+    true_positives: u128,
+    selected: u128,
+    target: u128,
+}
+
+impl Totals {
+    fn add(&mut self, other: &Counts) {
+        self.true_positives += u128::from(other.true_positives);
+        self.selected += u128::from(other.selected);
+        self.target += u128::from(other.target);
+    }
+
+    fn score(self, measure: Measure) -> f64 {
+        let ratio = |n: u128, d: u128| if d > 0 { n as f64 / d as f64 } else { 0.0 };
         let score = match measure {
             Measure::Accuracy => ratio(self.true_positives, self.target),
             Measure::FMeasure => {
@@ -166,8 +181,8 @@ pub struct ModelGate {
     pub pass: bool,
 }
 
-fn total<'a>(counts: impl Iterator<Item = &'a Counts>) -> Counts {
-    let mut sum = Counts::default();
+fn total<'a>(counts: impl Iterator<Item = &'a Counts>) -> Totals {
+    let mut sum = Totals::default();
     counts.for_each(|c| sum.add(c));
     sum
 }
@@ -215,7 +230,7 @@ pub fn gate_models(measure: Measure, units: &[PairedUnit], resamples: u32, seed:
     let len = resamples as usize;
     let (mut cand, mut refr, mut diff) = (Vec::with_capacity(len), Vec::with_capacity(len), Vec::with_capacity(len));
     for _ in 0..resamples {
-        let (mut c, mut r) = (Counts::default(), Counts::default());
+        let (mut c, mut r) = (Totals::default(), Totals::default());
         for _ in 0..n {
             let u = &units[random.next_int_bounded(n) as usize];
             c.add(&u.candidate);
@@ -387,7 +402,7 @@ mod unit_tests {
         // One draw, so both ends of the interval are that draw's score:
         // the F-measure of the drawn units' summed counts.
         let mut r = JavaRandom::new(SEED);
-        let mut sum = Counts::default();
+        let mut sum = Totals::default();
         let mut unit_scores = Vec::new();
         for _ in 0..units.len() {
             let u = &units[r.next_int_bounded(units.len() as i32) as usize];
@@ -443,10 +458,15 @@ mod unit_tests {
             gate_models(Measure::FMeasure, &units, RESAMPLES, SEED),
             Err(ModelGateError::FMeasureCounts { unit: 3 })
         );
-        // Saturating count totals never overflow u64 in debug or release builds.
-        let huge = Counts::accuracy(u64::MAX / 16, u64::MAX / 16);
-        let huge_units = vec![PairedUnit { candidate: huge, reference: huge }; MIN_UNITS];
-        let huge_gate = gate_models(Measure::Accuracy, &huge_units, 4, SEED).unwrap();
-        assert_eq!(huge_gate.candidate.score, 100.0);
+        // Large unit counts accumulate in u128 so 50% vs 100% stays 50.0 vs 100.0 (and fails).
+        let half = Counts::accuracy(u64::MAX / 2, u64::MAX);
+        let full = Counts::accuracy(u64::MAX, u64::MAX);
+        let huge_units = vec![PairedUnit { candidate: half, reference: full }; MIN_UNITS];
+        for m in [Measure::Accuracy, Measure::FMeasure] {
+            let g = gate_models(m, &huge_units, 4, SEED).unwrap();
+            assert!((g.candidate.score - 50.0).abs() < 1e-9, "{g:?}");
+            assert_eq!(g.reference.score, 100.0);
+            assert!(!g.pass, "{g:?}");
+        }
     }
 }

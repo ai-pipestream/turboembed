@@ -270,6 +270,14 @@ fn a_record_s_scoring_fits_its_measure_and_counts_the_scored_tokens() {
     // The tagger's record with its mapping passes; as a lemmatizer's it
     // is refused.
     assert_eq!(lemmatizer(tags_of(&units, 3)).check(), Err(ModelGateError::LemmatizerMappings { mappings: 1 }));
+    // Unit sums exceeding u64::MAX cannot falsely match tokens = u64::MAX.
+    let max_unit =
+        PairedUnit { candidate: Counts::accuracy(u64::MAX, u64::MAX), reference: Counts::accuracy(u64::MAX, u64::MAX) };
+    let max_units = vec![max_unit; MIN_UNITS];
+    let max_tags = Scoring::Tags(TagScoring { tokens: u64::MAX, left_out: 0, reference_mappings: vec![] });
+    let max_rec =
+        ModelGateRecord::new(Task::Lemmatizer, set("s", max_tags), model("t"), model("r"), max_units).unwrap();
+    assert_eq!(max_rec.check(), Err(ModelGateError::ScoredTokens { tokens: u64::MAX, left_out: 0, scored: u64::MAX }));
 }
 
 #[test]

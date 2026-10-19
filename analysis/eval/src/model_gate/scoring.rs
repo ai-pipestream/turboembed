@@ -257,17 +257,24 @@ impl HeldOutSet {
                     return Err(ModelGateError::UnchangedReferenceInput { tag: m.held_out.clone() });
                 }
                 for side in sides {
-                    let scored: u64 = units.iter().map(side).fold(0u64, u64::saturating_add);
-                    if scored != t.spans {
-                        return Err(ModelGateError::ScoredSpans { spans: t.spans, scored });
+                    let scored: u128 = units.iter().map(|u| u128::from(side(u))).sum();
+                    if scored != u128::from(t.spans) {
+                        return Err(ModelGateError::ScoredSpans {
+                            spans: t.spans,
+                            scored: u64::try_from(scored).unwrap_or(u64::MAX),
+                        });
                     }
                 }
             }
             Scoring::Tags(t) => {
                 for side in sides {
-                    let scored: u64 = units.iter().map(side).fold(0u64, u64::saturating_add);
-                    if t.left_out > t.tokens || scored != t.tokens - t.left_out {
-                        return Err(ModelGateError::ScoredTokens { tokens: t.tokens, left_out: t.left_out, scored });
+                    let scored: u128 = units.iter().map(|u| u128::from(side(u))).sum();
+                    if t.left_out > t.tokens || scored != u128::from(t.tokens - t.left_out) {
+                        return Err(ModelGateError::ScoredTokens {
+                            tokens: t.tokens,
+                            left_out: t.left_out,
+                            scored: u64::try_from(scored).unwrap_or(u64::MAX),
+                        });
                     }
                 }
                 if task == Task::Lemmatizer && !t.reference_mappings.is_empty() {
