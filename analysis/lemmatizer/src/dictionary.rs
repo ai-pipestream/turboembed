@@ -132,6 +132,7 @@ fn java_split(input: &str, separator: char) -> Vec<&str> {
 
 impl Annotator for DictionaryLemmatizer {
     const ID: &'static str = "turbo-lemmatizer:dictionary";
+    const VERSION: &'static str = "2";
     type Reads = (View, Tokens, PosTags);
     type Writes = (Lemmas,);
 
@@ -246,6 +247,27 @@ mod tests {
         let tokens = Tokens { spans: ok_span, sentence: None };
         let bad_tags = PosTags { tagset: TagSet::new("ptb", &["NNS"]), tags: vec![Tag(5)], prob: None };
         assert!(d.annotate((view, &tokens, &bad_tags)).is_err());
+    }
+
+    #[test]
+    fn pipeline_records_validation_version() {
+        use turbo_analysis::{Analyzer, Key, Provenance};
+        let mut doc = Document::new("dogs");
+        let mut spans = Spans::new(doc.get::<View>().unwrap().id());
+        spans.push(Span::new(0, 4));
+        doc.add(&Key::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("test")).unwrap();
+        let tags = PosTags { tagset: TagSet::new("ptb", &["NNS"]), tags: vec![Tag(0)], prob: None };
+        doc.add(&Key::DEFAULT, tags, Provenance::by("test")).unwrap();
+        let analyzer = Analyzer::builder()
+            .given(Key::<Tokens>::DEFAULT)
+            .given(Key::<PosTags>::DEFAULT)
+            .add(dictionary("dogs\tNNS\tdog\n"))
+            .build()
+            .unwrap();
+        assert_eq!(analyzer.run(std::slice::from_mut(&mut doc)), [Ok(())]);
+        let provenance = doc.provenance(Key::<Lemmas>::DEFAULT.id()).unwrap();
+        assert_eq!(provenance.annotator, DictionaryLemmatizer::ID);
+        assert_eq!(provenance.version, "2");
     }
 
     #[test]
