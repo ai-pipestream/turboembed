@@ -431,7 +431,7 @@ fn row<'a>(file: &'static str, fields: usize, record: Record<'a>) -> std::result
         None
     }
     .ok_or_else(|| TatoebaError::Id { file, line, value: id.to_string() })?;
-    let language = it.next().flatten().filter(|s| !s.is_empty());
+    let language = it.next().flatten();
     let text = it.next().flatten().ok_or(TatoebaError::Null { file, line, field: "text" })?;
     Ok(Row { id, language, text })
 }

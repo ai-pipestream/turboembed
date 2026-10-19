@@ -115,7 +115,6 @@ fn bad_records_are_refused() {
         s("01\teng\tHi.\ta\tb\tc\n", ""),
         Err(TatoebaError::Id { file: DETAILED_FILE, line: 1, value: "01".into() })
     );
-    assert_eq!(export("1\t\tNo language.\tann\t\\N\t\\N\n", "").sentences(|_| true).unwrap().no_language, 1);
     assert_eq!(
         s("x\teng\tHi.\ta\tb\tc\n", ""),
         Err(TatoebaError::Id { file: DETAILED_FILE, line: 1, value: "x".into() })

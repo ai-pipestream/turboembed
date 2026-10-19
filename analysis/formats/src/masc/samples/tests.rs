@@ -65,10 +65,10 @@ fn an_empty_sentence_ends_the_corpus_as_in_opennlp_or_is_skipped_alone() {
 }
 
 #[test]
-fn sentence_reader_with_zero_per_sample_checks_null_document_on_empty_corpus() {
+fn sentence_reader_with_zero_per_sample_returns_none_even_on_empty_corpus() {
     let empty = MascCorpus::from_documents(Vec::new());
     let mut reader = MascSentenceReader::new(&empty, 0);
-    assert!(matches!(reader.read(), Err(MascError::NullDocument)));
+    assert!(reader.read().unwrap().is_none());
 
     let corpus = corpus_with_an_empty_sentence();
     let mut reader = MascSentenceReader::new(&corpus, 0);

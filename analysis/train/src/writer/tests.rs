@@ -187,5 +187,6 @@ fn a_lone_surrogate_cuts_a_chunked_string() {
 
     units[0] = 0xD83D;
     let at_start = JavaString::from_utf16(&units);
-    assert!(split_by_utf8_length(&at_start).is_empty());
+    let chunks = split_by_utf8_length(&at_start);
+    assert_eq!(chunks.iter().map(|c| c.len()).collect::<Vec<_>>(), [0]);
 }

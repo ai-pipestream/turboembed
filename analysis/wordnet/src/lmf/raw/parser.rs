@@ -369,7 +369,7 @@ impl<'a> RawParser<'a> {
         self.require_parent("ExternalSynset", "LexiconExtension", None, line)?;
         let id = self.require_attr(attrs, "ExternalSynset", "id", line)?;
         self.claim_id(&id, "external synset", line)?;
-        self.external_synset = Some(ExternalSynsetBuilder { id, line, relations: Vec::new(), definitions: Vec::new() });
+        self.external_synset = Some(ExternalSynsetBuilder { id, line, relations: Vec::new(), definition: None });
         Ok(())
     }
 

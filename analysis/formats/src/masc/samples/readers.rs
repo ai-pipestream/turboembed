@@ -98,10 +98,6 @@ impl<'c> MascSentenceReader<'c> {
     /// end, which follows the last sample unless it was full, and is the
     /// first read of an empty corpus.
     pub fn read(&mut self) -> Result<Option<MascSentenceSample<'c>>, MascError> {
-        if self.per_sample == 0 {
-            self.cursor.buffer.ok_or(MascError::NullDocument)?;
-            return Ok(None);
-        }
         let mut text = String::new();
         let mut spans = Vec::new();
         let mut sources = Vec::new();

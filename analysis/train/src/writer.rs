@@ -359,9 +359,7 @@ fn split_by_utf8_length(s: &JavaString) -> Vec<&[u8]> {
             Some(lens) => lens,
             None => {
                 // A lone surrogate: malformed input ends the encoding.
-                if pos > chunk_start {
-                    chunks.push(&bytes[chunk_start..pos]);
-                }
+                chunks.push(&bytes[chunk_start..pos]);
                 return chunks;
             }
         };

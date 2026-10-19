@@ -9,8 +9,10 @@ impl RawParser<'_> {
         };
         if let Some(ref mut synset) = self.synset {
             synset.definitions.push(definition);
-        } else if let Some(ref mut external_synset) = self.external_synset {
-            external_synset.definitions.push(definition);
+        } else if let Some(ref mut external_synset) = self.external_synset
+            && external_synset.definition.is_none()
+        {
+            external_synset.definition = Some(definition);
         }
     }
 
@@ -89,10 +91,9 @@ impl RawParser<'_> {
         let Some(external_synset) = self.external_synset.take() else {
             return;
         };
-        let definition = (!external_synset.definitions.is_empty()).then(|| external_synset.definitions.join("; "));
         self.lexicon_mut().external_synsets.push(RawExternalSynset {
             id: external_synset.id,
-            definition,
+            definition: external_synset.definition,
             relations: external_synset.relations,
             line: external_synset.line,
         });
@@ -117,7 +118,7 @@ mod tests {
     use crate::lmf::raw::parse_raw;
 
     #[test]
-    fn external_synset_joins_multiple_definitions_with_semicolon() {
+    fn external_synset_keeps_first_definition() {
         let doc = "<LexicalResource>\
                    <LexiconExtension id=\"x\" label=\"x\" language=\"en\" version=\"1\">\
                    <Extends ref=\"b\" version=\"1\"/>\
@@ -128,7 +129,7 @@ mod tests {
                    </LexiconExtension>\
                    </LexicalResource>";
         let lexicons = parse_raw(Cursor::new(doc.as_bytes()), "ext.xml", true).unwrap();
-        assert_eq!(lexicons[0].external_synsets[0].definition.as_deref(), Some("a canine; a domestic dog"));
+        assert_eq!(lexicons[0].external_synsets[0].definition.as_deref(), Some("a canine"));
     }
 
     #[test]
