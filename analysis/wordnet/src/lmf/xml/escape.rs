@@ -26,18 +26,54 @@ pub(super) fn is_xml_char(ch: char) -> bool {
     matches!(ch, '\t' | '\n' | '\r' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..)
 }
 
+/// XML 1.0 (Fifth Edition) + Namespaces in XML 1.0 `NCNameStartChar` (NameStartChar minus `:`).
+fn is_ncname_start_char(ch: char) -> bool {
+    matches!(
+        ch,
+        'A'..='Z'
+            | '_'
+            | 'a'..='z'
+            | '\u{C0}'..='\u{D6}'
+            | '\u{D8}'..='\u{F6}'
+            | '\u{F8}'..='\u{2FF}'
+            | '\u{370}'..='\u{37D}'
+            | '\u{37F}'..='\u{1FFF}'
+            | '\u{200C}'..='\u{200D}'
+            | '\u{2070}'..='\u{218F}'
+            | '\u{2C00}'..='\u{2FEF}'
+            | '\u{3001}'..='\u{D7FF}'
+            | '\u{F900}'..='\u{FDCF}'
+            | '\u{FDF0}'..='\u{FFFD}'
+            | '\u{10000}'..='\u{EFFFF}'
+    )
+}
+
+/// XML 1.0 (Fifth Edition) + Namespaces in XML 1.0 `NCNameChar` (NameChar minus `:`).
+fn is_ncname_char(ch: char) -> bool {
+    is_ncname_start_char(ch)
+        || matches!(ch, '-' | '.' | '0'..='9' | '\u{B7}' | '\u{0300}'..='\u{036F}' | '\u{203F}'..='\u{2040}')
+}
+
+pub(super) fn is_ncname(s: &str) -> bool {
+    let mut chars = s.chars();
+    let Some(first) = chars.next() else { return false };
+    is_ncname_start_char(first) && chars.all(is_ncname_char)
+}
+
 pub(super) fn split_qname<'a>(
     qname: &'a str,
     resource_name: &str,
     line: usize,
 ) -> Result<(&'a str, &'a str), WordNetError> {
     if let Some((prefix, local)) = qname.split_once(':') {
-        if prefix.is_empty() || local.is_empty() || local.contains(':') {
+        if !is_ncname(prefix) || !is_ncname(local) {
             return Err(malformed(resource_name, Some(line), format!("Invalid XML QName '{qname}'")));
         }
         Ok((prefix, local))
-    } else {
+    } else if is_ncname(qname) {
         Ok(("", qname))
+    } else {
+        Err(malformed(resource_name, Some(line), format!("Invalid XML QName '{qname}'")))
     }
 }
 

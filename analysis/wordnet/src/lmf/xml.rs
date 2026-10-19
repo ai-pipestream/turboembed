@@ -11,7 +11,7 @@ mod tests;
 use std::collections::HashSet;
 
 pub(super) use self::escape::unescape_xml;
-use self::escape::{is_xml_char, split_qname};
+use self::escape::{is_ncname, is_xml_char, split_qname};
 use super::malformed;
 use crate::error::WordNetError;
 
@@ -393,7 +393,7 @@ impl<'a> XmlPullParser<'a> {
                 if prefix.is_empty() {
                     return Err(self.err(tag_line, format!("Empty namespace prefix in '{k}' on <{raw_qname}>")));
                 }
-                if prefix.contains(':')
+                if !is_ncname(prefix)
                     || prefix == "xmlns"
                     || v.is_empty()
                     || (prefix == "xml" && v != XML_NAMESPACE)

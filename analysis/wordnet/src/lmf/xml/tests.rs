@@ -217,9 +217,15 @@ fn comments_reject_double_hyphens_and_trailing_hyphen() {
 fn attributes_require_whitespace_and_reject_illegal_namespace_declarations() {
     assert_err_contains(events("<r a=\"1\"b=\"2\"/>"), "Expected whitespace between attributes");
     assert_err_contains(events("\u{A0}<r/>"), "Unexpected text outside root XML element");
+    assert!(events("<r/>\u{a0}").is_err());
+    assert!(events("<r>\u{a0}</r>").is_ok());
     assert_err_contains(events("<r xmlns:p=\"\"/>"), "Illegal namespace declaration");
     assert_err_contains(events("<r xmlns:a:b=\"urn:x\"/>"), "Illegal namespace declaration");
+    assert_err_contains(events("<r xmlns:1bad=\"urn:test\"/>"), "Illegal namespace declaration");
+    assert_err_contains(events("<r xmlns:-bad=\"urn:test\"/>"), "Illegal namespace declaration");
+    assert_err_contains(events("<r xmlns:p!bad=\"urn:test\"/>"), "Illegal namespace declaration");
     assert_err_contains(events("<r xmlns:xmlns=\"urn:x\"/>"), "Illegal namespace declaration");
     assert_err_contains(events("<r xmlns:xml=\"urn:x\"/>"), "Illegal namespace declaration");
     assert_err_contains(events("<r xmlns=\"http://www.w3.org/XML/1998/namespace\"/>"), "Illegal default namespace");
+    assert!(events("<r xmlns:\u{e9}_1-a.b=\"urn:test\"><\u{e9}_1-a.b:c/></r>").is_ok());
 }

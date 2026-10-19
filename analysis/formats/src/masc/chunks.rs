@@ -84,7 +84,7 @@ pub struct MascChunk {
     pub kind: MascChunkKind,
     /// The number of the chunk's `nc-n` or `vc-n` id.
     pub id: i32,
-    pub(super) tokens: Vec<u32>,
+    tokens: Vec<u32>,
 }
 
 impl MascChunk {
@@ -209,8 +209,8 @@ impl MascDocument {
     /// An edge given twice is one token. A document without Penn tokens
     /// has no chunks.
     ///
-    /// Adding the chunks again replaces them; the warnings of each
-    /// addition are kept.
+    /// Adding the chunks again clears existing chunks and chunk warnings
+    /// before reading the new files, even if reading fails.
     ///
     /// [`MascSentence::chunks`]: super::MascSentence::chunks
     /// [`MascSentence::partial_chunks`]: super::MascSentence::partial_chunks
@@ -225,6 +225,15 @@ impl MascDocument {
             sentence.chunks.clear();
             sentence.partial_chunks.clear();
         }
+        self.warnings.retain(|w| {
+            !matches!(
+                w,
+                MascWarning::ChunkWithoutTokens { .. }
+                    | MascWarning::ChunkOutsideSentences { .. }
+                    | MascWarning::ChunkCrossesSentences { .. }
+                    | MascWarning::ChunksWithoutTokens
+            )
+        });
         self.has_chunks = false;
         let mut parsed = Vec::with_capacity(2);
         for kind in MascChunkKind::ALL {

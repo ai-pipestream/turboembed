@@ -125,12 +125,37 @@ fn a_chunk_file_with_another_label_or_ids_is_refused() {
     let err = document(&["a b"], None, Some(r#"<graph><a label="nchunk" ref="vc-n0"/></graph>"#)).unwrap_err();
     assert_eq!(err.to_string(), "Could not parse the verb chunk annotation file");
 
-    // A failed second call to `add_chunks` clears previously placed chunks.
-    let mut doc = document(&["a b"], Some(&chunks(Noun, &[&[0]])), None).unwrap();
+    // A second call to `add_chunks` clears previously placed chunks and chunk
+    // warnings while preserving non-chunk warnings, including when it fails.
+    let seg = br#"<graph><region xml:id="seg-r0" anchors="0 1"/></graph>"#;
+    let s = br#"<graph><region anchors="0 1"/></graph>"#;
+    let penn = br#"<graph>
+        <node xml:id="penn-n0"><link targets="seg-r0"/></node><a ref="penn-n0"><fs><f name="msd" value="NN"/></fs></a>
+        <node xml:id="penn-n1"><link targets="seg-r0"/></node><a ref="penn-n1"><fs><f name="msd" value="NN"/></fs></a>
+    </graph>"#;
+    let mut doc = MascDocument::parse(
+        "t.hdr",
+        MascFiles { text: b"a", segments: Some(seg), sentences: Some(s), penn: Some(penn), named_entities: None },
+    )
+    .unwrap();
+    let bad_nc = r#"<graph><edge from="nc-n0" to="penn-n40"/></graph>"#;
+    doc.add_chunks(MascChunkFiles { noun: Some(bad_nc.as_bytes()), verb: None }).unwrap();
+    assert_eq!(
+        doc.warnings(),
+        [
+            MascWarning::QuarkInSeveralTokens { quark: 0 },
+            MascWarning::ChunkOutsideSentences { kind: Noun, chunk: 0, token: 40 }
+        ]
+    );
+    doc.add_chunks(MascChunkFiles { noun: Some(chunks(Noun, &[&[0]]).as_bytes()), verb: None }).unwrap();
     assert!(doc.has_chunks());
+    assert_eq!(doc.warnings(), [MascWarning::QuarkInSeveralTokens { quark: 0 }]);
+    doc.add_chunks(MascChunkFiles { noun: Some(bad_nc.as_bytes()), verb: None }).unwrap();
+    assert_eq!(doc.warnings().len(), 2);
     assert!(doc.add_chunks(MascChunkFiles { noun: Some(b"<graph>"), verb: None }).is_err());
     assert!(!doc.has_chunks());
     assert!(doc.sentences()[0].chunks().is_empty());
+    assert_eq!(doc.warnings(), [MascWarning::QuarkInSeveralTokens { quark: 0 }]);
 }
 
 #[test]

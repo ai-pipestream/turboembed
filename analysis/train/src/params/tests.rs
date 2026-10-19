@@ -154,7 +154,7 @@ fn trainer_type_and_validity_follow_the_factory() {
         assert!(is_valid(&p).unwrap(), "{indexer}");
     }
     p.put(Key::DATA_INDEXER, "InvalidIndexer");
-    assert!(!is_valid(&p).unwrap());
+    assert!(is_valid(&p).unwrap());
     p.put(Key::DATA_INDEXER, 1);
     assert!(is_valid(&p).is_err());
     p.put(Key::ALGORITHM, 1);

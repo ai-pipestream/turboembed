@@ -1,6 +1,5 @@
 use super::{Key, TrainingParameters};
 use crate::error::{Error, Result};
-use crate::index::IndexerKind;
 
 /// `opennlp.tools.ml.AlgorithmType`: the trainers OpenNLP has built in,
 /// as the `Algorithm` parameter names them.
@@ -109,10 +108,9 @@ pub fn trainer_type(params: &TrainingParameters) -> Result<Option<TrainerType>> 
 }
 
 /// `TrainerFactory.isValid`: false when `Algorithm` names no built in
-/// trainer, `Cutoff` or `Iterations` is a string that is not an
-/// integer, or `DataIndexer` names no built in indexer. Reads `DataIndexer`
-/// as a string too, so a non-string value there, or under `Algorithm`, is
-/// an error.
+/// trainer or `Cutoff` or `Iterations` is a string that is not an
+/// integer. Reads `DataIndexer` as a string too, so a non-string value
+/// there, or under `Algorithm`, is an error.
 pub fn is_valid(params: &TrainingParameters) -> Result<bool> {
     if let Some(name) = params.algorithm()?
         && Algorithm::from_name(name).is_err()
@@ -126,10 +124,6 @@ pub fn is_valid(params: &TrainingParameters) -> Result<bool> {
             Err(e) => return Err(e),
         }
     }
-    if let Some(name) = params.get_str(Key::DATA_INDEXER)?
-        && IndexerKind::parse(name).is_none()
-    {
-        return Ok(false);
-    }
+    params.get_str(Key::DATA_INDEXER)?;
     Ok(true)
 }
