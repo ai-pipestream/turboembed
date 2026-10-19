@@ -18,6 +18,8 @@ impl MorphPosTags for WordPosTags {
 }
 /// The two granularities of morphosyntactic layers. Their POS types differ at
 /// compile time, so word dependencies cannot accidentally consume token tags.
+/// `TARGET_OF = None` keeps token layer names unqualified; `Some(Words::NAME)`
+/// qualifies word layers with `<turbo:words>`.
 pub trait WordOrTokenAnchor: Layer {
     const TARGET_OF: Option<&'static LayerName>;
     type Pos: MorphPosTags;

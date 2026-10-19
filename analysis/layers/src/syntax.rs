@@ -134,6 +134,9 @@ impl Layer for Terms {
 /// A head and a relation per token or syntactic word (`A = Tokens` by
 /// default: `opennlp:dependencies`; `A = Words`:
 /// `opennlp:dependencies<turbo:words>`): the tree is the columns, no nodes.
+/// Validation rejects cycles, including cycles in a separate component, so
+/// insertion into a document guarantees a forest. The check takes O(n) time
+/// and one `usize` per item in scratch space (none for an all-root forest).
 pub struct Dependencies<A: WordOrTokenAnchor = Tokens> {
     pub head: Vec<Option<Ix<A>>>,
     pub relation: Vec<Tag>,
@@ -176,8 +179,10 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
         if self.relation.iter().any(|r| r.0 as usize >= self.relations.len()) {
             return Err(format!("a relation outside {}", self.relations.name));
         }
+        let mut has_heads = false;
         for (i, &h) in self.head.iter().enumerate() {
             if let Some(h) = h {
+                has_heads = true;
                 if h.get() >= n {
                     return Err(format!("dependency head {} at {i} is out of bounds ({n})", h.get()));
                 }
@@ -186,21 +191,27 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
                 }
             }
         }
-        // Each node is entered once and completed once, even in a long chain.
-        let mut state = vec![0u8; n];
+        if !has_heads {
+            return Ok(());
+        }
+        // Walk tags visit each head once. A previous walk has already
+        // reached a root; meeting this walk's tag instead proves a cycle.
+        let mut seen = vec![0usize; n];
         for start in 0..n {
-            let mut at = Some(start);
-            while let Some(i) = at.filter(|&i| state[i] == 0) {
-                state[i] = 1;
-                at = self.head[i].map(Ix::get);
+            if seen[start] != 0 {
+                continue;
             }
-            if let Some(i) = at.filter(|&i| state[i] == 1) {
-                return Err(format!("dependency cycle at item {i}"));
+            let tag = start + 1;
+            let mut at = start;
+            while seen[at] == 0 {
+                seen[at] = tag;
+                match self.head[at] {
+                    Some(h) => at = h.get(),
+                    None => break,
+                }
             }
-            let mut at = Some(start);
-            while let Some(i) = at.filter(|&i| state[i] == 1) {
-                state[i] = 2;
-                at = self.head[i].map(Ix::get);
+            if seen[at] == tag && self.head[at].is_some() {
+                return Err(format!("dependency cycle at item {at}"));
             }
         }
 
