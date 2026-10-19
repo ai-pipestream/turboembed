@@ -133,7 +133,8 @@ impl Builder<'_> {
     }
 
     pub(super) fn list_item(&mut self) {
-        let m = *self.rng.pick(&["- ", "* ", "• ", "· ", "1. ", "2) ", "a. ", "IV. ", "– ", "—", "\u{2023} ", "①"]);
+        let m =
+            *self.rng.pick(&["- ", "* ", "• ", "· ", "1. ", "2) ", "a. ", "IV. ", "– ", "\u{2014}", "\u{2023} ", "①"]);
         self.out.push_str(m);
         self.sentence();
     }
