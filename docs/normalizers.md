@@ -1608,7 +1608,7 @@ otherwise.
 
 OpenNLP's bundled annotations, emoji-annotations.txt (40 pictographs,
 each with a name, a sentiment from -2 to 2, an entity type and a
-category), are in `analysis/normalize/src/emoji/data.rs` as well, one entry per pictograph. The
+category), are in `analysis/normalize/src/emoji/data/annotations.rs`, one entry per pictograph. The
 sources and the notes of the name rows are the same on every row, so
 they are constants next to the table. `emoji::opennlp_annotation`
 looks a sequence up as `EmojiAnnotations.lookup` does, ignoring every

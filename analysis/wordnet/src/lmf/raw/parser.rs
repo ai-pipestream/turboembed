@@ -3,14 +3,15 @@
 use std::collections::{HashMap, HashSet};
 
 use super::{
-    EntryBuilder, ExternalEntryBuilder, ExternalSenseBuilder, ExternalSynsetBuilder, RawEntry, RawExternalEntry,
-    RawExternalSense, RawExternalSynset, RawLexicon, RawRelation, RawSense, RawSenseRelation, RawSynset, SenseBuilder,
-    SynsetBuilder, claim_document_id, get_attr, parse_pos, read_dependency, read_lexicon_metadata, require_attr,
-    require_parent,
+    EntryBuilder, ExternalEntryBuilder, ExternalSenseBuilder, ExternalSynsetBuilder, RawLexicon, RawRelation,
+    RawSenseRelation, SenseBuilder, SynsetBuilder, claim_document_id, get_attr, parse_pos, read_dependency,
+    read_lexicon_metadata, require_attr, require_parent,
 };
 use crate::error::WordNetError;
 use crate::lmf::xml::XmlAttr;
 use crate::lmf::{EXT_NAMESPACE, OTHER_RELATION, malformed};
+
+mod close;
 
 /// Event-driven state for [`super::parse_raw`]: one `handle_*` method per opening element and one
 /// `end_*` method per closing element that carries state.
@@ -99,6 +100,14 @@ impl<'a> RawParser<'a> {
         // WN-LMF elements carry no namespace; the composition extension may also qualify them with
         // its own. An element from any other namespace is foreign content, whatever its local name.
         if !namespace_uri.is_empty() && namespace_uri != EXT_NAMESPACE {
+            if self.elements.is_empty() {
+                return Err(self.fail(
+                    line,
+                    format!(
+                        "Expected root element <LexicalResource> in the WN-LMF namespace, found namespace '{namespace_uri}'"
+                    ),
+                ));
+            }
             self.skip_depth = 1;
             return Ok(());
         }
@@ -389,113 +398,6 @@ impl<'a> RawParser<'a> {
         } else if let Some(ref mut external_synset) = self.external_synset {
             external_synset.relations.push(relation);
         }
-        Ok(())
-    }
-
-    fn end_definition(&mut self) {
-        let Some(definition) = self.definition.take() else {
-            return;
-        };
-        if let Some(ref mut synset) = self.synset {
-            synset.definitions.push(definition);
-        } else if let Some(ref mut external_synset) = self.external_synset
-            && external_synset.definition.is_none()
-        {
-            external_synset.definition = Some(definition);
-        }
-    }
-
-    fn end_lexical_entry(&mut self) -> Result<(), WordNetError> {
-        let entry = self.entry.take().expect("LexicalEntry end matches a handled start");
-        let Some((lemma, pos)) = entry.lemma else {
-            return Err(self.fail(entry.line, format!("LexicalEntry {} has no Lemma", entry.id)));
-        };
-        let lexicon = self.lexicon_mut();
-        lexicon.entry_order.push(entry.id.clone());
-        lexicon.entries.insert(entry.id.clone(), RawEntry { id: entry.id, lemma, pos, line: entry.line });
-        Ok(())
-    }
-
-    fn end_sense(&mut self) {
-        let Some(sense) = self.sense.take() else {
-            return;
-        };
-        let lexicon = self.lexicon_mut();
-        lexicon.sense_order.push(sense.id.clone());
-        lexicon.senses.insert(
-            sense.id.clone(),
-            RawSense {
-                id: sense.id,
-                entry_id: sense.entry_id,
-                synset_id: sense.synset_id,
-                relations: sense.relations,
-                line: sense.line,
-            },
-        );
-    }
-
-    fn end_external_sense(&mut self) {
-        if let (Some(external_entry), Some(external_sense)) = (self.external_entry.as_mut(), self.external_sense.take())
-        {
-            external_entry.external_senses.push(RawExternalSense {
-                id: external_sense.id,
-                relations: external_sense.relations,
-                line: external_sense.line,
-            });
-        }
-    }
-
-    fn end_external_lexical_entry(&mut self) {
-        let Some(external_entry) = self.external_entry.take() else {
-            return;
-        };
-        self.lexicon_mut().external_entries.push(RawExternalEntry {
-            id: external_entry.id,
-            external_senses: external_entry.external_senses,
-            line: external_entry.line,
-        });
-    }
-
-    fn end_synset(&mut self) {
-        let Some(synset) = self.synset.take() else {
-            return;
-        };
-        let lexicon = self.lexicon_mut();
-        lexicon.synset_order.push(synset.id.clone());
-        lexicon.synsets.insert(
-            synset.id.clone(),
-            RawSynset {
-                id: synset.id,
-                pos: synset.pos,
-                members: synset.members,
-                extra_members: Vec::new(),
-                gloss: synset.definitions.join("; "),
-                relations: synset.relations,
-                line: synset.line,
-            },
-        );
-    }
-
-    fn end_external_synset(&mut self) {
-        let Some(external_synset) = self.external_synset.take() else {
-            return;
-        };
-        self.lexicon_mut().external_synsets.push(RawExternalSynset {
-            id: external_synset.id,
-            definition: external_synset.definition,
-            relations: external_synset.relations,
-            line: external_synset.line,
-        });
-    }
-
-    fn end_lexicon(&mut self, line: usize) -> Result<(), WordNetError> {
-        let Some(lexicon) = self.lexicon.take() else {
-            return Ok(());
-        };
-        if lexicon.extension && lexicon.extends_ref.is_none() {
-            return Err(self.fail(line, format!("LexiconExtension {} is missing its Extends element", lexicon.id)));
-        }
-        self.lexicons.push(lexicon);
         Ok(())
     }
 }
