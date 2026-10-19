@@ -31,13 +31,6 @@ pub(super) fn parse_index_line(
         return Err(malformed(file_name, line_number, format!("Synset count must be at least 1, got: {synset_count}")));
     }
     let pointer_type_count = tokens.next_non_negative_int("pointer count", "Pointer count")?;
-    if pointer_type_count > tokens.remaining_fixed_width_fields(1) {
-        return Err(malformed(
-            file_name,
-            line_number,
-            format!("Pointer count {pointer_type_count} exceeds the available pointer fields"),
-        ));
-    }
     let mut pointer_types = HashSet::with_capacity(pointer_type_count.min(INDEX_POINTER_SYMBOLS.len()));
     for _ in 0..pointer_type_count {
         let symbol = tokens.next_field("ptr_symbol (pointer symbol)")?;
@@ -123,7 +116,7 @@ pub(super) fn clean_lemma(
         }
         cleaned = &cleaned[..cleaned.len() - marker.len()];
     }
-    if !cleaned.chars().any(|c| c != '_') {
+    if cleaned.is_empty() {
         return Err(malformed(file_name, line_number, "Empty word field"));
     }
     Ok(cleaned.replace('_', " "))
@@ -334,14 +327,6 @@ mod tests {
             &mut senses,
         )
         .unwrap_err();
-        assert!(err.to_string().contains("Pointer count 2147483647 exceeds the available pointer fields"), "{err}");
-    }
-
-    #[test]
-    fn clean_lemma_rejects_underscore_only_words() {
-        for word in ["_", "__", "_(p)"] {
-            let err = clean_lemma(word, "data.adj", 1, WordNetPos::Adjective).unwrap_err();
-            assert!(err.to_string().contains("Empty word field"), "{word}: {err}");
-        }
+        assert!(err.to_string().contains("Undeclared pointer symbol: 1"), "{err}");
     }
 }

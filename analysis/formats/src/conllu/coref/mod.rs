@@ -133,7 +133,7 @@ impl fmt::Display for CorefError {
 impl std::error::Error for CorefError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            CorefError::Entity { error, .. } => Some(error),
+            CorefError::Entity { error, .. } => error.source(),
             _ => None,
         }
     }

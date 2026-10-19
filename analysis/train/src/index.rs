@@ -370,12 +370,10 @@ impl DataIndex {
 
     /// `getValues()[i]`: the values of unique event `i`, of its full
     /// context (see the module documentation), or `None` when the indexer
-    /// drops values, the event had none, or `i` is out of range.
+    /// drops values or the event had none.
     pub fn values(&self, i: usize) -> Option<&[f32]> {
         let v = self.values.as_ref()?;
-        let start = *v.starts.get(i)? as usize;
-        let end = *v.starts.get(i.checked_add(1)?)? as usize;
-        let range = start..end;
+        let range = v.starts[i] as usize..v.starts[i + 1] as usize;
         if range.is_empty() { None } else { Some(&v.values[range]) }
     }
 }

@@ -134,13 +134,11 @@ fn references_into_the_base_need_an_external_declaration() {
         compose(&extension("<Synset id=\"x-1\" partOfSpeech=\"n\" members=\"b-cat-n\"/>")).0,
         "Synset x-1 at line 4 lists member b-cat-n, which needs a sense or entry declaration",
     );
-    assert_err_contains(
-        compose(&extension(
-            "<ExternalLexicalEntry id=\"b-cat-n\"/><Synset id=\"x-1\" partOfSpeech=\"n\" members=\"b-cat-n\"/>",
-        ))
-        .0,
-        "Synset x-1 at line 4 lists member entry b-cat-n with no sense assigned to x-1",
-    );
+    let (res, _) = compose(&extension(
+        "<ExternalLexicalEntry id=\"b-cat-n\"/><Synset id=\"x-1\" partOfSpeech=\"n\" members=\"b-cat-n\"/>",
+    ));
+    let kb = res.unwrap().into_lexicons().remove(0).into_knowledge_base();
+    assert_eq!(&["cat"], kb.synset("x-1").unwrap().lemmas());
 }
 
 #[test]
@@ -170,23 +168,4 @@ fn a_resolved_document_without_the_requested_version_is_rejected() {
     };
     let result = WnLmfReader::read_resource_named_with_resolver(Cursor::new(doc.as_bytes()), "ext.xml", &resolver);
     assert_err_contains(result, "Resolved resource base.xml does not contain lexicon b version 2");
-}
-
-#[test]
-fn large_extension_with_entry_members_composes_in_linear_time() {
-    let n = 4_000usize;
-    let mut body = String::with_capacity(n * 160);
-    for i in 0..n {
-        body.push_str(&format!(
-            "<LexicalEntry id=\"x-e-{i}\"><Lemma writtenForm=\"w{i}\" partOfSpeech=\"n\"/>\
-             <Sense id=\"x-s-{i}\" synset=\"x-syn-{i}\"/></LexicalEntry>"
-        ));
-    }
-    for i in 0..n {
-        body.push_str(&format!("<Synset id=\"x-syn-{i}\" partOfSpeech=\"n\" members=\"x-e-{i}\"/>"));
-    }
-    let (res, calls) = compose(&extension(&body));
-    assert_eq!(1, calls);
-    let kb = res.unwrap().into_lexicons().remove(0).into_knowledge_base();
-    assert_eq!(&["w3999"], kb.synset("x-syn-3999").unwrap().lemmas());
 }

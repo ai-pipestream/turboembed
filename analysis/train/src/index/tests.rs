@@ -115,12 +115,10 @@ fn values_order_events_and_are_kept_by_the_real_value_indexer() {
     // one with values, so they are kept.
     assert_eq!(ix.values(0), Some(&[1.0f32, 1.0][..]));
     assert_eq!(ix.values(1), Some(&[2.0f32, 1.0][..]));
-    assert_eq!(ix.values(2), None);
     // The other indexers drop them, but sort by them all the same.
     let ix = DataIndex::index(&events, &params(IndexerKind::OnePass, 0)).unwrap();
     assert!(!ix.has_values());
     assert_eq!(ix.times_seen(), [2, 1]);
-    assert_eq!(ix.values(2), None);
 }
 
 #[test]

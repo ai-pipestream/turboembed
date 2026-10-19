@@ -157,7 +157,7 @@ fn masc_command(a: Args) -> Result<bool, String> {
 
 /// Reads `reference` from `references` and checks it, adding what is
 /// wrong to `problems`.
-pub(crate) fn read_reference(reference: Reference, references: &Path, problems: &mut Vec<String>) -> Option<Vec<u8>> {
+fn read_reference(reference: Reference, references: &Path, problems: &mut Vec<String>) -> Option<Vec<u8>> {
     let read = reference.file().map_err(|e| e.to_string()).and_then(|file| {
         let path = references.join(file);
         let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -196,7 +196,7 @@ fn check_before_training(
     if problems.is_empty() { Ok(bytes) } else { Err(problems.join("\n")) }
 }
 
-pub(crate) fn user() -> Result<turbo_zoo::UserId, String> {
+fn user() -> Result<turbo_zoo::UserId, String> {
     std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .map_err(|_| "USER is not set".to_owned())?

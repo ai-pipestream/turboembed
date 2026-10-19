@@ -27,8 +27,8 @@
 //!   ([`EntityError::EmptyId`]); so `e5[1/2]` is entity `e5`. The part
 //!   number and the attributes are read here as well, which Java does not
 //!   do: [`Bracket::part`] when `[k/n]` follows the id with two ASCII
-//!   decimals, and [`Bracket::attributes`] when a `-` follows the id (and
-//!   the part).
+//!   decimals (`1 <= k <= n`), and [`Bracket::attributes`] when a `-`
+//!   follows the id (and the part).
 
 use std::fmt;
 

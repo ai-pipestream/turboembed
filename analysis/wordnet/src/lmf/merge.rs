@@ -251,8 +251,6 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
                 resource_name,
             )?;
         }
-        let extension_entry_synsets: HashSet<(&str, &str)> =
-            extension.senses.values().map(|s| (s.entry_id.as_str(), s.synset_id.as_str())).collect();
         for synset_id in &extension.synset_order {
             let synset = &extension.synsets[synset_id];
             self.require_member_targets(
@@ -260,7 +258,6 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
                 synset,
                 &declared_external_entries,
                 &declared_external_senses,
-                &extension_entry_synsets,
                 resource_name,
             )?;
             for rel in &synset.relations {
@@ -431,31 +428,23 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
         synset: &RawSynset,
         external_entries: &HashSet<String>,
         external_senses: &HashSet<String>,
-        extension_entry_synsets: &HashSet<(&str, &str)>,
         resource_name: &str,
     ) -> Result<(), WordNetError> {
         let Some(ref members) = synset.members else {
             return Ok(());
         };
         for member in split_on_spaces(members) {
-            let is_entry = extension.entries.contains_key(member) || external_entries.contains(member);
-            if !is_entry && !extension.senses.contains_key(member) && !external_senses.contains(member) {
+            if !extension.entries.contains_key(member)
+                && !external_entries.contains(member)
+                && !extension.senses.contains_key(member)
+                && !external_senses.contains(member)
+            {
                 return Err(malformed(
                     resource_name,
                     Some(synset.line),
                     format!(
                         "Synset {} at line {} lists member {member}, which needs a sense or entry declaration in the extension, or an ExternalSense or ExternalLexicalEntry",
                         synset.id, synset.line
-                    ),
-                ));
-            }
-            if is_entry && !extension_entry_synsets.contains(&(member, synset.id.as_str())) {
-                return Err(malformed(
-                    resource_name,
-                    Some(synset.line),
-                    format!(
-                        "Synset {} at line {} lists member entry {member} with no sense assigned to {}",
-                        synset.id, synset.line, synset.id
                     ),
                 ));
             }

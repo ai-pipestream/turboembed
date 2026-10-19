@@ -73,7 +73,7 @@ struct RawSynset {
     file_name: String,
 }
 
-pub(super) fn synset_id(offset: &str, pos_char: char) -> String {
+fn synset_id(offset: &str, pos_char: char) -> String {
     format!("wndb-{offset}-{pos_char}")
 }
 
@@ -92,7 +92,7 @@ fn decode_latin1(bytes: &[u8]) -> std::borrow::Cow<'_, str> {
     }
 }
 
-pub(super) fn malformed(file_name: &str, line_number: usize, message: impl AsRef<str>) -> WordNetError {
+fn malformed(file_name: &str, line_number: usize, message: impl AsRef<str>) -> WordNetError {
     WordNetError::invalid(format!("Malformed WNDB file {file_name} at line {line_number}: {}", message.as_ref()))
 }
 

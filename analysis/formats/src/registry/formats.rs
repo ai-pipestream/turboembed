@@ -309,7 +309,8 @@ mod tests {
         let Err(err) = r.open("conllu", "", ReadOptions::default()) else { panic!("expected unknown format") };
         assert!(err.source().is_none());
         let wrapped = OpenError::from(FormatError::NoTokens);
-        assert!(wrapped.source().is_some());
+        assert_eq!(wrapped.to_string(), FormatError::NoTokens.to_string());
+        assert!(wrapped.source().is_none());
     }
 
     #[test]

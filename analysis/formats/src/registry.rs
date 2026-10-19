@@ -34,7 +34,10 @@ use std::fmt;
 
 use turbo_unicode::WhitespaceMode;
 
-pub use self::formats::*;
+pub use self::formats::{
+    Conll02Names, Conll03Names, ConllXPos, ConllXSentences, ConllXTokens, ConlluDependencies, ConlluLemmas, ConlluPos,
+    ConlluSentences, ConlluTokens, ConvertFrom, ConvertedSentences, ConvertedTokens, NativeDependencies,
+};
 use crate::error::FormatError;
 use crate::native::{
     ChunkReader, DocumentReader, LanguageReader, LemmaReader, NameReader, SentenceReader, TokenReader, WordTagReader,
@@ -152,7 +155,7 @@ impl std::error::Error for OpenError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             OpenError::Unknown { .. } => None,
-            OpenError::Format(e) => Some(e),
+            OpenError::Format(e) => e.source(),
         }
     }
 }
