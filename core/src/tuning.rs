@@ -126,9 +126,10 @@ pub fn tcap_bin(tokens: u32) -> u32 {
     BIN_EDGES.iter().take_while(|&&e| e < tokens).count() as u32
 }
 
-/// max_seq rounded up to a power of two, 64 at least: attention's chunk.
+/// max_seq rounded up to a power of two, 64 at least and 2^31 at most:
+/// attention's chunk.
 pub fn max_seq_bin(max_seq: u32) -> u32 {
-    max_seq.max(64).next_power_of_two()
+    max_seq.max(64).checked_next_power_of_two().unwrap_or(1 << 31)
 }
 
 /// Everything that decides a session's kernel choice or changes its
@@ -177,7 +178,9 @@ impl TuneEntry {
         let timings = timings
             .lines()
             .filter_map(|l| l.split_once('='))
-            .filter_map(|(n, ms)| ms.parse::<f32>().ok().map(|ms| (n.to_owned(), ms)))
+            .filter_map(|(n, ms)| {
+                ms.parse::<f32>().ok().filter(|ms| ms.is_finite() && *ms >= 0.0).map(|ms| (n.to_owned(), ms))
+            })
             .collect();
         TuneEntry {
             key,
@@ -254,7 +257,10 @@ impl Cache {
         }
         let bytes = std::fs::read(cache_file(dir?, key)).ok()?;
         let e: TuneEntry = serde_json::from_slice(&bytes).ok()?;
-        if e.key != *key || e.source != TURBO_TUNED_MEASURED {
+        if e.key != *key
+            || e.source != TURBO_TUNED_MEASURED
+            || !e.timings.iter().all(|(_, ms)| ms.is_finite() && *ms >= 0.0)
+        {
             return None;
         }
         map.insert(key.clone(), e.clone());
@@ -346,8 +352,13 @@ mod tests {
     #[test]
     fn the_bins_of_a_key_are_the_backends() {
         assert_eq!([tcap_bin(1), tcap_bin(256), tcap_bin(257), tcap_bin(8192), tcap_bin(16385)], [0, 0, 1, 3, 4]);
-        assert_eq!([max_seq_bin(1), max_seq_bin(64), max_seq_bin(65), max_seq_bin(512)], [64, 64, 128, 512]);
+        assert_eq!(
+            [max_seq_bin(1), max_seq_bin(64), max_seq_bin(65), max_seq_bin(512), max_seq_bin(u32::MAX)],
+            [64, 64, 128, 512, 1 << 31]
+        );
         assert_eq!(utc(UNIX_EPOCH + std::time::Duration::from_secs(1_790_294_400)), "2026-09-25T00:00:00Z");
+        let e = TuneEntry::measured(key(), "c", 1, "a=0.5\nb=NaN\nc=inf\nd=-1.0\n");
+        assert_eq!(e.timings, [("a".to_owned(), 0.5)]);
     }
 
     /// An entry is found in memory and in its file, which holds it as
