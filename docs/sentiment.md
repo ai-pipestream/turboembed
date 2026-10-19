@@ -396,11 +396,12 @@ Per `#326`, SemEval ABSA XML datasets (`SemEval-2014 Task 4`, `SemEval-2015 Task
 `SemEval-2016 Task 5`) are non-commercial or carry unspecified redistribution
 terms and are not committed to the repository.
 
-- `analysis/doccat/src/sentiment/aspect.rs` tests `RuleAspectSentiment` in
-  five unit tests: `"battery life is great but the screen scratches"`,
+- `analysis/doccat/src/sentiment/aspect/mod.rs` tests `RuleAspectSentiment` in
+  six unit tests: `"battery life is great but the screen scratches"`,
   double propagation over `Dependencies` extracting the conjoined aspect
   `"tiramisu"`, an aspect and an opinion under one governor (`"The battery
-  works well"`), implicit sentence-anchored aspects, and exact-span
+  works well"`), implicit sentence-anchored aspects, negation written with
+  a curly apostrophe (`"isn’t"`), and exact-span
   `evaluate_absa_corpus` metrics (`aspect_f1`, `opinion_f1`, `triplet_f1`)
   on a 10-sentence regression fixture written beside the rules. The
   `PhraseChunks` and `PosTags` extraction paths and the
