@@ -272,7 +272,21 @@ impl TrainingContext {
                         max_scale = max_scale.max(v.abs());
                     }
                 }
-                if max_scale > 0.0 && (!total_sq.is_finite() || total_sq < f64::MIN_POSITIVE) {
+                let fast_norm = (total_sq.is_finite() && total_sq >= f64::MIN_POSITIVE).then(|| total_sq.sqrt());
+                if let Some(norm) = fast_norm
+                    && norm <= self.settings.max_grad_norm
+                {
+                    // Already within max_grad_norm.
+                } else if let Some(clip) =
+                    fast_norm.map(|norm| self.settings.max_grad_norm / norm).filter(|&c| c >= f64::MIN_POSITIVE)
+                {
+                    self.optimizer.scale_gradients(clip);
+                    for g in touched_tuning_rows.values_mut() {
+                        for v in g {
+                            *v *= clip;
+                        }
+                    }
+                } else if max_scale > 0.0 {
                     let mut norm_sq = 0.0f64;
                     for g in self.optimizer.gradients() {
                         for row in g {
@@ -292,7 +306,7 @@ impl TrainingContext {
                     if unit_norm > self.settings.max_grad_norm / max_scale {
                         let magnitude = self.settings.max_grad_norm / unit_norm;
                         let clip = magnitude / max_scale;
-                        if clip >= f64::MIN_POSITIVE {
+                        if clip >= f64::MIN_POSITIVE && clip.is_finite() {
                             self.optimizer.scale_gradients(clip);
                             for g in touched_tuning_rows.values_mut() {
                                 for v in g {
@@ -311,17 +325,6 @@ impl TrainingContext {
                                 for v in g {
                                     *v = (*v / max_scale) * magnitude;
                                 }
-                            }
-                        }
-                    }
-                } else {
-                    let norm = total_sq.sqrt();
-                    if norm > self.settings.max_grad_norm {
-                        let clip = self.settings.max_grad_norm / norm;
-                        self.optimizer.scale_gradients(clip);
-                        for g in touched_tuning_rows.values_mut() {
-                            for v in g {
-                                *v *= clip;
                             }
                         }
                     }

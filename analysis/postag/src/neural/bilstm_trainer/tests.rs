@@ -241,6 +241,19 @@ fn pretrained_tuning_clips_extreme_gradients_and_rejects_non_finite_updates() {
     assert!((ctx.optimizer.gradient(ctx.idx_out_b)[0][0] - 2.5).abs() < 1e-12);
     assert!((both_max_touched[&0][0] - 2.5).abs() < 1e-12);
 
+    // Finite total_sq (2.5e301) with tiny max_grad_norm (1e-300) must not underflow clip = limit / norm to 0.0.
+    let tiny_limit_settings = BilstmSettings::new(
+        4, 2, 2, 4, 1, 1, 1e-3, 1e-300, 0.0, 1, 8, 7, 1, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.5, false,
+    )
+    .unwrap();
+    let mut tiny_ctx = TrainingContext::build(&corpus, tiny_limit_settings, Some(vec_fn), None).unwrap();
+    tiny_ctx.optimizer.gradient_mut(tiny_ctx.idx_out_b)[0].copy_from_slice(&[3e150, 0.0]);
+    let mut tiny_touched = HashMap::new();
+    tiny_touched.insert(0, vec![0.0, -4e150]);
+    tiny_ctx.step_batch(1.0, 1.0, 1, &mut tiny_touched).unwrap();
+    assert!((tiny_ctx.optimizer.gradient(tiny_ctx.idx_out_b)[0][0] - 6e-301).abs() <= 6e-301 * 1e-12);
+    assert!((tiny_touched[&0][1] - -8e-301).abs() <= 8e-301 * 1e-12);
+
     // Bug 1b: NaN tuning gradient must return NonFiniteScore.
     let mut nan_touched = HashMap::new();
     nan_touched.insert(0, vec![f64::NAN, 1.0]);
