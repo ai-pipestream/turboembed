@@ -200,8 +200,10 @@ impl std::ops::DerefMut for I8s {
 }
 
 impl Quantized {
-    /// `huge`: in huge pages, where the host gives them.
-    pub(super) fn new(t: &Table, huge: bool) -> Quantized {
+    /// `huge`: in huge pages, where the host gives them. Err says which
+    /// value of the table the I8 copy cannot hold: one that is not
+    /// finite, or a row whose scale is past F32's range.
+    pub(super) fn new(t: &Table, huge: bool) -> Result<Quantized, String> {
         let n = t.height * t.dim;
         let mut values = match huge.then(|| AlignedBytes::zeroed_huge(n)).flatten() {
             Some(b) => I8s::Huge(b),
@@ -209,16 +211,26 @@ impl Quantized {
         };
         let mut scales = vec![0f32; t.height].into_boxed_slice();
         for (row, (q, scale)) in values.chunks_exact_mut(t.dim).zip(scales.iter_mut()).enumerate() {
-            let most = (0..t.dim).map(|j| t.value(row, j).abs()).fold(0f64, f64::max);
-            if most == 0.0 || !most.is_finite() {
+            let mut most = 0f64;
+            for j in 0..t.dim {
+                let v = t.value(row, j);
+                if !v.is_finite() {
+                    return Err(format!("row {row} of the table holds {v} at column {j}"));
+                }
+                most = most.max(v.abs());
+            }
+            if most == 0.0 {
                 continue;
             }
             *scale = (most / 127.0) as f32;
+            if !scale.is_finite() {
+                return Err(format!("row {row} of the table has a largest magnitude of {most}, past an F32 scale"));
+            }
             for (j, v) in q.iter_mut().enumerate() {
                 *v = (t.value(row, j) / *scale as f64).round().clamp(-127.0, 127.0) as i8;
             }
         }
-        Quantized { values, scales }
+        Ok(Quantized { values, scales })
     }
 }
 
@@ -990,7 +1002,7 @@ mod tests {
                     wide: false,
                     _copy: None,
                 };
-                let q = Quantized::new(&t, false);
+                let q = Quantized::new(&t, false).unwrap();
                 let ids: Vec<u32> = (0..23).map(|i| (i * 17 % vocab) as u32).collect();
                 let (mut want, mut got) = (vec![0f32; dim], vec![0f32; dim]);
                 mean_quantized(&t, &q, &ids, &mut want);
@@ -1105,7 +1117,7 @@ mod range_tests {
             (TURBO_DTYPE_F32, true, true),
         ] {
             let (t, values) = table(dtype, weighted);
-            let q = quantized.then(|| Arc::new(Quantized::new(&t, false)));
+            let q = quantized.then(|| Arc::new(Quantized::new(&t, false).unwrap()));
             let s = Static::new(t, q, Isa::detect(), max_batch, max_seq, max_ranges).unwrap();
             all.push((format!("dtype {dtype}, weights {weighted}, i8 {quantized}"), s, values));
         }
