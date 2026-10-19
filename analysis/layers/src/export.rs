@@ -1212,25 +1212,14 @@ fn get_keyed_ranges<Target: Layer>(
     let mut values = Vec::new();
     for _ in 0..r.usize()? {
         let (start, end) = (r.u32()?, r.u32()?);
-        if start > end || end as usize > len {
-            return Err(ExportError::DanglingEndpoint {
-                layer: target.layer.clone(),
-                endpoint: NodeRef { layer: target.clone(), index: end },
-            });
-        }
-        values.push(IxRange::new(start, end));
+        values.push(checked_range(cx, &target, len, start, end)?);
     }
     Ok((cx.key::<Target>(&target.instance.clone()), values))
 }
 
 fn validate_range<Target: Layer>(cx: &ImportCx, target: &LayerRef, range: IxRange<Target>) -> Result<(), ExportError> {
     let len = cx.layer_len(target)?;
-    if range.start > range.end || range.end.get() > len {
-        return Err(ExportError::DanglingEndpoint {
-            layer: target.layer.clone(),
-            endpoint: NodeRef { layer: target.clone(), index: range.end.get() as u32 },
-        });
-    }
+    checked_range::<Target>(cx, target, len, range.start.get() as u32, range.end.get() as u32)?;
     Ok(())
 }
 
@@ -1262,7 +1251,7 @@ impl<L: Layer> LayerCodec for Vectors<L> {
         if count != want {
             return Err(malformed(format!("{count} vector values for {rows} rows of dimension {dim}")));
         }
-        let mut data = Vec::with_capacity(count);
+        let mut data = Vec::new();
         for _ in 0..count {
             data.push(f32::from_bits(r.u32()?));
         }
@@ -1991,9 +1980,9 @@ impl LayerCodec for Levels {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let chunks_ref = get_ref(&mut r)?;
-        want_target::<Chunks>(&chunks_ref, cx)?;
+        cx.expect_target::<Chunks>(&chunks_ref)?;
         let structure_ref = get_ref(&mut r)?;
-        want_target::<Structure>(&structure_ref, cx)?;
+        cx.expect_target::<Structure>(&structure_ref)?;
         let mut unit = Vec::new();
         for _ in 0..r.usize()? {
             unit.push(match r.u8()? {
@@ -2123,6 +2112,8 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Categories<Sentences>>()
         .register::<Categories<Structure>>()
         .register::<Categories<Chunks>>()
+        .register::<Categories<Opinions>>()
+        .register::<Categories<Aspects>>()
         .register::<Phrases>()
         .register::<Opinions>()
         .register::<Aspects>()

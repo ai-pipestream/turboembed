@@ -469,8 +469,19 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
     )
     .unwrap();
 
+    let mut opinion_cats = Categories::<Opinions>::new(tagset("cats", &["a", "b"]));
+    opinion_cats.push(Tag(1), &[0.1, 0.9]);
+    opinion_cats.push(Tag(0), &[0.8, 0.2]);
+    doc.add(&Key::DEFAULT, opinion_cats, Provenance::by("test")).unwrap();
+    let mut aspect_cats = Categories::<Aspects>::new(tagset("cats", &["a", "b"]));
+    aspect_cats.push(Tag(0), &[0.6, 0.4]);
+    aspect_cats.push(Tag(1), &[0.2, 0.8]);
+    doc.add(&Key::DEFAULT, aspect_cats, Provenance::by("test")).unwrap();
+
     let graph = export(&doc, &codecs()).unwrap();
     let back = import(&DocumentGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(), &codecs()).unwrap();
+    assert_eq!(back.get::<Categories<Opinions>>().unwrap().best_category(0), "b");
+    assert_eq!(back.get::<Categories<Aspects>>().unwrap().best_category(1), "b");
     assert_eq!(back.get::<Opinions>().unwrap().get(Ix::new(1)).effective_polarity(), 0.8);
     assert_eq!(back.get::<Aspects>().unwrap().get(Ix::new(0)).opinions, [Ix::new(0)]);
     assert_eq!(back.get::<Pragmatics>().unwrap().score, [0.7, 0.1]);
@@ -527,6 +538,118 @@ fn vector_dimension_mismatches_are_refused() {
         Ok(_) => panic!("a vector block with a value count mismatch imported"),
         Err(other) => panic!("a vector block mismatch failed as {other}"),
     }
+}
+
+#[test]
+fn sentiment_family_refusals() {
+    let mut doc = document();
+    let by = Provenance::by("test");
+    doc.add(
+        &Key::DEFAULT,
+        Money {
+            spans: spans(&[(0, 5)]),
+            negative: vec![false],
+            coefficient: strs(&["500"]),
+            scale: vec![2],
+            currency: vec![Currency::parse("USD").unwrap()],
+        },
+        by.clone(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::DEFAULT,
+        Numbers {
+            spans: spans(&[(0, 5)]),
+            numeral_end: vec![5],
+            negative: vec![false],
+            coefficient: strs(&["42"]),
+            scale: vec![0],
+            multiplier: vec![Multiplier::One],
+            marker: vec![ScaleMarker::None],
+            notation: vec![NumberNotation::LatinUs],
+        },
+        by.clone(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::DEFAULT,
+        Phrases {
+            spans: spans(&[(0, 5)]),
+            tokens: vec![IxRange::new(0, 1)],
+            kind: vec![Tag(0)],
+            kinds: tagset("phrase-kinds", &["NP"]),
+            head: vec![Ix::new(0)],
+            parent: vec![None],
+        },
+        by.clone(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::DEFAULT,
+        Vectors::<Sentences>::new(
+            2,
+            vec![0.0; 4],
+            vec![],
+            ModelRef { id: "m".into(), revision: "r".into(), sha256: "s".into() },
+        ),
+        by,
+    )
+    .unwrap();
+
+    // A twelve byte vector body claiming billions of values must be
+    // a typed refusal, not an allocation.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    let mut w = Writer::new();
+    w.u32(1);
+    w.usize(u32::MAX as usize).unwrap();
+    w.usize(u32::MAX as usize).unwrap();
+    splice(&mut graph, "opennlp:embeddings", w.finish(), u32::MAX);
+    assert!(import(&graph, &codecs()).is_err(), "a vector body claiming billions of values imported");
+
+    // An extreme number span must be refused, never panicking in the
+    // layer's own checks.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    let mut w = Writer::new();
+    write_spans(&mut w, "", &[Span::new(u32::MAX, u32::MAX)]);
+    splice(&mut graph, "turbo:numbers", w.finish(), 1);
+    assert!(import(&graph, &codecs()).is_err(), "a number at the end of the address space imported");
+
+    // A phrase head outside its token range.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    let mut w = Writer::new();
+    write_spans(&mut w, "", &[Span::new(0, 5)]);
+    w.str("opennlp:tokens").unwrap();
+    w.str("").unwrap();
+    w.usize(1).unwrap();
+    w.u32(0);
+    w.u32(1);
+    w.usize(1).unwrap();
+    w.str("NP").unwrap();
+    w.usize(1).unwrap();
+    w.u16(0);
+    w.usize(1).unwrap();
+    w.u32(5);
+    w.usize(1).unwrap();
+    w.u8(0);
+    splice(&mut graph, "opennlp:phrases", w.finish(), 1);
+    assert!(import(&graph, &codecs()).is_err(), "a phrase head outside its tokens imported");
+
+    // An unknown currency code.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    let mut w = Writer::new();
+    write_spans(&mut w, "", &[Span::new(0, 5)]);
+    w.usize(1).unwrap();
+    w.u8(0);
+    w.usize(1).unwrap();
+    w.str("1").unwrap();
+    w.usize(1).unwrap();
+    w.u32(0);
+    w.usize(1).unwrap();
+    w.str("not-a-currency").unwrap();
+    splice(&mut graph, "turbo:money", w.finish(), 1);
+    assert!(import(&graph, &codecs()).is_err(), "an unknown currency code imported");
+}
+
 /// The span column encoding, written out longhand so corrupted
 /// payloads can be built without an export context.
 fn write_spans(w: &mut Writer, view: &str, spans: &[Span]) {
