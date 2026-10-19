@@ -398,11 +398,7 @@ mod tests {
 
     #[test]
     fn document_typed_utf16_and_code_point_helpers_round_trip() {
-        // Source: "a\u{1F600}\u{FB01}b"
-        // 'a' (0..1, u16 0..1, cp 0..1)
-        // '😀' (1..5, u16 1..3, cp 1..2)
-        // 'ﬁ' (5..8, u16 3..4, cp 2..3)
-        // 'b' (8..9, u16 4..5, cp 3..4)
+        // Source: "a\u{1F600}\u{FB01}b" ('a' 0..1, '😀' 1..5, 'ﬁ' 5..8, 'b' 8..9)
         let mut doc = Document::new("a\u{1F600}\u{FB01}b");
         let v0 = doc.get::<View>().unwrap().clone();
         let mut b = ViewBuilder::new(v0.text());
@@ -412,7 +408,6 @@ mod tests {
         doc.add(&Key::<View>::named("nfkc"), View::derived(&v0, t1, a1), Provenance::by("test")).unwrap();
         let v1_id = doc.get_key(&Key::<View>::named("nfkc")).unwrap().id();
 
-        // In v1 ("a😀fib"), "fi" is bytes 5..7, UTF-16 3..5, code points 2..4.
         let fi_v1 = Span::new(5, 7);
         assert_eq!(doc.view_span_to_utf16(v1_id, fi_v1).unwrap(), Utf16Span::new(Utf16Offset(3), Utf16Offset(5)));
         assert_eq!(
@@ -420,7 +415,6 @@ mod tests {
             CodePointSpan::new(CodePointOffset(2), CodePointOffset(4))
         );
 
-        // Mapping "fi" in v1 to source UTF-16 / code-point spans gives 'ﬁ' (u16 3..4, cp 2..3).
         let src_u16 = doc.view_to_source_utf16(v1_id, fi_v1).unwrap();
         assert_eq!(src_u16, Utf16Span::new(Utf16Offset(3), Utf16Offset(4)));
         assert_eq!(doc.source_utf16_to_view(v1_id, src_u16).unwrap(), fi_v1);
@@ -441,5 +435,64 @@ mod tests {
         let mut bad_spans = Spans::<Phrases>::new(ViewId::SOURCE);
         bad_spans.push(Span::new(1, 99));
         assert!(doc.project_spans(&bad_spans, ViewId::SOURCE).is_err());
+    }
+
+    #[test]
+    fn composed_view_alignment_round_trips_through_document_graph_and_map_span_steps_sequentially() {
+        use crate::export::{Codecs, DocumentGraph, export, import};
+
+        let mut b1 = ViewBuilder::new("aXb");
+        b1.keep(1);
+        b1.replace(2, "");
+        let (_, ab) = b1.finish();
+        let mut b2 = ViewBuilder::new("ab");
+        b2.keep(1);
+        b2.replace(1, "+");
+        let (final_text, bc) = b2.finish();
+        let composed = ab.compose(&bc);
+
+        let mut doc = Document::new("aXb");
+        let v0 = doc.get::<View>().unwrap().clone();
+        doc.add(&Key::<View>::named("composed"), View::derived(&v0, final_text, composed), Provenance::by("test"))
+            .unwrap();
+        let codecs = Codecs::new();
+        let bytes = export(&doc, &codecs).unwrap().to_bytes().unwrap();
+        let restored = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs).unwrap();
+        let before_align = doc.get_key(&Key::<View>::named("composed")).unwrap().alignment();
+        let after_align = restored.get_key(&Key::<View>::named("composed")).unwrap().alignment();
+        assert_eq!(before_align, after_align);
+        for x in 0..=3 {
+            for side in [Side::Start, Side::End] {
+                assert_eq!(before_align.to_child(x, side), after_align.to_child(x, side));
+                assert_eq!(before_align.to_parent(x, side), after_align.to_parent(x, side));
+            }
+        }
+
+        // Step-by-step empty-span projection across intermediate views:
+        // "abcd" -> "axbcd" (insert 'x' at 1) -> "ybcd" (replace 0..2 with 'y').
+        let mut s_doc = Document::new("abcd");
+        let sv0 = s_doc.get::<View>().unwrap().clone();
+        let mut sb1 = ViewBuilder::new(sv0.text());
+        sb1.keep(1);
+        sb1.replace(1, "x");
+        let (st1, sa1) = sb1.finish();
+        s_doc.add(&Key::<View>::named("v1"), View::derived(&sv0, st1, sa1.clone()), Provenance::by("test")).unwrap();
+        let sv1 = s_doc.get_key(&Key::<View>::named("v1")).unwrap().clone();
+        let mut sb2 = ViewBuilder::new(sv1.text());
+        sb2.replace(2, "y");
+        let (st2, sa2) = sb2.finish();
+        s_doc.add(&Key::<View>::named("v2"), View::derived(&sv1, st2, sa2.clone()), Provenance::by("test")).unwrap();
+        let sv2_id = s_doc.get_key(&Key::<View>::named("v2")).unwrap().id();
+
+        let empty_1 = Span::new(1, 1);
+        assert_eq!(sa2.span_to_child(sa1.span_to_child(empty_1)), Span::new(0, 1));
+        assert_eq!(s_doc.map_span(ViewId::SOURCE, sv2_id, empty_1).unwrap(), Span::new(0, 1));
+        for z in 0..=4 {
+            let empty_z = Span::new(z, z);
+            assert_eq!(
+                s_doc.map_span(sv2_id, ViewId::SOURCE, empty_z).unwrap(),
+                sa1.span_to_parent(sa2.span_to_parent(empty_z))
+            );
+        }
     }
 }

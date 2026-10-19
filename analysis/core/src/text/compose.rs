@@ -1,22 +1,8 @@
-//! Sequential [`Alignment`] composition (`A -> B` followed by `B -> C`).
+//! Sequential [`Alignment`] edit-script composition (`A -> B` followed by `B -> C`).
 
 use crate::span::Span;
 
-use super::{Alignment, Edit, Side, map};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Breakpoint {
-    pub(super) pos: u32,
-    pub(super) at_start: u32,
-    pub(super) at_end: u32,
-    pub(super) after: After,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum After {
-    Shift { base: u32 },
-    Constant { start: u32, end: u32 },
-}
+use super::{Alignment, Edit};
 
 pub(super) fn compose_alignments(ab: &Alignment, bc: &Alignment) -> Alignment {
     if ab.edits.is_empty() {
@@ -28,12 +14,7 @@ pub(super) fn compose_alignments(ab: &Alignment, bc: &Alignment) -> Alignment {
     let ab_edits = split_pure_insertions(&ab.edits, &bc.edits);
     let bc_edits = split_pure_deletions(&bc.edits, &ab.edits);
     let out = merge_edits(&ab_edits, &bc_edits);
-    if out.is_empty() {
-        return Alignment::identity();
-    }
-    let forward = build_forward_breakpoints(ab, bc, &out);
-    let backward = build_backward_breakpoints(ab, bc, &out);
-    Alignment { edits: out, forward, backward }
+    Alignment { edits: out }
 }
 
 fn split_pure_insertions(ab: &[Edit], bc: &[Edit]) -> Vec<Edit> {
@@ -153,142 +134,4 @@ fn merge_edits(ab: &[Edit], bc: &[Edit]) -> Vec<Edit> {
         }
     }
     out
-}
-
-fn build_forward_breakpoints(ab: &Alignment, bc: &Alignment, out_edits: &[Edit]) -> Vec<Breakpoint> {
-    let mut pts: Vec<u32> = Vec::new();
-    for e in out_edits {
-        pts.push(e.parent.start);
-        pts.push(e.parent.end);
-    }
-    for e in &ab.edits {
-        pts.push(e.parent.start);
-        pts.push(e.parent.end);
-    }
-    for bp in &ab.forward {
-        pts.push(bp.pos);
-    }
-    for e in &bc.edits {
-        for b in [e.parent.start, e.parent.end] {
-            pts.push(ab.to_parent(b, Side::Start));
-            pts.push(ab.to_parent(b, Side::End));
-        }
-    }
-    for bp in &bc.forward {
-        pts.push(ab.to_parent(bp.pos, Side::Start));
-        pts.push(ab.to_parent(bp.pos, Side::End));
-    }
-    pts.sort_unstable();
-    pts.dedup();
-
-    let map_two = |x: u32, side: Side| bc.to_child(ab.to_child(x, side), side);
-    let mut bps = Vec::with_capacity(pts.len());
-    let mut differs = false;
-
-    for (k, &p) in pts.iter().enumerate() {
-        let at_start = map_two(p, Side::Start);
-        let at_end = map_two(p, Side::End);
-        if at_start != map(out_edits, p, Side::Start, |e| e.parent, |e| e.child)
-            || at_end != map(out_edits, p, Side::End, |e| e.parent, |e| e.child)
-        {
-            differs = true;
-        }
-        let mid = p.saturating_add(1);
-        let s_mid = map_two(mid, Side::Start);
-        let e_mid = map_two(mid, Side::End);
-        if s_mid != map(out_edits, mid, Side::Start, |e| e.parent, |e| e.child)
-            || e_mid != map(out_edits, mid, Side::End, |e| e.parent, |e| e.child)
-        {
-            differs = true;
-        }
-        let in_edit = k + 1 < pts.len()
-            && out_edits
-                .iter()
-                .any(|e| e.parent.start <= p && pts[k + 1] <= e.parent.end && e.parent.start < e.parent.end);
-        let after = if in_edit {
-            After::Constant { start: s_mid, end: e_mid }
-        } else {
-            After::Shift { base: s_mid.saturating_sub(1) }
-        };
-        bps.push(Breakpoint { pos: p, at_start, at_end, after });
-    }
-    if differs { bps } else { Vec::new() }
-}
-
-fn build_backward_breakpoints(ab: &Alignment, bc: &Alignment, out_edits: &[Edit]) -> Vec<Breakpoint> {
-    let mut pts: Vec<u32> = Vec::new();
-    for e in out_edits {
-        pts.push(e.child.start);
-        pts.push(e.child.end);
-    }
-    for e in &bc.edits {
-        pts.push(e.child.start);
-        pts.push(e.child.end);
-    }
-    for bp in &bc.backward {
-        pts.push(bp.pos);
-    }
-    for e in &ab.edits {
-        for b in [e.child.start, e.child.end] {
-            pts.push(bc.to_child(b, Side::Start));
-            pts.push(bc.to_child(b, Side::End));
-        }
-    }
-    for bp in &ab.backward {
-        pts.push(bc.to_child(bp.pos, Side::Start));
-        pts.push(bc.to_child(bp.pos, Side::End));
-    }
-    pts.sort_unstable();
-    pts.dedup();
-
-    let map_two = |z: u32, side: Side| ab.to_parent(bc.to_parent(z, side), side);
-    let mut bps = Vec::with_capacity(pts.len());
-    let mut differs = false;
-
-    for (k, &q) in pts.iter().enumerate() {
-        let at_start = map_two(q, Side::Start);
-        let at_end = map_two(q, Side::End);
-        if at_start != map(out_edits, q, Side::Start, |e| e.child, |e| e.parent)
-            || at_end != map(out_edits, q, Side::End, |e| e.child, |e| e.parent)
-        {
-            differs = true;
-        }
-        let mid = q.saturating_add(1);
-        let s_mid = map_two(mid, Side::Start);
-        let e_mid = map_two(mid, Side::End);
-        if s_mid != map(out_edits, mid, Side::Start, |e| e.child, |e| e.parent)
-            || e_mid != map(out_edits, mid, Side::End, |e| e.child, |e| e.parent)
-        {
-            differs = true;
-        }
-        let in_edit = k + 1 < pts.len()
-            && out_edits.iter().any(|e| e.child.start <= q && pts[k + 1] <= e.child.end && e.child.start < e.child.end);
-        let after = if in_edit {
-            After::Constant { start: s_mid, end: e_mid }
-        } else {
-            After::Shift { base: s_mid.saturating_sub(1) }
-        };
-        bps.push(Breakpoint { pos: q, at_start, at_end, after });
-    }
-    if differs { bps } else { Vec::new() }
-}
-
-pub(super) fn eval_breakpoints(bps: &[Breakpoint], x: u32, side: Side) -> u32 {
-    match bps.binary_search_by_key(&x, |b| b.pos) {
-        Ok(i) => match side {
-            Side::Start => bps[i].at_start,
-            Side::End => bps[i].at_end,
-        },
-        Err(0) => x,
-        Err(i) => {
-            let prev = &bps[i - 1];
-            match prev.after {
-                After::Shift { base } => base + (x - prev.pos),
-                After::Constant { start, end } => match side {
-                    Side::Start => start,
-                    Side::End => end,
-                },
-            }
-        }
-    }
 }

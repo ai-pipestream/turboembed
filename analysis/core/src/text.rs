@@ -23,7 +23,7 @@ pub struct Edit {
 
 mod compose;
 
-use compose::{Breakpoint, compose_alignments, eval_breakpoints};
+use compose::compose_alignments;
 
 /// How a view's bytes line up with its parent's: the edits, in text order
 /// on both sides, never overlapping. Identity is no edits. Mapping is a
@@ -31,8 +31,6 @@ use compose::{Breakpoint, compose_alignments, eval_breakpoints};
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Alignment {
     edits: Vec<Edit>,
-    forward: Vec<Breakpoint>,
-    backward: Vec<Breakpoint>,
 }
 
 /// Which side of a span an offset is: a start widens to the start of an
@@ -46,7 +44,7 @@ pub enum Side {
 
 impl Alignment {
     pub fn identity() -> Alignment {
-        Alignment { edits: Vec::new(), forward: Vec::new(), backward: Vec::new() }
+        Alignment { edits: Vec::new() }
     }
 
     pub fn edits(&self) -> &[Edit] {
@@ -79,28 +77,22 @@ impl Alignment {
             }
             (parent_end, child_end) = (e.parent.end, e.child.end);
         }
-        Ok(Alignment { edits, forward: Vec::new(), backward: Vec::new() })
+        Ok(Alignment { edits })
     }
 
     /// Edits a builder in this crate recorded, which are in order by
     /// construction.
     pub(crate) fn from_builder(edits: Vec<Edit>) -> Alignment {
-        Alignment { edits, forward: Vec::new(), backward: Vec::new() }
+        Alignment { edits }
     }
 
     /// A child offset in parent bytes.
     pub fn to_parent(&self, x: u32, side: Side) -> u32 {
-        if !self.backward.is_empty() {
-            return eval_breakpoints(&self.backward, x, side);
-        }
         map(&self.edits, x, side, |e| e.child, |e| e.parent)
     }
 
     /// A parent offset in child bytes.
     pub fn to_child(&self, x: u32, side: Side) -> u32 {
-        if !self.forward.is_empty() {
-            return eval_breakpoints(&self.forward, x, side);
-        }
         map(&self.edits, x, side, |e| e.parent, |e| e.child)
     }
 
@@ -127,17 +119,22 @@ impl Alignment {
     /// every edit so the returned alignment maps from `child` (as parent)
     /// to `parent` (as child).
     pub fn invert(&self) -> Alignment {
-        Alignment {
-            edits: self.edits.iter().map(|e| Edit { parent: e.child, child: e.parent }).collect(),
-            forward: self.backward.clone(),
-            backward: self.forward.clone(),
-        }
+        Alignment { edits: self.edits.iter().map(|e| Edit { parent: e.child, child: e.parent }).collect() }
     }
 
-    /// Composes `self` (`A -> B`) with `child` (`B -> C`) into a single
-    /// `Alignment` (`A -> C`) whose `to_child`, `to_parent`, `span_to_child`,
-    /// and `span_to_parent` match sequential two-stage mapping in a single
-    /// binary search.
+    /// Composes `self` (`A -> B`) with `child` (`B -> C`) into a single flat
+    /// net `Alignment` (`A -> C`) represented purely by `edits: Vec<Edit>`.
+    ///
+    /// Pure insertions in `self` and pure deletions in `child` are split at
+    /// adjacent edit boundaries before merging, overlapping edits in `B`
+    /// coalesce into net `A -> C` edits, and cancelled `0..0 -> 0..0` edits
+    /// are omitted. Because the result is a single flat edit list, it
+    /// round-trips losslessly through [`Alignment::from_edits`] and
+    /// `DocumentGraph` serialization and applies single-stage `Side::Start` /
+    /// `Side::End` and `ordered` rules on the net `A -> C` edits. For
+    /// sequential step-by-step projection across intermediate views in a
+    /// [`crate::Document`], use [`crate::Document::map_offset`],
+    /// [`crate::Document::map_span`], and [`crate::Document::project_spans`].
     pub fn compose(&self, child: &Alignment) -> Alignment {
         compose_alignments(self, child)
     }
@@ -211,7 +208,7 @@ impl<'a> ViewBuilder<'a> {
     pub fn finish(mut self) -> (String, Alignment) {
         let end = self.parent.len();
         self.keep(end);
-        (self.out, Alignment { edits: self.edits, forward: Vec::new(), backward: Vec::new() })
+        (self.out, Alignment { edits: self.edits })
     }
 }
 

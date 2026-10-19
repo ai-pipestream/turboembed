@@ -286,8 +286,8 @@ fn compose_disjoint_and_touching_edits_matches_two_step_mapping() {
 
     // When a deletion in A->B ("aXb" -> "ab") and an insertion in B->C ("ab" -> "a+b")
     // happen at the same offset in B, compose produces the exact two-edit sequence
-    // from `a_deletion_touching_an_insertion_maps_at_every_boundary` and preserves
-    // two-step boundary offsets in both directions.
+    // from `a_deletion_touching_an_insertion_maps_at_every_boundary` and round-trips
+    // losslessly through `Alignment::from_edits`.
     let mut del_b = ViewBuilder::new("aXb");
     del_b.keep(1);
     del_b.replace(2, "");
@@ -304,22 +304,10 @@ fn compose_disjoint_and_touching_edits_matches_two_step_mapping() {
             Edit { parent: Span::new(2, 2), child: Span::new(1, 2) }
         ]
     );
-    for x in 0..=3 {
-        for side in [Side::Start, Side::End] {
-            assert_eq!(
-                del_ins.to_child(x, side),
-                ins_bc.to_child(del_ab.to_child(x, side), side),
-                "del_ins to_child at {x} ({side:?})"
-            );
-            assert_eq!(
-                del_ins.to_parent(x, side),
-                del_ab.to_parent(ins_bc.to_parent(x, side), side),
-                "del_ins to_parent at {x} ({side:?})"
-            );
-        }
-    }
-    assert_eq!(del_ins.span_to_child(Span::new(1, 2)), ins_bc.span_to_child(del_ab.span_to_child(Span::new(1, 2))));
-    assert_eq!(del_ins.span_to_parent(Span::new(1, 2)), del_ab.span_to_parent(ins_bc.span_to_parent(Span::new(1, 2))));
+    assert_eq!(Alignment::from_edits(del_ins.edits().to_vec()).unwrap(), del_ins);
+    assert_maps(&del_ins, &[(0, 0), (1, 1), (2, 1), (3, 3)], &[(0, 0), (2, 1), (2, 2), (3, 3)]);
+    assert_eq!(del_ins.span_to_child(Span::new(1, 2)), Span::new(1, 1));
+    assert_eq!(del_ins.span_to_parent(Span::new(1, 2)), Span::new(2, 2));
 }
 
 #[test]
