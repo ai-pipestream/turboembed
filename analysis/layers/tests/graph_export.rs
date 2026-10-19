@@ -811,6 +811,48 @@ fn keyed_default_word_target_must_not_rebind_through_provenance() {
     }
 }
 
+#[test]
+fn keyed_default_opinion_target_must_not_rebind_through_provenance() {
+    let mut doc = Document::new("ab");
+    doc.add(&Key::DEFAULT, Tokens { spans: spans(&[(0, 1)]), sentence: None }, Provenance::by("test")).unwrap();
+    doc.add(&Key::named("alt"), Tokens { spans: spans(&[(1, 2)]), sentence: None }, Provenance::by("test")).unwrap();
+    let mut opinions = Opinions::on(Key::named("alt"));
+    opinions.tokens = vec![IxRange::new(0, 1)];
+    opinions.polarity = vec![0.5];
+    opinions.intensity = vec![1.0];
+    opinions.negated = vec![false];
+    let mut provenance = Provenance::by("test");
+    provenance.reads = vec![Key::<Tokens>::named("alt").id()];
+    doc.add(&Key::DEFAULT, opinions, provenance).unwrap();
+
+    // The valid document, with its explicit alt key, round-trips.
+    let graph = export(&doc, &codecs()).unwrap();
+    let back = import(&DocumentGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(), &codecs()).unwrap();
+    assert_eq!(export(&back, &codecs()).unwrap().to_bytes().unwrap(), graph.to_bytes().unwrap());
+
+    // The same body with only the encoded token target emptied must
+    // be refused rather than rebound to alt through provenance.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    let mut w = Writer::new();
+    w.str("opennlp:tokens").unwrap();
+    w.str("").unwrap();
+    w.usize(1).unwrap();
+    w.u32(0);
+    w.u32(1);
+    w.usize(1).unwrap();
+    w.f64(0.5);
+    w.usize(1).unwrap();
+    w.f64(1.0);
+    w.usize(1).unwrap();
+    w.u8(0);
+    splice(&mut graph, "turbo:opinions", w.finish(), 1);
+    match import(&graph, &codecs()) {
+        Err(ExportError::InvalidLayer { detail, .. }) => assert!(detail.contains("alt"), "{detail}"),
+        Ok(_) => panic!("an empty keyed opinion target rebound through provenance imported"),
+        Err(other) => panic!("an empty keyed opinion target failed as {other}"),
+    }
+}
+
 fn splice(graph: &mut DocumentGraph, layer_prefix: &str, body: Vec<u8>, len: u32) {
     let at = graph.layers.iter().position(|l| l.layer.starts_with(layer_prefix)).unwrap();
     graph.layers[at].body = Some(body);
