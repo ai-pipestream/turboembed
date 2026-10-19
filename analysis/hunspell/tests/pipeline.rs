@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{Alignment, Analyzer, Bound, Document, Key, Provenance, Span, Spans, View, ViewId};
+use turbo_analysis::{Analyzer, Bound, Document, Key, Provenance, Span, Spans, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::Tokens;
 use turbo_hunspell::{Dictionary, HunspellAnnotator, LoadMode, Stems};
 
@@ -74,7 +74,10 @@ fn refuses_tokens_of_another_view() {
         .build()
         .unwrap();
     let mut doc = Document::new("Walks");
-    let lower = View::derived(doc.get::<View>().unwrap(), "walks".into(), Alignment::identity());
+    let mut b = ViewBuilder::new("Walks");
+    b.replace(1, "w");
+    let (text, alignment) = b.finish();
+    let lower = View::derived(doc.get::<View>().unwrap(), text, alignment);
     doc.add(&Key::named("lower"), lower, Provenance::by("test")).unwrap();
     let lower_id = doc.get_key(&Key::<View>::named("lower")).unwrap().id();
     doc.add(&Key::DEFAULT, tokens("walks", lower_id), Provenance::by("test")).unwrap();

@@ -56,7 +56,7 @@ pub enum OffsetError {
 
 /// The checkpoint table of one text view. It does not hold the text: every
 /// method takes the view's text, which must be the text it was built from.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OffsetTable {
     ascii: bool,
     /// The text's length in bytes, UTF-16 units and code points.
@@ -69,6 +69,12 @@ pub struct OffsetTable {
     byte: Vec<u32>,
     utf16: Vec<u32>,
     code_point: Vec<u32>,
+}
+
+impl Default for OffsetTable {
+    fn default() -> OffsetTable {
+        OffsetTable::build("")
+    }
 }
 
 /// Counts the characters starting in `bytes` (UTF-8 bytes from a character
@@ -406,5 +412,16 @@ mod tests {
             assert_eq!(t.from_utf16(text, Utf16Offset(u)), Ok(b));
             assert_eq!(t.from_code_point(text, CodePointOffset(c)), Ok(b));
         }
+    }
+
+    #[test]
+    fn default_table_matches_empty_text() {
+        let t = OffsetTable::default();
+        assert_eq!(t, OffsetTable::build(""));
+        assert!(t.is_ascii());
+        assert_eq!(t.to_utf16("", 0), Utf16Offset(0));
+        assert_eq!(t.to_code_point("", 0), CodePointOffset(0));
+        assert_eq!(t.from_utf16("", Utf16Offset(0)), Ok(0));
+        assert_eq!(t.from_code_point("", CodePointOffset(0)), Ok(0));
     }
 }

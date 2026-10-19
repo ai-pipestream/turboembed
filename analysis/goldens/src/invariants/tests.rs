@@ -89,23 +89,16 @@ fn spans_in_a_normalized_view_map_back_exactly_outside_the_edits() {
 #[test]
 fn a_view_whose_alignment_lies_is_caught() {
     // An alignment claiming the view is the source byte for byte,
-    // while the view's text differs: the mapped source bytes are not
-    // the span's own.
+    // while the view's text differs, is refused when added to a document.
     let source = "abc";
     let mut doc = Document::new(source);
     let view = View::derived(doc.get::<View>().unwrap(), "xyz".to_string(), Alignment::identity());
-    doc.add(&Key::<View>::named("lie"), view, Provenance::by("test")).unwrap();
-    let id = doc.get_key(&Key::<View>::named("lie")).unwrap().id();
-    doc.add(&Key::DEFAULT, tokens(id, &[(0, 3)]), Provenance::by("test")).unwrap();
-    let (checked, v) = check_document(&doc);
-    assert_eq!(checked, 1);
-    assert_eq!(v.len(), 1);
-    assert!(v[0].what.contains("touches no edit"), "{}", v[0]);
+    assert!(doc.add(&Key::<View>::named("lie"), view, Provenance::by("test")).is_err());
 }
 
 /// A view derived from a normalized view, not from the source: spans
 /// outside its own edits are checked against its parent's text, which
-/// the earlier link changed, and a lying second link is still caught.
+/// the earlier link changed, and a lying second link is refused.
 #[test]
 fn a_view_derived_from_another_view_is_checked_against_its_parent() {
     let source = "Hello  WORLD!";
@@ -136,13 +129,7 @@ fn a_view_derived_from_another_view_is_checked_against_its_parent() {
         "Hello wurld".to_string(),
         Alignment::identity(),
     );
-    doc.add(&Key::<View>::named("lie"), lie, Provenance::by("test")).unwrap();
-    let lie_id = doc.get_key(&Key::<View>::named("lie")).unwrap().id();
-    doc.add(&Key::<Tokens>::named("lied"), tokens(lie_id, &[(6, 11)]), Provenance::by("test")).unwrap();
-    let (checked, v) = check_document(&doc);
-    assert_eq!(checked, 2);
-    assert_eq!(v.len(), 1);
-    assert!(v[0].what.contains("of its parent view"), "{}", v[0]);
+    assert!(doc.add(&Key::<View>::named("lie"), lie, Provenance::by("test")).is_err());
 }
 
 #[test]
@@ -202,34 +189,35 @@ fn discontinuous_fragments_are_checked_in_derived_views() {
     doc.add(&Key::DEFAULT, entities, Provenance::by("test")).unwrap();
     assert_eq!(assert_invariants(&doc, "discontinuous"), 2);
 
-    // A lying view whose second entity's second fragment (flat fragment 2,
-    // belonging to item 1) mismatches parent text reports index == 1 (the
-    // owning item index, not flat fragment index 2).
-    let lie = View::derived(
-        doc.get_key(&Key::<View>::named("norm")).unwrap(),
-        "take é中😀 Xff soon".to_string(),
-        Alignment::identity(),
-    );
-    doc.add(&Key::<View>::named("lie"), lie, Provenance::by("test")).unwrap();
-    let lie_id = doc.get_key(&Key::<View>::named("lie")).unwrap().id();
+    // A view whose second entity's second fragment (flat fragment 2,
+    // belonging to item 1) lies inside purely inserted child bytes reports
+    // index == 1 (the owning item index, not flat fragment index 2).
+    let mut ib = ViewBuilder::new("take é中😀 off soon");
+    ib.keep(15);
+    ib.replace(15, "out ");
+    let (ins_text, ins_align) = ib.finish();
+    assert_eq!(ins_text, "take é中😀 out off soon");
+    let ins_view = View::derived(doc.get_key(&Key::<View>::named("norm")).unwrap(), ins_text, ins_align);
+    doc.add(&Key::<View>::named("ins"), ins_view, Provenance::by("test")).unwrap();
+    let ins_id = doc.get_key(&Key::<View>::named("ins")).unwrap().id();
     doc.add(
-        &Key::<Tokens>::named("lied"),
-        tokens(lie_id, &[(0, 4), (5, 14), (15, 18), (19, 23)]),
+        &Key::<Tokens>::named("ins"),
+        tokens(ins_id, &[(0, 4), (5, 14), (15, 18), (19, 22), (23, 27)]),
         Provenance::by("test"),
     )
     .unwrap();
-    let mut lie_spans = Spans::new(lie_id);
-    lie_spans.push(Span::new(0, 4));
-    lie_spans.push_fragments(&[Span::new(5, 14), Span::new(15, 18)]);
-    let lie_entities = Entities {
-        spans: lie_spans,
+    let mut ins_spans = Spans::new(ins_id);
+    ins_spans.push(Span::new(0, 4));
+    ins_spans.push_fragments(&[Span::new(5, 14), Span::new(15, 18)]);
+    let ins_entities = Entities {
+        spans: ins_spans,
         tokens: vec![IxRange::new(0, 1), IxRange::new(1, 3)],
         kind: vec![Tag(0), Tag(1)],
         kinds,
         score: vec![0.8, 0.9],
     };
-    doc.add(&Key::<Entities>::named("lied"), lie_entities, Provenance::by("test")).unwrap();
-    let v = check_layer(&doc, &Key::<Entities>::named("lied"));
+    doc.add(&Key::<Entities>::named("ins"), ins_entities, Provenance::by("test")).unwrap();
+    let v = check_layer(&doc, &Key::<Entities>::named("ins"));
     let frag_v = v.iter().find(|v| v.layer.contains("(fragments)")).expect("fragment violation reported");
     assert_eq!(frag_v.index, 1, "expected item index 1, got {frag_v}");
 }

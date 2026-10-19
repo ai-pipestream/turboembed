@@ -1,7 +1,7 @@
 //! The stemmer as an analysis step: it writes a stem per token, aligned to
 //! the tokens, and refuses tokens of another view.
 
-use turbo_analysis::{Alignment, Analyzer, Bound, Document, Key, Provenance, Span, Spans, View, ViewId};
+use turbo_analysis::{Analyzer, Bound, Document, Key, Provenance, Span, Spans, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::Tokens;
 use turbo_stem::{Algorithm, LightStemmer, SnowballAlgorithm, SnowballStemmer, StemAnnotator, Stems};
 
@@ -56,7 +56,10 @@ fn refuses_tokens_of_another_view() {
         .build()
         .unwrap();
     let mut doc = Document::new("Cats");
-    let lower = View::derived(doc.get::<View>().unwrap(), "cats".into(), Alignment::identity());
+    let mut b = ViewBuilder::new("Cats");
+    b.replace(1, "c");
+    let (text, alignment) = b.finish();
+    let lower = View::derived(doc.get::<View>().unwrap(), text, alignment);
     doc.add(&Key::named("lower"), lower, Provenance::by("test")).unwrap();
     let lower_id = doc.get_key(&Key::<View>::named("lower")).unwrap().id();
     doc.add(&Key::DEFAULT, tokens("cats", lower_id), Provenance::by("test")).unwrap();
