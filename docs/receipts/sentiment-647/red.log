@@ -1,0 +1,102 @@
+   Compiling turbo-encoding-layers v0.1.0 (./analysis/encoding-layers)
+   Compiling turbo-tokenize-layers v0.1.0 (./analysis/tokenize-layers)
+   Compiling turbo-normalize-layers v0.1.0 (./analysis/normalize-layers)
+   Compiling turbo-postag v0.1.0 (./analysis/postag)
+   Compiling turbo-tokenize v0.1.0 (./analysis/tokenize)
+   Compiling turbo-encoding v0.1.0 (./analysis/encoding)
+   Compiling turbo-normalize v0.1.0 (./analysis/normalize)
+   Compiling turbo-parser v0.1.0 (./analysis/parser)
+   Compiling turbo-formats v0.1.0 (./analysis/formats)
+   Compiling turbo-doccat v0.1.0 (./analysis/doccat)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.75s
+     Running tests/sentiment_boundaries.rs (target/debug/deps/sentiment_boundaries-32ae3bf335f58995)
+
+running 11 tests
+test incivility_digest_distinguishes_sub_micro_weights ... FAILED
+test large_finite_vader_score_normalizes_without_overflow ... FAILED
+test invalid_lexicon_updates_preserve_valid_entries ... FAILED
+test valid_custom_lexicon_updates_keep_last_value ... ok
+test incivility_rejects_split_utf8_token ... FAILED
+test incivility_rejects_invalid_head_scores ... FAILED
+test invalid_incivility_ranges_return_errors ... FAILED
+test invalid_incivility_thresholds_return_errors ... FAILED
+test pragmatics_rejects_split_utf8_token ... FAILED
+test pragmatics_rejects_non_finite_configuration ... FAILED
+test lexicon_annotator_rejects_split_utf8_token ... FAILED
+
+failures:
+
+---- incivility_digest_distinguishes_sub_micro_weights stdout ----
+
+thread 'incivility_digest_distinguishes_sub_micro_weights' (4108097) panicked at analysis/doccat/tests/sentiment_boundaries.rs:20:5:
+assertion `left != right` failed
+  left: "f7c8a4993d806114166ad04822bb5d6ba6dd364bdcc43f4aa06d723e2a940775"
+ right: "f7c8a4993d806114166ad04822bb5d6ba6dd364bdcc43f4aa06d723e2a940775"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- large_finite_vader_score_normalizes_without_overflow stdout ----
+
+thread 'large_finite_vader_score_normalizes_without_overflow' (4108103) panicked at analysis/doccat/tests/sentiment_boundaries.rs:112:5:
+assertion `left == right` failed
+  left: 0.0
+ right: 1.0
+
+---- invalid_lexicon_updates_preserve_valid_entries stdout ----
+
+thread 'invalid_lexicon_updates_preserve_valid_entries' (4108102) panicked at analysis/doccat/tests/sentiment_boundaries.rs:102:5:
+assertion `left == right` failed
+  left: "45191d662d501462a3f2fb148a7a8f340b1fc849d6776c38049ee13049066be0"
+ right: "df7c3f120089d95f134d53fbb698134bac1679dd3868c9c87c2760cc6aa41a36"
+
+---- incivility_rejects_split_utf8_token stdout ----
+
+thread 'incivility_rejects_split_utf8_token' (4108099) panicked at analysis/doccat/tests/sentiment_boundaries.rs:92:5:
+assertion failed: IncivilityAnnotator::new().annotate((doc.get::<View>().unwrap(), &tokens,
+            Some(&sentences), None, None, None, None)).is_err()
+
+---- incivility_rejects_invalid_head_scores stdout ----
+
+thread 'incivility_rejects_invalid_head_scores' (4108098) panicked at analysis/doccat/tests/sentiment_boundaries.rs:52:9:
+assertion failed: ann.score_unit(&["hello".into()], 0, 1, None, Some(&[1.0])).is_err()
+
+---- invalid_incivility_ranges_return_errors stdout ----
+
+thread 'invalid_incivility_ranges_return_errors' (4108100) panicked at analysis/doccat/src/sentiment/incivility.rs:708:17:
+index out of bounds: the len is 1 but the index is 1
+
+---- invalid_incivility_thresholds_return_errors stdout ----
+
+thread 'invalid_incivility_thresholds_return_errors' (4108101) panicked at analysis/doccat/tests/sentiment_boundaries.rs:37:9:
+assertion failed: ann.score_unit(&["hello".into()], 0, 1, None, None).is_err()
+
+---- pragmatics_rejects_split_utf8_token stdout ----
+
+thread 'pragmatics_rejects_split_utf8_token' (4108106) panicked at analysis/doccat/src/sentiment/pragmatics.rs:378:34:
+start byte index 1 is not a char boundary; it is inside 'é' (bytes 0..2 of string)
+
+---- pragmatics_rejects_non_finite_configuration stdout ----
+
+thread 'pragmatics_rejects_non_finite_configuration' (4108105) panicked at analysis/doccat/tests/sentiment_boundaries.rs:65:13:
+assertion failed: ann.score_document(view, &sentences, &tokens, None, None, None, None).is_err()
+
+---- lexicon_annotator_rejects_split_utf8_token stdout ----
+
+thread 'lexicon_annotator_rejects_split_utf8_token' (4108104) panicked at analysis/doccat/src/sentiment/lexicon.rs:645:34:
+start byte index 1 is not a char boundary; it is inside 'é' (bytes 0..2 of string)
+
+
+failures:
+    incivility_digest_distinguishes_sub_micro_weights
+    incivility_rejects_invalid_head_scores
+    incivility_rejects_split_utf8_token
+    invalid_incivility_ranges_return_errors
+    invalid_incivility_thresholds_return_errors
+    invalid_lexicon_updates_preserve_valid_entries
+    large_finite_vader_score_normalizes_without_overflow
+    lexicon_annotator_rejects_split_utf8_token
+    pragmatics_rejects_non_finite_configuration
+    pragmatics_rejects_split_utf8_token
+
+test result: FAILED. 1 passed; 10 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p turbo-doccat --test sentiment_boundaries`

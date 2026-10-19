@@ -1,0 +1,70 @@
+483 analysis/doccat/src/features.rs
+451 analysis/doccat/src/sentiment/aspect/propagation/mod.rs
+402 analysis/doccat/src/categorizer.rs
+399 analysis/doccat/src/svm/sidecar/mod.rs
+376 analysis/doccat/src/svm/libsvm/predict.rs
+358 analysis/doccat/src/sentiment/lexicon/tests.rs
+328 analysis/doccat/src/sentiment/pragmatics/tests/mod.rs
+312 analysis/doccat/src/sentiment/incivility/tests/mod.rs
+290 analysis/doccat/tests/categorizer.rs
+274 analysis/doccat/src/sentiment/aspect/tables/mod.rs
+271 analysis/doccat/src/svm/libsvm/read.rs
+265 analysis/doccat/src/sentiment/aspect/tests/benchmark.rs
+263 analysis/doccat/src/sentiment/pragmatics/tokens.rs
+261 analysis/doccat/tests/libsvm.rs
+259 analysis/doccat/src/sentiment/aspect/propagation/support.rs
+243 analysis/doccat/src/sentiment/aspect/tables/nouns.rs
+234 analysis/doccat/src/sentiment/lexicon/mod.rs
+233 analysis/doccat/src/sentiment/aspect/mod.rs
+231 analysis/doccat/src/sentiment/incivility/rules.rs
+231 analysis/doccat/src/sentiment/incivility/annotate.rs
+222 analysis/doccat/src/sentiment/aspect/tests/mod.rs
+210 analysis/doccat/src/sentiment/aspect/annotate.rs
+209 analysis/doccat/src/sentiment/pragmatics/scoring.rs
+208 analysis/doccat/tests/sentiment_boundaries.rs
+206 analysis/doccat/src/sentiment/pragmatics/mod.rs
+202 analysis/doccat/src/sentiment/lexicon/valence.rs
+201 analysis/doccat/src/lib.rs
+199 analysis/doccat/src/sentiment/aspect/tables/words.rs
+197 analysis/doccat/src/svm/libsvm/model.rs
+193 analysis/doccat/src/sentiment/incivility/mod.rs
+191 analysis/doccat/tests/goldens.rs
+188 analysis/doccat/src/sentiment/incivility/tests/context.rs
+187 analysis/doccat/src/sentiment/aspect/link.rs
+180 analysis/doccat/src/svm/weighting.rs
+176 analysis/doccat/tests/sentiment.rs
+175 analysis/doccat/src/sentiment/pragmatics/tables.rs
+174 analysis/doccat/src/sentiment/model.rs
+168 analysis/doccat/src/sentiment/lexicon/tables.rs
+167 analysis/doccat/src/model.rs
+165 analysis/doccat/src/sentiment/lexicon/scoring.rs
+163 analysis/doccat/src/sentiment/pragmatics/tests/benchmark.rs
+156 analysis/doccat/src/sentiment/lexicon/rules.rs
+153 analysis/doccat/src/sentiment/aspect/metrics.rs
+151 analysis/doccat/src/sentiment/pragmatics/contrast.rs
+148 analysis/doccat/src/svm/categorizer.rs
+141 analysis/doccat/src/sentiment/pragmatics/candidates.rs
+128 analysis/doccat/src/train.rs
+122 analysis/doccat/src/svm/error.rs
+122 analysis/doccat/src/sentiment/incivility/scoring.rs
+118 analysis/doccat/src/sentiment/detector.rs
+116 analysis/doccat/src/sentiment/incivility/metrics.rs
+113 analysis/doccat/src/sentiment/lexicon/dependencies.rs
+111 analysis/doccat/src/sentiment/lexicon/vocabulary.rs
+108 analysis/doccat/tests/maxent_goldens.rs
+104 analysis/doccat/src/svm/model.rs
+103 analysis/doccat/src/svm/sidecar/tests.rs
+ 98 analysis/doccat/src/sentiment/incivility/tables.rs
+ 97 analysis/doccat/src/sentiment/incivility/vocabulary.rs
+ 96 analysis/doccat/src/sentiment/lexicon/helpers.rs
+ 96 analysis/doccat/src/sentiment/lexicon/annotate.rs
+ 95 analysis/doccat/src/layer.rs
+ 81 analysis/doccat/src/svm/vector.rs
+ 80 analysis/doccat/src/java.rs
+ 78 analysis/doccat/src/error.rs
+ 65 analysis/doccat/src/hash.rs
+ 56 analysis/doccat/src/sentiment/validation.rs
+ 50 analysis/doccat/src/sentiment/mod.rs
+ 26 analysis/doccat/src/svm/text.rs
+ 19 analysis/doccat/src/svm/mod.rs
+ 10 analysis/doccat/src/svm/libsvm/mod.rs

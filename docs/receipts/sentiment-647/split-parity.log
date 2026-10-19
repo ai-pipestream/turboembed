@@ -1,0 +1,73 @@
+   Compiling turbo-doccat v0.1.0 (./analysis/doccat)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.56s
+     Running unittests src/lib.rs (target/debug/deps/turbo_doccat-acb7a09d033d6a19)
+
+running 66 tests
+test features::tests::bag_of_words_prefixes_every_token ... ok
+test features::tests::an_ngram_range_needs_positive_ordered_bounds ... ok
+test features::tests::ngrams_join_tokens_after_a_colon_each ... ok
+test features::tests::generators_run_in_turn ... ok
+test java::tests::min_and_max_keep_nan_and_the_sign_of_zero ... ok
+test java::tests::compare_orders_signed_zeros_and_nan_as_java_does ... ok
+test sentiment::aspect::tables::clean_tests::clean_word_lower_normalizes_curly_apostrophes ... ok
+test hash::tests::equal_keys_hash_equal_and_a_changed_byte_changes_the_hash ... ok
+test sentiment::aspect::tables::tests::lookup_tables_are_in_strict_byte_order ... ok
+test sentiment::aspect::tables::tests::indexed_lookups_match_every_table_entry ... ok
+test sentiment::incivility::tests::context::foreign_view_layers_are_rejected ... ok
+test sentiment::lexicon::tests::digest_follows_entries_not_source_bytes ... ok
+test sentiment::incivility::tests::sentence_vectors_from_another_encoder_are_refused ... ok
+test sentiment::incivility::tests::multi_label_co_occurrence_and_evidence_spans_per_label ... ok
+test sentiment::incivility::tests::context::regression_fixture_per_label_precision_recall_and_evidence_invariants ... ok
+test sentiment::incivility::tests::vector_scorer_and_chunk_unit_guarantee_evidence_spans ... ok
+test svm::libsvm::predict::tests::dot_multiplies_matching_indexes_only ... ok
+test svm::libsvm::predict::tests::multiclass_probability_of_one_class_is_one ... ok
+test svm::libsvm::predict::tests::multiclass_probability_sums_to_one_and_ranks_by_the_pairs ... ok
+test svm::libsvm::predict::tests::one_class_probability_reads_the_marks ... ok
+test svm::libsvm::predict::tests::powi_squares_repeatedly_and_is_one_below_one ... ok
+test svm::libsvm::predict::tests::rbf_sums_every_squared_difference ... ok
+test svm::libsvm::predict::tests::sigmoid_predict_is_one_minus_itself_mirrored ... ok
+test sentiment::incivility::tests::context::reply_context_scores_conflict_against_quote_block_when_enabled ... ok
+test svm::sidecar::tests::names_escape_controls_and_backslashes ... ok
+test svm::text::tests::lines_are_numbered_without_their_ends ... ok
+test svm::weighting::tests::binary_is_one_for_any_count ... ok
+test svm::weighting::tests::log_normalized_tf_is_one_plus_the_log ... ok
+test sentiment::incivility::tests::scan_lexicon_matches_the_naive_reference_scan ... ok
+test svm::weighting::tests::names_are_the_java_constants ... ok
+test svm::sidecar::tests::a_malformed_sidecar_names_the_line ... ok
+test svm::weighting::tests::scaling_clamps_to_the_training_range ... ok
+test svm::weighting::tests::term_frequency_is_the_count ... ok
+test svm::weighting::tests::tf_idf_is_the_count_times_the_idf ... ok
+test sentiment::incivility::tests::lexicon_digest_updates_on_insert_and_is_canonical ... ok
+test tests::bag_of_words_all_tokens_and_only_letters ... ok
+test svm::sidecar::tests::a_sidecar_reads_and_writes_back_the_same_text ... ok
+test svm::sidecar::tests::no_scaling_and_no_language_are_allowed ... ok
+test tests::bag_of_words_only_letters_reads_utf16_units_like_the_jvm ... ok
+test tests::ngram_feature_generator_matches_opennlp_tests ... ok
+test tests::emoji_feature_generator_matches_opennlp_tests ... ok
+test categorizer::tests::document_categorizer_rejects_invalid_token_spans ... ok
+test categorizer::tests::span_categorizer_validates_spans_and_handles_empty_and_unordered_tokens ... ok
+test sentiment::pragmatics::tests::benchmark::config_hash_is_deterministic_and_pinned ... ok
+test sentiment::aspect::tests::benchmark::foreign_view_layers_are_rejected ... ok
+test sentiment::lexicon::tests::config_hash_is_deterministic_and_pinned ... ok
+test sentiment::lexicon::tests::double_negation_is_reported_as_not_negated ... ok
+test sentiment::aspect::tests::benchmark::config_hash_is_deterministic_and_pinned ... ok
+test sentiment::lexicon::tests::a_zeroed_no_that_still_scores_keeps_its_evidence_row ... ok
+test sentiment::pragmatics::tests::vectors_from_another_encoder_are_refused ... ok
+test sentiment::pragmatics::tests::an_empty_vector_row_gets_no_head_score ... ok
+test sentiment::lexicon::tests::dependency_negation_avoids_false_negation_across_clauses ... ok
+test sentiment::aspect::tests::aspect_and_opinion_under_the_same_governor_link_without_panicking ... ok
+test sentiment::aspect::tests::negation_with_a_curly_apostrophe_still_negates ... ok
+test sentiment::aspect::tests::battery_life_is_great_but_screen_scratches_gives_opposite_polarity_aspects ... ok
+test sentiment::aspect::tests::double_propagation_over_dependencies_extracts_new_targets_and_conjoined_aspects ... ok
+test sentiment::pragmatics::tests::embedding_head_scores_implicit_irony_with_none_evidence ... ok
+test sentiment::lexicon::tests::dependency_negation_scope_handles_long_distance_and_clause_boundaries ... ok
+test sentiment::lexicon::tests::opennlp_emoji_annotations_score_unicode_emoji_tokens ... ok
+test sentiment::lexicon::tests::evidence_spans_point_at_exact_scored_tokens_and_preserve_effective_polarity ... ok
+test sentiment::aspect::tests::implicit_aspect_anchors_to_sentence_and_scores_category ... ok
+test sentiment::pragmatics::tests::riloff_incongruity_detects_positive_sentiment_with_negative_situation_and_stores_spans ... ok
+test sentiment::lexicon::tests::matches_python_vader_sentiment_on_all_reference_sentences ... ok
+test sentiment::pragmatics::tests::text_against_emoji_polarity_mismatch_records_evidence_spans ... ok
+test sentiment::aspect::tests::benchmark::absa_benchmark_f1_for_aspect_terms_and_triplets ... ok
+test sentiment::pragmatics::tests::benchmark::pragmatics_benchmark_f1_and_evidence_invariants ... ok
+
+test result: ok. 66 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s

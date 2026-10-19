@@ -1,0 +1,22 @@
+   Compiling turbo-doccat v0.1.0 (./analysis/doccat)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.46s
+     Running tests/sentiment_boundaries.rs (target/debug/deps/sentiment_boundaries-32ae3bf335f58995)
+
+running 15 tests
+test incivility_digest_distinguishes_sub_micro_weights ... ok
+test large_finite_vader_score_normalizes_without_overflow ... ok
+test invalid_lexicon_updates_preserve_valid_entries ... ok
+test valid_custom_lexicon_updates_keep_last_value ... ok
+test incivility_rejects_short_vector_layer ... ok
+test invalid_incivility_ranges_return_errors ... ok
+test incivility_rejects_split_utf8_token ... ok
+test nested_chunks_score_their_own_tokens ... ok
+test invalid_incivility_thresholds_return_errors ... ok
+test incivility_rejects_invalid_head_scores ... ok
+test pragmatics_rejects_non_finite_configuration ... ok
+test pragmatics_rejects_split_utf8_token ... ok
+test discontinuous_sentences_are_not_scored_as_their_hull ... ok
+test lexicon_annotator_rejects_split_utf8_token ... ok
+test pragmatics_rejects_misaligned_sentence_column ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

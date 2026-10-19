@@ -1,0 +1,314 @@
+   Compiling turbo-doccat v0.1.0 (./analysis/doccat)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.51s
+     Running unittests src/lib.rs (target/debug/deps/turbo_analysis_layers-ff1def8ac888545e)
+
+running 82 tests
+test abbreviations::tests::check_wants_ordered_non_empty_spans ... ok
+test categories::tests::check_refuses_inconsistent_layers ... ok
+test categories::tests::an_item_per_unit ... ok
+test abbreviations::tests::links_lead_to_the_long_form ... ok
+test categories::tests::the_document_has_one_item_and_ranks_its_categories ... ok
+test core_tests::language_holds_the_ranking_best_first ... ok
+test categories::tests::names_and_anchors ... ok
+test containment::tests::ancestors_and_chains_validate_and_round_trip ... ok
+test core_tests::pos_tags_and_chunks_check_probabilities_and_sentence_ranges ... ok
+test core_tests::phrases_check_columns_heads_and_parents ... ok
+test core_tests::utf16_spans_are_named_after_their_layer_and_aligned_to_it ... ok
+test core_tests::structure_is_a_tree_in_text_order ... ok
+test core_tests::tokens_from_alternatives_materializes_split_modes ... ok
+test core_tests::entities_allow_nesting_crossing_and_discontinuous_fragments ... ok
+test core_tests::utf16_spans_check_their_columns ... ok
+test core_tests::vectors_name_the_items_that_have_none ... ok
+test core_tests::vectors_check_the_items_with_no_vector ... ok
+test date::tests::calendar_fields ... ok
+test date::tests::date_times_read_write_and_count_seconds ... ok
+test date::tests::epoch_days ... ok
+test date::tests::iso_dates ... ok
+test date::tests::months_and_years_clamp_the_day_and_stay_in_range ... ok
+test date::tests::written_as_local_date_writes_them ... ok
+test date::tests::years_are_written_with_four_digits_or_a_sign ... ok
+test language_spans::tests::spans_come_back_with_their_columns ... ok
+test language_spans::tests::check_wants_ordered_nonempty_spans_and_known_tags ... ok
+test levels::tests::levels_are_a_tree_under_the_document ... ok
+test levels::tests::the_vector_kinds_are_named_instances ... ok
+test levels::tests::the_check_refuses_what_is_not_a_tree ... ok
+test money::tests::a_converted_amount_can_have_a_scale_below_zero ... ok
+test matches::tests::check_wants_columns_labels_and_token_order ... ok
+test money::tests::amounts_come_from_the_columns ... ok
+test money::tests::check_wants_a_canonical_amount ... ok
+test money::tests::check_wants_every_column ... ok
+test money::tests::check_wants_text_order ... ok
+test money::tests::currency_codes_are_three_capitals ... ok
+test money::tests::the_layer_is_named_and_has_a_converted_instance ... ok
+test numbers::tests::check_accepts_an_empty_layer ... ok
+test numbers::tests::check_pairs_markers_with_multipliers ... ok
+test numbers::tests::check_wants_a_canonical_coefficient ... ok
+test numbers::tests::check_wants_every_column ... ok
+test numbers::tests::check_wants_text_order ... ok
+test numbers::tests::check_wants_the_numeral_inside_the_span ... ok
+test numbers::tests::floats_are_rounded_from_the_exact_decimal ... ok
+test numbers::tests::multiplier_factors ... ok
+test numbers::tests::notation_separators_mirror_each_other ... ok
+test numbers::tests::plain_strings_match_big_decimal ... ok
+test numbers::tests::the_layer_is_named_and_positional ... ok
+test numbers::tests::values_come_from_the_columns ... ok
+test ordinals::tests::check_refuses_offsets_outside_the_base ... ok
+test ordinals::tests::check_wants_order_columns_and_text ... ok
+test ordinals::tests::mentions_round_trip ... ok
+test pii::tests::check_refuses_duplicates_empty_values_and_short_columns ... ok
+test pii::tests::check_wants_the_java_order ... ok
+test pii::tests::kind_sets ... ok
+test pii::tests::kinds_have_the_java_names_and_ranks ... ok
+test pii::tests::mentions_round_trip_and_may_overlap ... ok
+test quantities::tests::check_accepts_an_empty_layer ... ok
+test quantities::tests::check_wants_a_canonical_value ... ok
+test quantities::tests::check_wants_a_unit ... ok
+test quantities::tests::check_wants_every_column ... ok
+test quantities::tests::check_wants_text_order ... ok
+test quantities::tests::the_layer_is_named ... ok
+test quantities::tests::values_and_units_come_from_the_columns ... ok
+test regions::tests::region_vote_validates_country_and_share_bounds ... ok
+test regions::tests::winner_checks_margin_and_runner_up_lead ... ok
+test sentiment::tests::bounds_checking_refuses_invalid_token_sentence_and_opinion_indices ... ok
+test sentiment::tests::incivility_and_pragmatics_construct_and_check_evidence_slices ... ok
+test sentiment::tests::opinions_and_aspects_construct_and_link_on_document ... ok
+test temporal::tests::a_document_date_has_at_most_one_item_and_points_into_the_mentions ... ok
+test temporal::tests::a_date_reads_at_each_granularity ... ok
+test sentiment::tests::misaligned_and_unaligned_anchors_are_refused ... ok
+test temporal::tests::check_refuses_values_that_are_no_value ... ok
+test temporal::tests::the_layers_are_named ... ok
+test sentiment::tests::score_only_layers_add_to_a_document_without_tokens ... ok
+test temporal::tests::check_wants_text_order_and_full_columns ... ok
+test times::tests::names_and_modifiers ... ok
+test temporal::tests::columns_round_trip_every_granularity ... ok
+test temporal::tests::values_are_written_as_opennlp_writes_them ... ok
+test times::tests::check_refuses_values_that_do_not_fit_the_kind ... ok
+test times::tests::mentions_round_trip ... ok
+test times::tests::check_wants_order_columns_and_text ... ok
+
+test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/graph_export.rs (target/debug/deps/graph_export-39c4d8a1177c3092)
+
+running 9 tests
+test layers_on_a_derived_view_round_trip ... ok
+test keyed_default_opinion_target_must_not_rebind_through_provenance ... ok
+test keyed_default_word_target_must_not_rebind_through_provenance ... ok
+test corrupted_payloads_are_refused ... ok
+test vector_dimension_mismatches_are_refused ... ok
+test core_pipeline_layers_round_trip ... ok
+test sentiment_numeric_and_vector_layers_round_trip ... ok
+test target_identity_and_word_subspan_refusals ... ok
+test sentiment_family_refusals ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/precision.rs (target/debug/deps/precision-4ae79f6a9f247008)
+
+running 6 tests
+test entity_scores_round_trip_exactly ... ok
+test language_scores_round_trip_exactly ... ok
+test pos_tag_probabilities_round_trip_exactly ... ok
+test probabilities_one_nanounit_apart_stay_distinct ... ok
+test the_test_value_is_not_representable_as_f32 ... ok
+test token_confidences_round_trip_exactly ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/subwords.rs (target/debug/deps/subwords-fe82db2412af76f5)
+
+running 3 tests
+test pieces_out_of_token_order_are_refused ... ok
+test a_token_index_past_the_tokens_is_refused ... ok
+test the_pieces_of_a_token_are_a_range ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/terms.rs (target/debug/deps/terms-b6b2f7f0f45fe176)
+
+running 1 test
+test stems_and_terms_are_aligned_to_tokens_and_validate_columns ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/words.rs (target/debug/deps/words-7f97cccec23e76a8)
+
+running 6 tests
+test identity_words_cost_one_index_column_and_slice_view_text ... ok
+test the_layer_names_tell_word_layers_from_token_layers ... ok
+test rule_mwt_expander_splits_spanish_catalan_french_portuguese_italian_german_and_english ... ok
+test word_anchored_and_token_anchored_layers_coexist_on_one_document ... ok
+test words_check_rejects_broken_invariants ... ok
+test utf16_conversion_maps_words_to_token_spans_without_splitting_tokens ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_doccat-acb7a09d033d6a19)
+
+running 66 tests
+test features::tests::an_ngram_range_needs_positive_ordered_bounds ... ok
+test features::tests::bag_of_words_prefixes_every_token ... ok
+test features::tests::generators_run_in_turn ... ok
+test hash::tests::equal_keys_hash_equal_and_a_changed_byte_changes_the_hash ... ok
+test features::tests::ngrams_join_tokens_after_a_colon_each ... ok
+test java::tests::min_and_max_keep_nan_and_the_sign_of_zero ... ok
+test sentiment::aspect::tables::clean_tests::clean_word_lower_normalizes_curly_apostrophes ... ok
+test sentiment::aspect::tables::tests::lookup_tables_are_in_strict_byte_order ... ok
+test java::tests::compare_orders_signed_zeros_and_nan_as_java_does ... ok
+test sentiment::aspect::tables::tests::indexed_lookups_match_every_table_entry ... ok
+test sentiment::incivility::tests::context::foreign_view_layers_are_rejected ... ok
+test sentiment::incivility::tests::sentence_vectors_from_another_encoder_are_refused ... ok
+test sentiment::incivility::tests::vector_scorer_and_chunk_unit_guarantee_evidence_spans ... ok
+test sentiment::incivility::tests::context::regression_fixture_per_label_precision_recall_and_evidence_invariants ... ok
+test sentiment::incivility::tests::multi_label_co_occurrence_and_evidence_spans_per_label ... ok
+test sentiment::lexicon::tests::digest_follows_entries_not_source_bytes ... ok
+test sentiment::incivility::tests::lexicon_digest_updates_on_insert_and_is_canonical ... ok
+test sentiment::incivility::tests::scan_lexicon_matches_the_naive_reference_scan ... ok
+test sentiment::incivility::tests::context::reply_context_scores_conflict_against_quote_block_when_enabled ... ok
+test svm::libsvm::predict::tests::one_class_probability_reads_the_marks ... ok
+test categorizer::tests::document_categorizer_rejects_invalid_token_spans ... ok
+test svm::libsvm::predict::tests::dot_multiplies_matching_indexes_only ... ok
+test svm::libsvm::predict::tests::rbf_sums_every_squared_difference ... ok
+test svm::libsvm::predict::tests::sigmoid_predict_is_one_minus_itself_mirrored ... ok
+test svm::sidecar::tests::names_escape_controls_and_backslashes ... ok
+test svm::text::tests::lines_are_numbered_without_their_ends ... ok
+test svm::libsvm::predict::tests::multiclass_probability_of_one_class_is_one ... ok
+test svm::weighting::tests::binary_is_one_for_any_count ... ok
+test svm::libsvm::predict::tests::multiclass_probability_sums_to_one_and_ranks_by_the_pairs ... ok
+test svm::sidecar::tests::a_malformed_sidecar_names_the_line ... ok
+test svm::sidecar::tests::no_scaling_and_no_language_are_allowed ... ok
+test svm::sidecar::tests::a_sidecar_reads_and_writes_back_the_same_text ... ok
+test categorizer::tests::span_categorizer_validates_spans_and_handles_empty_and_unordered_tokens ... ok
+test svm::weighting::tests::term_frequency_is_the_count ... ok
+test svm::weighting::tests::log_normalized_tf_is_one_plus_the_log ... ok
+test svm::weighting::tests::names_are_the_java_constants ... ok
+test svm::weighting::tests::scaling_clamps_to_the_training_range ... ok
+test svm::weighting::tests::tf_idf_is_the_count_times_the_idf ... ok
+test svm::libsvm::predict::tests::powi_squares_repeatedly_and_is_one_below_one ... ok
+test tests::bag_of_words_all_tokens_and_only_letters ... ok
+test tests::bag_of_words_only_letters_reads_utf16_units_like_the_jvm ... ok
+test tests::ngram_feature_generator_matches_opennlp_tests ... ok
+test tests::emoji_feature_generator_matches_opennlp_tests ... ok
+test sentiment::lexicon::tests::config_hash_is_deterministic_and_pinned ... ok
+test sentiment::aspect::tests::benchmark::foreign_view_layers_are_rejected ... ok
+test sentiment::aspect::tests::benchmark::config_hash_is_deterministic_and_pinned ... ok
+test sentiment::pragmatics::tests::benchmark::config_hash_is_deterministic_and_pinned ... ok
+test sentiment::lexicon::tests::a_zeroed_no_that_still_scores_keeps_its_evidence_row ... ok
+test sentiment::lexicon::tests::double_negation_is_reported_as_not_negated ... ok
+test sentiment::lexicon::tests::dependency_negation_avoids_false_negation_across_clauses ... ok
+test sentiment::aspect::tests::negation_with_a_curly_apostrophe_still_negates ... ok
+test sentiment::aspect::tests::implicit_aspect_anchors_to_sentence_and_scores_category ... ok
+test sentiment::aspect::tests::battery_life_is_great_but_screen_scratches_gives_opposite_polarity_aspects ... ok
+test sentiment::aspect::tests::double_propagation_over_dependencies_extracts_new_targets_and_conjoined_aspects ... ok
+test sentiment::lexicon::tests::evidence_spans_point_at_exact_scored_tokens_and_preserve_effective_polarity ... ok
+test sentiment::pragmatics::tests::an_empty_vector_row_gets_no_head_score ... ok
+test sentiment::aspect::tests::aspect_and_opinion_under_the_same_governor_link_without_panicking ... ok
+test sentiment::pragmatics::tests::embedding_head_scores_implicit_irony_with_none_evidence ... ok
+test sentiment::lexicon::tests::dependency_negation_scope_handles_long_distance_and_clause_boundaries ... ok
+test sentiment::pragmatics::tests::vectors_from_another_encoder_are_refused ... ok
+test sentiment::lexicon::tests::opennlp_emoji_annotations_score_unicode_emoji_tokens ... ok
+test sentiment::pragmatics::tests::riloff_incongruity_detects_positive_sentiment_with_negative_situation_and_stores_spans ... ok
+test sentiment::pragmatics::tests::text_against_emoji_polarity_mismatch_records_evidence_spans ... ok
+test sentiment::lexicon::tests::matches_python_vader_sentiment_on_all_reference_sentences ... ok
+test sentiment::aspect::tests::benchmark::absa_benchmark_f1_for_aspect_terms_and_triplets ... ok
+test sentiment::pragmatics::tests::benchmark::pragmatics_benchmark_f1_and_evidence_invariants ... ok
+
+test result: ok. 66 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/categorizer.rs (target/debug/deps/categorizer-1d6b857a294c4081)
+
+running 14 tests
+test binary_weighting_gives_each_known_feature_once_in_index_order ... ok
+test labels_place_probabilities_by_category_index ... ok
+test a_model_the_categorizer_cannot_run_is_refused ... ok
+test categorize_gives_each_category_its_probability ... ok
+test ngrams_and_bag_of_words_share_one_vocabulary ... ok
+test categories_are_named_and_indexed_as_in_opennlp ... ok
+test tf_idf_multiplies_the_count_by_the_idf ... ok
+test the_model_reference_hashes_both_files ... ok
+test scaling_maps_the_training_range_onto_the_configured_one ... ok
+test log_normalized_tf_is_one_plus_the_log_of_the_count ... ok
+test term_frequency_counts_repeats ... ok
+test unknown_tokens_still_give_valid_probabilities ... ok
+test three_categories_sum_to_one ... ok
+test the_annotator_writes_every_category_best_first ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/goldens.rs (target/debug/deps/goldens-6331b55be68e1b08)
+
+running 1 test
+test every_run_matches_the_jvm ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/libsvm.rs (target/debug/deps/libsvm-84ed00cb724197d1)
+
+running 12 tests
+test a_model_without_probabilities_says_so ... ok
+test a_malformed_model_names_the_line_and_the_problem ... ok
+test a_one_category_model_predicts_its_category_with_certainty ... ok
+test a_model_missing_records_says_which ... ok
+test a_two_class_model_reads_its_header_and_vectors ... ok
+test numbers_read_in_the_c_and_java_forms ... ok
+test pair_probabilities_are_clamped_away_from_zero_and_one ... ok
+test rbf_and_sigmoid_kernels_read_their_parameters ... ok
+test one_class_and_regression_models_have_one_decision_value ... ok
+test two_class_probabilities_are_the_pair_sigmoid ... ok
+test three_classes_vote_pair_by_pair_and_couple_their_probabilities ... ok
+test the_linear_decision_value_is_the_weighted_sum_less_rho ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/maxent_goldens.rs (target/debug/deps/maxent_goldens-c8fbe1efbd7b428b)
+
+running 1 test
+test every_document_has_the_jvms_features ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sentiment.rs (target/debug/deps/sentiment-55cba582d5faf46e)
+
+running 7 tests
+test the_factory_names_its_class ... ok
+test the_emoji_context_appends_each_token_s_features_in_turn ... ok
+test the_token_context_is_the_tokens_as_they_are ... ok
+test ties_keep_the_outcome_order ... ok
+test the_annotator_writes_the_sentiment_instance_best_first ... ok
+test the_emoji_features_reach_tokens_the_model_never_saw ... ok
+test the_model_file_must_name_the_component_and_a_known_factory ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/sentiment_boundaries.rs (target/debug/deps/sentiment_boundaries-32ae3bf335f58995)
+
+running 15 tests
+test incivility_digest_distinguishes_sub_micro_weights ... ok
+test large_finite_vader_score_normalizes_without_overflow ... ok
+test invalid_lexicon_updates_preserve_valid_entries ... ok
+test incivility_rejects_short_vector_layer ... ok
+test valid_custom_lexicon_updates_keep_last_value ... ok
+test invalid_incivility_ranges_return_errors ... ok
+test incivility_rejects_split_utf8_token ... ok
+test nested_chunks_score_their_own_tokens ... ok
+test incivility_rejects_invalid_head_scores ... ok
+test invalid_incivility_thresholds_return_errors ... ok
+test pragmatics_rejects_non_finite_configuration ... ok
+test pragmatics_rejects_split_utf8_token ... ok
+test pragmatics_rejects_misaligned_sentence_column ... ok
+test discontinuous_sentences_are_not_scored_as_their_hull ... ok
+test lexicon_annotator_rejects_split_utf8_token ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests turbo_analysis_layers
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_doccat
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
