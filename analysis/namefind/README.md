@@ -44,6 +44,6 @@ The type order of the factory's map is read from `RegexNameFinder`'s private
 `regexMap` field by reflection.
 
 A user pattern whose translation refuses a sentence (`Error::Text`, for the
-three constructs `src/java_regex.rs` lists) is not compared on that sentence;
+three constructs `src/java_regex/mod.rs` lists) is not compared on that sentence;
 the test counts them and fails if they are more than 2% of the comparisons
 (about 1.2% now).
