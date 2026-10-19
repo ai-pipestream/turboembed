@@ -103,3 +103,30 @@ fn grouping_rejects_invalid_category_columns() {
     let vectors = Vectors::new(1, vec![1.0], vec![], model());
     assert!(category_sentence_centroids(&sentences, &categories, &vectors, None, CentroidNorm::None).is_err());
 }
+
+#[test]
+fn a_nonfinite_query_value_is_refused_against_a_zero_centroid_at_any_position() {
+    // One centroid is all zeros, the other mixes signs: the check on the
+    // sums must still catch each non-finite value, alone or paired with
+    // its opposite.
+    let h = LabelCentroids::from_centroids(
+        model(),
+        3,
+        TagSet::new("test", &["zero", "mixed"]),
+        vec![0.0, 0.0, 0.0, 1.0, -1.0, 0.5],
+        1.0,
+        CentroidNorm::None,
+    )
+    .unwrap();
+    for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        for at in 0..3 {
+            let mut v = [0.25f32, -0.5, 1.0];
+            v[at] = value;
+            assert!(h.dot_scores(&v, &mut [0.0; 2]).is_err(), "{value} at {at}");
+        }
+    }
+    assert!(h.dot_scores(&[f32::INFINITY, f32::INFINITY, 0.0], &mut [0.0; 2]).is_err());
+    let mut out = [0.0; 2];
+    h.dot_scores(&[f32::MAX, f32::MAX, f32::MAX], &mut out).unwrap();
+    assert!(out.iter().all(|s| s.is_finite()), "{out:?}");
+}

@@ -10,15 +10,20 @@ impl LabelCentroids {
         if out.len() != self.tags.len() {
             return Err(format!("output slice has length {}, expected {}", out.len(), self.tags.len()));
         }
-        if vector.iter().any(|v| !v.is_finite()) {
-            return Err("input vector contains a non-finite value".into());
-        }
         for (slot, centroid_row) in out.iter_mut().zip(self.centroids.chunks_exact(d)) {
             let mut sum = 0.0f64;
             for (&a, &b) in vector.iter().zip(centroid_row) {
                 sum += f64::from(a) * f64::from(b);
             }
             *slot = sum;
+        }
+        // The centroids are finite (from_centroids), so a value of `vector`
+        // that is not makes every sum non-finite, even against a zero
+        // centroid (inf * 0 is NaN), and finite f32 products cannot overflow
+        // an f64 sum: the first label's sum answers what a pass over the
+        // vector would. A head has at least one label.
+        if out.first().is_some_and(|s| !s.is_finite()) {
+            return Err("input vector contains a non-finite value".into());
         }
         Ok(())
     }
