@@ -229,7 +229,7 @@ pub(super) struct ExternalSynsetBuilder {
     pub(super) id: String,
     pub(super) line: usize,
     pub(super) relations: Vec<RawRelation>,
-    pub(super) definition: Option<String>,
+    pub(super) definitions: Vec<String>,
 }
 
 /// Parses a WN-LMF document into one [`RawLexicon`] per `<Lexicon>` or `<LexiconExtension>`.
