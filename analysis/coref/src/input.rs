@@ -134,12 +134,11 @@ impl<'a> CorefInput<'a> {
         if let Some(speakers) = self.speakers {
             same_view("speakers", speakers.spans.view(), view)?;
         }
+        // Every index and span below was checked by `validate::input`.
+        crate::validate::input(self)?;
         let text = self.text;
         let sentences: Vec<Span> = self.sentences.spans.iter().map(|(_, s)| s).collect();
         let tokens: Vec<Span> = self.tokens.spans.iter().map(|(_, s)| s).collect();
-        if self.tags.tags.len() != tokens.len() {
-            return Err("document needs aligned opennlp:tokens and opennlp:pos layers".into());
-        }
         for s in 1..sentences.len() {
             if sentences[s - 1].end > sentences[s].start {
                 return Err(format!("sentence spans overlap or are out of order at index {s}"));

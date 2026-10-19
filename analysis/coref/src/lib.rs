@@ -26,6 +26,7 @@ mod model;
 pub mod scorer;
 mod sieve;
 pub mod train;
+mod validate;
 mod vectors;
 
 pub use annotator::{CorefAnnotator, DEFAULT_THRESHOLD, Resolution, sieve_tags};
