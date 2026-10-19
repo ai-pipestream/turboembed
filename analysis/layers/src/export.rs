@@ -18,14 +18,14 @@ use turbo_analysis::export::{
     Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, get_spans, get_tagset,
     put_spans, put_tagset,
 };
-use turbo_analysis::{Edges, Groups, Ix, IxRange, Key, Layer, ModelRef, Tag, TagSet, View};
+use turbo_analysis::{Document, Edges, Groups, Ix, IxRange, Key, Layer, ModelRef, Tag, TagSet, View};
 use turbo_unicode::Script;
 
 use crate::categories::{Categories, CategoryScope};
 use crate::date::Date;
 use crate::language_spans::LanguageSpans;
 use crate::temporal::{DocumentDate, Granularity, Origin, Temporals};
-use crate::words::{WordLemmas, WordOrTokenAnchor, WordPosTags, Words};
+use crate::words::{MorphFeatures, WordLemmas, WordOrTokenAnchor, WordPosTags, Words};
 use crate::{
     Abbreviations, Block, Boundaries, ChunkTags, Chunks, Cut, Dependencies, Entities, Language, Lemmas, PhraseChunks,
     PosTags, Sentences, Stems, Strs, Structure, Subwords, Terms, Tokens,
@@ -148,11 +148,10 @@ fn get_ref(r: &mut Reader<'_>) -> Result<LayerRef, ExportError> {
 fn want_target<Target: Layer>(named: &LayerRef, cx: &ImportCx) -> Result<(), ExportError> {
     if named.layer != Target::NAME.to_string() {
         return Err(ExportError::InvalidLayer {
-            layer: named.layer.clone(),
+            layer: cx.layer().to_owned(),
             detail: format!("an index column into {}, not {}", named.layer, Target::NAME),
         });
     }
-    let _ = cx;
     Ok(())
 }
 
@@ -175,7 +174,7 @@ fn put_ix_col<Target: Layer>(
 
 fn get_ix_col<Target: Layer>(r: &mut Reader<'_>, cx: &mut ImportCx) -> Result<Vec<Ix<Target>>, ExportError> {
     let target = get_ref(r)?;
-    want_target::<Target>(&target, cx)?;
+    cx.expect_target::<Target>(&target)?;
     let mut values = Vec::new();
     for _ in 0..r.usize()? {
         let index = r.u32()?;
@@ -230,20 +229,33 @@ fn put_ranges<Target: Layer>(
     Ok(())
 }
 
+fn checked_range<Target: Layer>(
+    cx: &ImportCx,
+    target: &LayerRef,
+    len: usize,
+    start: u32,
+    end: u32,
+) -> Result<IxRange<Target>, ExportError> {
+    if start > end {
+        return Err(malformed(format!("a range that runs backwards: {start}..{end}")));
+    }
+    if end as usize > len {
+        return Err(ExportError::DanglingEndpoint {
+            layer: cx.layer().to_owned(),
+            endpoint: NodeRef { layer: target.clone(), index: end },
+        });
+    }
+    Ok(IxRange::new(start, end))
+}
+
 fn get_ranges<Target: Layer>(r: &mut Reader<'_>, cx: &mut ImportCx) -> Result<Vec<IxRange<Target>>, ExportError> {
     let target = get_ref(r)?;
-    want_target::<Target>(&target, cx)?;
+    cx.expect_target::<Target>(&target)?;
     let len = cx.layer_len(&target)?;
     let mut values = Vec::new();
     for _ in 0..r.usize()? {
         let (start, end) = (r.u32()?, r.u32()?);
-        if start > end || end as usize > len {
-            return Err(ExportError::DanglingEndpoint {
-                layer: target.layer.clone(),
-                endpoint: NodeRef { layer: target.clone(), index: end },
-            });
-        }
-        values.push(IxRange::new(start, end));
+        values.push(checked_range(cx, &target, len, start, end)?);
     }
     Ok(values)
 }
@@ -291,7 +303,7 @@ macro_rules! spans_only {
                 put_spans(&mut w, &self.spans, cx)?;
                 Ok(w.finish())
             }
-            fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+            fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
                 let mut r = Reader::new(data);
                 let spans = get_spans(&mut r, cx)?;
                 done(&r, $what)?;
@@ -310,7 +322,7 @@ impl LayerCodec for Tokens {
         put_opt_ix_col(&mut w, cx, &Key::<Sentences>::DEFAULT, &self.sentence)?;
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let sentence = get_opt_ix_col(&mut r, cx)?;
@@ -344,7 +356,7 @@ impl LayerCodec for Subwords {
         put_opt_ix_col(&mut w, cx, &Key::<Tokens>::DEFAULT, &self.token)?;
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let mut ids = Vec::new();
@@ -372,7 +384,7 @@ macro_rules! tag_column {
                 put_opt_f64s(&mut w, &self.prob)?;
                 Ok(w.finish())
             }
-            fn import(data: &[u8], _cx: &mut ImportCx) -> Result<Self, ExportError> {
+            fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
                 let mut r = Reader::new(data);
                 let tagset = get_tagset(&mut r)?;
                 let tags = get_tags(&mut r, &tagset)?;
@@ -399,7 +411,7 @@ macro_rules! strs_column {
                 put_strs(&mut w, &self.$field)?;
                 Ok(w.finish())
             }
-            fn import(data: &[u8], _cx: &mut ImportCx) -> Result<Self, ExportError> {
+            fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
                 let mut r = Reader::new(data);
                 let $field = get_strs(&mut r)?;
                 done(&r, $what)?;
@@ -422,7 +434,7 @@ impl LayerCodec for Terms {
         put_opt_strs(&mut w, &self.lemma)?;
         Ok(w.finish())
     }
-    fn import(data: &[u8], _cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let surface = get_strs(&mut r)?;
         let folded = get_strs(&mut r)?;
@@ -457,11 +469,11 @@ impl<A: WordOrTokenAnchor> LayerCodec for Dependencies<A> {
         put_tags(&mut w, &self.relation)?;
         Ok(w.finish())
     }
-    fn import(data: &[u8], _cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let relations = get_tagset(&mut r)?;
         let n = r.usize()?;
-        let mut head = Vec::with_capacity(n);
+        let mut head = Vec::new();
         for i in 0..n {
             head.push(match r.u8()? {
                 0 => None,
@@ -514,7 +526,7 @@ impl LayerCodec for Entities {
         put_f64s(&mut w, &self.score)?;
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let tokens = get_ranges(&mut r, cx)?;
@@ -538,7 +550,7 @@ impl LayerCodec for PhraseChunks {
         put_tags(&mut w, &self.kind)?;
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let tokens = get_ranges(&mut r, cx)?;
@@ -621,14 +633,14 @@ impl LayerCodec for Boundaries {
         }
         Ok(w.finish())
     }
-    fn import(data: &[u8], _cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let n = r.usize()?;
-        let mut cost = Vec::with_capacity(n);
+        let mut cost = Vec::new();
         for _ in 0..n {
             cost.push(r.u32()? as i32);
         }
-        let mut reason = Vec::with_capacity(n);
+        let mut reason = Vec::new();
         for _ in 0..n {
             reason.push(get_cut(&mut r)?);
         }
@@ -652,7 +664,7 @@ impl LayerCodec for Structure {
         }
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let mut kind = Vec::new();
@@ -699,7 +711,7 @@ impl LayerCodec for Chunks {
         }
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let n = spans.len();
@@ -747,7 +759,7 @@ impl LayerCodec for Language {
         put_f64s(&mut w, &self.score)?;
         Ok(w.finish())
     }
-    fn import(data: &[u8], _cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let code = get_strs(&mut r)?;
         let score = get_f64s(&mut r)?;
@@ -795,7 +807,7 @@ impl LayerCodec for Words {
         }
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         // The token ranges carry their target ref; read it through a
         // reader that also yields the key to restore.
@@ -805,13 +817,7 @@ impl LayerCodec for Words {
         let mut tokens = Vec::new();
         for _ in 0..r.usize()? {
             let (start, end) = (r.u32()?, r.u32()?);
-            if start > end || end as usize > len {
-                return Err(ExportError::DanglingEndpoint {
-                    layer: target.layer.clone(),
-                    endpoint: NodeRef { layer: target.clone(), index: end },
-                });
-            }
-            tokens.push(IxRange::new(start, end));
+            tokens.push(checked_range(cx, &target, len, start, end)?);
         }
         let tokens_key = cx.key::<Tokens>(&target.instance.clone());
         let n = tokens.len();
@@ -848,7 +854,34 @@ impl LayerCodec for Words {
             tag => return Err(malformed(format!("an optional column tag of {tag}"))),
         };
         done(&r, "words")?;
-        Ok(Words { tokens, form, subspan, tokens_key })
+        let words = Words { tokens, form, subspan, tokens_key };
+        // Subspans and explicit forms are only meaningful against the
+        // restored tokens and their view text; `Document::add` cannot
+        // run that check (the layer is document-anchored), so refuse a
+        // subspan that splits a character or leaves its token here,
+        // before ordinary access could panic on it.
+        let tokens = doc.get_key(&tokens_key).ok_or_else(|| ExportError::DanglingReference {
+            layer: cx.layer().to_owned(),
+            reference: target.clone(),
+        })?;
+        words
+            .check_against(doc.text(tokens.spans.view()), tokens)
+            .map_err(|detail| ExportError::InvalidLayer { layer: cx.layer().to_owned(), detail })?;
+        Ok(words)
+    }
+}
+
+impl<A: WordOrTokenAnchor> LayerCodec for MorphFeatures<A> {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_strs(&mut w, &self.feats)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let feats = get_strs(&mut r)?;
+        done(&r, "morph features")?;
+        Ok(MorphFeatures::new(feats))
     }
 }
 
@@ -860,7 +893,7 @@ impl<L: CategoryScope> LayerCodec for Categories<L> {
         put_f64s(&mut w, &self.scores)?;
         Ok(w.finish())
     }
-    fn import(data: &[u8], _cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let categories = get_tagset(&mut r)?;
         let category = get_tags(&mut r, &categories)?;
@@ -910,7 +943,7 @@ impl LayerCodec for Temporals {
         }
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let n = spans.len();
@@ -981,7 +1014,7 @@ impl LayerCodec for DocumentDate {
         }
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let date = match r.u8()? {
             0 => None,
@@ -992,7 +1025,7 @@ impl LayerCodec for DocumentDate {
             0 => None,
             1 => {
                 let target = get_ref(&mut r)?;
-                want_target::<Temporals>(&target, cx)?;
+                cx.expect_target::<Temporals>(&target)?;
                 let index = r.u32()?;
                 cx.require_node(&NodeRef { layer: target, index })?;
                 Some(Ix::new(index))
@@ -1017,7 +1050,7 @@ impl LayerCodec for LanguageSpans {
         put_f64s(&mut w, &self.confidence)?;
         Ok(w.finish())
     }
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let languages = get_tagset(&mut r)?;
@@ -1049,6 +1082,8 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Subwords>()
         .register::<PosTags>()
         .register::<WordPosTags>()
+        .register::<MorphFeatures<Tokens>>()
+        .register::<MorphFeatures<Words>>()
         .register::<Lemmas>()
         .register::<WordLemmas>()
         .register::<Stems>()
