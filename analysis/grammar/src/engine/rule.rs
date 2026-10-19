@@ -128,6 +128,10 @@ impl Lexicon {
         bucket.get(lo).is_some_and(|e| e.word.starts_with(prefix))
     }
 
+    pub(super) fn categories_below(&self, dims: u16) -> bool {
+        self.entries.iter().all(|entry| entry.dim.0 < dims)
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }

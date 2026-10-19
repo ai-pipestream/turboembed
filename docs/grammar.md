@@ -201,13 +201,14 @@ layer (`analysis/layers/src/times.rs`). The code is in two parts:
   the date arithmetic; `timex.rs` the TIMEX3 text; and `resolve/` turns
   a value and a reference date-time into a kind, a grain, a modifier and
   one or more readings, each with its timex and its start and end.
-- `analysis/grammar/src/lang/en/time/` holds the English rules, one file
-  per family: `clock.rs` (`7:56:30 pm`, `half past seven`, `in the
-  morning`), `date.rs` (`04th Jan 2019`, `next Monday`, `the first Monday
-  of next month`, `Q3 2019`, holidays), `duration.rs` (`3.5 years`, `an
-  hour and a half`, `a few minutes`), `set.rs` (`weekly`, `every two
+- `analysis/grammar/src/lang/en/time/` holds the English rules, grouped
+  by family: `clock.rs` (`7:56:30 pm`, `half past seven`, `in the
+  morning`), `analysis/grammar/src/lang/en/time/date/mod.rs` (`04th Jan 2019`,
+  `next Monday`, `the first Monday of next month`, `Q3 2019`, holidays),
+  `duration.rs` (`3.5 years`, `an hour and a half`, `a few minutes`), `set.rs` (`weekly`, `every two
   days`, `tuesday afternoons`), `compose.rs` (a date with a time, `in 5
-  minutes`, `2 days ago`, `now`) and `range.rs` (`from May to Oct 2020`,
+  minutes`, `2 days ago`, `now`) and
+  `analysis/grammar/src/lang/en/time/range/mod.rs` (`from May to Oct 2020`,
   `5 to 6pm`, `next 3 days`, `within 9 months`, `before 2018`, `since the
   end of 1989`, `mid-November`). `lexicon.rs` holds the words and
   `analysis/grammar/src/lang/en/time/mod.rs` the checks that drop a
@@ -528,3 +529,22 @@ The benchmark also times the parse with the unit rules and
 ## Not yet done
 
 The time grammar reads no time zones.
+
+## Parser boundary checks
+
+The chart admits at most four live readings per span and category. A rule
+cannot recur along a derivation without consuming another lexeme, which
+bounds unary cycles even when optional words are absent. Recursion that
+extends a span remains allowed. Candidates whose score, application count
+or child offsets cannot be represented are skipped; node indexes reserve
+the terminal sentinel and cannot wrap. This is not a global memory quota:
+charts can still grow with input length and grammar ambiguity.
+
+`Parser::new` checks numeral, lexicon and every rule category before parsing.
+`Parser::select` must receive the original source text. Incompatible UTF-8
+byte lengths yield no additional mentions; candidate endpoints are checked
+for UTF-8 boundaries before the selection callback reads the context. The
+grammar and time annotators record version `2` for these parser semantics.
+
+Decimal normalization returns `None` if reducing the scale would underflow.
+The existing unresolved-date convention, including `Feb 30`, is unchanged.

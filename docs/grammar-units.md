@@ -11,6 +11,8 @@ runs it.
 ## Types
 
 Units are enums grouped by what they measure, in
+`analysis/grammar/src/unit/physical.rs` and
+`analysis/grammar/src/unit/kinds.rs`, re-exported from
 `analysis/grammar/src/unit/mod.rs`: `Length`, `Area`, `Volume`,
 `Weight`, `Speed`, `Information`, `Angle`, `Temperature` and `Age`, with
 `Unit` over them and `Unit::Currency` for money. `Area::Square`,
@@ -51,8 +53,8 @@ bitcoin).
 
 ## Rules
 
-The lexicon tables are in `analysis/grammar/src/lang/en/unit/lexicon.rs`
-and the rules in `analysis/grammar/src/lang/en/unit/rules.rs`.
+The lexicon tables are in `analysis/grammar/src/lang/en/unit/lexicon/mod.rs`
+and the rules in `analysis/grammar/src/lang/en/unit/rules/mod.rs`.
 
 - A unit word is a name (`kilometers`), an abbreviation (`km`, `kg`,
   `mph`) or a sign (`°`, `"`, `£`). Abbreviations whose case matters are

@@ -225,6 +225,7 @@ fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, notation: NumberN
 }
 
 impl Annotator for GrammarAnnotator {
+    const VERSION: &'static str = "2";
     const ID: &'static str = "turbo-grammar:numbers";
     type Reads = (View,);
     type Writes = (Numbers, Quantities, Ordinals, Money);
