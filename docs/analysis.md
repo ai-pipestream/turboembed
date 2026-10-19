@@ -2078,8 +2078,11 @@ alone is a batch of one and gets only templates. Items of fewer than
 `BoilerplateProjector<L, S>` carries flags from one level (`S`, the
 structure by default) to another in the same view: an item of `L` is
 boilerplate when at least half of its bytes lie inside flagged items of
-`S`, of the kind covering most of it, and its score is the
-byte-weighted mean of the covering scores, so a chunk that is a third footer
+`S`, of the kind that covers the most of its bytes added up over every
+flagged block and fragment (the first in kind order on a tie). Each
+byte keeps the kind and score of the flagged block it lies in, touching
+blocks included; where flagged blocks overlap, the innermost decides.
+Its score is the byte-weighted mean of the covering scores, so a chunk that is a third footer
 scores a third of the footer's score. `ContentTermCounter<L>` in
 `turbo-chunker` counts terms as `TermCounter<L>` does with the tokens
 inside boilerplate left out (see "Term statistics and BM25").

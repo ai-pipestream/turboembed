@@ -52,8 +52,11 @@ impl<L: Layer, B: Layer> Annotator for ContentTermCounter<L, B> {
             )));
         }
         let ranges = unit_ranges(tokens, units).map_err(fail)?;
-        let covered = Covered::new(&ts, flags);
+        let covered = Covered::new(&ts, flags).map_err(fail)?;
         let (starts, _) = tokens.spans.columns();
+        if terms.term.len() != starts.len() {
+            return Err(fail(format!("{} terms for {} tokens", terms.term.len(), starts.len())));
+        }
         let term: Vec<_> = terms.term.iter().zip(starts).map(|(&t, &s)| t.filter(|_| !covered.contains(s))).collect();
         Ok((count(&term, vocabulary.len(), &ranges).map_err(fail)?,))
     }

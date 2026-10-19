@@ -108,8 +108,11 @@ impl<L: Layer> Layer for Boilerplate<L> {
 }
 
 /// The bytes of a view inside boilerplate items: disjoint intervals in
-/// text order, each with the kind and score of the outermost item that
-/// opened it.
+/// text order, each with the kind and score of the item that covers it.
+/// Where flagged items overlap, the innermost decides (the one starting
+/// last, then ending first, then the later item), since a block nested
+/// in another says more about its own bytes; elsewhere every byte keeps
+/// its own item's kind and score, touching items included.
 pub struct Covered {
     pub spans: Vec<Span>,
     pub kind: Vec<BoilerplateKind>,
@@ -117,55 +120,79 @@ pub struct Covered {
 }
 
 impl Covered {
-    /// The union of the flagged items' spans (fragments, for a
-    /// discontinuous item). Overlapping or touching items merge into the
-    /// first one's interval.
-    pub fn new<S>(ts: &TextSpans<'_>, flags: &Boilerplate<S>) -> Covered {
-        let mut items: Vec<(Span, BoilerplateKind, f32)> = Vec::new();
+    /// The flagged items' spans (fragments, for a discontinuous item),
+    /// cut where the deciding item changes. Refused when the flags are
+    /// not aligned to the items or do not pass their check. A sweep over
+    /// the span edges: time is the number of spans times its logarithm.
+    pub fn new<S>(ts: &TextSpans<'_>, flags: &Boilerplate<S>) -> Result<Covered, String> {
+        if flags.kind.len() != ts.start.len() {
+            return Err(format!("{} boilerplate flags for {} items", flags.kind.len(), ts.start.len()));
+        }
+        if flags.score.len() != flags.kind.len() {
+            return Err(format!("{} scores for {} items", flags.score.len(), flags.kind.len()));
+        }
+        // (span, item) of every flagged fragment, by start.
+        let mut items: Vec<(Span, u32)> = Vec::new();
         for (i, k) in flags.kind.iter().enumerate() {
-            if let Some(k) = *k {
-                items.extend(item_spans(ts, i).map(|s| (s, k, flags.score[i])));
+            if k.is_some() {
+                items.extend(item_spans(ts, i).filter(|s| s.start < s.end).map(|s| (s, i as u32)));
             }
         }
-        // Outer spans first at one start, so a merged interval keeps the
-        // outermost item's kind.
-        items.sort_by_key(|(s, _, _)| (s.start, std::cmp::Reverse(s.end)));
-        let mut c = Covered { spans: Vec::new(), kind: Vec::new(), score: Vec::new() };
-        for (s, k, score) in items {
-            match c.spans.last_mut() {
-                Some(last) if s.start <= last.end => last.end = last.end.max(s.end),
+        items.sort_unstable_by_key(|&(s, i)| (s.start, s.end, i));
+        let mut edges: Vec<u32> = items.iter().flat_map(|(s, _)| [s.start, s.end]).collect();
+        edges.sort_unstable();
+        edges.dedup();
+        // The open items, innermost on top; an item past its end is
+        // dropped when it reaches the top.
+        let mut open = std::collections::BinaryHeap::new();
+        let (mut next, mut c) = (0, Covered { spans: Vec::new(), kind: Vec::new(), score: Vec::new() });
+        for w in edges.windows(2) {
+            let (a, b) = (w[0], w[1]);
+            while let Some(&(s, i)) = items.get(next).filter(|(s, _)| s.start <= a) {
+                open.push((s.start, std::cmp::Reverse(s.end), i));
+                next += 1;
+            }
+            while open.peek().is_some_and(|&(_, std::cmp::Reverse(end), _)| end <= a) {
+                open.pop();
+            }
+            let Some(&(_, _, i)) = open.peek() else { continue };
+            let (k, score) = (flags.kind[i as usize].expect("a flagged item"), flags.score[i as usize]);
+            match (c.spans.last_mut(), c.kind.last(), c.score.last()) {
+                (Some(last), Some(&lk), Some(&ls)) if last.end == a && lk == k && ls == score => last.end = b,
                 _ => {
-                    c.spans.push(s);
+                    c.spans.push(Span::new(a, b));
                     c.kind.push(k);
                     c.score.push(score);
                 }
             }
         }
-        c
+        Ok(c)
     }
 
-    /// Whether offset `x` is inside a covered interval: a binary search.
-    pub fn contains(&self, x: u32) -> bool {
+    /// The interval holding offset `x`, if any: a binary search.
+    pub fn at(&self, x: u32) -> Option<usize> {
         let k = self.spans.partition_point(|s| s.end <= x);
-        self.spans.get(k).is_some_and(|s| s.start <= x)
+        self.spans.get(k).is_some_and(|s| s.start <= x).then_some(k)
     }
 
-    /// For a span: how many of its bytes are covered, the sum of covered
-    /// bytes times their interval's score, and the kind of the interval
-    /// covering most of it (the first, on a tie).
-    pub fn cover(&self, s: Span) -> (u64, f64, Option<BoilerplateKind>) {
+    /// Whether offset `x` is inside a covered interval.
+    pub fn contains(&self, x: u32) -> bool {
+        self.at(x).is_some()
+    }
+
+    /// Adds a span's covered bytes to `bytes`, by kind in
+    /// `BoilerplateKind::ALL` order, and returns the sum of its covered
+    /// bytes times their interval's score.
+    pub fn cover(&self, s: Span, bytes: &mut [u64; 5]) -> f64 {
         let mut k = self.spans.partition_point(|c| c.end <= s.start);
-        let (mut bytes, mut weighted, mut best) = (0u64, 0f64, (0u32, None));
+        let mut weighted = 0f64;
         while let Some(c) = self.spans.get(k).filter(|c| c.start < s.end) {
             let n = c.end.min(s.end) - c.start.max(s.start);
-            bytes += u64::from(n);
+            bytes[self.kind[k].code() as usize] += u64::from(n);
             weighted += f64::from(n) * f64::from(self.score[k]);
-            if n > best.0 {
-                best = (n, Some(self.kind[k]));
-            }
             k += 1;
         }
-        (bytes, weighted, best.1)
+        weighted
     }
 }
 

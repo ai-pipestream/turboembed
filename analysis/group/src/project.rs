@@ -13,7 +13,9 @@ use crate::sketch::item_spans;
 ///
 /// An item of `L` is boilerplate when at least half of its bytes (over
 /// its fragments, for a discontinuous item) lie inside boilerplate items
-/// of `S`, and then of the kind covering most of it. Its score is the
+/// of `S`, and then of the kind that covers the most of its bytes, added
+/// up over every interval and fragment (the first in kind order on a
+/// tie). Its score is the
 /// byte-weighted mean of the covering items' scores, uncovered bytes
 /// counting zero, so a chunk that is a third footer scores a third of the
 /// footer's score, flagged or not. An empty item is boilerplate when its
@@ -41,30 +43,26 @@ impl<L: Layer, S: Layer> Annotator for BoilerplateProjector<L, S> {
         if from.view != to.view {
             return Err(fail(format!("{} is in view {}, {} in view {}", S::NAME, from.view.0, L::NAME, to.view.0)));
         }
-        let covered = Covered::new(&from, flags);
+        let covered = Covered::new(&from, flags).map_err(fail)?;
         let n = to.start.len();
         let (mut kind, mut score) = (Vec::with_capacity(n), Vec::with_capacity(n));
         for i in 0..n {
-            let (mut len, mut bytes, mut weighted, mut votes) = (0u64, 0u64, 0f64, Vec::new());
+            let (mut len, mut weighted, mut bytes) = (0u64, 0f64, [0u64; 5]);
             for s in item_spans(&to, i) {
-                let (b, w, k) = covered.cover(s);
                 len += u64::from(s.end - s.start);
-                bytes += b;
-                weighted += w;
-                votes.extend(k.map(|k| (b, k)));
+                weighted += covered.cover(s, &mut bytes);
             }
             if len == 0 {
-                let k = covered.spans.partition_point(|c| c.end <= to.start[i]);
-                let inside = covered.spans.get(k).is_some_and(|c| c.start <= to.start[i] && to.start[i] < c.end);
-                kind.push(inside.then(|| covered.kind[k]));
-                score.push(if inside { covered.score[k] } else { 0.0 });
+                let at = covered.at(to.start[i]);
+                kind.push(at.map(|k| covered.kind[k]));
+                score.push(at.map_or(0.0, |k| covered.score[k]));
                 continue;
             }
-            let best = votes.iter().fold(None, |best: Option<(u64, BoilerplateKind)>, &(b, k)| match best {
-                Some((bb, _)) if bb >= b => best,
-                _ => Some((b, k)),
-            });
-            kind.push(best.filter(|_| 2 * bytes >= len).map(|(_, k)| k));
+            // The kind with the most bytes over all fragments; the first in
+            // kind order on a tie.
+            let (best, most) = (0..5).fold((0, 0), |b, k| if bytes[k] > b.1 { (k, bytes[k]) } else { b });
+            let total: u64 = bytes.iter().sum();
+            kind.push((most > 0 && 2 * total >= len).then(|| BoilerplateKind::ALL[best]));
             score.push(((weighted / len as f64) as f32).clamp(0.0, 1.0));
         }
         Ok((Boilerplate::new(kind, score),))

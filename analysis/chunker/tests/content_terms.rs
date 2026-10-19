@@ -96,3 +96,24 @@ fn boilerplate_in_another_view_is_refused() {
     let err = pipeline.run(&mut docs).remove(0).unwrap_err().to_string();
     assert!(err.contains("the boilerplate is in view"), "{err}");
 }
+
+#[test]
+fn terms_shorter_than_the_tokens_or_past_the_vocabulary_are_refused() {
+    let mut docs = [document()];
+    let pipeline =
+        Analyzer::builder().given(Key::<View>::DEFAULT).given(Key::<Tokens>::DEFAULT).add(TermIndexer).build().unwrap();
+    assert_eq!(pipeline.run(&mut docs), [Ok(())]);
+    let doc = &docs[0];
+    let (tokens, view, st) =
+        (doc.get::<Tokens>().unwrap(), doc.get::<View>().unwrap(), doc.get::<Structure>().unwrap());
+    let (vocabulary, flags) = (doc.get::<Vocabulary>().unwrap(), doc.get::<Boilerplate<Structure>>().unwrap());
+    let mut short =
+        turbo_chunker::terms::Terms { term: doc.get::<turbo_chunker::terms::Terms>().unwrap().term.clone() };
+    short.term.pop();
+    let content = ContentTermCounter::<Structure>::new().annotate((tokens, &short, vocabulary, st, st, flags));
+    assert!(content.err().unwrap().to_string().contains("terms for"), "the content counter");
+    let plain = TermCounter::<View>::new().annotate((tokens, &short, vocabulary, view));
+    assert!(plain.err().unwrap().to_string().contains("terms for"), "the plain counter");
+    let r = turbo_chunker::terms::count::count::<View>(&[Some(Ix::new(5))], 2, std::slice::from_ref(&(0..1)));
+    assert!(r.err().unwrap().contains("past the vocabulary"));
+}

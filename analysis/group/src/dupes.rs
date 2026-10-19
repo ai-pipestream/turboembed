@@ -28,6 +28,7 @@ fn entries<'s, L: Layer>(doc: u32, units: &L, sketches: &'s Sketches<L>) -> Resu
     if sketches.words.len() != ts.start.len() {
         return Err(format!("{} sketches for {} items", sketches.words.len(), ts.start.len()));
     }
+    sketches.check()?;
     Ok((0..ts.start.len())
         .map(|i| Entry {
             doc,

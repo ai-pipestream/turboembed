@@ -47,6 +47,9 @@ impl<L: Layer> Annotator for TermCounter<L> {
 
     fn annotate(&self, (tokens, terms, vocabulary, units): Refs<'_, Self>) -> Result<(TermStats<L>,), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        if terms.term.len() != tokens.spans.len() {
+            return Err(fail(format!("{} terms for {} tokens", terms.term.len(), tokens.spans.len())));
+        }
         let ranges = unit_ranges(tokens, units).map_err(fail)?;
         Ok((count(&terms.term, vocabulary.len(), &ranges).map_err(fail)?,))
     }
@@ -75,8 +78,9 @@ pub(crate) fn unit_ranges<L: Layer>(tokens: &Tokens, units: &L) -> Result<Vec<Ra
     })
 }
 
-/// The term counts of each run of tokens. Refused when a unit holds, or
-/// all units together hold, more terms than a u32 counts.
+/// The term counts of each run of tokens. Refused when a run is past the
+/// terms, a term is past the vocabulary, or a unit holds, or all units
+/// together hold, more terms than a u32 counts.
 pub fn count<L>(
     term: &[Option<Ix<Vocabulary>>],
     vocabulary: usize,
@@ -94,8 +98,12 @@ pub fn count<L>(
     let mut ids = Vec::new();
     for r in units {
         ids.clear();
-        ids.extend(term[r.clone()].iter().flatten().copied());
+        let run = term.get(r.clone()).ok_or_else(|| format!("tokens {r:?} past the {} terms", term.len()))?;
+        ids.extend(run.iter().flatten().copied());
         ids.sort_unstable();
+        if let Some(t) = ids.last().filter(|t| t.get() >= vocabulary) {
+            return Err(format!("a term {} past the vocabulary of {vocabulary}", t.get()));
+        }
         for &t in &ids {
             if s.term.len() > *s.row.last().unwrap() as usize && s.term.last() == Some(&t) {
                 *s.tf.last_mut().unwrap() += 1;

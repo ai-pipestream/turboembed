@@ -95,6 +95,7 @@ impl<L: BoilerplateUnit> BoilerplateDetector<L> {
         if sketches.words.len() != ts.start.len() {
             return Err(format!("{} sketches for {} items", sketches.words.len(), ts.start.len()));
         }
+        sketches.check()?;
         Ok(Doc { units, start: ts.start, end: ts.end, sketches })
     }
 
