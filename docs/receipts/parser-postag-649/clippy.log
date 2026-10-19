@@ -1,0 +1,14 @@
+$ cargo clippy --locked -p turbo-parser -p turbo-postag -p turbo-bench --all-targets -- -D warnings
+    Checking turbo-unicode v0.1.0 (<checkout>/analysis/unicode)
+    Checking turbo-jvm v0.1.0 (<checkout>/analysis/jvm)
+    Checking turbo-analysis v0.1.0 (<checkout>/analysis/core)
+   Compiling turbo-bench v0.1.0 (<checkout>/bench)
+    Checking turbo-maxent v0.1.0 (<checkout>/analysis/maxent)
+    Checking turbo-analysis-layers v0.1.0 (<checkout>/analysis/layers)
+    Checking turbo-sequence v0.1.0 (<checkout>/analysis/sequence)
+    Checking turbo-train v0.1.0 (<checkout>/analysis/train)
+    Checking turbo-goldens v0.1.0 (<checkout>/analysis/goldens)
+    Checking turbo-postag v0.1.0 (<checkout>/analysis/postag)
+    Checking turbo-parser v0.1.0 (<checkout>/analysis/parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.24s
+exit=0

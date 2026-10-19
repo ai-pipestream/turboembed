@@ -1,0 +1,231 @@
+$ cargo test --locked -p turbo-parser -p turbo-postag
+   Compiling turbo-postag v0.1.0 (<checkout>/analysis/postag)
+   Compiling turbo-parser v0.1.0 (<checkout>/analysis/parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.50s
+     Running unittests src/lib.rs (target/debug/deps/turbo_parser-55fdf64a11a1303a)
+
+running 7 tests
+test parse::tests::sentence_text_length_is_checked_against_the_u32_span_limit ... ok
+test annotator::tests::parse_line_maps_each_token_to_its_own_bytes_in_the_line ... ok
+test parse::tests::the_tree_builder_matches_insert ... ok
+test parse::tests::the_type_scan_matches_java_type_at_every_bracket ... ok
+test treeinsert::feature_tests::production_keeps_existing_punctuation_on_equal_probability ... ok
+test treeinsert::feature_tests::compact_frontier_matches_path_walk_for_repeated_and_missing_heads ... ok
+test parse::tests::deep_trees_are_walked_and_dropped_without_recursion ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/bottom_up_tests.rs (target/debug/deps/bottom_up_tests-70a161cd546a0536)
+
+running 6 tests
+test chunk_context_cache_does_not_leak_into_another_sentence ... ok
+test chunk_context_generator_and_sequence_validator ... ok
+test chunking_build_context_matches_opennlp ... ok
+test surround_features_after_two_punctuation_nodes_are_written_as_java_writes_them ... ok
+test chunking_check_context_matches_opennlp ... ok
+test collapse_punctuation_and_build_dictionary ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/feature_buffers.rs (target/debug/deps/feature_buffers-b5a4a8e5a75f8c2f)
+
+running 4 tests
+test chunk_beam_features_allocate_nothing_after_warmup ... ok
+test chunk_buffer_preserves_unicode_and_cached_context_behavior ... ok
+test all_parser_feature_buffers_match_string_contexts_without_allocations ... ok
+test oversized_unicode_pieces_keep_exact_features_without_allocations ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/goldens.rs (target/debug/deps/goldens-a70b6fed2f561674)
+
+running 10 tests
+test treebank::a_missing_label_is_read_where_java_reads_it ... ok
+test treebank::ngrams_are_in_string_compare_order ... ok
+test treebank::only_a_nested_package_row_may_be_missing ... ok
+test treebank::the_parse_treebank_goldens_are_the_26_expected_files ... ok
+test every_head_rules_golden_matches ... ok
+test treebank::the_dictionary_goldens_match ... ok
+test every_parse_golden_matches ... ok
+test treebank::the_generator_goldens_match ... ok
+test treebank::the_tree_insertion_model_parses_match ... ok
+test treebank::the_chunking_model_parses_match ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+     Running tests/parse_boundaries.rs (target/debug/deps/parse_boundaries-27e598954ff611ce)
+
+running 5 tests
+test adjoin_on_a_childless_node_fails_instead_of_panicking ... ok
+test adjoin_root_and_adjoin_still_work_on_valid_input ... ok
+test adjoin_root_with_an_index_past_the_children_fails ... ok
+test set_child_and_remove_with_an_index_past_the_children_fail ... ok
+test expand_top_node_with_an_index_past_the_children_fails ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/parser_tests.rs (target/debug/deps/parser_tests-b50caa2252368eb7)
+
+running 27 tests
+test a_node_built_with_a_head_takes_that_node ... ok
+test a_root_copied_for_a_derivation_keeps_its_head_when_its_span_shrinks ... ok
+test bracket_tokens_round_trip ... ok
+test adds_names ... ok
+test chunk_samples_count_childless_nodes_as_chunks ... ok
+test equality_ignores_the_type_as_java_does ... ok
+test creates_the_initial_tree_from_tokens ... ok
+test fails_where_parse_parse_throws ... ok
+test insert_rejects_reversed_spans_without_changing_the_tree ... ok
+test builds_nodes_as_the_bottom_up_parsers_do ... ok
+test insert_checks_the_span ... ok
+test insert_still_accepts_empty_constituents_at_character_boundaries ... ok
+test fixes_possessives_reading_parents_after_each_insert ... ok
+test prunes_unary_chains_but_not_the_root ... ok
+test keeps_the_first_function_tag ... ok
+test punctuation_sets_order_by_probability_and_drop_ties ... ok
+test heads_survive_rearranging_the_tree ... ok
+test reads_what_parse_parse_reads ... ok
+test reads_and_writes_a_tree ... ok
+test rule_files_fail_as_opennlp_fails ... ok
+test spaces_untokenized_brackets ... ok
+test tag_sequence_probability_sums_logs ... ok
+test the_sample_stream_skips_blank_lines ... ok
+test tag_patterns_follow_java_regular_expressions ... ok
+test english_heads_follow_the_child_and_spanish_heads_stop_at_it ... ok
+test labels_gaps_and_fails_on_a_missing_label ... ok
+test rules_read_like_opennlp ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/treeinsert_tests.rs (target/debug/deps/treeinsert_tests-1fa15fbf2bcc35ae)
+
+running 2 tests
+test chunks_are_marked_complete_after_chunking ... ok
+test right_frontier_starts_at_first_non_punctuation_child_of_top ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_postag-07def54df0f364b2)
+
+running 41 tests
+test model::tests::beam_and_cache_sizes ... ok
+test model::tests::custom_and_unknown_formats ... ok
+test model::tests::reads_the_english_model ... ok
+test model::tests::penn_tags_from_a_ud_model ... ok
+test neural::adam::tests::clipped_step_and_overflow_rejection ... ok
+test neural::adam::tests::clipping_preserves_direction_at_all_scales ... ok
+test neural::adam::tests::norm_handles_extreme_scales_without_overflow_or_underflow ... ok
+test neural::bilstm_model::validate::tests::rejects_a_short_or_long_gate_bias ... ok
+test neural::bilstm_model::validate::tests::rejects_short_row_counts_and_zero_sizes ... ok
+test model::tests::other_components_and_factories_are_refused ... ok
+test neural::crf::tests::score_table_rescaling_and_subnormal_cancel ... ok
+test neural::crf::tests::score_table_word_promotion_and_differences ... ok
+test neural::bilstm_trainer::tests::validation_rejects_mismatched_lengths_empty_tags_and_unseen_tags ... ok
+test neural::crf::tests::precision_cancellation_preserves_small_delta ... ok
+test neural::bilstm_trainer::tests::primary_and_auxiliary_heads_reject_non_finite_weights ... ok
+test neural::crf::tests::viterbi_matches_brute_force_and_marginals_sum_to_one ... ok
+test model::tests::a_model_with_an_outcome_holding_half_a_surrogate_pair_is_refused ... ok
+test neural::feedforward::tests::score_and_score_with_pretrained_reject_out_of_bounds_indices_without_panicking ... ok
+test neural::feedforward::tests::scores_do_not_depend_on_the_cache_state ... ok
+test neural::feedforward::tests::scoring_cache_budget_and_cancellation ... ok
+test neural::lstm::tests::gate_sums_start_from_the_bias_in_java_order ... ok
+test neural::feedforward::tests::shapes_and_suffixes_match_java_conformance ... ok
+test neural::lstm::tests::rejects_empty_sequence_and_zeros_gradients ... ok
+test neural::bilstm_trainer::tests::pretrained_tuning_clips_extreme_gradients_and_rejects_non_finite_updates ... ok
+test tagger::tests::sentences_are_tagged_one_at_a_time ... ok
+test tagger::tests::tags_a_sentence ... ok
+test tagger::tests::in_a_pipeline_after_given_sentences_and_tokens ... ok
+test tagger::tests::the_configuration_hash_tells_settings_apart ... ok
+test neural::feedforward::tests::feedforward_annotator_rejects_invalid_token_spans_without_panicking ... ok
+test tagger::tests::tokens_in_another_view_are_refused ... ok
+test tagger::tests::penn_tags_are_the_converted_outcomes ... ok
+test model::tests::the_fixture_model_has_a_tag_dictionary_and_penn_outcomes ... ok
+test neural::lstm::tests::input_and_parameter_gradients_match_finite_differences ... ok
+test tagger::tests::pos_annotator_rejects_invalid_token_spans_without_panicking ... ok
+test neural::bilstm_trainer::tests::serialization_round_trip_preserves_scores_pretrained_and_adapter ... ok
+test neural::bilstm_trainer::tests::serialization_round_trip_preserves_one_and_two_layer_crf ... ok
+test neural::feedforward::tests::pretrained_vectors_and_lexicon_separate_indistinguishable_words ... ok
+test neural::bilstm_trainer::tests::full_model_gradients_match_finite_differences ... ok
+test neural::bilstm_tagger::tests::bilstm_annotator_rejects_invalid_token_spans_without_panicking ... ok
+test neural::feedforward::tests::training_inference_and_round_trip_match_java_exact_outputs ... ok
+test neural::bilstm_trainer::tests::usage_and_edge_cases_match_java_deterministic_outputs ... ok
+
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 23.86s
+
+     Running tests/accuracy.rs (target/debug/deps/accuracy-e30ad28e47cc8b99)
+
+running 2 tests
+test english_ewt_test_split ... ignored, needs TURBO_UD_EWT_TEST naming a downloaded en_ewt-ud-test.conllu
+test conllu_reading_follows_opennlp ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/golden.rs (target/debug/deps/golden-a6ad7d5d02ec785b)
+
+running 7 tests
+test english ... ok
+test english_beam_1 ... ok
+test english_beam_10 ... ok
+test german ... ok
+test english_penn ... ok
+test fixture_with_tag_dictionary ... ok
+test rust_fixture_with_tag_dictionary ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/neural.rs (target/debug/deps/neural-4a3d6befe35cf6da)
+
+running 3 tests
+test binary_format_rejects_corrupt_streams ... ok
+test bilstm_fine_tuning_dropout_schedule_and_representation_cache ... ok
+test bilstm_and_feedforward_annotators_in_pipeline_and_view_validation ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/neural_boundaries/main.rs (target/debug/deps/neural_boundaries-68ec40e41a99b438)
+
+running 20 tests
+test crf::loss_and_gradients_rejects_short_start_and_end_accumulators_without_writing ... ok
+test crf::viterbi_rejects_non_finite_scores ... ok
+test crf::loss_and_gradients_rejects_bad_gold ... ok
+test crf::loss_and_gradients_accumulates_into_well_formed_buffers ... ok
+test crf::loss_and_gradients_rejects_short_transition_accumulators_without_writing ... ok
+test crf::loss_and_gradients_rejects_short_emission_accumulators_without_writing ... ok
+test crf::viterbi_rejects_ragged_or_mismatched_dimensions ... ok
+test model::new_rejects_duplicate_tags ... ok
+test model::new_accepts_and_scores_the_valid_model ... ok
+test model::new_rejects_duplicate_word_and_char_entries ... ok
+test model::new_rejects_empty_or_ragged_embedding_tables ... ok
+test model::new_rejects_duplicate_pretrained_entries ... ok
+test model::new_rejects_encoder_width_mismatch ... ok
+test model::new_checks_the_second_word_layer_tensors ... ok
+test model::new_rejects_non_finite_lstm_weights ... ok
+test model::new_rejects_output_and_crf_shape_mismatches ... ok
+test model::new_rejects_vocabulary_rows_past_the_tables ... ok
+test model::new_rejects_ragged_lstm_weight_rows ... ok
+test model::new_requires_unknown_at_row_zero ... ok
+test model::every_model_new_accepts_round_trips_through_load ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/neural_goldens.rs (target/debug/deps/neural_goldens-374d059ae12ab584)
+
+running 2 tests
+test trainers_reproduce_the_jvm_models ... ok
+test every_neural_postag_golden_matches_the_jvm ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.81s
+
+   Doc-tests turbo_parser
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_postag
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+exit=0

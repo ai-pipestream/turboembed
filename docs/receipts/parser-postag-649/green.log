@@ -1,0 +1,28 @@
+   Compiling turbo-postag v0.1.0 (<checkout>/analysis/postag)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running tests/neural_boundaries/main.rs (target/debug/deps/neural_boundaries-f9f9153db85edd6e)
+
+running 20 tests
+test crf::loss_and_gradients_rejects_short_emission_accumulators_without_writing ... ok
+test crf::loss_and_gradients_accumulates_into_well_formed_buffers ... ok
+test crf::loss_and_gradients_rejects_bad_gold ... ok
+test crf::loss_and_gradients_rejects_short_start_and_end_accumulators_without_writing ... ok
+test crf::loss_and_gradients_rejects_short_transition_accumulators_without_writing ... ok
+test crf::viterbi_rejects_non_finite_scores ... ok
+test crf::viterbi_rejects_ragged_or_mismatched_dimensions ... ok
+test model::new_rejects_duplicate_tags ... ok
+test model::new_rejects_empty_or_ragged_embedding_tables ... ok
+test model::new_rejects_duplicate_word_and_char_entries ... ok
+test model::new_rejects_encoder_width_mismatch ... ok
+test model::new_accepts_and_scores_the_valid_model ... ok
+test model::new_rejects_duplicate_pretrained_entries ... ok
+test model::new_checks_the_second_word_layer_tensors ... ok
+test model::new_rejects_output_and_crf_shape_mismatches ... ok
+test model::new_rejects_vocabulary_rows_past_the_tables ... ok
+test model::new_rejects_non_finite_lstm_weights ... ok
+test model::new_requires_unknown_at_row_zero ... ok
+test model::new_rejects_ragged_lstm_weight_rows ... ok
+test model::every_model_new_accepts_round_trips_through_load ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
