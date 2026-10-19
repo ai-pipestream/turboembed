@@ -4,6 +4,8 @@
 //! crate so a consumer of them does not depend on the tokenizers that make
 //! them.
 
+pub mod export;
+
 use turbo_analysis::{Anchor, Layer};
 use turbo_analysis_layers::{Strs, Tokens};
 

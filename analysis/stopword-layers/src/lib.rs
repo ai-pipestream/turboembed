@@ -2,6 +2,8 @@
 //! lives in this small crate so a consumer of the flags (term vectors,
 //! BM25) does not depend on the step that writes them.
 
+pub mod export;
+
 use turbo_analysis::{Anchor, Ix, Layer};
 use turbo_analysis_layers::Tokens;
 
