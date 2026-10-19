@@ -334,6 +334,17 @@ continuous or discontinuous, stays inside its sentence, and
 `Spans::overlapping` and `Spans::covering` find the entities whose
 fragments touch a chunk.
 
+Query-time routing (`turbo_chunker::LevelRouter`) ranks the chunk,
+section and document units of `Levels` in one list, fusing BM25 over
+`TermStats<Levels>` with dense cosine scores over `Vectors<Levels>`
+when present. A query profile (chunk-level term rarity and length)
+weights the levels (factoid toward chunks, topical toward sections,
+summary toward the document), sibling chunks that co-activate promote
+their parent section, and hits carry their parent context with exact
+view spans. `ContentHashes<L>` (`turbo:content-hashes<L>`) gives every
+unit a deterministic content ID over its level, heading path and
+fragment text, so a re-chunked document diffs cleanly.
+
 `Spans<L>` provides lookup and conflict-resolution helpers that work
 across continuous, nested, overlapping and discontinuous spans:
 
