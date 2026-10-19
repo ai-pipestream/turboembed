@@ -1,0 +1,59 @@
+   Compiling turbo-doccat v0.1.0 (./analysis/doccat)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running tests/sentiment_boundaries.rs (target/debug/deps/sentiment_boundaries-32ae3bf335f58995)
+
+running 15 tests
+test incivility_digest_distinguishes_sub_micro_weights ... ok
+test large_finite_vader_score_normalizes_without_overflow ... ok
+test invalid_lexicon_updates_preserve_valid_entries ... ok
+test invalid_incivility_ranges_return_errors ... ok
+test valid_custom_lexicon_updates_keep_last_value ... ok
+test discontinuous_sentences_are_not_scored_as_their_hull ... FAILED
+test incivility_rejects_split_utf8_token ... ok
+test incivility_rejects_short_vector_layer ... FAILED
+test nested_chunks_score_their_own_tokens ... FAILED
+test invalid_incivility_thresholds_return_errors ... ok
+test incivility_rejects_invalid_head_scores ... ok
+test pragmatics_rejects_non_finite_configuration ... ok
+test pragmatics_rejects_split_utf8_token ... ok
+test lexicon_annotator_rejects_split_utf8_token ... ok
+test pragmatics_rejects_misaligned_sentence_column ... FAILED
+
+failures:
+
+---- discontinuous_sentences_are_not_scored_as_their_hull stdout ----
+
+thread 'discontinuous_sentences_are_not_scored_as_their_hull' (51162) panicked at analysis/doccat/tests/sentiment_boundaries.rs:176:5:
+assertion failed: IncivilityAnnotator::new().annotate((view, &tokens, Some(&sentences), None,
+            None, None, None)).is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- incivility_rejects_short_vector_layer stdout ----
+
+thread 'incivility_rejects_short_vector_layer' (51165) panicked at analysis/doccat/tests/sentiment_boundaries.rs:145:5:
+assertion failed: IncivilityAnnotator::new().annotate((doc.get::<View>().unwrap(), &tokens,
+            Some(&sentences), None, None, Some(&vectors), None)).is_err()
+
+---- nested_chunks_score_their_own_tokens stdout ----
+
+thread 'nested_chunks_score_their_own_tokens' (51172) panicked at analysis/doccat/tests/sentiment_boundaries.rs:165:5:
+assertion `left == right` failed
+  left: 0.85
+ right: 0.0
+
+---- pragmatics_rejects_misaligned_sentence_column stdout ----
+
+thread 'pragmatics_rejects_misaligned_sentence_column' (51173) panicked at analysis/doccat/tests/sentiment_boundaries.rs:131:5:
+assertion failed: PragmaticsAnnotator::new().score_document(doc.get::<View>().unwrap(),
+        &sentences, &tokens, None, None, None, None).is_err()
+
+
+failures:
+    discontinuous_sentences_are_not_scored_as_their_hull
+    incivility_rejects_short_vector_layer
+    nested_chunks_score_their_own_tokens
+    pragmatics_rejects_misaligned_sentence_column
+
+test result: FAILED. 11 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p turbo-doccat --test sentiment_boundaries`

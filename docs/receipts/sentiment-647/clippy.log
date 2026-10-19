@@ -1,0 +1,3 @@
+   Compiling turbo-bench v0.1.0 (./bench)
+    Checking turbo-doccat v0.1.0 (./analysis/doccat)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.27s

@@ -305,7 +305,7 @@ unspecified licenses (`iSarcasm`, `SARC`, `SemEval-2018 Task 3`) are not
 redistributed in the repository, so there is no measured accuracy for this
 annotator yet. What exists is a 32-sentence project-written regression
 fixture (`pragmatics_benchmark_f1_and_evidence_invariants` in
-`analysis/doccat/src/sentiment/pragmatics.rs`): 18 sarcastic and 14 literal
+`analysis/doccat/src/sentiment/pragmatics/tests/benchmark.rs`): 18 sarcastic and 14 literal
 sentences written beside the cue and situation tables, with the
 embedding-head cases scored from hand-set two-dimensional vectors. It pins
 the behaviour of the rules and the evidence invariants (every incongruity
@@ -479,7 +479,7 @@ Per `#326`, external toxicity corpora with custom platform terms (`Jigsaw`,
 `Civil Comments`, `Social Bias Frames`) are not redistributed in the
 repository.
 
-- `analysis/doccat/src/sentiment/incivility.rs` tests `IncivilityAnnotator`
+- `analysis/doccat/src/sentiment/incivility/tests/mod.rs` tests `IncivilityAnnotator`
   on project-authored regression fixtures covering canonical lexicon SHA-256
   digests, multi-label co-occurrence (`Profanity` + `Insult` + `Threat` +
   `SevereToxicity` on one sentence with per-label `IxRange<Tokens>` evidence
@@ -577,3 +577,23 @@ document structure (`STRUCTURE`) and embedding drift (`DRIFT`).
      single-topic narrative retrieval corpora do not pivot on sentiment between
      chunks, the weight remains `Weight(0)` by default.
 
+
+
+### Scorer input boundaries
+
+Lexicon sentiment, pragmatics, and incivility validate UTF-8 span boundaries,
+layer columns, token ordering, and sentence assignments before scoring. These
+scorers require contiguous input spans; discontinuous units return an error
+instead of including the text between their fragments. Split such units before
+scoring. Incivility evaluates overlapping and nested chunks independently.
+Aligned vector inputs must contain one finite row per target. Invalid threshold
+configurations and head scores return errors instead of being silently clamped.
+Finite builder thresholds retain their documented clamping behavior.
+
+Custom lexicon insertion ignores empty keys and non-finite weights, preserving
+an existing valid entry. Incivility lexicon digests include the exact floating
+point weights, so changes smaller than six decimal places invalidate provenance.
+The three annotators use version `1` for these boundary and scoring fixes.
+The raw `score_text` path retains the existing VADER rules. The low-level
+`score_sentence` method requires prevalidated spans and token ranges; the
+annotator is the checked document entry point.

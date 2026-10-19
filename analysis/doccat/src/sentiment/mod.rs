@@ -26,6 +26,7 @@ pub mod incivility;
 pub mod lexicon;
 mod model;
 pub mod pragmatics;
+mod validation;
 
 pub use aspect::{
     AbsaMetrics, AbsaTriplet, AspectCategoryScorer, DEFAULT_ASPECT_CATEGORIES, RuleAspectSentiment,
