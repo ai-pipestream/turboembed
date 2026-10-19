@@ -1,0 +1,29 @@
+   Compiling turbo-grammar v0.1.0 ([workspace]/analysis/grammar)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.63s
+     Running unittests src/lib.rs (target/debug/deps/turbo_grammar-fef7858d8f6986cc)
+
+running 2 tests
+test engine::chart::parse::tests::overflowing_score_is_not_ranked ... FAILED
+test engine::chart::parse::tests::overflowing_application_count_is_not_ranked ... FAILED
+
+failures:
+
+---- engine::chart::parse::tests::overflowing_score_is_not_ranked stdout ----
+
+thread 'engine::chart::parse::tests::overflowing_score_is_not_ranked' (1391958) panicked at analysis/grammar/src/engine/chart/parse.rs:133:17:
+attempt to add with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- engine::chart::parse::tests::overflowing_application_count_is_not_ranked stdout ----
+
+thread 'engine::chart::parse::tests::overflowing_application_count_is_not_ranked' (1391957) panicked at analysis/grammar/src/engine/chart/parse.rs:134:17:
+attempt to add with overflow
+
+
+failures:
+    engine::chart::parse::tests::overflowing_application_count_is_not_ranked
+    engine::chart::parse::tests::overflowing_score_is_not_ranked
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 171 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-grammar --lib`

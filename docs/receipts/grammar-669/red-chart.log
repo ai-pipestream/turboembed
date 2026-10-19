@@ -1,0 +1,55 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling turbo-unicode v0.1.0 ([workspace]/analysis/unicode)
+   Compiling turbo-analysis v0.1.0 ([workspace]/analysis/core)
+   Compiling memchr v2.8.3
+   Compiling itoa v1.0.18
+   Compiling syn v3.0.6
+   Compiling turbo-analysis-layers v0.1.0 ([workspace]/analysis/layers)
+   Compiling serde_derive v1.0.229
+   Compiling turbo-grammar v0.1.0 ([workspace]/analysis/grammar)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.81s
+     Running tests/chart_boundaries.rs (target/debug/deps/chart_boundaries-a9c1cc94e20d0218)
+
+running 5 tests
+test constructor_checks_lexicon_categories - should panic ... FAILED
+test constructor_checks_noninitial_rule_categories - should panic ... FAILED
+test constructor_checks_numeral_category - should panic ... FAILED
+test selection_rejects_offsets_inside_a_different_texts_character ... FAILED
+test positive_unary_and_optional_cycles_terminate ... FAILED
+
+failures:
+
+---- constructor_checks_lexicon_categories stdout ----
+note: test did not panic as expected at analysis/grammar/tests/chart_boundaries.rs:95:4
+---- constructor_checks_noninitial_rule_categories stdout ----
+note: test did not panic as expected at analysis/grammar/tests/chart_boundaries.rs:79:4
+---- constructor_checks_numeral_category stdout ----
+note: test did not panic as expected at analysis/grammar/tests/chart_boundaries.rs:88:4
+---- selection_rejects_offsets_inside_a_different_texts_character stdout ----
+
+thread 'selection_rejects_offsets_inside_a_different_texts_character' (1326454) panicked at analysis/grammar/tests/chart_boundaries.rs:72:5:
+selection returned a split UTF-8 character
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- positive_unary_and_optional_cycles_terminate stdout ----
+
+thread 'positive_unary_and_optional_cycles_terminate' (1326453) panicked at analysis/grammar/tests/chart_boundaries.rs:13:5:
+same-span derivation did not terminate
+
+
+failures:
+    constructor_checks_lexicon_categories
+    constructor_checks_noninitial_rule_categories
+    constructor_checks_numeral_category
+    positive_unary_and_optional_cycles_terminate
+    selection_rejects_offsets_inside_a_different_texts_character
+
+test result: FAILED. 0 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-grammar --test chart_boundaries`

@@ -1,0 +1,30 @@
+   Compiling turbo-grammar v0.1.0 ([workspace]/analysis/grammar)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.48s
+     Running tests/decimal_boundaries.rs (target/debug/deps/decimal_boundaries-78a4d28d062cc601)
+
+running 3 tests
+test extreme_decimal_operations_are_checked ... ok
+test trailing_zero_normalization_rejects_scale_underflow ... FAILED
+test mantissa_rounding_rejects_scale_underflow ... FAILED
+
+failures:
+
+---- trailing_zero_normalization_rejects_scale_underflow stdout ----
+
+thread 'trailing_zero_normalization_rejects_scale_underflow' (1377164) panicked at analysis/grammar/src/dec.rs:73:13:
+attempt to subtract with overflow
+
+---- mantissa_rounding_rejects_scale_underflow stdout ----
+
+thread 'mantissa_rounding_rejects_scale_underflow' (1377163) panicked at analysis/grammar/src/dec.rs:66:13:
+attempt to subtract with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    mantissa_rounding_rejects_scale_underflow
+    trailing_zero_normalization_rejects_scale_underflow
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-grammar --test decimal_boundaries`
