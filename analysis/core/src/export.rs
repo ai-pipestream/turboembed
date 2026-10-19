@@ -496,6 +496,36 @@ impl ImportCx {
         Ok(())
     }
 
+    /// Refuses unless `named` can be restored as the stored key of a
+    /// keyed reference into `Target` without changing which instance
+    /// it names. A non-empty instance is explicit and is preserved
+    /// as-is. An empty instance restores as `Key::DEFAULT`, which
+    /// `Document::add` and `ExportCx::resolve` reinterpret through
+    /// this record's provenance, so it is only accepted when that
+    /// provenance also resolves `Target` to the default instance;
+    /// otherwise the payload would be validated against the default
+    /// instance and silently rebound to the resolved one.
+    pub fn want_keyed_target<Target: Layer>(&self, named: &LayerRef) -> Result<(), ExportError> {
+        if named.layer != Target::NAME.to_string() {
+            return Err(ExportError::InvalidLayer {
+                layer: self.layer.clone(),
+                detail: format!("an index column into {}, not {}", named.layer, Target::NAME),
+            });
+        }
+        if named.instance.is_empty() {
+            let resolved = self.resolved_instance(&named.layer);
+            if !resolved.is_empty() {
+                return Err(ExportError::InvalidLayer {
+                    layer: self.layer.clone(),
+                    detail: format!(
+                        "the payload indexes the default {named} but this layer's provenance binds an empty key to instance {resolved:?}, so an explicit default cannot be restored"
+                    ),
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// Refuses unless the node is an item of a restored layer instance.
     pub fn require_node(&self, node: &NodeRef) -> Result<(), ExportError> {
         if node.index as usize >= self.layer_len(&node.layer)? {
@@ -696,14 +726,8 @@ impl<From: Layer, To: Layer> LayerCodec for Edges<From, To> {
         let mut r = Reader::new(data);
         let from = get_layer_ref(&mut r)?;
         let to = get_layer_ref(&mut r)?;
-        for (named, typed) in [(&from, From::NAME.to_string()), (&to, To::NAME.to_string())] {
-            if named.layer != typed {
-                return Err(ExportError::InvalidLayer {
-                    layer: cx.layer.clone(),
-                    detail: format!("an endpoint on {}, not {typed}", named.layer),
-                });
-            }
-        }
+        cx.want_keyed_target::<From>(&from)?;
+        cx.want_keyed_target::<To>(&to)?;
         cx.layer_len(&from)?;
         cx.layer_len(&to)?;
         let kinds = get_tagset(&mut r)?;
@@ -740,12 +764,7 @@ impl<L: Layer> LayerCodec for Groups<L> {
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let of = get_layer_ref(&mut r)?;
-        if of.layer != L::NAME.to_string() {
-            return Err(ExportError::InvalidLayer {
-                layer: cx.layer.clone(),
-                detail: format!("groups of {}, not {}", of.layer, L::NAME),
-            });
-        }
+        cx.want_keyed_target::<L>(&of)?;
         cx.layer_len(&of)?;
         let mut groups: Vec<Vec<Ix<L>>> = Vec::new();
         for _ in 0..r.usize()? {

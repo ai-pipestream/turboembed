@@ -775,6 +775,42 @@ fn target_identity_and_word_subspan_refusals() {
     assert!(import(&graph, &codecs()).is_err(), "a document date naming a missing mention imported");
 }
 
+#[test]
+fn keyed_default_word_target_must_not_rebind_through_provenance() {
+    let mut doc = Document::new("ab");
+    doc.add(&Key::DEFAULT, Tokens { spans: spans(&[(0, 1)]), sentence: None }, Provenance::by("test")).unwrap();
+    doc.add(&Key::named("alt"), Tokens { spans: spans(&[(1, 2)]), sentence: None }, Provenance::by("test")).unwrap();
+    let mut words = Words::on(Key::named("alt"));
+    words.push_word(IxRange::new(0, 1), None, None);
+    let mut provenance = Provenance::by("test");
+    provenance.reads = vec![Key::<Tokens>::named("alt").id()];
+    doc.add(&Key::DEFAULT, words, provenance).unwrap();
+
+    // The valid document, with its explicit alt key, round-trips.
+    let graph = export(&doc, &codecs()).unwrap();
+    let back = import(&DocumentGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(), &codecs()).unwrap();
+    assert_eq!(export(&back, &codecs()).unwrap().to_bytes().unwrap(), graph.to_bytes().unwrap());
+
+    // The same body with only the encoded target instance emptied
+    // would validate against the default tokens and then rebind to
+    // alt through provenance, so it must be refused.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    let mut w = Writer::new();
+    w.str("opennlp:tokens").unwrap();
+    w.str("").unwrap();
+    w.usize(1).unwrap();
+    w.u32(0);
+    w.u32(1);
+    w.u8(0);
+    w.u8(0);
+    splice(&mut graph, "turbo:words", w.finish(), 1);
+    match import(&graph, &codecs()) {
+        Err(ExportError::InvalidLayer { detail, .. }) => assert!(detail.contains("alt"), "{detail}"),
+        Ok(_) => panic!("an empty keyed target rebound through provenance imported"),
+        Err(other) => panic!("an empty keyed target failed as {other}"),
+    }
+}
+
 fn splice(graph: &mut DocumentGraph, layer_prefix: &str, body: Vec<u8>, len: u32) {
     let at = graph.layers.iter().position(|l| l.layer.starts_with(layer_prefix)).unwrap();
     graph.layers[at].body = Some(body);
