@@ -63,7 +63,7 @@ impl Default for LinkerWeights {
 
 impl LinkerWeights {
     /// Creates checked weights: every weight must be finite and non-negative,
-    /// and their sum must be strictly positive.
+    /// and at least one weight must be strictly positive.
     pub fn new(
         fuzzy: f64,
         geohash: f64,
@@ -71,29 +71,49 @@ impl LinkerWeights {
         province: f64,
         population: f64,
     ) -> Result<LinkerWeights, GeocodeError> {
-        let all = [fuzzy, geohash, country, province, population];
-        if all.iter().any(|w| !w.is_finite() || *w < 0.0) {
-            return Err(GeocodeError::InvalidConfidence(f64::NAN));
+        let w = LinkerWeights { fuzzy, geohash, country, province, population };
+        w.validate()?;
+        Ok(w)
+    }
+
+    /// Validates that every weight is finite and non-negative and that at
+    /// least one weight is strictly positive.
+    pub fn validate(&self) -> Result<(), GeocodeError> {
+        let all = [self.fuzzy, self.geohash, self.country, self.province, self.population];
+        for &w in &all {
+            if !w.is_finite() || w < 0.0 {
+                return Err(GeocodeError::InvalidConfidence(w));
+            }
         }
-        let sum: f64 = all.iter().sum();
-        if sum <= 0.0 {
+        let max_w = all.into_iter().fold(0.0f64, f64::max);
+        if max_w <= 0.0 {
             return Err(GeocodeError::InvalidConfidence(0.0));
         }
-        Ok(LinkerWeights { fuzzy, geohash, country, province, population })
+        Ok(())
     }
 
     /// Combines component scores in `[0.0, 1.0]` into a normalized score in `[0.0, 1.0]`.
+    ///
+    /// Scales weights by their maximum before summing so extreme finite
+    /// weights (such as `f64::MAX`) never overflow to `INFINITY` / `NaN`.
     #[inline]
     pub fn combine(&self, fuzzy: f64, geohash: f64, country: f64, province: f64, population: f64) -> f64 {
-        let sum = self.fuzzy + self.geohash + self.country + self.province + self.population;
-        if sum <= 0.0 {
+        if self.validate().is_err() {
             return 0.0;
         }
-        let num = self.fuzzy * fuzzy.clamp(0.0, 1.0)
-            + self.geohash * geohash.clamp(0.0, 1.0)
-            + self.country * country.clamp(0.0, 1.0)
-            + self.province * province.clamp(0.0, 1.0)
-            + self.population * population.clamp(0.0, 1.0);
+        let max_w =
+            [self.fuzzy, self.geohash, self.country, self.province, self.population].into_iter().fold(0.0f64, f64::max);
+        let wf = self.fuzzy / max_w;
+        let wg = self.geohash / max_w;
+        let wc = self.country / max_w;
+        let wp = self.province / max_w;
+        let wpop = self.population / max_w;
+        let sum = wf + wg + wc + wp + wpop;
+        let num = wf * fuzzy.clamp(0.0, 1.0)
+            + wg * geohash.clamp(0.0, 1.0)
+            + wc * country.clamp(0.0, 1.0)
+            + wp * province.clamp(0.0, 1.0)
+            + wpop * population.clamp(0.0, 1.0);
         (num / sum).clamp(0.0, 1.0)
     }
 }
@@ -195,6 +215,7 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
 
     /// Scores and ranks candidates for each mention span in `mentions` over `text`.
     pub fn link_mentions(&self, text: &str, mentions: &[Span]) -> Result<Vec<Vec<LinkedCandidate>>, GeocodeError> {
+        self.weights.validate()?;
         let text_len = text.len();
         for &span in mentions {
             let s = span.start as usize;
@@ -306,6 +327,7 @@ impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
     type Writes = (Locations, EntityLocationLinks);
 
     fn annotate(&self, (view, entities): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.weights.validate().map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
         if entities.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "entities are in a different view".into() });
         }
@@ -353,6 +375,15 @@ impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
     }
 
     fn config_hash(&self) -> u64 {
+        let metric_disc = match self.fuzzy.metric() {
+            FuzzyMetric::Combined => 0u64,
+            FuzzyMetric::NormalizedLevenshtein => 1u64,
+            FuzzyMetric::JaroWinkler => 2u64,
+        };
+        let policy_disc = match self.mention_policy {
+            MentionPolicy::All => 0u64,
+            MentionPolicy::ExcludeSingleAsciiLetters => 1u64,
+        };
         let mut h = FNV_OFFSET_BASIS;
         for bits in [
             self.weights.fuzzy.to_bits(),
@@ -360,9 +391,13 @@ impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
             self.weights.country.to_bits(),
             self.weights.province.to_bits(),
             self.weights.population.to_bits(),
+            metric_disc,
             self.fuzzy.min_similarity().to_bits(),
             self.geohash.precision() as u64,
+            self.country.decay_bytes().to_bits(),
+            self.province.decay_bytes().to_bits(),
             self.max_candidates_per_mention as u64,
+            policy_disc,
         ] {
             h = (h ^ bits).wrapping_mul(FNV_PRIME);
         }

@@ -287,3 +287,84 @@ fn geo_entity_linker_fuzzy_fallback_and_derived_view_projection() {
     assert_eq!(&doc.text(ViewId::SOURCE)[root_span.range()], "Springfeild");
     assert_eq!(doc.from_source(v1, root_span), child_span);
 }
+
+#[test]
+fn overlay_gazetteer_delegates_fuzzy_lookup_and_respects_suppressions() {
+    use crate::{OverlayGazetteer, Suppression};
+
+    let base = InMemoryGazetteer::from_entries(&[
+        place("4250542", "Springfield", &[], 39.7817, -89.6501, Some("US"), &["Illinois"], 114_394),
+        place("2988507", "Paris", &[], 48.8534, 2.3488, Some("FR"), &["Ile-de-France"], 2_138_551),
+    ])
+    .unwrap();
+    let scorer = FuzzyStringScorer::new(FuzzyMetric::Combined, 0.80);
+
+    // Base wrapped with empty additions (and a non-matching suppression) still finds fuzzy hits.
+    let empty_additions = InMemoryGazetteer::from_entries(&[]).unwrap();
+    let overlay_empty_additions = OverlayGazetteer::new(&base, Some(&empty_additions), Vec::new()).unwrap();
+    let hits = overlay_empty_additions.lookup_fuzzy("Springfeild", &scorer, 0.80, 10);
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].0.record_id(), "4250542");
+
+    // Suppress Springfield in base and add a custom Springfield MA in additions;
+    // base Springfield is suppressed while additions Springfield and base Paris remain.
+    let additions = InMemoryGazetteer::from_entries(&[place(
+        "c-1",
+        "Springfield",
+        &[],
+        42.1015,
+        -72.5898,
+        Some("US"),
+        &["Massachusetts"],
+        155_929,
+    )])
+    .unwrap();
+    let overlay = OverlayGazetteer::new(
+        &base,
+        Some(&additions),
+        vec![Suppression::new("Springfield", Some("US"), None).unwrap()],
+    )
+    .unwrap();
+    let hits = overlay.lookup_fuzzy("Springfeild", &scorer, 0.80, 10);
+    let ids: Vec<&str> = hits.iter().map(|(e, _)| e.record_id()).collect();
+    assert_eq!(ids, vec!["c-1"]);
+}
+
+#[test]
+fn config_hash_distinguishes_metric_policy_and_decay_settings() {
+    use crate::MentionPolicy;
+    use turbo_analysis::Annotator;
+
+    let base_linker = || GeoEntityLinker::new(fixture_gazetteer());
+    let default_hash = base_linker().config_hash();
+
+    let jw_hash = base_linker().with_fuzzy_scorer(FuzzyStringScorer::new(FuzzyMetric::JaroWinkler, 0.80)).config_hash();
+    let lev_hash =
+        base_linker().with_fuzzy_scorer(FuzzyStringScorer::new(FuzzyMetric::NormalizedLevenshtein, 0.80)).config_hash();
+    let policy_hash = base_linker().with_mention_policy(MentionPolicy::ExcludeSingleAsciiLetters).config_hash();
+    let country_hash = base_linker().with_country_scorer(CountryProximityScorer::new(500.0)).config_hash();
+    let province_hash = base_linker().with_province_scorer(ProvinceProximityScorer::new(500.0)).config_hash();
+
+    for h in [jw_hash, lev_hash, policy_hash, country_hash, province_hash] {
+        assert_ne!(h, default_hash);
+    }
+    assert_ne!(jw_hash, lev_hash);
+    assert_ne!(country_hash, province_hash);
+}
+
+#[test]
+fn extreme_and_unvalidated_weights_never_produce_nan() {
+    let extreme = LinkerWeights::new(f64::MAX, f64::MAX, 0.0, 0.0, 0.0).unwrap();
+    let c1 = extreme.combine(1.0, 1.0, 0.0, 0.0, 0.0);
+    assert!(!c1.is_nan());
+    assert!((c1 - 1.0).abs() < 1e-12);
+    let c2 = extreme.combine(1.0, 0.0, 0.0, 0.0, 0.0);
+    assert!((c2 - 0.5).abs() < 1e-12);
+
+    // Weights constructed via public fields with invalid values are rejected by link_mentions.
+    let bad = LinkerWeights { fuzzy: -1.0, geohash: 1.0, country: 0.0, province: 0.0, population: 0.0 };
+    assert!(bad.validate().is_err());
+    assert_eq!(bad.combine(1.0, 1.0, 1.0, 1.0, 1.0), 0.0);
+    let linker = GeoEntityLinker::new(fixture_gazetteer()).with_weights(bad);
+    assert!(linker.link_mentions("Springfield", &[Span::new(0, 11)]).is_err());
+}

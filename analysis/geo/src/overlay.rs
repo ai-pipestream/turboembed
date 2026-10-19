@@ -6,6 +6,8 @@ use std::fmt;
 use crate::entry::RegionCode;
 use crate::fold::Folder;
 use crate::gazetteer::Gazetteer;
+use crate::geocode::by_prior_view;
+use crate::linker::FuzzyStringScorer;
 use crate::store::Entry;
 use crate::suppression::Suppression;
 
@@ -103,5 +105,29 @@ impl<B: Gazetteer, A: Gazetteer> Gazetteer for OverlayGazetteer<B, A> {
             }
         }
         union
+    }
+
+    fn lookup_fuzzy(
+        &self,
+        name: &str,
+        scorer: &FuzzyStringScorer,
+        min_similarity: f64,
+        limit: usize,
+    ) -> Vec<(Entry<'_>, f64)> {
+        if limit == 0 {
+            return Vec::new();
+        }
+        let mut merged =
+            self.additions.as_ref().map_or_else(Vec::new, |a| a.lookup_fuzzy(name, scorer, min_similarity, limit));
+        let mut folder = Folder::new();
+        let base_limit = if self.suppressions.is_empty() { limit } else { usize::MAX };
+        for (entry, sim) in self.base.lookup_fuzzy(name, scorer, min_similarity, base_limit) {
+            if !self.suppressed(&entry, &mut folder) {
+                merged.push((entry, sim));
+            }
+        }
+        merged.sort_by(|(ea, sa), (eb, sb)| sb.total_cmp(sa).then_with(|| by_prior_view(ea, eb)));
+        merged.truncate(limit);
+        merged
     }
 }
