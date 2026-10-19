@@ -38,9 +38,11 @@ checked and keep returning `Malformed` for cyclic payloads. The decoder calls
 the shared validator instead of maintaining a separate chain walker. Graph
 import and Document insertion still validate at their respective boundaries.
 
-Walk tags replace the two-pass traversal. The tags use `usize`, avoiding a
-narrowing conversion of the node count or traversal identifier. Scratch space
-is 8 bytes per node on x86_64, versus 1 byte in the earlier two-pass version.
+Walk tags replace the two-pass traversal. The first follow-up used `usize`
+tags, with 8 bytes per node on x86_64 versus 1 byte in the two-pass version.
+The current implementation uses `u32` tags and rejects counts above `u32::MAX`
+before traversal. Scratch space is 4 bytes per node. A walk starts below the
+validated count, so its nonzero identifier fits in `u32`.
 An all-root forest needs no scratch allocation. The exhaustive test compares
 8,477 head assignments through five nodes with an independent per-node search;
 a separate test checks Document insertion of a cycle beside a rooted component.
@@ -79,3 +81,19 @@ Use widths 1 and 1000000 for the additional forest shapes.
 
 Follow-up gates: fmt, required clippy, 140 parser/layer tests, and 3 repository
 file-reference checks pass. Sanitized output is in the `cycle-*.log` files.
+
+## Compact walk tags
+
+A further release comparison uses the same CPU, pinning, forest shapes and
+warm-up/timing protocol. Five ABBA rounds compare `f69087df` (`usize`) with
+`u32` tags and the count guard. Medians of process medians:
+
+- 25-token chains: 1.762451 ms to 1.699782 ms (3.6% less time).
+- All roots: 0.376055 ms to 0.376386 ms (effectively unchanged).
+- One long chain: 1.965674 ms to 1.906924 ms (3.0% less time).
+
+The tag allocation falls from 8 MB to 4 MB per million tokens on x86_64.
+Mandatory cycle rejection and direct codec validation stay in place.
+Raw ABBA results are in `compact-tags-performance.log`. Gate outputs are in
+`compact-tags-{fmt,clippy,tests,tree}.log`; the exhaustive graph and long-chain
+regressions are included in the crate tests.

@@ -173,6 +173,7 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
     }
     fn check(&self) -> Result<(), String> {
         let n = self.head.len();
+        let count = u32::try_from(n).map_err(|_| "dependency count exceeds u32".to_owned())?;
         if self.relation.len() != n {
             return Err("a relation for every dependency head".into());
         }
@@ -196,12 +197,13 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
         }
         // Walk tags visit each head once. A previous walk has already
         // reached a root; meeting this walk's tag instead proves a cycle.
-        let mut seen = vec![0usize; n];
-        for start in 0..n {
+        let mut seen = vec![0u32; n];
+        for start in 0..count {
+            let tag = start + 1;
+            let start = start as usize;
             if seen[start] != 0 {
                 continue;
             }
-            let tag = start + 1;
             let mut at = start;
             while seen[at] == 0 {
                 seen[at] = tag;
