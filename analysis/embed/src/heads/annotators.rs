@@ -416,6 +416,7 @@ pub struct IncivilityHeadAnnotator(pub Arc<ClassifierHead>);
 
 impl Annotator for IncivilityHeadAnnotator {
     const ID: &'static str = "turbo:incivility-head";
+    const VERSION: &'static str = "1";
     type Reads = (Tokens, Sentences, Vectors<Sentences>);
     type Writes = (Incivility,);
 
@@ -440,6 +441,7 @@ pub struct PragmaticsHeadAnnotator(pub Arc<ClassifierHead>);
 
 impl Annotator for PragmaticsHeadAnnotator {
     const ID: &'static str = "turbo:pragmatics-head";
+    const VERSION: &'static str = "1";
     type Reads = (Tokens, Sentences, Vectors<Sentences>);
     type Writes = (Pragmatics,);
 

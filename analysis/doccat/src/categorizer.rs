@@ -225,7 +225,7 @@ impl<L: SpanCategorizable> SpanCategorizer<L> {
 
 impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
     const ID: &'static str = "opennlp:doccat-spans";
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
     type Reads = (View, Tokens, L);
     type Writes = (Categories<L>,);
 
@@ -358,7 +358,7 @@ mod tests {
         }
         let cats = docs[0].get::<Categories<Sentences>>().unwrap();
         assert_eq!(cats.best_category(0), "neg");
-        assert_eq!(docs[0].provenance(Key::<Categories<Sentences>>::DEFAULT.id()).unwrap().version, "1");
+        assert_eq!(docs[0].provenance(Key::<Categories<Sentences>>::DEFAULT.id()).unwrap().version, "2");
 
         // Start-ordered overlapping tokens keep the fast path.
         let overlap_spans = spans(&[(0, 3), (0, 3)]);
@@ -386,6 +386,7 @@ mod tests {
         assert!(span_cat.annotate((doc_bad_unit.get::<View>().unwrap(), &valid_tokens, &bad_sents)).is_err());
 
         // Discontinuous Structure block excludes gap tokens and validates fragments.
+        assert_eq!(SpanCategorizer::<Structure>::VERSION, "2");
         let struct_cat: SpanCategorizer<Structure> = cat.for_spans();
         let doc_gap = Document::new("good bad good");
         let gap_tokens = Tokens { spans: spans(&[(0, 4), (5, 8), (9, 13)]), sentence: None };
@@ -395,5 +396,7 @@ mod tests {
         let (st_cats,) = struct_cat.annotate((doc_gap.get::<View>().unwrap(), &gap_tokens, &structure)).unwrap();
         assert_eq!(st_cats.len(), 1);
         assert_eq!(st_cats.get(0).unwrap().best, "pos");
+        assert_eq!(st_cats.row_scores(0), cat.categorize(&["good", "good"]).as_slice());
+        assert_ne!(st_cats.row_scores(0), cat.categorize(&["good", "bad", "good"]).as_slice());
     }
 }
