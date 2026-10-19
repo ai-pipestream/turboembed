@@ -233,6 +233,14 @@ fn pretrained_tuning_clips_extreme_gradients_and_rejects_non_finite_updates() {
     assert!((max_touched[&0][0] - expected_max_clip).abs() < 1e-12);
     assert!((max_touched[&0][1] - expected_max_clip).abs() < 1e-12);
 
+    // Combined dense + sparse f64::MAX gradients must clip together without dense global_norm() overflowing to +inf.
+    ctx.optimizer.gradient_mut(ctx.idx_out_b)[0].fill(f64::MAX);
+    let mut both_max_touched = HashMap::new();
+    both_max_touched.insert(0, vec![f64::MAX, f64::MAX]);
+    ctx.step_batch(1.0, 1e-3, 1, &mut both_max_touched).unwrap();
+    assert!((ctx.optimizer.gradient(ctx.idx_out_b)[0][0] - 2.5).abs() < 1e-12);
+    assert!((both_max_touched[&0][0] - 2.5).abs() < 1e-12);
+
     // Bug 1b: NaN tuning gradient must return NonFiniteScore.
     let mut nan_touched = HashMap::new();
     nan_touched.insert(0, vec![f64::NAN, 1.0]);

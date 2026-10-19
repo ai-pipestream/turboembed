@@ -250,22 +250,38 @@ impl TrainingContext {
             if self.pretrained_trainable.is_none() || touched_tuning_rows.is_empty() {
                 self.optimizer.clip_gradients(self.settings.max_grad_norm)?;
             } else {
-                let dense_norm = self.optimizer.global_norm()?;
-                let mut total_sq = dense_norm * dense_norm;
-                let mut tuning_scale = 0.0f64;
+                let mut total_sq = 0.0f64;
+                let mut max_scale = 0.0f64;
+                for g in self.optimizer.gradients() {
+                    for row in g {
+                        for &v in row {
+                            if !v.is_finite() {
+                                return Err(NeuralError::NonFiniteScore("gradient must be finite".into()));
+                            }
+                            total_sq += v * v;
+                            max_scale = max_scale.max(v.abs());
+                        }
+                    }
+                }
                 for g in touched_tuning_rows.values() {
                     for &v in g {
                         if !v.is_finite() {
                             return Err(NeuralError::NonFiniteScore("gradient must be finite".into()));
                         }
                         total_sq += v * v;
-                        tuning_scale = tuning_scale.max(v.abs());
+                        max_scale = max_scale.max(v.abs());
                     }
                 }
-                let max_scale = dense_norm.max(tuning_scale);
                 if max_scale > 0.0 && (!total_sq.is_finite() || total_sq < f64::MIN_POSITIVE) {
-                    let dense_ratio = dense_norm / max_scale;
-                    let mut norm_sq = dense_ratio * dense_ratio;
+                    let mut norm_sq = 0.0f64;
+                    for g in self.optimizer.gradients() {
+                        for row in g {
+                            for &v in row {
+                                let n = v / max_scale;
+                                norm_sq += n * n;
+                            }
+                        }
+                    }
                     for g in touched_tuning_rows.values() {
                         for &v in g {
                             let n = v / max_scale;
@@ -278,13 +294,23 @@ impl TrainingContext {
                         let clip = magnitude / max_scale;
                         if clip >= f64::MIN_POSITIVE {
                             self.optimizer.scale_gradients(clip);
+                            for g in touched_tuning_rows.values_mut() {
+                                for v in g {
+                                    *v *= clip;
+                                }
+                            }
                         } else {
-                            self.optimizer.scale_gradients(1.0 / max_scale);
-                            self.optimizer.scale_gradients(magnitude);
-                        }
-                        for g in touched_tuning_rows.values_mut() {
-                            for v in g {
-                                *v = (*v / max_scale) * magnitude;
+                            for g in self.optimizer.gradients_mut() {
+                                for row in g {
+                                    for v in row {
+                                        *v = (*v / max_scale) * magnitude;
+                                    }
+                                }
+                            }
+                            for g in touched_tuning_rows.values_mut() {
+                                for v in g {
+                                    *v = (*v / max_scale) * magnitude;
+                                }
                             }
                         }
                     }

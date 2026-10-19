@@ -73,6 +73,14 @@ impl AdamOptimizer {
         &mut self.grads[index]
     }
 
+    pub(crate) fn gradients(&self) -> &[Vec<Vec<f64>>] {
+        &self.grads
+    }
+
+    pub(crate) fn gradients_mut(&mut self) -> &mut [Vec<Vec<f64>>] {
+        &mut self.grads
+    }
+
     /// Allocates a fresh set of zeroed gradient buffers matching the shapes of all registered parameters.
     pub fn new_gradient_buffers(&self) -> Vec<Vec<Vec<f64>>> {
         self.params.iter().map(|p| p.iter().map(|row| vec![0.0; row.len()]).collect()).collect()
