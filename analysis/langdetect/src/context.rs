@@ -191,6 +191,24 @@ impl ContextGenerator {
         self.first_exact
     }
 
+    /// Releases an oversized context, including its feature indexes.
+    ///
+    /// If any limit is exceeded, both feature iterators become empty until
+    /// the next generation. Smaller contexts retain their features and capacity.
+    /// The configured n-gram range is preserved.
+    pub fn shrink_excess(&mut self) {
+        const MAX_RETAINED_UNITS: usize = 16 * 1024;
+        const MAX_RETAINED_GRAMS: usize = 16 * 1024;
+        const MAX_RETAINED_BYTES: usize = 64 * 1024;
+
+        if self.units.capacity() > MAX_RETAINED_UNITS
+            || self.grams.capacity() > MAX_RETAINED_GRAMS
+            || self.bytes.capacity() > MAX_RETAINED_BYTES
+        {
+            *self = Self::new(self.min, self.max);
+        }
+    }
+
     /// `StringUtil.toLowerCaseCharBuffer`: each code point through
     /// `Character.toLowerCase(int)`, written as UTF-16. No simple
     /// lowercase mapping changes how many code units a character takes
