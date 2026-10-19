@@ -1,0 +1,22 @@
+   Compiling turbo v0.1.0 (<repo>/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.73s
+     Running tests/core_boundaries.rs (target/core/debug/deps/core_boundaries-b32ffaae19367bde)
+
+running 1 test
+test added_token_special_flag_must_match_manifest_decode_behavior ... FAILED
+
+failures:
+
+---- added_token_special_flag_must_match_manifest_decode_behavior stdout ----
+
+thread 'added_token_special_flag_must_match_manifest_decode_behavior' (3352763) panicked at core/tests/core_boundaries.rs:41:5:
+accepted an ordinary token that the manifest treats as special
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    added_token_special_flag_must_match_manifest_decode_behavior
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.23s
+
+error: test failed, to rerun pass `-p turbo --test core_boundaries`

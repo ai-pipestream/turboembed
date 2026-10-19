@@ -1,0 +1,21 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running unittests src/lib.rs (target/core/debug/deps/turbo-f2aadd74732b22b6)
+
+running 1 test
+test session::text::tests::oversized_text_is_rejected_before_reservation_or_dispatch ... FAILED
+
+failures:
+
+---- session::text::tests::oversized_text_is_rejected_before_reservation_or_dispatch stdout ----
+
+thread 'session::text::tests::oversized_text_is_rejected_before_reservation_or_dispatch' (3280438) panicked at <rust>/library/core/src/iter/traits/accum.rs:206:1:
+attempt to add with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    session::text::tests::oversized_text_is_rejected_before_reservation_or_dispatch
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 76 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo --lib`
