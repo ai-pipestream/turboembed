@@ -46,6 +46,7 @@
 
 mod annotate;
 mod detect;
+pub mod export;
 pub mod gold;
 
 pub use annotate::{AbbreviationAnnotator, detect};
