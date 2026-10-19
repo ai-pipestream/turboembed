@@ -719,6 +719,7 @@ fields mean bumps its `SCHEMA`.
 | `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
 | `IndexedTerms` (`Terms` alias) | `turbo:indexed-terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
+| `ContentHashes<L>` | `turbo:content-hashes<L>` | `L` | `turbo-chunker` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
