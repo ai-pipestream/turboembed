@@ -176,16 +176,17 @@ fn bracket<'a>(kind: BracketKind, span: Span, content: Piece<'a>) -> Result<Brac
     Ok(Bracket { kind, span, content: content.field(), entity: content.slice(0, cut).field(), part, attributes })
 }
 
-/// `k/n`, two ASCII decimals without sign.
+/// `k/n`, two positive ASCII decimals with `1 <= k <= n`.
 fn parse_part(s: &str) -> Option<Part> {
     let (k, n) = s.split_once('/')?;
     let number = |d: &str| {
         if d.is_empty() || !d.bytes().all(|b| b.is_ascii_digit()) {
             return None;
         }
-        d.parse::<u32>().ok()
+        d.parse::<u32>().ok().filter(|&v| v >= 1)
     };
-    Some(Part { index: number(k)?, total: number(n)? })
+    let (index, total) = (number(k)?, number(n)?);
+    (index <= total).then_some(Part { index, total })
 }
 
 /// The value of the first attribute of a `MISC` column named exactly
@@ -239,6 +240,8 @@ mod tests {
         assert_eq!(brackets("e5[1/2])e1)"), [(Close, "e5", p, None), (Close, "e1", None, None)]);
         // A malformed part is not a part; the id still ends at `[`.
         assert_eq!(brackets("(e5[x/2]-a)"), [(Single, "e5", None, None)]);
+        assert_eq!(brackets("(e5[0/2]-a)"), [(Single, "e5", None, None)]);
+        assert_eq!(brackets("(e5[3/2]-a)"), [(Single, "e5", None, None)]);
         // A close may hold a `(`, which Java keeps in the id.
         assert_eq!(brackets("e1(e2)"), [(Close, "e1(e2", None, None)]);
         assert_eq!(brackets("(3"), [(Open, "3", None, None)]);
