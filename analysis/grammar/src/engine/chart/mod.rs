@@ -49,6 +49,7 @@ pub struct Node {
 }
 
 impl Node {
+    #[inline]
     fn better_than(&self, other: &Node) -> bool {
         (self.score, std::cmp::Reverse(self.apps), std::cmp::Reverse(self.rule))
             > (other.score, std::cmp::Reverse(other.apps), std::cmp::Reverse(other.rule))
@@ -62,11 +63,14 @@ pub struct Chart {
     pub kids: Vec<u32>,
     /// The first node starting at each lexeme.
     head: Vec<u32>,
+    /// Byte length of the source used to build this chart.
+    text_len: usize,
 }
 
 impl Chart {
     /// The nodes starting at lexeme `pos`, newest first, the replaced ones
     /// included (their category is [`Dim::DEAD`]).
+    #[inline]
     pub fn starting_at(&self, pos: usize) -> impl Iterator<Item = (u32, &Node)> + '_ {
         let mut id = self.head.get(pos).copied().unwrap_or(NONE);
         std::iter::from_fn(move || {
@@ -90,7 +94,6 @@ impl Chart {
 /// A complete match of a rule's items, before its value is built.
 struct Done {
     end: u32,
-    kids_at: u32,
     kids_len: u32,
     words: u32,
 }
@@ -110,6 +113,7 @@ pub struct Parser {
     grammar: &'static dyn Grammar,
     /// Rules by the category of their first item.
     by_dim: Vec<Vec<u16>>,
+    cycle_guard: Vec<bool>,
     /// Rules whose first item is a word, by that word's lowercase form,
     /// sorted.
     by_word: Vec<(String, u16)>,
@@ -157,6 +161,7 @@ impl Parser {
         Parser {
             grammar,
             by_dim,
+            cycle_guard: cycles::guards(rules, usize::from(grammar.dims())),
             by_word,
             lexed: Lexed::default(),
             chart: Chart::default(),
@@ -190,6 +195,7 @@ impl Parser {
     }
 }
 
+mod cycles;
 mod parse;
 mod select;
 mod storage;

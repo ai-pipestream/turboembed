@@ -14,6 +14,7 @@ impl Parser {
         assert!(u32::try_from(text.len()).is_ok(), "text exceeds the byte-offset limit");
         self.lexed.lex_words(text, &self.grammar.style(), self.grammar.words());
         let n = self.lexed.len();
+        self.chart.text_len = text.len();
         self.chart.nodes.clear();
         self.chart.kids.clear();
         self.chart.head.clear();
@@ -46,6 +47,7 @@ impl Parser {
     }
 
     /// The lexicon's nodes, or the numeral's, for lexeme `s`.
+    #[inline]
     fn seed(&mut self, s: usize) {
         let lexeme = self.lexed.lexemes[s];
         let add = |chart: &mut Chart, dim: Dim, value: Value| {
@@ -79,6 +81,7 @@ impl Parser {
 
     /// Matches rule `r` at lexeme `s`, with `first` as its first child when
     /// the rule opens with a node, and adds the nodes it builds.
+    #[inline]
     fn complete(&mut self, text: &str, rules: &'static [Rule], r: u16, s: usize, first: Option<u32>) {
         let rule = &rules[usize::from(r)];
         self.done.clear();
@@ -116,25 +119,29 @@ impl Parser {
                 &mut self.done_kids,
             ),
         }
-        'candidate: for d in 0..self.done.len() {
-            let Done { end, kids_at, kids_len, words } = self.done[d];
-            let kids = &self.done_kids[kids_at as usize..(kids_at + kids_len) as usize];
-            if kids.iter().any(|&k| repeats(&self.chart, k, r, s as u32, end)) {
+        let Some(first_match) = self.done.first() else { return };
+        // Optional words change the span, never the number of child nodes.
+        self.values.resize(first_match.kids_len as usize, Value::Term { value: 0, flags: 0 });
+        let mut remaining_kids = self.done_kids.as_slice();
+        for d in 0..self.done.len() {
+            let Done { end, kids_len, words } = self.done[d];
+            let (kids, rest) = remaining_kids.split_at(kids_len as usize);
+            remaining_kids = rest;
+            if self.cycle_guard[usize::from(r)] && words == 0 && kids_len == 1 && repeats(&self.chart, kids[0], r) {
                 continue;
             }
-            self.values.clear();
-            let Some(mut score) = i32::try_from(words).ok().and_then(|w| i32::from(rule.weight).checked_add(w)) else {
-                continue;
-            };
-            let mut apps = 1u32;
-            for &k in kids {
+            debug_assert_eq!(self.values.len(), kids.len());
+            // At most u32::MAX nonempty children fit in the input, so these
+            // wider totals cannot overflow even when every child is maximal.
+            let mut score = i64::from(rule.weight) + i64::from(words);
+            let mut apps = 1u64;
+            for (value, &k) in self.values.iter_mut().zip(kids) {
                 let child = &self.chart.nodes[k as usize];
-                self.values.push(child.value);
-                let Some(total_score) = score.checked_add(child.score) else { continue 'candidate };
-                let Some(total_apps) = apps.checked_add(child.apps) else { continue 'candidate };
-                score = total_score;
-                apps = total_apps;
+                *value = child.value;
+                score += i64::from(child.score);
+                apps += u64::from(child.apps);
             }
+            let (Ok(score), Ok(apps)) = (i32::try_from(score), u32::try_from(apps)) else { continue };
             let ctx = Ctx { text, lexed: &self.lexed, start: s, end: end as usize, times: &self.times };
             let Some(value) = (rule.build)(&self.values, &ctx) else { continue };
             let Ok(k0) = u32::try_from(self.chart.kids.len()) else { continue };

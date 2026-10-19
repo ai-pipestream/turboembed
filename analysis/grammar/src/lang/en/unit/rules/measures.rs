@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) fn b_unit_word(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_unit_word(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let (i, f) = term(&v[0]);
     let written = raw(ctx, ctx.start);
     if f & LOWER != 0 && has_upper(written) {
@@ -16,7 +16,7 @@ pub(crate) fn b_unit_word(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `kilo meters`, `mega bytes`, `micro grams`.
-pub(crate) fn b_prefixed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_prefixed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let p = term(&v[0]).0;
     let u = match UNITS[term(&v[1]).0 as usize].unit {
         Unit::Length(Length::Meter) => Unit::Length(match p {
@@ -53,22 +53,22 @@ pub(crate) fn b_prefixed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(u))
 }
 
-pub(crate) fn the_length(v: &[Value]) -> Length {
+pub(super) fn the_length(v: &[Value]) -> Length {
     match v.iter().find_map(Value::unit) {
         Some(Unit::Length(l)) => l,
         _ => unreachable!("a length child"),
     }
 }
 
-pub(crate) fn b_square(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_square(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Area(Area::Square(the_length(v)))))
 }
 
-pub(crate) fn b_cubic(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_cubic(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Volume(Volume::Cubic(the_length(v)))))
 }
 
-pub(crate) fn per(t: i64) -> Per {
+pub(super) fn per(t: i64) -> Per {
     match Time::of(t) {
         Time::Millisecond => Per::Millisecond,
         Time::Second => Per::Second,
@@ -77,33 +77,33 @@ pub(crate) fn per(t: i64) -> Per {
     }
 }
 
-pub(crate) fn b_speed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_speed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Speed(Speed::Per(the_length(v), per(term(&v[1]).0)))))
 }
 
 /// `miles an hour`.
-pub(crate) fn b_per_hour(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_per_hour(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Speed(Speed::Per(the_length(v), Per::Hour))))
 }
 
-pub(crate) fn b_metric(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_metric(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Weight(Weight::MetricTon)))
 }
 
-pub(crate) fn b_long_ton(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_long_ton(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Weight(Weight::LongTon)))
 }
 
-pub(crate) fn b_short_ton(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_short_ton(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Weight(Weight::ShortTon)))
 }
 
-pub(crate) fn b_nautical(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_nautical(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Length(Length::NauticalMile)))
 }
 
 /// `imperial gallons`, `UK pints`, `British tons`.
-pub(crate) fn b_imperial(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_imperial(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(match unit(&v[0]) {
         Unit::Volume(Volume::Gallon) => Unit::Volume(Volume::ImperialGallon),
         Unit::Volume(Volume::Quart) => Unit::Volume(Volume::ImperialQuart),
@@ -115,11 +115,11 @@ pub(crate) fn b_imperial(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 
 /// `US gallons`, `US tons`: the unit an unqualified name means, with the
 /// country written in capitals so `give us pints` is not read.
-pub(crate) fn b_us(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_us(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     (ctx.raw(ctx.start) == "US").then(|| Value::Unit(unit(&v[0])))
 }
 
-pub(crate) fn b_fluid(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_fluid(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Volume(match unit(&v[0]) {
         Unit::Weight(Weight::Ounce) => Volume::FluidOunce,
         Unit::Weight(Weight::Dram) => Volume::FluidDram,
@@ -127,30 +127,30 @@ pub(crate) fn b_fluid(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     })))
 }
 
-pub(crate) fn b_light_year(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_light_year(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Length(Length::LightYear)))
 }
 
-pub(crate) fn b_degree_temperature(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_degree_temperature(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Temperature(Temperature::Degree)))
 }
 
-pub(crate) fn b_degree_angle(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_degree_angle(_: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Angle(Angle::Degree)))
 }
 
 /// `degrees celsius`, `°F`, `deg c`.
-pub(crate) fn b_degree_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_degree_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Temperature(scale(term(&v[1]).0))))
 }
 
-pub(crate) fn b_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     Some(Value::Unit(Unit::Temperature(scale(term(&v[0]).0))))
 }
 
 /// `"` after a number is an inch outside a quotation: when the quotes
 /// before it are paired, it cannot close one.
-pub(crate) fn b_inch_mark(_: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_inch_mark(_: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let at = ctx.lexeme(ctx.start).start as usize;
     let quotes = ctx.text.as_bytes()[..at].iter().filter(|&&b| b == b'"').count();
     (quotes % 2 == 0).then_some(Value::Unit(Unit::Length(Length::Inch)))

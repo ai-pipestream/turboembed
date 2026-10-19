@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) const fn r(
+pub(super) const fn r(
     name: &'static str,
     dim: crate::engine::Dim,
     weight: i16,
@@ -180,10 +180,10 @@ pub static RULES: &[Rule] = &[
     r("pct_por_cien", PCT, 0, &[node(NUM), word("por"), word("cien")], en::b_percent_after),
 ];
 
-pub(crate) fn en_digits_non_negative(v: &Value) -> bool {
+pub(super) fn en_digits_non_negative(v: &Value) -> bool {
     is_num(v, |n| n.has(DIGITS) && !n.has(SPELLED) && !n.value.is_negative())
 }
 
-pub(crate) fn spelled_grain_from_3(v: &Value) -> bool {
+pub(super) fn spelled_grain_from_3(v: &Value) -> bool {
     spelled_integer(v) && grain_from_3(v)
 }

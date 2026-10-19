@@ -2,11 +2,11 @@ use super::*;
 
 // Clock ranges.
 
-pub(crate) fn known(k: &Clock) -> bool {
+pub(super) fn known(k: &Clock) -> bool {
     k.meridiem != Meridiem::Unknown
 }
 
-pub(crate) fn clock_range(c: &Ctx<'_>, date: DateSpec, s: Clock, e: Clock) -> Option<Value> {
+pub(in crate::lang) fn clock_range(c: &Ctx<'_>, date: DateSpec, s: Clock, e: Clock) -> Option<Value> {
     let p = |k| Point { date, time: TimeOfDay::Clock(k), ..Point::default() };
     emit(c, TimeValue::range(Range::Between { start: p(s), start_edge: Edge::Start, end: p(e), end_edge: Edge::Start }))
 }
@@ -16,14 +16,14 @@ pub(crate) fn clock_range(c: &Ctx<'_>, date: DateSpec, s: Clock, e: Clock) -> Op
 /// (`3-8`).
 /// Whether the match holds a hyphen inside a spelled number: `seven
 /// twenty-seven` is a time, not a range.
-pub(crate) fn spelled_hyphen(c: &Ctx<'_>) -> bool {
+pub(super) fn spelled_hyphen(c: &Ctx<'_>) -> bool {
     (c.start + 1..c.end.saturating_sub(1)).any(|i| {
         let (a, h, b) = (c.lexeme(i - 1), c.lexeme(i), c.lexeme(i + 1));
         c.word(i) == "-" && h.glued && b.glued && a.kind == Kind::Word && b.kind == Kind::Word
     })
 }
 
-pub(crate) fn b_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(in crate::lang) fn b_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if spelled_hyphen(c) {
         return None;
     }
@@ -31,7 +31,7 @@ pub(crate) fn b_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     stands(&s, &e).then(|| clock_range(c, DateSpec::None, s, e))?
 }
 
-pub(crate) fn b_lrange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(in crate::lang) fn b_lrange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     if spelled_hyphen(c) {
         return None;
     }
@@ -41,27 +41,27 @@ pub(crate) fn b_lrange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 /// Whether two clock times make a range by themselves: one says its
 /// half of the day or has minutes (`9 to 10:30`).
-pub(crate) fn stands(s: &Clock, e: &Clock) -> bool {
+pub(in crate::lang) fn stands(s: &Clock, e: &Clock) -> bool {
     known(s) || known(e) || s.shown != Shown::Hour || e.shown != Shown::Hour
 }
 
 /// `from 9 for 2.5 hrs`, `for 2.5 hours from 9`.
-pub(crate) fn clock_for(c: &Ctx<'_>, clock: &Value, dur: &Value) -> Option<Value> {
+pub(super) fn clock_for(c: &Ctx<'_>, clock: &Value, dur: &Value) -> Option<Value> {
     let k = clock_of(c, clock)?;
     let length = duration_of(c, dur)?;
     emit(c, TimeValue::range(Range::For { start: Point::time(TimeOfDay::Clock(k)), length }))
 }
 
-pub(crate) fn b_from_clock_for(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(in crate::lang) fn b_from_clock_for(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     clock_for(c, &v[0], &v[1])
 }
 
-pub(crate) fn b_for_from_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(in crate::lang) fn b_for_from_clock(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     clock_for(c, &v[1], &v[0])
 }
 
 /// A clock range from a clock time for a duration.
-pub(crate) fn clock_length(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Duration)> {
+pub(in crate::lang) fn clock_length(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Duration)> {
     match tval(c, v)? {
         TimeValue::Range {
             range: Range::For { start: Point { date: DateSpec::None, time: TimeOfDay::Clock(k), .. }, length },
@@ -72,7 +72,7 @@ pub(crate) fn clock_length(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Duration)> 
 }
 
 /// The clocks of a clock range.
-pub(crate) fn clocks(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Clock)> {
+pub(in crate::lang) fn clocks(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Clock)> {
     match tval(c, v)? {
         TimeValue::Range {
             range:
@@ -88,7 +88,7 @@ pub(crate) fn clocks(c: &Ctx<'_>, v: &Value) -> Option<(Clock, Clock)> {
 }
 
 /// A day, or a day and a part of it, as a clock range's date.
-pub(crate) fn day_and_part(c: &Ctx<'_>, v: &Value) -> Option<(DateSpec, Option<crate::time::spec::Part>)> {
+pub(in crate::lang) fn day_and_part(c: &Ctx<'_>, v: &Value) -> Option<(DateSpec, Option<crate::time::spec::Part>)> {
     let TimeValue::Point { point, modifier, clip: false } = tval(c, v)? else { return None };
     if !modifier.is_none() || !point.shift.is_zero() {
         return None;
@@ -100,7 +100,7 @@ pub(crate) fn day_and_part(c: &Ctx<'_>, v: &Value) -> Option<(DateSpec, Option<c
     }
 }
 
-pub(crate) fn dated_clocks(c: &Ctx<'_>, day: &Value, range: &Value) -> Option<Value> {
+pub(super) fn dated_clocks(c: &Ctx<'_>, day: &Value, range: &Value) -> Option<Value> {
     let (date, part) = day_and_part(c, day)?;
     if let Some((k, length)) = clock_length(c, range) {
         let start = Point { date, time: TimeOfDay::Clock(k), ..Point::default() };
@@ -114,10 +114,10 @@ pub(crate) fn dated_clocks(c: &Ctx<'_>, day: &Value, range: &Value) -> Option<Va
     clock_range(c, date, s, e)
 }
 
-pub(crate) fn b_date_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(in crate::lang) fn b_date_trange(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     dated_clocks(c, &v[0], v.last()?)
 }
 
-pub(crate) fn b_trange_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(in crate::lang) fn b_trange_date(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     dated_clocks(c, v.last()?, &v[0])
 }

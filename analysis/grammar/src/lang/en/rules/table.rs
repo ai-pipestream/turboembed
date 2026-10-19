@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) const fn r(
+pub(super) const fn r(
     name: &'static str,
     dim: crate::engine::Dim,
     weight: i16,

@@ -13,9 +13,7 @@ impl Parser {
     /// is left out unless the grammar's [`Grammar::shadows`] says the
     /// ordinal leaves its numbers standing.
     pub fn select(&mut self, text: &str, output: Output, out: &mut Vec<Mention>) {
-        // `keep` may read any lexeme, including neighbours of the candidate.
-        // Reject incompatible byte boundaries before handing it a context.
-        if self.lexed.lexemes.iter().any(|l| text.get(l.start as usize..l.end as usize).is_none()) {
+        if text.len() != self.chart.text_len {
             return;
         }
         self.shadowed.clear();
@@ -35,6 +33,7 @@ impl Parser {
         self.pick(text, output, out);
     }
 
+    #[inline]
     fn pick(&mut self, text: &str, output: Output, out: &mut Vec<Mention>) {
         let n = self.lexed.len();
         let lex = &self.lexed.lexemes;
@@ -59,6 +58,9 @@ impl Parser {
                 if owner != NONE && owner == self.shadowed[e - 1] {
                     continue;
                 }
+            }
+            if !text.is_char_boundary(lex[s].start as usize) || !text.is_char_boundary(lex[e - 1].end as usize) {
+                continue;
             }
             let ctx = Ctx { text, lexed: &self.lexed, start: s, end: e, times: &self.times };
             if !self.grammar.keep(output, node, &ctx) {

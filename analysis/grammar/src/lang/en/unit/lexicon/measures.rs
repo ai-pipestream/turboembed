@@ -2,36 +2,36 @@ use super::*;
 
 /// A word and the unit it names.
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct Word {
+pub(in crate::lang) struct Word {
     pub word: &'static str,
     pub unit: Unit,
     pub flags: u8,
 }
 
-pub(crate) const fn w(word: &'static str, unit: Unit, flags: u8) -> Word {
+pub(super) const fn w(word: &'static str, unit: Unit, flags: u8) -> Word {
     Word { word, unit, flags }
 }
 
-pub(crate) const fn len(word: &'static str, l: Length, flags: u8) -> Word {
+pub(super) const fn len(word: &'static str, l: Length, flags: u8) -> Word {
     w(word, Unit::Length(l), flags)
 }
 
-pub(crate) const fn vol(word: &'static str, v: Volume, flags: u8) -> Word {
+pub(super) const fn vol(word: &'static str, v: Volume, flags: u8) -> Word {
     w(word, Unit::Volume(v), flags)
 }
 
-pub(crate) const fn wt(word: &'static str, x: Weight, flags: u8) -> Word {
+pub(super) const fn wt(word: &'static str, x: Weight, flags: u8) -> Word {
     w(word, Unit::Weight(x), flags)
 }
 
-pub(crate) const fn info(word: &'static str, i: Information, flags: u8) -> Word {
+pub(super) const fn info(word: &'static str, i: Information, flags: u8) -> Word {
     w(word, Unit::Information(i), flags)
 }
 
 /// Measure words. A unit written with a symbol is `ABBR`; one that is
 /// also a common English word or abbreviation is `AMBIG`, and stands as
 /// a unit only after a number.
-pub(crate) static UNITS: &[Word] = &[
+pub(in crate::lang) static UNITS: &[Word] = &[
     len("km", Length::Kilometer, ABBR),
     len("kilometer", Length::Kilometer, 0),
     len("kilometers", Length::Kilometer, 0),

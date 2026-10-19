@@ -3,7 +3,9 @@ use super::*;
 /// Adds `node` to its cell, unless an equal or better node with the same
 /// value is there, or the cell is full of better ones. A node it beats is
 /// marked dead. Returns whether it was added.
+#[inline]
 pub(super) fn insert(chart: &mut Chart, mut node: Node) -> bool {
+    // Replaced nodes remain stored, so input length cannot bound this index.
     if chart.nodes.len() >= NONE as usize {
         return false;
     }
@@ -43,6 +45,7 @@ pub(super) fn insert(chart: &mut Chart, mut node: Node) -> bool {
 
 /// Matches `items` from lexeme `pos` on, recording each complete match.
 #[allow(clippy::too_many_arguments)]
+#[inline]
 pub(super) fn walk(
     chart: &Chart,
     lexed: &Lexed,
@@ -55,11 +58,10 @@ pub(super) fn walk(
     done_kids: &mut Vec<u32>,
 ) {
     let Some(item) = items.first() else {
-        let (Ok(kids_at), Ok(kids_len)) = (u32::try_from(done_kids.len()), u32::try_from(stack.len())) else { return };
-        if kids_at.checked_add(kids_len).is_none() {
-            return;
-        }
-        done.push(Done { end: pos, kids_at, kids_len, words });
+        // Each child consumes a lexeme, bounded by parse's byte-length check.
+        // Matches consume the scratch children consecutively; no stored offset
+        // or 32-bit bound on the whole scratch buffer is needed.
+        done.push(Done { end: pos, kids_len: stack.len() as u32, words });
         done_kids.extend_from_slice(stack);
         return;
     };
@@ -97,21 +99,23 @@ pub(super) fn walk(
 
 /// A rule cannot repeat along a chain that consumes no additional lexemes.
 /// Nonempty children have disjoint spans, so at most one can cover its parent.
-pub(super) fn repeats(chart: &Chart, mut id: u32, rule: u16, start: u32, end: u32) -> bool {
+#[inline]
+pub(super) fn repeats(chart: &Chart, mut id: u32, rule: u16) -> bool {
     loop {
         let node = &chart.nodes[id as usize];
-        if node.start != start || node.end != end {
-            return false;
-        }
         if node.rule == rule {
             return true;
         }
-        let Some(&next) = chart.children(id).iter().find(|&&kid| {
-            let child = &chart.nodes[kid as usize];
-            child.start == start && child.end == end
-        }) else {
+        // Multiple nonempty children cannot share their parent's span.
+        // Terminals have no children, so this also ends seeded chains.
+        if node.kids.1 - node.kids.0 != 1 {
             return false;
-        };
+        }
+        let next = chart.kids[node.kids.0 as usize];
+        let child = &chart.nodes[next as usize];
+        if child.start != node.start || child.end != node.end {
+            return false;
+        }
         id = next;
     }
 }

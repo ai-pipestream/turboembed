@@ -2,40 +2,40 @@ use super::*;
 
 // Quantities.
 
-pub(crate) fn b_amount_unit(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_amount_unit(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[0]).value, unit(&v[1]))
 }
 
-pub(crate) fn b_unit_amount(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_unit_amount(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[1]).value, unit(&v[0]))
 }
 
 /// `$3.5m`, `€2bn`.
-pub(crate) fn b_unit_amount_multiplier(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_unit_amount_multiplier(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[1]).value.checked_mul(pow10(term(&v[2]).0)?)?, unit(&v[0]))
 }
 
 /// `75 USD million`.
-pub(crate) fn b_amount_unit_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_amount_unit_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[0]).value.checked_mul(pow10(term(&v[2]).0)?)?, unit(&v[1]))
 }
 
-pub(crate) fn million_code(v: &Value) -> Option<Unit> {
+pub(super) fn million_code(v: &Value) -> Option<Unit> {
     Some(Unit::Currency(CurrencyUnit::Code(code(CODES[term(v).0 as usize].0)?)))
 }
 
 /// `30 MUSD`.
-pub(crate) fn b_amount_million_code(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_amount_million_code(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[0]).value.checked_mul(pow10(6)?)?, million_code(&v[1])?)
 }
 
 /// `MAUD 60`.
-pub(crate) fn b_million_code_amount(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_million_code_amount(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[1]).value.checked_mul(pow10(6)?)?, million_code(&v[0])?)
 }
 
 /// `13 dollars and 45 cents`, `10 $ 30 cent`, `3 pounds 20 pence`.
-pub(crate) fn b_major_minor(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_major_minor(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (major, n) = (qty(&v[0]), num(&v[1]));
     let Unit::Currency(CurrencyUnit::Minor(m)) = unit(&v[2]) else { return None };
     let Unit::Currency(c) = major.unit() else { return None };
@@ -52,7 +52,7 @@ pub(crate) fn b_major_minor(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 /// `15 dollars 50`, `c $ 100 and fifty`: a bare count of hundredths ends
 /// the sentence or a clause, or comes before `more`, `less`, `extra` or
 /// `each`, so `15 dollars 3 times` is no 15.03.
-pub(crate) fn b_major_hundredths(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_major_hundredths(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let (major, n) = (qty(&v[0]), num(&v[1]));
     let sign = |i: usize| ctx.punct(i).is_some_and(is_currency_sign);
     // `5 $10` is 5 and $10, not 5.10.
@@ -73,12 +73,12 @@ pub(crate) fn b_major_hundredths(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     quantity(major.value().checked_add(n.value.shift(-2)?)?, major.unit())
 }
 
-pub(crate) fn is_currency_sign(c: char) -> bool {
+pub(super) fn is_currency_sign(c: char) -> bool {
     turbo_unicode::category::general_category(c) == turbo_unicode::category::GeneralCategory::Sc
 }
 
 /// `5 ft 2 in`, `5 feet and 2 inches`.
-pub(crate) fn b_feet_inches(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_feet_inches(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (f, n) = (qty(&v[0]), num(&v[1]));
     if n.value >= Dec::from_i64(12) {
         return None;
@@ -87,21 +87,21 @@ pub(crate) fn b_feet_inches(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 }
 
 /// `6'2"`, `6′2″`: feet and inches with marks.
-pub(crate) fn b_feet_inch_marks(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_feet_inch_marks(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (f, n) = (num(&v[0]), num(&v[1]));
     quantity(f.value.checked_add(n.value.checked_div(Dec::from_i64(12))?)?, Unit::Length(Length::Foot))
 }
 
-pub(crate) fn b_feet_mark(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_feet_mark(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[0]).value, Unit::Length(Length::Foot))
 }
 
 /// `2 m dollars`, `4.5 bn euros`.
-pub(crate) fn b_amount_multiplier_unit(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_amount_multiplier_unit(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[0]).value.checked_mul(pow10(term(&v[1]).0)?)?, unit(&v[2]))
 }
 
-pub(crate) fn b_age(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_age(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let age = match Time::of(term(&v[1]).0) {
         Time::Day => Age::Day,
         Time::Week => Age::Week,
@@ -111,12 +111,12 @@ pub(crate) fn b_age(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[0]).value, Unit::Age(age))
 }
 
-pub(crate) fn b_age_years(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_age_years(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(num(&v[0]).value, Unit::Age(Age::Year))
 }
 
 /// `age 87`, `aged 87`, in lowercase or at the start of a sentence.
-pub(crate) fn b_age_stated(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_age_stated(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let opens = ctx.before().is_none_or(|p| ctx.lexeme(p).kind == Kind::Punct);
     if has_upper(raw(ctx, ctx.start)) && !opens {
         return None;

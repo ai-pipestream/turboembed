@@ -1,19 +1,19 @@
 use super::*;
 
-pub(crate) const fn cur(word: &'static str, c: CurrencyUnit, flags: u8) -> Word {
+pub(super) const fn cur(word: &'static str, c: CurrencyUnit, flags: u8) -> Word {
     w(word, Unit::Currency(c), flags)
 }
 
-pub(crate) const fn generic(word: &'static str, g: Generic, flags: u8) -> Word {
+pub(super) const fn generic(word: &'static str, g: Generic, flags: u8) -> Word {
     cur(word, CurrencyUnit::Generic(g), flags)
 }
 
-pub(crate) const fn minor(word: &'static str, m: Minor, flags: u8) -> Word {
+pub(super) const fn minor(word: &'static str, m: Minor, flags: u8) -> Word {
     cur(word, CurrencyUnit::Minor(m), flags)
 }
 
 /// A currency code known to be in the table, by its lowercase form.
-pub(crate) const fn iso(word: &'static str, lower: &[u8; 3], flags: u8) -> Word {
+pub(super) const fn iso(word: &'static str, lower: &[u8; 3], flags: u8) -> Word {
     let c = match turbo_analysis_layers::Currency::new([
         lower[0].to_ascii_uppercase(),
         lower[1].to_ascii_uppercase(),
@@ -28,7 +28,7 @@ pub(crate) const fn iso(word: &'static str, lower: &[u8; 3], flags: u8) -> Word 
 /// Money words. `PREFIX` ones may come before the amount (`$5`, `€ 2`);
 /// `NATION_ONLY` ones name money only after a country (`Korean won`,
 /// `Brazilian real`).
-pub(crate) static MONEY: &[Word] = &[
+pub(in crate::lang) static MONEY: &[Word] = &[
     generic("$", Generic::Dollar, PREFIX),
     generic("dollar", Generic::Dollar, 0),
     generic("dollars", Generic::Dollar, 0),
@@ -168,17 +168,17 @@ pub(crate) static MONEY: &[Word] = &[
 /// Codes that are also English words or common abbreviations. They name
 /// money only in capitals and after the amount (`10 TRY`, never `ALL 5`
 /// or `try 5`).
-pub(crate) const AMBIGUOUS_CODES: &[&str] = &[
+pub(super) const AMBIGUOUS_CODES: &[&str] = &[
     "all", "bam", "bob", "cad", "cop", "cup", "dem", "dop", "ern", "esp", "gel", "gip", "imp", "kgs", "lak", "mad",
     "mnt", "mop", "nad", "pen", "php", "ron", "rub", "sar", "sek", "sos", "try",
 ];
 
-pub(crate) fn ambiguous_code(lower: &str) -> bool {
+pub(in crate::lang) fn ambiguous_code(lower: &str) -> bool {
     AMBIGUOUS_CODES.contains(&lower)
 }
 
 /// Codes after an `M` for millions: `30 MUSD`, `MEUR 120`.
-pub(crate) static MILLION_CODES: &[(&str, &str)] = &[
+pub(in crate::lang) static MILLION_CODES: &[(&str, &str)] = &[
     ("maud", "aud"),
     ("mcad", "cad"),
     ("mchf", "chf"),

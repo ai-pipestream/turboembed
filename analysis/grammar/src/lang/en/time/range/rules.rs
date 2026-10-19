@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) const fn rr(
+pub(super) const fn rr(
     name: &'static str,
     dim: crate::engine::Dim,
     items: &'static [Item],
@@ -9,7 +9,7 @@ pub(crate) const fn rr(
     r(name, dim, 0, items, build)
 }
 
-pub(crate) static RULES: &[Rule] = &[
+pub(in crate::lang::en::time) static RULES: &[Rule] = &[
     rr("to", TO, &[word("to")], b_empty),
     rr("to_dash", TO, &[word("-")], b_empty),
     rr("to_en_dash", TO, &[word("\u{2013}")], b_empty),
@@ -184,10 +184,10 @@ pub(crate) static RULES: &[Rule] = &[
     rr("moded_eoy", MODED, &[word("eoy")], b_eoy),
 ];
 
-pub(crate) fn b_since_ge(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_since_ge(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     b_since(v, c)
 }
 
-pub(crate) fn b_until_le(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+pub(super) fn b_until_le(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     b_until(v, c)
 }

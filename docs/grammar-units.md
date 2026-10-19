@@ -11,6 +11,8 @@ runs it.
 ## Types
 
 Units are enums grouped by what they measure, in
+`analysis/grammar/src/unit/physical.rs` and
+`analysis/grammar/src/unit/kinds.rs`, re-exported from
 `analysis/grammar/src/unit/mod.rs`: `Length`, `Area`, `Volume`,
 `Weight`, `Speed`, `Information`, `Angle`, `Temperature` and `Age`, with
 `Unit` over them and `Unit::Currency` for money. `Area::Square`,

@@ -17,13 +17,14 @@ use crate::lang::en::unit::{
 };
 
 mod measures;
-pub(crate) use measures::*;
+use measures::*;
+pub(in crate::lang) use measures::{UNITS, Word};
 
 mod money;
-pub(crate) use money::*;
+pub(in crate::lang) use money::{MILLION_CODES, MONEY, ambiguous_code};
 
 mod nations;
-pub(crate) use nations::*;
+pub(in crate::lang) use nations::{NATIONS, nation, nation_rows};
 
 mod entries;
-pub(crate) use entries::*;
+pub(in crate::lang) use entries::{entries, scale};

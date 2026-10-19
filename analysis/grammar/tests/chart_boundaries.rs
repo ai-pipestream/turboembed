@@ -136,3 +136,19 @@ fn constructor_checks_lexicon_categories() {
     static BAD: Custom = custom(&[], A, Dim(2));
     Parser::new(&BAD);
 }
+
+#[test]
+fn selection_checks_equal_length_candidate_boundaries() {
+    static SIMPLE: Custom = custom(&[], A, A);
+    let mut parser = Parser::new(&SIMPLE);
+    parser.parse("a ");
+    let mut mentions = Vec::new();
+    parser.select("é", Output::Number, &mut mentions);
+    assert!(mentions.is_empty());
+    parser.select("a ", Output::Number, &mut mentions);
+    assert_eq!(mentions.len(), 1);
+    parser.parse("");
+    mentions.clear();
+    parser.select("", Output::Number, &mut mentions);
+    assert!(mentions.is_empty());
+}

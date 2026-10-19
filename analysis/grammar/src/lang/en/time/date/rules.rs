@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) const fn rr(
+pub(super) const fn rr(
     name: &'static str,
     dim: crate::engine::Dim,
     items: &'static [Item],
@@ -9,7 +9,7 @@ pub(crate) const fn rr(
     r(name, dim, 0, items, build)
 }
 
-pub(crate) static RULES: &[Rule] = &[
+pub(in crate::lang::en::time) static RULES: &[Rule] = &[
     rr("sep_slash", SEP, &[word("/")], b_sep),
     rr("sep_dash", SEP, &[word("-")], b_sep),
     // Years.

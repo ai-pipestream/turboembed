@@ -1,15 +1,15 @@
 use super::*;
 
-pub(crate) const fn r(name: &'static str, dim: Dim, weight: i16, items: &'static [Item], build: Build) -> Rule {
+pub(super) const fn r(name: &'static str, dim: Dim, weight: i16, items: &'static [Item], build: Build) -> Rule {
     Rule { name, dim, items, weight, build }
 }
 
 /// An optional word glued to what comes before.
-pub(crate) const fn opt_glued_word(text: &'static str) -> Item {
+pub(super) const fn opt_glued_word(text: &'static str) -> Item {
     Item::Word { text, glued: true, optional: true, exact_case: false }
 }
 
-pub(crate) const OPT_DOT: Item = opt_glued_word(".");
+pub(super) const OPT_DOT: Item = opt_glued_word(".");
 
 /// Every unit rule, after the number grammar's.
 pub static RULES: &[Rule] = &[

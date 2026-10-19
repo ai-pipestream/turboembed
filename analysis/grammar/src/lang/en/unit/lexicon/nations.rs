@@ -4,29 +4,29 @@ use super::*;
 /// of that name (`Swiss` and `franc` give `CHF`); with none, a currency
 /// a following word names already (`Japanese yen`).
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct Nation {
+pub(in crate::lang) struct Nation {
     pub word: &'static str,
     pub generic: Option<Generic>,
     pub code: &'static str,
     pub flags: u8,
 }
 
-pub(crate) const fn n(word: &'static str, generic: Generic, code: &'static str) -> Nation {
+pub(super) const fn n(word: &'static str, generic: Generic, code: &'static str) -> Nation {
     Nation { word, generic: Some(generic), code, flags: 0 }
 }
 
-pub(crate) const fn named(word: &'static str, code: &'static str) -> Nation {
+pub(super) const fn named(word: &'static str, code: &'static str) -> Nation {
     Nation { word, generic: None, code, flags: 0 }
 }
 
 /// A short form that only goes before `$`: `C$`, `HK$`.
-pub(crate) const fn dollar(word: &'static str, code: &'static str) -> Nation {
+pub(super) const fn dollar(word: &'static str, code: &'static str) -> Nation {
     Nation { word, generic: Some(Generic::Dollar), code, flags: ONLY_DOLLAR }
 }
 
 /// Country words, a word's rows together. A word with a space is read by
 /// a rule, not the lexicon.
-pub(crate) static NATIONS: &[Nation] = &[
+pub(in crate::lang) static NATIONS: &[Nation] = &[
     n("us", Generic::Dollar, "usd"),
     n("u.s.", Generic::Dollar, "usd"),
     n("united states", Generic::Dollar, "usd"),
@@ -163,12 +163,12 @@ pub(crate) static NATIONS: &[Nation] = &[
 ];
 
 /// The first row of `word` in [`NATIONS`].
-pub(crate) fn nation(word: &str) -> Option<usize> {
+pub(in crate::lang) fn nation(word: &str) -> Option<usize> {
     NATIONS.iter().position(|r| r.word == word)
 }
 
 /// The rows of the word whose first row is `first`.
-pub(crate) fn nation_rows(first: usize) -> &'static [Nation] {
+pub(in crate::lang) fn nation_rows(first: usize) -> &'static [Nation] {
     let word = NATIONS[first].word;
     let n = NATIONS[first..].iter().take_while(|r| r.word == word).count();
     &NATIONS[first..first + n]

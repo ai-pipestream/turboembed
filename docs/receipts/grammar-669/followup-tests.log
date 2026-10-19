@@ -1,0 +1,256 @@
+   Compiling turbo-grammar v0.1.0 ([workspace]/analysis/grammar)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.15s
+     Running unittests src/lib.rs (target/debug/deps/turbo_grammar-fef7858d8f6986cc)
+
+running 174 tests
+test dec::tests::coefficients_expand_negative_scales ... ok
+test annotator::tests::overlapping_percents_and_quantities_keep_the_longer ... ok
+test annotator::tests::the_config_hash_names_the_grammar ... ok
+test dec::tests::arithmetic_is_exact_in_range ... ok
+test dec::tests::divisors_over_nineteen_digits_and_wide_quotients_keep_full_precision ... ok
+test dec::tests::integers_convert ... ok
+test dec::tests::large_operands_are_rounded_not_overflowed ... ok
+test dec::tests::long_numerals_round_past_the_kept_digits ... ok
+test dec::tests::ordering_compares_values ... ok
+test dec::tests::quotients_keep_the_precision ... ok
+test dec::tests::shift_handles_extreme_exponents_without_overflow ... ok
+test annotator::tests::spanish_numbers_take_the_decimal_comma ... ok
+test dec::tests::values_are_normalized ... ok
+test engine::chart::cycles::tests::same_span_graph_ignores_consuming_edges ... ok
+test engine::chart::parse::tests::overflowing_application_count_is_not_ranked ... ok
+test engine::chart::tests::equal_readings_keep_the_better_one ... ok
+test engine::chart::tests::a_cell_keeps_the_best_four ... ok
+test engine::chart::parse::tests::overflowing_score_is_not_ranked ... ok
+test annotator::tests::large_and_fractional_values_fill_the_columns ... ok
+test annotator::tests::tonnes_and_tons_have_their_own_symbols ... ok
+test annotator::tests::quantities_carry_their_unit_symbols ... ok
+test engine::chart::tests::a_rule_may_not_open_with_an_optional_word - should panic ... ok
+test engine::lexer::tests::a_leading_separator_opens_a_numeral_after_space_only ... ok
+test annotator::tests::money_is_stated_in_its_currency ... ok
+test engine::lexer::tests::a_split_word_gives_glued_pieces_with_exact_spans ... ok
+test engine::interned::tests::equal_values_share_an_index ... ok
+test annotator::tests::layers_hold_what_the_grammar_finds ... ok
+test annotator::tests::a_pipeline_writes_the_named_instances ... ok
+test engine::lexer::tests::folding_drops_accents_and_keeps_spans ... ok
+test engine::lexer::tests::lists_split_into_integers ... ok
+test engine::lexer::tests::marks_stay_in_words ... ok
+test engine::lexer::tests::spans_are_byte_offsets ... ok
+test engine::lexer::tests::words_are_lowercased_and_glue_is_recorded ... ok
+test engine::lexer::tests::web_addresses_are_skipped ... ok
+test engine::numeral::tests::chains_that_are_no_number_are_lists ... ok
+test engine::numeral::tests::a_decimal_comma_reads_a_lone_comma_as_the_fraction ... ok
+test engine::numeral::tests::strict_style_reads_one_convention ... ok
+test engine::chart::tests::selection_does_not_cut_a_written_token ... ok
+test engine::numeral::tests::spaces_group_threes ... ok
+test engine::rule::tests::context_reads_the_neighbours ... ok
+test engine::rule::tests::lookup_finds_every_entry_of_a_word ... ok
+test engine::numeral::tests::decimals_in_either_convention ... ok
+test engine::chart::tests::starting_at_lists_every_node_of_a_position ... ok
+test engine::chart::tests::selection_takes_the_longest_and_does_not_overlap ... ok
+test lang::en::tests::digits_glued_to_letters_are_no_number ... ok
+test lang::en::tests::digit_fractions ... ok
+test engine::numeral::tests::plain_and_grouped_integers ... ok
+test lang::en::tests::digit_numerals ... ok
+test lang::en::tests::exponents ... ok
+test lang::en::tests::malformed_sequences_split ... ok
+test lang::en::tests::fractions_with_prepositions ... ok
+test lang::en::tests::lone_one_after_a_determiner_is_a_pronoun ... ok
+test lang::en::tests::a_parser_is_reused_and_deterministic ... ok
+test lang::en::tests::ordinals ... ok
+test lang::en::tests::percentages ... ok
+test lang::en::tests::fractions_of_scales ... ok
+test lang::en::tests::relative_ordinals ... ok
+test lang::en::tests::web_addresses_hold_nothing ... ok
+test lang::en::tests::the_lexicon_is_lowercase_without_repeats ... ok
+test lang::en::tests::ties_prefer_a_compound_ordinal_denominator ... ok
+test lang::en::tests::negatives ... ok
+test lang::en::time::tests::years_from_two_digits ... ok
+test lang::en::tests::spoken_decimals ... ok
+test lang::en::unit::lexicon::entries::tests::words_are_lowercase_and_codes_resolve ... ok
+test lang::en::unit::rules::table::tests::rule_names_are_unique ... ok
+test lang::en::unit::lexicon::entries::tests::a_nation_word_has_its_rows_together ... ok
+test lang::en::tests::numbers_inside_an_ordinal_are_left_out ... ok
+test lang::en::unit::lexicon::entries::tests::entries_cover_every_table ... ok
+test lang::en::time::tests::the_grammar_holds_the_number_rules ... ok
+test lang::en::tests::scale_suffixes ... ok
+test lang::en::tests::spelled_fractions ... ok
+test lang::en::unit::tests::nautical_miles ... ok
+test lang::en::unit::tests::speeds_information_and_angles ... ok
+test lang::en::unit::tests::money_in_two_units ... ok
+test lang::en::unit::tests::temperatures ... ok
+test lang::en::unit::tests::imperial_measures_when_the_text_says_so ... ok
+test lang::en::unit::tests::units_named_alone ... ok
+test lang::es::tests::accents_fold_and_spans_stay_exact ... ok
+test lang::en::tests::spans_are_byte_offsets_past_non_ascii_text ... ok
+test lang::es::tests::compounds_split_into_number_words ... ok
+test lang::en::unit::tests::tons_say_which_ton ... ok
+test lang::en::unit::tests::weights ... ok
+test lang::en::unit::tests::feet_and_inches ... ok
+test lang::en::unit::tests::ages ... ok
+test lang::en::unit::tests::lengths ... ok
+test lang::en::unit::tests::money_with_signs_and_codes ... ok
+test lang::en::unit::tests::areas_and_volumes ... ok
+test lang::en::unit::tests::minor_units ... ok
+test lang::es::tests::a_scale_agrees_with_its_count ... ok
+test lang::en::tests::spelled_integers ... ok
+test lang::en::time::tests::periods ... ok
+test lang::es::tests::menos_negates_only_where_it_opens ... ok
+test lang::nl::split::tests::other_words_stay_whole ... ok
+test lang::es::tests::digits_take_a_decimal_comma ... ok
+test lang::nl::split::tests::compounds_are_cut_into_number_words ... ok
+test lang::es::tests::relative_ordinals ... ok
+test lang::es::tests::percentages ... ok
+test lang::es::tests::ordinals ... ok
+test lang::en::time::tests::parts_of_the_day ... ok
+test lang::nl::tests::een_is_the_article_and_een_with_accents_the_number ... ok
+test lang::es::tests::spoken_decimals_and_fractions ... ok
+test lang::nl::tests::compound_integers ... ok
+test lang::en::time::tests::ambiguous_words_need_their_cue ... ok
+test lang::nl::tests::percentages ... ok
+test lang::es::tests::un_before_a_count_is_an_article ... ok
+test lang::en::unit::tests::words_that_are_not_units ... ok
+test lang::es::tests::spelled_integers_agree_in_gender ... ok
+test lang::nl::tests::ordinals_in_words_and_digits ... ok
+test lang::nl::tests::fractions ... ok
+test lang::en::time::tests::clock_times ... ok
+test lang::nl::tests::numbers_in_sentences ... ok
+test lang::en::time::tests::dates_with_times ... ok
+test lang::nl::tests::relative_ordinals ... ok
+test lang::nl::tests::spoken_decimals ... ok
+test time::calendar::tests::nth_weekdays_and_holidays ... ok
+test lang::en::time::tests::dates ... ok
+test lang::en::time::tests::sets ... ok
+test lang::nl::tests::spaced_parts_of_a_compound_stay_apart ... ok
+test lang::en::time::tests::durations ... ok
+test lang::en::time::tests::ranges ... ok
+test time::calendar::tests::weeks ... ok
+test lang::es::time::tests::relative_weekdays ... ok
+test time::resolve::tests::open_years_read_both_ways ... ok
+test time::resolve::tests::ranges_between_points ... ok
+test time::resolve::tests::relative_periods ... ok
+test time::clock::tests::clocks_read_as_one_or_two_hours ... ok
+test time::duration::tests::durations_are_written_as_timex ... ok
+test time::duration::tests::lengths_and_arithmetic ... ok
+test lang::es::time::tests::dates_with_times ... ok
+test time::resolve::tests::durations_and_sets ... ok
+test time::resolve::tests::dates_times_and_both ... ok
+test time::resolve::tests::shifts_move_the_reference ... ok
+test time::resolve::tests::extreme_dates_and_invalid_inputs_do_not_overflow_or_invert ... ok
+test lang::es::time::tests::durations_shifts_and_sets ... ok
+test time::resolve::tests::stretches_from_the_reference ... ok
+test time::resolve::tests::weekdays_on_days_of_the_month ... ok
+test time::resolve::tests::modifiers_bound_and_cut ... ok
+test time::resolve::tests::weeks_quarters_decades_and_holidays ... ok
+test time::resolve::tests::what_depends_on_the_reference ... ok
+test time::spec::tests::a_time_value_fits_in_a_chart_node ... ok
+test time::spec::tests::parts_and_grains ... ok
+test lang::es::time::tests::periods_and_modifiers ... ok
+test time::timex::tests::dates_and_times ... ok
+test time::timex::tests::ranges_and_durations ... ok
+test times::tests::the_fixed_reference_is_used_and_hashed ... ok
+test unit::currency::tests::amounts_go_to_a_currency ... ok
+test unit::currency::tests::codes_and_names ... ok
+test unit::currency::tests::hundredths ... ok
+test unit::tests::a_unit_is_small ... ok
+test lang::es::time::tests::ranges ... ok
+test lang::nl::time::tests::sets ... ok
+test lang::es::time::tests::dates ... ok
+test unit::tests::kinds_and_subtypes ... ok
+test unit::tests::names_follow_recognizers_text ... ok
+test lang::es::time::tests::clock_times ... ok
+test unit::currency::tests::the_table_is_sorted_and_well_formed ... ok
+test unit::tests::symbols_are_short_forms ... ok
+test value::tests::a_value_fits_in_a_few_words ... ok
+test unit::tests::tons_and_imperial_measures_are_their_own_units ... ok
+test value::tests::accessors_pick_their_variant ... ok
+test value::tests::kinds_follow_the_value ... ok
+test lang::nl::time::tests::a_day_and_its_part_split_from_one_word ... ok
+test times::tests::spanish_mentions_resolve ... ok
+test times::tests::mentions_resolve_against_the_reference ... ok
+test times::tests::without_a_reference_relative_mentions_stay_unresolved ... ok
+test lang::nl::time::tests::ranges_and_portions ... ok
+test times::tests::a_second_run_gives_the_same_layer ... ok
+test lang::en::time::tests::modifiers ... ok
+test times::tests::an_open_reading_is_ambiguous_and_takes_the_next_one ... ok
+test lang::nl::time::tests::clock_times_count_from_the_half_and_quarter_hours ... ok
+test lang::nl::time::tests::dates_read_day_first ... ok
+test lang::nl::time::tests::words_with_other_meanings_are_no_times ... ok
+test lang::nl::time::tests::durations_and_shifts ... ok
+test lang::en::tests::long_runs_of_number_words_stay_bounded ... ok
+
+test result: ok. 174 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/chart_boundaries.rs (target/debug/deps/chart_boundaries-a9c1cc94e20d0218)
+
+running 6 tests
+test constructor_checks_lexicon_categories - should panic ... ok
+test constructor_checks_noninitial_rule_categories - should panic ... ok
+test constructor_checks_numeral_category - should panic ... ok
+test selection_checks_equal_length_candidate_boundaries ... ok
+test selection_rejects_offsets_inside_a_different_texts_character ... ok
+test positive_unary_and_optional_cycles_terminate ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/decimal_boundaries.rs (target/debug/deps/decimal_boundaries-78a4d28d062cc601)
+
+running 3 tests
+test mantissa_rounding_rejects_scale_underflow ... ok
+test extreme_decimal_operations_are_checked ... ok
+test trailing_zero_normalization_rejects_scale_underflow ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/language_boundaries.rs (target/debug/deps/language_boundaries-13f83a04847ec7e6)
+
+running 4 tests
+test date_ranges_and_annotator_versions ... ok
+test fractions_and_ordinals_do_not_overflow_or_divide_by_zero ... ok
+test rates_do_not_accept_a_zero_time_denominator ... ok
+test explicit_calendar_dates_never_resolve_to_another_day ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/spec.rs (target/debug/deps/spec-0a599ce7891a1ab5)
+
+running 24 tests
+test datetime::tests::seconds_are_written_as_decimals ... ok
+test dutch::texts_are_located_after_the_last ... ok
+test eligibility_reads_both_fields ... ok
+test dutch::dutch_percentages ... ok
+test numbers_compare_within_double_precision ... ok
+test english_percentages ... ok
+test spans_convert_from_utf16 ... ok
+test english_ages ... ok
+test english_ordinals ... ok
+test dutch::dutch_ordinals ... ok
+test english_temperatures ... ok
+test spanish::spanish_percentages ... ok
+test spanish::spanish_ordinals ... ok
+test english_numbers ... ok
+test english_dimensions ... ok
+test dutch::dutch_numbers ... ok
+test english_currencies ... ok
+test spanish::spanish_numbers ... ok
+test spanish::spanish_datetimes ... ok
+test dutch::dutch_datetimes ... ok
+test dutch::dutch_summary ... ok
+test spanish::spanish_summary ... ok
+test english_datetimes ... ok
+test summary ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/timing.rs (target/debug/deps/timing-749f6125125fad7c)
+
+running 1 test
+test a_hundred_kilobytes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+   Doc-tests turbo_grammar
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

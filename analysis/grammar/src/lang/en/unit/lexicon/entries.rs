@@ -2,7 +2,7 @@ use super::*;
 
 /// SI prefixes written as words, with their powers of ten: `kilo meter`,
 /// `mega bytes`.
-pub(crate) const PREFIXES: &[(&str, i64)] = &[
+pub(super) const PREFIXES: &[(&str, i64)] = &[
     ("kilo", 3),
     ("hecto", 2),
     ("deca", 1),
@@ -21,7 +21,7 @@ pub(crate) const PREFIXES: &[(&str, i64)] = &[
 
 /// Time words: what a speed is per and what an age is counted in. The
 /// value is a [`crate::lang::en::unit::Time`] as a number.
-pub(crate) const TIMES: &[(&str, crate::lang::en::unit::Time, u8)] = {
+pub(super) const TIMES: &[(&str, crate::lang::en::unit::Time, u8)] = {
     use crate::lang::en::unit::Time::*;
     &[
         ("ms", Millisecond, ABBR),
@@ -53,7 +53,7 @@ pub(crate) const TIMES: &[(&str, crate::lang::en::unit::Time, u8)] = {
 
 /// Temperature scales: names, and letters that name a scale only after a
 /// degree (`deg c`, `°F`).
-pub(crate) const SCALES: &[(&str, Temperature, u8)] = &[
+pub(super) const SCALES: &[(&str, Temperature, u8)] = &[
     ("celsius", Temperature::Celsius, 0),
     ("celcius", Temperature::Celsius, 0),
     ("centigrade", Temperature::Celsius, 0),
@@ -70,20 +70,20 @@ pub(crate) const SCALES: &[(&str, Temperature, u8)] = &[
 ];
 
 /// The temperature scale of a [`TSCALE`] entry's value.
-pub(crate) fn scale(i: i64) -> Temperature {
+pub(in crate::lang) fn scale(i: i64) -> Temperature {
     SCALES[i as usize].1
 }
 
 /// Multipliers glued to an amount after a currency: `$3.5m`, `€2bn`.
-pub(crate) const MULTIPLIERS: &[(&str, i64)] =
+pub(super) const MULTIPLIERS: &[(&str, i64)] =
     &[("m", 6), ("mn", 6), ("mm", 6), ("bn", 9), ("b", 9), ("tn", 12), ("k", 3)];
 
-pub(crate) const fn e(word: &'static str, dim: Dim, value: i64, flags: u8) -> Entry {
+pub(super) const fn e(word: &'static str, dim: Dim, value: i64, flags: u8) -> Entry {
     Entry { word, dim, value, flags }
 }
 
 /// Every entry of the unit words, to add to the number grammar's.
-pub(crate) fn entries() -> Vec<Entry> {
+pub(in crate::lang) fn entries() -> Vec<Entry> {
     let mut out = Vec::new();
     out.extend(UNITS.iter().enumerate().map(|(i, x)| e(x.word, UWORD, i as i64, x.flags)));
     out.extend(MONEY.iter().enumerate().map(|(i, x)| e(x.word, CURW, i as i64, x.flags)));
@@ -119,6 +119,7 @@ pub(crate) fn entries() -> Vec<Entry> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::money::AMBIGUOUS_CODES;
     use super::*;
 
     #[test]
