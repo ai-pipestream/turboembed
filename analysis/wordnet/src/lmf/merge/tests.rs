@@ -171,3 +171,22 @@ fn a_resolved_document_without_the_requested_version_is_rejected() {
     let result = WnLmfReader::read_resource_named_with_resolver(Cursor::new(doc.as_bytes()), "ext.xml", &resolver);
     assert_err_contains(result, "Resolved resource base.xml does not contain lexicon b version 2");
 }
+
+#[test]
+fn large_extension_with_entry_members_composes_in_linear_time() {
+    let n = 4_000usize;
+    let mut body = String::with_capacity(n * 160);
+    for i in 0..n {
+        body.push_str(&format!(
+            "<LexicalEntry id=\"x-e-{i}\"><Lemma writtenForm=\"w{i}\" partOfSpeech=\"n\"/>\
+             <Sense id=\"x-s-{i}\" synset=\"x-syn-{i}\"/></LexicalEntry>"
+        ));
+    }
+    for i in 0..n {
+        body.push_str(&format!("<Synset id=\"x-syn-{i}\" partOfSpeech=\"n\" members=\"x-e-{i}\"/>"));
+    }
+    let (res, calls) = compose(&extension(&body));
+    assert_eq!(1, calls);
+    let kb = res.unwrap().into_lexicons().remove(0).into_knowledge_base();
+    assert_eq!(&["w3999"], kb.synset("x-syn-3999").unwrap().lemmas());
+}

@@ -295,6 +295,15 @@ impl<'a> Materializer<'a> {
                     ),
                 ));
             };
+            if sense.is_none() && !senses.iter().any(|s| s.entry_id == entry.id) {
+                return Err(self.fail(
+                    Some(raw.line),
+                    format!(
+                        "Synset {} at line {} lists member entry {} with no sense assigned to {}",
+                        raw.id, raw.line, member_id, raw.id
+                    ),
+                ));
+            }
             if raw.pos != entry.pos {
                 return Err(self.fail(
                     Some(raw.line),
@@ -461,6 +470,12 @@ mod tests {
         assert_err_contains(
             read(&cat_lexicon("", "<SynsetRelation relType=\"derivation\" target=\"t-1\"/>")),
             "Relation type derivation is not legal on SynsetRelation",
+        );
+        assert_err_contains(
+            read(&wrap_lexicon(&format!(
+                "{TWO_CATS}<Synset id=\"t-1\" partOfSpeech=\"n\"/><Synset id=\"t-2\" partOfSpeech=\"n\" members=\"t-cat-n\"/>"
+            ))),
+            "Synset t-2 at line 4 lists member entry t-cat-n with no sense assigned to t-2",
         );
     }
 

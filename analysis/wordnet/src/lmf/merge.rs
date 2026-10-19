@@ -251,6 +251,8 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
                 resource_name,
             )?;
         }
+        let extension_entry_synsets: HashSet<(&str, &str)> =
+            extension.senses.values().map(|s| (s.entry_id.as_str(), s.synset_id.as_str())).collect();
         for synset_id in &extension.synset_order {
             let synset = &extension.synsets[synset_id];
             self.require_member_targets(
@@ -258,6 +260,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
                 synset,
                 &declared_external_entries,
                 &declared_external_senses,
+                &extension_entry_synsets,
                 resource_name,
             )?;
             for rel in &synset.relations {
@@ -428,6 +431,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
         synset: &RawSynset,
         external_entries: &HashSet<String>,
         external_senses: &HashSet<String>,
+        extension_entry_synsets: &HashSet<(&str, &str)>,
         resource_name: &str,
     ) -> Result<(), WordNetError> {
         let Some(ref members) = synset.members else {
@@ -445,7 +449,7 @@ impl<'a, Res: WnLmfResolver> Composition<'a, Res> {
                     ),
                 ));
             }
-            if is_entry && !extension.senses.values().any(|s| s.entry_id == member && s.synset_id == synset.id) {
+            if is_entry && !extension_entry_synsets.contains(&(member, synset.id.as_str())) {
                 return Err(malformed(
                     resource_name,
                     Some(synset.line),
