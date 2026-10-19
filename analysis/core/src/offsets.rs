@@ -27,6 +27,66 @@ pub struct Utf16Offset(pub u32);
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CodePointOffset(pub u32);
 
+/// A half-open span `[start, end)` measured in UTF-16 code units.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Utf16Span {
+    pub start: Utf16Offset,
+    pub end: Utf16Offset,
+}
+
+impl Utf16Span {
+    #[inline]
+    pub fn new(start: Utf16Offset, end: Utf16Offset) -> Utf16Span {
+        assert!(start.0 <= end.0, "UTF-16 span start {} after end {}", start.0, end.0);
+        Utf16Span { start, end }
+    }
+
+    #[inline]
+    pub fn try_new(start: Utf16Offset, end: Utf16Offset) -> Option<Utf16Span> {
+        (start.0 <= end.0).then_some(Utf16Span { start, end })
+    }
+
+    #[inline]
+    pub fn len(&self) -> u32 {
+        self.end.0 - self.start.0
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.start.0 == self.end.0
+    }
+}
+
+/// A half-open span `[start, end)` measured in Unicode code points.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct CodePointSpan {
+    pub start: CodePointOffset,
+    pub end: CodePointOffset,
+}
+
+impl CodePointSpan {
+    #[inline]
+    pub fn new(start: CodePointOffset, end: CodePointOffset) -> CodePointSpan {
+        assert!(start.0 <= end.0, "code point span start {} after end {}", start.0, end.0);
+        CodePointSpan { start, end }
+    }
+
+    #[inline]
+    pub fn try_new(start: CodePointOffset, end: CodePointOffset) -> Option<CodePointSpan> {
+        (start.0 <= end.0).then_some(CodePointSpan { start, end })
+    }
+
+    #[inline]
+    pub fn len(&self) -> u32 {
+        self.end.0 - self.start.0
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.start.0 == self.end.0
+    }
+}
+
 /// The unit of an offset that could not be converted to bytes.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum OffsetUnit {
@@ -267,10 +327,53 @@ impl OffsetTable {
         (c.to_utf16(s.start), c.to_utf16(s.end))
     }
 
+    /// A span in UTF-16 units as a strongly typed [`Utf16Span`].
+    pub fn span_to_utf16_typed(&self, text: &str, s: Span) -> Utf16Span {
+        let (start, end) = self.span_to_utf16(text, s);
+        Utf16Span { start, end }
+    }
+
+    /// Converts a [`Utf16Span`] into a UTF-8 byte [`Span`]. Refused if
+    /// either endpoint is past the end, falls inside a surrogate pair, or
+    /// `end < start`.
+    pub fn span_from_utf16(&self, text: &str, s: Utf16Span) -> Result<Span, Error> {
+        let start = self.from_utf16(text, s.start)?;
+        let end = self.from_utf16(text, s.end)?;
+        if start > end {
+            return Err(Error::Bounds {
+                layer: crate::layer::Key::<crate::doc::View>::DEFAULT.id(),
+                view: crate::text::ViewId::SOURCE,
+                detail: format!("a UTF-16 span {}..{} ends before it starts", s.start.0, s.end.0),
+            });
+        }
+        Ok(Span::new(start, end))
+    }
+
     /// A span in code points, `[start, end)`.
     pub fn span_to_code_point(&self, text: &str, s: Span) -> (CodePointOffset, CodePointOffset) {
         let mut c = OffsetCursor::new(self, text);
         (c.to_code_point(s.start), c.to_code_point(s.end))
+    }
+
+    /// A span in code points as a strongly typed [`CodePointSpan`].
+    pub fn span_to_code_point_typed(&self, text: &str, s: Span) -> CodePointSpan {
+        let (start, end) = self.span_to_code_point(text, s);
+        CodePointSpan { start, end }
+    }
+
+    /// Converts a [`CodePointSpan`] into a UTF-8 byte [`Span`]. Refused if
+    /// either endpoint is past the end or `end < start`.
+    pub fn span_from_code_point(&self, text: &str, s: CodePointSpan) -> Result<Span, Error> {
+        let start = self.from_code_point(text, s.start)?;
+        let end = self.from_code_point(text, s.end)?;
+        if start > end {
+            return Err(Error::Bounds {
+                layer: crate::layer::Key::<crate::doc::View>::DEFAULT.id(),
+                view: crate::text::ViewId::SOURCE,
+                detail: format!("a code point span {}..{} ends before it starts", s.start.0, s.end.0),
+            });
+        }
+        Ok(Span::new(start, end))
     }
 
     /// Converts a column of byte offsets (a layer's starts or its ends) to
@@ -361,67 +464,4 @@ impl<'a> OffsetCursor<'a> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Every character boundary of `text`, with its offset in all three
-    /// units, counted plainly.
-    fn boundaries(text: &str) -> Vec<(u32, u32, u32)> {
-        let mut out = vec![(0, 0, 0)];
-        let (mut u, mut c) = (0, 0);
-        for (i, ch) in text.char_indices() {
-            u += ch.len_utf16() as u32;
-            c += 1;
-            out.push(((i + ch.len_utf8()) as u32, u, c));
-        }
-        out
-    }
-
-    #[test]
-    fn ascii_keeps_no_checkpoints() {
-        let text = "plain ASCII text";
-        let t = OffsetTable::build(text);
-        assert!(t.is_ascii());
-        assert_eq!(t.checkpoints(), 0);
-        assert_eq!(t.to_utf16(text, 6), Utf16Offset(6));
-        assert_eq!(t.from_code_point(text, CodePointOffset(16)), Ok(16));
-    }
-
-    #[test]
-    fn checkpoints_land_on_boundaries_one_stride_apart() {
-        // 3 byte characters do not divide 256, so most checkpoints are past
-        // their stride's start.
-        let text = "\u{20AC}".repeat(400);
-        let t = OffsetTable::build(&text);
-        assert_eq!(t.checkpoints(), text.len().div_ceil(STRIDE as usize));
-        for (k, &b) in t.byte.iter().enumerate() {
-            assert!(text.is_char_boundary(b as usize));
-            assert!(b >= k as u32 * STRIDE && b < k as u32 * STRIDE + 4);
-            assert_eq!(t.utf16[k], b / 3);
-            assert_eq!(t.code_point[k], b / 3);
-        }
-    }
-
-    #[test]
-    fn every_boundary_both_ways() {
-        let text = "a\u{E9}\u{20AC}\u{1D11E}b\u{1F600}\u{4E2D}";
-        let t = OffsetTable::build(text);
-        for (b, u, c) in boundaries(text) {
-            assert_eq!(t.to_utf16(text, b), Utf16Offset(u));
-            assert_eq!(t.to_code_point(text, b), CodePointOffset(c));
-            assert_eq!(t.from_utf16(text, Utf16Offset(u)), Ok(b));
-            assert_eq!(t.from_code_point(text, CodePointOffset(c)), Ok(b));
-        }
-    }
-
-    #[test]
-    fn default_table_matches_empty_text() {
-        let t = OffsetTable::default();
-        assert_eq!(t, OffsetTable::build(""));
-        assert!(t.is_ascii());
-        assert_eq!(t.to_utf16("", 0), Utf16Offset(0));
-        assert_eq!(t.to_code_point("", 0), CodePointOffset(0));
-        assert_eq!(t.from_utf16("", Utf16Offset(0)), Ok(0));
-        assert_eq!(t.from_code_point("", CodePointOffset(0)), Ok(0));
-    }
-}
+mod tests;
