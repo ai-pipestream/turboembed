@@ -18,6 +18,7 @@ mod annotator;
 mod clusters;
 mod detect;
 mod features;
+mod hash;
 mod input;
 pub mod layer;
 pub mod lexicon;

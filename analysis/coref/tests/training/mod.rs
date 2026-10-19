@@ -101,6 +101,10 @@ impl<F: Fn(&[&str]) -> Vec<Vec<f32>> + Send + Sync> TokenVectors for Encoder<F> 
     fn vectors(&self, sentence: &[&str]) -> Vec<Vec<f32>> {
         (self.f)(sentence)
     }
+
+    fn config_hash(&self) -> u64 {
+        self.dimension as u64
+    }
 }
 
 /// Organization names and "It" point one way, other capitalized words

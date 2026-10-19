@@ -23,6 +23,14 @@ the speaker, used by the speaker sieve. Every chain of `n` mentions has
 count. `turbo_coref::codecs()` adds the four codecs to the shared layer
 codecs for the document graph.
 
+`CorefInput` can be built outside a `Document`; before anything indexes
+it, every layer's own check, the part-of-speech alignment, every token
+and sentence index and every span and fragment against the text are
+validated, and a failure is an error. `config_hash` covers the entity
+types, the threshold, the model digest and the dimension and
+`config_hash` of each vector provider; `WordVectors` and `TokenVectors`
+implementations supply their own.
+
 ## Models and vectors
 
 `CorefModel::read` opens a `CorefModel` file (component
@@ -32,7 +40,9 @@ pairwise model scores each antecedent candidate and links the best
 above the threshold; a ranking model also scores the new-chain option.
 `WordVectors` supplies head similarity features; `TokenVectors` supplies
 contextual span features with real values. A model trained with an
-encoder requires an encoder of the same dimension.
+encoder requires an encoder of the same dimension. `link_probability`
+refuses feature values that are not one finite value per feature and
+subtracts the largest logit when the plain exponential sum overflows.
 
 ## Training and scoring
 

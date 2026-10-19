@@ -15,6 +15,7 @@ use crate::model::CorefModel;
 use crate::sieve::Resolver;
 use crate::vectors::{TokenVectors, WordVectors, encode};
 
+mod config;
 mod output;
 
 pub use output::sieve_tags;
@@ -209,5 +210,9 @@ impl Annotator for CorefAnnotator {
 
     fn model(&self) -> Option<ModelRef> {
         self.model.as_ref().map(|m| m.model_ref().clone())
+    }
+
+    fn config_hash(&self) -> u64 {
+        config::hash(self)
     }
 }

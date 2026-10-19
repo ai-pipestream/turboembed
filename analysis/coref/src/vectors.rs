@@ -2,6 +2,9 @@
 //! features and [`TokenVectors`] for contextual span features.
 
 use std::collections::HashMap;
+use std::hash::Hasher;
+
+use crate::hash::Fnv;
 
 /// A vector per word for the features that compare mention heads by
 /// distributional similarity (`opennlp.tools.coref.WordVectors`).
@@ -12,6 +15,11 @@ pub trait WordVectors: Send + Sync {
     /// The vector of a lowercased word: [`dimension`](Self::dimension)
     /// finite values, or `None` for a word without one.
     fn vector(&self, word: &str) -> Option<&[f32]>;
+
+    /// A hash, stable across runs, of everything that decides the
+    /// vectors (their source and settings), recorded in the annotator's
+    /// configuration hash.
+    fn config_hash(&self) -> u64;
 }
 
 /// A contextual vector per token, computed a sentence at a time
@@ -24,6 +32,11 @@ pub trait TokenVectors: Send + Sync {
     /// One vector of [`dimension`](Self::dimension) finite values per
     /// token of one sentence.
     fn vectors(&self, sentence: &[&str]) -> Vec<Vec<f32>>;
+
+    /// A hash, stable across runs, of everything that decides the
+    /// vectors (the encoder's model and settings), recorded in the
+    /// annotator's configuration hash.
+    fn config_hash(&self) -> u64;
 }
 
 /// Word vectors held in a map.
@@ -61,6 +74,22 @@ impl WordVectors for MapWordVectors {
 
     fn vector(&self, word: &str) -> Option<&[f32]> {
         self.vectors.get(word).map(Vec::as_slice)
+    }
+
+    /// The dimension and the entries, combined by a sum so the map's
+    /// order does not matter.
+    fn config_hash(&self) -> u64 {
+        let mut sum = 0u64;
+        for (word, vector) in &self.vectors {
+            let mut h = Fnv::default();
+            h.str(word);
+            vector.iter().for_each(|v| h.write_u32(v.to_bits()));
+            sum = sum.wrapping_add(h.finish());
+        }
+        let mut h = Fnv::default();
+        h.write_u64(self.dimension as u64);
+        h.write_u64(sum);
+        h.finish()
     }
 }
 

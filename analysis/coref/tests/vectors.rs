@@ -61,6 +61,10 @@ impl WordVectors for FnVectors {
         }
         self.table.iter().find(|(w, _)| *w == word).map(|(_, v)| v.as_slice()).or(self.fallback.as_deref())
     }
+
+    fn config_hash(&self) -> u64 {
+        self.dimension as u64
+    }
 }
 
 #[test]
