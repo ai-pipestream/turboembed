@@ -1867,7 +1867,7 @@ in all five modes against a reference fold, each checked for the
 invariants of the previous section. A unit test in `analysis/normalize/src/case_fold.rs` checks
 the eight-byte ASCII test with each stop byte at each position.
 
-### Accent folding (`analysis/normalize/src/accent_fold.rs`) and the run pass (`analysis/normalize/src/fold_runs.rs`)
+### Accent folding (`analysis/normalize/src/accent_fold/mod.rs`) and the run pass (`analysis/normalize/src/fold_runs.rs`)
 
 `AccentFold` (id `turbo:normalize:accent-fold`) removes accents. It does
 what `AccentFoldCharSequenceNormalizer` does to the whole text: NFD,
