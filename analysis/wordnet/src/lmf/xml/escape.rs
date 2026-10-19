@@ -54,6 +54,7 @@ fn is_ncname_char(ch: char) -> bool {
         || matches!(ch, '-' | '.' | '0'..='9' | '\u{B7}' | '\u{0300}'..='\u{036F}' | '\u{203F}'..='\u{2040}')
 }
 
+/// XML Namespaces 1.0 `NCName` production (`Name` without `:`).
 pub(super) fn is_ncname(s: &str) -> bool {
     let mut chars = s.chars();
     let Some(first) = chars.next() else { return false };
@@ -66,14 +67,12 @@ pub(super) fn split_qname<'a>(
     line: usize,
 ) -> Result<(&'a str, &'a str), WordNetError> {
     if let Some((prefix, local)) = qname.split_once(':') {
-        if !is_ncname(prefix) || !is_ncname(local) {
+        if prefix.is_empty() || local.is_empty() || local.contains(':') {
             return Err(malformed(resource_name, Some(line), format!("Invalid XML QName '{qname}'")));
         }
         Ok((prefix, local))
-    } else if is_ncname(qname) {
-        Ok(("", qname))
     } else {
-        Err(malformed(resource_name, Some(line), format!("Invalid XML QName '{qname}'")))
+        Ok(("", qname))
     }
 }
 
