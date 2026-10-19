@@ -186,6 +186,24 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
                 }
             }
         }
+        // Each node is entered once and completed once, even in a long chain.
+        let mut state = vec![0u8; n];
+        for start in 0..n {
+            let mut at = Some(start);
+            while let Some(i) = at.filter(|&i| state[i] == 0) {
+                state[i] = 1;
+                at = self.head[i].map(Ix::get);
+            }
+            if let Some(i) = at.filter(|&i| state[i] == 1) {
+                return Err(format!("dependency cycle at item {i}"));
+            }
+            let mut at = Some(start);
+            while let Some(i) = at.filter(|&i| state[i] == 1) {
+                state[i] = 2;
+                at = self.head[i].map(Ix::get);
+            }
+        }
+
         Ok(())
     }
 }

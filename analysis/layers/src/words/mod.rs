@@ -364,24 +364,8 @@ impl Layer for Words {
     }
 }
 
-/// Marker trait for the two granularities morphosyntactic layers can
-/// anchor on: surface [`Tokens`] (`OF = None`, keeping the existing layer names
-/// `opennlp:pos`, `opennlp:lemmas`, `opennlp:dependencies`) and syntactic
-/// [`Words`] (`OF = Some(Words::NAME)`, giving `opennlp:pos<turbo:words>`,
-/// `opennlp:lemmas<turbo:words>`, `opennlp:dependencies<turbo:words>`,
-/// `turbo:feats<turbo:words>` so token-based and word-based layers can
-/// coexist on the same [`turbo_analysis::Document`]).
-pub trait WordOrTokenAnchor: Layer {
-    const TARGET_OF: Option<&'static LayerName>;
-}
-
-impl WordOrTokenAnchor for Tokens {
-    const TARGET_OF: Option<&'static LayerName> = None;
-}
-
-impl WordOrTokenAnchor for Words {
-    const TARGET_OF: Option<&'static LayerName> = Some(Words::NAME);
-}
+mod anchor;
+pub use anchor::{MorphPosTags, WordOrTokenAnchor};
 
 /// One part-of-speech tag per syntactic [`Words`] item
 /// (`opennlp:pos<turbo:words>`). Coexists with token-anchored [`crate::PosTags`]

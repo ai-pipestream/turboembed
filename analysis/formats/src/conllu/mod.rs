@@ -413,3 +413,6 @@ fn join<'f, 'a: 'f>(values: impl Iterator<Item = &'f Field<'a>>, line: Span) -> 
 
 #[cfg(test)]
 mod tests;
+
+mod dependency_sample;
+pub use dependency_sample::{ConlluDependencySample, DependencyMultiwordToken};

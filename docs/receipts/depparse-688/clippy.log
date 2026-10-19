@@ -1,0 +1,11 @@
+$ cargo clippy --locked -p turbo-analysis-layers -p turbo-depparse --all-targets -- -D warnings
+    Checking turbo-analysis-layers v0.1.0 ($REPO/analysis/layers)
+    Checking turbo-tokenize-layers v0.1.0 ($REPO/analysis/tokenize-layers)
+    Checking turbo-postag v0.1.0 ($REPO/analysis/postag)
+    Checking turbo-tokenize v0.1.0 ($REPO/analysis/tokenize)
+    Checking turbo-parser v0.1.0 ($REPO/analysis/parser)
+    Checking turbo-formats v0.1.0 ($REPO/analysis/formats)
+    Checking turbo-depparse v0.1.0 ($REPO/analysis/depparse)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.86s
+
+exit=0
