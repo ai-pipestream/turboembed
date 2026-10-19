@@ -127,17 +127,35 @@ impl CorefModel {
 
     /// The probability of `link` given the features, each counting its
     /// value (one when `values` is `None`), as `MaxentModel.eval(context,
-    /// values)` computes it.
+    /// values)` computes it. `Err` when `values` does not give one finite
+    /// value per name, or when the probability is not finite.
     pub fn link_probability(&self, names: &[String], values: Option<&[f32]>) -> Result<f64, String> {
         let mut out = vec![0.0; self.pair.num_outcomes()];
         match values {
             None => {
                 let context: Vec<&str> = names.iter().map(String::as_str).collect();
                 self.pair.eval(&context, &mut out);
+                // The JVM's eval overflows to NaN on large logits; the
+                // real-valued path with every value one normalizes them.
+                if !out.iter().all(|p| p.is_finite()) && self.pair.kind() != ModelKind::NaiveBayes {
+                    self.eval_values(names, &vec![1.0; names.len()], &mut out)?;
+                }
             }
-            Some(values) => self.eval_values(names, values, &mut out)?,
+            Some(values) => {
+                if values.len() != names.len() {
+                    return Err(format!("{} feature values for {} features", values.len(), names.len()));
+                }
+                if let Some(i) = values.iter().position(|v| !v.is_finite()) {
+                    return Err(format!("feature value {i} ({}) is not finite: {}", names[i], values[i]));
+                }
+                self.eval_values(names, values, &mut out)?;
+            }
         }
-        Ok(out[self.link])
+        let p = out[self.link];
+        if !p.is_finite() {
+            return Err(format!("link probability is not finite: {p}"));
+        }
+        Ok(p)
     }
 
     /// The real-valued evaluation of GIS, QN and perceptron models: each
@@ -160,28 +178,47 @@ impl CorefModel {
                 }
             }
         }
+        if let Some(x) = out.iter().find(|x| !x.is_finite()) {
+            return Err(format!("a link logit is not finite: {x}"));
+        }
         match self.pair.kind() {
             ModelKind::Qn => {
-                let max = out.iter().copied().fold(f64::NEG_INFINITY, |m, x| if m < x { x } else { m });
-                let sum: f64 =
-                    out.iter().filter(|&&x| x != f64::NEG_INFINITY).map(|&x| strict_math::exp(x - max)).sum();
+                let max = out.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                let sum: f64 = out.iter().map(|&x| strict_math::exp(x - max)).sum();
                 let lse = max + strict_math::log(sum);
                 out.iter_mut().for_each(|x| *x = strict_math::exp(*x - lse));
             }
             kind => {
-                let divisor = if kind == ModelKind::Perceptron {
-                    out.iter().fold(1.0f64, |m, &x| if m < x.abs() { x.abs() } else { m })
-                } else {
-                    1.0
-                };
-                let mut sum = 0.0;
-                for x in out.iter_mut() {
-                    *x = if divisor == 1.0 { strict_math::exp(*x) } else { strict_math::exp(*x / divisor) };
-                    sum += *x;
+                if kind == ModelKind::Perceptron {
+                    let divisor = out.iter().fold(1.0f64, |m, &x| if m < x.abs() { x.abs() } else { m });
+                    if divisor != 1.0 {
+                        out.iter_mut().for_each(|x| *x /= divisor);
+                    }
                 }
-                out.iter_mut().for_each(|x| *x /= sum);
+                softmax(out);
             }
         }
         Ok(())
     }
+}
+
+/// `exp(x) / sum(exp)` over finite logits as the JVM computes it, and,
+/// where that overflows or underflows to a sum that is not a positive
+/// finite number, with the largest logit subtracted first.
+fn softmax(out: &mut [f64]) {
+    let logits = out.to_vec();
+    let mut sum = 0.0;
+    for (x, &l) in out.iter_mut().zip(&logits) {
+        *x = strict_math::exp(l);
+        sum += *x;
+    }
+    if !(sum.is_finite() && sum > 0.0) {
+        let max = logits.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        sum = 0.0;
+        for (x, &l) in out.iter_mut().zip(&logits) {
+            *x = strict_math::exp(l - max);
+            sum += *x;
+        }
+    }
+    out.iter_mut().for_each(|x| *x /= sum);
 }
