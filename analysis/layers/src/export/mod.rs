@@ -18,7 +18,9 @@ use turbo_analysis::export::{
     Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, get_spans, get_tagset,
     put_spans, put_tagset,
 };
-use turbo_analysis::{Document, Edges, Groups, Ix, IxRange, Key, Layer, ModelRef, Tag, TagSet, View};
+use turbo_analysis::{
+    Alternatives, Document, Edges, Groups, Ix, IxRange, Key, Layer, ModelRef, NBest, Tag, TagSet, View,
+};
 use turbo_unicode::Script;
 
 use crate::categories::{Categories, CategoryScope};
@@ -112,7 +114,16 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Utf16Spans<Sentences>>()
         .register::<Abbreviations>()
         .register::<Edges<Abbreviations, Abbreviations>>()
-        .register::<Groups<Abbreviations>>();
+        .register::<Groups<Abbreviations>>()
+        .register::<Alternatives<Tokens>>()
+        .register::<Alternatives<PosTags>>()
+        .register::<Alternatives<Sentences>>()
+        .register::<Alternatives<Entities>>()
+        .register::<NBest<PosTags>>()
+        .register::<NBest<ChunkTags>>()
+        .register::<NBest<Entities>>()
+        .register::<NBest<Sentences>>()
+        .register::<NBest<Tokens>>();
 }
 
 /// A [`Codecs`] set with the shared layers registered: see

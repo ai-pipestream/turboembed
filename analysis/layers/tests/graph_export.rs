@@ -22,6 +22,8 @@ use turbo_unicode::Script;
 
 const TEXT: &str = "Hello world. Bye now.";
 
+#[path = "graph_export/alternatives.rs"]
+mod alternatives;
 #[path = "graph_export/core_layers.rs"]
 mod core_layers;
 #[path = "graph_export/refusals.rs"]

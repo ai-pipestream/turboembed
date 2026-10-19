@@ -50,6 +50,7 @@ use crate::layer::{Execution, Key, KeyId, Layer, ModelRef, Provenance, Tag, TagS
 use crate::span::{Ix, Span, Spans};
 use crate::text::{Alignment, Edit, ViewId};
 
+mod alternatives;
 mod columns;
 mod context;
 mod decode;
