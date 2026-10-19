@@ -18,7 +18,7 @@ fn a_result_of_another_shape_is_refused() {
 }
 
 /// The core's two refusals of a range write, as the core words them
-/// (session.rs and backend.rs), name the backend and the write the
+/// (core/src/session/ and core/src/backend/), name the backend and the write the
 /// vector steps need; other errors pass through.
 #[test]
 fn a_backend_without_the_range_write_is_named() {
