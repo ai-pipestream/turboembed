@@ -8,6 +8,7 @@ use super::f16_to_f32;
 /// one; up to 128 in eight running sums, combined as a tree, then the
 /// rest one by one; above, the two halves (the first a multiple of 8)
 /// apart.
+#[inline]
 pub(super) fn pairwise_squares(x: &[f32]) -> f32 {
     let n = x.len();
     if n < 8 {
@@ -41,6 +42,7 @@ pub(super) fn pairwise_squares(x: &[f32]) -> f32 {
 /// conversion does, subnormals and overflow included.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2,f16c")]
+#[inline]
 pub(super) unsafe fn round_f16_f16c(x: &mut [f32]) {
     use std::arch::x86_64::*;
     let (chunks, rest) = x.as_chunks_mut::<8>();
@@ -53,6 +55,7 @@ pub(super) unsafe fn round_f16_f16c(x: &mut [f32]) {
     round_f16(rest);
 }
 
+#[inline]
 pub(super) fn round_f16(x: &mut [f32]) {
     for v in x.iter_mut() {
         *v = f16_to_f32(f32_to_f16(*v));
@@ -61,6 +64,7 @@ pub(super) fn round_f16(x: &mut [f32]) {
 
 /// An F32 to the nearest IEEE half, ties to even: infinity past the
 /// largest, subnormals below the smallest normal.
+#[inline]
 pub(super) fn f32_to_f16(v: f32) -> u16 {
     let b = v.to_bits();
     let sign = ((b >> 16) & 0x8000) as u16;

@@ -116,6 +116,7 @@ pub(super) unsafe extern "C" fn session_run(
 
 impl Session {
     /// F32 values the output buffer holds.
+    #[inline]
     pub(super) fn output_len(&self) -> usize {
         self.output.layout.map_or(0, |l| l.size() / 4)
     }

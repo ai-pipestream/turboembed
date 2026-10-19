@@ -137,6 +137,7 @@ impl Panels {
         Ok(Panels { buf, off, n, k, mr, nr })
     }
 
+    #[inline]
     fn panel(&self, p: usize) -> *const f32 {
         self.buf[self.off + p * self.k * self.nr..].as_ptr()
     }

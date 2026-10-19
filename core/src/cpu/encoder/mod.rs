@@ -206,12 +206,14 @@ impl Encoder {
         })
     }
 
+    #[inline]
     fn tensor(&self, i: usize) -> &[f32] {
         let (p, n) = self.tensors[i];
         // SAFETY: a tensor of the model, which outlives the session.
         unsafe { std::slice::from_raw_parts(p, n) }
     }
 
+    #[inline]
     fn layer(&self, l: usize, r: usize) -> &[f32] {
         self.tensor(TURBO_BERT_EMBEDDING_TENSORS as usize + l * TURBO_BERT_LAYER_TENSORS as usize + r)
     }

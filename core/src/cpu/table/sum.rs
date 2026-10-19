@@ -171,6 +171,7 @@ pub(super) fn mean_quantized_from(t: &Table, q: &Quantized, ids: &[u32], dst: &m
 /// widened to F32 and multiplied into its sum with the token's scale.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2,fma")]
+#[inline]
 pub(super) unsafe fn mean_quantized_avx2(t: &Table, q: &Quantized, ids: &[u32], dst: &mut [f32]) {
     use std::arch::x86_64::*;
     let (od, dim) = (dst.len(), t.dim);
@@ -230,6 +231,7 @@ pub(super) fn f16c(isa: Isa) -> bool {
 /// eight at a time: the same sums in the same order, so the same bits.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2,f16c")]
+#[inline]
 pub(super) unsafe fn mean_f16c(t: &Table, ids: &[u32], dst: &mut [f32]) {
     use std::arch::x86_64::*;
     let od = dst.len();
