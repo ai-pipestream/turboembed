@@ -1,0 +1,190 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	tagged/lemmas	1970	1966	74b8417d710f46af435fafff00fa0d0fd176f9c8cc8e9524f362f7f4c290a8d8
+annotator	opennlp.tools.lemmatizer.LemmaSampleEventStream	read
+config	format	text
+config	language	en
+config	run	lemma-text
+config	source	lemmatize
+layer	turbo:events	document	158	outcome:str	context:str	values:str
+O	w0=The t0=DT p_1=bos p_1=bost0=DT p_1=bosw0=The suf=null suf=he suf=The suf=The suf=The suf=The suf=The pre=null pre=Th pre=The pre=The pre=The c	
+O	w0=driver t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=driver suf=null suf=er suf=ver suf=iver suf=river suf=driver suf=driver pre=null pre=dr pre=dri pre=driv pre=drive	
+D3pD1eD0d	w0=stopped t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=stopped suf=null suf=ed suf=ped suf=pped suf=opped suf=topped suf=stopped pre=null pre=st pre=sto pre=stop pre=stopp	
+O	w0=the t0=DT p_1=D3pD1eD0d p_1=D3pD1eD0dt0=DT p_1=D3pD1eD0dw0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=bus t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=bus suf=null suf=us suf=bus suf=bus suf=bus suf=bus suf=bus pre=null pre=bu pre=bus pre=bus pre=bus	
+O	w0=at t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=at suf=null suf=at suf=at suf=at suf=at suf=at suf=at pre=null pre=at pre=at pre=at pre=at	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=station t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=station suf=null suf=on suf=ion suf=tion suf=ation suf=tation suf=station pre=null pre=st pre=sta pre=stat pre=stati	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=Mr. t0=NNP p_1=bos p_1=bost0=NNP p_1=bosw0=Mr. suf=null suf=r. suf=Mr. suf=Mr. suf=Mr. suf=Mr. suf=Mr. pre=null pre=Mr pre=Mr. pre=Mr. pre=Mr. c	
+O	w0=Smith t0=NNP p_1=O p_1=Ot0=NNP p_1=Ow0=Smith suf=null suf=th suf=ith suf=mith suf=Smith suf=Smith suf=Smith pre=null pre=Sm pre=Smi pre=Smit pre=Smith c	
+D0d	w0=arrived t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=arrived suf=null suf=ed suf=ved suf=ived suf=rived suf=rrived suf=arrived pre=null pre=ar pre=arr pre=arri pre=arriv	
+O	w0=in t0=IN p_1=D0d p_1=D0dt0=IN p_1=D0dw0=in suf=null suf=in suf=in suf=in suf=in suf=in suf=in pre=null pre=in pre=in pre=in pre=in	
+O	w0=Paris t0=NNP p_1=O p_1=Ot0=NNP p_1=Ow0=Paris suf=null suf=is suf=ris suf=aris suf=Paris suf=Paris suf=Paris pre=null pre=Pa pre=Par pre=Pari pre=Paris c	
+O	w0=on t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=on suf=null suf=on suf=on suf=on suf=on suf=on suf=on pre=null pre=on pre=on pre=on pre=on	
+O	w0=Monday t0=NNP p_1=O p_1=Ot0=NNP p_1=Ow0=Monday suf=null suf=ay suf=day suf=nday suf=onday suf=Monday suf=Monday pre=null pre=Mo pre=Mon pre=Mond pre=Monda c	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=She t0=PRP p_1=bos p_1=bost0=PRP p_1=bosw0=She suf=null suf=he suf=She suf=She suf=She suf=She suf=She pre=null pre=Sh pre=She pre=She pre=She c	
+D0s	w0=runs t0=VBZ p_1=O p_1=Ot0=VBZ p_1=Ow0=runs suf=null suf=ns suf=uns suf=runs suf=runs suf=runs suf=runs pre=null pre=ru pre=run pre=runs pre=runs	
+O	w0=every t0=DT p_1=D0s p_1=D0st0=DT p_1=D0sw0=every suf=null suf=ry suf=ery suf=very suf=every suf=every suf=every pre=null pre=ev pre=eve pre=ever pre=every	
+O	w0=morning t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=morning suf=null suf=ng suf=ing suf=ning suf=rning suf=orning suf=morning pre=null pre=mo pre=mor pre=morn pre=morni	
+O	w0=before t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=before suf=null suf=re suf=ore suf=fore suf=efore suf=before suf=before pre=null pre=be pre=bef pre=befo pre=befor	
+O	w0=work t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=work suf=null suf=rk suf=ork suf=work suf=work suf=work suf=work pre=null pre=wo pre=wor pre=work pre=work	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=They t0=PRP p_1=bos p_1=bost0=PRP p_1=bosw0=They suf=null suf=ey suf=hey suf=They suf=They suf=They suf=They pre=null pre=Th pre=The pre=They pre=They c	
+O	w0=run t0=VBP p_1=O p_1=Ot0=VBP p_1=Ow0=run suf=null suf=un suf=run suf=run suf=run suf=run suf=run pre=null pre=ru pre=run pre=run pre=run	
+O	w0=a t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=a suf=null suf=a suf=a suf=a suf=a suf=a suf=a pre=null pre=a pre=a pre=a pre=a	
+O	w0=small t0=JJ p_1=O p_1=Ot0=JJ p_1=Ow0=small suf=null suf=ll suf=all suf=mall suf=small suf=small suf=small pre=null pre=sm pre=sma pre=smal pre=small	
+O	w0=shop t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=shop suf=null suf=op suf=hop suf=shop suf=shop suf=shop suf=shop pre=null pre=sh pre=sho pre=shop pre=shop	
+O	w0=near t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=near suf=null suf=ar suf=ear suf=near suf=near suf=near suf=near pre=null pre=ne pre=nea pre=near pre=near	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=river t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=river suf=null suf=er suf=ver suf=iver suf=river suf=river suf=river pre=null pre=ri pre=riv pre=rive pre=river	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=He t0=PRP p_1=bos p_1=bost0=PRP p_1=bosw0=He suf=null suf=He suf=He suf=He suf=He suf=He suf=He pre=null pre=He pre=He pre=He pre=He c	
+R2ea	w0=fell t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=fell suf=null suf=ll suf=ell suf=fell suf=fell suf=fell suf=fell pre=null pre=fe pre=fel pre=fell pre=fell	
+O	w0=and t0=CC p_1=R2ea p_1=R2eat0=CC p_1=R2eaw0=and suf=null suf=nd suf=and suf=and suf=and suf=and suf=and pre=null pre=an pre=and pre=and pre=and	
+R2oeR1kaR0ek	w0=broke t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=broke suf=null suf=ke suf=oke suf=roke suf=broke suf=broke suf=broke pre=null pre=br pre=bro pre=brok pre=broke	
+O	w0=his t0=PRP$ p_1=R2oeR1kaR0ek p_1=R2oeR1kaR0ekt0=PRP$ p_1=R2oeR1kaR0ekw0=his suf=null suf=is suf=his suf=his suf=his suf=his suf=his pre=null pre=hi pre=his pre=his pre=his	
+O	w0=arm t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=arm suf=null suf=rm suf=arm suf=arm suf=arm suf=arm suf=arm pre=null pre=ar pre=arm pre=arm pre=arm	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+D0s	w0=Prices t0=NNS p_1=bos p_1=bost0=NNS p_1=bosw0=Prices suf=null suf=es suf=ces suf=ices suf=rices suf=Prices suf=Prices pre=null pre=Pr pre=Pri pre=Pric pre=Price c	
+O	w0=have t0=VBP p_1=D0s p_1=D0st0=VBP p_1=D0sw0=have suf=null suf=ve suf=ave suf=have suf=have suf=have suf=have pre=null pre=ha pre=hav pre=have pre=have	
+D1eD0n	w0=fallen t0=VBN p_1=O p_1=Ot0=VBN p_1=Ow0=fallen suf=null suf=en suf=len suf=llen suf=allen suf=fallen suf=fallen pre=null pre=fa pre=fal pre=fall pre=falle	
+O	w0=by t0=IN p_1=D1eD0n p_1=D1eD0nt0=IN p_1=D1eD0nw0=by suf=null suf=by suf=by suf=by suf=by suf=by suf=by pre=null pre=by pre=by pre=by pre=by	
+O	w0=12 t0=CD p_1=O p_1=Ot0=CD p_1=Ow0=12 suf=null suf=12 suf=12 suf=12 suf=12 suf=12 suf=12 pre=null pre=12 pre=12 pre=12 pre=12 d	
+O	w0=percent t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=percent suf=null suf=nt suf=ent suf=cent suf=rcent suf=ercent suf=percent pre=null pre=pe pre=per pre=perc pre=perce	
+O	w0=since t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=since suf=null suf=ce suf=nce suf=ince suf=since suf=since suf=since pre=null pre=si pre=sin pre=sinc pre=since	
+O	w0=March t0=NNP p_1=O p_1=Ot0=NNP p_1=Ow0=March suf=null suf=ch suf=rch suf=arch suf=March suf=March suf=March pre=null pre=Ma pre=Mar pre=Marc pre=March c	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=We t0=PRP p_1=bos p_1=bost0=PRP p_1=bosw0=We suf=null suf=We suf=We suf=We suf=We suf=We suf=We pre=null pre=We pre=We pre=We pre=We c	
+O	w0=will t0=MD p_1=O p_1=Ot0=MD p_1=Ow0=will suf=null suf=ll suf=ill suf=will suf=will suf=will suf=will pre=null pre=wi pre=wil pre=will pre=will	
+O	w0=run t0=VB p_1=O p_1=Ot0=VB p_1=Ow0=run suf=null suf=un suf=run suf=run suf=run suf=run suf=run pre=null pre=ru pre=run pre=run pre=run	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=test t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=test suf=null suf=st suf=est suf=test suf=test suf=test suf=test pre=null pre=te pre=tes pre=test pre=test	
+O	w0=again t0=RB p_1=O p_1=Ot0=RB p_1=Ow0=again suf=null suf=in suf=ain suf=gain suf=again suf=again suf=again pre=null pre=ag pre=aga pre=agai pre=again	
+O	w0=tomorrow t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=tomorrow suf=null suf=ow suf=row suf=rrow suf=orrow suf=morrow suf=omorrow pre=null pre=to pre=tom pre=tomo pre=tomor	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=The t0=DT p_1=bos p_1=bost0=DT p_1=bosw0=The suf=null suf=he suf=The suf=The suf=The suf=The suf=The pre=null pre=Th pre=The pre=The pre=The c	
+O	w0=quick t0=JJ p_1=O p_1=Ot0=JJ p_1=Ow0=quick suf=null suf=ck suf=ick suf=uick suf=quick suf=quick suf=quick pre=null pre=qu pre=qui pre=quic pre=quick	
+O	w0=brown t0=JJ p_1=O p_1=Ot0=JJ p_1=Ow0=brown suf=null suf=wn suf=own suf=rown suf=brown suf=brown suf=brown pre=null pre=br pre=bro pre=brow pre=brown	
+O	w0=fox t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=fox suf=null suf=ox suf=fox suf=fox suf=fox suf=fox suf=fox pre=null pre=fo pre=fox pre=fox pre=fox	
+D1eD0d	w0=jumped t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=jumped suf=null suf=ed suf=ped suf=mped suf=umped suf=jumped suf=jumped pre=null pre=ju pre=jum pre=jump pre=jumpe	
+O	w0=over t0=IN p_1=D1eD0d p_1=D1eD0dt0=IN p_1=D1eD0dw0=over suf=null suf=er suf=ver suf=over suf=over suf=over suf=over pre=null pre=ov pre=ove pre=over pre=over	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=lazy t0=JJ p_1=O p_1=Ot0=JJ p_1=Ow0=lazy suf=null suf=zy suf=azy suf=lazy suf=lazy suf=lazy suf=lazy pre=null pre=la pre=laz pre=lazy pre=lazy	
+O	w0=dog t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=dog suf=null suf=og suf=dog suf=dog suf=dog suf=dog suf=dog pre=null pre=do pre=dog pre=dog pre=dog	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=Dr. t0=NNP p_1=bos p_1=bost0=NNP p_1=bosw0=Dr. suf=null suf=r. suf=Dr. suf=Dr. suf=Dr. suf=Dr. suf=Dr. pre=null pre=Dr pre=Dr. pre=Dr. pre=Dr. c	
+O	w0=Brown t0=NNP p_1=O p_1=Ot0=NNP p_1=Ow0=Brown suf=null suf=wn suf=own suf=rown suf=Brown suf=Brown suf=Brown pre=null pre=Br pre=Bro pre=Brow pre=Brown c	
+I2e	w0=met t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=met suf=null suf=et suf=met suf=met suf=met suf=met suf=met pre=null pre=me pre=met pre=met pre=met	
+R1ieD0m	w0=him t0=PRP p_1=I2e p_1=I2et0=PRP p_1=I2ew0=him suf=null suf=im suf=him suf=him suf=him suf=him suf=him pre=null pre=hi pre=him pre=him pre=him	
+O	w0=on t0=IN p_1=R1ieD0m p_1=R1ieD0mt0=IN p_1=R1ieD0mw0=on suf=null suf=on suf=on suf=on suf=on suf=on suf=on pre=null pre=on pre=on pre=on pre=on	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=platform t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=platform suf=null suf=rm suf=orm suf=form suf=tform suf=atform suf=latform pre=null pre=pl pre=pla pre=plat pre=platf	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+R1ioD0d	w0=Did t0=VBD p_1=bos p_1=bost0=VBD p_1=bosw0=Did suf=null suf=id suf=Did suf=Did suf=Did suf=Did suf=Did pre=null pre=Di pre=Did pre=Did pre=Did c	
+O	w0=you t0=PRP p_1=R1ioD0d p_1=R1ioD0dt0=PRP p_1=R1ioD0dw0=you suf=null suf=ou suf=you suf=you suf=you suf=you suf=you pre=null pre=yo pre=you pre=you pre=you	
+O	w0=see t0=VB p_1=O p_1=Ot0=VB p_1=Ow0=see suf=null suf=ee suf=see suf=see suf=see suf=see suf=see pre=null pre=se pre=see pre=see pre=see	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=2024 t0=CD p_1=O p_1=Ot0=CD p_1=Ow0=2024 suf=null suf=24 suf=024 suf=2024 suf=2024 suf=2024 suf=2024 pre=null pre=20 pre=202 pre=2024 pre=2024 d	
+O	w0=report t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=report suf=null suf=rt suf=ort suf=port suf=eport suf=report suf=report pre=null pre=re pre=rep pre=repo pre=repor	
+O	w0=? t0=. p_1=O p_1=Ot0=. p_1=Ow0=? suf=null suf=? suf=? suf=? suf=? suf=? suf=? pre=null pre=? pre=? pre=? pre=?	
+O	w0=The t0=DT p_1=bos p_1=bost0=DT p_1=bosw0=The suf=null suf=he suf=The suf=The suf=The suf=The suf=The pre=null pre=Th pre=The pre=The pre=The c	
+O	w0=fence t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=fence suf=null suf=ce suf=nce suf=ence suf=fence suf=fence suf=fence pre=null pre=fe pre=fen pre=fenc pre=fence	
+R0dvI0e	w0=had t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=had suf=null suf=ad suf=had suf=had suf=had suf=had suf=had pre=null pre=ha pre=had pre=had pre=had	
+D1eD0n	w0=fallen t0=VBN p_1=R0dvI0e p_1=R0dvI0et0=VBN p_1=R0dvI0ew0=fallen suf=null suf=en suf=len suf=llen suf=allen suf=fallen suf=fallen pre=null pre=fa pre=fal pre=fall pre=falle	
+O	w0=during t0=IN p_1=D1eD0n p_1=D1eD0nt0=IN p_1=D1eD0nw0=during suf=null suf=ng suf=ing suf=ring suf=uring suf=during suf=during pre=null pre=du pre=dur pre=duri pre=durin	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=storm t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=storm suf=null suf=rm suf=orm suf=torm suf=storm suf=storm suf=storm pre=null pre=st pre=sto pre=stor pre=storm	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=Old t0=JJ p_1=bos p_1=bost0=JJ p_1=bosw0=Old suf=null suf=ld suf=Old suf=Old suf=Old suf=Old suf=Old pre=null pre=Ol pre=Old pre=Old pre=Old c	
+D0s	w0=trees t0=NNS p_1=O p_1=Ot0=NNS p_1=Ow0=trees suf=null suf=es suf=ees suf=rees suf=trees suf=trees suf=trees pre=null pre=tr pre=tre pre=tree pre=trees	
+R2ea	w0=fell t0=VBD p_1=D0s p_1=D0st0=VBD p_1=D0sw0=fell suf=null suf=ll suf=ell suf=fell suf=fell suf=fell suf=fell pre=null pre=fe pre=fel pre=fell pre=fell	
+O	w0=across t0=IN p_1=R2ea p_1=R2eat0=IN p_1=R2eaw0=across suf=null suf=ss suf=oss suf=ross suf=cross suf=across suf=across pre=null pre=ac pre=acr pre=acro pre=acros	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=road t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=road suf=null suf=ad suf=oad suf=road suf=road suf=road suf=road pre=null pre=ro pre=roa pre=road pre=road	
+O	w0=, t0=, p_1=O p_1=Ot0=, p_1=Ow0=, suf=null suf=, suf=, suf=, suf=, suf=, suf=, pre=null pre=, pre=, pre=, pre=,	
+D2iD1nD0g	w0=blocking t0=VBG p_1=O p_1=Ot0=VBG p_1=Ow0=blocking suf=null suf=ng suf=ing suf=king suf=cking suf=ocking suf=locking pre=null pre=bl pre=blo pre=bloc pre=block	
+O	w0=traffic t0=NN p_1=D2iD1nD0g p_1=D2iD1nD0gt0=NN p_1=D2iD1nD0gw0=traffic suf=null suf=ic suf=fic suf=ffic suf=affic suf=raffic suf=traffic pre=null pre=tr pre=tra pre=traf pre=traff	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=It t0=PRP p_1=bos p_1=bost0=PRP p_1=bosw0=It suf=null suf=It suf=It suf=It suf=It suf=It suf=It pre=null pre=It pre=It pre=It pre=It c	
+R2wbR1aeD0s	w0=was t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=was suf=null suf=as suf=was suf=was suf=was suf=was suf=was pre=null pre=wa pre=was pre=was pre=was	
+O	w0=a t0=DT p_1=R2wbR1aeD0s p_1=R2wbR1aeD0st0=DT p_1=R2wbR1aeD0sw0=a suf=null suf=a suf=a suf=a suf=a suf=a suf=a pre=null pre=a pre=a pre=a pre=a	
+O	w0=long t0=JJ p_1=O p_1=Ot0=JJ p_1=Ow0=long suf=null suf=ng suf=ong suf=long suf=long suf=long suf=long pre=null pre=lo pre=lon pre=long pre=long	
+O	w0=, t0=, p_1=O p_1=Ot0=, p_1=Ow0=, suf=null suf=, suf=, suf=, suf=, suf=, suf=, pre=null pre=, pre=, pre=, pre=,	
+O	w0=cold t0=JJ p_1=O p_1=Ot0=JJ p_1=Ow0=cold suf=null suf=ld suf=old suf=cold suf=cold suf=cold suf=cold pre=null pre=co pre=col pre=cold pre=cold	
+O	w0=winter t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=winter suf=null suf=er suf=ter suf=nter suf=inter suf=winter suf=winter pre=null pre=wi pre=win pre=wint pre=winte	
+O	w0=in t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=in suf=null suf=in suf=in suf=in suf=in suf=in suf=in pre=null pre=in pre=in pre=in pre=in	
+O	w0=Paris t0=NNP p_1=O p_1=Ot0=NNP p_1=Ow0=Paris suf=null suf=is suf=ris suf=aris suf=Paris suf=Paris suf=Paris pre=null pre=Pa pre=Par pre=Pari pre=Paris c	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=Her t0=PRP$ p_1=bos p_1=bost0=PRP$ p_1=bosw0=Her suf=null suf=er suf=Her suf=Her suf=Her suf=Her suf=Her pre=null pre=He pre=Her pre=Her pre=Her c	
+O	w0=run t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=run suf=null suf=un suf=run suf=run suf=run suf=run suf=run pre=null pre=ru pre=run pre=run pre=run	
+O	w0=of t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=of suf=null suf=of suf=of suf=of suf=of suf=of suf=of pre=null pre=of pre=of pre=of pre=of	
+O	w0=good t0=JJ p_1=O p_1=Ot0=JJ p_1=Ow0=good suf=null suf=od suf=ood suf=good suf=good suf=good suf=good pre=null pre=go pre=goo pre=good pre=good	
+O	w0=luck t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=luck suf=null suf=ck suf=uck suf=luck suf=luck suf=luck suf=luck pre=null pre=lu pre=luc pre=luck pre=luck	
+D2dD1e	w0=ended t0=VBD p_1=O p_1=Ot0=VBD p_1=Ow0=ended suf=null suf=ed suf=ded suf=nded suf=ended suf=ended suf=ended pre=null pre=en pre=end pre=ende pre=ended	
+O	w0=on t0=IN p_1=D2dD1e p_1=D2dD1et0=IN p_1=D2dD1ew0=on suf=null suf=on suf=on suf=on suf=on suf=on suf=on pre=null pre=on pre=on pre=on pre=on	
+O	w0=Friday t0=NNP p_1=O p_1=Ot0=NNP p_1=Ow0=Friday suf=null suf=ay suf=day suf=iday suf=riday suf=Friday suf=Friday pre=null pre=Fr pre=Fri pre=Frid pre=Frida c	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=Three t0=CD p_1=bos p_1=bost0=CD p_1=bosw0=Three suf=null suf=ee suf=ree suf=hree suf=Three suf=Three suf=Three pre=null pre=Th pre=Thr pre=Thre pre=Three c	
+D0s	w0=birds t0=NNS p_1=O p_1=Ot0=NNS p_1=Ow0=birds suf=null suf=ds suf=rds suf=irds suf=birds suf=birds suf=birds pre=null pre=bi pre=bir pre=bird pre=birds	
+R1ai	w0=sat t0=VBD p_1=D0s p_1=D0st0=VBD p_1=D0sw0=sat suf=null suf=at suf=sat suf=sat suf=sat suf=sat suf=sat pre=null pre=sa pre=sat pre=sat pre=sat	
+O	w0=on t0=IN p_1=R1ai p_1=R1ait0=IN p_1=R1aiw0=on suf=null suf=on suf=on suf=on suf=on suf=on suf=on pre=null pre=on pre=on pre=on pre=on	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=wire t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=wire suf=null suf=re suf=ire suf=wire suf=wire suf=wire suf=wire pre=null pre=wi pre=wir pre=wire pre=wire	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=I t0=PRP p_1=bos p_1=bost0=PRP p_1=bosw0=I suf=null suf=I suf=I suf=I suf=I suf=I suf=I pre=null pre=I pre=I pre=I pre=I c	
+O	w0=think t0=VBP p_1=O p_1=Ot0=VBP p_1=Ow0=think suf=null suf=nk suf=ink suf=hink suf=think suf=think suf=think pre=null pre=th pre=thi pre=thin pre=think	
+O	w0=that t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=that suf=null suf=at suf=hat suf=that suf=that suf=that suf=that pre=null pre=th pre=tha pre=that pre=that	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+D0s	w0=trains t0=NNS p_1=O p_1=Ot0=NNS p_1=Ow0=trains suf=null suf=ns suf=ins suf=ains suf=rains suf=trains suf=trains pre=null pre=tr pre=tra pre=trai pre=train	
+O	w0=run t0=VBP p_1=D0s p_1=D0st0=VBP p_1=D0sw0=run suf=null suf=un suf=run suf=run suf=run suf=run suf=run pre=null pre=ru pre=run pre=run pre=run	
+O	w0=late t0=RB p_1=O p_1=Ot0=RB p_1=Ow0=late suf=null suf=te suf=ate suf=late suf=late suf=late suf=late pre=null pre=la pre=lat pre=late pre=late	
+O	w0=on t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=on suf=null suf=on suf=on suf=on suf=on suf=on suf=on pre=null pre=on pre=on pre=on pre=on	
+D0s	w0=Sundays t0=NNPS p_1=O p_1=Ot0=NNPS p_1=Ow0=Sundays suf=null suf=ys suf=ays suf=days suf=ndays suf=undays suf=Sundays pre=null pre=Su pre=Sun pre=Sund pre=Sunda c	
+O	w0=. t0=. p_1=D0s p_1=D0st0=. p_1=D0sw0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=Please t0=UH p_1=bos p_1=bost0=UH p_1=bosw0=Please suf=null suf=se suf=ase suf=ease suf=lease suf=Please suf=Please pre=null pre=Pl pre=Ple pre=Plea pre=Pleas c	
+O	w0=do t0=VB p_1=O p_1=Ot0=VB p_1=Ow0=do suf=null suf=do suf=do suf=do suf=do suf=do suf=do pre=null pre=do pre=do pre=do pre=do	
+O	w0=not t0=RB p_1=O p_1=Ot0=RB p_1=Ow0=not suf=null suf=ot suf=not suf=not suf=not suf=not suf=not pre=null pre=no pre=not pre=not pre=not	
+O	w0=run t0=VB p_1=O p_1=Ot0=VB p_1=Ow0=run suf=null suf=un suf=run suf=run suf=run suf=run suf=run pre=null pre=ru pre=run pre=run pre=run	
+O	w0=in t0=IN p_1=O p_1=Ot0=IN p_1=Ow0=in suf=null suf=in suf=in suf=in suf=in suf=in suf=in pre=null pre=in pre=in pre=in pre=in	
+O	w0=the t0=DT p_1=O p_1=Ot0=DT p_1=Ow0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=hall t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=hall suf=null suf=ll suf=all suf=hall suf=hall suf=hall suf=hall pre=null pre=ha pre=hal pre=hall pre=hall	
+O	w0=! t0=. p_1=O p_1=Ot0=. p_1=Ow0=! suf=null suf=! suf=! suf=! suf=! suf=! suf=! pre=null pre=! pre=! pre=! pre=!	
+O	w0=Well-known t0=JJ p_1=bos p_1=bost0=JJ p_1=bosw0=Well-known suf=null suf=wn suf=own suf=nown suf=known suf=-known suf=l-known pre=null pre=We pre=Wel pre=Well pre=Well- h c	
+D0s	w0=writers t0=NNS p_1=O p_1=Ot0=NNS p_1=Ow0=writers suf=null suf=rs suf=ers suf=ters suf=iters suf=riters suf=writers pre=null pre=wr pre=wri pre=writ pre=write	
+D1eD0d	w0=visited t0=VBD p_1=D0s p_1=D0st0=VBD p_1=D0sw0=visited suf=null suf=ed suf=ted suf=ited suf=sited suf=isited suf=visited pre=null pre=vi pre=vis pre=visi pre=visit	
+O	w0=the t0=DT p_1=D1eD0d p_1=D1eD0dt0=DT p_1=D1eD0dw0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=old t0=JJ p_1=O p_1=Ot0=JJ p_1=Ow0=old suf=null suf=ld suf=old suf=old suf=old suf=old suf=old pre=null pre=ol pre=old pre=old pre=old	
+O	w0=library t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=library suf=null suf=ry suf=ary suf=rary suf=brary suf=ibrary suf=library pre=null pre=li pre=lib pre=libr pre=libra	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=The t0=DT p_1=bos p_1=bost0=DT p_1=bosw0=The suf=null suf=he suf=The suf=The suf=The suf=The suf=The pre=null pre=Th pre=The pre=The pre=The c	
+O	w0=end t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=end suf=null suf=nd suf=end suf=end suf=end suf=end suf=end pre=null pre=en pre=end pre=end pre=end	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+D1\\ude00D0\\ud83d	w0=Smile😀 t0=NN p_1=bos p_1=bost0=NN p_1=bosw0=Smile😀 suf=null suf=😀 suf=e😀 suf=le😀 suf=ile😀 suf=mile😀 suf=Smile😀 pre=null pre=Sm pre=Smi pre=Smil pre=Smile c	
+D1\\udc4dD0\\ud83d	w0=ok👍 t0=UH p_1=D1\\ude00D0\\ud83d p_1=D1\\ude00D0\\ud83dt0=UH p_1=D1\\ude00D0\\ud83dw0=ok👍 suf=null suf=👍 suf=k👍 suf=ok👍 suf=ok👍 suf=ok👍 suf=ok👍 pre=null pre=ok pre=ok\\ud83d pre=ok👍 pre=ok👍	
+D1nD0e	w0=done t0=VBN p_1=D1\\udc4dD0\\ud83d p_1=D1\\udc4dD0\\ud83dt0=VBN p_1=D1\\udc4dD0\\ud83dw0=done suf=null suf=ne suf=one suf=done suf=done suf=done suf=done pre=null pre=do pre=don pre=done pre=done	
+O	w0=. t0=. p_1=D1nD0e p_1=D1nD0et0=. p_1=D1nD0ew0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1662216566
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	StatisticalLemmatizer
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.lemmatizer.LemmatizerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	258
+lemmatizer.model	67
+end	turbo:package-entries

@@ -1,0 +1,484 @@
+//! The model card of a trained model, and its entry in the zoo.
+//!
+//! A trained model's directory holds the model file, `card.json` (this
+//! card) and `gate.json` (the gate record, [`ModelGateRecord`]), as the
+//! chunker's evaluation records are kept beside each other under
+//! `analysis/eval/records`. The card says what the model was trained
+//! from and with, its licence and the attribution its data asks for, and
+//! whether it passed its gate. Like the gate record it is strict JSON: every
+//! field is required and an unknown field is an error.
+
+use std::path::Path;
+
+use serde::{Deserialize, Serialize};
+use turbo_eval::model_gate::{ModelGateRecord, TagMapping};
+use turbo_postag::PosTagFormat;
+use turbo_zoo::{Artifact, File, Kind, Licence, LicenceClass, Sha256, Sha512, TrainingData, class_of, index::Format};
+
+use crate::error::{Error, Result};
+use crate::masc::{self, Split};
+use crate::segmentation::{Component, LANGUAGE, SENTENCES_PER_SAMPLE, TIMESTAMP_MS};
+use crate::{Recipe, Trained, postag};
+
+/// The card's schema version: 5, with the held-out counts, the tag
+/// formats and the reference's digest, the documents the split leaves
+/// out, how a tagger's held-out tokens were scored, the parameters of
+/// each recipe, the chunks in no sentence a chunker's reader reads, and
+/// what a name finder's reader counted of the named entities. Version 4
+/// had either the chunks or the names.
+pub const CARD_VERSION: u32 = 5;
+/// The card's file name in the model's directory.
+pub const CARD_FILE: &str = "card.json";
+/// The gate record's file name in the model's directory.
+pub const GATE_FILE: &str = "gate.json";
+/// The trained models' own licence: the repository's.
+pub const MODEL_LICENCE: Licence = Licence::Apache2;
+/// Where the repository states it.
+pub const MODEL_LICENCE_TERMS: &str = "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE";
+/// The version the zoo lists a model under: the recipe's.
+pub const MODEL_VERSION: &str = "1";
+
+/// The model file.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelFileCard {
+    pub name: String,
+    pub size: u64,
+    pub sha256: String,
+    pub sha512: String,
+}
+
+/// The corpus and the split the model was trained and gated on.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CorpusCard {
+    pub name: String,
+    /// [`masc::corpus_digest`] of the directory read.
+    pub corpus_sha256: String,
+    /// Whether that digest is the recorded release's ([`masc::RELEASE`]).
+    /// A model trained on another corpus is not a release.
+    pub release_recorded: bool,
+    pub split: Split,
+    pub training_documents: usize,
+    /// The held-out documents, relative to the corpus directory.
+    pub held_out_documents: Vec<String>,
+    /// Documents left out of both training and the held-out set by an
+    /// exclusion ([`masc::EXCLUSIONS`]), with the exclusion.
+    pub excluded_documents: Vec<masc::ExcludedDocument>,
+}
+
+/// The trainer's parameters, as the parameters file gives them or, for a
+/// name finder, as `NameFinderME.train` puts its defaults into empty
+/// parameters (the trainer's default of one thread).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ParametersCard {
+    pub algorithm: String,
+    pub iterations: i32,
+    pub cutoff: i32,
+    pub threads: i32,
+}
+
+/// What a name finder's reader counted of the named entities of one side
+/// of the split ([`crate::namefind::read_samples`]). `names`,
+/// `overlapping` and `other_types` count an entity once for each sentence
+/// it has a token in; `outside_sentences` and `in_dropped_sentences`
+/// count the entities of the recipe's type in no sentence, once each.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamesCard {
+    /// The documents read: those with a named entity file.
+    pub documents: usize,
+    /// The names of the recipe's type in the samples.
+    pub names: u64,
+    /// Of those, names whose entity's tokens have a gap, kept as the span
+    /// from the first token to one past the last.
+    pub gapped: u64,
+    /// Entities of the recipe's type left out for overlapping a name kept
+    /// before them in `Span.compareTo` order, a repeat of the same tokens
+    /// among them.
+    pub overlapping: u64,
+    /// Entities of other types in the sentences, left out.
+    pub other_types: u64,
+    /// Entities of the recipe's type none of whose tokens is in a region
+    /// of the sentence file, so in no sample
+    /// ([`turbo_formats::masc::Unplaced::OutsideSentences`]).
+    pub outside_sentences: u64,
+    /// Entities of the recipe's type whose tokens are in regions of the
+    /// sentence file the reader drops, so in no sample
+    /// ([`turbo_formats::masc::Unplaced::DroppedSentence`]).
+    pub in_dropped_sentences: u64,
+}
+
+/// The chunks of one side of the split that are in no sentence the
+/// chunker's reader reads, by why ([`crate::chunk::chunk_counts`]), and
+/// the chunks of that side's chunk files. A sentence the reader skips
+/// loses the chunks it holds too; those are not counted here.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChunksCard {
+    /// The noun and verb chunks of the chunk files of the documents read
+    /// with Penn tokens.
+    pub chunks: u64,
+    /// Chunks that name a Penn token no kept sentence has
+    /// (`MascWarning::ChunkOutsideSentences`): MASC's sentence layer does
+    /// not cover all of the text, and a sentence region that does not end
+    /// before the next one starts is dropped, as OpenNLP drops it. The
+    /// other MASC recipes read the same sentences, so the text of these
+    /// chunks is in none of their samples either.
+    pub outside_sentences: u64,
+    /// Chunks whose tokens are all in kept sentences but not all in one
+    /// (`MascWarning::ChunkCrossesSentences`).
+    pub across_sentences: u64,
+    /// Chunks with no edge to a Penn token
+    /// (`MascWarning::ChunkWithoutTokens`).
+    pub without_tokens: u64,
+}
+
+/// What training read and made.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrainingCard {
+    pub parameters: ParametersCard,
+    /// Sentences per sentence detector sample; `null` for the other
+    /// components.
+    pub sentences_per_sample: Option<usize>,
+    /// `legacy` (OpenNLP 2.5.4's `Character.isWhitespace` or `Zs`) for the
+    /// sentence detector and the tokenizer; `null` for the tagger and the
+    /// chunker, which read tokens.
+    pub whitespace: Option<String>,
+    /// The manifest's `Timestamp`.
+    pub timestamp_ms: i64,
+    /// Training uses no randomness, so there is no seed.
+    pub seed: Option<i64>,
+    pub samples: usize,
+    /// Sentences left out of training ([`Trained::skipped_sentences`]).
+    pub skipped_sentences: usize,
+    pub events: usize,
+    pub event_hash: u32,
+    /// For a name finder, what its reader counted of the training
+    /// documents' named entities; `null` for the other components.
+    pub names: Option<NamesCard>,
+    /// For a chunker, the training documents' chunks in no sentence its
+    /// reader reads; `null` for the other components.
+    pub chunks: Option<ChunksCard>,
+}
+
+/// What the gate read from the held-out documents.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeldOutCard {
+    /// The samples scored, a unit of the gate each.
+    pub samples: usize,
+    /// Held-out sentences the recipe's reader skipped, for the reasons it
+    /// skips training sentences ([`TrainingCard::skipped_sentences`]);
+    /// at most [`crate::MAX_SKIPPED_SENTENCES`] of those read.
+    pub skipped_sentences: usize,
+    /// For a tagger, or a UD lemmatizer ([`crate::ud::ReferenceClasses`]),
+    /// how its held-out tokens were scored; `null` for the other
+    /// components.
+    pub tokens: Option<TokenCoverage>,
+    /// For a name finder, what its reader counted of the held-out
+    /// documents' named entities; `null` for the other components.
+    pub names: Option<NamesCard>,
+    /// For a chunker, the held-out documents' chunks in no sentence its
+    /// reader reads; `null` for the other components.
+    pub chunks: Option<ChunksCard>,
+}
+
+/// How a tagger's held-out tokens were scored: over the tokens whose tag
+/// the reference can give, as written or through the mapping of its tags
+/// ([`postag::ReferenceTags`]), the trained model's tag compared with the
+/// held-out tag as written and the reference's through the recipe's
+/// mappings ([`postag::PosRecipe::reference_mappings`]:
+/// [`postag::REFERENCE_MAPPINGS`] for the MASC tagger, none for the UD
+/// taggers). A UD lemmatizer's are scored the same way, with no mapping,
+/// leaving out the tokens whose gold lemma class gives their lemma and no
+/// class of the reference's does ([`crate::ud::ReferenceClasses`]).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TokenCoverage {
+    /// The tokens of the held-out samples.
+    pub tokens: u64,
+    /// The reference's tags counted right for another held-out tag
+    /// ([`postag::PosRecipe::reference_mappings`]).
+    pub reference_mappings: Vec<TagMapping>,
+    /// The tokens left out of both models' scores because the reference
+    /// cannot give their tag (for a lemmatizer, cannot give the lemma their
+    /// gold lemma class gives), by their tag as written, sorted by tag; at most
+    /// the recipe's limit ([`postag::PosRecipe::max_left_out`],
+    /// [`crate::ud::MAX_TOKENS_LEFT_OUT`]) of `tokens`.
+    pub left_out: Vec<TagCount>,
+    /// The reference's most frequent mismatches on the scored tokens, at
+    /// most [`postag::MISMATCHES_LISTED`], most frequent first: where it
+    /// and the held-out data differ by convention or by its tag
+    /// dictionary as much as where it errs. A lemmatizer's are of lemmas.
+    pub reference_mismatches: Vec<Mismatch>,
+}
+
+/// How many scored held-out tokens of a tag a model gave another tag, or
+/// for a lemmatizer, of a lemma another lemma.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Mismatch {
+    /// The held-out tag or lemma, as written.
+    pub held_out: String,
+    /// The tag or lemma the model gave.
+    pub given: String,
+    pub tokens: u64,
+}
+
+/// How many held-out tokens have a tag.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TagCount {
+    pub tag: String,
+    pub tokens: u64,
+}
+
+/// The tags a tagger was scored in, as `POSTaggerME` returns them for a
+/// `POSTagFormat`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TagFormat {
+    /// Universal Dependencies tags: the outcomes of a UD model, or a Penn
+    /// model's converted by `POSTagFormatMapper`.
+    Ud,
+    /// Penn Treebank tags: the outcomes of a Penn model, or a UD model's
+    /// converted by `POSTagFormatMapper`, one Penn tag per UD tag.
+    Penn,
+    /// The model's outcomes as they are (`POSTagFormat.CUSTOM`).
+    Custom,
+}
+
+impl TagFormat {
+    /// The format of a tagger asked for `format`; `None` for
+    /// `PosTagFormat::Unknown`, which no recipe asks for.
+    pub fn of(format: PosTagFormat) -> Option<TagFormat> {
+        match format {
+            PosTagFormat::Ud => Some(TagFormat::Ud),
+            PosTagFormat::Penn => Some(TagFormat::Penn),
+            PosTagFormat::Custom => Some(TagFormat::Custom),
+            PosTagFormat::Unknown => None,
+        }
+    }
+}
+
+/// The gate's outcome; the record itself is [`GATE_FILE`].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GateCard {
+    pub record: String,
+    /// The reference's id and the SHA-256 of its file, as the record
+    /// names them.
+    pub reference: String,
+    pub reference_sha256: String,
+    /// For a tagger, the tags the trained model was scored in; `null`
+    /// for the other components (a chunker is given MASC's Penn tags).
+    pub candidate_tag_format: Option<TagFormat>,
+    /// For a tagger, the tags the reference was scored in; `null` for the
+    /// other components.
+    pub reference_tag_format: Option<TagFormat>,
+    pub candidate_score: f64,
+    pub reference_score: f64,
+    pub difference_low: f64,
+    pub difference_high: f64,
+    pub pass: bool,
+}
+
+impl GateCard {
+    /// The card of the gate `record`, for a tagger with the formats its
+    /// two models' tags were scored in.
+    pub(crate) fn of(
+        record: &ModelGateRecord,
+        candidate_tag_format: Option<TagFormat>,
+        reference_tag_format: Option<TagFormat>,
+    ) -> GateCard {
+        let r = &record.result;
+        GateCard {
+            record: GATE_FILE.to_owned(),
+            reference: record.reference.id.clone(),
+            reference_sha256: record.reference.sha256.clone(),
+            candidate_tag_format,
+            reference_tag_format,
+            candidate_score: r.candidate.score,
+            reference_score: r.reference.score,
+            difference_low: r.difference.low,
+            difference_high: r.difference.high,
+            pass: r.pass,
+        }
+    }
+}
+
+/// The model card.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelCard {
+    pub card_version: u32,
+    pub id: String,
+    pub component: turbo_zoo::Component,
+    pub language: String,
+    pub file: ModelFileCard,
+    pub license: Licence,
+    pub license_terms: String,
+    pub trained_on: Vec<TrainingData>,
+    /// The class of the licence and the training data's licences.
+    pub class: LicenceClass,
+    /// The credit CC BY asks for, to be shipped with the model.
+    pub attribution: String,
+    pub corpus: CorpusCard,
+    pub training: TrainingCard,
+    pub held_out: HeldOutCard,
+    pub gate: GateCard,
+}
+
+impl ModelCard {
+    /// The card of a model `recipe` trained, gated by `gate` on what
+    /// `held_out` describes.
+    pub fn new(
+        recipe: &Recipe,
+        trained: &Trained,
+        corpus: CorpusCard,
+        held_out: HeldOutCard,
+        gate: &ModelGateRecord,
+    ) -> ModelCard {
+        let trained_on = vec![masc::training_data()];
+        let class = class_of(std::iter::once(MODEL_LICENCE).chain(trained_on.iter().map(|t| t.license)));
+        let (sentences_per_sample, whitespace, candidate_tag_format, reference_tag_format) = match recipe {
+            Recipe::Segmentation(s) => (
+                (s.component == Component::Sentence).then_some(SENTENCES_PER_SAMPLE),
+                Some("legacy".to_owned()),
+                None,
+                None,
+            ),
+            Recipe::Pos(p) => (None, None, TagFormat::of(postag::CANDIDATE_FORMAT), TagFormat::of(p.reference_format)),
+            Recipe::Name(_) => (None, None, None, None),
+            Recipe::Chunk(_) => (None, None, None, None),
+        };
+        ModelCard {
+            card_version: CARD_VERSION,
+            id: recipe.model_id().to_owned(),
+            component: recipe.component(),
+            language: LANGUAGE.to_owned(),
+            file: ModelFileCard {
+                name: format!("{}.bin", recipe.model_id()),
+                size: trained.bytes.len() as u64,
+                sha256: Sha256::of(&trained.bytes).to_string(),
+                sha512: Sha512::of(&trained.bytes).to_string(),
+            },
+            license: MODEL_LICENCE,
+            license_terms: MODEL_LICENCE_TERMS.to_owned(),
+            trained_on,
+            class,
+            attribution: masc::ATTRIBUTION.to_owned(),
+            corpus,
+            training: TrainingCard {
+                parameters: recipe.parameters(),
+                sentences_per_sample,
+                whitespace,
+                timestamp_ms: TIMESTAMP_MS,
+                seed: None,
+                samples: trained.samples,
+                skipped_sentences: trained.skipped_sentences,
+                events: trained.events,
+                event_hash: trained.event_hash,
+                names: trained.names.clone(),
+                chunks: trained.chunks.clone(),
+            },
+            held_out,
+            gate: GateCard::of(gate, candidate_tag_format, reference_tag_format),
+        }
+    }
+
+    /// The model's zoo entry once the file is published at `url`.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NotShippable`] when the model may not leave the machine it
+    /// was trained on ([`publishable_class`]), no recipe trains the model,
+    /// the gate was not run against the recipe's reference (its id and
+    /// SHA-256), the gate failed, or the corpus is not the recorded
+    /// release; [`Error::InvalidCard`] for a `class` other than the one
+    /// the licences give, or an address or field the index refuses.
+    pub fn artifact(&self, url: &str) -> Result<Artifact> {
+        let class = class_of(std::iter::once(self.license).chain(self.trained_on.iter().map(|t| t.license)));
+        if class != self.class {
+            return Err(Error::InvalidCard {
+                field: "class",
+                message: format!("{} is not {class}, the class its licences give", self.class),
+            });
+        }
+        publishable_class(&self.id, self.license, &self.trained_on)?;
+        let not = |reason| Error::NotShippable { id: self.id.clone(), reason };
+        let recipe = Recipe::trains(&self.id).ok_or(not("no recipe trains it"))?;
+        let reference = recipe.reference();
+        if self.gate.reference != reference.id() || self.gate.reference_sha256 != reference.sha256()? {
+            return Err(not("it was not gated against its recipe's reference"));
+        }
+        if !self.gate.pass {
+            return Err(not("it failed its gate"));
+        }
+        if !self.corpus.release_recorded || self.trained_on != [masc::training_data()] {
+            return Err(Error::NotShippable {
+                id: self.id.clone(),
+                reason: "it was trained on a corpus that is not the recorded release",
+            });
+        }
+        let bad = |field: &'static str, message: String| Error::InvalidCard { field, message };
+        if self.component != recipe.component() {
+            return Err(bad("component", format!("{} is not {}, its recipe's", self.component, recipe.component())));
+        }
+        if self.language != LANGUAGE {
+            return Err(bad("language", format!("{} is not {LANGUAGE}, its recipe's", self.language)));
+        }
+        Ok(Artifact {
+            id: self.id.parse().map_err(|e| bad("id", e))?,
+            kind: Kind::Model,
+            component: Some(self.component),
+            language: Some(self.language.parse().map_err(|e| bad("language", e))?),
+            format: Format::OpennlpModel,
+            version: MODEL_VERSION.to_owned(),
+            license: self.license,
+            license_terms: self.license_terms.parse().map_err(|e| bad("licence terms", e))?,
+            trained_on: self.trained_on.clone(),
+            class: self.class,
+            origin: None,
+            files: vec![File {
+                path: self.file.name.parse().map_err(|e| bad("file name", e))?,
+                url: url.parse().map_err(|e| bad("url", e))?,
+                size: self.file.size,
+                sha256: self.file.sha256.parse().map_err(|e| bad("sha256", e))?,
+                sha512: self.file.sha512.parse().map_err(|e| bad("sha512", e))?,
+            }],
+        })
+    }
+
+    /// The card as written: pretty JSON with a final newline.
+    pub fn to_json(&self) -> String {
+        let mut s = serde_json::to_string_pretty(self).expect("a card serializes");
+        s.push('\n');
+        s
+    }
+
+    /// Reads a card written by [`write_model_dir`]. Its `card_version` is
+    /// read first, alone, so a card of another schema version is
+    /// [`Error::CardVersion`] whatever fields it has.
+    ///
+    /// # Errors
+    ///
+    /// A file that cannot be read, is not JSON with a `card_version`, is of
+    /// another version, or is not a card of this version.
+    pub fn read(path: &Path) -> Result<ModelCard> {
+        read_card(path, CARD_VERSION)
+    }
+
+    /// The card's [`Summary`].
+    pub fn summary(&self) -> Summary<'_> {
+        Summary::new(&self.id, &self.training, &self.held_out, LeftOutFor::Tag)
+    }
+}
+
+mod summary;
+
+pub use summary::{LeftOutFor, Summary, publishable_class, write_model_dir};
+pub(crate) use summary::{read_card, write_dir};

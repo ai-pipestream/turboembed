@@ -1,0 +1,265 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/chunk-conll2000	677	677	a2280719788685ab8c46745bf0e4aeceaa27ee37c10dce85a50710536b60af03
+annotator	opennlp.tools.chunker.ChunkerME	train
+config	Algorithm	MAXENT
+config	Cutoff	5
+config	Iterations	100
+config	TrainerType	Event
+config	language	en
+config	run	chunker-defaults
+config	source	chunk
+layer	turbo:events	document	54	outcome:str	context:str	values:str
+B-NP	w_2=bos w_1=bos w0=The w1=small w2=bakery w_1=bosw0=The w0=Thew1=small t_2=bos t_1=bos t0=DT t1=JJ t2=NN t_2=bost_1=bos t_1=bost0=DT t0=DTt1=JJ t1=JJt2=NN t_2=bost_1=bost0=DT t_1=bost0=DTt1=JJ t0=DTt1=JJt2=NN p_2=bos p_1=bos p_2=bosp_1=bos p_1=bost_2=bos p_1=bost_1=bos p_1=bost0=DT p_1=bost1=JJ p_1=bost2=NN p_1=bost_2=bost_1=bos p_1=bost_1=bost0=DT p_1=bost0=DTt1=JJ p_1=bost1=JJt2=NN p_1=bost_2=bost_1=bost0=DT p_1=bost_1=bost0=DTt1=JJ p_1=bost0=DTt1=JJt2=NN p_1=bosw_2=bos p_1=bosw_1=bos p_1=bosw0=The p_1=bosw1=small p_1=bosw2=bakery p_1=bosw_1=bosw0=The p_1=bosw0=Thew1=small	
+I-NP	w_2=bos w_1=The w0=small w1=bakery w2=on w_1=Thew0=small w0=smallw1=bakery t_2=bos t_1=DT t0=JJ t1=NN t2=IN t_2=bost_1=DT t_1=DTt0=JJ t0=JJt1=NN t1=NNt2=IN t_2=bost_1=DTt0=JJ t_1=DTt0=JJt1=NN t0=JJt1=NNt2=IN p_2=bos p_1=B-NP p_2=bosp_1=B-NP p_1=B-NPt_2=bos p_1=B-NPt_1=DT p_1=B-NPt0=JJ p_1=B-NPt1=NN p_1=B-NPt2=IN p_1=B-NPt_2=bost_1=DT p_1=B-NPt_1=DTt0=JJ p_1=B-NPt0=JJt1=NN p_1=B-NPt1=NNt2=IN p_1=B-NPt_2=bost_1=DTt0=JJ p_1=B-NPt_1=DTt0=JJt1=NN p_1=B-NPt0=JJt1=NNt2=IN p_1=B-NPw_2=bos p_1=B-NPw_1=The p_1=B-NPw0=small p_1=B-NPw1=bakery p_1=B-NPw2=on p_1=B-NPw_1=Thew0=small p_1=B-NPw0=smallw1=bakery	
+I-NP	w_2=The w_1=small w0=bakery w1=on w2=Elm w_1=smallw0=bakery w0=bakeryw1=on t_2=DT t_1=JJ t0=NN t1=IN t2=NNP t_2=DTt_1=JJ t_1=JJt0=NN t0=NNt1=IN t1=INt2=NNP t_2=DTt_1=JJt0=NN t_1=JJt0=NNt1=IN t0=NNt1=INt2=NNP p_2=B-NP p_1=I-NP p_2=B-NPp_1=I-NP p_1=I-NPt_2=DT p_1=I-NPt_1=JJ p_1=I-NPt0=NN p_1=I-NPt1=IN p_1=I-NPt2=NNP p_1=I-NPt_2=DTt_1=JJ p_1=I-NPt_1=JJt0=NN p_1=I-NPt0=NNt1=IN p_1=I-NPt1=INt2=NNP p_1=I-NPt_2=DTt_1=JJt0=NN p_1=I-NPt_1=JJt0=NNt1=IN p_1=I-NPt0=NNt1=INt2=NNP p_1=I-NPw_2=The p_1=I-NPw_1=small p_1=I-NPw0=bakery p_1=I-NPw1=on p_1=I-NPw2=Elm p_1=I-NPw_1=smallw0=bakery p_1=I-NPw0=bakeryw1=on	
+B-PP	w_2=small w_1=bakery w0=on w1=Elm w2=Street w_1=bakeryw0=on w0=onw1=Elm t_2=JJ t_1=NN t0=IN t1=NNP t2=NNP t_2=JJt_1=NN t_1=NNt0=IN t0=INt1=NNP t1=NNPt2=NNP t_2=JJt_1=NNt0=IN t_1=NNt0=INt1=NNP t0=INt1=NNPt2=NNP p_2=I-NP p_1=I-NP p_2=I-NPp_1=I-NP p_1=I-NPt_2=JJ p_1=I-NPt_1=NN p_1=I-NPt0=IN p_1=I-NPt1=NNP p_1=I-NPt2=NNP p_1=I-NPt_2=JJt_1=NN p_1=I-NPt_1=NNt0=IN p_1=I-NPt0=INt1=NNP p_1=I-NPt1=NNPt2=NNP p_1=I-NPt_2=JJt_1=NNt0=IN p_1=I-NPt_1=NNt0=INt1=NNP p_1=I-NPt0=INt1=NNPt2=NNP p_1=I-NPw_2=small p_1=I-NPw_1=bakery p_1=I-NPw0=on p_1=I-NPw1=Elm p_1=I-NPw2=Street p_1=I-NPw_1=bakeryw0=on p_1=I-NPw0=onw1=Elm	
+B-NP	w_2=bakery w_1=on w0=Elm w1=Street w2=has w_1=onw0=Elm w0=Elmw1=Street t_2=NN t_1=IN t0=NNP t1=NNP t2=VBZ t_2=NNt_1=IN t_1=INt0=NNP t0=NNPt1=NNP t1=NNPt2=VBZ t_2=NNt_1=INt0=NNP t_1=INt0=NNPt1=NNP t0=NNPt1=NNPt2=VBZ p_2=I-NP p_1=B-PP p_2=I-NPp_1=B-PP p_1=B-PPt_2=NN p_1=B-PPt_1=IN p_1=B-PPt0=NNP p_1=B-PPt1=NNP p_1=B-PPt2=VBZ p_1=B-PPt_2=NNt_1=IN p_1=B-PPt_1=INt0=NNP p_1=B-PPt0=NNPt1=NNP p_1=B-PPt1=NNPt2=VBZ p_1=B-PPt_2=NNt_1=INt0=NNP p_1=B-PPt_1=INt0=NNPt1=NNP p_1=B-PPt0=NNPt1=NNPt2=VBZ p_1=B-PPw_2=bakery p_1=B-PPw_1=on p_1=B-PPw0=Elm p_1=B-PPw1=Street p_1=B-PPw2=has p_1=B-PPw_1=onw0=Elm p_1=B-PPw0=Elmw1=Street	
+I-NP	w_2=on w_1=Elm w0=Street w1=has w2=quietly w_1=Elmw0=Street w0=Streetw1=has t_2=IN t_1=NNP t0=NNP t1=VBZ t2=RB t_2=INt_1=NNP t_1=NNPt0=NNP t0=NNPt1=VBZ t1=VBZt2=RB t_2=INt_1=NNPt0=NNP t_1=NNPt0=NNPt1=VBZ t0=NNPt1=VBZt2=RB p_2=B-PP p_1=B-NP p_2=B-PPp_1=B-NP p_1=B-NPt_2=IN p_1=B-NPt_1=NNP p_1=B-NPt0=NNP p_1=B-NPt1=VBZ p_1=B-NPt2=RB p_1=B-NPt_2=INt_1=NNP p_1=B-NPt_1=NNPt0=NNP p_1=B-NPt0=NNPt1=VBZ p_1=B-NPt1=VBZt2=RB p_1=B-NPt_2=INt_1=NNPt0=NNP p_1=B-NPt_1=NNPt0=NNPt1=VBZ p_1=B-NPt0=NNPt1=VBZt2=RB p_1=B-NPw_2=on p_1=B-NPw_1=Elm p_1=B-NPw0=Street p_1=B-NPw1=has p_1=B-NPw2=quietly p_1=B-NPw_1=Elmw0=Street p_1=B-NPw0=Streetw1=has	
+B-VP	w_2=Elm w_1=Street w0=has w1=quietly w2=started w_1=Streetw0=has w0=hasw1=quietly t_2=NNP t_1=NNP t0=VBZ t1=RB t2=VBN t_2=NNPt_1=NNP t_1=NNPt0=VBZ t0=VBZt1=RB t1=RBt2=VBN t_2=NNPt_1=NNPt0=VBZ t_1=NNPt0=VBZt1=RB t0=VBZt1=RBt2=VBN p_2=B-NP p_1=I-NP p_2=B-NPp_1=I-NP p_1=I-NPt_2=NNP p_1=I-NPt_1=NNP p_1=I-NPt0=VBZ p_1=I-NPt1=RB p_1=I-NPt2=VBN p_1=I-NPt_2=NNPt_1=NNP p_1=I-NPt_1=NNPt0=VBZ p_1=I-NPt0=VBZt1=RB p_1=I-NPt1=RBt2=VBN p_1=I-NPt_2=NNPt_1=NNPt0=VBZ p_1=I-NPt_1=NNPt0=VBZt1=RB p_1=I-NPt0=VBZt1=RBt2=VBN p_1=I-NPw_2=Elm p_1=I-NPw_1=Street p_1=I-NPw0=has p_1=I-NPw1=quietly p_1=I-NPw2=started p_1=I-NPw_1=Streetw0=has p_1=I-NPw0=hasw1=quietly	
+I-VP	w_2=Street w_1=has w0=quietly w1=started w2=to w_1=hasw0=quietly w0=quietlyw1=started t_2=NNP t_1=VBZ t0=RB t1=VBN t2=TO t_2=NNPt_1=VBZ t_1=VBZt0=RB t0=RBt1=VBN t1=VBNt2=TO t_2=NNPt_1=VBZt0=RB t_1=VBZt0=RBt1=VBN t0=RBt1=VBNt2=TO p_2=I-NP p_1=B-VP p_2=I-NPp_1=B-VP p_1=B-VPt_2=NNP p_1=B-VPt_1=VBZ p_1=B-VPt0=RB p_1=B-VPt1=VBN p_1=B-VPt2=TO p_1=B-VPt_2=NNPt_1=VBZ p_1=B-VPt_1=VBZt0=RB p_1=B-VPt0=RBt1=VBN p_1=B-VPt1=VBNt2=TO p_1=B-VPt_2=NNPt_1=VBZt0=RB p_1=B-VPt_1=VBZt0=RBt1=VBN p_1=B-VPt0=RBt1=VBNt2=TO p_1=B-VPw_2=Street p_1=B-VPw_1=has p_1=B-VPw0=quietly p_1=B-VPw1=started p_1=B-VPw2=to p_1=B-VPw_1=hasw0=quietly p_1=B-VPw0=quietlyw1=started	
+I-VP	w_2=has w_1=quietly w0=started w1=to w2=sell w_1=quietlyw0=started w0=startedw1=to t_2=VBZ t_1=RB t0=VBN t1=TO t2=VB t_2=VBZt_1=RB t_1=RBt0=VBN t0=VBNt1=TO t1=TOt2=VB t_2=VBZt_1=RBt0=VBN t_1=RBt0=VBNt1=TO t0=VBNt1=TOt2=VB p_2=B-VP p_1=I-VP p_2=B-VPp_1=I-VP p_1=I-VPt_2=VBZ p_1=I-VPt_1=RB p_1=I-VPt0=VBN p_1=I-VPt1=TO p_1=I-VPt2=VB p_1=I-VPt_2=VBZt_1=RB p_1=I-VPt_1=RBt0=VBN p_1=I-VPt0=VBNt1=TO p_1=I-VPt1=TOt2=VB p_1=I-VPt_2=VBZt_1=RBt0=VBN p_1=I-VPt_1=RBt0=VBNt1=TO p_1=I-VPt0=VBNt1=TOt2=VB p_1=I-VPw_2=has p_1=I-VPw_1=quietly p_1=I-VPw0=started p_1=I-VPw1=to p_1=I-VPw2=sell p_1=I-VPw_1=quietlyw0=started p_1=I-VPw0=startedw1=to	
+I-VP	w_2=quietly w_1=started w0=to w1=sell w2=rye w_1=startedw0=to w0=tow1=sell t_2=RB t_1=VBN t0=TO t1=VB t2=NN t_2=RBt_1=VBN t_1=VBNt0=TO t0=TOt1=VB t1=VBt2=NN t_2=RBt_1=VBNt0=TO t_1=VBNt0=TOt1=VB t0=TOt1=VBt2=NN p_2=I-VP p_1=I-VP p_2=I-VPp_1=I-VP p_1=I-VPt_2=RB p_1=I-VPt_1=VBN p_1=I-VPt0=TO p_1=I-VPt1=VB p_1=I-VPt2=NN p_1=I-VPt_2=RBt_1=VBN p_1=I-VPt_1=VBNt0=TO p_1=I-VPt0=TOt1=VB p_1=I-VPt1=VBt2=NN p_1=I-VPt_2=RBt_1=VBNt0=TO p_1=I-VPt_1=VBNt0=TOt1=VB p_1=I-VPt0=TOt1=VBt2=NN p_1=I-VPw_2=quietly p_1=I-VPw_1=started p_1=I-VPw0=to p_1=I-VPw1=sell p_1=I-VPw2=rye p_1=I-VPw_1=startedw0=to p_1=I-VPw0=tow1=sell	
+I-VP	w_2=started w_1=to w0=sell w1=rye w2=bread w_1=tow0=sell w0=sellw1=rye t_2=VBN t_1=TO t0=VB t1=NN t2=NN t_2=VBNt_1=TO t_1=TOt0=VB t0=VBt1=NN t1=NNt2=NN t_2=VBNt_1=TOt0=VB t_1=TOt0=VBt1=NN t0=VBt1=NNt2=NN p_2=I-VP p_1=I-VP p_2=I-VPp_1=I-VP p_1=I-VPt_2=VBN p_1=I-VPt_1=TO p_1=I-VPt0=VB p_1=I-VPt1=NN p_1=I-VPt2=NN p_1=I-VPt_2=VBNt_1=TO p_1=I-VPt_1=TOt0=VB p_1=I-VPt0=VBt1=NN p_1=I-VPt1=NNt2=NN p_1=I-VPt_2=VBNt_1=TOt0=VB p_1=I-VPt_1=TOt0=VBt1=NN p_1=I-VPt0=VBt1=NNt2=NN p_1=I-VPw_2=started p_1=I-VPw_1=to p_1=I-VPw0=sell p_1=I-VPw1=rye p_1=I-VPw2=bread p_1=I-VPw_1=tow0=sell p_1=I-VPw0=sellw1=rye	
+B-NP	w_2=to w_1=sell w0=rye w1=bread w2=because w_1=sellw0=rye w0=ryew1=bread t_2=TO t_1=VB t0=NN t1=NN t2=IN t_2=TOt_1=VB t_1=VBt0=NN t0=NNt1=NN t1=NNt2=IN t_2=TOt_1=VBt0=NN t_1=VBt0=NNt1=NN t0=NNt1=NNt2=IN p_2=I-VP p_1=I-VP p_2=I-VPp_1=I-VP p_1=I-VPt_2=TO p_1=I-VPt_1=VB p_1=I-VPt0=NN p_1=I-VPt1=NN p_1=I-VPt2=IN p_1=I-VPt_2=TOt_1=VB p_1=I-VPt_1=VBt0=NN p_1=I-VPt0=NNt1=NN p_1=I-VPt1=NNt2=IN p_1=I-VPt_2=TOt_1=VBt0=NN p_1=I-VPt_1=VBt0=NNt1=NN p_1=I-VPt0=NNt1=NNt2=IN p_1=I-VPw_2=to p_1=I-VPw_1=sell p_1=I-VPw0=rye p_1=I-VPw1=bread p_1=I-VPw2=because p_1=I-VPw_1=sellw0=rye p_1=I-VPw0=ryew1=bread	
+I-NP	w_2=sell w_1=rye w0=bread w1=because w2=its w_1=ryew0=bread w0=breadw1=because t_2=VB t_1=NN t0=NN t1=IN t2=PRP$ t_2=VBt_1=NN t_1=NNt0=NN t0=NNt1=IN t1=INt2=PRP$ t_2=VBt_1=NNt0=NN t_1=NNt0=NNt1=IN t0=NNt1=INt2=PRP$ p_2=I-VP p_1=B-NP p_2=I-VPp_1=B-NP p_1=B-NPt_2=VB p_1=B-NPt_1=NN p_1=B-NPt0=NN p_1=B-NPt1=IN p_1=B-NPt2=PRP$ p_1=B-NPt_2=VBt_1=NN p_1=B-NPt_1=NNt0=NN p_1=B-NPt0=NNt1=IN p_1=B-NPt1=INt2=PRP$ p_1=B-NPt_2=VBt_1=NNt0=NN p_1=B-NPt_1=NNt0=NNt1=IN p_1=B-NPt0=NNt1=INt2=PRP$ p_1=B-NPw_2=sell p_1=B-NPw_1=rye p_1=B-NPw0=bread p_1=B-NPw1=because p_1=B-NPw2=its p_1=B-NPw_1=ryew0=bread p_1=B-NPw0=breadw1=because	
+B-SBAR	w_2=rye w_1=bread w0=because w1=its w2=owners w_1=breadw0=because w0=becausew1=its t_2=NN t_1=NN t0=IN t1=PRP$ t2=NNS t_2=NNt_1=NN t_1=NNt0=IN t0=INt1=PRP$ t1=PRP$t2=NNS t_2=NNt_1=NNt0=IN t_1=NNt0=INt1=PRP$ t0=INt1=PRP$t2=NNS p_2=B-NP p_1=I-NP p_2=B-NPp_1=I-NP p_1=I-NPt_2=NN p_1=I-NPt_1=NN p_1=I-NPt0=IN p_1=I-NPt1=PRP$ p_1=I-NPt2=NNS p_1=I-NPt_2=NNt_1=NN p_1=I-NPt_1=NNt0=IN p_1=I-NPt0=INt1=PRP$ p_1=I-NPt1=PRP$t2=NNS p_1=I-NPt_2=NNt_1=NNt0=IN p_1=I-NPt_1=NNt0=INt1=PRP$ p_1=I-NPt0=INt1=PRP$t2=NNS p_1=I-NPw_2=rye p_1=I-NPw_1=bread p_1=I-NPw0=because p_1=I-NPw1=its p_1=I-NPw2=owners p_1=I-NPw_1=breadw0=because p_1=I-NPw0=becausew1=its	
+B-NP	w_2=bread w_1=because w0=its w1=owners w2=, w_1=becausew0=its w0=itsw1=owners t_2=NN t_1=IN t0=PRP$ t1=NNS t2=, t_2=NNt_1=IN t_1=INt0=PRP$ t0=PRP$t1=NNS t1=NNSt2=, t_2=NNt_1=INt0=PRP$ t_1=INt0=PRP$t1=NNS t0=PRP$t1=NNSt2=, p_2=I-NP p_1=B-SBAR p_2=I-NPp_1=B-SBAR p_1=B-SBARt_2=NN p_1=B-SBARt_1=IN p_1=B-SBARt0=PRP$ p_1=B-SBARt1=NNS p_1=B-SBARt2=, p_1=B-SBARt_2=NNt_1=IN p_1=B-SBARt_1=INt0=PRP$ p_1=B-SBARt0=PRP$t1=NNS p_1=B-SBARt1=NNSt2=, p_1=B-SBARt_2=NNt_1=INt0=PRP$ p_1=B-SBARt_1=INt0=PRP$t1=NNS p_1=B-SBARt0=PRP$t1=NNSt2=, p_1=B-SBARw_2=bread p_1=B-SBARw_1=because p_1=B-SBARw0=its p_1=B-SBARw1=owners p_1=B-SBARw2=, p_1=B-SBARw_1=becausew0=its p_1=B-SBARw0=itsw1=owners	
+I-NP	w_2=because w_1=its w0=owners w1=, w2=tired w_1=itsw0=owners w0=ownersw1=, t_2=IN t_1=PRP$ t0=NNS t1=, t2=JJ t_2=INt_1=PRP$ t_1=PRP$t0=NNS t0=NNSt1=, t1=,t2=JJ t_2=INt_1=PRP$t0=NNS t_1=PRP$t0=NNSt1=, t0=NNSt1=,t2=JJ p_2=B-SBAR p_1=B-NP p_2=B-SBARp_1=B-NP p_1=B-NPt_2=IN p_1=B-NPt_1=PRP$ p_1=B-NPt0=NNS p_1=B-NPt1=, p_1=B-NPt2=JJ p_1=B-NPt_2=INt_1=PRP$ p_1=B-NPt_1=PRP$t0=NNS p_1=B-NPt0=NNSt1=, p_1=B-NPt1=,t2=JJ p_1=B-NPt_2=INt_1=PRP$t0=NNS p_1=B-NPt_1=PRP$t0=NNSt1=, p_1=B-NPt0=NNSt1=,t2=JJ p_1=B-NPw_2=because p_1=B-NPw_1=its p_1=B-NPw0=owners p_1=B-NPw1=, p_1=B-NPw2=tired p_1=B-NPw_1=itsw0=owners p_1=B-NPw0=ownersw1=,	
+O	w_2=its w_1=owners w0=, w1=tired w2=of w_1=ownersw0=, w0=,w1=tired t_2=PRP$ t_1=NNS t0=, t1=JJ t2=IN t_2=PRP$t_1=NNS t_1=NNSt0=, t0=,t1=JJ t1=JJt2=IN t_2=PRP$t_1=NNSt0=, t_1=NNSt0=,t1=JJ t0=,t1=JJt2=IN p_2=B-NP p_1=I-NP p_2=B-NPp_1=I-NP p_1=I-NPt_2=PRP$ p_1=I-NPt_1=NNS p_1=I-NPt0=, p_1=I-NPt1=JJ p_1=I-NPt2=IN p_1=I-NPt_2=PRP$t_1=NNS p_1=I-NPt_1=NNSt0=, p_1=I-NPt0=,t1=JJ p_1=I-NPt1=JJt2=IN p_1=I-NPt_2=PRP$t_1=NNSt0=, p_1=I-NPt_1=NNSt0=,t1=JJ p_1=I-NPt0=,t1=JJt2=IN p_1=I-NPw_2=its p_1=I-NPw_1=owners p_1=I-NPw0=, p_1=I-NPw1=tired p_1=I-NPw2=of p_1=I-NPw_1=ownersw0=, p_1=I-NPw0=,w1=tired	
+B-ADJP	w_2=owners w_1=, w0=tired w1=of w2=waiting w_1=,w0=tired w0=tiredw1=of t_2=NNS t_1=, t0=JJ t1=IN t2=VBG t_2=NNSt_1=, t_1=,t0=JJ t0=JJt1=IN t1=INt2=VBG t_2=NNSt_1=,t0=JJ t_1=,t0=JJt1=IN t0=JJt1=INt2=VBG p_2=I-NP p_1=O p_2=I-NPp_1=O p_1=Ot_2=NNS p_1=Ot_1=, p_1=Ot0=JJ p_1=Ot1=IN p_1=Ot2=VBG p_1=Ot_2=NNSt_1=, p_1=Ot_1=,t0=JJ p_1=Ot0=JJt1=IN p_1=Ot1=INt2=VBG p_1=Ot_2=NNSt_1=,t0=JJ p_1=Ot_1=,t0=JJt1=IN p_1=Ot0=JJt1=INt2=VBG p_1=Ow_2=owners p_1=Ow_1=, p_1=Ow0=tired p_1=Ow1=of p_1=Ow2=waiting p_1=Ow_1=,w0=tired p_1=Ow0=tiredw1=of	
+B-PP	w_2=, w_1=tired w0=of w1=waiting w2=, w_1=tiredw0=of w0=ofw1=waiting t_2=, t_1=JJ t0=IN t1=VBG t2=, t_2=,t_1=JJ t_1=JJt0=IN t0=INt1=VBG t1=VBGt2=, t_2=,t_1=JJt0=IN t_1=JJt0=INt1=VBG t0=INt1=VBGt2=, p_2=O p_1=B-ADJP p_2=Op_1=B-ADJP p_1=B-ADJPt_2=, p_1=B-ADJPt_1=JJ p_1=B-ADJPt0=IN p_1=B-ADJPt1=VBG p_1=B-ADJPt2=, p_1=B-ADJPt_2=,t_1=JJ p_1=B-ADJPt_1=JJt0=IN p_1=B-ADJPt0=INt1=VBG p_1=B-ADJPt1=VBGt2=, p_1=B-ADJPt_2=,t_1=JJt0=IN p_1=B-ADJPt_1=JJt0=INt1=VBG p_1=B-ADJPt0=INt1=VBGt2=, p_1=B-ADJPw_2=, p_1=B-ADJPw_1=tired p_1=B-ADJPw0=of p_1=B-ADJPw1=waiting p_1=B-ADJPw2=, p_1=B-ADJPw_1=tiredw0=of p_1=B-ADJPw0=ofw1=waiting	
+B-VP	w_2=tired w_1=of w0=waiting w1=, w2=wanted w_1=ofw0=waiting w0=waitingw1=, t_2=JJ t_1=IN t0=VBG t1=, t2=VBD t_2=JJt_1=IN t_1=INt0=VBG t0=VBGt1=, t1=,t2=VBD t_2=JJt_1=INt0=VBG t_1=INt0=VBGt1=, t0=VBGt1=,t2=VBD p_2=B-ADJP p_1=B-PP p_2=B-ADJPp_1=B-PP p_1=B-PPt_2=JJ p_1=B-PPt_1=IN p_1=B-PPt0=VBG p_1=B-PPt1=, p_1=B-PPt2=VBD p_1=B-PPt_2=JJt_1=IN p_1=B-PPt_1=INt0=VBG p_1=B-PPt0=VBGt1=, p_1=B-PPt1=,t2=VBD p_1=B-PPt_2=JJt_1=INt0=VBG p_1=B-PPt_1=INt0=VBGt1=, p_1=B-PPt0=VBGt1=,t2=VBD p_1=B-PPw_2=tired p_1=B-PPw_1=of p_1=B-PPw0=waiting p_1=B-PPw1=, p_1=B-PPw2=wanted p_1=B-PPw_1=ofw0=waiting p_1=B-PPw0=waitingw1=,	
+O	w_2=of w_1=waiting w0=, w1=wanted w2=to w_1=waitingw0=, w0=,w1=wanted t_2=IN t_1=VBG t0=, t1=VBD t2=TO t_2=INt_1=VBG t_1=VBGt0=, t0=,t1=VBD t1=VBDt2=TO t_2=INt_1=VBGt0=, t_1=VBGt0=,t1=VBD t0=,t1=VBDt2=TO p_2=B-PP p_1=B-VP p_2=B-PPp_1=B-VP p_1=B-VPt_2=IN p_1=B-VPt_1=VBG p_1=B-VPt0=, p_1=B-VPt1=VBD p_1=B-VPt2=TO p_1=B-VPt_2=INt_1=VBG p_1=B-VPt_1=VBGt0=, p_1=B-VPt0=,t1=VBD p_1=B-VPt1=VBDt2=TO p_1=B-VPt_2=INt_1=VBGt0=, p_1=B-VPt_1=VBGt0=,t1=VBD p_1=B-VPt0=,t1=VBDt2=TO p_1=B-VPw_2=of p_1=B-VPw_1=waiting p_1=B-VPw0=, p_1=B-VPw1=wanted p_1=B-VPw2=to p_1=B-VPw_1=waitingw0=, p_1=B-VPw0=,w1=wanted	
+B-VP	w_2=waiting w_1=, w0=wanted w1=to w2=try w_1=,w0=wanted w0=wantedw1=to t_2=VBG t_1=, t0=VBD t1=TO t2=VB t_2=VBGt_1=, t_1=,t0=VBD t0=VBDt1=TO t1=TOt2=VB t_2=VBGt_1=,t0=VBD t_1=,t0=VBDt1=TO t0=VBDt1=TOt2=VB p_2=B-VP p_1=O p_2=B-VPp_1=O p_1=Ot_2=VBG p_1=Ot_1=, p_1=Ot0=VBD p_1=Ot1=TO p_1=Ot2=VB p_1=Ot_2=VBGt_1=, p_1=Ot_1=,t0=VBD p_1=Ot0=VBDt1=TO p_1=Ot1=TOt2=VB p_1=Ot_2=VBGt_1=,t0=VBD p_1=Ot_1=,t0=VBDt1=TO p_1=Ot0=VBDt1=TOt2=VB p_1=Ow_2=waiting p_1=Ow_1=, p_1=Ow0=wanted p_1=Ow1=to p_1=Ow2=try p_1=Ow_1=,w0=wanted p_1=Ow0=wantedw1=to	
+I-VP	w_2=, w_1=wanted w0=to w1=try w2=a w_1=wantedw0=to w0=tow1=try t_2=, t_1=VBD t0=TO t1=VB t2=DT t_2=,t_1=VBD t_1=VBDt0=TO t0=TOt1=VB t1=VBt2=DT t_2=,t_1=VBDt0=TO t_1=VBDt0=TOt1=VB t0=TOt1=VBt2=DT p_2=O p_1=B-VP p_2=Op_1=B-VP p_1=B-VPt_2=, p_1=B-VPt_1=VBD p_1=B-VPt0=TO p_1=B-VPt1=VB p_1=B-VPt2=DT p_1=B-VPt_2=,t_1=VBD p_1=B-VPt_1=VBDt0=TO p_1=B-VPt0=TOt1=VB p_1=B-VPt1=VBt2=DT p_1=B-VPt_2=,t_1=VBDt0=TO p_1=B-VPt_1=VBDt0=TOt1=VB p_1=B-VPt0=TOt1=VBt2=DT p_1=B-VPw_2=, p_1=B-VPw_1=wanted p_1=B-VPw0=to p_1=B-VPw1=try p_1=B-VPw2=a p_1=B-VPw_1=wantedw0=to p_1=B-VPw0=tow1=try	
+I-VP	w_2=wanted w_1=to w0=try w1=a w2=new w_1=tow0=try w0=tryw1=a t_2=VBD t_1=TO t0=VB t1=DT t2=JJ t_2=VBDt_1=TO t_1=TOt0=VB t0=VBt1=DT t1=DTt2=JJ t_2=VBDt_1=TOt0=VB t_1=TOt0=VBt1=DT t0=VBt1=DTt2=JJ p_2=B-VP p_1=I-VP p_2=B-VPp_1=I-VP p_1=I-VPt_2=VBD p_1=I-VPt_1=TO p_1=I-VPt0=VB p_1=I-VPt1=DT p_1=I-VPt2=JJ p_1=I-VPt_2=VBDt_1=TO p_1=I-VPt_1=TOt0=VB p_1=I-VPt0=VBt1=DT p_1=I-VPt1=DTt2=JJ p_1=I-VPt_2=VBDt_1=TOt0=VB p_1=I-VPt_1=TOt0=VBt1=DT p_1=I-VPt0=VBt1=DTt2=JJ p_1=I-VPw_2=wanted p_1=I-VPw_1=to p_1=I-VPw0=try p_1=I-VPw1=a p_1=I-VPw2=new p_1=I-VPw_1=tow0=try p_1=I-VPw0=tryw1=a	
+B-NP	w_2=to w_1=try w0=a w1=new w2=recipe w_1=tryw0=a w0=aw1=new t_2=TO t_1=VB t0=DT t1=JJ t2=NN t_2=TOt_1=VB t_1=VBt0=DT t0=DTt1=JJ t1=JJt2=NN t_2=TOt_1=VBt0=DT t_1=VBt0=DTt1=JJ t0=DTt1=JJt2=NN p_2=I-VP p_1=I-VP p_2=I-VPp_1=I-VP p_1=I-VPt_2=TO p_1=I-VPt_1=VB p_1=I-VPt0=DT p_1=I-VPt1=JJ p_1=I-VPt2=NN p_1=I-VPt_2=TOt_1=VB p_1=I-VPt_1=VBt0=DT p_1=I-VPt0=DTt1=JJ p_1=I-VPt1=JJt2=NN p_1=I-VPt_2=TOt_1=VBt0=DT p_1=I-VPt_1=VBt0=DTt1=JJ p_1=I-VPt0=DTt1=JJt2=NN p_1=I-VPw_2=to p_1=I-VPw_1=try p_1=I-VPw0=a p_1=I-VPw1=new p_1=I-VPw2=recipe p_1=I-VPw_1=tryw0=a p_1=I-VPw0=aw1=new	
+I-NP	w_2=try w_1=a w0=new w1=recipe w2=from w_1=aw0=new w0=neww1=recipe t_2=VB t_1=DT t0=JJ t1=NN t2=IN t_2=VBt_1=DT t_1=DTt0=JJ t0=JJt1=NN t1=NNt2=IN t_2=VBt_1=DTt0=JJ t_1=DTt0=JJt1=NN t0=JJt1=NNt2=IN p_2=I-VP p_1=B-NP p_2=I-VPp_1=B-NP p_1=B-NPt_2=VB p_1=B-NPt_1=DT p_1=B-NPt0=JJ p_1=B-NPt1=NN p_1=B-NPt2=IN p_1=B-NPt_2=VBt_1=DT p_1=B-NPt_1=DTt0=JJ p_1=B-NPt0=JJt1=NN p_1=B-NPt1=NNt2=IN p_1=B-NPt_2=VBt_1=DTt0=JJ p_1=B-NPt_1=DTt0=JJt1=NN p_1=B-NPt0=JJt1=NNt2=IN p_1=B-NPw_2=try p_1=B-NPw_1=a p_1=B-NPw0=new p_1=B-NPw1=recipe p_1=B-NPw2=from p_1=B-NPw_1=aw0=new p_1=B-NPw0=neww1=recipe	
+I-NP	w_2=a w_1=new w0=recipe w1=from w2=Ana w_1=neww0=recipe w0=recipew1=from t_2=DT t_1=JJ t0=NN t1=IN t2=NNP t_2=DTt_1=JJ t_1=JJt0=NN t0=NNt1=IN t1=INt2=NNP t_2=DTt_1=JJt0=NN t_1=JJt0=NNt1=IN t0=NNt1=INt2=NNP p_2=B-NP p_1=I-NP p_2=B-NPp_1=I-NP p_1=I-NPt_2=DT p_1=I-NPt_1=JJ p_1=I-NPt0=NN p_1=I-NPt1=IN p_1=I-NPt2=NNP p_1=I-NPt_2=DTt_1=JJ p_1=I-NPt_1=JJt0=NN p_1=I-NPt0=NNt1=IN p_1=I-NPt1=INt2=NNP p_1=I-NPt_2=DTt_1=JJt0=NN p_1=I-NPt_1=JJt0=NNt1=IN p_1=I-NPt0=NNt1=INt2=NNP p_1=I-NPw_2=a p_1=I-NPw_1=new p_1=I-NPw0=recipe p_1=I-NPw1=from p_1=I-NPw2=Ana p_1=I-NPw_1=neww0=recipe p_1=I-NPw0=recipew1=from	
+B-PP	w_2=new w_1=recipe w0=from w1=Ana w2=and w_1=recipew0=from w0=fromw1=Ana t_2=JJ t_1=NN t0=IN t1=NNP t2=CC t_2=JJt_1=NN t_1=NNt0=IN t0=INt1=NNP t1=NNPt2=CC t_2=JJt_1=NNt0=IN t_1=NNt0=INt1=NNP t0=INt1=NNPt2=CC p_2=I-NP p_1=I-NP p_2=I-NPp_1=I-NP p_1=I-NPt_2=JJ p_1=I-NPt_1=NN p_1=I-NPt0=IN p_1=I-NPt1=NNP p_1=I-NPt2=CC p_1=I-NPt_2=JJt_1=NN p_1=I-NPt_1=NNt0=IN p_1=I-NPt0=INt1=NNP p_1=I-NPt1=NNPt2=CC p_1=I-NPt_2=JJt_1=NNt0=IN p_1=I-NPt_1=NNt0=INt1=NNP p_1=I-NPt0=INt1=NNPt2=CC p_1=I-NPw_2=new p_1=I-NPw_1=recipe p_1=I-NPw0=from p_1=I-NPw1=Ana p_1=I-NPw2=and p_1=I-NPw_1=recipew0=from p_1=I-NPw0=fromw1=Ana	
+B-NP	w_2=recipe w_1=from w0=Ana w1=and w2=Lee w_1=fromw0=Ana w0=Anaw1=and t_2=NN t_1=IN t0=NNP t1=CC t2=NNP t_2=NNt_1=IN t_1=INt0=NNP t0=NNPt1=CC t1=CCt2=NNP t_2=NNt_1=INt0=NNP t_1=INt0=NNPt1=CC t0=NNPt1=CCt2=NNP p_2=I-NP p_1=B-PP p_2=I-NPp_1=B-PP p_1=B-PPt_2=NN p_1=B-PPt_1=IN p_1=B-PPt0=NNP p_1=B-PPt1=CC p_1=B-PPt2=NNP p_1=B-PPt_2=NNt_1=IN p_1=B-PPt_1=INt0=NNP p_1=B-PPt0=NNPt1=CC p_1=B-PPt1=CCt2=NNP p_1=B-PPt_2=NNt_1=INt0=NNP p_1=B-PPt_1=INt0=NNPt1=CC p_1=B-PPt0=NNPt1=CCt2=NNP p_1=B-PPw_2=recipe p_1=B-PPw_1=from p_1=B-PPw0=Ana p_1=B-PPw1=and p_1=B-PPw2=Lee p_1=B-PPw_1=fromw0=Ana p_1=B-PPw0=Anaw1=and	
+I-NP	w_2=from w_1=Ana w0=and w1=Lee w2='s w_1=Anaw0=and w0=andw1=Lee t_2=IN t_1=NNP t0=CC t1=NNP t2=POS t_2=INt_1=NNP t_1=NNPt0=CC t0=CCt1=NNP t1=NNPt2=POS t_2=INt_1=NNPt0=CC t_1=NNPt0=CCt1=NNP t0=CCt1=NNPt2=POS p_2=B-PP p_1=B-NP p_2=B-PPp_1=B-NP p_1=B-NPt_2=IN p_1=B-NPt_1=NNP p_1=B-NPt0=CC p_1=B-NPt1=NNP p_1=B-NPt2=POS p_1=B-NPt_2=INt_1=NNP p_1=B-NPt_1=NNPt0=CC p_1=B-NPt0=CCt1=NNP p_1=B-NPt1=NNPt2=POS p_1=B-NPt_2=INt_1=NNPt0=CC p_1=B-NPt_1=NNPt0=CCt1=NNP p_1=B-NPt0=CCt1=NNPt2=POS p_1=B-NPw_2=from p_1=B-NPw_1=Ana p_1=B-NPw0=and p_1=B-NPw1=Lee p_1=B-NPw2='s p_1=B-NPw_1=Anaw0=and p_1=B-NPw0=andw1=Lee	
+I-NP	w_2=Ana w_1=and w0=Lee w1='s w2=old w_1=andw0=Lee w0=Leew1='s t_2=NNP t_1=CC t0=NNP t1=POS t2=JJ t_2=NNPt_1=CC t_1=CCt0=NNP t0=NNPt1=POS t1=POSt2=JJ t_2=NNPt_1=CCt0=NNP t_1=CCt0=NNPt1=POS t0=NNPt1=POSt2=JJ p_2=B-NP p_1=I-NP p_2=B-NPp_1=I-NP p_1=I-NPt_2=NNP p_1=I-NPt_1=CC p_1=I-NPt0=NNP p_1=I-NPt1=POS p_1=I-NPt2=JJ p_1=I-NPt_2=NNPt_1=CC p_1=I-NPt_1=CCt0=NNP p_1=I-NPt0=NNPt1=POS p_1=I-NPt1=POSt2=JJ p_1=I-NPt_2=NNPt_1=CCt0=NNP p_1=I-NPt_1=CCt0=NNPt1=POS p_1=I-NPt0=NNPt1=POSt2=JJ p_1=I-NPw_2=Ana p_1=I-NPw_1=and p_1=I-NPw0=Lee p_1=I-NPw1='s p_1=I-NPw2=old p_1=I-NPw_1=andw0=Lee p_1=I-NPw0=Leew1='s	
+B-NP	w_2=and w_1=Lee w0='s w1=old w2=notebook w_1=Leew0='s w0='sw1=old t_2=CC t_1=NNP t0=POS t1=JJ t2=NN t_2=CCt_1=NNP t_1=NNPt0=POS t0=POSt1=JJ t1=JJt2=NN t_2=CCt_1=NNPt0=POS t_1=NNPt0=POSt1=JJ t0=POSt1=JJt2=NN p_2=I-NP p_1=I-NP p_2=I-NPp_1=I-NP p_1=I-NPt_2=CC p_1=I-NPt_1=NNP p_1=I-NPt0=POS p_1=I-NPt1=JJ p_1=I-NPt2=NN p_1=I-NPt_2=CCt_1=NNP p_1=I-NPt_1=NNPt0=POS p_1=I-NPt0=POSt1=JJ p_1=I-NPt1=JJt2=NN p_1=I-NPt_2=CCt_1=NNPt0=POS p_1=I-NPt_1=NNPt0=POSt1=JJ p_1=I-NPt0=POSt1=JJt2=NN p_1=I-NPw_2=and p_1=I-NPw_1=Lee p_1=I-NPw0='s p_1=I-NPw1=old p_1=I-NPw2=notebook p_1=I-NPw_1=Leew0='s p_1=I-NPw0='sw1=old	
+I-NP	w_2=Lee w_1='s w0=old w1=notebook w2=. w_1='sw0=old w0=oldw1=notebook t_2=NNP t_1=POS t0=JJ t1=NN t2=. t_2=NNPt_1=POS t_1=POSt0=JJ t0=JJt1=NN t1=NNt2=. t_2=NNPt_1=POSt0=JJ t_1=POSt0=JJt1=NN t0=JJt1=NNt2=. p_2=I-NP p_1=B-NP p_2=I-NPp_1=B-NP p_1=B-NPt_2=NNP p_1=B-NPt_1=POS p_1=B-NPt0=JJ p_1=B-NPt1=NN p_1=B-NPt2=. p_1=B-NPt_2=NNPt_1=POS p_1=B-NPt_1=POSt0=JJ p_1=B-NPt0=JJt1=NN p_1=B-NPt1=NNt2=. p_1=B-NPt_2=NNPt_1=POSt0=JJ p_1=B-NPt_1=POSt0=JJt1=NN p_1=B-NPt0=JJt1=NNt2=. p_1=B-NPw_2=Lee p_1=B-NPw_1='s p_1=B-NPw0=old p_1=B-NPw1=notebook p_1=B-NPw2=. p_1=B-NPw_1='sw0=old p_1=B-NPw0=oldw1=notebook	
+I-NP	w_2='s w_1=old w0=notebook w1=. w2=eos w_1=oldw0=notebook w0=notebookw1=. t_2=POS t_1=JJ t0=NN t1=. t2=eos t_2=POSt_1=JJ t_1=JJt0=NN t0=NNt1=. t1=.t2=eos t_2=POSt_1=JJt0=NN t_1=JJt0=NNt1=. t0=NNt1=.t2=eos p_2=B-NP p_1=I-NP p_2=B-NPp_1=I-NP p_1=I-NPt_2=POS p_1=I-NPt_1=JJ p_1=I-NPt0=NN p_1=I-NPt1=. p_1=I-NPt2=eos p_1=I-NPt_2=POSt_1=JJ p_1=I-NPt_1=JJt0=NN p_1=I-NPt0=NNt1=. p_1=I-NPt1=.t2=eos p_1=I-NPt_2=POSt_1=JJt0=NN p_1=I-NPt_1=JJt0=NNt1=. p_1=I-NPt0=NNt1=.t2=eos p_1=I-NPw_2='s p_1=I-NPw_1=old p_1=I-NPw0=notebook p_1=I-NPw1=. p_1=I-NPw2=eos p_1=I-NPw_1=oldw0=notebook p_1=I-NPw0=notebookw1=.	
+O	w_2=old w_1=notebook w0=. w1=eos w2=eos w_1=notebookw0=. w0=.w1=eos t_2=JJ t_1=NN t0=. t1=eos t2=eos t_2=JJt_1=NN t_1=NNt0=. t0=.t1=eos t1=eost2=eos t_2=JJt_1=NNt0=. t_1=NNt0=.t1=eos t0=.t1=eost2=eos p_2=I-NP p_1=I-NP p_2=I-NPp_1=I-NP p_1=I-NPt_2=JJ p_1=I-NPt_1=NN p_1=I-NPt0=. p_1=I-NPt1=eos p_1=I-NPt2=eos p_1=I-NPt_2=JJt_1=NN p_1=I-NPt_1=NNt0=. p_1=I-NPt0=.t1=eos p_1=I-NPt1=eost2=eos p_1=I-NPt_2=JJt_1=NNt0=. p_1=I-NPt_1=NNt0=.t1=eos p_1=I-NPt0=.t1=eost2=eos p_1=I-NPw_2=old p_1=I-NPw_1=notebook p_1=I-NPw0=. p_1=I-NPw1=eos p_1=I-NPw2=eos p_1=I-NPw_1=notebookw0=. p_1=I-NPw0=.w1=eos	
+O	w_2=bos w_1=bos w0=`` w1=We w2=think w_1=bosw0=`` w0=``w1=We t_2=bos t_1=bos t0=`` t1=PRP t2=VBP t_2=bost_1=bos t_1=bost0=`` t0=``t1=PRP t1=PRPt2=VBP t_2=bost_1=bost0=`` t_1=bost0=``t1=PRP t0=``t1=PRPt2=VBP p_2=bos p_1=bos p_2=bosp_1=bos p_1=bost_2=bos p_1=bost_1=bos p_1=bost0=`` p_1=bost1=PRP p_1=bost2=VBP p_1=bost_2=bost_1=bos p_1=bost_1=bost0=`` p_1=bost0=``t1=PRP p_1=bost1=PRPt2=VBP p_1=bost_2=bost_1=bost0=`` p_1=bost_1=bost0=``t1=PRP p_1=bost0=``t1=PRPt2=VBP p_1=bosw_2=bos p_1=bosw_1=bos p_1=bosw0=`` p_1=bosw1=We p_1=bosw2=think p_1=bosw_1=bosw0=`` p_1=bosw0=``w1=We	
+B-NP	w_2=bos w_1=`` w0=We w1=think w2=it w_1=``w0=We w0=Wew1=think t_2=bos t_1=`` t0=PRP t1=VBP t2=PRP t_2=bost_1=`` t_1=``t0=PRP t0=PRPt1=VBP t1=VBPt2=PRP t_2=bost_1=``t0=PRP t_1=``t0=PRPt1=VBP t0=PRPt1=VBPt2=PRP p_2=bos p_1=O p_2=bosp_1=O p_1=Ot_2=bos p_1=Ot_1=`` p_1=Ot0=PRP p_1=Ot1=VBP p_1=Ot2=PRP p_1=Ot_2=bost_1=`` p_1=Ot_1=``t0=PRP p_1=Ot0=PRPt1=VBP p_1=Ot1=VBPt2=PRP p_1=Ot_2=bost_1=``t0=PRP p_1=Ot_1=``t0=PRPt1=VBP p_1=Ot0=PRPt1=VBPt2=PRP p_1=Ow_2=bos p_1=Ow_1=`` p_1=Ow0=We p_1=Ow1=think p_1=Ow2=it p_1=Ow_1=``w0=We p_1=Ow0=Wew1=think	
+B-VP	w_2=`` w_1=We w0=think w1=it w2='s w_1=Wew0=think w0=thinkw1=it t_2=`` t_1=PRP t0=VBP t1=PRP t2=VBZ t_2=``t_1=PRP t_1=PRPt0=VBP t0=VBPt1=PRP t1=PRPt2=VBZ t_2=``t_1=PRPt0=VBP t_1=PRPt0=VBPt1=PRP t0=VBPt1=PRPt2=VBZ p_2=O p_1=B-NP p_2=Op_1=B-NP p_1=B-NPt_2=`` p_1=B-NPt_1=PRP p_1=B-NPt0=VBP p_1=B-NPt1=PRP p_1=B-NPt2=VBZ p_1=B-NPt_2=``t_1=PRP p_1=B-NPt_1=PRPt0=VBP p_1=B-NPt0=VBPt1=PRP p_1=B-NPt1=PRPt2=VBZ p_1=B-NPt_2=``t_1=PRPt0=VBP p_1=B-NPt_1=PRPt0=VBPt1=PRP p_1=B-NPt0=VBPt1=PRPt2=VBZ p_1=B-NPw_2=`` p_1=B-NPw_1=We p_1=B-NPw0=think p_1=B-NPw1=it p_1=B-NPw2='s p_1=B-NPw_1=Wew0=think p_1=B-NPw0=thinkw1=it	
+B-NP	w_2=We w_1=think w0=it w1='s w2=fine w_1=thinkw0=it w0=itw1='s t_2=PRP t_1=VBP t0=PRP t1=VBZ t2=JJ t_2=PRPt_1=VBP t_1=VBPt0=PRP t0=PRPt1=VBZ t1=VBZt2=JJ t_2=PRPt_1=VBPt0=PRP t_1=VBPt0=PRPt1=VBZ t0=PRPt1=VBZt2=JJ p_2=B-NP p_1=B-VP p_2=B-NPp_1=B-VP p_1=B-VPt_2=PRP p_1=B-VPt_1=VBP p_1=B-VPt0=PRP p_1=B-VPt1=VBZ p_1=B-VPt2=JJ p_1=B-VPt_2=PRPt_1=VBP p_1=B-VPt_1=VBPt0=PRP p_1=B-VPt0=PRPt1=VBZ p_1=B-VPt1=VBZt2=JJ p_1=B-VPt_2=PRPt_1=VBPt0=PRP p_1=B-VPt_1=VBPt0=PRPt1=VBZ p_1=B-VPt0=PRPt1=VBZt2=JJ p_1=B-VPw_2=We p_1=B-VPw_1=think p_1=B-VPw0=it p_1=B-VPw1='s p_1=B-VPw2=fine p_1=B-VPw_1=thinkw0=it p_1=B-VPw0=itw1='s	
+B-VP	w_2=think w_1=it w0='s w1=fine w2='' w_1=itw0='s w0='sw1=fine t_2=VBP t_1=PRP t0=VBZ t1=JJ t2='' t_2=VBPt_1=PRP t_1=PRPt0=VBZ t0=VBZt1=JJ t1=JJt2='' t_2=VBPt_1=PRPt0=VBZ t_1=PRPt0=VBZt1=JJ t0=VBZt1=JJt2='' p_2=B-VP p_1=B-NP p_2=B-VPp_1=B-NP p_1=B-NPt_2=VBP p_1=B-NPt_1=PRP p_1=B-NPt0=VBZ p_1=B-NPt1=JJ p_1=B-NPt2='' p_1=B-NPt_2=VBPt_1=PRP p_1=B-NPt_1=PRPt0=VBZ p_1=B-NPt0=VBZt1=JJ p_1=B-NPt1=JJt2='' p_1=B-NPt_2=VBPt_1=PRPt0=VBZ p_1=B-NPt_1=PRPt0=VBZt1=JJ p_1=B-NPt0=VBZt1=JJt2='' p_1=B-NPw_2=think p_1=B-NPw_1=it p_1=B-NPw0='s p_1=B-NPw1=fine p_1=B-NPw2='' p_1=B-NPw_1=itw0='s p_1=B-NPw0='sw1=fine	
+B-ADJP	w_2=it w_1='s w0=fine w1='' w2=, w_1='sw0=fine w0=finew1='' t_2=PRP t_1=VBZ t0=JJ t1='' t2=, t_2=PRPt_1=VBZ t_1=VBZt0=JJ t0=JJt1='' t1=''t2=, t_2=PRPt_1=VBZt0=JJ t_1=VBZt0=JJt1='' t0=JJt1=''t2=, p_2=B-NP p_1=B-VP p_2=B-NPp_1=B-VP p_1=B-VPt_2=PRP p_1=B-VPt_1=VBZ p_1=B-VPt0=JJ p_1=B-VPt1='' p_1=B-VPt2=, p_1=B-VPt_2=PRPt_1=VBZ p_1=B-VPt_1=VBZt0=JJ p_1=B-VPt0=JJt1='' p_1=B-VPt1=''t2=, p_1=B-VPt_2=PRPt_1=VBZt0=JJ p_1=B-VPt_1=VBZt0=JJt1='' p_1=B-VPt0=JJt1=''t2=, p_1=B-VPw_2=it p_1=B-VPw_1='s p_1=B-VPw0=fine p_1=B-VPw1='' p_1=B-VPw2=, p_1=B-VPw_1='sw0=fine p_1=B-VPw0=finew1=''	
+O	w_2='s w_1=fine w0='' w1=, w2=she w_1=finew0='' w0=''w1=, t_2=VBZ t_1=JJ t0='' t1=, t2=PRP t_2=VBZt_1=JJ t_1=JJt0='' t0=''t1=, t1=,t2=PRP t_2=VBZt_1=JJt0='' t_1=JJt0=''t1=, t0=''t1=,t2=PRP p_2=B-VP p_1=B-ADJP p_2=B-VPp_1=B-ADJP p_1=B-ADJPt_2=VBZ p_1=B-ADJPt_1=JJ p_1=B-ADJPt0='' p_1=B-ADJPt1=, p_1=B-ADJPt2=PRP p_1=B-ADJPt_2=VBZt_1=JJ p_1=B-ADJPt_1=JJt0='' p_1=B-ADJPt0=''t1=, p_1=B-ADJPt1=,t2=PRP p_1=B-ADJPt_2=VBZt_1=JJt0='' p_1=B-ADJPt_1=JJt0=''t1=, p_1=B-ADJPt0=''t1=,t2=PRP p_1=B-ADJPw_2='s p_1=B-ADJPw_1=fine p_1=B-ADJPw0='' p_1=B-ADJPw1=, p_1=B-ADJPw2=she p_1=B-ADJPw_1=finew0='' p_1=B-ADJPw0=''w1=,	
+O	w_2=fine w_1='' w0=, w1=she w2=said w_1=''w0=, w0=,w1=she t_2=JJ t_1='' t0=, t1=PRP t2=VBD t_2=JJt_1='' t_1=''t0=, t0=,t1=PRP t1=PRPt2=VBD t_2=JJt_1=''t0=, t_1=''t0=,t1=PRP t0=,t1=PRPt2=VBD p_2=B-ADJP p_1=O p_2=B-ADJPp_1=O p_1=Ot_2=JJ p_1=Ot_1='' p_1=Ot0=, p_1=Ot1=PRP p_1=Ot2=VBD p_1=Ot_2=JJt_1='' p_1=Ot_1=''t0=, p_1=Ot0=,t1=PRP p_1=Ot1=PRPt2=VBD p_1=Ot_2=JJt_1=''t0=, p_1=Ot_1=''t0=,t1=PRP p_1=Ot0=,t1=PRPt2=VBD p_1=Ow_2=fine p_1=Ow_1='' p_1=Ow0=, p_1=Ow1=she p_1=Ow2=said p_1=Ow_1=''w0=, p_1=Ow0=,w1=she	
+B-NP	w_2='' w_1=, w0=she w1=said w2=. w_1=,w0=she w0=shew1=said t_2='' t_1=, t0=PRP t1=VBD t2=. t_2=''t_1=, t_1=,t0=PRP t0=PRPt1=VBD t1=VBDt2=. t_2=''t_1=,t0=PRP t_1=,t0=PRPt1=VBD t0=PRPt1=VBDt2=. p_2=O p_1=O p_2=Op_1=O p_1=Ot_2='' p_1=Ot_1=, p_1=Ot0=PRP p_1=Ot1=VBD p_1=Ot2=. p_1=Ot_2=''t_1=, p_1=Ot_1=,t0=PRP p_1=Ot0=PRPt1=VBD p_1=Ot1=VBDt2=. p_1=Ot_2=''t_1=,t0=PRP p_1=Ot_1=,t0=PRPt1=VBD p_1=Ot0=PRPt1=VBDt2=. p_1=Ow_2='' p_1=Ow_1=, p_1=Ow0=she p_1=Ow1=said p_1=Ow2=. p_1=Ow_1=,w0=she p_1=Ow0=shew1=said	
+B-VP	w_2=, w_1=she w0=said w1=. w2=eos w_1=shew0=said w0=saidw1=. t_2=, t_1=PRP t0=VBD t1=. t2=eos t_2=,t_1=PRP t_1=PRPt0=VBD t0=VBDt1=. t1=.t2=eos t_2=,t_1=PRPt0=VBD t_1=PRPt0=VBDt1=. t0=VBDt1=.t2=eos p_2=O p_1=B-NP p_2=Op_1=B-NP p_1=B-NPt_2=, p_1=B-NPt_1=PRP p_1=B-NPt0=VBD p_1=B-NPt1=. p_1=B-NPt2=eos p_1=B-NPt_2=,t_1=PRP p_1=B-NPt_1=PRPt0=VBD p_1=B-NPt0=VBDt1=. p_1=B-NPt1=.t2=eos p_1=B-NPt_2=,t_1=PRPt0=VBD p_1=B-NPt_1=PRPt0=VBDt1=. p_1=B-NPt0=VBDt1=.t2=eos p_1=B-NPw_2=, p_1=B-NPw_1=she p_1=B-NPw0=said p_1=B-NPw1=. p_1=B-NPw2=eos p_1=B-NPw_1=shew0=said p_1=B-NPw0=saidw1=.	
+O	w_2=she w_1=said w0=. w1=eos w2=eos w_1=saidw0=. w0=.w1=eos t_2=PRP t_1=VBD t0=. t1=eos t2=eos t_2=PRPt_1=VBD t_1=VBDt0=. t0=.t1=eos t1=eost2=eos t_2=PRPt_1=VBDt0=. t_1=VBDt0=.t1=eos t0=.t1=eost2=eos p_2=B-NP p_1=B-VP p_2=B-NPp_1=B-VP p_1=B-VPt_2=PRP p_1=B-VPt_1=VBD p_1=B-VPt0=. p_1=B-VPt1=eos p_1=B-VPt2=eos p_1=B-VPt_2=PRPt_1=VBD p_1=B-VPt_1=VBDt0=. p_1=B-VPt0=.t1=eos p_1=B-VPt1=eost2=eos p_1=B-VPt_2=PRPt_1=VBDt0=. p_1=B-VPt_1=VBDt0=.t1=eos p_1=B-VPt0=.t1=eost2=eos p_1=B-VPw_2=she p_1=B-VPw_1=said p_1=B-VPw0=. p_1=B-VPw1=eos p_1=B-VPw2=eos p_1=B-VPw_1=saidw0=. p_1=B-VPw0=.w1=eos	
+I-NP	w_2=bos w_1=bos w0=Kim w1=said w2=the w_1=bosw0=Kim w0=Kimw1=said t_2=bos t_1=bos t0=NNP t1=VBD t2=DT t_2=bost_1=bos t_1=bost0=NNP t0=NNPt1=VBD t1=VBDt2=DT t_2=bost_1=bost0=NNP t_1=bost0=NNPt1=VBD t0=NNPt1=VBDt2=DT p_2=bos p_1=bos p_2=bosp_1=bos p_1=bost_2=bos p_1=bost_1=bos p_1=bost0=NNP p_1=bost1=VBD p_1=bost2=DT p_1=bost_2=bost_1=bos p_1=bost_1=bost0=NNP p_1=bost0=NNPt1=VBD p_1=bost1=VBDt2=DT p_1=bost_2=bost_1=bost0=NNP p_1=bost_1=bost0=NNPt1=VBD p_1=bost0=NNPt1=VBDt2=DT p_1=bosw_2=bos p_1=bosw_1=bos p_1=bosw0=Kim p_1=bosw1=said p_1=bosw2=the p_1=bosw_1=bosw0=Kim p_1=bosw0=Kimw1=said	
+I-VP	w_2=bos w_1=Kim w0=said w1=the w2=plan w_1=Kimw0=said w0=saidw1=the t_2=bos t_1=NNP t0=VBD t1=DT t2=NN t_2=bost_1=NNP t_1=NNPt0=VBD t0=VBDt1=DT t1=DTt2=NN t_2=bost_1=NNPt0=VBD t_1=NNPt0=VBDt1=DT t0=VBDt1=DTt2=NN p_2=bos p_1=I-NP p_2=bosp_1=I-NP p_1=I-NPt_2=bos p_1=I-NPt_1=NNP p_1=I-NPt0=VBD p_1=I-NPt1=DT p_1=I-NPt2=NN p_1=I-NPt_2=bost_1=NNP p_1=I-NPt_1=NNPt0=VBD p_1=I-NPt0=VBDt1=DT p_1=I-NPt1=DTt2=NN p_1=I-NPt_2=bost_1=NNPt0=VBD p_1=I-NPt_1=NNPt0=VBDt1=DT p_1=I-NPt0=VBDt1=DTt2=NN p_1=I-NPw_2=bos p_1=I-NPw_1=Kim p_1=I-NPw0=said p_1=I-NPw1=the p_1=I-NPw2=plan p_1=I-NPw_1=Kimw0=said p_1=I-NPw0=saidw1=the	
+I-NP	w_2=Kim w_1=said w0=the w1=plan w2=calls w_1=saidw0=the w0=thew1=plan t_2=NNP t_1=VBD t0=DT t1=NN t2=VBZ t_2=NNPt_1=VBD t_1=VBDt0=DT t0=DTt1=NN t1=NNt2=VBZ t_2=NNPt_1=VBDt0=DT t_1=VBDt0=DTt1=NN t0=DTt1=NNt2=VBZ p_2=I-NP p_1=I-VP p_2=I-NPp_1=I-VP p_1=I-VPt_2=NNP p_1=I-VPt_1=VBD p_1=I-VPt0=DT p_1=I-VPt1=NN p_1=I-VPt2=VBZ p_1=I-VPt_2=NNPt_1=VBD p_1=I-VPt_1=VBDt0=DT p_1=I-VPt0=DTt1=NN p_1=I-VPt1=NNt2=VBZ p_1=I-VPt_2=NNPt_1=VBDt0=DT p_1=I-VPt_1=VBDt0=DTt1=NN p_1=I-VPt0=DTt1=NNt2=VBZ p_1=I-VPw_2=Kim p_1=I-VPw_1=said p_1=I-VPw0=the p_1=I-VPw1=plan p_1=I-VPw2=calls p_1=I-VPw_1=saidw0=the p_1=I-VPw0=thew1=plan	
+I-NP	w_2=said w_1=the w0=plan w1=calls w2=for w_1=thew0=plan w0=planw1=calls t_2=VBD t_1=DT t0=NN t1=VBZ t2=IN t_2=VBDt_1=DT t_1=DTt0=NN t0=NNt1=VBZ t1=VBZt2=IN t_2=VBDt_1=DTt0=NN t_1=DTt0=NNt1=VBZ t0=NNt1=VBZt2=IN p_2=I-VP p_1=I-NP p_2=I-VPp_1=I-NP p_1=I-NPt_2=VBD p_1=I-NPt_1=DT p_1=I-NPt0=NN p_1=I-NPt1=VBZ p_1=I-NPt2=IN p_1=I-NPt_2=VBDt_1=DT p_1=I-NPt_1=DTt0=NN p_1=I-NPt0=NNt1=VBZ p_1=I-NPt1=VBZt2=IN p_1=I-NPt_2=VBDt_1=DTt0=NN p_1=I-NPt_1=DTt0=NNt1=VBZ p_1=I-NPt0=NNt1=VBZt2=IN p_1=I-NPw_2=said p_1=I-NPw_1=the p_1=I-NPw0=plan p_1=I-NPw1=calls p_1=I-NPw2=for p_1=I-NPw_1=thew0=plan p_1=I-NPw0=planw1=calls	
+I-VP	w_2=the w_1=plan w0=calls w1=for w2=it w_1=planw0=calls w0=callsw1=for t_2=DT t_1=NN t0=VBZ t1=IN t2=PRP t_2=DTt_1=NN t_1=NNt0=VBZ t0=VBZt1=IN t1=INt2=PRP t_2=DTt_1=NNt0=VBZ t_1=NNt0=VBZt1=IN t0=VBZt1=INt2=PRP p_2=I-NP p_1=I-NP p_2=I-NPp_1=I-NP p_1=I-NPt_2=DT p_1=I-NPt_1=NN p_1=I-NPt0=VBZ p_1=I-NPt1=IN p_1=I-NPt2=PRP p_1=I-NPt_2=DTt_1=NN p_1=I-NPt_1=NNt0=VBZ p_1=I-NPt0=VBZt1=IN p_1=I-NPt1=INt2=PRP p_1=I-NPt_2=DTt_1=NNt0=VBZ p_1=I-NPt_1=NNt0=VBZt1=IN p_1=I-NPt0=VBZt1=INt2=PRP p_1=I-NPw_2=the p_1=I-NPw_1=plan p_1=I-NPw0=calls p_1=I-NPw1=for p_1=I-NPw2=it p_1=I-NPw_1=planw0=calls p_1=I-NPw0=callsw1=for	
+I-SBAR	w_2=plan w_1=calls w0=for w1=it w2=. w_1=callsw0=for w0=forw1=it t_2=NN t_1=VBZ t0=IN t1=PRP t2=. t_2=NNt_1=VBZ t_1=VBZt0=IN t0=INt1=PRP t1=PRPt2=. t_2=NNt_1=VBZt0=IN t_1=VBZt0=INt1=PRP t0=INt1=PRPt2=. p_2=I-NP p_1=I-VP p_2=I-NPp_1=I-VP p_1=I-VPt_2=NN p_1=I-VPt_1=VBZ p_1=I-VPt0=IN p_1=I-VPt1=PRP p_1=I-VPt2=. p_1=I-VPt_2=NNt_1=VBZ p_1=I-VPt_1=VBZt0=IN p_1=I-VPt0=INt1=PRP p_1=I-VPt1=PRPt2=. p_1=I-VPt_2=NNt_1=VBZt0=IN p_1=I-VPt_1=VBZt0=INt1=PRP p_1=I-VPt0=INt1=PRPt2=. p_1=I-VPw_2=plan p_1=I-VPw_1=calls p_1=I-VPw0=for p_1=I-VPw1=it p_1=I-VPw2=. p_1=I-VPw_1=callsw0=for p_1=I-VPw0=forw1=it	
+I-NP	w_2=calls w_1=for w0=it w1=. w2=eos w_1=forw0=it w0=itw1=. t_2=VBZ t_1=IN t0=PRP t1=. t2=eos t_2=VBZt_1=IN t_1=INt0=PRP t0=PRPt1=. t1=.t2=eos t_2=VBZt_1=INt0=PRP t_1=INt0=PRPt1=. t0=PRPt1=.t2=eos p_2=I-VP p_1=I-SBAR p_2=I-VPp_1=I-SBAR p_1=I-SBARt_2=VBZ p_1=I-SBARt_1=IN p_1=I-SBARt0=PRP p_1=I-SBARt1=. p_1=I-SBARt2=eos p_1=I-SBARt_2=VBZt_1=IN p_1=I-SBARt_1=INt0=PRP p_1=I-SBARt0=PRPt1=. p_1=I-SBARt1=.t2=eos p_1=I-SBARt_2=VBZt_1=INt0=PRP p_1=I-SBARt_1=INt0=PRPt1=. p_1=I-SBARt0=PRPt1=.t2=eos p_1=I-SBARw_2=calls p_1=I-SBARw_1=for p_1=I-SBARw0=it p_1=I-SBARw1=. p_1=I-SBARw2=eos p_1=I-SBARw_1=forw0=it p_1=I-SBARw0=itw1=.	
+O	w_2=for w_1=it w0=. w1=eos w2=eos w_1=itw0=. w0=.w1=eos t_2=IN t_1=PRP t0=. t1=eos t2=eos t_2=INt_1=PRP t_1=PRPt0=. t0=.t1=eos t1=eost2=eos t_2=INt_1=PRPt0=. t_1=PRPt0=.t1=eos t0=.t1=eost2=eos p_2=I-SBAR p_1=I-NP p_2=I-SBARp_1=I-NP p_1=I-NPt_2=IN p_1=I-NPt_1=PRP p_1=I-NPt0=. p_1=I-NPt1=eos p_1=I-NPt2=eos p_1=I-NPt_2=INt_1=PRP p_1=I-NPt_1=PRPt0=. p_1=I-NPt0=.t1=eos p_1=I-NPt1=eost2=eos p_1=I-NPt_2=INt_1=PRPt0=. p_1=I-NPt_1=PRPt0=.t1=eos p_1=I-NPt0=.t1=eost2=eos p_1=I-NPw_2=for p_1=I-NPw_1=it p_1=I-NPw0=. p_1=I-NPw1=eos p_1=I-NPw2=eos p_1=I-NPw_1=itw0=. p_1=I-NPw0=.w1=eos	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+877129882
+end	turbo:event-checksum
+layer	turbo:model-entry	document	1	type:str	length:u32	sha256:str
+MAXENT	1693	6af452c9bd1b1304d51f32d595aaee1d7e30dfa0117c057caa45ec4d81b03dd4
+end	turbo:model-entry
+layer	turbo:model-outcomes	document	9	label:str
+B-NP
+I-NP
+B-PP
+B-VP
+I-VP
+B-SBAR
+O
+B-ADJP
+I-SBAR
+end	turbo:model-outcomes
+layer	turbo:model-predicates	document	35	label:str
+p_1=B-NP
+p_1=B-VP
+p_1=I-NP
+p_1=I-NPt_1=NN
+p_1=I-VP
+p_1=O
+p_2=B-NP
+p_2=B-NPp_1=I-NP
+p_2=B-VP
+p_2=I-NP
+p_2=I-NPp_1=I-NP
+p_2=I-VP
+p_2=O
+p_2=bos
+t0=IN
+t0=JJ
+t0=NN
+t0=NNP
+t1=IN
+t1=JJ
+t1=NN
+t2=IN
+t2=NN
+t2=eos
+t_1=IN
+t_1=JJ
+t_1=NN
+t_1=NNP
+t_2=IN
+t_2=JJ
+t_2=NN
+t_2=NNP
+t_2=bos
+w2=eos
+w_2=bos
+end	turbo:model-predicates
+layer	turbo:model-parameters	document	123	predicate:u32	outcome:u32	value:f64
+0	1	4003c3b7568953b0 2.470564533296475
+0	3	4004b8db9a707ce4 2.5902626100138253
+1	0	3ffb50ce624ac6c7 1.7072280730757698
+1	4	400b2fdd9af0b979 3.3983718971932686
+1	6	4003864021dea3b8 2.4405520101613227
+1	7	3ff4241e7daa5dbe 1.2588181408699337
+2	0	c006792021dc68f3 -2.8091433186901837
+2	1	3fe7c1accab8ad28 0.7423919639017287
+2	2	3fcefdd5e235efc8 0.24212144418186043
+2	3	3fcedd5e0cc2a025 0.24113059638080006
+2	4	3ff0002be259097e 1.000041851206873
+2	5	bfc8e281d9c5aafe -0.19441245206265728
+2	6	3fe94ccce2e0156a 0.7906250411185003
+3	2	3ff1e0dae541c2cf 1.117396255049403
+3	4	3ffdd57be1e3981b 1.864620096568166
+3	5	3ffa9f305fb43b91 1.6638644922674966
+3	6	3fe1fc6a47ddac26 0.5620623973494545
+4	0	3ff03896b52fb0a5 1.013815601118986
+4	1	3fce67e9b6740b87 0.2375461712727793
+4	4	40047674bebaaf79 2.557839860984981
+4	8	3ff9a725261cf1ed 1.6033069123069439
+5	0	400bd38b9b540c58 3.4782936224960785
+5	3	3ff857cc62727717 1.521435150679684
+5	6	3ff54e5e05db2961 1.3316326359514152
+5	7	3ff41962b9b6eaa7 1.2561976675485
+6	0	4007c4170b5e8bdb 2.970747078726601
+6	1	3fe96602425304ad 0.7937022490879336
+6	3	3febc1fc84bb8d6b 0.8674299805101503
+6	5	3fec4a788f2845fb 0.884090690235268
+6	6	3fe5973505c327bd 0.6747079002900517
+6	7	3ff7c8fd09dc6ff6 1.486569441337449
+7	1	3ff5ddd29b00bef5 1.3666559271622962
+7	3	4002293912cf64af 2.2701283902684604
+7	5	3fff0011d06a610f 1.9375169888717811
+7	6	3fde6731be905505 0.4750484810804923
+8	3	400aa13e01b75c51 3.328731549652311
+8	4	40077045e87991a3 2.929820839128483
+8	6	40013416e2b692e5 2.150434275814734
+9	0	3ff60ae5fd0b0fec 1.3776607403278787
+9	1	3feb7abe360259b0 0.8587332777849976
+9	2	3fd9520bf5b45e64 0.39563273424707845
+9	4	3fdda6a2e55388ed 0.4632956733240821
+9	6	bfe8ae744ada3360 -0.7712956869087115
+9	7	3fddd54004aa10be 0.4661407514142971
+9	8	3fe6514b3278e70a 0.6974235521113041
+10	0	40065536916f270f 2.791607986645324
+10	2	3ff7fdfa9ace8643 1.499506573404134
+10	4	3fd3ce9f9378f0be 0.3094862880859742
+10	6	3fe2c2f0b51d9687 0.5862964188970218
+11	0	3ff447d2dc510c75 1.2675350767247242
+11	1	400002f0dd35098f 2.0014359742937766
+11	4	3ff682e79284045a 1.4069591258305736
+12	0	4002cfdf3af9525c 2.3514999968850088
+12	2	3ffb714e05d7e122 1.7151622989895903
+12	3	40063b0e87721f59 2.7788363057806404
+12	4	40056a88219d7ccd 2.677017462366712
+13	0	3fed9cd844fcd859 0.9253960940757323
+13	1	3fef549b39d0f1cb 0.9790779237005663
+13	4	3fe5da5d1979ae55 0.6829057214321873
+13	6	3ff3bdb44043a8ce 1.233814478905106
+14	2	4006db6cf145f558 2.8571413850283243
+14	5	3ff5d4c119983009 1.3644419669899455
+14	8	40068b59a3141bd2 2.818042062808197
+15	1	3ff6b9243392fb98 1.420200540029077
+15	7	401040339fbbcd8e 4.062696929776747
+16	0	400cf286e8aa292d 3.6184213807038277
+16	1	4001c2bf2bd9abf4 2.220091192798913
+17	0	3ff5081839e642bc 1.3144762288758747
+17	1	400656c3eea5577f 2.7923658985336597
+18	1	3ffa22fa6ffc3573 1.6335396170064456
+18	4	4003bca5fb0d77e5 2.467113458012124
+18	7	40017c2d4bdcca76 2.185633270907881
+19	0	400ba82e8e6b1f6a 3.4571200491372354
+19	3	3ff67cdd9095eb18 1.4054847381473277
+19	6	4002a30fbbf36b23 2.3296198543224746
+20	0	3fe9a8a8e6316d8a 0.8018383499105977
+20	1	3ffebfe9a7dd947c 1.9218536908386161
+20	4	3fb859d1da20a326 0.09512054038408432
+21	0	3ffab62da42ec8f0 1.6694771207226573
+21	1	3fecee26b4167dc7 0.9040711896267845
+21	6	4007a0635dbc31fa 2.9533145258958458
+22	0	40008f3e5e33637f 2.0699431762154172
+22	4	4004a3241021c7c0 2.579658628493206
+23	1	3ff7bd5e09e59c09 1.483732260379613
+23	3	3fef26a8ab654aa3 0.9734690997668917
+23	6	3fffb7758b54b618 1.9822898333180827
+24	0	4003adc17296b278 2.459841628288185
+24	1	3ff994580d5d2b20 1.5987167856243971
+24	3	4006aa45fcf885a9 2.83314130433492
+25	1	4001bad40ff9a6fb 2.2162247894347025
+25	2	40019e4604929c68 2.20228198597356
+25	6	4006dbb38766e78f 2.85727601797857
+26	1	3fd4ae7a63d1d011 0.32314929721837965
+26	2	3ff03a7cc2871534 1.014279136537266
+26	4	3ff17fc1d5453edf 1.093690713012556
+26	5	3ff74e3807f4a9d5 1.456596404149072
+26	6	3fdba7142f8b6f42 0.43207268374475316
+27	0	3ff71bcb98b701c7 1.4442859616684574
+27	1	3fe7359bddaa09b1 0.7252940492037877
+27	3	3ffdcf3ab653b0ea 1.8630931017060512
+27	4	3ff832fabe73a64e 1.5124461593171818
+28	1	40067945b5e81dda 2.8092149936162345
+28	6	400a4652ba60f642 3.2843374787178456
+29	2	3ff94153e559c3bd 1.578449149990987
+29	3	4002fb5dd9fa9b60 2.372737601242463
+29	6	400d58c8baa9a91a 3.6683516104723255
+30	0	40046fc9f63d6a4d 2.554584430455441
+30	5	3ffc0b2dfa142325 1.752729393834849
+30	8	40022946e98e2080 2.2701547857760147
+31	1	4003b96e06bcd5c7 2.4655418897989168
+31	3	400272b5f9f8b414 2.30601115503533
+31	4	3ff5d02a2ba06c18 1.3633214668432228
+32	0	3fed9cd844fcd859 0.9253960940757323
+32	1	3fef549b39d0f1cb 0.9790779237005663
+32	4	3fe5da5d1979ae55 0.6829057214321873
+32	6	3ff3bdb44043a8ce 1.233814478905106
+33	1	3ff7bd5e09e59c09 1.483732260379613
+33	3	3fef26a8ab654aa3 0.9734690997668917
+33	6	3fffb7758b54b618 1.9822898333180827
+34	0	3fed9cd844fcd859 0.9253960940757323
+34	1	3fef549b39d0f1cb 0.9790779237005663
+34	4	3fe5da5d1979ae55 0.6829057214321873
+34	6	3ff3bdb44043a8ce 1.233814478905106
+end	turbo:model-parameters
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	10
+Component-Name	ChunkerME
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	877129882
+factory	opennlp.tools.chunker.ChunkerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+chunker.model	1693
+manifest.properties	249
+end	turbo:package-entries

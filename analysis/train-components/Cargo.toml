@@ -1,0 +1,54 @@
+[package]
+name = "turbo-train-components"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_train_components"
+
+[dependencies]
+# Events, the trainer, the model writer and the `.bin` packaging.
+turbo-train = { path = "../train" }
+# The sentence and token samples the event streams read.
+turbo-formats = { path = "../formats" }
+# The sentence detector's context generator and end-of-sentence scanner.
+turbo-sentdetect = { path = "../sentdetect" }
+# The tokenizer's context generator, whitespace units and alphanumeric patterns.
+turbo-tokenize = { path = "../tokenize" }
+# The part-of-speech tagger's feature generators built from a descriptor,
+# and the feature buffer the taggers' context generators write into.
+turbo-sequence = { path = "../sequence" }
+# The lemmatizer's context generator and the edit scripts its classes are.
+turbo-lemmatizer = { path = "../lemmatizer" }
+# The language detector's context generator: the n-grams of a text in the
+# JVM's hash map order.
+turbo-langdetect = { path = "../langdetect" }
+# The sentiment detector's context generators and model file names.
+turbo-doccat = { path = "../doccat" }
+# The abbreviation dictionary the context generators look up, dictionary
+# XML, and the published model files the reproduction is compared with.
+turbo-maxent = { path = "../maxent" }
+# UTF-16 cursors and Java's case mapping.
+turbo-unicode = { path = "../unicode" }
+# UTF-16 lengths and `String.compareTo`.
+turbo-jvm = { path = "../jvm" }
+# The treebanks the published models were trained on, fetched by digest
+# after the user accepts their licence.
+turbo-zoo = { path = "../zoo" }
+# The constituency parse trees, head rules, context generators and model
+# reader the parsers' event streams, trainers and evaluator use.
+turbo-parser = { path = "../parser" }
+# `Span`, which the part-of-speech samples made of parse trees carry and
+# the tests build samples with; the analyzer the sentiment detector runs in.
+turbo-analysis = { path = "../core" }
+
+[dev-dependencies]
+# The tokens and categories layers of the sentiment goldens.
+turbo-analysis-layers = { path = "../layers" }
+# The JVM's events over the golden inputs, which the event streams are
+# compared with, and the fixture models.
+turbo-goldens = { path = "../goldens" }
+# Opens the chunker models trained here as the chunker opens them.
+turbo-phrase-chunker = { path = "../phrase-chunker" }

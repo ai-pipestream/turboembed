@@ -1,0 +1,4 @@
+6 S 1 V[MA]+IP.* GRUP\.VERB SN? F[^a-o]
+4 GRUP.A 0 ^RG$ AQ.*
+4 INFINITIU 0 \\.* \\$
+3 X 0 [-M]

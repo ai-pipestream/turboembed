@@ -1,0 +1,1 @@
+Values of 1e3 kg and 1.5e-3 m are rejected, 1.5 m is not.

@@ -1,0 +1,26 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/it	197	194	b62b80bfc802d2090eb6659bc69dda051e07499cd9c8ac88a7cbe182c464f283
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	StepSizeDecrease	0.05
+config	Tolerance	0.01
+config	UseAverage	false
+config	UseSkippedAveraging	false
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	4	outcome:str	context:str	values:str
+n	sn eos=. x=Liguria 7 xcap v=in s= n=Il ncap	
+n	sn eos=. x=bellissimo 10 v=è s= n=Mia ncap	
+n	sn eos=. x=pranzo 6 v=il s= n=Perché ncap	
+s	sn eos=? x=quest'anno 10 v=tu s= n=	
+end	turbo:events
+layer	turbo:indexer-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Insufficient training data to create model.
+end	turbo:indexer-error

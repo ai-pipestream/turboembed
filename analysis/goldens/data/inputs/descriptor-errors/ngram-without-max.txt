@@ -1,0 +1,1 @@
+<featureGenerators><generator class="opennlp.tools.util.featuregen.CharacterNgramFeatureGeneratorFactory"><int name="min">2</int></generator></featureGenerators>

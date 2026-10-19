@@ -1,0 +1,34 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-unpenned	2989	2989	6942f4f6f09764acce64b0c9c802b2ba3d7033859096436f7af31f886730badc
+annotator	opennlp.tools.formats.masc.MascSentenceSampleStream	read
+config	sentencesPerSample	2
+layer	turbo:samples	document	4	pass:u32	written:str
+0	No tags here.\nNone at all.\n
+0	Still plain.\n
+1	No tags here.\nNone at all.\n
+1	Still plain.\n
+end	turbo:samples
+layer	turbo:read-errors	document	2	pass:u32	after:u32	class:str	message:str
+0	2	java.lang.NullPointerException	Cannot invoke "opennlp.tools.formats.masc.MascDocument.read()" because "this.buffer" is null
+1	4	java.lang.NullPointerException	Cannot invoke "opennlp.tools.formats.masc.MascDocument.read()" because "this.buffer" is null
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-texts	document	4	text:str
+No tags here. None at all.
+\nStill plain.
+No tags here. None at all.
+\nStill plain.
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	6	sample:u32	start:u32	end:u32
+0	0	13
+0	14	26
+1	1	13
+2	0	13
+2	14	26
+3	1	13
+end	turbo:sample-spans

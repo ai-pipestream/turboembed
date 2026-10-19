@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	money/notation-eu-decimal-comma	58	54	46b0bcc360fc171815d4cc4e82135366665772c04e0ff7e8fe30ba4946e48311
+annotator	opennlp.tools.money.CursorMoneyExtractor	extract
+config	notation	LATIN_US
+layer	turbo:money	text	0	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+end	turbo:money

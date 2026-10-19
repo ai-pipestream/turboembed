@@ -1,0 +1,8 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	descriptor-errors/str-of-wrong-type	165	165	2634fde36b5176f3ef4d9ae1578b9c9caa73cc141208175ff1533a9c23db6292
+annotator	opennlp.tools.util.featuregen.GeneratorFactory	create
+error	opennlp.tools.util.InvalidFormatException	parameter dict must be double!

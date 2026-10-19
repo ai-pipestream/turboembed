@@ -1,0 +1,83 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/abbreviations	323	323	daae94d6ca8153be16e834da072d9f05a8437508fe55f4102378d0cfaae36036
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Dr. Alvarez moved to the U.S. in 1998 and opened a clinic on St. Mark's Place. She worked there with Mr. Chen until Jan. 2004, when closed. Prof. Okafor, Ph.D., later wrote that health system "was not ready for her ideas." It is now run by nonprofit, i.e. charity, sees about 40 patients day.	1.0 1.0 1.0 1.0 3.0 2.0 1.0 1.0 2.0 1.0 4.0 2.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+116257743
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	54	label:str	count:u32
+"was	1
+1998	1
+2004,	1
+40	1
+Alvarez	1
+Chen	1
+Dr.	1
+It	1
+Jan.	1
+Mark's	1
+Mr.	1
+Okafor,	1
+Ph.D.,	1
+Place.	1
+Prof.	1
+She	1
+St.	1
+U.S.	1
+a	1
+about	1
+and	1
+by	1
+charity,	1
+clinic	1
+closed.	1
+day.	1
+for	1
+health	1
+her	1
+i.e.	1
+ideas."	1
+in	1
+is	1
+later	1
+moved	1
+nonprofit,	1
+not	1
+now	1
+on	1
+opened	1
+patients	1
+ready	1
+run	1
+sees	1
+system	1
+that	1
+the	1
+there	1
+to	1
+until	1
+when	1
+with	1
+worked	1
+wrote	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	6 4 34 48 46 17 31 1 20 39 18 23 38 16 9 13 15 52 47 51 10 5 49 8 2 50 24 14 11 12 33 53 45 27 44 0 36 41 26 28 30 7 32 37 42 21 35 29 22 43 19 3 40 25		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

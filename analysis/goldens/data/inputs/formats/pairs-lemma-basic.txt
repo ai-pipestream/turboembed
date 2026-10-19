@@ -1,0 +1,23 @@
+The	DT	the
+dogs	NNS	dog
+
+The	DT	the
+dogs	NNS	dogs
+
+is	VBZ	be
+
+is	VBZ	be
+
+a	X	a
+b	X	b
+
+a	X	a
+
+a	X	a
+
+a	X	a
+b	X	b
+
+c	X	c
+
+z	Y	c

@@ -1,0 +1,51 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/numbers	75	39	a2e8020cbab4617aef9d557995b90a86870e7c9758368314122ba56228ea47b7
+model	mecab-fixture-ja	a8bffe24e9415d6dc5a776ce62077641f72653c99e032a6a53c1ee6fcb5f5cba28b0b5d5c79ea25f7eac1727f9243fccb47eb053180438daef072ac6bafac3bb
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+config	whitespace	legacy
+layer	opennlp:tokens	text	19	start:u32	end:u32
+0	12
+13	16
+16	19
+19	28
+29	33
+33	36
+36	38
+38	41
+41	43
+43	46
+47	50
+50	53
+54	63
+64	65
+65	66
+66	69
+69	70
+70	71
+71	74
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	19	unknown:u32	features:str
+1	名詞,数,*,*
+1	名詞,数,*,*
+1	記号,一般,*,*
+1	名詞,数,*,*
+1	名詞,数,*,*
+0	名詞,接尾,助数詞,ネン
+1	名詞,数,*,*
+0	名詞,接尾,助数詞,ガツ
+1	名詞,数,*,*
+0	接尾,助数詞,*,ニチ
+1	名詞,数,*,*
+1	名詞,固有名詞,*,*
+1	名詞,数,*,*
+1	名詞,数,*,*
+1	記号,一般,*,*
+1	名詞,数,*,*
+1	記号,一般,*,*
+1	名詞,数,*,*
+1	名詞,固有名詞,*,*
+end	turbo:morphemes

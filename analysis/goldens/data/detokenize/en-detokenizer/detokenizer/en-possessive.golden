@@ -1,0 +1,38 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	detokenizer/en-possessive	37	37	e9ff0676aa0a32c2dc55c13b630af29f51887634802015a081539c5d66e7c730
+model	en-detokenizer.xml	d071b56f77ae5b6aff0a591c1cf7e601a4007b5fdbcc0bd3fc31e8c84e95ec232df9765a70bfef786f75dbefcc4cad7d053b34b00ecc805507192a5fddc81260
+annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
+config	splitMarker	<SPLIT>
+layer	opennlp:tokens	text	11	start:u32	end:u32
+0	2
+3	5
+6	10
+11	13
+14	18
+19	20
+21	24
+25	28
+29	32
+33	34
+35	36
+end	opennlp:tokens
+layer	turbo:detokenization	aligned:opennlp:tokens	11	operation:str
+NO_OPERATION
+MERGE_TO_LEFT
+NO_OPERATION
+MERGE_TO_LEFT
+NO_OPERATION
+MERGE_TO_RIGHT
+NO_OPERATION
+NO_OPERATION
+NO_OPERATION
+MERGE_TO_LEFT
+MERGE_TO_LEFT
+end	turbo:detokenization
+layer	turbo:detokenized	document	1	text:str	marked:str
+It's John's book (the red one)!	It<SPLIT>'s John<SPLIT>'s book (<SPLIT>the red one<SPLIT>)<SPLIT>!
+end	turbo:detokenized

@@ -1,0 +1,1 @@
+Values like 1 000 kg, 1 000 kg and 1'000 kg are not grouped.

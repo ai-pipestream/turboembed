@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/btc-bech32	98	98	ddc394a19e383a31905c70b341f0f5f3be724bd6387f5366c8c646b8e710553e
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	pack	all-structured
+layer	turbo:pii	text	2	start:u32	end:u32	type:str	normalized:str
+7	49	btc-address	bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
+54	96	btc-address	bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
+end	turbo:pii

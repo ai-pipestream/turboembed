@@ -1,0 +1,9 @@
+# Hand written user gazetteer for the gazetteer goldens: id, name, alternates, lat, lon, country,
+# feature class, population, box, containment, attributes.
+hq	Acme Headquarters	Acme HQ|HQ| |Head Office	40.7128	-74.006	US	POI			New York|Manhattan	fips=36061	note = main site 
+plant-1	Springfield Plant	Springfield			US	POI	250	-89.7,39.7,-89.5,39.9	Illinois|Sangamon County	wikidata=Q123
+dateline	Dateline Depot				FJ	city	12	179,-17,-179,-16
+paris-lab	Paris	Paris Lab|Laboratoire de Paris	48.8566	2.3522	FR	CITY	9904000
+
+zz	São Paulo Office	SP Office	-23.5	-46.6		ADMIN	+7
+tiny	Tiny Place		1.5	2.5

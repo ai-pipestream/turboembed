@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	glossary/csv-missing	6	6	13b65d57940d62c348e36aff91b6e4e9c0334c97c6cba250dc48229cee8120c6
+annotator	opennlp.tools.formats.glossary.CsvGlossaryReader	read
+config	delimiter	,
+config	skipHeader	false
+error	opennlp.tools.util.InvalidFormatException	expected at least an id and a term column on line 2, found 1 column(s)

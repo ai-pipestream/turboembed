@@ -1,0 +1,51 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/letsmt-basic	2497	2494	1213c08856642779237f60eb3fbaef2083c926458ffa91220eb39a1f17bed5a0
+annotator	opennlp.tools.formats.letsmt.DetokenizeSentenceSampleStream	read
+config	detokenizer	. MOVE_LEFT , MOVE_LEFT ) MOVE_LEFT ( MOVE_RIGHT " RIGHT_LEFT_MATCHING
+layer	turbo:samples	document	2	written:str
+Heading text before the first sentence This sentence has no words.\nWords with spaces & refs\npadded tokens\norphan after the orphan\nCharacter data < here and text\nA comment is skipped, é and 😀 are kept.\n\nNested in a paragraph\ntext after it (Brackets), commas and "quotes".\nSentence 10 (short).\nSentence 11 (short).\nSentence 12 (short).\nSentence 13 (short).\nSentence 14 (short).\nSentence 15 (short).\nSentence 16 (short).\nSentence 17 (short).\nSentence 18 (short).\nSentence 19 (short).\nSentence 20 (short).\nSentence 21 (short).\nSentence 22 (short).\nSentence 23 (short).\nSentence 24 (short).\nSentence 25 (short).\n
+Sentence 26 (short).\nSentence 27 (short).\nSentence 28 (short).\nSentence 29 (short).\nSentence 30 (short).\nPrefixed is not a sentence The last sentence, after a prefixed one.\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	2	text:str
+Heading text before the first sentence This sentence has no words. Words with spaces & refs padded tokens orphan after the orphan Character data < here and text A comment is skipped, é and 😀 are kept.  Nested in a paragraph text after it (Brackets), commas and "quotes". Sentence 10 (short). Sentence 11 (short). Sentence 12 (short). Sentence 13 (short). Sentence 14 (short). Sentence 15 (short). Sentence 16 (short). Sentence 17 (short). Sentence 18 (short). Sentence 19 (short). Sentence 20 (short). Sentence 21 (short). Sentence 22 (short). Sentence 23 (short). Sentence 24 (short). Sentence 25 (short). 
+Sentence 26 (short). Sentence 27 (short). Sentence 28 (short). Sentence 29 (short). Sentence 30 (short). Prefixed is not a sentence The last sentence, after a prefixed one. 
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	31	sample:u32	start:u32	end:u32
+0	0	66
+0	67	91
+0	92	105
+0	106	129
+0	130	160
+0	161	204
+0	205	205
+0	206	227
+0	228	274
+0	275	295
+0	296	316
+0	317	337
+0	338	358
+0	359	379
+0	380	400
+0	401	421
+0	422	442
+0	443	463
+0	464	484
+0	485	505
+0	506	526
+0	527	547
+0	548	568
+0	569	589
+0	590	610
+1	0	20
+1	21	41
+1	42	62
+1	63	83
+1	84	104
+1	105	172
+end	turbo:sample-spans

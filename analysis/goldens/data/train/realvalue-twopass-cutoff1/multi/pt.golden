@@ -1,0 +1,63 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/pt	191	184	699a006ea30a073970f33c421ff9ea82f271df4e609177456a4272ff34bbf511
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	A padaria da esquina faz o melhor pão de queijo cidade. Todas as manhãs há uma fila na porta. O dono, Sr. Almeida, começou negócio em 1985. Ele diz que segredo é a paciência.	1.0 1.0 2.0 1.0 1.0 4.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+168569724
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	34	label:str	count:u32
+1985.	1
+A	1
+Almeida,	1
+Ele	1
+O	1
+Sr.	1
+Todas	1
+a	1
+as	1
+cidade.	1
+começou	1
+da	1
+de	1
+diz	1
+dono,	1
+em	1
+esquina	1
+faz	1
+fila	1
+há	1
+manhãs	1
+melhor	1
+na	1
+negócio	1
+o	1
+paciência.	1
+padaria	1
+porta.	1
+pão	1
+que	1
+queijo	1
+segredo	1
+uma	1
+é	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	1 26 11 16 17 24 21 28 12 30 9 6 8 20 19 32 18 22 27 4 14 5 2 10 23 15 0 3 13 29 31 33 7 25		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

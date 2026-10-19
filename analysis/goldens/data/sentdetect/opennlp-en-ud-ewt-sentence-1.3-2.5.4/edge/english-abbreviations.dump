@@ -1,0 +1,124 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/english-abbreviations	100	100	a1ae6c3cea011ea2aa2fa0957c75784f28e53270a0ed62574eb35e06b08fb03b
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	2	9	2	0	none
+context	sn
+context	eos=.
+context	x=Mr
+context	2
+context	xcap
+context	v=
+context	s=
+context	n=Smith
+context	ncap
+outcome	s	3fa7ed8c324cccbd 0.046734219684731106
+outcome	n	3fee81273cdb3334 0.9532657803152689
+end	0
+point	1	16	9	2	0	none
+context	sn
+context	eos=.
+context	x=Dr
+context	2
+context	xcap
+context	v=met
+context	s=
+context	n=Jones
+context	ncap
+outcome	s	3fbe940ded29ccf3 0.11944663086051203
+outcome	n	3fec2d7e425ac661 0.8805533691394879
+end	1
+point	2	32	8	2	0	none
+context	eos=.
+context	x=U
+context	1
+context	xcap
+context	v=the
+context	s=S
+context	scap
+context	n=last
+outcome	s	3f75910aa25164fd 0.005265275515818899
+outcome	n	3fefd4ddeabb5d35 0.994734724484181
+end	2
+point	3	34	8	2	0	none
+context	sn
+context	eos=.
+context	x=.S
+context	2
+context	v=U
+context	vcap
+context	s=
+context	n=last
+outcome	s	3fb11604f1c97fad 0.06674223807340125
+outcome	n	3feddd3f61c6d00b 0.9332577619265988
+end	3
+point	4	50	7	2	0	none
+context	sn
+context	eos=.
+context	x=.g
+context	2
+context	v=e
+context	s=
+context	n=on
+outcome	s	3fec27c8ff51a7f8 0.8798565851877802
+outcome	n	3fbec1b80572c044 0.12014341481221985
+acceptable	1
+end	4
+point	5	61	9	2	0	none
+context	sn
+context	eos=.
+context	x=Monday
+context	6
+context	xcap
+context	v=on
+context	s=
+context	n=They
+context	ncap
+outcome	s	3fefe0a4bb067f9c 0.9961722996558708
+outcome	n	3f6f5b44f98064da 0.0038277003441292536
+acceptable	1
+end	5
+point	6	74	9	2	0	none
+context	sn
+context	eos=.
+context	x=agreed
+context	6
+context	v=They
+context	vcap
+context	s=
+context	n=Prof.
+context	ncap
+outcome	s	3fefcd903be869e9 0.9938431902003774
+outcome	n	3f7937e20bcb0b12 0.006156809799622536
+acceptable	1
+end	6
+point	7	80	9	2	0	none
+context	sn
+context	eos=.
+context	x=Prof
+context	4
+context	xcap
+context	v=agreed.
+context	s=
+context	n=Lee
+context	ncap
+outcome	s	3fef74a6ed432687 0.9829897531537463
+outcome	n	3f916b22579b2f1f 0.017010246846253737
+acceptable	1
+end	7
+point	8	98	7	2	0	none
+context	sn
+context	eos=.
+context	x=there
+context	5
+context	v=wasn't
+context	s=
+context	n=
+outcome	s	3feffffb2111d2f9 0.9999976774111864
+outcome	n	3ec37bb8b41feffd 2.322588813717315E-6
+acceptable	1
+end	8

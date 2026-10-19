@@ -1,0 +1,14 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	money/text-astral-neighbours	49	35	64dde3da7943e11af8bdec60eb2a566d3fdf887d6fef12c4b8d99010b14db391
+annotator	opennlp.tools.money.CursorMoneyExtractor	extract
+config	notation	LATIN_US
+layer	turbo:money	text	4	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+4	6	5	0	0	5	USD
+20	24	7	0	0	7	EUR
+30	37	100	0	0	100	USD
+46	48	5	0	0	5	USD
+end	turbo:money

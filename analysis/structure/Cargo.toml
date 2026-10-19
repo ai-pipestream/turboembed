@@ -1,0 +1,17 @@
+[package]
+name = "turbo-structure"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_structure"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+
+[dev-dependencies]
+turbo-normalize = { path = "../normalize" }
+turbo-chunker = { path = "../chunker" }

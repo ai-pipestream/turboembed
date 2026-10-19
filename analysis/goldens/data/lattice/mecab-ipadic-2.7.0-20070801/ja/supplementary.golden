@@ -1,0 +1,43 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/supplementary	71	33	d8fee7d76687f00fd90af91390c6426de8d77aef4e8cb3c8b19761c079d503c9
+model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
+model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	15	start:u32	end:u32
+0	4
+4	10
+10	13
+13	19
+19	22
+22	34
+35	43
+44	45
+45	49
+49	50
+51	55
+55	58
+58	64
+64	67
+67	70
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	15	unknown:u32	features:str
+1	記号,一般,*,*,*,*,*
+0	名詞,固有名詞,地域,一般,*,*,野家,ノヤ,ノヤ
+0	助詞,格助詞,一般,*,*,*,に,ニ,ニ
+0	動詞,自立,*,*,五段・カ行促音便,基本形,行く,イク,イク
+0	記号,句点,*,*,*,*,。,。,。
+1	記号,一般,*,*,*,*,*
+1	記号,一般,*,*,*,*,*
+1	名詞,固有名詞,組織,*,*,*,*
+1	記号,一般,*,*,*,*,*
+1	名詞,固有名詞,組織,*,*,*,*
+1	記号,一般,*,*,*,*,*
+0	助詞,格助詞,一般,*,*,*,を,ヲ,ヲ
+0	動詞,自立,*,*,一段,連用形,食べる,タベ,タベ
+0	助動詞,*,*,*,特殊・タ,基本形,た,タ,タ
+0	記号,句点,*,*,*,*,。,。,。
+end	turbo:morphemes

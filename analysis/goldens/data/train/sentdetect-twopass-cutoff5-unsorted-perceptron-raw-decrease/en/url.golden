@@ -1,0 +1,73 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/url	240	240	40c3987b444f0d812d66c7a62a3654135ae28fbbfc5980e3802fba91b11f2037
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	StepSizeDecrease	0.05
+config	Tolerance	0.01
+config	UseAverage	false
+config	UseSkippedAveraging	false
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	14	outcome:str	context:str	values:str
+n	eos=. x=https://example 15 v=at s=org/docs/v1 n=2/index.html.	
+n	eos=. x=.org/docs/v1 12 v=https://example s=2/index n=html.	
+n	eos=. x=.2/index 8 v=https://example.org/docs/v1 s=html n=You ncap	
+n	sn eos=. x=.html 5 v=https://example.org/docs/v1.2/index s= n=You ncap	
+n	eos=. x=help@example 12 v=to s=org n=for	
+n	sn eos=. x=support 7 v=for s= n=Visit ncap	
+n	eos=. x=www 3 v=Visit vcap s=example n=com.	
+n	eos=. x=.example 8 v=www s=com n=before	
+n	sn eos=. x=.com 4 v=www.example s= n=before	
+n	eos=. x=http://mirror 13 v=at s=example n=net/path?q=1&lang=en.	
+n	eos=. x=.example 8 v=http://mirror s=net/path n=q=1&lang=en.	
+n	eos=? x=.net/path 9 v=http://mirror.example s=q=1&lang=en n=Links ncap	
+n	sn eos=. x=?q=1&lang=en 12 v=http://mirror.example.net/path s= n=Links ncap	
+s	sn eos=. x=often 5 v=break s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+6	Stopping: change in training set accuracy less than {0.01}
+end	turbo:perceptron-training
+layer	turbo:perceptron-monitor	document	6	iteration:u32	correct:u32	events:u32	accuracy:f64
+1	13	14	3fedb6db6db6db6e 0.9285714285714286
+2	10	14	3fe6db6db6db6db7 0.7142857142857143
+3	12	14	3feb6db6db6db6db 0.8571428571428571
+4	12	14	3feb6db6db6db6db 0.8571428571428571
+5	12	14	3feb6db6db6db6db 0.8571428571428571
+6	12	14	3feb6db6db6db6db 0.8571428571428571
+end	turbo:perceptron-monitor
+layer	turbo:perceptron-iterations	document	6	iteration:u32	parameters:str
+1	de23cfe16cd6580e03ab059cb837ea60f6dd7f2bdb9fb70623bf76f89ace2478
+2	c9e34dde2663f08eb34018296526335e09a778ad0408ac03545c629e52eb665f
+3	a59ce0e3b514082518638b15d2fc375440aa0785d42018ee3a5ec27c35eeac83
+4	a59ce0e3b514082518638b15d2fc375440aa0785d42018ee3a5ec27c35eeac83
+5	a59ce0e3b514082518638b15d2fc375440aa0785d42018ee3a5ec27c35eeac83
+6	a59ce0e3b514082518638b15d2fc375440aa0785d42018ee3a5ec27c35eeac83
+end	turbo:perceptron-iterations
+layer	turbo:perceptron-parameters	document	16	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	bfee666666666666 -0.95
+1	0	1	3fee666666666666 0.95
+1	1	0	0000000000000000 0.0
+1	1	1	0000000000000000 0.0
+1	2	0	bfee666666666666 -0.95
+1	2	1	3fee666666666666 0.95
+1	3	0	bfee666666666666 -0.95
+1	3	1	3fee666666666666 0.95
+6	0	0	3feb5c28f5c28f5b 0.8549999999999999
+6	0	1	bfeb5c28f5c28f5b -0.8549999999999999
+6	1	0	3ffc2872b020c49b 1.7598749999999999
+6	1	1	bffc2872b020c49b -1.7598749999999999
+6	2	0	bfee666666666666 -0.95
+6	2	1	3fee666666666666 0.95
+6	3	0	bfee666666666666 -0.95
+6	3	1	3fee666666666666 0.95
+end	turbo:perceptron-parameters
+layer	turbo:perceptron-model	document	1	sha256:str	length:u32	error:str
+232dadcd041c60a1ed9a7762b9405dd124c6ccefa9c472c73514761c97de9ba9	122	
+end	turbo:perceptron-model

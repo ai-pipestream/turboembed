@@ -28,6 +28,8 @@ pub struct Manifest {
     pub architecture: Option<Architecture>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub static_embedding: Option<StaticEmbedding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub classifier: Option<Classifier>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,
@@ -99,6 +101,8 @@ pub struct Tokenizer {
     pub unigram: Option<Unigram>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bpe: Option<Bpe>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sentencepiece: Option<SentencePiece>,
     pub special_tokens: Vec<SpecialToken>,
     pub template: Vec<String>,
     pub truncation: Truncation,
@@ -177,6 +181,26 @@ pub struct Bpe {
     pub ignore_merges: bool,
 }
 
+/// SentencePiece's own tokenizer, as Google's sentencepiece library runs
+/// it: `tokenizer.file` is the model's `.model` file, which holds the
+/// pieces, the normalizer and every switch (docs/tokenizer.md). The
+/// manifest says which algorithm the model must be. Special tokens are
+/// the model's pieces under their ids; none is matched in the text, as
+/// the library matches none.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SentencePiece {
+    pub algorithm: SentencePieceAlgorithm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SentencePieceAlgorithm {
+    #[serde(rename = "unigram")]
+    Unigram,
+    #[serde(rename = "bpe")]
+    Bpe,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpecialToken {
@@ -190,7 +214,9 @@ pub struct SpecialToken {
     /// The token is matched in the normalized text, its content
     /// normalized too, as upstream matches a `normalized` added token,
     /// and only as a whole word when `single_word`; it takes the
-    /// whitespace after it when `rstrip`. A WordPiece tokenizer only.
+    /// whitespace after it when `rstrip`. WordPiece, or BPE, which has no
+    /// normalizer and matches it in the text as it is (no `single_word`
+    /// or `rstrip`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub normalized: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -292,6 +318,24 @@ pub struct Quality {
     pub base_top1: f64,
     pub static_top1: f64,
     pub similarity_spearman: f64,
+}
+
+/// A classification head carried beside the encoder: the labels in id
+/// order (`0..labels.len()`) and whether the head classifies each token
+/// (`CLASSIFIER_TOKEN`) or the pooled sequence (`CLASSIFIER_SEQUENCE`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Classifier {
+    pub kind: ClassifierKind,
+    pub labels: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ClassifierKind {
+    #[serde(rename = "CLASSIFIER_TOKEN")]
+    Token,
+    #[serde(rename = "CLASSIFIER_SEQUENCE")]
+    Sequence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -465,6 +509,16 @@ pub enum TensorRole {
     StaticWeights,
     /// A static model's table row per token, `[vocab_size]`; optional.
     StaticMapping,
+    /// A BERT pooler's linear weight, `[hidden, hidden]`; optional with
+    /// `CLASSIFIER_SEQUENCE`.
+    PoolerWeight,
+    /// A BERT pooler's linear bias, `[hidden]`; optional with
+    /// `CLASSIFIER_SEQUENCE`.
+    PoolerBias,
+    /// A classification head's linear weight, `[labels, hidden]`.
+    ClassifierWeight,
+    /// A classification head's linear bias, `[labels]`.
+    ClassifierBias,
 }
 
 impl TensorRole {
@@ -480,12 +534,27 @@ impl TensorRole {
                 | TensorRole::StaticEmbeddings
                 | TensorRole::StaticWeights
                 | TensorRole::StaticMapping
+                | TensorRole::PoolerWeight
+                | TensorRole::PoolerBias
+                | TensorRole::ClassifierWeight
+                | TensorRole::ClassifierBias
         )
     }
 
     /// Roles a static model's weights have, and an encoder's do not.
     pub fn is_static(self) -> bool {
         matches!(self, TensorRole::StaticEmbeddings | TensorRole::StaticWeights | TensorRole::StaticMapping)
+    }
+
+    /// Roles a classification head has.
+    pub fn is_classifier(self) -> bool {
+        matches!(
+            self,
+            TensorRole::PoolerWeight
+                | TensorRole::PoolerBias
+                | TensorRole::ClassifierWeight
+                | TensorRole::ClassifierBias
+        )
     }
 }
 
@@ -645,15 +714,15 @@ impl Manifest {
         // tokenizer
         let t = &self.tokenizer;
         listed_path("tokenizer.file", &t.file)?;
-        match (&t.wordpiece, &t.unigram, &t.bpe) {
-            (Some(w), None, None) => {
+        match (&t.wordpiece, &t.unigram, &t.bpe, &t.sentencepiece) {
+            (Some(w), None, None, None) => {
                 required("tokenizer.wordpiece.continuing_prefix", &w.continuing_prefix)?;
                 positive("tokenizer.wordpiece.max_chars_per_word", w.max_chars_per_word)?;
                 if t.normalizer.is_none() {
                     return Err(invalid("manifest.json: tokenizer.normalizer: required with wordpiece"));
                 }
             }
-            (None, Some(u), None) => {
+            (None, Some(u), None, None) => {
                 if u.metaspace.chars().count() != 1 {
                     return Err(invalid(format!(
                         "manifest.json: tokenizer.unigram.metaspace: {:?} is not one character",
@@ -666,14 +735,26 @@ impl Manifest {
                     ));
                 }
             }
-            (None, None, Some(_)) => {
+            (None, None, Some(_), None) => {
                 if t.normalizer.is_some() {
                     return Err(invalid(
                         "manifest.json: tokenizer.normalizer: a bpe tokenizer reads the text as it is, not BertNormalizer",
                     ));
                 }
             }
-            _ => return Err(invalid("manifest.json: tokenizer: one of wordpiece, unigram and bpe")),
+            (None, None, None, Some(_)) => {
+                if t.normalizer.is_some() {
+                    return Err(invalid(
+                        "manifest.json: tokenizer.normalizer: a sentencepiece tokenizer normalizes as its model says, not BertNormalizer",
+                    ));
+                }
+                if let Some(i) = t.special_tokens.iter().position(|s| s.lstrip) {
+                    return Err(invalid(format!(
+                        "manifest.json: tokenizer.special_tokens[{i}].lstrip: a sentencepiece tokenizer matches no special token in the text"
+                    )));
+                }
+            }
+            _ => return Err(invalid("manifest.json: tokenizer: one of wordpiece, unigram, bpe and sentencepiece")),
         }
         let mut roles = HashSet::new();
         let mut contents = HashSet::new();
@@ -690,9 +771,16 @@ impl Manifest {
                     "manifest.json: tokenizer.special_tokens[{i}]: single_word and rstrip are read with normalized"
                 )));
             }
-            if s.normalized && t.wordpiece.is_none() {
+            // A bpe tokenizer has no normalizer: a normalized token is
+            // matched in the text as it is, like the others.
+            if s.normalized && t.wordpiece.is_none() && t.bpe.is_none() {
                 return Err(invalid(format!(
-                    "manifest.json: tokenizer.special_tokens[{i}].normalized: a wordpiece tokenizer only"
+                    "manifest.json: tokenizer.special_tokens[{i}].normalized: a wordpiece or bpe tokenizer only"
+                )));
+            }
+            if (s.single_word || s.rstrip) && t.wordpiece.is_none() {
+                return Err(invalid(format!(
+                    "manifest.json: tokenizer.special_tokens[{i}]: single_word and rstrip are for a wordpiece tokenizer only"
                 )));
             }
             if s.id > i32::MAX as u32 {
@@ -863,6 +951,41 @@ impl Manifest {
             }
         }
 
+        // classifier
+        if let Some(c) = &self.classifier {
+            if self.architecture.is_none() {
+                return Err(invalid("manifest.json: classifier: requires an encoder architecture"));
+            }
+            if c.labels.is_empty() {
+                return Err(invalid("manifest.json: classifier.labels: empty"));
+            }
+            for (i, l) in c.labels.iter().enumerate() {
+                required(&format!("classifier.labels[{i}]"), l)?;
+            }
+            for (i, a) in self.artifacts.iter().enumerate().filter(|(_, a)| a.format == Format::Safetensors) {
+                for role in [TensorRole::ClassifierWeight, TensorRole::ClassifierBias] {
+                    if !a.tensor_names.contains_key(&role) {
+                        return Err(invalid(format!(
+                            "manifest.json: artifacts[{i}].tensor_names: no {}, which a classifier needs",
+                            role_name(role)
+                        )));
+                    }
+                }
+                let pooler_w = a.tensor_names.contains_key(&TensorRole::PoolerWeight);
+                let pooler_b = a.tensor_names.contains_key(&TensorRole::PoolerBias);
+                if pooler_w != pooler_b {
+                    return Err(invalid(format!(
+                        "manifest.json: artifacts[{i}].tensor_names: pooler_weight and pooler_bias come together, or neither"
+                    )));
+                }
+                if c.kind == ClassifierKind::Token && pooler_w {
+                    return Err(invalid(format!(
+                        "manifest.json: artifacts[{i}].tensor_names: CLASSIFIER_TOKEN has no pooler"
+                    )));
+                }
+            }
+        }
+
         // artifacts
         if self.artifacts.is_empty() {
             return Err(invalid("manifest.json: artifacts: empty"));
@@ -991,6 +1114,11 @@ impl Manifest {
                 if role.is_static() != self.static_embedding.is_some() {
                     let whose = if role.is_static() { "a static model's" } else { "an encoder's" };
                     return Err(invalid(format!("manifest.json: {field}: {whose} role, and the bundle is not one")));
+                }
+                if role.is_classifier() && self.classifier.is_none() {
+                    return Err(invalid(format!(
+                        "manifest.json: {field}: a classifier role, and the bundle has no classifier"
+                    )));
                 }
                 if role.per_layer() != name.contains("{layer}") {
                     let want = if role.per_layer() { "must" } else { "must not" };

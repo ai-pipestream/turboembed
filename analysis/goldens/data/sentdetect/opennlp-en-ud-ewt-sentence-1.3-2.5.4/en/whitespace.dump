@@ -1,0 +1,46 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/whitespace	153	153	76c94cbd1ae0247501def8fdbabdfc55204f1feee1130aff2020cfd2afd98a7a
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	29	8	2	0	none
+context	sn
+context	eos=.
+context	x=here
+context	4
+context	v=ends
+context	s=
+context	n=The
+context	ncap
+outcome	s	3fefcd103392e4f2 0.9937821395207307
+outcome	n	3f7977e6368d86cd 0.006217860479269266
+acceptable	1
+end	0
+point	1	92	8	2	0	none
+context	sn
+context	eos=.
+context	x=spaces
+context	6
+context	v=only
+context	s=
+context	n=And
+context	ncap
+outcome	s	3fefd67e4113c01c 0.9949332495725716
+outcome	n	3f74c0df761ff1fb 0.00506675042742843
+acceptable	1
+end	1
+point	2	151	7	2	0	none
+context	sn
+context	eos=.
+context	x=one
+context	3
+context	v=this
+context	s=
+context	n=
+outcome	s	3feffebd10425165 0.9998460118827494
+outcome	n	3f242efbdae9aa78 1.5398811725060905E-4
+acceptable	1
+end	2

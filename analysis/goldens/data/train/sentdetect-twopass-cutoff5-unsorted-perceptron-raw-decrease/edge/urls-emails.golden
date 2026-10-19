@@ -1,0 +1,63 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/urls-emails	189	189	24a6e1968bc86b5976b4eee7e2ef6acb6bd2372d9afa4be8b45f4ad9af261501
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	StepSizeDecrease	0.05
+config	Tolerance	0.01
+config	UseAverage	false
+config	UseSkippedAveraging	false
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	16	outcome:str	context:str	values:str
+n	eos=. x=https://www 11 v=Visit vcap s=example n=com/path?q=1&r=2#frag	
+n	eos=. x=.example 8 v=https://www s=com/path n=q=1&r=2#frag	
+n	eos=? x=.com/path 9 v=https://www.example s=q=1&r=2#frag n=or	
+n	eos=. x=http://localhost:8080/a_b 25 v=or s=html, n=mail	
+n	eos=. x=john 4 v=mail s=doe+tag@example n=co.uk	
+n	eos=. x=.doe+tag@example 16 v=john s=co n=uk	
+n	eos=. x=.co 3 v=john.doe+tag@example s=uk n=or	
+n	eos=. x=www 3 v=or s=test n=org.	
+n	eos=. x=.test 5 v=www s=org n=Also ncap	
+n	sn eos=. x=.org 4 v=www.test s= n=Also ncap	
+n	eos=. x=ftp://files 11 v=Also vcap s=example n=net/x.tar.gz	
+n	eos=. x=.example 8 v=ftp://files s=net/x n=tar.gz	
+n	eos=. x=.net/x 6 v=ftp://files.example s=tar n=gz	
+n	eos=. x=.tar 4 v=ftp://files.example.net/x s=gz n=(see	
+n	eos=. x=foo@bar 7 v=(see s=com) n=	
+s	sn eos=. x=.com) 5 v=foo@bar s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+6	Stopping: change in training set accuracy less than {0.01}
+end	turbo:perceptron-training
+layer	turbo:perceptron-monitor	document	6	iteration:u32	correct:u32	events:u32	accuracy:f64
+1	14	15	3fedddddddddddde 0.9333333333333333
+2	12	15	3fe999999999999a 0.8
+3	13	15	3febbbbbbbbbbbbc 0.8666666666666667
+4	13	15	3febbbbbbbbbbbbc 0.8666666666666667
+5	13	15	3febbbbbbbbbbbbc 0.8666666666666667
+6	13	15	3febbbbbbbbbbbbc 0.8666666666666667
+end	turbo:perceptron-monitor
+layer	turbo:perceptron-iterations	document	6	iteration:u32	parameters:str
+1	5870666124a7ba0b5d5f2d6d690cfe45320774801c305f921b7ed63aef9e87a5
+2	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+3	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+4	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+5	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+6	3b377b538fde83b0d7400752af8921146f508a19dbb69bdeff8d3a68a7966fb7
+end	turbo:perceptron-iterations
+layer	turbo:perceptron-parameters	document	4	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	bfee666666666666 -0.95
+1	0	1	3fee666666666666 0.95
+6	0	0	bfa851eb851eb850 -0.04749999999999999
+6	0	1	3fa851eb851eb850 0.04749999999999999
+end	turbo:perceptron-parameters
+layer	turbo:perceptron-model	document	1	sha256:str	length:u32	error:str
+953b6ec0edfc560b46a260a742423cc538bc7113acd68091dc8972b45d247516	60	
+end	turbo:perceptron-model

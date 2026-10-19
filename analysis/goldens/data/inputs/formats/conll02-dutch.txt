@@ -1,0 +1,55 @@
+-DOCSTART- -DOCSTART- O
+Jan N B-PER
+Jansen N I-PER
+woont V O
+in Prep O
+Gent N B-LOC
+. Punc O
+
+Hij Pron O
+werkt V O
+bij Prep O
+Philips N B-ORG
+Nederland N I-LOC
+en Conj O
+leest V O
+De Art I-MISC
+Standaard N I-MISC
+. Punc O
+
+-DOCSTART- -DOCSTART- O
+
+Een Art O
+Belg N B-MISC
+en Conj O
+een Art O
+Fransman N B-MISC
+Marie N B-PER
+Curie N B-PER
+. Punc O
+
+
+-DOCSTART-ER x O
+Rome N B-LOC
+Parijs N B-LOC
+Londen N I-LOC
+
+Deze Pron O
+regel N
+telt V O
+niet Adv O
+
+Fout N B-XYZ
+hier Adv O
+
+Raar N B-LOC
+woord N Q
+. Punc O
+
+ Sp O
+   
+Spaties  N  O
+Gent N B-LOC
+ligt V O
+
+Amsterdam N B-LOC

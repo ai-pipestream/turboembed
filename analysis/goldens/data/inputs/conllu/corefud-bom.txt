@@ -1,0 +1,5 @@
+﻿# newdoc id = bom
+1	a	a	X	x	_	0	root	_	_
+
+# newdoc id = after
+1	b	b	X	x	_	0	root	_	Entity=(e1)

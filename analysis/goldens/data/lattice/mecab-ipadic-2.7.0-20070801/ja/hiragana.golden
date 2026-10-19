@@ -1,0 +1,43 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ja/hiragana	71	25	f9fc16ea6b205dc3154ab4ec0f576fba74904c4d8eec4439e4269450676a1f2c
+model	mecab-ipadic-2.7.0-20070801	0bd4d8717d4fd657ceadec1b0860f1fa17133cd3786e083fe164800e6415b62a5937184dad262ef13df49edae7ddcee5aaefc01297f4ea9c051520f551d606e4
+model	mecab-ipadic-2.7.0-20070801.utf8	52afb518f4a9e347196ef3c2a5f6792e92dc4c67b1bd990e32a82815cd574bcc415f0925178658c855a47725f915bdac49730cfb8e837a7cb1bce2bd91ec77da
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	15	start:u32	end:u32
+0	9
+9	12
+12	18
+18	21
+21	27
+27	30
+30	36
+37	40
+40	43
+43	46
+46	49
+49	55
+55	58
+58	64
+64	70
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	15	unknown:u32	features:str
+0	名詞,一般,*,*,*,*,すもも,スモモ,スモモ
+0	助詞,係助詞,*,*,*,*,も,モ,モ
+0	名詞,一般,*,*,*,*,もも,モモ,モモ
+0	助詞,係助詞,*,*,*,*,も,モ,モ
+0	名詞,一般,*,*,*,*,もも,モモ,モモ
+0	助詞,連体化,*,*,*,*,の,ノ,ノ
+0	名詞,非自立,副詞可能,*,*,*,うち,ウチ,ウチ
+0	動詞,自立,*,*,一段,連用形,ひる,ヒ,ヒ
+0	名詞,接尾,一般,*,*,*,ら,ラ,ラ
+0	助詞,格助詞,一般,*,*,*,が,ガ,ガ
+0	形容詞,自立,*,*,形容詞・アウオ段,ガル接続,ない,ナ,ナ
+0	助詞,副助詞,*,*,*,*,だけ,ダケ,ダケ
+0	助詞,連体化,*,*,*,*,の,ノ,ノ
+0	名詞,一般,*,*,*,*,ぶん,ブン,ブン
+0	助動詞,*,*,*,特殊・デス,基本形,です,デス,デス
+end	turbo:morphemes

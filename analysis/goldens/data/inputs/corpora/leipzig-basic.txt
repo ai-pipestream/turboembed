@@ -1,0 +1,57 @@
+# Sentence files in the layout of the Leipzig corpora, written for this project. Only the files whose
+# name starts with three letters a to z and not with a dot are read, in name order.
+
+@@ file eng-news-sentences.txt
+1	The harbour lights came on early tonight.
+2	A ferry left the north pier at nine.
+no tab on this line
+4	Gulls followed the boat out past the breakwater.
+5	The tide was lower than the charts said.
+6	Someone left a bicycle by the gate.
+7	Two tabs	here keep the second one.
+
+@@ end
+@@ file eng-wiki-sentences.txt
+1	Rain is expected over the hills by morning.
+2	The library opens late on Sundays.
+3	She painted the fence a pale shade of green.
+4	Our train was held at the junction.
+5	A small café serves soup until noon.
+
+@@ end
+@@ file deu-news-sentences.txt
+1	Der Zug fährt um acht Uhr ab.
+2	Im Garten blühen die ersten Tulpen.
+3	Wir treffen uns morgen am Markt.
+4	Das Fenster bleibt heute offen.
+5	Ein Hund schläft vor der Tür.
+6	Die Straße ist nass vom Regen.
+7	Sie liest gern am Abend.
+	
+9	Der Bus kommt später als geplant.
+
+@@ end
+@@ file fra-web-sentences.txt
+1	Le marché ouvre à sept heures.
+2	Il pleut sur la ville depuis hier.
+3	Nous avons repeint la cuisine.
+4	La bibliothèque ferme à midi.
+5	Un chat dort sur le rebord.
+6	Le train de nuit arrive à l'aube.
+7	Elle a trouvé une clé sous le banc.
+8	Les enfants jouent dans la cour.
+
+@@ end
+@@ file .eng-hidden.txt
+1	Hidden files are not read.
+
+@@ end
+@@ file Eng-upper.txt
+1	An upper-case code is not read.
+
+@@ end
+@@ file nl.txt
+1	A two letter name is not read.
+
+@@ end
+@@ dir zzz-directory

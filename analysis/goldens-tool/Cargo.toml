@@ -1,0 +1,25 @@
+[package]
+name = "turbo-goldens-tool"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_goldens_tool"
+
+[[bin]]
+name = "turbo-goldens"
+path = "src/main.rs"
+
+[features]
+# The `fuzz` command: the generated corpus (turbo-goldens) and the Rust
+# side of every run with the comparison and the reducer (turbo-fuzz),
+# which bring every analysis crate along. Everything else in the tool
+# uses the standard library alone, so the feature is off by default and
+# image, fetch-models, generate and verify build without them.
+fuzz = ["dep:turbo-goldens", "dep:turbo-fuzz"]
+
+[dependencies]
+turbo-goldens = { path = "../goldens", optional = true }
+turbo-fuzz = { path = "../fuzz", optional = true }

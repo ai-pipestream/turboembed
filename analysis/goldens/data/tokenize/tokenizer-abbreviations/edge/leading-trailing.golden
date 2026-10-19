@@ -1,0 +1,20 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/leading-trailing	38	38	c68e6d28338346858ce49a6a2d3fad17811b099fea923812518b06f16ab68274
+model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+layer	opennlp:tokens	text	4	start:u32	end:u32
+4	11
+12	15
+16	24
+25	31
+end	opennlp:tokens
+layer	turbo:confidence<opennlp:tokens>	aligned:opennlp:tokens	4	value:f64
+3fe4e8857f5331cb 0.6533839690032947
+3feb9f98f0b54406 0.8632321072892644
+3fe365c798662533 0.60617427602225
+3fea798e832566ca 0.8273384629676113
+end	turbo:confidence<opennlp:tokens>

@@ -1,0 +1,14 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	surrogate/es-paren-emoji-apostrophe	6	4	ea26236995c4f5a378dff6e96d30bc7f9e204aab02ac7dbd7687038b67791dcc
+model	zh-unigram-fixture.txt	75fe2ae460f0a048e0978dfcf54474752aad6ecde6b64ad86bd59729f3dbce829043469e17ad929fed559bccdc1db72a358e706527316e8faf733c63ff144011
+annotator	opennlp.tools.tokenize.lattice.UnigramSegmenter	tokenizePos
+config	whitespace	legacy
+layer	opennlp:tokens	text	3	start:u32	end:u32
+0	1
+1	5
+5	6
+end	opennlp:tokens

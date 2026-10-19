@@ -1,0 +1,38 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-errors	179	179	c918f9772ffc4b8f79ece15c0084ca9198ca6c6471a8047dd02762571ff0d4f7
+annotator	opennlp.tools.namefind.NameFinderEventStream	read
+config	codec	bio
+config	language	en
+config	run	train-type
+config	type	person
+layer	turbo:events	document	5	outcome:str	context:str	values:str
+other	wc=lc w&c=ok,lc n1wc=lc n1w&c=line,lc w=ok n1w=line def pd=null w,nw=ok,line wc,nc=lc,lc S=begin po=other pow=other,ok powf=other,lc ppo=other	
+other	wc=lc w&c=line,lc p1wc=lc p1w&c=ok,lc w=line p1w=ok def pd=null pw,w=ok,line pwc,wc=lc,lc po=other pow=other,line powf=other,lc ppo=other	
+other	wc=lc w&c=last,lc n1wc=lc n1w&c=good,lc n2wc=lc n2w&c=line,lc w=last n1w=good n2w=line def pd=null w,nw=last,good wc,nc=lc,lc S=begin po=other pow=other,last powf=other,lc ppo=other	
+other	wc=lc w&c=good,lc p1wc=lc p1w&c=last,lc n1wc=lc n1w&c=line,lc w=good p1w=last n1w=line def pd=null pw,w=last,good pwc,wc=lc,lc w,nw=good,line wc,nc=lc,lc po=other pow=other,good powf=other,lc ppo=other	
+other	wc=lc w&c=line,lc p1wc=lc p1w&c=good,lc p2wc=lc p2w&c=last,lc w=line p1w=good p2w=last def pd=other pw,w=good,line pwc,wc=lc,lc po=other pow=other,line powf=other,lc ppo=other	
+end	turbo:events
+layer	turbo:stream-errors	document	6	after:u32	class:str	message:str
+0	java.io.IOException	Found unexpected annotation while handling a name sequence: <START:x> c ###<START:y>### d e
+0	java.io.IOException	Found unexpected annotation: ###<END>### x 
+0	java.io.IOException	Missing a name type: ###<START:>### y 
+2	java.lang.RuntimeException	name spans [0..1) b and [0..0) a are overlapped in file: null, sentence: [x]
+2	java.io.IOException	Found unexpected annotation: y <END> ###<END>### 
+2	java.io.IOException	Found unexpected annotation while handling a name sequence: <START:q> nested ###<START>### deeper <END>
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1724532334
+end	turbo:event-checksum
+layer	turbo:name-training	document	1	class:str	message:str
+java.io.IOException	Found unexpected annotation while handling a name sequence: <START:x> c ###<START:y>### d e
+end	turbo:name-training
+layer	turbo:name-parameters	document	4	key:str	class:str	value:str
+Cutoff	java.lang.Integer	0
+sort	java.lang.Boolean	true
+Iterations	java.lang.Integer	300
+Algorithm	java.lang.String	MAXENT
+end	turbo:name-parameters

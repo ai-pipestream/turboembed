@@ -1,0 +1,17 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	norm/casefold-special	184	144	c7b34614c05268579f4d73baaa70406cf22999f5d075837625da5447c2231c83
+annotator	opennlp.tools.util.normalizer.ConfusableSkeletonCharSequenceNormalizer	normalize
+layer	turbo:view	text	8	start:u32	end:u32	with:str
+16	57	ß l̇ i ffi 'n j̆ ḯ ǘ ẖ u̓ ą̃ p̓
+96	98	É
+104	106	Ñ
+112	114	A
+114	116	B
+120	135	Ab̄B, D ᴅ
+147	158	Dž Lj Nj Dz
+172	182	st մն եi
+end	turbo:view

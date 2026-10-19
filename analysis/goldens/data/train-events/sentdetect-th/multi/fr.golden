@@ -1,0 +1,72 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/fr	212	209	56bdde2c4bdb4db6f3ef4837291e2727e705804bf1a29cccc5738304ca7c5c61
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	38	outcome:str	context:str	values:str
+n	eos=  x=Le 2 xcap v= s=marché n=ouvre	
+n	eos=  x=marché 6 v=Le vcap s=ouvre n=chaque	
+n	eos=  x=ouvre 5 v=marché s=chaque n=samedi	
+n	eos=  x=chaque 6 v=ouvre s=samedi n=à	
+n	eos=  x=samedi 6 v=chaque s=à n=huit	
+n	eos=  x=à 1 v=samedi s=huit n=heures.	
+n	eos=  x=huit 4 v=à s=heures. n=On ncap	
+n	eos=  x=heures. 7 v=huit s=On scap n=y	
+n	eos=  x=On 2 xcap v=heures. s=y n=trouve	
+n	eos=  x=y 1 v=On vcap s=trouve n=des	
+n	eos=  x=trouve 6 v=y s=des n=fromages,	
+n	eos=  x=des 3 v=trouve s=fromages, n=du	
+n	eos=  x=fromages, 9 v=des s=du n=pain	
+n	eos=  x=du 2 v=fromages, s=pain n=et	
+n	eos=  x=pain 4 v=du s=et n=des	
+n	eos=  x=et 2 v=pain s=des n=légumes	
+n	eos=  x=des 3 v=et s=légumes n=de	
+n	eos=  x=légumes 7 v=des s=de n=saison.	
+n	eos=  x=de 2 v=légumes s=saison. n=M. ncap	
+n	eos=  x=saison. 7 v=de s=M. scap n=Durand ncap	
+n	eos=  x=M. 2 xcap v=saison. s=Durand scap n=vend	
+n	eos=  x=Durand 6 xcap v=M. vcap s=vend n=ses	
+n	eos=  x=vend 4 v=Durand vcap s=ses n=pommes	
+n	eos=  x=ses 3 v=vend s=pommes n=depuis	
+n	eos=  x=pommes 6 v=ses s=depuis n=trente	
+n	eos=  x=depuis 6 v=pommes s=trente n=ans	
+n	eos=  x=trente 6 v=depuis s=ans n=!	
+n	eos=  x=ans 3 v=trente s=! n=Est-ce ncap	
+n	eos=  x=! 1 v=ans s=Est-ce scap n=que	
+n	eos=  x=Est-ce 6 xcap v=! s=que n=vous	
+n	eos=  x=que 3 v=Est-ce vcap s=vous n=viendrez	
+n	eos=  x=vous 4 v=que s=viendrez n=avec	
+n	eos=  x=viendrez 8 v=vous s=avec n=nous	
+n	eos=  x=avec 4 v=viendrez s=nous n=la	
+n	eos=  x=nous 4 v=avec s=la n=semaine	
+n	eos=  x=la 2 v=nous s=semaine n=prochaine	
+n	eos=  x=semaine 7 v=la s=prochaine n=?	
+s	eos=  x=prochaine 9 v=semaine s=? n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1939406606
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

@@ -1,0 +1,1 @@
+Battery lasts 12 hr at 45% load, charges to 80% in 30 min and weighs 1.2 kg.

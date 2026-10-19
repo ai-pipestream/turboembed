@@ -1,0 +1,24 @@
+[package]
+name = "turbo-sequence"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_sequence"
+
+[dependencies]
+# The maxent models the beam search asks, the model archive the feature
+# generator descriptor and its resources are read from, the dictionary
+# XML reader and the XML reader for the descriptors.
+turbo-maxent = { path = "../maxent" }
+# Java's character classes, case mapping and modified UTF-8.
+turbo-unicode = { path = "../unicode" }
+# StrictMath.log for sequence scores, and UTF-16 code units of a &str.
+turbo-jvm = { path = "../jvm" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }
+# Writes a small model whose outcome holds half of a surrogate pair.
+turbo-train = { path = "../train" }

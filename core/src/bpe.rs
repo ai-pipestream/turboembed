@@ -39,7 +39,10 @@ impl Bpe {
     pub fn parse(file: &str, json: &Value, m: &manifest::Bpe, unk_id: u32) -> Result<Bpe> {
         let disagree = |what: &str| invalid(format!("{file}: {what} is not what manifest.json says"));
         let model = &json["model"];
-        if model["type"] != "BPE" {
+        // A file that names no model type (GPT-2's and RoBERTa's own) is
+        // BPE when it has merges, as upstream reads it.
+        let untyped_bpe = model["type"].is_null() && model.get("merges").is_some();
+        if model["type"] != "BPE" && !untyped_bpe {
             return Err(invalid(format!("{file}: model.type is {}, not BPE", model["type"])));
         }
         for (key, why) in [
@@ -218,8 +221,9 @@ fn key(l: u32, r: u32) -> u64 {
 }
 
 /// GPT-2's characters for bytes: the printable bytes as themselves, the
-/// others as the characters from U+0100 on, in byte order.
-pub(crate) fn byte_chars() -> &'static [char; 256] {
+/// others as the characters from U+0100 on, in byte order. Public so
+/// that a trainer writes the alphabet this encoder reads.
+pub fn byte_chars() -> &'static [char; 256] {
     static CHARS: std::sync::OnceLock<[char; 256]> = std::sync::OnceLock::new();
     CHARS.get_or_init(|| {
         let mut chars = ['\0'; 256];
@@ -410,8 +414,9 @@ fn class(c: char) -> Class {
 
 /// GPT-2's pattern, `'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+|
 /// ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+`, as upstream matches it: `word(start,
-/// end)` for each match, which together cover the text.
-pub(crate) fn split(s: &str, mut word: impl FnMut(usize, usize)) {
+/// end)` for each match, which together cover the text. Public so that a
+/// trainer cuts its corpus into the words this encoder merges.
+pub fn split(s: &str, mut word: impl FnMut(usize, usize)) {
     let b = s.as_bytes();
     let at = |i: usize| s[i..].chars().next().expect("inside the text");
     // The end of the run of `class` from i.

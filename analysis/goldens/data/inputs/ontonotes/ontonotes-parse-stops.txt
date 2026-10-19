@@ -1,0 +1,22 @@
+# Written for this project in the layout and format of the OntoNotes 4.0 parse files; it holds no text
+# of the corpus, which is licensed and not redistributable. They are read in
+# the reverse of their sorted order: c_feeds is nothing but line feeds and throws,
+# b_stop has two empty lines in a row, which end the stream, and a_more is not read.
+
+@@ file a_more.parse
+(TOP (NN unread))
+
+@@ end
+@@ file b_stop.parse
+(TOP (NN one))
+
+
+(TOP (NN never))
+
+@@ end
+@@ file c_feeds.parse
+
+
+
+
+@@ end

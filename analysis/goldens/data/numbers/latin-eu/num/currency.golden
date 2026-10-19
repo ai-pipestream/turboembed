@@ -1,0 +1,16 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	num/currency	65	57	231308af02047be3fd713ebe17ba1433e8ef84754ee52414d54656bc44c41abf
+annotator	opennlp.tools.extraction.NumberScan	parse
+config	notation	LATIN_EU
+layer	turbo:numbers	text	6	start:u32	end:u32	numeral_end:u32	negative:u32	coefficient:str	scale:u32	plain:str
+1	2	2	0	5	0	5
+6	7	7	0	5	0	5
+8	9	9	0	5	0	5
+26	31	31	0	1234	3	1.234
+32	33	33	0	5	0	5
+38	46	46	0	123456	2	1234.56
+end	turbo:numbers

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dictionary>
+  <entry><token>a</token><token>b</token></entry>
+  <entry><token>b</token><token>c</token></entry>
+  <entry><token>a</token><token>b</token><token>c</token><token>d</token></entry>
+  <entry><token>c</token><token>d</token><token>e</token></entry>
+  <entry><token>e</token></entry>
+  <entry><token>d</token><token>e</token><token>f</token></entry>
+</dictionary>

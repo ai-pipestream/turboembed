@@ -1,0 +1,505 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/hebrew	86	48	fdec23581c55cd33b0c462c0d0922b3d8ef84447e18d5e7eb5c7cdb595d6159d
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	english-dictionary.xml	e824b14f66036b2703cbbd3af6a893f7f07cf282c9e8021ae7be38f10da305a87aef48b129923f3973c78f495c2ed073adcad68c90c2f7d94bc6d32870839164
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+point	0	2	11	2	0	none
+context	p=ש
+context	s=לום
+context	p1=ש
+context	p1_alpha
+context	p2=bok
+context	p1f1=של
+context	f1=ל
+context	f1_alpha
+context	f2=ו
+context	f2_alpha
+context	f12=לו
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	0
+point	1	4	13	2	0	none
+context	p=של
+context	s=ום
+context	p1=ל
+context	p1_alpha
+context	p2=ש
+context	p2_alpha
+context	p21=של
+context	p1f1=לו
+context	f1=ו
+context	f1_alpha
+context	f2=ם
+context	f2_alpha
+context	f12=ום
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	1
+point	2	6	11	2	0	none
+context	p=שלו
+context	s=ם
+context	p1=ו
+context	p1_alpha
+context	p2=ל
+context	p2_alpha
+context	p21=לו
+context	p1f1=ום
+context	f1=ם
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	2
+point	3	11	11	2	0	none
+context	p=ע
+context	s=ולם.
+context	p1=ע
+context	p1_alpha
+context	p2=bok
+context	p1f1=עו
+context	f1=ו
+context	f1_alpha
+context	f2=ל
+context	f2_alpha
+context	f12=ול
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	3
+point	4	13	13	2	0	none
+context	p=עו
+context	s=לם.
+context	p1=ו
+context	p1_alpha
+context	p2=ע
+context	p2_alpha
+context	p21=עו
+context	p1f1=ול
+context	f1=ל
+context	f1_alpha
+context	f2=ם
+context	f2_alpha
+context	f12=לם
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	4
+point	5	15	13	2	0	none
+context	p=עול
+context	s=ם.
+context	p1=ל
+context	p1_alpha
+context	p2=ו
+context	p2_alpha
+context	p21=ול
+context	p1f1=לם
+context	f1=ם
+context	f1_alpha
+context	f2=.
+context	f2_eos
+context	f12=ם.
+outcome	F	3fee8b9d84e5277c 0.9545428844078141
+outcome	T	3fa74627b1ad8849 0.045457115592185966
+end	5
+point	6	17	11	2	0	none
+context	p=עולם
+context	s=.
+context	p1=ם
+context	p1_alpha
+context	p2=ל
+context	p2_alpha
+context	p21=לם
+context	p1f1=ם.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f9d7b304c47c091 0.028790239959505973
+outcome	T	3fef14267d9dc1fb 0.971209760040494
+end	6
+point	7	21	10	2	0	none
+context	p=ג
+context	s=׳ירפה
+context	p1=ג
+context	p1_alpha
+context	p2=bok
+context	p1f1=ג׳
+context	f1=׳
+context	f2=י
+context	f2_alpha
+context	f12=׳י
+outcome	F	3fec5dc5b6fbcffd 0.8864468168162599
+outcome	T	3fbd11d24821801d 0.11355318318374015
+end	7
+point	8	23	12	2	0	none
+context	p=ג׳
+context	s=ירפה
+context	p1=׳
+context	p2=ג
+context	p2_alpha
+context	p21=ג׳
+context	p1f1=׳י
+context	f1=י
+context	f1_alpha
+context	f2=ר
+context	f2_alpha
+context	f12=יר
+outcome	F	3fee5bc6f91eab76 0.9487032762166183
+outcome	T	3faa43906e1548a5 0.051296723783381716
+end	8
+point	9	25	12	2	0	none
+context	p=ג׳י
+context	s=רפה
+context	p1=י
+context	p1_alpha
+context	p2=׳
+context	p21=׳י
+context	p1f1=יר
+context	f1=ר
+context	f1_alpha
+context	f2=פ
+context	f2_alpha
+context	f12=רפ
+outcome	F	3feea54dbf7217ff 0.9576786746190463
+outcome	T	3fa5ab2408de8019 0.04232132538095374
+end	9
+point	10	27	13	2	0	none
+context	p=ג׳יר
+context	s=פה
+context	p1=ר
+context	p1_alpha
+context	p2=י
+context	p2_alpha
+context	p21=יר
+context	p1f1=רפ
+context	f1=פ
+context	f1_alpha
+context	f2=ה
+context	f2_alpha
+context	f12=פה
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	10
+point	11	29	11	2	0	none
+context	p=ג׳ירפ
+context	s=ה
+context	p1=פ
+context	p1_alpha
+context	p2=ר
+context	p2_alpha
+context	p21=רפ
+context	p1f1=פה
+context	f1=ה
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	11
+point	12	34	10	2	0	none
+context	p=ו
+context	s=־צה״ל
+context	p1=ו
+context	p1_alpha
+context	p2=bok
+context	p1f1=ו־
+context	f1=־
+context	f2=צ
+context	f2_alpha
+context	f12=־צ
+outcome	F	3fec5dc5b6fbcffd 0.8864468168162599
+outcome	T	3fbd11d24821801d 0.11355318318374015
+end	12
+point	13	36	12	2	0	none
+context	p=ו־
+context	s=צה״ל
+context	p1=־
+context	p2=ו
+context	p2_alpha
+context	p21=ו־
+context	p1f1=־צ
+context	f1=צ
+context	f1_alpha
+context	f2=ה
+context	f2_alpha
+context	f12=צה
+outcome	F	3fee5bc6f91eab76 0.9487032762166183
+outcome	T	3faa43906e1548a5 0.051296723783381716
+end	13
+point	14	38	11	2	0	none
+context	p=ו־צ
+context	s=ה״ל
+context	p1=צ
+context	p1_alpha
+context	p2=־
+context	p21=־צ
+context	p1f1=צה
+context	f1=ה
+context	f1_alpha
+context	f2=״
+context	f12=ה״
+outcome	F	3fed012d54f73297 0.9063936862454111
+outcome	T	3fb7f69558466b4d 0.09360631375458901
+end	14
+point	15	40	12	2	0	none
+context	p=ו־צה
+context	s=״ל
+context	p1=ה
+context	p1_alpha
+context	p2=צ
+context	p2_alpha
+context	p21=צה
+context	p1f1=ה״
+context	f1=״
+context	f2=ל
+context	f2_alpha
+context	f12=״ל
+outcome	F	3feaa59c71991913 0.8327161997520157
+outcome	T	3fc5698e399b9bb5 0.1672838002479843
+end	15
+point	16	42	10	2	0	none
+context	p=ו־צה״
+context	s=ל
+context	p1=״
+context	p2=ה
+context	p2_alpha
+context	p21=ה״
+context	p1f1=״ל
+context	f1=ל
+context	f1_alpha
+context	f2=bok
+outcome	F	3fecbc25424e2867 0.8979669852281064
+outcome	T	3fba1ed5ed8ebcc1 0.10203301477189354
+end	16
+point	17	47	11	2	0	none
+context	p=נ
+context	s=פגשו
+context	p1=נ
+context	p1_alpha
+context	p2=bok
+context	p1f1=נפ
+context	f1=פ
+context	f1_alpha
+context	f2=ג
+context	f2_alpha
+context	f12=פג
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	17
+point	18	49	13	2	0	none
+context	p=נפ
+context	s=גשו
+context	p1=פ
+context	p1_alpha
+context	p2=נ
+context	p2_alpha
+context	p21=נפ
+context	p1f1=פג
+context	f1=ג
+context	f1_alpha
+context	f2=ש
+context	f2_alpha
+context	f12=גש
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	18
+point	19	51	13	2	0	none
+context	p=נפג
+context	s=שו
+context	p1=ג
+context	p1_alpha
+context	p2=פ
+context	p2_alpha
+context	p21=פג
+context	p1f1=גש
+context	f1=ש
+context	f1_alpha
+context	f2=ו
+context	f2_alpha
+context	f12=שו
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	19
+point	20	53	11	2	0	none
+context	p=נפגש
+context	s=ו
+context	p1=ש
+context	p1_alpha
+context	p2=ג
+context	p2_alpha
+context	p21=גש
+context	p1f1=שו
+context	f1=ו
+context	f1_alpha
+context	f2=bok
+outcome	F	3fede55432257161 0.9342442492884794
+outcome	T	3fb0d55e6ed474f2 0.06575575071152054
+end	20
+point	21	58	11	2	0	none
+context	p=ב
+context	s=תל־אביב.
+context	p1=ב
+context	p1_alpha
+context	p2=bok
+context	p1f1=בת
+context	f1=ת
+context	f1_alpha
+context	f2=ל
+context	f2_alpha
+context	f12=תל
+outcome	F	3fef54b382e2ee0c 0.9790895038963199
+outcome	T	3f95698fa3a23e77 0.02091049610368009
+end	21
+point	22	60	12	2	0	none
+context	p=בת
+context	s=ל־אביב.
+context	p1=ת
+context	p1_alpha
+context	p2=ב
+context	p2_alpha
+context	p21=בת
+context	p1f1=תל
+context	f1=ל
+context	f1_alpha
+context	f2=־
+context	f12=ל־
+outcome	F	3fedad590a0e337d 0.9274106212993584
+outcome	T	3fb29537af8e641b 0.07258937870064168
+end	22
+point	23	62	12	2	0	none
+context	p=בתל
+context	s=־אביב.
+context	p1=ל
+context	p1_alpha
+context	p2=ת
+context	p2_alpha
+context	p21=תל
+context	p1f1=ל־
+context	f1=־
+context	f2=א
+context	f2_alpha
+context	f12=־א
+outcome	F	3feaa59c71991913 0.8327161997520157
+outcome	T	3fc5698e399b9bb5 0.1672838002479843
+end	23
+point	24	64	12	2	0	none
+context	p=בתל־
+context	s=אביב.
+context	p1=־
+context	p2=ל
+context	p2_alpha
+context	p21=ל־
+context	p1f1=־א
+context	f1=א
+context	f1_alpha
+context	f2=ב
+context	f2_alpha
+context	f12=אב
+outcome	F	3fee5bc6f91eab76 0.9487032762166183
+outcome	T	3faa43906e1548a5 0.051296723783381716
+end	24
+point	25	66	12	2	0	none
+context	p=בתל־א
+context	s=ביב.
+context	p1=א
+context	p1_alpha
+context	p2=־
+context	p21=־א
+context	p1f1=אב
+context	f1=ב
+context	f1_alpha
+context	f2=י
+context	f2_alpha
+context	f12=בי
+outcome	F	3feea54dbf7217ff 0.9576786746190463
+outcome	T	3fa5ab2408de8019 0.04232132538095374
+end	25
+point	26	68	13	2	0	none
+context	p=בתל־אב
+context	s=יב.
+context	p1=ב
+context	p1_alpha
+context	p2=א
+context	p2_alpha
+context	p21=אב
+context	p1f1=בי
+context	f1=י
+context	f1_alpha
+context	f2=ב
+context	f2_alpha
+context	f12=יב
+outcome	F	3feef684ace24049 0.967592561401042
+outcome	T	3fa097b531dbfb73 0.032407438598958026
+end	26
+point	27	70	13	2	0	none
+context	p=בתל־אבי
+context	s=ב.
+context	p1=י
+context	p1_alpha
+context	p2=ב
+context	p2_alpha
+context	p21=בי
+context	p1f1=יב
+context	f1=ב
+context	f1_alpha
+context	f2=.
+context	f2_eos
+context	f12=ב.
+outcome	F	3fee8b9d84e5277c 0.9545428844078141
+outcome	T	3fa74627b1ad8849 0.045457115592185966
+end	27
+point	28	72	11	2	0	none
+context	p=בתל־אביב
+context	s=.
+context	p1=ב
+context	p1_alpha
+context	p2=י
+context	p2_alpha
+context	p21=יב
+context	p1f1=ב.
+context	f1=.
+context	f1_eos
+context	f2=bok
+outcome	F	3f9d7b304c47c091 0.028790239959505973
+outcome	T	3fef14267d9dc1fb 0.971209760040494
+end	28
+point	29	76	10	2	0	none
+context	p=ב
+context	s=״ה
+context	p1=ב
+context	p1_alpha
+context	p2=bok
+context	p1f1=ב״
+context	f1=״
+context	f2=ה
+context	f2_alpha
+context	f12=״ה
+outcome	F	3fec5dc5b6fbcffd 0.8864468168162599
+outcome	T	3fbd11d24821801d 0.11355318318374015
+end	29
+point	30	78	10	2	0	none
+context	p=ב״
+context	s=ה
+context	p1=״
+context	p2=ב
+context	p2_alpha
+context	p21=ב״
+context	p1f1=״ה
+context	f1=ה
+context	f1_alpha
+context	f2=bok
+outcome	F	3fecbc25424e2867 0.8979669852281064
+outcome	T	3fba1ed5ed8ebcc1 0.10203301477189354
+end	30
+point	31	83	8	2	0	none
+context	p=צ
+context	s=׳
+context	p1=צ
+context	p1_alpha
+context	p2=bok
+context	p1f1=צ׳
+context	f1=׳
+context	f2=bok
+outcome	F	3fe9367b87413baf 0.7879006997771877
+outcome	T	3fcb2611e2fb1147 0.2120993002228124
+end	31

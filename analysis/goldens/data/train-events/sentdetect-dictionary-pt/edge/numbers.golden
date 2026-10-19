@@ -1,0 +1,55 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/numbers	163	163	ac397ed9e560b6c7ea24fb2ad41c9c951a27fd6316ba8de71531a337aca4ae68
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	pt
+config	run	sentdetect-dictionary-pt
+config	source	sentdetect
+config	useTokenEnd	true
+layer	turbo:events	document	15	outcome:str	context:str	values:str
+n	eos=. x=3 1 v=is s=14 n=and	
+n	eos=: x=12 2 v=at s=30 n=growth	
+n	sn eos=; x=:30 3 v=12 s= n=growth	
+n	eos=. x=2 1 v=was s=5% n=(up	
+n	sp eos=( x= v=2.5% s=up n=from	
+n	eos=. x=1 1 v=from s=2% n=.	
+n	eos=) x=.2% 3 v=1 s= n=Call ncap	
+n	sn eos=. x=) 1 v=1.2% s= n=Call ncap	
+n	sp eos=( x= v=+1 s=800 n=555-0199.	
+n	sn eos=) x=(800 4 v= s= n=555-0199.	
+n	sn eos=. x=555-0199 8 v=(800) s= n=Version ncap	
+n	eos=. x=2 1 v=Version vcap s=0 n=1-beta,	
+n	eos=. x=.0 2 v=2 s=1-beta, n=$4.99,	
+n	eos=. x=$4 2 v=2.0.1-beta, s=99, n=10/12/2026,	
+s	sn eos=. x=3e10 4 v=10/12/2026, s= n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1592544632
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	pt
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	.?!;:()«»'"
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useTokenEnd	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	393
+sent.model	61
+abbreviations.dictionary	468
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

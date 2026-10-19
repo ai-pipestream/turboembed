@@ -40,6 +40,7 @@ constexpr cublasStatus_t CUBLAS_STATUS_SUCCESS = 0;
 #include <chrono>
 #include <cmath>
 #include <cstdarg>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -1086,6 +1087,18 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // it back through buffer_read.
 // So UPLOAD is a device stage, DOWNLOAD does not run, h2d_bytes is the
 // rows sent, and d2h_bytes is 0 until a read.
+//
+// embed_write_ranges sends the rows the same way, and its ranges, 12
+// bytes each as turbo_token_range lays them out, right after the rows'
+// planes: in the staging, where the fetch kernel moves them with the
+// rows in one copy, or, when the rows went straight from the caller's
+// memory, from the staging with one more copy, since the caller's ranges
+// are ordinary host memory. The device's rows region and the staging
+// hold max_ranges of them, sized when the session is made. The run's
+// RunArgs carry the count to the device's Info, where the pooling kernel
+// reads it and pools one vector per range in place of one per row, with
+// the row's own kernel and sums. The output buffer holds
+// max(max_batch, max_ranges) vectors, for the one write or the other.
 
 /* The GEMMs TURBO_CUDA_CUBLAS may name. */
 enum : unsigned { CUBLAS_QKV = 1, CUBLAS_OUT = 2, CUBLAS_FFN1 = 4, CUBLAS_FFN2 = 8 };
@@ -1553,6 +1566,8 @@ struct Session {
     Model *model = nullptr;
     Context *ctx = nullptr;
     uint32_t max_batch = 0, max_seq = 0;
+    /* The most ranges one embed_write_ranges holds. */
+    uint32_t max_ranges = 0;
     /* F16 GEMMs and attention, else F32 throughout. */
     bool half = false;
     /* The kernels, and by bin the shape each bin's graph is captured from
@@ -1563,7 +1578,8 @@ struct Session {
     /* The GEMMs cuBLAS computes; with any, the run is not a graph. */
     unsigned cublas = 0;
     void *scratch = nullptr;
-    /* The written rows, [k][batch][seq]: ids, mask and types. */
+    /* The written rows, [k][batch][seq]: ids, mask and types, then a
+     * range write's ranges, [count][3]. */
     int32_t *rows = nullptr;
     Packing pk{};
     /* The hidden states, F32, and in F16 for an F16 session's GEMMs. */
@@ -1582,11 +1598,13 @@ struct Session {
     int flag_ints = 0;
     /* A cuBLAS product before its epilogue, when cuBLAS computes one. */
     float *raw = nullptr;
-    /* [max_batch, hidden] F32 on the device, handed out as the output. */
+    /* [max(max_batch, max_ranges), hidden] F32 on the device, handed out
+     * as the output: a vector per row after embed_write, per range after
+     * embed_write_ranges. */
     Buffer output;
-    /* [3, max_batch * max_seq] int32, page-locked, which the run's fetch
-     * kernel reads, and the event that says a write's copies from the
-     * caller's memory are done. */
+    /* [3, max_batch * max_seq] int32 and room for [max_ranges, 3] more,
+     * page-locked, which the run's fetch kernel reads, and the event that
+     * says a write's copies from the caller's memory are done. */
     int32_t *staging = nullptr;
     cudaEvent_t sent = nullptr;
     /* The GEMMs' fault word, after the staging, as the host and the
@@ -2014,7 +2032,7 @@ void stage_rows(Session &s, int m) {
             mask[(size_t)r * seq + i] = live ? 1 : 0;
         }
     s.fetch.n = (int32_t)(2 * plane);
-    s.run = RunArgs{rows, seq, TURBO_POOLING_MEAN, 0, (int32_t)s.model->desc.hidden, 0};
+    s.run = RunArgs{rows, seq, TURBO_POOLING_MEAN, 0, (int32_t)s.model->desc.hidden, 0, 0};
     s.pack.run = s.run;
     s.tokens = (uint32_t)m;
 }
@@ -2310,8 +2328,12 @@ int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_
     return TURBO_OK;
 }
 
-int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
-                             turbo_backend_tuning *tuning, uint32_t *compute_dtype, void **out, turbo_error *err) {
+/* A session for session_create, session_create_tuned and session_open:
+ * max_ranges is max_batch for the first two, the description's for the
+ * third; tuning is NULL for session_create. */
+int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                     uint32_t max_ranges, turbo_backend_tuning *tuning, uint32_t *compute_dtype, void **out,
+                     turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Model *m = static_cast<Model *>(model);
         Context *c = m->ctx;
@@ -2362,6 +2384,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         base.batch_cap = (int)max_batch;
         base.seq_cap = (int)max_seq;
         base.tcap = (int)tokens;
+        base.ranges_cap = (int)max_ranges;
         base.hidden = (int)d.hidden;
         base.heads = (int)d.heads;
         base.inter = (int)d.intermediate;
@@ -2471,6 +2494,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         s->ctx = c;
         s->max_batch = max_batch;
         s->max_seq = max_seq;
+        s->max_ranges = max_ranges;
         s->half = half;
         s->choices = ch;
         s->cublas = cublas;
@@ -2510,6 +2534,10 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         const size_t act = half ? 2 : 4;
         const size_t h = d.hidden, inter = d.intermediate;
         const size_t ints = round_up(tokens * 4, DEVICE_ALIGN);
+        // A range write's ranges follow the rows' planes, wherever the
+        // planes end: room for max_ranges of them past the three planes.
+        const size_t range_ints = (size_t)max_ranges * 3;
+        const size_t ranges = round_up(range_ints * 4, DEVICE_ALIGN);
         const size_t rows = round_up(((size_t)max_batch + 1) * 4, DEVICE_ALIGN);
         const size_t info = round_up(sizeof(Info), DEVICE_ALIGN);
         const size_t x = round_up(tokens * h * 4, DEVICE_ALIGN);
@@ -2523,13 +2551,20 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         const size_t flags = round_up((size_t)s->flag_ints * 4, DEVICE_ALIGN);
         const size_t widest = 3 * h > inter ? 3 * h : inter;
         const size_t raw = s->cublas & (CUBLAS_QKV | CUBLAS_FFN1) ? round_up(tokens * widest * 4, DEVICE_ALIGN) : 0;
-        const size_t output = round_up((size_t)max_batch * h * 4, DEVICE_ALIGN);
+        // The row path and the range path write their vectors to this
+        // one buffer, so it holds the larger of the two counts. max_ranges
+        // is at most max_batch * max_seq, so this is no more than x.
+        const size_t vectors = max_batch > max_ranges ? max_batch : max_ranges;
+        const size_t output = round_up(vectors * h * 4, DEVICE_ALIGN);
         Tuned found;
         uint32_t tune_ms = 0;
-        const size_t total = 5 * ints + 5 * rows + info + x + x16 + qkv + att + ffn + part + ws + flags + raw + output;
+        const size_t total =
+            5 * ints + ranges + 5 * rows + info + x + x16 + qkv + att + ffn + part + ws + flags + raw + output;
+        // The staging: the three planes, the ranges, then the fault word.
+        const size_t staged_ints = 3 * tokens + range_ints;
         const int32_t rc = [&]() -> int32_t {
             TRY_CUDA(device_malloc(&s->scratch, total), "device memory for the session");
-            TRY_CUDA(pinned_malloc(reinterpret_cast<void **>(&s->staging), 3 * tokens * 4 + 16),
+            TRY_CUDA(pinned_malloc(reinterpret_cast<void **>(&s->staging), staged_ints * 4 + 16),
                      "page-locked memory for the session's rows");
             TRY_CUDA(cudaEventCreateWithFlags(&s->sent, cudaEventDisableTiming), "cudaEventCreateWithFlags");
             char *p = static_cast<char *>(s->scratch);
@@ -2538,7 +2573,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
                 p += n;
                 return here;
             };
-            s->rows = reinterpret_cast<int32_t *>(take(3 * ints));
+            s->rows = reinterpret_cast<int32_t *>(take(3 * ints + ranges));
             s->pk.tok_row = reinterpret_cast<int32_t *>(take(ints));
             s->pk.key_bias = reinterpret_cast<float *>(take(ints));
             s->pk.start = reinterpret_cast<int32_t *>(take(rows));
@@ -2560,7 +2595,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
             s->output.ctx = c;
             s->output.ptr = take(output);
             s->output.placement = TURBO_PLACE_DEVICE;
-            s->output.bytes = (uint64_t)max_batch * d.hidden * 4;
+            s->output.bytes = (uint64_t)vectors * d.hidden * 4;
             s->output.owned = false;
             s->pack.rows = s->rows;
             s->pack.heads = (int32_t)d.heads;
@@ -2569,8 +2604,8 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
             void *staged = nullptr;
             TRY_CUDA(cudaHostGetDevicePointer(&staged, s->staging, 0), "the staging's device address");
             s->fetch.src = static_cast<const int32_t *>(staged);
-            s->fault = s->staging + 3 * tokens;
-            s->fault_dev = static_cast<int32_t *>(staged) + 3 * tokens;
+            s->fault = s->staging + staged_ints;
+            s->fault_dev = static_cast<int32_t *>(staged) + staged_ints;
             *s->fault = 0;
             s->fetch.dst = s->rows;
             s->fetch.n = 0;
@@ -2655,11 +2690,36 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
     });
 }
 
+int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                             turbo_backend_tuning *tuning, uint32_t *compute_dtype, void **out, turbo_error *err) {
+    return open_session(model, task, max_batch, max_seq, precision, max_batch, tuning, compute_dtype, out, err);
+}
+
 /* A session with the built-in choices and what the environment forces, as
  * session_create_tuned makes it with tuning OFF. */
 int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
                        uint32_t *compute_dtype, void **out, turbo_error *err) {
-    return session_create_tuned(model, task, max_batch, max_seq, precision, nullptr, compute_dtype, out, err);
+    return open_session(model, task, max_batch, max_seq, precision, max_batch, nullptr, compute_dtype, out, err);
+}
+
+/* The session's whole description, tuned as session_create_tuned tunes
+ * one. Its device is a GPU, so cpu_threads is 0 alone. */
+int32_t session_open(void *model, const turbo_backend_session_desc *desc, turbo_backend_tuning *tuning,
+                     uint32_t *compute_dtype, void **out, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        const size_t need = offsetof(turbo_backend_session_desc, max_ranges) + sizeof(uint32_t);
+        if (desc->struct_size < need)
+            return refuse(err, TURBO_E_INVALID_STRUCT_SIZE,
+                          "turbo_backend_session_desc of %u bytes: the cuda backend reads it through max_ranges, %zu "
+                          "bytes",
+                          desc->struct_size, need);
+        if (desc->cpu_threads != 0)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 6,
+                                "cpu_threads %u: the cuda backend's device is not a CPU; cpu_threads must be 0",
+                                desc->cpu_threads);
+        return open_session(model, desc->task, desc->max_batch, desc->max_seq, desc->precision, desc->max_ranges,
+                            tuning, compute_dtype, out, err);
+    });
 }
 
 void session_release(void *session) {
@@ -2669,16 +2729,19 @@ void session_release(void *session) {
     }
 }
 
-/* The rows to the device, into s.rows as [k][batch][seq]. When every
- * array is page-locked or managed and its rows are back to back, each is
- * one contiguous copy from the caller's memory, with *direct set, and the
- * run's fetch kernel does nothing. Otherwise the arrays are laid out in
- * the page-locked staging as on the device and the run's fetch kernel
- * reads them from there, so no copy is queued ahead of the run. Device
- * memory is refused: the core has read and checked the rows on the host,
- * so they are host memory, page-locked, managed or pageable. *sent is the
- * bytes sent. */
-int32_t upload(Session &s, const turbo_backend_embed_rows *r, uint64_t *sent, bool *direct, turbo_error *err) {
+/* The rows to the device, into s.rows as [k][batch][seq], and count
+ * ranges after them (none for embed_write). When every array is
+ * page-locked or managed and its rows are back to back, each is one
+ * contiguous copy from the caller's memory, with *direct set, and the
+ * run's fetch kernel does nothing; the ranges, the caller's ordinary
+ * memory, are put in the staging and copied from there. Otherwise the
+ * arrays and the ranges are laid out in the page-locked staging as on
+ * the device and the run's fetch kernel reads them from there, so no
+ * copy is queued ahead of the run. Device memory is refused: the core has
+ * read and checked the rows on the host, so they are host memory,
+ * page-locked, managed or pageable. *sent is the bytes sent. */
+int32_t upload(Session &s, const turbo_backend_embed_rows *r, const turbo_token_range *ranges, uint32_t count,
+               uint64_t *sent, bool *direct, turbo_error *err) {
     const int32_t *src[3] = {r->ids, r->mask, r->types};
     const int k = r->types ? 3 : 2;
     const size_t row = (size_t)r->seq * 4, plane = (size_t)r->batch * r->seq;
@@ -2689,11 +2752,20 @@ int32_t upload(Session &s, const turbo_backend_embed_rows *r, uint64_t *sent, bo
             return refuse(err, TURBO_E_INVALID_ARGUMENT, "rows are device memory; the core reads rows on the host");
         if (a.type != cudaMemoryTypeHost && a.type != cudaMemoryTypeManaged) pinned = false;
     }
-    *sent = (uint64_t)k * row * r->batch;
+    *sent = (uint64_t)k * row * r->batch + (uint64_t)count * sizeof(turbo_token_range);
+    // The ranges sit right after the planes, in the staging and on the
+    // device alike, where the pooling kernel finds them from the run's
+    // shape.
+    const size_t range_at = (size_t)k * plane, range_ints = (size_t)count * 3;
+    if (count) memcpy(s.staging + range_at, ranges, (size_t)count * sizeof(turbo_token_range));
     if (pinned) {
         for (int i = 0; i < k; i++)
             TRY_CUDA(cudaMemcpyAsync(s.rows + i * plane, src[i], plane * 4, cudaMemcpyHostToDevice, s.ctx->stream),
                      "sending the rows");
+        if (count)
+            TRY_CUDA(cudaMemcpyAsync(s.rows + range_at, s.staging + range_at, range_ints * 4, cudaMemcpyHostToDevice,
+                                     s.ctx->stream),
+                     "sending the ranges");
         *direct = true;
         s.fetch.n = 0;
         return TURBO_OK;
@@ -2706,59 +2778,80 @@ int32_t upload(Session &s, const turbo_backend_embed_rows *r, uint64_t *sent, bo
             for (uint32_t b = 0; b < r->batch; b++)
                 memcpy(at + (size_t)b * r->seq, src[i] + (size_t)b * r->row_stride, row);
     }
-    s.fetch.n = (int32_t)(k * plane);
+    s.fetch.n = (int32_t)(range_at + range_ints);
+    return TURBO_OK;
+}
+
+/* embed_write and embed_write_ranges: the rows, and count ranges (0 and
+ * NULL for embed_write), to the device, and the run's shape and options. */
+int32_t write_rows(Session &s, const turbo_backend_embed_rows *r, const turbo_token_range *ranges, uint32_t count,
+                   turbo_error *err) {
+    s.written = false;
+    // The packed size, which picks the run's token bin and which
+    // cuBLAS's GEMMs take from the host: each row through its last
+    // live token, as pack_rows finds it on the device from the same
+    // entries, the host memory the core read. A session of one graph
+    // needs neither, and leaves it 0.
+    uint32_t packed = 0;
+    if (s.cublas || s.graph_count > 1)
+        for (uint32_t b = 0; b < r->batch; b++) {
+            const int32_t *m = r->mask + (size_t)b * r->row_stride;
+            uint32_t n = r->seq;
+            while (n > 0 && m[n - 1] == 0) n--;
+            packed += n;
+        }
+    uint64_t sent = 0;
+    {
+        std::lock_guard<std::mutex> g(s.ctx->lock);
+        ON_DEVICE(s.ctx->ordinal);
+        // Nothing reads the staging or the device's rows now: a run
+        // waits for its end, and a write for its own copies.
+        bool direct = false;
+        const int32_t rc = upload(s, r, ranges, count, &sent, &direct, err);
+        if (rc != TURBO_OK) {
+            // Nothing queued may read memory the next write reuses.
+            (void)cudaStreamSynchronize(s.ctx->stream);
+            return rc;
+        }
+        // Rows copied from the caller's page-locked or managed memory
+        // are read by the device until the copy ends, and the caller's
+        // arrays are valid for this call only: wait for them. Rows in
+        // the staging are the session's, and the run reads them.
+        if (direct) {
+            TRY_CUDA(cudaEventRecord(s.sent, s.ctx->stream), "sending the rows");
+            TRY_CUDA(cudaEventSynchronize(s.sent), "sending the rows");
+        }
+    }
+    s.run.batch = (int32_t)r->batch;
+    s.run.seq = (int32_t)r->seq;
+    s.run.pooling = (int32_t)r->pooling;
+    s.run.l2 = r->normalize == TURBO_NORMALIZE_L2 ? 1 : 0;
+    s.run.output_dim = (int32_t)r->output_dim;
+    s.run.has_types = r->types ? 1 : 0;
+    s.run.ranges = (int32_t)count;
+    s.tokens = packed;
+    s.h2d = sent;
+    s.written = true;
     return TURBO_OK;
 }
 
 int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t { return write_rows(*static_cast<Session *>(session), r, nullptr, 0, err); });
+}
+
+/* The rows as embed_write sends them, and the ranges after them, where
+ * the pooling kernel reads them. The core has checked each range and the
+ * count against max_ranges, and set pooling to MEAN. */
+int32_t embed_write_ranges(void *session, const turbo_backend_embed_rows *r, const turbo_token_range *ranges,
+                           uint32_t count, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Session &s = *static_cast<Session *>(session);
-        s.written = false;
-        // The packed size, which picks the run's token bin and which
-        // cuBLAS's GEMMs take from the host: each row through its last
-        // live token, as pack_rows finds it on the device from the same
-        // entries, the host memory the core read. A session of one graph
-        // needs neither, and leaves it 0.
-        uint32_t packed = 0;
-        if (s.cublas || s.graph_count > 1)
-            for (uint32_t b = 0; b < r->batch; b++) {
-                const int32_t *m = r->mask + (size_t)b * r->row_stride;
-                uint32_t n = r->seq;
-                while (n > 0 && m[n - 1] == 0) n--;
-                packed += n;
-            }
-        uint64_t sent = 0;
-        {
-            std::lock_guard<std::mutex> g(s.ctx->lock);
-            ON_DEVICE(s.ctx->ordinal);
-            // Nothing reads the staging or the device's rows now: a run
-            // waits for its end, and a write for its own copies.
-            bool direct = false;
-            const int32_t rc = upload(s, r, &sent, &direct, err);
-            if (rc != TURBO_OK) {
-                // Nothing queued may read memory the next write reuses.
-                (void)cudaStreamSynchronize(s.ctx->stream);
-                return rc;
-            }
-            // Rows copied from the caller's page-locked or managed memory
-            // are read by the device until the copy ends, and the caller's
-            // arrays are valid for this call only: wait for them. Rows in
-            // the staging are the session's, and the run reads them.
-            if (direct) {
-                TRY_CUDA(cudaEventRecord(s.sent, s.ctx->stream), "sending the rows");
-                TRY_CUDA(cudaEventSynchronize(s.sent), "sending the rows");
-            }
-        }
-        s.run.batch = (int32_t)r->batch;
-        s.run.seq = (int32_t)r->seq;
-        s.run.pooling = (int32_t)r->pooling;
-        s.run.l2 = r->normalize == TURBO_NORMALIZE_L2 ? 1 : 0;
-        s.run.output_dim = (int32_t)r->output_dim;
-        s.run.has_types = r->types ? 1 : 0;
-        s.tokens = packed;
-        s.h2d = sent;
-        s.written = true;
-        return TURBO_OK;
+        if (count == 0 || count > s.max_ranges)
+            return refuse(err, TURBO_E_INTERNAL, "%u ranges for a cuda session of max_ranges %u", count,
+                          s.max_ranges);
+        if (r->pooling != TURBO_POOLING_MEAN)
+            return refuse(err, TURBO_E_INTERNAL, "pooling %u for ranges: the core passes MEAN alone", r->pooling);
+        return write_rows(s, r, ranges, count, err);
     });
 }
 
@@ -3015,6 +3108,8 @@ const turbo_backend turbo_cuda_backend = {
     TURBO_FORMAT_BIT(TURBO_FORMAT_SAFETENSORS),
     0,
     session_create_tuned,
+    session_open,
+    embed_write_ranges,
 };
 
 /* Every allocation this backend has made in the process, host and device,

@@ -1,0 +1,29 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/wordtag-basic	149	144	b0275e6eb2d4a54e23cf800fa1cc7abec698159c46fbbceb7736f7d20e58f1a9
+model	en-detokenizer.xml	d071b56f77ae5b6aff0a591c1cf7e601a4007b5fdbcc0bd3fc31e8c84e95ec232df9765a70bfef786f75dbefcc4cad7d053b34b00ecc805507192a5fddc81260
+annotator	opennlp.tools.formats.convert.POSToSentenceSampleStream	read
+config	chunkSize	2
+layer	turbo:samples	document	3	written:str
+The driver stopped.\na_b d \n
+\n\n
+é 😀\n _ __\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	3	text:str
+The driver stopped.a_b d 
+
+é 😀 _ __
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	6	sample:u32	start:u32	end:u32
+0	0	19
+0	19	25
+1	0	0
+1	0	0
+2	0	7
+2	7	12
+end	turbo:sample-spans

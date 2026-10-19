@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/whitespace-only	13	10	36e3661dabb7a6a46243e01b3a1027d4430815f84fdca05b6d4f0bc326842f5d
+model	mecab-fixture-ko	527e0f80d5ed85fbda9aedadfedc64ab4f17bc4a9d4869cdf4b1cb274e34e5742211e7e91124dbb80a5fea50839546073e0f1cbd0695a15fb81fd0f5abbea44e
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	0	start:u32	end:u32
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	0	unknown:u32	features:str
+end	turbo:morphemes

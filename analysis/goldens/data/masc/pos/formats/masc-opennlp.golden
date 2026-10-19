@@ -1,0 +1,69 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-opennlp	8250	8250	a2c545be6c71213bf6e00fc0a70878a14e8f1fbc457a253618a595d68bbe1f10
+annotator	opennlp.tools.formats.masc.MascPOSSampleStream	read
+layer	turbo:samples	document	4	pass:u32	written:str
+0	This_DT is_VB a_AT test_NN Sentence_NN ._.
+0	This_DT is_VB 'nother_RB test_NN sentence_NN ._.
+1	This_DT is_VB a_AT test_NN Sentence_NN ._.
+1	This_DT is_VB 'nother_RB test_NN sentence_NN ._.
+end	turbo:samples
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-tokens	document	24	sample:u32	text:str
+0	This
+0	is
+0	a
+0	test
+0	Sentence
+0	.
+1	This
+1	is
+1	'nother
+1	test
+1	sentence
+1	.
+2	This
+2	is
+2	a
+2	test
+2	Sentence
+2	.
+3	This
+3	is
+3	'nother
+3	test
+3	sentence
+3	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	24	tag:str
+DT
+VB
+AT
+NN
+NN
+.
+DT
+VB
+RB
+NN
+NN
+.
+DT
+VB
+AT
+NN
+NN
+.
+DT
+VB
+RB
+NN
+NN
+.
+end	turbo:sample-tags

@@ -22,6 +22,7 @@ pub mod cpu;
 pub mod cuda;
 #[cfg(feature = "hailo")]
 pub mod hailo;
+pub mod head;
 #[cfg(feature = "levelzero")]
 pub mod levelzero;
 pub mod manifest;
@@ -32,6 +33,7 @@ pub mod model;
 pub mod npu;
 pub mod record;
 pub mod safetensors;
+pub mod sentencepiece;
 mod session;
 pub mod status;
 pub mod tokenizer;

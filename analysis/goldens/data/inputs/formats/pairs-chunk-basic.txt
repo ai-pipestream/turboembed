@@ -1,0 +1,34 @@
+He PRP B-NP
+reckons VBZ B-VP
+the DT B-NP
+deficit NN I-NP
+
+He PRP B-NP
+reckons VBZ B-VP
+the DT B-NP
+deficit NN B-NP
+
+a X B-NP
+b X I-NP
+
+a X B-NP
+b X I-NP
+
+a X B-NP
+b X O
+
+a X B-NP
+
+a X B-NP
+
+a X X
+
+a X I-NP
+b X I-VP
+
+a X I-NP
+b X I-NP
+
+a X Z
+
+a X B-NP

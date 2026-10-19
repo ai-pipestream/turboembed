@@ -1,0 +1,56 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/spanish	140	122	f9fd56df613aecfdec7800f95eccc7f457cbd15ee602da070166ddeeed8c181d
+annotator	opennlp.tools.sentdetect.SDEventStream	read
+config	format	text
+config	language	th
+config	run	sentdetect-th
+config	source	sentdetect
+config	useTokenEnd	false
+layer	turbo:events	document	22	outcome:str	context:str	values:str
+n	eos=  x=El 2 xcap v= s=Sr. scap n=García ncap	
+n	eos=  x=Sr. 3 xcap v=El vcap s=García scap n=dijo:	
+n	eos=  x=García 6 xcap v=Sr. vcap s=dijo: n=«¿Dónde	
+n	eos=  x=dijo: 5 v=García vcap s=«¿Dónde n=está	
+n	eos=  x=«¿Dónde 7 v=dijo: s=está n=la	
+n	eos=  x=está 4 v=«¿Dónde s=la n=niña?»	
+n	eos=  x=la 2 v=está s=niña?» n=y	
+n	eos=  x=niña?» 6 v=la s=y n=se	
+n	eos=  x=y 1 v=niña?» s=se n=fue	
+n	eos=  x=se 2 v=y s=fue n=a	
+n	eos=  x=fue 3 v=se s=a n=la	
+n	eos=  x=a 1 v=fue s=la n=señal	
+n	eos=  x=la 2 v=a s=señal n=de	
+n	eos=  x=señal 5 v=la s=de n=tráfico.	
+n	eos=  x=de 2 v=señal s=tráfico. n=¡Qué	
+n	eos=  x=tráfico. 8 v=de s=¡Qué n=día!	
+n	eos=  x=¡Qué 4 v=tráfico. s=día! n=Había ncap	
+n	eos=  x=día! 4 v=¡Qué s=Había scap n=1.000	
+n	eos=  x=Había 5 xcap v=día! s=1.000 n=años…	
+n	eos=  x=1.000 5 v=Había vcap s=años… n=pingüino,	
+n	eos=  x=años… 5 v=1.000 s=pingüino, n=canción.	
+s	eos=  x=pingüino, 9 v=años… s=canción. n=	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+4120508933
+end	turbo:event-checksum
+layer	turbo:manifest	document	9	key:str	value:str
+Component-Name	SentenceDetectorME
+Language	th
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+eosCharacters	 \n
+factory	opennlp.tools.sentdetect.SentenceDetectorFactory
+useTokenEnd	false
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	287
+sent.model	61
+end	turbo:package-entries

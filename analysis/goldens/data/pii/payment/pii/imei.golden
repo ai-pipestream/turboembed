@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/imei	61	61	e28422ecd2305fbbb0e6fbdabb13159c243e1c3a9c992d8ce7c882dbad12500e
+annotator	opennlp.tools.pii.PiiPacks	payment
+config	pack	payment
+layer	turbo:pii	text	2	start:u32	end:u32	type:str	normalized:str
+6	21	card	490154203237518
+37	55	card	352099001761481
+end	turbo:pii

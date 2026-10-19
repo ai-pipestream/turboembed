@@ -1,0 +1,33 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/supplementary	98	76	ccf9ecafa95f1e9d3891e47badd0ef6b83a8a2b02d79d24db46daf0bfa5b387e
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	81	7	2	0	none
+context	sn
+context	eos=.
+context	x=done
+context	4
+context	v=𐐀𐐨𐑅
+context	s=
+context	n=𠀀
+outcome	s	3fed41cfe394e9c0 0.9142836995081822
+outcome	n	3fb5f180e358b1fa 0.08571630049181769
+acceptable	1
+end	0
+point	1	96	8	2	0	none
+context	sn
+context	eos=.
+context	x=CJK
+context	3
+context	xcap
+context	v=rare
+context	s=
+context	n=
+outcome	s	3feffc5e7524dbfe 0.9995567596405406
+outcome	n	3f3d0c56d9200aa1 4.4324035945934355E-4
+acceptable	1
+end	1

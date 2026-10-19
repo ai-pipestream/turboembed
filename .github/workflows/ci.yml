@@ -25,10 +25,90 @@ jobs:
         run: cargo fmt --all --check
       - name: clippy
         run: cargo clippy --workspace --all-targets
+      - name: clippy (fuzz)
+        run: cargo clippy -p turbo-goldens-tool --features fuzz --all-targets
       - name: clippy (npu)
         run: cargo clippy -p turbo --features npu --all-targets
+      # The OpenNLP models the JVM goldens were made with, downloaded from
+      # downloads.apache.org and checked against their published SHA-512
+      # (analysis/goldens-tool/src/recipe.rs). With them present and
+      # required, the language detector's probability and ranking parity
+      # tests, the language by span fixture scores, and the sentence
+      # detector and tokenizer tests over the published UD models compare
+      # instead of skipping.
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
+      # The core's own tests build it with its `internals` feature, and
+      # the core is a cdylib as well, so its rlib has no hash in its name:
+      # one run building both the core's tests and the crates that use the
+      # core writes two different builds to target/debug/deps/libturbo.rlib,
+      # and a crate compiled against the one overwritten fails to load
+      # (#358). So the core's tests, and every later run that turns on
+      # another core feature, build in a target directory of their own.
       - name: test
-        run: cargo test --workspace
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+        run: cargo test --workspace --exclude turbo
+      - name: test (fuzz command)
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+        run: cargo test -p turbo-goldens-tool --features fuzz
+      - name: test (core)
+        env:
+          CARGO_TARGET_DIR: target/core
+        run: cargo test -p turbo
+      # The published UD sentence detector, tokenizer, part-of-speech and
+      # lemmatizer models are trained on CC BY-SA treebanks and not checked
+      # in either; the tests over them skip without them and fail here.
+      # turbo-maxent evaluates the es and fr token models, and
+      # turbo-sequence's beam and tag-format tests the en pos model.
+      # turbo-zoo checks their bytes against its index, turbo-eval's
+      # default sentence model is the English one, and turbo-train-recipes
+      # gates its models against the English sentence and token models (its
+      # tagger's reference, OpenNLP 1.5's en-pos-maxent, is local-only).
+      # LibreOffice's Hunspell dictionaries are not checked in either
+      # (de_DE_frami is GPL, hu_HU MPL or LGPL; en_US, under SCOWL's
+      # permissive terms, is downloaded with them); turbo-hunspell's
+      # goldens over them run here. The SMS Spam Collection (CC BY 4.0) is
+      # not checked in either: fetch-models downloads it into
+      # .opennlp-models/corpora by the URL and SHA-512 in the recipe, so the
+      # cache above, keyed by the recipe, keeps it until its digest changes.
+      # turbo-train-components trains the maxent document categorizer on it
+      # here and compares the models with the JVM's byte for byte.
+      - name: parity against the JVM with the published models, models required
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+          TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
+        run: |
+          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-langspan -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer -p turbo-hunspell
+          cargo test -p turbo-zoo --test builtin
+          cargo test -p turbo-eval --lib
+          cargo test -p turbo-train-recipes --test recipes
+          cargo test -p turbo-train-components --test doccat_goldens
+      # The sentence detectors against the conformance suites (Pragmatic
+      # Segmenter, pySBD, UAX #29) and the rule splitter's agreement with
+      # the maxent detector, with the de, en and pt sentence models. The
+      # step above runs these tests too; this one names them, so that a
+      # change in a pass count or an agreement number shows as its own
+      # failing step. docs/segmentation.md, "RuleSentenceDetector".
+      - name: sentence conformance and agreement, models required
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+          TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
+        run: cargo test -p turbo-sentdetect --test conformance --test agreement -- --nocapture
+      # fetch-models also unpacks the MeCab dictionaries into the same
+      # directory (IPADIC with its UTF-8 copy). The lattice tokenizer's
+      # IPADIC and mecab-ko-dic golden tests, and the readings tests over
+      # the same goldens, are ignored by default; here they run, and a
+      # missing dictionary fails them.
+      - name: lattice tokenizer parity against the JVM, dictionaries required
+        env:
+          TURBO_MECAB_DICTIONARIES: ${{ github.workspace }}/.opennlp-models
+        run: cargo test -p turbo-tokenize --test lattice_golden --test lattice_readings -- --ignored
       # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
       # The job does not pass --include-ignored and does not set
       # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs
@@ -36,6 +116,8 @@ jobs:
       # self-hosted NPU runner. A green job is not a device run.
       # docs/npu.md, "Host-only blocker".
       - name: test (npu)
+        env:
+          CARGO_TARGET_DIR: target/core
         run: cargo test -p turbo --features npu
       - name: a benchmark record end to end, from the pushed commit
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

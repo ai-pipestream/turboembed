@@ -1,0 +1,38 @@
+# Character categories of the fixture dictionary, written for the
+# lattice tokenizer tests: name, INVOKE, GROUP and LENGTH.
+DEFAULT        0 1 0  # the category every char.def must define
+SPACE          0 1 0
+KANJI          0 0 2
+SYMBOL         1 1 0
+NUMERIC        1 1 0
+ALPHA          1 1 0
+HIRAGANA       0 1 2
+KATAKANA       1 1 2
+KANJINUMERIC   1 1 0
+GREEK          1 0 3  # no grouping, lengths 1 to 3 only
+
+# Code points, a later line winning over an earlier one.
+0x0020 SPACE
+0x0021..0x002F SYMBOL
+0x0030..0x0039 NUMERIC
+0x003A..0x0040 SYMBOL
+0x0041..0x005A ALPHA
+0x005B..0x0060 SYMBOL
+0x0061..0x007A ALPHA
+0x007B..0x007E SYMBOL
+0x0391..0x03C9 GREEK
+0x3001..0x3003 SYMBOL
+0x3041..0x309F HIRAGANA
+0x30A1..0x30FF KATAKANA
+0x30FC         KATAKANA HIRAGANA  # the long vowel mark continues both
+0x4E00..0x9FFF KANJI
+0x4E00 KANJINUMERIC KANJI
+0x4E8C KANJINUMERIC KANJI
+0x4E09 KANJINUMERIC KANJI
+0x5341 KANJINUMERIC KANJI
+0xFF10..0xFF19 NUMERIC
+0xFF21..0xFF3A ALPHA
+0xFF41..0xFF5A ALPHA
+0x20000..0x2A6DF KANJI  # CJK Extension B
+0x1F300..0x1F64F SYMBOL
+0x1F600 SYMBOL ALPHA

@@ -1,0 +1,65 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/ja	172	58	d3061ebd06c3c878e31d5458e694849ea9a81a9ef20ca024233c46366645e824
+model	chunker-fixture-rust.bin	71caec6c87065f0872d0ef255ed95443b0c675acf273c2d19a1aefd6c006f1ab99846bbb28b56d2e78abcb3f78074d00b1135a6dffc4e14ed3957101cf80ee44
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.chunker.ChunkerME	chunk
+point	0	0	41	11	0	none
+context	w_2=bos
+context	w_1=bos
+context	w0=今日は朝から雨が降っています。駅まで歩くのに傘が必要でした。午後には晴れるそうです。週末は友達と山に登る予定です！
+context	w1=eos
+context	w2=eos
+context	w_1=bosw0=今日は朝から雨が降っています。駅まで歩くのに傘が必要でした。午後には晴れるそうです。週末は友達と山に登る予定です！
+context	w0=今日は朝から雨が降っています。駅まで歩くのに傘が必要でした。午後には晴れるそうです。週末は友達と山に登る予定です！w1=eos
+context	t_2=bos
+context	t_1=bos
+context	t0=.
+context	t1=eos
+context	t2=eos
+context	t_2=bost_1=bos
+context	t_1=bost0=.
+context	t0=.t1=eos
+context	t1=eost2=eos
+context	t_2=bost_1=bost0=.
+context	t_1=bost0=.t1=eos
+context	t0=.t1=eost2=eos
+context	p_2=bos
+context	p_1=bos
+context	p_2=bosp_1=bos
+context	p_1=bost_2=bos
+context	p_1=bost_1=bos
+context	p_1=bost0=.
+context	p_1=bost1=eos
+context	p_1=bost2=eos
+context	p_1=bost_2=bost_1=bos
+context	p_1=bost_1=bost0=.
+context	p_1=bost0=.t1=eos
+context	p_1=bost1=eost2=eos
+context	p_1=bost_2=bost_1=bost0=.
+context	p_1=bost_1=bost0=.t1=eos
+context	p_1=bost0=.t1=eost2=eos
+context	p_1=bosw_2=bos
+context	p_1=bosw_1=bos
+context	p_1=bosw0=今日は朝から雨が降っています。駅まで歩くのに傘が必要でした。午後には晴れるそうです。週末は友達と山に登る予定です！
+context	p_1=bosw1=eos
+context	p_1=bosw2=eos
+context	p_1=bosw_1=bosw0=今日は朝から雨が降っています。駅まで歩くのに傘が必要でした。午後には晴れるそうです。週末は友達と山に登る予定です！
+context	p_1=bosw0=今日は朝から雨が降っています。駅まで歩くのに傘が必要でした。午後には晴れるそうです。週末は友達と山に登る予定です！w1=eos
+outcome	B-NP	3fda9f909be510ba 0.41598906730747454
+outcome	I-NP	3fb4aceb64d50698 0.08076354228708238
+outcome	B-PP	3fa1b82faa1c6812 0.034608354106424724
+outcome	B-VP	3fabd3595c24542b 0.05434684037951628
+outcome	I-VP	3f9b669cb59991fa 0.02675862177274444
+outcome	O	3fcb19c5b6c65440 0.21172400879427933
+outcome	B-ADVP	3f98548b8d014cf0 0.02376001403929434
+outcome	B-PRT	3fa9855fc8c43802 0.04984568906557742
+outcome	B-ADJP	3fa44ba4b12f5d21 0.03963961279776585
+outcome	I-ADJP	3fa332578554f250 0.03749345305047724
+outcome	B-SBAR	3f99ac28aa7ad1da 0.025070796399363583
+end	0

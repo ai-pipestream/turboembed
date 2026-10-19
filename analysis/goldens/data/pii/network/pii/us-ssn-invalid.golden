@@ -1,0 +1,10 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/us-ssn-invalid	61	61	431ab83e9a31a36a4e3bc1f6d925757fb7b62ecd8870d0e801c96cdf3ab19b04
+annotator	opennlp.tools.pii.PiiPacks	network
+config	pack	network
+layer	turbo:pii	text	0	start:u32	end:u32	type:str	normalized:str
+end	turbo:pii

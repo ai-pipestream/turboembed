@@ -1,0 +1,160 @@
+# A brat corpus written for this project: the annotation configuration, documents
+# with text-bound annotations of every kind of offsets, relations, events,
+# attributes and notes, files the stream does not read, and subdirectories.
+@@ file annotation.conf
+# the annotation types
+[entities]
+Person
+Location
+Organization
+[relations]
+Lives_in Arg1:Person, Arg2:Location
+[events]
+Visit Agent:Person, Place:Location
+[attributes]
+Negated Arg:<ENTITY>
+[other]
+Ignored
+
+@@ end
+
+@@ file a.txt
+Ada Byron King visited London in 1842 .
+She met Charles at the Royal Society .
+The Society
+of Friends met again .
+
+@@ end
+
+@@ file a.ann
+T1	Person 0 9;10 14	Ada Byron King
+T2	Location 23 29	London
+T3	Person 48 55	Charles
+T4	Organization 63 76	Royal Society
+T5	Organization 83 101	Society of Friends
+R1	Lives_in Arg1:T1 Arg2:T2
+E1	Visit:T1 Agent:T1 Place:T2
+A1	Negated T3
+A2	Confidence T3 High
+#1	AnnotatorNotes T1	the first note
+#2	AnnotatorNotes T1	the second note
+T6	Person 1 3	da
+T7	Location 1000 1004	far
+T8	Person 14 22	 visited
+*	Equiv T1 T3
+#3	Comment T2	not a note
+N1	Reference T2 Wiki:London	London
+
+@@ end
+
+@@ file b.txt
+Grace Hopper wrote code in Arlington .
+
+@@ end
+
+@@ file b.ann
+T1	Person 0 5	Grace
+T2	Person 6 12	Hopper
+T2	Location 19 23	code
+T3	Location 27 36	Arlington
+
+T4	Person 13 18	wrote
+
+@@ end
+
+@@ file c.txt
+Mount Kenya Park is big .
+A second line .
+
+@@ end
+
+@@ file c.ann
+T1	Location 0 16	Mount Kenya Park
+T2	Location 6 11	Kenya
+
+@@ end
+
+@@ file e.txt
+KimLee saw Sam
+
+  Pat Ray ranfar .Last line
+@@ end
+
+@@ file e.ann
+T1	Person 0 7	KimLee
+T3	Person 12 15	Sam
+T4	Person 21 24	Pat
+T6	Location 29 36	ranfar
+T7	Person 39 43	Last
+
+@@ end
+
+@@ file f.txt
+No annotation file .
+
+@@ end
+
+@@ file g.ann
+T1	Person 0 2	No
+
+@@ end
+
+@@ file h.ANN
+T1	Person 0 2	No
+
+@@ end
+
+@@ file h.txt
+No lower-case suffix .
+
+@@ end
+
+@@ file i.txt
+
+@@ end
+
+@@ file i.ann
+
+@@ end
+
+@@ file sub-a/j.txt
+Zed lives in Oslo .
+
+@@ end
+
+@@ file sub-a/j.ann
+T1	Person 0 3	Zed
+T2	Location 13 17	Oslo
+
+@@ end
+
+@@ file sub-b/k.txt
+Uma visits Rome .
+
+@@ end
+
+@@ file sub-b/k.ann
+T1	Person 0 3	Uma
+T2	Location 11 15	Rome
+
+@@ end
+
+@@ file sub-b/deeper/l.txt
+Vic is deeper .
+
+@@ end
+
+@@ file sub-b/deeper/l.ann
+T1	Person 0 3	Vic
+
+@@ end
+
+@@ file m.ann
+T1	Person 0 3	Eve
+T2	Person 10 13	Max
+
+@@ end
+
+@@ hex m.txt
+45766520eda08020616e64204d6178202e0a
+@@ end

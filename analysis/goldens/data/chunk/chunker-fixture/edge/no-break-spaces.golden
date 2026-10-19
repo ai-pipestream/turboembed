@@ -1,0 +1,69 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/no-break-spaces	92	77	28744c64ca548f1b96f0de0d90ef4a9ce78d2992e8d9f219426ef9e46f1e06fe
+model	chunker-fixture.bin	be8e0bfd341644705a652b85b978e4138056922ddb9caea1ac9a2395f0648e55ad1f1b035d90f6febc0f057f832cecac377f397552fdbdfefadaa27cfa232d6a
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+model	opennlp-en-ud-ewt-pos-1.3-2.5.4.bin	fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e
+annotator	opennlp.tools.chunker.ChunkerME	chunk
+layer	opennlp:sentences	text	1	start:u32	end:u32
+0	91
+end	opennlp:sentences
+layer	opennlp:tokens	text	13	start:u32	end:u32
+0	2
+4	9
+10	15
+16	19
+22	33
+34	39
+42	48
+51	57
+60	62
+65	74
+75	80
+83	87
+88	91
+end	opennlp:tokens
+layer	opennlp:pos	aligned:opennlp:tokens	13	tag:str	prob:f64
+DT	3feb6e1cf5c698e9 0.8571915436084768
+NN	3fef96f3525da860 0.9871765717227952
+NN	3fefc2816ef84cbb 0.9924933593159929
+CC	3fef713b31c91a9c 0.9825721714376701
+JJ	3febd50797395388 0.8697545960991286
+NN	3fefd8cfdcb0fc98 0.9952163038614286
+NN	3fe3570101c4a439 0.6043705973180585
+NN	3fdbb5e2435d2dd9 0.432976308617723
+NN	3fd7be388763e12d 0.3709851572198371
+.	3fe8e3aa844d9742 0.777791269688102
+NN	3fed5089579efec9 0.9160811148976445
+IN	3fde71e97fb93de5 0.4757026431370533
+NN	3fef7b5f064483a6 0.983809959641907
+end	opennlp:pos
+layer	opennlp:chunk-tags	aligned:opennlp:tokens	13	tag:str	prob:f64
+B-NP	3fd28f70d9316d9a 0.29000493250142656
+I-NP	3fcfdb97af5d095e 0.24888893187205502
+B-VP	3fc92a9614050c3c 0.19661212899709024
+B-PP	3fd3657fd7b4ee06 0.30307003083336814
+B-NP	3fd1bf15196f9a11 0.27728774532298056
+I-NP	3fd2b4d2cf7e31a6 0.29228658926947515
+B-PP	3fd36aec539e5ca6 0.3034010712230589
+B-PP	3fd21caff08d2b0c 0.2830009316573274
+B-PP	3fc5edf19065cb12 0.17132396269479294
+O	3fd2e152ea1d1c60 0.2950026785151234
+O	3fc263004a12787f 0.14364627472690825
+B-PP	3fd0c8d56e10bf9d 0.2622579169137625
+O	3fcd232ffb290074 0.2276363350265488
+end	opennlp:chunk-tags
+layer	opennlp:chunks	text	8	start:u32	end:u32	token_start:u32	token_end:u32	kind:str
+0	9	0	2	NP
+10	15	2	3	VP
+16	19	3	4	PP
+22	39	4	6	NP
+42	48	6	7	PP
+51	57	7	8	PP
+60	62	8	9	PP
+83	87	11	12	PP
+end	opennlp:chunks

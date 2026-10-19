@@ -1,7 +1,8 @@
-//! The tokenizer (README rule 6): WordPiece or SentencePiece's Unigram
-//! as the bundle describes it, built from the upstream tokenizer.json and
-//! checked against the reference's ids on every load (docs/bundle.md
-//! loader rule 5).
+//! The tokenizer (README rule 6): WordPiece, SentencePiece's Unigram or
+//! byte-level BPE as the bundle describes it, built from the upstream
+//! tokenizer.json, or SentencePiece's own tokenizer built from its
+//! `.model` file, and checked against the reference's ids on every load
+//! (docs/bundle.md loader rule 5).
 
 use std::borrow::Cow;
 use std::cell::Cell;
@@ -17,6 +18,7 @@ use crate::bpe::Bpe;
 use crate::bundle::Bundle;
 use crate::manifest::{Normalizer, PromptRole, SpecialRole, Truncation};
 use crate::safetensors::{self, Dtype};
+use crate::sentencepiece::{Algorithm, SentencePiece};
 use crate::status::{CAPACITY, Error, INVALID_ARGUMENT, Result, invalid};
 use crate::unigram::Unigram;
 
@@ -91,6 +93,8 @@ enum Kind {
     },
     Unigram(Unigram),
     Bpe(Bpe),
+    /// A SentencePiece `.model`, run as Google's library runs it.
+    SentencePiece(Box<SentencePiece>),
 }
 
 /// A special token as it is matched in raw text, or in normalized text.
@@ -335,7 +339,11 @@ impl Tokenizer {
         let t = &m.tokenizer;
         let file = t.file.as_str();
         let bytes = bundle.read_verified(file)?;
-        let json: Value = serde_json::from_slice(&bytes).map_err(|e| invalid(format!("{file}: {e}")))?;
+        // A SentencePiece model is a protobuf message, not JSON.
+        let json: Value = match &t.sentencepiece {
+            Some(_) => Value::Null,
+            None => serde_json::from_slice(&bytes).map_err(|e| invalid(format!("{file}: {e}")))?,
+        };
         let unk = t.special_tokens.iter().find(|s| s.role == SpecialRole::Unk).expect("validated");
 
         let kind = match (&t.wordpiece, &t.unigram, &t.bpe) {
@@ -416,7 +424,29 @@ impl Tokenizer {
             }
             (None, Some(u), _) => Kind::Unigram(Unigram::parse(file, &json, u, unk.id)?),
             (None, None, Some(b)) => Kind::Bpe(Bpe::parse(file, &json, b, unk.id)?),
-            (None, None, None) => unreachable!("validated"),
+            (None, None, None) => {
+                let spec = t.sentencepiece.as_ref().expect("validated");
+                let sp = SentencePiece::parse(&bytes).map_err(|e| invalid(format!("{file}: {}", e.message)))?;
+                let want = match spec.algorithm {
+                    crate::manifest::SentencePieceAlgorithm::Unigram => Algorithm::Unigram,
+                    crate::manifest::SentencePieceAlgorithm::Bpe => Algorithm::Bpe,
+                };
+                if sp.algorithm() != want {
+                    return Err(invalid(format!(
+                        "{file}: the model is {:?}, manifest.json says {:?}",
+                        sp.algorithm(),
+                        spec.algorithm
+                    )));
+                }
+                if sp.unk_id() != unk.id {
+                    return Err(invalid(format!(
+                        "{file}: the model's unknown piece is id {}, manifest.json says {}",
+                        sp.unk_id(),
+                        unk.id
+                    )));
+                }
+                Kind::SentencePiece(Box::new(sp))
+            }
         };
         let vocab_size = kind.vocab_size();
         let table = m
@@ -438,6 +468,7 @@ impl Tokenizer {
             }
         }
         let added = json["added_tokens"].as_array().map(Vec::as_slice).unwrap_or_default();
+        let sentencepiece = matches!(kind, Kind::SentencePiece(_));
         for (i, a) in added.iter().enumerate() {
             let content = a["content"].as_str().unwrap_or_default();
             let Some(s) = t.special_tokens.iter().find(|s| s.content == content) else {
@@ -456,7 +487,7 @@ impl Tokenizer {
                 )));
             }
         }
-        if added.len() != t.special_tokens.len() {
+        if !sentencepiece && added.len() != t.special_tokens.len() {
             return Err(invalid(format!(
                 "{file}: {} added_tokens, manifest.json has {} special tokens",
                 added.len(),
@@ -466,10 +497,12 @@ impl Tokenizer {
 
         let id_of = |content: &str| t.special_tokens.iter().find(|s| s.content == content).map(|s| s.id as i32);
         let role = |r: SpecialRole| t.special_tokens.iter().find(|s| s.role == r).map_or(-1, |s| s.id as i32);
+        // The library matches no special token in the text: a control
+        // piece written there is its characters.
         let mut specials: Vec<Special> = t
             .special_tokens
             .iter()
-            .filter(|s| !s.normalized)
+            .filter(|s| !s.normalized && !sentencepiece)
             .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip, single_word: false })
             .collect();
         specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
@@ -488,7 +521,15 @@ impl Tokenizer {
                 })
                 .filter(|s| !s.content.is_empty())
                 .collect(),
-            Kind::Unigram(_) | Kind::Bpe(_) => Vec::new(),
+            // No normalizer: a normalized token is its content, matched
+            // in each piece the raw tokens leave, after them as upstream.
+            Kind::Bpe(_) => t
+                .special_tokens
+                .iter()
+                .filter(|s| s.normalized)
+                .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip, single_word: false })
+                .collect(),
+            Kind::Unigram(_) | Kind::SentencePiece(_) => Vec::new(),
         };
         normalized_specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
         let mut special_starts = [false; 256];
@@ -504,7 +545,7 @@ impl Tokenizer {
             }
         }
         let stat = m.static_embedding.as_ref().map(|_| StaticRules { median_chars: kind.median_chars() });
-        let decoder = Decoder::parse(&json["decoder"]);
+        let decoder = if sentencepiece { Decoder::SentencePiece } else { Decoder::parse(&json["decoder"]) };
         let mut pieces = vec![Box::<str>::from(""); vocab_size as usize];
         kind.each_piece(|piece, id| pieces[id as usize] = piece.into());
         let e = m.embed();
@@ -611,6 +652,7 @@ impl Tokenizer {
             Kind::WordPiece { .. } => "wordpiece",
             Kind::Unigram(_) => "unigram",
             Kind::Bpe(_) => "bpe",
+            Kind::SentencePiece(_) => "sentencepiece",
         }
     }
 
@@ -621,8 +663,26 @@ impl Tokenizer {
         if self.pad_id < 0 { self.unk_id } else { self.pad_id }
     }
 
+    /// The vocabulary's piece for `id`, as the tokenizer file spells it
+    /// (a SentencePiece word start as U+2581), or None for an id outside
+    /// the vocabulary.
+    pub fn piece(&self, id: i32) -> Option<&str> {
+        usize::try_from(id).ok().and_then(|i| self.pieces.get(i)).map(|p| &**p)
+    }
+
     pub fn specials_per_sequence(&self) -> u32 {
         self.template.iter().filter(|p| p.is_some()).count() as u32
+    }
+
+    /// The special tokens the template puts before the text and those it
+    /// puts after it, as every row encoded with special tokens has them:
+    /// for a caller that lays out rows from pieces it already has.
+    pub fn template_ends(&self) -> (Vec<i32>, Vec<i32>) {
+        // The manifest holds the text once in every template.
+        let at = self.template.iter().position(Option::is_none).unwrap_or(self.template.len());
+        let head = self.template[..at].iter().flatten().copied().collect();
+        let tail = self.template.get(at + 1..).unwrap_or_default().iter().flatten().copied().collect();
+        (head, tail)
     }
 
     /// One row of ids. Too long for `max_tokens` is cut as `truncation`
@@ -748,6 +808,21 @@ impl Tokenizer {
     /// way back from ids to text for a model's output; for where a token
     /// of the input came from, encode_spans gives its span.
     pub fn decode(&self, ids: &[i32], skip_special_tokens: bool) -> Result<String> {
+        if let Kind::SentencePiece(sp) = &self.kind {
+            let mut row = Vec::with_capacity(ids.len());
+            for (i, &id) in ids.iter().enumerate() {
+                if id < 0 || id as usize >= self.pieces.len() {
+                    return Err(Error::new(
+                        INVALID_ARGUMENT,
+                        format!("ids[{i}]: {id} is not an id under {}", self.pieces.len()),
+                    ));
+                }
+                if !(skip_special_tokens && self.special_ids.contains(&id)) {
+                    row.push(id as u32);
+                }
+            }
+            return sp.decode(&row);
+        }
         // Bytes, as a byte-level piece can hold part of a character.
         let mut out = Vec::new();
         let mut first = true;
@@ -897,10 +972,37 @@ impl Tokenizer {
                 }
             }
             Kind::Bpe(b) => {
-                if !piece.is_empty() {
-                    b.encode(text, base, piece, out);
+                // The normalized special tokens, leftmost-longest, in what
+                // the raw ones left; one that takes the whitespace before
+                // it takes it, as the raw ones do.
+                let mut rest = piece;
+                let mut from = 0;
+                while !self.normalized_specials.is_empty() && from < rest.len() {
+                    match rest.as_bytes()[from..].iter().position(|&c| self.normalized_starts[c as usize]) {
+                        Some(k) => from += k,
+                        None => break,
+                    }
+                    let Some(s) =
+                        self.normalized_specials.iter().find(|s| rest[from..].starts_with(s.content.as_str()))
+                    else {
+                        from += rest[from..].chars().next().map_or(1, char::len_utf8);
+                        continue;
+                    };
+                    let at = base + (piece.len() - rest.len());
+                    let before = if s.lstrip { rest[..from].trim_end() } else { &rest[..from] };
+                    if !before.is_empty() {
+                        b.encode(text, at, before, out);
+                    }
+                    let s0 = (at + from) as u32;
+                    out.push(s.id, || [s0, s0 + s.content.len() as u32]);
+                    rest = &rest[from + s.content.len()..];
+                    from = 0;
+                }
+                if !rest.is_empty() {
+                    b.encode(text, base + (piece.len() - rest.len()), rest, out);
                 }
             }
+            Kind::SentencePiece(sp) => sp.encode_into(text, base, piece, out),
         }
     }
 
@@ -974,6 +1076,10 @@ enum Decoder {
     /// read as UTF-8, a sequence that is not being U+FFFD. A piece with a
     /// character that stands for no byte, a special token, is its text.
     ByteLevel,
+    /// SentencePiece's own, from the model (`SentencePiece::decode`):
+    /// it reads the whole row at once, so `Tokenizer::decode` hands it the
+    /// row rather than piece by piece.
+    SentencePiece,
     /// A decoder the core does not run, by its type.
     Other(String),
 }
@@ -1042,6 +1148,7 @@ impl Decoder {
                     }
                 }
             }
+            Decoder::SentencePiece => unreachable!("decoded by the model, the whole row at once"),
             Decoder::Other(kind) => {
                 return Err(Error::new(
                     crate::status::UNSUPPORTED,
@@ -1087,6 +1194,7 @@ impl Kind {
             Kind::WordPiece { vocab, .. } => vocab.iter().for_each(|(p, &id)| f(p, id)),
             Kind::Unigram(u) => u.pieces().enumerate().for_each(|(id, p)| f(p, id as u32)),
             Kind::Bpe(b) => b.pieces().enumerate().for_each(|(id, p)| f(p, id as u32)),
+            Kind::SentencePiece(sp) => sp.pieces().enumerate().for_each(|(id, p)| f(p, id as u32)),
         }
     }
 
@@ -1095,6 +1203,7 @@ impl Kind {
             Kind::WordPiece { vocab, .. } => vocab.len() as u32,
             Kind::Unigram(u) => u.vocab_size(),
             Kind::Bpe(b) => b.vocab_size(),
+            Kind::SentencePiece(sp) => sp.len() as u32,
         }
     }
 
@@ -1103,6 +1212,7 @@ impl Kind {
             Kind::WordPiece { vocab, .. } => vocab.get(piece).copied(),
             Kind::Unigram(u) => u.id(piece),
             Kind::Bpe(b) => b.id(piece),
+            Kind::SentencePiece(sp) => sp.id(piece),
         }
     }
 
@@ -1113,6 +1223,7 @@ impl Kind {
             Kind::WordPiece { vocab, .. } => vocab.keys().map(|p| p.chars().count()).collect(),
             Kind::Unigram(u) => u.pieces().map(|p| p.chars().count()).collect(),
             Kind::Bpe(b) => b.pieces().map(|p| p.chars().count()).collect(),
+            Kind::SentencePiece(sp) => sp.pieces().map(|p| p.chars().count()).collect(),
         };
         lens.sort_unstable();
         let n = lens.len();

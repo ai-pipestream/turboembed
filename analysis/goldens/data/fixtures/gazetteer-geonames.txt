@@ -1,0 +1,32 @@
+﻿2950159	Berlin	Berlin	BER,Berlin,Berlín,Berlino,Berlyn,Берлин,ベルリン,柏林,  ,--,Berlin	52.52437	13.41053	P	PPLC	DE						3426354		0	Europe/Berlin	2026-01-01
+5083330	Berlin	Berlin		44.46867	-71.18508	P	PPL	US						10051		0	America/New_York	2026-01-01
+2657896	Zürich	Zurich	Zurich,Zuerich,Zurigo,Цюрих,Zürich,Zurych	47.36667	8.55	P	PPLA	CH						341730		0	Europe/Zurich	2026-01-01
+2951839	Bayern	Bayern	Bavaria,Baviera,Bavière,Freistaat Bayern,Бавария	49.0	11.5	A	ADM1	DE						12520000		0	Europe/Berlin	2026-01-01
+2363254	Pacific Ocean	Pacific Ocean	Pacific,Océan Pacifique,Stiller Ozean	0	-160	H	OCN									0		2026-01-01
+1850147	東京	Tokyo	Tokio,Tōkyō,Токио,도쿄,Tokyo	35.6895	139.69171	P	PPLC	JP						8336599		0	Asia/Tokyo	2026-01-01
+745044	İstanbul	Istanbul	Istanbul,Stamboul,Constantinople,Κωνσταντινούπολη,ISTANBUL	41.01384	28.94966	P	PPLA	TR						14804116		0	Europe/Istanbul	2026-01-01
+264371	Αθήνα	Athina	Athens,Athen,Athènes,Afiny,Атина	37.98376	23.72784	P	PPLC	GR						664046		0	Europe/Athens	2026-01-01
+4951788	Springfield	Springfield		+42.10148	-72.58981	P	PPLA2	US						 155929 		0	America/New_York	2026-01-01
+10	Springfield	Springfield	Springfield Township	40.0	-80.0	P	PPL	US						0		0	America/New_York	2026-01-01
+9	Springfield	Springfield		41.0	-81.0	P	PPL	US						0		0	America/New_York	2026-01-01
+90	Springfield	Springfield		41.5	-81.5	S	BLDG	US						0		0	America/New_York	2026-01-01
+2867714	München	Muenchen	Munich,Monaco di Baviera,Мюнхен,Minga	48.13743	11.57549d	P	PPLA	DE						1260391		0	Europe/Berlin	2026-01-01
+3117735	 Madrid　	 Madrid 	 Madrid , Madri ,マドリード,	40.4165	-3.70256	P	PPLC	ES						3255944		0	Europe/Madrid	2026-01-01
+2643743	London	London	Londres,Londra,Londýn,Лондон,伦敦,ロンドン,LON	51.50853	-0.12574	P	PPLC	GB						8961989		0	Europe/London	2026-01-01
+6058560	London	London		42.98339	-81.23304	P	PPL	CA						346765		0	America/Toronto	2026-01-01
+1275339	Mumbai	Mumbai	Bombay,मुंबई,Bombaim	19.07283	72.88261	P	PPLA	IN						12691836		0	Asia/Kolkata	2026-01-01
+360630	Cairo	Cairo	Al Qahirah,القاهرة,Le Caire,Kairo	30.06263	31.24967	P	PPLC	EG						9606916		0	Africa/Cairo	2026-01-01
+3448439	São Paulo	Sao Paulo	Sao Paulo,San Pablo,Сан-Паулу,サンパウロ	-23.5475	-46.63611	P	PPLA	BR						10021295		0	America/Sao_Paulo	2026-01-01
+2618425	København	Kobenhavn	Copenhagen,Kopenhagen,Copenhague,Köpenhamn	55.67594	12.56553	P	PPLC	DK						1153615		0	Europe/Copenhagen	2026-01-01
+3099434	Gdańsk	Gdansk	Danzig,Gdansk,Dantzig	54.35205	18.64637	P	PPLA	PL						461865		0	Europe/Warsaw	2026-01-01
+3081368	Wrocław	Wroclaw	Breslau,Vratislav	51.1	17.03333	P	PPLA	PL						634893		0	Europe/Warsaw	2026-01-01
+6942553	Paris	Paris		48.85341	2.3488	P	PPLC	FR						2138551		0	Europe/Paris	2026-01-01
+4717560	Paris	Paris		33.66094	-95.55551	P	PPLA2	US						24782		0	America/Chicago	2026-01-01
+100	St. Louis	St. Louis	Saint Louis,Saint-Louis,St Louis	38.62727	-90.19789	P	PPLA2	US						315685		0	America/Chicago	2026-01-01
+101	Llanfair­pwll	Llanfairpwll	Llanfairpwllgwyngyll	53.22	-4.2	P	PPL	GB						3107		0	Europe/London	2026-01-01
+102	Reykjavík	Reykjavik	Reikiavik,Рейкьявик,Reykjavik	64.13548	-21.89541	P	PPLC	IS						118918		0	Atlantic/Reykjavik	2026-01-01
+103	Ærøskøbing	Aeroskobing	Aeroeskoebing	54.88803	10.41117	P	PPL	DK						978		0	Europe/Copenhagen	2026-01-01
+104	Đà Nẵng	Da Nang	Danang,Tourane	16.06778	108.22083	P	PPLA	VN						752493		0	Asia/Ho_Chi_Minh	2026-01-01
+105	Kraków	Krakow	Cracow,Krakau,Cracovia	50.06143	19.93658	P	PPLA	PL						755050		0	Europe/Warsaw	2026-01-01
+106	Washington, D.C.	Washington, D.C.	Washington DC,DC,Washington	38.89511	-77.03637	P	PPLC	US						689545		0	America/New_York	2026-01-01
+107	Ciudad de México	Ciudad de Mexico	Mexico City,Mexiko-Stadt,CDMX,Мехико	19.42847	-99.12766	P	PPLC	MX						12294193		0	America/Mexico_City	2026-01-01

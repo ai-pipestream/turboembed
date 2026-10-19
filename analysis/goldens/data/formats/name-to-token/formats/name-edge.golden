@@ -1,0 +1,98 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/name-edge	438	426	bdf19a4c216647138610a91432bddb582445ae5a5e761b554856b3501c5a3f34
+model	en-detokenizer.xml	d071b56f77ae5b6aff0a591c1cf7e601a4007b5fdbcc0bd3fc31e8c84e95ec232df9765a70bfef786f75dbefcc4cad7d053b34b00ecc805507192a5fddc81260
+annotator	opennlp.tools.formats.convert.NameToTokenSampleStream	read
+layer	turbo:samples	document	17	written:str
+single
+single
+
+x
+a
+a b c
+<START:a:b> x <END:y> <START:a>b
+leading and trailing spaces
+tab separated no-break em nel\u001cfs x
+ünïcode 😀<SPLIT>.
+after blanks
+after a whitespace only line
+a <END><START:y> b
+
+after a next line
+after a file separator
+final line without a line feed
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	17	text:str
+single
+single
+
+x
+a
+a b c
+<START:a:b> x <END:y> <START:a>b
+leading and trailing spaces
+tab separated no-break em nel\u001cfs x
+ünïcode 😀.
+after blanks
+after a whitespace only line
+a <END><START:y> b
+
+after a next line
+after a file separator
+final line without a line feed
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	48	sample:u32	start:u32	end:u32
+0	0	6
+1	0	6
+3	0	1
+4	0	1
+5	0	1
+5	2	3
+5	4	5
+6	0	11
+6	12	13
+6	14	21
+6	22	32
+7	0	7
+7	8	11
+7	12	20
+7	21	27
+8	0	3
+8	4	13
+8	14	22
+8	23	25
+8	26	32
+8	33	34
+9	0	9
+9	10	14
+9	14	15
+10	0	5
+10	6	12
+11	0	5
+11	6	7
+11	8	18
+11	19	23
+11	24	28
+12	0	1
+12	2	16
+12	17	18
+14	0	5
+14	6	7
+14	8	12
+14	13	17
+15	0	5
+15	6	7
+15	8	12
+15	13	22
+16	0	5
+16	6	10
+16	11	18
+16	19	20
+16	21	25
+16	26	30
+end	turbo:sample-spans

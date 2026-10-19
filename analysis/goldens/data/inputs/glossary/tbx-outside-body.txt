@@ -1,0 +1,4 @@
+<martif><martifHeader><termEntry id="h"><langSet xml:lang="en"><tig><term>header</term></tig></langSet></termEntry></martifHeader>
+<text><front><termEntry id="f"><langSet xml:lang="en"><tig><term>front</term></tig></langSet></termEntry></front>
+<body><termEntry id="b"><langSet xml:lang="en"><term>no container</term><tig><term>body</term></tig></langSet></termEntry></body>
+<back><termEntry id="k"><langSet xml:lang="en"><tig><term>back</term></tig></langSet></termEntry></back></text></martif>

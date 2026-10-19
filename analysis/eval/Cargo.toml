@@ -1,0 +1,44 @@
+[package]
+name = "turbo-eval"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_eval"
+
+[[bin]]
+name = "turbo-eval"
+path = "src/main.rs"
+
+[dependencies]
+# The record's provenance block reuses turbo-bench's types, which live in
+# the core's record module.
+turbo = { path = "../../core" }
+# The resamples of the bootstrap and the permutation test are drawn from
+# java.util.Random, so a JVM baseline can reproduce them.
+turbo-jvm = { path = "../jvm" }
+# The pipeline: the document and its layers, sentences, structure, the
+# embedder's subwords and vectors, and the chunker under test.
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-analysis-embed = { path = "../embed" }
+turbo-chunker = { path = "../chunker" }
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-structure = { path = "../structure" }
+# The sentence model file and its SHA-256.
+turbo-maxent = { path = "../maxent" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+# SHA-256 of the set files, and lower case hex.
+turbo-goldens = { path = "../goldens" }
+# Fetching the set files. The same version turbo-bundle and turbo-bench
+# use; it reads HTTPS_PROXY from the environment.
+ureq = "3"
+# Qasper is published as a gzip tar. flate2 is already in the build
+# through ureq's gzip support, so this adds no crate.
+flate2 = "1"
+# ZSTD pages: FineWeb-2's text column is ZSTD-compressed, as the
+# models-fineweb run showed reading data/afr_Latn/train/000_00000.parquet.
+turbo-zstd = { path = "../zstd" }

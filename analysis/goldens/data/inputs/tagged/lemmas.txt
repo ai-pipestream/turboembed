@@ -1,0 +1,177 @@
+The	DT	the
+driver	NN	driver
+stopped	VBD	stop
+the	DT	the
+bus	NN	bus
+at	IN	at
+the	DT	the
+station	NN	station
+.	.	.
+
+Mr.	NNP	Mr.
+Smith	NNP	Smith
+arrived	VBD	arrive
+in	IN	in
+Paris	NNP	Paris
+on	IN	on
+Monday	NNP	Monday
+.	.	.
+
+She	PRP	she
+runs	VBZ	run
+every	DT	every
+morning	NN	morning
+before	IN	before
+work	NN	work
+.	.	.
+
+They	PRP	they
+run	VBP	run
+a	DT	a
+small	JJ	small
+shop	NN	shop
+near	IN	near
+the	DT	the
+river	NN	river
+.	.	.
+
+He	PRP	he
+fell	VBD	fall
+and	CC	and
+broke	VBD	break
+his	PRP$	his
+arm	NN	arm
+.	.	.
+
+Prices	NNS	price
+have	VBP	have
+fallen	VBN	fall
+by	IN	by
+12	CD	12
+percent	NN	percent
+since	IN	since
+March	NNP	March
+.	.	.
+
+We	PRP	we
+will	MD	will
+run	VB	run
+the	DT	the
+test	NN	test
+again	RB	again
+tomorrow	NN	tomorrow
+.	.	.
+
+The	DT	the
+quick	JJ	quick
+brown	JJ	brown
+fox	NN	fox
+jumped	VBD	jump
+over	IN	over
+the	DT	the
+lazy	JJ	lazy
+dog	NN	dog
+.	.	.
+
+Dr.	NNP	Dr.
+Brown	NNP	Brown
+met	VBD	meet
+him	PRP	he
+on	IN	on
+the	DT	the
+platform	NN	platform
+.	.	.
+
+Did	VBD	do
+you	PRP	you
+see	VB	see
+the	DT	the
+2024	CD	2024
+report	NN	report
+?	.	?
+
+The	DT	the
+fence	NN	fence
+had	VBD	have
+fallen	VBN	fall
+during	IN	during
+the	DT	the
+storm	NN	storm
+.	.	.
+
+Old	JJ	old
+trees	NNS	tree
+fell	VBD	fall
+across	IN	across
+the	DT	the
+road	NN	road
+,	,	,
+blocking	VBG	block
+traffic	NN	traffic
+.	.	.
+
+It	PRP	it
+was	VBD	be
+a	DT	a
+long	JJ	long
+,	,	,
+cold	JJ	cold
+winter	NN	winter
+in	IN	in
+Paris	NNP	Paris
+.	.	.
+
+Her	PRP$	her
+run	NN	run
+of	IN	of
+good	JJ	good
+luck	NN	luck
+ended	VBD	end
+on	IN	on
+Friday	NNP	Friday
+.	.	.
+
+Three	CD	three
+birds	NNS	bird
+sat	VBD	sit
+on	IN	on
+the	DT	the
+wire	NN	wire
+.	.	.
+
+I	PRP	I
+think	VBP	think
+that	IN	that
+the	DT	the
+trains	NNS	train
+run	VBP	run
+late	RB	late
+on	IN	on
+Sundays	NNPS	Sunday
+.	.	.
+
+Please	UH	please
+do	VB	do
+not	RB	not
+run	VB	run
+in	IN	in
+the	DT	the
+hall	NN	hall
+!	.	!
+
+Well-known	JJ	well-known
+writers	NNS	writer
+visited	VBD	visit
+the	DT	the
+old	JJ	old
+library	NN	library
+.	.	.
+
+The	DT	the
+end	NN	end
+.	.	.
+
+Smile😀	NN	smile
+ok👍	UH	ok
+done	VBN	do
+.	.	.

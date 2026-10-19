@@ -1,0 +1,598 @@
+//! The bytes of a trained model: `GenericModelWriter` over a `GISModel`, a
+//! `QNModel` or a `PerceptronModel`, which is `BinaryGISModelWriter` with
+//! `GISModelWriter.persist`, `BinaryQNModelWriter` with
+//! `QNModelWriter.persist` or `BinaryPerceptronModelWriter` with
+//! `PerceptronModelWriter.persist`, writing through `DataOutputStream` and
+//! `ModelParameterChunker`.
+//!
+//! The layout, read back by `turbo-maxent` and by OpenNLP's
+//! `GISModelReader`, `QNModelReader` and `PerceptronModelReader`:
+//!
+//! 1. `writeUTF("GIS")`, `writeInt(1)` and `writeDouble(1)`: the model type
+//!    and the correction constant and parameter, which nothing reads; or
+//!    `writeUTF("QN")` or `writeUTF("Perceptron")` alone.
+//! 2. The outcome labels: their count, then each with `writeUTF`.
+//! 3. The outcome patterns: the predicates are sorted by their pattern
+//!    (the outcome ids a predicate has parameters for, compared
+//!    lexicographically, then by length; a stable sort, so predicates with
+//!    one pattern keep their index order) and consecutive equal patterns
+//!    are grouped. The count of groups, then each group as the text
+//!    `"<size> <o1> <o2> ..."`.
+//! 4. The predicate labels in the sorted order, their count first.
+//! 5. The parameters: for every predicate in the sorted order, one
+//!    `writeDouble` per entry of its pattern.
+//!
+//! The perceptron writer first drops every parameter that is zero from
+//! its predicate's pattern, and every predicate left with none; a model
+//! with no parameter left cannot be written ([`Error::NoParameters`]).
+//!
+//! Every string goes through `ModelParameterChunker.writeUTF`: a string of
+//! at most 65535 bytes of modified UTF-8 is written as `writeUTF` writes
+//! it; a longer one is written as `"CHUNKED-MODEL-PARAMS:<n>"` and then
+//! `n` chunks, each a `writeUTF` of a run of the string that
+//! `CharsetEncoder` for UTF-8 fit into 65535 bytes. Two consequences of
+//! measuring the chunks in standard UTF-8 are kept, as they are what the
+//! JVM writes: a chunk full of characters outside the BMP can exceed
+//! 65535 bytes of modified UTF-8, which `writeUTF` then refuses
+//! ([`Error::StringTooLong`] here, `UTFDataFormatException` there), and
+//! the encoder stops at a lone surrogate, so a chunked string is cut
+//! there and the rest of it is lost. U+0000 counts one byte in a chunk
+//! and takes two when written, so a chunk of them can overflow as well.
+
+use crate::error::{Error, Result};
+use crate::gis::GisModel;
+use crate::java_string::JavaString;
+use crate::naive_bayes::NaiveBayesModel;
+use crate::perceptron::PerceptronModel;
+use crate::qn::QnModel;
+
+/// The type string `GISModelWriter.persist` starts with.
+pub const GIS_TYPE: &str = "GIS";
+/// The type string `QNModelWriter.persist` starts with.
+pub const QN_TYPE: &str = "QN";
+/// The type string `PerceptronModelWriter.persist` starts with.
+pub const PERCEPTRON_TYPE: &str = "Perceptron";
+/// The type string `NaiveBayesModelWriter.persist` starts with.
+pub const NAIVE_BAYES_TYPE: &str = "NaiveBayes";
+/// `ModelParameterChunker.SIGNATURE_CHUNKED_PARAMS`.
+pub const CHUNKED_SIGNATURE: &str = "CHUNKED-MODEL-PARAMS:";
+/// `writeUTF`'s limit on a string's modified UTF-8 bytes.
+pub const MAX_UTF_BYTES: usize = 65535;
+
+/// What a model writer reads from a model: `AbstractModel.getDataStructures`
+/// as `GISModelWriter`'s constructor takes it apart, the predicates in
+/// `pmap` order with each one's outcome pattern and parameters.
+pub trait WritableModel {
+    fn outcome_labels(&self) -> &[JavaString];
+    fn pred_labels(&self) -> &[JavaString];
+    /// The outcome ids predicate `p` has parameters for.
+    fn pattern(&self, p: usize) -> &[u32];
+    /// Predicate `p`'s parameters, one per entry of its pattern.
+    fn parameters(&self, p: usize) -> &[f64];
+
+    fn num_predicates(&self) -> usize {
+        self.pred_labels().len()
+    }
+}
+
+impl WritableModel for GisModel {
+    fn outcome_labels(&self) -> &[JavaString] {
+        GisModel::outcome_labels(self)
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        GisModel::pred_labels(self)
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        GisModel::pattern(self, p)
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        GisModel::parameters(self, p)
+    }
+}
+
+impl WritableModel for QnModel {
+    fn outcome_labels(&self) -> &[JavaString] {
+        QnModel::outcome_labels(self)
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        QnModel::pred_labels(self)
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        QnModel::pattern(self, p)
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        QnModel::parameters(self, p)
+    }
+}
+
+/// The model as the trainer leaves it, zero parameters included. Writing
+/// the model drops them ([`write_perceptron`]).
+impl WritableModel for PerceptronModel {
+    fn outcome_labels(&self) -> &[JavaString] {
+        PerceptronModel::outcome_labels(self)
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        PerceptronModel::pred_labels(self)
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        PerceptronModel::pattern(self, p)
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        PerceptronModel::parameters(self, p)
+    }
+}
+
+impl WritableModel for NaiveBayesModel {
+    fn outcome_labels(&self) -> &[JavaString] {
+        NaiveBayesModel::outcome_labels(self)
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        NaiveBayesModel::pred_labels(self)
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        NaiveBayesModel::pattern(self, p)
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        NaiveBayesModel::parameters(self, p)
+    }
+}
+
+/// `GenericModelWriter(model, DataOutputStream).persist()` for a GIS
+/// model: the bytes of the `.model` entry.
+pub fn write_gis(model: &GisModel) -> Result<Vec<u8>> {
+    let mut out = ModelOutput { bytes: Vec::new() };
+    out.write_utf(&JavaString::new(GIS_TYPE))?;
+    out.write_int(1);
+    out.write_double(1.0);
+    write_body(&mut out, model)?;
+    Ok(out.bytes)
+}
+
+/// `GenericModelWriter(model, DataOutputStream).persist()` for a QN
+/// model: the bytes of the `.model` entry.
+pub fn write_qn(model: &QnModel) -> Result<Vec<u8>> {
+    let mut out = ModelOutput { bytes: Vec::new() };
+    out.write_utf(&JavaString::new(QN_TYPE))?;
+    write_body(&mut out, model)?;
+    Ok(out.bytes)
+}
+
+/// `GenericModelWriter(model, DataOutputStream).persist()` for a
+/// perceptron model: the bytes of the `.model` entry, without the zero
+/// parameters (`PerceptronModelWriter.sortValues`).
+pub fn write_perceptron(model: &PerceptronModel) -> Result<Vec<u8>> {
+    let pruned = Pruned::of(model);
+    if pruned.pred_labels.is_empty() {
+        return Err(Error::NoParameters);
+    }
+    let mut out = ModelOutput { bytes: Vec::new() };
+    out.write_utf(&JavaString::new(PERCEPTRON_TYPE))?;
+    write_body(&mut out, &pruned)?;
+    Ok(out.bytes)
+}
+
+/// `GenericModelWriter(model, DataOutputStream).persist()` for a naive
+/// Bayes model: the bytes of the `.model` entry (`NaiveBayesModelWriter.persist`).
+pub fn write_naive_bayes(model: &NaiveBayesModel) -> Result<Vec<u8>> {
+    let mut out = ModelOutput { bytes: Vec::new() };
+    out.write_utf(&JavaString::new(NAIVE_BAYES_TYPE))?;
+    write_body(&mut out, model)?;
+    Ok(out.bytes)
+}
+
+/// A perceptron model as its writer sees it: each predicate's pattern and
+/// parameters without the zero ones, and only the predicates that keep a
+/// parameter, in model order.
+struct Pruned<'m> {
+    outcome_labels: &'m [JavaString],
+    pred_labels: Vec<JavaString>,
+    /// `starts[p]..starts[p + 1]` of `outcomes` and `parameters` is
+    /// predicate `p`'s.
+    starts: Vec<usize>,
+    outcomes: Vec<u32>,
+    parameters: Vec<f64>,
+}
+
+impl<'m> Pruned<'m> {
+    fn of(model: &'m PerceptronModel) -> Pruned<'m> {
+        let mut pruned = Pruned {
+            outcome_labels: model.outcome_labels(),
+            pred_labels: Vec::new(),
+            starts: vec![0],
+            outcomes: Vec::new(),
+            parameters: Vec::new(),
+        };
+        for (p, label) in model.pred_labels().iter().enumerate() {
+            let mut kept = 0;
+            for (&o, &x) in model.pattern(p).iter().zip(model.parameters(p)) {
+                if x != 0.0 {
+                    pruned.outcomes.push(o);
+                    pruned.parameters.push(x);
+                    kept += 1;
+                }
+            }
+            if kept > 0 {
+                pruned.pred_labels.push(label.clone());
+                pruned.starts.push(pruned.outcomes.len());
+            }
+        }
+        pruned
+    }
+}
+
+impl WritableModel for Pruned<'_> {
+    fn outcome_labels(&self) -> &[JavaString] {
+        self.outcome_labels
+    }
+
+    fn pred_labels(&self) -> &[JavaString] {
+        &self.pred_labels
+    }
+
+    fn pattern(&self, p: usize) -> &[u32] {
+        &self.outcomes[self.starts[p]..self.starts[p + 1]]
+    }
+
+    fn parameters(&self, p: usize) -> &[f64] {
+        &self.parameters[self.starts[p]..self.starts[p + 1]]
+    }
+}
+
+/// What follows the type: the outcomes, the patterns, the predicates and
+/// the parameters, as `AbstractMLModelWriter.persist` writes them.
+fn write_body(out: &mut ModelOutput, model: &dyn WritableModel) -> Result<()> {
+    out.write_int(to_java_int(model.outcome_labels().len()));
+    for label in model.outcome_labels() {
+        out.write_utf(label)?;
+    }
+    let sorted = sort_by_pattern(model);
+    let groups = pattern_groups(model, &sorted);
+    out.write_int(to_java_int(groups.len()));
+    for (size, first) in &groups {
+        let mut text = size.to_string();
+        for oid in model.pattern(*first) {
+            text.push(' ');
+            text.push_str(&oid.to_string());
+        }
+        out.write_utf(&JavaString::new(&text))?;
+    }
+    out.write_int(to_java_int(model.num_predicates()));
+    for &p in &sorted {
+        out.write_utf(&model.pred_labels()[p])?;
+    }
+    for &p in &sorted {
+        for &param in model.parameters(p) {
+            out.write_double(param);
+        }
+    }
+    Ok(())
+}
+
+/// `GISModelWriter.sortValues`: the predicate indices sorted by
+/// `ComparablePredicate.compareTo`, a stable sort as `Arrays.sort` on
+/// objects is.
+fn sort_by_pattern(model: &dyn WritableModel) -> Vec<usize> {
+    let mut sorted: Vec<usize> = (0..model.num_predicates()).collect();
+    sorted.sort_by(|&a, &b| model.pattern(a).cmp(model.pattern(b)));
+    sorted
+}
+
+/// `compressOutcomes`: runs of predicates with equal patterns, as the
+/// run's size and its first predicate.
+fn pattern_groups(model: &dyn WritableModel, sorted: &[usize]) -> Vec<(usize, usize)> {
+    let mut groups: Vec<(usize, usize)> = Vec::new();
+    for &p in sorted {
+        match groups.last_mut() {
+            Some((size, first)) if model.pattern(*first) == model.pattern(p) => *size += 1,
+            _ => groups.push((1, p)),
+        }
+    }
+    groups
+}
+
+fn to_java_int(n: usize) -> i32 {
+    i32::try_from(n).expect("a model has fewer than 2^31 labels")
+}
+
+/// A `DataOutputStream` into memory.
+struct ModelOutput {
+    bytes: Vec<u8>,
+}
+
+impl ModelOutput {
+    fn write_int(&mut self, i: i32) {
+        self.bytes.extend_from_slice(&i.to_be_bytes());
+    }
+
+    fn write_double(&mut self, d: f64) {
+        self.bytes.extend_from_slice(&d.to_bits().to_be_bytes());
+    }
+
+    /// `ModelParameterChunker.writeUTF`.
+    fn write_utf(&mut self, s: &JavaString) -> Result<()> {
+        if s.len() <= MAX_UTF_BYTES {
+            self.write_utf_plain(s.as_bytes());
+            return Ok(());
+        }
+        let chunks = split_by_utf8_length(s);
+        self.write_utf_plain(format!("{CHUNKED_SIGNATURE}{}", chunks.len()).as_bytes());
+        for chunk in chunks {
+            if chunk.len() > MAX_UTF_BYTES {
+                return Err(Error::StringTooLong { what: "chunk of a model parameter", bytes: chunk.len() });
+            }
+            self.write_utf_plain(chunk);
+        }
+        Ok(())
+    }
+
+    /// `DataOutputStream.writeUTF` of bytes known to fit.
+    fn write_utf_plain(&mut self, bytes: &[u8]) {
+        self.bytes.extend_from_slice(&(bytes.len() as u16).to_be_bytes());
+        self.bytes.extend_from_slice(bytes);
+    }
+}
+
+/// `ModelParameterChunker.splitByByteLength`: the string cut into runs
+/// whose standard UTF-8 encoding fits 65535 bytes, each as the run's
+/// modified UTF-8 bytes. The UTF-8 encoder stops at a lone surrogate, so
+/// the run before it is the last chunk and the rest is dropped.
+fn split_by_utf8_length(s: &JavaString) -> Vec<&[u8]> {
+    let bytes = s.as_bytes();
+    let mut chunks = Vec::new();
+    let mut chunk_start = 0;
+    let mut chunk_utf8 = 0;
+    let mut pos = 0;
+    while pos < bytes.len() {
+        let (modified_len, utf8_len) = match next_char(bytes, pos) {
+            Some(lens) => lens,
+            None => {
+                // A lone surrogate: malformed input ends the encoding.
+                chunks.push(&bytes[chunk_start..pos]);
+                return chunks;
+            }
+        };
+        if chunk_utf8 + utf8_len > MAX_UTF_BYTES {
+            chunks.push(&bytes[chunk_start..pos]);
+            chunk_start = pos;
+            chunk_utf8 = 0;
+        }
+        chunk_utf8 += utf8_len;
+        pos += modified_len;
+    }
+    chunks.push(&bytes[chunk_start..]);
+    chunks
+}
+
+/// The character at `pos` of canonical modified UTF-8: its length there
+/// and in standard UTF-8, or `None` for a lone surrogate.
+fn next_char(bytes: &[u8], pos: usize) -> Option<(usize, usize)> {
+    match bytes[pos] {
+        0x00..=0x7F => return Some((1, 1)),
+        // U+0000, which canonical modified UTF-8 writes as C0 80 and
+        // standard UTF-8 as one zero byte.
+        0xC0 => return Some((2, 1)),
+        0xC1..=0xDF => return Some((2, 2)),
+        _ => {}
+    }
+    let unit = (u32::from(bytes[pos] & 0x0F) << 12)
+        | (u32::from(bytes[pos + 1] & 0x3F) << 6)
+        | u32::from(bytes[pos + 2] & 0x3F);
+    match unit {
+        0xD800..=0xDBFF => {
+            let next = pos + 3;
+            if next + 3 <= bytes.len() && bytes[next] == 0xED && (0xB0..=0xBF).contains(&bytes[next + 1]) {
+                Some((6, 4))
+            } else {
+                None
+            }
+        }
+        0xDC00..=0xDFFF => None,
+        _ => Some((3, 3)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::event::Event;
+    use crate::index::{DataIndex, IndexParams, IndexerKind};
+    use crate::monitor::TrainingConfiguration;
+    use crate::params::{Key, TrainingParameters};
+    use turbo_maxent::MaxentModel;
+
+    fn trained() -> GisModel {
+        let events = [
+            Event::from_strs("yes", &["a", "b"]),
+            Event::from_strs("no", &["c", "b"]),
+            Event::from_strs("maybe", &["d"]),
+            Event::from_strs("yes", &["a", "d"]),
+        ];
+        let index = DataIndex::index(&events, &IndexParams::new(IndexerKind::TwoPass, 0, true)).unwrap();
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 10);
+        crate::gis::train(&index, &params, &mut TrainingConfiguration::default()).unwrap()
+    }
+
+    #[test]
+    fn the_written_model_reads_back_with_the_same_parameters() {
+        let model = trained();
+        let bytes = write_gis(&model).unwrap();
+        let read = MaxentModel::read(&bytes).unwrap();
+        assert_eq!(read.outcomes().cloned().collect::<Vec<_>>(), model.outcome_labels());
+        assert_eq!(read.num_predicates(), model.num_predicates());
+        for p in ["a", "b", "c", "d"] {
+            assert!(read.has_predicate(p), "{p}");
+        }
+        // The written parameters evaluate as the trained ones.
+        let mut out = vec![0.0; 3];
+        read.eval(&["a", "b"], &mut out);
+        let yes = model.outcome_labels().iter().position(|o| *o == "yes").unwrap();
+        assert!(out[yes] > 0.5, "{out:?}");
+    }
+
+    #[test]
+    fn an_outcome_with_a_lone_surrogate_is_written_as_write_utf_writes_it() {
+        // The class of "😀" with the lemma "_": R1<low>_D0<high>.
+        let class = JavaString::from_utf16(&[0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]);
+        let events = [
+            Event::new(class.clone(), vec![JavaString::new("w0=😀"), JavaString::new("t0=_")]),
+            Event::from_strs("O", &["w0=x", "t0=_"]),
+            Event::from_strs("O", &["w0=y", "t0=_"]),
+        ];
+        let index = DataIndex::index(&events, &IndexParams::new(IndexerKind::TwoPass, 0, true)).unwrap();
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 5);
+        let model = crate::gis::train(&index, &params, &mut TrainingConfiguration::default()).unwrap();
+        let bytes = write_gis(&model).unwrap();
+        // After "GIS", the int, the double and the outcome count: the class
+        // as writeUTF writes it, each surrogate as three bytes.
+        let at = 5 + 4 + 8 + 4;
+        assert_eq!(&bytes[at..at + 2], &[0, 11]);
+        assert_eq!(&bytes[at + 2..at + 13], b"R1\xED\xB8\x80_D0\xED\xA0\xBD");
+        let read = MaxentModel::read(&bytes).unwrap();
+        assert_eq!(read.outcome(0), &class);
+        assert_eq!(read.outcome_index(&class), Some(0));
+        assert_eq!(read.outcome_texts(), Err(&class));
+    }
+
+    #[test]
+    fn the_qn_and_perceptron_writers_write_a_lone_surrogate_outcome_as_write_utf_does() {
+        use crate::params::Algorithm;
+        let class = JavaString::from_utf16(&[0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]);
+        let events = [
+            Event::new(class.clone(), vec![JavaString::new("w0=😀"), JavaString::new("t0=_")]),
+            Event::from_strs("O", &["w0=x", "t0=_"]),
+            Event::from_strs("O", &["w0=y", "t0=_"]),
+        ];
+        for (algorithm, kind) in [(Algorithm::MaxentQn, &b"\0\x02QN"[..]), (Algorithm::Perceptron, b"\0\x0aPerceptron")]
+        {
+            let mut params = TrainingParameters::new();
+            params.put(Key::ALGORITHM, algorithm.name());
+            params.put(Key::ITERATIONS, 5);
+            params.put(Key::CUTOFF, 0);
+            let (model, _) =
+                crate::trainer::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+            let bytes = model.write().unwrap();
+            assert!(bytes.starts_with(kind), "{algorithm:?}");
+            // The outcome count, then the class as writeUTF writes it, each
+            // surrogate as three bytes.
+            let at = kind.len();
+            assert_eq!(&bytes[at..at + 4], &[0, 0, 0, 2], "{algorithm:?}");
+            assert_eq!(&bytes[at + 4..at + 6], &[0, 11], "{algorithm:?}");
+            assert_eq!(&bytes[at + 6..at + 17], b"R1\xED\xB8\x80_D0\xED\xA0\xBD", "{algorithm:?}");
+            let read = MaxentModel::read(&bytes).unwrap();
+            assert_eq!(read.outcome(0), &class, "{algorithm:?}");
+            assert_eq!(read.outcome_index(&class), Some(0), "{algorithm:?}");
+        }
+    }
+
+    #[test]
+    fn the_layout_is_persist_byte_for_byte() {
+        let model = trained();
+        let bytes = write_gis(&model).unwrap();
+        let mut expect = Vec::new();
+        expect.extend_from_slice(&[0, 3, b'G', b'I', b'S']);
+        expect.extend_from_slice(&1i32.to_be_bytes());
+        expect.extend_from_slice(&1.0f64.to_bits().to_be_bytes());
+        expect.extend_from_slice(&3i32.to_be_bytes());
+        for o in ["yes", "no", "maybe"] {
+            expect.extend_from_slice(&(o.len() as u16).to_be_bytes());
+            expect.extend_from_slice(o.as_bytes());
+        }
+        // Patterns in sorted order: a [0], b [0 1], d [0 2], c [1].
+        expect.extend_from_slice(&4i32.to_be_bytes());
+        for g in ["1 0", "1 0 1", "1 0 2", "1 1"] {
+            expect.extend_from_slice(&(g.len() as u16).to_be_bytes());
+            expect.extend_from_slice(g.as_bytes());
+        }
+        expect.extend_from_slice(&4i32.to_be_bytes());
+        for p in ["a", "b", "d", "c"] {
+            expect.extend_from_slice(&[0, 1, p.as_bytes()[0]]);
+        }
+        assert_eq!(&bytes[..expect.len()], &expect[..]);
+        assert_eq!(bytes.len(), expect.len() + 6 * 8);
+    }
+
+    fn utf8_len(s: &JavaString) -> usize {
+        s.to_str().unwrap().len()
+    }
+
+    #[test]
+    fn long_strings_are_chunked_by_utf8_bytes() {
+        // 70000 ASCII bytes: two chunks of 65535 and 4465 bytes.
+        let long = JavaString::new(&"x".repeat(70000));
+        let chunks = split_by_utf8_length(&long);
+        assert_eq!(chunks.iter().map(|c| c.len()).collect::<Vec<_>>(), [65535, 4465]);
+        // Three byte characters do not straddle a chunk end.
+        let long = JavaString::new(&"\u{20AC}".repeat(30000));
+        let chunks = split_by_utf8_length(&long);
+        assert_eq!(chunks.iter().map(|c| c.len()).collect::<Vec<_>>(), [65535, 24465]);
+        assert_eq!(utf8_len(&long), 90000);
+        let mut out = ModelOutput { bytes: Vec::new() };
+        out.write_utf(&long).unwrap();
+        let signature = b"CHUNKED-MODEL-PARAMS:2";
+        assert_eq!(&out.bytes[..2 + signature.len()], [&[0, signature.len() as u8][..], signature].concat());
+        assert_eq!(out.bytes.len(), 2 + signature.len() + 2 + 65535 + 2 + 24465);
+    }
+
+    #[test]
+    fn a_chunk_of_supplementary_characters_overflows_write_utf() {
+        // 16383 emoji fit a 65532 byte UTF-8 chunk but are 98298 bytes of
+        // modified UTF-8, which writeUTF refuses, as the JVM's does.
+        let long = JavaString::new(&"\u{1F600}".repeat(17000));
+        let chunks = split_by_utf8_length(&long);
+        assert_eq!(chunks[0].len(), 16383 * 6);
+        let mut out = ModelOutput { bytes: Vec::new() };
+        assert_eq!(
+            out.write_utf(&long),
+            Err(Error::StringTooLong { what: "chunk of a model parameter", bytes: 16383 * 6 })
+        );
+    }
+
+    #[test]
+    fn a_nul_is_one_utf8_byte_but_two_written() {
+        assert_eq!(next_char(b"\xC0\x80a", 0), Some((2, 1)));
+        assert_eq!(next_char(b"\xC3\xA9", 0), Some((2, 2)));
+        // 40000 NULs: 80000 bytes of modified UTF-8, so the string is
+        // chunked, but 40000 bytes of UTF-8, so it is one chunk, whose
+        // writeUTF throws in the JVM.
+        let nuls = JavaString::new(&"\0".repeat(40000));
+        assert_eq!(nuls.len(), 80000);
+        let chunks = split_by_utf8_length(&nuls);
+        assert_eq!(chunks.iter().map(|c| c.len()).collect::<Vec<_>>(), [80000]);
+        let mut out = ModelOutput { bytes: Vec::new() };
+        assert_eq!(
+            out.write_utf(&nuls),
+            Err(Error::StringTooLong { what: "chunk of a model parameter", bytes: 80000 })
+        );
+        // NULs after the first chunk make a second chunk of twice their count.
+        let late = JavaString::new(&format!("{}{}", "x".repeat(65535), "\0".repeat(1000)));
+        let chunks = split_by_utf8_length(&late);
+        assert_eq!(chunks.iter().map(|c| c.len()).collect::<Vec<_>>(), [65535, 2000]);
+        let mut out = ModelOutput { bytes: Vec::new() };
+        out.write_utf(&late).unwrap();
+        let signature = b"CHUNKED-MODEL-PARAMS:2";
+        assert_eq!(out.bytes.len(), 2 + signature.len() + 2 + 65535 + 2 + 2000);
+    }
+
+    #[test]
+    fn a_lone_surrogate_cuts_a_chunked_string() {
+        let mut units: Vec<u16> = vec![b'y' as u16; 70000];
+        units[66000] = 0xD83D;
+        let long = JavaString::from_utf16(&units);
+        let chunks = split_by_utf8_length(&long);
+        assert_eq!(chunks.iter().map(|c| c.len()).collect::<Vec<_>>(), [65535, 465]);
+    }
+}

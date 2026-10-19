@@ -1,0 +1,76 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	en/url	240	240	40c3987b444f0d812d66c7a62a3654135ae28fbbfc5980e3802fba91b11f2037
+annotator	opennlp.tools.ml.perceptron.SimplePerceptronSequenceTrainer	train
+config	Algorithm	PERCEPTRON_SEQUENCE
+config	Cutoff	5
+config	DataIndexer	OnePass
+config	Iterations	20
+config	UseAverage	true
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	14	outcome:str	context:str	values:str
+n	eos=. x=https://example 15 v=at s=org/docs/v1 n=2/index.html.	
+n	eos=. x=.org/docs/v1 12 v=https://example s=2/index n=html.	
+n	eos=. x=.2/index 8 v=https://example.org/docs/v1 s=html n=You ncap	
+n	sn eos=. x=.html 5 v=https://example.org/docs/v1.2/index s= n=You ncap	
+n	eos=. x=help@example 12 v=to s=org n=for	
+n	sn eos=. x=support 7 v=for s= n=Visit ncap	
+n	eos=. x=www 3 v=Visit vcap s=example n=com.	
+n	eos=. x=.example 8 v=www s=com n=before	
+n	sn eos=. x=.com 4 v=www.example s= n=before	
+n	eos=. x=http://mirror 13 v=at s=example n=net/path?q=1&lang=en.	
+n	eos=. x=.example 8 v=http://mirror s=net/path n=q=1&lang=en.	
+n	eos=? x=.net/path 9 v=http://mirror.example s=q=1&lang=en n=Links ncap	
+n	sn eos=. x=?q=1&lang=en 12 v=http://mirror.example.net/path s= n=Links ncap	
+s	sn eos=. x=often 5 v=break s= n=	
+end	turbo:events
+layer	turbo:perceptron-training	document	1	iterations:u32	message:str
+20	
+end	turbo:perceptron-training
+layer	turbo:perceptron-iterations	document	20	iteration:u32	parameters:str
+1	2a79b5205234cbdfdffa3a920b0932d492103e2851dd9d94dee54d2a35bbe7d6
+2	04cd043696e4ebae73a0dc45a53f3509bca553ddc1beff9153edb92e09cf88c7
+3	cc26be776820ec31dbeac62a3ae73ace73ec24889d8012849c797b5795dbddbf
+4	00096b3b1ed73445b3be78a2a07d3d90804ab3b555e9e4cd453efb7f17500325
+5	a638338d6d15aaf85909c7314d32d9580773eb22e1b33aeaea7afcd2a8b49bf7
+6	52e05a10f6a2cbe95ac8c597b5a360fedc87e566751aebde81e4444cf8ebe508
+7	64487cd4af22d66bc033da00f8a8e6e62c33f8f07789f1df0be80e208542ac17
+8	4b7025f129f500c99a8ac9e22c7824ea754f65c7d664cb6650417d28d0dadf02
+9	16d41622ad78312a380b54d704e80253388bbaaa0057d0909a798d78c6da5aba
+10	ed0d3562aa36c54b182e3d35d9dd56b8a40eba3ff251e2a29a312c72648e554e
+11	6d2a79bcb3c1b57c29f7df8b2ce0201596148eb74c9a065b86847d984cb9df5b
+12	61036076747da1bfcaadb20b668d4df7954d4f1ba84ddcff8649f69923cfff00
+13	d2eb21d4c77613dca3b9e4074dd4428b737df9b4ba5b70217e8a90cb2b88fd2a
+14	465e80736c6140638c46ab5a75ae59c53ec890cd48eeea09a5654fea9d599ac0
+15	84728f26bb0f1a70ff213e896956716f1cac4ccd6d761c6e7cb796a36fcd55e8
+16	18f5b34593f9c674d4a6241c9ed1ebf9f2506c9a9a46f4e7e1f02f3a2fbd84a2
+17	33e02381650b2e0ad1de7679cf9087881fc3501c00b345aad81adbe8b0ef5793
+18	00f3b8b81d4231a1a8d23389630b467a7b2d8dc751d5e1fd5e717c5297a71ea2
+19	43b259c0907bdccf92ed3b2bb25a31eff7061376d84d40947457862594f80fa3
+20	380a7810a377cf907796fc2bcbe997c4354cc5d0fccc37aada41ceda8c65ef02
+end	turbo:perceptron-iterations
+layer	turbo:perceptron-parameters	document	16	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	bfd5555555555555 -0.3333333333333333
+1	0	1	3fd5555555555555 0.3333333333333333
+1	1	0	0000000000000000 0.0
+1	1	1	0000000000000000 0.0
+1	2	0	bfd5555555555555 -0.3333333333333333
+1	2	1	3fd5555555555555 0.3333333333333333
+1	3	0	bfd5555555555555 -0.3333333333333333
+1	3	1	3fd5555555555555 0.3333333333333333
+20	0	0	4002444444444444 2.283333333333333
+20	0	1	c002444444444444 -2.283333333333333
+20	1	0	3ffe666666666666 1.9
+20	1	1	bffe666666666666 -1.9
+20	2	0	bff8444444444444 -1.5166666666666666
+20	2	1	3ff8444444444444 1.5166666666666666
+20	3	0	bff8444444444444 -1.5166666666666666
+20	3	1	3ff8444444444444 1.5166666666666666
+end	turbo:perceptron-parameters
+layer	turbo:perceptron-model	document	1	sha256:str	length:u32	error:str
+8f7470f9704de5edef0cb337b4705491a36e68f8ce7dfbc1c0765a2e76224ddc	122	
+end	turbo:perceptron-model

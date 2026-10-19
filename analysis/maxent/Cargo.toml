@@ -1,0 +1,19 @@
+[package]
+name = "turbo-maxent"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_maxent"
+
+[dependencies]
+# Java's per code point lower case mapping, for case-insensitive
+# dictionaries, and modified UTF-8 encoding of Java strings.
+turbo-unicode = { path = "../unicode" }
+# StrictMath.exp and StrictMath.log, which OpenNLP's models evaluate with.
+turbo-jvm = { path = "../jvm" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }

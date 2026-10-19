@@ -1,0 +1,64 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/de	239	234	252f7ce6614012d5d03442f3c99fdb40587bd9431e2a636fb006478ccd4c7dde
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	1
+config	DataIndexer	OnePassRealValue
+config	GaussianSmoothing	true
+config	Iterations	100
+config	sort	true
+config	source	realvalue
+layer	turbo:events	document	1	outcome:str	context:str	values:str
+long	Der Zug nach München hatte heute zwanzig Minuten Verspätung. Viele Fahrgäste mussten ihren Anschluss in Augsburg verpassen, z.B. die Gruppe aus Köln. Die Bahn entschuldigte sich am Nachmittag. Morgen soll alles wieder pünktlich sein.	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+3114341055
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+long
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	34	label:str	count:u32
+Anschluss	1
+Augsburg	1
+Bahn	1
+Der	1
+Die	1
+Fahrgäste	1
+Gruppe	1
+Köln.	1
+Minuten	1
+Morgen	1
+München	1
+Nachmittag.	1
+Verspätung.	1
+Viele	1
+Zug	1
+alles	1
+am	1
+aus	1
+die	1
+entschuldigte	1
+hatte	1
+heute	1
+ihren	1
+in	1
+mussten	1
+nach	1
+pünktlich	1
+sein.	1
+sich	1
+soll	1
+verpassen,	1
+wieder	1
+z.B.	1
+zwanzig	1
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	1	outcome:u32	context:str	values:str	seen:u32
+0	3 14 25 10 20 21 33 8 12 13 5 24 22 0 23 1 30 32 18 6 17 7 4 2 19 28 16 11 9 29 15 31 26 27	1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0	1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

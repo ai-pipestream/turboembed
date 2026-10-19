@@ -1,0 +1,132 @@
+# A MASC-format corpus written for the turbo-formats tests: hand-written text
+# and stand-off annotation in the layout of MASC 3.0 (GrAF). Not MASC data.
+# XML details: references, case, prefixes, normalized attribute values and digits of other scripts.
+
+@@ file x.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="x.txt"/>
+    <annotations>
+      <ANNOTATION loc="x-s.xml" f.id="f.s">annotation</ANNOTATION>
+      <annotation loc="x-seg.xml" f.id="f.seg">annotation</annotation>
+      <annotation loc="x-penn.xml" f.id="f.penn">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file x.txt
+Alpha beta gamma delta. Epsilon zeta.
+@@ end
+
+@@ file x-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- a comment before the root -->
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/" xmlns:g="http://www.xces.org/ns/GrAF/1.0/">
+  <region xml:id="seg-r0" anchors="0 5"/>
+  <region xml:id="seg-r1" anchors="6&#32;10"/>
+  <region xml:id="seg-r2" anchors="11	16"/>
+  <region xml:id="seg-r3" anchors=" 17  22 "/>
+  <region xml:id="seg-r4" anchors="+22 23"/>
+  <region xml:id="seg-r5" anchors="٢٤ 31"/>
+  <REGION xml:id="seg-r6" anchors="32 36"/>
+  <regıon xml:id="seg-r7" anchors="36 37"/>
+  <g:region xml:id="seg-r8" anchors="0 1"/>
+</graph>
+
+@@ end
+
+@@ file x-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="2"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 23"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+  <region xml:id="s-r1" anchors="٢٤ 37 extra"/>
+  <node xml:id="s-n1"><link targets="s-r1"/></node>
+  <a xml:id="s-N1" label="s" ref="s-n1" as="anc"><fs><f name="id" value="s1"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file x-penn.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="tok"/></labelsDecl><dependencies><dependsOn f.id="f.seg"/></dependencies></graphHeader>
+  <node xml:id="penn-n0">
+    <link targets="seg-r0"/>
+  </node>
+  <a xml:id="penn-N0" label="tok" ref="penn-n0" as="anc">
+    <fs>
+      <f name="base" value="w&amp;&lt;&#x41;"/>
+      <f name="msd" value="W"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n1">
+    <link targets="seg-r1"/>
+  </node>
+  <a xml:id="penn-N1" label="tok" ref="penn-n1" as="anc">
+    <fs>
+      <f name="base" value="w"/>
+      <f name="msd" value="W"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n2">
+    <link targets="seg-r2"/>
+  </node>
+  <a xml:id="penn-N2" label="tok" ref="penn-n2" as="anc">
+    <fs>
+      <f name="base" value="w"/>
+      <f name="msd" value="W"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n3">
+    <link targets="seg-r3"/>
+  </node>
+  <a xml:id="penn-N3" label="tok" ref="penn-n3" as="anc">
+    <fs>
+      <f name="base" value="w"/>
+      <f name="msd" value="W"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n4">
+    <link targets="seg-r4"/>
+  </node>
+  <a xml:id="penn-N4" label="tok" ref="penn-n4" as="anc">
+    <fs>
+      <f name="base" value="w"/>
+      <f name="msd" value="W"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n5">
+    <link targets="seg-r5"/>
+  </node>
+  <a xml:id="penn-N5" label="tok" ref="penn-n5" as="anc">
+    <fs>
+      <f name="base" value="w"/>
+      <f name="msd" value="W"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n6">
+    <link targets="seg-r6"/>
+  </node>
+  <a xml:id="penn-N6" label="tok" ref="penn-n6" as="anc">
+    <fs>
+      <f name="base" value="w"/>
+      <f name="msd" value="W"/>
+    </fs>
+  </a>
+  <node xml:id="penn-n50"/>
+  <Node xml:id="penn-n7">
+    <link targets="seg-r7"/>
+  </Node>
+  <a xml:id="penn-N7" label="tok" ref="penn-n7" as="anc">
+    <fs>
+      <f name="base" value="w"/>
+      <f name="msd" value="W"/>
+    </fs>
+  </a>
+</graph>
+
+@@ end

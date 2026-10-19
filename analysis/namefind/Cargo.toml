@@ -1,0 +1,27 @@
+[package]
+name = "turbo-namefind"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_namefind"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The dictionary XML reader and OpenNLP's dictionary lookups.
+turbo-maxent = { path = "../maxent" }
+# Java's general categories, for the word boundary of java.util.regex.
+turbo-unicode = { path = "../unicode" }
+# String.compareTo, which orders entity types when names are merged.
+turbo-jvm = { path = "../jvm" }
+
+[dev-dependencies]
+# The translations this crate's matchers replaced, kept in `src/parity` as
+# the reference the differential tests compare against. Not used outside
+# the tests.
+regex = "1"
+# The goldens of the finders and the merge, made by OpenNLP on a JVM.
+turbo-goldens = { path = "../goldens" }

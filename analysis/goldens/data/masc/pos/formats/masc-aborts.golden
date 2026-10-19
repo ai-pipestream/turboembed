@@ -1,0 +1,18 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-aborts	6115	6115	3db2819036c9034bd16567717ddea4d535c04c5cae008c6981e2b60a984df060
+annotator	opennlp.tools.formats.masc.MascPOSSampleStream	read
+layer	turbo:samples	document	0	pass:u32	written:str
+end	turbo:samples
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:open-errors	document	1	class:str	message:str
+java.lang.IndexOutOfBoundsException	Index -1 out of bounds for length 0
+end	turbo:open-errors
+layer	turbo:sample-tokens	document	0	sample:u32	text:str
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	0	tag:str
+end	turbo:sample-tags

@@ -1,0 +1,45 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/lone-cr	19	19	ac38dbe53768d70bdacbfafc39f0b99e470f6ed16f23d7d91585e912fa4441f2
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	5
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	true
+config	source	tokenize
+layer	turbo:events	document	11	outcome:str	context:str	values:str
+F	p=o s=ne p1=o p1_alpha p2=bok p1f1=on f1=n f1_alpha f2=e f2_alpha f12=ne	
+F	p=on s=e p1=n p1_alpha p2=o p2_alpha p21=on p1f1=ne f1=e f1_alpha f2=bok	
+F	p=t s=wo p1=t p1_alpha p2=bok p1f1=tw f1=w f1_alpha f2=o f2_alpha f12=wo	
+F	p=tw s=o p1=w p1_alpha p2=t p2_alpha p21=tw p1f1=wo f1=o f1_alpha f2=bok	
+F	p=t s=hree p1=t p1_alpha p2=bok p1f1=th f1=h f1_alpha f2=r f2_alpha f12=hr	
+F	p=th s=ree p1=h p1_alpha p2=t p2_alpha p21=th p1f1=hr f1=r f1_alpha f2=e f2_alpha f12=re	
+F	p=thr s=ee p1=r p1_alpha p2=h p2_alpha p21=hr p1f1=re f1=e f1_alpha f2=e f2_alpha f12=ee	
+F	p=thre s=e p1=e p1_alpha p2=r p2_alpha p21=re p1f1=ee f1=e f1_alpha f2=bok	
+F	p=f s=ive p1=f p1_alpha p2=bok p1f1=fi f1=i f1_alpha f2=v f2_alpha f12=iv	
+F	p=fi s=ve p1=i p1_alpha p2=f p2_alpha p21=fi p1f1=iv f1=v f1_alpha f2=e f2_alpha f12=ve	
+F	p=fiv s=e p1=v p1_alpha p2=i p2_alpha p21=iv p1f1=ve f1=e f1_alpha f2=bok	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+3711347467
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	1	label:str
+F
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	4	label:str	count:u32
+f1_alpha	11
+f2_alpha	7
+p1_alpha	11
+p2_alpha	7
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	3	outcome:u32	context:str	values:str	seen:u32
+0	2 0 1		4
+0	2 3 0		4
+0	2 3 0 1		3
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome
+end	turbo:gis-training

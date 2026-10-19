@@ -1742,6 +1742,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-abbrev"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-analysis"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-analysis-embed"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tokenizers",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-chunker",
+ "turbo-doccat",
+ "turbo-goldens",
+ "turbo-normalize",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-analysis-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-bench"
 version = "0.1.0"
 dependencies = [
@@ -1749,6 +1791,19 @@ dependencies = [
  "serde_json",
  "turbo",
  "ureq",
+]
+
+[[package]]
+name = "turbo-bpe-trainer"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tokenizers",
+ "turbo",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-tokenize",
+ "turbo-unicode",
 ]
 
 [[package]]
@@ -1762,6 +1817,194 @@ dependencies = [
  "turbo",
  "ureq",
 ]
+
+[[package]]
+name = "turbo-chunker"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-normalize",
+ "turbo-stem",
+ "turbo-structure",
+]
+
+[[package]]
+name = "turbo-doccat"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-formats",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-normalize-layers",
+ "turbo-sequence",
+ "turbo-train",
+]
+
+[[package]]
+name = "turbo-encoding"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-encoding-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-encoding-gen"
+version = "0.1.0"
+
+[[package]]
+name = "turbo-encoding-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+]
+
+[[package]]
+name = "turbo-eval"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "serde",
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-chunker",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-sentdetect",
+ "turbo-structure",
+ "turbo-zstd",
+ "ureq",
+]
+
+[[package]]
+name = "turbo-formats"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-parser",
+ "turbo-structure",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-fuzz"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-numeric",
+ "turbo-phrase-chunker",
+ "turbo-pii",
+ "turbo-postag",
+ "turbo-sentdetect",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-geo"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-normalize",
+ "turbo-numeric",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-glossary"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-glossary-layers",
+ "turbo-goldens",
+ "turbo-matcher",
+ "turbo-normalize",
+ "turbo-stem",
+ "turbo-stem-layers",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-glossary-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-goldens"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-maxent",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-goldens-tool"
+version = "0.1.0"
+dependencies = [
+ "turbo-fuzz",
+ "turbo-goldens",
+]
+
+[[package]]
+name = "turbo-grammar"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-hunspell"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-stem-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-jvm"
+version = "0.1.0"
 
 [[package]]
 name = "turbo-kserve"
@@ -1795,6 +2038,378 @@ dependencies = [
  "turbo",
  "turbo-kserve",
 ]
+
+[[package]]
+name = "turbo-langdetect"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-langspan"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-lemmatizer"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-maxent",
+ "turbo-sequence",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-matcher"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-stem-layers",
+ "turbo-stopword-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-maxent"
+version = "0.1.0"
+dependencies = [
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-morfologik"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-maxent",
+ "turbo-sequence",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-namefind"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-ngram"
+version = "0.1.0"
+dependencies = [
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-normalize"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-encoding",
+ "turbo-goldens",
+ "turbo-normalize-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-normalize-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-numeric"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-parser"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-postag",
+ "turbo-sequence",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-phrase-chunker"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-maxent",
+ "turbo-sequence",
+ "turbo-train",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-pii"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-postag"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-sequence",
+ "turbo-train",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-sat"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-sentdetect"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-maxent",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-sequence"
+version = "0.1.0"
+dependencies = [
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-train",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-stem"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
+ "turbo-normalize",
+ "turbo-stem-layers",
+ "turbo-tokenize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-stem-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-stopword"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-stopword-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-stopword-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-structure"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-chunker",
+ "turbo-normalize",
+]
+
+[[package]]
+name = "turbo-tokenize"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-tokenize-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-tokenize-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-train"
+version = "0.1.0"
+dependencies = [
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-maxent",
+ "turbo-sentdetect",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-train-components"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-doccat",
+ "turbo-formats",
+ "turbo-goldens",
+ "turbo-jvm",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
+ "turbo-maxent",
+ "turbo-parser",
+ "turbo-phrase-chunker",
+ "turbo-sentdetect",
+ "turbo-sequence",
+ "turbo-tokenize",
+ "turbo-train",
+ "turbo-unicode",
+ "turbo-zoo",
+]
+
+[[package]]
+name = "turbo-train-recipes"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo-analysis",
+ "turbo-eval",
+ "turbo-formats",
+ "turbo-jvm",
+ "turbo-langdetect",
+ "turbo-lemmatizer",
+ "turbo-maxent",
+ "turbo-phrase-chunker",
+ "turbo-postag",
+ "turbo-sentdetect",
+ "turbo-sequence",
+ "turbo-tokenize",
+ "turbo-train",
+ "turbo-train-components",
+ "turbo-zoo",
+]
+
+[[package]]
+name = "turbo-unicode"
+version = "0.1.0"
+dependencies = [
+ "turbo-unicode-gen",
+]
+
+[[package]]
+name = "turbo-unicode-gen"
+version = "0.1.0"
+
+[[package]]
+name = "turbo-wordnet"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-zoo"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "turbo-goldens",
+ "ureq",
+]
+
+[[package]]
+name = "turbo-zstd"
+version = "0.1.0"
 
 [[package]]
 name = "typenum"

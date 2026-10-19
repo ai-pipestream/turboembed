@@ -1,0 +1,18 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	money/word-other-currencies	98	98	4c6a879379ff8649761a0324724390fc7192d24ad55a83e4b2d2a7706af8f7d9
+annotator	opennlp.tools.money.CursorMoneyExtractor	extract
+config	notation	LATIN_US
+layer	turbo:money	text	8	start:u32	end:u32	coefficient:str	negative:u32	scale:u32	plain:str	currency:str
+0	9	1200	0	0	1200	JPY
+11	22	80	0	0	80	CNY
+24	40	12000000000000	0	0	12000000000000	CNY
+42	50	900	0	0	900	THB
+52	62	25	0	0	25	ILS
+64	75	300	0	0	300	RUB
+77	87	500	0	0	500	INR
+89	97	2	0	0	2	RUB
+end	turbo:money

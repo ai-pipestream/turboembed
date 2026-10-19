@@ -1,0 +1,32 @@
+[package]
+name = "turbo-formats"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_formats"
+
+[dependencies]
+# Span, the byte offsets every sample keeps into its source text.
+turbo-analysis = { path = "../core" }
+# Tokens, Words, Entities and the word-anchored layers for CoNLL-U and brat conversion.
+turbo-analysis-layers = { path = "../layers" }
+# OpenNLP's two whitespace definitions, which split the lines of the
+# whitespace separated formats.
+turbo-unicode = { path = "../unicode" }
+# String.compareTo, which orders name types, and UTF-16 code units.
+turbo-jvm = { path = "../jvm" }
+# The detokenizer the conversion streams rebuild text with.
+turbo-tokenize = { path = "../tokenize" }
+# The SAX-style XML reader the MASC stand-off files and the French
+# Treebank are parsed with.
+turbo-maxent = { path = "../maxent" }
+# The constituency parse the OntoNotes and French Treebank readers make.
+turbo-parser = { path = "../parser" }
+
+[dev-dependencies]
+turbo-goldens = { path = "../goldens" }
+turbo-normalize = { path = "../normalize" }
+turbo-structure = { path = "../structure" }

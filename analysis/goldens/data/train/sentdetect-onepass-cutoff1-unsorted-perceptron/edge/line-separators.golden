@@ -1,0 +1,22 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/line-separators	69	64	ccc7a376f910f5a8c3b25c8dd828b75cc7e435a329fe339a29aad303571c6e37
+annotator	opennlp.tools.ml.perceptron.PerceptronTrainer	train
+config	Algorithm	PERCEPTRON
+config	Cutoff	1
+config	DataIndexer	OnePass
+config	Iterations	100
+config	StepSizeDecrease	0.0
+config	Tolerance	1.0E-5
+config	UseAverage	true
+config	UseSkippedAveraging	false
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	0	outcome:str	context:str	values:str
+end	turbo:events
+layer	turbo:indexer-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Insufficient training data to create model.
+end	turbo:indexer-error

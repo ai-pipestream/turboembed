@@ -1,0 +1,30 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	detokenizer/pt-hyphen	30	29	eb5023ce70b7df011e422a38e4a1053b230315a291f56548113d5c58bae50427
+model	pt-detokenizer.xml	36be57752d28262efa8fdb0b0d4d997a28f00eb32890419210911303459a1b3a0ccecc29281f5a415a80b20fb75ac973e52237605960bd7669e2409738f19555
+annotator	opennlp.tools.tokenize.DictionaryDetokenizer	detokenize
+config	splitMarker	<SPLIT>
+layer	opennlp:tokens	text	7	start:u32	end:u32
+0	1
+2	8
+9	10
+11	16
+17	22
+23	27
+28	29
+end	opennlp:tokens
+layer	turbo:detokenization	aligned:opennlp:tokens	7	operation:str
+NO_OPERATION
+NO_OPERATION
+MERGE_BOTH
+NO_OPERATION
+NO_OPERATION
+NO_OPERATION
+MERGE_TO_LEFT
+end	turbo:detokenization
+layer	turbo:detokenized	document	1	text:str	marked:str
+O guarda-chuva está aqui.	O guarda<SPLIT>-<SPLIT>chuva está aqui<SPLIT>.
+end	turbo:detokenized

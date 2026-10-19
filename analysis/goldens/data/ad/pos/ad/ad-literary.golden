@@ -1,0 +1,74 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-literary	1206	1206	b5485314d1f941b05a792b0b901ac1014beaa7ea4a0df265b903c8443d03c854
+annotator	opennlp.tools.formats.ad.ADPOSSampleStream	read
+config	expandME	false
+config	includeFeatures	false
+layer	turbo:samples	document	9	written:str
+Era_v-fin uma_art vez_n ._.
+Em_prp ela_pron-pers vivia_v-fin a_Joaquina_prop ._.
+Fim_n ._.
+letras_n
+As_art algas_n crescem_v-fin ._.
+Muito_adv ._.
+Vazio_adj ._.
+fonte_n ._.
+Rochas_n ._.
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	24	sample:u32	text:str
+0	Era
+0	uma
+0	vez
+0	.
+1	Em
+1	ela
+1	vivia
+1	a_Joaquina
+1	.
+2	Fim
+2	.
+3	letras
+4	As
+4	algas
+4	crescem
+4	.
+5	Muito
+5	.
+6	Vazio
+6	.
+7	fonte
+7	.
+8	Rochas
+8	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	24	tag:str
+v-fin
+art
+n
+.
+prp
+pron-pers
+v-fin
+prop
+.
+n
+.
+n
+art
+n
+v-fin
+.
+adv
+.
+adj
+.
+n
+.
+n
+.
+end	turbo:sample-tags

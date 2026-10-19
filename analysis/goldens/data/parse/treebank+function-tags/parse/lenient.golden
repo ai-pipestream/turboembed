@@ -1,0 +1,184 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	parse/lenient	745	745	e106f29e9d7276954b1dc478293c66add0dafe3eac3f25c756d1bacab71f4653
+annotator	opennlp.tools.parser.ParseSampleStream	read
+config	useFunctionTags	true
+layer	turbo:samples	document	12	written:str
+(TOP ((S (S (NP (DT A) (NN dog)) (VP (VBZ runs)))) )
+(TOP (NP (NN wind)) (VP (VBZ blows)) )
+(TOP (A (B one)) (C (D two)) )
+(TOP (NN tab\tinside) (NN tail\t) (NN tail) (NN vt\u000b) )
+(TOP (NN ok) )
+(TOP (-NONE- *T*) (-LRB- (NN x)) )
+(TOP (NN text) (VB here) )
+(TOP )
+(TOP )
+(TOP (NP (NP (NN equal)) (VP-3 (VB go)) (NP (NN dash)) (NP (NN eq))) )
+(TOP (TOP(NP(DT (NP(DT (DT the) (NN end)) (. .)) )
+(TOP (S (NP (NN (NN x))) (VP (VB y))) )
+end	turbo:samples
+layer	turbo:read-errors	document	8	after:u32	class:str	message:str
+1	java.lang.NullPointerException	Cannot invoke "String.equals(Object)" because "type" is null
+1	java.util.EmptyStackException	
+7	java.lang.NullPointerException	Cannot invoke "String.equals(Object)" because "type" is null
+7	java.lang.NullPointerException	Cannot invoke "String.equals(Object)" because "type" is null
+9	java.util.EmptyStackException	
+9	java.lang.NullPointerException	Cannot invoke "String.equals(Object)" because "type" is null
+9	java.lang.NullPointerException	Cannot invoke "String.equals(Object)" because "type" is null
+10	java.util.EmptyStackException	
+end	turbo:read-errors
+layer	turbo:parse-texts	document	12	sample:u32	text:str
+0	A dog runs 
+1	wind blows 
+2	one two 
+3	tab\tinside tail\t tail vt\u000b 
+4	ok 
+5	*T* x 
+6	text here 
+7	
+8	
+9	equal go dash eq 
+10	the end . 
+11	x y 
+end	turbo:parse-texts
+layer	turbo:parse-nodes	document	82	sample:u32	depth:u32	type:str	start:u32	end:u32	head-start:u32	head-end:u32	own-head:u32	head-index:u32
+0	0	TOP	0	11	0	11	1	0
+0	1	(S	0	10	0	10	1	2
+0	2	S	0	10	0	10	1	2
+0	3	NP	0	5	0	5	1	1
+0	4	DT	0	1	0	1	1	0
+0	5	TK	0	1	0	1	1	0
+0	4	NN	2	5	2	5	1	1
+0	5	TK	2	5	2	5	1	1
+0	3	VP	6	10	6	10	1	2
+0	4	VBZ	6	10	6	10	1	2
+0	5	TK	6	10	6	10	1	2
+1	0	TOP	0	11	0	11	1	0
+1	1	NP	0	4	0	4	1	0
+1	2	NN	0	4	0	4	1	0
+1	3	TK	0	4	0	4	1	0
+1	1	VP	5	10	5	10	1	1
+1	2	VBZ	5	10	5	10	1	1
+1	3	TK	5	10	5	10	1	1
+2	0	TOP	0	8	0	8	1	0
+2	1	A	0	3	0	3	1	0
+2	2	B	0	3	0	3	1	0
+2	3	TK	0	3	0	3	1	0
+2	1	C	4	7	4	7	1	1
+2	2	D	4	7	4	7	1	1
+2	3	TK	4	7	4	7	1	1
+3	0	TOP	0	26	0	26	1	0
+3	1	NN	0	10	0	10	1	0
+3	2	TK	0	10	0	10	1	0
+3	1	NN	11	16	11	16	1	1
+3	2	TK	11	16	11	16	1	1
+3	1	NN	17	21	17	21	1	2
+3	2	TK	17	21	17	21	1	2
+3	1	NN	22	25	22	25	1	3
+3	2	TK	22	25	22	25	1	3
+4	0	TOP	0	3	0	3	1	0
+4	1	NN	0	2	0	2	1	0
+4	2	TK	0	2	0	2	1	0
+5	0	TOP	0	6	0	6	1	0
+5	1	-NONE-	0	3	0	3	1	0
+5	2	TK	0	3	0	3	1	0
+5	1	-LRB-	4	5	4	5	1	1
+5	2	NN	4	5	4	5	1	1
+5	3	TK	4	5	4	5	1	1
+6	0	TOP	0	10	0	10	1	0
+6	1	NN	0	4	0	4	1	0
+6	2	TK	0	4	0	4	1	0
+6	1	VB	5	9	5	9	1	1
+6	2	TK	5	9	5	9	1	1
+7	0	TOP	0	0	0	0	1	0
+8	0	TOP	0	0	0	0	1	0
+9	0	TOP	0	17	0	17	1	0
+9	1	NP	0	16	0	16	1	3
+9	2	NP	0	5	0	5	1	0
+9	3	NN	0	5	0	5	1	0
+9	4	TK	0	5	0	5	1	0
+9	2	VP-3	6	8	6	8	1	1
+9	3	VB	6	8	6	8	1	1
+9	4	TK	6	8	6	8	1	1
+9	2	NP	9	13	9	13	1	2
+9	3	NN	9	13	9	13	1	2
+9	4	TK	9	13	9	13	1	2
+9	2	NP	14	16	14	16	1	3
+9	3	NN	14	16	14	16	1	3
+9	4	TK	14	16	14	16	1	3
+10	0	TOP	0	10	0	10	1	0
+10	1	TOP(NP(DT	0	9	0	9	1	2
+10	2	NP(DT	0	7	0	7	1	1
+10	3	DT	0	3	0	3	1	0
+10	4	TK	0	3	0	3	1	0
+10	3	NN	4	7	4	7	1	1
+10	4	TK	4	7	4	7	1	1
+10	2	.	8	9	8	9	1	2
+10	3	TK	8	9	8	9	1	2
+11	0	TOP	0	4	0	4	1	0
+11	1	S	0	3	0	3	1	1
+11	2	NP	0	1	0	1	1	0
+11	3	NN	0	1	0	1	1	0
+11	4	NN	0	1	0	1	1	0
+11	5	TK	0	1	0	1	1	0
+11	2	VP	2	3	2	3	1	1
+11	3	VB	2	3	2	3	1	1
+11	4	TK	2	3	2	3	1	1
+end	turbo:parse-nodes
+layer	turbo:pos-samples	document	25	sample:u32	token:str	tag:str
+0	A	DT
+0	dog	NN
+0	runs	VBZ
+1	wind	NN
+1	blows	VBZ
+2	one	B
+2	two	D
+3	tab\tinside	NN
+3	tail\t	NN
+3	tail	NN
+3	vt\u000b	NN
+4	ok	NN
+5	*T*	-NONE-
+5	x	NN
+6	text	NN
+6	here	VB
+9	equal	NN
+9	go	VB
+9	dash	NN
+9	eq	NN
+10	the	DT
+10	end	NN
+10	.	.
+11	x	NN
+11	y	VB
+end	turbo:pos-samples
+layer	turbo:chunk-samples	document	25	sample:u32	token:str	tag:str	pred:str
+0	A	DT	S-NP
+0	dog	NN	C-NP
+0	runs	VBZ	S-VP
+1	wind	NN	S-NP
+1	blows	VBZ	S-VP
+2	one	B	S-A
+2	two	D	S-C
+3	tab\tinside	NN	S-TOP
+3	tail\t	NN	C-TOP
+3	tail	NN	C-TOP
+3	vt\u000b	NN	C-TOP
+4	ok	NN	S-TOP
+5	*T*	-NONE-	O
+5	x	NN	S--LRB-
+6	text	NN	S-TOP
+6	here	VB	C-TOP
+9	equal	NN	S-NP
+9	go	VB	S-VP-3
+9	dash	NN	S-NP
+9	eq	NN	S-NP
+10	the	DT	S-NP(DT
+10	end	NN	C-NP(DT
+10	.	.	O
+11	x	NN	S-NN
+11	y	VB	S-VP
+end	turbo:chunk-samples

@@ -1,0 +1,796 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/crlf	47	47	47ea4b61f07bdb626b89e6517289425d31986a7b0043eaf68ddffde787b7c615
+model	pos-fixture-rust.bin	7ce6a0d76f18242966640050d44a94f0f8ff496b2a518a72c0e191a964d321588bda11782be6ae3d09f62fec387f01db32bdeb87eb64a741f07bb10359e57328
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+model	opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin	147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a
+annotator	opennlp.tools.postag.POSTaggerME	tag
+point	0	0	15	22	0	none
+context	def
+context	suf=t
+context	suf=st
+context	suf=rst
+context	suf=irst
+context	pre=F
+context	pre=Fi
+context	pre=Fir
+context	pre=Firs
+context	w=first
+context	n1w=line
+context	n2w=second
+context	S=begin
+context	wc=ic
+context	w&c=first,ic
+outcome	DT	3fb54ba57a5fa807 0.08318552243841291
+outcome	NN	3fba11f3f54bb630 0.10183644045510998
+outcome	VBD	3fac8293bc3a7168 0.05568372414311079
+outcome	IN	3fb13e3ade822216 0.06735580379803027
+outcome	.	3faaf05c7e9885e3 0.052615061238849646
+outcome	NNP	3fbccd6a2a77c62a 0.11250937973797961
+outcome	PRP	3fc420775eae8bc4 0.1572407924951148
+outcome	VBZ	3f8f5544677e1f47 0.015299353035302622
+outcome	VBP	3f9c2e5d43e2fb2c 0.027520615833732595
+outcome	JJ	3faace1c8b98b85e 0.05235375598964319
+outcome	CC	3f8f7f226db1a1f1 0.01537920853861949
+outcome	PRP$	3f9e72fc9dbecfa6 0.02973551476289029
+outcome	NNS	3f9f0551cf6c51ba 0.03029373005399958
+outcome	VBN	3f958618753ab4e1 0.021019346385107055
+outcome	CD	3f9d62d5e62e23b7 0.02869734017761846
+outcome	MD	3f8f4fe791943a78 0.01528912461301711
+outcome	VB	3f9ccdec7bb37780 0.02812928681384319
+outcome	RB	3fa188a91069a8f4 0.03424576115942726
+outcome	,	3f9636de74bc5dd0 0.021693683505047023
+outcome	VBG	3f8f6ec30830152a 0.015347980201122786
+outcome	NNPS	3f8eb068a0c62f93 0.014984910398901074
+outcome	UH	3f940dbd7587ebcf 0.019583664225119975
+end	0
+point	1	6	17	22	0	none
+context	def
+context	suf=e
+context	suf=ne
+context	suf=ine
+context	suf=line
+context	pre=l
+context	pre=li
+context	pre=lin
+context	pre=line
+context	w=line
+context	p1w=first
+context	n1w=second
+context	n2w=line
+context	p1S=begin
+context	wc=lc
+context	w&c=line,lc
+context	t=PRP
+outcome	DT	3fb843da75affe63 0.09478536008099918
+outcome	NN	3fcbd74116124f15 0.21750653817854784
+outcome	VBD	3fb02948a71ae460 0.06312994079316203
+outcome	IN	3fb2661e4b55c39f 0.07187070216401857
+outcome	.	3fac39d7644b0dea 0.055128794663257555
+outcome	NNP	3fa80aefc7e01f8b 0.04695843996893164
+outcome	PRP	3fa560f188351088 0.04175524509131018
+outcome	VBZ	3f9601f64fd745c0 0.021491860030271814
+outcome	VBP	3fb14a489ed6ce41 0.06753972890765515
+outcome	JJ	3faed01ac340cd69 0.06018146165333855
+outcome	CC	3f8607370675b4be 0.010755948910367127
+outcome	PRP$	3f8d2d7d246d0fb0 0.014246919321187906
+outcome	NNS	3fa54feb35849a22 0.04162535694404236
+outcome	VBN	3f9201b300a78958 0.017584607043212713
+outcome	CD	3f9aaee140fc408e 0.026057738868133166
+outcome	MD	3f966210b2509aea 0.02185846412990148
+outcome	VB	3f9ce938ca897c94 0.028233420717125826
+outcome	RB	3fa1ca45f91b8a8d 0.03474634805549668
+outcome	,	3f9746907d94caed 0.022730119385594817
+outcome	VBG	3f85c5bd2fd926c2 0.010631063482964168
+outcome	NNPS	3f8d906d804b09ca 0.014435630300231223
+outcome	UH	3f9125f1ed9fe8a4 0.01674631131025052
+end	1
+point	2	6	17	22	0	none
+context	def
+context	suf=e
+context	suf=ne
+context	suf=ine
+context	suf=line
+context	pre=l
+context	pre=li
+context	pre=lin
+context	pre=line
+context	w=line
+context	p1w=first
+context	n1w=second
+context	n2w=line
+context	p1S=begin
+context	wc=lc
+context	w&c=line,lc
+context	t=PRP
+outcome	DT	3fb843da75affe63 0.09478536008099918
+outcome	NN	3fcbd74116124f15 0.21750653817854784
+outcome	VBD	3fb02948a71ae460 0.06312994079316203
+outcome	IN	3fb2661e4b55c39f 0.07187070216401857
+outcome	.	3fac39d7644b0dea 0.055128794663257555
+outcome	NNP	3fa80aefc7e01f8b 0.04695843996893164
+outcome	PRP	3fa560f188351088 0.04175524509131018
+outcome	VBZ	3f9601f64fd745c0 0.021491860030271814
+outcome	VBP	3fb14a489ed6ce41 0.06753972890765515
+outcome	JJ	3faed01ac340cd69 0.06018146165333855
+outcome	CC	3f8607370675b4be 0.010755948910367127
+outcome	PRP$	3f8d2d7d246d0fb0 0.014246919321187906
+outcome	NNS	3fa54feb35849a22 0.04162535694404236
+outcome	VBN	3f9201b300a78958 0.017584607043212713
+outcome	CD	3f9aaee140fc408e 0.026057738868133166
+outcome	MD	3f966210b2509aea 0.02185846412990148
+outcome	VB	3f9ce938ca897c94 0.028233420717125826
+outcome	RB	3fa1ca45f91b8a8d 0.03474634805549668
+outcome	,	3f9746907d94caed 0.022730119385594817
+outcome	VBG	3f85c5bd2fd926c2 0.010631063482964168
+outcome	NNPS	3f8d906d804b09ca 0.014435630300231223
+outcome	UH	3f9125f1ed9fe8a4 0.01674631131025052
+end	2
+point	3	6	17	22	0	none
+context	def
+context	suf=e
+context	suf=ne
+context	suf=ine
+context	suf=line
+context	pre=l
+context	pre=li
+context	pre=lin
+context	pre=line
+context	w=line
+context	p1w=first
+context	n1w=second
+context	n2w=line
+context	p1S=begin
+context	wc=lc
+context	w&c=line,lc
+context	t=PRP
+outcome	DT	3fb843da75affe63 0.09478536008099918
+outcome	NN	3fcbd74116124f15 0.21750653817854784
+outcome	VBD	3fb02948a71ae460 0.06312994079316203
+outcome	IN	3fb2661e4b55c39f 0.07187070216401857
+outcome	.	3fac39d7644b0dea 0.055128794663257555
+outcome	NNP	3fa80aefc7e01f8b 0.04695843996893164
+outcome	PRP	3fa560f188351088 0.04175524509131018
+outcome	VBZ	3f9601f64fd745c0 0.021491860030271814
+outcome	VBP	3fb14a489ed6ce41 0.06753972890765515
+outcome	JJ	3faed01ac340cd69 0.06018146165333855
+outcome	CC	3f8607370675b4be 0.010755948910367127
+outcome	PRP$	3f8d2d7d246d0fb0 0.014246919321187906
+outcome	NNS	3fa54feb35849a22 0.04162535694404236
+outcome	VBN	3f9201b300a78958 0.017584607043212713
+outcome	CD	3f9aaee140fc408e 0.026057738868133166
+outcome	MD	3f966210b2509aea 0.02185846412990148
+outcome	VB	3f9ce938ca897c94 0.028233420717125826
+outcome	RB	3fa1ca45f91b8a8d 0.03474634805549668
+outcome	,	3f9746907d94caed 0.022730119385594817
+outcome	VBG	3f85c5bd2fd926c2 0.010631063482964168
+outcome	NNPS	3f8d906d804b09ca 0.014435630300231223
+outcome	UH	3f9125f1ed9fe8a4 0.01674631131025052
+end	3
+point	4	12	19	22	0	none
+context	def
+context	suf=d
+context	suf=nd
+context	suf=ond
+context	suf=cond
+context	pre=S
+context	pre=Se
+context	pre=Sec
+context	pre=Seco
+context	w=second
+context	p1w=line
+context	p2w=first
+context	n1w=line
+context	n2w=fourth
+context	p2S=begin
+context	wc=ic
+context	w&c=second,ic
+context	t=NN
+context	t2=PRP,NN
+outcome	DT	3fb2c8038316f853 0.07336446714813975
+outcome	NN	3fb8681c2952366a 0.09533859261338198
+outcome	VBD	3fbaae1bda34ffe3 0.10421918942756707
+outcome	IN	3fae9deaf81952f4 0.05979856756736082
+outcome	.	3fb86be3b47234cf 0.09539626269743738
+outcome	NNP	3fb2325bba7c2345 0.07108090689520193
+outcome	PRP	3fb974ce9e46a759 0.0994385849395746
+outcome	VBZ	3f8d35a6e0d07dc2 0.014262489066878884
+outcome	VBP	3f9a456f27f876a1 0.025655495466813453
+outcome	JJ	3fafee7ca7ffef26 0.06236638594415771
+outcome	CC	3fa9966f1d6f8d20 0.04997584566424451
+outcome	PRP$	3f97c5a3d14a27de 0.023214873932864914
+outcome	NNS	3f9b6f2c148a4c8f 0.026791275743175687
+outcome	VBN	3f967d1eeb266898 0.021961672880572353
+outcome	CD	3f989fa6f7a91b50 0.02404652487373521
+outcome	MD	3f8d30a715019b26 0.014252953842697712
+outcome	VB	3fa38024a1b6b1c2 0.03808702920955255
+outcome	RB	3f99b483f59d33e0 0.02510267435654956
+outcome	,	3f96d109e76cbdfd 0.02228179430966114
+outcome	VBG	3f8d4d6b2f557bbc 0.014307820684448795
+outcome	NNPS	3f98a6d080f29567 0.024073846693359793
+outcome	UH	3f8eaf46220f0a6c 0.014982746042624139
+end	4
+point	5	12	19	22	0	none
+context	def
+context	suf=d
+context	suf=nd
+context	suf=ond
+context	suf=cond
+context	pre=S
+context	pre=Se
+context	pre=Sec
+context	pre=Seco
+context	w=second
+context	p1w=line
+context	p2w=first
+context	n1w=line
+context	n2w=fourth
+context	p2S=begin
+context	wc=ic
+context	w&c=second,ic
+context	t=NN
+context	t2=PRP,NN
+outcome	DT	3fb2c8038316f853 0.07336446714813975
+outcome	NN	3fb8681c2952366a 0.09533859261338198
+outcome	VBD	3fbaae1bda34ffe3 0.10421918942756707
+outcome	IN	3fae9deaf81952f4 0.05979856756736082
+outcome	.	3fb86be3b47234cf 0.09539626269743738
+outcome	NNP	3fb2325bba7c2345 0.07108090689520193
+outcome	PRP	3fb974ce9e46a759 0.0994385849395746
+outcome	VBZ	3f8d35a6e0d07dc2 0.014262489066878884
+outcome	VBP	3f9a456f27f876a1 0.025655495466813453
+outcome	JJ	3fafee7ca7ffef26 0.06236638594415771
+outcome	CC	3fa9966f1d6f8d20 0.04997584566424451
+outcome	PRP$	3f97c5a3d14a27de 0.023214873932864914
+outcome	NNS	3f9b6f2c148a4c8f 0.026791275743175687
+outcome	VBN	3f967d1eeb266898 0.021961672880572353
+outcome	CD	3f989fa6f7a91b50 0.02404652487373521
+outcome	MD	3f8d30a715019b26 0.014252953842697712
+outcome	VB	3fa38024a1b6b1c2 0.03808702920955255
+outcome	RB	3f99b483f59d33e0 0.02510267435654956
+outcome	,	3f96d109e76cbdfd 0.02228179430966114
+outcome	VBG	3f8d4d6b2f557bbc 0.014307820684448795
+outcome	NNPS	3f98a6d080f29567 0.024073846693359793
+outcome	UH	3f8eaf46220f0a6c 0.014982746042624139
+end	5
+point	6	12	19	22	0	none
+context	def
+context	suf=d
+context	suf=nd
+context	suf=ond
+context	suf=cond
+context	pre=S
+context	pre=Se
+context	pre=Sec
+context	pre=Seco
+context	w=second
+context	p1w=line
+context	p2w=first
+context	n1w=line
+context	n2w=fourth
+context	p2S=begin
+context	wc=ic
+context	w&c=second,ic
+context	t=NN
+context	t2=PRP,NN
+outcome	DT	3fb2c8038316f853 0.07336446714813975
+outcome	NN	3fb8681c2952366a 0.09533859261338198
+outcome	VBD	3fbaae1bda34ffe3 0.10421918942756707
+outcome	IN	3fae9deaf81952f4 0.05979856756736082
+outcome	.	3fb86be3b47234cf 0.09539626269743738
+outcome	NNP	3fb2325bba7c2345 0.07108090689520193
+outcome	PRP	3fb974ce9e46a759 0.0994385849395746
+outcome	VBZ	3f8d35a6e0d07dc2 0.014262489066878884
+outcome	VBP	3f9a456f27f876a1 0.025655495466813453
+outcome	JJ	3fafee7ca7ffef26 0.06236638594415771
+outcome	CC	3fa9966f1d6f8d20 0.04997584566424451
+outcome	PRP$	3f97c5a3d14a27de 0.023214873932864914
+outcome	NNS	3f9b6f2c148a4c8f 0.026791275743175687
+outcome	VBN	3f967d1eeb266898 0.021961672880572353
+outcome	CD	3f989fa6f7a91b50 0.02404652487373521
+outcome	MD	3f8d30a715019b26 0.014252953842697712
+outcome	VB	3fa38024a1b6b1c2 0.03808702920955255
+outcome	RB	3f99b483f59d33e0 0.02510267435654956
+outcome	,	3f96d109e76cbdfd 0.02228179430966114
+outcome	VBG	3f8d4d6b2f557bbc 0.014307820684448795
+outcome	NNPS	3f98a6d080f29567 0.024073846693359793
+outcome	UH	3f8eaf46220f0a6c 0.014982746042624139
+end	6
+point	7	19	18	22	0	none
+context	def
+context	suf=e
+context	suf=ne
+context	suf=ine
+context	suf=line
+context	pre=l
+context	pre=li
+context	pre=lin
+context	pre=line
+context	w=line
+context	p1w=second
+context	p2w=line
+context	n1w=fourth
+context	n2w=after
+context	wc=lc
+context	w&c=line,lc
+context	t=VBD
+context	t2=NN,VBD
+outcome	DT	3fc6b80b2195bd34 0.17749156131638133
+outcome	NN	3fc322b4711687d8 0.1494966079890776
+outcome	VBD	3fa2876bfe05ada5 0.03618943668228817
+outcome	IN	3fc10244661490aa 0.13288168892279845
+outcome	.	3fab90622d242ece 0.05383593369523752
+outcome	NNP	3fa2e8bd513a7316 0.03693191162640212
+outcome	PRP	3fac3dce1148c20b 0.055159034356965085
+outcome	VBZ	3f854d421e410ae8 0.010401264713555361
+outcome	VBP	3f996dbfe055db67 0.024832723681778825
+outcome	JJ	3fb0432ad57f2ea8 0.06352489197086675
+outcome	CC	3f8e7c4c7a856c9c 0.014885518540430014
+outcome	PRP$	3f93d928d714149f 0.019383085372301264
+outcome	NNS	3f9e1b50ac8b56c1 0.029401073962467054
+outcome	VBN	3fa2544895db104c 0.035799282353338485
+outcome	CD	3f9a0eaf3cd091ea 0.02544664200481065
+outcome	MD	3f8547f0659c9858 0.010391119099562626
+outcome	VB	3f9ba28bdf69610b 0.026987252722706006
+outcome	RB	3fa15f77d72d2d62 0.033931489006671325
+outcome	,	3f96bad386ae4237 0.022197060675866544
+outcome	VBG	3f8543069186c936 0.010381747547260827
+outcome	NNPS	3f8cdeef86e2e52f 0.014097091010955324
+outcome	UH	3f90befe5c4e1e3f 0.016353582748278802
+end	7
+point	8	19	18	22	0	none
+context	def
+context	suf=e
+context	suf=ne
+context	suf=ine
+context	suf=line
+context	pre=l
+context	pre=li
+context	pre=lin
+context	pre=line
+context	w=line
+context	p1w=second
+context	p2w=line
+context	n1w=fourth
+context	n2w=after
+context	wc=lc
+context	w&c=line,lc
+context	t=VBD
+context	t2=NN,VBD
+outcome	DT	3fc6b80b2195bd34 0.17749156131638133
+outcome	NN	3fc322b4711687d8 0.1494966079890776
+outcome	VBD	3fa2876bfe05ada5 0.03618943668228817
+outcome	IN	3fc10244661490aa 0.13288168892279845
+outcome	.	3fab90622d242ece 0.05383593369523752
+outcome	NNP	3fa2e8bd513a7316 0.03693191162640212
+outcome	PRP	3fac3dce1148c20b 0.055159034356965085
+outcome	VBZ	3f854d421e410ae8 0.010401264713555361
+outcome	VBP	3f996dbfe055db67 0.024832723681778825
+outcome	JJ	3fb0432ad57f2ea8 0.06352489197086675
+outcome	CC	3f8e7c4c7a856c9c 0.014885518540430014
+outcome	PRP$	3f93d928d714149f 0.019383085372301264
+outcome	NNS	3f9e1b50ac8b56c1 0.029401073962467054
+outcome	VBN	3fa2544895db104c 0.035799282353338485
+outcome	CD	3f9a0eaf3cd091ea 0.02544664200481065
+outcome	MD	3f8547f0659c9858 0.010391119099562626
+outcome	VB	3f9ba28bdf69610b 0.026987252722706006
+outcome	RB	3fa15f77d72d2d62 0.033931489006671325
+outcome	,	3f96bad386ae4237 0.022197060675866544
+outcome	VBG	3f8543069186c936 0.010381747547260827
+outcome	NNPS	3f8cdeef86e2e52f 0.014097091010955324
+outcome	UH	3f90befe5c4e1e3f 0.016353582748278802
+end	8
+point	9	19	18	22	0	none
+context	def
+context	suf=e
+context	suf=ne
+context	suf=ine
+context	suf=line
+context	pre=l
+context	pre=li
+context	pre=lin
+context	pre=line
+context	w=line
+context	p1w=second
+context	p2w=line
+context	n1w=fourth
+context	n2w=after
+context	wc=lc
+context	w&c=line,lc
+context	t=VBD
+context	t2=NN,VBD
+outcome	DT	3fc6b80b2195bd34 0.17749156131638133
+outcome	NN	3fc322b4711687d8 0.1494966079890776
+outcome	VBD	3fa2876bfe05ada5 0.03618943668228817
+outcome	IN	3fc10244661490aa 0.13288168892279845
+outcome	.	3fab90622d242ece 0.05383593369523752
+outcome	NNP	3fa2e8bd513a7316 0.03693191162640212
+outcome	PRP	3fac3dce1148c20b 0.055159034356965085
+outcome	VBZ	3f854d421e410ae8 0.010401264713555361
+outcome	VBP	3f996dbfe055db67 0.024832723681778825
+outcome	JJ	3fb0432ad57f2ea8 0.06352489197086675
+outcome	CC	3f8e7c4c7a856c9c 0.014885518540430014
+outcome	PRP$	3f93d928d714149f 0.019383085372301264
+outcome	NNS	3f9e1b50ac8b56c1 0.029401073962467054
+outcome	VBN	3fa2544895db104c 0.035799282353338485
+outcome	CD	3f9a0eaf3cd091ea 0.02544664200481065
+outcome	MD	3f8547f0659c9858 0.010391119099562626
+outcome	VB	3f9ba28bdf69610b 0.026987252722706006
+outcome	RB	3fa15f77d72d2d62 0.033931489006671325
+outcome	,	3f96bad386ae4237 0.022197060675866544
+outcome	VBG	3f8543069186c936 0.010381747547260827
+outcome	NNPS	3f8cdeef86e2e52f 0.014097091010955324
+outcome	UH	3f90befe5c4e1e3f 0.016353582748278802
+end	9
+point	10	27	18	22	0	none
+context	def
+context	suf=h
+context	suf=th
+context	suf=rth
+context	suf=urth
+context	pre=F
+context	pre=Fo
+context	pre=Fou
+context	pre=Four
+context	w=fourth
+context	p1w=line
+context	p2w=second
+context	n1w=after
+context	n2w=blank
+context	wc=ic
+context	w&c=fourth,ic
+context	t=DT
+context	t2=VBD,DT
+outcome	DT	3fad54f4843ccbae 0.05728878130175673
+outcome	NN	3fba085061fbbde3 0.10168936149761225
+outcome	VBD	3fa2dfed5987eabf 0.03686467855364616
+outcome	IN	3fa5e371d82137c8 0.042750890381838824
+outcome	.	3faa990497c7eeb7 0.05194868424220316
+outcome	NNP	3fd04c5bebfb7412 0.2546605877412854
+outcome	PRP	3fae2e804eb5920d 0.058948526008666936
+outcome	VBZ	3f8eefad3f82e96a 0.01510558462210972
+outcome	VBP	3f9bd2fe4f6dd8f3 0.02717206344410612
+outcome	JJ	3fb9d0bb333ac9eb 0.10084123612140387
+outcome	CC	3f8f190386ed87e7 0.015184428744479518
+outcome	PRP$	3f992d610b736315 0.024587169956109173
+outcome	NNS	3f9ee8da4a1b96a4 0.03018513753240505
+outcome	VBN	3f95404f36252226 0.02075313346839116
+outcome	CD	3f9bbf9a1b214aec 0.027098091035734947
+outcome	MD	3f8eea61ccb56859 0.015095485744201097
+outcome	VB	3f9c70883151b80d 0.027773025522428486
+outcome	RB	3f9969a51651dd33 0.024817065703669882
+outcome	,	3f95eed80fbbbd48 0.021418930015838528
+outcome	VBG	3f8f08d937153e95 0.015153595918177923
+outcome	NNPS	3f8e4ce7fd0d6325 0.014795124445002703
+outcome	UH	3f903fcf8160f1e3 0.01586841799893247
+end	10
+point	11	27	18	22	0	none
+context	def
+context	suf=h
+context	suf=th
+context	suf=rth
+context	suf=urth
+context	pre=F
+context	pre=Fo
+context	pre=Fou
+context	pre=Four
+context	w=fourth
+context	p1w=line
+context	p2w=second
+context	n1w=after
+context	n2w=blank
+context	wc=ic
+context	w&c=fourth,ic
+context	t=DT
+context	t2=VBD,DT
+outcome	DT	3fad54f4843ccbae 0.05728878130175673
+outcome	NN	3fba085061fbbde3 0.10168936149761225
+outcome	VBD	3fa2dfed5987eabf 0.03686467855364616
+outcome	IN	3fa5e371d82137c8 0.042750890381838824
+outcome	.	3faa990497c7eeb7 0.05194868424220316
+outcome	NNP	3fd04c5bebfb7412 0.2546605877412854
+outcome	PRP	3fae2e804eb5920d 0.058948526008666936
+outcome	VBZ	3f8eefad3f82e96a 0.01510558462210972
+outcome	VBP	3f9bd2fe4f6dd8f3 0.02717206344410612
+outcome	JJ	3fb9d0bb333ac9eb 0.10084123612140387
+outcome	CC	3f8f190386ed87e7 0.015184428744479518
+outcome	PRP$	3f992d610b736315 0.024587169956109173
+outcome	NNS	3f9ee8da4a1b96a4 0.03018513753240505
+outcome	VBN	3f95404f36252226 0.02075313346839116
+outcome	CD	3f9bbf9a1b214aec 0.027098091035734947
+outcome	MD	3f8eea61ccb56859 0.015095485744201097
+outcome	VB	3f9c70883151b80d 0.027773025522428486
+outcome	RB	3f9969a51651dd33 0.024817065703669882
+outcome	,	3f95eed80fbbbd48 0.021418930015838528
+outcome	VBG	3f8f08d937153e95 0.015153595918177923
+outcome	NNPS	3f8e4ce7fd0d6325 0.014795124445002703
+outcome	UH	3f903fcf8160f1e3 0.01586841799893247
+end	11
+point	12	27	18	22	0	none
+context	def
+context	suf=h
+context	suf=th
+context	suf=rth
+context	suf=urth
+context	pre=F
+context	pre=Fo
+context	pre=Fou
+context	pre=Four
+context	w=fourth
+context	p1w=line
+context	p2w=second
+context	n1w=after
+context	n2w=blank
+context	wc=ic
+context	w&c=fourth,ic
+context	t=DT
+context	t2=VBD,DT
+outcome	DT	3fad54f4843ccbae 0.05728878130175673
+outcome	NN	3fba085061fbbde3 0.10168936149761225
+outcome	VBD	3fa2dfed5987eabf 0.03686467855364616
+outcome	IN	3fa5e371d82137c8 0.042750890381838824
+outcome	.	3faa990497c7eeb7 0.05194868424220316
+outcome	NNP	3fd04c5bebfb7412 0.2546605877412854
+outcome	PRP	3fae2e804eb5920d 0.058948526008666936
+outcome	VBZ	3f8eefad3f82e96a 0.01510558462210972
+outcome	VBP	3f9bd2fe4f6dd8f3 0.02717206344410612
+outcome	JJ	3fb9d0bb333ac9eb 0.10084123612140387
+outcome	CC	3f8f190386ed87e7 0.015184428744479518
+outcome	PRP$	3f992d610b736315 0.024587169956109173
+outcome	NNS	3f9ee8da4a1b96a4 0.03018513753240505
+outcome	VBN	3f95404f36252226 0.02075313346839116
+outcome	CD	3f9bbf9a1b214aec 0.027098091035734947
+outcome	MD	3f8eea61ccb56859 0.015095485744201097
+outcome	VB	3f9c70883151b80d 0.027773025522428486
+outcome	RB	3f9969a51651dd33 0.024817065703669882
+outcome	,	3f95eed80fbbbd48 0.021418930015838528
+outcome	VBG	3f8f08d937153e95 0.015153595918177923
+outcome	NNPS	3f8e4ce7fd0d6325 0.014795124445002703
+outcome	UH	3f903fcf8160f1e3 0.01586841799893247
+end	12
+point	13	34	17	22	0	none
+context	def
+context	suf=r
+context	suf=er
+context	suf=ter
+context	suf=fter
+context	pre=a
+context	pre=af
+context	pre=aft
+context	pre=afte
+context	w=after
+context	p1w=fourth
+context	p2w=line
+context	n1w=blank
+context	wc=lc
+context	w&c=after,lc
+context	t=NNP
+context	t2=DT,NNP
+outcome	DT	3fb49702ce266f91 0.0804292443557968
+outcome	NN	3fcd899eb1f075b7 0.23076232613031575
+outcome	VBD	3fafb92e749a83a5 0.061959697469553356
+outcome	IN	3fc52a6f15e427fd 0.1653574807062909
+outcome	.	3fb67cadb996db3d 0.08783994465816831
+outcome	NNP	3fa74624bd256d18 0.045457027520308724
+outcome	PRP	3f9819f53f60bf96 0.02353652190521379
+outcome	VBZ	3f82784cbc2d8b7a 0.00901851605676084
+outcome	VBP	3f97f430432a29d0 0.023392442798049917
+outcome	JJ	3fa25ea46f056d99 0.035878313591378226
+outcome	CC	3f8cb2bb2ad880ff 0.014012777562186772
+outcome	PRP$	3fa59bf2be44abff 0.042205415464501066
+outcome	NNS	3f9a1ab388c15e57 0.025492482396968743
+outcome	VBN	3f8e7e4cf4a4fde2 0.01488933679195176
+outcome	CD	3f970c7b5ebf7ed6 0.022508552225075494
+outcome	MD	3f8273b00aa817f9 0.009009719205106835
+outcome	VB	3f9910fd52a024c8 0.024478872459472695
+outcome	RB	3f9f5e041cf4c7d4 0.03063208033308469
+outcome	,	3f93b544dbaee41a 0.01924617377128266
+outcome	VBG	3f826f6d6def4331 0.009001593511045765
+outcome	NNPS	3f890861a6bcaa3b 0.01222301759806498
+outcome	UH	3f89f1ec63056717 0.012668463489422117
+end	13
+point	14	34	17	22	0	none
+context	def
+context	suf=r
+context	suf=er
+context	suf=ter
+context	suf=fter
+context	pre=a
+context	pre=af
+context	pre=aft
+context	pre=afte
+context	w=after
+context	p1w=fourth
+context	p2w=line
+context	n1w=blank
+context	wc=lc
+context	w&c=after,lc
+context	t=NNP
+context	t2=DT,NNP
+outcome	DT	3fb49702ce266f91 0.0804292443557968
+outcome	NN	3fcd899eb1f075b7 0.23076232613031575
+outcome	VBD	3fafb92e749a83a5 0.061959697469553356
+outcome	IN	3fc52a6f15e427fd 0.1653574807062909
+outcome	.	3fb67cadb996db3d 0.08783994465816831
+outcome	NNP	3fa74624bd256d18 0.045457027520308724
+outcome	PRP	3f9819f53f60bf96 0.02353652190521379
+outcome	VBZ	3f82784cbc2d8b7a 0.00901851605676084
+outcome	VBP	3f97f430432a29d0 0.023392442798049917
+outcome	JJ	3fa25ea46f056d99 0.035878313591378226
+outcome	CC	3f8cb2bb2ad880ff 0.014012777562186772
+outcome	PRP$	3fa59bf2be44abff 0.042205415464501066
+outcome	NNS	3f9a1ab388c15e57 0.025492482396968743
+outcome	VBN	3f8e7e4cf4a4fde2 0.01488933679195176
+outcome	CD	3f970c7b5ebf7ed6 0.022508552225075494
+outcome	MD	3f8273b00aa817f9 0.009009719205106835
+outcome	VB	3f9910fd52a024c8 0.024478872459472695
+outcome	RB	3f9f5e041cf4c7d4 0.03063208033308469
+outcome	,	3f93b544dbaee41a 0.01924617377128266
+outcome	VBG	3f826f6d6def4331 0.009001593511045765
+outcome	NNPS	3f890861a6bcaa3b 0.01222301759806498
+outcome	UH	3f89f1ec63056717 0.012668463489422117
+end	14
+point	15	34	17	22	0	none
+context	def
+context	suf=r
+context	suf=er
+context	suf=ter
+context	suf=fter
+context	pre=a
+context	pre=af
+context	pre=aft
+context	pre=afte
+context	w=after
+context	p1w=fourth
+context	p2w=line
+context	n1w=blank
+context	wc=lc
+context	w&c=after,lc
+context	t=NNP
+context	t2=DT,NNP
+outcome	DT	3fb49702ce266f91 0.0804292443557968
+outcome	NN	3fcd899eb1f075b7 0.23076232613031575
+outcome	VBD	3fafb92e749a83a5 0.061959697469553356
+outcome	IN	3fc52a6f15e427fd 0.1653574807062909
+outcome	.	3fb67cadb996db3d 0.08783994465816831
+outcome	NNP	3fa74624bd256d18 0.045457027520308724
+outcome	PRP	3f9819f53f60bf96 0.02353652190521379
+outcome	VBZ	3f82784cbc2d8b7a 0.00901851605676084
+outcome	VBP	3f97f430432a29d0 0.023392442798049917
+outcome	JJ	3fa25ea46f056d99 0.035878313591378226
+outcome	CC	3f8cb2bb2ad880ff 0.014012777562186772
+outcome	PRP$	3fa59bf2be44abff 0.042205415464501066
+outcome	NNS	3f9a1ab388c15e57 0.025492482396968743
+outcome	VBN	3f8e7e4cf4a4fde2 0.01488933679195176
+outcome	CD	3f970c7b5ebf7ed6 0.022508552225075494
+outcome	MD	3f8273b00aa817f9 0.009009719205106835
+outcome	VB	3f9910fd52a024c8 0.024478872459472695
+outcome	RB	3f9f5e041cf4c7d4 0.03063208033308469
+outcome	,	3f93b544dbaee41a 0.01924617377128266
+outcome	VBG	3f826f6d6def4331 0.009001593511045765
+outcome	NNPS	3f890861a6bcaa3b 0.01222301759806498
+outcome	UH	3f89f1ec63056717 0.012668463489422117
+end	15
+point	16	40	16	22	0	none
+context	def
+context	suf=k
+context	suf=nk
+context	suf=ank
+context	suf=lank
+context	pre=b
+context	pre=bl
+context	pre=bla
+context	pre=blan
+context	w=blank
+context	p1w=after
+context	p2w=fourth
+context	wc=lc
+context	w&c=blank,lc
+context	t=NN
+context	t2=NNP,NN
+outcome	DT	3faeb8083e0d5636 0.05999780423614391
+outcome	NN	3fbe951f4dbc9dec 0.11946292541380615
+outcome	VBD	3fb39fb3e311aa9c 0.07665561956097594
+outcome	IN	3fc043dddc9c2750 0.1270711257168906
+outcome	.	3fbb3c966f812592 0.10639324400212605
+outcome	NNP	3fa3b3fa5cc4084e 0.038482498001045515
+outcome	PRP	3f9cf6b842b6b50b 0.028284911224251846
+outcome	VBZ	3f8632369cf36863 0.010837961830862669
+outcome	VBP	3fb626a9dcf19e9d 0.08652745861183538
+outcome	JJ	3fb564ab4860da0f 0.08356733815239913
+outcome	CC	3f866a2d11ab1861 0.01094470224542138
+outcome	PRP$	3f8db091a649d808 0.014496934783192486
+outcome	NNS	3fa56e9648bdc376 0.041859337214993284
+outcome	VBN	3f925297f879e974 0.01789319471434099
+outcome	CD	3f9bb2e0c98064e6 0.027049553202321962
+outcome	MD	3f862cabb84f52a5 0.01082739025324859
+outcome	VB	3f9e1f96bdd88106 0.029417376839888675
+outcome	RB	3f98617cb39d55f1 0.023809383833698964
+outcome	,	3f9a183b0fc3d35c 0.025483057820525942
+outcome	VBG	3f9fc5017aba4058 0.031024954906172603
+outcome	NNPS	3f8e153e7d3a0d05 0.014688957401864497
+outcome	UH	3f8f2de6ef3638b2 0.015224270033993601
+end	16
+point	17	40	16	22	0	none
+context	def
+context	suf=k
+context	suf=nk
+context	suf=ank
+context	suf=lank
+context	pre=b
+context	pre=bl
+context	pre=bla
+context	pre=blan
+context	w=blank
+context	p1w=after
+context	p2w=fourth
+context	wc=lc
+context	w&c=blank,lc
+context	t=NN
+context	t2=NNP,NN
+outcome	DT	3faeb8083e0d5636 0.05999780423614391
+outcome	NN	3fbe951f4dbc9dec 0.11946292541380615
+outcome	VBD	3fb39fb3e311aa9c 0.07665561956097594
+outcome	IN	3fc043dddc9c2750 0.1270711257168906
+outcome	.	3fbb3c966f812592 0.10639324400212605
+outcome	NNP	3fa3b3fa5cc4084e 0.038482498001045515
+outcome	PRP	3f9cf6b842b6b50b 0.028284911224251846
+outcome	VBZ	3f8632369cf36863 0.010837961830862669
+outcome	VBP	3fb626a9dcf19e9d 0.08652745861183538
+outcome	JJ	3fb564ab4860da0f 0.08356733815239913
+outcome	CC	3f866a2d11ab1861 0.01094470224542138
+outcome	PRP$	3f8db091a649d808 0.014496934783192486
+outcome	NNS	3fa56e9648bdc376 0.041859337214993284
+outcome	VBN	3f925297f879e974 0.01789319471434099
+outcome	CD	3f9bb2e0c98064e6 0.027049553202321962
+outcome	MD	3f862cabb84f52a5 0.01082739025324859
+outcome	VB	3f9e1f96bdd88106 0.029417376839888675
+outcome	RB	3f98617cb39d55f1 0.023809383833698964
+outcome	,	3f9a183b0fc3d35c 0.025483057820525942
+outcome	VBG	3f9fc5017aba4058 0.031024954906172603
+outcome	NNPS	3f8e153e7d3a0d05 0.014688957401864497
+outcome	UH	3f8f2de6ef3638b2 0.015224270033993601
+end	17
+point	18	40	16	22	0	none
+context	def
+context	suf=k
+context	suf=nk
+context	suf=ank
+context	suf=lank
+context	pre=b
+context	pre=bl
+context	pre=bla
+context	pre=blan
+context	w=blank
+context	p1w=after
+context	p2w=fourth
+context	wc=lc
+context	w&c=blank,lc
+context	t=NN
+context	t2=NNP,NN
+outcome	DT	3faeb8083e0d5636 0.05999780423614391
+outcome	NN	3fbe951f4dbc9dec 0.11946292541380615
+outcome	VBD	3fb39fb3e311aa9c 0.07665561956097594
+outcome	IN	3fc043dddc9c2750 0.1270711257168906
+outcome	.	3fbb3c966f812592 0.10639324400212605
+outcome	NNP	3fa3b3fa5cc4084e 0.038482498001045515
+outcome	PRP	3f9cf6b842b6b50b 0.028284911224251846
+outcome	VBZ	3f8632369cf36863 0.010837961830862669
+outcome	VBP	3fb626a9dcf19e9d 0.08652745861183538
+outcome	JJ	3fb564ab4860da0f 0.08356733815239913
+outcome	CC	3f866a2d11ab1861 0.01094470224542138
+outcome	PRP$	3f8db091a649d808 0.014496934783192486
+outcome	NNS	3fa56e9648bdc376 0.041859337214993284
+outcome	VBN	3f925297f879e974 0.01789319471434099
+outcome	CD	3f9bb2e0c98064e6 0.027049553202321962
+outcome	MD	3f862cabb84f52a5 0.01082739025324859
+outcome	VB	3f9e1f96bdd88106 0.029417376839888675
+outcome	RB	3f98617cb39d55f1 0.023809383833698964
+outcome	,	3f9a183b0fc3d35c 0.025483057820525942
+outcome	VBG	3f9fc5017aba4058 0.031024954906172603
+outcome	NNPS	3f8e153e7d3a0d05 0.014688957401864497
+outcome	UH	3f8f2de6ef3638b2 0.015224270033993601
+end	18

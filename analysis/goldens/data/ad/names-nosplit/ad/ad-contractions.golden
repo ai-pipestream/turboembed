@@ -1,0 +1,46 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-contractions	1119	1119	4ac3d133872020f041672bc291596be8d276f0375862892121daecaf42e5522a
+annotator	opennlp.tools.formats.ad.ADNameSampleStream	read
+config	splitHyphenatedTokens	false
+layer	turbo:samples	document	4	written:str
+\nMoro na Rua Nova <START:place> <END> e Dela gosto .
+Vem pelo caminho e xis o sobre
+no Ponte Velha <START:place> <END> a
+b fecho .
+end	turbo:samples
+layer	turbo:read-errors	document	2	after:u32	class:str	message:str
+2	java.lang.ArrayIndexOutOfBoundsException	Index 0 out of bounds for length 0
+2	java.lang.RuntimeException	name spans [2..4) place and [2..2) place are overlapped in file: null, sentence: [em, Na, Serra, Alta, .]
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	22	sample:u32	text:str
+0	Moro
+0	na
+0	Rua
+0	Nova
+0	e
+0	Dela
+0	gosto
+0	.
+1	Vem
+1	pelo
+1	caminho
+1	e
+1	xis
+1	o
+1	sobre
+2	no
+2	Ponte
+2	Velha
+2	a
+3	b
+3	fecho
+3	.
+end	turbo:sample-tokens
+layer	turbo:names	document	2	sample:u32	start:u32	end:u32	type:str
+0	4	4	place
+2	3	3	place
+end	turbo:names

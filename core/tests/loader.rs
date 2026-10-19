@@ -361,16 +361,16 @@ fn files_not_opened_are_not_checked() {
 }
 
 #[test]
-fn the_tokenizer_is_one_of_wordpiece_unigram_and_bpe() {
+fn the_tokenizer_is_one_of_wordpiece_unigram_bpe_and_sentencepiece() {
     let unigram = json!({
         "precompiled_charsmap": true, "collapse_spaces": true, "metaspace": "\u{2581}", "add_prefix_space": true
     });
     let e = with("both-kinds", |m| m["tokenizer"]["unigram"] = unigram.clone());
-    assert!(e.is(BUNDLE_INVALID, "one of wordpiece, unigram and bpe"), "{e:?}");
+    assert!(e.is(BUNDLE_INVALID, "one of wordpiece, unigram, bpe and sentencepiece"), "{e:?}");
     let e = with("wordpiece-and-bpe", |m| m["tokenizer"]["bpe"] = json!({ "add_prefix_space": false }));
-    assert!(e.is(BUNDLE_INVALID, "one of wordpiece, unigram and bpe"), "{e:?}");
+    assert!(e.is(BUNDLE_INVALID, "one of wordpiece, unigram, bpe and sentencepiece"), "{e:?}");
     let e = with("no-kind", |m| m["tokenizer"]["wordpiece"] = json!(null));
-    assert!(e.is(BUNDLE_INVALID, "one of wordpiece, unigram and bpe"), "{e:?}");
+    assert!(e.is(BUNDLE_INVALID, "one of wordpiece, unigram, bpe and sentencepiece"), "{e:?}");
     let e = with("bpe-with-bert-normalizer", |m| {
         m["tokenizer"]["wordpiece"] = json!(null);
         m["tokenizer"]["bpe"] = json!({ "add_prefix_space": false });
@@ -390,6 +390,18 @@ fn the_tokenizer_is_one_of_wordpiece_unigram_and_bpe() {
         m["tokenizer"]["unigram"]["metaspace"] = json!("__");
     });
     assert!(e.is(BUNDLE_INVALID, "tokenizer.unigram.metaspace"), "{e:?}");
+    let e = with("sentencepiece-with-bert-normalizer", |m| {
+        m["tokenizer"]["wordpiece"] = json!(null);
+        m["tokenizer"]["sentencepiece"] = json!({ "algorithm": "unigram" });
+    });
+    assert!(e.is(BUNDLE_INVALID, "tokenizer.normalizer: a sentencepiece tokenizer"), "{e:?}");
+    let e = with("sentencepiece-lstrip", |m| {
+        m["tokenizer"]["wordpiece"] = json!(null);
+        m["tokenizer"]["normalizer"] = json!(null);
+        m["tokenizer"]["sentencepiece"] = json!({ "algorithm": "bpe" });
+        m["tokenizer"]["special_tokens"][0]["lstrip"] = json!(true);
+    });
+    assert!(e.is(BUNDLE_INVALID, "a sentencepiece tokenizer matches no special token in the text"), "{e:?}");
 }
 
 #[test]

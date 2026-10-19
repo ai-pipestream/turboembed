@@ -1,0 +1,157 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	hunspell/edge	592	560	28bc4140f764c243f0010d2a37035fa7d91b6074d15e74968b0e7c41e6a9b2bb
+model	en_US.aff	2b4448dfdff03caf300914415f4642f8d2ba5b650c5f024a12355b420a279ffc12146649fce092ba591504476634a3d6fd4c079335a27085b396fa76bfd28b74
+model	en_US.dic	4be737249a8a436d20a02be575dcf6cf2f06f5f2abb840ea5ec0ef0ac73a71fa0e4669e527c703d5c6b50ef61713a6741b55bc136d559a54bcdeebcd62027988
+annotator	opennlp.tools.stemmer.hunspell.HunspellStemmer	stemAll
+config	branchCommit	fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc
+config	mode	STRICT
+layer	turbo:hunspell-load	document	1	thrown:str	message:str
+	
+end	turbo:hunspell-load
+layer	turbo:hunspell-unsupported	document	0	directive:str	line:u32
+end	turbo:hunspell-unsupported
+layer	turbo:hunspell-words	document	51	word:str	stem:str	thrown:str
+		
+.	.	
+...	...	
+a	a	
+A	A	
+'	'	
+-	-	
+--	--	
+---	---	
+-a	a	
+a-	a	
+a--b	a	
+a-b-c-d-e-f-g-h	a	
+word.	word	
+word..	word	
+WORD	word	
+Word	word	
+wOrD	wOrD	
+x\ty	x\ty	
+x\u0000y	x\u0000y	
+😀	😀	
+😀s	😀s	
+­	­	
+a­b	a­b	
+’	’	
+it’s	it	
+ﬁne	ﬁne	
+STRASSE	STRASSE	
+Straße	Straße	
+STRAẞE	STRAẞE	
+SSSS	SSSS	
+MASSSTAB	MASSSTAB	
+İSTANBUL	Istanbul	
+İstanbul	İstanbul	
+ISTANBUL	Istanbul	
+L'HOMME	L'HOMME	
+D'ARTAGNAN	D'ARTAGNAN	
+'S	'S	
+1	1	
+1st	1st	
+2nd	2nd	
+11th	1	
+123rd	1	
+1000000	1000000	
+ǅungla	ǅungla	
+ǄUNGLA	ǄUNGLA	
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	
+ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab-ab	ab	
+été	été	
+ΑΘΗΝΑ	ΑΘΗΝΑ	
+москва	москва	
+end	turbo:hunspell-words
+layer	turbo:hunspell-stems	document	63	word:u32	stem:str
+0	
+1	.
+2	...
+3	a
+4	A
+4	a
+5	'
+6	-
+7	--
+8	---
+9	a
+10	a
+11	a
+11	b
+12	a
+12	b
+12	c
+12	d
+12	e
+12	f
+12	g
+12	h
+13	word
+14	word
+15	word
+16	word
+17	wOrD
+18	x\ty
+19	x\u0000y
+20	😀
+21	😀s
+22	­
+23	a­b
+24	’
+25	it
+26	ﬁne
+27	STRASSE
+28	Straße
+29	STRAẞE
+30	SSSS
+31	MASSSTAB
+32	Istanbul
+33	İstanbul
+34	Istanbul
+35	L'HOMME
+36	D'ARTAGNAN
+37	'S
+38	1
+39	1st
+40	2nd
+41	1
+41	1th
+42	1
+42	2
+42	3rd
+43	1000000
+44	ǅungla
+45	ǄUNGLA
+46	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+47	ab
+48	été
+49	ΑΘΗΝΑ
+50	москва
+end	turbo:hunspell-stems
+layer	turbo:hunspell-analyses	document	21	word:u32	analysis:str
+3	st:a
+4	st:A
+4	st:a
+9	st:a
+10	st:a
+11	pa:a st:a pa:-b st:b
+11	pa:a- st:a pa:b st:b
+12	pa:a st:a pa:b st:b pa:c st:c pa:d st:d pa:e st:e pa:f st:f pa:g st:g pa:h st:h
+13	st:word
+14	st:word
+15	st:word
+16	st:word
+25	st:it fl:M
+32	st:Istanbul
+34	st:Istanbul
+38	st:1
+39	st:1st
+40	st:2nd
+41	pa:1 st:1 pa:1th
+42	pa:1 st:1 pa:2 st:2 pa:3rd
+47	pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab pa:ab st:ab
+end	turbo:hunspell-analyses

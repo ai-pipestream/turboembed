@@ -1,0 +1,3492 @@
+{
+  "zoo_version": 1,
+  "artifacts": [
+    {
+      "id": "opennlp-af-ud-afribooms-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "af",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Afrikaans-AfriBooms r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Afrikaans-AfriBooms/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-af-ud-afribooms-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-af-ud-afribooms-sentence-1.3-2.5.4.bin",
+          "size": 2441,
+          "sha256": "75a75e54303c242ea6317c5360b830a349609da15b3cdedd78d7f829735357b6",
+          "sha512": "84e4489ac6653d1358d531cdd7980f1a1aff7d4c2a8f4e06ea48db9bbab51ce29d42c882ae08b391c15f740c6e82c0d69c3ce9b9ad7b81ca860aa581bec25ee8"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-af-ud-afribooms-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "af",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Afrikaans-AfriBooms r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Afrikaans-AfriBooms/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-af-ud-afribooms-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-af-ud-afribooms-tokens-1.3-2.5.4.bin",
+          "size": 103784,
+          "sha256": "4963cc7eeabb3230cdb55d3a9805b0f624bb549e8bb2478017adaf62c7175e5b",
+          "sha512": "702fbb46b64b5fb0e329d112c98b2235560058f435471e5d9fcf731255388f9be03804d1445c2c093948d6d75be719e2b8247c74fccbd84b8a4ad131a0886c4a"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-af-ud-afribooms-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "af",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Afrikaans-AfriBooms r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Afrikaans-AfriBooms/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-af-ud-afribooms-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-af-ud-afribooms-pos-1.3-2.5.4.bin",
+          "size": 247763,
+          "sha256": "49ed3b32772233782fb8adf78dc97758fc4be55b3f2a1fbb9d3e15449ae1b1e5",
+          "sha512": "72452c760fad2eb64404c22218f20fd84afdde2a685b94ea0bfaa63074d5b22b11783ca08bc0bb817ac2016e07b101ef23be9603b9fad710ae0428968bcb4c5b"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-af-ud-afribooms-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "af",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Afrikaans-AfriBooms r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Afrikaans-AfriBooms/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-af-ud-afribooms-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-af-ud-afribooms-lemmas-1.3-2.5.4.bin",
+          "size": 122337,
+          "sha256": "447e38d8c331fb134eb324e739cba9ccc6994d028bda89f5572f62feb6a34cc4",
+          "sha512": "c6810d00fd9bcb0b4c8331b8e2394b42d9a810b1c237ac6cb72fda28ba41cbb00d0db3fda642e1f984d0551c9d0f70c8fc06028ccd54d070655b7eeb5fc3412d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ca-ud-ancora-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "opennlp-ca-ud-ancora-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ca-ud-ancora-sentence-1.3-2.5.4.bin",
+          "size": 15182,
+          "sha256": "d17f6b349a413fb04cecb2c06b7f19b50ab61219898dca0987ac34f3e49359ae",
+          "sha512": "97e3f4a16e32e6a5ea576a1668b39896276611543fbf97c646f60e33af6b56f9fdfbaeb0b50f2498f3cbd9b0ff91d3ac40c8e40fcbda8690e0af2fcc83e82486"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ca-ud-ancora-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "opennlp-ca-ud-ancora-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ca-ud-ancora-tokens-1.3-2.5.4.bin",
+          "size": 566236,
+          "sha256": "5a92fdd2d9cad1016a696b6a8a1bed612f0b29e567023914331fbbb337da5376",
+          "sha512": "01adc45b69c53d913bffa92c3ac78eb187fb26bc9f6243569597d257f190dafbd79546ce68b3822d0f0b6028e16db71d1c57a732be001b801ac8c44b12195a57"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ca-ud-ancora-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "opennlp-ca-ud-ancora-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ca-ud-ancora-pos-1.3-2.5.4.bin",
+          "size": 1670524,
+          "sha256": "26f6b29a07b7d55ec3d007cb4e3935172526397b2c284e2b85ea431d1703a348",
+          "sha512": "3e80e4ffae5d025f59984832c0bc35c2c871c2909420785a59a5f1d74f722938941d52f2c58322012fd761e5fb60162fcefd04590bd38f51d97ab8bd7da44e00"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ca-ud-ancora-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "opennlp-ca-ud-ancora-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ca-ud-ancora-lemmas-1.3-2.5.4.bin",
+          "size": 921104,
+          "sha256": "b8d537720f11a79b3429e1957404dc1bf7fcaf838ca79cc097d6d634e388f094",
+          "sha512": "565cee8c38b703cd820693ef84c51844baabb1cd70e34148d9ad3cf121ac722c3d685ebfc41dc385b90f3366658f49e765810307333fa04805cec88458adcd1b"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-da-ud-ddt-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "da",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Danish-DDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Danish-DDT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-da-ud-ddt-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-da-ud-ddt-sentence-1.3-2.5.4.bin",
+          "size": 6420,
+          "sha256": "c0a6d5067218ffde8ca82c2bd34c53a224fe3af4a0eb6a092fdf4449465d40b7",
+          "sha512": "5371b54b22f74d4620b88c734b1c0433e95aee665d3a230ae5fdc2060ea8f42a4ba48efbdb8e0c653fc6b3f0ec7885cdb4e492cbdeaafe3aee65531e103d029f"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-da-ud-ddt-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "da",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Danish-DDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Danish-DDT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-da-ud-ddt-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-da-ud-ddt-tokens-1.3-2.5.4.bin",
+          "size": 174549,
+          "sha256": "9a0e41b9f53879fef71b7ad696b79bced592b63ddd540e7198c1b7a505689ddc",
+          "sha512": "47ca32d2e926dbf25ef56fcefe6b0f0d5f43535eb16102c03ff5808500643512c6b21b6d29c360e9e21d231b5094dfb02bc95349545143f43077d7fbcdda066a"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-da-ud-ddt-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "da",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Danish-DDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Danish-DDT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-da-ud-ddt-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-da-ud-ddt-pos-1.3-2.5.4.bin",
+          "size": 450609,
+          "sha256": "70856a6d5accee6af3a1192a107a68c517110af3166bf2e5e087ea8eecd75988",
+          "sha512": "c40c8c622cf8f9b906ce1117999bf0eda93b429b19121e8252ea1720a5035a8fca170f3ff8965df0a512242f8af6df4fa8ce1f0465520850b9b192242cf648cd"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-da-ud-ddt-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "da",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Danish-DDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Danish-DDT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-da-ud-ddt-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-da-ud-ddt-lemmas-1.3-2.5.4.bin",
+          "size": 377904,
+          "sha256": "c9b4fea06c85420d54a4acbc414b47e5e85ce3331a631b9a727696078044b6fd",
+          "sha512": "f85b9183c7a6abfd6359dcbe7f1c46872067db755731bac4cea87e3fd84ad4b4e9d398297b633acd582620d6dd74df817100d18126dc2d7f8478110c83e940d5"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-de-ud-gsd-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "de",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_German-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
+          "size": 15043,
+          "sha256": "b5553223d30a0422e80a28e2ae766a92dd7181e229f0d6c73087951e84142c43",
+          "sha512": "c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-de-ud-gsd-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "de",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_German-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
+          "size": 524098,
+          "sha256": "32d0a7ff84fdd50f9e454340bed782d7269845bfa656e0c988cbb823dd628d6e",
+          "sha512": "343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-de-ud-gsd-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "de",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_German-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
+          "size": 1269178,
+          "sha256": "073fefbfaff2ed403bf474fccf793752d01c22e69f487cd68b43832d3123742f",
+          "sha512": "9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf195eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-de-ud-gsd-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "de",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_German-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "size": 854900,
+          "sha256": "8850986f02dfbe293046bfce93bc0c3f3fa010e89177250abca23d860033d4f6",
+          "sha512": "616c83327e1af12c8952f362fd99be6efcdc4e28526bee1debf27d3446110ded9beef7e0e2acc9b3094039683c9b4b2b2b0ba32dbf194278d5017e2b21e66371"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-en-ud-ewt-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_English-EWT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
+          "size": 20061,
+          "sha256": "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8",
+          "sha512": "fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-en-ud-ewt-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_English-EWT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
+          "size": 326080,
+          "sha256": "95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a",
+          "sha512": "147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-en-ud-ewt-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_English-EWT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
+          "size": 1164974,
+          "sha256": "510b89087e7ef7ffb8c50c63e3e999122404ac9fa64790dfa93b38d1938c52ce",
+          "sha512": "fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315ec9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-en-ud-ewt-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_English-EWT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
+          "size": 520438,
+          "sha256": "711ad051faba79865c5f9fc5b8c455d6ad8e6d3e8b92f42142af1ef0bc7b3a96",
+          "sha512": "ee81553985908ac25c50fbd8f2ca4222cb42a18845f063c792a1b43639181b70ce20d57b8736a1604367f5e8c59aef55f8463e04004840cbc88abb7123fd9e7f"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-es-ud-gsd-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-es-ud-gsd-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-es-ud-gsd-sentence-1.3-2.5.4.bin",
+          "size": 13977,
+          "sha256": "043fed7bbae8281dc559d04ad0ed9271e90697ffdfc5be3a1852e703eea8b30a",
+          "sha512": "51146065d09e6cec66a0f2cab40e9451fe5c60f2d4e1ad0019d0aa8022c9fca287cce4330e8ed18158c7ff62dcb9409c8800cbeb464dab93ff1ece4d06553349"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-es-ud-gsd-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
+          "size": 539431,
+          "sha256": "309de611ff7a8c4227c57086838d4783bcede8520026d7ad416c85a513567ce7",
+          "sha512": "ba5280ca74b190515f630ed2b2257a758e8baa876a8da3c02735f81a5543c37f7bc57614fd1ecb2850b4a2df98b2d2e452718de43f676f9b63b064206f86c467"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-es-ud-gsd-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-es-ud-gsd-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-es-ud-gsd-pos-1.3-2.5.4.bin",
+          "size": 1754275,
+          "sha256": "c1d7e327acae631bd25936f2efc51c0110c9338fd6e52cfa3e3b234963e55cd5",
+          "sha512": "9ebcc339af37ed9e09fdf88438dde085f4c9d872c336a2077e1fcb8617abaabc15193f72510e649619a77632394e4e3999ca497ff9aa43cb548ad7c93a5057b4"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-es-ud-gsd-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-es-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-es-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "size": 1039483,
+          "sha256": "d9970825f87e95fbc4c54e7c35cb2af141a29fd65f21908d86e29ef9af2da914",
+          "sha512": "f0cb683c26af69467864e240bd2403b7bbc179abd2f8ac90c09978cd5a8039a85f36f3e2958722ab55e3ffb408a517ad15944b2da8c716613a4754dd6893ccd2"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fa-ud-perdt-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "fa",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Persian-PerDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Persian-PerDT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fa-ud-perdt-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fa-ud-perdt-sentence-1.3-2.5.4.bin",
+          "size": 28955,
+          "sha256": "81b8cba851840a1fe017e9ea74e7a529a0028c572075a3b6d220bf9329d90913",
+          "sha512": "c9f0e8b41e3702322e0b1f0341505a9e603c88ddd6c6b46f30bfe0a857c53ae5b782120766fa13c291fd24870b79a3b0b41a0455042a0c6e543b7031bd4eeb47"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fa-ud-perdt-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "fa",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Persian-PerDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Persian-PerDT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fa-ud-perdt-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fa-ud-perdt-tokens-1.3-2.5.4.bin",
+          "size": 407889,
+          "sha256": "5f7e91d8e6419dd5971ac194dfa81280e03f89fa94224dabb0531858a5bcf464",
+          "sha512": "62a7556c94a0a3eed2c771fba2f8a8e80badc67c1fda9faac241b6f4d1d2ffa918b310cf6431cb1999e2aaa71ffe598207f9ec0a93c0a32b02aec3f52cd2bc3d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fa-ud-perdt-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "fa",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Persian-PerDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Persian-PerDT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fa-ud-perdt-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fa-ud-perdt-pos-1.3-2.5.4.bin",
+          "size": 2316836,
+          "sha256": "f8833be7dbfc31b4917ae0c31100afafa83074f486893bfdeaeafc96cdb0121a",
+          "sha512": "1eb7f65f266798f50ba9ae4144047dfb11ac4d195f5b0d35d22c0fc43bec6d4a7dbf1d2b1ec8c306aac8a1bb23eeb1b79b07f7663111e19909a11bc5e23bc9e9"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fa-ud-perdt-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "fa",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Persian-PerDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Persian-PerDT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fa-ud-perdt-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fa-ud-perdt-lemmas-1.3-2.5.4.bin",
+          "size": 1352013,
+          "sha256": "831f50a5e32b46e564fdb78bc449b2189b0c8c977670082cd276df9513190b90",
+          "sha512": "4e345e83cec40b8d31de117b2a6ba9cd8ca853c18d6daa3debf129414a0f03af64ce17843423138c7445507aee6547e28e5ca0c3abedc9ff8cb6b2a1ba02f040"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fi-ud-tdt-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-TDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-TDT/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fi-ud-tdt-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fi-ud-tdt-sentence-1.3-2.5.4.bin",
+          "size": 12619,
+          "sha256": "bd2e644264d46d1616fe1e08839381dd15ba78102db851db24bd8d67248a38cd",
+          "sha512": "17c5ebbefb70542ad63d1b5a79a5cdbd439aa3ad0000f60be171853db0d43936339fe9cfce3f33ddd5adb4156305c45b4de1f9d6726fbb67954405f4a0a3e2d2"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fi-ud-tdt-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-TDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-TDT/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fi-ud-tdt-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fi-ud-tdt-tokens-1.3-2.5.4.bin",
+          "size": 463550,
+          "sha256": "4d61c7c972917b9de3a02297b1f03e471c3785a57a8b9d6bb81ebaf757123608",
+          "sha512": "60de848c8d7a6262fa71600aa23ecb89e10765edb7ec19050adb527af4b1b20d33ff6a5df8fd9c5a4ed435fe079cd0f4efbe0a1fbc130721ce38e1099662e5dc"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fi-ud-tdt-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-TDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-TDT/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fi-ud-tdt-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fi-ud-tdt-pos-1.3-2.5.4.bin",
+          "size": 946220,
+          "sha256": "a2dc898b7f42a8b5d059194e147082d7dc945126f898f3d224be9bf9a987c413",
+          "sha512": "fe430b6a00fa8e1138e0e42bfef8e566326947d71d8668e05d89d1f7a562348cbfe8e61f526273e99a25e448d927edadbd893a498668dc2dace8aef67aba8209"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fi-ud-tdt-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-TDT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-TDT/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fi-ud-tdt-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fi-ud-tdt-lemmas-1.3-2.5.4.bin",
+          "size": 2899051,
+          "sha256": "d9ef61db782abc1a60285445a228b4aacda7dee7b853aae02740fe1979e4d268",
+          "sha512": "a004c885e34662f45d78d0cd4f1375d64c1b9ac51a504e388207ffd7f4278720b7430a5c63b99f2fdcd4079e11fedd001d72816fb6db1b77cac56b8931dbf6d4"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fr-ud-gsd-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "fr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_French-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_French-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fr-ud-gsd-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fr-ud-gsd-sentence-1.3-2.5.4.bin",
+          "size": 12760,
+          "sha256": "ee1f8109cbca3c5a2799b873ee08202671920d526352edfc56462c2d80ab673c",
+          "sha512": "3caecf484fdec67ffd5b0d3980e1d6f15c0dade6b63497cacdf7ac1af5be978f523d77074a02e04d3598e61d4da3e1285713932802238441b1c08362154ba619"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fr-ud-gsd-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "fr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_French-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_French-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
+          "size": 543614,
+          "sha256": "a06dbc9b72600ba0886f64a632636e136e5fc225955913c4c1a926a9333bc14a",
+          "sha512": "18e56e96eae9741935c5f54f16d3c6933e151ec550b882d2e5e1194ac02c6b1e56063843ff3805a35cf44810091674ef6bf2f080d1bc761770d8b09ee9a01277"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fr-ud-gsd-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "fr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_French-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_French-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fr-ud-gsd-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fr-ud-gsd-pos-1.3-2.5.4.bin",
+          "size": 1558836,
+          "sha256": "8ae017da8f93fd4219004681cdadbe4296e1c9dd66651eeca12bd053f5884172",
+          "sha512": "b8bd17d92999fbfb107890a6e3ffbcae23091b25b88ea48379d99a2d82303106466ca3513c61ac45a0d871af5bf04ef3a35affae2e52be185e624bb07c3100b8"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-fr-ud-gsd-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "fr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_French-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_French-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-fr-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-fr-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "size": 924647,
+          "sha256": "8e8f137265044ed2389c293a333715a4e18da58514197da2e8e1c950a59e8769",
+          "sha512": "c87668be3fb8f414608ec902d3828eec40404ec7aa4f5dd89f74cff4695866ff47cdc0747edd60e885a47253fcb642c4664a541b5ddbadd105ca4fe7247cb38d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ga-ud-idt-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "ga",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Irish-IDT r2.16",
+          "license": "CC-BY-SA-3.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ga-ud-idt-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ga-ud-idt-sentence-1.3-2.5.4.bin",
+          "size": 5724,
+          "sha256": "96439de2d1aa9e24a716f0b1b2ce4a7f237e9ea01446bf7c136e0ae2d64e1c14",
+          "sha512": "511eed23bec2d934b41d3daaa8b14d2a9cdfd43ed34f0d07cf1290b1ad801474cc3fc445a38847ef4b0f7826cf62f3d37de70d68640d31c7492b6eb43ed8577f"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ga-ud-idt-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "ga",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Irish-IDT r2.16",
+          "license": "CC-BY-SA-3.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ga-ud-idt-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ga-ud-idt-tokens-1.3-2.5.4.bin",
+          "size": 202710,
+          "sha256": "4b1d13517a8e4b9b84862e51e100b7aab4e523f026b2769055071a3897e4b71f",
+          "sha512": "af0bd2ffba7e6d287efee1d0a90b3112c5805cb48397298893126801190b43de27614ffd372c452761814dab52f6a4801fb2d3f5f891098bb088601fc5310209"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ga-ud-idt-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "ga",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Irish-IDT r2.16",
+          "license": "CC-BY-SA-3.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ga-ud-idt-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ga-ud-idt-pos-1.3-2.5.4.bin",
+          "size": 536752,
+          "sha256": "e3c2dc39d9d2e5239fc4ef64993f4d70db37800a8a816626dfc31202acc439d8",
+          "sha512": "54877d23053c9dc1055d9a98be18f1475740ab2c988bc13fbd2ee940c690dd694347929d6df1ec2b19fdd2277c5e10e9396e7e78a987d0d6b6bced48a35b9eab"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ga-ud-idt-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "ga",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Irish-IDT r2.16",
+          "license": "CC-BY-SA-3.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ga-ud-idt-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ga-ud-idt-lemmas-1.3-2.5.4.bin",
+          "size": 644295,
+          "sha256": "32a049404dfae389891cc370f5cbe2f0cb19900c6f856e6d3d53cbecb852fd93",
+          "sha512": "d1332ca3b8834b3b4e1921b7c99b9d8d8ac52e35ce49f511359f3d0e4baf5ced248774d4ffd925f44e72b9f6963acf203254c7f3c88578756c8eea806635cd8d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-hr-ud-set-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "hr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Croatian-SET r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Croatian-SET/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-hr-ud-set-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-hr-ud-set-sentence-1.3-2.5.4.bin",
+          "size": 9467,
+          "sha256": "11ffa3a093b68b1d3bdde242e7971e14dc920e96d253530f32a34ba913b3e183",
+          "sha512": "58eef32b659bbc86f94d655470b3a29d8bdc29a1b14847bc69175bb96de99d445b7a5fb8249e4a0a7d152c79442ab047bad55fe52ca1befb83391e610783310b"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-hr-ud-set-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "hr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Croatian-SET r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Croatian-SET/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-hr-ud-set-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-hr-ud-set-tokens-1.3-2.5.4.bin",
+          "size": 354845,
+          "sha256": "2a851893db04c12351e5d52fc4d429ea2b969099b3cd00dbf8cacde3224ddf59",
+          "sha512": "c21477f5815e4867772413c678cddc8754d37e872e8668a5065be326265dacc1eafef7c2de16ae800af028224e52ac9be4a67c84e9d39bd4930f559ad3eb04ae"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-hr-ud-set-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "hr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Croatian-SET r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Croatian-SET/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-hr-ud-set-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-hr-ud-set-pos-1.3-2.5.4.bin",
+          "size": 1016904,
+          "sha256": "2ff7a15bcedb964fcf3d79142e93dad2ac6b0dcc3c142b77119ba3937653feb0",
+          "sha512": "a72fcf3a95a3a2a4d72d24310dc2c686f44b8a195f878c8aa5b46ffbbc14aee0fccb7a73fc5cf926e8f1b3fde26e520b94aaeff1028e8bc248fe59bd55fbfb50"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-hr-ud-set-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "hr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Croatian-SET r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Croatian-SET/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-hr-ud-set-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-hr-ud-set-lemmas-1.3-2.5.4.bin",
+          "size": 1052324,
+          "sha256": "7e7ad7547b6ed43fdef0f9b256403a9231400074383c4ef1550daadef58e39bc",
+          "sha512": "709ac797a5174d74f8acab61a12de0114935a318ee2d24ae2ae436e480b80074ce9fdb8af1ff967bf1e63b9dc8257a95900d84fa05a2d680f43f63c404eedfab"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-hy-ud-bsut-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "hy",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Armenian-BSUT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-hy-ud-bsut-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-hy-ud-bsut-sentence-1.3-2.5.4.bin",
+          "size": 1374,
+          "sha256": "17d47e396072ee9cf4a7bc68ad5d3d4f0143127a412656967db7f6d62c84d0ba",
+          "sha512": "267d987e4a127521df500f942c4f9fb357e998df4c83164066c76e7ecfa61d66418d7c89b4f72617edb9f716a1f049dd536af404d3ef5855ffd6f74d1a5209c1"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-hy-ud-bsut-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "hy",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Armenian-BSUT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-hy-ud-bsut-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-hy-ud-bsut-tokens-1.3-2.5.4.bin",
+          "size": 97357,
+          "sha256": "51db34305535e4e4e6e80e14913cc88129541a3e72019bc62b3ce8368fe4cbcf",
+          "sha512": "43569f3e27e52baba8bfc04af9def699c3c394093608d6c13e37f0986024329327e63b026a1b923923723bee10ba021def7aeae11ebf537888d5bf3217233a68"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-hy-ud-bsut-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "hy",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Armenian-BSUT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-hy-ud-bsut-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-hy-ud-bsut-pos-1.3-2.5.4.bin",
+          "size": 188609,
+          "sha256": "b891d0f784f139bbaf78d284ffcc816c823f20ad4117ba34f396d09e5316cf3c",
+          "sha512": "9181691f14d3cda1d91eb5e615c41e18ca0bcba435746f4ba69bed092efece0e0a823b2dd816de57bb65580357db9d0b1a5423b48b8b30a7cf0a6bf2b6507353"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-hy-ud-bsut-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "hy",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Armenian-BSUT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-hy-ud-bsut-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-hy-ud-bsut-lemmas-1.3-2.5.4.bin",
+          "size": 211482,
+          "sha256": "760bb5fef092931b8f4650c7babeda1d3cfb7f4aff71fd2325c7aa9742f51741",
+          "sha512": "eaeeefed785b51202b92019152ace0bd16a9bf7219ff6e133ca42313425c76d17dcd639ee6d989d0469e5bc0b14f8205558f8cbb554c2ee8c5e868a76d3331cd"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-id-ud-gsd-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "id",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Indonesian-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Indonesian-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-id-ud-gsd-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-id-ud-gsd-sentence-1.3-2.5.4.bin",
+          "size": 7363,
+          "sha256": "f42b953ac85fc25fecb577bf1e85bbec210d9d4d0808e17a94087601cfd770cd",
+          "sha512": "c61acd3ca4b7561556f51e3fed795399fdd8bf5572f7d2af68123fb9471414766cfb3c2ec26436046e911b63e0518754f8aff4830fb7a13c4769269caa2bd342"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-id-ud-gsd-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "id",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Indonesian-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Indonesian-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-id-ud-gsd-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-id-ud-gsd-tokens-1.3-2.5.4.bin",
+          "size": 224144,
+          "sha256": "5dcc4e63631649b38a0b23b4206223c48ac50f9355cd5ab877f791d98a70e570",
+          "sha512": "ad0e0f0398c194e7b02709e0a88d3d4f888b5703bf4d5d5f150be9aa24dc12a2402d293986a01f16cf8b8e03f071fe2522f83162c4e9525d064eea6374af7adf"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-id-ud-gsd-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "id",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Indonesian-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Indonesian-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-id-ud-gsd-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-id-ud-gsd-pos-1.3-2.5.4.bin",
+          "size": 745771,
+          "sha256": "11eda2632062cb6563d6aaea2a658fa9cd722c1e1140efe2f9dfa84a07ef6fca",
+          "sha512": "08bb2f85f8fc5a9dba6b396e3044d5b5897936f27338336c38ed32ee37e266cbc08985e7a86bc9dd9c81ff01429c87b74e8a93a1b4318a038dfb469feee6039f"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-id-ud-gsd-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "id",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Indonesian-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Indonesian-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-id-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-id-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "size": 485689,
+          "sha256": "2a34f6b9d6028f25e8f1f40322c1c694012975e4239956a02da3262e23c285be",
+          "sha512": "0747f05946ac13a7f83d8c9f2329164970c58212ef36a0e6f2d22bdabdfa526f4362562902d747a05d78cab92cec83a6e01fa6bf35fdcef7fac8b03271b4cb57"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-is-ud-icepahc-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "is",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Icelandic-IcePaHC r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Icelandic-IcePaHC/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-is-ud-icepahc-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-is-ud-icepahc-sentence-1.3-2.5.4.bin",
+          "size": 38149,
+          "sha256": "6de24e5a10f3daa2db919c9f086caa55eddd3c41cebd334bd95d8350862b10be",
+          "sha512": "fd71ded64bb5a7e3920d546dc4873fcff618a59a76164fc686a647a672f11ae3899d24756b1c268a637515207929cbecf7b9d9bd3888e5dbbeffb87042506112"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-is-ud-icepahc-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "is",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Icelandic-IcePaHC r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Icelandic-IcePaHC/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-is-ud-icepahc-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-is-ud-icepahc-tokens-1.3-2.5.4.bin",
+          "size": 590819,
+          "sha256": "d1c915c015e4e4dabba649b06d505af4b9e985e566219af34745855d376d83dc",
+          "sha512": "26704eafd219c17fd94cc4a1c372eef62d4bc9d5f2fff1c4c3e660a56cb81815fc7fa0f189865fe0218d30b26524924e08dae2f21fa16bfb5b87b76939f20d2d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-is-ud-icepahc-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "is",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Icelandic-IcePaHC r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Icelandic-IcePaHC/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-is-ud-icepahc-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-is-ud-icepahc-pos-1.3-2.5.4.bin",
+          "size": 2475779,
+          "sha256": "324c830c9f4b25899bde21f2c5146e690cb9a937c1ae20394147321d40cd2ecb",
+          "sha512": "f32bb99e7eb0db244dab705563e0249df35eadce8e19fdf07087c040382ae8c3d86a73ad3f938aec14796880118c54e5137b9db2a5b89ba4e248b51bce748aa2"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-is-ud-icepahc-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "is",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Icelandic-IcePaHC r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Icelandic-IcePaHC/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-is-ud-icepahc-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-is-ud-icepahc-lemmas-1.3-2.5.4.bin",
+          "size": 2966071,
+          "sha256": "0f06f5d1bfd55b161cd2952b69387f949d450ac65692c3b2043d76be4c9bd573",
+          "sha512": "d3448fe3ddc9a8226b7d03c74f28ae2d52c80969838d3bb599a0efe63131135548c7df27e40fe9967da8f01468bef6f2ef2dd520006305ade18999f8c8dc5c83"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ka-ud-glc-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "ka",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Georgian-GLC r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ka-ud-glc-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ka-ud-glc-sentence-1.3-2.5.4.bin",
+          "size": 3304,
+          "sha256": "bfbf37b0cce1621454fcf28e1b7f9e20d0a10359aaec56cb5bfd2a6fe77d7c8d",
+          "sha512": "a294f37f724a7ab5eab7345e7217ace0df418a732f6caf9d37d9f1010c63a893b4cf652287006ccb64bacbddb8ea4cb94e0358f20949cf5677251386beb47f3e"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ka-ud-glc-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "ka",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Georgian-GLC r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ka-ud-glc-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ka-ud-glc-tokens-1.3-2.5.4.bin",
+          "size": 177713,
+          "sha256": "75c8e02829c8c46f76d9eea74a6c905286c0f776196dd67482f467f85d23df6a",
+          "sha512": "53dad8278a7a42972aabda3aaafd0eab64a511f8a519c400a09869051bfa7a39f6bb9b9a45d28623348790ded589374c4f75f71e661e3e5fcdf9df6d447e8611"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ka-ud-glc-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "ka",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Georgian-GLC r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ka-ud-glc-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ka-ud-glc-pos-1.3-2.5.4.bin",
+          "size": 319329,
+          "sha256": "37fd8ab5690e4ee65a2361482ad3013612df53a3f6dc6014d60165e6c731695a",
+          "sha512": "ef9e859fb4e521e1569e5bda3d5f45db5ad8b93779ca10931d5ceafec9fe022609e50b215343036dae7c17068b2b424634b17d305c0d0b83519f4fb5e00b90f5"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ka-ud-glc-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "ka",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Georgian-GLC r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ka-ud-glc-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ka-ud-glc-lemmas-1.3-2.5.4.bin",
+          "size": 377585,
+          "sha256": "e51f8d3bdc98eabf15c2d0bb14382ea05ebd0cf23b9a30ec98c820b333249640",
+          "sha512": "f245a50cf47905f2828e9017accb54783591d23f66e35c4eee652f9996d57db9fba3007afe8edccc5b65c6d6f7721873dc1020cb8ad38308a1b5e1fab29e368d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-kk-ud-ktb-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "kk",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Kazakh-KTB r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Kazakh-KTB/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-kk-ud-ktb-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-kk-ud-ktb-sentence-1.3-2.5.4.bin",
+          "size": 679,
+          "sha256": "ba1597fd3993bd75ff4742f98c02d53584cd941f5dca5e60bb559da07d6ddc4a",
+          "sha512": "f7a679872e6fb6d7e47f2154e89665558c9ca3e605fb0c9da19ef1c9ff8f5239f5b83b2ee271a5371cbf8d66f8b804710d2b9ab210dde4ff6db535ffc9b2ed47"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-kk-ud-ktb-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "kk",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Kazakh-KTB r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Kazakh-KTB/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-kk-ud-ktb-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-kk-ud-ktb-tokens-1.3-2.5.4.bin",
+          "size": 7883,
+          "sha256": "c782241a77372d9c1a1cb1f6b36b36c4cd4fac7f937ffb9816d0b9d808fb5e2a",
+          "sha512": "443829b545f15e11cab2fa70e9405c5c384ca4bb680104b6c7c781bbd48380d873610ef89b2aebae6c7aeb1adb34f328bbed57d8569b8f9496b111f7392c50de"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-kk-ud-ktb-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "kk",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Kazakh-KTB r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Kazakh-KTB/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-kk-ud-ktb-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-kk-ud-ktb-pos-1.3-2.5.4.bin",
+          "size": 9928,
+          "sha256": "84a711a51f12f489c3f82c71d06d1933529fe0557dba5307fa9d7b38d84d71c4",
+          "sha512": "9831f3b0a3d7f6245305585e6a0785b92ba34db96000d1636607c6434f36d062ce3153606b3fe38ce81e6cbc2f5bc429449232341496be1c438b97b005776bb3"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-kk-ud-ktb-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "kk",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Kazakh-KTB r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Kazakh-KTB/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-kk-ud-ktb-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-kk-ud-ktb-lemmas-1.3-2.5.4.bin",
+          "size": 10785,
+          "sha256": "c57f1255457f13342ba0e6ce0e6ca501489d4fe65d47cf458fe1daaca7a09959",
+          "sha512": "480b6581da1e66ebfaeae3c9bd5c22e542ad3995bc2a7cd267e9c45a54cb411ddcb48a86fadcd9a1910f787273ba132fa503450243cc6a28106ace7034280b61"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ko-ud-kaist-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "ko",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Korean-Kaist r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Korean-Kaist/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ko-ud-kaist-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ko-ud-kaist-sentence-1.3-2.5.4.bin",
+          "size": 19936,
+          "sha256": "88e7591d211233cd83d89b5e577626d92593c25faaf92516c7430b8d30b79d04",
+          "sha512": "7973f5f80115127b904f9fdc97fcd8f081106cb177113627174fa9f96be0dca6d06c8323bf03ed6b4375005e85913926c8022aa5ddbad1cecba2f0d1403059cf"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ko-ud-kaist-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "ko",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Korean-Kaist r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Korean-Kaist/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ko-ud-kaist-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ko-ud-kaist-tokens-1.3-2.5.4.bin",
+          "size": 637216,
+          "sha256": "996ca0962ad704a9f26c8b81c16c0921e2c10538e299ce71c9e6a79318ccf0f9",
+          "sha512": "904090f1bc60a08fcf52b108a31adac22f51eafbb740fff8dd7998bd9d2e52a37500262197e8906c5c36390848cd2a399e77041fd025fc2174244657e2ad11ea"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ko-ud-kaist-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "ko",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Korean-Kaist r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Korean-Kaist/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ko-ud-kaist-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ko-ud-kaist-pos-1.3-2.5.4.bin",
+          "size": 1852795,
+          "sha256": "53d0b1b274728c89357e4910514c5d089a81aa1218abedd5b36809e58e20d70d",
+          "sha512": "f00c320f0fe5fd283d551e230315b5a3518f19363501daba736713e4aa49e0874acaa7139abd52644dde28a525547efa12d060a6736b3a63bf03d19b3a7da55b"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ko-ud-kaist-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "ko",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Korean-Kaist r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Korean-Kaist/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ko-ud-kaist-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ko-ud-kaist-lemmas-1.3-2.5.4.bin",
+          "size": 1922402,
+          "sha256": "01d1297723c3955c78af2b63f4b349ec0ee9fb1f9a2a3de019677855db98e4d7",
+          "sha512": "3134fec9e4eb06d7e0d83f6bfefa5a0ad3d8cb9d94806e1de8ba9d2c2dc95ec346ef02d8a1500b9ccc7778be255fa985e29e75c6aada8527db22a9108962e0cb"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-lv-ud-lvtb-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "lv",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Latvian-LVTB r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Latvian-LVTB/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-lv-ud-lvtb-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-lv-ud-lvtb-sentence-1.3-2.5.4.bin",
+          "size": 20284,
+          "sha256": "c9d9e8aff5d65b0876bd4b2a82e40167b08bb1c705d1f7253397953cb94138dc",
+          "sha512": "da7e1a7800678d6be2880536c04d6b151e3e20e54d06738e5bde7c882f4233732b91de97492ca24f8124e2ee6989ab2dd092ae98fc231ca64b9b27ad507bc38c"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-lv-ud-lvtb-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "lv",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Latvian-LVTB r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Latvian-LVTB/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-lv-ud-lvtb-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-lv-ud-lvtb-tokens-1.3-2.5.4.bin",
+          "size": 550129,
+          "sha256": "92aa5b8f5730d9c6fee28c256f22deec5183ece12b6c7ef06065153b80c9c754",
+          "sha512": "c7980d77e8edcf87bdec896217b9efbc194867cbead347119b8ff221246f81d5928d8d8ecd720cba4b8db3f63c1c0abd8474296dde5862bd995dfc9148299a6b"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-lv-ud-lvtb-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "lv",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Latvian-LVTB r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Latvian-LVTB/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-lv-ud-lvtb-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-lv-ud-lvtb-pos-1.3-2.5.4.bin",
+          "size": 1522240,
+          "sha256": "41fa82b7ecd045cf8b59608507fc6b2912d034e941b1d6b5e11ecf15a8ffa314",
+          "sha512": "5a6e4143279b8c8614b4bf9f5e3c7e28d591be164b18af2ab5f44d23bd053968576c41e86f247d226e12fb49daa05fd69ccaf5aeb600fe22dd172fe1ca00c844"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-lv-ud-lvtb-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "lv",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Latvian-LVTB r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Latvian-LVTB/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-lv-ud-lvtb-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-lv-ud-lvtb-lemmas-1.3-2.5.4.bin",
+          "size": 1819123,
+          "sha256": "b8722857af3a486dc9279d584cb89edeb96f8065eb211f8991bade9ad387cce5",
+          "sha512": "0feb23406dfeac9a2ff11b5d23023fc42cabf36b8f706ee22769cdbe2170f64413e6ab5544f6fbced95aef7936b786d9d74ba1ba30c9ef40afcf4b9ef6d4f240"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-nl-ud-alpino-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "nl",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Dutch-Alpino r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Dutch-Alpino/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-nl-ud-alpino-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-nl-ud-alpino-sentence-1.3-2.5.4.bin",
+          "size": 12705,
+          "sha256": "abbb81a0ec7d83cc96ad7957653fc84b4c775a63c7af37cfdee170821597f9cb",
+          "sha512": "14b8c9f7a8b9d78a27618cb3a7d077c6eb1a1fdbe095b05ae255f418bb348f776158783afd8f8127ce4e771cd8c140f5bcfb9e113f16488a6640f75a423a6852"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-nl-ud-alpino-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "nl",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Dutch-Alpino r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Dutch-Alpino/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-nl-ud-alpino-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-nl-ud-alpino-tokens-1.3-2.5.4.bin",
+          "size": 327128,
+          "sha256": "edd47239bba44677cf92ca397a99233fbad5e4089c66e7627b91592b3c253b01",
+          "sha512": "c34e4dc6df37e21014ec43ef999d1dfb576c363aebeb58e1f06113bb27056ee274db0513cbb41be1a7f6509db8505a5874cc9c59d484b50cc72b65ee61cc5378"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-nl-ud-alpino-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "nl",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Dutch-Alpino r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Dutch-Alpino/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-nl-ud-alpino-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-nl-ud-alpino-pos-1.3-2.5.4.bin",
+          "size": 913323,
+          "sha256": "0a343777625373cbc31cbd6cba80f06d5c5b75adfce8c74205f55795eabc9cc6",
+          "sha512": "44a4038a4c6a4d27a9a94196100a3da6dc56ee4153a77882368a6c65493d78357bf1d3a291a21c143fb4a23157f027e6050e34f28251b18c3683660d0adcfa8c"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-nl-ud-alpino-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "nl",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Dutch-Alpino r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Dutch-Alpino/blob/r2.16/README.txt"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-nl-ud-alpino-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-nl-ud-alpino-lemmas-1.3-2.5.4.bin",
+          "size": 956485,
+          "sha256": "9b90b2b2afb3c4fdca8b32f92544bbf46eea911d406ebfd1497a204f38ee1cf4",
+          "sha512": "8544270d04dda6d0bbef983b998201e5221b5bfa4ee8d61b62593b7c03d86a37b5688cc9bf6111204e0026fe1c582711c0da11126ee5a32179430a20cd6607dd"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-no-ud-bokmaal-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "no",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Norwegian-Bokmaal r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-no-ud-bokmaal-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-no-ud-bokmaal-sentence-1.3-2.5.4.bin",
+          "size": 16565,
+          "sha256": "3e85d4564085be8374698e801869c0902d3415b7298430befe2ddf57a2b31d94",
+          "sha512": "6069f5e8f69860025fde030ec468e39f86337dbd940957764a5361ac4721b2035980cf1c49f16b563cda601bb95f4faf9f27d82a2d70163915a099001b758dc6"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-no-ud-bokmaal-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "no",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Norwegian-Bokmaal r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-no-ud-bokmaal-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-no-ud-bokmaal-tokens-1.3-2.5.4.bin",
+          "size": 404327,
+          "sha256": "c267be9138439bdc3296f66b94121d2070d038edddfdb18b2bc4e86ea93bc224",
+          "sha512": "ae0cf3adcb37f98be455fad53afa17b531c579a79b5a98fca5bd8828ade45efa04685f7b768f485b2bdca07b971fc1dcd4cf2782f103eda74c33496b247c11ac"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-no-ud-bokmaal-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "no",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Norwegian-Bokmaal r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-no-ud-bokmaal-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-no-ud-bokmaal-pos-1.3-2.5.4.bin",
+          "size": 1146339,
+          "sha256": "a3b9d19ec319dcbb5deac131ed98fa1a11278d3c377dbc0b6ed956fbee53840c",
+          "sha512": "61bf4ce0d0f16834ae3597f43e9210e07919ec812e86e1671efcab8cf39322be08de34e19358c2a530c73f9705b5fd10ff83fd6749ffd466f80c0b6e164aebe6"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-no-ud-bokmaal-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "no",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Norwegian-Bokmaal r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-no-ud-bokmaal-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-no-ud-bokmaal-lemmas-1.3-2.5.4.bin",
+          "size": 748309,
+          "sha256": "28045a5d7b304d93e5359998004caa72c7e9b8858dd9328986ced777a6e71007",
+          "sha512": "353c8f851c03726085900cb5e7593967dd80806e26cf381d503223240f3d232e619328cdabc63d482634cdbbc88afe3b0c96e0892d070b1babb5a98705a9555b"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-pt-ud-gsd-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "pt",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Portuguese-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Portuguese-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
+          "size": 19634,
+          "sha256": "a711463f146555de26d69d806a9f1a88a66ed0c02f3fe2020b4a475ccea047ff",
+          "sha512": "0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-pt-ud-gsd-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "pt",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Portuguese-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Portuguese-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
+          "size": 400229,
+          "sha256": "b85f42a6a1dfe0728b7c7c9df1ca0c98de708c04be3df22da1917b8d8dc4b096",
+          "sha512": "6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b959c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-pt-ud-gsd-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "pt",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Portuguese-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Portuguese-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-pt-ud-gsd-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-pos-1.3-2.5.4.bin",
+          "size": 1274247,
+          "sha256": "234d472da116aacd5b541f97476c9ce0075c9f748af8c79d3ac6a94e65a00033",
+          "sha512": "e71d7b6de73ccc8acc9cf60f1da07db8eba3315ce1e2dae5a39e413783f26046304c651bcc610a77de4ab2d2c9fad9d37429263f44b5c0ba7d408d214c4f764d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-pt-ud-gsd-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "pt",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Portuguese-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Portuguese-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-pt-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "size": 2020764,
+          "sha256": "279f23d9d0a2ed0828d13e812f2db1220070b8f6692ee82af44f7e0d6c2fcf6c",
+          "sha512": "364bae696b5bdcceb73b839d1dd9806bc8976449b968bbf49e391e7dbbad9a5acdb7d0bbf0a7cbc7e1a91df4f9108e4c06f306c05718a5def219f7f4c2e6e97d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ro-ud-rrt-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "ro",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Romanian-RRT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Romanian-RRT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ro-ud-rrt-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ro-ud-rrt-sentence-1.3-2.5.4.bin",
+          "size": 10654,
+          "sha256": "80b630ab98c52ea2e0e6448462ad735539ebbe6355e21b4ae65e16422e81a983",
+          "sha512": "3e45b434c1ec636cf35b3bfaf33be446dbf9ff5a1fecbe1dc66971b989bc58d066622b1abb94e7eb8bf06e9369d96d6a3ff78b834f9b0c4cfa800c1942dd1708"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ro-ud-rrt-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "ro",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Romanian-RRT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Romanian-RRT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ro-ud-rrt-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ro-ud-rrt-tokens-1.3-2.5.4.bin",
+          "size": 377634,
+          "sha256": "f0cfb05b28a03946e108313a59df774d011cc289f8c93256f89174565784f565",
+          "sha512": "f69d6ba2e72086872f982487d9ac643ad1079df7c20cab900a43d074e56e1fdf71dffc18106af6aef7ee24a63a73c5c66106390ad47f7c6908604a6c8c2bb1f0"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ro-ud-rrt-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "ro",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Romanian-RRT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Romanian-RRT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ro-ud-rrt-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ro-ud-rrt-pos-1.3-2.5.4.bin",
+          "size": 1040057,
+          "sha256": "5f1b956df60477058019e4d0a21528d4ab17e53dad7fc93b6bccd21ab414db3d",
+          "sha512": "0ff17292c7072fd5eeb6cf52ea1e03302473b07ae079a8e0ffb35b347a548f0bd059a67f3d95f02bac31dd7d04d85bca7eca835b0ea60ca7b23b796a1cb0bfc4"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ro-ud-rrt-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "ro",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Romanian-RRT r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Romanian-RRT/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ro-ud-rrt-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ro-ud-rrt-lemmas-1.3-2.5.4.bin",
+          "size": 1031643,
+          "sha256": "71598282b384424a6949128c964af7dbfb26ace921101d9af5a7c816a800fee9",
+          "sha512": "d9d4baf82125a587900c982bc2655ceb1a734e945bbcd5e706438963d2d4b932e3dfe1ad915839fafbcfb4e1be6e3114ad011fcbc56b4ec7a3462a95890b3524"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ru-ud-gsd-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "ru",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Russian-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Russian-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ru-ud-gsd-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ru-ud-gsd-sentence-1.3-2.5.4.bin",
+          "size": 4187,
+          "sha256": "76a3d38fe6c19c4d97a81c400d6ff5c0cda42e62525774beae97c2712d430575",
+          "sha512": "6fe1a309d3ec123c3101e651de7cf72d47c082cdbb611b52878631cb2056bada94608a05ea5590391c487f37f5f0ab643ebc940f2aa616c547ec808b068b4e91"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ru-ud-gsd-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "ru",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Russian-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Russian-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ru-ud-gsd-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ru-ud-gsd-tokens-1.3-2.5.4.bin",
+          "size": 252645,
+          "sha256": "4d8822e98e3376ad2fed12539d72908c8c13fda027cdb78ada0daec1fd26d82c",
+          "sha512": "afc0888a12754efe9c9b090b2c26654b8553d8145c5ece2756a70269030c7dfa2aa5d1627115f786be47fc7af87b2d159cd55d83d371d5c0299a356e95a7d5ec"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ru-ud-gsd-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "ru",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Russian-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Russian-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ru-ud-gsd-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ru-ud-gsd-pos-1.3-2.5.4.bin",
+          "size": 444512,
+          "sha256": "e779c5c51109159b2fd539ea16f6fd508bdc7b4590b60969978459246e71c94a",
+          "sha512": "371af0ee56a87c708eb865c171060b9ccafe9f70b21a01c86b840f0a85544d61a515d401d2b60d2994e3a1ac7ca314e2bcfd1a014264dadb7fde32d9201b4c00"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-ru-ud-gsd-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "ru",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Russian-GSD r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Russian-GSD/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-ru-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-ru-ud-gsd-lemmas-1.3-2.5.4.bin",
+          "size": 712968,
+          "sha256": "eab53b048326f9cd5bb61fdf4f4441c535d09498872065b49d01bc91df3cd31a",
+          "sha512": "098cb0e908c033e97817b40c28215445f231af950c88cad9c61126aeca50c938c9a4a17a3ad2e2038f477f58c2951daa2cbd67a3fa9cc55f7e868944db18908d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sk-ud-snk-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "sk",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Slovak-SNK r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sk-ud-snk-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sk-ud-snk-sentence-1.3-2.5.4.bin",
+          "size": 10134,
+          "sha256": "8238ae83453a0ed26353ce1d24ec90759b22a37e0bb2c66f7791ac4b96f36f3c",
+          "sha512": "15c248ead7842c392a1f90695e55dae17410bf0a4347544c05bce6d026d3fe10ecf82e2b4df16fc867fda18174e4cd1bfb22c388ffe867220fc9f04cf047e5a8"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sk-ud-snk-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "sk",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Slovak-SNK r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sk-ud-snk-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sk-ud-snk-tokens-1.3-2.5.4.bin",
+          "size": 208357,
+          "sha256": "d68efa277b130e67960a1c4876cd0baabeb71ae95b2374e17da7a877020dbb98",
+          "sha512": "38147cd95f381b3bff6c327369cf84e5b9d320677aff6e5ab17eea86a1469168b08dc2785a306c33d864407ea5af88d107b0d60dff4958bc686c3578b44a8855"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sk-ud-snk-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "sk",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Slovak-SNK r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sk-ud-snk-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sk-ud-snk-pos-1.3-2.5.4.bin",
+          "size": 487919,
+          "sha256": "c4c0d0971e430c28abaec5ca01f67e62f711a9f57064457aee57163a1b2764fb",
+          "sha512": "cb41f3d0927b73f1614c7f187cd86c1dc81c57eac01a31e8263512bf0bd23c4f4800f02dfdc0a08904de465f85c147b5376296dfab2ffafaf541adb4ffb44b0e"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sk-ud-snk-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "sk",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Slovak-SNK r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sk-ud-snk-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sk-ud-snk-lemmas-1.3-2.5.4.bin",
+          "size": 697309,
+          "sha256": "8558bc2942288706f79cb149bba1b1dc5de2bab6834f5f6714f8827d19d587b5",
+          "sha512": "ca91810f6680ab9287b3821c7f6f6a4480814f41b54f9f602b6391b513ff4275872769f4efde7fb62d45450eb5b80b1a2b3b648b2a3fffc9222c76967ff16f3f"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sl-ud-ssj-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "sl",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Slovenian-SSJ r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Slovenian-SSJ/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sl-ud-ssj-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sl-ud-ssj-sentence-1.3-2.5.4.bin",
+          "size": 12118,
+          "sha256": "837df267312e2986e5cab9ed8a378036b834aef5323d7b9757474e3a1f6a8758",
+          "sha512": "f8c5d352b85a9e2cc3dd3cdc09024ad0f18287db9062294c46b4b4d7044ed9f1de03e50fab929f4e58f9b9e8bdc15419e683923d61c908d2c5e085e5c2816a5d"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sl-ud-ssj-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "sl",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Slovenian-SSJ r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Slovenian-SSJ/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sl-ud-ssj-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sl-ud-ssj-tokens-1.3-2.5.4.bin",
+          "size": 424748,
+          "sha256": "b4a5e2d5739768e70c561b003cddc6e4acc78dd44be023b463485208e7c11737",
+          "sha512": "1d98eb5fcdb3ed180ca1ab2cfb312bbded076e76ac4940ce92684acada189d3bea1467a8ed7926c571697e879c173840025dd0f7239f8b6adff28df3c1231f12"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sl-ud-ssj-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "sl",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Slovenian-SSJ r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Slovenian-SSJ/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sl-ud-ssj-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sl-ud-ssj-pos-1.3-2.5.4.bin",
+          "size": 1250096,
+          "sha256": "caecac4c555136c5cf5a5b972eae6517559b078ee1758a9b241eee3fe54ea397",
+          "sha512": "f06aef39fbb624917808917bd904ef2e8c030f550c4a3634dcaa371f883eeef0c30573c4a317a8f79362a3c1671c264e8cd596c7111cb98423b9e8d8c21d09fc"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sl-ud-ssj-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "sl",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Slovenian-SSJ r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Slovenian-SSJ/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sl-ud-ssj-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sl-ud-ssj-lemmas-1.3-2.5.4.bin",
+          "size": 1304166,
+          "sha256": "3a8af22bbdb10abb4af229181de37ad4bfee923031955637fa2d5f93b55f0063",
+          "sha512": "0c86df00331744e581665053da698098539ead577a6bc92df72220511bb03ed931146cb3569d4fdf88d5d40bb25896ea7928100e9ab09d8fd4ebb0488cf52d9f"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sr-ud-set-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "sr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Serbian-SET r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sr-ud-set-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sr-ud-set-sentence-1.3-2.5.4.bin",
+          "size": 5203,
+          "sha256": "20d32ecf97d47c8bc1137381539f0265465379f06d0420c3648aceb083f842fd",
+          "sha512": "3758e851ecb60d331edbf8dba1f793c77e571f08f8f71702f71c46f3a8e44cce5df82d16a979586edecce4a283079fe8052c0d1c7533b951bfa07de1ddf3c418"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sr-ud-set-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "sr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Serbian-SET r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sr-ud-set-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sr-ud-set-tokens-1.3-2.5.4.bin",
+          "size": 202831,
+          "sha256": "193cc6bd3c787a37ca73118ae395fa7d042be2713b1714d1c1eeaa38fb74ae46",
+          "sha512": "05782a950ee786c48b7aa3e18ab3a2ec6a8bc866e74d01826b3ac2b8364ae88fb5a6155895eb3b2d3dcc8f032c30474afcc9ee5380532ca927d44337aa4a16df"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sr-ud-set-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "sr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Serbian-SET r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sr-ud-set-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sr-ud-set-pos-1.3-2.5.4.bin",
+          "size": 527967,
+          "sha256": "11320dc69e2223bea0013f4a2b1505d9526e47bfbdf8a0b9786d4c85ecde28de",
+          "sha512": "59bff20c73e515ad0bd1fa36b5377f3ea4553deaf0d1a1645c5786d5f307f2132d008001ba0bdceed1d6436abda2fe8b2908248b17c8db9bc34fccd0e7019648"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sr-ud-set-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "sr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Serbian-SET r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sr-ud-set-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sr-ud-set-lemmas-1.3-2.5.4.bin",
+          "size": 572285,
+          "sha256": "481e7352122dbcfdcaccafb9b6c79128ab474133cdbaa151ecf031a2a9e603ff",
+          "sha512": "579cf417ab2e7e8f1fc485a55f1fd6027f35f884248f136b77e66df4cea6c3a883ce2d0b226c0b56d298e15833ccc5a9a1d2490e0e8b4f7648f169e9ef4a1d07"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sv-ud-talbanken-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "sv",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Swedish-Talbanken r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Swedish-Talbanken/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sv-ud-talbanken-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sv-ud-talbanken-sentence-1.3-2.5.4.bin",
+          "size": 5954,
+          "sha256": "9d709aeef6d632c76e7ca408ba1659a9414e3c82473fd4e5cd36b1faafdbb545",
+          "sha512": "32a5db14941c0fc0dca544a56be085a730b3699ac02df0d5f33c187da1c5fc4fa50ebced01ead6f28a938bf70f54f9a95f9108735d3d855503b7f8d4871cf3f8"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sv-ud-talbanken-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "sv",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Swedish-Talbanken r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Swedish-Talbanken/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sv-ud-talbanken-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sv-ud-talbanken-tokens-1.3-2.5.4.bin",
+          "size": 171101,
+          "sha256": "58931c52e276344a327f6520c6a033ac2759c88905eec3c3a2222233eed3767a",
+          "sha512": "efdecc548cc5de3e8c0c9f99fbec2bb57bc73eb7c6d8c0dcc5f366293b29d5e23c12f2b8fe793b69401e5066cb2743cc9bb931d82c64f60b4d93359200d46b9e"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sv-ud-talbanken-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "sv",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Swedish-Talbanken r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Swedish-Talbanken/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sv-ud-talbanken-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sv-ud-talbanken-pos-1.3-2.5.4.bin",
+          "size": 428923,
+          "sha256": "3688b97744cf5b0c0bdde94936c7f8e5c0f04eb0ee74ad3430098f7046f30591",
+          "sha512": "a8ecdd06833835a5a7dc2ff313cb31acfb1e7a69db23e55f3d20158104f632c137fb34a8695a5ef9490f653a54e05dac2f5237355587e424d2def57c08cdc083"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-sv-ud-talbanken-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "sv",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Swedish-Talbanken r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Swedish-Talbanken/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-sv-ud-talbanken-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-sv-ud-talbanken-lemmas-1.3-2.5.4.bin",
+          "size": 351871,
+          "sha256": "7226cff590346ca92ef1369ac90354fdd54668e26dab2b30beb2caf71ed8b551",
+          "sha512": "c916869d26c7e745089e1b856d86e3cdc0f3f6a27a1c100e108d8b3ebde6e8e5c77f5f52661ad962964f742fd916922eb85f2fc60d1858fe4aa31ed07a02008c"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-tr-ud-boun-sentence-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "tr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Turkish-BOUN r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Turkish-BOUN/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-tr-ud-boun-sentence-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-tr-ud-boun-sentence-1.3-2.5.4.bin",
+          "size": 10195,
+          "sha256": "ce34982ee715e9451223d5b530313bd67a0c4064db7a1e2783b540ced4318f33",
+          "sha512": "55f0cf7033576ed91e053df4db8293fabae684b3522018594d99a0e54a10a3db4b86f08139e8f5705c995a8c965dff4ba236ea68d755fff20dad10e5c2781f37"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-tr-ud-boun-tokens-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "tr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Turkish-BOUN r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Turkish-BOUN/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-tr-ud-boun-tokens-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-tr-ud-boun-tokens-1.3-2.5.4.bin",
+          "size": 280731,
+          "sha256": "7fd260008dc2f79eaaf73a6062be0df06b195ebf39ff89602e187122ee36bbcd",
+          "sha512": "2fca854585b5321c134768fb07ec2f846e6ae0cc1dfb8ba97d5551a5222f420af8aac33bdf555d919d767f051dc44e4cefc43e1fbe9287f69b83a44221fc4e63"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-tr-ud-boun-pos-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "tr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Turkish-BOUN r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Turkish-BOUN/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-tr-ud-boun-pos-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-tr-ud-boun-pos-1.3-2.5.4.bin",
+          "size": 707962,
+          "sha256": "f0dcb6269f48871c55e924f4b9fc784136c2d9f5f340579b2fce58b1c074fffb",
+          "sha512": "27f5bb1ed38c703b1307c72ed4ac5f17e1d0e1cde37bba33adb7cf6ecbf4a272f6112da2a9adee2c3900c7f38d64fe386ebb2225a23f1d1083703b5becaef47e"
+        }
+      ]
+    },
+    {
+      "id": "opennlp-tr-ud-boun-lemmas-1.3-2.5.4",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "tr",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1.3-2.5.4",
+      "license": "Apache-2.0",
+      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "trained_on": [
+        {
+          "name": "UD_Turkish-BOUN r2.16",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Turkish-BOUN/blob/r2.16/README.md"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "opennlp-tr-ud-boun-lemmas-1.3-2.5.4.bin",
+          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-tr-ud-boun-lemmas-1.3-2.5.4.bin",
+          "size": 1751556,
+          "sha256": "779e49393c566aaf818a552a99c5cf7a8c634362707b3fea3c3e31d430fd1248",
+          "sha512": "2455272134cc9dc7be2a69ce9fe3e504edc5630395848bb30e1e26118a60f0a32b5577cbf6f6d87d70753ff497a6908e156fe3ce7ac3b4a109cc4936f26fe5a9"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-sentence-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-sentence-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-sentence-1.bin",
+          "size": 44601,
+          "sha256": "d03253a5559a230d1f42e1cf881119204302fbb7fefb613ff1af11bcbd3c261e",
+          "sha512": "874eeadaecdf8d864ca983143bf2aec560a1d874115ffe284234643e39e6e83a1c9a85affdacdf4b9a5c716e7c50d0bf57ce32f9bbc48ec46bf09c236f4b0b08"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-tokens-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-tokens-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-tokens-1.bin",
+          "size": 916027,
+          "sha256": "2c5fe73121c41300e6eae4a3c4d7a2247ade20a1e182d8e36d7781124aa9b7db",
+          "sha512": "a6c0731cf1d9e5c2578830ea6b544d999e475a35f0a20abdcadaed3ae0dc91a6157c8fa458bcbc06173c7419ffb6f64e4e634340340b8c7e59b64af95b5619c3"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-pos-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-pos-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-pos-1.bin",
+          "size": 3671103,
+          "sha256": "391d7f79c7246e9e56ed9d8849fde129c5bed8683fa33af31e532cb0c37f96ea",
+          "sha512": "2987b6cca8b204e455099306b53be01958f7335f7d8eb18318b27ceeb495cba1fedfc928a0c2902ad1fe57f1edb1dd66cd38952cd79e051e1d14eed1abc22523"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-chunks-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_CHUNKER",
+      "language": "en",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-en-masc-3.0.0-chunks-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-masc-3.0.0-1/turbo-en-masc-3.0.0-chunks-1.bin",
+          "size": 6042700,
+          "sha256": "8629b99af79f4cac2f997f3f9042ecb0739776f1e49f1b01c713877a1f997e09",
+          "sha512": "93947c20b3e34d6c757644653a70eeb7fb5fc6e3fa5c2a283e87e7cdbf124616ff8b65ff398b5c16d66af179790de5dd427c6a0483d9da99cb859ab740190675"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-sentence-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-sentence-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-es-ud-ancora-2.16-sentence-1.bin",
+          "size": 22579,
+          "sha256": "6b7de28227cf5d36c59c60625693a17b40543730669c3b265215d2cdcf935975",
+          "sha512": "cbd89cf6f6789f1c96455e99cf1769a63e5cc7a25d1a9b2ecbc38d566170f48d222271fc036056e6a0da0b6c3b03cb1fa4d11ad052d0dca1bc1454c14b6d58bc"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-tokens-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-tokens-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-es-ud-ancora-2.16-tokens-1.bin",
+          "size": 1032908,
+          "sha256": "3099b1f109e6cace9f144e7eda0f28bdfc978b107424a3453c93a745f986c603",
+          "sha512": "1702e0bc1eb7136736a0425b1a9ec1f0118a0e28277ed628c3829af5630b5c522270b908bfa23a5653e46510275143130a25af4c92e1be1ee965799a1262157a"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-pos-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-pos-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-es-ud-ancora-2.16-pos-1.bin",
+          "size": 2655007,
+          "sha256": "d5be48e3efee5223d69d43a2dc9383719c60330e9fedf19e776490761ac3c82d",
+          "sha512": "093f3137030782fa089a7c4bf6a911e1992534da7ebc8716cecfb7a27642ad851f7d7b4188f054a6a9b6880158506bf77bfe3770e08ba1a687f3ee6a2ecabae9"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-lemmas-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-lemmas-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-es-ud-ancora-2.16-lemmas-1.bin",
+          "size": 1828462,
+          "sha256": "e00c951c6f60b5907f15ffa475a6a013483ba2b8c370cfc261c1c70114e70c61",
+          "sha512": "0df0cb7472f7d24af10ca95486a682f31e98b4bf9b4da232ac4fbcd682a935975862a908bcb790291e42b8c9de134d96bda070013136ddcfbefb58989236601f"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-sentence-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-sentence-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-ca-ud-ancora-2.16-sentence-1.bin",
+          "size": 20201,
+          "sha256": "239bd63b77121ecb62c0d03b46df660f332b96a7d67ba718eca8c6303e2e5bed",
+          "sha512": "abb36ef36ec19d4408266fb2514d30677814d4fc9ca9500fa51800207f2f685a2dbdd18a6e7e1ed36c08348088be1663f6ffa0edd61dfad9c2a3b8bcb91a7f2d"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-tokens-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_TOKENIZER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-tokens-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-ca-ud-ancora-2.16-tokens-1.bin",
+          "size": 964108,
+          "sha256": "67c9ea0f6a440904f581870d6760582cb11dc28f30077078077cc5a67253856b",
+          "sha512": "82e3ab189d6f4ddb4ffd2adaedd1d63b3a52340e845395a0b88b4060a95dba291d0d3998fac2fa013a2c2407bb2b704eaf01655d2fe5863bbe67e4c585908875"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-pos-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-pos-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-ca-ud-ancora-2.16-pos-1.bin",
+          "size": 2342514,
+          "sha256": "e656a6ffcf5fab26ca989ad6f56d38112c475baa2a1c7ff4bd7ad9775b26d891",
+          "sha512": "a9fdd0e5ee568ddfc0eee978cb2a1913781ad503d36d879f1d53e76e68b172b455cbb839eea38364267833ab0ddfc45109949583a6027f324d52a41808c84b4e"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-lemmas-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-lemmas-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-ca-ud-ancora-2.16-lemmas-1.bin",
+          "size": 1600232,
+          "sha256": "86f07881a6f325253b7e285b915aecbf88d7b2fc1d280b6d4032ea9689ff3cf1",
+          "sha512": "1510b994ac9fd2586c10f4877c300620873e090c54bc58977f243c9b706903a0975f8e7ea863d62348cc68e41441122a039fec08111361eddb2212807b0076d9"
+        }
+      ]
+    },
+    {
+      "id": "turbo-fi-ud-ftb-2.16-pos-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_POS",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-FTB r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-fi-ud-ftb-2.16-pos-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-fi-ud-ftb-2.16-pos-1.bin",
+          "size": 1031466,
+          "sha256": "06a9bb9d12fd7a9a0ef4ed22b0e53da0e3ed7f4d792c349a0cf58ce52f586880",
+          "sha512": "517d82e9d395793db12428f84ad421b85ed5457b682abca2c83c161e6bfcda4369c75aa137bafabedb7efbe260d75dba7644b9c13598edc14c95eb6dd6d80f98"
+        }
+      ]
+    },
+    {
+      "id": "turbo-fi-ud-ftb-2.16-lemmas-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LEMMATIZER",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-FTB r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-fi-ud-ftb-2.16-lemmas-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-2.16-1/turbo-fi-ud-ftb-2.16-lemmas-1.bin",
+          "size": 2932578,
+          "sha256": "9650fcdeb459cea1565175cdf37ee1a8d90306414f287b5205e1e25b421b6278",
+          "sha512": "743e5a701239ce46229eb76cd24a305e643414e5b14f639ca68e1efa0133d76d94df7286ce0de6555310f17bf8e851f6ac0624172d41be222c9b3757271ce6c3"
+        }
+      ]
+    },
+    {
+      "id": "turbo-mul-tatoeba-langdetect-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LANGUAGE_DETECTOR",
+      "language": "mul",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Tatoeba export 4421126b36dc0ce2",
+          "license": "LicenseRef-CC-BY-2.0-FR",
+          "license_terms": "https://tatoeba.org/en/terms_of_use"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-mul-tatoeba-langdetect-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-2026-10-10-1/turbo-mul-tatoeba-langdetect-1.bin",
+          "size": 4755070,
+          "sha256": "89f8e570f2f27184267de91ce26433e848ee341b94b7ef9fe623a56236e4e64e",
+          "sha512": "38cd9cf63e0fab021478e6bbf76ab5f9f72bc67c7613158e75851ae3fed97cf4472e0f0cc26c843b0b28327e1a12550bb35c649d5f6b1a3686ce224895bf6185"
+        },
+        {
+          "path": "training-sentences.txt",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-2026-10-10-1/training-sentences.txt",
+          "size": 2648398,
+          "sha256": "423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9",
+          "sha512": "13775667c8f521b297f4d35e2af7d8f116036c6101de2a94662952d6f13522cf3ce1de6e376b031f09860eb19a6f0c6fe0fade79ca5ca8cfcd8a49831287373a"
+        }
+      ]
+    },
+    {
+      "id": "turbo-mul-tatoeba-fineweb-langdetect-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_LANGUAGE_DETECTOR",
+      "language": "mul",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Tatoeba export 4421126b36dc0ce2",
+          "license": "LicenseRef-CC-BY-2.0-FR",
+          "license_terms": "https://tatoeba.org/en/terms_of_use"
+        },
+        {
+          "name": "FineWeb-2 af9c13333eb9",
+          "license": "ODC-By-1.0",
+          "license_terms": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-2#licensing-information"
+        },
+        {
+          "name": "FineWeb 9bb295ddab0e",
+          "license": "ODC-By-1.0",
+          "license_terms": "https://huggingface.co/datasets/HuggingFaceFW/fineweb#licensing-information"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "turbo-mul-tatoeba-fineweb-langdetect-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-fineweb-2026-10-10-1/turbo-mul-tatoeba-fineweb-langdetect-1.bin",
+          "size": 16734028,
+          "sha256": "6a1b88d5f1b14696810deadf44cec848195f46337dc46e2b0e69023c970af66c",
+          "sha512": "fbeab57434f0e31bb682ec837828f4fc987f9f9b9f27f5f7c2909cf4a5db6a287a239d0ea8166fa38a2c290141c7e25b035afc879761fe2300ee72663c8d3a5a"
+        },
+        {
+          "path": "training-sentences.txt",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-fineweb-2026-10-10-1/training-sentences.txt",
+          "size": 2648398,
+          "sha256": "423b88e8ac2af4f7bd57ef286e019c1b151accf3f50ec0c43618113a64d76ab9",
+          "sha512": "13775667c8f521b297f4d35e2af7d8f116036c6101de2a94662952d6f13522cf3ce1de6e376b031f09860eb19a6f0c6fe0fade79ca5ca8cfcd8a49831287373a"
+        },
+        {
+          "path": "training-documents.txt",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-fineweb-2026-10-10-1/training-documents.txt",
+          "size": 11345621,
+          "sha256": "1f5006aa1e4b44f392731f114c34f83d335dff9753084ea2abdec0c7faaa4959",
+          "sha512": "f742accdde85121c82321c877359ced14e7ef16abb3c04bbaf4abb3497b5f0c83caa052602fe8ac6dfd7ff7d354a9a6a9e793ce28f9d9b6c472b52e80b6ad0df"
+        }
+      ]
+    }
+  ]
+}

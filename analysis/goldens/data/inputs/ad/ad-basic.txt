@@ -1,0 +1,129 @@
+<ext id="12" cad="Exemplo" sec="soc" sem="99a">
+<t>
+<s id="1" ref="CP12-1" source="Exemplo 12">
+SOURCE: ref="CP12-1" source="Exemplo 12"
+CP12-1 Feira de livros abre em Ribeira Alta
+A1
+STA:fcl
+=SUBJ:np
+==H:n("feira" <np-idf> F S)	Feira
+==N<:pp
+===H:prp("de")	de
+===P<:n("livro" <np-idf> M P)	livros
+=P:v-fin("abrir" <mv> PR 3S IND VFIN)	abre
+=ADVL:pp
+==H:prp("em")	em
+==P<:prop("Ribeira_Alta" <civ> F S)	Ribeira_Alta
+</s>
+</t>
+<p>
+<s id="2" ref="CP12-2" source="Exemplo 12">
+SOURCE: ref="CP12-2" source="Exemplo 12"
+CP12-2 A feira da vila começa no sábado, às dez horas.
+A1
+STA:fcl
+=SUBJ:np
+==>N:art("o" <artd> DET F S)	A
+==H:n("feira" <np-def> F S)	feira
+==N<:pp
+===H:prp("de" <sam->)	de
+===P<:np
+====>N:art("o" <-sam> <artd> DET F S)	a
+====H:n("vila" <np-def> F S)	vila
+=P:v-fin("começar" <mv> PR 3S IND VFIN)	começa
+=ADVL:pp
+==H:prp("em" <sam->)	em
+==P<:np
+===>N:art("o" <-sam> <artd> DET M S)	o
+===H:n("sábado" <NER:date> M S)	sábado
+=,
+=ADVL:pp
+==H:prp("a" <sam->)	a
+==P<:np
+===>N:art("o" <-sam> <artd> DET F P)	as
+===>N:num("dez" <card> <NER:hour> F P)	dez
+===H:n("hora" <NER2> F P)	horas
+.
+</s>
+<s id="3" ref="CP12-3" source="Exemplo 12">
+SOURCE: ref="CP12-3" source="Exemplo 12"
+CP12-3 O escritor Teodoro Valim assina «Canções do Vale-Fundo», diz a organização.
+A1
+STA:fcl
+=SUBJ:np
+==>N:art("o" <artd> DET M S)	O
+==H:n("escritor" <np-def> <Hprof> M S)	escritor
+==N<:prop("Teodoro_Valim" <hum> M S)	Teodoro_Valim
+=P:v-fin("assinar" <mv> PR 3S IND VFIN)	assina
+=ACC:prop("Canções_de_o_Vale-Fundo" <tit> F P)	«Canções_do_Vale-Fundo»,
+=P:v-fin("dizer" <mv> PR 3S IND VFIN)	diz
+=SUBJ:np
+==>N:art("o" <artd> DET F S)	a
+==H:n("organização" <np-def> <NER:org> F S)	organização
+.
+</s>
+<s id="4" ref="CP12-3" source="Exemplo 12">
+&&
+STA:fcl
+=SUBJ:np
+==>N:art("o" <artd> DET M S)	O
+==H:n("escritor" <np-def> M S)	escritor
+=P:v-fin("assinar" PR 3S IND VFIN)	assina
+.
+</s>
+<p>
+<caixa>
+<s id="5" ref="CP12-5" source="Exemplo 12">
+SOURCE: ref="CP12-5" source="Exemplo 12"
+CP12-5 Entrada gratuita para os sócios!
+A1
+UTT:np
+=H:n("entrada" <np-idf> F S)	Entrada
+=N<:adj("gratuito" F S)	gratuita
+=N<:pp
+==H:prp("para")	para
+==P<:np
+===>N:art("o" <artd> DET M P)	os
+===H:n("sócio" <np-def> M P)	sócios
+!
+</s>
+</caixa>
+</ext>
+<ext id="13" cad="Exemplo" sec="cul" sem="99b">
+<p>
+<s id="6" ref="CP13-1" source="Exemplo 13">
+SOURCE: ref="CP13-1" source="Exemplo 13"
+CP13-1 A Companhia_Fluvial do Sul anunciou ontem novas carreiras.
+A1
+STA:fcl
+=SUBJ:np
+==>N:art("o" <artd> DET F S)	A
+==H:prop("Companhia_Fluvial_de_o_Sul" <NER:org> F S)	Companhia_Fluvial_do_Sul
+=P:v-fin("anunciar" <mv> PS 3S IND VFIN)	anunciou
+=ADVL:adv("ontem" <NER:date>)	ontem
+=ACC:np
+==>N:adj("novo" F P)	novas
+==H:n("carreira" <np-idf> F P)	carreiras
+.
+</s>
+<s id="7" ref="CP13-2" source="Exemplo 13">
+SOURCE: ref="CP13-2" source="Exemplo 13"
+CP13-2 Os bilhetes custam 3,5 moedas e podem ser comprados a bordo
+A1
+STA:fcl
+=SUBJ:np
+==>N:art("o" <artd> DET M P)	Os
+==H:n("bilhete" <np-def> M P)	bilhetes
+=P:v-fin("custar" <mv> PR 3P IND VFIN)	custam
+=ACC:np
+==>N:num("3,5" <card> <NER:quantity> F P)	3,5
+==H:n("moeda" <currency> F P)	moedas
+=CO:conj-c("e")	e
+=P:vp
+==AUX:v-fin("poder" <aux> PR 3P IND VFIN)	podem
+==AUX:v-inf("ser" <aux>)	ser
+==MV:v-pcp("comprar" M P)	comprados
+=ADVL:advp
+==H:adv("a_bordo")	a_bordo
+</s>
+</ext>

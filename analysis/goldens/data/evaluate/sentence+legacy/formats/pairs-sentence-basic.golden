@@ -1,0 +1,28 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/pairs-sentence-basic	165	151	83ee299da9a30adab0f1c885797e96632469200b9836304060351c08a56768a5
+annotator	opennlp.tools.sentdetect.SentenceDetectorEvaluator	evaluateSample
+config	whitespace	legacy
+layer	turbo:verdicts	document	8	sample:u32	verdict:str	class:str	message:str
+0	misclassified		
+1	correct		
+2	error	java.lang.StringIndexOutOfBoundsException	Index 4 out of bounds for length 4
+3	correct		
+4	correct		
+5	correct		
+6	error	java.lang.StringIndexOutOfBoundsException	Index 5 out of bounds for length 5
+7	error	java.lang.StringIndexOutOfBoundsException	Index 7 out of bounds for length 7
+end	turbo:verdicts
+layer	turbo:fmeasure	document	8	after:u32	precision:f64	recall:f64	fmeasure:f64
+0	0000000000000000 0.0	0000000000000000 0.0	bff0000000000000 -1.0
+1	3fe5555555555555 0.6666666666666666	3fe0000000000000 0.5	3fe2492492492493 0.5714285714285715
+2	3fe5555555555555 0.6666666666666666	3fe0000000000000 0.5	3fe2492492492493 0.5714285714285715
+3	3fe8000000000000 0.75	3fe3333333333333 0.6	3fe5555555555554 0.6666666666666665
+4	3fe999999999999a 0.8	3fe5555555555555 0.6666666666666666	3fe745d1745d1745 0.7272727272727272
+5	3feb6db6db6db6db 0.8571428571428571	3fe8000000000000 0.75	3fe9999999999999 0.7999999999999999
+6	3feb6db6db6db6db 0.8571428571428571	3fe8000000000000 0.75	3fe9999999999999 0.7999999999999999
+7	3feb6db6db6db6db 0.8571428571428571	3fe8000000000000 0.75	3fe9999999999999 0.7999999999999999
+end	turbo:fmeasure

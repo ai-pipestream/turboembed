@@ -1,0 +1,66 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	corpora/leipzig-basic	1581	1567	b0c6205932760332f44f953e17ed5f223ab7b0efca12159e3f09b4273ae4d8bd
+annotator	opennlp.tools.formats.leipzig.LeipzigLanguageSampleStream	read
+config	samplesPerLanguage	4
+config	samplesToSkip	2
+config	sentencesPerSample	1
+layer	turbo:samples	document	16	written:str
+fra\tLes enfants jouent dans la cour. 
+eng\tThe harbour lights came on early tonight. 
+fra\tUn chat dort sur le rebord. 
+deu\tIm Garten blühen die ersten Tulpen. 
+eng\tRain is expected over the hills by morning. 
+deu\tDer Zug fährt um acht Uhr ab. 
+fra\tLe marché ouvre à sept heures. 
+deu\tDie Straße ist nass vom Regen. 
+fra\tLa bibliothèque ferme à midi. 
+eng\tOur train was held at the junction. 
+fra\tLe train de nuit arrive à l'aube. 
+eng\tTwo tabs\there keep the second one. 
+fra\tNous avons repeint la cuisine. 
+deu\tSie liest gern am Abend. 
+deu\tDer Bus kommt später als geplant. 
+eng\tThe tide was lower than the charts said. 
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-labels	document	16	label:str
+fra
+eng
+fra
+deu
+eng
+deu
+fra
+deu
+fra
+eng
+fra
+eng
+fra
+deu
+deu
+eng
+end	turbo:sample-labels
+layer	turbo:sample-texts	document	16	text:str
+Les enfants jouent dans la cour. 
+The harbour lights came on early tonight. 
+Un chat dort sur le rebord. 
+Im Garten blühen die ersten Tulpen. 
+Rain is expected over the hills by morning. 
+Der Zug fährt um acht Uhr ab. 
+Le marché ouvre à sept heures. 
+Die Straße ist nass vom Regen. 
+La bibliothèque ferme à midi. 
+Our train was held at the junction. 
+Le train de nuit arrive à l'aube. 
+Two tabs\there keep the second one. 
+Nous avons repeint la cuisine. 
+Sie liest gern am Abend. 
+Der Bus kommt später als geplant. 
+The tide was lower than the charts said. 
+end	turbo:sample-texts

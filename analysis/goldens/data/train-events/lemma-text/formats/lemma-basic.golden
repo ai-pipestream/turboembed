@@ -1,0 +1,43 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/lemma-basic	193	187	c41fb2db968fab6d51f8b4a06d3316e6df6ec3ed5feebd57671d717c8e9cfed5
+annotator	opennlp.tools.lemmatizer.LemmaSampleEventStream	read
+config	format	text
+config	language	en
+config	run	lemma-text
+config	source	lemmatize
+layer	turbo:events	document	11	outcome:str	context:str	values:str
+O	w0=He t0=PRP p_1=bos p_1=bost0=PRP p_1=bosw0=He suf=null suf=He suf=He suf=He suf=He suf=He suf=He pre=null pre=He pre=He pre=He pre=He c	
+D0s	w0=reckons t0=VBZ p_1=O p_1=Ot0=VBZ p_1=Ow0=reckons suf=null suf=ns suf=ons suf=kons suf=ckons suf=eckons suf=reckons pre=null pre=re pre=rec pre=reck pre=recko	
+O	w0=the t0=DT p_1=D0s p_1=D0st0=DT p_1=D0sw0=the suf=null suf=he suf=the suf=the suf=the suf=the suf=the pre=null pre=th pre=the pre=the pre=the	
+O	w0=current t0=JJ p_1=O p_1=Ot0=JJ p_1=Ow0=current suf=null suf=nt suf=ent suf=rent suf=rrent suf=urrent suf=current pre=null pre=cu pre=cur pre=curr pre=curre	
+O	w0=account t0=NN p_1=O p_1=Ot0=NN p_1=Ow0=account suf=null suf=nt suf=unt suf=ount suf=count suf=ccount suf=account pre=null pre=ac pre=acc pre=acco pre=accou	
+O	w0=. t0=. p_1=O p_1=Ot0=. p_1=Ow0=. suf=null suf=. suf=. suf=. suf=. suf=. suf=. pre=null pre=. pre=. pre=. pre=.	
+O	w0=trailing t0=NN p_1=bos p_1=bost0=NN p_1=bosw0=trailing suf=null suf=ng suf=ing suf=ling suf=iling suf=ailing suf=railing pre=null pre=tr pre=tra pre=trai pre=trail	
+_	w0= t0=EMPTY p_1=O p_1=Ot0=EMPTY p_1=Ow0= suf=null suf= suf= suf= suf= suf= suf= pre=null pre= pre= pre= pre=	
+R0ab	w0=a t0= p_1=_ p_1=_t0= p_1=_w0=a suf=null suf=a suf=a suf=a suf=a suf=a suf=a pre=null pre=a pre=a pre=a pre=a	
+I0 I0\\ude00I0\\ud83d	w0=été t0=NOUN p_1=R0ab p_1=R0abt0=NOUN p_1=R0abw0=été suf=null suf=té suf=été suf=été suf=été suf=été suf=été pre=null pre=ét pre=été pre=été pre=été	
+O	w0=last t0=JJ p_1=bos p_1=bost0=JJ p_1=bosw0=last suf=null suf=st suf=ast suf=last suf=last suf=last suf=last pre=null pre=la pre=las pre=last pre=last	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+2745046107
+end	turbo:event-checksum
+layer	turbo:manifest	document	8	key:str	value:str
+BeamSize	3
+Component-Name	StatisticalLemmatizer
+Language	en
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+factory	opennlp.tools.lemmatizer.LemmatizerFactory
+end	turbo:manifest
+layer	turbo:package-entries	document	2	name:str	length:u32
+manifest.properties	258
+lemmatizer.model	67
+end	turbo:package-entries

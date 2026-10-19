@@ -1,0 +1,210 @@
+# The cases of the pysbd suite that the uax29 detector gets wrong, and what
+# differs. tests/conformance.rs writes this file and fails when a run differs
+# from it. 207 of 471 cases fail.
+pysbd/test_arabic/001	1 missing, first after "سؤال وجواب:"
+pysbd/test_arabic/002	1 extra, first after "وقال د‪.‬" [xfail-upstream]
+pysbd/test_arabic/004	1 missing, first after "...05:01 GMT الصنداي تايمز:"
+pysbd/test_arabic/005	3 missing, first after "...ارتفاع ضغط الدم، والقلب،"
+pysbd/test_armenian/001	1 missing, first after "Ի՞նչ ես մտածում:"
+pysbd/test_armenian/002	1 extra, first after "...ի 24-ին սկսեց անձրևել..."
+pysbd/test_armenian/003	1 missing, first after "...վ` մոտենում ենք ավարտին:"
+pysbd/test_armenian/004	1 missing, first after "...նում Համակարգի մշակումը:"
+pysbd/test_armenian/005	5 missing, first after "...որդին թեստավորման համար:"
+pysbd/test_armenian/006	5 missing, first after "...որդին թեստավորման համար:"
+pysbd/test_armenian/007	1 missing, first after "Բարև Ձեզ:"
+pysbd/test_armenian/008	1 missing, first after "Այսօր երկուշաբթի է:"
+pysbd/test_armenian/009	1 missing, first after "Վաղը սեպտեմբերի 1-ն է:"
+pysbd/test_armenian/010	1 missing, first after "Այո, ես հասկացա:"
+pysbd/test_armenian/011	1 missing, first after "Փակիր պատուհանները:"
+pysbd/test_armenian/012	1 missing, first after "Մութ է:"
+pysbd/test_armenian/013	1 missing, first after "Գիտես, սկսել եմ հավատալ:"
+pysbd/test_armenian/014	1 missing, first after "Տոնածառը նոր է:"
+pysbd/test_armenian/015	1 missing, first after "Ես շտապում եմ:"
+pysbd/test_armenian/016	1 missing, first after "...ր, մենք իրար սիրում ենք:"
+pysbd/test_armenian/017	1 missing, first after "Ոչ, այդպես չեմ կարծում:"
+pysbd/test_armenian/018	1 extra, first after "...ի 24-ին սկսեց անձրևել..."
+pysbd/test_armenian/019	1 missing, first after "1960 թվական…ձմեռ…գիշեր:"
+pysbd/test_armenian/020	1 missing, first after "... կարող անել համակարգիչը:"
+pysbd/test_armenian/022	1 missing, first after "...վ` մոտենում ենք ավարտին:"
+pysbd/test_armenian/023	1 missing, first after "Ի՞նչ ես մտածում:"
+pysbd/test_armenian/024	1 missing, first after "...րող ե՞նք միասին աշխատել:"
+pysbd/test_armenian/025	1 missing, first after "...ենք, ավարտին է մոտենում:"
+pysbd/test_armenian/026	1 missing, first after "Սիրելիս...սպասում եմ:"
+pysbd/test_bulgarian/003	1 extra, first after "Пл."
+pysbd/test_bulgarian/004	1 extra, first after "... в продължение на 150 г."
+pysbd/test_chinese/002	1 extra, first after "我们明天一起去看《摔跤吧！"
+pysbd/test_danish/004	1 extra, first after "My name is Jonas E."
+pysbd/test_danish/005	1 extra, first after "Please turn to p."
+pysbd/test_danish/010	1 extra, first after "De holdt Skt."
+pysbd/test_danish/011	1 extra, first after "St."
+pysbd/test_danish/016	1 extra, first after "I work for the U.S."
+pysbd/test_danish/030	1 missing, first after "1.) The first item"; 2 extra, first after "1.)"
+pysbd/test_danish/031	2 extra, first after "1.)"
+pysbd/test_danish/032	1 missing, first after "1) The first item"
+pysbd/test_danish/034	1 missing, first after "1. The first item"; 2 extra, first after "1."
+pysbd/test_danish/035	2 extra, first after "1."
+pysbd/test_danish/036	1 missing, first after "• 9. The first item"; 2 extra, first after "• 9."
+pysbd/test_danish/037	1 missing, first after "⁃9. The first item"; 2 extra, first after "⁃9."
+pysbd/test_danish/038	2 missing, first after "a. The first item"; 3 extra, first after "a."
+pysbd/test_danish/039	1 extra, first after "You can find it at N°."
+pysbd/test_danish/040	1 extra, first after "She works at Yahoo!"
+pysbd/test_danish/042	1 extra, first after "...arallel stairways [...]""
+pysbd/test_danish/045	1 extra, first after "...ying, the thing is . . ."
+pysbd/test_danish/047	2 missing, first after "Hello world."; 1 extra, first after "...rld.I dag is Tuesday.Hr." [clean=true]
+pysbd/test_danish/048	1 extra, first after "It was a cold" [clean=true]
+pysbd/test_danish/049	1 extra, first after "This is a sentence" [doc_type=pdf]
+pysbd/test_deutsch/002	1 extra, first after "... Du ergreifen kannst, z."
+pysbd/test_deutsch/003	1 extra, first after "...n der Abstimmung vom 12."
+pysbd/test_deutsch/011	1 extra, first after "1." [clean=true]
+pysbd/test_deutsch/012	1 extra, first after "Wir trafen Dr. med." [clean=true]
+pysbd/test_deutsch/013	2 extra, first after "...ir brauchen Getränke, z." [clean=true]
+pysbd/test_deutsch/014	1 extra, first after "Ich kann u.a." [clean=true]
+pysbd/test_deutsch/015	2 extra, first after "Frau Prof." [clean=true]
+pysbd/test_deutsch/017	1 extra, first after "Z." [clean=true]
+pysbd/test_deutsch/018	1 extra, first after "Das finden Sie auf S." [clean=true]
+pysbd/test_deutsch/019	1 extra, first after "Sie besucht eine kath." [clean=true]
+pysbd/test_deutsch/020	1 extra, first after "...tungen, Zeitschriften u." [clean=true]
+pysbd/test_deutsch/022	2 extra, first after "...s ist meine Adresse: Dr." [clean=true]
+pysbd/test_deutsch/023	1 extra, first after "...geht´s Ihnen, Frau Prof." [clean=true]
+pysbd/test_deutsch/025	1 extra, first after "... Du ergreifen kannst, z." [clean=true]
+pysbd/test_deutsch/026	1 extra, first after "...ongefäßen aus dem 1. -3." [clean=true]
+pysbd/test_deutsch/027	5 extra, first after "• 3." [clean=true]
+pysbd/test_deutsch/028	1 extra, first after "...n der Abstimmung vom 12." [clean=true]
+pysbd/test_deutsch/031	1 extra, first after "...gesetzes (MiLoG) zum 01." [clean=true]
+pysbd/test_deutsch/033	12 extra, first after "• 1." [doc_type=pdf, clean=true]
+pysbd/test_deutsch/034	1 extra, first after "...auen sollten während der" [doc_type=pdf, clean=true]
+pysbd/test_deutsch/035	3 extra, first after "Andere" [doc_type=pdf, clean=true]
+pysbd/test_dutch/001	1 missing, first after "...ssiles op hem af kwamen."
+pysbd/test_dutch/002	1 missing, first after "...van de schoten was raak."
+pysbd/test_english/004	1 extra, first after "My name is Jonas E."
+pysbd/test_english/005	1 extra, first after "Please turn to p."
+pysbd/test_english/010	1 extra, first after "I can see Mt."
+pysbd/test_english/011	1 extra, first after "St."
+pysbd/test_english/016	1 extra, first after "I work for the U.S."
+pysbd/test_english/018	3 extra, first after "At 5 a.m." [xfail-upstream]
+pysbd/test_english/031	1 missing, first after "1.) The first item"; 2 extra, first after "1.)"
+pysbd/test_english/032	2 extra, first after "1.)"
+pysbd/test_english/033	1 missing, first after "1) The first item"
+pysbd/test_english/035	1 missing, first after "1. The first item"; 2 extra, first after "1."
+pysbd/test_english/036	2 extra, first after "1."
+pysbd/test_english/037	1 missing, first after "• 9. The first item"; 2 extra, first after "• 9."
+pysbd/test_english/038	1 missing, first after "⁃9. The first item"; 2 extra, first after "⁃9."
+pysbd/test_english/039	2 missing, first after "a. The first item"; 3 extra, first after "a."
+pysbd/test_english/040	1 extra, first after "You can find it at N°."
+pysbd/test_english/041	1 extra, first after "She works at Yahoo!"
+pysbd/test_english/042	1 extra, first after "Did you see Albert I."
+pysbd/test_english/044	1 extra, first after "...arallel stairways [...]""
+pysbd/test_english/047	1 extra, first after "...ying, the thing is . . ."
+pysbd/test_english/048	1 missing, first after "...-interpreting compounds."; 1 extra, first after "...preting compounds. . . ."
+pysbd/test_english_clean/002	4 extra, first after "'Well!'" [clean=true]
+pysbd/test_english_clean/003	1 extra, first after "...ve fallen by this time?'" [clean=true]
+pysbd/test_english_clean/004	4 extra, first after "'Well!'" [clean=true]
+pysbd/test_english_clean/006	1 extra, first after "It was a cold" [clean=true]
+pysbd/test_english_clean/008	2 missing, first after "Hello world."; 1 extra, first after "...rld.Today is Tuesday.Mr." [clean=true]
+pysbd/test_english_clean/009	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/010	1 extra, first after "... a great month, said Mr." [clean=true]
+pysbd/test_english_clean/011	1 extra, first after "... a great month, said Mr." [clean=true]
+pysbd/test_english_clean/013	1 extra, first after "1.)" [clean=true]
+pysbd/test_english_clean/014	1 extra, first after "1." [clean=true]
+pysbd/test_english_clean/015	1 extra, first after "I went to J.C." [clean=true]
+pysbd/test_english_clean/016	1 extra, first after "His name is Alfred E." [clean=true]
+pysbd/test_english_clean/017	3 extra, first after "Q." [clean=true]
+pysbd/test_english_clean/022	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/023	1 extra, first after "...r contact us for pricing" [clean=true]
+pysbd/test_english_clean/025	1 extra, first after "...r contact us for pricing" [clean=true]
+pysbd/test_english_clean/028	4 extra, first after "W" [clean=true]
+pysbd/test_english_clean/029	14 extra, first after "W" [clean=true]
+pysbd/test_english_clean/031	1 extra, first after "... hammer falls initiating" [clean=true]
+pysbd/test_english_clean/032	1 extra, first after "... hammer falls initiating" [clean=true]
+pysbd/test_english_clean/033	1 extra, first after "... a distance up to 400 yd" [clean=true]
+pysbd/test_english_clean/037	1 extra, first after "St." [clean=true]
+pysbd/test_english_clean/039	2 extra, first after "This is e.g." [clean=true]
+pysbd/test_english_clean/040	1 extra, first after "I am in the U.S." [clean=true]
+pysbd/test_english_clean/041	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/043	2 extra, first after "The U.S." [clean=true]
+pysbd/test_english_clean/044	1 extra, first after "...to lead underwriter L.F." [clean=true]
+pysbd/test_english_clean/045	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/046	1 extra, first after "He climbed Mt." [clean=true]
+pysbd/test_english_clean/047	5 extra, first after "He speaks !" [clean=true]
+pysbd/test_english_clean/048	1 missing, first after "Test strange period．" [clean=true]
+pysbd/test_english_clean/049	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/053	1 extra, first after "St." [clean=true]
+pysbd/test_english_clean/055	2 extra, first after "He works at Yahoo!" [clean=true]
+pysbd/test_english_clean/059	2 extra, first after "d." [clean=true]
+pysbd/test_english_clean/060	2 missing, first after "a.) The first item"; 3 extra, first after "a.)" [clean=true]
+pysbd/test_english_clean/061	2 missing, first after "a) The first item" [clean=true]
+pysbd/test_english_clean/062	10 missing, first after "1. The first item"; 11 extra, first after "1." [clean=true]
+pysbd/test_english_clean/064	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/065	1 extra, first after "On Jan. 20, former Sen." [clean=true]
+pysbd/test_english_clean/066	1 extra, first after "The U.K." [clean=true]
+pysbd/test_english_clean/070	14 missing, first after "1.) The first item"; 27 extra, first after "My name is Jonas E." [clean=true]
+pysbd/test_english_clean/071	3 missing, first after "...s name is Mark E. Smith."; 3 extra, first after "His name is Mark E." [clean=true]
+pysbd/test_english_clean/072	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/073	4 extra, first after "'Well?'" [clean=true]
+pysbd/test_english_clean/074	2 extra, first after "Leave me alone!" [clean=true]
+pysbd/test_english_clean/076	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/078	5 missing, first after "a) here it is" [clean=true]
+pysbd/test_english_clean/079	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/083	4 missing, first after "(a) Hello world." [clean=true]
+pysbd/test_english_clean/086	1 extra, first after "The GmbH & Co." [clean=true]
+pysbd/test_english_clean/087	1 extra, first after "[?][" [clean=true]
+pysbd/test_english_clean/088	1 extra, first after "[15: 12:32] [16: firma?" [clean=true]
+pysbd/test_english_clean/091	5 extra, first after ""Dear, dear!" [clean=true]
+pysbd/test_english_clean/092	1 missing, first after "..., afore she comes, to--""; 3 extra, first after "...heads cut off, you know." [clean=true]
+pysbd/test_english_clean/093	1 extra, first after "...cer of milk at tea-time." [clean=true]
+pysbd/test_english_clean/102	1 extra, first after "SEC." [clean=true]
+pysbd/test_english_clean/107	2 extra, first after "...grown in dragon’s blood." [clean=true]
+pysbd/test_english_clean/110	1 missing, first after "...ian saint and martyr.[1]"; 1 extra, first after "...stian saint and martyr.[" [clean=true]
+pysbd/test_english_clean/111	1 missing, first after "... in a consultation.11 12" [clean=true]
+pysbd/test_english_clean/112	1 missing, first after "...al cognition (type 2).10" [clean=true]
+pysbd/test_english_clean/114	2 missing, first after "... country at large.[7][8]"; 2 extra, first after "...n the country at large.[" [clean=true]
+pysbd/test_english_clean/115	1 missing, first after "... Street Journal (1987).1" [clean=true]
+pysbd/test_english_clean/116	2 missing, first after "..., "If you please, sir--""; 170 extra, first after "...say to itself, "Oh dear!" [clean=true]
+pysbd/test_english_clean/124	1 missing, first after "What do you see?"
+pysbd/test_english_clean/126	2 extra, first after "...nterExampleCompanyA Inc."
+pysbd/test_greek/001	2 missing, first after "... πού είναι οι τουαλέτες;"
+pysbd/test_issues/004	3 extra, first after "...that does not contain v."
+pysbd/test_issues/010	1 extra, first after "...d Mahdian [86] at Yahoo!"
+pysbd/test_italian/005	2 extra, first after "Sono l'Ing."
+pysbd/test_italian/006	1 extra, first after "...un appuntamento per mar."
+pysbd/test_italian/009	1 extra, first after "Si ringrazia lo psicol."
+pysbd/test_italian/012	1 extra, first after "...ia di TR quando il Dott."
+pysbd/test_italian/013	1 extra, first after "Egregio Dir."
+pysbd/test_italian/017	1 extra, first after "Nel tribunale, l'Avv."
+pysbd/test_italian/018	1 extra, first after "...e di un computer (ad es."
+pysbd/test_italian/021	2 extra, first after ""Ei fu."
+pysbd/test_japanese/005	1 extra, first after "これは父の" [clean=true]
+pysbd/test_kazakh/006	1 missing, first after "...iк-экономикалық жағдайы."
+pysbd/test_kazakh/007	2 extra, first after "...н», 7 қыркүйек 2012 жыл."
+pysbd/test_kazakh/008	4 extra, first after "...с (1918 — 21) кезінде А."
+pysbd/test_russian/030	1 extra, first after "...и 90 км/ч в сторону пгт."
+pysbd/test_russian/031	2 extra, first after "Д-р ветеринарных наук А."
+pysbd/test_russian/032	1 extra, first after "Уважаемый проф."
+pysbd/test_russian/034	1 extra, first after "...английски из дома на ул."
+pysbd/test_russian/036	2 extra, first after "В 2010-2012 гг."
+pysbd/test_russian/042	4 extra, first after "Л.Н."
+pysbd/test_segmenter/001	1 extra, first after "This is a sentence" [doc_type=pdf]
+pysbd/test_segmenter/002	2 extra, first after "...ganising your care early" [doc_type=pdf]
+pysbd/test_segmenter/003	2 extra, first after "10." [doc_type=pdf]
+pysbd/test_segmenter/004	4 extra, first after "• 9." [doc_type=pdf]
+pysbd/test_segmenter/005	4 extra, first after "'Well!'" [doc_type=pdf]
+pysbd/test_segmenter/006	4 extra, first after "'Well!'" [doc_type=pdf]
+pysbd/test_slovak/001	1 extra, first after "...ími spoločnosťami, napr."
+pysbd/test_slovak/002	1 extra, first after "...my beriem na ľahkú váhu."
+pysbd/test_slovak/004	1 extra, first after "Ide o príslušníkov XII."
+pysbd/test_slovak/005	1 extra, first after "...ločnosť bola založená 7."
+pysbd/test_spanish/003	3 extra, first after "Hola Srta."
+pysbd/test_spanish/008	1 extra, first after "¡Hola Srta."
+pysbd/test_spanish/009	2 extra, first after "Buenos días, soy el Lic."
+pysbd/test_spanish/011	1 extra, first after "...íe mis saludos a la Sra."
+pysbd/test_spanish/013	1 extra, first after "...n del Discovery (30 Ago."
+pysbd/test_spanish/014	2 extra, first after "...n el cantar se consuela."
+pysbd/test_spanish/017	1 extra, first after "... constitución de los EE."
+pysbd/test_spanish/027	3 extra, first after "...ras para el almuerzo: 1."
+pysbd/test_spanish/028	1 missing, first after "1 + 1 es 2."
+pysbd/test_spanish/030	1 extra, first after "...pital de Northern en Mt."
+pysbd/test_spanish/031	4 extra, first after "Cra." [clean=true]
+pysbd/test_spanish/032	1 extra, first after "N°." [clean=true]
+pysbd/test_spanish/034	10 extra, first after "• 1." [clean=true]
+pysbd/test_spanish/035	11 extra, first after "• 1." [clean=true]
+pysbd/test_spanish/036	6 extra, first after "...eniera LAURA MILENA LEÓN" [doc_type=pdf]

@@ -1,0 +1,29 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	frenchtreebank/ftb-errors	908	907	2be7b6027d45f5182ef24d565517fe9e2b32b45b55ceae07d413477a8fd7a564
+annotator	opennlp.tools.formats.frenchtreebank.ConstitParseSampleStream	read
+layer	turbo:samples	document	0	written:str
+end	turbo:samples
+layer	turbo:read-errors	document	3	after:u32	class:str	message:str
+0	java.io.IOException	The entity "nbsp" was referenced, but not declared.
+0	java.io.IOException	The element type "w" must be terminated by the matching end-tag "</w>".
+0	java.io.IOException	DOCTYPE is disallowed when the feature "http://apache.org/xml/features/disallow-doctype-decl" set to true.
+end	turbo:read-errors
+layer	turbo:parse-texts	document	0	sample:u32	text:str
+end	turbo:parse-texts
+layer	turbo:parse-nodes	document	0	sample:u32	depth:u32	type:str	start:u32	end:u32	head-start:u32	head-end:u32	own-head:u32	head-index:u32
+end	turbo:parse-nodes
+layer	turbo:pos-samples	document	0	sample:u32	token:str	tag:str
+end	turbo:pos-samples
+layer	turbo:chunk-samples	document	0	sample:u32	token:str	tag:str	pred:str
+end	turbo:chunk-samples
+layer	turbo:listing	document	5	file:str
+e_entity.xml
+d_broken.xml
+c_doctype.xml
+b_nosent.xml
+a_ok.xml
+end	turbo:listing

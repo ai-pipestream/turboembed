@@ -1,0 +1,368 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/chinese	70	24	6a87cfac7eeb0aa8e368eca93b72edde8c893c5dc4c4d1a1379f9d00c9e0f3cd
+model	tokenizer-abbreviations.bin	361484f0a67e129fe6f19908704d23e83c8a2bf4551a5f7eec3b40b9082a66b7026d429233c11639b35bccf042d347d79222cfed62685563f2a926cb8a2460d4
+annotator	opennlp.tools.tokenize.TokenizerME	tokenizePos
+point	0	3	11	2	0	none
+context	p=我
+context	s=爱北京天安门。今天天气很好，我们去公园玩吧！
+context	p1=我
+context	p1_alpha
+context	p2=bok
+context	p1f1=我爱
+context	f1=爱
+context	f1_alpha
+context	f2=北
+context	f2_alpha
+context	f12=爱北
+outcome	F	3fef1df71dccc27b 0.9724078733471083
+outcome	T	3f9c411c4667b0bf 0.027592126652891787
+end	0
+point	1	6	13	2	0	none
+context	p=我爱
+context	s=北京天安门。今天天气很好，我们去公园玩吧！
+context	p1=爱
+context	p1_alpha
+context	p2=我
+context	p2_alpha
+context	p21=我爱
+context	p1f1=爱北
+context	f1=北
+context	f1_alpha
+context	f2=京
+context	f2_alpha
+context	f12=北京
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	1
+point	2	9	13	2	0	none
+context	p=我爱北
+context	s=京天安门。今天天气很好，我们去公园玩吧！
+context	p1=北
+context	p1_alpha
+context	p2=爱
+context	p2_alpha
+context	p21=爱北
+context	p1f1=北京
+context	f1=京
+context	f1_alpha
+context	f2=天
+context	f2_alpha
+context	f12=京天
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	2
+point	3	12	13	2	0	none
+context	p=我爱北京
+context	s=天安门。今天天气很好，我们去公园玩吧！
+context	p1=京
+context	p1_alpha
+context	p2=北
+context	p2_alpha
+context	p21=北京
+context	p1f1=京天
+context	f1=天
+context	f1_alpha
+context	f2=安
+context	f2_alpha
+context	f12=天安
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	3
+point	4	15	13	2	0	none
+context	p=我爱北京天
+context	s=安门。今天天气很好，我们去公园玩吧！
+context	p1=天
+context	p1_alpha
+context	p2=京
+context	p2_alpha
+context	p21=京天
+context	p1f1=天安
+context	f1=安
+context	f1_alpha
+context	f2=门
+context	f2_alpha
+context	f12=安门
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	4
+point	5	18	12	2	0	none
+context	p=我爱北京天安
+context	s=门。今天天气很好，我们去公园玩吧！
+context	p1=安
+context	p1_alpha
+context	p2=天
+context	p2_alpha
+context	p21=天安
+context	p1f1=安门
+context	f1=门
+context	f1_alpha
+context	f2=。
+context	f12=门。
+outcome	F	3fecff778891d3a5 0.9061849276900956
+outcome	T	3fb80443bb7162dd 0.09381507230990445
+end	5
+point	6	21	12	2	0	none
+context	p=我爱北京天安门
+context	s=。今天天气很好，我们去公园玩吧！
+context	p1=门
+context	p1_alpha
+context	p2=安
+context	p2_alpha
+context	p21=安门
+context	p1f1=门。
+context	f1=。
+context	f2=今
+context	f2_alpha
+context	f12=。今
+outcome	F	3fe7c4141fa274e5 0.7426853769171912
+outcome	T	3fd077d7c0bb1637 0.2573146230828089
+end	6
+point	7	24	12	2	0	none
+context	p=我爱北京天安门。
+context	s=今天天气很好，我们去公园玩吧！
+context	p1=。
+context	p2=门
+context	p2_alpha
+context	p21=门。
+context	p1f1=。今
+context	f1=今
+context	f1_alpha
+context	f2=天
+context	f2_alpha
+context	f12=今天
+outcome	F	3fed927ef55323a0 0.9241328040599122
+outcome	T	3fb36c085566e2fc 0.07586719594008778
+end	7
+point	8	27	12	2	0	none
+context	p=我爱北京天安门。今
+context	s=天天气很好，我们去公园玩吧！
+context	p1=今
+context	p1_alpha
+context	p2=。
+context	p21=。今
+context	p1f1=今天
+context	f1=天
+context	f1_alpha
+context	f2=天
+context	f2_alpha
+context	f12=天天
+outcome	F	3fee50d88db2be95 0.947368885759675
+outcome	T	3faaf27724d416ab 0.052631114240324926
+end	8
+point	9	30	13	2	0	none
+context	p=我爱北京天安门。今天
+context	s=天气很好，我们去公园玩吧！
+context	p1=天
+context	p1_alpha
+context	p2=今
+context	p2_alpha
+context	p21=今天
+context	p1f1=天天
+context	f1=天
+context	f1_alpha
+context	f2=气
+context	f2_alpha
+context	f12=天气
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	9
+point	10	33	13	2	0	none
+context	p=我爱北京天安门。今天天
+context	s=气很好，我们去公园玩吧！
+context	p1=天
+context	p1_alpha
+context	p2=天
+context	p2_alpha
+context	p21=天天
+context	p1f1=天气
+context	f1=气
+context	f1_alpha
+context	f2=很
+context	f2_alpha
+context	f12=气很
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	10
+point	11	36	13	2	0	none
+context	p=我爱北京天安门。今天天气
+context	s=很好，我们去公园玩吧！
+context	p1=气
+context	p1_alpha
+context	p2=天
+context	p2_alpha
+context	p21=天气
+context	p1f1=气很
+context	f1=很
+context	f1_alpha
+context	f2=好
+context	f2_alpha
+context	f12=很好
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	11
+point	12	39	12	2	0	none
+context	p=我爱北京天安门。今天天气很
+context	s=好，我们去公园玩吧！
+context	p1=很
+context	p1_alpha
+context	p2=气
+context	p2_alpha
+context	p21=气很
+context	p1f1=很好
+context	f1=好
+context	f1_alpha
+context	f2=，
+context	f12=好，
+outcome	F	3fecff778891d3a5 0.9061849276900956
+outcome	T	3fb80443bb7162dd 0.09381507230990445
+end	12
+point	13	42	12	2	0	none
+context	p=我爱北京天安门。今天天气很好
+context	s=，我们去公园玩吧！
+context	p1=好
+context	p1_alpha
+context	p2=很
+context	p2_alpha
+context	p21=很好
+context	p1f1=好，
+context	f1=，
+context	f2=我
+context	f2_alpha
+context	f12=，我
+outcome	F	3fe7c4141fa274e5 0.7426853769171912
+outcome	T	3fd077d7c0bb1637 0.2573146230828089
+end	13
+point	14	45	12	2	0	none
+context	p=我爱北京天安门。今天天气很好，
+context	s=我们去公园玩吧！
+context	p1=，
+context	p2=好
+context	p2_alpha
+context	p21=好，
+context	p1f1=，我
+context	f1=我
+context	f1_alpha
+context	f2=们
+context	f2_alpha
+context	f12=我们
+outcome	F	3fed927ef55323a0 0.9241328040599122
+outcome	T	3fb36c085566e2fc 0.07586719594008778
+end	14
+point	15	48	12	2	0	none
+context	p=我爱北京天安门。今天天气很好，我
+context	s=们去公园玩吧！
+context	p1=我
+context	p1_alpha
+context	p2=，
+context	p21=，我
+context	p1f1=我们
+context	f1=们
+context	f1_alpha
+context	f2=去
+context	f2_alpha
+context	f12=们去
+outcome	F	3fee50d88db2be95 0.947368885759675
+outcome	T	3faaf27724d416ab 0.052631114240324926
+end	15
+point	16	51	13	2	0	none
+context	p=我爱北京天安门。今天天气很好，我们
+context	s=去公园玩吧！
+context	p1=们
+context	p1_alpha
+context	p2=我
+context	p2_alpha
+context	p21=我们
+context	p1f1=们去
+context	f1=去
+context	f1_alpha
+context	f2=公
+context	f2_alpha
+context	f12=去公
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	16
+point	17	54	13	2	0	none
+context	p=我爱北京天安门。今天天气很好，我们去
+context	s=公园玩吧！
+context	p1=去
+context	p1_alpha
+context	p2=们
+context	p2_alpha
+context	p21=们去
+context	p1f1=去公
+context	f1=公
+context	f1_alpha
+context	f2=园
+context	f2_alpha
+context	f12=公园
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	17
+point	18	57	13	2	0	none
+context	p=我爱北京天安门。今天天气很好，我们去公
+context	s=园玩吧！
+context	p1=公
+context	p1_alpha
+context	p2=去
+context	p2_alpha
+context	p21=去公
+context	p1f1=公园
+context	f1=园
+context	f1_alpha
+context	f2=玩
+context	f2_alpha
+context	f12=园玩
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	18
+point	19	60	13	2	0	none
+context	p=我爱北京天安门。今天天气很好，我们去公园
+context	s=玩吧！
+context	p1=园
+context	p1_alpha
+context	p2=公
+context	p2_alpha
+context	p21=公园
+context	p1f1=园玩
+context	f1=玩
+context	f1_alpha
+context	f2=吧
+context	f2_alpha
+context	f12=玩吧
+outcome	F	3fee57335362eeb3 0.9481445912019438
+outcome	T	3faa8ccac9d114d2 0.05185540879805618
+end	19
+point	20	63	12	2	0	none
+context	p=我爱北京天安门。今天天气很好，我们去公园玩
+context	s=吧！
+context	p1=玩
+context	p1_alpha
+context	p2=园
+context	p2_alpha
+context	p21=园玩
+context	p1f1=玩吧
+context	f1=吧
+context	f1_alpha
+context	f2=！
+context	f12=吧！
+outcome	F	3fecff778891d3a5 0.9061849276900956
+outcome	T	3fb80443bb7162dd 0.09381507230990445
+end	20
+point	21	66	10	2	0	none
+context	p=我爱北京天安门。今天天气很好，我们去公园玩吧
+context	s=！
+context	p1=吧
+context	p1_alpha
+context	p2=玩
+context	p2_alpha
+context	p21=玩吧
+context	p1f1=吧！
+context	f1=！
+context	f2=bok
+outcome	F	3fe0c7a3a9954b65 0.5243700325175779
+outcome	T	3fde70b8acd56937 0.4756299674824222
+end	21

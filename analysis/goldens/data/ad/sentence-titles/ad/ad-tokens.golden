@@ -1,0 +1,21 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-tokens	583	553	fe85b7055de9985cd7b4807f773b7daa1b33df88a2cf588466f7fc12384d02c3
+annotator	opennlp.tools.formats.ad.ADSentenceSampleStream	read
+config	includeTitles	true
+layer	turbo:samples	document	1	written:str
+«Guarda-chuva», disse ela!\nab-cd«\n«\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-texts	document	1	text:str
+«Guarda-chuva», disse ela! ab-cd« «
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	3	sample:u32	start:u32	end:u32
+0	0	28
+0	29	36
+0	37	39
+end	turbo:sample-spans

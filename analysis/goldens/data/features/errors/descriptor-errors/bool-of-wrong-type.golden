@@ -1,0 +1,8 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	descriptor-errors/bool-of-wrong-type	158	158	3d5501835d02126e1702653c47d8dfd9496182db6bfa733f9ad3d8aab4030356
+annotator	opennlp.tools.util.featuregen.GeneratorFactory	create
+error	opennlp.tools.util.InvalidFormatException	parameter lowercase must be boolean!

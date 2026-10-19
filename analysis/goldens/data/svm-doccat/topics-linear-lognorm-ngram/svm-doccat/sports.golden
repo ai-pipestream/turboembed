@@ -1,0 +1,90 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	svm-doccat/sports	93	93	8ee99a6fe4c5101a41985e5e84da63ff2062ab6d90fac00d5413faff9045faf8
+annotator	opennlp.tools.ml.libsvm.doccat.DocumentCategorizerSVM	categorize
+config	coef0	0.0
+config	corpus	svm-doccat-train/topics
+config	cost	1.0
+config	degree	3
+config	gamma	0.0
+config	generators	bag-of-words ngram(2,3)
+config	kernel	LINEAR
+config	language	eng
+config	max-features	-1
+config	run	topics-linear-lognorm-ngram
+config	scaling	0.0 1.0
+config	seed	1
+config	selection	NONE
+config	svm-type	C_SVC
+config	weighting	LOG_NORMALIZED_TF
+layer	opennlp:tokens	text	20	start:u32	end:u32
+0	3
+4	10
+11	16
+17	18
+19	26
+27	30
+31	34
+35	39
+40	43
+44	47
+48	53
+54	58
+59	60
+61	65
+66	70
+71	73
+74	79
+80	82
+83	86
+87	92
+end	opennlp:tokens
+layer	turbo:svm-vector	document	27	index:u32	value:f64
+45	3ff0000000000000 1.0
+53	3ff0000000000000 1.0
+99	3ff0000000000000 1.0
+162	3ff0000000000000 1.0
+180	3fe2e653c1293b31 0.5906161091496412
+243	3ff0000000000000 1.0
+294	3ff0000000000000 1.0
+309	3ff0000000000000 1.0
+316	3ff0000000000000 1.0
+370	3ff0000000000000 1.0
+373	3ff0000000000000 1.0
+489	3ff0000000000000 1.0
+539	3ff0000000000000 1.0
+564	3ff0000000000000 1.0
+595	3ff0000000000000 1.0
+596	3ff0000000000000 1.0
+766	3ff0000000000000 1.0
+813	3ff0000000000000 1.0
+831	3ff0000000000000 1.0
+836	3ff0000000000000 1.0
+863	3ff0000000000000 1.0
+900	3ff0000000000000 1.0
+904	3ff0000000000000 1.0
+946	3ff0000000000000 1.0
+958	3ff0000000000000 1.0
+1145	3fec2467c5349c53 0.8794440128011821
+1152	3ff0000000000000 1.0
+end	turbo:svm-vector
+layer	turbo:svm-decisions	document	6	first:str	second:str	value:f64
+weather	cooking	bfa597b17e20b48a -0.04217295326848454
+weather	sports	bff06d8f32107071 -1.0267478900559832
+weather	finance	3fb7e821e4f9fdde 0.09338580932853044
+cooking	sports	bfedf61a43cbc580 -0.936291820920971
+cooking	finance	3fc268ec15ab8c04 0.14382697160826308
+sports	finance	3ff3726a576bafb4 1.2154334463948375
+end	turbo:svm-decisions
+layer	turbo:svm-vote	document	1	category:str
+sports
+end	turbo:svm-vote
+layer	turbo:categories	document	4	category:str	score:f64
+sports	3feffff99b67d390 0.9999969516053273
+finance	3ebd30ceed956807 1.7398987693568507E-6
+cooking	3ea5fd757ab52574 6.553552699763592E-7
+weather	3ea5ea6f7133ca6b 6.531406334927457E-7
+end	turbo:categories

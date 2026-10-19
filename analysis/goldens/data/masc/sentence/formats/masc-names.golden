@@ -1,0 +1,42 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-names	23556	23556	307a8a39da669c09c1867b6d06ce41a8049ff821fdedbbed419842bc76077c83
+annotator	opennlp.tools.formats.masc.MascSentenceSampleStream	read
+config	sentencesPerSample	2
+layer	turbo:samples	document	6	pass:u32	written:str
+0	Ada Lovelace met Charles Babbage in London in June 1833 .\nShe wrote notes on the Analytical Engine for Babbage .\n
+0	Nothing here .\nOne two three four five six .\n
+0	Paris and Rome .\na b c d .\n
+1	Ada Lovelace met Charles Babbage in London in June 1833 .\nShe wrote notes on the Analytical Engine for Babbage .\n
+1	Nothing here .\nOne two three four five six .\n
+1	Paris and Rome .\na b c d .\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-texts	document	6	text:str
+Ada Lovelace met Charles Babbage in London in June 1833 . She wrote notes on the Analytical Engine for Babbage .
+Nothing here . \nOne two three four five six .
+\nParis and Rome . \na b c d .
+Ada Lovelace met Charles Babbage in London in June 1833 . She wrote notes on the Analytical Engine for Babbage .
+Nothing here . \nOne two three four five six .
+\nParis and Rome . \na b c d .
+end	turbo:sample-texts
+layer	turbo:sample-spans	document	12	sample:u32	start:u32	end:u32
+0	0	57
+0	58	112
+1	0	14
+1	16	45
+2	1	17
+2	19	28
+3	0	57
+3	58	112
+4	0	14
+4	16	45
+5	1	17
+5	19	28
+end	turbo:sample-spans

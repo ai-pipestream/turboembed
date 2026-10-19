@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sentences>
+<sentence source="ok"><original><token slot="1">Ceart</token> go leor</original><flex slot="1" lemma="ceart"/></sentence>
+<sentence source="m"><original>a<!-- note -->b</original></sentence>
+</sentences>

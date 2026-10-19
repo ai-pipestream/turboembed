@@ -1,0 +1,142 @@
+name: models
+
+# Trains the models of release $TAG (release::MASC_MODELS in
+# analysis/train-recipes) on MASC 3.0.0, gates them, checks that they are
+# the bytes the zoo's built-in index lists at their addresses in the
+# release, and, run by hand on main, publishes them with their cards and
+# gate records as the release's assets through models-publish.yml
+# (analysis/train-recipes/README.md, "The models releases"). A pull
+# request that changes the workflow, the recipes or the zoo's index trains
+# and checks, and keeps the files as an artifact; nothing is published.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/models.yml"
+      - ".github/workflows/models-publish.yml"
+      - "analysis/train-recipes/**"
+      - "analysis/zoo/index/zoo.json"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # The release's tag and where its assets are published
+  # (release::MASC_MODELS and release::RELEASES; a test checks both).
+  TAG: models-masc-3.0.0-1
+  RELEASES: https://github.com/ai-pipestream/turboembed/releases/download/
+
+jobs:
+  masc:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ env.TAG }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Every download is cached, and saved as soon as it is checked, so a
+      # run that fails later does not fetch it again. The MASC archive is
+      # cached under its SHA-256 (masc::RELEASE). The zoo checks a cached
+      # file's size and digests and fetches it again only when they
+      # differ, and writes a fetched file only after checking it.
+      - id: masc-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/zoo/artifacts
+          key: masc-3.0.0-0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493
+      - name: fetch MASC 3.0.0
+        env:
+          USER: runner
+        run: cargo run -q --release -p turbo-train-recipes -- fetch-masc --home "$RUNNER_TEMP/zoo"
+      - if: steps.masc-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/zoo/artifacts
+          key: ${{ steps.masc-cache.outputs.cache-primary-key }}
+      # The models the gates score beside the trained ones, from the
+      # addresses masc-references.txt lists, each checked against the
+      # SHA-256 listed with it before it is cached. The cache's key
+      # changes with the list. `masc` checks them again before it trains
+      # anything.
+      - id: references-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/references
+          key: masc-references-${{ hashFiles('analysis/train-recipes/masc-references.txt') }}
+      - name: fetch the reference models
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/references"
+          while read -r sha256 url; do
+            case "$sha256" in ''|'#'*) continue ;; esac
+            f="$RUNNER_TEMP/references/${url##*/}"
+            [ -f "$f" ] || curl -fsSL --retry 3 -o "$f" "$url"
+            echo "$sha256  $f" | sha256sum -c -
+          done < analysis/train-recipes/masc-references.txt
+      - if: steps.references-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/references
+          key: ${{ steps.references-cache.outputs.cache-primary-key }}
+      # The release's models are the ones the zoo's index lists at its
+      # addresses; `zoo-index --check` below fails unless those are
+      # exactly release::MASC_MODELS's.
+      - name: the release's models
+        run: |
+          set -euo pipefail
+          jq -r --arg p "$RELEASES$TAG/" '.artifacts[] | select(.files[0].url | startswith($p)) | .id' \
+            analysis/zoo/index/zoo.json > "$RUNNER_TEMP/ids"
+          [ -s "$RUNNER_TEMP/ids" ]
+          cat "$RUNNER_TEMP/ids"
+      - name: train and gate
+        run: |
+          set -euo pipefail
+          unzip -q "$RUNNER_TEMP/zoo/artifacts/masc-3.0.0/MASC-3.0.0.zip" -d "$RUNNER_TEMP/masc"
+          recipes=()
+          while read -r id; do recipes+=(--recipe "$id"); done < "$RUNNER_TEMP/ids"
+          cargo run -q --release -p turbo-train-recipes -- masc --corpus "$RUNNER_TEMP/masc/MASC-3.0.0" \
+            --references "$RUNNER_TEMP/references" --out "$RUNNER_TEMP/models" "${recipes[@]}"
+      - name: the models are the bytes the zoo's index lists
+        run: |
+          cargo run -q --release -p turbo-train-recipes -- zoo-index --models "$RUNNER_TEMP/models" \
+            --release "$TAG" --check
+      # A run that fails keeps what it trained, to compare with the index.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG }}-failed-run
+          path: ${{ runner.temp }}/models
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: the release's files
+        run: |
+          set -euo pipefail
+          mkdir dist
+          while read -r id; do
+            d="$RUNNER_TEMP/models/$id"
+            cp "$d/$id.bin" dist/
+            cp "$d/card.json" "dist/$id.card.json"
+            cp "$d/gate.json" "dist/$id.gate.json"
+          done < "$RUNNER_TEMP/ids"
+          cd dist
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG }}
+          path: dist
+          if-no-files-found: error
+
+  # Publishes exactly the files the masc job checked and uploaded.
+  publish:
+    needs: masc
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/models-publish.yml
+    with:
+      tag: ${{ needs.masc.outputs.tag }}
+      summary: The English sentence detector, tokenizer, part-of-speech tagger and chunker the MASC recipes train.

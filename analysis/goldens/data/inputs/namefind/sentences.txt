@@ -1,0 +1,31 @@
+Call (555) 123-4567 or 555-123-4567 today .
+Dial 123-4567 , 1555-123-4567 , (555)123-4567 or x123-4567
+Numbers 555 - 1234 and 555-1234-5678 and 12-3456
+Write to john.doe@example.com or JANE@EXAMPLE.ORG .
+Bad <a@b.com> , mail:x@y.io and .a@b.com but -a@b.com
+Quoted "a\ b"@example.net and user@[192.168.1.1] and u@[256.1.1.1]
+Unicode jöhn@example.com , ſ@example.com , K@example.com , k@K.com
+Long aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@x.com end
+Dots a.b.c.d.e.f.g.h.i.j.k.l@x.y.z and a..b@c.de
+See http://www.example.com/path/to?x=1&y=2#frag now
+Also https://example.org , HTTP://WWW.EXAMPLE.COM and www.foo.co.uk .
+ftp://user:pass@ftp.example.museum:21/file.txt and ftps://a.b.travel
+Paths ~/x.com a/b.com /c.com x~/d.org and /e.info/f
+Marks www.example.coḿ www.exámple.com www.example.comé www.café.com
+Astral www.example.com😀 www.example.com𝐀 www.example.com𝅧 www.example.com𝅧x
+Percent http://x.com/a%20b%2G/c?q=%41&r#%7e end
+Ends www.example.com. www.example.com, (www.example.com) www.example.c
+Port http://example.com:8080/ and http://example.com:123456/x
+Grid 4QFJ12345678 and 4Q FJ 1234 5678 and 18SUJ2337106519
+Grid lower 4qfj 1 1 and 33UXP04 and 4Q FJ1234
+At 40°26'46"N 79°58'56"W today
+At 40d 26' 46" N, 79d 58' 56" W today
+At 40° 26’ 46” S 079° 58’ 56” E and -12|34|N +5 6
+Coords 45 30 N 122 40 W and 1d1
+New York City Hall is in new york city , not York City Hall .
+John Smith met john smith and JOHN SMITH and Dr. Who in São Paulo .
+a b c d e and b c d e and c d e f
+San Francisco İstanbul istanbul STRASSE straße k K K
+😀 face and 😀 FACE
+x
+é éx ́ á́b

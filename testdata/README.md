@@ -34,6 +34,12 @@
   core's byte-level BPE is compared with upstream on it, on those texts
   and on texts drawn at random from their characters, so that merges
   stop part way.
+- `tiny-bpe/corpus.jsonl`: the 232 texts that tokenizer was trained on
+  (`bpe::corpus` in `core/tests/tokenizer.rs`, the texts the tests
+  encode, twice over), one JSON string per line, written by
+  `bpe::write_corpus_file`; `bpe::the_corpus_file_is_the_corpus` checks
+  it. `analysis/bpe-trainer` trains on it and writes the tokenizer file
+  again byte for byte (docs/bpe-trainer.md).
 - `tokenizer-texts.jsonl`: texts the core's tokenizer is compared with
   upstream `tokenizers` on: scripts, spacing, control characters, emoji,
   special-token strings. Taken from the previous attempt's
@@ -65,6 +71,24 @@
   file it is under Apache-2.0, the licence of
   sentence-transformers/all-MiniLM-L6-v2.
 
+- `tiny-sat-recipe/`: the recipe of a small SaT model (wtpsplit's
+  `SubwordXLMForTokenClassification`, XLM-R with two layers of width 32,
+  four heads and one label) with random weights, which
+  `analysis/sat/reference/sat_reference.py tiny` writes over the
+  tokenizer file of `bge-m3/` above; the bundle's `FAMILY_ROBERTA`
+  encoder is its `roberta.` tensors, and the classifier
+  (`classifier.weight`, `classifier.bias`) is in the same file, where
+  `turbo-sat` reads it. Its reference cases are the bge-m3 recipe's,
+  with no prompt.
+- `tiny-sat-bundle/`: that bundle, sealed: the weights
+  (`weights/model.safetensors`, 3695516 bytes, SHA-256
+  `5eb6e13e665dd248b60afbc5594fa60130ce6de3d488802072335f2d9400b1c4`),
+  the tokenizer file of `bge-m3/` unchanged, and the reference file the
+  `reference` command wrote (the mean of wtpsplit's encoder states over
+  each case). `analysis/sat/README.md` says how both were made and
+  checked; `analysis/sat/tests` compare the SaT step with wtpsplit on
+  it. Under MIT, the licence of wtpsplit and of BAAI/bge-m3's tokenizer.
+
 - `tiny-static-recipe/`: the recipe `turbo-bundle distill` made the
   next bundle from: a 16-wide static model distilled from
   `tiny-bert-bundle/`, with the quality texts of
@@ -79,6 +103,49 @@
   say nothing about a real model. `core/tests/static_model.rs` checks
   the static path against it.
 
-Everything here is about 8.2 MB, 4 MB of it the tiny
-BERT bundle's weights, 1.8 MB the static bundle and 1.1 MB the cut-down
-BGE-M3 tokenizer.
+- `sentencepiece/`: SentencePiece `.model` files and what Google's
+  sentencepiece library (the Python package 0.2.2, with protobuf
+  7.36.1) gives for them, which `core/tests/sentencepiece.rs` and
+  `analysis/embed/tests/subwords.rs` compare the core with.
+  `goldens.py` wrote all of it (its docstring has the commands):
+  - `t5.model`: T5's model, `cc_all.32000/sentencepiece.model` of the
+    public `t5-data` bucket
+    (https://storage.googleapis.com/t5-data/vocabs/cc_all.32000/sentencepiece.model),
+    unchanged: 791656 bytes, SHA-256
+    `d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86`.
+    Unigram with the `nmt_nfkc` character map. Under Apache-2.0, the
+    licence of T5.
+  - `unigram-identity`, `unigram-bytes`, `unigram-suffix`,
+    `unigram-rules`, `bpe-identity`, `bpe-bytes` (`.model`, 7 to 12 KB
+    each): small models `goldens.py train` trained on
+    `tokenizer-texts.jsonl`, the texts of `goldens.py` and `botchan.txt`
+    of the sentencepiece repository's `data/` (tag v0.2.2, commit
+    `e0cce7d37b065b5140349dbe12c6bcf6192fdd78`; a public domain novel,
+    not kept here), to cover what T5 does not: user-defined, control and
+    UNUSED pieces, byte fallback, whitespace as a suffix, spaces kept, a
+    custom character map with rules that share a prefix and a deletion,
+    whitespace not escaped, and a denormalizer. Training twice gives the
+    same bytes. Made for this repository, under its licence.
+  - `<model>.goldens.jsonl`: for each text, the normalized text, its
+    `norm_to_orig`, the ids, each piece's offsets and the decoded text,
+    and the pieces of one long text by count and SHA-256; the header
+    line names the model and the versions. `xlmr.goldens.jsonl` is for
+    XLM-RoBERTa's model as `goldens.py` and the test rebuild it from
+    `bge-m3/tokenizer.json` (cut down, so not the published file).
+    `mt5`, `umt5` and `llama2.goldens.jsonl` are for published models
+    that are not kept here: mT5's and umT5's models from the same
+    bucket (Apache-2.0) and Llama 2's from karpathy/llama2.c (Meta's
+    Llama 2 licence). Their addresses and SHA-512 are in
+    `core/tests/sentencepiece.rs`, which checks them when
+    `TURBO_SENTENCEPIECE_MODELS` names a directory holding them as
+    `mt5.model`, `umt5.model` and `llama2.model`.
+  - `variants.goldens.jsonl`: for each edit of `goldens.py`'s
+    `VARIANTS` to a committed model (its whitespace switches set
+    otherwise, or user-defined pieces appended), the SHA-256 of what
+    the library gives on every text, one line per text as the
+    docstring of `goldens.py` writes it. `core/tests/sentencepiece.rs`
+    makes the same edits.
+
+Everything here is about 9.8 MB, 4 MB of it the tiny
+BERT bundle's weights, 2 MB the SentencePiece models and goldens,
+1.8 MB the static bundle and 1.1 MB the cut-down BGE-M3 tokenizer.

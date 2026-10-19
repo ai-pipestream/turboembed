@@ -1,0 +1,23 @@
+# Converted from spec/pragmatic_segmenter/languages/persian_spec.rb of Pragmatic Segmenter
+# (github.com/diasks2/pragmatic_segmenter, commit 358fe97e62902cd86fa6b85063c3bf91aa6c156a),
+# MIT License, Copyright (c) 2015 Kevin S. Dias (LICENSE in this directory).
+# One case per expectation, in file order; `name` is the spec's context and test name,
+# `option` the segmenter options the spec passes, `skipped-upstream` a test the spec skips.
+
+case pragmatic-segmenter/persian_spec/001
+lang fa
+name Golden Rules: Sentence ending punctuation #001
+text خوشبختم، آقای رضا. شما کجایی هستید؟ من از تهران هستم.
+sentence خوشبختم، آقای رضا.
+sentence شما کجایی هستید؟
+sentence من از تهران هستم.
+end
+
+case pragmatic-segmenter/persian_spec/002
+lang fa
+name #segment: correctly segments text #001
+text خوشبختم، آقای رضا. شما کجایی هستید؟ من از تهران هستم.
+sentence خوشبختم، آقای رضا.
+sentence شما کجایی هستید؟
+sentence من از تهران هستم.
+end

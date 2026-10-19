@@ -1,0 +1,80 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/de	239	234	252f7ce6614012d5d03442f3c99fdb40587bd9431e2a636fb006478ccd4c7dde
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	40	outcome:str	context:str	values:str
+F	p=V s=erspätung. p1=V p1_alpha p1_caps p2=bok p1f1=Ve f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=Ve s=rspätung. p1=e p1_alpha p2=V p2_alpha p2_caps p21=Ve p1f1=er f1=r f1_alpha f2=s f2_alpha f12=rs	
+F	p=Ver s=spätung. p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rs f1=s f1_alpha f2=p f2_alpha f12=sp	
+F	p=Vers s=pätung. p1=s p1_alpha p2=r p2_alpha p21=rs p1f1=sp f1=p f1_alpha f2=ä f2_alpha f12=pä	
+F	p=Versp s=ätung. p1=p p1_alpha p2=s p2_alpha p21=sp p1f1=pä f1=ä f1_alpha f2=t f2_alpha f12=ät	
+F	p=Verspä s=tung. p1=ä p1_alpha p2=p p2_alpha p21=pä p1f1=ät f1=t f1_alpha f2=u f2_alpha f12=tu	
+F	p=Verspät s=ung. p1=t p1_alpha p2=ä p2_alpha p21=ät p1f1=tu f1=u f1_alpha f2=n f2_alpha f12=un	
+F	p=Verspätu s=ng. p1=u p1_alpha p2=t p2_alpha p21=tu p1f1=un f1=n f1_alpha f2=g f2_alpha f12=ng	
+F	p=Verspätun s=g. p1=n p1_alpha p2=u p2_alpha p21=un p1f1=ng f1=g f1_alpha f2=. f2_eos f12=g.	
+F	p=Verspätung s=. p1=g p1_alpha p2=n p2_alpha p21=ng p1f1=g. f1=. f1_eos f2=bok	
+F	p=v s=erpassen, p1=v p1_alpha p2=bok p1f1=ve f1=e f1_alpha f2=r f2_alpha f12=er	
+F	p=ve s=rpassen, p1=e p1_alpha p2=v p2_alpha p21=ve p1f1=er f1=r f1_alpha f2=p f2_alpha f12=rp	
+F	p=ver s=passen, p1=r p1_alpha p2=e p2_alpha p21=er p1f1=rp f1=p f1_alpha f2=a f2_alpha f12=pa	
+F	p=verp s=assen, p1=p p1_alpha p2=r p2_alpha p21=rp p1f1=pa f1=a f1_alpha f2=s f2_alpha f12=as	
+F	p=verpa s=ssen, p1=a p1_alpha p2=p p2_alpha p21=pa p1f1=as f1=s f1_alpha f2=s f2_alpha f12=ss	
+F	p=verpas s=sen, p1=s p1_alpha p2=a p2_alpha p21=as p1f1=ss f1=s f1_alpha f2=e f2_alpha f12=se	
+F	p=verpass s=en, p1=s p1_alpha p2=s p2_alpha p21=ss p1f1=se f1=e f1_alpha f2=n f2_alpha f12=en	
+F	p=verpasse s=n, p1=e p1_alpha p2=s p2_alpha p21=se p1f1=en f1=n f1_alpha f2=, f12=n,	
+F	p=verpassen s=, p1=n p1_alpha p2=e p2_alpha p21=en p1f1=n, f1=, f2=bok	
+F	p=z s=.B. p1=z p1_alpha p2=bok p1f1=z. f1=. f1_eos f2=B f2_alpha f2_caps f12=.B	
+F	p=z. s=B. p1=. p1_eos p2=z p2_alpha p21=z. p1f1=.B f1=B f1_alpha f1_caps f2=. f2_eos f12=B.	
+F	p=z.B s=. p1=B p1_alpha p1_caps p2=. p2_eos p21=.B p1f1=B. f1=. f1_eos f2=bok	
+F	p=K s=öln. p1=K p1_alpha p1_caps p2=bok p1f1=Kö f1=ö f1_alpha f2=l f2_alpha f12=öl	
+F	p=Kö s=ln. p1=ö p1_alpha p2=K p2_alpha p2_caps p21=Kö p1f1=öl f1=l f1_alpha f2=n f2_alpha f12=ln	
+F	p=Köl s=n. p1=l p1_alpha p2=ö p2_alpha p21=öl p1f1=ln f1=n f1_alpha f2=. f2_eos f12=n.	
+F	p=Köln s=. p1=n p1_alpha p2=l p2_alpha p21=ln p1f1=n. f1=. f1_eos f2=bok	
+F	p=N s=achmittag. p1=N p1_alpha p1_caps p2=bok p1f1=Na f1=a f1_alpha f2=c f2_alpha f12=ac	
+F	p=Na s=chmittag. p1=a p1_alpha p2=N p2_alpha p2_caps p21=Na p1f1=ac f1=c f1_alpha f2=h f2_alpha f12=ch	
+F	p=Nac s=hmittag. p1=c p1_alpha p2=a p2_alpha p21=ac p1f1=ch f1=h f1_alpha f2=m f2_alpha f12=hm	
+F	p=Nach s=mittag. p1=h p1_alpha p2=c p2_alpha p21=ch p1f1=hm f1=m f1_alpha f2=i f2_alpha f12=mi	
+F	p=Nachm s=ittag. p1=m p1_alpha p2=h p2_alpha p21=hm p1f1=mi f1=i f1_alpha f2=t f2_alpha f12=it	
+F	p=Nachmi s=ttag. p1=i p1_alpha p2=m p2_alpha p21=mi p1f1=it f1=t f1_alpha f2=t f2_alpha f12=tt	
+F	p=Nachmit s=tag. p1=t p1_alpha p2=i p2_alpha p21=it p1f1=tt f1=t f1_alpha f2=a f2_alpha f12=ta	
+F	p=Nachmitt s=ag. p1=t p1_alpha p2=t p2_alpha p21=tt p1f1=ta f1=a f1_alpha f2=g f2_alpha f12=ag	
+F	p=Nachmitta s=g. p1=a p1_alpha p2=t p2_alpha p21=ta p1f1=ag f1=g f1_alpha f2=. f2_eos f12=g.	
+F	p=Nachmittag s=. p1=g p1_alpha p2=a p2_alpha p21=ag p1f1=g. f1=. f1_eos f2=bok	
+F	p=s s=ein. p1=s p1_alpha p2=bok p1f1=se f1=e f1_alpha f2=i f2_alpha f12=ei	
+F	p=se s=in. p1=e p1_alpha p2=s p2_alpha p21=se p1f1=ei f1=i f1_alpha f2=n f2_alpha f12=in	
+F	p=sei s=n. p1=i p1_alpha p2=e p2_alpha p21=ei p1f1=in f1=n f1_alpha f2=. f2_eos f12=n.	
+F	p=sein s=. p1=n p1_alpha p2=i p2_alpha p21=in p1f1=n. f1=. f1_eos f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+1774746734
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

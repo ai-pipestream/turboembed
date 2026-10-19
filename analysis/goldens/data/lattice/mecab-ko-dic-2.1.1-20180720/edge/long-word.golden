@@ -1,0 +1,14 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/long-word	301	301	16c71221108fb1f1660472af2242b80ca0565891ad284bc8d0f24df7e548fc9e
+model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	1	start:u32	end:u32
+0	300
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	1	unknown:u32	features:str
+1	SL,*,*,*,*,*,*,*
+end	turbo:morphemes

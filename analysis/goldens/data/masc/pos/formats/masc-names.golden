@@ -1,0 +1,171 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-names	23556	23556	307a8a39da669c09c1867b6d06ce41a8049ff821fdedbbed419842bc76077c83
+annotator	opennlp.tools.formats.masc.MascPOSSampleStream	read
+layer	turbo:samples	document	10	pass:u32	written:str
+0	Ada_NN Lovelace_NN met_NN Charles_NN Babbage_NN in_NN London_NN in_NN June_NN 1833_NN ._NN
+0	She_NN wrote_NN notes_NN on_NN the_NN Analytical_NN Engine_NN for_NN Babbage_NN ._NN
+0	Nothing_NN here_NN ._NN
+0	One_CD two_CD three_CD four_CD five_CD six_CD ._CD
+0	a_X b_X c_X d_X ._X
+1	Ada_NN Lovelace_NN met_NN Charles_NN Babbage_NN in_NN London_NN in_NN June_NN 1833_NN ._NN
+1	She_NN wrote_NN notes_NN on_NN the_NN Analytical_NN Engine_NN for_NN Babbage_NN ._NN
+1	Nothing_NN here_NN ._NN
+1	One_CD two_CD three_CD four_CD five_CD six_CD ._CD
+1	a_X b_X c_X d_X ._X
+end	turbo:samples
+layer	turbo:read-errors	document	0	pass:u32	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:open-errors	document	0	class:str	message:str
+end	turbo:open-errors
+layer	turbo:sample-tokens	document	72	sample:u32	text:str
+0	Ada
+0	Lovelace
+0	met
+0	Charles
+0	Babbage
+0	in
+0	London
+0	in
+0	June
+0	1833
+0	.
+1	She
+1	wrote
+1	notes
+1	on
+1	the
+1	Analytical
+1	Engine
+1	for
+1	Babbage
+1	.
+2	Nothing
+2	here
+2	.
+3	One
+3	two
+3	three
+3	four
+3	five
+3	six
+3	.
+4	a
+4	b
+4	c
+4	d
+4	.
+5	Ada
+5	Lovelace
+5	met
+5	Charles
+5	Babbage
+5	in
+5	London
+5	in
+5	June
+5	1833
+5	.
+6	She
+6	wrote
+6	notes
+6	on
+6	the
+6	Analytical
+6	Engine
+6	for
+6	Babbage
+6	.
+7	Nothing
+7	here
+7	.
+8	One
+8	two
+8	three
+8	four
+8	five
+8	six
+8	.
+9	a
+9	b
+9	c
+9	d
+9	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	72	tag:str
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+CD
+CD
+CD
+CD
+CD
+CD
+CD
+X
+X
+X
+X
+X
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+NN
+CD
+CD
+CD
+CD
+CD
+CD
+CD
+X
+X
+X
+X
+X
+end	turbo:sample-tags

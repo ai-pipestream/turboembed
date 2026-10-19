@@ -162,6 +162,14 @@ Each setup page has a check script under `scripts/setup/` that reports
 what is missing and, with `--install`, installs it. To run the gRPC
 server instead, see [docs/grpc.md](docs/grpc.md).
 
+To run the tests, run the core's apart from the rest, in a target
+directory of its own (the CI does the same; #358 explains why):
+
+```sh
+cargo test --workspace --exclude turbo
+CARGO_TARGET_DIR=target/core cargo test -p turbo
+```
+
 To verify a machine produces correct vectors:
 
 ```sh
@@ -179,6 +187,7 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<backend> TURBO_TEST_PRECISION=
 | `bench/` | `turbo-bench`: produce benchmark records |
 | `server/` | `turbo-kserve`: gRPC server (Open Inference Protocol) |
 | `demo/` | Browser page for trying the server |
+| `analysis/` | Document analysis: typed layers, annotators and the chunker |
 | `benchmarks/records/` | Benchmark records that back capability claims |
 | `docs/` | Design, backend and setup documentation |
 | `scripts/setup/` | Per-machine check and install scripts |
@@ -198,11 +207,13 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<backend> TURBO_TEST_PRECISION=
 | Topic | Page |
 |---|---|
 | Bundle format and `turbo-bundle` | [docs/bundle.md](docs/bundle.md) |
+| Model zoo, `turbo-zoo`, and the licences of datasets and checkpoints | [docs/zoo.md](docs/zoo.md), [docs/licences.md](docs/licences.md) |
 | Tokenizers | [docs/tokenizer.md](docs/tokenizer.md) |
 | Conformance testing | [docs/conformance.md](docs/conformance.md) |
 | Benchmark records and `turbo-bench` | [docs/benchmarks.md](docs/benchmarks.md) |
 | Autotuning | [docs/autotune.md](docs/autotune.md) |
 | Static (Model2Vec-style) models | [docs/static.md](docs/static.md) |
+| Document analysis and the chunker | [docs/analysis.md](docs/analysis.md) |
 | gRPC server and KServe mapping | [docs/grpc.md](docs/grpc.md), [docs/kserve.md](docs/kserve.md) |
 | Web demo | [docs/demo.md](docs/demo.md) |
 | Backends | [CPU](docs/cpu.md), [CUDA](docs/cuda.md), [Intel GPU](docs/levelzero.md), [Intel NPU](docs/npu.md), [Metal](docs/metal.md), [Hailo](docs/hailo.md) |

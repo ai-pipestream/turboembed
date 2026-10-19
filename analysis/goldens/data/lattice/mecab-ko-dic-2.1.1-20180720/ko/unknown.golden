@@ -1,0 +1,32 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ko/unknown	76	30	247c0e571086bfdeb98f74b73e0dfeb879c74720607eea51e9c70f9a59bf7c48
+model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	10	start:u32	end:u32
+0	9
+10	25
+25	28
+29	41
+41	42
+43	55
+55	58
+59	68
+68	74
+74	75
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	10	unknown:u32	features:str
+0	NNG,*,F,컴퓨터,*,*,*,*
+0	NNG,행위,T,프로그래밍,*,*,*,*
+0	JKO,*,T,을,*,*,*,*
+0	VV+EF,*,F,배웁니다,Inflect,VV,EF,배우/VV/*+ᄇ니다/EF/*
+0	SF,*,*,*,*,*,*,*
+0	NNP,*,T,인공지능,Compound,*,*,인공/NNG/*+지능/NNG/*
+0	JC,*,F,과,*,*,*,*
+0	NNG,*,F,자연어,Compound,*,*,자연/NNG/*+어/NNG/*
+0	NNG,행위,F,처리,*,*,*,*
+0	SF,*,*,*,*,*,*,*
+end	turbo:morphemes

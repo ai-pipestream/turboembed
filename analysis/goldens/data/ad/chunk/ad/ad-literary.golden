@@ -1,0 +1,112 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ad/ad-literary	1206	1206	b5485314d1f941b05a792b0b901ac1014beaa7ea4a0df265b903c8443d03c854
+annotator	opennlp.tools.formats.ad.ADChunkSampleStream	read
+layer	turbo:samples	document	9	written:str
+Era v-fin B-VP\numa art B-NP\nvez n I-NP\n. . O\n
+Em prp B-PP\nela pron-pers I-PP\nvivia v-fin B-VP\na_Joaquina prop O\n. . O\n
+Fim n B-NP\n. . O\n
+letras n B-NP\n
+As art B-NP\nalgas n I-NP\ncrescem v-fin B-VP\n. . O\n
+Muito adv O\n. . O\n
+Vazio adj O\n. . O\n
+fonte n B-NP\n. . O\n
+Rochas n B-NP\n. . O\n
+end	turbo:samples
+layer	turbo:read-errors	document	0	after:u32	class:str	message:str
+end	turbo:read-errors
+layer	turbo:sample-tokens	document	24	sample:u32	text:str
+0	Era
+0	uma
+0	vez
+0	.
+1	Em
+1	ela
+1	vivia
+1	a_Joaquina
+1	.
+2	Fim
+2	.
+3	letras
+4	As
+4	algas
+4	crescem
+4	.
+5	Muito
+5	.
+6	Vazio
+6	.
+7	fonte
+7	.
+8	Rochas
+8	.
+end	turbo:sample-tokens
+layer	turbo:sample-tags	aligned:turbo:sample-tokens	24	tag:str
+v-fin
+art
+n
+.
+prp
+pron-pers
+v-fin
+prop
+.
+n
+.
+n
+art
+n
+v-fin
+.
+adv
+.
+adj
+.
+n
+.
+n
+.
+end	turbo:sample-tags
+layer	turbo:sample-chunks	aligned:turbo:sample-tokens	24	chunk:str
+B-VP
+B-NP
+I-NP
+O
+B-PP
+I-PP
+B-VP
+O
+O
+B-NP
+O
+B-NP
+B-NP
+I-NP
+B-VP
+O
+O
+O
+O
+O
+B-NP
+O
+B-NP
+O
+end	turbo:sample-chunks
+layer	turbo:phrases	document	10	sample:u32	start:u32	end:u32	type:str
+0	0	1	VP
+0	1	3	NP
+1	0	2	PP
+1	2	3	VP
+2	0	1	NP
+3	0	1	NP
+4	0	2	NP
+4	2	3	VP
+7	0	1	NP
+8	0	1	NP
+end	turbo:phrases
+layer	turbo:phrase-errors	document	0	sample:u32	class:str	message:str
+end	turbo:phrase-errors

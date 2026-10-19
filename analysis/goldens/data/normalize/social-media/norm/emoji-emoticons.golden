@@ -1,0 +1,16 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	norm/emoji-emoticons	216	192	8fea02886bed4a29150d0c583dc33ef7e3e59dfd3ebfd5869d725e2b0bcbc731
+annotator	opennlp.tools.util.normalizer.SocialMediaCharSequenceNormalizer	normalize
+layer	turbo:view	text	7	start:u32	end:u32	with:str
+6	8	 
+18	20	 
+31	33	 
+73	75	 
+88	90	 
+106	108	 
+146	149	 
+end	turbo:view

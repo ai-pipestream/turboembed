@@ -1,0 +1,2398 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	train/sentences	7883	7882	d843be6d86abac50c15c97cc0792491f68fd9970e776a8db3589c22b65c6beaf
+annotator	opennlp.tools.ml.maxent.GISTrainer	train
+config	Cutoff	0
+config	DataIndexer	TwoPass
+config	Iterations	100
+config	sort	false
+config	source	sentdetect
+layer	turbo:events	document	282	outcome:str	context:str	values:str
+n	sn eos=. x=Mr 2 xcap v= s= n=Smith ncap	
+n	eos=. x=a 1 v=9 s=m n=on	
+n	sn eos=. x=.m 2 v=a s= n=on	
+s	sn eos=. x=Monday 6 xcap v=on s= n=He ncap	
+s	sn eos=. x=suitcase 8 v=brown s= n=Dr. ncap	
+n	sn eos=. x=Dr 2 xcap v=suitcase. s= n=Brown ncap	
+s	sn eos=. x=platform 8 v=the s= n=They ncap	
+s	sn eos=. x=car 3 v=the s= n=The ncap	
+s	sn eos=. x=minutes 7 v=45 s= n=Mrs. ncap	
+n	sn eos=. x=Mrs 3 xcap v=minutes. s= n=Brown ncap	
+s	sn eos=. x=everyone 8 v=for s= n=After ncap	
+s	sn eos=. x=project 7 v=the s= n=The ncap	
+n	eos=. x=2 1 v=was s=5 n=million	
+s	sn eos=. x=dollars 7 v=million s= n=Nobody ncap	
+s	sn eos=. x=enough 6 v=be s= n=Prof. ncap	
+n	sn eos=. x=Prof 4 xcap v=enough. s= n=Green ncap	
+n	eos=. x=p 1 v=3 s=m n=that	
+n	sn eos=. x=.m 2 v=p s= n=that	
+s	sn eos=. x=afternoon 9 v=that s= n=	
+n	eos=. x=U 1 xcap v=The vcap s=S scap n=government	
+n	sn eos=. x=.S 2 v=U vcap s= n=government	
+s	sn eos=. x=Tuesday 7 xcap v=on s= n=Exports ncap	
+n	eos=. x=4 1 v=by s=2 n=percent	
+s	sn eos=. x=quarter 7 v=third s= n=Imports ncap	
+n	eos=. x=e 1 v=slightly, s=g n=in	
+n	sn eos=. x=.g 2 v=e s= n=in	
+s	sn eos=. x=machinery 9 v=and s= n=Analysts ncap	
+s	sn eos=. x=change 6 v=smaller s= n=The ncap	
+s	sn eos=. x=pages 5 v=120 s= n=It ncap	
+s	sn eos=. x=economists 10 v=15 s= n=Some ncap	
+n	eos=. x=i 1 v=universities, s=e n=outside	
+n	sn eos=. x=.e 2 v=i s= n=outside	
+s	sn eos=. x=government 10 v=the s= n=The ncap	
+s	sn eos=. x=March 5 xcap v=in s= n=Markets ncap	
+s	sn eos=. x=calmly 6 v=reacted s= n=Prices ncap	
+n	eos=. x=0 1 v=closed s=3 n=percent	
+s	sn eos=. x=higher 6 v=percent s= n=	
+n	sn eos=. x=St 2 xcap v=Baker vcap s= n=in	
+s	sn eos=. x=London 6 xcap v=in s= n=Her ncap	
+s	sn eos=. x=teacher 7 v=retired s= n=They ncap	
+s	sn eos=. x=garden 6 v=the s= n=The ncap	
+n	sn eos=. x=etc 3 v=daisies, s= n=and	
+s	sn eos=. x=pond 4 v=small s= n=Last ncap	
+s	sn eos=. x=January 7 xcap v=in s= n=The ncap	
+s	sn eos=. x=week 4 v=a s= n=Then ncap	
+s	sn eos=. x=again 5 v=warm s= n=Everyone ncap	
+s	sn eos=. x=melted 6 v=it s= n=Did ncap	
+s	sn eos=? x=winter 6 v=a s= n=I ncap	
+s	sn eos=! x=not 3 v=did s= n=	
+n	eos=. x=3 1 v=Version vcap s=1 n=4	
+n	eos=. x=.1 2 v=3 s=4 n=of	
+s	sn eos=. x=bugs 4 v=several s= n=The ncap	
+s	sn eos=. x=changes 7 v=27 s= n=One ncap	
+s	sn eos=. x=parsed 6 v=are s= n=Another ncap	
+s	sn eos=. x=percent 7 v=30 s= n=Users ncap	
+s	sn eos=. x=years 5 v=for s= n=The ncap	
+s	sn eos=. x=problems 8 v=reported s= n=The ncap	
+n	eos=. x=3 1 v=numbered s=2 n=0.	
+n	eos=. x=.2 2 v=3 s=0 n=It ncap	
+s	sn eos=. x=.0 2 v=3.2 s= n=It ncap	
+s	sn eos=. x=weeks 5 v=six s= n=Testing ncap	
+s	sn eos=. x=begun 5 v=already s= n=Volunteers ncap	
+s	sn eos=. x=help 4 v=to s= n=	
+s	sn eos=? x=open 4 v=museum s= n=It ncap	
+n	eos=. x=a 1 v=10 s=m n=on	
+n	sn eos=. x=.m 2 v=a s= n=on	
+s	sn eos=. x=weekdays 8 v=on s= n=On ncap	
+s	sn eos=. x=later 5 v=hour s= n=Tickets ncap	
+n	eos=. x=12 2 v=cost s=50 n=euros	
+s	sn eos=. x=adults 6 v=for s= n=Children ncap	
+s	sn eos=. x=free 4 v=for s= n=The ncap	
+s	sn eos=. x=maps 4 v=old s= n=Some ncap	
+s	sn eos=. x=old 3 v=years s= n=Mr. ncap	
+n	sn eos=. x=Mr 2 xcap v=old. s= n=Lee, ncap	
+s	sn eos=. x=Friday 6 xcap v=every s= n=The ncap	
+s	sn eos=. x=minutes 7 v=90 s= n=Bring ncap	
+s	sn eos=! x=shoes 5 v=comfortable s= n=	
+n	sn eos=. x=Inc 3 xcap v=Acme vcap s= n=announced	
+s	sn eos=. x=yesterday 9 v=profits s= n=The ncap	
+n	sn eos=. x=etc 3 v=paint, s= n=in	
+s	sn eos=. x=countries 9 v=30 s= n=Its ncap	
+n	sn eos=. x=Mrs 3 xcap v=executive, s= n=Patel, ncap	
+s	sn eos=. x=reporters 9 v=to s= n=She ncap	
+s	sn eos=. x=planned 7 v=than s= n=The ncap	
+s	sn eos=. x=percent 7 v=8 s= n=Some ncap	
+s	sn eos=. x=once 4 v=at s= n=Others ncap	
+s	sn eos=. x=wait 4 v=to s= n=The ncap	
+s	sn eos=. x=May 3 xcap v=in s= n=Shareholders ncap	
+s	sn eos=. x=dividend 8 v=new s= n=Nobody ncap	
+s	sn eos=. x=surprises 9 v=any s= n=	
+n	eos=. x=p 1 v=4 s=m n=because	
+n	sn eos=. x=.m 2 v=p s= n=because	
+s	sn eos=. x=strike 6 v=the s= n=Trains ncap	
+s	sn eos=. x=region 6 v=whole s= n=Many ncap	
+s	sn eos=. x=instead 7 v=home s= n=Roads ncap	
+s	sn eos=. x=usual 5 v=than s= n=The ncap	
+s	sn eos=. x=patient 7 v=be s= n=By ncap	
+s	sn eos=. x=again 5 v=running s= n=The ncap	
+s	sn eos=. x=week 4 v=next s= n=Commuters ncap	
+s	sn eos=. x=soon 4 v=ends s= n=It ncap	
+s	sn eos=. x=months 6 v=two s= n=Both ncap	
+s	sn eos=. x=agreement 9 v=an s= n=	
+n	sn eos=. x=Dr 2 xcap v= s= n=Adams ncap	
+s	sn eos=. x=Boston 6 xcap v=in s= n=Later ncap	
+n	eos=. x=U 1 xcap v=the s=S scap n=west	
+n	sn eos=. x=.S 2 v=U vcap s= n=west	
+s	sn eos=. x=coast 5 v=west s= n=There ncap	
+s	sn eos=. x=clinic 6 v=small s= n=The ncap	
+s	sn eos=. x=day 3 v=a s= n=Most ncap	
+s	sn eos=. x=villages 8 v=nearby s= n=Some ncap	
+s	sn eos=. x=hours 5 v=two s= n=Dr. ncap	
+n	sn eos=. x=Dr 2 xcap v=hours. s= n=Adams ncap	
+s	sn eos=. x=college 7 v=local s= n=Her ncap	
+s	sn eos=. x=much 4 v=very s= n=She ncap	
+s	sn eos=. x=years 5 v=five s= n=Who ncap	
+s	sn eos=? x=then 4 v=clinic s= n=	
+n	eos=. x=2 1 v=needs s=5 n=cups	
+s	sn eos=. x=eggs 4 v=3 s= n=Mix ncap	
+s	sn eos=. x=salt 4 v=of s= n=Add ncap	
+s	sn eos=. x=time 4 v=a s= n=Stir ncap	
+s	sn eos=. x=smooth 6 v=is s= n=Let ncap	
+s	sn eos=. x=minutes 7 v=20 s= n=Heat ncap	
+s	sn eos=. x=heat 4 v=medium s= n=Pour ncap	
+s	sn eos=. x=batter 6 v=of s= n=Cook ncap	
+s	sn eos=. x=minute 6 v=a s= n=Serve ncap	
+s	sn eos=. x=warm 4 v=pancakes s= n=They ncap	
+n	eos=. x=e 1 v=fruit, s=g n=berries	
+n	sn eos=. x=.g 2 v=e s= n=berries	
+s	sn eos=. x=bananas 7 v=or s= n=	
+n	sn eos=. x=Prof 4 xcap v= s= n=Martin ncap	
+s	sn eos=. x=Rome 4 xcap v=ancient s= n=The ncap	
+n	eos=. x=p 1 v=7 s=m n=He ncap	
+s	sn eos=. x=.m 2 v=p s= n=He ncap	
+s	sn eos=. x=hours 5 v=two s= n=Nobody ncap	
+s	sn eos=. x=early 5 v=left s= n=At ncap	
+s	sn eos=. x=loudly 6 v=applauded s= n=Several ncap	
+s	sn eos=. x=questions 9 v=asked s= n=One ncap	
+s	sn eos=. x=empire 6 v=the s= n=Prof. ncap	
+n	sn eos=. x=Prof 4 xcap v=empire. s= n=Martin ncap	
+s	sn eos=. x=story 5 v=long s= n=He ncap	
+s	sn eos=. x=time 4 v=next s= n=The ncap	
+s	sn eos=. x=Thursday 8 xcap v=on s= n=	
+n	sn eos=. x=St 2 xcap v= s= n=Mary's ncap	
+s	sn eos=. x=town 4 v=old s= n=It ncap	
+s	sn eos=. x=century 7 v=12th s= n=The ncap	
+s	sn eos=. x=high 4 v=metres s= n=Visitors ncap	
+s	sn eos=. x=summer 6 v=in s= n=From ncap	
+s	sn eos=. x=valley 6 v=whole s= n=On ncap	
+s	sn eos=. x=visible 7 v=are s= n=The ncap	
+s	sn eos=. x=Sunday 6 xcap v=every s= n=Entry ncap	
+s	sn eos=. x=welcome 7 v=are s= n=The ncap	
+s	sn eos=. x=1998 4 v=in s= n=It ncap	
+s	sn eos=. x=wonderful 9 v=sounds s= n=	
+n	sn eos=. x=Mr 2 xcap v= s= n=and	
+n	sn eos=. x=Mrs 3 xcap v=and s= n=Jones ncap	
+s	sn eos=. x=anniversary 11 v=50th s= n=Their ncap	
+s	sn eos=. x=party 5 v=a s= n=More ncap	
+s	sn eos=. x=came 4 v=guests s= n=There ncap	
+s	sn eos=. x=cake 4 v=large s= n=Mr. ncap	
+n	sn eos=. x=Mr 2 xcap v=cake. s= n=Jones ncap	
+s	sn eos=. x=speech 6 v=short s= n=He ncap	
+s	sn eos=. x=years 5 v=happy s= n=Everyone ncap	
+s	sn eos=. x=glass 5 v=a s= n=The ncap	
+s	sn eos=. x=midnight 8 v=until s= n=It ncap	
+s	sn eos=. x=remember 8 v=to s= n=The ncap	
+s	sn eos=. x=website 7 v=family s= n=	
+n	eos=. x=12 2 v=minus s=5 n=degrees	
+s	sn eos=. x=overnight 9 v=degrees s= n=Schools ncap	
+s	sn eos=. x=towns 5 v=several s= n=Buses ncap	
+s	sn eos=. x=timetable 9 v=reduced s= n=Doctors ncap	
+s	sn eos=. x=indoors 7 v=stay s= n=The ncap	
+s	sn eos=. x=Saturday 8 xcap v=by s= n=Forecasters ncap	
+s	sn eos=. x=that 4 v=after s= n=Farmers ncap	
+s	sn eos=. x=crops 5 v=their s= n=Some ncap	
+s	sn eos=. x=damaged 7 v=already s= n=The ncap	
+n	eos=. x=i 1 v=help, s=e n=low	
+n	sn eos=. x=.e 2 v=i s= n=low	
+s	sn eos=. x=loans 5 v=interest s= n=Applications ncap	
+s	sn eos=. x=month 5 v=next s= n=	
+s	sn eos=? x=fail 4 v=project s= n=There ncap	
+s	sn eos=. x=reasons 7 v=several s= n=The ncap	
+s	sn eos=. x=start 5 v=the s= n=The ncap	
+s	sn eos=. x=times 5 v=three s= n=Costs ncap	
+n	eos=. x=1 1 v=from s=2 n=to	
+n	eos=. x=3 1 v=to s=4 n=million.	
+s	sn eos=. x=million 7 v=3.4 s= n=Nobody ncap	
+s	sn eos=. x=time 4 v=in s= n=Mr. ncap	
+n	sn eos=. x=Mr 2 xcap v=time. s= n=Clark, ncap	
+s	sn eos=. x=June 4 xcap v=in s= n=His ncap	
+s	sn eos=. x=project 7 v=the s= n=It ncap	
+s	sn eos=. x=late 4 v=too s= n=The ncap	
+s	sn eos=. x=schools 7 v=business s= n=	
+n	eos=. x=a 1 v=8 s=m n=and	
+n	sn eos=. x=.m 2 v=a s= n=and	
+n	eos=. x=p 1 v=8 s=m n=It ncap	
+s	sn eos=. x=.m 2 v=p s= n=It ncap	
+s	sn eos=. x=books 5 v=200,000 s= n=There ncap	
+s	sn eos=. x=newspapers 10 v=of s= n=Students ncap	
+s	sn eos=. x=day 3 v=every s= n=The ncap	
+s	sn eos=. x=popular 7 v=is s= n=Its ncap	
+n	eos=. x=1 1 v=only s=80 n=euros.	
+s	sn eos=. x=euros 5 v=1.80 s= n=Dr. ncap	
+n	sn eos=. x=Dr 2 xcap v=euros. s= n=Kim ncap	
+s	sn eos=. x=department 10 v=books s= n=She ncap	
+s	sn eos=. x=1462 4 v=from s= n=Photography ncap	
+s	sn eos=. x=there 5 v=allowed s= n=Please ncap	
+s	sn eos=. x=help 4 v=for s= n=	
+s	sn eos=! x=me 2 v=for s= n=I ncap	
+s	sn eos=. x=minutes 7 v=five s= n=Please ncap	
+s	sn eos=. x=me 2 v=without s= n=The ncap	
+n	eos=. x=6 1 v=at s=15 n=tonight.	
+s	sn eos=. x=tonight 7 v=6.15 s= n=We ncap	
+s	sn eos=. x=it 2 v=miss s= n=The ncap	
+s	sn eos=. x=tomorrow 8 v=until s= n=Have ncap	
+s	sn eos=? x=tickets 7 v=the s= n=Yes, ncap	
+s	sn eos=. x=bag 3 v=my s= n=Good, ncap	
+s	sn eos=. x=ready 5 v=are s= n=Let ncap	
+s	sn eos=. x=go 2 v=us s= n=	
+n	eos=. x=U 1 xcap v=the s=S scap n=institute	
+n	sn eos=. x=.S 2 v=U vcap s= n=institute	
+s	sn eos=. x=vaccine 7 v=new s= n=The ncap	
+s	sn eos=. x=volunteers 10 v=3,000 s= n=Results ncap	
+s	sn eos=. x=journal 7 v=medical s= n=The ncap	
+n	eos=. x=94 2 v=was s=5 n=percent	
+s	sn eos=. x=effective 9 v=percent s= n=Side ncap	
+n	eos=. x=e 1 v=mild, s=g n=a	
+n	sn eos=. x=.g 2 v=e s= n=a	
+s	sn eos=. x=headache 8 v=a s= n=Regulators ncap	
+s	sn eos=. x=data 4 v=the s= n=A ncap	
+s	sn eos=. x=months 6 v=within s= n=Prof. ncap	
+n	sn eos=. x=Prof 4 xcap v=months. s= n=Ito ncap	
+s	sn eos=. x=study 5 v=the s= n=She ncap	
+s	sn eos=. x=encouraging 11 v=very s= n=Further ncap	
+s	sn eos=. x=follow 6 v=will s= n=	
+n	sn eos=. x=etc 3 v=Mozart, vcap s= n=at	
+s	sn eos=. x=festival 8 v=the s= n=The ncap	
+s	sn eos=. x=days 4 v=ten s= n=Concerts ncap	
+s	sn eos=. x=churches 8 v=and s= n=Most ncap	
+s	sn eos=. x=free 4 v=are s= n=Last ncap	
+s	sn eos=. x=attended 8 v=people s= n=The ncap	
+s	sn eos=. x=year 4 v=this s= n=Mrs. ncap	
+n	sn eos=. x=Mrs 3 xcap v=year. s= n=Novak ncap	
+s	sn eos=. x=concert 7 v=opening s= n=Tickets ncap	
+s	sn eos=. x=hour 4 v=an s= n=A ncap	
+s	sn eos=. x=live 4 v=concert s= n=Bring ncap	
+s	sn eos=. x=picnic 6 v=a s= n=	
+n	eos=. x=19 2 v=paid s=99 n=dollars	
+s	sn eos=. x=book 4 v=the s= n=It ncap	
+s	sn eos=. x=cent 4 v=every s= n=The ncap	
+s	sn eos=. x=village 7 v=small s= n=A ncap	
+s	sn eos=. x=key 3 v=old s= n=Nobody ncap	
+s	sn eos=. x=opens 5 v=it s= n=She ncap	
+s	sn eos=. x=village 7 v=whole s= n=In ncap	
+s	sn eos=. x=door 4 v=hidden s= n=What ncap	
+s	sn eos=? x=it 2 v=behind s= n=You ncap	
+s	sn eos=. x=book 4 v=the s= n=I ncap	
+s	sn eos=! x=you 3 v=tell s= n=	
+n	sn eos=. x=Dr 2 xcap v= s= n=Rossi ncap	
+n	sn eos=. x=Prof 4 xcap v=and s= n=Weber ncap	
+s	sn eos=. x=together 8 v=report s= n=It ncap	
+s	sn eos=. x=2020 4 v=to s= n=The ncap	
+s	sn eos=. x=simple 6 v=is s= n=Cities ncap	
+s	sn eos=. x=villages 8 v=than s= n=Young ncap	
+s	sn eos=. x=countryside 11 v=the s= n=Older ncap	
+s	sn eos=. x=behind 6 v=stayed s= n=Shops ncap	
+s	sn eos=. x=places 6 v=many s= n=Some ncap	
+s	sn eos=. x=empty 5 v=almost s= n=The ncap	
+n	eos=. x=e 1 v=measures, s=g n=better	
+n	sn eos=. x=.g 2 v=e s= n=better	
+s	sn eos=. x=internet 8 v=better s= n=The ncap	
+s	sn eos=. x=them 4 v=studying s= n=	
+s	sn eos=. x=4 1 v=platform s= n=It ncap	
+n	eos=. x=2 1 v=about s=5 n=hours.	
+s	sn eos=. x=hours 5 v=2.5 s= n=There ncap	
+s	sn eos=. x=board 5 v=on s= n=Seats ncap	
+s	sn eos=. x=online 6 v=reserved s= n=First ncap	
+s	sn eos=. x=euros 5 v=89 s= n=Second ncap	
+s	sn eos=. x=euros 5 v=49 s= n=Children ncap	
+s	sn eos=. x=price 5 v=half s= n=Dogs ncap	
+s	sn eos=. x=lead 4 v=a s= n=Bicycles ncap	
+s	sn eos=. x=advance 7 v=in s= n=Have ncap	
+s	sn eos=! x=journey 7 v=pleasant s= n=	
+end	turbo:events
+layer	turbo:event-checksum	document	1	crc32c:u32
+4204752117
+end	turbo:event-checksum
+layer	turbo:indexer-outcomes	document	2	label:str
+n
+s
+end	turbo:indexer-outcomes
+layer	turbo:indexer-predicates	document	551	label:str	count:u32
+1	28
+10	5
+11	3
+2	40
+3	17
+4	50
+5	37
+6	33
+7	38
+8	19
+9	12
+eos=!	5
+eos=.	271
+eos=?	6
+n=	21
+n=0.	1
+n=4	1
+n=A	3
+n=Adams	2
+n=Add	1
+n=After	1
+n=Analysts	1
+n=Another	1
+n=Applications	1
+n=At	1
+n=Bicycles	1
+n=Both	1
+n=Bring	2
+n=Brown	2
+n=Buses	1
+n=By	1
+n=Children	2
+n=Cities	1
+n=Clark,	1
+n=Commuters	1
+n=Concerts	1
+n=Cook	1
+n=Costs	1
+n=Did	1
+n=Doctors	1
+n=Dogs	1
+n=Dr.	3
+n=Entry	1
+n=Everyone	2
+n=Exports	1
+n=Farmers	1
+n=First	1
+n=Forecasters	1
+n=From	1
+n=Further	1
+n=Good,	1
+n=Green	1
+n=Have	2
+n=He	5
+n=Heat	1
+n=Her	2
+n=His	1
+n=I	3
+n=Imports	1
+n=In	1
+n=It	14
+n=Ito	1
+n=Its	2
+n=Jones	2
+n=Kim	1
+n=Last	2
+n=Later	1
+n=Lee,	1
+n=Let	2
+n=Many	1
+n=Markets	1
+n=Martin	2
+n=Mary's	1
+n=Mix	1
+n=More	1
+n=Most	2
+n=Mr.	3
+n=Mrs.	2
+n=Nobody	5
+n=Novak	1
+n=Older	1
+n=On	2
+n=One	2
+n=Others	1
+n=Patel,	1
+n=Photography	1
+n=Please	2
+n=Pour	1
+n=Prices	1
+n=Prof.	3
+n=Regulators	1
+n=Results	1
+n=Roads	1
+n=Rossi	1
+n=Schools	1
+n=Seats	1
+n=Second	1
+n=Serve	1
+n=Several	1
+n=Shareholders	1
+n=She	5
+n=Shops	1
+n=Side	1
+n=Smith	1
+n=Some	6
+n=Stir	1
+n=Students	1
+n=Testing	1
+n=The	40
+n=Their	1
+n=Then	1
+n=There	5
+n=They	3
+n=Tickets	2
+n=Trains	1
+n=Users	1
+n=Visitors	1
+n=Volunteers	1
+n=We	1
+n=Weber	1
+n=What	1
+n=Who	1
+n=Yes,	1
+n=You	1
+n=Young	1
+n=a	2
+n=and	4
+n=announced	1
+n=at	1
+n=because	2
+n=berries	2
+n=better	2
+n=cups	1
+n=degrees	1
+n=dollars	1
+n=euros	1
+n=euros.	1
+n=government	2
+n=hours.	1
+n=in	4
+n=institute	2
+n=low	2
+n=million	1
+n=million.	1
+n=of	1
+n=on	4
+n=outside	2
+n=percent	3
+n=that	2
+n=to	1
+n=tonight.	1
+n=west	2
+ncap	211
+s=	249
+s=0	1
+s=1	1
+s=15	1
+s=2	3
+s=3	1
+s=4	2
+s=5	5
+s=50	1
+s=80	1
+s=99	1
+s=S	3
+s=e	2
+s=g	4
+s=m	7
+scap	3
+sn	249
+v=	6
+v=1.80	1
+v=10	1
+v=120	1
+v=12th	1
+v=15	1
+v=2.5	1
+v=20	1
+v=200,000	1
+v=27	1
+v=3	4
+v=3,000	1
+v=3.2	1
+v=3.4	1
+v=30	2
+v=4	1
+v=45	1
+v=49	1
+v=50th	1
+v=6.15	1
+v=7	1
+v=8	3
+v=89	1
+v=9	1
+v=90	1
+v=Acme	1
+v=Baker	1
+v=Mozart,	1
+v=The	1
+v=U	3
+v=Version	1
+v=a	13
+v=about	1
+v=after	1
+v=allowed	1
+v=almost	1
+v=already	2
+v=an	2
+v=ancient	1
+v=and	4
+v=any	1
+v=applauded	1
+v=are	5
+v=asked	1
+v=at	2
+v=be	2
+v=behind	1
+v=better	1
+v=books	1
+v=brown	1
+v=business	1
+v=by	2
+v=cake.	1
+v=clinic	1
+v=closed	1
+v=comfortable	1
+v=concert	1
+v=cost	1
+v=daisies,	1
+v=degrees	1
+v=did	1
+v=e	4
+v=empire.	1
+v=ends	1
+v=enough.	1
+v=euros.	1
+v=every	4
+v=executive,	1
+v=family	1
+v=five	2
+v=for	6
+v=from	2
+v=fruit,	1
+v=guests	1
+v=half	1
+v=happy	1
+v=help,	1
+v=hidden	1
+v=home	1
+v=hour	1
+v=hours.	1
+v=i	2
+v=in	10
+v=interest	1
+v=is	3
+v=it	2
+v=large	1
+v=left	1
+v=local	1
+v=long	1
+v=many	1
+v=measures,	1
+v=medical	1
+v=medium	1
+v=metres	1
+v=mild,	1
+v=million	1
+v=minus	1
+v=minutes.	1
+v=miss	1
+v=months.	1
+v=museum	1
+v=my	1
+v=nearby	1
+v=needs	1
+v=new	2
+v=next	3
+v=numbered	1
+v=of	3
+v=old	3
+v=old.	1
+v=on	5
+v=only	1
+v=opening	1
+v=or	1
+v=p	4
+v=paid	1
+v=paint,	1
+v=pancakes	1
+v=people	1
+v=percent	2
+v=platform	1
+v=pleasant	1
+v=profits	1
+v=project	1
+v=reacted	1
+v=reduced	1
+v=report	1
+v=reported	1
+v=reserved	1
+v=retired	1
+v=running	1
+v=several	3
+v=short	1
+v=six	1
+v=slightly,	1
+v=small	3
+v=smaller	1
+v=sounds	1
+v=stay	1
+v=stayed	1
+v=studying	1
+v=suitcase.	1
+v=tell	1
+v=ten	1
+v=than	3
+v=that	1
+v=the	18
+v=their	1
+v=third	1
+v=this	1
+v=three	1
+v=time.	1
+v=to	6
+v=too	1
+v=two	3
+v=universities,	1
+v=until	2
+v=us	1
+v=very	2
+v=warm	1
+v=was	2
+v=west	1
+v=whole	3
+v=will	1
+v=within	1
+v=without	1
+v=year.	1
+v=years	1
+vcap	8
+x=.0	1
+x=.1	1
+x=.2	1
+x=.S	3
+x=.e	2
+x=.g	4
+x=.m	7
+x=0	1
+x=1	2
+x=12	2
+x=1462	1
+x=19	1
+x=1998	1
+x=2	3
+x=2020	1
+x=3	3
+x=4	2
+x=6	1
+x=94	1
+x=Boston	1
+x=Dr	5
+x=Friday	1
+x=Inc	1
+x=January	1
+x=June	1
+x=London	1
+x=March	1
+x=May	1
+x=Monday	1
+x=Mr	5
+x=Mrs	4
+x=Prof	5
+x=Rome	1
+x=Saturday	1
+x=St	2
+x=Sunday	1
+x=Thursday	1
+x=Tuesday	1
+x=U	3
+x=a	3
+x=adults	1
+x=advance	1
+x=afternoon	1
+x=again	2
+x=agreement	1
+x=anniversary	1
+x=attended	1
+x=bag	1
+x=bananas	1
+x=batter	1
+x=begun	1
+x=behind	1
+x=board	1
+x=book	2
+x=books	1
+x=bugs	1
+x=cake	1
+x=calmly	1
+x=came	1
+x=car	1
+x=cent	1
+x=century	1
+x=change	1
+x=changes	1
+x=churches	1
+x=clinic	1
+x=coast	1
+x=college	1
+x=concert	1
+x=countries	1
+x=countryside	1
+x=crops	1
+x=damaged	1
+x=data	1
+x=day	2
+x=days	1
+x=department	1
+x=dividend	1
+x=dollars	1
+x=door	1
+x=e	4
+x=early	1
+x=economists	1
+x=effective	1
+x=eggs	1
+x=empire	1
+x=empty	1
+x=encouraging	1
+x=enough	1
+x=etc	3
+x=euros	3
+x=everyone	1
+x=fail	1
+x=festival	1
+x=follow	1
+x=free	2
+x=garden	1
+x=glass	1
+x=go	1
+x=government	1
+x=headache	1
+x=heat	1
+x=help	2
+x=high	1
+x=higher	1
+x=hour	1
+x=hours	3
+x=i	2
+x=indoors	1
+x=instead	1
+x=internet	1
+x=it	2
+x=journal	1
+x=journey	1
+x=key	1
+x=late	1
+x=later	1
+x=lead	1
+x=live	1
+x=loans	1
+x=loudly	1
+x=machinery	1
+x=maps	1
+x=me	2
+x=melted	1
+x=midnight	1
+x=million	1
+x=minute	1
+x=minutes	4
+x=month	1
+x=months	2
+x=much	1
+x=newspapers	1
+x=not	1
+x=old	1
+x=once	1
+x=online	1
+x=open	1
+x=opens	1
+x=overnight	1
+x=p	4
+x=pages	1
+x=parsed	1
+x=party	1
+x=patient	1
+x=percent	2
+x=picnic	1
+x=places	1
+x=planned	1
+x=platform	1
+x=pond	1
+x=popular	1
+x=price	1
+x=problems	1
+x=project	2
+x=quarter	1
+x=questions	1
+x=ready	1
+x=reasons	1
+x=region	1
+x=remember	1
+x=reporters	1
+x=salt	1
+x=schools	1
+x=shoes	1
+x=simple	1
+x=smooth	1
+x=soon	1
+x=speech	1
+x=start	1
+x=story	1
+x=strike	1
+x=study	1
+x=suitcase	1
+x=summer	1
+x=surprises	1
+x=teacher	1
+x=that	1
+x=them	1
+x=then	1
+x=there	1
+x=tickets	1
+x=time	3
+x=times	1
+x=timetable	1
+x=together	1
+x=tomorrow	1
+x=tonight	1
+x=town	1
+x=towns	1
+x=usual	1
+x=vaccine	1
+x=valley	1
+x=village	2
+x=villages	2
+x=visible	1
+x=volunteers	1
+x=wait	1
+x=warm	1
+x=website	1
+x=week	2
+x=weekdays	1
+x=weeks	1
+x=welcome	1
+x=winter	1
+x=wonderful	1
+x=year	1
+x=years	3
+x=yesterday	1
+x=you	1
+xcap	38
+end	turbo:indexer-predicates
+layer	turbo:indexer-events	document	282	outcome:u32	context:str	values:str	seen:u32
+0	169 12 369 3 550 170 153 103 152		1
+0	12 379 0 193 167 145		1
+0	169 12 346 3 201 153 145		1
+1	169 12 368 7 550 281 153 53 152		1
+1	169 12 513 9 219 153 41 152		1
+0	169 12 360 3 550 312 153 28 152		1
+1	169 12 489 9 317 153 112 152		1
+1	169 12 399 4 317 153 108 152		1
+1	169 12 468 8 186 153 77 152		1
+0	169 12 370 4 550 268 153 28 152		1
+1	169 12 431 9 240 153 20 152		1
+1	169 12 494 8 317 153 108 152		1
+0	12 353 0 331 160 142		1
+1	169 12 418 8 266 153 78 152		1
+1	169 12 428 7 215 153 89 152		1
+0	169 12 371 5 550 234 153 51 152		1
+0	12 480 0 180 167 148		1
+0	169 12 346 3 285 153 148		1
+1	169 12 382 10 316 153 14		1
+0	12 378 0 550 198 339 164 168 137		1
+0	169 12 343 3 199 339 153 137		1
+1	169 12 377 8 550 281 153 44 152		1
+0	12 356 0 221 157 147		1
+1	169 12 495 8 319 153 58 152		1
+0	12 420 0 305 166 139		1
+0	169 12 345 3 231 153 139		1
+1	169 12 461 10 209 153 21 152		1
+1	169 12 402 7 307 153 108 152		1
+1	169 12 481 6 173 153 60 152		1
+1	169 12 422 1 175 153 104 152		1
+0	12 447 0 326 165 146		1
+0	169 12 344 3 251 153 146		1
+1	169 12 439 1 317 153 108 152		1
+1	169 12 366 6 550 252 153 70 152		1
+1	169 12 397 7 295 153 88 152		1
+0	12 347 0 224 158 147		1
+1	169 12 444 7 290 153 14		1
+0	169 12 374 3 550 196 339 153 139		1
+1	169 12 365 7 550 252 153 55 152		1
+1	169 12 516 8 300 153 112 152		1
+1	169 12 436 7 317 153 108 152		1
+0	169 12 429 4 228 153 126		1
+1	169 12 490 5 306 153 65 152		1
+1	169 12 363 8 550 252 153 108 152		1
+1	169 12 540 5 201 153 110 152		1
+1	169 12 383 6 330 153 43 152		1
+1	169 12 464 7 255 153 38 152		1
+1	169 13 544 7 201 153 57 152		1
+1	169 11 473 4 230 153 14		1
+0	12 355 0 200 339 155 16		1
+0	12 341 3 180 159 144		1
+1	169 12 395 5 302 153 108 152		1
+1	169 12 403 8 179 153 82 152		1
+1	169 12 482 7 212 153 22 152		1
+1	169 12 485 8 184 153 115 152		1
+1	169 12 547 6 240 153 108 152		1
+1	169 12 493 9 298 153 108 152		1
+0	12 355 0 277 157 15		1
+0	12 342 3 180 154 60 152		1
+1	169 12 340 3 182 153 60 152		1
+1	169 12 542 6 304 153 107 152		1
+1	169 12 390 6 206 153 117 152		1
+1	169 12 442 5 323 153 14		1
+1	169 13 477 5 271 153 60 152		1
+0	12 379 0 172 167 145		1
+0	169 12 346 3 201 153 145		1
+1	169 12 541 9 281 153 81 152		1
+1	169 12 456 6 249 153 113 152		1
+0	12 349 3 227 161 135		1
+1	169 12 380 7 240 153 31 152		1
+1	169 12 435 5 240 153 108 152		1
+1	169 12 462 5 279 153 104 152		1
+1	169 12 474 4 338 153 76 152		1
+0	169 12 369 3 550 280 153 67 152		1
+1	169 12 361 7 550 236 153 108 152		1
+1	169 12 468 8 194 153 27 152		1
+1	169 11 504 6 225 153 14		1
+0	169 12 362 4 550 195 339 153 127		1
+1	169 12 548 10 293 153 108 152		1
+0	169 12 429 4 287 153 139		1
+1	169 12 409 10 184 153 62 152		1
+0	169 12 370 4 550 237 153 84 152		1
+1	169 12 501 10 323 153 100 152		1
+1	169 12 488 8 315 153 108 152		1
+1	169 12 485 8 191 153 104 152		1
+1	169 12 475 5 214 153 83 152		1
+1	169 12 537 5 323 153 108 152		1
+1	169 12 367 4 550 252 153 99 152		1
+1	169 12 417 9 275 153 78 152		1
+1	169 12 515 10 210 153 14		1
+0	12 480 0 185 167 129		1
+0	169 12 346 3 285 153 129		1
+1	169 12 511 7 317 153 114 152		1
+1	169 12 499 7 333 153 69 152		1
+1	169 12 449 8 248 153 92 152		1
+1	169 12 530 6 315 153 108 152		1
+1	169 12 484 8 215 153 30 152		1
+1	169 12 383 6 301 153 108 152		1
+1	169 12 540 5 276 153 34 152		1
+1	169 12 507 5 233 153 60 152		1
+1	169 12 470 7 325 153 26 152		1
+1	169 12 384 10 207 153 14		1
+0	169 12 360 3 550 170 153 18 152		1
+1	169 12 359 7 550 252 153 66 152		1
+0	12 378 0 550 317 164 168 151		1
+0	169 12 343 3 199 339 153 151		1
+1	169 12 406 6 332 153 111 152		1
+1	169 12 405 7 306 153 108 152		1
+1	169 12 414 4 201 153 75 152		1
+1	169 12 534 9 273 153 104 152		1
+1	169 12 446 6 325 153 41 152		1
+0	169 12 360 3 550 250 153 18 152		1
+1	169 12 407 8 258 153 55 152		1
+1	169 12 471 5 329 153 100 152		1
+1	169 12 547 6 239 153 121 152		1
+1	169 13 519 5 223 153 14		1
+0	12 353 0 274 160 132		1
+1	169 12 424 5 180 153 73 152		1
+1	169 12 502 5 278 153 19 152		1
+1	169 12 522 5 201 153 105 152		1
+1	169 12 506 7 254 153 68 152		1
+1	169 12 468 8 177 153 54 152		1
+1	169 12 441 5 263 153 87 152		1
+1	169 12 389 7 278 153 36 152		1
+1	169 12 467 7 201 153 97 152		1
+1	169 12 538 5 288 153 112 152		1
+0	12 420 0 242 166 130		1
+0	169 12 345 3 231 153 130		1
+1	169 12 388 8 284 153 14		1
+0	169 12 371 5 550 170 153 71 152		1
+1	169 12 372 5 550 208 153 108 152		1
+0	12 480 0 190 167 53 152		1
+1	169 12 346 3 285 153 53 152		1
+1	169 12 446 6 325 153 78 152		1
+1	169 12 421 6 257 153 24 152		1
+1	169 12 460 7 211 153 98 152		1
+1	169 12 496 10 213 153 82 152		1
+1	169 12 425 7 317 153 89 152		1
+0	169 12 371 5 550 232 153 71 152		1
+1	169 12 510 6 259 153 53 152		1
+1	169 12 522 5 276 153 108 152		1
+1	169 12 376 9 550 281 153 14		1
+0	169 12 374 3 550 170 153 72 152		1
+1	169 12 528 5 279 153 60 152		1
+1	169 12 401 8 174 153 108 152		1
+1	169 12 443 5 264 153 116 152		1
+1	169 12 514 7 252 153 48 152		1
+1	169 12 532 7 333 153 81 152		1
+1	169 12 535 8 212 153 108 152		1
+1	169 12 375 7 550 236 153 42 152		1
+1	169 12 543 8 212 153 108 152		1
+1	169 12 352 5 252 153 60 152		1
+1	169 12 545 10 308 153 14		1
+0	169 12 369 3 550 170 153 126		1
+0	169 12 370 4 550 209 153 63 152		1
+1	169 12 385 2 188 153 109 152		1
+1	169 12 483 6 201 153 74 152		1
+1	169 12 398 5 243 153 111 152		1
+1	169 12 396 5 256 153 76 152		1
+0	169 12 369 3 550 222 153 63 152		1
+1	169 12 508 7 303 153 53 152		1
+1	169 12 547 6 245 153 43 152		1
+1	169 12 437 6 201 153 108 152		1
+1	169 12 465 9 327 153 60 152		1
+1	169 12 500 9 323 153 108 152		1
+1	169 12 539 8 238 153 14		1
+0	12 349 3 267 160 133		1
+1	169 12 479 10 229 153 94 152		1
+1	169 12 529 6 302 153 29 152		1
+1	169 12 524 10 296 153 39 152		1
+1	169 12 448 8 309 153 108 152		1
+1	169 12 373 9 550 221 153 47 152		1
+1	169 12 517 5 203 153 45 152		1
+1	169 12 411 6 318 153 104 152		1
+1	169 12 412 8 206 153 108 152		1
+0	12 447 0 246 165 141		1
+0	169 12 344 3 251 153 141		1
+1	169 12 459 6 253 153 23 152		1
+1	169 12 469 6 276 153 14		1
+1	169 13 432 5 294 153 111 152		1
+1	169 12 498 8 302 153 108 152		1
+1	169 12 509 6 317 153 108 152		1
+1	169 12 523 6 321 153 37 152		1
+0	12 348 0 241 157 149		1
+0	12 355 0 323 159 143		1
+1	169 12 466 8 183 153 78 152		1
+1	169 12 522 5 252 153 76 152		1
+0	169 12 369 3 550 322 153 33 152		1
+1	169 12 364 5 550 252 153 56 152		1
+1	169 12 494 8 317 153 60 152		1
+1	169 12 455 5 324 153 108 152		1
+1	169 12 503 8 220 153 14		1
+0	12 379 0 191 167 126		1
+0	169 12 346 3 201 153 126		1
+0	12 480 0 191 167 60 152		1
+1	169 12 346 3 285 153 60 152		1
+1	169 12 394 6 178 153 111 152		1
+1	169 12 472 1 278 153 106 152		1
+1	169 12 414 4 236 153 108 152		1
+1	169 12 491 8 254 153 62 152		1
+0	12 348 0 282 162 136		1
+1	169 12 430 6 171 153 41 152		1
+0	169 12 360 3 550 235 153 64 152		1
+1	169 12 416 1 218 153 100 152		1
+1	169 12 350 5 241 153 85 152		1
+1	169 12 520 6 204 153 86 152		1
+1	169 12 442 5 240 153 14		1
+1	169 11 463 3 240 153 57 152		1
+1	169 12 468 8 239 153 86 152		1
+1	169 12 463 3 336 153 108 152		1
+0	12 357 0 214 156 150		1
+1	169 12 527 8 189 153 118 152		1
+1	169 12 451 3 269 153 108 152		1
+1	169 12 526 9 327 153 52 152		1
+1	169 13 521 8 317 153 122 152		1
+1	169 12 387 4 272 153 50 152		1
+1	169 12 497 6 212 153 68 152		1
+1	169 12 438 3 328 153 14		1
+0	12 378 0 550 317 164 168 140		1
+0	169 12 343 3 199 339 153 140		1
+1	169 12 531 8 275 153 108 152		1
+1	169 12 536 1 181 153 91 152		1
+1	169 12 452 8 262 153 108 152		1
+0	12 358 3 331 160 147		1
+1	169 12 423 10 290 153 102 152		1
+0	12 420 0 265 166 125		1
+0	169 12 345 3 231 153 125		1
+1	169 12 440 9 201 153 90 152		1
+1	169 12 413 5 317 153 17 152		1
+1	169 12 470 7 335 153 89 152		1
+0	169 12 371 5 550 270 153 61 152		1
+1	169 12 512 6 317 153 100 152		1
+1	169 12 427 2 329 153 49 152		1
+1	169 12 434 7 334 153 14		1
+0	169 12 429 4 197 339 153 128		1
+1	169 12 433 9 317 153 108 152		1
+1	169 12 415 5 314 153 35 152		1
+1	169 12 404 9 209 153 75 152		1
+1	169 12 435 5 212 153 65 152		1
+1	169 12 386 9 289 153 108 152		1
+1	169 12 546 5 320 153 77 152		1
+0	169 12 370 4 550 337 153 79 152		1
+1	169 12 408 8 283 153 113 152		1
+1	169 12 445 5 207 153 17 152		1
+1	169 12 458 5 226 153 27 152		1
+1	169 12 486 7 201 153 14		1
+0	12 351 3 286 163 134		1
+1	169 12 393 5 317 153 60 152		1
+1	169 12 400 5 236 153 108 152		1
+1	169 12 533 8 306 153 17 152		1
+1	169 12 454 4 279 153 78 152		1
+1	169 12 478 6 255 153 100 152		1
+1	169 12 533 8 333 153 59 152		1
+1	169 12 419 5 247 153 120 152		1
+1	169 13 451 3 216 153 123 152		1
+1	169 12 393 5 317 153 57 152		1
+1	169 11 549 4 313 153 14		1
+0	169 12 360 3 550 170 153 93 152		1
+0	169 12 371 5 550 209 153 119 152		1
+1	169 12 525 9 297 153 60 152		1
+1	169 12 354 5 323 153 108 152		1
+1	169 12 505 7 254 153 32 152		1
+1	169 12 534 9 315 153 124 152		1
+1	169 12 410 2 317 153 80 152		1
+1	169 12 391 7 310 153 101 152		1
+1	169 12 487 7 260 153 104 152		1
+1	169 12 426 6 205 153 108 152		1
+0	12 420 0 261 166 131		1
+0	169 12 345 3 231 153 131		1
+1	169 12 450 9 217 153 108 152		1
+1	169 12 518 5 311 153 14		1
+1	169 12 356 0 291 153 60 152		1
+0	12 353 0 202 160 138		1
+1	169 12 446 6 176 153 111 152		1
+1	169 12 392 6 281 153 95 152		1
+1	169 12 476 7 299 153 46 152		1
+1	169 12 430 6 192 153 96 152		1
+1	169 12 430 6 187 153 31 152		1
+1	169 12 492 6 244 153 40 152		1
+1	169 12 457 5 201 153 25 152		1
+1	169 12 381 8 252 153 52 152		1
+1	169 11 453 8 292 153 14		1
+end	turbo:indexer-events
+layer	turbo:gis-training	document	1	iterations:u32	message:str
+100	Training finished after completing 100 iterations successfully.
+end	turbo:gis-training
+layer	turbo:gis-iterations	document	100	iteration:u32	likelihood:f64	correct:u32	events:u32	parameters:str
+1	c0686ef5ccdfa3df -195.46750491790496	72	282	68328db16bac10ed3f6de55e7a9530fc2711651473d34e2a0747b3ebadc44d4e
+2	c05c33e787209b28 -112.8110063379687	243	282	d396bad8f8f24ae1e0d76199e6d6fd3f2e2ed5018a0e554cf9c03877afdb619e
+3	c054c6f0244817f2 -83.10840708771119	257	282	fa3b0ad2a0bfbe06f9bb83abfb45c8f5e5e40cfba1f40905d785ac3bd8b1628b
+4	c0507bf209f4b4a9 -65.93664788147966	273	282	017bcd2fee0a8487ff57f9251bd5251c1d1c60cbdbe56e86399ad16cb2c59960
+5	c04b4a97418ead9f -54.58274096934041	277	282	b5c599092cff0fd6f92875e2ef92ea8c3bf03acb5b6c4d0eb17fa1601680a61f
+6	c04744ae4a62fa13 -46.536568926170865	277	282	a3e1af3fac4079baa575ff8edfe0d039f537bff1ad062b84ee4d1e0e0e018b38
+7	c04446863f5859a7 -40.55097190679526	282	282	c9b89d30ac3b898d92241a54e43464d64cc1df6fb030d9467b8ff5dd82b4db9e
+8	c041f719d72dbb5a -35.93047609074593	282	282	cd8b62458dcae5b5301d203873cb4e0862e85ab5967bcdc57304327dd1025c1c
+9	c04021102a40bcde -32.25830581818603	282	282	2cb9b7533615953af0bad22c078ca7bf1d22f5c9bf38c79f056dadfdf15eff2b
+10	c03d4544158e84b9 -29.270570132536452	282	282	7c71aed048b44e6f0135ae0bc5966f2a7195be2a2446614d7340d0f8907e0d67
+11	c03acae326be9d3d -26.79252855447452	282	282	b01ef9ea00cbe6d89d4c846e001b56e98d33fb2477408421452f685683da97a6
+12	c038b43e6f1962b9 -24.704077666948	282	282	e5ebf679414e120504e6207249cf825af7bb1b3cfe7a1854a377cb44969b7d10
+13	c036eb870179faa9 -22.920028774528564	282	282	3f2aea2b21cf74527c2383f340bf4c1a5ed3b7f0a63f24e5967b9bc8e2c1cc3f
+14	c03560d93e165435 -21.3783148579134	282	282	96aa26968523de86684d6518df2143e477fa2574c9b4f4a9591adf0a0c9c4544
+15	c034085c51c1a175 -20.032658681653135	282	282	4ccc134b2bdfaec3162b8bc7c98d503aa261e7fbece18cde47f9c8a769e3d821
+16	c032d90d316a313b -18.84785755961023	282	282	0373f22af483aabf50047cb2df76e08209fbdce2fc0c1edbfcb16e162c1fc508
+17	c031cbf1e47feb10 -17.79665973780635	282	282	7457ddb9a292fe18e1209ff010b3c59dc0a55c3ae17e2bf61c2177cffc7d2a76
+18	c030db8e524bcea3 -16.85764040327798	282	282	dd582d63f75f1fd282530e79571d09afa69a1eb6375c5e4f5579228a88257191
+19	c030038363b9fc32 -16.01372359553006	282	282	7b68e996e22058354f3fa4d564fa1fe561cdbe38c49283520129d4e52f8ffef0
+20	c02e809465279a4d -15.251132165035552	282	282	27d0066adee507b97684dcb1313050969582046f0bef232b8e0ee912d74c9e98
+21	c02d1e047a4b2a78 -14.558627912211918	282	282	34a330c3b4536a296f079c4f9d6b3420693ca505fee206328a044891b10a910c
+22	c02bda9984b53f67 -13.926952502369842	282	282	2b1d2aa44abcac1600cacdd70e162216fa15c62d3b951f6c46497d971f807738
+23	c02ab262c7c4be5e -13.34840988423019	282	282	763bef1f24a6275f0eeec445b25e144ee940a32523e046e26b2d76c4708cd785
+24	c029a212db7f3172 -12.816550120617396	282	282	df78e71d1f40646cbb312d35241ad556dd7bfa1b3ba9dbb1fc124690293bd301
+25	c028a6dfe7d69de6 -12.325927014301623	282	282	c56eef401d0b3e5d00d63cb2cc14c8f68ce7ff558e99c85e07ea1e461a6be9c9
+26	c027be6b03040510 -11.871910185089774	282	282	19dd628031f7ed43f9a756585088151cce5f4d8dcb6541199d1fa90a2a599728
+27	c026e6ace554c8eb -11.450537840461456	282	282	5b03bae7f8fb55eeed2ff9aa2144934685d91181783150b5079d9eee3e990fc3
+28	c0261de6a574bb6b -11.058400316714787	282	282	e60c63a50b9c72560889d6ce8543e77e30ac175bdbbf0a60398a40f99391dc18
+29	c025629589ec8316 -10.69254714023695	282	282	2bb0daa712be6230e2b065dfcc295087496c025ade22cb6f5d00c5ad7a8bc036
+30	c024b3693bef4436 -10.350412247617083	282	282	c2b5254684b7e6c4319fb3abee59c85a705e4ab212aec79015a7942aa0bff61a
+31	c0240f3bd4f68377 -10.029753356067642	282	282	28c0755af064cf44d377d0754ecefd99d511c619956beb4473edc179367409b0
+32	c023750b619121c7 -9.728602456060697	282	282	88409ad0fc789b2f1d240fd793f389d984a81dc7a0d504a1a9661486ac816fee
+33	c022e3f48be73a13 -9.445225116706785	282	282	bbec3e6387b5057b5a4594379522aed5ec6af39c204cd8f28ed9582af8045404
+34	c0225b2e3250cd9b -9.178086826671281	282	282	c8b090d40e69b31062bbe86e5aa259f2c40d5ee47b0e2201187fa9986662e6f7
+35	c021da05bbb8e5dc -8.92582499153189	282	282	586b8799b3ac96d1923cf32b82889eae556655b482c7768a9aa1121f16d58144
+36	c0215fdc059c2ed2 -8.687225508990569	282	282	4dd3057979f1b539976e159a56f68ff1b48590468ef947adb10a849af41df5e6
+37	c020ec22cf1f5a9a -8.461203072144873	282	282	8f6cb00dd161c16b14c52efaed39339a3a889a274fde0948e3bca6f8184ddc2a
+38	c0207e5a8a9e0e57 -8.246784526628444	282	282	f1b75f6b4c024fc5ffe10ab75340273f99216425e1a99a1db833e98cfc51b762
+39	c020161083a1b178 -8.043094743240303	282	282	4cb90a274889a1052deeef8bd2277abce538188e2acd35bfcd26321131a51016
+40	c01f65ba957867e3 -7.8493445734729645	282	282	65251b59f1357562d233f9e71c37a7caa4a78c8cc3152501c7a355e26035dfec
+41	c01ea8c6b7171c2e -7.664820538316276	282	282	4f76bd6e9313500010f7ea1c311b3eb98c36d83f0fc71131a0fb1e9095f7a1d7
+42	c01df49be6ba871a -7.48887596620059	282	282	34268fad5d3d07cde944623b7368216508d5266c55fc55f6d48ae30d26de2d99
+43	c01d48a0214fd5d9 -7.320923347947848	282	282	4b01f7af1741624b2ac4369e5526a7fd40c35222a812765c493947ebb9b282cd
+44	c01ca44729eb1163 -7.160427718136222	282	282	425997c11208affec0e98d83293c19ffa0f15f65662537589b4f447b03e85073
+45	c01c071107f039dd -7.006900905644639	282	282	1a5bd06bf5c693e5a5d2cad6e440c26d8c97bc30e19b03bcf4df20a88d1594d8
+46	c01b7088b6d23814 -6.859896523075822	282	282	61169c0e246b741bbcad332e69bbd295a9a2f45012406c67f4167f55b881e8b8
+47	c01ae043002082f5 -6.719005586609218	282	282	92ca5f19d71d1e48984faa52528df19f98a0e3907d4e1a65d48e0d4e9f3e018d
+48	c01a55dd79ce64b6 -6.583852675649885	282	282	0f8dbf6ec71d90c7d2d9a39ac05c5f615b211da4813bbb4da0d39a49136f91b9
+49	c019d0fda3997027 -6.45409255622875	282	282	edb7ecded4e1182d2fc74a8130f5c0fe7b34fd3d845dceda5a7ee6f9ec6330a0
+50	c01951501f42e05f -6.329407204109969	282	282	c51383f717be87781861e05acc5cc2593bb10954f895e7d25a5c2e017b270b85
+51	c018d687fff9e1df -6.2095031734720285	282	282	07f2504f76275091313327f54db90178a24d117e69ce905982d837ef7ddb0310
+52	c018605e2de1f5bf -6.094109265247822	282	282	35c4d6b7c114d565baffa241ac14cb944fb656e1b09fad60eb1ca3aaa2c4d11d
+53	c017ee90db162a4b -5.982974456050736	282	282	8e161c886864adaebb47ee224a8abd39b0b023d1b13e3256f1651225e1940bc1
+54	c01780e307ec1374 -5.875866054328856	282	282	e3e96083dd91bcfe4e67b1483ba052c645435c7686e15d31da77bbb7284f9470
+55	c017171c148bc3be -5.772568055182033	282	282	1838a5c0e637bf38d7a118512a60c7eb8169b2178a5d1279b696039715bfca1b
+56	c016b1075e374681 -5.672879669307464	282	282	f0bf956da118030202cfbb0033db96a247ab3def54d3fc9c112bcd2fe2999adb
+57	c0164e73e6d6921f -5.576614004942285	282	282	127b7cd57b6334a9c6b2a4dad8cf74bdb2891ef890e0c770653d92d6ecfa8ff1
+58	c015ef34058e6656 -5.483596884552375	282	282	e348701bfd69a254a4ab541a709540b042006fd8540ed90851451d068444fd0a
+59	c015931d1f52912b -5.393665780462736	282	282	c78547b5306541ee8573ed09904eedf72132f68033b33aec5f8520e93c0a2c4e
+60	c0153a076687e236 -5.30666885570877	282	282	3bf6f7c12305f5a10d85af3d65f19c75008bae3f6731b20e26a247a301401a85
+61	c014e3cda0e8a607 -5.222464098167172	282	282	d92a6e72403f8b003e3b856b1a81ba0063c7c04c38966d2113c550322b5fc1bd
+62	c014904cf2f8b1f6 -5.14091853754916	282	282	612ca301264ad050e9d9a7f3a1a4dd614a92ef60c02996bb66cf4e314ebb055e
+63	c0143f64b06c85fb -5.061907536147824	282	282	7aefa707840168fbd4f7d8a3805b05554185fff7eb40b9ef0ab8820f0fa1c7f0
+64	c013f0f630fa63f6 -4.985314145357725	282	282	6715c502ede5ef665fa3e41ffb63a4abfe4ea6c0a480a34b5b4b00fd12e784b6
+65	c013a4e4a91cef39 -4.911028520957012	282	282	26a3898282f564dfe33979d07b4d02168706abfe128ea0fc86dbd47d442dc043
+66	c0135b15065d5c41 -4.838947390983834	282	282	aa60cfec3fec417f1133c0641c111eb730e01e39a6f709ee63fdc8102c78fda6
+67	c013136dcec7bc6a -4.768973570767324	282	282	f17df7617524bb325fe297708638d3505695dc13f7978fa7807eed26366d60dd
+68	c012cdd70336d70e -4.701015520307704	282	282	641b3fefe8ea48f2290b13605e899b806dc6adb71a22af7197fb535b90af7143
+69	c0128a3a042e79f9 -4.634986939751337	282	282	d07aa4a057789cc7410fd09002d3cefb6d4b28f629b0275304a57446539e6264
+70	c01248817903726e -4.570806399188411	282	282	0cbfa3a8516a1198247ded59f0ef313273090693ac35213f6d28e44cf2f86a91
+71	c012089939179a45 -4.508396999421682	282	282	936b51e7ed8b851e758bfe221ec83f0463ac4e09ef82f38d97b07599a437197b
+72	c011ca6e36f6bd44 -4.447686060724042	282	282	5dc887f8c616142f31f78d645da406eac4caf55698e00b9489854f0e1da44a78
+73	c0118dee6d26a867 -4.38860483692597	282	282	399fb4d3fbfa0840fc5315c6a878616aacd5fac7dcffbbacba9d740a87153629
+74	c0115308cc819bb1 -4.331088252459197	282	282	7fab7af72ff81ce0a7ac3bdbb3d4cd40e6115fcf6ac06cbf0b36585c19e9eb11
+75	c01119ad2bf6a5ea -4.2750746602336935	282	282	330ecbef5f4acc150328bd783c4f5ee117f6e0247a4d2a4a8eb062b60ede4d43
+76	c010e1cc398f3f77 -4.220505618446501	282	282	9d8619b24928d1af533e3c30c29bce8806effba71a86857e9fa37b629faef9f5
+77	c010ab576c9cd6ff -4.167325684616798	282	282	fb51449baf27cee81d90a1cf060a7a0160a15ed081fe3d7536e21116169e6478
+78	c0107640f8f3fde5 -4.115482225315167	282	282	37132000ca0b843e3894c183300c47af27fd045d4e76923a58f3bed9895bda4a
+79	c010427bc31d8580 -4.064925240208481	282	282	bc69d0de8497d75e0de2a4d787fbcc7e167aef8c5a5792eb32db79a978e97e5d
+80	c0100ffb55683905 -4.015607199178935	282	282	059e0458f065eda5b57a5041cf1f495ce88413a0c48003e2de04cbfa1fba98d6
+81	c00fbd67ab8fec0f -3.9674828913971463	282	282	408b04b2110922e58c129931fff3d46257510b157535ca07b08922e0b544989b
+82	c00f5d33f8e18269 -3.9205092853374492	282	282	c797e1c70cfcd0078b299f1ea52662b755a542e694ccc475e75765a93f4a7d3d
+83	c00eff46163c3fdb -3.8746453988205594	282	282	f53013c19b261ab78639597ab9071de198cf33a4576814aefb28bb4a1ac5be4c
+84	c00ea38989f0f571 -3.82985217825506	282	282	182051ed653e4777f060b0016a1f07164adf5662de8dae8db6b25d506ebcf3a4
+85	c00e49eace173fe6 -3.7860923863263336	282	282	24ac7d0183f02f9f5a884d485d3bd021388f6112b31073b38d7c88c273314f26
+86	c00df2574285625e -3.7433304974513666	282	282	ee83b7a363f2e3f16de0dbf7d959ce24c19b77006ad129a55622ba3ceab0db2e
+87	c00d9cbd1fbda8c1 -3.701532600379409	282	282	15b4e71bbc01ed312fb7da2dfd5087d5cfb5e0caa823312ce0f78d47d4ce822b
+88	c00d490b6abdf519 -3.6606663073749925	282	282	63cc1c1966d84c4a811171525138035d460cf3105f697efe228e20b1c5f5f826
+89	c00cf731e99fd1af -3.620700669469634	282	282	a22592c2f6067045624226b2ce4ce153e9354db92fb01542be2bbd9aa1e991de
+90	c00ca72118f8f30f -3.5816060973141997	282	282	1e97c12bf6a4adf1e549d907fed31b8c51cac229303c47027fce18b132b100f5
+91	c00c58ca21ed789d -3.543354287204308	282	282	41887986d9852ff7beb6cc907bffa58c278f8cb4ca801f9d26572970c5307ef7
+92	c00c0c1ed0e683c0 -3.505918151888608	282	282	0573b47eb6d33dcfd9cf34baa28adf9ace776b22076e76e044bc6e4d49ad479f
+93	c00bc1118ce0dddc -3.469271755802522	282	282	9efa48ee6417aa79f6897a08ce71c2a190c7a7e0657ea49ed7bef3cab2300acd
+94	c00b77954f48734c -3.4333902544007397	282	282	fcc4b067ce823604cd63c543483fd0214edbb9a0f71c9447144fb299a09d42cf
+95	c00b2f9d9c565570 -3.398249837288567	282	282	0857db3b2356f588502cb4d1b88e9b1ece83bdf480088263c2924e81c02942e5
+96	c00ae91e7be7d312 -3.3638276748773785	282	282	34d180f1f315babbd6b5d3f669ccd7e1aba0c091fb660f14cac43f87899d6623
+97	c00aa40c72c5fd7b -3.330101868312054	282	282	15e3780ca754340571c74da2265de9f69db38caf8904e8bc1e0bc03819776113
+98	c00a605c7c559e29 -3.297051402438019	282	282	61ae9d5aa0550fb5835cf3fad9794e049d425834647ae24ee0c99e3277a13340
+99	c00a1e0404a84c96 -3.264656101595004	282	282	37c797f660b1b744450adeeb45490bb4383e1c3e3472050bd2cd7de0e160c9ae
+100	c009dcf8e2e7e458 -3.232896588041097	282	282	d7b10b645d6c58fc064a4a9c7308215c52c5954f41eaaf5eccef80accbb730e3
+end	turbo:gis-iterations
+layer	turbo:gis-parameters	document	1148	iteration:u32	predicate:u32	outcome:u32	value:f64
+1	0	0	3fb2ae85cb465892 0.07297550404323008
+1	0	1	bfd2c441db6a6dea -0.29322859217947317
+1	1	1	3fb3b757ff174ff0 0.07701635339554946
+1	2	1	3fb3b757ff174ff0 0.07701635339554946
+1	3	0	3faabcec89065b64 0.05222262547174841
+1	3	1	bfba1039b9ab7232 -0.10181008131935057
+1	4	0	bf7b9747c72be600 -0.006736069090715002
+1	4	1	3f7a0370192074ab 0.006350934871105422
+1	5	0	bfc6e3c8dc616111 -0.17882643471490003
+1	5	1	3fb0b821c287f359 0.06530962943356879
+1	6	1	3fb3b757ff174ff2 0.07701635339554949
+1	7	1	3fb3b757ff174ff2 0.07701635339554949
+1	8	1	3fb3b757ff174ff2 0.07701635339554949
+1	9	1	3fb3b757ff174fee 0.07701635339554944
+1	10	1	3fb3b757ff174ff2 0.07701635339554949
+1	11	1	3fb3b757ff174ff0 0.07701635339554946
+1	12	0	bfb1fc4eec579924 -0.07025616903374449
+1	12	1	3fa5dd41f7820a8e 0.042703687156081846
+1	13	1	3fb3b757ff174ff2 0.07701635339554949
+1	14	1	3fb3b757ff174ff2 0.07701635339554949
+1	15	0	3fb3b757ff174ff1 0.07701635339554948
+1	16	0	3fb3b757ff174ff1 0.07701635339554948
+1	17	1	3fb3b757ff174ff0 0.07701635339554946
+1	18	0	3fb3b757ff174ff1 0.07701635339554948
+1	19	1	3fb3b757ff174ff1 0.07701635339554948
+1	20	1	3fb3b757ff174ff1 0.07701635339554948
+1	21	1	3fb3b757ff174ff1 0.07701635339554948
+1	22	1	3fb3b757ff174ff1 0.07701635339554948
+1	23	1	3fb3b757ff174ff1 0.07701635339554948
+1	24	1	3fb3b757ff174ff1 0.07701635339554948
+1	25	1	3fb3b757ff174ff1 0.07701635339554948
+1	26	1	3fb3b757ff174ff1 0.07701635339554948
+1	27	1	3fb3b757ff174ff1 0.07701635339554948
+1	28	0	3fb3b757ff174ff1 0.07701635339554948
+1	29	1	3fb3b757ff174ff1 0.07701635339554948
+1	30	1	3fb3b757ff174ff1 0.07701635339554948
+1	31	1	3fb3b757ff174ff1 0.07701635339554948
+1	32	1	3fb3b757ff174ff1 0.07701635339554948
+1	33	0	3fb3b757ff174ff1 0.07701635339554948
+1	34	1	3fb3b757ff174ff1 0.07701635339554948
+1	35	1	3fb3b757ff174ff1 0.07701635339554948
+1	36	1	3fb3b757ff174ff1 0.07701635339554948
+1	37	1	3fb3b757ff174ff1 0.07701635339554948
+1	38	1	3fb3b757ff174ff1 0.07701635339554948
+1	39	1	3fb3b757ff174ff1 0.07701635339554948
+1	40	1	3fb3b757ff174ff1 0.07701635339554948
+1	41	1	3fb3b757ff174ff0 0.07701635339554946
+1	42	1	3fb3b757ff174ff1 0.07701635339554948
+1	43	1	3fb3b757ff174ff1 0.07701635339554948
+1	44	1	3fb3b757ff174ff1 0.07701635339554948
+1	45	1	3fb3b757ff174ff1 0.07701635339554948
+1	46	1	3fb3b757ff174ff1 0.07701635339554948
+1	47	1	3fb3b757ff174ff1 0.07701635339554948
+1	48	1	3fb3b757ff174ff1 0.07701635339554948
+1	49	1	3fb3b757ff174ff1 0.07701635339554948
+1	50	1	3fb3b757ff174ff1 0.07701635339554948
+1	51	0	3fb3b757ff174ff1 0.07701635339554948
+1	52	1	3fb3b757ff174ff1 0.07701635339554948
+1	53	0	bfba1039b9ab7232 -0.10181008131935057
+1	53	1	3faabcec89065b60 0.052222625471748385
+1	54	1	3fb3b757ff174ff1 0.07701635339554948
+1	55	1	3fb3b757ff174ff1 0.07701635339554948
+1	56	1	3fb3b757ff174ff1 0.07701635339554948
+1	57	1	3fb3b757ff174ff0 0.07701635339554946
+1	58	1	3fb3b757ff174ff1 0.07701635339554948
+1	59	1	3fb3b757ff174ff1 0.07701635339554948
+1	60	0	bfc1d12bb7bd8be4 -0.13919588538837424
+1	60	1	3faea9b49a8325d2 0.05988850008140968
+1	61	0	3fb3b757ff174ff1 0.07701635339554948
+1	62	1	3fb3b757ff174ff1 0.07701635339554948
+1	63	0	3fb3b757ff174ff1 0.07701635339554948
+1	64	0	3fb3b757ff174ff1 0.07701635339554948
+1	65	1	3fb3b757ff174ff1 0.07701635339554948
+1	66	1	3fb3b757ff174ff1 0.07701635339554948
+1	67	0	3fb3b757ff174ff1 0.07701635339554948
+1	68	1	3fb3b757ff174ff1 0.07701635339554948
+1	69	1	3fb3b757ff174ff1 0.07701635339554948
+1	70	1	3fb3b757ff174ff1 0.07701635339554948
+1	71	0	3fb3b757ff174ff1 0.07701635339554948
+1	72	0	3fb3b757ff174ff1 0.07701635339554948
+1	73	1	3fb3b757ff174ff1 0.07701635339554948
+1	74	1	3fb3b757ff174ff1 0.07701635339554948
+1	75	1	3fb3b757ff174ff1 0.07701635339554948
+1	76	1	3fb3b757ff174ff0 0.07701635339554946
+1	77	1	3fb3b757ff174ff1 0.07701635339554948
+1	78	1	3fb3b757ff174ff0 0.07701635339554946
+1	79	0	3fb3b757ff174ff1 0.07701635339554948
+1	80	1	3fb3b757ff174ff1 0.07701635339554948
+1	81	1	3fb3b757ff174ff1 0.07701635339554948
+1	82	1	3fb3b757ff174ff1 0.07701635339554948
+1	83	1	3fb3b757ff174ff1 0.07701635339554948
+1	84	0	3fb3b757ff174ff1 0.07701635339554948
+1	85	1	3fb3b757ff174ff1 0.07701635339554948
+1	86	1	3fb3b757ff174ff1 0.07701635339554948
+1	87	1	3fb3b757ff174ff1 0.07701635339554948
+1	88	1	3fb3b757ff174ff1 0.07701635339554948
+1	89	1	3fb3b757ff174ff0 0.07701635339554946
+1	90	1	3fb3b757ff174ff1 0.07701635339554948
+1	91	1	3fb3b757ff174ff1 0.07701635339554948
+1	92	1	3fb3b757ff174ff1 0.07701635339554948
+1	93	0	3fb3b757ff174ff1 0.07701635339554948
+1	94	1	3fb3b757ff174ff1 0.07701635339554948
+1	95	1	3fb3b757ff174ff1 0.07701635339554948
+1	96	1	3fb3b757ff174ff1 0.07701635339554948
+1	97	1	3fb3b757ff174ff1 0.07701635339554948
+1	98	1	3fb3b757ff174ff1 0.07701635339554948
+1	99	1	3fb3b757ff174ff1 0.07701635339554948
+1	100	1	3fb3b757ff174ff0 0.07701635339554946
+1	101	1	3fb3b757ff174ff1 0.07701635339554948
+1	102	1	3fb3b757ff174ff1 0.07701635339554948
+1	103	0	3fb3b757ff174ff1 0.07701635339554948
+1	104	1	3fb3b757ff174ff2 0.07701635339554949
+1	105	1	3fb3b757ff174ff1 0.07701635339554948
+1	106	1	3fb3b757ff174ff1 0.07701635339554948
+1	107	1	3fb3b757ff174ff1 0.07701635339554948
+1	108	1	3fb3b757ff174ff2 0.07701635339554949
+1	109	1	3fb3b757ff174ff1 0.07701635339554948
+1	110	1	3fb3b757ff174ff1 0.07701635339554948
+1	111	1	3fb3b757ff174ff0 0.07701635339554946
+1	112	1	3fb3b757ff174ff0 0.07701635339554946
+1	113	1	3fb3b757ff174ff1 0.07701635339554948
+1	114	1	3fb3b757ff174ff1 0.07701635339554948
+1	115	1	3fb3b757ff174ff1 0.07701635339554948
+1	116	1	3fb3b757ff174ff1 0.07701635339554948
+1	117	1	3fb3b757ff174ff1 0.07701635339554948
+1	118	1	3fb3b757ff174ff1 0.07701635339554948
+1	119	0	3fb3b757ff174ff1 0.07701635339554948
+1	120	1	3fb3b757ff174ff1 0.07701635339554948
+1	121	1	3fb3b757ff174ff1 0.07701635339554948
+1	122	1	3fb3b757ff174ff1 0.07701635339554948
+1	123	1	3fb3b757ff174ff1 0.07701635339554948
+1	124	1	3fb3b757ff174ff1 0.07701635339554948
+1	125	0	3fb3b757ff174ff1 0.07701635339554948
+1	126	0	3fb3b757ff174ff1 0.07701635339554948
+1	127	0	3fb3b757ff174ff1 0.07701635339554948
+1	128	0	3fb3b757ff174ff1 0.07701635339554948
+1	129	0	3fb3b757ff174ff1 0.07701635339554948
+1	130	0	3fb3b757ff174ff1 0.07701635339554948
+1	131	0	3fb3b757ff174ff1 0.07701635339554948
+1	132	0	3fb3b757ff174ff1 0.07701635339554948
+1	133	0	3fb3b757ff174ff1 0.07701635339554948
+1	134	0	3fb3b757ff174ff1 0.07701635339554948
+1	135	0	3fb3b757ff174ff1 0.07701635339554948
+1	136	0	3fb3b757ff174ff1 0.07701635339554948
+1	137	0	3fb3b757ff174ff1 0.07701635339554948
+1	138	0	3fb3b757ff174ff1 0.07701635339554948
+1	139	0	3fb3b757ff174ff1 0.07701635339554948
+1	140	0	3fb3b757ff174ff1 0.07701635339554948
+1	141	0	3fb3b757ff174ff1 0.07701635339554948
+1	142	0	3fb3b757ff174ff1 0.07701635339554948
+1	143	0	3fb3b757ff174ff1 0.07701635339554948
+1	144	0	3fb3b757ff174ff1 0.07701635339554948
+1	145	0	3fb3b757ff174ff1 0.07701635339554948
+1	146	0	3fb3b757ff174ff1 0.07701635339554948
+1	147	0	3fb3b757ff174ff0 0.07701635339554946
+1	148	0	3fb3b757ff174ff1 0.07701635339554948
+1	149	0	3fb3b757ff174ff1 0.07701635339554948
+1	150	0	3fb3b757ff174ff1 0.07701635339554948
+1	151	0	3fb3b757ff174ff1 0.07701635339554948
+1	152	0	bfc64bb4f240ff75 -0.17418538883975612
+1	152	1	3fb09589fe969d5c 0.06478178468261347
+1	153	0	bfc08223e342fcd2 -0.1289715633083462
+1	153	1	3fadbdda7033c52b 0.05808909053474517
+1	154	0	3fb3b757ff174ff1 0.07701635339554948
+1	155	0	3fb3b757ff174ff1 0.07701635339554948
+1	156	0	3fb3b757ff174ff1 0.07701635339554948
+1	157	0	3fb3b757ff174ff0 0.07701635339554946
+1	158	0	3fb3b757ff174ff1 0.07701635339554948
+1	159	0	3fb3b757ff174ff1 0.07701635339554948
+1	160	0	3fb3b757ff174ff0 0.07701635339554946
+1	161	0	3fb3b757ff174ff1 0.07701635339554948
+1	162	0	3fb3b757ff174ff1 0.07701635339554948
+1	163	0	3fb3b757ff174ff1 0.07701635339554948
+1	164	0	3fb3b757ff174ff0 0.07701635339554946
+1	165	0	3fb3b757ff174ff1 0.07701635339554948
+1	166	0	3fb3b757ff174ff1 0.07701635339554948
+1	167	0	3fb3b757ff174ff0 0.07701635339554946
+1	168	0	3fb3b757ff174ff0 0.07701635339554946
+1	169	0	bfc08223e342fcd2 -0.1289715633083462
+1	169	1	3fadbdda7033c52b 0.05808909053474517
+1	170	0	3fb3b757ff174ff2 0.07701635339554949
+1	171	1	3fb3b757ff174ff1 0.07701635339554948
+1	172	0	3fb3b757ff174ff1 0.07701635339554948
+1	173	1	3fb3b757ff174ff1 0.07701635339554948
+1	174	1	3fb3b757ff174ff1 0.07701635339554948
+1	175	1	3fb3b757ff174ff1 0.07701635339554948
+1	176	1	3fb3b757ff174ff1 0.07701635339554948
+1	177	1	3fb3b757ff174ff1 0.07701635339554948
+1	178	1	3fb3b757ff174ff1 0.07701635339554948
+1	179	1	3fb3b757ff174ff1 0.07701635339554948
+1	180	0	3fa711037d1c1597 0.04505167867868492
+1	180	1	bfb3b757ff174ff1 -0.07701635339554948
+1	181	1	3fb3b757ff174ff1 0.07701635339554948
+1	182	1	3fb3b757ff174ff1 0.07701635339554948
+1	183	1	3fb3b757ff174ff1 0.07701635339554948
+1	184	1	3fb3b757ff174ff1 0.07701635339554948
+1	185	0	3fb3b757ff174ff1 0.07701635339554948
+1	186	1	3fb3b757ff174ff1 0.07701635339554948
+1	187	1	3fb3b757ff174ff1 0.07701635339554948
+1	188	1	3fb3b757ff174ff1 0.07701635339554948
+1	189	1	3fb3b757ff174ff1 0.07701635339554948
+1	190	0	3fb3b757ff174ff1 0.07701635339554948
+1	191	0	3fa05dac81128a49 0.031964674716864545
+1	191	1	bfa711037d1c1599 -0.04505167867868493
+1	192	1	3fb3b757ff174ff1 0.07701635339554948
+1	193	0	3fb3b757ff174ff1 0.07701635339554948
+1	194	1	3fb3b757ff174ff1 0.07701635339554948
+1	195	0	3fb3b757ff174ff1 0.07701635339554948
+1	196	0	3fb3b757ff174ff1 0.07701635339554948
+1	197	0	3fb3b757ff174ff1 0.07701635339554948
+1	198	0	3fb3b757ff174ff1 0.07701635339554948
+1	199	0	3fb3b757ff174ff0 0.07701635339554946
+1	200	0	3fb3b757ff174ff1 0.07701635339554948
+1	201	0	bfb5fe326b0ff2e4 -0.08590998758149798
+1	201	1	3fa881bb1e4988eb 0.047864768454717176
+1	202	0	3fb3b757ff174ff1 0.07701635339554948
+1	203	1	3fb3b757ff174ff1 0.07701635339554948
+1	204	1	3fb3b757ff174ff1 0.07701635339554948
+1	205	1	3fb3b757ff174ff1 0.07701635339554948
+1	206	1	3fb3b757ff174ff1 0.07701635339554948
+1	207	1	3fb3b757ff174ff1 0.07701635339554948
+1	208	1	3fb3b757ff174ff1 0.07701635339554948
+1	209	0	0000000000000000 0.0
+1	209	1	0000000000000000 0.0
+1	210	1	3fb3b757ff174ff1 0.07701635339554948
+1	211	1	3fb3b757ff174ff1 0.07701635339554948
+1	212	1	3fb3b757ff174ff0 0.07701635339554946
+1	213	1	3fb3b757ff174ff1 0.07701635339554948
+1	214	0	0000000000000000 0.0
+1	214	1	0000000000000000 0.0
+1	215	1	3fb3b757ff174ff1 0.07701635339554948
+1	216	1	3fb3b757ff174ff1 0.07701635339554948
+1	217	1	3fb3b757ff174ff1 0.07701635339554948
+1	218	1	3fb3b757ff174ff1 0.07701635339554948
+1	219	1	3fb3b757ff174ff1 0.07701635339554948
+1	220	1	3fb3b757ff174ff1 0.07701635339554948
+1	221	0	0000000000000000 0.0
+1	221	1	0000000000000000 0.0
+1	222	0	3fb3b757ff174ff1 0.07701635339554948
+1	223	1	3fb3b757ff174ff1 0.07701635339554948
+1	224	0	3fb3b757ff174ff1 0.07701635339554948
+1	225	1	3fb3b757ff174ff1 0.07701635339554948
+1	226	1	3fb3b757ff174ff1 0.07701635339554948
+1	227	0	3fb3b757ff174ff1 0.07701635339554948
+1	228	0	3fb3b757ff174ff1 0.07701635339554948
+1	229	1	3fb3b757ff174ff1 0.07701635339554948
+1	230	1	3fb3b757ff174ff1 0.07701635339554948
+1	231	0	3fb3b757ff174ff1 0.07701635339554948
+1	232	0	3fb3b757ff174ff1 0.07701635339554948
+1	233	1	3fb3b757ff174ff1 0.07701635339554948
+1	234	0	3fb3b757ff174ff1 0.07701635339554948
+1	235	0	3fb3b757ff174ff1 0.07701635339554948
+1	236	1	3fb3b757ff174ff1 0.07701635339554948
+1	237	0	3fb3b757ff174ff1 0.07701635339554948
+1	238	1	3fb3b757ff174ff1 0.07701635339554948
+1	239	1	3fb3b757ff174ff1 0.07701635339554948
+1	240	1	3fb3b757ff174ff2 0.07701635339554949
+1	241	0	0000000000000000 0.0
+1	241	1	0000000000000000 0.0
+1	242	0	3fb3b757ff174ff1 0.07701635339554948
+1	243	1	3fb3b757ff174ff1 0.07701635339554948
+1	244	1	3fb3b757ff174ff1 0.07701635339554948
+1	245	1	3fb3b757ff174ff1 0.07701635339554948
+1	246	0	3fb3b757ff174ff1 0.07701635339554948
+1	247	1	3fb3b757ff174ff1 0.07701635339554948
+1	248	1	3fb3b757ff174ff1 0.07701635339554948
+1	249	1	3fb3b757ff174ff1 0.07701635339554948
+1	250	0	3fb3b757ff174ff1 0.07701635339554948
+1	251	0	3fb3b757ff174ff1 0.07701635339554948
+1	252	1	3fb3b757ff174ff4 0.07701635339554952
+1	253	1	3fb3b757ff174ff1 0.07701635339554948
+1	254	1	3fb3b757ff174ff0 0.07701635339554946
+1	255	1	3fb3b757ff174ff1 0.07701635339554948
+1	256	1	3fb3b757ff174ff1 0.07701635339554948
+1	257	1	3fb3b757ff174ff1 0.07701635339554948
+1	258	1	3fb3b757ff174ff1 0.07701635339554948
+1	259	1	3fb3b757ff174ff1 0.07701635339554948
+1	260	1	3fb3b757ff174ff1 0.07701635339554948
+1	261	0	3fb3b757ff174ff1 0.07701635339554948
+1	262	1	3fb3b757ff174ff1 0.07701635339554948
+1	263	1	3fb3b757ff174ff1 0.07701635339554948
+1	264	1	3fb3b757ff174ff1 0.07701635339554948
+1	265	0	3fb3b757ff174ff1 0.07701635339554948
+1	266	1	3fb3b757ff174ff1 0.07701635339554948
+1	267	0	3fb3b757ff174ff1 0.07701635339554948
+1	268	0	3fb3b757ff174ff1 0.07701635339554948
+1	269	1	3fb3b757ff174ff1 0.07701635339554948
+1	270	0	3fb3b757ff174ff1 0.07701635339554948
+1	271	1	3fb3b757ff174ff1 0.07701635339554948
+1	272	1	3fb3b757ff174ff1 0.07701635339554948
+1	273	1	3fb3b757ff174ff1 0.07701635339554948
+1	274	0	3fb3b757ff174ff1 0.07701635339554948
+1	275	1	3fb3b757ff174ff1 0.07701635339554948
+1	276	1	3fb3b757ff174ff0 0.07701635339554946
+1	277	0	3fb3b757ff174ff1 0.07701635339554948
+1	278	1	3fb3b757ff174ff0 0.07701635339554946
+1	279	1	3fb3b757ff174ff0 0.07701635339554946
+1	280	0	3fb3b757ff174ff1 0.07701635339554948
+1	281	1	3fb3b757ff174ff0 0.07701635339554946
+1	282	0	3fb3b757ff174ff1 0.07701635339554948
+1	283	1	3fb3b757ff174ff1 0.07701635339554948
+1	284	1	3fb3b757ff174ff1 0.07701635339554948
+1	285	0	0000000000000000 0.0
+1	285	1	0000000000000000 0.0
+1	286	0	3fb3b757ff174ff1 0.07701635339554948
+1	287	0	3fb3b757ff174ff1 0.07701635339554948
+1	288	1	3fb3b757ff174ff1 0.07701635339554948
+1	289	1	3fb3b757ff174ff1 0.07701635339554948
+1	290	1	3fb3b757ff174ff1 0.07701635339554948
+1	291	1	3fb3b757ff174ff1 0.07701635339554948
+1	292	1	3fb3b757ff174ff1 0.07701635339554948
+1	293	1	3fb3b757ff174ff1 0.07701635339554948
+1	294	1	3fb3b757ff174ff1 0.07701635339554948
+1	295	1	3fb3b757ff174ff1 0.07701635339554948
+1	296	1	3fb3b757ff174ff1 0.07701635339554948
+1	297	1	3fb3b757ff174ff1 0.07701635339554948
+1	298	1	3fb3b757ff174ff1 0.07701635339554948
+1	299	1	3fb3b757ff174ff1 0.07701635339554948
+1	300	1	3fb3b757ff174ff1 0.07701635339554948
+1	301	1	3fb3b757ff174ff1 0.07701635339554948
+1	302	1	3fb3b757ff174ff0 0.07701635339554946
+1	303	1	3fb3b757ff174ff1 0.07701635339554948
+1	304	1	3fb3b757ff174ff1 0.07701635339554948
+1	305	0	3fb3b757ff174ff1 0.07701635339554948
+1	306	1	3fb3b757ff174ff0 0.07701635339554946
+1	307	1	3fb3b757ff174ff1 0.07701635339554948
+1	308	1	3fb3b757ff174ff1 0.07701635339554948
+1	309	1	3fb3b757ff174ff1 0.07701635339554948
+1	310	1	3fb3b757ff174ff1 0.07701635339554948
+1	311	1	3fb3b757ff174ff1 0.07701635339554948
+1	312	0	3fb3b757ff174ff1 0.07701635339554948
+1	313	1	3fb3b757ff174ff1 0.07701635339554948
+1	314	1	3fb3b757ff174ff1 0.07701635339554948
+1	315	1	3fb3b757ff174ff0 0.07701635339554946
+1	316	1	3fb3b757ff174ff1 0.07701635339554948
+1	317	0	bfc5642dbe19b2c5 -0.16711971075291934
+1	317	1	3fb05dac81128a47 0.06392934943372906
+1	318	1	3fb3b757ff174ff1 0.07701635339554948
+1	319	1	3fb3b757ff174ff1 0.07701635339554948
+1	320	1	3fb3b757ff174ff1 0.07701635339554948
+1	321	1	3fb3b757ff174ff1 0.07701635339554948
+1	322	0	3fb3b757ff174ff1 0.07701635339554948
+1	323	0	bfbf3fd9bda55abc -0.12206803207423439
+1	323	1	3fad0f6ff63acecb 0.05675840264066564
+1	324	1	3fb3b757ff174ff1 0.07701635339554948
+1	325	1	3fb3b757ff174ff0 0.07701635339554946
+1	326	0	3fb3b757ff174ff1 0.07701635339554948
+1	327	1	3fb3b757ff174ff1 0.07701635339554948
+1	328	1	3fb3b757ff174ff1 0.07701635339554948
+1	329	1	3fb3b757ff174ff1 0.07701635339554948
+1	330	1	3fb3b757ff174ff1 0.07701635339554948
+1	331	0	3fb3b757ff174ff1 0.07701635339554948
+1	332	1	3fb3b757ff174ff1 0.07701635339554948
+1	333	1	3fb3b757ff174ff0 0.07701635339554946
+1	334	1	3fb3b757ff174ff1 0.07701635339554948
+1	335	1	3fb3b757ff174ff1 0.07701635339554948
+1	336	1	3fb3b757ff174ff1 0.07701635339554948
+1	337	0	3fb3b757ff174ff1 0.07701635339554948
+1	338	1	3fb3b757ff174ff1 0.07701635339554948
+1	339	0	3fb3b757ff174ff0 0.07701635339554946
+1	340	1	3fb3b757ff174ff1 0.07701635339554948
+1	341	0	3fb3b757ff174ff1 0.07701635339554948
+1	342	0	3fb3b757ff174ff1 0.07701635339554948
+1	343	0	3fb3b757ff174ff0 0.07701635339554946
+1	344	0	3fb3b757ff174ff1 0.07701635339554948
+1	345	0	3fb3b757ff174ff1 0.07701635339554948
+1	346	0	3fa44a74928f54b5 0.0396305493265258
+1	346	1	bfafd5fee0c78fac -0.06217953199282475
+1	347	0	3fb3b757ff174ff1 0.07701635339554948
+1	348	0	3fb3b757ff174ff1 0.07701635339554948
+1	349	0	3fb3b757ff174ff1 0.07701635339554948
+1	350	1	3fb3b757ff174ff1 0.07701635339554948
+1	351	0	3fb3b757ff174ff1 0.07701635339554948
+1	352	1	3fb3b757ff174ff1 0.07701635339554948
+1	353	0	3fb3b757ff174ff0 0.07701635339554946
+1	354	1	3fb3b757ff174ff1 0.07701635339554948
+1	355	0	3fb3b757ff174ff0 0.07701635339554946
+1	356	0	0000000000000000 0.0
+1	356	1	0000000000000000 0.0
+1	357	0	3fb3b757ff174ff1 0.07701635339554948
+1	358	0	3fb3b757ff174ff1 0.07701635339554948
+1	359	1	3fb3b757ff174ff1 0.07701635339554948
+1	360	0	3fb3b757ff174ff0 0.07701635339554946
+1	361	1	3fb3b757ff174ff1 0.07701635339554948
+1	362	0	3fb3b757ff174ff1 0.07701635339554948
+1	363	1	3fb3b757ff174ff1 0.07701635339554948
+1	364	1	3fb3b757ff174ff1 0.07701635339554948
+1	365	1	3fb3b757ff174ff1 0.07701635339554948
+1	366	1	3fb3b757ff174ff1 0.07701635339554948
+1	367	1	3fb3b757ff174ff1 0.07701635339554948
+1	368	1	3fb3b757ff174ff1 0.07701635339554948
+1	369	0	3fb3b757ff174ff0 0.07701635339554946
+1	370	0	3fb3b757ff174ff1 0.07701635339554948
+1	371	0	3fb3b757ff174ff0 0.07701635339554946
+1	372	1	3fb3b757ff174ff1 0.07701635339554948
+1	373	1	3fb3b757ff174ff1 0.07701635339554948
+1	374	0	3fb3b757ff174ff1 0.07701635339554948
+1	375	1	3fb3b757ff174ff1 0.07701635339554948
+1	376	1	3fb3b757ff174ff1 0.07701635339554948
+1	377	1	3fb3b757ff174ff1 0.07701635339554948
+1	378	0	3fb3b757ff174ff0 0.07701635339554946
+1	379	0	3fb3b757ff174ff0 0.07701635339554946
+1	380	1	3fb3b757ff174ff1 0.07701635339554948
+1	381	1	3fb3b757ff174ff1 0.07701635339554948
+1	382	1	3fb3b757ff174ff1 0.07701635339554948
+1	383	1	3fb3b757ff174ff1 0.07701635339554948
+1	384	1	3fb3b757ff174ff1 0.07701635339554948
+1	385	1	3fb3b757ff174ff1 0.07701635339554948
+1	386	1	3fb3b757ff174ff1 0.07701635339554948
+1	387	1	3fb3b757ff174ff1 0.07701635339554948
+1	388	1	3fb3b757ff174ff1 0.07701635339554948
+1	389	1	3fb3b757ff174ff1 0.07701635339554948
+1	390	1	3fb3b757ff174ff1 0.07701635339554948
+1	391	1	3fb3b757ff174ff1 0.07701635339554948
+1	392	1	3fb3b757ff174ff1 0.07701635339554948
+1	393	1	3fb3b757ff174ff1 0.07701635339554948
+1	394	1	3fb3b757ff174ff1 0.07701635339554948
+1	395	1	3fb3b757ff174ff1 0.07701635339554948
+1	396	1	3fb3b757ff174ff1 0.07701635339554948
+1	397	1	3fb3b757ff174ff1 0.07701635339554948
+1	398	1	3fb3b757ff174ff1 0.07701635339554948
+1	399	1	3fb3b757ff174ff1 0.07701635339554948
+1	400	1	3fb3b757ff174ff1 0.07701635339554948
+1	401	1	3fb3b757ff174ff1 0.07701635339554948
+1	402	1	3fb3b757ff174ff1 0.07701635339554948
+1	403	1	3fb3b757ff174ff1 0.07701635339554948
+1	404	1	3fb3b757ff174ff1 0.07701635339554948
+1	405	1	3fb3b757ff174ff1 0.07701635339554948
+1	406	1	3fb3b757ff174ff1 0.07701635339554948
+1	407	1	3fb3b757ff174ff1 0.07701635339554948
+1	408	1	3fb3b757ff174ff1 0.07701635339554948
+1	409	1	3fb3b757ff174ff1 0.07701635339554948
+1	410	1	3fb3b757ff174ff1 0.07701635339554948
+1	411	1	3fb3b757ff174ff1 0.07701635339554948
+1	412	1	3fb3b757ff174ff1 0.07701635339554948
+1	413	1	3fb3b757ff174ff1 0.07701635339554948
+1	414	1	3fb3b757ff174ff1 0.07701635339554948
+1	415	1	3fb3b757ff174ff1 0.07701635339554948
+1	416	1	3fb3b757ff174ff1 0.07701635339554948
+1	417	1	3fb3b757ff174ff1 0.07701635339554948
+1	418	1	3fb3b757ff174ff1 0.07701635339554948
+1	419	1	3fb3b757ff174ff1 0.07701635339554948
+1	420	0	3fb3b757ff174ff1 0.07701635339554948
+1	421	1	3fb3b757ff174ff1 0.07701635339554948
+1	422	1	3fb3b757ff174ff1 0.07701635339554948
+1	423	1	3fb3b757ff174ff1 0.07701635339554948
+1	424	1	3fb3b757ff174ff1 0.07701635339554948
+1	425	1	3fb3b757ff174ff1 0.07701635339554948
+1	426	1	3fb3b757ff174ff1 0.07701635339554948
+1	427	1	3fb3b757ff174ff1 0.07701635339554948
+1	428	1	3fb3b757ff174ff1 0.07701635339554948
+1	429	0	3fb3b757ff174ff0 0.07701635339554946
+1	430	1	3fb3b757ff174ff0 0.07701635339554946
+1	431	1	3fb3b757ff174ff1 0.07701635339554948
+1	432	1	3fb3b757ff174ff1 0.07701635339554948
+1	433	1	3fb3b757ff174ff1 0.07701635339554948
+1	434	1	3fb3b757ff174ff1 0.07701635339554948
+1	435	1	3fb3b757ff174ff1 0.07701635339554948
+1	436	1	3fb3b757ff174ff1 0.07701635339554948
+1	437	1	3fb3b757ff174ff1 0.07701635339554948
+1	438	1	3fb3b757ff174ff1 0.07701635339554948
+1	439	1	3fb3b757ff174ff1 0.07701635339554948
+1	440	1	3fb3b757ff174ff1 0.07701635339554948
+1	441	1	3fb3b757ff174ff1 0.07701635339554948
+1	442	1	3fb3b757ff174ff1 0.07701635339554948
+1	443	1	3fb3b757ff174ff1 0.07701635339554948
+1	444	1	3fb3b757ff174ff1 0.07701635339554948
+1	445	1	3fb3b757ff174ff1 0.07701635339554948
+1	446	1	3fb3b757ff174ff0 0.07701635339554946
+1	447	0	3fb3b757ff174ff1 0.07701635339554948
+1	448	1	3fb3b757ff174ff1 0.07701635339554948
+1	449	1	3fb3b757ff174ff1 0.07701635339554948
+1	450	1	3fb3b757ff174ff1 0.07701635339554948
+1	451	1	3fb3b757ff174ff1 0.07701635339554948
+1	452	1	3fb3b757ff174ff1 0.07701635339554948
+1	453	1	3fb3b757ff174ff1 0.07701635339554948
+1	454	1	3fb3b757ff174ff1 0.07701635339554948
+1	455	1	3fb3b757ff174ff1 0.07701635339554948
+1	456	1	3fb3b757ff174ff1 0.07701635339554948
+1	457	1	3fb3b757ff174ff1 0.07701635339554948
+1	458	1	3fb3b757ff174ff1 0.07701635339554948
+1	459	1	3fb3b757ff174ff1 0.07701635339554948
+1	460	1	3fb3b757ff174ff1 0.07701635339554948
+1	461	1	3fb3b757ff174ff1 0.07701635339554948
+1	462	1	3fb3b757ff174ff1 0.07701635339554948
+1	463	1	3fb3b757ff174ff1 0.07701635339554948
+1	464	1	3fb3b757ff174ff1 0.07701635339554948
+1	465	1	3fb3b757ff174ff1 0.07701635339554948
+1	466	1	3fb3b757ff174ff1 0.07701635339554948
+1	467	1	3fb3b757ff174ff1 0.07701635339554948
+1	468	1	3fb3b757ff174ff1 0.07701635339554948
+1	469	1	3fb3b757ff174ff1 0.07701635339554948
+1	470	1	3fb3b757ff174ff1 0.07701635339554948
+1	471	1	3fb3b757ff174ff1 0.07701635339554948
+1	472	1	3fb3b757ff174ff1 0.07701635339554948
+1	473	1	3fb3b757ff174ff1 0.07701635339554948
+1	474	1	3fb3b757ff174ff1 0.07701635339554948
+1	475	1	3fb3b757ff174ff1 0.07701635339554948
+1	476	1	3fb3b757ff174ff1 0.07701635339554948
+1	477	1	3fb3b757ff174ff1 0.07701635339554948
+1	478	1	3fb3b757ff174ff1 0.07701635339554948
+1	479	1	3fb3b757ff174ff1 0.07701635339554948
+1	480	0	3fb3b757ff174ff1 0.07701635339554948
+1	481	1	3fb3b757ff174ff1 0.07701635339554948
+1	482	1	3fb3b757ff174ff1 0.07701635339554948
+1	483	1	3fb3b757ff174ff1 0.07701635339554948
+1	484	1	3fb3b757ff174ff1 0.07701635339554948
+1	485	1	3fb3b757ff174ff1 0.07701635339554948
+1	486	1	3fb3b757ff174ff1 0.07701635339554948
+1	487	1	3fb3b757ff174ff1 0.07701635339554948
+1	488	1	3fb3b757ff174ff1 0.07701635339554948
+1	489	1	3fb3b757ff174ff1 0.07701635339554948
+1	490	1	3fb3b757ff174ff1 0.07701635339554948
+1	491	1	3fb3b757ff174ff1 0.07701635339554948
+1	492	1	3fb3b757ff174ff1 0.07701635339554948
+1	493	1	3fb3b757ff174ff1 0.07701635339554948
+1	494	1	3fb3b757ff174ff1 0.07701635339554948
+1	495	1	3fb3b757ff174ff1 0.07701635339554948
+1	496	1	3fb3b757ff174ff1 0.07701635339554948
+1	497	1	3fb3b757ff174ff1 0.07701635339554948
+1	498	1	3fb3b757ff174ff1 0.07701635339554948
+1	499	1	3fb3b757ff174ff1 0.07701635339554948
+1	500	1	3fb3b757ff174ff1 0.07701635339554948
+1	501	1	3fb3b757ff174ff1 0.07701635339554948
+1	502	1	3fb3b757ff174ff1 0.07701635339554948
+1	503	1	3fb3b757ff174ff1 0.07701635339554948
+1	504	1	3fb3b757ff174ff1 0.07701635339554948
+1	505	1	3fb3b757ff174ff1 0.07701635339554948
+1	506	1	3fb3b757ff174ff1 0.07701635339554948
+1	507	1	3fb3b757ff174ff1 0.07701635339554948
+1	508	1	3fb3b757ff174ff1 0.07701635339554948
+1	509	1	3fb3b757ff174ff1 0.07701635339554948
+1	510	1	3fb3b757ff174ff1 0.07701635339554948
+1	511	1	3fb3b757ff174ff1 0.07701635339554948
+1	512	1	3fb3b757ff174ff1 0.07701635339554948
+1	513	1	3fb3b757ff174ff1 0.07701635339554948
+1	514	1	3fb3b757ff174ff1 0.07701635339554948
+1	515	1	3fb3b757ff174ff1 0.07701635339554948
+1	516	1	3fb3b757ff174ff1 0.07701635339554948
+1	517	1	3fb3b757ff174ff1 0.07701635339554948
+1	518	1	3fb3b757ff174ff1 0.07701635339554948
+1	519	1	3fb3b757ff174ff1 0.07701635339554948
+1	520	1	3fb3b757ff174ff1 0.07701635339554948
+1	521	1	3fb3b757ff174ff1 0.07701635339554948
+1	522	1	3fb3b757ff174ff0 0.07701635339554946
+1	523	1	3fb3b757ff174ff1 0.07701635339554948
+1	524	1	3fb3b757ff174ff1 0.07701635339554948
+1	525	1	3fb3b757ff174ff1 0.07701635339554948
+1	526	1	3fb3b757ff174ff1 0.07701635339554948
+1	527	1	3fb3b757ff174ff1 0.07701635339554948
+1	528	1	3fb3b757ff174ff1 0.07701635339554948
+1	529	1	3fb3b757ff174ff1 0.07701635339554948
+1	530	1	3fb3b757ff174ff1 0.07701635339554948
+1	531	1	3fb3b757ff174ff1 0.07701635339554948
+1	532	1	3fb3b757ff174ff1 0.07701635339554948
+1	533	1	3fb3b757ff174ff1 0.07701635339554948
+1	534	1	3fb3b757ff174ff1 0.07701635339554948
+1	535	1	3fb3b757ff174ff1 0.07701635339554948
+1	536	1	3fb3b757ff174ff1 0.07701635339554948
+1	537	1	3fb3b757ff174ff1 0.07701635339554948
+1	538	1	3fb3b757ff174ff1 0.07701635339554948
+1	539	1	3fb3b757ff174ff1 0.07701635339554948
+1	540	1	3fb3b757ff174ff1 0.07701635339554948
+1	541	1	3fb3b757ff174ff1 0.07701635339554948
+1	542	1	3fb3b757ff174ff1 0.07701635339554948
+1	543	1	3fb3b757ff174ff1 0.07701635339554948
+1	544	1	3fb3b757ff174ff1 0.07701635339554948
+1	545	1	3fb3b757ff174ff1 0.07701635339554948
+1	546	1	3fb3b757ff174ff1 0.07701635339554948
+1	547	1	3fb3b757ff174ff0 0.07701635339554946
+1	548	1	3fb3b757ff174ff1 0.07701635339554948
+1	549	1	3fb3b757ff174ff1 0.07701635339554948
+1	550	0	3f9f398d707de3f2 0.030492982855751145
+1	550	1	bfa596b7db32db6b -0.04216551352276706
+100	0	0	3fd72320a8023170 0.3615190163334523
+100	0	1	c0115caa4a56b84a -4.340493356268846
+100	1	1	3fd556682a8ff489 0.3333988586089807
+100	2	1	3fd4a9fda731e931 0.32287541701920747
+100	3	0	3fe6592db83cdc78 0.6983860586541502
+100	3	1	bfffe57fd2b863ba -1.9935301047573675
+100	4	0	3fe2d8c6be2dd91c 0.5889619554934913
+100	4	1	bfddcd919f65583b -0.4656719261741988
+100	5	0	bfe0d42a556453e3 -0.5258990924654622
+100	5	1	3fbdcb36739bd7f9 0.11638202974776836
+100	6	1	3fd70b2361beccaa 0.3600548224014327
+100	7	1	3fd97123d2530b27 0.39753051318636995
+100	8	1	3fd8802d8f9b2a02 0.3828233625796714
+100	9	1	3fd9d6c38be3a9b8 0.4037331453424957
+100	10	1	3fdc318277ae9269 0.4405218285340085
+100	11	1	3fe70aa0ac3a7576 0.7200473178706221
+100	12	0	bfca7b376bb3e211 -0.20688526877326344
+100	12	1	3fb81dd587220835 0.09420523213523853
+100	13	1	3fd99b67bc11d3f2 0.40011018148589905
+100	14	1	3fe4b1306131ccbb 0.6466295145350139
+100	15	0	3fd681afb0f7c718 0.35166542322177596
+100	16	0	3fd2fdc53e8fbde8 0.29673892125626233
+100	17	1	3fd251773b6c9f06 0.28622227481035656
+100	18	0	3ff0b32a25816e16 1.0437413659154848
+100	19	1	3fd2d71e4a65448c 0.29437978043740354
+100	20	1	3fd5d6b45a29417b 0.34122952275085766
+100	21	1	3fe566a7ea095c2d 0.6687812396074883
+100	22	1	3fd65867d6ce3a2b 0.3491458509169287
+100	23	1	3fd66f50ad1654ff 0.35054413703012693
+100	24	1	3fd66f50ad1654ff 0.35054413703012693
+100	25	1	3fd46b051eb7f059 0.3190319824204884
+100	26	1	3fd643da083103ec 0.34789133834789143
+100	27	1	3fd4b3ad712cf3ba 0.32346664478592013
+100	28	0	3ff41db6f716a3c5 1.257254567326741
+100	29	1	3fd6930f8ede4b9f 0.35272587730394805
+100	30	1	3fd652a8fe3628b1 0.34879517388675213
+100	31	1	3fd6233087186cee 0.3458978003779539
+100	32	1	3fd645cf389207b2 0.34801083111244246
+100	33	0	3ff140a66ec5cfd5 1.0782837225969975
+100	34	1	3fd296946e538c19 0.2904406621366334
+100	35	1	3fd30de4957a7a82 0.29772295567992313
+100	36	1	3fd6645420e85d8c 0.3498735734333074
+100	37	1	3fd66f50ad1654ff 0.35054413703012693
+100	38	1	3fd642aa420e3484 0.3478189129899152
+100	39	1	3fd60d07ac600951 0.3445452864981649
+100	40	1	3fd66f50ad1654ff 0.35054413703012693
+100	41	1	3fd661e818574881 0.34972574593587785
+100	42	1	3fe3af43229c61c4 0.6151443172448627
+100	43	1	3fd6706feb2682dd 0.3506126209631882
+100	44	1	3fe37e16780b692b 0.609141573392923
+100	45	1	3fd30de4957a7a82 0.29772295567992313
+100	46	1	3fd6460405049a59 0.3480234192851746
+100	47	1	3fe6cdbd6ec1bd99 0.7126147425860153
+100	48	1	3fd599b3ba0ab671 0.3375062290968805
+100	49	1	3fd6d6cfc8dbce7b 0.35686106314754057
+100	50	1	3fe0f58aa146eda7 0.5299733304922726
+100	51	0	3ffe5c5f6b83a682 1.8975519370818863
+100	52	1	3fd6150c2fe14cfa 0.34503464389599936
+100	53	0	bff913a2662ee3c6 -1.5672935477762038
+100	53	1	3fde06de999340f9 0.46916928289012066
+100	54	1	3fd6520e63dc20bd 0.3487583136743629
+100	55	1	3fdf4be78ecca5e4 0.4890078444028332
+100	56	1	3fe0d3568c091712 0.5257981047695657
+100	57	1	3fdfd69d05640470 0.49747396017489276
+100	58	1	3fd653da013ef56d 0.3488678943793591
+100	59	1	3fd64ebfb970a2ce 0.3485564528405519
+100	60	0	bff73699a13628bb -1.450830106480267
+100	60	1	3fd3bcea25ac9ab8 0.30840543440937607
+100	61	0	3ffe5c5f6b83a682 1.8975519370818863
+100	62	1	3fd631b0ded34666 0.3467828918483974
+100	63	0	3ff3cf59717730b7 1.238122409081411
+100	64	0	3ff0f1dac68f2dbb 1.059046531316979
+100	65	1	3fd2d4511ac1b22a 0.29420878994895594
+100	66	1	3fe3bc7946602525 0.6167570471308507
+100	67	0	3ff140a66ec5cfd5 1.0782837225969975
+100	68	1	3fd6650fb5361a99 0.34991829582615136
+100	69	1	3fd645cf976cfae4 0.34801091945329987
+100	70	1	3fe3eda554715d43 0.6227594994806299
+100	71	0	4000f02304466520 2.1172542890532355
+100	72	0	3ff192dcbe8f8959 1.0983550494934973
+100	73	1	3fe254c3041573a1 0.5728468971025117
+100	74	1	3fd87e3ce5a465f6 0.38270494867319316
+100	75	1	3fe4d4f162f12640 0.6509940082989445
+100	76	1	3fd7ecc59face2d9 0.3738264140443284
+100	77	1	3fd4b3ad712cf3ba 0.32346664478592013
+100	78	1	3fd928ceb89a6d53 0.393115692402451
+100	79	0	3ff71825c4abbd11 1.4433953936057302
+100	80	1	3fd08e532d3948a5 0.2586868230474784
+100	81	1	3fd5ccd3dee18c4f 0.34062668576934113
+100	82	1	3fd63077b283c6e4 0.346708225565733
+100	83	1	3fd65edaa86c749c 0.3495394367944955
+100	84	0	3ff71825c4abbd11 1.4433953936057302
+100	85	1	3fd65d1a9f33c285 0.3494326166828972
+100	86	1	3fd6602b92e0ccc8 0.34961976378981463
+100	87	1	3fd30de4957a7a82 0.29772295567992313
+100	88	1	3fd6460405049a59 0.3480234192851746
+100	89	1	3fd454ebbe9e25e8 0.3176831590177174
+100	90	1	3fd8472a539b4535 0.37934358753871616
+100	91	1	3fd6920c222e6eec 0.3526640256693401
+100	92	1	3fd653da013ef56d 0.3488678943793591
+100	93	0	3ff075b8cf97eaaa 1.0287407025449888
+100	94	1	3fd60d07ac600951 0.3445452864981649
+100	95	1	3fd57a53653fa1f9 0.3355911720996399
+100	96	1	3fd66f3efe303431 0.3505399210269529
+100	97	1	3fd8487b69cce6ba 0.3794239552695263
+100	98	1	3fd6460405049a59 0.3480234192851746
+100	99	1	3fef9fe77298cb39 0.9882695425243134
+100	100	1	3fd3cebd513349e3 0.30949337892266565
+100	101	1	3fd6460405049a59 0.3480234192851746
+100	102	1	3fd579d24d0b8ccd 0.33556039356171824
+100	103	0	3ff0d376a34cfa32 1.051626813786822
+100	104	1	3fd86be9583b92ad 0.38158639542079237
+100	105	1	3fd47eda70924744 0.32024250977803015
+100	106	1	3fd6b5b1b18ff11f 0.3548397287375042
+100	107	1	3fd66f50ad1654ff 0.35054413703012693
+100	108	1	3fd83173015796fa 0.3780181420428189
+100	109	1	3fd6a17d843ab09a 0.35360658562673
+100	110	1	3fd474fcc7939d38 0.31964034547714304
+100	111	1	3fd50a9b6ba41858 0.3287724066907507
+100	112	1	3fd343d85e219564 0.3010159415483342
+100	113	1	3fd66196600649f2 0.3497062623729611
+100	114	1	3fd055c769fa6242 0.2552355322782526
+100	115	1	3fd5bf43b83e01e4 0.3397988604774851
+100	116	1	3fd30de4957a7a82 0.29772295567992313
+100	117	1	3fd67054263e55a7 0.35060600027767425
+100	118	1	3fd653da013ef56d 0.3488678943793591
+100	119	0	40005283608295ae 2.0402896442271503
+100	120	1	3fd30de4957a7a82 0.29772295567992313
+100	121	1	3fd67270fe3d0bb1 0.3507349474713762
+100	122	1	3fd03ce0f6724491 0.2537157446577761
+100	123	1	3fea3857c93dfd97 0.8193777971754795
+100	124	1	3fd6459b04ba4cf7 0.34799838506405883
+100	125	0	3fe7eb94f3ed94e8 0.7475075496883195
+100	126	0	3fef0fb627cb5415 0.9706679131728629
+100	127	0	3fec008fcbc70b4b 0.8750685672788249
+100	128	0	3ff3a0ae1577674a 1.2267285192997002
+100	129	0	3ff0fa398fe91c69 1.061090051794759
+100	130	0	3fe7eb94f3ed94e8 0.7475075496883195
+100	131	0	3fe7eb94f3ed94e8 0.7475075496883195
+100	132	0	3fd6aca0db8e80a8 0.3542863983257214
+100	133	0	3fe2f33f8ec74a8e 0.5921933926241125
+100	134	0	3fe264f24e21e2b4 0.5748225713751567
+100	135	0	3fe25de0f10eeaf4 0.5739597995919596
+100	136	0	3fd6f7dcc410349c 0.35887831827933225
+100	137	0	3fe2c3e7da7a688f 0.586414267268326
+100	138	0	3fd6aca0db8e80a8 0.3542863983257214
+100	139	0	3fecf75049b36d37 0.9051896514387526
+100	140	0	3fe4c2578fe0b0a8 0.6487233934508554
+100	141	0	3fe7cefad283fdb0 0.7440160857803928
+100	142	0	3fd61fcb70f305eb 0.3456905940075489
+100	143	0	3fe169be1e42bf52 0.5441580382375639
+100	144	0	3fdcbd256915fe15 0.44904456388755537
+100	145	0	3fec381ab0b033c1 0.881848664373699
+100	146	0	3fe7cefad283fdb0 0.7440160857803928
+100	147	0	3fe136d5d9f854e1 0.5379437691905445
+100	148	0	3ff0abe09c416415 1.041962252018725
+100	149	0	3fd8e77a35f4aef1 0.38912825841064974
+100	150	0	3fd90470027f4f30 0.39089584583165315
+100	151	0	3fe4c2578fe0b0a8 0.6487233934508554
+100	152	0	bff71774fa169f6b -1.4432267922474817
+100	152	1	3fcf2789a368de7e 0.2433940933130891
+100	153	0	bfe8120f54c3c647 -0.7522045760690127
+100	153	1	3fc8195ffd646958 0.18827438233058547
+100	154	0	3ff5bd4bd680b679 1.3587149027838719
+100	155	0	3fd2fdc53e8fbde8 0.29673892125626233
+100	156	0	3fd90470027f4f30 0.39089584583165315
+100	157	0	3fdd7a3f0bb6982b 0.4605863203418063
+100	158	0	3fd66b62f429a7aa 0.35030435413374994
+100	159	0	3fdfc4386b315763 0.496351341896448
+100	160	0	3fdcf9b4ad625699 0.45274083072704624
+100	161	0	3fe25de0f10eeaf4 0.5739597995919596
+100	162	0	3fd6f7dcc410349c 0.35887831827933225
+100	163	0	3fe264f24e21e2b4 0.5748225713751567
+100	164	0	3fd2947a64206e8b 0.2903123834418941
+100	165	0	3fd58840ba92fed8 0.33644121379982783
+100	166	0	3fd560a31f9fea3b 0.3340232666811606
+100	167	0	3fe1689849a15d00 0.5440179288952152
+100	168	0	3fd2947a64206e8b 0.2903123834418941
+100	169	0	bfe8120f54c3c647 -0.7522045760690127
+100	169	1	3fc8195ffd646958 0.18827438233058547
+100	170	0	3ff2d5301e549e3b 1.1770478424822517
+100	171	1	3fd66fec8167b77c 0.3505812896463494
+100	172	0	3fd4897a91c6d941 0.3208910392380809
+100	173	1	3fd0500b2b62bd08 0.25488547551044904
+100	174	1	3fd640a181f0052c 0.3476947564050359
+100	175	1	3fd674738b50996f 0.3508576260086533
+100	176	1	3fd699cc1b7a8616 0.3531370418878351
+100	177	1	3fd6520e63dc20bd 0.3487583136743629
+100	178	1	3fd696cf20ea6d51 0.35295465673853693
+100	179	1	3fd6560fc741b0b2 0.3490027852883585
+100	180	0	3fdd64195ad67c41 0.4592345606888025
+100	180	1	bff1a358df1b9049 -1.1023796763556837
+100	181	1	3fd6920c222e6eec 0.3526640256693401
+100	182	1	3fe4a54287f10482 0.6451733260256705
+100	183	1	3fd622a7b89c10f9 0.3458651831463296
+100	184	1	3fd5e60e2e381148 0.34216646684241825
+100	185	0	3fd38fdc153b846c 0.305655499205449
+100	186	1	3fd6862718247abc 0.35193803174653815
+100	187	1	3fd673913df49f31 0.35080367136332585
+100	188	1	3fd6a17d843ab09a 0.35360658562673
+100	189	1	3fd653da013ef56d 0.3488678943793591
+100	190	0	3ff38a1032a04a8f 1.221206853636122
+100	191	0	3fd8ba5db52e9dcf 0.38637488072933207
+100	191	1	bfe58a898089835c -0.6731612692347926
+100	192	1	3fd66f3efe303431 0.3505399210269529
+100	193	0	3fd4897a91c6d941 0.3208910392380809
+100	194	1	3fd6862718247abc 0.35193803174653815
+100	195	0	3fec008fcbc70b4b 0.8750685672788249
+100	196	0	3fe101f525e91083 0.5314889660298977
+100	197	0	3ff3a0ae1577674a 1.2267285192997002
+100	198	0	3fc8e6aab932ea19 0.19453939478792462
+100	199	0	3fef8d162ecd4f15 0.9859724916554763
+100	200	0	3fd2fdc53e8fbde8 0.29673892125626233
+100	201	0	3fae2de6708609a3 0.05894394038752473
+100	201	1	3f7b1d8a2caa9f55 0.006619968170219999
+100	202	0	3fd6aca0db8e80a8 0.3542863983257214
+100	203	1	3fd30de4957a7a82 0.29772295567992313
+100	204	1	3fd6703ccfebc637 0.35060043625626086
+100	205	1	3fd65d7d2a7e4ef9 0.34945611142869343
+100	206	1	3fd657f8348a8b93 0.3491192353341656
+100	207	1	3fdbf78614351496 0.4369826505029065
+100	208	1	3fe17c76dd6db4e1 0.5464433979774662
+100	209	0	3fed3993907489e8 0.913278371943588
+100	209	1	bfe84d2f116dac2e -0.7594218578718761
+100	210	1	3fe2143111ff8c55 0.5649648047950772
+100	211	1	3fd6460405049a59 0.3480234192851746
+100	212	1	3fd5aa667e1f3582 0.3385254127177505
+100	213	1	3fd60ae1ead28cf5 0.344414214438259
+100	214	0	3f9e957051256209 0.02986693854595227
+100	214	1	bf99ac18042acc50 -0.025070548300117956
+100	215	1	3fd6637eb3770fc4 0.3498226883496012
+100	216	1	3fea3857c93dfd97 0.8193777971754795
+100	217	1	3fd6321a631b8762 0.34680804899664086
+100	218	1	3fd6d6580a3004bf 0.3568325137603771
+100	219	1	3fd6440c65aaf1d5 0.3479033463334223
+100	220	1	3fe25c021dfda31e 0.5737314782864791
+100	221	0	bfb20977b046a474 -0.07045696309673294
+100	221	1	3fb2e5279bff3b73 0.07380912359734086
+100	222	0	3ff06d621e0b1014 1.0267049001277018
+100	223	1	3fde6f801641174c 0.47555544064777133
+100	224	0	3fd66b62f429a7aa 0.35030435413374994
+100	225	1	3fe0a241a4e6286f 0.5198066921887071
+100	226	1	3fd2e55949fb9573 0.29524833893659447
+100	227	0	3fe25de0f10eeaf4 0.5739597995919596
+100	228	0	3ffb4a52d3bb605a 1.7056453963068834
+100	229	1	3fd60d07ac600951 0.3445452864981649
+100	230	1	3fea1f2e99ed59e0 0.8163064009084415
+100	231	0	3ff2bbcd9931d093 1.1708503708041789
+100	232	0	3ffd1a408d3e310c 1.8189092175771888
+100	233	1	3fcb96cbff7b0d1d 0.21553945517198594
+100	234	0	3ffe5c5f6b83a682 1.8975519370818863
+100	235	0	3ff0f1dac68f2dbb 1.059046531316979
+100	236	1	3fe0d5a3508809dd 0.5260788510207096
+100	237	0	3ff71825c4abbd11 1.4433953936057302
+100	238	1	3fe25c021dfda31e 0.5737314782864791
+100	239	1	3fd66145a39fcfe5 0.34968701342518066
+100	240	1	3fdd0d58b7a87ed7 0.45393960891122503
+100	241	0	3f9ce19043c0c4ca 0.02820420659572135
+100	241	1	bf97ef8859230b91 -0.02337468189285691
+100	242	0	3fd58b0cc775df7f 0.33661193350371116
+100	243	1	3fd2dc66f696460c 0.29470228272211396
+100	244	1	3fd66f50ad1654ff 0.35054413703012693
+100	245	1	3fd6717a5365d8b9 0.35067613739318976
+100	246	0	3fd58840ba92fedb 0.336441213799828
+100	247	1	3fd30de4957a7a82 0.29772295567992313
+100	248	1	3fd653da013ef56d 0.3488678943793591
+100	249	1	3fd670299a0a131b 0.35059585612207095
+100	250	0	3ff0fe743f0026e7 1.0621225796662033
+100	251	0	3ff2e984698ac1ff 1.1820110438094387
+100	252	1	3fe09dd61a5ac469 0.5192671313035478
+100	253	1	3fd66f50ad1654ff 0.35054413703012693
+100	254	1	3fd64ab8fe95ae9a 0.3483107076815287
+100	255	1	3fd67b73e9125d33 0.3512849594203146
+100	256	1	3fd2b8fc91bf5d78 0.29254068596988914
+100	257	1	3fd66f50ad1654ff 0.35054413703012693
+100	258	1	3fd5b8e73b2dc4ba 0.33941059855630906
+100	259	1	3fd04bdedee9e039 0.25463077324775757
+100	260	1	3fd624f1063f07ed 0.3460047303198042
+100	261	0	3fd58b0cc775df7f 0.33661193350371116
+100	262	1	3fd640a181f0052c 0.3476947564050359
+100	263	1	3fd30de4957a7a82 0.29772295567992313
+100	264	1	3fd30de4957a7a82 0.29772295567992313
+100	265	0	3fd58b0cc775df7f 0.33661193350371116
+100	266	1	3fd622a7b89c10f9 0.3458651831463296
+100	267	0	3fe2f33f8ec74a8e 0.5921933926241125
+100	268	0	3ff84d5786fcb98b 1.5188823006570569
+100	269	1	3fef1f0c42b1e848 0.9725400259624246
+100	270	0	3ffe5c5f6b83a682 1.8975519370818863
+100	271	1	3fcb78d9659a6226 0.2146255251034443
+100	272	1	3fe0f58aa146eda7 0.5299733304922726
+100	273	1	3fd623de6b36265e 0.3459392592418221
+100	274	0	3fd6aca0db8e80a8 0.3542863983257214
+100	275	1	3fd62a78d1381145 0.3463422816423825
+100	276	1	3fd93ce618342a6b 0.39434196818971284
+100	277	0	3fd681afb0f7c718 0.35166542322177596
+100	278	1	3fd54e7e9343f8ab 0.33291592008016363
+100	279	1	3fd6fad1a3d832fe 0.35905877113763995
+100	280	0	3ff140a66ec5cfd5 1.0782837225969975
+100	281	1	3fe23ce61fedd351 0.5699339507687943
+100	282	0	3fd6f7dcc410349c 0.35887831827933225
+100	283	1	3fd653037cf0a91d 0.3488167495840047
+100	284	1	3fe25c021dfda31e 0.5737314782864791
+100	285	0	bfddd265ea674417 -0.46596668139415115
+100	285	1	3fe04e24bf332ea2 0.509539006650318
+100	286	0	3fe264f24e21e2b4 0.5748225713751567
+100	287	0	3ffbcd64869924dd 1.737644696974079
+100	288	1	3fd2fe1ccb47ebfd 0.2967597947278476
+100	289	1	3fd6321a631b8762 0.34680804899664086
+100	290	1	3fdd9ba572962298 0.4626248950012637
+100	291	1	3ff46c71a2a626a9 1.2764755586125978
+100	292	1	3fe08a9c90640e51 0.5169203586705838
+100	293	1	3fd5f6467e8541f8 0.34315645556947016
+100	294	1	3fd29af3d4467319 0.29070754747390165
+100	295	1	3fd6460405049a59 0.3480234192851746
+100	296	1	3fd60d07ac600951 0.3445452864981649
+100	297	1	3fd03baa9ef9b5f3 0.25364175343460643
+100	298	1	3fd6321a631b8762 0.34680804899664086
+100	299	1	3fd6460405049a59 0.3480234192851746
+100	300	1	3fd6a2100aa50809 0.35364151992337206
+100	301	1	3fd65d604352af38 0.3494492204142605
+100	302	1	3fd521522bbdfa29 0.33015875121774
+100	303	1	3fd03898561bbaae 0.25345428856864316
+100	304	1	3fd66f50ad1654ff 0.35054413703012693
+100	305	0	3fd4e1809f501ab4 0.32626357610608214
+100	306	1	3fd55a59b61d8fd0 0.3336395529242937
+100	307	1	3fd63261dec38945 0.346825091879641
+100	308	1	3fe2143111ff8c55 0.5649648047950772
+100	309	1	3fd640a181f0052c 0.3476947564050359
+100	310	1	3fd6460405049a59 0.3480234192851746
+100	311	1	3fdf1967ba8e7e31 0.4859256097642826
+100	312	0	3ff0135ebf69cbc3 1.0047290303307228
+100	313	1	3fea1f2e99ed59e0 0.8163064009084415
+100	314	1	3fd30de4957a7a82 0.29772295567992313
+100	315	1	3fd64c1c2a0df579 0.3483953867615451
+100	316	1	3fe2143111ff8c55 0.5649648047950772
+100	317	0	bff13453925fb720 -1.0752750127534867
+100	317	1	3fc9bfa649a60948 0.2011611804592326
+100	318	1	3fd64feaf58ef6da 0.3486277959853915
+100	319	1	3fd653da013ef56d 0.3488678943793591
+100	320	1	3fd2e55949fb9573 0.29524833893659447
+100	321	1	3fd66f50ad1654ff 0.35054413703012693
+100	322	0	3ff140a66ec5cfd5 1.0782837225969975
+100	323	0	bfe5a35afc87aed4 -0.6761908466555391
+100	323	1	3fc71706a66d4fcd 0.18039019705122286
+100	324	1	3fd2ad65fddfb7bc 0.29183339874623093
+100	325	1	3fd6504f1d0b3bc4 0.3486516746169708
+100	326	0	3fd58840ba92fedb 0.336441213799828
+100	327	1	3fd34f4f9f4405d5 0.3017157607392538
+100	328	1	3ff72df98ea8cf20 1.448724324477503
+100	329	1	3fd4cafb47545d46 0.324889011056673
+100	330	1	3fd66f65835152e2 0.35054910491935065
+100	331	0	3fdeeb8e4cb45f38 0.4831271885936874
+100	332	1	3fd696cf20ea6d51 0.35295465673853693
+100	333	1	3fd64b16ea0d2eeb 0.34833309990493316
+100	334	1	3fe24d28ad654c00 0.5719188105234707
+100	335	1	3fd674aa52c7d98d 0.35087068637894775
+100	336	1	3feeb657352ffa72 0.9597583807770447
+100	337	0	3ff71825c4abbd11 1.4433953936057302
+100	338	1	3fe1ba1c75015b71 0.553968647504787
+100	339	0	3fe7f384e21d6293 0.748476449613991
+100	340	1	3fe4a54287f10482 0.6451733260256705
+100	341	0	3fdcbd256915fe15 0.44904456388755537
+100	342	0	3ff5bd4bd680b679 1.3587149027838719
+100	343	0	3fef8d162ecd4f15 0.9859724916554763
+100	344	0	3ff2e984698ac1ff 1.1820110438094387
+100	345	0	3ff2bbcd9931d093 1.1708503708041789
+100	346	0	3fe429de3f50b70c 0.6301108585955446
+100	346	1	bff39ed2204eda75 -1.226274610713202
+100	347	0	3fd66b62f429a7aa 0.35030435413374994
+100	348	0	3fd7ef0b03c28e0c 0.37396502844987434
+100	349	0	3fe2a88637e72a3a 0.5830718128066288
+100	350	1	3fd65d1a9f33c285 0.3494326166828972
+100	351	0	3fe264f24e21e2b4 0.5748225713751567
+100	352	1	3fca72b235ce7205 0.20662524821536024
+100	353	0	3fd67daa8f560fd0 0.3514200591819163
+100	354	1	3fcecb248980b36c 0.2405744239235007
+100	355	0	3fd95bb786b81200 0.3962229552855945
+100	356	0	bfe181215f65bd72 -0.547012983630266
+100	356	1	3fe2f53605aa411b 0.5924329863210319
+100	357	0	3fd90470027f4f30 0.39089584583165315
+100	358	0	3fe3f40e2b84d15d 0.6235419130303331
+100	359	1	3fe3bc7946602525 0.6167570471308507
+100	360	0	3ff09361eff2d339 1.0359820721616428
+100	361	1	3fe53376ec9c0ec0 0.6625322934418918
+100	362	0	3fec008fcbc70b4b 0.8750685672788249
+100	363	1	3fe55a7b8d396991 0.667295242146155
+100	364	1	3fe0d3568c091712 0.5257981047695657
+100	365	1	3fe484a2e80da55d 0.6411909611025909
+100	366	1	3fe3eda554715d43 0.6227594994806299
+100	367	1	3fef9fe77298cb39 0.9882695425243134
+100	368	1	3fd9d2159b7deade 0.4034475344157452
+100	369	0	3feea3b578eb28aa 0.9574839936915585
+100	370	0	3ff77409c4f6cefe 1.4658296293172834
+100	371	0	40001b3472e6a5c5 2.013283631957821
+100	372	1	3fe17c76dd6db4e1 0.5464433979774662
+100	373	1	3fe6cdbd6ec1bd99 0.7126147425860153
+100	374	0	3fe9dfa747807096 0.808551444675248
+100	375	1	3fe3af43229c61c4 0.6151443172448627
+100	376	1	3ff327ae11bdf6c5 1.197187489800329
+100	377	1	3fe37e16780b692b 0.609141573392923
+100	378	0	3fd2947a64206e8b 0.2903123834418941
+100	379	0	3fd3af16b448e9e2 0.3075615654558118
+100	380	1	3fd5d2d99af7da98 0.3409942639695287
+100	381	1	3fd5a11aedd8d2a3 0.3379580805515536
+100	382	1	3fe2143111ff8c55 0.5649648047950772
+100	383	1	3fd66662c4e1aabb 0.34999913431844804
+100	384	1	3fe2e0c308d9feed 0.589936749733139
+100	385	1	3fd6a17d843ab09a 0.35360658562673
+100	386	1	3fd6321a631b8762 0.34680804899664086
+100	387	1	3fe0f58aa146eda7 0.5299733304922726
+100	388	1	3fe25c021dfda31e 0.5737314782864791
+100	389	1	3fd6645420e85d8c 0.3498735734333074
+100	390	1	3fd67054263e55a7 0.35060600027767425
+100	391	1	3fd6460405049a59 0.3480234192851746
+100	392	1	3fd57a53653fa1f9 0.3355911720996399
+100	393	1	3fc7fbdc9c933dde 0.18737371106406803
+100	394	1	3fd696cf20ea6d51 0.35295465673853693
+100	395	1	3fd2728b317de2dd 0.28824119408777255
+100	396	1	3fd2b8fc91bf5d78 0.29254068596988914
+100	397	1	3fd6460405049a59 0.3480234192851746
+100	398	1	3fd2dc66f696460c 0.29470228272211396
+100	399	1	3fd8dee7c42da753 0.38860506208458395
+100	400	1	3fd1bee5551eb1b9 0.27727635681619806
+100	401	1	3fd640a181f0052c 0.3476947564050359
+100	402	1	3fd63261dec38945 0.346825091879641
+100	403	1	3fd6560fc741b0b2 0.3490027852883585
+100	404	1	3fe5e5c8ada4f53e 0.6842997924319787
+100	405	1	3fd651375a626687 0.3487070448551112
+100	406	1	3fd696cf20ea6d51 0.35295465673853693
+100	407	1	3fd5b8e73b2dc4ba 0.33941059855630906
+100	408	1	3fd653037cf0a91d 0.3488167495840047
+100	409	1	3fd60cdaecdd0fe9 0.34453461772159116
+100	410	1	3fd08e532d3948a5 0.2586868230474784
+100	411	1	3fd64feaf58ef6da 0.3486277959853915
+100	412	1	3fd63f9d32832a59 0.3476326936039747
+100	413	1	3fcb5f6ab2d27434 0.21384938937708997
+100	414	1	3fe2c393c64d6125 0.5863741753665052
+100	415	1	3fd30de4957a7a82 0.29772295567992313
+100	416	1	3fd6d6580a3004bf 0.3568325137603771
+100	417	1	3fd612f313bf95fa 0.34490658691933584
+100	418	1	3fd622a7b89c10f9 0.3458651831463296
+100	419	1	3fd30de4957a7a82 0.29772295567992313
+100	420	0	3fd560a31f9fea3b 0.3340232666811606
+100	421	1	3fd66f50ad1654ff 0.35054413703012693
+100	422	1	3fd674738b50996f 0.3508576260086533
+100	423	1	3fd579d24d0b8ccd 0.33556039356171824
+100	424	1	3fe254c3041573a1 0.5728468971025117
+100	425	1	3fd01ec8893f0e7f 0.2518788662239117
+100	426	1	3fd65d7d2a7e4ef9 0.34945611142869343
+100	427	1	3fd6d6cfc8dbce7b 0.35686106314754057
+100	428	1	3fd67454feeae080 0.35085034269605586
+100	429	0	3ff8da3ca7407970 1.5532804997706897
+100	430	1	3fd670e993d29562 0.35064162669944754
+100	431	1	3fd5d6b45a29417b 0.34122952275085766
+100	432	1	3fd29af3d4467319 0.29070754747390165
+100	433	1	3fcff8238c4fafed 0.2497600970376647
+100	434	1	3fe24d28ad654c00 0.5719188105234707
+100	435	1	3fd2644ac0c3813b 0.2873713381250302
+100	436	1	3fcff6ad3718a7c4 0.24971547308206088
+100	437	1	3fd8824bcee8875c 0.38295264440431764
+100	438	1	3ff72df98ea8cf20 1.448724324477503
+100	439	1	3fd028a107492062 0.252479798426526
+100	440	1	3fd8472a539b4535 0.37934358753871616
+100	441	1	3fd30de4957a7a82 0.29772295567992313
+100	442	1	3fdcb24c5a6d8c19 0.44838246184207403
+100	443	1	3fd30de4957a7a82 0.29772295567992313
+100	444	1	3fe2f0d59b52b9e7 0.5918987306266076
+100	445	1	3fd268e072e38beb 0.2876511690103018
+100	446	1	3fd66cf4560a19ec 0.35040005113879036
+100	447	0	3fd58840ba92fed8 0.33644121379982783
+100	448	1	3fd640a181f0052c 0.3476947564050359
+100	449	1	3fd653da013ef56d 0.3488678943793591
+100	450	1	3fd6321a631b8762 0.34680804899664086
+100	451	1	3feca93f760a132f 0.8956601434188992
+100	452	1	3fd640a181f0052c 0.3476947564050359
+100	453	1	3fe08a9c90640e51 0.5169203586705838
+100	454	1	3fe2b0957031b8f0 0.5840556327146071
+100	455	1	3fd2ad65fddfb7bc 0.29183339874623093
+100	456	1	3fd670299a0a131b 0.35059585612207095
+100	457	1	3fd46b051eb7f059 0.3190319824204884
+100	458	1	3fd2e55949fb9573 0.29524833893659447
+100	459	1	3fd66f50ad1654ff 0.35054413703012693
+100	460	1	3fd6460405049a59 0.3480234192851746
+100	461	1	3fe566a7ea095c2d 0.6687812396074883
+100	462	1	3fd25c66f423e732 0.2868897804433913
+100	463	1	3fee61e3795d1696 0.9494492884047812
+100	464	1	3fd642aa420e3484 0.3478189129899152
+100	465	1	3fd01b0b6f3cadae 0.25165067542067276
+100	466	1	3fd622a7b89c10f9 0.3458651831463296
+100	467	1	3fd8487b69cce6ba 0.3794239552695263
+100	468	1	3fd66b9d1fa9310d 0.35031822292218423
+100	469	1	3fe3a213e4197c1e 0.6135348753995264
+100	470	1	3fd65c41aac70e2f 0.34938089063163863
+100	471	1	3fd2c3be2a53792b 0.29319719441800157
+100	472	1	3fd6b5b1b18ff11f 0.3548397287375042
+100	473	1	3fea1f2e99ed59e0 0.8163064009084415
+100	474	1	3fe1ba1c75015b71 0.553968647504787
+100	475	1	3fd65edaa86c749c 0.3495394367944955
+100	476	1	3fd6460405049a59 0.3480234192851746
+100	477	1	3fcb78d9659a6226 0.2146255251034443
+100	478	1	3fd6b442e1809ade 0.3547522737666621
+100	479	1	3fd60d07ac600951 0.3445452864981649
+100	480	0	3fe73a55de3938fd 0.7258710232070197
+100	481	1	3fd0500b2b62bd08 0.25488547551044904
+100	482	1	3fd65867d6ce3a2b 0.3491458509169287
+100	483	1	3fd87e3ce5a465f6 0.38270494867319316
+100	484	1	3fd652a8fe3628b1 0.34879517388675213
+100	485	1	3fde7fb52263cfea 0.47654465063464946
+100	486	1	3fe62fbfc48f9178 0.6933287467077625
+100	487	1	3fd624f1063f07ed 0.3460047303198042
+100	488	1	3fd64004fcc03173 0.34765743906679986
+100	489	1	3fd0333dc057c0d9 0.2531275156352542
+100	490	1	3fd2d638e5bf3488 0.29432508884639974
+100	491	1	3fd6568908b7ab76 0.34903169490160424
+100	492	1	3fd66f50ad1654ff 0.35054413703012693
+100	493	1	3fd6321a631b8762 0.34680804899664086
+100	494	1	3fcc73a9c053f61e 0.22227975741400113
+100	495	1	3fd653da013ef56d 0.3488678943793591
+100	496	1	3fd60ae1ead28cf5 0.344414214438259
+100	497	1	3fd6864e4abb051b 0.35194737718491503
+100	498	1	3fd6646ef0e87590 0.3498799660318008
+100	499	1	3fd645cf976cfae4 0.34801091945329987
+100	500	1	3fd2780ca8ba6c8f 0.2885772369133485
+100	501	1	3fd28555c6795c92 0.28938812620385435
+100	502	1	3fd2d71e4a65448c 0.29437978043740354
+100	503	1	3fe25c021dfda31e 0.5737314782864791
+100	504	1	3fe0a241a4e6286f 0.5198066921887071
+100	505	1	3fd645cf389207b2 0.34801083111244246
+100	506	1	3fd643d2e5c99651 0.3478896373766008
+100	507	1	3fcb96cbff7b0d1d 0.21553945517198594
+100	508	1	3fd03898561bbaae 0.25345428856864316
+100	509	1	3fd0135ba935e254 0.25118152164899255
+100	510	1	3fd04bdedee9e039 0.25463077324775757
+100	511	1	3fd055c769fa6242 0.2552355322782526
+100	512	1	3fd0424a28a93d41 0.2540460011559454
+100	513	1	3fd6440c65aaf1d5 0.3479033463334223
+100	514	1	3fd599b3ba0ab671 0.3375062290968805
+100	515	1	3fe2143111ff8c55 0.5649648047950772
+100	516	1	3fd6a2100aa50809 0.35364151992337206
+100	517	1	3fd30de4957a7a82 0.29772295567992313
+100	518	1	3fdf1967ba8e7e31 0.4859256097642826
+100	519	1	3fde6f801641174c 0.47555544064777133
+100	520	1	3fd6703ccfebc637 0.35060043625626086
+100	521	1	3fd03ce0f6724491 0.2537157446577761
+100	522	1	3fd2d45e438289fe 0.2942119273449463
+100	523	1	3fd66f50ad1654ff 0.35054413703012693
+100	524	1	3fd60d07ac600951 0.3445452864981649
+100	525	1	3fd03baa9ef9b5f3 0.25364175343460643
+100	526	1	3fd6891218d9cee2 0.352116131084797
+100	527	1	3fd653da013ef56d 0.3488678943793591
+100	528	1	3fcb05a7c3a6529a 0.21111008694847017
+100	529	1	3fd6930f8ede4b9f 0.35272587730394805
+100	530	1	3fd65eb4f664c251 0.3495304495036509
+100	531	1	3fd641ff6ef64eaa 0.3477781852354648
+100	532	1	3fd64cb5772ba89f 0.3484319366240331
+100	533	1	3fd69e1899a8945d 0.35339941983904116
+100	534	1	3fd634bc812cac68 0.3469687711210043
+100	535	1	3fd654c4fc17f41d 0.3489239179469353
+100	536	1	3fd6920c222e6eec 0.3526640256693401
+100	537	1	3fcecb248980b36c 0.2405744239235007
+100	538	1	3fd2fe1ccb47ebfd 0.2967597947278476
+100	539	1	3fe25c021dfda31e 0.5737314782864791
+100	540	1	3fd38583146896f0 0.30502392762205854
+100	541	1	3fd54d0b6372ec95 0.3328274222546466
+100	542	1	3fd66f50ad1654ff 0.35054413703012693
+100	543	1	3fd654c4fc17f41d 0.3489239179469353
+100	544	1	3fd73efe4aab5e33 0.36321980754789535
+100	545	1	3fe2143111ff8c55 0.5649648047950772
+100	546	1	3fd2e55949fb9573 0.29524833893659447
+100	547	1	3fd643289556bc56 0.3478490312945203
+100	548	1	3fd5f6467e8541f8 0.34315645556947016
+100	549	1	3fea1f2e99ed59e0 0.8163064009084415
+100	550	0	3fe7960ae9562211 0.7370657498696024
+100	550	1	bff21c3141ab6190 -1.1318829121792966
+end	turbo:gis-parameters
+layer	turbo:gis-model	document	1	sha256:str	length:u32
+adf2c994225316a62d7fd2e090ca09fe8b57e6f7ade6ba1c3711d2567ab035c5	9525
+end	turbo:gis-model

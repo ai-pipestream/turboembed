@@ -1,0 +1,66 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentence-fixture/crlf	25	25	ef0f4ce89fecc7bc80d4153caba7a724164a1031372c95a2bc235fcf2b72d546
+model	en-plain.bin	8da69d821956999ff898cf23963145cc134beb2bb59aa1ccc5e93d90b04895057057d80baf0e8c726bf28dea47021e51eab43689c8dc5fb78c99f19949c93ad8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+config	whitespace	legacy
+point	0	3	9	2	0	none
+context	sn
+context	eos=.
+context	x=One
+context	3
+context	xcap
+context	v=
+context	s=
+context	n=Two.
+context	ncap
+outcome	n	3fe1d8f0083e4034 0.5577316437720641
+outcome	s	3fdc4e1fef837f97 0.44226835622793587
+end	0
+point	1	9	10	2	0	none
+context	sn
+context	eos=.
+context	x=Two
+context	3
+context	xcap
+context	v=One.
+context	vcap
+context	s=
+context	n=Three.
+context	ncap
+outcome	n	3fdcdd44b25ae914 0.4510051481007775
+outcome	s	3fe1915da6d28b76 0.5489948518992225
+acceptable	1
+end	1
+point	2	16	10	2	0	none
+context	sn
+context	eos=.
+context	x=Three
+context	5
+context	xcap
+context	v=Two.
+context	vcap
+context	s=
+context	n=Four.
+context	ncap
+outcome	n	3fc54cde567a0d1a 0.16640834066866078
+outcome	s	3feaacc86a617cba 0.8335916593313393
+acceptable	1
+end	2
+point	3	23	9	2	0	none
+context	sn
+context	eos=.
+context	x=Four
+context	4
+context	xcap
+context	v=Three.
+context	vcap
+context	s=
+context	n=
+outcome	n	3fd31dc54b684ecc 0.29869205821999567
+outcome	s	3fe6711d5a4bd89a 0.7013079417800043
+acceptable	1
+end	3

@@ -1,0 +1,30 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/masc-aborts	6115	6115	3db2819036c9034bd16567717ddea4d535c04c5cae008c6981e2b60a984df060
+annotator	opennlp.tools.formats.masc.MascDocument	parseDocument
+layer	turbo:masc-documents	document	9	path:str	class:str	message:str	abort:u32	penn:u32	ne:u32
+first.hdr			0	0	0
+a/nos.hdr	java.lang.IndexOutOfBoundsException	Index -1 out of bounds for length 0	1	0	0
+a/b/noq.hdr	java.lang.IndexOutOfBoundsException	Index 0 out of bounds for length 0	1	0	0
+a/b/c/after.hdr	java.lang.IndexOutOfBoundsException	Index 2 out of bounds for length 2	1	0	0
+a/b/c/d/notext.hdr	java.lang.NullPointerException		1	0	0
+a/b/c/d/e/empty.hdr	java.lang.NullPointerException	Cannot invoke "java.util.HashMap.entrySet()" because "annotationFiles" is null	1	0	0
+a/b/c/d/e/f/noloc.hdr	java.lang.NullPointerException		1	0	0
+a/b/c/d/e/f/g/gone.hdr	java.io.IOException	Corpus integrity violated. Annotation file <corpus>/a/b/c/d/e/f/g/gone-seg.xml is missing.	1	0	0
+a/b/c/d/e/f/g/h/broken.hdr	java.io.IOException	Invalid corpus format. Could not parse the header: <corpus>/a/b/c/d/e/f/g/h/broken.hdr	1	0	0
+end	turbo:masc-documents
+layer	turbo:masc-sentences	document	1	doc:u32	start:u32	end:u32	quarks:str	tokenized:u32
+0	0	3	0 1	0
+end	turbo:masc-sentences
+layer	turbo:masc-tokens	document	0	sentence:u32	start:u32	end:u32	id:u32	pos:str	base:str	nulls:u32	quarks:str
+end	turbo:masc-tokens
+layer	turbo:masc-names	document	0	sentence:u32	start:u32	end:u32	type:str	nulls:u32
+end	turbo:masc-names
+layer	turbo:masc-stream	document	0	path:str
+end	turbo:masc-stream
+layer	turbo:masc-stream-errors	document	1	class:str	message:str
+java.lang.IndexOutOfBoundsException	Index -1 out of bounds for length 0
+end	turbo:masc-stream-errors

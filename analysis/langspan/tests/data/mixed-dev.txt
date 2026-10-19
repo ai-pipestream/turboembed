@@ -1,0 +1,101 @@
+# Mixed-language fixtures with gold spans, development set: the
+# detector's settings were chosen on these. Written for this crate.
+#
+# Format: a line "## <id>" starts a document; its text is the following
+# lines up to the next "## " line or the end, with the last line break
+# dropped. "[xxx]" starts a span of language xxx (ISO 639-3, the codes
+# of langdetect-183.bin) at that point; the marker is not part of the
+# text. Every document starts with a marker. Lines starting with "#"
+# and one space are comments.
+
+## dev-deu-eng-quote
+[deu]Gestern hat mir mein Kollege geschrieben, und am Ende stand nur: [eng]"Let me know if you need anything else from our side." [deu]Ich habe ihm sofort geantwortet und mich bedankt.
+
+## dev-eng-fra-email
+[eng]Hi Marie, thanks for forwarding the contract. The client wrote back this morning:
+[fra]Nous avons bien reçu votre proposition et nous vous remercions de votre patience. Nous reviendrons vers vous dès que possible.
+[eng]Can you check whether they still want the delivery in March?
+
+## dev-spa-eng-chat
+[spa]Oye, ¿viste el partido de anoche? Fue increíble, no lo podía creer. [eng]Honestly the referee was terrible, but whatever. [spa]Mañana nos vemos en la oficina, ¿vale?
+
+## dev-ita-eng
+[ita]La riunione di domani è stata spostata alle dieci perché il direttore arriva più tardi. [eng]Please bring the quarterly report and the updated budget figures. [ita]Grazie a tutti per la collaborazione.
+
+## dev-nld-eng
+[nld]We hebben de nieuwe versie van de software gisteren geïnstalleerd en alles werkt goed. [eng]The only problem is that the login page takes a long time to load.
+
+## dev-rus-eng
+[rus]Вчера мы встретились с партнёрами и обсудили планы на следующий год. [eng]They want to expand the project to three more cities before the summer.
+
+## dev-jpn-eng
+[jpn]昨日は友達と一緒に映画を見に行きました。とても面白かったです。[eng]The movie was about a robot who learns to paint.
+
+## dev-cmn-eng
+[cmn]我们公司今年的销售额比去年增长了百分之二十。[eng]This growth came mainly from the new markets in Southeast Asia.
+
+## dev-por-eng
+[por]O relatório final será enviado para a diretoria na próxima semana, depois da revisão. [eng]We still need the signatures from the legal department.
+
+## dev-pol-deu
+[pol]W zeszłym tygodniu byliśmy na wycieczce w górach i pogoda była wspaniała. [deu]Die Wanderung zur Hütte hat etwa vier Stunden gedauert.
+
+## dev-swe-eng
+[swe]Vi har fått många frågor om den nya tjänsten och kommer att svara på alla så snart som möjligt. [eng]Thank you for your patience while we work through them.
+
+## dev-tur-eng
+[tur]Bu akşam arkadaşlarımla birlikte yemeğe çıkacağız, sen de gelmek ister misin? [eng]We are meeting at the restaurant near the station at eight.
+
+## dev-ell-eng
+[ell]Η συνάντηση θα γίνει την Τρίτη στο γραφείο του κέντρου. [eng]Please confirm your attendance by Monday evening.
+
+## dev-ara-eng
+[ara]نحن سعداء جدا بالتعاون معكم في هذا المشروع الجديد. [eng]We will send the first draft of the design next week.
+
+## dev-heb-eng
+[heb]אנחנו מתכננים לפתוח סניף חדש בעיר בחודש הבא. [eng]The opening event will take place on the first Sunday of the month.
+
+## dev-kor-eng
+[kor]오늘 회의에서 새로운 프로젝트 계획에 대해 이야기했습니다. [eng]Everyone agreed that the deadline is too tight.
+
+## dev-fra-deu
+[fra]Le train pour Strasbourg partira avec une demi-heure de retard à cause des travaux. [deu]Die Reisenden werden gebeten, auf die Durchsagen am Bahnsteig zu achten.
+
+## dev-eng-deu-inline
+[eng]My grandmother always used to say [deu]"Was du heute kannst besorgen, das verschiebe nicht auf morgen" [eng]whenever I tried to put off my homework.
+
+## dev-eng-spa-inline
+[eng]The sign on the door said [spa]"Cerrado por vacaciones hasta el lunes" [eng]so we walked to the next cafe instead.
+
+## dev-hin-eng
+[hin]हम लोग अगले महीने दिल्ली जाने की योजना बना रहे हैं। [eng]We have already booked the hotel near the old city.
+
+## dev-ukr-eng
+[ukr]Ми дуже раді, що ви змогли приїхати на нашу конференцію цього року. [eng]The next session will start right after the coffee break.
+
+## dev-fin-eng
+[fin]Kokous alkaa huomenna kello yhdeksän ja kestää noin kaksi tuntia. [eng]Please read the attached documents before the meeting.
+
+## dev-ces-eng
+[ces]Včera jsme dokončili první verzi aplikace a poslali ji zákazníkovi k otestování. [eng]We expect their feedback by the end of the week.
+
+## dev-ind-eng
+[ind]Kami akan mengadakan pertemuan dengan tim pemasaran pada hari Kamis pagi. [eng]Please prepare a short presentation about the campaign results.
+
+## dev-dan-deu
+[dan]Vi glæder os meget til at se jer alle sammen til festen på lørdag. [deu]Bitte bringt etwas zu essen mit, wenn ihr könnt.
+
+## dev-vie-eng
+[vie]Chúng tôi đã nhận được đơn hàng của bạn và sẽ giao hàng trong ba ngày tới. [eng]You will receive a tracking number by email.
+
+## dev-hun-eng
+[hun]A jövő héten új munkatárs érkezik a csapatunkba a marketing osztályról. [eng]Please help her settle in during the first days.
+
+## dev-eng-ita-short
+[eng]We had dinner at a small place in Rome and the waiter said [ita]"buon appetito, signori" [eng]with a big smile.
+
+## dev-tha-eng
+[tha]วันนี้อากาศดีมากเราไปเที่ยวทะเลกันเถอะ [eng]I will bring the snacks and the drinks.
+
+## dev-ron-eng
+[ron]Vă mulțumim pentru comanda dumneavoastră și vă dorim o zi frumoasă. [eng]Your package will be shipped tomorrow morning.

@@ -1,0 +1,40 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	ko/punctuation	44	21	5a857b420d64b72007344dc791ab4d636853a9701dd95cf83585c22e0b847701
+model	mecab-ko-dic-2.1.1-20180720	2af39983547b6f54f5709733850dbbf14eadeec55bfdf795272fa707c8c86c36c9b43e3aaebc8531c784da00a2d974e6819c8d8c08a31f251d85f1a4476d8053
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	14	start:u32	end:u32
+0	3
+3	9
+9	12
+12	13
+14	15
+15	21
+21	22
+22	23
+24	25
+25	28
+29	32
+32	38
+38	41
+41	43
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	14	unknown:u32	features:str
+0	SSO,*,*,*,*,*,*,*
+0	NNP,지명,T,서울,*,*,*,*
+0	SSC,*,*,*,*,*,*,*
+0	SC,*,*,*,*,*,*,*
+0	SSO,*,*,*,*,*,*,*
+0	NNG,*,F,학교,*,*,*,*
+0	SSC,*,*,*,*,*,*,*
+0	SF,*,*,*,*,*,*,*
+0	SF,*,*,*,*,*,*,*
+0	SE,*,*,*,*,*,*,*
+0	SSO,*,*,*,*,*,*,*
+0	NNP,지명,T,한국,*,*,*,*
+0	SSC,*,*,*,*,*,*,*
+0	SC,*,*,*,*,*,*,*
+end	turbo:morphemes

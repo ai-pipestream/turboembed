@@ -1,0 +1,62 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	pii/overlap	77	77	c0ad12d8acbc61fcea4bb09077b085de7b656de489b448f0d59ed8496cd92c3c
+annotator	opennlp.tools.pii.PiiPacks	allStructured
+config	key	0123456789abcdef0123456789abcdef
+config	mask	*
+config	mask-all	#
+config	pack	all-structured
+layer	turbo:view	text	32	start:u32	end:u32	with:str
+5	6	*
+6	7	*
+7	8	*
+8	9	*
+10	11	*
+11	12	*
+12	13	*
+13	14	*
+15	16	*
+16	17	*
+17	18	*
+18	19	*
+20	21	*
+21	22	*
+22	23	*
+23	24	*
+25	26	*
+26	27	*
+27	28	*
+28	29	*
+30	31	*
+31	32	*
+52	53	*
+53	54	*
+54	55	*
+56	57	*
+57	58	*
+58	59	*
+60	61	*
+61	62	*
+62	63	*
+63	64	*
+end	turbo:view
+layer	turbo:pii-mask-all	document	1	text:str
+IBAN ########################### holds a phone; NHS ############ is one too.\n
+end	turbo:pii-mask-all
+layer	turbo:pii-rewrites	document	2	operation:str	text:str	error:str
+pseudonymize		mentions must not overlap: [5..32) and [20..32)
+hmac		mentions must not overlap: [5..32) and [20..32)
+end	turbo:pii-rewrites
+layer	turbo:pii-labels	document	0	operation:str	source_start:u32	source_end:u32	start:u32	end:u32	label:str
+end	turbo:pii-labels
+layer	turbo:pii-audit	document	3	type:str	mentions:u32	distinct:u32	samples:str
+iban	1	1	IBAN-12d2a2b8c32b1193
+phone	2	2	PHONE-d93b376c99f48a80, PHONE-258496d3f67ec84f
+uk-nhs	1	1	UK-NHS-8ab298778f89ab6b
+end	turbo:pii-audit
+layer	turbo:pii-audit-report	document	1	text:str
+iban: 1 mentions, 1 distinct [IBAN-12d2a2b8c32b1193]\nphone: 2 mentions, 2 distinct [PHONE-d93b376c99f48a80, PHONE-258496d3f67ec84f]\nuk-nhs: 1 mentions, 1 distinct [UK-NHS-8ab298778f89ab6b]
+end	turbo:pii-audit-report

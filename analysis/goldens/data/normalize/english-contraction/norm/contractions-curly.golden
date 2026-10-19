@@ -1,0 +1,21 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	norm/contractions-curly	275	251	fed206eb1685fad5c7e44522d86004b8d6b296dc215f0c25f87b874caf5fbfb5
+annotator	opennlp.tools.util.normalizer.EnglishContractionCharSequenceNormalizer	normalizeAligned
+layer	turbo:view	text	12	start:u32	end:u32	with:str
+4	9	 not
+22	26	 not
+39	41	will
+41	46	 not
+54	58	 am
+67	72	 are
+97	102	 have
+111	116	 have
+123	128	 will
+147	152	 NOT
+162	167	 not
+268	270	 us
+end	turbo:view

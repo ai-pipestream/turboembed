@@ -1,0 +1,13 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	norm/kana-small	155	95	f23bf63c37d492aeaf25ad004864e90c82e47da1858246c68515d926f8741a56
+annotator	opennlp.tools.util.normalizer.NfkcCharSequenceNormalizer	normalize
+layer	turbo:view	text	4	start:u32	end:u32	with:str
+28	34	ヴ
+45	57	がぎ
+118	136	ガギグ
+141	153	パピ
+end	turbo:view

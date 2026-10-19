@@ -1,0 +1,91 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/zh	157	53	fec0f4f268aec5fb5b5f03e7a5d7e9bc8b5fd848d6ca3ce10c19d64a587fd7cc
+annotator	opennlp.tools.tokenize.TokSpanEventStream	read
+config	abbreviations	english-dictionary.xml
+config	format	text
+config	language	de
+config	run	tokenize-dictionary-alnum-de
+config	source	tokenize
+config	useAlphaNumericOptimization	true
+layer	turbo:events	document	51	outcome:str	context:str	values:str
+F	p=我 s=们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=我 p1_alpha p2=bok p1f1=我们 f1=们 f1_alpha f2=周 f2_alpha f12=们周	
+F	p=我们 s=周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=们 p1_alpha p2=我 p2_alpha p21=我们 p1f1=们周 f1=周 f1_alpha f2=末 f2_alpha f12=周末	
+F	p=我们周 s=末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=周 p1_alpha p2=们 p2_alpha p21=们周 p1f1=周末 f1=末 f1_alpha f2=去 f2_alpha f12=末去	
+F	p=我们周末 s=去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=末 p1_alpha p2=周 p2_alpha p21=周末 p1f1=末去 f1=去 f1_alpha f2=了 f2_alpha f12=去了	
+F	p=我们周末去 s=了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=去 p1_alpha p2=末 p2_alpha p21=末去 p1f1=去了 f1=了 f1_alpha f2=博 f2_alpha f12=了博	
+F	p=我们周末去了 s=博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=了 p1_alpha p2=去 p2_alpha p21=去了 p1f1=了博 f1=博 f1_alpha f2=物 f2_alpha f12=博物	
+F	p=我们周末去了博 s=物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=博 p1_alpha p2=了 p2_alpha p21=了博 p1f1=博物 f1=物 f1_alpha f2=馆 f2_alpha f12=物馆	
+F	p=我们周末去了博物 s=馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=物 p1_alpha p2=博 p2_alpha p21=博物 p1f1=物馆 f1=馆 f1_alpha f2=。 f12=馆。	
+F	p=我们周末去了博物馆 s=。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=馆 p1_alpha p2=物 p2_alpha p21=物馆 p1f1=馆。 f1=。 f2=那 f2_alpha f12=。那	
+F	p=我们周末去了博物馆。 s=那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=。 p2=馆 p2_alpha p21=馆。 p1f1=。那 f1=那 f1_alpha f2=里 f2_alpha f12=那里	
+F	p=我们周末去了博物馆。那 s=里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=那 p1_alpha p2=。 p21=。那 p1f1=那里 f1=里 f1_alpha f2=有 f2_alpha f12=里有	
+F	p=我们周末去了博物馆。那里 s=有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=里 p1_alpha p2=那 p2_alpha p21=那里 p1f1=里有 f1=有 f1_alpha f2=很 f2_alpha f12=有很	
+F	p=我们周末去了博物馆。那里有 s=很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=有 p1_alpha p2=里 p2_alpha p21=里有 p1f1=有很 f1=很 f1_alpha f2=多 f2_alpha f12=很多	
+F	p=我们周末去了博物馆。那里有很 s=多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=很 p1_alpha p2=有 p2_alpha p21=有很 p1f1=很多 f1=多 f1_alpha f2=古 f2_alpha f12=多古	
+F	p=我们周末去了博物馆。那里有很多 s=古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=多 p1_alpha p2=很 p2_alpha p21=很多 p1f1=多古 f1=古 f1_alpha f2=代 f2_alpha f12=古代	
+F	p=我们周末去了博物馆。那里有很多古 s=代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=古 p1_alpha p2=多 p2_alpha p21=多古 p1f1=古代 f1=代 f1_alpha f2=的 f2_alpha f12=代的	
+F	p=我们周末去了博物馆。那里有很多古代 s=的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=代 p1_alpha p2=古 p2_alpha p21=古代 p1f1=代的 f1=的 f1_alpha f2=瓷 f2_alpha f12=的瓷	
+F	p=我们周末去了博物馆。那里有很多古代的 s=瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=的 p1_alpha p2=代 p2_alpha p21=代的 p1f1=的瓷 f1=瓷 f1_alpha f2=器 f2_alpha f12=瓷器	
+F	p=我们周末去了博物馆。那里有很多古代的瓷 s=器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=瓷 p1_alpha p2=的 p2_alpha p21=的瓷 p1f1=瓷器 f1=器 f1_alpha f2=和 f2_alpha f12=器和	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器 s=和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=器 p1_alpha p2=瓷 p2_alpha p21=瓷器 p1f1=器和 f1=和 f1_alpha f2=书 f2_alpha f12=和书	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和 s=书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=和 p1_alpha p2=器 p2_alpha p21=器和 p1f1=和书 f1=书 f1_alpha f2=画 f2_alpha f12=书画	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书 s=画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=书 p1_alpha p2=和 p2_alpha p21=和书 p1f1=书画 f1=画 f1_alpha f2=。 f12=画。	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画 s=。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=画 p1_alpha p2=书 p2_alpha p21=书画 p1f1=画。 f1=。 f2=导 f2_alpha f12=。导	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。 s=导游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=。 p2=画 p2_alpha p21=画。 p1f1=。导 f1=导 f1_alpha f2=游 f2_alpha f12=导游	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导 s=游讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=导 p1_alpha p2=。 p21=。导 p1f1=导游 f1=游 f1_alpha f2=讲 f2_alpha f12=游讲	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游 s=讲得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=游 p1_alpha p2=导 p2_alpha p21=导游 p1f1=游讲 f1=讲 f1_alpha f2=得 f2_alpha f12=讲得	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲 s=得非常清楚，大家都听得很认真。下次我还想再去一次！ p1=讲 p1_alpha p2=游 p2_alpha p21=游讲 p1f1=讲得 f1=得 f1_alpha f2=非 f2_alpha f12=得非	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得 s=非常清楚，大家都听得很认真。下次我还想再去一次！ p1=得 p1_alpha p2=讲 p2_alpha p21=讲得 p1f1=得非 f1=非 f1_alpha f2=常 f2_alpha f12=非常	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非 s=常清楚，大家都听得很认真。下次我还想再去一次！ p1=非 p1_alpha p2=得 p2_alpha p21=得非 p1f1=非常 f1=常 f1_alpha f2=清 f2_alpha f12=常清	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常 s=清楚，大家都听得很认真。下次我还想再去一次！ p1=常 p1_alpha p2=非 p2_alpha p21=非常 p1f1=常清 f1=清 f1_alpha f2=楚 f2_alpha f12=清楚	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清 s=楚，大家都听得很认真。下次我还想再去一次！ p1=清 p1_alpha p2=常 p2_alpha p21=常清 p1f1=清楚 f1=楚 f1_alpha f2=， f12=楚，	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚 s=，大家都听得很认真。下次我还想再去一次！ p1=楚 p1_alpha p2=清 p2_alpha p21=清楚 p1f1=楚， f1=， f2=大 f2_alpha f12=，大	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚， s=大家都听得很认真。下次我还想再去一次！ p1=， p2=楚 p2_alpha p21=楚， p1f1=，大 f1=大 f1_alpha f2=家 f2_alpha f12=大家	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大 s=家都听得很认真。下次我还想再去一次！ p1=大 p1_alpha p2=， p21=，大 p1f1=大家 f1=家 f1_alpha f2=都 f2_alpha f12=家都	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家 s=都听得很认真。下次我还想再去一次！ p1=家 p1_alpha p2=大 p2_alpha p21=大家 p1f1=家都 f1=都 f1_alpha f2=听 f2_alpha f12=都听	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都 s=听得很认真。下次我还想再去一次！ p1=都 p1_alpha p2=家 p2_alpha p21=家都 p1f1=都听 f1=听 f1_alpha f2=得 f2_alpha f12=听得	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听 s=得很认真。下次我还想再去一次！ p1=听 p1_alpha p2=都 p2_alpha p21=都听 p1f1=听得 f1=得 f1_alpha f2=很 f2_alpha f12=得很	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得 s=很认真。下次我还想再去一次！ p1=得 p1_alpha p2=听 p2_alpha p21=听得 p1f1=得很 f1=很 f1_alpha f2=认 f2_alpha f12=很认	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很 s=认真。下次我还想再去一次！ p1=很 p1_alpha p2=得 p2_alpha p21=得很 p1f1=很认 f1=认 f1_alpha f2=真 f2_alpha f12=认真	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认 s=真。下次我还想再去一次！ p1=认 p1_alpha p2=很 p2_alpha p21=很认 p1f1=认真 f1=真 f1_alpha f2=。 f12=真。	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真 s=。下次我还想再去一次！ p1=真 p1_alpha p2=认 p2_alpha p21=认真 p1f1=真。 f1=。 f2=下 f2_alpha f12=。下	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。 s=下次我还想再去一次！ p1=。 p2=真 p2_alpha p21=真。 p1f1=。下 f1=下 f1_alpha f2=次 f2_alpha f12=下次	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下 s=次我还想再去一次！ p1=下 p1_alpha p2=。 p21=。下 p1f1=下次 f1=次 f1_alpha f2=我 f2_alpha f12=次我	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次 s=我还想再去一次！ p1=次 p1_alpha p2=下 p2_alpha p21=下次 p1f1=次我 f1=我 f1_alpha f2=还 f2_alpha f12=我还	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我 s=还想再去一次！ p1=我 p1_alpha p2=次 p2_alpha p21=次我 p1f1=我还 f1=还 f1_alpha f2=想 f2_alpha f12=还想	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还 s=想再去一次！ p1=还 p1_alpha p2=我 p2_alpha p21=我还 p1f1=还想 f1=想 f1_alpha f2=再 f2_alpha f12=想再	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想 s=再去一次！ p1=想 p1_alpha p2=还 p2_alpha p21=还想 p1f1=想再 f1=再 f1_alpha f2=去 f2_alpha f12=再去	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再 s=去一次！ p1=再 p1_alpha p2=想 p2_alpha p21=想再 p1f1=再去 f1=去 f1_alpha f2=一 f2_alpha f12=去一	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去 s=一次！ p1=去 p1_alpha p2=再 p2_alpha p21=再去 p1f1=去一 f1=一 f1_alpha f2=次 f2_alpha f12=一次	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一 s=次！ p1=一 p1_alpha p2=去 p2_alpha p21=去一 p1f1=一次 f1=次 f1_alpha f2=！ f12=次！	
+F	p=我们周末去了博物馆。那里有很多古代的瓷器和书画。导游讲得非常清楚，大家都听得很认真。下次我还想再去一次 s=！ p1=次 p1_alpha p2=一 p2_alpha p21=一次 p1f1=次！ f1=！ f2=bok	
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+3906099848
+end	turbo:event-checksum
+layer	turbo:manifest	document	10	key:str	value:str
+Component-Name	TokenizerME
+Language	de
+Manifest-Version	1.0
+OpenNLP-Version	3.0.0-SNAPSHOT
+TrainerType	Event
+Training-Eventhash	1
+alphaNumericPattern	^[A-Za-z0-9äéöüÄÉÖÜß]+$
+factory	opennlp.tools.tokenize.TokenizerFactory
+serializer-class-abbreviations.dictionary	opennlp.tools.util.model.DictionarySerializer
+useAlphaNumericOptimization	true
+end	turbo:manifest
+layer	turbo:package-entries	document	3	name:str	length:u32
+manifest.properties	444
+abbreviations.dictionary	468
+token.model	61
+end	turbo:package-entries
+layer	turbo:dictionary	document	1	xml:str
+<?xml version="1.0" encoding="UTF-8"?><dictionary case_sensitive="false">\n    <entry>\n        <token>Dr.</token>\n    </entry>\n    <entry>\n        <token>U.S.</token>\n    </entry>\n    <entry>\n        <token>xyz.,"abc</token>\n    </entry>\n    <entry>\n        <token>a.m.</token>\n    </entry>\n    <entry>\n        <token>etc.</token>\n    </entry>\n    <entry>\n        <token>e.g.</token>\n    </entry>\n    <entry>\n        <token>(c)Co.ltd</token>\n    </entry>\n</dictionary>\n
+end	turbo:dictionary

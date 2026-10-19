@@ -1,0 +1,30 @@
+<ext id="1">
+<t x="1">
+<s id="1">
+SOURCE:🙂 resto
+1 Título.
+UTT:n("título")	Título
+.
+</s>
+</t><p n="2"><s></s><s	id="2">SOURCE: a2 Corpo do texto.STA:fcl=H:n("corpo")	Corpo</ext>
+<sx>
+<s>
+<caixa>
+SOURCE: b
+3 Caixa aberta dentro.
+UTT:n("caixa")	Caixa
+.
+</s>
+<caixa>
+<s>
+SOURCE: c
+3 Na caixa.
+UTT:n("caixa")	caixa
+.
+</s>
+</caixa>
+<s>
+SOURCE: d
+4 Cortada no fim.
+UTT:n("fim")	fim
+.

@@ -1,0 +1,48 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	sentiment/attached	90	52	05b767cac0b2e642c74a1598edf0ea35dc947638250856a27115ace31d0d17ab
+annotator	opennlp.tools.sentiment.SentimentME	probabilities
+config	Algorithm	MAXENT
+config	Cutoff	1
+config	Iterations	100
+config	corpus	sentiment-train/feedback
+config	factory	opennlp.tools.sentiment.EmojiSentimentFactory
+config	language	en
+config	run	emoji-maxent
+layer	opennlp:tokens	text	8	start:u32	end:u32
+0	9
+10	14
+15	18
+19	25
+26	34
+35	51
+52	80
+81	89
+end	opennlp:tokens
+layer	turbo:sentiment-context	document	17	feature:str
+great😀
+lamp
+❤
+❤️
+😀😀
+🇬🇧🇫🇷
+🏴󠁧󠁢󠁳󠁣󠁴󠁿
+👍🏽
+emojiSentiment=2
+emojiType=HEART
+emojiCategory=SMILEYS_AND_EMOTION
+emojiSentiment=2
+emojiType=HEART
+emojiCategory=SMILEYS_AND_EMOTION
+emojiType=FLAG
+emojiCategory=FLAGS
+emojiRegion=GB-SCT
+end	turbo:sentiment-context
+layer	turbo:categories	document	3	category:str	score:f64
+positive	3fead7186de2e5ce 0.838756765958516
+negative	3fc31160ae4ee5f0 0.14896782408850084
+neutral	3f8923d9a2582d7e 0.012275409952983148
+end	turbo:categories

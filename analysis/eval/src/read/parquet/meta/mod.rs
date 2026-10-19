@@ -1,0 +1,412 @@
+//! The parts of Parquet's metadata the reader uses, as `parquet.thrift`
+//! numbers their fields: the footer's schema and row groups, each column
+//! chunk's metadata, and page headers. Every other field is stepped over.
+
+mod page;
+
+use std::fmt;
+
+pub use self::page::{PageHeader, PageKind};
+use super::thrift::{Compact, LIST, STRUCT};
+use crate::Result;
+
+/// A column's physical type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Physical {
+    Boolean,
+    Int32,
+    Int64,
+    Int96,
+    Float,
+    Double,
+    ByteArray,
+    FixedLenByteArray,
+    Other(i32),
+}
+
+impl Physical {
+    fn from(v: i32) -> Physical {
+        match v {
+            0 => Physical::Boolean,
+            1 => Physical::Int32,
+            2 => Physical::Int64,
+            3 => Physical::Int96,
+            4 => Physical::Float,
+            5 => Physical::Double,
+            6 => Physical::ByteArray,
+            7 => Physical::FixedLenByteArray,
+            v => Physical::Other(v),
+        }
+    }
+}
+
+impl fmt::Display for Physical {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Physical::Boolean => f.write_str("BOOLEAN"),
+            Physical::Int32 => f.write_str("INT32"),
+            Physical::Int64 => f.write_str("INT64"),
+            Physical::Int96 => f.write_str("INT96"),
+            Physical::Float => f.write_str("FLOAT"),
+            Physical::Double => f.write_str("DOUBLE"),
+            Physical::ByteArray => f.write_str("BYTE_ARRAY"),
+            Physical::FixedLenByteArray => f.write_str("FIXED_LEN_BYTE_ARRAY"),
+            Physical::Other(v) => write!(f, "type {v}"),
+        }
+    }
+}
+
+/// A schema element's repetition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Repetition {
+    Required,
+    Optional,
+    Repeated,
+}
+
+/// A column chunk's compression codec.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Codec {
+    Uncompressed,
+    Snappy,
+    Gzip,
+    Zstd,
+    Other(i32),
+}
+
+impl fmt::Display for Codec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Codec::Uncompressed => "UNCOMPRESSED",
+            Codec::Snappy => "SNAPPY",
+            Codec::Gzip => "GZIP",
+            Codec::Zstd => "ZSTD",
+            Codec::Other(3) => "LZO",
+            Codec::Other(4) => "BROTLI",
+            Codec::Other(5) => "LZ4",
+            Codec::Other(7) => "LZ4_RAW",
+            Codec::Other(v) => return write!(f, "codec {v}"),
+        };
+        f.write_str(name)
+    }
+}
+
+/// A page's value or level encoding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Encoding {
+    Plain,
+    /// Written by older writers for dictionary pages and the pages that
+    /// index into them; read as `Plain` and `RleDictionary` are.
+    PlainDictionary,
+    Rle,
+    RleDictionary,
+    Other(i32),
+}
+
+impl Encoding {
+    pub(super) fn from(v: i32) -> Encoding {
+        match v {
+            0 => Encoding::Plain,
+            2 => Encoding::PlainDictionary,
+            3 => Encoding::Rle,
+            8 => Encoding::RleDictionary,
+            v => Encoding::Other(v),
+        }
+    }
+}
+
+impl fmt::Display for Encoding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Encoding::Plain => "PLAIN",
+            Encoding::PlainDictionary => "PLAIN_DICTIONARY",
+            Encoding::Rle => "RLE",
+            Encoding::RleDictionary => "RLE_DICTIONARY",
+            Encoding::Other(4) => "BIT_PACKED",
+            Encoding::Other(5) => "DELTA_BINARY_PACKED",
+            Encoding::Other(6) => "DELTA_LENGTH_BYTE_ARRAY",
+            Encoding::Other(7) => "DELTA_BYTE_ARRAY",
+            Encoding::Other(9) => "BYTE_STREAM_SPLIT",
+            Encoding::Other(v) => return write!(f, "encoding {v}"),
+        };
+        f.write_str(name)
+    }
+}
+
+/// One element of the flattened schema tree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaElement {
+    pub name: String,
+    /// `None` for a group.
+    pub physical: Option<Physical>,
+    /// `None` for the root.
+    pub repetition: Option<Repetition>,
+    pub num_children: usize,
+}
+
+impl SchemaElement {
+    /// A group has children, or no physical type; every other element is
+    /// a leaf, which is a column.
+    pub fn is_group(&self) -> bool {
+        self.num_children > 0 || self.physical.is_none()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ColumnMeta {
+    pub physical: Physical,
+    pub path: Vec<String>,
+    pub codec: Codec,
+    /// Values in the chunk, nulls included.
+    pub num_values: u64,
+    pub total_compressed_size: u64,
+    pub data_page_offset: u64,
+    pub dictionary_page_offset: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RowGroup {
+    pub num_rows: u64,
+    pub columns: Vec<ColumnMeta>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileMeta {
+    pub num_rows: u64,
+    pub schema: Vec<SchemaElement>,
+    pub row_groups: Vec<RowGroup>,
+}
+
+fn count(what: &str, v: i64) -> Result<u64> {
+    u64::try_from(v).map_err(|_| format!("{what} is {v}"))
+}
+
+pub(super) fn usize_count(what: &str, v: i64) -> Result<usize> {
+    usize::try_from(v).map_err(|_| format!("{what} is {v}"))
+}
+
+impl FileMeta {
+    /// The footer's `FileMetaData`.
+    pub fn read(buf: &[u8]) -> Result<FileMeta> {
+        let mut c = Compact::new(buf);
+        let (mut num_rows, mut schema, mut row_groups) = (None, None, None);
+        c.read_struct(|c, id, _| {
+            match id {
+                2 => schema = Some(c.list(|c, _| schema_element(c))?),
+                3 => num_rows = Some(count("the row count", c.i64()?)?),
+                4 => row_groups = Some(c.list(|c, _| row_group(c))?),
+                _ => return Ok(false),
+            }
+            Ok(true)
+        })?;
+        let schema: Vec<SchemaElement> = schema.ok_or("the footer has no schema")?;
+        check_schema(&schema)?;
+        Ok(FileMeta {
+            num_rows: num_rows.ok_or("the footer has no row count")?,
+            schema,
+            row_groups: row_groups.ok_or("the footer has no row groups")?,
+        })
+    }
+}
+
+/// Every child is an element of its own, so no element has as many
+/// children as the schema has elements.
+fn check_schema(schema: &[SchemaElement]) -> Result<()> {
+    if let Some(e) = schema.iter().find(|e| e.num_children >= schema.len()) {
+        return Err(format!(
+            "schema element {} has {} children in a schema of {}",
+            e.name,
+            e.num_children,
+            schema.len()
+        ));
+    }
+    Ok(())
+}
+
+/// What the first bytes of a footer hold: its schema and row count, the
+/// number of row groups it lists, and the leading ones wholly inside the
+/// bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FooterPrefix {
+    /// The schema, the file's row count and the leading row groups.
+    pub meta: FileMeta,
+    /// The row groups the footer lists.
+    pub row_groups: usize,
+}
+
+impl FooterPrefix {
+    /// Reads `buf`, the first bytes of a footer `len` bytes long. The
+    /// schema and the row count must come before the row groups, as
+    /// writers put them (`parquet.thrift` numbers them 2, 3 and 4); the
+    /// row groups are read up to the first one that runs past `buf`. When
+    /// `buf` is the whole footer, every row group must be read.
+    pub fn read(buf: &[u8], len: usize) -> Result<FooterPrefix> {
+        if buf.len() > len {
+            return Err(format!("{} bytes of a footer of {len}", buf.len()));
+        }
+        // Running out of bytes is the end of a part of the footer, and
+        // damage in the whole of it.
+        let whole = buf.len() == len;
+        let mut c = Compact::new(buf);
+        let short = |c: &Compact, e: String| {
+            if c.ran_short() && !whole { format!("the first {} bytes end before the row groups", buf.len()) } else { e }
+        };
+        let (mut schema, mut num_rows) = (None, None);
+        let mut last = 0;
+        loop {
+            let header = c.field_header(&mut last).map_err(|e| short(&c, e))?;
+            let Some((id, ty)) = header else {
+                return Err("the footer has no row groups".into());
+            };
+            let read = match id {
+                2 => c.list(|c, _| schema_element(c)).map(|v| schema = Some(v)),
+                3 => c.i64().and_then(|v| count("the row count", v)).map(|v| num_rows = Some(v)),
+                4 if ty != LIST => return Err("the row groups are not a list".into()),
+                4 => break,
+                _ => c.skip_field(ty),
+            };
+            read.map_err(|e| short(&c, e))?;
+        }
+        let schema: Vec<SchemaElement> = schema.ok_or("the footer's row groups come before its schema")?;
+        check_schema(&schema)?;
+        let num_rows = num_rows.ok_or("the footer's row groups come before its row count")?;
+        let (ty, n) = c.list_header_in(len).map_err(|e| short(&c, e))?;
+        if ty != STRUCT {
+            return Err("the row groups are not structs".into());
+        }
+        let mut row_groups = Vec::new();
+        for _ in 0..n {
+            match row_group(&mut c) {
+                Ok(g) => row_groups.push(g),
+                Err(_) if c.ran_short() && !whole => break,
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(FooterPrefix { meta: FileMeta { num_rows, schema, row_groups }, row_groups: n })
+    }
+}
+
+fn schema_element(c: &mut Compact) -> Result<SchemaElement> {
+    let mut e = SchemaElement { name: String::new(), physical: None, repetition: None, num_children: 0 };
+    let mut named = false;
+    c.read_struct(|c, id, _| {
+        match id {
+            1 => e.physical = Some(Physical::from(c.i32()?)),
+            3 => {
+                e.repetition = Some(match c.i32()? {
+                    0 => Repetition::Required,
+                    1 => Repetition::Optional,
+                    2 => Repetition::Repeated,
+                    v => return Err(format!("repetition {v}")),
+                })
+            }
+            4 => {
+                e.name = c.string()?;
+                named = true;
+            }
+            5 => e.num_children = usize_count("a child count", c.i64()?)?,
+            _ => return Ok(false),
+        }
+        Ok(true)
+    })?;
+    if !named {
+        return Err("a schema element has no name".into());
+    }
+    Ok(e)
+}
+
+fn row_group(c: &mut Compact) -> Result<RowGroup> {
+    let (mut columns, mut num_rows) = (None, None);
+    c.read_struct(|c, id, _| {
+        match id {
+            1 => columns = Some(c.list(|c, _| column_chunk(c))?),
+            3 => num_rows = Some(count("a row group's row count", c.i64()?)?),
+            _ => return Ok(false),
+        }
+        Ok(true)
+    })?;
+    Ok(RowGroup {
+        num_rows: num_rows.ok_or("a row group has no row count")?,
+        columns: columns.ok_or("a row group has no columns")?,
+    })
+}
+
+fn column_chunk(c: &mut Compact) -> Result<ColumnMeta> {
+    let mut meta = None;
+    let mut elsewhere = false;
+    c.read_struct(|c, id, _| {
+        match id {
+            1 => elsewhere = !c.binary()?.is_empty(),
+            3 => meta = Some(column_meta(c)?),
+            // crypto_metadata and encrypted_column_metadata.
+            8 | 9 => return Err("an encrypted column is not read".into()),
+            _ => return Ok(false),
+        }
+        Ok(true)
+    })?;
+    if elsewhere {
+        return Err("a column chunk is in another file".into());
+    }
+    meta.ok_or_else(|| "a column chunk has no metadata".into())
+}
+
+fn column_meta(c: &mut Compact) -> Result<ColumnMeta> {
+    let (mut physical, mut path, mut codec, mut num_values) = (None, None, None, None);
+    let (mut size, mut data, mut dict) = (None, None, None);
+    c.read_struct(|c, id, _| {
+        match id {
+            1 => physical = Some(Physical::from(c.i32()?)),
+            3 => path = Some(c.list(|c, _| c.string())?),
+            4 => {
+                codec = Some(match c.i32()? {
+                    0 => Codec::Uncompressed,
+                    1 => Codec::Snappy,
+                    2 => Codec::Gzip,
+                    6 => Codec::Zstd,
+                    v => Codec::Other(v),
+                })
+            }
+            5 => num_values = Some(count("a column's value count", c.i64()?)?),
+            7 => size = Some(count("a column's compressed size", c.i64()?)?),
+            9 => data = Some(count("a data page offset", c.i64()?)?),
+            11 => dict = Some(count("a dictionary page offset", c.i64()?)?),
+            _ => return Ok(false),
+        }
+        Ok(true)
+    })?;
+    Ok(ColumnMeta {
+        physical: physical.ok_or("a column has no type")?,
+        path: path.ok_or("a column has no path")?,
+        codec: codec.ok_or("a column has no codec")?,
+        num_values: num_values.ok_or("a column has no value count")?,
+        total_compressed_size: size.ok_or("a column has no size")?,
+        data_page_offset: data.ok_or("a column has no data page offset")?,
+        dictionary_page_offset: dict,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_child_count_past_the_schema_is_refused() {
+        // Field 2, a list of one schema element named "schema" with 5
+        // children; field 3, 0 rows; field 4, no row groups.
+        let mut b = vec![0x29, 0x1c, 0x48, 6];
+        b.extend(b"schema");
+        b.extend([0x15, 10, 0x00, 0x16, 0, 0x19, 0x0c, 0x00]);
+        assert_eq!(FileMeta::read(&b).unwrap_err(), "schema element schema has 5 children in a schema of 1");
+        // With no children it reads.
+        let at = b.iter().position(|&x| x == 10).unwrap();
+        b[at] = 0;
+        assert_eq!(FileMeta::read(&b).unwrap().schema[0].num_children, 0);
+    }
+
+    #[test]
+    fn an_encrypted_column_is_refused() {
+        // A column chunk with field 8 (crypto_metadata), an empty struct.
+        let e = column_chunk(&mut Compact::new(&[0x8c, 0x00, 0x00])).unwrap_err();
+        assert_eq!(e, "an encrypted column is not read");
+    }
+}

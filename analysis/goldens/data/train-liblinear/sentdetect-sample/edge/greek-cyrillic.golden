@@ -1,0 +1,94 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
+annotator	LiblinearTrainer	train
+config	Cutoff	1
+config	DataIndexer	TwoPass
+config	bias	0
+config	c	1
+config	eps	0.001
+config	events	sorted
+config	p	0.1
+config	solverType	L1R_LR
+config	source	sentdetect
+layer	turbo:events	document	5	outcome:str	context:str	values:str
+n	5 eos=! n=Ο ncap s= sn v=Καλημέρα vcap x=κόσμε	
+n	5 eos=. n=Привет, ncap s= sn v=ουδέν x=οίδα»	
+n	3 eos=! n=Как ncap s= sn v=Привет, vcap x=мир	
+n	4 eos=? n=Это ncap s= sn v=Как vcap x=дела	
+s	4 eos=. n= s= sn v=3,5 x=раза	
+end	turbo:events
+layer	turbo:liblinear-text	document	32	line:str
+solver_type L1R_LR
+nr_class 2
+label 0 1
+nr_feature 25
+bias 0.0000000000000000
+w
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+1.0986109988055590 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+0 
+end	turbo:liblinear-text
+layer	turbo:liblinear-model	document	1	sha256:str	length:u32
+bfd678280562ff8d3a98d9c908a584d454c5e4db9cdcfc41ed47b6af5d458217	520
+end	turbo:liblinear-model
+layer	turbo:liblinear-scores	document	20	event:u32	order:str	outcome:u32	value:f64
+0	given	0	3fe7ffff7e287c05 0.7499997581506938
+0	given	1	3fd0000103af07f6 0.25000024184930625
+0	reversed	0	3fe7ffff7e287c05 0.7499997581506938
+0	reversed	1	3fd0000103af07f6 0.25000024184930625
+1	given	0	3fe7ffff7e287c05 0.7499997581506938
+1	given	1	3fd0000103af07f6 0.25000024184930625
+1	reversed	0	3fe7ffff7e287c05 0.7499997581506938
+1	reversed	1	3fd0000103af07f6 0.25000024184930625
+2	given	0	3fe7ffff7e287c05 0.7499997581506938
+2	given	1	3fd0000103af07f6 0.25000024184930625
+2	reversed	0	3fe7ffff7e287c05 0.7499997581506938
+2	reversed	1	3fd0000103af07f6 0.25000024184930625
+3	given	0	3fe7ffff7e287c05 0.7499997581506938
+3	given	1	3fd0000103af07f6 0.25000024184930625
+3	reversed	0	3fe7ffff7e287c05 0.7499997581506938
+3	reversed	1	3fd0000103af07f6 0.25000024184930625
+4	given	0	3fe0000000000000 0.5
+4	given	1	3fe0000000000000 0.5
+4	reversed	0	3fe0000000000000 0.5
+4	reversed	1	3fe0000000000000 0.5
+end	turbo:liblinear-scores
+layer	turbo:liblinear-best	document	10	event:u32	order:str	outcome:str
+0	given	n
+0	reversed	n
+1	given	n
+1	reversed	n
+2	given	n
+2	reversed	n
+3	given	n
+3	reversed	n
+4	given	n
+4	reversed	n
+end	turbo:liblinear-best

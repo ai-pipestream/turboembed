@@ -784,6 +784,23 @@ fn decode_refuses_an_id_outside_the_vocabulary() {
     assert_eq!(tok.decode(&[], false).unwrap(), "");
 }
 
+/// Every id's piece is upstream's token for it, and there is none past
+/// the vocabulary.
+#[test]
+fn pieces_are_upstream_tokens() {
+    let path = testdata().join("bge-m3/tokenizer.json");
+    let f = Fixture::with_tokenizer("m3-pieces", unigram::manifest_m3(), &path);
+    let tok = core_tokenizer(&f);
+    let up = upstream_at(&path);
+    let n = tok.vocab_size() as i32;
+    for id in 0..n {
+        assert_eq!(tok.piece(id), up.id_to_token(id as u32).as_deref(), "id {id}");
+    }
+    assert_eq!(tok.piece(6), Some("\u{2581}"));
+    assert_eq!(tok.piece(-1), None);
+    assert_eq!(tok.piece(n), None);
+}
+
 // ---- Byte-level BPE, on a tokenizer trained for the tests ----------------------------
 
 /// A RoBERTa-style byte-level BPE (testdata/README.md).
@@ -802,6 +819,28 @@ mod bpe {
         t.push(long_text());
         t.extend(t.clone());
         t
+    }
+
+    /// testdata/tiny-bpe/corpus.jsonl: corpus(), one JSON string per line,
+    /// so that a trainer outside these tests can train on what upstream
+    /// trained on.
+    fn corpus_file() -> PathBuf {
+        testdata().join("tiny-bpe/corpus.jsonl")
+    }
+
+    #[test]
+    fn the_corpus_file_is_the_corpus() {
+        let file = std::fs::read_to_string(corpus_file()).unwrap();
+        let read: Vec<String> = file.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+        assert_eq!(read, corpus());
+    }
+
+    /// Writes testdata/tiny-bpe/corpus.jsonl.
+    #[test]
+    #[ignore = "writes the test data; run by hand"]
+    fn write_corpus_file() {
+        let lines: Vec<String> = corpus().iter().map(|t| serde_json::to_string(t).unwrap() + "\n").collect();
+        std::fs::write(corpus_file(), lines.concat()).unwrap();
     }
 
     /// Writes testdata/tiny-bpe/tokenizer.json: upstream's BPE trainer on
@@ -900,13 +939,19 @@ mod bpe {
     /// spans and decode.
     fn check(name: &str, m: serde_json::Value, path: &std::path::Path) {
         let prefixed = m["tokenizer"]["bpe"]["add_prefix_space"] == true;
+        let specials: Vec<i32> = m["tokenizer"]["special_tokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["id"].as_i64().unwrap() as i32)
+            .collect();
         let f = fixture(name, m, path);
         let tok = core_tokenizer(&f);
         let mut up = upstream_at(path);
         up.with_truncation(None).unwrap();
         for text in texts() {
             let (ours, theirs) = both_spans(&tok, &up, &text);
-            spans_near_upstream(&text, &ours, &theirs, prefixed);
+            spans_near_upstream(&text, &ours, &theirs, prefixed, &specials);
             check_well_formed(&text, &ours);
             decode_matches_upstream(&tok, &up, &text);
         }
@@ -919,9 +964,14 @@ mod bpe {
     /// text's start, where upstream's trim counts the space put in front
     /// as one of the text's and starts it a byte late (inside a character
     /// that is more than one).
-    fn spans_near_upstream(text: &str, ours: &[(i32, [u32; 2])], theirs: &[(i32, [u32; 2])], prefixed: bool) {
+    fn spans_near_upstream(
+        text: &str,
+        ours: &[(i32, [u32; 2])],
+        theirs: &[(i32, [u32; 2])],
+        prefixed: bool,
+        specials: &[i32],
+    ) {
         assert_eq!(ours.len(), theirs.len(), "{text:?}");
-        // The ids under 5 are the special tokens.
         let first = ours.iter().position(|o| o.1 != [0, 0]);
         for (i, (o, t)) in ours.iter().zip(theirs).enumerate() {
             assert_eq!(o.0, t.0, "{text:?}");
@@ -930,7 +980,7 @@ mod bpe {
             // The first token of a piece of text a space was put in front
             // of (the text, or what follows a special token in it); the
             // space alone comes from the character it is put before.
-            let starts_piece = Some(i) == first || (i > 0 && ours[i - 1].0 <= 4);
+            let starts_piece = Some(i) == first || (i > 0 && specials.contains(&ours[i - 1].0));
             let lead = text[a[0] as usize..].chars().next().map_or(0, char::len_utf8) as u32;
             let late_start = prefixed
                 && starts_piece
@@ -952,11 +1002,12 @@ mod bpe {
     }
 
     /// The same with a space put in front, merges written as "left right",
-    /// and whole words taken as pieces.
+    /// whole words taken as pieces, no model type named, special tokens
+    /// marked normalized, and raw and normalized ones overlapping.
     #[test]
     fn matches_upstream_with_each_option() {
         let base: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
-        for variant in ["prefix", "legacy", "ignore_merges"] {
+        for variant in ["prefix", "legacy", "ignore_merges", "untyped", "normalized", "mixed"] {
             let mut json = base.clone();
             let mut m = manifest_bpe();
             match variant {
@@ -972,6 +1023,25 @@ mod bpe {
                         .collect();
                     json["model"]["merges"] = json!(legacy);
                 }
+                // GPT-2's and RoBERTa's own files name no model type, and
+                // upstream takes a model with merges for BPE.
+                "untyped" => {
+                    json["model"].as_object_mut().unwrap().remove("type");
+                }
+                // A raw token inside a normalized one is matched first,
+                // as upstream matches raw added tokens before normalized
+                // ones: "</s>" is "<" and "/" around "s>".
+                "mixed" => mixed(&mut json, &mut m),
+                // Theirs also mark the special tokens normalized, which
+                // with no normalizer matches them in the text as it is.
+                "normalized" => {
+                    for a in json["added_tokens"].as_array_mut().unwrap() {
+                        a["normalized"] = json!(true);
+                    }
+                    for s in m["tokenizer"]["special_tokens"].as_array_mut().unwrap() {
+                        s["normalized"] = json!(true);
+                    }
+                }
                 _ => {
                     json["model"]["ignore_merges"] = json!(true);
                     m["tokenizer"]["bpe"]["ignore_merges"] = json!(true);
@@ -982,6 +1052,62 @@ mod bpe {
             check(variant, m, &path);
             std::fs::remove_file(path).unwrap();
         }
+    }
+
+    /// "<s>" (id 0) renamed "s>" and kept raw, and "</s>" (id 2) marked
+    /// normalized, so the raw token sits inside the normalized one.
+    fn mixed(json: &mut serde_json::Value, m: &mut serde_json::Value) {
+        let v = json["model"]["vocab"].as_object_mut().unwrap();
+        let id = v.remove("<s>").unwrap();
+        v.insert("s>".into(), id);
+        json["added_tokens"][0]["content"] = json!("s>");
+        json["added_tokens"][2]["normalized"] = json!(true);
+        let t = &mut m["tokenizer"];
+        t["special_tokens"][0]["content"] = json!("s>");
+        t["special_tokens"][2]["normalized"] = json!(true);
+        t["template"] = json!(["s>", "$TEXT", "</s>"]);
+    }
+
+    /// The text "</s>" alone: the raw "s>" is taken first and "</" is
+    /// encoded, then the template's own tokens go around it, as upstream
+    /// gives it; the normalized "</s>" whole would be [0, 2, 2].
+    #[test]
+    fn a_raw_token_inside_a_normalized_one_is_taken_first() {
+        let mut json: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
+        let mut m = manifest_bpe();
+        mixed(&mut json, &mut m);
+        let path = std::env::temp_dir().join(format!("turbo-bpe-raw-first-{}.json", std::process::id()));
+        std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
+        let tok = core_tokenizer(&fixture("raw-first", m, &path));
+        let mut up = upstream_at(&path);
+        up.with_truncation(None).unwrap();
+        let (ours, theirs) = both_spans(&tok, &up, "</s>");
+        std::fs::remove_file(path).unwrap();
+        let ids = |t: &[(i32, [u32; 2])]| t.iter().map(|x| x.0).collect::<Vec<_>>();
+        assert_eq!(ids(&theirs), [0, 1137, 0, 2]);
+        assert_eq!(ids(&ours), ids(&theirs));
+    }
+
+    /// GPT-2's and RoBERTa's own tokenizer files, from the directory
+    /// TURBO_BPE_FILES names: gpt2/tokenizer.json and
+    /// roberta-base/tokenizer.json.
+    #[test]
+    #[ignore = "needs TURBO_BPE_FILES"]
+    fn matches_upstream_on_gpt2_and_roberta() {
+        let dir = std::path::PathBuf::from(std::env::var("TURBO_BPE_FILES").expect("TURBO_BPE_FILES"));
+        let mut gpt2 = manifest_bpe();
+        gpt2["tokenizer"]["special_tokens"] =
+            json!([{ "role": "SPECIAL_UNK", "content": "<|endoftext|>", "id": 50256, "normalized": true }]);
+        gpt2["tokenizer"]["template"] = json!(["$TEXT"]);
+        gpt2["architecture"]["vocab_size"] = json!(50257);
+        check("gpt2", gpt2, &dir.join("gpt2/tokenizer.json"));
+        let mut roberta = manifest_bpe();
+        roberta["tokenizer"]["special_tokens"][4]["id"] = json!(50264);
+        for s in roberta["tokenizer"]["special_tokens"].as_array_mut().unwrap() {
+            s["normalized"] = json!(true);
+        }
+        roberta["architecture"]["vocab_size"] = json!(50265);
+        check("roberta", roberta, &dir.join("roberta-base/tokenizer.json"));
     }
 
     /// A file that is not what the manifest says, or not what the core

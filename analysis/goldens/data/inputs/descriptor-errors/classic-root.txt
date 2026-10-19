@@ -1,0 +1,1 @@
+<generators><generator class="opennlp.tools.util.featuregen.TokenFeatureGeneratorFactory"/></generators>

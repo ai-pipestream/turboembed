@@ -1,0 +1,24 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	formats/chunk-empty-first	11	11	60b3b78503363989741022bd872e72c64e1a5292551e8f5363ebc11817af2c92
+annotator	opennlp.tools.chunker.ChunkerME	train
+config	Algorithm	PERCEPTRON
+config	BeamSize	5
+config	Cutoff	1
+config	Iterations	100
+config	language	en
+config	run	chunker-perceptron
+config	source	chunk
+layer	turbo:events	document	0	outcome:str	context:str	values:str
+end	turbo:events
+layer	turbo:stream-errors	document	0	after:u32	class:str	message:str
+end	turbo:stream-errors
+layer	turbo:event-checksum	document	1	crc32c:u32
+0
+end	turbo:event-checksum
+layer	turbo:train-error	document	1	class:str	message:str
+opennlp.tools.util.InsufficientTrainingDataException	Insufficient training data to create model.
+end	turbo:train-error

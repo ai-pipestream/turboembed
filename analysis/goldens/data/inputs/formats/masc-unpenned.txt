@@ -1,0 +1,90 @@
+# A MASC-format corpus written for the turbo-formats tests: hand-written text
+# and stand-off annotation in the layout of MASC 3.0 (GrAF). Not MASC data.
+# No document has Penn tokens or named entities, so the part-of-speech,
+# token and name streams' constructors find no document to read.
+
+@@ file plain.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="plain.txt"/>
+    <annotations>
+      <annotation loc="plain-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="plain-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file plain.txt
+No tags here. None at all.
+@@ end
+
+@@ file plain-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 2"/>
+  <region xml:id="seg-r1" anchors="3 7"/>
+  <region xml:id="seg-r2" anchors="8 12"/>
+  <region xml:id="seg-r3" anchors="12 13"/>
+  <region xml:id="seg-r4" anchors="14 18"/>
+  <region xml:id="seg-r5" anchors="19 21"/>
+  <region xml:id="seg-r6" anchors="22 25"/>
+  <region xml:id="seg-r7" anchors="25 26"/>
+</graph>
+
+@@ end
+
+@@ file plain-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="2"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 13"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+  <region xml:id="s-r1" anchors="14 26"/>
+  <node xml:id="s-n1"><link targets="s-r1"/></node>
+  <a xml:id="s-N1" label="s" ref="s-n1" as="anc"><fs><f name="id" value="s1"/></fs></a>
+</graph>
+
+@@ end
+
+@@ file more/other.hdr
+<?xml version="1.0" encoding="UTF-8"?>
+<documentHeader xmlns="http://www.xces.org/ns/GrAF/1.0/" docId="TEST" version="1.0.4">
+  <profileDesc>
+    <primaryData f.id="f.text" loc="other.txt"/>
+    <annotations>
+      <annotation loc="other-s.xml" f.id="f.s">annotation</annotation>
+      <annotation loc="other-seg.xml" f.id="f.seg">annotation</annotation>
+    </annotations>
+  </profileDesc>
+</documentHeader>
+
+@@ end
+
+@@ file more/other.txt
+Still plain.
+@@ end
+
+@@ file more/other-seg.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl/></graphHeader>
+  <region xml:id="seg-r0" anchors="0 5"/>
+  <region xml:id="seg-r1" anchors="6 11"/>
+  <region xml:id="seg-r2" anchors="11 12"/>
+</graph>
+
+@@ end
+
+@@ file more/other-s.xml
+<graph xmlns="http://www.xces.org/ns/GrAF/1.0/">
+  <graphHeader><labelsDecl><labelUsage label="s" occurs="1"/></labelsDecl></graphHeader>
+  <region xml:id="s-r0" anchors="0 12"/>
+  <node xml:id="s-n0"><link targets="s-r0"/></node>
+  <a xml:id="s-N0" label="s" ref="s-n0" as="anc"><fs><f name="id" value="s0"/></fs></a>
+</graph>
+
+@@ end

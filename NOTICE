@@ -1,0 +1,221 @@
+turboembed
+Licensed under the Apache License, Version 2.0 (LICENSE).
+
+This product includes material from the projects listed below, under
+their own licenses.
+
+------------------------------------------------------------------------
+file(1) MIME type information
+------------------------------------------------------------------------
+
+The file signature table in analysis/normalize/src/assets/magic.rs is
+adapted from Apache Tika's media-type catalog, which carries MIME type
+information from file(1) 4.26. That information is used under the
+following license:
+
+Copyright (c) Ian F. Darwin 1986, 1987, 1989, 1990, 1991, 1992, 1994, 1995.
+Software written by Ian F. Darwin and others;
+maintained 1994- Christos Zoulas.
+
+This software is not subject to any export provision of the United States
+Department of Commerce, and may be exported to any country or planet.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+   notice immediately at the beginning of the file, without modification,
+   this list of conditions, and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.
+
+------------------------------------------------------------------------
+Apache Tika and Apache OpenNLP
+------------------------------------------------------------------------
+
+The same table comes from Apache OpenNLP's KnownMagics, which adapts
+signatures from Apache Tika's tika-mimetypes.xml.
+
+Apache Tika
+Copyright 2021 The Apache Software Foundation
+
+Apache OpenNLP
+Copyright The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+------------------------------------------------------------------------
+PRONOM Technical Registry
+------------------------------------------------------------------------
+
+Some signatures in the same table are adapted from the PRONOM Technical
+Registry of The National Archives. Contains public sector information
+licensed under the Open Government Licence v3.0.
+
+------------------------------------------------------------------------
+Unicode data
+------------------------------------------------------------------------
+
+The Unicode Character Database files in analysis/unicode/ucd/, and the
+tables generated from them, are used under the Unicode License v3.
+Copyright (c) 2001-2024 Unicode, Inc. The full license text is in
+analysis/unicode/ucd/LICENSE.
+
+------------------------------------------------------------------------
+ftfy, by Robyn Speer
+------------------------------------------------------------------------
+
+The mojibake repair in analysis/encoding/src/repair/ (and the code page
+tables it uses in analysis/encoding/src/charmap.rs) is a port to Rust of
+the encoding fix of ftfy 6.3.1 ("fixes text for you"), written by Robyn
+Speer. Its character classes (analysis/encoding/src/repair/classes.rs)
+are generated from ftfy's badness.py and chardata.py, and the test
+fixture analysis/encoding/tests/data/ftfy_cases.tsv is made from ftfy's
+tests/test_cases.json. ftfy is used under the Apache License, Version
+2.0 (LICENSE):
+
+Copyright 2023 Robyn Speer
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+ftfy's author asks that every use of it attribute her work correctly and
+that no derived work obscure its authorship. The repair code is hers in
+design and in detail; this port changes the language and adds offset
+tracking. To cite ftfy: Robyn Speer. (2019). ftfy (Version 5.5).
+Zenodo. https://doi.org/10.5281/zenodo.2591652
+
+------------------------------------------------------------------------
+chardetng
+------------------------------------------------------------------------
+
+The encoding detector in analysis/encoding/src/detect/ is a port of
+chardetng 0.1.17 by Henri Sivonen. chardetng is copyright Mozilla
+Foundation and licensed under the Apache License, Version 2.0 or the MIT
+license, at your option; it is used here under the Apache License,
+Version 2.0. The detector's statistics (analysis/encoding/src/detect/
+data.rs) are copied from chardetng's data.rs, which its authors dedicate
+to the public domain under CC0 1.0. The test fixture
+analysis/encoding/tests/data/chardetng_cases.tsv is made from
+chardetng's tests.
+
+------------------------------------------------------------------------
+WHATWG Encoding Standard
+------------------------------------------------------------------------
+
+The decoders in analysis/encoding/src/decode/ implement the WHATWG
+Encoding Standard, and the tables in analysis/encoding/src/tables/ and
+the labels in analysis/encoding-layers/src/labels.rs are generated from
+its index files and encodings.json. Copyright (c) WHATWG (Apple, Google,
+Mozilla, Microsoft). Those portions are used under the BSD 3-Clause
+License; the full text is in analysis/encoding/src/tables/NOTICE.
+
+------------------------------------------------------------------------
+Natural Earth
+------------------------------------------------------------------------
+
+The bundled gazetteer table in analysis/geo/data/ is Apache OpenNLP's
+derivation of the Natural Earth "Populated Places" dataset. Natural
+Earth is in the public domain; made with Natural Earth.
+
+------------------------------------------------------------------------
+GeoNames
+------------------------------------------------------------------------
+
+Some record ids, coordinates and populations in the hand written test
+table analysis/goldens/data/fixtures/gazetteer-geonames.txt are those
+GeoNames (https://www.geonames.org/) gives for the places, used under
+the Creative Commons Attribution 4.0 License. No GeoNames data is
+bundled with the gazetteers; callers supply GeoNames tables themselves.
+
+------------------------------------------------------------------------
+spaCy
+------------------------------------------------------------------------
+
+The lexical attributes and flags in analysis/matcher/src/attr.rs follow
+spaCy's spacy/lang/lex_attrs.py, and the tests in analysis/matcher/tests/
+port test cases from spaCy's matcher, phrase matcher and span ruler
+tests. spaCy is used under the MIT License:
+
+Copyright (C) 2016-2024 ExplosionAI GmbH, 2016 spaCy GmbH, 2015 Matthew Honnibal
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+------------------------------------------------------------------------
+VADER sentiment lexicon
+------------------------------------------------------------------------
+
+The sentiment lexicon in analysis/doccat/src/sentiment/vader_lexicon.txt
+is the word and mean-valence columns of vader_lexicon.txt from
+cjhutto/vaderSentiment (https://github.com/cjhutto/vaderSentiment), and
+analysis/doccat/src/sentiment/lexicon.rs ports that project's scoring
+rules. VADER is used under the MIT License:
+
+Copyright (c) 2016 C.J. Hutto
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+------------------------------------------------------------------------
+Recognizers-Text specifications
+------------------------------------------------------------------------
+
+The test specification files in
+analysis/grammar/tests/data/recognizers-text/ are copied from the
+microsoft/Recognizers-Text repository and used under the MIT License.
+Copyright (c) Microsoft Corporation. The full license text is in
+analysis/grammar/tests/data/recognizers-text/LICENSE.
