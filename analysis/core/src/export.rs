@@ -381,10 +381,13 @@ impl<'a> Reader<'a> {
 /// [`get_tagset`] so those fields agree across codecs. An import must
 /// refuse a payload that does not hold together (a view that is not
 /// here, an endpoint past its layer) with the typed errors on
-/// [`ImportCx`], never by clamping or defaulting.
+/// [`ImportCx`], never by clamping or defaulting. Import also sees the
+/// document built so far, for checks that need the actual layers and
+/// view texts already restored (a word's subspan against its token's
+/// text, for one), which item counts alone cannot prove.
 pub trait LayerCodec: Layer {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError>;
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError>;
+    fn import(data: &[u8], cx: &mut ImportCx, doc: &Document) -> Result<Self, ExportError>;
 }
 
 /// What an exporting codec needs beyond its own layer: the instance
@@ -432,6 +435,7 @@ pub struct ImportCx {
     views: HashMap<String, ViewId>,
     lens: HashMap<(String, String), usize>,
     known: HashSet<(String, String)>,
+    made_on: Vec<LayerRef>,
     layer: String,
 }
 
@@ -441,12 +445,85 @@ impl ImportCx {
         self.views.get(instance).copied().ok_or_else(|| ExportError::UnknownView { instance: instance.to_owned() })
     }
 
+    /// The layer instance being imported, for error fields that name
+    /// the importing layer.
+    pub fn layer(&self) -> &str {
+        &self.layer
+    }
+
     /// How many items a restored layer instance holds.
     pub fn layer_len(&self, layer: &LayerRef) -> Result<usize, ExportError> {
         self.lens
             .get(&(layer.layer.clone(), layer.instance.clone()))
             .copied()
             .ok_or_else(|| ExportError::DanglingReference { layer: self.layer.clone(), reference: layer.clone() })
+    }
+
+    /// The instance of `layer` the document will bind an empty-named
+    /// reference to for the record being imported: the first key of
+    /// that layer in its provenance `on`, then in its `reads`, else the
+    /// default instance. This is the resolution `Document::add`
+    /// applies, mirrored so a payload can be held to it.
+    pub fn resolved_instance(&self, layer: &str) -> &str {
+        self.made_on.iter().find(|r| r.layer == layer).map(|r| r.instance.as_str()).unwrap_or("")
+    }
+
+    /// Refuses unless `named` is the target a default-keyed index or
+    /// range column into `Target` must name on this record: the right
+    /// layer type, the instance `Document::add` will bind it to (see
+    /// [`ImportCx::resolved_instance`]), and an instance already
+    /// restored. Codecs call this for columns whose layer type indexes
+    /// through `Key::DEFAULT`; a payload naming any other instance
+    /// would otherwise be bounds-checked against one instance and
+    /// silently attached to another.
+    pub fn expect_target<Target: Layer>(&self, named: &LayerRef) -> Result<(), ExportError> {
+        if named.layer != Target::NAME.to_string() {
+            return Err(ExportError::InvalidLayer {
+                layer: self.layer.clone(),
+                detail: format!("an index column into {}, not {}", named.layer, Target::NAME),
+            });
+        }
+        let resolved = self.resolved_instance(&named.layer);
+        if named.instance != resolved {
+            return Err(ExportError::InvalidLayer {
+                layer: self.layer.clone(),
+                detail: format!(
+                    "the payload indexes {named} but this layer's provenance binds it to instance {resolved:?}"
+                ),
+            });
+        }
+        self.layer_len(named)?;
+        Ok(())
+    }
+
+    /// Refuses unless `named` can be restored as the stored key of a
+    /// keyed reference into `Target` without changing which instance
+    /// it names. A non-empty instance is explicit and is preserved
+    /// as-is. An empty instance restores as `Key::DEFAULT`, which
+    /// `Document::add` and `ExportCx::resolve` reinterpret through
+    /// this record's provenance, so it is only accepted when that
+    /// provenance also resolves `Target` to the default instance;
+    /// otherwise the payload would be validated against the default
+    /// instance and silently rebound to the resolved one.
+    pub fn want_keyed_target<Target: Layer>(&self, named: &LayerRef) -> Result<(), ExportError> {
+        if named.layer != Target::NAME.to_string() {
+            return Err(ExportError::InvalidLayer {
+                layer: self.layer.clone(),
+                detail: format!("an index column into {}, not {}", named.layer, Target::NAME),
+            });
+        }
+        if named.instance.is_empty() {
+            let resolved = self.resolved_instance(&named.layer);
+            if !resolved.is_empty() {
+                return Err(ExportError::InvalidLayer {
+                    layer: self.layer.clone(),
+                    detail: format!(
+                        "the payload indexes the default {named} but this layer's provenance binds an empty key to instance {resolved:?}, so an explicit default cannot be restored"
+                    ),
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Refuses unless the node is an item of a restored layer instance.
@@ -521,7 +598,7 @@ impl Codecs {
                 L::export(layer, cx)
             },
             import: |doc, record, body, cx, provenance| {
-                let layer = L::import(&body, cx)?;
+                let layer = L::import(&body, cx, doc)?;
                 let len = layer.len();
                 let key = Key::<L>::named(cx.intern(&record.instance));
                 doc.add(&key, layer, provenance)
@@ -645,18 +722,12 @@ impl<From: Layer, To: Layer> LayerCodec for Edges<From, To> {
         Ok(w.finish())
     }
 
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let from = get_layer_ref(&mut r)?;
         let to = get_layer_ref(&mut r)?;
-        for (named, typed) in [(&from, From::NAME.to_string()), (&to, To::NAME.to_string())] {
-            if named.layer != typed {
-                return Err(ExportError::InvalidLayer {
-                    layer: cx.layer.clone(),
-                    detail: format!("an endpoint on {}, not {typed}", named.layer),
-                });
-            }
-        }
+        cx.want_keyed_target::<From>(&from)?;
+        cx.want_keyed_target::<To>(&to)?;
         cx.layer_len(&from)?;
         cx.layer_len(&to)?;
         let kinds = get_tagset(&mut r)?;
@@ -690,15 +761,10 @@ impl<L: Layer> LayerCodec for Groups<L> {
         Ok(w.finish())
     }
 
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let of = get_layer_ref(&mut r)?;
-        if of.layer != L::NAME.to_string() {
-            return Err(ExportError::InvalidLayer {
-                layer: cx.layer.clone(),
-                detail: format!("groups of {}, not {}", of.layer, L::NAME),
-            });
-        }
+        cx.want_keyed_target::<L>(&of)?;
         cx.layer_len(&of)?;
         let mut groups: Vec<Vec<Ix<L>>> = Vec::new();
         for _ in 0..r.usize()? {
@@ -1040,12 +1106,14 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
         views: HashMap::from([(String::new(), ViewId::SOURCE)]),
         lens: HashMap::new(),
         known: seen,
+        made_on: Vec::new(),
         layer: View::ID.to_owned(),
     };
     cx.lens.insert((View::ID.to_owned(), String::new()), 1);
 
     for (index, record) in graph.views.iter().enumerate() {
         cx.layer = View::ID.to_owned();
+        cx.made_on = record.provenance.on.iter().chain(&record.provenance.reads).cloned().collect();
         let provenance = rebuild_provenance(
             &record.provenance,
             codecs,
@@ -1093,6 +1161,7 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
 
     for record in &graph.layers {
         cx.layer = record.layer.clone();
+        cx.made_on = record.provenance.on.iter().chain(&record.provenance.reads).cloned().collect();
         let provenance = rebuild_provenance(
             &record.provenance,
             codecs,

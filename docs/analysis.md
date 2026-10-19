@@ -541,8 +541,12 @@ the boundary only through a `LayerCodec` registered for its type in a
 `Codecs` set; its record body is that codec's bytes, written and read
 with the boundary's `Writer` and `Reader` (`put_spans` and
 `put_tagset` cover the shared span and tag columns). Codecs ship for
-`Edges<From, To>` and `Groups<L>` in core and for `Abbreviations` in
-`turbo-analysis-layers`; an add-on registers its own layer types the
+`Edges<From, To>` and `Groups<L>` in core, and
+`turbo_analysis_layers::export::register_codecs` registers the shared
+pipeline layers (sentences, tokens, words, subwords, tags, lemmas,
+stems, terms, dependencies, entities, structure, boundaries, chunks,
+categories, language spans, temporals and the document date, plus the
+abbreviation relations); an add-on registers its own layer types the
 same way. A layer with no codec refuses the whole export or import
 with `ExportError::NoCodec` rather than being dropped or flattened,
 and a skipped or failed layer needs a codec too, so its status and

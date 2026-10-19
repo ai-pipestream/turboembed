@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use turbo_analysis::export::{ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer, get_spans, put_spans};
-use turbo_analysis::{Edges, Ix, Layer, Overlap, Span, Spans, TagSet, ViewId};
+use turbo_analysis::{Document, Edges, Ix, Layer, Overlap, Span, Spans, TagSet, ViewId};
 
 /// What one span of an abbreviation layer is.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -106,7 +106,7 @@ impl LayerCodec for Abbreviations {
         Ok(w.finish())
     }
 
-    fn import(data: &[u8], cx: &mut ImportCx) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
         let mut form = Vec::with_capacity(spans.len());
