@@ -106,8 +106,15 @@ impl Run for Maxent {
         if let Some(what) = first_difference(text, &got, &want) {
             return Outcome::Divergence(format!("after joining the JVM's split inside a pair, {what}"));
         }
+        if probs.len() != expected.len() {
+            return Outcome::Divergence(format!(
+                "after joining the JVM's split inside a pair, {} probabilities for {} tokens",
+                probs.len(),
+                expected.len()
+            ));
+        }
         for (i, (&p, &(a, b, want))) in probs.iter().zip(&expected).enumerate() {
-            if (p - want).abs() > 1e-9 {
+            if !confidence_tolerance().accepts(p, want) {
                 return Outcome::Divergence(format!("token {i} at {a}..{b}: probability {p}, the JVM gave {want}"));
             }
         }

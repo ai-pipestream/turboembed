@@ -3435,7 +3435,7 @@ exactly the ones the golden tests list:
   break among them.
 - `normalize`: for each normalizer whose section of `docs/normalizers.md`
   records a deliberate difference ("Differences from OpenNLP"), a rule in
-  `analysis/fuzz/src/runs/normalize.rs` recognizes that construct and no
+  `analysis/fuzz/src/runs/normalize/mod.rs` recognizes that construct and no
   other: every region of the source the two sides change differently
   must be it (U+2E42 folded by `Quotes`, the five added bullets, the
   three added ellipsis forms, U+206A to U+206F deleted by `Invisible`, a
@@ -3576,7 +3576,7 @@ What it took to get there:
 - The WordPiece goldens differ from the port on a third of the texts, in
   the ways `analysis/embed/tests/goldens.rs` documents, but telling those
   from anything else needed the JVM's offset mapping written out (the
-  model in `analysis/fuzz/src/runs/subwords.rs`); the rules of thumb the
+  model in `analysis/fuzz/src/runs/subwords/mod.rs`); the rules of thumb the
   golden tests use for their few inputs (a span widened to its run, a
   trailing mark trimmed) left a few dozen of the first corpus unexplained
   until then. The model also records what `WordpieceEncoder` does that
@@ -3593,7 +3593,7 @@ against the JVM's), 2,381 simple tokenizer goldens with `keepNewLines`
 e-mail addresses), 224 symbol word goldens (symbols in running text), 148
 WordPiece goldens with final sigma, 100 language goldens. For the
 normalizers with a "Differences from OpenNLP" section, the rule per
-normalizer in `analysis/fuzz/src/runs/normalize.rs` (listed above) names
+normalizer in `analysis/fuzz/src/runs/normalize/mod.rs` (listed above) names
 the difference each mismatch is, and a region no rule recognizes is a
 divergence. No OpenNLP bug was found that the crate docs did not already
 record.
