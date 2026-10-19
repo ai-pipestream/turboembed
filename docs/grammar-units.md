@@ -51,8 +51,8 @@ bitcoin).
 
 ## Rules
 
-The lexicon tables are in `analysis/grammar/src/lang/en/unit/lexicon.rs`
-and the rules in `analysis/grammar/src/lang/en/unit/rules.rs`.
+The lexicon tables are in `analysis/grammar/src/lang/en/unit/lexicon/mod.rs`
+and the rules in `analysis/grammar/src/lang/en/unit/rules/mod.rs`.
 
 - A unit word is a name (`kilometers`), an abbreviation (`km`, `kg`,
   `mph`) or a sign (`°`, `"`, `£`). Abbreviations whose case matters are

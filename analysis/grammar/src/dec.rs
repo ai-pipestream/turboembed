@@ -63,14 +63,14 @@ impl Dec {
         let d = digits(m);
         if d > MAX_DIGITS {
             m = shed(m, d - MAX_DIGITS);
-            s -= (d - MAX_DIGITS) as i32;
+            s = s.checked_sub((d - MAX_DIGITS) as i32)?;
         }
         if m == 0 {
             return Some(Dec::ZERO);
         }
         while m % 10 == 0 {
             m /= 10;
-            s -= 1;
+            s = s.checked_sub(1)?;
         }
         let scale = i16::try_from(s).ok()?;
         Some(Dec { mantissa: m, scale })
