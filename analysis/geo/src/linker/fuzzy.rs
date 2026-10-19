@@ -54,8 +54,8 @@ fn metric_upper_bound(metric: FuzzyMetric, m: usize, n: usize) -> f64 {
     }
     let min_l = m.min(n) as f64;
     let max_l = m.max(n) as f64;
-    let lev_ub = min_l / max_l;
-    match metric {
+    let lev_ub = (1.0 - ((max_l - min_l) / max_l)).clamp(0.0, 1.0);
+    let raw_ub = match metric {
         FuzzyMetric::NormalizedLevenshtein => lev_ub,
         FuzzyMetric::JaroWinkler => {
             let jaro_ub = ((min_l / m as f64) + (min_l / n as f64) + 1.0) / 3.0;
@@ -76,7 +76,8 @@ fn metric_upper_bound(metric: FuzzyMetric, m: usize, n: usize) -> f64 {
             };
             0.5 * (lev_ub + jw_ub)
         }
-    }
+    };
+    (raw_ub + 1e-12).min(1.0)
 }
 
 fn lev_slice(a: &[char], b: &[char], prev: &mut Vec<usize>, curr: &mut Vec<usize>) -> f64 {

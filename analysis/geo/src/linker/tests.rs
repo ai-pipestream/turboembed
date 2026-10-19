@@ -431,3 +431,20 @@ fn geohash_handles_prime_meridian_edge_and_skips_repeated_mentions_and_nan_thres
     assert!(gaz.lookup_fuzzy("Springfield", &nan_scorer, f64::NAN, 10).is_empty());
     assert_eq!(gaz.lookup_fuzzy("Springfield", &FuzzyStringScorer::default(), 0.0, 2).len(), 2);
 }
+
+#[test]
+fn fuzzy_pruning_preserves_threshold_equal_matches_across_metrics() {
+    let pairs = [("a", "aaa"), ("ab", "abcdef"), ("par", "paris"), ("lon", "london")];
+    let metrics = [FuzzyMetric::NormalizedLevenshtein, FuzzyMetric::JaroWinkler, FuzzyMetric::Combined];
+    for (q, cand_name) in pairs {
+        let gaz =
+            InMemoryGazetteer::from_entries(&[place("1", cand_name, &[], 10.0, 20.0, Some("US"), &[], 1_000)]).unwrap();
+        for metric in metrics {
+            let exact = FuzzyStringScorer::new(metric, 0.0).score_names(q, cand_name);
+            let scorer = FuzzyStringScorer::new(metric, exact);
+            let hits = gaz.lookup_fuzzy(q, &scorer, exact, 5);
+            assert_eq!(hits.len(), 1, "pruned threshold-equal match for ({q:?}, {cand_name:?}) under {metric:?}");
+            assert_eq!(hits[0].1, exact);
+        }
+    }
+}
