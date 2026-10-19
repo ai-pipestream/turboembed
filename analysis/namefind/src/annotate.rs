@@ -47,6 +47,7 @@ impl Annotator for DictionaryNameFinder {
 
 impl Annotator for RegexNameFinder {
     const ID: &'static str = "turbo-namefind:regex";
+    const VERSION: &'static str = "1";
     type Reads = (View, Tokens);
     type Writes = (Entities,);
 
