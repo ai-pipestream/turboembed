@@ -78,12 +78,15 @@
 //! How MASC's chunks differ from CoNLL-2000's, and which way that leans
 //! the gate, is in the crate's README.
 
+mod samples;
+#[cfg(test)]
+mod tests;
+
 use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, TagMapping, Task};
 use turbo_formats::evaluate::ChunkerEvaluator;
-use turbo_formats::masc::{ChunkSkip, MascChunkRead, MascChunkReader, MascCorpus, MascError, MascWarning};
-use turbo_formats::sample::ChunkSample;
-use turbo_formats::sample::chunk::phrase_spans;
-use turbo_formats::source::Field;
+use turbo_formats::masc::MascCorpus;
+#[cfg(doc)]
+use turbo_formats::masc::{ChunkSkip, MascChunkReader};
 use turbo_maxent::ModelFile;
 use turbo_phrase_chunker::{ChunkerModel, PhraseChunker};
 use turbo_sequence::chunker::TokenTag;
@@ -91,12 +94,17 @@ use turbo_train::{TrainingConfiguration, TrainingParameters};
 use turbo_train_components::{ChunkerFactory, Stamp, chunk};
 use turbo_zoo::Sha256;
 
-use crate::card::{ChunksCard, HeldOutCard};
+#[cfg(doc)]
+use crate::card::ChunksCard;
+use crate::card::HeldOutCard;
 use crate::error::{Error, LeftOut, Result};
 use crate::postag::ReferenceMapping;
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
 use crate::spans::{self, SpanTypes};
 use crate::{GateRun, Limit, RecordedReference, Reference, Trained};
+
+use self::samples::check_skipped;
+pub use self::samples::{HeldOutChunks, Skipped, chunk_counts, read_samples, scored_tag};
 
 /// OpenNLP's English chunker of the 1.5 models, as published.
 pub const EN_CHUNKER: RecordedReference = RecordedReference {
@@ -221,236 +229,6 @@ pub const THREADS: i32 = 1;
 /// GIS's and `ChunkerME`'s defaults).
 pub fn training_parameters() -> TrainingParameters {
     TrainingParameters::defaults()
-}
-
-/// The sentences [`read_samples`] skipped, by why.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Skipped {
-    pub no_tokens: usize,
-    pub null_tag: usize,
-    pub partial_chunk: usize,
-    pub overlapping_chunks: usize,
-    pub chunk_with_gap: usize,
-}
-
-impl Skipped {
-    fn add(&mut self, reason: ChunkSkip) {
-        let count = match reason {
-            ChunkSkip::NoTokens => &mut self.no_tokens,
-            ChunkSkip::NullTag => &mut self.null_tag,
-            ChunkSkip::PartialChunk => &mut self.partial_chunk,
-            ChunkSkip::OverlappingChunks => &mut self.overlapping_chunks,
-            ChunkSkip::ChunkWithGap => &mut self.chunk_with_gap,
-        };
-        *count += 1;
-    }
-
-    /// Every sentence skipped.
-    pub fn total(&self) -> usize {
-        self.no_tokens + self.null_tag + self.partial_chunk + self.overlapping_chunks + self.chunk_with_gap
-    }
-}
-
-/// Reads the chunk samples of `corpus` ([`MascChunkReader`]), giving each
-/// to `each`, and returns the sentences it skipped.
-///
-/// # Errors
-///
-/// A corpus read without its chunk files, or a token the text cannot
-/// give.
-pub fn read_samples<'c>(corpus: &'c MascCorpus, mut each: impl FnMut(ChunkSample<'c>)) -> Result<Skipped> {
-    let mut skipped = Skipped::default();
-    for read in MascChunkReader::new(corpus)? {
-        match read? {
-            MascChunkRead::Sample(s) => each(s.sample),
-            MascChunkRead::Skipped { reason, .. } => skipped.add(reason),
-        }
-    }
-    Ok(skipped)
-}
-
-/// The chunks of `corpus` in no sentence the reader reads, by why, as the
-/// documents warned of them when their chunks were placed
-/// (`MascDocument::add_chunks`), and every chunk of the documents' chunk
-/// files: those placed in a sentence and those left out. A document with
-/// chunk files and no Penn tokens (MASC 3.0.0 has none) has no chunks
-/// placed, and its chunks are not counted.
-pub fn chunk_counts(corpus: &MascCorpus) -> ChunksCard {
-    let mut counts = ChunksCard::default();
-    let mut placed = 0;
-    for doc in corpus.documents() {
-        placed += doc.sentences().iter().map(|s| s.chunks().len() as u64).sum::<u64>();
-        for warning in doc.warnings() {
-            let count = match warning {
-                MascWarning::ChunkOutsideSentences { .. } => &mut counts.outside_sentences,
-                MascWarning::ChunkCrossesSentences { .. } => &mut counts.across_sentences,
-                MascWarning::ChunkWithoutTokens { .. } => &mut counts.without_tokens,
-                _ => continue,
-            };
-            *count += 1;
-        }
-    }
-    counts.chunks = placed + counts.outside_sentences + counts.across_sentences + counts.without_tokens;
-    counts
-}
-
-/// Checks the sentences the reader skipped against
-/// [`MAX_SKIPPED_SENTENCES`]: `skipped` of `skipped + read`.
-fn check_skipped(what: LeftOut, skipped: usize, read: usize) -> Result<()> {
-    MAX_SKIPPED_SENTENCES.check(what, skipped as u64, (skipped + read) as u64)
-}
-
-/// The tag scored for the chunk tag `tag` of a type `types` does not
-/// score: `O`; any other tag as it is. A tag's type follows its first two
-/// characters (`B-`, `I-`), as `ChunkSample` reads it.
-pub fn scored_tag<'t>(tag: &'t str, types: &SpanTypes) -> &'t str {
-    match tag.get(2..) {
-        Some(kind) if tag != "O" && !types.predicted(kind) => "O",
-        _ => tag,
-    }
-}
-
-/// The held-out chunk samples, their chunk tags of the types scored
-/// ([`SPAN_TYPES`]: renamed where it renames them, `O` where it leaves
-/// them out), borrowed from the held-out corpus.
-#[derive(Debug, Clone)]
-pub struct HeldOutChunks<'c> {
-    samples: Vec<ChunkSample<'c>>,
-    skipped: Skipped,
-    /// The held-out documents' chunks in no sentence the reader reads.
-    chunks: ChunksCard,
-    /// The held-out phrases of the types scored.
-    spans: u64,
-    /// The held-out phrases of other types, made `O`.
-    left_out: u64,
-}
-
-impl<'c> HeldOutChunks<'c> {
-    /// The held-out samples of `samples`, their phrases of other types
-    /// than `types` scores made `O` and the renamed ones renamed; the
-    /// reader skipped `skipped` sentences and placed `chunks` in no
-    /// sentence ([`chunk_counts`]).
-    ///
-    /// # Errors
-    ///
-    /// A chunk tag `ChunkSample` cannot read a phrase from
-    /// ([`MascError::Sample`]).
-    pub fn new(
-        samples: Vec<ChunkSample<'c>>,
-        skipped: Skipped,
-        chunks: ChunksCard,
-        types: &SpanTypes,
-    ) -> Result<HeldOutChunks<'c>> {
-        let mut out =
-            HeldOutChunks { samples: Vec::with_capacity(samples.len()), skipped, chunks, spans: 0, left_out: 0 };
-        for sample in samples {
-            let tags: Vec<&str> = sample.chunks().iter().map(Field::as_str).collect();
-            let phrases = phrase_spans(&tags).map_err(MascError::from)?;
-            let mut chunks: Vec<Field<'c>> = sample.chunks().to_vec();
-            for &(start, end, cut) in &phrases {
-                let kind = &tags[start as usize][cut..];
-                match types.held_out(kind) {
-                    Some(scored) => {
-                        out.spans += 1;
-                        if scored != kind {
-                            for (i, field) in chunks[start as usize..end as usize].iter_mut().enumerate() {
-                                let prefix = if i == 0 { "B-" } else { "I-" };
-                                *field = Field::made(format!("{prefix}{scored}"), field.span);
-                            }
-                        }
-                    }
-                    None => {
-                        out.left_out += 1;
-                        for field in &mut chunks[start as usize..end as usize] {
-                            *field = Field::made("O".to_owned(), field.span);
-                        }
-                    }
-                }
-            }
-            let source = sample.source();
-            let sample = ChunkSample::new(sample.tokens().to_vec(), sample.tags().to_vec(), chunks, source);
-            out.samples.push(sample.map_err(MascError::from)?);
-        }
-        Ok(out)
-    }
-
-    /// The samples scored.
-    pub fn samples(&self) -> &[ChunkSample<'c>] {
-        &self.samples
-    }
-
-    /// The held-out sentences [`read_samples`] skipped.
-    pub fn skipped(&self) -> Skipped {
-        self.skipped
-    }
-
-    /// The held-out documents' chunks in no sentence the reader reads
-    /// ([`chunk_counts`]).
-    pub fn chunks(&self) -> &ChunksCard {
-        &self.chunks
-    }
-
-    pub fn len(&self) -> usize {
-        self.samples.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.samples.is_empty()
-    }
-
-    /// The held-out phrases scored.
-    pub fn spans(&self) -> u64 {
-        self.spans
-    }
-
-    /// The held-out phrases of other types, left out of both models'
-    /// scores.
-    pub fn left_out(&self) -> u64 {
-        self.left_out
-    }
-
-    /// The tokens of the samples.
-    pub fn tokens(&self) -> u64 {
-        self.samples.iter().map(|s| s.tokens().len() as u64).sum()
-    }
-
-    /// The SHA-256 of the samples as scored: for each sample, its number
-    /// of tokens as a little endian `u64`, then for each token its text,
-    /// its tag and its chunk tag, each as its length in bytes as a little
-    /// endian `u64` and its bytes; after the samples, the types scored,
-    /// the renamed types (each held-out type and the type it is scored
-    /// as) and [`REFERENCE_TAGS`] (each held-out tag and the reference's),
-    /// each list as its length and its strings.
-    pub fn sha256(&self, types: &SpanTypes) -> String {
-        let mut bytes = Vec::new();
-        let put = |bytes: &mut Vec<u8>, s: &str| {
-            bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(s.as_bytes());
-        };
-        for sample in &self.samples {
-            bytes.extend_from_slice(&(sample.tokens().len() as u64).to_le_bytes());
-            for ((token, tag), chunk) in sample.tokens().iter().zip(sample.tags()).zip(sample.chunks()) {
-                put(&mut bytes, token.as_str());
-                put(&mut bytes, tag.as_str());
-                put(&mut bytes, chunk.as_str());
-            }
-        }
-        bytes.extend_from_slice(&(types.types.len() as u64).to_le_bytes());
-        for t in types.types {
-            put(&mut bytes, t);
-        }
-        bytes.extend_from_slice(&(types.renamed.len() as u64).to_le_bytes());
-        for (held_out, scored) in types.renamed {
-            put(&mut bytes, held_out);
-            put(&mut bytes, scored);
-        }
-        bytes.extend_from_slice(&(REFERENCE_TAGS.len() as u64).to_le_bytes());
-        for m in REFERENCE_TAGS {
-            put(&mut bytes, m.held_out);
-            put(&mut bytes, m.reference);
-        }
-        Sha256::of(&bytes).to_string()
-    }
 }
 
 /// Which model a chunker is scored as, which decides the tags it is
@@ -644,140 +422,4 @@ fn open(bytes: &[u8]) -> Result<PhraseChunker> {
     let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
     let model = ChunkerModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
     Ok(PhraseChunker::new(model))
-}
-
-#[cfg(test)]
-mod tests {
-    use turbo_analysis::Span;
-
-    use super::*;
-
-    fn sample<'a>(text: &'a str, tokens: &[(u32, u32)], tags: &[&str], chunks: &[&str]) -> ChunkSample<'a> {
-        let fields: Vec<Field<'a>> = tokens.iter().map(|&(a, b)| Field::of(text, Span::new(a, b))).collect();
-        let made = |values: &[&str]| -> Vec<Field<'a>> {
-            values.iter().zip(&fields).map(|(v, f)| Field::made((*v).to_owned(), f.span)).collect()
-        };
-        let (tags, chunks) = (made(tags), made(chunks));
-        ChunkSample::new(fields, tags, chunks, Span::new(0, text.len() as u32)).unwrap()
-    }
-
-    #[test]
-    fn tags_of_types_not_scored_are_made_o_and_their_phrases_left_out() {
-        for (tag, scored) in
-            [("B-NP", "B-NP"), ("I-VP", "I-VP"), ("O", "O"), ("B-PP", "O"), ("I-ADJP", "O"), ("B-SBAR", "O")]
-        {
-            assert_eq!(scored_tag(tag, &SPAN_TYPES), scored, "{tag}");
-        }
-        // making them O leaves the phrases of the types scored as they were
-        let tags = ["B-NP", "I-PP", "I-NP", "B-PP", "B-NP", "I-NP", "I-VP", "I-ADVP", "B-VP"];
-        let mapped: Vec<&str> = tags.iter().map(|t| scored_tag(t, &SPAN_TYPES)).collect();
-        let kept = |tags: &[&str]| -> Vec<(u32, u32, String)> {
-            phrase_spans(tags)
-                .unwrap()
-                .into_iter()
-                .map(|(s, e, cut)| (s, e, tags[s as usize][cut..].to_owned()))
-                .filter(|(_, _, k)| SPAN_TYPES.predicted(k))
-                .collect()
-        };
-        assert_eq!(kept(&tags), kept(&mapped));
-        assert_eq!(
-            kept(&mapped),
-            phrase_spans(&mapped)
-                .unwrap()
-                .into_iter()
-                .map(|(s, e, cut)| (s, e, mapped[s as usize][cut..].to_owned()))
-                .collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn held_out_phrases_are_renamed_or_left_out_as_the_types_say() {
-        let text = "a b c d";
-        let s = sample(
-            text,
-            &[(0, 1), (2, 3), (4, 5), (6, 7)],
-            &["DT", "NN", "IN", "NN"],
-            &["B-NP", "I-NP", "B-PP", "B-X"],
-        );
-        let types = SpanTypes { types: &["NP", "Y"], renamed: &[("X", "Y")] };
-        let held = HeldOutChunks::new(vec![s], Skipped::default(), ChunksCard::default(), &types).unwrap();
-        let chunks: Vec<&str> = held.samples()[0].chunks().iter().map(Field::as_str).collect();
-        assert_eq!(chunks, ["B-NP", "I-NP", "O", "B-Y"]);
-        assert_eq!((held.spans(), held.left_out(), held.tokens()), (2, 1, 4));
-        // the spans of the fields are their tokens'
-        assert_eq!(held.samples()[0].chunks()[3].span, Span::new(6, 7));
-    }
-
-    #[test]
-    fn the_held_out_digest_covers_tokens_tags_chunk_tags_types_and_the_reference_tags() {
-        let text = "Dogs ran";
-        let one = |chunk: &str| {
-            let s = sample(text, &[(0, 4), (5, 8)], &["NNS", "VBD"], &["B-NP", chunk]);
-            HeldOutChunks::new(vec![s], Skipped::default(), ChunksCard::default(), &SPAN_TYPES).unwrap()
-        };
-        let mut bytes = Vec::new();
-        let put = |bytes: &mut Vec<u8>, s: &str| {
-            bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(s.as_bytes());
-        };
-        bytes.extend_from_slice(&2u64.to_le_bytes());
-        for (token, tag, chunk) in [("Dogs", "NNS", "B-NP"), ("ran", "VBD", "B-VP")] {
-            put(&mut bytes, token);
-            put(&mut bytes, tag);
-            put(&mut bytes, chunk);
-        }
-        bytes.extend_from_slice(&2u64.to_le_bytes());
-        put(&mut bytes, "NP");
-        put(&mut bytes, "VP");
-        bytes.extend_from_slice(&0u64.to_le_bytes());
-        bytes.extend_from_slice(&3u64.to_le_bytes());
-        for (held_out, reference) in [("-", ":"), ("...", ":"), (";", ":")] {
-            put(&mut bytes, held_out);
-            put(&mut bytes, reference);
-        }
-        assert_eq!(one("B-VP").sha256(&SPAN_TYPES), Sha256::of(&bytes).to_string());
-        assert_ne!(one("B-VP").sha256(&SPAN_TYPES), one("O").sha256(&SPAN_TYPES));
-        let other = SpanTypes { types: &["NP"], renamed: &[] };
-        assert_ne!(one("B-VP").sha256(&SPAN_TYPES), one("B-VP").sha256(&other));
-    }
-
-    #[test]
-    fn only_the_reference_is_given_mapped_tags() {
-        for (masc, reference) in
-            [("-", ":"), ("...", ":"), (";", ":"), ("(", "("), (")", ")"), ("''", "''"), ("NN", "NN")]
-        {
-            assert_eq!(Scored::Reference.tag(masc), reference, "{masc}");
-            assert_eq!(Scored::Candidate.tag(masc), masc);
-        }
-    }
-
-    #[test]
-    fn skipped_sentences_are_counted_by_why() {
-        let mut s = Skipped::default();
-        for reason in [
-            ChunkSkip::NoTokens,
-            ChunkSkip::OverlappingChunks,
-            ChunkSkip::OverlappingChunks,
-            ChunkSkip::PartialChunk,
-            ChunkSkip::NullTag,
-            ChunkSkip::ChunkWithGap,
-        ] {
-            s.add(reason);
-        }
-        assert_eq!(
-            s,
-            Skipped { no_tokens: 1, null_tag: 1, partial_chunk: 1, overlapping_chunks: 2, chunk_with_gap: 1 }
-        );
-        assert_eq!(s.total(), 6);
-        assert!(MAX_SKIPPED_SENTENCES.allows(10, 100) && !MAX_SKIPPED_SENTENCES.allows(11, 100));
-        use turbo_train::Key;
-        let p = training_parameters();
-        assert_eq!(p.get_str(Key::ALGORITHM).unwrap(), Some("MAXENT"));
-        assert_eq!(p.get_int(Key::ITERATIONS).unwrap(), Some(ITERATIONS));
-        assert_eq!(p.get_int(Key::CUTOFF).unwrap(), Some(CUTOFF));
-        assert_eq!(p.get_int(Key::THREADS).unwrap(), None);
-        assert_eq!(chunk::beam_size(&p).unwrap(), chunk::DEFAULT_BEAM_SIZE);
-        assert_eq!((ITERATIONS, CUTOFF, THREADS, chunk::DEFAULT_BEAM_SIZE), (100, 5, 1, 10));
-        assert_eq!(CHUNKS.task(), Task::Chunker);
-    }
 }

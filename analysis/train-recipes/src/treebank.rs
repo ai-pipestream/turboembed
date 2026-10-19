@@ -40,6 +40,10 @@
 //! data policy refuses data under a platform's terms, as it does MASC's
 //! Twitter genre, so it is refused and has no recipe.
 
+mod catalog;
+#[cfg(test)]
+mod tests;
+
 use std::path::{Path, PathBuf};
 
 use turbo_zoo::{
@@ -48,6 +52,10 @@ use turbo_zoo::{
 };
 
 use crate::error::{Error, Result, io};
+
+pub use self::catalog::{
+    CATALAN_ANCORA, FINNISH_FTB, ITALIAN_MARKIT, PORTUGUESE_PORTTINARI, SPANISH_ANCORA, TREEBANKS,
+};
 
 /// The Universal Dependencies release the recipes train on: the tag of
 /// each repository.
@@ -197,12 +205,23 @@ pub fn check_licence_text(grant: Grant, licence: &str, readme: &str) -> std::res
     let gnu = text.contains(" gnu ") || text.contains(" general public license ");
     match grant {
         Grant::CcBy40 if gnu => return Err("LICENSE.txt names a GNU licence beside CC BY 4.0"),
-        Grant::CcBy40OrOther { .. } if !text.contains(" alternatively at your option ") => {
-            return Err("LICENSE.txt does not offer CC BY 4.0 at the user's option");
+        Grant::CcBy40OrOther { other } => {
+            if !gnu || other != Licence::Lgpl30OrLater || !text.contains(" alternatively at your option ") {
+                return Err("LICENSE.txt does not offer CC BY 4.0 at the user's option");
+            }
         }
-        _ => {}
+        Grant::CcBy40 => {}
     }
-    if !readme.lines().any(|l| l.trim() == README_LICENCE_LINE) {
+    let mut found_licence_line = false;
+    for line in readme.lines().map(str::trim) {
+        if line.starts_with("License:") || line.starts_with("Licence:") {
+            if line != README_LICENCE_LINE {
+                return Err("the README's metadata does not say License: CC BY 4.0");
+            }
+            found_licence_line = true;
+        }
+    }
+    if !found_licence_line {
         return Err("the README's metadata does not say License: CC BY 4.0");
     }
     Ok(())
@@ -355,423 +374,5 @@ impl Treebank {
         let index = Index::parse(Index::to_canonical_json(std::slice::from_ref(&artifact)).as_bytes())?;
         let zoo = Zoo::new(index, home.join("artifacts"), Policy::default(), &Http);
         Ok(zoo.fetch_with(&id, user, || Ok(Acceptances::default()))?.dir)
-    }
-}
-
-pub const SPANISH_ANCORA: Treebank = Treebank {
-    repository: "UD_Spanish-AnCora",
-    language: "es",
-    name: "ancora",
-    grant: Grant::CcBy40,
-    text_rights: TextRights::Granted,
-    copyright: None,
-    licence_file: TreebankFile {
-        name: "LICENSE.txt",
-        size: 189,
-        sha256: "653702c7fdee69f7d7a439c9ba4c178c26e745479f6e6d2943bed1a9b9c7bf67",
-        sha512: "22412f70abfa24f53c5eaccf97e2660bc1091bb62a983294e533a967347118309a8952a6deafe8b79c6930b2b297e88a1cae269bf6d45d8b8f307f6adbef596d",
-    },
-    readme: TreebankFile {
-        name: "README.md",
-        size: 5623,
-        sha256: "94041e7d42b86a189fc7866799e1119eea1d32ce02444c26b251d518548a7c1c",
-        sha512: "a09395a7e62b9a5561d950b99e4c7d93ffa47fa7d843af20e0aab3418c740df97cd62b1bf5c9fb3dc11d8cd2c6c4c31be2780b186f055b91628c79b041326dd8",
-    },
-    train: TreebankFile {
-        name: "es_ancora-ud-train.conllu",
-        size: 42958918,
-        sha256: "79e7463700e75bdf921c85b6e04495af118462a2b032bbff590fb82aa6ad8d5d",
-        sha512: "9014bfc581e2f4140d92b6cbfa20c68939c53b830cecbb965d5b62ef45e1ed056c2babade29c63af0f8733d32d4be05a43bdc182d6e9adcdb298fe9da3541df2",
-    },
-    dev: TreebankFile {
-        name: "es_ancora-ud-dev.conllu",
-        size: 5104844,
-        sha256: "e257745f4c339be53d5158867a28a2bfbcb98d890db86faa324e5f45f0284afc",
-        sha512: "03c6e5e5511ecba1025f07bd3e55103dadb2e0dcd66de989913eb825c927808e5efd232c4000448beee7d0aefbf72b13d232e854e3781abadf025e033d055676",
-    },
-    test: TreebankFile {
-        name: "es_ancora-ud-test.conllu",
-        size: 5106509,
-        sha256: "2a24316503a56e171f07b38cf2ec13c22e3b62a337c6dbf2d9d1a54ada2b012b",
-        sha512: "9ff7e8cd44f95bc7821260bfda6e45444528547a0368cae484ae25e22b704d16d173c0b3af1174fd7d5b53104fd02d05d9763699f5672eda93660cb5743f81c1",
-    },
-    contributors: "Héctor Martínez Alonso and Daniel Zeman",
-    citation: "Taulé, M., M.A. Martí, M. Recasens (2008) 'Ancora: Multilevel Annotated Corpora for Catalan and \
-               Spanish', Proceedings of 6th International Conference on Language Resources and Evaluation. \
-               Marrakesh (Morocco).",
-};
-
-pub const CATALAN_ANCORA: Treebank = Treebank {
-    repository: "UD_Catalan-AnCora",
-    language: "ca",
-    name: "ancora",
-    grant: Grant::CcBy40,
-    text_rights: TextRights::Granted,
-    copyright: None,
-    licence_file: TreebankFile {
-        name: "LICENSE.txt",
-        size: 189,
-        sha256: "653702c7fdee69f7d7a439c9ba4c178c26e745479f6e6d2943bed1a9b9c7bf67",
-        sha512: "22412f70abfa24f53c5eaccf97e2660bc1091bb62a983294e533a967347118309a8952a6deafe8b79c6930b2b297e88a1cae269bf6d45d8b8f307f6adbef596d",
-    },
-    readme: TreebankFile {
-        name: "README.md",
-        size: 4726,
-        sha256: "655c2547a513087644b94315fca88a38a105ae11a1673f7f701d1659194ac1e3",
-        sha512: "c107336a2b8ecc33b8f29c6e8b689245531036f35e76670bd14e06fa52ed87e512a89ce6c6893ad50ab256e2b76ae8f93e72d06ced429c217ab5d11470219572",
-    },
-    train: TreebankFile {
-        name: "ca_ancora-ud-train.conllu",
-        size: 39714229,
-        sha256: "bb5d06fb14336bae2c3aa64aa7e65afe183295a4669ce4f45bf0ed57c18ccccd",
-        sha512: "ceffa3d603470e86640b6f2cbdbcedea0ac4582136eb01ea63169f6f30b985e889adc392677a6677d703caec74b0199dbf0a5f7de35f1d86bf25ebc1c6e8ee00",
-    },
-    dev: TreebankFile {
-        name: "ca_ancora-ud-dev.conllu",
-        size: 5421739,
-        sha256: "bfcb95de30b6ea0b250619386a281add3e2bbd153804a89da4dbe2938ad28199",
-        sha512: "be53e9a60a36f81b8a2eea14523c4d2cd2ab27c054be4a8bfde24a4f94d48df18420b1948ffdea0c994a8bdc97af85631b03a3a0f11880616c5972959d682481",
-    },
-    test: TreebankFile {
-        name: "ca_ancora-ud-test.conllu",
-        size: 5515247,
-        sha256: "f68ff102b9bf8bc197be3262a1caf25682683c4db4c648663c7a791bfbfa115f",
-        sha512: "f32af8db3d37698e1af3ff8d4a4940fafe3a28a7ae8d2ad46f9935f5224a01a852b04fb6cec63446f30af5ceaa7ca5e765cd8dd7c36e595a2328b6308d97c7a8",
-    },
-    contributors: "Héctor Martínez Alonso, Elena Pascual and Daniel Zeman",
-    citation: "Taulé, M., M.A. Martí, M. Recasens (2008) 'Ancora: Multilevel Annotated Corpora for Catalan and \
-               Spanish', Proceedings of 6th International Conference on Language Resources and Evaluation. \
-               Marrakesh (Morocco).",
-};
-
-pub const PORTUGUESE_PORTTINARI: Treebank = Treebank {
-    repository: "UD_Portuguese-Porttinari",
-    language: "pt",
-    name: "porttinari",
-    grant: Grant::CcBy40,
-    text_rights: TextRights::NotSettled {
-        source: "articles of the Folha de São Paulo newspaper, which the README says are on Kaggle",
-    },
-    copyright: None,
-    licence_file: TreebankFile {
-        name: "LICENSE.txt",
-        size: 188,
-        sha256: "5cbfe2d4d12938f9961bf5a0028390f4b6b60749b075e228a5740848afcb4a9b",
-        sha512: "10ef47a6ae80a0011f995aaf0ab6a40eded49199ed1bfe798d6a290fa3ad9f0ca24d30743775c916b12a73e0440538a5e962b9f1f50f0e7fbf09e52d12200475",
-    },
-    readme: TreebankFile {
-        name: "README.md",
-        size: 4619,
-        sha256: "15b9172c825fefe9157d0942a793d9615368ae714e8c9e3b7bc9d8a1005bfed3",
-        sha512: "14b47ed8d1e6adb78f674b63fbe16c832080d0dee06df23c443224f27d7146a071a94ce221fdb50695c1db4f866272aecd4ebb45945091532fe0d26f8aa4c40b",
-    },
-    train: TreebankFile {
-        name: "pt_porttinari-ud-train.conllu",
-        size: 8194835,
-        sha256: "d9d3d76ac9ac8cb569c42a698cc60721e088db7c7e90401582aab68aa9ca85d3",
-        sha512: "ff3711ad7dda691b4d50416bb14869ec5c3c3450d18433b8c7fe563e66ebbea7da59cea43ca057d4e3ed5099c388e889584ba47b21c0c3953a2fda681f894139",
-    },
-    dev: TreebankFile {
-        name: "pt_porttinari-ud-dev.conllu",
-        size: 1151582,
-        sha256: "c5efbb16458c94d8803ebf8bb9f53f9a692c0a06c77d76326642ad4139a6cf09",
-        sha512: "401b6740591dd06f7c7406cced3b8f64fde0d5ec58c746247aa95229d8178354d3a353fd1caf2be8226a59a4cc119b9db88d4dd9dc3d4258a39c0e9dac8190ff",
-    },
-    test: TreebankFile {
-        name: "pt_porttinari-ud-test.conllu",
-        size: 2333603,
-        sha256: "08e51c3687f2800ea45445cb48c7030832984c316b1c39757606499b8e7577b9",
-        sha512: "39d705b329663236e0d0ee529ce60d217956b3d667e9ed70e79a23063374c743da1204a0da06246f20f5fa638ae269745d991d8987c442793199b63b1fc67219",
-    },
-    contributors: "Magali Sanches Duran, Lucelene Lopes, Maria das Graças Volpe Nunes and Thiago Alexandre \
-                   Salgueiro Pardo",
-    citation: "Duran, M.S.; Lopes, L.; Nunes, M.G.V.; Pardo, T.A.S. (2023). The Dawn of the Porttinari Multigenre \
-               Treebank: Introducing its Journalistic Portion. In the Proceedings of the 14th Symposium in \
-               Information and Human Language Technology (STIL), pp. 115-124.",
-};
-
-pub const FINNISH_FTB: Treebank = Treebank {
-    repository: "UD_Finnish-FTB",
-    language: "fi",
-    name: "ftb",
-    grant: Grant::CcBy40OrOther { other: Licence::Lgpl30OrLater },
-    text_rights: TextRights::Granted,
-    copyright: Some("FTB1U is Copyright 2014 FIN-CLARIN"),
-    licence_file: TreebankFile {
-        name: "LICENSE.txt",
-        size: 44134,
-        sha256: "492fc0da8e9e5beecf59f5740e90482a256c8b59da6a46766aa778475969c507",
-        sha512: "2cde368f977c49d493ed1f2696d53aede83ad1100cab5b6f9341d25de8f7ffdedb1d2bb95ad60827bb990887512b147b8fae65aab16b94fd710fbc431656a202",
-    },
-    readme: TreebankFile {
-        name: "README.md",
-        size: 5531,
-        sha256: "9bb99c1912f08475aa6344a8399d2b86db99f9c6f36fc4548ce08c33ee7b59ce",
-        sha512: "2c6b4504ef19320fb6dd5d43d3cf461e6374754d5ac72ca93f6870cfba123e6b07a5b790bebdea062e7660f2e6157e6b3eab848b6ee5739d78fb27baed066184",
-    },
-    train: TreebankFile {
-        name: "fi_ftb-ud-train.conllu",
-        size: 10505459,
-        sha256: "0cc04932f18613c4491ace06f597b7b8caed36e557168b9b6ef154da7ae2d71b",
-        sha512: "3d15a8473440c42960254438f761608afdbb6072918aba145d83095c876611c2e3fdab0bab8ff920309ddee09ece3746873433b3ca7a6185db267aebbeee6d5d",
-    },
-    dev: TreebankFile {
-        name: "fi_ftb-ud-dev.conllu",
-        size: 1296909,
-        sha256: "1e46f7f88b6f1fa4f39b010b4ac8b8664b1be2c899f531f21b7bdc3fcf2e9142",
-        sha512: "ca0469394a38185b00a5acd20cd6feda94820849edfcdd4317c79728b4cf212ebd365529e1cc8d903711e9ff4d7ddb44cb4a0ddbcdab7885b74f38eca294c590",
-    },
-    test: TreebankFile {
-        name: "fi_ftb-ud-test.conllu",
-        size: 1342602,
-        sha256: "3aca7fbd727846c0955e9db581571a0fca89d46f825ee7f2a32fab1ea0bc31ba",
-        sha512: "cfa0708711a3d8deea4720ea36e82a6387f8946a465269a53dc63bfba49698d2108ae9bd55bd9b72ed1b1670cb0e2041d646aba08552b37330b596e0b4c7ba65",
-    },
-    contributors: "Jussi Piitulainen, Hanna Nurmi and Jack Rueter",
-    citation: "FTB1U, the UD version of FinnTreeBank 1 2014, Copyright 2014 FIN-CLARIN: grammatical examples \
-               adapted from Iso suomen kielioppi, verkkoversio (VISK, http://scripta.kotus.fi/visk), annotated in \
-               FIN-CLARIN projects at the Department of Modern Languages, University of Helsinki. The README names \
-               no paper to cite.",
-};
-
-pub const ITALIAN_MARKIT: Treebank = Treebank {
-    repository: "UD_Italian-MarkIT",
-    language: "it",
-    name: "markit",
-    grant: Grant::CcBy40,
-    text_rights: TextRights::Granted,
-    copyright: None,
-    licence_file: TreebankFile {
-        name: "LICENSE.txt",
-        size: 188,
-        sha256: "5cbfe2d4d12938f9961bf5a0028390f4b6b60749b075e228a5740848afcb4a9b",
-        sha512: "10ef47a6ae80a0011f995aaf0ab6a40eded49199ed1bfe798d6a290fa3ad9f0ca24d30743775c916b12a73e0440538a5e962b9f1f50f0e7fbf09e52d12200475",
-    },
-    readme: TreebankFile {
-        name: "README.md",
-        size: 1955,
-        sha256: "3efbd63f62359b2be61af8822c6dfd27af67f93c184fb1a9018208267e726732",
-        sha512: "0f26b24181605ddd54644385445fde8397d6b89cecadfd815932ee01f68c17a9da452a5090390a146e1d035aff639ef67325da06306d1ab58f5227104c86d179",
-    },
-    train: TreebankFile {
-        name: "it_markit-ud-train.conllu",
-        size: 1266080,
-        sha256: "4f6fc3423acb00d49e1e167bd21b11ebbc23e22275fd6f5eeb4d75cfbbccc5c6",
-        sha512: "7c6243a80f7a147360cf21fd03a8bc01f90b47d4230b3c22a203e4b3db6d96acf52ba99be3e27205e0ae73c94d12719f42f386af533243f8b1e79c320df9fedf",
-    },
-    dev: TreebankFile {
-        name: "it_markit-ud-dev.conllu",
-        size: 665430,
-        sha256: "633b6186f47ecfebfcff4ff9c7e19a0cbffd1f655f14fc1e9265b12bda597f97",
-        sha512: "85976b63e421e917d8c5ddfe99f1417b1dc7383b36c5fdbd4e42339b6b9301c708888d165767d601de58e45f7b5386944f6d561b85ea4ec699048c3fec9c79dd",
-    },
-    test: TreebankFile {
-        name: "it_markit-ud-test.conllu",
-        size: 658412,
-        sha256: "9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc",
-        sha512: "ce160a7f7077c00d1a5111167bf5d1e8d5767208dc0f174f82160bf7c6e7b19666340f95a97d2df4746de2ce8f37d892f022656344f8d1f2d31ac3915aeba732",
-    },
-    contributors: "Teresa Paccosi, Alessio Palmero Aprosio and Sara Tonelli",
-    citation: "It is MarkIT That is New: An Italian Treebank of Marked Constructions. Teresa Paccosi, Alessio \
-               Palmero Aprosio and Sara Tonelli, Proceedings of the Eighth Italian Conference on Computational \
-               Linguistics 2022 (CLIC-it 2021).",
-};
-
-/// The treebanks with recipes.
-pub const TREEBANKS: [Treebank; 5] =
-    [SPANISH_ANCORA, CATALAN_ANCORA, PORTUGUESE_PORTTINARI, FINNISH_FTB, ITALIAN_MARKIT];
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use turbo_zoo::LicenceClass;
-
-    const UD_STATEMENT: &str = "The treebank is licensed under the Creative Commons License Attribution 4.0 \
-                                International.\n\nThe complete license text is available at:\n\
-                                https://creativecommons.org/licenses/by/4.0/legalcode\n";
-    const README: &str = "# Summary\n\n<pre>\n=== Machine-readable metadata ===\nLicense: CC BY 4.0\n</pre>\n";
-
-    #[test]
-    fn ud_s_cc_by_statement_passes() {
-        assert_eq!(check_licence_text(Grant::CcBy40, UD_STATEMENT, README), Ok(()));
-        assert_eq!(check_licence_text(Grant::CcBy40, &UD_STATEMENT.replace("https", "http"), README), Ok(()));
-    }
-
-    #[test]
-    fn other_creative_commons_licences_are_refused() {
-        let refused = [
-            "This work is licensed under the Creative Commons Attribution-ShareAlike 4.0 International License. \
-             https://creativecommons.org/licenses/by-sa/4.0/",
-            "The treebank is released under the Creative Commons Attribution-NonCommercial-ShareAlike 3.0 licence \
-             (CC BY-NC-SA 3.0). https://creativecommons.org/licenses/by-nc-sa/3.0/",
-            "Creative Commons Attribution-NoDerivatives 4.0 International, https://creativecommons.org/licenses/by-nd/4.0/",
-            "Creative Commons Attribution 3.0 Unported, https://creativecommons.org/licenses/by/3.0/",
-            "GNU General Public License v3",
-            "",
-        ];
-        for text in refused {
-            assert!(check_licence_text(Grant::CcBy40, text, README).is_err(), "{text}");
-        }
-        // CC BY 4.0 named beside a ShareAlike element is refused too.
-        let both = format!("{UD_STATEMENT}\nSome files: CC BY-SA 4.0.");
-        assert!(check_licence_text(Grant::CcBy40, &both, README).is_err());
-    }
-
-    #[test]
-    fn a_gnu_licence_passes_only_as_an_option_beside_cc_by() {
-        let dual = "You may use it under the GNU Lesser General Public License, version 3 or later.\n\n\
-                    Alternatively, at your option, it is available under the Creative Commons Attribution 4.0 \
-                    International (CC BY 4.0) license. See <http://creativecommons.org/licenses/by/4.0/>.\n\n\
-                    GNU GENERAL PUBLIC LICENSE ... only occasionally and noncommercially ...";
-        let option = Grant::CcBy40OrOther { other: Licence::Lgpl30OrLater };
-        assert_eq!(check_licence_text(option, dual, README), Ok(()));
-        assert!(check_licence_text(Grant::CcBy40, dual, README).is_err());
-        let both = dual.replace("Alternatively, at your option, it", "It");
-        assert!(check_licence_text(option, &both, README).is_err());
-    }
-
-    #[test]
-    fn the_readme_must_say_cc_by_4_0() {
-        for readme in ["License: CC BY-SA 4.0\n", "# Summary\n", "Licence: CC BY 4.0\n"] {
-            assert!(check_licence_text(Grant::CcBy40, UD_STATEMENT, readme).is_err(), "{readme}");
-        }
-    }
-
-    #[test]
-    fn the_treebanks_are_recorded_as_permissive_datasets_at_the_release() {
-        for t in TREEBANKS {
-            let a = t.dataset().unwrap();
-            assert_eq!(a.class, LicenceClass::Permissive);
-            assert_eq!(a.computed_class(), LicenceClass::Permissive);
-            assert_eq!(a.license, Licence::CcBy40);
-            assert_eq!(a.files.len(), 5);
-            for (f, recorded) in a.files.iter().zip(t.files()) {
-                assert_eq!(
-                    f.url.as_str(),
-                    format!(
-                        "https://raw.githubusercontent.com/UniversalDependencies/{}/r2.16/{}",
-                        t.repository, recorded.name
-                    )
-                );
-            }
-            assert_eq!(t.train.name, format!("{}_{}-ud-train.conllu", t.language, t.name));
-            assert_eq!(t.dev.name, format!("{}_{}-ud-dev.conllu", t.language, t.name));
-            assert_eq!(t.test.name, format!("{}_{}-ud-test.conllu", t.language, t.name));
-            assert_eq!(t.training_data().license, Licence::CcBy40);
-            assert!(t.attribution().contains(t.repository) && t.attribution().contains("by/4.0"));
-            assert!(!t.citation.is_empty() && !t.contributors.is_empty());
-            // Only Porttinari's text is another's with no licence shown.
-            let settled = t.text_rights == TextRights::Granted;
-            assert_eq!(settled, t.repository != "UD_Portuguese-Porttinari", "{}", t.repository);
-            // Only FTB's LICENSE.txt gives a copyright notice, which the
-            // attribution keeps.
-            assert_eq!(t.copyright.is_some(), t.repository == "UD_Finnish-FTB", "{}", t.repository);
-        }
-        assert_eq!(SPANISH_ANCORA.dataset_id(), "ud-spanish-ancora-r2.16");
-        assert!(FINNISH_FTB.attribution().contains(
-            "(https://creativecommons.org/licenses/by/4.0/). FTB1U is Copyright 2014 FIN-CLARIN. The model is derived"
-        ));
-        assert!(SPANISH_ANCORA.attribution().contains("(https://creativecommons.org/licenses/by/4.0/). The model"));
-        assert_eq!(FINNISH_FTB.grant, Grant::CcBy40OrOther { other: Licence::Lgpl30OrLater });
-        assert!(
-            matches!(PORTUGUESE_PORTTINARI.text_rights, TextRights::NotSettled { source } if source.contains("Folha"))
-        );
-    }
-
-    /// UD's CC BY 4.0 statement as Porttinari's and MarkIT's
-    /// `LICENSE.txt` have it at r2.16, with an `http` address.
-    const UD_STATEMENT_HTTP: &str = "The treebank is licensed under the Creative Commons License Attribution 4.0 \
-                                     International.\n\nThe complete license text is available at:\n\
-                                     http://creativecommons.org/licenses/by/4.0/legalcode\n";
-
-    /// FTB's `LICENSE.txt` at r2.16, up to the GPL 3's text: its own
-    /// statement. The texts of the GPL 3 and the LGPL 3 follow it in the
-    /// file (44,134 bytes in all), and are not quoted.
-    const FTB_STATEMENT: &str = "FTB1U is derived from FinnTreeBank 1 2014 by automated mapping of
-labels and some restructuring in an attempt to conform to the new
-Universal Dependency Finnish model.
-
-FTB1U is Copyright 2014 FIN-CLARIN
-
-FTB1U is Free Software. You may use, study, modify, and distribute it
-under the conditions of the GNU Lesser General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version (LGPLv3+). You should
-have received a copy of the license with FTB1U. See
-<http://www.gnu.org/licenses/>.
-
-Alternatively, at your option, FTB1U is a Free Cultural Work which you
-are free to share and adapt for any purpose, even commercially, under
-the Creative Commons Attribution 4.0 International (CC BY 4.0) license
-as long as you give proper attribution and apply no additional legal
-restrictions. See the human-readable deed and actual license at
-<http://creativecommons.org/licenses/by/4.0/>.
-
-Unannotated linguistic material in FinnTreeBank 1 2014 was adapted
-from the examples in Ison suomen kieliopin verkkoversio (The Web
-Version of the Large Grammar of Finnish, VISK), available on-line as
-<http://scripta.kotus.fi/visk>, and annotations originally produced
-and further revised in FIN-CLARIN projects in the Department of Modern
-Languages, University of Helsinki.
-";
-
-    /// The licence lines of both AnCora READMEs at r2.16: the paragraph
-    /// left from before release 2.9, the changelog's entry for it, and the
-    /// metadata line.
-    const ANCORA_README: &str = "The GNU license is inherited from the original dataset, downloaded from
-the AnCora website. Any license-related questions have to be directed to
-the original data providers at the University of Barcelona (that is, not
-to the UD contact address listed at the end of this README file).
-
-* 2021-11-15 v2.9
-  * The license changed to CC BY 4.0 (https://doi.org/10.5281/zenodo.4762030).
-
-License: CC BY 4.0
-";
-
-    /// Each treebank's `LICENSE.txt` and README licence lines at r2.16,
-    /// quoted as they are, pass the licence check with the recorded grant.
-    /// The four whole `LICENSE.txt` files quoted are the recorded ones, by
-    /// size and SHA-256. The AnCora READMEs' GNU paragraph does not fail
-    /// the check: the check reads licence names in `LICENSE.txt` and only
-    /// the metadata line in the README.
-    #[test]
-    fn the_treebanks_real_licence_texts_pass_with_their_recorded_grants() {
-        let metadata = "License: CC BY 4.0\n";
-        let texts = [
-            (SPANISH_ANCORA, UD_STATEMENT, ANCORA_README),
-            (CATALAN_ANCORA, UD_STATEMENT, ANCORA_README),
-            (PORTUGUESE_PORTTINARI, UD_STATEMENT_HTTP, metadata),
-            (FINNISH_FTB, FTB_STATEMENT, metadata),
-            (ITALIAN_MARKIT, UD_STATEMENT_HTTP, metadata),
-        ];
-        assert_eq!(texts.map(|(t, ..)| t), TREEBANKS);
-        for (t, licence, readme) in texts {
-            assert_eq!(check_licence_text(t.grant, licence, readme), Ok(()), "{}", t.repository);
-            if t.grant == Grant::CcBy40 {
-                assert_eq!(licence.len() as u64, t.licence_file.size, "{}", t.repository);
-                assert_eq!(Sha256::of(licence.as_bytes()).to_string(), t.licence_file.sha256, "{}", t.repository);
-            }
-        }
-        // FTB's statement names the GNU licence, so it passes only as the
-        // option it is.
-        assert!(check_licence_text(Grant::CcBy40, FTB_STATEMENT, metadata).is_err());
-        assert!(FTB_STATEMENT.len() < FINNISH_FTB.licence_file.size as usize);
-    }
-
-    #[test]
-    fn a_file_that_is_not_the_recorded_one_is_refused() {
-        let dir = std::env::temp_dir().join(format!("turbo-train-recipes-treebank-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("LICENSE.txt"), UD_STATEMENT).unwrap();
-        std::fs::write(dir.join("README.md"), README).unwrap();
-        // The texts pass the licence check but are not the recorded files.
-        assert!(matches!(
-            ITALIAN_MARKIT.read(&dir),
-            Err(Error::TreebankFile { file: "LICENSE.txt", treebank: "UD_Italian-MarkIT", .. })
-        ));
-        std::fs::write(dir.join("LICENSE.txt"), "Creative Commons Attribution-ShareAlike 4.0").unwrap();
-        assert!(matches!(ITALIAN_MARKIT.read(&dir), Err(Error::Licence { .. })));
-        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
