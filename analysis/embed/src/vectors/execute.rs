@@ -1,0 +1,222 @@
+use super::*;
+impl VectorAnnotator {
+    /// The vectors of a batch of documents, a result for each. A document
+    /// whose layers do not fit together fails alone; a run that fails
+    /// fails every document of the batch. `annotator` names the step in
+    /// errors.
+    pub fn embed(&self, annotator: &'static str, inputs: &[Input<'_>]) -> Vec<Result<Output, Error>> {
+        let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
+        let mut guard = self.lock();
+        let st = &mut *guard;
+        st.plan.clear();
+        for (d, (input, slot)) in inputs.iter().zip(&mut out).enumerate() {
+            let Ok(o) = slot else { continue };
+            let (starts, ends) = input.subwords.spans.columns();
+            let d = d as u32;
+            // The levels are placed scope by scope, before anything else
+            // is queued for the document.
+            if let (Some(l), Some(v)) = (input.levels, o.levels.as_mut())
+                && let Err(e) = crate::levels::plan(&mut st.plan, d, l, starts, ends, v)
+            {
+                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
+                continue;
+            }
+            // The finest layer given lays out the windows.
+            if let (Some(s), Some(v)) = (input.sentences, o.sentences.as_mut()) {
+                for (i, span) in s.iter() {
+                    let r = pieces_of(starts, ends, span.start, span.end);
+                    if r.is_empty() {
+                        v.empty.push(i);
+                    }
+                    st.plan.layout(Target { doc: d, which: Which::Sentences, item: i.get() as u32 }, r);
+                }
+            }
+            if let (Some(c), Some(v)) = (input.chunks, o.chunks.as_mut()) {
+                let lays_out = input.sentences.is_none();
+                for (i, span) in c.iter() {
+                    let r = pieces_of(starts, ends, span.start, span.end);
+                    if r.is_empty() {
+                        v.empty.push(i);
+                    }
+                    let t = Target { doc: d, which: Which::Chunks, item: i.get() as u32 };
+                    if lays_out { st.plan.layout(t, r) } else { st.plan.item(t, r) }
+                }
+            }
+            if let Err(e) = st.plan.place(d, starts.len() as u32) {
+                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
+            }
+        }
+        if let Err(e) = self.run(st, inputs, &mut out) {
+            let e = Error::Annotator { annotator, detail: e.to_string() };
+            for o in out.iter_mut().filter(|o| o.is_ok()) {
+                *o = Err(e.clone());
+            }
+            return out;
+        }
+        let dim = self.dim as usize;
+        for s in &st.plan.split {
+            if let Ok(o) = &mut out[s.target.doc as usize] {
+                let inv = 1.0 / s.pieces as f32;
+                for x in row_of(o, s.target, dim) {
+                    *x *= inv;
+                }
+            }
+        }
+        drop(guard);
+        if self.l2 {
+            for o in out.iter_mut().flatten() {
+                let rows = [o.sentences.as_mut().map(|v| &mut v.data), o.chunks.as_mut().map(|v| &mut v.data)];
+                let levels = o.levels.iter_mut().flatten().map(|v| &mut v.data);
+                for data in rows.into_iter().flatten().chain(levels) {
+                    for v in data.chunks_exact_mut(dim) {
+                        normalize(v);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Pools one vector per span in `spans` from `subwords` through the
+    /// encoder's stage 2 range write (`turbo_embed_write_ranges`, `#263`),
+    /// returning `Vectors<L>` anchored to any layer `L` (sentences, chunks,
+    /// opinions, aspects, or arbitrary spans).
+    ///
+    /// When `sentences` is `Some`, the encoder windows are laid out by the
+    /// sentences and each span in `spans` is pooled over the exact subword
+    /// piece range (`pieces_of`) overlapping that span inside its enclosing
+    /// sentence window. When `sentences` is `None`, the spans lay out the
+    /// windows directly.
+    pub fn embed_spans<L: Layer>(
+        &self,
+        annotator: &'static str,
+        subwords: &Subwords,
+        sentences: Option<&Spans<Sentences>>,
+        view: ViewId,
+        spans: &[Span],
+    ) -> Result<Vectors<L>, Error> {
+        let mut target_spans = Spans::<Chunks>::new(view);
+        for &span in spans {
+            target_spans.push(span);
+        }
+        let mut out =
+            self.embed(annotator, &[Input { subwords, sentences, chunks: Some(&target_spans), levels: None }]);
+        let c = out.remove(0)?.chunks.ok_or_else(|| Error::Annotator {
+            annotator,
+            detail: "VectorAnnotator did not return span vectors".into(),
+        })?;
+        let empty = c.empty.into_iter().map(|ix| Ix::<L>::new(ix.get() as u32)).collect();
+        Ok(Vectors::new(c.dim, c.data, empty, c.model))
+    }
+
+    /// Extracts one contextual vector per subword piece in `subwords`
+    /// through the encoder's stage 2 range write (`turbo_embed_write_ranges`,
+    /// `#263`), returning `Vectors<Subwords>`.
+    pub fn embed_subwords(
+        &self,
+        annotator: &'static str,
+        subwords: &Subwords,
+        sentences: Option<&Spans<Sentences>>,
+    ) -> Result<Vectors<Subwords>, Error> {
+        let spans: Vec<Span> = (0..subwords.len()).map(|i| subwords.spans.get(Ix::new(i as u32))).collect();
+        self.embed_spans(annotator, subwords, sentences, subwords.spans.view(), &spans)
+    }
+
+    /// Zero vectors for every item of `i`, or why its layers do not fit
+    /// together: subwords of another model, a layer in another view, a
+    /// piece without its id, pieces out of text order, or a span that
+    /// ends before it starts.
+    fn output_for(&self, annotator: &'static str, i: &Input<'_>) -> Result<Output, Error> {
+        let fail = |detail: String| Err(Error::Annotator { annotator, detail });
+        fn has_gaps<L>(spans: &Spans<L>) -> bool {
+            spans.iter().any(|(ix, _)| spans.is_discontinuous(ix))
+        }
+        if has_gaps(&i.subwords.spans)
+            || i.sentences.is_some_and(has_gaps)
+            || i.chunks.is_some_and(has_gaps)
+            || i.levels.is_some_and(|l| has_gaps(&l.spans))
+        {
+            return fail("discontinuous spans are not supported by vector window pooling".into());
+        }
+        let (starts, ends) = i.subwords.spans.columns();
+        if let Some(k) = starts.iter().zip(ends).position(|(s, e)| s > e) {
+            return fail(format!("subword {k} ends before it starts: {}..{}", starts[k], ends[k]));
+        }
+        // The subwords' own check: an id per piece, starts and ends in
+        // text order, which the binary searches over them rely on.
+        if let Err(e) = i.subwords.check() {
+            return fail(format!("the subwords: {e}"));
+        }
+        // The levels' own check: a parent for every unit, before it and
+        // around it, which placing each unit in its parent relies on.
+        if let Some(Err(e)) = i.levels.map(|l| l.check()) {
+            return fail(format!("the levels: {e}"));
+        }
+        let items = [
+            i.sentences.map(|s| ("sentence", s.columns())),
+            i.chunks.map(|c| ("chunk", c.columns())),
+            i.levels.map(|l| ("unit", l.spans.columns())),
+        ];
+        for (what, (starts, ends)) in items.into_iter().flatten() {
+            if let Some(k) = starts.iter().zip(ends).position(|(s, e)| s > e) {
+                return fail(format!("{what} {k} ends before it starts: {}..{}", starts[k], ends[k]));
+            }
+        }
+        if i.subwords.model != self.model {
+            return fail(format!(
+                "the subwords are {}'s pieces (revision {}), the vectors {}'s (revision {})",
+                i.subwords.model.id, i.subwords.model.revision, self.model.id, self.model.revision
+            ));
+        }
+        let view = i.subwords.spans.view();
+        let views = [
+            i.sentences.map(|s| ("sentences", s.view())),
+            i.chunks.map(|c| ("chunks", c.view())),
+            i.levels.map(|l| ("levels", l.view())),
+        ];
+        if let Some((what, v)) = views.into_iter().flatten().find(|(_, v)| *v != view) {
+            return fail(format!("the {what} are in view {}, the subwords in view {}", v.0, view.0));
+        }
+        let zeros = |n: usize| vec![0.0f32; n * self.dim as usize];
+        Ok(Output {
+            sentences: i.sentences.map(|s| Vectors::new(self.dim, zeros(s.len()), Vec::new(), self.model.clone())),
+            chunks: i.chunks.map(|c| Vectors::new(self.dim, zeros(c.len()), Vec::new(), self.model.clone())),
+            levels: i.levels.map(|l| {
+                VectorKind::ALL.map(|_| Vectors::new(self.dim, zeros(l.len()), Vec::new(), self.model.clone()))
+            }),
+        })
+    }
+
+    /// Every window of the plan through the encoder, in as few runs as the
+    /// session's rows and ranges allow. A window whose ranges do not all
+    /// fit in the run being built goes again in the next.
+    fn run(&self, st: &mut State, inputs: &[Input<'_>], out: &mut [Result<Output, Error>]) -> Result<(), CoreError> {
+        let State { plan, run } = st;
+        run.rows.clear();
+        run.ranges.clear();
+        run.targets.clear();
+        let dim = self.dim as usize;
+        let head = self.head.len() as u32;
+        let mut p = 0usize;
+        for (w, win) in plan.windows.iter().enumerate() {
+            let end = p + plan.placed[p..].iter().take_while(|x| x.window as usize == w).count();
+            let ids = &inputs[win.doc as usize].subwords.ids[win.start as usize..win.end as usize];
+            while p < end {
+                if run.rows.len() == self.max_batch || run.ranges.len() as u32 == self.max_ranges {
+                    run.flush(dim, &plan.placed, out)?;
+                }
+                let row = run.rows.push(&[&self.head, ids, &self.tail]);
+                let take = (end - p).min(self.max_ranges as usize - run.ranges.len());
+                for (k, x) in plan.placed[p..p + take].iter().enumerate() {
+                    run.ranges.push(turbo_token_range { row, start: head + x.start, end: head + x.end });
+                    run.targets.push((p + k) as u32);
+                }
+                p += take;
+            }
+        }
+        if !run.rows.is_empty() {
+            run.flush(dim, &plan.placed, out)?;
+        }
+        Ok(())
+    }
+}

@@ -89,6 +89,7 @@ mod checksum;
 mod containment;
 mod entry;
 mod error;
+pub mod export;
 mod fold;
 mod gazetteer;
 mod geocode;

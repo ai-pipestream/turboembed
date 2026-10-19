@@ -43,7 +43,7 @@ pub enum TokenCols<'a> {
 }
 
 impl TokenCols<'_> {
-    fn get(&self, i: usize) -> (u32, u32) {
+    pub(super) fn get(&self, i: usize) -> (u32, u32) {
         match self {
             TokenCols::Ranges(r) => (r[i].start.get() as u32, r[i].end.get() as u32),
             TokenCols::Columns { start, end } => (start[i], end[i]),
@@ -90,7 +90,7 @@ pub enum Labels<'a> {
 }
 
 impl<'a> Labels<'a> {
-    fn get(&self, i: usize) -> &'a str {
+    pub(super) fn get(&self, i: usize) -> &'a str {
         match *self {
             Labels::Tags(set, tags) => set.label(tags[i]),
             Labels::Strs(s) => s.get(i),

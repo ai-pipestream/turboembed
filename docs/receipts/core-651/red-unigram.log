@@ -1,0 +1,59 @@
+   Compiling turbo v0.1.0 (./core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.08s
+     Running unittests src/lib.rs (target/core/debug/deps/turbo-f2aadd74732b22b6)
+
+running 6 tests
+test unigram::boundary_tests::base64_rejects_nonterminal_padding_and_nonzero_unused_bits ... FAILED
+test unigram::boundary_tests::precompiled_map_rejects_invalid_replacement_bytes ... FAILED
+test unigram::boundary_tests::malformed_normalizer_is_not_silently_ignored ... FAILED
+test unigram::boundary_tests::malformed_boolean_settings_are_rejected ... FAILED
+test unigram::boundary_tests::direct_parse_rejects_invalid_metaspace_without_panicking ... FAILED
+test unigram::boundary_tests::lattice_preserves_best_path_for_extreme_finite_scores ... FAILED
+
+failures:
+
+---- unigram::boundary_tests::base64_rejects_nonterminal_padding_and_nonzero_unused_bits stdout ----
+
+thread 'unigram::boundary_tests::base64_rejects_nonterminal_padding_and_nonzero_unused_bits' (415390) panicked at core/src/unigram/boundary_tests.rs:64:47:
+YQ==Yg==
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- unigram::boundary_tests::precompiled_map_rejects_invalid_replacement_bytes stdout ----
+
+thread 'unigram::boundary_tests::precompiled_map_rejects_invalid_replacement_bytes' (415395) panicked at core/src/unigram/boundary_tests.rs:71:9:
+assertion failed: Charsmap::parse("test", bad).is_err()
+
+---- unigram::boundary_tests::malformed_normalizer_is_not_silently_ignored stdout ----
+
+thread 'unigram::boundary_tests::malformed_normalizer_is_not_silently_ignored' (415394) panicked at core/src/unigram/boundary_tests.rs:20:9:
+assertion failed: Unigram::parse("test", &j, &m, 0).is_err()
+
+---- unigram::boundary_tests::malformed_boolean_settings_are_rejected stdout ----
+
+thread 'unigram::boundary_tests::malformed_boolean_settings_are_rejected' (415393) panicked at core/src/unigram/boundary_tests.rs:29:9:
+assertion failed: Unigram::parse("test", &j, &m, 0).is_err()
+
+---- unigram::boundary_tests::direct_parse_rejects_invalid_metaspace_without_panicking stdout ----
+
+thread 'unigram::boundary_tests::direct_parse_rejects_invalid_metaspace_without_panicking' (415391) panicked at core/src/unigram/parse.rs:157:51:
+validated
+
+---- unigram::boundary_tests::lattice_preserves_best_path_for_extreme_finite_scores stdout ----
+
+thread 'unigram::boundary_tests::lattice_preserves_best_path_for_extreme_finite_scores' (415392) panicked at core/src/unigram/boundary_tests.rs:59:5:
+assertion `left == right` failed
+  left: [1, 4]
+ right: [3, 1]
+
+
+failures:
+    unigram::boundary_tests::base64_rejects_nonterminal_padding_and_nonzero_unused_bits
+    unigram::boundary_tests::direct_parse_rejects_invalid_metaspace_without_panicking
+    unigram::boundary_tests::lattice_preserves_best_path_for_extreme_finite_scores
+    unigram::boundary_tests::malformed_boolean_settings_are_rejected
+    unigram::boundary_tests::malformed_normalizer_is_not_silently_ignored
+    unigram::boundary_tests::precompiled_map_rejects_invalid_replacement_bytes
+
+test result: FAILED. 0 passed; 6 failed; 0 ignored; 0 measured; 81 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo --lib`

@@ -1,0 +1,22 @@
+   Compiling turbo-analysis-embed v0.1.0 (<checkout>/analysis/embed)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.29s
+     Running unittests src/lib.rs (target/debug/deps/turbo_analysis_embed-3dc083ecdacd4644)
+
+running 1 test
+test encoder::tests::zero_stride_rows_are_refused ... FAILED
+
+failures:
+
+---- encoder::tests::zero_stride_rows_are_refused stdout ----
+
+thread 'encoder::tests::zero_stride_rows_are_refused' (944090) panicked at analysis/embed/src/encoder/tests.rs:41:5:
+assertion failed: std::panic::catch_unwind(|| Rows::new(0, 0)).is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    encoder::tests::zero_stride_rows_are_refused
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 43 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-analysis-embed --lib`
