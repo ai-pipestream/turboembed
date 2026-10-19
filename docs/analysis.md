@@ -552,6 +552,14 @@ with `ExportError::NoCodec` rather than being dropped or flattened,
 and a skipped or failed layer needs a codec too, so its status and
 provenance are never silently lost either.
 
+The implementation lives in `analysis/core/src/export/mod.rs` (wire records,
+codec contexts, and document reconstruction) and
+`analysis/layers/src/export/mod.rs` (codecs grouped by layer family).
+Import validates raw range endpoints before constructing typed indexes.
+Skipped and failed views cannot carry text, parents, or alignment edits,
+and skipped and failed layers must have zero item counts, so import never
+discards those fields silently.
+
 Two numbers version a graph: `FORMAT_VERSION` for the boundary (the
 record shapes and the canonical byte encoding of
 `DocumentGraph::to_bytes` together) and each layer record's schema,
