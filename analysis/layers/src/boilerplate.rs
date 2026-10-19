@@ -122,15 +122,15 @@ pub struct Covered {
 impl Covered {
     /// The flagged items' spans (fragments, for a discontinuous item),
     /// cut where the deciding item changes. Refused when the flags are
-    /// not aligned to the items or do not pass their check. A sweep over
+    /// not aligned to the items or do not pass their check (a score that
+    /// is not a number or is outside `[0, 1]`). A sweep over
     /// the span edges: time is the number of spans times its logarithm.
-    pub fn new<S>(ts: &TextSpans<'_>, flags: &Boilerplate<S>) -> Result<Covered, String> {
+    pub fn new<S: Layer>(ts: &TextSpans<'_>, flags: &Boilerplate<S>) -> Result<Covered, String> {
         if flags.kind.len() != ts.start.len() {
             return Err(format!("{} boilerplate flags for {} items", flags.kind.len(), ts.start.len()));
         }
-        if flags.score.len() != flags.kind.len() {
-            return Err(format!("{} scores for {} items", flags.score.len(), flags.kind.len()));
-        }
+        // The scores' count and range, as the layer's own check proves them.
+        Layer::check(flags)?;
         // (span, item) of every flagged fragment, by start.
         let mut items: Vec<(Span, u32)> = Vec::new();
         for (i, k) in flags.kind.iter().enumerate() {

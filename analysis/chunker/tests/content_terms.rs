@@ -117,3 +117,19 @@ fn terms_shorter_than_the_tokens_or_past_the_vocabulary_are_refused() {
     let r = turbo_chunker::terms::count::count::<View>(&[Some(Ix::new(5))], 2, std::slice::from_ref(&(0..1)));
     assert!(r.err().unwrap().contains("past the vocabulary"));
 }
+
+#[test]
+fn invalid_boilerplate_scores_are_rejected_by_the_content_counter() {
+    let mut docs = [document()];
+    let pipeline =
+        Analyzer::builder().given(Key::<View>::DEFAULT).given(Key::<Tokens>::DEFAULT).add(TermIndexer).build().unwrap();
+    assert_eq!(pipeline.run(&mut docs), [Ok(())]);
+    let doc = &docs[0];
+    let (tokens, st) = (doc.get::<Tokens>().unwrap(), doc.get::<Structure>().unwrap());
+    let (vocabulary, terms) = (doc.get::<Vocabulary>().unwrap(), doc.get::<turbo_chunker::terms::Terms>().unwrap());
+    for bad in [f32::NAN, f32::INFINITY, -0.1, 1.1] {
+        let flags = Boilerplate::<Structure>::new(vec![None, None, Some(BoilerplateKind::Footer)], vec![0.0, 0.0, bad]);
+        let r = ContentTermCounter::<Structure>::new().annotate((tokens, terms, vocabulary, st, st, &flags));
+        assert!(r.err().is_some_and(|e| e.to_string().contains("outside [0, 1]")), "a score of {bad} was counted");
+    }
+}

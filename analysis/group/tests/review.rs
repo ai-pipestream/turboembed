@@ -109,3 +109,14 @@ fn sketches_with_short_columns_are_refused_not_indexed() {
         assert!(turbo_group::cross_duplicates(&[(&st, &s)], &Thresholds::default()).is_err());
     }
 }
+
+#[test]
+fn invalid_scores_are_rejected_by_public_projection() {
+    let st = blocks(&[&[Span::new(0, 4)]]);
+    for bad in [f32::NAN, f32::INFINITY, -0.1, 1.1] {
+        let f = flags(&[(BoilerplateKind::Footer, bad)]);
+        let r = BoilerplateProjector::<Sentences>::default().annotate((&st, &f, &sentences(&[(0, 4)])));
+        let err = r.err().unwrap_or_else(|| panic!("a score of {bad} was projected")).to_string();
+        assert!(err.contains("outside [0, 1]"), "{bad}: {err}");
+    }
+}
