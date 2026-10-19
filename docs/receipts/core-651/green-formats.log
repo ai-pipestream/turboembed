@@ -1,0 +1,14 @@
+   Compiling turbo v0.1.0 (./core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.83s
+     Running tests/format_boundaries.rs (target/core/debug/deps/format_boundaries-2f78233dd9768395)
+
+running 7 tests
+test manifest_rejects_nul_in_c_header_strings ... ok
+test manifest_rejects_trailing_values_and_garbage ... ok
+test speed_helpers_do_not_report_invalid_measurements ... ok
+test record_rejects_duplicate_reference_names ... ok
+test record_rejects_mean_outside_observed_range ... ok
+test record_rejects_overflowed_and_underflowed_speed_ratios ... ok
+test capability_decision_rejects_unchecked_non_finite_conformance ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
