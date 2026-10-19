@@ -146,13 +146,7 @@ fn get_ref(r: &mut Reader<'_>) -> Result<LayerRef, ExportError> {
 }
 
 fn want_target<Target: Layer>(named: &LayerRef, cx: &ImportCx) -> Result<(), ExportError> {
-    if named.layer != Target::NAME.to_string() {
-        return Err(ExportError::InvalidLayer {
-            layer: cx.layer().to_owned(),
-            detail: format!("an index column into {}, not {}", named.layer, Target::NAME),
-        });
-    }
-    Ok(())
+    cx.want_keyed_target::<Target>(named)
 }
 
 /// An index column into another layer: the resolved target instance,
