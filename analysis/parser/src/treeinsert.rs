@@ -609,7 +609,7 @@ impl Parser {
             if p.children()[kept[0]].is_pos_tag() {
                 return Ok(None);
             }
-            p.expand_top_node(kept[0]);
+            p.expand_top_node(kept[0])?;
             return Ok(Some(vec![p.clone()]));
         }
         let advance_node_index = (0..num_nodes)
@@ -709,7 +709,7 @@ impl Parser {
                         }
                         collapse_punctuation_in_place(new_parse.children_mut(), punct_set);
                         for _ in original_zero_index + 1..=original_advance_index {
-                            new_parse.remove(original_zero_index + 1);
+                            new_parse.remove(original_zero_index + 1)?;
                         }
                         collapse_punctuation_in_place(new_parse.children_mut(), punct_set);
                         let crf = right_frontier_paths(&new_parse, punct_set);
@@ -718,7 +718,7 @@ impl Parser {
                         } else if fi + 1 < crf.len() {
                             new_parse.node_at_path_mut(&crf[fi + 1]).adjoin(advance_node.clone(), rules)?;
                         } else {
-                            new_parse.adjoin_root(advance_node.clone(), rules, original_zero_index);
+                            new_parse.adjoin_root(advance_node.clone(), rules, original_zero_index)?;
                         }
                         for path in &crf[fi + 1..] {
                             new_parse.node_at_path_mut(path).update_span();

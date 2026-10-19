@@ -371,7 +371,7 @@ impl Parser {
                 root.insert(kid).expect("kid lies inside p");
             }
             while p.child_count() > 0 {
-                p.remove(0);
+                p.remove(0).expect("child 0 exists");
             }
             p.insert(root).expect("root has p's span");
         }
@@ -483,7 +483,7 @@ impl Parser {
                 let flat = children[ls_idx..=advance_node_index].iter().all(Parse::is_pos_tag);
                 let candidate = || {
                     let mut branch = p.clone();
-                    branch.set_child(original_advance_index, tag);
+                    branch.set_child(original_advance_index, tag).expect("the advance index is a child of the clone");
                     branch.add_prob(strict_math::log(bprob));
                     branch
                 };

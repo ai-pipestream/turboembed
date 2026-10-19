@@ -141,11 +141,11 @@ fn a_root_copied_for_a_derivation_keeps_its_head_when_its_span_shrinks() {
     let p = Parse::from_tokens(&["The", "cat", "sat"]).unwrap();
     let mut copy = p.clone_keeping_head();
     assert!(!copy.is_own_head());
-    copy.remove(2);
+    copy.remove(2).unwrap();
     assert_eq!(copy.span(), Span::new(0, 7));
     assert_eq!((copy.head().span, copy.head_index(), copy.head_text()), (Span::new(0, 11), 0, "The cat sat"));
     let mut plain = p.clone();
-    plain.remove(2);
+    plain.remove(2).unwrap();
     assert_eq!(plain.head().span, Span::new(0, 7));
     // A copy of a copy keeps the first node's head.
     assert_eq!(copy.clone_keeping_head().head().span, Span::new(0, 11));
@@ -180,7 +180,7 @@ fn heads_survive_rearranging_the_tree() {
 
     let mut p = Parse::parse("(TOP (NP (DT The) (NN cat)) (VP (VBD sat)) (. .))").unwrap();
     p.update_heads(&en);
-    p.expand_top_node(1);
+    p.expand_top_node(1).unwrap();
     assert_eq!(show(&p), "(TOP (VP (NP (DT The) (NN cat)) (VBD sat) (. .)) )");
     assert_eq!(p.children()[0].span(), Span::new(0, 13));
     assert_eq!(p.children()[0].head_text(), "sat");
@@ -327,11 +327,11 @@ fn builds_nodes_as_the_bottom_up_parsers_do() {
 
     let mut root = Parse::parse("(TOP (NP (DT a)) (VP (VB b)))").unwrap();
     let vp = root.children()[1].clone();
-    root.remove(1);
+    root.remove(1).unwrap();
     assert_eq!(root.span(), Span::new(0, 1));
-    let joined = root.adjoin_root(vp, &en, 0);
+    let joined = root.adjoin_root(vp, &en, 0).unwrap();
     assert_eq!(joined.span(), Span::new(0, 3));
-    root.set_child(0, "built");
+    root.set_child(0, "built").unwrap();
     assert_eq!(root.children()[0].label(), Some("built"));
 
     // A node whose first child is a token has no head, and `add` fails as Java's does.
