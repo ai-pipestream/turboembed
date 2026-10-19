@@ -5,6 +5,8 @@
 use turbo_analysis::{Layer, Spans, TextSpans, ViewId};
 use turbo_analysis_layers::Strs;
 
+pub mod export;
+
 mod asset_format;
 mod asset_names;
 mod assets;

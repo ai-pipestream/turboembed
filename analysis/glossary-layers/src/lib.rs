@@ -8,6 +8,8 @@
 //! with the same identifier. [`GlossaryTerms`] is one item per term found
 //! in a text: its span, the tokens it covers and the entry that matched.
 
+pub mod export;
+
 use std::fmt;
 use std::sync::Arc;
 

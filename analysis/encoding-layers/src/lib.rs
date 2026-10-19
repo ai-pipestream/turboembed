@@ -7,6 +7,7 @@ use std::fmt;
 
 use turbo_analysis::{Anchor, Layer};
 
+pub mod export;
 mod labels;
 
 /// One encoding of the WHATWG Encoding Standard, by its name there.
