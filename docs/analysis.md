@@ -19,6 +19,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
+| `turbo-group` | `analysis/group/` | Sketches, near-duplicate groups and version links inside a document and across a batch, and boilerplate detection (Near duplicates and boilerplate, below) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
@@ -720,6 +721,8 @@ fields mean bumps its `SCHEMA`.
 | `IndexedTerms` (`Terms` alias) | `turbo:indexed-terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
 | `ContentHashes<L>` | `turbo:content-hashes<L>` | `L` | `turbo-chunker` |
+| `Sketches<L>` | `turbo:sketches<L>` | `L` | `turbo-group` |
+| `Boilerplate<L>` | `turbo:boilerplate<L>` | `L` | `turbo-analysis-layers` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
@@ -1893,6 +1896,13 @@ units of one level, and writes `TermStats<L>`, aligned to the units:
   document levels (see "Levels" below), so every level gets its counts
   from the same code.
 
+`ContentTermCounter<L>` writes the same layer from the same inputs plus
+the items of a level and their `Boilerplate` flags (structure blocks by
+default), counting only the tokens that start outside every flagged
+item: a footer repeated on every page adds to no unit's length or
+counts, and a unit that is all boilerplate has length 0. It is a step of
+its own, so `TermCounter` does no work for boilerplate it is not given.
+
 A token is in the unit its start is in. Each row is sparse: the unit's
 term ids in ascending order with a count for each, by column, with
 offsets per unit. The layer also holds each unit's length in terms and,
@@ -1977,6 +1987,109 @@ run's maximum. Each choice is priced with the pricing run's budget but
 sized by its own run's token counts, which agree when the runs share a
 tokenizer; runs with different tokenizers mix two counts. There is no
 command for it: no record format holds chunks yet.
+
+## Near duplicates and boilerplate
+
+`turbo-group` finds copies, edited versions and page furniture among
+the units of a level (structure blocks, sentences or chunks), inside
+one document and across a batch. Everything it compares is a sketch, so
+documents sketched apart, in other processes or on other machines,
+compare: every hash constant is fixed, and a unit test pins one
+sketch's value.
+
+### Sketches
+
+`Sketcher<L>` reads a view and the items of `L` and writes
+`Sketches<L>` (`turbo:sketches<L>`), aligned to the items. An item's
+words are its maximal runs of characters `char::is_alphanumeric`
+accepts, read fragment by fragment for a discontinuous item, so no word
+joins two fragments, and whitespace and punctuation are no part of any
+word. Nothing is case folded: to compare without case, read a folded
+view (`.read(0, "folded")`), as for terms. The items are in the view
+read or in its parent; then each span is mapped through the view's
+alignment, so blocks found on the source sketch from the folded text.
+Per item the layer holds:
+
+| Column | What it is |
+| --- | --- |
+| `words` | The item's word count |
+| `exact` | A 128-bit hash of the word sequence: equal for the same words in the same order, whatever lies between them |
+| `shape` | A 64-bit hash of the sequence with every number word replaced by one placeholder, so "Page 3 of 10" and "Page 4 of 10" share a shape |
+| `simhash` | The 64-bit SimHash of the item's shingles, each occurrence counted |
+| `minhash` | 64 MinHash values of the item's set of shingles, by one permutation hashing with optimal densification (Shrivastava, ICML 2017): one hash per shingle chooses a lane and a value there, and a lane no shingle chose borrows from the first chosen lane in its own fixed random order |
+
+A shingle is a run of `shingle` consecutive words (3 by default); an
+item with fewer words is one shingle of all of them, and an item with no
+words has none (SimHash 0, every MinHash lane `u32::MAX`). Time is
+linear in the bytes of the items, with a few operations per shingle.
+
+### Duplicates and versions
+
+`NearDuplicates<L>` reads the items and their sketches and writes the
+groups among them (`Groups<L>`) and the links between them
+(`Edges<L, L>`, with the tag set `turbo:duplicate-kinds`: `exact`,
+`near-duplicate`, `version-edit`). Items with the same word sequence
+are exact copies: the first copy links to each later one with score 1.
+The first copies are then banded on their MinHash rows, 16 bands of 4
+lanes, and any two that share a band are compared. An estimated
+Jaccard similarity of at least `Thresholds::near` (0.9) is a near
+duplicate, at least `Thresholds::version` (0.5) a version edit, and the
+score is that estimate. Two items of similarity j share a band with
+probability 1 - (1 - j^4)^16: 0.51 at 0.4, 0.88 at 0.6, 0.996 at 0.8.
+
+Every link runs from the earlier item to the later one, so a version
+link points from the older text to the newer, `Edges::outgoing` lists an
+item's later copies and versions, and `Edges::incoming` its earlier
+ones, each by two binary searches. Items that overlap never link: a
+list item and the paragraph inside it hold one text and are not
+duplicates, nor are a chunk and its parent. A group is the items joined
+by exact and near-duplicate links; versions stay links and join no
+group. The items must be in start order.
+
+`cross_duplicates` does the same over a batch, given each document's
+items and sketches, as one list in (document, item) order: links run
+from earlier documents to later ones, pairs inside one document are
+found too, and the result names each item by its document's place in
+the batch and its index. Sketches of different shingle widths are
+refused, since their MinHash rows do not compare.
+
+### Boilerplate
+
+`Boilerplate<L>` (`turbo:boilerplate<L>`, in `turbo-analysis-layers`)
+flags the items of `L`, aligned to them: a `BoilerplateKind` (`Header`,
+`Footer`, `Navigation`, `Disclaimer`, `Template`) or none for content,
+and a score in `[0, 1]`. Readers that exclude boilerplate use the kind;
+readers that down-weight it use the score.
+
+`BoilerplateDetector<L>` reads the items and their sketches and writes
+the flags. The analyzer hands it a whole batch at once. An item whose
+shape is held by at least `min_docs` documents (2) and at least
+`min_share` of the batch (half) is boilerplate, scored by the share of
+the batch's documents that hold it. Its kind is what the layer says
+(`BoilerplateUnit::hint`: a structure block that is or is inside a page
+header, a page footer or a list), else a disclaimer when it holds at
+least `disclaimer_words` (25) words and is in the second half of its
+document's items, else a header in the first half and a footer in the
+second. Inside one document, a shape held by two or more items that do
+not overlap is a template, scored `1 - 1/n` for `n` copies. A document
+alone is a batch of one and gets only templates. Items of fewer than
+`min_words` (2) words are never boilerplate.
+
+`BoilerplateProjector<L, S>` carries flags from one level (`S`, the
+structure by default) to another in the same view: an item of `L` is
+boilerplate when at least half of its bytes lie inside flagged items of
+`S`, of the kind covering most of it, and its score is the
+byte-weighted mean of the covering scores, so a chunk that is a third footer
+scores a third of the footer's score. `ContentTermCounter<L>` in
+`turbo-chunker` counts terms as `TermCounter<L>` does with the tokens
+inside boilerplate left out (see "Term statistics and BM25").
+
+`turbo_group::export::register_codecs` registers the sketches, groups,
+edges and boilerplate of structure blocks, sentences and chunks for the
+document graph. The codecs refuse a truncated payload, a count past the
+payload, trailing bytes, a shingle of no words, an empty item with
+shingle hashes, an unknown boilerplate kind and a score outside
+`[0, 1]` or not a number.
 
 ## Levels
 

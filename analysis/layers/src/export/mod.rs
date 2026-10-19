@@ -23,6 +23,7 @@ use turbo_analysis::{
 };
 use turbo_unicode::Script;
 
+use crate::boilerplate::{Boilerplate, BoilerplateKind};
 use crate::categories::{Categories, CategoryScope};
 use crate::date::Date;
 use crate::language_spans::LanguageSpans;
@@ -36,6 +37,7 @@ use crate::{
     Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, Tokens, Unit, Utf16Spans, Vectors,
 };
 
+mod boilerplate;
 mod core_layers;
 mod helpers;
 mod indexes;
@@ -52,7 +54,7 @@ use indexes::*;
 
 /// Registers the codecs for the shared layers on `codecs`: the core
 /// pipeline layers, the sentiment family, the numeric family, the
-/// vector and confidence layers at their common scopes, and the
+/// vector, confidence and boilerplate layers at their common scopes, and the
 /// abbreviation relations. An add-on's own layer types still refuse to
 /// cross until their crates register a codec.
 pub fn register_codecs(codecs: &mut Codecs) {
@@ -81,6 +83,9 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<LanguageSpans>()
         .register::<Temporals>()
         .register::<DocumentDate>()
+        .register::<Boilerplate<Structure>>()
+        .register::<Boilerplate<Sentences>>()
+        .register::<Boilerplate<Chunks>>()
         .register::<Categories<View>>()
         .register::<Categories<Sentences>>()
         .register::<Categories<Structure>>()

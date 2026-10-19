@@ -47,29 +47,32 @@ impl<L: Layer> Annotator for TermCounter<L> {
 
     fn annotate(&self, (tokens, terms, vocabulary, units): Refs<'_, Self>) -> Result<(TermStats<L>,), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
-        let (starts, _) = tokens.spans.columns();
-        if !starts.windows(2).all(|w| w[0] <= w[1]) {
-            return Err(fail("the tokens are not in text order".into()));
-        }
-        let ranges: Vec<Range<usize>> = match units.text_spans() {
-            Some(ts) if ts.view != tokens.spans.view() => {
-                return Err(fail(format!(
-                    "the units are in view {}, the tokens in view {}",
-                    ts.view.0,
-                    tokens.spans.view().0
-                )));
-            }
-            Some(ts) => ts
-                .start
-                .iter()
-                .zip(ts.end)
-                .map(|(&a, &b)| starts.partition_point(|&s| s < a)..starts.partition_point(|&s| s < b))
-                .collect(),
-            None if units.len() == 1 => std::iter::once(0..starts.len()).collect(),
-            None => return Err(fail(format!("{} units with no spans; only one can hold every token", units.len()))),
-        };
+        let ranges = unit_ranges(tokens, units).map_err(fail)?;
         Ok((count(&terms.term, vocabulary.len(), &ranges).map_err(fail)?,))
     }
+}
+
+/// The tokens of each unit of `units`, as `TermCounter` documents them:
+/// the tokens whose start is in the unit, two binary searches per unit,
+/// or every token for one unit with no spans.
+pub(crate) fn unit_ranges<L: Layer>(tokens: &Tokens, units: &L) -> Result<Vec<Range<usize>>, String> {
+    let (starts, _) = tokens.spans.columns();
+    if !starts.windows(2).all(|w| w[0] <= w[1]) {
+        return Err("the tokens are not in text order".into());
+    }
+    Ok(match units.text_spans() {
+        Some(ts) if ts.view != tokens.spans.view() => {
+            return Err(format!("the units are in view {}, the tokens in view {}", ts.view.0, tokens.spans.view().0));
+        }
+        Some(ts) => ts
+            .start
+            .iter()
+            .zip(ts.end)
+            .map(|(&a, &b)| starts.partition_point(|&s| s < a)..starts.partition_point(|&s| s < b))
+            .collect(),
+        None if units.len() == 1 => std::iter::once(0..starts.len()).collect(),
+        None => return Err(format!("{} units with no spans; only one can hold every token", units.len())),
+    })
 }
 
 /// The term counts of each run of tokens. Refused when a unit holds, or
