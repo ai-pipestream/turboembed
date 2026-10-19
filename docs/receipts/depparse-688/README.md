@@ -103,3 +103,39 @@ Mandatory cycle rejection and direct codec validation stay in place.
 Raw ABBA results are in `compact-tags-performance.log`. Gate outputs are in
 `compact-tags-{fmt,clippy,tests,tree}.log`; the exhaustive graph and long-chain
 regressions are included in the crate tests.
+
+## Separate structural and forest validation
+
+The structural acceptance regression fails on `68c04481` and passes after
+moving cycle detection to `check_forest()`. See `forest-split-red.log`.
+`check()` now matches the structural checks on main: column lengths, valid
+relation tags, in-range heads and no self-heads. It uses no scratch allocation.
+`Document::add` accepts a structurally valid multi-node cycle. `check_forest()`
+validates structural inputs itself before its guarded u32-tag traversal, so a
+direct call with malformed columns or out-of-range heads returns an error.
+Graph import, annotation and wire decoding explicitly request the forest check.
+The decoder retains `Malformed` errors for cyclic wire payloads.
+
+The exhaustive 8,477-assignment comparison now targets `check_forest()`.
+Tests also cover graph import rejecting a cycle accepted by `check()`, direct
+Document insertion, malformed standalone forest checks, and long chains.
+Required fmt, clippy including turbo-formats, 401 crate tests and 3 repository
+file-reference checks pass. Outputs are in `forest-split-*.log`.
+
+Release performance compares freshly built main `3d8db78e` with the split
+implementation `ad6e3655`, using the same committed benchmark, 1M tokens in
+25-token chains, 20 warm-ups and 41 timed calls per process, 5 ABBA rounds.
+AMD Ryzen 9 9950X3D, x86_64, rustc 1.99.0:
+
+- CPU 0: main 0.552774 ms; split 0.565643 ms (2.3% higher).
+- CPU 30: main 0.544914 ms; split 0.560428 ms (2.8% higher).
+- CPU 30 process medians range 0.541864..0.568865 ms for main and
+  0.553265..0.566820 ms for the split.
+
+This removes the earlier roughly 2.4x cycle-check cost from `check()`.
+The runs are close but do not establish an exact timing match. The structural
+check has the same operations as main. Forest validation remains additional
+work for callers that request it. Raw runs are in
+`forest-split-main-performance.log` and `forest-split-main-performance-cpu30.log`.
+The earlier saved baseline binary from `ad85be5e` ran faster than freshly built
+main; only the fresh-main results above support the current comparison.
