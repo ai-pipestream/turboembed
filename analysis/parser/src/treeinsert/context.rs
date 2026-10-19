@@ -10,7 +10,7 @@ use crate::context::{
     EOS, FeatureSink, check_cons_into as check_cons, cons2_into as cons2, cons3_into as cons3,
     surround_into as surround,
 };
-use crate::parse::Parse;
+use crate::parse::{Parse, ParseError};
 
 use super::*;
 
@@ -197,12 +197,13 @@ impl CheckContextGenerator {
     /// Generates the features for deciding whether `parent` is complete
     /// (`CheckContextGenerator.getContext(Parse, Parse[], int, boolean)`). With `trim_frontier`,
     /// the right frontier of `constituents[0]` is cut below `parent`, which must be on it
-    /// ([`TreeInsertError::ParentNotInFrontier`] otherwise).
+    /// ([`TreeInsertError::ParentNotInFrontier`] otherwise). A `parent` with no children that are
+    /// not punctuation fails with [`ParseError::TokenIndex`], where OpenNLP throws
+    /// `ArrayIndexOutOfBoundsException`.
     ///
     /// # Panics
     ///
-    /// When `index` is out of bounds or `parent` has no children that are not punctuation, where
-    /// OpenNLP throws `ArrayIndexOutOfBoundsException`.
+    /// When `index` is out of bounds, where OpenNLP throws `ArrayIndexOutOfBoundsException`.
     pub fn get_context(
         &self,
         parent: &Parse,
@@ -238,7 +239,8 @@ impl CheckContextGenerator {
     ) -> Result<(), TreeInsertError> {
         features.emit(format_args!("default"));
         let mut children = parent.children().iter().filter(|c| !self.punct_set.contains(c.kind()));
-        let first = children.next().expect("parent has a non-punctuation child");
+        // OpenNLP reads `children[0]` of the collapsed children, which fails when they are empty.
+        let first = children.next().ok_or(TreeInsertError::Parse(ParseError::TokenIndex { index: 0, len: 0 }))?;
         let last = children.next_back().unwrap_or(first);
         let kind = parent.kind();
         check_cons(first, "begin", kind, features);

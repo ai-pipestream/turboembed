@@ -72,6 +72,9 @@ impl FeedforwardPosTrainer {
         let mut tag_set: HashSet<String> = HashSet::new();
 
         for sample in samples {
+            if sample.sentence.len() != sample.tags.len() {
+                return Err(NeuralError::InvalidArgument("tags must have the same length as sentence".into()));
+            }
             if sample.sentence.is_empty() {
                 continue;
             }
