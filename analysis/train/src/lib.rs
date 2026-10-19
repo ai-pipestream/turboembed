@@ -107,4 +107,4 @@ pub use params::{Algorithm, Key, TrainerType, TrainingParameters, Value};
 pub use perceptron::{PerceptronIteration, PerceptronModel, PerceptronParams, Sequence, SequenceSource};
 pub use qn::{QnIteration, QnModel, QnParams, QnStop};
 pub use trainer::TrainedModel;
-pub use writer::{WritableModel, write_gis, write_naive_bayes, write_perceptron, write_qn};
+pub use writer::{WritableModel, write_gis, write_gis_writable, write_naive_bayes, write_perceptron, write_qn};

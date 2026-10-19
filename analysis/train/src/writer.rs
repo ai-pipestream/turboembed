@@ -152,6 +152,14 @@ impl WritableModel for NaiveBayesModel {
 /// `GenericModelWriter(model, DataOutputStream).persist()` for a GIS
 /// model: the bytes of the `.model` entry.
 pub fn write_gis(model: &GisModel) -> Result<Vec<u8>> {
+    write_gis_writable(model)
+}
+
+/// [`write_gis`] for any [`WritableModel`]: the `.model` entry of a GIS
+/// model built outside the GIS trainer, such as OpenNLP's
+/// `new GISModel(parameters, predicates, outcomes)` that a ranking
+/// trainer assembles from its own weights.
+pub fn write_gis_writable(model: &dyn WritableModel) -> Result<Vec<u8>> {
     let mut out = ModelOutput { bytes: Vec::new() };
     out.write_utf(&JavaString::new(GIS_TYPE))?;
     out.write_int(1);
