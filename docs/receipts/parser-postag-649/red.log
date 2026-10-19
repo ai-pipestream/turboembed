@@ -1,0 +1,107 @@
+   Compiling turbo-postag v0.1.0 (<checkout>/analysis/postag)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+   --> analysis/postag/tests/neural_boundaries.rs:354:54
+    |
+354 |     p.word_forward.w_mut().iter_mut().for_each(|row| drop(row.pop()));
+    |                                                      ^^^^^---------^
+    |                                                           |
+    |                                                           argument has type `Option<f64>`
+    |
+    = note: use `let _ = ...` to ignore the expression or result
+    = note: `#[warn(dropping_copy_types)]` on by default
+
+warning: `turbo-postag` (test "neural_boundaries") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s
+     Running tests/neural_boundaries.rs (target/debug/deps/neural_boundaries-f9f9153db85edd6e)
+
+running 20 tests
+test loss_and_gradients_accumulates_into_well_formed_buffers ... ok
+test loss_and_gradients_rejects_short_emission_accumulators_without_writing ... FAILED
+test loss_and_gradients_rejects_short_transition_accumulators_without_writing ... FAILED
+test loss_and_gradients_rejects_short_start_and_end_accumulators_without_writing ... FAILED
+test new_rejects_empty_or_ragged_embedding_tables ... ok
+test new_rejects_duplicate_word_and_char_entries ... FAILED
+test new_checks_the_second_word_layer_tensors ... FAILED
+test loss_and_gradients_rejects_bad_gold ... ok
+test new_rejects_encoder_width_mismatch ... ok
+test new_rejects_output_and_crf_shape_mismatches ... ok
+test new_accepts_and_scores_the_valid_model ... ok
+test new_rejects_vocabulary_rows_past_the_tables ... ok
+test new_rejects_non_finite_lstm_weights ... FAILED
+test viterbi_rejects_non_finite_scores ... ok
+test new_rejects_duplicate_tags ... FAILED
+test viterbi_rejects_ragged_or_mismatched_dimensions ... ok
+test new_rejects_ragged_lstm_weight_rows ... FAILED
+test new_rejects_duplicate_pretrained_entries ... FAILED
+test new_requires_unknown_at_row_zero ... FAILED
+test every_model_new_accepts_round_trips_through_load ... ok
+
+failures:
+
+---- loss_and_gradients_rejects_short_emission_accumulators_without_writing stdout ----
+
+thread 'loss_and_gradients_rejects_short_emission_accumulators_without_writing' (1986839) panicked at analysis/postag/src/neural/crf/mod.rs:164:17:
+index out of bounds: the len is 1 but the index is 1
+
+---- loss_and_gradients_rejects_short_transition_accumulators_without_writing stdout ----
+
+thread 'loss_and_gradients_rejects_short_transition_accumulators_without_writing' (1986841) panicked at analysis/postag/src/neural/crf/mod.rs:280:30:
+index out of bounds: the len is 1 but the index is 1
+
+---- loss_and_gradients_rejects_short_start_and_end_accumulators_without_writing stdout ----
+
+thread 'loss_and_gradients_rejects_short_start_and_end_accumulators_without_writing' (1986840) panicked at analysis/postag/src/neural/crf/mod.rs:172:13:
+index out of bounds: the len is 1 but the index is 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- new_rejects_duplicate_word_and_char_entries stdout ----
+
+thread 'new_rejects_duplicate_word_and_char_entries' (1986846) panicked at analysis/postag/tests/neural_boundaries.rs:330:5:
+duplicate word entry dog: None
+
+---- new_checks_the_second_word_layer_tensors stdout ----
+
+thread 'new_checks_the_second_word_layer_tensors' (1986843) panicked at analysis/postag/tests/neural_boundaries.rs:330:5:
+NaN in second backward U: None
+
+---- new_rejects_non_finite_lstm_weights stdout ----
+
+thread 'new_rejects_non_finite_lstm_weights' (1986849) panicked at analysis/postag/tests/neural_boundaries.rs:330:5:
+NaN in char forward W: None
+
+---- new_rejects_duplicate_tags stdout ----
+
+thread 'new_rejects_duplicate_tags' (1986845) panicked at analysis/postag/tests/neural_boundaries.rs:330:5:
+duplicate tag A: None
+
+---- new_rejects_ragged_lstm_weight_rows stdout ----
+
+thread 'new_rejects_ragged_lstm_weight_rows' (1986851) panicked at analysis/postag/tests/neural_boundaries.rs:330:5:
+word forward W uniformly one column short of input_size: None
+
+---- new_rejects_duplicate_pretrained_entries stdout ----
+
+thread 'new_rejects_duplicate_pretrained_entries' (1986844) panicked at analysis/postag/tests/neural_boundaries.rs:330:5:
+duplicate pretrained entry dog: None
+
+---- new_requires_unknown_at_row_zero stdout ----
+
+thread 'new_requires_unknown_at_row_zero' (1986853) panicked at analysis/postag/tests/neural_boundaries.rs:330:5:
+no UNKNOWN word entry: None
+
+
+failures:
+    loss_and_gradients_rejects_short_emission_accumulators_without_writing
+    loss_and_gradients_rejects_short_start_and_end_accumulators_without_writing
+    loss_and_gradients_rejects_short_transition_accumulators_without_writing
+    new_checks_the_second_word_layer_tensors
+    new_rejects_duplicate_pretrained_entries
+    new_rejects_duplicate_tags
+    new_rejects_duplicate_word_and_char_entries
+    new_rejects_non_finite_lstm_weights
+    new_rejects_ragged_lstm_weight_rows
+    new_requires_unknown_at_row_zero
+
+test result: FAILED. 10 passed; 10 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-postag --test neural_boundaries`

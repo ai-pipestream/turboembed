@@ -1,0 +1,5 @@
+$ RUSTDOCFLAGS=-D warnings cargo doc --locked --no-deps -p turbo-parser -p turbo-postag
+ Documenting turbo-parser v0.1.0 (<checkout>/analysis/parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.21s
+   Generated <checkout>/target/doc/turbo_parser/index.html and 1 other file
+exit=0

@@ -3,90 +3,18 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::context::{ABSENT, FeedforwardPosContext, PRETRAINED_SLOTS, SLOTS, SentenceFeatures, UNKNOWN};
+use super::context::{FeedforwardPosContext, PRETRAINED_SLOTS, SLOTS, SentenceFeatures};
 use super::model::FeedforwardPosModel;
 use crate::neural::{JavaRng, NeuralError, PosSample};
 
-const ADAGRAD_EPS: f64 = 1e-6;
+mod adagrad;
+mod settings;
+mod vocab;
 
-/// Hyperparameters for [`FeedforwardPosTrainer`], matching `FeedforwardPOSTrainer.Settings`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct FeedforwardSettings {
-    pub embedding_size: usize,
-    pub hidden_size: usize,
-    pub epochs: usize,
-    pub batch_size: usize,
-    pub learning_rate: f64,
-    pub l2: f64,
-    pub dropout: f64,
-    pub word_cutoff: usize,
-    pub suffix_cutoff: usize,
-    pub seed: i64,
-}
+use adagrad::{adagrad_matrix, adagrad_vector, uniform_f32_matrix, update_weight};
+use vocab::{check_vector, register_all, register_vocab};
 
-impl FeedforwardSettings {
-    /// Creates and validates `FeedforwardSettings`, matching `FeedforwardPOSTrainer.Settings`.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        embedding_size: i32,
-        hidden_size: i32,
-        epochs: i32,
-        batch_size: i32,
-        learning_rate: f64,
-        l2: f64,
-        dropout: f64,
-        word_cutoff: i32,
-        suffix_cutoff: i32,
-        seed: i64,
-    ) -> Result<Self, NeuralError> {
-        if embedding_size <= 0 {
-            return Err(NeuralError::InvalidArgument(format!("embeddingSize must be positive: {embedding_size}")));
-        }
-        if hidden_size <= 0 {
-            return Err(NeuralError::InvalidArgument(format!("hiddenSize must be positive: {hidden_size}")));
-        }
-        if epochs <= 0 {
-            return Err(NeuralError::InvalidArgument(format!("epochs must be positive: {epochs}")));
-        }
-        if batch_size <= 0 {
-            return Err(NeuralError::InvalidArgument(format!("batchSize must be positive: {batch_size}")));
-        }
-        if !learning_rate.is_finite() || learning_rate <= 0.0 {
-            return Err(NeuralError::InvalidArgument(format!(
-                "learningRate must be finite and positive: {learning_rate}"
-            )));
-        }
-        if !l2.is_finite() || l2 < 0.0 {
-            return Err(NeuralError::InvalidArgument(format!("l2 must be finite and non-negative: {l2}")));
-        }
-        if !dropout.is_finite() || !(0.0..1.0).contains(&dropout) {
-            return Err(NeuralError::InvalidArgument(format!("dropout must be finite and in [0, 1): {dropout}")));
-        }
-        if word_cutoff < 0 {
-            return Err(NeuralError::InvalidArgument(format!("wordCutoff must be non-negative: {word_cutoff}")));
-        }
-        if suffix_cutoff < 0 {
-            return Err(NeuralError::InvalidArgument(format!("suffixCutoff must be non-negative: {suffix_cutoff}")));
-        }
-        Ok(Self {
-            embedding_size: embedding_size as usize,
-            hidden_size: hidden_size as usize,
-            epochs: epochs as usize,
-            batch_size: batch_size as usize,
-            learning_rate,
-            l2,
-            dropout,
-            word_cutoff: word_cutoff as usize,
-            suffix_cutoff: suffix_cutoff as usize,
-            seed,
-        })
-    }
-
-    /// Default hyperparameters matching `FeedforwardPOSTrainer.Settings.defaults()`.
-    pub fn defaults() -> Self {
-        Self::new(32, 128, 10, 64, 0.05, 1e-6, 0.2, 2, 2, 42).unwrap()
-    }
-}
+pub use settings::FeedforwardSettings;
 
 struct Example {
     features: [usize; SLOTS],
@@ -471,122 +399,4 @@ impl FeedforwardPosTrainer {
             pretrained_rows_vec,
         ))
     }
-}
-
-fn check_vector(word: &str, found: &[f32], pretrained_size: &mut usize) -> Result<Vec<f32>, NeuralError> {
-    if found.is_empty() {
-        return Err(NeuralError::InvalidArgument(format!("empty vector returned for '{word}'")));
-    }
-    if *pretrained_size == 0 {
-        *pretrained_size = found.len();
-    } else if found.len() != *pretrained_size {
-        return Err(NeuralError::InvalidArgument(format!(
-            "vector length mismatch for '{word}': expected {}, got {}",
-            *pretrained_size,
-            found.len()
-        )));
-    }
-    for (i, &v) in found.iter().enumerate() {
-        if !v.is_finite() {
-            return Err(NeuralError::InvalidArgument(format!(
-                "non-finite vector component for '{word}' at index {i}: {v}"
-            )));
-        }
-    }
-    Ok(found.to_vec())
-}
-
-fn register_vocab(
-    entries: &mut Vec<(String, usize)>,
-    order: &[String],
-    counts: &HashMap<String, usize>,
-    cutoff: usize,
-    mut next_row: usize,
-) -> usize {
-    let mut seen = HashSet::new();
-    entries.push((UNKNOWN.to_owned(), next_row));
-    seen.insert(UNKNOWN.to_owned());
-    next_row += 1;
-    entries.push((ABSENT.to_owned(), next_row));
-    seen.insert(ABSENT.to_owned());
-    next_row += 1;
-    for s in order {
-        if counts[s] >= cutoff && seen.insert(s.clone()) {
-            entries.push((s.clone(), next_row));
-            next_row += 1;
-        }
-    }
-    next_row
-}
-
-fn register_all<'a>(
-    entries: &mut Vec<(String, usize)>,
-    symbols: impl IntoIterator<Item = &'a str>,
-    mut next_row: usize,
-) -> usize {
-    let mut seen = HashSet::new();
-    entries.push((UNKNOWN.to_owned(), next_row));
-    seen.insert(UNKNOWN.to_owned());
-    next_row += 1;
-    entries.push((ABSENT.to_owned(), next_row));
-    seen.insert(ABSENT.to_owned());
-    next_row += 1;
-    for s in symbols {
-        if seen.insert(s.to_owned()) {
-            entries.push((s.to_owned(), next_row));
-            next_row += 1;
-        }
-    }
-    next_row
-}
-
-fn uniform_f32_matrix(rng: &mut JavaRng, rows: usize, cols: usize, scale: f64) -> Vec<Vec<f32>> {
-    let mut m = vec![vec![0.0f32; cols]; rows];
-    for row in &mut m {
-        for val in row {
-            *val = ((rng.next_double() * 2.0 - 1.0) * scale) as f32;
-        }
-    }
-    m
-}
-
-fn adagrad_matrix(
-    w: &mut [Vec<f32>],
-    dw: &[Vec<f64>],
-    g2: &mut [Vec<f64>],
-    batch: f64,
-    lr: f64,
-    l2: f64,
-) -> Result<(), NeuralError> {
-    for r in 0..w.len() {
-        let w_row = &mut w[r];
-        let g_row = &dw[r];
-        let a_row = &mut g2[r];
-        for c in 0..w_row.len() {
-            let g = g_row[c] / batch + l2 * f64::from(w_row[c]);
-            a_row[c] += g * g;
-            w_row[c] = update_weight(w_row[c], g, a_row[c], lr)?;
-        }
-    }
-    Ok(())
-}
-
-fn adagrad_vector(b: &mut [f32], db: &[f64], g2: &mut [f64], batch: f64, lr: f64) -> Result<(), NeuralError> {
-    for i in 0..b.len() {
-        let g = db[i] / batch;
-        g2[i] += g * g;
-        b[i] = update_weight(b[i], g, g2[i], lr)?;
-    }
-    Ok(())
-}
-
-#[inline]
-fn update_weight(weight: f32, gradient: f64, accumulator: f64, learning_rate: f64) -> Result<f32, NeuralError> {
-    let updated = (f64::from(weight) - learning_rate * gradient / (accumulator.sqrt() + ADAGRAD_EPS)) as f32;
-    if !gradient.is_finite() || !accumulator.is_finite() || !updated.is_finite() {
-        return Err(NeuralError::NonFiniteScore(
-            "training produced non-finite values; check learningRate, l2 and word vectors".into(),
-        ));
-    }
-    Ok(updated)
 }
