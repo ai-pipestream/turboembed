@@ -1,0 +1,22 @@
+   Compiling turbo v0.1.0 (./core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.84s
+     Running tests/format_boundaries.rs (target/core/debug/deps/format_boundaries-2f78233dd9768395)
+
+running 1 test
+test capability_decision_rejects_unchecked_non_finite_conformance ... FAILED
+
+failures:
+
+---- capability_decision_rejects_unchecked_non_finite_conformance stdout ----
+
+thread 'capability_decision_rejects_unchecked_non_finite_conformance' (458045) panicked at core/tests/format_boundaries.rs:96:5:
+assertion failed: matches!(record::decide([("test", &r)], &cell(&r)), record::Verdict::Not(_))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    capability_decision_rejects_unchecked_non_finite_conformance
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p turbo --test format_boundaries`

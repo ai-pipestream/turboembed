@@ -499,7 +499,7 @@ the record.
 
 `machine` is the arch label; for a CPU, the arch label, a dash and the
 first 8 hex of the SHA-256 of the processor's name, since a CPU record
-is filed under both (`core/src/cpu.rs`). An npu record inserts the
+is filed under both (`core/src/cpu/mod.rs`). An npu record inserts the
 graph format after the backend, `ngraph-lite` or `native`, so the two
 formats do not share a file. `task` and `precision` are the
 enum names without their prefix, in lower case. `model` is the last part
@@ -870,7 +870,7 @@ only for the library version it was measured with. A later commit of the
 same version may run different code, and the record still names the
 commit it was measured at; a new version number needs new records.
 
-`core/src/record.rs` holds the schema, the name, the checks and the
+`core/src/record/mod.rs` holds the schema, the name, the checks and the
 rule; the tool writes records through the same types and checks, and
 `core/tests/conformance.rs` uses the same tolerances.
 

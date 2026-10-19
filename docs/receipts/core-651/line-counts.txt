@@ -1,0 +1,33 @@
+481 core/src/bpe.rs
+341 core/src/classes/letters_a.rs
+340 core/src/classes/letters_b.rs
+339 core/src/record/mod.rs
+252 core/src/record/tests.rs
+237 core/src/record/validate.rs
+199 core/src/manifest/artifact.rs
+190 core/src/unigram/parse.rs
+183 core/src/manifest/validate_artifacts.rs
+182 core/src/manifest/validate_architecture.rs
+178 core/src/record/decisions.rs
+177 core/src/unigram/encode.rs
+174 core/src/unigram/charsmap.rs
+162 core/src/manifest/tokenizer.rs
+146 core/src/classes/numbers.rs
+135 core/src/unigram/trie.rs
+135 core/src/manifest/mod.rs
+110 core/src/manifest/architecture.rs
+109 core/tests/format_boundaries.rs
+108 core/src/manifest/validate_tokenizer.rs
+105 core/src/manifest/helpers.rs
+ 93 core/src/unigram/tests.rs
+ 93 core/src/manifest/validate.rs
+ 89 core/src/unigram/boundary_tests.rs
+ 79 core/src/bpe/tests.rs
+ 77 core/src/record/names.rs
+ 76 core/src/unigram/lattice.rs
+ 69 core/src/unigram/mod.rs
+ 48 core/src/manifest/provenance.rs
+ 47 core/src/classes/tests.rs
+ 41 core/src/record/timing.rs
+ 40 core/src/unigram/base64.rs
+ 26 core/src/classes/mod.rs

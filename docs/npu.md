@@ -100,7 +100,7 @@ No build variables: there is nothing to point at.
   artifact. `model_load` still reads the compiled graph, and
   `turbo_session_get_info` says what a session really resolved. The
   backend does not write SUPPORTED. The core does, in
-  `decide_embedded` (`core/src/record.rs`, docs/benchmarks.md).
+  `decide_embedded` (`core/src/record/mod.rs`, docs/benchmarks.md).
   `Record::is_for` requires `rows.kind` `ROWS_MIXED`, the device
   arch, this build's OS, the backend, the task, the precision, and
   for npu `TURBO_NPU_GRAPH_FORMAT`. A matching record that falls

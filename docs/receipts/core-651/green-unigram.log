@@ -1,0 +1,16 @@
+   Compiling turbo v0.1.0 (./core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.36s
+     Running unittests src/lib.rs (target/core/debug/deps/turbo-f2aadd74732b22b6)
+
+running 9 tests
+test unigram::boundary_tests::base64_rejects_nonterminal_padding_and_nonzero_unused_bits ... ok
+test unigram::boundary_tests::direct_parse_rejects_invalid_metaspace_without_panicking ... ok
+test unigram::boundary_tests::precompiled_map_rejects_invalid_replacement_bytes ... ok
+test unigram::boundary_tests::malformed_boolean_settings_are_rejected ... ok
+test unigram::boundary_tests::malformed_normalizer_is_not_silently_ignored ... ok
+test unigram::boundary_tests::lattice_preserves_best_path_for_extreme_finite_scores ... ok
+test unigram::tests::base64_decodes_with_and_without_padding_bytes ... ok
+test unigram::tests::the_ascii_shortcut_is_the_cluster_by_cluster_map ... ok
+test unigram::tests::the_trie_finds_what_the_list_holds ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 78 filtered out; finished in 0.64s
