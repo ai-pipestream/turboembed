@@ -149,7 +149,10 @@ fn chunk(text: &str, from: usize, to: usize, out: &mut Vec<Unit>) {
             }
             continue;
         }
-        let joins = joiner(c) && open.is_some() && chars.peek().is_some_and(|&(_, next)| wordy(next));
+        let joins = joiner(c)
+            && open.is_some_and(|u| {
+                chars.peek().is_some_and(|&(_, next)| wordy(next) && group(script(next)).is_none_or(|g| g == u.group))
+            });
         if joins {
             if let Some(u) = &mut open {
                 u.end = end;
@@ -253,5 +256,11 @@ mod tests {
         let w = words("请勿倒置，小心轻放。", None);
         let w: Vec<&str> = w.into_iter().map(|(s, _)| s).collect();
         assert_eq!(w, ["请勿倒置", "小心轻放"]);
+    }
+
+    #[test]
+    fn joiners_across_script_changes_are_not_swallowed_into_preceding_unit() {
+        assert_eq!(words("iPhone-是", None), [("iPhone", Script::Latin), ("是", Script::Han)]);
+        assert_eq!(words("xxxx.Привет", None), [("xxxx", Script::Latin), ("Привет", Script::Cyrillic)]);
     }
 }

@@ -2,7 +2,6 @@
 //! `NormalizationProfiles`) and [`TermAnnotator`], the pipeline step that
 //! writes [`Terms`] (`turbo:terms`) aligned to `opennlp:tokens`.
 
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, OnceLock};
 
 use turbo_analysis::{Annotator, Error, Layer, Refs, View};
@@ -317,46 +316,34 @@ impl Annotator for TermAnnotator {
 
         let analyzer = self.resolve_analyzer(language);
         let text = view.text();
-        let token_strs: Vec<&str> = tokens.spans.iter().map(|(_, s)| &text[s.range()]).collect();
-        let tag_strs: Vec<Option<&str>> = match pos {
-            Some(p) => p.tags.iter().map(|&t| Some(p.tagset.label(t))).collect(),
-            None => vec![None; n],
-        };
-
-        let analyzed = analyzer
-            .analyze_tokens(&token_strs, &tag_strs)
-            .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
+        let (starts, ends) = tokens.spans.columns();
 
         let mut surface = Strs::default();
         let mut folded = Strs::default();
-        let write_stem = analyzer.has_stemmer();
-        let write_lemma = lemmas.is_some() || analyzer.has_lemmatizer();
-        let mut stem_col = write_stem.then(Strs::default);
-        let mut lemma_col = write_lemma.then(Strs::default);
+        let mut stem_col = analyzer.has_stemmer().then(Strs::default);
+        let mut lemma_col = (lemmas.is_some() || analyzer.has_lemmatizer()).then(Strs::default);
 
-        // Determine which dimension gives the character-folded slot: the last
-        // character-level dimension in `analyzer.dimensions()`, or `Original`
-        // when no character-level dimensions are configured.
-        let folded_dim =
-            analyzer.dimensions().iter().copied().rfind(|d| d.is_character_level()).unwrap_or(Dimension::Original);
+        for (i, (&start, &end)) in starts.iter().zip(ends).enumerate() {
+            let token = (start <= end).then(|| text.get(start as usize..end as usize)).flatten().ok_or_else(|| {
+                Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!("token {i} span {start}..{end} is not a valid slice of a {}-byte view", text.len()),
+                }
+            })?;
+            let pos_tag = pos.map(|p| p.tagset.label(p.tags[i]));
+            let (folded_tok, stem_tok, lemma_tok) = analyzer
+                .analyze_for_annotator(token, pos_tag, lemmas.is_some())
+                .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
 
-        for (i, term) in analyzed.iter().enumerate() {
-            surface.push(term.original());
-            let f = term.at(folded_dim).map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
-            folded.push(f);
-            if let Some(stems) = &mut stem_col {
-                let s = term
-                    .at(Dimension::Stem)
-                    .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
+            surface.push(token);
+            folded.push(&folded_tok);
+            if let (Some(stems), Some(s)) = (&mut stem_col, &stem_tok) {
                 stems.push(s);
             }
             if let Some(lemma_out) = &mut lemma_col {
                 if let Some(doc_lemmas) = lemmas {
                     lemma_out.push(doc_lemmas.lemma.get(i));
-                } else {
-                    let l = term
-                        .at(Dimension::Lemma)
-                        .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
+                } else if let Some(l) = &lemma_tok {
                     lemma_out.push(l);
                 }
             }
@@ -366,195 +353,51 @@ impl Annotator for TermAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = DefaultHasher::new();
-        match &self.choice {
-            AnalyzerChoice::Fixed(a) => {
-                0u8.hash(&mut h);
-                a.dimensions().hash(&mut h);
-                a.has_stemmer().hash(&mut h);
-                a.has_lemmatizer().hash(&mut h);
-            }
-            AnalyzerChoice::ByLanguage { fallback, .. } => {
-                1u8.hash(&mut h);
-                fallback.hash(&mut h);
+        const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+        const FNV_PRIME: u64 = 0x0100_0000_01b3;
+        fn write(h: &mut u64, bytes: &[u8]) {
+            for &b in bytes {
+                *h = (*h ^ u64::from(b)).wrapping_mul(FNV_PRIME);
             }
         }
-        h.finish()
+        let mut h = FNV_OFFSET;
+        match &self.choice {
+            AnalyzerChoice::Fixed(a) => {
+                write(&mut h, &[0u8]);
+                write(&mut h, &(a.dimensions().len() as u64).to_le_bytes());
+                for &dim in a.dimensions() {
+                    write(&mut h, &[dim.index() as u8]);
+                    if let Some((is_custom, id, norm_hash)) = a.normalizer_info(dim) {
+                        write(&mut h, &[u8::from(is_custom)]);
+                        write(&mut h, &(id.len() as u64).to_le_bytes());
+                        write(&mut h, id.as_bytes());
+                        write(&mut h, &norm_hash.to_le_bytes());
+                    }
+                }
+                match a.stemmer_config_hash() {
+                    Some(sh) => {
+                        write(&mut h, &[1u8]);
+                        write(&mut h, &sh.to_le_bytes());
+                    }
+                    None => write(&mut h, &[0u8]),
+                }
+                write(&mut h, &[u8::from(a.has_lemmatizer())]);
+            }
+            AnalyzerChoice::ByLanguage { fallback, .. } => {
+                write(&mut h, &[1u8]);
+                match fallback {
+                    Some(lang) => {
+                        write(&mut h, &[1u8]);
+                        write(&mut h, &(lang.len() as u64).to_le_bytes());
+                        write(&mut h, lang.as_bytes());
+                    }
+                    None => write(&mut h, &[0u8]),
+                }
+            }
+        }
+        h
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use std::collections::BTreeSet;
-    use std::sync::Arc;
-
-    use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Span, Spans, ViewId};
-    use turbo_analysis_layers::TermSlot;
-
-    use super::*;
-
-    #[test]
-    fn english_german_french_spanish_and_nordic_profiles_match_opennlp() {
-        let eng = NormalizationProfiles::for_language("eng").unwrap();
-        assert_eq!(eng.stemmer_algorithm(), SnowballAlgorithm::English);
-        assert_eq!(eng.accent_fold(), Some(AccentFoldKind::Latin));
-        assert_eq!(
-            eng.matching_analyzer().dimensions(),
-            &[Dimension::Nfc, Dimension::CaseFold, Dimension::AccentFold, Dimension::Stem]
-        );
-        assert_eq!(eng.matching_analyzer().analyze("Cats").unwrap()[0].normalized(), "cat");
-
-        let deu = NormalizationProfiles::for_language("deu").unwrap();
-        assert_eq!(deu.stemmer_algorithm(), SnowballAlgorithm::German);
-        assert_eq!(deu.accent_fold(), Some(AccentFoldKind::German));
-        assert_eq!(
-            deu.matching_analyzer().dimensions(),
-            &[Dimension::Nfc, Dimension::CaseFold, Dimension::AccentFold, Dimension::Stem]
-        );
-        let deu_term = &deu.matching_analyzer().analyze("B\u{00FC}cher").unwrap()[0];
-        assert_eq!(deu_term.peel(), "buecher");
-        assert_eq!(deu_term.normalized(), "buch");
-
-        for code in ["fra", "spa", "por", "ita", "cat"] {
-            let p = NormalizationProfiles::for_language(code).unwrap();
-            assert_eq!(p.accent_fold(), Some(AccentFoldKind::Latin), "{code}");
-        }
-        let fra = NormalizationProfiles::for_language("fr").unwrap();
-        assert_eq!(fra.language(), "fra");
-        assert_eq!(fra.stemmer_algorithm(), SnowballAlgorithm::French);
-        let fra_term = &fra.matching_analyzer().analyze("\u{00C9}l\u{00E8}ves").unwrap()[0];
-        assert_eq!(fra_term.peel(), "eleves");
-        assert_eq!(fra_term.normalized(), "elev");
-
-        let spa = NormalizationProfiles::for_language("es").unwrap();
-        assert_eq!(spa.language(), "spa");
-        assert_eq!(spa.stemmer_algorithm(), SnowballAlgorithm::Spanish);
-        let spa_term = &spa.matching_analyzer().analyze("Canciones").unwrap()[0];
-        assert_eq!(spa_term.peel(), "canciones");
-        assert_eq!(spa_term.normalized(), "cancion");
-
-        let swe = NormalizationProfiles::for_language("swe").unwrap();
-        assert_eq!(swe.accent_fold(), None);
-        assert_eq!(swe.matching_analyzer().dimensions(), &[Dimension::Nfc, Dimension::CaseFold, Dimension::Stem]);
-    }
-
-    #[test]
-    fn two_letter_codes_and_norwegian_standards_resolve_as_on_jvm() {
-        assert_eq!(NormalizationProfiles::for_language("de").unwrap().stemmer_algorithm(), SnowballAlgorithm::German);
-        assert_eq!(
-            NormalizationProfiles::for_language("  EN ").unwrap().stemmer_algorithm(),
-            SnowballAlgorithm::English
-        );
-        for code in ["nb", "nn", "no", "nob", "nno", "nor"] {
-            assert_eq!(
-                NormalizationProfiles::for_language(code).unwrap().stemmer_algorithm(),
-                SnowballAlgorithm::Norwegian,
-                "{code}"
-            );
-        }
-        assert!(NormalizationProfiles::for_language("jpn").is_none());
-        assert!(NormalizationProfiles::for_language("zzz").is_none());
-        assert!(NormalizationProfiles::for_language("qq").is_none());
-        assert_eq!(NormalizationProfile::new("   ", SnowballAlgorithm::English, None), Err(TermError::BlankLanguage));
-    }
-
-    #[test]
-    fn supported_languages_cover_every_snowball_language_except_porter() {
-        let covered: BTreeSet<SnowballAlgorithm> = NormalizationProfiles::supported_languages()
-            .iter()
-            .map(|&code| NormalizationProfiles::for_language(code).unwrap().stemmer_algorithm())
-            .collect();
-        let expected: BTreeSet<SnowballAlgorithm> =
-            SnowballAlgorithm::ALL.iter().copied().filter(|&alg| alg != SnowballAlgorithm::Porter).collect();
-        assert_eq!(covered, expected);
-        for code in ["nob", "nno", "nor"] {
-            assert!(NormalizationProfiles::supported_languages().contains(&code));
-        }
-    }
-
-    #[test]
-    fn matching_analyzer_is_thread_safe_for_stemming() {
-        let analyzer = Arc::new(NormalizationProfiles::for_language("eng").unwrap().matching_analyzer());
-        let expected = analyzer.analyze("running").unwrap()[0].at(Dimension::Stem).unwrap().to_owned();
-        let mut handles = Vec::with_capacity(8);
-        for _ in 0..8 {
-            let a = Arc::clone(&analyzer);
-            let exp = expected.clone();
-            handles.push(std::thread::spawn(move || {
-                for _ in 0..50 {
-                    assert_eq!(a.analyze("running").unwrap()[0].at(Dimension::Stem).unwrap(), exp);
-                }
-            }));
-        }
-        for h in handles {
-            h.join().unwrap();
-        }
-    }
-
-    #[test]
-    fn by_language_annotator_reuses_one_analyzer_per_language() {
-        let annotator = TermAnnotator::by_language(Some("deu".to_owned()));
-        let mut code = Strs::default();
-        code.push("en");
-        let english = Language { code, score: vec![1.0] };
-
-        let first = annotator.resolve_analyzer(Some(&english));
-        let second = annotator.resolve_analyzer(Some(&english));
-        assert!(first.shares_state_with(&second));
-        assert_eq!(first.analyze("Cats").unwrap()[0].normalized(), "cat");
-
-        let fallback = annotator.resolve_analyzer(None);
-        assert!(fallback.shares_state_with(&annotator.resolve_analyzer(None)));
-        assert!(!fallback.shares_state_with(&first));
-        assert_eq!(fallback.analyze("B\u{00FC}cher").unwrap()[0].normalized(), "buch");
-
-        let plain = TermAnnotator::default();
-        let mut unknown = Strs::default();
-        unknown.push("jpn");
-        let japanese = Language { code: unknown, score: vec![1.0] };
-        let default = plain.resolve_analyzer(Some(&japanese));
-        assert!(default.shares_state_with(&plain.resolve_analyzer(None)));
-        assert_eq!(default.dimensions(), &[Dimension::Nfc, Dimension::CaseFold]);
-    }
-
-    #[test]
-    fn term_annotator_reads_language_and_lemmas_and_writes_turbo_terms() {
-        let text = "Caf\u{00E9}s Running";
-        let mut doc = Document::new(text);
-        let mut tok_spans = Spans::new(ViewId::SOURCE);
-        tok_spans.push(Span::new(0, 6));
-        tok_spans.push(Span::new(7, 14));
-        doc.add(&Key::DEFAULT, Tokens { spans: tok_spans, sentence: None }, Provenance::by("test")).unwrap();
-
-        let mut lang_code = Strs::default();
-        lang_code.push("eng");
-        doc.add(&Key::DEFAULT, Language { code: lang_code, score: vec![1.0] }, Provenance::by("test")).unwrap();
-
-        let mut lemma_strs = Strs::default();
-        lemma_strs.push("cafe");
-        lemma_strs.push("run");
-        doc.add(&Key::DEFAULT, Lemmas { lemma: lemma_strs }, Provenance::by("test")).unwrap();
-
-        let pipeline = Analyzer::builder()
-            .given(Key::<View>::DEFAULT)
-            .given(Key::<Tokens>::DEFAULT)
-            .given(Key::<Language>::DEFAULT)
-            .given(Key::<Lemmas>::DEFAULT)
-            .add(TermAnnotator::default())
-            .build()
-            .unwrap();
-        let status = pipeline.run(std::slice::from_mut(&mut doc));
-        assert_eq!(status[0], Ok(()));
-
-        let terms = doc.get::<Terms>().unwrap();
-        assert_eq!(terms.len(), 2);
-        assert_eq!(
-            terms.get(Ix::new(0)),
-            TermSlot { surface: "Caf\u{00E9}s", folded: "cafes", stem: Some("cafe"), lemma: Some("cafe") }
-        );
-        assert_eq!(
-            terms.get(Ix::new(1)),
-            TermSlot { surface: "Running", folded: "running", stem: Some("run"), lemma: Some("run") }
-        );
-    }
-}
+mod tests;

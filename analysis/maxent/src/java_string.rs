@@ -94,7 +94,7 @@ impl JavaString {
     /// Keeps the first `len` bytes, which must end a unit's encoding, as
     /// `substring(0, n)` keeps the first n units.
     pub fn truncate(&mut self, len: usize) {
-        debug_assert!(len >= self.bytes.len() || self.bytes[len] & 0xC0 != 0x80, "byte {len} is inside a unit");
+        assert!(len >= self.bytes.len() || self.bytes[len] & 0xC0 != 0x80, "byte {len} is inside a unit");
         self.bytes.truncate(len);
     }
 
@@ -106,7 +106,10 @@ impl JavaString {
     /// The UTF-16 code units from byte `start` on, which must begin a
     /// unit: `substring(n)` as `charAt` gives it.
     pub fn utf16_units_from(&self, start: usize) -> Utf16Units<'_> {
-        debug_assert!(start >= self.bytes.len() || self.bytes[start] & 0xC0 != 0x80, "byte {start} is inside a unit");
+        assert!(
+            start <= self.bytes.len() && (start == self.bytes.len() || self.bytes[start] & 0xC0 != 0x80),
+            "byte {start} is inside a unit"
+        );
         Utf16Units { bytes: &self.bytes[start..] }
     }
 
@@ -371,5 +374,19 @@ mod tests {
             let expected = turbo_jvm::chars::compare(a, b);
             assert_eq!(JavaString::new(a).cmp(&JavaString::new(b)), expected, "{a:?} vs {b:?}");
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "is inside a unit")]
+    fn truncate_inside_multibyte_unit_panics() {
+        let mut s = JavaString::new("a\0é");
+        s.truncate(2);
+    }
+
+    #[test]
+    #[should_panic(expected = "is inside a unit")]
+    fn utf16_units_from_inside_multibyte_unit_panics() {
+        let s = JavaString::new("a\0é");
+        let _ = s.utf16_units_from(2);
     }
 }

@@ -209,6 +209,18 @@ impl SpanRuler {
     /// The matches over `input`'s tokens, as a layer of view `view`, the
     /// view the tokens are in.
     pub fn matches(&self, input: &Input<'_>, view: ViewId) -> Result<Matches, MatchError> {
+        if input.view() != view {
+            return Err(MatchError::ViewMismatch { layer: "opennlp:tokens", expected: view, actual: input.view() });
+        }
+        if let Some(numbers) = input.numbers()
+            && numbers.spans.view() != view
+        {
+            return Err(MatchError::ViewMismatch {
+                layer: "turbo:numbers",
+                expected: view,
+                actual: numbers.spans.view(),
+            });
+        }
         let mut found: Vec<(u32, u32, u16, u32)> = Vec::new();
         let tag = |name: &str| self.labels.tag(name).expect("a label in use").0;
         if !self.matcher.is_empty() {
@@ -281,6 +293,9 @@ impl Annotator for SpanRuler {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
         if tokens.spans.view() != view.id() {
             return Err(fail("the tokens are in another view".into()));
+        }
+        if entities.is_some_and(|e| e.spans.view() != view.id()) {
+            return Err(fail("the entities are in another view".into()));
         }
         if numbers.is_some_and(|n| n.spans.view() != view.id()) {
             return Err(fail("the numbers are in another view".into()));

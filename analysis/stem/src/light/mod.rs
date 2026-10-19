@@ -125,6 +125,10 @@ impl Stemmer for LightStemmer {
         let len = self.stem_in_place(out);
         out.truncate(len);
     }
+
+    fn config_hash(&self) -> u64 {
+        crate::Algorithm::Light(*self).config_hash()
+    }
 }
 
 #[cfg(test)]

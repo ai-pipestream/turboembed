@@ -111,8 +111,8 @@ impl NGramLanguageModel {
         if ngram.len() > 1 {
             let n_minus_one = NGramUtils::get_n_minus_one_token_first(ngram);
             let mut n_minus_one_count = self.model.get_count(n_minus_one) as f64;
-            if n_minus_one_count == 0.0 {
-                n_minus_one_count = self.model.size() as f64; // prevent Infinity
+            if n_minus_one_count <= 0.0 {
+                n_minus_one_count = self.model.size() as f64; // prevent Infinity or negative denominator
             }
             if count > 0 {
                 count as f64 / n_minus_one_count
@@ -120,8 +120,10 @@ impl NGramLanguageModel {
                 let next_ngram = NGramUtils::get_n_minus_one_token_last(ngram);
                 STUPID_BACKOFF_ALPHA * self.stupid_backoff(next_ngram)
             }
-        } else {
+        } else if count > 0 {
             count as f64 / self.model.size() as f64
+        } else {
+            0.0
         }
     }
 }

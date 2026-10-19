@@ -24,7 +24,11 @@ pub type Result<T> = std::result::Result<T, String>;
 
 /// A bundle or upstream path: relative, `/`-separated, no `..`.
 pub fn check_rel(path: &str) -> Result<()> {
-    if path.is_empty() || path.starts_with('/') || path.split('/').any(|p| p.is_empty() || p == "." || p == "..") {
+    if path.is_empty()
+        || path.starts_with('/')
+        || path.contains('\\')
+        || path.split('/').any(|p| p.is_empty() || p == "." || p == "..")
+    {
         return Err(format!("{path:?} is not a relative path inside the directory"));
     }
     Ok(())
@@ -47,4 +51,19 @@ pub fn make(r: &recipe::Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
     seal::seal(r, bundle, produced_by, converted)?;
     println!("{}: verified", bundle.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_rel_accepts_clean_relative_paths_and_refuses_bad_ones() {
+        assert!(check_rel("model.safetensors").is_ok());
+        assert!(check_rel("onnx/model.onnx").is_ok());
+        assert!(check_rel("reference/cases.json").is_ok());
+        for bad in ["", "/abs/path", "a//b", "./file", "a/./b", "../escape", "a/../b", "dir\\file.bin", "..\\escape"] {
+            assert!(check_rel(bad).is_err(), "expected {bad:?} to be rejected");
+        }
+    }
 }

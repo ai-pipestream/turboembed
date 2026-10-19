@@ -51,10 +51,8 @@ impl SpanTypes {
     /// it is scored, the type it is renamed to, or `None` when it is left
     /// out.
     pub fn held_out(&self, kind: &str) -> Option<&'static str> {
-        if let Some(&(_, scored)) = self.renamed.iter().find(|(held_out, _)| *held_out == kind) {
-            return Some(scored);
-        }
-        self.types.iter().find(|t| **t == kind).copied()
+        let target = self.renamed.iter().find(|(held_out, _)| *held_out == kind).map_or(kind, |&(_, scored)| scored);
+        self.types.iter().find(|&&t| t == target).copied()
     }
 
     /// Whether a predicted span of type `kind` is scored. Predictions are
@@ -74,6 +72,7 @@ impl SpanTypes {
             renamed: self
                 .renamed
                 .iter()
+                .filter(|(_, scored)| self.types.contains(scored))
                 .map(|&(held_out, scored)| TypeMapping { held_out: held_out.to_owned(), scored: scored.to_owned() })
                 .collect(),
             reference_inputs,
@@ -119,8 +118,10 @@ mod tests {
 
     #[test]
     fn held_out_types_are_renamed_or_left_out_and_predictions_are_not_renamed() {
-        let types = SpanTypes { types: &["organization", "person"], renamed: &[("org", "organization")] };
+        let types =
+            SpanTypes { types: &["organization", "person"], renamed: &[("org", "organization"), ("loc", "location")] };
         assert_eq!(types.held_out("org"), Some("organization"));
+        assert_eq!(types.held_out("loc"), None);
         assert_eq!(types.held_out("organization"), Some("organization"));
         assert_eq!(types.held_out("person"), Some("person"));
         assert_eq!(types.held_out("date"), None);

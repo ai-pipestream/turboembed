@@ -442,3 +442,26 @@ fn rules_read_like_opennlp() {
     assert_eq!(AncoraSpanishHeadRules::from_str(&es.serialize_to_string()).unwrap(), es);
     assert!(es.punctuation_tags().contains("``"));
 }
+
+#[test]
+fn insert_rejects_reversed_spans_without_changing_the_tree() {
+    let mut root = Parse::from_tokens(&["cat"]).unwrap();
+    let before = root.to_string_penn_treebank();
+    // Span has public fields, so callers can supply an invalid range without Span::new.
+    let reversed = Parse::new(root.text_arc().clone(), Span { start: 2, end: 1 }, "NP", 1.0, 0);
+    assert!(matches!(root.insert(reversed.clone()), Err(ParseError::NotContained { .. })));
+    assert_eq!(root.to_string_penn_treebank(), before);
+    let mut builder = turbo_parser::parse::TreeBuilder::new(root);
+    assert!(matches!(builder.insert(reversed), Err(ParseError::NotContained { .. })));
+    assert_eq!(builder.finish().to_string_penn_treebank(), before);
+}
+
+#[test]
+fn insert_still_accepts_empty_constituents_at_character_boundaries() {
+    for offset in [0, 2, 3] {
+        let mut root = Parse::from_tokens(&["ét"]).unwrap();
+        let empty = Parse::new(root.text_arc().clone(), Span::new(offset, offset), "EMPTY", 1.0, 0);
+        root.insert(empty).unwrap();
+        assert!(root.to_string_penn_treebank().contains("(EMPTY )"));
+    }
+}

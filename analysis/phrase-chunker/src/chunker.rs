@@ -121,12 +121,51 @@ impl Annotator for PhraseChunker {
         }
         let text = view.text();
         let (starts, ends) = tokens.spans.columns();
+        if starts.len() != ends.len() {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("token span start count ({}) does not match end count ({})", starts.len(), ends.len()),
+            });
+        }
         let n = starts.len();
+        if let Some(col) = &tokens.sentence
+            && col.len() != n
+        {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("{} sentence indices for {n} tokens", col.len()),
+            });
+        }
         if tags.tags.len() != n {
             return Err(Error::Annotator {
                 annotator: Self::ID,
                 detail: format!("{} tags for {n} tokens", tags.tags.len()),
             });
+        }
+        let tagset_len = tags.tagset.len();
+        for (i, &tag) in tags.tags.iter().enumerate() {
+            if usize::from(tag.0) >= tagset_len {
+                return Err(Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!(
+                        "tag index {} at token {i} is out of bounds for tagset of length {tagset_len}",
+                        tag.0
+                    ),
+                });
+            }
+        }
+        for i in 0..n {
+            let s = starts[i] as usize;
+            let e = ends[i] as usize;
+            if s > e || e > text.len() || !text.is_char_boundary(s) || !text.is_char_boundary(e) {
+                return Err(Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!(
+                        "token {i} span {s}..{e} is not a valid UTF-8 slice of view text of length {}",
+                        text.len()
+                    ),
+                });
+            }
         }
         let mut chunk_tags = Vec::with_capacity(n);
         let mut probs = Vec::with_capacity(n);
@@ -139,6 +178,17 @@ impl Annotator for PhraseChunker {
         let validator = self.model.validator();
         let mut outcomes: Vec<&str> = Vec::new();
         for (from, to) in sentence_ranges(tokens) {
+            for i in (from + 1)..to {
+                if starts[i] < starts[i - 1] || ends[i] < ends[i - 1] {
+                    return Err(Error::Annotator {
+                        annotator: Self::ID,
+                        detail: format!(
+                            "token {i} span {}..{} precedes previous token in sentence {from}..{to}",
+                            starts[i], ends[i]
+                        ),
+                    });
+                }
+            }
             words.clear();
             words.extend((from..to).map(|i| TokenTag {
                 token: &text[starts[i] as usize..ends[i] as usize],
@@ -349,5 +399,39 @@ mod tests {
             e,
             Error::Annotator { annotator: "turbo-phrase-chunker:maxent", detail: "1 tags for 2 tokens".into() }
         );
+    }
+
+    #[test]
+    fn malformed_token_spans_sentence_column_and_tag_indices_are_rejected() {
+        let doc = Document::new("The \u{00E9} cat");
+        let view = doc.get::<View>().unwrap();
+        let c = fixture();
+
+        // Sentence column shorter or longer than tokens.
+        let mut short_sent = tokens(view.id(), &[(0, 3, 0), (7, 10, 0)]);
+        short_sent.sentence = Some(vec![Ix::new(0)]);
+        assert!(matches!(c.annotate((view, &short_sent, &penn(&["DT", "NN"]))), Err(Error::Annotator { .. })));
+        let mut long_sent = tokens(view.id(), &[(0, 3, 0)]);
+        long_sent.sentence = Some(vec![Ix::new(0), Ix::new(0)]);
+        assert!(matches!(c.annotate((view, &long_sent, &penn(&["DT"]))), Err(Error::Annotator { .. })));
+
+        // Out-of-bounds POS tag index.
+        let bad_tags = PosTags { tagset: TagSet::new("penn", &["DT"]), tags: vec![Tag(5)], prob: None };
+        assert!(matches!(
+            c.annotate((view, &tokens(view.id(), &[(0, 3, 0)]), &bad_tags)),
+            Err(Error::Annotator { .. })
+        ));
+
+        // Inverted, out-of-bounds, and mid-codepoint UTF-8 token spans.
+        for (s, e) in [(5, 3), (0, 99), (4, 5)] {
+            let mut spans = Spans::new(view.id());
+            spans.push(Span { start: s, end: e });
+            let bad_span = Tokens { spans, sentence: None };
+            assert!(matches!(c.annotate((view, &bad_span, &penn(&["DT"]))), Err(Error::Annotator { .. })));
+        }
+
+        // Out-of-order tokens within a sentence.
+        let unsorted = tokens(view.id(), &[(7, 10, 0), (0, 3, 0)]);
+        assert!(matches!(c.annotate((view, &unsorted, &penn(&["DT", "NN"]))), Err(Error::Annotator { .. })));
     }
 }

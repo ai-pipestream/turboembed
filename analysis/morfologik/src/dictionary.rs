@@ -114,7 +114,14 @@ impl MorfologikDictionary {
                 None => None,
                 Some(sec) => {
                     let tag_bytes = &suffix[sec + 1..];
-                    if tag_bytes.is_empty() { None } else { charset.decode(tag_bytes).ok() }
+                    if tag_bytes.is_empty() {
+                        None
+                    } else {
+                        let Ok(tag) = charset.decode(tag_bytes) else {
+                            return;
+                        };
+                        Some(tag)
+                    }
                 }
             };
             results.push(WordData { word: converted.clone(), stem, tag });
@@ -185,6 +192,16 @@ impl Annotator for MorfologikLemmatizer {
     type Writes = (Lemmas,);
 
     fn annotate(&self, (view, tokens, tags): Refs<'_, Self>) -> Result<(Lemmas,), Error> {
+        if tokens.spans.view() != view.id() {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!(
+                    "the tokens are in view {}, not in view {} that is lemmatized",
+                    tokens.spans.view().0,
+                    view.id().0
+                ),
+            });
+        }
         if tokens.spans.len() != tags.tags.len() {
             return Err(Error::Annotator {
                 annotator: Self::ID,

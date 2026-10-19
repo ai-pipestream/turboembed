@@ -323,7 +323,7 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
 #[inline]
 fn threshold(probs: &[f64], sorted: &mut [f64], size: usize) -> f64 {
     let n = probs.len();
-    if size == 1 {
+    if size <= 1 {
         probs.iter().copied().max_by(|a, b| compare_doubles(*a, *b)).expect("at least one outcome")
     } else if size >= n {
         probs.iter().copied().min_by(|a, b| compare_doubles(*a, *b)).expect("at least one outcome")
@@ -398,9 +398,9 @@ mod tests {
             let mut full = probs.to_vec();
             full.sort_by(|a, b| compare_doubles(*a, *b));
             let mut scratch = vec![0.0; probs.len()];
-            for size in 1..=(probs.len() + 2) {
+            for size in 0..=(probs.len() + 2) {
                 let got = threshold(probs, &mut scratch, size);
-                let want = full[probs.len().saturating_sub(size)];
+                let want = full[probs.len().saturating_sub(size.max(1))];
                 assert_eq!(compare_doubles(got, want), Ordering::Equal, "size={size}, probs={probs:?}");
             }
         }

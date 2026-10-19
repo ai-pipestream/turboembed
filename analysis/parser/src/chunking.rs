@@ -5,14 +5,19 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use std::fmt;
 use turbo_analysis::Span;
 use turbo_jvm::strict_math;
+use turbo_sequence::Features;
 
 use crate::bottom_up::{
     DEFAULT_ADVANCE_PERCENTAGE, DEFAULT_BEAM_SIZE, Parser as ParserTrait, collapse_punctuation_in_place,
-    dictionary_key, parse_bottom_up,
+    parse_bottom_up,
 };
-use crate::context::{Cons, check_cons, check_cons_pair, cons_bo_labeled, cons_labeled, cons2, cons3, surround};
+use crate::context::{
+    ConsRef, DisplayFn, FeatureSink, check_cons_into as check_cons, check_cons_pair_into as check_cons_pair,
+    cons2_into as cons2, cons3_into as cons3, surround_into as surround,
+};
 use crate::head_rules::HeadRules;
 use crate::model::ParserModel;
 use crate::parse::{COMPLETE, CONT, INCOMPLETE, Parse, ParseError, START, TOP_NODE};
@@ -20,10 +25,60 @@ use crate::parse::{COMPLETE, CONT, INCOMPLETE, Parse, ParseError, START, TOP_NOD
 /// Top-start outcome (`AbstractBottomUpParser.TOP_START = "S-TOP"`).
 pub const TOP_START: &str = "S-TOP";
 
+// Decode length-prefixed dictionary keys once, so n-gram lookup needs no temporary key.
+#[derive(Clone, Debug, Default)]
+struct DictionaryNode {
+    terminal: bool,
+    children: HashMap<String, DictionaryNode>,
+}
+
+impl DictionaryNode {
+    fn from_keys(keys: HashSet<String>) -> Self {
+        let mut root = Self::default();
+        for key in keys {
+            let mut rest = key.as_str();
+            let mut words = Vec::new();
+            while let Some((length, tail)) = rest.split_once(':') {
+                let Ok(n) = length.parse::<usize>() else {
+                    break;
+                };
+                if n.to_string() != length {
+                    break;
+                }
+                let Some(word) = tail.get(..n) else {
+                    break;
+                };
+                words.push(word);
+                rest = &tail[n..];
+            }
+            if !rest.is_empty() {
+                continue;
+            }
+            let mut node = &mut root;
+            for word in words {
+                node = node.children.entry(word.to_owned()).or_default();
+            }
+            node.terminal = true;
+        }
+        root
+    }
+
+    fn contains(&self, words: &[&Parse]) -> bool {
+        let mut node = self;
+        for word in words {
+            let Some(next) = node.children.get(word.head_text()) else {
+                return false;
+            };
+            node = next;
+        }
+        node.terminal
+    }
+}
+
 /// Context generator for the shift-reduce build phase (`opennlp.tools.parser.chunking.BuildContextGenerator`).
 #[derive(Clone, Debug, Default)]
 pub struct BuildContextGenerator {
-    dict: Option<HashSet<String>>,
+    dict: Option<DictionaryNode>,
 }
 
 impl BuildContextGenerator {
@@ -34,14 +89,25 @@ impl BuildContextGenerator {
     }
 
     /// Creates a [`BuildContextGenerator`] whose lexical features are limited to the n-grams of
-    /// `dict`, keyed by [`dictionary_key`] (`new BuildContextGenerator(Dictionary)`).
+    /// `dict`, keyed by [`crate::bottom_up::dictionary_key`] (`new BuildContextGenerator(Dictionary)`).
     pub fn with_dictionary(dict: HashSet<String>) -> Self {
-        Self { dict: Some(dict) }
+        Self { dict: Some(DictionaryNode::from_keys(dict)) }
     }
 
     /// Generates build features for `constituents[index]` (`BuildContextGenerator.getContext(Parse[], int)`).
     pub fn get_context(&self, constituents: &[Parse], index: usize) -> Vec<String> {
         let mut features = Vec::with_capacity(100);
+        self.populate(constituents, index, &mut features);
+        features
+    }
+
+    /// Replaces `out` with build features, reusing its byte storage.
+    pub fn get_features(&self, constituents: &[Parse], index: usize, out: &mut Features) {
+        out.clear();
+        self.populate(constituents, index, out);
+    }
+
+    fn populate<S: FeatureSink>(&self, constituents: &[Parse], index: usize, features: &mut S) {
         let ps = constituents.len();
 
         let p_2 = index.checked_sub(2).map(|j| &constituents[j]);
@@ -68,10 +134,7 @@ impl BuildContextGenerator {
         let mut t012 = true;
 
         if let Some(dict) = &self.dict {
-            let has = |ngram: &[&Parse]| {
-                let words: Vec<&str> = ngram.iter().map(|p| p.head_text()).collect();
-                dict.contains(&dictionary_key(&words))
-            };
+            let has = |ngram: &[&Parse]| dict.contains(ngram);
             if let Some(p_2) = p_2 {
                 u_2 = has(&[p_2]);
             }
@@ -107,33 +170,33 @@ impl BuildContextGenerator {
             }
         }
 
-        let c_2 = Cons::new(cons_labeled(p_2, -2), cons_bo_labeled(p_2, -2), -2, u_2);
-        let c_1 = Cons::new(cons_labeled(p_1, -1), cons_bo_labeled(p_1, -1), -1, u_1);
-        let c0 = Cons::new(cons_labeled(Some(p0), 0), cons_bo_labeled(Some(p0), 0), 0, u0);
-        let c1 = Cons::new(cons_labeled(p1, 1), cons_bo_labeled(p1, 1), 1, u1);
-        let c2 = Cons::new(cons_labeled(p2, 2), cons_bo_labeled(p2, 2), 2, u2);
+        let c_2 = ConsRef::new(p_2, -2, true, u_2, features);
+        let c_1 = ConsRef::new(p_1, -1, true, u_1, features);
+        let c0 = ConsRef::new(Some(p0), 0, true, u0, features);
+        let c1 = ConsRef::new(p1, 1, true, u1, features);
+        let c2 = ConsRef::new(p2, 2, true, u2, features);
 
-        features.push("default".to_owned());
+        features.emit(format_args!("default"));
         for c in [&c0, &c_2, &c_1, &c1, &c2] {
             if c.unigram {
-                features.push(c.cons.clone());
+                features.emit(format_args!("{}", c.cons));
             }
-            features.push(c.cons_bo.clone());
+            features.emit(format_args!("{}", c.cons_bo));
         }
 
-        cons2(&mut features, &c0, &c1, punct1s, b01);
-        cons2(&mut features, &c_1, &c0, punct_1s, b_10);
-        cons3(&mut features, &c0, &c1, &c2, punct1s, punct2s, t012, b01, b12);
-        cons3(&mut features, &c_2, &c_1, &c0, punct_2s, punct_1s, t_2_10, b_2_1, b_10);
-        cons3(&mut features, &c_1, &c0, &c1, punct_1s, punct1s, t_101, b_10, b01);
+        cons2(features, &c0, &c1, punct1s, b01);
+        cons2(features, &c_1, &c0, punct_1s, b_10);
+        cons3(features, &c0, &c1, &c2, punct1s, punct2s, t012, b01, b12);
+        cons3(features, &c_2, &c_1, &c0, punct_2s, punct_1s, t_2_10, b_2_1, b_10);
+        cons3(features, &c_1, &c0, &c1, punct_1s, punct1s, t_101, b_10, b01);
 
         // Walks back to the closest start; a node before `index` always has a label here, where
         // OpenNLP would throw `NullPointerException` on one without.
         let starts_constituent = |p: &Parse| p.label().is_some_and(|l| l.starts_with(START));
-        let matches_back = |open: &str, feature: &str, features: &mut Vec<String>| {
+        let matches_back = |open: &str, feature: &str, features: &mut S| {
             for p in constituents[..index].iter().rev() {
                 if p.kind() == open {
-                    features.push(feature.to_owned());
+                    features.emit(format_args!("{feature}"));
                     break;
                 }
                 if starts_constituent(p) {
@@ -142,21 +205,20 @@ impl BuildContextGenerator {
             }
         };
         match p0.kind() {
-            "-RRB-" => matches_back("-LRB-", "bracketsmatch", &mut features),
-            "-RCB-" => matches_back("-LCB-", "bracketsmatch", &mut features),
-            "''" => matches_back("``", "quotesmatch", &mut features),
-            "'" => matches_back("`", "quotesmatch", &mut features),
-            "," => matches_back(",", "iscomma", &mut features),
+            "-RRB-" => matches_back("-LRB-", "bracketsmatch", features),
+            "-RCB-" => matches_back("-LCB-", "bracketsmatch", features),
+            "''" => matches_back("``", "quotesmatch", features),
+            "'" => matches_back("`", "quotesmatch", features),
+            "," => matches_back(",", "iscomma", features),
             "." if index + 1 == ps => {
                 if let Some(pi) = constituents[..index].iter().rposition(starts_constituent)
                     && pi == 0
                 {
-                    features.push("endofsentence".to_owned());
+                    features.emit(format_args!("endofsentence"));
                 }
             }
             _ => {}
         }
-        features
     }
 }
 
@@ -173,32 +235,51 @@ impl CheckContextGenerator {
     /// Generates completeness check features for reducing `constituents[start..=end]` into `kind`
     /// (`CheckContextGenerator.getContext(Parse[], String, int, int)`).
     pub fn get_context(&self, constituents: &[Parse], kind: &str, start: usize, end: usize) -> Vec<String> {
-        let ps = constituents.len();
         let mut features = Vec::with_capacity(100);
+        self.populate(constituents, kind, start, end, constituents[0].label().unwrap_or("null"), &mut features);
+        features
+    }
 
-        features.push("default".to_owned());
-        features.push(format!("fl={}", constituents[0].label().unwrap_or("null")));
+    /// Replaces `out` with check features, reusing its byte storage.
+    pub fn get_features(&self, constituents: &[Parse], kind: &str, start: usize, end: usize, out: &mut Features) {
+        out.clear();
+        self.populate(constituents, kind, start, end, constituents[0].label().unwrap_or("null"), out);
+    }
+
+    fn populate(
+        &self,
+        constituents: &[Parse],
+        kind: &str,
+        start: usize,
+        end: usize,
+        first_label: &str,
+        features: &mut impl FeatureSink,
+    ) {
+        let ps = constituents.len();
+        features.emit(format_args!("default"));
+        features.emit(format_args!("fl={first_label}"));
         let pstart = &constituents[start];
         let pend = &constituents[end];
-        check_cons(pstart, "begin", kind, &mut features);
-        check_cons(pend, "last", kind, &mut features);
-        let mut production = format!("p={kind}->");
-        let mut punct_production = format!("pp={kind}->");
+        check_cons(pstart, "begin", kind, features);
+        check_cons(pend, "last", kind, features);
         for p in &constituents[start..end] {
-            check_cons_pair(p, pend, kind, &mut features);
-            production.push_str(p.kind());
-            production.push(',');
-            punct_production.push_str(p.kind());
-            punct_production.push(',');
-            for punct in p.next_punctuation() {
-                punct_production.push_str(punct.kind());
-                punct_production.push(',');
-            }
+            check_cons_pair(p, pend, kind, features);
         }
-        production.push_str(pend.kind());
-        punct_production.push_str(pend.kind());
-        features.push(production);
-        features.push(punct_production);
+        for (prefix, include_punctuation) in [("p", false), ("pp", true)] {
+            let production = DisplayFn(|f: &mut fmt::Formatter<'_>| {
+                write!(f, "{prefix}={kind}->")?;
+                for p in &constituents[start..end] {
+                    write!(f, "{},", p.kind())?;
+                    if include_punctuation {
+                        for punct in p.next_punctuation() {
+                            write!(f, "{},", punct.kind())?;
+                        }
+                    }
+                }
+                f.write_str(pend.kind())
+            });
+            features.emit(format_args!("{production}"));
+        }
 
         let p1s = Some(constituents[end].next_punctuation());
         let p_1s = Some(constituents[start].previous_punctuation());
@@ -209,12 +290,10 @@ impl CheckContextGenerator {
         let p2s = p1.map(Parse::next_punctuation);
         let p2 = (end + 2 < ps).then(|| &constituents[end + 2]);
 
-        surround(p_1, -1, kind, p_1s, &mut features);
-        surround(p_2, -2, kind, p_2s, &mut features);
-        surround(p1, 1, kind, p1s, &mut features);
-        surround(p2, 2, kind, p2s, &mut features);
-
-        features
+        surround(p_1, -1, kind, p_1s, features);
+        surround(p_2, -2, kind, p_2s, features);
+        surround(p1, 1, kind, p1s, features);
+        surround(p2, 2, kind, p2s, features);
     }
 }
 
@@ -298,22 +377,20 @@ impl Parser {
         }
     }
 
-    fn advance_top(&self, p: &mut Parse) {
+    fn advance_top(&self, p: &mut Parse, features: &mut Features) {
         let build_model = self.model.build_model();
         let check_model = self.model.check_model();
         let mut bprobs = vec![0.0; build_model.num_outcomes()];
         let mut cprobs = vec![0.0; check_model.num_outcomes()];
 
-        let b_ctx = self.build_cg.get_context(p.children(), 0);
-        let b_refs: Vec<&str> = b_ctx.iter().map(String::as_str).collect();
-        build_model.eval(&b_refs, &mut bprobs);
+        self.build_cg.get_features(p.children(), 0, features);
+        build_model.eval_features(features.iter(), &mut bprobs);
         if let Some(tsi) = self.top_start_index {
             p.add_prob(strict_math::log(bprobs[tsi]));
         }
 
-        let c_ctx = self.check_cg.get_context(p.children(), TOP_NODE, 0, 0);
-        let c_refs: Vec<&str> = c_ctx.iter().map(String::as_str).collect();
-        check_model.eval(&c_refs, &mut cprobs);
+        self.check_cg.get_features(p.children(), TOP_NODE, 0, 0, features);
+        check_model.eval_features(features.iter(), &mut cprobs);
         p.add_prob(strict_math::log(cprobs[self.complete_index]));
         p.set_kind(TOP_NODE);
     }
@@ -321,7 +398,7 @@ impl Parser {
     /// `chunking.Parser.advanceParses`. `None` is OpenNLP's `null`, for a parse without
     /// non-punctuation children. Where every child is labeled already OpenNLP indexes past the
     /// children and throws; this returns no derivations instead.
-    fn advance_parses(&self, p: &mut Parse, prob_mass: f64) -> Option<Vec<Parse>> {
+    fn advance_parses(&self, p: &mut Parse, prob_mass: f64, features: &mut Features) -> Option<Vec<Parse>> {
         let q = 1.0 - prob_mass;
         let punct_set = self.model.head_rules().punctuation_tags();
         let non_punct_indices = collapse_punctuation_in_place(p.children_mut(), punct_set);
@@ -331,16 +408,16 @@ impl Parser {
             return None;
         }
 
-        let mut last_start_node: Option<Parse> = None;
+        let mut last_start_node: Option<&Parse> = None;
         let mut last_start_index: Option<usize> = None;
-        let mut last_start_type: Option<String> = None;
+        let mut last_start_type: Option<&str> = None;
         let mut advance_node_index = num_nodes;
 
         for (pi, np) in children.iter().enumerate() {
             if let Some(lbl) = np.label() {
                 if let Some(st) = self.start_type_map.get(lbl) {
-                    last_start_type = Some(st.clone());
-                    last_start_node = Some(np.clone());
+                    last_start_type = Some(st.as_str());
+                    last_start_node = Some(np);
                     last_start_index = Some(pi);
                 }
             } else {
@@ -351,7 +428,7 @@ impl Parser {
         if advance_node_index >= num_nodes {
             return Some(Vec::new());
         }
-        let advance_node = children[advance_node_index].clone();
+        let advance_node = &children[advance_node_index];
         let original_advance_index = non_punct_indices[advance_node_index];
 
         let build_model = self.model.build_model();
@@ -359,9 +436,8 @@ impl Parser {
         let mut bprobs = vec![0.0; build_model.num_outcomes()];
         let mut cprobs = vec![0.0; check_model.num_outcomes()];
 
-        let b_ctx = self.build_cg.get_context(&children, advance_node_index);
-        let b_refs: Vec<&str> = b_ctx.iter().map(String::as_str).collect();
-        build_model.eval(&b_refs, &mut bprobs);
+        self.build_cg.get_features(&children, advance_node_index, features);
+        build_model.eval_features(features.iter(), &mut bprobs);
 
         let mut new_parses_list = Vec::with_capacity(build_model.num_outcomes());
         let mut bprob_sum = 0.0;
@@ -387,62 +463,49 @@ impl Parser {
             }
             if let Some(st) = self.start_type_map.get(tag) {
                 last_start_index = Some(advance_node_index);
-                last_start_node = Some(advance_node.clone());
-                last_start_type = Some(st.clone());
+                last_start_node = Some(advance_node);
+                last_start_type = Some(st.as_str());
             } else if let Some(ct) = self.cont_type_map.get(tag)
-                && (last_start_node.is_none() || last_start_type.as_deref() != Some(ct.as_str()))
+                && (last_start_node.is_none() || last_start_type != Some(ct.as_str()))
             {
                 continue;
             }
 
-            let mut new_parse1 = p.clone();
-            new_parse1.set_child(original_advance_index, tag);
-            new_parse1.add_prob(strict_math::log(bprob));
+            if let (Some(ls_idx), Some(ls_type), Some(ls_node)) = (last_start_index, last_start_type, last_start_node) {
+                // Check features read only the first child's label. Supply the candidate
+                // label directly; punctuation was already collapsed before this outcome loop.
+                let first_label = if advance_node_index == 0 { tag } else { children[0].label().unwrap_or("null") };
+                features.clear();
+                self.check_cg.populate(&children, ls_type, ls_idx, advance_node_index, first_label, features);
+                check_model.eval_features(features.iter(), &mut cprobs);
 
-            if let (Some(ls_idx), Some(ls_type), Some(ls_node)) =
-                (last_start_index, last_start_type.as_deref(), last_start_node.as_ref())
-            {
-                let np1_kept = collapse_punctuation_in_place(new_parse1.children_mut(), punct_set);
-                let np1_children: Vec<Parse> = np1_kept.iter().map(|&idx| new_parse1.children()[idx].clone()).collect();
-                let c_ctx = self.check_cg.get_context(&np1_children, ls_type, ls_idx, advance_node_index);
-                let c_refs: Vec<&str> = c_ctx.iter().map(String::as_str).collect();
-                check_model.eval(&c_refs, &mut cprobs);
-
-                if cprobs[self.complete_index] > q {
-                    let mut new_parse2 = new_parse1.clone();
-                    new_parse2.add_prob(strict_math::log(cprobs[self.complete_index]));
-
-                    let len = advance_node_index - ls_idx + 1;
-                    let mut cons = Vec::with_capacity(len);
-                    let mut flat = ls_node.is_pos_tag();
-                    cons.push(ls_node.clone());
-                    for ci in 1..(len - 1) {
-                        let mid = children[ci + ls_idx].clone();
-                        flat &= mid.is_pos_tag();
-                        cons.push(mid);
-                    }
-                    if len > 1 {
-                        flat &= advance_node.is_pos_tag();
-                        cons.push(advance_node.clone());
-                    }
-
-                    if !flat {
-                        let head = self.model.head_rules().get_head(&cons, ls_type);
-                        let node_prob = cprobs.get(1).copied().unwrap_or(cprobs[self.complete_index]);
-                        let span = if ls_idx == 0 && advance_node_index == num_nodes - 1 {
-                            p.span()
-                        } else {
-                            Span::new(ls_node.span().start, advance_node.span().end)
-                        };
-                        new_parse2
-                            .insert(Parse::with_head(Arc::clone(p.text_arc()), span, ls_type, node_prob, head))
-                            .expect("reduced constituent span inside root");
-                        new_parses_list.push(new_parse2);
-                    }
+                let incomplete = cprobs[self.incomplete_index] > q && advance_node_index != num_nodes - 1;
+                let flat = children[ls_idx..=advance_node_index].iter().all(Parse::is_pos_tag);
+                let candidate = || {
+                    let mut branch = p.clone();
+                    branch.set_child(original_advance_index, tag);
+                    branch.add_prob(strict_math::log(bprob));
+                    branch
+                };
+                if cprobs[self.complete_index] > q && !flat {
+                    let mut complete = candidate();
+                    complete.add_prob(strict_math::log(cprobs[self.complete_index]));
+                    let head = self.model.head_rules().get_head(&children[ls_idx..=advance_node_index], ls_type);
+                    let node_prob = cprobs.get(1).copied().unwrap_or(cprobs[self.complete_index]);
+                    let span = if ls_idx == 0 && advance_node_index == num_nodes - 1 {
+                        p.span()
+                    } else {
+                        Span::new(ls_node.span().start, advance_node.span().end)
+                    };
+                    complete
+                        .insert(Parse::with_head(Arc::clone(p.text_arc()), span, ls_type, node_prob, head))
+                        .expect("reduced constituent span inside root");
+                    new_parses_list.push(complete);
                 }
-                if cprobs[self.incomplete_index] > q && advance_node_index != num_nodes - 1 {
-                    new_parse1.add_prob(strict_math::log(cprobs[self.incomplete_index]));
-                    new_parses_list.push(new_parse1);
+                if incomplete {
+                    let mut incomplete = candidate();
+                    incomplete.add_prob(strict_math::log(cprobs[self.incomplete_index]));
+                    new_parses_list.push(incomplete);
                 }
             } else {
                 // When tag is `O` and no prior start exists, OpenNLP calls checkContextGenerator
@@ -457,6 +520,8 @@ impl Parser {
 
 impl ParserTrait for Parser {
     fn parse_n(&self, tokens: &Parse, num_parses: usize) -> Result<Vec<Parse>, ParseError> {
+        let mut features = Features::new();
+        let mut top_features = Features::new();
         parse_bottom_up(
             tokens,
             num_parses,
@@ -466,8 +531,8 @@ impl ParserTrait for Parser {
             self.model.parser_tagger_model(),
             self.model.parser_chunker_model(),
             self.model.head_rules(),
-            |p, q| Ok(self.advance_parses(p, q)),
-            |p| self.advance_top(p),
+            |p, q| Ok(self.advance_parses(p, q, &mut features)),
+            |p| self.advance_top(p, &mut top_features),
             |_| {},
         )
     }

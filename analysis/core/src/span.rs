@@ -67,9 +67,12 @@ pub enum Overlap {
     /// overlap (`end[i - 1] <= start[i]`).
     #[default]
     None,
-    /// Spans may nest (`a.contains(b)` or `b.contains(a)` whenever `a` and
-    /// `b` overlap), and never partially cross (`a.start < b.start &&
-    /// b.start < a.end && a.end < b.end`).
+    /// Spans and individual fragments never partially cross (`a.start <
+    /// b.start && b.start < a.end && a.end < b.end`), and whenever two
+    /// items share covered bytes, every fragment of one item lies inside a
+    /// fragment of the other (whilst a separate item in the uncovered gap
+    /// of a discontinuous item may overlap its bounding envelope without
+    /// sharing covered bytes).
     Nesting,
     /// Any valid spans in the view, including partially crossing spans.
     Any,
@@ -258,8 +261,9 @@ impl<'a> TextSpans<'a> {
                 Ok(())
             }
             Overlap::Nesting => {
-                check_no_crossing(self.start, self.end, "span")?;
-                if !self.frag_item_end.is_empty() {
+                if self.frag_item_end.is_empty() {
+                    check_no_crossing(self.start, self.end, "span")?;
+                } else {
                     check_no_crossing(self.frag_start, self.frag_end, "fragment")?;
                     self.check_fragment_nesting()?;
                 }
@@ -296,15 +300,43 @@ impl<'a> TextSpans<'a> {
                 bs.iter().zip(be).any(|(&s2, &e2)| f1.overlaps(Span { start: s2, end: e2 }))
             })
         };
-        for a in 0..n {
-            let env_a = Span { start: self.start[a], end: self.end[a] };
-            for b in (a + 1)..n {
-                let env_b = Span { start: self.start[b], end: self.end[b] };
-                if env_a.overlaps(env_b) && shares_bytes(a, b) && !contains_item(a, b) && !contains_item(b, a) {
-                    return Err(format!(
-                        "item {b} ({}..{}) partially crosses item {a} ({}..{}) across fragments",
-                        env_b.start, env_b.end, env_a.start, env_a.end
-                    ));
+        let check_pair = |a: usize, b: usize| -> Result<(), String> {
+            let (first, second) = if a < b { (a, b) } else { (b, a) };
+            let env_first = Span { start: self.start[first], end: self.end[first] };
+            let env_second = Span { start: self.start[second], end: self.end[second] };
+            if env_first.overlaps(env_second)
+                && shares_bytes(first, second)
+                && !contains_item(first, second)
+                && !contains_item(second, first)
+            {
+                return Err(format!(
+                    "item {second} ({}..{}) partially crosses item {first} ({}..{}) across fragments",
+                    env_second.start, env_second.end, env_first.start, env_first.end
+                ));
+            }
+            Ok(())
+        };
+        if self.is_start_ordered() {
+            for a in 0..n {
+                let end_a = self.end[a];
+                for b in (a + 1)..n {
+                    if self.start[b] >= end_a {
+                        break;
+                    }
+                    check_pair(a, b)?;
+                }
+            }
+        } else {
+            let mut order: Vec<usize> = (0..n).collect();
+            order.sort_unstable_by_key(|&i| self.start[i]);
+            for i in 0..n {
+                let a = order[i];
+                let end_a = self.end[a];
+                for &b in &order[(i + 1)..] {
+                    if self.start[b] >= end_a {
+                        break;
+                    }
+                    check_pair(a, b)?;
                 }
             }
         }
@@ -1015,6 +1047,14 @@ mod tests {
         ok.push(Span::new(0, 20));
         ok.push_fragments(&[Span::new(2, 5), Span::new(10, 15)]);
         assert_eq!(ok.check(Overlap::Nesting), Ok(()));
+
+        // Valid: two discontinuous items whose fragments are completely
+        // disjoint (0..4; 10..13 and 5..8; 14..16), even though their
+        // bounding envelopes (0..13 and 5..16) cross.
+        let mut disjoint_interleaved = Spans::<Dummy>::new(ViewId::SOURCE);
+        disjoint_interleaved.push_fragments(&[Span::new(0, 4), Span::new(10, 13)]);
+        disjoint_interleaved.push_fragments(&[Span::new(5, 8), Span::new(14, 16)]);
+        assert_eq!(disjoint_interleaved.check(Overlap::Nesting), Ok(()));
 
         // Invalid: item 0 has fragments 0..6 and 15..20 (envelope 0..20),
         // item 1 is 4..10 (inside envelope 0..20, but partially crosses
