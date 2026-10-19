@@ -1,9 +1,11 @@
 //! Fuzzy string matching scorers (normalized Levenshtein and Jaro-Winkler)
 //! over folded gazetteer match keys and place names.
 
+use std::cell::RefCell;
 use std::collections::HashSet;
 
 use crate::entry::GazetteerEntry;
+use crate::fold::Folder;
 use crate::geocode::by_prior_view;
 use crate::index::{GazetteerIndex, with_key};
 use crate::store::Entry;
@@ -12,18 +14,74 @@ const JARO_WINKLER_PREFIX_SCALE: f64 = 0.1;
 const JARO_WINKLER_MAX_PREFIX: usize = 4;
 const JARO_WINKLER_BOOST_THRESHOLD: f64 = 0.7;
 
-/// Character-level normalized Levenshtein similarity in `[0.0, 1.0]`.
-///
-/// Returns `1.0` when both strings are equal (including both empty), and
-/// `1.0 - (edit_distance / max(a.chars().count(), b.chars().count()))` otherwise.
-pub fn normalized_levenshtein(a: &str, b: &str) -> f64 {
-    if a == b {
+#[derive(Default)]
+struct FuzzyWorkspace {
+    folder: Folder,
+    key_buf: String,
+    a_chars: Vec<char>,
+    b_chars: Vec<char>,
+    prev: Vec<usize>,
+    curr: Vec<usize>,
+    a_matched: Vec<bool>,
+    b_matched: Vec<bool>,
+}
+
+thread_local! {
+    static WORKSPACE: RefCell<FuzzyWorkspace> = RefCell::new(FuzzyWorkspace::default());
+}
+
+fn with_workspace<R>(f: impl FnOnce(&mut FuzzyWorkspace) -> R) -> R {
+    WORKSPACE.with(|cell| match cell.try_borrow_mut() {
+        Ok(mut guard) => f(&mut guard),
+        Err(_) => f(&mut FuzzyWorkspace::default()),
+    })
+}
+
+#[inline]
+fn char_len_fast(s: &str) -> usize {
+    if s.is_ascii() { s.len() } else { s.chars().count() }
+}
+
+/// Upper bound on [`FuzzyMetric::score_folded`] given only the character
+/// counts `m` and `n` of two non-empty strings.
+#[inline]
+fn metric_upper_bound(metric: FuzzyMetric, m: usize, n: usize) -> f64 {
+    if m == 0 || n == 0 {
+        return 0.0;
+    }
+    if m == n {
         return 1.0;
     }
-    let a_chars: Vec<char> = a.chars().collect();
-    let b_chars: Vec<char> = b.chars().collect();
-    let m = a_chars.len();
-    let n = b_chars.len();
+    let min_l = m.min(n) as f64;
+    let max_l = m.max(n) as f64;
+    let lev_ub = min_l / max_l;
+    match metric {
+        FuzzyMetric::NormalizedLevenshtein => lev_ub,
+        FuzzyMetric::JaroWinkler => {
+            let jaro_ub = ((min_l / m as f64) + (min_l / n as f64) + 1.0) / 3.0;
+            if jaro_ub < JARO_WINKLER_BOOST_THRESHOLD {
+                jaro_ub
+            } else {
+                (jaro_ub + (JARO_WINKLER_MAX_PREFIX as f64) * JARO_WINKLER_PREFIX_SCALE * (1.0 - jaro_ub))
+                    .clamp(0.0, 1.0)
+            }
+        }
+        FuzzyMetric::Combined => {
+            let jaro_ub = ((min_l / m as f64) + (min_l / n as f64) + 1.0) / 3.0;
+            let jw_ub = if jaro_ub < JARO_WINKLER_BOOST_THRESHOLD {
+                jaro_ub
+            } else {
+                (jaro_ub + (JARO_WINKLER_MAX_PREFIX as f64) * JARO_WINKLER_PREFIX_SCALE * (1.0 - jaro_ub))
+                    .clamp(0.0, 1.0)
+            };
+            0.5 * (lev_ub + jw_ub)
+        }
+    }
+}
+
+fn lev_slice(a: &[char], b: &[char], prev: &mut Vec<usize>, curr: &mut Vec<usize>) -> f64 {
+    let m = a.len();
+    let n = b.len();
     let max_len = m.max(n);
     if max_len == 0 {
         return 1.0;
@@ -31,42 +89,39 @@ pub fn normalized_levenshtein(a: &str, b: &str) -> f64 {
     if m == 0 || n == 0 {
         return 0.0;
     }
-    let mut prev: Vec<usize> = (0..=n).collect();
-    let mut curr: Vec<usize> = vec![0; n + 1];
-    for (i, &ca) in a_chars.iter().enumerate() {
+    prev.clear();
+    prev.extend(0..=n);
+    curr.resize(n + 1, 0);
+    for (i, &ca) in a.iter().enumerate() {
         curr[0] = i + 1;
-        for (j, &cb) in b_chars.iter().enumerate() {
+        for (j, &cb) in b.iter().enumerate() {
             let cost = usize::from(ca != cb);
             curr[j + 1] = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
         }
-        std::mem::swap(&mut prev, &mut curr);
+        std::mem::swap(prev, curr);
     }
     let dist = prev[n];
     (1.0 - (dist as f64 / max_len as f64)).clamp(0.0, 1.0)
 }
 
-/// Character-level Jaro similarity in `[0.0, 1.0]`.
-pub fn jaro_similarity(a: &str, b: &str) -> f64 {
-    if a == b {
-        return 1.0;
-    }
-    let a_chars: Vec<char> = a.chars().collect();
-    let b_chars: Vec<char> = b.chars().collect();
-    let m = a_chars.len();
-    let n = b_chars.len();
+fn jaro_slice(a: &[char], b: &[char], a_matched: &mut Vec<bool>, b_matched: &mut Vec<bool>) -> f64 {
+    let m = a.len();
+    let n = b.len();
     if m == 0 || n == 0 {
         return 0.0;
     }
     let match_dist = (m.max(n) / 2).saturating_sub(1);
-    let mut a_matched = vec![false; m];
-    let mut b_matched = vec![false; n];
+    a_matched.clear();
+    a_matched.resize(m, false);
+    b_matched.clear();
+    b_matched.resize(n, false);
     let mut matches = 0usize;
 
-    for (i, &ca) in a_chars.iter().enumerate() {
+    for (i, &ca) in a.iter().enumerate() {
         let start = i.saturating_sub(match_dist);
         let end = (i + match_dist + 1).min(n);
         for j in start..end {
-            if !b_matched[j] && ca == b_chars[j] {
+            if !b_matched[j] && ca == b[j] {
                 a_matched[i] = true;
                 b_matched[j] = true;
                 matches += 1;
@@ -87,7 +142,7 @@ pub fn jaro_similarity(a: &str, b: &str) -> f64 {
         while !b_matched[k] {
             k += 1;
         }
-        if a_chars[i] != b_chars[k] {
+        if a[i] != b[k] {
             transpositions += 1;
         }
         k += 1;
@@ -98,14 +153,86 @@ pub fn jaro_similarity(a: &str, b: &str) -> f64 {
     ((m_f / m as f64) + (m_f / n as f64) + ((m_f - t_f) / m_f)) / 3.0
 }
 
-/// Character-level Jaro-Winkler similarity in `[0.0, 1.0]`.
-pub fn jaro_winkler(a: &str, b: &str) -> f64 {
-    let jaro = jaro_similarity(a, b);
+fn jw_slice(a: &[char], b: &[char], a_matched: &mut Vec<bool>, b_matched: &mut Vec<bool>) -> f64 {
+    let jaro = jaro_slice(a, b, a_matched, b_matched);
     if jaro < JARO_WINKLER_BOOST_THRESHOLD {
         return jaro;
     }
-    let prefix = a.chars().zip(b.chars()).take(JARO_WINKLER_MAX_PREFIX).take_while(|(ca, cb)| ca == cb).count();
+    let prefix = a.iter().zip(b.iter()).take(JARO_WINKLER_MAX_PREFIX).take_while(|(ca, cb)| ca == cb).count();
     (jaro + (prefix as f64) * JARO_WINKLER_PREFIX_SCALE * (1.0 - jaro)).clamp(0.0, 1.0)
+}
+
+impl FuzzyWorkspace {
+    fn load_a(&mut self, a: &str) {
+        self.a_chars.clear();
+        self.a_chars.extend(a.chars());
+    }
+
+    fn score_with_loaded_a(&mut self, metric: FuzzyMetric, a: &str, b: &str) -> f64 {
+        if a.is_empty() || b.is_empty() {
+            return 0.0;
+        }
+        if a == b {
+            return 1.0;
+        }
+        self.b_chars.clear();
+        self.b_chars.extend(b.chars());
+        match metric {
+            FuzzyMetric::NormalizedLevenshtein => {
+                lev_slice(&self.a_chars, &self.b_chars, &mut self.prev, &mut self.curr)
+            }
+            FuzzyMetric::JaroWinkler => {
+                jw_slice(&self.a_chars, &self.b_chars, &mut self.a_matched, &mut self.b_matched)
+            }
+            FuzzyMetric::Combined => {
+                let l = lev_slice(&self.a_chars, &self.b_chars, &mut self.prev, &mut self.curr);
+                let j = jw_slice(&self.a_chars, &self.b_chars, &mut self.a_matched, &mut self.b_matched);
+                0.5 * (l + j)
+            }
+        }
+    }
+}
+
+/// Character-level normalized Levenshtein similarity in `[0.0, 1.0]`.
+///
+/// Returns `1.0` when both strings are equal (including both empty), and
+/// `1.0 - (edit_distance / max(a.chars().count(), b.chars().count()))` otherwise.
+pub fn normalized_levenshtein(a: &str, b: &str) -> f64 {
+    if a == b {
+        return 1.0;
+    }
+    with_workspace(|ws| {
+        ws.load_a(a);
+        ws.b_chars.clear();
+        ws.b_chars.extend(b.chars());
+        lev_slice(&ws.a_chars, &ws.b_chars, &mut ws.prev, &mut ws.curr)
+    })
+}
+
+/// Character-level Jaro similarity in `[0.0, 1.0]`.
+pub fn jaro_similarity(a: &str, b: &str) -> f64 {
+    if a == b {
+        return 1.0;
+    }
+    with_workspace(|ws| {
+        ws.load_a(a);
+        ws.b_chars.clear();
+        ws.b_chars.extend(b.chars());
+        jaro_slice(&ws.a_chars, &ws.b_chars, &mut ws.a_matched, &mut ws.b_matched)
+    })
+}
+
+/// Character-level Jaro-Winkler similarity in `[0.0, 1.0]`.
+pub fn jaro_winkler(a: &str, b: &str) -> f64 {
+    if a == b {
+        return 1.0;
+    }
+    with_workspace(|ws| {
+        ws.load_a(a);
+        ws.b_chars.clear();
+        ws.b_chars.extend(b.chars());
+        jw_slice(&ws.a_chars, &ws.b_chars, &mut ws.a_matched, &mut ws.b_matched)
+    })
 }
 
 /// Which string similarity metric [`FuzzyStringScorer`] evaluates on folded
@@ -131,11 +258,10 @@ impl FuzzyMetric {
         if a == b {
             return 1.0;
         }
-        match self {
-            FuzzyMetric::NormalizedLevenshtein => normalized_levenshtein(a, b),
-            FuzzyMetric::JaroWinkler => jaro_winkler(a, b),
-            FuzzyMetric::Combined => 0.5 * (normalized_levenshtein(a, b) + jaro_winkler(a, b)),
-        }
+        with_workspace(|ws| {
+            ws.load_a(a);
+            ws.score_with_loaded_a(self, a, b)
+        })
     }
 }
 
@@ -156,8 +282,10 @@ impl Default for FuzzyStringScorer {
 
 impl FuzzyStringScorer {
     /// Creates a fuzzy scorer using `metric` and `min_similarity` in `[0.0, 1.0]`.
+    /// A `NaN` threshold is sanitized to `1.0` (exact match only).
     pub fn new(metric: FuzzyMetric, min_similarity: f64) -> FuzzyStringScorer {
-        FuzzyStringScorer { metric, min_similarity: min_similarity.clamp(0.0, 1.0) }
+        let clamped = if min_similarity.is_nan() { 1.0 } else { min_similarity.clamp(0.0, 1.0) };
+        FuzzyStringScorer { metric, min_similarity: clamped }
     }
 
     pub fn metric(&self) -> FuzzyMetric {
@@ -174,9 +302,12 @@ impl FuzzyStringScorer {
             if q_key.is_empty() {
                 return 0.0;
             }
-            let mut folder = crate::fold::Folder::new();
-            let c_key = folder.fold(candidate);
-            self.metric.score_folded(q_key, &c_key)
+            with_workspace(|ws| {
+                ws.folder.fold_into(candidate, &mut ws.key_buf);
+                ws.load_a(q_key);
+                let c_key = ws.key_buf.clone();
+                ws.score_with_loaded_a(self.metric, q_key, &c_key)
+            })
         })
     }
 
@@ -187,24 +318,26 @@ impl FuzzyStringScorer {
             if q_key.is_empty() {
                 return 0.0;
             }
-            let mut folder = crate::fold::Folder::new();
-            let mut key_buf = String::new();
-            folder.fold_into(entry.name(), &mut key_buf);
-            let mut best = self.metric.score_folded(q_key, &key_buf);
-            if best >= 1.0 {
-                return 1.0;
-            }
-            for alt in entry.alternate_names() {
-                folder.fold_into(alt, &mut key_buf);
-                let s = self.metric.score_folded(q_key, &key_buf);
-                if s > best {
-                    best = s;
-                    if best >= 1.0 {
-                        return 1.0;
+            with_workspace(|ws| {
+                ws.load_a(q_key);
+                let mut key_buf = std::mem::take(&mut ws.key_buf);
+                ws.folder.fold_into(entry.name(), &mut key_buf);
+                let mut best = ws.score_with_loaded_a(self.metric, q_key, &key_buf);
+                if best < 1.0 {
+                    for alt in entry.alternate_names() {
+                        ws.folder.fold_into(alt, &mut key_buf);
+                        let s = ws.score_with_loaded_a(self.metric, q_key, &key_buf);
+                        if s > best {
+                            best = s;
+                            if best >= 1.0 {
+                                break;
+                            }
+                        }
                     }
                 }
-            }
-            best
+                ws.key_buf = key_buf;
+                best
+            })
         })
     }
 
@@ -214,24 +347,26 @@ impl FuzzyStringScorer {
             if q_key.is_empty() {
                 return 0.0;
             }
-            let mut folder = crate::fold::Folder::new();
-            let mut key_buf = String::new();
-            folder.fold_into(entry.name(), &mut key_buf);
-            let mut best = self.metric.score_folded(q_key, &key_buf);
-            if best >= 1.0 {
-                return 1.0;
-            }
-            for alt in entry.alternate_names() {
-                folder.fold_into(alt, &mut key_buf);
-                let s = self.metric.score_folded(q_key, &key_buf);
-                if s > best {
-                    best = s;
-                    if best >= 1.0 {
-                        return 1.0;
+            with_workspace(|ws| {
+                ws.load_a(q_key);
+                let mut key_buf = std::mem::take(&mut ws.key_buf);
+                ws.folder.fold_into(entry.name(), &mut key_buf);
+                let mut best = ws.score_with_loaded_a(self.metric, q_key, &key_buf);
+                if best < 1.0 {
+                    for alt in entry.alternate_names() {
+                        ws.folder.fold_into(alt, &mut key_buf);
+                        let s = ws.score_with_loaded_a(self.metric, q_key, &key_buf);
+                        if s > best {
+                            best = s;
+                            if best >= 1.0 {
+                                break;
+                            }
+                        }
                     }
                 }
-            }
-            best
+                ws.key_buf = key_buf;
+                best
+            })
         })
     }
 }
@@ -244,7 +379,7 @@ impl GazetteerIndex {
         min_similarity: f64,
         limit: usize,
     ) -> Vec<(Entry<'_>, f64)> {
-        if limit == 0 {
+        if limit == 0 || min_similarity.is_nan() || min_similarity > 1.0 {
             return Vec::new();
         }
         let threshold = min_similarity.clamp(0.0, 1.0);
@@ -263,24 +398,45 @@ impl GazetteerIndex {
             }
 
             if threshold < 1.0 && matches.len() < limit {
-                let mut key_hits: Vec<(u32, f64)> = Vec::new();
-                for k in 0..self.names.len() as u32 {
-                    let cand_key = self.names.key(k);
-                    if cand_key == q_key {
-                        continue;
+                let metric = scorer.metric();
+                let key_hits = with_workspace(|ws| {
+                    ws.load_a(q_key);
+                    let m = ws.a_chars.len();
+                    let mut hits: Vec<(u32, f64)> = Vec::new();
+                    for k in 0..self.names.len() as u32 {
+                        let cand_key = self.names.key(k);
+                        if cand_key == q_key {
+                            continue;
+                        }
+                        let n = char_len_fast(cand_key);
+                        if metric_upper_bound(metric, m, n) < threshold {
+                            continue;
+                        }
+                        let sim = ws.score_with_loaded_a(metric, q_key, cand_key);
+                        if sim >= threshold {
+                            hits.push((k, sim));
+                        }
                     }
-                    let sim = scorer.metric().score_folded(q_key, cand_key);
-                    if sim >= threshold {
-                        key_hits.push((k, sim));
+                    hits
+                });
+
+                let mut sorted_hits = key_hits;
+                sorted_hits.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+                let mut cutoff_sim: Option<f64> = None;
+                for (k, sim) in sorted_hits {
+                    if let Some(cut) = cutoff_sim
+                        && sim < cut
+                    {
+                        break;
                     }
-                }
-                key_hits.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-                for (k, sim) in key_hits {
                     let start = self.postings_start[k as usize] as usize;
                     let end = self.postings_start[k as usize + 1] as usize;
                     for &r in &self.postings[start..end] {
                         if seen_records.insert(r) {
                             matches.push((Entry::new(&self.store, r), sim));
+                            if matches.len() >= limit && cutoff_sim.is_none() {
+                                cutoff_sim = Some(sim);
+                            }
                         }
                     }
                 }

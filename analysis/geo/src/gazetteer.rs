@@ -37,14 +37,15 @@ pub trait Gazetteer {
         min_similarity: f64,
         limit: usize,
     ) -> Vec<(Entry<'_>, f64)> {
-        if limit == 0 {
+        if limit == 0 || min_similarity.is_nan() || min_similarity > 1.0 {
             return Vec::new();
         }
+        let threshold = min_similarity.clamp(0.0, 1.0);
         self.lookup(name)
             .into_iter()
             .filter_map(|e| {
                 let s = scorer.score_entry(name, &e);
-                (s >= min_similarity).then_some((e, s))
+                (s >= threshold).then_some((e, s))
             })
             .take(limit)
             .collect()

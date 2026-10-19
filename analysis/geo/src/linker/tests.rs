@@ -368,3 +368,66 @@ fn extreme_and_unvalidated_weights_never_produce_nan() {
     let linker = GeoEntityLinker::new(fixture_gazetteer()).with_weights(bad);
     assert!(linker.link_mentions("Springfield", &[Span::new(0, 11)]).is_err());
 }
+
+#[test]
+fn overlapping_country_and_province_spans_are_skipped_and_distance_decays() {
+    let country_scorer = CountryProximityScorer::default();
+    // "Panama City, Florida": "Panama" at 0..6 overlaps "Panama City" at 0..11 and must be skipped.
+    let text = "Panama City, Florida";
+    let sigs = country_scorer.extract_text_signals(text);
+    let mention = Span::new(0, 11);
+    let us = RegionCode::new(*b"US").unwrap();
+    let pa = RegionCode::new(*b"PA").unwrap();
+    assert_eq!(country_scorer.score(mention, Some(us), &sigs), 0.5);
+    assert_eq!(country_scorer.score(mention, Some(pa), &sigs), 0.5);
+
+    // Multi-word country with newline ("United\nStates") is extracted.
+    let nl_sigs = country_scorer.extract_text_signals("Visited Springfield in the United\nStates.");
+    assert!(nl_sigs.iter().any(|s| s.country == us));
+
+    // "I love New York.": "New York" at 7..15 overlaps the mention at 7..15 -> neutral 0.5.
+    let prov_scorer = ProvinceProximityScorer::default();
+    let ny_containment = vec!["new york".to_string()];
+    assert_eq!(prov_scorer.score(Span::new(7, 15), &ny_containment, &[], "I love New York."), 0.5);
+
+    // Adjacent province name scores strictly higher than one 10 KB away.
+    let near_text = "Springfield, Illinois";
+    let far_text = format!("Springfield {} Illinois", "x ".repeat(5_000));
+    let il_containment = vec!["illinois".to_string()];
+    let near_score = prov_scorer.score(Span::new(0, 11), &il_containment, &[], near_text);
+    let far_score = prov_scorer.score(Span::new(0, 11), &il_containment, &[], &far_text);
+    assert!(near_score > 0.95, "near_score={near_score}");
+    assert!(far_score < 0.60 && far_score > 0.50, "far_score={far_score}");
+}
+
+#[test]
+fn geohash_handles_prime_meridian_edge_and_skips_repeated_mentions_and_nan_threshold() {
+    // London (51.507, -0.128) is "gcpvj0" and 9 km east (51.48, 0.005) is "u10hb5".
+    let london = encode_geohash(GeoPoint::new(51.507, -0.128).unwrap(), 6);
+    let greenwich = encode_geohash(GeoPoint::new(51.48, 0.005).unwrap(), 6);
+    let sydney = encode_geohash(GeoPoint::new(-33.8688, 151.2093).unwrap(), 6);
+    assert_eq!(shared_geohash_prefix_len(&london, &greenwich), 0);
+
+    let gh_scorer = GeoHashBinningScorer::new(6);
+    let near_ctx = vec![vec![london.clone()], vec![greenwich]];
+    let far_ctx = vec![vec![london.clone()], vec![sydney]];
+    let near_support = gh_scorer.score_in_context(0, &london, &near_ctx);
+    let far_support = gh_scorer.score_in_context(0, &london, &far_ctx);
+    assert!(near_support > 0.95, "Prime Meridian 9 km support={near_support}");
+    assert!(far_support < 0.05, "intercontinental support={far_support}");
+
+    // Repeated mentions ("Springfield and Springfield") do not self-reinforce geohash_score to 1.0.
+    let gaz = fixture_gazetteer();
+    let linker = GeoEntityLinker::new(&gaz);
+    let rep_text = "Springfield and Springfield";
+    let linked = linker.link_mentions(rep_text, &[Span::new(0, 11), Span::new(16, 27)]).unwrap();
+    for c in &linked[0] {
+        assert_eq!(c.geohash_score, 0.5);
+    }
+
+    // NaN min_similarity returns empty results on lookup_fuzzy, and min_similarity = 0.0 respects limit.
+    let nan_scorer = FuzzyStringScorer::new(FuzzyMetric::Combined, f64::NAN);
+    assert_eq!(nan_scorer.min_similarity(), 1.0);
+    assert!(gaz.lookup_fuzzy("Springfield", &nan_scorer, f64::NAN, 10).is_empty());
+    assert_eq!(gaz.lookup_fuzzy("Springfield", &FuzzyStringScorer::default(), 0.0, 2).len(), 2);
+}

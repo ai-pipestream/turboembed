@@ -232,13 +232,15 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
         let min_sim = self.fuzzy.min_similarity();
         let mut raw_by_mention: Vec<Vec<(GazetteerEntry, f64)>> = Vec::with_capacity(mentions.len());
         let mut hashes_by_mention: Vec<Vec<String>> = Vec::with_capacity(mentions.len());
-        let mut country_signals = self.country.extract_text_signals(text);
-        let mut province_signals: Vec<ProvinceSignal> = Vec::new();
+        let text_country_signals = self.country.extract_text_signals(text);
+        let mut cand_country_signals: Vec<(usize, CountrySignal)> = Vec::new();
+        let mut cand_province_signals: Vec<(usize, ProvinceSignal)> = Vec::new();
         let mut folder = Folder::new();
-        let folded_doc_text = folder.fold(text);
+        let mut mention_keys: Vec<String> = Vec::with_capacity(mentions.len());
 
-        for &span in mentions {
+        for (m_idx, &span) in mentions.iter().enumerate() {
             let surface = &text[span.range()];
+            mention_keys.push(folder.fold(surface));
             let hits = self.gazetteer.lookup_fuzzy(surface, &self.fuzzy, min_sim, retrieval_limit);
             let mut entries = Vec::with_capacity(hits.len());
             let mut hashes = Vec::with_capacity(hits.len());
@@ -247,12 +249,14 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
                 hashes.push(encode_geohash(owned.location(), self.geohash.precision()));
                 let rank_weight = 1.0 / (1.0 + idx as f64);
                 if let Some(code) = owned.region_code() {
-                    country_signals.push(CountrySignal { span, country: code, weight: 0.5 * sim * rank_weight });
+                    cand_country_signals
+                        .push((m_idx, CountrySignal { span, country: code, weight: 0.5 * sim * rank_weight }));
                 }
                 for admin in owned.containment() {
                     let folded_name = folder.fold(admin);
                     if !folded_name.is_empty() {
-                        province_signals.push(ProvinceSignal { span, folded_name, weight: 0.5 * sim * rank_weight });
+                        cand_province_signals
+                            .push((m_idx, ProvinceSignal { span, folded_name, weight: 0.5 * sim * rank_weight }));
                     }
                 }
                 entries.push((owned, sim));
@@ -270,17 +274,31 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
             let max_pop_ln =
                 candidates.iter().map(|(e, _)| ((e.population().max(0) as f64) + 1.0).ln()).fold(0.0f64, f64::max);
 
+            let own_key = &mention_keys[m_idx];
+            let filtered_hashes: Vec<Vec<String>> = hashes_by_mention
+                .iter()
+                .enumerate()
+                .map(|(j, h)| if j == m_idx || &mention_keys[j] != own_key { h.clone() } else { Vec::new() })
+                .collect();
+            let mut country_signals = text_country_signals.clone();
+            country_signals
+                .extend(cand_country_signals.iter().filter(|(j, _)| &mention_keys[*j] != own_key).map(|(_, s)| *s));
+            let province_signals: Vec<ProvinceSignal> = cand_province_signals
+                .iter()
+                .filter(|(j, _)| &mention_keys[*j] != own_key)
+                .map(|(_, s)| s.clone())
+                .collect();
+
             let mut scored: Vec<LinkedCandidate> = Vec::with_capacity(candidates.len());
             for (c_idx, (entry, fuzzy_score)) in candidates.into_iter().enumerate() {
                 let geohash_score =
-                    self.geohash.score_in_context(m_idx, &hashes_by_mention[m_idx][c_idx], &hashes_by_mention);
+                    self.geohash.score_in_context(m_idx, &hashes_by_mention[m_idx][c_idx], &filtered_hashes);
                 let country_score = self.country.score(span, entry.region_code(), &country_signals);
                 let folded_containment = ProvinceProximityScorer::fold_containment(
                     &mut folder,
                     entry.containment().iter().map(String::as_str),
                 );
-                let province_score =
-                    self.province.score(span, &folded_containment, &province_signals, &folded_doc_text);
+                let province_score = self.province.score(span, &folded_containment, &province_signals, text);
                 let population_score = if max_pop_ln <= 0.0 {
                     0.5
                 } else {
