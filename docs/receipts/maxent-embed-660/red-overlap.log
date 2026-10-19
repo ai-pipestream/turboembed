@@ -1,0 +1,22 @@
+   Compiling turbo-maxent v0.1.0 (<checkout>/analysis/maxent)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s
+     Running unittests src/lib.rs (target/debug/deps/turbo_maxent-e881c2e447af47e9)
+
+running 1 test
+test zip::boundary_tests::entry_payload_must_end_before_the_directory ... FAILED
+
+failures:
+
+---- zip::boundary_tests::entry_payload_must_end_before_the_directory stdout ----
+
+thread 'zip::boundary_tests::entry_payload_must_end_before_the_directory' (968343) panicked at analysis/maxent/src/zip/boundary_tests.rs:52:5:
+assertion failed: Zip::new(z).unwrap().entry("a").is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    zip::boundary_tests::entry_payload_must_end_before_the_directory
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 114 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-maxent --lib`

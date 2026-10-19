@@ -1,0 +1,46 @@
+   Compiling turbo-maxent v0.1.0 (<checkout>/analysis/maxent)
+   Compiling turbo-sequence v0.1.0 (<checkout>/analysis/sequence)
+   Compiling turbo-tokenize v0.1.0 (<checkout>/analysis/tokenize)
+   Compiling turbo-train v0.1.0 (<checkout>/analysis/train)
+   Compiling turbo-goldens v0.1.0 (<checkout>/analysis/goldens)
+   Compiling turbo-postag v0.1.0 (<checkout>/analysis/postag)
+   Compiling turbo-parser v0.1.0 (<checkout>/analysis/parser)
+   Compiling turbo-formats v0.1.0 (<checkout>/analysis/formats)
+   Compiling turbo-doccat v0.1.0 (<checkout>/analysis/doccat)
+   Compiling turbo-analysis-embed v0.1.0 (<checkout>/analysis/embed)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.31s
+     Running unittests src/lib.rs (target/debug/deps/turbo_analysis_embed-3dc083ecdacd4644)
+
+running 8 tests
+test centroids::boundary_tests::nonfinite_multilabel_configuration_is_refused ... ok
+test centroids::boundary_tests::malformed_vector_columns_are_refused_before_categorizing ... ok
+test centroids::boundary_tests::ambiguous_labels_are_refused ... FAILED
+test centroids::boundary_tests::grouping_rejects_invalid_category_columns ... FAILED
+test centroids::boundary_tests::nonfinite_query_vectors_are_refused ... ok
+test centroids::boundary_tests::tiny_temperature_preserves_the_winner ... ok
+test centroids::boundary_tests::truncated_centroid_payload_and_trailing_data_are_refused ... ok
+test centroids::boundary_tests::unindexable_label_count_is_refused ... ok
+
+failures:
+
+---- centroids::boundary_tests::ambiguous_labels_are_refused stdout ----
+
+thread 'centroids::boundary_tests::ambiguous_labels_are_refused' (952538) panicked at analysis/embed/src/centroids/boundary_tests.rs:81:9:
+assertion failed: LabelCentroids::from_centroids(model(), 1, TagSet::new("test", &names),
+        vec![1.0, 2.0], 1.0, CentroidNorm::None).is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- centroids::boundary_tests::grouping_rejects_invalid_category_columns stdout ----
+
+thread 'centroids::boundary_tests::grouping_rejects_invalid_category_columns' (952539) panicked at analysis/embed/src/centroids/boundary_tests.rs:94:5:
+assertion failed: category_sentence_centroids(&sentences, &categories, &vectors, None,
+        CentroidNorm::None).is_err()
+
+
+failures:
+    centroids::boundary_tests::ambiguous_labels_are_refused
+    centroids::boundary_tests::grouping_rejects_invalid_category_columns
+
+test result: FAILED. 6 passed; 2 failed; 0 ignored; 0 measured; 38 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p turbo-analysis-embed --lib`
