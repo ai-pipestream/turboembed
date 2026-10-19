@@ -499,7 +499,7 @@ the record.
 
 `machine` is the arch label; for a CPU, the arch label, a dash and the
 first 8 hex of the SHA-256 of the processor's name, since a CPU record
-is filed under both (`core/src/cpu.rs`). An npu record inserts the
+is filed under both (`core/src/cpu/mod.rs`). An npu record inserts the
 graph format after the backend, `ngraph-lite` or `native`, so the two
 formats do not share a file. `task` and `precision` are the
 enum names without their prefix, in lower case. `model` is the last part

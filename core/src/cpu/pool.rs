@@ -6,7 +6,7 @@
 //! thread 0 and takes tasks too. Each task is taken by exactly one thread,
 //! so which thread computes a task varies from run to run; the encoder
 //! splits work so that a task's result does not depend on that
-//! (encoder.rs).
+//! (encoder/).
 //!
 //! Tasks are claimed from one atomic word that holds the job's number, its
 //! task count and the next task, so a claim is either of the current job
