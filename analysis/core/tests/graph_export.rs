@@ -419,3 +419,41 @@ fn node_ref_names_the_instance_it_was_made_on() {
     assert_eq!(layer_ref(&Key::<Abbreviations>::named("gold")).to_string(), "turbo:abbreviations@gold");
     assert_eq!(Abbreviations::ID, "turbo:abbreviations");
 }
+
+/// The record of the first layer whose name starts with `prefix`, with
+/// its body's last `tail` bytes replaced.
+fn with_tail(prefix: &str, tail: &[u8]) -> DocumentGraph {
+    let mut graph = export(&document(), &codecs()).unwrap();
+    let at = graph.layers.iter().position(|l| l.layer.starts_with(prefix)).unwrap();
+    let body = graph.layers[at].body.as_mut().unwrap();
+    let n = body.len();
+    body[n - tail.len()..].copy_from_slice(tail);
+    graph
+}
+
+fn refused_as_malformed(graph: &DocumentGraph, what: &str) {
+    match import(graph, &codecs()) {
+        Err(ExportError::Malformed(_)) => {}
+        Ok(_) => panic!("{what} imported"),
+        Err(other) => panic!("{what} failed as {other}"),
+    }
+}
+
+#[test]
+fn a_group_payload_with_members_out_of_order_or_repeated_is_refused() {
+    // The one group is members 1 and 2: its last eight bytes.
+    let le = |a: u32, b: u32| [a.to_le_bytes(), b.to_le_bytes()].concat();
+    import(&with_tail("turbo:groups", &le(1, 2)), &codecs()).unwrap();
+    refused_as_malformed(&with_tail("turbo:groups", &le(2, 1)), "a group with members out of order");
+    refused_as_malformed(&with_tail("turbo:groups", &le(1, 1)), "a group with a repeated member");
+}
+
+#[test]
+fn an_edges_payload_with_rows_out_of_order_is_refused() {
+    // The two rows, 20 bytes each, are (1, 0, kind 0) then (2, 0, kind 1).
+    let row = |from: u32, kind: u32, score: f64| {
+        [from.to_le_bytes(), 0u32.to_le_bytes(), kind.to_le_bytes()].concat().into_iter().chain(score.to_le_bytes())
+    };
+    let swapped: Vec<u8> = row(2, 1, 0.5).chain(row(1, 0, 0.95)).collect();
+    refused_as_malformed(&with_tail("turbo:edges", &swapped), "edges out of (from, to, kind) order");
+}

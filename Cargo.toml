@@ -55,6 +55,7 @@ members = [
     "analysis/geo",
     "analysis/fuzz",
     "analysis/grammar",
+    "analysis/group",
     "analysis/wordnet",
     "analysis/hunspell",
     "analysis/zoo",
