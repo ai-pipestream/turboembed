@@ -3,16 +3,14 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::context::{FeedforwardPosContext, PRETRAINED_SLOTS, SLOTS, SentenceFeatures};
+use super::context::{ABSENT, FeedforwardPosContext, PRETRAINED_SLOTS, SLOTS, SentenceFeatures, UNKNOWN};
 use super::model::FeedforwardPosModel;
 use crate::neural::{JavaRng, NeuralError, PosSample};
 
 mod adagrad;
 mod settings;
-mod vocab;
 
 use adagrad::{adagrad_matrix, adagrad_vector, uniform_f32_matrix, update_weight};
-use vocab::{check_vector, register_all, register_vocab};
 
 pub use settings::FeedforwardSettings;
 
@@ -74,6 +72,9 @@ impl FeedforwardPosTrainer {
         let mut tag_set: HashSet<String> = HashSet::new();
 
         for sample in samples {
+            if sample.sentence.len() != sample.tags.len() {
+                return Err(NeuralError::InvalidArgument("tags must have the same length as sentence".into()));
+            }
             if sample.sentence.is_empty() {
                 continue;
             }
@@ -399,4 +400,71 @@ impl FeedforwardPosTrainer {
             pretrained_rows_vec,
         ))
     }
+}
+
+fn check_vector(word: &str, found: &[f32], pretrained_size: &mut usize) -> Result<Vec<f32>, NeuralError> {
+    if found.is_empty() {
+        return Err(NeuralError::InvalidArgument(format!("empty vector returned for '{word}'")));
+    }
+    if *pretrained_size == 0 {
+        *pretrained_size = found.len();
+    } else if found.len() != *pretrained_size {
+        return Err(NeuralError::InvalidArgument(format!(
+            "vector length mismatch for '{word}': expected {}, got {}",
+            *pretrained_size,
+            found.len()
+        )));
+    }
+    for (i, &v) in found.iter().enumerate() {
+        if !v.is_finite() {
+            return Err(NeuralError::InvalidArgument(format!(
+                "non-finite vector component for '{word}' at index {i}: {v}"
+            )));
+        }
+    }
+    Ok(found.to_vec())
+}
+
+fn register_vocab(
+    entries: &mut Vec<(String, usize)>,
+    order: &[String],
+    counts: &HashMap<String, usize>,
+    cutoff: usize,
+    mut next_row: usize,
+) -> usize {
+    let mut seen = HashSet::new();
+    entries.push((UNKNOWN.to_owned(), next_row));
+    seen.insert(UNKNOWN.to_owned());
+    next_row += 1;
+    entries.push((ABSENT.to_owned(), next_row));
+    seen.insert(ABSENT.to_owned());
+    next_row += 1;
+    for s in order {
+        if counts[s] >= cutoff && seen.insert(s.clone()) {
+            entries.push((s.clone(), next_row));
+            next_row += 1;
+        }
+    }
+    next_row
+}
+
+fn register_all<'a>(
+    entries: &mut Vec<(String, usize)>,
+    symbols: impl IntoIterator<Item = &'a str>,
+    mut next_row: usize,
+) -> usize {
+    let mut seen = HashSet::new();
+    entries.push((UNKNOWN.to_owned(), next_row));
+    seen.insert(UNKNOWN.to_owned());
+    next_row += 1;
+    entries.push((ABSENT.to_owned(), next_row));
+    seen.insert(ABSENT.to_owned());
+    next_row += 1;
+    for s in symbols {
+        if seen.insert(s.to_owned()) {
+            entries.push((s.to_owned(), next_row));
+            next_row += 1;
+        }
+    }
+    next_row
 }

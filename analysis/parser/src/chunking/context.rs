@@ -249,13 +249,15 @@ impl CheckContextGenerator {
         let pend = &constituents[end];
         check_cons(pstart, "begin", kind, features);
         check_cons(pend, "last", kind, features);
-        for p in &constituents[start..end] {
+        // OpenNLP's loops from `start` to `end` run zero times when `start` is past `end`.
+        let between = constituents.get(start..end).unwrap_or_default();
+        for p in between {
             check_cons_pair(p, pend, kind, features);
         }
         for (prefix, include_punctuation) in [("p", false), ("pp", true)] {
             let production = DisplayFn(|f: &mut fmt::Formatter<'_>| {
                 write!(f, "{prefix}={kind}->")?;
-                for p in &constituents[start..end] {
+                for p in between {
                     write!(f, "{},", p.kind())?;
                     if include_punctuation {
                         for punct in p.next_punctuation() {
