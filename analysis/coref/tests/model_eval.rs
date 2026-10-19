@@ -3,7 +3,7 @@
 //! logits without overflowing to NaN.
 
 use turbo_coref::{APART, CorefModel, LINK};
-use turbo_train::{JavaString, WritableModel, write_gis_writable};
+use turbo_train::{JavaString, WritableModel, write_gis_writable, write_qn_writable};
 
 /// A GIS model with one predicate `x` weighted `link` then `apart`.
 struct OneFeature {
@@ -37,6 +37,16 @@ fn model(link: f64, apart: f64) -> CorefModel {
         weights: [link, apart],
     };
     CorefModel::package("eng", write_gis_writable(&m).unwrap(), false, 0, None, 0).unwrap()
+}
+
+/// The same one-predicate model as a QN model.
+fn qn_model(link: f64, apart: f64) -> CorefModel {
+    let m = OneFeature {
+        outcomes: [JavaString::new(LINK), JavaString::new(APART)],
+        predicates: [JavaString::new("x")],
+        weights: [link, apart],
+    };
+    CorefModel::package("eng", write_qn_writable(&m).unwrap(), false, 0, None, 0).unwrap()
 }
 
 fn x() -> Vec<String> {
@@ -85,4 +95,26 @@ fn large_logits_do_not_overflow() {
         Ok(p) => assert!(p.is_finite() && (0.0..=1.0).contains(&p), "{p}"),
         Err(e) => assert!(e.contains("not finite"), "{e}"),
     }
+}
+
+#[test]
+fn moderate_qn_weights_give_the_softmax() {
+    let m = qn_model(1.0, 0.0);
+    let e = std::f64::consts::E;
+    let p = m.link_probability(&x(), Some(&[1.0])).unwrap();
+    assert!((p - e / (e + 1.0)).abs() < 1e-12, "{p}");
+    let binary = m.link_probability(&x(), None).unwrap();
+    assert!((binary - p).abs() < 1e-12, "{binary} {p}");
+}
+
+#[test]
+fn large_equal_qn_logits_remain_uniform() {
+    // max + ln(sum) rounds back to max at this magnitude, so a QN
+    // normalization through the log-sum-exp would leave every outcome
+    // at exp(0) = 1 instead of 1 / 2.
+    let m = qn_model(1e300, 1e300);
+    let p = m.link_probability(&x(), Some(&[1.0])).unwrap();
+    assert!((p - 0.5).abs() < 1e-12, "{p}");
+    let binary = m.link_probability(&x(), None).unwrap();
+    assert!((binary - 0.5).abs() < 1e-12, "{binary}");
 }

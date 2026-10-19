@@ -171,6 +171,14 @@ pub fn write_gis_writable(model: &dyn WritableModel) -> Result<Vec<u8>> {
 /// `GenericModelWriter(model, DataOutputStream).persist()` for a QN
 /// model: the bytes of the `.model` entry.
 pub fn write_qn(model: &QnModel) -> Result<Vec<u8>> {
+    write_qn_writable(model)
+}
+
+/// [`write_qn`] for any [`WritableModel`]: the `.model` entry of a QN
+/// model built outside the QN trainer, such as OpenNLP's
+/// `new QNModel(parameters, predicates, outcomes)` that a ranking
+/// trainer assembles from its own weights.
+pub fn write_qn_writable(model: &dyn WritableModel) -> Result<Vec<u8>> {
     let mut out = ModelOutput { bytes: Vec::new() };
     out.write_utf(&JavaString::new(QN_TYPE))?;
     write_body(&mut out, model)?;

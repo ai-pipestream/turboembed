@@ -135,9 +135,15 @@ impl CorefModel {
             None => {
                 let context: Vec<&str> = names.iter().map(String::as_str).collect();
                 self.pair.eval(&context, &mut out);
-                // The JVM's eval overflows to NaN on large logits; the
-                // real-valued path with every value one normalizes them.
-                if !out.iter().all(|p| p.is_finite()) && self.pair.kind() != ModelKind::NaiveBayes {
+                // The JVM's eval overflows to NaN on large logits, and a
+                // QN eval can stay finite but unnormalized when
+                // max + ln(sum) rounds back to max; the real-valued path
+                // with every value one normalizes them.
+                let sum: f64 = out.iter().sum();
+                let normalized = out.iter().all(|p| p.is_finite() && (0.0..=1.0).contains(p))
+                    && sum.is_finite()
+                    && (sum - 1.0).abs() <= 1e-6;
+                if !normalized && self.pair.kind() != ModelKind::NaiveBayes {
                     self.eval_values(names, &vec![1.0; names.len()], &mut out)?;
                 }
             }
@@ -183,10 +189,16 @@ impl CorefModel {
         }
         match self.pair.kind() {
             ModelKind::Qn => {
+                // exp(x - max) / sum over the shifted weights: max +
+                // ln(sum) rounds back to max on large logits, which would
+                // leave every outcome at exp(0) = 1.
                 let max = out.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-                let sum: f64 = out.iter().map(|&x| strict_math::exp(x - max)).sum();
-                let lse = max + strict_math::log(sum);
-                out.iter_mut().for_each(|x| *x = strict_math::exp(*x - lse));
+                let mut sum = 0.0;
+                for x in out.iter_mut() {
+                    *x = strict_math::exp(*x - max);
+                    sum += *x;
+                }
+                out.iter_mut().for_each(|x| *x /= sum);
             }
             kind => {
                 if kind == ModelKind::Perceptron {
