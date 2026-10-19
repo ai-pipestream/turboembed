@@ -191,6 +191,7 @@ impl<A: WordOrTokenAnchor> LayerCodec for Dependencies<A> {
         let layer = Dependencies { head, relation, relations };
         // Keep direct codec calls checked as well as Document insertion.
         layer.check().map_err(malformed)?;
+        layer.check_forest().map_err(malformed)?;
         Ok(layer)
     }
 }

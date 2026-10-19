@@ -134,9 +134,9 @@ impl Layer for Terms {
 /// A head and a relation per token or syntactic word (`A = Tokens` by
 /// default: `opennlp:dependencies`; `A = Words`:
 /// `opennlp:dependencies<turbo:words>`): the tree is the columns, no nodes.
-/// Validation rejects cycles, including cycles in a separate component, so
-/// insertion into a document guarantees a forest. The check takes O(n) time
-/// and one `usize` per item in scratch space (none for an all-root forest).
+/// `Layer::check` validates columns and head indices without allocating.
+/// Call [`Self::check_forest`] to also reject multi-node cycles. Document
+/// insertion alone permits such cycles; parser graphs and wire import do not.
 pub struct Dependencies<A: WordOrTokenAnchor = Tokens> {
     pub head: Vec<Option<Ix<A>>>,
     pub relation: Vec<Tag>,
@@ -173,17 +173,14 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
     }
     fn check(&self) -> Result<(), String> {
         let n = self.head.len();
-        let count = u32::try_from(n).map_err(|_| "dependency count exceeds u32".to_owned())?;
         if self.relation.len() != n {
             return Err("a relation for every dependency head".into());
         }
         if self.relation.iter().any(|r| r.0 as usize >= self.relations.len()) {
             return Err(format!("a relation outside {}", self.relations.name));
         }
-        let mut has_heads = false;
         for (i, &h) in self.head.iter().enumerate() {
             if let Some(h) = h {
-                has_heads = true;
                 if h.get() >= n {
                     return Err(format!("dependency head {} at {i} is out of bounds ({n})", h.get()));
                 }
@@ -192,33 +189,52 @@ impl<A: WordOrTokenAnchor> Layer for Dependencies<A> {
                 }
             }
         }
-        if !has_heads {
-            return Ok(());
-        }
-        // Walk tags visit each head once. A previous walk has already
-        // reached a root; meeting this walk's tag instead proves a cycle.
-        let mut seen = vec![0u32; n];
-        for start in 0..count {
-            let tag = start + 1;
-            let start = start as usize;
-            if seen[start] != 0 {
-                continue;
-            }
-            let mut at = start;
-            while seen[at] == 0 {
-                seen[at] = tag;
-                match self.head[at] {
-                    Some(h) => at = h.get(),
-                    None => break,
-                }
-            }
-            if seen[at] == tag && self.head[at].is_some() {
-                return Err(format!("dependency cycle at item {at}"));
-            }
-        }
 
         Ok(())
     }
+}
+
+impl<A: WordOrTokenAnchor> Dependencies<A> {
+    /// Validates the columns and proves that all head chains end at roots.
+    /// Safe to call directly, without a preceding `Layer::check` call.
+    /// Takes O(n) time and 4 bytes per item in scratch space; an all-root
+    /// forest needs no scratch allocation. Counts must fit in `u32`.
+    pub fn check_forest(&self) -> Result<(), String> {
+        self.check()?;
+        u32::try_from(self.head.len()).map_err(|_| "dependency count exceeds u32".to_owned())?;
+        match dependency_cycle(&self.head) {
+            Some(at) => Err(format!("dependency cycle at item {at}")),
+            None => Ok(()),
+        }
+    }
+}
+
+/// Requires in-range heads and a count that fits in `u32`.
+pub(crate) fn dependency_cycle<A>(head: &[Option<Ix<A>>]) -> Option<usize> {
+    if head.iter().all(Option::is_none) {
+        return None;
+    }
+    // A prior walk ended at a root; this walk's own tag proves a cycle.
+    let mut seen = vec![0u32; head.len()];
+    for start in 0..head.len() as u32 {
+        let tag = start + 1;
+        let start = start as usize;
+        if seen[start] != 0 {
+            continue;
+        }
+        let mut at = start;
+        while seen[at] == 0 {
+            seen[at] = tag;
+            match head[at] {
+                Some(h) => at = h.get(),
+                None => break,
+            }
+        }
+        if seen[at] == tag && head[at].is_some() {
+            return Some(at);
+        }
+    }
+    None
 }
 
 pub struct Entities {

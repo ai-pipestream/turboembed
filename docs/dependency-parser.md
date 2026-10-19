@@ -11,7 +11,12 @@ No pretrained language model is bundled.
 `WordOrTokenAnchor::Pos` selects token or word POS at compile time.
 
 `new` requires a nonempty single-root tree; `from_layer` accepts forests.
-The shared `Dependencies<A>` check rejects cycles in O(n), without recursion.
+`Dependencies<A>::check()` validates column lengths, relation tags and head
+indices, including self-loop rejection, without allocating. Multi-node cycles
+are allowed at that boundary, including direct `Document::add` insertion.
+`check_forest()` adds O(n) cycle rejection without recursion and validates
+structural inputs itself. Graph import, annotation and wire decoding call it
+after the structural check; callers needing a forest can opt in directly.
 Navigation includes `roots`, `root`, `arc`, `children`, `shortest_path` and
 `lowest_common_ancestor`. Path steps retain labels and `ToHead`/`ToDependent`
 directions. Separate trees have no connecting path. Invalid indexes return

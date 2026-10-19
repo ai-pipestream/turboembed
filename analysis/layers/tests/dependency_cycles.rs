@@ -9,7 +9,7 @@ fn dependency_forests_reject_nontrivial_cycles() {
         relation: vec![Tag(0); 3],
         relations,
     };
-    assert!(layer.check().is_err(), "a rooted component must not hide a cycle");
+    assert!(layer.check_forest().is_err(), "a rooted component must not hide a cycle");
 }
 
 #[test]
@@ -21,12 +21,12 @@ fn long_chains_and_multiple_roots_are_valid_forests() {
         relation: vec![Tag(0); n as usize],
         relations: TagSet::new("dep", &["dep"]),
     };
-    layer.check().unwrap();
+    layer.check_forest().unwrap();
     heads[99_999] = Some(Ix::new(0));
     layer.head = heads;
-    assert!(layer.check().is_err());
+    assert!(layer.check_forest().is_err());
     layer.head.fill(None);
-    layer.check().unwrap();
+    layer.check_forest().unwrap();
 }
 
 #[test]
@@ -57,13 +57,13 @@ fn all_small_head_assignments_match_a_per_node_cycle_search() {
                 relation: vec![Tag(0); n],
                 relations: TagSet::new("dep", &["dep"]),
             };
-            assert_eq!(layer.check().is_ok(), acyclic, "heads: {:?}", layer.head);
+            assert_eq!(layer.check_forest().is_ok(), acyclic, "heads: {:?}", layer.head);
         }
     }
 }
 
 #[test]
-fn document_insertion_refuses_a_cycle_in_a_separate_component() {
+fn document_insertion_accepts_structurally_valid_cycles() {
     use turbo_analysis::{Document, Key, Provenance, Span, Spans, ViewId};
     let mut doc = Document::new("a b c");
     let mut spans = Spans::new(ViewId::SOURCE);
@@ -76,7 +76,31 @@ fn document_insertion_refuses_a_cycle_in_a_separate_component() {
         relation: vec![Tag(0); 3],
         relations: TagSet::new("dep", &["dep"]),
     };
-    let err = doc.add(&Key::DEFAULT, layer, Provenance::by("test")).unwrap_err();
-    assert!(err.to_string().contains("cycle"), "{err}");
-    assert!(doc.get::<Dependencies<Tokens>>().is_none());
+    doc.add(&Key::DEFAULT, layer, Provenance::by("test")).unwrap();
+    assert!(doc.get::<Dependencies<Tokens>>().unwrap().check_forest().is_err());
+}
+
+#[test]
+fn structural_check_accepts_multi_node_cycles() {
+    let layer = Dependencies::<Tokens> {
+        head: vec![Some(Ix::new(1)), Some(Ix::new(0)), None],
+        relation: vec![Tag(0); 3],
+        relations: TagSet::new("dep", &["dep"]),
+    };
+    layer.check().unwrap();
+    assert!(layer.check_forest().is_err());
+}
+
+#[test]
+fn forest_check_validates_untrusted_columns_before_walking() {
+    for (heads, relations) in [
+        (vec![Some(Ix::new(9))], vec![Tag(0)]),
+        (vec![None], vec![]),
+        (vec![None], vec![Tag(1)]),
+        (vec![Some(Ix::new(0))], vec![Tag(0)]),
+    ] {
+        let layer =
+            Dependencies::<Tokens> { head: heads, relation: relations, relations: TagSet::new("dep", &["dep"]) };
+        assert!(layer.check_forest().is_err());
+    }
 }

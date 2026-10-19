@@ -90,6 +90,7 @@ impl<A: WordOrTokenAnchor> Annotator for DependencyAnnotator<A> {
         let layer =
             Dependencies { head: heads, relation: tags, relations: turbo_analysis::TagSet::new("dependency", &labels) };
         layer.check().map_err(fail)?;
+        layer.check_forest().map_err(fail)?;
         Ok((layer,))
     }
     fn model(&self) -> Option<ModelRef> {

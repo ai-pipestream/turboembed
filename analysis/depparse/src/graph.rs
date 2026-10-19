@@ -72,6 +72,7 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
     }
     pub fn from_layer(layer: Dependencies<A>) -> Result<Self> {
         layer.check().map_err(error)?;
+        layer.check_forest().map_err(error)?;
         if layer.head.len() > u32::MAX as usize {
             return Err(error("too many nodes"));
         }

@@ -1,5 +1,11 @@
 # Dependency parser validation
 
+Current contract: `check()` performs structural validation only.
+`check_forest()` also rejects multi-node cycles. Graph import, annotation and
+wire decoding request forest validation; direct Document insertion permits
+structurally valid cycles. The mandatory-check timings below describe earlier
+revisions and do not describe the current API.
+
 Base: `ad85be5e42c350bfc4c9633cc9c4e317b28ebab5`.
 Reference Java commit: `db39bfe35fb28f47a463a74d13e4721020caec15`.
 
@@ -29,7 +35,7 @@ Counts: 117 layer tests and 21 parser tests (including a compile-fail type
 check), 258 format tests, and 3 repository-tree checks. The largest touched
 Rust source is 467 lines. No runtime regex dependency was added.
 
-## Forest validation follow-up
+## Historical mandatory forest validation follow-up
 
 Cycle rejection remains part of `Dependencies::check` and `Document::add`.
 CoNLL-U dependency layers with cyclic HEAD columns are rejected on insertion;
@@ -82,7 +88,7 @@ Use widths 1 and 1000000 for the additional forest shapes.
 Follow-up gates: fmt, required clippy, 140 parser/layer tests, and 3 repository
 file-reference checks pass. Sanitized output is in the `cycle-*.log` files.
 
-## Compact walk tags
+## Historical compact walk tags
 
 A further release comparison uses the same CPU, pinning, forest shapes and
 warm-up/timing protocol. Five ABBA rounds compare `f69087df` (`usize`) with

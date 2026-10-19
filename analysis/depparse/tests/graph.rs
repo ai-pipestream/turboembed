@@ -93,3 +93,15 @@ fn invalid_transitions_do_not_mutate_state() {
     let t = Transition::decode("LEFT_ARC:nsubj:pass").unwrap();
     assert_eq!(t.encode(), "LEFT_ARC:nsubj:pass");
 }
+
+#[test]
+fn graph_import_rejects_a_structurally_valid_cycle() {
+    let layer = Dependencies::<Tokens> {
+        head: vec![None, Some(Ix::new(2)), Some(Ix::new(1))],
+        relation: vec![Tag(0); 3],
+        relations: TagSet::new("dep", &["dep"]),
+    };
+    layer.check().unwrap();
+    assert!(layer.check_forest().is_err());
+    assert!(DependencyGraph::from_layer(layer).is_err());
+}
