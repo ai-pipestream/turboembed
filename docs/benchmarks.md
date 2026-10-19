@@ -870,7 +870,7 @@ only for the library version it was measured with. A later commit of the
 same version may run different code, and the record still names the
 commit it was measured at; a new version number needs new records.
 
-`core/src/record.rs` holds the schema, the name, the checks and the
+`core/src/record/mod.rs` holds the schema, the name, the checks and the
 rule; the tool writes records through the same types and checks, and
 `core/tests/conformance.rs` uses the same tolerances.
 

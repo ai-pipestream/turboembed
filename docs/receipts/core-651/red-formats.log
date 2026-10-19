@@ -1,0 +1,57 @@
+   Compiling turbo v0.1.0 (./core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running tests/format_boundaries.rs (target/core/debug/deps/format_boundaries-2f78233dd9768395)
+
+running 6 tests
+test manifest_rejects_trailing_values_and_garbage ... FAILED
+test manifest_rejects_nul_in_c_header_strings ... FAILED
+test speed_helpers_do_not_report_invalid_measurements ... FAILED
+test record_rejects_mean_outside_observed_range ... FAILED
+test record_rejects_duplicate_reference_names ... FAILED
+test record_rejects_overflowed_and_underflowed_speed_ratios ... FAILED
+
+failures:
+
+---- manifest_rejects_trailing_values_and_garbage stdout ----
+
+thread 'manifest_rejects_trailing_values_and_garbage' (417809) panicked at core/tests/format_boundaries.rs:12:9:
+accepted trailing {}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- manifest_rejects_nul_in_c_header_strings stdout ----
+
+thread 'manifest_rejects_nul_in_c_header_strings' (417808) panicked at core/tests/format_boundaries.rs:23:5:
+assertion failed: Manifest::parse(&serde_json::to_vec(&json).unwrap()).is_err()
+
+---- speed_helpers_do_not_report_invalid_measurements stdout ----
+
+thread 'speed_helpers_do_not_report_invalid_measurements' (417813) panicked at core/tests/format_boundaries.rs:67:5:
+assertion failed: record::fastest(&refs).is_none()
+
+---- record_rejects_mean_outside_observed_range stdout ----
+
+thread 'record_rejects_mean_outside_observed_range' (417811) panicked at core/tests/format_boundaries.rs:52:5:
+assertion failed: r.check().is_err()
+
+---- record_rejects_duplicate_reference_names stdout ----
+
+thread 'record_rejects_duplicate_reference_names' (417810) panicked at core/tests/format_boundaries.rs:59:5:
+assertion failed: r.check().is_err()
+
+---- record_rejects_overflowed_and_underflowed_speed_ratios stdout ----
+
+thread 'record_rejects_overflowed_and_underflowed_speed_ratios' (417812) panicked at core/tests/format_boundaries.rs:44:9:
+unrepresentable derived speed accepted
+
+
+failures:
+    manifest_rejects_nul_in_c_header_strings
+    manifest_rejects_trailing_values_and_garbage
+    record_rejects_duplicate_reference_names
+    record_rejects_mean_outside_observed_range
+    record_rejects_overflowed_and_underflowed_speed_ratios
+    speed_helpers_do_not_report_invalid_measurements
+
+test result: FAILED. 0 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p turbo --test format_boundaries`
