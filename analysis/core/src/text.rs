@@ -179,7 +179,7 @@ pub struct ViewBuilder<'a> {
 
 impl<'a> ViewBuilder<'a> {
     pub fn new(parent: &'a str) -> ViewBuilder<'a> {
-        ViewBuilder { parent: out_cap(parent), out: String::with_capacity(parent.len()), edits: Vec::new(), at: 0 }
+        ViewBuilder { parent, out: String::with_capacity(parent.len()), edits: Vec::new(), at: 0 }
     }
 
     /// Where the builder is in the parent.
@@ -194,7 +194,8 @@ impl<'a> ViewBuilder<'a> {
     }
 
     /// Writes `with` in place of the parent's bytes up to `end`. An empty
-    /// `with` deletes them; `end` at the current position inserts.
+    /// `with` deletes them; `end` at the current position inserts. One call
+    /// records one edit; calls are not merged.
     pub fn replace(&mut self, end: usize, with: &str) {
         let parent = Span::new(self.at as u32, end as u32);
         let child = Span::new(self.out.len() as u32, (self.out.len() + with.len()) as u32);
@@ -210,11 +211,6 @@ impl<'a> ViewBuilder<'a> {
         self.keep(end);
         (self.out, Alignment { edits: self.edits })
     }
-}
-
-#[inline]
-const fn out_cap(parent: &str) -> &str {
-    parent
 }
 
 #[cfg(test)]

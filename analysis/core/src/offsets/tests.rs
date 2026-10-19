@@ -106,4 +106,24 @@ fn typed_unit_spans_round_trip_and_check_bounds() {
     assert!(t.span_from_utf16(text, rev_u16).is_err());
     let rev_cp = CodePointSpan { start: CodePointOffset(3), end: CodePointOffset(1) };
     assert!(t.span_from_code_point(text, rev_cp).is_err());
+
+    // Reversed spans on a derived view report the derived ViewId, not ViewId(0).
+    let mut doc = crate::Document::new(text);
+    let v0 = doc.get::<crate::View>().unwrap().clone();
+    let mut b = crate::ViewBuilder::new(v0.text());
+    b.keep(text.len());
+    let (derived_text, align) = b.finish();
+    let v1_key = crate::Key::<crate::View>::named("v1");
+    doc.add(&v1_key, crate::View::derived(&v0, derived_text, align), crate::Provenance::by("test")).unwrap();
+    let v1 = doc.get_key(&v1_key).unwrap();
+    let v1_id = v1.id();
+    assert_eq!(v1_id, crate::ViewId(1));
+    let rev_u16_v1 = Utf16Span { start: Utf16Offset(2), end: Utf16Offset(1) };
+    let rev_cp_v1 = CodePointSpan { start: CodePointOffset(2), end: CodePointOffset(1) };
+    assert!(matches!(v1.span_from_utf16(rev_u16_v1), Err(Error::Bounds { view, .. }) if view == v1_id));
+    assert!(matches!(v1.span_from_code_point(rev_cp_v1), Err(Error::Bounds { view, .. }) if view == v1_id));
+    assert!(matches!(doc.view_span_from_utf16(v1_id, rev_u16_v1), Err(Error::Bounds { view, .. }) if view == v1_id));
+    assert!(
+        matches!(doc.view_span_from_code_point(v1_id, rev_cp_v1), Err(Error::Bounds { view, .. }) if view == v1_id)
+    );
 }

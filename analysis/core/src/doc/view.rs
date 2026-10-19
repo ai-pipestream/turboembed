@@ -54,23 +54,37 @@ impl View {
     }
 
     /// Converts a byte [`Span`] in this view into a [`Utf16Span`].
+    ///
+    /// `s` must lie on character boundaries of this view's text; use
+    /// [`Document::view_span_to_utf16`](crate::Document::view_span_to_utf16)
+    /// for a checked conversion.
     pub fn span_to_utf16(&self, s: Span) -> Utf16Span {
         self.offsets().span_to_utf16_typed(&self.text, s)
     }
 
     /// Converts a [`Utf16Span`] in this view into a byte [`Span`].
     pub fn span_from_utf16(&self, s: Utf16Span) -> Result<Span, Error> {
-        self.offsets().span_from_utf16(&self.text, s)
+        self.offsets().span_from_utf16(&self.text, s).map_err(|e| match e {
+            Error::Bounds { layer, detail, .. } => Error::Bounds { layer, view: self.id, detail },
+            other => other,
+        })
     }
 
     /// Converts a byte [`Span`] in this view into a [`CodePointSpan`].
+    ///
+    /// `s` must lie on character boundaries of this view's text; use
+    /// [`Document::view_span_to_code_point`](crate::Document::view_span_to_code_point)
+    /// for a checked conversion.
     pub fn span_to_code_point(&self, s: Span) -> CodePointSpan {
         self.offsets().span_to_code_point_typed(&self.text, s)
     }
 
     /// Converts a [`CodePointSpan`] in this view into a byte [`Span`].
     pub fn span_from_code_point(&self, s: CodePointSpan) -> Result<Span, Error> {
-        self.offsets().span_from_code_point(&self.text, s)
+        self.offsets().span_from_code_point(&self.text, s).map_err(|e| match e {
+            Error::Bounds { layer, detail, .. } => Error::Bounds { layer, view: self.id, detail },
+            other => other,
+        })
     }
 }
 
