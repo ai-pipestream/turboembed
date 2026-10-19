@@ -699,8 +699,10 @@ fn scan_lexicon(
     // Walk the unit once: at each token, try only the patterns starting with
     // that token (the lexicon's first-token index). A pattern's matches stay
     // non-overlapping: after a match at `i`, `next_from` skips it forward past
-    // the matched run. `score_unit` sorts evidence afterwards, so the
-    // position-major order here is not observable.
+    // the matched run. Matched hits are then sorted by `(entry_idx, start)` so
+    // probabilistic folding and evidence order match the entry-major reference
+    // scan bit-for-bit.
+    let mut hits: Vec<(u32, u32, u32, IncivilityLabel, f64)> = Vec::new();
     let mut next_from = vec![0usize; lexicon.entries.len()];
     for i in tok_start..tok_end {
         let w = token_lower[i].as_str();
@@ -708,7 +710,7 @@ fn scan_lexicon(
         let (_, lo, hi) = lexicon.first_token[group];
         let entry_run = &lexicon.entries[lo as usize..hi as usize];
         let next_run = &mut next_from[lo as usize..hi as usize];
-        for ((pat, label, weight), next) in entry_run.iter().zip(next_run.iter_mut()) {
+        for (offset, ((pat, label, weight), next)) in entry_run.iter().zip(next_run.iter_mut()).enumerate() {
             if i < *next {
                 continue;
             }
@@ -730,15 +732,20 @@ fn scan_lexicon(
                     && i > tok_start
                     && matches!(token_lower[i - 1].as_str(), "not" | "never" | "no");
                 if !negated_mild {
-                    let prev = scores.get(*label);
-                    let combined =
-                        if prev > 0.0 { (1.0 - (1.0 - prev) * (1.0 - *weight)).clamp(0.0, 1.0) } else { *weight };
-                    scores.set(*label, combined);
-                    evidence.push((*label, IxRange::new(i as u32, (i + pat_len) as u32)));
+                    let entry_idx = lo + offset as u32;
+                    hits.push((entry_idx, i as u32, (i + pat_len) as u32, *label, *weight));
                 }
                 *next = i + pat_len;
             }
         }
+    }
+
+    hits.sort_unstable_by_key(|&(entry_idx, start, _, _, _)| (entry_idx, start));
+    for (_, start, end, label, weight) in hits {
+        let prev = scores.get(label);
+        let combined = if prev > 0.0 { (1.0 - (1.0 - prev) * (1.0 - weight)).clamp(0.0, 1.0) } else { weight };
+        scores.set(label, combined);
+        evidence.push((label, IxRange::new(start, end)));
     }
 
     (scores, evidence)
@@ -1094,6 +1101,7 @@ mod tests {
         lexicon.insert("stupid", IncivilityLabel::Insult, 0.7);
         lexicon.insert("not", IncivilityLabel::Threat, 0.3);
         lexicon.insert("kill you", IncivilityLabel::Threat, 0.9);
+        let bundled = IncivilityLexicon::bundled();
 
         let cases: &[&[&str]] = &[
             &["a", "a", "a"],
@@ -1103,26 +1111,47 @@ mod tests {
             &["not"],
             &["x", "y", "z"],
             &["kill", "you", "kill", "you"],
+            &["damned", "crap", "crap"],
+            &["shitty", "damn", "crap", "hell"],
+            &["loser", "idiot", "moron", "clown"],
             &[],
         ];
-        for case in cases {
-            let token_lower: Vec<String> = case.iter().map(|s| s.to_string()).collect();
-            for (start, end) in [(0, case.len()), (1, case.len()), (0, case.len().saturating_sub(1))] {
-                if start > end || end > case.len() {
-                    continue;
+        for lex in [&lexicon, &bundled] {
+            for case in cases {
+                let token_lower: Vec<String> = case.iter().map(|s| s.to_string()).collect();
+                for (start, end) in [(0, case.len()), (1, case.len()), (0, case.len().saturating_sub(1))] {
+                    if start > end || end > case.len() {
+                        continue;
+                    }
+                    let (got_scores, got_evidence) = scan_lexicon(lex, &token_lower, start, end);
+                    let (want_scores, want_evidence) = reference_scan_lexicon(lex, &token_lower, start, end);
+                    for label in IncivilityLabel::ALL {
+                        assert_eq!(
+                            got_scores.get(label).to_bits(),
+                            want_scores.get(label).to_bits(),
+                            "bitwise score mismatch for {label} on {case:?} over {start}..{end}"
+                        );
+                    }
+                    assert_eq!(got_evidence, want_evidence, "evidence mismatch on {case:?} over {start}..{end}");
                 }
-                let (got_scores, mut got_evidence) = scan_lexicon(&lexicon, &token_lower, start, end);
-                let (want_scores, mut want_evidence) = reference_scan_lexicon(&lexicon, &token_lower, start, end);
-                assert_eq!(got_scores, want_scores, "score mismatch on {case:?} over {start}..{end}");
-                // `scan_lexicon` is position-major now; `score_unit` sorts and
-                // dedups evidence by (label, start, end), so parity is checked
-                // in that canonical order.
-                let key = |&(l, r): &(IncivilityLabel, IxRange<Tokens>)| (l, r.start, r.end);
-                got_evidence.sort_unstable_by_key(key);
-                want_evidence.sort_unstable_by_key(key);
-                assert_eq!(got_evidence, want_evidence, "evidence mismatch on {case:?} over {start}..{end}");
             }
         }
+
+        // Exact IEEE-754 bit parity and threshold classification parity on the
+        // 3-hit out-of-entry-order case `["damned", "crap", "crap"]` where
+        // `"crap"` precedes `"damned"` in the canonical lexicon order.
+        let dcc: Vec<String> = ["damned", "crap", "crap"].into_iter().map(String::from).collect();
+        let (dcc_scores, _) = scan_lexicon(&bundled, &dcc, 0, 3);
+        let (ref_scores, _) = reference_scan_lexicon(&bundled, &dcc, 0, 3);
+        let expected_profanity = 0.9630080000000001_f64;
+        assert_eq!(dcc_scores.profanity.to_bits(), expected_profanity.to_bits());
+        assert_eq!(dcc_scores.profanity.to_bits(), ref_scores.profanity.to_bits());
+
+        let ann = IncivilityAnnotator::new().with_threshold(expected_profanity);
+        let (unit_scores, unit_ev) = ann.score_unit(&dcc, 0, 3, None, None).unwrap();
+        assert_eq!(unit_scores.profanity.to_bits(), expected_profanity.to_bits());
+        assert!(unit_scores.profanity >= ann.threshold);
+        assert_eq!(unit_ev.len(), 3);
     }
 
     fn make_doc_with_sentences(text: &str, sent_ranges: &[(u32, u32)]) -> Document {
