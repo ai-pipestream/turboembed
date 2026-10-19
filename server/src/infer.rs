@@ -116,7 +116,7 @@ pub fn plan(req: &ModelInferRequest) -> Result<Plan<'_>> {
 
     // Raw or typed, not both.
     let raw = !req.raw_input_contents.is_empty();
-    if raw && req.inputs.iter().any(|i| i.contents.is_some()) {
+    if raw && req.inputs.iter().filter_map(|i| i.contents.as_ref()).any(has_contents) {
         return Err(bad("the request has both raw_input_contents and typed contents"));
     }
     if raw && req.raw_input_contents.len() != req.inputs.len() {
@@ -200,6 +200,17 @@ fn shape(i: &InferInputTensor, rank: usize) -> Result<Vec<u32>> {
                 .map_err(|_| bad_shape(format!("input `{}` has extent {e}, outside 0 to 4294967295", i.name)))
         })
         .collect()
+}
+
+fn has_contents(c: &InferTensorContents) -> bool {
+    !c.bool_contents.is_empty()
+        || !c.int_contents.is_empty()
+        || !c.int64_contents.is_empty()
+        || !c.uint_contents.is_empty()
+        || !c.uint64_contents.is_empty()
+        || !c.fp32_contents.is_empty()
+        || !c.fp64_contents.is_empty()
+        || !c.bytes_contents.is_empty()
 }
 
 /// Refuses contents in any typed field but `keep`.
@@ -409,5 +420,24 @@ mod tests {
         for bad in [&b[..b.len() - 1], &[1, 0, 0][..], &[5, 0, 0, 0, b'a'][..]] {
             assert_eq!(split_bytes(bad).err().map(|e| e.code), Some(TURBO_E_INVALID_ARGUMENT));
         }
+
+        let mut req = ModelInferRequest {
+            model_name: "tiny".into(),
+            model_version: String::new(),
+            id: String::new(),
+            parameters: HashMap::new(),
+            inputs: vec![InferInputTensor {
+                name: "texts".into(),
+                datatype: "BYTES".into(),
+                shape: vec![3],
+                parameters: HashMap::new(),
+                contents: Some(InferTensorContents::default()),
+            }],
+            outputs: Vec::new(),
+            raw_input_contents: vec![b],
+        };
+        assert!(plan(&req).is_ok());
+        req.inputs[0].contents.as_mut().unwrap().bytes_contents.push(b"hi".to_vec());
+        assert_eq!(plan(&req).err().map(|e| e.code), Some(TURBO_E_INVALID_ARGUMENT));
     }
 }

@@ -62,7 +62,9 @@ impl<'d> Stemmer<'d> {
     /// The first of [`Stemmer::stems`], `None` when there is none. OpenNLP's
     /// `stem` returns the word itself in that case.
     pub fn stem(&self, word: &str) -> Option<String> {
-        self.stems(word).into_iter().next()
+        let input = self.dictionary.input_form(word);
+        let found = self.find_word(&input, false);
+        found.first().map(|stem| self.dictionary.output_form(stem).into_owned())
     }
 
     /// The morphological analyses of `word`: each a space separated list
@@ -248,6 +250,23 @@ impl Analysis<'_> {
     fn note_forbidden(&mut self, dictionary: &Dictionary, entry: EntryId, flag: crate::flag::Flag) {
         if dictionary.forbids_affixed(dictionary.flags(entry), flag) {
             self.results.forbidden = true;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::LoadMode;
+
+    #[test]
+    fn stem_is_the_first_of_stems() {
+        let aff = b"SET UTF-8\nOCONV 1\nOCONV k K\nSFX S Y 1\nSFX S 0 s .\n";
+        let dic = b"2\nwalk/S\nwalks\n";
+        let dict = Dictionary::from_bytes(aff, dic, LoadMode::Strict).unwrap();
+        let s = Stemmer::new(&dict);
+        for w in ["walks", "walk", "walks.", "walkss", "unknown", ""] {
+            assert_eq!(s.stem(w), s.stems(w).into_iter().next(), "{w:?}");
         }
     }
 }

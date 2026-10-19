@@ -235,7 +235,7 @@ impl SymSpell {
             },
             None => {
                 let estimate = s1.count as f64 / n_max as f64 * s2.count as f64;
-                self.min_bigram_count.min(estimate as i64 as u64)
+                self.min_bigram_count().min(estimate as i64 as u64)
             }
         }
     }

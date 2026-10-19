@@ -27,6 +27,11 @@
 //!   [`AspectTarget::Implicit`] aspect to the sentence, pools its span via
 //!   `#263`, and scores polarity and category.
 
+mod decode;
+mod fit;
+#[cfg(test)]
+mod tests;
+
 use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, Execution, Ix, IxRange, Layer, ModelRef, Refs, Span, Tag, TagSet, View};
@@ -35,20 +40,18 @@ use turbo_analysis_layers::{
     Tokens, Vectors,
 };
 
-use crate::centroids::{CentroidNorm, LabelCentroids, fnv1a};
-use crate::heads::{ClassifierHead, ScoringHead};
+use self::decode::{
+    DecodedAspect, DecodedOpinion, TAG_O, assign_clauses, decode_bio_spans, is_token_negated, link_decoded_opinions,
+    token_range_span, unit_l2,
+};
+use crate::centroids::{LabelCentroids, fnv1a};
+use crate::heads::ScoringHead;
 use crate::vectors::VectorAnnotator;
-use crate::window::{Which, pieces_of};
+use crate::window::Which;
 
 /// Standard 5-class BIO tag labels for joint aspect term and opinion
 /// expression extraction (`O`, `B-ASP`, `I-ASP`, `B-OP`, `I-OP`).
 pub const BIO_ASPECT_OPINION_LABELS: &[&str; 5] = &["O", "B-ASP", "I-ASP", "B-OP", "I-OP"];
-
-const TAG_O: u16 = 0;
-const TAG_B_ASP: u16 = 1;
-const TAG_I_ASP: u16 = 2;
-const TAG_B_OP: u16 = 3;
-const TAG_I_OP: u16 = 4;
 
 /// Builds the canonical 5-label BIO [`TagSet`] (`"bio-aspect-opinion"`).
 pub fn bio_aspect_opinion_tagset() -> Arc<TagSet> {
@@ -118,175 +121,6 @@ impl LearnedAspectSentiment {
         }
         self
     }
-
-    /// Fits a `LearnedAspectSentiment` deterministically from labeled ABSA
-    /// documents:
-    /// - Extracts contextual subword vectors via [`VectorAnnotator::embed_subwords`]
-    ///   and fits a 5-class BIO [`ClassifierHead`] (`O`, `B-ASP`, `I-ASP`,
-    ///   `B-OP`, `I-OP`).
-    /// - Pools opinion and aspect subword ranges via [`VectorAnnotator::embed_spans`]
-    ///   (`#263`) and fits a 3-class polarity [`ClassifierHead`] (`positive`,
-    ///   `negative`, `neutral`).
-    /// - Computes [`LabelCentroids`] over aspect category labels from the
-    ///   pooled aspect vectors.
-    pub fn fit(
-        vectors: Arc<VectorAnnotator>,
-        category_labels: &[&str],
-        docs: &[LabeledAbsaDoc<'_>],
-        l2_reg: f64,
-        epochs: usize,
-        lr: f64,
-    ) -> Result<Self, String> {
-        let dim = vectors.dim();
-        let model = vectors.model().clone();
-        let bio_tags = bio_aspect_opinion_tagset();
-        let pol_tags = TagSet::new("sentiment", &["positive", "negative", "neutral"]);
-        let cat_tags = TagSet::new("aspect-categories", category_labels);
-
-        let mut bio_vecs: Vec<(Vec<f32>, Tag)> = Vec::new();
-        let mut pol_vecs: Vec<(Vec<f32>, Tag)> = Vec::new();
-        let mut cat_buckets: Vec<Vec<Vec<f32>>> = vec![Vec::new(); cat_tags.len()];
-
-        for doc in docs {
-            let sub_vecs = vectors
-                .embed_subwords("turbo:aspect-sentiment-learned:fit", doc.subwords, Some(&doc.sentences.spans))
-                .map_err(|e| e.to_string())?;
-
-            // Label every token with BIO tag, then project token BIO tags to subwords.
-            let n_tokens = doc.tokens.len();
-            let mut tok_bio = vec![Tag(TAG_O); n_tokens];
-            for &(range, _, _) in doc.aspects {
-                let s = range.start.get();
-                let e = range.end.get().min(n_tokens);
-                if s < e {
-                    tok_bio[s] = Tag(TAG_B_ASP);
-                    for item in &mut tok_bio[(s + 1)..e] {
-                        *item = Tag(TAG_I_ASP);
-                    }
-                }
-            }
-            for &(range, _) in doc.opinions {
-                let s = range.start.get();
-                let e = range.end.get().min(n_tokens);
-                if s < e {
-                    tok_bio[s] = Tag(TAG_B_OP);
-                    for item in &mut tok_bio[(s + 1)..e] {
-                        *item = Tag(TAG_I_OP);
-                    }
-                }
-            }
-
-            let tok_pieces = token_subword_ranges(doc.tokens, doc.subwords);
-            for (t_idx, p_range) in tok_pieces.iter().enumerate() {
-                let piece_tag = tok_bio[t_idx];
-                for p_idx in p_range.start..p_range.end {
-                    let ix = Ix::<Subwords>::new(p_idx);
-                    if !sub_vecs.is_empty(ix) {
-                        bio_vecs.push((unit_l2(sub_vecs.row(ix)), piece_tag));
-                    }
-                }
-            }
-
-            // Pool opinion spans via #263 for polarity head training.
-            if !doc.opinions.is_empty() {
-                let op_spans: Vec<Span> = doc.opinions.iter().map(|&(r, _)| token_range_span(r, doc.tokens)).collect();
-                let pooled_ops: Vectors<Opinions> = vectors
-                    .embed_spans(
-                        "turbo:aspect-sentiment-learned:fit",
-                        doc.subwords,
-                        Some(&doc.sentences.spans),
-                        doc.tokens.spans.view(),
-                        &op_spans,
-                    )
-                    .map_err(|e| e.to_string())?;
-                for (i, &(_, pol_label)) in doc.opinions.iter().enumerate() {
-                    let ix = Ix::<Opinions>::new(i as u32);
-                    if !pooled_ops.is_empty(ix)
-                        && let Some(ptag) = pol_tags.tag(pol_label)
-                    {
-                        pol_vecs.push((unit_l2(pooled_ops.row(ix)), ptag));
-                    }
-                }
-            }
-
-            // Pool aspect spans via #263 for category centroids (and polarity head when no opinions).
-            if !doc.aspects.is_empty() {
-                let asp_spans: Vec<Span> =
-                    doc.aspects.iter().map(|&(r, _, _)| token_range_span(r, doc.tokens)).collect();
-                let pooled_asps: Vectors<Aspects> = vectors
-                    .embed_spans(
-                        "turbo:aspect-sentiment-learned:fit",
-                        doc.subwords,
-                        Some(&doc.sentences.spans),
-                        doc.tokens.spans.view(),
-                        &asp_spans,
-                    )
-                    .map_err(|e| e.to_string())?;
-                for (i, &(_, cat_label, pol_label)) in doc.aspects.iter().enumerate() {
-                    let ix = Ix::<Aspects>::new(i as u32);
-                    if !pooled_asps.is_empty(ix) {
-                        let row = unit_l2(pooled_asps.row(ix));
-                        if let Some(ctag) = cat_tags.tag(cat_label) {
-                            cat_buckets[ctag.0 as usize].push(row.clone());
-                        }
-                        if doc.opinions.is_empty()
-                            && let Some(ptag) = pol_tags.tag(pol_label)
-                        {
-                            pol_vecs.push((row, ptag));
-                        }
-                    }
-                }
-            }
-        }
-
-        let bio_refs: Vec<(&[f32], Tag)> = bio_vecs.iter().map(|(v, t)| (v.as_slice(), *t)).collect();
-        let bio_head = ClassifierHead::fit_single_label(model.clone(), dim, bio_tags, &bio_refs, l2_reg, epochs, lr)?;
-
-        // Ensure `pol_vecs` has at least one example; if neutral was unseen in training,
-        // add a zero-vector neutral anchor so 3-way softmax stays calibrated.
-        if !pol_vecs.iter().any(|(_, t)| *t == Tag(2)) {
-            pol_vecs.push((vec![0.0f32; dim as usize], Tag(2)));
-        }
-        let pol_refs: Vec<(&[f32], Tag)> = pol_vecs.iter().map(|(v, t)| (v.as_slice(), *t)).collect();
-        let polarity_head =
-            ClassifierHead::fit_single_label(model.clone(), dim, pol_tags, &pol_refs, l2_reg, epochs, lr)?;
-
-        // Build LabelCentroids for categories that have at least one training vector;
-        // any category without examples gets a tiny deterministic orthogonal unit vector.
-        for (c_idx, bucket) in cat_buckets.iter_mut().enumerate() {
-            if bucket.is_empty() {
-                let mut fallback = vec![0.0f32; dim as usize];
-                fallback[c_idx % (dim as usize)] = 1.0;
-                bucket.push(fallback);
-            }
-        }
-        let cat_pairs: Vec<(&str, &[Vec<f32>])> =
-            category_labels.iter().zip(&cat_buckets).map(|(&lbl, bucket)| (lbl, bucket.as_slice())).collect();
-        let centroids =
-            LabelCentroids::from_vector_examples(model, dim, "aspect-categories", &cat_pairs, CentroidNorm::L2, 0.1)?;
-
-        Ok(Self::new(vectors, bio_head, polarity_head, Some(Arc::new(centroids))))
-    }
-}
-
-#[derive(Clone, Debug)]
-struct DecodedOpinion {
-    tokens: IxRange<Tokens>,
-    head_token: usize,
-    polarity: f64,
-    intensity: f64,
-    negated: bool,
-    pos_prob: f64,
-    neg_prob: f64,
-    neu_prob: f64,
-    clause_id: usize,
-}
-
-#[derive(Clone, Debug)]
-struct DecodedAspect {
-    tokens: IxRange<Tokens>,
-    head_token: usize,
-    clause_id: usize,
 }
 
 impl Annotator for LearnedAspectSentiment {
@@ -312,10 +146,25 @@ impl Annotator for LearnedAspectSentiment {
         if phrase_chunks.is_some_and(|pc| pc.spans.view() != view.id()) {
             return Err(fail("phrase chunks are not in the given view".into()));
         }
+
         let text = view.text();
         let n_tokens = tokens.len();
         let (tok_starts, tok_ends) = tokens.spans.columns();
         let (sent_starts, sent_ends) = sentences.spans.columns();
+
+        let mut token_lower: Vec<String> = Vec::with_capacity(n_tokens);
+        for t in 0..n_tokens {
+            let start = tok_starts[t] as usize;
+            let end = tok_ends[t] as usize;
+            let slice = text.get(start..end).ok_or_else(|| {
+                fail(format!(
+                    "token {t} span {start}..{end} is out of bounds or not on a UTF-8 char boundary (text len {})",
+                    text.len()
+                ))
+            })?;
+            token_lower
+                .push(slice.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-').to_ascii_lowercase());
+        }
 
         // 1. Obtain contextual subword vectors (`Vectors<Subwords>`), either from the document
         // or by running `self.vectors.embed_subwords` over the sentence windows (#263).
@@ -370,43 +219,7 @@ impl Annotator for LearnedAspectSentiment {
         }
 
         // 3. Map subword BIO predictions back to `Tokens` through `Subwords` alignments/offsets.
-        let tok_pieces = token_subword_ranges(tokens, subwords);
-        let mut tok_tags = vec![TAG_O; n_tokens];
-        for t in 0..n_tokens {
-            let r = tok_pieces[t].clone();
-            if r.is_empty() {
-                tok_tags[t] = TAG_O;
-                continue;
-            }
-            let first = r.start as usize;
-            let mut avg = piece_probs[first];
-            let count = (r.end - r.start) as f64;
-            if count > 1.0 {
-                for p in (r.start + 1)..r.end {
-                    let pp = &piece_probs[p as usize];
-                    for k in 0..5 {
-                        avg[k] += pp[k];
-                    }
-                }
-                for val in &mut avg {
-                    *val /= count;
-                }
-            }
-            let mut best_k = 0usize;
-            for k in 1..5 {
-                if avg[k] > avg[best_k] {
-                    best_k = k;
-                }
-            }
-            tok_tags[t] = best_k as u16;
-        }
-
-        let mut token_lower: Vec<String> = Vec::with_capacity(n_tokens);
-        for t in 0..n_tokens {
-            let slice = text.get(tok_starts[t] as usize..tok_ends[t] as usize).unwrap_or("");
-            token_lower
-                .push(slice.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-').to_ascii_lowercase());
-        }
+        let tok_tags = decode::project_subword_bio_to_tokens(tokens, subwords, &piece_probs);
 
         struct PendingAspect {
             target: AspectTarget,
@@ -472,11 +285,11 @@ impl Annotator for LearnedAspectSentiment {
                 } else {
                     (0.0, 0.0, 1.0)
                 };
+                let signed_prior = (pos_p - neg_p).clamp(-1.0, 1.0);
+                let intensity = (pos_p + neg_p).clamp(0.1, 2.0);
                 if negated {
                     std::mem::swap(&mut pos_p, &mut neg_p);
                 }
-                let signed_prior = if negated { -(pos_p - neg_p) } else { pos_p - neg_p };
-                let intensity = (pos_p + neg_p).clamp(0.1, 2.0);
                 sent_opinions.push(DecodedOpinion {
                     tokens: r,
                     head_token: head_tok,
@@ -654,310 +467,5 @@ impl Annotator for LearnedAspectSentiment {
         }
         buf.push(u8::from(self.emit_implicit_aspects));
         fnv1a(&buf)
-    }
-}
-
-fn unit_l2(v: &[f32]) -> Vec<f32> {
-    let norm_sq: f64 = v.iter().map(|&x| (x as f64) * (x as f64)).sum();
-    if norm_sq <= 1e-24 {
-        return v.to_vec();
-    }
-    let inv = (1.0 / norm_sq.sqrt()) as f32;
-    v.iter().map(|&x| x * inv).collect()
-}
-
-/// Maps each token in `tokens` to its overlapping subword piece range
-/// `start..end` in `subwords`.
-fn token_subword_ranges(tokens: &Tokens, subwords: &Subwords) -> Vec<std::ops::Range<u32>> {
-    let n_tokens = tokens.len();
-    if let Some(tok_col) = &subwords.token {
-        let mut out = Vec::with_capacity(n_tokens);
-        for t in 0..n_tokens {
-            let target = Ix::<Tokens>::new(t as u32);
-            let a = tok_col.partition_point(|&x| x < target);
-            let b = a + tok_col[a..].partition_point(|&x| x == target);
-            out.push(a as u32..b as u32);
-        }
-        return out;
-    }
-    let (sub_starts, sub_ends) = subwords.spans.columns();
-    let (tok_starts, tok_ends) = tokens.spans.columns();
-    let mut out = Vec::with_capacity(n_tokens);
-    for t in 0..n_tokens {
-        out.push(pieces_of(sub_starts, sub_ends, tok_starts[t], tok_ends[t]));
-    }
-    out
-}
-
-fn token_range_span(range: IxRange<Tokens>, tokens: &Tokens) -> Span {
-    let first = tokens.spans.get(range.start);
-    let last = tokens.spans.get(Ix::new(range.end.get() as u32 - 1));
-    Span::new(first.start, last.end)
-}
-
-fn decode_bio_spans(
-    tok_tags: &[u16],
-    token_lower: &[String],
-    clause_ids: &[usize],
-    sent_start: usize,
-    sent_end: usize,
-    phrase_chunks: Option<&PhraseChunks>,
-) -> (Vec<IxRange<Tokens>>, Vec<IxRange<Tokens>>) {
-    let mut aspects: Vec<IxRange<Tokens>> = Vec::new();
-    let mut opinions: Vec<IxRange<Tokens>> = Vec::new();
-
-    let mut t = sent_start;
-    while t < sent_end {
-        let tag = tok_tags[t];
-        if tag == TAG_B_ASP || tag == TAG_I_ASP {
-            let start = t;
-            let clause = clause_ids[t - sent_start];
-            t += 1;
-            while t < sent_end
-                && (tok_tags[t] == TAG_I_ASP || tok_tags[t] == TAG_B_ASP)
-                && clause_ids[t - sent_start] == clause
-                && !token_lower[t].is_empty()
-            {
-                t += 1;
-            }
-            // Trim leading determiners or empty punctuation tokens if any were tagged.
-            let mut s = start;
-            while s < t && (token_lower[s].is_empty() || is_determiner(&token_lower[s])) {
-                s += 1;
-            }
-            let mut e = t;
-            while e > s && token_lower[e - 1].is_empty() {
-                e -= 1;
-            }
-            if s < e {
-                aspects.push(IxRange::new(s as u32, e as u32));
-            }
-        } else if tag == TAG_B_OP || tag == TAG_I_OP {
-            let start = t;
-            let clause = clause_ids[t - sent_start];
-            t += 1;
-            while t < sent_end
-                && (tok_tags[t] == TAG_I_OP || tok_tags[t] == TAG_B_OP)
-                && clause_ids[t - sent_start] == clause
-                && !token_lower[t].is_empty()
-            {
-                t += 1;
-            }
-            let mut s = start;
-            while s < t && token_lower[s].is_empty() {
-                s += 1;
-            }
-            let mut e = t;
-            while e > s && token_lower[e - 1].is_empty() {
-                e -= 1;
-            }
-            if s < e {
-                opinions.push(IxRange::new(s as u32, e as u32));
-            }
-        } else {
-            t += 1;
-        }
-    }
-
-    // If `PhraseChunks` (`opennlp:chunks`) is present, expand any single-token aspect inside an `NP`
-    // chunk to include adjacent noun-compound tokens in that `NP` that are not tagged as opinions.
-    if let Some(chunks) = phrase_chunks {
-        for asp in &mut aspects {
-            for (c_idx, crange) in chunks.tokens.iter().enumerate() {
-                if !chunks.kinds.label(chunks.kind[c_idx]).eq_ignore_ascii_case("NP") {
-                    continue;
-                }
-                if crange.start.get() <= asp.start.get() && asp.end.get() <= crange.end.get() {
-                    let mut s = crange.start.get();
-                    while s < asp.start.get()
-                        && (token_lower[s].is_empty()
-                            || is_determiner(&token_lower[s])
-                            || opinions.iter().any(|o| o.start.get() <= s && s < o.end.get()))
-                    {
-                        s += 1;
-                    }
-                    if s < asp.start.get() {
-                        asp.start = Ix::new(s as u32);
-                    }
-                    break;
-                }
-            }
-        }
-    }
-
-    (aspects, opinions)
-}
-
-fn is_determiner(w: &str) -> bool {
-    matches!(
-        w,
-        "the"
-            | "a"
-            | "an"
-            | "this"
-            | "that"
-            | "these"
-            | "those"
-            | "my"
-            | "our"
-            | "your"
-            | "his"
-            | "her"
-            | "its"
-            | "their"
-    )
-}
-
-fn assign_clauses(
-    token_lower: &[String],
-    text: &str,
-    tok_starts: &[u32],
-    tok_ends: &[u32],
-    sent_start: usize,
-    sent_end: usize,
-) -> Vec<usize> {
-    let mut clauses = Vec::with_capacity(sent_end - sent_start);
-    let mut current = 0usize;
-    for tok in sent_start..sent_end {
-        let w = token_lower[tok].as_str();
-        let raw = text.get(tok_starts[tok] as usize..tok_ends[tok] as usize).unwrap_or("");
-        if tok > sent_start
-            && (matches!(w, "but" | "however" | "yet" | "although" | "though" | "whereas" | "while" | "except" | "and")
-                || raw == ";"
-                || raw == ",")
-        {
-            current += 1;
-        }
-        clauses.push(current);
-    }
-    clauses
-}
-
-fn is_token_negated(
-    tok: usize,
-    sent_start: usize,
-    sent_end: usize,
-    token_lower: &[String],
-    clause_ids: &[usize],
-    deps: Option<&Dependencies>,
-) -> bool {
-    if let Some(d) = deps
-        && d.len() >= sent_end
-    {
-        for i in sent_start..sent_end {
-            if !is_negation_word(&token_lower[i]) {
-                continue;
-            }
-            let h = d.head[i].map(|ix| ix.get());
-            if h == Some(tok) {
-                return true;
-            }
-            if let Some(th) = d.head[tok].map(|ix| ix.get())
-                && h == Some(th)
-                && i < tok
-                && clause_ids[i - sent_start] == clause_ids[tok - sent_start]
-            {
-                return true;
-            }
-        }
-    }
-    let min_i = sent_start.max(tok.saturating_sub(3));
-    let c = clause_ids[tok - sent_start];
-    for i in min_i..tok {
-        if clause_ids[i - sent_start] == c && is_negation_word(&token_lower[i]) {
-            return true;
-        }
-    }
-    false
-}
-
-fn is_negation_word(w: &str) -> bool {
-    matches!(
-        w,
-        "not"
-            | "no"
-            | "never"
-            | "neither"
-            | "nor"
-            | "none"
-            | "hardly"
-            | "barely"
-            | "scarcely"
-            | "without"
-            | "cannot"
-            | "cant"
-    ) || w.ends_with("n't")
-}
-
-fn link_decoded_opinions(
-    asp: &DecodedAspect,
-    asp_pos: usize,
-    sent_aspects: &[DecodedAspect],
-    sent_opinions: &[DecodedOpinion],
-    deps: Option<&Dependencies>,
-    sent_end: usize,
-) -> Vec<usize> {
-    if sent_opinions.is_empty() {
-        return Vec::new();
-    }
-    let mut linked = Vec::new();
-
-    if let Some(d) = deps
-        && d.len() >= sent_end
-    {
-        let t_tok = asp.head_token;
-        let t_head = d.head[t_tok].map(|ix| ix.get());
-        for (o_idx, op) in sent_opinions.iter().enumerate() {
-            let o_tok = op.head_token;
-            let o_head = d.head[o_tok].map(|ix| ix.get());
-            if o_head == Some(t_tok) || t_head == Some(o_tok) || (t_head.is_some() && t_head == o_head) {
-                linked.push(o_idx);
-            }
-        }
-        if !linked.is_empty() {
-            return linked;
-        }
-    }
-
-    let same_clause: Vec<(usize, &DecodedAspect)> =
-        sent_aspects.iter().enumerate().filter(|(_, a)| a.clause_id == asp.clause_id).collect();
-    for (o_idx, op) in sent_opinions.iter().enumerate() {
-        if op.clause_id != asp.clause_id {
-            continue;
-        }
-        let closest = same_clause.iter().min_by_key(|(_, a)| token_distance(a.tokens, op.tokens)).map(|(idx, _)| *idx);
-        if closest == Some(asp_pos) {
-            linked.push(o_idx);
-        }
-    }
-    if !linked.is_empty() {
-        return linked;
-    }
-
-    if let Some((o_idx, _)) = sent_opinions
-        .iter()
-        .enumerate()
-        .filter(|(_, op)| op.clause_id == asp.clause_id)
-        .min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
-    {
-        linked.push(o_idx);
-        return linked;
-    }
-
-    if let Some((o_idx, _)) =
-        sent_opinions.iter().enumerate().min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
-    {
-        linked.push(o_idx);
-    }
-    linked
-}
-
-fn token_distance(a: IxRange<Tokens>, b: IxRange<Tokens>) -> usize {
-    if a.end.get() <= b.start.get() {
-        b.start.get() - a.end.get()
-    } else if b.end.get() <= a.start.get() {
-        a.start.get() - b.end.get()
-    } else {
-        0
     }
 }

@@ -248,6 +248,7 @@ mod tests {
         let bad_tags = PosTags { tagset: TagSet::new("ptb", &["NNS"]), tags: vec![Tag(5)], prob: None };
         assert!(d.annotate((view, &tokens, &bad_tags)).is_err());
     }
+
     #[test]
     fn pipeline_records_validation_version() {
         use turbo_analysis::{Analyzer, Key, Provenance};
@@ -267,5 +268,30 @@ mod tests {
         let provenance = doc.provenance(Key::<Lemmas>::DEFAULT.id()).unwrap();
         assert_eq!(provenance.annotator, DictionaryLemmatizer::ID);
         assert_eq!(provenance.version, "2");
+    }
+
+    #[test]
+    fn annotate_rejects_invalid_token_spans_without_panicking() {
+        use turbo_analysis::{Document, Span, Spans, Tag, TagSet, ViewId};
+
+        let d = dictionary("café\tNN\tcafé\n");
+        let doc = Document::new("café");
+        let view = doc.get::<View>().unwrap();
+
+        let tags = PosTags { tagset: TagSet::new("test", &["NN"]), tags: vec![Tag(0)], prob: None };
+
+        // Out-of-bounds span (end > text.len()).
+        let mut oob_spans = Spans::new(ViewId::SOURCE);
+        oob_spans.push(Span::new(0, 99));
+        let oob_tokens = Tokens { spans: oob_spans, sentence: None };
+        let err = d.annotate((view, &oob_tokens, &tags)).err().unwrap();
+        assert!(err.to_string().contains("not a valid slice"), "unexpected error: {err}");
+
+        // Mid-codepoint UTF-8 boundary ('é' is bytes 3..5 in "café").
+        let mut mid_spans = Spans::new(ViewId::SOURCE);
+        mid_spans.push(Span::new(0, 4));
+        let mid_tokens = Tokens { spans: mid_spans, sentence: None };
+        let err = d.annotate((view, &mid_tokens, &tags)).err().unwrap();
+        assert!(err.to_string().contains("not a valid slice"), "unexpected error: {err}");
     }
 }

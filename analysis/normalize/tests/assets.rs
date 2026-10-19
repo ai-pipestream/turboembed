@@ -10,9 +10,9 @@
 mod assets_support;
 
 use assets_support::*;
-use turbo_analysis::{Annotator, Document, Layer, Span, View};
+use turbo_analysis::{Analyzer, Annotator, Bound, Document, Key, Layer, Span, View};
 use turbo_normalize::assets::{DecodeError, MAGICS, magic_format};
-use turbo_normalize::{Asset, AssetDetector, AssetFold, Normalizer, normalize};
+use turbo_normalize::{Asset, AssetDetector, AssetFold, Chain, NormalizeStep, Normalizer, hash_config, normalize};
 use turbo_normalize_layers::{AssetEncoding, AssetFormat, Assets, PlaceholderKind, Placeholders};
 
 /// `CursorAssetDetectorTest.embed`.
@@ -193,6 +193,21 @@ fn data_uri_with_unknown_header_keeps_the_declared_format() {
     assert_eq!(a.format, AssetFormat::Declared);
     assert_eq!(a.format_name(&text), "plain");
     assert_eq!(a.media_type(&text), "text/plain");
+}
+
+#[test]
+fn data_uri_with_a_malformed_media_type_declares_nothing() {
+    // A declared type needs a type and subtype that are tokens, as the layer
+    // asks: the sniffed format stands in for one that is not, and with none
+    // the URI is not an asset.
+    for media_type in ["text/", "text/;charset=utf-8", "/plain", "plain", "text//plain", "te(x)t/plain"] {
+        let text = format!("data:{media_type};base64,{}", std64(&png(1, 1)));
+        let layer = check_layer(&AssetDetector::new(), &text);
+        assert_eq!((layer.len(), layer.format[0], layer.declared_type.get(0)), (1, AssetFormat::Png, ""));
+        assert_eq!(one(&text).media_type(&text), "image/png");
+        let plain = format!("data:{media_type};base64,{}", std64(b"just some plain bytes padded out"));
+        assert!(detect(&plain).is_empty(), "{media_type}");
+    }
 }
 
 #[test]
@@ -614,6 +629,40 @@ fn config_hashes_tell_the_configurations_apart() {
     assert_ne!(Normalizer::config_hash(&custom), Normalizer::config_hash(&other));
     assert_ne!(Normalizer::config_hash(&fold), Normalizer::config_hash(&AssetFold::with_detector(hex)));
     assert_eq!(Normalizer::config_hash(&fold), Annotator::config_hash(&fold));
+}
+
+// A malformed declared media type changed what is detected and folded, so
+// the producers record version 1 where they recorded 0: output of the old
+// and the new rule never carries one identity.
+#[test]
+fn producers_record_the_detector_version() {
+    assert_eq!(<AssetDetector as Annotator>::VERSION, "1");
+    assert_eq!(<AssetFold as Normalizer>::VERSION, "1");
+    assert_eq!(<AssetFold as Annotator>::VERSION, "1");
+    let text = "data:text//plain;base64,anVzdCBzb21lIHBsYWluIGJ5dGVzIHBhZGRlZCBvdXQ=";
+
+    let fold = Bound::new(AssetFold::new()).write(0, "folded");
+    let analyzer = Analyzer::builder().add(AssetDetector::new()).step(fold).build().unwrap();
+    let mut docs = vec![Document::new(text)];
+    assert!(analyzer.run(&mut docs)[0].is_ok());
+    let detected = docs[0].provenance(Key::<Assets>::DEFAULT.id()).unwrap();
+    assert_eq!((detected.annotator, detected.version), ("turbo:assets", "1"));
+    let folded = docs[0].provenance(Key::<Placeholders>::DEFAULT.id()).unwrap();
+    assert_eq!((folded.annotator, folded.version), ("turbo:normalize:asset-fold", "1"));
+
+    let step = Bound::new(NormalizeStep::new(AssetFold::new())).write(0, "folded");
+    let analyzer = Analyzer::builder().step(step).build().unwrap();
+    let mut docs = vec![Document::new(text)];
+    assert!(analyzer.run(&mut docs)[0].is_ok());
+    let p = docs[0].provenance(Key::<View>::named("folded").id()).unwrap();
+    assert_eq!((p.annotator, p.version), ("turbo:normalize:asset-fold", "1"));
+
+    let fold = AssetFold::new();
+    let parts = |version| vec![("turbo:normalize:asset-fold", version, Normalizer::config_hash(&fold))];
+    let (old, new) = (hash_config(&parts("0")), hash_config(&parts("1")));
+    let chain = Chain::new().then(AssetFold::new()).config_hash();
+    assert_eq!(chain, new);
+    assert_ne!(chain, old);
 }
 
 // ---------------------------------------------------------------------------
@@ -3170,8 +3219,11 @@ fn media_type_may_not_hold_white_space_or_quotes() {
         let text = format!("data:{bad};base64,{body}");
         assert!(detect(&text).iter().all(|a| a.span.start > 0), "{bad:?}");
     }
+    // A character outside a token does not end the media type, but it is
+    // no media type: the URI is still found, with the sniffed one.
     let text = format!("data:image/p\u{e9}ng;base64,{body}");
-    assert_eq!(one(&text).media_type(&text), "image/p\u{e9}ng");
+    let a = one(&text);
+    assert_eq!((a.span.start, a.media_type(&text)), (0, "image/png"));
 }
 
 // ---------------------------------------------------------------------------

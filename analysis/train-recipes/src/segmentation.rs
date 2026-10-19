@@ -151,11 +151,13 @@ impl HeldOut<'_> {
     }
 }
 
-/// Whether every token starts and ends at or after the token before it,
-/// as [`tokenize::TokSpanEventStream`] asks of a sample: a token inside
-/// the one before it, or before it, is out of text order.
+/// Whether every token starts at or before its end and starts and ends at
+/// or after the token before it, as [`tokenize::TokSpanEventStream`] asks
+/// of a sample: a token inside the one before it, or before it, is out of
+/// text order.
 pub fn in_text_order(tokens: &[Span]) -> bool {
-    tokens.windows(2).all(|w| w[1].start >= w[0].start && w[1].end >= w[0].end)
+    tokens.iter().all(|s| s.start <= s.end)
+        && tokens.windows(2).all(|w| w[1].start >= w[0].start && w[1].end >= w[0].end)
 }
 
 /// Reads the token samples of `corpus` as `MascTokenSampleStream` reads
@@ -459,5 +461,6 @@ mod tests {
         assert!(!in_text_order(&spans(&[(45, 62), (48, 49), (62, 63)])));
         assert!(!in_text_order(&spans(&[(4, 5), (0, 3)])));
         assert!(!in_text_order(&spans(&[(3, 6), (2, 7)])));
+        assert!(!in_text_order(&[Span { start: 5, end: 2 }]));
     }
 }
