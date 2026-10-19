@@ -141,6 +141,7 @@ fn the_annotator_writes_the_ranking_or_declines_without_evidence() {
         let expected: Vec<(String, f64)> = expected.iter().map(|&(c, p)| (c.to_string(), p)).collect();
         assert_eq!(rows(doc), expected);
         assert_eq!(doc.status(Key::<Language>::DEFAULT.id()), Some(&Status::Complete));
+        assert_eq!(doc.provenance(Key::<Language>::DEFAULT.id()).unwrap().version, "2");
     }
     for doc in &docs[1..6] {
         assert!(doc.get::<Language>().is_none());
@@ -236,4 +237,34 @@ fn shrink_excess_reclaims_large_scratch_buffers() {
     scratch.shrink_excess();
     let best = d.predict_language("x", &mut scratch);
     assert_eq!(best.code, "bbb");
+}
+
+#[test]
+fn cleanup_keeps_feature_iterators_valid_and_supports_reuse() {
+    let snapshots = |g: &ContextGenerator| {
+        (
+            g.features().map(<[u8]>::to_vec).collect::<Vec<_>>(),
+            g.training_features().map(<[u8]>::to_vec).collect::<Vec<_>>(),
+        )
+    };
+    let mut g = ContextGenerator::new(1, 3);
+    for text in [
+        (0..4000).map(|i| char::from_u32(0x4e00 + i).unwrap()).collect(),
+        "a".repeat(20_000),
+        (0..6000).map(|i| char::from_u32(0x4e00 + i).unwrap()).collect(),
+    ] {
+        g.generate_prepared(&text);
+        g.shrink_excess();
+        let (features, training) = snapshots(&g);
+        assert!(features.is_empty() && training.is_empty());
+        assert!(g.is_empty());
+        assert!(g.exact_order() && g.training_exact_order());
+        g.shrink_excess();
+        g.generate_prepared("x y");
+        let mut fresh = ContextGenerator::new(1, 3);
+        fresh.generate_prepared("x y");
+        assert_eq!(snapshots(&g), snapshots(&fresh));
+        g.shrink_excess();
+        assert_eq!(snapshots(&g), snapshots(&fresh));
+    }
 }

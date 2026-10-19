@@ -191,28 +191,21 @@ impl ContextGenerator {
         self.first_exact
     }
 
-    /// Shrinks internal buffers when a previous document grew them past
-    /// typical capacities so long-lived thread-local scratch does not
-    /// retain outlier allocations forever.
+    /// Releases an oversized context, including its feature indexes.
+    ///
+    /// If any limit is exceeded, both feature iterators become empty until
+    /// the next generation. Smaller contexts retain their features and capacity.
+    /// The configured n-gram range is preserved.
     pub fn shrink_excess(&mut self) {
         const MAX_RETAINED_UNITS: usize = 16 * 1024;
         const MAX_RETAINED_GRAMS: usize = 16 * 1024;
         const MAX_RETAINED_BYTES: usize = 64 * 1024;
 
-        if self.units.capacity() > MAX_RETAINED_UNITS {
-            self.units = Vec::new();
-        }
-        if self.grams.capacity() > MAX_RETAINED_GRAMS {
-            self.grams = Vec::new();
-            self.slots = Vec::new();
-            self.spread = Vec::new();
-            self.counted = Vec::new();
-            self.order = Vec::new();
-            self.ends = Vec::new();
-            self.order_scratch = HashMapOrder::default();
-        }
-        if self.bytes.capacity() > MAX_RETAINED_BYTES {
-            self.bytes = Vec::new();
+        if self.units.capacity() > MAX_RETAINED_UNITS
+            || self.grams.capacity() > MAX_RETAINED_GRAMS
+            || self.bytes.capacity() > MAX_RETAINED_BYTES
+        {
+            *self = Self::new(self.min, self.max);
         }
     }
 
