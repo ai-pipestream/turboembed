@@ -720,6 +720,7 @@ fields mean bumps its `SCHEMA`.
 | `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
 | `IndexedTerms` (`Terms` alias) | `turbo:indexed-terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
+| `ContentHashes<L>` | `turbo:content-hashes<L>` | `L` | `turbo-chunker` |
 | `Mentions` | `opennlp:mentions` | text (indexes `Sentences`, `Tokens`, `Entities` when lifted from entities) | `turbo-coref` |
 | `Speakers` | `opennlp:speakers` | text | `turbo-coref` |
 

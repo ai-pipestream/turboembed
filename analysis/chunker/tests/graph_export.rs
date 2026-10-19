@@ -10,12 +10,12 @@ use std::sync::Arc;
 use turbo_analysis::export::{Codecs, DocumentGraph, Writer, export, import};
 use turbo_analysis::{Document, Ix, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, View, ViewId};
 use turbo_analysis_layers::{
-    Aspects, Chunks, Cut, Incivility, IncivilityLabel, IncivilityScores, IncivilityTarget, Opinions, Polarity,
-    Sentences, Strs, Tokens,
+    Aspects, Chunks, Cut, Incivility, IncivilityLabel, IncivilityScores, IncivilityTarget, Levels, Opinions, Polarity,
+    Sentences, Strs, Structure, Tokens, Unit,
 };
-use turbo_chunker::ChunkFacets;
 use turbo_chunker::export::register_codecs;
 use turbo_chunker::terms::{IndexedTerms, TermStats, Vocabulary};
+use turbo_chunker::{ChunkFacets, ChunkId, ContentHashes};
 
 fn codecs() -> Codecs {
     let mut codecs = turbo_analysis_layers::export::codecs();
@@ -174,9 +174,33 @@ fn document() -> Document {
                 IncivilityScores::default(),
             ],
         },
-        by,
+        by.clone(),
     )
     .unwrap();
+    // The levels codec names its structure target even when no unit
+    // is a section, so the graph carries an empty structure.
+    doc.add(
+        &Key::DEFAULT,
+        Structure { spans: spans(&[]), kind: Vec::new(), parent: Vec::new(), depth: Vec::new() },
+        by.clone(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::DEFAULT,
+        Levels {
+            spans: spans(&[(0, 20), (0, 10), (11, 20)]),
+            unit: vec![Unit::Document, Unit::Chunk(Ix::new(0)), Unit::Chunk(Ix::new(1))],
+            parent: vec![None, Some(Ix::new(0)), Some(Ix::new(0))],
+        },
+        by.clone(),
+    )
+    .unwrap();
+    let chunk_hashes =
+        ContentHashes::<Chunks>::compute("good food. bad food.", doc.get::<Chunks>().unwrap(), None).unwrap();
+    doc.add(&Key::DEFAULT, chunk_hashes, by.clone()).unwrap();
+    let level_hashes =
+        ContentHashes::<Levels>::compute("good food. bad food.", doc.get::<Levels>().unwrap(), None).unwrap();
+    doc.add(&Key::DEFAULT, level_hashes, by).unwrap();
     doc
 }
 
@@ -202,6 +226,14 @@ fn chunker_layers_round_trip() {
     assert_eq!(facets.aspect_ixs(Ix::new(1)), [Ix::new(1)]);
     assert_eq!(facets.incivility_labels(Ix::new(0)), [IncivilityLabel::Insult]);
     assert_eq!(facets.incivility_scores(Ix::new(0)).insult, 0.9);
+
+    let expected_chunks =
+        ContentHashes::<Chunks>::compute("good food. bad food.", back.get::<Chunks>().unwrap(), None).unwrap();
+    assert_eq!(back.get::<ContentHashes<Chunks>>().unwrap().id, expected_chunks.id);
+    let expected_levels =
+        ContentHashes::<Levels>::compute("good food. bad food.", back.get::<Levels>().unwrap(), None).unwrap();
+    assert_eq!(back.get::<ContentHashes<Levels>>().unwrap().id, expected_levels.id);
+    assert_ne!(expected_chunks.get(Ix::new(0)), ChunkId::from_bytes([0; 16]));
 
     assert_eq!(export(&back, &codecs()).unwrap().to_bytes().unwrap(), graph.to_bytes().unwrap());
 }
@@ -326,7 +358,33 @@ fn corrupted_chunker_payloads_are_refused() {
     assert!(import(&graph, &codecs()).is_err(), "a polarity byte of 3 imported");
 
     // The valid control behind the facet cases imports.
-    let mut graph = base;
+    let mut graph = base.clone();
     splice(&mut graph, "turbo:chunk-facets<turbo:chunks>", facets_body(0, 0.5, 0.0), 2);
     assert!(import(&graph, &codecs()).is_ok(), "the hand-built facets control was refused");
+
+    // Content hashes: fewer hashes than chunks, a hash that is not
+    // 16 bytes, a count the payload cannot back, and fewer hashes
+    // than level units.
+    let hashes = |count: usize, each: usize| {
+        let mut w = Writer::new();
+        w.usize(count).unwrap();
+        for _ in 0..count {
+            w.bytes(&vec![7u8; each]).unwrap();
+        }
+        w.finish()
+    };
+    let mut graph = base.clone();
+    splice(&mut graph, "turbo:content-hashes<turbo:chunks>", hashes(1, 16), 1);
+    assert!(import(&graph, &codecs()).is_err(), "content hashes short of the chunks imported");
+    let mut graph = base.clone();
+    splice(&mut graph, "turbo:content-hashes<turbo:chunks>", hashes(2, 15), 2);
+    assert!(import(&graph, &codecs()).is_err(), "a 15-byte content hash imported");
+    let mut w = Writer::new();
+    w.usize(u32::MAX as usize).unwrap();
+    let mut graph = base.clone();
+    splice(&mut graph, "turbo:content-hashes<turbo:chunks>", w.finish(), 0);
+    assert!(import(&graph, &codecs()).is_err(), "a billion content hashes from four bytes imported");
+    let mut graph = base.clone();
+    splice(&mut graph, "turbo:content-hashes<turbo:levels>", hashes(2, 16), 2);
+    assert!(import(&graph, &codecs()).is_err(), "content hashes short of the level units imported");
 }

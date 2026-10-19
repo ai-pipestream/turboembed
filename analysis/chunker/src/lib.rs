@@ -14,8 +14,10 @@ mod boundaries;
 mod cohesion;
 mod drift;
 mod gaps;
+mod hashes;
 mod limits;
 mod providers;
+pub mod rechunk;
 mod sentiment;
 mod sums;
 mod weigh;
@@ -23,6 +25,7 @@ mod weigh;
 pub use boundaries::{Costs, StructureBoundaries};
 pub use cohesion::{Cohesion, CohesiveChunker};
 pub use drift::{Drift, DriftBoundaries, Score, drift};
+pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
 pub use providers::{DriftProvider, SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider};
 pub use sentiment::{
     ChunkFacetBuilder, ChunkFacets, SentimentBoundaries, SentimentShift, boundary_similarity, chunk_boundary_gaps,
@@ -298,6 +301,30 @@ impl Chunker {
             model_tokens: Vec::new(),
             over_budget: Vec::new(),
         };
+        let cx = RunCx { sentences, lengths: &lengths, bounds, limits: &limits };
+        for run in runs {
+            let term = term(run.clone());
+            self.push_run(id, &cx, run, structure.is_some(), term, &mut chunks)?;
+        }
+        Ok(chunks)
+    }
+
+    /// Appends one run's rows to `chunks`: its parent row first when
+    /// `with_parent` (the run is a top-level section), then the chunks
+    /// the optimizer cuts from it. The one place a run becomes rows,
+    /// shared by a full chunking and by the dirty runs of a
+    /// re-chunking (`crate::rechunk`).
+    pub(crate) fn push_run<T: Fn(usize, usize) -> i64>(
+        &self,
+        id: &'static str,
+        cx: &RunCx<'_>,
+        run: Range<usize>,
+        with_parent: bool,
+        term: T,
+        chunks: &mut Chunks,
+    ) -> Result<(), Error> {
+        let (b, sentences, lengths, bounds) = (self.budget, cx.sentences, cx.lengths, cx.bounds);
+        let size = |r: Range<usize>| u64::from(lengths.run(r.start, r.end)) + u64::from(b.overhead);
         let span = |r: &Range<usize>| {
             let (first, last) =
                 (sentences.spans.get(Ix::new(r.start as u32)), sentences.spans.get(Ix::new(r.end as u32 - 1)));
@@ -309,36 +336,50 @@ impl Chunker {
                 detail: format!("a chunk of {t} tokens, more than a u32 holds"),
             })
         };
-        for run in runs {
-            let opening = if run.start == 0 { Cut::DocumentStart } else { Cut::Section };
-            let parent = match structure {
-                Some(_) => {
-                    let t = size(run.clone());
-                    let row =
-                        Row { span: span(&run), level: 1, parent: None, cut: opening, cost: 0, tokens: tokens(t)? };
-                    Some(row.push(&mut chunks, run.clone(), t > u64::from(b.max)))
-                }
-                None => None,
+        let opening = if run.start == 0 { Cut::DocumentStart } else { Cut::Section };
+        let parent = if with_parent {
+            let t = size(run.clone());
+            let row = Row { span: span(&run), level: 1, parent: None, cut: opening, cost: 0, tokens: tokens(t)? };
+            Some(row.push(chunks, run.clone(), t > u64::from(b.max)))
+        } else {
+            None
+        };
+        // The optimizer's units are the atoms: sentence `at[k].0` up
+        // to `at[k + 1].0`.
+        let at = run_atoms(cx.limits, run.clone(), &size, b);
+        let cut: Vec<i32> = at[1..].iter().map(|&(e, _)| bounds.cost[e - 1]).collect();
+        for s in segment(&cut, |i, j| lengths.run(at[i].0, at[j].0), b, |i, j| term(at[i].0, at[j].0)) {
+            let r = at[s.start].0..at[s.end].0;
+            let cut = match at[s.start] {
+                (i, _) if i == run.start => opening,
+                (_, Some(forced)) => forced,
+                (i, None) => bounds.reason[i - 1],
             };
-            // The optimizer's units are the atoms: sentence `at[k].0` up
-            // to `at[k + 1].0`.
-            let at = limits::atoms(&limits, run.clone(), |r| size(r) > u64::from(b.max));
-            let term = term(run.clone());
-            let cut: Vec<i32> = at[1..].iter().map(|&(e, _)| bounds.cost[e - 1]).collect();
-            for s in segment(&cut, |i, j| lengths.run(at[i].0, at[j].0), b, |i, j| term(at[i].0, at[j].0)) {
-                let r = at[s.start].0..at[s.end].0;
-                let cut = match at[s.start] {
-                    (i, _) if i == run.start => opening,
-                    (_, Some(forced)) => forced,
-                    (i, None) => bounds.reason[i - 1],
-                };
-                let row =
-                    Row { span: span(&r), level: 0, parent, cut, cost: saturate(s.cost), tokens: tokens(s.tokens)? };
-                row.push(&mut chunks, r, s.tokens > u64::from(b.max));
-            }
+            let row = Row { span: span(&r), level: 0, parent, cut, cost: saturate(s.cost), tokens: tokens(s.tokens)? };
+            row.push(chunks, r, s.tokens > u64::from(b.max));
         }
-        Ok(chunks)
+        Ok(())
     }
+}
+
+/// What cutting one run reads, besides the budget: the sentences,
+/// their token lengths, the boundary costs and the hard limits at
+/// every gap.
+pub(crate) struct RunCx<'a> {
+    pub sentences: &'a Sentences,
+    pub lengths: &'a Lengths,
+    pub bounds: &'a Boundaries,
+    pub limits: &'a [limits::Limit],
+}
+
+/// A run's atoms under the hard limits, as `push_run` cuts them.
+pub(crate) fn run_atoms(
+    limits: &[limits::Limit],
+    run: Range<usize>,
+    size: &impl Fn(Range<usize>) -> u64,
+    b: Budget,
+) -> Vec<(usize, Option<Cut>)> {
+    limits::atoms(limits, run, |r| size(r) > u64::from(b.max))
 }
 
 /// One row of the chunks layer, before it is pushed.

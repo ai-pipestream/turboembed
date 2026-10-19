@@ -8,9 +8,10 @@ use std::marker::PhantomData;
 use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer};
 use turbo_analysis::{Document, Ix, Layer, View};
 use turbo_analysis_layers::{
-    Aspects, Chunks, IncivilityLabel, IncivilityScores, Polarity, Sentences, Strs, Structure, Tokens,
+    Aspects, Chunks, IncivilityLabel, IncivilityScores, Levels, Polarity, Sentences, Strs, Structure, Tokens,
 };
 
+use crate::hashes::{ChunkId, ContentHashes};
 use crate::sentiment::ChunkFacets;
 use crate::terms::{IndexedTerms, TermStats, Vocabulary};
 
@@ -293,9 +294,37 @@ impl LayerCodec for ChunkFacets {
     }
 }
 
+impl<L: Layer> LayerCodec for ContentHashes<L> {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        w.usize(self.id.len())?;
+        for id in &self.id {
+            w.bytes(id.as_bytes())?;
+        }
+        Ok(w.finish())
+    }
+
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let mut id = Vec::new();
+        for _ in 0..r.usize()? {
+            let bytes: [u8; 16] =
+                r.bytes()?.try_into().map_err(|_| malformed("a content hash that is not 16 bytes"))?;
+            id.push(ChunkId::from_bytes(bytes));
+        }
+        done(&r, "content hashes")?;
+        let units = aligned_len::<L>(cx)?;
+        if id.len() != units {
+            return Err(malformed(format!("{} content hashes for {units} aligned units", id.len())));
+        }
+        checked(ContentHashes { id, _of: PhantomData }, cx)
+    }
+}
+
 /// Registers this crate's layer codecs on `codecs`: the vocabulary,
 /// the indexed terms, term statistics at the chunk, sentence,
-/// structure and whole-view levels, and the chunk facets.
+/// structure and whole-view levels, the chunk facets, and content
+/// hashes over the chunks and over the level units.
 pub fn register_codecs(codecs: &mut Codecs) {
     codecs
         .register::<Vocabulary>()
@@ -304,7 +333,9 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<TermStats<Sentences>>()
         .register::<TermStats<Structure>>()
         .register::<TermStats<View>>()
-        .register::<ChunkFacets>();
+        .register::<ChunkFacets>()
+        .register::<ContentHashes<Chunks>>()
+        .register::<ContentHashes<Levels>>();
 }
 
 /// A registry holding this crate's codecs and nothing else.
