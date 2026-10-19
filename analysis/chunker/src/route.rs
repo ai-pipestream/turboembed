@@ -27,10 +27,8 @@
 //! A hit's span is the unit's exact span in the `Levels` view; map
 //! it with `Document::to_source` or `Document::map_span` for source
 //! or cross-view coordinates. Chunk and section hits carry their
-//! parent context: the parent unit and span plus a sibling window
-//! (for a chunk) or its best child chunks (for a section), so a
-//! caller can expand a winning chunk into its section without a
-//! second lookup.
+//! parent context (parent unit and span, plus a sibling or
+//! best-children window) for expansion without a second lookup.
 
 use turbo_analysis::{Ix, Layer, Span};
 use turbo_analysis_layers::{Level, Levels, Vectors};
@@ -205,7 +203,8 @@ fn finite_non_negative(values: &[f64]) -> bool {
 
 impl LevelRouter {
     /// How `query` routes against one document's levels and term
-    /// counts, without scoring any unit for ranking.
+    /// counts, without scoring any unit for ranking. The inputs
+    /// are validated exactly as in [`LevelRouter::route`].
     pub fn profile(
         &self,
         levels: &Levels,
@@ -213,16 +212,42 @@ impl LevelRouter {
         collection: &impl Collection,
         vocabulary: &Vocabulary,
         query: &[&str],
-    ) -> QueryProfile {
+    ) -> Result<QueryProfile, String> {
+        self.validate_inputs(levels, stats, vocabulary)?;
         let q = Query::new(self.bm25, collection, vocabulary, query);
-        self.profile_of(&q, query.len(), Self::specificity(levels, stats, &q))
+        Ok(self.profile_of(&q, query.len(), Self::specificity(levels, stats, &q)))
     }
 
-    /// Chunk-level rarity of the query's present terms: parent
-    /// units hold every term their children hold, so rarity over
-    /// all units would compress toward the middle; over chunks, a
-    /// term in one chunk of many is specific and a term in every
-    /// chunk is not at all.
+    /// The checks every public entrypoint makes before indexing any
+    /// column: the configuration (BM25 included), the layers as
+    /// layers, and stats-to-levels and `df`-to-vocabulary alignment
+    /// (a larger vocabulary would index past `df` in `Query::new`).
+    fn validate_inputs(
+        &self,
+        levels: &Levels,
+        stats: &TermStats<Levels>,
+        vocabulary: &Vocabulary,
+    ) -> Result<(), String> {
+        self.check_config()?;
+        levels.check()?;
+        stats.check()?;
+        vocabulary.check()?;
+        if stats.len() != levels.len() {
+            return Err(format!("term stats for {} units over {} level units", stats.len(), levels.len()));
+        }
+        if stats.df.len() != vocabulary.len() {
+            return Err(format!(
+                "term stats over a vocabulary of {} terms, given {}",
+                stats.df.len(),
+                vocabulary.len()
+            ));
+        }
+        Ok(())
+    }
+
+    /// Chunk-level rarity of the query's present terms: parents hold
+    /// every child term, so all-unit rarity would compress to the
+    /// middle; over chunks, a term in one of many is specific.
     fn specificity(levels: &Levels, stats: &TermStats<Levels>, q: &Query) -> f64 {
         let chunks: Vec<Ix<Levels>> = levels.of(Level::Chunk).filter(|&i| stats.length[i.get()] > 0).collect();
         if chunks.is_empty() || q.terms.is_empty() {
@@ -252,6 +277,13 @@ impl LevelRouter {
     }
 
     fn check_config(&self) -> Result<(), String> {
+        if !self.bm25.k1.is_finite()
+            || self.bm25.k1 < 0.0
+            || !self.bm25.b.is_finite()
+            || !(0.0..=1.0).contains(&self.bm25.b)
+        {
+            return Err("BM25 parameters must be finite, with k1 non-negative and b in [0, 1]".into());
+        }
         self.factoid.check("factoid")?;
         self.topical.check("topical")?;
         self.summary.check("summary")?;
@@ -263,7 +295,7 @@ impl LevelRouter {
             self.sibling_share,
             self.active_share,
             self.coactivation_boost,
-        ]) || self.lexical_weight + self.dense_weight <= 0.0
+        ]) || self.lexical_weight.max(self.dense_weight) <= 0.0
         {
             return Err(
                 "router weights, thresholds and boost must be finite and non-negative, with a signal weight above zero"
@@ -294,14 +326,9 @@ impl LevelRouter {
         top_k: usize,
     ) -> Result<Routed, String> {
         let (query_terms, vectors) = (query.terms, query.vectors);
-        self.check_config()?;
+        self.validate_inputs(levels, stats, vocabulary)?;
         if top_k == 0 {
             return Err("top_k must be at least 1".into());
-        }
-        levels.check()?;
-        stats.check()?;
-        if stats.len() != levels.len() {
-            return Err(format!("term stats for {} units over {} level units", stats.len(), levels.len()));
         }
         let query_norm = match vectors {
             Some((rows, q)) => {
@@ -353,12 +380,13 @@ impl LevelRouter {
                 .collect(),
             _ => vec![None; n],
         };
+        // Weights scaled by their maximum first, so large finite
+        // weights cannot overflow: fusion is scale-invariant.
+        let scale = self.lexical_weight.max(self.dense_weight);
+        let (wl, wd) = (self.lexical_weight / scale, self.dense_weight / scale);
         let mut signal: Vec<f64> = (0..n)
             .map(|i| match dense[i] {
-                Some(d) if vectors.is_some() => {
-                    let w = self.lexical_weight + self.dense_weight;
-                    (self.lexical_weight * lexical[i] + self.dense_weight * d) / w
-                }
+                Some(d) if vectors.is_some() => (wl * lexical[i] + wd * d) / (wl + wd),
                 _ => lexical[i],
             })
             .collect();
@@ -431,9 +459,7 @@ impl LevelRouter {
         Ok(Routed { profile, hits })
     }
 
-    /// The parent context of one hit: its parent unit and span,
-    /// whether that parent was promoted, and the window described
-    /// on [`ParentContext::window`].
+    /// The parent context of one hit, as [`ParentContext`] says.
     fn context(
         &self,
         levels: &Levels,
@@ -448,13 +474,13 @@ impl LevelRouter {
                 let siblings = &children[parent.get()];
                 let at = siblings.iter().position(|&s| s == hit.unit.get())?;
                 let lo = at.saturating_sub(self.context_siblings);
-                let hi = (at + self.context_siblings + 1).min(siblings.len());
+                let hi = at.saturating_add(self.context_siblings).saturating_add(1).min(siblings.len());
                 siblings[lo..hi].iter().copied().filter(|&s| s != hit.unit.get()).map(|s| Ix::new(s as u32)).collect()
             }
             Level::Section => {
                 let mut kids = children[hit.unit.get()].clone();
                 kids.sort_by(|&a, &b| signal[b].total_cmp(&signal[a]).then(a.cmp(&b)));
-                kids.truncate(2 * self.context_siblings + 1);
+                kids.truncate(self.context_siblings.saturating_mul(2).saturating_add(1));
                 kids.into_iter().map(|s| Ix::new(s as u32)).collect()
             }
             Level::Document => Vec::new(),

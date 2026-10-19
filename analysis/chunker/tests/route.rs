@@ -8,10 +8,11 @@
 use std::marker::PhantomData;
 
 use turbo_analysis::*;
+use turbo_analysis_layers::Strs;
 use turbo_analysis_layers::{Level, Levels, Sentences, Subwords, Tokens, Vectors};
 use turbo_chunker::levels::LevelBuilder;
 use turbo_chunker::route::RouteQuery;
-use turbo_chunker::terms::{LocalCollection, TermCounter, TermIndexer, TermStats, Vocabulary};
+use turbo_chunker::terms::{Bm25, LocalCollection, TermCounter, TermIndexer, TermStats, Vocabulary};
 use turbo_chunker::{Budget, Chunker, Costs, LevelRouter, QueryKind, StructureBoundaries};
 use turbo_structure::{StructureAnnotator, Syntax};
 
@@ -182,12 +183,13 @@ fn broad_common_queries_route_to_the_document() {
     let router = LevelRouter::default();
     // Frequent terms only, several of them: a summary profile.
     let levels = doc.get::<Levels>().unwrap();
-    let profile = router.profile(levels, stats, &collection, vocab, &["Cats", "Dogs", "Cats", "Dogs", "Cats", "Dogs"]);
+    let profile =
+        router.profile(levels, stats, &collection, vocab, &["Cats", "Dogs", "Cats", "Dogs", "Cats", "Dogs"]).unwrap();
     assert_eq!(profile.kind, QueryKind::Summary, "profile: {profile:?}");
     let out = routed(&router, &doc, &["Cats", "Dogs", "Cats", "Dogs", "Cats", "Dogs"], None, 3);
     assert_eq!(out.hits[0].level, Level::Document, "hits: {:?}", out.hits);
     // A mid-specificity query is topical.
-    let topical = router.profile(levels, stats, &collection, vocab, &["Cats", "purr"]);
+    let topical = router.profile(levels, stats, &collection, vocab, &["Cats", "purr"]).unwrap();
     assert!(matches!(topical.kind, QueryKind::Topical | QueryKind::Factoid));
     // Nothing present: an empty result, not an error.
     let none = routed(&router, &doc, &["zebra"], None, 3);
@@ -268,4 +270,76 @@ fn invalid_inputs_are_refused() {
     assert!(router.route(levels, stats, &collection, vocab, &zero_q, 3).is_err(), "zero query vector");
     let short_q = RouteQuery { terms: &["Cats"], vectors: Some((&zero, &[1.0])) };
     assert!(router.route(levels, stats, &collection, vocab, &short_q, 3).is_err(), "dimension mismatch");
+}
+
+#[test]
+fn extreme_router_values_neither_overflow_nor_change_ranking() {
+    let doc = run(TEXT, &SENTENCES);
+    let levels = doc.get::<Levels>().unwrap();
+    // Valid vectors for every unit, all pointing one way.
+    let mut data = vec![0.0f32; levels.len() * 2];
+    for i in 0..levels.len() {
+        data[i * 2] = 1.0;
+    }
+    let vectors = Vectors::<Levels> { dim: 2, data, empty: vec![], model: toy_model(), _of: PhantomData };
+    vectors.check().unwrap();
+    let plain = routed(&LevelRouter::default(), &doc, &["mice"], Some((&vectors, &[1.0, 0.0])), 10);
+    assert!(!plain.hits.is_empty());
+    // f64::MAX signal weights fuse exactly as 1.0 weights do.
+    let huge = LevelRouter { lexical_weight: f64::MAX, dense_weight: f64::MAX, ..LevelRouter::default() };
+    assert_eq!(routed(&huge, &doc, &["mice"], Some((&vectors, &[1.0, 0.0])), 10), plain);
+    // A usize::MAX context window saturates to all siblings on
+    // chunk hits and to every child on section hits, never panics.
+    let wide = LevelRouter { context_siblings: usize::MAX, ..LevelRouter::default() };
+    let out = routed(&wide, &doc, &["Cats"], Some((&vectors, &[1.0, 0.0])), 10);
+    let chunk = out.hits.iter().find(|h| h.level == Level::Chunk).unwrap();
+    let siblings = levels
+        .of(Level::Chunk)
+        .filter(|&i| levels.parent[i.get()] == levels.parent[chunk.unit.get()] && i != chunk.unit)
+        .count();
+    assert_eq!(chunk.context.as_ref().unwrap().window.len(), siblings);
+    let section = out.hits.iter().find(|h| h.level == Level::Section).unwrap();
+    let children = levels.of(Level::Chunk).filter(|&i| levels.parent[i.get()] == Some(section.unit)).count();
+    assert!(children > 0);
+    assert_eq!(section.context.as_ref().unwrap().window.len(), children);
+}
+
+#[test]
+fn profile_and_route_refuse_mismatched_inputs_and_bad_bm25() {
+    let doc = run(TEXT, &SENTENCES);
+    let levels = doc.get::<Levels>().unwrap();
+    let stats = doc.get::<TermStats<Levels>>().unwrap();
+    let vocab = doc.get::<Vocabulary>().unwrap();
+    let collection = LocalCollection::new(stats, vocab);
+    let router = LevelRouter::default();
+    let q = RouteQuery { terms: &["Cats"], vectors: None };
+
+    // Stats from a smaller document: both entrypoints refuse,
+    // where profile used to index past the shorter columns.
+    let other = run("# Solo\n\nAlone here.\n", &["# Solo", "Alone here."]);
+    let other_stats = other.get::<TermStats<Levels>>().unwrap();
+    assert_ne!(other_stats.len(), levels.len());
+    assert!(router.profile(levels, other_stats, &collection, vocab, &["Cats"]).is_err());
+    assert!(router.route(levels, other_stats, &collection, vocab, &q, 3).is_err());
+
+    // A vocabulary larger than the stats' df column.
+    let mut text = Strs::default();
+    for i in 0..stats.df.len() + 1 {
+        text.push(&format!("t{i:04}"));
+    }
+    let wide_vocab = Vocabulary { text };
+    assert!(router.profile(levels, stats, &collection, &wide_vocab, &["Cats"]).is_err());
+    assert!(router.route(levels, stats, &collection, &wide_vocab, &q, 3).is_err());
+
+    // Invalid BM25 parameters, through public fields.
+    for bm25 in [
+        Bm25 { k1: -1.0, b: 0.75 },
+        Bm25 { k1: f64::NAN, b: 0.75 },
+        Bm25 { k1: 1.2, b: 1.5 },
+        Bm25 { k1: 1.2, b: f64::INFINITY },
+    ] {
+        let bad = LevelRouter { bm25, ..LevelRouter::default() };
+        assert!(bad.profile(levels, stats, &collection, vocab, &["Cats"]).is_err(), "profile accepted {bm25:?}");
+        assert!(bad.route(levels, stats, &collection, vocab, &q, 3).is_err(), "route accepted {bm25:?}");
+    }
 }
