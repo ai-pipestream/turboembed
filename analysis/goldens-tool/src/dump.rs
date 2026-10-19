@@ -89,16 +89,27 @@ impl DumpHeader {
             return Err(lines.error(format!("expected `{FIRST_LINE}`, found `{first}`")));
         }
         let f = lines.record("generator", 3)?;
-        let (generator, generator_version) = (lines.str(f[1])?, lines.u32(f[2])?);
+        let (generator, generator_version) = (lines.non_empty_str(f[1], "generator")?, lines.u32(f[2])?);
         let f = lines.record("opennlp", 3)?;
-        let (opennlp_commit, opennlp_version) = (lines.hex::<20>(f[1])?, lines.str(f[2])?);
+        let (opennlp_commit, opennlp_version) = (lines.hex::<20>(f[1])?, lines.non_empty_str(f[2], "opennlp version")?);
         let f = lines.record("jdk", 4)?;
-        let (java_version, vm_version, vendor) = (lines.str(f[1])?, lines.str(f[2])?, lines.str(f[3])?);
+        let (java_version, vm_version, vendor) = (
+            lines.non_empty_str(f[1], "java version")?,
+            lines.non_empty_str(f[2], "vm version")?,
+            lines.non_empty_str(f[3], "vendor")?,
+        );
         let f = lines.record("unicode", 2)?;
-        let unicode = lines.str(f[1])?;
+        let unicode = lines.non_empty_str(f[1], "unicode version")?;
+        if !unicode.split_once('.').is_some_and(|(a, b)| parse_u32(a).is_some() && parse_u32(b).is_some()) {
+            return Err(lines.error(format!("expected `<u32>.<u32>` unicode version, found `{unicode}`")));
+        }
         let f = lines.record("input", 5)?;
+        let input_id = lines.non_empty_str(f[1], "input id")?;
+        if !input_id.split_once('/').is_some_and(|(set, id)| !set.is_empty() && !id.is_empty() && !id.contains('/')) {
+            return Err(lines.error(format!("expected `<set>/<id>` input id, found `{input_id}`")));
+        }
         let input = InputRecord {
-            id: lines.str(f[1])?,
+            id: input_id,
             utf8_len: lines.u32(f[2])?,
             utf16_len: lines.u32(f[3])?,
             sha256: lines.hex::<32>(f[4])?,
@@ -106,20 +117,30 @@ impl DumpHeader {
         let mut models = Vec::new();
         while lines.peek_tag() == Some("model") {
             let f = lines.record("model", 3)?;
-            models.push(ModelRecord { file: lines.str(f[1])?, sha512: lines.hex::<64>(f[2])? });
+            models.push(ModelRecord { file: lines.non_empty_str(f[1], "model file")?, sha512: lines.hex::<64>(f[2])? });
         }
         let f = lines.record("annotator", 3)?;
-        let (annotator_class, method) = (lines.str(f[1])?, lines.str(f[2])?);
-        let mut config = Vec::new();
+        let (annotator_class, method) =
+            (lines.non_empty_str(f[1], "annotator class")?, lines.non_empty_str(f[2], "method")?);
+        let mut config: Vec<(String, String)> = Vec::new();
         while lines.peek_tag() == Some("config") {
             let f = lines.record("config", 3)?;
-            config.push((lines.str(f[1])?, lines.str(f[2])?));
+            let key = lines.non_empty_str(f[1], "config key")?;
+            let value = lines.str(f[2])?;
+            if let Some((prev, _)) = config.last()
+                && prev.as_str() >= key.as_str()
+            {
+                return Err(lines.error(format!("config key `{key}` is not in ascending order after `{prev}`")));
+            }
+            config.push((key, value));
         }
-        match lines.peek_tag() {
-            None | Some("point") => {}
+        match lines.rest.peek().copied() {
+            None => {}
+            Some(next) if next.starts_with("point\t") => {}
             Some(other) => {
                 lines.next_line("")?;
-                return Err(lines.error(format!("expected a `point` record or the end of the file, found `{other}`")));
+                let tag = other.split('\t').next().unwrap_or("");
+                return Err(lines.error(format!("expected a `point` record or the end of the file, found `{tag}`")));
             }
         }
         Ok(DumpHeader {
@@ -148,6 +169,9 @@ struct Lines<'a> {
 
 impl<'a> Lines<'a> {
     fn new(text: &'a str) -> Result<Lines<'a>, DumpError> {
+        if let Some((i, _)) = text.split('\n').enumerate().find(|(_, l)| l.contains('\r')) {
+            return Err(DumpError { line: i + 1, message: "carriage return in dump".into() });
+        }
         let Some(body) = text.strip_suffix('\n') else {
             return Err(DumpError {
                 line: text.split('\n').count(),
@@ -204,6 +228,14 @@ impl<'a> Lines<'a> {
     fn str(&self, s: &str) -> Result<String, DumpError> {
         unescape(s).map_err(|e| self.error(e))
     }
+
+    fn non_empty_str(&self, s: &str, name: &str) -> Result<String, DumpError> {
+        let v = self.str(s)?;
+        if v.is_empty() {
+            return Err(self.error(format!("empty {name}")));
+        }
+        Ok(v)
+    }
 }
 
 /// A `u32` field: decimal digits, no sign, no leading zero except in `0`.
@@ -237,6 +269,9 @@ fn parse_hex<const N: usize>(s: &str) -> Option<[u8; N]> {
 /// UTF-16 unit, four lowercase hex digits; a surrogate pair is two of
 /// them). A lone surrogate has no place in a Rust string and is an error.
 fn unescape(s: &str) -> Result<String, String> {
+    if s.bytes().any(|b| b < 0x20) {
+        return Err("raw control character in string".into());
+    }
     if !s.contains('\\') {
         return Ok(s.to_owned());
     }
@@ -328,11 +363,15 @@ mod tests {
 
         let e = DumpHeader::parse(&dump("annotator\ta.B\trun\nconfig\tk\n")).unwrap_err();
         assert_eq!(e.to_string(), "line 9: a `config` record has 3 fields, this one 2");
+        assert!(DumpHeader::parse(&dump("annotator\ta.B\trun\nconfig\tb\t1\nconfig\ta\t2\n")).is_err());
+        assert!(DumpHeader::parse(&dump("annotator\ta.B\trun\nconfig\ta\t1\nconfig\ta\t2\n")).is_err());
+        assert!(DumpHeader::parse(&dump("annotator\ta.B\trun\nconfig\t\t1\n")).is_err());
     }
 
     #[test]
     fn a_dump_without_points_is_its_header() {
         assert!(DumpHeader::parse(&dump("annotator\ta.B\trun\n")).is_ok());
+        assert!(DumpHeader::parse(&dump("annotator\ta.B\trun\npoint\n")).is_err());
     }
 
     #[test]
@@ -354,6 +393,19 @@ mod tests {
         let e = DumpHeader::parse(&dump("annotator\ta.B\trun")).unwrap_err();
         assert!(e.to_string().contains("line end"), "{e}");
 
+        let e = DumpHeader::parse(&dump("annotator\ta.B\trun\r\n")).unwrap_err();
+        assert!(e.to_string().contains("carriage return"), "{e}");
+
+        let e = DumpHeader::parse(&dump("annotator\t\trun\n")).unwrap_err();
+        assert!(e.to_string().contains("empty annotator class"), "{e}");
+
+        let e =
+            DumpHeader::parse(&dump("annotator\ta.B\trun\n").replace("unicode\t15.0\n", "unicode\t15\n")).unwrap_err();
+        assert!(e.to_string().contains("unicode version"), "{e}");
+
+        let e = DumpHeader::parse(&dump("annotator\ta.B\trun\n").replace("input\ten/x\t", "input\tenx\t")).unwrap_err();
+        assert!(e.to_string().contains("input id"), "{e}");
+
         let text = dump("annotator\ta.B\trun\n").replace("\t9\t8\t", "\t09\t8\t");
         let e = DumpHeader::parse(&text).unwrap_err();
         assert_eq!((e.line, e.message.as_str()), (6, "expected a u32, found `09`"));
@@ -370,6 +422,8 @@ mod tests {
         assert_eq!(unescape("a\\tb\\nc\\rd\\\\e").unwrap(), "a\tb\nc\rd\\e");
         assert_eq!(unescape("\\u0000\\u001f").unwrap(), "\u{0}\u{1f}");
         assert_eq!(unescape("x\\ud83d\\ude00y").unwrap(), "x😀y");
+        assert!(unescape("a\x00b").is_err());
+        assert!(unescape("a\x1fb").is_err());
         assert!(unescape("x\\ud83dy").is_err());
         assert!(unescape("\\u00G0").is_err());
         assert!(unescape("\\q").is_err());
