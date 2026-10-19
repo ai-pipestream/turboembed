@@ -68,16 +68,16 @@ impl Layer for View {
     }
 }
 
-struct Entry {
-    key: KeyId,
-    len: usize,
+pub(crate) struct Entry {
+    pub(crate) key: KeyId,
+    pub(crate) len: usize,
     /// None when the layer was skipped or failed.
-    value: Option<Arc<dyn Any + Send + Sync>>,
+    pub(crate) value: Option<Arc<dyn Any + Send + Sync>>,
     /// The instances its items point into: an aligned layer's anchor
     /// first, then the layers it indexes.
-    on: Vec<KeyId>,
-    provenance: Arc<Provenance>,
-    status: Status,
+    pub(crate) on: Vec<KeyId>,
+    pub(crate) provenance: Arc<Provenance>,
+    pub(crate) status: Status,
 }
 
 /// What became of a layer on a document, kept apart from its data. A
@@ -328,6 +328,11 @@ impl Document {
 
     pub fn layers(&self) -> impl Iterator<Item = KeyId> + '_ {
         self.entries.iter().map(|e| e.key)
+    }
+
+    /// The entries in the order they were added, for the graph export.
+    pub(crate) fn entries(&self) -> &[Arc<Entry>] {
+        &self.entries
     }
 
     pub fn has(&self, key: KeyId) -> bool {

@@ -136,3 +136,55 @@ fn the_input_checks_what_it_is_given() {
     let m = one("A", &[Tok::text("a")]);
     assert_eq!(m.find_in(&input, IxRange::new(1, 4)), Err(MatchError::Range { start: 1, end: 4, tokens: 3 }));
 }
+
+#[test]
+fn discontinuous_entities_skip_gap_tokens_and_ruler_checks_entity_view() {
+    use turbo_analysis::{Annotator, Document, Provenance, TagSet, View, ViewBuilder};
+    use turbo_analysis_layers::Entities;
+    use turbo_matcher::{Iob, Policy, SpanRuler};
+
+    let doc = Doc::split("left and right arm");
+    let kinds = TagSet::new("kinds", &["ANAT"]);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    // "left" (0..4) and "arm" (15..18), skipping "and" (5..8) and "right" (9..14).
+    spans.push_fragments(&[Span::new(0, 4), Span::new(15, 18)]);
+    let entities = Entities {
+        spans,
+        tokens: vec![IxRange::new(0, 4)],
+        kind: vec![kinds.tag("ANAT").unwrap()],
+        kinds,
+        score: vec![1.0],
+    };
+    let input = Input::new(&doc.text, &doc.tokens).unwrap().with_entities(&entities).unwrap();
+    let texts = |m: &Matcher| -> Vec<&str> {
+        m.find(&input).unwrap().iter().map(|x| &doc.text[input.span(x.tokens).range()]).collect()
+    };
+    assert_eq!(texts(&one("A", &[Tok::attr(Attr::Entity, "ANAT")])), ["left", "arm"]);
+    assert_eq!(texts(&one("O", &[Tok::iob(Iob::Outside)])), ["and", "right"]);
+
+    let mut ruler = SpanRuler::new(Field::Attr(Attr::Text), Policy::Keep);
+    ruler.add_pattern("A", &[Tok::attr(Attr::Entity, "ANAT")]).unwrap();
+    let mut analysis_doc = Document::new(doc.text.clone());
+    let (clean_text, align) = ViewBuilder::new(&doc.text).finish();
+    let child_view = View::derived(analysis_doc.get::<View>().unwrap(), clean_text, align);
+    analysis_doc.add(&turbo_analysis::Key::named("clean"), child_view, Provenance::by("test")).unwrap();
+    let clean = analysis_doc.get_key::<View>(&turbo_analysis::Key::named("clean")).unwrap();
+    let mut child_tok_spans = Spans::new(clean.id());
+    for (_, s) in doc.tokens.spans.iter() {
+        child_tok_spans.push(s);
+    }
+    let child_tokens = Tokens { spans: child_tok_spans, sentence: None };
+    assert_eq!(
+        Input::new(clean.text(), &child_tokens).unwrap().with_entities(&entities).err(),
+        Some(MatchError::ViewMismatch { layer: "opennlp:entities", expected: clean.id(), actual: ViewId::SOURCE })
+    );
+    let source_numbers = Numbers::new(ViewId::SOURCE);
+    let child_input_with_source_numbers =
+        Input::new(clean.text(), &child_tokens).unwrap().with_numbers(&source_numbers);
+    assert_eq!(
+        one("N", &[Tok::flag(Flag::Number, true)]).find(&child_input_with_source_numbers),
+        Err(MatchError::ViewMismatch { layer: "turbo:numbers", expected: clean.id(), actual: ViewId::SOURCE })
+    );
+    let err = ruler.annotate((clean, &child_tokens, None, None, Some(&entities), None, None, None)).err().unwrap();
+    assert!(err.to_string().contains("entities are in another view"), "{err}");
+}

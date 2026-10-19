@@ -71,6 +71,25 @@ impl Annotator for StopwordAnnotator {
         let language = self.language(detected)?;
         let text = view.text();
         let (starts, ends) = tokens.spans.columns();
+        if starts.len() != ends.len() {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("token span start count ({}) does not match end count ({})", starts.len(), ends.len()),
+            });
+        }
+        for i in 0..starts.len() {
+            let s = starts[i] as usize;
+            let e = ends[i] as usize;
+            if s > e || e > text.len() || !text.is_char_boundary(s) || !text.is_char_boundary(e) {
+                return Err(Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!(
+                        "token {i} span {s}..{e} is not a valid UTF-8 slice of view text of length {}",
+                        text.len()
+                    ),
+                });
+            }
+        }
         let mut stop = Vec::with_capacity(starts.len());
         let words = starts.iter().zip(ends).map(|(&s, &e)| &text[s as usize..e as usize]);
         StopwordList::bundled(language).flag(words, &mut stop);

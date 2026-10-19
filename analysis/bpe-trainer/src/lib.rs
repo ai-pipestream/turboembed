@@ -43,7 +43,7 @@ pub struct Merge {
 }
 
 /// Why a model could not be trained.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum TrainError {
     /// OpenNLP: `numMerges` must be positive.
     NoMerges,
@@ -62,6 +62,28 @@ pub enum TrainError {
     /// A line of a merges file that is not two symbols and a space.
     BadMergeLine { line: usize },
 }
+
+impl PartialEq for TrainError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (TrainError::NoMerges, TrainError::NoMerges)
+            | (TrainError::EmptySpecialToken, TrainError::EmptySpecialToken)
+            | (TrainError::EmptyCorpus, TrainError::EmptyCorpus) => true,
+            (TrainError::Coverage(a), TrainError::Coverage(b)) => a.to_bits() == b.to_bits(),
+            (
+                TrainError::VocabTooSmall { asked: a1, least: l1 },
+                TrainError::VocabTooSmall { asked: a2, least: l2 },
+            ) => a1 == a2 && l1 == l2,
+            (TrainError::VocabTooLarge { asked: a1, most: m1 }, TrainError::VocabTooLarge { asked: a2, most: m2 }) => {
+                a1 == a2 && m1 == m2
+            }
+            (TrainError::BadMergeLine { line: l1 }, TrainError::BadMergeLine { line: l2 }) => l1 == l2,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for TrainError {}
 
 impl fmt::Display for TrainError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -86,4 +108,14 @@ impl std::error::Error for TrainError {}
 /// `s` as a JSON string, escaped as serde_json escapes it.
 pub(crate) fn json_string(s: &str) -> String {
     serde_json::to_string(s).expect("a string serializes")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn train_error_coverage_nan_is_reflexive() {
+        assert_eq!(TrainError::Coverage(f32::NAN), TrainError::Coverage(f32::NAN));
+    }
 }

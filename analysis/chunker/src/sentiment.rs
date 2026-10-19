@@ -10,18 +10,23 @@
 //! Because [`WeighAllBoundaries::default`](crate::WeighAllBoundaries) sets `sentiment: Weight(0)`,
 //! this signal is off by default unless explicitly weighted in a pipeline specification.
 
-use std::num::NonZeroU32;
-use std::ops::Range;
+mod facets;
+#[cfg(test)]
+mod tests;
 
-use turbo_analysis::{Anchor, Annotator, Bound, Error, Ix, Key, KeyId, Layer, LayerName, Refs, View};
+pub use facets::{ChunkFacetBuilder, ChunkFacets, boundary_similarity, chunk_boundary_gaps};
+
+use std::num::NonZeroU32;
+
+use turbo_analysis::{Annotator, Bound, Error, Ix, Layer, Refs, View};
 use turbo_analysis_layers::{
-    Aspects, Boundaries, Categories, Chunks, Cut, Incivility, IncivilityLabel, IncivilityScores, IncivilityTarget,
-    Polarity, Sentences, Strs, Tokens,
+    Aspects, Boundaries, Categories, Cut, Incivility, IncivilityLabel, IncivilityScores, IncivilityTarget, Polarity,
+    Sentences, Tokens,
 };
 
 use crate::weigh::SENTIMENT;
 
-const MICRO: i64 = 1_000_000;
+pub(super) const MICRO: i64 = 1_000_000;
 const MILLI: i64 = 1_000;
 
 /// Parameters for [`sentiment_shift`] and [`SentimentBoundaries`].
@@ -76,7 +81,7 @@ struct SentenceSignal {
     incivility_micro: Option<(i64, u8)>,
 }
 
-fn label_bit(label: IncivilityLabel) -> u8 {
+pub(super) fn label_bit(label: IncivilityLabel) -> u8 {
     1u8 << (label as u8)
 }
 
@@ -84,7 +89,7 @@ fn max_incivility_score(scores: IncivilityScores) -> f64 {
     scores.iter().into_iter().map(|(_, s)| if s.is_finite() { s.clamp(0.0, 1.0) } else { 0.0 }).fold(0.0f64, f64::max)
 }
 
-fn category_row_polarity_micro(cats: &Categories<Sentences>, i: usize) -> Option<i64> {
+pub(super) fn category_row_polarity_micro(cats: &Categories<Sentences>, i: usize) -> Option<i64> {
     let row = cats.get(i)?;
     let pos = row.score_of("positive").or_else(|| row.score_of("pos"));
     let neg = row.score_of("negative").or_else(|| row.score_of("neg"));
@@ -109,7 +114,7 @@ fn category_row_polarity_micro(cats: &Categories<Sentences>, i: usize) -> Option
     }
 }
 
-fn resolve_aspect_sentence(
+pub(super) fn resolve_aspect_sentence(
     a_ix: Ix<Aspects>,
     aspects: &Aspects,
     sents: &Sentences,
@@ -139,7 +144,12 @@ fn resolve_aspect_sentence(
     (idx < n).then_some(idx)
 }
 
-fn resolve_aspect_label(a_ix: Ix<Aspects>, aspects: &Aspects, toks: Option<&Tokens>, view: Option<&View>) -> String {
+pub(super) fn resolve_aspect_label(
+    a_ix: Ix<Aspects>,
+    aspects: &Aspects,
+    toks: Option<&Tokens>,
+    view: Option<&View>,
+) -> String {
     if let Some(cat) = aspects.category_label(a_ix)
         && !cat.is_empty()
     {
@@ -153,9 +163,8 @@ fn resolve_aspect_label(a_ix: Ix<Aspects>, aspects: &Aspects, toks: Option<&Toke
         let start = toks.spans.get(r.start).start as usize;
         let last = Ix::new(r.end.get() as u32 - 1);
         let end = toks.spans.get(last).end as usize;
-        let text = v.text();
-        if start <= end && end <= text.len() {
-            return text[start..end].trim().to_owned();
+        if let Some(slice) = v.text().get(start..end) {
+            return slice.trim().to_owned();
         }
     }
     String::new()
@@ -391,6 +400,10 @@ impl Annotator for SentimentBoundaries {
     type Writes = (Boundaries,);
 
     fn annotate(&self, (sents, view, toks, cats, aspects, incivility): Refs<'_, Self>) -> Result<(Boundaries,), Error> {
+        let view_id = sents.spans.view();
+        if view.is_some_and(|v| v.id() != view_id) || toks.is_some_and(|t| t.spans.view() != view_id) {
+            return Err(Error::Annotator { annotator: Self::ID, detail: "its inputs are in different views".into() });
+        }
         if let Some(c) = cats
             && c.len() != sents.spans.len()
         {
@@ -415,583 +428,5 @@ impl Annotator for SentimentBoundaries {
         ]
         .iter()
         .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
-    }
-}
-
-/// Per-chunk sentiment, aspect, and incivility facets aligned 1-to-1 with [`Chunks`].
-///
-/// Follows the sparse-row layout of [`TermStats`](crate::terms::TermStats): each chunk `c`
-/// owns `aspect_row[c]..aspect_row[c + 1]` in `aspect`, `aspect_label`, and `aspect_polarity`,
-/// and `incivility_row[c]..incivility_row[c + 1]` in `incivility_label`.
-#[derive(Clone, Debug)]
-pub struct ChunkFacets {
-    pub polarity: Vec<Polarity>,
-    pub polarity_score: Vec<f64>,
-    pub aspect_row: Vec<u32>,
-    pub aspect: Vec<Ix<Aspects>>,
-    pub aspect_label: Strs,
-    pub aspect_polarity: Vec<Polarity>,
-    pub incivility_row: Vec<u32>,
-    pub incivility_label: Vec<IncivilityLabel>,
-    pub incivility_max: Vec<IncivilityScores>,
-}
-
-impl ChunkFacets {
-    fn aspect_range(&self, c: Ix<Chunks>) -> Range<usize> {
-        let i = c.get();
-        self.aspect_row[i] as usize..self.aspect_row[i + 1] as usize
-    }
-
-    /// Aggregated sentiment polarity for chunk `c`.
-    #[inline]
-    pub fn chunk_polarity(&self, c: Ix<Chunks>) -> Polarity {
-        self.polarity[c.get()]
-    }
-
-    /// Signed polarity score in `[-1.0, 1.0]` for chunk `c`.
-    #[inline]
-    pub fn chunk_polarity_score(&self, c: Ix<Chunks>) -> f64 {
-        self.polarity_score[c.get()]
-    }
-
-    /// Aspect indices from [`Aspects`] falling within chunk `c`.
-    #[inline]
-    pub fn aspect_ixs(&self, c: Ix<Chunks>) -> &[Ix<Aspects>] {
-        &self.aspect[self.aspect_range(c)]
-    }
-
-    /// Aspect polarities parallel to [`Self::aspect_ixs`] for chunk `c`.
-    #[inline]
-    pub fn aspect_polarities(&self, c: Ix<Chunks>) -> &[Polarity] {
-        &self.aspect_polarity[self.aspect_range(c)]
-    }
-
-    /// Iterates `(Ix<Aspects>, label, Polarity)` for all aspects falling within chunk `c`.
-    pub fn aspects_of(&self, c: Ix<Chunks>) -> impl ExactSizeIterator<Item = (Ix<Aspects>, &str, Polarity)> + '_ {
-        let r = self.aspect_range(c);
-        r.map(move |k| (self.aspect[k], self.aspect_label.get(k), self.aspect_polarity[k]))
-    }
-
-    /// Flagged incivility labels present in chunk `c`, in canonical [`IncivilityLabel`] order.
-    #[inline]
-    pub fn incivility_labels(&self, c: Ix<Chunks>) -> &[IncivilityLabel] {
-        let i = c.get();
-        let r = self.incivility_row[i] as usize..self.incivility_row[i + 1] as usize;
-        &self.incivility_label[r]
-    }
-
-    /// Element-wise maximum incivility dimension scores across sentences in chunk `c`.
-    #[inline]
-    pub fn incivility_scores(&self, c: Ix<Chunks>) -> IncivilityScores {
-        self.incivility_max[c.get()]
-    }
-}
-
-impl Layer for ChunkFacets {
-    const ID: &'static str = "turbo:chunk-facets";
-    const OF: Option<&'static LayerName> = Some(Chunks::NAME);
-
-    fn anchor() -> Anchor {
-        Anchor::aligned::<Chunks>()
-    }
-
-    fn len(&self) -> usize {
-        self.polarity.len()
-    }
-
-    fn indexes(&self) -> Vec<(KeyId, usize)> {
-        let max_asp = self.aspect.iter().map(|ix| ix.get() + 1).max().unwrap_or(0);
-        if max_asp > 0 { vec![(Key::<Aspects>::DEFAULT.id(), max_asp)] } else { Vec::new() }
-    }
-
-    fn check(&self) -> Result<(), String> {
-        let n = self.polarity.len();
-        if self.polarity_score.len() != n || self.incivility_max.len() != n {
-            return Err("a polarity score and incivility scores for every chunk".into());
-        }
-        if self.aspect_row.len() != n + 1
-            || self.aspect_row.first().copied() != Some(0)
-            || self.aspect_row.last().copied().unwrap_or(0) as usize != self.aspect.len()
-            || !self.aspect_row.windows(2).all(|w| w[0] <= w[1])
-        {
-            return Err("aspect_row must start at 0, be non-decreasing, and end at aspect.len()".into());
-        }
-        if self.aspect_label.len() != self.aspect.len() || self.aspect_polarity.len() != self.aspect.len() {
-            return Err("an aspect label and polarity for every aspect entry".into());
-        }
-        if self.incivility_row.len() != n + 1
-            || self.incivility_row.first().copied() != Some(0)
-            || self.incivility_row.last().copied().unwrap_or(0) as usize != self.incivility_label.len()
-            || !self.incivility_row.windows(2).all(|w| w[0] <= w[1])
-        {
-            return Err("incivility_row must start at 0, be non-decreasing, and end at incivility_label.len()".into());
-        }
-        for i in 0..n {
-            let r = self.incivility_row[i] as usize..self.incivility_row[i + 1] as usize;
-            if !self.incivility_label[r].windows(2).all(|w| w[0] < w[1]) {
-                return Err(format!("chunk {i}: incivility labels must be in strictly ascending order"));
-            }
-        }
-        if self.polarity_score.iter().any(|x| !x.is_finite() || !(-1.0..=1.0).contains(x)) {
-            return Err("polarity_score must be finite and in -1.0..=1.0".into());
-        }
-        if self.incivility_max.iter().any(|s| !s.is_valid()) {
-            return Err("incivility_max scores must be finite and in 0.0..=1.0".into());
-        }
-        Ok(())
-    }
-}
-
-/// Annotator that projects sentence-level sentiment categories, [`Aspects`], and
-/// [`Incivility`] onto [`Chunks`] as [`ChunkFacets`].
-#[derive(Clone, Copy, Debug, Default)]
-pub struct ChunkFacetBuilder;
-
-impl Annotator for ChunkFacetBuilder {
-    const ID: &'static str = "turbo:chunk-facet-builder";
-    type Reads = (
-        Chunks,
-        Sentences,
-        Option<View>,
-        Option<Tokens>,
-        Option<Categories<Sentences>>,
-        Option<Aspects>,
-        Option<Incivility>,
-    );
-    type Writes = (ChunkFacets,);
-
-    fn annotate(
-        &self,
-        (chunks, sents, view, toks, cats, aspects, incivility): Refs<'_, Self>,
-    ) -> Result<(ChunkFacets,), Error> {
-        let n_chunks = chunks.len();
-        let n_sents = sents.spans.len();
-        let mut polarity = Vec::with_capacity(n_chunks);
-        let mut polarity_score = Vec::with_capacity(n_chunks);
-        let mut aspect_row = Vec::with_capacity(n_chunks + 1);
-        let mut aspect_ixs = Vec::new();
-        let mut aspect_label = Strs::default();
-        let mut aspect_polarity = Vec::new();
-        let mut incivility_row = Vec::with_capacity(n_chunks + 1);
-        let mut incivility_label = Vec::new();
-        let mut incivility_max = Vec::with_capacity(n_chunks);
-
-        aspect_row.push(0);
-        incivility_row.push(0);
-
-        for c_idx in 0..n_chunks {
-            let c_ix = Ix::<Chunks>::new(c_idx as u32);
-            let sr = chunks.sentences[c_idx];
-            let s_start = sr.start.get();
-            let s_end = sr.end.get().min(n_sents);
-
-            // 1. Collect aspects whose sentence falls in [s_start, s_end).
-            let chunk_aspect_start = aspect_ixs.len();
-            let mut aspect_compound_sum = 0.0f64;
-            let mut aspect_compound_n = 0usize;
-            if let Some(asp) = aspects {
-                for (a_ix, item) in asp.iter() {
-                    if let Some(s_idx) = resolve_aspect_sentence(a_ix, asp, sents, toks)
-                        && (s_start..s_end).contains(&s_idx)
-                    {
-                        let lbl = resolve_aspect_label(a_ix, asp, toks, view);
-                        aspect_ixs.push(a_ix);
-                        aspect_label.push(&lbl);
-                        aspect_polarity.push(item.polarity.label());
-                        aspect_compound_sum += item.polarity.compound().clamp(-1.0, 1.0);
-                        aspect_compound_n += 1;
-                    }
-                }
-            }
-            aspect_row.push(aspect_ixs.len() as u32);
-
-            // 2. Compute chunk polarity and signed score.
-            let mut signed_sum = 0.0f64;
-            let mut signed_n = 0usize;
-
-            if let Some(cats) = cats {
-                for s_idx in s_start..s_end.min(cats.len()) {
-                    if let Some(p_micro) = category_row_polarity_micro(cats, s_idx) {
-                        signed_sum += (p_micro as f64) / (MICRO as f64);
-                        signed_n += 1;
-                    }
-                }
-            }
-
-            if signed_n == 0 && aspect_compound_n > 0 {
-                signed_sum = aspect_compound_sum;
-                signed_n = aspect_compound_n;
-            } else if signed_n == 0 && aspect_ixs.len() > chunk_aspect_start {
-                for &pol in &aspect_polarity[chunk_aspect_start..] {
-                    match pol {
-                        Polarity::Positive => signed_sum += 1.0,
-                        Polarity::Negative => signed_sum -= 1.0,
-                        Polarity::Neutral => {}
-                    }
-                    signed_n += 1;
-                }
-            }
-
-            let mean_score = if signed_n > 0 { (signed_sum / (signed_n as f64)).clamp(-1.0, 1.0) } else { 0.0 };
-            let chunk_pol = if mean_score > 0.05 {
-                Polarity::Positive
-            } else if mean_score < -0.05 {
-                Polarity::Negative
-            } else {
-                Polarity::Neutral
-            };
-            polarity.push(chunk_pol);
-            polarity_score.push(mean_score);
-
-            // 3. Aggregate incivility scores and distinct flagged labels over sentences in chunk `c`
-            //    or direct `IncivilityTarget::Chunk(c_ix)` entries.
-            let mut max_scores = IncivilityScores::default();
-            let mut mask = 0u8;
-            if let Some(inc) = incivility {
-                for i in 0..inc.len() {
-                    let item_ix = Ix::<Incivility>::new(i as u32);
-                    let in_chunk = match inc.target[i] {
-                        IncivilityTarget::Sentence(s_ix) => (s_start..s_end).contains(&s_ix.get()),
-                        IncivilityTarget::Chunk(ch_ix) => ch_ix == c_ix,
-                        IncivilityTarget::Block(_) => false,
-                    };
-                    if in_chunk {
-                        let sc = inc.scores(item_ix);
-                        max_scores.insult = max_scores.insult.max(sc.insult);
-                        max_scores.profanity = max_scores.profanity.max(sc.profanity);
-                        max_scores.threat = max_scores.threat.max(sc.threat);
-                        max_scores.identity_attack = max_scores.identity_attack.max(sc.identity_attack);
-                        max_scores.intolerance = max_scores.intolerance.max(sc.intolerance);
-                        max_scores.severe_toxicity = max_scores.severe_toxicity.max(sc.severe_toxicity);
-                        for (lbl, _) in inc.evidence_of(item_ix) {
-                            mask |= label_bit(lbl);
-                        }
-                        for (lbl, val) in sc.iter() {
-                            if val >= 0.5 {
-                                mask |= label_bit(lbl);
-                            }
-                        }
-                    }
-                }
-            }
-            for lbl in IncivilityLabel::ALL {
-                if (mask & label_bit(lbl)) != 0 {
-                    incivility_label.push(lbl);
-                }
-            }
-            incivility_row.push(incivility_label.len() as u32);
-            incivility_max.push(max_scores);
-        }
-
-        let facets = ChunkFacets {
-            polarity,
-            polarity_score,
-            aspect_row,
-            aspect: aspect_ixs,
-            aspect_label,
-            aspect_polarity,
-            incivility_row,
-            incivility_label,
-            incivility_max,
-        };
-        Ok((facets,))
-    }
-}
-
-/// Fournier (2013) Boundary Similarity ($B$) over internal sentence-gap boundary positions.
-///
-/// Given reference boundary gaps `gold_gaps` and predicted boundary gaps `pred_gaps`
-/// (each a gap index `g` after sentence `g`, as returned by [`chunk_boundary_gaps`]),
-/// pairs exact boundary matches with weight `1.0` and near-miss transpositions within
-/// `near_distance` gaps (`>= 1`) with weight `0.5`, divided by the total number of matched
-/// and unmatched boundary edits:
-///
-/// $$B = \frac{|M_{\text{exact}}| + 0.5 \cdot |M_{\text{near}}|}{|M_{\text{exact}}| + |M_{\text{near}}| + |U_{\text{gold}}| + |U_{\text{pred}}|}$$
-///
-/// Returns `1.0` when both `gold_gaps` and `pred_gaps` are empty.
-pub fn boundary_similarity(gold_gaps: &[u32], pred_gaps: &[u32], near_distance: u32) -> f64 {
-    let mut g: Vec<u32> = gold_gaps.to_vec();
-    let mut p: Vec<u32> = pred_gaps.to_vec();
-    g.sort_unstable();
-    g.dedup();
-    p.sort_unstable();
-    p.dedup();
-
-    if g.is_empty() && p.is_empty() {
-        return 1.0;
-    }
-
-    let mut g_used = vec![false; g.len()];
-    let mut p_used = vec![false; p.len()];
-    let mut exact = 0usize;
-
-    for (gi, &gv) in g.iter().enumerate() {
-        if let Ok(pi) = p.binary_search(&gv) {
-            g_used[gi] = true;
-            p_used[pi] = true;
-            exact += 1;
-        }
-    }
-
-    let mut near = 0usize;
-    if near_distance > 0 {
-        for d in 1..=near_distance {
-            for (gi, &gv) in g.iter().enumerate() {
-                if g_used[gi] {
-                    continue;
-                }
-                for (pi, &pv) in p.iter().enumerate() {
-                    if p_used[pi] {
-                        continue;
-                    }
-                    if gv.abs_diff(pv) == d {
-                        g_used[gi] = true;
-                        p_used[pi] = true;
-                        near += 1;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    let u_gold = g_used.iter().filter(|&&u| !u).count();
-    let u_pred = p_used.iter().filter(|&&u| !u).count();
-    let denom = exact + near + u_gold + u_pred;
-    if denom == 0 { 1.0 } else { ((exact as f64) + 0.5 * (near as f64)) / (denom as f64) }
-}
-
-/// Extracts internal sentence-gap indices (`0..sents - 1`) where level-0 `chunks` place a boundary.
-pub fn chunk_boundary_gaps(chunks: &Chunks) -> Vec<u32> {
-    let level0: Vec<usize> = (0..chunks.len()).filter(|&i| chunks.level[i] == 0).collect();
-    if level0.len() <= 1 {
-        return Vec::new();
-    }
-    let mut gaps = Vec::with_capacity(level0.len() - 1);
-    for &i in &level0[..level0.len() - 1] {
-        let end = chunks.sentences[i].end.get() as u32;
-        if end > 0 {
-            gaps.push(end - 1);
-        }
-    }
-    gaps
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        Budget, Chunker, Costs, STRUCTURE, StructureBoundaries, WeighAllBoundaries, Weight, weigh_with_sentiment,
-    };
-    use turbo_analysis::{Analyzer, Document, IxRange, ModelRef, Provenance, Span, Spans, Tag, TagSet, ViewId};
-    use turbo_analysis_layers::{Aspect, AspectTarget, IncivilityItem, PolarityScores, Subwords};
-
-    fn build_doc_with_sentences_and_subwords(sents_text: &[&str], subwords_per_sent: u32) -> Document {
-        let full = sents_text.join(" ");
-        let mut doc = Document::new(full);
-        let mut s_spans = Spans::new(ViewId::SOURCE);
-        let mut sw_spans = Spans::new(ViewId::SOURCE);
-        let mut sw_ids = Vec::new();
-        let mut tok_spans = Spans::new(ViewId::SOURCE);
-        let mut tok_sent = Vec::new();
-
-        let mut cursor = 0u32;
-        for (s_idx, s_str) in sents_text.iter().enumerate() {
-            let len = s_str.len() as u32;
-            s_spans.push(Span::new(cursor, cursor + len));
-            tok_spans.push(Span::new(cursor, cursor + len));
-            tok_sent.push(Ix::new(s_idx as u32));
-            for k in 0..subwords_per_sent {
-                let a = cursor + (k * len) / subwords_per_sent;
-                let b = cursor + ((k + 1) * len) / subwords_per_sent;
-                sw_spans.push(Span::new(a, b.max(a + 1).min(cursor + len)));
-                sw_ids.push(1);
-            }
-            cursor += len + 1;
-        }
-
-        doc.add(&Key::DEFAULT, Sentences { spans: s_spans }, Provenance::by("t")).unwrap();
-        doc.add(&Key::DEFAULT, Tokens { spans: tok_spans, sentence: Some(tok_sent) }, Provenance::by("t")).unwrap();
-        doc.add(
-            &Key::DEFAULT,
-            Subwords {
-                spans: sw_spans,
-                ids: sw_ids,
-                model: ModelRef { id: "test".into(), revision: "0".into(), sha256: "0".into() },
-                token: None,
-            },
-            Provenance::by("t"),
-        )
-        .unwrap();
-        doc
-    }
-
-    #[test]
-    fn default_weigh_all_boundaries_keeps_sentiment_off() {
-        let w = WeighAllBoundaries::default();
-        assert_eq!(w.structure, Weight::ONE);
-        assert_eq!(w.drift, Weight::ONE);
-        assert_eq!(w.sentiment, Weight(0));
-
-        let s = Boundaries { cost: vec![1000, 1000, 0], reason: vec![Cut::Sentence; 3] };
-        let d = Boundaries { cost: vec![0, 0, 0], reason: vec![Cut::Sentence; 3] };
-        let sent =
-            Boundaries { cost: vec![-1000, -1000, 0], reason: vec![Cut::TopicShift, Cut::TopicShift, Cut::Sentence] };
-
-        let off = weigh_with_sentiment(&s, &d, &sent, (w.structure, w.drift, w.sentiment)).unwrap();
-        assert_eq!(off.cost, [1000, 1000, 0]);
-        assert_eq!(off.reason, [Cut::Sentence, Cut::Sentence, Cut::Sentence]);
-
-        let on = weigh_with_sentiment(&s, &d, &sent, (Weight::ONE, Weight::ONE, Weight::ONE)).unwrap();
-        assert_eq!(on.cost, [0, 0, 0]);
-        assert_eq!(on.reason, [Cut::TopicShift, Cut::TopicShift, Cut::Sentence]);
-    }
-
-    #[test]
-    fn sentiment_and_aspect_shift_places_boundary_and_populates_chunk_facets() {
-        let sents_text = [
-            "The handmade pasta was fresh and delicious.",
-            "The risotto had wonderful texture and flavor.",
-            "Our dessert was warm and plated with care.",
-            "Then the waiter was rude and ignored our table.",
-            "The manager yelled insults when we asked for water.",
-            "Billing service was a complete disaster.",
-        ];
-        let mut doc = build_doc_with_sentences_and_subwords(&sents_text, 100);
-
-        let cat_set = TagSet::new("sentiment", &["positive", "negative", "neutral"]);
-        let mut cats = Categories::<Sentences>::with_capacity(cat_set, 6);
-        for &(best, scores) in &[
-            (Tag(0), [0.92, 0.04, 0.04]),
-            (Tag(0), [0.90, 0.05, 0.05]),
-            (Tag(0), [0.94, 0.03, 0.03]),
-            (Tag(1), [0.05, 0.90, 0.05]),
-            (Tag(1), [0.03, 0.94, 0.03]),
-            (Tag(1), [0.04, 0.92, 0.04]),
-        ] {
-            cats.push(best, &scores);
-        }
-
-        let asp_cats = TagSet::new("aspect", &["food", "service"]);
-        let mut aspects = Aspects::new(asp_cats);
-        for (s_idx, cat_tag, pol) in [
-            (0u32, Tag(0), PolarityScores::new(0.90, 0.05, 0.05)),
-            (1u32, Tag(0), PolarityScores::new(0.88, 0.06, 0.06)),
-            (2u32, Tag(0), PolarityScores::new(0.92, 0.04, 0.04)),
-            (3u32, Tag(1), PolarityScores::new(0.05, 0.90, 0.05)),
-            (4u32, Tag(1), PolarityScores::new(0.04, 0.92, 0.04)),
-            (5u32, Tag(1), PolarityScores::new(0.03, 0.94, 0.03)),
-        ] {
-            aspects.push(Aspect {
-                target: AspectTarget::Term { tokens: IxRange::new(s_idx, s_idx + 1), sentence: Some(Ix::new(s_idx)) },
-                category: Some(cat_tag),
-                polarity: pol,
-                opinions: &[],
-            });
-        }
-
-        let mut incivility = Incivility::new();
-        incivility.push(IncivilityItem {
-            target: IncivilityTarget::Sentence(Ix::new(4)),
-            scores: IncivilityScores { insult: 0.85, profanity: 0.10, ..IncivilityScores::default() },
-            evidence: &[(IncivilityLabel::Insult, IxRange::new(4, 5))],
-        });
-
-        doc.add(&Key::DEFAULT, cats, Provenance::by("t")).unwrap();
-        doc.add(&Key::DEFAULT, aspects, Provenance::by("t")).unwrap();
-        doc.add(&Key::DEFAULT, incivility, Provenance::by("t")).unwrap();
-
-        let budget = Budget { max: 400, target: 300, size_weight: 0, overhead: 0 };
-
-        // 1. Default pipeline (sentiment Weight(0), off by default):
-        let mut doc_off = doc.clone();
-        let analyzer_off = Analyzer::builder()
-            .given(Key::<View>::DEFAULT)
-            .given(Key::<Sentences>::DEFAULT)
-            .given(Key::<Tokens>::DEFAULT)
-            .given(Key::<Subwords>::DEFAULT)
-            .given(Key::<Categories<Sentences>>::DEFAULT)
-            .given(Key::<Aspects>::DEFAULT)
-            .given(Key::<Incivility>::DEFAULT)
-            .step(Bound::new(StructureBoundaries { costs: Costs::default() }).write(0, STRUCTURE))
-            .step(SentimentBoundaries::default().bound())
-            .step(WeighAllBoundaries::default().bound())
-            .add(Chunker { budget })
-            .add(ChunkFacetBuilder)
-            .build()
-            .unwrap();
-        analyzer_off.run(std::slice::from_mut(&mut doc_off))[0].as_ref().unwrap();
-
-        let chunks_off = doc_off.get::<Chunks>().unwrap();
-        assert_eq!(chunk_boundary_gaps(chunks_off), vec![1]);
-
-        // 2. Pipeline with sentiment boundary signal enabled (`sentiment: Weight::ONE`):
-        let mut doc_on = doc;
-        let analyzer_on = Analyzer::builder()
-            .given(Key::<View>::DEFAULT)
-            .given(Key::<Sentences>::DEFAULT)
-            .given(Key::<Tokens>::DEFAULT)
-            .given(Key::<Subwords>::DEFAULT)
-            .given(Key::<Categories<Sentences>>::DEFAULT)
-            .given(Key::<Aspects>::DEFAULT)
-            .given(Key::<Incivility>::DEFAULT)
-            .step(Bound::new(StructureBoundaries { costs: Costs::default() }).write(0, STRUCTURE))
-            .step(SentimentBoundaries::default().bound())
-            .step(WeighAllBoundaries { structure: Weight::ONE, drift: Weight::ONE, sentiment: Weight::ONE }.bound())
-            .add(Chunker { budget })
-            .add(ChunkFacetBuilder)
-            .build()
-            .unwrap();
-        analyzer_on.run(std::slice::from_mut(&mut doc_on))[0].as_ref().unwrap();
-
-        let sent_bounds = doc_on.get_key(&Key::<Boundaries>::named(SENTIMENT)).unwrap();
-        assert_eq!(sent_bounds.cost[0], 0);
-        assert_eq!(sent_bounds.cost[1], 0);
-        assert!(sent_bounds.cost[2] < -800, "expected strong negative cost at gap 2, got {}", sent_bounds.cost[2]);
-        assert_eq!(sent_bounds.reason[2], Cut::TopicShift);
-
-        let chunks_on = doc_on.get::<Chunks>().unwrap();
-        assert_eq!(chunks_on.len(), 2);
-        assert_eq!(chunks_on.sentences[0], IxRange::new(0, 3));
-        assert_eq!(chunks_on.sentences[1], IxRange::new(3, 6));
-        assert_eq!(chunks_on.cut[1], Cut::TopicShift);
-
-        let gold_gaps = [2u32];
-        let b_sim_off = boundary_similarity(&gold_gaps, &chunk_boundary_gaps(chunks_off), 1);
-        let b_sim_on = boundary_similarity(&gold_gaps, &chunk_boundary_gaps(chunks_on), 1);
-        assert!(
-            (b_sim_off - 0.5).abs() < 1e-12,
-            "without signal, cut at 1 vs gold 2 is a near miss (0.5): {b_sim_off}"
-        );
-        assert!((b_sim_on - 1.0).abs() < 1e-12, "with signal, cut at 2 vs gold 2 is exact (1.0): {b_sim_on}");
-
-        let facets = doc_on.get::<ChunkFacets>().unwrap();
-        assert_eq!(facets.len(), 2);
-        assert_eq!(facets.chunk_polarity(Ix::new(0)), Polarity::Positive);
-        assert!(facets.chunk_polarity_score(Ix::new(0)) > 0.80);
-        let c0_aspects: Vec<_> = facets.aspects_of(Ix::new(0)).map(|(_, l, p)| (l, p)).collect();
-        assert_eq!(
-            c0_aspects,
-            vec![("food", Polarity::Positive), ("food", Polarity::Positive), ("food", Polarity::Positive),]
-        );
-        assert!(facets.incivility_labels(Ix::new(0)).is_empty());
-
-        assert_eq!(facets.chunk_polarity(Ix::new(1)), Polarity::Negative);
-        assert!(facets.chunk_polarity_score(Ix::new(1)) < -0.80);
-        let c1_aspects: Vec<_> = facets.aspects_of(Ix::new(1)).map(|(_, l, p)| (l, p)).collect();
-        assert_eq!(
-            c1_aspects,
-            vec![("service", Polarity::Negative), ("service", Polarity::Negative), ("service", Polarity::Negative),]
-        );
-        assert_eq!(facets.incivility_labels(Ix::new(1)), &[IncivilityLabel::Insult]);
-        assert!((facets.incivility_scores(Ix::new(1)).insult - 0.85).abs() < 1e-9);
-    }
-
-    #[test]
-    fn boundary_similarity_scores_exact_near_and_missed_cuts() {
-        assert!((boundary_similarity(&[], &[], 1) - 1.0).abs() < 1e-12);
-        assert!((boundary_similarity(&[2, 5], &[2, 5], 1) - 1.0).abs() < 1e-12);
-        assert!((boundary_similarity(&[2, 5], &[2, 6], 1) - 0.75).abs() < 1e-12);
-        assert!((boundary_similarity(&[2, 5], &[2, 8], 1) - (1.0 / 3.0)).abs() < 1e-12);
     }
 }

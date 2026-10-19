@@ -39,7 +39,10 @@ impl Bpe {
     pub fn parse(file: &str, json: &Value, m: &manifest::Bpe, unk_id: u32) -> Result<Bpe> {
         let disagree = |what: &str| invalid(format!("{file}: {what} is not what manifest.json says"));
         let model = &json["model"];
-        if model["type"] != "BPE" {
+        // A file that names no model type (GPT-2's and RoBERTa's own) is
+        // BPE when it has merges, as upstream reads it.
+        let untyped_bpe = model["type"].is_null() && model.get("merges").is_some();
+        if model["type"] != "BPE" && !untyped_bpe {
             return Err(invalid(format!("{file}: model.type is {}, not BPE", model["type"])));
         }
         for (key, why) in [

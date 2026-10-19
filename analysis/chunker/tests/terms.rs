@@ -699,11 +699,14 @@ fn selected_columns_are_exact_and_missing_columns_fail() {
         assert_eq!(vocab.text.iter().collect::<Vec<_>>(), expected);
         assert_eq!(ids.term[1], None);
     }
-    let missing = Forms { stem: None, lemma: None, ..forms };
+    let missing = Forms { stem: None, lemma: None, ..forms.clone() };
     for form in [TermForm::Stem, TermForm::Lemma] {
         let err = NormalizedTermIndexer { form }.annotate((&missing, &tokens)).err().unwrap();
         assert!(err.to_string().contains("column is missing"));
     }
+    let short_stem = Forms { stem: Some(strs(&["cat", "run"])), ..forms };
+    let err = NormalizedTermIndexer { form: TermForm::Stem }.annotate((&short_stem, &tokens)).err().unwrap();
+    assert!(err.to_string().contains("not aligned to tokens"));
     let hashes: std::collections::HashSet<_> = [TermForm::Surface, TermForm::Folded, TermForm::Stem, TermForm::Lemma]
         .map(|form| NormalizedTermIndexer { form }.config_hash())
         .into_iter()

@@ -10,6 +10,7 @@ use crate::unit::tokenize_units_with;
 
 impl Annotator for TokenizerMe {
     const ID: &'static str = "turbo-tokenize:maxent";
+    const VERSION: &'static str = "1";
     type Reads = (View, Option<Sentences>);
     type Writes = (Tokens, Confidence<Tokens>);
 

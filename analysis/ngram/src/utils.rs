@@ -150,7 +150,7 @@ impl NGramUtils {
         T: PartialEq + Clone,
         S: AsRef<[T]>,
     {
-        if lambda1 <= 0.0 || lambda2 <= 0.0 || lambda3 <= 0.0 || (lambda1 + lambda2 + lambda3 - 1.0).abs() > 0.0001 {
+        if !(lambda1 > 0.0 && lambda2 > 0.0 && lambda3 > 0.0 && (lambda1 + lambda2 + lambda3 - 1.0).abs() <= 0.0001) {
             return Err(Error::InvalidInterpolationWeights { lambda1, lambda2, lambda3 });
         }
         Ok(lambda1 * Self::calculate_trigram_ml_probability(x0, x1, x2, set)

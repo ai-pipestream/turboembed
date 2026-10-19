@@ -1,7 +1,8 @@
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, Span};
 
-use super::{check_token_range, token_range_span};
 use crate::{Sentences, Tokens};
+
+use super::{check_token_range, token_range_span};
 
 /// The two contrasted token spans that serve as incongruity evidence for
 /// sarcasm or irony in [`Pragmatics`]: for example a positive opinion

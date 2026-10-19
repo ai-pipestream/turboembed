@@ -257,6 +257,48 @@ fn test_wndb_verb_group_pointer_maps_to_verb_group() {
 }
 
 #[test]
+fn test_wndb_lexical_pointer_targets_raw_word_count_after_lemma_dedup() {
+    let temp = tempfile::tempdir().unwrap();
+    write_empty_db(temp.path(), &["noun", "verb", "adv"]);
+    // Line 1 has w_cnt=02 with `galore(p)` and `galore(a)` which deduplicate to a single
+    // cleaned lemma `"galore"`. Line 2 has a lexical pointer (`0102`) targeting word 2 of line 1.
+    let template = "00000000 00 s 02 galore(p) 0 galore(a) 0 001 & XXXXXXXX a 0201 | in abundance";
+    let off2 = format!("{:08}", template.len() + 1);
+    let line1 = template.replace("XXXXXXXX", &off2);
+    let line2 = format!("{off2} 00 a 01 abundant 0 001 & 00000000 a 0102 | present in great quantity");
+    std::fs::write(temp.path().join("data.adj"), format!("{line1}\n{line2}\n")).unwrap();
+    std::fs::write(
+        temp.path().join("index.adj"),
+        format!("abundant a 1 1 & 1 0 {off2}\ngalore a 1 1 & 1 0 00000000\n"),
+    )
+    .unwrap();
+
+    let lexicon = WndbReader::read(temp.path()).unwrap();
+    let syn1 = lexicon.synset("wndb-00000000-a").unwrap();
+    assert_eq!(syn1.lemmas(), &["galore".to_string()]);
+    assert_eq!(lexicon.related(&format!("wndb-{off2}-a"), WordNetRelation::SimilarTo), &["wndb-00000000-a"]);
+}
+
+#[test]
+fn test_wndb_reads_crlf_data_and_index_files() {
+    let temp = tempfile::tempdir().unwrap();
+    for entry in std::fs::read_dir(mini_wndb_dir()).unwrap() {
+        let entry = entry.unwrap();
+        let content = std::fs::read_to_string(entry.path()).unwrap();
+        let crlf = content.replace('\n', "\r\n");
+        std::fs::write(temp.path().join(entry.file_name()), crlf).unwrap();
+    }
+    let lf_lexicon = wndb_fixture();
+    let crlf_lexicon = WndbReader::read(temp.path()).unwrap();
+    assert_eq!(crlf_lexicon.size(), lf_lexicon.size());
+    for synset in lf_lexicon.synsets() {
+        let got = crlf_lexicon.synset(synset.id()).expect("synset present in CRLF lexicon");
+        assert_eq!(got.gloss(), synset.gloss());
+        assert_eq!(got.lemmas(), synset.lemmas());
+    }
+}
+
+#[test]
 fn test_wndb_unknown_lemma_or_synset_is_empty() {
     let lexicon = wndb_fixture();
     assert!(lexicon.lookup("zebra", WordNetPos::Noun).is_empty());

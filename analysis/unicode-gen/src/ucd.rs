@@ -62,6 +62,20 @@ impl UcdFile {
         panic!("{}:{line}: {message}", self.name)
     }
 
+    /// Parses `text` as a 4-to-6 hex-digit Unicode code point, or fails at `line`.
+    pub fn parse_code_point(&self, line: usize, text: &str) -> u32 {
+        let valid = (4..=6).contains(&text.len()) && text.bytes().all(|b| b.is_ascii_hexdigit());
+        match u32::from_str_radix(text, 16) {
+            Ok(cp) if valid && cp < CODE_POINTS as u32 => cp,
+            _ => self.fail(line, &format!("`{text}` is not a code point")),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_text(name: &str, text: &str) -> UcdFile {
+        UcdFile { name: name.to_owned(), text: text.to_owned() }
+    }
+
     /// The Unicode version in the first line of a file whose header has the
     /// form `# Name-18.0.0.txt`.
     pub fn header_version(&self) -> (u8, u8, u8) {
@@ -85,6 +99,11 @@ impl UcdFile {
 }
 
 impl<'a> Record<'a> {
+    /// The 1-based line number of this record in its file.
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
     /// The number of fields, counting an empty last field after a trailing `;`.
     pub fn field_count(&self) -> usize {
         self.fields.len()
@@ -132,12 +151,9 @@ impl<'a> Record<'a> {
         self.file.fail(self.line, message)
     }
 
-    fn parse_code_point(&self, text: &str) -> u32 {
-        let valid = (4..=6).contains(&text.len()) && text.bytes().all(|b| b.is_ascii_hexdigit());
-        match u32::from_str_radix(text, 16) {
-            Ok(cp) if valid && cp < CODE_POINTS as u32 => cp,
-            _ => self.fail(&format!("`{text}` is not a code point")),
-        }
+    /// Parses `text` as a 4-to-6 hex-digit Unicode code point, or fails on this record's line.
+    pub fn parse_code_point(&self, text: &str) -> u32 {
+        self.file.parse_code_point(self.line, text)
     }
 }
 
@@ -157,7 +173,7 @@ mod tests {
     use super::UcdFile;
 
     fn file(text: &str) -> UcdFile {
-        UcdFile { name: "Test.txt".to_owned(), text: text.to_owned() }
+        UcdFile::from_text("Test.txt", text)
     }
 
     #[test]

@@ -521,7 +521,15 @@ impl Tokenizer {
                 })
                 .filter(|s| !s.content.is_empty())
                 .collect(),
-            Kind::Unigram(_) | Kind::Bpe(_) | Kind::SentencePiece(_) => Vec::new(),
+            // No normalizer: a normalized token is its content, matched
+            // in each piece the raw tokens leave, after them as upstream.
+            Kind::Bpe(_) => t
+                .special_tokens
+                .iter()
+                .filter(|s| s.normalized)
+                .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip, single_word: false })
+                .collect(),
+            Kind::Unigram(_) | Kind::SentencePiece(_) => Vec::new(),
         };
         normalized_specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
         let mut special_starts = [false; 256];
@@ -964,8 +972,34 @@ impl Tokenizer {
                 }
             }
             Kind::Bpe(b) => {
-                if !piece.is_empty() {
-                    b.encode(text, base, piece, out);
+                // The normalized special tokens, leftmost-longest, in what
+                // the raw ones left; one that takes the whitespace before
+                // it takes it, as the raw ones do.
+                let mut rest = piece;
+                let mut from = 0;
+                while !self.normalized_specials.is_empty() && from < rest.len() {
+                    match rest.as_bytes()[from..].iter().position(|&c| self.normalized_starts[c as usize]) {
+                        Some(k) => from += k,
+                        None => break,
+                    }
+                    let Some(s) =
+                        self.normalized_specials.iter().find(|s| rest[from..].starts_with(s.content.as_str()))
+                    else {
+                        from += rest[from..].chars().next().map_or(1, char::len_utf8);
+                        continue;
+                    };
+                    let at = base + (piece.len() - rest.len());
+                    let before = if s.lstrip { rest[..from].trim_end() } else { &rest[..from] };
+                    if !before.is_empty() {
+                        b.encode(text, at, before, out);
+                    }
+                    let s0 = (at + from) as u32;
+                    out.push(s.id, || [s0, s0 + s.content.len() as u32]);
+                    rest = &rest[from + s.content.len()..];
+                    from = 0;
+                }
+                if !rest.is_empty() {
+                    b.encode(text, base + (piece.len() - rest.len()), rest, out);
                 }
             }
             Kind::SentencePiece(sp) => sp.encode_into(text, base, piece, out),

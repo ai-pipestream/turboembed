@@ -9,9 +9,10 @@ use turbo_analysis_layers::{Strs, Tokens};
 
 /// The distinct terms of one document, in byte order, each once. A term's
 /// id is its place in that order, so the ids depend only on which terms
-/// the document holds, not on where they first appear. A term is the text
-/// of a token in the view the terms were read from, byte for byte: no
-/// case folding or other normalization happens here (see `TermIndexer`).
+/// the document holds, not on where they first appear. A term is either the
+/// text of a token in the view the terms were read from (`TermIndexer`) or
+/// the selected column of `turbo_analysis_layers::Terms`
+/// (`NormalizedTermIndexer`), byte for byte as handed to the indexer.
 pub struct Vocabulary {
     pub text: Strs,
 }

@@ -24,34 +24,47 @@
 //! candidates are exactly OpenNLP's. A lookup allocates only the arena of
 //! its own deletes and the code points of the query.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::config::{MAX_COUNT, SymSpellConfig};
 use super::deletes::Deletes;
-use super::distance::Rows;
-use super::suggestion::{Suggestion, Verbosity};
 use super::table::{BuildPrehashed, IdTable, fmix, hash_str};
 
 /// Marks an index entry that points into `lists` instead of holding a word
 /// id itself.
 const LIST: u32 = 1 << 31;
 
+/// [`SymSpell`]'s scanned minimum bigram count, 0 when not scanned.
+#[derive(Debug, Default)]
+struct MinCache(AtomicU64);
+
+impl Clone for MinCache {
+    fn clone(&self) -> MinCache {
+        MinCache(AtomicU64::new(self.0.load(Ordering::Relaxed)))
+    }
+}
+
 /// A symmetric delete spelling corrector over a frequency dictionary.
 #[derive(Clone)]
 pub struct SymSpell {
     pub(crate) config: SymSpellConfig,
-    words: Vec<String>,
-    counts: Vec<u64>,
-    lengths: Vec<u32>,
+    pub(super) words: Vec<String>,
+    pub(super) counts: Vec<u64>,
+    pub(super) lengths: Vec<u32>,
     by_word: IdTable,
     deletes: HashMap<u64, u32, BuildPrehashed>,
     lists: Vec<Vec<u32>>,
     pub(crate) bigrams: HashMap<String, u64>,
-    pub(crate) min_bigram_count: u64,
+    /// The smallest bigram count as [`min_bigram_count`](Self::min_bigram_count)
+    /// last found it, or 0 (never a count) when a bigram was added since.
+    /// Finding it when it is read, once, keeps adding a bigram as cheap as
+    /// on a map that tracks no minimum.
+    min_cache: MinCache,
     max_bigram_count: u64,
     /// The length in code points of the longest indexed word.
-    max_length: usize,
+    pub(super) max_length: usize,
     /// The sum of every count added, the derived corpus size.
     total_count: u64,
     fingerprint: u64,
@@ -112,7 +125,7 @@ impl SymSpell {
             deletes: HashMap::default(),
             lists: Vec::new(),
             bigrams: HashMap::new(),
-            min_bigram_count: MAX_COUNT,
+            min_cache: MinCache(AtomicU64::new(0)),
             max_bigram_count: 0,
             max_length: 0,
             total_count: 0,
@@ -157,6 +170,17 @@ impl SymSpell {
         self.max_bigram_count
     }
 
+    /// The smallest bigram count, [`MAX_COUNT`] before any bigram.
+    pub(crate) fn min_bigram_count(&self) -> u64 {
+        let cached = self.min_cache.0.load(Ordering::Relaxed);
+        if cached != 0 {
+            return cached;
+        }
+        let min = self.bigrams.values().copied().min().unwrap_or(MAX_COUNT);
+        self.min_cache.0.store(min, Ordering::Relaxed);
+        min
+    }
+
     /// The accumulated count of `word`, whether or not it reached the
     /// threshold.
     pub fn count(&self, word: &str) -> Option<u64> {
@@ -182,7 +206,7 @@ impl SymSpell {
     /// calls have the same fingerprint, so it can stand for the dictionary
     /// in a normalizer's configuration hash.
     pub fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        fmix(self.fingerprint ^ self.min_bigram_count())
     }
 
     fn mix(&mut self, parts: &[u64]) {
@@ -191,7 +215,7 @@ impl SymSpell {
         }
     }
 
-    fn word_id(&self, word: &str) -> Option<u32> {
+    pub(super) fn word_id(&self, word: &str) -> Option<u32> {
         self.by_word.find(hash_str(word), |id| self.words[id as usize] == word)
     }
 
@@ -242,16 +266,25 @@ impl SymSpell {
         true
     }
 
-    /// Adds `count` to the bigram `w1 w2` for compound correction.
+    /// Adds `count` to the bigram `w1 w2` for compound correction. A zero
+    /// count records the call in the fingerprint and changes nothing else
+    /// (matching [`SymSpell::add`]). Unlike OpenNLP's `SymSpell.addBigram`,
+    /// which stores zero counts and leaves `minBigramCount` at its stale
+    /// pre-increment value when an existing minimum bigram is updated, this
+    /// keeps `min_bigram_count` equal to the minimum positive bigram count.
+    /// Counts saturate at [`MAX_COUNT`].
     pub fn add_bigram(&mut self, w1: &str, w2: &str, count: u64) {
         let count = count.min(MAX_COUNT);
         self.mix(&[2, hash_str(w1), hash_str(w2), count]);
+        if count == 0 {
+            return;
+        }
         let key = format!("{w1} {w2}");
         let entry = self.bigrams.entry(key).or_insert(0);
-        *entry = saturated_add(*entry, count);
-        let updated = *entry;
+        let updated = saturated_add(*entry, count);
+        *entry = updated;
         self.max_bigram_count = self.max_bigram_count.max(updated);
-        self.min_bigram_count = self.min_bigram_count.min(updated);
+        *self.min_cache.0.get_mut() = 0;
     }
 
     /// Puts word `id` under every delete of its prefix, as OpenNLP's
@@ -310,7 +343,7 @@ impl SymSpell {
     /// The words filed under the hash of `delete`, in the order they were
     /// indexed. A word filed under another delete with the same hash is
     /// among them; the caller checks with `has_delete`.
-    fn filed(&self, delete: &str) -> &[u32] {
+    pub(super) fn filed(&self, delete: &str) -> &[u32] {
         match self.deletes.get(&hash_str(delete)) {
             None => &[],
             Some(entry) if *entry & LIST == 0 => std::slice::from_ref(entry),
@@ -320,7 +353,7 @@ impl SymSpell {
 
     /// Whether `delete` (of `chars` code points) is one of the deletes
     /// `index` filed word `id` under.
-    fn has_delete(&self, id: u32, delete: &str, chars: usize) -> bool {
+    pub(super) fn has_delete(&self, id: u32, delete: &str, chars: usize) -> bool {
         let length = self.lengths[id as usize] as usize;
         let max = self.config.max_dictionary_edit_distance();
         let prefix_chars = length.min(self.config.prefix_length());
@@ -334,184 +367,6 @@ impl SymSpell {
         let mut word = self.words[id as usize].chars().take(prefix_chars);
         delete.chars().all(|c| word.any(|w| w == c))
     }
-
-    /// The suggestions for `term` within `max_edit_distance`, best first.
-    pub fn lookup(
-        &self,
-        term: &str,
-        verbosity: Verbosity,
-        max_edit_distance: usize,
-    ) -> Result<Vec<Suggestion<'_>>, LookupError> {
-        self.check(max_edit_distance)?;
-        Ok(self.lookup_within(term, verbosity, max_edit_distance))
-    }
-
-    /// `lookup` with `Verbosity::Top` and the largest edit distance.
-    pub fn lookup_top(&self, term: &str) -> Vec<Suggestion<'_>> {
-        self.lookup_within(term, Verbosity::Top, self.max_edit_distance())
-    }
-
-    pub(crate) fn check(&self, max_edit_distance: usize) -> Result<(), LookupError> {
-        let max = self.config.max_dictionary_edit_distance();
-        if max_edit_distance > max {
-            return Err(LookupError { requested: max_edit_distance, max_dictionary_edit_distance: max });
-        }
-        Ok(())
-    }
-
-    /// `lookup` for a distance already checked against the index.
-    pub(crate) fn lookup_within(&self, term: &str, verbosity: Verbosity, max_edit: usize) -> Vec<Suggestion<'_>> {
-        let mut found = Vec::new();
-        let term_chars: Vec<char> = term.chars().collect();
-        let term_len = term_chars.len();
-        // Longer than the longest word by more than the distance allows.
-        if term_len > self.max_length + max_edit {
-            return found;
-        }
-        if let Some(id) = self.word_id(term) {
-            let count = self.counts[id as usize];
-            if count >= self.config.count_threshold() {
-                found.push(Suggestion { term: &self.words[id as usize], edit_distance: 0, count });
-                if verbosity != Verbosity::All {
-                    return found;
-                }
-            }
-        }
-        if max_edit == 0 {
-            return found;
-        }
-        let mut search = Search {
-            engine: self,
-            term,
-            term_chars: &term_chars,
-            verbosity,
-            max_edit2: max_edit,
-            considered: HashSet::new(),
-            rows: Rows::default(),
-            word_chars: Vec::new(),
-        };
-        let prefix_length = self.config.prefix_length();
-        let term_prefix_len = term_len.min(prefix_length);
-        let mut deletes = Deletes::default();
-        deletes.push(prefix(term, prefix_length));
-        let mut i = 0;
-        while i < deletes.len() {
-            let (candidate, candidate_len) = deletes.get(i);
-            let length_diff = term_prefix_len - candidate_len;
-            // Already further from the query than the best so far.
-            if length_diff > search.max_edit2 {
-                if verbosity == Verbosity::All {
-                    i += 1;
-                    continue;
-                }
-                break;
-            }
-            for &id in self.filed(candidate) {
-                if self.has_delete(id, candidate, candidate_len) {
-                    search.visit(id, candidate, candidate_len, &mut found);
-                }
-            }
-            if length_diff < max_edit
-                && candidate_len <= prefix_length
-                && (verbosity == Verbosity::All || length_diff < search.max_edit2)
-            {
-                deletes.expand(i);
-            }
-            i += 1;
-        }
-        if found.len() > 1 {
-            found.sort();
-        }
-        found
-    }
-}
-
-/// The state of one lookup over the candidates.
-struct Search<'e, 't> {
-    engine: &'e SymSpell,
-    term: &'t str,
-    term_chars: &'t [char],
-    verbosity: Verbosity,
-    /// The largest distance still worth a candidate: the maximum, lowered
-    /// to the best distance found unless every suggestion is wanted.
-    max_edit2: usize,
-    considered: HashSet<u32>,
-    rows: Rows,
-    word_chars: Vec<char>,
-}
-
-impl<'e> Search<'e, '_> {
-    /// Verifies the word `id` found under `candidate` and records it.
-    fn visit(&mut self, id: u32, candidate: &str, candidate_len: usize, found: &mut Vec<Suggestion<'e>>) {
-        let engine = self.engine;
-        let word = engine.words[id as usize].as_str();
-        if word == self.term {
-            return;
-        }
-        let word_len = engine.lengths[id as usize] as usize;
-        let term_len = self.term_chars.len();
-        // Length checks before the costly verification.
-        if word_len.abs_diff(term_len) > self.max_edit2
-            || word_len < candidate_len
-            || (word_len == candidate_len && word != candidate)
-        {
-            return;
-        }
-        let word_prefix_len = word_len.min(engine.config.prefix_length());
-        if word_prefix_len > candidate_len && word_prefix_len - candidate_len > self.max_edit2 {
-            return;
-        }
-        let distance = if candidate_len == 0 {
-            // Only the empty delete was shared: the distance is the longer
-            // length.
-            let d = term_len.max(word_len);
-            if d > self.max_edit2 || !self.considered.insert(id) {
-                return;
-            }
-            d
-        } else if word_len == 1 {
-            let c = word.chars().next().expect("a word of one code point");
-            let d = if self.term_chars.contains(&c) { term_len - 1 } else { term_len };
-            if d > self.max_edit2 || !self.considered.insert(id) {
-                return;
-            }
-            d
-        } else {
-            if !self.considered.insert(id) {
-                return;
-            }
-            self.word_chars.clear();
-            self.word_chars.extend(word.chars());
-            let metric = engine.config.metric();
-            match metric.chars(self.term_chars, &self.word_chars, self.max_edit2, &mut self.rows) {
-                Some(d) => d,
-                None => return,
-            }
-        };
-        if distance > self.max_edit2 {
-            return;
-        }
-        let count = engine.counts[id as usize];
-        let item = Suggestion { term: word, edit_distance: distance, count };
-        if let Some(best) = found.first() {
-            match self.verbosity {
-                // Keep only the closest found so far.
-                Verbosity::Closest if distance < self.max_edit2 => found.clear(),
-                Verbosity::Top => {
-                    if distance < best.edit_distance || count > best.count {
-                        self.max_edit2 = distance;
-                        found[0] = item;
-                    }
-                    return;
-                }
-                _ => {}
-            }
-        }
-        if self.verbosity != Verbosity::All {
-            self.max_edit2 = distance;
-        }
-        found.push(item);
-    }
 }
 
 /// The first `n` code points of `s`.
@@ -519,5 +374,45 @@ pub(crate) fn prefix(s: &str, n: usize) -> &str {
     match s.char_indices().nth(n) {
         Some((end, _)) => &s[..end],
         None => s,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_bigram_updates_min_bigram_count_and_ignores_zero_count() {
+        let mut engine = SymSpell::default();
+        engine.add_bigram("a", "b", 0);
+        assert_eq!(engine.bigram_count(), 0);
+        assert_eq!(engine.min_bigram_count(), MAX_COUNT);
+
+        engine.add_bigram("a", "b", 5);
+        assert_eq!(engine.min_bigram_count(), 5);
+        assert_eq!(engine.max_bigram_count(), 5);
+
+        engine.add_bigram("a", "b", 10);
+        assert_eq!(engine.bigram("a", "b"), Some(15));
+        assert_eq!(engine.min_bigram_count(), 15);
+        assert_eq!(engine.max_bigram_count(), 15);
+
+        engine.add_bigram("c", "d", 8);
+        assert_eq!(engine.min_bigram_count(), 8);
+        engine.add_bigram("c", "d", 12);
+        assert_eq!(engine.min_bigram_count(), 15);
+    }
+
+    #[test]
+    fn min_bigram_count_is_the_smallest_count_after_every_add() {
+        let mut engine = SymSpell::default();
+        let mut state = 7u64;
+        for _ in 0..2000 {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let (a, b, count) = ((state >> 33) % 5, (state >> 40) % 5, (state >> 50) % 4);
+            engine.add_bigram(&a.to_string(), &b.to_string(), count);
+            let want = engine.bigrams.values().copied().min().unwrap_or(MAX_COUNT);
+            assert_eq!(engine.min_bigram_count(), want);
+        }
     }
 }

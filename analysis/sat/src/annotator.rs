@@ -178,7 +178,7 @@ impl SatAnnotator {
             head,
             model: crate::model_ref(&bundle),
             execution: info.execution,
-            threshold: o.threshold,
+            threshold: o.threshold + 0.0,
             stride,
             block,
             split_on_newlines: o.split_on_newlines,
@@ -367,7 +367,7 @@ fn config_hash(o: &SatOptions, block: u32, stride: u32) -> u64 {
             h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
         }
     };
-    eat(&o.threshold.to_bits().to_le_bytes());
+    eat(&(o.threshold + 0.0).to_bits().to_le_bytes());
     eat(&stride.to_le_bytes());
     eat(&block.to_le_bytes());
     eat(&[u8::from(o.split_on_newlines)]);
@@ -440,5 +440,17 @@ impl Provider<dyn Step> for SatProvider {
         let o = parse_options(spec).map_err(|e| Error::Pipeline(format!("sat: {e}")))?;
         let a = SatAnnotator::open(dir, &o).map_err(|e| Error::Pipeline(format!("sat: {}: {e}", dir.display())))?;
         Ok(Box::new(Bound::new(a)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_hash_normalizes_negative_zero_threshold() {
+        let pos = SatOptions { threshold: 0.0, ..SatOptions::default() };
+        let neg = SatOptions { threshold: -0.0, ..SatOptions::default() };
+        assert_eq!(config_hash(&pos, 510, 64), config_hash(&neg, 510, 64));
     }
 }

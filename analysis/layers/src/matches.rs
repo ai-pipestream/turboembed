@@ -67,6 +67,7 @@ impl Layer for Matches {
         if !self.tokens.windows(2).all(|w| (w[0].start, w[0].end) <= (w[1].start, w[1].end)) {
             return Err("matches not in token order".into());
         }
+        self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
 }
@@ -94,10 +95,14 @@ mod tests {
         let mut m = Matches::new(ViewId::SOURCE, labels.clone());
         m.push(Span::new(0, 0), IxRange::new(1, 1), Tag(0), 0);
         assert_eq!(m.check().unwrap_err(), "a match with no tokens");
-        let mut m = Matches::new(ViewId::SOURCE, labels);
+        let mut m = Matches::new(ViewId::SOURCE, labels.clone());
         m.push(Span::new(0, 6), IxRange::new(0, 1), Tag(0), 0);
         m.rule.pop();
         assert_eq!(m.check().unwrap_err(), "tokens, a label and a rule for every match");
+
+        let mut bad_span = Matches::new(ViewId::SOURCE, labels);
+        bad_span.push(Span { start: 8, end: 3 }, IxRange::new(0, 1), Tag(0), 0);
+        assert!(bad_span.check().unwrap_err().contains("ends before it starts"));
         assert_eq!(Matches::ID, "turbo:matches");
     }
 }

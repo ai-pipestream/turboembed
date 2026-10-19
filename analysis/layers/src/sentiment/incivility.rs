@@ -1,106 +1,8 @@
-use std::fmt;
-
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, Span};
 
-use super::check_token_range;
 use crate::{Chunks, Sentences, Structure, Tokens};
 
-/// The six multi-label dimensions of [`Incivility`] (`turbo:incivility`),
-/// following the Oasis (ICDMW 2019) and HKBU (ICA 2026) label set.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u8)]
-pub enum IncivilityLabel {
-    Insult = 0,
-    Profanity = 1,
-    Threat = 2,
-    IdentityAttack = 3,
-    Intolerance = 4,
-    SevereToxicity = 5,
-}
-
-impl IncivilityLabel {
-    pub const ALL: [IncivilityLabel; 6] = [
-        IncivilityLabel::Insult,
-        IncivilityLabel::Profanity,
-        IncivilityLabel::Threat,
-        IncivilityLabel::IdentityAttack,
-        IncivilityLabel::Intolerance,
-        IncivilityLabel::SevereToxicity,
-    ];
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            IncivilityLabel::Insult => "insult",
-            IncivilityLabel::Profanity => "profanity",
-            IncivilityLabel::Threat => "threat",
-            IncivilityLabel::IdentityAttack => "identity_attack",
-            IncivilityLabel::Intolerance => "intolerance",
-            IncivilityLabel::SevereToxicity => "severe_toxicity",
-        }
-    }
-
-    pub fn from_name(name: &str) -> Option<IncivilityLabel> {
-        match name {
-            "insult" => Some(IncivilityLabel::Insult),
-            "profanity" => Some(IncivilityLabel::Profanity),
-            "threat" => Some(IncivilityLabel::Threat),
-            "identity_attack" => Some(IncivilityLabel::IdentityAttack),
-            "intolerance" => Some(IncivilityLabel::Intolerance),
-            "severe_toxicity" => Some(IncivilityLabel::SevereToxicity),
-            _ => None,
-        }
-    }
-}
-
-impl fmt::Display for IncivilityLabel {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.name())
-    }
-}
-
-/// The six multi-label scores in `f64` (`0.0..=1.0`) for one item of
-/// [`Incivility`].
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct IncivilityScores {
-    pub insult: f64,
-    pub profanity: f64,
-    pub threat: f64,
-    pub identity_attack: f64,
-    pub intolerance: f64,
-    pub severe_toxicity: f64,
-}
-
-impl IncivilityScores {
-    pub fn get(self, label: IncivilityLabel) -> f64 {
-        match label {
-            IncivilityLabel::Insult => self.insult,
-            IncivilityLabel::Profanity => self.profanity,
-            IncivilityLabel::Threat => self.threat,
-            IncivilityLabel::IdentityAttack => self.identity_attack,
-            IncivilityLabel::Intolerance => self.intolerance,
-            IncivilityLabel::SevereToxicity => self.severe_toxicity,
-        }
-    }
-
-    pub fn set(&mut self, label: IncivilityLabel, score: f64) {
-        match label {
-            IncivilityLabel::Insult => self.insult = score,
-            IncivilityLabel::Profanity => self.profanity = score,
-            IncivilityLabel::Threat => self.threat = score,
-            IncivilityLabel::IdentityAttack => self.identity_attack = score,
-            IncivilityLabel::Intolerance => self.intolerance = score,
-            IncivilityLabel::SevereToxicity => self.severe_toxicity = score,
-        }
-    }
-
-    pub fn iter(self) -> [(IncivilityLabel, f64); 6] {
-        IncivilityLabel::ALL.map(|l| (l, self.get(l)))
-    }
-
-    pub fn is_valid(self) -> bool {
-        self.iter().into_iter().all(|(_, s)| s.is_finite() && (0.0..=1.0).contains(&s))
-    }
-}
+use super::{IncivilityLabel, IncivilityScores, check_token_range};
 
 /// Which unit span an [`Incivility`] item scores: a sentence, a retrieval
 /// chunk, or a structure block (such as a post, quote, or paragraph).
@@ -469,8 +371,7 @@ impl Layer for Incivility {
         }
         let mut prev_end = 0usize;
         for i in 0..n {
-            let scores = self.scores(Ix::new(i as u32));
-            if !scores.is_valid() {
+            if !self.scores(Ix::new(i as u32)).is_valid() {
                 return Err(format!("incivility item {i} has a score outside 0..=1 or NaN"));
             }
             let end = self.evidence_end[i] as usize;
@@ -492,8 +393,7 @@ impl Layer for Incivility {
                         self.evidence_tokens[k - 1].start,
                         self.evidence_tokens[k - 1].end,
                     );
-                    let cur_key = (self.evidence_label[k], r.start, r.end);
-                    if cur_key <= prev_key {
+                    if (self.evidence_label[k], r.start, r.end) <= prev_key {
                         return Err(format!(
                             "incivility item {i} evidence must be in strictly increasing (label, start, end) order"
                         ));

@@ -11,12 +11,21 @@ use turbo_geo::{BundledGazetteer, DocumentRegionAnnotator, GeocodeAnnotator, Pop
 use turbo_geo::{Locations, MentionPolicy};
 use turbo_normalize::{NormalizeStep, Whitespace};
 use turbo_structure::{StructureAnnotator, StructureProjector, Syntax};
+
 fn fail(s: impl std::fmt::Display) -> String {
     s.to_string()
 }
+
 fn count<L: Layer>(doc: &Document) -> usize {
     doc.get::<L>().map_or(0, Layer::len)
 }
+
+fn write_pretty_json(path: &Path, value: &Value) -> Result<(), String> {
+    let mut bytes = serde_json::to_vec_pretty(value).map_err(fail)?;
+    bytes.push(b'\n');
+    std::fs::write(path, bytes).map_err(fail)
+}
+
 fn sample_spans<L: Layer>(doc: &Document) -> Vec<Value> {
     let Some(layer) = doc.get::<L>() else {
         return vec![];
@@ -24,12 +33,25 @@ fn sample_spans<L: Layer>(doc: &Document) -> Vec<Value> {
     let Some(sp) = layer.text_spans() else {
         return vec![];
     };
-    sp.start.iter().zip(sp.end).enumerate().take(12).map(|(i,(&a,&b))| {
-        let span=Span::new(a,b); let source=doc.to_source_bytes(sp.view,span);
-        json!({"row":i,"span":[a,b],"source_bytes":[source.start,source.end],
-            "text":&doc.text(sp.view)[span.range()],"source_text":String::from_utf8_lossy(&doc.bytes()[source.range()])})
-    }).collect()
+    sp.start
+        .iter()
+        .zip(sp.end)
+        .enumerate()
+        .take(12)
+        .map(|(i, (&a, &b))| {
+            let span = Span::new(a, b);
+            let source = doc.to_source_bytes(sp.view, span);
+            json!({
+                "row": i,
+                "span": [a, b],
+                "source_bytes": [source.start, source.end],
+                "text": &doc.text(sp.view)[span.range()],
+                "source_text": String::from_utf8_lossy(&doc.bytes()[source.range()]),
+            })
+        })
+        .collect()
 }
+
 fn main() -> Result<(), String> {
     let output = std::env::args().nth(1).ok_or("output directory required")?;
     let bundle = std::path::PathBuf::from(std::env::var("TURBO_MINILM_BUNDLE").map_err(fail)?);
@@ -50,6 +72,7 @@ fn main() -> Result<(), String> {
         .filter(|l| !l.starts_with('#') && !l.is_empty())
         .flat_map(|line| {
             let c: Vec<_> = line.split(';').collect();
+            assert!(c.len() >= 4, "bundled gazetteer line has fewer than 4 columns");
             let mut names = vec![c[2]];
             names.extend(c[3].split('|').filter(|x| !x.is_empty()));
             names
@@ -63,6 +86,7 @@ fn main() -> Result<(), String> {
         })
         .collect();
     let dictionary = turbo_maxent::Dictionary::from_entries(false, entries.iter().map(Vec::as_slice));
+    let mention_policy = MentionPolicy::ExcludeSingleAsciiLetters;
     let pipeline = Analyzer::builder()
         .step(Bound::new(StructureAnnotator::new(Syntax::Plain)).write(0, "source"))
         .step(Bound::new(NormalizeStep::new(Whitespace::keep_paragraphs())).write(0, "clean"))
@@ -76,7 +100,7 @@ fn main() -> Result<(), String> {
         .step(
             Bound::new(
                 GeocodeAnnotator::new(PopulationPriorGeocoder::new(BundledGazetteer::get()))
-                    .with_mention_policy(MentionPolicy::ExcludeSingleAsciiLetters),
+                    .with_mention_policy(mention_policy),
             )
             .read(0, "clean"),
         )
@@ -108,6 +132,7 @@ fn main() -> Result<(), String> {
         ("pulmonary-fibrosis", "written/technical/rr166.txt", "pulmonary fibrosis"),
     ];
     let mut results = vec![];
+    let mut reference_documents = vec![];
     for (name, relative, query) in paths {
         let input = Path::new(&base).join(relative);
         let bytes = std::fs::read(&input).map_err(fail)?;
@@ -130,15 +155,23 @@ fn main() -> Result<(), String> {
             let source = doc.to_source_bytes(tokens.spans.view(), s);
             assert_eq!(&doc.bytes()[source.range()], &clean.text().as_bytes()[s.range()]);
         }
-        let layers:Vec<Value>=doc.layers().map(|key| {
-            let p=doc.provenance(key).unwrap();
-            json!({"key":key.to_string(),"status":format!("{:?}",doc.status(key).unwrap()),
-                "annotator":p.annotator,"version":p.version,"config":format!("{:016x}",p.config),
-                "model":p.model.as_ref().map(|m|json!({"id":m.id,"revision":m.revision,"sha256":m.sha256})),
-                "execution":p.execution.as_ref().map(|e|json!({"backend":e.backend,"device":e.device,"precision":e.precision})),
-                "reads":p.reads.iter().map(ToString::to_string).collect::<Vec<_>>(),
-                "made_on":doc.made_on(key).iter().map(ToString::to_string).collect::<Vec<_>>()})
-        }).collect();
+        let layers: Vec<Value> = doc
+            .layers()
+            .map(|key| {
+                let p = doc.provenance(key).unwrap();
+                json!({
+                    "key": key.to_string(),
+                    "status": format!("{:?}", doc.status(key).unwrap()),
+                    "annotator": p.annotator,
+                    "version": p.version,
+                    "config": format!("{:016x}", p.config),
+                    "model": p.model.as_ref().map(|m| json!({"id": m.id, "revision": m.revision, "sha256": m.sha256})),
+                    "execution": p.execution.as_ref().map(|e| json!({"backend": e.backend, "device": e.device, "precision": e.precision})),
+                    "reads": p.reads.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                    "made_on": doc.made_on(key).iter().map(ToString::to_string).collect::<Vec<_>>(),
+                })
+            })
+            .collect();
         let chunkvec = doc.get::<Vectors<Chunks>>().unwrap();
         let sentvec = doc.get::<Vectors<Sentences>>().unwrap();
         assert_eq!(chunkvec.model.id, "sentence-transformers/all-MiniLM-L6-v2");
@@ -163,25 +196,33 @@ fn main() -> Result<(), String> {
             .take(3)
             .map(|(ix, score)| {
                 let s = chunks.spans.get(*ix);
-                json!({"chunk":ix.get(),"score":score,"span":[s.start,s.end],"text":&clean.text()[s.range()]})
+                json!({"chunk": ix.get(), "score": score, "span": [s.start, s.end], "text": &clean.text()[s.range()]})
             })
             .collect();
         let abbr = doc.get::<Abbreviations>().unwrap();
         let edges = doc.get::<Edges<Abbreviations, Abbreviations>>().unwrap();
-        let edge_samples:Vec<Value>=edges.iter().take(10).map(|(_,e)| {
-            let a=abbr.spans.get(e.from);let b=abbr.spans.get(e.to);
-            json!({"from":&clean.text()[a.range()],"to":&clean.text()[b.range()],"kind":edges.kinds.label(e.kind),"score":e.score})
-        }).collect();
+        let edge_samples: Vec<Value> = edges
+            .iter()
+            .take(10)
+            .map(|(_, e)| {
+                let a = abbr.spans.get(e.from);
+                let b = abbr.spans.get(e.to);
+                json!({
+                    "from": &clean.text()[a.range()],
+                    "to": &clean.text()[b.range()],
+                    "kind": edges.kinds.label(e.kind),
+                    "score": e.score,
+                })
+            })
+            .collect();
+        let entities = doc.get::<Entities>().unwrap();
         let locations = doc.get::<Locations>().unwrap();
-        let mut rejected_letters = 0;
-        for (_, span) in doc.get::<Entities>().unwrap().spans.iter() {
-            let s = &clean.text()[span.range()];
-            if s.len() == 1 && s.as_bytes()[0].is_ascii_alphabetic() {
-                rejected_letters += 1;
-            }
-        }
+        let (unfiltered_locations,) = GeocodeAnnotator::new(PopulationPriorGeocoder::new(BundledGazetteer::get()))
+            .annotate((clean, entities))
+            .map_err(fail)?;
+        let rejected_letters = unfiltered_locations.len() - locations.len();
         for (i, span) in locations.spans.iter() {
-            let s = &clean.text()[span.range()];
+            let s = clean.text()[span.range()].trim();
             assert!(!(s.len() == 1 && s.as_bytes()[0].is_ascii_alphabetic()), "location {}", i.get());
         }
         let expected = if name == "dublin" { (44, 14, 1, 1) } else { (5, 17, 17, 74) };
@@ -190,39 +231,111 @@ fn main() -> Result<(), String> {
             .take(12)
             .map(|i| {
                 let (s, e, confidence) = locations.resolution(Ix::new(i as u32));
-                json!({"mention":&clean.text()[s.range()],"entry":format!("{e:?}"),"confidence":confidence})
+                json!({"mention": &clean.text()[s.range()], "entry": format!("{e:?}"), "confidence": confidence})
             })
             .collect();
-        let item = json!({"name":name,"input":input,"source_sha256":source_digest,"source_bytes":doc.bytes().len(),
-            "clean_bytes":clean.text().len(),"elapsed_ms":elapsed_ms,"token_source_mapping_checks":tokens.len(),
-            "counts":{"layers":layers.len(),"structure":count::<Structure>(doc),"sentences":count::<Sentences>(doc),
-                "tokens":tokens.len(),"subwords":count::<Subwords>(doc),"entities":count::<Entities>(doc),
-                "locations":locations.len(),"regions":count::<Regions>(doc),"numbers":count::<Numbers>(doc),
-                "temporal":count::<Temporals>(doc),"pii":count::<Pii>(doc),"abbreviations":abbr.len(),"abbreviation_edges":edges.len(),
-                "chunks_all_levels":chunks.len(),"leaf_chunks":chunks.level.iter().filter(|&&l|l==0).count(),"levels":count::<Levels>(doc),
-                "sentence_vectors":sentvec.len(),"chunk_vectors":chunkvec.len(),"vector_dimension":chunkvec.dim,
-                "vocabulary":vocabulary.len(),"rejected_single_letter_mentions":rejected_letters,
-                "over_budget_leaves":chunks.over_budget.iter().zip(&chunks.level).filter(|&(over,level)|*over && *level==0).count(),
-                "over_budget_parents":chunks.over_budget.iter().zip(&chunks.level).filter(|&(over,level)|*over && *level>0).count()},
-            "sentence_samples":sample_spans::<Sentences>(doc),"entity_samples":sample_spans::<Entities>(doc),
-            "location_samples":location_samples,"graph_edge_samples":edge_samples,"layers":layers,
-            "retrieval":{"query":query,"scope":"BM25 over this document's leaf chunks; English profile folded terms; ASCII queries lowercased","top":ranked},
-            "not_exercised_layers":["opennlp:pos","opennlp:lemmas","opennlp:dependencies","coreference groups","dependency relation extractions","turbo:opinions","turbo:pragmatics"]});
+        let counts = json!({
+            "layers": layers.len(),
+            "structure": count::<Structure>(doc),
+            "sentences": count::<Sentences>(doc),
+            "tokens": tokens.len(),
+            "subwords": count::<Subwords>(doc),
+            "entities": count::<Entities>(doc),
+            "locations": locations.len(),
+            "regions": count::<Regions>(doc),
+            "numbers": count::<Numbers>(doc),
+            "temporal": count::<Temporals>(doc),
+            "pii": count::<Pii>(doc),
+            "abbreviations": abbr.len(),
+            "abbreviation_edges": edges.len(),
+            "chunks_all_levels": chunks.len(),
+            "leaf_chunks": chunks.level.iter().filter(|&&l| l == 0).count(),
+            "levels": count::<Levels>(doc),
+            "sentence_vectors": sentvec.len(),
+            "chunk_vectors": chunkvec.len(),
+            "vector_dimension": chunkvec.dim,
+            "vocabulary": vocabulary.len(),
+            "rejected_single_letter_mentions": rejected_letters,
+            "over_budget_leaves": chunks.over_budget.iter().zip(&chunks.level).filter(|&(over, level)| *over && *level == 0).count(),
+            "over_budget_parents": chunks.over_budget.iter().zip(&chunks.level).filter(|&(over, level)| *over && *level > 0).count(),
+        });
+        let vec_provenance = doc.provenance(Key::<Vectors<Chunks>>::DEFAULT.id()).unwrap();
+        let model_info = vec_provenance
+            .model
+            .as_ref()
+            .map(|m| json!({"id": m.id, "revision": m.revision, "sha256": m.sha256}))
+            .unwrap();
+        let execution_info = vec_provenance
+            .execution
+            .as_ref()
+            .map(|e| json!({"backend": e.backend, "device": e.device, "precision": e.precision}))
+            .unwrap();
+        let item = json!({
+            "name": name,
+            "input": input,
+            "source_sha256": source_digest,
+            "source_bytes": doc.bytes().len(),
+            "clean_bytes": clean.text().len(),
+            "elapsed_ms": elapsed_ms,
+            "token_source_mapping_checks": tokens.len(),
+            "counts": counts,
+            "model": model_info,
+            "execution": execution_info,
+            "sentence_samples": sample_spans::<Sentences>(doc),
+            "entity_samples": sample_spans::<Entities>(doc),
+            "location_samples": location_samples,
+            "graph_edge_samples": edge_samples,
+            "layers": layers,
+            "retrieval": {
+                "query": query,
+                "scope": "BM25 over this document's leaf chunks; English profile folded terms; ASCII queries lowercased",
+                "top": ranked,
+            },
+            "not_exercised_layers": [
+                "opennlp:pos",
+                "opennlp:lemmas",
+                "opennlp:dependencies",
+                "coreference groups",
+                "dependency relation extractions",
+                "turbo:opinions",
+                "turbo:pragmatics",
+            ],
+        });
+        let reference_item = json!({
+            "name": name,
+            "source_sha256": source_digest,
+            "source_bytes": doc.bytes().len(),
+            "token_source_mapping_checks": tokens.len(),
+            "counts": item["counts"],
+            "model": item["model"],
+            "execution": item["execution"],
+        });
         println!(
             "{}",
-            serde_json::to_string(&json!({"name":name,"counts":item["counts"],"elapsed_ms":elapsed_ms})).unwrap()
+            serde_json::to_string(&json!({"name": name, "counts": item["counts"], "elapsed_ms": elapsed_ms})).unwrap()
         );
-        std::fs::write(
-            Path::new(&output).join(format!("{name}-trace.json")),
-            serde_json::to_vec_pretty(&item).unwrap(),
-        )
-        .map_err(fail)?;
+        write_pretty_json(&Path::new(&output).join(format!("{name}-trace.json")), &item)?;
         results.push(item);
+        reference_documents.push(reference_item);
     }
     assert!(term_profile_probe.is_none());
-    let output_data = json!({"checkout_commit":std::env::var("TURBO_TRACE_COMMIT").map_err(fail)?,"reference_base_commit":"272b9298","reference_patch_commits":["98bee392","c958b17d","cc62410b"],"pipeline_plan":pipeline.plan(),
-        "normalized_term_integration_probe":term_profile_probe,"documents":results});
-    std::fs::write(Path::new(&output).join("trace.json"), serde_json::to_vec_pretty(&output_data).unwrap())
-        .map_err(fail)?;
+    let checkout_commit = std::env::var("TURBO_TRACE_COMMIT").map_err(fail)?;
+    let output_data = json!({
+        "checkout_commit": checkout_commit,
+        "reference_base_commit": "272b9298",
+        "reference_patch_commits": ["98bee392", "c958b17d", "cc62410b"],
+        "pipeline_plan": pipeline.plan(),
+        "normalized_term_integration_probe": term_profile_probe,
+        "documents": results,
+    });
+    let reference_data = json!({
+        "checkout_commit": checkout_commit,
+        "reference_base_commit": "272b9298",
+        "reference_patch_commits": ["98bee392", "c958b17d", "cc62410b"],
+        "normalized_term_integration_probe": term_profile_probe,
+        "documents": reference_documents,
+    });
+    write_pretty_json(&Path::new(&output).join("trace.json"), &output_data)?;
+    write_pretty_json(&Path::new(&output).join("reference.json"), &reference_data)?;
     Ok(())
 }

@@ -162,6 +162,50 @@ fn a_short_form_inside_another_is_not_a_mention() {
 }
 
 #[test]
+fn partially_overlapping_mentions_and_mentions_crossing_a_long_form_do_not_cross() {
+    // "AB-CD" and "CD-EF" are both defined; in "AB-CD-EF", "AB-CD" (0..5) and
+    // "CD-EF" (3..8) partially cross, so only the earlier mention is kept.
+    let text = "Alpha beta charlie delta (AB-CD) first. \
+Charlie delta echo foxtrot (CD-EF) second. \
+Delta echo (D E) third. \
+Later AB-CD-EF and Alpha Delta echo (ADE) appeared.";
+    let doc = run(text, false);
+    let layer = doc.get::<Abbreviations>().unwrap();
+    assert_eq!(layer.check(), Ok(()));
+    let mentions: Vec<&str> =
+        items(&doc).into_iter().filter(|i| i.2 == AbbreviationForm::Mention).map(|i| i.3).collect();
+    assert_eq!(mentions, ["AB-CD"]);
+
+    // In "Later B C delta (CD) y.", a candidate mention of "B C" starts before
+    // and ends inside the long form "C delta", so it must be refused rather
+    // than crossing the long form.
+    let cross_long = "Bob Carl (B C) x. Later B C delta (CD) y. End.";
+    let doc2 = run(cross_long, false);
+    let layer2 = doc2.get::<Abbreviations>().unwrap();
+    assert_eq!(layer2.check(), Ok(()));
+    let mentions2: Vec<&str> =
+        items(&doc2).into_iter().filter(|i| i.2 == AbbreviationForm::Mention).map(|i| i.3).collect();
+    assert!(mentions2.is_empty(), "{mentions2:?}");
+
+    // Strict containment in the other direction is allowed under Overlap::Nesting:
+    // mention "AB delta" (35..43) strictly contains long form "delta" (38..43).
+    let nested_long = "Alpha beta delta (AB delta). Later AB delta (DT).";
+    let doc3 = run(nested_long, false);
+    let layer3 = doc3.get::<Abbreviations>().unwrap();
+    assert_eq!(layer3.check(), Ok(()));
+    assert_eq!(
+        items(&doc3),
+        [
+            (0, 16, AbbreviationForm::Long, "Alpha beta delta", None),
+            (18, 26, AbbreviationForm::Short, "AB delta", Some("Alpha beta delta")),
+            (35, 43, AbbreviationForm::Mention, "AB delta", Some("Alpha beta delta")),
+            (38, 43, AbbreviationForm::Long, "delta", None),
+            (45, 47, AbbreviationForm::Short, "DT", Some("delta")),
+        ]
+    );
+}
+
+#[test]
 fn mentions_before_a_definition_are_not_linked() {
     let text = "WHO is first. Then the World Health Organization (WHO) speaks.";
     let doc = run(text, false);

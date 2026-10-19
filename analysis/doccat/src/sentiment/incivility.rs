@@ -389,6 +389,18 @@ impl Annotator for IncivilityAnnotator {
         (view, tokens, sentences, chunks, structure, sent_vecs, chunk_vecs): Refs<'_, Self>,
     ) -> Result<Self::Writes, Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        if tokens.spans.view() != view.id() {
+            return Err(fail("tokens are in another view".into()));
+        }
+        if sentences.is_some_and(|s| s.spans.view() != view.id()) {
+            return Err(fail("sentences are in another view".into()));
+        }
+        if chunks.is_some_and(|c| c.spans.view() != view.id()) {
+            return Err(fail("chunks are in another view".into()));
+        }
+        if structure.is_some_and(|st| st.spans.view() != view.id()) {
+            return Err(fail("structure is in another view".into()));
+        }
         let text = view.text();
         let n_tokens = tokens.len();
         let (tok_starts, tok_ends) = tokens.spans.columns();
@@ -1427,5 +1439,68 @@ mod tests {
             assert_eq!(m.fn_count, 0, "{lbl}: unexpected false negative");
             assert!((m.f1 - 1.0).abs() < 1e-12, "{lbl}: expected F1 1.0, got {}", m.f1);
         }
+    }
+
+    #[test]
+    fn foreign_view_layers_are_rejected() {
+        let doc = Document::new("Hello world.");
+        let view = doc.get::<View>().unwrap();
+        let (clean_text, align) = turbo_analysis::ViewBuilder::new(view.text()).finish();
+        let child_view = View::derived(view, clean_text, align);
+        let foreign = child_view.id();
+
+        let ok_tokens = Tokens { spans: spans_from_pairs([(0, 5), (6, 11), (11, 12)]), sentence: None };
+        let bad_tokens = Tokens {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 5));
+                s
+            },
+            sentence: None,
+        };
+        let bad_sentences = Sentences {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 12));
+                s
+            },
+        };
+        let bad_chunks = Chunks {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 12));
+                s
+            },
+            level: vec![0],
+            parent: vec![None],
+            sentences: vec![IxRange::new(0, 1)],
+            cut: vec![Cut::DocumentStart],
+            cost: vec![0],
+            model_tokens: vec![3],
+            over_budget: vec![false],
+        };
+        let bad_structure = Structure {
+            spans: {
+                let mut s = Spans::new(foreign);
+                s.push(Span::new(0, 12));
+                s
+            },
+            kind: vec![Block::Paragraph],
+            parent: vec![None],
+            depth: vec![0],
+        };
+
+        let annotator = IncivilityAnnotator::new();
+        let err = annotator.annotate((view, &bad_tokens, None, None, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("tokens are in another view"), "{err}");
+
+        let err = annotator.annotate((view, &ok_tokens, Some(&bad_sentences), None, None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("sentences are in another view"), "{err}");
+
+        let err = annotator.annotate((view, &ok_tokens, None, Some(&bad_chunks), None, None, None)).unwrap_err();
+        assert!(err.to_string().contains("chunks are in another view"), "{err}");
+
+        let err = annotator.annotate((view, &ok_tokens, None, None, Some(&bad_structure), None, None)).unwrap_err();
+        assert!(err.to_string().contains("structure is in another view"), "{err}");
     }
 }

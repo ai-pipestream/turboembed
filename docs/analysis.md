@@ -19,7 +19,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis` | `analysis/core/` | The document, views, offset tables, layers, keys, provenance, annotators, the analyzer and the registry |
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
-| `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown |
+| `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
@@ -52,7 +52,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-encoding` | `analysis/encoding/` | Bytes to a document: decoders for the 40 encodings of the WHATWG Encoding Standard, each recording an alignment from the bytes to the text; encoding detection (a port of chardetng); `open`, which settles the encoding and writes `turbo:encoding`; and mojibake repair (a port of ftfy's encoding fix, by Robyn Speer), one edit per fix. `analysis/encoding/README.md` lists the generated files and their sources |
 | `turbo-encoding-layers` | `analysis/encoding-layers/` | The `Encoding` enum with the standard's labels, and the `turbo:encoding` layer (`SourceEncoding`) |
 | `turbo-encoding-gen` | `analysis/encoding-gen/` | The generator of the WHATWG tables, and `ftfy.py`, which generates the repair's character classes and test fixture from ftfy |
-| `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
+| `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `MentionPolicy`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 | `turbo-zstd` | `analysis/zstd/` | A Zstandard decoder after RFC 8878: frames one after another, skippable frames, raw, RLE and compressed blocks, every kind of literals and sequences section, and the content checksum (XXH64); frames that need a dictionary or a window over 128 MiB are refused. The Parquet reader of `turbo-eval` uses it for ZSTD pages |
 
@@ -291,12 +291,14 @@ declares what overlap its items may have through `Layer::OVERLAP`
   `Quantities` and the normalizer layers): continuous spans in text
   order (`start` non-decreasing) that do not overlap
   (`end[i - 1] <= start[i]`).
-- `Overlap::Nesting` (`Structure`): spans may nest (`a.contains(b)` or
-  `b.contains(a)` whenever `a` and `b` share covered bytes) and never
-  partially cross (`a.start < b.start && b.start < a.end && a.end <
-  b.end`), neither at the envelope level nor across discontinuous
-  fragments. The check does not need text order: unordered spans are
-  sorted first.
+- `Overlap::Nesting` (`Structure`): continuous spans and individual
+  discontinuous fragments never partially cross (`a.start < b.start &&
+  b.start < a.end && a.end < b.end`), and whenever two items share
+  covered bytes, every fragment of the inner item lies inside a fragment
+  of the outer item. A separate item may lie inside the uncovered gap
+  between fragments of a discontinuous item (so their bounding envelopes
+  may overlap or cross while their covered fragments remain disjoint).
+  The check does not need text order: unordered spans are sorted first.
 - `Overlap::Any` (`Tokens`, `Subwords`, `PhraseChunks`, `Chunks`,
   `Levels`, `Entities`, or multi-tagger candidate layers): any spans in
   bounds. `Tokens` and `PhraseChunks` are here because two UTF-16 tokens
@@ -519,6 +521,65 @@ failed layer is skipped in turn, and says why: `opennlp:language was
 skipped: no language evidence`, or `opennlp:tokens failed: ...`. So
 "skipped" is never mistaken for "found nothing", and a stored document
 says why a layer is missing.
+
+## Document graph export
+
+A search index or a coordinator that is not the process which ran the
+pipeline holds a document as a document graph
+(`turbo_analysis::export`): one typed, versioned record with the
+source bytes and the alignment that decoded them, every view with its
+parent and alignment edits, and one record per layer instance in the
+order the layers were added, each with its full layer name, instance
+name, `SCHEMA`, status and provenance. An item is named by a `NodeRef`
+(layer name, instance name and index, printed as
+`turbo:abbreviations@gold#2`), so an edge endpoint or a group member
+resolves against exactly the instance it was made on, and every span
+still maps through its view's alignment to exact source bytes.
+
+Internal layers stay typed Rust types on both sides. A layer crosses
+the boundary only through a `LayerCodec` registered for its type in a
+`Codecs` set; its record body is that codec's bytes, written and read
+with the boundary's `Writer` and `Reader` (`put_spans` and
+`put_tagset` cover the shared span and tag columns). Codecs ship for
+`Edges<From, To>` and `Groups<L>` in core and for `Abbreviations` in
+`turbo-analysis-layers`; an add-on registers its own layer types the
+same way. A layer with no codec refuses the whole export or import
+with `ExportError::NoCodec` rather than being dropped or flattened,
+and a skipped or failed layer needs a codec too, so its status and
+provenance are never silently lost either.
+
+Two numbers version a graph: `FORMAT_VERSION` for the boundary (the
+record shapes and the canonical byte encoding of
+`DocumentGraph::to_bytes` together) and each layer record's schema,
+copied from `Layer::SCHEMA`. Import is atomic and strict. The format
+version, every layer schema, codec coverage, duplicate instances,
+view parents, provenance references and, through the codecs, every
+edge and group endpoint are checked, and any failure returns a typed
+`ExportError` (`UnsupportedVersion`, `IncompatibleSchema`, `NoCodec`,
+`DanglingReference`, `DanglingEndpoint`, `UnknownView`,
+`InvalidSource`, `InvalidLayer`, `Malformed`) with no document: a
+consumer that meets a newer format or schema upgrades, and there is
+no partial recovery mode. Skipped and failed entries import back as
+skipped and failed with the same reasons and the same errors, variant
+for variant. A complete layer's provenance references must name
+instances the graph holds; a failed layer's may name the required
+input whose absence failed it, which no record holds, and those
+rebuild by layer type alone. The source view's provenance is fixed
+by the format (`turbo:source`) and a record claiming another is
+refused instead of being silently replaced. Rebuilding provenance
+turns its name strings into the `&'static str` the types hold through
+a process-wide interner that leaks one copy of each distinct name
+ever imported, so an importer that runs without end leaks the
+vocabulary of annotator, version and instance names, not a copy per
+document. The byte encoding is deterministic for a given graph,
+so a round trip through export, bytes and import re-exports to the
+same bytes (`analysis/core/tests/graph_export.rs` pins this against a
+checked-in fixture, and the `document_graph` example in
+`turbo-analysis-layers` shows a caller resolving nodes after the
+round trip). The encoding is this boundary's transport form at
+`FORMAT_VERSION`, not a persistence format with migration promises,
+and the diagnostic trace JSON under `docs/receipts/document-trace` is
+neither: it does not feed this boundary.
 
 ## Annotators
 
@@ -1013,6 +1074,8 @@ place for the chunker to read.
 layer; `detect` does the same outside a pipeline, and
 `StructureProvider` offers it to a registry as `structure`, with no model
 location and one option, `syntax`: `markdown` (the default) or `plain`.
+`StructureProjector` projects a `Structure` layer from a view's direct
+parent into the normalized view ([structure-projection.md](structure-projection.md)).
 `ParagraphDetector` in `turbo-sentdetect` writes the same layer with
 paragraphs alone (docs/segmentation.md); a pipeline runs one of the two,
 since a layer has one writer.

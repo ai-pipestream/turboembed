@@ -31,6 +31,10 @@ impl Stemmer for PorterStemmer {
         let len = (s.k + 1) as usize;
         out.truncate(len);
     }
+
+    fn config_hash(&self) -> u64 {
+        crate::Algorithm::Porter.config_hash()
+    }
 }
 
 const fn units<const N: usize>(s: &[u8; N]) -> [u16; N] {

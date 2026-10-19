@@ -1,10 +1,7 @@
-//! Comprehensive tests for `turbo-ngram`, porting OpenNLP's `NGramModelTest`,
-//! `NGramCharModelTest`, `NGramUtilsTest`, `NGramGeneratorTest`, and
-//! `NgramLanguageModelTest`.
+//! Comprehensive tests for `NGramModel`, `NGramCharModel`, `NGramUtils`, and
+//! `NGramGenerator` (`opennlp.tools.ngram`).
 
-use turbo_ngram::{
-    DEFAULT_N, Error, LanguageModel, NGramCharModel, NGramGenerator, NGramLanguageModel, NGramModel, NGramUtils,
-};
+use turbo_ngram::{Error, NGramCharModel, NGramGenerator, NGramModel, NGramUtils};
 
 const NGRAM_MODEL_XML: &[u8] = br#"<?xml version="1.0" encoding="UTF-8"?>
 <dictionary case_sensitive="false">
@@ -65,8 +62,6 @@ const NGRAM_MODEL_XML: &[u8] = br#"<?xml version="1.0" encoding="UTF-8"?>
     </entry>
 </dictionary>
 "#;
-
-const SENTENCES_TXT: &str = include_str!("fixtures/sentences.txt");
 
 #[test]
 fn ngram_model_zero_get_count() {
@@ -366,6 +361,21 @@ fn ngram_utils_probabilities_and_slices() {
         Err(Error::InvalidInterpolationWeights { .. })
     ));
 
+    for (l1, l2, l3) in [(f64::NAN, lambda, lambda), (lambda, f64::NAN, lambda), (lambda, lambda, f64::NAN)] {
+        assert_eq!(
+            NGramUtils::calculate_trigram_linear_interpolation_probability(
+                &"N",
+                &"V",
+                &"STOP",
+                &interp_set2,
+                l1,
+                l2,
+                l3
+            ),
+            Err(Error::InvalidInterpolationWeights { lambda1: l1, lambda2: l2, lambda3: l3 })
+        );
+    }
+
     let tokens = ["I", "saw", "brown", "fox"];
     let ngrams = NGramUtils::get_ngrams(&tokens, 2);
     assert_eq!(ngrams, vec![&["I", "saw"][..], &["saw", "brown"][..], &["brown", "fox"][..]]);
@@ -431,79 +441,4 @@ fn ngram_generator_token_and_char_slices() {
     assert_eq!(NGramGenerator::generate_chars(&chars, 4, "-"), vec!["T-e-s-t", "e-s-t-i", "s-t-i-n", "t-i-n-g"]);
     assert!(NGramGenerator::generate_chars(&chars, 8, "-").is_empty());
     assert!(NGramGenerator::generate_chars(&[], 1, "-").is_empty());
-}
-
-#[test]
-fn language_model_empty_vocabulary_probability() {
-    let model = NGramLanguageModel::default();
-    assert_eq!(model.order(), DEFAULT_N);
-    assert_eq!(model.calculate_probability::<&str>(&[]), 0.0, "probability with an empty vocabulary is always 0");
-    assert_eq!(model.calculate_probability(&["1", "2", "3"]), 0.0, "probability with an empty vocabulary is always 0");
-    assert_eq!(model.predict_next_tokens(&["1"]), None);
-}
-
-#[test]
-fn language_model_invalid_order_rejected() {
-    assert_eq!(NGramLanguageModel::new(0), Err(Error::InvalidOrder(0)));
-    assert_eq!(NGramLanguageModel::from_xml_with_order(NGRAM_MODEL_XML, 0), Err(Error::InvalidOrder(0)));
-}
-
-#[test]
-fn language_model_trigram_and_bigram_predictions() {
-    let mut model = NGramLanguageModel::default();
-    model.add(&["the", "green", "house"]).unwrap();
-    model.add(&["my", "red", "house"]).unwrap();
-    model.add(&["his", "green", "shirt"]).unwrap();
-
-    let prob = model.calculate_probability(&["the", "green", "house"]);
-    assert_eq!(prob.to_bits(), 0x3FF0_0000_0000_0000);
-    let pred = model.predict_next_tokens(&["the", "green"]);
-    assert_eq!(pred, Some(vec!["house".to_string()]));
-}
-
-#[test]
-fn language_model_from_sentences_corpus() {
-    let mut model = NGramLanguageModel::default();
-    for line in SENTENCES_TXT.lines() {
-        let array: Vec<&str> = line.split(' ').collect();
-        model.add(&array).unwrap();
-    }
-    // "the afternoon" is followed only by "boat" in the corpus, so the
-    // trigram score for that continuation is 1.
-    let tokens = model.predict_next_tokens(&["take", "the", "afternoon"]);
-    assert_eq!(tokens, Some(vec!["boat".to_string()]));
-
-    // Unseen words have a unigram count of 0, so the log score is -inf.
-    let p1 = model
-        .calculate_probability(&["keeper", "of", "the", "station", "checks", "the", "zeppelin", "quartz", "vortex"]);
-    // Every trigram here is in the corpus. The exact product of the trigram
-    // ratios is 1/280; summing logs and exponentiating with StrictMath lands
-    // four ulps below the nearest double to 1/280 (0x3F6D_41D4_1D41_D41D).
-    let p2 = model.calculate_probability(&[
-        "keeper",
-        "of",
-        "the",
-        "station",
-        "checks",
-        "the",
-        "instruments",
-        "every",
-        "morning",
-        "and",
-        "writes",
-        "a",
-        "short",
-        "note",
-    ]);
-    assert_eq!(p1, 0.0);
-    assert_eq!(p2.to_bits(), 0x3F6D_41D4_1D41_D419);
-}
-
-#[test]
-fn language_model_from_ngram_model_xml() {
-    let model = NGramLanguageModel::from_xml(NGRAM_MODEL_XML).unwrap();
-    let prob = model.calculate_probability(&["the", "brown", "fox"]);
-    assert_eq!(prob.to_bits(), 0x3FE0_0000_0000_0000);
-    let tokens = model.predict_next_tokens(&["the", "brown"]);
-    assert_eq!(tokens, Some(vec!["fox".to_string()]));
 }

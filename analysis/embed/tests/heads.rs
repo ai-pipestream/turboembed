@@ -1603,6 +1603,27 @@ fn learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device() {
     assert!(held_rule_m.aspect_f1 >= 0.95 && held_rule_m.triplet_f1 >= 0.95);
     assert!(held_learned_m.aspect_f1 >= 0.90 && held_learned_m.triplet_f1 >= 0.85);
 
+    // LearnedAspectSentiment::annotate refuses layers from a different view even when
+    // precomputed Vectors<Subwords> are supplied.
+    {
+        let doc0 = &learned_docs[0];
+        let src_view = doc0.get::<View>().unwrap();
+        let (clean_text, align) = ViewBuilder::new(src_view.text()).finish();
+        let child_view = View::derived(src_view, clean_text, align);
+        let err = learned
+            .annotate((
+                &child_view,
+                doc0.get::<Sentences>().unwrap(),
+                doc0.get::<Tokens>().unwrap(),
+                doc0.get::<Subwords>().unwrap(),
+                doc0.get::<Vectors<Subwords>>(),
+                None,
+                None,
+            ))
+            .unwrap_err();
+        assert!(err.to_string().contains("not in the given view"), "{err}");
+    }
+
     // When TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_CUDA=1 is set, verify CPU vs GPU parity for LearnedAspectSentiment.
     let want = match std::env::var("TURBO_TEST_DEVICE") {
         Ok(w) => Some(w),

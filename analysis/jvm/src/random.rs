@@ -47,15 +47,16 @@ impl JavaRandom {
     ///
     /// # Panics
     ///
-    /// In debug builds, if `bits` is not in 1..=32.
+    /// If `bits` is not in `1..=32`.
     #[inline]
     pub fn next(&mut self, bits: u32) -> i32 {
-        debug_assert!((1..=32).contains(&bits), "next({bits})");
+        assert!((1..=32).contains(&bits), "next({bits})");
         self.seed = (self.seed.wrapping_mul(MULTIPLIER).wrapping_add(ADDEND)) & MASK;
         (self.seed >> (48 - bits)) as i32
     }
 
     /// `nextInt()`: 32 random bits.
+    #[inline]
     pub fn next_int(&mut self) -> i32 {
         self.next(32)
     }
@@ -93,23 +94,27 @@ impl JavaRandom {
 
     /// `nextLong()`: two `next(32)` values, the first shifted into the high
     /// half and the second, sign extended, added to it.
+    #[inline]
     pub fn next_long(&mut self) -> i64 {
         let high = (self.next(32) as i64) << 32;
         high.wrapping_add(self.next(32) as i64)
     }
 
     /// `nextBoolean()`: one random bit.
+    #[inline]
     pub fn next_boolean(&mut self) -> bool {
         self.next(1) != 0
     }
 
     /// `nextFloat()`: 24 random bits times 2^-24, in [0, 1).
+    #[inline]
     pub fn next_float(&mut self) -> f32 {
         self.next(24) as f32 * FLOAT_UNIT
     }
 
     /// `nextDouble()`: 53 random bits (26 and then 27) times 2^-53, in
     /// [0, 1).
+    #[inline]
     pub fn next_double(&mut self) -> f64 {
         let high = (self.next(26) as i64) << 27;
         (high + self.next(27) as i64) as f64 * DOUBLE_UNIT
@@ -242,5 +247,17 @@ mod tests {
         assert_eq!(one, [5]);
         // Nothing was drawn.
         assert_eq!(r.seed, scramble(9));
+    }
+
+    #[test]
+    #[should_panic(expected = "next(0)")]
+    fn next_rejects_zero_bits() {
+        JavaRandom::new(1).next(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "next(33)")]
+    fn next_rejects_above_32_bits() {
+        JavaRandom::new(1).next(33);
     }
 }

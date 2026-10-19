@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, Span, Tag, TagSet};
 
-use super::opinions::{Opinions, Polarity};
-use super::{check_token_range, token_range_span};
 use crate::{Sentences, Tokens};
+
+use super::{Opinions, Polarity, check_token_range, token_range_span};
 
 /// Three-way polarity scores in `f64` for an aspect in [`Aspects`].
 #[derive(Copy, Clone, Debug, Default, PartialEq)]

@@ -97,6 +97,32 @@ impl PosTagger {
     }
 }
 
+/// Slices `text[starts[i]..ends[i]]` for `i in from..to` into `words`, returning
+/// [`Error::Annotator`] if any token span is inverted, out of bounds, or off a
+/// UTF-8 character boundary.
+pub(crate) fn slice_sentence_words<'a>(
+    annotator: &'static str,
+    text: &'a str,
+    starts: &[u32],
+    ends: &[u32],
+    from: usize,
+    to: usize,
+    words: &mut Vec<&'a str>,
+) -> Result<(), Error> {
+    words.clear();
+    words.reserve(to - from);
+    for i in from..to {
+        let start = starts[i] as usize;
+        let end = ends[i] as usize;
+        let word = text.get(start..end).ok_or_else(|| Error::Annotator {
+            annotator,
+            detail: format!("token {i} span {start}..{end} is outside the text or off a UTF-8 boundary"),
+        })?;
+        words.push(word);
+    }
+    Ok(())
+}
+
 impl Annotator for PosTagger {
     const ID: &'static str = "turbo-postag:maxent";
     type Reads = (View, Tokens);
@@ -130,9 +156,12 @@ impl Annotator for PosTagger {
                 Some(col) => from + col[from..].partition_point(|&s| s == col[from]),
                 None => n,
             };
-            words.clear();
-            words.extend((from..to).map(|i| &text[starts[i] as usize..ends[i] as usize]));
+            if let Err(err) = slice_sentence_words(Self::ID, text, starts, ends, from, to, &mut words) {
+                self.contexts.lock().unwrap_or_else(|e| e.into_inner()).push(context);
+                return Err(err);
+            }
             if !self.tag_sentence(&search, &words, &mut context, &mut tags, &mut probs) {
+                self.contexts.lock().unwrap_or_else(|e| e.into_inner()).push(context);
                 return Err(Error::Annotator {
                     annotator: Self::ID,
                     detail: format!("no tag sequence of tokens {from}..{to} scored above the minimum"),
@@ -300,5 +329,28 @@ mod tests {
         let d = PosTagger::new(open().with_context_cache(0)).config_hash();
         assert_eq!(a, PosTagger::new(open()).config_hash());
         assert!(a != b && a != c && a != d && b != c && b != d && c != d);
+    }
+
+    #[test]
+    fn pos_annotator_rejects_invalid_token_spans_without_panicking() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/pos-fixture.bin");
+        let tagger = PosTagger::new(PosModel::read(path).unwrap());
+
+        let doc = Document::new("café");
+        let view = doc.get::<View>().unwrap();
+        for bad_span in [
+            Span::new(0, 99),          // past end of text
+            Span { start: 3, end: 1 }, // inverted span
+            Span::new(0, 4),           // splits 2-byte UTF-8 'é' (bytes 3..5)
+        ] {
+            let mut spans = Spans::new(ViewId::SOURCE);
+            spans.push(bad_span);
+            let toks = Tokens { spans, sentence: None };
+            let err = tagger.annotate((view, &toks)).err().unwrap();
+            assert!(
+                matches!(&err, Error::Annotator { annotator: PosTagger::ID, detail } if detail.contains("outside the text or off a UTF-8 boundary")),
+                "unexpected error for {bad_span:?}: {err:?}"
+            );
+        }
     }
 }

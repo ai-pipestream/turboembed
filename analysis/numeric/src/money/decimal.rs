@@ -137,9 +137,15 @@ impl Decimal {
     /// Sets this to `value`, reusing the digit buffer.
     pub fn set(&mut self, value: DecimalRef<'_>) -> Result<(), ScaleRangeError> {
         self.scale = i32::try_from(value.scale).map_err(|_| ScaleRangeError)?;
-        self.negative = value.negative;
+        let trimmed = value.digits.trim_start_matches('0');
         self.digits.clear();
-        self.digits.push_str(value.digits);
+        if trimmed.is_empty() {
+            self.digits.push('0');
+            self.negative = false;
+        } else {
+            self.digits.push_str(trimmed);
+            self.negative = value.negative;
+        }
         Ok(())
     }
 
@@ -165,10 +171,10 @@ impl Decimal {
 
     /// The exact product, as `BigDecimal.multiply` computes it. The
     /// product's scale is the sum of the scales; when that is outside the
-    /// `int` range the product is refused, unless `self` is zero, whose
+    /// `int` range the product is refused, unless `a` is zero, whose
     /// scale is then clamped to the range.
     pub fn multiply(a: DecimalRef<'_>, b: DecimalRef<'_>, out: &mut Decimal) -> Result<(), ScaleRangeError> {
-        let scale = a.scale + b.scale;
+        let scale = a.scale.saturating_add(b.scale);
         let a_zero = a.digits == "0";
         let scale = match i32::try_from(scale) {
             Ok(s) => s,
@@ -356,7 +362,30 @@ mod tests {
         assert_eq!((out.negative, out.digits.as_str(), out.scale), (false, "0", 2));
         let far = Decimal { negative: false, digits: "1".into(), scale: i32::MAX };
         assert_eq!(Decimal::multiply(far.as_ref(), d("0.1").as_ref(), &mut out), Err(ScaleRangeError));
+        assert_eq!(Decimal::multiply(far.as_ref(), Decimal::zero(1).as_ref(), &mut out), Err(ScaleRangeError));
         Decimal::multiply(Decimal::zero(i32::MAX).as_ref(), d("0.1").as_ref(), &mut out).unwrap();
-        assert_eq!((out.digits.as_str(), out.scale), ("0", i32::MAX));
+        assert_eq!((out.negative, out.digits.as_str(), out.scale), (false, "0", i32::MAX));
+        let extreme_zero = DecimalRef { negative: true, digits: "0", scale: i64::MAX };
+        Decimal::multiply(extreme_zero, d("2.5").as_ref(), &mut out).unwrap();
+        assert_eq!((out.negative, out.digits.as_str(), out.scale), (false, "0", i32::MAX));
+    }
+
+    #[test]
+    fn set_normalizes_zero_and_strips_leading_zeros() {
+        let mut out = Decimal::one();
+        out.set(DecimalRef { negative: true, digits: "0", scale: 2 }).unwrap();
+        assert_eq!(
+            (out.negative, out.digits.as_str(), out.scale, out.to_plain_string()),
+            (false, "0", 2, "0.00".into())
+        );
+
+        out.set(DecimalRef { negative: true, digits: "000", scale: 0 }).unwrap();
+        assert_eq!((out.negative, out.digits.as_str(), out.scale, out.to_plain_string()), (false, "0", 0, "0".into()));
+
+        out.set(DecimalRef { negative: true, digits: "0042", scale: 1 }).unwrap();
+        assert_eq!(
+            (out.negative, out.digits.as_str(), out.scale, out.to_plain_string()),
+            (true, "42", 1, "-4.2".into())
+        );
     }
 }

@@ -816,7 +816,7 @@ impl Annotator for PragmaticsAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let mut h = crate::hash::FoldHasher::default();
         self.lexicon.sha256_hex().hash(&mut h);
         self.min_positive_polarity.to_bits().hash(&mut h);
         self.min_negative_polarity.to_bits().hash(&mut h);
@@ -1573,5 +1573,18 @@ mod tests {
         assert_eq!(fn_count, 0);
         assert_eq!(tn, 14);
         assert!((f1 - 1.0).abs() < 1e-12, "expected F1 = 1.0 on fixture, got {f1}");
+    }
+
+    #[test]
+    fn config_hash_is_deterministic_and_pinned() {
+        let base = PragmaticsAnnotator::new().config_hash();
+        let high_thresh = PragmaticsAnnotator::new().with_positive_threshold(0.8).config_hash();
+        let with_scorer = PragmaticsAnnotator::new()
+            .with_vector_scorer(Arc::new(FixedMapVectorScorer { weights: vec![1.0], bias: 0.0 }))
+            .config_hash();
+        assert_eq!(base, 0xa06e_b5ad_6004_8da4, "got 0x{base:016x}");
+        assert_ne!(base, high_thresh);
+        assert_ne!(base, with_scorer);
+        assert_ne!(high_thresh, with_scorer);
     }
 }

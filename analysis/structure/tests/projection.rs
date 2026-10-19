@@ -55,6 +55,24 @@ fn unrelated_views_crossed_edges_and_erased_blocks_are_refused() {
     doc.add(&Key::named("erased"), edited, Provenance::by("test")).unwrap();
     let erased = doc.get_key(&Key::<View>::named("erased")).unwrap();
     assert!(StructureProjector.annotate((erased, &structure)).err().unwrap().to_string().contains("erased"));
+
+    let mut empty_spans = Spans::new(ViewId::SOURCE);
+    empty_spans.push(Span::new(0, 0));
+    empty_spans.push(Span::new(0, 6));
+    let with_empty = Structure {
+        spans: empty_spans,
+        kind: vec![Block::Heading, Block::Paragraph],
+        parent: vec![None; 2],
+        depth: vec![0; 2],
+    };
+    let builder = ViewBuilder::new(doc.get::<View>().unwrap().text());
+    let (text, alignment) = builder.finish();
+    let identity = View::derived(doc.get::<View>().unwrap(), text, alignment);
+    doc.add(&Key::named("identity"), identity, Provenance::by("test")).unwrap();
+    let identity = doc.get_key(&Key::<View>::named("identity")).unwrap();
+    let (projected,) = StructureProjector.annotate((identity, &with_empty)).unwrap();
+    assert_eq!(projected.spans.get(Ix::new(0)), Span::new(0, 0));
+    assert_eq!(projected.spans.get(Ix::new(1)), Span::new(0, 6));
 }
 
 #[test]
@@ -105,4 +123,76 @@ fn projected_sections_constrain_chunks_in_the_clean_view() {
         .map(|(_, s)| &doc.text(chunks.spans.view())[s.range()])
         .collect();
     assert_eq!(leaves, ["SUMMARY Café and trees.", "DETAILS More text."]);
+}
+
+#[test]
+fn discontinuous_blocks_project_each_fragment_to_the_child_view() {
+    let text = "Start  here.  [note]  Resume  there.  After.";
+    let mut doc = Document::new(text);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    spans.push_fragments(&[Span::new(0, 12), Span::new(22, 36)]);
+    spans.push(Span::new(38, 44));
+    let structure = Structure {
+        spans,
+        kind: vec![Block::Paragraph, Block::Paragraph],
+        parent: vec![None, None],
+        depth: vec![0, 0],
+    };
+    doc.add(&Key::<Structure>::named("source"), structure, Provenance::by("test")).unwrap();
+    let pipeline = Analyzer::builder()
+        .given(Key::<Structure>::named("source"))
+        .step(Bound::new(NormalizeStep::new(Whitespace::collapse())).write(0, "clean"))
+        .step(Bound::new(StructureProjector).read(0, "clean").read(1, "source"))
+        .build()
+        .unwrap();
+    let mut docs = [doc];
+    assert_eq!(pipeline.run(&mut docs)[0], Ok(()));
+    let doc = &docs[0];
+    let projected = doc.get::<Structure>().unwrap();
+    let clean_text = doc.text(projected.spans.view());
+    assert!(projected.spans.is_discontinuous(Ix::new(0)));
+    let frags: Vec<&str> = projected.spans.fragments(Ix::new(0)).map(|f| &clean_text[f.range()]).collect();
+    assert_eq!(frags, ["Start here.", "Resume there."]);
+    assert_eq!(&clean_text[projected.spans.get(Ix::new(1)).range()], "After.");
+}
+
+#[test]
+fn discontinuous_fragments_coalesce_when_normalization_deletes_the_gap() {
+    let text = "left GAP right";
+    let doc = Document::new(text);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    spans.push_fragments(&[Span::new(0, 4), Span::new(9, 14)]);
+    let structure = Structure { spans, kind: vec![Block::Paragraph], parent: vec![None], depth: vec![0] };
+    let mut builder = ViewBuilder::new(text);
+    builder.keep(4);
+    builder.replace(9, "");
+    let (clean_text, align) = builder.finish();
+    let clean = View::derived(doc.get::<View>().unwrap(), clean_text, align);
+    let (projected,) = StructureProjector.annotate((&clean, &structure)).unwrap();
+    assert!(!projected.spans.is_discontinuous(Ix::new(0)));
+    assert_eq!(&clean.text()[projected.spans.get(Ix::new(0)).range()], "leftright");
+
+    let inv_text = "Start here.\u{200B}Resume.";
+    let mut inv_doc = Document::new(inv_text);
+    let mut inv_spans = Spans::new(ViewId::SOURCE);
+    inv_spans.push_fragments(&[Span::new(0, 11), Span::new(14, 21)]);
+    inv_doc
+        .add(
+            &Key::<Structure>::named("source"),
+            Structure { spans: inv_spans, kind: vec![Block::Paragraph], parent: vec![None], depth: vec![0] },
+            Provenance::by("test"),
+        )
+        .unwrap();
+    let pipeline = Analyzer::builder()
+        .given(Key::<Structure>::named("source"))
+        .step(Bound::new(NormalizeStep::new(turbo_normalize::Invisible)).write(0, "clean"))
+        .step(Bound::new(StructureProjector).read(0, "clean").read(1, "source"))
+        .build()
+        .unwrap();
+    let mut docs = [inv_doc];
+    assert_eq!(pipeline.run(&mut docs)[0], Ok(()));
+    let projected = docs[0].get::<Structure>().unwrap();
+    let clean_text = docs[0].text(projected.spans.view());
+    assert!(!projected.spans.is_discontinuous(Ix::new(0)));
+    assert_eq!(&clean_text[projected.spans.get(Ix::new(0)).range()], "Start here.Resume.");
 }

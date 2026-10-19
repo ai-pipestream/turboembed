@@ -1,0 +1,43 @@
+   Compiling turbo-parser v0.1.0 (analysis/parser)
+warning: variant `Node` is never constructed
+  --> analysis/parser/src/context.rs:50:5
+   |
+48 | pub(crate) enum ConsFeature<'a> {
+   |                 ----------- variant in this enum
+49 |     Text(&'a str),
+50 |     Node { node: Option<&'a Parse>, index: i32, labeled: bool, backoff: bool },
+   |     ^^^^
+   |
+   = note: `ConsFeature` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated function `new` is never used
+  --> analysis/parser/src/context.rs:84:12
+   |
+83 | impl<'a> ConsRef<'a> {
+   | -------------------- associated function in this implementation
+84 |     pub fn new(node: Option<&'a Parse>, index: i32, labeled: bool, unigram: bool) -> Self {
+   |            ^^^
+
+warning: `turbo-parser` (lib) generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.65s
+     Running tests/parser_tests.rs (target/debug/deps/parser_tests-2cf1af1ee783a3a1)
+
+running 1 test
+test insert_rejects_reversed_spans_without_changing_the_tree ... FAILED
+
+failures:
+
+---- insert_rejects_reversed_spans_without_changing_the_tree stdout ----
+
+thread 'insert_rejects_reversed_spans_without_changing_the_tree' (1402245) panicked at analysis/parser/tests/parser_tests.rs:452:5:
+assertion failed: matches!(root.insert(reversed.clone()), Err(ParseError::NotContained { .. }))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    insert_rejects_reversed_spans_without_changing_the_tree
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-parser --test parser_tests`
