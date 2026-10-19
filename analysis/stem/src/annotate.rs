@@ -44,7 +44,12 @@ impl Annotator for StemAnnotator {
         let mut seen: HashMap<&str, usize> = HashMap::new();
         let (mut word, mut out, mut stem) = (Vec::new(), Vec::new(), String::new());
         for (i, (&start, &end)) in starts.iter().zip(ends).enumerate() {
-            let token = &text[start as usize..end as usize];
+            let token = (start <= end).then(|| text.get(start as usize..end as usize)).flatten().ok_or_else(|| {
+                Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!("token {i} span {start}..{end} is not a valid slice of a {}-byte view", text.len()),
+                }
+            })?;
             stem.clear();
             if let Some(&first) = seen.get(token) {
                 stem.push_str(stems.stem.get(first));

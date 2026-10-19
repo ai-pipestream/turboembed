@@ -122,7 +122,13 @@ pub fn unit(v: &mut [f32]) {
     let norm = v.iter().map(|&x| f64::from(x) * f64::from(x)).sum::<f64>().sqrt();
     if norm > 0.0 {
         let inv = (1.0 / norm) as f32;
-        v.iter_mut().for_each(|x| *x *= inv);
+        if inv.is_finite() {
+            v.iter_mut().for_each(|x| *x *= inv);
+        } else {
+            // A subnormal vector: its inverse norm is past f32, so divide
+            // in f64.
+            v.iter_mut().for_each(|x| *x = (f64::from(*x) / norm) as f32);
+        }
     }
 }
 
@@ -370,7 +376,7 @@ pub(crate) mod stub {
             out.resize(texts.len() * dim, 0.0);
             let mut tokens = 0;
             for (i, t) in texts.iter().enumerate() {
-                let keep = self.max_tokens as usize - 2;
+                let keep = self.max_tokens.saturating_sub(2) as usize;
                 let words = Stub::words(t);
                 tokens += words.len().min(keep) as u64 + u64::from(self.overhead(role));
                 for &(s, e) in words.iter().take(keep) {
@@ -396,6 +402,17 @@ mod tests {
     fn tiny_bert() -> TurboEmbedder {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
         TurboEmbedder::open(&dir, turbo_analysis_embed::Device::Cpu, Precision::Model).unwrap()
+    }
+
+    #[test]
+    fn subnormal_vectors_normalize_without_nan_or_inf() {
+        let mut v = [1e-40_f32, 0.0_f32];
+        unit(&mut v);
+        assert_eq!(v, [1.0, 0.0]);
+        let mut s = stub::Stub { vocab: vec!["cat"], max_tokens: 1, identity: stub::Stub::new(&["cat"]).identity };
+        let mut out = Vec::new();
+        assert_eq!(s.embed(&["cat"], Role::Document, &mut out).unwrap(), 2);
+        assert_eq!(out, [0.0]);
     }
 
     #[test]

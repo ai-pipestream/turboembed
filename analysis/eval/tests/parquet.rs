@@ -258,6 +258,21 @@ fn damage_is_an_error() {
     let at = bad.windows(3).position(|w| w == b"def").unwrap();
     bad[at] = 0xff;
     assert_eq!(Parquet::open("d", &bad).unwrap().strings("s").err().unwrap(), "d: column s row 1 is not UTF-8");
+    // A character split between two rows: "ab\xC3" then "\xA9ef" is
+    // valid UTF-8 as one buffer but in neither row.
+    let mut bad = good.clone();
+    let at = bad.windows(3).position(|w| w == b"abc").unwrap();
+    bad[at + 2] = 0xC3;
+    let at = bad.windows(3).position(|w| w == b"def").unwrap();
+    bad[at] = 0xA9;
+    assert_eq!(Parquet::open("d", &bad).unwrap().strings("s").err().unwrap(), "d: column s row 0 is not UTF-8");
+    // A split character before a later invalid byte: the split is the
+    // first bad row.
+    write(&path, &[Col::Str("s", vec!["", "a", "x", "y", "z"])]);
+    let mut bad = fs::read(&path).unwrap();
+    let at = bad.windows(15).position(|w| w == b"\x01\0\0\0x\x01\0\0\0y\x01\0\0\0z").unwrap();
+    (bad[at + 4], bad[at + 9], bad[at + 14]) = (0xC3, 0xA9, 0xFF);
+    assert_eq!(Parquet::open("d", &bad).unwrap().strings("s").err().unwrap(), "d: column s row 2 is not UTF-8");
     // A truncated file.
     assert!(Parquet::open("d", &good[..good.len() - 20]).is_err());
 }

@@ -165,4 +165,12 @@ fn the_annotator_writes_the_sentiment_instance_best_first() {
     let p = docs[0].provenance(SENTIMENT.id()).unwrap();
     assert_eq!(p.annotator, "turbo-doccat:sentiment");
     assert_eq!(p.model.as_ref(), Some(d.model().model_ref()));
+
+    let bad_doc = Document::new("é");
+    let mut bad_spans = Spans::new(ViewId::SOURCE);
+    bad_spans.push(Span::new(0, 1));
+    let bad_tokens = Tokens { spans: bad_spans, sentence: None };
+    assert!(
+        turbo_analysis::Annotator::annotate(&d, (bad_doc.get::<turbo_analysis::View>().unwrap(), &bad_tokens)).is_err()
+    );
 }

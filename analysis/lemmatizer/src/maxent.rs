@@ -164,12 +164,10 @@ pub(crate) fn words<'d>(
     }
     let mut out = Vec::with_capacity(starts.len());
     for (i, ((&s, &e), &tag)) in starts.iter().zip(ends).zip(&tags.tags).enumerate() {
-        let Some(word) = text.get(s as usize..e as usize) else {
-            return Err(Error::Annotator {
-                annotator,
-                detail: format!("token {i} span {s}..{e} is not a valid slice of {} bytes", text.len()),
-            });
-        };
+        let word = (s <= e).then(|| text.get(s as usize..e as usize)).flatten().ok_or_else(|| Error::Annotator {
+            annotator,
+            detail: format!("token {i} span {s}..{e} is not a valid slice of a {}-byte view", text.len()),
+        })?;
         if usize::from(tag.0) >= tags.tagset.len() {
             return Err(Error::Annotator {
                 annotator,
@@ -325,5 +323,30 @@ mod tests {
         assert!(matches!(err, Error::Annotator { annotator: MaxentLemmatizer::ID, .. }));
         assert_eq!(lemmas.iter().collect::<Vec<_>>(), ["prior"]);
         assert_eq!(probs, [0.9]);
+    }
+
+    #[test]
+    fn maxent_annotator_refuses_invalid_token_spans_without_panicking() {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/lemma-fixture-rust.bin");
+        let lemmatizer = MaxentLemmatizer::new(LemmatizerModel::read(path).unwrap());
+        let doc = Document::new("café");
+        let view = doc.get::<View>().unwrap();
+        let tagset = TagSet::new("ud", &["NOUN"]);
+        let tags = PosTags { tagset, tags: vec![Tag(0)], prob: None };
+
+        // Out-of-bounds token span (end > text.len()).
+        let mut oob_spans = Spans::new(view.id());
+        oob_spans.push(Span::new(0, 99));
+        let oob_tokens = Tokens { spans: oob_spans, sentence: None };
+        let err = lemmatizer.annotate((view, &oob_tokens, &tags)).err().unwrap();
+        assert!(err.to_string().contains("not a valid slice"), "unexpected error: {err}");
+
+        // Mid-codepoint UTF-8 boundary ('é' is bytes 3..5 in "café").
+        let mut mid_spans = Spans::new(view.id());
+        mid_spans.push(Span::new(0, 4));
+        let mid_tokens = Tokens { spans: mid_spans, sentence: None };
+        let err = lemmatizer.annotate((view, &mid_tokens, &tags)).err().unwrap();
+        assert!(err.to_string().contains("not a valid slice"), "unexpected error: {err}");
     }
 }

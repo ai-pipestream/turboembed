@@ -80,6 +80,11 @@ fn find_entities(
     if tokens.spans.view() != view.id() {
         return Err(fail("the tokens are in another view".into()));
     }
+    if let Some(sentence) = tokens.sentence.as_deref()
+        && sentence.len() != tokens.spans.len()
+    {
+        return Err(fail(format!("tokens.sentence has {} items, expected {}", sentence.len(), tokens.spans.len())));
+    }
     let text = view.text();
     let (starts, ends) = tokens.spans.columns();
     let mut entities = Entities {
@@ -94,7 +99,17 @@ fn find_entities(
     for range in sentences(tokens) {
         let (base, end) = (range.start.get(), range.end.get());
         words.clear();
-        words.extend((base..end).map(|i| &text[starts[i] as usize..ends[i] as usize]));
+        for i in base..end {
+            let s = starts[i] as usize;
+            let e = ends[i] as usize;
+            let word = text.get(s..e).ok_or_else(|| {
+                fail(format!(
+                    "token {i} span {s}..{e} is out of bounds or not on a UTF-8 char boundary (text len {})",
+                    text.len()
+                ))
+            })?;
+            words.push(word);
+        }
         names.clear();
         finder.find(&words, &mut names).map_err(|e| fail(e.to_string()))?;
         for n in &names {
@@ -150,5 +165,50 @@ impl Hasher for Fnv {
         for &b in bytes {
             self.0 = (self.0 ^ b as u64).wrapping_mul(0x0100_0000_01b3);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis::{Document, Ix, ViewId};
+
+    use super::*;
+    use crate::builtin::BuiltIn;
+
+    #[test]
+    fn find_entities_rejects_mismatched_sentence_column_and_invalid_token_spans() {
+        let finder = RegexNameFinder::defaults(&BuiltIn::ALL);
+        let doc = Document::new("call 123-456-7890".to_string());
+        let view = doc.get::<View>().unwrap();
+
+        // 1. Mismatched tokens.sentence length
+        let mut tok_spans = Spans::new(ViewId::SOURCE);
+        tok_spans.push(Span::new(0, 4));
+        tok_spans.push(Span::new(5, 17));
+        let bad_sent_tokens = Tokens { spans: tok_spans, sentence: Some(vec![Ix::new(0)]) };
+        let Err(err) = finder.annotate((view, &bad_sent_tokens)) else {
+            panic!("expected Err for mismatched tokens.sentence length");
+        };
+        assert!(matches!(err, Error::Annotator { annotator: RegexNameFinder::ID, .. }));
+
+        // 2. Out-of-bounds token span
+        let mut oob_spans = Spans::new(ViewId::SOURCE);
+        oob_spans.push(Span::new(0, 999));
+        let oob_tokens = Tokens { spans: oob_spans, sentence: None };
+        let Err(err) = finder.annotate((view, &oob_tokens)) else {
+            panic!("expected Err for out-of-bounds token span");
+        };
+        assert!(matches!(err, Error::Annotator { annotator: RegexNameFinder::ID, .. }));
+
+        // 3. Mid-character UTF-8 token span ('é' is bytes 3..5 in "café")
+        let utf8_doc = Document::new("café".to_string());
+        let utf8_view = utf8_doc.get::<View>().unwrap();
+        let mut mid_spans = Spans::new(ViewId::SOURCE);
+        mid_spans.push(Span::new(0, 4));
+        let mid_tokens = Tokens { spans: mid_spans, sentence: None };
+        let Err(err) = finder.annotate((utf8_view, &mid_tokens)) else {
+            panic!("expected Err for mid-character UTF-8 token span");
+        };
+        assert!(matches!(err, Error::Annotator { annotator: RegexNameFinder::ID, .. }));
     }
 }

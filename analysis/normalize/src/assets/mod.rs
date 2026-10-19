@@ -56,9 +56,9 @@ pub struct Asset {
     /// For a token, its claims segment.
     pub payload: Span,
     pub format: AssetFormat,
-    /// The media type a `data:` URI declared, when it has a slash after
-    /// its first character; OpenNLP then reports it instead of the
-    /// format's own.
+    /// The media type a `data:` URI declared, when [`subtype`] reads a type
+    /// and subtype from it; OpenNLP then reports it instead of the format's
+    /// own.
     pub declared: Option<Span>,
     pub encoding: AssetEncoding,
     /// The number of bytes the payload decodes to.
@@ -82,7 +82,7 @@ impl Asset {
     /// media type.
     pub fn format_name<'t>(&self, text: &'t str) -> &'t str {
         match self.format {
-            AssetFormat::Declared => subtype(self.media_type(text)),
+            AssetFormat::Declared => subtype(self.media_type(text)).unwrap_or_default(),
             format => format.name(),
         }
     }
@@ -157,6 +157,9 @@ impl AssetDetector {
 
 impl Annotator for AssetDetector {
     const ID: &'static str = "turbo:assets";
+    /// Changes whenever what is detected changes. 1: a declared media type
+    /// counts only when [`subtype`] reads a type and subtype from it.
+    const VERSION: &'static str = "1";
     type Reads = (View,);
     type Writes = (Assets,);
 

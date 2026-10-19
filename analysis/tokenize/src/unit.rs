@@ -106,10 +106,20 @@ where
             ),
         });
     }
-    let mut column: Vec<Ix<Sentences>> = Vec::with_capacity(spans.len());
+    let mut column: Vec<Ix<Sentences>> = Vec::with_capacity(text.len() / 6);
     for (ix, unit) in sentences.spans.iter() {
+        let slice = text.get(unit.range()).ok_or_else(|| Error::Annotator {
+            annotator,
+            detail: format!(
+                "sentence {} span {}..{} is out of bounds or not on a UTF-8 char boundary (text len {})",
+                ix.get(),
+                unit.start,
+                unit.end,
+                text.len()
+            ),
+        })?;
         scratch.clear();
-        tokenize(&text[unit.range()], unit.start, &mut scratch);
+        tokenize(slice, unit.start, &mut scratch);
         for &t in &scratch {
             let (s, v) = t.into_parts();
             debug_assert!(s.end <= unit.len());
@@ -228,6 +238,34 @@ mod tests {
             Error::Annotator {
                 annotator: "test",
                 detail: "the sentences are in view 3, not in view 0 that is tokenized".into()
+            }
+        );
+    }
+
+    #[test]
+    fn sentences_outside_view_text_are_refused() {
+        let doc = Document::new("a\u{e9}b");
+        let view = doc.get::<View>().unwrap();
+        // Out of bounds of the 4-byte view text.
+        let mut s = Spans::new(view.id());
+        s.push(Span::new(0, 10));
+        let err = tokenize_units("test", view, Some(&Sentences { spans: s }), letters).err().unwrap();
+        assert_eq!(
+            err,
+            Error::Annotator {
+                annotator: "test",
+                detail: "sentence 0 span 0..10 is out of bounds or not on a UTF-8 char boundary (text len 4)".into()
+            }
+        );
+        // Inside the 2-byte UTF-8 sequence of U+00E9 at bytes 1..3.
+        let mut mid = Spans::new(view.id());
+        mid.push(Span::new(0, 2));
+        let err = tokenize_units("test", view, Some(&Sentences { spans: mid }), letters).err().unwrap();
+        assert_eq!(
+            err,
+            Error::Annotator {
+                annotator: "test",
+                detail: "sentence 0 span 0..2 is out of bounds or not on a UTF-8 char boundary (text len 4)".into()
             }
         );
     }

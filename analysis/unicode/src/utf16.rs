@@ -108,6 +108,7 @@ impl<'a> Utf16Cursor<'a> {
     /// builds when `unit_index` is not the UTF-16 length of `text[..byte]`.
     pub fn at(text: &'a str, byte: usize, unit_index: usize) -> Utf16Cursor<'a> {
         assert!(text.is_char_boundary(byte), "byte {byte} is not a character boundary");
+        assert!((byte.div_ceil(3)..=byte).contains(&unit_index), "unit_index is not the UTF-16 index of byte {byte}");
         debug_assert_eq!(unit_index, utf16_len(&text[..byte]), "unit_index is not the UTF-16 index of byte {byte}");
         let mut cursor = Utf16Cursor { text, byte, cp: 0, low: false, unit: unit_index };
         cursor.load();
@@ -342,6 +343,12 @@ mod tests {
     #[should_panic(expected = "unit_index is not the UTF-16 index")]
     fn placed_with_a_wrong_index() {
         Utf16Cursor::at(TEXT, 6, 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "unit_index is not the UTF-16 index")]
+    fn placed_with_an_impossible_index() {
+        Utf16Cursor::at(TEXT, 6, 1);
     }
 
     #[test]

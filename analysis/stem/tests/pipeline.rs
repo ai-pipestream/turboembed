@@ -83,3 +83,16 @@ fn config_hashes_differ() {
         }
     }
 }
+
+#[test]
+fn refuses_invalid_token_spans() {
+    use turbo_analysis::Annotator;
+
+    let doc = Document::new("café");
+    let view = doc.get::<View>().unwrap();
+    let mut spans = Spans::new(ViewId::SOURCE);
+    spans.push(Span::new(0, 4)); // splits 'é' (bytes 3..5)
+    let tokens = Tokens { spans, sentence: None };
+    let err = StemAnnotator::new(Algorithm::Porter).annotate((view, &tokens)).err().unwrap();
+    assert!(err.to_string().contains("not a valid slice"), "{err}");
+}

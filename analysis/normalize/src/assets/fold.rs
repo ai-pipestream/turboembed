@@ -117,6 +117,9 @@ pub fn write_caption(asset: &Asset, text: &str, out: &mut String) {
 
 impl Normalizer for AssetFold {
     const ID: &'static str = "turbo:normalize:asset-fold";
+    /// Follows [`AssetDetector`]'s version: what is folded is what it
+    /// detects.
+    const VERSION: &'static str = <AssetDetector as Annotator>::VERSION;
 
     fn normalize(&self, text: &str, out: &mut ViewBuilder<'_>) {
         self.scan(text, out, &mut placeholder::discard);
@@ -133,6 +136,7 @@ impl Normalizer for AssetFold {
 
 impl Annotator for AssetFold {
     const ID: &'static str = <AssetFold as Normalizer>::ID;
+    const VERSION: &'static str = <AssetFold as Normalizer>::VERSION;
     type Reads = (View,);
     type Writes = (View, Placeholders);
 

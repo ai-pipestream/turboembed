@@ -221,11 +221,42 @@ impl Layer for SourceEncoding {
     }
 
     fn check(&self) -> Result<(), String> {
-        if (0.0..=1.0).contains(&self.confidence) {
-            Ok(())
-        } else {
-            Err(format!("confidence {} is outside [0, 1]", self.confidence))
+        if !(0.0..=1.0).contains(&self.confidence) {
+            return Err(format!("confidence {} is outside [0, 1]", self.confidence));
         }
+        match self.evidence {
+            EncodingEvidence::Bom => {
+                if !matches!(self.encoding, Encoding::Utf8 | Encoding::Utf16Be | Encoding::Utf16Le) {
+                    return Err(format!("encoding {} has no byte order mark", self.encoding));
+                }
+                if self.confidence != 1.0 {
+                    return Err(format!("confidence {} is not 1 for {:?}", self.confidence, self.evidence));
+                }
+            }
+            EncodingEvidence::Declared => {
+                if self.confidence != 1.0 {
+                    return Err(format!("confidence {} is not 1 for {:?}", self.confidence, self.evidence));
+                }
+            }
+            EncodingEvidence::ValidUtf8 => {
+                if self.encoding != Encoding::Utf8 {
+                    return Err(format!("encoding {} is not UTF-8 for ValidUtf8 evidence", self.encoding));
+                }
+                if self.confidence != 1.0 {
+                    return Err(format!("confidence {} is not 1 for {:?}", self.confidence, self.evidence));
+                }
+            }
+            EncodingEvidence::Ascii => {
+                if !self.encoding.ascii_compatible() {
+                    return Err(format!("encoding {} is not ASCII-compatible for Ascii evidence", self.encoding));
+                }
+                if self.confidence != 1.0 {
+                    return Err(format!("confidence {} is not 1 for {:?}", self.confidence, self.evidence));
+                }
+            }
+            EncodingEvidence::Detected => {}
+        }
+        Ok(())
     }
 }
 
@@ -260,10 +291,73 @@ mod tests {
 
     #[test]
     fn the_layer_refuses_a_confidence_outside_the_unit_interval() {
-        let layer =
-            |confidence| SourceEncoding { encoding: Encoding::Utf8, confidence, evidence: EncodingEvidence::Bom };
+        let layer = |confidence| SourceEncoding {
+            encoding: Encoding::Windows1252,
+            confidence,
+            evidence: EncodingEvidence::Detected,
+        };
+        assert!(layer(0.0).check().is_ok());
+        assert!(layer(0.5).check().is_ok());
         assert!(layer(1.0).check().is_ok());
+        assert!(layer(-0.1).check().is_err());
         assert!(layer(1.5).check().is_err());
         assert!(layer(f32::NAN).check().is_err());
+    }
+
+    #[test]
+    fn the_layer_enforces_evidence_encoding_and_confidence_invariants() {
+        for enc in [Encoding::Utf8, Encoding::Utf16Be, Encoding::Utf16Le] {
+            assert!(SourceEncoding { encoding: enc, confidence: 1.0, evidence: EncodingEvidence::Bom }.check().is_ok());
+            assert!(
+                SourceEncoding { encoding: enc, confidence: 0.9, evidence: EncodingEvidence::Bom }.check().is_err()
+            );
+        }
+        assert!(
+            SourceEncoding { encoding: Encoding::Windows1252, confidence: 1.0, evidence: EncodingEvidence::Bom }
+                .check()
+                .is_err()
+        );
+        assert!(
+            SourceEncoding { encoding: Encoding::Replacement, confidence: 1.0, evidence: EncodingEvidence::Declared }
+                .check()
+                .is_ok()
+        );
+        assert!(
+            SourceEncoding { encoding: Encoding::Utf8, confidence: 0.5, evidence: EncodingEvidence::Declared }
+                .check()
+                .is_err()
+        );
+        assert!(
+            SourceEncoding { encoding: Encoding::Utf8, confidence: 1.0, evidence: EncodingEvidence::ValidUtf8 }
+                .check()
+                .is_ok()
+        );
+        assert!(
+            SourceEncoding { encoding: Encoding::Windows1252, confidence: 1.0, evidence: EncodingEvidence::ValidUtf8 }
+                .check()
+                .is_err()
+        );
+        assert!(
+            SourceEncoding { encoding: Encoding::Utf8, confidence: 0.8, evidence: EncodingEvidence::ValidUtf8 }
+                .check()
+                .is_err()
+        );
+        assert!(
+            SourceEncoding { encoding: Encoding::Windows1252, confidence: 1.0, evidence: EncodingEvidence::Ascii }
+                .check()
+                .is_ok()
+        );
+        for non_ascii in [Encoding::Utf16Be, Encoding::Utf16Le, Encoding::Iso2022Jp, Encoding::Replacement] {
+            assert!(
+                SourceEncoding { encoding: non_ascii, confidence: 1.0, evidence: EncodingEvidence::Ascii }
+                    .check()
+                    .is_err()
+            );
+        }
+        assert!(
+            SourceEncoding { encoding: Encoding::Utf8, confidence: 0.5, evidence: EncodingEvidence::Ascii }
+                .check()
+                .is_err()
+        );
     }
 }

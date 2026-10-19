@@ -6,12 +6,12 @@ use std::fmt::Write as _;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, Ix, ModelRef, Refs, Span, Tag, View};
+use turbo_analysis::{Annotator, Error, ModelRef, Refs, Span, Tag, View};
 use turbo_analysis_layers::{Categories, Tokens};
 use turbo_maxent::{MaxentModel, best_outcome};
 
 use crate::features::DoccatContextGenerator;
-use crate::layer::SpanCategorizable;
+use crate::layer::{SpanCategorizable, extract_tokens, validate_spans};
 use crate::model::DoccatModel;
 
 /// Maximum-entropy (or Perceptron / Naive Bayes) document categorizer, ported
@@ -181,13 +181,7 @@ impl Annotator for DocumentCategorizerME {
         if tokens.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "tokens are not in the given view".into() });
         }
-        let text = view.text();
-        let n_tokens = tokens.spans.len();
-        let mut tok_strs = Vec::with_capacity(n_tokens);
-        for i in 0..n_tokens {
-            let sp = tokens.spans.get(Ix::new(i as u32));
-            tok_strs.push(&text[sp.start as usize..sp.end as usize]);
-        }
+        let tok_strs = extract_tokens(Self::ID, tokens, view.text())?;
         let mut probs = vec![0.0; self.number_of_categories()];
         let mut scratch = Vec::new();
         let extra = BTreeMap::new();
@@ -202,12 +196,19 @@ impl Annotator for DocumentCategorizerME {
 }
 
 /// Categorizes each span of a positional layer `L` (`Sentences`, `Structure`,
-/// or `Chunks`) using the tokens contained within that span, writing
-/// `Categories<L>` (`turbo:categories<L>`).
-#[derive(Clone, Debug)]
+/// or `Chunks`) using the tokens contained within that span
+/// (`token.start >= unit.start && token.end <= unit.end`, including empty
+/// tokens at either boundary), writing `Categories<L>` (`turbo:categories<L>`).
+#[derive(Debug)]
 pub struct SpanCategorizer<L: SpanCategorizable> {
     categorizer: DocumentCategorizerME,
     _of: PhantomData<fn() -> L>,
+}
+
+impl<L: SpanCategorizable> Clone for SpanCategorizer<L> {
+    fn clone(&self) -> Self {
+        Self { categorizer: self.categorizer.clone(), _of: PhantomData }
+    }
 }
 
 impl<L: SpanCategorizable> SpanCategorizer<L> {
@@ -224,6 +225,7 @@ impl<L: SpanCategorizable> SpanCategorizer<L> {
 
 impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
     const ID: &'static str = "opennlp:doccat-spans";
+    const VERSION: &'static str = "1";
     type Reads = (View, Tokens, L);
     type Writes = (Categories<L>,);
 
@@ -235,9 +237,12 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
             return Err(Error::Annotator { annotator: Self::ID, detail: "spans are not in the given view".into() });
         }
         let text = view.text();
+        validate_spans(Self::ID, "token", &tokens.spans, text)?;
+        validate_spans(Self::ID, "unit", units.layer_spans(), text)?;
         let n_units = units.len();
         let n_tokens = tokens.spans.len();
         let (tok_starts, tok_ends) = tokens.spans.columns();
+        let tokens_ordered = tokens.spans.is_start_ordered();
         let mut out = Categories::<L>::with_capacity(Arc::clone(self.categorizer.model().categories()), n_units);
         let mut probs = vec![0.0; self.categorizer.number_of_categories()];
         let mut scratch = Vec::new();
@@ -246,14 +251,22 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
 
         for i in 0..n_units {
             let unit_span: Span = units.span_at(i);
-            let a = tok_starts.partition_point(|&s| s < unit_span.start);
             tok_strs.clear();
-            for t in a..n_tokens {
-                if tok_starts[t] >= unit_span.end {
-                    break;
+            if tokens_ordered {
+                let a = tok_starts.partition_point(|&s| s < unit_span.start);
+                for t in a..n_tokens {
+                    if tok_starts[t] > unit_span.end {
+                        break;
+                    }
+                    if tok_ends[t] <= unit_span.end {
+                        tok_strs.push(&text[tok_starts[t] as usize..tok_ends[t] as usize]);
+                    }
                 }
-                if tok_ends[t] <= unit_span.end {
-                    tok_strs.push(&text[tok_starts[t] as usize..tok_ends[t] as usize]);
+            } else {
+                for t in 0..n_tokens {
+                    if tok_starts[t] >= unit_span.start && tok_ends[t] <= unit_span.end {
+                        tok_strs.push(&text[tok_starts[t] as usize..tok_ends[t] as usize]);
+                    }
                 }
             }
             self.categorizer.categorize_into(&tok_strs, &extra, &mut scratch, &mut probs);
@@ -266,5 +279,109 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.categorizer.model().model_ref().clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis::{Analyzer, Document, Key, Provenance, Spans, ViewId};
+    use turbo_analysis_layers::Sentences;
+    use turbo_train::{Event, Key as Param, TrainingConfiguration, TrainingParameters, trainer};
+
+    use super::*;
+    use crate::features::{BagOfWordsFeatureGenerator, BuiltinFeatureGenerator};
+
+    fn spans<L>(items: &[(u32, u32)]) -> Spans<L> {
+        let mut s = Spans::new(ViewId::SOURCE);
+        for &(start, end) in items {
+            s.push(Span::new(start, end));
+        }
+        s
+    }
+
+    fn test_categorizer() -> DocumentCategorizerME {
+        // Outcome 0 is "pos", so categorize(&[]) picks "pos", while "bow=" is
+        // associated with "neg", so categorize(&[""]) picks "neg".
+        let events = vec![
+            Event::from_strs("pos", &["bow=good"]),
+            Event::from_strs("pos", &["bow=good", "bow=great"]),
+            Event::from_strs("neg", &["bow=bad", "bow="]),
+            Event::from_strs("neg", &["bow=bad", "bow=awful"]),
+        ];
+        let mut params = TrainingParameters::new();
+        params.put(Param::ALGORITHM, "MAXENT");
+        params.put(Param::ITERATIONS, 50);
+        params.put(Param::CUTOFF, 0);
+        let (trained, _) = trainer::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        let maxent = MaxentModel::read(&trained.write().unwrap()).unwrap();
+        let cg = DoccatContextGenerator::from_builtins(vec![BuiltinFeatureGenerator::BagOfWords(
+            BagOfWordsFeatureGenerator::new(),
+        )]);
+        DocumentCategorizerME::new(DoccatModel::from_maxent("en", maxent, cg).unwrap())
+    }
+
+    #[test]
+    fn document_categorizer_rejects_invalid_token_spans() {
+        let cat = test_categorizer();
+        let doc = Document::new("é");
+        let view = doc.get::<View>().unwrap();
+        let oob = Tokens { spans: spans(&[(0, 99)]), sentence: None };
+        assert!(cat.annotate((view, &oob)).is_err());
+
+        let bad_utf8 = Tokens { spans: spans(&[(0, 1)]), sentence: None };
+        assert!(cat.annotate((view, &bad_utf8)).is_err());
+    }
+
+    #[test]
+    fn span_categorizer_validates_spans_and_handles_empty_and_unordered_tokens() {
+        let cat = test_categorizer();
+        assert_eq!(cat.best_category(&cat.categorize(&[])), "pos");
+        assert_eq!(cat.best_category(&cat.categorize(&[""])), "neg");
+        let span_cat: SpanCategorizer<Sentences> = cat.for_spans();
+
+        // Empty token [0..0] inside empty sentence [0..0] must be included (yielding "neg", not "pos").
+        let mut doc_empty = Document::new("good");
+        doc_empty
+            .add(&Key::DEFAULT, Tokens { spans: spans(&[(0, 0)]), sentence: None }, Provenance::by("test"))
+            .unwrap();
+        doc_empty.add(&Key::DEFAULT, Sentences { spans: spans(&[(0, 0)]) }, Provenance::by("test")).unwrap();
+        let analyzer = Analyzer::builder()
+            .given(Key::<Tokens>::DEFAULT)
+            .given(Key::<Sentences>::DEFAULT)
+            .add(span_cat.clone())
+            .build()
+            .unwrap();
+        let mut docs = [doc_empty];
+        for r in analyzer.run(&mut docs) {
+            r.unwrap();
+        }
+        let cats = docs[0].get::<Categories<Sentences>>().unwrap();
+        assert_eq!(cats.best_category(0), "neg");
+        assert_eq!(docs[0].provenance(Key::<Categories<Sentences>>::DEFAULT.id()).unwrap().version, "1");
+
+        // Start-ordered overlapping tokens keep the fast path.
+        let overlap_spans = spans(&[(0, 3), (0, 3)]);
+        assert!(overlap_spans.is_start_ordered() && !overlap_spans.is_ordered());
+        let doc_overlap = Document::new("bad");
+        let overlap_tokens = Tokens { spans: overlap_spans, sentence: None };
+        let overlap_sents = Sentences { spans: spans(&[(0, 3)]) };
+        let (cats_overlap,) =
+            span_cat.annotate((doc_overlap.get::<View>().unwrap(), &overlap_tokens, &overlap_sents)).unwrap();
+        assert_eq!(cats_overlap.best_category(0), "neg");
+
+        // Unordered token spans: "good" at 4..8 listed before "bad" at 0..3.
+        let doc_unordered = Document::new("bad good");
+        let unordered_tokens = Tokens { spans: spans(&[(4, 8), (0, 3)]), sentence: None };
+        let sents = Sentences { spans: spans(&[(0, 3), (4, 8)]) };
+        let (cats_unordered,) =
+            span_cat.annotate((doc_unordered.get::<View>().unwrap(), &unordered_tokens, &sents)).unwrap();
+        assert_eq!(cats_unordered.best_category(0), "neg");
+        assert_eq!(cats_unordered.best_category(1), "pos");
+
+        // Invalid unit span is rejected without panicking.
+        let doc_bad_unit = Document::new("good");
+        let valid_tokens = Tokens { spans: spans(&[(0, 4)]), sentence: None };
+        let bad_sents = Sentences { spans: spans(&[(0, 99)]) };
+        assert!(span_cat.annotate((doc_bad_unit.get::<View>().unwrap(), &valid_tokens, &bad_sents)).is_err());
     }
 }

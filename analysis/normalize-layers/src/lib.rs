@@ -6,7 +6,11 @@ use turbo_analysis::{Layer, Spans, TextSpans, ViewId};
 use turbo_analysis_layers::Strs;
 
 mod asset_format;
+mod asset_names;
+mod assets;
+
 pub use asset_format::{AssetEncoding, AssetFormat, subtype};
+pub use assets::Assets;
 
 /// What a placeholder stands for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -58,6 +62,9 @@ impl Layer for Placeholders {
             return Err("placeholders in text order, not overlapping".into());
         }
         self.spans.check(Self::OVERLAP)?;
+        if self.spans.iter().any(|(_, s)| s.is_empty()) {
+            return Err("no empty placeholder".into());
+        }
         Ok(())
     }
 }
@@ -117,6 +124,9 @@ impl Layer for Emoji {
             return Err("emoji in text order, not overlapping".into());
         }
         self.spans.check(Self::OVERLAP)?;
+        if self.spans.iter().any(|(_, s)| s.is_empty()) {
+            return Err("no empty emoji".into());
+        }
         Ok(())
     }
 }
@@ -329,124 +339,11 @@ impl Layer for Noise {
             return Err("noise spans in text order, not overlapping".into());
         }
         self.spans.check(Self::OVERLAP)?;
+        if self.spans.iter().any(|(_, s)| s.is_empty()) {
+            return Err("no empty noise span".into());
+        }
         if let Some(bad) = self.score.iter().find(|&&s| !(s > 0.0 && s <= 1.0)) {
             return Err(format!("noise scores in (0, 1], got {bad}"));
-        }
-        Ok(())
-    }
-}
-
-/// Binary payloads embedded in a text: base64 runs, `data:` URIs, PEM
-/// envelopes, JSON Web Tokens and, when the detector is configured for
-/// them, hex dumps. Each row is one asset:
-///
-/// - `spans`: the whole asset (a `data:` URI from its scheme, a PEM
-///   envelope from its begin line to its end line, a token from its first
-///   segment to its last);
-/// - `payload`: the encoded bytes inside it, in the same view (the base64
-///   body with its line breaks, a token's claims segment);
-/// - `format` and `declared_type`: what the header identifies, and the
-///   media type a `data:` URI declared (empty when the asset declared
-///   none); [`Assets::format_name`] and [`Assets::media_type`] give the
-///   strings OpenNLP reports;
-/// - `encoding`: how the payload is written;
-/// - `decoded_len`: the number of bytes the payload decodes to;
-/// - `width` and `height`: the pixel size, for a PNG or GIF whose header
-///   states a positive one. OpenNLP writes -1 for an unknown dimension;
-///   here it is `None`, so a column cannot hold a negative or zero size.
-///
-/// The spans are in text order and do not overlap.
-pub struct Assets {
-    pub spans: Spans<Assets>,
-    pub payload: Vec<turbo_analysis::Span>,
-    pub format: Vec<AssetFormat>,
-    pub declared_type: Strs,
-    pub encoding: Vec<AssetEncoding>,
-    pub decoded_len: Vec<u64>,
-    pub width: Vec<Option<u32>>,
-    pub height: Vec<Option<u32>>,
-}
-
-impl Assets {
-    pub fn new(view: ViewId) -> Assets {
-        Assets {
-            spans: Spans::new(view),
-            payload: Vec::new(),
-            format: Vec::new(),
-            declared_type: Strs::default(),
-            encoding: Vec::new(),
-            decoded_len: Vec::new(),
-            width: Vec::new(),
-            height: Vec::new(),
-        }
-    }
-
-    /// The media type of asset `i`: the one its `data:` URI declared, or
-    /// else the one its format implies.
-    pub fn media_type(&self, i: usize) -> &str {
-        match self.declared_type.get(i) {
-            "" => self.format[i].media_type(),
-            declared => declared,
-        }
-    }
-
-    /// The format name of asset `i` as OpenNLP reports it: the format's
-    /// name, or for [`AssetFormat::Declared`] the subtype of the declared
-    /// media type.
-    pub fn format_name(&self, i: usize) -> &str {
-        match self.format[i] {
-            AssetFormat::Declared => subtype(self.declared_type.get(i)),
-            format => format.name(),
-        }
-    }
-}
-
-impl Layer for Assets {
-    const ID: &'static str = "turbo:assets";
-
-    fn len(&self) -> usize {
-        self.spans.len()
-    }
-
-    fn text_spans(&self) -> Option<TextSpans<'_>> {
-        Some(self.spans.text_spans())
-    }
-
-    fn check(&self) -> Result<(), String> {
-        let n = self.spans.len();
-        let columns = [
-            self.payload.len(),
-            self.format.len(),
-            self.declared_type.len(),
-            self.encoding.len(),
-            self.decoded_len.len(),
-            self.width.len(),
-            self.height.len(),
-        ];
-        if columns.iter().any(|&len| len != n) {
-            return Err("a payload, format, declared type, encoding, length and size for every asset".into());
-        }
-        if !self.spans.is_ordered() {
-            return Err("assets in text order, not overlapping".into());
-        }
-        self.spans.check(Self::OVERLAP)?;
-        for (ix, span) in self.spans.iter() {
-            let i = ix.get();
-            let payload = self.payload[i];
-            if span.is_empty() || payload.is_empty() || !span.contains(payload) {
-                return Err(format!("asset {i}: a non-empty payload {payload:?} inside its span {span:?}"));
-            }
-            let declared = self.declared_type.get(i);
-            if (self.format[i] == AssetFormat::Declared && declared.is_empty())
-                || !(declared.is_empty() || declared.find('/').is_some_and(|slash| slash > 0))
-            {
-                return Err(format!("asset {i}: a declared media type {declared:?} with a subtype"));
-            }
-            let positive = |d: Option<u32>| d.is_none_or(|d| d > 0 && d <= i32::MAX as u32);
-            let (w, h) = (self.width[i], self.height[i]);
-            if w.is_some() != h.is_some() || !positive(w) || !positive(h) {
-                return Err(format!("asset {i}: both dimensions or neither, positive, got {w:?} x {h:?}"));
-            }
         }
         Ok(())
     }
@@ -494,5 +391,76 @@ impl Layer for Corrections {
             return Err("no empty correction".into());
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::Span;
+
+    fn sample_assets(payload: Span, format: AssetFormat, declared: &str) -> Assets {
+        let mut a = Assets::new(ViewId::SOURCE);
+        a.spans.push(Span::new(4, 12));
+        a.payload.push(payload);
+        a.format.push(format);
+        a.declared_type.push(declared);
+        a.encoding.push(AssetEncoding::Base64);
+        a.decoded_len.push(3);
+        a.width.push(None);
+        a.height.push(None);
+        a
+    }
+
+    #[test]
+    fn assets_check_rejects_inverted_payload_and_bad_declared_types() {
+        assert!(sample_assets(Span::new(8, 12), AssetFormat::Png, "").check().is_ok());
+        assert!(sample_assets(Span { start: 10, end: 8 }, AssetFormat::Png, "").check().is_err());
+        assert!(sample_assets(Span::new(8, 12), AssetFormat::Unknown, "text/plain").check().is_err());
+        assert!(sample_assets(Span::new(8, 12), AssetFormat::Declared, "").check().is_err());
+        for bad in [
+            "text/",
+            "text/;charset=utf-8",
+            "/plain",
+            "/",
+            "plain",
+            "text//plain",
+            "text/a/b",
+            "te(x)t/plain",
+            "text/pl\u{e4}in",
+        ] {
+            assert!(sample_assets(Span::new(8, 12), AssetFormat::Declared, bad).check().is_err(), "{bad:?}");
+            assert!(sample_assets(Span::new(8, 12), AssetFormat::Png, bad).check().is_err(), "{bad:?}");
+            assert_eq!(subtype(bad), None, "{bad:?}");
+        }
+        for (good, sub) in [
+            ("text/plain;charset=utf-8", "plain"),
+            ("image/svg+xml", "svg+xml"),
+            ("application/vnd.ms-excel", "vnd.ms-excel"),
+        ] {
+            assert!(sample_assets(Span::new(8, 12), AssetFormat::Declared, good).check().is_ok(), "{good:?}");
+            assert_eq!(subtype(good), Some(sub), "{good:?}");
+        }
+    }
+
+    #[test]
+    fn placeholders_emoji_and_noise_reject_empty_spans() {
+        let mut p = Placeholders::new(ViewId::SOURCE);
+        p.spans.push(Span::new(3, 3));
+        p.kind.push(PlaceholderKind::Url);
+        assert!(p.check().is_err());
+
+        let mut e = Emoji::new(ViewId::SOURCE);
+        e.spans.push(Span::new(2, 2));
+        e.kind.push(EmojiKind::Basic);
+        e.name.push("grinning face");
+        e.region.push("");
+        assert!(e.check().is_err());
+
+        let mut n = Noise::new(ViewId::SOURCE);
+        n.spans.push(Span::new(5, 5));
+        n.severity.push(NoiseSeverity::Damaged);
+        n.score.push(0.5);
+        assert!(n.check().is_err());
     }
 }

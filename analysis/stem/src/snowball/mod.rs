@@ -214,6 +214,10 @@ impl Stemmer for SnowballStemmer {
         }
         *out = env.into_current();
     }
+
+    fn config_hash(&self) -> u64 {
+        crate::Algorithm::Snowball(*self).config_hash()
+    }
 }
 
 #[cfg(test)]
