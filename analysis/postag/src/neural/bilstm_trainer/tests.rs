@@ -219,12 +219,19 @@ fn pretrained_tuning_clips_extreme_gradients_and_rejects_non_finite_updates() {
     let worker = ctx.new_worker();
     assert_eq!(worker.buffers().len(), ctx.optimizer.new_gradient_buffers().len());
 
-    // Bug 1a: large finite tuning gradient (1e200) must clip cleanly to max_grad_norm (5.0) instead of overflowing to +inf and zeroing gradients.
+    // Bug 1a: large finite tuning gradient (1e200 and f64::MAX) must clip cleanly to max_grad_norm (5.0) instead of overflowing to +inf and zeroing gradients.
     let mut touched = HashMap::new();
     touched.insert(0, vec![3e200, 4e200]);
     ctx.step_batch(1.0, 1e-3, 1, &mut touched).unwrap();
     assert!((touched[&0][0] - 3.0).abs() < 1e-9);
     assert!((touched[&0][1] - 4.0).abs() < 1e-9);
+
+    let mut max_touched = HashMap::new();
+    max_touched.insert(0, vec![f64::MAX, f64::MAX]);
+    ctx.step_batch(1.0, 1.0, 1, &mut max_touched).unwrap();
+    let expected_max_clip = 5.0 / 2.0_f64.sqrt();
+    assert!((max_touched[&0][0] - expected_max_clip).abs() < 1e-12);
+    assert!((max_touched[&0][1] - expected_max_clip).abs() < 1e-12);
 
     // Bug 1b: NaN tuning gradient must return NonFiniteScore.
     let mut nan_touched = HashMap::new();
