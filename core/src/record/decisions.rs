@@ -79,6 +79,9 @@ impl Record {
     /// batch is 1. `conformance.rows` minus that count is how many cases
     /// fit, and the rows have to list that many distinct cases.
     pub fn falls_short(&self, cell: &Cell) -> Option<String> {
+        if !self.references.iter().any(|r| r.measured.is_some() && REFERENCES.iter().any(|&(n, _)| n == r.name)) {
+            return Some("no reference program measured".into());
+        }
         // Records can be constructed or mutated without going through parse.
         // A capability verdict must not trust unchecked floating point fields.
         if let Err(error) = self.check() {
@@ -101,9 +104,6 @@ impl Record {
             && c.max_abs_diff > most
         {
             return Some(format!("max abs diff {:e} is over {most:e}", c.max_abs_diff));
-        }
-        if !self.references.iter().any(|r| r.measured.is_some() && REFERENCES.iter().any(|&(n, _)| n == r.name)) {
-            return Some("no reference program measured".into());
         }
         // Mixed rows are the cases that fit seq. A file that times one of
         // them still parses and still matches `is_for`. The measured rows

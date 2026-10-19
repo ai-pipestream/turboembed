@@ -50,3 +50,14 @@ suite includes scalar/range invariants and exhaustive comparison of character
 classification with the existing development-only regex oracle. No runtime
 regex dependency was added. The BPE tests were moved into their own file so
 updating that generator entry point also meets the 500-line limit.
+
+## CI follow-up
+
+Workspace CI found an existing bench assertion for an unchecked unknown
+reference. Full validation rejected it with a different diagnostic. The
+missing-reference check now runs first to preserve the established message.
+Full validation still runs before a record can establish support.
+
+`followup-clippy.log` records the strict turbo/bench lint gate. The expanded
+`cargo test --locked -p turbo -p turbo-bench` run in `followup-tests.log` includes
+the formerly failing bench assertion and the unchecked-NaN regression.
