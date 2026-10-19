@@ -27,8 +27,8 @@ impl Translator<'_> {
                 Ok((Node::Assert(Assertion::EndText), ASSERTION))
             }
             'b' => {
-                if self.peek_is('{') {
-                    if self.peek_at(1) == Some('g' as u32) && self.peek_at(2) != Some('}' as u32) {
+                if self.peek_is('{') && self.peek_at(1) == Some('g' as u32) {
+                    if self.peek_at(2) != Some('}' as u32) {
                         return Err(self.syntax("illegal/unsupported escape sequence"));
                     }
                     return Err(self.unsupported(Feature::Escape('b')));

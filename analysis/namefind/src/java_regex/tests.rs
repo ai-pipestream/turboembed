@@ -68,6 +68,8 @@ fn refusals() {
     assert_eq!(feature(r"\uD800"), Feature::Surrogate);
     assert_eq!(feature("(?m)a"), Feature::Flag('m'));
     assert_eq!(feature(r"\R"), Feature::Escape('R'));
+    assert_eq!(feature(r"\b{g}"), Feature::Escape('b'));
+    assert_eq!(feature(r"\b{1}"), Feature::QuantifiedAssertion);
     assert_eq!(feature(r"\N{LATIN SMALL LETTER A}"), Feature::Escape('N'));
     assert_eq!(feature(r"[\N{LATIN SMALL LETTER A}]"), Feature::Escape('N'));
     for p in ["{", "a{", "a{1", "x{,2}", "a{2,1}", "[]", "(?i)*", "a**", r"\y", r"\E", "(?<a>x)(?<a>y)"] {
@@ -76,7 +78,19 @@ fn refusals() {
     for p in [r"\0", r"\08", r"\c", r"\x4", r"\x{110000}", "(?<1a>x)", "x{2147483648}", "(a", "a)", "[a-\\d]"] {
         syntax(p);
     }
-    for p in [r"\b{g", r"\b{gx}", r"\N", r"\N{", r"\N{}", r"\N{LATIN", r"[\N]", r"[\N{}]", r"[\N{LATIN]"] {
+    for p in [
+        r"\b{g",
+        r"\b{gx}",
+        r"\b{2,1}",
+        r"\b{foo}",
+        r"\N",
+        r"\N{",
+        r"\N{}",
+        r"\N{LATIN",
+        r"[\N]",
+        r"[\N{}]",
+        r"[\N{LATIN]",
+    ] {
         syntax(p);
     }
 }
