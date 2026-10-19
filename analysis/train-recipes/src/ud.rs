@@ -47,12 +47,14 @@
 //! or for Italian a model the recipe records ([`Reference::Recorded`]).
 //! The gates are the MASC recipes' ([`crate::segmentation`],
 //! [`crate::postag`]), and the records and cards are of the same versions:
-//! a sentence detector or tokenizer is gated as a [`SegmentationRecipe`],
-//! and a tagger as a [`PosRecipe`] whose tags, the trained model's and the
-//! reference's, are both asked for in [`TAG_FORMAT`] and compared with the
-//! held-out tag as written, with no mapping. A lemmatizer, given the
-//! held-out tags, is scored on its lemmas as `LemmatizerEvaluator` counts
-//! them, as a tagger on its tags ([`score_lemmas`]).
+//! a sentence detector or tokenizer is gated as a
+//! [`SegmentationRecipe`](crate::segmentation::SegmentationRecipe), and a
+//! tagger as a [`PosRecipe`](crate::postag::PosRecipe) whose tags, the
+//! trained model's and the reference's, are both asked for in
+//! [`TAG_FORMAT`] and compared with the held-out tag as written, with no
+//! mapping. A lemmatizer, given the held-out tags, is scored on its lemmas
+//! as `LemmatizerEvaluator` counts them, as a tagger on its tags
+//! ([`score_lemmas`]).
 //!
 //! Except for Catalan, the reference was trained on another treebank, so
 //! the gate scores it against annotation conventions it was not trained
@@ -113,35 +115,25 @@
 //! shipped, bundled or trained on, and the trained model is trained on
 //! MarkIT alone, so its class is permissive.
 
-use std::collections::{BTreeMap, HashSet};
-use std::sync::Arc;
+mod lemma;
+mod samples;
 
-use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, PairedUnit, Scoring, TagScoring, Task};
-use turbo_formats::FormatError;
-use turbo_formats::conllu::{ConlluReader, ConlluSentenceReader, ConlluTokenReader, Sentence, Tagset, WordLine};
-use turbo_formats::evaluate::LemmatizerEvaluator;
+use turbo_eval::model_gate::ModelGateRecord;
+use turbo_formats::conllu::Tagset;
 use turbo_formats::sample::{LemmaSample, PosSample};
-use turbo_lemmatizer::{LemmatizerModel, MaxentLemmatizer, TokenTag, edit_script::decode_lemma};
-use turbo_maxent::{JavaString, ModelFile};
 use turbo_postag::PosTagFormat;
-use turbo_train::TrainingConfiguration;
 use turbo_train_components::ud::{self as published, Component};
-use turbo_train_components::{
-    LemmaEventStream, LemmatizerFactory, PosEventStream, PosTaggerFactory, SdEventStream, SentenceDetectorFactory,
-    Stamp, TokSpanEventStream, TokenizerFactory, lemmatize, postag, sentdetect, tokenize,
-};
-use turbo_zoo::Sha256;
 
-use crate::card::{HeldOutCard, Mismatch, TagCount, TokenCoverage};
-use crate::error::{Error, LeftOut, Result};
-use crate::postag::{HeldOutTags, PosRecipe, Scored, most_frequent};
-use crate::segmentation::{self, HeldOut, SegmentationRecipe, TIMESTAMP_MS, WHITESPACE};
-use crate::treebank::TreebankText;
+pub use lemma::{ReferenceClasses, lemma_samples_sha256, score_lemmas};
+pub use samples::{lemma_samples, pos_samples};
+
+use crate::error::Result;
+use crate::segmentation::HeldOut;
 use crate::treebank::{
-    CATALAN_ANCORA, FINNISH_FTB, ITALIAN_MARKIT, PORTUGUESE_PORTTINARI, RELEASE, SPANISH_ANCORA, Treebank,
+    CATALAN_ANCORA, FINNISH_FTB, ITALIAN_MARKIT, PORTUGUESE_PORTTINARI, SPANISH_ANCORA, Treebank, TreebankText,
 };
 use crate::ud_card::UdModelCard;
-use crate::{GateRun, Limit, RecordedReference, Reference, Trained, check_skipped};
+use crate::{GateRun, Limit, RecordedReference, Reference, Trained};
 
 /// Sentences per sentence detector sample.
 pub const SENTENCES_PER_SAMPLE: usize = published::SENTENCES_PER_SAMPLE;
@@ -157,8 +149,8 @@ pub const TAG_FORMAT: PosTagFormat = PosTagFormat::Custom;
 /// or the lemma their gold lemma class gives: 5 in 100, a floor on how much of
 /// the `test` file the gate covers (the module documentation says why it
 /// is not the MASC tagger's limit, and what leaving tokens out can do to
-/// the gate). More and the recipe fails ([`Error::TagsOutsideReference`],
-/// [`Error::ClassesOutsideReference`]).
+/// the gate). More and the recipe fails ([`Error::TagsOutsideReference`](crate::error::Error::TagsOutsideReference),
+/// [`Error::ClassesOutsideReference`](crate::error::Error::ClassesOutsideReference)).
 pub const MAX_TOKENS_LEFT_OUT: Limit = Limit { count: 5, of: 100 };
 
 /// OpenNLP's Italian UD 1.3 tagger, trained on UD_Italian-VIT (CC
@@ -246,58 +238,6 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
     recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, Recorded(IT_UD_VIT_LEMMAS)),
 ];
 
-/// The words of a sentence the tagger and the lemmatizer read: its word
-/// lines without the empty nodes.
-fn words<'s, 'a>(sentence: &'s Sentence<'a>) -> impl Iterator<Item = &'s WordLine<'a>> {
-    sentence.word_lines.iter().filter(|l| !l.id.as_str().contains('.'))
-}
-
-/// Reads the part-of-speech samples of a CoNLL-U text: one per sentence,
-/// its words' forms and universal tags, empty nodes left out. A sentence
-/// with no word is skipped and counted.
-///
-/// # Errors
-///
-/// A sentence the CoNLL-U reader refuses.
-pub fn pos_samples(conllu: &str) -> std::result::Result<(Vec<PosSample<'_>>, usize), FormatError> {
-    let mut samples = Vec::new();
-    let mut skipped = 0;
-    for sentence in ConlluReader::new(conllu)? {
-        let sentence = sentence?;
-        let tokens: Vec<_> = words(&sentence).map(|l| l.form.clone()).collect();
-        if tokens.is_empty() {
-            skipped += 1;
-            continue;
-        }
-        let tags = words(&sentence).map(|l| l.tag(TAGSET).clone()).collect();
-        samples.push(PosSample::new(tokens, tags, sentence.source)?);
-    }
-    Ok((samples, skipped))
-}
-
-/// Reads the lemma samples of a CoNLL-U text as [`pos_samples`] reads the
-/// part-of-speech samples, with each word's lemma.
-///
-/// # Errors
-///
-/// A sentence the CoNLL-U reader refuses.
-pub fn lemma_samples(conllu: &str) -> std::result::Result<(Vec<LemmaSample<'_>>, usize), FormatError> {
-    let mut samples = Vec::new();
-    let mut skipped = 0;
-    for sentence in ConlluReader::new(conllu)? {
-        let sentence = sentence?;
-        let tokens: Vec<_> = words(&sentence).map(|l| l.form.clone()).collect();
-        if tokens.is_empty() {
-            skipped += 1;
-            continue;
-        }
-        let tags = words(&sentence).map(|l| l.tag(TAGSET).clone()).collect();
-        let lemmas = words(&sentence).map(|l| l.lemma.clone()).collect();
-        samples.push(LemmaSample::new(tokens, tags, lemmas, sentence.source)?);
-    }
-    Ok((samples, skipped))
-}
-
 /// The samples of one component read from one CoNLL-U file, borrowed
 /// from its text.
 #[derive(Debug, Clone)]
@@ -321,8 +261,8 @@ impl UdSamples<'_> {
         self.len() == 0
     }
 
-    /// The kind of the samples, as [`Error::ComponentMismatch`] names it.
-    fn kind(&self) -> &'static str {
+    /// The kind of the samples, as [`Error::ComponentMismatch`](crate::error::Error::ComponentMismatch) names it.
+    pub(super) fn kind(&self) -> &'static str {
         match self {
             UdSamples::Segments(HeldOut::Sentences(_)) => "sentence",
             UdSamples::Segments(HeldOut::Tokens { .. }) => "token",
@@ -330,106 +270,6 @@ impl UdSamples<'_> {
             UdSamples::Lemmas(_) => "lemma",
         }
     }
-}
-
-/// The lemma classes a reference lemmatizer has outcomes for, which decide
-/// the held-out tokens a lemmatizer's gate scores. A token's gold class is
-/// the class training gives the token and its held-out lemma
-/// ([`lemmatize::lemma_class`], `LemmatizerME.encodeLemmas`). A token is
-/// left out of both models' scores when its gold class gives its lemma
-/// back, so a lemmatizer trained on the treebank can give it, and no
-/// outcome of the reference gives that lemma for the token, so the
-/// reference cannot get it right, as a token whose tag a reference tagger
-/// cannot give ([`crate::postag::ReferenceTags`]). Lacking the gold class
-/// is not enough: `decodeShortestEditScript` deletes a character without
-/// reading the letter the class names for it, so classes that differ only
-/// in those letters give the same lemma, and a reference without a token's
-/// gold class may give its lemma through another class.
-///
-/// A token whose gold class gives another string is scored, as
-/// `LemmatizerEvaluator` counts it: training teaches the candidate the
-/// gold classes, so the rule leaves out only tokens it can be taught.
-/// `decodeLemmas` applies a class to the lowercased token, and every class
-/// is made from a lowercased lemma, so no model gives a lemma with a
-/// capital letter (MarkIT writes `[PUNCT]` as the lemma of most
-/// punctuation); and it reads a class's index as one digit, so a gold
-/// class with an index of ten or more gives another string
-/// (`turbo_lemmatizer`'s documentation). Making classes from the lemma as
-/// written and applying them to the token as written would let a model
-/// give capitalised lemmas, an improvement over OpenNLP that the recipes
-/// leave out so that they train and score as OpenNLP does.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReferenceClasses {
-    classes: HashSet<JavaString>,
-}
-
-impl ReferenceClasses {
-    /// The classes `outcomes`.
-    pub fn new(outcomes: impl IntoIterator<Item = JavaString>) -> ReferenceClasses {
-        ReferenceClasses { classes: outcomes.into_iter().collect() }
-    }
-
-    /// The outcomes of the lemmatizer in `bytes`.
-    ///
-    /// # Errors
-    ///
-    /// A model file that is not a lemmatizer model.
-    pub fn of_model(bytes: &[u8]) -> Result<ReferenceClasses> {
-        Ok(ReferenceClasses::new(open_lemmatizer(bytes)?.maxent().outcomes().cloned()))
-    }
-
-    /// Whether a held-out token `token` of the lemma `lemma` is scored:
-    /// unless its gold class gives the lemma and no class of the reference
-    /// does.
-    pub fn scores(&self, token: &str, lemma: &str) -> bool {
-        let gives = |class: &JavaString| decode_lemma(token, class).is_ok_and(|given| given == lemma);
-        let class = lemmatize::lemma_class(token, lemma);
-        self.classes.contains(&class) || !gives(&class) || self.classes.iter().any(gives)
-    }
-
-    /// The held-out tokens left out of the scores, by their tag as
-    /// written, sorted by tag.
-    pub fn left_out(&self, samples: &[LemmaSample<'_>]) -> Vec<TagCount> {
-        let mut counts: BTreeMap<&str, u64> = BTreeMap::new();
-        for s in samples {
-            for ((token, tag), lemma) in s.tokens().iter().zip(s.tags()).zip(s.lemmas()) {
-                if !self.scores(token.as_str(), lemma.as_str()) {
-                    *counts.entry(tag.as_str()).or_default() += 1;
-                }
-            }
-        }
-        counts.into_iter().map(|(tag, tokens)| TagCount { tag: tag.to_owned(), tokens }).collect()
-    }
-}
-
-/// The tokens of lemma samples.
-fn lemma_tokens(samples: &[LemmaSample<'_>]) -> u64 {
-    samples.iter().map(|s| s.len() as u64).sum()
-}
-
-/// The SHA-256 of lemma samples as scored with a reference of the classes
-/// `reference`: for each sample, its number of tokens as a little endian
-/// `u64`, then for each token its text, its tag and its lemma, each as its
-/// length in bytes as a little endian `u64` and the bytes, and a byte, 1
-/// when the token is scored ([`ReferenceClasses::scores`]) and 0 when it
-/// is left out. Two gates whose references leave out other tokens have
-/// other digests.
-pub fn lemma_samples_sha256(samples: &[LemmaSample<'_>], reference: &ReferenceClasses) -> String {
-    let mut bytes = Vec::new();
-    let put = |bytes: &mut Vec<u8>, s: &str| {
-        bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
-        bytes.extend_from_slice(s.as_bytes());
-    };
-    for s in samples {
-        bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
-        for ((token, tag), lemma) in s.tokens().iter().zip(s.tags()).zip(s.lemmas()) {
-            put(&mut bytes, token.as_str());
-            put(&mut bytes, tag.as_str());
-            put(&mut bytes, lemma.as_str());
-            bytes.push(u8::from(reference.scores(token.as_str(), lemma.as_str())));
-        }
-    }
-    Sha256::of(&bytes).to_string()
 }
 
 /// The samples a recipe read from one file, and how many sentences it
@@ -440,333 +280,6 @@ pub struct ReadSamples<'c> {
     /// Sentences with no word once the empty nodes are left out (0 for the
     /// sentence detector and the tokenizer).
     pub skipped: usize,
-}
-
-impl UdRecipe {
-    /// The recipe of [`UD_RECIPES`] that trains the model `id`.
-    pub fn trains(id: &str) -> Option<UdRecipe> {
-        UD_RECIPES.into_iter().find(|r| r.model_id == id)
-    }
-
-    /// The gate's task.
-    pub fn task(&self) -> Task {
-        match self.component {
-            Component::Sentence => Task::SentenceDetector,
-            Component::Tokens => Task::Tokenizer,
-            Component::Pos => Task::PartOfSpeechTagger,
-            Component::Lemmas => Task::Lemmatizer,
-        }
-    }
-
-    /// The component the zoo lists the trained model under.
-    pub fn zoo_component(&self) -> turbo_zoo::Component {
-        match self.component {
-            Component::Sentence => turbo_zoo::Component::SentenceDetector,
-            Component::Tokens => turbo_zoo::Component::Tokenizer,
-            Component::Pos => turbo_zoo::Component::Pos,
-            Component::Lemmas => turbo_zoo::Component::Lemmatizer,
-        }
-    }
-
-    /// For a sentence detector or a tokenizer, the MASC recipes' gate for
-    /// it: a [`SegmentationRecipe`] of the model and its reference.
-    pub fn segmentation(&self) -> Option<SegmentationRecipe> {
-        let component = match self.component {
-            Component::Sentence => segmentation::Component::Sentence,
-            Component::Tokens => segmentation::Component::Tokens,
-            Component::Pos | Component::Lemmas => return None,
-        };
-        Some(SegmentationRecipe { component, model_id: self.model_id, reference_id: self.reference.id() })
-    }
-
-    /// For a tagger, the MASC tagger's gate for it: a [`PosRecipe`] of the
-    /// model and its reference, the reference asked for [`TAG_FORMAT`], no
-    /// mapping, and [`MAX_TOKENS_LEFT_OUT`].
-    pub fn tagger(&self) -> Option<PosRecipe> {
-        (self.component == Component::Pos).then_some(PosRecipe {
-            model_id: self.model_id,
-            reference: self.reference,
-            reference_format: TAG_FORMAT,
-            reference_mappings: &[],
-            max_left_out: MAX_TOKENS_LEFT_OUT,
-        })
-    }
-
-    /// The name of the held-out set in the records.
-    pub fn held_out_name(&self) -> String {
-        format!("{} {RELEASE} test ({})", self.treebank.repository, self.treebank.test.name)
-    }
-
-    /// Reads the recipe's samples from a CoNLL-U text, as the trainer
-    /// tool reads them (with the change the module documentation gives).
-    ///
-    /// # Errors
-    ///
-    /// A sentence the reader refuses ([`Error::Conllu`], naming `file`),
-    /// or no sample ([`Error::EmptySplit`]).
-    pub fn samples<'c>(&self, conllu: &'c str, file: &'static str) -> Result<ReadSamples<'c>> {
-        let conllu_error =
-            |error: FormatError| Error::Conllu { treebank: self.treebank.repository, file, error: Box::new(error) };
-        let (samples, skipped) = match self.component {
-            Component::Sentence => (
-                UdSamples::Segments(HeldOut::Sentences(
-                    ConlluSentenceReader::new(conllu, SENTENCES_PER_SAMPLE)
-                        .map_err(conllu_error)?
-                        .collect::<std::result::Result<_, _>>()
-                        .map_err(conllu_error)?,
-                )),
-                0,
-            ),
-            Component::Tokens => (
-                UdSamples::Segments(HeldOut::Tokens {
-                    samples: ConlluTokenReader::new(conllu, WHITESPACE)
-                        .map_err(conllu_error)?
-                        .collect::<std::result::Result<_, _>>()
-                        .map_err(conllu_error)?,
-                    skipped: 0,
-                }),
-                0,
-            ),
-            Component::Pos => {
-                let (s, skipped) = pos_samples(conllu).map_err(conllu_error)?;
-                (UdSamples::Tags(s), skipped)
-            }
-            Component::Lemmas => {
-                let (s, skipped) = lemma_samples(conllu).map_err(conllu_error)?;
-                (UdSamples::Lemmas(s), skipped)
-            }
-        };
-        if samples.is_empty() {
-            return Err(Error::EmptySplit { what: "sample of the treebank file" });
-        }
-        Ok(ReadSamples { samples, skipped })
-    }
-
-    /// The held-out samples of the `test` file, checked as [`run_ud`]
-    /// checks them: at most [`crate::MAX_SKIPPED_SENTENCES`] skipped.
-    ///
-    /// # Errors
-    ///
-    /// What [`UdRecipe::samples`] fails on, or [`Error::TooManyLeftOut`].
-    pub fn held_out<'c>(&self, text: &'c TreebankText) -> Result<ReadSamples<'c>> {
-        let held_out = self.samples(&text.test, self.treebank.test.name)?;
-        check_skipped(LeftOut::HeldOutSentences, held_out.skipped, held_out.samples.len())?;
-        Ok(held_out)
-    }
-
-    /// Reads the training and held-out samples of `text` without training
-    /// or scoring, and checks what [`run_ud`] checks of them: each file has
-    /// a sample, the reader skips at most [`crate::MAX_SKIPPED_SENTENCES`]
-    /// of the sentences of either, and for a tagger or a lemmatizer, given
-    /// its reference's bytes, that the reference can give the tag, or the
-    /// lemma the gold lemma class gives, of all but [`MAX_TOKENS_LEFT_OUT`]
-    /// of the held-out tokens ([`ReferenceClasses::scores`]). The binary runs it for every recipe before it
-    /// trains any, as it runs [`crate::Recipe::check_data`] for the MASC
-    /// recipes.
-    ///
-    /// # Errors
-    ///
-    /// What reading the samples fails on, [`Error::TooManyLeftOut`],
-    /// [`Error::TagsOutsideReference`], [`Error::ClassesOutsideReference`],
-    /// or a reference that is not a model of the component.
-    pub fn check_data(&self, text: &TreebankText, reference: &[u8]) -> Result<()> {
-        let train = self.samples(&text.train, self.treebank.train.name)?;
-        check_skipped(LeftOut::TrainingSentences, train.skipped, train.samples.len())?;
-        let held_out = self.held_out(text)?;
-        match (self.tagger(), held_out.samples) {
-            (Some(tagger), UdSamples::Tags(samples)) => {
-                let tags = tagger.reference_tags(reference)?;
-                tagger.check_coverage(self.reference.id(), &tags, &HeldOutTags::new(samples, held_out.skipped))?;
-            }
-            (None, UdSamples::Lemmas(samples)) => {
-                self.check_classes(&ReferenceClasses::of_model(reference)?, &samples)?;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    /// The held-out tokens whose gold lemma class gives their lemma and no
-    /// class of `classes`, a reference's, does, by tag
-    /// ([`ReferenceClasses::left_out`]).
-    ///
-    /// # Errors
-    ///
-    /// More of them than [`MAX_TOKENS_LEFT_OUT`] allows
-    /// ([`Error::ClassesOutsideReference`]).
-    pub fn check_classes(&self, classes: &ReferenceClasses, samples: &[LemmaSample<'_>]) -> Result<Vec<TagCount>> {
-        let left_out = classes.left_out(samples);
-        let tokens = lemma_tokens(samples);
-        if MAX_TOKENS_LEFT_OUT.allows(left_out.iter().map(|t| t.tokens).sum(), tokens) {
-            Ok(left_out)
-        } else {
-            Err(Error::ClassesOutsideReference {
-                reference: self.reference.id().to_owned(),
-                left_out,
-                of: tokens,
-                limit: MAX_TOKENS_LEFT_OUT,
-            })
-        }
-    }
-
-    /// Trains the model from the treebank's `train` file.
-    ///
-    /// # Errors
-    ///
-    /// What reading the samples fails on, more skipped sentences than
-    /// [`crate::MAX_SKIPPED_SENTENCES`] allows ([`Error::TooManyLeftOut`]),
-    /// or what training fails on.
-    pub fn train(&self, train: &str) -> Result<Trained> {
-        let read = self.samples(train, self.treebank.train.name)?;
-        check_skipped(LeftOut::TrainingSentences, read.skipped, read.samples.len())?;
-        let language = self.treebank.language;
-        let stamp = Stamp::at(TIMESTAMP_MS);
-        let params = published::training_parameters();
-        let mut config = TrainingConfiguration::default();
-        let mut events = Vec::new();
-        let (bytes, report) = match &read.samples {
-            UdSamples::Segments(HeldOut::Sentences(samples)) => {
-                let factory = SentenceDetectorFactory::new(language, true, None, None)?;
-                let mut stream = SdEventStream::new(&factory, WHITESPACE);
-                samples.iter().for_each(|s| stream.events(s, &mut events));
-                let t = sentdetect::train_sentence_model_from_events(&events, &factory, &params, &mut config, stamp)?;
-                (t.package.to_bytes(), t.report)
-            }
-            UdSamples::Segments(HeldOut::Tokens { samples, .. }) => {
-                let factory = TokenizerFactory::new(language, None, false, None)?;
-                let mut stream = TokSpanEventStream::new(&factory, WHITESPACE);
-                for s in samples {
-                    stream.events(s, &mut events)?;
-                }
-                let t = tokenize::train_tokenizer_model_from_events(&events, &factory, &params, &mut config, stamp)?;
-                (t.package.to_bytes(), t.report)
-            }
-            UdSamples::Tags(samples) => {
-                let factory = PosTaggerFactory::new(language, None, None)?;
-                let mut stream = PosEventStream::new(&factory)?;
-                samples.iter().for_each(|s| stream.events(s, &mut events));
-                let t = postag::train_pos_model_from_events(&events, &factory, &params, &mut config, stamp)?;
-                (t.package.to_bytes(), t.report)
-            }
-            UdSamples::Lemmas(samples) => {
-                let factory = LemmatizerFactory::new(language);
-                let mut stream = LemmaEventStream::new(&factory);
-                samples.iter().for_each(|s| stream.events(s, &mut events));
-                let t = lemmatize::train_lemmatizer_model_from_events(&events, &factory, &params, &mut config, stamp)?;
-                (t.package.to_bytes(), t.report)
-            }
-        };
-        Ok(Trained {
-            bytes,
-            samples: read.samples.len(),
-            skipped_sentences: read.skipped,
-            events: events.len(),
-            event_hash: report.event_hash.expect("trained from events"),
-            names: None,
-            chunks: None,
-        })
-    }
-
-    /// Each held-out sample's counts for the model in `bytes`, scored with
-    /// OpenNLP's evaluator for the component: for a tagger, as the trained
-    /// model is scored ([`Scored::Candidate`]) over the tokens whose tag the
-    /// model in `bytes` can give, and for a lemmatizer, over the tokens it
-    /// scores as the reference ([`ReferenceClasses::scores`]).
-    ///
-    /// # Errors
-    ///
-    /// A model file that is not a model of the component, samples of
-    /// another component, or a prediction the evaluator throws on.
-    pub fn score(&self, bytes: &[u8], held_out: &ReadSamples<'_>) -> Result<Vec<Counts>> {
-        match (self.segmentation(), self.tagger(), &held_out.samples) {
-            (Some(s), _, UdSamples::Segments(samples)) => s.score(bytes, samples),
-            (_, Some(t), UdSamples::Tags(samples)) => {
-                let tags = HeldOutTags::new(samples.clone(), held_out.skipped);
-                t.score(bytes, Scored::Candidate, &tags, &t.reference_tags(bytes)?)
-            }
-            (None, None, UdSamples::Lemmas(samples)) => {
-                score_lemmas(bytes, samples, &ReferenceClasses::of_model(bytes)?)
-            }
-            (_, _, samples) => Err(self.mismatch(samples)),
-        }
-    }
-
-    fn mismatch(&self, samples: &UdSamples<'_>) -> Error {
-        Error::ComponentMismatch { recipe: component_name(self.component), samples: samples.kind() }
-    }
-
-    /// Scores the trained model and the reference (its file's bytes in
-    /// `reference`) on the held-out samples and runs the gate, as the
-    /// MASC recipes' gates do (the module documentation says how), with
-    /// the `test` file's name and SHA-256 naming the held-out set.
-    ///
-    /// # Errors
-    ///
-    /// A tagger's reference that cannot give the tags of more than
-    /// [`MAX_TOKENS_LEFT_OUT`] of the held-out tokens
-    /// ([`Error::TagsOutsideReference`]), a lemmatizer's reference that
-    /// cannot give the lemmas of more than that
-    /// ([`Error::ClassesOutsideReference`]), samples of another component,
-    /// what scoring fails on, or the gate's errors.
-    pub fn gate(&self, trained: &[u8], reference: &[u8], held_out: ReadSamples<'_>) -> Result<GateRun> {
-        let reference_id = self.reference.id();
-        let (name, corpus_sha256) = (self.held_out_name(), self.treebank.test.sha256);
-        match (self.segmentation(), self.tagger(), held_out.samples) {
-            (Some(s), _, UdSamples::Segments(samples)) => {
-                s.gate(trained, reference_id, reference, &samples, &name, corpus_sha256)
-            }
-            (_, Some(t), UdSamples::Tags(samples)) => {
-                let samples = HeldOutTags::new(samples, held_out.skipped);
-                t.gate(trained, reference_id, reference, &samples, &name, corpus_sha256)
-            }
-            (None, None, UdSamples::Lemmas(samples)) => {
-                let classes = ReferenceClasses::of_model(reference)?;
-                let left_out = self.check_classes(&classes, &samples)?;
-                let candidate = score_lemmas(trained, &samples, &classes)?;
-                let baseline = lemma_scores(reference, &samples, &classes)?;
-                let units = candidate
-                    .into_iter()
-                    .zip(baseline.units)
-                    .map(|(candidate, reference)| PairedUnit { candidate, reference })
-                    .collect();
-                let tokens = lemma_tokens(&samples);
-                let set = HeldOutSet {
-                    name,
-                    corpus_sha256: corpus_sha256.to_owned(),
-                    samples_sha256: lemma_samples_sha256(&samples, &classes),
-                    skipped_sentences: held_out.skipped as u64,
-                    scoring: Scoring::Tags(TagScoring {
-                        tokens,
-                        left_out: left_out.iter().map(|t| t.tokens).sum(),
-                        reference_mappings: Vec::new(),
-                    }),
-                };
-                let id = |id: &str, bytes: &[u8]| ModelId { id: id.to_owned(), sha256: Sha256::of(bytes).to_string() };
-                let record = ModelGateRecord::new(
-                    self.task(),
-                    set,
-                    id(self.model_id, trained),
-                    id(reference_id, reference),
-                    units,
-                )
-                .map_err(Error::Gate)?;
-                let held_out = HeldOutCard {
-                    samples: samples.len(),
-                    skipped_sentences: held_out.skipped,
-                    tokens: Some(TokenCoverage {
-                        tokens,
-                        reference_mappings: Vec::new(),
-                        left_out,
-                        reference_mismatches: baseline.mismatches,
-                    }),
-                    names: None,
-                    chunks: None,
-                };
-                Ok(GateRun { record, held_out })
-            }
-            (_, _, samples) => Err(self.mismatch(&samples)),
-        }
-    }
 }
 
 /// What one UD recipe made.
@@ -784,9 +297,9 @@ pub struct UdOutcome {
 /// # Errors
 ///
 /// What training, reading the samples, scoring or the gate fail on, and
-/// [`Error::TooManyLeftOut`] when the reader skips more than
-/// [`crate::MAX_SKIPPED_SENTENCES`] of the training or of the held-out
-/// sentences.
+/// [`Error::TooManyLeftOut`](crate::error::Error::TooManyLeftOut) when the
+/// reader skips more than [`crate::MAX_SKIPPED_SENTENCES`] of the training
+/// or of the held-out sentences.
 pub fn run_ud(recipe: &UdRecipe, text: &TreebankText, reference: &[u8]) -> Result<UdOutcome> {
     let trained = recipe.train(&text.train)?;
     let GateRun { record: gate, held_out } = recipe.gate(&trained.bytes, reference, recipe.held_out(text)?)?;
@@ -803,89 +316,14 @@ fn component_name(component: Component) -> &'static str {
     }
 }
 
-/// The lemmatizer in `bytes`.
-fn open_lemmatizer(bytes: &[u8]) -> Result<LemmatizerModel> {
-    let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
-    LemmatizerModel::open(file).map_err(|e| Error::Model(e.to_string()))
-}
-
-/// Each sample's counts for the lemmatizer in `bytes`, given the
-/// sample's tags: the tokens given the sample's lemma, of its tokens that
-/// `classes` scores ([`ReferenceClasses::scores`]). The
-/// lemmas are those `LemmatizerME.lemmatize` gives, which
-/// `LemmatizerEvaluator` compares with the sample's: `decodeLemmas` applies
-/// each class to the lowercased token, so a capitalised held-out lemma is
-/// never given.
-///
-/// # Errors
-///
-/// A model file that is not a lemmatizer model, a sentence no class
-/// sequence scores above the search's minimum for, a class the decoder
-/// cannot read, or what the evaluator throws on.
-pub fn score_lemmas(bytes: &[u8], samples: &[LemmaSample<'_>], classes: &ReferenceClasses) -> Result<Vec<Counts>> {
-    Ok(lemma_scores(bytes, samples, classes)?.units)
-}
-
-/// A lemmatizer's counts on the held-out samples, and its most frequent
-/// mismatches on the scored tokens: the held-out lemma and the lemma
-/// given.
-struct LemmaScores {
-    units: Vec<Counts>,
-    /// At most [`crate::postag::MISMATCHES_LISTED`], most frequent first.
-    mismatches: Vec<Mismatch>,
-}
-
-/// [`score_lemmas`], with the mismatches.
-fn lemma_scores<'s>(bytes: &[u8], samples: &'s [LemmaSample<'_>], classes: &ReferenceClasses) -> Result<LemmaScores> {
-    let lemmatizer = MaxentLemmatizer::new(Arc::new(open_lemmatizer(bytes)?));
-    let mut units = Vec::with_capacity(samples.len());
-    let mut mismatches: BTreeMap<(&'s str, String), u64> = BTreeMap::new();
-    let (mut predicted_classes, mut probs) = (Vec::new(), Vec::new());
-    let mut words: Vec<TokenTag<'_>> = Vec::new();
-    let mut lemmas: Vec<String> = Vec::new();
-    for sample in samples {
-        words.clear();
-        words.extend(
-            sample.tokens().iter().zip(sample.tags()).map(|(t, g)| TokenTag { token: t.as_str(), tag: g.as_str() }),
-        );
-        predicted_classes.clear();
-        probs.clear();
-        if !lemmatizer.classes(&words, &mut predicted_classes, &mut probs) {
-            return Err(Error::Model(format!("no lemma class sequence scored above the minimum for: {sample:?}")));
-        }
-        lemmas.clear();
-        for (w, class) in words.iter().zip(&predicted_classes) {
-            lemmas.push(decode_lemma(w.token, class).map_err(|e| Error::Model(format!("{:?}: {e}", w.token)))?);
-        }
-        let predicted: Vec<&str> = lemmas.iter().map(String::as_str).collect();
-        let mut evaluator = LemmatizerEvaluator::default();
-        evaluator.evaluate(sample, &predicted)?;
-        let (mut scored, mut right, mut right_as_written) = (0u64, 0u64, 0u64);
-        for ((token, expected), &given) in sample.tokens().iter().zip(sample.lemmas()).zip(&predicted) {
-            let expected: &'s str = expected.as_str();
-            right_as_written += u64::from(expected == given);
-            if classes.scores(token.as_str(), expected) {
-                scored += 1;
-                if expected == given {
-                    right += 1;
-                } else {
-                    *mismatches.entry((expected, given.to_owned())).or_default() += 1;
-                }
-            }
-        }
-        // The lemmas counted over every token are what
-        // `LemmatizerEvaluator` counts.
-        debug_assert_eq!(evaluator.word_count(), sample.len() as u64);
-        debug_assert_eq!(right_as_written as f64 / sample.len() as f64, evaluator.word_accuracy());
-        units.push(Counts::accuracy(right, scored));
-    }
-    Ok(LemmaScores { units, mismatches: most_frequent(mismatches) })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::Error;
     use crate::treebank::TREEBANKS;
+    use turbo_eval::model_gate::Task;
+    use turbo_lemmatizer::edit_script::decode_lemma;
+    use turbo_train_components::lemmatize;
 
     /// A token is left out only when its gold class gives its lemma and no
     /// class of the reference does; a lemma its gold class does not give is
@@ -957,5 +395,27 @@ mod tests {
         }
         assert_eq!(UD_RECIPES[3].task(), Task::Lemmatizer);
         assert_eq!(UdRecipe::trains("turbo-en-ud-ewt-2.16-pos-1"), None);
+    }
+
+    #[test]
+    fn check_data_rejects_invalid_segmentation_reference_bytes() {
+        let conllu = "# text = Hola.\n1\tHola\thola\tINTJ\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n";
+        let text = TreebankText { train: conllu.to_owned(), test: conllu.to_owned() };
+        assert!(matches!(UD_RECIPES[0].check_data(&text, b"not a model"), Err(Error::Model(_))));
+        assert!(matches!(UD_RECIPES[1].check_data(&text, b"not a model"), Err(Error::Model(_))));
+    }
+
+    #[test]
+    fn score_lemmas_handles_empty_sample_without_nan_panic() {
+        let conllu = "# text = Gatos.\n1\tGatos\tgato\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
+                      # text = Perros.\n1\tPerros\tperro\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
+                      # text = Casas.\n1\tCasas\tcasa\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
+                      # text = Mesas.\n1\tMesas\tmesa\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
+                      # text = Libros.\n1\tLibros\tlibro\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n";
+        let trained = UD_RECIPES[3].train(conllu).unwrap();
+        let classes = ReferenceClasses::of_model(&trained.bytes).unwrap();
+        let empty = LemmaSample::new(Vec::new(), Vec::new(), Vec::new(), turbo_analysis::Span::new(0, 0)).unwrap();
+        let counts = score_lemmas(&trained.bytes, &[empty], &classes).unwrap();
+        assert_eq!(counts.len(), 1);
     }
 }
