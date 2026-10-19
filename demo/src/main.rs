@@ -12,6 +12,7 @@ const USAGE: &str = "usage: turbo-kserve-demo [--listen ADDR:PORT] [--server htt
   --model   a served model name the page offers; repeat for more
             (TURBO_DEMO_MODELS, comma-separated); more can be added on the page";
 
+#[derive(Debug, PartialEq, Eq)]
 struct Args {
     listen: SocketAddr,
     server: String,
@@ -19,7 +20,7 @@ struct Args {
 }
 
 fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
-    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+    let env = |k: &str| std::env::var(k).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
     let (mut listen, mut server, mut models) = (None, None, Vec::new());
     let mut args = args.into_iter();
     while let Some(a) = args.next() {
@@ -27,22 +28,44 @@ fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
             Some((f, v)) if f.starts_with("--") => (f.to_string(), Some(v.to_string())),
             _ => (a.clone(), None),
         };
-        let mut value = || inline.clone().or_else(|| args.next()).ok_or_else(|| format!("{flag} needs a value"));
+        let mut value = || {
+            let v = inline.clone().or_else(|| args.next()).ok_or_else(|| format!("{flag} needs a value"))?;
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                return Err(format!("{flag} needs a value"));
+            }
+            Ok(trimmed.to_string())
+        };
         match flag.as_str() {
             "--listen" => listen = Some(value()?),
             "--server" => server = Some(value()?),
-            "--model" => models.push(value()?),
-            "-h" | "--help" => return Err(String::new()),
+            "--model" => {
+                let m = value()?;
+                if !models.contains(&m) {
+                    models.push(m);
+                }
+            }
+            "-h" | "--help" => {
+                if inline.is_some() {
+                    return Err(format!("{flag} takes no value"));
+                }
+                return Err(String::new());
+            }
             _ => return Err(format!("unknown argument `{a}`")),
         }
     }
     let listen = listen.or_else(|| env("TURBO_DEMO_LISTEN")).unwrap_or_else(|| "127.0.0.1:8080".into());
     let listen = listen.parse().map_err(|e| format!("--listen {listen}: {e}"))?;
     let server = server.or_else(|| env("TURBO_DEMO_SERVER")).unwrap_or_else(|| "http://127.0.0.1:8081".into());
-    if models.is_empty() {
-        models = env("TURBO_DEMO_MODELS")
-            .map(|v| v.split(',').map(str::trim).filter(|m| !m.is_empty()).map(String::from).collect())
-            .unwrap_or_default();
+    if models.is_empty()
+        && let Some(v) = env("TURBO_DEMO_MODELS")
+    {
+        for m in v.split(',').map(str::trim).filter(|m| !m.is_empty()) {
+            let m = m.to_string();
+            if !models.contains(&m) {
+                models.push(m);
+            }
+        }
     }
     Ok(Args { listen, server, models })
 }
@@ -71,4 +94,40 @@ async fn main() -> ExitCode {
     let _ = tokio::signal::ctrl_c().await;
     demo.stop().await;
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run(args: &[&str]) -> Result<Args, String> {
+        parse(args.iter().map(|s| (*s).to_string()))
+    }
+
+    #[test]
+    fn parse_rejects_inline_help_and_empty_flag_values_and_deduplicates_models() {
+        assert_eq!(run(&["--help"]), Err(String::new()));
+        assert_eq!(run(&["-h"]), Err(String::new()));
+        assert_eq!(run(&["--help=1"]), Err("--help takes no value".into()));
+        assert_eq!(run(&["--listen="]), Err("--listen needs a value".into()));
+        assert_eq!(run(&["--listen", "   "]), Err("--listen needs a value".into()));
+        assert_eq!(run(&["--server="]), Err("--server needs a value".into()));
+        assert_eq!(run(&["--server", ""]), Err("--server needs a value".into()));
+        assert_eq!(run(&["--model="]), Err("--model needs a value".into()));
+        assert_eq!(run(&["--model", "  "]), Err("--model needs a value".into()));
+        let parsed = run(&[
+            "--listen=127.0.0.1:9000",
+            "--server",
+            " http://127.0.0.1:9001 ",
+            "--model",
+            "alpha",
+            "--model=beta",
+            "--model",
+            " alpha ",
+        ])
+        .unwrap();
+        assert_eq!(parsed.listen, "127.0.0.1:9000".parse().unwrap());
+        assert_eq!(parsed.server, "http://127.0.0.1:9001");
+        assert_eq!(parsed.models, vec!["alpha".to_string(), "beta".to_string()]);
+    }
 }
