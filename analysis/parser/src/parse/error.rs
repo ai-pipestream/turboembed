@@ -4,7 +4,7 @@ use std::fmt;
 
 use turbo_analysis::Span;
 
-/// An error raised while reading or changing a [`Parse`]. Each variant stands for the exception
+/// An error raised while reading or changing a [`Parse`](super::Parse). Each variant stands for the exception
 /// OpenNLP throws in the same place ([`ParseError::java_class`]), except
 /// [`ParseError::NotCharBoundary`], which has none.
 #[derive(Clone, Debug, PartialEq, Eq)]

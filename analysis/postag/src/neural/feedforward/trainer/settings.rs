@@ -2,7 +2,7 @@
 
 use crate::neural::NeuralError;
 
-/// Hyperparameters for [`FeedforwardPosTrainer`], matching `FeedforwardPOSTrainer.Settings`.
+/// Hyperparameters for [`FeedforwardPosTrainer`](super::FeedforwardPosTrainer), matching `FeedforwardPOSTrainer.Settings`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FeedforwardSettings {
     pub embedding_size: usize,
