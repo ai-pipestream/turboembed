@@ -127,7 +127,7 @@ fn session(table: &[f32], precision: u32) -> Result<Vec<f32>, (i32, u32, String)
 /// so a FASTEST session on it is refused, naming the first such row,
 /// rather than summing rows that were quantized to something else.
 #[test]
-fn a_fastest_session_is_refused_for_a_table_with_values_that_are_not_finite() {
+fn a_fastest_session_is_rejected_for_a_table_with_values_that_are_not_finite() {
     let mut table: Vec<f32> = (0..VOCAB * DIM).map(|i| (i as f32 - 13.0) / 7.0).collect();
     table[DIM + 3] = f32::NAN;
     table[2 * DIM + 5] = f32::INFINITY;
@@ -154,7 +154,7 @@ fn a_fastest_session_is_refused_for_a_table_with_values_that_are_not_finite() {
 /// A buffer of no bytes is refused: the allocator is not asked for a
 /// zero-size layout, which it may not be given.
 #[test]
-fn a_buffer_of_no_bytes_is_refused() {
+fn a_buffer_of_no_bytes_is_rejected() {
     let mut desc: turbo_buffer_desc = unsafe { std::mem::zeroed() };
     desc.placement = TURBO_PLACE_HOST;
     desc.bytes = 0;
