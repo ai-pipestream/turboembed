@@ -46,6 +46,7 @@
 mod error;
 mod record;
 mod scoring;
+mod sums;
 #[cfg(test)]
 mod tests;
 
@@ -64,6 +65,7 @@ pub use scoring::{
 };
 
 use error::Result;
+use sums::{Totals, total};
 
 /// The schema version of [`ModelGateRecord`]: 3, with the name finder,
 /// chunker and language detector tasks and their scorings
@@ -120,33 +122,6 @@ impl Counts {
     }
 }
 
-#[derive(Copy, Clone, Default)]
-struct Totals {
-    true_positives: u128,
-    selected: u128,
-    target: u128,
-}
-
-impl Totals {
-    fn add(&mut self, other: &Counts) {
-        self.true_positives += u128::from(other.true_positives);
-        self.selected += u128::from(other.selected);
-        self.target += u128::from(other.target);
-    }
-
-    fn score(self, measure: Measure) -> f64 {
-        let ratio = |n: u128, d: u128| if d > 0 { n as f64 / d as f64 } else { 0.0 };
-        let score = match measure {
-            Measure::Accuracy => ratio(self.true_positives, self.target),
-            Measure::FMeasure => {
-                let (p, r) = (ratio(self.true_positives, self.selected), ratio(self.true_positives, self.target));
-                if p + r > 0.0 { 2.0 * (p * r) / (p + r) } else { 0.0 }
-            }
-        };
-        100.0 * score
-    }
-}
-
 /// Both models' counts on one held-out unit.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -179,12 +154,6 @@ pub struct ModelGate {
     pub difference: Bootstrap,
     /// The difference's interval's low end is at least -[`MARGIN_POINTS`].
     pub pass: bool,
-}
-
-fn total<'a>(counts: impl Iterator<Item = &'a Counts>) -> Totals {
-    let mut sum = Totals::default();
-    counts.for_each(|c| sum.add(c));
-    sum
 }
 
 /// Scores the paired units and decides the gate, drawing `resamples`
@@ -227,20 +196,7 @@ pub fn gate_models(measure: Measure, units: &[PairedUnit], resamples: u32, seed:
     let candidate = total(units.iter().map(|u| &u.candidate)).score(measure);
     let reference = total(units.iter().map(|u| &u.reference)).score(measure);
     let mut random = JavaRandom::new(seed);
-    let len = resamples as usize;
-    let (mut cand, mut refr, mut diff) = (Vec::with_capacity(len), Vec::with_capacity(len), Vec::with_capacity(len));
-    for _ in 0..resamples {
-        let (mut c, mut r) = (Totals::default(), Totals::default());
-        for _ in 0..n {
-            let u = &units[random.next_int_bounded(n) as usize];
-            c.add(&u.candidate);
-            r.add(&u.reference);
-        }
-        let (c, r) = (c.score(measure), r.score(measure));
-        cand.push(c);
-        refr.push(r);
-        diff.push(c - r);
-    }
+    let [cand, refr, diff] = sums::draws(measure, units, n, resamples, &mut random);
     let interval = |mut v: Vec<f64>| {
         v.sort_by(f64::total_cmp);
         (percentile(&v, 0.025), percentile(&v, 0.975))
