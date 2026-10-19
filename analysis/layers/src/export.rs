@@ -27,8 +27,11 @@ use crate::language_spans::LanguageSpans;
 use crate::temporal::{DocumentDate, Granularity, Origin, Temporals};
 use crate::words::{MorphFeatures, WordLemmas, WordOrTokenAnchor, WordPosTags, Words};
 use crate::{
-    Abbreviations, Block, Boundaries, ChunkTags, Chunks, Cut, Dependencies, Entities, Language, Lemmas, PhraseChunks,
-    PosTags, Sentences, Stems, Strs, Structure, Subwords, Terms, Tokens,
+    Abbreviations, Aspects, Block, Boundaries, ChunkTags, Chunks, Confidence, Containment, Currency, Cut, Dependencies,
+    Entities, Incivility, IncivilityLabel, IncivilityTarget, Incongruity, Language, Lemmas, Levels, Matches, Modifier,
+    Money, Multiplier, NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals, PhraseChunks, Phrases, Pii,
+    PiiConfidence, PiiKind, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation, ScaleMarker,
+    Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, Tokens, Unit, Utf16Spans, Vectors,
 };
 
 fn malformed(detail: impl Into<String>) -> ExportError {
@@ -1063,11 +1066,1016 @@ impl LayerCodec for LanguageSpans {
     }
 }
 
+fn put_bools(w: &mut Writer, values: &[bool]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for v in values {
+        w.u8(u8::from(*v));
+    }
+    Ok(())
+}
+
+fn get_bools(r: &mut Reader<'_>) -> Result<Vec<bool>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(match r.u8()? {
+            0 => false,
+            1 => true,
+            tag => return Err(malformed(format!("a boolean tag of {tag}"))),
+        });
+    }
+    Ok(values)
+}
+
+fn put_u32s(w: &mut Writer, values: &[u32]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for v in values {
+        w.u32(*v);
+    }
+    Ok(())
+}
+
+fn get_u32s(r: &mut Reader<'_>) -> Result<Vec<u32>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(r.u32()?);
+    }
+    Ok(values)
+}
+
+fn put_i32s(w: &mut Writer, values: &[i32]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for v in values {
+        w.u32(*v as u32);
+    }
+    Ok(())
+}
+
+fn get_i32s(r: &mut Reader<'_>) -> Result<Vec<i32>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(r.u32()? as i32);
+    }
+    Ok(values)
+}
+
+fn put_i64s(w: &mut Writer, values: &[i64]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for v in values {
+        w.u64(*v as u64);
+    }
+    Ok(())
+}
+
+fn get_i64s(r: &mut Reader<'_>) -> Result<Vec<i64>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(r.u64()? as i64);
+    }
+    Ok(values)
+}
+
+fn put_opt_i64s(w: &mut Writer, values: &[Option<i64>]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for v in values {
+        match v {
+            None => w.u8(0),
+            Some(v) => {
+                w.u8(1);
+                w.u64(*v as u64);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn get_opt_i64s(r: &mut Reader<'_>) -> Result<Vec<Option<i64>>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(match r.u8()? {
+            0 => None,
+            1 => Some(r.u64()? as i64),
+            tag => return Err(malformed(format!("an optional number tag of {tag}"))),
+        });
+    }
+    Ok(values)
+}
+
+/// A fieldless enum as its position in `table`, the declared order.
+fn put_variant<E: Copy + PartialEq>(w: &mut Writer, table: &[E], value: E) {
+    w.u8(table.iter().position(|v| *v == value).expect("a variant in the table") as u8);
+}
+
+fn get_variant<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<E, ExportError> {
+    table.get(r.u8()? as usize).copied().ok_or_else(|| malformed(format!("a {what} outside the table")))
+}
+
+fn put_variants<E: Copy + PartialEq>(w: &mut Writer, table: &[E], values: &[E]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for v in values {
+        put_variant(w, table, *v);
+    }
+    Ok(())
+}
+
+fn get_variants<E: Copy>(r: &mut Reader<'_>, table: &[E], what: &str) -> Result<Vec<E>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(get_variant(r, table, what)?);
+    }
+    Ok(values)
+}
+
+/// Ranges into another layer plus the target instance to restore as a
+/// key, for layers that carry their target key in the layer itself.
+fn put_keyed_ranges<Target: Layer>(
+    w: &mut Writer,
+    cx: &ExportCx,
+    key: &Key<Target>,
+    values: &[IxRange<Target>],
+) -> Result<(), ExportError> {
+    put_ranges(w, cx, key, values)
+}
+
+fn get_keyed_ranges<Target: Layer>(
+    r: &mut Reader<'_>,
+    cx: &mut ImportCx,
+) -> Result<(Key<Target>, Vec<IxRange<Target>>), ExportError> {
+    let target = get_ref(r)?;
+    want_target::<Target>(&target, cx)?;
+    let len = cx.layer_len(&target)?;
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        let (start, end) = (r.u32()?, r.u32()?);
+        values.push(checked_range(cx, &target, len, start, end)?);
+    }
+    Ok((cx.key::<Target>(&target.instance.clone()), values))
+}
+
+fn validate_range<Target: Layer>(cx: &ImportCx, target: &LayerRef, range: IxRange<Target>) -> Result<(), ExportError> {
+    let len = cx.layer_len(target)?;
+    checked_range::<Target>(cx, target, len, range.start.get() as u32, range.end.get() as u32)?;
+    Ok(())
+}
+
+impl<L: Layer> LayerCodec for Vectors<L> {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        w.u32(self.dim);
+        w.usize(self.len())?;
+        w.usize(self.data.len())?;
+        for v in &self.data {
+            w.u32(v.to_bits());
+        }
+        w.usize(self.empty.len())?;
+        for e in &self.empty {
+            w.u32(e.get() as u32);
+        }
+        put_model(&mut w, &self.model)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let dim = r.u32()?;
+        if dim == 0 {
+            return Err(malformed("a vector dimension of zero"));
+        }
+        let rows = r.usize()?;
+        let want = rows.checked_mul(dim as usize).ok_or_else(|| malformed("a vector block that overflows"))?;
+        let count = r.usize()?;
+        if count != want {
+            return Err(malformed(format!("{count} vector values for {rows} rows of dimension {dim}")));
+        }
+        let mut data = Vec::new();
+        for _ in 0..count {
+            data.push(f32::from_bits(r.u32()?));
+        }
+        let mut empty = Vec::new();
+        for _ in 0..r.usize()? {
+            let e = r.u32()?;
+            if e as usize >= rows {
+                return Err(malformed(format!("an empty row {e} outside {rows} rows")));
+            }
+            if empty.last().is_some_and(|&last: &Ix<L>| last.get() as u32 >= e) {
+                return Err(malformed("empty rows out of order or repeated"));
+            }
+            empty.push(Ix::new(e));
+        }
+        let model = get_model(&mut r)?;
+        done(&r, "vectors")?;
+        Ok(Vectors::new(dim, data, empty, model))
+    }
+}
+
+impl<L: Layer> LayerCodec for Confidence<L> {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_f64s(&mut w, &self.value)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let value = get_f64s(&mut r)?;
+        done(&r, "confidence")?;
+        Ok(Confidence::new(value))
+    }
+}
+
+impl<L: Layer> LayerCodec for Utf16Spans<L> {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_u32s(&mut w, &self.start16)?;
+        put_u32s(&mut w, &self.end16)?;
+        put_bools(&mut w, &self.cut)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let start16 = get_u32s(&mut r)?;
+        let end16 = get_u32s(&mut r)?;
+        let cut = get_bools(&mut r)?;
+        want_len(end16.len(), start16.len(), "UTF-16 ends")?;
+        want_len(cut.len(), start16.len(), "cut flags")?;
+        done(&r, "utf16 spans")?;
+        Ok(Utf16Spans::new(start16, end16, cut))
+    }
+}
+
+impl LayerCodec for Opinions {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_keyed_ranges(&mut w, cx, &self.tokens_key, &self.tokens)?;
+        put_f64s(&mut w, &self.polarity)?;
+        put_f64s(&mut w, &self.intensity)?;
+        put_bools(&mut w, &self.negated)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let (tokens_key, tokens) = get_keyed_ranges(&mut r, cx)?;
+        let polarity = get_f64s(&mut r)?;
+        let intensity = get_f64s(&mut r)?;
+        let negated = get_bools(&mut r)?;
+        want_len(polarity.len(), tokens.len(), "polarities")?;
+        want_len(intensity.len(), tokens.len(), "intensities")?;
+        want_len(negated.len(), tokens.len(), "negation flags")?;
+        done(&r, "opinions")?;
+        Ok(Opinions { tokens, polarity, intensity, negated, tokens_key })
+    }
+}
+
+impl LayerCodec for Aspects {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_ref(&mut w, &cx.resolve(&self.tokens_key))?;
+        put_ref(&mut w, &cx.resolve(&self.sentences_key))?;
+        put_ref(&mut w, &cx.resolve(&self.opinions_key))?;
+        w.usize(self.tokens.len())?;
+        for t in &self.tokens {
+            match t {
+                None => w.u8(0),
+                Some(range) => {
+                    w.u8(1);
+                    w.u32(range.start.get() as u32);
+                    w.u32(range.end.get() as u32);
+                }
+            }
+        }
+        w.usize(self.sentence.len())?;
+        for s in &self.sentence {
+            match s {
+                None => w.u8(0),
+                Some(s) => {
+                    w.u8(1);
+                    w.u32(s.get() as u32);
+                }
+            }
+        }
+        put_tagset(&mut w, &self.categories)?;
+        w.usize(self.category.len())?;
+        for c in &self.category {
+            match c {
+                None => w.u8(0),
+                Some(t) => {
+                    w.u8(1);
+                    w.u16(t.0);
+                }
+            }
+        }
+        put_f64s(&mut w, &self.positive)?;
+        put_f64s(&mut w, &self.negative)?;
+        put_f64s(&mut w, &self.neutral)?;
+        w.usize(self.opinions.len())?;
+        for o in &self.opinions {
+            w.u32(o.get() as u32);
+        }
+        put_u32s(&mut w, &self.opinion_end)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let tokens_ref = get_ref(&mut r)?;
+        want_target::<Tokens>(&tokens_ref, cx)?;
+        let sentences_ref = get_ref(&mut r)?;
+        want_target::<Sentences>(&sentences_ref, cx)?;
+        let opinions_ref = get_ref(&mut r)?;
+        want_target::<Opinions>(&opinions_ref, cx)?;
+        let tokens_key = cx.key::<Tokens>(&tokens_ref.instance.clone());
+        let sentences_key = cx.key::<Sentences>(&sentences_ref.instance.clone());
+        let opinions_key = cx.key::<Opinions>(&opinions_ref.instance.clone());
+        let mut tokens = Vec::new();
+        for _ in 0..r.usize()? {
+            tokens.push(match r.u8()? {
+                0 => None,
+                1 => {
+                    let range = IxRange::new(r.u32()?, r.u32()?);
+                    validate_range(cx, &tokens_ref, range)?;
+                    Some(range)
+                }
+                tag => return Err(malformed(format!("an optional range tag of {tag}"))),
+            });
+        }
+        let n = tokens.len();
+        let mut sentence = Vec::new();
+        for _ in 0..r.usize()? {
+            sentence.push(match r.u8()? {
+                0 => None,
+                1 => {
+                    let index = r.u32()?;
+                    cx.require_node(&NodeRef { layer: sentences_ref.clone(), index })?;
+                    Some(Ix::new(index))
+                }
+                tag => return Err(malformed(format!("an optional index tag of {tag}"))),
+            });
+        }
+        let categories = get_tagset(&mut r)?;
+        let mut category = Vec::new();
+        for _ in 0..r.usize()? {
+            category.push(match r.u8()? {
+                0 => None,
+                1 => {
+                    let tag = Tag(r.u16()?);
+                    if tag.0 as usize >= categories.len() {
+                        return Err(malformed(format!("a category outside {}", categories.name)));
+                    }
+                    Some(tag)
+                }
+                tag => return Err(malformed(format!("an optional category tag of {tag}"))),
+            });
+        }
+        let positive = get_f64s(&mut r)?;
+        let negative = get_f64s(&mut r)?;
+        let neutral = get_f64s(&mut r)?;
+        let mut opinions = Vec::new();
+        for _ in 0..r.usize()? {
+            let index = r.u32()?;
+            cx.require_node(&NodeRef { layer: opinions_ref.clone(), index })?;
+            opinions.push(Ix::new(index));
+        }
+        let opinion_end = get_u32s(&mut r)?;
+        want_len(sentence.len(), n, "sentences")?;
+        want_len(category.len(), n, "categories")?;
+        want_len(positive.len(), n, "positive scores")?;
+        want_len(negative.len(), n, "negative scores")?;
+        want_len(neutral.len(), n, "neutral scores")?;
+        want_len(opinion_end.len(), n, "opinion ends")?;
+        if opinion_end.windows(2).any(|w| w[0] > w[1])
+            || opinion_end.last().copied().unwrap_or(0) as usize != opinions.len()
+        {
+            return Err(malformed("opinion ends do not partition the opinions"));
+        }
+        done(&r, "aspects")?;
+        Ok(Aspects {
+            tokens,
+            sentence,
+            category,
+            categories,
+            positive,
+            negative,
+            neutral,
+            opinions,
+            opinion_end,
+            tokens_key,
+            sentences_key,
+            opinions_key,
+        })
+    }
+}
+
+impl LayerCodec for Incivility {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_ref(&mut w, &cx.resolve(&self.tokens_key))?;
+        put_ref(&mut w, &cx.resolve(&self.sentences_key))?;
+        put_ref(&mut w, &cx.resolve(&self.chunks_key))?;
+        put_ref(&mut w, &cx.resolve(&self.structure_key))?;
+        w.usize(self.target.len())?;
+        for t in &self.target {
+            match t {
+                IncivilityTarget::Sentence(i) => {
+                    w.u8(0);
+                    w.u32(i.get() as u32);
+                }
+                IncivilityTarget::Chunk(i) => {
+                    w.u8(1);
+                    w.u32(i.get() as u32);
+                }
+                IncivilityTarget::Block(i) => {
+                    w.u8(2);
+                    w.u32(i.get() as u32);
+                }
+            }
+        }
+        for scores in [
+            &self.insult,
+            &self.profanity,
+            &self.threat,
+            &self.identity_attack,
+            &self.intolerance,
+            &self.severe_toxicity,
+        ] {
+            put_f64s(&mut w, scores)?;
+        }
+        w.usize(self.evidence_label.len())?;
+        for l in &self.evidence_label {
+            w.u8(*l as u8);
+        }
+        w.usize(self.evidence_tokens.len())?;
+        for t in &self.evidence_tokens {
+            w.u32(t.start.get() as u32);
+            w.u32(t.end.get() as u32);
+        }
+        put_u32s(&mut w, &self.evidence_end)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let tokens_ref = get_ref(&mut r)?;
+        want_target::<Tokens>(&tokens_ref, cx)?;
+        let sentences_ref = get_ref(&mut r)?;
+        want_target::<Sentences>(&sentences_ref, cx)?;
+        let chunks_ref = get_ref(&mut r)?;
+        want_target::<Chunks>(&chunks_ref, cx)?;
+        let structure_ref = get_ref(&mut r)?;
+        want_target::<Structure>(&structure_ref, cx)?;
+        let tokens_key = cx.key::<Tokens>(&tokens_ref.instance.clone());
+        let sentences_key = cx.key::<Sentences>(&sentences_ref.instance.clone());
+        let chunks_key = cx.key::<Chunks>(&chunks_ref.instance.clone());
+        let structure_key = cx.key::<Structure>(&structure_ref.instance.clone());
+        let mut target = Vec::new();
+        for _ in 0..r.usize()? {
+            target.push(match r.u8()? {
+                0 => {
+                    let index = r.u32()?;
+                    cx.require_node(&NodeRef { layer: sentences_ref.clone(), index })?;
+                    IncivilityTarget::Sentence(Ix::new(index))
+                }
+                1 => {
+                    let index = r.u32()?;
+                    cx.require_node(&NodeRef { layer: chunks_ref.clone(), index })?;
+                    IncivilityTarget::Chunk(Ix::new(index))
+                }
+                2 => {
+                    let index = r.u32()?;
+                    cx.require_node(&NodeRef { layer: structure_ref.clone(), index })?;
+                    IncivilityTarget::Block(Ix::new(index))
+                }
+                tag => return Err(malformed(format!("an incivility target tag of {tag}"))),
+            });
+        }
+        let n = target.len();
+        let [insult, profanity, threat, identity_attack, intolerance, severe_toxicity] = [
+            get_f64s(&mut r)?,
+            get_f64s(&mut r)?,
+            get_f64s(&mut r)?,
+            get_f64s(&mut r)?,
+            get_f64s(&mut r)?,
+            get_f64s(&mut r)?,
+        ];
+        let mut evidence_label = Vec::new();
+        for _ in 0..r.usize()? {
+            evidence_label.push(
+                *IncivilityLabel::ALL
+                    .get(r.u8()? as usize)
+                    .ok_or_else(|| malformed("an incivility label outside the table"))?,
+            );
+        }
+        let mut evidence_tokens = Vec::new();
+        for _ in 0..r.usize()? {
+            let range = IxRange::new(r.u32()?, r.u32()?);
+            validate_range(cx, &tokens_ref, range)?;
+            evidence_tokens.push(range);
+        }
+        let evidence_end = get_u32s(&mut r)?;
+        for (scores, what) in [
+            (&insult, "insult scores"),
+            (&profanity, "profanity scores"),
+            (&threat, "threat scores"),
+            (&identity_attack, "identity attack scores"),
+            (&intolerance, "intolerance scores"),
+            (&severe_toxicity, "severe toxicity scores"),
+        ] {
+            want_len(scores.len(), n, what)?;
+        }
+        want_len(evidence_tokens.len(), evidence_label.len(), "evidence spans")?;
+        want_len(evidence_end.len(), n, "evidence ends")?;
+        if evidence_end.windows(2).any(|w| w[0] > w[1])
+            || evidence_end.last().copied().unwrap_or(0) as usize != evidence_label.len()
+        {
+            return Err(malformed("evidence ends do not partition the evidence"));
+        }
+        done(&r, "incivility")?;
+        Ok(Incivility {
+            target,
+            insult,
+            profanity,
+            threat,
+            identity_attack,
+            intolerance,
+            severe_toxicity,
+            evidence_label,
+            evidence_tokens,
+            evidence_end,
+            tokens_key,
+            sentences_key,
+            chunks_key,
+            structure_key,
+        })
+    }
+}
+
+impl LayerCodec for Pragmatics {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_ref(&mut w, &cx.resolve(&self.tokens_key))?;
+        put_f64s(&mut w, &self.score)?;
+        w.usize(self.evidence.len())?;
+        for e in &self.evidence {
+            match e {
+                None => w.u8(0),
+                Some(inc) => {
+                    w.u8(1);
+                    for range in [inc.positive, inc.negative] {
+                        w.u32(range.start.get() as u32);
+                        w.u32(range.end.get() as u32);
+                    }
+                }
+            }
+        }
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let tokens_ref = get_ref(&mut r)?;
+        want_target::<Tokens>(&tokens_ref, cx)?;
+        let tokens_key = cx.key::<Tokens>(&tokens_ref.instance.clone());
+        let score = get_f64s(&mut r)?;
+        let mut evidence = Vec::new();
+        for _ in 0..r.usize()? {
+            evidence.push(match r.u8()? {
+                0 => None,
+                1 => {
+                    let positive = IxRange::new(r.u32()?, r.u32()?);
+                    let negative = IxRange::new(r.u32()?, r.u32()?);
+                    validate_range(cx, &tokens_ref, positive)?;
+                    validate_range(cx, &tokens_ref, negative)?;
+                    Some(Incongruity { positive, negative })
+                }
+                tag => return Err(malformed(format!("an optional evidence tag of {tag}"))),
+            });
+        }
+        want_len(evidence.len(), score.len(), "evidence slots")?;
+        done(&r, "pragmatics")?;
+        Ok(Pragmatics { score, evidence, tokens_key })
+    }
+}
+
+const NOTATIONS: [NumberNotation; 2] = [NumberNotation::LatinUs, NumberNotation::LatinEu];
+const MULTIPLIERS: [Multiplier; 5] =
+    [Multiplier::One, Multiplier::Thousand, Multiplier::Million, Multiplier::Billion, Multiplier::Trillion];
+const MARKERS: [ScaleMarker; 3] = [ScaleMarker::None, ScaleMarker::Suffix, ScaleMarker::Word];
+const BASES: [OrdinalBase; 3] = [OrdinalBase::Start, OrdinalBase::End, OrdinalBase::Current];
+const TIME_KINDS: [TimeKind; 8] = [
+    TimeKind::Date,
+    TimeKind::Time,
+    TimeKind::DateTime,
+    TimeKind::DateRange,
+    TimeKind::TimeRange,
+    TimeKind::DateTimeRange,
+    TimeKind::Duration,
+    TimeKind::Set,
+];
+const TIME_GRAINS: [TimeGrain; 14] = [
+    TimeGrain::Second,
+    TimeGrain::Minute,
+    TimeGrain::Hour,
+    TimeGrain::PartOfDay,
+    TimeGrain::Day,
+    TimeGrain::Week,
+    TimeGrain::Weekend,
+    TimeGrain::Month,
+    TimeGrain::Quarter,
+    TimeGrain::Half,
+    TimeGrain::Season,
+    TimeGrain::Year,
+    TimeGrain::Decade,
+    TimeGrain::Century,
+];
+const RELATIONS: [Relation; 8] = [
+    Relation::None,
+    Relation::Before,
+    Relation::After,
+    Relation::Since,
+    Relation::Until,
+    Relation::More,
+    Relation::Less,
+    Relation::Approx,
+];
+const PORTIONS: [Portion; 6] =
+    [Portion::Whole, Portion::Start, Portion::Mid, Portion::End, Portion::Approx, Portion::Undefined];
+const PII_CONFIDENCES: [PiiConfidence; 3] =
+    [PiiConfidence::Format, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum];
+
+impl LayerCodec for Numbers {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_u32s(&mut w, &self.numeral_end)?;
+        put_bools(&mut w, &self.negative)?;
+        put_strs(&mut w, &self.coefficient)?;
+        put_u32s(&mut w, &self.scale)?;
+        put_variants(&mut w, &MULTIPLIERS, &self.multiplier)?;
+        put_variants(&mut w, &MARKERS, &self.marker)?;
+        put_variants(&mut w, &NOTATIONS, &self.notation)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let numeral_end = get_u32s(&mut r)?;
+        let negative = get_bools(&mut r)?;
+        let coefficient = get_strs(&mut r)?;
+        let scale = get_u32s(&mut r)?;
+        let multiplier = get_variants(&mut r, &MULTIPLIERS, "multiplier")?;
+        let marker = get_variants(&mut r, &MARKERS, "scale marker")?;
+        let notation = get_variants(&mut r, &NOTATIONS, "number notation")?;
+        let n = spans.len();
+        want_len(numeral_end.len(), n, "numeral ends")?;
+        want_len(negative.len(), n, "negatives")?;
+        want_len(coefficient.len(), n, "coefficients")?;
+        want_len(scale.len(), n, "scales")?;
+        want_len(multiplier.len(), n, "multipliers")?;
+        want_len(marker.len(), n, "markers")?;
+        want_len(notation.len(), n, "notations")?;
+        done(&r, "numbers")?;
+        Ok(Numbers { spans, numeral_end, negative, coefficient, scale, multiplier, marker, notation })
+    }
+}
+
+impl LayerCodec for Money {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_bools(&mut w, &self.negative)?;
+        put_strs(&mut w, &self.coefficient)?;
+        put_i32s(&mut w, &self.scale)?;
+        w.usize(self.currency.len())?;
+        for c in &self.currency {
+            w.str(c.as_str())?;
+        }
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let negative = get_bools(&mut r)?;
+        let coefficient = get_strs(&mut r)?;
+        let scale = get_i32s(&mut r)?;
+        let mut currency = Vec::new();
+        for _ in 0..r.usize()? {
+            let code = r.string()?;
+            currency
+                .push(Currency::parse(&code).ok_or_else(|| malformed(format!("an invalid currency code {code:?}")))?);
+        }
+        let n = spans.len();
+        want_len(negative.len(), n, "negatives")?;
+        want_len(coefficient.len(), n, "coefficients")?;
+        want_len(scale.len(), n, "scales")?;
+        want_len(currency.len(), n, "currencies")?;
+        done(&r, "money")?;
+        Ok(Money { spans, negative, coefficient, scale, currency })
+    }
+}
+
+impl LayerCodec for Ordinals {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_variants(&mut w, &BASES, &self.base)?;
+        put_i64s(&mut w, &self.offset)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let base = get_variants(&mut r, &BASES, "ordinal base")?;
+        let offset = get_i64s(&mut r)?;
+        want_len(base.len(), spans.len(), "bases")?;
+        want_len(offset.len(), spans.len(), "offsets")?;
+        done(&r, "ordinals")?;
+        Ok(Ordinals { spans, base, offset })
+    }
+}
+
+impl LayerCodec for Quantities {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_bools(&mut w, &self.negative)?;
+        put_strs(&mut w, &self.coefficient)?;
+        put_i32s(&mut w, &self.scale)?;
+        put_strs(&mut w, &self.unit)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let negative = get_bools(&mut r)?;
+        let coefficient = get_strs(&mut r)?;
+        let scale = get_i32s(&mut r)?;
+        let unit = get_strs(&mut r)?;
+        let n = spans.len();
+        want_len(negative.len(), n, "negatives")?;
+        want_len(coefficient.len(), n, "coefficients")?;
+        want_len(scale.len(), n, "scales")?;
+        want_len(unit.len(), n, "units")?;
+        done(&r, "quantities")?;
+        Ok(Quantities { spans, negative, coefficient, scale, unit })
+    }
+}
+
+impl LayerCodec for Times {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_variants(&mut w, &TIME_KINDS, &self.kind)?;
+        put_variants(&mut w, &TIME_GRAINS, &self.grain)?;
+        w.usize(self.modifier.len())?;
+        for m in &self.modifier {
+            put_variant(&mut w, &RELATIONS, m.relation);
+            put_variant(&mut w, &PORTIONS, m.portion);
+        }
+        put_opt_i64s(&mut w, &self.start)?;
+        put_opt_i64s(&mut w, &self.end)?;
+        put_opt_i64s(&mut w, &self.duration_ms)?;
+        put_bools(&mut w, &self.ambiguous)?;
+        put_strs(&mut w, &self.timex)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let kind = get_variants(&mut r, &TIME_KINDS, "time kind")?;
+        let grain = get_variants(&mut r, &TIME_GRAINS, "time grain")?;
+        let mut modifier = Vec::new();
+        for _ in 0..r.usize()? {
+            modifier.push(Modifier {
+                relation: get_variant(&mut r, &RELATIONS, "relation")?,
+                portion: get_variant(&mut r, &PORTIONS, "portion")?,
+            });
+        }
+        let start = get_opt_i64s(&mut r)?;
+        let end = get_opt_i64s(&mut r)?;
+        let duration_ms = get_opt_i64s(&mut r)?;
+        let ambiguous = get_bools(&mut r)?;
+        let timex = get_strs(&mut r)?;
+        let n = spans.len();
+        want_len(kind.len(), n, "kinds")?;
+        want_len(grain.len(), n, "grains")?;
+        want_len(modifier.len(), n, "modifiers")?;
+        want_len(start.len(), n, "starts")?;
+        want_len(end.len(), n, "ends")?;
+        want_len(duration_ms.len(), n, "durations")?;
+        want_len(ambiguous.len(), n, "ambiguous flags")?;
+        want_len(timex.len(), n, "timex values")?;
+        done(&r, "times")?;
+        Ok(Times { spans, kind, grain, modifier, start, end, duration_ms, ambiguous, timex })
+    }
+}
+
+impl LayerCodec for Pii {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        w.usize(self.kind.len())?;
+        for k in &self.kind {
+            w.str(k.name())?;
+        }
+        put_variants(&mut w, &PII_CONFIDENCES, &self.confidence)?;
+        put_strs(&mut w, &self.normalized)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let mut kind = Vec::new();
+        for _ in 0..r.usize()? {
+            let name = r.string()?;
+            kind.push(
+                PiiKind::ALL
+                    .iter()
+                    .copied()
+                    .find(|k| k.name() == name)
+                    .ok_or_else(|| malformed(format!("an unknown pii kind {name:?}")))?,
+            );
+        }
+        let confidence = get_variants(&mut r, &PII_CONFIDENCES, "pii confidence")?;
+        let normalized = get_strs(&mut r)?;
+        want_len(kind.len(), spans.len(), "kinds")?;
+        want_len(confidence.len(), spans.len(), "confidences")?;
+        want_len(normalized.len(), spans.len(), "normalized values")?;
+        done(&r, "pii")?;
+        Ok(Pii { spans, kind, confidence, normalized })
+    }
+}
+
+impl LayerCodec for Regions {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        w.usize(self.country.len())?;
+        for c in &self.country {
+            w.str(c.as_str())?;
+        }
+        put_f64s(&mut w, &self.share)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let mut country = Vec::new();
+        for _ in 0..r.usize()? {
+            let code = r.string()?;
+            country.push(RegionCode::parse(&code).map_err(|e| malformed(e.to_string()))?);
+        }
+        let share = get_f64s(&mut r)?;
+        want_len(share.len(), country.len(), "shares")?;
+        done(&r, "regions")?;
+        Ok(Regions { country, share })
+    }
+}
+
+impl LayerCodec for Matches {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_ranges(&mut w, cx, &Key::<Tokens>::DEFAULT, &self.tokens)?;
+        put_tagset(&mut w, &self.labels)?;
+        put_tags(&mut w, &self.label)?;
+        put_u32s(&mut w, &self.rule)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let tokens = get_ranges(&mut r, cx)?;
+        let labels = get_tagset(&mut r)?;
+        let label = get_tags(&mut r, &labels)?;
+        let rule = get_u32s(&mut r)?;
+        want_len(tokens.len(), spans.len(), "token ranges")?;
+        want_len(label.len(), spans.len(), "labels")?;
+        want_len(rule.len(), spans.len(), "rules")?;
+        done(&r, "matches")?;
+        Ok(Matches { spans, tokens, label, labels, rule })
+    }
+}
+
+impl LayerCodec for Levels {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_ref(&mut w, &cx.resolve(&Key::<Chunks>::DEFAULT))?;
+        put_ref(&mut w, &cx.resolve(&Key::<Structure>::DEFAULT))?;
+        w.usize(self.unit.len())?;
+        for u in &self.unit {
+            match u {
+                Unit::Chunk(i) => {
+                    w.u8(0);
+                    w.u32(i.get() as u32);
+                }
+                Unit::Section(i) => {
+                    w.u8(1);
+                    w.u32(i.get() as u32);
+                }
+                Unit::Document => w.u8(2),
+            }
+        }
+        put_parents(&mut w, &self.parent)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let chunks_ref = get_ref(&mut r)?;
+        cx.expect_target::<Chunks>(&chunks_ref)?;
+        let structure_ref = get_ref(&mut r)?;
+        cx.expect_target::<Structure>(&structure_ref)?;
+        let mut unit = Vec::new();
+        for _ in 0..r.usize()? {
+            unit.push(match r.u8()? {
+                0 => {
+                    let index = r.u32()?;
+                    cx.require_node(&NodeRef { layer: chunks_ref.clone(), index })?;
+                    Unit::Chunk(Ix::new(index))
+                }
+                1 => {
+                    let index = r.u32()?;
+                    cx.require_node(&NodeRef { layer: structure_ref.clone(), index })?;
+                    Unit::Section(Ix::new(index))
+                }
+                2 => Unit::Document,
+                tag => return Err(malformed(format!("a unit tag of {tag}"))),
+            });
+        }
+        let parent = get_parents(&mut r)?;
+        want_len(unit.len(), spans.len(), "units")?;
+        want_len(parent.len(), spans.len(), "parents")?;
+        done(&r, "levels")?;
+        Ok(Levels { spans, unit, parent })
+    }
+}
+
+impl LayerCodec for Containment {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_strs(&mut w, &self.ancestor_id)?;
+        put_strs(&mut w, &self.ancestor_name)?;
+        put_strs(&mut w, &self.ancestor_kind)?;
+        put_u32s(&mut w, &self.chain_end)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let ancestor_id = get_strs(&mut r)?;
+        let ancestor_name = get_strs(&mut r)?;
+        let ancestor_kind = get_strs(&mut r)?;
+        let chain_end = get_u32s(&mut r)?;
+        want_len(ancestor_name.len(), ancestor_id.len(), "ancestor names")?;
+        want_len(ancestor_kind.len(), ancestor_id.len(), "ancestor kinds")?;
+        want_len(chain_end.len(), spans.len(), "chain ends")?;
+        if chain_end.windows(2).any(|w| w[0] > w[1])
+            || chain_end.last().copied().unwrap_or(0) as usize != ancestor_id.len()
+        {
+            return Err(malformed("chain ends do not partition the ancestors"));
+        }
+        done(&r, "containment")?;
+        Ok(Containment { spans, ancestor_id, ancestor_name, ancestor_kind, chain_end })
+    }
+}
+
+impl LayerCodec for Phrases {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_ranges(&mut w, cx, &Key::<Tokens>::DEFAULT, &self.tokens)?;
+        put_tagset(&mut w, &self.kinds)?;
+        put_tags(&mut w, &self.kind)?;
+        w.usize(self.head.len())?;
+        for h in &self.head {
+            w.u32(h.get() as u32);
+        }
+        put_parents(&mut w, &self.parent)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let tokens = get_ranges(&mut r, cx)?;
+        let kinds = get_tagset(&mut r)?;
+        let kind = get_tags(&mut r, &kinds)?;
+        let mut head = Vec::new();
+        for (i, _) in (0..r.usize()?).enumerate() {
+            let h = r.u32()?;
+            let range = tokens.get(i).ok_or_else(|| malformed("a head without a token range"))?;
+            if (h as usize) < range.start.get() || (h as usize) >= range.end.get() {
+                return Err(malformed(format!("phrase {i} head {h} outside its token range")));
+            }
+            head.push(Ix::new(h));
+        }
+        let parent = get_parents(&mut r)?;
+        want_len(tokens.len(), spans.len(), "token ranges")?;
+        want_len(kind.len(), spans.len(), "kinds")?;
+        want_len(head.len(), spans.len(), "heads")?;
+        want_len(parent.len(), spans.len(), "parents")?;
+        done(&r, "phrases")?;
+        Ok(Phrases { spans, tokens, kind, kinds, head, parent })
+    }
+}
+
 /// Registers the codecs for the shared layers on `codecs`: the core
-/// pipeline layers of this crate and the abbreviation relations over
-/// them. Layers without a codec here (the sentiment and numeric
-/// families, vectors, and each add-on's own layers) still refuse to
-/// cross until their crates register one.
+/// pipeline layers, the sentiment family, the numeric family, the
+/// vector and confidence layers at their common scopes, and the
+/// abbreviation relations. An add-on's own layer types still refuse to
+/// cross until their crates register a codec.
 pub fn register_codecs(codecs: &mut Codecs) {
     codecs
         .register::<Sentences>()
@@ -1098,6 +2106,33 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Categories<Sentences>>()
         .register::<Categories<Structure>>()
         .register::<Categories<Chunks>>()
+        .register::<Categories<Opinions>>()
+        .register::<Categories<Aspects>>()
+        .register::<Phrases>()
+        .register::<Opinions>()
+        .register::<Aspects>()
+        .register::<Incivility>()
+        .register::<Pragmatics>()
+        .register::<Numbers>()
+        .register::<Money>()
+        .register::<Ordinals>()
+        .register::<Quantities>()
+        .register::<Times>()
+        .register::<Pii>()
+        .register::<Regions>()
+        .register::<Matches>()
+        .register::<Levels>()
+        .register::<Containment>()
+        .register::<Vectors<View>>()
+        .register::<Vectors<Sentences>>()
+        .register::<Vectors<Tokens>>()
+        .register::<Vectors<Chunks>>()
+        .register::<Vectors<Structure>>()
+        .register::<Confidence<Tokens>>()
+        .register::<Confidence<Sentences>>()
+        .register::<Confidence<Entities>>()
+        .register::<Utf16Spans<Tokens>>()
+        .register::<Utf16Spans<Sentences>>()
         .register::<Abbreviations>()
         .register::<Edges<Abbreviations, Abbreviations>>()
         .register::<Groups<Abbreviations>>();
