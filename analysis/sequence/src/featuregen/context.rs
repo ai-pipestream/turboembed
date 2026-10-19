@@ -49,10 +49,17 @@ impl FeatureGenerator for OutcomePrior {
 /// `D=begin` again. Here sentences are told apart by
 /// [`start_sequence`](FeatureGenerator::start_sequence): every call to it
 /// is a new sentence, the same array or not.
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum DocumentBeginState {
+    #[default]
+    Unseen,
+    FirstSentence,
+    LaterSentence,
+}
+
 #[derive(Default)]
 pub struct DocumentBegin {
-    first: Option<u64>,
-    current: u64,
+    state: DocumentBeginState,
 }
 
 impl DocumentBegin {
@@ -63,18 +70,22 @@ impl DocumentBegin {
 
 impl FeatureGenerator for DocumentBegin {
     fn create_features(&mut self, out: &mut Features, _tokens: &[&str], index: usize, _previous: &[&str]) {
-        let first = *self.first.get_or_insert(self.current);
-        if first == self.current && index == 0 {
+        if self.state == DocumentBeginState::Unseen {
+            self.state = DocumentBeginState::FirstSentence;
+        }
+        if self.state == DocumentBeginState::FirstSentence && index == 0 {
             out.add("D=begin");
         }
     }
 
     fn clear_adaptive_data(&mut self) {
-        self.first = None;
+        self.state = DocumentBeginState::Unseen;
     }
 
     fn start_sequence(&mut self) {
-        self.current += 1;
+        if self.state == DocumentBeginState::FirstSentence {
+            self.state = DocumentBeginState::LaterSentence;
+        }
     }
 }
 
@@ -201,5 +212,40 @@ impl FeatureGenerator for PreviousTags {
                 out.push_str("t2=").push_str(previous[index - 2]).push_str(",").push_str(previous[index - 1]).finish();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn document_begin_marks_only_first_observed_sentence_until_clear() {
+        let mut g = DocumentBegin::new();
+        let mut f = Features::new();
+
+        // Empty sentence starts before any token features are requested.
+        g.start_sequence();
+        g.start_sequence();
+
+        // First non-empty sentence emits D=begin on index 0 across repeated beam probes.
+        g.create_features(&mut f, &["a", "b"], 0, &[]);
+        assert_eq!(f.iter().collect::<Vec<_>>(), [&b"D=begin"[..]]);
+        f.clear();
+        g.create_features(&mut f, &["a", "b"], 0, &[]);
+        assert_eq!(f.iter().collect::<Vec<_>>(), [&b"D=begin"[..]]);
+        f.clear();
+        g.create_features(&mut f, &["a", "b"], 1, &[]);
+        assert!(f.is_empty());
+
+        // Subsequent sentences emit nothing until clear_adaptive_data.
+        g.start_sequence();
+        g.create_features(&mut f, &["c"], 0, &[]);
+        assert!(f.is_empty());
+
+        g.clear_adaptive_data();
+        g.start_sequence();
+        g.create_features(&mut f, &["d"], 0, &[]);
+        assert_eq!(f.iter().collect::<Vec<_>>(), [&b"D=begin"[..]]);
     }
 }

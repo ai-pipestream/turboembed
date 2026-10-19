@@ -111,6 +111,11 @@ impl Glossary {
         GlossaryEntry { id: self.id.get(i.get()), term: self.term.get(i.get()) }
     }
 
+    /// Entry `i`, or `None` when `i` is not an entry of this glossary.
+    pub fn try_get(&self, i: EntryIx) -> Option<GlossaryEntry<'_>> {
+        (i.get() < self.len()).then(|| self.get(i))
+    }
+
     pub fn id(&self, i: EntryIx) -> &str {
         self.id.get(i.get())
     }
@@ -168,6 +173,12 @@ impl GlossaryTerms {
     pub fn entry_of(&self, i: usize) -> GlossaryEntry<'_> {
         self.glossary.get(self.entry[i])
     }
+
+    /// The entry of item `i`, or `None` when `i` is out of bounds or its
+    /// entry index is outside `self.glossary`.
+    pub fn try_entry_of(&self, i: usize) -> Option<GlossaryEntry<'_>> {
+        self.entry.get(i).and_then(|&ix| self.glossary.try_get(ix))
+    }
 }
 
 impl Layer for GlossaryTerms {
@@ -190,6 +201,9 @@ impl Layer for GlossaryTerms {
         let n = self.spans.len();
         if self.tokens.len() != n || self.entry.len() != n {
             return Err("tokens and an entry for every term".into());
+        }
+        if self.spans.iter().any(|(_, s)| s.is_empty()) {
+            return Err("an empty term span".into());
         }
         if self.entry.iter().any(|e| e.get() >= self.glossary.len()) {
             return Err(format!("an entry outside the glossary of {}", self.glossary.len()));
@@ -224,6 +238,8 @@ mod tests {
         assert_eq!(g.push("c2", "\u{a0}"), Err(EntryError::BlankTerm));
         assert_eq!(g.len(), 2);
         assert_eq!(g.get(EntryIx(1)), GlossaryEntry { id: "c1", term: "frankfurter" });
+        assert_eq!(g.try_get(EntryIx(1)), Some(GlossaryEntry { id: "c1", term: "frankfurter" }));
+        assert_eq!(g.try_get(EntryIx(2)), None);
         let ids: Vec<&str> = g.iter().map(|(_, e)| e.id).collect();
         assert_eq!(ids, ["c1", "c1"]);
         let mut h = Glossary::new();
@@ -243,11 +259,17 @@ mod tests {
         t.push(Span::new(2, 3), IxRange::new(1, 1), EntryIx(0));
         assert_eq!(t.check(), Ok(()));
         assert_eq!(t.entry_of(1).term, "x");
+        assert_eq!(t.try_entry_of(1), Some(GlossaryEntry { id: "a", term: "x" }));
+        assert_eq!(t.try_entry_of(2), None);
         assert_eq!(t.indexes()[0].1, 1);
         t.push(Span::new(4, 5), IxRange::new(0, 2), EntryIx(0));
         assert_eq!(t.check().unwrap_err(), "token ranges not in order or overlapping");
         let mut t = GlossaryTerms::new(ViewId::SOURCE, g.clone());
+        t.push(Span::new(2, 2), IxRange::new(0, 1), EntryIx(0));
+        assert_eq!(t.check().unwrap_err(), "an empty term span");
+        let mut t = GlossaryTerms::new(ViewId::SOURCE, g.clone());
         t.push(Span::new(0, 1), IxRange::new(0, 1), EntryIx(1));
+        assert_eq!(t.try_entry_of(0), None);
         assert!(t.check().unwrap_err().starts_with("an entry outside"));
         let mut t = GlossaryTerms::new(ViewId::SOURCE, g);
         t.push(Span::new(0, 1), IxRange::new(0, 1), EntryIx(0));

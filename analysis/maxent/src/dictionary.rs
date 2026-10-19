@@ -83,13 +83,17 @@ impl Dictionary {
     /// `new Dictionary(caseSensitive)` followed by `put` of each entry: the
     /// tokens as given, not trimmed, matched exactly when case-sensitive
     /// and ignoring case otherwise. Entries equal under that rule collapse
-    /// to one.
+    /// to one. Empty token slices and entries whose tokens contain `'\0'`
+    /// are ignored.
     pub fn from_entries<'e>(case_sensitive: bool, entries: impl IntoIterator<Item = &'e [String]>) -> Dictionary {
         let mut set: HashSet<Box<str>, BuildFoldHasher> = HashSet::default();
         let mut min_tokens = usize::MAX;
         let mut max_tokens = 0;
         let mut key = String::new();
         for tokens in entries {
+            if tokens.is_empty() || tokens.iter().any(|t| t.contains(SEPARATOR)) {
+                continue;
+            }
             key.clear();
             push_joined(&mut key, tokens.iter().map(String::as_str), case_sensitive);
             if !set.contains(key.as_str()) {
@@ -378,6 +382,10 @@ mod tests {
         assert!(exact.contains("Dr.") && exact.contains("dr.") && !exact.contains("DR."));
         let empty = Dictionary::from_entries(false, []);
         assert!(empty.is_empty() && empty.min_tokens() == 0);
+        let invalid = Dictionary::from_entries(true, [&[][..], &["a\0b".to_string()][..], &dr[..]]);
+        assert_eq!(invalid.len(), 1);
+        assert!(!invalid.contains("") && !invalid.contains_tokens(&["a", "b"], &mut scratch));
+        assert_eq!((invalid.min_tokens(), invalid.max_tokens()), (1, 1));
     }
 
     const XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>

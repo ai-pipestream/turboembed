@@ -92,6 +92,19 @@ fn with_a_sentence_layer_a_span_starts_where_its_sentence_does() {
     assert_eq!(spans(&doc)[1].0, "- yyyy yyyy yyyy");
     let p = doc.provenance(Key::<LanguageSpans>::DEFAULT.id()).unwrap();
     assert!(p.reads.contains(&Key::<Sentences>::DEFAULT.id()), "{:?}", p.reads);
+
+    // The very first run starts at the first word (with opening punctuation), not at sentence start 0.
+    let mut doc = Document::new("2024: \"xxxx xxxx xxxx\"");
+    sentences(&mut doc, &[(0, 22)]);
+    let (doc, result) = run(doc);
+    result.unwrap();
+    assert_eq!(spans(&doc)[0].0, "\"xxxx xxxx xxxx\"");
+    let spans_prov = doc.provenance(Key::<LanguageSpans>::DEFAULT.id()).unwrap();
+    assert_eq!(spans_prov.annotator, "turbo-langspan:script-ngram");
+    assert_eq!(spans_prov.version, "1");
+    let lang_prov = doc.provenance(Key::<Language>::DEFAULT.id()).unwrap();
+    assert_eq!(lang_prov.annotator, "turbo-langspan:script-ngram");
+    assert_eq!(lang_prov.version, "1");
 }
 
 #[test]

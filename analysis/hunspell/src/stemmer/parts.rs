@@ -113,11 +113,7 @@ impl<'d> Stemmer<'d> {
             }
         }
         if d.settings.compound_more_suffixes && suffix != d.settings.complex_prefixes && at_edge {
-            let inner_rules = if suffix {
-                d.suffixes.candidates(&stem).collect::<Vec<_>>()
-            } else {
-                d.prefixes.candidates(&stem).collect::<Vec<_>>()
-            };
+            let inner_rules = if suffix { d.suffixes.candidates(&stem) } else { d.prefixes.candidates(&stem) };
             for inner in inner_rules {
                 self.collect_double(c, &stem, inner, affix, readings);
             }

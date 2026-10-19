@@ -1,6 +1,6 @@
 //! Retain source layout when later text views remove its syntax.
 
-use turbo_analysis::{Annotator, Error, Layer, Refs, Spans, View};
+use turbo_analysis::{Annotator, Error, Layer, Refs, Span, Spans, View};
 use turbo_analysis_layers::Structure;
 
 /// Maps a structure tree from the direct parent of a view to that view.
@@ -26,18 +26,47 @@ impl Annotator for StructureProjector {
         let alignment = view.alignment();
         let edits = alignment.edits();
         let mut spans = Spans::new(view.id());
+        let mut mapped_frags: Vec<Span> = Vec::new();
         for (row, span) in source.spans.iter() {
-            for edge in [span.start, span.end] {
-                let k = edits.partition_point(|edit| edit.parent.end <= edge);
-                if edits.get(k).is_some_and(|edit| edit.parent.start < edge) {
-                    return Err(fail(format!("block {} has an edge inside a text edit", row.get())));
+            if source.spans.is_discontinuous(row) {
+                mapped_frags.clear();
+                for frag in source.spans.fragments(row) {
+                    for edge in [frag.start, frag.end] {
+                        let k = edits.partition_point(|edit| edit.parent.end <= edge);
+                        if edits.get(k).is_some_and(|edit| edit.parent.start < edge) {
+                            return Err(fail(format!("block {} has an edge inside a text edit", row.get())));
+                        }
+                    }
+                    let mapped = alignment.span_to_child(frag);
+                    if mapped.is_empty() || view.text().get(mapped.range()).is_none() {
+                        return Err(fail(format!("block {} is erased or outside the target text", row.get())));
+                    }
+                    if let Some(prev) = mapped_frags.last_mut()
+                        && prev.end == mapped.start
+                    {
+                        prev.end = mapped.end;
+                    } else {
+                        mapped_frags.push(mapped);
+                    }
                 }
+                if mapped_frags.len() == 1 {
+                    spans.push(mapped_frags[0]);
+                } else {
+                    spans.try_push_fragments(&mapped_frags).map_err(|e| fail(format!("block {}: {e}", row.get())))?;
+                }
+            } else {
+                for edge in [span.start, span.end] {
+                    let k = edits.partition_point(|edit| edit.parent.end <= edge);
+                    if edits.get(k).is_some_and(|edit| edit.parent.start < edge) {
+                        return Err(fail(format!("block {} has an edge inside a text edit", row.get())));
+                    }
+                }
+                let mapped = alignment.span_to_child(span);
+                if (!span.is_empty() && mapped.is_empty()) || view.text().get(mapped.range()).is_none() {
+                    return Err(fail(format!("block {} is erased or outside the target text", row.get())));
+                }
+                spans.push(mapped);
             }
-            let mapped = alignment.span_to_child(span);
-            if (!span.is_empty() && mapped.is_empty()) || view.text().get(mapped.range()).is_none() {
-                return Err(fail(format!("block {} is erased or outside the target text", row.get())));
-            }
-            spans.push(mapped);
         }
         let projected =
             Structure { spans, kind: source.kind.clone(), parent: source.parent.clone(), depth: source.depth.clone() };

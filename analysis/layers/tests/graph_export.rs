@@ -59,6 +59,8 @@ fn document() -> Document {
     .unwrap();
     let mut words = Words::new();
     words.tokens = (0..6).map(|i| IxRange::new(i, i + 1)).collect();
+    words.form = Some(vec![Some("hello".into()), None, None, None, None, None]);
+    words.subspan = Some(vec![None, Some(Span::new(6, 11)), None, None, None, None]);
     doc.add(&Key::DEFAULT, words, by.clone()).unwrap();
     doc.add(
         &Key::DEFAULT,
@@ -228,6 +230,9 @@ fn core_pipeline_layers_round_trip() {
 
     assert_eq!(back.get::<Tokens>().unwrap().sentence.as_ref().unwrap()[3], Ix::new(1));
     assert_eq!(back.get::<Words>().unwrap().tokens[2], IxRange::new(2, 3));
+    let words = back.get::<Words>().unwrap();
+    assert_eq!(words.form.as_ref().unwrap()[0].as_deref(), Some("hello"));
+    assert_eq!(words.subspan.as_ref().unwrap()[1], Some(Span::new(6, 11)));
     assert_eq!(back.get::<Subwords>().unwrap().ids, [10, 11, 12]);
     assert_eq!(back.get::<Subwords>().unwrap().model.id, "m");
     assert_eq!(back.get::<PosTags>().unwrap().tags[3], Tag(1));
@@ -522,6 +527,129 @@ fn vector_dimension_mismatches_are_refused() {
         Ok(_) => panic!("a vector block with a value count mismatch imported"),
         Err(other) => panic!("a vector block mismatch failed as {other}"),
     }
+/// The span column encoding, written out longhand so corrupted
+/// payloads can be built without an export context.
+fn write_spans(w: &mut Writer, view: &str, spans: &[Span]) {
+    w.str(view).unwrap();
+    w.usize(spans.len()).unwrap();
+    for s in spans {
+        w.usize(1).unwrap();
+        w.span(*s);
+    }
+}
+
+fn token_body(instance: &str, sentence: &[u32]) -> Vec<u8> {
+    let mut w = Writer::new();
+    let spans: Vec<Span> = sentence.iter().enumerate().map(|(i, _)| Span::new(i as u32, i as u32 + 1)).collect();
+    write_spans(&mut w, "", &spans);
+    w.u8(1);
+    w.str("opennlp:sentences").unwrap();
+    w.str(instance).unwrap();
+    w.usize(sentence.len()).unwrap();
+    for s in sentence {
+        w.u32(*s);
+    }
+    w.finish()
+}
+
+#[test]
+fn layers_on_a_derived_view_round_trip() {
+    use turbo_analysis::{Alignment, View, ViewBuilder};
+    let mut doc = Document::decoded(
+        b"Caf\xe9 moo.".to_vec(),
+        "Café moo.",
+        Alignment::from_edits(vec![turbo_analysis::text::Edit { parent: Span::new(3, 4), child: Span::new(3, 5) }])
+            .unwrap(),
+    )
+    .unwrap();
+    let source = doc.get::<View>().unwrap().clone();
+    let mut builder = ViewBuilder::new(source.text());
+    builder.keep(5);
+    builder.replace(6, "");
+    let (clean, alignment) = builder.finish();
+    doc.add(&Key::<View>::named("clean"), View::derived(&source, clean, alignment), Provenance::by("test")).unwrap();
+    let clean_id = doc.get_key(&Key::<View>::named("clean")).unwrap().id();
+    let mut sentences = Spans::new(clean_id);
+    sentences.push(Span::new(0, 9));
+    doc.add(&Key::DEFAULT, Sentences { spans: sentences }, Provenance::by("test")).unwrap();
+    let mut tokens = Spans::new(clean_id);
+    tokens.push(Span::new(0, 5));
+    tokens.push(Span::new(5, 8));
+    tokens.push(Span::new(8, 9));
+    doc.add(&Key::DEFAULT, Tokens { spans: tokens, sentence: Some(vec![Ix::new(0); 3]) }, Provenance::by("test"))
+        .unwrap();
+
+    let graph = export(&doc, &codecs()).unwrap();
+    let back = import(&DocumentGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(), &codecs()).unwrap();
+    let tokens = back.get::<Tokens>().unwrap();
+    assert_eq!(tokens.spans.view(), back.get_key(&Key::<View>::named("clean")).unwrap().id());
+    assert_eq!(back.text(tokens.spans.view()), "Cafémoo.");
+    let in_source = back.to_source(tokens.spans.view(), tokens.spans.get(Ix::new(1)));
+    assert_eq!(&back.source()[in_source.range()], "moo");
+}
+
+#[test]
+fn target_identity_and_word_subspan_refusals() {
+    // A word subspan split across a UTF-8 character must not import.
+    let mut doc = Document::new("é");
+    doc.add(&Key::DEFAULT, Tokens { spans: spans(&[(0, 2)]), sentence: None }, Provenance::by("test")).unwrap();
+    let mut words = Words::new();
+    words.push_word(IxRange::new(0, 1), None, Some(Span::new(0, 2)));
+    doc.add(&Key::DEFAULT, words, Provenance::by("test")).unwrap();
+    let mut graph = export(&doc, &codecs()).unwrap();
+    let body = graph.layers.iter_mut().find(|l| l.layer == "turbo:words").unwrap().body.as_mut().unwrap();
+    let at = body.len() - 4;
+    body[at..].copy_from_slice(&1u32.to_le_bytes());
+    match import(&graph, &codecs()) {
+        Err(ExportError::InvalidLayer { detail, .. }) => assert!(detail.contains("boundaries"), "{detail}"),
+        Ok(_) => panic!("a subspan splitting a character imported"),
+        Err(other) => panic!("a split subspan failed as {other}"),
+    }
+
+    // An encoded target instance the provenance does not bind to.
+    let doc = document();
+    let mut graph = export(&doc, &codecs()).unwrap();
+    splice(&mut graph, "opennlp:tokens", token_body("alt", &[0]), 1);
+    match import(&graph, &codecs()) {
+        Err(ExportError::InvalidLayer { detail, .. }) => assert!(detail.contains("alt"), "{detail}"),
+        Ok(_) => panic!("a payload naming another target instance imported"),
+        Err(other) => panic!("a rebound target failed as {other}"),
+    }
+
+    // An empty sentence column naming a missing target.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    splice(&mut graph, "opennlp:tokens", token_body("missing", &[]), 0);
+    assert!(import(&graph, &codecs()).is_err(), "an empty column naming a missing target imported");
+
+    // A token pointing at a sentence past the sentence layer.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    splice(&mut graph, "opennlp:tokens", token_body("", &[9]), 1);
+    assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::DanglingEndpoint { .. })));
+
+    // A structure block that is its own parent.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    let mut w = Writer::new();
+    write_spans(&mut w, "", &[Span::new(0, 5)]);
+    w.usize(1).unwrap();
+    w.u8(2);
+    w.usize(1).unwrap();
+    w.u8(1);
+    w.u32(0);
+    w.usize(1).unwrap();
+    w.u8(0);
+    splice(&mut graph, "turbo:structure", w.finish(), 1);
+    assert!(matches!(import(&graph, &codecs()).err(), Some(ExportError::Malformed(_))));
+
+    // A document date naming a temporal mention past the temporals.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    let mut w = Writer::new();
+    w.u8(0);
+    w.u8(1);
+    w.str("turbo:temporal").unwrap();
+    w.str("").unwrap();
+    w.u32(9);
+    splice(&mut graph, "turbo:document-date", w.finish(), 1);
+    assert!(import(&graph, &codecs()).is_err(), "a document date naming a missing mention imported");
 }
 
 fn splice(graph: &mut DocumentGraph, layer_prefix: &str, body: Vec<u8>, len: u32) {

@@ -2,8 +2,51 @@
 //! layer it writes, `Categories<L>` (`turbo:categories<L>`), is the shared
 //! [`turbo_analysis_layers::Categories`].
 
-use turbo_analysis::{Ix, Span, Spans};
-use turbo_analysis_layers::{CategoryScope, Chunks, Sentences, Structure};
+use turbo_analysis::{Error, Ix, Span, Spans};
+use turbo_analysis_layers::{CategoryScope, Chunks, Sentences, Structure, Tokens};
+
+pub(crate) fn validate_spans<T>(
+    annotator: &'static str,
+    label: &'static str,
+    spans: &Spans<T>,
+    text: &str,
+) -> Result<(), Error> {
+    let (starts, ends) = spans.columns();
+    if starts.len() != ends.len() {
+        return Err(Error::Annotator {
+            annotator,
+            detail: format!(
+                "{label} span columns have mismatched lengths ({} starts vs {} ends)",
+                starts.len(),
+                ends.len()
+            ),
+        });
+    }
+    for (idx, (&start, &end)) in starts.iter().zip(ends.iter()).enumerate() {
+        let s = start as usize;
+        let e = end as usize;
+        if s > e || e > text.len() || !text.is_char_boundary(s) || !text.is_char_boundary(e) {
+            return Err(Error::Annotator {
+                annotator,
+                detail: format!(
+                    "{label} {idx} span {start}..{end} is not a valid UTF-8 boundary in view text of length {}",
+                    text.len()
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn extract_tokens<'a>(
+    annotator: &'static str,
+    tokens: &Tokens,
+    text: &'a str,
+) -> Result<Vec<&'a str>, Error> {
+    validate_spans(annotator, "token", &tokens.spans, text)?;
+    let (starts, ends) = tokens.spans.columns();
+    Ok(starts.iter().zip(ends.iter()).map(|(&s, &e)| &text[s as usize..e as usize]).collect())
+}
 
 /// A layer of spans (`Sentences`, `Structure`, `Chunks`) that
 /// [`crate::SpanCategorizer`] categorizes span by span, writing

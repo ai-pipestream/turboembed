@@ -14,6 +14,12 @@ fn push3(out: &mut Vec<u8>, unit: u32) {
     out.extend_from_slice(&[0xE0 | (unit >> 12) as u8, 0x80 | ((unit >> 6) & 0x3F) as u8, 0x80 | (unit & 0x3F) as u8]);
 }
 
+#[cold]
+#[inline(never)]
+fn not_a_code_point(cp: u32) -> ! {
+    panic!("U+{cp:X} is not a code point")
+}
+
 /// Appends the modified UTF-8 encoding of one code unit or code point.
 ///
 /// `cp` may be a surrogate code unit (U+D800..=U+DFFF), which is written
@@ -21,17 +27,17 @@ fn push3(out: &mut Vec<u8>, unit: u32) {
 /// U+FFFF is written as its two surrogates. `cp` must be at most U+10FFFF.
 #[inline]
 pub fn push_modified_utf8(out: &mut Vec<u8>, cp: u32) {
-    debug_assert!(cp <= 0x10_FFFF, "U+{cp:X} is not a code point");
     match cp {
         0 => out.extend_from_slice(&[0xC0, 0x80]),
         0x01..=0x7F => out.push(cp as u8),
         0x80..=0x7FF => out.extend_from_slice(&[0xC0 | (cp >> 6) as u8, 0x80 | (cp & 0x3F) as u8]),
         0x800..=0xFFFF => push3(out, cp),
-        _ => {
+        0x1_0000..=0x10_FFFF => {
             let offset = cp - 0x1_0000;
             push3(out, 0xD800 + (offset >> 10));
             push3(out, 0xDC00 + (offset & 0x3FF));
         }
+        _ => not_a_code_point(cp),
     }
 }
 
@@ -140,5 +146,12 @@ mod tests {
         let mut out = b"pre=".to_vec();
         push_str_modified_utf8(&mut out, "\u{0}");
         assert_eq!(out, b"pre=\xC0\x80");
+    }
+
+    #[test]
+    #[should_panic(expected = "U+110000 is not a code point")]
+    fn code_point_above_max_panics() {
+        let mut out = Vec::new();
+        push_modified_utf8(&mut out, 0x11_0000);
     }
 }

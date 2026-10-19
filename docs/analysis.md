@@ -291,12 +291,14 @@ declares what overlap its items may have through `Layer::OVERLAP`
   `Quantities` and the normalizer layers): continuous spans in text
   order (`start` non-decreasing) that do not overlap
   (`end[i - 1] <= start[i]`).
-- `Overlap::Nesting` (`Structure`): spans may nest (`a.contains(b)` or
-  `b.contains(a)` whenever `a` and `b` share covered bytes) and never
-  partially cross (`a.start < b.start && b.start < a.end && a.end <
-  b.end`), neither at the envelope level nor across discontinuous
-  fragments. The check does not need text order: unordered spans are
-  sorted first.
+- `Overlap::Nesting` (`Structure`): continuous spans and individual
+  discontinuous fragments never partially cross (`a.start < b.start &&
+  b.start < a.end && a.end < b.end`), and whenever two items share
+  covered bytes, every fragment of the inner item lies inside a fragment
+  of the outer item. A separate item may lie inside the uncovered gap
+  between fragments of a discontinuous item (so their bounding envelopes
+  may overlap or cross while their covered fragments remain disjoint).
+  The check does not need text order: unordered spans are sorted first.
 - `Overlap::Any` (`Tokens`, `Subwords`, `PhraseChunks`, `Chunks`,
   `Levels`, `Entities`, or multi-tagger candidate layers): any spans in
   bounds. `Tokens` and `PhraseChunks` are here because two UTF-16 tokens

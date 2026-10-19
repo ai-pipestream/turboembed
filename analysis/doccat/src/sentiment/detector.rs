@@ -108,8 +108,7 @@ impl Annotator for SentimentMe {
         if tokens.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "tokens are not in the given view".into() });
         }
-        let text = view.text();
-        let words: Vec<&str> = tokens.spans.iter().map(|(_, s)| &text[s.range()]).collect();
+        let words = crate::layer::extract_tokens(Self::ID, tokens, view.text())?;
         Ok((SCRATCH.with_borrow_mut(|s| self.categories(&words, s)),))
     }
 

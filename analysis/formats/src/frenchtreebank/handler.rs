@@ -302,4 +302,35 @@ mod tests {
     fn malformed_documents_give_no_parse() {
         assert!(matches!(read("<t><SENT><w>a</w></SENT><SENT></t>"), Err(FtbError::Xml(_))));
     }
+
+    #[test]
+    fn malformed_xml_is_a_typed_error() {
+        // An unclosed attribute quote and an empty document are XML errors,
+        // not panics and not partial parses.
+        let err = read("<t><SENT><w cat=\"N>x</w></SENT></t>").unwrap_err();
+        assert!(err.to_string().contains("an attribute value is not closed"), "{err}");
+        assert!(matches!(read(""), Err(FtbError::Xml(_))));
+    }
+
+    #[test]
+    fn odd_words_and_elements_are_lenient() {
+        // A self-closing `w` holds no word; text outside a `w` is ignored.
+        assert_eq!(trees("<t><SENT><w cat=\"N\"/>tail</SENT></t>"), ["(TOP )"]);
+        // A whitespace-only word is no node.
+        assert_eq!(trees("<t><SENT><w cat=\"N\">  </w><w cat=\"V\">go</w></SENT></t>"), ["(TOP (S (V go)) )"]);
+        // An unknown attribute is ignored.
+        assert_eq!(trees("<t><SENT><w cat=\"N\" bogus=\"1\">x</w></SENT></t>"), ["(TOP (S (N x)) )"]);
+        // Entity references decode in attribute values and in text.
+        assert_eq!(trees("<t><SENT><w cat=\"N&amp;M\">x</w></SENT></t>"), ["(TOP (S (N&M x)) )"]);
+        assert_eq!(trees("<t><SENT><w cat=\"N\">a&amp;b</w></SENT></t>"), ["(TOP (S (N a&b)) )"]);
+        // A numeric character reference decodes to its character.
+        assert_eq!(trees("<t><SENT><w cat=\"N\">&#233;</w></SENT></t>"), ["(TOP (S (N \u{e9})) )"]);
+        // Phrase elements nest as deep as they go.
+        assert_eq!(
+            trees("<t><SENT><A><B><C><w cat=\"N\">x</w></C></B></A></SENT></t>"),
+            ["(TOP (S (A (B (C (N x))))) )"]
+        );
+        // Text outside a sentence is ignored.
+        assert_eq!(trees("<t>junk<SENT><w cat=\"N\">x</w></SENT></t>"), ["(TOP (S (N x)) )"]);
+    }
 }

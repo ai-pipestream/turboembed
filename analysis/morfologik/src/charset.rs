@@ -163,9 +163,17 @@ impl DictionaryCharset {
             Self::Windows1250 => decode_table(bytes, &WINDOWS_1250),
             Self::Windows1251 => decode_table(bytes, &WINDOWS_1251),
             Self::Windows1252 => decode_table(bytes, &WINDOWS_1252),
-            Self::Utf16 | Self::Utf16Be | Self::Utf16Le => {
-                Err(MorfologikError::format("UTF-16 is not a byte-oriented FSA charset"))
+            Self::Utf16 => {
+                if let Some(rest) = bytes.strip_prefix(&[0xFE, 0xFF]) {
+                    decode_utf16(rest, true)
+                } else if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
+                    decode_utf16(rest, false)
+                } else {
+                    decode_utf16(bytes, true)
+                }
             }
+            Self::Utf16Be => decode_utf16(bytes, true),
+            Self::Utf16Le => decode_utf16(bytes, false),
         }
     }
 
@@ -276,4 +284,17 @@ fn encode_table(text: &str, table: &[u16; 128], name: &'static str) -> Result<Ve
         }
     }
     Ok(out)
+}
+
+fn decode_utf16(bytes: &[u8], big_endian: bool) -> Result<String, MorfologikError> {
+    if !bytes.len().is_multiple_of(2) {
+        return Err(MorfologikError::format("invalid morfologik character data"));
+    }
+    let units: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|&pair| if big_endian { u16::from_be_bytes(pair) } else { u16::from_le_bytes(pair) })
+        .collect();
+    String::from_utf16(&units).map_err(|_| MorfologikError::format("invalid morfologik character data"))
 }

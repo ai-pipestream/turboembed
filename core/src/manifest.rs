@@ -214,7 +214,9 @@ pub struct SpecialToken {
     /// The token is matched in the normalized text, its content
     /// normalized too, as upstream matches a `normalized` added token,
     /// and only as a whole word when `single_word`; it takes the
-    /// whitespace after it when `rstrip`. A WordPiece tokenizer only.
+    /// whitespace after it when `rstrip`. WordPiece, or BPE, which has no
+    /// normalizer and matches it in the text as it is (no `single_word`
+    /// or `rstrip`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub normalized: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -769,9 +771,16 @@ impl Manifest {
                     "manifest.json: tokenizer.special_tokens[{i}]: single_word and rstrip are read with normalized"
                 )));
             }
-            if s.normalized && t.wordpiece.is_none() {
+            // A bpe tokenizer has no normalizer: a normalized token is
+            // matched in the text as it is, like the others.
+            if s.normalized && t.wordpiece.is_none() && t.bpe.is_none() {
                 return Err(invalid(format!(
-                    "manifest.json: tokenizer.special_tokens[{i}].normalized: a wordpiece tokenizer only"
+                    "manifest.json: tokenizer.special_tokens[{i}].normalized: a wordpiece or bpe tokenizer only"
+                )));
+            }
+            if (s.single_word || s.rstrip) && t.wordpiece.is_none() {
+                return Err(invalid(format!(
+                    "manifest.json: tokenizer.special_tokens[{i}]: single_word and rstrip are for a wordpiece tokenizer only"
                 )));
             }
             if s.id > i32::MAX as u32 {

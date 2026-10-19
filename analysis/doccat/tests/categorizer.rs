@@ -148,8 +148,13 @@ fn categories_are_named_and_indexed_as_in_opennlp() {
     assert_eq!((c.category(0), c.category(1)), ("a", "b"));
     assert_eq!(c.all_results(&[0.25, 0.75]), "a[0.25] b[0.75]");
     assert_eq!(c.all_results(&[1e-7, 0.9999999]), "a[1.0E-7] b[0.9999999]");
+    assert_eq!(c.all_results(&[]), "");
+    assert_eq!(c.all_results(&[0.5]), "");
+    assert_eq!(c.all_results(&[0.2, 0.3, 0.5]), "");
     // The first highest score wins a tie.
     assert_eq!(c.best_category(&[0.5, 0.5]), "a");
+    assert_eq!(c.best_category(&[]), "");
+    assert_eq!(c.best_category(&[0.1, 0.2, 0.9]), "");
 }
 
 /// Three categories; the second support vector's category scores `p`.
@@ -270,4 +275,16 @@ fn the_annotator_writes_every_category_best_first() {
     assert_eq!(docs[1].get::<Categories>().unwrap().best(), Some(("a", a)));
     let [a, b] = probabilities(-0.25);
     assert_eq!(rows(&docs[2]), [("b".to_string(), b), ("a".to_string(), a)]);
+
+    let bad_doc = Document::new("é");
+    let mut bad_spans = Spans::new(ViewId::SOURCE);
+    bad_spans.push(Span::new(0, 1));
+    let bad_tokens = Tokens { spans: bad_spans, sentence: None };
+    assert!(
+        turbo_analysis::Annotator::annotate(
+            &categorizer(SIDECAR),
+            (bad_doc.get::<turbo_analysis::View>().unwrap(), &bad_tokens)
+        )
+        .is_err()
+    );
 }

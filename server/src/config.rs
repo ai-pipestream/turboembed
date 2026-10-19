@@ -96,12 +96,18 @@ fn number(k: &str, v: &str) -> Result<u32, String> {
     v.parse().map_err(|_| format!("{k} {v}: not a number from 0 to 4294967295"))
 }
 
-/// Every model's name, refusing a path that names no bundle and two models
-/// of one name.
+/// Every model's name, refusing an empty model list, zero sessions, a path
+/// that names no bundle, and two models of one name.
 pub fn names(models: &[ModelConfig]) -> Result<Vec<String>, String> {
+    if models.is_empty() {
+        return Err("at least one --model is required".into());
+    }
     let mut out: Vec<String> = Vec::new();
     for m in models {
         let name = m.name().ok_or_else(|| format!("bundle {}: the path names no bundle", m.bundle))?;
+        if m.sessions == 0 {
+            return Err(format!("bundle {}: sessions must be at least 1", m.bundle));
+        }
         if out.iter().any(|n| n == name) {
             return Err(format!("bundle {}: a model named {name} is already served", m.bundle));
         }
@@ -177,7 +183,7 @@ impl Args {
             }
         }
         if listen.is_none()
-            && let Some(v) = env(ENV_LISTEN)
+            && let Some(v) = env(ENV_LISTEN).filter(|v| !v.is_empty())
         {
             listen = Some(v.parse().map_err(|_| format!("{ENV_LISTEN}={v}: not ADDR:PORT"))?);
         }
@@ -189,14 +195,11 @@ impl Args {
             }
         }
         if max_message_bytes.is_none()
-            && let Some(v) = env(ENV_MAX_MESSAGE_BYTES)
+            && let Some(v) = env(ENV_MAX_MESSAGE_BYTES).filter(|v| !v.is_empty())
         {
             max_message_bytes = Some(v.parse().map_err(|_| format!("{ENV_MAX_MESSAGE_BYTES}={v}: not a byte count"))?);
         }
         let listen = listen.ok_or("--listen is required")?;
-        if models.is_empty() {
-            return Err("at least one --model is required".into());
-        }
         names(&models)?;
         Ok(Args { listen, models, max_message_bytes: max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES) })
     }
@@ -292,12 +295,29 @@ mod tests {
         assert!(bad(ENV_MODELS, "bundle=/b/a,device=0").starts_with("TURBO_KSERVE_MODELS: "));
         assert!(bad(ENV_MAX_MESSAGE_BYTES, "64MiB").starts_with("TURBO_KSERVE_MAX_MESSAGE_BYTES=64MiB"));
         // An empty variable gives nothing.
-        let e = Args::parse_with(std::iter::empty(), |k| (k == ENV_MODELS).then(String::new)).unwrap_err();
+        let e = Args::parse_with(std::iter::empty(), |_| Some(String::new())).unwrap_err();
         assert_eq!(e, "--listen is required");
+        let a = Args::parse_with(
+            "--listen 127.0.0.1:0 --model bundle=/b/c,device=0,sessions=1".split_whitespace().map(String::from),
+            |_| Some(String::new()),
+        )
+        .unwrap();
+        assert_eq!(a.max_message_bytes, DEFAULT_MAX_MESSAGE_BYTES);
     }
 
     #[test]
     fn refusals() {
+        assert_eq!(names(&[]).unwrap_err(), "at least one --model is required");
+        let zero_sessions = ModelConfig {
+            bundle: "/b/tiny".into(),
+            name: None,
+            device: Device::Index(0),
+            precision: 0,
+            max_batch: 0,
+            max_seq: 0,
+            sessions: 0,
+        };
+        assert_eq!(names(&[zero_sessions]).unwrap_err(), "bundle /b/tiny: sessions must be at least 1");
         for bad in [
             "--model bundle=x,device=0,sessions=1",
             "--listen 127.0.0.1:0",

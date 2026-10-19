@@ -24,7 +24,10 @@ pub struct Window {
 /// `block` is one window. `block` and `stride` are at least 1, and
 /// `stride` at most `block`, so every token is in a window.
 pub fn windows(tokens: u32, block: u32, stride: u32, out: &mut Vec<Window>) {
-    debug_assert!(block >= 1 && stride >= 1 && stride <= block);
+    if tokens == 0 || block == 0 || stride == 0 {
+        return;
+    }
+    debug_assert!(stride <= block);
     let block = block.min(tokens);
     let mut j = 0;
     while j < tokens {
@@ -34,7 +37,7 @@ pub fn windows(tokens: u32, block: u32, stride: u32, out: &mut Vec<Window>) {
             return;
         }
         out.push(Window { start: j, end });
-        j += stride;
+        j = j.saturating_add(stride);
     }
 }
 
@@ -51,7 +54,7 @@ pub fn place_prefix(text: &str, lone: i32, ids: &[i32], spans: &mut [[u32; 2]]) 
     for (&id, span) in ids.iter().zip(spans.iter_mut()) {
         let [start, end] = *span;
         if id == lone && start == end {
-            let first = text[start as usize..].chars().next().map_or(0, char::len_utf8) as u32;
+            let first = text.get(start as usize..).and_then(|s| s.chars().next()).map_or(0, char::len_utf8) as u32;
             *span = [start, start + first];
         }
     }
@@ -112,7 +115,10 @@ pub fn cut_points(text: &str, boundaries: &[u32], out: &mut Vec<u32>) {
             // Inside whitespace an earlier cut already passed over.
             continue;
         }
-        at += text[at..].chars().take_while(|&c| is_python_space(c)).map(char::len_utf8).sum::<usize>();
+        let Some(tail) = text.get(at..) else {
+            continue;
+        };
+        at += tail.chars().take_while(|&c| is_python_space(c)).map(char::len_utf8).sum::<usize>();
         let at = at as u32;
         if at > last && at < len {
             out.push(at);
@@ -133,11 +139,11 @@ pub fn grapheme_index(text: &str) -> Vec<u32> {
 /// sequence. `graphemes` is `grapheme_index` of the text. Cuts that meet
 /// are kept once.
 pub fn snap(graphemes: &[u32], cuts: &mut Vec<u32>) {
+    let len = *graphemes.last().unwrap_or(&0);
     for c in cuts.iter_mut() {
         let i = graphemes.partition_point(|&g| g < *c);
-        *c = graphemes[i];
+        *c = graphemes.get(i).copied().unwrap_or(len);
     }
-    let len = *graphemes.last().unwrap_or(&0);
     cuts.dedup();
     cuts.retain(|&c| c > 0 && c < len);
 }
@@ -154,10 +160,11 @@ pub fn pieces(text: &str, cuts: &[u32], split_on_newlines: bool, out: &mut Vec<S
     let mut runs = Vec::with_capacity(cuts.len() + 1);
     let mut start = 0;
     for &c in cuts.iter().chain(std::iter::once(&len)) {
-        if c > start {
+        let c = c.min(len);
+        if c > start && text.is_char_boundary(c as usize) {
             runs.push(Span::new(start, c));
+            start = c;
         }
-        start = c;
     }
     if !split_on_newlines {
         out.extend(runs);
@@ -188,7 +195,10 @@ pub fn pieces(text: &str, cuts: &[u32], split_on_newlines: bool, out: &mut Vec<S
 /// mark extends stays, and the span's own ends count as cluster
 /// boundaries, so a carriage return cut from its line feed is trimmed.
 pub fn trim(text: &str, graphemes: &[u32], span: Span) -> Option<Span> {
-    let blank = |a: u32, b: u32| text[a as usize..b as usize].chars().all(is_python_space);
+    if span.start >= span.end || text.get(span.start as usize..span.end as usize).is_none() {
+        return None;
+    }
+    let blank = |a: u32, b: u32| text.get(a as usize..b as usize).is_some_and(|s| s.chars().all(is_python_space));
     // The cluster boundaries strictly inside the span.
     let lo = graphemes.partition_point(|&g| g <= span.start);
     let hi = graphemes.partition_point(|&g| g < span.end);
@@ -232,6 +242,8 @@ mod tests {
     #[test]
     fn windows_step_by_the_stride_and_the_last_ends_at_the_end() {
         assert_eq!(win(0, 4, 2), []);
+        assert_eq!(win(5, 0, 2), []);
+        assert_eq!(win(5, 2, 0), []);
         assert_eq!(win(3, 4, 2), [(0, 3)]);
         assert_eq!(win(4, 4, 2), [(0, 4)]);
         assert_eq!(win(5, 4, 2), [(0, 4), (1, 5)]);
@@ -367,7 +379,7 @@ mod tests {
 
     fn tr(text: &str, a: u32, b: u32) -> Option<&str> {
         let g = grapheme_index(text);
-        trim(text, &g, Span::new(a, b)).map(|s| &text[s.start as usize..s.end as usize])
+        trim(text, &g, Span { start: a, end: b }).map(|s| &text[s.start as usize..s.end as usize])
     }
 
     #[test]
@@ -381,5 +393,32 @@ mod tests {
         assert_eq!(tr("ab\r\ncd", 0, 3), Some("ab"));
         assert_eq!(tr("ab\r\ncd", 4, 6), Some("cd"));
         assert_eq!(tr("x\u{2028}", 0, 4), Some("x"));
+        // Out-of-bounds, inverted, or mid-character spans return None.
+        assert_eq!(tr("é", 0, 1), None);
+        assert_eq!(tr("ab", 2, 1), None);
+        assert_eq!(tr("ab", 0, 5), None);
+    }
+
+    #[test]
+    fn snap_and_pieces_and_cut_points_guard_invalid_offsets() {
+        let mut c = vec![1, 5];
+        snap(&[], &mut c);
+        assert!(c.is_empty());
+
+        let t = "é. ok";
+        let g = grapheme_index(t);
+        let mut c = vec![1, 99];
+        snap(&g, &mut c);
+        assert_eq!(c, [2]);
+
+        // Mid-codepoint and out-of-bounds boundaries are ignored by cut_points.
+        assert_eq!(cuts(t, &[1, 3, 99]), [4]);
+
+        // Unsorted, duplicate, mid-codepoint, or out-of-bounds cuts in pieces do not panic.
+        assert_eq!(pcs(t, &[0, 1, 4, 2, 99], true), ["é. ", "ok"]);
+
+        let mut spans = [[99, 99], [1, 1]];
+        place_prefix(t, 2, &[2, 2], &mut spans);
+        assert_eq!(spans, [[99, 99], [1, 1]]);
     }
 }

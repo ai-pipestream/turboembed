@@ -26,4 +26,10 @@ pub trait Stemmer: Send + Sync {
         self.stem_utf16(&units, &mut out);
         String::from_utf16_lossy(&out)
     }
+
+    /// A deterministic configuration hash identifying this stemmer, or `0`
+    /// for custom external implementations.
+    fn config_hash(&self) -> u64 {
+        0
+    }
 }

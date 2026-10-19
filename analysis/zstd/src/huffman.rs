@@ -63,6 +63,9 @@ impl Table {
     /// Builds the table from the weights of every symbol but the last,
     /// whose weight is what completes the others to a power of 2.
     fn build(&mut self, weights: &[u8]) -> Result<(), Error> {
+        if let Some(&w) = weights.iter().find(|&&w| u32::from(w) > MAX_BITS) {
+            return Err(Error::HuffmanTooDeep(u32::from(w)));
+        }
         // Each weight w stands for 2^(w-1) of the table's 2^bits entries.
         let sum: u32 = weights.iter().map(|&w| (1u32 << w) >> 1).sum();
         if sum == 0 {
@@ -70,7 +73,7 @@ impl Table {
         }
         let bits = 32 - sum.leading_zeros();
         if bits > MAX_BITS {
-            return Err(Error::HuffmanTooDeep(bits));
+            return Err(Error::WeightsIncomplete);
         }
         let rest = (1u32 << bits) - sum;
         if !rest.is_power_of_two() {
@@ -289,6 +292,7 @@ mod tests {
         // 12 makes the table 12 bits deep.
         assert_eq!(table(&[1, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]).unwrap().log, 11);
         assert_eq!(table(&[1, 12]).err(), Some(Error::HuffmanTooDeep(12)));
+        assert_eq!(table(&[11, 11, 1]).err(), Some(Error::WeightsIncomplete));
     }
 
     #[test]
