@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, ModelRef, Refs, Span, Tag, View};
+use turbo_analysis::{Annotator, Error, Ix, ModelRef, Refs, Tag, View};
 use turbo_analysis_layers::{Categories, Tokens};
 use turbo_maxent::{MaxentModel, best_outcome};
 
@@ -225,7 +225,7 @@ impl<L: SpanCategorizable> SpanCategorizer<L> {
 
 impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
     const ID: &'static str = "opennlp:doccat-spans";
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
     type Reads = (View, Tokens, L);
     type Writes = (Categories<L>,);
 
@@ -250,22 +250,23 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
         let extra = BTreeMap::new();
 
         for i in 0..n_units {
-            let unit_span: Span = units.span_at(i);
             tok_strs.clear();
-            if tokens_ordered {
-                let a = tok_starts.partition_point(|&s| s < unit_span.start);
-                for t in a..n_tokens {
-                    if tok_starts[t] > unit_span.end {
-                        break;
+            for frag in units.layer_spans().fragments(Ix::new(i as u32)) {
+                if tokens_ordered {
+                    let a = tok_starts.partition_point(|&s| s < frag.start);
+                    for t in a..n_tokens {
+                        if tok_starts[t] > frag.end {
+                            break;
+                        }
+                        if tok_ends[t] <= frag.end {
+                            tok_strs.push(&text[tok_starts[t] as usize..tok_ends[t] as usize]);
+                        }
                     }
-                    if tok_ends[t] <= unit_span.end {
-                        tok_strs.push(&text[tok_starts[t] as usize..tok_ends[t] as usize]);
-                    }
-                }
-            } else {
-                for t in 0..n_tokens {
-                    if tok_starts[t] >= unit_span.start && tok_ends[t] <= unit_span.end {
-                        tok_strs.push(&text[tok_starts[t] as usize..tok_ends[t] as usize]);
+                } else {
+                    for t in 0..n_tokens {
+                        if tok_starts[t] >= frag.start && tok_ends[t] <= frag.end {
+                            tok_strs.push(&text[tok_starts[t] as usize..tok_ends[t] as usize]);
+                        }
                     }
                 }
             }
@@ -284,8 +285,8 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
 
 #[cfg(test)]
 mod tests {
-    use turbo_analysis::{Analyzer, Document, Key, Provenance, Spans, ViewId};
-    use turbo_analysis_layers::Sentences;
+    use turbo_analysis::{Analyzer, Document, Key, Layer, Provenance, Span, Spans, ViewId};
+    use turbo_analysis_layers::{Block, Sentences, Structure};
     use turbo_train::{Event, Key as Param, TrainingConfiguration, TrainingParameters, trainer};
 
     use super::*;
@@ -357,7 +358,7 @@ mod tests {
         }
         let cats = docs[0].get::<Categories<Sentences>>().unwrap();
         assert_eq!(cats.best_category(0), "neg");
-        assert_eq!(docs[0].provenance(Key::<Categories<Sentences>>::DEFAULT.id()).unwrap().version, "1");
+        assert_eq!(docs[0].provenance(Key::<Categories<Sentences>>::DEFAULT.id()).unwrap().version, "2");
 
         // Start-ordered overlapping tokens keep the fast path.
         let overlap_spans = spans(&[(0, 3), (0, 3)]);
@@ -383,5 +384,19 @@ mod tests {
         let valid_tokens = Tokens { spans: spans(&[(0, 4)]), sentence: None };
         let bad_sents = Sentences { spans: spans(&[(0, 99)]) };
         assert!(span_cat.annotate((doc_bad_unit.get::<View>().unwrap(), &valid_tokens, &bad_sents)).is_err());
+
+        // Discontinuous Structure block excludes gap tokens and validates fragments.
+        assert_eq!(SpanCategorizer::<Structure>::VERSION, "2");
+        let struct_cat: SpanCategorizer<Structure> = cat.for_spans();
+        let doc_gap = Document::new("good bad good");
+        let gap_tokens = Tokens { spans: spans(&[(0, 4), (5, 8), (9, 13)]), sentence: None };
+        let mut st_spans = Spans::new(ViewId::SOURCE);
+        st_spans.push_fragments(&[Span::new(0, 4), Span::new(9, 13)]);
+        let structure = Structure { spans: st_spans, kind: vec![Block::Paragraph], parent: vec![None], depth: vec![0] };
+        let (st_cats,) = struct_cat.annotate((doc_gap.get::<View>().unwrap(), &gap_tokens, &structure)).unwrap();
+        assert_eq!(st_cats.len(), 1);
+        assert_eq!(st_cats.get(0).unwrap().best, "pos");
+        assert_eq!(st_cats.row_scores(0), cat.categorize(&["good", "good"]).as_slice());
+        assert_ne!(st_cats.row_scores(0), cat.categorize(&["good", "bad", "good"]).as_slice());
     }
 }

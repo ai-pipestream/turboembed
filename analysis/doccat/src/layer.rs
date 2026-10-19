@@ -34,6 +34,21 @@ pub(crate) fn validate_spans<T>(
                 ),
             });
         }
+        for frag in spans.fragments(Ix::new(idx as u32)) {
+            let fs = frag.start as usize;
+            let fe = frag.end as usize;
+            if fs > fe || fe > text.len() || !text.is_char_boundary(fs) || !text.is_char_boundary(fe) {
+                return Err(Error::Annotator {
+                    annotator,
+                    detail: format!(
+                        "{label} {idx} fragment {}..{} is not a valid UTF-8 boundary in view text of length {}",
+                        frag.start,
+                        frag.end,
+                        text.len()
+                    ),
+                });
+            }
+        }
     }
     Ok(())
 }

@@ -98,11 +98,43 @@ impl HmacTokenizer {
     }
 
     /// Replaces every mention of `pii`, a layer over `text`, with its
-    /// token. The mentions must not overlap.
+    /// token. The mentions must not overlap or have empty normalized forms.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        // A layer's normalized forms are never empty, so no token fails.
+        if let Some(m) = pii.mentions().find(|m| m.normalized.is_empty()) {
+            return Err(RewriteError::EmptyValue(m.span));
+        }
         PiiRewrite::replace(text, pii.mentions(), |m, out| {
-            self.write_token(m.kind, m.normalized, out).expect("a layer's values are not empty");
+            self.write_token(m.kind, m.normalized, out).expect("checked non-empty normalized values");
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis::{Span, ViewId};
+    use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention};
+
+    use super::*;
+    use crate::rewrite::PiiAuditReport;
+
+    #[test]
+    fn empty_normalized_mention_is_refused_in_hmac_rewrite_and_skipped_in_audit_samples() {
+        let mut pii = Pii::new(ViewId::SOURCE);
+        pii.push(PiiMention {
+            span: Span::new(0, 5),
+            kind: PiiKind::Email,
+            confidence: PiiConfidence::Format,
+            normalized: "",
+        });
+        let tokenizer = HmacTokenizer::new(&[0x42; 32]).unwrap();
+        assert_eq!(
+            tokenizer.rewrite("hello world", &pii).map(|r| r.into_text()),
+            Err(RewriteError::EmptyValue(Span::new(0, 5)))
+        );
+        let report = PiiAuditReport::of(&pii, &tokenizer, 3);
+        assert_eq!(report.total, 1);
+        let email = report.kind(PiiKind::Email).unwrap();
+        assert_eq!((email.mentions, email.distinct), (1, 1));
+        assert!(email.samples.is_empty());
     }
 }

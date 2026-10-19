@@ -56,6 +56,13 @@ impl ClassifierHead {
         vectors: &Vectors<Sentences>,
     ) -> Result<Incivility, Error> {
         let fail = |detail: String| Error::Annotator { annotator, detail };
+        if tokens.spans.view() != sentences.spans.view() {
+            return Err(fail(format!(
+                "the tokens are in view {}, the sentences in view {}",
+                tokens.spans.view().0,
+                sentences.spans.view().0
+            )));
+        }
         if vectors.model != self.model {
             return Err(fail(format!(
                 "vectors are from model {} (revision {}), head is for {} (revision {})",
@@ -106,6 +113,13 @@ impl ClassifierHead {
         vectors: &Vectors<Chunks>,
     ) -> Result<Incivility, Error> {
         let fail = |detail: String| Error::Annotator { annotator, detail };
+        if tokens.spans.view() != chunks.spans.view() {
+            return Err(fail(format!(
+                "the tokens are in view {}, the chunks in view {}",
+                tokens.spans.view().0,
+                chunks.spans.view().0
+            )));
+        }
         if vectors.model != self.model {
             return Err(fail(format!(
                 "vectors are from model {} (revision {}), head is for {} (revision {})",
@@ -153,6 +167,13 @@ impl ClassifierHead {
         vectors: &Vectors<Sentences>,
     ) -> Result<Pragmatics, Error> {
         let fail = |detail: String| Error::Annotator { annotator, detail };
+        if tokens.spans.view() != sentences.spans.view() {
+            return Err(fail(format!(
+                "the tokens are in view {}, the sentences in view {}",
+                tokens.spans.view().0,
+                sentences.spans.view().0
+            )));
+        }
         if vectors.model != self.model {
             return Err(fail(format!(
                 "vectors are from model {} (revision {}), head is for {} (revision {})",
