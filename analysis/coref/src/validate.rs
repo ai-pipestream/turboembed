@@ -58,10 +58,10 @@ pub(crate) fn input(input: &CorefInput<'_>) -> Result<(), String> {
     if input.tags.tags.len() != tokens {
         return Err("document needs aligned opennlp:tokens and opennlp:pos layers".into());
     }
-    if let Some(of) = &input.tokens.sentence {
-        if let Some((t, s)) = of.iter().enumerate().find(|(_, s)| s.get() >= sentences) {
-            return Err(format!("token {t} names sentence {} past {sentences} sentences", s.get()));
-        }
+    if let Some(of) = &input.tokens.sentence
+        && let Some((t, s)) = of.iter().enumerate().find(|(_, s)| s.get() >= sentences)
+    {
+        return Err(format!("token {t} names sentence {} past {sentences} sentences", s.get()));
     }
     within(<Entities as Layer>::ID, &input.entities.tokens, tokens)?;
     if let Some(c) = input.chunks {
