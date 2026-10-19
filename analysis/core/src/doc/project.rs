@@ -71,7 +71,14 @@ impl Document {
     /// Maps byte offset `x` (on `side` of a span) from view `from` to view
     /// `to`, walking only up to `lca_view(from, to)` and down to `to`.
     pub fn map_offset(&self, from: ViewId, to: ViewId, mut x: u32, side: Side) -> Result<u32, Error> {
-        let (_, up_from, down_to) = self.lca_path(from, to, Key::<View>::DEFAULT.id())?;
+        let layer_id = Key::<View>::DEFAULT.id();
+        let from_view = self.view_checked(from, layer_id)?;
+        check_spans(&from_view.text, &[x], &[x]).map_err(|detail| Error::Bounds {
+            layer: layer_id,
+            view: from,
+            detail,
+        })?;
+        let (_, up_from, down_to) = self.lca_path(from, to, layer_id)?;
         for v in up_from {
             x = v.alignment.to_parent(x, side);
         }
@@ -84,7 +91,14 @@ impl Document {
     /// Maps byte [`Span`] `s` from view `from` to view `to`, walking only up
     /// to `lca_view(from, to)` and down to `to`.
     pub fn map_span(&self, from: ViewId, to: ViewId, mut s: Span) -> Result<Span, Error> {
-        let (_, up_from, down_to) = self.lca_path(from, to, Key::<View>::DEFAULT.id())?;
+        let layer_id = Key::<View>::DEFAULT.id();
+        let from_view = self.view_checked(from, layer_id)?;
+        check_spans(&from_view.text, &[s.start], &[s.end]).map_err(|detail| Error::Bounds {
+            layer: layer_id,
+            view: from,
+            detail,
+        })?;
+        let (_, up_from, down_to) = self.lca_path(from, to, layer_id)?;
         for v in up_from {
             s = v.alignment.span_to_parent(s);
         }
@@ -100,7 +114,22 @@ impl Document {
     /// whose intermediate gap collapsed to zero bytes under an edit).
     pub fn project_spans<L: Layer>(&self, spans: &Spans<L>, to: ViewId) -> Result<Spans<L>, Error> {
         let layer_id = Key::<L>::DEFAULT.id();
-        let (_, up_from, down_to) = self.lca_path(spans.view(), to, layer_id)?;
+        let from = spans.view();
+        let from_view = self.view_checked(from, layer_id)?;
+        let ts = spans.text_spans();
+        check_spans(&from_view.text, ts.start, ts.end).map_err(|detail| Error::Bounds {
+            layer: layer_id,
+            view: from,
+            detail,
+        })?;
+        if !ts.frag_item_end.is_empty() {
+            check_spans(&from_view.text, ts.frag_start, ts.frag_end).map_err(|detail| Error::Bounds {
+                layer: layer_id,
+                view: from,
+                detail,
+            })?;
+        }
+        let (_, up_from, down_to) = self.lca_path(from, to, layer_id)?;
         let map_one = |mut s: Span| -> Span {
             for v in &up_from {
                 s = v.alignment.span_to_parent(s);
@@ -399,5 +428,18 @@ mod tests {
         let src_cp = doc.view_to_source_code_point(v1_id, fi_v1).unwrap();
         assert_eq!(src_cp, CodePointSpan::new(CodePointOffset(2), CodePointOffset(3)));
         assert_eq!(doc.source_code_point_to_view(v1_id, src_cp).unwrap(), fi_v1);
+    }
+
+    #[test]
+    fn map_offset_map_span_and_project_spans_reject_invalid_coordinates() {
+        let doc = Document::new("é");
+        assert!(doc.map_offset(ViewId::SOURCE, ViewId::SOURCE, 1, Side::Start).is_err());
+        assert!(doc.map_offset(ViewId::SOURCE, ViewId::SOURCE, 99, Side::Start).is_err());
+        assert!(doc.map_span(ViewId::SOURCE, ViewId::SOURCE, Span::new(1, 99)).is_err());
+        assert!(doc.map_span(ViewId::SOURCE, ViewId::SOURCE, Span::new(0, 1)).is_err());
+
+        let mut bad_spans = Spans::<Phrases>::new(ViewId::SOURCE);
+        bad_spans.push(Span::new(1, 99));
+        assert!(doc.project_spans(&bad_spans, ViewId::SOURCE).is_err());
     }
 }

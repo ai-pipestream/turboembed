@@ -21,12 +21,18 @@ pub struct Edit {
     pub child: Span,
 }
 
+mod compose;
+
+use compose::{Breakpoint, compose_alignments, eval_breakpoints};
+
 /// How a view's bytes line up with its parent's: the edits, in text order
 /// on both sides, never overlapping. Identity is no edits. Mapping is a
 /// binary search, both ways.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Alignment {
     edits: Vec<Edit>,
+    forward: Vec<Breakpoint>,
+    backward: Vec<Breakpoint>,
 }
 
 /// Which side of a span an offset is: a start widens to the start of an
@@ -40,7 +46,7 @@ pub enum Side {
 
 impl Alignment {
     pub fn identity() -> Alignment {
-        Alignment { edits: Vec::new() }
+        Alignment { edits: Vec::new(), forward: Vec::new(), backward: Vec::new() }
     }
 
     pub fn edits(&self) -> &[Edit] {
@@ -73,22 +79,28 @@ impl Alignment {
             }
             (parent_end, child_end) = (e.parent.end, e.child.end);
         }
-        Ok(Alignment { edits })
+        Ok(Alignment { edits, forward: Vec::new(), backward: Vec::new() })
     }
 
     /// Edits a builder in this crate recorded, which are in order by
     /// construction.
     pub(crate) fn from_builder(edits: Vec<Edit>) -> Alignment {
-        Alignment { edits }
+        Alignment { edits, forward: Vec::new(), backward: Vec::new() }
     }
 
     /// A child offset in parent bytes.
     pub fn to_parent(&self, x: u32, side: Side) -> u32 {
+        if !self.backward.is_empty() {
+            return eval_breakpoints(&self.backward, x, side);
+        }
         map(&self.edits, x, side, |e| e.child, |e| e.parent)
     }
 
     /// A parent offset in child bytes.
     pub fn to_child(&self, x: u32, side: Side) -> u32 {
+        if !self.forward.is_empty() {
+            return eval_breakpoints(&self.forward, x, side);
+        }
         map(&self.edits, x, side, |e| e.parent, |e| e.child)
     }
 
@@ -115,99 +127,19 @@ impl Alignment {
     /// every edit so the returned alignment maps from `child` (as parent)
     /// to `parent` (as child).
     pub fn invert(&self) -> Alignment {
-        Alignment { edits: self.edits.iter().map(|e| Edit { parent: e.child, child: e.parent }).collect() }
+        Alignment {
+            edits: self.edits.iter().map(|e| Edit { parent: e.child, child: e.parent }).collect(),
+            forward: self.backward.clone(),
+            backward: self.forward.clone(),
+        }
     }
 
     /// Composes `self` (`A -> B`) with `child` (`B -> C`) into a single
-    /// minimal `Alignment` (`A -> C`) in $O(|self| + |child|)$ time.
-    ///
-    /// Edits whose intermediate `B` spans overlap, or where an empty-side
-    /// edit (an insertion or deletion) falls strictly inside a non-empty `B`
-    /// span, coalesce into one combined `A -> C` edit. Edits that are
-    /// disjoint or only touch at a `B` boundary stay separate in `B` order,
-    /// unless a cluster cancels out to an empty edit on both sides (`0..0`),
-    /// which is omitted.
+    /// `Alignment` (`A -> C`) whose `to_child`, `to_parent`, `span_to_child`,
+    /// and `span_to_parent` match sequential two-stage mapping in a single
+    /// binary search.
     pub fn compose(&self, child: &Alignment) -> Alignment {
-        if self.edits.is_empty() {
-            return child.clone();
-        }
-        if child.edits.is_empty() {
-            return self.clone();
-        }
-        let mut out = Vec::with_capacity(self.edits.len() + child.edits.len());
-        let (mut i, mut j) = (0usize, 0usize);
-        let (mut a_at, mut b_at, mut c_at) = (0u32, 0u32, 0u32);
-
-        while i < self.edits.len() || j < child.edits.len() {
-            if i < self.edits.len()
-                && (j == child.edits.len() || self.edits[i].child.end <= child.edits[j].parent.start)
-            {
-                let e1 = self.edits[i];
-                let d = e1.child.start - b_at;
-                let c_start = c_at + d;
-                let c_end = c_start + e1.child.len();
-                out.push(Edit { parent: e1.parent, child: Span::new(c_start, c_end) });
-                a_at = e1.parent.end;
-                b_at = e1.child.end;
-                c_at = c_end;
-                i += 1;
-            } else if j < child.edits.len()
-                && (i == self.edits.len() || child.edits[j].parent.end <= self.edits[i].child.start)
-            {
-                let e2 = child.edits[j];
-                let d = e2.parent.start - b_at;
-                let a_start = a_at + d;
-                let a_end = a_start + e2.parent.len();
-                out.push(Edit { parent: Span::new(a_start, a_end), child: e2.child });
-                a_at = a_end;
-                b_at = e2.parent.end;
-                c_at = e2.child.end;
-                j += 1;
-            } else {
-                let e1 = self.edits[i];
-                let e2 = child.edits[j];
-                let cluster_b_start = e1.child.start.min(e2.parent.start);
-                let d = cluster_b_start - b_at;
-                let cluster_a_start = a_at + d;
-                let cluster_c_start = c_at + d;
-                let mut cluster_b_end = e1.child.end.max(e2.parent.end);
-                i += 1;
-                j += 1;
-                loop {
-                    if i < self.edits.len()
-                        && self.edits[i].child.start < cluster_b_end
-                        && cluster_b_start < self.edits[i].child.end
-                    {
-                        cluster_b_end = cluster_b_end.max(self.edits[i].child.end);
-                        i += 1;
-                        continue;
-                    }
-                    if j < child.edits.len()
-                        && child.edits[j].parent.start < cluster_b_end
-                        && cluster_b_start < child.edits[j].parent.end
-                    {
-                        cluster_b_end = cluster_b_end.max(child.edits[j].parent.end);
-                        j += 1;
-                        continue;
-                    }
-                    break;
-                }
-                let last_ab = self.edits[i - 1];
-                let last_bc = child.edits[j - 1];
-                let cluster_a_end = last_ab.parent.end + (cluster_b_end - last_ab.child.end);
-                let cluster_c_end = last_bc.child.end + (cluster_b_end - last_bc.parent.end);
-                a_at = cluster_a_end;
-                b_at = cluster_b_end;
-                c_at = cluster_c_end;
-                if !(cluster_a_start == cluster_a_end && cluster_c_start == cluster_c_end) {
-                    out.push(Edit {
-                        parent: Span::new(cluster_a_start, cluster_a_end),
-                        child: Span::new(cluster_c_start, cluster_c_end),
-                    });
-                }
-            }
-        }
-        Alignment { edits: out }
+        compose_alignments(self, child)
     }
 }
 
@@ -220,16 +152,6 @@ fn ordered(start: u32, end: u32) -> Span {
 }
 
 fn map(edits: &[Edit], x: u32, side: Side, from: impl Fn(&Edit) -> Span, to: impl Fn(&Edit) -> Span) -> u32 {
-    // k is the first edit not wholly before x. For a start, an edit ending
-    // at x is before it, so a start at the boundary of two touching edits
-    // lands at the beginning of the second edit's output. For an end, an
-    // edit ending at x is not before it, so an end at that boundary lands at
-    // the end of the first edit's output. An edit whose `from` side is
-    // empty (an insertion, read from the parent; a deletion, read from the
-    // child) is never strictly inside, so the offset falls through to the
-    // identity shift: a start goes after its output, an end before it, and
-    // the inserted or deleted bytes belong to neither neighbour. Edits only
-    // have to be sorted and non-overlapping: touching edits are fine.
     let k = match side {
         Side::Start => edits.partition_point(|e| from(e).end <= x),
         Side::End => edits.partition_point(|e| from(e).end < x),
@@ -243,7 +165,6 @@ fn map(edits: &[Edit], x: u32, side: Side, from: impl Fn(&Edit) -> Span, to: imp
             };
         }
     }
-    // Identity, shifted by the edits before x.
     match k.checked_sub(1).map(|p| &edits[p]) {
         Some(prev) => to(prev).end + (x - from(prev).end),
         None => x,
@@ -277,15 +198,6 @@ impl<'a> ViewBuilder<'a> {
 
     /// Writes `with` in place of the parent's bytes up to `end`. An empty
     /// `with` deletes them; `end` at the current position inserts.
-    ///
-    /// Each call records exactly one edit, and an edit is the smallest unit
-    /// an offset can be mapped to: an offset inside it widens to the whole
-    /// edit. Calls are never merged with the edit before them, even when
-    /// they touch, so the caller chooses the granularity. Replacing three
-    /// characters one call each keeps a one-to-one mapping per character;
-    /// replacing them in one call makes one edit over all three. A call that
-    /// neither consumes nor writes any bytes changes nothing and records
-    /// nothing.
     pub fn replace(&mut self, end: usize, with: &str) {
         let parent = Span::new(self.at as u32, end as u32);
         let child = Span::new(self.out.len() as u32, (self.out.len() + with.len()) as u32);
@@ -299,7 +211,7 @@ impl<'a> ViewBuilder<'a> {
     pub fn finish(mut self) -> (String, Alignment) {
         let end = self.parent.len();
         self.keep(end);
-        (self.out, Alignment { edits: self.edits })
+        (self.out, Alignment { edits: self.edits, forward: Vec::new(), backward: Vec::new() })
     }
 }
 

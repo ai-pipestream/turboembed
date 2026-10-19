@@ -286,7 +286,8 @@ fn compose_disjoint_and_touching_edits_matches_two_step_mapping() {
 
     // When a deletion in A->B ("aXb" -> "ab") and an insertion in B->C ("ab" -> "a+b")
     // happen at the same offset in B, compose produces the exact two-edit sequence
-    // from `a_deletion_touching_an_insertion_maps_at_every_boundary`.
+    // from `a_deletion_touching_an_insertion_maps_at_every_boundary` and preserves
+    // two-step boundary offsets in both directions.
     let mut del_b = ViewBuilder::new("aXb");
     del_b.keep(1);
     del_b.replace(2, "");
@@ -303,8 +304,60 @@ fn compose_disjoint_and_touching_edits_matches_two_step_mapping() {
             Edit { parent: Span::new(2, 2), child: Span::new(1, 2) }
         ]
     );
-    assert_eq!(del_ins.span_to_child(Span::new(1, 2)), Span::new(1, 1));
-    assert_eq!(del_ins.span_to_parent(Span::new(1, 2)), Span::new(2, 2));
+    for x in 0..=3 {
+        for side in [Side::Start, Side::End] {
+            assert_eq!(
+                del_ins.to_child(x, side),
+                ins_bc.to_child(del_ab.to_child(x, side), side),
+                "del_ins to_child at {x} ({side:?})"
+            );
+            assert_eq!(
+                del_ins.to_parent(x, side),
+                del_ab.to_parent(ins_bc.to_parent(x, side), side),
+                "del_ins to_parent at {x} ({side:?})"
+            );
+        }
+    }
+    assert_eq!(del_ins.span_to_child(Span::new(1, 2)), ins_bc.span_to_child(del_ab.span_to_child(Span::new(1, 2))));
+    assert_eq!(del_ins.span_to_parent(Span::new(1, 2)), del_ab.span_to_parent(ins_bc.span_to_parent(Span::new(1, 2))));
+}
+
+#[test]
+fn compose_splits_pure_insertions_and_deletions_across_adjacent_edits() {
+    // Reproduction from review: "abcd" -> "xxabcd" (insert "xx" at 0) -> "xbcd"
+    // (keep first 'x', delete second 'x' + original 'a' at 1..3 in middle).
+    let mut b = ViewBuilder::new("abcd");
+    b.replace(0, "xx");
+    let (middle, ab) = b.finish();
+    assert_eq!(middle, "xxabcd");
+
+    let mut b = ViewBuilder::new(&middle);
+    b.keep(1);
+    b.replace(3, "");
+    let (final_text, bc) = b.finish();
+    assert_eq!(final_text, "xbcd");
+
+    let ac = ab.compose(&bc);
+    assert_eq!(
+        ac.edits(),
+        [
+            Edit { parent: Span::new(0, 0), child: Span::new(0, 1) },
+            Edit { parent: Span::new(0, 1), child: Span::new(1, 1) },
+        ]
+    );
+    let original_a = Span::new(0, 1);
+    assert_eq!(bc.span_to_child(ab.span_to_child(original_a)), Span::new(1, 1));
+    assert_eq!(ac.span_to_child(original_a), Span::new(1, 1));
+    // And the surviving inserted 'x' (0..1 in final) maps back to the empty insertion point 0..0.
+    assert_eq!(ab.span_to_parent(bc.span_to_parent(Span::new(0, 1))), Span::new(0, 0));
+    assert_eq!(ac.span_to_parent(Span::new(0, 1)), Span::new(0, 0));
+
+    for x in 0..=4 {
+        for side in [Side::Start, Side::End] {
+            assert_eq!(ac.to_child(x, side), bc.to_child(ab.to_child(x, side), side));
+            assert_eq!(ac.to_parent(x, side), ab.to_parent(bc.to_parent(x, side), side));
+        }
+    }
 }
 
 #[test]
