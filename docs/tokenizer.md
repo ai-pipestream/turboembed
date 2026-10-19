@@ -26,7 +26,7 @@ from a corpus with `turbo-bpe-trainer` ([bpe-trainer.md](bpe-trainer.md)).
 The `sentencepiece` kind reads a SentencePiece `.model` file, the
 `ModelProto` the library writes, with a protobuf reader of its own for
 the fields it needs, and runs it as the library (version 0.2.2) does
-(`core/src/sentencepiece.rs`):
+(`core/src/sentencepiece/mod.rs`):
 
 - The normalizer: the user-defined pieces kept as they are, else the
   longest rule of the precompiled character map (a darts-clone double

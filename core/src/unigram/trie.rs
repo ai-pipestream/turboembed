@@ -1,7 +1,7 @@
 /// The pieces as a trie over their bytes: each node's children are one
 /// run of `nodes`, in byte order; a walk scans a node's few children, or
 /// reads a table of its many. SentencePiece's `.model` tokenizer
-/// (sentencepiece.rs) walks the same trie.
+/// (sentencepiece/) walks the same trie.
 pub(crate) struct Trie {
     pub(super) nodes: Vec<Node>,
     /// Each node's `byte`, apart, so a search through a node's children

@@ -6,7 +6,7 @@
 //! graph extension and that answer its device probe; a device that does
 //! not is never listed and nothing stands in for it. Models are OpenVINO
 //! IR artifacts the driver's own compiler builds into a graph on the
-//! device (npu/ir.rs, npu/graph.rs). When the device lists
+//! device (npu/ir.rs, npu/graph/). When the device lists
 //! ZE_GRAPH_FORMAT_NATIVE, the graph that is initialized is that blob
 //! (npu/native.rs). The library carries no OpenVINO and no ONNX Runtime.
 //! docs/npu.md says how to build and test it.

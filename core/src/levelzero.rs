@@ -2,8 +2,8 @@
 //! reached through turbo_backend.h like any other backend. The loader is
 //! opened at run time, so a machine without it lists nothing. It lists
 //! the GPUs, holds models in device memory, and runs embed sessions with
-//! the BERT encoder in core/levelzero/encoder.cl (encoder.rs), on the
-//! contexts and buffers of gpu.rs. docs/levelzero.md says how to build and
+//! the BERT encoder in core/levelzero/encoder.cl (encoder/mod.rs), on the
+//! contexts and buffers of gpu/mod.rs; docs/levelzero.md says how to build and
 //! test it.
 
 mod encoder;
@@ -176,7 +176,7 @@ pub fn use_choices(choices: Option<&str>) {
 }
 
 /// Recovery from a failed append on the first listed device's queue, as
-/// gpu.rs describes it. Built only with `internals`.
+/// gpu/mod.rs describes it. Built only with `internals`.
 #[cfg(feature = "internals")]
 pub fn append_failure_recovers() -> Result<(), String> {
     let d = driver().map_err(str::to_owned)?.ok_or("no device is listed")?;

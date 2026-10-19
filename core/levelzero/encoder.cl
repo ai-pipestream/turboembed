@@ -395,7 +395,7 @@ LINEAR_DPAS(linear_dpas_to_half, 16, 32, 8, 2, DPAS_READ_A_16, half, DPAS_STORE_
 LINEAR_DPAS(linear_dpas_few, 8, 32, 1, 4, DPAS_READ_A_8, float, DPAS_STORE_F32)
 LINEAR_DPAS(linear_dpas_few_to_half, 8, 32, 1, 4, DPAS_READ_A_8, half, DPAS_STORE_F16)
 
-/* For the wide models (a hidden width of 768 or more, encoder.rs's
+/* For the wide models (a hidden width of 768 or more, encoder/mod.rs's
  * WIDE_HIDDEN), a sub-group computes 32 tokens by 64 outputs, a group 4 x 1
  * sub-groups: twice the products for each byte read, in the large register
  * file the driver's compiler gives the kernel. */
