@@ -1,0 +1,173 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling serde v1.0.229
+   Compiling crossbeam-utils v0.8.23
+   Compiling zerocopy v0.8.60
+   Compiling strsim v0.11.1
+   Compiling fnv v1.0.7
+   Compiling getrandom v0.3.4
+   Compiling crossbeam-epoch v0.9.21
+   Compiling ident_case v1.0.1
+   Compiling crossbeam-deque v0.8.8
+   Compiling rustversion v1.0.23
+   Compiling rayon-core v1.13.0
+   Compiling regex-syntax v0.8.11
+   Compiling either v1.18.0
+   Compiling version_check v0.9.5
+   Compiling turbo-maxent v0.1.0 (<checkout>/analysis/maxent)
+   Compiling aho-corasick v1.1.5
+   Compiling turbo-encoding-layers v0.1.0 (<checkout>/analysis/encoding-layers)
+   Compiling paste v1.0.15
+   Compiling bit-vec v0.8.0
+   Compiling thiserror v2.0.21
+   Compiling minimal-lexical v0.2.1
+   Compiling turbo-tokenize-layers v0.1.0 (<checkout>/analysis/tokenize-layers)
+   Compiling esaxx-rs v0.1.10
+   Compiling turbo-normalize-layers v0.1.0 (<checkout>/analysis/normalize-layers)
+   Compiling static_assertions v1.1.0
+   Compiling pastey v0.2.3
+   Compiling ryu v1.0.23
+   Compiling macro_rules_attribute-proc_macro v0.2.3
+   Compiling base64 v0.13.1
+   Compiling once_cell v1.21.4
+   Compiling daachorse v3.0.3
+   Compiling turbo-chunker v0.1.0 (<checkout>/analysis/chunker)
+   Compiling turbo-encoding v0.1.0 (<checkout>/analysis/encoding)
+   Compiling bit-set v0.8.0
+   Compiling itertools v0.14.0
+   Compiling nom v7.1.3
+   Compiling ahash v0.8.12
+   Compiling rand_core v0.9.5
+   Compiling macro_rules_attribute v0.2.3
+   Compiling castaway v0.2.4
+   Compiling turbo-sequence v0.1.0 (<checkout>/analysis/sequence)
+   Compiling turbo-tokenize v0.1.0 (<checkout>/analysis/tokenize)
+   Compiling turbo-train v0.1.0 (<checkout>/analysis/train)
+   Compiling turbo-goldens v0.1.0 (<checkout>/analysis/goldens)
+   Compiling syn v3.0.6
+   Compiling syn v2.0.119
+   Compiling turbo-normalize v0.1.0 (<checkout>/analysis/normalize)
+   Compiling rayon v1.12.0
+   Compiling turbo-postag v0.1.0 (<checkout>/analysis/postag)
+   Compiling regex-automata v0.4.18
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling turbo-parser v0.1.0 (<checkout>/analysis/parser)
+   Compiling rayon-cond v0.4.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling darling_core v0.20.11
+   Compiling rand_chacha v0.9.0
+   Compiling rand v0.9.5
+   Compiling monostate-impl v0.1.18
+   Compiling monostate v0.1.18
+   Compiling compact_str v0.9.1
+   Compiling spm_precompiled v0.1.4
+   Compiling dary_heap v0.3.9
+   Compiling turbo v0.1.0 (<checkout>/core)
+   Compiling regex v1.13.1
+   Compiling fancy-regex v0.17.0
+   Compiling darling_macro v0.20.11
+   Compiling darling v0.20.11
+   Compiling derive_builder_core v0.20.2
+   Compiling derive_builder_macro v0.20.2
+   Compiling derive_builder v0.20.2
+   Compiling tokenizers v0.23.2
+   Compiling turbo-formats v0.1.0 (<checkout>/analysis/formats)
+   Compiling turbo-doccat v0.1.0 (<checkout>/analysis/doccat)
+   Compiling turbo-analysis-embed v0.1.0 (<checkout>/analysis/embed)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.96s
+     Running unittests src/lib.rs (target/debug/deps/turbo_analysis_embed-3dc083ecdacd4644)
+
+running 43 tests
+test centroids::boundary_tests::nonfinite_multilabel_configuration_is_refused ... FAILED
+test centroids::boundary_tests::malformed_vector_columns_are_refused_before_categorizing ... FAILED
+test centroids::boundary_tests::nonfinite_query_vectors_are_refused ... FAILED
+test centroids::boundary_tests::tiny_temperature_preserves_the_winner ... FAILED
+test centroids::boundary_tests::truncated_centroid_payload_and_trailing_data_are_refused ... ok
+test centroids::tests::label_centroids_round_trip_and_deterministic_scoring ... ok
+test centroids::tests::single_vector_is_its_own_centroid ... ok
+test centroids::tests::l2_normalizes_the_arithmetic_mean ... ok
+test centroids::tests::empty_input_yields_none ... ok
+test centroids::tests::refuses_to_normalize_a_zero_centroid ... ok
+test centroids::tests::averages_vectors_element_wise ... ok
+test encoder::tests::a_backend_without_the_range_write_is_named ... ok
+test encoder::tests::a_result_of_another_shape_is_refused ... ok
+test heads::tests::incivility_and_pragmatics_scoring_reject_tokens_from_another_view ... ok
+test heads::tests::linear_and_mlp_heads_round_trip_and_score_deterministically ... ok
+test subwords::tests::a_piece_before_every_token_belongs_to_the_first ... ok
+test heads::tests::vector_head_annotator_rejects_mismatched_scope_and_vector_counts ... ok
+test subwords::tests::a_piece_in_no_token_belongs_to_the_token_before_it ... ok
+test subwords::tests::a_piece_inside_a_token_belongs_to_it ... ok
+test subwords::tests::a_piece_over_two_tokens_belongs_to_the_first ... ok
+test subwords::tests::an_empty_piece_inside_a_token_belongs_to_it ... ok
+test subwords::tests::no_tokens_gives_no_column_unless_no_pieces ... ok
+test subwords::tests::pieces_sharing_a_span_share_a_token ... ok
+test window::tests::a_chunk_over_a_gap_between_sentences_adds_a_window ... ok
+test window::tests::a_long_item_is_cut_over_the_laid_out_windows ... ok
+test window::tests::a_piece_of_no_bytes_is_covered_from_the_items_start_up_to_its_end ... ok
+test window::tests::an_item_across_a_window_end_starts_the_next_window ... ok
+test window::tests::an_item_covers_every_piece_its_span_overlaps ... ok
+test window::tests::an_item_longer_than_a_window_is_placed_in_parts ... ok
+test heads::tests::fit_single_and_multi_label_converge_deterministically ... ok
+test window::tests::an_item_past_the_text_fails_the_document ... ok
+test window::tests::an_item_two_windows_hold_goes_in_the_earlier ... ok
+test window::tests::items_fill_a_window_before_another_starts ... ok
+test window::tests::pieces_sharing_a_span_are_covered_together ... ok
+test window::tests::nested_items_share_the_window_of_the_outer_one ... ok
+test window::tests::chunks_add_no_window_where_the_sentences_hold_every_piece ... ok
+test window::tests::whitespace_and_empty_spans_cover_no_piece ... ok
+test window::tests::window_end_addition_does_not_wrap ... FAILED
+test window::tests::documents_get_windows_of_their_own ... ok
+test centroids::boundary_tests::unindexable_label_count_is_refused ... FAILED
+test aspect::tests::fit_rejects_empty_inputs_and_out_of_bounds_ranges ... ok
+test aspect::tests::annotate_rejects_mismatched_views_and_invalid_token_spans ... ok
+test aspect::tests::negated_opinion_preserves_prior_polarity_and_flips_effective_and_aspect_polarity ... ok
+
+failures:
+
+---- centroids::boundary_tests::nonfinite_multilabel_configuration_is_refused stdout ----
+
+thread 'centroids::boundary_tests::nonfinite_multilabel_configuration_is_refused' (862151) panicked at analysis/embed/src/centroids/boundary_tests.rs:29:9:
+assertion failed: head(1.0).score_multi_label(&[1.0], bias, scale, &mut [0.0; 2]).is_err()
+
+---- centroids::boundary_tests::malformed_vector_columns_are_refused_before_categorizing stdout ----
+
+thread 'centroids::boundary_tests::malformed_vector_columns_are_refused_before_categorizing' (862150) panicked at analysis/embed/src/centroids/boundary_tests.rs:46:5:
+assertion failed: head(1.0).categorize_vectors("test", &vectors).is_err()
+
+---- centroids::boundary_tests::nonfinite_query_vectors_are_refused stdout ----
+
+thread 'centroids::boundary_tests::nonfinite_query_vectors_are_refused' (862152) panicked at analysis/embed/src/centroids/boundary_tests.rs:14:9:
+assertion failed: head(1.0).dot_scores(&[value], &mut [0.0; 2]).is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- centroids::boundary_tests::tiny_temperature_preserves_the_winner stdout ----
+
+thread 'centroids::boundary_tests::tiny_temperature_preserves_the_winner' (862153) panicked at analysis/embed/src/centroids/boundary_tests.rs:22:5:
+assertion `left == right` failed
+  left: Tag(0)
+ right: Tag(1)
+
+---- window::tests::window_end_addition_does_not_wrap stdout ----
+
+thread 'window::tests::window_end_addition_does_not_wrap' (862189) panicked at analysis/embed/src/window/mod.rs:233:41:
+attempt to add with overflow
+
+---- centroids::boundary_tests::unindexable_label_count_is_refused stdout ----
+
+thread 'centroids::boundary_tests::unindexable_label_count_is_refused' (862155) panicked at analysis/embed/src/centroids/boundary_tests.rs:37:5:
+assertion failed: LabelCentroids::from_centroids(model(), 1, TagSet::new("test", &refs),
+        vec![0.0; refs.len()], 1.0, CentroidNorm::None).is_err()
+
+
+failures:
+    centroids::boundary_tests::malformed_vector_columns_are_refused_before_categorizing
+    centroids::boundary_tests::nonfinite_multilabel_configuration_is_refused
+    centroids::boundary_tests::nonfinite_query_vectors_are_refused
+    centroids::boundary_tests::tiny_temperature_preserves_the_winner
+    centroids::boundary_tests::unindexable_label_count_is_refused
+    window::tests::window_end_addition_does_not_wrap
+
+test result: FAILED. 37 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+error: test failed, to rerun pass `-p turbo-analysis-embed --lib`

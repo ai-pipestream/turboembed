@@ -1,0 +1,22 @@
+   Compiling turbo-analysis-embed v0.1.0 (<checkout>/analysis/embed)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.33s
+     Running tests/vector_boundaries.rs (target/debug/deps/vector_boundaries-a8b416c734a64b28)
+
+running 1 test
+test discontinuous_pooling_is_refused_instead_of_embedding_the_gap ... FAILED
+
+failures:
+
+---- discontinuous_pooling_is_refused_instead_of_embedding_the_gap stdout ----
+
+thread 'discontinuous_pooling_is_refused_instead_of_embedding_the_gap' (935850) panicked at analysis/embed/tests/vector_boundaries.rs:22:9:
+a gap was silently included in pooling
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    discontinuous_pooling_is_refused_instead_of_embedding_the_gap
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+error: test failed, to rerun pass `-p turbo-analysis-embed --test vector_boundaries`

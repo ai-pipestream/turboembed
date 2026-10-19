@@ -113,6 +113,7 @@ impl LevelVectors {
 }
 
 impl Annotator for LevelVectors {
+    const VERSION: &'static str = "1";
     const ID: &'static str = "turbo:level-vectors";
     type Reads = (Subwords, Levels);
     type Writes = (Vectors<Levels>, Vectors<Levels>);

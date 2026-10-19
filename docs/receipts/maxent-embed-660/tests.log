@@ -1,0 +1,347 @@
+   Compiling turbo-maxent v0.1.0 (<checkout>/analysis/maxent)
+   Compiling turbo v0.1.0 (<checkout>/core)
+   Compiling turbo-goldens v0.1.0 (<checkout>/analysis/goldens)
+   Compiling turbo-sequence v0.1.0 (<checkout>/analysis/sequence)
+   Compiling turbo-tokenize v0.1.0 (<checkout>/analysis/tokenize)
+   Compiling turbo-train v0.1.0 (<checkout>/analysis/train)
+   Compiling turbo-postag v0.1.0 (<checkout>/analysis/postag)
+   Compiling turbo-parser v0.1.0 (<checkout>/analysis/parser)
+   Compiling turbo-analysis-embed v0.1.0 (<checkout>/analysis/embed)
+   Compiling turbo-formats v0.1.0 (<checkout>/analysis/formats)
+   Compiling turbo-doccat v0.1.0 (<checkout>/analysis/doccat)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.63s
+     Running unittests src/lib.rs (target/debug/deps/turbo_analysis_embed-3dc083ecdacd4644)
+
+running 46 tests
+test centroids::boundary_tests::grouping_rejects_invalid_category_columns ... ok
+test centroids::boundary_tests::ambiguous_labels_are_refused ... ok
+test centroids::boundary_tests::nonfinite_multilabel_configuration_is_refused ... ok
+test centroids::boundary_tests::malformed_vector_columns_are_refused_before_categorizing ... ok
+test centroids::boundary_tests::tiny_temperature_preserves_the_winner ... ok
+test centroids::boundary_tests::nonfinite_query_vectors_are_refused ... ok
+test centroids::tests::empty_input_yields_none ... ok
+test centroids::tests::l2_normalizes_the_arithmetic_mean ... ok
+test centroids::boundary_tests::truncated_centroid_payload_and_trailing_data_are_refused ... ok
+test centroids::tests::refuses_to_normalize_a_zero_centroid ... ok
+test centroids::tests::single_vector_is_its_own_centroid ... ok
+test encoder::tests::a_backend_without_the_range_write_is_named ... ok
+test encoder::tests::a_result_of_another_shape_is_refused ... ok
+test centroids::tests::label_centroids_round_trip_and_deterministic_scoring ... ok
+test encoder::tests::zero_stride_rows_are_refused ... ok
+test centroids::tests::averages_vectors_element_wise ... ok
+test subwords::tests::a_piece_before_every_token_belongs_to_the_first ... ok
+test heads::tests::incivility_and_pragmatics_scoring_reject_tokens_from_another_view ... ok
+test heads::tests::vector_head_annotator_rejects_mismatched_scope_and_vector_counts ... ok
+test subwords::tests::a_piece_in_no_token_belongs_to_the_token_before_it ... ok
+test subwords::tests::a_piece_inside_a_token_belongs_to_it ... ok
+test subwords::tests::a_piece_over_two_tokens_belongs_to_the_first ... ok
+test heads::tests::linear_and_mlp_heads_round_trip_and_score_deterministically ... ok
+test subwords::tests::no_tokens_gives_no_column_unless_no_pieces ... ok
+test subwords::tests::an_empty_piece_inside_a_token_belongs_to_it ... ok
+test subwords::tests::pieces_sharing_a_span_share_a_token ... ok
+test window::tests::a_chunk_over_a_gap_between_sentences_adds_a_window ... ok
+test window::tests::a_piece_of_no_bytes_is_covered_from_the_items_start_up_to_its_end ... ok
+test window::tests::a_long_item_is_cut_over_the_laid_out_windows ... ok
+test window::tests::an_item_past_the_text_fails_the_document ... ok
+test window::tests::an_item_two_windows_hold_goes_in_the_earlier ... ok
+test window::tests::documents_get_windows_of_their_own ... ok
+test window::tests::chunks_add_no_window_where_the_sentences_hold_every_piece ... ok
+test window::tests::items_fill_a_window_before_another_starts ... ok
+test heads::tests::fit_single_and_multi_label_converge_deterministically ... ok
+test window::tests::an_item_covers_every_piece_its_span_overlaps ... ok
+test window::tests::pieces_sharing_a_span_are_covered_together ... ok
+test window::tests::an_item_across_a_window_end_starts_the_next_window ... ok
+test window::tests::whitespace_and_empty_spans_cover_no_piece ... ok
+test window::tests::window_end_addition_does_not_wrap ... ok
+test window::tests::an_item_longer_than_a_window_is_placed_in_parts ... ok
+test window::tests::nested_items_share_the_window_of_the_outer_one ... ok
+test centroids::boundary_tests::unindexable_label_count_is_refused ... ok
+test aspect::tests::annotate_rejects_mismatched_views_and_invalid_token_spans ... ok
+test aspect::tests::fit_rejects_empty_inputs_and_out_of_bounds_ranges ... ok
+test aspect::tests::negated_opinion_preserves_prior_polarity_and_flips_effective_and_aspect_polarity ... ok
+
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/centroid_allocation.rs (target/debug/deps/centroid_allocation-2e17b9b58d1bd764)
+
+running 1 test
+test wire_dimension_does_not_drive_allocation_before_payload_check ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/goldens.rs (target/debug/deps/goldens-5be5ccbb12265454)
+
+running 8 tests
+test the_exact_inputs_match_through_the_golden_comparison ... ok
+test marks_out_of_order_give_every_jvm_piece_the_whole_run ... ok
+test every_golden_matches_but_for_the_listed_differences ... ok
+test the_ideographs_from_u2b820_are_words_on_the_jvm_only ... ok
+test a_word_final_capital_sigma_is_final_sigma_on_the_jvm_only ... ok
+test special_token_strings_are_special_tokens_here_only ... ok
+test a_stripped_mark_is_in_the_jvm_span_and_not_in_ours ... ok
+test the_jvm_read_the_bundles_vocabulary ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+     Running tests/heads.rs (target/debug/deps/heads-833416a9c4944a9c)
+
+running 10 tests
+test heads_and_centroids_cpu_and_device_parity ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+
+     Running tests/levels.rs (target/debug/deps/levels-783e92f95b9d61e6)
+
+running 7 tests
+test the_provider_builds_the_level_step ... ok
+test the_two_kinds_are_named_instances_with_provenance ... ok
+test units_longer_than_a_window_are_pooled_in_parts ... ok
+test every_unit_gets_a_local_and_a_contextual_vector ... ok
+test units_with_no_pieces_get_the_zero_vector ... ok
+test the_same_input_gives_the_same_bits ... ok
+test a_document_with_no_structure_has_chunks_under_the_document ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+
+     Running tests/subwords.rs (target/debug/deps/subwords-681558b4ceed1b4a)
+
+running 16 tests
+test byte_fallback_pieces_of_one_character_share_its_span ... ok
+test byte_level_pieces_of_one_character_share_its_span ... ok
+test a_bpe_piece_over_two_tokens_goes_with_the_first ... ok
+test bpe_pieces_are_taken_on_every_text ... ok
+test the_provider_opens_the_bundle_it_is_given ... ok
+test a_long_text_is_covered_to_its_end ... ok
+test the_overhead_is_the_specials_and_the_prefix ... ok
+test a_special_token_written_in_the_text_is_its_characters ... ok
+test the_model_is_the_bundles ... ok
+test pieces_get_their_word_token ... ok
+test wordpiece_pieces_are_taken_on_every_text ... ok
+test sentencepiece_pieces_are_taken_on_every_text ... ok
+test sentencepiece_pieces_match_the_library ... ok
+test unigram_pieces_are_taken_on_every_text ... ok
+test wordpiece_pieces_match_upstream ... ok
+test tokens_that_cannot_be_aligned_fail_the_document ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/vector_boundaries.rs (target/debug/deps/vector_boundaries-a8b416c734a64b28)
+
+running 1 test
+test discontinuous_pooling_is_refused_instead_of_embedding_the_gap ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/vectors.rs (target/debug/deps/vectors-6124841ef5c66a88)
+
+running 20 tests
+test on_the_device_turbo_test_device_names ... ok
+test a_static_model_has_no_overhead ... ok
+test a_model_pooled_by_its_first_token_is_refused ... ok
+test a_range_over_a_whole_row_is_the_rows_vector ... ok
+test layers_that_do_not_fit_together_fail_the_document ... ok
+test rows_with_no_room_for_text_are_refused ... ok
+test malformed_input_fails_the_document ... ok
+test chunk_vectors_are_each_chunks_range ... ok
+test a_sentence_across_a_window_end_is_pooled_from_a_window_that_holds_it ... ok
+test sentence_vectors_are_each_sentences_range ... ok
+test sentences_and_chunks_come_from_the_same_windows ... ok
+test provenance_names_the_model_and_where_it_ran ... ok
+test items_with_no_pieces_get_the_zero_vector ... ok
+test a_chunk_over_text_no_sentence_covers_adds_a_window_there ... ok
+test an_item_longer_than_a_window_is_the_weighted_mean_of_its_parts ... ok
+test a_long_document_spans_several_windows ... ok
+test the_row_is_the_template_and_prefix_around_the_pieces ... ok
+test the_provider_builds_the_step_for_the_layers_asked_for ... ok
+test sentence_vectors_are_the_same_with_or_without_the_chunks ... ok
+test documents_of_a_batch_get_what_each_gets_alone ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_maxent-e881c2e447af47e9)
+
+running 115 tests
+test container::tests::a_dash_before_the_second_dot_fails_as_substring_does ... ok
+test container::tests::a_third_dot_ends_the_version_before_a_dash_does ... ok
+test container::tests::a_complete_manifest_opens ... ok
+test container::tests::parse_int_follows_java ... ok
+test container::tests::manifest_errors ... ok
+test crc32::tests::known_values ... ok
+test container::tests::versions ... ok
+test dictionary::tests::a_one_token_entry_with_a_space_is_not_two_tokens ... ok
+test dictionary::tests::an_entry_without_tokens_is_refused ... ok
+test dictionary::tests::dotted_capital_i_lowercases_to_i ... ok
+test dictionary::tests::case_insensitive_lookups_lowercase_entries_and_probes ... ok
+test dictionary::tests::case_sensitive_is_the_default ... ok
+test dictionary::tests::entries_differing_only_in_case_keep_the_first_even_when_case_sensitive ... ok
+test dictionary::tests::entries_put_directly_keep_their_whitespace_and_match_by_the_case_rule ... ok
+test dictionary::tests::trim_follows_java ... ok
+test dictionary::tests::entries_keep_attributes_and_order ... ok
+test hash::tests::equal_bytes_hash_equal_and_a_changed_byte_changes_the_hash ... ok
+test inflate::tests::a_dynamic_block_without_an_end_of_block_code ... ok
+test inflate::tests::a_distance_before_the_start_of_the_output ... ok
+test inflate::tests::a_repeat_code_with_no_previous_length ... ok
+test inflate::tests::a_fixed_block_with_an_overlapping_copy ... ok
+test hash::tests::keys_that_differ_late_spread_over_the_low_bits ... ok
+test inflate::tests::a_stated_size_the_stream_does_not_produce_allocates_little ... ok
+test dictionary::tests::empty_dictionaries_report_zero_tokens ... ok
+test inflate::tests::a_stored_length_that_disagrees_with_its_complement ... ok
+test inflate::tests::an_incomplete_code_length_code ... ok
+test inflate::tests::an_over_subscribed_code_length_code ... ok
+test inflate::tests::a_run_at_distance_one ... ok
+test inflate::tests::code_lengths_that_repeat_past_the_end ... ok
+test inflate::tests::codes_longer_than_the_table_use_the_canonical_loop ... ok
+test inflate::tests::distance_symbols_30_and_31 ... ok
+test inflate::tests::length_symbols_286_and_287 ... ok
+test inflate::tests::stored_blocks_including_an_empty_one ... ok
+test inflate::tests::output_longer_or_shorter_than_stated ... ok
+test inflate::tests::the_reserved_block_type ... ok
+test inflate::tests::too_many_length_or_distance_codes ... ok
+test inflate::tests::truncated_input ... ok
+test java_data::tests::canonical_forms ... ok
+test java_data::tests::chunk_counts_follow_integer_parse_int ... ok
+test java_data::tests::chunked_strings_are_joined ... ok
+test java_data::tests::ints_and_doubles_are_big_endian ... ok
+test java_data::tests::malformed_modified_utf8_names_its_offset ... ok
+test java_data::tests::modified_utf8_decodes_nul_pairs_and_lone_surrogates ... ok
+test java_string::tests::compares_with_text_without_encoding_it ... ok
+test java_string::tests::converts_back_to_text ... ok
+test java_string::tests::encodes_as_write_utf_does ... ok
+test java_string::tests::ends_with_compares_utf16_units_from_the_end ... ok
+test java_string::tests::orders_by_utf16_units ... ok
+test java_string::tests::utf16_units_from_inside_multibyte_unit_panics - should panic ... ok
+test java_string::tests::truncate_inside_multibyte_unit_panics - should panic ... ok
+test model::tests::a_wrong_output_length_panics - should panic ... ok
+test model::tests::a_wrong_output_length_panics_for_bytes - should panic ... ok
+test model::tests::argmax_keeps_the_first_maximum ... ok
+test model::tests::an_empty_context_gives_uniform_probabilities ... ok
+test model::tests::gis_adds_the_uniform_prior_then_normalizes ... ok
+test model::tests::naive_bayes_smooths_until_the_pattern_ends_then_adds_the_priors ... ok
+test model::tests::outcome_lookups ... ok
+test model::tests::perceptron_scales_by_the_largest_magnitude_above_one ... ok
+test model::tests::qn_subtracts_the_log_sum_of_exps ... ok
+test model::tests::predicates_are_listed_as_modified_utf8 ... ok
+test model::tests::str_features_are_looked_up_as_modified_utf8 ... ok
+test model_reader::tests::a_negative_predicate_count_in_a_pattern_covers_no_predicates ... ok
+test model_reader::tests::a_gis_model_is_read_into_columns ... ok
+test model_reader::tests::integers_follow_parse_int ... ok
+test model_reader::tests::a_repeated_predicate_name_maps_to_its_last_listing ... ok
+test model_reader::tests::predicates_the_patterns_do_not_describe_have_no_parameters ... ok
+test model_reader::tests::malformed_models_are_refused_with_the_reason ... ok
+test inflate::tests::a_huge_stated_size_is_refused_before_allocating ... ok
+test model_reader::tests::qn_perceptron_and_naive_bayes_have_no_gis_header ... ok
+test model_reader::tests::unknown_model_types_are_named ... ok
+test xml::tests::line_ends_and_attribute_whitespace_are_normalized ... ok
+test properties::tests::a_repeated_key_keeps_its_place_and_its_last_value ... ok
+test xml::tests::encodings ... ok
+test xml::tests::prefixes_are_dropped_and_xmlns_is_not_reported ... ok
+test xml::tests::tree_builders_get_the_bytes_of_each_node ... ok
+test xml::tests::malformed_documents_name_the_offset ... ok
+test zip::boundary_tests::central_directory_size_is_enforced ... ok
+test zip::boundary_tests::entry_payload_must_end_before_the_directory ... ok
+test zip::boundary_tests::local_header_metadata_must_match_directory ... ok
+test zip::tests::a_central_record_cut_off_by_the_end_record ... ok
+test zip::tests::a_local_header_cut_off ... ok
+test properties::tests::separators_and_blanks ... ok
+test zip::tests::a_comment_holding_the_end_signature_is_skipped ... ok
+test properties::tests::malformed_unicode_escapes_name_the_line ... ok
+test xml::tests::qualified_names_keep_their_prefixes ... ok
+test zip::tests::a_missing_entry_is_named ... ok
+test sha256::tests::padding_boundaries ... ok
+test xml::tests::elements_attributes_and_text ... ok
+test zip::tests::data_past_the_end_of_the_archive ... ok
+test zip::tests::a_wrong_crc_is_refused ... ok
+test zip::tests::encrypted_entries ... ok
+test xml::boundary_tests::malformed_declarations_are_refused ... ok
+test zip::tests::a_stored_entry_whose_sizes_differ ... ok
+test zip::tests::not_a_zip ... ok
+test zip::tests::no_local_header_signature ... ok
+test zip::tests::split_archives ... ok
+test properties::tests::bytes_are_iso_8859_1 ... ok
+test zip::tests::a_central_directory_outside_the_archive ... ok
+test properties::tests::continuation_lines ... ok
+test properties::tests::comments_and_line_ends ... ok
+test zip::boundary_tests::central_directory_disk_start_is_enforced ... ok
+test properties::tests::escapes ... ok
+test zip::tests::zip64_markers_are_refused ... ok
+test zip::tests::a_central_record_whose_name_runs_into_the_end_record ... ok
+test zip::boundary_tests::descriptor_entries_can_omit_local_crc_and_sizes ... ok
+test zip::tests::the_local_extra_field_length_is_honoured ... ok
+test zip::tests::the_bytes_are_the_archive_as_given ... ok
+test zip::tests::unsupported_compression_methods ... ok
+test xml::tests::references_and_cdata ... ok
+test zip::tests::two_entries_with_the_same_name ... ok
+test xml::boundary_tests::references_and_unclosed_markup_are_refused ... ok
+test inflate::reference_tests::zlib_fixed_and_dynamic_streams_match ... ok
+test inflate::reference_tests::small_arbitrary_streams_do_not_panic ... ok
+test sha256::tests::standard_test_vectors ... ok
+test crc32::tests::every_length_and_alignment_matches_the_bytewise_form ... ok
+
+test result: ok. 115 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/fixture_models.rs (target/debug/deps/fixture_models-fd71e35535c0c0e0)
+
+running 6 tests
+test predicates_are_keyed_by_modified_utf8 ... ok
+test gis_probabilities_match_the_jvm ... ok
+test qn_probabilities_match_the_jvm ... ok
+test errors_name_the_entry ... ok
+test perceptron_probabilities_match_the_jvm ... ok
+test the_tokenizer_model_file_opennlp_wrote ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/inflate.rs (target/debug/deps/inflate-2ecd205d5f024270)
+
+running 2 tests
+test a_truncated_java_stream_is_an_error ... ok
+test every_java_deflater_stream_inflates_to_its_input ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/models.rs (target/debug/deps/models-a5abdba03364711a)
+
+running 2 tests
+test spanish_tokenizer_model ... ok
+test french_tokenizer_model ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/text.rs (target/debug/deps/text-01f1d9808c76f6ea)
+
+running 3 tests
+test properties_match_java ... ok
+test raw_entries_match_opennlp ... ok
+test the_dictionary_set_matches_opennlp ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/zip.rs (target/debug/deps/zip-879441a18baf4db2)
+
+running 3 tests
+test a_damaged_deflated_entry_is_refused ... ok
+test names_comments_and_contents ... ok
+test entries_match_what_java_wrote ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_analysis_embed
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_maxent
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

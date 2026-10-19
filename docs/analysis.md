@@ -4040,8 +4040,8 @@ runs them on any machine:
   that lays out the windows included), the provider, subwords of
   another model and sentences in another view, malformed input to
   `embed`, a model pooled by its first token, and rows with no room for
-  text. `window.rs`'s unit tests hold the policy on hand-made spans,
-  pieces of no bytes included; `encoder.rs`'s hold the result's shape
+  text. `analysis/embed/src/window/tests.rs`'s unit tests hold the policy on hand-made spans,
+  pieces of no bytes included; `analysis/embed/src/encoder/tests.rs`'s hold the result's shape
   and the refusal of a backend that pools no ranges. One test runs the steps on the device
   `TURBO_TEST_DEVICE` names (a backend name or a device index), at the
   precision `TURBO_TEST_PRECISION` names, and holds the vectors to the

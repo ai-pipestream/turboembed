@@ -1,0 +1,149 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running unittests src/lib.rs (target/debug/deps/turbo_maxent-e881c2e447af47e9)
+
+running 112 tests
+test container::tests::a_dash_before_the_second_dot_fails_as_substring_does ... ok
+test container::tests::a_complete_manifest_opens ... ok
+test crc32::tests::known_values ... ok
+test container::tests::a_third_dot_ends_the_version_before_a_dash_does ... ok
+test container::tests::versions ... ok
+test container::tests::parse_int_follows_java ... ok
+test container::tests::manifest_errors ... ok
+test dictionary::tests::an_entry_without_tokens_is_refused ... ok
+test dictionary::tests::a_one_token_entry_with_a_space_is_not_two_tokens ... ok
+test dictionary::tests::case_insensitive_lookups_lowercase_entries_and_probes ... ok
+test dictionary::tests::dotted_capital_i_lowercases_to_i ... ok
+test dictionary::tests::case_sensitive_is_the_default ... ok
+test dictionary::tests::entries_put_directly_keep_their_whitespace_and_match_by_the_case_rule ... ok
+test dictionary::tests::entries_differing_only_in_case_keep_the_first_even_when_case_sensitive ... ok
+test dictionary::tests::empty_dictionaries_report_zero_tokens ... ok
+test dictionary::tests::entries_keep_attributes_and_order ... ok
+test dictionary::tests::trim_follows_java ... ok
+test hash::tests::equal_bytes_hash_equal_and_a_changed_byte_changes_the_hash ... ok
+test inflate::tests::a_distance_before_the_start_of_the_output ... ok
+test inflate::tests::a_dynamic_block_without_an_end_of_block_code ... ok
+test inflate::tests::a_fixed_block_with_an_overlapping_copy ... ok
+test inflate::tests::a_repeat_code_with_no_previous_length ... ok
+test inflate::tests::a_run_at_distance_one ... ok
+test inflate::tests::a_stored_length_that_disagrees_with_its_complement ... ok
+test inflate::tests::an_incomplete_code_length_code ... ok
+test inflate::tests::an_over_subscribed_code_length_code ... ok
+test inflate::tests::code_lengths_that_repeat_past_the_end ... ok
+test inflate::tests::codes_longer_than_the_table_use_the_canonical_loop ... ok
+test inflate::tests::distance_symbols_30_and_31 ... ok
+test inflate::tests::length_symbols_286_and_287 ... ok
+test inflate::tests::output_longer_or_shorter_than_stated ... ok
+test inflate::tests::the_reserved_block_type ... ok
+test inflate::tests::stored_blocks_including_an_empty_one ... ok
+test inflate::tests::too_many_length_or_distance_codes ... ok
+test java_data::tests::canonical_forms ... ok
+test inflate::tests::truncated_input ... ok
+test inflate::tests::a_stated_size_the_stream_does_not_produce_allocates_little ... ok
+test hash::tests::keys_that_differ_late_spread_over_the_low_bits ... ok
+test java_data::tests::chunk_counts_follow_integer_parse_int ... ok
+test java_data::tests::malformed_modified_utf8_names_its_offset ... ok
+test java_data::tests::modified_utf8_decodes_nul_pairs_and_lone_surrogates ... ok
+test java_string::tests::converts_back_to_text ... ok
+test java_string::tests::encodes_as_write_utf_does ... ok
+test java_data::tests::chunked_strings_are_joined ... ok
+test java_string::tests::ends_with_compares_utf16_units_from_the_end ... ok
+test java_string::tests::compares_with_text_without_encoding_it ... ok
+test java_string::tests::orders_by_utf16_units ... ok
+test java_string::tests::utf16_units_from_inside_multibyte_unit_panics - should panic ... ok
+test java_string::tests::truncate_inside_multibyte_unit_panics - should panic ... ok
+test model::tests::argmax_keeps_the_first_maximum ... ok
+test model::tests::perceptron_scales_by_the_largest_magnitude_above_one ... ok
+test model::tests::naive_bayes_smooths_until_the_pattern_ends_then_adds_the_priors ... ok
+test model::tests::predicates_are_listed_as_modified_utf8 ... ok
+test model::tests::outcome_lookups ... ok
+test model::tests::qn_subtracts_the_log_sum_of_exps ... ok
+test model::tests::str_features_are_looked_up_as_modified_utf8 ... ok
+test model_reader::tests::a_gis_model_is_read_into_columns ... ok
+test java_data::tests::ints_and_doubles_are_big_endian ... ok
+test model_reader::tests::integers_follow_parse_int ... ok
+test model_reader::tests::a_repeated_predicate_name_maps_to_its_last_listing ... ok
+test model::tests::an_empty_context_gives_uniform_probabilities ... ok
+test model_reader::tests::predicates_the_patterns_do_not_describe_have_no_parameters ... ok
+test model_reader::tests::malformed_models_are_refused_with_the_reason ... ok
+test model_reader::tests::unknown_model_types_are_named ... ok
+test model::tests::a_wrong_output_length_panics - should panic ... ok
+test model::tests::a_wrong_output_length_panics_for_bytes - should panic ... ok
+test model_reader::tests::qn_perceptron_and_naive_bayes_have_no_gis_header ... ok
+test model_reader::tests::a_negative_predicate_count_in_a_pattern_covers_no_predicates ... ok
+test properties::tests::a_repeated_key_keeps_its_place_and_its_last_value ... ok
+test properties::tests::bytes_are_iso_8859_1 ... ok
+test model::tests::gis_adds_the_uniform_prior_then_normalizes ... ok
+test properties::tests::comments_and_line_ends ... ok
+test properties::tests::continuation_lines ... ok
+test properties::tests::escapes ... ok
+test properties::tests::malformed_unicode_escapes_name_the_line ... ok
+test properties::tests::separators_and_blanks ... ok
+test sha256::tests::padding_boundaries ... ok
+test inflate::tests::a_huge_stated_size_is_refused_before_allocating ... ok
+test xml::tests::prefixes_are_dropped_and_xmlns_is_not_reported ... ok
+test xml::tests::qualified_names_keep_their_prefixes ... ok
+test xml::tests::references_and_cdata ... ok
+test xml::boundary_tests::malformed_declarations_are_refused ... FAILED
+test xml::tests::tree_builders_get_the_bytes_of_each_node ... ok
+test xml::tests::encodings ... ok
+test xml::tests::elements_attributes_and_text ... ok
+test xml::tests::line_ends_and_attribute_whitespace_are_normalized ... ok
+test zip::boundary_tests::central_directory_disk_start_is_enforced ... FAILED
+test zip::boundary_tests::descriptor_entries_can_omit_local_crc_and_sizes ... ok
+test zip::tests::a_central_directory_outside_the_archive ... ok
+test zip::tests::a_central_record_whose_name_runs_into_the_end_record ... ok
+test zip::boundary_tests::central_directory_size_is_enforced ... FAILED
+test zip::tests::a_comment_holding_the_end_signature_is_skipped ... ok
+test zip::tests::a_central_record_cut_off_by_the_end_record ... ok
+test zip::tests::a_local_header_cut_off ... ok
+test zip::boundary_tests::local_header_metadata_must_match_directory ... FAILED
+test zip::tests::a_missing_entry_is_named ... ok
+test xml::tests::malformed_documents_name_the_offset ... ok
+test zip::tests::a_wrong_crc_is_refused ... ok
+test zip::tests::a_stored_entry_whose_sizes_differ ... ok
+test zip::tests::encrypted_entries ... ok
+test zip::tests::data_past_the_end_of_the_archive ... ok
+test zip::tests::not_a_zip ... ok
+test zip::tests::no_local_header_signature ... ok
+test zip::tests::split_archives ... ok
+test zip::tests::the_bytes_are_the_archive_as_given ... ok
+test zip::tests::the_local_extra_field_length_is_honoured ... ok
+test zip::tests::unsupported_compression_methods ... ok
+test zip::tests::zip64_markers_are_refused ... ok
+test zip::tests::two_entries_with_the_same_name ... ok
+test xml::boundary_tests::references_and_unclosed_markup_are_refused ... ok
+test sha256::tests::standard_test_vectors ... ok
+test crc32::tests::every_length_and_alignment_matches_the_bytewise_form ... ok
+
+failures:
+
+---- xml::boundary_tests::malformed_declarations_are_refused stdout ----
+
+thread 'xml::boundary_tests::malformed_declarations_are_refused' (863017) panicked at analysis/maxent/src/xml/boundary_tests.rs:12:9:
+accepted <?xml ?><a/>
+
+---- zip::boundary_tests::central_directory_disk_start_is_enforced stdout ----
+
+thread 'zip::boundary_tests::central_directory_disk_start_is_enforced' (863027) panicked at analysis/maxent/src/zip/boundary_tests.rs:17:5:
+assertion failed: Zip::new(z).is_err()
+
+---- zip::boundary_tests::central_directory_size_is_enforced stdout ----
+
+thread 'zip::boundary_tests::central_directory_size_is_enforced' (863028) panicked at analysis/maxent/src/zip/boundary_tests.rs:8:5:
+assertion failed: Zip::new(z).is_err()
+
+---- zip::boundary_tests::local_header_metadata_must_match_directory stdout ----
+
+thread 'zip::boundary_tests::local_header_metadata_must_match_directory' (863030) panicked at analysis/maxent/src/zip/boundary_tests.rs:25:9:
+accepted mismatch at 6
+
+
+failures:
+    xml::boundary_tests::malformed_declarations_are_refused
+    zip::boundary_tests::central_directory_disk_start_is_enforced
+    zip::boundary_tests::central_directory_size_is_enforced
+    zip::boundary_tests::local_header_metadata_must_match_directory
+
+test result: FAILED. 108 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p turbo-maxent --lib`
