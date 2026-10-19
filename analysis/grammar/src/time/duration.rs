@@ -113,7 +113,7 @@ impl Duration {
     pub fn negated(&self) -> Duration {
         let mut out = *self;
         for p in &mut out.parts[..usize::from(out.len)] {
-            p.1 = -p.1;
+            p.1 = p.1.saturating_neg();
         }
         out
     }
@@ -130,7 +130,7 @@ impl Duration {
     /// Its length in milliseconds, months and years counted as
     /// [`Unit::seconds`] counts them.
     pub fn millis(&self) -> i64 {
-        self.parts().iter().map(|&(u, n)| u.seconds() * i64::from(n)).sum()
+        self.parts().iter().fold(0i64, |acc, &(u, n)| acc.saturating_add(u.seconds().saturating_mul(i64::from(n))))
     }
 
     /// Whether every amount is a whole number of its unit.
@@ -210,6 +210,7 @@ mod tests {
         let three = d(Unit::Year, 1).plus(&d(Unit::Month, 1)).unwrap().plus(&d(Unit::Day, 1)).unwrap();
         assert!(three.plus(&d(Unit::Hour, 1)).is_none());
         assert_eq!(d(Unit::Day, 2).negated().parts(), &[(Unit::Day, -2000)]);
+        assert_eq!(Duration::of(Unit::Day, i32::MIN).negated().parts(), &[(Unit::Day, i32::MAX)]);
         assert_eq!(d(Unit::Week, 2).times(3).unwrap(), d(Unit::Week, 6));
         assert!(d(Unit::Day, 2).is_whole() && !Duration::of(Unit::Hour, 1500).is_whole());
         assert_eq!(three.finest(), Some(Unit::Day));

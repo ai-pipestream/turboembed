@@ -85,6 +85,9 @@ pub fn holiday(h: Holiday, year: i32) -> Option<Date> {
 
 /// The first day of quarter `q` (1 to 4) of `year`.
 pub fn quarter_start(year: i32, q: u8) -> Option<Date> {
+    if !(1..=4).contains(&q) {
+        return None;
+    }
     month_start(year, (q - 1) * 3 + 1)
 }
 
@@ -128,6 +131,9 @@ mod tests {
         assert_eq!(holiday(Holiday::Easter { days: 1 }, 2019), Some(d("2019-04-22")));
         assert_eq!(holiday(Holiday::Fixed { month: 2, day: 30 }, 2019), None);
         assert_eq!(quarter_start(2019, 3), Some(d("2019-07-01")));
+        assert_eq!(quarter_start(2019, 0), None);
+        assert_eq!(quarter_start(2019, 5), None);
+        assert_eq!(quarter_start(2019, u8::MAX), None);
         assert_eq!(month_end(2016, 12), Some(d("2017-01-01")));
     }
 }
