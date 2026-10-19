@@ -1,3 +1,4 @@
+use super::builder::{Id, word_id};
 use super::*;
 
 /// A word line with the form, the universal tag and the `MISC` column.
