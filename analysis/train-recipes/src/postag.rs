@@ -67,23 +67,26 @@
 //! the tokens left out ([`PosRecipe::reference_mappings`],
 //! [`PosRecipe::max_left_out`]).
 
-use std::collections::{BTreeMap, HashSet};
+mod scoring;
+#[cfg(test)]
+mod tests;
 
-use turbo_analysis::{Tag, TagSet};
 use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, Scoring, TagMapping, TagScoring, Task};
-use turbo_formats::evaluate::PosEvaluator;
 use turbo_formats::masc::{MascCorpus, MascError, MascPosReader};
 use turbo_formats::sample::PosSample;
-use turbo_maxent::ModelFile;
-use turbo_postag::{PosModel, PosTagFormat, PosTagger};
+use turbo_postag::PosTagFormat;
 use turbo_train::TrainingConfiguration;
 use turbo_train_components::{PosTaggerFactory, Stamp, postag, ud};
 use turbo_zoo::Sha256;
 
-use crate::card::{HeldOutCard, Mismatch, TagCount, TokenCoverage};
+use crate::card::{HeldOutCard, TagCount, TokenCoverage};
 use crate::error::{Error, LeftOut, Result};
 use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
 use crate::{GateRun, Limit, MAX_TOKENS_LEFT_OUT, RecordedReference, Reference, Trained, check_skipped, spans};
+
+pub(crate) use self::scoring::most_frequent;
+pub use self::scoring::{HeldOutTags, ReferenceTags};
+use self::scoring::{open, score_with};
 
 /// The format the trained model's tags are scored in: its outcomes as
 /// they are, MASC's Penn tags.
@@ -191,43 +194,6 @@ impl Scored {
 /// How many of the reference's most frequent mismatches the card lists.
 pub const MISMATCHES_LISTED: usize = 10;
 
-/// The tags a reference tagger can give, and the mappings its tags are
-/// compared through, which decide the held-out tokens the gate scores:
-/// those whose tag is one of them, as written or through a mapping.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReferenceTags {
-    tags: HashSet<String>,
-    mappings: &'static [ReferenceMapping],
-}
-
-impl ReferenceTags {
-    /// The tags of the reference's tag set, as it gives them, compared
-    /// through `mappings` ([`REFERENCE_MAPPINGS`] for the MASC tagger).
-    pub fn of(tagset: &TagSet, mappings: &'static [ReferenceMapping]) -> ReferenceTags {
-        let tags = (0..tagset.len()).map(|i| tagset.label(Tag(i as u16)).to_owned()).collect();
-        ReferenceTags { tags, mappings }
-    }
-
-    /// Whether a held-out token tagged `tag` is scored.
-    pub fn scores(&self, tag: &str) -> bool {
-        self.tags.contains(tag) || self.mappings.iter().any(|m| m.held_out == tag && self.tags.contains(m.reference))
-    }
-
-    /// The held-out tokens left out of the scores, by their tag as
-    /// written, sorted by tag.
-    pub fn left_out(&self, held_out: &HeldOutTags<'_>) -> Vec<TagCount> {
-        let mut counts: BTreeMap<&str, u64> = BTreeMap::new();
-        for sample in held_out.samples() {
-            for tag in sample.tags() {
-                if !self.scores(tag.as_str()) {
-                    *counts.entry(tag.as_str()).or_default() += 1;
-                }
-            }
-        }
-        counts.into_iter().map(|(tag, tokens)| TagCount { tag: tag.to_owned(), tokens }).collect()
-    }
-}
-
 /// The tagger a recipe trains and the OpenNLP model it is gated against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PosRecipe {
@@ -272,76 +238,6 @@ pub fn read_samples<'c>(corpus: &'c MascCorpus, mut each: impl FnMut(PosSample<'
         }
     }
     Ok(skipped)
-}
-
-/// The held-out part-of-speech samples, borrowed from the held-out corpus.
-#[derive(Debug, Clone)]
-pub struct HeldOutTags<'c> {
-    samples: Vec<PosSample<'c>>,
-    skipped: usize,
-}
-
-impl<'c> HeldOutTags<'c> {
-    /// The held-out samples `samples`, read with `skipped` sentences
-    /// skipped.
-    pub fn new(samples: Vec<PosSample<'c>>, skipped: usize) -> HeldOutTags<'c> {
-        HeldOutTags { samples, skipped }
-    }
-
-    /// The samples scored.
-    pub fn samples(&self) -> &[PosSample<'c>] {
-        &self.samples
-    }
-
-    /// How many held-out sentences [`read_samples`] skipped.
-    pub fn skipped(&self) -> usize {
-        self.skipped
-    }
-
-    pub fn len(&self) -> usize {
-        self.samples.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.samples.is_empty()
-    }
-
-    /// The tokens of the samples.
-    pub fn tokens(&self) -> u64 {
-        self.samples.iter().map(|s| s.len() as u64).sum()
-    }
-
-    /// The SHA-256 of the samples as scored with a reference of the tags
-    /// `reference`: for each sample, its number of tokens as a little
-    /// endian `u64`, then for each token its text's length in bytes as a
-    /// little endian `u64`, the text, its tag's length and the tag, and a
-    /// byte, 1 when the token is scored ([`ReferenceTags::scores`]) and 0
-    /// when it is left out; after the samples, the number of the
-    /// reference's mappings as a `u64` (0 for none) and each one's held-out
-    /// tag and reference tag, each as its length and its bytes. Two gates
-    /// whose references leave out other tokens, or that map other tags,
-    /// have other digests.
-    pub fn sha256(&self, reference: &ReferenceTags) -> String {
-        let mut bytes = Vec::new();
-        let put = |bytes: &mut Vec<u8>, s: &str| {
-            bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(s.as_bytes());
-        };
-        for sample in &self.samples {
-            bytes.extend_from_slice(&(sample.len() as u64).to_le_bytes());
-            for (token, tag) in sample.tokens().iter().zip(sample.tags()) {
-                put(&mut bytes, token.as_str());
-                put(&mut bytes, tag.as_str());
-                bytes.push(u8::from(reference.scores(tag.as_str())));
-            }
-        }
-        bytes.extend_from_slice(&(reference.mappings.len() as u64).to_le_bytes());
-        for m in reference.mappings {
-            put(&mut bytes, m.held_out);
-            put(&mut bytes, m.reference);
-        }
-        Sha256::of(&bytes).to_string()
-    }
 }
 
 /// The factory of the recipe: the language, the default descriptor and no
@@ -416,11 +312,11 @@ impl PosRecipe {
     pub fn held_out<'c>(&self, held_out: &'c MascCorpus) -> Result<HeldOutTags<'c>> {
         let mut samples = Vec::new();
         let skipped = read_samples(held_out, |s| samples.push(s))?;
-        let out = HeldOutTags { samples, skipped };
+        let out = HeldOutTags::new(samples, skipped);
         if out.is_empty() {
             return Err(Error::EmptySplit { what: "held-out part-of-speech sample" });
         }
-        check_skipped(LeftOut::HeldOutSentences, out.skipped, out.len())?;
+        check_skipped(LeftOut::HeldOutSentences, out.skipped(), out.len())?;
         Ok(out)
     }
 
@@ -546,224 +442,5 @@ impl PosRecipe {
             chunks: None,
         };
         Ok(GateRun { record, held_out })
-    }
-}
-
-/// The tagger in `bytes`, its tags asked for in `format`.
-fn open(bytes: &[u8], format: PosTagFormat) -> Result<PosTagger> {
-    let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
-    let model = PosModel::open_with_format(file, format).map_err(|e| Error::Model(e.to_string()))?;
-    Ok(PosTagger::new(model))
-}
-
-/// A tagger's counts on the held-out samples, and its most frequent
-/// mismatches on the scored tokens.
-struct Scores {
-    units: Vec<Counts>,
-    /// At most [`MISMATCHES_LISTED`], most frequent first.
-    mismatches: Vec<Mismatch>,
-}
-
-/// [`PosRecipe::score`] with a tagger already open.
-fn score_with(
-    tagger: &PosTagger,
-    scored_as: Scored,
-    held_out: &HeldOutTags<'_>,
-    reference: &ReferenceTags,
-) -> Result<Scores> {
-    let tagset = tagger.pos_model().tagset().clone();
-    let mut units = Vec::with_capacity(held_out.len());
-    let mut mismatches: BTreeMap<(&str, &str), u64> = BTreeMap::new();
-    let (mut tags, mut probs) = (Vec::new(), Vec::new());
-    let mut words: Vec<&str> = Vec::new();
-    let mut labels: Vec<&str> = Vec::new();
-    for sample in held_out.samples() {
-        words.clear();
-        words.extend(sample.tokens().iter().map(|t| t.as_str()));
-        tags.clear();
-        probs.clear();
-        let found = tagger.tag(&words, &mut tags, &mut probs).map_err(|e| Error::Model(e.to_string()))?;
-        if !found {
-            return Err(Error::Model(format!("no tag sequence scored above the minimum for: {sample}")));
-        }
-        labels.clear();
-        labels.extend(tags.iter().map(|&t| tagset.label(t)));
-        let mut evaluator = PosEvaluator::default();
-        evaluator.evaluate(sample, &labels)?;
-        let (mut scored, mut right, mut right_as_written) = (0u64, 0u64, 0u64);
-        for (expected, &given) in sample.tags().iter().zip(&labels) {
-            right_as_written += u64::from(expected.as_str() == given);
-            if reference.scores(expected.as_str()) {
-                scored += 1;
-                if scored_as.is_right(reference.mappings, expected.as_str(), given) {
-                    right += 1;
-                } else {
-                    *mismatches.entry((expected.as_str(), given)).or_default() += 1;
-                }
-            }
-        }
-        // The tags as written, counted over every token, are what
-        // `POSEvaluator` counts.
-        debug_assert_eq!(evaluator.word_count(), sample.len() as u64);
-        debug_assert_eq!(right_as_written as f64 / sample.len() as f64, evaluator.word_accuracy());
-        units.push(Counts::accuracy(right, scored));
-    }
-    Ok(Scores { units, mismatches: most_frequent(mismatches) })
-}
-
-/// The [`MISMATCHES_LISTED`] most frequent mismatches, most frequent
-/// first, then by held-out value and given value: tags, or a lemmatizer's
-/// lemmas ([`crate::ud`]).
-pub(crate) fn most_frequent<H: AsRef<str> + Ord, G: AsRef<str> + Ord>(
-    mismatches: BTreeMap<(H, G), u64>,
-) -> Vec<Mismatch> {
-    let mut all: Vec<((H, G), u64)> = mismatches.into_iter().collect();
-    // Stable, so equal counts keep the map's order of the values.
-    all.sort_by_key(|a| std::cmp::Reverse(a.1));
-    all.into_iter()
-        .take(MISMATCHES_LISTED)
-        .map(|((held_out, given), tokens)| Mismatch {
-            held_out: held_out.as_ref().to_owned(),
-            given: given.as_ref().to_owned(),
-            tokens,
-        })
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use turbo_analysis::Span;
-    use turbo_formats::source::Field;
-
-    use super::*;
-
-    fn sample<'a>(text: &'a str, tokens: &[(u32, u32)], tags: &[&'a str]) -> PosSample<'a> {
-        let fields = tokens.iter().map(|&(a, b)| Field::of(text, Span::new(a, b))).collect();
-        let tags = tags.iter().zip(tokens).map(|(t, &(a, b))| Field::made(t.to_string(), Span::new(a, b))).collect();
-        PosSample::new(fields, tags, Span::new(0, text.len() as u32)).unwrap()
-    }
-
-    #[test]
-    fn the_held_out_digest_covers_tokens_tags_what_is_scored_and_the_mapping() {
-        let text = "Dogs ran.";
-        let reference = ReferenceTags::of(&TagSet::new("reference", &["NNS", "VBD", "VBN", "."]), &REFERENCE_MAPPINGS);
-        let one =
-            HeldOutTags { samples: vec![sample(text, &[(0, 4), (5, 8), (8, 9)], &["NNS", "VBD", "."])], skipped: 0 };
-        let mut bytes = Vec::new();
-        let put = |bytes: &mut Vec<u8>, s: &str| {
-            bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(s.as_bytes());
-        };
-        bytes.extend_from_slice(&3u64.to_le_bytes());
-        for (token, tag) in [("Dogs", "NNS"), ("ran", "VBD"), (".", ".")] {
-            put(&mut bytes, token);
-            put(&mut bytes, tag);
-            bytes.push(1);
-        }
-        bytes.extend_from_slice(&(REFERENCE_MAPPINGS.len() as u64).to_le_bytes());
-        for m in REFERENCE_MAPPINGS {
-            put(&mut bytes, m.held_out);
-            put(&mut bytes, m.reference);
-        }
-        assert_eq!(one.sha256(&reference), Sha256::of(&bytes).to_string());
-        // Another tag, the same text cut into other tokens, or a reference
-        // that leaves another token out, is another set.
-        let tag =
-            HeldOutTags { samples: vec![sample(text, &[(0, 4), (5, 8), (8, 9)], &["NNS", "VBN", "."])], skipped: 0 };
-        let cut = HeldOutTags { samples: vec![sample(text, &[(0, 4), (5, 9)], &["NNS", "VBD"])], skipped: 0 };
-        let no_dot = ReferenceTags::of(&TagSet::new("reference", &["NNS", "VBD", "VBN"]), &REFERENCE_MAPPINGS);
-        assert_ne!(one.sha256(&reference), tag.sha256(&reference));
-        assert_ne!(one.sha256(&reference), cut.sha256(&reference));
-        assert_ne!(one.sha256(&reference), one.sha256(&no_dot));
-        // With no mapping, the digest ends with a count of 0 mappings.
-        let unmapped = ReferenceTags::of(&TagSet::new("reference", &["NNS", "VBD", "VBN", "."]), &[]);
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&3u64.to_le_bytes());
-        for (token, tag) in [("Dogs", "NNS"), ("ran", "VBD"), (".", ".")] {
-            put(&mut bytes, token);
-            put(&mut bytes, tag);
-            bytes.push(1);
-        }
-        bytes.extend_from_slice(&0u64.to_le_bytes());
-        assert_eq!(one.sha256(&unmapped), Sha256::of(&bytes).to_string());
-    }
-
-    #[test]
-    fn only_the_reference_s_tags_are_compared_through_the_mapping() {
-        let m = &REFERENCE_MAPPINGS;
-        for (held_out, given) in [("(", "-LRB-"), (")", "-RRB-"), ("-", ":"), ("...", ":"), (";", ":"), ("''", "``")] {
-            assert!(Scored::Reference.is_right(m, held_out, given), "{held_out} {given}");
-            assert!(!Scored::Candidate.is_right(m, held_out, given), "{held_out} {given}");
-            // With no mapping, as the UD taggers are gated, the reference's
-            // tags are compared as written too.
-            assert!(!Scored::Reference.is_right(&[], held_out, given), "{held_out} {given}");
-        }
-        for same in ["(", ":", "''", "``", "NN"] {
-            assert!(Scored::Reference.is_right(m, same, same) && Scored::Candidate.is_right(m, same, same));
-            assert!(Scored::Reference.is_right(&[], same, same));
-        }
-        // The mapping goes one way, from the held-out tag to the reference's.
-        for (held_out, given) in [("-LRB-", "("), (":", "-"), (":", "..."), ("``", "''"), ("-", "..."), ("NN", "NNS")] {
-            assert!(!Scored::Reference.is_right(m, held_out, given), "{held_out} {given}");
-        }
-        assert_eq!(MISMATCHES_LISTED, 10);
-    }
-
-    #[test]
-    fn held_out_tokens_are_scored_when_the_reference_can_give_their_tag_as_written_or_mapped() {
-        let tags = ReferenceTags::of(&TagSet::new("reference", &["-LRB-", ":", "NN", "UH", "``"]), &REFERENCE_MAPPINGS);
-        for scored in ["(", "-LRB-", "-", "...", ";", ":", "NN", "``", "''"] {
-            assert!(tags.scores(scored), "{scored}");
-        }
-        for left_out in [")", "-RRB-", "PRN", "UH`", "nn", "\""] {
-            assert!(!tags.scores(left_out), "{left_out}");
-        }
-        let text = "( Agh ) they ; Agh";
-        let held_out = HeldOutTags {
-            samples: vec![
-                sample(text, &[(0, 1), (2, 5), (6, 7)], &["(", "UH`", ")"]),
-                sample(text, &[(8, 12), (13, 14), (15, 18)], &["PRN", ";", "UH`"]),
-            ],
-            skipped: 0,
-        };
-        assert_eq!(held_out.tokens(), 6);
-        let count = |tag: &str, tokens| TagCount { tag: tag.to_owned(), tokens };
-        // Sorted by the tag as written.
-        assert_eq!(tags.left_out(&held_out), [count(")", 1), count("PRN", 1), count("UH`", 2)]);
-        // With no mapping, a held-out tag is scored only when the reference
-        // gives it as written.
-        let unmapped = ReferenceTags::of(&TagSet::new("reference", &["-LRB-", ":", "NN", "UH", "``"]), &[]);
-        assert!(unmapped.scores(":") && unmapped.scores("-LRB-") && !unmapped.scores("(") && !unmapped.scores(";"));
-        assert_eq!(
-            unmapped.left_out(&held_out),
-            [count("(", 1), count(")", 1), count(";", 1), count("PRN", 1), count("UH`", 2)]
-        );
-    }
-
-    #[test]
-    fn the_most_frequent_mismatches_come_first_and_are_at_most_ten() {
-        let mut counts = BTreeMap::new();
-        let held: Vec<String> = (0..12).map(|i| format!("T{i:02}")).collect();
-        for (i, tag) in held.iter().enumerate() {
-            counts.insert((tag.as_str(), "NN"), (i % 4) as u64 + 1);
-        }
-        let top = most_frequent(counts);
-        assert_eq!(top.len(), MISMATCHES_LISTED);
-        let got: Vec<(&str, u64)> = top.iter().map(|m| (m.held_out.as_str(), m.tokens)).collect();
-        assert_eq!(
-            got,
-            [
-                ("T03", 4),
-                ("T07", 4),
-                ("T11", 4),
-                ("T02", 3),
-                ("T06", 3),
-                ("T10", 3),
-                ("T01", 2),
-                ("T05", 2),
-                ("T09", 2),
-                ("T00", 1)
-            ]
-        );
     }
 }
