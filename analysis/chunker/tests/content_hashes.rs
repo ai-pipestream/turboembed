@@ -125,3 +125,43 @@ fn an_edit_elsewhere_keeps_untouched_ids() {
     let changed: Vec<usize> = a.iter().zip(&b).enumerate().filter(|(_, (x, y))| x != y).map(|(i, _)| i).collect();
     assert!(!changed.is_empty() && changed.iter().all(|&i| i < 3), "changed rows: {changed:?}");
 }
+
+#[test]
+fn the_builder_hashes_discontinuous_fragments_not_envelopes() {
+    let build = |text: &str, fragments: &[Span]| {
+        let mut doc = Document::new(text);
+        let by = Provenance::by("t");
+        let mut sentences = Spans::new(ViewId::SOURCE);
+        sentences.push(Span::new(0, text.len() as u32));
+        doc.add(&Key::DEFAULT, Sentences { spans: sentences }, by.clone()).unwrap();
+        let mut spans = Spans::new(ViewId::SOURCE);
+        spans.push_fragments(fragments);
+        doc.add(
+            &Key::DEFAULT,
+            Chunks {
+                spans,
+                level: vec![0],
+                parent: vec![None],
+                sentences: vec![IxRange::new(0, 1)],
+                cut: vec![Cut::DocumentStart],
+                cost: vec![0],
+                model_tokens: vec![1],
+                over_budget: vec![false],
+            },
+            by,
+        )
+        .unwrap();
+        let analyzer = Analyzer::builder()
+            .given(Key::<Sentences>::DEFAULT)
+            .given(Key::<Chunks>::DEFAULT)
+            .add(ContentHashBuilder)
+            .build()
+            .unwrap();
+        let mut docs = vec![doc];
+        assert!(analyzer.run(&mut docs)[0].is_ok());
+        docs.pop().unwrap().get::<ContentHashes<Chunks>>().unwrap().get(Ix::new(0))
+    };
+    let gap = [Span::new(0, 1), Span::new(2, 3)];
+    assert_eq!(build("aXb.", &gap), build("aYb.", &gap), "a gap-only edit keeps the ID");
+    assert_ne!(build("aXb.", &gap), build("aXb.", &[Span::new(0, 2), Span::new(3, 4)]));
+}

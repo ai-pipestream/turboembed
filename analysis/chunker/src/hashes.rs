@@ -3,8 +3,13 @@
 //! path, so a downstream vector store can diff two chunkings of a
 //! document and skip re-embedding the units whose ID did not change.
 //!
-//! Normalization collapses every run of Unicode whitespace to one
-//! space and trims both ends, nothing else: a reflow that only moves
+//! A unit's text is its actual selected fragments (`Spans::fragments`),
+//! never its bounding envelope: the excluded gap between fragments of a
+//! discontinuous unit does not enter the digest, and the fragment count
+//! and each fragment's length are fed explicitly, so two different
+//! selections over one envelope get different IDs. Normalization
+//! collapses every run of Unicode whitespace to one
+//! space and trims both ends, per fragment, nothing else: a reflow that only moves
 //! whitespace keeps the ID, a changed character does not. The digest
 //! is FNV-1a over 128 bits, fed length-prefixed fields under a
 //! versioned domain string, so the same inputs give the same ID on
@@ -13,7 +18,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use turbo_analysis::{Anchor, Annotator, Error, Ix, Layer, LayerName, Refs, Span, View};
+use turbo_analysis::{Anchor, Annotator, Error, Ix, Layer, LayerName, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Block, Chunks, Level, Levels, Structure, Unit};
 
 /// A strongly typed content-addressed ID: 16 digest bytes.
@@ -31,14 +36,27 @@ impl ChunkId {
         &self.0
     }
 
-    /// The ID of one unit: digest of `level`, the structural heading
-    /// path root-first (a section without a heading contributes an
-    /// empty entry, so depth shows) and the unit's `text`, every
-    /// field whitespace-normalized as the module describes.
+    /// The ID of one continuous unit: [`ChunkId::of_fragments`]
+    /// with its `text` as the one fragment and each heading as one
+    /// fragment.
     pub fn of(level: Level, heading_path: &[&str], text: &str) -> ChunkId {
+        let path: Vec<&[&str]> = heading_path.iter().map(std::slice::from_ref).collect();
+        ChunkId::of_fragments(level, &path, &[text])
+    }
+
+    /// The ID of one unit: digest of `level`, the structural
+    /// heading path root-first and the unit's selected text
+    /// `fragments`, in text order. A section without a heading
+    /// contributes an entry with no fragments, so depth shows.
+    /// Every heading and fragment is fed as a count of fragments
+    /// followed by each fragment, whitespace-normalized as the
+    /// module describes, so neither a heading boundary nor a
+    /// fragment boundary can be smuggled across, and text in the
+    /// gaps between fragments never enters the digest.
+    pub fn of_fragments(level: Level, heading_path: &[&[&str]], fragments: &[&str]) -> ChunkId {
         let mut digest = Digest::new();
         digest.field(b"turbo:chunk-id");
-        digest.bytes(&[1]);
+        digest.bytes(&[2]);
         digest.bytes(&[match level {
             Level::Chunk => 0,
             Level::Section => 1,
@@ -46,9 +64,9 @@ impl ChunkId {
         }]);
         digest.bytes(&(heading_path.len() as u32).to_le_bytes());
         for heading in heading_path {
-            digest.normalized(heading);
+            digest.fragments(heading);
         }
-        digest.normalized(text);
+        digest.fragments(fragments);
         ChunkId(digest.finish())
     }
 }
@@ -76,6 +94,16 @@ impl Digest {
         for &b in bytes {
             self.0 ^= u128::from(b);
             self.0 = self.0.wrapping_mul(0x0000_0000_0100_0000_0000_0000_0000_013b);
+        }
+    }
+
+    /// A count of fragments followed by each fragment,
+    /// whitespace-normalized: the canonical separator between
+    /// fragments of one field.
+    fn fragments(&mut self, fragments: &[&str]) {
+        self.bytes(&(fragments.len() as u32).to_le_bytes());
+        for fragment in fragments {
+            self.normalized(fragment);
         }
     }
 
@@ -173,9 +201,17 @@ impl<L: Layer> Layer for ContentHashes<L> {
 
 /// The text of `span` in `text`, or a refusal naming the unit: spans
 /// in a document are checked for order, not against this view's
-/// length, so a span outside the text must not hash as empty.
+/// length, so a span outside the text, or one splitting a codepoint,
+/// must not hash as empty.
 fn span_text<'a>(text: &'a str, span: Span, what: &str) -> Result<&'a str, String> {
-    text.get(span.range()).ok_or_else(|| format!("{what} at {}..{} is outside the text", span.start, span.end))
+    text.get(span.range())
+        .ok_or_else(|| format!("{what} at {}..{} is outside the text or splits a character", span.start, span.end))
+}
+
+/// The texts of item `i`'s actual fragments, in text order, each
+/// refused as in [`span_text`] when it does not slice `text`.
+fn fragment_texts<'a, L>(text: &'a str, spans: &Spans<L>, i: Ix<L>, what: &str) -> Result<Vec<&'a str>, String> {
+    spans.fragments(i).map(|f| span_text(text, f, what)).collect()
 }
 
 impl ContentHashes<Chunks> {
@@ -183,12 +219,13 @@ impl ContentHashes<Chunks> {
     /// are in. A level 0 row hashes as a chunk, a row above it (a
     /// top-level section's run) as a section.
     pub fn compute(text: &str, chunks: &Chunks, structure: Option<&Structure>) -> Result<Self, String> {
-        let paths = HeadingPaths::new(text, structure);
+        chunks.check()?;
+        let paths = HeadingPaths::new(text, structure)?;
         let mut id = Vec::with_capacity(chunks.spans.len());
         for (i, span) in chunks.spans.iter() {
             let level = if chunks.level[i.get()] == 0 { Level::Chunk } else { Level::Section };
             let path = paths.for_span(span);
-            id.push(ChunkId::of(level, &path, span_text(text, span, "a chunk")?));
+            id.push(ChunkId::of_fragments(level, &path, &fragment_texts(text, &chunks.spans, i, "a chunk")?));
         }
         Ok(ContentHashes { id, _of: PhantomData })
     }
@@ -199,7 +236,25 @@ impl ContentHashes<Levels> {
     /// are in, each at its own level kind. The document unit hashes
     /// the whole view under no heading path.
     pub fn compute(text: &str, levels: &Levels, structure: Option<&Structure>) -> Result<Self, String> {
-        let paths = HeadingPaths::new(text, structure);
+        levels.check()?;
+        // A section unit names a structure block, which only the
+        // structure given here can settle: not naming it, naming
+        // one past its blocks, or naming a block that is no section
+        // is refused rather than hashed under an empty path.
+        for (i, unit) in levels.unit.iter().enumerate() {
+            if let Unit::Section(block) = unit {
+                let Some(st) = structure else {
+                    return Err(format!("unit {i} is a section but no structure was given"));
+                };
+                if block.get() >= st.kind.len() {
+                    return Err(format!("unit {i} names structure block {} of {}", block.get(), st.kind.len()));
+                }
+                if st.kind[block.get()] != Block::Section {
+                    return Err(format!("unit {i} names structure block {}, which is not a section", block.get()));
+                }
+            }
+        }
+        let paths = HeadingPaths::new(text, structure)?;
         let mut id = Vec::with_capacity(levels.spans.len());
         for (i, span) in levels.spans.iter() {
             let unit = levels.unit[i.get()];
@@ -208,7 +263,7 @@ impl ContentHashes<Levels> {
                 Unit::Section(block) => paths.for_section(block),
                 Unit::Chunk(_) => paths.for_span(span),
             };
-            id.push(ChunkId::of(unit.level(), &path, span_text(text, span, "a unit")?));
+            id.push(ChunkId::of_fragments(unit.level(), &path, &fragment_texts(text, &levels.spans, i, "a unit")?));
         }
         Ok(ContentHashes { id, _of: PhantomData })
     }
@@ -220,25 +275,32 @@ impl ContentHashes<Levels> {
 /// first. Without structure every path is empty.
 struct HeadingPaths<'a> {
     structure: Option<&'a Structure>,
-    /// Each section block's heading text, by block: empty when the
-    /// block is no section or the section has no heading child.
-    heading: Vec<&'a str>,
+    /// Each section block's heading fragments, by block: empty when
+    /// the block is no section or the section has no heading child.
+    heading: Vec<Vec<&'a str>>,
 }
 
 impl<'a> HeadingPaths<'a> {
-    fn new(text: &'a str, structure: Option<&'a Structure>) -> HeadingPaths<'a> {
-        let mut heading = vec![""; structure.map_or(0, |s| s.kind.len())];
+    /// Reads the heading fragments out of a structure checked as a
+    /// layer, so columns and parents can be indexed without
+    /// panicking. Every heading block's fragments must slice
+    /// `text`: an invalid heading span is refused like any other
+    /// invalid unit span, never hashed as an empty heading.
+    fn new(text: &'a str, structure: Option<&'a Structure>) -> Result<HeadingPaths<'a>, String> {
+        let mut heading = vec![Vec::new(); structure.map_or(0, |s| s.kind.len())];
         if let Some(st) = structure {
-            for (i, span) in st.spans.iter() {
+            st.check()?;
+            for (i, _) in st.spans.iter() {
                 if st.kind[i.get()] != Block::Heading {
                     continue;
                 }
+                let fragments = fragment_texts(text, &st.spans, i, "a heading")?;
                 if let Some(parent) = st.parent[i.get()].filter(|p| heading[p.get()].is_empty()) {
-                    heading[parent.get()] = text.get(span.range()).unwrap_or("");
+                    heading[parent.get()] = fragments;
                 }
             }
         }
-        HeadingPaths { structure, heading }
+        Ok(HeadingPaths { structure, heading })
     }
 
     /// The path of one section block: its own heading last, the
@@ -246,13 +308,13 @@ impl<'a> HeadingPaths<'a> {
     /// ancestors contribute nothing; the walk follows parent rows,
     /// which the layer's check keeps before their children, so it
     /// always ends.
-    fn for_section(&self, block: Ix<Structure>) -> Vec<&'a str> {
+    fn for_section<'s>(&'s self, block: Ix<Structure>) -> Vec<&'s [&'a str]> {
         let Some(st) = self.structure else { return Vec::new() };
-        let mut path = Vec::new();
+        let mut path: Vec<&[&str]> = Vec::new();
         let mut at = Some(block);
         while let Some(b) = at {
             if st.kind[b.get()] == Block::Section {
-                path.push(self.heading[b.get()]);
+                path.push(&self.heading[b.get()]);
             }
             at = st.parent[b.get()];
         }
@@ -264,7 +326,7 @@ impl<'a> HeadingPaths<'a> {
     /// byte: the last section in structure order that starts at or
     /// before it and ends after it, as sections holding one byte
     /// nest. Text in no section has an empty path.
-    fn for_span(&self, span: Span) -> Vec<&'a str> {
+    fn for_span<'s>(&'s self, span: Span) -> Vec<&'s [&'a str]> {
         let Some(st) = self.structure else { return Vec::new() };
         let mut holder: Option<Ix<Structure>> = None;
         for (i, s) in st.spans.iter() {
