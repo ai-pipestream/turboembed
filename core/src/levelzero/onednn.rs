@@ -2,7 +2,7 @@
 //! feature): the C interface of core/levelzero/onednn.cpp, built by
 //! core/build.rs with the oneAPI compiler, over the backend's own device
 //! and context. The backend orders oneDNN's queue and its own command
-//! list by host synchronisation (encoder.rs).
+//! list by host synchronisation (encoder/mod.rs).
 
 use std::ffi::{CStr, c_char, c_void};
 
@@ -100,7 +100,7 @@ pub(crate) struct LayerNorm {
 
 /// oneDNN on one context: a SYCL queue of its own on the backend's Level
 /// Zero context, and the primitives it has built, one per shape, its tokens
-/// binned (encoder.rs).
+/// binned (encoder/mod.rs).
 pub(crate) struct Dnnl(*mut c_void);
 
 // The handle is used from any thread under the context's queue lock.
