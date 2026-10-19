@@ -8,9 +8,9 @@ use std::path::Path;
 use crate::neural::lstm::{LstmLayer, MAX_HIDDEN_SIZE};
 use crate::neural::{DataReader, NeuralError, encode_str_modified_utf8, encode_unit_modified_utf8};
 
+use super::validate::{UNKNOWN_BYTES, check_unique_tags, check_vocabulary};
 use super::{BilstmPosModel, MAGIC_V1, MAGIC_V2, MAGIC_V3, MAGIC_V4, MAGIC_V5, UNKNOWN};
 
-const UNKNOWN_BYTES: &[u8] = b"*UNK*";
 const INITIAL_CAPACITY: usize = 4096;
 const MAX_DIMENSION: i32 = i32::MAX / 8;
 
@@ -82,49 +82,9 @@ fn read_bytes_vocabulary<R: Read>(
     Ok(entries)
 }
 
-fn validate_vocabulary_rows(entries: &[(String, usize)], row_count: usize, name: &str) -> Result<(), NeuralError> {
-    let mut unk_row = None;
-    for (k, r) in entries {
-        if *r >= row_count {
-            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} row {r} >= {row_count}")));
-        }
-        if k == UNKNOWN {
-            unk_row = Some(*r);
-        }
-    }
-    if unk_row != Some(0) {
-        return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} must map {UNKNOWN} to row 0")));
-    }
-    Ok(())
-}
-
-fn validate_bytes_vocabulary_rows(
-    entries: &[(Vec<u8>, usize)],
-    row_count: usize,
-    name: &str,
-) -> Result<(), NeuralError> {
-    let mut unk_row = None;
-    for (k, r) in entries {
-        if *r >= row_count {
-            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} row {r} >= {row_count}")));
-        }
-        if k.as_slice() == UNKNOWN_BYTES {
-            unk_row = Some(*r);
-        }
-    }
-    if unk_row != Some(0) {
-        return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: {name} must map {UNKNOWN} to row 0")));
-    }
-    Ok(())
-}
-
-fn validate_pretrained_rows(entries: &[(String, usize)], row_count: usize) -> Result<(), NeuralError> {
-    for (_, r) in entries {
-        if *r >= row_count {
-            return Err(NeuralError::Format(format!("Invalid BiLSTM POS model: pretrained row {r} >= {row_count}")));
-        }
-    }
-    Ok(())
+/// The shared vocabulary contract in `validate`, reported as a wire-format error.
+fn format_error(detail: String) -> NeuralError {
+    NeuralError::Format(format!("Invalid BiLSTM POS model: {detail}"))
 }
 
 fn read_tags<R: Read>(data: &mut DataReader<R>) -> Result<Vec<String>, NeuralError> {
@@ -289,8 +249,11 @@ impl BilstmPosModel {
 
         let word_embeddings = read_f64_matrix(&mut data, "wordEmbeddings")?;
         let char_embeddings = read_f64_matrix(&mut data, "charEmbeddings")?;
-        validate_vocabulary_rows(&word_entries, word_embeddings.len(), "words")?;
-        validate_bytes_vocabulary_rows(&char_entries, char_embeddings.len(), "characters")?;
+        check_vocabulary(&word_entries, word_embeddings.len(), "words", Some(&UNKNOWN.to_owned()))
+            .map_err(format_error)?;
+        check_vocabulary(&char_entries, char_embeddings.len(), "characters", Some(&UNKNOWN_BYTES.to_vec()))
+            .map_err(format_error)?;
+        check_unique_tags(&tags).map_err(format_error)?;
 
         let char_dim = char_embeddings[0].len();
         let word_dim = word_embeddings[0].len();
@@ -329,7 +292,7 @@ impl BilstmPosModel {
             let p_entries = read_str_vocabulary(&mut data, "pretrained", true)?;
             let vec_dim = read_positive_dim(&mut data, "pretrained vector width")?;
             let row_count = read_positive_dim(&mut data, "pretrained vector rows")?;
-            validate_pretrained_rows(&p_entries, row_count)?;
+            check_vocabulary(&p_entries, row_count, "pretrained", None).map_err(format_error)?;
             let p_vecs = read_f32_rows(&mut data, row_count, vec_dim)?;
             expected_word_input += vec_dim;
             (Some(p_entries), Some(p_vecs))

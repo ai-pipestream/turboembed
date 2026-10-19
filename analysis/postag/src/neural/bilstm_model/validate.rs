@@ -1,7 +1,98 @@
-//! The shape and value contract `load` enforces, held for models built in memory.
+//! The shape, value, and vocabulary contract every `BilstmPosModel` holds, whether `new`
+//! builds it from in-memory tensors or `load` reads it from the `ONLP-BLPT` wire format.
+//!
+//! The vocabulary rules live in [`check_vocabulary`] and [`check_unique_tags`], which `load`
+//! calls with its own `Format` error type, so the two entry points cannot drift apart.
+
+use std::collections::HashSet;
+use std::hash::Hash;
 
 use crate::neural::NeuralError;
-use crate::neural::lstm::LstmLayer;
+use crate::neural::lstm::{LstmLayer, MAX_HIDDEN_SIZE};
+
+use super::UNKNOWN;
+
+/// The `UNKNOWN` symbol as the modified UTF-8 bytes a character vocabulary key holds.
+pub(super) const UNKNOWN_BYTES: &[u8] = b"*UNK*";
+
+/// One vocabulary's rules: every key distinct, every row inside a table of `row_count` rows,
+/// and, when `unknown` names a key, that key present and mapped to row `0`. Returns the broken
+/// rule as text so `new` and `load` can each wrap it in their own error variant.
+pub(super) fn check_vocabulary<K: Eq + Hash>(
+    entries: &[(K, usize)],
+    row_count: usize,
+    name: &str,
+    unknown: Option<&K>,
+) -> Result<(), String> {
+    let mut seen = HashSet::with_capacity(entries.len());
+    let mut unknown_row = None;
+    for (key, row) in entries {
+        if !seen.insert(key) {
+            return Err(format!("duplicate {name} entry at row {row}"));
+        }
+        if *row >= row_count {
+            return Err(format!("{name} row {row} >= {row_count}"));
+        }
+        if unknown == Some(key) {
+            unknown_row = Some(*row);
+        }
+    }
+    if unknown.is_some() && unknown_row != Some(0) {
+        return Err(format!("{name} must map {UNKNOWN} to row 0"));
+    }
+    Ok(())
+}
+
+/// The tag set rule: every tag distinct.
+pub(super) fn check_unique_tags(tags: &[String]) -> Result<(), String> {
+    let mut seen = HashSet::with_capacity(tags.len());
+    match tags.iter().find(|tag| !seen.insert(tag.as_str())) {
+        Some(tag) => Err(format!("duplicate tag {tag}")),
+        None => Ok(()),
+    }
+}
+
+/// One LSTM layer's tensors against its declared sizes: both sizes positive and the hidden size
+/// at most `MAX_HIDDEN_SIZE`, `w` exactly `4 * hidden` rows of `input` columns, `u` exactly
+/// `4 * hidden` rows of `hidden` columns, `b` exactly `4 * hidden` values, all finite. The
+/// declared sizes alone are not enough: `w_mut` and `u_mut` hand out the rows, so a caller can
+/// narrow, widen, or overwrite them after `LstmLayer::of_weights` checked the layer.
+fn check_lstm_tensors(
+    name: &str,
+    input: usize,
+    hidden: usize,
+    w: &[Vec<f64>],
+    u: &[Vec<f64>],
+    b: &[f64],
+) -> Result<(), NeuralError> {
+    let bad = |detail: String| NeuralError::InvalidArgument(format!("{name} LSTM {detail}"));
+    if input == 0 || hidden == 0 || hidden > MAX_HIDDEN_SIZE {
+        return Err(bad(format!("input size {input} and hidden size {hidden} must be in range")));
+    }
+    let gates = 4 * hidden;
+    for (tensor, rows, cols) in [("W", w, input), ("U", u, hidden)] {
+        if rows.len() != gates {
+            return Err(bad(format!("{tensor} holds {} of {gates} rows", rows.len())));
+        }
+        if let Some(r) = rows.iter().position(|row| row.len() != cols) {
+            return Err(bad(format!("{tensor} row {r} holds {} of {cols} columns", rows[r].len())));
+        }
+        if let Some(v) = rows.iter().flatten().find(|v| !v.is_finite()) {
+            return Err(bad(format!("{tensor} holds non-finite weight {v}")));
+        }
+    }
+    if b.len() != gates {
+        return Err(bad(format!("b holds {} of {gates} values", b.len())));
+    }
+    if let Some(v) = b.iter().find(|v| !v.is_finite()) {
+        return Err(bad(format!("b holds non-finite weight {v}")));
+    }
+    Ok(())
+}
+
+fn check_lstm(name: &str, layer: &LstmLayer) -> Result<(), NeuralError> {
+    check_lstm_tensors(name, layer.input_size(), layer.hidden_size(), layer.w(), layer.u(), layer.b())
+}
 
 /// Every value finite.
 fn check_finite(name: &str, values: impl IntoIterator<Item = f64>) -> Result<(), NeuralError> {
@@ -57,11 +148,21 @@ pub(super) fn validate_tensors(
     if word_dim == 0 || char_dim == 0 {
         return Err(bad("embedding tables must hold at least one column".into()));
     }
-    if let Some((k, r)) = word_entries.iter().find(|(_, r)| *r >= word_embeddings.len()) {
-        return Err(bad(format!("word {k:?} row {r} past {} embedding rows", word_embeddings.len())));
+    check_vocabulary(word_entries, word_embeddings.len(), "words", Some(&UNKNOWN.to_owned())).map_err(bad)?;
+    check_vocabulary(char_entries, char_embeddings.len(), "characters", Some(&UNKNOWN_BYTES.to_vec())).map_err(bad)?;
+    check_unique_tags(tags).map_err(bad)?;
+    for (name, layer) in [
+        ("character forward", char_forward),
+        ("character backward", char_backward),
+        ("word forward", word_forward),
+        ("word backward", word_backward),
+    ] {
+        check_lstm(name, layer)?;
     }
-    if let Some((_, r)) = char_entries.iter().find(|(_, r)| *r >= char_embeddings.len()) {
-        return Err(bad(format!("character entry row {r} past {} embedding rows", char_embeddings.len())));
+    for (name, layer) in [("second word forward", word_forward2), ("second word backward", word_backward2)] {
+        if let Some(layer) = layer {
+            check_lstm(name, layer)?;
+        }
     }
     if char_forward.input_size() != char_dim || char_backward.input_size() != char_dim {
         return Err(bad("character LSTM input sizes must match the character embedding width".into()));
@@ -71,6 +172,9 @@ pub(super) fn validate_tensors(
     }
 
     let pretrained_dim = match pretrained_vectors {
+        None if !pretrained_entries.is_empty() => {
+            return Err(bad("pretrained entries require pretrained vectors".into()));
+        }
         None => 0,
         Some(vecs) => {
             let Some(first) = vecs.first() else {
@@ -86,9 +190,7 @@ pub(super) fn validate_tensors(
             if let Some(v) = vecs.iter().flatten().find(|v| !v.is_finite()) {
                 return Err(bad(format!("non-finite pretrained vector value {v}")));
             }
-            if let Some((k, r)) = pretrained_entries.iter().find(|(_, r)| *r >= vecs.len()) {
-                return Err(bad(format!("pretrained {k:?} row {r} past {} vector rows", vecs.len())));
-            }
+            check_vocabulary(pretrained_entries, vecs.len(), "pretrained", None).map_err(bad)?;
             width
         }
     };
@@ -160,4 +262,37 @@ pub(super) fn validate_tensors(
         check_finite("adapter bias", ab.iter().copied())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::check_lstm_tensors;
+    use crate::neural::NeuralError;
+
+    /// A gate bias vector of the wrong length cannot be built through the public `LstmLayer`
+    /// API (`b_mut` hands out a fixed-length slice), so the tensor check is exercised directly.
+    #[test]
+    fn rejects_a_short_or_long_gate_bias() {
+        let (input, hidden) = (3, 2);
+        let w = vec![vec![0.0; input]; 4 * hidden];
+        let u = vec![vec![0.0; hidden]; 4 * hidden];
+        assert!(check_lstm_tensors("test", input, hidden, &w, &u, &[0.0; 8]).is_ok());
+        for len in [0, 7, 9] {
+            let b = vec![0.0; len];
+            let result = check_lstm_tensors("test", input, hidden, &w, &u, &b);
+            assert!(matches!(result, Err(NeuralError::InvalidArgument(_))), "b of {len}: {result:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_short_row_counts_and_zero_sizes() {
+        let w = vec![vec![0.0; 3]; 7];
+        let u = vec![vec![0.0; 2]; 8];
+        assert!(check_lstm_tensors("test", 3, 2, &w, &u, &[0.0; 8]).is_err(), "W one row short");
+        let w = vec![vec![0.0; 3]; 8];
+        let u = vec![vec![0.0; 2]; 9];
+        assert!(check_lstm_tensors("test", 3, 2, &w, &u, &[0.0; 8]).is_err(), "U one row long");
+        assert!(check_lstm_tensors("test", 0, 2, &[], &[], &[]).is_err(), "zero input size");
+        assert!(check_lstm_tensors("test", 3, 0, &[], &[], &[]).is_err(), "zero hidden size");
+    }
 }

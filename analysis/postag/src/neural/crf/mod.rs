@@ -50,6 +50,38 @@ impl CrfScorer {
         Ok(num_tags)
     }
 
+    /// Checks the gradient accumulators `loss_and_gradients` writes against the scored shape:
+    /// `d_emissions` one row of `num_tags` per token, `d_transitions` `num_tags` x `num_tags`,
+    /// and `d_start` and `d_end` `num_tags` each. Runs before anything is written, so a
+    /// rejected call leaves every caller buffer as it was.
+    fn check_accumulators(
+        steps: usize,
+        num_tags: usize,
+        d_emissions: &[Vec<f64>],
+        d_transitions: &[Vec<f64>],
+        d_start: &[f64],
+        d_end: &[f64],
+    ) -> Result<(), NeuralError> {
+        let bad = |detail: String| NeuralError::InvalidArgument(detail);
+        if d_emissions.len() != steps {
+            return Err(bad(format!("CRF emission gradients {} rows for {steps} tokens", d_emissions.len())));
+        }
+        if let Some(t) = d_emissions.iter().position(|row| row.len() != num_tags) {
+            return Err(bad(format!("CRF emission gradients at {t} hold {} of {num_tags} tags", d_emissions[t].len())));
+        }
+        if d_transitions.len() != num_tags || d_transitions.iter().any(|row| row.len() != num_tags) {
+            return Err(bad(format!("CRF transition gradients must be {num_tags}x{num_tags}")));
+        }
+        if d_start.len() != num_tags || d_end.len() != num_tags {
+            return Err(bad(format!(
+                "CRF start and end gradients hold {} and {} of {num_tags} tags",
+                d_start.len(),
+                d_end.len()
+            )));
+        }
+        Ok(())
+    }
+
     /// Finds the highest-scoring tag index sequence by Viterbi decoding.
     pub fn viterbi(
         emissions: &[Vec<f64>],
@@ -135,6 +167,9 @@ impl CrfScorer {
     }
 
     /// Computes negative log-likelihood loss and accumulates gradients into `d_emissions`, `d_transitions`, `d_start`, and `d_end`.
+    ///
+    /// Every input and accumulator dimension is checked before the first write; a mismatch is
+    /// `NeuralError::InvalidArgument` with the caller buffers untouched.
     #[allow(clippy::too_many_arguments)]
     pub fn loss_and_gradients(
         emissions: &[Vec<f64>],
@@ -152,6 +187,7 @@ impl CrfScorer {
             return Ok(0.0);
         }
         let num_tags = Self::check_dimensions(emissions, transitions, start, end)?;
+        Self::check_accumulators(steps, num_tags, d_emissions, d_transitions, d_start, d_end)?;
         if gold.len() != steps {
             return Err(NeuralError::InvalidArgument(format!("CRF gold sequence {} for {steps} tokens", gold.len())));
         }
