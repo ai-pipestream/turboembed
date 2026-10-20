@@ -350,6 +350,23 @@ view spans. `ContentHashes<L>` (`turbo:content-hashes<L>`) gives every
 unit a deterministic content ID over its level, heading path and
 fragment text, so a re-chunked document diffs cleanly.
 
+Multi-representation indexing (`turbo_chunker::MultiRepChunkIndex`)
+registers several indexable views of one chunk unit (its surface
+text, a summary or header, its keyphrases from `TermStats<Levels>`,
+its sentence sub-spans), each carrying provenance back to the
+canonical unit and its `ChunkId`, and ranks them lexically in one
+list. Parent expansion (`turbo_chunker::ParentExpander`) then
+promotes ranked leaf or representation hits to the parent unit that
+should enter the context ("small-to-big" retrieval): promotion
+climbs the `Levels` tree toward a target level while the parent
+fits `max_parent_tokens`, scores of hits resolving to one parent
+combine by max, sum, mean or reciprocal rank fusion with
+deterministic tie-breaking, an accepted unit blocks its ancestors
+and its whole subtree so a parent and its own child are never both
+emitted, and `max_total_tokens` caps the emitted context.
+`unit_tokens` derives every unit's token count from the chunk
+rows' `model_tokens`.
+
 `Spans<L>` provides lookup and conflict-resolution helpers that work
 across continuous, nested, overlapping and discontinuous spans:
 

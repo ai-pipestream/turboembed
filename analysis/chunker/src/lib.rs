@@ -15,9 +15,11 @@
 mod boundaries;
 mod cohesion;
 mod drift;
+pub mod expand;
 mod gaps;
 mod hashes;
 mod limits;
+pub mod multirep;
 mod providers;
 pub mod rechunk;
 pub mod route;
@@ -28,7 +30,9 @@ mod weigh;
 pub use boundaries::{Costs, StructureBoundaries};
 pub use cohesion::{Cohesion, CohesiveChunker};
 pub use drift::{Drift, DriftBoundaries, Score, drift};
+pub use expand::{ExpandedHit, ExpansionPolicy, ParentExpander, ScoreAggregation, unit_tokens};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
+pub use multirep::{ChunkRepresentation, MultiRepChunkIndex, RepHit, RepresentationKind};
 pub use providers::{DriftProvider, SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider};
 pub use route::{Hit, LevelRouter, LevelWeights, ParentContext, QueryKind, QueryProfile, Routed};
 pub use sentiment::{
