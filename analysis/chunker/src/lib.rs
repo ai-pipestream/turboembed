@@ -8,7 +8,9 @@
 //!
 //! `boundaries` writes the structural costs, `gaps` reads what the
 //! structure says about each gap between sentences, and `limits` turns
-//! that into the places a chunk may not end.
+//! that into the places a chunk may not end. At query time, `route`
+//! ranks the chunk, section and document units of `Levels` together,
+//! and `hashes` gives every unit a content-addressed ID.
 
 mod boundaries;
 mod cohesion;
@@ -18,6 +20,7 @@ mod hashes;
 mod limits;
 mod providers;
 pub mod rechunk;
+pub mod route;
 mod sentiment;
 mod sums;
 mod weigh;
@@ -27,6 +30,7 @@ pub use cohesion::{Cohesion, CohesiveChunker};
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
 pub use providers::{DriftProvider, SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider};
+pub use route::{Hit, LevelRouter, LevelWeights, ParentContext, QueryKind, QueryProfile, Routed};
 pub use sentiment::{
     ChunkFacetBuilder, ChunkFacets, SentimentBoundaries, SentimentShift, boundary_similarity, chunk_boundary_gaps,
     sentiment_shift,
