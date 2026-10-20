@@ -37,10 +37,11 @@ exports to a pattern. `DistantSupervisionMiner` instead starts
 from seed entity-pair facts and ranks the signatures that
 produced them by support and precision.
 
-The default libraries (`turbo_relation::defaults`) are six UD
-shape rules (`subject-object`, `passive-agent`, `apposition`,
-`possession`, `prepositional-attachment`, `attribute`) with no
-triggers, and eight semantic starting points (`works_for`,
+The default libraries (`turbo_relation::defaults`) are seven UD
+shape rules (`subject-object`, `passive-agent` over both `>obl`
+and `>obl:agent`, `apposition`, `possession`,
+`prepositional-attachment`, `attribute`) with no triggers, and
+eight semantic starting points (`works_for`,
 `located_in`, `founded_by`, `headquartered_in`, `member_of`,
 `acquired_by`, `born_in`, `spouse_of`) combining a shape, a pivot
 lemma, and entity kinds on both ends. Both are starting points
