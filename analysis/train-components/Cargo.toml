@@ -44,9 +44,10 @@ turbo-parser = { path = "../parser" }
 # the tests build samples with; the analyzer the sentiment detector runs in.
 turbo-analysis = { path = "../core" }
 
-[dev-dependencies]
-# The tokens and categories layers of the sentiment goldens.
+turbo-depparse = { path = "../depparse" }
 turbo-analysis-layers = { path = "../layers" }
+
+[dev-dependencies]
 # The JVM's events over the golden inputs, which the event streams are
 # compared with, and the fixture models.
 turbo-goldens = { path = "../goldens" }

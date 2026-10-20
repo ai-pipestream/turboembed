@@ -1,4 +1,4 @@
-use crate::{DependencyGraph, DependencyParserME};
+use crate::{DependencyGraph, DependencyParserME, FeedforwardDependencyParser};
 use std::marker::PhantomData;
 use turbo_analysis::{Annotator, Error, Ix, Layer, ModelRef, Refs, View};
 use turbo_analysis_layers::{Dependencies, MorphPosTags, Sentences, Tokens, WordOrTokenAnchor};
@@ -6,12 +6,12 @@ use turbo_analysis_layers::{Dependencies, MorphPosTags, Sentences, Tokens, WordO
 /// Parses each sentence independently, converting local heads to document
 /// indexes. Uncovered or crossing words are errors, never silently omitted.
 pub struct DependencyAnnotator<A: WordOrTokenAnchor = Tokens> {
-    parser: DependencyParserME,
+    parser: DependencyBackend,
     anchor: PhantomData<fn() -> A>,
 }
 impl<A: WordOrTokenAnchor> DependencyAnnotator<A> {
-    pub fn new(parser: DependencyParserME) -> Self {
-        Self { parser, anchor: PhantomData }
+    pub fn new(parser: impl Into<DependencyBackend>) -> Self {
+        Self { parser: parser.into(), anchor: PhantomData }
     }
 }
 impl<A: WordOrTokenAnchor> Annotator for DependencyAnnotator<A> {
@@ -93,7 +93,46 @@ impl<A: WordOrTokenAnchor> Annotator for DependencyAnnotator<A> {
         layer.check_forest().map_err(fail)?;
         Ok((layer,))
     }
+    fn config_hash(&self) -> u64 {
+        self.parser.config_hash()
+    }
     fn model(&self) -> Option<ModelRef> {
-        Some(self.parser.model.identity.clone())
+        Some(self.parser.identity())
+    }
+}
+
+/// Selects the parser while retaining typed token/word annotation.
+pub enum DependencyBackend {
+    Linear(DependencyParserME),
+    Feedforward(FeedforwardDependencyParser),
+}
+impl From<DependencyParserME> for DependencyBackend {
+    fn from(parser: DependencyParserME) -> Self {
+        Self::Linear(parser)
+    }
+}
+impl From<FeedforwardDependencyParser> for DependencyBackend {
+    fn from(parser: FeedforwardDependencyParser) -> Self {
+        Self::Feedforward(parser)
+    }
+}
+impl DependencyBackend {
+    fn parse<A: WordOrTokenAnchor>(&self, words: &[&str], tags: &[&str]) -> crate::Result<DependencyGraph<A>> {
+        match self {
+            Self::Linear(p) => p.parse(words, tags),
+            Self::Feedforward(p) => p.parse(words, tags),
+        }
+    }
+    fn identity(&self) -> ModelRef {
+        match self {
+            Self::Linear(p) => p.model.identity.clone(),
+            Self::Feedforward(p) => p.identity(),
+        }
+    }
+    fn config_hash(&self) -> u64 {
+        match self {
+            Self::Linear(_) => 0,
+            Self::Feedforward(p) => p.config_hash(),
+        }
     }
 }

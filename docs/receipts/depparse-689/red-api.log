@@ -1,0 +1,19 @@
+   Compiling turbo-analysis v0.1.0 (<checkout>/analysis/core)
+   Compiling turbo-train v0.1.0 (<checkout>/analysis/train)
+   Compiling turbo-analysis-layers v0.1.0 (<checkout>/analysis/layers)
+   Compiling turbo-tokenize-layers v0.1.0 (<checkout>/analysis/tokenize-layers)
+   Compiling turbo-postag v0.1.0 (<checkout>/analysis/postag)
+   Compiling turbo-tokenize v0.1.0 (<checkout>/analysis/tokenize)
+   Compiling turbo-parser v0.1.0 (<checkout>/analysis/parser)
+   Compiling turbo-formats v0.1.0 (<checkout>/analysis/formats)
+   Compiling turbo-depparse v0.1.0 (<checkout>/analysis/depparse)
+error[E0432]: unresolved imports `turbo_depparse::FeedforwardContext`, `turbo_depparse::FeatureLayout`
+ --> analysis/depparse/tests/feedforward.rs:2:40
+  |
+2 | use turbo_depparse::{ArcStandardState, FeedforwardContext, FeatureLayout};
+  |                                        ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^ no `FeatureLayout` in the root
+  |                                        |
+  |                                        no `FeedforwardContext` in the root
+
+For more information about this error, try `rustc --explain E0432`.
+error: could not compile `turbo-depparse` (test "feedforward") due to 1 previous error

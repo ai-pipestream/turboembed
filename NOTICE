@@ -229,3 +229,8 @@ reimplemented from Apache OpenNLP 3.x under Apache-2.0. English EWT and
 Spanish GSD excerpts and derived fixtures retain upstream attribution and
 CC BY-SA 4.0 licensing in analysis/depparse/tests/data/README.md and the
 accompanying license files.
+
+The feedforward dependency context, model scoring, beam decoding and AdaGrad
+training behavior in analysis/depparse/src/feedforward are reimplemented
+from Apache OpenNLP under Apache-2.0. Pinned source and generated fixture
+provenance are documented in analysis/depparse/tests/feedforward/data/README.md.

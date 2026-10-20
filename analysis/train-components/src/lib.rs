@@ -180,3 +180,6 @@ pub use sentdetect::{SdEventStream, SentenceDetectorFactory, sd_events, train_se
 pub use sentiment::{SentimentEventStream, sentiment_events, train_sentiment_model};
 pub use tagdict::PosDictionary;
 pub use tokenize::{TokSpanEventStream, TokenizerFactory, tok_events, train_tokenizer_model};
+
+/// Neural dependency training from Universal Dependencies CoNLL-U sentences.
+pub mod depparse;
