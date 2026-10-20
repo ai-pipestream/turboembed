@@ -16,6 +16,21 @@ pub(crate) fn blocks(dim: u32) -> usize {
     (dim as usize).div_ceil(LANES)
 }
 
+/// Refuses `other` unless it is `index`'s space: the same model, dimension
+/// and normalization.
+pub(crate) fn same_space(index: &Space, other: &Space) -> Result<(), IndexError> {
+    if other.model != index.model {
+        return Err(IndexError::Model { index: Box::new(index.model.clone()), other: Box::new(other.model.clone()) });
+    }
+    if other.dim != index.dim {
+        return Err(IndexError::Dimension { index: index.dim, other: other.dim as usize });
+    }
+    if other.normalization != index.normalization {
+        return Err(IndexError::Normalization { index: index.normalization, other: other.normalization });
+    }
+    Ok(())
+}
+
 /// Checks `values` as a vector of `space` and writes it into `out` as the
 /// index scores it: as given for [`Metric::Dot`], divided by its length
 /// for [`Metric::Cosine`], zeros after the last value. `out` holds

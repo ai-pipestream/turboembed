@@ -1,0 +1,1 @@
+turbo batch=4 threads=1 median_seconds=0.006795046 pairs_per_second=588.6641532669536

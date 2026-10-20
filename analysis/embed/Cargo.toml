@@ -15,6 +15,9 @@ turbo-analysis-layers = { path = "../layers" }
 # analysis crate that depends on the core.
 turbo = { path = "../../core" }
 
+# Typed top-k retrieval hits consumed by the reranking adapter.
+turbo-vector-index = { path = "../vector-index" }
+
 [dev-dependencies]
 # The tests build the levels with the chunker crate's builder.
 turbo-chunker = { path = "../chunker" }

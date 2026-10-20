@@ -5,19 +5,29 @@
 //! `TermStats<L>`, aligned to the units; `Query` scores units with BM25,
 //! taking the collection's statistics from the caller. `ContentTermCounter<L>`
 //! counts the same way with the tokens inside boilerplate left out.
+//! `CollectionStatisticsBuilder` accumulates a corpus's statistics over
+//! many documents, `Bm25PostingIndex` ranks the units of many documents
+//! from posting lists, and `WeightedTerms<L>` holds each entry's BM25
+//! weight.
 //!
 //! The layers are defined here, beside the code that makes them, while
 //! only this crate and its tests read them; a schema crate of their own is
 //! the place for them once another crate does.
 
 pub mod bm25;
+pub mod collection;
 pub mod content;
 pub mod count;
 pub mod index;
 pub mod layer;
+pub mod posting;
+pub mod weighted;
 
 pub use bm25::{Bm25, Collection, LocalCollection, Query};
+pub use collection::{CollectionStatistics, CollectionStatisticsBuilder};
 pub use content::ContentTermCounter;
 pub use count::TermCounter;
 pub use index::{NormalizedTermIndexer, TermForm, TermIndexer};
 pub use layer::{IndexedTerms, TermStats, Terms, Vocabulary};
+pub use posting::{Bm25PostingIndex, Bm25PostingIndexBuilder};
+pub use weighted::WeightedTerms;

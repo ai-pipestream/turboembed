@@ -474,3 +474,21 @@ the user's acceptance of the licences that need it.
 - Selection scores. Manifest order is the preference.
 - Pair templates, chat templates, other tasks. They arrive with
   the code that reads them.
+
+### Cross-encoder reranking (TASK_RERANK)
+
+A reranking bundle has `task: "TASK_RERANK"` and a `rerank` block instead
+of `embed`. The block contains positive `max_seq`, `max_batch`, and
+`query_tokens` limits and `pair_template: "PAIR_BERT"` or `"PAIR_ROBERTA"`.
+BERT uses `[CLS] query [SEP] passage [SEP]` with segment types 0 then 1.
+RoBERTa uses `<s> query </s></s> passage </s>` with segment type 0.
+The query is cut on the right before passage windowing, leaving at least
+one passage position. Windows cover the complete passage; their raw
+relevance logits are combined by maximum. No sigmoid is applied.
+
+`classifier` must describe a sequence head with one label. Its existing
+classifier/pooler tensor roles carry the relevance weights. RoBERTa's
+classification dense/tanh layer maps to the pooler roles. Missing head
+weights, an incompatible template, or an unsupported task is refused at
+load with the relevant field name. CPU is the initial execution backend.
+The result records the model, artifact, and tokenizer identity.

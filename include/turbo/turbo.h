@@ -131,6 +131,9 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_DEVICE_NPU   4
 
 #define TURBO_TASK_EMBED   1
+#define TURBO_TASK_RERANK  2
+#define TURBO_PAIR_BERT    1
+#define TURBO_PAIR_ROBERTA 2
 
 /* What a (device, task) cell may say. There is no "planned": a thing that
  * does not run is unsupported. */
@@ -307,8 +310,8 @@ int32_t turbo_runtime_capability(turbo_runtime *rt, uint32_t index, uint32_t tas
                                  turbo_capability *out, turbo_error *err);
 
 /* The device that will run task fastest here: the highest capability status
- * at TURBO_PRECISION_MODEL, then the best speed_ratio among equals. Never a
- * CPU. Among devices that still tie, the first in device order. reason
+ * at TURBO_PRECISION_MODEL, then the best speed_ratio among equals. Embedding excludes
+ * CPUs; reranking currently selects a CPU. Among devices that still tie, the first in device order. reason
  * receives one line saying why, if non-NULL and reason_len is not 0.
  * TURBO_E_DEVICE_NOT_FOUND when nothing offers the task. */
 int32_t turbo_runtime_select(turbo_runtime *rt, uint32_t task, uint32_t *out,
@@ -379,9 +382,11 @@ typedef struct turbo_model_info {
     uint32_t output_dims[TURBO_OUTPUT_DIMS_MAX];   /* embed: the widths besides dim that
                                                       turbo_embed_options.output_dim may
                                                       name, ascending; 0 past the count */
+    uint32_t rerank_query_tokens;    /* rerank: default query truncation budget */
+    uint32_t rerank_pair_template;   /* rerank: TURBO_PAIR_BERT or TURBO_PAIR_ROBERTA */
     /* Fields marked embed are 0 or empty for a model of another task. The
      * library also accepts a struct_size that ends before output_dims_count
-     * and then writes nothing from there on. */
+     * or before rerank_query_tokens, writing only the caller's prefix. */
 } turbo_model_info;
 
 /* Load a bundle directory on the context's device. Every file is checked
@@ -611,6 +616,42 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
  * turbo_result_buffer are released; until then a write or run on the
  * session is TURBO_E_BUSY. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
+
+/* CPU cross-encoder reranking. Output is [pair_count, 1] F32 raw relevance
+ * logits, max-pooled over passage windows. Model and artifact identity are
+ * in turbo_result_info. No sigmoid is applied. */
+typedef struct turbo_rerank_options {
+    uint32_t struct_size;
+    uint32_t query_tokens; /* 1: query budget excluding specials; 0 uses bundle */
+    uint32_t max_tokens;   /* 2: pair length including specials; 0 uses bundle */
+    uint32_t stride;       /* 3: passage window advance; 0 uses full window */
+} turbo_rerank_options;
+
+typedef struct turbo_text_pair {
+    turbo_text query;
+    turbo_text passage;
+} turbo_text_pair;
+
+/* Query is right-truncated first to query_tokens, leaving at least one
+ * passage token beside the pair template. Passage windows cover all tokens.
+ * Stride must not exceed passage capacity. count must fit max_batch.
+ * Errors clear a previous write. The shared run/result lifetime rules apply. */
+int32_t turbo_rerank_write_pairs(turbo_session *s, const turbo_text_pair *pairs,
+                               uint32_t count, const turbo_rerank_options *opts,
+                               turbo_error *err);
+
+/* Encode the first pair window, returning ids and segment types. opts.stride
+ * must be 0. capacity is the number of i32 entries in each output array. */
+int32_t turbo_tokenizer_encode_pair(turbo_tokenizer *tok, turbo_text_pair pair,
+                                   const turbo_rerank_options *opts,
+                                   int32_t *ids, int32_t *types, uint32_t capacity,
+                                   uint32_t *written, turbo_error *err);
+
+#define TURBO_RERANK_STAGE_TOKENIZE 0
+#define TURBO_RERANK_STAGE_ENCODE   1
+#define TURBO_RERANK_STAGE_HEAD     2
+#define TURBO_RERANK_STAGE_POOL     3
+#define TURBO_RERANK_STAGE_COUNT    4
 
 /* ---- Result ------------------------------------------------------------ */
 

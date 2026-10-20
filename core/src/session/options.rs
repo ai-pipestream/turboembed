@@ -126,6 +126,7 @@ pub(super) fn honored(o: &turbo_embed_options, honored: u32, backend: &str) -> R
 pub(super) fn begin_write(s: &SessionInner) -> Result<MutexGuard<'_, State>> {
     let mut state = s.lock()?;
     state.written = None;
+    state.rerank = None;
     if s.model.info.task != TURBO_TASK_EMBED {
         return Err(Error::new(UNSUPPORTED_TASK, "the model's task is not embed"));
     }
