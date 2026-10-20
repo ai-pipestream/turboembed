@@ -9,6 +9,7 @@ publish = false
 name = "turbo_train"
 
 [dependencies]
+turbo-sequence = { path = "../sequence" }
 # The model file reader the trained models are checked against, and the
 # properties file reader that OpenNLP's parameter files are read with.
 turbo-maxent = { path = "../maxent" }

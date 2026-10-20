@@ -69,6 +69,23 @@ pub struct ArcStandardState<A: WordOrTokenAnchor = Tokens> {
     pub(crate) counts: Vec<usize>,
     pub(crate) left: Vec<Option<Ix<A>>>,
     pub(crate) right: Vec<Option<Ix<A>>>,
+    pub(crate) directional_left: Vec<[Option<Ix<A>>; 2]>,
+    pub(crate) directional_right: Vec<[Option<Ix<A>>; 2]>,
+}
+impl<A: WordOrTokenAnchor> Clone for ArcStandardState<A> {
+    fn clone(&self) -> Self {
+        Self {
+            stack: self.stack.clone(),
+            front: self.front,
+            heads: self.heads.clone(),
+            relations: self.relations.clone(),
+            counts: self.counts.clone(),
+            left: self.left.clone(),
+            right: self.right.clone(),
+            directional_left: self.directional_left.clone(),
+            directional_right: self.directional_right.clone(),
+        }
+    }
 }
 impl<A: WordOrTokenAnchor> ArcStandardState<A> {
     pub fn new(n: usize) -> Result<Self> {
@@ -83,6 +100,8 @@ impl<A: WordOrTokenAnchor> ArcStandardState<A> {
             counts: vec![0; n],
             left: vec![None; n],
             right: vec![None; n],
+            directional_left: vec![[None; 2]; n],
+            directional_right: vec![[None; 2]; n],
         })
     }
     pub fn token_count(&self) -> usize {
@@ -155,6 +174,15 @@ impl<A: WordOrTokenAnchor> ArcStandardState<A> {
     fn attach(&mut self, head: Position<A>, d: Ix<A>, label: &str) {
         self.relations[d.get()] = Some(label.into());
         if let Position::Node(h) = head {
+            let left = d.get() < h.get();
+            let slots = if left { &mut self.directional_left[h.get()] } else { &mut self.directional_right[h.get()] };
+            let precedes = |a: Ix<A>, b: Ix<A>| if left { a.get() < b.get() } else { a.get() > b.get() };
+            if slots[0].is_none_or(|n| precedes(d, n)) {
+                slots[1] = slots[0];
+                slots[0] = Some(d);
+            } else if slots[1].is_none_or(|n| precedes(d, n)) {
+                slots[1] = Some(d);
+            }
             self.heads[d.get()] = Some(h);
             self.counts[h.get()] += 1;
             if self.left[h.get()].is_none_or(|n| d.get() < n.get()) {

@@ -1,0 +1,26 @@
+   Compiling turbo-analysis v0.1.0 (<workspace>/analysis/core)
+   Compiling turbo-sequence v0.1.0 (<workspace>/analysis/sequence)
+   Compiling turbo-train v0.1.0 (<workspace>/analysis/train)
+   Compiling turbo-analysis-layers v0.1.0 (<workspace>/analysis/layers)
+   Compiling turbo-goldens v0.1.0 (<workspace>/analysis/goldens)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.72s
+     Running tests/crf.rs (target/debug/deps/crf-450da98c7c6bb87a)
+
+running 1 test
+test model_labels_must_round_trip_through_name_codec ... FAILED
+
+failures:
+
+---- model_labels_must_round_trip_through_name_codec stdout ----
+
+thread 'model_labels_must_round_trip_through_name_codec' (3808132) panicked at analysis/sequence/tests/crf.rs:116:9:
+assertion failed: CrfConstraints::new(&["other".into(), label], NameCodec::Bio).is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    model_labels_must_round_trip_through_name_codec
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-sequence --test crf`

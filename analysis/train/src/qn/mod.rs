@@ -49,6 +49,8 @@ use crate::java_string::JavaString;
 use crate::params::{DEFAULT_CUTOFF, DEFAULT_ITERATIONS, Key, TrainerType, TrainingParameters};
 use turbo_jvm::strict_math;
 
+mod generic;
+pub use generic::minimize_objective;
 mod minimizer;
 mod objective;
 #[cfg(test)]
