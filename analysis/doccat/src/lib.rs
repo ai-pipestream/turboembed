@@ -199,3 +199,6 @@ mod tests {
         assert!(plain.is_empty());
     }
 }
+
+pub mod selection;
+pub use selection::{DoccatTrainer, FeatureSelection, SelectedFeatures, SelectionMetric};
