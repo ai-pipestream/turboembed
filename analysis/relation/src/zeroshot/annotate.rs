@@ -47,6 +47,7 @@ impl<S: RelationScorer> ZeroShotRelationAnnotator<S> {
         entities: &Entities,
         sentences: Option<&Sentences>,
     ) -> Result<(Relations, Edges<Entities, Entities>), RelationError> {
+        check_inputs(view, entities, sentences)?;
         let n = entities.spans.len();
         let max = self.config.max_mentions.min(self.scorer.max_mentions());
         if n > max {
@@ -62,23 +63,9 @@ impl<S: RelationScorer> ZeroShotRelationAnnotator<S> {
             (0..n).map(|i| Mention { span: entities.spans.get(Ix::new(i as u32)), kind: kind(i) }).collect();
         let sentence = sentence_of(&mentions, sentences.filter(|_| self.config.within_sentence));
         let labels = &self.config.labels;
-        // Per label, which (head kind, tail kind) tags it admits, and the
-        // union a candidate needs: no string compare per pair.
-        let nk = entities.kinds.len();
-        let mut adm = vec![false; labels.len() * nk * nk];
-        let mut any = vec![false; nk * nk];
-        for (l, label) in labels.iter().enumerate() {
-            for a in 0..nk {
-                for b in 0..nk {
-                    let (ka, kb) = (entities.kinds.label(Tag(a as u16)), entities.kinds.label(Tag(b as u16)));
-                    let ok = admits(label, ka, kb);
-                    adm[(l * nk + a) * nk + b] = ok;
-                    any[a * nk + b] |= ok || symmetric_fit(label, ka, kb);
-                }
-            }
-        }
-        let tag: Vec<usize> = entities.kind.iter().map(|k| k.0 as usize).collect();
-        let ok = |l: usize, h: usize, t: usize| adm[(l * nk + tag[h]) * nk + tag[t]];
+        let words = labels.len().div_ceil(64);
+        let kinds = Kinds::new(entities, labels, words)?;
+        let ok = |l: usize, h: usize, t: usize| kinds.admits(l, h, t);
         // Entities in text order put each sentence's mentions in one run;
         // otherwise every mention is scanned against every other.
         let mut run = vec![(0usize, n); n];
@@ -96,7 +83,7 @@ impl<S: RelationScorer> ZeroShotRelationAnnotator<S> {
                 continue;
             }
             for t in run[h].0..run[h].1 {
-                if h != t && sentence[h] == sentence[t] && any[tag[h] * nk + tag[t]] {
+                if h != t && sentence[h] == sentence[t] && kinds.any(h, t) {
                     pairs.push((h as u32, t as u32));
                 }
             }
@@ -172,15 +159,102 @@ impl<S: RelationScorer> ZeroShotRelationAnnotator<S> {
     }
 }
 
-/// Whether `label` allows a head of kind `h` and a tail of kind `t`.
-fn admits(label: &RelationLabel, h: &str, t: &str) -> bool {
-    let fits = |allowed: &Option<Vec<String>>, k: &str| allowed.as_ref().is_none_or(|a| a.iter().any(|x| x == k));
-    fits(&label.domain, h) && fits(&label.range, t)
+/// Which labels admit each mention as head and as tail, as bit sets over
+/// the labels, kept once per distinct kind the mentions hold: the size
+/// follows the mentions, not the entity tag set. `admits(l, h, t)` is a
+/// mask test, and `any(h, t)` whether some label admits the pair in some
+/// order it allows.
+struct Kinds {
+    words: usize,
+    /// Each mention's index into the distinct kinds.
+    of: Vec<usize>,
+    head: Vec<u64>,
+    tail: Vec<u64>,
+    symmetric: Vec<u64>,
 }
 
-/// Whether a symmetric `label` allows the pair the other way round.
-fn symmetric_fit(label: &RelationLabel, h: &str, t: &str) -> bool {
-    label.symmetric && admits(label, t, h)
+impl Kinds {
+    fn new(entities: &Entities, labels: &[RelationLabel], words: usize) -> Result<Kinds, RelationError> {
+        let mut present: Vec<u16> = entities.kind.iter().map(|k| k.0).collect();
+        present.sort_unstable();
+        present.dedup();
+        let of = entities.kind.iter().map(|k| present.binary_search(&k.0).unwrap_or(0)).collect();
+        let size = present
+            .len()
+            .checked_mul(words)
+            .ok_or_else(|| RelationError::InvalidInput(format!("{} kinds by {words} label words", present.len())))?;
+        let (mut head, mut tail) = (vec![0u64; size], vec![0u64; size]);
+        let mut symmetric = vec![0u64; words];
+        let fits = |allowed: &Option<Vec<String>>, k: &str| allowed.as_ref().is_none_or(|a| a.iter().any(|x| x == k));
+        for (l, label) in labels.iter().enumerate() {
+            let (w, bit) = (l / 64, 1u64 << (l % 64));
+            if label.symmetric {
+                symmetric[w] |= bit;
+            }
+            for (u, &k) in present.iter().enumerate() {
+                let name = entities.kinds.label(Tag(k));
+                if fits(&label.domain, name) {
+                    head[u * words + w] |= bit;
+                }
+                if fits(&label.range, name) {
+                    tail[u * words + w] |= bit;
+                }
+            }
+        }
+        Ok(Kinds { words, of, head, tail, symmetric })
+    }
+
+    fn admits(&self, l: usize, h: usize, t: usize) -> bool {
+        let w = l / 64;
+        self.head[self.of[h] * self.words + w] & self.tail[self.of[t] * self.words + w] & (1 << (l % 64)) != 0
+    }
+
+    fn any(&self, h: usize, t: usize) -> bool {
+        let (hh, ht) = (self.of[h] * self.words, self.of[t] * self.words);
+        (0..self.words).any(|w| {
+            let forward = self.head[hh + w] & self.tail[ht + w];
+            let back = self.symmetric[w] & self.head[ht + w] & self.tail[hh + w];
+            forward | back != 0
+        })
+    }
+}
+
+/// The inputs hold together before anything is indexed: the entities and
+/// sentences in the view given, their own columns consistent, and their
+/// spans inside the view's text on character boundaries.
+fn check_inputs(view: &View, entities: &Entities, sentences: Option<&Sentences>) -> Result<(), RelationError> {
+    let bad = RelationError::InvalidInput;
+    if entities.spans.view() != view.id() {
+        return Err(bad(format!("entities in view {:?}, the text in view {:?}", entities.spans.view(), view.id())));
+    }
+    entities.check().map_err(|d| bad(format!("entities: {d}")))?;
+    in_text(&entities.spans, view.text()).map_err(|d| bad(format!("entities: {d}")))?;
+    if let Some(s) = sentences {
+        if s.spans.view() != view.id() {
+            return Err(bad(format!("sentences in view {:?}, the text in view {:?}", s.spans.view(), view.id())));
+        }
+        s.check().map_err(|d| bad(format!("sentences: {d}")))?;
+        in_text(&s.spans, view.text()).map_err(|d| bad(format!("sentences: {d}")))?;
+    }
+    Ok(())
+}
+
+/// Every span and fragment of `spans` inside `text`, on character
+/// boundaries.
+fn in_text<L>(spans: &Spans<L>, text: &str) -> Result<(), String> {
+    let (starts, ends) = spans.columns();
+    let mut columns = vec![(starts, ends)];
+    if let Some((fs, fe, _)) = spans.fragment_columns() {
+        columns.push((fs, fe));
+    }
+    for (starts, ends) in columns {
+        for (&a, &b) in starts.iter().zip(ends) {
+            if a > b || !text.is_char_boundary(a as usize) || !text.is_char_boundary(b as usize) {
+                return Err(format!("span {a}..{b} outside a text of {} bytes or inside a character", text.len()));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The sentence each mention starts in: `None` for every mention when

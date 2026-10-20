@@ -235,3 +235,27 @@ fn relation_evidence_crosses_the_graph() {
     assert_eq!((&a.spans, &a.raw, &a.support), (&b.spans, &b.raw, &b.support));
     assert_eq!(export(&back, &codecs).unwrap().to_bytes().unwrap(), graph.to_bytes().unwrap());
 }
+
+#[test]
+fn inputs_that_do_not_hold_together_are_refused_not_indexed() {
+    let (doc, e, s) = fixture();
+    let view = doc.get::<View>().unwrap();
+    let a = ZeroShotRelationAnnotator::new(ZeroShotRelationConfig::new(labels()), LexicalRelationScorer).unwrap();
+    let invalid = |r: Result<_, RelationError>| matches!(r, Err(RelationError::InvalidInput(_)));
+    // Two entity spans and no kinds: a column check, not a panic.
+    let mut short = entities(&[(0, 4, "PERSON"), (13, 18, "ORG")]);
+    short.kind.clear();
+    assert!(invalid(a.extract(view, &short, None)));
+    // Entities or sentences from another view.
+    let mut elsewhere = entities(&[(0, 4, "PERSON")]);
+    elsewhere.spans = Spans::new(ViewId(9));
+    elsewhere.spans.push(Span::new(0, 4));
+    assert!(invalid(a.extract(view, &elsewhere, None)));
+    let mut other = Sentences { spans: Spans::new(ViewId(9)) };
+    other.spans.push(Span::new(0, 32));
+    assert!(invalid(a.extract(view, &e, Some(&other))));
+    // A span past the text.
+    let past = entities(&[(0, 4, "PERSON"), (13, 99, "ORG")]);
+    assert!(invalid(a.extract(view, &past, Some(&s))));
+    assert!(a.extract(view, &e, Some(&s)).is_ok());
+}

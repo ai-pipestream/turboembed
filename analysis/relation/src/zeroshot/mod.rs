@@ -138,6 +138,9 @@ pub enum RelationError {
         max: usize,
         got: usize,
     },
+    /// An input layer that does not hold together or is not in the view
+    /// given.
+    InvalidInput(String),
     /// The scorer returned the wrong shape or a score outside [0, 1].
     BadScorerOutput(String),
     /// The scorer itself failed.
@@ -157,6 +160,7 @@ impl fmt::Display for RelationError {
             }
             BadThreshold { label: None, threshold } => write!(f, "threshold {threshold} outside [0, 1]"),
             OverLimit { limit, max, got } => write!(f, "{got} exceeds {limit} of {max}"),
+            InvalidInput(d) => write!(f, "invalid input: {d}"),
             BadScorerOutput(d) => write!(f, "the scorer returned {d}"),
             Scorer(d) => write!(f, "the scorer failed: {d}"),
         }
