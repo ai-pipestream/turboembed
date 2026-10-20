@@ -81,6 +81,28 @@ pub struct EntityKeys {
     /// For each key, the sentences it is mentioned in, ascending, with
     /// how many distinct mentions each holds.
     pub occurrences: Vec<Vec<(u32, u32)>>,
+    /// Every distinct mention, by start, then end, then key.
+    pub mentions: Vec<KeyMention>,
+    /// The byte fragments of the mentions, `KeyMention::fragments` into it.
+    pub fragments: Vec<Span>,
+}
+
+/// One distinct mention of a key: an entity, or a chain mention tied to
+/// one, with its envelope span and its own fragments.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct KeyMention {
+    pub key: u32,
+    pub sentence: u32,
+    pub span: Span,
+    /// `EntityKeys::fragments[fragments.0..fragments.1]`.
+    pub fragments: (u32, u32),
+}
+
+impl EntityKeys {
+    /// The byte fragments of mention `m`.
+    pub fn fragments_of(&self, m: &KeyMention) -> &[Span] {
+        &self.fragments[m.fragments.0 as usize..m.fragments.1 as usize]
+    }
 }
 
 /// The sentence whose span holds `at`, if any.
@@ -143,7 +165,7 @@ impl EntityKeys {
         }
         // Mentions of a chain that are not entities: (any entity of the
         // chain, sentence, span).
-        let mut extra: Vec<(u32, u32, Span)> = Vec::new();
+        let mut extra: Vec<(u32, u32, Span, usize)> = Vec::new();
         if keying.chains {
             if let Some(groups) = chains.entity_groups {
                 for (_, members) in groups.iter() {
@@ -187,7 +209,7 @@ impl EntityKeys {
                         let s =
                             m.sentence.get(j).map(|s| s.get() as u32).or_else(|| sentence_at(sentences, span.start));
                         if let Some(s) = s.filter(|&s| (s as usize) < sentences.spans.len()) {
-                            extra.push((anchor, s, span));
+                            extra.push((anchor, s, span, j));
                         }
                     }
                 }
@@ -209,29 +231,45 @@ impl EntityKeys {
         }
         // Distinct mentions per key: two entities (or an entity and a
         // chain mention) over the same span are one mention.
-        let mut seen: Vec<(u32, u32, u32, u32)> = Vec::new();
+        // The last field is the source: entity i, or chain mention j as n + j.
+        let mut seen: Vec<(u32, u32, u32, u32, usize)> = Vec::new();
         for i in 0..n {
             if let (Some(k), Some(s)) = (key[i], sentence[i]) {
                 let sp = ents.spans.get(Ix::new(i as u32));
-                seen.push((k, s, sp.start, sp.end));
+                seen.push((k, s, sp.start, sp.end, i));
             }
         }
-        for &(anchor, s, sp) in &extra {
+        for &(anchor, s, sp, j) in &extra {
             if let Some(k) = key[anchor as usize] {
-                seen.push((k, s, sp.start, sp.end));
+                seen.push((k, s, sp.start, sp.end, n + j));
             }
         }
         seen.sort_unstable();
         seen.dedup_by(|a, b| a.0 == b.0 && a.2 == b.2 && a.3 == b.3);
+        let mut by_start: Vec<(u32, u32, u32, u32, usize)> =
+            seen.iter().map(|&(k, s, a, b, src)| (a, b, k, s, src)).collect();
+        by_start.sort_unstable();
+        let (mut mentions, mut fragments) = (Vec::with_capacity(by_start.len()), Vec::new());
+        for (a, b, k, s, src) in by_start {
+            let from = fragments.len() as u32;
+            match (src < n, chains.mentions) {
+                (true, _) => fragments.extend(ents.spans.fragments(Ix::new(src as u32))),
+                (false, Some(m)) => fragments.extend(m.spans.fragments(Ix::new((src - n) as u32))),
+                (false, None) => fragments.push(Span::new(a, b)),
+            }
+            let fragments_end = fragments.len() as u32;
+            let span = Span::new(a, b);
+            mentions.push(KeyMention { key: k, sentence: s, span, fragments: (from, fragments_end) });
+        }
         let mut occurrences = vec![Vec::new(); first.len()];
-        for (k, s, _, _) in seen {
+        for (k, s, _, _, _) in seen {
             let occ: &mut Vec<(u32, u32)> = &mut occurrences[k as usize];
             match occ.last_mut() {
                 Some((last, count)) if *last == s => *count += 1,
                 _ => occ.push((s, 1)),
             }
         }
-        EntityKeys { key, first, occurrences }
+        EntityKeys { key, first, occurrences, mentions, fragments }
     }
 
     /// How many distinct entities the document mentions.

@@ -160,7 +160,7 @@ fn no_entities_cost_nothing_and_head_nothing() {
     let k = EntityKeys::build(&s, None, text, Keying::default(), Chains::default());
     assert!(k.is_empty());
     assert_eq!(entity_boundaries(2, &k, EntityContinuity::default()).cost, [0, 0]);
-    let h = chunk_entities(&s, &chunks(&[(0, 1), (1, 2)], &[None, None], &[0, 0], &s), &k, HeaderPolicy::default());
+    let h = chunk_entities(&chunks(&[(0, 1), (1, 2)], &[None, None], &[0, 0], &s), &k, HeaderPolicy::default());
     assert_eq!(h.row, [0, 0, 0]);
     assert!(h.first.is_empty() && h.check().is_ok());
     assert_eq!(entity_boundaries(0, &k, EntityContinuity::default()).cost, Vec::<i32>::new());
@@ -174,7 +174,7 @@ fn headers_list_mentioned_then_carried_entities_within_the_section() {
     let k = keys(text, &ents, Keying::default(), Chains::default());
     // A section row over 0..5 holding chunks 0..2, 2..4 and 4..5.
     let c = chunks(&[(0, 5), (0, 2), (2, 4), (4, 5)], &[None, Some(0), Some(0), Some(0)], &[1, 0, 0, 0], &s);
-    let h = chunk_entities(&s, &c, &k, HeaderPolicy::default());
+    let h = chunk_entities(&c, &k, HeaderPolicy::default());
     assert!(h.check().is_ok());
     let entries = |i: u32| h.entries(Ix::new(i)).collect::<Vec<_>>();
     // Section: everything it mentions, nothing carried (no parent).
@@ -186,9 +186,9 @@ fn headers_list_mentioned_then_carried_entities_within_the_section() {
     assert_eq!(entries(3), [(3, 1), (0, 0), (2, 0), (1, 0)]);
     assert_eq!(h.header(Ix::new(3), &ents, text).unwrap(), "[Entities: Dee | in scope: Ann; Cy; Bob]");
     assert_eq!(h.entities(Ix::new(1)).collect::<Vec<_>>(), [Ix::new(0), Ix::new(1)]);
-    let none = chunk_entities(&s, &c, &k, HeaderPolicy { max_carried: 0 });
+    let none = chunk_entities(&c, &k, HeaderPolicy { max_carried: 0 });
     assert_eq!(none.entries(Ix::new(3)).collect::<Vec<_>>(), [(3, 1)]);
-    let one = chunk_entities(&s, &c, &k, HeaderPolicy { max_carried: 1 });
+    let one = chunk_entities(&c, &k, HeaderPolicy { max_carried: 1 });
     assert_eq!(one.entries(Ix::new(3)).collect::<Vec<_>>(), [(3, 1), (0, 0)]);
 }
 

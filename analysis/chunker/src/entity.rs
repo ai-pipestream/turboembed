@@ -10,11 +10,13 @@
 //! written to the `entity` instance of `turbo:boundaries`, which
 //! `DistilledBoundaryScorer` sums into the default one.
 
+mod build;
 mod header;
 mod keys;
 
-pub use header::{ChunkEntities, ChunkEntityHeaders, HeaderPolicy, chunk_entities};
-pub use keys::{Chains, EntityKeys, Keying, normalize_surface};
+pub use build::chunk_entities;
+pub use header::{ChunkEntities, ChunkEntityHeaders, HeaderPolicy};
+pub use keys::{Chains, EntityKeys, KeyMention, Keying, normalize_surface};
 
 use std::num::NonZeroU32;
 

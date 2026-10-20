@@ -7,7 +7,7 @@
 use turbo_analysis::{Anchor, Annotator, Error, Groups, Ix, Key, KeyId, Layer, LayerName, Refs, View};
 use turbo_analysis_layers::{Chunks, Entities, Sentences};
 
-use super::{Chains, EntityKeys, Keying, fnv, same_view};
+use super::{Chains, EntityKeys, Keying, chunk_entities, fnv, same_view};
 use crate::coref::Mentions;
 
 /// What a chunk header holds besides the entities the chunk mentions.
@@ -26,9 +26,11 @@ impl Default for HeaderPolicy {
 }
 
 /// The entity header of every row of `turbo:chunks`. Row `c`'s entries
-/// are `row[c]..row[c + 1]`: first the keys it mentions, in order of
-/// first mention, then the keys carried from earlier in its section,
-/// most recent first, with `mentions` zero.
+/// are `row[c]..row[c + 1]`: first the keys with a mention whose bytes
+/// overlap the chunk's fragments, by the sentence of their first such
+/// mention and then by key, then the keys carried from mentions before
+/// the chunk in its section, latest sentence first and then by key,
+/// with `mentions` zero.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ChunkEntities {
     /// For each entity key, the entity that names it (its first mention).
@@ -130,74 +132,6 @@ impl Layer for ChunkEntities {
     }
 }
 
-/// Builds the header of every row of `chunks` from `keys`.
-pub fn chunk_entities(
-    sentences: &Sentences,
-    chunks: &Chunks,
-    keys: &EntityKeys,
-    policy: HeaderPolicy,
-) -> ChunkEntities {
-    let n = sentences.spans.len();
-    // The keys each sentence mentions, ascending, with their counts.
-    let mut by_sentence: Vec<Vec<(u32, u32)>> = vec![Vec::new(); n];
-    for (k, occ) in keys.occurrences.iter().enumerate() {
-        for &(s, count) in occ {
-            if let Some(v) = by_sentence.get_mut(s as usize) {
-                v.push((k as u32, count));
-            }
-        }
-    }
-    let mut out = ChunkEntities { first: keys.first.clone(), row: vec![0], key: Vec::new(), mentions: Vec::new() };
-    let mut count = vec![0u32; keys.len()];
-    let mut taken = vec![false; keys.len()];
-    let clamp = |x: usize| x.min(n);
-    for c in 0..chunks.spans.len() {
-        let r = chunks.sentences[c];
-        let (a, b) = (clamp(r.start.get()), clamp(r.end.get()));
-        let start = out.key.len();
-        for sentence in &by_sentence[a..b] {
-            for &(k, m) in sentence {
-                if count[k as usize] == 0 {
-                    out.key.push(k);
-                }
-                count[k as usize] += m;
-            }
-        }
-        for i in start..out.key.len() {
-            let k = out.key[i] as usize;
-            out.mentions.push(count[k]);
-            count[k] = 0;
-            taken[k] = true;
-        }
-        let scope = match chunks.parent[c] {
-            Some(p) => Some(clamp(chunks.sentences[p.get()].start.get())),
-            None if chunks.level[c] == 0 => Some(0),
-            None => None,
-        };
-        let mut carried = 0;
-        if let Some(lo) = scope.filter(|&lo| lo < a) {
-            'back: for sentence in by_sentence[lo..a].iter().rev() {
-                for &(k, _) in sentence {
-                    if carried >= policy.max_carried {
-                        break 'back;
-                    }
-                    if !taken[k as usize] {
-                        taken[k as usize] = true;
-                        out.key.push(k);
-                        out.mentions.push(0);
-                        carried += 1;
-                    }
-                }
-            }
-        }
-        for &k in &out.key[start..] {
-            taken[k as usize] = false;
-        }
-        out.row.push(out.key.len() as u32);
-    }
-    out
-}
-
 /// Writes [`ChunkEntities`] for the chunks.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ChunkEntityHeaders {
@@ -228,7 +162,7 @@ impl Annotator for ChunkEntityHeaders {
         }
         let chains = Chains { mentions, mention_groups, entity_groups };
         let keys = EntityKeys::build(sentences, entities, view.text(), self.keying, chains);
-        Ok((chunk_entities(sentences, chunks, &keys, self.policy),))
+        Ok((chunk_entities(chunks, &keys, self.policy),))
     }
 
     fn config_hash(&self) -> u64 {
