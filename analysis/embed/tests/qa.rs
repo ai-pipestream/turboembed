@@ -61,3 +61,27 @@ fn answer_projection_uses_the_checked_view_path() {
     invalid.probabilities[0] = f64::NAN;
     assert!(invalid.check().is_err());
 }
+
+#[test]
+fn answer_projection_cannot_turn_inserted_text_into_an_empty_answer() {
+    let mut doc = Document::new("a");
+    let mut builder = ViewBuilder::new(doc.source());
+    builder.replace(0, "new");
+    let (text, alignment) = builder.finish();
+    let view = View::derived(doc.get::<View>().unwrap(), text, alignment);
+    doc.add(&Key::named("inserted"), view, Provenance::by("test")).unwrap();
+    let mut answers = Answers::from_decoded(
+        ViewId(1),
+        Answer::Spans {
+            answers: vec![SpanAnswer { bytes: 0..3, score: 2., probability: 1. }],
+            null_score: 0.,
+            null_probability: 0.,
+        },
+    )
+    .unwrap();
+    assert!(answers.project(&doc, ViewId::SOURCE).is_err());
+    answers.spans = Spans::new(ViewId(1));
+    answers.spans.push(Span::new(1, 1));
+    assert!(answers.check().is_err());
+    assert!(Answers::from_decoded(ViewId(1), Answer::None { null_score: 0. }).unwrap().check().is_ok());
+}

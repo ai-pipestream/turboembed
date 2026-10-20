@@ -50,8 +50,17 @@ impl Runtime {
             cap.benchmark.fill(0);
             if d.backend.name() == "cpu" && cap.status != backend::TURBO_CAP_UNSUPPORTED {
                 cap.status = backend::TURBO_CAP_EXPERIMENTAL;
-                cap.options_honored = 0b111;
-                write_str(&mut cap.reason, if task == TURBO_TASK_RERANK { "CPU cross-encoder; rerank speed record pending" } else { "CPU extractive QA; task benchmark pending" });
+                if task == TURBO_TASK_RERANK {
+                    cap.options_honored = 0b111;
+                }
+                write_str(
+                    &mut cap.reason,
+                    if task == TURBO_TASK_RERANK {
+                        "CPU cross-encoder; rerank speed record pending"
+                    } else {
+                        "CPU extractive QA; task benchmark pending"
+                    },
+                );
             } else {
                 cap.status = backend::TURBO_CAP_UNSUPPORTED;
                 cap.dtype = 0;

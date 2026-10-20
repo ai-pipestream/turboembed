@@ -58,7 +58,8 @@ pub(super) fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<Se
         return Err(Error::new(INVALID_ENUM, format!("precision: {} is not a TURBO_PRECISION_* value", d.precision)));
     }
     let mi = &m.info;
-    let backend_task = if matches!(mi.task, TURBO_TASK_RERANK | TURBO_TASK_EXTRACTIVE_QA) { TURBO_TASK_EMBED } else { mi.task };
+    let backend_task =
+        if matches!(mi.task, TURBO_TASK_RERANK | TURBO_TASK_EXTRACTIVE_QA) { TURBO_TASK_EMBED } else { mi.task };
     // docs/bundle.md: max_batch is the largest batch the reference was
     // checked at, and a session larger than it is refused; max_seq is the
     // length the model was evaluated at.

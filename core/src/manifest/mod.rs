@@ -120,7 +120,9 @@ impl Manifest {
             Err(e) => {
                 // A task this build does not have is reported as such, not
                 // as a malformed manifest.
-                if let Some(t) = task.filter(|t| t != "TASK_EMBED" && t != "TASK_RERANK" && t != "TASK_EXTRACTIVE_QA" && is_task_name(t)) {
+                if let Some(t) = task
+                    .filter(|t| t != "TASK_EMBED" && t != "TASK_RERANK" && t != "TASK_EXTRACTIVE_QA" && is_task_name(t))
+                {
                     return Err(unsupported_task(&t));
                 }
                 let path = e.path().to_string();

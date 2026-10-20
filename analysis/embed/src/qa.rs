@@ -16,7 +16,7 @@ impl Layer for Question {
     }
 }
 
-/// Ranked answers in the input view. Empty spans mean calibrated abstention.
+/// Ranked answers in the input view. An empty layer means calibrated abstention.
 pub struct Answers {
     pub spans: Spans<Self>,
     pub scores: Vec<f64>,
@@ -35,6 +35,9 @@ impl Layer for Answers {
     }
     fn check(&self) -> Result<(), String> {
         self.spans.check(Self::OVERLAP)?;
+        if self.spans.columns().0.iter().zip(self.spans.columns().1).any(|(a, b)| a >= b) {
+            return Err("answer span must be nonempty".into());
+        }
         if self.scores.len() != self.len()
             || self.probabilities.len() != self.len()
             || !self.null_score.is_finite()

@@ -20,23 +20,6 @@ fn stride_default() -> u32 {
 }
 
 impl Manifest {
-    /// Encoder capacity for embeddings or token-level question answering.
-    pub fn encoder(&self) -> Embed {
-        match &self.qa {
-            None => self.embed().clone(),
-            Some(q) => Embed {
-                dim: self.architecture.as_ref().map_or(0, |a| a.hidden),
-                pooling: Pooling::Mean,
-                normalize: Normalize::None,
-                max_seq: q.max_seq,
-                max_batch: q.max_batch,
-                prefix_query: String::new(),
-                prefix_document: String::new(),
-                output_dims: Vec::new(),
-            },
-        }
-    }
-
     pub(super) fn validate_qa(&self) -> Result<()> {
         if self.task != "TASK_EXTRACTIVE_QA" {
             if self.qa.is_some() {

@@ -59,10 +59,11 @@ pub fn windows(tok: &Tokenizer, family: Family, q: &Qa, question: &str, text: &s
         }
         start += step;
     }
-    let mut owners = vec![(0usize, 0u64); ids.len()];
+    let mut owners = vec![(0usize, (0usize, 0usize)); ids.len()];
     for (wi, range) in intervals.iter().enumerate() {
         for i in range.clone() {
-            let score = 100 * (i - range.start).min(range.end - i - 1) as u64 + range.len() as u64;
+            // Interior context wins; length only breaks equal-distance ties.
+            let score = ((i - range.start).min(range.end - i - 1), range.len());
             if score > owners[i].1 {
                 owners[i] = (wi, score);
             }

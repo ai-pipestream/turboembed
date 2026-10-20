@@ -25,7 +25,13 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let e = m.encoder();
     let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
     info.struct_size = size_of::<turbo_model_info>() as u32;
-    info.task = if m.rerank.is_some() { TURBO_TASK_RERANK } else if m.qa.is_some() { TURBO_TASK_EXTRACTIVE_QA } else { TURBO_TASK_EMBED };
+    info.task = if m.rerank.is_some() {
+        TURBO_TASK_RERANK
+    } else if m.qa.is_some() {
+        TURBO_TASK_EXTRACTIVE_QA
+    } else {
+        TURBO_TASK_EMBED
+    };
     info.dim = e.dim;
     info.pooling = match e.pooling {
         manifest::Pooling::Mean => TURBO_POOLING_MEAN,

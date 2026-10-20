@@ -93,3 +93,42 @@ fn malformed_task_heads_and_budgets_are_rejected() {
         assert!(Bundle::open(&f.dir).is_err(), "{path}");
     }
 }
+
+#[test]
+fn long_window_length_cannot_override_interior_context() {
+    let f = fixture();
+    let bundle = Bundle::open(&f.dir).unwrap();
+    let mut tok = Tokenizer::load(&bundle).unwrap();
+    tok.max_seq = 512;
+    let mut q = bundle.manifest.qa.as_ref().unwrap().clone();
+    q.max_seq = 321;
+    q.max_query_tokens = 1;
+    q.doc_stride = 128;
+    let text = std::iter::repeat_n("alpha", 318).collect::<Vec<_>>().join(" ");
+    let ws = windows(&tok, turbo::manifest::Family::Bert, &q, "alpha", &text).unwrap();
+    assert_eq!(ws.len(), 2);
+    assert_eq!(ws[0].context.iter().flatten().count(), 317);
+    let answer_start = 316 * 6;
+    let mut logits = Vec::new();
+    for w in ws {
+        let mut start = vec![-10.; w.ids.len()];
+        let mut end = start.clone();
+        start[0] = 0.;
+        end[0] = 0.;
+        for (i, span) in w.context.iter().enumerate() {
+            if let Some(span) = span {
+                if span.start == answer_start {
+                    start[i] = 10.;
+                }
+                if span.end == text.len() {
+                    end[i] = 10.;
+                }
+            }
+        }
+        logits.push(turbo::qa::WindowLogits { start, end, context: w.context, max_context: w.max_context, cls: 0 });
+    }
+    let Answer::Spans { answers, .. } = turbo::qa::decode(&text, &logits, DecodeOptions::default()).unwrap() else {
+        panic!("the final two tokens must remain extractable");
+    };
+    assert_eq!(answers[0].bytes, answer_start..text.len());
+}
