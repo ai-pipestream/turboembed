@@ -69,9 +69,12 @@ to `min_learning_rate`. Training is single-threaded with a SplitMix64
 generator seeded by `seed`, so the same parameters and corpus give the
 same vectors. `Word2VecParameters::validate` and `train` return a
 `Word2VecError` for a zero dimension, window, negative count, epoch
-count or `max_vocab`, a learning rate that is not finite and positive,
-a floor out of `0..=learning_rate`, a threshold that is not finite and
-non-negative, an empty corpus or an empty vocabulary.
+count or `max_vocab`, a dimension above `MAX_DIMENSION` (65536), training
+matrices past `MAX_MATRIX_BYTES` (16 GiB each, checked before allocating),
+a weight that stops being finite (checked after every epoch), a
+learning rate that is not finite and positive, a floor out of
+`0..=learning_rate`, a threshold that is not finite and non-negative,
+an empty corpus or an empty vocabulary.
 `Word2VecVectors` is a `WordVectors` provider whose `config_hash` covers
 the parameters, the vocabulary and every corpus token; it writes the
 word2vec and GloVe text formats, and `word2vec::read_text` reads either
@@ -89,4 +92,4 @@ into `MapWordVectors`.
 `analysis/coref/tests/` ports `CorefResolutionTest`,
 `CorefAnnotatorTest`, `CorefTrainerTest` and `CorefScorerTest`, and
 adds an analyzer run (`pipeline.rs`), document graph round trips
-(`graph_export.rs`) and word2vec training (`word2vec.rs`).
+(`graph_export.rs`) and word2vec training (`word2vec.rs`, `word2vec_limits.rs`).

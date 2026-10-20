@@ -3,7 +3,7 @@
 
 use super::rng::Rng;
 use super::vocab::{Noise, Vocabulary};
-use super::{Word2VecArch, Word2VecParameters};
+use super::{MAX_MATRIX_BYTES, Word2VecArch, Word2VecError, Word2VecParameters};
 
 /// Beyond this magnitude the logistic is taken as 0 or 1.
 const MAX_EXP: f32 = 6.0;
@@ -98,28 +98,36 @@ fn context(len: usize, pos: usize, reach: usize) -> impl Iterator<Item = usize> 
     (pos.saturating_sub(reach)..(pos + reach + 1).min(len)).filter(move |&c| c != pos)
 }
 
+/// The element count of a `words` by `dim` matrix, `Err` when it or
+/// its size in bytes overflows or passes [`MAX_MATRIX_BYTES`].
+fn matrix_len(words: usize, dim: usize) -> Result<usize, Word2VecError> {
+    words
+        .checked_mul(dim)
+        .filter(|&n| n.checked_mul(size_of::<f32>()).is_some_and(|b| b as u64 <= MAX_MATRIX_BYTES))
+        .ok_or(Word2VecError::MatrixTooLarge { words, dimension: dim })
+}
+
 /// Trains on sentences of vocabulary ids and returns the word vectors,
-/// row by row in vocabulary order.
-pub(super) fn train(params: &Word2VecParameters, vocab: &Vocabulary, sentences: &[Vec<u32>]) -> Vec<f32> {
+/// row by row in vocabulary order. Every weight is checked to be finite
+/// after each epoch, one pass over both matrices.
+pub(super) fn train(
+    params: &Word2VecParameters,
+    vocab: &Vocabulary,
+    sentences: &[Vec<u32>],
+) -> Result<Vec<f32>, Word2VecError> {
     let dim = params.dimension;
+    let len = matrix_len(vocab.len(), dim)?;
     let mut rng = Rng::new(params.seed);
-    let syn0 = (0..vocab.len() * dim).map(|_| (rng.unit() as f32 - 0.5) / dim as f32).collect();
-    let mut s = State {
-        params,
-        noise: Noise::new(vocab),
-        rng,
-        dim,
-        syn0,
-        syn1: vec![0.0; vocab.len() * dim],
-        alpha: params.learning_rate,
-    };
+    let syn0 = (0..len).map(|_| (rng.unit() as f32 - 0.5) / dim as f32).collect();
+    let mut s =
+        State { params, noise: Noise::new(vocab), rng, dim, syn0, syn1: vec![0.0; len], alpha: params.learning_rate };
     let keep: Vec<f64> = (0..vocab.len() as u32).map(|id| vocab.keep_probability(id, params.subsample)).collect();
     let per_epoch: u64 = sentences.iter().map(|s| s.len() as u64).sum();
     let total = per_epoch as f64 * params.epochs as f64;
     let (mut grad, mut input) = (vec![0.0f32; dim], vec![0.0f32; dim]);
     let mut kept = Vec::new();
     let mut seen = 0u64;
-    for _ in 0..params.epochs {
+    for epoch in 1..=params.epochs {
         for sentence in sentences {
             kept.clear();
             for &id in sentence {
@@ -140,13 +148,29 @@ pub(super) fn train(params: &Word2VecParameters, vocab: &Vocabulary, sentences: 
             // Dropped occurrences still count toward the decay.
             seen += (sentence.len() - kept.len()) as u64;
         }
+        if !s.syn0.iter().chain(&s.syn1).all(|v| v.is_finite()) {
+            return Err(Word2VecError::Diverged { epoch });
+        }
     }
-    s.syn0
+    Ok(s.syn0)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{context, sigmoid};
+    use super::{MAX_MATRIX_BYTES, Word2VecError, context, matrix_len, sigmoid};
+
+    #[test]
+    fn matrix_sizes_are_checked_before_allocation() {
+        assert_eq!(matrix_len(3, 4), Ok(12));
+        let at_limit = (MAX_MATRIX_BYTES / 4) as usize;
+        assert_eq!(matrix_len(at_limit, 1), Ok(at_limit));
+        let over = Word2VecError::MatrixTooLarge { words: at_limit + 1, dimension: 1 };
+        assert_eq!(matrix_len(at_limit + 1, 1), Err(over));
+        let overflow = Word2VecError::MatrixTooLarge { words: 2, dimension: usize::MAX };
+        assert_eq!(matrix_len(2, usize::MAX), Err(overflow));
+        let bytes = Word2VecError::MatrixTooLarge { words: 1, dimension: usize::MAX / 2 };
+        assert_eq!(matrix_len(1, usize::MAX / 2), Err(bytes));
+    }
 
     #[test]
     fn context_stays_inside_the_sentence_and_skips_the_center() {
