@@ -16,7 +16,7 @@ fn locate_sentence(span: Span, sents: &Sentences) -> Option<usize> {
     (idx < n).then_some(idx)
 }
 
-fn push_link(links: &mut Vec<CorefLink>, candidate: CorefLink) {
+fn push_edge_link(links: &mut Vec<CorefLink>, candidate: CorefLink) {
     if let Some(existing) = links.iter_mut().find(|l| {
         l.s_lo == candidate.s_lo
             && l.s_hi == candidate.s_hi
@@ -27,6 +27,27 @@ fn push_link(links: &mut Vec<CorefLink>, candidate: CorefLink) {
         existing.target_is_pronoun |= candidate.target_is_pronoun;
     } else {
         links.push(candidate);
+    }
+}
+
+fn push_cluster_link(links: &mut Vec<CorefLink>, candidate: CorefLink) {
+    if let Some(existing) = links.iter_mut().find(|l| {
+        l.s_lo == candidate.s_lo
+            && l.s_hi == candidate.s_hi
+            && l.span_lo == candidate.span_lo
+            && l.span_hi == candidate.span_hi
+    }) {
+        existing.target_is_pronoun |= candidate.target_is_pronoun;
+    } else {
+        links.push(candidate);
+    }
+}
+
+fn push_cluster_only(mut cluster: Vec<ResolvedMention>, clusters: &mut Vec<Vec<ResolvedMention>>) {
+    cluster.sort_unstable_by_key(|m| (m.sentence, m.span.start, m.span.end));
+    cluster.dedup_by(|a, b| a.sentence == b.sentence && a.span == b.span);
+    if cluster.len() >= 2 {
+        clusters.push(cluster);
     }
 }
 
@@ -43,7 +64,7 @@ fn add_cluster_links(
     for w in cluster.windows(2) {
         let (a, b) = (w[0], w[1]);
         if a.sentence < b.sentence {
-            push_link(
+            push_cluster_link(
                 links,
                 CorefLink {
                     s_lo: a.sentence,
@@ -61,7 +82,7 @@ fn add_cluster_links(
         if b.is_pronoun
             && let Some(ant) = cluster[..idx].iter().rev().find(|a| a.sentence < b.sentence)
         {
-            push_link(
+            push_cluster_link(
                 links,
                 CorefLink {
                     s_lo: ant.sentence,
@@ -121,18 +142,14 @@ pub fn extract_chains(
                 sentence_has_mention[rm.sentence] = true;
             }
         }
-        if let Some(groups) = mention_groups {
-            for (_, members) in groups.iter() {
-                let cluster: Vec<ResolvedMention> = members.iter().copied().filter_map(resolve).collect();
-                add_cluster_links(cluster, &mut clusters, &mut links);
-            }
-        }
         if let Some(edges) = mention_edges {
             for (_, edge) in edges.iter() {
                 let (Some(a), Some(b)) = (resolve(edge.from), resolve(edge.to)) else {
                     continue;
                 };
-                add_cluster_links(vec![a, b], &mut clusters, &mut links);
+                if mention_groups.is_none() {
+                    push_cluster_only(vec![a, b], &mut clusters);
+                }
                 if a.sentence != b.sentence {
                     let (lo, hi) = if a.sentence < b.sentence { (a, b) } else { (b, a) };
                     let w = if edge.score.is_finite() && edge.score > 0.0 {
@@ -140,7 +157,7 @@ pub fn extract_chains(
                     } else {
                         MILLI
                     };
-                    push_link(
+                    push_edge_link(
                         &mut links,
                         CorefLink {
                             s_lo: lo.sentence,
@@ -152,6 +169,12 @@ pub fn extract_chains(
                         },
                     );
                 }
+            }
+        }
+        if let Some(groups) = mention_groups {
+            for (_, members) in groups.iter() {
+                let cluster: Vec<ResolvedMention> = members.iter().copied().filter_map(resolve).collect();
+                add_cluster_links(cluster, &mut clusters, &mut links);
             }
         }
     }
@@ -177,18 +200,14 @@ pub fn extract_chains(
                 sentence_has_mention[rm.sentence] = true;
             }
         }
-        if let Some(groups) = entity_groups {
-            for (_, members) in groups.iter() {
-                let cluster: Vec<ResolvedMention> = members.iter().copied().filter_map(resolve).collect();
-                add_cluster_links(cluster, &mut clusters, &mut links);
-            }
-        }
         if let Some(edges) = entity_edges {
             for (_, edge) in edges.iter() {
                 let (Some(a), Some(b)) = (resolve(edge.from), resolve(edge.to)) else {
                     continue;
                 };
-                add_cluster_links(vec![a, b], &mut clusters, &mut links);
+                if entity_groups.is_none() {
+                    push_cluster_only(vec![a, b], &mut clusters);
+                }
                 if a.sentence != b.sentence {
                     let (lo, hi) = if a.sentence < b.sentence { (a, b) } else { (b, a) };
                     let w = if edge.score.is_finite() && edge.score > 0.0 {
@@ -196,7 +215,7 @@ pub fn extract_chains(
                     } else {
                         MILLI
                     };
-                    push_link(
+                    push_edge_link(
                         &mut links,
                         CorefLink {
                             s_lo: lo.sentence,
@@ -208,6 +227,12 @@ pub fn extract_chains(
                         },
                     );
                 }
+            }
+        }
+        if let Some(groups) = entity_groups {
+            for (_, members) in groups.iter() {
+                let cluster: Vec<ResolvedMention> = members.iter().copied().filter_map(resolve).collect();
+                add_cluster_links(cluster, &mut clusters, &mut links);
             }
         }
     }

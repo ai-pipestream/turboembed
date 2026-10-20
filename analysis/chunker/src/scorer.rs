@@ -303,6 +303,13 @@ impl Annotator for DistilledBoundaryScorer {
         &self,
         (sentences, structure, drift, sentiment, coref, entities, tokens, view): Refs<'_, Self>,
     ) -> Result<(Boundaries,), Error> {
+        let v = sentences.spans.view();
+        if entities.is_some_and(|e| e.spans.view() != v)
+            || tokens.is_some_and(|t| t.spans.view() != v)
+            || view.is_some_and(|vw| vw.id() != v)
+        {
+            return Err(Error::Annotator { annotator: Self::ID, detail: "its inputs are in different views".into() });
+        }
         let text = view.map(View::text);
         let out =
             distilled_boundaries(sentences, structure, drift, sentiment, coref, entities, tokens, text, &self.weights)

@@ -67,8 +67,31 @@ pub fn weigh_with_sentiment(
     sentiment: &Boundaries,
     (ws, wd, wsent): (Weight, Weight, Weight),
 ) -> Option<Boundaries> {
-    let zero = Boundaries { cost: vec![0; structure.cost.len()], reason: vec![Cut::Sentence; structure.reason.len()] };
-    weigh_with_coref(structure, drift, sentiment, &zero, (ws, wd, wsent, Weight(0)))
+    let n = structure.cost.len();
+    if drift.cost.len() != n
+        || sentiment.cost.len() != n
+        || structure.reason.len() != n
+        || drift.reason.len() != n
+        || sentiment.reason.len() != n
+    {
+        return None;
+    }
+    let cost = (0..n)
+        .map(|i| {
+            let sum = i128::from(structure.cost[i]) * i128::from(ws.0)
+                + i128::from(drift.cost[i]) * i128::from(wd.0)
+                + i128::from(sentiment.cost[i]) * i128::from(wsent.0);
+            sum.div_euclid(1000).clamp(i128::from(i32::MIN), i128::from(i32::MAX)) as i32
+        })
+        .collect();
+    let reason = (0..n)
+        .map(|i| {
+            let (s, d, sent) = (structure.reason[i], drift.reason[i], sentiment.reason[i]);
+            let shift = (d == Cut::TopicShift && wd.0 != 0) || (sent == Cut::TopicShift && wsent.0 != 0);
+            if s == Cut::Sentence && shift { Cut::TopicShift } else { s }
+        })
+        .collect();
+    Some(Boundaries { cost, reason })
 }
 
 /// Weighs structure, embedding drift, sentiment/aspect shift, and coreference
