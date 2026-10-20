@@ -114,8 +114,10 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
         let mut spans = Spans::new(view.id());
         let (mut subject, mut object, mut kind, mut score) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let entity_label = |e: Ix<Entities>| entities.kinds.label(entities.kind[e.get()]);
+        let by_sentence = crate::prepare::by_sentence(&entity_heads, &word_sentence, sentences.spans.len());
         for s in 0..entities.spans.len() as u32 {
-            for o in 0..entities.spans.len() as u32 {
+            let Some(sent) = entity_heads[s as usize].and_then(|h| word_sentence[h.get()]) else { continue };
+            for &o in &by_sentence[sent] {
                 if s == o {
                     continue;
                 }
@@ -170,14 +172,23 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
         let relations = Relations { spans, subject, object, kind, kinds: Arc::clone(&self.kinds), score };
         relations.check().map_err(fail)?;
         // The edge layer holds each (subject, object, type) once,
-        // at the best confidence any mention of it carries.
+        // at the best confidence any mention of it carries (the
+        // layer itself stores edges sorted). The index keeps this
+        // linear in the mention count.
         let mut edges: Vec<Edge<Entities, Entities>> = Vec::new();
+        let mut index = std::collections::HashMap::new();
         for (i, _) in relations.spans.iter() {
             let (s, o, _, sc) = relations.mention(i);
             let edge = Edge::new(s, o, relations.kind[i.get()], sc);
-            match edges.iter_mut().find(|e| (e.from, e.to, e.kind) == (edge.from, edge.to, edge.kind)) {
-                Some(e) => e.score = e.score.max(edge.score),
-                None => edges.push(edge),
+            match index.entry((edge.from, edge.to, edge.kind)) {
+                std::collections::hash_map::Entry::Occupied(at) => {
+                    let e: &mut Edge<Entities, Entities> = &mut edges[*at.get()];
+                    e.score = e.score.max(edge.score);
+                }
+                std::collections::hash_map::Entry::Vacant(at) => {
+                    at.insert(edges.len());
+                    edges.push(edge);
+                }
             }
         }
         Ok((relations, Edges::new(Arc::clone(&self.kinds), edges)))

@@ -65,8 +65,10 @@ impl<A: WordOrTokenAnchor> Annotator for RelationPathAnnotator<A> {
             (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let (mut step_row, mut step_token, mut step_up, mut step_relation) =
             (vec![0u32], Vec::new(), Vec::new(), Vec::new());
+        let by_sentence = crate::prepare::by_sentence(&p.entity_heads, &p.word_sentence, sentences.spans.len());
         for s in 0..entities.spans.len() as u32 {
-            for o in 0..entities.spans.len() as u32 {
+            let Some(sent) = p.entity_heads[s as usize].and_then(|h| p.word_sentence[h.get()]) else { continue };
+            for &o in &by_sentence[sent] {
                 if s == o {
                     continue;
                 }

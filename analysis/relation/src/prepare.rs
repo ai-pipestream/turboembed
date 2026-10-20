@@ -75,19 +75,30 @@ pub(crate) fn prepare<'a, A: WordOrTokenAnchor>(
     let overlaps = |span: turbo_analysis::Span, e: Ix<Entities>| {
         entities.spans.fragments(e).any(|y| span.start.max(y.start) < span.end.min(y.end))
     };
+    // Words follow text order, so the words overlapping one entity
+    // fragment form one contiguous range; the first outward word
+    // overall is the minimum over the fragments.
+    let (word_starts, word_ends): (Vec<u32>, Vec<u32>) =
+        words.iter().map(|w| (w.token_span.start, w.token_span.end)).unzip();
     let entity_heads: Vec<Option<Ix<A>>> = (0..entities.spans.len() as u32)
         .map(|e| {
             let e = Ix::new(e);
-            words.iter().enumerate().find_map(|(i, w)| {
-                if !overlaps(w.token_span, e) {
-                    return None;
-                }
-                match dependencies.head[i] {
-                    None => Some(Ix::new(i as u32)),
-                    Some(h) if !overlaps(words[h.get()].token_span, e) => Some(Ix::new(i as u32)),
-                    Some(_) => None,
-                }
-            })
+            entities
+                .spans
+                .fragments(e)
+                .filter_map(|y| {
+                    let lo = word_ends.partition_point(|&end| end <= y.start);
+                    let hi = word_starts.partition_point(|&start| start < y.end);
+                    (lo..hi.max(lo)).find(|&i| {
+                        overlaps(words[i].token_span, e)
+                            && match dependencies.head[i] {
+                                None => true,
+                                Some(h) => !overlaps(words[h.get()].token_span, e),
+                            }
+                    })
+                })
+                .min()
+                .map(|i| Ix::new(i as u32))
         })
         .collect();
     let (sent_starts, sent_ends) = sentences.spans.columns();
@@ -99,4 +110,22 @@ pub(crate) fn prepare<'a, A: WordOrTokenAnchor>(
         })
         .collect();
     Ok(Prepared { words, graph, entity_heads, word_sentence })
+}
+
+/// Entities grouped by the sentence of their head word, each group
+/// in layer order, so a pair loop over one group visits exactly the
+/// same same-sentence pairs in the same order as a full cross
+/// product would, in linear time in the entity count.
+pub fn by_sentence<A: WordOrTokenAnchor>(
+    entity_heads: &[Option<Ix<A>>],
+    word_sentence: &[Option<usize>],
+    sentences: usize,
+) -> Vec<Vec<u32>> {
+    let mut out: Vec<Vec<u32>> = vec![Vec::new(); sentences];
+    for (e, h) in entity_heads.iter().enumerate() {
+        if let Some(sent) = h.and_then(|h| word_sentence[h.get()]) {
+            out[sent].push(e as u32);
+        }
+    }
+    out
 }
