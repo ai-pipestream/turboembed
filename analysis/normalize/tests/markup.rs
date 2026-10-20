@@ -149,3 +149,29 @@ fn config_hashes_are_deterministic_and_distinct() {
     assert_ne!(a.config_hash(), b.config_hash());
     assert_eq!(NormalizeStep::new(HtmlEntityDecodeNormalizer::new()).config_hash(), 0);
 }
+
+#[test]
+fn named_reference_lookahead_never_panics_on_multibyte_text() {
+    // A multibyte character straddling the 32-byte lookahead
+    // window after '&' must not panic: an unknown reference
+    // stays literal, and a valid one still decodes.
+    let unknown = format!("&{}é", "q".repeat(31));
+    assert_eq!(decoded(&unknown), unknown);
+    let valid = format!("&amp;{}🙂", "x".repeat(25));
+    assert_eq!(decoded(&valid), format!("&{}🙂", "x".repeat(25)));
+    // Every offset around the window edge, both widths.
+    for n in 28..=34 {
+        let s = format!("&{}éz", "q".repeat(n));
+        assert_eq!(decoded(&s), s);
+        let s = format!("&notin;{}🙂", "y".repeat(n));
+        assert_eq!(decoded(&s), format!("\u{2209}{}🙂", "y".repeat(n)));
+    }
+    // The same text through the annotator path.
+    let mut doc = Document::new(format!("fish &amp;{}🙂 chips", "x".repeat(25)));
+    let decode = Bound::new(NormalizeStep::new(HtmlEntityDecodeNormalizer::new())).write(0, "decoded");
+    Analyzer::builder().step(decode).build().unwrap().run(std::slice::from_mut(&mut doc))[0].as_ref().unwrap();
+    assert_eq!(
+        doc.get_key::<View>(&Key::named("decoded")).map(|v| v.text().to_string()),
+        Some(format!("fish &{}🙂 chips", "x".repeat(25)))
+    );
+}

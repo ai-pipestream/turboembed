@@ -78,12 +78,14 @@ fn reference_at(text: &str, at: usize) -> Option<(usize, String)> {
         return Some((end, map_code_point(value).to_string()));
     }
     // Named: the longest table key that prefixes the input.
-    // Keys are ASCII and at most MAX_KEY bytes, so slicing to
-    // that window cannot split a character in a key position
-    // that could match.
-    let window = &rest[..rest.len().min(entities_table::MAX_KEY)];
+    // The lookahead runs on bytes, not the &str: every key is
+    // ASCII and at most MAX_KEY bytes, and slicing the string
+    // at byte MAX_KEY would panic when a multibyte character
+    // straddles that offset; on bytes such a prefix is simply
+    // invalid UTF-8 and cannot be a key.
+    let window = &rest.as_bytes()[..rest.len().min(entities_table::MAX_KEY)];
     for len in (1..=window.len()).rev() {
-        let Some(candidate) = window.get(..len) else { continue };
+        let Ok(candidate) = std::str::from_utf8(&window[..len]) else { continue };
         if let Some(decoded) = entities_table::lookup(candidate) {
             return Some((at + 1 + len, decoded.to_string()));
         }
