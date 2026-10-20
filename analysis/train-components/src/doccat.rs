@@ -86,6 +86,30 @@ pub fn train_doccat_from_events(
     config: &mut TrainingConfiguration,
     stamp: Stamp<'_>,
 ) -> Result<TrainedDoccatModel> {
+    // Selection is opt-in and happens before cutoff/indexing and optimization.
+    let metric = params.get_str("FeatureSelection")?;
+    let top_k = params.get_int("FeatureSelectionTopK")?;
+    let selected;
+    let events = if metric.is_some() || top_k.is_some() {
+        let invalid = |value: &str| turbo_train::Error::ParameterFormat {
+            key: "FeatureSelection".into(),
+            expected: "MI or Chi2 and a positive FeatureSelectionTopK",
+            value: value.into(),
+        };
+        let metric = match metric {
+            Some("MI") => turbo_doccat::SelectionMetric::MutualInformation,
+            Some("Chi2") => turbo_doccat::SelectionMetric::Chi2,
+            _ => return Err(invalid(metric.unwrap_or("missing metric")).into()),
+        };
+        let top_k = top_k.filter(|k| *k > 0).ok_or_else(|| invalid("missing or nonpositive top_k"))? as usize;
+        selected = turbo_doccat::FeatureSelection { metric, top_k }
+            .fit(events)
+            .and_then(|s| s.filter(events))
+            .map_err(|e| invalid(&e))?;
+        selected.as_slice()
+    } else {
+        events
+    };
     let (model, report) = trainer::train_events(events, params, config)?;
     let bytes = model.write()?;
     let package = package_doccat_model(language, factory, &report, bytes, stamp)?;
