@@ -174,7 +174,7 @@ fn check_published(language: &str, model_file: &str) -> Option<Counts> {
     let path = common::published_model(model_file)?;
     let model = open(&path);
     assert_eq!(model.language(), language);
-    let detector = SentenceDetector::new(model, WhitespaceMode::Unicode);
+    let detector = SentenceDetector::new(model, WhitespaceMode::Unicode).with_jvm_parity();
     let counts = check_maxent_run(model_file.strip_suffix(".bin").unwrap(), &detector, &path);
     // The 34 edge inputs for each model.
     assert!(counts.files.contains(&("edge".to_string(), 34)), "{counts:?}");
@@ -207,7 +207,7 @@ fn maxent_german() {
 /// many candidates as the earlier generator's contexts files had.
 fn check_fixture(name: &str, mode: WhitespaceMode, candidates: usize) -> Counts {
     let path = common::fixtures_dir().join(format!("{name}.bin"));
-    let detector = SentenceDetector::new(open(&path), mode);
+    let detector = SentenceDetector::new(open(&path), mode).with_jvm_parity();
     let run = if mode == WhitespaceMode::Legacy { format!("{name}+legacy") } else { name.to_string() };
     let counts = check_maxent_run(&run, &detector, &path);
     assert_eq!(counts.files, [("sentence-fixture".into(), 17)], "{run}");

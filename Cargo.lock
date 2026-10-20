@@ -2096,6 +2096,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-entity-linker"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-coref",
+ "turbo-geo",
+ "turbo-glossary-layers",
+ "turbo-unicode",
+ "turbo-vector-index",
+ "turbo-wordnet",
+]
+
+[[package]]
 name = "turbo-eval"
 version = "0.1.0"
 dependencies = [
