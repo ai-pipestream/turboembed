@@ -189,6 +189,21 @@ macro_rules! indexed_gazetteer {
             pub fn heap_bytes(&self) -> usize {
                 self.index.heap_bytes()
             }
+
+            /// The match keys of the names as one automaton image, which a
+            /// [`NameFinder`](crate::NameFinder) reads in place to find the
+            /// names in running text.
+            pub fn name_image(&self) -> Result<Vec<u8>, turbo_glossary::BuildError> {
+                $crate::names::name_image(&self.index)
+            }
+
+            /// The records with a name whose match key is `key`, in ranking
+            /// order: [`Gazetteer::lookup`](crate::Gazetteer::lookup) for a
+            /// key that is folded already, such as one a
+            /// [`NameFinder`](crate::NameFinder) reports.
+            pub fn lookup_key(&self, key: &str) -> Vec<$crate::Entry<'_>> {
+                self.index.lookup_key(key)
+            }
         }
     };
 }
