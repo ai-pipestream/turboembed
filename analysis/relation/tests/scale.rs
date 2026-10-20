@@ -49,12 +49,12 @@ fn many_sentences_extract_linearly() {
     let start = std::time::Instant::now();
     let (found, edges) =
         annotator.annotate((view, &sentences, &tokens, &tokens, &deps, &entities, None, None)).unwrap();
-    let elapsed = start.elapsed();
+    let _elapsed = start.elapsed();
     assert_eq!(found.subject.len(), n);
     assert_eq!(edges.from.len(), n);
     // The quadratic implementation took over a second here in
     // release builds; the linear one takes single-digit
     // milliseconds. Debug builds only check the counts.
     #[cfg(not(debug_assertions))]
-    assert!(elapsed < std::time::Duration::from_millis(500), "extraction over {n} sentences took {elapsed:?}");
+    assert!(_elapsed < std::time::Duration::from_millis(500), "extraction over {n} sentences took {_elapsed:?}");
 }
