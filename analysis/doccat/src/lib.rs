@@ -30,6 +30,11 @@
 //!   `categorize` and, as an annotator, reads `opennlp:tokens` and writes
 //!   `turbo:categories`. Its LIBSVM predictor ([`svm::libsvm`]) is a port
 //!   of LIBSVM's Java prediction code.
+//! - [`zeroshot`] categorizes against caller-supplied labels with no
+//!   per-label training, framing each label as an NLI hypothesis over
+//!   the text: [`ZeroShotCategorizer`] scores premise/hypothesis pairs
+//!   through an [`NliScorer`], and [`ZeroShotAnnotator`] /
+//!   [`ZeroShotSpanAnnotator`] write the same `Categories` layers.
 //! - [`sentiment`] is `SentimentME` (`opennlp.tools.sentiment`), a maxent
 //!   classifier over the tokens and, with `EmojiSentimentFactory`, their
 //!   emoji features: [`SentimentModel`] opens its model file and
@@ -56,6 +61,7 @@ pub mod multilabel;
 pub mod sentiment;
 pub mod svm;
 pub mod train;
+pub mod zeroshot;
 
 pub use categorizer::{DocumentCategorizerME, SpanCategorizer};
 pub use error::DoccatError;
@@ -81,6 +87,10 @@ pub use sentiment::{
 };
 pub use svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};
 pub use train::{DoccatEventStream, DoccatFactory, doccat_events, doccat_index};
+pub use zeroshot::{
+    NliScorer, WindowAggregation, ZeroShotAnnotator, ZeroShotCategorizer, ZeroShotConfig, ZeroShotError, ZeroShotMode,
+    ZeroShotSpanAnnotator,
+};
 
 #[cfg(test)]
 mod tests {
@@ -210,3 +220,6 @@ mod tests {
         assert!(plain.is_empty());
     }
 }
+
+pub mod selection;
+pub use selection::{DoccatTrainer, FeatureSelection, SelectedFeatures, SelectionMetric};

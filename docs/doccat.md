@@ -341,3 +341,36 @@ depends on nothing new. It predicts only; SVM training stays on the JVM.
   features.
 - Bit for bit RBF and sigmoid decision values and probabilities, for the
   reasons under "Tolerances".
+
+## Zero-shot categorization (`ZeroShotCategorizer`)
+
+Zero-shot categorization needs no per-label training: the caller supplies
+candidate labels at run time, and each label becomes the hypothesis of a
+natural-language-inference pair whose premise is the text (template:
+`"This example is {}."` by default, validated to hold exactly one `{}`
+with text around it). The model sits behind the `NliScorer` trait, so
+this crate owns the framing and the scoring modes without assuming a
+sequence-pair runtime; a scorer declares its outcome names, its pair
+token budget, and its own token counting.
+
+Outcome names resolve case-insensitively at construction: either the
+3-outcome head (entailment, neutral, contradiction) or the 2-outcome
+head (entailment, not_entailment); anything else is refused, as are an
+empty label list, a blank or duplicate label, and a hypothesis that
+already fills the pair budget. Single-label mode takes a softmax over
+the entailment logits across labels (scores sum to 1); multi-label
+mode takes an independent two-way softmax over (entailment,
+contradiction) per label. The neutral logit never enters either mode.
+
+A premise longer than the pair budget less the longest hypothesis
+and the scorer's pair special tokens (3 for BERT-style templates, 4
+for RoBERTa-style) is windowed by words (measured with the scorer's
+token counter, with an optional word overlap), every window
+carrying the full hypothesis;
+per-window logits combine by max, mean, or premise-length-weighted
+mean before the mode's softmax runs once. `ZeroShotAnnotator` writes
+the document's `Categories` and `ZeroShotSpanAnnotator` writes
+`Categories<L>` per sentence, block, or chunk, with the scorer's model
+as provenance and the template, labels, mode, aggregation, and overlap
+in the annotator config hash. Blank items score zero everywhere rather
+than failing the document.

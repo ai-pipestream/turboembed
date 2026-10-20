@@ -12,6 +12,7 @@ name = "turbo_normalize"
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-encoding = { path = "../encoding" }
+turbo-ngram = { path = "../ngram" }
 turbo-normalize-layers = { path = "../normalize-layers" }
 turbo-unicode = { path = "../unicode" }
 

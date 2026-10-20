@@ -11,6 +11,8 @@
 //! - [`lexicon`]: the English word knowledge detection and the sieves use.
 //! - [`WordVectors`] and [`TokenVectors`]: vector providers for the
 //!   ranker's similarity and contextual span features.
+//! - [`word2vec`]: skip-gram and CBOW training of [`WordVectors`] from a
+//!   tokenized corpus.
 //! - [`train`]: pair classifier and mention ranking training.
 //! - [`scorer`]: MUC, B-cubed, CEAF and CoNLL scores.
 
@@ -29,6 +31,7 @@ mod sieve;
 pub mod train;
 mod validate;
 mod vectors;
+pub mod word2vec;
 
 pub use annotator::{CorefAnnotator, DEFAULT_THRESHOLD, Resolution, sieve_tags};
 pub use detect::UNTYPED;
@@ -42,3 +45,4 @@ pub use model::{
 pub use scorer::{CorefScorer, CorefScores, Score};
 pub use sieve::Sieve;
 pub use vectors::{MapWordVectors, TokenVectors, WordVectors};
+pub use word2vec::{Word2VecArch, Word2VecError, Word2VecParameters, Word2VecTrainer, Word2VecVectors};
