@@ -4467,3 +4467,9 @@ layer's key from `turbo:terms`, which remains the linguistic text layer.
 Consumers of textual layer keys must update the retrieval key. The raw
 `TermIndexer` continues to index token text from a view and can coexist
 with linguistic terms.
+
+## Trainable dense classifiers
+
+[Dense classifiers and feature selection](dense-classifier.md) describes Adam
+training over typed vectors, temperature calibration, and MI/Chi2 selection
+before document categorizer training.
