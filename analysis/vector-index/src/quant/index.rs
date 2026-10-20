@@ -16,6 +16,8 @@ pub struct QuantizedIndex<M> {
     config: TurboQuant,
     codes: TurboQuantIndex,
     meta: Vec<M>,
+    /// The factor every row was multiplied by before coding.
+    scale: f64,
 }
 
 fn refused(detail: impl std::fmt::Display) -> IndexError {
@@ -37,16 +39,34 @@ impl<M> QuantizedIndex<M> {
         TurboQuant::new(config.bits, config.calibrate)?;
         let dim = space.dim as usize;
         let mut codes = TurboQuantIndex::new(dim, usize::from(config.bits)).map_err(refused)?;
-        let flat: Vec<f32> = rows.chunks_exact(bpr).flat_map(|r| rows::flat(r)[..dim].iter().copied()).collect();
+        let mut flat: Vec<f32> = rows.chunks_exact(bpr).flat_map(|r| rows::flat(r)[..dim].iter().copied()).collect();
+        // turbovec codes a row no longer than MIN_INPUT_NORM as zero, so the
+        // rows go in scaled by one factor that makes the longest of unit
+        // length: the ranking is unchanged and scores are divided back.
+        let lengths: Vec<f64> = flat
+            .chunks_exact(dim)
+            .map(|r| r.iter().map(|&v| f64::from(v) * f64::from(v)).sum::<f64>().sqrt())
+            .collect();
+        let longest = lengths.iter().copied().fold(0.0, f64::max);
+        let scale = if longest > 0.0 { 1.0 / longest } else { 1.0 };
+        let floor = 2.0 * f64::from(turbovec::MIN_INPUT_NORM);
+        if let Some(i) = lengths.iter().position(|&l| l * scale <= floor) {
+            return Err(refused(format!(
+                "row {i} is shorter than {floor} times the longest row, below what the codes keep"
+            )));
+        }
+        for v in flat.iter_mut() {
+            *v = (f64::from(*v) * scale) as f32;
+        }
         let n = meta.len();
-        if config.calibrate && n > 0 {
+        if config.calibrate && n >= turbovec::MIN_CALIBRATION_ROWS {
             let stride = n.div_ceil(CALIBRATION_ROWS);
             let sample: Vec<f32> = flat.chunks_exact(dim).step_by(stride).flatten().copied().collect();
             codes.calibrate(&sample).map_err(refused)?;
         }
         codes.add_2d(&flat, dim).map_err(refused)?;
         codes.prepare();
-        Ok(QuantizedIndex { space, metric, config, codes, meta })
+        Ok(QuantizedIndex { space, metric, config, codes, meta, scale })
     }
 
     pub fn space(&self) -> &Space {
@@ -86,11 +106,11 @@ impl<M> QuantizedIndex<M> {
     /// the whole index, so it costs a scan, not one row's work.
     pub fn score(&self, space: &Space, query: &[f32], row: u32) -> Result<f32, IndexError> {
         assert!((row as usize) < self.len(), "row {row} of {}", self.len());
-        let q = self.prepare(space, query, 1)?;
+        let (q, lengths) = self.prepare(space, query, 1)?;
         let mut mask = vec![false; self.len()];
         mask[row as usize] = true;
         let found = self.codes.try_search_with_mask(&q, 1, Some(&mask)).map_err(refused)?;
-        Ok(self.finish(found.scores[0]))
+        Ok(self.finish(found.scores[0], lengths[0]))
     }
 
     /// The `k` rows whose estimated scores against `query`, a vector of
@@ -116,7 +136,7 @@ impl<M> QuantizedIndex<M> {
             return Err(IndexError::Dimension { index: self.space.dim, other: queries.len() });
         }
         let nq = queries.len() / dim;
-        let qs = self.prepare(space, queries, nq)?;
+        let (qs, lengths) = self.prepare(space, queries, nq)?;
         if k == 0 || self.is_empty() {
             return Ok(vec![Vec::new(); nq]);
         }
@@ -127,14 +147,17 @@ impl<M> QuantizedIndex<M> {
                 found.indices[at.clone()]
                     .iter()
                     .zip(&found.scores[at])
-                    .map(|(&row, &s)| Hit { row: row as u32, score: self.finish(s) })
+                    .map(|(&row, &s)| Hit { row: row as u32, score: self.finish(s, lengths[q]) })
                     .collect()
             })
             .collect())
     }
 
+    /// A turbovec score of a unit query of length `length` against rows
+    /// multiplied by `scale`, as the score of the query and rows as given.
     #[inline]
-    fn finish(&self, s: f32) -> f32 {
+    fn finish(&self, s: f32, length: f64) -> f32 {
+        let s = (f64::from(s) * length / self.scale) as f32;
         match self.metric {
             Metric::Dot => s,
             Metric::Cosine => s.clamp(-1.0, 1.0),
@@ -142,8 +165,10 @@ impl<M> QuantizedIndex<M> {
     }
 
     /// Checks that `space` is the index's and returns the `nq` queries of
-    /// `values` as the index scores them, one after another.
-    fn prepare(&self, space: &Space, values: &[f32], nq: usize) -> Result<Vec<f32>, IndexError> {
+    /// `values` as the index scores them, each divided by its length so no
+    /// query is too short for the codes, one after another, and the
+    /// lengths.
+    fn prepare(&self, space: &Space, values: &[f32], nq: usize) -> Result<(Vec<f32>, Vec<f64>), IndexError> {
         if space.model != self.space.model {
             return Err(IndexError::Model {
                 index: Box::new(self.space.model.clone()),
@@ -162,10 +187,14 @@ impl<M> QuantizedIndex<M> {
         }
         let mut block = vec![Block::default(); rows::blocks(self.space.dim)];
         let mut out = Vec::with_capacity(nq * dim);
+        let mut lengths = Vec::with_capacity(nq);
         for (i, v) in values.chunks_exact(dim).enumerate() {
             rows::prepare(v, &self.space, self.metric, Which::Query(i), &mut block)?;
-            out.extend_from_slice(&rows::flat(&block)[..dim]);
+            let q = &rows::flat(&block)[..dim];
+            let length = q.iter().map(|&x| f64::from(x) * f64::from(x)).sum::<f64>().sqrt();
+            out.extend(q.iter().map(|&x| (f64::from(x) / length) as f32));
+            lengths.push(length);
         }
-        Ok(out)
+        Ok((out, lengths))
     }
 }

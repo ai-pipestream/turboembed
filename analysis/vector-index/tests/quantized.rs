@@ -172,12 +172,12 @@ fn codes_are_pinned_to_their_bytes() {
         }
     }
     let pinned: [u64; 6] = [
-        0x5ae0_5882_3fc7_3a9e,
-        0xbe8b_3bd8_6ff5_c967,
-        0xa7b3_ede4_9440_aebe,
-        0x9898_dfc1_f3f0_e6cc,
-        0xc6c0_2c18_68ab_13cb,
-        0xb6f2_1de4_b633_b37e,
+        0x4919_98b5_4e55_1a08,
+        0xaf6e_fdc7_1719_f811,
+        0xa46b_6098_507f_1836,
+        0x17f9_a42d_2b3b_6bbc,
+        0x838e_8004_9ea4_dbac,
+        0x2db2_7820_7e1e_8772,
     ];
     assert_eq!(got, pinned, "codes changed: {got:#018x?}");
 }
@@ -191,4 +191,30 @@ fn top_k_refuses_two_queries_as_one() {
     for k in [0, 1] {
         assert_eq!(index.top_k(&sp, &two, k), Err(IndexError::Dimension { index: 16, other: 32 }), "k {k}");
     }
+}
+
+#[test]
+fn a_short_dot_row_keeps_its_signal() {
+    // turbovec codes a vector no longer than 1e-10 as zero; this row is
+    // 2.8e-11 long and the query 2.8e11, so their dot product is 8.
+    let sp = space(8);
+    for bits in 2..=4 {
+        let index = quantized(&sp, Metric::Dot, &[vec![1e-11; 8]], TurboQuant::new(bits, false).unwrap()).unwrap();
+        let score = index.score(&sp, &[1e11; 8], 0).unwrap();
+        assert!((score - 8.0).abs() < 0.5, "bits {bits}: {score}");
+        assert_eq!(index.top_k(&sp, &[1e11; 8], 1).unwrap()[0].score, score);
+    }
+}
+
+#[test]
+fn rows_too_far_below_the_longest_are_refused() {
+    let rows = [vec![1.0; 8], vec![1e-11; 8]];
+    let got = quantized(&space(8), Metric::Dot, &rows, TurboQuant::new(4, false).unwrap());
+    assert!(matches!(got, Err(IndexError::Quantized(_))));
+}
+
+#[test]
+fn one_row_builds_with_calibration_asked_for() {
+    let index = quantized(&space(16), Metric::Dot, &[values(1, 16)], TurboQuant::new(3, true).unwrap()).unwrap();
+    assert_eq!(index.top_k(&space(16), &values(2, 16), 3).unwrap().len(), 1);
 }

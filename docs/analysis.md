@@ -2174,8 +2174,13 @@ the crate depends on nothing new.
 `TurboQuant` sets the bits a coordinate (2 to 4, others refused with
 `IndexError::Bits`) and whether to fit turbovec's per-coordinate
 calibration (TQ+) first, on up to 1024 rows taken at an even stride so
-the same rows give the same calibration. A dimension that is not a
-positive multiple of 8, or is past 16384, is refused at build with
+the same rows give the same calibration (an index of one row is not
+calibrated). turbovec codes a vector no longer than `1e-10` as zero, so
+the rows are coded after one common scale that makes the longest of
+length 1, and each query after division by its own length; scores are
+scaled back, so a short `Metric::Dot` row keeps its dot product. A row
+shorter than `2e-10` times the longest, a dimension that is not a
+positive multiple of 8, or one past 16384, is refused at build with
 `IndexError::Quantized`. `to_bytes` returns turbovec's `.tv` image, and a
 test pins its bytes for fixed rows. The tests also check the refusals,
 top-k against a full sort of the estimated scores, and the paper's error
