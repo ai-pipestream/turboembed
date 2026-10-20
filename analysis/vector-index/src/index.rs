@@ -75,8 +75,12 @@ impl<M> VectorIndex<M> {
 
     /// The `k` rows that score highest against `query`, a vector of
     /// `space`, best first; rows that tie are in insertion order. Fewer
-    /// than `k` when the index holds fewer rows.
+    /// than `k` when the index holds fewer rows. `query` is one vector:
+    /// [`VectorIndex::top_k_batch`] answers several.
     pub fn top_k(&self, space: &Space, query: &[f32], k: usize) -> Result<Vec<Hit>, IndexError> {
+        if query.len() != self.space.dim as usize {
+            return Err(IndexError::Dimension { index: self.space.dim, other: query.len() });
+        }
         Ok(self.top_k_batch(space, query, k)?.pop().unwrap_or_default())
     }
 
@@ -117,18 +121,7 @@ impl<M> VectorIndex<M> {
     /// Checks that `space` is the index's and writes the `nq` queries of
     /// `values` as the kernels read them.
     fn prepare(&self, space: &Space, values: &[f32], nq: usize) -> Result<Vec<Block>, IndexError> {
-        if space.model != self.space.model {
-            return Err(IndexError::Model {
-                index: Box::new(self.space.model.clone()),
-                other: Box::new(space.model.clone()),
-            });
-        }
-        if space.dim != self.space.dim {
-            return Err(IndexError::Dimension { index: self.space.dim, other: space.dim as usize });
-        }
-        if space.normalization != self.space.normalization {
-            return Err(IndexError::Normalization { index: self.space.normalization, other: space.normalization });
-        }
+        rows::same_space(&self.space, space)?;
         let dim = self.space.dim as usize;
         if values.len() != nq * dim {
             return Err(IndexError::Dimension { index: self.space.dim, other: values.len() });
