@@ -18,6 +18,7 @@ pub mod qa;
 pub mod recipe;
 pub mod reference;
 pub mod seal;
+pub mod sparse;
 pub mod static_reference;
 
 use std::path::Path;

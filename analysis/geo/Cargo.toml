@@ -17,6 +17,9 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-jvm = { path = "../jvm" }
 # The accent fold's stroke letters and fold scripts.
 turbo-normalize = { path = "../normalize" }
+# The match keys as one mapped automaton (`NameFinder`).
+turbo-glossary = { path = "../glossary" }
+turbo-glossary-layers = { path = "../glossary-layers" }
 # The UAX #29 word tokens a name is folded by.
 turbo-tokenize = { path = "../tokenize" }
 # NFC, String.toLowerCase(Locale.ROOT), general category, script, Character.digit.

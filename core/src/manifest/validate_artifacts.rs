@@ -134,6 +134,11 @@ impl Manifest {
                         "manifest.json: {field}: a classifier role, and the bundle has no classifier"
                     )));
                 }
+                if role.is_mlm() && self.embed.as_ref().is_none_or(|e| e.sparse.is_none()) {
+                    return Err(invalid(format!(
+                        "manifest.json: {field}: an MLM head role, and the bundle declares no embed.sparse"
+                    )));
+                }
                 if role.is_projection() && self.projection.is_none() {
                     return Err(invalid(format!(
                         "manifest.json: {field}: a projection role, and the bundle has no projection"

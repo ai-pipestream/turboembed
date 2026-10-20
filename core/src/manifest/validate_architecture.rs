@@ -177,6 +177,33 @@ impl Manifest {
             }
         }
 
+        // embed.sparse: the learned sparse output (SPLADE, arXiv 2403.06789)
+        // needs the encoder's hidden states, so an architecture, and every
+        // raw-weights artifact names the MLM head, as a classifier's is
+        // named. The decoder weight is optional: absent, it is tied to the
+        // word embeddings, as BERT ties it.
+        if e.sparse.is_some() {
+            if self.architecture.is_none() {
+                return Err(invalid("manifest.json: embed.sparse: requires an encoder architecture"));
+            }
+            for (i, a) in self.artifacts.iter().enumerate().filter(|(_, a)| a.format == Format::Safetensors) {
+                for role in [
+                    TensorRole::MlmTransformWeight,
+                    TensorRole::MlmTransformBias,
+                    TensorRole::MlmTransformLnWeight,
+                    TensorRole::MlmTransformLnBias,
+                    TensorRole::MlmDecoderBias,
+                ] {
+                    if !a.tensor_names.contains_key(&role) {
+                        return Err(invalid(format!(
+                            "manifest.json: artifacts[{i}].tensor_names: no {}, which embed.sparse needs",
+                            role_name(role)
+                        )));
+                    }
+                }
+            }
+        }
+
         // projection
         if let Some(p) = &self.projection {
             if self.architecture.is_none() {

@@ -3,7 +3,10 @@
 //! artifact the device loads, its files read once and verified, and every
 //! tensor a BERT encoder needs checked against the architecture.
 
+mod heads;
 mod place;
+
+pub use heads::{classifier_tensors, mlm_tensors, projection_tensors};
 
 use std::ffi::c_void;
 
@@ -15,8 +18,7 @@ use crate::backend::{
 };
 use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
-    Activation, Architecture, Artifact, Classifier, Family, Format, GraphInput, Manifest, PositionEmbedding,
-    Projection, TensorRole, role_name,
+    Activation, Architecture, Artifact, Family, Format, GraphInput, Manifest, PositionEmbedding, TensorRole, role_name,
 };
 use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, INVALID_ARGUMENT, Result, invalid};
 
@@ -86,6 +88,8 @@ fn bert_shape(role: TensorRole, a: &Architecture) -> Vec<u64> {
         PoolerWeight | PoolerBias | ClassifierWeight | ClassifierBias => {
             unreachable!("classifier roles are shaped by classifier_tensors")
         }
+        MlmTransformWeight | MlmTransformBias | MlmTransformLnWeight | MlmTransformLnBias | MlmDecoderWeight
+        | MlmDecoderBias => unreachable!("MLM roles are shaped by mlm_tensors"),
         ProjectionWeight | ProjectionBias => {
             unreachable!("projection roles are shaped by projection_tensors")
         }
@@ -140,54 +144,6 @@ pub fn bert_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Ve
 /// be in tensor_names.
 pub fn embedding_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Vec<Expected>> {
     tensors_of(index, art, a, 0)
-}
-
-/// The classification head tensors an artifact names, with the shapes
-/// the architecture and the classifier's label count imply.
-pub fn classifier_tensors(index: usize, art: &Artifact, a: &Architecture, c: &Classifier) -> Result<Vec<Expected>> {
-    let h = a.hidden as u64;
-    let labels = c.labels.len() as u64;
-    let mut out = Vec::with_capacity(4);
-    let pooler_w = art.tensor_names.get(&TensorRole::PoolerWeight);
-    let pooler_b = art.tensor_names.get(&TensorRole::PoolerBias);
-    if pooler_w.is_some() != pooler_b.is_some() {
-        return Err(invalid(format!(
-            "manifest.json: artifacts[{index}].tensor_names: pooler_weight and pooler_bias come together, or neither"
-        )));
-    }
-    if let (Some(w), Some(b)) = (pooler_w, pooler_b) {
-        out.push(Expected { name: w.clone(), shape: vec![h, h], what: role_name(TensorRole::PoolerWeight) });
-        out.push(Expected { name: b.clone(), shape: vec![h], what: role_name(TensorRole::PoolerBias) });
-    }
-    for (role, shape) in [(TensorRole::ClassifierWeight, vec![labels, h]), (TensorRole::ClassifierBias, vec![labels])] {
-        let name = art.tensor_names.get(&role).ok_or_else(|| {
-            invalid(format!(
-                "manifest.json: artifacts[{index}].tensor_names: no {}, which a classifier needs",
-                role_name(role)
-            ))
-        })?;
-        out.push(Expected { name: name.clone(), shape, what: role_name(role) });
-    }
-    Ok(out)
-}
-
-/// The linear projection head tensors an artifact names, with the shapes
-/// the architecture and `projection.dim` imply.
-pub fn projection_tensors(index: usize, art: &Artifact, a: &Architecture, p: &Projection) -> Result<Vec<Expected>> {
-    let h = a.hidden as u64;
-    let dim = p.dim as u64;
-    let mut out = Vec::with_capacity(2);
-    let w = art.tensor_names.get(&TensorRole::ProjectionWeight).ok_or_else(|| {
-        invalid(format!(
-            "manifest.json: artifacts[{index}].tensor_names: no {}, which a projection needs",
-            role_name(TensorRole::ProjectionWeight)
-        ))
-    })?;
-    out.push(Expected { name: w.clone(), shape: vec![dim, h], what: role_name(TensorRole::ProjectionWeight) });
-    if let Some(b) = art.tensor_names.get(&TensorRole::ProjectionBias) {
-        out.push(Expected { name: b.clone(), shape: vec![dim], what: role_name(TensorRole::ProjectionBias) });
-    }
-    Ok(out)
 }
 
 fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Result<Vec<Expected>> {

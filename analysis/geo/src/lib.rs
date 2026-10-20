@@ -13,6 +13,10 @@
 //!   [`InMemoryGazetteer`] indexes records built in code.
 //! - [`OverlayGazetteer`] lays additions and [`Suppression`] rules over a
 //!   base gazetteer.
+//! - [`NameFinder`] finds a gazetteer's names in running text with its
+//!   match keys written as one mapped automaton image
+//!   (`InMemoryGazetteer::name_image` and the like), read in place, and
+//!   [`NameAnnotator`] writes them as location entities.
 //! - [`PlaceProfiles`] compares places by the cosine of their standardized
 //!   numeric measurements from a table the caller supplies; it needs no
 //!   gazetteer (`profiles` module documentation).
@@ -98,6 +102,7 @@ mod in_memory;
 mod index;
 pub mod linker;
 mod load;
+mod names;
 mod overlay;
 mod overture;
 mod profiles;
@@ -134,6 +139,7 @@ pub use linker::{
     GeoEntityLinker, GeoHashBinningScorer, LinkedCandidate, LinkerWeights, PRIMARY_LINK_LABEL, ProvinceProximityScorer,
     ProvinceSignal, encode_geohash, jaro_similarity, jaro_winkler, normalized_levenshtein, shared_geohash_prefix_len,
 };
+pub use names::{NameAnnotator, NameFinder, NameImageError, NameMatch, NameScratch};
 pub use overlay::{EmptyOverlay, OverlayGazetteer};
 pub use overture::{OVERTURE_SOURCE, OvertureGazetteer};
 pub use profiles::{Neighbor, Place, PlaceProfiles, ProfileError, Similarity};

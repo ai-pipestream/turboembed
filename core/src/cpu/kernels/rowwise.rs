@@ -61,7 +61,7 @@ pub(super) fn exp(x: f32) -> f32 {
 /// exponential. For x < 0 it is 0.5 x erfc(|z|), with no cancellation.
 /// Its relative error, fit and rounding together, is under 5e-7 (tested).
 #[inline(always)]
-pub(super) fn gelu(x: f32) -> f32 {
+pub(crate) fn gelu(x: f32) -> f32 {
     // Past 16, erfc(|z|) is far under what exp keeps: the clamp keeps x^2
     // finite and changes nothing.
     let xc = x.clamp(-16.0, 16.0);
