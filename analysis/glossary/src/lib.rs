@@ -15,6 +15,12 @@
 //!   [`PhraseMatcher`](turbo_matcher::PhraseMatcher).
 //! - [`GlossaryMatcher`]: either of them, or a composite of several by
 //!   priority.
+//! - [`MappedGlossaryWriter`] and [`MappedGlossaryMatcher`]: the
+//!   character automaton written as one flat image (a double array) and
+//!   read in place from a byte slice or a memory-mapped file
+//!   (`MappedFile`, feature `mmap`), with the same hits and matches as
+//!   [`TextMatcher`] and no heap structure per state, for catalogs of
+//!   millions of terms.
 //! - [`GlossaryAnnotator`]: the step, which reads a text view and its
 //!   tokens (and `turbo:stems` when a token matcher matches by them) and
 //!   writes [`GlossaryTerms`] (`turbo:glossary-terms`).
@@ -82,6 +88,7 @@
 mod annotate;
 mod boundaries;
 mod error;
+mod mapped;
 mod matcher;
 mod read;
 mod select;
@@ -91,6 +98,9 @@ mod token;
 pub use annotate::GlossaryAnnotator;
 pub use boundaries::Boundaries;
 pub use error::{BuildError, MatchError, ReadError};
+#[cfg(feature = "mmap")]
+pub use mapped::MappedFile;
+pub use mapped::{ImageBuf, ImageError, MappedGlossaryMatcher, MappedGlossaryWriter, Scratch};
 pub use matcher::{GlossaryMatcher, MatchInput};
 pub use read::{DelimitedReader, Delimiter, FirstRecord, GlossaryFile, TbxDialect, TbxReader, WriteError, write_tbx};
 pub use select::{Candidate, GlossaryMatch, intersects, merge, select};
