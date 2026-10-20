@@ -1773,6 +1773,7 @@ dependencies = [
  "turbo-normalize",
  "turbo-tokenize",
  "turbo-unicode",
+ "turbo-vector-index",
 ]
 
 [[package]]

@@ -217,7 +217,18 @@ impl Tokenizer {
                 .filter(|s| s.normalized)
                 .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip, single_word: false })
                 .collect(),
-            Kind::Unigram(_) | Kind::SentencePiece(_) => Vec::new(),
+            Kind::Unigram(u) => t
+                .special_tokens
+                .iter()
+                .filter(|s| s.normalized)
+                .map(|s| Special {
+                    content: u.normalize(&s.content),
+                    id: s.id as i32,
+                    lstrip: s.lstrip,
+                    single_word: false,
+                })
+                .collect(),
+            Kind::SentencePiece(_) => Vec::new(),
         };
         normalized_specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
         let mut special_starts = [false; 256];
@@ -236,8 +247,9 @@ impl Tokenizer {
         let decoder = if sentencepiece { Decoder::SentencePiece } else { Decoder::parse(&json["decoder"]) };
         let mut pieces = vec![Box::<str>::from(""); vocab_size as usize];
         kind.each_piece(|piece, id| pieces[id as usize] = piece.into());
-        let e = m.embed();
+        let e = m.encoder();
         Ok(Tokenizer {
+            rerank: m.rerank.clone(),
             kind,
             specials,
             normalized_specials,
@@ -265,6 +277,9 @@ impl Tokenizer {
     /// exactly with the reference file's.
     pub(super) fn check_reference(&self, bundle: &Bundle) -> Result<()> {
         let m = &bundle.manifest;
+        if m.rerank.is_some() {
+            return self.check_pair_reference(bundle);
+        }
         let file = m.reference.file.as_str();
         let bytes = bundle.read_verified(file)?;
         let st = safetensors::File::parse(file, &bytes)?;
@@ -273,7 +288,7 @@ impl Tokenizer {
         let ids = st.get("ids", Dtype::I32, 2)?;
         let lengths = st.get("lengths", Dtype::I32, 1)?;
         let emb = st.get("embeddings", Dtype::F32, 2)?;
-        let dim = m.embed().dim as u64;
+        let dim = m.encoder().dim as u64;
         if ids.shape[0] != n || lengths.shape[0] != n || emb.shape != [n, dim] {
             return Err(invalid(format!(
                 "{file}: ids {:?}, lengths {:?} and embeddings {:?} are not [{n}, L], [{n}] and [{n}, {dim}]",

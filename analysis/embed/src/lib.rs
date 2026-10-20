@@ -20,6 +20,8 @@ pub mod centroids;
 pub mod encoder;
 pub mod heads;
 pub mod levels;
+pub mod rerank;
+pub use rerank::{RerankAnnotator, Reranked, Shortlist};
 pub mod subwords;
 pub mod vectors;
 pub mod window;

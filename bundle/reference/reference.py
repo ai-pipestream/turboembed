@@ -19,6 +19,12 @@ def main(model_dir, cases_path, out_path, produced_by_path):
     with open(cases_path, encoding="utf-8") as f:
         spec = json.load(f)
     torch.use_deterministic_algorithms(True)
+    if spec.get("task") == "TASK_RERANK":
+        from rerank import run
+        run(model_dir, spec, out_path)
+        with open(produced_by_path, "w", encoding="utf-8") as f:
+            json.dump({"tool": "transformers", "tool_version": f"{transformers.__version__} (torch {torch.__version__}, cpu, float32)", "args": sys.argv[1:]}, f)
+        return
     model = SentenceTransformer(model_dir, device="cpu", local_files_only=True)
     model.max_seq_length = spec["max_seq"]
     texts = [c["prefix"] + c["text"] for c in spec["cases"]]
