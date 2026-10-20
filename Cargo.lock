@@ -2272,6 +2272,9 @@ dependencies = [
  "tonic-prost-build",
  "tower",
  "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
 ]
 
 [[package]]

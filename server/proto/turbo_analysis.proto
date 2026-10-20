@@ -1,0 +1,266 @@
+// The shared analysis result layer over gRPC (docs/grpc-analysis.md),
+// beside the vendored Open Inference Protocol file: the Stage 5 result
+// kinds of epic #151, so an analysis result crosses a process boundary
+// the way the in-process layers hold it, and a capability call that
+// lists what every loaded bundle is, so a client rejects an incompatible
+// request before sending it.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package turbo.result;
+
+// Analysis results and the server's bundle capabilities.
+//
+// Every result message is the data columns of one in-process result
+// layer, in the layer's own layout, plus the model identity that
+// produced it. A RoundTrip rpc answers with the message it was given,
+// after validating it exactly as the layer's own check proves it: the
+// round trip is the wire-format proof, and nothing is cut down or
+// filled in. A message over a limit the capability listing names is
+// refused with TURBO_E_CAPACITY naming that limit.
+service AnalysisService
+{
+  // What this server serves: one entry per loaded bundle, its identity,
+  // roles, widths, limits and task, and the result-message limits. The
+  // listing follows bundles added or removed while serving.
+  rpc Capabilities(CapabilitiesRequest) returns (CapabilitiesResponse) {}
+
+  // Loads a bundle and serves it under a name; the answer is the new
+  // bundle's capabilities, as the listing now shows it.
+  rpc LoadBundle(LoadBundleRequest) returns (LoadBundleResponse) {}
+
+  // Stops serving a name. Requests holding its sessions finish; the
+  // name is refused from then on, as never served.
+  rpc UnloadBundle(UnloadBundleRequest) returns (UnloadBundleResponse) {}
+
+  // Each result kind answers with the message it was given, validated.
+  rpc RoundTripSparseTerms(SparseTermsResult) returns (SparseTermsResult) {}
+  rpc RoundTripTokenVectors(TokenVectorsResult) returns (TokenVectorsResult) {}
+  rpc RoundTripRerankScores(RerankScoresResult) returns (RerankScoresResult) {}
+  rpc RoundTripExtraction(ExtractionResult) returns (ExtractionResult) {}
+}
+
+message CapabilitiesRequest {}
+
+message CapabilitiesResponse
+{
+  // One entry per loaded bundle, in the order served.
+  repeated BundleCapabilities bundles = 1;
+
+  // What one result message may carry; a larger one is refused with
+  // TURBO_E_CAPACITY naming the limit. Nothing is truncated.
+  ResultLimits limits = 2;
+}
+
+// What one loaded bundle is and takes, so a client rejects an
+// incompatible request before sending it.
+message BundleCapabilities
+{
+  // The name requests use.
+  string name = 1;
+
+  // The bundle's own identity.
+  ModelRef model = 2;
+
+  // The task it serves, the header constant's name: TASK_EMBED.
+  string task = 3;
+
+  // The prompt roles it takes: PROMPT_QUERY for a non-empty
+  // prefix_query, PROMPT_DOCUMENT for a non-empty prefix_document,
+  // PROMPT_NONE when it carries neither.
+  repeated string roles = 4;
+
+  // The vector widths it answers: dim first, then the output_dims a
+  // request may name by output_dim, ascending.
+  repeated uint32 widths = 5;
+
+  // Tokens per row; a longer row is TURBO_E_CAPACITY naming
+  // context_limit.
+  uint32 context_limit = 6;
+
+  // Rows per run; a larger batch is TURBO_E_CAPACITY naming
+  // batch_limit.
+  uint32 batch_limit = 7;
+
+  // The limits an extraction schema may carry; present only for a
+  // bundle whose task reads a schema. No such task is merged yet
+  // (issue #715), so every bundle the server loads today leaves this
+  // unset.
+  SchemaLimits schema = 8;
+}
+
+// The limits an extraction schema may carry (issue #715). A schema over
+// a limit is TURBO_E_CAPACITY naming that limit.
+message SchemaLimits
+{
+  uint32 max_entity_types = 1;
+  uint32 max_label_sets = 2;
+  uint32 max_fields = 3;
+  uint32 max_depth = 4;
+}
+
+// What one result message may carry, refused with TURBO_E_CAPACITY
+// naming the limit.
+message ResultLimits
+{
+  uint64 max_sparse_entries = 1;
+  uint64 max_sparse_occurrences = 2;
+  uint64 max_token_vector_bytes = 3;
+  uint64 max_rerank_items = 4;
+  uint64 max_answers = 5;
+}
+
+message LoadBundleRequest
+{
+  // The served name; empty is the bundle path's last component.
+  string name = 1;
+
+  // The bundle directory (docs/bundle.md).
+  string bundle = 2;
+
+  // A runtime device index (docs/grpc.md, Device indices).
+  uint32 device = 3;
+
+  // Sessions the model pools; at least 1.
+  uint32 sessions = 4;
+
+  // TURBO_PRECISION_*; 0 is the model's.
+  uint32 precision = 5;
+
+  // The sessions' batch and sequence limits; 0 is the model's.
+  uint32 max_batch = 6;
+  uint32 max_seq = 7;
+}
+
+message LoadBundleResponse
+{
+  BundleCapabilities capabilities = 1;
+}
+
+message UnloadBundleRequest
+{
+  string name = 1;
+}
+
+message UnloadBundleResponse {}
+
+// Which model produced a result, by the bundle's own identity: the
+// manifest's model id and revision, and the manifest's sha256, the
+// contract the load was made against.
+message ModelRef
+{
+  string id = 1;
+  string revision = 2;
+  string sha256 = 3;
+}
+
+// The learned sparse terms of one document or of each unit of a level
+// (#708): the turbo-analysis-layers SparseTerms layer's columns. One
+// entry per (unit, term); unit i's entries are
+// row[i]..row[i + 1] in ascending term id, each with its learned
+// weight, its source span where the term came from the input, and its
+// occurrence spans where the producer recorded them.
+message SparseTermsResult
+{
+  ModelRef model = 1;
+
+  // One start per unit and one past the last entry: units + 1 values,
+  // the first 0, non-decreasing.
+  repeated uint32 row = 2;
+
+  // The model vocabulary id per entry, ascending within each unit.
+  repeated uint32 term = 3;
+
+  // The learned weight per entry: finite and over 0.
+  repeated float weight = 4;
+
+  // One entry per term: false marks an expanded term the model added,
+  // which carries no span. All three columns are empty, or all three
+  // hold one value per entry.
+  repeated bool has_span = 5;
+  repeated uint32 span_start = 6;
+  repeated uint32 span_end = 7;
+
+  // The occurrence spans of every entry that records them, entry order
+  // within each unit: entry e's are
+  // occ_at[e - 1]..occ_at[e] (0..occ_at[0] for the first). Empty when
+  // the result records none; then occ_at is empty too.
+  repeated uint32 occ_start = 8;
+  repeated uint32 occ_end = 9;
+  repeated uint32 occ_at = 10;
+}
+
+// One contextual vector per model token with the spans of the encoder
+// windows that produced them (#709): the turbo-analysis-layers
+// Vectors<Subwords> and TokenVectorWindows layers. Each row ties to its
+// piece's source text through the windows; a row the producer could
+// make no vector for (whitespace alone, say) is zeros and listed in
+// empty.
+message TokenVectorsResult
+{
+  ModelRef model = 1;
+
+  // Values per row; over 0.
+  uint32 dim = 2;
+
+  // rows x dim little-endian f32, row-major, as raw_output_contents
+  // carries vectors; rows is data bytes / (4 x dim).
+  bytes data = 3;
+
+  // The rows with no vector, ascending, each once; their rows are
+  // zeros.
+  repeated uint32 empty = 4;
+
+  // The encoder windows, in text order, non-overlapping and
+  // continuous: token i's vector is taken from the window holding its
+  // piece.
+  repeated uint32 window_start = 5;
+  repeated uint32 window_end = 6;
+}
+
+// The relevance order of a shortlist (#707): the turbo-analysis-embed
+// Reranked layer with document-local indices and keys made plain.
+// Scores are descending, one finite score per item, and the model
+// identity rides along, not a bare float.
+message RerankScoresResult
+{
+  ModelRef model = 1;
+
+  // The layer the items index, its full name (turbo:chunks, say).
+  string source = 2;
+
+  // The source layer's items, a vocabulary index per entry, in
+  // relevance order, each once.
+  repeated uint32 item = 3;
+
+  // The relevance score per item: finite, descending.
+  repeated float score = 4;
+}
+
+// The ranked answers of an extraction or question-answering run: the
+// turbo-analysis-embed Answers layer (extractive QA, #745) plus the
+// model identity. The schema-driven structured records of #715 have no
+// merged layer yet; this message carries what exists today. An empty
+// result is a calibrated abstention: null_probability is 1.
+message ExtractionResult
+{
+  ModelRef model = 1;
+
+  // The text view the spans are offsets into; 0 is the source text.
+  uint32 view = 2;
+
+  // One answer per entry, in rank order, as byte offsets [start, end)
+  // into the view.
+  repeated uint32 span_start = 3;
+  repeated uint32 span_end = 4;
+
+  // The score and normalized probability per answer.
+  repeated double score = 5;
+  repeated double probability = 6;
+
+  // The abstention score and its probability; the probabilities and
+  // null_probability sum to 1.
+  double null_score = 7;
+  double null_probability = 8;
+}

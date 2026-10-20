@@ -1,12 +1,14 @@
-//! Loaded models, session pools, and runtime state.
+//! Loaded models, session pools, and runtime state. Models come and go
+//! while serving: the analysis service's LoadBundle and UnloadBundle add
+//! and remove entries, and every listing reads the current list.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use turbo::{TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, turbo_session_desc, turbo_session_info};
 
 use crate::api::{self, *};
-use crate::config::{Device, ModelConfig};
+use crate::config::ModelConfig;
 use crate::status::{SESSION_DESC, describe};
 
 /// One session of a model, with its three pinned I32 buffers for raw token
@@ -56,7 +58,7 @@ impl Drop for Held {
 
 impl Loaded {
     /// An idle session, or TURBO_E_BUSY at once when every one is held.
-    pub(crate) fn take(self: &Arc<Loaded>) -> Result<Held> {
+    pub(crate) fn take(self: &Arc<Loaded>) -> api::Result<Held> {
         let index = self.idle.lock().unwrap_or_else(|e| e.into_inner()).pop().ok_or_else(|| {
             Failure::new(TURBO_E_BUSY, 0, format!("all {} sessions of the model are held", self.slots.len()))
         })?;
@@ -64,6 +66,8 @@ impl Loaded {
     }
 }
 
+/// A model the server serves: its name, its configuration, and its load
+/// once load() has made it.
 pub(crate) struct Served {
     pub(crate) name: String,
     pub(crate) config: ModelConfig,
@@ -72,9 +76,14 @@ pub(crate) struct Served {
 
 /// Dropped models first, then contexts, then the runtime.
 pub(crate) struct State {
-    pub(crate) models: Vec<Served>,
+    /// The served models, in serve order; LoadBundle and UnloadBundle
+    /// add and remove entries while serving.
+    pub(crate) models: RwLock<Vec<Arc<Served>>>,
     pub(crate) contexts: Mutex<Vec<(u32, Arc<Context>)>>,
     pub(crate) runtime: OnceLock<Runtime>,
+    /// Serializes load(): one load at a time, so two LoadBundle calls
+    /// never load the same new model twice.
+    loading: Mutex<()>,
 }
 
 fn not_found(name: &str) -> Failure {
@@ -84,27 +93,33 @@ fn not_found(name: &str) -> Failure {
 impl State {
     pub(crate) fn new(names: Vec<String>, models: Vec<ModelConfig>) -> Self {
         Self {
-            models: names
-                .into_iter()
-                .zip(models)
-                .map(|(name, config)| Served { name, config, loaded: OnceLock::new() })
-                .collect(),
+            models: RwLock::new(
+                names
+                    .into_iter()
+                    .zip(models)
+                    .map(|(name, config)| Arc::new(Served { name, config, loaded: OnceLock::new() }))
+                    .collect(),
+            ),
             runtime: OnceLock::new(),
             contexts: Mutex::new(Vec::new()),
+            loading: Mutex::new(()),
         }
     }
 
-    pub(crate) fn served(&self, name: &str) -> Result<&Served> {
-        self.models.iter().find(|m| m.name == name).ok_or_else(|| not_found(name))
+    /// The served model's name and, when it is loaded, its load. The
+    /// answer is a snapshot: a load or unload after it returns does not
+    /// change it.
+    pub(crate) fn peek(&self, name: &str) -> api::Result<(String, Option<Arc<Loaded>>)> {
+        let models = self.models.read().unwrap_or_else(|e| e.into_inner());
+        let m = models.iter().find(|m| m.name == name).ok_or_else(|| not_found(name))?;
+        Ok((m.name.clone(), m.loaded.get().cloned()))
     }
 
     /// A ready model, the version empty or its revision.
-    pub(crate) fn ready(&self, name: &str, version: &str) -> Result<(&Served, Arc<Loaded>)> {
-        let m = self.served(name)?;
-        let l = m
-            .loaded
-            .get()
-            .ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {name} is not loaded yet")))?;
+    pub(crate) fn ready(&self, name: &str, version: &str) -> api::Result<(String, Arc<Loaded>)> {
+        let (name, loaded) = self.peek(name)?;
+        let l =
+            loaded.ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {name} is not loaded yet")))?;
         if !version.is_empty() && version != l.revision {
             return Err(Failure::new(
                 TURBO_E_BUNDLE_NOT_FOUND,
@@ -112,46 +127,78 @@ impl State {
                 format!("model {name} has version {}, not {version}", l.revision),
             ));
         }
-        Ok((m, l.clone()))
+        Ok((name, l))
+    }
+
+    /// The served models as they are now: name, configuration and load,
+    /// in serve order.
+    pub(crate) fn listing(&self) -> Vec<Arc<Served>> {
+        self.models.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// Starts serving a model: it lists from here on, not loaded yet, and
+    /// load() makes it. The name must not be served already.
+    pub(crate) fn add(&self, name: String, config: ModelConfig) -> api::Result<()> {
+        let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
+        if models.iter().any(|m| m.name == name) {
+            return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("a model named {name} is already served")));
+        }
+        models.push(Arc::new(Served { name, config, loaded: OnceLock::new() }));
+        Ok(())
+    }
+
+    /// Stops serving a name. Sessions a request still holds finish: the
+    /// load outlives its entry through the holders' Arcs, and is dropped
+    /// with the last of them.
+    pub(crate) fn remove(&self, name: &str) -> api::Result<()> {
+        let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
+        let i = models.iter().position(|m| m.name == name).ok_or_else(|| not_found(name))?;
+        models.remove(i);
+        Ok(())
     }
 
     /// Loads every model in order, stopping at the first failure with the
     /// call, its status, the field it names and the library's message.
+    /// One load at a time, so concurrent LoadBundle calls cannot load one
+    /// new model twice.
     pub(crate) fn load(&self) -> std::result::Result<(), String> {
-        let fail = |name: &str, call: &str, fields: &[&str]| {
-            let (name, call) = (name.to_string(), call.to_string());
-            let fields: Vec<String> = fields.iter().map(|s| s.to_string()).collect();
-            move |f: Failure| {
-                let fields: Vec<&str> = fields.iter().map(String::as_str).collect();
-                format!("model {name}: {call}: {}", describe(&f, &fields))
-            }
-        };
-        let rt = match self.runtime.get() {
-            Some(rt) => rt,
-            None => {
-                let rt = Runtime::create().map_err(fail("-", "turbo_runtime_create", &[]))?;
-                self.runtime.get_or_init(|| rt)
-            }
-        };
-        for m in &self.models {
+        let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
+        for m in self.listing() {
             if m.loaded.get().is_some() {
                 continue;
             }
-            let (name, c) = (m.name.as_str(), &m.config);
+            let fail = |call: &str, fields: &[&str]| {
+                let (name, call) = (m.name.clone(), call.to_string());
+                let fields: Vec<String> = fields.iter().map(|s| s.to_string()).collect();
+                move |f: Failure| {
+                    let fields: Vec<&str> = fields.iter().map(String::as_str).collect();
+                    format!("model {name}: {call}: {}", describe(&f, &fields))
+                }
+            };
+            let rt = match self.runtime.get() {
+                Some(rt) => rt,
+                None => {
+                    let rt = Runtime::create().map_err(fail("turbo_runtime_create", &[]))?;
+                    self.runtime.get_or_init(|| rt)
+                }
+            };
+            let c = &m.config;
             let device = match c.device {
-                Device::Index(i) => i,
-                Device::Select => rt.select(TURBO_TASK_EMBED).map_err(fail(name, "turbo_runtime_select", &[]))?,
+                crate::config::Device::Index(i) => i,
+                crate::config::Device::Select => {
+                    rt.select(TURBO_TASK_EMBED).map_err(fail("turbo_runtime_select", &[]))?
+                }
             };
             let ctx = {
                 let mut contexts = self.contexts.lock().unwrap_or_else(|e| e.into_inner());
                 if !contexts.iter().any(|(d, _)| *d == device) {
-                    let ctx = rt.context(device).map_err(fail(name, "turbo_context_create", &[]))?;
+                    let ctx = rt.context(device).map_err(fail("turbo_context_create", &[]))?;
                     contexts.push((device, Arc::new(ctx)));
                 }
                 contexts.iter().find(|(d, _)| *d == device).unwrap().1.clone()
             };
-            let model = ctx.load(&c.bundle).map_err(fail(name, "turbo_model_load", &[]))?;
-            let info = model.info().map_err(fail(name, "turbo_model_get_info", &[]))?;
+            let model = ctx.load(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
+            let info = model.info().map_err(fail("turbo_model_get_info", &[]))?;
             let desc = turbo_session_desc {
                 struct_size: size_of::<turbo_session_desc>() as u32,
                 max_batch: c.max_batch,
@@ -164,21 +211,22 @@ impl State {
             };
             let mut slots = Vec::new();
             for _ in 0..c.sessions {
-                let session = model.session(&desc).map_err(fail(name, "turbo_session_create", &SESSION_DESC))?;
-                let si = session.info().map_err(fail(name, "turbo_session_get_info", &[]))?;
-                let alloc =
-                    || {
-                        let b = ctx
-                            .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
-                            .map_err(fail(name, "turbo_buffer_alloc", &[]))?;
-                        let p = b.host_ptr().map_err(fail(name, "turbo_buffer_host_ptr", &[]))?;
-                        Ok::<_, String>((b, p))
-                    };
+                let session = model.session(&desc).map_err(fail("turbo_session_create", &SESSION_DESC))?;
+                let si = session.info().map_err(fail("turbo_session_get_info", &[]))?;
+                let alloc = || {
+                    let b = ctx
+                        .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
+                        .map_err(fail("turbo_buffer_alloc", &[]))?;
+                    let p = b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?;
+                    Ok::<_, String>((b, p))
+                };
                 let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
                 slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
             }
             let idle = Mutex::new((0..slots.len()).rev().collect());
             let loaded = Loaded { slots, model, device, revision: api::field(&info.revision), idle };
+            // load() holds the loading mutex: no other load can have set
+            // this entry's load.
             let _ = m.loaded.set(Arc::new(loaded));
         }
         Ok(())
@@ -186,7 +234,7 @@ impl State {
 }
 
 /// The model's properties, read from the library on each call.
-pub(crate) fn properties(state: &State, loaded: &Loaded) -> Result<HashMap<String, String>> {
+pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<String, String>> {
     let rt = state.runtime.get().ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, "no runtime"))?;
     let mi = loaded.model.info()?;
     let si = loaded.slots[0].info;

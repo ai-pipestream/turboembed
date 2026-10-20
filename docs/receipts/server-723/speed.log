@@ -1,0 +1,22 @@
+Command: cargo test --release -p turbo-kserve --test speed -- --ignored --nocapture
+Machine: AMD Ryzen 9 9950X3D (16 cores), 121 GB RAM, Linux.
+Alternating rounds: 40 a side, one encode and one decode timed together
+each round, the side running first swapped every round, two warm-up
+rounds. Each side measured at its own encoded size; the baselines are
+the current vector message (the vendored protocol's InferTensorContents
+fp32 contents) and span pairs as that protocol's int contents carries
+them, offsets up to 2^21 so a varint costs the three bytes a text
+offset costs.
+
+sparse terms: 2531337 bytes; 813987695 B/s vs span pairs 804590931 B/s (1.01x)
+token vectors: 8394773 bytes; 5988027971 B/s vs fp32 contents 5823872763 B/s (1.03x)
+rerank scores: 683528 bytes; 1037586965 B/s vs span pairs 1014303113 B/s (1.02x)
+extraction answers: 216373 bytes; 1208160175 B/s vs span pairs 1117993939 B/s (1.08x)
+all in GiB/s: sparse 0.81, token vectors 5.99, rerank 1.04, extraction 1.21
+speed test exit: 0
+
+Every result kind encodes and decodes at least as fast per byte as the
+current vector and span messages: 1.01x to 1.08x across the four kinds.
+The token-vector block crosses as one bytes field, what
+raw_output_contents already carries vectors as; the column messages ride
+packed varints, the same encoding shape the baselines ride.

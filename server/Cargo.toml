@@ -15,6 +15,11 @@ path = "src/main.rs"
 
 [dependencies]
 turbo = { path = "../core" }
+# The analysis result kinds the wire messages carry, and their layer
+# invariants, which the message validation re-proves.
+turbo-analysis = { path = "../analysis/core" }
+turbo-analysis-layers = { path = "../analysis/layers" }
+turbo-analysis-embed = { path = "../analysis/embed" }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
 prost = "0.14"

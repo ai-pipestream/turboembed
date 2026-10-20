@@ -1,0 +1,85 @@
+//! The Stage 5 analysis result kinds as wire messages
+//! (proto/turbo_analysis.proto): each in-process result layer's columns
+//! with its model identity, the conversion both ways, and the message
+//! limits the capability listing names. Decoding rebuilds the layer and
+//! re-proves its own check, so a malformed message is refused the way the
+//! layer refuses a malformed column, never a panic.
+
+use turbo_analysis::ModelRef;
+
+use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT};
+use crate::proto::result as proto;
+
+pub mod extraction;
+pub mod rerank;
+pub mod sparse;
+pub mod tokens;
+
+/// The most a result message may carry; the capability listing shows
+/// these and a larger message is TURBO_E_CAPACITY naming the limit.
+/// Nothing is truncated to fit.
+pub const MAX_SPARSE_ENTRIES: u64 = 1 << 20;
+pub const MAX_SPARSE_OCCURRENCES: u64 = 1 << 22;
+pub const MAX_TOKEN_VECTOR_BYTES: u64 = 32 << 20;
+pub const MAX_RERANK_ITEMS: u64 = 1 << 20;
+pub const MAX_ANSWERS: u64 = 1 << 16;
+
+/// One result kind's wire form: to the message, and back with the
+/// message's own validation, whose refusal names what it found.
+///
+/// This is the shared layer's Rust client surface too: a caller holding
+/// an in-process result builds the message with `to_msg`, and reads a
+/// received message back with `from_msg`.
+pub trait Wire: Sized {
+    type Msg;
+    fn to_msg(&self) -> Self::Msg;
+    fn from_msg(msg: &Self::Msg) -> Result<Self, Failure>;
+}
+
+/// A count over a listed limit: TURBO_E_CAPACITY naming the limit, the
+/// way the server answers OUT_OF_RANGE for a request past a published
+/// limit, and nothing is cut down to fit.
+fn over(limit: &str, what: &str, n: u64) -> Failure {
+    Failure::new(TURBO_E_CAPACITY, 0, format!("{what} is {n}, over the {limit} limit"))
+}
+
+/// A column count that must match another's, or the refusal names both.
+fn mismatched(what: &str, got: usize, want: usize) -> Failure {
+    Failure::new(
+        TURBO_E_INVALID_ARGUMENT,
+        0,
+        format!("{what} has {got} values and should match the {want} of the column beside it"),
+    )
+}
+
+fn model_to_proto(m: &ModelRef) -> proto::ModelRef {
+    proto::ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: m.sha256.clone() }
+}
+
+fn model_from_proto(m: &proto::ModelRef) -> ModelRef {
+    ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: m.sha256.clone() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_limit_refusal_names_it() {
+        let f = over("max_answers", "answers", 5);
+        assert_eq!(f.code, TURBO_E_CAPACITY);
+        assert!(f.message.contains("max_answers"), "{}", f.message);
+        assert!(f.message.contains('5'), "{}", f.message);
+        let f = mismatched("span_start", 2, 3);
+        assert_eq!(f.code, TURBO_E_INVALID_ARGUMENT);
+        assert!(f.message.contains("span_start"), "{}", f.message);
+    }
+
+    #[test]
+    fn the_model_identity_crosses_both_ways() {
+        let m = ModelRef { id: "org/model".into(), revision: "v1".into(), sha256: "abc".into() };
+        let p = model_to_proto(&m);
+        assert_eq!((p.id.as_str(), p.revision.as_str(), p.sha256.as_str()), ("org/model", "v1", "abc"));
+        assert_eq!(model_from_proto(&p), m);
+    }
+}

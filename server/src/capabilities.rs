@@ -1,0 +1,106 @@
+//! The capability listing: what every loaded bundle is and takes, so a
+//! client rejects an incompatible request before sending it
+//! (docs/grpc-analysis.md), and the LoadBundle request as a
+//! configuration.
+
+use crate::api::{self, Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM};
+use crate::config::{Device, ModelConfig};
+use crate::proto::result::{BundleCapabilities, LoadBundleRequest, ModelRef, ResultLimits};
+use crate::results::{
+    MAX_ANSWERS, MAX_RERANK_ITEMS, MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, MAX_TOKEN_VECTOR_BYTES,
+};
+use crate::state::Loaded;
+
+fn bad(message: impl Into<String>) -> Failure {
+    Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
+}
+
+/// What one result message may carry, as the capability listing shows it.
+pub(crate) fn result_limits() -> ResultLimits {
+    ResultLimits {
+        max_sparse_entries: MAX_SPARSE_ENTRIES,
+        max_sparse_occurrences: MAX_SPARSE_OCCURRENCES,
+        max_token_vector_bytes: MAX_TOKEN_VECTOR_BYTES,
+        max_rerank_items: MAX_RERANK_ITEMS,
+        max_answers: MAX_ANSWERS,
+    }
+}
+
+/// What a loaded bundle is and takes: its name, identity, task, roles,
+/// widths and the limits a request is refused over, from the library's
+/// own facts. The limits are the session's, what a request is held to;
+/// a server started below the model's limits lists the smaller ones.
+pub(crate) fn bundle_capabilities(name: &str, loaded: &Loaded) -> api::Result<BundleCapabilities> {
+    let mi = loaded.model.info()?;
+    let si = loaded.slots[0].info;
+    let prefix_query = crate::api::field(&mi.prefix_query);
+    let prefix_document = crate::api::field(&mi.prefix_document);
+    let mut roles = Vec::new();
+    if !prefix_query.is_empty() {
+        roles.push("PROMPT_QUERY".to_string());
+    }
+    if !prefix_document.is_empty() {
+        roles.push("PROMPT_DOCUMENT".to_string());
+    }
+    if roles.is_empty() {
+        roles.push("PROMPT_NONE".to_string());
+    }
+    let mut widths = vec![mi.dim];
+    widths.extend(mi.output_dims.iter().take((mi.output_dims_count as usize).min(mi.output_dims.len())));
+    Ok(BundleCapabilities {
+        name: name.to_string(),
+        model: Some(ModelRef {
+            id: crate::api::field(&mi.model_id),
+            revision: crate::api::field(&mi.revision),
+            sha256: crate::api::field(&mi.manifest_sha256),
+        }),
+        task: crate::api::names::task(mi.task),
+        roles,
+        widths,
+        context_limit: si.max_seq,
+        batch_limit: si.max_batch,
+        // No merged task reads an extraction schema yet (issue #715); a
+        // bundle that does will fill this.
+        schema: None,
+    })
+}
+
+/// The LoadBundle request as the configuration the loader takes,
+/// refusing what a request cannot mean. The name, when empty, is the
+/// bundle path's last component, exactly as a startup `--model` names it.
+pub(crate) fn load_config(req: &LoadBundleRequest) -> Result<(String, ModelConfig), Failure> {
+    if req.bundle.is_empty() {
+        return Err(bad("bundle: the bundle directory is required"));
+    }
+    let name = if req.name.is_empty() {
+        let last = req.bundle.rsplit(std::path::is_separator).next().unwrap_or("");
+        if matches!(last, "" | "." | "..") {
+            return Err(bad(format!("bundle {}: the path names no bundle", req.bundle)));
+        }
+        last.to_string()
+    } else {
+        req.name.clone()
+    };
+    if req.sessions == 0 {
+        return Err(bad("sessions: at least 1"));
+    }
+    if crate::api::names::PRECISION.iter().all(|(v, _)| *v != req.precision) {
+        return Err(Failure::new(
+            TURBO_E_INVALID_ENUM,
+            0,
+            format!("precision {}: not PRECISION_MODEL, PRECISION_FASTEST or PRECISION_EXACT", req.precision),
+        ));
+    }
+    Ok((
+        name,
+        ModelConfig {
+            bundle: req.bundle.clone(),
+            name: if req.name.is_empty() { None } else { Some(req.name.clone()) },
+            device: Device::Index(req.device),
+            precision: req.precision,
+            max_batch: req.max_batch,
+            max_seq: req.max_seq,
+            sessions: req.sessions,
+        },
+    ))
+}
