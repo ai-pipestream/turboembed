@@ -55,10 +55,15 @@ characters. An encoder refuses such a text with `INVALID_ARGUMENT`; a
 static model returns zeros. Rows written with `turbo_embed_write_tokens`
 still need one live token each.
 
-`output_dim` cuts the vector before it is normalized, as for an encoder.
-A distilled table's columns are principal components in order of the
-variance they carry, so a cut keeps the most of it. `NORMALIZE_L2`
-divides by the norm plus 1e-32, so the zero vector stays zero.
+`output_dim` cuts the vector before it is normalized, as for an
+encoder: a cut is served at the width the bundle declares or at the
+table's own width, and no other (`UNSUPPORTED_OPTION`, naming the
+declared widths; docs/bundle.md). A distilled table's columns are
+principal components in order of the variance they carry, so a cut
+keeps the most of it; a table made for several widths declares them in
+the recipe's `matryoshka` field, as a dense model does.
+`NORMALIZE_L2` divides by the norm plus 1e-32, so the zero vector
+stays zero.
 
 ### The arithmetic, to the bit
 
