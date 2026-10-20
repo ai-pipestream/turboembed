@@ -571,6 +571,29 @@ skipped: no language evidence`, or `opennlp:tokens failed: ...`. So
 "skipped" is never mistaken for "found nothing", and a stored document
 says why a layer is missing.
 
+### Evidence
+
+`Evidence<L>` (`turbo:evidence<L>`) is one record per item of a result
+layer `L`, so an entity, a category or any other result can be audited
+the same way whatever produced it. A record names the producing
+annotator and, when it ran a model, the model's identity; holds the
+item's spans mapped through the views back to the source text; holds
+the raw score, and the calibrated score and abstention reason when the
+producer gives them (a field a producer does not give is absent, never
+zero); and points at the units of other layers that support it (the
+tokens an entity covers) by layer instance and item range, without
+copying them. The result layers keep their own encoding.
+
+`EvidenceStep<L>` builds the layer after the step that writes `L`, for
+any `L` that implements `Evidenced`: `Entities`, `Categories` and
+`Categories<L>` for sentences, structure blocks and chunks. A finder
+without a model writes 0 where it has no score, so an entity's raw
+score is recorded only when a model produced it. `Evidence::verify`
+checks a layer against its document and fails with a typed
+`EvidenceError`: a model no layer of the document was made with, a span
+outside the source or inside a character, or support outside a layer
+the document holds. The graph import applies the same check.
+
 ## Document graph export
 
 A search index or a coordinator that is not the process which ran the
@@ -762,6 +785,7 @@ fields mean bumps its `SCHEMA`.
 | `LanguageSpans` | `turbo:language-spans` | text | `turbo-analysis-layers` |
 | `Categories` | `turbo:categories` | the document | `turbo-analysis-layers` |
 | `Categories<L>` (`L` is `Sentences`, `Structure` or `Chunks`) | `turbo:categories<L>` | `L` | `turbo-analysis-layers` |
+| `Evidence<L>` (`L` is `Entities`, `Categories` or `Categories<L>`) | `turbo:evidence<L>` | `L` | `turbo-analysis` |
 | `Locations` | `turbo:locations` | text | `turbo-geo` |
 | `Regions` | `turbo:regions` | the document | `turbo-analysis-layers` |
 | `Containment` | `turbo:containment` | text | `turbo-analysis-layers` |
