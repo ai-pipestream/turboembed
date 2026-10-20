@@ -196,12 +196,14 @@ impl LayerCodec for Locations {
     }
 }
 
-/// Registers this crate's layer codec on `codecs`.
+/// Registers this crate's layer codecs (`Locations` and
+/// `Edges<Entities, Locations>`) on `codecs`.
 pub fn register_codecs(codecs: &mut Codecs) {
     codecs.register::<Locations>();
+    codecs.register::<turbo_analysis::Edges<turbo_analysis_layers::Entities, Locations>>();
 }
 
-/// A registry holding this crate's codec and nothing else.
+/// A registry holding this crate's codecs and nothing else.
 pub fn codecs() -> Codecs {
     let mut codecs = Codecs::new();
     register_codecs(&mut codecs);

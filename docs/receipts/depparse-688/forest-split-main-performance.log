@@ -1,0 +1,21 @@
+round=1 variant=main n=1000000 width=25 median_ms=0.556791 p10_ms=0.549398
+round=1 variant=split n=1000000 width=25 median_ms=0.573323 p10_ms=0.563644
+round=1 variant=split n=1000000 width=25 median_ms=0.570908 p10_ms=0.566039
+round=1 variant=main n=1000000 width=25 median_ms=0.551802 p10_ms=0.542424
+round=2 variant=main n=1000000 width=25 median_ms=0.545029 p10_ms=0.541192
+round=2 variant=split n=1000000 width=25 median_ms=0.560268 p10_ms=0.556481
+round=2 variant=split n=1000000 width=25 median_ms=0.567902 p10_ms=0.558585
+round=2 variant=main n=1000000 width=25 median_ms=0.556310 p10_ms=0.549268
+round=3 variant=main n=1000000 width=25 median_ms=0.547925 p10_ms=0.541783
+round=3 variant=split n=1000000 width=25 median_ms=0.565709 p10_ms=0.562622
+round=3 variant=split n=1000000 width=25 median_ms=0.565578 p10_ms=0.559236
+round=3 variant=main n=1000000 width=25 median_ms=0.552724 p10_ms=0.546432
+round=4 variant=main n=1000000 width=25 median_ms=0.552824 p10_ms=0.548556
+round=4 variant=split n=1000000 width=25 median_ms=0.565007 p10_ms=0.558104
+round=4 variant=split n=1000000 width=25 median_ms=0.565238 p10_ms=0.560338
+round=4 variant=main n=1000000 width=25 median_ms=0.556301 p10_ms=0.552433
+round=5 variant=main n=1000000 width=25 median_ms=0.565298 p10_ms=0.555078
+round=5 variant=split n=1000000 width=25 median_ms=0.571379 p10_ms=0.569446
+round=5 variant=split n=1000000 width=25 median_ms=0.561841 p10_ms=0.557773
+round=5 variant=main n=1000000 width=25 median_ms=0.548416 p10_ms=0.545550
+median_of_process_medians main=0.552774ms split=0.565643ms

@@ -1842,6 +1842,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-depparse"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-formats",
+ "turbo-maxent",
+ "turbo-train",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-doccat"
 version = "0.1.0"
 dependencies = [

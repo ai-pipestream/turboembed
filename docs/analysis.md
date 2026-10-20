@@ -30,6 +30,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-grammar` | `analysis/grammar/` | A rule grammar with a chart parser for numbers, ordinals and percentages in words or digits (English), which writes the `grammar` instances of `turbo:numbers` and `turbo:quantities` and the `turbo:ordinals` layer, with its Recognizers-Text conformance tests ([grammar.md](grammar.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
+| `turbo-depparse` | `analysis/depparse/` | Typed dependency graphs, arc-standard parsing/training, UAS/LAS and annotation ([dependency-parser.md](dependency-parser.md)) |
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
 | `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Lemmas and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
@@ -335,6 +336,17 @@ and never reads `Entities` as a split constraint: a named entity,
 continuous or discontinuous, stays inside its sentence, and
 `Spans::overlapping` and `Spans::covering` find the entities whose
 fragments touch a chunk.
+
+Query-time routing (`turbo_chunker::LevelRouter`) ranks the chunk,
+section and document units of `Levels` in one list, fusing BM25 over
+`TermStats<Levels>` with dense cosine scores over `Vectors<Levels>`
+when present. A query profile (chunk-level term rarity and length)
+weights the levels (factoid toward chunks, topical toward sections,
+summary toward the document), sibling chunks that co-activate promote
+their parent section, and hits carry their parent context with exact
+view spans. `ContentHashes<L>` (`turbo:content-hashes<L>`) gives every
+unit a deterministic content ID over its level, heading path and
+fragment text, so a re-chunked document diffs cleanly.
 
 `Spans<L>` provides lookup and conflict-resolution helpers that work
 across continuous, nested, overlapping and discontinuous spans:

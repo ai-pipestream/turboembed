@@ -1,6 +1,7 @@
 //! The gazetteer interface (`opennlp.tools.geo.Gazetteer`).
 
 use crate::entry::RegionCode;
+use crate::linker::FuzzyStringScorer;
 use crate::store::Entry;
 
 /// Name, identifier and region lookup over a set of place records.
@@ -25,6 +26,30 @@ pub trait Gazetteer {
     /// The dataset identifiers of the records. Every [`Entry::source`] the
     /// other methods return is one of them.
     fn sources(&self) -> Vec<&str>;
+
+    /// Looks up candidate records matching `name` either exactly or via
+    /// fuzzy string similarity at or above `min_similarity` in `[0.0, 1.0]`,
+    /// returning up to `limit` `(Entry, similarity)` pairs.
+    fn lookup_fuzzy(
+        &self,
+        name: &str,
+        scorer: &FuzzyStringScorer,
+        min_similarity: f64,
+        limit: usize,
+    ) -> Vec<(Entry<'_>, f64)> {
+        if limit == 0 || min_similarity.is_nan() || min_similarity > 1.0 {
+            return Vec::new();
+        }
+        let threshold = min_similarity.clamp(0.0, 1.0);
+        self.lookup(name)
+            .into_iter()
+            .filter_map(|e| {
+                let s = scorer.score_entry(name, &e);
+                (s >= threshold).then_some((e, s))
+            })
+            .take(limit)
+            .collect()
+    }
 }
 
 impl<G: Gazetteer + ?Sized> Gazetteer for &G {
@@ -42,6 +67,16 @@ impl<G: Gazetteer + ?Sized> Gazetteer for &G {
 
     fn sources(&self) -> Vec<&str> {
         (**self).sources()
+    }
+
+    fn lookup_fuzzy(
+        &self,
+        name: &str,
+        scorer: &FuzzyStringScorer,
+        min_similarity: f64,
+        limit: usize,
+    ) -> Vec<(Entry<'_>, f64)> {
+        (**self).lookup_fuzzy(name, scorer, min_similarity, limit)
     }
 }
 
@@ -61,6 +96,16 @@ impl<G: Gazetteer + ?Sized> Gazetteer for Box<G> {
     fn sources(&self) -> Vec<&str> {
         (**self).sources()
     }
+
+    fn lookup_fuzzy(
+        &self,
+        name: &str,
+        scorer: &FuzzyStringScorer,
+        min_similarity: f64,
+        limit: usize,
+    ) -> Vec<(Entry<'_>, f64)> {
+        (**self).lookup_fuzzy(name, scorer, min_similarity, limit)
+    }
 }
 
 impl<G: Gazetteer + ?Sized> Gazetteer for std::sync::Arc<G> {
@@ -78,6 +123,16 @@ impl<G: Gazetteer + ?Sized> Gazetteer for std::sync::Arc<G> {
 
     fn sources(&self) -> Vec<&str> {
         (**self).sources()
+    }
+
+    fn lookup_fuzzy(
+        &self,
+        name: &str,
+        scorer: &FuzzyStringScorer,
+        min_similarity: f64,
+        limit: usize,
+    ) -> Vec<(Entry<'_>, f64)> {
+        (**self).lookup_fuzzy(name, scorer, min_similarity, limit)
     }
 }
 
@@ -101,6 +156,16 @@ macro_rules! indexed_gazetteer {
             fn sources(&self) -> Vec<&str> {
                 let $this = self;
                 $sources
+            }
+
+            fn lookup_fuzzy(
+                &self,
+                name: &str,
+                scorer: &$crate::linker::FuzzyStringScorer,
+                min_similarity: f64,
+                limit: usize,
+            ) -> Vec<($crate::Entry<'_>, f64)> {
+                self.index.lookup_fuzzy(name, scorer, min_similarity, limit)
             }
         }
 

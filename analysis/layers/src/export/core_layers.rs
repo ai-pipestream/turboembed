@@ -185,29 +185,14 @@ impl<A: WordOrTokenAnchor> LayerCodec for Dependencies<A> {
                 tag => return Err(malformed(format!("an optional head tag of {tag}"))),
             });
         }
-        // Heads must reach a root: walking each chain with a visited
-        // mark refuses a cycle the layer's own check would let through.
-        let mut state = vec![0u8; n];
-        for start in 0..n {
-            let mut at = start;
-            let mut chain = Vec::new();
-            while state[at] == 0 {
-                state[at] = 1;
-                chain.push(at);
-                let Some(h) = head[at] else { break };
-                at = h.get();
-                if state[at] == 1 && chain.contains(&at) {
-                    return Err(malformed(format!("dependency heads cycle at item {at}")));
-                }
-            }
-            for c in chain {
-                state[c] = 2;
-            }
-        }
         let relation = get_tags(&mut r, &relations)?;
         want_len(relation.len(), n, "relations")?;
         done(&r, "dependencies")?;
-        Ok(Dependencies { head, relation, relations })
+        let layer = Dependencies { head, relation, relations };
+        // Keep direct codec calls checked as well as Document insertion.
+        layer.check().map_err(malformed)?;
+        layer.check_forest().map_err(malformed)?;
+        Ok(layer)
     }
 }
 

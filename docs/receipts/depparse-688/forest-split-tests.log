@@ -1,0 +1,587 @@
+   Compiling turbo-analysis-layers v0.1.0 (<checkout>/analysis/layers)
+   Compiling turbo-postag v0.1.0 (<checkout>/analysis/postag)
+   Compiling turbo-tokenize-layers v0.1.0 (<checkout>/analysis/tokenize-layers)
+   Compiling turbo-normalize-layers v0.1.0 (<checkout>/analysis/normalize-layers)
+   Compiling turbo-goldens v0.1.0 (<checkout>/analysis/goldens)
+   Compiling turbo-structure v0.1.0 (<checkout>/analysis/structure)
+   Compiling turbo-tokenize v0.1.0 (<checkout>/analysis/tokenize)
+   Compiling turbo-normalize v0.1.0 (<checkout>/analysis/normalize)
+   Compiling turbo-parser v0.1.0 (<checkout>/analysis/parser)
+   Compiling turbo-formats v0.1.0 (<checkout>/analysis/formats)
+   Compiling turbo-depparse v0.1.0 (<checkout>/analysis/depparse)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.86s
+     Running unittests src/lib.rs (target/debug/deps/turbo_analysis_layers-ff1def8ac888545e)
+
+running 82 tests
+test abbreviations::tests::check_wants_ordered_non_empty_spans ... ok
+test categories::tests::names_and_anchors ... ok
+test abbreviations::tests::links_lead_to_the_long_form ... ok
+test categories::tests::an_item_per_unit ... ok
+test categories::tests::check_refuses_inconsistent_layers ... ok
+test containment::tests::ancestors_and_chains_validate_and_round_trip ... ok
+test core_tests::language_holds_the_ranking_best_first ... ok
+test core_tests::phrases_check_columns_heads_and_parents ... ok
+test core_tests::pos_tags_and_chunks_check_probabilities_and_sentence_ranges ... ok
+test core_tests::tokens_from_alternatives_materializes_split_modes ... ok
+test categories::tests::the_document_has_one_item_and_ranks_its_categories ... ok
+test core_tests::structure_is_a_tree_in_text_order ... ok
+test core_tests::utf16_spans_are_named_after_their_layer_and_aligned_to_it ... ok
+test core_tests::vectors_check_the_items_with_no_vector ... ok
+test core_tests::entities_allow_nesting_crossing_and_discontinuous_fragments ... ok
+test core_tests::utf16_spans_check_their_columns ... ok
+test core_tests::vectors_name_the_items_that_have_none ... ok
+test date::tests::calendar_fields ... ok
+test date::tests::epoch_days ... ok
+test date::tests::date_times_read_write_and_count_seconds ... ok
+test date::tests::iso_dates ... ok
+test date::tests::months_and_years_clamp_the_day_and_stay_in_range ... ok
+test date::tests::written_as_local_date_writes_them ... ok
+test date::tests::years_are_written_with_four_digits_or_a_sign ... ok
+test language_spans::tests::check_wants_ordered_nonempty_spans_and_known_tags ... ok
+test language_spans::tests::spans_come_back_with_their_columns ... ok
+test levels::tests::levels_are_a_tree_under_the_document ... ok
+test levels::tests::the_check_refuses_what_is_not_a_tree ... ok
+test levels::tests::the_vector_kinds_are_named_instances ... ok
+test money::tests::a_converted_amount_can_have_a_scale_below_zero ... ok
+test money::tests::amounts_come_from_the_columns ... ok
+test money::tests::check_wants_a_canonical_amount ... ok
+test matches::tests::check_wants_columns_labels_and_token_order ... ok
+test money::tests::check_wants_every_column ... ok
+test money::tests::check_wants_text_order ... ok
+test money::tests::the_layer_is_named_and_has_a_converted_instance ... ok
+test money::tests::currency_codes_are_three_capitals ... ok
+test numbers::tests::check_accepts_an_empty_layer ... ok
+test numbers::tests::check_pairs_markers_with_multipliers ... ok
+test numbers::tests::check_wants_a_canonical_coefficient ... ok
+test numbers::tests::check_wants_text_order ... ok
+test numbers::tests::check_wants_every_column ... ok
+test numbers::tests::check_wants_the_numeral_inside_the_span ... ok
+test numbers::tests::floats_are_rounded_from_the_exact_decimal ... ok
+test numbers::tests::multiplier_factors ... ok
+test numbers::tests::notation_separators_mirror_each_other ... ok
+test numbers::tests::plain_strings_match_big_decimal ... ok
+test numbers::tests::the_layer_is_named_and_positional ... ok
+test numbers::tests::values_come_from_the_columns ... ok
+test ordinals::tests::check_refuses_offsets_outside_the_base ... ok
+test ordinals::tests::check_wants_order_columns_and_text ... ok
+test ordinals::tests::mentions_round_trip ... ok
+test pii::tests::check_refuses_duplicates_empty_values_and_short_columns ... ok
+test pii::tests::check_wants_the_java_order ... ok
+test pii::tests::kind_sets ... ok
+test pii::tests::kinds_have_the_java_names_and_ranks ... ok
+test pii::tests::mentions_round_trip_and_may_overlap ... ok
+test quantities::tests::check_accepts_an_empty_layer ... ok
+test quantities::tests::check_wants_a_canonical_value ... ok
+test quantities::tests::check_wants_a_unit ... ok
+test quantities::tests::check_wants_every_column ... ok
+test quantities::tests::check_wants_text_order ... ok
+test quantities::tests::the_layer_is_named ... ok
+test quantities::tests::values_and_units_come_from_the_columns ... ok
+test regions::tests::region_vote_validates_country_and_share_bounds ... ok
+test regions::tests::winner_checks_margin_and_runner_up_lead ... ok
+test sentiment::tests::bounds_checking_refuses_invalid_token_sentence_and_opinion_indices ... ok
+test sentiment::tests::incivility_and_pragmatics_construct_and_check_evidence_slices ... ok
+test sentiment::tests::opinions_and_aspects_construct_and_link_on_document ... ok
+test sentiment::tests::score_only_layers_add_to_a_document_without_tokens ... ok
+test temporal::tests::a_date_reads_at_each_granularity ... ok
+test sentiment::tests::misaligned_and_unaligned_anchors_are_refused ... ok
+test temporal::tests::a_document_date_has_at_most_one_item_and_points_into_the_mentions ... ok
+test temporal::tests::check_wants_text_order_and_full_columns ... ok
+test temporal::tests::check_refuses_values_that_are_no_value ... ok
+test times::tests::check_wants_order_columns_and_text ... ok
+test temporal::tests::the_layers_are_named ... ok
+test times::tests::mentions_round_trip ... ok
+test times::tests::names_and_modifiers ... ok
+test temporal::tests::values_are_written_as_opennlp_writes_them ... ok
+test times::tests::check_refuses_values_that_do_not_fit_the_kind ... ok
+test temporal::tests::columns_round_trip_every_granularity ... ok
+
+test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/dependency_cycles.rs (target/debug/deps/dependency_cycles-e3350fe80f70ea02)
+
+running 6 tests
+test dependency_forests_reject_nontrivial_cycles ... ok
+test forest_check_validates_untrusted_columns_before_walking ... ok
+test document_insertion_accepts_structurally_valid_cycles ... ok
+test structural_check_accepts_multi_node_cycles ... ok
+test all_small_head_assignments_match_a_per_node_cycle_search ... ok
+test long_chains_and_multiple_roots_are_valid_forests ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/graph_boundaries.rs (target/debug/deps/graph_boundaries-2e1232e19598bcb9)
+
+running 5 tests
+test incomplete_layers_reject_nonzero_lengths ... ok
+test aspects_reject_reserved_range_indices ... ok
+test incivility_rejects_reserved_range_indices ... ok
+test incomplete_views_reject_discarded_data ... ok
+test pragmatics_rejects_reserved_range_indices ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/graph_export.rs (target/debug/deps/graph_export-39c4d8a1177c3092)
+
+running 12 tests
+test core_layers::layers_on_a_derived_view_round_trip ... ok
+test targets::keyed_default_opinion_target_must_not_rebind_through_provenance ... ok
+test targets::keyed_default_word_target_must_not_rebind_through_provenance ... ok
+test refusals::vector_dimension_mismatches_are_refused ... ok
+test core_layers::corrupted_payloads_are_refused ... ok
+test core_layers::core_pipeline_layers_round_trip ... ok
+test alternatives::alternatives_and_nbest_round_trip ... ok
+test sentiment::sentiment_numeric_and_vector_layers_round_trip ... ok
+test targets::target_identity_and_word_subspan_refusals ... ok
+test refusals::sentiment_family_refusals ... ok
+test alternatives::corrupted_alternatives_are_refused ... ok
+test alternatives::corrupted_nbest_is_refused ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/precision.rs (target/debug/deps/precision-4ae79f6a9f247008)
+
+running 6 tests
+test language_scores_round_trip_exactly ... ok
+test entity_scores_round_trip_exactly ... ok
+test the_test_value_is_not_representable_as_f32 ... ok
+test token_confidences_round_trip_exactly ... ok
+test probabilities_one_nanounit_apart_stay_distinct ... ok
+test pos_tag_probabilities_round_trip_exactly ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/subwords.rs (target/debug/deps/subwords-fe82db2412af76f5)
+
+running 3 tests
+test pieces_out_of_token_order_are_refused ... ok
+test a_token_index_past_the_tokens_is_refused ... ok
+test the_pieces_of_a_token_are_a_range ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/terms.rs (target/debug/deps/terms-b6b2f7f0f45fe176)
+
+running 1 test
+test stems_and_terms_are_aligned_to_tokens_and_validate_columns ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/words.rs (target/debug/deps/words-7f97cccec23e76a8)
+
+running 6 tests
+test identity_words_cost_one_index_column_and_slice_view_text ... ok
+test the_layer_names_tell_word_layers_from_token_layers ... ok
+test rule_mwt_expander_splits_spanish_catalan_french_portuguese_italian_german_and_english ... ok
+test words_check_rejects_broken_invariants ... ok
+test word_anchored_and_token_anchored_layers_coexist_on_one_document ... ok
+test utf16_conversion_maps_words_to_token_spans_without_splitting_tokens ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_depparse-8ea6c463dac097fa)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/annotator.rs (target/debug/deps/annotator-826d312a5ad9ed30)
+
+running 6 tests
+test reversed_surface_order_is_rejected_before_resolving_word_ranges ... ok
+test empty_document_produces_empty_forest ... ok
+test unordered_tokens_cannot_be_silently_parsed_in_storage_order ... ok
+test direct_boundary_checks_reject_bad_offsets_views_tags_and_alignment ... ok
+test word_pipeline_keeps_multiword_token_granularity ... ok
+test token_pipeline_offsets_sentence_heads_and_records_provenance ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/conllu.rs (target/debug/deps/conllu-9c7aed2f19035873)
+
+running 2 tests
+test malformed_alignment_is_rejected_without_panics ... ok
+test conllu_graph_layer_round_trip_preserves_mwt_fields_and_view_offsets ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/graph.rs (target/debug/deps/graph-ade48c02959533a1)
+
+running 6 tests
+test forests_have_no_path_between_roots_and_preserve_tag_ids ... ok
+test graph_import_rejects_a_structurally_valid_cycle ... ok
+test invalid_transitions_do_not_mutate_state ... ok
+test tree_boundaries_and_root_crossing_projectivity ... ok
+test navigation_is_typed_and_bidirectional ... ok
+test oracle_rebuilds_all_small_projective_trees ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/parser.rs (target/debug/deps/parser-d25a87400cfc2dd1)
+
+running 5 tests
+test counter_overflow_returns_error_without_changing_totals ... ok
+test scoring_excludes_punctuation_and_does_not_credit_labels_with_wrong_heads ... ok
+test nonprojective_training_samples_are_skipped_atomically ... ok
+test model_inventory_and_scores_are_checked ... ok
+test events_training_serialization_and_evaluation ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/reference.rs (target/debug/deps/reference-b08415e420c97b29)
+
+running 2 tests
+test ud_samples_keep_offsets_ranges_and_fields_through_graph_and_layer ... ok
+test pinned_jvm_oracle_context_and_predictions_match ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_formats-bfdb59b0b61f6e3f)
+
+running 239 tests
+test ad::chunks::tests::phrase_types ... ok
+test ad::contraction::tests::the_table_has_its_spelling ... ok
+test ad::metadata::tests::ids ... ok
+test ad::chunks::tests::samples ... ok
+test ad::names::tests::named_entity_tags ... ok
+test ad::pos::tests::whitespace_runs_become_one_equals_sign ... ok
+test ad::names::tests::lexemes_are_cut_as_java_cuts_them ... ok
+test ad::pos::tests::samples ... ok
+test ad::sentence::tests::markup_tags ... ok
+test ad::names::tests::contractions_join ... ok
+test ad::sentence::tests::sentences_keep_text_and_metadata ... ok
+test ad::sentence::tests::source_cut_and_punctuation ... ok
+test ad::tree::tests::leaves_split_their_parts ... ok
+test ad::sentences::tests::texts_make_samples ... ok
+test ad::tree::tests::nodes_take_the_tag_after_the_level ... ok
+test conll::conllx::tests::a_short_line_fails_its_sentence ... ok
+test conll::conllx::tests::empty_columns_inside_a_line_count ... ok
+test conll::conllx::tests::reads_the_form_and_the_fine_tag ... ok
+test ad::tree::tests::punctuation_and_odd_lines ... ok
+test conll::conllx::tests::tokens_and_tags_are_fields_of_the_source ... ok
+test conll::names::tests::bad_tags_and_types_fail_after_the_sentence ... ok
+test conll::names::tests::conll02_i_tags_never_start_or_split_a_name ... ok
+test conll::names::tests::conll03_document_starts_need_an_empty_line ... ok
+test conll::names::tests::conll02_reads_names_and_document_starts ... ok
+test ad::tests::formats_register_by_name ... ok
+test conll::names::tests::conll03_german_has_five_columns ... ok
+test conll::names::tests::a_bad_line_ends_the_read_and_the_sentence_goes_on ... ok
+test conll::names::tests::tokens_are_fields_of_the_source ... ok
+test conll::names::tests::left_out_types_read_as_o ... ok
+test conll::tests::a_left_out_type_is_matched_by_the_tag_s_end ... ok
+test conll::names::tests::conll03_i_tags_start_and_split_names ... ok
+test conll::tests::languages_take_the_factory_codes ... ok
+test conll::tests::types_are_found_anywhere_in_the_parameter ... ok
+test conllu::coref::entity::tests::brackets_come_one_at_a_time_up_to_the_first_refusal ... ok
+test conllu::coref::entity::tests::misc_attributes_match_whole_keys ... ok
+test conllu::coref::entity::tests::corefud_brackets ... ok
+test conllu::coref::entity::tests::refusals ... ok
+test conllu::coref::entity::tests::spans_point_into_the_source ... ok
+test conllu::coref::tests::an_error_ends_only_its_document ... ok
+test conllu::coref::tests::a_close_takes_the_innermost_open_mention_of_its_entity ... ok
+test conllu::coref::tests::crossing_mentions_close_by_entity ... ok
+test conllu::coref::tests::equal_spans_keep_the_order_entities_appear_in ... ok
+test conllu::coref::tests::documents_split_at_newdoc ... ok
+test conllu::coref::tests::speaker_comments_without_words_carry_over ... ok
+test conllu::coref::tests::nested_mentions_and_text ... ok
+test conllu::coref::tests::open_entities_are_named_in_hash_map_order ... ok
+test conllu::coref::tests::unicode_offsets ... ok
+test conllu::dependency::tests::node_ids_are_checked_without_changing_the_samples ... ok
+test conllu::dependency::tests::multiword_tokens_and_empty_nodes_are_left_out ... ok
+test conllu::coref::tests::refusals ... ok
+test conllu::dependency::tests::word_ids_are_java_ints ... ok
+test conllu::dependency::tests::a_sentence_without_words_joins_the_next ... ok
+test conllu::tests::a_line_of_spaces_is_a_word_line ... ok
+test conllu::samples::tests::token_errors ... ok
+test conllu::node_ids::tests::empty_nodes_come_before_the_next_multiword_token ... ok
+test conllu::dependency::tests::invalid_sentences_are_skipped_with_their_reason ... ok
+test conllu::tests::comments_and_multiword_tokens ... ok
+test conllu::tests::missing_words_and_bad_languages ... ok
+test conllu::tests::overlapping_ranges_remove_past_the_end ... ok
+test convert::tests::sentence_chunks_drop_the_sample_after_a_full_chunk ... ok
+test conllu::tests::ranges_out_of_order_remove_other_lines ... ok
+test corpora::dom::tests::text_runs_are_nodes_with_their_bytes ... ok
+test conllu::dependency::tests::blank_lines_follow_the_whitespace_mode ... ok
+test corpora::irish::tests::a_token_without_flex_drops_the_flexes ... ok
+test conllu::node_ids::tests::spans_are_the_ids ... ok
+test corpora::formats::tests::formats_register_by_name ... ok
+test corpora::irish::tests::tokens_and_the_text_between_them ... ok
+test conllu::samples::tests::a_form_can_be_found_inside_a_marker ... ok
+test conllu::node_ids::tests::well_formed_ids_pass ... ok
+test corpora::leipzig::tests::samples_come_shuffled_and_skipped ... ok
+test corpora::leipzig::tests::too_few_lines ... ok
+test corpora::letsmt::tests::malformed_xml_is_refused ... ok
+test conllu::node_ids::tests::multiword_tokens ... ok
+test conllu::samples::tests::sentence_samples_stand_null_for_a_missing_text ... ok
+test conllu::tests::multiword_ids ... ok
+test conllu::dependency::tests::a_bad_line_drops_its_sentence_so_far ... ok
+test conllu::samples::tests::pos_and_lemma_samples ... ok
+test corpora::irish::tests::what_java_throws ... ok
+test conllu::coref::tests::multiword_tokens_and_empty_nodes ... ok
+test corpora::letsmt::tests::the_buffer_empties_only_at_the_end_of_a_word_or_sentence ... ok
+test corpora::moses::tests::empty_lines_are_empty_sentences ... ok
+test corpora::newsgroups::tests::a_message_is_its_whole_file ... ok
+test corpora::moses::tests::twenty_five_sentences_per_sample ... ok
+test corpora::newsgroups::tests::paths_are_normalized_as_java_holds_them ... ok
+test conllu::node_ids::tests::empty_nodes ... ok
+test corpora::leipzig::tests::language_codes ... ok
+test conllu::samples::tests::token_samples_insert_splits ... ok
+test corpora::newsgroups::tests::the_order_follows_the_hash_of_the_whole_path ... ok
+test convert::tests::token_samples_follow_the_operations ... ok
+test corpora::nkjp::tests::a_sentence_that_throws_loses_the_sample_so_far ... ok
+test encoding::tests::decodes_both_encodings ... ok
+test corpora::nkjp::tests::duplicate_sentence_ids_do_not_invert_sample_source_span ... ok
+test corpora::nkjp::tests::three_number_pointers_and_bad_ones ... ok
+test corpora::nkjp::tests::sentences_are_cut_from_the_paragraphs ... ok
+test evaluate::components::tests::chunks_score_phrases ... ok
+test corpora::nkjp::tests::anonymous_sentences_are_kept_independently ... ok
+test evaluate::components::tests::names_score_the_default_type_but_judge_the_own ... ok
+test evaluate::components::tests::pos_counts_up_to_the_missing_tag ... ok
+test evaluate::components::tests::sentences_are_trimmed ... ok
+test evaluate::components::tests::span_errors_count_utf16_units ... ok
+test evaluate::components::tests::tokens_and_the_detokenizer ... ok
+test evaluate::measure::tests::mean ... ok
+test evaluate::partition::tests::folds_by_place ... ok
+test evaluate::measure::tests::true_positives_count_repeats_and_carry_the_last_match ... ok
+test evaluate::partition::tests::one_partition_trains_on_odd_places ... ok
+test evaluate::measure::tests::scores_and_their_zero_cases ... ok
+test frenchtreebank::handler::tests::a_nested_sentence_starts_again ... ok
+test frenchtreebank::handler::tests::categories_carry_over_and_start_as_null ... ok
+test frenchtreebank::handler::tests::malformed_documents_give_no_parse ... ok
+test frenchtreebank::handler::tests::malformed_xml_is_a_typed_error ... ok
+test frenchtreebank::handler::tests::compounds_are_nodes_only_with_text_after_their_words ... ok
+test masc::document::tests::the_shorter_of_two_overlapping_names_is_marked ... ok
+test masc::document::tests::overlapping_names_can_survive ... ok
+test frenchtreebank::handler::tests::token_sources_point_into_the_document ... ok
+test frenchtreebank::handler::tests::reads_sentences_into_trees ... ok
+test masc::java::tests::decode_utf8_replaces_as_the_jdk_does ... ok
+test masc::java::tests::equals_ignore_case_matches_java ... ok
+test frenchtreebank::handler::tests::odd_words_and_elements_are_lenient ... ok
+test masc::java::tests::parse_int_follows_java ... ok
+test masc::java::tests::splits ... ok
+test masc::document::tests::unplaced_entity_checks_all_quarks_when_quark_id_is_repeated ... ok
+test masc::logical::tests::adding_the_markup_again_replaces_it ... ok
+test masc::chunks::tests::the_kinds_name_their_files_labels_and_phrases ... ok
+test masc::chunks::tests::a_document_without_penn_tokens_or_chunk_files_has_no_chunks ... ok
+test masc::chunks::tests::a_chunk_without_tokens_outside_the_sentences_or_across_two_is_left_out ... ok
+test masc::chunks::tests::a_sentence_of_no_tokens_is_skipped ... ok
+test masc::chunks::tests::out_of_bounds_token_anchors_error_even_when_sentence_has_null_tag_or_partial_chunk ... ok
+test masc::logical::tests::malformed_references_are_refused ... ok
+test masc::document::tests::names_apart_lose_all_but_the_first ... ok
+test masc::document::tests::entity_is_contiguous_checks_reversed_bounds_duplicates_and_exact_range ... ok
+test directory::tests::files_come_off_the_stacks_in_reverse ... ok
+test masc::chunks::tests::chunks_are_placed_in_their_sentence_as_places_of_its_tokens ... ok
+test masc::document::tests::one_name_is_kept ... ok
+test masc::logical::tests::anchors_inside_a_surrogate_pair_or_past_the_text_are_refused_at_conversion ... ok
+test masc::corpus::tests::java_file_joins_as_unix_file_does ... ok
+test masc::chunks::tests::the_reader_writes_b_and_i_tags_of_np_and_vp_and_o_elsewhere ... ok
+test masc::chunks::tests::a_chunk_file_with_another_label_or_ids_is_refused ... ok
+test masc::logical::tests::no_file_means_no_markup_and_an_empty_structure ... ok
+test masc::document::tests::an_entity_spans_its_first_token_to_one_past_its_last_and_none_is_removed ... ok
+test masc::logical::tests::crossing_blocks_form_no_tree_and_empty_blocks_are_skipped ... ok
+test masc::logical::tests::other_labels_are_kept_but_not_converted ... ok
+test native::category::tests::categories_need_a_token ... ok
+test native::category::tests::languages_take_everything_after_the_first_tab ... ok
+test masc::logical::tests::unicode_anchors_convert_by_utf16_units_not_bytes ... ok
+test native::columns::tests::chunk_columns_split_on_single_spaces ... ok
+test masc::document::tests::an_entity_in_no_sentence_is_kept_with_why ... ok
+test native::columns::tests::lemma_blocks_and_corrupt_lines ... ok
+test masc::samples::tests::an_empty_sentence_ends_the_corpus_as_in_opennlp_or_is_skipped_alone ... ok
+test native::columns::tests::two_empty_lines_end_the_stream ... ok
+test masc::samples::tests::sentence_reader_with_zero_per_sample_returns_none_even_on_empty_corpus ... ok
+test native::name::tests::an_empty_name_before_a_longer_one_overlaps ... ok
+test native::name::tests::blank_lines_clear_adaptive_data ... ok
+test masc::chunks::tests::a_corpus_read_with_chunks_reads_the_chunk_files_its_headers_name ... ok
+test native::name::tests::open_name_at_the_end_is_dropped ... ok
+test native::name::tests::errors_name_their_context_and_the_stream_goes_on ... ok
+test masc::chunks::tests::a_sentence_whose_chunks_tags_cannot_write_is_skipped ... ok
+test native::name::tests::reads_names_with_offsets ... ok
+test native::name::tests::start_tags ... ok
+test native::name::tests::untyped_start_takes_the_last_type_of_the_line ... ok
+test native::name::tests::writes_one_token_samples_with_their_trailing_space ... ok
+test native::sentence::tests::no_samples_from_blank_text ... ok
+test native::sentence::tests::paragraphs_and_escapes ... ok
+test native::token::tests::another_marker ... ok
+test native::token::tests::rebuilds_the_text_with_a_space_after_each_piece ... ok
+test native::wordtag::tests::splits_at_the_last_underscore ... ok
+test masc::document::tests::a_name_ends_one_past_a_token_only_when_past_the_end_so_far ... ok
+test ner::bionlp::tests::cell_lines_follow_the_cell_type_flag ... ok
+test ner::bionlp::tests::errors ... ok
+test ner::bionlp::tests::the_line_after_an_abstract_start_is_skipped ... ok
+test ner::bionlp::tests::reads_abstracts_and_names ... ok
+test ner::bionlp::tests::truncated_abstract_lines_are_skipped ... ok
+test ner::census::tests::a_leading_space_is_an_error ... ok
+test ner::census::tests::a_name_keeps_its_span ... ok
+test ner::brat::tests::brat_offsets_are_utf16_units_and_line_breaks_are_written_as_spaces ... ok
+test ner::brat::tests::brat_standoff_round_trips_nested_and_discontinuous_entities ... ok
+test ner::census::tests::casing_follows_utf16_units ... ok
+test ner::census::tests::names_are_recased ... ok
+test ner::census::tests::the_list_ends_at_an_empty_line_or_one_without_a_space ... ok
+test ner::evalita::tests::document_starts ... ok
+test ner::evalita::tests::errors ... ok
+test ner::evalita::tests::languages_take_the_factory_code ... ok
+test ner::evalita::tests::reads_names_and_clears_every_sample ... ok
+test ner::germeval::tests::a_comment_before_an_empty_line_clears_nothing ... ok
+test ner::formats::tests::formats_register_by_name ... ok
+test ner::germeval::tests::a_kept_tag_of_an_unknown_type_is_refused ... ok
+test ner::germeval::tests::a_short_line_ends_the_read_in_the_middle_of_a_sentence ... ok
+test ner::germeval::tests::layers_take_the_factory_values ... ok
+test ner::germeval::tests::reads_either_layer ... ok
+test ner::germeval::tests::tokens_are_fields_of_the_source ... ok
+test ner::germeval::tests::types_left_out_and_unknown_tags_are_o ... ok
+test ner::muc::tests::attributes_need_double_quotes ... ok
+test ner::muc::tests::an_error_comes_before_the_samples_made_ahead_of_it ... ok
+test ner::muc::tests::documents_end_at_one_without_samples ... ok
+test ner::muc::tests::double_closing_brackets_are_one ... ok
+test ner::muc::tests::errors_name_their_lines ... ok
+test ner::muc::tests::names_across_samples ... ok
+test ner::muc::tests::nested_names_overlap ... ok
+test ner::muc::tests::tag_names ... ok
+test ner::muc::tests::reads_content_elements_and_names ... ok
+test ner::muc::tests::text_outside_content_and_after_the_last_tag_is_not_read ... ok
+test ner::tests::a_name_starts_at_b_and_takes_every_i ... ok
+test ner::tests::an_i_with_no_name_open_is_read_as_o ... ok
+test ner::tests::another_tag_is_invalid ... ok
+test ner::tests::errors_name_their_exceptions ... ok
+test ner::muc::tests::files_come_in_reverse_name_order ... ok
+test ner::tokens::tests::a_closure_is_a_tokenizer ... ok
+test ner::tokens::tests::a_sentence_per_line ... ok
+test ner::tokens::tests::rule_tokenizers_by_name ... ok
+test ontonotes::lines::tests::documents_end_with_an_empty_line ... ok
+test ontonotes::names::tests::a_type_carries_over_and_open_names_are_dropped ... ok
+test ontonotes::names::tests::converts_tokens_as_java ... ok
+test ontonotes::names::tests::errors_keep_the_samples_before_them ... ok
+test ontonotes::names::tests::the_stream_orders_errors_and_stops_at_an_empty_document ... ok
+test ontonotes::names::tests::reads_names_and_skips_doc_lines ... ok
+test ontonotes::parse::tests::an_empty_line_without_a_sentence_ends_the_stream ... ok
+test ontonotes::parse::tests::sentences_run_over_lines_and_documents_end_them ... ok
+test ontonotes::parse::tests::malformed_trees_give_typed_errors_or_lenient_drops ... ok
+test ontonotes::parse::tests::tokens_map_back_to_the_document ... ok
+test ontonotes::parse::tests::tokens_with_multibyte_text_keep_their_document_spans ... ok
+test registry::formats::tests::a_duplicate_keeps_the_first ... ok
+test registry::formats::tests::conll_formats_register_by_name ... ok
+test registry::formats::tests::conllu_formats_register_by_name ... ok
+test registry::formats::tests::dependency_formats_register_as_java_registers_them ... ok
+test registry::formats::tests::native_formats_open_by_name ... ok
+test sample::dependency::tests::a_tree_has_one_root_and_no_cycle ... ok
+test sample::dependency::tests::blank_follows_the_whitespace_mode ... ok
+test sample::dependency::tests::refusals_in_java_order ... ok
+test sample::dependency::tests::written_as_java_writes_it ... ok
+test source::tests::borrowed_and_made_fields_slice ... ok
+test source::tests::line_numbers_count_from_one ... ok
+test source::tests::lines_end_as_buffered_reader_ends_them ... ok
+test source::tests::split_drops_trailing_empty_pieces ... ok
+test source::tests::trim_removes_control_characters_and_space_only ... ok
+test source::tests::utf16_cuts ... ok
+test source::tests::whitespace_tokens_follow_the_mode ... ok
+test conllu::coref::tests::many_mentions ... ok
+test sample::dependency::tests::long_chains_are_walked_once ... ok
+test conllu::coref::tests::sentences_after_many_entities ... ok
+test conllu::coref::tests::many_entities_with_one_hash_code ... ok
+
+test result: ok. 239 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/ad.rs (target/debug/deps/ad-a7067f4d4e8848fd)
+
+running 3 tests
+test a_missing_first_text_ends_the_sentence_reader ... ok
+test the_registry_reads_a_range_of_chunks ... ok
+test every_ad_golden_matches ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/conllu_jvm.rs (target/debug/deps/conllu_jvm-5548b61be774a4f8)
+
+running 1 test
+test every_conllu_golden_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/conllu_words.rs (target/debug/deps/conllu_words-0aa65bc553f974eb)
+
+running 4 tests
+test a_head_outside_the_sentence_is_refused_rather_than_read_as_a_root ... ok
+test a_document_writes_the_gaps_between_its_tokens_and_refuses_a_head_across_sentences ... ok
+test non_contiguous_multiword_component_words_are_rejected_and_out_of_order_ranges_are_sorted ... ok
+test conllu_with_multiword_tokens_space_after_and_spaces_in_token_round_trips_byte_identically ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/corpora.rs (target/debug/deps/corpora-ef6798f34a8fdf3f)
+
+running 1 test
+test every_corpora_golden_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/evaluate.rs (target/debug/deps/evaluate-5003bcc7296062e3)
+
+running 1 test
+test every_evaluator_golden_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/frenchtreebank.rs (target/debug/deps/frenchtreebank-93f1c37e7add603e)
+
+running 1 test
+test every_frenchtreebank_golden_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/masc.rs (target/debug/deps/masc-401a089dce608db0)
+
+running 1 test
+test every_masc_golden_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/masc_logical.rs (target/debug/deps/masc_logical-99c3b8680ce21755)
+
+running 3 tests
+test intro_dublin_logical_import ... ok
+test logical_blocks_become_a_structure_tree ... ok
+test imported_structure_projects_to_a_normalized_view_with_provenance ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ner.rs (target/debug/deps/ner-aa23332efb6acf13)
+
+running 1 test
+test every_ner_golden_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/ontonotes.rs (target/debug/deps/ontonotes-5efda67d26a48797)
+
+running 2 tests
+test an_invalid_directory_is_refused_as_the_factories_refuse_it ... ok
+test every_ontonotes_golden_matches ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/opennlp.rs (target/debug/deps/opennlp-92ec3589703aae4c)
+
+running 1 test
+test every_format_golden_matches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests turbo_analysis_layers
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_depparse
+
+running 1 test
+test analysis/depparse/src/lib.rs - (line 5) - compile fail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+   Doc-tests turbo_formats
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

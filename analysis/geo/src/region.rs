@@ -11,7 +11,7 @@
 //!    ISO 3166-1 alpha-2 country code, scanned left-to-right non-overlapping)
 //!    across the document text (`0.95` weight).
 
-mod tables;
+pub(crate) mod tables;
 #[cfg(test)]
 mod tests;
 
