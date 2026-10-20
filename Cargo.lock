@@ -2004,6 +2004,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-group"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-normalize",
+ "turbo-structure",
+]
+
+[[package]]
 name = "turbo-hunspell"
 version = "0.1.0"
 dependencies = [

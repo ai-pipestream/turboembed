@@ -31,6 +31,15 @@ impl<From: Layer, To: Layer> LayerCodec for Edges<From, To> {
             cx.require_node(&NodeRef { layer: from.clone(), index: a })?;
             cx.require_node(&NodeRef { layer: to.clone(), index: b })?;
             let kind = Tag(u16::try_from(kind).map_err(|_| malformed("an edge kind outside a u16"))?);
+            // Export writes rows in (from, to, kind) order, each once; a
+            // payload in any other order is not one export wrote, and
+            // sorting it here would silently rewrite it.
+            if rows
+                .last()
+                .is_some_and(|e: &Edge<From, To>| (e.from.get(), e.to.get(), e.kind) >= (a as usize, b as usize, kind))
+            {
+                return Err(malformed("edges out of (from, to, kind) order or repeated"));
+            }
             rows.push(Edge::new(Ix::new(a), Ix::new(b), kind, score));
         }
         if !r.is_done() {
@@ -66,6 +75,12 @@ impl<L: Layer> LayerCodec for Groups<L> {
             for _ in 0..r.usize()? {
                 let index = r.u32()?;
                 cx.require_node(&NodeRef { layer: of.clone(), index })?;
+                // Export writes each group's members in strictly
+                // increasing order; deduplicating or sorting a payload
+                // that is not would silently change the group.
+                if members.last().is_some_and(|m: &Ix<L>| m.get() >= index as usize) {
+                    return Err(malformed("group members out of order or repeated"));
+                }
                 members.push(Ix::new(index));
             }
             groups.push(members);

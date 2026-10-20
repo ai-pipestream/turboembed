@@ -47,33 +47,40 @@ impl<L: Layer> Annotator for TermCounter<L> {
 
     fn annotate(&self, (tokens, terms, vocabulary, units): Refs<'_, Self>) -> Result<(TermStats<L>,), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
-        let (starts, _) = tokens.spans.columns();
-        if !starts.windows(2).all(|w| w[0] <= w[1]) {
-            return Err(fail("the tokens are not in text order".into()));
+        if terms.term.len() != tokens.spans.len() {
+            return Err(fail(format!("{} terms for {} tokens", terms.term.len(), tokens.spans.len())));
         }
-        let ranges: Vec<Range<usize>> = match units.text_spans() {
-            Some(ts) if ts.view != tokens.spans.view() => {
-                return Err(fail(format!(
-                    "the units are in view {}, the tokens in view {}",
-                    ts.view.0,
-                    tokens.spans.view().0
-                )));
-            }
-            Some(ts) => ts
-                .start
-                .iter()
-                .zip(ts.end)
-                .map(|(&a, &b)| starts.partition_point(|&s| s < a)..starts.partition_point(|&s| s < b))
-                .collect(),
-            None if units.len() == 1 => std::iter::once(0..starts.len()).collect(),
-            None => return Err(fail(format!("{} units with no spans; only one can hold every token", units.len()))),
-        };
+        let ranges = unit_ranges(tokens, units).map_err(fail)?;
         Ok((count(&terms.term, vocabulary.len(), &ranges).map_err(fail)?,))
     }
 }
 
-/// The term counts of each run of tokens. Refused when a unit holds, or
-/// all units together hold, more terms than a u32 counts.
+/// The tokens of each unit of `units`, as `TermCounter` documents them:
+/// the tokens whose start is in the unit, two binary searches per unit,
+/// or every token for one unit with no spans.
+pub(crate) fn unit_ranges<L: Layer>(tokens: &Tokens, units: &L) -> Result<Vec<Range<usize>>, String> {
+    let (starts, _) = tokens.spans.columns();
+    if !starts.windows(2).all(|w| w[0] <= w[1]) {
+        return Err("the tokens are not in text order".into());
+    }
+    Ok(match units.text_spans() {
+        Some(ts) if ts.view != tokens.spans.view() => {
+            return Err(format!("the units are in view {}, the tokens in view {}", ts.view.0, tokens.spans.view().0));
+        }
+        Some(ts) => ts
+            .start
+            .iter()
+            .zip(ts.end)
+            .map(|(&a, &b)| starts.partition_point(|&s| s < a)..starts.partition_point(|&s| s < b))
+            .collect(),
+        None if units.len() == 1 => std::iter::once(0..starts.len()).collect(),
+        None => return Err(format!("{} units with no spans; only one can hold every token", units.len())),
+    })
+}
+
+/// The term counts of each run of tokens. Refused when a run is past the
+/// terms, a term is past the vocabulary, or a unit holds, or all units
+/// together hold, more terms than a u32 counts.
 pub fn count<L>(
     term: &[Option<Ix<Vocabulary>>],
     vocabulary: usize,
@@ -91,8 +98,12 @@ pub fn count<L>(
     let mut ids = Vec::new();
     for r in units {
         ids.clear();
-        ids.extend(term[r.clone()].iter().flatten().copied());
+        let run = term.get(r.clone()).ok_or_else(|| format!("tokens {r:?} past the {} terms", term.len()))?;
+        ids.extend(run.iter().flatten().copied());
         ids.sort_unstable();
+        if let Some(t) = ids.last().filter(|t| t.get() >= vocabulary) {
+            return Err(format!("a term {} past the vocabulary of {vocabulary}", t.get()));
+        }
         for &t in &ids {
             if s.term.len() > *s.row.last().unwrap() as usize && s.term.last() == Some(&t) {
                 *s.tf.last_mut().unwrap() += 1;
