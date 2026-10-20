@@ -1,5 +1,7 @@
-use turbo_analysis::{Annotator, Document, Ix, Layer, Span, Spans, View, ViewId};
-use turbo_analysis_layers::{Sentences, Tokens};
+use turbo_analysis::{
+    Analyzer, Annotator, Document, Evidence, EvidenceStep, Ix, Key, Layer, Provenance, Span, Spans, View, ViewId,
+};
+use turbo_analysis_layers::{Entities, Sentences, Tokens};
 use turbo_formats::native::NameReader;
 use turbo_maxent::ModelFile;
 use turbo_namefind::CrfNameAnnotator;
@@ -79,4 +81,38 @@ fn feature_stream_excludes_gold_history_and_checks_annotations() {
             assert!(!f.as_bytes().starts_with(b"ppo="));
         }
     }
+}
+#[test]
+fn crf_entities_carry_the_model_and_its_scores_as_evidence() {
+    let file = ModelFile::open(package(NameCodec::Bio)).unwrap();
+    let mut doc = Document::new("Alice Smith visits Paris .");
+    let mut sentences = Sentences { spans: Spans::new(ViewId::SOURCE) };
+    sentences.spans.push(Span::new(0, 26));
+    let mut tokens = Tokens { spans: Spans::new(ViewId::SOURCE), sentence: Some(vec![Ix::new(0); 5]) };
+    for (a, b) in [(0, 5), (6, 11), (12, 18), (19, 24), (25, 26)] {
+        tokens.spans.push(Span::new(a, b));
+    }
+    doc.add(&Key::DEFAULT, sentences, Provenance::by("test")).unwrap();
+    doc.add(&Key::DEFAULT, tokens, Provenance::by("test")).unwrap();
+    let analyzer = Analyzer::builder()
+        .given(Key::<Sentences>::DEFAULT)
+        .given(Key::<Tokens>::DEFAULT)
+        .add(CrfNameAnnotator::new(file.clone(), 5).unwrap())
+        .step(EvidenceStep::new(Key::<Entities>::DEFAULT))
+        .build()
+        .unwrap();
+    let mut docs = vec![doc];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    let entities = docs[0].get::<Entities>().unwrap();
+    let ev = docs[0].get::<Evidence<Entities>>().unwrap();
+    assert_eq!(ev.records(), 2);
+    let model = ev.producer_of(0).model.as_ref().expect("the CRF names its model");
+    assert_eq!(model.sha256, file.sha256().to_hex());
+    for i in 0..2 {
+        assert!(entities.score[i] > 0.9);
+        assert_eq!(ev.raw_of(i), Some(entities.score[i]));
+    }
+    assert_eq!(ev.verify(&docs[0]), Ok(()));
 }

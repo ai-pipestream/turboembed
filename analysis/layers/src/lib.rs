@@ -106,6 +106,7 @@ mod containment;
 #[cfg(test)]
 mod core_tests;
 mod date;
+mod evidence;
 pub mod export;
 mod generic;
 mod language_spans;
