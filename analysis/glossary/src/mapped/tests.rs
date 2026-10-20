@@ -44,7 +44,7 @@ fn exercise(m: &MappedGlossaryMatcher<'_>) {
 }
 
 #[test]
-fn every_truncation_is_refused() {
+fn every_truncation_fails_to_load() {
     let img = image();
     for n in 0..img.len() {
         let b = ImageBuf::copy_from(&img[..n]);
@@ -57,7 +57,7 @@ fn every_truncation_is_refused() {
 }
 
 #[test]
-fn every_flipped_byte_is_refused() {
+fn every_flipped_byte_fails_to_load() {
     let img = image();
     for i in 0..img.len() {
         for bit in [0x01u8, 0x80] {
@@ -73,7 +73,7 @@ fn every_flipped_byte_is_refused() {
 }
 
 #[test]
-fn resealed_changes_to_any_word_are_refused_or_safe() {
+fn resealed_changes_to_any_word_fail_to_load_or_match_safely() {
     let img = image();
     let (mut refused, mut accepted) = (0, 0);
     let mut seed = 0x2545_f491_4f6c_dd1du64;
@@ -125,7 +125,7 @@ fn header_words_are_checked() {
 }
 
 #[test]
-fn broken_links_are_refused() {
+fn broken_links_get_named_errors() {
     let img = image();
     let buf = ImageBuf::copy_from(&img);
     let m = MappedGlossaryMatcher::from_bytes(buf.bytes()).unwrap();
