@@ -123,6 +123,41 @@ pub fn gaps(sentences: &Spans<Sentences>, structure: Option<&Structure>) -> Gaps
     out
 }
 
+/// Runs of sentences in one top-level section. A section holds the
+/// sentences that start in it (`in_section`, the rule the boundary costs
+/// use too); sentences outside every section (a preamble) make runs of
+/// their own. The sections are sorted by where they start, so a structure
+/// out of text order cannot merge two of them. Two binary searches per
+/// section.
+pub(crate) fn sections(sentences: &Sentences, structure: &Structure) -> Vec<Range<usize>> {
+    let mut tops: Vec<Span> = structure
+        .spans
+        .iter()
+        .filter(|&(i, _)| structure.kind[i.get()] == Block::Section && structure.parent[i.get()].is_none())
+        .map(|(_, s)| s)
+        .collect();
+    tops.sort_unstable();
+    let (starts, _) = sentences.spans.columns();
+    let mut runs = Vec::new();
+    let mut at = 0;
+    for &t in &tops {
+        let r = in_section(starts, t);
+        let r = r.start.max(at)..r.end;
+        if r.is_empty() {
+            continue;
+        }
+        if at < r.start {
+            runs.push(at..r.start);
+        }
+        at = r.end;
+        runs.push(r);
+    }
+    if at < starts.len() {
+        runs.push(at..starts.len());
+    }
+    runs
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -13,7 +13,9 @@
 //! and `hashes` gives every unit a content-addressed ID.
 
 mod boundaries;
+pub mod clauses;
 mod cohesion;
+pub mod coref;
 mod drift;
 mod gaps;
 mod hashes;
@@ -21,23 +23,35 @@ mod limits;
 mod providers;
 pub mod rechunk;
 pub mod route;
+pub mod scorer;
 mod sentiment;
 mod sums;
 mod weigh;
 
 pub use boundaries::{Costs, StructureBoundaries};
+pub use clauses::{ClauseBoundaries, ClauseBreak, ClauseCosts, ClauseCuts, SentenceClauseCuts, clause_cuts};
 pub use cohesion::{Cohesion, CohesiveChunker};
+pub use coref::{
+    Agreement, Animacy, AntecedentLink, ChunkAntecedentBuilder, ChunkAntecedents, CorefBoundaries, CorefChains,
+    CorefCohesion, CorefLink, Gender, MentionKind, MentionOrigin, Mentions, Number, Person, ResolvedMention,
+    chunk_antecedents, coref_boundaries, coref_boundaries_from_chains, extract_chains,
+};
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
-pub use providers::{DriftProvider, SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider};
+pub use providers::{
+    ClauseCutProvider, CorefBoundariesProvider, DistilledBoundariesProvider, DriftProvider,
+    SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider,
+};
 pub use route::{Hit, LevelRouter, LevelWeights, ParentContext, QueryKind, QueryProfile, Routed};
+pub use scorer::{BoundaryFeatures, DistilledBoundaryScorer, DistilledWeights, distilled_boundaries};
 pub use sentiment::{
     ChunkFacetBuilder, ChunkFacets, SentimentBoundaries, SentimentShift, boundary_similarity, chunk_boundary_gaps,
     sentiment_shift,
 };
 pub use sums::{Rows, Sums};
 pub use weigh::{
-    DRIFT, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_sentiment,
+    COREF, DRIFT, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_coref,
+    weigh_with_sentiment,
 };
 
 pub mod export;
@@ -49,7 +63,7 @@ pub mod compare;
 use std::ops::Range;
 
 use turbo_analysis::{Annotator, Error, Ix, IxRange, Refs, Span, Spans};
-use turbo_analysis_layers::{Block, Boundaries, Chunks, Cut, Sentences, Structure, Subwords};
+use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences, Structure, Subwords};
 
 /// The token budget of a chunk, in the embedder's own tokens.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -232,20 +246,21 @@ pub fn no_term(_: usize, _: usize) -> i64 {
 /// the optimizer. One that is over the budget is cut between its
 /// sentences, and each chunk that starts inside it says so with
 /// `Cut::Inside`; units that fit but share sentences, chained into a run
-/// over the budget, are cut too, with `Cut::Overlap`. A sentence is never
-/// cut; one over the budget alone is a chunk of its own, marked in
-/// `Chunks::over_budget`.
+/// over the budget, are cut too, with `Cut::Overlap`. When `ClauseCuts` is
+/// present, a single sentence that exceeds `budget.max` is split at syntactic
+/// clause boundaries (`Cut::Clause`) or token windows; otherwise it becomes a
+/// chunk of its own, marked in `Chunks::over_budget`.
 pub struct Chunker {
     pub budget: Budget,
 }
 
 impl Annotator for Chunker {
     const ID: &'static str = "turbo:chunker";
-    type Reads = (Sentences, Subwords, Boundaries, Option<Structure>);
+    type Reads = (Sentences, Subwords, Boundaries, Option<Structure>, Option<ClauseCuts>);
     type Writes = (Chunks,);
 
-    fn annotate(&self, (sentences, subwords, bounds, structure): Refs<'_, Self>) -> Result<(Chunks,), Error> {
-        Ok((self.chunk(Self::ID, sentences, subwords, bounds, structure, |_| no_term)?,))
+    fn annotate(&self, (sentences, subwords, bounds, structure, clauses): Refs<'_, Self>) -> Result<(Chunks,), Error> {
+        Ok((self.chunk(Self::ID, sentences, subwords, bounds, structure, clauses, |_| no_term)?,))
     }
 
     fn config_hash(&self) -> u64 {
@@ -261,6 +276,7 @@ impl Chunker {
     /// optimizer cuts on its own (a top-level section), so what it needs
     /// is built for one run at a time; it is called with the sentences
     /// `[i, j)` of a chunk. `id` names the step in errors.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn chunk<T: Fn(usize, usize) -> i64>(
         &self,
         id: &'static str,
@@ -268,6 +284,7 @@ impl Chunker {
         subwords: &Subwords,
         bounds: &Boundaries,
         structure: Option<&Structure>,
+        clauses: Option<&ClauseCuts>,
         term: impl Fn(Range<usize>) -> T,
     ) -> Result<Chunks, Error> {
         let view = sentences.spans.view();
@@ -285,13 +302,21 @@ impl Chunker {
                 ),
             });
         }
+        if let Some(cl) = clauses
+            && cl.sentences.len() != n
+        {
+            return Err(Error::Annotator {
+                annotator: id,
+                detail: format!("{} clause-cut entries for {n} sentences", cl.sentences.len()),
+            });
+        }
         let lengths = Lengths::new(&sentences.spans, &subwords.spans);
         let b = self.budget;
         let size = |r: Range<usize>| u64::from(lengths.run(r.start, r.end)) + u64::from(b.overhead);
         let gaps = gaps::gaps(&sentences.spans, structure);
         let limits = limits::limits(&gaps.units, n, |u| size(u.clone()) <= u64::from(b.max));
         let runs = match structure {
-            Some(st) => sections(sentences, st),
+            Some(st) => gaps::sections(sentences, st),
             None if n == 0 => Vec::new(),
             None => std::iter::once(0..n).collect(),
         };
@@ -305,7 +330,7 @@ impl Chunker {
             model_tokens: Vec::new(),
             over_budget: Vec::new(),
         };
-        let cx = RunCx { sentences, lengths: &lengths, bounds, limits: &limits };
+        let cx = RunCx { sentences, subwords, lengths: &lengths, bounds, limits: &limits, clauses };
         for run in runs {
             let term = term(run.clone());
             self.push_run(id, &cx, run, structure.is_some(), term, &mut chunks)?;
@@ -359,8 +384,16 @@ impl Chunker {
                 (_, Some(forced)) => forced,
                 (i, None) => bounds.reason[i - 1],
             };
+            let over_budget = s.tokens > u64::from(b.max);
+            if over_budget
+                && r.len() == 1
+                && let Some(clauses) = cx.clauses
+                && clauses::push_clause_rows(id, cx, r.start, cut, parent, b, clauses, chunks)?
+            {
+                continue;
+            }
             let row = Row { span: span(&r), level: 0, parent, cut, cost: saturate(s.cost), tokens: tokens(s.tokens)? };
-            row.push(chunks, r, s.tokens > u64::from(b.max));
+            row.push(chunks, r, over_budget);
         }
         Ok(())
     }
@@ -371,9 +404,11 @@ impl Chunker {
 /// every gap.
 pub(crate) struct RunCx<'a> {
     pub sentences: &'a Sentences,
+    pub subwords: &'a Subwords,
     pub lengths: &'a Lengths,
     pub bounds: &'a Boundaries,
     pub limits: &'a [limits::Limit],
+    pub clauses: Option<&'a ClauseCuts>,
 }
 
 /// A run's atoms under the hard limits, as `push_run` cuts them.
@@ -387,17 +422,17 @@ pub(crate) fn run_atoms(
 }
 
 /// One row of the chunks layer, before it is pushed.
-struct Row {
-    span: Span,
-    level: u8,
-    parent: Option<Ix<Chunks>>,
-    cut: Cut,
-    cost: i64,
-    tokens: u32,
+pub(crate) struct Row {
+    pub span: Span,
+    pub level: u8,
+    pub parent: Option<Ix<Chunks>>,
+    pub cut: Cut,
+    pub cost: i64,
+    pub tokens: u32,
 }
 
 impl Row {
-    fn push(self, c: &mut Chunks, sentences: Range<usize>, over_budget: bool) -> Ix<Chunks> {
+    pub(crate) fn push(self, c: &mut Chunks, sentences: Range<usize>, over_budget: bool) -> Ix<Chunks> {
         c.level.push(self.level);
         c.parent.push(self.parent);
         c.sentences.push(IxRange::new(sentences.start as u32, sentences.end as u32));
@@ -411,43 +446,8 @@ impl Row {
 
 /// A chunk's exact cost as the layer stores it: saturated to the i64
 /// range, which only a size penalty over 2^63 units leaves.
-fn saturate(cost: i128) -> i64 {
+pub(crate) fn saturate(cost: i128) -> i64 {
     cost.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
-}
-
-/// Runs of sentences in one top-level section. A section holds the
-/// sentences that start in it (`gaps::in_section`, the rule the boundary costs
-/// use too); sentences outside every section (a preamble) make runs of
-/// their own. The sections are sorted by where they start, so a structure
-/// out of text order cannot merge two of them. Two binary searches per
-/// section.
-fn sections(sentences: &Sentences, structure: &Structure) -> Vec<Range<usize>> {
-    let mut tops: Vec<Span> = structure
-        .spans
-        .iter()
-        .filter(|&(i, _)| structure.kind[i.get()] == Block::Section && structure.parent[i.get()].is_none())
-        .map(|(_, s)| s)
-        .collect();
-    tops.sort_unstable();
-    let (starts, _) = sentences.spans.columns();
-    let mut runs = Vec::new();
-    let mut at = 0;
-    for &t in &tops {
-        let r = gaps::in_section(starts, t);
-        let r = r.start.max(at)..r.end;
-        if r.is_empty() {
-            continue;
-        }
-        if at < r.start {
-            runs.push(at..r.start);
-        }
-        at = r.end;
-        runs.push(r);
-    }
-    if at < starts.len() {
-        runs.push(at..starts.len());
-    }
-    runs
 }
 
 #[cfg(test)]
