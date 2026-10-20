@@ -4,7 +4,7 @@
 
 mod filter;
 
-pub use filter::{FilterAnnotator, FilterableLayer, SpanFilter, retain_aligned_anchor};
+pub use filter::{FilterAnnotator, FilterableLayer, SpanFilter, co_written_aligned_anchors, retain_aligned_anchor};
 
 use std::any::Any;
 use std::collections::HashSet;
@@ -95,9 +95,15 @@ pub struct ConditionalAnnotator {
 /// Alias for [`ConditionalAnnotator`].
 pub type ConditionalStep = ConditionalAnnotator;
 
-enum DocBranch {
-    True(Box<dyn Any + Send>),
-    False(Box<dyn Any + Send>),
+struct ConditionalBatch {
+    true_indices: Vec<usize>,
+    true_out: Option<Box<dyn Any + Send>>,
+    false_indices: Vec<usize>,
+    false_out: Option<Box<dyn Any + Send>>,
+    non_branch: Vec<(usize, DocNonBranch)>,
+}
+
+enum DocNonBranch {
     SkipFalse,
     Skipped(String),
     Failed(Error),
@@ -331,83 +337,103 @@ impl Step for ConditionalAnnotator {
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
-        let outcomes: Vec<DocBranch> = docs
-            .iter()
-            .map(|d| {
-                if let Err(e) = check_required_inputs(d, &self.reads, &self.required) {
-                    return match e {
-                        Error::Skipped(why) => DocBranch::Skipped(why),
-                        other => DocBranch::Failed(other),
-                    };
+        let mut true_indices = Vec::new();
+        let mut true_docs = Vec::new();
+        let mut false_indices = Vec::new();
+        let mut false_docs = Vec::new();
+        let mut non_branch = Vec::new();
+
+        for (i, d) in docs.iter().enumerate() {
+            if let Err(e) = check_required_inputs(d, &self.reads, &self.required) {
+                let nb = match e {
+                    Error::Skipped(why) => DocNonBranch::Skipped(why),
+                    other => DocNonBranch::Failed(other),
+                };
+                non_branch.push((i, nb));
+                continue;
+            }
+            match catch_unwind(AssertUnwindSafe(|| (self.predicate)(d))) {
+                Ok(true) => {
+                    true_indices.push(i);
+                    true_docs.push(d.clone());
                 }
-                match catch_unwind(AssertUnwindSafe(|| (self.predicate)(d))) {
-                    Ok(true) => DocBranch::True(self.when_true.compute(std::slice::from_ref(d))),
-                    Ok(false) => match &self.when_false {
-                        Some(wf) => DocBranch::False(wf.compute(std::slice::from_ref(d))),
-                        None => DocBranch::SkipFalse,
-                    },
-                    Err(panic) => DocBranch::Failed(panicked(Self::ID, panic)),
+                Ok(false) => {
+                    if self.when_false.is_some() {
+                        false_indices.push(i);
+                        false_docs.push(d.clone());
+                    } else {
+                        non_branch.push((i, DocNonBranch::SkipFalse));
+                    }
                 }
-            })
-            .collect();
-        Box::new(outcomes)
+                Err(panic) => non_branch.push((i, DocNonBranch::Failed(panicked(Self::ID, panic)))),
+            }
+        }
+
+        let true_out = (!true_docs.is_empty()).then(|| self.when_true.compute(&true_docs));
+        let false_out =
+            self.when_false.as_ref().and_then(|wf| (!false_docs.is_empty()).then(|| wf.compute(&false_docs)));
+
+        Box::new(ConditionalBatch { true_indices, true_out, false_indices, false_out, non_branch })
     }
 
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {
-        let outcomes = *out.downcast::<Vec<DocBranch>>().expect("ConditionalAnnotator's own output");
+        let batch = *out.downcast::<ConditionalBatch>().expect("ConditionalAnnotator's own output");
         let cfg_hash = self.config_hash();
         let default_skip =
             self.skip_reason.clone().unwrap_or_else(|| format!("predicate {} evaluated to false", self.predicate_name));
-        for (i, branch) in outcomes.into_iter().enumerate() {
-            let p_reads = self.present_reads(&docs[i]);
+
+        let mut store_branch = |step: &dyn Step, indices: &[usize], sub_out: Box<dyn Any + Send>| {
+            let mut sub_docs: Vec<Document> = indices.iter().map(|&i| docs[i].clone()).collect();
+            let pre_existing: Vec<Vec<bool>> =
+                sub_docs.iter().map(|d| self.writes.iter().map(|&k| d.has(k)).collect()).collect();
+            let p_reads: Vec<Vec<KeyId>> = sub_docs.iter().map(|d| self.present_reads(d)).collect();
+            let p_bases: Vec<Provenance> = sub_docs.iter().map(|d| self.base_provenance(d)).collect();
+            let mut sub_status: Vec<Result<(), Error>> = (0..indices.len()).map(|_| Ok(())).collect();
+            step.store(sub_out, &mut sub_docs, &mut sub_status);
+            for (k_idx, &doc_idx) in indices.iter().enumerate() {
+                for (&w, &existed) in self.writes.iter().zip(&pre_existing[k_idx]) {
+                    if !existed {
+                        sub_docs[k_idx].update_provenance(w, |p| {
+                            p.config = cfg_hash;
+                            for &r in &p_reads[k_idx] {
+                                if !p.reads.contains(&r) {
+                                    p.reads.push(r);
+                                }
+                            }
+                        });
+                    }
+                }
+                if let Err(e) = sub_status[k_idx].clone() {
+                    for &w in &self.writes {
+                        if !sub_docs[k_idx].has(w) {
+                            let _ = sub_docs[k_idx].fail(w, e.clone(), p_bases[k_idx].clone());
+                        }
+                    }
+                    if status[doc_idx].is_ok() {
+                        status[doc_idx] = Err(e);
+                    }
+                }
+                docs[doc_idx] = sub_docs[k_idx].clone();
+            }
+        };
+
+        if let Some(true_out) = batch.true_out {
+            store_branch(self.when_true.as_ref(), &batch.true_indices, true_out);
+        }
+        if let Some(false_out) = batch.false_out {
+            store_branch(self.when_false.as_deref().expect("when_false present"), &batch.false_indices, false_out);
+        }
+
+        for (i, nb) in batch.non_branch {
             let p_base = self.base_provenance(&docs[i]);
-            let pre_existing: Vec<bool> = self.writes.iter().map(|&k| docs[i].has(k)).collect();
-            let failure = match branch {
-                DocBranch::True(sub_out) => {
-                    let mut sub_status = [Ok(())];
-                    self.when_true.store(sub_out, std::slice::from_mut(&mut docs[i]), &mut sub_status);
-                    for (&k, &existed) in self.writes.iter().zip(&pre_existing) {
-                        if !existed {
-                            docs[i].update_provenance(k, |p| {
-                                p.config = cfg_hash;
-                                for &r in &p_reads {
-                                    if !p.reads.contains(&r) {
-                                        p.reads.push(r);
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    sub_status.into_iter().next().unwrap().err()
-                }
-                DocBranch::False(sub_out) => {
-                    let mut sub_status = [Ok(())];
-                    self.when_false.as_ref().expect("when_false present").store(
-                        sub_out,
-                        std::slice::from_mut(&mut docs[i]),
-                        &mut sub_status,
-                    );
-                    for (&k, &existed) in self.writes.iter().zip(&pre_existing) {
-                        if !existed {
-                            docs[i].update_provenance(k, |p| {
-                                p.config = cfg_hash;
-                                for &r in &p_reads {
-                                    if !p.reads.contains(&r) {
-                                        p.reads.push(r);
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    sub_status.into_iter().next().unwrap().err()
-                }
-                DocBranch::SkipFalse => {
+            let failure = match nb {
+                DocNonBranch::SkipFalse => {
                     self.writes.iter().try_for_each(|&k| docs[i].skip(k, default_skip.clone(), p_base.clone())).err()
                 }
-                DocBranch::Skipped(why) => {
+                DocNonBranch::Skipped(why) => {
                     self.writes.iter().try_for_each(|&k| docs[i].skip(k, why.clone(), p_base.clone())).err()
                 }
-                DocBranch::Failed(e) => Some(e),
+                DocNonBranch::Failed(e) => Some(e),
             };
             let Some(e) = failure else { continue };
             for &k in &self.writes {

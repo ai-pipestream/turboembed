@@ -3,7 +3,10 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{Document, Error, FilterableLayer, Ix, KeyId, Provenance, retain_aligned_anchor};
+use turbo_analysis::{
+    Anchor, Document, Error, FilterableLayer, Ix, KeyId, Layer, Provenance, co_written_aligned_anchors,
+    retain_aligned_anchor,
+};
 
 use crate::{
     Abbreviations, Boilerplate, Categories, CategoryScope, ChunkTags, Confidence, Entities, LanguageSpans, Lemmas,
@@ -101,6 +104,14 @@ impl<L: FilterableLayer> FilterableLayer for Confidence<L> {
         Confidence::new(kept.iter().map(|&ix| self.value[ix.get()]).collect())
     }
 
+    fn same_filtered_rows(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+
+    fn co_written_anchors(target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+        co_written_aligned_anchors::<L>(target_name)
+    }
+
     fn retain_anchor(
         doc: &mut Document,
         source_anchor: KeyId,
@@ -118,6 +129,14 @@ impl<L: FilterableLayer> FilterableLayer for Boilerplate<L> {
             kept.iter().map(|&ix| self.kind[ix.get()]).collect(),
             kept.iter().map(|&ix| self.score[ix.get()]).collect(),
         )
+    }
+
+    fn same_filtered_rows(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.score == other.score
+    }
+
+    fn co_written_anchors(target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+        co_written_aligned_anchors::<L>(target_name)
     }
 
     fn retain_anchor(
@@ -140,6 +159,14 @@ impl FilterableLayer for PosTags {
         }
     }
 
+    fn same_filtered_rows(&self, other: &Self) -> bool {
+        self.tags == other.tags && self.prob == other.prob
+    }
+
+    fn co_written_anchors(target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+        co_written_aligned_anchors::<Tokens>(target_name)
+    }
+
     fn retain_anchor(
         doc: &mut Document,
         source_anchor: KeyId,
@@ -158,6 +185,14 @@ impl FilterableLayer for ChunkTags {
             tags: kept.iter().map(|&ix| self.tags[ix.get()]).collect(),
             prob: self.prob.as_ref().map(|p| kept.iter().map(|&ix| p[ix.get()]).collect()),
         }
+    }
+
+    fn same_filtered_rows(&self, other: &Self) -> bool {
+        self.tags == other.tags && self.prob == other.prob
+    }
+
+    fn co_written_anchors(target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+        co_written_aligned_anchors::<Tokens>(target_name)
     }
 
     fn retain_anchor(
@@ -180,6 +215,14 @@ impl FilterableLayer for Lemmas {
         Lemmas { lemma }
     }
 
+    fn same_filtered_rows(&self, other: &Self) -> bool {
+        self.len() == other.len() && (0..self.len()).all(|i| self.lemma.get(i) == other.lemma.get(i))
+    }
+
+    fn co_written_anchors(target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+        co_written_aligned_anchors::<Tokens>(target_name)
+    }
+
     fn retain_anchor(
         doc: &mut Document,
         source_anchor: KeyId,
@@ -198,6 +241,14 @@ impl FilterableLayer for Stems {
             stem.push(self.stem.get(ix.get()));
         }
         Stems { stem }
+    }
+
+    fn same_filtered_rows(&self, other: &Self) -> bool {
+        self.len() == other.len() && (0..self.len()).all(|i| self.stem.get(i) == other.stem.get(i))
+    }
+
+    fn co_written_anchors(target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+        co_written_aligned_anchors::<Tokens>(target_name)
     }
 
     fn retain_anchor(
@@ -236,6 +287,16 @@ impl FilterableLayer for Terms {
         Terms { surface, folded, stem, lemma }
     }
 
+    fn same_filtered_rows(&self, other: &Self) -> bool {
+        self.len() == other.len()
+            && (0..self.len())
+                .all(|i| self.surface.get(i) == other.surface.get(i) && self.folded.get(i) == other.folded.get(i))
+    }
+
+    fn co_written_anchors(target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+        co_written_aligned_anchors::<Tokens>(target_name)
+    }
+
     fn retain_anchor(
         doc: &mut Document,
         source_anchor: KeyId,
@@ -255,6 +316,14 @@ impl<L: CategoryScope> FilterableLayer for Categories<L> {
             out.push(self.category[i], self.row_scores(i));
         }
         out
+    }
+
+    fn same_filtered_rows(&self, other: &Self) -> bool {
+        self.category == other.category && self.scores == other.scores
+    }
+
+    fn co_written_anchors(target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+        L::categories_co_written_anchors(target_name)
     }
 
     fn retain_anchor(

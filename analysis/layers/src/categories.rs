@@ -26,6 +26,11 @@ pub trait CategoryScope: Layer {
     /// The anchor of `Categories<Self>`.
     fn categories_anchor() -> Anchor;
 
+    /// Co-written anchor keys when `Categories<Self>` is filtered onto `target_name`.
+    fn categories_co_written_anchors(_target_name: &'static str) -> Vec<(turbo_analysis::KeyId, Anchor)> {
+        Vec::new()
+    }
+
     /// Filters `Self` as the aligned anchor of `Categories<Self>` when row
     /// removal changes the item count.
     fn retain_categories_anchor<C: Layer>(
@@ -50,6 +55,9 @@ impl CategoryScope for Sentences {
     const CATEGORIES_OF: Option<&'static LayerName> = Some(Sentences::NAME);
     fn categories_anchor() -> Anchor {
         Anchor::aligned::<Sentences>()
+    }
+    fn categories_co_written_anchors(target_name: &'static str) -> Vec<(turbo_analysis::KeyId, Anchor)> {
+        turbo_analysis::co_written_aligned_anchors::<Sentences>(target_name)
     }
     fn retain_categories_anchor<C: Layer>(
         doc: &mut turbo_analysis::Document,

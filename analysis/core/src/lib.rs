@@ -42,7 +42,8 @@ pub use offsets::{
     CodePointOffset, CodePointSpan, OffsetCursor, OffsetError, OffsetTable, OffsetUnit, Utf16Offset, Utf16Span,
 };
 pub use predicate::{
-    ConditionalAnnotator, ConditionalStep, FilterAnnotator, FilterableLayer, SpanFilter, retain_aligned_anchor,
+    ConditionalAnnotator, ConditionalStep, FilterAnnotator, FilterableLayer, SpanFilter, co_written_aligned_anchors,
+    retain_aligned_anchor,
 };
 pub use span::{FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, Span, Spans, TextSpans, filter_spans};
 pub use text::{Alignment, Edit, Side, ViewBuilder, ViewId};

@@ -20,8 +20,21 @@ pub trait FilterableLayer: Layer {
     /// order listed.
     fn retain_indices(&self, kept: &[Ix<Self>]) -> Self;
 
+    /// Returns `true` when `self` and `other` hold the same retained rows
+    /// so two filters targeting the same name can safely share an anchor.
+    fn same_filtered_rows(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.text_spans() == other.text_spans()
+    }
+
+    /// Returns the ordered `(KeyId, Anchor)` chain of anchor layers that
+    /// [`FilterAnnotator<Self>`] co-writes when filtering onto `target_name`,
+    /// from outermost base anchor to immediate anchor.
+    fn co_written_anchors(_target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+        Vec::new()
+    }
+
     /// Filters this layer's aligned anchor layer in `doc` onto `target_name`
-    /// when row removal changes the item count of an [`Anchor::Aligned`] layer.
+    /// when [`FilterAnnotator<Self>`] writes an [`Anchor::Aligned`] layer.
     fn retain_anchor(
         _doc: &mut Document,
         _source_anchor: KeyId,
@@ -33,9 +46,18 @@ pub trait FilterableLayer: Layer {
     }
 }
 
+/// Returns the ordered `(KeyId, Anchor)` chain for a layer aligned to `A` when
+/// filtered onto `target_name`.
+pub fn co_written_aligned_anchors<A: FilterableLayer>(target_name: &'static str) -> Vec<(KeyId, Anchor)> {
+    let mut out = A::co_written_anchors(target_name);
+    out.push((Key::<A>::named(target_name).id(), A::anchor()));
+    out
+}
+
 /// Filters an aligned layer `L`'s anchor layer `A` (`source_anchor`) onto
-/// `Key::<A>::named(target_name)` using the same kept item indices `kept`,
-/// unless `Key::<A>::named(target_name)` is already present on `doc`.
+/// `Key::<A>::named(target_name)` using the same kept item indices `kept`.
+/// If `Key::<A>::named(target_name)` is already present on `doc`, verifies
+/// that it was derived from `source_anchor` and holds the exact same rows.
 pub fn retain_aligned_anchor<L: Layer, A: FilterableLayer>(
     doc: &mut Document,
     source_anchor: KeyId,
@@ -44,23 +66,23 @@ pub fn retain_aligned_anchor<L: Layer, A: FilterableLayer>(
     mut provenance: Provenance,
 ) -> Result<Option<KeyId>, Error> {
     let target_anchor: Key<A> = Key::named(target_name);
+    let src_anchor_key: Key<A> = Key::named(source_anchor.name);
+    let kept_anchor: Vec<Ix<A>> = kept.iter().map(|ix| Ix::new(ix.get() as u32)).collect();
+    let (filtered_anchor, src_len) = {
+        let src_anchor = doc.require(&src_anchor_key)?;
+        (src_anchor.retain_indices(&kept_anchor), src_anchor.len())
+    };
     if !doc.has(target_anchor.id()) {
-        let src_anchor_key: Key<A> = Key::named(source_anchor.name);
-        let kept_anchor: Vec<Ix<A>> = kept.iter().map(|ix| Ix::new(ix.get() as u32)).collect();
-        let (filtered_anchor, src_len) = {
-            let src_anchor = doc.require(&src_anchor_key)?;
-            (src_anchor.retain_indices(&kept_anchor), src_anchor.len())
-        };
         let mut parent_on = Vec::new();
-        if let Anchor::Aligned { ty, layer } = A::anchor()
-            && kept_anchor.len() != src_len
-        {
+        if let Anchor::Aligned { ty, layer } = A::anchor() {
             let parent_src = doc.made_on(source_anchor).iter().copied().find(|k| k.ty == ty).unwrap_or(KeyId {
                 ty,
                 layer,
-                name: "",
+                name: source_anchor.name,
             });
-            if let Some(pid) = A::retain_anchor(doc, parent_src, target_name, &kept_anchor, provenance.clone())? {
+            if let Some(pid) = A::retain_anchor(doc, parent_src, target_name, &kept_anchor, provenance.clone())?
+                && kept_anchor.len() != src_len
+            {
                 parent_on.push(pid);
             }
         }
@@ -74,7 +96,19 @@ pub fn retain_aligned_anchor<L: Layer, A: FilterableLayer>(
         doc.add(&target_anchor, filtered_anchor, provenance)?;
         return Ok(Some(target_anchor.id()));
     }
-    if doc.present(target_anchor.id()) { Ok(Some(target_anchor.id())) } else { Ok(None) }
+    // An anchor already stored under the target name is reused only when it
+    // was derived from the same source anchor and holds the exact rows this
+    // filter keeps; anything else would attach the filtered items to
+    // different text.
+    let Some(existing) = doc.get_key(&target_anchor) else {
+        return Err(Error::Pipeline(format!("{} is not present with data", target_anchor.id())));
+    };
+    let same_source = doc.provenance(target_anchor.id()).is_some_and(|p| p.reads.first() == Some(&source_anchor));
+    if same_source && existing.same_filtered_rows(&filtered_anchor) {
+        Ok(Some(target_anchor.id()))
+    } else {
+        Err(Error::Pipeline(format!("{} already holds different rows than this filter keeps", target_anchor.id())))
+    }
 }
 
 impl<L: Layer> FilterableLayer for Groups<L> {
@@ -186,6 +220,20 @@ impl<L: FilterableLayer> FilterAnnotator<L> {
         reads
     }
 
+    fn all_writes_and_anchors(&self) -> (Vec<KeyId>, Vec<Anchor>) {
+        let mut writes = Vec::new();
+        let mut raw_anchors = Vec::new();
+        for (k, a) in L::co_written_anchors(self.target.name) {
+            if !writes.contains(&k) {
+                writes.push(k);
+                raw_anchors.push(a);
+            }
+        }
+        writes.push(self.target.id());
+        raw_anchors.push(L::anchor());
+        (writes, raw_anchors)
+    }
+
     fn provenance(&self, doc: &Document) -> Provenance {
         let mut reads = vec![self.source.id()];
         for &on in doc.made_on(self.source.id()) {
@@ -226,20 +274,33 @@ impl<L: FilterableLayer> Step for FilterAnnotator<L> {
     }
 
     fn writes(&self) -> Vec<KeyId> {
-        vec![self.target.id()]
+        self.all_writes_and_anchors().0
     }
 
     fn anchors(&self) -> Vec<AnchorUse> {
-        match L::anchor() {
-            Anchor::Aligned { ty, layer } => {
-                let reads = self.all_reads();
-                match reads.into_iter().find(|k| k.ty == ty) {
-                    Some(k) => vec![AnchorUse::To(k)],
-                    None => vec![AnchorUse::Unread(layer)],
+        let reads = self.all_reads();
+        let (writes, raw_anchors) = self.all_writes_and_anchors();
+        raw_anchors
+            .into_iter()
+            .enumerate()
+            .map(|(i, a)| match a {
+                Anchor::Aligned { ty, layer } => {
+                    if let Some(k) = writes[..i]
+                        .iter()
+                        .copied()
+                        .find(|k| k.ty == ty)
+                        .or_else(|| reads.iter().copied().find(|k| k.ty == ty))
+                    {
+                        AnchorUse::To(k)
+                    } else if let Some(k) = writes[i + 1..].iter().copied().find(|k| k.ty == ty) {
+                        AnchorUse::Later(k)
+                    } else {
+                        AnchorUse::Unread(layer)
+                    }
                 }
-            }
-            Anchor::Text | Anchor::Document => vec![AnchorUse::None],
-        }
+                Anchor::Text | Anchor::Document => AnchorUse::None,
+            })
+            .collect()
     }
 
     fn config_hash(&self) -> u64 {
@@ -276,40 +337,44 @@ impl<L: FilterableLayer> Step for FilterAnnotator<L> {
 
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {
         let out = *out.downcast::<Vec<FilterOutcome<L>>>().expect("FilterAnnotator's own output");
-        let target_id = self.target.id();
+        let writes = self.writes();
         for (i, r) in out.into_iter().enumerate() {
             let mut p = self.provenance(&docs[i]);
             let failure = match r {
                 Ok((layer, kept, src_len)) => {
-                    let anchor_res = if let Anchor::Aligned { ty, layer: anchor_layer } = L::anchor()
-                        && kept.len() != src_len
-                    {
+                    let anchor_res = if let Anchor::Aligned { ty, layer: anchor_layer } = L::anchor() {
                         let src_anchor = docs[i]
                             .made_on(self.source.id())
                             .iter()
                             .copied()
                             .find(|k| k.ty == ty)
                             .or_else(|| p.reads.iter().copied().find(|k| k.ty == ty))
-                            .unwrap_or(KeyId { ty, layer: anchor_layer, name: "" });
+                            .unwrap_or(KeyId { ty, layer: anchor_layer, name: self.source.name });
                         L::retain_anchor(&mut docs[i], src_anchor, self.target.name, &kept, p.clone())
                     } else {
                         Ok(None)
                     };
                     match anchor_res {
                         Ok(Some(anchor_id)) => {
-                            p.on.push(anchor_id);
+                            if kept.len() != src_len {
+                                p.on.push(anchor_id);
+                            }
                             docs[i].add(&self.target, layer, p.clone()).err()
                         }
                         Ok(None) => docs[i].add(&self.target, layer, p.clone()).err(),
                         Err(e) => Some(e),
                     }
                 }
-                Err(Error::Skipped(why)) => docs[i].skip(target_id, why, p.clone()).err(),
+                Err(Error::Skipped(why)) => {
+                    writes.iter().try_for_each(|&k| docs[i].skip(k, why.clone(), p.clone())).err()
+                }
                 Err(e) => Some(e),
             };
             let Some(e) = failure else { continue };
-            if !docs[i].has(target_id) {
-                let _ = docs[i].fail(target_id, e.clone(), p);
+            for &k in &writes {
+                if !docs[i].has(k) {
+                    let _ = docs[i].fail(k, e.clone(), p.clone());
+                }
             }
             if status[i].is_ok() {
                 status[i] = Err(e);
