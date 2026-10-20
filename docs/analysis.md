@@ -2207,9 +2207,10 @@ bytes, so a hit can be highlighted.
 `push_levels` adds one candidate a unit of `Levels` (chunk, section or
 document) from a text's `Vectors<Subwords>`: a unit's tokens are the
 subword pieces inside its span (inside each fragment, for a
-discontinuous unit; an empty piece goes with the next non-empty piece,
-or the one before it at the end of the text, so the units that split a
-text hold it once), in text order, less the items the vectors list as
+discontinuous unit; an empty piece counts where it lies before the
+fragment's end, or at the end when no non-empty piece follows, so one on
+the boundary of two units is the second's and one at the end of the text
+the last unit's), in text order, less the items the vectors list as
 empty and the pieces a `Prune` rule drops (punctuation, stopwords). The
 index records the rule's name and how many tokens it dropped for each
 candidate (`pruning`). A unit left with no token is not added. The layers

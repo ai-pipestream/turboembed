@@ -94,10 +94,15 @@ impl<M> TokenIndex<M> {
         &self.sources[self.tokens(candidate)]
     }
 
-    /// Token `token` of `candidate` as stored.
-    pub fn token(&self, candidate: u32, token: u32) -> &[f32] {
-        let at = (self.tokens(candidate).start + token as usize) * self.bpr;
-        &rows::flat(&self.rows[at..at + self.bpr])[..self.space.dim as usize]
+    /// Token `token` of `candidate` as stored, or `None` when the candidate
+    /// has no such token.
+    pub fn token(&self, candidate: u32, token: u32) -> Option<&[f32]> {
+        let tokens = self.tokens(candidate);
+        if token as usize >= tokens.len() {
+            return None;
+        }
+        let at = (tokens.start + token as usize) * self.bpr;
+        Some(&rows::flat(&self.rows[at..at + self.bpr])[..self.space.dim as usize])
     }
 
     /// The pruning rule `candidate` was added under, and how many of its

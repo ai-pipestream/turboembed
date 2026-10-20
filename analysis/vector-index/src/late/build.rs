@@ -64,8 +64,9 @@ impl<M> TokenIndexBuilder<M> {
     /// Adds a candidate for each unit of `units` from the subword vectors
     /// of a text: a unit's tokens are the pieces of `subwords` inside its
     /// span (inside each fragment, for a discontinuous one; an empty piece
-    /// goes with the next non-empty piece, or the one before it at the end
-    /// of the text, so one on the boundary of two units is the second's),
+    /// counts where it lies before the fragment's end, or at its end when no
+    /// non-empty piece follows, so one on the boundary of two units is the
+    /// second's and one at the end of the text the last unit's),
     /// in text order,
     /// less the items `vectors` lists as empty and the pieces `prune`
     /// drops. A unit left with no token is not added. Returns how many
@@ -210,13 +211,13 @@ impl<M> TokenIndexBuilder<M> {
     }
 }
 
-/// Whether the empty piece `i` belongs to `fragment`, which holds it: an
-/// empty piece goes with the next non-empty piece, or with the one before
-/// it when none follows, so units that split the text hold it once.
+/// Whether the empty piece `i` belongs to `fragment`, which holds it: one
+/// before the fragment's end does, so one on the boundary of two units is
+/// the second's; one at the end does only when no non-empty piece follows,
+/// so one at the end of the text stays in the units that end there.
 fn empty_piece_in(spans: &Spans<Subwords>, i: usize, fragment: Span) -> bool {
-    let non_empty = |j: usize| Some(spans.get(Ix::new(j as u32))).filter(|s| !s.is_empty());
-    if let Some(next) = (i + 1..spans.len()).find_map(non_empty) {
-        return next.end <= fragment.end;
+    if spans.get(Ix::new(i as u32)).start < fragment.end {
+        return true;
     }
-    (0..i).rev().find_map(non_empty).is_none_or(|before| before.start >= fragment.start)
+    (i + 1..spans.len()).all(|j| spans.get(Ix::new(j as u32)).is_empty())
 }

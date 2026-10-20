@@ -68,7 +68,7 @@ fn a_score_is_the_naive_double_loop_bit_for_bit() {
                 assert_eq!(score.to_bits(), want.to_bits());
                 assert_eq!(matches.iter().map(|m| m.token).collect::<Vec<_>>(), won);
                 for (m, qt) in matches.iter().zip(q.chunks(dim)) {
-                    let row = index.token(c as u32, m.token);
+                    let row = index.token(c as u32, m.token).unwrap();
                     assert_eq!(m.score.to_bits(), dot(qt, row).to_bits());
                     assert_eq!((m.source.piece, m.source.span), (m.token, None));
                 }
@@ -119,7 +119,7 @@ fn queries_and_candidates_of_another_space_or_unscorable_tokens_get_typed_errors
     assert_eq!(b.push(&[1.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0], 7), Ok(0));
     let index = b.build();
     assert_eq!((index.len(), index.total_tokens(), *index.meta(0)), (1, 2, 7));
-    assert_eq!(index.token(0, 1), [0.0, 2.0, 0.0, 0.0]);
+    assert_eq!(index.token(0, 1), Some(&[0.0, 2.0, 0.0, 0.0][..]));
     let q = [0.0, 1.0, 0.0, 0.0];
     assert_eq!(index.score(&sp, &q, 0), Ok(2.0));
     let other = Space::new(model("colbert-small"), 4, Normalization::None);
@@ -176,4 +176,20 @@ fn a_query_token_is_won_by_the_first_of_equal_candidate_tokens() {
     let (score, m) = index.explain(&sp, &[2.0, 0.0, 0.0, 3.0], 0).unwrap();
     assert_eq!(score, 5.0);
     assert_eq!(m.iter().map(|m| (m.token, m.score)).collect::<Vec<_>>(), [(1, 2.0), (0, 3.0)]);
+}
+
+#[test]
+fn a_token_past_its_candidate_is_none() {
+    let sp = space(1);
+    let mut b = TokenIndexBuilder::new(sp).unwrap();
+    b.push(&[1.0], ()).unwrap();
+    b.push(&[2.0], ()).unwrap();
+    b.push(&[3.0, 4.0], ()).unwrap();
+    let index = b.build();
+    assert_eq!(index.token(0, 0), Some(&[1.0][..]));
+    assert_eq!(index.token(0, 1), None);
+    assert_eq!(index.token(1, 1), None);
+    assert_eq!(index.token(2, 1), Some(&[4.0][..]));
+    assert_eq!(index.token(2, 2), None);
+    assert_eq!(index.token(2, u32::MAX), None);
 }
