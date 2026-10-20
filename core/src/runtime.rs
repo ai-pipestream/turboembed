@@ -43,7 +43,24 @@ impl Runtime {
     /// are the record's.
     pub(super) fn capability(&self, index: u32, task: u32, precision: u32) -> Result<turbo_capability> {
         let d = self.device(index)?;
-        if task != TURBO_TASK_EMBED {
+        if task == TURBO_TASK_RERANK {
+            let mut cap = self.capability(index, TURBO_TASK_EMBED, precision)?;
+            cap.speed_ratio = 0.0;
+            cap.cosine_floor = 0.0;
+            cap.benchmark.fill(0);
+            if d.backend.name() == "cpu" && cap.status != backend::TURBO_CAP_UNSUPPORTED {
+                cap.status = backend::TURBO_CAP_EXPERIMENTAL;
+                cap.options_honored = 0b111;
+                write_str(&mut cap.reason, "CPU cross-encoder; rerank speed record pending");
+            } else {
+                cap.status = backend::TURBO_CAP_UNSUPPORTED;
+                cap.dtype = 0;
+                cap.options_honored = 0;
+                write_str(&mut cap.reason, "rerank requires CPU");
+            }
+            return Ok(cap);
+        }
+        if task != TURBO_TASK_EMBED && task != TURBO_TASK_RERANK {
             return Err(Error::new(INVALID_ENUM, format!("task: {task} is not a TURBO_TASK_* value")));
         }
         if precision > TURBO_PRECISION_EXACT {

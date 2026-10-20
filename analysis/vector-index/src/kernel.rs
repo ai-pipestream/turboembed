@@ -126,12 +126,54 @@ mod x86 {
                 }
             }
         }
+        if Q == 4 && R == 4 {
+            let flat: [__m512; 16] = std::array::from_fn(|k| acc[k / R][k % R]);
+            let mut sums = [0.0f32; 16];
+            // SAFETY: sums holds 16 floats.
+            unsafe { _mm512_storeu_ps(sums.as_mut_ptr(), sum16x16(&flat)) };
+            for qi in 0..4 {
+                for ri in 0..4 {
+                    // SAFETY: out has Q lines of stride floats, R used.
+                    unsafe { *out.add(qi * stride + ri) = sums[4 * ri + qi] };
+                }
+            }
+            return;
+        }
         for (qi, row) in acc.iter().enumerate() {
             for (ri, &a) in row.iter().enumerate() {
                 // SAFETY: out has Q lines of stride floats, R used.
                 unsafe { *out.add(qi * stride + ri) = sum16(a) };
             }
         }
+    }
+
+    /// The sums of 16 accumulators at once, each folded as [`sum16`] folds
+    /// one (lane `j + 8`, then `j + 4`, `j + 2`, `j + 1`), so the bits are
+    /// the same; the shuffles move four accumulators' lanes into one
+    /// register at each step. Lane `4 * g + e` holds the sum of `acc[4 * e +
+    /// g]`.
+    #[inline]
+    #[target_feature(enable = "avx512f")]
+    fn sum16x16(acc: &[__m512; 16]) -> __m512 {
+        // Groups of four lanes: [a 0..4, a 4..8, b 0..4, b 4..8] each the
+        // sum of lanes j and j + 8.
+        let s8: [__m512; 8] = std::array::from_fn(|m| {
+            let (a, b) = (acc[2 * m], acc[2 * m + 1]);
+            _mm512_add_ps(_mm512_shuffle_f32x4::<0x44>(a, b), _mm512_shuffle_f32x4::<0xEE>(a, b))
+        });
+        // [a, b, c, d], four lanes each: lanes j and j + 4 of s8.
+        let s4: [__m512; 4] = std::array::from_fn(|p| {
+            let (x, y) = (s8[2 * p], s8[2 * p + 1]);
+            _mm512_add_ps(_mm512_shuffle_f32x4::<0x88>(x, y), _mm512_shuffle_f32x4::<0xDD>(x, y))
+        });
+        // Within each group of four: lanes j and j + 2.
+        let s2: [__m512; 2] = std::array::from_fn(|r| {
+            let (p, q) = (s4[2 * r], s4[2 * r + 1]);
+            _mm512_add_ps(_mm512_shuffle_ps::<0x44>(p, q), _mm512_shuffle_ps::<0xEE>(p, q))
+        });
+        // Lanes j and j + 1.
+        let (r, s) = (s2[0], s2[1]);
+        _mm512_add_ps(_mm512_shuffle_ps::<0x88>(r, s), _mm512_shuffle_ps::<0xDD>(r, s))
     }
 
     /// `Q` queries against `R` rows, two `ymm` accumulators each (lanes 0

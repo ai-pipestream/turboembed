@@ -184,6 +184,9 @@ struct State {
     /// with the session.
     ids: Vec<i32>,
     mask: Vec<i32>,
+    rerank: Option<rerank::PairBatch>,
+    scores: Vec<f32>,
+    pooled: Vec<f32>,
 }
 
 /// What the backend was last written.
@@ -278,3 +281,6 @@ pub use result::*;
 
 #[cfg(test)]
 mod tests;
+
+mod rerank;
+pub use rerank::*;

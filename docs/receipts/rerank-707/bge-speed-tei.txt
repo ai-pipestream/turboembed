@@ -1,0 +1,1 @@
+TEI cpu-1.8 batch=4 threads=1 median_seconds= 0.13860446400940418 pairs_per_second= 28.859099370194915 scores= [{'index': 0, 'score': 6.180715}, {'index': 2, 'score': -2.4901562}, {'index': 1, 'score': -3.650277}, {'index': 3, 'score': -5.899648}]

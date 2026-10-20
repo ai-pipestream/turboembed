@@ -324,7 +324,9 @@ impl<L: Layer> LayerCodec for ContentHashes<L> {
 /// Registers this crate's layer codecs on `codecs`: the vocabulary,
 /// the indexed terms, term statistics at the chunk, sentence,
 /// structure and whole-view levels, the chunk facets, and content
-/// hashes over the chunks and over the level units.
+/// hashes over the chunks and over the level units. The
+/// token-vector windows late pooling checks against are a
+/// shared layer, registered by `turbo-analysis-layers`.
 pub fn register_codecs(codecs: &mut Codecs) {
     codecs
         .register::<Vocabulary>()
