@@ -41,32 +41,71 @@ pub(super) struct Index {
     /// word; empty when nothing is set. A bit may stay set after an
     /// exclusion; it only costs a search.
     filters: Vec<u64>,
+    /// The length of the longest entry or part a token whose byte before
+    /// its last is an ASCII lower case letter can match; see
+    /// [`lower_len`]. It may stay high after an exclusion.
+    max_lower: u8,
+    /// The length of the longest never-abbreviation word.
+    max_word: u8,
 }
 
 /// The words of the entry filter, then of the word filter.
 const ENTRY_WORDS: usize = 64;
 const WORD_WORDS: usize = 16;
 
-/// FNV-1a over `bytes`, mixed so that its top bits spread.
-fn hash(bytes: impl Iterator<Item = u8>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in bytes {
-        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-    }
-    h.wrapping_mul(0x9e37_79b9_7f4a_7c15)
+const FNV_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+
+/// One byte of FNV-1a.
+fn step(h: u64, b: u8) -> u64 {
+    (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
 }
+
+/// The filter bit of an FNV-1a hash in a filter of `2^bits` bits, mixed
+/// so that its top bits spread.
+fn bit(h: u64, bits: u32) -> usize {
+    (h.wrapping_mul(0x9e37_79b9_7f4a_7c15) >> (64 - bits)) as usize
+}
+
+const ENTRY_BITS: u32 = 12;
+const WORD_BITS: u32 = 10;
 
 /// The filter bit of a token, the same with its first letter in either
 /// case.
-fn entry_key(token: &str) -> usize {
-    let b = token.as_bytes();
-    let first = b.first().map(u8::to_ascii_lowercase);
-    (hash(first.into_iter().chain(b.iter().skip(1).copied())) >> (64 - 12)) as usize
+pub(super) fn entry_key(token: &str) -> usize {
+    let mut h = FNV_BASIS;
+    for (i, &b) in token.as_bytes().iter().enumerate() {
+        h = step(h, if i == 0 { b.to_ascii_lowercase() } else { b });
+    }
+    bit(h, ENTRY_BITS)
 }
 
 /// The filter bit of a word, the same in any ASCII case.
-fn word_key(word: &str) -> usize {
-    (hash(word.bytes().map(|b| b.to_ascii_lowercase())) >> (64 - 10)) as usize
+pub(super) fn word_key(word: &str) -> usize {
+    bit(word.bytes().fold(FNV_BASIS, |h, b| step(h, b.to_ascii_lowercase())), WORD_BITS)
+}
+
+/// [`entry_key`] of `token` and [`word_key`] of `token` without its last
+/// byte (the full stop), in one pass.
+pub(super) fn keys(token: &str) -> (usize, usize) {
+    let b = token.as_bytes();
+    let (mut e, mut w) = (FNV_BASIS, FNV_BASIS);
+    for (i, &c) in b.iter().enumerate() {
+        let lower = c.to_ascii_lowercase();
+        e = step(e, if i == 0 { lower } else { c });
+        if i + 1 < b.len() {
+            w = step(w, lower);
+        }
+    }
+    (bit(e, ENTRY_BITS), bit(w, WORD_BITS))
+}
+
+/// The length of `text` as an entry or a part a token whose byte before
+/// its last is an ASCII lower case letter may match: 0 when its own byte
+/// there is something else and is not its first byte, the only one a
+/// match may fold.
+fn lower_len(text: &str) -> usize {
+    let b = text.as_bytes();
+    if b.len() >= 3 && !b[b.len() - 2].is_ascii_lowercase() { 0 } else { b.len() }
 }
 
 /// Sets bit `key` of the filter at word `base`.
@@ -94,8 +133,14 @@ fn part_text<'e>(entries: &'e [(Cow<'static, str>, ContextRule, u8)], p: &Part) 
 }
 
 impl Index {
-    pub(super) const EMPTY: Index =
-        Index { singles: Vec::new(), entries: Vec::new(), parts: Vec::new(), filters: Vec::new() };
+    pub(super) const EMPTY: Index = Index {
+        singles: Vec::new(),
+        entries: Vec::new(),
+        parts: Vec::new(),
+        filters: Vec::new(),
+        max_lower: 0,
+        max_word: 0,
+    };
 
     /// The index of everything `inv` holds and does not exclude.
     pub(super) fn build(inv: &AbbreviationInventory) -> Index {
@@ -110,11 +155,12 @@ impl Index {
         singles.sort_by(|a, b| a.0.cmp(&b.0));
         singles.dedup_by(|b, a| a.0 == b.0);
         for (text, _) in &singles {
-            set(&mut index.filters, 0, entry_key(text));
+            index.mark(text);
         }
         if !inv.classes.is_empty() {
             for w in inv.bundle.map_or(&[][..], |b| b.penultimates) {
                 set(&mut index.filters, ENTRY_WORDS, word_key(w));
+                index.max_word = index.max_word.max(w.len().min(MAX_TOKEN) as u8);
             }
         }
         index.singles = singles;
@@ -139,7 +185,7 @@ impl Index {
             for (k, part) in text.split(' ').enumerate() {
                 let end = start + part.len();
                 self.parts.push(Part { entry, k: k as u8, start: start as u16, end: end as u16 });
-                set(&mut self.filters, 0, entry_key(part));
+                self.mark(part);
                 start = end + 1;
                 n += 1;
             }
@@ -157,7 +203,21 @@ impl Index {
             Ok(i) => self.singles[i].1 = rule,
             Err(i) => self.singles.insert(i, (Cow::Owned(text.into()), rule)),
         }
+        self.mark(text);
+    }
+
+    /// Notes an entry or a part in the filter and the lengths.
+    fn mark(&mut self, text: &str) {
         set(&mut self.filters, 0, entry_key(text));
+        self.max_lower = self.max_lower.max(lower_len(text).min(MAX_TOKEN) as u8);
+    }
+
+    /// Whether a token of `len` bytes ending in a full stop, its byte
+    /// before the stop an ASCII lower case letter, is too long for every
+    /// entry, every part and every never-abbreviation word, so that the
+    /// stop has no verdict.
+    pub(super) fn too_long_lower(&self, len: usize) -> bool {
+        len > usize::from(self.max_lower) && len - 1 > usize::from(self.max_word)
     }
 
     /// Removes a one-token entry.
@@ -167,16 +227,17 @@ impl Index {
         }
     }
 
-    /// Whether `token`, as written or with its first letter in the other
-    /// case, may be an entry or a part of one; false means it is neither.
-    pub(super) fn may_match(&self, token: &str) -> bool {
-        token.len() <= MAX_TOKEN && get(&self.filters, 0, entry_key(token))
+    /// Whether a token of `len` bytes and [`entry_key`] `entry_key`, as
+    /// written or with its first letter in the other case, may be an
+    /// entry or a part of one; false means it is neither.
+    pub(super) fn may_match(&self, len: usize, entry_key: usize) -> bool {
+        len <= MAX_TOKEN && get(&self.filters, 0, entry_key)
     }
 
-    /// Whether `word` may be a never-abbreviation word in some ASCII
-    /// case; false means it is not.
-    pub(super) fn may_be_word(&self, word: &str) -> bool {
-        get(&self.filters, ENTRY_WORDS, word_key(word))
+    /// Whether a word of [`word_key`] `word_key` may be a
+    /// never-abbreviation word in some ASCII case; false means it is not.
+    pub(super) fn may_be_word(&self, word_key: usize) -> bool {
+        get(&self.filters, ENTRY_WORDS, word_key)
     }
 
     /// The rule of the one-token entry `token`.

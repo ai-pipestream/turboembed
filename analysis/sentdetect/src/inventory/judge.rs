@@ -1,7 +1,7 @@
 //! The verdict on one full stop: the token around it, the entries it
 //! matches and the word after it.
 
-use super::index::{Entry, probe};
+use super::index::{Entry, keys, probe};
 use super::{AbbreviationInventory, ContextRule, Verdict};
 
 /// The longest token, in bytes, the inventory looks at; a longer run
@@ -14,6 +14,28 @@ const OPENERS: &[char] = &['"', '\'', '`', '(', '[', '{', '\u{AB}', '\u{2018}', 
 /// Closing marks and punctuation stripped from the end of a token.
 const CLOSERS: &[char] = &['"', '\'', ')', ']', '}', '\u{BB}', '\u{2019}', '\u{201D}', ',', ';', ':', '!', '?'];
 
+/// Which ASCII bytes are among `marks`.
+const fn ascii_table(marks: &[char]) -> [bool; 128] {
+    let mut table = [false; 128];
+    let mut i = 0;
+    while i < marks.len() {
+        if marks[i].is_ascii() {
+            table[marks[i] as usize] = true;
+        }
+        i += 1;
+    }
+    table
+}
+
+const ASCII_OPENERS: [bool; 128] = ascii_table(OPENERS);
+const ASCII_CLOSERS: [bool; 128] = ascii_table(CLOSERS);
+
+/// Whether the ASCII byte `b` is whitespace as `char::is_whitespace`
+/// has it.
+fn ascii_space(b: u8) -> bool {
+    matches!(b, b'\t' | b'\n' | 0x0B | 0x0C | b'\r' | b' ')
+}
+
 /// A whitespace-separated token: the bounds of the run, and its start
 /// and end without the marks around it.
 #[derive(Copy, Clone, Debug)]
@@ -24,35 +46,78 @@ struct Token {
     raw_end: usize,
 }
 
-/// The token holding the byte `at`, which is not whitespace.
+/// The token holding the byte `at`, which is not whitespace. ASCII is
+/// read byte by byte; only a byte from 0x80 up is decoded.
 fn token_at(text: &str, at: usize) -> Option<Token> {
+    let b = text.as_bytes();
     let mut start = at;
-    for (i, c) in text[..at].char_indices().rev() {
-        if c.is_whitespace() {
-            break;
-        }
+    while start > 0 {
+        let c = b[start - 1];
+        let i = if c < 0x80 {
+            if ascii_space(c) {
+                break;
+            }
+            start - 1
+        } else {
+            let (i, ch) = text[..start].char_indices().next_back()?;
+            if ch.is_whitespace() {
+                break;
+            }
+            i
+        };
         start = i;
         if at - start > MAX_TOKEN {
             return None;
         }
     }
     let mut raw_end = at;
-    for (i, c) in text[at..].char_indices() {
-        if c.is_whitespace() {
-            break;
-        }
-        raw_end = at + i + c.len_utf8();
+    while raw_end < b.len() {
+        let c = b[raw_end];
+        raw_end += if c < 0x80 {
+            if ascii_space(c) {
+                break;
+            }
+            1
+        } else {
+            let ch = text[raw_end..].chars().next()?;
+            if ch.is_whitespace() {
+                break;
+            }
+            ch.len_utf8()
+        };
         if raw_end - start > MAX_TOKEN {
             return None;
         }
     }
     let mut s = start;
-    while let Some(c) = text[s..raw_end].chars().next().filter(|c| OPENERS.contains(c)) {
-        s += c.len_utf8();
+    while s < raw_end {
+        let c = b[s];
+        s += if c < 0x80 {
+            if !ASCII_OPENERS[c as usize] {
+                break;
+            }
+            1
+        } else {
+            match text[s..raw_end].chars().next() {
+                Some(ch) if OPENERS.contains(&ch) => ch.len_utf8(),
+                _ => break,
+            }
+        };
     }
     let mut e = raw_end;
-    while let Some(c) = text[s..e].chars().next_back().filter(|c| CLOSERS.contains(c)) {
-        e -= c.len_utf8();
+    while e > s {
+        let c = b[e - 1];
+        e -= if c < 0x80 {
+            if !ASCII_CLOSERS[c as usize] {
+                break;
+            }
+            1
+        } else {
+            match text[s..e].chars().next_back() {
+                Some(ch) if CLOSERS.contains(&ch) => ch.len_utf8(),
+                _ => break,
+            }
+        };
     }
     Some(Token { raw_start: start, start: s, end: e, raw_end })
 }
@@ -195,10 +260,21 @@ impl AbbreviationInventory {
             return Verdict::Neutral;
         }
         let full = &text[tok.start..tok.end];
+        let last = period + 1 == tok.end;
+        // A word ending in a lower case letter and longer than every entry,
+        // part and never-abbreviation word that can end so has no verdict.
+        if last
+            && full.len() >= 2
+            && full.as_bytes()[full.len() - 2].is_ascii_lowercase()
+            && self.index().too_long_lower(full.len())
+        {
+            return Verdict::Neutral;
+        }
         // Most words are no entry and no part of one, which the filter
         // tells without a search.
-        let known = self.index().may_match(full);
-        if period + 1 != tok.end {
+        let (entry_key, word_key) = keys(full);
+        let known = self.index().may_match(full.len(), entry_key);
+        if !last {
             // A stop inside a one-token entry ends nothing.
             return if known && self.lookup(full).is_some() { Verdict::Suppress } else { Verdict::Neutral };
         }
@@ -214,7 +290,7 @@ impl AbbreviationInventory {
         if verdict != Verdict::Neutral {
             return verdict;
         }
-        if self.is_word(&full[..full.len() - 1]) { Verdict::Allow } else { Verdict::Neutral }
+        if self.is_word(&full[..full.len() - 1], word_key) { Verdict::Allow } else { Verdict::Neutral }
     }
 
     /// The rule of a one-token entry `token`, as written or with its first
@@ -263,10 +339,11 @@ impl AbbreviationInventory {
         None
     }
 
-    /// Whether `word` is never an abbreviation.
-    fn is_word(&self, word: &str) -> bool {
+    /// Whether `word`, of [`word_key`](super::index::word_key)
+    /// `word_key`, is never an abbreviation.
+    fn is_word(&self, word: &str, word_key: usize) -> bool {
         let Some(bundle) = self.bundle.filter(|_| !self.classes.is_empty()) else { return false };
-        if word.len() > 8 || word.contains('.') || !self.index().may_be_word(word) {
+        if word.len() > 8 || word.contains('.') || !self.index().may_be_word(word_key) {
             return false;
         }
         let mut buf = [0; 8];

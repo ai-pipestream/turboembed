@@ -304,3 +304,40 @@ fn the_index_follows_additions_and_exclusions() {
     assert_eq!(en.clone().with_exclusion("x"), AbbreviationInventory::english().with_exclusion("x"));
     assert_ne!(ex, en);
 }
+
+#[test]
+fn long_lower_case_words_need_no_search() {
+    use super::index::PROBES;
+    let en = AbbreviationInventory::english();
+    let text = "It was extraordinary. Then it rained.";
+    PROBES.with(|c| c.set((0, 0)));
+    assert_eq!(at(&en, text, "extraordinary."), Neutral);
+    assert_eq!(PROBES.with(|c| c.get()), (0, 0), "a long lower case word was searched");
+    // Long entries ending in a lower case letter, one-token, folded, or a
+    // part of a multi-token entry, are still found.
+    let long = en
+        .clone()
+        .with_addition("approximately.", ContextRule::Trailing)
+        .unwrap()
+        .with_addition("notwithstanding. ibid.", ContextRule::Trailing)
+        .unwrap()
+        .with_addition("XYZCORP.", ContextRule::Trailing)
+        .unwrap();
+    assert_eq!(at(&long, "It is approximately. three", "approximately."), Suppress);
+    assert_eq!(at(&long, "Approximately. three", "Approximately."), Suppress);
+    assert_eq!(at(&long, "See notwithstanding. ibid. here", "notwithstanding."), Suppress);
+    assert_eq!(at(&long, "Shares of XYZCORP. fell", "XYZCORP."), Suppress);
+    assert_eq!(at(&long, "It was extraordinary. then", "extraordinary."), Neutral);
+    // Never-abbreviation words in any case, and an excluded one.
+    assert_eq!(at(&en, "The answer is no. Then", "no."), Allow);
+    assert_eq!(at(&en, "The answer is NO. Then", "NO."), Allow);
+    assert_eq!(at(&en.clone().with_exclusion("no"), "The answer is no. Then", "no."), Neutral);
+}
+
+#[test]
+fn one_pass_keys_agree_with_the_filters() {
+    use super::index::{entry_key, keys, word_key};
+    for t in ["etc.", "Etc.", "extraordinary.", "No.", "e.g.", "\u{e9}t\u{e9}.", "a.", "."] {
+        assert_eq!(keys(t), (entry_key(t), word_key(&t[..t.len() - 1])), "{t:?}");
+    }
+}
