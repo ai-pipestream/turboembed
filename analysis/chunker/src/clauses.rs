@@ -276,11 +276,15 @@ pub(crate) fn push_clause_rows(
     let mut unit_breaks: Vec<ClauseBreak> = Vec::with_capacity(sc.breaks.len());
     let mut cur_start = sent_span.start;
     for (k, &tok) in sc.tokens.iter().enumerate() {
-        let end = if k + 1 == sc.tokens.len() { sent_span.end } else { tok.end.max(cur_start) };
+        let end = if k + 1 == sc.tokens.len() { sent_span.end } else { tok.end.clamp(cur_start, sent_span.end) };
         if k + 1 < sc.tokens.len() {
             let brk = sc.breaks[k];
-            let next_start = sc.tokens[k + 1].start;
-            if brk == ClauseBreak::Held || end > next_start || end <= cur_start {
+            let next_start = sc.tokens[k + 1].start.clamp(end, sent_span.end);
+            if brk == ClauseBreak::Held
+                || sc.tokens[k + 1].start < end
+                || end <= cur_start
+                || next_start >= sent_span.end
+            {
                 continue;
             }
             unit_spans.push(Span::new(cur_start, end));
@@ -288,10 +292,13 @@ pub(crate) fn push_clause_rows(
             cur_start = next_start;
         } else if end > cur_start {
             unit_spans.push(Span::new(cur_start, end));
+        } else if let Some(last) = unit_spans.last_mut() {
+            last.end = last.end.max(sent_span.end);
+            unit_breaks.pop();
         }
     }
     let u_len = unit_spans.len();
-    if u_len <= 1 {
+    if u_len <= 1 || unit_breaks.len() + 1 != u_len {
         return Ok(false);
     }
 
@@ -359,4 +366,56 @@ pub(crate) fn push_clause_rows(
         row.push(chunks, sent_ix..sent_ix + 1, tok_count > u64::from(budget.max));
     }
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis::{Annotator, Ix, ModelRef, Span, Spans, ViewId};
+    use turbo_analysis_layers::{Boundaries, Cut, Sentences, Subwords, Tokens};
+
+    use super::{ClauseBoundaries, ClauseBreak, ClauseCosts, ClauseCuts, SentenceClauseCuts};
+    use crate::{Budget, Chunker};
+
+    #[test]
+    fn zero_width_trailing_and_clamped_tokens_do_not_panic_in_clause_splitting() {
+        let mut s_spans = Spans::new(ViewId::SOURCE);
+        s_spans.push(Span::new(0, 7));
+        let sentences = Sentences { spans: s_spans };
+
+        let mut sw_spans = Spans::new(ViewId::SOURCE);
+        sw_spans.push(Span::new(0, 2));
+        sw_spans.push(Span::new(3, 5));
+        let subwords = Subwords {
+            spans: sw_spans,
+            ids: vec![1, 2],
+            model: ModelRef { id: "t".into(), revision: "0".into(), sha256: "0".into() },
+            token: None,
+        };
+        let bounds = Boundaries { cost: vec![0], reason: vec![Cut::Sentence] };
+
+        let cuts = ClauseCuts {
+            sentences: vec![SentenceClauseCuts {
+                tokens: vec![Span::new(0, 2), Span::new(3, 5), Span::new(7, 7)],
+                breaks: vec![ClauseBreak::Clause(50), ClauseBreak::Clause(50)],
+            }],
+        };
+        let chunker = Chunker { budget: Budget { target: 1, max: 1, size_weight: 10, overhead: 0 } };
+        let (chunks,) = chunker.annotate((&sentences, &subwords, &bounds, None, Some(&cuts))).unwrap();
+        assert_eq!(chunks.spans.len(), 2);
+        assert_eq!(chunks.spans.get(Ix::new(0)), Span::new(0, 2));
+        assert_eq!(chunks.spans.get(Ix::new(1)), Span::new(3, 7));
+
+        // Also test ClauseBoundaries when a token span lies past sentence end and gets clamped to 7..7.
+        let mut t_spans = Spans::new(ViewId::SOURCE);
+        t_spans.push(Span::new(0, 2));
+        t_spans.push(Span::new(3, 5));
+        t_spans.push(Span::new(8, 10));
+        let tokens = Tokens { spans: t_spans, sentence: Some(vec![Ix::new(0); 3]) };
+        let (derived_cuts,) = ClauseBoundaries::new(ClauseCosts::default())
+            .annotate((&sentences, &tokens, None, None, None, None, None))
+            .unwrap();
+        assert_eq!(derived_cuts.sentences[0].breaks[1], ClauseBreak::Held);
+        let (chunks2,) = chunker.annotate((&sentences, &subwords, &bounds, None, Some(&derived_cuts))).unwrap();
+        assert_eq!(chunks2.spans.len(), 2);
+    }
 }

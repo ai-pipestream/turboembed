@@ -214,7 +214,11 @@ pub(super) fn build_sentence_cuts(
     }
     let mut breaks: Vec<ClauseBreak> = (0..m - 1)
         .map(|k| {
-            if tok_spans[k].end > tok_spans[k + 1].start { ClauseBreak::Held } else { ClauseBreak::Token(costs.token) }
+            if tok_spans[k].is_empty() || tok_spans[k + 1].is_empty() || tok_spans[k].end > tok_spans[k + 1].start {
+                ClauseBreak::Held
+            } else {
+                ClauseBreak::Token(costs.token)
+            }
         })
         .collect();
 

@@ -219,12 +219,12 @@ pub fn coref_boundaries_from_chains(chains: &CorefChains, cfg: CorefCohesion) ->
         let mut penalty: i64 = 0;
         for link in &chains.links {
             if link.s_lo <= g && g < link.s_hi && link.s_hi - link.s_lo <= max_dist {
-                penalty += (i64::from(cfg.chain_penalty) * link.weight_milli) / MILLI;
+                penalty = penalty.saturating_add((i64::from(cfg.chain_penalty) * link.weight_milli) / MILLI);
                 if link.s_lo == g && link.s_hi == g + 1 {
-                    penalty += (i64::from(cfg.adjacent_penalty) * link.weight_milli) / MILLI;
+                    penalty = penalty.saturating_add((i64::from(cfg.adjacent_penalty) * link.weight_milli) / MILLI);
                 }
                 if link.target_is_pronoun && link.s_hi <= g + pron_win {
-                    penalty += (i64::from(cfg.pronoun_penalty) * link.weight_milli) / MILLI;
+                    penalty = penalty.saturating_add((i64::from(cfg.pronoun_penalty) * link.weight_milli) / MILLI);
                 }
             }
         }
