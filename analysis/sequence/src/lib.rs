@@ -117,3 +117,5 @@ pub use featuregen::{BoxedGenerator, FeatureGenerator};
 pub use features::Features;
 pub use java::compare_doubles;
 pub use pattern::{PatternMode, StringPattern, token_feature};
+
+pub mod crf;

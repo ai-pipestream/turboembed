@@ -1,0 +1,4 @@
+CPU affinity index=0; 32 tokens; 9 labels; 1000 repeats; 200 warmups per process
+rust: seconds=[0.107820578, 0.107142236, 0.109232485, 0.106965814]; median=0.107481407
+java: seconds=[0.254381017, 0.268791704, 0.241536821, 0.268018353]; median=0.261199685
+Exact Viterbi path parity and first-position marginal error < 1e-12 in all runs.

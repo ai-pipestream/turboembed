@@ -45,6 +45,7 @@ turbo-parser = { path = "../parser" }
 turbo-analysis = { path = "../core" }
 
 [dev-dependencies]
+turbo-namefind = { path = "../namefind" }
 # The tokens and categories layers of the sentiment goldens.
 turbo-analysis-layers = { path = "../layers" }
 # The JVM's events over the golden inputs, which the event streams are
