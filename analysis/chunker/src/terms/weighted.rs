@@ -14,7 +14,9 @@ use super::layer::{TermStats, Vocabulary};
 /// entry's weight is `idf(t) * tf / (tf + k1 * (1 - b + b * length /
 /// mean_length))`, the term's share of the unit's BM25 score.
 pub struct WeightedTerms<L> {
-    /// The same row starts as the `TermStats<L>` they were made from.
+    /// The same row starts as the `TermStats<L>` they were made from. The
+    /// layer is checked on its own; nothing checks these rows against a
+    /// `TermStats<L>` on the same document, on import or elsewhere.
     pub row: Vec<u32>,
     pub weight: Vec<f64>,
     pub _of: PhantomData<fn() -> L>,

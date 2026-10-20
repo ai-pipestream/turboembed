@@ -335,7 +335,8 @@ fn a_nan_model_ranks_as_the_full_scan_does() {
 
 /// Counts no `TermIndexer` writes, each refused by
 /// `TermStats::validate_with`: a df longer than the vocabulary, a df past
-/// the units, a term past the vocabulary, and a vocabulary out of order.
+/// the units, a term past the vocabulary, a vocabulary out of order, and
+/// an empty term that a unit counts.
 fn broken() -> Vec<(&'static str, Doc)> {
     let base = || doc(&[vec!["alpha", "beta"], vec!["beta"]]);
     let mut long = base();
@@ -349,11 +350,15 @@ fn broken() -> Vec<(&'static str, Doc)> {
     text.push("beta");
     text.push("alpha");
     order.vocabulary = Vocabulary { text };
+    // An empty term, counted: it sorts first, so the vocabulary is in
+    // order, but statistics holding it would not decode.
+    let empty = doc(&[vec!["", "alpha"]]);
     vec![
         ("df past the vocabulary", long),
         ("df past the units", over),
         ("term past the vocabulary", past),
         ("vocabulary out of order", order),
+        ("an empty term", empty),
     ]
 }
 

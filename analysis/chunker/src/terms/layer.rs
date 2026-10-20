@@ -188,14 +188,19 @@ impl<L> TermStats<L> {
         Ok(())
     }
 
-    /// `validate` for these counts and for `vocabulary`, and one df per
-    /// term of `vocabulary`: what a caller handing both to a builder must
-    /// hold, checked before anything is changed.
+    /// `validate` for these counts and for `vocabulary`, one df per term
+    /// of `vocabulary`, and no unit counting an empty term: what a caller
+    /// handing both to a builder must hold, checked before anything is
+    /// changed.
     pub fn validate_with(&self, vocabulary: &Vocabulary) -> Result<(), String> {
         self.validate()?;
         vocabulary.validate()?;
         if self.df.len() != vocabulary.len() {
             return Err(format!("{} df counts for a vocabulary of {}", self.df.len(), vocabulary.len()));
+        }
+        // An empty term sorts first, so only term 0 can be one.
+        if self.df.first().is_some_and(|&d| d > 0) && vocabulary.get(Ix::new(0)).is_empty() {
+            return Err("an empty term in a unit: collection statistics hold only non-empty terms".into());
         }
         Ok(())
     }
