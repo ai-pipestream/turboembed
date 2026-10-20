@@ -156,3 +156,27 @@ fn corrupted_relations_payloads_are_refused() {
     assert!(import(&graph, &registry).is_err(), "a truncated payload imported");
     let _ = Arc::<()>::new(());
 }
+
+#[test]
+fn out_of_bounds_relation_spans_do_not_survive_import() {
+    // A hand-built body whose covering span runs past the text is
+    // refused on import (the document insertion behind import
+    // validates the exposed text spans).
+    let registry = codecs();
+    let mut graph = export(&document(), &registry).unwrap();
+    let mut w = Writer::new();
+    w.str("").unwrap();
+    w.usize(1).unwrap();
+    w.usize(1).unwrap();
+    w.span(Span::new(0, 99));
+    w.str("relation").unwrap();
+    w.usize(1).unwrap();
+    w.str("acquisition").unwrap();
+    w.usize(1).unwrap();
+    w.u32(0);
+    w.u32(1);
+    w.u16(0);
+    w.f64(1.0);
+    splice(&mut graph, w.finish(), 1);
+    assert!(import(&graph, &registry).is_err(), "an out-of-bounds relation span imported");
+}

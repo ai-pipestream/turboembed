@@ -66,8 +66,8 @@ fn extension_constraints_are_validated() {
     assert!(p.clone().confidence(f64::NAN).is_err());
     assert!(p.clone().confidence(1.1).is_err());
     let p = p.subject_kind("organization").unwrap().confidence(0.75).unwrap();
-    assert_eq!(p.subject_kind.as_deref(), Some("organization"));
-    assert_eq!(p.confidence, 0.75);
+    assert_eq!(p.subject_kind_constraint(), Some("organization"));
+    assert_eq!(p.confidence_value(), 0.75);
 }
 
 #[test]
@@ -75,5 +75,5 @@ fn mention_validation() {
     assert!(RelationMention::new(" ", Ix::new(0), Ix::new(1)).is_err());
     assert!(RelationMention::new("r", Ix::new(1), Ix::new(1)).is_err());
     let m = RelationMention::new("acquisition", Ix::new(0), Ix::new(1)).unwrap();
-    assert_eq!((m.subject.get(), m.object.get()), (0, 1));
+    assert_eq!((m.subject().get(), m.object().get()), (0, 1));
 }

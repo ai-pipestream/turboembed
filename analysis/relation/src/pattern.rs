@@ -75,23 +75,27 @@ fn valid_step(step: &str) -> bool {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RelationPattern {
     /// The relation type to emit, never blank.
-    pub relation_type: String,
+    pub(crate) relation_type: String,
     /// The path as given; [`RelationPattern::steps`] parses it.
-    pub path: String,
-    /// The required pivot form (JDK-lowercased), or any pivot.
-    pub trigger: Option<String>,
+    /// Crate-private, like every validated field: the parsed
+    /// `steps` cache must never disagree with the path it was
+    /// parsed from, so outside the crate the only ways in are the
+    /// validating constructors and builders.
+    pub(crate) path: String,
+    /// The required pivot form (project-lowercased), or any pivot.
+    pub(crate) trigger: Option<String>,
     /// Only subjects whose entity kind label is this, when set.
-    pub subject_kind: Option<String>,
+    pub(crate) subject_kind: Option<String>,
     /// Only objects whose entity kind label is this, when set.
-    pub object_kind: Option<String>,
+    pub(crate) object_kind: Option<String>,
     /// Only pivots whose part-of-speech tag is this, when set.
     /// Needs the anchor's POS layer at extraction time.
-    pub pivot_pos: Option<String>,
+    pub(crate) pivot_pos: Option<String>,
     /// Only pivots whose lemma is exactly this, when set. Needs
     /// the `Lemmas` layer at extraction time.
-    pub pivot_lemma: Option<String>,
+    pub(crate) pivot_lemma: Option<String>,
     /// The confidence written on every match, in `[0, 1]`.
-    pub confidence: f64,
+    pub(crate) confidence: f64,
     steps: Vec<Step>,
 }
 
@@ -201,6 +205,46 @@ impl RelationPattern {
     pub fn step_strings(&self) -> Vec<String> {
         self.steps.iter().map(Step::as_str).collect()
     }
+
+    /// The relation type this rule emits.
+    pub fn relation_type(&self) -> &str {
+        &self.relation_type
+    }
+
+    /// The path as given at construction.
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// The required pivot form, when set.
+    pub fn trigger(&self) -> Option<&str> {
+        self.trigger.as_deref()
+    }
+
+    /// The required subject entity kind label, when set.
+    pub fn subject_kind_constraint(&self) -> Option<&str> {
+        self.subject_kind.as_deref()
+    }
+
+    /// The required object entity kind label, when set.
+    pub fn object_kind_constraint(&self) -> Option<&str> {
+        self.object_kind.as_deref()
+    }
+
+    /// The required pivot part-of-speech tag, when set.
+    pub fn pivot_pos_constraint(&self) -> Option<&str> {
+        self.pivot_pos.as_deref()
+    }
+
+    /// The required pivot lemma, when set.
+    pub fn pivot_lemma_constraint(&self) -> Option<&str> {
+        self.pivot_lemma.as_deref()
+    }
+
+    /// The confidence written on every match.
+    pub fn confidence_value(&self) -> f64 {
+        self.confidence
+    }
 }
 
 fn non_blank(what: &str, value: String) -> Result<String, String> {
@@ -215,9 +259,9 @@ fn non_blank(what: &str, value: String) -> Result<String, String> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RelationMention {
     /// The relation type, never blank.
-    pub relation_type: String,
-    pub subject: Ix<Entities>,
-    pub object: Ix<Entities>,
+    pub(crate) relation_type: String,
+    pub(crate) subject: Ix<Entities>,
+    pub(crate) object: Ix<Entities>,
 }
 
 impl RelationMention {
@@ -233,5 +277,17 @@ impl RelationMention {
             return Err(format!("subject and object must differ: {}", subject.get()));
         }
         Ok(RelationMention { relation_type, subject, object })
+    }
+
+    pub fn relation_type(&self) -> &str {
+        &self.relation_type
+    }
+
+    pub fn subject(&self) -> Ix<Entities> {
+        self.subject
+    }
+
+    pub fn object(&self) -> Ix<Entities> {
+        self.object
     }
 }

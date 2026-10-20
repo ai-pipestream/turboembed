@@ -345,3 +345,75 @@ fn entity_overlap_edge_cases() {
     discontinuous.spans = spans;
     assert_eq!(run_with(&discontinuous), 1);
 }
+
+#[test]
+fn relations_layer_rejects_invalid_text_spans() {
+    let f = fixture();
+    let relations = |view: ViewId, end: u32| {
+        let mut spans = Spans::new(view);
+        spans.push(Span::new(0, end));
+        Relations {
+            spans,
+            subject: vec![Ix::new(0)],
+            object: vec![Ix::new(1)],
+            kind: vec![Tag(0)],
+            kinds: TagSet::new("relation", &["acquisition"]),
+            score: vec![1.0],
+        }
+    };
+    let entities = || Entities {
+        spans: f.entities.spans.clone(),
+        tokens: f.entities.tokens.clone(),
+        kind: f.entities.kind.clone(),
+        kinds: std::sync::Arc::clone(&f.entities.kinds),
+        score: f.entities.score.clone(),
+    };
+    let seeded = |f: &Fixture| {
+        let mut doc = Document::new(f.doc.source());
+        doc.add(&Key::DEFAULT, Sentences { spans: f.sentences.spans.clone() }, Provenance::by("review")).unwrap();
+        doc.add(
+            &Key::DEFAULT,
+            Tokens { spans: f.tokens.spans.clone(), sentence: f.tokens.sentence.clone() },
+            Provenance::by("review"),
+        )
+        .unwrap();
+        doc.add(&Key::DEFAULT, entities(), Provenance::by("review")).unwrap();
+        doc
+    };
+    // Past the text, and on a view that does not exist.
+    for (view, end) in [(ViewId::SOURCE, 99), (ViewId(99), 1)] {
+        let mut doc = seeded(&f);
+        let mut p = Provenance::by("review");
+        p.reads.push(Key::<Entities>::DEFAULT.id());
+        assert!(doc.add(&Key::<Relations>::DEFAULT, relations(view, end), p).is_err(), "{view:?} 0..{end} accepted");
+    }
+    // The valid control is accepted.
+    let mut doc = seeded(&f);
+    let mut p = Provenance::by("review");
+    p.reads.push(Key::<Entities>::DEFAULT.id());
+    doc.add(&Key::<Relations>::DEFAULT, relations(ViewId::SOURCE, 23), p).unwrap();
+    // A span splitting a codepoint is refused too: the first
+    // character of this text is two bytes wide.
+    let text = "\u{130}stanbul";
+    let mut doc = Document::new(text);
+    doc.add(&Key::DEFAULT, Sentences { spans: spans(&[(0, 9)]) }, Provenance::by("review")).unwrap();
+    doc.add(&Key::DEFAULT, Tokens { spans: spans(&[(0, 9)]), sentence: None }, Provenance::by("review")).unwrap();
+    doc.add(
+        &Key::DEFAULT,
+        Entities {
+            spans: spans(&[(0, 9), (0, 9)]),
+            tokens: vec![IxRange::new(0, 1), IxRange::new(0, 1)],
+            kind: vec![Tag(0), Tag(0)],
+            kinds: TagSet::new("entity", &["location"]),
+            score: vec![1.0; 2],
+        },
+        Provenance::by("review"),
+    )
+    .unwrap();
+    let mut p = Provenance::by("review");
+    p.reads.push(Key::<Entities>::DEFAULT.id());
+    assert!(
+        doc.add(&Key::<Relations>::DEFAULT, relations(ViewId::SOURCE, 1), p).is_err(),
+        "a split-codepoint span was accepted"
+    );
+}

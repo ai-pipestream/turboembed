@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{Anchor, Ix, Key, KeyId, Layer, Overlap, Spans, Tag, TagSet};
+use turbo_analysis::{Anchor, Ix, Key, KeyId, Layer, Overlap, Spans, Tag, TagSet, TextSpans};
 use turbo_analysis_layers::Entities;
 
 /// Typed relations between entities: `opennlp:relations`. Rows
@@ -45,12 +45,17 @@ impl Layer for Relations {
         self.spans.len()
     }
 
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
+        Some(self.spans.text_spans())
+    }
+
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let bound = self.subject.iter().zip(&self.object).map(|(s, o)| s.get().max(o.get()) + 1).max().unwrap_or(0);
         vec![(Key::<Entities>::DEFAULT.id(), bound)]
     }
 
     fn check(&self) -> Result<(), String> {
+        self.spans.check(Self::OVERLAP)?;
         let n = self.spans.len();
         if self.subject.len() != n || self.object.len() != n || self.kind.len() != n || self.score.len() != n {
             return Err("a subject, an object, a kind and a score for every relation".into());
