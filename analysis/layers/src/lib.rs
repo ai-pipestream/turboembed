@@ -106,6 +106,7 @@ mod containment;
 mod core_tests;
 mod date;
 pub mod export;
+mod filterable;
 mod generic;
 mod language_spans;
 mod levels;

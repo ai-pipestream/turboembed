@@ -351,6 +351,25 @@ impl<L> Spans<L> {
     pub fn filter(&self, scores: Option<&[f64]>, rule: FilterRule) -> Vec<Ix<L>> {
         filter_spans(self, scores, rule)
     }
+
+    /// The items `kept` names, in order: bounding envelopes, and the
+    /// fragment columns rebuilt when any kept item is discontinuous (a
+    /// kept continuous item is then one fragment). What a predicate-driven
+    /// item filter uses to preserve discontinuous spans; `kept` must be
+    /// in ascending order with every index inside this layer.
+    pub fn subset(&self, kept: &[usize]) -> Spans<L> {
+        let mut out = Spans::with_capacity(self.view, kept.len());
+        for &i in kept {
+            let ix = Ix::new(i as u32);
+            if self.is_discontinuous(ix) {
+                let fragments: Vec<Span> = self.fragments(ix).collect();
+                out.try_push_fragments(&fragments).expect("fragments a valid item holds");
+            } else {
+                out.push(self.get(ix));
+            }
+        }
+        out
+    }
 }
 
 #[inline]

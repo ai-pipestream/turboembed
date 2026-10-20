@@ -250,13 +250,8 @@ impl<A: Annotator> Bound<A> {
     /// The first required input that was skipped or failed on this
     /// document, and why.
     fn skipped_input(&self, doc: &Document) -> Option<String> {
-        A::Reads::ids(&self.reads).into_iter().zip(A::Reads::required()).filter(|&(_, r)| r).find_map(
-            |(k, _)| match doc.status(k) {
-                Some(Status::Skipped(why)) => Some(format!("{k} was skipped: {why}")),
-                Some(Status::Failed(e)) => Some(format!("{k} failed: {e}")),
-                _ => None,
-            },
-        )
+        let reads: Vec<(KeyId, bool)> = A::Reads::ids(&self.reads).into_iter().zip(A::Reads::required()).collect();
+        declined_input(&reads, doc)
     }
 
     /// An input this step would read beside the wrong instance of the
@@ -264,13 +259,7 @@ impl<A: Annotator> Bound<A> {
     /// predicted ones. Reading that instance as well is fine (an
     /// evaluation compares the two).
     fn unaligned(&self, doc: &Document) -> Option<Error> {
-        let reads = A::Reads::ids(&self.reads);
-        reads.iter().find_map(|&layer| {
-            doc.made_on(layer).iter().filter(|on| !reads.contains(on)).find_map(|&on| {
-                let read = reads.iter().copied().find(|&r| r.ty == on.ty && doc.present(r))?;
-                Some(Error::Unaligned { layer, on, read: read.name })
-            })
-        })
+        unaligned_read(&A::Reads::ids(&self.reads), doc)
     }
 
     /// Runs the annotator over the inputs of documents `at`, a result for
@@ -300,6 +289,29 @@ impl<A: Annotator> Bound<A> {
 fn panicked(annotator: &'static str, panic: Box<dyn Any + Send>) -> Error {
     let what = panic.downcast_ref::<&str>().copied().or_else(|| panic.downcast_ref::<String>().map(String::as_str));
     Error::Annotator { annotator, detail: format!("panicked: {}", what.unwrap_or("with no message")) }
+}
+
+/// The first required input, among `reads`, that was skipped or failed on
+/// this document, and why. Shared by `Bound` and the predicate steps.
+pub(crate) fn declined_input(reads: &[(KeyId, bool)], doc: &Document) -> Option<String> {
+    reads.iter().filter(|&&(_, r)| r).find_map(|&(k, _)| match doc.status(k) {
+        Some(Status::Skipped(why)) => Some(format!("{k} was skipped: {why}")),
+        Some(Status::Failed(e)) => Some(format!("{k} failed: {e}")),
+        _ => None,
+    })
+}
+
+/// An input, among `reads`, that would be read beside the wrong instance of
+/// the layer it was made on: tags made on the gold tokens, read beside the
+/// predicted ones. Reading that instance as well is fine (an evaluation
+/// compares the two).
+pub(crate) fn unaligned_read(reads: &[KeyId], doc: &Document) -> Option<Error> {
+    reads.iter().find_map(|&layer| {
+        doc.made_on(layer).iter().filter(|on| !reads.contains(on)).find_map(|&on| {
+            let read = reads.iter().copied().find(|&r| r.ty == on.ty && doc.present(r))?;
+            Some(Error::Unaligned { layer, on, read: read.name })
+        })
+    })
 }
 
 /// What an output is aligned to.
@@ -332,6 +344,12 @@ pub trait Step: Send + Sync {
     /// For each output, what it is aligned to.
     fn anchors(&self) -> Vec<AnchorUse>;
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send>;
+    /// A hash of the step's configuration, folded into the `config` of the
+    /// provenance its layers record. The default is 0; `Bound` returns its
+    /// annotator's `config_hash`.
+    fn config_hash(&self) -> u64 {
+        0
+    }
     /// Adds what `compute` made. An output the step did not deliver on a
     /// document is recorded as skipped or failed there, and the first
     /// failure is that document's result.
@@ -357,6 +375,10 @@ impl<A: Annotator> Step for Bound<A> {
 
     fn anchors(&self) -> Vec<AnchorUse> {
         Bound::anchors(self)
+    }
+
+    fn config_hash(&self) -> u64 {
+        self.annotator.config_hash()
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {

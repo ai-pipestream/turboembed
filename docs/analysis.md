@@ -622,6 +622,26 @@ and the aligned layer is made on the instance the step wrote under its
 own key (named or default). The same holds for an index into an earlier
 output: tokens written with their sentences point into those sentences.
 
+### Predicate steps
+
+Two combinators from OpenNLP 3.x's document pipeline are `Step`s rather
+than `Annotator`s, because what they do cannot be said as static input
+and output types. `FilterAnnotator<L>` (OpenNLP's `FilterAnnotator<T>`)
+copies the items of a source `Key<L>` that a predicate selects to a
+distinct target `Key<L>`, preserving spans, discontinuous fragments and
+aligned columns (`Spans::subset`); the target is added even when nothing
+passes, and `source == target` is refused at construction. A layer opts
+in by implementing `Filterable`; `turbo-analysis-layers` implements it
+for the shared span-anchored layers. `ConditionalAnnotator` (OpenNLP's
+`ConditionalAnnotator`) runs a `when_true` step when a condition over
+the document holds, else a `when_false` step, or else records the
+provided layers `Status::Skipped`, the typed pipeline's form of the
+empty layers the Java form adds. It verifies the required inputs before
+testing the condition, requires the union of the branches' inputs, and
+both branches must provide the same layers. Its `config_hash`
+incorporates both branches and the condition's identity, as
+`FilterAnnotator`'s incorporates its predicate and keys.
+
 ## The analyzer
 
 `Analyzer::builder()` takes the steps in any order, and the layers the
