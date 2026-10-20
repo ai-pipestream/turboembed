@@ -1,0 +1,7 @@
+Reduced numerical test weights derived from fastino/gliner2-base-v1.
+Source: https://huggingface.co/fastino/gliner2-base-v1
+Revision: f9634218e53580c56edf0de97ca1a7d3f1c2354e
+Model card licence: Apache-2.0 (see repository LICENSE).
+Modifications: tensor slicing and reduced encoder configuration as recorded
+in provenance.json and docs/deberta.md. These are not production model weights.
+Reference outputs produced by Hugging Face Transformers 4.57.1 (Apache-2.0).

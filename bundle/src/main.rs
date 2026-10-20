@@ -8,6 +8,10 @@ use turbo_bundle::{Result, catalogue, distill, fetch, seal};
 
 const USAGE: &str = "\
 usage:
+  turbo-bundle deberta-convert <config.json> <checkpoint.safetensors> <prefix-or-dash> <repo> <revision> <license> <new-dir>
+      create a native DeBERTa-v3 encoder package for the Rust API
+  turbo-bundle deberta-verify <directory>
+      check encoder configuration, tensor shapes and weight digest
   turbo-bundle make [--accept-terms] <recipe.json | model-id> <upstream-dir> <bundle-dir>
       fetch, stage, reference, convert, seal and verify, in that order
   turbo-bundle fetch [--accept-terms] <recipe.json | model-id> <upstream-dir>
@@ -46,6 +50,18 @@ fn run(args: &[&str]) -> Result<()> {
     let accept = args.contains(&"--accept-terms");
     let args: Vec<&str> = args.iter().copied().filter(|a| *a != "--accept-terms").collect();
     match args.as_slice() {
+        ["deberta-convert", config, weights, prefix, repo, revision, license, out] => {
+            turbo_bundle::deberta::convert_files(
+                Path::new(config),
+                Path::new(weights),
+                prefix,
+                (repo, revision, license),
+                Path::new(out),
+            )
+        }
+        ["deberta-verify", dir] => {
+            turbo::deberta::package::PackageManifest::load(Path::new(dir)).map(|_| ()).map_err(|e| e.message)
+        }
         ["make", recipe, upstream, bundle] => {
             let r = Recipe::load(Path::new(recipe))?;
             fetch::fetch(&r, Path::new(upstream), accept)?;

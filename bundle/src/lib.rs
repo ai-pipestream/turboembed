@@ -11,6 +11,7 @@
 pub mod api;
 pub mod catalogue;
 pub mod convert;
+pub mod deberta;
 pub mod distill;
 pub mod fetch;
 pub mod matryoshka;

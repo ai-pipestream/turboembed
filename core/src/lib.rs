@@ -20,6 +20,8 @@ mod classes;
 pub mod cpu;
 #[cfg(feature = "cuda")]
 pub mod cuda;
+#[cfg(feature = "cpu")]
+pub mod deberta;
 #[cfg(feature = "hailo")]
 pub mod hailo;
 pub mod head;

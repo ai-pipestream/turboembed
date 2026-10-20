@@ -1,0 +1,456 @@
+{
+  "repository": "fastino/gliner2-base-v1",
+  "revision": "f9634218e53580c56edf0de97ca1a7d3f1c2354e",
+  "license": "Apache-2.0",
+  "transformers": "4.57.1",
+  "torch": "2.14.1+cpu",
+  "header_sha256": "d08b9e201eab056c30e4986da53df1330675455ca0446b9367ab3a34cdf9c0a8",
+  "slices": [
+    {
+      "tensor": "encoder.embeddings.word_embeddings.weight",
+      "source_shape": [
+        128011,
+        768
+      ],
+      "row_start": 1000,
+      "shape": [
+        16,
+        32
+      ],
+      "range_sha256": "e0a574f159f7252ee4bc1650cdca3cb61e7a585369a7eb414060162f78cc683b"
+    },
+    {
+      "tensor": "encoder.embeddings.LayerNorm.weight",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "064b1b887b42c4e6cbcda8ef2912cc3e7b025e1217fb4beb95d0af55acd119a3"
+    },
+    {
+      "tensor": "encoder.embeddings.LayerNorm.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "53aabec0fe7b38d983c660e1bebdc689f48d248aba95e710820eb7001dd09001"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.self.query_proj.weight",
+      "source_shape": [
+        768,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        32
+      ],
+      "range_sha256": "8d6e4f5af65c2540b41e5d731d4c9e8a7724135d80137e5e4570ff5bf281215e"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.self.query_proj.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "20411820c89a4c8c44a16f2a469a2a4c9b29a169a5a610f94031711e292e08ea"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.self.key_proj.weight",
+      "source_shape": [
+        768,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        32
+      ],
+      "range_sha256": "3a1315eb0187aa70030723a14b5ca8261293ff1e5f6e4c12b79c67596d67ad9c"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.self.key_proj.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "44e9f91d14edf1474ce0566cf4ed1f38db752ee3fb59791f10c2f945b6c66b76"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.self.value_proj.weight",
+      "source_shape": [
+        768,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        32
+      ],
+      "range_sha256": "5e6d3458c63dbc80804e55ba8dc14effcc690bf02a8646dc8a622294094a3dc5"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.self.value_proj.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "3795f51ad95c10f383134f48cdcf0155d4524d7d34718790daccf1aba3aab008"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.output.dense.weight",
+      "source_shape": [
+        768,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        32
+      ],
+      "range_sha256": "c5a1aa5cf5a564c42c76ddb48588579c96ca536c0792eede1a317989812bacff"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.output.dense.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "0e6ec4f026b3749a90642909e969d2dea1450cf870f9559099b607351817adf6"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.output.LayerNorm.weight",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "377fe403623f879e36eb09b8acdb523d1438cbb7c432ba0de6a9caa9981860b7"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.attention.output.LayerNorm.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "9cc6957762121e85928090ec2ca0d45b35055b12960b9e7eabcc117709f25c45"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.intermediate.dense.weight",
+      "source_shape": [
+        3072,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        48,
+        32
+      ],
+      "range_sha256": "0e45f9dc685e84c5a9ab9917d07efcf56f211cbd712ce5c78d285a2eec0e7e58"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.intermediate.dense.bias",
+      "source_shape": [
+        3072
+      ],
+      "row_start": 0,
+      "shape": [
+        48
+      ],
+      "range_sha256": "cc8feabad7cbd115dd13d34a99f84dc7bfd0e82fb0ec2c564cfcf0b6fb16a793"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.output.dense.weight",
+      "source_shape": [
+        768,
+        3072
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        48
+      ],
+      "range_sha256": "6cac8caaf0b84f297d166e51ca6499b4005503853fa56b1f8d07e4724380d762"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.output.dense.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "016a1a95e1b223fcd0b856e2c7af9415f027519d136d381e87f5a91f58e9f3f8"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.output.LayerNorm.weight",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "e04b51a0198afd5234c5ad0d5721dd610b05d0ef97c508fd807b115631c60a2f"
+    },
+    {
+      "tensor": "encoder.encoder.layer.0.output.LayerNorm.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "fd7620d9b43c2202d31a91e43301fa852bf595983307e5452d95c0f6c73f116a"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.self.query_proj.weight",
+      "source_shape": [
+        768,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        32
+      ],
+      "range_sha256": "8e76f13de2f6297c3ad353f766e6cd98c1794822cef1a346aea5a295ff701732"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.self.query_proj.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "3b36a24026be9c7bd1add15319d2fbe3dd153e5dabd088c6603b00ba06111112"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.self.key_proj.weight",
+      "source_shape": [
+        768,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        32
+      ],
+      "range_sha256": "bf7b27c5810ac8f61aac2de37594278674d93d2690f21dac40e323f6291ccc8c"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.self.key_proj.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "ddac38dfe8a3469dd97c4d61d84778053e18a526b7dea74e9201bc4960e1bd5d"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.self.value_proj.weight",
+      "source_shape": [
+        768,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        32
+      ],
+      "range_sha256": "fa01e38d868d11da52d32bd3e650eef10fbd7e7724374645c3b89429f44f1a87"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.self.value_proj.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "efb82d6d877d711cff846537789e484c4390ce3c446a059f1023436dfc1fea5d"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.output.dense.weight",
+      "source_shape": [
+        768,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        32
+      ],
+      "range_sha256": "b611395aee47dd23f5377155d5baaa73ae97c352e44a960dd8570fb92b4aaa2c"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.output.dense.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "f646b1fd963fbd39a03355561369b4c91aadbf3950886d98ce0c54b0cf0f3935"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.output.LayerNorm.weight",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "24e811cc9705b89b749f6ba32eaa7e48a66f689917597ea1e8e40f7505d37102"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.attention.output.LayerNorm.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "72654658fa83b6a50cca6f1d5d8cfd280007cc97b538981b1e9e5963e01b4659"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.intermediate.dense.weight",
+      "source_shape": [
+        3072,
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        48,
+        32
+      ],
+      "range_sha256": "c963d7f5ee4442db5072305b69c920bae7fa69aaa041089ba722fb380ff22134"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.intermediate.dense.bias",
+      "source_shape": [
+        3072
+      ],
+      "row_start": 0,
+      "shape": [
+        48
+      ],
+      "range_sha256": "399eeb6b1fd1b5ee05d4d088c33d3d1f438571bc90affdfc126c31fd7c401ac4"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.output.dense.weight",
+      "source_shape": [
+        768,
+        3072
+      ],
+      "row_start": 0,
+      "shape": [
+        32,
+        48
+      ],
+      "range_sha256": "3acd936882f7f74e2e59647fbb76d5a2e1ccc629822192e215a08946f0ec040e"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.output.dense.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "19fcaddaa9b0719afcf05b5fb9f3cfab36eca26b5279ce2f9675662261cb4071"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.output.LayerNorm.weight",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "27480e9139624846ad150b3fad484b6a4c9ea3335d9f74cb7c08dced74ee2615"
+    },
+    {
+      "tensor": "encoder.encoder.layer.1.output.LayerNorm.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "2aeca5c5489b728f972fce9c83f339c764da8cc1a35231035f17d39e88ff094e"
+    },
+    {
+      "tensor": "encoder.encoder.rel_embeddings.weight",
+      "source_shape": [
+        512,
+        768
+      ],
+      "row_start": 248,
+      "shape": [
+        16,
+        32
+      ],
+      "range_sha256": "f55ef5b9752e06e1a6263ca53e86187f516e6ae3603dbd55e921e98ca72efdb3"
+    },
+    {
+      "tensor": "encoder.encoder.LayerNorm.weight",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "8fe811fd657249ee300a8ede795ef316534acf91243bd333cb0e67f609b6232a"
+    },
+    {
+      "tensor": "encoder.encoder.LayerNorm.bias",
+      "source_shape": [
+        768
+      ],
+      "row_start": 0,
+      "shape": [
+        32
+      ],
+      "range_sha256": "d9308ffb3f1f6fead8fc899a47f0c0d3d3ce7d8dadd47114b00c4c4fe777ef12"
+    }
+  ]
+}
