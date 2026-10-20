@@ -14,6 +14,7 @@
 //! chunking against a gold one and sweeps the chunker's settings.
 
 mod boundaries;
+pub mod cascade;
 pub mod clauses;
 mod cohesion;
 pub mod coref;
@@ -34,6 +35,10 @@ mod sums;
 mod weigh;
 
 pub use boundaries::{Costs, StructureBoundaries};
+pub use cascade::{
+    Cascade, CascadeConfig, CascadeHit, CascadeResult, FilterMode, LexicalSpace, QueryVector, Stage, UnitFilter,
+    VectorSpace, recall_at_k,
+};
 pub use clauses::{ClauseBoundaries, ClauseBreak, ClauseCosts, ClauseCuts, SentenceClauseCuts, clause_cuts};
 pub use cohesion::{Cohesion, CohesiveChunker};
 pub use coref::{
