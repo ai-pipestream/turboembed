@@ -2409,6 +2409,14 @@ name = "turbo-unicode-gen"
 version = "0.1.0"
 
 [[package]]
+name = "turbo-vector-index"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
 name = "turbo-wordnet"
 version = "0.1.0"
 dependencies = [

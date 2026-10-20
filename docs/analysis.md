@@ -20,6 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-group` | `analysis/group/` | Sketches, near-duplicate groups and version links inside a document and across a batch, and boilerplate detection (Near duplicates and boilerplate, below) |
+| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization (Exact vector index, below) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
@@ -2105,6 +2106,53 @@ document graph. The codecs refuse a truncated payload, a count past the
 payload, trailing bytes, a shingle of no words, an empty item with
 shingle hashes, an unknown boilerplate kind and a score outside
 `[0, 1]` or not a number.
+
+## Exact vector index
+
+`turbo-vector-index` holds a bounded set of vectors next to inference,
+such as label or schema-field candidates, the entities of a loaded
+catalog or glossary candidates before a heavier scorer, and answers the
+exact top-k for a query. It is not a corpus index: rows live in memory,
+and there is no persistence, update or delete.
+
+An `IndexBuilder` takes rows from `Vectors<L>` layers (`push_layer`,
+which skips the items the layer lists as empty) or from slices (`push`),
+each with the caller's metadata, and `build` returns a `VectorIndex`,
+which is immutable and shared across threads. Rows are numbered from 0
+in the order they were added.
+
+- **Embedding space.** Every index records a `Space`: the `ModelRef` of
+  the model that made its vectors, their dimension, and whether they are
+  unit length (`Normalization::Unit` or `None`). A layer or a query
+  names its space, and one from another model (id, revision or manifest
+  hash), another dimension or another normalization is refused with
+  `IndexError::Model`, `Dimension` or `Normalization`, never scored.
+- **Vectors refused.** A vector of zeros, a value that is not finite, a
+  vector longer than `MAX_LENGTH` (`2^50`), and in a unit space a
+  vector whose length is not within `UNIT_TOLERANCE` (`1e-3`) of 1, on
+  insert and on query, each with its own error naming the row or query.
+  A layer refused for any row adds none of its rows.
+- **Scores.** `Metric::Dot` scores the dot product of the query and the
+  row. `Metric::Cosine` stores each row divided by its length (in
+  `f64`), divides the query the same way and scores their dot product,
+  clamped to `[-1, 1]`, so a tiny vector keeps its direction. A dot
+  product is summed in `f32` in one fixed order (16 lanes, then the
+  lanes added pairwise), and the AVX-512, AVX2 and scalar paths all
+  follow it, so a score is the same bits on every path; a unit test
+  checks the three against each other.
+- **Top-k.** `top_k` scores every row and keeps the best `k` in a heap;
+  equal scores (by `==`, so `0.0` and `-0.0` tie) keep insertion order.
+  `top_k_batch` answers several queries with the same results, scoring
+  sixteen queries at a time against tiles of rows that fit in the
+  core's cache, so the rows are read from memory once for every sixteen
+  queries rather than once a query.
+
+The tests compare top-k with a full sort of every row's score on random
+rows of 7 to 1024 dimensions and on ties, duplicates, scaled copies and
+`k` beyond the collection, compare scores with the metric computed in
+`f64`, and run queries from eight threads against the single-thread
+answer. `analysis/vector-index/examples/index_bench.rs` times one query
+at a time and a batch over random unit rows.
 
 ## Levels
 

@@ -1,0 +1,69 @@
+//! Rows as the kernels read them: blocks of 16 `f32`, one cache line
+//! each, a row padded with zeros to whole blocks.
+
+use crate::{IndexError, MAX_LENGTH, Metric, Normalization, Space, UNIT_TOLERANCE, Which};
+
+/// The width of a block, and the number of lanes a dot product is summed
+/// in.
+pub(crate) const LANES: usize = 16;
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C, align(64))]
+pub(crate) struct Block(pub(crate) [f32; LANES]);
+
+/// The blocks a row of `dim` values takes.
+pub(crate) fn blocks(dim: u32) -> usize {
+    (dim as usize).div_ceil(LANES)
+}
+
+/// Checks `values` as a vector of `space` and writes it into `out` as the
+/// index scores it: as given for [`Metric::Dot`], divided by its length
+/// for [`Metric::Cosine`], zeros after the last value. `out` holds
+/// `blocks(space.dim)` blocks and `values` has `space.dim` values.
+pub(crate) fn prepare(
+    values: &[f32],
+    space: &Space,
+    metric: Metric,
+    which: Which,
+    out: &mut [Block],
+) -> Result<(), IndexError> {
+    let mut sum = 0.0f64;
+    for (i, &v) in values.iter().enumerate() {
+        if !v.is_finite() {
+            return Err(IndexError::NonFinite(which, i));
+        }
+        sum += f64::from(v) * f64::from(v);
+    }
+    if sum == 0.0 {
+        return Err(IndexError::Zero(which));
+    }
+    let len = sum.sqrt();
+    if len > MAX_LENGTH {
+        return Err(IndexError::TooLong(which, len));
+    }
+    if space.normalization == Normalization::Unit && (len - 1.0).abs() > UNIT_TOLERANCE {
+        return Err(IndexError::NotUnit(which, len));
+    }
+    out.fill(Block::default());
+    let flat = flat_mut(out);
+    match metric {
+        Metric::Dot => flat[..values.len()].copy_from_slice(values),
+        Metric::Cosine => {
+            for (o, &v) in flat.iter_mut().zip(values) {
+                *o = (f64::from(v) / len) as f32;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn flat(blocks: &[Block]) -> &[f32] {
+    // SAFETY: a Block is 16 f32 with no padding (repr(C), size 64), so a
+    // slice of n blocks is 16n contiguous f32.
+    unsafe { std::slice::from_raw_parts(blocks.as_ptr().cast::<f32>(), blocks.len() * LANES) }
+}
+
+fn flat_mut(blocks: &mut [Block]) -> &mut [f32] {
+    // SAFETY: as in `flat`, and the borrow is unique.
+    unsafe { std::slice::from_raw_parts_mut(blocks.as_mut_ptr().cast::<f32>(), blocks.len() * LANES) }
+}

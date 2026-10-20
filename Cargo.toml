@@ -57,6 +57,7 @@ members = [
     "analysis/fuzz",
     "analysis/grammar",
     "analysis/group",
+    "analysis/vector-index",
     "analysis/wordnet",
     "analysis/hunspell",
     "analysis/zoo",
