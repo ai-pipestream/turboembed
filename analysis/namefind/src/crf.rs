@@ -3,7 +3,7 @@
 //! and entity kinds remain available through `CrfNameFinder::best_sequences`;
 //! arbitrary recombinations of lattice edges are not ranked CRF paths.
 use std::collections::BTreeMap;
-use turbo_analysis::{Alternatives, Annotator, Error, Ix, IxRange, Layer, ModeSet, Refs, Span, Spans, View};
+use turbo_analysis::{Alternatives, Annotator, Error, Ix, IxRange, Layer, ModeSet, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Entities, Sentences, TagSet, Tokens};
 use turbo_maxent::ModelFile;
 use turbo_sequence::PatternMode;
@@ -15,6 +15,7 @@ pub struct CrfNameAnnotator {
     model: CrfSequenceModel,
     k: usize,
     hash: u64,
+    model_ref: ModelRef,
 }
 impl CrfNameAnnotator {
     pub fn new(file: ModelFile, k: usize) -> Result<Self, String> {
@@ -29,7 +30,14 @@ impl CrfNameAnnotator {
             .copied()
             .chain((k as u64).to_le_bytes())
             .fold(0xcbf29ce484222325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3));
-        Ok(Self { file, model, k, hash })
+        // The model's identity, computed once: the provenance of every
+        // document it runs on names it.
+        let model_ref = ModelRef {
+            id: format!("turbo-namefind:crf:{}", file.language()),
+            revision: file.opennlp_version().into(),
+            sha256: file.sha256().to_hex(),
+        };
+        Ok(Self { file, model, k, hash, model_ref })
     }
 }
 impl Annotator for CrfNameAnnotator {
@@ -39,6 +47,9 @@ impl Annotator for CrfNameAnnotator {
     type Writes = (Entities, Alternatives<Entities>);
     fn config_hash(&self) -> u64 {
         self.hash
+    }
+    fn model(&self) -> Option<ModelRef> {
+        Some(self.model_ref.clone())
     }
     fn annotate(&self, (view, sentences, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
