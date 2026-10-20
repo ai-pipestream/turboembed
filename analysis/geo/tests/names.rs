@@ -313,3 +313,21 @@ fn the_step_reuses_its_scratch_between_documents() {
         assert!(!got.is_empty());
     }
 }
+
+#[test]
+fn a_key_that_ends_inside_a_token_does_not_hide_a_name() {
+    // An image written by hand, with a key that ends in a space: it matches
+    // into the next token, so it is no name, and the shorter key stays.
+    let mut glossary = Glossary::new();
+    glossary.push("0", "new york").unwrap();
+    glossary.push("1", "new york ").unwrap();
+    let image = image_buf(MappedGlossaryWriter::write(&glossary, Case::Sensitive).unwrap());
+    let finder = NameFinder::from_bytes(image.bytes()).unwrap();
+    let (mut all, mut kept) = (Vec::new(), Vec::new());
+    let mut scratch = NameScratch::new();
+    finder.find_all("New York city", &mut scratch, &mut all);
+    finder.find("New York city", &mut scratch, &mut kept);
+    let want = [turbo_geo::NameMatch { span: Span::new(0, 8), key: EntryIx(0) }];
+    assert_eq!(all, want);
+    assert_eq!(kept, want);
+}

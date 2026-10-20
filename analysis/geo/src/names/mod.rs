@@ -41,7 +41,8 @@ use std::fmt;
 
 use turbo_analysis::Span;
 use turbo_glossary::{
-    BuildError, Case, GlossaryMatch, ImageError, MappedGlossaryMatcher, MappedGlossaryWriter, Scratch,
+    BuildError, Candidate, Case, GlossaryMatch, ImageError, MappedGlossaryMatcher, MappedGlossaryWriter, Scratch,
+    select,
 };
 use turbo_glossary_layers::{EntryIx, Glossary};
 
@@ -115,6 +116,7 @@ pub struct NameScratch {
     start_at: Vec<u32>,
     end_at: Vec<u32>,
     glossary: Scratch,
+    candidates: Vec<Candidate>,
     matches: Vec<GlossaryMatch>,
 }
 
@@ -156,6 +158,28 @@ impl<'a> NameFinder<'a> {
     /// (by start, then end).
     pub fn find_all(&self, text: &str, scratch: &mut NameScratch, out: &mut Vec<NameMatch>) {
         let first = out.len();
+        self.hits(text, scratch, |span, key| out.push(NameMatch { span, key }));
+        out[first..].sort_unstable();
+    }
+
+    /// Appends to `out` the names in `text` without overlaps: those of
+    /// [`NameFinder::find_all`], leftmost first, then the longest, as the
+    /// glossary matcher selects.
+    pub fn find(&self, text: &str, scratch: &mut NameScratch, out: &mut Vec<NameMatch>) {
+        let mut candidates = std::mem::take(&mut scratch.candidates);
+        candidates.clear();
+        self.hits(text, scratch, |span, entry| candidates.push(Candidate { span, tokens: 0, entry }));
+        scratch.matches.clear();
+        select(&mut candidates, &mut scratch.matches);
+        out.extend(scratch.matches.iter().map(|m| NameMatch { span: m.span, key: m.entry }));
+        scratch.candidates = candidates;
+    }
+
+    /// Calls `hit` with the text span and key of every automaton hit that
+    /// starts at a token's start and ends at a token's end. Only those are
+    /// names: a key of another image that starts or ends inside a token is
+    /// left out before any selection.
+    fn hits(&self, text: &str, scratch: &mut NameScratch, mut hit: impl FnMut(Span, EntryIx)) {
         let s = &mut *scratch;
         s.folder.fold_text(text, &mut s.folded, &mut s.spans, &mut s.starts, &mut s.ends);
         let n = s.folded.len() + 1;
@@ -167,30 +191,11 @@ impl<'a> NameFinder<'a> {
             }
         }
         let (spans, start_at, end_at) = (&s.spans, &s.start_at, &s.end_at);
-        self.matcher.scan(&s.folded, &mut s.glossary, |hit, key| {
-            let (i, j) = (start_at[hit.start as usize], end_at[hit.end as usize]);
+        self.matcher.scan(&s.folded, &mut s.glossary, |h, key| {
+            let (i, j) = (start_at[h.start as usize], end_at[h.end as usize]);
             if i > 0 && j > 0 {
-                out.push(NameMatch { span: Span::new(spans[i as usize - 1].start, spans[j as usize - 1].end), key });
+                hit(Span::new(spans[i as usize - 1].start, spans[j as usize - 1].end), key);
             }
         });
-        out[first..].sort_unstable();
-    }
-
-    /// Appends to `out` the names in `text` without overlaps: leftmost
-    /// first, then the longest, as the glossary matcher selects.
-    pub fn find(&self, text: &str, scratch: &mut NameScratch, out: &mut Vec<NameMatch>) {
-        let s = &mut *scratch;
-        s.folder.fold_text(text, &mut s.folded, &mut s.spans, &mut s.starts, &mut s.ends);
-        let edges = s.starts.iter().chain(s.ends.iter()).copied();
-        let boundaries = turbo_glossary::Boundaries::from_offsets(s.folded.len() as u32, edges);
-        s.matches.clear();
-        self.matcher.find(&s.folded, &boundaries, &mut s.glossary, &mut s.matches);
-        for m in &s.matches {
-            // Every key of an image this crate wrote starts and ends with a
-            // token; a key of another image that does not is left out.
-            if let (Ok(i), Ok(j)) = (s.starts.binary_search(&m.span.start), s.ends.binary_search(&m.span.end)) {
-                out.push(NameMatch { span: Span::new(s.spans[i].start, s.spans[j].end), key: m.entry });
-            }
-        }
     }
 }
