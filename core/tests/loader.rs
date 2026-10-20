@@ -111,12 +111,12 @@ fn another_bundle_version_is_invalid() {
 
 #[test]
 fn a_task_this_build_does_not_have_is_unsupported() {
-    let e = with("task-rerank", |m| m["task"] = json!("TASK_RERANK"));
+    let e = with("task-future", |m| m["task"] = json!("TASK_FUTURE"));
     assert_eq!(e.code, UNSUPPORTED_TASK, "{e:?}");
     // Its own task block is unknown to this build; the task still decides.
-    let e = with("task-rerank-block", |m| {
-        m["task"] = json!("TASK_RERANK");
-        m["rerank"] = json!({ "max_seq": 512 });
+    let e = with("task-future-block", |m| {
+        m["task"] = json!("TASK_FUTURE");
+        m["future"] = json!({ "max_seq": 512 });
     });
     assert_eq!(e.code, UNSUPPORTED_TASK, "{e:?}");
     let e = with("task-garbage", |m| m["task"] = json!("embed"));

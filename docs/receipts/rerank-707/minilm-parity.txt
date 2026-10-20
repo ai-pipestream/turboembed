@@ -1,0 +1,1 @@
+model=cross-encoder/ms-marco-MiniLM-L6-v2 threads=1 pairs=5 max_abs_error=0.000004292 scores=[-3.343036, 8.50071, -2.5410092, -5.2124405, -3.1392899]

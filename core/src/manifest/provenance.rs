@@ -25,6 +25,8 @@ pub struct Reference {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Case {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub passage: Option<String>,
     pub text: String,
     pub prompt_role: PromptRole,
 }

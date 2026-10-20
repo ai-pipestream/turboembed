@@ -17,13 +17,13 @@ import sys
 
 import safetensors
 import torch
-from safetensors.torch import save_file
+from safetensors.torch import save_file, load_file
 
 SETTINGS = ["tensors=as stored, contiguous", "weights_only=True"]
 
 
 def main(src, out, produced_by_path):
-    state = torch.load(src, map_location="cpu", weights_only=True)
+    state = load_file(src, device="cpu") if src.endswith(".safetensors") else torch.load(src, map_location="cpu", weights_only=True)
     if not isinstance(state, dict) or not all(isinstance(v, torch.Tensor) for v in state.values()):
         sys.exit("the checkpoint is not a flat state dict of tensors")
     save_file({name: t.contiguous() for name, t in state.items()}, out)

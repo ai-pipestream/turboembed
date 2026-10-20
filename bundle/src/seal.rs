@@ -408,6 +408,14 @@ pub fn verify(bundle: &Path) -> Result<()> {
 
     let bytes = b.read_verified(&m.reference.file).map_err(|e| e.message)?;
     let st = safetensors::File::parse(&m.reference.file, &bytes).map_err(|e| e.message)?;
+    if m.task == "TASK_RERANK" {
+        Head::load(&b).map_err(|e| e.message)?;
+        let scores = st.get("scores", Dtype::F32, 2).map_err(|e| e.message)?;
+        if scores.shape != [m.reference.cases.len() as u64, 1] || scores.f32s().iter().any(|v| !v.is_finite()) {
+            return Err("reference.scores: expected finite [pairs, 1] relevance logits".into());
+        }
+        return Ok(());
+    }
     let emb = st.get("embeddings", Dtype::F32, 2).map_err(|e| e.message)?;
     let embed = m.embed();
     let (n, dim) = (m.reference.cases.len(), embed.dim as usize);

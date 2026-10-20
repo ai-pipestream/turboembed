@@ -102,7 +102,11 @@ impl Tokenizer {
             }
             Kind::Unigram(u) => {
                 if !piece.is_empty() {
-                    u.encode(text, base, piece, out);
+                    if self.normalized_specials.is_empty() {
+                        u.encode(text, base, piece, out);
+                    } else {
+                        u.encode_added(text, base, piece, &self.normalized_specials, out);
+                    }
                 }
             }
             Kind::Bpe(b) => {

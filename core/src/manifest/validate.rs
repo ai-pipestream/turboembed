@@ -7,12 +7,14 @@ impl Manifest {
                 self.bundle_version
             )));
         }
-        if self.task != "TASK_EMBED" {
+        if self.task != "TASK_EMBED" && self.task != "TASK_RERANK" {
             if is_task_name(&self.task) {
                 return Err(unsupported_task(&self.task));
             }
             return Err(invalid(format!("manifest.json: task: unknown value {:?}", self.task)));
         }
+
+        self.validate_rerank()?;
 
         // files[]: the list every other path must be in.
         let mut listed = HashSet::new();
@@ -50,9 +52,11 @@ impl Manifest {
         }
 
         // embed
-        let Some(e) = &self.embed else {
+        if self.task == "TASK_EMBED" && self.embed.is_none() {
             return Err(invalid("manifest.json: embed: required for TASK_EMBED"));
-        };
+        }
+        let shape = self.encoder();
+        let e = &shape;
         positive("embed.dim", e.dim)?;
         positive("embed.max_seq", e.max_seq)?;
         positive("embed.max_batch", e.max_batch)?;

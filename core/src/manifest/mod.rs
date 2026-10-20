@@ -23,6 +23,8 @@ pub struct Manifest {
     pub task: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub embed: Option<Embed>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rerank: Option<Rerank>,
     pub tokenizer: Tokenizer,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub architecture: Option<Architecture>,
@@ -55,7 +57,7 @@ pub struct Source {
     pub commit: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Embed {
     pub dim: u32,
@@ -115,7 +117,7 @@ impl Manifest {
             Err(e) => {
                 // A task this build does not have is reported as such, not
                 // as a malformed manifest.
-                if let Some(t) = task.filter(|t| t != "TASK_EMBED" && is_task_name(t)) {
+                if let Some(t) = task.filter(|t| t != "TASK_EMBED" && t != "TASK_RERANK" && is_task_name(t)) {
                     return Err(unsupported_task(&t));
                 }
                 let path = e.path().to_string();
@@ -135,3 +137,6 @@ impl Manifest {
         self.files.iter().find(|f| f.path == path).expect("validate() requires every path in files")
     }
 }
+
+mod rerank;
+pub use rerank::*;

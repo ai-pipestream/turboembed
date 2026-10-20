@@ -9,6 +9,9 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let load = backend::offered!(b, model_load)?;
     let release = backend::offered!(b, model_release)?;
     let bundle = bundle::Bundle::open(Path::new(path))?; // rules 1 to 4
+    if bundle.manifest.rerank.is_some() && b.name() != "cpu" {
+        return Err(Error::new(status::UNSUPPORTED_TASK, "rerank requires the CPU backend"));
+    }
     let tokenizer = Tokenizer::load(&bundle)?; // rule 5
     let m = &bundle.manifest;
     let arch = cstr(&c.runtime.devices[c.device as usize].info.arch);
@@ -16,10 +19,10 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let weights = model::Weights::load(&bundle, index)?; // rules 7 and 8
     let art = &m.artifacts[index];
 
-    let e = m.embed();
+    let e = m.encoder();
     let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
     info.struct_size = size_of::<turbo_model_info>() as u32;
-    info.task = TURBO_TASK_EMBED;
+    info.task = if m.rerank.is_some() { TURBO_TASK_RERANK } else { TURBO_TASK_EMBED };
     info.dim = e.dim;
     info.pooling = match e.pooling {
         manifest::Pooling::Mean => TURBO_POOLING_MEAN,
@@ -53,12 +56,20 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     info.output_dims_count = dims.len() as u32;
     info.output_dims[..dims.len()].copy_from_slice(&dims);
 
+    if let Some(r) = &m.rerank {
+        info.rerank_query_tokens = r.query_tokens;
+        info.rerank_pair_template = match r.pair_template {
+            manifest::PairTemplate::Bert => TURBO_PAIR_BERT,
+            manifest::PairTemplate::Roberta => TURBO_PAIR_ROBERTA,
+        };
+    }
+    let rerank_head = m.rerank.as_ref().map(|_| head::Head::load_artifact(&bundle, index)).transpose()?;
     let tensors = weights.tensors();
     let desc = weights.desc(&tensors);
     let mut raw = std::ptr::null_mut();
     backend::check(b, "model_load", |err| unsafe { load(c.raw, &desc, &mut raw, err) })?; // rule 9
     let output_dims = e.output_dims.clone();
-    Ok(Model { context: c.clone(), raw, release, weights, tokenizer, info, output_dims })
+    Ok(Model { context: c.clone(), raw, release, weights, tokenizer, info, output_dims, rerank_head })
 }
 
 /// # Safety
@@ -111,10 +122,15 @@ pub unsafe extern "C" fn turbo_model_get_info(
             // the raw pointer, never as the whole struct.
             let size = (out as *const u32).read();
             let want = size_of::<turbo_model_info>();
-            if size as usize != TURBO_MODEL_INFO_SIZE_V1 {
+            if size as usize != TURBO_MODEL_INFO_SIZE_V1 && size as usize != TURBO_MODEL_INFO_SIZE_V2 {
                 sized(size, want, "turbo_model_info")?;
             }
-            let info = m.inner.info;
+            let mut info = m.inner.info;
+            if info.task == TURBO_TASK_RERANK {
+                info.dim = 0;
+                info.pooling = 0;
+                info.normalize = 0;
+            }
             std::ptr::copy_nonoverlapping(
                 (&info as *const turbo_model_info).cast::<u8>().add(4),
                 out.cast::<u8>().add(4),
