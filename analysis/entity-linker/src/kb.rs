@@ -367,7 +367,12 @@ impl KnowledgeBase {
                 let scaled_prior = p.alias_prior * sim;
                 match best_fuzzy.get_mut(&p.entity_idx) {
                     Some(entry) => {
-                        if sim.total_cmp(&entry.0).then_with(|| scaled_prior.total_cmp(&entry.1)).is_gt() {
+                        if sim
+                            .total_cmp(&entry.0)
+                            .then_with(|| scaled_prior.total_cmp(&entry.1))
+                            .then_with(|| entry.2.cmp(&p.matched_alias))
+                            .is_gt()
+                        {
                             *entry = (sim, scaled_prior, p.matched_alias.clone());
                             updated = true;
                         }

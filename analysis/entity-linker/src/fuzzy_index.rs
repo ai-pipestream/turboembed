@@ -27,7 +27,7 @@ type BigramKey = ([char; 2], u8);
 pub(crate) struct FuzzyAliasIndex {
     sketches_by_idx: Vec<KeySketch>,
     sorted_sketches: Vec<KeySketch>,
-    key_token_lens: Vec<u8>,
+    key_token_lens: Vec<u16>,
     token_postings: HashMap<String, PostingList>,
     trigram_postings: HashMap<TrigramKey, PostingList>,
     bigram_postings: HashMap<BigramKey, PostingList>,
@@ -75,7 +75,7 @@ impl FuzzyAliasIndex {
                     token_postings.entry(tok.to_owned()).or_default().push((char_len, k_idx));
                 }
             }
-            key_token_lens.push(toks_buf.len().min(u8::MAX as usize) as u8);
+            key_token_lens.push(toks_buf.len().min(u16::MAX as usize) as u16);
 
             if chars.is_empty() {
                 continue;
@@ -202,23 +202,26 @@ impl FuzzyAliasIndex {
                 };
                 if min_shared <= t_q {
                     let seed_count = t_q - min_shared + 1;
-                    let mut dice_shared: HashMap<u32, u8> = HashMap::new();
+                    let mut dice_shared: HashMap<u32, u16> = HashMap::new();
                     for (idx, &tok) in q_tokens.iter().enumerate() {
                         if let Some(list) = self.token_postings.get(tok) {
                             if idx < seed_count {
                                 for &(_, k_idx) in list {
-                                    *dice_shared.entry(k_idx).or_insert(0) += 1;
+                                    let c = dice_shared.entry(k_idx).or_insert(0);
+                                    *c = c.saturating_add(1);
                                 }
                             } else if !dice_shared.is_empty() {
                                 for &(_, k_idx) in list {
                                     if let Some(c) = dice_shared.get_mut(&k_idx) {
-                                        *c += 1;
+                                        *c = c.saturating_add(1);
                                     }
                                 }
                             }
                         }
                     }
-                    for (k_idx, shared) in dice_shared {
+                    let mut dice_entries: Vec<(u32, u16)> = dice_shared.into_iter().collect();
+                    dice_entries.sort_unstable_by_key(|&(k_idx, _)| k_idx);
+                    for (k_idx, shared) in dice_entries {
                         if (shared as usize) >= min_shared {
                             let t_k = self.key_token_lens[k_idx as usize] as usize;
                             let dice_scaled = 0.95 * (2.0 * (shared as f64)) / ((t_q + t_k) as f64);

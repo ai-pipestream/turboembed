@@ -172,3 +172,30 @@ fn codex_10k_common_prefix_7digit_and_fable_12char_recall_parity() {
         }
     }
 }
+
+#[test]
+fn token_dice_handles_256_plus_shared_tokens_and_deterministic_alias_ties() {
+    // 1. >= 256 shared tokens must not overflow u8 in dice_shared / key_token_lens
+    let forward_tokens: Vec<String> = (0..256).map(|i| format!("word{i:03}")).collect();
+    let query = forward_tokens.join(" ");
+    let mut reverse_tokens: Vec<String> = forward_tokens.iter().rev().cloned().collect();
+    reverse_tokens.push("extra".to_owned());
+    let alias_257 = reverse_tokens.join(" ");
+
+    let kb = KnowledgeBase::from_entities("wide-tokens", vec![KbEntity::new("E256", alias_257.clone())]).unwrap();
+    let prov = CatalogProvider::new(kb);
+    let got = prov.generate_candidates(&query, None, 32, 0.947);
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].kb_id, "E256");
+    assert!((got[0].match_similarity - 0.9481481481481481).abs() < 1e-12);
+
+    // 2. Tied similarity and prior across multiple aliases of the same entity must pick matched_alias deterministically
+    for _ in 0..100 {
+        let ent =
+            KbEntity::new("E_TIE", "unrelated").with_alias("green red blue", 1.0).with_alias("blue green red", 1.0);
+        let tie_prov = CatalogProvider::new(KnowledgeBase::from_entities("tie-kb", vec![ent]).unwrap());
+        let hits = tie_prov.generate_candidates("red blue green", None, 1, 0.9);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].matched_alias, "blue green red");
+    }
+}
