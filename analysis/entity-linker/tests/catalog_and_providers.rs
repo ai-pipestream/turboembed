@@ -230,3 +230,134 @@ fn gazetteer_wordnet_and_glossary_providers_generate_candidates() {
     assert_eq!(nlp_cands.len(), 1);
     assert_eq!(nlp_cands[0].kb_id, "GLOSS-NLP");
 }
+
+#[test]
+fn saturates_token_window_scales_extreme_weights_and_validates_thresholds() {
+    use turbo_analysis::{Annotator, Document, IxRange, Key, Layer, Provenance, Span, Spans, Tag, TagSet, ViewId};
+    use turbo_analysis_layers::{Entities, Tokens};
+    use turbo_entity_linker::{EntityLinker, LinkerConfig, LinkerWeights};
+
+    // 1. Finite f64::MAX weights scale without overflowing to infinity
+    let w = LinkerWeights { prior_weight: f64::MAX, type_weight: f64::MAX, context_weight: 0.0, coherence_weight: 0.0 };
+    assert_eq!(w.normalized(), (0.5, 0.5, 0.0, 0.0));
+
+    let kb = KnowledgeBase::from_entities(
+        "kb",
+        vec![
+            KbEntity::new("E1", "Alex One").with_alias("Alex", f64::MAX).with_types(["PERSON"]).with_prior(1.0),
+            KbEntity::new("E2", "Alex Two").with_alias("Alex", f64::MAX).with_types(["PERSON"]).with_prior(1.0),
+        ],
+    )
+    .unwrap();
+    let prov = CatalogProvider::new(kb);
+    let cands = prov.generate_candidates("Alex", None, 10, 1.0);
+    assert_eq!(cands.len(), 2);
+    assert!((cands[0].alias_prior - 0.5).abs() < 1e-12);
+    assert!((cands[1].alias_prior - 0.5).abs() < 1e-12);
+
+    // 2. Token context window with usize::MAX does not overflow
+    let mut doc = Document::new("Alex weather");
+    let v0 = ViewId::SOURCE;
+    let mut tok_spans = Spans::new(v0);
+    tok_spans.push(Span::new(0, 4));
+    tok_spans.push(Span::new(5, 12));
+    doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: None }, Provenance::by("test")).unwrap();
+
+    let mut ent_spans = Spans::new(v0);
+    ent_spans.push(Span::new(0, 4));
+    doc.add(
+        &Key::<Entities>::DEFAULT,
+        Entities {
+            spans: ent_spans,
+            tokens: vec![IxRange::new(0, 1)],
+            kind: vec![Tag(0)],
+            kinds: TagSet::new("ner", &["PERSON"]),
+            score: vec![1.0],
+        },
+        Provenance::by("test"),
+    )
+    .unwrap();
+
+    let linker_max_win = EntityLinker::new()
+        .add_provider(prov.clone())
+        .with_config(LinkerConfig { context_window_tokens: usize::MAX, ..LinkerConfig::default() });
+    let linked = linker_max_win.link(&doc).expect("usize::MAX token window must saturate");
+    assert_eq!(linked.len(), 1);
+    assert!(linked.kb_id[0].is_some());
+
+    // 3. Invalid thresholds (NaN, out of [0, 1]) are rejected
+    for bad_cfg in [
+        LinkerConfig { nil_threshold: f64::NAN, ..LinkerConfig::default() },
+        LinkerConfig { nil_threshold: 1.5, ..LinkerConfig::default() },
+        LinkerConfig { min_type_compatibility: -0.1, ..LinkerConfig::default() },
+        LinkerConfig { fuzzy_threshold: f64::INFINITY, ..LinkerConfig::default() },
+    ] {
+        let bad_linker = EntityLinker::new().add_provider(prov.clone()).with_config(bad_cfg);
+        assert!(bad_linker.link(&doc).is_err());
+    }
+
+    // 4. Annotator::config_hash() reflects config and provider content
+    let linker_a = EntityLinker::new().add_provider(prov.clone());
+    let linker_b = EntityLinker::new()
+        .add_provider(prov)
+        .with_config(LinkerConfig { nil_threshold: 0.99, ..LinkerConfig::default() });
+    assert_ne!(linker_a.config_hash(), 0);
+    assert_ne!(linker_a.config_hash(), linker_b.config_hash());
+}
+
+#[test]
+fn selects_best_eligible_candidate_and_preserves_link_when_top_k_is_zero() {
+    use turbo_analysis::{Document, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, ViewId};
+    use turbo_analysis_layers::Entities;
+    use turbo_entity_linker::{EntityLinker, LinkerConfig, LinkerWeights};
+
+    let kb = KnowledgeBase::from_entities(
+        "kb",
+        vec![
+            KbEntity::new("E_UNKNOWN", "Alex Unknown")
+                .with_alias("Alex", 1.0)
+                .with_description("unrelated words")
+                .with_prior(1.0),
+            KbEntity::new("E_PERSON", "Alex Person")
+                .with_alias("Alex", 1.0)
+                .with_types(["PERSON"])
+                .with_description("unrelated words")
+                .with_prior(1.0),
+        ],
+    )
+    .unwrap();
+    let prov = CatalogProvider::new(kb);
+
+    let mut doc = Document::new("Alex weather");
+    let v0 = ViewId::SOURCE;
+    let mut ent_spans = Spans::new(v0);
+    ent_spans.push(Span::new(0, 4));
+    doc.add(
+        &Key::<Entities>::DEFAULT,
+        Entities {
+            spans: ent_spans,
+            tokens: vec![IxRange::new(0, 1)],
+            kind: vec![Tag(0)],
+            kinds: TagSet::new("ner", &["PERSON"]),
+            score: vec![1.0],
+        },
+        Provenance::by("test"),
+    )
+    .unwrap();
+
+    let cfg = LinkerConfig {
+        weights: LinkerWeights { prior_weight: 0.0, type_weight: 0.0, context_weight: 1.0, coherence_weight: 0.0 },
+        min_type_compatibility: 0.90,
+        nil_threshold: 0.01,
+        ..LinkerConfig::default()
+    };
+    let linker = EntityLinker::new().add_provider(prov.clone()).with_config(cfg.clone());
+    let linked = linker.link(&doc).unwrap();
+    assert_eq!(linked.kb_id[0].as_deref(), Some("E_PERSON"));
+
+    // Setting top_k = 0 truncates only the retained CandidateLinks, not the resolved entity
+    let linker_top0 = EntityLinker::new().add_provider(prov).with_config(LinkerConfig { top_k: 0, ..cfg });
+    let linked_top0 = linker_top0.link(&doc).unwrap();
+    assert_eq!(linked_top0.kb_id[0].as_deref(), Some("E_PERSON"));
+    assert!(linked_top0.candidates[0].is_empty());
+}

@@ -151,7 +151,48 @@ impl Annotator for EntityLinker {
     );
     type Writes = (LinkedEntities,);
 
+    fn config_hash(&self) -> u64 {
+        const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+        const PRIME: u64 = 0x0000_0100_0000_01b3;
+        let mix = |mut h: u64, bytes: &[u8]| -> u64 {
+            for &b in bytes {
+                h ^= u64::from(b);
+                h = h.wrapping_mul(PRIME);
+            }
+            h ^= 0xff;
+            h.wrapping_mul(PRIME)
+        };
+        let w = &self.config.weights;
+        let mut h = OFFSET;
+        for bits in [
+            w.prior_weight.to_bits(),
+            w.type_weight.to_bits(),
+            w.context_weight.to_bits(),
+            w.coherence_weight.to_bits(),
+            self.config.nil_threshold.to_bits(),
+            self.config.min_type_compatibility.to_bits(),
+            self.config.fuzzy_threshold.to_bits(),
+            self.config.top_k as u64,
+            self.config.max_candidates_per_provider as u64,
+            u64::from(self.config.coref_propagation),
+            self.config.context_window_tokens as u64,
+            match self.vector_normalization {
+                Normalization::Unit => 1,
+                Normalization::None => 0,
+            },
+            self.providers.len() as u64,
+        ] {
+            h = mix(h, &bits.to_le_bytes());
+        }
+        for p in &self.providers {
+            h = mix(h, p.provider_id().as_bytes());
+            h = mix(h, &p.fingerprint().to_le_bytes());
+        }
+        h
+    }
+
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.config.validate().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         let (view, entities, sentences, tokens, mentions, mention_groups, entity_groups, entity_vectors) = input;
         if entities.spans.view() != view.id() {
             return Err(Error::Annotator {
@@ -265,22 +306,22 @@ impl Annotator for EntityLinker {
             let had_candidates = !raw_per_mention[i].is_empty();
             let had_type_compatible = type_scores[i].iter().any(|&ts| ts >= self.config.min_type_compatibility);
             let mut cands = std::mem::take(&mut all_scored[i]);
+
+            let resolved = cands
+                .iter()
+                .find(|c| c.type_score >= self.config.min_type_compatibility && c.score >= self.config.nil_threshold)
+                .cloned();
+            let top_score = cands
+                .iter()
+                .find(|c| c.type_score >= self.config.min_type_compatibility)
+                .or_else(|| cands.first())
+                .map_or(0.0, |c| c.score);
+
             if self.config.top_k > 0 && cands.len() > self.config.top_k {
                 cands.truncate(self.config.top_k);
             } else if self.config.top_k == 0 {
                 cands.clear();
             }
-
-            let resolved = if had_type_compatible {
-                cands
-                    .first()
-                    .filter(|top| {
-                        top.type_score >= self.config.min_type_compatibility && top.score >= self.config.nil_threshold
-                    })
-                    .cloned()
-            } else {
-                None
-            };
 
             match resolved {
                 Some(best) => {
@@ -300,7 +341,6 @@ impl Annotator for EntityLinker {
                     } else {
                         NilReason::BelowThreshold
                     };
-                    let top_score = cands.first().map_or(0.0, |c| c.score);
                     let nil_key = if let Some(g) = entity_to_coref_group[i] {
                         format!("coref:{g}")
                     } else {
@@ -356,11 +396,13 @@ fn build_context_sets(
             && toks.len() > 0
         {
             let range = entities.tokens[i];
-            let start_tok = range.start.get().saturating_sub(window_tokens);
-            let end_tok = (range.end.get() + window_tokens).min(toks.len());
+            let start_tok = range.start.get().saturating_sub(window_tokens).min(toks.len() - 1);
+            let end_tok = range.end.get().saturating_add(window_tokens).clamp(1, toks.len());
             let start_b = toks.spans.get(Ix::new(start_tok as u32)).start as usize;
             let end_b = toks.spans.get(Ix::new((end_tok - 1) as u32)).end as usize;
-            &text[start_b.min(text.len())..end_b.min(text.len())]
+            let lo = start_b.min(text.len());
+            let hi = end_b.clamp(lo, text.len());
+            &text[lo..hi]
         } else {
             text
         };

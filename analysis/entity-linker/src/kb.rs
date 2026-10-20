@@ -232,13 +232,14 @@ impl KnowledgeBase {
         let mut alias_map = HashMap::with_capacity(raw_alias_map.len());
         let mut folded_keys = Vec::with_capacity(raw_alias_map.len());
         for (folded, list) in raw_alias_map {
-            let total_w: f64 = list.iter().map(|(_, _, w)| *w).sum();
+            let max_w = list.iter().map(|(_, _, w)| *w).fold(0.0_f64, f64::max);
+            let total_scaled: f64 = if max_w > 0.0 { list.iter().map(|(_, _, w)| *w / max_w).sum() } else { 0.0 };
             let mut postings: Vec<AliasPosting> = list
                 .into_iter()
                 .map(|(entity_idx, matched_alias, w)| AliasPosting {
                     entity_idx,
                     matched_alias,
-                    alias_prior: if total_w > 0.0 { (w / total_w).clamp(0.0, 1.0) } else { 1.0 },
+                    alias_prior: if total_scaled > 0.0 { ((w / max_w) / total_scaled).clamp(0.0, 1.0) } else { 1.0 },
                 })
                 .collect();
             postings.sort_by(|a, b| {
@@ -357,5 +358,42 @@ impl KnowledgeBase {
     /// Parses a comma-separated catalog (`id,name,aliases,types,description,prior[,related_ids]`).
     pub fn from_csv(provider_id: impl Into<String>, text: &str) -> Result<Self, CatalogError> {
         crate::snapshot::parse_delimited(provider_id.into(), text, ',')
+    }
+
+    /// Computes a deterministic 64-bit FNV-1a content fingerprint over the catalog.
+    pub fn fingerprint(&self) -> u64 {
+        const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+        const PRIME: u64 = 0x0000_0100_0000_01b3;
+        let mix = |mut h: u64, bytes: &[u8]| -> u64 {
+            for &b in bytes {
+                h ^= u64::from(b);
+                h = h.wrapping_mul(PRIME);
+            }
+            h ^= 0xff;
+            h.wrapping_mul(PRIME)
+        };
+        let mut h = mix(OFFSET, self.provider_id.as_bytes());
+        h = mix(h, &(self.entities.len() as u64).to_le_bytes());
+        for ent in &self.entities {
+            h = mix(h, ent.id.as_bytes());
+            h = mix(h, ent.name.as_bytes());
+            h = mix(h, &ent.popularity_prior.to_bits().to_le_bytes());
+            for (alias, w) in &ent.aliases {
+                h = mix(h, alias.as_bytes());
+                h = mix(h, &w.to_bits().to_le_bytes());
+            }
+            for t in &ent.entity_types {
+                h = mix(h, t.as_bytes());
+            }
+            h = mix(h, ent.description.as_bytes());
+            for rel in &ent.related_ids {
+                h = mix(h, rel.as_bytes());
+            }
+        }
+        if let Some(vi) = &self.vector_index {
+            h = mix(h, &(vi.len() as u64).to_le_bytes());
+            h = mix(h, &(vi.space().dim as u64).to_le_bytes());
+        }
+        h
     }
 }

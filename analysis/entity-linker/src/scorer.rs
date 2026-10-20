@@ -31,8 +31,28 @@ impl LinkerWeights {
         let t = if self.type_weight.is_finite() { self.type_weight.max(0.0) } else { 0.0 };
         let x = if self.context_weight.is_finite() { self.context_weight.max(0.0) } else { 0.0 };
         let c = if self.coherence_weight.is_finite() { self.coherence_weight.max(0.0) } else { 0.0 };
-        let sum = p + t + x + c;
-        if sum <= 1e-12 { (0.25, 0.25, 0.25, 0.25) } else { (p / sum, t / sum, x / sum, c / sum) }
+        let max_w = p.max(t).max(x).max(c);
+        if max_w <= 0.0 {
+            return (0.25, 0.25, 0.25, 0.25);
+        }
+        let (ps, ts, xs, cs) = (p / max_w, t / max_w, x / max_w, c / max_w);
+        let sum = ps + ts + xs + cs;
+        (ps / sum, ts / sum, xs / sum, cs / sum)
+    }
+
+    /// Validates that all four weights are finite and non-negative.
+    pub fn validate(&self) -> Result<(), String> {
+        for (name, val) in [
+            ("prior_weight", self.prior_weight),
+            ("type_weight", self.type_weight),
+            ("context_weight", self.context_weight),
+            ("coherence_weight", self.coherence_weight),
+        ] {
+            if !val.is_finite() || val < 0.0 {
+                return Err(format!("invalid {name} {val}: must be finite and >= 0.0"));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -55,6 +75,23 @@ pub struct LinkerConfig {
     pub coref_propagation: bool,
     /// Token window radius around a mention when sentence boundaries are unavailable.
     pub context_window_tokens: usize,
+}
+
+impl LinkerConfig {
+    /// Validates that all thresholds are finite in `[0.0, 1.0]` and weights are finite and non-negative.
+    pub fn validate(&self) -> Result<(), String> {
+        self.weights.validate()?;
+        for (name, val) in [
+            ("nil_threshold", self.nil_threshold),
+            ("min_type_compatibility", self.min_type_compatibility),
+            ("fuzzy_threshold", self.fuzzy_threshold),
+        ] {
+            if !val.is_finite() || !(0.0..=1.0).contains(&val) {
+                return Err(format!("invalid {name} {val}: must be finite and in [0.0, 1.0]"));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Default for LinkerConfig {
@@ -378,8 +415,11 @@ pub(crate) fn score_all_mentions(
             });
         }
         scored.sort_by(|a, b| {
-            b.score
-                .total_cmp(&a.score)
+            let a_elig = a.type_score >= config.min_type_compatibility;
+            let b_elig = b.type_score >= config.min_type_compatibility;
+            b_elig
+                .cmp(&a_elig)
+                .then_with(|| b.score.total_cmp(&a.score))
                 .then_with(|| b.prior_score.total_cmp(&a.prior_score))
                 .then_with(|| a.kb_id.cmp(&b.kb_id))
         });

@@ -1,8 +1,5 @@
-//! Pluggable knowledge-base providers ([`KbProvider`]) for candidate generation:
-//! - [`CatalogProvider`] over a caller [`KnowledgeBase`] (with exact alias, fuzzy alias, and [`turbo_vector_index::VectorIndex`] retrieval)
-//! - [`GazetteerProvider`] over any [`turbo_geo::Gazetteer`]
-//! - [`WordNetProvider`] over any [`turbo_wordnet::LexicalKnowledgeBase`]
-//! - [`GlossaryProvider`] over a [`turbo_glossary_layers::Glossary`]
+//! Pluggable [`KbProvider`] backends ([`CatalogProvider`], [`GazetteerProvider`],
+//! [`WordNetProvider`], and [`GlossaryProvider`]) for candidate generation.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -63,6 +60,13 @@ pub trait KbProvider: Send + Sync {
     /// Returns the inverse document frequency weight of a context term, if known.
     fn term_idf(&self, _term: &str) -> f64 {
         1.0
+    }
+
+    /// Returns a 64-bit content fingerprint of this provider for provenance hashing.
+    fn fingerprint(&self) -> u64 {
+        self.provider_id()
+            .bytes()
+            .fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x1000_0000_01b3))
     }
 }
 
@@ -214,6 +218,10 @@ impl KbProvider for CatalogProvider {
 
     fn term_idf(&self, term: &str) -> f64 {
         self.kb.term_idf(term)
+    }
+
+    fn fingerprint(&self) -> u64 {
+        self.kb.fingerprint()
     }
 }
 
@@ -480,5 +488,9 @@ impl KbProvider for GlossaryProvider {
 
     fn lookup_by_id(&self, kb_id: &str) -> Option<RawCandidate> {
         self.kb.lookup_by_id(kb_id)
+    }
+
+    fn fingerprint(&self) -> u64 {
+        self.kb.fingerprint()
     }
 }
