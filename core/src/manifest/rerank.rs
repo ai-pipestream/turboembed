@@ -52,6 +52,7 @@ impl Manifest {
                 prefix_query: String::new(),
                 prefix_document: String::new(),
                 output_dims: Vec::new(),
+                sparse: None,
             }
         } else {
             self.embed().clone()
