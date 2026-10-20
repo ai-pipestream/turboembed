@@ -22,7 +22,7 @@ pub use boilerplate::{Boilerplate, BoilerplateKind, Covered};
 pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
-pub use generic::{Confidence, Language, Utf16Spans, Vectors};
+pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;

@@ -350,6 +350,22 @@ view spans. `ContentHashes<L>` (`turbo:content-hashes<L>`) gives every
 unit a deterministic content ID over its level, heading path and
 fragment text, so a re-chunked document diffs cleanly.
 
+Late pooling (`turbo_chunker::LateChunkAnnotator<L>`) pools the
+already-contextualized `Vectors<Subwords>` into `Vectors<L>` for any
+span layer `L` with mean, max or masked-mean pooling (masked mean
+drops punctuation pieces and configured stopwords first) and optional
+L2 normalization, without re-running the encoder per item. It reads
+`TokenVectorWindows` (`turbo:token-vector-windows`), the encoder
+window spans the token vectors were produced under, and refuses
+vectors whose model differs from the subwords' model or pieces no
+window holds; an item straddling a window seam is refused, split and
+recombined by piece count, or pooled across the seam, according to
+its `WindowPolicy` (`Reject` by default). Items selecting no piece
+get an empty vector row, and discontinuous items pool only their
+fragments. Because the output is the ordinary `Vectors<L>` layer,
+bind the step at a named instance to keep late and naive embeddings
+side by side on one document.
+
 `Spans<L>` provides lookup and conflict-resolution helpers that work
 across continuous, nested, overlapping and discontinuous spans:
 
@@ -736,6 +752,7 @@ fields mean bumps its `SCHEMA`.
 | `IndexedTerms` (`Terms` alias) | `turbo:indexed-terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
 | `ContentHashes<L>` | `turbo:content-hashes<L>` | `L` | `turbo-chunker` |
+| `TokenVectorWindows` | `turbo:token-vector-windows` | text | `turbo-analysis-layers` |
 | `Mentions` | `opennlp:mentions` | text (indexes `Sentences`, `Tokens`, `Entities` when lifted from entities) | `turbo-coref` |
 | `Speakers` | `opennlp:speakers` | text | `turbo-coref` |
 | `Sketches<L>` | `turbo:sketches<L>` | `L` | `turbo-group` |

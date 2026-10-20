@@ -20,6 +20,7 @@ pub mod coref;
 mod drift;
 mod gaps;
 mod hashes;
+pub mod late;
 mod limits;
 mod providers;
 pub mod rechunk;
@@ -39,6 +40,7 @@ pub use coref::{
 };
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
+pub use late::{LateChunkAnnotator, Pooling, WindowPolicy};
 pub use providers::{
     ClauseCutProvider, CorefBoundariesProvider, DistilledBoundariesProvider, DriftProvider,
     SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider,
@@ -50,6 +52,7 @@ pub use sentiment::{
     sentiment_shift,
 };
 pub use sums::{Rows, Sums};
+pub use turbo_analysis_layers::TokenVectorWindows;
 pub use weigh::{
     COREF, DRIFT, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_coref,
     weigh_with_sentiment,
