@@ -41,7 +41,9 @@ use super::coverage::{coverage, token_range};
 use super::{Segmentation, invalid};
 use crate::{Budget, Chunker, Weight, no_term, weigh_with_sentiment};
 
-/// The boundary signals of one document, one cost per sentence each.
+/// The boundary signals of one document, one cost per sentence each, as
+/// the steps that write them compute them: the structure's costs, the
+/// drift's, the sentiment shift's and the coreference continuity costs.
 pub struct Signals {
     pub structure: Boundaries,
     pub drift: Boundaries,

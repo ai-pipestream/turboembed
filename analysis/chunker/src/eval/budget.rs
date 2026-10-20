@@ -15,8 +15,7 @@
 
 use std::ops::Range;
 
-use turbo_analysis::IxRange;
-use turbo_analysis_layers::{Block, Boundaries, Chunks, Cut, Sentences, Structure};
+use turbo_analysis_layers::{Block, Chunks, Sentences, Structure};
 
 use super::Segmentation;
 use crate::Budget;
@@ -179,29 +178,4 @@ pub fn structure_protected(sentences: &Sentences, structure: &Structure) -> Vec<
         .filter(|r| r.end > r.start + 1)
         .map(|sentences| Protected { kind: Protect::Structure, sentences })
         .collect()
-}
-
-/// A coreference boundary signal for `n` sentences: the gap after
-/// sentence g costs `per_chain` for each chain that spans it (a chain of
-/// sentences `[s, e)` spans the gaps `s..e - 1`), saturating at the i32
-/// range. Every reason is `Cut::Sentence`, so the signal never relabels
-/// a cut. Time is the sentences plus the chains, by a difference array.
-pub fn coref_costs(chains: &[IxRange<Sentences>], n: usize, per_chain: i32) -> Boundaries {
-    let mut delta = vec![0i64; n + 1];
-    for c in chains {
-        let (s, e) = (c.start.get(), c.end.get().min(n));
-        if e > s + 1 {
-            delta[s] += 1;
-            delta[e - 1] -= 1;
-        }
-    }
-    let mut open = 0i64;
-    let cost = delta[..n]
-        .iter()
-        .map(|&d| {
-            open += d;
-            (open * i64::from(per_chain)).clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
-        })
-        .collect();
-    Boundaries { cost, reason: vec![Cut::Sentence; n] }
 }

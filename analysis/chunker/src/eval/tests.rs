@@ -1,8 +1,8 @@
-use turbo_analysis::{Ix, IxRange, Span, Spans, ViewId};
-use turbo_analysis_layers::{Block, Cut, Sentences, Structure, Subwords};
+use turbo_analysis::{Ix, Span, Spans, ViewId};
+use turbo_analysis_layers::{Block, Sentences, Structure, Subwords};
 
 use super::boundary::{pk, prf, probe_distance, score, window_diff};
-use super::budget::{BudgetReport, Kept, Preservation, Protect, Protected, coref_costs, structure_protected};
+use super::budget::{BudgetReport, Kept, Preservation, Protect, Protected, structure_protected};
 use super::coverage::{coverage, token_range};
 use super::*;
 use crate::Budget;
@@ -236,15 +236,4 @@ fn code_blocks_tables_and_quotes_are_protected() {
     // The code block has bytes of sentences 1 to 3; the table holds one
     // sentence and has no gap to part; a paragraph is not protected.
     assert_eq!(structure_protected(&sentences, &st), [Protected { kind: Protect::Structure, sentences: 1..4 }]);
-}
-
-#[test]
-fn coref_costs_charge_the_gaps_a_chain_spans() {
-    let chains = [IxRange::new(0, 3), IxRange::new(1, 2), IxRange::new(2, 5), IxRange::new(3, 9)];
-    let b = coref_costs(&chains, 6, 500);
-    // [0, 3) spans gaps 0 and 1, [2, 5) gaps 2 and 3, [3, 9) is cut to
-    // [3, 6): gaps 3 and 4; a one-sentence chain spans none.
-    assert_eq!(b.cost, [500, 500, 500, 1000, 500, 0]);
-    assert_eq!(b.reason, [Cut::Sentence; 6]);
-    assert_eq!(coref_costs(&[IxRange::new(0, 4)], 4, i32::MAX).cost, [i32::MAX, i32::MAX, i32::MAX, 0]);
 }

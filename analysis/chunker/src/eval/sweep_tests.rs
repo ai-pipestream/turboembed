@@ -1,8 +1,8 @@
-use turbo_analysis::{Annotator, IxRange, ModelRef, Span, Spans, ViewId};
+use turbo_analysis::{Annotator, ModelRef, Span, Spans, ViewId};
 use turbo_analysis_layers::{Block, Boundaries, Cut, Sentences, Structure, Subwords};
 
 use super::Segmentation;
-use super::budget::{Protect, Protected, coref_costs};
+use super::budget::{Protect, Protected};
 use super::sweep::{ChunkerEvalReport, ChunkerSweep, Grid, Signals, SweepDoc};
 use crate::{Costs, StructureBoundaries, Weight};
 
@@ -34,7 +34,12 @@ fn doc() -> SweepDoc {
         reason: (0..12).map(|g| if shift(g) { Cut::TopicShift } else { Cut::Sentence }).collect(),
     };
     let sentiment = Boundaries { cost: vec![0; 12], reason: vec![Cut::Sentence; 12] };
-    let coref = coref_costs(&[IxRange::new(3, 6)], 12, Boundaries::UNIT);
+    // One coreference chain over sentences 3 to 5: a unit on each gap
+    // inside it.
+    let coref = Boundaries {
+        cost: (0..12).map(|g| if g == 3 || g == 4 { Boundaries::UNIT } else { 0 }).collect(),
+        reason: vec![Cut::Sentence; 12],
+    };
     SweepDoc {
         sentences,
         subwords,
