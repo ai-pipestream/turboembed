@@ -1,5 +1,6 @@
 //! The document: its text views and its layers.
 
+mod project;
 mod view;
 
 pub use view::View;
@@ -50,7 +51,7 @@ pub enum Status {
 /// the bytes of the original file (`to_source_bytes`).
 #[derive(Clone)]
 pub struct Document {
-    views: Vec<Arc<View>>,
+    pub(super) views: Vec<Arc<View>>,
     entries: Vec<Arc<Entry>>,
     /// None when the document was made from text: its bytes are then the
     /// UTF-8 of view 0 itself.
@@ -452,7 +453,7 @@ fn made_on(of: KeyId, p: &Provenance) -> KeyId {
 /// Every span inside the text, start before end, and both ends on a
 /// character boundary: a span that cuts a character cannot be read back as
 /// text, so it is refused here rather than found later by a panic.
-fn check_spans(text: &str, starts: &[u32], ends: &[u32]) -> Result<(), String> {
+pub(super) fn check_spans(text: &str, starts: &[u32], ends: &[u32]) -> Result<(), String> {
     if starts.len() != ends.len() {
         return Err(format!("{} starts and {} ends", starts.len(), ends.len()));
     }
