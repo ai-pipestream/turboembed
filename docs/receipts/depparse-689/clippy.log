@@ -1,0 +1,3 @@
+    Checking turbo-depparse v0.1.0 (<checkout>/analysis/depparse)
+    Checking turbo-train-components v0.1.0 (<checkout>/analysis/train-components)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.96s

@@ -12,3 +12,4 @@ turbo-formats = { path = "../formats" }
 turbo-maxent = { path = "../maxent" }
 turbo-train = { path = "../train" }
 turbo-unicode = { path = "../unicode" }
+turbo-jvm = { path = "../jvm" }

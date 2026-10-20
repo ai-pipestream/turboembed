@@ -18,7 +18,7 @@ mod model;
 mod sample;
 mod transition;
 
-pub use annotator::DependencyAnnotator;
+pub use annotator::{DependencyAnnotator, DependencyBackend};
 pub use context::{DependencyContextGenerator, ParserInput};
 pub use evaluation::{AttachmentScores, DependencyCrossValidator, DependencyEvaluator};
 pub use graph::{ArcDirection, DependencyArc, DependencyGraph, PathStep};
@@ -39,3 +39,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub(crate) fn error(e: impl std::fmt::Display) -> Error {
     Error(e.to_string())
 }
+
+pub mod feedforward;
+pub use feedforward::{
+    Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel, FeedforwardDependencyParser,
+    FeedforwardDependencyTrainer, FeedforwardSettings, NeuralWeights, Vocabulary,
+};
