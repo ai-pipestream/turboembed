@@ -23,8 +23,12 @@ pub unsafe extern "C" fn turbo_session_run(
             r.struct_size = size_of::<turbo_backend_run>() as u32;
             r.stage[TURBO_EMBED_STAGE_TOKENIZE] = if w.tokenized { TURBO_STAGE_HOST } else { TURBO_STAGE_UNUSED };
             let b = s.backend;
-            backend::check(b, "session_run", |err| (s.run)(s.raw, &mut r, err))?;
-            check_run(b, &r, w.tokenized)?;
+            if s.model.info.task == TURBO_TASK_RERANK {
+                r = rerank::run_pairs(s, &mut state)?;
+            } else {
+                backend::check(b, "session_run", |err| (s.run)(s.raw, &mut r, err))?;
+                check_run(b, &r, w.tokenized)?;
+            }
 
             let res = &mut *s.result;
             let i = &mut res.info;

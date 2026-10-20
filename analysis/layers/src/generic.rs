@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use turbo_analysis::{Anchor, Ix, Layer, LayerName, ModelRef};
+use turbo_analysis::{Anchor, Ix, Layer, LayerName, ModelRef, Overlap, Spans, TextSpans};
 
 use crate::Strs;
 
@@ -61,6 +61,39 @@ impl<L: Layer> Layer for Vectors<L> {
             return Err("zeros for every item with no vector".into());
         }
         Ok(())
+    }
+}
+
+/// The text spans of the encoder windows that produced a
+/// subword-vector layer, in text order, not overlapping. A
+/// producer of contextual `Vectors<Subwords>` publishes this
+/// beside the vectors; late pooling reads it as a required
+/// input, which is what keeps non-contextual per-token
+/// embeddings (which have no windows to present) from being
+/// pooled as if they were contextual.
+#[derive(Clone, Debug)]
+pub struct TokenVectorWindows {
+    pub spans: Spans<TokenVectorWindows>,
+}
+
+impl Layer for TokenVectorWindows {
+    const ID: &'static str = "turbo:token-vector-windows";
+
+    fn len(&self) -> usize {
+        self.spans.len()
+    }
+
+    fn text_spans(&self) -> Option<TextSpans<'_>> {
+        Some(self.spans.text_spans())
+    }
+
+    fn check(&self) -> Result<(), String> {
+        if self.spans.is_empty() {
+            return Err("at least one encoder window".into());
+        }
+        // Ordered, non-overlapping and continuous, so the window
+        // holding a piece is found by binary search.
+        self.spans.check(Overlap::None)
     }
 }
 

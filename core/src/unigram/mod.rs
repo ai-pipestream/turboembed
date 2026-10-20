@@ -39,6 +39,7 @@ pub struct Unigram {
     add_prefix_space: bool,
 }
 
+mod added;
 mod base64;
 mod charsmap;
 mod encode;

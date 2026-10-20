@@ -26,6 +26,11 @@ pub fn check_pinned(container: &str) -> Result<&str> {
 /// the row length the model is evaluated at.
 pub fn cases(recipe: &Recipe) -> Result<Value> {
     let m = &recipe.manifest;
+    if m["task"] == "TASK_RERANK" {
+        return Ok(json!({"task": "TASK_RERANK", "max_seq": m["rerank"]["max_seq"],
+            "max_batch": m["rerank"]["max_batch"], "query_tokens": m["rerank"]["query_tokens"],
+            "cases": m["reference"]["cases"], "threads": 1}));
+    }
     let max_seq = m["embed"]["max_seq"].as_u64().ok_or("manifest.embed.max_seq: missing")?;
     let max_batch = m["embed"]["max_batch"].as_u64().ok_or("manifest.embed.max_batch: missing")?;
     let prefix = |role: &str| -> Result<String> {

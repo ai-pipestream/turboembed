@@ -34,7 +34,8 @@ use crate::{
     Entities, Incivility, IncivilityLabel, IncivilityTarget, Incongruity, Language, Lemmas, Levels, Matches, Modifier,
     Money, Multiplier, NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals, PhraseChunks, Phrases, Pii,
     PiiConfidence, PiiKind, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation, ScaleMarker,
-    Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, Tokens, Unit, Utf16Spans, Vectors,
+    Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows, Tokens, Unit,
+    Utf16Spans, Vectors,
 };
 
 mod boilerplate;
@@ -63,6 +64,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Tokens>()
         .register::<Words>()
         .register::<Subwords>()
+        .register::<TokenVectorWindows>()
         .register::<PosTags>()
         .register::<WordPosTags>()
         .register::<MorphFeatures<Tokens>>()

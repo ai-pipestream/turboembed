@@ -1,0 +1,22 @@
+[
+  {
+    "text": "",
+    "passage": "",
+    "prompt_role": "PROMPT_NONE"
+  },
+  {
+    "text": "What is France?",
+    "passage": "Paris is in France.",
+    "prompt_role": "PROMPT_NONE"
+  },
+  {
+    "text": "Café 東京 🙂",
+    "passage": "Berlin is in Germany.",
+    "prompt_role": "PROMPT_NONE"
+  },
+  {
+    "text": "query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query ",
+    "passage": "passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage ",
+    "prompt_role": "PROMPT_NONE"
+  }
+]

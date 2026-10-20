@@ -127,7 +127,7 @@ pub unsafe extern "C" fn turbo_runtime_select(
 /// lowest speed_ratio among equals (0 is no record, so it loses), never a
 /// CPU. Returns the device, or none, and one line saying why.
 pub(super) fn select(rt: &Runtime, task: u32) -> Result<(Option<u32>, String)> {
-    if task != TURBO_TASK_EMBED {
+    if task != TURBO_TASK_EMBED && task != TURBO_TASK_RERANK {
         return Err(Error::new(INVALID_ENUM, format!("task: {task} is not a TURBO_TASK_* value")));
     }
     let mut best: Option<(u32, turbo_capability)> = None;
@@ -136,7 +136,7 @@ pub(super) fn select(rt: &Runtime, task: u32) -> Result<(Option<u32>, String)> {
     for (i, d) in rt.devices.iter().enumerate() {
         let i = i as u32;
         let label = format!("device {i} ({} {})", d.backend.name(), cstr(&d.info.name));
-        if d.info.kind == TURBO_DEVICE_CPU {
+        if d.info.kind == TURBO_DEVICE_CPU && task != TURBO_TASK_RERANK {
             skipped.push(format!("{label}: a CPU is never selected"));
             continue;
         }

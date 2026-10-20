@@ -1,0 +1,203 @@
+{
+  "manifest": {
+    "bundle_version": 1,
+    "model": {
+      "id": "BAAI/bge-reranker-base",
+      "revision": "1",
+      "source": {
+        "repository": "https://huggingface.co/BAAI/bge-reranker-base",
+        "commit": "2cfc18c9415c912f9d8155881c133215df768a70"
+      },
+      "license": "MIT"
+    },
+    "task": "TASK_RERANK",
+    "tokenizer": {
+      "file": "tokenizer.json",
+      "unigram": {
+        "precompiled_charsmap": true,
+        "collapse_spaces": true,
+        "metaspace": "▁",
+        "add_prefix_space": true
+      },
+      "special_tokens": [
+        {
+          "role": "SPECIAL_BOS",
+          "content": "<s>",
+          "id": 0,
+          "lstrip": false,
+          "rstrip": false,
+          "single_word": false,
+          "normalized": false
+        },
+        {
+          "role": "SPECIAL_PAD",
+          "content": "<pad>",
+          "id": 1,
+          "lstrip": false,
+          "rstrip": false,
+          "single_word": false,
+          "normalized": false
+        },
+        {
+          "role": "SPECIAL_EOS",
+          "content": "</s>",
+          "id": 2,
+          "lstrip": false,
+          "rstrip": false,
+          "single_word": false,
+          "normalized": false
+        },
+        {
+          "role": "SPECIAL_UNK",
+          "content": "<unk>",
+          "id": 3,
+          "lstrip": false,
+          "rstrip": false,
+          "single_word": false,
+          "normalized": false
+        },
+        {
+          "role": "SPECIAL_MASK",
+          "content": "<mask>",
+          "id": 250001,
+          "lstrip": true,
+          "rstrip": false,
+          "single_word": false,
+          "normalized": true
+        }
+      ],
+      "template": [
+        "<s>",
+        "$TEXT",
+        "</s>"
+      ],
+      "truncation": "TRUNCATE_RIGHT"
+    },
+    "architecture": {
+      "family": "FAMILY_ROBERTA",
+      "layers": 12,
+      "hidden": 768,
+      "heads": 12,
+      "intermediate": 3072,
+      "activation": "ACTIVATION_GELU_ERF",
+      "layer_norm_eps": 1e-05,
+      "position_embedding": "POSITION_ABSOLUTE",
+      "max_positions": 514,
+      "position_offset": 2,
+      "token_types": 1,
+      "vocab_size": 250002
+    },
+    "artifacts": [
+      {
+        "name": "weights-f32",
+        "format": "FORMAT_SAFETENSORS",
+        "files": [
+          "weights/model.safetensors"
+        ],
+        "backends": [
+          "cpu"
+        ],
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "tensor_names": {
+          "word_embeddings": "roberta.embeddings.word_embeddings.weight",
+          "position_embeddings": "roberta.embeddings.position_embeddings.weight",
+          "token_type_embeddings": "roberta.embeddings.token_type_embeddings.weight",
+          "embeddings_ln_weight": "roberta.embeddings.LayerNorm.weight",
+          "embeddings_ln_bias": "roberta.embeddings.LayerNorm.bias",
+          "q_weight": "roberta.encoder.layer.{layer}.attention.self.query.weight",
+          "q_bias": "roberta.encoder.layer.{layer}.attention.self.query.bias",
+          "k_weight": "roberta.encoder.layer.{layer}.attention.self.key.weight",
+          "k_bias": "roberta.encoder.layer.{layer}.attention.self.key.bias",
+          "v_weight": "roberta.encoder.layer.{layer}.attention.self.value.weight",
+          "v_bias": "roberta.encoder.layer.{layer}.attention.self.value.bias",
+          "attn_out_weight": "roberta.encoder.layer.{layer}.attention.output.dense.weight",
+          "attn_out_bias": "roberta.encoder.layer.{layer}.attention.output.dense.bias",
+          "attn_ln_weight": "roberta.encoder.layer.{layer}.attention.output.LayerNorm.weight",
+          "attn_ln_bias": "roberta.encoder.layer.{layer}.attention.output.LayerNorm.bias",
+          "ffn_in_weight": "roberta.encoder.layer.{layer}.intermediate.dense.weight",
+          "ffn_in_bias": "roberta.encoder.layer.{layer}.intermediate.dense.bias",
+          "ffn_out_weight": "roberta.encoder.layer.{layer}.output.dense.weight",
+          "ffn_out_bias": "roberta.encoder.layer.{layer}.output.dense.bias",
+          "ffn_ln_weight": "roberta.encoder.layer.{layer}.output.LayerNorm.weight",
+          "ffn_ln_bias": "roberta.encoder.layer.{layer}.output.LayerNorm.bias",
+          "pooler_weight": "classifier.dense.weight",
+          "pooler_bias": "classifier.dense.bias",
+          "classifier_weight": "classifier.out_proj.weight",
+          "classifier_bias": "classifier.out_proj.bias"
+        },
+        "produced_by": {
+          "upstream": "model.safetensors"
+        }
+      }
+    ],
+    "reference": {
+      "file": "reference/reference.safetensors",
+      "cases": [
+        {
+          "text": "",
+          "passage": "",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "What is the capital of France?",
+          "passage": "Paris is the capital of France.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "What is the capital of France?",
+          "passage": "Berlin is the capital of Germany.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Café 東京 🙂",
+          "passage": "A café in Tokyo serves coffee.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query query ",
+          "passage": "passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage passage ",
+          "prompt_role": "PROMPT_NONE"
+        }
+      ],
+      "produced_by": {
+        "container": "turbo-reference-rerank@sha256:9bcfa35769f1644b37c257e6664a0febef781852b946aa0be5421d0e90bfff7c"
+      }
+    },
+    "rerank": {
+      "max_seq": 512,
+      "max_batch": 8,
+      "query_tokens": 64,
+      "pair_template": "PAIR_ROBERTA"
+    },
+    "classifier": {
+      "kind": "CLASSIFIER_SEQUENCE",
+      "labels": [
+        "LABEL_0"
+      ]
+    }
+  },
+  "upstream": [
+    {
+      "path": "config.json",
+      "sha256": "289adf7ada1eb6b4afa7589a48a032d45a076cf2e46dcdb3b4cabc33be14f708"
+    },
+    {
+      "path": "model.safetensors",
+      "sha256": "ced967c45fd1902eb92716c9ceeca7c95a936770ea9db611f5a841b926e33fbd"
+    },
+    {
+      "path": "special_tokens_map.json",
+      "sha256": "d5469a60db23249c7f8945013d78df30b44b6bf686c6bb4740f4223f77b1b535"
+    },
+    {
+      "path": "tokenizer.json",
+      "sha256": "9eb652ac4e40cc093272bbbe0f55d521cf67570060227109b5cdc20945a4489e",
+      "to": "tokenizer.json"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "sha256": "a1d6bc8734a6f635dc158508bef000f8e2e5a759c7d92f984b2c86e5ff53425b"
+    }
+  ]
+}

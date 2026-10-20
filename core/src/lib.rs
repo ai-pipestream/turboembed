@@ -34,6 +34,7 @@ pub mod model;
 pub mod npu;
 pub mod projection;
 pub mod record;
+pub mod rerank;
 pub mod safetensors;
 pub mod sentencepiece;
 mod session;
@@ -58,6 +59,9 @@ use tokenizer::{Encode, Tokenizer};
 pub const TURBO_ERROR_MESSAGE_LEN: usize = 496;
 
 pub const TURBO_TASK_EMBED: u32 = 1;
+pub const TURBO_TASK_RERANK: u32 = 2;
+pub const TURBO_PAIR_BERT: u32 = 1;
+pub const TURBO_PAIR_ROBERTA: u32 = 2;
 
 pub const TURBO_DEVICE_CPU: u32 = 1;
 pub const TURBO_DEVICE_GPU: u32 = 2;
@@ -232,10 +236,14 @@ pub struct turbo_model_info {
     pub prefix_document: [c_char; 128],
     pub output_dims_count: u32,
     pub output_dims: [u32; TURBO_OUTPUT_DIMS_MAX],
+    pub rerank_query_tokens: u32,
+    pub rerank_pair_template: u32,
 }
 
 /// The size of turbo_model_info before output_dims_count was appended,
 /// which turbo_model_get_info still accepts.
+pub const TURBO_MODEL_INFO_SIZE_V2: usize = std::mem::offset_of!(turbo_model_info, rerank_query_tokens);
+
 pub const TURBO_MODEL_INFO_SIZE_V1: usize = std::mem::offset_of!(turbo_model_info, output_dims_count);
 
 #[repr(C)]
@@ -406,6 +414,7 @@ struct Model {
     info: turbo_model_info,
     /// The widths embed.output_dims allows besides dim.
     output_dims: Vec<u32>,
+    rerank_head: Option<head::Head>,
 }
 
 // As for Context: the backend's model may be used from any thread.

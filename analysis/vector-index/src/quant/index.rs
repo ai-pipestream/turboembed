@@ -169,18 +169,7 @@ impl<M> QuantizedIndex<M> {
     /// query is too short for the codes, one after another, and the
     /// lengths.
     fn prepare(&self, space: &Space, values: &[f32], nq: usize) -> Result<(Vec<f32>, Vec<f64>), IndexError> {
-        if space.model != self.space.model {
-            return Err(IndexError::Model {
-                index: Box::new(self.space.model.clone()),
-                other: Box::new(space.model.clone()),
-            });
-        }
-        if space.dim != self.space.dim {
-            return Err(IndexError::Dimension { index: self.space.dim, other: space.dim as usize });
-        }
-        if space.normalization != self.space.normalization {
-            return Err(IndexError::Normalization { index: self.space.normalization, other: space.normalization });
-        }
+        rows::same_space(&self.space, space)?;
         let dim = self.space.dim as usize;
         if values.len() != nq * dim {
             return Err(IndexError::Dimension { index: self.space.dim, other: values.len() });

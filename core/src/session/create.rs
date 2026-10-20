@@ -58,6 +58,7 @@ pub(super) fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<Se
         return Err(Error::new(INVALID_ENUM, format!("precision: {} is not a TURBO_PRECISION_* value", d.precision)));
     }
     let mi = &m.info;
+    let backend_task = if mi.task == TURBO_TASK_RERANK { TURBO_TASK_EMBED } else { mi.task };
     // docs/bundle.md: max_batch is the largest batch the reference was
     // checked at, and a session larger than it is refused; max_seq is the
     // length the model was evaluated at.
@@ -102,7 +103,10 @@ pub(super) fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<Se
                 format!("precision {}: the {} backend does not run it: {reason}", d.precision, b.name()),
             ));
         }
-        return Err(Error::new(UNSUPPORTED_TASK, format!("the {} backend does not run embed: {reason}", b.name())));
+        return Err(Error::new(
+            UNSUPPORTED_TASK,
+            format!("the {} backend does not run task {}: {reason}", b.name(), mi.task),
+        ));
     }
     let mut compute_dtype = 0;
     let mut raw = std::ptr::null_mut();
@@ -147,7 +151,7 @@ pub(super) fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<Se
         (Some(f), _, _) => {
             let desc = backend::turbo_backend_session_desc {
                 struct_size: size_of::<backend::turbo_backend_session_desc>() as u32,
-                task: mi.task,
+                task: backend_task,
                 max_batch,
                 max_seq,
                 precision: d.precision,
@@ -166,10 +170,10 @@ pub(super) fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<Se
             })?
         }
         (None, Some(f), _) => backend::check(b, "session_create_tuned", |err| unsafe {
-            f(m.raw, mi.task, max_batch, max_seq, d.precision, &mut t, &mut compute_dtype, &mut raw, err)
+            f(m.raw, backend_task, max_batch, max_seq, d.precision, &mut t, &mut compute_dtype, &mut raw, err)
         })?,
         (None, None, Some(f)) => backend::check(b, "session_create", |err| unsafe {
-            f(m.raw, mi.task, max_batch, max_seq, d.precision, &mut compute_dtype, &mut raw, err)
+            f(m.raw, backend_task, max_batch, max_seq, d.precision, &mut compute_dtype, &mut raw, err)
         })?,
         (None, None, None) => unreachable!("offered above"),
     }
@@ -246,7 +250,14 @@ pub(super) fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<Se
         output: std::ptr::null_mut(),
         host: std::ptr::null_mut(),
     }));
-    let state = Mutex::new(State { written: None, ids: vec![0; rows], mask: vec![0; rows] });
+    let state = Mutex::new(State {
+        written: None,
+        ids: vec![0; rows],
+        mask: vec![0; rows],
+        rerank: None,
+        scores: vec![0.0; max_batch as usize],
+        pooled: vec![0.0; mi.dim as usize],
+    });
     // Where the lock is a pthread mutex (macOS), std allocates it on first
     // use; take it once here so no write or run allocates it later.
     drop(state.try_lock());
@@ -320,7 +331,8 @@ pub(super) fn result_template(m: &Model, s: &turbo_session_info) -> turbo_result
     r.dtype = TURBO_DTYPE_F32;
     r.compute_dtype = s.compute_dtype;
     r.device = c.device;
-    r.stage_count = TURBO_EMBED_STAGE_COUNT as u32;
+    r.stage_count =
+        if m.info.task == TURBO_TASK_RERANK { TURBO_RERANK_STAGE_COUNT } else { TURBO_EMBED_STAGE_COUNT } as u32;
     r.backend = device.backend;
     r.arch = device.arch;
     r.runtime_version = device.runtime_version;
