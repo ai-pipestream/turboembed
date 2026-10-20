@@ -17,6 +17,7 @@ mod cohesion;
 mod drift;
 mod gaps;
 mod hashes;
+pub mod late;
 mod limits;
 mod providers;
 pub mod rechunk;
@@ -29,6 +30,7 @@ pub use boundaries::{Costs, StructureBoundaries};
 pub use cohesion::{Cohesion, CohesiveChunker};
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
+pub use late::{LateChunkAnnotator, Pooling, TokenVectorWindows, WindowPolicy};
 pub use providers::{DriftProvider, SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider};
 pub use route::{Hit, LevelRouter, LevelWeights, ParentContext, QueryKind, QueryProfile, Routed};
 pub use sentiment::{
