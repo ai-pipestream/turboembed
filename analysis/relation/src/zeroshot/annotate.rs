@@ -9,7 +9,6 @@
 //! then tail, then labels in request order, so the output order is
 //! stable.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Edge, Edges, Error, Ix, Layer, ModelRef, Refs, Span, Spans, Tag, TagSet, View};
@@ -63,16 +62,47 @@ impl<S: RelationScorer> ZeroShotRelationAnnotator<S> {
             (0..n).map(|i| Mention { span: entities.spans.get(Ix::new(i as u32)), kind: kind(i) }).collect();
         let sentence = sentence_of(&mentions, sentences.filter(|_| self.config.within_sentence));
         let labels = &self.config.labels;
+        // Per label, which (head kind, tail kind) tags it admits, and the
+        // union a candidate needs: no string compare per pair.
+        let nk = entities.kinds.len();
+        let mut adm = vec![false; labels.len() * nk * nk];
+        let mut any = vec![false; nk * nk];
+        for (l, label) in labels.iter().enumerate() {
+            for a in 0..nk {
+                for b in 0..nk {
+                    let (ka, kb) = (entities.kinds.label(Tag(a as u16)), entities.kinds.label(Tag(b as u16)));
+                    let ok = admits(label, ka, kb);
+                    adm[(l * nk + a) * nk + b] = ok;
+                    any[a * nk + b] |= ok || symmetric_fit(label, ka, kb);
+                }
+            }
+        }
+        let tag: Vec<usize> = entities.kind.iter().map(|k| k.0 as usize).collect();
+        let ok = |l: usize, h: usize, t: usize| adm[(l * nk + tag[h]) * nk + tag[t]];
+        // Entities in text order put each sentence's mentions in one run;
+        // otherwise every mention is scanned against every other.
+        let mut run = vec![(0usize, n); n];
+        if sentence.is_sorted() {
+            let mut lo = 0;
+            while lo < n {
+                let hi = lo + sentence[lo..].iter().take_while(|&&x| x == sentence[lo]).count();
+                run[lo..hi].fill((lo, hi));
+                lo = hi;
+            }
+        }
         let mut pairs = Vec::new();
         for h in 0..n {
-            for t in 0..n {
-                if h != t
-                    && sentence[h] == sentence[t]
-                    && sentence[h] != Some(usize::MAX)
-                    && labels.iter().any(|l| admits(l, kind(h), kind(t)) || symmetric_fit(l, kind(h), kind(t)))
-                {
+            if sentence[h] == Some(usize::MAX) {
+                continue;
+            }
+            for t in run[h].0..run[h].1 {
+                if h != t && sentence[h] == sentence[t] && any[tag[h] * nk + tag[t]] {
                     pairs.push((h as u32, t as u32));
                 }
+            }
+            if pairs.len() > self.config.max_pairs {
+                let (max, got) = (self.config.max_pairs, pairs.len());
+                return Err(RelationError::OverLimit { limit: "max_pairs", max, got });
             }
         }
         let names: Vec<&str> = labels.iter().map(|l| l.name.as_str()).collect();
@@ -91,7 +121,9 @@ impl<S: RelationScorer> ZeroShotRelationAnnotator<S> {
         if let Some(s) = out.iter().find(|s| !(0.0..=1.0).contains(*s)) {
             return Err(RelationError::BadScorerOutput(format!("a score outside [0, 1]: {s}")));
         }
-        let at: HashMap<(u32, u32), usize> = pairs.iter().enumerate().map(|(p, &pair)| (pair, p)).collect();
+        // Pairs are in (head, tail) order: the reverse of a pair by binary
+        // search.
+        let rev = |h: u32, t: u32| pairs.binary_search(&(t, h)).ok();
         let score = |p: usize, l: usize| f64::from(out[p * names.len() + l]);
         let mut rel = Relations {
             spans: Spans::new(entities.spans.view()),
@@ -102,25 +134,27 @@ impl<S: RelationScorer> ZeroShotRelationAnnotator<S> {
             score: Vec::new(),
         };
         for (p, &(h, t)) in pairs.iter().enumerate() {
-            let (hk, tk) = (kind(h as usize), kind(t as usize));
+            let r = rev(h, t);
             for (l, label) in labels.iter().enumerate() {
                 let best = if label.symmetric {
                     // Each unordered pair once, from its first order.
-                    if h > t && at.contains_key(&(t, h)) {
+                    if h > t && r.is_some() {
                         continue;
                     }
-                    let forward = admits(label, hk, tk).then(|| score(p, l));
-                    let back = at.get(&(t, h)).filter(|_| admits(label, tk, hk)).map(|&q| score(q, l));
+                    let forward = ok(l, h as usize, t as usize).then(|| score(p, l));
+                    let back = r.filter(|_| ok(l, t as usize, h as usize)).map(|q| score(q, l));
                     match (forward, back) {
                         (None, None) => continue,
                         (a, b) => a.unwrap_or(0.0).max(b.unwrap_or(0.0)),
                     }
-                } else if admits(label, hk, tk) {
+                } else if ok(l, h as usize, t as usize) {
                     score(p, l)
                 } else {
                     continue;
                 };
-                if best < label.threshold.unwrap_or(self.config.threshold) {
+                // Compared at the scorer's precision: a score of 0.7 meets a
+                // threshold of 0.7, though 0.7f32 is below 0.7f64.
+                if (best as f32) < label.threshold.unwrap_or(self.config.threshold) as f32 {
                     continue;
                 }
                 let (head, tail) = if label.symmetric { (h.min(t), h.max(t)) } else { (h, t) };
@@ -183,6 +217,7 @@ fn config_hash(c: &ZeroShotRelationConfig, model: Option<ModelRef>) -> u64 {
         fnv(&mut h, &s.to_le_bytes());
     }
     fnv(&mut h, &(c.max_mentions as u64).to_le_bytes());
+    fnv(&mut h, &(c.max_pairs as u64).to_le_bytes());
     for l in &c.labels {
         field(&mut h, &l.name);
         fnv(&mut h, &l.threshold.map_or(u64::MAX, f64::to_bits).to_le_bytes());

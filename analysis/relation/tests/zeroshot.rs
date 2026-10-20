@@ -116,6 +116,28 @@ fn requests_over_a_limit_fail_with_the_limit_named() {
     let err = a.extract(doc.get::<View>().unwrap(), &e, Some(&s)).err().unwrap();
     assert_eq!(err, RelationError::OverLimit { limit: "max_mentions", max: 4, got: 5 });
     assert!(err.to_string().contains("max_mentions"));
+    // Across the view the five mentions make 6 admitted pairs, past 5.
+    let config =
+        ZeroShotRelationConfig { within_sentence: false, max_pairs: 5, ..ZeroShotRelationConfig::new(labels()) };
+    let a = ZeroShotRelationAnnotator::new(config, LexicalRelationScorer).unwrap();
+    let err = a.extract(doc.get::<View>().unwrap(), &e, Some(&s)).err().unwrap();
+    assert!(matches!(err, RelationError::OverLimit { limit: "max_pairs", max: 5, .. }), "{err:?}");
+}
+
+#[test]
+fn a_score_equal_to_the_threshold_is_kept() {
+    let doc = Document::new("Ann a b c d e f g Bob.");
+    let e = entities(&[(0, 3, "PERSON"), (18, 21, "PERSON")]);
+    let label = RelationLabel { threshold: Some(0.7), ..RelationLabel::new("a b c d e f g h i j") };
+    let a = ZeroShotRelationAnnotator::new(ZeroShotRelationConfig::new(vec![label]), LexicalRelationScorer).unwrap();
+    assert_eq!(rows(&a.extract(doc.get::<View>().unwrap(), &e, None).unwrap().0).len(), 2);
+}
+
+#[test]
+fn a_symmetric_label_with_a_domain_unlike_its_range_is_refused() {
+    let l = RelationLabel { symmetric: true, ..label("employs", "PERSON", "ORG") };
+    let err = ZeroShotRelationAnnotator::new(ZeroShotRelationConfig::new(vec![l]), LexicalRelationScorer).err();
+    assert_eq!(err, Some(RelationError::AsymmetricKinds("employs".into())));
 }
 
 #[test]
@@ -141,13 +163,16 @@ fn the_configuration_hash_follows_every_setting() {
     let base = hash(ZeroShotRelationConfig::new(labels()));
     assert_eq!(base, hash(ZeroShotRelationConfig::new(labels())));
     let mut l = labels();
-    l[0].symmetric = true;
-    assert_ne!(base, hash(ZeroShotRelationConfig::new(l)));
+    l.push(RelationLabel::new("sibling of"));
+    let with = hash(ZeroShotRelationConfig::new(l.clone()));
+    l[3].symmetric = true;
+    assert_ne!(with, hash(ZeroShotRelationConfig::new(l)));
     let mut l = labels();
     l[2].range = Some(vec!["LOC".into()]);
     assert_ne!(base, hash(ZeroShotRelationConfig::new(l)));
     assert_ne!(base, hash(ZeroShotRelationConfig { threshold: 0.4, ..ZeroShotRelationConfig::new(labels()) }));
     assert_ne!(base, hash(ZeroShotRelationConfig { within_sentence: false, ..ZeroShotRelationConfig::new(labels()) }));
+    assert_ne!(base, hash(ZeroShotRelationConfig { max_pairs: 9, ..ZeroShotRelationConfig::new(labels()) }));
 }
 
 /// "New York City is in New York State." with nested and overlapping

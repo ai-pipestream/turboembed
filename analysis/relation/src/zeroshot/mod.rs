@@ -35,7 +35,8 @@ pub struct RelationLabel {
     pub threshold: Option<f64>,
     /// A symmetric label holds both ways ("sibling of"): the two orders
     /// of a pair are scored, the better score kept, and the relation
-    /// written once, its head the mention that comes first.
+    /// written once, its head the mention that comes first. Its domain and
+    /// range must then be the same.
     pub symmetric: bool,
     /// The entity kinds the head may have; `None` allows any.
     pub domain: Option<Vec<String>>,
@@ -62,13 +63,23 @@ pub struct ZeroShotRelationConfig {
     pub max_labels: usize,
     /// The most entity mentions a document may hold.
     pub max_mentions: usize,
+    /// The most candidate pairs a document may send the scorer, which
+    /// bounds its output at this many pairs times the labels.
+    pub max_pairs: usize,
 }
 
 impl ZeroShotRelationConfig {
     /// The defaults: a threshold of 0.5, pairs within a sentence, at most
-    /// 64 labels and 512 mentions.
+    /// 64 labels, 512 mentions and 65,536 candidate pairs.
     pub fn new(labels: Vec<RelationLabel>) -> ZeroShotRelationConfig {
-        ZeroShotRelationConfig { labels, threshold: 0.5, within_sentence: true, max_labels: 64, max_mentions: 512 }
+        ZeroShotRelationConfig {
+            labels,
+            threshold: 0.5,
+            within_sentence: true,
+            max_labels: 64,
+            max_mentions: 512,
+            max_pairs: 1 << 16,
+        }
     }
 }
 
@@ -111,13 +122,17 @@ pub enum RelationError {
     NoLabels,
     BlankLabel(usize),
     DuplicateLabel(String),
+    /// A symmetric label whose domain and range differ: its two ends are
+    /// interchangeable, so the head written may not fit the domain.
+    AsymmetricKinds(String),
     /// A threshold outside [0, 1].
     BadThreshold {
         label: Option<String>,
         threshold: f64,
     },
     /// A named limit exceeded: `limit` is the field (`max_labels`,
-    /// `max_mentions`), `max` its value, `got` what the request held.
+    /// `max_mentions`, `max_pairs`), `max` its value, `got` what the
+    /// request held (for pairs, the count when the limit was passed).
     OverLimit {
         limit: &'static str,
         max: usize,
@@ -136,6 +151,7 @@ impl fmt::Display for RelationError {
             NoLabels => write!(f, "no relation labels"),
             BlankLabel(i) => write!(f, "relation label {i} is blank"),
             DuplicateLabel(l) => write!(f, "relation label {l:?} appears twice"),
+            AsymmetricKinds(l) => write!(f, "symmetric relation label {l:?} has a domain unlike its range"),
             BadThreshold { label: Some(l), threshold } => {
                 write!(f, "label {l:?}: threshold {threshold} outside [0, 1]")
             }
@@ -174,6 +190,9 @@ pub(crate) fn check(config: &ZeroShotRelationConfig, scorer: &dyn RelationScorer
         }
         if labels[..i].iter().any(|o| o.name == l.name) {
             return Err(RelationError::DuplicateLabel(l.name.clone()));
+        }
+        if l.symmetric && l.domain != l.range {
+            return Err(RelationError::AsymmetricKinds(l.name.clone()));
         }
         if let Some(t) = l.threshold.filter(|&t| !unit(t)) {
             return Err(RelationError::BadThreshold { label: Some(l.name.clone()), threshold: t });
