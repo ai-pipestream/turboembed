@@ -758,6 +758,7 @@ fields mean bumps its `SCHEMA`.
 | `Speakers` | `opennlp:speakers` | text | `turbo-coref` |
 | `Sketches<L>` | `turbo:sketches<L>` | `L` | `turbo-group` |
 | `Boilerplate<L>` | `turbo:boilerplate<L>` | `L` | `turbo-analysis-layers` |
+| `ProtectedSpans` | `turbo:protected_spans` | text | `turbo-normalize-layers` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase

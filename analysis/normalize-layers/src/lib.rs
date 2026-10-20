@@ -10,9 +10,11 @@ pub mod export;
 mod asset_format;
 mod asset_names;
 mod assets;
+mod protected;
 
 pub use asset_format::{AssetEncoding, AssetFormat, subtype};
 pub use assets::Assets;
+pub use protected::ProtectedSpans;
 
 /// What a placeholder stands for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
