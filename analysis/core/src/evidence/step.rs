@@ -55,10 +55,11 @@ pub trait Evidenced: Layer {
     }
 }
 
-/// The instance of `T` a producer read, from its provenance: the first
-/// read of that type.
+/// The instance of `T` a layer was made on, from its provenance, in the
+/// order `Document::add` resolves an anchor: an output its step wrote
+/// before it (`on`) first, then an input it read.
 pub fn read_of<T: Layer>(provenance: &Provenance) -> Option<KeyId> {
-    provenance.reads.iter().copied().find(|k| k.ty == TypeId::of::<T>())
+    provenance.on.iter().chain(&provenance.reads).copied().find(|k| k.ty == TypeId::of::<T>())
 }
 
 /// Writes `Evidence<L>` for the `L` instance `key` names, one record per

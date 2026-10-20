@@ -154,7 +154,7 @@ impl<L> Evidence<L> {
     pub fn spans_of(&self, i: usize) -> &[Span] {
         match self.span_row.is_empty() {
             true => std::slice::from_ref(&self.spans[i]),
-            false => &self.spans[self.span_row[i] as usize..self.span_row[i + 1] as usize],
+            false => self.spans.get(self.span_row[i] as usize..self.span_row[i + 1] as usize).unwrap_or(&[]),
         }
     }
 
@@ -162,7 +162,7 @@ impl<L> Evidence<L> {
     pub fn support_of(&self, i: usize) -> &[Support] {
         match self.support_row.is_empty() {
             true => std::slice::from_ref(&self.support[i]),
-            false => &self.support[self.support_row[i] as usize..self.support_row[i + 1] as usize],
+            false => self.support.get(self.support_row[i] as usize..self.support_row[i + 1] as usize).unwrap_or(&[]),
         }
     }
 
@@ -202,6 +202,30 @@ impl<L> Evidence<L> {
         if let Some(s) = self.support.iter().find(|s| s.layer as usize >= self.layers.len() || s.start > s.end) {
             return Err(format!("support {s:?} with {} layers", self.layers.len()));
         }
+        self.check_scores(n)
+    }
+
+    /// The check of a layer `EvidenceStep` built: the row columns' lengths
+    /// and ends in O(1), and the score and abstention columns in full,
+    /// since scores come from the result layer as its producer wrote
+    /// them. The spans, the producers and the support come from a layer
+    /// the document already checked, and are not scanned again.
+    fn check_built(&self) -> Result<(), String> {
+        let n = self.records();
+        ends(&self.span_row, n, self.spans.len(), "span")?;
+        ends(&self.support_row, n, self.support.len(), "support")?;
+        if !self.producer.is_empty() && self.producer.len() != n {
+            return Err(format!("{} producers for {n} records", self.producer.len()));
+        }
+        if n > 0 && self.producers.is_empty() {
+            return Err(format!("{n} records and no producer"));
+        }
+        self.check_scores(n)
+    }
+
+    /// The sparse columns in record order, raw scores finite, calibrated
+    /// scores in [0, 1].
+    fn check_scores(&self, n: usize) -> Result<(), String> {
         sparse_rows(self.raw.iter().map(|e| e.0), n, "raw score")?;
         sparse_rows(self.calibrated.iter().map(|e| e.0), n, "calibrated score")?;
         sparse_rows(self.abstention.iter().map(|e| e.0), n, "abstention")?;
@@ -277,8 +301,9 @@ fn sparse_rows(records: impl Iterator<Item = u32>, n: usize, what: &str) -> Resu
     Ok(())
 }
 
-/// A row column, or its short form: empty, one item per record.
-fn rows(row: &[u32], n: usize, items: usize, what: &str) -> Result<(), String> {
+/// A row column's length and ends, or its short form (empty: one item
+/// per record): O(1).
+fn ends(row: &[u32], n: usize, items: usize, what: &str) -> Result<(), String> {
     if row.is_empty() {
         if items != n {
             return Err(format!("{items} {what}s for {n} records, one each"));
@@ -288,6 +313,12 @@ fn rows(row: &[u32], n: usize, items: usize, what: &str) -> Result<(), String> {
     if row.len() != n + 1 || row[0] != 0 || row[n] as usize != items {
         return Err(format!("one {what} row start per record and one past the last {what}"));
     }
+    Ok(())
+}
+
+/// A row column, or its short form: its ends, and every row in order.
+fn rows(row: &[u32], n: usize, items: usize, what: &str) -> Result<(), String> {
+    ends(row, n, items, what)?;
     if !row.windows(2).all(|w| w[0] <= w[1]) {
         return Err(format!("{what} rows in record order"));
     }
@@ -347,7 +378,7 @@ impl<L: Layer> Layer for Evidence<L> {
     }
     fn check(&self) -> Result<(), String> {
         if self.built {
-            return Ok(());
+            return self.check_built();
         }
         self.validate()
     }

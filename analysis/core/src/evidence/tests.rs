@@ -147,3 +147,25 @@ fn the_short_forms_read_as_the_full_ones() {
     nobody.producers = Arc::new(Vec::new());
     assert!(nobody.validate().is_err());
 }
+
+#[test]
+fn a_step_built_layer_still_has_its_lengths_and_scores_checked() {
+    let mut ev = evidence(marker(), &[(0, 6), (7, 13)]);
+    ev.built = true;
+    assert_eq!(ev.check(), Ok(()));
+    let broken: [(&str, Breaks); 4] = [
+        ("span rows short of the records", |e| e.span_row = vec![0, 2]),
+        ("a support range missing in the short form", |e| {
+            e.support_row.clear();
+            e.support.pop();
+        }),
+        ("a producer column of the wrong length", |e| e.producer = vec![0]),
+        ("an infinite raw score", |e| e.raw[1].1 = f64::INFINITY),
+    ];
+    for (what, f) in broken {
+        let mut ev = ev.clone();
+        ev.built = true;
+        f(&mut ev);
+        assert!(ev.check().is_err(), "{what}");
+    }
+}
