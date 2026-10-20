@@ -35,6 +35,11 @@
 //!   emoji features: [`SentimentModel`] opens its model file and
 //!   [`SentimentMe`] reads `opennlp:tokens` and writes the `sentiment`
 //!   instance of `turbo:categories`.
+//! - [`multilabel`] is this crate's own multi-label categorizer (not an
+//!   OpenNLP port): [`MultiLabelDoccatModel`] scores every label
+//!   independently through its OvR sigmoid heads, [`train_multilabel`]
+//!   fits the heads, and [`ThresholdCalibrator`] moves each label's
+//!   threshold to its validation F_beta.
 //!
 //! docs/doccat.md describes the model files, the parity tests and their
 //! tolerances, and why the predictor is a port rather than linfa-svm;
@@ -47,6 +52,7 @@ mod hash;
 pub mod java;
 pub mod layer;
 pub mod model;
+pub mod multilabel;
 pub mod sentiment;
 pub mod svm;
 pub mod train;
@@ -60,6 +66,11 @@ pub use features::{
 pub use layer::SpanCategorizable;
 pub use model::{
     COMPONENT_NAME, DoccatModel, FACTORY_NAME, FEATURE_GENERATORS_KEY, MODEL_ENTRY, parse_feature_generators,
+};
+pub use multilabel::{
+    COMPONENT_NAME as MULTILABEL_COMPONENT_NAME, LinearHead, MultiLabelCategorizer, MultiLabelDoccatModel,
+    MultiLabelError, MultiLabelSample, MultiLabelSpanCategorizer, MultiLabelTrainingParameters, ThresholdCalibrator,
+    open_package as open_multilabel_package, package_multilabel_model, train_multilabel,
 };
 pub use sentiment::{
     AbsaMetrics, AbsaTriplet, AspectCategoryScorer, DEFAULT_ASPECT_CATEGORIES, DEFAULT_INCIVILITY_THRESHOLD,

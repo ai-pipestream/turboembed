@@ -112,7 +112,10 @@ impl CategoryScope for Aspects {
 pub struct Categories<L: CategoryScope = View> {
     /// The categories, in the categorizer's order.
     pub categories: Arc<TagSet>,
-    /// The best category of each item.
+    /// The best category of each item: the categorizer's winning [`Tag`],
+    /// or [`Tag::NONE`] when the item was scored but nothing was predicted
+    /// (a multi-label categorizer whose no label cleared its threshold,
+    /// abstaining instead of forcing a best category).
     pub category: Vec<Tag>,
     /// The scores, item by item: `categories.len()` per item, in category
     /// order.
@@ -172,9 +175,10 @@ impl PartialEq for CategoryRow<'_> {
 }
 
 impl<'a> CategoryRow<'a> {
-    /// The best category's score.
+    /// The best category's score, or 0.0 when the item abstained
+    /// ([`Tag::NONE`]: nothing was predicted, so there is no best score).
     pub fn best_score(&self) -> f64 {
-        self.scores[self.best_tag.0 as usize]
+        if self.best_tag == Tag::NONE { 0.0 } else { self.scores[self.best_tag.0 as usize] }
     }
 
     /// The score of `category`, or `None` when it is not a category.
@@ -223,16 +227,21 @@ impl<L: CategoryScope> Categories<L> {
     }
 
     /// Adds an item: its best category and the score of every category,
-    /// in category order (`scores.len() == self.categories.len()`).
+    /// in category order (`scores.len() == self.categories.len()`). The
+    /// best is [`Tag::NONE`] when the item abstained: scored, but nothing
+    /// predicted, as a multi-label categorizer emits when no label clears
+    /// its threshold.
     pub fn push(&mut self, best: Tag, scores: &[f64]) {
         debug_assert_eq!(scores.len(), self.categories.len());
         self.category.push(best);
         self.scores.extend_from_slice(scores);
     }
 
-    /// The name of item `i`'s best category.
+    /// The name of item `i`'s best category, or `""` when the item
+    /// abstained ([`Tag::NONE`]: nothing was predicted).
     pub fn best_category(&self, i: usize) -> &str {
-        self.categories.label(self.category[i])
+        let tag = self.category[i];
+        if tag == Tag::NONE { "" } else { self.categories.label(tag) }
     }
 
     /// The scores of item `i`, in category order.
@@ -262,7 +271,7 @@ impl<L: CategoryScope> Categories<L> {
         let best_tag = self.category[i];
         CategoryRow {
             best_tag,
-            best: self.categories.label(best_tag),
+            best: if best_tag == Tag::NONE { "" } else { self.categories.label(best_tag) },
             scores: self.row_scores(i),
             categories: &self.categories,
         }
@@ -278,10 +287,10 @@ impl Categories {
         c
     }
 
-    /// The document's best category and its score, or `None` when the
-    /// layer has no item.
+    /// The document's best category and its score, or `None` when the layer
+    /// has no item or the document abstained ([`Tag::NONE`]).
     pub fn best(&self) -> Option<(&str, f64)> {
-        self.get(0).map(|r| (r.best, r.best_score()))
+        self.get(0).and_then(|r| (r.best_tag != Tag::NONE).then(|| (r.best, r.best_score())))
     }
 
     /// The document's categories with their scores, best first
@@ -315,7 +324,7 @@ impl<L: CategoryScope> Layer for Categories<L> {
         if self.scores.len() != n.saturating_mul(k) {
             return Err(format!("{n} items of {k} categories and {} scores", self.scores.len()));
         }
-        if self.category.iter().any(|t| t.0 as usize >= k) {
+        if self.category.iter().any(|t| *t != Tag::NONE && t.0 as usize >= k) {
             return Err(format!("a best category outside {}", self.categories.name));
         }
         if self.scores.iter().any(|s| s.is_nan() || *s < 0.0) {
@@ -406,5 +415,35 @@ mod tests {
         let mut c = Categories::<Sentences>::new(TagSet::new("test", &[]));
         c.category.push(Tag(0));
         assert_eq!(c.check(), Err("no categories to score".into()));
+    }
+
+    #[test]
+    fn an_item_can_abstain_with_no_best_category() {
+        // A multi-label categorizer whose no label cleared its threshold
+        // pushes Tag::NONE: the item is scored, nothing is predicted.
+        let mut c = document(&["a", "b"], &[0.1, 0.2]);
+        c.category[0] = Tag::NONE;
+        assert_eq!(c.check(), Ok(()));
+        assert_eq!(c.best(), None);
+        assert_eq!(c.best_category(0), "");
+        let row = c.get(0).unwrap();
+        assert_eq!(row.best_tag, Tag::NONE);
+        assert_eq!(row.best, "");
+        assert_eq!(row.best_score(), 0.0);
+        // The scores are still the item's: ranked lists every category.
+        assert_eq!(row.ranked(), [("b", 0.2), ("a", 0.1)]);
+
+        let mut spans = Categories::<Sentences>::new(TagSet::new("test", &["a", "b"]));
+        spans.push(Tag(1), &[0.1, 0.9]);
+        spans.push(Tag::NONE, &[0.3, 0.4]);
+        assert_eq!(spans.check(), Ok(()));
+        assert_eq!(spans.best_category(1), "");
+        assert_eq!(spans.get(1).unwrap().best_score(), 0.0);
+        assert_eq!(spans.best_category(0), "b");
+
+        // Tag::NONE still names no category: a real tag must be in the set.
+        let mut c = document(&["a", "b"], &[0.5, 0.5]);
+        c.category[0] = Tag(2);
+        assert_eq!(c.check(), Err("a best category outside test".into()));
     }
 }

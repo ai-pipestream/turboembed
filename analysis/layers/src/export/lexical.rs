@@ -144,7 +144,7 @@ impl<L: CategoryScope> LayerCodec for Categories<L> {
     fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let categories = get_tagset(&mut r)?;
-        let category = get_tags(&mut r, &categories)?;
+        let category = get_category_tags(&mut r, &categories)?;
         let scores = get_f64s(&mut r)?;
         let want =
             category.len().checked_mul(categories.len()).ok_or_else(|| malformed("a score count that overflows"))?;
@@ -157,4 +157,19 @@ impl<L: CategoryScope> LayerCodec for Categories<L> {
         }
         Ok(out)
     }
+}
+
+/// The best-category column of a [`Categories`] layer: like [`get_tags`],
+/// but `Tag::NONE` is the item that abstained (nothing predicted), not an
+/// index into the tag set.
+fn get_category_tags(r: &mut Reader<'_>, tagset: &TagSet) -> Result<Vec<Tag>, ExportError> {
+    let mut tags = Vec::new();
+    for _ in 0..r.usize()? {
+        let tag = Tag(r.u16()?);
+        if tag != Tag::NONE && tag.0 as usize >= tagset.len() {
+            return Err(malformed(format!("a tag outside {}", tagset.name)));
+        }
+        tags.push(tag);
+    }
+    Ok(tags)
 }
