@@ -131,3 +131,45 @@ fn building_headers_is_linear_in_chunks() {
         assert!(large >= small * 7, "one_entity={one_entity}: {small} steps for 5000, {large} for 40000");
     }
 }
+
+/// Two chunks and two one-mention keys, consistent until `spoil` runs.
+fn spoiled(spoil: impl FnOnce(&mut EntityKeys, &mut Chunks)) -> crate::entity::ChunkEntities {
+    let text = "Ann walked out, Bob is up.";
+    let s = sentence(text);
+    let e = entities(&[&[(0, 3)], &[(16, 19)]]);
+    let mut k = EntityKeys::build(&s, Some(&e), text, Keying::default(), Chains::default());
+    let mut c = chunks(&[&[(0, 9)], &[(10, 26)]], (0, 1));
+    spoil(&mut k, &mut c);
+    chunk_entities(&c, &k, HeaderPolicy::default())
+}
+
+#[test]
+fn inconsistent_inputs_give_empty_headers() {
+    let empty = |h: crate::entity::ChunkEntities| {
+        assert_eq!(h.row, [0, 0, 0]);
+        assert!(h.key.is_empty() && h.mentions.is_empty());
+    };
+    assert_eq!(spoiled(|_, _| {}).key, [0, 1, 0]);
+    empty(spoiled(|k, _| k.mentions[1].key = 2));
+    empty(spoiled(|k, _| k.mentions[0].fragments = (1, 0)));
+    empty(spoiled(|k, _| k.mentions[1].fragments = (1, 3)));
+    empty(spoiled(|k, _| k.mentions.swap(0, 1)));
+    empty(spoiled(|_, c| c.parent.pop().map(drop).unwrap_or(())));
+    empty(spoiled(|_, c| c.level.push(0)));
+    empty(spoiled(|_, c| c.parent[1] = Some(Ix::new(2))));
+}
+
+#[test]
+fn entity_boundaries_skip_occurrences_out_of_order_or_range() {
+    use std::num::NonZeroU32;
+
+    use crate::entity::{EntityContinuity, entity_boundaries};
+    let keys = EntityKeys {
+        occurrences: vec![vec![(3, 1), (1, 1)], vec![(2, 1), (2, 1)], vec![(1, 1), (9, 1)], vec![(0, 1), (1, 1)]],
+        ..EntityKeys::default()
+    };
+    let cfg = EntityContinuity { max_gap: NonZeroU32::new(20).unwrap(), ..EntityContinuity::default() };
+    let b = entity_boundaries(4, &keys, cfg);
+    // Only the last key's 0 -> 1 pair counts.
+    assert_eq!(b.cost, [cfg.per_entity as i32, 0, 0, 0]);
+}

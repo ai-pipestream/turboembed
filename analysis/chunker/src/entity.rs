@@ -11,6 +11,7 @@
 //! `DistilledBoundaryScorer` sums into the default one.
 
 mod build;
+mod carry;
 mod header;
 mod keys;
 
@@ -64,7 +65,9 @@ pub fn entity_boundaries(n: usize, keys: &EntityKeys, cfg: EntityContinuity) -> 
     for occ in &keys.occurrences {
         for w in occ.windows(2) {
             let (s, t) = (w[0].0, w[1].0);
-            if t - s <= gap {
+            // Occurrences built by `EntityKeys` ascend within `n`; any
+            // other pair is skipped.
+            if s < t && t as usize <= n && t - s <= gap {
                 // Consecutive mentions make disjoint gap ranges, so an
                 // entity counts once at each gap.
                 for g in &mut runs[s as usize..t as usize] {

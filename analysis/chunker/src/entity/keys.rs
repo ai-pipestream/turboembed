@@ -99,9 +99,10 @@ pub struct KeyMention {
 }
 
 impl EntityKeys {
-    /// The byte fragments of mention `m`.
+    /// The byte fragments of mention `m`: none when its range is not
+    /// in `fragments`.
     pub fn fragments_of(&self, m: &KeyMention) -> &[Span] {
-        &self.fragments[m.fragments.0 as usize..m.fragments.1 as usize]
+        self.fragments.get(m.fragments.0 as usize..m.fragments.1 as usize).unwrap_or(&[])
     }
 }
 
