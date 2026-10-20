@@ -32,6 +32,9 @@ pub const DEFAULT_EDIT_WEIGHT: f64 = 1.5;
 /// Default maximum number of candidates evaluated per token in the trellis.
 pub const DEFAULT_MAX_CANDIDATES: usize = 8;
 
+/// Default maximum Viterbi beam width retained per trellis step.
+pub const DEFAULT_MAX_BEAM_WIDTH: usize = 32;
+
 /// Context-aware spelling corrector and pipeline annotator.
 ///
 /// Generates per-token candidate sets from [`SymSpell`] (within configurable
@@ -53,6 +56,7 @@ pub struct ContextSpellCorrector {
     min_token_length: usize,
     max_edit_distance: usize,
     max_candidates: usize,
+    max_beam_width: usize,
     edit_weight: f64,
     check_real_word_edits: bool,
     skip_numbers: bool,
@@ -78,6 +82,7 @@ impl ContextSpellCorrector {
             min_token_length: DEFAULT_CONTEXT_MIN_TOKEN_LENGTH,
             max_edit_distance,
             max_candidates: DEFAULT_MAX_CANDIDATES,
+            max_beam_width: DEFAULT_MAX_BEAM_WIDTH,
             edit_weight: DEFAULT_EDIT_WEIGHT,
             check_real_word_edits: false,
             skip_numbers: true,
@@ -124,6 +129,17 @@ impl ContextSpellCorrector {
         self
     }
 
+    /// Sets the maximum Viterbi beam width retained per trellis step.
+    pub fn max_beam_width(mut self, width: usize) -> ContextSpellCorrector {
+        self.max_beam_width = width.max(1);
+        self
+    }
+
+    /// Alias for [`Self::max_beam_width`].
+    pub fn with_max_beam_width(self, width: usize) -> ContextSpellCorrector {
+        self.max_beam_width(width)
+    }
+
     /// Sets the edit-distance weight $\lambda \ge 0$ in the Viterbi cost.
     pub fn edit_weight(mut self, weight: f64) -> ContextSpellCorrector {
         self.edit_weight = if weight.is_finite() && weight >= 0.0 { weight } else { DEFAULT_EDIT_WEIGHT };
@@ -165,6 +181,7 @@ impl ContextSpellCorrector {
                 self.min_token_length,
                 self.max_edit_distance,
                 self.max_candidates,
+                self.max_beam_width,
                 self.edit_weight.to_bits(),
                 self.check_real_word_edits,
                 self.skip_numbers,
@@ -196,7 +213,7 @@ impl ContextSpellCorrector {
         let mut cased = String::new();
         for sent in sentences {
             let cand_sets: Vec<Vec<Candidate>> = sent.iter().map(|t| self.candidates_for(text, t)).collect();
-            let decoded = viterbi_decode(&self.lm, self.edit_weight, cand_sets);
+            let decoded = viterbi_decode(&self.lm, self.edit_weight, self.max_beam_width, cand_sets);
             for (tok, cand) in sent.iter().zip(decoded.iter()) {
                 if cand.is_original {
                     continue;

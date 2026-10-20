@@ -435,3 +435,54 @@ fn discontinuous_entity_protects_only_fragments_and_higher_order_lm_uses_full_hi
     let corr5 = ContextSpellCorrector::new(engine, Arc::new(lm5)).edit_weight(0.0);
     assert_eq!(apply(&corr5, "xx bb cc dd form"), "xx bb cc dd from");
 }
+
+#[test]
+fn viterbi_beam_pruning_scales_linearly_with_lm_order_and_candidate_width() {
+    use std::time::Instant;
+    use turbo_analysis::Annotator;
+
+    let mut engine = SymSpell::default();
+    let mut group = Vec::with_capacity(64);
+    for c in 0..64 {
+        let w = format!("w{c:02}");
+        engine.add(&w, 100);
+        group.push(w);
+    }
+    let engine = Arc::new(engine);
+    let mut conf = ConfusableSet::empty();
+    conf.add_group(group.iter().map(String::as_str));
+
+    let sentence = ["w00"; 12].join(" ");
+    let mut timings = Vec::new();
+    for order in [3usize, 5, 6] {
+        let mut lm = NGramLanguageModel::new(order).unwrap();
+        lm.add(&vec!["w01"; order]).unwrap();
+        let corrector = ContextSpellCorrector::new(Arc::clone(&engine), Arc::new(lm))
+            .with_confusables(conf.clone())
+            .max_candidates(64)
+            .max_beam_width(64);
+        let t0 = Instant::now();
+        let out = apply(&corrector, &sentence);
+        let elapsed = t0.elapsed();
+        assert!(!out.is_empty());
+        assert!(
+            elapsed.as_millis() < 200,
+            "order {order} with 64 candidates took {elapsed:?}, expected bounded beam decode < 200ms"
+        );
+        timings.push(elapsed);
+    }
+
+    // Also verify order-independent lm_fingerprint and distinct max_beam_width config_hash
+    let mut lm_fwd = NGramLanguageModel::new(2).unwrap();
+    let mut lm_rev = NGramLanguageModel::new(2).unwrap();
+    for i in 0..32 {
+        lm_fwd.add(&[&format!("w{i:02}"), "w00"]).unwrap();
+    }
+    for i in (0..32).rev() {
+        lm_rev.add(&[&format!("w{i:02}"), "w00"]).unwrap();
+    }
+    let c_fwd = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm_fwd));
+    let c_rev = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm_rev));
+    assert_eq!(c_fwd.config_hash(), c_rev.config_hash());
+    assert_ne!(c_fwd.config_hash(), c_fwd.clone().max_beam_width(16).config_hash());
+}

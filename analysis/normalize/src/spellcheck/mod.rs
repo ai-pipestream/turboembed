@@ -40,7 +40,7 @@ pub use config::{ConfigError, DERIVE_CORPUS_WORD_COUNT, MAX_COUNT, SymSpellConfi
 pub use confusables::ConfusableSet;
 pub use context::{
     ContextSpellAnnotator, ContextSpellCorrector, DEFAULT_CONTEXT_MIN_TOKEN_LENGTH, DEFAULT_EDIT_WEIGHT,
-    DEFAULT_MAX_CANDIDATES,
+    DEFAULT_MAX_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES,
 };
 pub use correct::{DEFAULT_MIN_TOKEN_LENGTH, SpellCorrect, SpellCorrectMode};
 pub use dictionary::{FrequencyDictionary, MalformedLine, MalformedReason};
