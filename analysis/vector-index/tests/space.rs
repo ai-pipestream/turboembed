@@ -14,7 +14,7 @@ fn unit(v: &[f32]) -> Vec<f32> {
 }
 
 #[test]
-fn a_query_from_another_model_dimension_or_normalization_is_refused() {
+fn a_query_from_another_model_dimension_or_normalization_gets_the_named_error() {
     let sp = space(16);
     let index = index_of(&sp, Metric::Cosine, &[values(1, 16), values(2, 16)]);
     let q = values(3, 16);
@@ -102,7 +102,7 @@ fn a_layer_adds_the_items_that_have_vectors() {
 }
 
 #[test]
-fn a_layer_from_another_model_or_dimension_or_with_a_bad_row_adds_nothing() {
+fn a_layer_from_another_model_or_dimension_or_with_a_bad_row_adds_no_rows() {
     let sp = space(4);
     let mut b = IndexBuilder::new(sp.clone(), Metric::Cosine).unwrap();
     b.push(&[1.0, 1.0, 0.0, 0.0], usize::MAX).unwrap();
