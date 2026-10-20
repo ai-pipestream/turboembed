@@ -451,4 +451,16 @@ fn fuzzy_index_sublinear_lookup_scales_from_10k_to_160k_aliases() {
     let c_mtea = short_prov.generate_candidates("mtea", None, 32, 0.88);
     assert_eq!(c_mtea.len(), 1);
     assert_eq!(c_mtea[0].kb_id, "three");
+
+    // Common-prefix catalog with > 2048 shared-prefix aliases must still surface a late
+    // matching suffix alias ("Common Prefix zzyzzz" for query "Common Prefix yyyyyy" at 0.89).
+    let mut prefix_entities: Vec<KbEntity> =
+        (0..2048).map(|i| KbEntity::new(format!("P{i}"), format!("Common Prefix {i:06}"))).collect();
+    prefix_entities.push(KbEntity::new("P_TARGET", "Common Prefix zzyzzz"));
+    let prefix_prov = CatalogProvider::new(KnowledgeBase::from_entities("prefix-kb", prefix_entities).unwrap());
+    let c_prefix = prefix_prov.generate_candidates("Common Prefix yyyyyy", None, 32, 0.89);
+    assert!(
+        c_prefix.iter().any(|c| c.kb_id == "P_TARGET"),
+        "expected P_TARGET ('Common Prefix zzyzzz') in candidates for 'Common Prefix yyyyyy', got {c_prefix:?}"
+    );
 }

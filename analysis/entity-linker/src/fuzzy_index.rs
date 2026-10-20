@@ -18,6 +18,8 @@ pub(crate) struct FuzzyAliasIndex {
     token_postings: HashMap<String, Vec<(u16, u32)>>,
     trigram_postings: HashMap<[char; 3], Vec<(u16, u32)>>,
     bigram_postings: HashMap<[char; 2], Vec<(u16, u32)>>,
+    pos_char_postings: HashMap<(u8, char), Vec<(u16, u32)>>,
+    char_postings: HashMap<char, Vec<(u16, u32)>>,
     short_delete_postings: HashMap<String, Vec<(u16, u32)>>,
     short1_postings: HashMap<char, Vec<u32>>,
 }
@@ -29,11 +31,15 @@ impl FuzzyAliasIndex {
         let mut token_postings: HashMap<String, Vec<(u16, u32)>> = HashMap::new();
         let mut trigram_postings: HashMap<[char; 3], Vec<(u16, u32)>> = HashMap::new();
         let mut bigram_postings: HashMap<[char; 2], Vec<(u16, u32)>> = HashMap::new();
+        let mut pos_char_postings: HashMap<(u8, char), Vec<(u16, u32)>> = HashMap::new();
+        let mut char_postings: HashMap<char, Vec<(u16, u32)>> = HashMap::new();
         let mut short_delete_postings: HashMap<String, Vec<(u16, u32)>> = HashMap::new();
         let mut short1_postings: HashMap<char, Vec<u32>> = HashMap::new();
 
         let mut grams3_buf = Vec::new();
         let mut grams2_buf = Vec::new();
+        let mut pos_chars_buf: Vec<(u8, char)> = Vec::new();
+        let mut unique_chars_buf: Vec<char> = Vec::new();
         let mut deletes_buf = Vec::new();
         let mut toks_buf: Vec<&str> = Vec::new();
 
@@ -68,6 +74,31 @@ impl FuzzyAliasIndex {
                 bigram_postings.entry(gram).or_default().push((char_len, k_idx));
             }
 
+            pos_chars_buf.clear();
+            unique_chars_buf.clear();
+            for (pos, &c) in chars.iter().enumerate() {
+                if c.is_whitespace() {
+                    continue;
+                }
+                let bucket = (pos / 4).min(127) as u8;
+                if !pos_chars_buf.contains(&(bucket, c)) {
+                    pos_chars_buf.push((bucket, c));
+                    pos_char_postings.entry((bucket, c)).or_default().push((char_len, k_idx));
+                }
+                let occ = chars[..=pos].iter().filter(|&&x| x == c).count();
+                if (2..=8).contains(&occ) {
+                    let occ_tag = 128u8 + (occ as u8);
+                    if !pos_chars_buf.contains(&(occ_tag, c)) {
+                        pos_chars_buf.push((occ_tag, c));
+                        pos_char_postings.entry((occ_tag, c)).or_default().push((char_len, k_idx));
+                    }
+                }
+                if !unique_chars_buf.contains(&c) {
+                    unique_chars_buf.push(c);
+                    char_postings.entry(c).or_default().push((char_len, k_idx));
+                }
+            }
+
             if chars.len() <= SHORT_KEY_MAX_CHARS {
                 extract_short_signatures(&chars, &mut deletes_buf);
                 for sig in &deletes_buf {
@@ -85,6 +116,12 @@ impl FuzzyAliasIndex {
         for list in bigram_postings.values_mut() {
             list.sort_unstable();
         }
+        for list in pos_char_postings.values_mut() {
+            list.sort_unstable();
+        }
+        for list in char_postings.values_mut() {
+            list.sort_unstable();
+        }
         for list in short_delete_postings.values_mut() {
             list.sort_unstable();
         }
@@ -94,13 +131,15 @@ impl FuzzyAliasIndex {
             token_postings,
             trigram_postings,
             bigram_postings,
+            pos_char_postings,
+            char_postings,
             short_delete_postings,
             short1_postings,
         }
     }
 
     /// Returns up to `MAX_FUZZY_VERIFY` candidate `folded_keys` indices ranked by shared
-    /// token/trigram/bigram/delete overlap and character-length proximity.
+    /// token/trigram/bigram/positional-char/delete overlap and character-length proximity.
     pub(crate) fn candidate_indices(&self, query_folded: &str, threshold: f64) -> Vec<u32> {
         let q_chars: Vec<char> = query_folded.chars().collect();
         let q_len = q_chars.len();
@@ -173,6 +212,53 @@ impl FuzzyAliasIndex {
             }
         }
 
+        let min_gram_slice_len = slices.iter().map(|(s, _)| s.len()).min().unwrap_or(usize::MAX);
+        let char_slice_cap = if min_gram_slice_len > 128 { MAX_FEATURE_SCAN } else { 64 };
+
+        let mut q_pos_chars: Vec<(u8, char)> = Vec::new();
+        let mut q_unique_chars: Vec<char> = Vec::new();
+        for (pos, &c) in q_chars.iter().enumerate() {
+            if c.is_whitespace() {
+                continue;
+            }
+            let bucket = (pos / 4).min(127) as u8;
+            let b_lo = if min_gram_slice_len > 128 { bucket.saturating_sub(1) } else { bucket };
+            let b_hi = if min_gram_slice_len > 128 { (bucket + 1).min(127) } else { bucket };
+            for b in b_lo..=b_hi {
+                if !q_pos_chars.contains(&(b, c)) {
+                    q_pos_chars.push((b, c));
+                    if let Some(list) = self.pos_char_postings.get(&(b, c)) {
+                        let slice = length_window_slice(list, min_len, max_len);
+                        if !slice.is_empty() && slice.len() <= char_slice_cap {
+                            slices.push((slice, 2));
+                        }
+                    }
+                }
+            }
+            let occ = q_chars[..=pos].iter().filter(|&&x| x == c).count();
+            if (2..=8).contains(&occ) {
+                let occ_tag = 128u8 + (occ as u8);
+                if !q_pos_chars.contains(&(occ_tag, c)) {
+                    q_pos_chars.push((occ_tag, c));
+                    if let Some(list) = self.pos_char_postings.get(&(occ_tag, c)) {
+                        let slice = length_window_slice(list, min_len, max_len);
+                        if !slice.is_empty() && slice.len() <= char_slice_cap {
+                            slices.push((slice, 2));
+                        }
+                    }
+                }
+            }
+            if !q_unique_chars.contains(&c) {
+                q_unique_chars.push(c);
+                if let Some(list) = self.char_postings.get(&c) {
+                    let slice = length_window_slice(list, min_len, max_len);
+                    if !slice.is_empty() && slice.len() <= char_slice_cap {
+                        slices.push((slice, 1));
+                    }
+                }
+            }
+        }
+
         // Process rarest posting lists first (ascending slice length).
         slices.sort_unstable_by_key(|(s, _)| s.len());
 
@@ -182,14 +268,15 @@ impl FuzzyAliasIndex {
                     *counts.entry(k_idx).or_insert(0) += weight;
                 }
             } else if counts.len() < 128 {
-                // High-frequency feature and few rare candidates so far: scan a window around q_len.
+                // High-frequency feature and few rare candidates so far: seed fallback candidates
+                // around q_len with score 1 so they never outrank rare-feature matches.
                 let mid = slice.partition_point(|&(len, _)| len < q_len_u16);
                 let half = MAX_FEATURE_SCAN / 2;
                 let start = mid.saturating_sub(half);
                 let end = (start + MAX_FEATURE_SCAN).min(slice.len());
                 let start = end.saturating_sub(MAX_FEATURE_SCAN);
                 for &(_, k_idx) in &slice[start..end] {
-                    *counts.entry(k_idx).or_insert(0) += weight;
+                    counts.entry(k_idx).or_insert(1);
                 }
             }
         }
