@@ -88,6 +88,15 @@ pub enum ClassifierKind {
     Sequence,
 }
 
+/// A linear projection head carried beside the encoder (as ColBERT and
+/// late-interaction token-vector models carry): projects each token's
+/// `architecture.hidden` state to `dim` before optional L2 normalization.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Projection {
+    pub dim: u32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Family {
     #[serde(rename = "FAMILY_BERT")]
