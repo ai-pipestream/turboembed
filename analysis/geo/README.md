@@ -80,12 +80,12 @@ match is exactly a run of tokens whose `lookup` finds a record, and its key's
 records are that lookup's. `examples/names_bench.rs` times it against looking
 up every run of tokens up to the longest name with `Gazetteer::lookup`, which
 finds the same names, the two alternating run by run. On a Zen 5 desktop, one
-pinned core, release, load average 13 to 26 of 32 threads from other work,
-about 2 MB of text:
+pinned core, release, about 2 MB of text (the bundled row at a load average of
+4, the GeoNames row at 13 to 26 of 32 threads, from other work):
 
 | Gazetteer | Keys | Longest | Heap | Image | Image load | Lookup of every run | Name finder |
 |---|---|---|---|---|---|---|---|
-| bundled | 7,698 | 7 tokens | 1.8 MB | 1.0 MB | 0.25 ms | 402 ms | 45 ms |
+| bundled | 7,698 | 7 tokens | 1.8 MB | 1.0 MB | 0.25 ms | 387 ms | 32 ms |
 | GeoNames `cities15000` | 313,840 | 112 tokens | 17.9 MB | 41.8 MB | 16 ms | 95,087 ms | 163 ms |
 
 The image of a table with many alternate names in many scripts is larger
