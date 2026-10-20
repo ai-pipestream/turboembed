@@ -159,6 +159,22 @@ pub enum TensorRole {
     ClassifierWeight,
     /// A classification head's linear bias, `[labels]`.
     ClassifierBias,
+    /// An MLM head's transform weight, `[hidden, hidden]`; with
+    /// `embed.sparse`.
+    MlmTransformWeight,
+    /// An MLM head's transform bias, `[hidden]`; with `embed.sparse`.
+    MlmTransformBias,
+    /// An MLM head's transform LayerNorm weight, `[hidden]`; with
+    /// `embed.sparse`.
+    MlmTransformLnWeight,
+    /// An MLM head's transform LayerNorm bias, `[hidden]`; with
+    /// `embed.sparse`.
+    MlmTransformLnBias,
+    /// An MLM head's decoder weight, `[vocab_size, hidden]`; optional,
+    /// tied to `word_embeddings` when absent.
+    MlmDecoderWeight,
+    /// An MLM head's decoder bias, `[vocab_size]`; with `embed.sparse`.
+    MlmDecoderBias,
     /// A token-vector linear projection head's weight, `[projection.dim, hidden]`.
     ProjectionWeight,
     /// A token-vector linear projection head's bias, `[projection.dim]`; optional.
@@ -182,6 +198,12 @@ impl TensorRole {
                 | TensorRole::PoolerBias
                 | TensorRole::ClassifierWeight
                 | TensorRole::ClassifierBias
+                | TensorRole::MlmTransformWeight
+                | TensorRole::MlmTransformBias
+                | TensorRole::MlmTransformLnWeight
+                | TensorRole::MlmTransformLnBias
+                | TensorRole::MlmDecoderWeight
+                | TensorRole::MlmDecoderBias
                 | TensorRole::ProjectionWeight
                 | TensorRole::ProjectionBias
         )
@@ -200,6 +222,19 @@ impl TensorRole {
                 | TensorRole::PoolerBias
                 | TensorRole::ClassifierWeight
                 | TensorRole::ClassifierBias
+        )
+    }
+
+    /// Roles a masked language model head has (the learned sparse output).
+    pub fn is_mlm(self) -> bool {
+        matches!(
+            self,
+            TensorRole::MlmTransformWeight
+                | TensorRole::MlmTransformBias
+                | TensorRole::MlmTransformLnWeight
+                | TensorRole::MlmTransformLnBias
+                | TensorRole::MlmDecoderWeight
+                | TensorRole::MlmDecoderBias
         )
     }
 

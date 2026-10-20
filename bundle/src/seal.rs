@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::head::Head;
 use turbo::manifest::{ClassifierKind, Manifest, Normalize};
+use turbo::mlm::MlmHead;
 use turbo::safetensors::{self, Dtype};
 use turbo::tokenizer::Tokenizer;
 
@@ -442,6 +443,12 @@ pub fn verify(bundle: &Path) -> Result<()> {
         if embed.normalize == Normalize::L2 && norm != 0.0 && (norm - 1.0).abs() > tolerance {
             return Err(format!("{}: case {i} has norm {norm}, and the bundle says NORMALIZE_L2", m.reference.file));
         }
+    }
+    if m.embed().sparse.is_some() {
+        // The learned sparse output's head loads the way a classifier's
+        // does; a bundle whose declaration the weights cannot serve is
+        // refused here, at seal, with the tensor named.
+        MlmHead::load(&b).map_err(|e| e.message)?;
     }
     if let Some(c) = &m.classifier {
         Head::load(&b).map_err(|e| e.message)?;

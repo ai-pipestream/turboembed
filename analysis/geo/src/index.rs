@@ -431,6 +431,11 @@ impl GazetteerIndex {
         }
     }
 
+    /// The records of match key `key`, in ranking order.
+    pub(crate) fn lookup_key(&self, key: &str) -> Vec<Entry<'_>> {
+        self.records_of_key(key).iter().map(|&r| Entry::new(&self.store, r)).collect()
+    }
+
     /// The records a name matches, in ranking order.
     pub(crate) fn lookup(&self, name: &str) -> Vec<Entry<'_>> {
         with_key(name, |key| self.records_of_key(key).iter().map(|&r| Entry::new(&self.store, r)).collect())

@@ -225,6 +225,16 @@ impl Document {
         self.entries.iter().find(|e| e.key == id).and_then(|e| e.value.as_ref()?.downcast_ref::<L>())
     }
 
+    /// How many items a present layer instance holds, found by its full
+    /// name and instance name as a graph names them; None when no such
+    /// instance is here with data.
+    pub fn layer_len_by_name(&self, layer: &str, instance: &str) -> Option<usize> {
+        self.entries
+            .iter()
+            .find(|e| e.value.is_some() && e.key.name == instance && e.key.layer.to_string() == layer)
+            .map(|e| e.len)
+    }
+
     /// What became of a layer: None when it was never written.
     pub fn status(&self, key: KeyId) -> Option<&Status> {
         self.entries.iter().find(|e| e.key == key).map(|e| &e.status)
