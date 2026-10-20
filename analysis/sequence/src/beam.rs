@@ -34,6 +34,8 @@
 //! search over `str` refuses a model with such an outcome
 //! ([`Error::OutcomeNotText`]).
 
+mod scored;
+
 use std::cmp::Ordering;
 use std::convert::Infallible;
 

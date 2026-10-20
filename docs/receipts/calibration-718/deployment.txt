@@ -1,0 +1,27 @@
+mode=maxent tokens=128 vocabulary=16384 maxent_labels=2 fixtures=64
+round=0 raw=5263.25,5082.17 calibrated=5252.11,9035.66
+round=1 raw=5467.02,5184.49 calibrated=7122.20,5112.64
+round=2 raw=5213.91,5001.45 calibrated=5154.79,5079.46
+round=3 raw=5193.78,5077.16 calibrated=5349.00,5095.13
+median raw_ns=5189.14 calibrated_ns=5203.45 overhead_pct=0.28
+
+mode=svm tokens=128 vocabulary=16384 maxent_labels=2 fixtures=64
+round=0 raw=7903.22,7343.06 calibrated=7598.01,7696.76
+round=1 raw=7696.43,9838.64 calibrated=17520.99,17508.83
+round=2 raw=8541.39,7473.38 calibrated=7272.52,7303.67
+round=3 raw=7378.46,8694.37 calibrated=7876.86,10227.75
+median raw_ns=7799.83 calibrated_ns=7786.81 overhead_pct=-0.17
+
+mode=names tokens=128 vocabulary=16384 maxent_labels=2 fixtures=64
+round=0 raw=386202.30,369146.30 calibrated=381463.60,383579.52
+round=1 raw=369231.91,382490.95 calibrated=380542.02,386074.84
+round=2 raw=370330.21,373531.98 calibrated=376164.64,371451.30
+round=3 raw=391358.47,384789.53 calibrated=402448.76,421237.39
+median raw_ns=378011.46 calibrated_ns=382521.56 overhead_pct=1.19
+
+mode=maxent tokens=128 vocabulary=16384 maxent_labels=8 fixtures=64
+round=0 raw=5907.79,6751.09 calibrated=6054.72,6293.34
+round=1 raw=6520.65,6078.20 calibrated=6483.47,6335.75
+round=2 raw=5973.47,6115.19 calibrated=6157.43,6164.75
+round=3 raw=6204.74,6126.56 calibrated=6298.19,6077.23
+median raw_ns=6120.88 calibrated_ns=6229.04 overhead_pct=1.77

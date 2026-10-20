@@ -10,6 +10,7 @@ description = "Document categorization ported from OpenNLP 3.x onto the analysis
 name = "turbo_doccat"
 
 [dependencies]
+turbo-calibration = { path = "../calibration" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-formats = { path = "../formats" }

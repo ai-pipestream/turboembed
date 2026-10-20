@@ -1983,6 +1983,7 @@ name = "turbo-analysis-layers"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-calibration",
  "turbo-unicode",
 ]
 
@@ -2020,6 +2021,13 @@ dependencies = [
  "serde_path_to_error",
  "turbo",
  "ureq",
+]
+
+[[package]]
+name = "turbo-calibration"
+version = "0.1.0"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]
@@ -2066,6 +2074,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-calibration",
  "turbo-formats",
  "turbo-goldens",
  "turbo-jvm",
@@ -2121,6 +2130,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-calibration",
  "turbo-chunker",
  "turbo-goldens",
  "turbo-jvm",
@@ -2382,10 +2392,12 @@ dependencies = [
  "regex",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-calibration",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2601,6 +2613,7 @@ dependencies = [
 name = "turbo-train"
 version = "0.1.0"
 dependencies = [
+ "turbo-calibration",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",

@@ -88,6 +88,7 @@
 //!   the nonspacing mark JDK 21 knows.
 
 pub mod annotate;
+pub mod calibrated;
 pub mod crf;
 pub use crf::{CrfNameAnnotator, CrfNameFinder, CrfNameSequence, CrfSequenceModel};
 pub mod builtin;

@@ -72,6 +72,8 @@
 //!   perceptron model with every parameter zero cannot be written
 //!   ([`perceptron`][], [`writer`][]).
 
+pub mod calibration;
+
 pub mod context;
 pub mod crc32c;
 pub mod crf;

@@ -2,6 +2,7 @@
 //! (`opennlp.tools.namefind`).
 
 pub mod crf;
+mod scored;
 pub use crf::{CrfNameFinder, CrfNameSequence};
 
 use crate::beam::{BEAM_SIZE_PROPERTY, BeamSearch, ContextGenerator, SequenceValidator, manifest_beam_size};
