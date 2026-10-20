@@ -40,6 +40,7 @@ impl Manifest {
                 prefix_query: String::new(),
                 prefix_document: String::new(),
                 output_dims: Vec::new(),
+                sparse: None,
             }
         } else if let Some(q) = &self.qa {
             Embed {
@@ -51,6 +52,7 @@ impl Manifest {
                 prefix_query: String::new(),
                 prefix_document: String::new(),
                 output_dims: Vec::new(),
+                sparse: None,
             }
         } else {
             self.embed().clone()

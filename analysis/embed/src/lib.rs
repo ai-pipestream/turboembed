@@ -21,6 +21,7 @@ pub mod encoder;
 pub mod heads;
 pub mod levels;
 pub mod rerank;
+pub mod sparse;
 pub use rerank::{RerankAnnotator, Reranked, Shortlist};
 pub mod qa;
 pub use qa::{Answers, ExtractiveQaAnnotator, Question};
@@ -36,6 +37,7 @@ pub use heads::{
     OpinionSpanHead, PragmaticsHeadAnnotator, ScoringHead, SentenceSpanHead, VectorHeadAnnotator,
 };
 pub use levels::LevelVectors;
+pub use sparse::{SparseAnnotator, SparseOptions, SparseProvider};
 pub use subwords::{SubwordAnnotator, SubwordsProvider, align};
 pub use vectors::{
     ChunkVectors, ContextualTokens, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors,

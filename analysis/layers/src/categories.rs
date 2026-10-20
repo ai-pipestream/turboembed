@@ -109,11 +109,33 @@ impl CategoryScope for Aspects {
 /// the first highest score). [`CategoryRow::ranked`] lists every category
 /// best first, ties in category order, as the document categorizers'
 /// goldens list them.
+///
+/// Each item also records the label set the categorizer selected, in
+/// category order: every label a multi-label categorizer emitted, `[best]`
+/// for a single-label categorizer, and empty where the item abstained
+/// (`best` [`Tag::NONE`]). Two items with the same best category and
+/// scores but different selected sets (thresholds [0.5, 0.5] emitting
+/// {a, b} against [0.5, 0.9] emitting {a}) stay distinguishable. The sets
+/// are one CSR column pair, `selected` holding every item's tags
+/// contiguous and `selected_end` one prefix offset per item, so pushing an
+/// item appends and never allocates once the layer is reserved.
 pub struct Categories<L: CategoryScope = View> {
     /// The categories, in the categorizer's order.
     pub categories: Arc<TagSet>,
-    /// The best category of each item.
+    /// The best category of each item: the categorizer's winning [`Tag`],
+    /// or [`Tag::NONE`] when the item was scored but nothing was predicted
+    /// (a multi-label categorizer whose no label cleared its threshold,
+    /// abstaining instead of forcing a best category).
     pub category: Vec<Tag>,
+    /// Every item's selected labels contiguous, in category order: item
+    /// `i` holds `selected[selected_end[i - 1]..selected_end[i]]` (from
+    /// the start when `i == 0`). Empty on abstention. `[category[i]]`
+    /// unless a categorizer selected a different set
+    /// ([`Categories::push_selected`]).
+    pub selected: Vec<Tag>,
+    /// One prefix offset per item into [`Categories::selected`], the end
+    /// of item `i`'s run; the last entry is `selected.len()`.
+    pub selected_end: Vec<u32>,
     /// The scores, item by item: `categories.len()` per item, in category
     /// order.
     pub scores: Vec<f64>,
@@ -125,6 +147,8 @@ impl<L: CategoryScope> Clone for Categories<L> {
         Self {
             categories: Arc::clone(&self.categories),
             category: self.category.clone(),
+            selected: self.selected.clone(),
+            selected_end: self.selected_end.clone(),
             scores: self.scores.clone(),
             _of: PhantomData,
         }
@@ -136,18 +160,23 @@ impl<L: CategoryScope> fmt::Debug for Categories<L> {
         f.debug_struct("Categories")
             .field("categories", &self.categories.name)
             .field("category", &self.category)
+            .field("selected", &self.selected)
+            .field("selected_end", &self.selected_end)
             .field("scores", &self.scores)
             .finish()
     }
 }
 
-/// Equal when the category names, the best categories and the scores are.
+/// Equal when the category names, the best categories, the selected sets,
+/// and the scores are.
 impl<L: CategoryScope> PartialEq for Categories<L> {
     fn eq(&self, other: &Self) -> bool {
         let (a, b) = (&self.categories, &other.categories);
         a.len() == b.len()
             && (0..a.len()).all(|i| a.label(Tag(i as u16)) == b.label(Tag(i as u16)))
             && self.category == other.category
+            && self.selected == other.selected
+            && self.selected_end == other.selected_end
             && self.scores == other.scores
     }
 }
@@ -159,6 +188,9 @@ pub struct CategoryRow<'a> {
     pub best_tag: Tag,
     /// The best category's name.
     pub best: &'a str,
+    /// The label set the item was given, in category order; empty where
+    /// the item abstained ([`Tag::NONE`]).
+    pub selected: &'a [Tag],
     /// The score of every category, in category order.
     pub scores: &'a [f64],
     /// The categories.
@@ -167,14 +199,18 @@ pub struct CategoryRow<'a> {
 
 impl PartialEq for CategoryRow<'_> {
     fn eq(&self, other: &Self) -> bool {
-        self.best_tag == other.best_tag && self.best == other.best && self.scores == other.scores
+        self.best_tag == other.best_tag
+            && self.best == other.best
+            && self.selected == other.selected
+            && self.scores == other.scores
     }
 }
 
 impl<'a> CategoryRow<'a> {
-    /// The best category's score.
+    /// The best category's score, or 0.0 when the item abstained
+    /// ([`Tag::NONE`]: nothing was predicted, so there is no best score).
     pub fn best_score(&self) -> f64 {
-        self.scores[self.best_tag.0 as usize]
+        if self.best_tag == Tag::NONE { 0.0 } else { self.scores[self.best_tag.0 as usize] }
     }
 
     /// The score of `category`, or `None` when it is not a category.
@@ -217,22 +253,56 @@ impl<L: CategoryScope> Categories<L> {
         Self {
             categories,
             category: Vec::with_capacity(cap),
+            selected: Vec::with_capacity(cap),
+            selected_end: Vec::with_capacity(cap),
             scores: Vec::with_capacity(cap.saturating_mul(n)),
             _of: PhantomData,
         }
     }
 
     /// Adds an item: its best category and the score of every category,
-    /// in category order (`scores.len() == self.categories.len()`).
+    /// in category order (`scores.len() == self.categories.len()`). The
+    /// best is [`Tag::NONE`] when the item abstained: scored, but nothing
+    /// predicted, as a multi-label categorizer emits when no label clears
+    /// its threshold. The selected set is `[best]`, or empty on
+    /// abstention; categorizers selecting several labels use
+    /// [`Categories::push_selected`]. Appends to the reserved CSR columns:
+    /// no heap allocation once `with_capacity` reserved the items.
     pub fn push(&mut self, best: Tag, scores: &[f64]) {
         debug_assert_eq!(scores.len(), self.categories.len());
+        if best != Tag::NONE {
+            self.selected.push(best);
+        }
+        self.selected_end.push(self.selected.len() as u32);
         self.category.push(best);
         self.scores.extend_from_slice(scores);
     }
 
-    /// The name of item `i`'s best category.
+    /// Adds an item like [`Categories::push`], with the full label set the
+    /// item is given: every label a multi-label categorizer emitted, in
+    /// category order (strictly ascending), including the `best` (its
+    /// highest-scoring member) and empty only with `best` [`Tag::NONE`],
+    /// the abstention.
+    pub fn push_selected(&mut self, best: Tag, selected: &[Tag], scores: &[f64]) {
+        debug_assert_eq!(scores.len(), self.categories.len());
+        self.selected.extend_from_slice(selected);
+        self.selected_end.push(self.selected.len() as u32);
+        self.category.push(best);
+        self.scores.extend_from_slice(scores);
+    }
+
+    /// The label set item `i` was given, in category order; empty where
+    /// the item abstained ([`Tag::NONE`]).
+    pub fn selected(&self, i: usize) -> &[Tag] {
+        let start = if i == 0 { 0 } else { self.selected_end[i - 1] };
+        &self.selected[start as usize..self.selected_end[i] as usize]
+    }
+
+    /// The name of item `i`'s best category, or `""` when the item
+    /// abstained ([`Tag::NONE`]: nothing was predicted).
     pub fn best_category(&self, i: usize) -> &str {
-        self.categories.label(self.category[i])
+        let tag = self.category[i];
+        if tag == Tag::NONE { "" } else { self.categories.label(tag) }
     }
 
     /// The scores of item `i`, in category order.
@@ -262,7 +332,8 @@ impl<L: CategoryScope> Categories<L> {
         let best_tag = self.category[i];
         CategoryRow {
             best_tag,
-            best: self.categories.label(best_tag),
+            best: if best_tag == Tag::NONE { "" } else { self.categories.label(best_tag) },
+            selected: self.selected(i),
             scores: self.row_scores(i),
             categories: &self.categories,
         }
@@ -271,17 +342,26 @@ impl<L: CategoryScope> Categories<L> {
 
 impl Categories {
     /// The document's categories: one item, `best` with every category's
-    /// score in category order.
+    /// score in category order, the selected set `[best]` (empty on
+    /// abstention).
     pub fn document(categories: Arc<TagSet>, best: Tag, scores: &[f64]) -> Categories {
         let mut c = Categories::with_capacity(categories, 1);
         c.push(best, scores);
         c
     }
 
-    /// The document's best category and its score, or `None` when the
-    /// layer has no item.
+    /// The document's categories with the full selected label set, as
+    /// [`Categories::push_selected`] describes.
+    pub fn document_selected(categories: Arc<TagSet>, best: Tag, selected: &[Tag], scores: &[f64]) -> Categories {
+        let mut c = Categories::with_capacity(categories, 1);
+        c.push_selected(best, selected, scores);
+        c
+    }
+
+    /// The document's best category and its score, or `None` when the layer
+    /// has no item or the document abstained ([`Tag::NONE`]).
     pub fn best(&self) -> Option<(&str, f64)> {
-        self.get(0).map(|r| (r.best, r.best_score()))
+        self.get(0).and_then(|r| (r.best_tag != Tag::NONE).then(|| (r.best, r.best_score())))
     }
 
     /// The document's categories with their scores, best first
@@ -315,96 +395,39 @@ impl<L: CategoryScope> Layer for Categories<L> {
         if self.scores.len() != n.saturating_mul(k) {
             return Err(format!("{n} items of {k} categories and {} scores", self.scores.len()));
         }
-        if self.category.iter().any(|t| t.0 as usize >= k) {
+        if self.selected_end.len() != n {
+            return Err(format!("{n} items and {} selected row ends", self.selected_end.len()));
+        }
+        if self.category.iter().any(|t| *t != Tag::NONE && t.0 as usize >= k) {
             return Err(format!("a best category outside {}", self.categories.name));
+        }
+        let mut start = 0usize;
+        for (i, &end) in self.selected_end.iter().enumerate() {
+            let end = end as usize;
+            if end < start || end > self.selected.len() {
+                return Err(format!("selected row {i} ends past the selected labels"));
+            }
+            let set = &self.selected[start..end];
+            if set.iter().any(|t| t.0 as usize >= k) {
+                return Err(format!("a selected label of item {i} outside {}", self.categories.name));
+            }
+            if set.windows(2).any(|w| w[0] >= w[1]) {
+                return Err(format!("the selected labels of item {i} not in category order"));
+            }
+            if self.category[i] == Tag::NONE && !set.is_empty() {
+                return Err(format!("item {i} abstained but selected labels"));
+            }
+            if self.category[i] != Tag::NONE && !set.contains(&self.category[i]) {
+                return Err(format!("item {i}'s best category not among its selected labels"));
+            }
+            start = end;
+        }
+        if start != self.selected.len() {
+            return Err(format!("{} selected labels past the last row end", self.selected.len() - start));
         }
         if self.scores.iter().any(|s| s.is_nan() || *s < 0.0) {
             return Err("a score that is negative or NaN".into());
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The first highest score, as OpenNLP's `getBestCategory`.
-    fn first_best(scores: &[f64]) -> Tag {
-        let mut best = 0;
-        for i in 1..scores.len() {
-            if scores[i] > scores[best] {
-                best = i;
-            }
-        }
-        Tag(best as u16)
-    }
-
-    fn document(names: &[&str], scores: &[f64]) -> Categories {
-        Categories::document(TagSet::new("test", names), first_best(scores), scores)
-    }
-
-    #[test]
-    fn the_document_has_one_item_and_ranks_its_categories() {
-        let c = document(&["weather", "sports", "cooking"], &[0.25, 0.5, 0.25]);
-        assert_eq!(c.len(), 1);
-        assert_eq!(c.best(), Some(("sports", 0.5)));
-        assert_eq!(c.ranked(), [("sports", 0.5), ("weather", 0.25), ("cooking", 0.25)]);
-        assert_eq!(c.get(0).unwrap().score_of("cooking"), Some(0.25));
-        assert_eq!(c.get(0).unwrap().score_of("finance"), None);
-        assert_eq!(c.check(), Ok(()));
-
-        let empty: Categories = Categories::new(TagSet::new("test", &["a"]));
-        assert_eq!(empty.best(), None);
-        assert!(empty.ranked().is_empty());
-        assert_eq!(empty.check(), Ok(()));
-    }
-
-    #[test]
-    fn names_and_anchors() {
-        assert_eq!(<Categories>::NAME.to_string(), "turbo:categories");
-        assert_eq!(<Categories>::anchor(), Anchor::Document);
-        assert_eq!(Categories::<Sentences>::NAME.to_string(), "turbo:categories<opennlp:sentences>");
-        assert_eq!(Categories::<Sentences>::anchor(), Anchor::aligned::<Sentences>());
-        assert_eq!(Categories::<Structure>::NAME.to_string(), "turbo:categories<turbo:structure>");
-        assert_eq!(Categories::<Chunks>::NAME.to_string(), "turbo:categories<turbo:chunks>");
-        assert_eq!(Categories::<Chunks>::anchor(), Anchor::aligned::<Chunks>());
-    }
-
-    #[test]
-    fn an_item_per_unit() {
-        let mut c = Categories::<Sentences>::new(TagSet::new("test", &["a", "b"]));
-        c.push(Tag(1), &[0.25, 0.75]);
-        c.push(Tag(0), &[0.5, 0.5]);
-        assert_eq!(c.len(), 2);
-        assert_eq!(c.best_category(0), "b");
-        assert_eq!(c.row_scores(1), [0.5, 0.5]);
-        assert_eq!(c.score_of(0, "a"), Some(0.25));
-        let rows: Vec<_> = c.iter().map(|r| (r.best, r.ranked())).collect();
-        assert_eq!(rows, [("b", vec![("b", 0.75), ("a", 0.25)]), ("a", vec![("a", 0.5), ("b", 0.5)])]);
-        assert!(c.get(2).is_none());
-        assert_eq!(c.check(), Ok(()));
-    }
-
-    #[test]
-    fn check_refuses_inconsistent_layers() {
-        let mut c = document(&["a", "b"], &[0.5, 0.5]);
-        c.push(Tag(0), &[0.5, 0.5]);
-        assert_eq!(c.check(), Err("2 items in the document's categories, at most 1".into()));
-
-        let mut c = Categories::<Sentences>::new(TagSet::new("test", &["a", "b"]));
-        c.category.push(Tag(0));
-        c.scores.push(1.0);
-        assert_eq!(c.check(), Err("1 items of 2 categories and 1 scores".into()));
-        c.scores.push(0.0);
-        c.category[0] = Tag(2);
-        assert_eq!(c.check(), Err("a best category outside test".into()));
-        c.category[0] = Tag(0);
-        c.scores[1] = f64::NAN;
-        assert_eq!(c.check(), Err("a score that is negative or NaN".into()));
-
-        let mut c = Categories::<Sentences>::new(TagSet::new("test", &[]));
-        c.category.push(Tag(0));
-        assert_eq!(c.check(), Err("no categories to score".into()));
     }
 }

@@ -9,7 +9,8 @@ sentence-, structure-, and chunk-level categorization and
 perceptron `DoccatModel` archives.
 
 The crate also holds OpenNLP's maxent sentiment detector, `SentimentME`,
-which [sentiment.md](sentiment.md) describes.
+which [sentiment.md](sentiment.md) describes, and its own multi-label
+categorizer, [`MultiLabelDoccatModel`](#multi-label-categorization-multilabeldoccatmodel).
 
 It depends on `turbo-analysis`, `turbo-analysis-layers`, `turbo-jvm`
 (Java's `Double.toString`, `Double.parseDouble`, `Integer.parseInt`,
@@ -61,6 +62,58 @@ category probabilities on 12 test documents (`analysis/goldens/data/doccat`);
 `analysis/doccat/tests/maxent_goldens.rs` and
 `analysis/train-components/tests/doccat_goldens.rs` verify bit-for-bit feature,
 model binary, and probability parity against the JVM.
+
+## Multi-label categorization (`MultiLabelDoccatModel`)
+
+`turbo_doccat::multilabel` (this crate's own design, not an OpenNLP port)
+extends categorization beyond mutually exclusive labels: a document or
+span scores every known label independently and receives zero, one, or
+many of them.
+
+- `MultiLabelDoccatModel` holds one linear head per label (weights and a
+  bias, as `LinearHead`), trained one-vs-rest by `train_multilabel` with
+  full-batch gradient descent over the `DoccatFactory` feature
+  generators. The sigmoid turns each head's linear score into an
+  independent score in `0.0..=1.0`; the scores do not sum to 1.0.
+- Each label carries its own threshold in the open interval `(0.0, 1.0)`
+  (default 0.5). `MultiLabelCategorizer` emits every label whose score
+  reaches its threshold, optionally capped by `max_labels`, floored by
+  `min_score` (a hard floor: a label under it never emits), and, where
+  fewer than `min_labels` would emit, back-filled up to `min_labels`
+  with the highest-scoring labels that pass `min_score`. When no label
+  clears its threshold and `min_labels` is `None`, the prediction is
+  empty: the annotators write the item with best category `Tag::NONE`,
+  the clean abstention, never a forced argmax, and every score is still
+  in the item. `MultiLabelSpanCategorizer<L>` does the same per
+  sentence, structure block, or chunk.
+- `ThresholdCalibrator` fits the thresholds on a held-out validation set:
+  for each label it sweeps the validation scores as candidate cut points,
+  keeps the threshold maximizing that label's F_beta (beta configurable,
+  default 1.0), breaking ties toward the highest threshold, and can
+  restrict candidates to a minimum-precision floor (when no candidate
+  reaches the floor, the fallback is the candidate of the highest
+  precision). A label with no positive in the validation set keeps the
+  default threshold.
+- `multilabel::metrics::evaluate` scores a run: micro-, macro-, and
+  sample-averaged precision, recall, and F1, plus Exact Match (the
+  fraction of documents whose predicted set equals the gold set), under
+  the crate's division conventions (predicting nothing is precision 1.0,
+  no gold positive is recall 1.0, both 0 is an F of 0.0).
+- The model serializes as a `.bin` package (`package_multilabel_model` /
+  `open_package` in the format `turbo_train::ModelPackage` writes, with
+  the calibrated thresholds inside the model entry and a trailing
+  CRC-32C). The entry is format version 2, which added `min_labels`;
+  version 1 entries still open with `min_labels` `None`. Truncated or
+  corrupted bytes fail with `MultiLabelError`, never panic.
+
+`analysis/doccat/tests/multilabel.rs` covers the scoring, the abstention
+into `Categories`, the calibration sweep (beta, floor, ties, zero
+positives), and trains on an imbalanced fixture whose rare label's
+optimal threshold is far from 0.5, proving the calibrated thresholds
+strictly improve macro-F1 over a flat 0.5.
+`analysis/doccat/tests/multilabel_extra.rs` covers the cardinality
+bounds, the format's backward compatibility, and the evaluation metrics
+against hand-computed values.
 
 ## SVM categorization (`SvmCategorizer`)
 
