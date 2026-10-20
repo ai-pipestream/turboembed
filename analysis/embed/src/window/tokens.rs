@@ -91,10 +91,58 @@ pub fn plan_sliding_windows(doc: u32, pieces: u32, width: u32, stride: u32) -> V
 /// Assigns each piece `0..pieces` of `doc` to the window in `windows` where
 /// it is most interior (ties to the earlier window).
 pub fn place_tokens_in_windows(doc: u32, pieces: u32, windows: &[Window]) -> Vec<TokenPlacement> {
+    if pieces == 0 {
+        return Vec::new();
+    }
+    let sorted_single_doc = windows.first().is_some_and(|w| w.doc == doc)
+        && windows.windows(2).all(|pair| pair[1].doc == doc && pair[0].start <= pair[1].start);
+    if sorted_single_doc {
+        let mut out = Vec::with_capacity(pieces as usize);
+        let mut first_win = 0usize;
+        for piece in 0..pieces {
+            while first_win < windows.len() && windows[first_win].end <= piece {
+                first_win += 1;
+            }
+            let mut best: Option<(u32, u32)> = None;
+            for (offset_idx, &win) in windows[first_win..].iter().enumerate() {
+                if win.start > piece {
+                    break;
+                }
+                if let Some(dist) = interior_distance(piece, win)
+                    && best.is_none_or(|(_, best_dist)| dist > best_dist)
+                {
+                    best = Some(((first_win + offset_idx) as u32, dist));
+                }
+            }
+            let (window, dist) = best.expect("every piece in 0..pieces must be covered by a window");
+            let win = windows[window as usize];
+            out.push(TokenPlacement { piece, window, offset: piece - win.start, interior_distance: dist });
+        }
+        return out;
+    }
+
+    let mut doc_windows: Vec<(u32, Window)> =
+        windows.iter().enumerate().filter(|(_, w)| w.doc == doc).map(|(i, &w)| (i as u32, w)).collect();
+    doc_windows.sort_by_key(|&(i, w)| (w.start, i));
     let mut out = Vec::with_capacity(pieces as usize);
+    let mut first_win = 0usize;
     for piece in 0..pieces {
-        let (window, dist) =
-            most_interior_window(doc, piece, windows).expect("every piece in 0..pieces must be covered by a window");
+        while first_win < doc_windows.len() && doc_windows[first_win].1.end <= piece {
+            first_win += 1;
+        }
+        let mut best: Option<(u32, u32)> = None;
+        for &(orig_idx, win) in &doc_windows[first_win..] {
+            if win.start > piece {
+                break;
+            }
+            if let Some(dist) = interior_distance(piece, win)
+                && best
+                    .is_none_or(|(best_idx, best_dist)| dist > best_dist || (dist == best_dist && orig_idx < best_idx))
+            {
+                best = Some((orig_idx, dist));
+            }
+        }
+        let (window, dist) = best.expect("every piece in 0..pieces must be covered by a window");
         let win = windows[window as usize];
         out.push(TokenPlacement { piece, window, offset: piece - win.start, interior_distance: dist });
     }
@@ -124,11 +172,11 @@ impl Plan {
             return Ok(Vec::new());
         }
 
+        let doc_win_start = self.windows.len();
         let had_layout = !self.layout.is_empty() || !self.rest.is_empty();
         if !had_layout {
             self.windows.extend(plan_sliding_windows(doc, pieces, self.width, stride));
         } else {
-            let doc_win_start = self.windows.len();
             self.layout.sort_by_key(|&(lo, hi, _)| (lo, hi));
             let mut cur: Option<(u32, u32)> = None;
             for &(lo, hi, _) in &self.layout {
@@ -145,20 +193,19 @@ impl Plan {
             // Cover any pieces not yet covered by a sentence window using
             // sliding windows of `(self.width, stride)`.
             let step = if stride == 0 { default_token_stride(self.width) } else { stride.clamp(1, self.width) };
+            let sent_end = self.windows.len();
+            let mut sent_idx = doc_win_start;
             let mut p = 0u32;
             while p < pieces {
-                if let Some(end) =
-                    self.windows[doc_win_start..].iter().filter(|w| w.start <= p && p < w.end).map(|w| w.end).max()
-                {
-                    p = end;
+                while sent_idx < sent_end && self.windows[sent_idx].end <= p {
+                    sent_idx += 1;
+                }
+                if sent_idx < sent_end && self.windows[sent_idx].start <= p {
+                    p = self.windows[sent_idx].end;
+                    sent_idx += 1;
                     continue;
                 }
-                let next_cov = self.windows[doc_win_start..]
-                    .iter()
-                    .filter(|w| w.start > p)
-                    .map(|w| w.start)
-                    .min()
-                    .unwrap_or(pieces);
+                let next_cov = if sent_idx < sent_end { self.windows[sent_idx].start } else { pieces };
                 let mut start = p;
                 loop {
                     let end = pieces.min(start.saturating_add(self.width));
@@ -171,9 +218,23 @@ impl Plan {
                 p = next_cov;
             }
             self.windows[doc_win_start..].sort_by_key(|w| (w.start, w.end));
-            self.windows.dedup_by(|a, b| a.doc == doc && b.doc == doc && a.start == b.start && a.end == b.end);
+            let mut write = doc_win_start;
+            for read in doc_win_start..self.windows.len() {
+                if write == doc_win_start || self.windows[read] != self.windows[write - 1] {
+                    self.windows[write] = self.windows[read];
+                    write += 1;
+                }
+            }
+            self.windows.truncate(write);
         }
 
-        Ok(place_tokens_in_windows(doc, pieces, &self.windows))
+        let mut placements = place_tokens_in_windows(doc, pieces, &self.windows[doc_win_start..]);
+        if doc_win_start > 0 {
+            let offset = doc_win_start as u32;
+            for tp in &mut placements {
+                tp.window += offset;
+            }
+        }
+        Ok(placements)
     }
 }

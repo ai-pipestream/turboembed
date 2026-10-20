@@ -430,3 +430,50 @@ fn subword_vectors_annotator_and_provider_populate_document_layer() {
     let vecs = s_docs[0].get::<Vectors<Subwords>>().unwrap();
     assert_eq!(vecs.len(), sub.len());
 }
+
+#[test]
+fn token_placement_scales_linearly_and_batch_matches_single_doc() {
+    use turbo_analysis_embed::window::{Plan, Target, Which};
+
+    // 1. Scaling check on 20k, 40k, and 80k pieces with width=64, stride=32:
+    // Each piece is covered by at most 2 windows, so the active-window sweep
+    // finishes 80,000 pieces in well under 50ms even in unoptimized test builds.
+    for pieces in [20_000u32, 40_000, 80_000] {
+        let wins = plan_sliding_windows(0, pieces, 64, 32);
+        let t0 = std::time::Instant::now();
+        let placed = place_tokens_in_windows(0, pieces, &wins);
+        let elapsed = t0.elapsed();
+        assert_eq!(placed.len(), pieces as usize);
+        assert!(elapsed.as_millis() < 100, "{pieces} pieces took {elapsed:?}");
+        for sample in [0u32, 31, 32, 47, 48, 63, 64, pieces / 2, pieces - 1] {
+            let want = most_interior_window(0, sample, &wins).unwrap();
+            assert_eq!((placed[sample as usize].window, placed[sample as usize].interior_distance), want);
+        }
+    }
+
+    // 2. Multi-document Plan::place_tokens and embed_subword_tokens_batch equivalence:
+    let mut batch_plan = Plan::new(10);
+    let mut all_single = Vec::new();
+    let mut all_batch = Vec::new();
+    for (doc_id, pieces) in [(0u32, 35u32), (1, 18), (2, 42)] {
+        let mut single_plan = Plan::new(10);
+        if doc_id == 1 {
+            single_plan.layout(Target { doc: 0, which: Which::Sentences, item: 0 }, 0..6);
+            batch_plan.layout(Target { doc: doc_id, which: Which::Sentences, item: 0 }, 0..6);
+        }
+        let sp = single_plan.place_tokens(0, pieces, 5).unwrap();
+        let win_offset = batch_plan.windows.len() as u32;
+        let bp = batch_plan.place_tokens(doc_id, pieces, 5).unwrap();
+        let normalized_bp: Vec<_> = bp
+            .into_iter()
+            .map(|mut tp| {
+                tp.window -= win_offset;
+                tp
+            })
+            .collect();
+        assert_eq!(normalized_bp, sp, "doc {doc_id} batch vs single placement");
+        all_single.push(sp);
+        all_batch.push(normalized_bp);
+    }
+    assert_eq!(all_batch, all_single);
+}

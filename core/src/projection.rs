@@ -122,11 +122,53 @@ impl ProjectionHead {
                 return Err(Error::new(INVALID_ARGUMENT, "hidden state contains non-finite value"));
             }
             self.linear.apply(state, dst);
-            if l2 {
+            if !dst.iter().all(|v| v.is_finite()) {
+                if l2 {
+                    self.apply_f64_l2(state, dst);
+                } else {
+                    return Err(Error::new(INVALID_ARGUMENT, "projection output overflowed f32"));
+                }
+            } else if l2 {
                 l2_normalize_row(dst);
+            }
+            if !dst.iter().all(|v| v.is_finite()) {
+                return Err(Error::new(INVALID_ARGUMENT, "projection output overflowed f32"));
             }
         }
         Ok(())
+    }
+
+    fn apply_f64_l2(&self, state: &[f32], dst: &mut [f32]) {
+        let mut row_f64 = Vec::with_capacity(self.dim);
+        let mut max_abs = 0.0f64;
+        for (w_row, &b) in self.linear.weight.chunks_exact(self.hidden).zip(&self.linear.bias) {
+            let mut sum = f64::from(b);
+            for (&w, &xi) in w_row.iter().zip(state) {
+                sum += f64::from(w) * f64::from(xi);
+            }
+            let a = sum.abs();
+            if a > max_abs {
+                max_abs = a;
+            }
+            row_f64.push(sum);
+        }
+        if max_abs > 0.0 && max_abs.is_finite() {
+            let scaled_norm = row_f64
+                .iter()
+                .map(|&v| {
+                    let s = v / max_abs;
+                    s * s
+                })
+                .sum::<f64>()
+                .sqrt();
+            for (d, v) in dst.iter_mut().zip(row_f64) {
+                *d = ((v / max_abs) / scaled_norm) as f32;
+            }
+        } else {
+            for (d, v) in dst.iter_mut().zip(row_f64) {
+                *d = v as f32;
+            }
+        }
     }
 
     fn check_states(&self, states: &[f32]) -> Result<(usize, usize)> {
@@ -146,11 +188,10 @@ impl ProjectionHead {
 }
 
 fn l2_normalize_row(row: &mut [f32]) {
-    let norm = row.iter().map(|&x| (x as f64) * (x as f64)).sum::<f64>().sqrt();
+    let norm = row.iter().map(|&x| f64::from(x) * f64::from(x)).sum::<f64>().sqrt();
     if norm > 0.0 {
-        let inv = (1.0 / norm) as f32;
         for x in row.iter_mut() {
-            *x *= inv;
+            *x = (f64::from(*x) / norm) as f32;
         }
     }
 }

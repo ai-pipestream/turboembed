@@ -318,4 +318,16 @@ fn manifest_and_loader_reject_malformed_projection_configs_and_tensors() {
     assert_eq!(head.project(&[f32::NAN, 1.0], false).unwrap_err().code, INVALID_ARGUMENT);
     let mut bad_out = [0.0f32; 1];
     assert_eq!(head.project_into(&[1.0, 2.0], false, &mut bad_out).unwrap_err().code, INVALID_SHAPE);
+
+    // 6. Numerical edge cases: tiny finite rows normalize cleanly without
+    // reciprocal overflow, and finite inputs that overflow f32 either return
+    // a typed error (unnormalized) or normalize in f64 when representable (L2).
+    let id1 = ProjectionHead::new(1, 1, vec![1.0], None).unwrap();
+    assert_eq!(id1.project(&[1e-40], true).unwrap(), vec![1.0]);
+    let tiny_2d = head.project(&[3e-40, 4e-40], true).unwrap();
+    assert!((tiny_2d[0] - 0.6).abs() < 1e-6 && (tiny_2d[1] - 0.8).abs() < 1e-6, "{tiny_2d:?}");
+
+    let huge = ProjectionHead::new(1, 1, vec![f32::MAX], None).unwrap();
+    assert_eq!(huge.project(&[2.0], false).unwrap_err().code, INVALID_ARGUMENT);
+    assert_eq!(huge.project(&[2.0], true).unwrap(), vec![1.0]);
 }
