@@ -27,6 +27,7 @@ pub(super) use gemm::{Epilogue, Gemm};
 #[cfg(target_arch = "x86_64")]
 pub(super) use micro::{Avx2, Avx512};
 pub(super) use micro::{Micro, Portable};
+pub(crate) use rowwise::gelu;
 pub(super) use rowwise::layer_norm;
 
 use crate::backend::turbo_backend_model;

@@ -138,23 +138,75 @@ impl<L: CategoryScope> LayerCodec for Categories<L> {
         let mut w = Writer::new();
         put_tagset(&mut w, &self.categories)?;
         put_tags(&mut w, &self.category)?;
+        put_selected(&mut w, &self.selected, &self.selected_end)?;
         put_f64s(&mut w, &self.scores)?;
         Ok(w.finish())
     }
     fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let categories = get_tagset(&mut r)?;
-        let category = get_tags(&mut r, &categories)?;
+        let category = get_category_tags(&mut r, &categories)?;
+        let selected = get_selected(&mut r, &categories)?;
         let scores = get_f64s(&mut r)?;
         let want =
             category.len().checked_mul(categories.len()).ok_or_else(|| malformed("a score count that overflows"))?;
         want_len(scores.len(), want, "scores")?;
+        want_len(selected.len(), category.len(), "selected label sets")?;
         done(&r, "categories")?;
         let mut out = Categories::with_capacity(categories, category.len());
         let k = out.categories.len();
         for (i, best) in category.into_iter().enumerate() {
-            out.push(best, &scores[i * k..(i + 1) * k]);
+            out.push_selected(best, &selected[i], &scores[i * k..(i + 1) * k]);
         }
         Ok(out)
     }
+}
+
+/// The best-category column of a [`Categories`] layer: like [`get_tags`],
+/// but `Tag::NONE` is the item that abstained (nothing predicted), not an
+/// index into the tag set.
+fn get_category_tags(r: &mut Reader<'_>, tagset: &TagSet) -> Result<Vec<Tag>, ExportError> {
+    let mut tags = Vec::new();
+    for _ in 0..r.usize()? {
+        let tag = Tag(r.u16()?);
+        if tag != Tag::NONE && tag.0 as usize >= tagset.len() {
+            return Err(malformed(format!("a tag outside {}", tagset.name)));
+        }
+        tags.push(tag);
+    }
+    Ok(tags)
+}
+
+/// The selected-set column: one label list per item, in category order,
+/// sliced out of the layer's CSR pair.
+fn put_selected(w: &mut Writer, selected: &[Tag], ends: &[u32]) -> Result<(), ExportError> {
+    w.usize(ends.len())?;
+    let mut start = 0usize;
+    for &end in ends {
+        let set = &selected[start..end as usize];
+        w.usize(set.len())?;
+        for t in set {
+            w.u16(t.0);
+        }
+        start = end as usize;
+    }
+    Ok(())
+}
+
+/// The selected-set column read back: every tag an index into the set,
+/// so no [`Tag::NONE`] (abstention is the empty list).
+fn get_selected(r: &mut Reader<'_>, tagset: &TagSet) -> Result<Vec<Vec<Tag>>, ExportError> {
+    let mut out = Vec::new();
+    for _ in 0..r.usize()? {
+        let mut set = Vec::new();
+        for _ in 0..r.usize()? {
+            let tag = Tag(r.u16()?);
+            if tag.0 as usize >= tagset.len() {
+                return Err(malformed(format!("a selected tag outside {}", tagset.name)));
+            }
+            set.push(tag);
+        }
+        out.push(set);
+    }
+    Ok(out)
 }

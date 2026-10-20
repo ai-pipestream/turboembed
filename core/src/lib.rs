@@ -28,6 +28,7 @@ pub mod levelzero;
 pub mod manifest;
 #[cfg(feature = "metal")]
 pub mod metal;
+pub mod mlm;
 pub mod model;
 #[cfg(feature = "npu")]
 pub mod npu;
@@ -38,6 +39,7 @@ pub mod rerank;
 pub mod safetensors;
 pub mod sentencepiece;
 mod session;
+pub mod sparse;
 pub mod status;
 pub mod tokenizer;
 pub mod tuning;
