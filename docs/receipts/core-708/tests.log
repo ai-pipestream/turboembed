@@ -1,6 +1,6 @@
-   Compiling turbo v0.1.0 (/work/worktrees/turboembed/kimi-708-splade/core)
-   Compiling turbo-analysis-embed v0.1.0 (/work/worktrees/turboembed/kimi-708-splade/analysis/embed)
-   Compiling turbo-bundle v0.1.0 (/work/worktrees/turboembed/kimi-708-splade/bundle)
+   Compiling turbo v0.1.0 (core)
+   Compiling turbo-analysis-embed v0.1.0 (analysis/embed)
+   Compiling turbo-bundle v0.1.0 (bundle)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 6.14s
      Running unittests src/lib.rs (target/debug/deps/turbo-8c5d1b7ea35be5df)
 

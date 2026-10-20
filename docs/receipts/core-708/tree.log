@@ -1,4 +1,4 @@
-   Compiling turbo-bench v0.1.0 (/work/worktrees/turboembed/kimi-708-splade/bench)
+   Compiling turbo-bench v0.1.0 (bench)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.31s
      Running tests/tree.rs (target/debug/deps/tree-1a9beef376d3ed20)
 
