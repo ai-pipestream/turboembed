@@ -154,7 +154,7 @@ pub(crate) fn viterbi_decode(
     }
     let beam_width = max_beam_width.max(1);
     let m = cand_sets.len();
-    let order = lm.order().clamp(1, 16);
+    let order = lm.order().max(1);
     let history_len = order - 1;
     let use_bos = order > 1 && lm.contains(&["<s>"]);
     let use_eos = order > 1 && lm.contains(&["</s>"]);
@@ -180,8 +180,9 @@ pub(crate) fn viterbi_decode(
 
             let mut state_index: std::collections::HashMap<Vec<usize>, usize> =
                 std::collections::HashMap::with_capacity(prev_states.len().saturating_mul(cands.len()).min(2048));
-            let mut ngram_buf: Vec<&str> = Vec::with_capacity(history_len.saturating_add(2));
-            let mut prefix_counts: Vec<i32> = Vec::with_capacity(history_len.saturating_add(1));
+            let buf_cap = history_len.min(m).saturating_add(2);
+            let mut ngram_buf: Vec<&str> = Vec::with_capacity(buf_cap);
+            let mut prefix_counts: Vec<i32> = Vec::with_capacity(buf_cap);
 
             for (prev_idx, prev) in prev_states.iter().enumerate() {
                 ngram_buf.clear();
@@ -254,7 +255,7 @@ pub(crate) fn viterbi_decode(
     for (idx, state) in last_layer.iter().enumerate() {
         let mut cost = state.cost;
         if use_eos {
-            let mut ngram_buf: Vec<&str> = Vec::with_capacity(history_len + 1);
+            let mut ngram_buf: Vec<&str> = Vec::with_capacity(history_len.min(m).saturating_add(1));
             let start_pos = m.saturating_sub(history_len);
             for (offset, &hist_c_idx) in state.history.iter().enumerate() {
                 let tok_pos = m - state.history.len() + offset;

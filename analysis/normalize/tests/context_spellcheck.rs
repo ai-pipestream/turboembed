@@ -342,41 +342,30 @@ fn custom_confusable_set_and_protected_spans_codec_roundtrip() {
 #[test]
 fn config_hash_changes_with_lm_counts_and_confusables_and_max_candidates_bounds_total_pool() {
     use turbo_analysis::Annotator;
-
     let mut engine = SymSpell::default();
     engine.add("form", 10);
     engine.add("from", 10);
     let engine = Arc::new(engine);
 
-    let mut lm_a = NGramLanguageModel::new(1).unwrap();
+    let (mut lm_a, mut lm_b) = (NGramLanguageModel::new(1).unwrap(), NGramLanguageModel::new(1).unwrap());
     for _ in 0..100 {
         lm_a.add(&["form"]).unwrap();
-    }
-    lm_a.add(&["from"]).unwrap();
-
-    let mut lm_b = NGramLanguageModel::new(1).unwrap();
-    lm_b.add(&["form"]).unwrap();
-    for _ in 0..100 {
         lm_b.add(&["from"]).unwrap();
     }
+    lm_a.add(&["from"]).unwrap();
+    lm_b.add(&["form"]).unwrap();
 
     let ann_a = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm_a));
     let ann_b = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm_b.clone()));
-    assert_ne!(
-        ann_a.config_hash(),
-        ann_b.config_hash(),
-        "models with identical (order, size) but swapped counts must produce distinct config_hash"
-    );
+    assert_ne!(ann_a.config_hash(), ann_b.config_hash());
 
-    let mut conf_x = ConfusableSet::empty();
+    let (mut conf_x, mut conf_y) = (ConfusableSet::empty(), ConfusableSet::empty());
     conf_x.add_group(["alpha", "beta"]);
-    let mut conf_y = ConfusableSet::empty();
     conf_y.add_group(["gamma", "delta"]);
     let ann_x = ContextSpellCorrector::new(Arc::clone(&engine), Arc::new(lm_b.clone())).with_confusables(conf_x);
     let ann_y = ContextSpellCorrector::new(Arc::clone(&engine), Arc::new(lm_b.clone())).with_confusables(conf_y);
     assert_ne!(ann_x.config_hash(), ann_y.config_hash());
 
-    // With max_candidates(1), a known token ("form") retains only the original candidate.
     let single_cand = ContextSpellCorrector::new(engine, Arc::new(lm_b)).max_candidates(1);
     assert_eq!(apply(&single_cand, "form"), "form");
 }
@@ -396,13 +385,12 @@ fn discontinuous_entity_protects_only_fragments_and_higher_order_lm_uses_full_hi
     }
     let annotator = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm1));
 
-    // Discontinuous entity covering fragments 0..2 ("aa") and 8..10 ("zz") leaves "form" (3..7) unprotected.
     let mut doc = Document::new("aa form zz");
     let v0 = ViewId::SOURCE;
     let mut tok_spans = Spans::new(v0);
-    tok_spans.push(Span::new(0, 2));
-    tok_spans.push(Span::new(3, 7));
-    tok_spans.push(Span::new(8, 10));
+    for (s, e) in [(0, 2), (3, 7), (8, 10)] {
+        tok_spans.push(Span::new(s, e));
+    }
     doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: None }, Provenance::by("test")).unwrap();
 
     let mut ent_spans = Spans::new(v0);
@@ -421,39 +409,43 @@ fn discontinuous_entity_protects_only_fragments_and_higher_order_lm_uses_full_hi
         .step(Bound::new(annotator).write(0, "corrected"))
         .build()
         .unwrap();
-    let res = analyzer.run(std::slice::from_mut(&mut doc));
-    assert!(res[0].is_ok(), "{:?}", res[0]);
-    let corrected = doc.get_key(&Key::<View>::named("corrected")).unwrap();
-    assert_eq!(corrected.text(), "aa from zz");
+    assert!(analyzer.run(std::slice::from_mut(&mut doc))[0].is_ok());
+    assert_eq!(doc.get_key(&Key::<View>::named("corrected")).unwrap().text(), "aa from zz");
 
-    // 5-gram language model uses all 4 history tokens (order - 1 = 4).
     let mut lm5 = NGramLanguageModel::new(5).unwrap();
     for _ in 0..100 {
         lm5.add(&["aa", "bb", "cc", "dd", "form"]).unwrap();
     }
     lm5.add(&["xx", "bb", "cc", "dd", "from"]).unwrap();
-    let corr5 = ContextSpellCorrector::new(engine, Arc::new(lm5)).edit_weight(0.0);
+    let corr5 = ContextSpellCorrector::new(Arc::clone(&engine), Arc::new(lm5)).edit_weight(0.0);
     assert_eq!(apply(&corr5, "xx bb cc dd form"), "xx bb cc dd from");
+
+    let mut lm17 = NGramLanguageModel::new(17).unwrap();
+    let seq_a: Vec<&str> = std::iter::once("aa").chain(std::iter::repeat_n("bb", 15)).chain(["form"]).collect();
+    let seq_b: Vec<&str> = std::iter::once("xx").chain(std::iter::repeat_n("bb", 15)).chain(["from"]).collect();
+    for _ in 0..100 {
+        lm17.add(&seq_a).unwrap();
+    }
+    lm17.add(&seq_b).unwrap();
+    let corr17 = ContextSpellCorrector::new(engine, Arc::new(lm17)).edit_weight(0.0);
+    let input17 = seq_b[..16].iter().copied().chain(std::iter::once("form")).collect::<Vec<_>>().join(" ");
+    assert_eq!(apply(&corr17, &input17), seq_b.join(" "));
 }
 
 #[test]
 fn viterbi_beam_pruning_scales_linearly_with_lm_order_and_candidate_width() {
     use std::time::Instant;
     use turbo_analysis::Annotator;
-
     let mut engine = SymSpell::default();
-    let mut group = Vec::with_capacity(64);
-    for c in 0..64 {
-        let w = format!("w{c:02}");
-        engine.add(&w, 100);
-        group.push(w);
+    let group: Vec<String> = (0..64).map(|c| format!("w{c:02}")).collect();
+    for w in &group {
+        engine.add(w, 100);
     }
     let engine = Arc::new(engine);
     let mut conf = ConfusableSet::empty();
     conf.add_group(group.iter().map(String::as_str));
 
     let sentence = ["w00"; 12].join(" ");
-    let mut timings = Vec::new();
     for order in [3usize, 5, 6] {
         let mut lm = NGramLanguageModel::new(order).unwrap();
         lm.add(&vec!["w01"; order]).unwrap();
@@ -462,24 +454,14 @@ fn viterbi_beam_pruning_scales_linearly_with_lm_order_and_candidate_width() {
             .max_candidates(64)
             .max_beam_width(64);
         let t0 = Instant::now();
-        let out = apply(&corrector, &sentence);
-        let elapsed = t0.elapsed();
-        assert!(!out.is_empty());
-        assert!(
-            elapsed.as_millis() < 200,
-            "order {order} with 64 candidates took {elapsed:?}, expected bounded beam decode < 200ms"
-        );
-        timings.push(elapsed);
+        assert!(!apply(&corrector, &sentence).is_empty());
+        assert!(t0.elapsed().as_millis() < 200);
     }
 
-    // Also verify order-independent lm_fingerprint and distinct max_beam_width config_hash
-    let mut lm_fwd = NGramLanguageModel::new(2).unwrap();
-    let mut lm_rev = NGramLanguageModel::new(2).unwrap();
+    let (mut lm_fwd, mut lm_rev) = (NGramLanguageModel::new(2).unwrap(), NGramLanguageModel::new(2).unwrap());
     for i in 0..32 {
         lm_fwd.add(&[&format!("w{i:02}"), "w00"]).unwrap();
-    }
-    for i in (0..32).rev() {
-        lm_rev.add(&[&format!("w{i:02}"), "w00"]).unwrap();
+        lm_rev.add(&[&format!("w{:02}", 31 - i), "w00"]).unwrap();
     }
     let c_fwd = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm_fwd));
     let c_rev = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm_rev));
