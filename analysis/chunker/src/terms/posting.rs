@@ -35,11 +35,13 @@ impl Bm25PostingIndexBuilder {
 
     /// Adds every unit of `stats` as the next rows and returns the first
     /// one's number; unit `i` is row `first + i`. `vocabulary` is the
-    /// document's. `Err` when the rows would pass `u32`.
+    /// document's. `Err`, with nothing added, when the rows would pass
+    /// `u32` or the statistics `u64`.
     pub fn add<L>(&mut self, stats: &TermStats<L>, vocabulary: &Vocabulary) -> Result<u32, String> {
         let first = self.length.len();
         let end = first.checked_add(stats.length.len()).filter(|&e| e <= u32::MAX as usize);
         let first = u32::try_from(first).ok().filter(|_| end.is_some()).ok_or("more rows than a u32 numbers")?;
+        self.statistics.add(stats, vocabulary)?;
         for (i, unit) in stats.units().enumerate() {
             let row = first + i as u32;
             let (terms, tf) = stats.unit(unit);
@@ -48,7 +50,6 @@ impl Bm25PostingIndexBuilder {
             }
         }
         self.length.extend_from_slice(&stats.length);
-        self.statistics.add(stats, vocabulary);
         Ok(first)
     }
 
@@ -208,11 +209,13 @@ impl Top {
 
     /// Rows come in ascending order, so a row that only ties the k-th
     /// score ranks after it and stays out.
+    /// Scores compare by `total_cmp`, as the full scan sorts them, so a
+    /// NaN from a NaN model ranks the same in both.
     fn offer(&mut self, row: u32, score: f64) {
-        if self.threshold().is_some_and(|t| score <= t) {
+        if self.threshold().is_some_and(|t| score.total_cmp(&t).is_le()) {
             return;
         }
-        let at = self.best.partition_point(|&(_, s)| s >= score);
+        let at = self.best.partition_point(|&(_, s)| s.total_cmp(&score).is_ge());
         self.best.insert(at, (row, score));
         self.best.truncate(self.k);
     }

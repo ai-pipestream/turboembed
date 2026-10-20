@@ -83,7 +83,7 @@ fn corpus(seed: u64, docs: usize) -> Vec<Doc> {
 fn statistics(docs: &[Doc]) -> CollectionStatistics {
     let mut b = CollectionStatisticsBuilder::new();
     for d in docs {
-        b.add(&d.stats, &d.vocabulary);
+        b.add(&d.stats, &d.vocabulary).unwrap();
     }
     b.build()
 }
@@ -137,11 +137,11 @@ fn adding_and_merging_in_any_order_gives_the_same_bytes() {
     let whole = statistics(&docs);
     let (mut a, mut b) = (CollectionStatisticsBuilder::new(), CollectionStatisticsBuilder::new());
     for (i, d) in docs.iter().enumerate().rev() {
-        if i % 2 == 0 { a.add(&d.stats, &d.vocabulary) } else { b.add(&d.stats, &d.vocabulary) }
+        if i % 2 == 0 { a.add(&d.stats, &d.vocabulary).unwrap() } else { b.add(&d.stats, &d.vocabulary).unwrap() }
     }
     let (mut ab, mut ba) = (a.clone(), b.clone());
-    ab.merge(b);
-    ba.merge(a);
+    ab.merge(b).unwrap();
+    ba.merge(a).unwrap();
     assert_eq!(ab.build().to_bytes(), whole.to_bytes());
     assert_eq!(ba.build(), whole);
     assert_eq!(whole.units(), docs.iter().map(|d| d.stats.length.iter().filter(|&&l| l > 0).count() as u64).sum());
@@ -177,9 +177,18 @@ fn bytes_round_trip_and_anything_else_is_refused() {
     empty.extend_from_slice(&0u64.to_le_bytes());
     empty.extend_from_slice(&5u64.to_le_bytes());
     empty.extend_from_slice(&0u64.to_le_bytes());
-    for (what, b) in
-        [("trailing", longer), ("version", magic), ("zero df", zero), ("df", past), ("count", count), ("length", empty)]
-    {
+    // Every unit holds a term, so the total length is at least the units.
+    let mut short = bytes.clone();
+    short[16..24].copy_from_slice(&(stats.units() - 1).to_le_bytes());
+    for (what, b) in [
+        ("trailing", longer),
+        ("version", magic),
+        ("zero df", zero),
+        ("df", past),
+        ("count", count),
+        ("length", empty),
+        ("short", short),
+    ] {
         assert!(CollectionStatistics::from_bytes(&b).is_err(), "{what}");
     }
     let mut unsorted = statistics(&[doc(&[vec!["b", "a"]])]).to_bytes();
@@ -279,5 +288,47 @@ fn weighted_terms_are_each_terms_share_of_the_score() {
                 assert_eq!(weight, q.score(&d.stats, i));
             }
         }
+    }
+}
+
+#[test]
+fn counts_that_would_pass_u64_are_refused_and_change_nothing() {
+    let one = doc(&[vec!["alpha"]]);
+    let mut b = CollectionStatisticsBuilder::new();
+    b.add(&one.stats, &one.vocabulary).unwrap();
+    // Doubling 63 times reaches 2^63 units; the 64th would wrap to zero.
+    for _ in 0..63 {
+        b.merge(b.clone()).unwrap();
+    }
+    let before = b.clone().build();
+    assert_eq!(before.units(), 1 << 63);
+    assert!(b.merge(b.clone()).is_err());
+    assert!(b.add(&one.stats, &one.vocabulary).is_ok());
+    let mut full = b.clone();
+    for _ in 0..1000 {
+        if full.add(&one.stats, &one.vocabulary).is_err() {
+            break;
+        }
+    }
+    assert!(b.clone().merge(full.clone()).is_err());
+    let after = b.build();
+    assert_eq!(after.units(), before.units() + 1);
+    assert_eq!(CollectionStatistics::from_bytes(&after.to_bytes()).unwrap(), after);
+}
+
+#[test]
+fn a_nan_model_ranks_as_the_full_scan_does() {
+    let docs = corpus(23, 10);
+    let mut builder = Bm25PostingIndexBuilder::new();
+    for d in &docs {
+        builder.add(&d.stats, &d.vocabulary).unwrap();
+    }
+    let index = builder.build();
+    let model = Bm25 { k1: f64::NAN, b: 0.75 };
+    for query in queries() {
+        let got: Vec<(u32, u64)> = index.top_k(model, &query, 5).iter().map(|&(r, s)| (r, s.to_bits())).collect();
+        let want: Vec<(u32, u64)> =
+            full_scan(&docs, model, index.statistics(), &query, 5).iter().map(|&(r, s)| (r, s.to_bits())).collect();
+        assert_eq!(got, want, "{query:?}");
     }
 }

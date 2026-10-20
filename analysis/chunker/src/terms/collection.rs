@@ -26,24 +26,39 @@ impl CollectionStatisticsBuilder {
 
     /// Adds every unit of `stats`, each one unit of the collection: the
     /// whole document for a `TermStats<View>`, each chunk for a
-    /// `TermStats<Chunks>`. `vocabulary` is the document's.
-    pub fn add<L>(&mut self, stats: &TermStats<L>, vocabulary: &Vocabulary) {
-        self.units += stats.length.iter().filter(|&&l| l > 0).count() as u64;
-        self.length += stats.length.iter().map(|&l| u64::from(l)).sum::<u64>();
+    /// `TermStats<Chunks>`. `vocabulary` is the document's. `Err`, with the
+    /// builder unchanged, when the units or the total length would pass
+    /// `u64`.
+    pub fn add<L>(&mut self, stats: &TermStats<L>, vocabulary: &Vocabulary) -> Result<(), String> {
+        let units = stats.length.iter().filter(|&&l| l > 0).count() as u64;
+        let length = stats.length.iter().map(|&l| u64::from(l)).sum::<u64>();
+        self.grow(units, length)?;
         for (t, &n) in stats.df.iter().enumerate() {
             if n > 0 {
                 *self.df.entry(vocabulary.text.get(t).to_owned()).or_default() += u64::from(n);
             }
         }
+        Ok(())
     }
 
-    /// Adds the units another builder counted.
-    pub fn merge(&mut self, other: CollectionStatisticsBuilder) {
-        self.units += other.units;
-        self.length += other.length;
+    /// Adds the units another builder counted. `Err`, with this builder
+    /// unchanged, when the units or the total length would pass `u64`.
+    pub fn merge(&mut self, other: CollectionStatisticsBuilder) -> Result<(), String> {
+        self.grow(other.units, other.length)?;
         for (term, n) in other.df {
             *self.df.entry(term).or_default() += n;
         }
+        Ok(())
+    }
+
+    /// Adds to the units and the length, or neither. A term's df never
+    /// passes the units, so once these fit, every df does too.
+    fn grow(&mut self, units: u64, length: u64) -> Result<(), String> {
+        let (Some(u), Some(l)) = (self.units.checked_add(units), self.length.checked_add(length)) else {
+            return Err("collection statistics past u64".into());
+        };
+        (self.units, self.length) = (u, l);
+        Ok(())
     }
 
     /// The statistics, terms in byte order. The same units give the same
@@ -115,15 +130,17 @@ impl CollectionStatistics {
     /// Reads `to_bytes`'s form, refusing anything it could not have
     /// written: another magic or version, a truncated or overlong payload,
     /// a term that is empty, not UTF-8 or out of byte order, a document
-    /// frequency of zero or past the units, or length without units.
+    /// frequency of zero or past the units, a total length below the units,
+    /// or terms without units.
     pub fn from_bytes(bytes: &[u8]) -> Result<CollectionStatistics, String> {
         let mut r = Reader(bytes);
         if r.take(MAGIC.len())? != MAGIC {
             return Err("not collection statistics of version 1".into());
         }
         let (units, length, terms) = (r.u64()?, r.u64()?, r.u64()?);
-        if units == 0 && (length > 0 || terms > 0) {
-            return Err("terms or length without units".into());
+        // Every unit counted holds at least one term.
+        if length < units || (units == 0 && (length > 0 || terms > 0)) {
+            return Err(format!("{units} units of total length {length} with {terms} terms"));
         }
         // Each term takes at least 13 bytes, so the count is bounded by what
         // is left before anything is allocated for it.

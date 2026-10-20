@@ -70,7 +70,11 @@ fn document(rng: &mut Lcg, units: usize, vocabulary: u64) -> (Vocabulary, TermSt
 }
 
 fn main() {
-    let args: Vec<usize> = std::env::args().skip(1).map(|a| a.parse().unwrap()).collect();
+    let args: Vec<usize> = std::env::args().skip(1).filter_map(|a| a.parse().ok()).collect();
+    if args.len() != 4 {
+        eprintln!("usage: bm25_posting_bench DOCS UNITS VOCABULARY K, for example 2000 20 50000 10");
+        std::process::exit(2);
+    }
     let (docs, units, vocabulary, k) = (args[0], args[1], args[2] as u64, args[3]);
     let mut rng = Lcg(7);
     let corpus: Vec<_> = (0..docs).map(|_| document(&mut rng, units, vocabulary)).collect();
