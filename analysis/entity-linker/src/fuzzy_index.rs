@@ -5,12 +5,12 @@
 use std::cmp::Reverse;
 use std::collections::HashMap;
 
-/// Base number of postings scanned from a single feature list when rarer features exist.
-const BASE_FEATURE_SCAN: usize = 1024;
+/// Maximum postings scanned from a single feature list before treating it as a broad prefix/common slice.
+const BASE_FEATURE_SCAN: usize = 2_048;
 /// Total posting scan budget across rarest-first feature lists.
-const TOTAL_POSTING_BUDGET: usize = 32_768;
-/// Base number of candidate folded keys returned for full Jaro-Winkler / Dice verification.
-const BASE_FUZZY_VERIFY: usize = 512;
+const TOTAL_POSTING_BUDGET: usize = 12_288;
+/// Maximum number of candidate folded keys returned for full Jaro-Winkler / Dice verification.
+const BASE_FUZZY_VERIFY: usize = 256;
 /// Maximum key length (in characters) indexed in the short-key 1-delete / anagram table.
 const SHORT_KEY_MAX_CHARS: usize = 8;
 
@@ -37,7 +37,6 @@ pub(crate) struct FuzzyAliasIndex {
     trigram_postings: HashMap<TrigramKey, PostingList>,
     bigram_postings: HashMap<BigramKey, PostingList>,
     pos_char_postings: HashMap<(u8, char), PostingList>,
-    char_postings: HashMap<char, PostingList>,
     short_delete_postings: HashMap<String, PostingList>,
     short1_postings: HashMap<char, Vec<u32>>,
 }
@@ -54,14 +53,12 @@ impl FuzzyAliasIndex {
         let mut trigram_postings: HashMap<TrigramKey, PostingList> = HashMap::new();
         let mut bigram_postings: HashMap<BigramKey, PostingList> = HashMap::new();
         let mut pos_char_postings: HashMap<(u8, char), PostingList> = HashMap::new();
-        let mut char_postings: HashMap<char, PostingList> = HashMap::new();
         let mut short_delete_postings: HashMap<String, PostingList> = HashMap::new();
         let mut short1_postings: HashMap<char, Vec<u32>> = HashMap::new();
 
         let mut grams3_buf = Vec::new();
         let mut grams2_buf = Vec::new();
         let mut pos_chars_buf: Vec<(u8, char)> = Vec::new();
-        let mut unique_chars_buf: Vec<char> = Vec::new();
         let mut deletes_buf = Vec::new();
         let mut toks_buf: Vec<&str> = Vec::new();
         let mut char_counts: Vec<(char, u16)> = Vec::new();
@@ -105,7 +102,6 @@ impl FuzzyAliasIndex {
             }
 
             pos_chars_buf.clear();
-            unique_chars_buf.clear();
             for (pos, &c) in chars.iter().enumerate() {
                 if c.is_whitespace() {
                     continue;
@@ -122,10 +118,6 @@ impl FuzzyAliasIndex {
                         pos_chars_buf.push((occ_tag, c));
                         pos_char_postings.entry((occ_tag, c)).or_default().push((char_len, k_idx));
                     }
-                }
-                if !unique_chars_buf.contains(&c) {
-                    unique_chars_buf.push(c);
-                    char_postings.entry(c).or_default().push((char_len, k_idx));
                 }
             }
 
@@ -149,9 +141,6 @@ impl FuzzyAliasIndex {
         for list in pos_char_postings.values_mut() {
             list.sort_unstable();
         }
-        for list in char_postings.values_mut() {
-            list.sort_unstable();
-        }
         for list in short_delete_postings.values_mut() {
             list.sort_unstable();
         }
@@ -165,7 +154,6 @@ impl FuzzyAliasIndex {
             trigram_postings,
             bigram_postings,
             pos_char_postings,
-            char_postings,
             short_delete_postings,
             short1_postings,
         }
@@ -191,12 +179,13 @@ impl FuzzyAliasIndex {
         let q_mask_bits = (q_mask[0].count_ones() + q_mask[1].count_ones()) as usize;
         let q_ctx = QueryFilterCtx { q_len, q_prefix4, q_mask, q_mask_bits, threshold };
 
-        let mut counts: HashMap<u32, u16> = HashMap::new();
+        let mut counts: HashMap<u32, (u8, u16)> = HashMap::new();
         if q_len == 1
             && let Some(list) = self.short1_postings.get(&q_chars[0])
         {
             for &k_idx in list.iter().take(BASE_FEATURE_SCAN) {
-                *counts.entry(k_idx).or_insert(0) += 4;
+                let entry = counts.entry(k_idx).or_insert((1, 0));
+                entry.1 = entry.1.saturating_add(4);
             }
         }
 
@@ -229,7 +218,12 @@ impl FuzzyAliasIndex {
                 let t_k = self.key_token_lens[k_idx as usize] as usize;
                 let dice_scaled = 0.95 * (2.0 * (shared as f64)) / ((t_q + t_k) as f64);
                 if dice_scaled + 1e-9 >= threshold {
-                    *counts.entry(k_idx).or_insert(0) += (shared as u16) * 4;
+                    let k_mask = self.key_char_masks[k_idx as usize];
+                    let shared_bits = ((q_ctx.q_mask[0] & k_mask[0]).count_ones()
+                        + (q_ctx.q_mask[1] & k_mask[1]).count_ones())
+                    .min(255) as u8;
+                    let entry = counts.entry(k_idx).or_insert((shared_bits, 0));
+                    entry.1 = entry.1.saturating_add((shared as u16) * 4);
                 }
             }
         }
@@ -269,24 +263,20 @@ impl FuzzyAliasIndex {
             }
         }
 
-        let min_gram_slice_len = slices.iter().map(|(s, _)| s.len()).min().unwrap_or(usize::MAX);
-        let char_slice_cap = if min_gram_slice_len > 128 { TOTAL_POSTING_BUDGET } else { 64 };
-
         let mut q_pos_chars: Vec<(u8, char)> = Vec::new();
-        let mut q_unique_chars: Vec<char> = Vec::new();
         for (pos, &c) in q_chars.iter().enumerate() {
             if c.is_whitespace() {
                 continue;
             }
             let bucket = (pos / 4).min(127) as u8;
-            let b_lo = if min_gram_slice_len > 128 { bucket.saturating_sub(1) } else { bucket };
-            let b_hi = if min_gram_slice_len > 128 { (bucket + 1).min(127) } else { bucket };
+            let b_lo = bucket.saturating_sub(1);
+            let b_hi = (bucket + 1).min(127);
             for b in b_lo..=b_hi {
                 if !q_pos_chars.contains(&(b, c)) {
                     q_pos_chars.push((b, c));
                     if let Some(list) = self.pos_char_postings.get(&(b, c)) {
                         let slice = length_window_slice(list, min_len, max_len);
-                        if !slice.is_empty() && slice.len() <= char_slice_cap {
+                        if !slice.is_empty() {
                             slices.push((slice, 2));
                         }
                     }
@@ -299,18 +289,9 @@ impl FuzzyAliasIndex {
                     q_pos_chars.push((occ_tag, c));
                     if let Some(list) = self.pos_char_postings.get(&(occ_tag, c)) {
                         let slice = length_window_slice(list, min_len, max_len);
-                        if !slice.is_empty() && slice.len() <= char_slice_cap {
+                        if !slice.is_empty() {
                             slices.push((slice, 2));
                         }
-                    }
-                }
-            }
-            if !q_unique_chars.contains(&c) {
-                q_unique_chars.push(c);
-                if let Some(list) = self.char_postings.get(&c) {
-                    let slice = length_window_slice(list, min_len, max_len);
-                    if !slice.is_empty() && slice.len() <= char_slice_cap {
-                        slices.push((slice, 1));
                     }
                 }
             }
@@ -320,47 +301,43 @@ impl FuzzyAliasIndex {
 
         let mut scanned_postings = 0usize;
         for (slice, weight) in slices {
-            if slice.len() <= BASE_FEATURE_SCAN || scanned_postings.saturating_add(slice.len()) <= TOTAL_POSTING_BUDGET
+            if slice.len() <= BASE_FEATURE_SCAN && scanned_postings.saturating_add(slice.len()) <= TOTAL_POSTING_BUDGET
             {
                 scanned_postings = scanned_postings.saturating_add(slice.len());
                 for &(k_len_u16, k_idx) in slice {
-                    if self.passes_jaro_prefilter(k_idx, k_len_u16 as usize, &q_ctx) {
-                        *counts.entry(k_idx).or_insert(0) += weight;
+                    if let Some(shared_bits) = self.passes_jaro_prefilter(k_idx, k_len_u16 as usize, &q_ctx) {
+                        let entry = counts.entry(k_idx).or_insert((shared_bits, 0));
+                        entry.1 = entry.1.saturating_add(weight);
                     }
                 }
-            } else if counts.len() < 128 {
+            } else if counts.len() < 64 {
                 let mid = slice.partition_point(|&(len, _)| len < q_len_u16);
                 let start = mid.saturating_sub(BASE_FEATURE_SCAN / 2);
                 let end = (start + BASE_FEATURE_SCAN).min(slice.len());
                 let start = end.saturating_sub(BASE_FEATURE_SCAN);
                 for &(k_len_u16, k_idx) in &slice[start..end] {
-                    if self.passes_jaro_prefilter(k_idx, k_len_u16 as usize, &q_ctx) {
-                        counts.entry(k_idx).or_insert(1);
+                    if let Some(shared_bits) = self.passes_jaro_prefilter(k_idx, k_len_u16 as usize, &q_ctx) {
+                        counts.entry(k_idx).or_insert((shared_bits, 1));
                     }
                 }
             }
         }
 
-        let mut ranked: Vec<(u16, Reverse<u16>, Reverse<u32>)> = counts
+        let mut ranked: Vec<(u8, u16, Reverse<u16>, Reverse<u32>)> = counts
             .into_iter()
-            .map(|(k_idx, score)| {
+            .map(|(k_idx, (shared_bits, score))| {
                 let k_len = self.key_char_lens[k_idx as usize];
-                (score, Reverse(k_len.abs_diff(q_len_u16)), Reverse(k_idx))
+                (shared_bits, score, Reverse(k_len.abs_diff(q_len_u16)), Reverse(k_idx))
             })
             .collect();
 
         ranked.sort_unstable_by(|a, b| b.cmp(a));
-        let top_score = ranked.first().map_or(0, |r| r.0);
-        ranked
-            .into_iter()
-            .enumerate()
-            .take_while(|(idx, (score, _, _))| *idx < BASE_FUZZY_VERIFY || *score == top_score)
-            .map(|(_, (_, _, Reverse(k_idx)))| k_idx)
-            .collect()
+        ranked.truncate(BASE_FUZZY_VERIFY);
+        ranked.into_iter().map(|(_, _, _, Reverse(k_idx))| k_idx).collect()
     }
 
     #[inline]
-    fn passes_jaro_prefilter(&self, k_idx: u32, k_len: usize, ctx: &QueryFilterCtx) -> bool {
+    fn passes_jaro_prefilter(&self, k_idx: u32, k_len: usize, ctx: &QueryFilterCtx) -> Option<u8> {
         let max_p_len = 4.min(ctx.q_len).min(k_len);
         let k_p4 = self.key_prefix4[k_idx as usize];
         let mut p = 0usize;
@@ -369,11 +346,11 @@ impl FuzzyAliasIndex {
         }
         let m_req = min_jaro_matches(ctx.q_len, k_len, p, ctx.threshold);
         if m_req > ctx.q_len.min(k_len) {
-            return false;
+            return None;
         }
         let k_mask = self.key_char_masks[k_idx as usize];
         let shared = ((ctx.q_mask[0] & k_mask[0]).count_ones() + (ctx.q_mask[1] & k_mask[1]).count_ones()) as usize;
-        shared + (ctx.q_len - m_req) >= ctx.q_mask_bits
+        if shared + (ctx.q_len - m_req) >= ctx.q_mask_bits { Some(shared.min(255) as u8) } else { None }
     }
 }
 
@@ -396,8 +373,16 @@ fn compute_char_mask(chars: &[char], counts: &mut Vec<(char, u16)>) -> [u64; 2] 
 
 #[inline]
 fn occ_char_bit(c: char, occ: u16) -> u32 {
-    let h = (c as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ ((occ as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9));
-    ((h ^ (h >> 32)) as u32) & 127
+    if c.is_ascii_lowercase() && (1..=3).contains(&occ) {
+        ((c as u32 - b'a' as u32) * 3) + (occ as u32 - 1)
+    } else if c.is_ascii_digit() && (1..=4).contains(&occ) {
+        78 + ((c as u32 - b'0' as u32) * 4) + (occ as u32 - 1)
+    } else if c == ' ' && (1..=4).contains(&occ) {
+        118 + (occ as u32 - 1)
+    } else {
+        let h = (c as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ ((occ as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9));
+        122 + (((h ^ (h >> 32)) as u32) % 6)
+    }
 }
 
 #[inline]
