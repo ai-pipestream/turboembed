@@ -15,7 +15,7 @@
 pub(crate) mod candidates;
 pub(crate) mod features;
 
-use turbo_analysis::{Annotator, Error};
+use turbo_analysis::{Annotator, Error, Key, Layer};
 use turbo_analysis_layers::{Sentences, Terms, Tokens};
 
 use crate::ranked::RankedKeyword;
@@ -123,6 +123,12 @@ impl YakeExtractor {
         if !(self.dedup.threshold > 0.0 && self.dedup.threshold <= 1.0) {
             return Err(config("dedup threshold must be in (0, 1]"));
         }
+        // The layers are indexed column by column below; their own
+        // invariants run first, so ragged columns refuse instead of
+        // panicking.
+        sentences.check().map_err(invalid::<Sentences>)?;
+        tokens.check().map_err(invalid::<Tokens>)?;
+        terms.check().map_err(invalid::<Terms>)?;
         if tokens.spans.is_empty() {
             return Ok(Vec::new());
         }
@@ -152,4 +158,9 @@ impl YakeExtractor {
 
 fn config(detail: &'static str) -> Error {
     Error::Annotator { annotator: crate::YakeAnnotator::ID, detail: format!("invalid configuration: {detail}") }
+}
+
+/// A layer whose own `check` refused it, as the step's error.
+fn invalid<L: Layer>(detail: String) -> Error {
+    Error::Invalid { layer: Key::<L>::DEFAULT.id(), detail }
 }

@@ -376,10 +376,10 @@ fn tokens_outside_sentences_fail_the_document() {
     let results = analyzer.run(&mut docs);
     let key = Key::<Keywords>::DEFAULT.id();
     match &results[0] {
-        Err(Error::Annotator { detail, .. }) => assert!(detail.contains("outside every sentence"), "{detail}"),
-        other => panic!("expected the merge-walk failure, got {other:?}"),
+        Err(Error::Invalid { detail, .. }) => assert!(detail.contains("not wholly inside one sentence"), "{detail}"),
+        other => panic!("expected the containment failure, got {other:?}"),
     }
-    assert!(matches!(docs[0].status(key), Some(Status::Failed(Error::Annotator { .. }))));
+    assert!(matches!(docs[0].status(key), Some(Status::Failed(Error::Invalid { .. }))));
 }
 
 #[test]

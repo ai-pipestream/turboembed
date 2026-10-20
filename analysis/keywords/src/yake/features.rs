@@ -162,7 +162,10 @@ pub(crate) fn fold<'t>(
                 *left.entry((term_of[i], term_of[j])).or_default() += 1;
             }
         }
-        for j in i + 1..(i + 1 + window_size).min(n) {
+        // Saturating: a window of usize::MAX must reach the end of the
+        // tokens, not overflow.
+        let end = i.saturating_add(window_size).saturating_add(1).min(n);
+        for j in i + 1..end {
             if sentence_of[j] != sentence_of[i] {
                 break;
             }

@@ -8,7 +8,7 @@ pub(crate) mod graph;
 
 use std::collections::HashMap;
 
-use turbo_analysis::{Annotator, Error, Layer, Span};
+use turbo_analysis::{Annotator, Error, Key, Layer, Span};
 use turbo_analysis_layers::{PosTags, Sentences, Terms, Tokens};
 
 use crate::ranked::RankedKeyword;
@@ -99,6 +99,13 @@ impl TextRankExtractor {
         if self.epsilon.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return Err(config("epsilon must be positive"));
         }
+        // The layers are used by index below; their own invariants run
+        // first, so malformed tags or ragged columns refuse instead of
+        // panicking.
+        sentences.check().map_err(invalid::<Sentences>)?;
+        tokens.check().map_err(invalid::<Tokens>)?;
+        pos_tags.check().map_err(invalid::<PosTags>)?;
+        terms.check().map_err(invalid::<Terms>)?;
         let n = tokens.spans.len();
         if pos_tags.tags.len() != n {
             return Err(Error::Annotator {
@@ -139,7 +146,8 @@ impl TextRankExtractor {
         }
         for run in &runs {
             for i in 0..run.len() {
-                for j in i + 1..(i + self.window + 1).min(run.len()) {
+                let end = i.saturating_add(self.window).saturating_add(1).min(run.len());
+                for j in i + 1..end {
                     graph.cooccur(run[i].1, run[j].1);
                 }
             }
@@ -161,10 +169,12 @@ impl TextRankExtractor {
         let marked: std::collections::HashSet<u32> = order.into_iter().collect();
 
         // Adjacent marked content tokens collapse into one keyphrase,
-        // scored by the sum of its members' centralities, per occurrence.
-        // Adjacency is in the token stream: a token that did not pass
-        // the POS filter breaks a run as a word a keyphrase would not
-        // span.
+        // scored by the sum of its distinct members' centralities, per
+        // occurrence: a phrase repeating a term ("cats cats") counts its
+        // vertex once, so the score stays inside the total centrality
+        // mass of 1. Adjacency is in the token stream: a token that did
+        // not pass the POS filter breaks a run as a word a keyphrase
+        // would not span.
         let mut phrases: HashMap<Vec<u32>, (f64, Vec<Span>)> = HashMap::new();
         for run in &runs {
             let mut i = 0;
@@ -174,12 +184,14 @@ impl TextRankExtractor {
                     continue;
                 }
                 let mut j = i + 1;
-                let mut score = pr[run[i].1 as usize];
                 while j < run.len() && marked.contains(&run[j].1) && run[j].0 == run[j - 1].0 + 1 {
-                    score += pr[run[j].1 as usize];
                     j += 1;
                 }
                 let ids: Vec<u32> = run[i..j].iter().map(|&(_, id)| id).collect();
+                let mut distinct = ids.clone();
+                distinct.sort_unstable();
+                distinct.dedup();
+                let score: f64 = distinct.iter().map(|&id| pr[id as usize]).sum();
                 let span = Span::new(tok_start[run[i].0], tok_end[run[j - 1].0]);
                 let entry = phrases.entry(ids).or_insert((score, Vec::new()));
                 debug_assert!((entry.0 - score).abs() < 1e-12, "one score per phrase");
@@ -218,4 +230,9 @@ impl TextRankExtractor {
 
 fn config(detail: &'static str) -> Error {
     Error::Annotator { annotator: crate::TextRankAnnotator::ID, detail: format!("invalid configuration: {detail}") }
+}
+
+/// A layer whose own `check` refused it, as the step's error.
+fn invalid<L: Layer>(detail: String) -> Error {
+    Error::Invalid { layer: Key::<L>::DEFAULT.id(), detail }
 }
