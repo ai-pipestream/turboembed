@@ -10,7 +10,8 @@
 //! structure says about each gap between sentences, and `limits` turns
 //! that into the places a chunk may not end. At query time, `route`
 //! ranks the chunk, section and document units of `Levels` together,
-//! and `hashes` gives every unit a content-addressed ID.
+//! and `hashes` gives every unit a content-addressed ID. `eval` scores a
+//! chunking against a gold one and sweeps the chunker's settings.
 
 mod boundaries;
 mod cohesion;
@@ -45,6 +46,7 @@ pub mod levels;
 pub mod terms;
 
 pub mod compare;
+pub mod eval;
 
 use std::ops::Range;
 
