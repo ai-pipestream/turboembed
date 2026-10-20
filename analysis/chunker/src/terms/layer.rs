@@ -43,6 +43,21 @@ impl Vocabulary {
     pub fn is_empty(&self) -> bool {
         self.text.is_empty()
     }
+
+    /// The layer's check: terms in byte order, each once.
+    /// One pass, each term read once.
+    pub fn validate(&self) -> Result<(), String> {
+        let mut terms = self.text.iter();
+        if let Some(mut prev) = terms.next() {
+            for term in terms {
+                if prev >= term {
+                    return Err("terms in byte order, each once".into());
+                }
+                prev = term;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Layer for Vocabulary {
@@ -54,11 +69,7 @@ impl Layer for Vocabulary {
         self.text.len()
     }
     fn check(&self) -> Result<(), String> {
-        let n = self.text.len();
-        if (1..n).any(|i| self.text.get(i - 1) >= self.text.get(i)) {
-            return Err("terms in byte order, each once".into());
-        }
-        Ok(())
+        self.validate()
     }
 }
 
@@ -128,6 +139,71 @@ impl<L> TermStats<L> {
     pub fn units(&self) -> impl Iterator<Item = Ix<L>> + use<L> {
         (0..self.length.len() as u32).map(Ix::new)
     }
+
+    /// The layer's check, for any level: one row start per unit and one
+    /// past the last entry, terms ascending and each once per unit, no
+    /// count of zero, each length the sum of its counts, every term inside
+    /// the vocabulary's `df`, and each df the number of units holding its
+    /// term, so never more than the units.
+    pub fn validate(&self) -> Result<(), String> {
+        let n = self.length.len();
+        if self.row.len() != n + 1 || self.row[0] != 0 || self.row[n] as usize != self.term.len() {
+            return Err("one row start per unit and one past the last entry".into());
+        }
+        if self.tf.len() != self.term.len() {
+            return Err("a count for every entry".into());
+        }
+        if !self.row.windows(2).all(|w| w[0] <= w[1]) {
+            return Err("rows in unit order".into());
+        }
+        // One pass over the entries: each unit's terms ascending, its
+        // counts nonzero and summing to its length, and each term counted
+        // toward its df.
+        let mut df = vec![0u32; self.df.len()];
+        for i in 0..n {
+            let (mut prev, mut sum) = (None, 0u64);
+            for (t, &c) in
+                self.term[self.row[i] as usize..self.row[i + 1] as usize].iter().zip(&self.tf[self.row[i] as usize..])
+            {
+                let t = t.get();
+                if prev.is_some_and(|p| p >= t) {
+                    return Err(format!("unit {i}: terms in ascending id, each once"));
+                }
+                if c == 0 {
+                    return Err(format!("unit {i}: a count of zero"));
+                }
+                let Some(d) = df.get_mut(t) else {
+                    return Err(format!("unit {i}: a term past the vocabulary's {}", self.df.len()));
+                };
+                *d += 1;
+                (prev, sum) = (Some(t), sum + u64::from(c));
+            }
+            if sum != u64::from(self.length[i]) {
+                return Err(format!("unit {i}: a length that is not the sum of its counts"));
+            }
+        }
+        if df != self.df {
+            return Err("a df that is not the number of units holding the term".into());
+        }
+        Ok(())
+    }
+
+    /// `validate` for these counts and for `vocabulary`, one df per term
+    /// of `vocabulary`, and no unit counting an empty term: what a caller
+    /// handing both to a builder must hold, checked before anything is
+    /// changed.
+    pub fn validate_with(&self, vocabulary: &Vocabulary) -> Result<(), String> {
+        self.validate()?;
+        vocabulary.validate()?;
+        if self.df.len() != vocabulary.len() {
+            return Err(format!("{} df counts for a vocabulary of {}", self.df.len(), vocabulary.len()));
+        }
+        // An empty term sorts first, so only term 0 can be one.
+        if self.df.first().is_some_and(|&d| d > 0) && vocabulary.get(Ix::new(0)).is_empty() {
+            return Err("an empty term in a unit: collection statistics hold only non-empty terms".into());
+        }
+        Ok(())
+    }
 }
 
 impl<L: Layer> Layer for TermStats<L> {
@@ -143,38 +219,6 @@ impl<L: Layer> Layer for TermStats<L> {
         vec![(Key::<Vocabulary>::DEFAULT.id(), self.df.len())]
     }
     fn check(&self) -> Result<(), String> {
-        let n = self.length.len();
-        if self.row.len() != n + 1 || self.row[0] != 0 || self.row[n] as usize != self.term.len() {
-            return Err("one row start per unit and one past the last entry".into());
-        }
-        if self.tf.len() != self.term.len() {
-            return Err("a count for every entry".into());
-        }
-        if !self.row.windows(2).all(|w| w[0] <= w[1]) {
-            return Err("rows in unit order".into());
-        }
-        let mut df = vec![0u32; self.df.len()];
-        for i in 0..n {
-            let r = self.row[i] as usize..self.row[i + 1] as usize;
-            if !self.term[r.clone()].windows(2).all(|w| w[0] < w[1]) {
-                return Err(format!("unit {i}: terms in ascending id, each once"));
-            }
-            if self.tf[r.clone()].contains(&0) {
-                return Err(format!("unit {i}: a count of zero"));
-            }
-            if self.tf[r.clone()].iter().map(|&c| u64::from(c)).sum::<u64>() != u64::from(self.length[i]) {
-                return Err(format!("unit {i}: a length that is not the sum of its counts"));
-            }
-            for t in &self.term[r] {
-                let Some(d) = df.get_mut(t.get()) else {
-                    return Err(format!("unit {i}: a term past the vocabulary's {}", self.df.len()));
-                };
-                *d += 1;
-            }
-        }
-        if df != self.df {
-            return Err("a df that is not the number of units holding the term".into());
-        }
-        Ok(())
+        self.validate()
     }
 }

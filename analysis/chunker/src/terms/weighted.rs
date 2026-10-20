@@ -14,7 +14,9 @@ use super::layer::{TermStats, Vocabulary};
 /// entry's weight is `idf(t) * tf / (tf + k1 * (1 - b + b * length /
 /// mean_length))`, the term's share of the unit's BM25 score.
 pub struct WeightedTerms<L> {
-    /// The same row starts as the `TermStats<L>` they were made from.
+    /// The same row starts as the `TermStats<L>` they were made from. The
+    /// layer is checked on its own; nothing checks these rows against a
+    /// `TermStats<L>` on the same document, on import or elsewhere.
     pub row: Vec<u32>,
     pub weight: Vec<f64>,
     pub _of: PhantomData<fn() -> L>,
@@ -23,12 +25,15 @@ pub struct WeightedTerms<L> {
 impl<L> WeightedTerms<L> {
     /// The BM25 weight of every entry of `stats` under `model`, with the
     /// idf and mean length of `collection`; `vocabulary` is the document's.
+    /// `Err` when `stats` and `vocabulary` do not pass
+    /// `TermStats::validate_with`.
     pub fn bm25(
         stats: &TermStats<L>,
         vocabulary: &Vocabulary,
         collection: &impl Collection,
         model: Bm25,
-    ) -> WeightedTerms<L> {
+    ) -> Result<WeightedTerms<L>, String> {
+        stats.validate_with(vocabulary)?;
         let (units, mean) = (collection.units(), collection.mean_length());
         let idf: Vec<f64> =
             (0..vocabulary.len()).map(|t| Bm25::idf(units, collection.df(vocabulary.text.get(t)))).collect();
@@ -40,7 +45,7 @@ impl<L> WeightedTerms<L> {
                 weight.push(idf[t.get()] * model.weight(n, length, mean));
             }
         }
-        WeightedTerms { row: stats.row.clone(), weight, _of: PhantomData }
+        Ok(WeightedTerms { row: stats.row.clone(), weight, _of: PhantomData })
     }
 
     /// Unit `i`'s weights, in the order of its terms in the `TermStats`.
