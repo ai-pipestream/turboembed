@@ -62,3 +62,8 @@ Provenance records version `1` and model identity.
 
 See `analysis/depparse/src/lib.rs`, `analysis/depparse/tests/data/README.md`
 and `docs/receipts/depparse-688/README.md` for API, parity data and receipts.
+
+## Feedforward model
+
+The neural parser, trainer, both feature layouts, model formats and annotation
+integration are documented in [feedforward dependency parsing](feedforward-dependency-parser.md).

@@ -20,6 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-group` | `analysis/group/` | Sketches, near-duplicate groups and version links inside a document and across a batch, and boilerplate detection (Near duplicates and boilerplate, below) |
+| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization (Exact vector index, below) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
@@ -51,6 +52,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger and chunker (`en-pos-maxent.bin`, `en-chunker.bin`); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the web language detector trained on those sentences and on FineWeb-2 and FineWeb (ODC-By 1.0) windows read by range request, gated on held-out sentences and held-out windows; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the sentence corpus readers (Moses, LetsMT, NKJP, the Irish Sentence Bank, which also gives token samples), the Leipzig language corpus reader and the 20 Newsgroups reader, the Arvores Deitadas readers of the Floresta Sinta(c)tica treebank (name, part-of-speech, chunk, sentence and token samples), the OntoNotes name, parse and part-of-speech readers and the French Treebank parse reader (`turbo_parser::Parse` trees), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner`, `corpora`, `ontonotes`, `frenchtreebank` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`); and the `CHUNKING` and `TREEINSERT` bottom-up parsers: reading a `ParserModel` file, the context generators, the shared search of `AbstractBottomUpParser`, `ParserTool.parseLine` and `ParserAnnotator` (the `Phrases` layer). Training the parsers is `turbo-train-components`. `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
+| `turbo-coref` | `analysis/coref/` | OpenNLP's coreference resolver: mention detection from entities, noun phrases (chunks or parse phrases) and pronouns, the precision-ordered sieves (speaker, exact, relaxed, acronym, person name, the strict and relaxed head sieves, pronoun match), the pair classifier and mention ranker read from a `CorefModel` file, word vectors for head similarity and token vectors for span features, `CorefAnnotator` writing `opennlp:mentions` (`Mentions`), the chains as `Groups<Mentions>` and the antecedent links as `Edges<Mentions, Mentions>` tagged with the deciding sieve, the pairwise and ranking trainers, and `CorefScorer` (MUC, B-cubed, CEAF-m, CEAF-e, mention detection and the CoNLL average); [coref.md](coref.md) |
 | `turbo-encoding` | `analysis/encoding/` | Bytes to a document: decoders for the 40 encodings of the WHATWG Encoding Standard, each recording an alignment from the bytes to the text; encoding detection (a port of chardetng); `open`, which settles the encoding and writes `turbo:encoding`; and mojibake repair (a port of ftfy's encoding fix, by Robyn Speer), one edit per fix. `analysis/encoding/README.md` lists the generated files and their sources |
 | `turbo-encoding-layers` | `analysis/encoding-layers/` | The `Encoding` enum with the standard's labels, and the `turbo:encoding` layer (`SourceEncoding`) |
 | `turbo-encoding-gen` | `analysis/encoding-gen/` | The generator of the WHATWG tables, and `ftfy.py`, which generates the repair's character classes and test fixture from ftfy |
@@ -733,6 +735,8 @@ fields mean bumps its `SCHEMA`.
 | `IndexedTerms` (`Terms` alias) | `turbo:indexed-terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
 | `ContentHashes<L>` | `turbo:content-hashes<L>` | `L` | `turbo-chunker` |
+| `Mentions` | `opennlp:mentions` | text (indexes `Sentences`, `Tokens`, `Entities` when lifted from entities) | `turbo-coref` |
+| `Speakers` | `opennlp:speakers` | text | `turbo-coref` |
 | `Sketches<L>` | `turbo:sketches<L>` | `L` | `turbo-group` |
 | `Boilerplate<L>` | `turbo:boilerplate<L>` | `L` | `turbo-analysis-layers` |
 
@@ -2105,6 +2109,53 @@ document graph. The codecs refuse a truncated payload, a count past the
 payload, trailing bytes, a shingle of no words, an empty item with
 shingle hashes, an unknown boilerplate kind and a score outside
 `[0, 1]` or not a number.
+
+## Exact vector index
+
+`turbo-vector-index` holds a bounded set of vectors next to inference,
+such as label or schema-field candidates, the entities of a loaded
+catalog or glossary candidates before a heavier scorer, and answers the
+exact top-k for a query. It is not a corpus index: rows live in memory,
+and there is no persistence, update or delete.
+
+An `IndexBuilder` takes rows from `Vectors<L>` layers (`push_layer`,
+which skips the items the layer lists as empty) or from slices (`push`),
+each with the caller's metadata, and `build` returns a `VectorIndex`,
+which is immutable and shared across threads. Rows are numbered from 0
+in the order they were added.
+
+- **Embedding space.** Every index records a `Space`: the `ModelRef` of
+  the model that made its vectors, their dimension, and whether they are
+  unit length (`Normalization::Unit` or `None`). A layer or a query
+  names its space, and one from another model (id, revision or manifest
+  hash), another dimension or another normalization is refused with
+  `IndexError::Model`, `Dimension` or `Normalization`, never scored.
+- **Vectors refused.** A vector of zeros, a value that is not finite, a
+  vector longer than `MAX_LENGTH` (`2^50`), and in a unit space a
+  vector whose length is not within `UNIT_TOLERANCE` (`1e-3`) of 1, on
+  insert and on query, each with its own error naming the row or query.
+  A layer refused for any row adds none of its rows.
+- **Scores.** `Metric::Dot` scores the dot product of the query and the
+  row. `Metric::Cosine` stores each row divided by its length (in
+  `f64`), divides the query the same way and scores their dot product,
+  clamped to `[-1, 1]`, so a tiny vector keeps its direction. A dot
+  product is summed in `f32` in one fixed order (16 lanes, then the
+  lanes added pairwise), and the AVX-512, AVX2 and scalar paths all
+  follow it, so a score is the same bits on every path; a unit test
+  checks the three against each other.
+- **Top-k.** `top_k` scores every row and keeps the best `k` in a heap;
+  equal scores (by `==`, so `0.0` and `-0.0` tie) keep insertion order.
+  `top_k_batch` answers several queries with the same results, scoring
+  sixteen queries at a time against tiles of rows that fit in the
+  core's cache, so the rows are read from memory once for every sixteen
+  queries rather than once a query.
+
+The tests compare top-k with a full sort of every row's score on random
+rows of 7 to 1024 dimensions and on ties, duplicates, scaled copies and
+`k` beyond the collection, compare scores with the metric computed in
+`f64`, and run queries from eight threads against the single-thread
+answer. `analysis/vector-index/examples/index_bench.rs` times one query
+at a time and a batch over random unit rows.
 
 ## Levels
 
