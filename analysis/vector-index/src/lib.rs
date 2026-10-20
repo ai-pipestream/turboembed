@@ -18,6 +18,10 @@
 //! - With the `turboquant` feature, `IndexBuilder::build_quantized` stores
 //!   the rows as TurboQuant codes instead, 2 to 4 bits a coordinate, in a
 //!   `QuantizedIndex` that answers the same queries with estimated scores.
+//! - A [`TokenIndex`] holds several token vectors a candidate (the subword
+//!   vectors of a chunk, a section or a document) and scores a query's
+//!   token vectors against them by late interaction (MaxSim, as in
+//!   ColBERT), with the candidate token that won each query token.
 //!
 //! A score is an `f32` dot product summed in one fixed order (16 lanes,
 //! element `i` in lane `i % 16`, each lane a chain of fused multiply-adds,
@@ -31,6 +35,7 @@
 mod build;
 mod index;
 mod kernel;
+mod late;
 #[cfg(feature = "turboquant")]
 mod quant;
 mod rows;
@@ -41,6 +46,7 @@ mod tests;
 
 pub use build::IndexBuilder;
 pub use index::VectorIndex;
+pub use late::{LateHit, Prune, Source, TokenIndex, TokenIndexBuilder, TokenMatch};
 #[cfg(feature = "turboquant")]
 pub use quant::{QuantizedIndex, TurboQuant};
 
@@ -111,8 +117,11 @@ pub struct Hit {
 pub enum Which {
     /// The row of this number, inserted or about to be.
     Row(usize),
-    /// The query of this number in a batch, 0 for a single query.
+    /// The query of this number in a batch, 0 for a single query; for a
+    /// late-interaction query, its token of this number.
     Query(usize),
+    /// Token `.1` of late-interaction candidate `.0`.
+    Token(usize, usize),
 }
 
 impl fmt::Display for Which {
@@ -120,6 +129,7 @@ impl fmt::Display for Which {
         match self {
             Which::Row(i) => write!(f, "row {i}"),
             Which::Query(i) => write!(f, "query {i}"),
+            Which::Token(c, i) => write!(f, "token {i} of candidate {c}"),
         }
     }
 }
@@ -153,6 +163,8 @@ pub enum IndexError {
     /// given (a dimension that is not a positive multiple of 8 or past
     /// 16384, a calibration that could not be fitted).
     Quantized(String),
+    /// A late-interaction candidate or query with no token vectors.
+    NoTokens(Which),
 }
 
 impl fmt::Display for IndexError {
@@ -178,6 +190,7 @@ impl fmt::Display for IndexError {
             IndexError::Full => write!(f, "more rows than the index numbers"),
             IndexError::Bits(bits) => write!(f, "{bits} bits a coordinate, TurboQuant codes 2 to 4"),
             IndexError::Quantized(detail) => write!(f, "TurboQuant storage refused: {detail}"),
+            IndexError::NoTokens(w) => write!(f, "{w} has no token vectors"),
         }
     }
 }

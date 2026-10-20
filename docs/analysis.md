@@ -20,7 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-group` | `analysis/group/` | Sketches, near-duplicate groups and version links inside a document and across a batch, and boilerplate detection (Near duplicates and boilerplate, below) |
-| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization; TurboQuant storage at 2 to 4 bits a coordinate behind the same queries (feature `turboquant`) (Exact vector index, below; [turboquant.md](turboquant.md)) |
+| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization; TurboQuant storage at 2 to 4 bits a coordinate behind the same queries (feature `turboquant`); and late interaction (MaxSim) over candidates of token vectors from `Vectors<Subwords>` and `Levels` (Exact vector index, below; [turboquant.md](turboquant.md)) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
@@ -2189,6 +2189,46 @@ bound and the estimate's mean at each width.
 `analysis/vector-index/examples/quant_bench.rs` measures recall, error
 and speed against the exact index; [turboquant.md](turboquant.md) is the
 record, with the OpenNLP Java reference on the same rows.
+
+### Late interaction
+
+A `TokenIndex` holds candidates of several token vectors each and scores
+a query of several token vectors against them by MaxSim, as ColBERT
+does: for each query token the highest dot product over the candidate's
+tokens, and the sum of those maxima over the query tokens. It reranks a
+shortlist (`rerank`, the candidates given) or the whole index (`top_k`),
+best first with ties in insertion order; `score` gives one candidate's
+score, and `explain` also gives, for each query token, the candidate
+token that won it (the first with the highest dot product), its dot
+product and its source: the row it came from and, from a layer, its
+bytes, so a hit can be highlighted.
+
+`TokenIndexBuilder::push` adds a candidate from a slice of token vectors.
+`push_levels` adds one candidate a unit of `Levels` (chunk, section or
+document) from a text's `Vectors<Subwords>`: a unit's tokens are the
+subword pieces inside its span (inside each fragment, for a
+discontinuous unit), in text order, less the items the vectors list as
+empty and the pieces a `Prune` rule drops (punctuation, stopwords). The
+index records the rule's name and how many tokens it dropped for each
+candidate (`pruning`). A unit left with no token is not added. The layers
+must be of the index's model and dimension and of one view, and a layer
+refused for any unit adds none of its units.
+
+The space checks are the exact index's: a query from another model
+(id, revision or manifest hash, so another projection of the same encoder
+too), dimension or normalization is refused, and so are zero, non-finite
+and overlong token vectors, each error naming the candidate and token
+(`Which::Token`) or the query token. A candidate or query of no tokens is
+refused with `IndexError::NoTokens`. The dot products are the exact
+index's kernel, computed a candidate at a time as a block of query by
+candidate scores, four query tokens by four candidate tokens a step on
+AVX-512; the maximum of each query token is exact in any order, and the
+maxima are added in query order, so a score is the same bits on every
+path. `analysis/vector-index/tests/late.rs` checks scores and winning tokens against a naive
+double loop bit for bit, reranking against a full sort, the refusals and
+eight threads against one; `analysis/vector-index/tests/late_levels.rs` checks the tokens of
+each unit, pruning, and the refusal of layers of another model or view.
+`analysis/vector-index/examples/late_bench.rs` times a rerank.
 
 ## Levels
 
