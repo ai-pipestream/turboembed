@@ -255,3 +255,52 @@ fn the_hash_follows_every_setting() {
     assert_eq!(ab.unwrap().config_hash(), ba.unwrap().config_hash());
     assert!(!AbbreviationInventory::EMPTY.with_exclusion("x").is_unset());
 }
+
+/// Many multi-token entries the user added, `Xq<i>. Yq<i>.`.
+fn with_many(inv: AbbreviationInventory, n: usize) -> AbbreviationInventory {
+    (0..n).fold(inv, |inv, i| inv.with_addition(&format!("Xq{i}. Yq{i}."), ContextRule::Trailing).unwrap())
+}
+
+#[test]
+fn ordinary_sentence_ends_scan_no_entries() {
+    use super::index::PROBES;
+    let text = "The cat sat on the mat. It was warm. We left home at noon. Then it rained. Fine.";
+    let probes = |inv: &AbbreviationInventory, text: &str| {
+        PROBES.with(|c| c.set((0, 0)));
+        for (p, _) in text.match_indices('.') {
+            inv.judge(text, p);
+        }
+        PROBES.with(|c| c.get())
+    };
+    let big = with_many(AbbreviationInventory::english(), 1000);
+    for inv in [AbbreviationInventory::english(), big.clone()] {
+        assert_eq!(probes(&inv, text).0, 0, "multi-token entries compared at ordinary ends");
+    }
+    // Only the entries with the token as a part are compared: `op. cit.`
+    // at `op.`; `loc. cit.`, which fails, then `op. cit.` at `cit.`.
+    assert_eq!(probes(&big, "See op. cit. for more."), (3, 2));
+    assert_eq!(at(&big, "See op. cit. for more.", "cit."), Suppress);
+    assert_eq!(at(&big, "Xq7. Yq7. and more.", "Yq7."), Suppress);
+    assert_eq!(at(&big, "Xq7. Yq7. and more.", "Xq7."), Suppress);
+    assert_eq!(at(&big, "Xq7. Yq8. and more.", "Yq8."), Neutral);
+}
+
+#[test]
+fn the_index_follows_additions_and_exclusions() {
+    let en = AbbreviationInventory::english();
+    // An exclusion wins over an addition, made before or after it.
+    let ex = en.clone().with_exclusion("Dr.").with_addition("Dr.", ContextRule::Prepositive).unwrap();
+    assert_eq!(at(&ex, "Dr. Smith", "Dr."), Neutral);
+    let ex = en.clone().with_addition("Dr.", ContextRule::Prepositive).unwrap().with_exclusion("Dr.");
+    assert_eq!(at(&ex, "Dr. Smith", "Dr."), Neutral);
+    let ex = en.clone().with_exclusion("op. cit.");
+    assert_eq!(at(&ex, "See op. cit. for more.", "cit."), Neutral);
+    assert_eq!(at(&ex, "See loc. cit. for more.", "cit."), Suppress);
+    // An addition takes the place of a bundled entry of the same text.
+    let etc = en.clone().with_addition("etc.", ContextRule::Prepositive).unwrap();
+    assert_eq!(at(&etc, "Pens, ink etc. Then", "etc."), Suppress);
+    assert_eq!(at(&en, "Pens, ink etc. Then", "etc."), Neutral);
+    // Equality is on the configuration, not on how the index was built.
+    assert_eq!(en.clone().with_exclusion("x"), AbbreviationInventory::english().with_exclusion("x"));
+    assert_ne!(ex, en);
+}

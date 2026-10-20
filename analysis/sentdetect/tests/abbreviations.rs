@@ -244,3 +244,28 @@ fn annotators_hash_the_inventory() {
     let (sentences,) = with.annotate((view,)).unwrap();
     assert_eq!(sentences.spans.columns(), (&[0, 32][..], &[31, 44][..]));
 }
+
+#[test]
+fn multi_token_entries_are_found_by_part_without_a_scan() {
+    let en = AbbreviationInventory::english();
+    fn parts<'a>(inv: &'a AbbreviationInventory, t: &str) -> Vec<(&'a str, usize)> {
+        inv.multi_token_entries(t).collect()
+    }
+    assert_eq!(parts(&en, "cit."), [("loc. cit.", 1), ("op. cit.", 1)]);
+    assert_eq!(parts(&en, "et"), [("et al.", 0), ("et seq.", 0)]);
+    assert!(parts(&en, "home.").is_empty());
+    let n = 500;
+    let big =
+        (0..n).fold(en.clone(), |inv, i| inv.with_addition(&format!("Xq{i}. Yq{i}."), ContextRule::Trailing).unwrap());
+    assert_eq!(big.multi_token_len(), en.multi_token_len() + n);
+    assert!(parts(&big, "home.").is_empty());
+    assert_eq!(parts(&big, "Yq42."), [("Xq42. Yq42.", 1)]);
+    assert_eq!(parts(&big, "Xq42."), [("Xq42. Yq42.", 0)]);
+    let fewer = big.clone().with_exclusion("Xq42. Yq42.");
+    assert!(parts(&fewer, "Yq42.").is_empty());
+    assert_eq!(fewer.multi_token_len(), big.multi_token_len() - 1);
+    // The default detector splits a text without abbreviations as the
+    // parity detector does.
+    let text = "The cat sat on the mat. It was warm. We left home at noon. Then it rained.";
+    assert_eq!(rules(&en_rules(), text), rules(&en_rules().without_inventory(), text));
+}

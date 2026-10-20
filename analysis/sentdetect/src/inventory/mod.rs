@@ -21,17 +21,23 @@
 //! detector decides as it would without an inventory.
 //!
 //! The English entries are static, sorted tables (see `english.rs`);
-//! user additions and exclusions are kept sorted beside them.
+//! user additions and exclusions are kept sorted beside them. The active
+//! entries are indexed when an inventory is built or changed (see
+//! `index.rs`), so judging a full stop costs a few binary searches, and
+//! most words are turned away by a bit filter before any search.
 //! [`AbbreviationInventory::EMPTY`] judges nothing, and a detector with
 //! it splits exactly as OpenNLP does.
 
 mod english;
+mod index;
 mod judge;
 #[cfg(test)]
 mod tests;
 
 use std::fmt;
 use std::ops::BitOr;
+
+use index::Index;
 
 /// The four kinds of abbreviation the bundled inventories hold.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -185,7 +191,7 @@ impl std::error::Error for AbbreviationError {}
 
 /// The abbreviations a sentence detector consults; see the module
 /// documentation.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct AbbreviationInventory {
     bundle: Option<&'static Bundle>,
     classes: AbbreviationClasses,
@@ -193,7 +199,22 @@ pub struct AbbreviationInventory {
     additions: Vec<(Box<str>, ContextRule)>,
     /// Sorted, unique.
     exclusions: Vec<Box<str>>,
+    /// The active entries, derived from the rest.
+    index: Index,
 }
+
+/// Equal when the language, classes, additions and exclusions are: the
+/// index follows from them.
+impl PartialEq for AbbreviationInventory {
+    fn eq(&self, other: &AbbreviationInventory) -> bool {
+        self.bundle == other.bundle
+            && self.classes == other.classes
+            && self.additions == other.additions
+            && self.exclusions == other.exclusions
+    }
+}
+
+impl Eq for AbbreviationInventory {}
 
 /// The bundled inventories by language.
 pub struct AbbreviationInventories;
@@ -221,6 +242,7 @@ impl AbbreviationInventory {
         classes: AbbreviationClasses::NONE,
         additions: Vec::new(),
         exclusions: Vec::new(),
+        index: Index::EMPTY,
     };
 
     /// The bundled English inventory with all four classes.
@@ -231,11 +253,13 @@ impl AbbreviationInventory {
     /// The bundled English inventory with the given classes, a class, a
     /// set or an [`AbbreviationPreset`].
     pub fn with_classes(classes: impl Into<AbbreviationClasses>) -> AbbreviationInventory {
-        AbbreviationInventory {
+        let mut inventory = AbbreviationInventory {
             bundle: Some(&english::ENGLISH),
             classes: classes.into(),
             ..AbbreviationInventory::EMPTY
-        }
+        };
+        inventory.index = Index::build(&inventory);
+        inventory
     }
 
     /// The bundled English inventory of a preset.
@@ -256,6 +280,13 @@ impl AbbreviationInventory {
             Ok(i) => self.additions[i].1 = rule,
             Err(i) => self.additions.insert(i, (text.into(), rule)),
         }
+        if text.contains(' ') {
+            let mut index = std::mem::replace(&mut self.index, Index::EMPTY);
+            index.build_multis(&self);
+            self.index = index;
+        } else if !self.excluded(text) {
+            self.index.add_single(text, rule);
+        }
         Ok(self)
     }
 
@@ -265,8 +296,28 @@ impl AbbreviationInventory {
     pub fn with_exclusion(mut self, text: &str) -> AbbreviationInventory {
         if let Err(i) = self.exclusions.binary_search_by(|t| (**t).cmp(text)) {
             self.exclusions.insert(i, text.into());
+            if text.contains(' ') {
+                let mut index = std::mem::replace(&mut self.index, Index::EMPTY);
+                index.build_multis(&self);
+                self.index = index;
+            } else {
+                self.index.remove_single(text);
+            }
         }
         self
+    }
+
+    /// The active multi-token entries with a part `token`, as written:
+    /// each entry and the position of the part in it, in the order the
+    /// inventory tries them. A token that is part of none is found so by
+    /// one binary search, whatever the size of the inventory.
+    pub fn multi_token_entries<'s>(&'s self, token: &str) -> impl Iterator<Item = (&'s str, usize)> + 's {
+        self.index.entries(token, None).map(|e| (e.text, e.k))
+    }
+
+    /// The number of active multi-token entries.
+    pub fn multi_token_len(&self) -> usize {
+        self.index.multi_len()
     }
 
     pub fn classes(&self) -> AbbreviationClasses {

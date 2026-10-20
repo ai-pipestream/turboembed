@@ -1,7 +1,8 @@
 //! The verdict on one full stop: the token around it, the entries it
 //! matches and the word after it.
 
-use super::{AbbreviationClass, AbbreviationInventory, ContextRule, Verdict};
+use super::index::{Entry, probe};
+use super::{AbbreviationInventory, ContextRule, Verdict};
 
 /// The longest token, in bytes, the inventory looks at; a longer run
 /// without whitespace is no abbreviation, and the bound keeps a text
@@ -105,7 +106,7 @@ fn starts_number(word: &str) -> bool {
     if !(upper || lower) || roman == "I" || (lower && roman.len() == 1) {
         return false;
     }
-    roman_value(roman).is_some_and(|v| to_roman(v).eq_ignore_ascii_case(roman))
+    roman_value(roman).is_some_and(|v| spells_roman(v, roman))
 }
 
 const ROMAN: [(&str, u32); 13] = [
@@ -124,8 +125,8 @@ const ROMAN: [(&str, u32); 13] = [
     ("I", 1),
 ];
 
-fn roman_value(s: &str) -> Option<u32> {
-    let digit = |b: u8| match b.to_ascii_uppercase() {
+fn roman_digit(b: u8) -> Option<i64> {
+    match b.to_ascii_uppercase() {
         b'I' => Some(1),
         b'V' => Some(5),
         b'X' => Some(10),
@@ -134,25 +135,34 @@ fn roman_value(s: &str) -> Option<u32> {
         b'D' => Some(500),
         b'M' => Some(1000),
         _ => None,
-    };
-    let values: Option<Vec<u32>> = s.bytes().map(digit).collect();
-    let values = values?;
+    }
+}
+
+fn roman_value(s: &str) -> Option<u32> {
+    let b = s.as_bytes();
     let mut total = 0;
-    for (i, &v) in values.iter().enumerate() {
-        if values.get(i + 1).is_some_and(|&n| n > v) { total -= v as i64 } else { total += v as i64 }
+    for (i, &d) in b.iter().enumerate() {
+        let v = roman_digit(d)?;
+        if b.get(i + 1).and_then(|&n| roman_digit(n)).is_some_and(|n| n > v) { total -= v } else { total += v }
     }
     u32::try_from(total).ok().filter(|&v| (1..4000).contains(&v))
 }
 
-fn to_roman(mut v: u32) -> String {
-    let mut out = String::new();
+/// Whether `s` is `v` in canonical Roman numerals, in either case.
+fn spells_roman(mut v: u32, s: &str) -> bool {
+    let s = s.as_bytes();
+    let mut at = 0;
     for (sym, n) in ROMAN {
         while v >= n {
-            out.push_str(sym);
+            let sym = sym.as_bytes();
+            if !s.get(at..at + sym.len()).is_some_and(|w| w.eq_ignore_ascii_case(sym)) {
+                return false;
+            }
+            at += sym.len();
             v -= n;
         }
     }
-    out
+    at == s.len()
 }
 
 /// The verdict of a rule on what follows an abbreviation's final stop,
@@ -185,13 +195,21 @@ impl AbbreviationInventory {
             return Verdict::Neutral;
         }
         let full = &text[tok.start..tok.end];
+        // Most words are no entry and no part of one, which the filter
+        // tells without a search.
+        let known = self.index.may_match(full);
         if period + 1 != tok.end {
             // A stop inside a one-token entry ends nothing.
-            return if self.lookup(full).is_some() { Verdict::Suppress } else { Verdict::Neutral };
+            return if known && self.lookup(full).is_some() { Verdict::Suppress } else { Verdict::Neutral };
         }
-        let verdict = match self.lookup(full) {
-            Some(rule) => apply(rule, &text[period + 1..]),
-            None => self.multi(text, tok).unwrap_or(Verdict::Neutral),
+        let verdict = if !known {
+            Verdict::Neutral
+        } else {
+            probe(0, 1);
+            match self.lookup(full) {
+                Some(rule) => apply(rule, &text[period + 1..]),
+                None => self.multi(text, tok).unwrap_or(Verdict::Neutral),
+            }
         };
         if verdict != Verdict::Neutral {
             return verdict;
@@ -203,32 +221,11 @@ impl AbbreviationInventory {
     /// letter in the other case.
     pub(super) fn lookup(&self, token: &str) -> Option<ContextRule> {
         let mut buf = [0; MAX_TOKEN];
-        self.find(token).or_else(|| fold_first(token, &mut buf).and_then(|t| self.find(t)))
+        self.index.single(token).or_else(|| fold_first(token, &mut buf).and_then(|t| self.index.single(t)))
     }
 
-    fn excluded(&self, text: &str) -> bool {
+    pub(super) fn excluded(&self, text: &str) -> bool {
         self.exclusions.binary_search_by(|t| (**t).cmp(text)).is_ok()
-    }
-
-    fn find(&self, token: &str) -> Option<ContextRule> {
-        if self.excluded(token) {
-            return None;
-        }
-        if let Ok(i) = self.additions.binary_search_by(|(t, _)| (**t).cmp(token)) {
-            return Some(self.additions[i].1);
-        }
-        let bundle = self.bundle?;
-        AbbreviationClass::ALL.into_iter().filter(|c| self.classes.contains(*c)).find_map(|c| {
-            let table = bundle.classes[c as usize];
-            table.binary_search_by(|a| a.text.cmp(token)).ok().map(|i| table[i].rule)
-        })
-    }
-
-    /// The multi-token entries, additions first.
-    fn multis(&self) -> impl Iterator<Item = (&str, ContextRule)> + '_ {
-        let added = self.additions.iter().map(|(t, r)| (&**t, *r));
-        let bundled = self.bundled().map(|(_, a)| (a.text, a.rule));
-        added.chain(bundled).filter(|(t, _)| t.contains(' ') && !self.excluded(t))
     }
 
     /// The verdict of the first multi-token entry the token at `tok` is a
@@ -240,31 +237,27 @@ impl AbbreviationInventory {
         let same = |entry: &str, word: &str, first: bool, folded: Option<&str>| {
             entry == word || (first && folded == Some(entry))
         };
-        for (entry, rule) in self.multis() {
-            let n = entry.split(' ').count();
-            for (k, part) in entry.split(' ').enumerate() {
-                if !same(part, full, k == 0, folded) {
-                    continue;
-                }
-                let mut at = tok.raw_start;
-                let before = entry.split(' ').take(k).collect::<Vec<_>>();
-                let back = before.iter().enumerate().rev().all(|(j, want)| {
-                    let Some(p) = prev_token(text, at) else { return false };
-                    at = p.raw_start;
-                    let mut b = [0; MAX_TOKEN];
-                    let word = &text[p.start..p.end];
-                    same(want, word, j == 0, fold_first(word, &mut b))
-                });
-                let mut at = tok.raw_end;
-                let forward = entry.split(' ').skip(k + 1).all(|want| {
+        for Entry { text: entry, rule, k, n } in self.index.entries(full, folded) {
+            probe(1, 0);
+            // The parts before the token, nearest first, against the
+            // tokens before it.
+            let mut at = tok.raw_start;
+            let back = entry.rsplit(' ').skip(n - k).enumerate().all(|(i, want)| {
+                let Some(p) = prev_token(text, at) else { return false };
+                at = p.raw_start;
+                let mut b = [0; MAX_TOKEN];
+                let word = &text[p.start..p.end];
+                same(want, word, i + 1 == k, fold_first(word, &mut b))
+            });
+            let mut at = tok.raw_end;
+            let forward = back
+                && entry.split(' ').skip(k + 1).all(|want| {
                     let Some(t) = next_token(text, at) else { return false };
                     at = t.raw_end;
                     &text[t.start..t.end] == want
                 });
-                if back && forward {
-                    let last = k + 1 == n;
-                    return Some(if last { apply(rule, &text[tok.end..]) } else { Verdict::Suppress });
-                }
+            if forward {
+                return Some(if k + 1 == n { apply(rule, &text[tok.end..]) } else { Verdict::Suppress });
             }
         }
         None
@@ -273,10 +266,15 @@ impl AbbreviationInventory {
     /// Whether `word` is never an abbreviation.
     fn is_word(&self, word: &str) -> bool {
         let Some(bundle) = self.bundle.filter(|_| !self.classes.is_empty()) else { return false };
-        if word.len() > 8 || word.contains('.') {
+        if word.len() > 8 || word.contains('.') || !self.index.may_be_word(word) {
             return false;
         }
-        let lower = word.to_ascii_lowercase();
-        !self.excluded(&lower) && bundle.penultimates.binary_search(&lower.as_str()).is_ok()
+        let mut buf = [0; 8];
+        let lower = &mut buf[..word.len()];
+        lower.copy_from_slice(word.as_bytes());
+        lower.make_ascii_lowercase();
+        // Folding ASCII letters keeps the bytes UTF-8.
+        let Ok(lower) = std::str::from_utf8(lower) else { return false };
+        !self.excluded(lower) && bundle.penultimates.binary_search(&lower).is_ok()
     }
 }
