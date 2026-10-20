@@ -12,6 +12,7 @@ name = "turbo_chunker"
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-coref = { path = "../coref" }
+turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
 turbo-stem = { path = "../stem" }

@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 use turbo_analysis::{Annotator, Bound, Error, Refs, Span, View};
 use turbo_analysis_layers::{Boundaries, Cut, Entities, Sentences, Tokens};
 
-use crate::weigh::{COREF, DRIFT, SENTIMENT, STRUCTURE, Weight};
+use crate::weigh::{COREF, DRIFT, ENTITY, SENTIMENT, STRUCTURE, Weight};
 
 /// Linear feature weights for [`DistilledBoundaryScorer`].
 ///
@@ -40,6 +40,11 @@ pub struct DistilledWeights {
     pub entity_continuity: i32,
     /// Constant bias added to every interior sentence gap (in `Boundaries::UNIT`s).
     pub bias: i32,
+    /// Weight applied to the entity run continuity `Boundaries` instance
+    /// (`"entity"`, written by `EntityBoundaries`). Default `Weight::ONE`:
+    /// the instance counts as written whenever a pipeline writes it, and a
+    /// pipeline that does not is unchanged.
+    pub entity_runs: Weight,
 }
 
 impl Default for DistilledWeights {
@@ -52,6 +57,7 @@ impl Default for DistilledWeights {
             lexical_overlap: 400,
             entity_continuity: 350,
             bias: 0,
+            entity_runs: Weight::ONE,
         }
     }
 }
@@ -90,6 +96,21 @@ pub fn distilled_boundaries(
     text: Option<&str>,
     weights: &DistilledWeights,
 ) -> Option<Boundaries> {
+    distilled_with_runs(sentences, structure, [drift, sentiment, coref, None], entities, tokens, text, weights)
+}
+
+/// [`distilled_boundaries`] with the entity run instance as the fourth
+/// optional signal (`[drift, sentiment, coref, entity_runs]`), weighed by
+/// `weights.entity_runs` in the same rounded sum.
+pub fn distilled_with_runs(
+    sentences: &Sentences,
+    structure: &Boundaries,
+    [drift, sentiment, coref, runs]: [Option<&Boundaries>; 4],
+    entities: Option<&Entities>,
+    tokens: Option<&Tokens>,
+    text: Option<&str>,
+    weights: &DistilledWeights,
+) -> Option<Boundaries> {
     let n = sentences.spans.len();
     if structure.cost.len() != n || structure.reason.len() != n {
         return None;
@@ -97,6 +118,7 @@ pub fn distilled_boundaries(
     if drift.is_some_and(|b| b.cost.len() != n || b.reason.len() != n)
         || sentiment.is_some_and(|b| b.cost.len() != n || b.reason.len() != n)
         || coref.is_some_and(|b| b.cost.len() != n || b.reason.len() != n)
+        || runs.is_some_and(|b| b.cost.len() != n || b.reason.len() != n)
     {
         return None;
     }
@@ -131,6 +153,9 @@ pub fn distilled_boundaries(
             + i128::from(d_cost) * i128::from(wd)
             + i128::from(sent_cost) * i128::from(wsent)
             + i128::from(c_cost) * i128::from(wc);
+        if let Some(r) = runs {
+            sum_milli += i128::from(r.cost[i]) * i128::from(weights.entity_runs.0);
+        }
 
         if i + 1 < n {
             sum_milli += i128::from(weights.bias) * 1000;
@@ -279,9 +304,10 @@ pub struct DistilledBoundaryScorer {
 }
 
 impl DistilledBoundaryScorer {
-    /// Binds slots 1..=4 to `STRUCTURE`, `DRIFT`, `SENTIMENT`, and `COREF`.
+    /// Binds slots 1..=4 to `STRUCTURE`, `DRIFT`, `SENTIMENT`, and `COREF`,
+    /// and slot 8 to `ENTITY`.
     pub fn bound(self) -> Bound<Self> {
-        Bound::new(self).read(1, STRUCTURE).read(2, DRIFT).read(3, SENTIMENT).read(4, COREF)
+        Bound::new(self).read(1, STRUCTURE).read(2, DRIFT).read(3, SENTIMENT).read(4, COREF).read(8, ENTITY)
     }
 }
 
@@ -296,12 +322,13 @@ impl Annotator for DistilledBoundaryScorer {
         Option<Entities>,
         Option<Tokens>,
         Option<View>,
+        Option<Boundaries>,
     );
     type Writes = (Boundaries,);
 
     fn annotate(
         &self,
-        (sentences, structure, drift, sentiment, coref, entities, tokens, view): Refs<'_, Self>,
+        (sentences, structure, drift, sentiment, coref, entities, tokens, view, runs): Refs<'_, Self>,
     ) -> Result<(Boundaries,), Error> {
         let v = sentences.spans.view();
         if entities.is_some_and(|e| e.spans.view() != v)
@@ -311,19 +338,24 @@ impl Annotator for DistilledBoundaryScorer {
             return Err(Error::Annotator { annotator: Self::ID, detail: "its inputs are in different views".into() });
         }
         let text = view.map(View::text);
-        let out =
-            distilled_boundaries(sentences, structure, drift, sentiment, coref, entities, tokens, text, &self.weights)
-                .ok_or_else(|| Error::Annotator {
-                    annotator: Self::ID,
-                    detail: format!("boundary signal lengths do not match {} sentences", sentences.spans.len()),
-                })?;
+        let signals = [drift, sentiment, coref, runs];
+        let out = distilled_with_runs(sentences, structure, signals, entities, tokens, text, &self.weights)
+            .ok_or_else(|| Error::Annotator {
+                annotator: Self::ID,
+                detail: format!("boundary signal lengths do not match {} sentences", sentences.spans.len()),
+            })?;
         Ok((out,))
     }
 
     fn config_hash(&self) -> u64 {
         let w = &self.weights;
+        // The entity run weight is folded in only when it is not its
+        // default, so every hash from before the `entity` instance existed
+        // (whose pipelines never wrote it) stays the same.
+        let runs = (w.entity_runs != Weight::ONE).then_some(w.entity_runs.0);
         [w.structure.0, w.drift.0, w.sentiment.0, w.coref.0, w.lexical_overlap, w.entity_continuity, w.bias]
             .iter()
+            .chain(runs.as_ref())
             .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u32 as u64).wrapping_mul(0x0100_0000_01b3))
     }
 }

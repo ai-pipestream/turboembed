@@ -291,6 +291,7 @@ fn coref_boundaries_penalize_chain_cuts_and_reward_clean_topic_shifts() {
                     lexical_overlap: 0,
                     entity_continuity: 0,
                     bias: 0,
+                    entity_runs: Weight::ONE,
                 },
             }
             .bound(),
