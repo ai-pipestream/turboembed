@@ -1,0 +1,240 @@
+$ cargo test --locked -p turbo-analysis-layers -p turbo-depparse
+   Compiling turbo-depparse v0.1.0 ($REPO/analysis/depparse)
+   Compiling turbo-analysis-layers v0.1.0 ($REPO/analysis/layers)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.47s
+     Running unittests src/lib.rs (target/debug/deps/turbo_analysis_layers-ff1def8ac888545e)
+
+running 82 tests
+test abbreviations::tests::check_wants_ordered_non_empty_spans ... ok
+test abbreviations::tests::links_lead_to_the_long_form ... ok
+test categories::tests::check_refuses_inconsistent_layers ... ok
+test categories::tests::names_and_anchors ... ok
+test containment::tests::ancestors_and_chains_validate_and_round_trip ... ok
+test core_tests::phrases_check_columns_heads_and_parents ... ok
+test categories::tests::an_item_per_unit ... ok
+test core_tests::language_holds_the_ranking_best_first ... ok
+test categories::tests::the_document_has_one_item_and_ranks_its_categories ... ok
+test core_tests::tokens_from_alternatives_materializes_split_modes ... ok
+test core_tests::utf16_spans_are_named_after_their_layer_and_aligned_to_it ... ok
+test core_tests::structure_is_a_tree_in_text_order ... ok
+test core_tests::entities_allow_nesting_crossing_and_discontinuous_fragments ... ok
+test core_tests::pos_tags_and_chunks_check_probabilities_and_sentence_ranges ... ok
+test core_tests::utf16_spans_check_their_columns ... ok
+test core_tests::vectors_check_the_items_with_no_vector ... ok
+test core_tests::vectors_name_the_items_that_have_none ... ok
+test date::tests::calendar_fields ... ok
+test date::tests::date_times_read_write_and_count_seconds ... ok
+test date::tests::epoch_days ... ok
+test date::tests::months_and_years_clamp_the_day_and_stay_in_range ... ok
+test date::tests::iso_dates ... ok
+test date::tests::written_as_local_date_writes_them ... ok
+test date::tests::years_are_written_with_four_digits_or_a_sign ... ok
+test language_spans::tests::check_wants_ordered_nonempty_spans_and_known_tags ... ok
+test language_spans::tests::spans_come_back_with_their_columns ... ok
+test levels::tests::levels_are_a_tree_under_the_document ... ok
+test levels::tests::the_check_refuses_what_is_not_a_tree ... ok
+test levels::tests::the_vector_kinds_are_named_instances ... ok
+test matches::tests::check_wants_columns_labels_and_token_order ... ok
+test money::tests::a_converted_amount_can_have_a_scale_below_zero ... ok
+test money::tests::amounts_come_from_the_columns ... ok
+test money::tests::check_wants_a_canonical_amount ... ok
+test money::tests::check_wants_every_column ... ok
+test money::tests::check_wants_text_order ... ok
+test money::tests::currency_codes_are_three_capitals ... ok
+test money::tests::the_layer_is_named_and_has_a_converted_instance ... ok
+test numbers::tests::check_accepts_an_empty_layer ... ok
+test numbers::tests::check_pairs_markers_with_multipliers ... ok
+test numbers::tests::check_wants_a_canonical_coefficient ... ok
+test numbers::tests::check_wants_every_column ... ok
+test numbers::tests::check_wants_text_order ... ok
+test numbers::tests::check_wants_the_numeral_inside_the_span ... ok
+test numbers::tests::floats_are_rounded_from_the_exact_decimal ... ok
+test numbers::tests::multiplier_factors ... ok
+test numbers::tests::notation_separators_mirror_each_other ... ok
+test numbers::tests::the_layer_is_named_and_positional ... ok
+test numbers::tests::values_come_from_the_columns ... ok
+test numbers::tests::plain_strings_match_big_decimal ... ok
+test ordinals::tests::check_refuses_offsets_outside_the_base ... ok
+test ordinals::tests::check_wants_order_columns_and_text ... ok
+test ordinals::tests::mentions_round_trip ... ok
+test pii::tests::check_refuses_duplicates_empty_values_and_short_columns ... ok
+test pii::tests::check_wants_the_java_order ... ok
+test pii::tests::kind_sets ... ok
+test pii::tests::kinds_have_the_java_names_and_ranks ... ok
+test pii::tests::mentions_round_trip_and_may_overlap ... ok
+test quantities::tests::check_accepts_an_empty_layer ... ok
+test quantities::tests::check_wants_a_canonical_value ... ok
+test quantities::tests::check_wants_a_unit ... ok
+test quantities::tests::check_wants_every_column ... ok
+test quantities::tests::check_wants_text_order ... ok
+test quantities::tests::the_layer_is_named ... ok
+test quantities::tests::values_and_units_come_from_the_columns ... ok
+test regions::tests::region_vote_validates_country_and_share_bounds ... ok
+test regions::tests::winner_checks_margin_and_runner_up_lead ... ok
+test sentiment::tests::bounds_checking_refuses_invalid_token_sentence_and_opinion_indices ... ok
+test temporal::tests::a_date_reads_at_each_granularity ... ok
+test sentiment::tests::opinions_and_aspects_construct_and_link_on_document ... ok
+test sentiment::tests::incivility_and_pragmatics_construct_and_check_evidence_slices ... ok
+test sentiment::tests::misaligned_and_unaligned_anchors_are_refused ... ok
+test temporal::tests::a_document_date_has_at_most_one_item_and_points_into_the_mentions ... ok
+test temporal::tests::check_refuses_values_that_are_no_value ... ok
+test sentiment::tests::score_only_layers_add_to_a_document_without_tokens ... ok
+test temporal::tests::check_wants_text_order_and_full_columns ... ok
+test temporal::tests::the_layers_are_named ... ok
+test temporal::tests::columns_round_trip_every_granularity ... ok
+test temporal::tests::values_are_written_as_opennlp_writes_them ... ok
+test times::tests::check_refuses_values_that_do_not_fit_the_kind ... ok
+test times::tests::check_wants_order_columns_and_text ... ok
+test times::tests::mentions_round_trip ... ok
+test times::tests::names_and_modifiers ... ok
+
+test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/dependency_cycles.rs (target/debug/deps/dependency_cycles-e3350fe80f70ea02)
+
+running 2 tests
+test dependency_forests_reject_nontrivial_cycles ... ok
+test long_chains_and_multiple_roots_are_valid_forests ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/graph_boundaries.rs (target/debug/deps/graph_boundaries-2e1232e19598bcb9)
+
+running 5 tests
+test incomplete_layers_reject_nonzero_lengths ... ok
+test incivility_rejects_reserved_range_indices ... ok
+test aspects_reject_reserved_range_indices ... ok
+test pragmatics_rejects_reserved_range_indices ... ok
+test incomplete_views_reject_discarded_data ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/graph_export.rs (target/debug/deps/graph_export-39c4d8a1177c3092)
+
+running 12 tests
+test core_layers::layers_on_a_derived_view_round_trip ... ok
+test targets::keyed_default_opinion_target_must_not_rebind_through_provenance ... ok
+test targets::keyed_default_word_target_must_not_rebind_through_provenance ... ok
+test alternatives::alternatives_and_nbest_round_trip ... ok
+test refusals::vector_dimension_mismatches_are_refused ... ok
+test core_layers::corrupted_payloads_are_refused ... ok
+test core_layers::core_pipeline_layers_round_trip ... ok
+test targets::target_identity_and_word_subspan_refusals ... ok
+test sentiment::sentiment_numeric_and_vector_layers_round_trip ... ok
+test refusals::sentiment_family_refusals ... ok
+test alternatives::corrupted_nbest_is_refused ... ok
+test alternatives::corrupted_alternatives_are_refused ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/precision.rs (target/debug/deps/precision-4ae79f6a9f247008)
+
+running 6 tests
+test entity_scores_round_trip_exactly ... ok
+test pos_tag_probabilities_round_trip_exactly ... ok
+test probabilities_one_nanounit_apart_stay_distinct ... ok
+test language_scores_round_trip_exactly ... ok
+test the_test_value_is_not_representable_as_f32 ... ok
+test token_confidences_round_trip_exactly ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/subwords.rs (target/debug/deps/subwords-fe82db2412af76f5)
+
+running 3 tests
+test a_token_index_past_the_tokens_is_refused ... ok
+test pieces_out_of_token_order_are_refused ... ok
+test the_pieces_of_a_token_are_a_range ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/terms.rs (target/debug/deps/terms-b6b2f7f0f45fe176)
+
+running 1 test
+test stems_and_terms_are_aligned_to_tokens_and_validate_columns ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/words.rs (target/debug/deps/words-7f97cccec23e76a8)
+
+running 6 tests
+test the_layer_names_tell_word_layers_from_token_layers ... ok
+test identity_words_cost_one_index_column_and_slice_view_text ... ok
+test words_check_rejects_broken_invariants ... ok
+test rule_mwt_expander_splits_spanish_catalan_french_portuguese_italian_german_and_english ... ok
+test utf16_conversion_maps_words_to_token_spans_without_splitting_tokens ... ok
+test word_anchored_and_token_anchored_layers_coexist_on_one_document ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_depparse-8ea6c463dac097fa)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/annotator.rs (target/debug/deps/annotator-826d312a5ad9ed30)
+
+running 6 tests
+test reversed_surface_order_is_rejected_before_resolving_word_ranges ... ok
+test empty_document_produces_empty_forest ... ok
+test unordered_tokens_cannot_be_silently_parsed_in_storage_order ... ok
+test direct_boundary_checks_reject_bad_offsets_views_tags_and_alignment ... ok
+test token_pipeline_offsets_sentence_heads_and_records_provenance ... ok
+test word_pipeline_keeps_multiword_token_granularity ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/conllu.rs (target/debug/deps/conllu-9c7aed2f19035873)
+
+running 2 tests
+test malformed_alignment_is_rejected_without_panics ... ok
+test conllu_graph_layer_round_trip_preserves_mwt_fields_and_view_offsets ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/graph.rs (target/debug/deps/graph-ade48c02959533a1)
+
+running 5 tests
+test forests_have_no_path_between_roots_and_preserve_tag_ids ... ok
+test invalid_transitions_do_not_mutate_state ... ok
+test navigation_is_typed_and_bidirectional ... ok
+test tree_boundaries_and_root_crossing_projectivity ... ok
+test oracle_rebuilds_all_small_projective_trees ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/parser.rs (target/debug/deps/parser-d25a87400cfc2dd1)
+
+running 5 tests
+test counter_overflow_returns_error_without_changing_totals ... ok
+test scoring_excludes_punctuation_and_does_not_credit_labels_with_wrong_heads ... ok
+test nonprojective_training_samples_are_skipped_atomically ... ok
+test model_inventory_and_scores_are_checked ... ok
+test events_training_serialization_and_evaluation ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/reference.rs (target/debug/deps/reference-b08415e420c97b29)
+
+running 2 tests
+test ud_samples_keep_offsets_ranges_and_fields_through_graph_and_layer ... ok
+test pinned_jvm_oracle_context_and_predictions_match ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_analysis_layers
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_depparse
+
+running 1 test
+test analysis/depparse/src/lib.rs - (line 5) - compile fail ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+exit=0

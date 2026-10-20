@@ -1,0 +1,141 @@
+# Dependency parser validation
+
+Current contract: `check()` performs structural validation only.
+`check_forest()` also rejects multi-node cycles. Graph import, annotation and
+wire decoding request forest validation; direct Document insertion permits
+structurally valid cycles. The mandatory-check timings below describe earlier
+revisions and do not describe the current API.
+
+Base: `ad85be5e42c350bfc4c9633cc9c4e317b28ebab5`.
+Reference Java commit: `db39bfe35fb28f47a463a74d13e4721020caec15`.
+
+The cycle regression fails on the base layer implementation and passes with
+linear-time forest validation. A 100,000-node chain validates without recursion;
+closing the chain into a cycle is rejected. See `red-cycle.log` and `tests.log`.
+The initial word resolver panicked on a reversed surface-token range. The
+regression in `red-anchor-order.log` passes after validating surface order
+before resolving forms. Duplicate byte spans remain supported.
+
+Java parity covers 152 contexts (37 features each), oracle transitions and
+14 greedy predictions on 7 inputs, including English EWT and Spanish GSD.
+Reproduction and attribution: `analysis/depparse/tests/data/README.md`.
+The exhaustive small-tree test enumerates head assignments through 5 nodes.
+Additional tests cover training, reload, cross-validation, typed navigation,
+MWT/view alignment, token/word pipelines, malformed models and non-finite scores.
+
+Gate results are recorded in the adjacent logs. These tests verify behavior;
+they do not measure pretrained-model accuracy or throughput.
+
+Environment: x86_64, rustc 1.99.0 (b940084d7 2026-09-28).
+Formatting and required clippy command exited 0. Required crate tests, extra
+format-adapter tests and all 3 repository-tree checks exited 0. JVM fixture
+regeneration completed with byte-identical output (exit 0).
+
+Counts: 117 layer tests and 21 parser tests (including a compile-fail type
+check), 258 format tests, and 3 repository-tree checks. The largest touched
+Rust source is 467 lines. No runtime regex dependency was added.
+
+## Historical mandatory forest validation follow-up
+
+Cycle rejection remains part of `Dependencies::check` and `Document::add`.
+CoNLL-U dependency layers with cyclic HEAD columns are rejected on insertion;
+the prior base accepted them. Direct dependency codec imports also remain
+checked and keep returning `Malformed` for cyclic payloads. The decoder calls
+the shared validator instead of maintaining a separate chain walker. Graph
+import and Document insertion still validate at their respective boundaries.
+
+Walk tags replace the two-pass traversal. The first follow-up used `usize`
+tags, with 8 bytes per node on x86_64 versus 1 byte in the two-pass version.
+The current implementation uses `u32` tags and rejects counts above `u32::MAX`
+before traversal. Scratch space is 4 bytes per node. A walk starts below the
+validated count, so its nonzero identifier fits in `u32`.
+An all-root forest needs no scratch allocation. The exhaustive test compares
+8,477 head assignments through five nodes with an independent per-node search;
+a separate test checks Document insertion of a cycle beside a rooted component.
+The existing 100,000-node chain, closed cycle and corrupt-wire tests still pass.
+
+Performance was measured on AMD Ryzen 9 9950X3D, x86_64, rustc 1.99.0,
+in release mode pinned to CPU 0. Construction is outside the timed region.
+Each process warms up 20 times, then reports median and p10 of 41 validations.
+The 1,000,000-token, 25-token-chain case uses five ABBA rounds for base/new
+and earlier-head/new. The medians of process medians are:
+
+- Base `ad85be5e` (no cycle guard): 0.455 ms.
+- Earlier head `350cdbac` (two-pass guard): 2.428 ms.
+- Follow-up walk tags: 1.765 ms, 27.3% less time than the earlier guard.
+- Remaining cost versus base: 1.311 ms per million tokens (1.311 ns/token),
+  or 3.88 times the bounds-only check. This is the cost of a stronger invariant,
+  not performance parity with base.
+
+Three additional ABBA rounds compare the earlier guard with walk tags:
+all roots, 0.838 to 0.381 ms; one 1,000,000-node chain, 3.325 to 1.968 ms.
+These synthetic validation timings do not measure parser or import throughput.
+Raw process results are in `cycle-performance.log`; machine load can affect them.
+
+To reproduce a process run from the repository root:
+
+```sh
+CARGO_TARGET_DIR=target cargo build --locked --release -p turbo-analysis-layers --example dependency_check_bench
+taskset -c 0 target/release/examples/dependency_check_bench 1000000 25
+```
+
+The example source is `analysis/layers/examples/dependency_check_bench.rs`.
+For comparisons, copy that example to the same relative location on each clean
+revision, build each revision, save the binaries, and alternate the saved
+binaries in ABBA order. Keep build artifacts inside the current worktree.
+Use widths 1 and 1000000 for the additional forest shapes.
+
+Follow-up gates: fmt, required clippy, 140 parser/layer tests, and 3 repository
+file-reference checks pass. Sanitized output is in the `cycle-*.log` files.
+
+## Historical compact walk tags
+
+A further release comparison uses the same CPU, pinning, forest shapes and
+warm-up/timing protocol. Five ABBA rounds compare `f69087df` (`usize`) with
+`u32` tags and the count guard. Medians of process medians:
+
+- 25-token chains: 1.762451 ms to 1.699782 ms (3.6% less time).
+- All roots: 0.376055 ms to 0.376386 ms (effectively unchanged).
+- One long chain: 1.965674 ms to 1.906924 ms (3.0% less time).
+
+The tag allocation falls from 8 MB to 4 MB per million tokens on x86_64.
+Mandatory cycle rejection and direct codec validation stay in place.
+Raw ABBA results are in `compact-tags-performance.log`. Gate outputs are in
+`compact-tags-{fmt,clippy,tests,tree}.log`; the exhaustive graph and long-chain
+regressions are included in the crate tests.
+
+## Separate structural and forest validation
+
+The structural acceptance regression fails on `68c04481` and passes after
+moving cycle detection to `check_forest()`. See `forest-split-red.log`.
+`check()` now matches the structural checks on main: column lengths, valid
+relation tags, in-range heads and no self-heads. It uses no scratch allocation.
+`Document::add` accepts a structurally valid multi-node cycle. `check_forest()`
+validates structural inputs itself before its guarded u32-tag traversal, so a
+direct call with malformed columns or out-of-range heads returns an error.
+Graph import, annotation and wire decoding explicitly request the forest check.
+The decoder retains `Malformed` errors for cyclic wire payloads.
+
+The exhaustive 8,477-assignment comparison now targets `check_forest()`.
+Tests also cover graph import rejecting a cycle accepted by `check()`, direct
+Document insertion, malformed standalone forest checks, and long chains.
+Required fmt, clippy including turbo-formats, 401 crate tests and 3 repository
+file-reference checks pass. Outputs are in `forest-split-*.log`.
+
+Release performance compares freshly built main `3d8db78e` with the split
+implementation `ad6e3655`, using the same committed benchmark, 1M tokens in
+25-token chains, 20 warm-ups and 41 timed calls per process, 5 ABBA rounds.
+AMD Ryzen 9 9950X3D, x86_64, rustc 1.99.0:
+
+- CPU 0: main 0.552774 ms; split 0.565643 ms (2.3% higher).
+- CPU 30: main 0.544914 ms; split 0.560428 ms (2.8% higher).
+- CPU 30 process medians range 0.541864..0.568865 ms for main and
+  0.553265..0.566820 ms for the split.
+
+This removes the earlier roughly 2.4x cycle-check cost from `check()`.
+The runs are close but do not establish an exact timing match. The structural
+check has the same operations as main. Forest validation remains additional
+work for callers that request it. Raw runs are in
+`forest-split-main-performance.log` and `forest-split-main-performance-cpu30.log`.
+The earlier saved baseline binary from `ad85be5e` ran faster than freshly built
+main; only the fresh-main results above support the current comparison.
