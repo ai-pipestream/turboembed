@@ -30,7 +30,7 @@ pub use boundaries::{Costs, StructureBoundaries};
 pub use cohesion::{Cohesion, CohesiveChunker};
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
-pub use late::{LateChunkAnnotator, Pooling, TokenVectorWindows, WindowPolicy};
+pub use late::{LateChunkAnnotator, Pooling, WindowPolicy};
 pub use providers::{DriftProvider, SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider};
 pub use route::{Hit, LevelRouter, LevelWeights, ParentContext, QueryKind, QueryProfile, Routed};
 pub use sentiment::{
@@ -38,6 +38,7 @@ pub use sentiment::{
     sentiment_shift,
 };
 pub use sums::{Rows, Sums};
+pub use turbo_analysis_layers::TokenVectorWindows;
 pub use weigh::{
     DRIFT, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_sentiment,
 };

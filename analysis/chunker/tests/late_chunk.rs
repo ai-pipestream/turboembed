@@ -321,3 +321,18 @@ fn late_vectors_beat_naive_on_antecedent_queries() {
     assert_eq!(wins, 10, "late pooling wins on every antecedent document");
     assert!(margin / 10.0 > 0.1, "mean cosine margin {} is a real gap, not noise", margin / 10.0);
 }
+
+#[test]
+fn zero_length_targets_pool_nothing_wherever_they_sit() {
+    let f = fixture();
+    // Inside the two-byte piece "bb" (3..5), at its start, and
+    // at its end: an empty target overlaps nothing in all
+    // three positions, so every row is empty and none pools
+    // the piece it sits inside.
+    let target = Sentences { spans: spans(&[(3, 3), (4, 4), (5, 5)]) };
+    let out = pool(&f, &LateChunkAnnotator::<Sentences>::default(), &windows(&[(0, 13)]), &target).unwrap();
+    assert_eq!(out.len(), 3);
+    for i in 0..3u32 {
+        assert!(out.is_empty(Ix::new(i)), "zero-length target {i} must be empty");
+    }
+}

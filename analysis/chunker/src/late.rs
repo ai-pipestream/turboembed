@@ -14,8 +14,8 @@
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
 
-use turbo_analysis::{Annotator, Error, Ix, Layer, Overlap, Refs, Span, Spans, View};
-use turbo_analysis_layers::{Subwords, Vectors};
+use turbo_analysis::{Annotator, Error, Ix, Layer, Overlap, Refs, Span, View};
+use turbo_analysis_layers::{Subwords, TokenVectorWindows, Vectors};
 
 /// How an item's selected subword vectors become one vector.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -48,38 +48,6 @@ pub enum WindowPolicy {
     /// Pool across the seam directly, accepting a vector
     /// assembled from more than one forward pass.
     Allow,
-}
-
-/// The text spans of the encoder windows that produced a
-/// subword-vector layer, in text order, not overlapping. A
-/// producer of contextual `Vectors<Subwords>` publishes this
-/// beside the vectors; without it, [`LateChunkAnnotator`]
-/// cannot be wired at all, which is what keeps non-contextual
-/// per-token embeddings out.
-#[derive(Clone, Debug)]
-pub struct TokenVectorWindows {
-    pub spans: Spans<TokenVectorWindows>,
-}
-
-impl Layer for TokenVectorWindows {
-    const ID: &'static str = "turbo:token-vector-windows";
-
-    fn len(&self) -> usize {
-        self.spans.len()
-    }
-
-    fn text_spans(&self) -> Option<turbo_analysis::TextSpans<'_>> {
-        Some(self.spans.text_spans())
-    }
-
-    fn check(&self) -> Result<(), String> {
-        if self.spans.is_empty() {
-            return Err("at least one encoder window".into());
-        }
-        // Ordered, non-overlapping and continuous, so the window
-        // holding a piece is found by binary search.
-        self.spans.check(Overlap::None)
-    }
 }
 
 /// Pools `Vectors<Subwords>` into `Vectors<L>` for a
@@ -154,9 +122,18 @@ fn fold(s: &str) -> String {
 }
 
 /// Whether piece span `p` overlaps fragment `f`, half-open,
-/// with a zero-length piece counting at its position.
+/// with a zero-length piece counting at its position. An
+/// empty fragment overlaps nothing: a zero-length target
+/// inside a piece must not pool that piece while the same
+/// target at a piece boundary pools nothing.
 fn overlaps(p: Span, f: Span) -> bool {
-    if p.start == p.end { f.start <= p.start && p.start < f.end } else { p.start < f.end && f.start < p.end }
+    if f.start == f.end {
+        false
+    } else if p.start == p.end {
+        f.start <= p.start && p.start < f.end
+    } else {
+        p.start < f.end && f.start < p.end
+    }
 }
 
 struct Pool {

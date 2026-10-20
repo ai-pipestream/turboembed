@@ -752,7 +752,7 @@ fields mean bumps its `SCHEMA`.
 | `IndexedTerms` (`Terms` alias) | `turbo:indexed-terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
 | `ContentHashes<L>` | `turbo:content-hashes<L>` | `L` | `turbo-chunker` |
-| `TokenVectorWindows` | `turbo:token-vector-windows` | text | `turbo-chunker` |
+| `TokenVectorWindows` | `turbo:token-vector-windows` | text | `turbo-analysis-layers` |
 | `Mentions` | `opennlp:mentions` | text (indexes `Sentences`, `Tokens`, `Entities` when lifted from entities) | `turbo-coref` |
 | `Speakers` | `opennlp:speakers` | text | `turbo-coref` |
 | `Sketches<L>` | `turbo:sketches<L>` | `L` | `turbo-group` |

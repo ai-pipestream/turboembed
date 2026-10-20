@@ -19,6 +19,7 @@ macro_rules! spans_only {
 }
 
 spans_only!(Sentences, "sentences");
+spans_only!(TokenVectorWindows, "token-vector windows");
 
 impl LayerCodec for Tokens {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {

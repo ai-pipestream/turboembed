@@ -5,16 +5,13 @@
 
 use std::marker::PhantomData;
 
-use turbo_analysis::export::{
-    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, get_spans, put_spans,
-};
+use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer};
 use turbo_analysis::{Document, Ix, Layer, View};
 use turbo_analysis_layers::{
     Aspects, Chunks, IncivilityLabel, IncivilityScores, Levels, Polarity, Sentences, Strs, Structure, Tokens,
 };
 
 use crate::hashes::{ChunkId, ContentHashes};
-use crate::late::TokenVectorWindows;
 use crate::sentiment::ChunkFacets;
 use crate::terms::{IndexedTerms, TermStats, Vocabulary};
 
@@ -324,26 +321,12 @@ impl<L: Layer> LayerCodec for ContentHashes<L> {
     }
 }
 
-impl LayerCodec for TokenVectorWindows {
-    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
-        let mut w = Writer::new();
-        put_spans(&mut w, &self.spans, cx)?;
-        Ok(w.finish())
-    }
-
-    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
-        let mut r = Reader::new(data);
-        let spans = get_spans(&mut r, cx)?;
-        done(&r, "token-vector windows")?;
-        checked(TokenVectorWindows { spans }, cx)
-    }
-}
-
 /// Registers this crate's layer codecs on `codecs`: the vocabulary,
 /// the indexed terms, term statistics at the chunk, sentence,
-/// structure and whole-view levels, the chunk facets, content
-/// hashes over the chunks and over the level units, and the
-/// token-vector windows late pooling checks against.
+/// structure and whole-view levels, the chunk facets, and content
+/// hashes over the chunks and over the level units. The
+/// token-vector windows late pooling checks against are a
+/// shared layer, registered by `turbo-analysis-layers`.
 pub fn register_codecs(codecs: &mut Codecs) {
     codecs
         .register::<Vocabulary>()
@@ -354,8 +337,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<TermStats<View>>()
         .register::<ChunkFacets>()
         .register::<ContentHashes<Chunks>>()
-        .register::<ContentHashes<Levels>>()
-        .register::<TokenVectorWindows>();
+        .register::<ContentHashes<Levels>>();
 }
 
 /// A registry holding this crate's codecs and nothing else.
