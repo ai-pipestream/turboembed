@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use turbo_analysis_layers::{Currency, DAY_SECONDS, Date, DateTime, Origin, TimeGrain};
 use turbo_chunker::terms::{Bm25, LocalCollection, TermCounter, TermForm, TermStats, Vocabulary};
+use turbo_geo::InMemoryGazetteer;
 use turbo_glossary::{Case, Glossary};
 use turbo_maxent::Dictionary;
 use turbo_namefind::DictionaryNameFinder;
@@ -302,23 +303,122 @@ fn query_bm25_terms_match_paired_document_pipeline_across_term_forms() {
 }
 
 #[test]
-fn query_analysis_latency_stays_within_submillisecond_budget() {
-    let profile = QueryAnalysisProfile::with_reference_date(Date::new(2026, 7, 14).unwrap());
-    let query = "cheap direct flights from New York to Paris tomorrow morning under $850 with 25 kg baggage allowance and 15% corporate discount for 2 passengers";
-    let warmup = profile.analyze(query).unwrap();
-    assert!(warmup.terms.len() <= 32 && warmup.terms.len() >= 20);
+fn recognizes_numeric_clock_expressions_and_distinguishes_time_annotator_config_hashes() {
+    use turbo_analysis::{Annotator, Key, ViewId};
+    use turbo_analysis_layers::Times;
+    use turbo_grammar::TimeAnnotator;
+    use turbo_query::annotators::{GazetteerCandidateAnnotator, QueryGrammarAnnotator, QueryTimeAnnotator};
 
-    let iterations = 50usize;
-    let mut durations_us = Vec::with_capacity(iterations);
-    for _ in 0..iterations {
-        let t0 = Instant::now();
-        let res = profile.analyze(query).unwrap();
-        durations_us.push(t0.elapsed().as_micros());
-        assert!(!res.filters.is_empty());
+    let ref_july_14 = DateTime::midnight(Date::new(2026, 7, 14).unwrap());
+    let ref_july_15 = DateTime::midnight(Date::new(2026, 7, 15).unwrap());
+
+    // 1. Numeric clock expressions ("12:30") without alphabetic time keywords must be extracted.
+    let direct_times = TimeAnnotator::english().find("12:30", ViewId::SOURCE, Some(ref_july_14));
+    assert_eq!(direct_times.spans.len(), 1);
+
+    let profile_14 = QueryAnalysisProfile::with_reference_datetime(ref_july_14);
+    let (doc_14, a_clock) = profile_14.analyze_document("12:30").unwrap();
+    assert_span_and_evidence_invariants("12:30", &a_clock);
+    let clock_filters: Vec<_> = a_clock.temporal_filters().collect();
+    assert_eq!(clock_filters.len(), 1, "expected temporal filter for numeric clock '12:30'");
+    assert_eq!(clock_filters[0].0.surface, "12:30");
+    assert_eq!(clock_filters[0].0.evidence.layer_id, "turbo:times");
+    let direct_mention = direct_times.get(direct_times.spans.iter().next().unwrap().0);
+    assert_eq!(clock_filters[0].1.start_epoch_seconds, direct_mention.start);
+    assert_eq!(clock_filters[0].1.value_text, direct_mention.timex);
+
+    // 2. QueryTimeAnnotator::config_hash() distinguishes grammar language and reference DateTime.
+    let en_14 = QueryTimeAnnotator::english(Some(ref_july_14));
+    let en_15 = QueryTimeAnnotator::english(Some(ref_july_15));
+    let en_none = QueryTimeAnnotator::english(None);
+    let es_14 = QueryTimeAnnotator::spanish(Some(ref_july_14));
+
+    assert_ne!(en_14.config_hash(), 0);
+    assert_ne!(es_14.config_hash(), 0);
+    assert_ne!(
+        en_14.config_hash(),
+        es_14.config_hash(),
+        "English and Spanish time annotators must differ in config_hash"
+    );
+    assert_ne!(en_14.config_hash(), en_15.config_hash(), "Different reference dates must differ in config_hash");
+    assert_ne!(en_14.config_hash(), en_none.config_hash());
+    assert_eq!(en_14.config_hash(), QueryTimeAnnotator::english(Some(ref_july_14)).config_hash());
+    assert_ne!(QueryGrammarAnnotator::english().config_hash(), 0);
+    let gaz = Arc::new(turbo_geo::BundledGazetteer::parse().unwrap());
+    let custom_gaz = Arc::new(InMemoryGazetteer::from_entries(&[]).unwrap());
+    let bundled_gaz_hash = GazetteerCandidateAnnotator::new(Arc::clone(&gaz)).config_hash();
+    let custom_gaz_hash = GazetteerCandidateAnnotator::new(custom_gaz).config_hash();
+    assert_ne!(bundled_gaz_hash, 0);
+    assert_ne!(custom_gaz_hash, 0);
+    assert_ne!(bundled_gaz_hash, custom_gaz_hash);
+
+    // Provenance stored on the analyzed document also reflects the distinct config hashes.
+    let profile_15 = QueryAnalysisProfile::with_reference_datetime(ref_july_15);
+    let (doc_15, _) = profile_15.analyze_document("12:30").unwrap();
+    let prov_en_14 = doc_14.provenance(Key::<Times>::DEFAULT.id()).unwrap();
+    let prov_es_14 = doc_14.provenance(Key::<Times>::named("es").id()).unwrap();
+    let prov_en_15 = doc_15.provenance(Key::<Times>::DEFAULT.id()).unwrap();
+    assert_ne!(prov_en_14.config, 0);
+    assert_ne!(prov_en_14.config, prov_es_14.config);
+    assert_ne!(prov_en_14.config, prov_en_15.config);
+}
+
+#[test]
+fn query_analysis_latency_stays_within_submillisecond_budget() {
+    use std::path::Path;
+    use turbo_analysis_embed::{SentenceVectors, SubwordAnnotator, VectorAnnotator, VectorOptions};
+    use turbo_sentdetect::RuleSentenceDetector;
+
+    let profile = QueryAnalysisProfile::with_reference_date(Date::new(2026, 7, 14).unwrap());
+    let static_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-static-bundle");
+    let sub_static = SubwordAnnotator::open(&static_dir).unwrap();
+    let vec_static = Arc::new(VectorAnnotator::open(&static_dir, &VectorOptions::default()).unwrap());
+    let static_analyzer = turbo_analysis::Analyzer::builder()
+        .add(RuleSentenceDetector::new("en"))
+        .add(sub_static)
+        .add(SentenceVectors(vec_static))
+        .build()
+        .unwrap();
+
+    let queries = [
+        "12:30",
+        "cheap flights to paris",
+        "invoices over $500 from last quarter",
+        "hotels in Berlin next weekend under 200 euros",
+        "cheap direct flights from New York to Paris tomorrow morning under $850 with 25 kg baggage and 15% discount",
+    ];
+
+    let iterations = 100usize;
+    for q in queries {
+        let warm = profile.analyze(q).unwrap();
+        assert!(warm.terms.len() <= 32);
+        let mut warm_static = turbo_analysis::Document::new(q);
+        static_analyzer.run(std::slice::from_mut(&mut warm_static)).into_iter().next().unwrap().unwrap();
+
+        let mut q_ns = Vec::with_capacity(iterations);
+        let mut s_ns = Vec::with_capacity(iterations);
+        for _ in 0..iterations {
+            let t0 = Instant::now();
+            let res = std::hint::black_box(profile.analyze(std::hint::black_box(q)).unwrap());
+            q_ns.push(t0.elapsed().as_nanos());
+            assert!(!res.filters.is_empty());
+
+            let t1 = Instant::now();
+            let mut d = turbo_analysis::Document::new(std::hint::black_box(q));
+            static_analyzer.run(std::slice::from_mut(&mut d)).into_iter().next().unwrap().unwrap();
+            std::hint::black_box(&d);
+            s_ns.push(t1.elapsed().as_nanos());
+        }
+        q_ns.sort_unstable();
+        s_ns.sort_unstable();
+        let med_q = q_ns[iterations / 2];
+        let med_s = s_ns[iterations / 2];
+        assert!(med_q < 10_000_000, "expected sub-10ms median query analysis latency for {q:?}, got {med_q} ns");
+        #[cfg(not(debug_assertions))]
+        assert!(
+            med_q <= med_s,
+            "expected release query analysis median ({med_q} ns) <= static embedding pipeline median ({med_s} ns) for {q:?}"
+        );
+        let _ = med_s;
     }
-    durations_us.sort_unstable();
-    let median_us = durations_us[iterations / 2];
-    // Even in unoptimized debug test builds, a 24-token query runs in well under 5ms
-    // (typically ~250-600 microseconds).
-    assert!(median_us < 10_000, "expected sub-10ms median query analysis latency in test mode, got {median_us} us");
 }

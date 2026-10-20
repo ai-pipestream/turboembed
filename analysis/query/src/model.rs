@@ -368,3 +368,41 @@ pub(crate) fn point_end_from_grain(start_seconds: i64, grain: TimeGrain) -> i64 
     };
     start_seconds.saturating_add(step)
 }
+
+pub(crate) fn has_grammar_trigger(text: &str, tokens: &turbo_analysis_layers::Tokens) -> bool {
+    let (starts, ends) = tokens.spans.columns();
+    let mut article_hits = 0usize;
+    let mut prev_rel = false;
+    for (&s, &e) in starts.iter().zip(ends) {
+        if let Some(tok) = text.get(s as usize..e as usize) {
+            if tok.len() > 9 || !tok.bytes().any(|b| b.is_ascii_alphabetic()) {
+                prev_rel = false;
+                continue;
+            }
+            let triggered = crate::lang_model::with_lowercase(tok, |lower| {
+                let is_rel = matches!(lower, "last" | "next" | "this" | "past" | "previous" | "coming");
+                if crate::lang_model::is_grammar_trigger(lower) {
+                    if lower == "quarter" && prev_rel {
+                        prev_rel = false;
+                        return false;
+                    }
+                    prev_rel = is_rel;
+                    if lower != "a" && lower != "an" {
+                        return true;
+                    }
+                    article_hits += 1;
+                    false
+                } else {
+                    prev_rel = is_rel;
+                    lower.bytes().any(|b| b.is_ascii_digit()) && lower.bytes().any(|b| b.is_ascii_alphabetic())
+                }
+            });
+            if triggered {
+                return true;
+            }
+        }
+    }
+    article_hits >= 2
+}
+
+pub(crate) use crate::QueryCursorNumericAnnotator;

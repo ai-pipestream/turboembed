@@ -61,17 +61,21 @@ pub(crate) fn extract_query_analysis(doc: &Document) -> Result<QueryAnalysis, Er
     let indexed = doc.get::<IndexedTerms>();
     let stopwords = doc.get::<Stopwords>();
 
-    let mut terms = Vec::new();
-    let mut bm25_terms = Vec::new();
-    let mut residual_terms = Vec::new();
-    let mut free_text_spans = Vec::new();
-    let mut free_text_parts = Vec::new();
+    let n_tok = tokens.map_or(0, |t| t.spans.len());
+    let mut terms = Vec::with_capacity(n_tok);
+    let mut bm25_terms = Vec::with_capacity(n_tok);
+    let mut residual_terms = Vec::with_capacity(n_tok);
+    let mut free_text_spans = Vec::with_capacity(n_tok);
+    let mut free_text_parts: Vec<&str> = Vec::with_capacity(n_tok);
 
     if let Some(tokens) = tokens {
         let view = tokens.spans.view();
+        let src = doc.source();
         for (tok_ix, raw_span) in tokens.spans.iter() {
             let i = tok_ix.get();
-            let (span, surface) = source_span_and_surface(doc, view, raw_span);
+            let span = doc.to_source(view, raw_span);
+            let src_slice = &src[span.range()];
+            let surface = src_slice.to_owned();
             let slot = ling_terms.map(|lt| lt.get(tok_ix));
             let folded = slot.map(|s| s.folded.to_owned()).unwrap_or_else(|| surface.to_lowercase());
             let stem = slot.and_then(|s| s.stem.map(str::to_owned));
@@ -89,7 +93,7 @@ pub(crate) fn extract_query_analysis(doc: &Document) -> Result<QueryAnalysis, Er
             }
             if !covered_by_filter && !is_stopword && indexed_term.is_some() {
                 free_text_spans.push(span);
-                free_text_parts.push(surface.clone());
+                free_text_parts.push(src_slice);
             }
 
             terms.push(QueryTerm {
@@ -149,7 +153,9 @@ fn extract_temporals(doc: &Document) -> Vec<QueryFilter> {
     let mut candidates: Vec<(u8, QueryFilter)> = Vec::new();
 
     let temp_key = Key::<Temporals>::DEFAULT;
-    if let Some(temporals) = doc.get_key(&temp_key) {
+    if let Some(temporals) = doc.get_key(&temp_key)
+        && !temporals.spans.is_empty()
+    {
         let ev = evidence_for(doc, &temp_key);
         let view = temporals.spans.view();
         for (ix, raw_span) in temporals.spans.iter() {
@@ -181,7 +187,9 @@ fn extract_temporals(doc: &Document) -> Vec<QueryFilter> {
     }
 
     for time_key in [Key::<Times>::DEFAULT, Key::<Times>::named(ES_TIMES)] {
-        if let Some(times) = doc.get_key(&time_key) {
+        if let Some(times) = doc.get_key(&time_key)
+            && !times.spans.is_empty()
+        {
             let ev = evidence_for(doc, &time_key);
             let view = times.spans.view();
             for (ix, raw_span) in times.spans.iter() {
@@ -229,19 +237,22 @@ fn extract_temporals(doc: &Document) -> Vec<QueryFilter> {
 }
 
 fn is_relative_time_surface(surface: &str) -> bool {
-    let lower = surface.to_lowercase();
     #[rustfmt::skip]
     const RELATIVE_MARKERS: &[&str] = &[
         "ago", "ayer", "coming", "esta", "este", "hoy", "last", "mañana", "next", "now", "pasada", "pasado", "past",
         "próxima", "próximo", "this", "today", "tomorrow", "tonight", "yesterday",
     ];
-    lower.split_whitespace().any(|w| RELATIVE_MARKERS.contains(&w))
+    surface
+        .split_whitespace()
+        .any(|w| crate::lang_model::with_lowercase(w, |l| RELATIVE_MARKERS.binary_search(&l).is_ok()))
 }
 
 fn extract_money(doc: &Document, existing: &[QueryFilter]) -> Vec<QueryFilter> {
     let mut candidates: Vec<(u8, QueryFilter)> = Vec::new();
     for (priority, key) in [(0u8, Key::<Money>::DEFAULT), (1u8, GRAMMAR_MONEY)] {
-        if let Some(money) = doc.get_key(&key) {
+        if let Some(money) = doc.get_key(&key)
+            && !money.spans.is_empty()
+        {
             let ev = evidence_for(doc, &key);
             let view = money.spans.view();
             for (ix, raw_span) in money.spans.iter() {
@@ -275,7 +286,9 @@ fn extract_money(doc: &Document, existing: &[QueryFilter]) -> Vec<QueryFilter> {
 fn extract_quantities(doc: &Document, temporals: &[QueryFilter], money: &[QueryFilter]) -> Vec<QueryFilter> {
     let mut candidates: Vec<(u8, QueryFilter)> = Vec::new();
     for (priority, key) in [(0u8, Key::<Quantities>::DEFAULT), (1u8, GRAMMAR_PERCENTS)] {
-        if let Some(quantities) = doc.get_key(&key) {
+        if let Some(quantities) = doc.get_key(&key)
+            && !quantities.spans.is_empty()
+        {
             let ev = evidence_for(doc, &key);
             let view = quantities.spans.view();
             for (ix, raw_span) in quantities.spans.iter() {
@@ -316,6 +329,9 @@ fn extract_places(
 ) -> Vec<QueryFilter> {
     let loc_key = Key::<Locations>::DEFAULT;
     let Some(locations) = doc.get_key(&loc_key) else { return Vec::new() };
+    if locations.is_empty() {
+        return Vec::new();
+    }
     let ev = evidence_for(doc, &loc_key);
     let view = locations.spans.view();
     let mut candidates: Vec<(u8, QueryFilter)> = Vec::new();
@@ -353,6 +369,9 @@ fn extract_places(
 fn extract_glossary(doc: &Document) -> Vec<QueryFilter> {
     let key = Key::<GlossaryTerms>::DEFAULT;
     let Some(gt) = doc.get_key(&key) else { return Vec::new() };
+    if gt.is_empty() {
+        return Vec::new();
+    }
     let ev = evidence_for(doc, &key);
     let view = gt.spans.view();
     let mut out = Vec::with_capacity(gt.len());
@@ -382,7 +401,9 @@ fn extract_entities(doc: &Document, existing: &[QueryFilter]) -> Vec<QueryFilter
         (1u8, Key::<Entities>::named(REGEX_ENTITIES)),
         (2u8, Key::<Entities>::DEFAULT),
     ] {
-        if let Some(entities) = doc.get_key(&key) {
+        if let Some(entities) = doc.get_key(&key)
+            && !entities.spans.is_empty()
+        {
             let ev = evidence_for(doc, &key);
             let view = entities.spans.view();
             for (ix, raw_span) in entities.spans.iter() {
@@ -418,6 +439,9 @@ fn extract_entities(doc: &Document, existing: &[QueryFilter]) -> Vec<QueryFilter
 /// Selects non-overlapping filters by preferring longer byte spans first,
 /// then lower priority rank (`0` before `1`), then earlier start offset.
 fn select_non_overlapping(mut candidates: Vec<(u8, QueryFilter)>) -> Vec<QueryFilter> {
+    if candidates.len() <= 1 {
+        return candidates.into_iter().map(|(_, f)| f).collect();
+    }
     candidates.sort_by(|(pa, a), (pb, b)| {
         let len_a = a.span.end.saturating_sub(a.span.start);
         let len_b = b.span.end.saturating_sub(b.span.start);

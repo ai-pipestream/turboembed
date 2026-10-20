@@ -5,34 +5,28 @@
 
 use std::sync::{Arc, OnceLock};
 
-use turbo_analysis::analyzer::Builder as AnalyzerBuilder;
 use turbo_analysis::{Analyzer, Annotator, Bound, Document, Error, IxRange, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Date, DateTime, Entities, NumberNotation, Times, Tokens};
-use turbo_chunker::terms::{IndexedTerms, NormalizedTermIndexer, TermForm, Vocabulary};
-use turbo_geo::{
-    BundledGazetteer, DocumentRegionAnnotator, Gazetteer, GeocodeAnnotator, MentionPolicy, PopulationPriorGeocoder,
-};
+use turbo_chunker::terms::{IndexedTerms, TermForm, Vocabulary};
+use turbo_geo::{BundledGazetteer, Gazetteer};
 use turbo_glossary::{Case, Glossary, GlossaryAnnotator, GlossaryMatcher, TextMatcher};
 use turbo_langspan::SpanDetector;
 use turbo_namefind::{BuiltIn, DictionaryNameFinder, RegexNameFinder, TokenNameFinder};
-use turbo_numeric::{MoneyExtractor, NumberScanner, QuantityExtractor, TemporalExtractor};
-use turbo_sentdetect::RuleSentenceDetector;
-use turbo_stem::TermAnnotator;
-use turbo_stopword::{ListChoice, StopwordAnnotator, StopwordLanguage};
-use turbo_tokenize::WordTokenizer;
+use turbo_numeric::{MoneyExtractor, QuantityExtractor, TemporalExtractor};
 
 use crate::annotators::{
-    GazetteerCandidateAnnotator, QueryGrammarAnnotator, QueryTimeAnnotator, default_span_detector,
+    QueryGeocodeAnnotator, QueryGrammarAnnotator, QuerySpanDetector, QueryTimeAnnotator, SequentialBuilder,
+    default_span_detector,
 };
 use crate::extract::{DICT_ENTITIES, ES_TIMES, REGEX_ENTITIES, extract_query_analysis};
-use crate::model::QueryAnalysis;
+use crate::model::{QueryAnalysis, QueryCursorNumericAnnotator};
 
 fn shared_bundled_gazetteer() -> Arc<BundledGazetteer> {
     static GAZETTEER: OnceLock<Arc<BundledGazetteer>> = OnceLock::new();
     Arc::clone(GAZETTEER.get_or_init(|| Arc::new(BundledGazetteer::parse().expect("valid bundled gazetteer"))))
 }
 
-type GeoStepInstaller = Box<dyn FnOnce(AnalyzerBuilder) -> AnalyzerBuilder + Send>;
+type GeoStepInstaller = Box<dyn FnOnce(SequentialBuilder) -> SequentialBuilder + Send>;
 
 /// Builder for configuring a [`QueryAnalysisProfile`].
 pub struct QueryProfileBuilder {
@@ -43,7 +37,7 @@ pub struct QueryProfileBuilder {
     geo_installer: Option<GeoStepInstaller>,
     glossary: Option<(Arc<Glossary>, Case)>,
     dictionary_finder: Option<DictionaryNameFinder>,
-    regex_finder: Option<RegexNameFinder>,
+    regex_finder: Option<(RegexNameFinder, bool)>,
     span_detector_factory: Option<Box<dyn Fn() -> SpanDetector + Send + Sync>>,
 }
 
@@ -63,7 +57,7 @@ impl QueryProfileBuilder {
     /// - built-in multi-language [`SpanDetector`].
     pub fn new() -> Self {
         let gaz = shared_bundled_gazetteer();
-        let installer: GeoStepInstaller = Box::new(move |builder: AnalyzerBuilder| install_geo_steps(builder, gaz));
+        let installer: GeoStepInstaller = Box::new(move |builder: SequentialBuilder| install_geo_steps(builder, gaz));
         Self {
             default_language: "en".to_owned(),
             term_form: TermForm::Stem,
@@ -72,7 +66,7 @@ impl QueryProfileBuilder {
             geo_installer: Some(installer),
             glossary: None,
             dictionary_finder: None,
-            regex_finder: Some(RegexNameFinder::defaults(&BuiltIn::ALL)),
+            regex_finder: Some((RegexNameFinder::defaults(&BuiltIn::ALL), true)),
             span_detector_factory: None,
         }
     }
@@ -115,7 +109,7 @@ impl QueryProfileBuilder {
     where
         G: Gazetteer + Send + Sync + 'static,
     {
-        self.geo_installer = Some(Box::new(move |builder: AnalyzerBuilder| install_geo_steps(builder, gazetteer)));
+        self.geo_installer = Some(Box::new(move |builder: SequentialBuilder| install_geo_steps(builder, gazetteer)));
         self
     }
 
@@ -140,7 +134,7 @@ impl QueryProfileBuilder {
 
     /// Overrides the [`RegexNameFinder`] used for pattern entity extraction.
     pub fn with_regex_finder(mut self, finder: RegexNameFinder) -> Self {
-        self.regex_finder = Some(finder);
+        self.regex_finder = Some((finder, false));
         self
     }
 
@@ -162,39 +156,59 @@ impl QueryProfileBuilder {
 
     /// Builds the configured [`QueryAnalysisProfile`].
     pub fn build(mut self) -> Result<QueryAnalysisProfile, Error> {
+        let fast_ascii_en =
+            self.span_detector_factory.is_none() && matches!(self.default_language.as_str(), "en" | "eng");
         let make_span_detector = || match &self.span_detector_factory {
-            Some(f) => f(),
-            None => default_span_detector(),
+            Some(f) => QuerySpanDetector::new(f(), false),
+            None => QuerySpanDetector::new(default_span_detector(), fast_ascii_en),
         };
 
-        let document_analyzer =
-            install_lexical_backbone(Analyzer::builder(), &self.default_language, self.term_form, make_span_detector())
-                .build()?;
+        let document_analyzer = install_lexical_backbone(
+            SequentialBuilder::new(),
+            &self.default_language,
+            self.term_form,
+            make_span_detector(),
+        )
+        .build()?;
 
-        let mut qb =
-            install_lexical_backbone(Analyzer::builder(), &self.default_language, self.term_form, make_span_detector());
+        let mut qb = install_lexical_backbone(
+            SequentialBuilder::new(),
+            &self.default_language,
+            self.term_form,
+            make_span_detector(),
+        );
 
-        let fallback_sw = StopwordLanguage::from_code(&self.default_language).unwrap_or(StopwordLanguage::English);
-        qb = qb.add(StopwordAnnotator::new(ListChoice::Detected { fallback: Some(fallback_sw) }));
-
-        // Numeric, money, quantity, and calendar temporal extractors.
-        qb = qb
-            .add(NumberScanner::new(self.notation))
-            .add(MoneyExtractor::new(self.notation))
-            .add(QuantityExtractor::new(self.notation));
+        // Money, quantity, and calendar temporal extractors in one step.
         let temporal_extractor = match self.reference_datetime {
             Some(dt) => TemporalExtractor::with_reference(dt.date()),
             None => TemporalExtractor::new(),
         };
-        qb = qb.add(temporal_extractor);
+        qb = qb.step_skip_when(
+            Bound::new(QueryCursorNumericAnnotator {
+                money: MoneyExtractor::new(self.notation),
+                quantity: QuantityExtractor::new(self.notation),
+                temporal: temporal_extractor,
+            }),
+            Some(|doc| !doc.source().bytes().any(|b| b.is_ascii_digit())),
+        );
 
         // Trigger-gated grammar and time chart parsers (English + Spanish).
         qb = qb
-            .step(QueryGrammarAnnotator::english().bound())
+            .step_skip_when(
+                QueryGrammarAnnotator::english().bound(),
+                Some(|doc| doc.get::<Tokens>().is_some_and(|t| !crate::model::has_grammar_trigger(doc.source(), t))),
+            )
             .add(QueryTimeAnnotator::english(self.reference_datetime))
-            .step(Bound::new(QueryTimeAnnotator::spanish(self.reference_datetime)).write(0, ES_TIMES));
+            .step_skip_when(
+                Bound::new(QueryTimeAnnotator::spanish(self.reference_datetime)).write(0, ES_TIMES),
+                Some(|doc| {
+                    doc.source().is_ascii()
+                        && doc.get::<Tokens>().is_some_and(|t| t.spans.len() >= 4)
+                        && doc.get::<turbo_analysis_layers::Language>().is_some_and(|l| l.code.len() == 1)
+                }),
+            );
 
-        // Gazetteer candidate detection + population-prior geocoding + region vote.
+        // Gazetteer candidate detection + population-prior geocoding.
         if let Some(installer) = self.geo_installer.take() {
             qb = installer(qb);
         }
@@ -212,8 +226,15 @@ impl QueryProfileBuilder {
         if let Some(dict_finder) = self.dictionary_finder.take() {
             qb = qb.step(Bound::new(dict_finder).write(0, DICT_ENTITIES));
         }
-        if let Some(regex_finder) = self.regex_finder.take() {
-            qb = qb.step(Bound::new(QueryRegexEntityAnnotator { finder: regex_finder }).write(0, REGEX_ENTITIES));
+        if let Some((regex_finder, is_default_builtin)) = self.regex_finder.take() {
+            let config_hash = <RegexNameFinder as Annotator>::config_hash(&regex_finder);
+            let skip = is_default_builtin
+                .then_some((|doc: &Document| !has_builtin_regex_cue(doc.source())) as fn(&Document) -> bool);
+            qb = qb.step_skip_when(
+                Bound::new(QueryRegexEntityAnnotator { finder: regex_finder, is_default_builtin, config_hash })
+                    .write(0, REGEX_ENTITIES),
+                skip,
+            );
         }
 
         let _ = Times::new;
@@ -229,6 +250,23 @@ impl QueryProfileBuilder {
 
 struct QueryRegexEntityAnnotator {
     finder: RegexNameFinder,
+    is_default_builtin: bool,
+    config_hash: u64,
+}
+
+fn has_builtin_regex_cue(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut consec_digits = 0usize;
+    for &b in bytes {
+        if matches!(b, b'@' | b'/' | b'-' | b'(' | b':') || (b == b'.' && bytes.len() >= 4) {
+            return true;
+        }
+        consec_digits = if b.is_ascii_digit() { consec_digits + 1 } else { 0 };
+        if consec_digits >= 4 {
+            return true;
+        }
+    }
+    false
 }
 
 impl Annotator for QueryRegexEntityAnnotator {
@@ -238,6 +276,15 @@ impl Annotator for QueryRegexEntityAnnotator {
 
     fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<(Entities,), Error> {
         let text = view.text();
+        if self.is_default_builtin && !has_builtin_regex_cue(text) {
+            return Ok((Entities {
+                spans: Spans::new(view.id()),
+                tokens: Vec::new(),
+                kind: Vec::new(),
+                kinds: Arc::clone(self.finder.kinds()),
+                score: Vec::new(),
+            },));
+        }
         let (tok_starts, tok_ends) = tokens.spans.columns();
         let mut ws_spans: Vec<(u32, u32)> = Vec::new();
         let mut ws_words: Vec<&str> = Vec::new();
@@ -263,7 +310,7 @@ impl Annotator for QueryRegexEntityAnnotator {
         let mut entities = Entities {
             spans: Spans::new(view.id()),
             tokens: Vec::with_capacity(names.len()),
-            kind: Vec::with_capacity(names.len()),
+            kind: Vec::new(),
             kinds: Arc::clone(self.finder.kinds()),
             score: Vec::with_capacity(names.len()),
         };
@@ -284,16 +331,16 @@ impl Annotator for QueryRegexEntityAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        <RegexNameFinder as Annotator>::config_hash(&self.finder)
+        self.config_hash
     }
 }
 
 fn install_lexical_backbone(
-    builder: AnalyzerBuilder,
+    builder: SequentialBuilder,
     default_lang: &str,
     term_form: TermForm,
-    span_detector: SpanDetector,
-) -> AnalyzerBuilder {
+    span_detector: QuerySpanDetector,
+) -> SequentialBuilder {
     let sent_lang = match default_lang {
         "de" | "deu" | "ger" => "de",
         "es" | "spa" => "es",
@@ -304,22 +351,14 @@ fn install_lexical_backbone(
         "ru" | "rus" => "ru",
         _ => "en",
     };
-    builder
-        .add(RuleSentenceDetector::new(sent_lang))
-        .add(WordTokenizer::new())
-        .add(span_detector)
-        .add(TermAnnotator::by_language(Some(default_lang.to_owned())))
-        .add(NormalizedTermIndexer { form: term_form })
+    builder.add(crate::QueryTermAnnotator::new(sent_lang, default_lang, term_form, span_detector))
 }
 
-fn install_geo_steps<G>(builder: AnalyzerBuilder, gazetteer: Arc<G>) -> AnalyzerBuilder
+fn install_geo_steps<G>(builder: SequentialBuilder, gazetteer: Arc<G>) -> SequentialBuilder
 where
     G: Gazetteer + Send + Sync + 'static,
 {
-    let cand = GazetteerCandidateAnnotator::new(Arc::clone(&gazetteer));
-    let geocoder = GeocodeAnnotator::new(PopulationPriorGeocoder::new(gazetteer))
-        .with_mention_policy(MentionPolicy::ExcludeSingleAsciiLetters);
-    builder.add(cand).add(geocoder).add(DocumentRegionAnnotator::default())
+    builder.add(QueryGeocodeAnnotator::new(gazetteer))
 }
 
 /// Query-tuned [`Analyzer`] profile that turns a raw query into structured
