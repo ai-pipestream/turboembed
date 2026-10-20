@@ -234,29 +234,67 @@ fn construct(scan: &mut Scanner<'_>, out: &mut ViewBuilder<'_>, at: usize) -> us
 /// honoring quoted attribute values; end of input for an
 /// unterminated tag.
 fn scan_tag_end(text: &str, at: usize) -> usize {
+    // The WHATWG tag states, reduced to what finding the tag
+    // end needs. A quote starts a quoted value only in
+    // BeforeValue; in a name or an unquoted value, quotes
+    // and `=` are ordinary characters and never hide `>`.
+    #[derive(PartialEq)]
+    enum State {
+        TagName,
+        BeforeName,
+        Name,
+        AfterName,
+        BeforeValue,
+        UnquotedValue,
+        QuotedValue(u8),
+    }
     let bytes = text.as_bytes();
-    let mut quote = 0u8;
-    // A quote opens a quoted attribute value only as the
-    // first non-whitespace byte after `=`; anywhere else
-    // (inside an attribute name or an unquoted value) it is
-    // plain text and does not hide the closing `>`.
-    let mut after_eq = false;
+    let mut state = State::TagName;
     let mut i = at + 1;
     while i < bytes.len() {
         let b = bytes[i];
-        if quote != 0 {
-            if b == quote {
-                quote = 0;
+        match state {
+            State::QuotedValue(q) => {
+                if b == q {
+                    state = State::BeforeName;
+                }
             }
-        } else if after_eq && (b == b'"' || b == b'\'') {
-            quote = b;
-            after_eq = false;
-        } else if b == b'=' {
-            after_eq = true;
-        } else if b == b'>' {
-            return i + 1;
-        } else if !b.is_ascii_whitespace() {
-            after_eq = false;
+            State::TagName => match b {
+                b'>' => return i + 1,
+                _ if b.is_ascii_whitespace() => state = State::BeforeName,
+                b'/' => state = State::BeforeName,
+                _ => {}
+            },
+            State::BeforeName => match b {
+                b'>' => return i + 1,
+                _ if b.is_ascii_whitespace() || b == b'/' => {}
+                _ => state = State::Name,
+            },
+            State::Name => match b {
+                b'>' => return i + 1,
+                b'=' => state = State::BeforeValue,
+                _ if b.is_ascii_whitespace() => state = State::AfterName,
+                b'/' => state = State::BeforeName,
+                _ => {}
+            },
+            State::AfterName => match b {
+                b'>' => return i + 1,
+                b'=' => state = State::BeforeValue,
+                _ if b.is_ascii_whitespace() => {}
+                b'/' => state = State::BeforeName,
+                _ => state = State::Name,
+            },
+            State::BeforeValue => match b {
+                b'>' => return i + 1,
+                _ if b.is_ascii_whitespace() => {}
+                b'"' | b'\'' => state = State::QuotedValue(b),
+                _ => state = State::UnquotedValue,
+            },
+            State::UnquotedValue => match b {
+                b'>' => return i + 1,
+                _ if b.is_ascii_whitespace() => state = State::BeforeName,
+                _ => {}
+            },
         }
         i += 1;
     }
