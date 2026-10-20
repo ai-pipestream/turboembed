@@ -81,7 +81,13 @@ impl MaxLogPool {
 
     /// As `observe`, for the terms `at..at + logits.len()`.
     pub fn observe_at(&mut self, at: usize, logits: &[f32]) -> Result<()> {
-        if at + logits.len() > self.peak.len() {
+        let end = at.checked_add(logits.len()).ok_or_else(|| {
+            Error::new(
+                INVALID_SHAPE,
+                format!("logits of {} terms at {at} overflow the pool of {}", logits.len(), self.peak.len()),
+            )
+        })?;
+        if end > self.peak.len() {
             return Err(Error::new(
                 INVALID_SHAPE,
                 format!("logits of {} terms at {at} overflow the pool of {}", logits.len(), self.peak.len()),
@@ -113,10 +119,11 @@ impl MaxLogPool {
 }
 
 /// Accumulate the SPLADE max pool of `logits` (`[tokens, vocab]`, the MLM
-/// head's output) into `pool` (`[vocab]`, zeroed by the caller): each
-/// term's pool entry is the max over the tokens of
-/// `log(1 + relu(logit))`. A token count of 0 leaves `pool` as it was.
-/// A non-finite logit is `INVALID_ARGUMENT`, naming its token and term.
+/// head's output) into `pool` (`[vocab]`): each term's pool entry is the
+/// max of what it held and the max over the tokens of
+/// `log(1 + relu(logit))`, so batches pool into the same vector.
+/// A token count of 0 leaves `pool` as it was. A non-finite logit is
+/// `INVALID_ARGUMENT`, naming its token and term.
 pub fn pool_logits_maxlog(logits: &[f32], vocab: usize, pool: &mut [f32]) -> Result<()> {
     if vocab == 0 || !logits.len().is_multiple_of(vocab) {
         return Err(Error::new(
@@ -127,11 +134,16 @@ pub fn pool_logits_maxlog(logits: &[f32], vocab: usize, pool: &mut [f32]) -> Res
     if pool.len() != vocab {
         return Err(Error::new(INVALID_SHAPE, format!("pool has {} values, expected {vocab}", pool.len())));
     }
+    if logits.is_empty() {
+        return Ok(());
+    }
     let mut p = MaxLogPool::new(vocab);
     for row in logits.chunks_exact(vocab) {
         p.observe(row)?;
     }
-    pool.copy_from_slice(&p.weights());
+    for (dst, &w) in pool.iter_mut().zip(&p.weights()) {
+        *dst = dst.max(w);
+    }
     Ok(())
 }
 
@@ -168,6 +180,7 @@ impl MlmHead {
     /// encoder's final states for the text's tokens): the MLM head's
     /// logits pooled as SPLADE pools them, cut as `o` says.
     pub fn sparse_terms(&self, states: &[f32], o: &SparseOptions) -> Result<Vec<SparseTerm>> {
+        self.validate()?;
         o.check()?;
         let mut pool = MaxLogPool::new(self.vocab);
         self.relu_peak_into(states, &mut pool)?;
@@ -337,6 +350,25 @@ mod tests {
         assert_eq!(pool, [0.0; 4]);
         // No tokens is not a shape error; empty output follows in select.
         assert!(select_terms(&pool, &SparseOptions::all()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn pooling_merges_with_the_pool_a_batch_at_a_time() {
+        let mut pool = vec![0.0f32; 2];
+        pool_logits_maxlog(&[3.0, 1.0], 2, &mut pool).unwrap();
+        pool_logits_maxlog(&[1.0, 0.0], 2, &mut pool).unwrap();
+        assert_eq!(pool, [4.0f32.ln(), 2.0f32.ln()]);
+        // A batch with no tokens leaves a non-zero pool as it was.
+        pool_logits_maxlog(&[], 2, &mut pool).unwrap();
+        assert_eq!(pool, [4.0f32.ln(), 2.0f32.ln()]);
+    }
+
+    #[test]
+    fn observing_past_the_pool_is_an_error_not_a_panic() {
+        let mut p = MaxLogPool::new(2);
+        assert_eq!(p.observe_at(usize::MAX, &[1.0]).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(p.observe_at(2, &[1.0]).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(p.weights(), [0.0; 2]);
     }
 
     #[test]

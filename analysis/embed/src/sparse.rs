@@ -244,6 +244,21 @@ impl SparseAnnotator {
         if let Err(e) = sub.check() {
             return fail(format!("the subwords: {e}"));
         }
+        // The terms publish these spans as their source: every piece span
+        // must lie on the text, whole UTF-8 characters, or the spans a
+        // term carries would name bytes the text has not.
+        let text = view.text();
+        for k in 0..sub.ids.len() {
+            let s = sub.spans.get(turbo_analysis::Ix::new(k as u32));
+            if text.get(s.range()).is_none() {
+                return fail(format!(
+                    "piece {k} span {}..{} is out of bounds or not on a UTF-8 char boundary (text len {})",
+                    s.start,
+                    s.end,
+                    text.len()
+                ));
+            }
+        }
         if sub.model != self.model {
             return fail(format!(
                 "the subwords are {}'s pieces (revision {}), the terms {}'s (revision {})",

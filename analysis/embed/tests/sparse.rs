@@ -332,6 +332,35 @@ fn refusals_and_the_provider() {
     };
     assert!(err.to_string().contains("revision"), "{err}");
 
+    // A piece span past the text's end is refused before anything runs:
+    // the terms would publish a source span the text has not.
+    let doc = turbo_analysis::Document::new("hello");
+    let view = doc.get::<View>().unwrap();
+    let mut bad = SubwordAnnotator::open(&dir).unwrap().pieces(view).unwrap();
+    let id = bad.ids[0];
+    bad.spans = Spans::new(view.id());
+    bad.spans.push(Span::new(0, 999));
+    bad.ids = vec![id];
+    let err = match a.annotate((view, &bad)) {
+        Ok(_) => panic!("a span past the text passed, and an error is wanted"),
+        Err(e) => e,
+    };
+    assert!(err.to_string().contains("out of bounds"), "{err}");
+
+    // A span that splits a UTF-8 character is no better.
+    let doc = turbo_analysis::Document::new("é");
+    let view = doc.get::<View>().unwrap();
+    let mut bad = SubwordAnnotator::open(&dir).unwrap().pieces(view).unwrap();
+    let id = bad.ids[0];
+    bad.spans = Spans::new(view.id());
+    bad.spans.push(Span::new(1, 2));
+    bad.ids = vec![id];
+    let err = match a.annotate((view, &bad)) {
+        Ok(_) => panic!("a span splitting a character passed, and an error is wanted"),
+        Err(e) => e,
+    };
+    assert!(err.to_string().contains("UTF-8"), "{err}");
+
     // The provider builds the step from a spec whose location is the bundle.
     let spec = Spec { location: Some(sparse_bundle("provider")), options: Vec::new() };
     let step = SparseProvider.create(&spec).unwrap_or_else(|e| panic!("{e}"));

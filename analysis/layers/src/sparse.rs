@@ -84,9 +84,12 @@ impl<L: Layer> Layer for SparseTerms<L> {
         Anchor::aligned::<L>()
     }
     fn len(&self) -> usize {
-        self.row.len() - 1
+        self.row.len().saturating_sub(1)
     }
     fn check(&self) -> Result<(), String> {
+        if self.row.is_empty() {
+            return Err("at least the first row start, 0".into());
+        }
         let n = self.len();
         if self.row[0] != 0 || self.row[n] as usize != self.term.len() {
             return Err("one row start per unit and one past the last entry".into());
@@ -113,9 +116,11 @@ impl<L: Layer> Layer for SparseTerms<L> {
                     return Err(format!("unit {i}: term {v} has a weight that is not over 0"));
                 }
             }
-            for s in self.span[r].iter().flatten() {
-                if s.start > s.end {
-                    return Err(format!("unit {i}: a span that ends before it starts"));
+            if !self.span.is_empty() {
+                for s in self.span[r].iter().flatten() {
+                    if s.start > s.end {
+                        return Err(format!("unit {i}: a span that ends before it starts"));
+                    }
                 }
             }
         }
@@ -164,5 +169,27 @@ mod tests {
         bad.span.push(Some(Span::new(0, 1)));
         bad.unit();
         assert!(bad.check().unwrap_err().contains("span column"));
+    }
+
+    #[test]
+    fn empty_row_has_len_zero_and_fails_check_without_panicking() {
+        let t = SparseTerms::<View>::new(model());
+        assert_eq!(t.len(), 0);
+        assert_eq!(t.check(), Ok(()));
+        let mut bare = SparseTerms::<View>::new(model());
+        bare.row.clear();
+        assert_eq!(bare.len(), 0);
+        assert!(bare.check().is_err());
+    }
+
+    #[test]
+    fn entries_without_a_span_column_pass_check() {
+        let mut t = SparseTerms::<View>::new(model());
+        t.push(3, 0.5, None);
+        t.push(9, 1.25, None);
+        t.unit();
+        t.span.clear();
+        assert_eq!(t.len(), 1);
+        assert_eq!(t.check(), Ok(()));
     }
 }

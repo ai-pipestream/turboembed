@@ -44,10 +44,10 @@ impl Annotator for SparseLevelTerms {
 
         let mut out = SparseTerms::new(doc.model.clone());
         for u in 0..levels.len() {
-            let us = levels.spans.get(Ix::new(u as u32));
+            let ux = Ix::new(u as u32);
             for (k, &t) in terms.iter().enumerate() {
                 let placed = match spans.get(k).copied().flatten() {
-                    Some(s) => us.start < s.end && s.start < us.end,
+                    Some(s) => levels.spans.fragments(ux).any(|f| f.overlaps(s)),
                     None => u == 0,
                 };
                 if placed {
@@ -109,6 +109,36 @@ mod tests {
         assert_eq!(out.entries(Ix::new(2)).0, &[1]);
         assert_eq!(out.entries(Ix::new(3)).0, &[4]);
         assert_eq!(out.entries(Ix::new(1)).1, &[0.5, 1.5]);
+        assert_eq!(out.check(), Ok(()));
+    }
+
+    #[test]
+    fn a_term_in_a_units_gap_is_not_assigned_to_it() {
+        // A discontinuous chunk with fragments 0..6 and 15..21: its
+        // bounding envelope is 0..21, but a term whose span lies in the
+        // gap 7..14 is inside no fragment, so only terms in an actual
+        // fragment are assigned to the chunk, and the gap term falls in
+        // the document alone.
+        let mut doc = SparseTerms::new(model());
+        doc.push(1, 0.5, Some(Span::new(3, 5)));
+        doc.push(4, 1.5, Some(Span::new(7, 14)));
+        doc.push(9, 2.5, Some(Span::new(16, 19)));
+        doc.unit();
+        let mut levels = Levels {
+            spans: turbo_analysis::Spans::new(turbo_analysis::ViewId::SOURCE),
+            unit: Vec::new(),
+            parent: Vec::new(),
+        };
+        levels.spans.push(Span::new(0, 21));
+        levels.unit.push(turbo_analysis_layers::Unit::Document);
+        levels.parent.push(None);
+        levels.spans.push_fragments(&[Span::new(0, 6), Span::new(15, 21)]);
+        levels.unit.push(turbo_analysis_layers::Unit::Chunk(Ix::new(0)));
+        levels.parent.push(Some(Ix::new(0u32)));
+        let (out,) = SparseLevelTerms.annotate((&doc, &levels)).unwrap();
+        assert_eq!(out.len(), 2);
+        assert_eq!(out.entries(Ix::new(0)).0, &[1, 4, 9]);
+        assert_eq!(out.entries(Ix::new(1)).0, &[1, 9]);
         assert_eq!(out.check(), Ok(()));
     }
 

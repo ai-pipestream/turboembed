@@ -1,5 +1,5 @@
 //! A bundle's masked language model head on the host: the head
-//! `embed.sparse` declares (mlm_tensors in model/mod.rs), BERT's
+//! `embed.sparse` declares (mlm_tensors in model/heads.rs), BERT's
 //! `cls.predictions` as SPLADE leaves it (arXiv 2403.06789): a transform
 //! (`dense` + GELU erf + LayerNorm) and a decoder (`dense` over the
 //! vocabulary, tied to the word embeddings when the manifest names no
@@ -33,6 +33,57 @@ pub struct MlmHead {
 }
 
 impl MlmHead {
+    /// The head's own consistency: the transform is `hidden -> hidden`,
+    /// the decoder `hidden -> vocab` with a `vocab` bias, the LayerNorm
+    /// vectors `hidden` each, the epsilon positive. The fields are
+    /// public, so a head can be built that does not match its `hidden`
+    /// and `vocab`; every entry point (`logits`, `sparse_terms`)
+    /// validates before it allocates or computes, and fails with an
+    /// error instead of a panic or a silently wrong vector.
+    pub fn validate(&self) -> Result<()> {
+        if self.hidden == 0 || self.vocab == 0 {
+            return Err(Error::new(INVALID_ARGUMENT, "MLM head hidden width and vocab must be positive"));
+        }
+        if self.transform.in_dim != self.hidden || self.transform.out_dim != self.hidden {
+            return Err(Error::new(
+                INVALID_SHAPE,
+                format!(
+                    "MLM transform is [{} -> {}], expected [{} -> {}]",
+                    self.transform.in_dim, self.transform.out_dim, self.hidden, self.hidden
+                ),
+            ));
+        }
+        self.transform.validate("MLM transform")?;
+        if self.decoder.in_dim != self.hidden || self.decoder.out_dim != self.vocab {
+            return Err(Error::new(
+                INVALID_SHAPE,
+                format!(
+                    "MLM decoder is [{} -> {}], expected [{} -> {}]",
+                    self.decoder.in_dim, self.decoder.out_dim, self.hidden, self.vocab
+                ),
+            ));
+        }
+        self.decoder.validate("MLM decoder")?;
+        if self.ln_weight.len() != self.hidden || self.ln_bias.len() != self.hidden {
+            return Err(Error::new(
+                INVALID_SHAPE,
+                format!(
+                    "MLM transform LayerNorm has {} and {} values, expected {} each",
+                    self.ln_weight.len(),
+                    self.ln_bias.len(),
+                    self.hidden
+                ),
+            ));
+        }
+        if !self.ln_weight.iter().all(|v| v.is_finite()) || !self.ln_bias.iter().all(|v| v.is_finite()) {
+            return Err(Error::new(INVALID_ARGUMENT, "MLM transform LayerNorm has non-finite values"));
+        }
+        if !(self.ln_eps > 0.0 && self.ln_eps.is_finite()) {
+            return Err(Error::new(INVALID_ARGUMENT, "MLM LayerNorm epsilon is not a positive number"));
+        }
+        Ok(())
+    }
+
     /// Load the MLM head from the first `FORMAT_SAFETENSORS` artifact in
     /// `bundle`, which `embed.sparse` must declare.
     pub fn load(bundle: &Bundle) -> Result<Self> {
@@ -169,28 +220,7 @@ impl MlmHead {
     }
 
     fn check_states(&self, states: &[f32]) -> Result<(usize, usize)> {
-        if self.hidden == 0 || self.vocab == 0 {
-            return Err(Error::new(INVALID_ARGUMENT, "MLM head hidden width and vocab must be positive"));
-        }
-        self.transform.validate("MLM transform")?;
-        self.decoder.validate("MLM decoder")?;
-        if self.ln_weight.len() != self.hidden || self.ln_bias.len() != self.hidden {
-            return Err(Error::new(
-                INVALID_SHAPE,
-                format!(
-                    "MLM transform LayerNorm has {} and {} values, expected {} each",
-                    self.ln_weight.len(),
-                    self.ln_bias.len(),
-                    self.hidden
-                ),
-            ));
-        }
-        if !self.ln_weight.iter().all(|v| v.is_finite()) || !self.ln_bias.iter().all(|v| v.is_finite()) {
-            return Err(Error::new(INVALID_ARGUMENT, "MLM transform LayerNorm has non-finite values"));
-        }
-        if !(self.ln_eps > 0.0 && self.ln_eps.is_finite()) {
-            return Err(Error::new(INVALID_ARGUMENT, "MLM LayerNorm epsilon is not a positive number"));
-        }
+        self.validate()?;
         if !states.len().is_multiple_of(self.hidden) {
             return Err(Error::new(
                 INVALID_SHAPE,
@@ -228,6 +258,38 @@ pub(crate) fn layer_norm(y: &[f32], w: &[f32], b: &[f32], eps: f32, out: &mut [f
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sparse::SparseOptions;
+
+    fn head() -> MlmHead {
+        MlmHead {
+            hidden: 2,
+            vocab: 2,
+            transform: Linear::new(2, 2, vec![1.0; 4], vec![0.0; 2]).unwrap(),
+            ln_weight: vec![1.0; 2],
+            ln_bias: vec![0.0; 2],
+            ln_eps: 1e-5,
+            decoder: Linear::new(2, 2, vec![1.0; 4], vec![0.0; 2]).unwrap(),
+        }
+    }
+
+    #[test]
+    fn a_malformed_head_is_refused_before_it_computes() {
+        // A hidden/vocab 2 head whose decoder is 3 -> 2: the fields are
+        // public, so this builds, and every entry point must refuse it
+        // with an error, not panic inside the GEMM.
+        let bad = MlmHead { decoder: Linear::new(3, 2, vec![1.0; 6], vec![0.0; 2]).unwrap(), ..head() };
+        assert_eq!(bad.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(bad.sparse_terms(&[1.0, 2.0], &SparseOptions::all()).unwrap_err().code, INVALID_SHAPE);
+        assert_eq!(bad.validate().unwrap_err().code, INVALID_SHAPE);
+        // A transform that is not hidden -> hidden.
+        let bad = MlmHead { transform: Linear::new(2, 3, vec![1.0; 6], vec![0.0; 3]).unwrap(), ..head() };
+        assert_eq!(bad.validate().unwrap_err().code, INVALID_SHAPE);
+        // ln_eps 0: logits always refused it; sparse_terms must too.
+        let bad = MlmHead { ln_eps: 0.0, ..head() };
+        assert_eq!(bad.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_ARGUMENT);
+        assert_eq!(bad.sparse_terms(&[1.0, 2.0], &SparseOptions::all()).unwrap_err().code, INVALID_ARGUMENT);
+        assert_eq!(head().validate(), Ok(()));
+    }
 
     #[test]
     fn layer_norm_matches_the_encoder_formula() {
