@@ -171,3 +171,33 @@ fn an_empty_piece_on_a_boundary_belongs_to_the_unit_starting_there() {
     assert_eq!(pieces(index.sources(1)), [0]);
     assert_eq!(pieces(index.sources(2)), [1, 2]);
 }
+
+#[test]
+fn an_empty_piece_at_the_end_of_the_text_belongs_to_the_last_unit() {
+    // "ab" "cd" "": the empty piece sits at byte 4, where the text and the
+    // second chunk end.
+    let m = model("colbert-small");
+    let sp = Space::new(m.clone(), 4, Normalization::None);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    for (a, b) in [(0, 2), (2, 4), (4, 4)] {
+        spans.push(Span::new(a, b));
+    }
+    let sub = Subwords { spans, ids: vec![0, 1, 2], model: m.clone(), token: None };
+    let mut data = vec![0.0f32; 12];
+    for i in 0..3 {
+        data[i * 4 + i] = 1.0;
+    }
+    let vec = Vectors::new(4, data, Vec::new(), m);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    for (a, b) in [(0, 4), (0, 2), (2, 4)] {
+        spans.push(Span::new(a, b));
+    }
+    let unit = vec![Unit::Document, Unit::Chunk(Ix::new(0)), Unit::Chunk(Ix::new(1))];
+    let lev = Levels { spans, unit, parent: vec![None, Some(Ix::new(0)), Some(Ix::new(0))] };
+    let mut b = TokenIndexBuilder::new(sp).unwrap();
+    assert_eq!(b.push_levels(&vec, &sub, &lev, (0..3).map(Ix::new), None, |u| u.get()), Ok(3));
+    let index = b.build();
+    assert_eq!(pieces(index.sources(0)), [0, 1, 2]);
+    assert_eq!(pieces(index.sources(1)), [0]);
+    assert_eq!(pieces(index.sources(2)), [1, 2]);
+}

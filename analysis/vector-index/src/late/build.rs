@@ -1,4 +1,4 @@
-use turbo_analysis::{Ix, Layer};
+use turbo_analysis::{Ix, Layer, Span, Spans};
 use turbo_analysis_layers::{Levels, Subwords, Vectors};
 
 use super::{Source, TokenIndex};
@@ -64,8 +64,9 @@ impl<M> TokenIndexBuilder<M> {
     /// Adds a candidate for each unit of `units` from the subword vectors
     /// of a text: a unit's tokens are the pieces of `subwords` inside its
     /// span (inside each fragment, for a discontinuous one; an empty piece
-    /// only where a fragment covers its offset, so one on the boundary of
-    /// two units is the second's), in text order,
+    /// goes with the next non-empty piece, or the one before it at the end
+    /// of the text, so one on the boundary of two units is the second's),
+    /// in text order,
     /// less the items `vectors` lists as empty and the pieces `prune`
     /// drops. A unit left with no token is not added. Returns how many
     /// candidates were added; `meta` names each from its unit. The layers
@@ -116,9 +117,7 @@ impl<M> TokenIndexBuilder<M> {
                 for i in r.start.get()..r.end.get() {
                     let ix = Ix::<Subwords>::new(i as u32);
                     let span = subwords.spans.get(ix);
-                    // An empty piece where one unit ends and the next
-                    // starts belongs to the next one only.
-                    if vectors.is_empty(ix) || (span.is_empty() && !fragment.covers(span.start)) {
+                    if vectors.is_empty(ix) || (span.is_empty() && !empty_piece_in(&subwords.spans, i, fragment)) {
                         continue;
                     }
                     if prune.is_some_and(|p| (p.drop)(ix)) {
@@ -209,4 +208,15 @@ impl<M> TokenIndexBuilder<M> {
         ix.sources.truncate(tokens);
         ix.rows.truncate(blocks);
     }
+}
+
+/// Whether the empty piece `i` belongs to `fragment`, which holds it: an
+/// empty piece goes with the next non-empty piece, or with the one before
+/// it when none follows, so units that split the text hold it once.
+fn empty_piece_in(spans: &Spans<Subwords>, i: usize, fragment: Span) -> bool {
+    let non_empty = |j: usize| Some(spans.get(Ix::new(j as u32))).filter(|s| !s.is_empty());
+    if let Some(next) = (i + 1..spans.len()).find_map(non_empty) {
+        return next.end <= fragment.end;
+    }
+    (0..i).rev().find_map(non_empty).is_none_or(|before| before.start >= fragment.start)
 }
