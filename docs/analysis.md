@@ -350,6 +350,18 @@ view spans. `ContentHashes<L>` (`turbo:content-hashes<L>`) gives every
 unit a deterministic content ID over its level, heading path and
 fragment text, so a re-chunked document diffs cleanly.
 
+The retrieval cascade (`turbo_chunker::Cascade`) spends the expensive
+space only where it helps: static vectors and BM25 each admit a
+shortlist of level units, a contextual `Vectors<Levels>` space
+reranks just that pool, and structured `UnitFilter`s (built from any
+span layer's overlap with the units) then require or boost. Every
+query vector carries its space's `ModelRef`, and building a cascade
+refuses a query scored against another space's rows (or the same
+space twice). Hits are deterministic, name the admitting stage and
+each signal's score, carry the unit's exact fragments, and the
+result reports how many units the contextual stage actually scored;
+`recall_at_k` records the recall side of a candidate-count sweep.
+
 Multi-representation indexing (`turbo_chunker::MultiRepChunkIndex`)
 registers several indexable views of one chunk unit (its surface
 text, a summary or header, its keyphrases from `TermStats<Levels>`,
