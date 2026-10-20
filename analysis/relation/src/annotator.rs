@@ -137,31 +137,33 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
         .map_err(|e| fail(e.to_string()))?;
 
         // Entity heads (layer order, first outward word) and the
-        // sentence of every word.
+        // sentence of every word. Words follow text order, so the
+        // words overlapping one entity fragment form one contiguous
+        // range; the first outward word overall is the minimum over
+        // the fragments.
+        let (word_starts, word_ends): (Vec<u32>, Vec<u32>) =
+            words.iter().map(|w| (w.token_span.start, w.token_span.end)).unzip();
+        let overlaps =
+            |e: Ix<Entities>, x: Span| entities.spans.fragments(e).any(|y| x.start.max(y.start) < x.end.min(y.end));
         let entity_heads: Vec<Option<Ix<A>>> = (0..entities.spans.len() as u32)
             .map(|e| {
                 let e = Ix::new(e);
-                words.iter().enumerate().find_map(|(i, w)| {
-                    let ix = Ix::new(i as u32);
-                    let word_spans = std::iter::once(w.token_span);
-                    let hits = word_spans
-                        .clone()
-                        .any(|x| entities.spans.fragments(e).any(|y| x.start.max(y.start) < x.end.min(y.end)));
-                    if !hits {
-                        return None;
-                    }
-                    match dependencies.head[i] {
-                        None => Some(ix),
-                        Some(h) => {
-                            let head_span = words[h.get()].token_span;
-                            let head_hits = entities
-                                .spans
-                                .fragments(e)
-                                .any(|y| head_span.start.max(y.start) < head_span.end.min(y.end));
-                            (!head_hits).then_some(ix)
-                        }
-                    }
-                })
+                entities
+                    .spans
+                    .fragments(e)
+                    .filter_map(|y| {
+                        let lo = word_ends.partition_point(|&end| end <= y.start);
+                        let hi = word_starts.partition_point(|&start| start < y.end);
+                        (lo..hi.max(lo)).find(|&i| {
+                            overlaps(e, words[i].token_span)
+                                && match dependencies.head[i] {
+                                    None => true,
+                                    Some(h) => !overlaps(e, words[h.get()].token_span),
+                                }
+                        })
+                    })
+                    .min()
+                    .map(|i| Ix::new(i as u32))
             })
             .collect();
         let (sent_starts, sent_ends) = sentences.spans.columns();
@@ -176,8 +178,19 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
         let mut spans = Spans::new(view.id());
         let (mut subject, mut object, mut kind, mut score) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let entity_label = |e: Ix<Entities>| entities.kinds.label(entities.kind[e.get()]);
+        // Entities paired by the sentence of their head word, each
+        // bucket in layer order: the pair loop below visits exactly
+        // the same same-sentence pairs in the same order as a full
+        // cross product would, in linear time in the count.
+        let mut by_sentence: Vec<Vec<u32>> = vec![Vec::new(); sentences.spans.len()];
+        for (e, h) in entity_heads.iter().enumerate() {
+            if let Some(sent) = h.and_then(|h| word_sentence[h.get()]) {
+                by_sentence[sent].push(e as u32);
+            }
+        }
         for s in 0..entities.spans.len() as u32 {
-            for o in 0..entities.spans.len() as u32 {
+            let Some(sent) = entity_heads[s as usize].and_then(|h| word_sentence[h.get()]) else { continue };
+            for &o in &by_sentence[sent] {
                 if s == o {
                     continue;
                 }
@@ -232,9 +245,9 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
         let relations = Relations { spans, subject, object, kind, kinds: Arc::clone(&self.kinds), score };
         relations.check().map_err(fail)?;
         // The edge layer holds each (subject, object, type) once,
-        // at the best confidence any mention of it carries, in
-        // first-mention order. The index keeps this linear in the
-        // mention count.
+        // at the best confidence any mention of it carries (the
+        // layer itself stores edges sorted). The index keeps this
+        // linear in the mention count.
         let mut edges: Vec<Edge<Entities, Entities>> = Vec::new();
         let mut index = HashMap::new();
         for (i, _) in relations.spans.iter() {
