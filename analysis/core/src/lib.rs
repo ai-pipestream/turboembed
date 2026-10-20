@@ -19,6 +19,7 @@ pub mod graph;
 pub mod layer;
 pub mod markup;
 pub mod offsets;
+pub mod predicate;
 pub mod registry;
 pub mod span;
 pub mod text;
@@ -27,7 +28,7 @@ pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
 pub use analyzer::Analyzer;
 pub use annotate::{Annotator, Bound, Refs};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
-pub use doc::{Document, Status, View};
+pub use doc::{Document, LayerStatus, Status, View};
 pub use error::Error;
 pub use export::{
     Codecs, DocumentGraph, ErrorRecord, ExportCx, ExportError, FORMAT_VERSION, ImportCx, LayerCodec, LayerRecord,
@@ -38,5 +39,6 @@ pub use graph::{Edge, Edges, Groups};
 pub use layer::{Anchor, Execution, Key, KeyId, Layer, LayerName, ModelRef, Provenance, Tag, TagSet};
 pub use markup::{MarkupError, MarkupText, TagKind, TagSpan, TextRun, TextRunKind};
 pub use offsets::{CodePointOffset, OffsetCursor, OffsetError, OffsetTable, OffsetUnit, Utf16Offset};
+pub use predicate::{ConditionalAnnotator, ConditionalStep, FilterAnnotator, FilterableLayer, SpanFilter};
 pub use span::{FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, Span, Spans, TextSpans, filter_spans};
 pub use text::{Alignment, ViewBuilder, ViewId};

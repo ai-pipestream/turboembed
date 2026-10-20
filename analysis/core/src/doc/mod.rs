@@ -16,6 +16,7 @@ use crate::text::{Alignment, Side, ViewId};
 
 use view::check_view_alignment;
 
+#[derive(Clone)]
 pub(crate) struct Entry {
     pub(crate) key: KeyId,
     pub(crate) len: usize,
@@ -39,6 +40,9 @@ pub enum Status {
     Skipped(String),
     Failed(Error),
 }
+
+/// Alias for [`Status`] used by predicate and pipeline combinators.
+pub type LayerStatus = Status;
 
 /// One document: an immutable source text, the views made from it, and
 /// its layers. Layers are added once and never changed; a document clones
@@ -272,6 +276,13 @@ impl Document {
 
     pub fn provenance(&self, key: KeyId) -> Option<&Provenance> {
         self.entries.iter().find(|e| e.key == key).map(|e| &*e.provenance)
+    }
+
+    pub(crate) fn update_provenance(&mut self, key: KeyId, f: impl FnOnce(&mut Provenance)) {
+        if let Some(entry) = self.entries.iter_mut().find(|e| e.key == key) {
+            let e = Arc::make_mut(entry);
+            f(Arc::make_mut(&mut e.provenance));
+        }
     }
 
     pub fn layers(&self) -> impl Iterator<Item = KeyId> + '_ {

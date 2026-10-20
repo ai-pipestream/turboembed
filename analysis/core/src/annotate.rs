@@ -331,6 +331,9 @@ pub trait Step: Send + Sync {
     fn writes(&self) -> Vec<KeyId>;
     /// For each output, what it is aligned to.
     fn anchors(&self) -> Vec<AnchorUse>;
+    fn config_hash(&self) -> u64 {
+        0
+    }
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send>;
     /// Adds what `compute` made. An output the step did not deliver on a
     /// document is recorded as skipped or failed there, and the first
@@ -357,6 +360,10 @@ impl<A: Annotator> Step for Bound<A> {
 
     fn anchors(&self) -> Vec<AnchorUse> {
         Bound::anchors(self)
+    }
+
+    fn config_hash(&self) -> u64 {
+        self.annotator.config_hash()
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
