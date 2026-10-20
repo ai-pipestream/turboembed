@@ -10,7 +10,7 @@ use turbo_analysis_layers::Strs;
 
 use crate::{
     ArtifactKind, Artifacts, AssetEncoding, AssetFormat, Assets, Corrections, Emoji, EmojiKind, Noise, NoiseSeverity,
-    PlaceholderKind, Placeholders,
+    PlaceholderKind, Placeholders, ProtectedSpans,
 };
 
 /// The kinds in wire order: a variant crosses as its position in its
@@ -362,6 +362,22 @@ impl LayerCodec for Assets {
     }
 }
 
+impl LayerCodec for ProtectedSpans {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        Ok(w.finish())
+    }
+
+    fn import(data: &[u8], cx: &mut ImportCx, doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        done(&r, "protected spans")?;
+        check_spans(&spans, doc, cx)?;
+        checked(ProtectedSpans { spans }, cx)
+    }
+}
+
 /// Registers this crate's layer codecs on `codecs`.
 pub fn register_codecs(codecs: &mut Codecs) {
     codecs
@@ -370,7 +386,8 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Artifacts>()
         .register::<Noise>()
         .register::<Corrections>()
-        .register::<Assets>();
+        .register::<Assets>()
+        .register::<ProtectedSpans>();
 }
 
 /// A registry holding this crate's codecs and nothing else.

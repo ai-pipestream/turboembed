@@ -84,7 +84,9 @@ pub use number::Numbers;
 pub use quotes::Quotes;
 pub use shrink::Shrink;
 pub use social::{BoundedSocialMedia, SocialMedia};
-pub use spellcheck::{SpellCorrect, SpellCorrectMode, SymSpell};
+pub use spellcheck::{
+    ConfusableSet, ContextSpellAnnotator, ContextSpellCorrector, SpellCorrect, SpellCorrectMode, SymSpell,
+};
 pub use symbols::{SymbolJoiner, SymbolWords};
 pub use unicode_form::UnicodeForm;
 pub use url::{BoundedUrls, Urls};

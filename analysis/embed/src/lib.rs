@@ -23,6 +23,8 @@ pub mod levels;
 pub mod rerank;
 pub mod sparse;
 pub use rerank::{RerankAnnotator, Reranked, Shortlist};
+pub mod qa;
+pub use qa::{Answers, ExtractiveQaAnnotator, Question};
 pub mod subwords;
 pub mod vectors;
 pub mod window;
@@ -51,3 +53,6 @@ pub(crate) fn model_ref(bundle: &Bundle) -> ModelRef {
     let m = &bundle.manifest.model;
     ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: bundle.manifest_sha256.clone() }
 }
+
+pub mod dense;
+pub use dense::{DenseClassifierAnnotator, DenseClassifierModel, DenseClassifierTrainer};

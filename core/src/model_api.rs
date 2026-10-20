@@ -12,6 +12,9 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     if bundle.manifest.rerank.is_some() && b.name() != "cpu" {
         return Err(Error::new(status::UNSUPPORTED_TASK, "rerank requires the CPU backend"));
     }
+    if bundle.manifest.qa.is_some() && b.name() != "cpu" {
+        return Err(Error::new(status::UNSUPPORTED_TASK, "extractive QA requires the CPU backend"));
+    }
     let tokenizer = Tokenizer::load(&bundle)?; // rule 5
     let m = &bundle.manifest;
     let arch = cstr(&c.runtime.devices[c.device as usize].info.arch);
@@ -22,7 +25,13 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let e = m.encoder();
     let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
     info.struct_size = size_of::<turbo_model_info>() as u32;
-    info.task = if m.rerank.is_some() { TURBO_TASK_RERANK } else { TURBO_TASK_EMBED };
+    info.task = if m.rerank.is_some() {
+        TURBO_TASK_RERANK
+    } else if m.qa.is_some() {
+        TURBO_TASK_EXTRACTIVE_QA
+    } else {
+        TURBO_TASK_EMBED
+    };
     info.dim = e.dim;
     info.pooling = match e.pooling {
         manifest::Pooling::Mean => TURBO_POOLING_MEAN,

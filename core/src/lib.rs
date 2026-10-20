@@ -33,6 +33,7 @@ pub mod model;
 #[cfg(feature = "npu")]
 pub mod npu;
 pub mod projection;
+pub mod qa;
 pub mod record;
 pub mod rerank;
 pub mod safetensors;
@@ -62,6 +63,7 @@ pub const TURBO_TASK_EMBED: u32 = 1;
 pub const TURBO_TASK_RERANK: u32 = 2;
 pub const TURBO_PAIR_BERT: u32 = 1;
 pub const TURBO_PAIR_ROBERTA: u32 = 2;
+pub const TURBO_TASK_EXTRACTIVE_QA: u32 = 3;
 
 pub const TURBO_DEVICE_CPU: u32 = 1;
 pub const TURBO_DEVICE_GPU: u32 = 2;

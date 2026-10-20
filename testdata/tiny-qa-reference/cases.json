@@ -1,0 +1,27 @@
+{
+  "task": "TASK_EXTRACTIVE_QA",
+  "qa": {
+    "max_seq": 24,
+    "max_batch": 2,
+    "max_query_tokens": 6,
+    "doc_stride": 5
+  },
+  "cases": [
+    {
+      "text": "Where is the café?",
+      "context": "The café is in Montréal."
+    },
+    {
+      "text": "What is here?",
+      "context": "alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha Café 東京 here."
+    },
+    {
+      "text": "An impossible question",
+      "context": ""
+    },
+    {
+      "text": "question question question question question question question question question question question question question question question question question question question question ",
+      "context": "emoji 🙂 café"
+    }
+  ]
+}
