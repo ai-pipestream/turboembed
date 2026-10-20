@@ -1,49 +1,71 @@
-# Extractive question answering: implementation in progress
+# Extractive question answering
 
-Issue #745 adds a two-logit token head, question/context windows, null-answer
-calibration, and answer spans projected to a document view. This branch starts
-with the checked decoder in `core/src/qa/mod.rs` and `core/src/qa/decode.rs`.
-It does not yet load QA models or advertise a supported runtime QA task.
+`TASK_EXTRACTIVE_QA` runs a two-output token head over joint question/context
+inputs. `turbo::qa::ExtractiveQa` loads the bundle, produces window logits, and
+returns either calibrated abstention or ranked byte spans. The first execution
+path is CPU F32 and is advertised as experimental until task benchmarks exist.
 
-## Decoder contract
+## Bundle contract
 
-`WindowLogits` carries finite start/end scores, an explicit CLS position,
-context byte offsets, and a maximum-context ownership mask. Question, special,
-and padding positions have no context offset and cannot start an answer.
-All windows are validated before candidate enumeration. Context tokens must
-form one ordered segment and every nonempty offset must slice the original
-UTF-8 string. Split codepoints, ragged columns, invalid CLS indices, and
-non-finite scores or thresholds return errors.
+A QA manifest uses `task: "TASK_EXTRACTIVE_QA"` and a `qa` block with `max_seq`,
+`max_batch`, `max_query_tokens` (default 64), and `doc_stride` (default 128).
+`doc_stride` is context overlap, not window advance. It must be smaller than the
+context capacity after the full query budget and special tokens. Small test
+models must explicitly set smaller query and overlap budgets.
 
-Candidate starts must belong to the window with maximum interior context.
-An end token may have another owner, provided it remains in the same window;
-otherwise answers spanning an ownership boundary could disappear. Answer
-length is bounded in tokens. Duplicate byte spans retain their best score.
-Ties prefer earlier byte starts, then shorter spans. Optional non-overlap
-selection greedily retains ranked spans.
+The encoder is BERT or RoBERTa. The manifest has no `embed`, `projection`, or
+`static_embedding` block. `classifier.kind` is `CLASSIFIER_TOKEN`, with labels
+`["start", "end"]` in that order. A single raw safetensors artifact carries the
+encoder and `classifier_weight` / `classifier_bias` tensors with shapes
+`[2, hidden]` and `[2]`. A sequence pooler is forbidden. Typical upstream tensor
+names are `qa_outputs.weight` and `qa_outputs.bias`.
 
-Null score is the minimum CLS start-plus-end score across windows. The
-maximum-context-start rule and minimum-window null aggregation follow the
-[Transformers SQuAD-v2 postprocessor](https://github.com/huggingface/transformers/blob/v4.57.1/examples/pytorch/question-answering/utils_qa.py).
-This ticket's explicit threshold contract is used: abstain when
-`best_span_score - null_score <= null_threshold`, including equality. Scores
-are accumulated in F64 from F32 logits. Max-shifted softmax covers the returned
-candidate spans plus the null candidate, so probabilities remain finite for
-extreme finite logits. Empty window input is invalid; a valid context-free
-window produces `Answer::None`.
+Each reference case has `text` (the question), `context`, and `prompt_role`.
+The reference file contains `ids` and `types` for every window, `lengths`, and
+flattened `logits: [sum(lengths), 2]`. Tokenizer loading verifies IDs, segment
+IDs, padding, dimensions, and finite logits. Bundle verification also executes
+the CPU model and compares every logit with absolute tolerance `1e-4`.
+`bundle/reference/qa_reference.py` generates these tensors from Hugging Face
+`AutoModelForQuestionAnswering` in the pinned reference container.
 
-`core/tests/qa_decode.rs` exercises synthetic boundary cases. These tests prove
-decoder behavior, not pretrained QA model parity.
+## Windows and answer decoding
 
-## Remaining integration
+BERT inputs are `[CLS] question [SEP] context [SEP]`; RoBERTa inputs are
+`<s> question </s></s> context </s>`. Questions up to the query budget are
+preserved; longer questions are right-truncated. Context tokens retain offsets
+into the original UTF-8 text. Each token can start candidates only in its most
+interior window, with earlier windows breaking ties. Endpoints may extend to
+later tokens in that same window even when they have another owner.
 
-- Propose `TASK_EXTRACTIVE_QA` and its C session/result contract in the header.
-- Validate a two-output token head and add pinned model conversion/reference
-  fixtures with answerable and unanswerable SQuAD-v2 cases.
-- Encode question/context pairs with byte offsets, bounded query length,
-  context stride, and deterministic maximum-context ownership.
-- Run the encoder and token head, then feed checked windows to this decoder.
-- Add `ExtractiveQa`, the typed `Answers` layer, `ExtractiveQaAnnotator`, and
-  projection through the document's view path to source bytes.
-- Reuse the pair/session and contextual-token work from #759 and #741 after
-  those changes land; keep model identity and source-view provenance attached.
+`DecodeOptions` defaults to 30 answer tokens, five non-overlapping candidates,
+and null threshold zero. Duplicate spans retain their highest score. Ties use
+earlier byte starts, then shorter spans. The null score is the minimum CLS
+start-plus-end score across windows. Abstention occurs when
+`best_span_score - null_score <= null_threshold`, including equality.
+Stable softmax is over the returned candidate spans and the null candidate;
+these are relative candidate probabilities, not a measured calibration claim.
+An abstained `Answers` layer is empty and records null probability one.
+
+## Document integration
+
+`ExtractiveQaAnnotator` reads a `View` and `Question` and writes `Answers`
+(`turbo:answers`). It records the bundle identity and hashes every decoder
+option. Answers retain score rank and exact input-view byte spans.
+`Answers::project(document, ViewId::SOURCE)` maps them through the checked LCA
+view path. A lossy view transformation can widen the source interval; it cannot
+reconstruct text removed by that transformation.
+
+## Validation evidence and limits
+
+`core/tests/qa_decode.rs` covers null wins, equality, second-window answers,
+UTF-8, extreme finite logits, malformed inputs, duplicate spans, and ownership
+boundaries. `core/tests/qa_inference.rs` verifies real tiny-BERT encoder and
+head logits against Transformers, complete window coverage, query truncation,
+and one owner per context token. `analysis/embed/tests/qa.rs` checks annotation,
+option provenance and source projection. `bundle/tests/qa.rs` checks reference
+parity and rejects modified reference logits even with updated file hashes.
+
+`testdata/tiny-qa-reference` uses an untrained head with deterministic seed 745.
+It establishes arithmetic parity and SQuAD-v2 null-score mechanics. It does not
+establish pretrained SQuAD-v2 accuracy, production probability calibration,
+GPU support, or latency/throughput claims.

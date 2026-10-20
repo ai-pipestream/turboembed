@@ -134,6 +134,7 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_TASK_RERANK  2
 #define TURBO_PAIR_BERT    1
 #define TURBO_PAIR_ROBERTA 2
+#define TURBO_TASK_EXTRACTIVE_QA 3
 
 /* What a (device, task) cell may say. There is no "planned": a thing that
  * does not run is unsupported. */

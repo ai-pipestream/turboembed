@@ -5,6 +5,12 @@
 
 mod decode;
 pub use decode::decode;
+mod windows;
+pub use windows::{QaWindow, windows};
+mod session;
+pub use session::ExtractiveQa;
+mod reference;
+pub use reference::check_reference;
 
 use std::ops::Range;
 

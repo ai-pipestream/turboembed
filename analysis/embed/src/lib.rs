@@ -22,6 +22,8 @@ pub mod heads;
 pub mod levels;
 pub mod rerank;
 pub use rerank::{RerankAnnotator, Reranked, Shortlist};
+pub mod qa;
+pub use qa::{Answers, ExtractiveQaAnnotator, Question};
 pub mod subwords;
 pub mod vectors;
 pub mod window;
