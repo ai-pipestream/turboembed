@@ -197,11 +197,20 @@ impl<'a> Cascade<'a> {
         if !config.bm25.k1.is_finite() || config.bm25.k1 < 0.0 || !(0.0..=1.0).contains(&config.bm25.b) {
             return Err("bm25 parameters out of range".into());
         }
+        // Every signal score lies in [0, 1], so a hit's final
+        // score stays finite exactly when every prefix product
+        // of the boost factors (applied in config order to a
+        // unit every filter names) stays finite.
+        let mut boost_product = 1.0f64;
         for filter in &config.filters {
-            if let FilterMode::Boost(m) = filter.mode
-                && (!m.is_finite() || m <= 0.0)
-            {
-                return Err(format!("filter {:?} boost must be finite and positive", filter.name));
+            if let FilterMode::Boost(m) = filter.mode {
+                if !m.is_finite() || m <= 0.0 {
+                    return Err(format!("filter {:?} boost must be finite and positive", filter.name));
+                }
+                boost_product *= m;
+                if !boost_product.is_finite() {
+                    return Err(format!("filter {:?} boost overflows the combined boost product", filter.name));
+                }
             }
             if filter.units.last().is_some_and(|u| u.get() >= levels.len()) {
                 return Err(format!("filter {:?} names a unit outside the levels", filter.name));
@@ -379,6 +388,6 @@ pub fn recall_at_k(ranking: &[Ix<Levels>], relevant: &BTreeSet<Ix<Levels>>, k: u
     if relevant.is_empty() {
         return 0.0;
     }
-    let found = ranking.iter().take(k).filter(|u| relevant.contains(u)).count();
-    found as f64 / relevant.len() as f64
+    let found: BTreeSet<Ix<Levels>> = ranking.iter().take(k).filter(|u| relevant.contains(u)).copied().collect();
+    found.len() as f64 / relevant.len() as f64
 }

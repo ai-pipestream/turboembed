@@ -257,3 +257,64 @@ fn recall_grows_with_the_candidate_count() {
     assert!(curve.windows(2).all(|w| w[0] <= w[1]), "recall is monotone in candidates: {curve:?}");
     assert_eq!(*curve.last().unwrap(), 1.0, "a full pool recovers the contextual ranking");
 }
+
+#[test]
+fn overflowing_boosts_are_refused_and_scores_stay_finite() {
+    let doc = document();
+    let levels = doc.get::<Levels>().unwrap();
+    let stats = doc.get::<TermStats<Levels>>().unwrap();
+    let vocab = doc.get::<Vocabulary>().unwrap();
+    let collection = LocalCollection::new(stats, vocab);
+    let static_rows = rows(&doc, &["Cats", "Dogs"], "static");
+    let sm = model("static");
+    let all: BTreeSet<Ix<Levels>> = (0..levels.len() as u32).map(Ix::new).collect();
+    let boost = |name: &str, m: f64| UnitFilter { name: name.into(), mode: FilterMode::Boost(m), units: all.clone() };
+    let space = || VectorSpace { rows: &static_rows, query: QueryVector { model: &sm, vector: &[1.0, 0.0] } };
+
+    // Two maximal boosts over every unit: refused at build.
+    let err = Cascade::new(
+        levels,
+        CascadeConfig { filters: vec![boost("a", f64::MAX), boost("b", f64::MAX)], ..CascadeConfig::default() },
+        Some(space()),
+        None,
+        Some(lexical(&doc, &collection)),
+    )
+    .err()
+    .unwrap_or_default();
+    assert!(err.contains("overflows"), "{err}");
+    // A later shrinking boost does not rescue an overflowing prefix.
+    assert!(
+        Cascade::new(
+            levels,
+            CascadeConfig {
+                filters: vec![boost("a", 1e308), boost("b", 1e308), boost("c", 1e-308)],
+                ..CascadeConfig::default()
+            },
+            Some(space()),
+            None,
+            Some(lexical(&doc, &collection)),
+        )
+        .is_err()
+    );
+    // One maximal boost is finite, and so is every score it produces.
+    let cascade = Cascade::new(
+        levels,
+        CascadeConfig { filters: vec![boost("a", f64::MAX)], ..CascadeConfig::default() },
+        Some(space()),
+        None,
+        Some(lexical(&doc, &collection)),
+    )
+    .unwrap();
+    let out = cascade.search(&["cats"]);
+    assert!(out.hits.iter().all(|h| h.score.is_finite()));
+}
+
+#[test]
+fn recall_at_k_counts_each_relevant_unit_once() {
+    let u = Ix::<Levels>::new(7);
+    assert_eq!(recall_at_k(&[u, u], &BTreeSet::from([u]), 2), 1.0);
+    let (a, b) = (Ix::<Levels>::new(1), Ix::<Levels>::new(2));
+    assert_eq!(recall_at_k(&[a, a, a], &BTreeSet::from([a, b]), 3), 0.5);
+    assert_eq!(recall_at_k(&[a, b, b], &BTreeSet::from([a, b]), 2), 1.0);
+    assert_eq!(recall_at_k(&[a, a], &BTreeSet::from([a, b]), 0), 0.0);
+}
