@@ -308,7 +308,7 @@ fn saturates_token_window_scales_extreme_weights_and_validates_thresholds() {
 #[test]
 fn selects_best_eligible_candidate_and_preserves_link_when_top_k_is_zero() {
     use turbo_analysis::{Document, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, ViewId};
-    use turbo_analysis_layers::Entities;
+    use turbo_analysis_layers::{Entities, Tokens};
     use turbo_entity_linker::{EntityLinker, LinkerConfig, LinkerWeights};
 
     let kb = KnowledgeBase::from_entities(
@@ -330,6 +330,11 @@ fn selects_best_eligible_candidate_and_preserves_link_when_top_k_is_zero() {
 
     let mut doc = Document::new("Alex weather");
     let v0 = ViewId::SOURCE;
+    let mut tok_spans = Spans::new(v0);
+    tok_spans.push(Span::new(0, 4));
+    tok_spans.push(Span::new(5, 12));
+    doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: None }, Provenance::by("test")).unwrap();
+
     let mut ent_spans = Spans::new(v0);
     ent_spans.push(Span::new(0, 4));
     doc.add(
