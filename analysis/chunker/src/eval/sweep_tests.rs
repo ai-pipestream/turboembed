@@ -44,6 +44,7 @@ fn doc() -> SweepDoc {
         sentences,
         subwords,
         structure: Some(st),
+        clauses: None,
         signals: Signals { structure, drift, sentiment, coref },
         gold: Segmentation::new(12, vec![2, 6, 10]).unwrap(),
         protected: vec![Protected { kind: Protect::Coref, sentences: 3..6 }],

@@ -7,9 +7,10 @@
 //! structure's, which always counts at `Weight::ONE`: drift, sentiment and
 //! coreference. The gap after sentence i costs
 //! `(structure + drift * wd + sentiment * ws + coref * wc) / 1000`, summed
-//! in i128, rounded down and saturated to i32, the rule
-//! `weigh_with_sentiment` sums three signals by; the reasons are its
-//! reasons. A setting whose target is over its max is skipped.
+//! in i128, rounded down and saturated to i32: `weigh_with_coref`, which
+//! also gives the reasons. A document's clause cuts, when it has them,
+//! split a sentence over the budget as the chunker splits it. A setting
+//! whose target is over its max is skipped.
 //!
 //! Each setting is scored on four objectives, and a setting dominates
 //! another when it is no worse on all four and better on one:
@@ -36,11 +37,13 @@ use std::cmp::Ordering;
 use turbo_analysis::{Error, Span};
 use turbo_analysis_layers::{Boundaries, Sentences, Structure, Subwords};
 
+use crate::ClauseCuts;
+
 use super::boundary::score;
 use super::budget::{BudgetReport, Preservation, Protected, leaves};
 use super::coverage::{coverage, token_range};
 use super::{Segmentation, invalid};
-use crate::{Budget, Chunker, Weight, no_term, weigh_with_sentiment};
+use crate::{Budget, Chunker, Weight, no_term, weigh_with_coref};
 
 /// The boundary signals of one document, one cost per sentence each, as
 /// the steps that write them compute them: the structure's costs, the
@@ -57,6 +60,7 @@ pub struct SweepDoc {
     pub sentences: Sentences,
     pub subwords: Subwords,
     pub structure: Option<Structure>,
+    pub clauses: Option<ClauseCuts>,
     pub signals: Signals,
     /// The gold segmentation of the sentences.
     pub gold: Segmentation,
@@ -210,21 +214,10 @@ fn check(d: usize, doc: &SweepDoc) -> Result<(), Error> {
 }
 
 /// The four signals weighed into one cost per gap. The lengths are
-/// checked before.
+/// checked before, so `weigh_with_coref` always has a result.
 fn combine(s: &Signals, (wd, ws, wc): (Weight, Weight, Weight)) -> Boundaries {
-    let reason = weigh_with_sentiment(&s.structure, &s.drift, &s.sentiment, (Weight::ONE, wd, ws))
-        .map(|b| b.reason)
-        .unwrap_or_default();
-    let cost = (0..s.structure.cost.len())
-        .map(|i| {
-            let sum = i128::from(s.structure.cost[i]) * i128::from(Weight::ONE.0)
-                + i128::from(s.drift.cost[i]) * i128::from(wd.0)
-                + i128::from(s.sentiment.cost[i]) * i128::from(ws.0)
-                + i128::from(s.coref.cost[i]) * i128::from(wc.0);
-            sum.div_euclid(1000).clamp(i128::from(i32::MIN), i128::from(i32::MAX)) as i32
-        })
-        .collect();
-    Boundaries { cost, reason }
+    weigh_with_coref(&s.structure, &s.drift, &s.sentiment, &s.coref, (Weight::ONE, wd, ws, wc))
+        .unwrap_or(Boundaries { cost: Vec::new(), reason: Vec::new() })
 }
 
 /// One setting over every document: boundary measures averaged over
@@ -238,8 +231,15 @@ fn evaluate<'a>(docs: &[SweepDoc], budget: Budget, costs: impl Fn(usize) -> &'a 
     let (mut iou, mut token_iou, mut contained, mut redundancy, mut spans) = (0.0, 0.0, 0.0, 0.0, 0usize);
     for (d, doc) in docs.iter().enumerate() {
         let n = doc.sentences.spans.len();
-        let chunks =
-            chunker.chunk(super::ID, &doc.sentences, &doc.subwords, costs(d), doc.structure.as_ref(), |_| no_term)?;
+        let chunks = chunker.chunk(
+            super::ID,
+            &doc.sentences,
+            &doc.subwords,
+            costs(d),
+            doc.structure.as_ref(),
+            doc.clauses.as_ref(),
+            |_| no_term,
+        )?;
         let cuts = Segmentation::of_chunks(&chunks, n)?;
         let s = score(&doc.gold, &cuts)?;
         (pk, wd) = (pk + s.pk, wd + s.window_diff);
