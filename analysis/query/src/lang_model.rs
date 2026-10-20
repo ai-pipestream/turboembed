@@ -253,22 +253,20 @@ impl QuerySpanDetector {
             return None;
         }
         let mut logits = [0.0f64; 14];
-        let mut seen = [[0u8; 3]; 64];
-        let mut seen_len = 0usize;
+        let mut seen = [false; PREDICATES.len()];
+        let mut any_seen = false;
         for i in 0..=plen - 3 {
             let tri: [u8; 3] = [prep[i], prep[i + 1], prep[i + 2]];
-            if seen[..seen_len].contains(&tri) {
-                continue;
-            }
-            if let Some((_, params)) = PREDICATES.iter().find(|(p, _)| p.as_bytes() == tri) {
-                seen[seen_len] = tri;
-                seen_len += 1;
-                for &(o, w) in *params {
+            if let Some(p_idx) = PREDICATES.iter().position(|(p, _)| p.as_bytes() == tri)
+                && !std::mem::replace(&mut seen[p_idx], true)
+            {
+                any_seen = true;
+                for &(o, w) in PREDICATES[p_idx].1 {
                     logits[o as usize] += w;
                 }
             }
         }
-        if seen_len == 0 {
+        if !any_seen {
             return None;
         }
         let mut best = LATIN_OUTCOMES[0];

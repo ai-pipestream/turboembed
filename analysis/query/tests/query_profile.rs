@@ -379,32 +379,24 @@ fn recognizes_numeric_clock_expressions_and_distinguishes_time_annotator_config_
     assert_eq!(es_hoy_temp[0].0.surface, "hoy");
     assert_eq!(es_hoy_temp[0].1.start_epoch_seconds, Some(ref_july_14.local_seconds()));
 
-    // 4. Single-word ASCII Spanish ("barato") matches the underlying SpanDetector ("spa"), and QuerySpanDetector hashes its flag.
-    let a_barato = profile_14.analyze("barato").unwrap();
-    assert_eq!(a_barato.language.as_ref().unwrap().best_code, "spa");
+    // 4. Single-word ASCII Spanish ("barato") matches the underlying SpanDetector ("spa"), QuerySpanDetector hashes its flag,
+    // and queries activating >= 65 distinct PREDICATES trigrams succeed without overflowing feature deduplication state.
+    assert_eq!(profile_14.analyze("barato").unwrap().language.as_ref().unwrap().best_code, "spa");
+    let dense_feat_q = "the flights tomorrow yesterday weekend under with from next discount direct baggage allowance passengers meeting invoices over quarter best near open now vuelos baratos para hoy comprar zapatos";
+    assert_eq!(profile_14.analyze(dense_feat_q).unwrap().language.as_ref().unwrap().best_code, "eng");
     let qsd_fast = turbo_query::annotators::QuerySpanDetector::new(turbo_query::default_span_detector(), true);
     let qsd_slow = turbo_query::annotators::QuerySpanDetector::new(turbo_query::default_span_detector(), false);
     assert_ne!(qsd_fast.config_hash(), qsd_slow.config_hash());
 
-    // 5. GazetteerCandidateAnnotator::config_hash() distinguishes custom gazetteers on non-sampled cities ("Rome"),
-    // including custom Gazetteer implementations with no country codes.
+    // 5. GazetteerCandidateAnnotator::config_hash() distinguishes custom gazetteers on non-sampled cities ("Rome").
     struct CustomGazetteer(InMemoryGazetteer);
+    #[rustfmt::skip]
     impl turbo_geo::Gazetteer for CustomGazetteer {
-        fn lookup(&self, name: &str) -> Vec<turbo_geo::Entry<'_>> {
-            self.0.lookup(name)
-        }
-        fn by_id(&self, s: &str, id: &str) -> Option<turbo_geo::Entry<'_>> {
-            self.0.by_id(s, id)
-        }
-        fn by_region(&self, c: turbo_geo::RegionCode) -> Option<turbo_geo::Entry<'_>> {
-            self.0.by_region(c)
-        }
-        fn sources(&self) -> Vec<&str> {
-            self.0.sources()
-        }
-        fn fingerprint(&self) -> u64 {
-            self.0.fingerprint()
-        }
+        fn lookup(&self, name: &str) -> Vec<turbo_geo::Entry<'_>> { self.0.lookup(name) }
+        fn by_id(&self, s: &str, id: &str) -> Option<turbo_geo::Entry<'_>> { self.0.by_id(s, id) }
+        fn by_region(&self, c: turbo_geo::RegionCode) -> Option<turbo_geo::Entry<'_>> { self.0.by_region(c) }
+        fn sources(&self) -> Vec<&str> { self.0.sources() }
+        fn fingerprint(&self) -> u64 { self.0.fingerprint() }
     }
     let rome_hash = |id: &str, lat: f64, lon: f64, src: &str| {
         let entry = turbo_geo::GazetteerEntry::new(turbo_geo::EntryParts {
