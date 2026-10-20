@@ -127,7 +127,16 @@ pub struct CascadeHit {
     pub level: Level,
     /// The unit's own fragments in the levels view.
     pub spans: Vec<Span>,
+    /// The ranking score: the contextual signal when stage 2
+    /// scored this unit, otherwise the stage-1 fused score,
+    /// times any stage-3 boosts. When a contextual stage is
+    /// active, units it could not score rank strictly below
+    /// every unit it did score, whatever this value says:
+    /// the two scales are never compared directly.
     pub score: f64,
+    /// The fused stage-1 score in `[0, 1]` (the mean of the
+    /// signals present), kept on its own scale.
+    pub stage1_score: f64,
     /// The stage-1 static signal in `[0, 1]`, when a static
     /// space scored this unit.
     pub static_score: Option<f64>,
@@ -197,19 +206,38 @@ impl<'a> Cascade<'a> {
         if !config.bm25.k1.is_finite() || config.bm25.k1 < 0.0 || !(0.0..=1.0).contains(&config.bm25.b) {
             return Err("bm25 parameters out of range".into());
         }
-        // Every signal score lies in [0, 1], so a hit's final
-        // score stays finite exactly when every prefix product
-        // of the boost factors (applied in config order to a
-        // unit every filter names) stays finite.
-        let mut boost_product = 1.0f64;
+        // Every signal score lies in [0, 1]. A hit is boosted
+        // only by the filters that name its unit, so the
+        // binding constraint is per subset, not per config:
+        // the product of ALL amplifying factors (> 1) bounds
+        // every subset of them and every application-order
+        // prefix, and must stay finite; the product of all
+        // attenuating factors (< 1) bounds every subset of
+        // them from below and must stay positive. A shrinking
+        // boost on a disjoint unit set can therefore never
+        // mask two amplifying boosts that do meet.
+        let (mut amp_product, mut att_product) = (1.0f64, 1.0f64);
         for filter in &config.filters {
             if let FilterMode::Boost(m) = filter.mode {
                 if !m.is_finite() || m <= 0.0 {
                     return Err(format!("filter {:?} boost must be finite and positive", filter.name));
                 }
-                boost_product *= m;
-                if !boost_product.is_finite() {
-                    return Err(format!("filter {:?} boost overflows the combined boost product", filter.name));
+                if m > 1.0 {
+                    amp_product *= m;
+                    if !amp_product.is_finite() {
+                        return Err(format!(
+                            "filter {:?} boost overflows the combined amplifying boost product",
+                            filter.name
+                        ));
+                    }
+                } else if m < 1.0 {
+                    att_product *= m;
+                    if att_product == 0.0 {
+                        return Err(format!(
+                            "filter {:?} boost underflows the combined attenuating boost product to zero",
+                            filter.name
+                        ));
+                    }
                 }
             }
             if filter.units.last().is_some_and(|u| u.get() >= levels.len()) {
@@ -305,6 +333,7 @@ impl<'a> Cascade<'a> {
                 level: self.levels.level(unit),
                 spans: self.levels.spans.fragments(unit).collect(),
                 score: contextual_score.unwrap_or(stage1),
+                stage1_score: stage1,
                 static_score: static_scores[i],
                 lexical_score: lexical_scores[i],
                 contextual_score,
@@ -319,13 +348,24 @@ impl<'a> Cascade<'a> {
                 FilterMode::Require => hits.retain(|h| filter.units.contains(&h.unit)),
                 FilterMode::Boost(m) => {
                     for hit in hits.iter_mut().filter(|h| filter.units.contains(&h.unit)) {
-                        hit.score *= m;
+                        // Validated boost products keep this
+                        // finite; the clamp only guards the
+                        // finite-score contract.
+                        hit.score = (hit.score * m).min(f64::MAX);
                         hit.boosted_by.push(filter.name.clone());
                     }
                 }
             }
         }
-        hits.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.unit.get().cmp(&b.unit.get())));
+        // With a contextual stage, units it scored always
+        // outrank units it could not (empty or zero rows):
+        // a max-normalized stage-1 score of 1.0 is not
+        // comparable to a contextual cosine.
+        let contextual_active = self.contextual_space.is_some();
+        let tier = |h: &CascadeHit| u8::from(contextual_active && h.contextual_score.is_none());
+        hits.sort_by(|a, b| {
+            tier(a).cmp(&tier(b)).then(b.score.total_cmp(&a.score)).then(a.unit.get().cmp(&b.unit.get()))
+        });
         hits.truncate(self.config.top_k);
         CascadeResult { hits, pool: pool_size, contextual_scored }
     }

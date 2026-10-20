@@ -361,6 +361,21 @@ space twice). Hits are deterministic, name the admitting stage and
 each signal's score, carry the unit's exact fragments, and the
 result reports how many units the contextual stage actually scored;
 `recall_at_k` records the recall side of a candidate-count sweep.
+Units the contextual stage cannot score (empty rows) rank strictly
+below every unit it did score, so a max-normalized stage-1 score is
+never compared against a contextual cosine. Measured on the
+synthetic pipeline fixture in `analysis/chunker/tests/cascade/main.rs`
+(721 level units, 512-wide contextual rows, release, best of
+alternating rounds): the cascade at 64 candidates scores 64 units
+contextually in about 70 microseconds per query against about 342
+microseconds for a direct contextual-only scan of all 721 units,
+and recall@2 against the contextual stage's own top-2 is monotone
+in the candidate count (1, 2, 3, 5, 64), reaching 1.0 at a full
+pool. The external harness sets named for this work (GutenQA,
+ConTEB, HiCBench) are not vendored in this repository, so no
+numbers are claimed on them; recording them is the same sweep
+(`recall_at_k` per candidate count against contextual-only gold,
+plus the direct-scan latency baseline) once the sets are wired in.
 
 Multi-representation indexing (`turbo_chunker::MultiRepChunkIndex`)
 registers several indexable views of one chunk unit (its surface

@@ -46,15 +46,19 @@ const SENTENCES: [&str; 7] =
     ["# Cats", "Cats purr.", "Cats nap.", "Cats hunt mice.", "# Dogs", "Dogs bark.", "Dogs run."];
 
 fn document() -> Document {
-    let mut doc = Document::new(TEXT);
+    document_with(TEXT, &SENTENCES)
+}
+
+fn document_with(text: &str, sentences: &[&str]) -> Document {
+    let mut doc = Document::new(text);
     let mut spans = Spans::new(ViewId::SOURCE);
     let mut from = 0;
-    for s in SENTENCES {
-        let a = from + TEXT[from..].find(s).unwrap();
+    for s in sentences {
+        let a = from + text[from..].find(s).unwrap();
         spans.push(Span::new(a as u32, (a + s.len()) as u32));
         from = a + s.len();
     }
-    let w = words(TEXT);
+    let w = words(text);
     let n = w.len();
     let mut pieces = Spans::new(ViewId::SOURCE);
     for (_, s) in w.iter() {
@@ -318,3 +322,97 @@ fn recall_at_k_counts_each_relevant_unit_once() {
     assert_eq!(recall_at_k(&[a, b, b], &BTreeSet::from([a, b]), 2), 1.0);
     assert_eq!(recall_at_k(&[a, a], &BTreeSet::from([a, b]), 0), 0.0);
 }
+
+#[test]
+fn disjoint_reducing_filter_cannot_hide_boost_overflow() {
+    let doc = document();
+    let levels = doc.get::<Levels>().unwrap();
+    let stats = doc.get::<TermStats<Levels>>().unwrap();
+    let vocab = doc.get::<Vocabulary>().unwrap();
+    let collection = LocalCollection::new(stats, vocab);
+    let static_rows = rows(&doc, &["Cats", "Dogs"], "static");
+    let sm = model("static");
+    let all: BTreeSet<Ix<Levels>> = (0..levels.len() as u32).map(Ix::new).collect();
+    let space = || VectorSpace { rows: &static_rows, query: QueryVector { model: &sm, vector: &[1.0, 0.0] } };
+    // The shrinking boost names no unit, so it never applies;
+    // the two amplifying boosts meet on every unit. A single
+    // sequential product (1e-310 * MAX * MAX, finite) would
+    // accept this and search would emit +inf scores.
+    let filters = vec![
+        UnitFilter { name: "shrink-nowhere".into(), mode: FilterMode::Boost(1e-310), units: BTreeSet::new() },
+        UnitFilter { name: "big-a".into(), mode: FilterMode::Boost(f64::MAX), units: all.clone() },
+        UnitFilter { name: "big-b".into(), mode: FilterMode::Boost(f64::MAX), units: all.clone() },
+    ];
+    let err = Cascade::new(
+        levels,
+        CascadeConfig { filters, ..CascadeConfig::default() },
+        Some(space()),
+        None,
+        Some(lexical(&doc, &collection)),
+    )
+    .err()
+    .unwrap_or_default();
+    assert!(err.contains("amplifying"), "{err}");
+    // The same shrinking boost beside boosts whose amplifying
+    // product is finite is accepted, and scores stay finite.
+    let filters = vec![
+        UnitFilter { name: "shrink-nowhere".into(), mode: FilterMode::Boost(1e-310), units: BTreeSet::new() },
+        UnitFilter { name: "big-a".into(), mode: FilterMode::Boost(1e300), units: all.clone() },
+        UnitFilter { name: "big-b".into(), mode: FilterMode::Boost(4.0), units: all },
+    ];
+    let cascade = Cascade::new(
+        levels,
+        CascadeConfig { filters, ..CascadeConfig::default() },
+        Some(space()),
+        None,
+        Some(lexical(&doc, &collection)),
+    )
+    .unwrap();
+    assert!(cascade.search(&["cats"]).hits.iter().all(|h| h.score.is_finite()));
+}
+
+#[test]
+fn unembedded_units_never_outrank_contextually_scored_hits() {
+    let doc = document();
+    let levels = doc.get::<Levels>().unwrap();
+    let stats = doc.get::<TermStats<Levels>>().unwrap();
+    let vocab = doc.get::<Vocabulary>().unwrap();
+    let collection = LocalCollection::new(stats, vocab);
+    let static_rows = rows(&doc, &["Cats", "Dogs"], "static");
+    let mut contextual_rows = rows(&doc, &["Cats", "Dogs", "mice"], "contextual");
+    // The mice chunk loses its contextual row entirely.
+    let mice_chunk = levels
+        .of(turbo_analysis_layers::Level::Chunk)
+        .find(|&u| levels.spans.fragments(u).any(|f| TEXT[f.range()].contains("mice")))
+        .unwrap();
+    let d = contextual_rows.dim as usize;
+    for v in &mut contextual_rows.data[mice_chunk.get() * d..(mice_chunk.get() + 1) * d] {
+        *v = 0.0;
+    }
+    contextual_rows.empty = vec![mice_chunk];
+    let (sm, cm) = (model("static"), model("contextual"));
+    let cascade = Cascade::new(
+        levels,
+        CascadeConfig { candidates: 64, top_k: levels.len(), ..CascadeConfig::default() },
+        Some(VectorSpace { rows: &static_rows, query: QueryVector { model: &sm, vector: &[1.0, 0.0] } }),
+        Some(VectorSpace { rows: &contextual_rows, query: QueryVector { model: &cm, vector: &[0.0, 0.0, 1.0] } }),
+        Some(lexical(&doc, &collection)),
+    )
+    .unwrap();
+    let out = cascade.search(&["mice"]);
+    let fallback = out.hits.iter().position(|h| h.unit == mice_chunk).expect("the mice chunk is pooled lexically");
+    let hit = &out.hits[fallback];
+    assert_eq!(hit.contextual_score, None);
+    assert_eq!(hit.lexical_score, Some(1.0), "it is the top lexical hit, stage-1 score 1.0 on its own scale");
+    assert!(hit.stage1_score > 0.0);
+    assert!(
+        out.hits[..fallback].iter().all(|h| h.contextual_score.is_some()),
+        "every hit above the fallback was contextually scored"
+    );
+    assert!(
+        out.hits[fallback..].iter().all(|h| h.contextual_score.is_none() || h.unit == mice_chunk),
+        "no contextually scored hit sits below the fallback tier"
+    );
+}
+
+mod latency;
