@@ -21,6 +21,8 @@ struct FakeNli {
     by_hypothesis: BTreeMap<String, Vec<f32>>,
     by_premise: Option<fn(&str, &str) -> Vec<f32>>,
     max_pair_tokens: u32,
+    count_zero: bool,
+    fail: bool,
     seen: Mutex<Vec<(String, String)>>,
 }
 
@@ -32,6 +34,8 @@ impl FakeNli {
             by_hypothesis: rows.iter().map(|(h, r)| (h.to_string(), r.to_vec())).collect(),
             by_premise: None,
             max_pair_tokens: 64,
+            count_zero: false,
+            fail: false,
             seen: Mutex::new(Vec::new()),
         }
     }
@@ -55,10 +59,13 @@ impl NliScorer for FakeNli {
     }
 
     fn count_tokens(&self, text: &str) -> usize {
-        text.split_whitespace().count()
+        if self.count_zero { 0 } else { text.split_whitespace().count() }
     }
 
     fn score_pairs(&self, pairs: &[(&str, &str)]) -> Result<Vec<Vec<f32>>, ZeroShotError> {
+        if self.fail {
+            return Err(ZeroShotError::Scorer("boom".into()));
+        }
         self.seen.lock().unwrap().extend(pairs.iter().map(|(p, h)| (p.to_string(), h.to_string())));
         Ok(pairs
             .iter()
@@ -252,4 +259,60 @@ fn annotators_write_categories() {
     assert_eq!(cats.len(), 2);
     assert_eq!(cats.best_category(0), "sports");
     close(cats.row_scores(1), &[0.8807970779778823, 0.11920292202211755]);
+}
+
+#[test]
+fn length_weighted_mean_with_zero_token_counts_falls_back_to_mean() {
+    // A scorer whose tokenizer strips every word of the
+    // premise counts 0 tokens per window: the weighted mean
+    // must not divide 0 by 0 into a NaN blamed on the scorer.
+    let mut fake = FakeNli::three(&[("This example is sports.", [0.0, 0.0, 2.0])]);
+    fake.count_zero = true;
+    let categorizer = ZeroShotCategorizer::new(
+        fake,
+        vec!["sports".into()],
+        ZeroShotConfig {
+            mode: ZeroShotMode::MultiLabel,
+            aggregation: WindowAggregation::LengthWeightedMean,
+            ..ZeroShotConfig::default()
+        },
+    )
+    .unwrap();
+    close(&categorizer.categorize("!!! ??? ...").unwrap(), &[0.8807970779778823]);
+}
+
+#[test]
+fn span_annotator_errors_carry_its_own_id() {
+    let text = "The derby ended level. The senate voted today.";
+    let mut doc = Document::new(text);
+    doc.add(&Key::DEFAULT, Sentences { spans: spans(&[(0, 22), (23, 45)]) }, Provenance::by("test")).unwrap();
+    let failing = || {
+        let mut fake = FakeNli::three(&[]);
+        fake.fail = true;
+        ZeroShotCategorizer::new(fake, labels(), ZeroShotConfig::default()).unwrap()
+    };
+    let annotator_id = |err: &turbo_analysis::Error| match err {
+        turbo_analysis::Error::Annotator { annotator, .. } => *annotator,
+        other => panic!("expected an annotator error, got {other:?}"),
+    };
+
+    let analyzer = Analyzer::builder()
+        .given(Key::<turbo_analysis::View>::DEFAULT)
+        .given(Key::<Sentences>::DEFAULT)
+        .add(ZeroShotSpanAnnotator::<_, Sentences>::new(failing()))
+        .build()
+        .unwrap();
+    let mut docs = vec![doc.clone()];
+    let outcomes = analyzer.run(&mut docs);
+    assert_eq!(annotator_id(outcomes[0].as_ref().unwrap_err()), "turbo:zero-shot-spans");
+
+    let analyzer = Analyzer::builder()
+        .given(Key::<turbo_analysis::View>::DEFAULT)
+        .given(Key::<Sentences>::DEFAULT)
+        .add(ZeroShotAnnotator::new(failing()))
+        .build()
+        .unwrap();
+    let mut docs = vec![doc];
+    let outcomes = analyzer.run(&mut docs);
+    assert_eq!(annotator_id(outcomes[0].as_ref().unwrap_err()), "turbo:zero-shot");
 }

@@ -65,7 +65,9 @@ pub enum WindowAggregation {
     Max,
     /// The unweighted mean over windows.
     Mean,
-    /// The mean weighted by each window's premise token count.
+    /// The mean weighted by each window's premise token count;
+    /// when the scorer counts no tokens in any window, the
+    /// unweighted mean (the weights carry no information).
     LengthWeightedMean,
 }
 
@@ -338,7 +340,17 @@ impl<S: NliScorer> ZeroShotCategorizer<S> {
                 WindowAggregation::Mean => (0..windows.len()).map(values).sum::<f64>() / windows.len() as f64,
                 WindowAggregation::LengthWeightedMean => {
                     let total: f64 = weights.iter().sum();
-                    (0..windows.len()).map(|w| weights[w] * values(w)).sum::<f64>() / total
+                    if total == 0.0 {
+                        // The scorer counts no tokens in any
+                        // window (they exist only as words its
+                        // tokenizer strips): weights carry no
+                        // information, so average unweighted
+                        // rather than dividing 0 by 0 into a NaN
+                        // the scorer never produced.
+                        (0..windows.len()).map(values).sum::<f64>() / windows.len() as f64
+                    } else {
+                        (0..windows.len()).map(|w| weights[w] * values(w)).sum::<f64>() / total
+                    }
                 }
             }
         };

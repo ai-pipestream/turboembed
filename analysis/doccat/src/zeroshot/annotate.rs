@@ -8,8 +8,8 @@ use turbo_analysis_layers::Categories;
 use super::{NliScorer, ZeroShotCategorizer, best_index};
 use crate::layer::{SpanCategorizable, validate_spans};
 
-fn failure(detail: String) -> Error {
-    Error::Annotator { annotator: "turbo:zero-shot", detail }
+fn failure(annotator: &'static str, detail: String) -> Error {
+    Error::Annotator { annotator, detail }
 }
 
 /// Writes the document's `Categories` from a
@@ -35,7 +35,7 @@ impl<S: NliScorer + Send + Sync + 'static> Annotator for ZeroShotAnnotator<S> {
     type Writes = (Categories,);
 
     fn annotate(&self, (view,): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let scores = scores_or_zero(&self.categorizer, view.text())?;
+        let scores = scores_or_zero(Self::ID, &self.categorizer, view.text())?;
         Ok((Categories::document(self.categorizer.categories(), Tag(best_index(&scores) as u16), &scores),))
     }
 
@@ -75,7 +75,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for Z
 
     fn annotate(&self, (view, units): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         if units.layer_spans().view() != view.id() {
-            return Err(failure("spans are not in the given view".into()));
+            return Err(failure(Self::ID, "spans are not in the given view".into()));
         }
         validate_spans(Self::ID, "unit", units.layer_spans(), view.text())?;
         let mut out = Categories::<L>::with_capacity(self.categorizer.categories(), units.len());
@@ -87,7 +87,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for Z
                 }
                 text.push_str(&view.text()[frag.start as usize..frag.end as usize]);
             }
-            let scores = scores_or_zero(&self.categorizer, &text)?;
+            let scores = scores_or_zero(Self::ID, &self.categorizer, &text)?;
             out.push(Tag(best_index(&scores) as u16), &scores);
         }
         Ok((out,))
@@ -105,9 +105,13 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for Z
 /// A blank premise is not evidence for any label: in an
 /// annotator it scores zero everywhere rather than failing
 /// the whole document.
-fn scores_or_zero<S: NliScorer>(categorizer: &ZeroShotCategorizer<S>, text: &str) -> Result<Vec<f64>, Error> {
+fn scores_or_zero<S: NliScorer>(
+    annotator: &'static str,
+    categorizer: &ZeroShotCategorizer<S>,
+    text: &str,
+) -> Result<Vec<f64>, Error> {
     if text.trim().is_empty() {
         return Ok(vec![0.0; categorizer.labels().len()]);
     }
-    categorizer.categorize(text).map_err(|e| failure(e.to_string()))
+    categorizer.categorize(text).map_err(|e| failure(annotator, e.to_string()))
 }
