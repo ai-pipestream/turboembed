@@ -36,6 +36,7 @@ pub use sentiment::{
     Aspect, AspectTarget, Aspects, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget,
     Incongruity, Opinion, Opinions, Polarity, PolarityScores, Pragmatics, PragmaticsItem,
 };
+pub use sparse::SparseTerms;
 pub use syntax::{
     ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
 };
@@ -118,6 +119,7 @@ mod quantities;
 mod regions;
 mod segmentation;
 mod sentiment;
+mod sparse;
 mod syntax;
 mod temporal;
 mod times;

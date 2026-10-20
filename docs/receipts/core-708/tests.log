@@ -1,0 +1,1216 @@
+   Compiling turbo v0.1.0 (/work/worktrees/turboembed/kimi-708-splade/core)
+   Compiling turbo-analysis-embed v0.1.0 (/work/worktrees/turboembed/kimi-708-splade/analysis/embed)
+   Compiling turbo-bundle v0.1.0 (/work/worktrees/turboembed/kimi-708-splade/bundle)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.14s
+     Running unittests src/lib.rs (target/debug/deps/turbo-8c5d1b7ea35be5df)
+
+running 94 tests
+test backend::tests::a_table_from_before_buffer_read_is_known_and_offers_none ... ok
+test backend::tests::a_session_without_its_release_or_its_run_is_refused ... ok
+test backend::tests::a_table_from_before_formats_is_known_and_loads_raw_weights_alone ... ok
+test backend::tests::a_table_from_before_the_model_functions_is_known_and_offers_none ... ok
+test backend::tests::a_table_from_before_session_open_is_known_and_offers_neither ... ok
+test backend::tests::a_table_of_an_unknown_size_or_a_load_without_its_release_is_refused ... ok
+test backend::tests::a_table_from_before_the_session_functions_is_known_and_offers_none ... ok
+test backend::tests::a_table_from_before_tuned_sessions_is_known_and_offers_none ... ok
+test backend::tests::ranges_without_session_open_are_refused ... ok
+test backend::tests::a_tuned_session_without_its_release_or_its_run_is_refused ... ok
+test backend::tests::session_open_without_its_release_or_its_run_is_refused ... ok
+test bpe::tests::write_classes ... ignored, writes the tables; run by hand when Unicode moves
+test cpu::boundary_tests::a_buffer_of_no_bytes_is_rejected ... ok
+test cpu::encoder::tests::speed_by_threads_and_kernel ... ignored, measures; run with --ignored --nocapture
+test bpe::tests::byte_chars_go_both_ways ... ok
+test cpu::boundary_tests::a_fastest_session_is_rejected_for_a_table_with_values_that_are_not_finite ... ok
+test classes::tests::ranges_are_ordered_disjoint_unicode_scalars ... ok
+test cpu::session::tests::cpu_threads_sets_the_count_or_is_refused_naming_field_6 ... ok
+test cpu::session::tests::turbo_cpu_threads_sets_the_count_or_is_refused ... ok
+test ffi::tests::array_extents_check_bytes_before_conversion ... ok
+test ffi::tests::text_metadata_checks_do_not_dereference_foreign_pointers ... ok
+test mlm::tests::layer_norm_matches_the_encoder_formula ... ok
+test record::tests::an_image_is_pinned_by_digest_under_a_plain_name ... ok
+test record::tests::slugs_are_lower_case_letters_digits_and_single_dashes ... ok
+test head::tests::linear_and_head_reject_overflowing_misaligned_and_non_finite_inputs ... ok
+test sentencepiece::bpe::tests::pairs_order_as_the_library_orders_scores ... ok
+test sentencepiece::normalizer::tests::a_broken_map_is_refused ... ok
+test sentencepiece::normalizer::tests::one_char_len_reads_the_lead_byte_only ... ok
+test sentencepiece::normalizer::tests::a_map_the_library_takes_is_taken ... ok
+test record::tests::the_tolerances_are_the_documented_ones ... ok
+test sentencepiece::proto::tests::a_field_of_another_wire_type_is_skipped_and_groups_are_refused ... ok
+test cpu::table::tests::the_f16c_mean_is_the_portable_mean ... ok
+test sentencepiece::proto::tests::a_key_past_32_bits_is_refused ... ok
+test cpu::kernels::rowwise::tests::gelu_matches_its_definition ... ok
+test model::tests::weights_load_rejects_out_of_bounds_artifact_index ... ok
+test sentencepiece::proto::tests::a_length_past_the_message_is_refused_without_allocating_it ... ok
+test sentencepiece::proto::tests::a_piece_with_an_unknown_type_is_normal_and_a_later_value_wins ... ok
+test sentencepiece::proto::tests::a_truncated_message_is_refused ... ok
+test sentencepiece::proto::tests::defaults_hold_when_a_field_is_absent ... ok
+test sentencepiece::proto::tests::a_varint_that_does_not_end_is_refused ... ok
+test session::tests::an_option_a_device_does_not_honor_is_refused_by_its_number ... ok
+test session::tests::max_ranges_is_refused_where_no_range_write_is_offered ... ok
+test session::text::tests::oversized_text_is_rejected_before_reservation_or_dispatch ... ok
+test sparse::tests::boundary_cases_are_refused_or_empty ... ok
+test sparse::tests::empty_logits_leave_the_pool_zeroed ... ok
+test sparse::tests::the_pool_is_the_max_of_log_one_plus_relu_over_tokens ... ok
+test tokenizer::encode::tests::span_extent_must_not_wrap_with_a_prompt_prefix ... ok
+test sparse::tests::selection_sorts_by_id_and_applies_floor_and_top_k ... ok
+test tokenizer::encode::tests::span_extent_accepts_the_last_representable_offset ... ok
+test tuning::tests::a_mode_asked_for_is_taken_and_an_unknown_one_refused ... ok
+test tuning::tests::the_budget_is_what_was_asked_else_by_where_the_cache_is ... ok
+test cpu::table::tests::the_avx2_quantized_mean_is_the_portable_one ... ok
+test tuning::tests::the_classes_are_the_decided_ones ... ok
+test cpu::pool::tests::a_parked_pool_wakes ... ok
+test tuning::tests::the_bins_of_a_key_are_the_backends ... ok
+test unigram::boundary_tests::direct_parse_rejects_invalid_metaspace_without_panicking ... ok
+test unigram::boundary_tests::lattice_preserves_best_path_for_extreme_finite_scores ... ok
+test unigram::boundary_tests::base64_rejects_nonterminal_padding_and_nonzero_unused_bits ... ok
+test tuning::tests::the_forced_knobs_are_read_from_the_string ... ok
+test unigram::boundary_tests::malformed_boolean_settings_are_rejected ... ok
+test unigram::boundary_tests::precompiled_map_rejects_invalid_replacement_bytes ... ok
+test unigram::boundary_tests::malformed_normalizer_is_not_silently_ignored ... ok
+test cpu::table::range_tests::a_range_over_a_whole_row_is_the_row_s_mean ... ok
+test unigram::tests::base64_decodes_with_and_without_padding_bytes ... ok
+test cpu::table::tests::the_sum_of_squares_is_numpy_s ... ok
+test cpu::kernels::rowwise::tests::exp_is_within_two_ulps ... ok
+test cpu::table::tests::the_f16c_rounding_is_the_portable_rounding ... ok
+test tuning::tests::the_cache_keeps_an_entry_in_memory_and_in_its_file ... ok
+test cpu::pool::tests::a_batch_pool_wakes_the_workers_a_job_wants ... ok
+test cpu::table::range_tests::a_range_is_the_mean_of_its_live_tokens ... ok
+test bpe::tests::scanning_and_the_heap_merge_alike ... ok
+test sentencepiece::tests::bpe_word_by_word_is_bpe_over_the_whole_text ... ok
+test cpu::pool::tests::every_task_runs_once_on_a_thread_of_the_pool ... ok
+test cpu::pool::tests::short_jobs_follow_each_other ... ok
+test record::tests::every_committed_record_parses_under_its_own_name ... ok
+test record::tests::mixed_arl_npu_minilm_records_support_model_and_fastest ... ok
+test record::tests::a_batch_1_cycle_covers_the_set_only_when_every_frame_was_compared ... ok
+test record::tests::mixed_arl_npu_bge_records_support_model_and_fastest ... ok
+test unigram::tests::the_ascii_shortcut_is_the_cluster_by_cluster_map ... ok
+test sentencepiece::normalizer::tests::a_mutated_map_never_panics ... ok
+test cpu::pool::tests::a_pool_of_many_parked_workers_wakes_them_as_a_tree ... ok
+test cpu::kernels::gemm::tests::linear_kernels_match_the_plain_sum ... ok
+test cpu::encoder::tests::a_range_over_a_whole_row_is_the_row_s_mean ... ok
+test cpu::table::range_tests::ranges_are_the_same_bits_on_any_number_of_threads ... ok
+test cpu::encoder::tests::ranges_are_the_same_bits_on_any_number_of_threads ... ok
+test cpu::encoder::tests::a_write_of_rows_after_ranges_pools_rows ... ok
+test tokenizer::tests::word_pieces_are_the_plain_algorithm_s ... ok
+test cpu::encoder::tests::a_range_s_vector_is_the_mean_of_its_live_tokens ... ok
+test tokenizer::tests::appended_rows_are_the_rows_alone ... ok
+test tokenizer::tests::the_category_table_is_the_unicode_categories ... ok
+test tokenizer::tests::normalizing_by_runs_is_normalizing_the_whole_text ... ok
+test unigram::tests::the_trie_finds_what_the_list_holds ... ok
+test bpe::tests::classes_are_the_regular_expressions ... ok
+test cpu::encoder::tests::vectors_are_the_same_bits_on_any_number_of_threads ... ok
+
+test result: ok. 92 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 3.59s
+
+     Running tests/abi.rs (target/debug/deps/abi-88a5cbc09055c3e1)
+
+running 6 tests
+test the_tuning_layout_is_the_one_proposed ... ok
+test the_late_pooling_layout_is_the_one_proposed ... ok
+test the_header_compiles_standalone ... ok
+test mirrored_constants_match_the_header ... ok
+test struct_layouts_match_the_header ... ok
+test a_c_program_loads_a_model_tokenizes_and_embeds ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.62s
+
+     Running tests/allocations.rs (target/debug/deps/allocations-33566b552c455da1)
+
+running 1 test
+test a_run_reports_the_allocations_it_made ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+     Running tests/buffers.rs (target/debug/deps/buffers-577ca68d6a330944)
+
+running 20 tests
+test a_device_index_past_the_list_is_refused ... ok
+test release_of_null_is_a_no_op ... ok
+test a_context_reports_its_device ... ok
+test a_failed_call_leaves_the_output_alone ... ok
+test an_import_of_nothing_is_refused ... ok
+test alloc_gives_aligned_host_memory_the_caller_can_use ... ok
+test release_in_any_order_is_safe ... ok
+test bad_shapes_are_refused ... ok
+test bytes_that_agree_with_the_shape_are_taken ... ok
+test export_of_an_allocation_is_its_host_pointer ... ok
+test bytes_that_disagree_with_the_shape_are_refused ... ok
+test import_wraps_the_callers_memory_without_a_copy ... ok
+test more_than_the_host_can_address_is_out_of_memory ... ok
+test a_wrong_struct_size_is_refused ... ok
+test the_cpu_has_no_device_memory ... ok
+test the_cpu_imports_and_exports_only_host_pointers ... ok
+test null_and_wrong_handles_are_refused ... ok
+test unknown_enumerations_are_refused_by_name ... ok
+test contexts_and_buffers_work_from_many_threads ... ok
+test null_outputs_are_refused ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bundle.rs (target/debug/deps/bundle-b6a68c8b5b97b2ba)
+
+running 2 tests
+test a_real_bundle_loads_and_matches_its_reference_ids ... ignored, needs a real bundle directory in TURBO_TEST_BUNDLE
+test a_real_bundle_loads_on_the_cpu_as_its_manifest_says ... ignored, needs a real bundle directory in TURBO_TEST_BUNDLE
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/conformance.rs (target/debug/deps/conformance-3639ed741ccc566e)
+
+running 3 tests
+test a_real_bundle_matches_its_reference ... ignored, needs a real bundle directory in TURBO_TEST_BUNDLE
+test a_fixed_shape_refuses_the_cases_it_cannot_hold ... ok
+test every_reference_case_matches_upstream ... ok
+
+test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/core_boundaries.rs (target/debug/deps/core_boundaries-3e3a372a05d58288)
+
+running 2 tests
+test duplicate_added_token_cannot_hide_an_omitted_special ... ok
+test added_token_special_flag_must_match_manifest_decode_behavior ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests/cpu_speed.rs (target/debug/deps/cpu_speed-ed3fba5f73a1d9c1)
+
+running 2 tests
+test minilm_shape_speed ... ignored, measures; run with --ignored --nocapture
+test small_bundle_speed ... ignored, measures; run with --ignored --nocapture
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cuda.rs (target/debug/deps/cuda-f1148809a36fe998)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cuda_gelu.rs (target/debug/deps/cuda_gelu-14bd2c78707468ba)
+
+running 2 tests
+test gelu_f16_holds_the_tails ... ok
+test gelu_f16_rounds_as_gelu_does ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/devices.rs (target/debug/deps/devices-c1b0f08681ec70c6)
+
+running 12 tests
+test selection_ranks_by_status_then_by_speed_ratio ... ok
+test the_version_lists_the_linked_backends ... ok
+test a_device_index_past_the_list_is_refused ... ok
+test a_wrong_struct_size_is_refused ... ok
+test null_handles_and_outputs_are_refused ... ok
+test the_device_index_is_checked_before_the_task ... ok
+test an_unknown_task_or_precision_is_refused ... ok
+test selection_never_picks_a_cpu_and_says_why ... ok
+test the_select_reason_fits_the_buffer_it_is_given ... ok
+test the_host_processor_is_listed ... ok
+test the_cpu_runs_embed_unmeasured_in_f32 ... ok
+test device_info_is_read_at_query_time ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/format_boundaries.rs (target/debug/deps/format_boundaries-094cb85fa473638d)
+
+running 7 tests
+test manifest_rejects_nul_in_c_header_strings ... ok
+test manifest_rejects_trailing_values_and_garbage ... ok
+test speed_helpers_do_not_report_invalid_measurements ... ok
+test record_rejects_duplicate_reference_names ... ok
+test record_rejects_mean_outside_observed_range ... ok
+test record_rejects_overflowed_and_underflowed_speed_ratios ... ok
+test capability_decision_rejects_unchecked_non_finite_conformance ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/hailo.rs (target/debug/deps/hailo-66986f6129845009)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/head.rs (target/debug/deps/head-9240ad57958c2b7d)
+
+running 5 tests
+test softmax_and_linear_validate_shapes_and_numerical_stability ... ok
+test f16_and_bf16_head_weights_are_widened_to_f32 ... ok
+test sequence_classifier_with_pooler_matches_pytorch_bert_for_sequence_classification ... ok
+test token_classifier_matches_pytorch_bert_for_token_classification_logits_and_softmax ... ok
+test manifest_and_loader_reject_malformed_classifier_configs_and_tensors ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+
+     Running tests/levelzero.rs (target/debug/deps/levelzero-fedc1edd6f9a1914)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/levelzero_boundaries.rs (target/debug/deps/levelzero_boundaries-c4465a702641fd97)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/loader.rs (target/debug/deps/loader-7fb33d5579f5be0f)
+
+running 28 tests
+test no_directory_or_no_manifest_is_not_found ... ok
+test an_absent_listed_file_is_not_found ... ok
+test a_changed_tokenizer_is_integrity ... ok
+test a_bundle_that_does_not_cut_is_invalid ... ok
+test a_link_out_of_the_bundle_is_invalid ... ok
+test another_bundle_version_is_invalid ... ok
+test a_path_not_in_files_is_invalid ... ok
+test files_not_opened_are_not_checked ... ok
+test the_example_artifacts_parse ... ok
+test a_bundle_that_cuts_on_the_left_loads ... ok
+test a_resized_reference_is_integrity ... ok
+test a_reference_without_a_long_case_is_invalid ... ok
+test a_link_inside_the_bundle_is_followed ... ok
+test a_written_manifest_loads_and_writes_the_same_bytes_again ... ok
+test the_standard_bundle_loads ... ok
+test a_reference_row_that_is_short_names_the_position ... ok
+test a_task_this_build_does_not_have_is_unsupported ... ok
+test a_reference_id_that_differs_names_the_case_and_position ... ok
+test a_reference_with_the_wrong_shape_is_invalid ... ok
+test unknown_fields_are_invalid_and_named ... ok
+test the_position_offset_goes_with_the_family ... ok
+test strings_longer_than_their_header_buffer_are_invalid ... ok
+test unknown_enum_values_are_invalid_and_named ... ok
+test missing_required_fields_are_invalid_and_named ... ok
+test bad_paths_are_invalid ... ok
+test a_manifest_that_disagrees_with_tokenizer_json_is_invalid ... ok
+test cross_references_are_checked ... ok
+test the_tokenizer_is_one_of_wordpiece_unigram_bpe_and_sentencepiece ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+
+     Running tests/metal.rs (target/debug/deps/metal-fd05c85aaa8632ad)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/mlm.rs (target/debug/deps/mlm-6b95180a88fae796)
+
+running 5 tests
+test the_head_matches_the_numpy_reference ... ok
+test logits_refuse_non_finite_states_and_bad_shapes ... ok
+test loader_rule_8_wrong_shapes_and_missing_sparse_are_refused_by_name ... ok
+test loader_rule_2_a_sparse_bundle_without_the_mlm_tensors_is_named ... ok
+test the_tied_decoder_is_the_word_embedding_table ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/models.rs (target/debug/deps/models-4a9b29768014e943)
+
+running 44 tests
+test more_output_dims_than_the_header_holds_are_invalid ... ok
+test a_dim_other_than_the_hidden_width_is_invalid ... ok
+test a_missing_bundle_or_manifest_is_not_found ... ok
+test another_task_is_unsupported ... ok
+test release_of_null_is_a_no_op ... ok
+test a_backend_that_loads_hefs_gets_the_hashed_bytes_and_the_embedding_tensors ... ok
+test an_openvino_ir_without_its_two_files_or_its_dtype_is_invalid ... ok
+test a_weights_file_that_is_not_safetensors_is_invalid ... ok
+test a_host_lookup_needs_only_the_embedding_tensors ... ok
+test a_bad_manifest_is_invalid ... ok
+test absent_weights_are_not_found ... ok
+test null_and_wrong_handles_are_refused ... ok
+test every_role_a_bert_encoder_needs_is_named ... ok
+test a_wrong_struct_size_is_refused_and_the_output_left_alone ... ok
+test null_outputs_and_bad_paths_are_refused ... ok
+test raw_weights_are_described_as_before_with_no_artifact_bytes ... ok
+test a_fixed_shape_larger_than_the_models_changes_nothing ... ok
+test a_fixed_shape_is_what_is_reported ... ok
+test a_changed_hef_or_host_weights_file_is_refused ... ok
+test a_model_reports_what_its_manifest_and_files_say ... ok
+test a_tensor_in_two_files_is_invalid ... ok
+test a_header_length_not_a_multiple_of_8_is_invalid ... ok
+test half_precision_weights_load_as_their_dtype ... ok
+test a_missing_tensor_is_invalid_and_named ... ok
+test raw_weights_that_start_at_embeddings_or_fix_a_dtype_are_invalid ... ok
+test a_host_weights_artifact_is_verified_too ... ok
+test the_reference_ids_are_checked_on_load ... ok
+test no_artifact_for_the_cpu_is_no_artifact_and_says_why ... ok
+test the_output_dims_are_reported_ascending ... ok
+test models_load_from_many_threads ... ok
+test a_hef_is_never_chosen_for_a_backend_that_does_not_load_it ... ok
+test the_cpu_reads_the_weights_where_the_core_verified_them ... ok
+test an_openvino_ir_without_a_fixed_shape_is_invalid ... ok
+test release_in_any_order_is_safe ... ok
+test weights_in_two_files_are_one_artifact ... ok
+test the_struct_before_output_dims_is_accepted_and_its_end_left_alone ... ok
+test weights_that_disagree_with_their_hash_are_refused ... ok
+test a_string_longer_than_its_info_field_is_invalid ... ok
+test a_tensor_not_aligned_to_its_elements_is_invalid ... ok
+test the_same_bundle_loaded_twice_is_two_models ... ok
+test a_tensor_of_the_wrong_shape_is_invalid_and_named ... ok
+test a_hef_is_one_file_with_a_compute_dtype_over_raw_weights ... ok
+test the_first_artifact_the_device_can_load_is_chosen ... ok
+test a_tensor_of_the_wrong_dtype_is_invalid_and_named ... ok
+
+test result: ok. 44 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s
+
+     Running tests/npu.rs (target/debug/deps/npu-62fb644c771da96d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ranges.rs (target/debug/deps/ranges-9d605624ffe6372f)
+
+running 9 tests
+test a_static_models_range_is_the_mean_of_its_tokens_rows ... ok
+test a_range_run_reports_its_shape ... ok
+test a_range_over_a_whole_row_is_the_rows_mean_vector ... ok
+test a_range_reads_its_row_through_the_row_stride ... ok
+test a_range_write_refuses_what_it_cannot_take ... ok
+test cpu_threads_sets_the_sessions_thread_count ... ok
+test ranges_may_overlap_repeat_and_skip_rows ... ok
+test max_ranges_defaults_to_max_batch_and_is_bounded ... ok
+test ranges_match_the_arithmetic_written_plainly ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.28s
+
+     Running tests/sentencepiece.rs (target/debug/deps/sentencepiece-1933e668f9c05b02)
+
+running 9 tests
+test a_piece_with_a_nul_is_refused ... ok
+test a_model_whose_self_test_fails_is_refused ... ok
+test fetched_models_match_the_library ... ok
+test the_differences_from_the_library ... ok
+test a_grown_scratch_is_reused ... ok
+test xlmr_matches_the_library ... ok
+test a_mutated_model_is_refused_or_works ... ok
+test committed_models_match_the_library ... ok
+test variants_match_the_library ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+
+     Running tests/sentencepiece_allocations.rs (target/debug/deps/sentencepiece_allocations-59fbd8a39ae24f2a)
+
+running 1 test
+test a_grown_scratch_encodes_without_allocating ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/sessions.rs (target/debug/deps/sessions-7ff93e2d57633d9d)
+
+running 34 tests
+test a_session_larger_than_the_model_is_refused_by_field ... ok
+test a_write_replaces_the_one_before ... ok
+test every_option_is_checked_by_name ... ok
+test a_failed_run_takes_the_write ... ok
+test write_ranges_refuses_what_it_cannot_take ... ok
+test a_held_result_or_its_buffer_makes_the_session_busy ... ok
+test a_range_over_a_whole_row_is_the_rows_mean_vector ... ok
+test a_failed_write_leaves_nothing_written ... ok
+test a_ranges_mask_is_read_through_the_row_stride ... ok
+test cpu_threads_out_of_range_is_refused_by_field ... ok
+test a_failed_range_write_leaves_nothing_written ... ok
+test a_result_reports_its_run ... ok
+test session_calls_refuse_null_and_wrong_handles ... ok
+test a_write_refused_before_its_rows_are_read_leaves_nothing_written ... ok
+test a_session_and_its_result_outlive_the_handles_they_were_made_from ... ok
+test prompt_roles_prefix_the_text_as_the_bundle_says ... ok
+test max_ranges_over_the_sessions_tokens_is_refused_by_field ... ok
+test the_bundles_pooling_and_normalization_are_the_default ... ok
+test a_run_takes_one_write ... ok
+test result_calls_refuse_what_they_cannot_take ... ok
+test the_result_buffer_is_the_vectors_where_they_are ... ok
+test a_session_of_one_path_reports_no_choices_and_old_sizes_are_known ... ok
+test a_session_reports_what_it_resolved ... ok
+test the_cpu_offers_embed_as_its_sessions_run_it ... ok
+test sessions_on_one_model_run_from_many_threads ... ok
+test one_session_used_from_two_threads_is_busy_not_corrupt ... ok
+test write_text_refuses_what_it_cannot_take ... ok
+test tokens_and_text_give_the_same_vectors ... ok
+test an_output_dim_the_bundle_lists_is_cut_then_normalized ... ok
+test write_tokens_refuses_what_it_cannot_take ... ok
+test a_bundle_without_a_pad_token_pads_text_rows_with_ids_in_the_vocabulary ... ok
+test a_roberta_model_reads_positions_from_its_offset ... ok
+test half_weights_compute_in_f32_from_one_shared_copy ... ok
+test every_option_matches_the_arithmetic_written_plainly ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.13s
+
+     Running tests/sparse_golden.rs (target/debug/deps/sparse_golden-18c9952972560d67)
+
+running 1 test
+test rust_pooling_and_selection_match_the_numpy_reference ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/static_model.rs (target/debug/deps/static_model-a458a0ea7eed12ec)
+
+running 10 tests
+test a_static_manifest_is_checked_field_by_field ... ok
+test a_run_reports_its_stages ... ok
+test a_static_model_reports_what_its_manifest_says ... ok
+test a_large_batch_gives_what_one_text_at_a_time_gives ... ok
+test a_changed_table_is_refused ... ok
+test every_option_matches_the_arithmetic_written_plainly ... ok
+test a_text_of_no_tokens_or_only_unknown_ones_is_the_zero_vector ... ok
+test fastest_sums_the_table_in_i8 ... ok
+test every_reference_case_matches_the_reference ... ok
+test the_table_in_each_dtype_gives_its_values_arithmetic ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s
+
+     Running tests/static_pages.rs (target/debug/deps/static_pages-13629fe28d0a5ef1)
+
+running 1 test
+test huge_pages_give_the_mapped_table_s_bits ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+     Running tests/static_parity.rs (target/debug/deps/static_parity-cccb35d05c31098c)
+
+running 1 test
+test every_golden_text_gives_model2vecs_ids_and_vector_to_the_bit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/static_speed.rs (target/debug/deps/static_speed-c64b8fa32fc16424)
+
+running 1 test
+test texts_a_second ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/tokenizer.rs (target/debug/deps/tokenizer-37c90fe790a59bd8)
+
+running 37 tests
+test bpe::make_tiny_bpe ... ignored, writes the test data; run by hand
+test bpe::matches_upstream_on_gpt2_and_roberta ... ignored, needs TURBO_BPE_FILES
+test bpe::write_corpus_file ... ignored, writes the test data; run by hand
+test bpe::the_corpus_file_is_the_corpus ... ok
+test bpe::info_names_the_kind ... ok
+test bpe::a_raw_token_inside_a_normalized_one_is_taken_first ... ok
+test bpe::the_manifest_must_agree_with_the_file ... ok
+test static_spans_drop_the_unknown_token ... ok
+test bad_options_are_refused ... ok
+test spans_follow_truncation ... ok
+test a_row_wider_than_the_stride_is_capacity ... ok
+test count_takes_the_prompt_role ... ok
+test decode_refuses_an_id_outside_the_vocabulary ... ok
+test info_describes_the_bundle ... ok
+test bpe::matches_upstream ... ok
+test bad_utf8_and_bad_handles_are_refused ... ok
+test prompt_roles_prepend_the_bundle_prefixes ... ok
+test truncation_follows_the_option ... ok
+test a_zeroed_options_struct_is_what_the_bundle_says ... ok
+test count_is_untruncated_with_specials ... ok
+test spans_match_upstream_offsets ... ok
+test decode_matches_upstream_wordpiece ... ok
+test spans_are_into_the_text_without_the_prefix ... ok
+test ids_match_upstream ... ok
+test unigram::info_names_the_kind_and_the_ids ... ok
+test rows_are_padded_and_masked ... ok
+test decode_matches_upstream_unigram ... ok
+test unigram::ids_match_upstream ... ok
+test pieces_are_upstream_tokens ... ok
+test unigram::count_is_untruncated_with_specials ... ok
+test unigram::truncation_cuts_inside_the_specials ... ok
+test unigram_spans_match_upstream_offsets ... ok
+test a_normalized_special_token_matches_upstream ... ok
+test unigram::rows_are_padded_with_the_pad_id ... ok
+test unigram::the_multilingual_static_normalizer_matches_upstream ... ok
+test bpe::matches_upstream_with_each_option ... ok
+test unigram::the_manifest_must_agree_with_the_file ... ok
+
+test result: ok. 34 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.44s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_analysis_embed-afa1fb07673cac8b)
+
+running 47 tests
+test centroids::boundary_tests::a_nonfinite_query_value_is_refused_against_a_zero_centroid_at_any_position ... ok
+test encoder::tests::a_result_of_another_shape_is_refused ... ok
+test centroids::boundary_tests::truncated_centroid_payload_and_trailing_data_are_refused ... ok
+test window::tests::a_chunk_over_a_gap_between_sentences_adds_a_window ... ok
+test centroids::boundary_tests::ambiguous_labels_are_refused ... ok
+test centroids::tests::refuses_to_normalize_a_zero_centroid ... ok
+test subwords::tests::no_tokens_gives_no_column_unless_no_pieces ... ok
+test centroids::tests::label_centroids_round_trip_and_deterministic_scoring ... ok
+test centroids::boundary_tests::nonfinite_multilabel_configuration_is_refused ... ok
+test subwords::tests::a_piece_in_no_token_belongs_to_the_token_before_it ... ok
+test subwords::tests::a_piece_inside_a_token_belongs_to_it ... ok
+test subwords::tests::pieces_sharing_a_span_share_a_token ... ok
+test centroids::tests::single_vector_is_its_own_centroid ... ok
+test centroids::boundary_tests::tiny_temperature_preserves_the_winner ... ok
+test encoder::tests::a_backend_without_the_range_write_is_named ... ok
+test subwords::tests::an_empty_piece_inside_a_token_belongs_to_it ... ok
+test heads::tests::incivility_and_pragmatics_scoring_reject_tokens_from_another_view ... ok
+test heads::tests::linear_and_mlp_heads_round_trip_and_score_deterministically ... ok
+test window::tests::a_piece_of_no_bytes_is_covered_from_the_items_start_up_to_its_end ... ok
+test window::tests::pieces_sharing_a_span_are_covered_together ... ok
+test heads::tests::fit_single_and_multi_label_converge_deterministically ... ok
+test window::tests::an_item_two_windows_hold_goes_in_the_earlier ... ok
+test window::tests::an_item_covers_every_piece_its_span_overlaps ... ok
+test window::tests::an_item_past_the_text_fails_the_document ... ok
+test window::tests::window_end_addition_does_not_wrap ... ok
+test window::tests::chunks_add_no_window_where_the_sentences_hold_every_piece ... ok
+test window::tests::items_fill_a_window_before_another_starts ... ok
+test window::tests::an_item_longer_than_a_window_is_placed_in_parts ... ok
+test window::tests::documents_get_windows_of_their_own ... ok
+test window::tests::nested_items_share_the_window_of_the_outer_one ... ok
+test window::tests::whitespace_and_empty_spans_cover_no_piece ... ok
+test window::tests::an_item_across_a_window_end_starts_the_next_window ... ok
+test heads::tests::vector_head_annotator_rejects_mismatched_scope_and_vector_counts ... ok
+test subwords::tests::a_piece_before_every_token_belongs_to_the_first ... ok
+test subwords::tests::a_piece_over_two_tokens_belongs_to_the_first ... ok
+test centroids::boundary_tests::nonfinite_query_vectors_are_refused ... ok
+test centroids::boundary_tests::malformed_vector_columns_are_refused_before_categorizing ... ok
+test centroids::tests::l2_normalizes_the_arithmetic_mean ... ok
+test centroids::boundary_tests::grouping_rejects_invalid_category_columns ... ok
+test centroids::tests::empty_input_yields_none ... ok
+test window::tests::a_long_item_is_cut_over_the_laid_out_windows ... ok
+test encoder::tests::zero_stride_rows_are_refused ... ok
+test centroids::tests::averages_vectors_element_wise ... ok
+test centroids::boundary_tests::unindexable_label_count_is_refused ... ok
+test aspect::tests::annotate_rejects_mismatched_views_and_invalid_token_spans ... ok
+test aspect::tests::fit_rejects_empty_inputs_and_out_of_bounds_ranges ... ok
+test aspect::tests::negated_opinion_preserves_prior_polarity_and_flips_effective_and_aspect_polarity ... ok
+
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running tests/centroid_allocation.rs (target/debug/deps/centroid_allocation-56b772458ec574e8)
+
+running 1 test
+test wire_dimension_does_not_drive_allocation_before_payload_check ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/goldens.rs (target/debug/deps/goldens-e84d5625b27c5a21)
+
+running 8 tests
+test the_exact_inputs_match_through_the_golden_comparison ... ok
+test the_ideographs_from_u2b820_are_words_on_the_jvm_only ... ok
+test every_golden_matches_but_for_the_listed_differences ... ok
+test marks_out_of_order_give_every_jvm_piece_the_whole_run ... ok
+test a_stripped_mark_is_in_the_jvm_span_and_not_in_ours ... ok
+test a_word_final_capital_sigma_is_final_sigma_on_the_jvm_only ... ok
+test special_token_strings_are_special_tokens_here_only ... ok
+test the_jvm_read_the_bundles_vocabulary ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+
+     Running tests/heads.rs (target/debug/deps/heads-0d2f9b3969a1b9c4)
+
+running 10 tests
+test heads_and_centroids_cpu_and_device_parity ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+     Running tests/levels.rs (target/debug/deps/levels-df2bbb5b85b5de88)
+
+running 7 tests
+test the_provider_builds_the_level_step ... ok
+test the_two_kinds_are_named_instances_with_provenance ... ok
+test units_with_no_pieces_get_the_zero_vector ... ok
+test every_unit_gets_a_local_and_a_contextual_vector ... ok
+test units_longer_than_a_window_are_pooled_in_parts ... ok
+test the_same_input_gives_the_same_bits ... ok
+test a_document_with_no_structure_has_chunks_under_the_document ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+
+     Running tests/sparse.rs (target/debug/deps/sparse-76b0d02ae426955a)
+
+running 6 tests
+test input_spans_tile_a_text_of_single_occurrences_byte_for_byte ... ok
+test input_terms_keep_their_spans_and_expanded_terms_have_none ... ok
+test refusals_and_the_provider ... ok
+test the_terms_match_the_same_pieces_run_by_hand ... ok
+test a_long_text_is_read_in_windows_and_pooled_as_one ... ok
+test the_cut_options_and_boundary_texts ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.32s
+
+     Running tests/speed_sparse.rs (target/debug/deps/speed_sparse-10cc0b540c51abad)
+
+running 1 test
+test sparse_speed_on_the_cpu ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/subwords.rs (target/debug/deps/subwords-2294902f939be195)
+
+running 16 tests
+test byte_fallback_pieces_of_one_character_share_its_span ... ok
+test a_bpe_piece_over_two_tokens_goes_with_the_first ... ok
+test byte_level_pieces_of_one_character_share_its_span ... ok
+test bpe_pieces_are_taken_on_every_text ... ok
+test the_provider_opens_the_bundle_it_is_given ... ok
+test the_overhead_is_the_specials_and_the_prefix ... ok
+test wordpiece_pieces_are_taken_on_every_text ... ok
+test a_special_token_written_in_the_text_is_its_characters ... ok
+test sentencepiece_pieces_are_taken_on_every_text ... ok
+test a_long_text_is_covered_to_its_end ... ok
+test pieces_get_their_word_token ... ok
+test the_model_is_the_bundles ... ok
+test sentencepiece_pieces_match_the_library ... ok
+test unigram_pieces_are_taken_on_every_text ... ok
+test wordpiece_pieces_match_upstream ... ok
+test tokens_that_cannot_be_aligned_fail_the_document ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/vector_boundaries.rs (target/debug/deps/vector_boundaries-823377bc14435cdc)
+
+running 1 test
+test discontinuous_pooling_is_refused_instead_of_embedding_the_gap ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/vectors.rs (target/debug/deps/vectors-6b23492c4d6992aa)
+
+running 20 tests
+test on_the_device_turbo_test_device_names ... ok
+test a_model_pooled_by_its_first_token_is_refused ... ok
+test a_static_model_has_no_overhead ... ok
+test a_range_over_a_whole_row_is_the_rows_vector ... ok
+test layers_that_do_not_fit_together_fail_the_document ... ok
+test malformed_input_fails_the_document ... ok
+test rows_with_no_room_for_text_are_refused ... ok
+test a_sentence_across_a_window_end_is_pooled_from_a_window_that_holds_it ... ok
+test sentence_vectors_are_each_sentences_range ... ok
+test chunk_vectors_are_each_chunks_range ... ok
+test sentences_and_chunks_come_from_the_same_windows ... ok
+test provenance_names_the_model_and_where_it_ran ... ok
+test items_with_no_pieces_get_the_zero_vector ... ok
+test a_chunk_over_text_no_sentence_covers_adds_a_window_there ... ok
+test a_long_document_spans_several_windows ... ok
+test an_item_longer_than_a_window_is_the_weighted_mean_of_its_parts ... ok
+test the_provider_builds_the_step_for_the_layers_asked_for ... ok
+test sentence_vectors_are_the_same_with_or_without_the_chunks ... ok
+test the_row_is_the_template_and_prefix_around_the_pieces ... ok
+test documents_of_a_batch_get_what_each_gets_alone ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.96s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_analysis_layers-ff1def8ac888545e)
+
+running 85 tests
+test abbreviations::tests::check_wants_ordered_non_empty_spans ... ok
+test abbreviations::tests::links_lead_to_the_long_form ... ok
+test boilerplate::tests::codes_round_trip_and_stop_at_the_last_kind ... ok
+test boilerplate::tests::the_check_refuses_scores_outside_the_unit_interval_and_misaligned_columns ... ok
+test categories::tests::names_and_anchors ... ok
+test categories::tests::an_item_per_unit ... ok
+test categories::tests::the_document_has_one_item_and_ranks_its_categories ... ok
+test containment::tests::ancestors_and_chains_validate_and_round_trip ... ok
+test core_tests::language_holds_the_ranking_best_first ... ok
+test categories::tests::check_refuses_inconsistent_layers ... ok
+test core_tests::pos_tags_and_chunks_check_probabilities_and_sentence_ranges ... ok
+test core_tests::entities_allow_nesting_crossing_and_discontinuous_fragments ... ok
+test core_tests::phrases_check_columns_heads_and_parents ... ok
+test core_tests::structure_is_a_tree_in_text_order ... ok
+test core_tests::utf16_spans_are_named_after_their_layer_and_aligned_to_it ... ok
+test core_tests::utf16_spans_check_their_columns ... ok
+test core_tests::tokens_from_alternatives_materializes_split_modes ... ok
+test core_tests::vectors_name_the_items_that_have_none ... ok
+test core_tests::vectors_check_the_items_with_no_vector ... ok
+test date::tests::calendar_fields ... ok
+test date::tests::epoch_days ... ok
+test date::tests::iso_dates ... ok
+test date::tests::date_times_read_write_and_count_seconds ... ok
+test date::tests::months_and_years_clamp_the_day_and_stay_in_range ... ok
+test date::tests::written_as_local_date_writes_them ... ok
+test date::tests::years_are_written_with_four_digits_or_a_sign ... ok
+test language_spans::tests::check_wants_ordered_nonempty_spans_and_known_tags ... ok
+test language_spans::tests::spans_come_back_with_their_columns ... ok
+test levels::tests::the_vector_kinds_are_named_instances ... ok
+test levels::tests::the_check_refuses_what_is_not_a_tree ... ok
+test levels::tests::levels_are_a_tree_under_the_document ... ok
+test matches::tests::check_wants_columns_labels_and_token_order ... ok
+test money::tests::a_converted_amount_can_have_a_scale_below_zero ... ok
+test money::tests::amounts_come_from_the_columns ... ok
+test money::tests::check_wants_a_canonical_amount ... ok
+test money::tests::check_wants_every_column ... ok
+test money::tests::check_wants_text_order ... ok
+test money::tests::the_layer_is_named_and_has_a_converted_instance ... ok
+test money::tests::currency_codes_are_three_capitals ... ok
+test numbers::tests::check_accepts_an_empty_layer ... ok
+test numbers::tests::check_pairs_markers_with_multipliers ... ok
+test numbers::tests::check_wants_a_canonical_coefficient ... ok
+test numbers::tests::check_wants_every_column ... ok
+test numbers::tests::check_wants_text_order ... ok
+test numbers::tests::check_wants_the_numeral_inside_the_span ... ok
+test numbers::tests::floats_are_rounded_from_the_exact_decimal ... ok
+test numbers::tests::multiplier_factors ... ok
+test numbers::tests::notation_separators_mirror_each_other ... ok
+test numbers::tests::plain_strings_match_big_decimal ... ok
+test numbers::tests::the_layer_is_named_and_positional ... ok
+test numbers::tests::values_come_from_the_columns ... ok
+test ordinals::tests::check_refuses_offsets_outside_the_base ... ok
+test ordinals::tests::check_wants_order_columns_and_text ... ok
+test ordinals::tests::mentions_round_trip ... ok
+test pii::tests::check_refuses_duplicates_empty_values_and_short_columns ... ok
+test pii::tests::check_wants_the_java_order ... ok
+test pii::tests::kind_sets ... ok
+test pii::tests::kinds_have_the_java_names_and_ranks ... ok
+test pii::tests::mentions_round_trip_and_may_overlap ... ok
+test quantities::tests::check_accepts_an_empty_layer ... ok
+test quantities::tests::check_wants_a_canonical_value ... ok
+test quantities::tests::check_wants_a_unit ... ok
+test quantities::tests::check_wants_every_column ... ok
+test quantities::tests::check_wants_text_order ... ok
+test quantities::tests::the_layer_is_named ... ok
+test quantities::tests::values_and_units_come_from_the_columns ... ok
+test regions::tests::region_vote_validates_country_and_share_bounds ... ok
+test regions::tests::winner_checks_margin_and_runner_up_lead ... ok
+test sentiment::tests::bounds_checking_refuses_invalid_token_sentence_and_opinion_indices ... ok
+test sentiment::tests::incivility_and_pragmatics_construct_and_check_evidence_slices ... ok
+test sparse::tests::rows_are_sparse_sorted_with_positive_finite_weights ... ok
+test temporal::tests::a_date_reads_at_each_granularity ... ok
+test sentiment::tests::opinions_and_aspects_construct_and_link_on_document ... ok
+test temporal::tests::a_document_date_has_at_most_one_item_and_points_into_the_mentions ... ok
+test temporal::tests::check_refuses_values_that_are_no_value ... ok
+test temporal::tests::check_wants_text_order_and_full_columns ... ok
+test sentiment::tests::score_only_layers_add_to_a_document_without_tokens ... ok
+test temporal::tests::columns_round_trip_every_granularity ... ok
+test temporal::tests::the_layers_are_named ... ok
+test sentiment::tests::misaligned_and_unaligned_anchors_are_refused ... ok
+test temporal::tests::values_are_written_as_opennlp_writes_them ... ok
+test times::tests::check_wants_order_columns_and_text ... ok
+test times::tests::check_refuses_values_that_do_not_fit_the_kind ... ok
+test times::tests::mentions_round_trip ... ok
+test times::tests::names_and_modifiers ... ok
+
+test result: ok. 85 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/dependency_cycles.rs (target/debug/deps/dependency_cycles-e3350fe80f70ea02)
+
+running 6 tests
+test forest_check_validates_untrusted_columns_before_walking ... ok
+test structural_check_accepts_multi_node_cycles ... ok
+test dependency_forests_reject_nontrivial_cycles ... ok
+test document_insertion_accepts_structurally_valid_cycles ... ok
+test long_chains_and_multiple_roots_are_valid_forests ... ok
+test all_small_head_assignments_match_a_per_node_cycle_search ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/graph_boundaries.rs (target/debug/deps/graph_boundaries-2e1232e19598bcb9)
+
+running 5 tests
+test incomplete_layers_reject_nonzero_lengths ... ok
+test aspects_reject_reserved_range_indices ... ok
+test incivility_rejects_reserved_range_indices ... ok
+test pragmatics_rejects_reserved_range_indices ... ok
+test incomplete_views_reject_discarded_data ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/graph_export.rs (target/debug/deps/graph_export-39c4d8a1177c3092)
+
+running 12 tests
+test core_layers::layers_on_a_derived_view_round_trip ... ok
+test targets::keyed_default_opinion_target_must_not_rebind_through_provenance ... ok
+test targets::keyed_default_word_target_must_not_rebind_through_provenance ... ok
+test refusals::vector_dimension_mismatches_are_refused ... ok
+test core_layers::corrupted_payloads_are_refused ... ok
+test alternatives::alternatives_and_nbest_round_trip ... ok
+test core_layers::core_pipeline_layers_round_trip ... ok
+test sentiment::sentiment_numeric_and_vector_layers_round_trip ... ok
+test targets::target_identity_and_word_subspan_refusals ... ok
+test refusals::sentiment_family_refusals ... ok
+test alternatives::corrupted_alternatives_are_refused ... ok
+test alternatives::corrupted_nbest_is_refused ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/precision.rs (target/debug/deps/precision-4ae79f6a9f247008)
+
+running 6 tests
+test language_scores_round_trip_exactly ... ok
+test probabilities_one_nanounit_apart_stay_distinct ... ok
+test pos_tag_probabilities_round_trip_exactly ... ok
+test token_confidences_round_trip_exactly ... ok
+test entity_scores_round_trip_exactly ... ok
+test the_test_value_is_not_representable_as_f32 ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/subwords.rs (target/debug/deps/subwords-fe82db2412af76f5)
+
+running 3 tests
+test a_token_index_past_the_tokens_is_refused ... ok
+test the_pieces_of_a_token_are_a_range ... ok
+test pieces_out_of_token_order_are_refused ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/terms.rs (target/debug/deps/terms-b6b2f7f0f45fe176)
+
+running 1 test
+test stems_and_terms_are_aligned_to_tokens_and_validate_columns ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/words.rs (target/debug/deps/words-7f97cccec23e76a8)
+
+running 6 tests
+test identity_words_cost_one_index_column_and_slice_view_text ... ok
+test rule_mwt_expander_splits_spanish_catalan_french_portuguese_italian_german_and_english ... ok
+test the_layer_names_tell_word_layers_from_token_layers ... ok
+test words_check_rejects_broken_invariants ... ok
+test word_anchored_and_token_anchored_layers_coexist_on_one_document ... ok
+test utf16_conversion_maps_words_to_token_spans_without_splitting_tokens ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_bundle-726b72c3630e9ac1)
+
+running 8 tests
+test reference::tests::a_pinned_image_is_found_under_either_store ... ignored, needs docker and the pinned image: TURBO_TEST_IMAGE_PIN=name@sha256:<64 hex>
+test distill::math::tests::jacobi_finds_the_eigenpairs_of_a_symmetric_matrix ... ok
+test distill::math::tests::the_table_file_is_what_the_core_reads ... ok
+test distill::math::tests::spearman_ranks_ties_by_their_mean_and_handles_zero_variance ... ok
+test tests::check_rel_accepts_clean_relative_paths_and_refuses_bad_ones ... ok
+test static_reference::tests::the_pairwise_sum_adds_every_square_once ... ok
+test static_reference::tests::parse_table_validates_shapes_mapping_bounds_and_token_ids ... ok
+test distill::math::tests::pca_keeps_the_direction_of_most_variance ... ok
+
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/turbo_bundle-cdfc7193050ce1ec)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/seal.rs (target/debug/deps/seal-474620ec01ba980c)
+
+running 28 tests
+test the_container_is_pinned_by_content ... ok
+test produced_by_comes_from_the_run ... ok
+test upstream_files_are_fetched_at_the_commit ... ok
+test the_recipe_carries_upstreams_onnx_export_for_reference_programs_only ... ok
+test the_calibration_pin_is_the_committed_lf_bytes ... ok
+test the_catalogue_names_pinned_recipes ... ok
+test the_container_gets_the_cases_with_their_prefixes ... ok
+test a_staged_ir_refuses_a_host_container ... ok
+test a_staged_reference_refuses_a_host_container ... ok
+test a_staged_ir_refuses_a_report_that_omits_reproducible ... ok
+test raw_weights_come_from_an_upstream_checkpoint_the_bundle_does_not_carry ... ok
+test a_staged_ir_without_its_report_or_its_reference_is_refused ... ok
+test an_openvino_ir_is_two_files_at_a_fixed_shape ... ok
+test recipes_are_checked ... ok
+test only_an_f16_onnx_file_from_the_upstream_one_is_made ... ok
+test a_recipe_file_that_changed_is_not_staged ... ok
+test a_recipe_without_the_onnx_upstream_file_is_not_sealed ... ok
+test a_hef_is_compiled_from_the_export_in_a_pinned_container ... ok
+test a_fetch_records_its_provenance_and_asks_for_terms ... ok
+test a_reference_whose_ids_differ_is_refused ... ok
+test a_conversion_that_did_not_run_is_not_sealed ... ok
+test a_staged_ir_seals_from_the_image_the_report_names ... ok
+test both_openvino_irs_bind_their_own_reports ... ok
+test the_onnx_file_is_copied_and_sealed_and_no_backend_chooses_it ... ok
+test a_sealed_bundle_loads_through_the_core ... ok
+test a_reference_that_is_not_normalized_is_refused ... ok
+test verify_refuses_a_changed_file_and_an_unlisted_one ... ok
+test a_classifier_bundle_checks_config_id2label_and_verifies_head_and_reference_logits ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+     Running tests/sparse.rs (target/debug/deps/sparse-3666b0d2adf11667)
+
+running 2 tests
+test the_sparse_field_fills_the_manifest_before_anything_is_fetched ... ok
+test seal_loads_the_head_and_refuses_a_bundle_the_weights_cannot_serve ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
+     Running tests/static_bundle.rs (target/debug/deps/static_bundle-ad4dbd83ee037fcd)
+
+running 3 tests
+test a_config_that_disagrees_with_the_manifest_is_refused ... ok
+test a_static_bundle_is_made_from_a_table_and_a_tokenizer ... ok
+test a_static_model_is_distilled_and_sealed ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.87s
+
+     Running unittests src/lib.rs (target/debug/deps/turbo_chunker-90873b115b0e4bed)
+
+running 83 tests
+test cohesion::tests::a_tight_chunk_costs_nothing_and_two_clusters_cost_their_angle ... ok
+test cohesion::tests::cohesion_moves_a_cut_to_where_the_vectors_part ... ok
+test compare::tests::a_cut_at_no_sentence_start_of_the_other_run_has_no_margin ... ok
+test compare::tests::a_stretch_can_hold_several_cuts ... ok
+test compare::tests::an_added_and_a_removed_cut_are_two_disagreements ... ok
+test compare::tests::a_moved_cut_is_reported_with_both_margins_and_both_tiers ... ok
+test compare::tests::a_stretch_in_a_section_that_is_not_the_last_is_priced_to_its_end ... ok
+test compare::tests::children_of_parents_with_different_spans_have_no_margin ... ok
+test compare::tests::chunks_that_do_not_start_and_end_at_sentences_are_refused ... ok
+test compare::tests::costs_that_do_not_fit_the_chunks_are_refused ... ok
+test compare::tests::each_choice_is_sized_by_its_own_run_and_priced_by_the_others_budget ... ok
+test compare::tests::identical_runs_report_nothing ... ok
+test compare::tests::runs_in_different_views_are_refused ... ok
+test compare::tests::levels_are_compared_apart_and_children_follow_their_parent ... ok
+test compare::tests::two_rows_at_one_place_or_overlapping_are_refused ... ok
+test drift::tests::depth_is_the_climb_on_both_sides ... ok
+test drift::tests::empty_sentences_are_skipped_not_compared ... ok
+test drift::tests::an_outlier_at_either_end_is_not_set_apart ... ok
+test drift::tests::a_slow_drift_gives_no_signal_by_depth_but_does_by_distance ... ok
+test drift::tests::one_outlier_sentence_is_a_shallow_dip_not_two_deep_cuts ... ok
+test drift::tests::two_clusters_cut_between_them ... ok
+test gaps::tests::a_block_edge_inside_a_sentence_moves_to_its_gaps ... ok
+test drift::tests::the_optimizer_does_not_set_an_outlier_apart_unless_it_is_cheap ... ok
+test gaps::tests::a_block_with_no_sentence_bytes_makes_no_break ... ok
+test gaps::tests::a_heading_starts_where_it_starts ... ok
+test gaps::tests::a_unit_of_one_sentence_holds_no_gap ... ok
+test gaps::tests::each_gap_takes_its_strongest_break ... ok
+test gaps::tests::units_apart_in_bytes_can_share_a_sentence ... ok
+test gaps::tests::without_structure_every_gap_is_a_sentence_boundary ... ok
+test gaps::tests::units_are_named_by_their_sentences ... ok
+test hashes::tests::a_span_outside_the_text_is_refused_not_hashed_as_empty ... ok
+test hashes::tests::discontinuous_chunk_fragments_are_what_is_hashed ... ok
+test hashes::tests::discontinuous_level_fragments_are_what_is_hashed ... ok
+test hashes::tests::field_boundaries_cannot_be_smuggled ... ok
+test drift::tests::the_same_vectors_give_the_same_costs ... ok
+test hashes::tests::invalid_heading_spans_and_layer_columns_are_refused ... ok
+test hashes::tests::fragmented_headings_hash_their_fragments ... ok
+test hashes::tests::heading_paths_follow_the_section_tree ... ok
+test hashes::tests::section_units_need_their_structure_block ... ok
+test hashes::tests::whitespace_alone_does_not_change_the_id ... ok
+test limits::tests::a_run_cuts_only_its_own_gaps ... ok
+test limits::tests::a_unit_that_fits_is_one_atom ... ok
+test hashes::tests::the_digest_is_fnv1a_128 ... ok
+test limits::tests::units_that_chain_over_the_budget_are_freed ... ok
+test limits::tests::a_gap_is_held_when_any_unit_around_it_fits ... ok
+test limits::tests::a_unit_over_the_budget_frees_only_its_own_gaps ... ok
+test sentiment::tests::boundary_similarity_scores_exact_near_and_missed_cuts ... ok
+test sentiment::tests::default_weigh_all_boundaries_keeps_sentiment_off ... ok
+test sentiment::tests::chunk_incivility_is_kept_without_sentences ... ok
+test sentiment::tests::annotators_reject_mismatched_views_and_layer_lengths ... ok
+test sentiment::tests::resolve_aspect_label_handles_non_utf8_boundary_spans_without_panicking ... ok
+test sums::tests::empty_rows_add_nothing_and_are_not_counted ... ok
+test sums::tests::no_sentences_no_sums ... ok
+test sentiment::tests::multi_level_chunk_facets_preserve_aspect_order_and_merge_chunk_incivility ... ok
+test terms::count::tests::a_repeated_term_after_a_unit_ends_starts_a_new_entry ... ok
+test terms::count::tests::counts_are_sparse_sorted_rows_with_lengths_and_df ... ok
+test terms::index::tests::no_words_make_an_empty_vocabulary ... ok
+test terms::count::tests::the_check_refuses_inconsistent_columns ... ok
+test terms::index::tests::terms_get_ids_in_byte_order_whatever_order_they_come_in ... ok
+test terms::sparse::tests::terms_fall_in_every_unit_their_span_intersects ... ok
+test terms::sparse::tests::the_refusals_name_the_layers ... ok
+test tests::a_chunk_term_is_added_to_each_chunk ... ok
+test tests::a_sentence_over_the_budget_is_a_chunk_of_its_own ... ok
+test tests::a_huge_penalty_never_lets_a_chunk_past_the_maximum ... ok
+test tests::a_subword_a_chunk_edge_cuts_counts_on_both_sides ... ok
+test tests::an_empty_run_has_no_chunks ... ok
+test tests::boundaries_are_chosen_together_not_one_at_a_time ... ok
+test tests::huge_penalties_still_tell_cuts_apart ... ok
+test tests::lengths_past_u32_are_refused_not_wrapped ... ok
+test tests::negative_costs_alone_cut_wherever_the_size_allows ... ok
+test tests::of_equal_cuts_the_earliest_wins ... ok
+test tests::sections_out_of_text_order_stay_apart ... ok
+test tests::the_overhead_counts_against_the_budget ... ok
+test tests::the_size_penalty_is_an_integer_rounded_down ... ok
+test weigh::tests::costs_are_weighed_summed_and_rounded_down ... ok
+test weigh::tests::layers_of_different_lengths_are_refused ... ok
+test tests::the_same_inputs_give_the_same_cuts_and_costs ... ok
+test weigh::tests::sums_saturate_instead_of_wrapping ... ok
+test sentiment::tests::sentiment_and_aspect_shift_places_boundary_and_populates_chunk_facets ... ok
+test cohesion::tests::the_running_sums_give_the_direct_spread ... ok
+test compare::tests::the_margin_is_what_the_optimizer_minimizes ... ok
+test cohesion::tests::the_optimizer_with_cohesion_agrees_with_trying_every_cut ... ok
+test tests::the_optimizer_agrees_with_trying_every_cut ... ok
+
+test result: ok. 83 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/chunker.rs (target/debug/deps/chunker-b61f0201f903eb85)
+
+running 3 tests
+test the_chunker_cuts_where_the_topic_shifts ... ok
+test sections_are_never_crossed_and_become_the_level_above ... ok
+test what_lies_between_sentences_counts_inside_a_chunk ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/content_hashes.rs (target/debug/deps/content_hashes-2f225c104e567d22)
+
+running 3 tests
+test the_builder_hashes_discontinuous_fragments_not_envelopes ... ok
+test ids_follow_level_heading_path_and_text ... ok
+test an_edit_elsewhere_keeps_untouched_ids ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/content_terms.rs (target/debug/deps/content_terms-e77637941fbc157d)
+
+running 4 tests
+test invalid_boilerplate_scores_are_rejected_by_the_content_counter ... ok
+test boilerplate_in_another_view_is_refused ... ok
+test terms_shorter_than_the_tokens_or_past_the_vocabulary_are_refused ... ok
+test boilerplate_tokens_count_in_no_unit ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/drift.rs (target/debug/deps/drift-35cf93e90ce41816)
+
+running 4 tests
+test the_providers_refuse_what_they_do_not_know ... ok
+test the_cohesive_chunker_cuts_where_the_vectors_part ... ok
+test cohesion_is_summed_within_each_section ... ok
+test drift_weighed_with_structure_moves_the_cut_to_the_topic_shift ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/graph_export.rs (target/debug/deps/graph_export-2c33d42e051db0a5)
+
+running 2 tests
+test chunker_layers_round_trip ... ok
+test corrupted_chunker_payloads_are_refused ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/levels.rs (target/debug/deps/levels-9aeca5501a92e1b0)
+
+running 10 tests
+test a_chunk_inside_a_nested_section_belongs_to_it ... ok
+test a_chunk_across_a_nested_section_belongs_to_the_section_around_both ... ok
+test a_sentence_past_a_sections_end_widens_it ... ok
+test malformed_chunks_fail_the_document ... ok
+test without_structure_chunks_hang_on_the_document ... ok
+test a_nested_sections_span_does_not_depend_on_the_chunking ... ok
+test empty_units_keep_their_place ... ok
+test every_level_gets_term_counts ... ok
+test markdown_gives_every_level_with_exact_offsets ... ok
+test the_same_layers_give_the_same_levels ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/limits.rs (target/debug/deps/limits-bd7dc2c240e74678)
+
+running 18 tests
+test a_code_block_over_the_budget_is_cut_and_says_why ... ok
+test a_chunk_over_the_budget_at_a_section_start_keeps_the_section ... ok
+test a_section_edge_is_a_cut_even_inside_a_unit ... ok
+test a_code_block_that_fits_is_never_cut ... ok
+test a_quote_that_fits_is_never_cut ... ok
+test a_row_in_a_table_is_held_and_the_table_is_not ... ok
+test a_quote_over_the_budget_is_cut_and_says_why ... ok
+test chunks_nest_inside_their_parents_at_a_level_above ... ok
+test a_sentence_is_never_cut_and_one_over_the_budget_stands_alone ... ok
+test a_table_row_over_the_budget_is_cut_and_says_why ... ok
+test a_table_row_that_fits_is_never_cut ... ok
+test without_structure_every_boundary_is_a_sentence ... ok
+test every_chunk_is_the_exact_source_bytes_of_its_sentences ... ok
+test a_section_start_inside_a_sentence_is_one_gap_for_costs_and_runs ... ok
+test units_that_share_sentences_and_chain_over_the_budget_are_cut ... ok
+test a_unit_inside_one_over_the_budget_is_still_held ... ok
+test the_structure_sets_the_boundary_costs ... ok
+test chunks_of_a_normalized_view_map_back_to_the_source ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/rechunk.rs (target/debug/deps/rechunk-ffb6abd4c09bd62c)
+
+running 7 tests
+test without_structure_any_change_rechunks_the_single_run ... ok
+test rows_cut_by_another_budget_are_not_carried ... ok
+test a_changed_boundary_cost_rechunks_its_run ... ok
+test an_identity_alignment_reuses_everything ... ok
+test a_sentence_count_change_still_carries_the_sections_after_it ... ok
+test tampered_previous_rows_are_not_carried ... ok
+test an_edit_in_one_section_carries_the_other_sections ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/route.rs (target/debug/deps/route-6161b1dd3e423036)
+
+running 7 tests
+test broad_common_queries_route_to_the_document ... ok
+test dense_scores_fuse_and_ranking_is_deterministic ... ok
+test extreme_router_values_neither_overflow_nor_change_ranking ... ok
+test factoid_queries_route_to_chunks_with_parent_context ... ok
+test invalid_inputs_are_refused ... ok
+test sibling_coactivation_promotes_the_section ... ok
+test profile_and_route_refuse_mismatched_inputs_and_bad_bm25 ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sentiment.rs (target/debug/deps/sentiment-4b7df29aef59e302)
+
+running 3 tests
+test chunk_facets_check_rejects_invalid_invariants ... ok
+test sentiment_boundaries_provider_and_weigh_provider_validate_options ... ok
+test registry_pipeline_improves_boundary_similarity_and_single_chunk_span_containment ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/terms.rs (target/debug/deps/terms-487be5491c537e43)
+
+running 22 tests
+test a_mean_length_of_zero_counts_the_length_as_the_mean ... ok
+test idf_is_lucenes ... ok
+test selected_columns_are_exact_and_missing_columns_fail ... ok
+test a_token_edge_inside_an_edit_of_the_terms_view_is_refused ... ok
+test an_edit_that_is_a_whole_token_or_an_insertion_is_fine ... ok
+test a_document_with_no_terms_has_empty_rows_and_scores_nothing ... ok
+test a_token_a_unit_end_cuts_counts_once_in_the_unit_it_starts_in ... ok
+test units_with_no_terms_are_not_in_the_local_collection ... ok
+test full_case_folding_maps_through_the_view ... ok
+test normalized_terms_feed_counts_and_bm25 ... ok
+test tokens_of_an_unrelated_view_are_refused ... ok
+test the_counter_refuses_tokens_out_of_order_and_many_units_with_no_spans ... ok
+test terms_of_the_source_view_keep_their_case ... ok
+test linguistic_terms_and_raw_index_can_coexist ... ok
+test scores_match_a_plain_reference_bm25 ... ok
+test local_df_counts_only_the_units_kept ... ok
+test a_query_term_given_twice_counts_twice ... ok
+test ranking_is_best_first_and_ties_go_to_the_earlier_unit ... ok
+test scores_match_lucenes_formula_worked_by_hand ... ok
+test every_level_gets_its_counts_lengths_and_df ... ok
+test terms_come_from_the_folded_view_and_punctuation_is_no_term ... ok
+test the_idf_comes_from_the_collection_the_caller_gives ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_analysis_embed
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_analysis_layers
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_bundle
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests turbo_chunker
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+tests exit: 0

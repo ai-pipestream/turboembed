@@ -312,7 +312,9 @@ pub fn softmax(logits: &[f32], out: &mut [f64]) -> Result<()> {
     Ok(())
 }
 
-fn read_f32(files: &[AlignedBytes], p: &Placed) -> Vec<f32> {
+/// The bytes of `files[p.file]` where `p` lies, as F32, widening F16 and
+/// BF16; shared with mlm.rs, whose head loads tensors the same way.
+pub(crate) fn read_f32(files: &[AlignedBytes], p: &Placed) -> Vec<f32> {
     let bytes = &files[p.file][p.range.clone()];
     if p.dtype == TURBO_DTYPE_F32 {
         return bytes.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();

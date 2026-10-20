@@ -86,6 +86,8 @@ fn bert_shape(role: TensorRole, a: &Architecture) -> Vec<u64> {
         PoolerWeight | PoolerBias | ClassifierWeight | ClassifierBias => {
             unreachable!("classifier roles are shaped by classifier_tensors")
         }
+        MlmTransformWeight | MlmTransformBias | MlmTransformLnWeight | MlmTransformLnBias | MlmDecoderWeight
+        | MlmDecoderBias => unreachable!("MLM roles are shaped by mlm_tensors"),
     }
 }
 
@@ -164,6 +166,42 @@ pub fn classifier_tensors(index: usize, art: &Artifact, a: &Architecture, c: &Cl
             ))
         })?;
         out.push(Expected { name: name.clone(), shape, what: role_name(role) });
+    }
+    Ok(out)
+}
+
+/// The masked language model head tensors an artifact names, with the
+/// shapes the architecture implies (mlm.rs): the transform, its
+/// LayerNorm, and the decoder, whose weight is optional, tied to the
+/// word embeddings when absent, as BERT ties it.
+pub fn mlm_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Vec<Expected>> {
+    let (h, v) = (a.hidden as u64, a.vocab_size as u64);
+    let mut out = Vec::with_capacity(6);
+    for (role, shape) in [
+        (TensorRole::MlmTransformWeight, vec![h, h]),
+        (TensorRole::MlmTransformBias, vec![h]),
+        (TensorRole::MlmTransformLnWeight, vec![h]),
+        (TensorRole::MlmTransformLnBias, vec![h]),
+    ] {
+        let name = art.tensor_names.get(&role).ok_or_else(|| {
+            invalid(format!(
+                "manifest.json: artifacts[{index}].tensor_names: no {}, which embed.sparse needs",
+                role_name(role)
+            ))
+        })?;
+        out.push(Expected { name: name.clone(), shape, what: role_name(role) });
+    }
+    let bias = art.tensor_names.get(&TensorRole::MlmDecoderBias).ok_or_else(|| {
+        invalid(format!(
+            "manifest.json: artifacts[{index}].tensor_names: no {}, which embed.sparse needs",
+            role_name(TensorRole::MlmDecoderBias)
+        ))
+    })?;
+    // The decoder bias comes before the optional weight, so a tied head's
+    // word embeddings always read at the same place (mlm.rs).
+    out.push(Expected { name: bias.clone(), shape: vec![v], what: role_name(TensorRole::MlmDecoderBias) });
+    if let Some(w) = art.tensor_names.get(&TensorRole::MlmDecoderWeight) {
+        out.push(Expected { name: w.clone(), shape: vec![v, h], what: role_name(TensorRole::MlmDecoderWeight) });
     }
     Ok(out)
 }

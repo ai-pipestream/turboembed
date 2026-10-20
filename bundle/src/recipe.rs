@@ -27,6 +27,13 @@ pub struct Recipe {
     /// (distill.rs).
     #[serde(default)]
     pub distill: Option<crate::distill::Spec>,
+    /// The pooling a model with an MLM head serves as a learned sparse
+    /// output, read off its card and pinned here: the tool checks it and
+    /// copies it into `manifest.embed.sparse` (sparse.rs), and the
+    /// manifest's `artifacts[].tensor_names` names the head's tensors.
+    /// Absent when the model declares none.
+    #[serde(default)]
+    pub sparse: Option<crate::sparse::SparseDecl>,
     /// The directory the recipe was read from, which `local` paths are
     /// relative to.
     #[serde(skip)]
@@ -100,6 +107,9 @@ impl Recipe {
                 return Err(format!("upstream {}: sha256 {h:?} is not 64 lowercase hex", u.path));
             }
         }
+        // The declared learned sparse output, checked and filled into the
+        // manifest, before anything is fetched.
+        crate::sparse::declare(&mut r)?;
         Ok(r)
     }
 

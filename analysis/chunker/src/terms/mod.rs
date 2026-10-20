@@ -15,9 +15,11 @@ pub mod content;
 pub mod count;
 pub mod index;
 pub mod layer;
+pub mod sparse;
 
 pub use bm25::{Bm25, Collection, LocalCollection, Query};
 pub use content::ContentTermCounter;
 pub use count::TermCounter;
 pub use index::{NormalizedTermIndexer, TermForm, TermIndexer};
 pub use layer::{IndexedTerms, TermStats, Terms, Vocabulary};
+pub use sparse::SparseLevelTerms;

@@ -67,6 +67,27 @@ pub struct Embed {
     pub prefix_document: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub output_dims: Vec<u32>,
+    /// A learned sparse output beside the dense vectors: the masked
+    /// language model head named in `artifacts[].tensor_names` is pooled
+    /// over the text's tokens into weighted vocabulary terms (mlm.rs,
+    /// sparse.rs; SPLADE, arXiv 2403.06789).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sparse: Option<Sparse>,
+}
+
+/// The sparse output kind an embed bundle serves: which pooling turns the
+/// MLM head's per-token logits into term weights.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Sparse {
+    pub pooling: SparsePooling,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SparsePooling {
+    /// `max_t log(1 + relu(logit_t))`, as SPLADE pools (arXiv 2403.06789).
+    #[serde(rename = "SPARSE_POOLING_MAXLOG")]
+    MaxLog,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

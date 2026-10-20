@@ -20,6 +20,7 @@ pub mod centroids;
 pub mod encoder;
 pub mod heads;
 pub mod levels;
+pub mod sparse;
 pub mod subwords;
 pub mod vectors;
 pub mod window;
@@ -32,6 +33,7 @@ pub use heads::{
     OpinionSpanHead, PragmaticsHeadAnnotator, ScoringHead, SentenceSpanHead, VectorHeadAnnotator,
 };
 pub use levels::LevelVectors;
+pub use sparse::{SparseAnnotator, SparseOptions, SparseProvider};
 pub use subwords::{SubwordAnnotator, SubwordsProvider, align};
 pub use vectors::{
     ChunkVectors, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorAnnotator, VectorOptions,
