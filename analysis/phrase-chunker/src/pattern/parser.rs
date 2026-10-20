@@ -35,7 +35,10 @@ impl Expr {
             }
             Expr::Repeat { inner, min, max } => {
                 let sub = inner.estimated_states()?;
-                let copies = max.unwrap_or_else(|| (*min).max(1));
+                let copies = match max {
+                    Some(hi) => *hi,
+                    None => min.checked_add(1)?,
+                };
                 let extra_splits = max.map_or(1usize, |hi| hi.saturating_sub(*min));
                 copies.checked_mul(sub)?.checked_add(extra_splits)
             }

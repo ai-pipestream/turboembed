@@ -318,6 +318,14 @@ fn invalid_patterns_and_malformed_inputs_are_rejected() {
         TagPatternRule::compile("NP", "((<NN>{256}){256}){256}").unwrap_err(),
         PatternError::InvalidQuantifier { .. }
     ));
+    assert!(matches!(
+        TagPatternRule::compile("NP", "((((((((((<NN>+)+)+)+)+)+)+)+)+)+)+").unwrap_err(),
+        PatternError::InvalidQuantifier { .. }
+    ));
+    assert!(matches!(
+        TagPatternRule::compile("NP", "(((((((<NN>{2,}){2,}){2,}){2,}){2,}){2,}){2,})").unwrap_err(),
+        PatternError::InvalidQuantifier { .. }
+    ));
 
     // Provenance config_hash distinguishes different rule sets, including programmatic TagCond/WordCond variants
     let c1 = PatternChunker::from_patterns([("NP", "<DT>?<NN>+")]).unwrap();

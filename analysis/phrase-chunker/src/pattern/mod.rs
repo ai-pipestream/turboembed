@@ -199,7 +199,7 @@ impl TagPatternRule {
             return Err(PatternError::EmptyPattern);
         }
         let expr = parse_pattern(&pattern)?;
-        Ok(Self::from_expr(kind, pattern, &expr))
+        Self::from_expr(kind, pattern, &expr)
     }
 
     /// Builds a rule from an explicit sequence of `(TokenMatcher, min, max)` steps without parsing.
@@ -244,15 +244,15 @@ impl TagPatternRule {
             });
         }
         let desc = format!("programmatic:{kind}:{}", expr_fingerprint(&expr));
-        Ok(Self::from_expr(kind, desc, &expr))
+        Self::from_expr(kind, desc, &expr)
     }
 
-    fn from_expr(kind: String, pattern: String, expr: &Expr) -> Self {
+    fn from_expr(kind: String, pattern: String, expr: &Expr) -> Result<Self, PatternError> {
         let mut ops = vec![StepOp::Accept];
         let accept_state = 0;
-        let start_state = compile_expr(expr, accept_state, &mut ops);
+        let start_state = compile_expr(expr, accept_state, &mut ops)?;
         let fp = compute_rule_fingerprint(&kind, &pattern, expr);
-        Self { kind, pattern, ops, start_state, accept_state, fingerprint: fp }
+        Ok(Self { kind, pattern, ops, start_state, accept_state, fingerprint: fp })
     }
 
     /// Phrase chunk kind label produced by this rule (for example `"NP"`, `"VP"`, `"PP"`).
@@ -334,59 +334,62 @@ impl TagPatternRule {
     }
 }
 
-fn compile_expr(expr: &Expr, target: usize, ops: &mut Vec<StepOp>) -> usize {
+fn push_op(ops: &mut Vec<StepOp>, op: StepOp) -> Result<usize, PatternError> {
+    if ops.len() >= MAX_AUTOMATON_STATES {
+        return Err(PatternError::InvalidQuantifier {
+            pos: 0,
+            detail: format!("compiled automaton exceeds maximum state budget of {MAX_AUTOMATON_STATES}"),
+        });
+    }
+    let id = ops.len();
+    ops.push(op);
+    Ok(id)
+}
+
+fn compile_expr(expr: &Expr, target: usize, ops: &mut Vec<StepOp>) -> Result<usize, PatternError> {
     match expr {
-        Expr::Atom(matcher) => {
-            let id = ops.len();
-            ops.push(StepOp::Match { matcher: matcher.clone(), out: target });
-            id
-        }
+        Expr::Atom(matcher) => push_op(ops, StepOp::Match { matcher: matcher.clone(), out: target }),
         Expr::Seq(items) => {
             let mut next = target;
             for item in items.iter().rev() {
-                next = compile_expr(item, next, ops);
+                next = compile_expr(item, next, ops)?;
             }
-            next
+            Ok(next)
         }
         Expr::Alt(branches) => {
             let mut iter = branches.iter().rev();
             let Some(last) = iter.next() else {
-                return target;
+                return Ok(target);
             };
-            let mut acc = compile_expr(last, target, ops);
+            let mut acc = compile_expr(last, target, ops)?;
             for b in iter {
-                let b_start = compile_expr(b, target, ops);
-                let split_id = ops.len();
-                ops.push(StepOp::Split { out1: b_start, out2: acc });
-                acc = split_id;
+                let b_start = compile_expr(b, target, ops)?;
+                acc = push_op(ops, StepOp::Split { out1: b_start, out2: acc })?;
             }
-            acc
+            Ok(acc)
         }
         Expr::Repeat { inner, min, max } => {
             let tail = match max {
                 None => {
-                    let loop_id = ops.len();
-                    ops.push(StepOp::Jump { out: target });
-                    let body_start = compile_expr(inner, loop_id, ops);
+                    let loop_id = push_op(ops, StepOp::Jump { out: target })?;
+                    let body_start = compile_expr(inner, loop_id, ops)?;
                     ops[loop_id] = StepOp::Split { out1: body_start, out2: target };
                     loop_id
                 }
                 Some(hi) => {
                     let mut next = target;
                     for _ in *min..*hi {
-                        let copy_start = compile_expr(inner, next, ops);
-                        let split_id = ops.len();
-                        ops.push(StepOp::Split { out1: copy_start, out2: target });
-                        next = split_id;
+                        let copy_start = compile_expr(inner, next, ops)?;
+                        next = push_op(ops, StepOp::Split { out1: copy_start, out2: target })?;
                     }
                     next
                 }
             };
             let mut entry = tail;
             for _ in 0..*min {
-                entry = compile_expr(inner, entry, ops);
+                entry = compile_expr(inner, entry, ops)?;
             }
-            entry
+            Ok(entry)
         }
     }
 }
