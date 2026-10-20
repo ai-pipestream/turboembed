@@ -279,7 +279,7 @@ fn weighted_terms_are_each_terms_share_of_the_score() {
     let docs = corpus(17, 6);
     let stats = statistics(&docs);
     for d in &docs {
-        let w = WeightedTerms::bm25(&d.stats, &d.vocabulary, &stats, Bm25::LUCENE);
+        let w = WeightedTerms::bm25(&d.stats, &d.vocabulary, &stats, Bm25::LUCENE).unwrap();
         assert_eq!(turbo_analysis::Layer::check(&w), Ok(()));
         for i in d.stats.units() {
             let (terms, _) = d.stats.unit(i);
@@ -330,5 +330,56 @@ fn a_nan_model_ranks_as_the_full_scan_does() {
         let want: Vec<(u32, u64)> =
             full_scan(&docs, model, index.statistics(), &query, 5).iter().map(|&(r, s)| (r, s.to_bits())).collect();
         assert_eq!(got, want, "{query:?}");
+    }
+}
+
+/// Counts no `TermIndexer` writes, each refused by
+/// `TermStats::validate_with`: a df longer than the vocabulary, a df past
+/// the units, a term past the vocabulary, a vocabulary out of order, and
+/// an empty term that a unit counts.
+fn broken() -> Vec<(&'static str, Doc)> {
+    let base = || doc(&[vec!["alpha", "beta"], vec!["beta"]]);
+    let mut long = base();
+    long.stats.df.push(0);
+    let mut over = base();
+    over.stats.df[1] = 5;
+    let mut past = base();
+    past.stats.term[1] = Ix::new(7);
+    let mut order = base();
+    let mut text = Strs::default();
+    text.push("beta");
+    text.push("alpha");
+    order.vocabulary = Vocabulary { text };
+    // An empty term, counted: it sorts first, so the vocabulary is in
+    // order, but statistics holding it would not decode.
+    let empty = doc(&[vec!["", "alpha"]]);
+    vec![
+        ("df past the vocabulary", long),
+        ("df past the units", over),
+        ("term past the vocabulary", past),
+        ("vocabulary out of order", order),
+        ("an empty term", empty),
+    ]
+}
+
+#[test]
+fn invalid_term_stats_are_refused_before_anything_changes() {
+    let good = doc(&[vec!["gamma"]]);
+    let stats = statistics(&corpus(3, 4));
+    for (what, d) in broken() {
+        let mut b = CollectionStatisticsBuilder::new();
+        b.add(&good.stats, &good.vocabulary).unwrap();
+        let before = b.clone().build();
+        assert!(b.add(&d.stats, &d.vocabulary).is_err(), "{what}: collection statistics");
+        assert_eq!(b.build(), before, "{what}: the statistics changed");
+
+        let mut p = Bm25PostingIndexBuilder::new();
+        p.add(&good.stats, &good.vocabulary).unwrap();
+        assert!(p.add(&d.stats, &d.vocabulary).is_err(), "{what}: posting index");
+        // Nothing was added: the next rows start where they did.
+        assert_eq!(p.add(&good.stats, &good.vocabulary), Ok(1), "{what}: the rows moved");
+        assert_eq!(p.build().statistics().units(), 2, "{what}: the posting statistics changed");
+
+        assert!(WeightedTerms::bm25(&d.stats, &d.vocabulary, &stats, Bm25::LUCENE).is_err(), "{what}: weights");
     }
 }

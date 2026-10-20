@@ -27,9 +27,11 @@ impl CollectionStatisticsBuilder {
     /// Adds every unit of `stats`, each one unit of the collection: the
     /// whole document for a `TermStats<View>`, each chunk for a
     /// `TermStats<Chunks>`. `vocabulary` is the document's. `Err`, with the
-    /// builder unchanged, when the units or the total length would pass
-    /// `u64`.
+    /// builder unchanged, when the two do not pass
+    /// `TermStats::validate_with` or the units or the total length would
+    /// pass `u64`.
     pub fn add<L>(&mut self, stats: &TermStats<L>, vocabulary: &Vocabulary) -> Result<(), String> {
+        stats.validate_with(vocabulary)?;
         let units = stats.length.iter().filter(|&&l| l > 0).count() as u64;
         let length = stats.length.iter().map(|&l| u64::from(l)).sum::<u64>();
         self.grow(units, length)?;

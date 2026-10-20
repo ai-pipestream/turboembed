@@ -19,6 +19,8 @@ pub enum BuildError {
     NoMatchers,
     /// An entry number past the end of the glossary.
     NoEntry { entry: EntryIx },
+    /// More cells, entries or payload bytes than an automaton image numbers.
+    TooLarge { what: &'static str },
 }
 
 impl fmt::Display for BuildError {
@@ -32,6 +34,7 @@ impl fmt::Display for BuildError {
             }
             BuildError::NoMatchers => f.write_str("a composite matcher needs at least one matcher"),
             BuildError::NoEntry { entry } => write!(f, "the glossary has no entry {}", entry.0),
+            BuildError::TooLarge { what } => write!(f, "too many {what} for an automaton image"),
         }
     }
 }
