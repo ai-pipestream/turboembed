@@ -197,7 +197,7 @@ impl AbbreviationInventory {
         let full = &text[tok.start..tok.end];
         // Most words are no entry and no part of one, which the filter
         // tells without a search.
-        let known = self.index.may_match(full);
+        let known = self.index().may_match(full);
         if period + 1 != tok.end {
             // A stop inside a one-token entry ends nothing.
             return if known && self.lookup(full).is_some() { Verdict::Suppress } else { Verdict::Neutral };
@@ -221,7 +221,7 @@ impl AbbreviationInventory {
     /// letter in the other case.
     pub(super) fn lookup(&self, token: &str) -> Option<ContextRule> {
         let mut buf = [0; MAX_TOKEN];
-        self.index.single(token).or_else(|| fold_first(token, &mut buf).and_then(|t| self.index.single(t)))
+        self.index().single(token).or_else(|| fold_first(token, &mut buf).and_then(|t| self.index().single(t)))
     }
 
     pub(super) fn excluded(&self, text: &str) -> bool {
@@ -237,7 +237,7 @@ impl AbbreviationInventory {
         let same = |entry: &str, word: &str, first: bool, folded: Option<&str>| {
             entry == word || (first && folded == Some(entry))
         };
-        for Entry { text: entry, rule, k, n } in self.index.entries(full, folded) {
+        for Entry { text: entry, rule, k, n } in self.index().entries(full, folded) {
             probe(1, 0);
             // The parts before the token, nearest first, against the
             // tokens before it.
@@ -266,7 +266,7 @@ impl AbbreviationInventory {
     /// Whether `word` is never an abbreviation.
     fn is_word(&self, word: &str) -> bool {
         let Some(bundle) = self.bundle.filter(|_| !self.classes.is_empty()) else { return false };
-        if word.len() > 8 || word.contains('.') || !self.index.may_be_word(word) {
+        if word.len() > 8 || word.contains('.') || !self.index().may_be_word(word) {
             return false;
         }
         let mut buf = [0; 8];

@@ -37,13 +37,13 @@ pub(super) struct Index {
     /// entry and position.
     parts: Vec<Part>,
     /// The bits of [`entry_key`] of every token that may match an entry
-    /// or a part. A bit may stay set after an exclusion; it only costs a
-    /// search.
-    entries_filter: [u64; ENTRY_WORDS],
-    /// The bits of [`word_key`] of every never-abbreviation word.
-    words_filter: [u64; WORD_WORDS],
+    /// or a part, then those of [`word_key`] of every never-abbreviation
+    /// word; empty when nothing is set. A bit may stay set after an
+    /// exclusion; it only costs a search.
+    filters: Vec<u64>,
 }
 
+/// The words of the entry filter, then of the word filter.
 const ENTRY_WORDS: usize = 64;
 const WORD_WORDS: usize = 16;
 
@@ -69,12 +69,16 @@ fn word_key(word: &str) -> usize {
     (hash(word.bytes().map(|b| b.to_ascii_lowercase())) >> (64 - 10)) as usize
 }
 
-fn set(filter: &mut [u64], key: usize) {
-    filter[key / 64] |= 1 << (key % 64);
+/// Sets bit `key` of the filter at word `base`.
+fn set(filters: &mut Vec<u64>, base: usize, key: usize) {
+    if filters.is_empty() {
+        filters.resize(ENTRY_WORDS + WORD_WORDS, 0);
+    }
+    filters[base + key / 64] |= 1 << (key % 64);
 }
 
-fn get(filter: &[u64], key: usize) -> bool {
-    filter[key / 64] & (1 << (key % 64)) != 0
+fn get(filters: &[u64], base: usize, key: usize) -> bool {
+    filters.get(base + key / 64).is_some_and(|w| w & (1 << (key % 64)) != 0)
 }
 
 /// A multi-token entry a token may be part `k` of, of `n` parts.
@@ -90,13 +94,8 @@ fn part_text<'e>(entries: &'e [(Cow<'static, str>, ContextRule, u8)], p: &Part) 
 }
 
 impl Index {
-    pub(super) const EMPTY: Index = Index {
-        singles: Vec::new(),
-        entries: Vec::new(),
-        parts: Vec::new(),
-        entries_filter: [0; ENTRY_WORDS],
-        words_filter: [0; WORD_WORDS],
-    };
+    pub(super) const EMPTY: Index =
+        Index { singles: Vec::new(), entries: Vec::new(), parts: Vec::new(), filters: Vec::new() };
 
     /// The index of everything `inv` holds and does not exclude.
     pub(super) fn build(inv: &AbbreviationInventory) -> Index {
@@ -111,11 +110,11 @@ impl Index {
         singles.sort_by(|a, b| a.0.cmp(&b.0));
         singles.dedup_by(|b, a| a.0 == b.0);
         for (text, _) in &singles {
-            set(&mut index.entries_filter, entry_key(text));
+            set(&mut index.filters, 0, entry_key(text));
         }
         if !inv.classes.is_empty() {
             for w in inv.bundle.map_or(&[][..], |b| b.penultimates) {
-                set(&mut index.words_filter, word_key(w));
+                set(&mut index.filters, ENTRY_WORDS, word_key(w));
             }
         }
         index.singles = singles;
@@ -140,7 +139,7 @@ impl Index {
             for (k, part) in text.split(' ').enumerate() {
                 let end = start + part.len();
                 self.parts.push(Part { entry, k: k as u8, start: start as u16, end: end as u16 });
-                set(&mut self.entries_filter, entry_key(part));
+                set(&mut self.filters, 0, entry_key(part));
                 start = end + 1;
                 n += 1;
             }
@@ -158,7 +157,7 @@ impl Index {
             Ok(i) => self.singles[i].1 = rule,
             Err(i) => self.singles.insert(i, (Cow::Owned(text.into()), rule)),
         }
-        set(&mut self.entries_filter, entry_key(text));
+        set(&mut self.filters, 0, entry_key(text));
     }
 
     /// Removes a one-token entry.
@@ -171,13 +170,13 @@ impl Index {
     /// Whether `token`, as written or with its first letter in the other
     /// case, may be an entry or a part of one; false means it is neither.
     pub(super) fn may_match(&self, token: &str) -> bool {
-        token.len() <= MAX_TOKEN && get(&self.entries_filter, entry_key(token))
+        token.len() <= MAX_TOKEN && get(&self.filters, 0, entry_key(token))
     }
 
     /// Whether `word` may be a never-abbreviation word in some ASCII
     /// case; false means it is not.
     pub(super) fn may_be_word(&self, word: &str) -> bool {
-        get(&self.words_filter, word_key(word))
+        get(&self.filters, ENTRY_WORDS, word_key(word))
     }
 
     /// The rule of the one-token entry `token`.

@@ -36,6 +36,7 @@ mod tests;
 
 use std::fmt;
 use std::ops::BitOr;
+use std::sync::Arc;
 
 use index::Index;
 
@@ -199,8 +200,9 @@ pub struct AbbreviationInventory {
     additions: Vec<(Box<str>, ContextRule)>,
     /// Sorted, unique.
     exclusions: Vec<Box<str>>,
-    /// The active entries, derived from the rest.
-    index: Index,
+    /// The active entries, derived from the rest and shared by clones;
+    /// none for an inventory never built or changed.
+    index: Option<Arc<Index>>,
 }
 
 /// Equal when the language, classes, additions and exclusions are: the
@@ -242,7 +244,7 @@ impl AbbreviationInventory {
         classes: AbbreviationClasses::NONE,
         additions: Vec::new(),
         exclusions: Vec::new(),
-        index: Index::EMPTY,
+        index: None,
     };
 
     /// The bundled English inventory with all four classes.
@@ -258,7 +260,7 @@ impl AbbreviationInventory {
             classes: classes.into(),
             ..AbbreviationInventory::EMPTY
         };
-        inventory.index = Index::build(&inventory);
+        inventory.index = Some(Arc::new(Index::build(&inventory)));
         inventory
     }
 
@@ -281,11 +283,9 @@ impl AbbreviationInventory {
             Err(i) => self.additions.insert(i, (text.into(), rule)),
         }
         if text.contains(' ') {
-            let mut index = std::mem::replace(&mut self.index, Index::EMPTY);
-            index.build_multis(&self);
-            self.index = index;
+            self.rebuild_multis();
         } else if !self.excluded(text) {
-            self.index.add_single(text, rule);
+            self.index_mut().add_single(text, rule);
         }
         Ok(self)
     }
@@ -297,11 +297,9 @@ impl AbbreviationInventory {
         if let Err(i) = self.exclusions.binary_search_by(|t| (**t).cmp(text)) {
             self.exclusions.insert(i, text.into());
             if text.contains(' ') {
-                let mut index = std::mem::replace(&mut self.index, Index::EMPTY);
-                index.build_multis(&self);
-                self.index = index;
+                self.rebuild_multis();
             } else {
-                self.index.remove_single(text);
+                self.index_mut().remove_single(text);
             }
         }
         self
@@ -312,12 +310,28 @@ impl AbbreviationInventory {
     /// inventory tries them. A token that is part of none is found so by
     /// one binary search, whatever the size of the inventory.
     pub fn multi_token_entries<'s>(&'s self, token: &str) -> impl Iterator<Item = (&'s str, usize)> + 's {
-        self.index.entries(token, None).map(|e| (e.text, e.k))
+        self.index().entries(token, None).map(|e| (e.text, e.k))
     }
 
     /// The number of active multi-token entries.
     pub fn multi_token_len(&self) -> usize {
-        self.index.multi_len()
+        self.index().multi_len()
+    }
+
+    /// The index, empty when there is none.
+    fn index(&self) -> &Index {
+        static EMPTY: Index = Index::EMPTY;
+        self.index.as_deref().unwrap_or(&EMPTY)
+    }
+
+    fn index_mut(&mut self) -> &mut Index {
+        Arc::make_mut(self.index.get_or_insert_with(|| Arc::new(Index::EMPTY)))
+    }
+
+    fn rebuild_multis(&mut self) {
+        let mut index = self.index.take().map(Arc::unwrap_or_clone).unwrap_or(Index::EMPTY);
+        index.build_multis(self);
+        self.index = Some(Arc::new(index));
     }
 
     pub fn classes(&self) -> AbbreviationClasses {
