@@ -55,7 +55,7 @@ impl CrfConstraints {
                 ("", "other")
             } else {
                 let (kind, suffix) = label.rsplit_once('-').ok_or_else(|| invalid(label))?;
-                if kind.is_empty()
+                if crate::codec::name_type(label) != Some(kind)
                     || !matches!(suffix, "start" | "cont" | "last" | "unit")
                     || (codec == NameCodec::Bio && matches!(suffix, "last" | "unit"))
                 {

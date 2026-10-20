@@ -49,10 +49,15 @@ passing exhaustive and numeric tests. Unreachable spans remain zero.
 Final checks after merging main:
 - `cargo fmt --all --check`: pass.
 - `cargo clippy --locked -p turbo-sequence -p turbo-train -p turbo-train-components -p turbo-namefind -p turbo-train-recipes -p turbo-bench --all-targets -- -D warnings`: pass.
-- `cargo test --locked -p turbo-sequence -p turbo-train -p turbo-train-components -p turbo-namefind`: 380 passed, 0 failed, 2 existing ignored tests.
+- `cargo test --locked -p turbo-sequence -p turbo-train -p turbo-train-components -p turbo-namefind`: 381 passed, 0 failed, 2 existing ignored tests.
 - `cargo test --locked -p turbo-bench --test tree`: 3 passed.
 
 The ignored tests are the pre-existing QN NER fixture (unreproduced sums)
 and the opt-in published UD model reproduction (external treebanks).
 CRF training is slower than the Maxent baseline; the speed comparison above
 measures decoding only. No claim of faster training is made.
+
+A second validation regression rejects labels containing Java line terminators
+before they reach the name codec. Previously such labels could lose their
+entity kind during decoding. `red-labels.log` records the failure before the
+validation fix; `model_labels_must_round_trip_through_name_codec` now passes.

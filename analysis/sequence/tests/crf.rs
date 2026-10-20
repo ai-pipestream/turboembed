@@ -108,3 +108,11 @@ fn large_common_emissions_keep_probabilities_normalized() {
     assert!(l.loss_gradient(&[2]).is_err());
     assert!((l.loss_gradient(&[0]).unwrap().loss - 2f64.ln()).abs() < 1e-12);
 }
+
+#[test]
+fn model_labels_must_round_trip_through_name_codec() {
+    for terminator in ['\n', '\r', '\u{85}', '\u{2028}', '\u{2029}'] {
+        let label = format!("person{terminator}-start");
+        assert!(CrfConstraints::new(&["other".into(), label], NameCodec::Bio).is_err());
+    }
+}
