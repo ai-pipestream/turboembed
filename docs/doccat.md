@@ -309,9 +309,11 @@ the entailment logits across labels (scores sum to 1); multi-label
 mode takes an independent two-way softmax over (entailment,
 contradiction) per label. The neutral logit never enters either mode.
 
-A premise longer than the pair budget less the longest hypothesis is
-windowed by words (measured with the scorer's token counter, with an
-optional word overlap), every window carrying the full hypothesis;
+A premise longer than the pair budget less the longest hypothesis
+and the scorer's pair special tokens (3 for BERT-style templates, 4
+for RoBERTa-style) is windowed by words (measured with the scorer's
+token counter, with an optional word overlap), every window
+carrying the full hypothesis;
 per-window logits combine by max, mean, or premise-length-weighted
 mean before the mode's softmax runs once. `ZeroShotAnnotator` writes
 the document's `Categories` and `ZeroShotSpanAnnotator` writes

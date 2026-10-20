@@ -6,6 +6,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use turbo_analysis::{Analyzer, Document, Key, Layer, ModelRef, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Categories, Sentences};
@@ -21,8 +22,10 @@ struct FakeNli {
     by_hypothesis: BTreeMap<String, Vec<f32>>,
     by_premise: Option<fn(&str, &str) -> Vec<f32>>,
     max_pair_tokens: u32,
+    specials: usize,
     count_zero: bool,
     fail: bool,
+    counted_bytes: AtomicUsize,
     seen: Mutex<Vec<(String, String)>>,
 }
 
@@ -34,8 +37,10 @@ impl FakeNli {
             by_hypothesis: rows.iter().map(|(h, r)| (h.to_string(), r.to_vec())).collect(),
             by_premise: None,
             max_pair_tokens: 64,
+            specials: 0,
             count_zero: false,
             fail: false,
+            counted_bytes: AtomicUsize::new(0),
             seen: Mutex::new(Vec::new()),
         }
     }
@@ -58,7 +63,12 @@ impl NliScorer for FakeNli {
         self.max_pair_tokens
     }
 
+    fn pair_special_tokens(&self) -> usize {
+        self.specials
+    }
+
     fn count_tokens(&self, text: &str) -> usize {
+        self.counted_bytes.fetch_add(text.len(), Ordering::Relaxed);
         if self.count_zero { 0 } else { text.split_whitespace().count() }
     }
 
@@ -315,4 +325,76 @@ fn span_annotator_errors_carry_its_own_id() {
     let mut docs = vec![doc];
     let outcomes = analyzer.run(&mut docs);
     assert_eq!(annotator_id(outcomes[0].as_ref().unwrap_err()), "turbo:zero-shot");
+}
+
+#[test]
+fn pair_specials_are_reserved_for_bert_and_roberta() {
+    // Hypothesis "This example is sports." counts 4 tokens.
+    // BERT specials (3) at an 11-token pair budget leave 4
+    // premise tokens; RoBERTa specials (4) leave 3.
+    let premise = "goal a b c goal goal d e f g";
+    for (specials, expected) in
+        [(3usize, vec!["goal a b c", "goal goal d e", "f g"]), (4, vec!["goal a b", "c goal goal", "d e f", "g"])]
+    {
+        let mut fake = windowed_scorer();
+        fake.max_pair_tokens = 11;
+        fake.specials = specials;
+        let categorizer = ZeroShotCategorizer::new(fake, vec!["sports".into()], ZeroShotConfig::default()).unwrap();
+        assert_eq!(categorizer.premise_windows(premise).unwrap(), expected, "specials={specials}");
+        categorizer.categorize(premise).unwrap();
+        for (window, hypothesis) in categorizer.scorer().seen() {
+            let total = window.split_whitespace().count() + hypothesis.split_whitespace().count() + specials;
+            assert!(total <= 11, "pair of {total} tokens exceeds the 11-token budget");
+            assert_eq!(hypothesis, "This example is sports.", "the hypothesis is never truncated");
+        }
+    }
+    // No room left beside the hypothesis and specials is a
+    // construction refusal, not a truncated pair at run time.
+    let mut fake = windowed_scorer();
+    fake.max_pair_tokens = 7;
+    fake.specials = 3;
+    assert!(matches!(
+        ZeroShotCategorizer::new(fake, vec!["sports".into()], ZeroShotConfig::default()),
+        Err(ZeroShotError::HypothesisTooLong { specials: 3, .. })
+    ));
+}
+
+#[test]
+fn window_packing_scales_with_the_document_not_its_square() {
+    let counted = |words: usize| {
+        let mut fake = windowed_scorer();
+        fake.max_pair_tokens = 100;
+        let categorizer = ZeroShotCategorizer::new(fake, vec!["sports".into()], ZeroShotConfig::default()).unwrap();
+        let text = std::iter::repeat_n("word", words).collect::<Vec<_>>().join(" ");
+        categorizer.scorer().counted_bytes.store(0, Ordering::Relaxed);
+        let windows = categorizer.premise_windows(&text).unwrap();
+        assert!(windows.iter().all(|w| w.split_whitespace().count() <= 96));
+        categorizer.scorer().counted_bytes.load(Ordering::Relaxed)
+    };
+    let (small, large) = (counted(1_000), counted(16_000));
+    assert!(
+        large <= small * 40,
+        "16x the words must stay near-linear in counted bytes: {small} -> {large} ({}x)",
+        large / small.max(1)
+    );
+}
+
+#[test]
+fn config_hash_covers_budget_and_outcome_order() {
+    use turbo_analysis::Annotator;
+    let hash_of = |scorer: FakeNli| {
+        let categorizer = ZeroShotCategorizer::new(scorer, labels(), ZeroShotConfig::default()).unwrap();
+        ZeroShotAnnotator::new(categorizer).config_hash()
+    };
+    let base = hash_of(FakeNli::three(&[]));
+    let mut tighter = FakeNli::three(&[]);
+    tighter.max_pair_tokens = 32;
+    assert_ne!(base, hash_of(tighter), "a different pair budget changes the windows, so it changes the hash");
+    let mut specialer = FakeNli::three(&[]);
+    specialer.specials = 3;
+    assert_ne!(base, hash_of(specialer), "reserved specials change the premise budget");
+    let mut permuted = FakeNli::three(&[]);
+    permuted.outcomes = ["entailment", "neutral", "contradiction"].iter().map(|s| s.to_string()).collect();
+    assert_ne!(base, hash_of(permuted), "a different outcome order reads different logit columns");
+    assert_eq!(base, hash_of(FakeNli::three(&[])), "the same resolved shape hashes the same");
 }

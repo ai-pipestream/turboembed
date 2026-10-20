@@ -29,8 +29,18 @@ pub trait NliScorer {
     /// provenance by the annotators.
     fn model_ref(&self) -> ModelRef;
 
-    /// The model's token budget for one pair.
+    /// The model's token budget for one pair, special tokens
+    /// included: the most tokens one encoded pair may hold.
     fn max_pair_tokens(&self) -> u32;
+
+    /// How many special tokens the model's pair template
+    /// adds around the premise and hypothesis tokens: 3 for
+    /// BERT-style `[CLS] p [SEP] h [SEP]`, 4 for RoBERTa-style
+    /// `<s> p </s></s> h </s>`. Window packing reserves this
+    /// headroom so a full window plus a full hypothesis plus
+    /// the specials never exceeds `max_pair_tokens` and the
+    /// hypothesis is never truncated.
+    fn pair_special_tokens(&self) -> usize;
 
     /// How many of the model's tokens `text` encodes to on
     /// its own (no special tokens). Used only to pack premise
@@ -115,7 +125,7 @@ pub enum ZeroShotError {
     EmptyPremise,
     /// The hypothesis for this label already fills the pair
     /// budget; no premise token would fit beside it.
-    HypothesisTooLong { label: String, tokens: usize, max_pair_tokens: u32 },
+    HypothesisTooLong { label: String, tokens: usize, specials: usize, max_pair_tokens: u32 },
     /// One whitespace-delimited word of the premise exceeds
     /// the premise budget on its own.
     WordTooLong { tokens: usize, budget: usize },
@@ -146,9 +156,10 @@ impl fmt::Display for ZeroShotError {
                 )
             }
             ZeroShotError::EmptyPremise => write!(f, "the text to categorize is blank"),
-            ZeroShotError::HypothesisTooLong { label, tokens, max_pair_tokens } => write!(
+            ZeroShotError::HypothesisTooLong { label, tokens, specials, max_pair_tokens } => write!(
                 f,
-                "the hypothesis for {label:?} takes {tokens} of the {max_pair_tokens} pair tokens, leaving no premise token"
+                "the hypothesis for {label:?} takes {tokens} tokens plus {specials} pair specials of the \
+                 {max_pair_tokens} pair tokens, leaving no premise token"
             ),
             ZeroShotError::WordTooLong { tokens, budget } => {
                 write!(f, "one premise word takes {tokens} tokens, over the {budget}-token premise budget")
@@ -214,13 +225,15 @@ impl<S: NliScorer> ZeroShotCategorizer<S> {
         }
         let hypotheses: Vec<String> = labels.iter().map(|l| config.template.replacen("{}", l, 1)).collect();
         let max_pair = scorer.max_pair_tokens();
+        let specials = scorer.pair_special_tokens();
         let mut worst = 0usize;
         for (label, hypothesis) in labels.iter().zip(&hypotheses) {
             let tokens = scorer.count_tokens(hypothesis);
-            if tokens >= max_pair as usize {
+            if tokens + specials >= max_pair as usize {
                 return Err(ZeroShotError::HypothesisTooLong {
                     label: label.clone(),
                     tokens,
+                    specials,
                     max_pair_tokens: max_pair,
                 });
             }
@@ -231,7 +244,12 @@ impl<S: NliScorer> ZeroShotCategorizer<S> {
             scorer,
             labels,
             hypotheses,
-            premise_budget: max_pair as usize - worst,
+            // What remains for premise tokens once the longest
+            // hypothesis and the pair template's special
+            // tokens are reserved: a full window plus a full
+            // hypothesis plus the specials never exceeds
+            // max_pair_tokens.
+            premise_budget: (max_pair as usize).saturating_sub(worst + specials),
             entail,
             contra: contra.unwrap(),
             categories,
@@ -277,11 +295,29 @@ impl<S: NliScorer> ZeroShotCategorizer<S> {
         loop {
             // The largest end whose joined text fits: token
             // counts do not shrink as words are appended.
+            // Gallop outward from one word (1, 2, 4, ... times
+            // the words already known to fit) to bracket that
+            // end near the window itself, then binary-search
+            // inside the bracket, so the text handed to
+            // count_tokens stays proportional to the window,
+            // never to the whole remaining document.
             let fits = |end: usize| self.scorer.count_tokens(&words[start..end].join(" ")) <= budget;
             if !fits(start + 1) {
                 return Err(ZeroShotError::WordTooLong { tokens: self.scorer.count_tokens(words[start]), budget });
             }
-            let (mut lo, mut hi) = (start + 1, words.len());
+            let mut lo = start + 1;
+            let mut hi = words.len();
+            let mut step = 1usize;
+            while lo < hi {
+                let probe = lo.saturating_add(step).min(hi);
+                if fits(probe) {
+                    lo = probe;
+                    step = step.saturating_mul(2);
+                } else {
+                    hi = probe - 1;
+                    break;
+                }
+            }
             while lo < hi {
                 let mid = lo + (hi - lo).div_ceil(2);
                 if fits(mid) {
@@ -396,6 +432,12 @@ impl<S: NliScorer> ZeroShotCategorizer<S> {
         feed(&mut hash, self.config.template.as_bytes());
         feed(&mut hash, &[self.config.mode as u8, self.config.aggregation as u8]);
         feed(&mut hash, &(self.config.overlap_words as u64).to_le_bytes());
+        // The resolved scoring shape: the window budget and
+        // which outcome columns are read as entailment and
+        // contradiction.
+        feed(&mut hash, &(self.premise_budget as u64).to_le_bytes());
+        feed(&mut hash, &(self.entail as u64).to_le_bytes());
+        feed(&mut hash, &(self.contra as u64).to_le_bytes());
         for label in &self.labels {
             feed(&mut hash, label.as_bytes());
             feed(&mut hash, &[0]);
