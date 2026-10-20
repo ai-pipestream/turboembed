@@ -28,7 +28,7 @@ impl PairTemplate {
 }
 
 impl Manifest {
-    /// Encoder shape shared internally by embedding and reranking tasks.
+    /// Encoder shape shared internally by embedding, reranking and QA tasks.
     pub fn encoder(&self) -> Embed {
         if let Some(r) = &self.rerank {
             Embed {
@@ -41,15 +41,26 @@ impl Manifest {
                 prefix_document: String::new(),
                 output_dims: Vec::new(),
             }
+        } else if let Some(q) = &self.qa {
+            Embed {
+                dim: self.architecture.as_ref().map_or(0, |a| a.hidden),
+                pooling: Pooling::Mean,
+                normalize: Normalize::None,
+                max_seq: q.max_seq,
+                max_batch: q.max_batch,
+                prefix_query: String::new(),
+                prefix_document: String::new(),
+                output_dims: Vec::new(),
+            }
         } else {
             self.embed().clone()
         }
     }
 
     pub(super) fn validate_rerank(&self) -> Result<()> {
-        if self.task == "TASK_EMBED" {
+        if self.task != "TASK_RERANK" {
             if self.rerank.is_some() {
-                return Err(invalid("manifest.json: rerank: not allowed for TASK_EMBED"));
+                return Err(invalid("manifest.json: rerank: only allowed for TASK_RERANK"));
             }
             return Ok(());
         }

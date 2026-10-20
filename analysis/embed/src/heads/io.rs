@@ -64,8 +64,8 @@ impl ClassifierHead {
         let model = ModelRef { id: cur.read_string()?, revision: cur.read_string()?, sha256: cur.read_string()? };
         let tag_set_name = cur.read_string()?;
         let n_labels = cur.read_u32()? as usize;
-        if n_labels == 0 {
-            return Err("THEAD001 file has 0 labels".into());
+        if n_labels == 0 || n_labels > u16::MAX as usize || n_labels > cur.remaining() / 4 {
+            return Err("THEAD001 label count is invalid or truncated".into());
         }
         let mut labels = Vec::with_capacity(n_labels);
         for _ in 0..n_labels {
@@ -80,6 +80,10 @@ impl ClassifierHead {
             let w_count = (out_dim as usize)
                 .checked_mul(in_dim as usize)
                 .ok_or_else(|| "THEAD001 layer dimensions overflow usize".to_string())?;
+            let count = w_count.checked_add(out_dim as usize).ok_or("layer size overflow")?;
+            if count > cur.remaining() / 8 {
+                return Err("truncated classifier weights".into());
+            }
             let mut weights = Vec::with_capacity(w_count);
             for _ in 0..w_count {
                 weights.push(cur.read_f64()?);

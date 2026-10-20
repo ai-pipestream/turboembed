@@ -1,13 +1,25 @@
 # turbo-phrase-chunker
 
-OpenNLP 3.x's `ChunkerME`, ported to Rust on the analysis API: `ChunkerModel`
-opens the model and `PhraseChunker` runs the beam search over each sentence's
-tokens and part-of-speech tags, writing `opennlp:chunk-tags` (a chunk tag such
-as `B-NP`, `I-NP` or `O` and its probability per token) and `opennlp:chunks`
-(the phrases those tags make, each a run of tokens with its kind, as
-`chunkAsSpans` returns them). The crate documentation (`src/lib.rs`) describes
-the modules and where OpenNLP's behaviour is surprising. The name keeps it
-apart from `turbo-chunker`, which cuts retrieval units.
+OpenNLP 3.x's `ChunkerME`, ported to Rust on the analysis API, plus a
+zero-training rule-driven POS-tag pattern chunker (`TagPatternRule`,
+`PatternChunker`, and `PatternChunkComposer`):
+
+- `ChunkerModel` opens a trained model and `PhraseChunker` runs the beam search
+  over each sentence's tokens and part-of-speech tags, writing
+  `opennlp:chunk-tags` (a chunk tag such as `B-NP`, `I-NP` or `O` and its
+  probability per token) and `opennlp:chunks` (the phrases those tags make,
+  each a run of tokens with its kind, as `chunkAsSpans` returns them).
+- `TagPatternRule` and `PatternChunker` (`src/pattern/mod.rs`,
+  `src/pattern_chunker.rs`) compile declarative POS-tag and token-literal
+  patterns (such as `<DT>?<JJ.*>*<NN.*>+` or `<VB.*><RP|IN>`) directly into a
+  token-level automaton over `(tag, token_surface)` without concatenating POS
+  tags into synthetic strings or running regexes, and `PatternChunkComposer`
+  merges rule chunks with `PhraseChunker` in `ComposeMode::Fallback` or
+  `ComposeMode::Override`.
+
+The crate documentation (`src/lib.rs`) describes the modules and where
+OpenNLP's behaviour is surprising. The name keeps it apart from
+`turbo-chunker`, which cuts retrieval units.
 
 It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
 OpenNLP fork.

@@ -1,0 +1,6 @@
+{
+  "torch": "2.14.0+cpu",
+  "transformers": "5.17.0",
+  "seed": 745,
+  "model": "existing tiny BERT with untrained two-output QA head"
+}

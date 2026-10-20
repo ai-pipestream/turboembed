@@ -25,6 +25,9 @@ pub fn check_pinned(container: &str) -> Result<&str> {
 /// What the container reads: the cases with their prefixes resolved, and
 /// the row length the model is evaluated at.
 pub fn cases(recipe: &Recipe) -> Result<Value> {
+    if recipe.manifest["task"] == "TASK_EXTRACTIVE_QA" {
+        return crate::qa::cases(recipe);
+    }
     let m = &recipe.manifest;
     if m["task"] == "TASK_RERANK" {
         return Ok(json!({"task": "TASK_RERANK", "max_seq": m["rerank"]["max_seq"],
