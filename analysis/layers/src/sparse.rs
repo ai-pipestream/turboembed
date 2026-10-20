@@ -187,6 +187,11 @@ impl<L: Layer> Layer for SparseTerms<L> {
             if !self.occ_at.is_empty() {
                 for e in r.clone() {
                     let occ = self.occurrences(e);
+                    for o in occ {
+                        if o.start >= o.end {
+                            return Err(format!("unit {i}: an occurrence that ends at or before it starts"));
+                        }
+                    }
                     if !occ.windows(2).all(|w| w[0].start <= w[1].start) {
                         return Err(format!("unit {i}: occurrences in text order"));
                     }
@@ -314,5 +319,25 @@ mod tests {
         bad.push_occurrences(&[Span::new(16, 20), Span::new(0, 4)]);
         bad.unit();
         assert!(bad.check().unwrap_err().contains("text order"));
+    }
+
+    #[test]
+    fn occurrences_must_not_be_empty_or_reversed() {
+        // The fields are public, so a reversed span builds without
+        // Span::new's assert, and check() must refuse it (and an empty
+        // one), the way it refuses a reversed bounding span. Char
+        // boundaries are not tested here: check() has no text, and the
+        // bounding span is not tested for them either.
+        let mut bad = SparseTerms::<View>::new(model());
+        bad.push(1, 0.5, Some(Span::new(0, 20)));
+        bad.push_occurrences(&[Span { start: 15, end: 5 }]);
+        bad.unit();
+        assert!(bad.check().unwrap_err().contains("ends at or before"));
+
+        let mut bad = SparseTerms::<View>::new(model());
+        bad.push(1, 0.5, Some(Span::new(0, 20)));
+        bad.push_occurrences(&[Span { start: 4, end: 4 }]);
+        bad.unit();
+        assert!(bad.check().unwrap_err().contains("ends at or before"));
     }
 }
