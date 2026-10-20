@@ -281,6 +281,8 @@ mod tests {
         assert_eq!(bad.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
         assert_eq!(bad.sparse_terms(&[1.0, 2.0], &SparseOptions::all()).unwrap_err().code, INVALID_SHAPE);
         assert_eq!(bad.validate().unwrap_err().code, INVALID_SHAPE);
+        let mut pool = crate::sparse::MaxLogPool::new(2);
+        assert_eq!(bad.relu_peak_into(&[1.0, 2.0], &mut pool).unwrap_err().code, INVALID_SHAPE);
         // A transform that is not hidden -> hidden.
         let bad = MlmHead { transform: Linear::new(2, 3, vec![1.0; 6], vec![0.0; 3]).unwrap(), ..head() };
         assert_eq!(bad.validate().unwrap_err().code, INVALID_SHAPE);
@@ -288,6 +290,12 @@ mod tests {
         let bad = MlmHead { ln_eps: 0.0, ..head() };
         assert_eq!(bad.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_ARGUMENT);
         assert_eq!(bad.sparse_terms(&[1.0, 2.0], &SparseOptions::all()).unwrap_err().code, INVALID_ARGUMENT);
+        // hidden 0 divides by zero in the states check without validate.
+        let bad = MlmHead { hidden: 0, ..head() };
+        assert_eq!(bad.validate().unwrap_err().code, INVALID_ARGUMENT);
+        let mut pool = crate::sparse::MaxLogPool::new(2);
+        assert_eq!(bad.relu_peak_into(&[1.0, 2.0], &mut pool).unwrap_err().code, INVALID_ARGUMENT);
+        assert_eq!(head().relu_peak_into(&[1.0, 2.0], &mut pool), Ok(()));
         assert_eq!(head().validate(), Ok(()));
     }
 

@@ -193,6 +193,7 @@ impl MlmHead {
     /// weight, and the transform runs once per token; `log(1 + x)` waits
     /// for the selection (MaxLogPool).
     pub fn relu_peak_into(&self, states: &[f32], pool: &mut MaxLogPool) -> Result<()> {
+        self.validate()?;
         if pool.vocab() != self.vocab {
             return Err(Error::new(INVALID_SHAPE, format!("pool has {} terms, expected {}", pool.vocab(), self.vocab)));
         }

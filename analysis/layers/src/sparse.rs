@@ -26,6 +26,12 @@ use turbo_analysis::{Anchor, Ix, Layer, LayerName, ModelRef, Span};
 /// carries; none for an expanded term, one the model added. The
 /// per-level instance the chunker's adapter writes leaves the spans
 /// empty: a unit's entries hang on the unit, as in `TermStats`.
+///
+/// The document-level instance also records each input entry's
+/// occurrences, the span of each piece the term id occurs as: the
+/// published span bounds them, but placement into a unit tests each
+/// occurrence, so the bytes between two occurrences are not mistaken
+/// for coverage. An expanded entry records none.
 pub struct SparseTerms<L> {
     /// Where each unit's entries start, and one more for where the last
     /// ends: one longer than the units.
@@ -37,6 +43,15 @@ pub struct SparseTerms<L> {
     /// The source text span per entry, where the producer has one; empty
     /// when the instance carries none.
     pub span: Vec<Option<Span>>,
+    /// The occurrence spans of every entry that records them, entry
+    /// order within each unit: entry e's are
+    /// `occ[(e == 0 ? 0 : occ_at[e - 1])..occ_at[e]]`, parallel to
+    /// `span`. Empty when the instance records none; placement then
+    /// falls back to `span`.
+    pub occ: Vec<Span>,
+    /// One past the last occurrence of each entry; empty when no entry
+    /// records occurrences.
+    pub occ_at: Vec<u32>,
     /// The model the weights come from, for provenance.
     pub model: ModelRef,
     pub _of: PhantomData<fn() -> L>,
@@ -44,7 +59,16 @@ pub struct SparseTerms<L> {
 
 impl<L: Layer> SparseTerms<L> {
     pub fn new(model: ModelRef) -> SparseTerms<L> {
-        SparseTerms { row: vec![0], term: Vec::new(), weight: Vec::new(), span: Vec::new(), model, _of: PhantomData }
+        SparseTerms {
+            row: vec![0],
+            term: Vec::new(),
+            weight: Vec::new(),
+            span: Vec::new(),
+            occ: Vec::new(),
+            occ_at: Vec::new(),
+            model,
+            _of: PhantomData,
+        }
     }
 
     /// Close the unit entries are being pushed into. Call once after each
@@ -59,6 +83,33 @@ impl<L: Layer> SparseTerms<L> {
         self.term.push(term);
         self.weight.push(weight);
         self.span.push(span);
+    }
+
+    /// Record the occurrence spans of the entry `push` opened last: one
+    /// per piece the term occurs as, in text order. Call once per entry
+    /// (an expanded entry takes none), so the occurrence columns stay
+    /// parallel to the entries.
+    pub fn push_occurrences(&mut self, occ: &[Span]) {
+        self.occ.extend_from_slice(occ);
+        self.occ_at.push(self.occ.len() as u32);
+    }
+
+    /// Entry `e`'s occurrence spans: empty when the instance records
+    /// none, or the entry is expanded and has none.
+    pub fn occurrences(&self, e: usize) -> &[Span] {
+        if e >= self.occ_at.len() {
+            return &[];
+        }
+        let hi = self.occ_at[e] as usize;
+        let lo = if e == 0 { 0 } else { self.occ_at[e - 1] as usize };
+        &self.occ[lo..hi]
+    }
+
+    /// Whether the instance records occurrences at all: true, and
+    /// `occurrences` speaks for every entry; false, and placement falls
+    /// back to `span`.
+    pub fn has_occurrences(&self) -> bool {
+        !self.occ_at.is_empty()
     }
 
     /// Unit `i`'s entries: term ids and weights in ascending id.
@@ -100,6 +151,16 @@ impl<L: Layer> Layer for SparseTerms<L> {
         if !self.span.is_empty() && self.span.len() != self.term.len() {
             return Err("a span column for every entry, or none".into());
         }
+        if !self.occ_at.is_empty() {
+            if self.occ_at.len() != self.term.len() {
+                return Err("an occurrence column for every entry, or none".into());
+            }
+            if !self.occ_at.windows(2).all(|w| w[0] <= w[1])
+                || self.occ_at.last().is_none_or(|&e| e as usize != self.occ.len())
+            {
+                return Err("occurrences laid out over the occurrence column".into());
+            }
+        }
         if !self.row.windows(2).all(|w| w[0] <= w[1]) {
             return Err("rows in unit order".into());
         }
@@ -117,9 +178,28 @@ impl<L: Layer> Layer for SparseTerms<L> {
                 }
             }
             if !self.span.is_empty() {
-                for s in self.span[r].iter().flatten() {
+                for s in self.span[r.clone()].iter().flatten() {
                     if s.start > s.end {
                         return Err(format!("unit {i}: a span that ends before it starts"));
+                    }
+                }
+            }
+            if !self.occ_at.is_empty() {
+                for e in r.clone() {
+                    let occ = self.occurrences(e);
+                    if !occ.windows(2).all(|w| w[0].start <= w[1].start) {
+                        return Err(format!("unit {i}: occurrences in text order"));
+                    }
+                    match self.span.get(e).copied().flatten() {
+                        Some(h) => {
+                            if !occ.iter().all(|o| h.start <= o.start && o.end <= h.end) {
+                                return Err(format!("unit {i}: an occurrence outside its entry's span"));
+                            }
+                        }
+                        None if !occ.is_empty() => {
+                            return Err(format!("unit {i}: an expanded entry carries occurrences"));
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -191,5 +271,48 @@ mod tests {
         t.span.clear();
         assert_eq!(t.len(), 1);
         assert_eq!(t.check(), Ok(()));
+    }
+
+    #[test]
+    fn occurrences_are_checked_against_the_entry_span() {
+        let mut t = SparseTerms::<View>::new(model());
+        t.push(1, 0.5, Some(Span::new(0, 20)));
+        t.push_occurrences(&[Span::new(0, 4), Span::new(16, 20)]);
+        t.push(9, 1.25, None);
+        t.push_occurrences(&[]);
+        t.unit();
+        assert_eq!(t.check(), Ok(()));
+        assert_eq!(t.occurrences(0), &[Span::new(0, 4), Span::new(16, 20)]);
+        assert!(t.occurrences(1).is_empty());
+        assert!(t.has_occurrences());
+
+        // An occurrence outside the bounding span is refused.
+        let mut bad = SparseTerms::<View>::new(model());
+        bad.push(1, 0.5, Some(Span::new(0, 4)));
+        bad.push_occurrences(&[Span::new(0, 9)]);
+        bad.unit();
+        assert!(bad.check().unwrap_err().contains("outside"));
+
+        // An expanded entry carries no occurrences.
+        let mut bad = SparseTerms::<View>::new(model());
+        bad.push(1, 0.5, None);
+        bad.push_occurrences(&[Span::new(0, 4)]);
+        bad.unit();
+        assert!(bad.check().unwrap_err().contains("expanded"));
+
+        // The occurrence column covers every entry, or none.
+        let mut bad = SparseTerms::<View>::new(model());
+        bad.push(1, 0.5, Some(Span::new(0, 4)));
+        bad.push_occurrences(&[Span::new(0, 4)]);
+        bad.push(2, 0.5, Some(Span::new(5, 9)));
+        bad.unit();
+        assert!(bad.check().unwrap_err().contains("occurrence column"));
+
+        // Occurrences out of text order are refused.
+        let mut bad = SparseTerms::<View>::new(model());
+        bad.push(1, 0.5, Some(Span::new(0, 20)));
+        bad.push_occurrences(&[Span::new(16, 20), Span::new(0, 4)]);
+        bad.unit();
+        assert!(bad.check().unwrap_err().contains("text order"));
     }
 }

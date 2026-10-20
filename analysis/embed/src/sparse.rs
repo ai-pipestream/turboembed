@@ -11,10 +11,10 @@
 //! read in sequential windows of what a row holds and pools as one span;
 //! a text of no pieces has no logits and no terms.
 //!
-//! A term whose id is among the input's pieces is an input term: its span
-//! runs from its first occurrence's start to its last occurrence's end,
-//! and those spans cover the pieces byte for byte. A term the model adds
-//! is expanded: no span.
+//! A term whose id is among the input's pieces is an input term: its
+//! span runs from its first occurrence's start to its last occurrence's
+//! end, and its occurrences, one span per piece, cover the pieces byte
+//! for byte. A term the model adds is expanded: no span, no occurrences.
 
 use std::path::Path;
 use std::sync::{Mutex, PoisonError};
@@ -293,25 +293,35 @@ impl SparseAnnotator {
     }
 
     /// Fill one document's output from its pool's selection: an input
-    /// term keeps the span of its pieces, an expanded term keeps none.
+    /// term keeps its pieces' spans, one occurrence per piece, and a
+    /// bounding span from the first occurrence's start to the last's
+    /// end; an expanded term keeps none.
     fn fill(out: &mut SparseTerms<View>, sub: &Subwords, selected: &[SparseTerm]) {
-        // The pieces are in text order, not id order: each input term's
-        // span runs from its first occurrence's start to its last
-        // occurrence's end.
-        let mut spans: std::collections::HashMap<i32, Span> = std::collections::HashMap::new();
+        // The pieces are in text order, not id order: collect each input
+        // term's occurrences first, and bound them once they are all in.
+        let mut spans: std::collections::HashMap<i32, (Span, Vec<Span>)> = std::collections::HashMap::new();
         for k in 0..sub.ids.len() {
             let s = sub.spans.get(turbo_analysis::Ix::new(k as u32));
             spans
                 .entry(sub.ids[k])
-                .and_modify(|p: &mut Span| {
-                    p.start = p.start.min(s.start);
-                    p.end = p.end.max(s.end);
+                .and_modify(|(hull, occ): &mut (Span, Vec<Span>)| {
+                    hull.start = hull.start.min(s.start);
+                    hull.end = hull.end.max(s.end);
+                    occ.push(s);
                 })
-                .or_insert(s);
+                .or_insert((s, vec![s]));
         }
         for t in selected {
-            let span = spans.get(&(t.term as i32)).copied();
-            out.push(t.term, t.weight, span);
+            match spans.get(&(t.term as i32)) {
+                Some((hull, occ)) => {
+                    out.push(t.term, t.weight, Some(*hull));
+                    out.push_occurrences(occ);
+                }
+                None => {
+                    out.push(t.term, t.weight, None);
+                    out.push_occurrences(&[]);
+                }
+            }
         }
         out.unit();
     }

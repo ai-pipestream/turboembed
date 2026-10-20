@@ -10,13 +10,15 @@ use turbo_analysis_layers::{Levels, SparseTerms};
 /// Reads the document's sparse terms and the levels; writes the terms of
 /// each unit of `Levels`: every chunk, every section and the document.
 ///
-/// - A term the input carries goes to every unit whose span its source
-///   span intersects: the chunk it occurs in, the sections around the
-///   chunk, and the document, the way `TermCounter` counts a token in its
-///   unit and every unit around it.
-/// - An expanded term, one the model added, carries no span: it cannot be
-///   placed in a unit's text and goes to the document alone, where a
-///   document-level query still meets it.
+/// - A term the input carries goes to every unit one of its recorded
+///   occurrences falls in: the chunk it occurs in, the sections around
+///   the chunk, and the document, the way `TermCounter` counts a token
+///   in its unit and every unit around it. The published span bounds the
+///   occurrences and can span bytes none covers, so it is not tested;
+///   when the document records no occurrences, it is all there is.
+/// - An expanded term, one the model added, carries no span and no
+///   occurrences: it cannot be placed in a unit's text and goes to the
+///   document alone, where a document-level query still meets it.
 ///
 /// Units keep their entries in ascending term id, as the layer checks.
 /// Time is one pass over the document's terms per unit they fall in; the
@@ -41,14 +43,28 @@ impl Annotator for SparseLevelTerms {
         }
         let (terms, weights) = doc.entries(Ix::new(0));
         let spans = doc.spans(Ix::new(0));
+        let by_occurrence = doc.has_occurrences();
 
         let mut out = SparseTerms::new(doc.model.clone());
         for u in 0..levels.len() {
             let ux = Ix::new(u as u32);
             for (k, &t) in terms.iter().enumerate() {
-                let placed = match spans.get(k).copied().flatten() {
-                    Some(s) => levels.spans.fragments(ux).any(|f| f.overlaps(s)),
-                    None => u == 0,
+                // Placement tests each recorded occurrence: the published
+                // span bounds an entry's occurrences, and can span bytes
+                // no occurrence covers. Without occurrences, the span is
+                // all there is.
+                let placed = if by_occurrence {
+                    let occ = doc.occurrences(k);
+                    if occ.is_empty() {
+                        u == 0
+                    } else {
+                        occ.iter().any(|&o| levels.spans.fragments(ux).any(|f| f.overlaps(o)))
+                    }
+                } else {
+                    match spans.get(k).copied().flatten() {
+                        Some(s) => levels.spans.fragments(ux).any(|f| f.overlaps(s)),
+                        None => u == 0,
+                    }
                 };
                 if placed {
                     out.push(t, weights[k], None);
@@ -139,6 +155,38 @@ mod tests {
         assert_eq!(out.len(), 2);
         assert_eq!(out.entries(Ix::new(0)).0, &[1, 4, 9]);
         assert_eq!(out.entries(Ix::new(1)).0, &[1, 9]);
+        assert_eq!(out.check(), Ok(()));
+    }
+
+    #[test]
+    fn a_repeated_term_is_placed_by_each_occurrence_not_their_hull() {
+        // Term 1 occurs at 0..4 and 16..20; its published span is the
+        // hull 0..20, which overlaps the middle chunk 6..12, but no
+        // occurrence does: chunks 0 and 2 hold the term, chunk 1 does
+        // not, and neither does any unit placement ride on the hull.
+        let mut doc = SparseTerms::new(model());
+        doc.push(1, 0.5, Some(Span::new(0, 20)));
+        doc.push_occurrences(&[Span::new(0, 4), Span::new(16, 20)]);
+        doc.unit();
+        let mut levels = Levels {
+            spans: turbo_analysis::Spans::new(turbo_analysis::ViewId::SOURCE),
+            unit: Vec::new(),
+            parent: Vec::new(),
+        };
+        levels.spans.push(Span::new(0, 20));
+        levels.unit.push(turbo_analysis_layers::Unit::Document);
+        levels.parent.push(None);
+        for (span, chunk) in [(Span::new(0, 6), 0u32), (Span::new(6, 12), 1u32), (Span::new(12, 20), 2u32)] {
+            levels.spans.push(span);
+            levels.unit.push(turbo_analysis_layers::Unit::Chunk(Ix::new(chunk)));
+            levels.parent.push(Some(Ix::new(0u32)));
+        }
+        let (out,) = SparseLevelTerms.annotate((&doc, &levels)).unwrap();
+        assert_eq!(out.len(), 4);
+        assert_eq!(out.entries(Ix::new(0)).0, &[1]);
+        assert_eq!(out.entries(Ix::new(1)).0, &[1], "chunk 0 holds occurrence 0..4");
+        assert!(out.entries(Ix::new(2)).0.is_empty(), "chunk 1 covers no occurrence");
+        assert_eq!(out.entries(Ix::new(3)).0, &[1], "chunk 2 holds occurrence 16..20");
         assert_eq!(out.check(), Ok(()));
     }
 
