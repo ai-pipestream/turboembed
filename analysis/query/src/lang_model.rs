@@ -27,21 +27,32 @@ const LATIN_OUTCOMES: [u32; 7] = [IDX_DEU, IDX_ENG, IDX_FRA, IDX_ITA, IDX_NLD, I
 #[rustfmt::skip]
 const PREDICATES: &[(&str, &[(u32, f64)])] = &[
     // English trigrams & short markers
-    ("the", &[(IDX_ENG, 3.0)]), ("and", &[(IDX_ENG, 2.5)]), ("for", &[(IDX_ENG, 2.2)]),
-    ("fli", &[(IDX_ENG, 3.0)]), ("lig", &[(IDX_ENG, 2.5)]), ("igh", &[(IDX_ENG, 3.2)]),
-    ("ght", &[(IDX_ENG, 3.2)]), ("hts", &[(IDX_ENG, 2.8)]), ("che", &[(IDX_ENG, 2.4)]),
-    ("hea", &[(IDX_ENG, 2.5)]), ("eap", &[(IDX_ENG, 3.0)]), ("tom", &[(IDX_ENG, 2.5)]),
-    ("omo", &[(IDX_ENG, 2.5)]), ("orr", &[(IDX_ENG, 2.8)]), ("row", &[(IDX_ENG, 3.0)]),
-    ("yes", &[(IDX_ENG, 2.8)]), ("day", &[(IDX_ENG, 2.8)]), ("wee", &[(IDX_ENG, 2.8)]),
-    ("eek", &[(IDX_ENG, 2.8)]), ("und", &[(IDX_ENG, 2.0), (IDX_DEU, 2.5)]),
-    ("der", &[(IDX_ENG, 1.8), (IDX_DEU, 2.4)]), ("wit", &[(IDX_ENG, 2.6)]),
-    ("ith", &[(IDX_ENG, 2.8)]), ("fro", &[(IDX_ENG, 2.6)]), ("rom", &[(IDX_ENG, 2.4)]),
-    ("nex", &[(IDX_ENG, 2.8)]), ("ext", &[(IDX_ENG, 2.6)]), (" to", &[(IDX_ENG, 2.2)]),
-    ("to ", &[(IDX_ENG, 2.2)]), (" in", &[(IDX_ENG, 1.5)]), ("cor", &[(IDX_ENG, 2.5)]),
-    ("dis", &[(IDX_ENG, 2.6)]), ("isc", &[(IDX_ENG, 2.6)]), ("cou", &[(IDX_ENG, 2.6)]),
-    ("unt", &[(IDX_ENG, 2.5)]), ("dir", &[(IDX_ENG, 2.4)]), ("ect", &[(IDX_ENG, 2.4)]),
-    ("bag", &[(IDX_ENG, 2.4)]), ("all", &[(IDX_ENG, 2.4)]), ("low", &[(IDX_ENG, 2.4)]),
-    ("ass", &[(IDX_ENG, 2.2)]), ("sen", &[(IDX_ENG, 2.2)]), ("eng", &[(IDX_ENG, 2.4)]),
+    (" at", &[(IDX_ENG, 2.2)]), (" in", &[(IDX_ENG, 1.5)]), (" on", &[(IDX_ENG, 2.2)]),
+    (" to", &[(IDX_ENG, 2.2)]), ("ago", &[(IDX_ENG, 2.6)]), ("all", &[(IDX_ENG, 2.4)]),
+    ("and", &[(IDX_ENG, 2.5)]), ("art", &[(IDX_ENG, 2.2)]), ("ass", &[(IDX_ENG, 2.2)]),
+    ("at ", &[(IDX_ENG, 2.2)]), ("bag", &[(IDX_ENG, 2.4)]), ("bes", &[(IDX_ENG, 2.5)]),
+    ("ces", &[(IDX_ENG, 2.2)]), ("che", &[(IDX_ENG, 2.4)]), ("cor", &[(IDX_ENG, 2.5)]),
+    ("cou", &[(IDX_ENG, 2.6)]), ("day", &[(IDX_ENG, 2.8)]), ("der", &[(IDX_ENG, 1.8), (IDX_DEU, 2.4)]),
+    ("dir", &[(IDX_ENG, 2.4)]), ("dis", &[(IDX_ENG, 2.6)]), ("eap", &[(IDX_ENG, 3.0)]),
+    ("ear", &[(IDX_ENG, 2.4)]), ("ect", &[(IDX_ENG, 2.4)]), ("eek", &[(IDX_ENG, 2.8)]),
+    ("eet", &[(IDX_ENG, 2.5)]), ("els", &[(IDX_ENG, 2.4)]), ("eng", &[(IDX_ENG, 2.4)]),
+    ("est", &[(IDX_ENG, 2.4)]), ("ext", &[(IDX_ENG, 2.6)]), ("fli", &[(IDX_ENG, 3.0)]),
+    ("for", &[(IDX_ENG, 2.2)]), ("fro", &[(IDX_ENG, 2.6)]), ("ght", &[(IDX_ENG, 3.2)]),
+    ("hea", &[(IDX_ENG, 2.5)]), ("hot", &[(IDX_ENG, 2.4)]), ("hrs", &[(IDX_ENG, 2.8)]),
+    ("hts", &[(IDX_ENG, 2.8)]), ("ice", &[(IDX_ENG, 2.2)]), ("igh", &[(IDX_ENG, 3.2)]),
+    ("ing", &[(IDX_ENG, 2.8)]), ("inv", &[(IDX_ENG, 2.5)]), ("isc", &[(IDX_ENG, 2.6)]),
+    ("ith", &[(IDX_ENG, 2.8)]), ("lig", &[(IDX_ENG, 2.5)]), ("low", &[(IDX_ENG, 2.4)]),
+    ("mee", &[(IDX_ENG, 2.5)]), ("nea", &[(IDX_ENG, 2.6)]), ("nex", &[(IDX_ENG, 2.8)]),
+    ("now", &[(IDX_ENG, 2.8)]), ("oic", &[(IDX_ENG, 2.5)]), ("omo", &[(IDX_ENG, 2.5)]),
+    ("on ", &[(IDX_ENG, 2.2)]), ("ope", &[(IDX_ENG, 2.5)]), ("orr", &[(IDX_ENG, 2.8)]),
+    ("ort", &[(IDX_ENG, 2.4)]), ("ote", &[(IDX_ENG, 2.4)]), ("ove", &[(IDX_ENG, 2.4)]),
+    ("pen", &[(IDX_ENG, 2.4)]), ("qua", &[(IDX_ENG, 2.4)]), ("rep", &[(IDX_ENG, 2.4)]),
+    ("rom", &[(IDX_ENG, 2.4)]), ("row", &[(IDX_ENG, 3.0)]), ("sen", &[(IDX_ENG, 2.2)]),
+    ("tel", &[(IDX_ENG, 2.4)]), ("ter", &[(IDX_ENG, 2.0)]), ("the", &[(IDX_ENG, 3.0)]),
+    ("to ", &[(IDX_ENG, 2.2)]), ("tom", &[(IDX_ENG, 2.5)]), ("uar", &[(IDX_ENG, 2.4)]),
+    ("und", &[(IDX_ENG, 2.0), (IDX_DEU, 2.5)]), ("unt", &[(IDX_ENG, 2.5)]), ("ver", &[(IDX_ENG, 2.2)]),
+    ("voi", &[(IDX_ENG, 2.5)]), ("wee", &[(IDX_ENG, 2.8)]), ("wit", &[(IDX_ENG, 2.6)]),
+    ("yes", &[(IDX_ENG, 2.8)]),
     // Spanish trigrams & diacritic n-grams
     ("vue", &[(IDX_SPA, 3.5)]), ("uel", &[(IDX_SPA, 3.5)]), ("elo", &[(IDX_SPA, 3.2)]),
     ("los", &[(IDX_SPA, 3.2)]), ("bar", &[(IDX_SPA, 2.5)]), ("ara", &[(IDX_SPA, 2.8)]),
@@ -217,31 +228,15 @@ impl QuerySpanDetector {
         if toks.spans.view() != view.id() || !toks.spans.is_ordered() {
             return None;
         }
-        if bytes.iter().any(|&b| {
-            matches!(b, b'x' | b'X' | b'\n' | b'\r' | b'\t') || (b.is_ascii_punctuation() && !matches!(b, b'$' | b'%'))
-        }) {
-            return None;
-        }
-        let (starts, ends) = toks.spans.columns();
-        let (mut first_alpha, mut last_alpha) = (None, None);
-        for (&s, &e) in starts.iter().zip(ends) {
-            let tok = &bytes[s as usize..e as usize];
-            let has_alpha = tok.iter().any(u8::is_ascii_alphabetic);
-            let has_digit = tok.iter().any(u8::is_ascii_digit);
-            if has_alpha && has_digit {
-                return None;
-            }
-            if has_alpha {
-                first_alpha.get_or_insert(s);
-                last_alpha = Some(e);
-            }
-        }
-        let (start, end) = (first_alpha?, last_alpha?);
-        if (start > 0 && !bytes[start as usize - 1].is_ascii_whitespace())
-            || bytes.get(end as usize).is_some_and(|b| !b.is_ascii_whitespace())
+        if bytes
+            .iter()
+            .any(|&b| matches!(b, b'\n' | b'\r' | b'\t') || (b.is_ascii_punctuation() && !matches!(b, b'$' | b'%')))
+            || bytes.windows(2).any(|w| matches!(w[0], b'x' | b'X') && matches!(w[1], b'd' | b'D'))
         {
             return None;
         }
+        let start = bytes.iter().position(u8::is_ascii_alphabetic)? as u32;
+        let end = (bytes.iter().rposition(u8::is_ascii_alphabetic)? + 1) as u32;
         let mut prep = [0u8; 512];
         let mut plen = 0usize;
         for &b in &bytes[start as usize..end as usize] {
@@ -360,16 +355,11 @@ pub(crate) fn is_temporal_cursor_token(tok: &str) -> bool {
         return false;
     }
     if tok.bytes().any(|b| b.is_ascii_digit()) {
-        return tok.len() >= 2 && (tok.bytes().any(|b| b == b'-') || matches!(tok.as_bytes()[0], b'Q' | b'q'));
+        return (tok.len() == 4 && tok.bytes().all(|b| b.is_ascii_digit()))
+            || (tok.len() >= 2 && (tok.bytes().any(|b| b == b'-') || matches!(tok.as_bytes()[0], b'Q' | b'q')));
     }
-    (3..=9).contains(&tok.len()) && with_lowercase(tok, |l| {
-        matches!(
-            l,
-            "ago" | "apr" | "april" | "aug" | "august" | "day" | "days" | "dec" | "december"
-                | "feb" | "february" | "jan" | "january" | "jul" | "july" | "jun" | "june"
-                | "mar" | "march" | "may" | "month" | "months" | "nov" | "november" | "oct"
-                | "october" | "sep" | "september" | "week" | "weeks" | "year" | "years"
-        )
+    (3..=8).contains(&tok.len()) && with_lowercase(tok, |l| {
+        matches!(l, "ago" | "day" | "days" | "month" | "months" | "quarter" | "quarters" | "week" | "weeks" | "year" | "years")
     })
 }
 
@@ -428,7 +418,7 @@ pub(crate) const COMMON_EN_TIME_PHRASES: &[&str] = &[
     "last friday", "last monday", "last month", "last night", "last quarter", "last saturday", "last sunday",
     "last thursday", "last tuesday", "last wednesday", "last week", "last weekend", "last year", "next friday",
     "next monday", "next month", "next quarter", "next saturday", "next sunday", "next thursday", "next tuesday",
-    "next wednesday", "next week", "next weekend", "next year", "this afternoon", "this evening", "this friday",
+    "next wednesday", "next week", "next weekend", "next year", "now", "this afternoon", "this evening", "this friday",
     "this monday", "this month", "this morning", "this night", "this quarter", "this saturday", "this sunday",
     "this thursday", "this tuesday", "this wednesday", "this week", "this weekend", "this year", "today", "tomorrow",
     "tomorrow afternoon", "tomorrow evening", "tomorrow morning", "tomorrow night", "tonight", "yesterday",

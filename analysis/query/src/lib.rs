@@ -146,12 +146,18 @@ impl turbo_analysis::Annotator for QueryTermAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        self.sent.config_hash()
-            ^ self.tok.config_hash()
-            ^ self.span_detector.config_hash()
-            ^ self.inner.config_hash()
-            ^ turbo_chunker::terms::NormalizedTermIndexer { form: self.term_form }.config_hash()
-            ^ self.stopwords.config_hash()
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        for v in [
+            self.sent.config_hash(),
+            self.tok.config_hash(),
+            self.span_detector.config_hash(),
+            self.inner.config_hash(),
+            turbo_chunker::terms::NormalizedTermIndexer { form: self.term_form }.config_hash(),
+            self.stopwords.config_hash(),
+        ] {
+            h = (h ^ v).wrapping_mul(0x0100_0000_01b3);
+        }
+        h
     }
 }
 
@@ -265,8 +271,19 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
             if tok.bytes().any(|b| b.is_ascii_digit()) {
                 let lo = if k >= 2 && (ends[k - 1] - starts[k - 1]) <= 2 { k - 2 } else { k.saturating_sub(1) };
                 let hi = (k + 3).min(n);
-                let qty_cue = tok.bytes().any(|b| !b.is_ascii_digit() && !matches!(b, b'.' | b',' | b'-'))
-                    || (k + 1 < n && (ends[k + 1] - starts[k + 1]) <= 7);
+                let is_clock_meridian = tok.len() >= 3
+                    && matches!(&tok.as_bytes()[tok.len() - 2..], b"am" | b"pm" | b"AM" | b"PM" | b"Am" | b"Pm")
+                    && tok.as_bytes()[..tok.len() - 2].iter().all(u8::is_ascii_digit);
+                let next_tok = (k + 1 < n).then(|| &text[starts[k + 1] as usize..ends[k + 1] as usize]);
+                let qty_cue = (!is_clock_meridian
+                    && tok.bytes().any(|b| !b.is_ascii_digit() && !matches!(b, b'.' | b',' | b'-')))
+                    || next_tok.is_some_and(|nt| {
+                        nt.len() <= 7
+                            && !matches!(
+                                nt,
+                                "at" | "on" | "in" | "to" | "of" | "by" | "for" | "from" | "with" | "and" | "or"
+                            )
+                    });
                 if let Some(last) = d_wins.last_mut()
                     && prev_d != usize::MAX
                     && k <= prev_d + 1
@@ -328,7 +345,7 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
         }
         let mut temporals = turbo_analysis_layers::Temporals::new(view.id());
         if let Some(first_t) = ft {
-            let lo = starts[first_t.saturating_sub(2)] as usize;
+            let lo = starts[first_t.saturating_sub(4)] as usize;
             let hi = ends[(lt + 4).min(n - 1)] as usize;
             let off = lo as u32;
             let mut sub = turbo_analysis_layers::Temporals::new(view.id());
@@ -343,6 +360,10 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        self.money.config_hash() ^ self.quantity.config_hash() ^ self.temporal.config_hash()
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        for v in [self.money.config_hash(), self.quantity.config_hash(), self.temporal.config_hash()] {
+            h = (h ^ v).wrapping_mul(0x0100_0000_01b3);
+        }
+        h
     }
 }

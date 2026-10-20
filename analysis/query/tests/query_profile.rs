@@ -386,34 +386,48 @@ fn recognizes_numeric_clock_expressions_and_distinguishes_time_annotator_config_
     let qsd_slow = turbo_query::annotators::QuerySpanDetector::new(turbo_query::default_span_detector(), false);
     assert_ne!(qsd_fast.config_hash(), qsd_slow.config_hash());
 
-    // 5. GazetteerCandidateAnnotator::config_hash() distinguishes custom gazetteers on non-sampled cities ("Rome").
-    let rome_entry = |id: &str, lat: f64, lon: f64, src: &str| {
-        turbo_geo::GazetteerEntry::new(turbo_geo::EntryParts {
+    // 5. GazetteerCandidateAnnotator::config_hash() distinguishes custom gazetteers on non-sampled cities ("Rome"),
+    // including custom Gazetteer implementations with no country codes.
+    struct CustomGazetteer(InMemoryGazetteer);
+    impl turbo_geo::Gazetteer for CustomGazetteer {
+        fn lookup(&self, name: &str) -> Vec<turbo_geo::Entry<'_>> {
+            self.0.lookup(name)
+        }
+        fn by_id(&self, s: &str, id: &str) -> Option<turbo_geo::Entry<'_>> {
+            self.0.by_id(s, id)
+        }
+        fn by_region(&self, c: turbo_geo::RegionCode) -> Option<turbo_geo::Entry<'_>> {
+            self.0.by_region(c)
+        }
+        fn sources(&self) -> Vec<&str> {
+            self.0.sources()
+        }
+        fn fingerprint(&self) -> u64 {
+            self.0.fingerprint()
+        }
+    }
+    let rome_hash = |id: &str, lat: f64, lon: f64, src: &str| {
+        let entry = turbo_geo::GazetteerEntry::new(turbo_geo::EntryParts {
             source: src.to_owned(),
             record_id: id.to_owned(),
             name: "Rome".to_owned(),
             alternate_names: Vec::new(),
             location: turbo_geo::GeoPoint::new(lat, lon).unwrap(),
             bounding_box: None,
-            country_code: Some("IT".to_owned()),
+            country_code: None,
             containment: Vec::new(),
             population: 2_873_000,
             feature_class: Some(turbo_geo::FEATURE_CLASS_CITY.to_owned()),
             attributes: Vec::new(),
         })
-        .unwrap()
+        .unwrap();
+        let g = Arc::new(CustomGazetteer(InMemoryGazetteer::from_entries(&[entry]).unwrap()));
+        GazetteerCandidateAnnotator::new(g).config_hash()
     };
-    let rome_a = Arc::new(InMemoryGazetteer::from_entries(&[rome_entry("rome-1", 41.9028, 12.4964, "src_a")]).unwrap());
-    let rome_b = Arc::new(InMemoryGazetteer::from_entries(&[rome_entry("rome-2", 41.9028, 12.4964, "src_a")]).unwrap());
-    let rome_c = Arc::new(InMemoryGazetteer::from_entries(&[rome_entry("rome-1", 42.0000, 12.4964, "src_a")]).unwrap());
-    let rome_d = Arc::new(InMemoryGazetteer::from_entries(&[rome_entry("rome-1", 41.9028, 12.4964, "src_b")]).unwrap());
-    let ha = GazetteerCandidateAnnotator::new(rome_a).config_hash();
-    let hb = GazetteerCandidateAnnotator::new(rome_b).config_hash();
-    let hc = GazetteerCandidateAnnotator::new(rome_c).config_hash();
-    let hd = GazetteerCandidateAnnotator::new(rome_d).config_hash();
-    assert_ne!(ha, hb, "record_id difference on 'Rome' must change config_hash");
-    assert_ne!(ha, hc, "coordinate difference on 'Rome' must change config_hash");
-    assert_ne!(ha, hd, "source difference on 'Rome' must change config_hash");
+    let ha = rome_hash("a", 41.9028, 12.4964, "src_a");
+    assert_ne!(ha, rome_hash("b", 41.9028, 12.4964, "src_a"));
+    assert_ne!(ha, rome_hash("a", 42.0000, 12.4964, "src_a"));
+    assert_ne!(ha, rome_hash("a", 41.9028, 12.4964, "src_b"));
 }
 
 #[test]
@@ -438,10 +452,12 @@ fn query_analysis_latency_stays_within_submillisecond_budget() {
         "cheap flights to paris",
         "invoices over $500 from last quarter",
         "hotels in Berlin next weekend under 200 euros",
+        "best pizza near me open now",
+        "meeting on mar 3 at 10am",
         "cheap direct flights from New York to Paris tomorrow morning under $850 with 25 kg baggage and 15% discount",
     ];
 
-    let iterations = 100usize;
+    let iterations = 200usize;
     for q in queries {
         let warm = profile.analyze(q).unwrap();
         assert!(warm.terms.len() <= 32);

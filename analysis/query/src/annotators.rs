@@ -461,8 +461,17 @@ impl Annotator for QueryTimeAnnotator {
                 }
                 continue;
             }
-            let offset = byte_lo as u32;
-            let sub = self.inner.find(sub_text, view.id(), r);
+            let mut find_lo = tok_lo;
+            if find_lo + 1 == trig_lo
+                && text[starts[find_lo] as usize..ends[find_lo] as usize].eq_ignore_ascii_case("on")
+                && text.as_bytes()[starts[trig_lo] as usize].is_ascii_alphabetic()
+                && (trig_lo + 1 >= tok_hi
+                    || !text[starts[trig_lo + 1] as usize..ends[trig_lo + 1] as usize].eq_ignore_ascii_case("of"))
+            {
+                find_lo = trig_lo;
+            }
+            let offset = starts[find_lo];
+            let sub = self.inner.find(&text[offset as usize..byte_hi], view.id(), r);
             for (ix, raw_span) in sub.spans.iter() {
                 let mut m = sub.get(ix);
                 m.span = Span::new(raw_span.start + offset, raw_span.end + offset);

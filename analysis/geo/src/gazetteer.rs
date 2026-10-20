@@ -51,38 +51,8 @@ pub trait Gazetteer {
             .collect()
     }
 
-    /// Deterministic 64-bit fingerprint of the gazetteer's records and sources.
-    fn fingerprint(&self) -> u64 {
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for src in self.sources() {
-            for b in src.bytes().chain(std::iter::once(0xff)) {
-                h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-            }
-        }
-        for c1 in b'A'..=b'Z' {
-            for c2 in b'A'..=b'Z' {
-                if let Some(code) = RegionCode::new([c1, c2])
-                    && let Some(e) = self.by_region(code)
-                {
-                    let pt = e.location();
-                    for b in e
-                        .source()
-                        .bytes()
-                        .chain(std::iter::once(0xff))
-                        .chain(e.record_id().bytes())
-                        .chain(std::iter::once(0xff))
-                        .chain(e.name().bytes())
-                        .chain(pt.latitude().to_bits().to_le_bytes())
-                        .chain(pt.longitude().to_bits().to_le_bytes())
-                        .chain(e.population().to_le_bytes())
-                    {
-                        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-                    }
-                }
-            }
-        }
-        h
-    }
+    /// Deterministic 64-bit fingerprint of all records and sources in this gazetteer.
+    fn fingerprint(&self) -> u64;
 }
 
 pub(crate) fn fingerprint_index(index: &crate::index::GazetteerIndex) -> u64 {

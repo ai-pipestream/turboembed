@@ -199,7 +199,15 @@ impl QueryProfileBuilder {
                 Some(|doc| doc.get::<Tokens>().is_some_and(|t| !crate::model::has_grammar_trigger(doc.source(), t))),
             )
             .add(QueryTimeAnnotator::english(self.reference_datetime))
-            .step(Bound::new(QueryTimeAnnotator::spanish(self.reference_datetime)).write(0, ES_TIMES));
+            .step_skip_when(
+                Bound::new(QueryTimeAnnotator::spanish(self.reference_datetime)).write(0, ES_TIMES),
+                Some(|doc| {
+                    doc.source().is_ascii()
+                        && doc
+                            .get::<turbo_analysis_layers::Language>()
+                            .is_some_and(|l| l.code.len() == 1 && l.code.get(0) == "eng")
+                }),
+            );
 
         // Gazetteer candidate detection + population-prior geocoding.
         if let Some(installer) = self.geo_installer.take() {
