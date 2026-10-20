@@ -2464,6 +2464,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-query"
+version = "0.1.0"
+dependencies = [
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-chunker",
+ "turbo-geo",
+ "turbo-glossary",
+ "turbo-glossary-layers",
+ "turbo-grammar",
+ "turbo-langdetect",
+ "turbo-langspan",
+ "turbo-maxent",
+ "turbo-namefind",
+ "turbo-normalize",
+ "turbo-normalize-layers",
+ "turbo-numeric",
+ "turbo-sentdetect",
+ "turbo-stem",
+ "turbo-stem-layers",
+ "turbo-stopword",
+ "turbo-stopword-layers",
+ "turbo-tokenize",
+ "turbo-tokenize-layers",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-relation"
 version = "0.1.0"
 dependencies = [
