@@ -34,6 +34,19 @@ fn core_pipeline_layers_round_trip() {
     assert_eq!(back.get::<DocumentDate>().unwrap().mention, Some(Ix::new(0)));
     assert_eq!(back.get::<Categories<turbo_analysis::View>>().unwrap().best_category(0), "a");
     assert_eq!(back.get::<Categories<Sentences>>().unwrap().best_category(1), "b");
+    // The abstaining sentence round-trips: scored, no best category.
+    let abstained = back.get_key(&Key::<Categories<Sentences>>::named("abstained")).unwrap();
+    let row = abstained.get(0).unwrap();
+    assert_eq!(row.best_tag, Tag::NONE);
+    assert_eq!(row.best, "");
+    assert_eq!(row.scores, [0.2, 0.3]);
+    // The multi-label sentence keeps its full selected set across the
+    // wire, not just the best category; the abstaining one stays empty.
+    let multi = back.get_key(&Key::<Categories<Sentences>>::named("multi")).unwrap();
+    assert_eq!(multi.category, [Tag(0), Tag::NONE]);
+    assert_eq!(multi.selected(0), [Tag(0), Tag(1)]);
+    assert!(multi.selected(1).is_empty());
+    assert_eq!(multi.get(0).unwrap().selected, [Tag(0), Tag(1)]);
 
     // Re-export is byte stable.
     assert_eq!(export(&back, &codecs()).unwrap().to_bytes().unwrap(), graph.to_bytes().unwrap());

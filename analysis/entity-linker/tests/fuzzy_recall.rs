@@ -1,40 +1,52 @@
 //! Randomized recall and top-1 optimality tests for `FuzzyAliasIndex` across
-//! common-prefix and prefixless catalogs.
+//! common-prefix and prefixless small-alphabet catalogs.
 
+use std::collections::HashSet;
 use turbo_entity_linker::{CatalogProvider, KbEntity, KbProvider, KnowledgeBase, alias_similarity, fold_alias};
 
-fn lcg_next(state: &mut u64) -> u64 {
-    *state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-    *state
+fn lcg_u32(state: &mut u64) -> u32 {
+    *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    (*state >> 32) as u32
 }
 
 #[test]
-fn common_prefix_and_prefixless_fuzzy_top1_parity_against_brute_force() {
-    // 1. Codex's exact 5,000-alias common-prefix reproduction (seed = 1u64, 200 trials)
+fn codex_10k_common_prefix_7digit_and_fable_12char_recall_parity() {
+    // 1. Codex's exact 10,000-alias "common prefix " + 7-digit reproduction (seed = 1u64, 600 trials, threshold = 0.90)
     let mut seed = 1u64;
-    let mut entities = Vec::with_capacity(5_000);
-    let mut aliases = Vec::with_capacity(5_000);
-    for i in 0..5_000 {
+    let mut entities = Vec::with_capacity(10_000);
+    let mut aliases = Vec::with_capacity(10_000);
+    let mut distinct = HashSet::with_capacity(10_000);
+    for i in 0..10_000 {
         let mut s = String::from("common prefix ");
-        for _ in 0..6 {
-            let ch = (b'0' + (lcg_next(&mut seed) % 10) as u8) as char;
+        for _ in 0..7 {
+            let ch = (b'0' + (lcg_u32(&mut seed) % 10) as u8) as char;
             s.push(ch);
         }
+        distinct.insert(s.clone());
         aliases.push(s.clone());
         entities.push(KbEntity::new(format!("id{i}"), s));
     }
-    let kb = KnowledgeBase::from_entities("test", entities).unwrap();
+    assert!(distinct.len() >= 9_900, "expected >= 9,900 distinct aliases, got {}", distinct.len());
+
+    let kb = KnowledgeBase::from_entities("codex-10k", entities).unwrap();
     let provider = CatalogProvider::new(kb);
-    let threshold = 0.89;
-    for trial in 0..200 {
-        let base_idx = (lcg_next(&mut seed) as usize) % aliases.len();
+    let threshold = 0.90;
+
+    // Explicit check on Codex's trial 451 query ("common prefix 1156390" -> "common prefix 6035191" @ 0.9714285714285714)
+    let trial_451_got = provider.generate_candidates("common prefix 1156390", None, 32, threshold);
+    assert!(!trial_451_got.is_empty());
+    assert_eq!(trial_451_got[0].matched_alias, "common prefix 6035191");
+    assert!((trial_451_got[0].match_similarity - 0.9714285714285714).abs() < 1e-12);
+
+    for trial in 0..600 {
+        let base_idx = (lcg_u32(&mut seed) as usize) % aliases.len();
         let mut chars: Vec<char> = aliases[base_idx].chars().collect();
         for _ in 0..2 {
-            let pos = 14 + ((lcg_next(&mut seed) as usize) % 6);
-            chars[pos] = (b'0' + (lcg_next(&mut seed) % 10) as u8) as char;
+            let pos = 14 + ((lcg_u32(&mut seed) as usize) % 7);
+            chars[pos] = (b'0' + (lcg_u32(&mut seed) % 10) as u8) as char;
         }
         let query: String = chars.into_iter().collect();
-        if aliases.iter().any(|a| a == &query) {
+        if distinct.contains(&query) {
             continue;
         }
         let qf = fold_alias(&query);
@@ -45,62 +57,118 @@ fn common_prefix_and_prefixless_fuzzy_top1_parity_against_brute_force() {
                 best_score = sim;
             }
         }
-        let got = provider.generate_candidates(&query, None, 32, threshold);
         if best_score >= threshold {
+            let got = provider.generate_candidates(&query, None, 32, threshold);
             let actual = got.first().map(|c| c.match_similarity).unwrap_or(0.0);
             assert!(actual + 1e-12 >= best_score, "trial {trial}: query={query:?} best={best_score} actual={actual}");
         }
     }
 
-    // 2. Fable's 3 catalog shapes:
-    // - 5,000 x "Common Prefix " + 6 digits (threshold = 0.89)
-    // - 5,000 x "Common Prefix " + 6 of a..j (threshold = 0.89)
-    // - 20,000 x 8 of a..p, no prefix (threshold = 0.85)
-    for (prefix, alphabet_len, base_char, suffix_len, count, thresh, trials) in [
-        ("Common Prefix ", 10u64, b'0', 6usize, 5_000usize, 0.89, 300usize),
-        ("Common Prefix ", 10u64, b'a', 6usize, 5_000usize, 0.89, 300usize),
-        ("", 16u64, b'a', 8usize, 20_000usize, 0.85, 150usize),
-    ] {
-        let mut shape_seed = 1u64;
-        let mut shape_entities = Vec::with_capacity(count);
-        let mut folded_aliases = Vec::with_capacity(count);
-        for i in 0..count {
-            let mut s = String::from(prefix);
-            for _ in 0..suffix_len {
-                let ch = (base_char + (lcg_next(&mut shape_seed) % alphabet_len) as u8) as char;
-                s.push(ch);
-            }
-            folded_aliases.push(fold_alias(&s));
-            shape_entities.push(KbEntity::new(format!("E{i}"), s));
+    // 2. Fable's 40,000 x 12 of a..j catalog ("hbfjiefihhbe" -> "hfeijbbhihfe" @ 0.8875, threshold = 0.88)
+    let mut fable_seed = 1u64;
+    let mut fable_entities = Vec::with_capacity(40_000);
+    let mut fable_aliases = Vec::with_capacity(40_000);
+    let mut fable_distinct = HashSet::with_capacity(40_000);
+    for i in 0..40_000 {
+        let mut s = String::with_capacity(12);
+        for _ in 0..12 {
+            let ch = (b'a' + (lcg_u32(&mut fable_seed) % 10) as u8) as char;
+            s.push(ch);
         }
-        let shape_prov = CatalogProvider::new(KnowledgeBase::from_entities("shape", shape_entities).unwrap());
-        let p_len = prefix.len();
-        for trial in 0..trials {
-            let base_idx = (lcg_next(&mut shape_seed) as usize) % folded_aliases.len();
-            let mut chars: Vec<char> = folded_aliases[base_idx].chars().collect();
-            for _ in 0..2 {
-                let pos = p_len + ((lcg_next(&mut shape_seed) as usize) % suffix_len);
-                chars[pos] = (base_char + (lcg_next(&mut shape_seed) % alphabet_len) as u8) as char;
+        fable_distinct.insert(s.clone());
+        fable_aliases.push(s.clone());
+        fable_entities.push(KbEntity::new(format!("F{i}"), s));
+    }
+    if !fable_distinct.contains("hfeijbbhihfe") {
+        fable_distinct.insert("hfeijbbhihfe".to_owned());
+        fable_aliases.push("hfeijbbhihfe".to_owned());
+        fable_entities.push(KbEntity::new("F_TARGET", "hfeijbbhihfe"));
+    }
+    assert!(fable_distinct.len() >= 39_500, "expected >= 39,500 distinct aliases, got {}", fable_distinct.len());
+
+    let fable_prov = CatalogProvider::new(KnowledgeBase::from_entities("fable-40k", fable_entities).unwrap());
+    let fable_got = fable_prov.generate_candidates("hbfjiefihhbe", None, 32, 0.88);
+    let mut fable_best = 0.0f64;
+    for a in &fable_aliases {
+        if a != "hbfjiefihhbe" {
+            let sim = alias_similarity("hbfjiefihhbe", a);
+            if sim >= 0.88 && sim > fable_best {
+                fable_best = sim;
             }
-            let query: String = chars.into_iter().collect();
-            if folded_aliases.iter().any(|a| a == &query) {
-                continue;
+        }
+    }
+    assert!(fable_best >= 0.8875 - 1e-12);
+    let fable_actual = fable_got.first().map(|c| c.match_similarity).unwrap_or(0.0);
+    assert!(
+        fable_actual + 1e-12 >= fable_best,
+        "fable query 'hbfjiefihhbe': best={fable_best} actual={fable_actual} got={fable_got:?}"
+    );
+
+    for trial in 0..100 {
+        let base_idx = (lcg_u32(&mut fable_seed) as usize) % fable_aliases.len();
+        let mut chars: Vec<char> = fable_aliases[base_idx].chars().collect();
+        for _ in 0..2 {
+            let pos = (lcg_u32(&mut fable_seed) as usize) % 12;
+            chars[pos] = (b'a' + (lcg_u32(&mut fable_seed) % 10) as u8) as char;
+        }
+        let query: String = chars.into_iter().collect();
+        if fable_distinct.contains(&query) {
+            continue;
+        }
+        let mut best = 0.0f64;
+        for a in &fable_aliases {
+            let sim = alias_similarity(&query, a);
+            if sim >= 0.88 && sim > best {
+                best = sim;
             }
-            let mut best = 0.0f64;
-            for a in &folded_aliases {
-                let sim = alias_similarity(&query, a);
-                if sim >= thresh && sim > best {
-                    best = sim;
-                }
+        }
+        if best >= 0.88 {
+            let got = fable_prov.generate_candidates(&query, None, 32, 0.88);
+            let actual = got.first().map(|c| c.match_similarity).unwrap_or(0.0);
+            assert!(actual + 1e-12 >= best, "fable 40k trial {trial}: query={query:?} best={best} actual={actual}");
+        }
+    }
+
+    // 3. 20,000 x 8 of a..p prefixless catalog (high entropy, >= 19,900 distinct aliases)
+    let mut p_seed = 7u64;
+    let mut p_entities = Vec::with_capacity(20_000);
+    let mut p_aliases = Vec::with_capacity(20_000);
+    let mut p_distinct = HashSet::with_capacity(20_000);
+    for i in 0..20_000 {
+        let mut s = String::with_capacity(8);
+        for _ in 0..8 {
+            let ch = (b'a' + (lcg_u32(&mut p_seed) % 16) as u8) as char;
+            s.push(ch);
+        }
+        p_distinct.insert(s.clone());
+        p_aliases.push(s.clone());
+        p_entities.push(KbEntity::new(format!("P{i}"), s));
+    }
+    assert!(p_distinct.len() >= 19_900, "expected >= 19,900 distinct aliases, got {}", p_distinct.len());
+    let p_prov = CatalogProvider::new(KnowledgeBase::from_entities("p-20k", p_entities).unwrap());
+    for trial in 0..150 {
+        let base_idx = (lcg_u32(&mut p_seed) as usize) % p_aliases.len();
+        let mut chars: Vec<char> = p_aliases[base_idx].chars().collect();
+        let pos = (lcg_u32(&mut p_seed) as usize) % 8;
+        chars[pos] = (b'a' + (lcg_u32(&mut p_seed) % 16) as u8) as char;
+        let query: String = chars.into_iter().collect();
+        if p_distinct.contains(&query) {
+            continue;
+        }
+        let mut best = 0.0f64;
+        for a in &p_aliases {
+            let sim = alias_similarity(&query, a);
+            if sim >= 0.85 && sim > best {
+                best = sim;
             }
-            if best >= thresh {
-                let got = shape_prov.generate_candidates(&query, None, 32, thresh);
-                let actual = got.first().map(|c| c.match_similarity).unwrap_or(0.0);
-                assert!(
-                    actual + 1e-12 >= best,
-                    "shape prefix={prefix:?} base={base_char} trial={trial}: query={query:?} best={best} actual={actual}"
-                );
-            }
+        }
+        if best >= 0.85 {
+            let got = p_prov.generate_candidates(&query, None, 32, 0.85);
+            let actual = got.first().map(|c| c.match_similarity).unwrap_or(0.0);
+            assert!(
+                actual + 1e-12 >= best,
+                "prefixless 20k trial {trial}: query={query:?} best={best} actual={actual}"
+            );
         }
     }
 }

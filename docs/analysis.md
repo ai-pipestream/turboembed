@@ -57,7 +57,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-encoding` | `analysis/encoding/` | Bytes to a document: decoders for the 40 encodings of the WHATWG Encoding Standard, each recording an alignment from the bytes to the text; encoding detection (a port of chardetng); `open`, which settles the encoding and writes `turbo:encoding`; and mojibake repair (a port of ftfy's encoding fix, by Robyn Speer), one edit per fix. `analysis/encoding/README.md` lists the generated files and their sources |
 | `turbo-encoding-layers` | `analysis/encoding-layers/` | The `Encoding` enum with the standard's labels, and the `turbo:encoding` layer (`SourceEncoding`) |
 | `turbo-encoding-gen` | `analysis/encoding-gen/` | The generator of the WHATWG tables, and `ftfy.py`, which generates the repair's character classes and test fixture from ftfy |
-| `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `MentionPolicy`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
+| `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `MentionPolicy`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. A gazetteer's match keys can also be written as one mapped automaton image (`name_image`), which `NameFinder` reads in place to find the gazetteer's names in running text and `NameAnnotator` writes as location entities for the geocoder and the linker. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
 | `turbo-entity-linker` | `analysis/entity-linker/` | Generic entity disambiguation and linking (`EntityLinker`, `LinkerConfig`, `LinkerWeights`) against pluggable `KbProvider` backends (`CatalogProvider` over `KnowledgeBase` CSV/TSV catalogs and binary snapshots with optional `VectorIndex` nearest-neighbor retrieval, `GazetteerProvider` over `turbo-geo` gazetteers, `WordNetProvider` over `turbo-wordnet` synsets, and `GlossaryProvider` over `turbo-glossary-layers` glossaries), scoring alias and popularity priors, NER entity-type compatibility, local and document context overlap, and document-level coherence with coreference cluster propagation (`Groups<Mentions>`, `Groups<Entities>`), writing `LinkedEntities` (`turbo:linked_entities`) aligned to `Entities` with explicit `NilReason` and `nil_cluster` assignments |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 | `turbo-zstd` | `analysis/zstd/` | A Zstandard decoder after RFC 8878: frames one after another, skippable frames, raw, RLE and compressed blocks, every kind of literals and sequences section, and the content checksum (XXH64); frames that need a dictionary or a window over 128 MiB are refused. The Parquet reader of `turbo-eval` uses it for ZSTD pages |
@@ -572,6 +572,31 @@ skipped: no language evidence`, or `opennlp:tokens failed: ...`. So
 "skipped" is never mistaken for "found nothing", and a stored document
 says why a layer is missing.
 
+### Evidence
+
+`Evidence<L>` (`turbo:evidence<L>`) is one record per item of a result
+layer `L`, so an entity, a category or any other result can be audited
+the same way whatever produced it. A record names the producing
+annotator and, when it ran a model, the model's identity; holds the
+item's spans mapped through the views back to the source text; holds
+the raw score, and the calibrated score and abstention reason when the
+producer gives them (a field a producer does not give is absent, never
+zero); and points at the units of other layers that support it (the
+tokens an entity covers) by layer instance and item range, without
+copying them. The result layers keep their own encoding.
+
+`EvidenceStep<L>` builds the layer after the step that writes `L`, for
+any `L` that implements `Evidenced`: `Entities`, `Categories` and
+`Categories<L>` for sentences, structure blocks and chunks. The
+dictionary and regex finders run no model and write 0 where they have
+no score, so an entity's raw score is recorded only when a model (the
+CRF finder's, say) produced it. A raw score that is not finite fails
+the step on that document. `Evidence::verify`
+checks a layer against its document and fails with a typed
+`EvidenceError`: a model no layer of the document was made with, a span
+outside the source or inside a character, or support outside a layer
+the document holds. The graph import applies the same check.
+
 ## Document graph export
 
 A search index or a coordinator that is not the process which ran the
@@ -763,6 +788,7 @@ fields mean bumps its `SCHEMA`.
 | `LanguageSpans` | `turbo:language-spans` | text | `turbo-analysis-layers` |
 | `Categories` | `turbo:categories` | the document | `turbo-analysis-layers` |
 | `Categories<L>` (`L` is `Sentences`, `Structure` or `Chunks`) | `turbo:categories<L>` | `L` | `turbo-analysis-layers` |
+| `Evidence<L>` (`L` is `Entities`, `Categories` or `Categories<L>`) | `turbo:evidence<L>` | `L` | `turbo-analysis` |
 | `Locations` | `turbo:locations` | text | `turbo-geo` |
 | `Regions` | `turbo:regions` | the document | `turbo-analysis-layers` |
 | `Containment` | `turbo:containment` | text | `turbo-analysis-layers` |

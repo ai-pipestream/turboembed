@@ -335,12 +335,66 @@ impl KnowledgeBase {
         self.alias_map.get(folded_key).map(Vec::as_slice)
     }
 
-    pub(crate) fn folded_keys(&self) -> &[String] {
-        &self.folded_keys
-    }
-
-    pub(crate) fn fuzzy_candidate_keys(&self, query_folded: &str, threshold: f64) -> Vec<u32> {
-        self.fuzzy_index.candidate_indices(query_folded, threshold)
+    pub(crate) fn fuzzy_match_entities(
+        &self,
+        query_folded: &str,
+        threshold: f64,
+        needed: usize,
+        should_skip_entity: impl Fn(u32) -> bool,
+    ) -> Vec<(u32, String, f64, f64)> {
+        if needed == 0 || query_folded.is_empty() {
+            return Vec::new();
+        }
+        let mut best_fuzzy: HashMap<u32, (f64, f64, String)> = HashMap::new();
+        let mut sims_buf: Vec<f64> = Vec::new();
+        self.fuzzy_index.for_each_candidate(query_folded, threshold, |k_idx, running_cutoff| {
+            let key = &self.folded_keys[k_idx as usize];
+            if key == query_folded {
+                return;
+            }
+            let sim = crate::similarity::alias_similarity(query_folded, key);
+            if sim < *running_cutoff || sim < threshold {
+                return;
+            }
+            let Some(postings) = self.exact_postings(key) else {
+                return;
+            };
+            let mut updated = false;
+            for p in postings {
+                if should_skip_entity(p.entity_idx) {
+                    continue;
+                }
+                let scaled_prior = p.alias_prior * sim;
+                match best_fuzzy.get_mut(&p.entity_idx) {
+                    Some(entry) => {
+                        if sim.total_cmp(&entry.0).then_with(|| scaled_prior.total_cmp(&entry.1)).is_gt() {
+                            *entry = (sim, scaled_prior, p.matched_alias.clone());
+                            updated = true;
+                        }
+                    }
+                    None => {
+                        best_fuzzy.insert(p.entity_idx, (sim, scaled_prior, p.matched_alias.clone()));
+                        updated = true;
+                    }
+                }
+            }
+            if updated && best_fuzzy.len() >= needed {
+                sims_buf.clear();
+                sims_buf.extend(best_fuzzy.values().map(|&(s, _, _)| s));
+                let (_, &mut kth_sim, _) = sims_buf.select_nth_unstable_by(needed - 1, |a, b| b.total_cmp(a));
+                let new_cutoff = (kth_sim - 1e-9).max(threshold);
+                if new_cutoff > *running_cutoff {
+                    *running_cutoff = new_cutoff;
+                }
+            }
+        });
+        let mut hits: Vec<(u32, String, f64, f64)> = best_fuzzy
+            .into_iter()
+            .map(|(ent_idx, (sim, scaled_prior, alias))| (ent_idx, alias, scaled_prior, sim))
+            .collect();
+        hits.sort_by(|a, b| b.3.total_cmp(&a.3).then_with(|| b.2.total_cmp(&a.2)).then_with(|| a.0.cmp(&b.0)));
+        hits.truncate(needed);
+        hits
     }
 
     pub(crate) fn vector_index(&self) -> Option<&Arc<VectorIndex<u32>>> {

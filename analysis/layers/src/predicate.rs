@@ -313,13 +313,16 @@ impl<L: CategoryScope> FilterableLayer for Categories<L> {
         let mut out = Categories::with_capacity(Arc::clone(&self.categories), kept.len());
         for &ix in kept {
             let i = ix.get();
-            out.push(self.category[i], self.row_scores(i));
+            out.push_selected(self.category[i], self.selected(i), self.row_scores(i));
         }
         out
     }
 
     fn same_filtered_rows(&self, other: &Self) -> bool {
-        self.category == other.category && self.scores == other.scores
+        self.category == other.category
+            && self.selected == other.selected
+            && self.selected_end == other.selected_end
+            && self.scores == other.scores
     }
 
     fn co_written_anchors(target_name: &'static str) -> Vec<(KeyId, Anchor)> {

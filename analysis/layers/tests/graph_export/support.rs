@@ -196,7 +196,18 @@ pub(super) fn document() -> Document {
     let mut sent_cats = Categories::<Sentences>::new(tagset("cats", &["a", "b"]));
     sent_cats.push(Tag(0), &[0.75, 0.25]);
     sent_cats.push(Tag(1), &[0.1, 0.9]);
-    doc.add(&Key::DEFAULT, sent_cats, by).unwrap();
+    doc.add(&Key::DEFAULT, sent_cats, by.clone()).unwrap();
+    // A sentence whose categorizer abstained: scored, nothing predicted.
+    let mut abstained = Categories::<Sentences>::new(tagset("cats", &["a", "b"]));
+    abstained.push(Tag::NONE, &[0.2, 0.3]);
+    abstained.push(Tag(0), &[0.6, 0.1]);
+    doc.add(&Key::<Categories<Sentences>>::named("abstained"), abstained, by.clone()).unwrap();
+    // Sentences a multi-label categorizer gave both labels and none:
+    // the full selected set rides the layer, not just the best.
+    let mut multi = Categories::<Sentences>::new(tagset("cats", &["a", "b"]));
+    multi.push_selected(Tag(0), &[Tag(0), Tag(1)], &[0.6, 0.55]);
+    multi.push(Tag::NONE, &[0.2, 0.1]);
+    doc.add(&Key::<Categories<Sentences>>::named("multi"), multi, by).unwrap();
     doc
 }
 

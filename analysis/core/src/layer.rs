@@ -21,6 +21,13 @@ pub struct TagSet {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Tag(pub u16);
 
+impl Tag {
+    /// No label: what a layer item holds when nothing was predicted, the
+    /// categorizer's abstention (no category cleared its threshold). Never
+    /// a [`TagSet`] index; readers see it as the empty name.
+    pub const NONE: Tag = Tag(u16::MAX);
+}
+
 impl TagSet {
     pub fn new(name: &str, labels: &[&str]) -> Arc<TagSet> {
         let names: Vec<Box<str>> = labels.iter().map(|&l| l.into()).collect();

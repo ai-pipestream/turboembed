@@ -1,15 +1,18 @@
 //! Sublinear inverted trigram, bigram, 1-delete, token, and positional-character
-//! index over folded alias keys for fuzzy candidate generation in
-//! [`KnowledgeBase`](crate::kb::KnowledgeBase).
+//! index over folded alias keys with a lossless length-window sketch fallback
+//! for fuzzy candidate generation in [`KnowledgeBase`](crate::kb::KnowledgeBase).
 
-use std::cmp::Reverse;
 use std::collections::HashMap;
 
-/// Maximum postings scanned from a single feature list before treating it as a broad prefix/common slice.
+use crate::similarity::{
+    KeySketch, LenFilterBounds, QueryFilterCtx, compute_char_mask, length_bounds, passes_sketch_prefilter,
+};
+
+/// Maximum postings scanned from a single feature list before triggering the lossless window scan.
 const BASE_FEATURE_SCAN: usize = 2_048;
-/// Total posting scan budget across rarest-first feature lists.
+/// Total posting scan budget across rarest-first feature lists before triggering the lossless window scan.
 const TOTAL_POSTING_BUDGET: usize = 12_288;
-/// Maximum number of candidate folded keys returned for full Jaro-Winkler / Dice verification.
+/// Maximum candidates verified from the posting path before triggering the lossless window scan.
 const BASE_FUZZY_VERIFY: usize = 256;
 /// Maximum key length (in characters) indexed in the short-key 1-delete / anagram table.
 const SHORT_KEY_MAX_CHARS: usize = 8;
@@ -18,21 +21,13 @@ type PostingList = Vec<(u16, u32)>;
 type TrigramKey = ([char; 3], u8);
 type BigramKey = ([char; 2], u8);
 
-struct QueryFilterCtx {
-    q_len: usize,
-    q_prefix4: [char; 4],
-    q_mask: [u64; 2],
-    q_mask_bits: usize,
-    threshold: f64,
-}
-
-/// Inverted index over `KnowledgeBase::folded_keys` supporting sublinear fuzzy lookup.
+/// Inverted index over `KnowledgeBase::folded_keys` supporting sublinear fuzzy lookup
+/// with an exact length-window sketch fallback when posting lists saturate.
 #[derive(Clone, Default)]
 pub(crate) struct FuzzyAliasIndex {
-    key_char_lens: Vec<u16>,
+    sketches_by_idx: Vec<KeySketch>,
+    sorted_sketches: Vec<KeySketch>,
     key_token_lens: Vec<u8>,
-    key_prefix4: Vec<[char; 4]>,
-    key_char_masks: Vec<[u64; 2]>,
     token_postings: HashMap<String, PostingList>,
     trigram_postings: HashMap<TrigramKey, PostingList>,
     bigram_postings: HashMap<BigramKey, PostingList>,
@@ -45,10 +40,8 @@ impl FuzzyAliasIndex {
     /// Builds a [`FuzzyAliasIndex`] over a slice of sorted `folded_keys`.
     pub(crate) fn build(folded_keys: &[String]) -> Self {
         let n = folded_keys.len();
-        let mut key_char_lens = Vec::with_capacity(n);
+        let mut sketches_by_idx = Vec::with_capacity(n);
         let mut key_token_lens = Vec::with_capacity(n);
-        let mut key_prefix4 = Vec::with_capacity(n);
-        let mut key_char_masks = Vec::with_capacity(n);
         let mut token_postings: HashMap<String, PostingList> = HashMap::new();
         let mut trigram_postings: HashMap<TrigramKey, PostingList> = HashMap::new();
         let mut bigram_postings: HashMap<BigramKey, PostingList> = HashMap::new();
@@ -67,14 +60,13 @@ impl FuzzyAliasIndex {
             let k_idx = idx as u32;
             let chars: Vec<char> = key.chars().collect();
             let char_len = chars.len().min(u16::MAX as usize) as u16;
-            key_char_lens.push(char_len);
 
-            let mut p4 = ['\0'; 4];
+            let mut prefix4 = ['\0'; 4];
             for (i, &c) in chars.iter().take(4).enumerate() {
-                p4[i] = c;
+                prefix4[i] = c;
             }
-            key_prefix4.push(p4);
-            key_char_masks.push(compute_char_mask(&chars, &mut char_counts));
+            let mask = compute_char_mask(&chars, &mut char_counts);
+            sketches_by_idx.push(KeySketch { char_len, k_idx, prefix4, mask });
 
             toks_buf.clear();
             for tok in key.split_whitespace() {
@@ -145,11 +137,13 @@ impl FuzzyAliasIndex {
             list.sort_unstable();
         }
 
+        let mut sorted_sketches = sketches_by_idx.clone();
+        sorted_sketches.sort_unstable_by_key(|sk| (sk.char_len, sk.k_idx));
+
         Self {
-            key_char_lens,
+            sketches_by_idx,
+            sorted_sketches,
             key_token_lens,
-            key_prefix4,
-            key_char_masks,
             token_postings,
             trigram_postings,
             bigram_postings,
@@ -159,16 +153,16 @@ impl FuzzyAliasIndex {
         }
     }
 
-    /// Returns candidate `folded_keys` indices ranked by shared occurrence-tagged
-    /// token/trigram/bigram/positional-char/delete overlap and filtered by exact
-    /// Jaro-Winkler / Token-Dice threshold bounds.
-    pub(crate) fn candidate_indices(&self, query_folded: &str, threshold: f64) -> Vec<u32> {
+    /// Visits candidate `folded_keys` indices using rarest-first posting lists and,
+    /// whenever any posting list or verification cap saturates, falls back to scanning
+    /// the lossless `[min_len, max_len]` sketch window with an $O(1)$ Jaro-Winkler upper bound.
+    pub(crate) fn for_each_candidate(&self, query_folded: &str, threshold: f64, mut visit: impl FnMut(u32, &mut f64)) {
         let q_chars: Vec<char> = query_folded.chars().collect();
         let q_len = q_chars.len();
-        if q_len == 0 || self.key_char_lens.is_empty() {
-            return Vec::new();
+        let n_keys = self.sketches_by_idx.len();
+        if q_len == 0 || n_keys == 0 {
+            return;
         }
-        let q_len_u16 = q_len.min(u16::MAX as usize) as u16;
 
         let mut q_prefix4 = ['\0'; 4];
         for (i, &c) in q_chars.iter().take(4).enumerate() {
@@ -176,54 +170,73 @@ impl FuzzyAliasIndex {
         }
         let mut char_counts = Vec::new();
         let q_mask = compute_char_mask(&q_chars, &mut char_counts);
-        let q_mask_bits = (q_mask[0].count_ones() + q_mask[1].count_ones()) as usize;
-        let q_ctx = QueryFilterCtx { q_len, q_prefix4, q_mask, q_mask_bits, threshold };
+        let q_ctx = QueryFilterCtx { q_len, q_prefix4, q_mask };
 
-        let mut counts: HashMap<u32, (u8, u16)> = HashMap::new();
-        if q_len == 1
-            && let Some(list) = self.short1_postings.get(&q_chars[0])
-        {
-            for &k_idx in list.iter().take(BASE_FEATURE_SCAN) {
-                let entry = counts.entry(k_idx).or_insert((1, 0));
-                entry.1 = entry.1.saturating_add(4);
-            }
-        }
+        let mut running_cutoff = threshold;
+        let mut visited = vec![0u64; n_keys.div_ceil(64)];
 
-        let ratio = if threshold > 0.8 { ((threshold - 0.8) / 0.2).clamp(0.25, 0.9) } else { 0.25 };
-        let min_len = ((q_len as f64) * ratio * 0.75).floor().max(1.0) as u16;
-        let max_len = (((q_len as f64) / (ratio * 0.75)).ceil() as usize).min(u16::MAX as usize) as u16;
-
-        let mut slices: Vec<(&[(u16, u32)], u16)> = Vec::new();
         let mut q_tokens: Vec<&str> = query_folded.split_whitespace().collect();
         q_tokens.sort_unstable();
         q_tokens.dedup();
         let t_q = q_tokens.len();
 
-        let mut dice_shared: HashMap<u32, u8> = HashMap::new();
-        for &tok in &q_tokens {
-            if let Some(list) = self.token_postings.get(tok) {
-                let slice = length_window_slice(list, 1, u16::MAX);
-                if !slice.is_empty() {
-                    slices.push((slice, 4));
-                    if threshold <= 0.95 && slice.len() <= TOTAL_POSTING_BUDGET {
-                        for &(_, k_idx) in slice {
-                            *dice_shared.entry(k_idx).or_insert(0) += 1;
+        let (min_len, max_len) = length_bounds(q_len, threshold);
+        let mut slices: Vec<&[(u16, u32)]> = Vec::new();
+        let mut any_slice_truncated = threshold < 0.67;
+
+        if t_q > 0 {
+            q_tokens.sort_unstable_by_key(|&tok| self.token_postings.get(tok).map_or(0, Vec::len));
+            for &tok in &q_tokens {
+                if let Some(list) = self.token_postings.get(tok) {
+                    let slice = length_window_slice(list, min_len, max_len);
+                    if !slice.is_empty() {
+                        slices.push(slice);
+                    }
+                }
+            }
+            if threshold <= 0.95 {
+                let min_shared = if threshold <= 0.0 {
+                    1
+                } else {
+                    (((threshold * (t_q as f64)) / (1.90 - threshold)) - 1e-9).ceil().max(1.0) as usize
+                };
+                if min_shared <= t_q {
+                    let seed_count = t_q - min_shared + 1;
+                    let mut dice_shared: HashMap<u32, u8> = HashMap::new();
+                    for (idx, &tok) in q_tokens.iter().enumerate() {
+                        if let Some(list) = self.token_postings.get(tok) {
+                            if idx < seed_count {
+                                for &(_, k_idx) in list {
+                                    *dice_shared.entry(k_idx).or_insert(0) += 1;
+                                }
+                            } else if !dice_shared.is_empty() {
+                                for &(_, k_idx) in list {
+                                    if let Some(c) = dice_shared.get_mut(&k_idx) {
+                                        *c += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    for (k_idx, shared) in dice_shared {
+                        if (shared as usize) >= min_shared {
+                            let t_k = self.key_token_lens[k_idx as usize] as usize;
+                            let dice_scaled = 0.95 * (2.0 * (shared as f64)) / ((t_q + t_k) as f64);
+                            if dice_scaled + 1e-9 >= running_cutoff && mark_visited(&mut visited, k_idx) {
+                                visit(k_idx, &mut running_cutoff);
+                            }
                         }
                     }
                 }
             }
         }
-        if threshold <= 0.95 && t_q > 0 {
-            for (k_idx, shared) in dice_shared {
-                let t_k = self.key_token_lens[k_idx as usize] as usize;
-                let dice_scaled = 0.95 * (2.0 * (shared as f64)) / ((t_q + t_k) as f64);
-                if dice_scaled + 1e-9 >= threshold {
-                    let k_mask = self.key_char_masks[k_idx as usize];
-                    let shared_bits = ((q_ctx.q_mask[0] & k_mask[0]).count_ones()
-                        + (q_ctx.q_mask[1] & k_mask[1]).count_ones())
-                    .min(255) as u8;
-                    let entry = counts.entry(k_idx).or_insert((shared_bits, 0));
-                    entry.1 = entry.1.saturating_add((shared as u16) * 4);
+
+        if q_len == 1
+            && let Some(list) = self.short1_postings.get(&q_chars[0])
+        {
+            for &k_idx in list {
+                if mark_visited(&mut visited, k_idx) {
+                    visit(k_idx, &mut running_cutoff);
                 }
             }
         }
@@ -235,7 +248,7 @@ impl FuzzyAliasIndex {
                 if let Some(list) = self.short_delete_postings.get(sig) {
                     let slice = length_window_slice(list, min_len, max_len);
                     if !slice.is_empty() {
-                        slices.push((slice, 5));
+                        slices.push(slice);
                     }
                 }
             }
@@ -247,7 +260,7 @@ impl FuzzyAliasIndex {
             if let Some(list) = self.trigram_postings.get(gram) {
                 let slice = length_window_slice(list, min_len, max_len);
                 if !slice.is_empty() {
-                    slices.push((slice, if gram.1 >= 2 { 4 } else { 2 }));
+                    slices.push(slice);
                 }
             }
         }
@@ -258,26 +271,30 @@ impl FuzzyAliasIndex {
             if let Some(list) = self.bigram_postings.get(gram) {
                 let slice = length_window_slice(list, min_len, max_len);
                 if !slice.is_empty() {
-                    slices.push((slice, if gram.1 >= 2 { 2 } else { 1 }));
+                    slices.push(slice);
                 }
             }
         }
 
+        let w_max = q_len.max(max_len as usize) / 2;
+        if w_max > 16 {
+            any_slice_truncated = true;
+        }
+        let w_clamped = w_max.min(16);
         let mut q_pos_chars: Vec<(u8, char)> = Vec::new();
         for (pos, &c) in q_chars.iter().enumerate() {
             if c.is_whitespace() {
                 continue;
             }
-            let bucket = (pos / 4).min(127) as u8;
-            let b_lo = bucket.saturating_sub(1);
-            let b_hi = (bucket + 1).min(127);
+            let b_lo = (pos.saturating_sub(w_clamped) / 4).min(127) as u8;
+            let b_hi = ((pos + w_clamped) / 4).min(127) as u8;
             for b in b_lo..=b_hi {
                 if !q_pos_chars.contains(&(b, c)) {
                     q_pos_chars.push((b, c));
                     if let Some(list) = self.pos_char_postings.get(&(b, c)) {
                         let slice = length_window_slice(list, min_len, max_len);
                         if !slice.is_empty() {
-                            slices.push((slice, 2));
+                            slices.push(slice);
                         }
                     }
                 }
@@ -290,115 +307,93 @@ impl FuzzyAliasIndex {
                     if let Some(list) = self.pos_char_postings.get(&(occ_tag, c)) {
                         let slice = length_window_slice(list, min_len, max_len);
                         if !slice.is_empty() {
-                            slices.push((slice, 2));
+                            slices.push(slice);
                         }
                     }
                 }
             }
         }
 
-        slices.sort_unstable_by_key(|(s, _)| s.len());
+        slices.sort_unstable_by_key(|s| s.len());
 
         let mut scanned_postings = 0usize;
-        for (slice, weight) in slices {
-            if slice.len() <= BASE_FEATURE_SCAN && scanned_postings.saturating_add(slice.len()) <= TOTAL_POSTING_BUDGET
+        let mut verified_count = 0usize;
+        for slice in slices {
+            if slice.len() <= BASE_FEATURE_SCAN
+                && scanned_postings.saturating_add(slice.len()) <= TOTAL_POSTING_BUDGET
+                && verified_count < BASE_FUZZY_VERIFY
             {
                 scanned_postings = scanned_postings.saturating_add(slice.len());
-                for &(k_len_u16, k_idx) in slice {
-                    if let Some(shared_bits) = self.passes_jaro_prefilter(k_idx, k_len_u16 as usize, &q_ctx) {
-                        let entry = counts.entry(k_idx).or_insert((shared_bits, 0));
-                        entry.1 = entry.1.saturating_add(weight);
+                for &(_, k_idx) in slice {
+                    let word = (k_idx as usize) >> 6;
+                    let bit = 1u64 << (k_idx & 63);
+                    if (visited[word] & bit) != 0 {
+                        continue;
+                    }
+                    let sk = &self.sketches_by_idx[k_idx as usize];
+                    if passes_sketch_prefilter(sk, &q_ctx, running_cutoff) {
+                        visited[word] |= bit;
+                        verified_count += 1;
+                        visit(k_idx, &mut running_cutoff);
                     }
                 }
-            } else if counts.len() < 64 {
-                let mid = slice.partition_point(|&(len, _)| len < q_len_u16);
-                let start = mid.saturating_sub(BASE_FEATURE_SCAN / 2);
-                let end = (start + BASE_FEATURE_SCAN).min(slice.len());
-                let start = end.saturating_sub(BASE_FEATURE_SCAN);
-                for &(k_len_u16, k_idx) in &slice[start..end] {
-                    if let Some(shared_bits) = self.passes_jaro_prefilter(k_idx, k_len_u16 as usize, &q_ctx) {
-                        counts.entry(k_idx).or_insert((shared_bits, 1));
+            } else {
+                any_slice_truncated = true;
+            }
+        }
+
+        if any_slice_truncated {
+            let (cur_min, cur_max) = length_bounds(q_len, running_cutoff);
+            let win_min = cur_min.max(min_len);
+            let win_max = cur_max.min(max_len);
+            let lo = self.sorted_sketches.partition_point(|sk| sk.char_len < win_min);
+            let hi = self.sorted_sketches.partition_point(|sk| sk.char_len <= win_max);
+            if lo < hi {
+                let mut bounds = LenFilterBounds::compute(q_len, self.sorted_sketches[lo].char_len, running_cutoff);
+                for sk in &self.sorted_sketches[lo..hi] {
+                    if sk.char_len != bounds.k_len || running_cutoff.to_bits() != bounds.cutoff_bits {
+                        bounds = LenFilterBounds::compute(q_len, sk.char_len, running_cutoff);
+                    }
+                    let missing_q = ((q_ctx.q_mask[0] & !sk.mask[0]).count_ones()
+                        + (q_ctx.q_mask[1] & !sk.mask[1]).count_ones()) as i32;
+                    if missing_q > bounds.max_missing_q_p4 {
+                        continue;
+                    }
+                    let word = (sk.k_idx as usize) >> 6;
+                    let bit = 1u64 << (sk.k_idx & 63);
+                    if (visited[word] & bit) != 0 {
+                        continue;
+                    }
+                    let max_p = 4.min(q_len).min(sk.char_len as usize);
+                    let mut p = 0usize;
+                    while p < max_p && q_ctx.q_prefix4[p] == sk.prefix4[p] {
+                        p += 1;
+                    }
+                    if missing_q <= bounds.max_missing_q[p] {
+                        let missing_k = ((!q_ctx.q_mask[0] & sk.mask[0]).count_ones()
+                            + (!q_ctx.q_mask[1] & sk.mask[1]).count_ones())
+                            as i32;
+                        if missing_k <= bounds.max_missing_k[p] {
+                            visited[word] |= bit;
+                            visit(sk.k_idx, &mut running_cutoff);
+                        }
                     }
                 }
             }
         }
-
-        let mut ranked: Vec<(u8, u16, Reverse<u16>, Reverse<u32>)> = counts
-            .into_iter()
-            .map(|(k_idx, (shared_bits, score))| {
-                let k_len = self.key_char_lens[k_idx as usize];
-                (shared_bits, score, Reverse(k_len.abs_diff(q_len_u16)), Reverse(k_idx))
-            })
-            .collect();
-
-        ranked.sort_unstable_by(|a, b| b.cmp(a));
-        ranked.truncate(BASE_FUZZY_VERIFY);
-        ranked.into_iter().map(|(_, _, _, Reverse(k_idx))| k_idx).collect()
     }
-
-    #[inline]
-    fn passes_jaro_prefilter(&self, k_idx: u32, k_len: usize, ctx: &QueryFilterCtx) -> Option<u8> {
-        let max_p_len = 4.min(ctx.q_len).min(k_len);
-        let k_p4 = self.key_prefix4[k_idx as usize];
-        let mut p = 0usize;
-        while p < max_p_len && ctx.q_prefix4[p] == k_p4[p] {
-            p += 1;
-        }
-        let m_req = min_jaro_matches(ctx.q_len, k_len, p, ctx.threshold);
-        if m_req > ctx.q_len.min(k_len) {
-            return None;
-        }
-        let k_mask = self.key_char_masks[k_idx as usize];
-        let shared = ((ctx.q_mask[0] & k_mask[0]).count_ones() + (ctx.q_mask[1] & k_mask[1]).count_ones()) as usize;
-        if shared + (ctx.q_len - m_req) >= ctx.q_mask_bits { Some(shared.min(255) as u8) } else { None }
-    }
-}
-
-fn compute_char_mask(chars: &[char], counts: &mut Vec<(char, u16)>) -> [u64; 2] {
-    counts.clear();
-    let mut mask = [0u64; 2];
-    for &c in chars {
-        let occ = if let Some(entry) = counts.iter_mut().find(|(ch, _)| *ch == c) {
-            entry.1 = entry.1.saturating_add(1);
-            entry.1
-        } else {
-            counts.push((c, 1));
-            1
-        };
-        let bit = occ_char_bit(c, occ);
-        mask[(bit >> 6) as usize] |= 1u64 << (bit & 63);
-    }
-    mask
 }
 
 #[inline]
-fn occ_char_bit(c: char, occ: u16) -> u32 {
-    if c.is_ascii_lowercase() && (1..=3).contains(&occ) {
-        ((c as u32 - b'a' as u32) * 3) + (occ as u32 - 1)
-    } else if c.is_ascii_digit() && (1..=4).contains(&occ) {
-        78 + ((c as u32 - b'0' as u32) * 4) + (occ as u32 - 1)
-    } else if c == ' ' && (1..=4).contains(&occ) {
-        118 + (occ as u32 - 1)
+fn mark_visited(visited: &mut [u64], k_idx: u32) -> bool {
+    let word = (k_idx as usize) >> 6;
+    let bit = 1u64 << (k_idx & 63);
+    if (visited[word] & bit) == 0 {
+        visited[word] |= bit;
+        true
     } else {
-        let h = (c as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ ((occ as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9));
-        122 + (((h ^ (h >> 32)) as u32) % 6)
+        false
     }
-}
-
-#[inline]
-fn min_jaro_matches(q_len: usize, k_len: usize, prefix_len: usize, threshold: f64) -> usize {
-    let p = prefix_len.min(4).min(q_len).min(k_len) as f64;
-    let min_jaro = ((threshold - 0.1 * p) / (1.0 - 0.1 * p)) - 1e-9;
-    if min_jaro <= 0.0 {
-        return 1;
-    }
-    let rhs = 3.0 * min_jaro - 1.0;
-    if rhs <= 0.0 {
-        return 1;
-    }
-    let numer = rhs * (q_len as f64) * (k_len as f64);
-    let denom = (q_len + k_len) as f64;
-    ((numer / denom) - 1e-9).ceil().max(1.0) as usize
 }
 
 fn length_window_slice(list: &[(u16, u32)], min_len: u16, max_len: u16) -> &[(u16, u32)] {

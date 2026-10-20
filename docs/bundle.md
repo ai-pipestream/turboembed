@@ -235,6 +235,7 @@ this form before it is written or loaded.
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
 | `embed.prefix_query`, `.prefix_document` | string | no | Prepended for `TURBO_PROMPT_QUERY` and `TURBO_PROMPT_DOCUMENT`. |
 | `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to, each in 1 to `dim` and listed once, at most `TURBO_OUTPUT_DIMS_MAX` (16) of them. `turbo_model_info.output_dims` reports them ascending. An `output_dim` above `dim` is `INVALID_ARGUMENT`; one that is neither `dim` nor listed is `UNSUPPORTED_OPTION`. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. Below, "Declared widths". |
+| `embed.sparse` | message | no | A learned sparse output beside the dense vectors (SPLADE, arXiv 2403.06789). `pooling` is `SPARSE_POOLING_MAXLOG`: the MLM head named in `artifacts[].tensor_names` scores each of the text's tokens, and a term's weight is the max over them of `log(1 + relu(logit))`. The encoding is `(term id, weight)` pairs sorted by term id, cut by an optional top-k or weight floor the caller gives. Requires an encoder `architecture`; a raw-weights artifact names the head's tensors, and a missing decoder weight ties it to `word_embeddings`, as BERT does. Terms the input carries keep their source spans; terms the model adds carry none. |
 | `tokenizer.file` | path | yes | The upstream tokenizer file, unchanged: a `tokenizer.json`, or with `sentencepiece` the model's SentencePiece `.model` file. Its hash is `tokenizer_sha256`. |
 | `tokenizer.normalizer.*` | bool, enum | with `wordpiece` | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. A `unigram` tokenizer has none: it normalizes with the map its file carries. A `bpe` tokenizer has none either: it reads the text as it is. A `sentencepiece` tokenizer has none: its model holds its normalizer. |
 | `tokenizer.wordpiece`, `.bpe`, `.unigram`, `.sentencepiece` | message | one of | The kind and its parameters: `wordpiece` (`continuing_prefix`, `max_chars_per_word`), `unigram`, `bpe` and `sentencepiece`, below. |
@@ -262,7 +263,7 @@ this form before it is written or loaded.
 | `artifacts[].compute_dtype` | enum | yes for `FORMAT_HEF` and `FORMAT_OPENVINO_IR` | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
 | `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. `INPUT_EMBEDDINGS` is defined under "Graph inputs" below. `OUTPUT_HIDDEN_STATES` is the last layer's hidden states, before pooling; raw weights stop there, the backend pools. `OUTPUT_EMBEDDINGS` is the pooled, normalized vectors, for a graph that carries the embed block's pooling and normalization (a sentence-transformers export); only graphs no backend runs stop there. |
 | `artifacts[].host_weights` | string | when input is embeddings | The `FORMAT_SAFETENSORS` artifact whose embedding tensors the host lookup uses. Its `tensor_names` must name the five embedding roles; the layer roles are not read. |
-| `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. A static model's roles (`static_embeddings`, `static_weights`, `static_mapping`) and an encoder's are never mixed. With `classifier`, raw-weights artifacts also name `classifier_weight` (`[labels, hidden]`) and `classifier_bias` (`[labels]`), and for `CLASSIFIER_SEQUENCE` with a BERT pooler, `pooler_weight` (`[hidden, hidden]`) and `pooler_bias` (`[hidden]`). With `projection`, raw-weights artifacts name `projection_weight` (`[projection.dim, hidden]`) and optionally `projection_bias` (`[projection.dim]`). |
+| `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. A static model's roles (`static_embeddings`, `static_weights`, `static_mapping`) and an encoder's are never mixed. With `classifier`, raw-weights artifacts also name `classifier_weight` (`[labels, hidden]`) and `classifier_bias` (`[labels]`), and for `CLASSIFIER_SEQUENCE` with a BERT pooler, `pooler_weight` (`[hidden, hidden]`) and `pooler_bias` (`[hidden]`). With `embed.sparse`, they also name the MLM head: `mlm_transform_weight` (`[hidden, hidden]`), `mlm_transform_bias` (`[hidden]`), `mlm_transform_ln_weight` and `mlm_transform_ln_bias` (`[hidden]`), `mlm_decoder_bias` (`[vocab_size]`), and, unless the head is tied, `mlm_decoder_weight` (`[vocab_size, hidden]`). With `projection`, raw-weights artifacts name `projection_weight` (`[projection.dim, hidden]`) and optionally `projection_bias` (`[projection.dim]`). |
 | `artifacts[].produced_by` | message | no | Absent means the upstream file, unchanged. |
 | `produced_by.tool`, `.tool_version`, `.container`, `.reproducible` | string, bool | yes when present | What ran, in which pinned container, and whether two runs give identical bytes. |
 | `produced_by.from` | string | yes in a converted artifact but raw weights, empty in `reference` | The artifact this one was converted from. The reference, and raw weights the bundle tool wrote from an upstream PyTorch checkpoint the bundle does not carry, are made from the upstream model, so their `from` is empty; the weights' `args` name the checkpoint. |
@@ -303,6 +304,30 @@ The width is part of the vector's identity in analysis: a `Vectors`
 layer cut to one width does not compare with one cut to another, and
 the exact vector index refuses them (`IndexError::Dimension`,
 docs/analysis.md).
+
+## Sparse outputs
+
+`embed.sparse` turns the encoder into a SPLADE-style sparse encoder (arXiv
+2403.06789): the host reads each token's final hidden state through the
+range write, applies the declared MLM head to it, and pools
+`log(1 + relu(logit))` over the text's tokens into one weight per
+vocabulary term. The output of one text is its `(term id, weight)` pairs
+sorted by id, cut by an optional top-k or weight floor; a term id is a
+model vocabulary id, so the sparse vector stands beside an inverted
+index the way BM25 does.
+
+The declaration is the recipe's `sparse` field, checked and copied into
+`manifest.embed.sparse` by the bundle tool the way the Matryoshka widths
+field is, and the head's tensors are named in `tensor_names`, the way a
+classifier's are. Seal loads the head through the core, so a declaration
+the weights cannot serve is refused at seal with the tensor named.
+
+In the analysis crates the embed step writes the document's terms as
+`turbo:sparse-terms` (`SparseTerms<View>`), each input term with the span
+of its pieces, each model-added term marked expanded with no span, and
+the chunker's adapter writes the same terms per `Levels` unit beside
+`TermStats`, so BM25 and learned sparse scores fuse per unit in the level
+router.
 
 ## Graph inputs
 
