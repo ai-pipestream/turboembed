@@ -181,3 +181,14 @@ fn codes_are_pinned_to_their_bytes() {
     ];
     assert_eq!(got, pinned, "codes changed: {got:#018x?}");
 }
+
+#[test]
+fn top_k_refuses_two_queries_as_one() {
+    let sp = space(16);
+    let index =
+        quantized(&sp, Metric::Dot, &[values(1, 16), values(2, 16)], TurboQuant::new(4, false).unwrap()).unwrap();
+    let two = values(3, 32);
+    for k in [0, 1] {
+        assert_eq!(index.top_k(&sp, &two, k), Err(IndexError::Dimension { index: 16, other: 32 }), "k {k}");
+    }
+}

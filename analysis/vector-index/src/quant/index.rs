@@ -101,6 +101,9 @@ impl<M> QuantizedIndex<M> {
     /// can be missed; the scores of the rows returned are still exact
     /// estimates.
     pub fn top_k(&self, space: &Space, query: &[f32], k: usize) -> Result<Vec<Hit>, IndexError> {
+        if query.len() != self.space.dim as usize {
+            return Err(IndexError::Dimension { index: self.space.dim, other: query.len() });
+        }
         Ok(self.top_k_batch(space, query, k)?.pop().unwrap_or_default())
     }
 
