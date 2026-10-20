@@ -12,6 +12,21 @@
 //! [`Gazetteer::lookup`](crate::Gazetteer::lookup) of the span's text
 //! gives the same records as a lookup of the key.
 //!
+//! The image adds to the gazetteer rather than replacing it: a match names
+//! a key, and the gazetteer gives its records ([`lookup_key`]). Nothing in
+//! the image ties it to one gazetteer; one written from another table, or
+//! from an older version of this one, misses the names it lacks and
+//! reports keys the gazetteer does not hold, so write it again when the
+//! table changes.
+//!
+//! A word longer than 255 UTF-16 units is cut into pieces, as the match
+//! key's tokenizer cuts it, and a name that starts partway into such a
+//! word is not found, though a lookup of its text alone would find it: the
+//! finder sees the piece as the text's tokenizer made it. Names next to
+//! ordinary words are not affected.
+//!
+//! [`lookup_key`]: crate::InMemoryGazetteer::lookup_key
+//!
 //! The image needs no heap structure per state and loads in place from a
 //! byte slice or a mapped file, so a catalog of millions of names starts
 //! without rebuilding its automaton; [`NameAnnotator`] writes the matches
@@ -95,6 +110,10 @@ pub struct NameScratch {
     spans: Vec<Span>,
     starts: Vec<u32>,
     ends: Vec<u32>,
+    /// Per byte of the folded text, one more than the token that starts
+    /// there, and one more than the token that ends there; 0 for none.
+    start_at: Vec<u32>,
+    end_at: Vec<u32>,
     glossary: Scratch,
     matches: Vec<GlossaryMatch>,
 }
@@ -139,10 +158,19 @@ impl<'a> NameFinder<'a> {
         let first = out.len();
         let s = &mut *scratch;
         s.folder.fold_text(text, &mut s.folded, &mut s.spans, &mut s.starts, &mut s.ends);
-        let (spans, starts, ends) = (&s.spans, &s.starts, &s.ends);
+        let n = s.folded.len() + 1;
+        for (at, edges) in [(&mut s.start_at, &s.starts), (&mut s.end_at, &s.ends)] {
+            at.clear();
+            at.resize(n, 0);
+            for (t, &e) in edges.iter().enumerate() {
+                at[e as usize] = t as u32 + 1;
+            }
+        }
+        let (spans, start_at, end_at) = (&s.spans, &s.start_at, &s.end_at);
         self.matcher.scan(&s.folded, &mut s.glossary, |hit, key| {
-            if let (Ok(i), Ok(j)) = (starts.binary_search(&hit.start), ends.binary_search(&hit.end)) {
-                out.push(NameMatch { span: Span::new(spans[i].start, spans[j].end), key });
+            let (i, j) = (start_at[hit.start as usize], end_at[hit.end as usize]);
+            if i > 0 && j > 0 {
+                out.push(NameMatch { span: Span::new(spans[i as usize - 1].start, spans[j as usize - 1].end), key });
             }
         });
         out[first..].sort_unstable();

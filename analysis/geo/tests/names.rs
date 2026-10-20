@@ -278,3 +278,38 @@ fn the_step_writes_location_entities_the_geocoder_reads() {
         .collect();
     assert_eq!(got, [("new-york", "location", 2), ("SAO PAULO", "location", 2), ("York", "location", 1)]);
 }
+
+fn tokens_of(text: &str) -> Tokens {
+    let (mut spans, mut types) = (Vec::new(), Vec::new());
+    turbo_tokenize::word_tokens(text, turbo_tokenize::WordTokenizer::DEFAULT_MAX_TOKEN_LENGTH, &mut spans, &mut types);
+    let mut token_spans = Spans::new(ViewId::SOURCE);
+    for s in spans {
+        token_spans.push(s);
+    }
+    Tokens { spans: token_spans, sentence: None }
+}
+
+#[test]
+fn the_step_reuses_its_scratch_between_documents() {
+    let g = BundledGazetteer::get();
+    let finder = NameFinder::from_bytes(image_buf(g.name_image().unwrap()).bytes()).unwrap();
+    let long = "From Paris to Lyon, then Berlin, Tokyo and Lima; later São Paulo, Cairo and Oslo.";
+    let short = "Only Rome.";
+    let analyzer = Analyzer::builder().add(NameAnnotator::new(finder)).given(Key::<Tokens>::DEFAULT).build().unwrap();
+    // A long document, then a short one, then the long one again, on one thread.
+    for text in [long, short, long, short] {
+        let mut doc = Document::new(text);
+        doc.add(&Key::DEFAULT, tokens_of(text), Provenance::by("test")).unwrap();
+        analyzer.run(std::slice::from_mut(&mut doc)).into_iter().next().unwrap().unwrap();
+        let entities = doc.get::<Entities>().unwrap();
+        let mut want = Vec::new();
+        finder.find(text, &mut NameScratch::new(), &mut want);
+        let tokens = tokens_of(text);
+        let got: Vec<_> = (0..entities.spans.len())
+            .map(|i| (entities.spans.get(turbo_analysis::Ix::new(i as u32)), entities.tokens[i]))
+            .collect();
+        let expected: Vec<_> = want.iter().map(|m| (m.span, tokens.spans.within(m.span))).collect();
+        assert_eq!(got, expected, "{text:?}");
+        assert!(!got.is_empty());
+    }
+}
