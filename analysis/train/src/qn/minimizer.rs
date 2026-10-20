@@ -2,7 +2,7 @@
 
 use crate::error::{Error, Result};
 
-use super::objective::NegLogLikelihood;
+use super::generic::Objective;
 use super::{
     ARMIJO, CONVERGE_TOLERANCE, MIN_STEP_SIZE, QnIteration, QnParams, QnStop, REL_GRAD_NORM_TOL, SHRINK, inner_product,
     l1_norm, l2_norm, max_one,
@@ -109,8 +109,8 @@ impl UpdateInfo {
 }
 
 /// `QNMinimizer.minimize` in progress.
-pub(super) struct Minimizer<'f, 'i> {
-    function: &'f NegLogLikelihood<'i>,
+pub(super) struct Minimizer<'f> {
+    function: &'f dyn Objective,
     params: QnParams,
     pub(super) search: Search,
     updates: UpdateInfo,
@@ -122,10 +122,10 @@ pub(super) struct Minimizer<'f, 'i> {
     chunk_grad: Vec<f64>,
 }
 
-impl<'f, 'i> Minimizer<'f, 'i> {
-    pub(super) fn new(function: &'f NegLogLikelihood<'i>, params: &QnParams) -> Minimizer<'f, 'i> {
-        let dimension = function.dimension;
-        let threads = function.chunks.len();
+impl<'f> Minimizer<'f> {
+    pub(super) fn new(function: &'f dyn Objective, params: &QnParams) -> Minimizer<'f> {
+        let dimension = function.dimension();
+        let threads = function.chunks();
         Minimizer {
             function,
             params: *params,
@@ -143,7 +143,7 @@ impl<'f, 'i> Minimizer<'f, 'i> {
             },
             updates: UpdateInfo::new(params.updates as usize, dimension),
             direction: vec![0.0; dimension],
-            sums: vec![0.0; function.num_outcomes],
+            sums: vec![0.0; function.scratch()],
             gradient: vec![0.0; dimension],
             chunk_grad: if threads > 1 { vec![0.0; dimension] } else { Vec::new() },
         }

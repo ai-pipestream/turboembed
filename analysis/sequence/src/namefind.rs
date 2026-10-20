@@ -1,6 +1,9 @@
 //! The name finder's context generator and codec choice
 //! (`opennlp.tools.namefind`).
 
+pub mod crf;
+pub use crf::{CrfNameFinder, CrfNameSequence};
+
 use crate::beam::{BEAM_SIZE_PROPERTY, BeamSearch, ContextGenerator, SequenceValidator, manifest_beam_size};
 use crate::codec::{BilouCodec, BilouValidator, BioCodec, BioValidator, SequenceCodec, Span};
 use crate::error::{Error, Result};
@@ -196,6 +199,11 @@ pub struct NameFinder<'m> {
 }
 
 impl<'m> NameFinder<'m> {
+    /// Select globally normalized CRF decoding with a fallible sequence API.
+    pub fn from_crf(model: &'m crate::crf::CrfSequenceModel, context: DefaultNameContext) -> CrfNameFinder<'m> {
+        CrfNameFinder::new(model, context)
+    }
+
     /// `new NameFinderME(new TokenNameFinderModel(file))`, with `model` the
     /// classifier of the file's `nameFinder.model` entry.
     pub fn new(file: &ModelFile, model: &'m MaxentModel, mode: PatternMode) -> Result<NameFinder<'m>> {

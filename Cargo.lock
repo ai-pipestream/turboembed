@@ -2153,6 +2153,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-sequence",
  "turbo-unicode",
 ]
 
@@ -2371,6 +2372,7 @@ dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-sentdetect",
+ "turbo-sequence",
  "turbo-unicode",
 ]
 
@@ -2388,6 +2390,7 @@ dependencies = [
  "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-maxent",
+ "turbo-namefind",
  "turbo-parser",
  "turbo-phrase-chunker",
  "turbo-sentdetect",
