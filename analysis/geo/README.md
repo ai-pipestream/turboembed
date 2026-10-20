@@ -59,6 +59,39 @@ cargo run --release -p turbo-geo --example load_report -- geonames all.txt all.s
 rows as `allCountries.txt` and a similar spread of alternate names and
 scripts, for when the real file is not at hand.
 
+## Names in running text
+
+`name_image` (on `InMemoryGazetteer`, `BundledGazetteer`, `GeoNamesGazetteer`,
+`OvertureGazetteer` and `UserGazetteer`) writes the gazetteer's distinct match
+keys as one `turbo-glossary` automaton image, and `NameFinder` reads it in place
+(from an `ImageBuf`, any 4-byte aligned slice or a mapped file) to find every
+run of word tokens in a text whose match key is a name: the text's UAX #29 word
+tokens are folded one by one as a name is, joined by one space, and the
+automaton matches at token edges. `find_all` gives every name, nested and
+overlapping ones included; `find` keeps the leftmost, then the longest.
+`lookup_key` gives a match's records without folding again. `NameAnnotator`
+writes the `find` matches as `location` entities, so `GeocodeAnnotator` and
+`GeoEntityLinker` can resolve mentions no model tagged; use the mention policy
+below with it.
+
+`tests/names.rs` checks the finder against the gazetteer itself: on the bundled
+table and on random gazetteers of accented, Greek, Han and punctuated names, a
+match is exactly a run of tokens whose `lookup` finds a record, and its key's
+records are that lookup's. `examples/names_bench.rs` times it against looking
+up every run of tokens up to the longest name with `Gazetteer::lookup`, which
+finds the same names, the two alternating run by run. On a Zen 5 desktop, one
+pinned core, release, load average 13 to 26 of 32 threads from other work,
+about 2 MB of text:
+
+| Gazetteer | Keys | Longest | Heap | Image | Image load | Lookup of every run | Name finder |
+|---|---|---|---|---|---|---|---|
+| bundled | 7,698 | 7 tokens | 1.8 MB | 1.0 MB | 0.25 ms | 402 ms | 45 ms |
+| GeoNames `cities15000` | 313,840 | 112 tokens | 17.9 MB | 41.8 MB | 16 ms | 95,087 ms | 163 ms |
+
+The image of a table with many alternate names in many scripts is larger
+than the index it was written from: the index stores each key once, the
+automaton a state per character of every key.
+
 ## Dictionary mention admission
 
 Gazetteer aliases are lookup keys, not evidence that every matching token
