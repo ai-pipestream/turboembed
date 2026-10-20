@@ -43,6 +43,15 @@ impl Vocabulary {
     pub fn is_empty(&self) -> bool {
         self.text.is_empty()
     }
+
+    /// The layer's check: terms in byte order, each once.
+    pub fn validate(&self) -> Result<(), String> {
+        let n = self.text.len();
+        if (1..n).any(|i| self.text.get(i - 1) >= self.text.get(i)) {
+            return Err("terms in byte order, each once".into());
+        }
+        Ok(())
+    }
 }
 
 impl Layer for Vocabulary {
@@ -54,11 +63,7 @@ impl Layer for Vocabulary {
         self.text.len()
     }
     fn check(&self) -> Result<(), String> {
-        let n = self.text.len();
-        if (1..n).any(|i| self.text.get(i - 1) >= self.text.get(i)) {
-            return Err("terms in byte order, each once".into());
-        }
-        Ok(())
+        self.validate()
     }
 }
 
@@ -128,21 +133,13 @@ impl<L> TermStats<L> {
     pub fn units(&self) -> impl Iterator<Item = Ix<L>> + use<L> {
         (0..self.length.len() as u32).map(Ix::new)
     }
-}
 
-impl<L: Layer> Layer for TermStats<L> {
-    const ID: &'static str = "turbo:term-stats";
-    const OF: Option<&'static LayerName> = Some(L::NAME);
-    fn anchor() -> Anchor {
-        Anchor::aligned::<L>()
-    }
-    fn len(&self) -> usize {
-        self.length.len()
-    }
-    fn indexes(&self) -> Vec<(KeyId, usize)> {
-        vec![(Key::<Vocabulary>::DEFAULT.id(), self.df.len())]
-    }
-    fn check(&self) -> Result<(), String> {
+    /// The layer's check, for any level: one row start per unit and one
+    /// past the last entry, terms ascending and each once per unit, no
+    /// count of zero, each length the sum of its counts, every term inside
+    /// the vocabulary's `df`, and each df the number of units holding its
+    /// term, so never more than the units.
+    pub fn validate(&self) -> Result<(), String> {
         let n = self.length.len();
         if self.row.len() != n + 1 || self.row[0] != 0 || self.row[n] as usize != self.term.len() {
             return Err("one row start per unit and one past the last entry".into());
@@ -176,5 +173,34 @@ impl<L: Layer> Layer for TermStats<L> {
             return Err("a df that is not the number of units holding the term".into());
         }
         Ok(())
+    }
+
+    /// `validate` for these counts and for `vocabulary`, and one df per
+    /// term of `vocabulary`: what a caller handing both to a builder must
+    /// hold, checked before anything is changed.
+    pub fn validate_with(&self, vocabulary: &Vocabulary) -> Result<(), String> {
+        self.validate()?;
+        vocabulary.validate()?;
+        if self.df.len() != vocabulary.len() {
+            return Err(format!("{} df counts for a vocabulary of {}", self.df.len(), vocabulary.len()));
+        }
+        Ok(())
+    }
+}
+
+impl<L: Layer> Layer for TermStats<L> {
+    const ID: &'static str = "turbo:term-stats";
+    const OF: Option<&'static LayerName> = Some(L::NAME);
+    fn anchor() -> Anchor {
+        Anchor::aligned::<L>()
+    }
+    fn len(&self) -> usize {
+        self.length.len()
+    }
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        vec![(Key::<Vocabulary>::DEFAULT.id(), self.df.len())]
+    }
+    fn check(&self) -> Result<(), String> {
+        self.validate()
     }
 }

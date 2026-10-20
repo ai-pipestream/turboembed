@@ -35,8 +35,10 @@ impl Bm25PostingIndexBuilder {
 
     /// Adds every unit of `stats` as the next rows and returns the first
     /// one's number; unit `i` is row `first + i`. `vocabulary` is the
-    /// document's. `Err`, with nothing added, when the rows would pass
-    /// `u32` or the statistics `u64`.
+    /// document's. `Err`, with nothing added, when the two do not pass
+    /// `TermStats::validate_with` (the statistics builder checks them
+    /// before anything here changes), or the rows would pass `u32` or the
+    /// statistics `u64`.
     pub fn add<L>(&mut self, stats: &TermStats<L>, vocabulary: &Vocabulary) -> Result<u32, String> {
         let first = self.length.len();
         let end = first.checked_add(stats.length.len()).filter(|&e| e <= u32::MAX as usize);
