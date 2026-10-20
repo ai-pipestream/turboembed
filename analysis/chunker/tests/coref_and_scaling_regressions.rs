@@ -187,7 +187,7 @@ fn scorer_must_reject_text_from_another_view() {
     let d = Document::new("same same");
     let b = Boundaries { cost: vec![0; 2], reason: vec![Cut::Sentence; 2] };
     let scorer = DistilledBoundaryScorer { weights: DistilledWeights::default() };
-    assert!(scorer.annotate((&s, &b, None, None, None, None, Some(&t), d.get::<View>())).is_err());
+    assert!(scorer.annotate((&s, &b, None, None, None, None, Some(&t), d.get::<View>(), None)).is_err());
 }
 
 #[test]

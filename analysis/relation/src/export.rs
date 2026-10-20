@@ -86,7 +86,11 @@ impl LayerCodec for Relations {
 /// Registers this crate's codecs: the relations layer and its
 /// companion entity-to-entity edges (the core graph codec).
 pub fn register_codecs(codecs: &mut Codecs) {
-    codecs.register::<Relations>().register::<RelationPaths>().register::<Edges<Entities, Entities>>();
+    codecs
+        .register::<Relations>()
+        .register::<RelationPaths>()
+        .register::<Edges<Entities, Entities>>()
+        .register::<turbo_analysis::Evidence<Relations>>();
 }
 
 /// The standard codecs plus this crate's, for callers that build

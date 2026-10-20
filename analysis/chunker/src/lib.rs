@@ -18,6 +18,7 @@ pub mod clauses;
 mod cohesion;
 pub mod coref;
 mod drift;
+pub mod entity;
 pub mod expand;
 mod gaps;
 mod hashes;
@@ -41,16 +42,22 @@ pub use coref::{
     chunk_antecedents, coref_boundaries, coref_boundaries_from_chains, extract_chains,
 };
 pub use drift::{Drift, DriftBoundaries, Score, drift};
+pub use entity::{
+    ChunkEntities, ChunkEntityHeaders, EntityBoundaries, EntityContinuity, EntityKeys, HeaderPolicy, Keying,
+    chunk_entities, entity_boundaries,
+};
 pub use expand::{ExpandedHit, ExpansionPolicy, ParentExpander, ScoreAggregation, unit_tokens};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
 pub use late::{LateChunkAnnotator, Pooling, WindowPolicy};
 pub use multirep::{ChunkRepresentation, MultiRepChunkIndex, RepHit, RepresentationKind};
 pub use providers::{
-    ClauseCutProvider, CorefBoundariesProvider, DistilledBoundariesProvider, DriftProvider,
+    ClauseCutProvider, CorefBoundariesProvider, DistilledBoundariesProvider, DriftProvider, EntityBoundariesProvider,
     SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider,
 };
 pub use route::{Hit, LevelRouter, LevelWeights, ParentContext, QueryKind, QueryProfile, Routed};
-pub use scorer::{BoundaryFeatures, DistilledBoundaryScorer, DistilledWeights, distilled_boundaries};
+pub use scorer::{
+    BoundaryFeatures, DistilledBoundaryScorer, DistilledWeights, distilled_boundaries, distilled_with_runs,
+};
 pub use sentiment::{
     ChunkFacetBuilder, ChunkFacets, SentimentBoundaries, SentimentShift, boundary_similarity, chunk_boundary_gaps,
     sentiment_shift,
@@ -58,7 +65,7 @@ pub use sentiment::{
 pub use sums::{Rows, Sums};
 pub use turbo_analysis_layers::TokenVectorWindows;
 pub use weigh::{
-    COREF, DRIFT, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_coref,
+    COREF, DRIFT, ENTITY, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_coref,
     weigh_with_sentiment,
 };
 

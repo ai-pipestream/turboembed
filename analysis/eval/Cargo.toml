@@ -13,6 +13,7 @@ name = "turbo-eval"
 path = "src/main.rs"
 
 [dependencies]
+turbo-calibration = { path = "../calibration" }
 # The record's provenance block reuses turbo-bench's types, which live in
 # the core's record module.
 turbo = { path = "../../core" }

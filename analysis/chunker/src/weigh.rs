@@ -12,6 +12,8 @@ pub const DRIFT: &str = "drift";
 pub const SENTIMENT: &str = "sentiment";
 /// The instance the coreference chain continuity costs are written to.
 pub const COREF: &str = "coref";
+/// The instance the entity continuity costs are written to.
+pub const ENTITY: &str = "entity";
 
 /// A signal's weight, in thousandths: `Weight(1000)` takes its costs as
 /// they are, `Weight(500)` at half, `Weight(0)` leaves the signal out.

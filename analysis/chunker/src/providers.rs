@@ -16,6 +16,7 @@ use crate::boundaries::{Costs, StructureBoundaries};
 use crate::clauses::{ClauseBoundaries, ClauseCosts};
 use crate::coref::{CorefBoundaries, CorefCohesion};
 use crate::drift::{Drift, DriftBoundaries, Score};
+use crate::entity::{EntityBoundaries, EntityContinuity, Keying};
 use crate::scorer::{DistilledBoundaryScorer, DistilledWeights};
 use crate::sentiment::{SentimentBoundaries, SentimentShift};
 use crate::weigh::{STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight};
@@ -194,10 +195,41 @@ impl Provider<dyn Step> for CorefBoundariesProvider {
     }
 }
 
+/// Offers `EntityBoundaries` as "entity-boundaries", writing the `entity`
+/// `Boundaries` instance. Options default to `EntityContinuity::default()`:
+/// `per_entity`, `max_gap` (at least one), `cap`, and `kind` and `chains`
+/// (`true` or `false`, the entity keying).
+pub struct EntityBoundariesProvider;
+
+impl Provider<dyn Step> for EntityBoundariesProvider {
+    fn name(&self) -> &'static str {
+        "entity-boundaries"
+    }
+
+    fn supports(&self, spec: &Spec) -> bool {
+        only(spec, &["per_entity", "max_gap", "cap", "kind", "chains"])
+    }
+
+    fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
+        let p = self.name();
+        let d = EntityContinuity::default();
+        let continuity = EntityContinuity {
+            per_entity: number(p, spec, "per_entity", d.per_entity)?,
+            max_gap: number(p, spec, "max_gap", d.max_gap)?,
+            cap: number(p, spec, "cap", d.cap)?,
+            keying: Keying {
+                kind: number(p, spec, "kind", d.keying.kind)?,
+                chains: number(p, spec, "chains", d.keying.chains)?,
+            },
+        };
+        Ok(Box::new(EntityBoundaries { continuity }.bound()))
+    }
+}
+
 /// Offers `DistilledBoundaryScorer` as "distilled-boundaries", combining
 /// `structure`, `drift`, `sentiment`, `coref`, `lexical` token overlap,
-/// `entity` surface continuity, and `bias` into the default `Boundaries`
-/// instance.
+/// `entity` surface continuity, `bias`, and the `entity_runs` instance
+/// weight into the default `Boundaries` instance.
 pub struct DistilledBoundariesProvider;
 
 impl Provider<dyn Step> for DistilledBoundariesProvider {
@@ -206,7 +238,7 @@ impl Provider<dyn Step> for DistilledBoundariesProvider {
     }
 
     fn supports(&self, spec: &Spec) -> bool {
-        only(spec, &["structure", "drift", "sentiment", "coref", "lexical", "entity", "bias"])
+        only(spec, &["structure", "drift", "sentiment", "coref", "lexical", "entity", "bias", "entity_runs"])
     }
 
     fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
@@ -220,16 +252,19 @@ impl Provider<dyn Step> for DistilledBoundariesProvider {
             lexical_overlap: number(p, spec, "lexical", d.lexical_overlap)?,
             entity_continuity: number(p, spec, "entity", d.entity_continuity)?,
             bias: number(p, spec, "bias", d.bias)?,
+            entity_runs: Weight(number(p, spec, "entity_runs", d.entity_runs.0)?),
         };
         Ok(Box::new(DistilledBoundaryScorer { weights }.bound()))
     }
 }
 
 /// Offers `WeighBoundaries` (or `WeighAllBoundaries` when `sentiment` is
-/// given, or `DistilledBoundaryScorer` when `coref`, `lexical`, `entity`, or
-/// `bias` is given) as "weigh-boundaries". Options `structure` and `drift`
-/// default to `1000`; `sentiment`, `coref`, `lexical`, `entity`, and `bias`
-/// default to `0` (off by default).
+/// given, or `DistilledBoundaryScorer` when `coref`, `lexical`, `entity`,
+/// `bias` or `entity_runs` is given) as "weigh-boundaries". Options
+/// `structure` and `drift` default to `1000`; `sentiment`, `coref`,
+/// `lexical`, `entity`, and `bias` default to `0` (off by default);
+/// `entity_runs` defaults to `1000`, which counts the `entity` instance
+/// only where a pipeline writes it.
 pub struct WeighProvider;
 
 impl Provider<dyn Step> for WeighProvider {
@@ -238,15 +273,17 @@ impl Provider<dyn Step> for WeighProvider {
     }
 
     fn supports(&self, spec: &Spec) -> bool {
-        only(spec, &["structure", "drift", "sentiment", "coref", "lexical", "entity", "bias"])
+        only(spec, &["structure", "drift", "sentiment", "coref", "lexical", "entity", "bias", "entity_runs"])
     }
 
     fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
         let p = self.name();
         let structure = Weight(number(p, spec, "structure", Weight::ONE.0)?);
         let drift = Weight(number(p, spec, "drift", Weight::ONE.0)?);
-        let has_distilled =
-            spec.options.iter().any(|(k, _)| matches!(k.as_str(), "coref" | "lexical" | "entity" | "bias"));
+        let has_distilled = spec
+            .options
+            .iter()
+            .any(|(k, _)| matches!(k.as_str(), "coref" | "lexical" | "entity" | "bias" | "entity_runs"));
         if has_distilled {
             let weights = DistilledWeights {
                 structure,
@@ -256,6 +293,7 @@ impl Provider<dyn Step> for WeighProvider {
                 lexical_overlap: number(p, spec, "lexical", 0)?,
                 entity_continuity: number(p, spec, "entity", 0)?,
                 bias: number(p, spec, "bias", 0)?,
+                entity_runs: Weight(number(p, spec, "entity_runs", Weight::ONE.0)?),
             };
             Ok(Box::new(DistilledBoundaryScorer { weights }.bound()))
         } else if spec.options.iter().any(|(k, _)| k == "sentiment") {
