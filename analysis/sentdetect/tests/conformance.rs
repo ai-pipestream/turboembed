@@ -5,12 +5,15 @@
 //!
 //! Three detectors run:
 //!
-//! - `rules`: the rule splitter with every tailoring, for the case's
-//!   language;
+//! - `rules`: the rule splitter with every tailoring and the bundled
+//!   abbreviation inventory, for the case's language;
 //! - `uax29`: the rule splitter with no tailoring, which is plain UAX #29;
 //! - `maxent-de`, `maxent-en`, `maxent-pt`: OpenNLP's sentence detector with
-//!   the published UD model of that language, on the cases in its
-//!   language (and `maxent-en` on `SentenceBreakTest.txt`). Without the
+//!   the published UD model of that language, in JVM parity mode (no
+//!   abbreviation inventory), on the cases in its
+//!   language (and `maxent-en` on `SentenceBreakTest.txt`);
+//!   `maxent-en-inventory` is the English model as it runs by default,
+//!   with the bundled inventory, on the text suites. Without the
 //!   models (`turbo-goldens fetch-models`) these say so and pass.
 //!
 //! A text case passes when the detector's sentences, with every run of
@@ -39,7 +42,9 @@ use turbo_goldens::sentences::{
     BreakTestCase, SentenceCase, read_break_test, read_expected_failures, sentence_suite, sentences_dir,
 };
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::{LineBreaks, RuleSplitter, Rules, SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_sentdetect::{
+    AbbreviationInventories, LineBreaks, RuleSplitter, Rules, SentenceDetector, SentenceModel, WhitespaceMode,
+};
 use turbo_unicode::sentence_break::sentence_break;
 
 /// The published models, by language.
@@ -60,7 +65,8 @@ impl Detector {
         match self {
             Detector::Rules => "rules".into(),
             Detector::Uax29 => "uax29".into(),
-            Detector::Maxent(lang, _) => format!("maxent-{lang}"),
+            Detector::Maxent(lang, d) if d.is_jvm_parity() => format!("maxent-{lang}"),
+            Detector::Maxent(lang, _) => format!("maxent-{lang}-inventory"),
         }
     }
 
@@ -92,13 +98,34 @@ type TurnOff = fn(RuleSplitter) -> RuleSplitter;
 
 /// The rule splitter's tailorings, each with the change that turns it off.
 const TAILORINGS: [(&str, TurnOff); 8] = [
-    ("terminators", |s| s.with_rules(Rules { terminators: false, ..s.rules() })),
-    ("references", |s| s.with_rules(Rules { references: false, ..s.rules() })),
-    ("continuation", |s| s.with_rules(Rules { continuation: false, ..s.rules() })),
-    ("abbreviations", |s| s.with_rules(Rules { abbreviations: false, ..s.rules() })),
-    ("initials", |s| s.with_rules(Rules { initials: false, ..s.rules() })),
-    ("lists", |s| s.with_rules(Rules { lists: false, ..s.rules() })),
-    ("brackets", |s| s.with_rules(Rules { brackets: false, ..s.rules() })),
+    ("terminators", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { terminators: false, ..r })
+    }),
+    ("references", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { references: false, ..r })
+    }),
+    ("continuation", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { continuation: false, ..r })
+    }),
+    ("abbreviations", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { abbreviations: false, ..r })
+    }),
+    ("initials", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { initials: false, ..r })
+    }),
+    ("lists", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { lists: false, ..r })
+    }),
+    ("brackets", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { brackets: false, ..r })
+    }),
     ("paragraph line breaks", |s| s.with_line_breaks(LineBreaks::Sentence)),
 ];
 
@@ -126,7 +153,7 @@ fn maxent(lang: &'static str) -> Option<Detector> {
     let file = MODELS.iter().find(|(l, _)| *l == lang).unwrap().1;
     let path = common::published_model(file)?;
     let model = SentenceModel::open(ModelFile::read(&path).unwrap()).unwrap();
-    Some(Detector::Maxent(lang, SentenceDetector::new(model, WhitespaceMode::Unicode)))
+    Some(Detector::Maxent(lang, SentenceDetector::new(model, WhitespaceMode::Unicode).with_jvm_parity()))
 }
 
 /// Whitespace runs made one space, the ends trimmed.
@@ -376,6 +403,16 @@ fn maxent_on_pysbd() {
         if let Some(d) = maxent(lang) {
             text_suite(&d, "pysbd");
         }
+    }
+}
+
+/// The English model as it runs by default, with the bundled inventory.
+#[test]
+fn maxent_en_with_inventory_on_text_suites() {
+    if let Some(Detector::Maxent(lang, d)) = maxent("en") {
+        let d = Detector::Maxent(lang, d.with_abbreviations(AbbreviationInventories::for_language(lang)));
+        text_suite(&d, "pragmatic-segmenter");
+        text_suite(&d, "pysbd");
     }
 }
 

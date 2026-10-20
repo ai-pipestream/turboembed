@@ -4,9 +4,9 @@
 use super::*;
 use turbo_analysis::{Document, Span};
 
-fn split(splitter: RuleSplitter, text: &str) -> Vec<String> {
+fn split(splitter: impl std::borrow::Borrow<RuleSplitter>, text: &str) -> Vec<String> {
     let mut out = Vec::new();
-    splitter.split(text, &mut out);
+    splitter.borrow().split(text, &mut out);
     out.iter().map(|s: &Span| text[s.start as usize..s.end as usize].to_owned()).collect()
 }
 
@@ -23,11 +23,11 @@ fn without(tag: &str, text: &str, off: impl Fn(&mut Rules)) -> Vec<String> {
 #[test]
 fn plain_uax29() {
     let s = RuleSplitter::uax29();
-    assert_eq!(split(s, "Hello World. My name is Jonas."), ["Hello World.", "My name is Jonas."]);
-    assert_eq!(split(s, "Mr. Smith left.\nHe came back."), ["Mr.", "Smith left.", "He came back."]);
-    assert_eq!(split(s, "etc. and so on"), ["etc. and so on"]);
-    assert_eq!(split(s, "  \n \t "), Vec::<String>::new());
-    assert_eq!(split(s, ""), Vec::<String>::new());
+    assert_eq!(split(&s, "Hello World. My name is Jonas."), ["Hello World.", "My name is Jonas."]);
+    assert_eq!(split(&s, "Mr. Smith left.\nHe came back."), ["Mr.", "Smith left.", "He came back."]);
+    assert_eq!(split(&s, "etc. and so on"), ["etc. and so on"]);
+    assert_eq!(split(&s, "  \n \t "), Vec::<String>::new());
+    assert_eq!(split(&s, ""), Vec::<String>::new());
 }
 
 #[test]
@@ -228,14 +228,14 @@ fn annotator() {
     let mut doc = Document::new("\"It is big.\"[1] Next one.");
     let view = doc.get::<View>().unwrap();
     let detector = RuleSentenceDetector::new("en");
-    assert_eq!(RuleSentenceDetector::VERSION, "2");
+    assert_eq!(RuleSentenceDetector::VERSION, "3");
     let (sentences,) = detector.annotate((view,)).unwrap();
     assert_eq!(sentences.spans.columns(), (&[0, 16][..], &[15, 25][..]));
     let analyzer = turbo_analysis::Analyzer::builder().add(RuleSentenceDetector::new("en")).build().unwrap();
     analyzer.run(std::slice::from_mut(&mut doc)).into_iter().next().unwrap().unwrap();
     let prov = doc.provenance(turbo_analysis::Key::<Sentences>::DEFAULT.id()).unwrap();
     assert_eq!(prov.annotator, "turbo-sentdetect:rules");
-    assert_eq!(prov.version, "2");
+    assert_eq!(prov.version, "3");
     let other = RuleSentenceDetector::new("de");
     assert_ne!(detector.config_hash(), other.config_hash());
     // de-AT uses the German rules, so it is the same configuration.

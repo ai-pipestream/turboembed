@@ -1,6 +1,6 @@
 # The cases of the pysbd suite that the rules detector gets wrong, and what
 # differs. tests/conformance.rs writes this file and fails when a run differs
-# from it. 99 of 471 cases fail.
+# from it. 94 of 471 cases fail.
 pysbd/test_arabic/001	1 missing, first after "سؤال وجواب:"
 pysbd/test_arabic/002	1 extra, first after "وقال د‪.‬" [xfail-upstream]
 pysbd/test_arabic/004	1 missing, first after "...05:01 GMT الصنداي تايمز:"
@@ -19,8 +19,6 @@ pysbd/test_deutsch/024	1 missing, first after "...rfasst von Anna Anderson" [cle
 pysbd/test_deutsch/035	the same breaks, different text [doc_type=pdf, clean=true]
 pysbd/test_dutch/001	1 missing, first after "...ssiles op hem af kwamen."
 pysbd/test_dutch/002	1 missing, first after "...van de schoten was raak."
-pysbd/test_english/005	1 extra, first after "Please turn to p."
-pysbd/test_english/011	1 extra, first after "St."
 pysbd/test_english/018	1 missing, first after "... left the bank at 6 P.M." [xfail-upstream]
 pysbd/test_english/040	1 extra, first after "You can find it at N°."
 pysbd/test_english/047	1 extra, first after "...ying, the thing is . . ."
@@ -37,23 +35,20 @@ pysbd/test_english_clean/023	the same breaks, different text [clean=true]
 pysbd/test_english_clean/025	the same breaks, different text [clean=true]
 pysbd/test_english_clean/028	the same breaks, different text [clean=true]
 pysbd/test_english_clean/029	the same breaks, different text [clean=true]
-pysbd/test_english_clean/037	1 extra, first after "St." [clean=true]
-pysbd/test_english_clean/039	1 extra, first after "This is e.g." [clean=true]
 pysbd/test_english_clean/041	the expected sentences rewrite the text [clean=true]
 pysbd/test_english_clean/045	the expected sentences rewrite the text [clean=true]
 pysbd/test_english_clean/047	5 extra, first after "He speaks !" [clean=true]
 pysbd/test_english_clean/048	1 missing, first after "Test strange period．" [clean=true]
 pysbd/test_english_clean/049	the expected sentences rewrite the text [clean=true]
-pysbd/test_english_clean/053	1 extra, first after "St." [clean=true]
 pysbd/test_english_clean/055	1 extra, first after "...e works at Yahoo! and Y!" [clean=true]
 pysbd/test_english_clean/057	2 missing, first after "...ng Scavenger Hunt Trophy" [clean=true]; passes without the paragraph line breaks rule
 pysbd/test_english_clean/059	2 missing, first after "...mpliance Log – Volume 12" [clean=true]; passes without the paragraph line breaks rule
 pysbd/test_english_clean/064	the expected sentences rewrite the text [clean=true]
-pysbd/test_english_clean/065	1 missing, first after "...th President of the U.S."; 1 extra, first after "On Jan. 20, former Sen." [clean=true]
+pysbd/test_english_clean/065	1 missing, first after "...th President of the U.S." [clean=true]
 pysbd/test_english_clean/067	1 missing, first after "He left at 6 P.M." [clean=true]
 pysbd/test_english_clean/068	1 missing, first after "He left at 6 a.m." [clean=true]; passes without the abbreviations rule
 pysbd/test_english_clean/069	1 missing, first after "He left at 6 A.M." [clean=true]
-pysbd/test_english_clean/070	6 missing, first after "c. The third list item"; 5 extra, first after "Please turn to p." [clean=true]
+pysbd/test_english_clean/070	6 missing, first after "c. The third list item"; 3 extra, first after "...s You can find it at N°." [clean=true]
 pysbd/test_english_clean/071	1 missing, first after "c. one more"; 2 extra, first after "It was John" [clean=true]; passes without the paragraph line breaks rule
 pysbd/test_english_clean/072	the expected sentences rewrite the text [clean=true]
 pysbd/test_english_clean/073	1 extra, first after "...f the top of the house!'" [clean=true]
@@ -72,7 +67,7 @@ pysbd/test_english_clean/116	2 missing, first after "..., "If you please, sir--"
 pysbd/test_english_clean/124	1 missing, first after "What do you see?"
 pysbd/test_english_clean/126	2 extra, first after "...nterExampleCompanyA Inc."
 pysbd/test_greek/001	1 missing, first after "...ακές δε δούλευε κανένας."
-pysbd/test_issues/004	3 extra, first after "...that does not contain v."
+pysbd/test_issues/004	1 extra, first after "...ves to each vertex in X."
 pysbd/test_issues/010	1 extra, first after "...d Mahdian [86] at Yahoo!"
 pysbd/test_italian/005	2 extra, first after "Sono l'Ing."
 pysbd/test_italian/006	1 extra, first after "...un appuntamento per mar."

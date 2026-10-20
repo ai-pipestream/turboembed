@@ -1,0 +1,15 @@
+[package]
+name = "turbo-entity-linker"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-coref = { path = "../coref" }
+turbo-geo = { path = "../geo" }
+turbo-glossary-layers = { path = "../glossary-layers" }
+turbo-unicode = { path = "../unicode" }
+turbo-vector-index = { path = "../vector-index" }
+turbo-wordnet = { path = "../wordnet" }

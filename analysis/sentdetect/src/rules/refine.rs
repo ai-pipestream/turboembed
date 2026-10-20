@@ -7,6 +7,7 @@ use turbo_unicode::SentenceBreak::{self, *};
 use super::profile::LanguageRules;
 use super::uax29::{Break, NO_TERM};
 use super::units::{Unit, is_para_sep};
+use crate::inventory::{AbbreviationInventory, Verdict};
 
 /// The text and its units, with the helpers the tailorings share.
 pub(crate) struct Text<'a> {
@@ -112,9 +113,10 @@ pub(crate) fn continues_lower(t: &Text<'_>, b: Break) -> bool {
 }
 
 /// What the abbreviation and initial checks need to know about a full stop.
-pub(crate) struct Options {
+pub(crate) struct Options<'a> {
     pub abbreviations: bool,
     pub initials: bool,
+    pub inventory: &'a AbbreviationInventory,
 }
 
 /// Whether `token` is one or more initials: upper case letters, each
@@ -142,13 +144,20 @@ pub(crate) fn after_abbreviation(
     t: &Text<'_>,
     b: Break,
     rules: &LanguageRules,
-    o: &Options,
+    o: &Options<'_>,
     lower: &mut String,
 ) -> bool {
     if b.term == NO_TERM || t.class(b.term as usize) != Some(ATerm) {
         return false;
     }
     let term = b.term as usize;
+    if o.abbreviations && t.char_at(term) == Some('.') {
+        match o.inventory.judge(t.text, t.offset(term)) {
+            Verdict::Suppress => return true,
+            Verdict::Allow => return false,
+            Verdict::Neutral => {}
+        }
+    }
     // A run of terminators (`...`, `?.`) is not an abbreviation's stop.
     if term > 0 && matches!(t.class(term - 1), Some(ATerm | STerm)) {
         return false;

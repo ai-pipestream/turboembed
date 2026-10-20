@@ -12,6 +12,9 @@
 //!   sentence rules tailored per language ([`rules`]), for the languages
 //!   that have no model.
 //!
+//! The maxent and rule detectors can consult a classified
+//! [`AbbreviationInventory`] ([`inventory`]) on top of their own data.
+//!
 //! The newline, paragraph and rule detectors need no model. Each detector takes
 //! OpenNLP's whitespace mode as a parameter, never a global, and works on
 //! the bytes of the view it reads: every offset it writes is a UTF-8 byte
@@ -23,6 +26,7 @@
 pub mod eos;
 pub mod error;
 pub mod features;
+pub mod inventory;
 pub mod me;
 pub mod newline;
 pub mod paragraph;
@@ -36,6 +40,10 @@ mod units;
 pub use eos::{EndOfSentence, Position, Scanned};
 pub use error::ModelError;
 pub use features::Features;
+pub use inventory::{
+    Abbreviation, AbbreviationClass, AbbreviationClasses, AbbreviationError, AbbreviationInventories,
+    AbbreviationInventory, AbbreviationPreset, ContextRule, Verdict,
+};
 pub use me::{Candidate, Decision, Scratch, SentenceDetector, SentenceModel};
 pub use newline::{NewlineDetector, newline_spans};
 pub use paragraph::{ParagraphDetector, paragraph_spans};
@@ -65,4 +73,13 @@ fn mode_hash(mode: WhitespaceMode) -> u64 {
         WhitespaceMode::Unicode => 2,
     };
     (0xcbf2_9ce4_8422_2325 ^ x).wrapping_mul(0x0100_0000_01b3)
+}
+
+/// `h` with the eight bytes of `x` folded in, FNV-1a: a configuration
+/// hash extended with an abbreviation inventory's hash.
+fn fold_hash(mut h: u64, x: u64) -> u64 {
+    for b in x.to_le_bytes() {
+        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+    }
+    h
 }
