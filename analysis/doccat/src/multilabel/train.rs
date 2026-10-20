@@ -6,7 +6,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::error::MultiLabelError;
-use super::model::{DEFAULT_THRESHOLD, LinearHead, MultiLabelDoccatModel, sigmoid};
+use super::head::{LinearHead, sigmoid};
+use super::model::{DEFAULT_THRESHOLD, MultiLabelDoccatModel};
 use crate::DoccatFactory;
 
 /// One training document: its category labels (zero or more) and its

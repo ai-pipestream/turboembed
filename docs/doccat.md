@@ -77,12 +77,15 @@ many of them.
   independent score in `0.0..=1.0`; the scores do not sum to 1.0.
 - Each label carries its own threshold in the open interval `(0.0, 1.0)`
   (default 0.5). `MultiLabelCategorizer` emits every label whose score
-  reaches its threshold, optionally capped by `max_labels` and floored by
-  `min_score`. When no label clears its threshold the prediction is
+  reaches its threshold, optionally capped by `max_labels`, floored by
+  `min_score` (a hard floor: a label under it never emits), and, where
+  fewer than `min_labels` would emit, back-filled up to `min_labels`
+  with the highest-scoring labels that pass `min_score`. When no label
+  clears its threshold and `min_labels` is `None`, the prediction is
   empty: the annotators write the item with best category `Tag::NONE`,
   the clean abstention, never a forced argmax, and every score is still
-  in the item. `MultiLabelSpanCategorizer<L>` does the same per sentence,
-  structure block, or chunk.
+  in the item. `MultiLabelSpanCategorizer<L>` does the same per
+  sentence, structure block, or chunk.
 - `ThresholdCalibrator` fits the thresholds on a held-out validation set:
   for each label it sweeps the validation scores as candidate cut points,
   keeps the threshold maximizing that label's F_beta (beta configurable,
@@ -91,17 +94,26 @@ many of them.
   reaches the floor, the fallback is the candidate of the highest
   precision). A label with no positive in the validation set keeps the
   default threshold.
+- `multilabel::metrics::evaluate` scores a run: micro-, macro-, and
+  sample-averaged precision, recall, and F1, plus Exact Match (the
+  fraction of documents whose predicted set equals the gold set), under
+  the crate's division conventions (predicting nothing is precision 1.0,
+  no gold positive is recall 1.0, both 0 is an F of 0.0).
 - The model serializes as a `.bin` package (`package_multilabel_model` /
   `open_package` in the format `turbo_train::ModelPackage` writes, with
   the calibrated thresholds inside the model entry and a trailing
-  CRC-32C); truncated or corrupted bytes fail with `MultiLabelError`,
-  never panic.
+  CRC-32C). The entry is format version 2, which added `min_labels`;
+  version 1 entries still open with `min_labels` `None`. Truncated or
+  corrupted bytes fail with `MultiLabelError`, never panic.
 
 `analysis/doccat/tests/multilabel.rs` covers the scoring, the abstention
 into `Categories`, the calibration sweep (beta, floor, ties, zero
 positives), and trains on an imbalanced fixture whose rare label's
 optimal threshold is far from 0.5, proving the calibrated thresholds
 strictly improve macro-F1 over a flat 0.5.
+`analysis/doccat/tests/multilabel_extra.rs` covers the cardinality
+bounds, the format's backward compatibility, and the evaluation metrics
+against hand-computed values.
 
 ## SVM categorization (`SvmCategorizer`)
 

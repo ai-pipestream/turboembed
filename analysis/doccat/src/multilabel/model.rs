@@ -11,14 +11,19 @@ use turbo_train::crc32c;
 
 use super::bytes::{MAX_UTF_BYTES, Reader, put_utf};
 use super::error::MultiLabelError;
+use super::head::LinearHead;
 use crate::features::{BuiltinFeatureGenerator, DoccatContextGenerator};
 use crate::model::parse_feature_generators;
 
 /// The model entry's type string, `writeUTF` first, as `writeUTF("GIS")`
 /// is first in a maxent model's bytes.
 pub const MODEL_TYPE: &str = "MultiLabel";
-/// The format version this reader and writer implement.
-pub const FORMAT_VERSION: i32 = 1;
+/// The format version this reader and writer implement. Version 2 added
+/// `min_labels` after `min_score`; version 1 entries (which end their
+/// header at `min_score`) still open, with `min_labels` `None`.
+pub const FORMAT_VERSION: i32 = 2;
+/// The first format version: no `min_labels` field.
+pub const FORMAT_VERSION_V1: i32 = 1;
 /// The model's entry in its package.
 pub const MODEL_ENTRY: &str = "doccat.multilabel.model";
 /// The name of the model's category `TagSet`.
@@ -26,96 +31,71 @@ pub const TAGSET_NAME: &str = "turbo:multilabel-doccat";
 /// The threshold every label gets until calibration moves it.
 pub const DEFAULT_THRESHOLD: f64 = 0.5;
 
-/// The logistic sigmoid, into `0.0..=1.0`, stable for either sign.
-pub(crate) fn sigmoid(z: f64) -> f64 {
-    if z >= 0.0 {
-        1.0 / (1.0 + (-z).exp())
-    } else {
-        let e = z.exp();
-        e / (1.0 + e)
-    }
-}
-
-/// One label's One-vs-Rest head: a linear scorer (`bias` plus a weight
-/// per document feature present) that the sigmoid turns into a score in
-/// `0.0..=1.0`. The weights are the nonzero ones, sorted by feature name
-/// so the bytes a model writes are deterministic.
-#[derive(Clone, Debug, PartialEq)]
-pub struct LinearHead {
-    bias: f64,
-    weights: Vec<(String, f64)>,
-}
-
-impl LinearHead {
-    /// Builds a head from its `bias` and `(feature, weight)` pairs.
-    ///
-    /// Returns [`MultiLabelError::Invalid`] when the bias or a weight is
-    /// NaN or infinite, a feature name is empty, over `writeUTF`'s 65535
-    /// bytes, or the names are not strictly ascending (so unique).
-    pub fn new(bias: f64, weights: Vec<(String, f64)>) -> Result<LinearHead, MultiLabelError> {
-        if !bias.is_finite() {
-            return Err(MultiLabelError::Invalid(format!("a head bias of {bias}")));
-        }
-        for (i, (name, weight)) in weights.iter().enumerate() {
-            if name.is_empty() {
-                return Err(MultiLabelError::Invalid("a head with an empty feature name".into()));
-            }
-            if name.len() > MAX_UTF_BYTES {
-                return Err(MultiLabelError::Invalid(format!(
-                    "feature {name:?} is {0} bytes, over writeUTF's {MAX_UTF_BYTES}",
-                    name.len()
-                )));
-            }
-            if !weight.is_finite() {
-                return Err(MultiLabelError::Invalid(format!("weight {weight} of feature {name:?}")));
-            }
-            if i > 0 && weights[i - 1].0.as_str() >= name.as_str() {
-                return Err(MultiLabelError::Invalid(format!(
-                    "head features not strictly ascending: {:?} then {name:?}",
-                    weights[i - 1].0
-                )));
-            }
-        }
-        Ok(LinearHead { bias, weights })
-    }
-
-    /// The bias: the log-odds of a document with no weighted feature.
-    pub fn bias(&self) -> f64 {
-        self.bias
-    }
-
-    /// The nonzero weights, sorted by feature name.
-    pub fn weights(&self) -> &[(String, f64)] {
-        &self.weights
-    }
-
-    /// The linear score for a document whose features are `features`,
-    /// before the sigmoid: the bias plus every weight whose feature is
-    /// present.
-    pub fn score(&self, features: &HashSet<&str>) -> f64 {
-        self.bias + self.weights.iter().filter(|(n, _)| features.contains(n.as_str())).map(|(_, w)| w).sum::<f64>()
-    }
-
-    /// The sigmoid score in `0.0..=1.0`.
-    pub fn probability(&self, features: &HashSet<&str>) -> f64 {
-        sigmoid(self.score(features))
-    }
-}
-
 /// A multi-label document categorizer model: every known category label
 /// scored independently in `0.0..=1.0` by its own [`LinearHead`] through
 /// the sigmoid (One-vs-Rest; the scores do not sum to 1.0), emitted where
 /// they reach the label's own threshold.
+///
+/// Emission is cardinality bounded: at most `max_labels` labels, and at
+/// least `min_labels`, which back-fills the highest-scoring labels that
+/// were held under their thresholds until `min_labels` emit. `min_score`
+/// is a hard floor throughout: a label under it never emits, so a forced
+/// fill emits the top labels that pass `min_score`, and when fewer than
+/// `min_labels` labels pass `min_score`, all that do emit.
 #[derive(Clone, Debug)]
 pub struct MultiLabelDoccatModel {
     language: String,
     categories: Arc<TagSet>,
     heads: Vec<LinearHead>,
     thresholds: Vec<f64>,
-    max_labels: Option<usize>,
-    min_score: f64,
+    bounds: Bounds,
     context_generator: DoccatContextGenerator,
     model_ref: ModelRef,
+}
+
+/// The emission cardinality bounds: at most `max_labels`, at least
+/// `min_labels` (back-filled by score), every emitted label at least
+/// `min_score`. `None` is no cap and no count floor.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Bounds {
+    max_labels: Option<usize>,
+    min_labels: Option<usize>,
+    min_score: f64,
+}
+
+impl Bounds {
+    /// Validates the bounds against each other and `num_labels`:
+    /// `max_labels` and `min_labels` are `None` or positive, `min_labels`
+    /// at most `num_labels` labels and at most `max_labels` where both are
+    /// set, and `min_score` finite in `0.0..=1.0`.
+    fn check(&self, num_labels: usize) -> Result<(), MultiLabelError> {
+        if self.max_labels == Some(0) {
+            return Err(MultiLabelError::Invalid("max_labels of 0: at least one label must be able to emit".into()));
+        }
+        if self.min_labels == Some(0) {
+            return Err(MultiLabelError::Invalid(
+                "min_labels of 0: no forced emission is the default, leave it None".into(),
+            ));
+        }
+        if let Some(min) = self.min_labels {
+            if min > num_labels {
+                return Err(MultiLabelError::Invalid(format!(
+                    "min_labels of {min} for {num_labels} labels: at most one emission per label"
+                )));
+            }
+            if let Some(max) = self.max_labels
+                && min > max
+            {
+                return Err(MultiLabelError::Invalid(format!(
+                    "min_labels of {min} over max_labels of {max}: the bounds cross"
+                )));
+            }
+        }
+        if !self.min_score.is_finite() || !(0.0..=1.0).contains(&self.min_score) {
+            return Err(MultiLabelError::Invalid(format!("min_score {}, outside 0.0..=1.0", self.min_score)));
+        }
+        Ok(())
+    }
 }
 
 impl MultiLabelDoccatModel {
@@ -123,8 +103,9 @@ impl MultiLabelDoccatModel {
     /// and one threshold per label (each finite, in the open interval
     /// `(0.0, 1.0)`; [`DEFAULT_THRESHOLD`] until calibration).
     ///
-    /// `max_labels` is `None` and `min_score` 0.0; set them with
-    /// [`MultiLabelDoccatModel::with_max_labels`] and
+    /// `max_labels` and `min_labels` are `None` and `min_score` 0.0; set
+    /// them with [`MultiLabelDoccatModel::with_max_labels`],
+    /// [`MultiLabelDoccatModel::with_min_labels`], and
     /// [`MultiLabelDoccatModel::with_min_score`].
     pub fn new(
         language: impl Into<String>,
@@ -134,7 +115,7 @@ impl MultiLabelDoccatModel {
         context_generator: DoccatContextGenerator,
     ) -> Result<MultiLabelDoccatModel, MultiLabelError> {
         let categories = TagSet::new(TAGSET_NAME, labels);
-        Self::assemble(language.into(), categories, heads, thresholds, None, 0.0, context_generator)
+        Self::assemble(language.into(), categories, heads, thresholds, Bounds::default(), context_generator)
     }
 
     /// Validates the parts every constructor and `open` share, and records
@@ -144,8 +125,7 @@ impl MultiLabelDoccatModel {
         categories: Arc<TagSet>,
         heads: Vec<LinearHead>,
         thresholds: Vec<f64>,
-        max_labels: Option<usize>,
-        min_score: f64,
+        bounds: Bounds,
         context_generator: DoccatContextGenerator,
     ) -> Result<MultiLabelDoccatModel, MultiLabelError> {
         let k = categories.len();
@@ -162,21 +142,13 @@ impl MultiLabelDoccatModel {
             return Err(MultiLabelError::Invalid(format!("{} heads for {k} labels", heads.len())));
         }
         check_thresholds(&thresholds, k)?;
-        if let Some(max) = max_labels
-            && max == 0
-        {
-            return Err(MultiLabelError::Invalid("max_labels of 0: at least one label must be able to emit".into()));
-        }
-        if !min_score.is_finite() || !(0.0..=1.0).contains(&min_score) {
-            return Err(MultiLabelError::Invalid(format!("min_score {min_score}, outside 0.0..=1.0")));
-        }
+        bounds.check(k)?;
         let mut model = MultiLabelDoccatModel {
             language,
             categories,
             heads,
             thresholds,
-            max_labels,
-            min_score,
+            bounds,
             context_generator,
             model_ref: ModelRef { id: String::new(), revision: String::new(), sha256: String::new() },
         };
@@ -196,12 +168,27 @@ impl MultiLabelDoccatModel {
 
     /// The same model emitting at most `max_labels` labels per item (the
     /// highest scorers; `None` keeps every label that clears its
-    /// threshold).
+    /// threshold). Where `min_labels` is also set, it must be at most
+    /// `max_labels`.
     pub fn with_max_labels(mut self, max_labels: Option<usize>) -> Result<Self, MultiLabelError> {
-        if max_labels == Some(0) {
-            return Err(MultiLabelError::Invalid("max_labels of 0: at least one label must be able to emit".into()));
-        }
-        self.max_labels = max_labels;
+        let mut bounds = self.bounds;
+        bounds.max_labels = max_labels;
+        bounds.check(self.num_labels())?;
+        self.bounds = bounds;
+        self.refresh_ref();
+        Ok(self)
+    }
+
+    /// The same model emitting at least `min_labels` labels per item: when
+    /// fewer clear their thresholds, the highest-scoring labels that pass
+    /// `min_score` fill the item up to `min_labels`, in score order
+    /// (`min_score` stays a hard floor). At most `num_labels`, and at most
+    /// `max_labels` where that is set.
+    pub fn with_min_labels(mut self, min_labels: Option<usize>) -> Result<Self, MultiLabelError> {
+        let mut bounds = self.bounds;
+        bounds.min_labels = min_labels;
+        bounds.check(self.num_labels())?;
+        self.bounds = bounds;
         self.refresh_ref();
         Ok(self)
     }
@@ -209,10 +196,10 @@ impl MultiLabelDoccatModel {
     /// The same model where a label's score must also reach `min_score`
     /// (in `0.0..=1.0`) to be emitted.
     pub fn with_min_score(mut self, min_score: f64) -> Result<Self, MultiLabelError> {
-        if !min_score.is_finite() || !(0.0..=1.0).contains(&min_score) {
-            return Err(MultiLabelError::Invalid(format!("min_score {min_score}, outside 0.0..=1.0")));
-        }
-        self.min_score = min_score;
+        let mut bounds = self.bounds;
+        bounds.min_score = min_score;
+        bounds.check(self.num_labels())?;
+        self.bounds = bounds;
         self.refresh_ref();
         Ok(self)
     }
@@ -263,12 +250,19 @@ impl MultiLabelDoccatModel {
 
     /// The most labels one item emits, or `None` for no cap.
     pub fn max_labels(&self) -> Option<usize> {
-        self.max_labels
+        self.bounds.max_labels
     }
 
-    /// The score floor under which no label is emitted.
+    /// The fewest labels one item emits, back-filled by score where the
+    /// thresholds alone emit fewer, or `None` for no floor on count.
+    pub fn min_labels(&self) -> Option<usize> {
+        self.bounds.min_labels
+    }
+
+    /// The score floor under which no label is emitted, forced fills
+    /// included.
     pub fn min_score(&self) -> f64 {
-        self.min_score
+        self.bounds.min_score
     }
 
     /// The configured [`DoccatContextGenerator`].
@@ -324,23 +318,38 @@ impl MultiLabelDoccatModel {
         out.extend(self.heads.iter().map(|h| h.probability(&features)));
     }
 
-    /// The labels `scores` emits: every label whose score reaches its
-    /// threshold and `min_score`, at most `max_labels` of them, in label
-    /// order. Empty is clean abstention, never a forced argmax.
+    /// The labels `scores` emits, in label order: every label whose score
+    /// reaches its threshold and `min_score`, at most `max_labels` of
+    /// them; then, where fewer than `min_labels` emit, the
+    /// highest-scoring labels that pass `min_score` fill the item up to
+    /// `min_labels` (`min_score` a hard floor: a label under it never
+    /// emits, so the fill stops early when fewer than `min_labels` labels
+    /// pass it). Empty is clean abstention, never a forced argmax.
     pub fn predicted_tags(&self, scores: &[f64]) -> Vec<Tag> {
         debug_assert_eq!(scores.len(), self.num_labels());
-        let mut hit: Vec<usize> =
-            (0..scores.len()).filter(|&i| scores[i] >= self.thresholds[i] && scores[i] >= self.min_score).collect();
-        hit.sort_by(|&a, &b| scores[b].total_cmp(&scores[a]).then_with(|| a.cmp(&b)));
-        hit.truncate(self.max_labels.unwrap_or(usize::MAX));
+        let by_score = |a: &usize, b: &usize| scores[*b].total_cmp(&scores[*a]).then_with(|| a.cmp(b));
+        let mut hit: Vec<usize> = (0..scores.len())
+            .filter(|&i| scores[i] >= self.thresholds[i] && scores[i] >= self.bounds.min_score)
+            .collect();
+        hit.sort_by(by_score);
+        hit.truncate(self.bounds.max_labels.unwrap_or(usize::MAX));
+        if let Some(min) = self.bounds.min_labels
+            && hit.len() < min
+        {
+            let mut rest: Vec<usize> =
+                (0..scores.len()).filter(|i| !hit.contains(i) && scores[*i] >= self.bounds.min_score).collect();
+            rest.sort_by(by_score);
+            hit.extend(rest.into_iter().take(min - hit.len()));
+        }
         hit.sort_unstable();
         hit.into_iter().map(|i| Tag(i as u16)).collect()
     }
 
     /// The entry's bytes: `writeUTF("MultiLabel")`, the format version,
     /// the language, the feature generator class names, `max_labels` (-1
-    /// for none), `min_score`, and per label the name, threshold, bias,
-    /// and `(feature, weight)` pairs, then the CRC-32C of all of it.
+    /// for none), `min_labels` (version 2 and up; -1 for none),
+    /// `min_score`, and per label the name, threshold, bias, and
+    /// `(feature, weight)` pairs, then the CRC-32C of all of it.
     pub fn write(&self) -> Vec<u8> {
         let mut out = Vec::new();
         put_utf(&mut out, MODEL_TYPE);
@@ -349,8 +358,9 @@ impl MultiLabelDoccatModel {
         let generators: Vec<&str> =
             self.context_generator.builtins().iter().map(BuiltinFeatureGenerator::class_name).collect();
         put_utf(&mut out, &generators.join(","));
-        out.extend_from_slice(&(self.max_labels.map_or(-1, |m| m as i32)).to_be_bytes());
-        out.extend_from_slice(&self.min_score.to_be_bytes());
+        out.extend_from_slice(&(self.bounds.max_labels.map_or(-1, |m| m as i32)).to_be_bytes());
+        out.extend_from_slice(&(self.bounds.min_labels.map_or(-1, |m| m as i32)).to_be_bytes());
+        out.extend_from_slice(&self.bounds.min_score.to_be_bytes());
         out.extend_from_slice(&(self.num_labels() as i32).to_be_bytes());
         for (i, head) in self.heads.iter().enumerate() {
             put_utf(&mut out, self.categories.label(Tag(i as u16)));
@@ -369,7 +379,8 @@ impl MultiLabelDoccatModel {
 
     /// Opens a model from its entry's bytes, the mirror of
     /// [`MultiLabelDoccatModel::write`]. Truncated or corrupted bytes
-    /// fail with [`MultiLabelError`]; reading never panics.
+    /// fail with [`MultiLabelError`]; reading never panics. Version 1
+    /// entries, which hold no `min_labels`, open with it `None`.
     pub fn open(bytes: &[u8]) -> Result<MultiLabelDoccatModel, MultiLabelError> {
         let mut r = Reader::new(bytes);
         let magic = r.utf8("the model type")?;
@@ -377,7 +388,7 @@ impl MultiLabelDoccatModel {
             return Err(MultiLabelError::BadMagic);
         }
         let version = r.i32("the format version")?;
-        if version != FORMAT_VERSION {
+        if version != FORMAT_VERSION && version != FORMAT_VERSION_V1 {
             return Err(MultiLabelError::UnsupportedVersion(version));
         }
         let language = r.utf8("the language")?.to_owned();
@@ -390,7 +401,16 @@ impl MultiLabelDoccatModel {
             m if m < -1 => return Err(MultiLabelError::Invalid(format!("max_labels of {m}"))),
             m => Some(m as usize),
         };
-        let min_score = r.f64("min_score")?;
+        let min_labels = if version == FORMAT_VERSION_V1 {
+            None
+        } else {
+            match r.i32("min_labels")? {
+                -1 => None,
+                m if m < -1 => return Err(MultiLabelError::Invalid(format!("min_labels of {m}"))),
+                m => Some(m as usize),
+            }
+        };
+        let bounds = Bounds { max_labels, min_labels, min_score: r.f64("min_score")? };
         let n = r.count("the label count")?;
         if n == 0 || n >= Tag::NONE.0 as usize {
             return Err(MultiLabelError::Invalid(format!("{n} labels, between 1 and {}", Tag::NONE.0 as usize - 1)));
@@ -426,7 +446,7 @@ impl MultiLabelDoccatModel {
         }
         r.done()?;
         let categories = TagSet::new(TAGSET_NAME, &names.iter().map(String::as_str).collect::<Vec<_>>());
-        Self::assemble(language, categories, heads, thresholds, max_labels, min_score, context_generator)
+        Self::assemble(language, categories, heads, thresholds, bounds, context_generator)
     }
 }
 

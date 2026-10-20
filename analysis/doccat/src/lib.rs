@@ -69,8 +69,8 @@ pub use model::{
 };
 pub use multilabel::{
     COMPONENT_NAME as MULTILABEL_COMPONENT_NAME, LinearHead, MultiLabelCategorizer, MultiLabelDoccatModel,
-    MultiLabelError, MultiLabelSample, MultiLabelSpanCategorizer, MultiLabelTrainingParameters, ThresholdCalibrator,
-    open_package as open_multilabel_package, package_multilabel_model, train_multilabel,
+    MultiLabelError, MultiLabelReport, MultiLabelSample, MultiLabelSpanCategorizer, MultiLabelTrainingParameters, Prf,
+    ThresholdCalibrator, evaluate, open_package as open_multilabel_package, package_multilabel_model, train_multilabel,
 };
 pub use sentiment::{
     AbsaMetrics, AbsaTriplet, AspectCategoryScorer, DEFAULT_ASPECT_CATEGORIES, DEFAULT_INCIVILITY_THRESHOLD,
