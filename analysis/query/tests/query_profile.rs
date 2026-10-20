@@ -250,6 +250,18 @@ fn detects_mixed_language_spans_and_extracts_multilingual_filters() {
     let ru_lang = a_ru_en.language.as_ref().unwrap();
     assert!(ru_lang.spans.iter().any(|s| s.code == "rus" && s.script == Script::Cyrillic));
     assert!(ru_lang.spans.iter().any(|s| s.code == "eng" && s.script == Script::Latin));
+
+    // 3. Mixed English + Spanish ASCII queries where whole-query language is "eng" still resolve Spanish time triggers
+    let expected_today = DateTime::midnight(ref_date).local_seconds();
+    for q_mix in ["flights to madrid hoy", "hotel hoy"] {
+        let a_mix = profile.analyze(q_mix).unwrap();
+        assert_span_and_evidence_invariants(q_mix, &a_mix);
+        let t_mix: Vec<_> = a_mix.temporal_filters().collect();
+        assert_eq!(t_mix.len(), 1, "expected Spanish temporal filter in {q_mix:?}");
+        assert_eq!(t_mix[0].0.surface, "hoy");
+        assert_eq!(t_mix[0].0.evidence.instance.as_deref(), Some("es"));
+        assert_eq!(t_mix[0].1.start_epoch_seconds, Some(expected_today));
+    }
 }
 
 #[test]
@@ -333,14 +345,9 @@ fn recognizes_numeric_clock_expressions_and_distinguishes_time_annotator_config_
     let en_none = QueryTimeAnnotator::english(None);
     let es_14 = QueryTimeAnnotator::spanish(Some(ref_july_14));
 
-    assert_ne!(en_14.config_hash(), 0);
-    assert_ne!(es_14.config_hash(), 0);
-    assert_ne!(
-        en_14.config_hash(),
-        es_14.config_hash(),
-        "English and Spanish time annotators must differ in config_hash"
-    );
-    assert_ne!(en_14.config_hash(), en_15.config_hash(), "Different reference dates must differ in config_hash");
+    assert!(en_14.config_hash() != 0 && es_14.config_hash() != 0);
+    assert_ne!(en_14.config_hash(), es_14.config_hash());
+    assert_ne!(en_14.config_hash(), en_15.config_hash());
     assert_ne!(en_14.config_hash(), en_none.config_hash());
     assert_eq!(en_14.config_hash(), QueryTimeAnnotator::english(Some(ref_july_14)).config_hash());
     assert_ne!(QueryGrammarAnnotator::english().config_hash(), 0);
@@ -348,9 +355,7 @@ fn recognizes_numeric_clock_expressions_and_distinguishes_time_annotator_config_
     let custom_gaz = Arc::new(InMemoryGazetteer::from_entries(&[]).unwrap());
     let bundled_gaz_hash = GazetteerCandidateAnnotator::new(Arc::clone(&gaz)).config_hash();
     let custom_gaz_hash = GazetteerCandidateAnnotator::new(custom_gaz).config_hash();
-    assert_ne!(bundled_gaz_hash, 0);
-    assert_ne!(custom_gaz_hash, 0);
-    assert_ne!(bundled_gaz_hash, custom_gaz_hash);
+    assert!(bundled_gaz_hash != 0 && custom_gaz_hash != 0 && bundled_gaz_hash != custom_gaz_hash);
 
     // Provenance stored on the analyzed document also reflects the distinct config hashes.
     let profile_15 = QueryAnalysisProfile::with_reference_datetime(ref_july_15);

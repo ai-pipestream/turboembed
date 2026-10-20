@@ -20,7 +20,7 @@ use turbo_stopword::Stopwords;
 
 pub(crate) use crate::lang_model::SequentialBuilder;
 use crate::lang_model::{
-    COMMON_EN_TIME_PHRASES, COMMON_ES_TIME_PHRASES, EN_TIME_TRIGGERS, ES_TIME_TRIGGERS, is_loc_preposition,
+    COMMON_EN_TIME_PHRASES, COMMON_ES_TIME_PHRASES, is_en_time_trigger, is_es_time_trigger, is_loc_preposition,
     is_non_place_word, is_numeric_time_token, is_place_connector, is_time_ctx, with_lowercase,
 };
 pub use crate::lang_model::{QuerySpanDetector, default_span_detector};
@@ -303,7 +303,6 @@ fn build_common_phrases(
 pub struct QueryTimeAnnotator {
     inner: TimeAnnotator,
     reference: Option<DateTime>,
-    triggers: &'static [&'static str],
     phrases: &'static [&'static str],
     phrase_ranges: Box<[(u32, u32)]>,
     common_phrases: Times,
@@ -313,17 +312,16 @@ pub struct QueryTimeAnnotator {
 
 impl QueryTimeAnnotator {
     pub fn english(reference: Option<DateTime>) -> Self {
-        Self::build(TimeAnnotator::english(), reference, EN_TIME_TRIGGERS, COMMON_EN_TIME_PHRASES, false)
+        Self::build(TimeAnnotator::english(), reference, COMMON_EN_TIME_PHRASES, false)
     }
 
     pub fn spanish(reference: Option<DateTime>) -> Self {
-        Self::build(TimeAnnotator::spanish(), reference, ES_TIME_TRIGGERS, COMMON_ES_TIME_PHRASES, true)
+        Self::build(TimeAnnotator::spanish(), reference, COMMON_ES_TIME_PHRASES, true)
     }
 
     fn build(
         mut inner: TimeAnnotator,
         reference: Option<DateTime>,
-        triggers: &'static [&'static str],
         phrases: &'static [&'static str],
         is_spanish: bool,
     ) -> Self {
@@ -331,9 +329,9 @@ impl QueryTimeAnnotator {
             inner = inner.with_reference(r);
         }
         let (phrase_ranges, common_phrases) = build_common_phrases(&inner, phrases, reference);
-        let salt = (triggers.len() as u64) | if is_spanish { 0x8000 } else { 0 };
+        let salt = (phrases.len() as u64) | if is_spanish { 0x8000 } else { 0 };
         let config_hash = inner.config_hash() ^ salt.wrapping_mul(0x9e37_79b9_7f4a_7c15);
-        Self { inner, reference, triggers, phrases, phrase_ranges, common_phrases, is_spanish, config_hash }
+        Self { inner, reference, phrases, phrase_ranges, common_phrases, is_spanish, config_hash }
     }
 }
 
@@ -375,30 +373,11 @@ impl Annotator for QueryTimeAnnotator {
             let is_currency_num = has_digit && text.as_bytes().get(s.wrapping_sub(1)) == Some(&b'$');
             let num_time =
                 !self.is_spanish && !is_currency_num && (is_numeric_time_token(text, s, e) || (n <= 6 && has_digit));
-            let trig = num_time
-                || (!has_digit
-                    && (2..=16).contains(&tok.len())
-                    && with_lowercase(tok, |l| {
-                        self.triggers.binary_search(&l).is_ok()
-                            && !(sole_english
-                                && matches!(
-                                    l,
-                                    "ago"
-                                        | "feb"
-                                        | "hr"
-                                        | "hrs"
-                                        | "jul"
-                                        | "jun"
-                                        | "mar"
-                                        | "may"
-                                        | "min"
-                                        | "mins"
-                                        | "nov"
-                                        | "oct"
-                                        | "sep"
-                                        | "sept"
-                                ))
-                    }));
+            let trig = if self.is_spanish {
+                is_es_time_trigger(tok, sole_english)
+            } else {
+                num_time || is_en_time_trigger(tok)
+            };
             any_trigger |= trig;
             is_trig[idx] = trig;
         }

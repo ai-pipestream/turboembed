@@ -315,23 +315,25 @@ impl Annotator for QuerySpanDetector {
     }
 }
 
-/// Non-place query words that can collide with minor town names in a global gazetteer.
 #[rustfmt::skip]
-pub(crate) const NON_PLACE_QUERY_WORDS: &[&str] = &[
-    "a", "about", "after", "ago", "all", "also", "am", "an", "and", "any", "april", "are", "as", "at", "august",
-    "ayer", "baratos", "be", "before", "between", "billig", "billige", "both", "but", "by", "can", "cent", "cents",
-    "cheap", "coming", "con", "day", "days", "de", "december", "del", "demain", "der", "des", "dollar", "dollars",
-    "each", "el", "en", "euro", "euros", "every", "february", "flight", "flights", "for", "friday", "from", "het",
-    "hotel", "hotels", "hour", "hours", "hoy", "in", "into", "is", "it", "january", "july", "june", "kg", "km", "la",
-    "las", "last", "le", "les", "los", "low", "lunes", "mañana", "march", "martes", "may", "mes", "meses", "mi",
-    "minute", "minutes", "monday", "month", "months", "morgen", "morning", "nach", "naar", "near", "next", "night",
-    "no", "not", "november", "now", "october", "of", "on", "one", "only", "or", "over", "para", "past", "percent",
-    "pm", "por", "pound", "pounds", "price", "quarter", "saturday", "second", "seconds", "semana", "september", "so",
-    "some", "sunday", "tarde", "than", "that", "the", "their", "them", "then", "there", "these", "they", "this",
-    "three", "through", "thursday", "tickets", "time", "to", "today", "tomorrow", "tonight", "too", "tuesday", "two",
-    "un", "una", "under", "until", "up", "usd", "van", "very", "vols", "vuelos", "was", "we", "wednesday", "week",
-    "weeks", "what", "when", "where", "which", "while", "who", "with", "year", "years", "yesterday",
-];
+pub(crate) fn is_non_place_word(lower: &str) -> bool {
+    matches!(
+        lower,
+        "a" | "about" | "after" | "ago" | "all" | "also" | "am" | "an" | "and" | "any" | "april" | "are" | "as" | "at" | "august"
+            | "ayer" | "baratos" | "be" | "before" | "between" | "billig" | "billige" | "both" | "but" | "by" | "can" | "cent" | "cents"
+            | "cheap" | "coming" | "con" | "day" | "days" | "de" | "december" | "del" | "demain" | "der" | "des" | "dollar" | "dollars"
+            | "each" | "el" | "en" | "euro" | "euros" | "every" | "february" | "flight" | "flights" | "for" | "friday" | "from" | "het"
+            | "hotel" | "hotels" | "hour" | "hours" | "hoy" | "in" | "into" | "is" | "it" | "january" | "july" | "june" | "kg" | "km" | "la"
+            | "las" | "last" | "le" | "les" | "los" | "low" | "lunes" | "mañana" | "march" | "martes" | "may" | "mes" | "meses" | "mi"
+            | "minute" | "minutes" | "monday" | "month" | "months" | "morgen" | "morning" | "nach" | "naar" | "near" | "next" | "night"
+            | "no" | "not" | "november" | "now" | "october" | "of" | "on" | "one" | "only" | "or" | "over" | "para" | "past" | "percent"
+            | "pm" | "por" | "pound" | "pounds" | "price" | "quarter" | "saturday" | "second" | "seconds" | "semana" | "september" | "so"
+            | "some" | "sunday" | "tarde" | "than" | "that" | "the" | "their" | "them" | "then" | "there" | "these" | "they" | "this"
+            | "three" | "through" | "thursday" | "tickets" | "time" | "to" | "today" | "tomorrow" | "tonight" | "too" | "tuesday" | "two"
+            | "un" | "una" | "under" | "until" | "up" | "usd" | "van" | "very" | "vols" | "vuelos" | "was" | "we" | "wednesday" | "week"
+            | "weeks" | "what" | "when" | "where" | "which" | "while" | "who" | "with" | "year" | "years" | "yesterday"
+    )
+}
 
 #[rustfmt::skip]
 pub(crate) fn is_grammar_trigger(lower: &str) -> bool {
@@ -362,54 +364,55 @@ pub(crate) fn is_temporal_cursor_token(tok: &str) -> bool {
 }
 
 #[rustfmt::skip]
-pub(crate) const EN_TIME_TRIGGERS: &[&str] = &[
-    "afternoon", "afternoons", "am", "annual", "annually", "apr", "april", "aug", "august", "autumn", "biannual",
-    "bimonthly", "biweekly", "breakfast", "christmas", "coming", "current", "daily", "dawn", "day", "days", "daytime",
-    "dec", "decade", "decades", "december", "dinner", "dinnertime", "dusk", "easter", "eight", "eighteen", "eighties",
-    "eighty", "eleven", "eve", "evening", "evenings", "every", "everyday", "fall", "feb", "february", "fifteen",
-    "fifties", "fifty", "five", "following", "forties", "fortnight", "fortnightly", "fortnights", "forty", "four",
-    "fourteen", "fri", "friday", "fridays", "half", "halloween", "hour", "hourly", "hours", "hr", "hrs", "hundred",
-    "jan", "january", "jul", "july", "jun", "june", "juneteenth", "last", "lunch", "lunchtime", "mar", "march", "may",
-    "mid", "midnight", "min", "mins", "minute", "minutes", "mon", "monday", "mondays", "month", "monthly", "months",
-    "morning", "mornings", "next", "night", "nightly", "nights", "nighttime", "nine", "nineteen", "nineties", "ninety",
-    "noon", "nov", "november", "now", "oct", "october", "one", "otd", "past", "pm", "previous", "prior", "quarter",
-    "quarterly", "quarters", "sat", "saturday", "saturdays", "sec", "second", "seconds", "secs", "semiannual",
-    "semiannually", "sep", "sept", "september", "seven", "seventeen", "seventies", "seventy", "six", "sixteen",
-    "sixties", "sixty", "spring", "summer", "sun", "sunday", "sundays", "ten", "thanksgiving", "thirteen", "thirties",
-    "thirty", "this", "three", "thu", "thur", "thurs", "thursday", "thursdays", "tmr", "tmrw", "today", "tomorrow",
-    "tonight", "tonite", "tue", "tues", "tuesday", "tuesdays", "twelve", "twenties", "twenty", "two", "upcoming",
-    "wed", "wednesday", "wednesdays", "week", "weekday", "weekdays", "weekend", "weekends", "weekly", "weeks",
-    "winter", "wk", "wks", "xmas", "year", "yearly", "years", "yesterday", "yr", "yrs",
-];
+pub(crate) fn is_en_time_trigger(tok: &str) -> bool {
+    !tok.bytes().any(|b| b.is_ascii_digit()) && (2..=13).contains(&tok.len()) && with_lowercase(tok, |l| {
+        matches!(
+            l,
+            "afternoon" | "afternoons" | "am" | "annual" | "annually" | "apr" | "april" | "aug" | "august" | "autumn" | "biannual"
+                | "bimonthly" | "biweekly" | "breakfast" | "christmas" | "coming" | "current" | "daily" | "dawn" | "day" | "days" | "daytime"
+                | "dec" | "decade" | "decades" | "december" | "dinner" | "dinnertime" | "dusk" | "easter" | "eight" | "eighteen" | "eighties"
+                | "eighty" | "eleven" | "eve" | "evening" | "evenings" | "every" | "everyday" | "fall" | "feb" | "february" | "fifteen"
+                | "fifties" | "fifty" | "five" | "following" | "forties" | "fortnight" | "fortnightly" | "fortnights" | "forty" | "four"
+                | "fourteen" | "fri" | "friday" | "fridays" | "half" | "halloween" | "hour" | "hourly" | "hours" | "hr" | "hrs" | "hundred"
+                | "jan" | "january" | "jul" | "july" | "jun" | "june" | "juneteenth" | "last" | "lunch" | "lunchtime" | "mar" | "march" | "may"
+                | "mid" | "midnight" | "min" | "mins" | "minute" | "minutes" | "mon" | "monday" | "mondays" | "month" | "monthly" | "months"
+                | "morning" | "mornings" | "next" | "night" | "nightly" | "nights" | "nighttime" | "nine" | "nineteen" | "nineties" | "ninety"
+                | "noon" | "nov" | "november" | "now" | "oct" | "october" | "one" | "otd" | "past" | "pm" | "previous" | "prior" | "quarter"
+                | "quarterly" | "quarters" | "sat" | "saturday" | "saturdays" | "sec" | "second" | "seconds" | "secs" | "semiannual"
+                | "semiannually" | "sep" | "sept" | "september" | "seven" | "seventeen" | "seventies" | "seventy" | "six" | "sixteen"
+                | "sixties" | "sixty" | "spring" | "summer" | "sun" | "sunday" | "sundays" | "ten" | "thanksgiving" | "thirteen" | "thirties"
+                | "thirty" | "this" | "three" | "thu" | "thur" | "thurs" | "thursday" | "thursdays" | "tmr" | "tmrw" | "today" | "tomorrow"
+                | "tonight" | "tonite" | "tue" | "tues" | "tuesday" | "tuesdays" | "twelve" | "twenties" | "twenty" | "two" | "upcoming"
+                | "wed" | "wednesday" | "wednesdays" | "week" | "weekday" | "weekdays" | "weekend" | "weekends" | "weekly" | "weeks"
+                | "winter" | "wk" | "wks" | "xmas" | "year" | "yearly" | "years" | "yesterday" | "yr" | "yrs"
+        )
+    })
+}
 
 #[rustfmt::skip]
-pub(crate) const ES_TIME_TRIGGERS: &[&str] = &[
-    "abr", "abril", "actual", "ago", "agosto", "anoche", "anos", "anteayer", "anterior", "anteriores", "antier",
-    "anual", "anuales", "anualmente", "ayer", "año", "años", "bimensual", "bimensuales", "bimensualmente", "calendario",
-    "cada", "decada", "decadas", "decenio", "decenios", "dia", "diariamente", "dias", "dic", "diciembre", "dom",
-    "domingo", "domingos", "día", "días", "ene", "enero", "escolar", "esta", "estas", "este", "estos", "feb",
-    "febrero", "finde", "findes", "fiscal", "habil", "hora", "horas", "hoy", "hr", "hra", "hras", "hrs", "invierno",
-    "jue", "jueves", "jul", "julio", "jun", "junio", "lun", "lunes", "mar", "martes", "marzo", "may", "mayo",
-    "mañana", "mañanas", "mediodia", "mediodía", "mensual", "mensuales", "mensualmente", "mes", "meses", "mie", "mier",
-    "miercoles", "min", "mins", "minuto", "minutos", "miércoles", "navidad", "noche", "nochebuena", "noches",
-    "nochevieja", "nov", "noviembre", "oct", "octubre", "otoño", "pasada", "pasadas", "pasado", "pasados", "pascua",
-    "primavera", "proxima", "proximas", "proximo", "proximos", "próxima", "próximas", "próximo", "próximos",
-    "quincena", "quincenal", "quincenales", "quincenalmente", "quincenas", "sab", "sabado", "sabados", "seg",
-    "segundo", "segundos", "segs", "semana", "semanal", "semanales", "semanalmente", "semanas", "semestral",
-    "semestrales", "semestralmente", "semestre", "semestres", "sep", "sept", "septiembre", "set", "setiembre",
-    "siguiente", "siguientes", "sábado", "sábados", "tarde", "tardes", "trimestral", "trimestrales", "trimestralmente",
-    "trimestre", "trimestres", "ultima", "ultimas", "ultimo", "ultimos", "verano", "vie", "viernes", "última",
-    "últimas", "último", "últimos",
-];
-
-#[rustfmt::skip]
-pub(crate) const TIME_CONTEXT_WORDS: &[&str] = &[
-    "a", "after", "ago", "al", "an", "and", "at", "before", "beginning", "between", "by", "con", "cuarto", "de", "del",
-    "dentro", "desde", "during", "early", "el", "en", "end", "entre", "esta", "este", "for", "from", "hace", "half",
-    "hasta", "hence", "in", "la", "las", "late", "later", "los", "media", "menos", "mid", "middle", "o", "oclock",
-    "of", "on", "para", "past", "por", "since", "start", "the", "through", "till", "to", "un", "una", "unas", "unos",
-    "until", "within", "y",
-];
+pub(crate) fn is_es_time_trigger(tok: &str, sole_english: bool) -> bool {
+    !tok.bytes().any(|b| b.is_ascii_digit()) && (2..=16).contains(&tok.len()) && with_lowercase(tok, |l| {
+        matches!(
+            l,
+            "abr" | "abril" | "actual" | "agosto" | "anoche" | "anos" | "anteayer" | "anterior" | "anteriores" | "antier"
+                | "anual" | "anuales" | "anualmente" | "ayer" | "año" | "años" | "bimensual" | "bimensuales" | "bimensualmente" | "calendario"
+                | "cada" | "decada" | "decadas" | "decenio" | "decenios" | "dia" | "diariamente" | "dias" | "dic" | "diciembre" | "dom"
+                | "domingo" | "domingos" | "día" | "días" | "ene" | "enero" | "escolar" | "esta" | "estas" | "este" | "estos"
+                | "febrero" | "finde" | "findes" | "fiscal" | "habil" | "hora" | "horas" | "hoy" | "hra" | "hras" | "invierno"
+                | "jue" | "jueves" | "julio" | "junio" | "lun" | "lunes" | "martes" | "marzo" | "mayo"
+                | "mañana" | "mañanas" | "mediodia" | "mediodía" | "mensual" | "mensuales" | "mensualmente" | "mes" | "meses" | "mie" | "mier"
+                | "miercoles" | "minuto" | "minutos" | "miércoles" | "navidad" | "noche" | "nochebuena" | "noches"
+                | "nochevieja" | "noviembre" | "octubre" | "otoño" | "pasada" | "pasadas" | "pasado" | "pasados" | "pascua"
+                | "primavera" | "proxima" | "proximas" | "proximo" | "proximos" | "próxima" | "próximas" | "próximo" | "próximos"
+                | "quincena" | "quincenal" | "quincenales" | "quincenalmente" | "quincenas" | "sab" | "sabado" | "sabados" | "seg"
+                | "segundo" | "segundos" | "segs" | "semana" | "semanal" | "semanales" | "semanalmente" | "semanas" | "semestral"
+                | "semestrales" | "semestralmente" | "semestre" | "semestres" | "septiembre" | "set" | "setiembre"
+                | "siguiente" | "siguientes" | "sábado" | "sábados" | "tarde" | "tardes" | "trimestral" | "trimestrales" | "trimestralmente"
+                | "trimestre" | "trimestres" | "ultima" | "ultimas" | "ultimo" | "ultimos" | "verano" | "vie" | "viernes" | "última"
+                | "últimas" | "último" | "últimos"
+        ) || (!sole_english && matches!(l, "ago" | "feb" | "hr" | "hrs" | "jul" | "jun" | "mar" | "may" | "min" | "mins" | "nov" | "oct" | "sep" | "sept"))
+    })
+}
 
 #[rustfmt::skip]
 pub(crate) const COMMON_EN_TIME_PHRASES: &[&str] = &[
@@ -427,10 +430,6 @@ pub(crate) const COMMON_ES_TIME_PHRASES: &[&str] = &[
     "anoche", "ayer", "el mes pasado", "esta mañana", "esta noche", "esta semana", "esta tarde", "este año",
     "este mes", "hoy", "la semana pasada", "mañana",
 ];
-
-pub(crate) fn is_non_place_word(lower: &str) -> bool {
-    NON_PLACE_QUERY_WORDS.binary_search(&lower).is_ok()
-}
 
 #[rustfmt::skip]
 pub(crate) fn is_place_connector(lower: &str) -> bool {
@@ -460,6 +459,7 @@ pub(crate) fn is_numeric_time_token(text: &str, s: usize, e: usize) -> bool {
     matches!(prev, b':' | b'/' | b'-' | b'.') || matches!(next, b':' | b'/' | b'-' | b'.')
 }
 
+#[rustfmt::skip]
 pub(crate) fn is_time_ctx(text: &str, s: usize, e: usize, trig: bool) -> bool {
     if trig {
         return true;
@@ -470,5 +470,14 @@ pub(crate) fn is_time_ctx(text: &str, s: usize, e: usize, trig: bool) -> bool {
     if (has_digit && !is_currency_num) || tok.bytes().all(|b| matches!(b, b':' | b'/' | b'-' | b'.' | b',')) {
         return true;
     }
-    with_lowercase(tok, |lower| TIME_CONTEXT_WORDS.binary_search(&lower).is_ok() || is_grammar_trigger(lower))
+    with_lowercase(tok, |lower| {
+        matches!(
+            lower,
+            "a" | "after" | "ago" | "al" | "an" | "and" | "at" | "before" | "beginning" | "between" | "by" | "con" | "cuarto" | "de" | "del"
+                | "dentro" | "desde" | "during" | "early" | "el" | "en" | "end" | "entre" | "esta" | "este" | "for" | "from" | "hace" | "half"
+                | "hasta" | "hence" | "in" | "la" | "las" | "late" | "later" | "los" | "media" | "menos" | "mid" | "middle" | "o" | "oclock"
+                | "of" | "on" | "para" | "past" | "por" | "since" | "start" | "the" | "through" | "till" | "to" | "un" | "una" | "unas" | "unos"
+                | "until" | "within" | "y"
+        ) || is_grammar_trigger(lower)
+    })
 }

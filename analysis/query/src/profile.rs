@@ -206,6 +206,13 @@ impl QueryProfileBuilder {
                         && doc
                             .get::<turbo_analysis_layers::Language>()
                             .is_some_and(|l| l.code.len() == 1 && l.code.get(0) == "eng")
+                        && doc.get::<Tokens>().is_some_and(|toks| {
+                            let (starts, ends) = toks.spans.columns();
+                            let text = doc.source();
+                            starts.iter().zip(ends).all(|(&s, &e)| {
+                                !crate::lang_model::is_es_time_trigger(&text[s as usize..e as usize], true)
+                            })
+                        })
                 }),
             );
 
