@@ -5,8 +5,9 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
+use turbo::head::ProjectionHead;
 use turbo::manifest::{PromptRole, Truncation};
-use turbo::status::{Error as CoreError, INVALID_ARGUMENT, UNSUPPORTED_OPTION};
+use turbo::status::{Error as CoreError, INVALID_ARGUMENT, INVALID_SHAPE, UNSUPPORTED_OPTION};
 use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::{TURBO_POOLING_MEAN, turbo_token_range};
 use turbo_analysis::annotate::Step;
@@ -15,7 +16,7 @@ use turbo_analysis::{Annotator, Bound, Error, Execution, Ix, Layer, ModelRef, Re
 use turbo_analysis_layers::{Chunks, Levels, Sentences, Subwords, VectorKind, Vectors};
 
 use crate::encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
-use crate::window::{Placed, Plan, Target, Which, pieces_of};
+use crate::window::{Placed, Plan, Target, Which, default_token_stride, pieces_of};
 
 /// How a `VectorAnnotator` runs its model.
 #[derive(Clone, Debug)]
@@ -26,11 +27,15 @@ pub struct VectorOptions {
     /// and sentences are what a search finds. The chunker's budget is
     /// counted with the same role (`SubwordAnnotator::overhead`).
     pub prompt: PromptRole,
+    /// Sliding-window stride (in subword pieces) when splitting long
+    /// inputs for per-token contextual vectors (`#709`). `0` selects the
+    /// default half-window stride `(width / 2).max(1)`.
+    pub stride: u32,
 }
 
 impl Default for VectorOptions {
     fn default() -> Self {
-        VectorOptions { encoder: EncoderOptions::default(), prompt: PromptRole::Document }
+        VectorOptions { encoder: EncoderOptions::default(), prompt: PromptRole::Document, stride: 0 }
     }
 }
 
@@ -77,6 +82,8 @@ pub struct Output {
 /// ranges per run.
 pub struct VectorAnnotator {
     state: Mutex<State>,
+    tokenizer: Tokenizer,
+    projection: Option<ProjectionHead>,
     model: ModelRef,
     execution: Execution,
     dim: u32,
@@ -86,6 +93,7 @@ pub struct VectorAnnotator {
     tail: Vec<i32>,
     max_batch: u32,
     max_ranges: u32,
+    stride: u32,
     /// The settings every vector depends on besides the model and where
     /// it runs: the row length and the prompt, as `config_hash` takes
     /// them, before the layer that lays out the windows.
@@ -143,6 +151,7 @@ impl VectorAnnotator {
     pub fn open(dir: &Path, o: &VectorOptions) -> Result<VectorAnnotator, CoreError> {
         let bundle = Bundle::open(dir)?;
         let tokenizer = Tokenizer::load(&bundle)?;
+        let projection = ProjectionHead::load_optional(&bundle)?;
         let encoder = Encoder::open(dir, &o.encoder)?;
         let info = encoder.info().clone();
         if info.pooling != TURBO_POOLING_MEAN {
@@ -167,10 +176,15 @@ impl VectorAnnotator {
             ));
         }
         let width = info.max_seq - overhead;
+        if o.stride > width {
+            return Err(CoreError::new(INVALID_ARGUMENT, format!("stride {} exceeds window width {width}", o.stride)));
+        }
+        let stride = if o.stride == 0 { default_token_stride(width) } else { o.stride };
+        let fill_id = tokenizer.fill_id();
         let state = State {
             plan: Plan::new(width),
             run: Run {
-                rows: Rows::new(info.max_seq, tokenizer.fill_id()),
+                rows: Rows::new(info.max_seq, fill_id),
                 ranges: Vec::new(),
                 targets: Vec::new(),
                 flat: Vec::new(),
@@ -184,6 +198,8 @@ impl VectorAnnotator {
         };
         Ok(VectorAnnotator {
             state: Mutex::new(state),
+            tokenizer,
+            projection,
             model: crate::model_ref(&bundle),
             execution: info.execution,
             dim: info.dim,
@@ -192,8 +208,35 @@ impl VectorAnnotator {
             tail,
             max_batch: info.max_batch,
             max_ranges: info.max_ranges,
+            stride,
             settings: [info.max_seq, prompt],
         })
+    }
+
+    /// Attach or override the linear projection head applied to per-token
+    /// contextual vectors (`#709`).
+    pub fn with_projection(mut self, projection: ProjectionHead) -> Result<Self, CoreError> {
+        projection.validate()?;
+        if projection.hidden != self.dim as usize {
+            return Err(CoreError::new(
+                INVALID_SHAPE,
+                format!("projection input width {} does not match encoder width {}", projection.hidden, self.dim),
+            ));
+        }
+        self.projection = Some(projection);
+        Ok(self)
+    }
+
+    /// Override the sliding-window stride (in subword pieces) used when
+    /// splitting long inputs for per-token contextual vectors (`0` uses the
+    /// default half-window stride).
+    pub fn with_stride(mut self, stride: u32) -> Result<Self, CoreError> {
+        let width = self.width();
+        if stride > width {
+            return Err(CoreError::new(INVALID_ARGUMENT, format!("stride {stride} exceeds window width {width}")));
+        }
+        self.stride = if stride == 0 { default_token_stride(width) } else { stride };
+        Ok(self)
     }
 
     /// The configuration hash of the vectors a step writes when `layout`
@@ -208,6 +251,28 @@ impl VectorAnnotator {
         config_hash(&[self.settings[0], self.settings[1], layout])
     }
 
+    /// The configuration hash of per-token contextual vectors (`SubwordVectors`).
+    pub fn token_config(&self) -> u64 {
+        let mut h = config_hash(&[self.settings[0], self.settings[1], self.stride, self.token_dim()]);
+        if let Some(proj) = &self.projection {
+            h = (h ^ u64::from(proj.has_bias)).wrapping_mul(0x0100_0000_01b3);
+            for &v in proj.linear.weight.iter().chain(&proj.linear.bias) {
+                for b in v.to_bits().to_le_bytes() {
+                    h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+                }
+            }
+        }
+        h
+    }
+
+    pub fn tokenizer(&self) -> &Tokenizer {
+        &self.tokenizer
+    }
+
+    pub fn projection(&self) -> Option<&ProjectionHead> {
+        self.projection.as_ref()
+    }
+
     pub fn model(&self) -> &ModelRef {
         &self.model
     }
@@ -218,6 +283,18 @@ impl VectorAnnotator {
 
     pub fn dim(&self) -> u32 {
         self.dim
+    }
+
+    /// Output width of per-token contextual vectors (`projection.dim` when
+    /// a projection head is present, else `self.dim()`).
+    pub fn token_dim(&self) -> u32 {
+        self.projection.as_ref().map_or(self.dim, |p| p.dim as u32)
+    }
+
+    /// Sliding-window stride (in subword pieces) for per-token contextual
+    /// vectors.
+    pub fn stride(&self) -> u32 {
+        self.stride
     }
 
     /// The session's settings as it resolved them.
@@ -274,4 +351,6 @@ fn config_hash(values: &[u32]) -> u64 {
 
 mod execute;
 mod steps;
+mod tokens;
 pub use steps::{ChunkVectors, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorsProvider};
+pub use tokens::ContextualTokens;

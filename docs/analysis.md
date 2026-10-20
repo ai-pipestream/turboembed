@@ -20,7 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-group` | `analysis/group/` | Sketches, near-duplicate groups and version links inside a document and across a batch, and boilerplate detection (Near duplicates and boilerplate, below) |
-| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization (Exact vector index, below) |
+| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization; TurboQuant storage at 2 to 4 bits a coordinate behind the same queries (feature `turboquant`) (Exact vector index, below; [turboquant.md](turboquant.md)) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
@@ -2148,6 +2148,9 @@ in the order they were added.
   names its space, and one from another model (id, revision or manifest
   hash), another dimension or another normalization is refused with
   `IndexError::Model`, `Dimension` or `Normalization`, never scored.
+  The dimension is the width the vectors were cut to: a Matryoshka
+  model's vectors at two declared widths (docs/bundle.md) are vectors
+  of two dimensions, and do not compare.
 - **Vectors refused.** A vector of zeros, a value that is not finite, a
   vector longer than `MAX_LENGTH` (`2^50`), and in a unit space a
   vector whose length is not within `UNIT_TOLERANCE` (`1e-3`) of 1, on
@@ -2174,6 +2177,38 @@ rows of 7 to 1024 dimensions and on ties, duplicates, scaled copies and
 `f64`, and run queries from eight threads against the single-thread
 answer. `analysis/vector-index/examples/index_bench.rs` times one query
 at a time and a batch over random unit rows.
+
+### TurboQuant storage
+
+With the `turboquant` feature, `IndexBuilder::build_quantized` stores the
+same rows as TurboQuant codes (arXiv 2504.19874) and returns a
+`QuantizedIndex` with the same `Space` checks, metadata, `score`, `top_k`
+and `top_k_batch`; its scores are estimates of the dot product. The codes
+and search kernels are the `turbovec` crate's, pinned to one commit of
+`ai-pipestream/turbovec`: a fixed random rotation, Lloyd-Max codes for the
+rotated coordinates, a stored length a row that removes the codes'
+shrinkage from the estimate, and SIMD scans on AVX-512, AVX2 and NEON,
+searched on rayon's pool. The feature brings in turbovec's dependencies
+(rayon, memmap2, rand, rand_chacha, statrs, ordered-float); without it
+the crate depends on nothing new.
+
+`TurboQuant` sets the bits a coordinate (2 to 4, others refused with
+`IndexError::Bits`) and whether to fit turbovec's per-coordinate
+calibration (TQ+) first, on up to 1024 rows taken at an even stride so
+the same rows give the same calibration (an index of one row is not
+calibrated). turbovec codes a vector no longer than `1e-10` as zero, so
+the rows are coded after one common scale that makes the longest of
+length 1, and each query after division by its own length; scores are
+scaled back, so a short `Metric::Dot` row keeps its dot product. A row
+shorter than `2e-10` times the longest, a dimension that is not a
+positive multiple of 8, or one past 16384, is refused at build with
+`IndexError::Quantized`. `to_bytes` returns turbovec's `.tv` image, and a
+test pins its bytes for fixed rows. The tests also check the refusals,
+top-k against a full sort of the estimated scores, and the paper's error
+bound and the estimate's mean at each width.
+`analysis/vector-index/examples/quant_bench.rs` measures recall, error
+and speed against the exact index; [turboquant.md](turboquant.md) is the
+record, with the OpenNLP Java reference on the same rows.
 
 ## Levels
 

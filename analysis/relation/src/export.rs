@@ -86,7 +86,7 @@ impl LayerCodec for Relations {
 /// Registers this crate's codecs: the relations layer and its
 /// companion entity-to-entity edges (the core graph codec).
 pub fn register_codecs(codecs: &mut Codecs) {
-    codecs.register::<Relations>().register::<Edges<Entities, Entities>>();
+    codecs.register::<Relations>().register::<RelationPaths>().register::<Edges<Entities, Entities>>();
 }
 
 /// The standard codecs plus this crate's, for callers that build
@@ -96,4 +96,97 @@ pub fn codecs() -> Codecs {
     turbo_analysis_layers::export::register_codecs(&mut codecs);
     register_codecs(&mut codecs);
     codecs
+}
+
+use crate::paths::RelationPaths;
+
+impl LayerCodec for RelationPaths {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_tagset(&mut w, &self.relations)?;
+        w.usize(self.subject.len())?;
+        for (i, _) in self.spans.iter() {
+            let r = i.get();
+            w.u32(self.subject[r].get() as u32);
+            w.u32(self.object[r].get() as u32);
+            w.u32(self.subject_head[r]);
+            w.u32(self.object_head[r]);
+            w.u32(self.pivot[r]);
+        }
+        w.usize(self.step_row.len())?;
+        for off in &self.step_row {
+            w.u32(*off);
+        }
+        w.usize(self.step_token.len())?;
+        for k in 0..self.step_token.len() {
+            w.u32(self.step_token[k]);
+            w.u8(u8::from(self.step_up[k]));
+            w.u16(self.step_relation[k].0);
+        }
+        Ok(w.finish())
+    }
+
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let relations = get_tagset(&mut r)?;
+        let entities = entities_len(cx)?;
+        let rows = r.usize()?;
+        want_len(rows, spans.len(), "path rows")?;
+        let (mut subject, mut object, mut subject_head, mut object_head, mut pivot) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for _ in 0..rows {
+            let (s, o) = (r.u32()? as usize, r.u32()? as usize);
+            if s >= entities || o >= entities {
+                return Err(malformed(format!("a path endpoint past {entities} entities")));
+            }
+            subject.push(Ix::new(s as u32));
+            object.push(Ix::new(o as u32));
+            subject_head.push(r.u32()?);
+            object_head.push(r.u32()?);
+            pivot.push(r.u32()?);
+        }
+        let offsets = r.usize()?;
+        want_len(offsets, rows + 1, "step offsets")?;
+        let mut step_row = Vec::new();
+        for _ in 0..offsets {
+            step_row.push(r.u32()?);
+        }
+        let steps = r.usize()?;
+        if step_row.last().is_some_and(|last| *last as usize != steps) {
+            return Err(malformed(format!("{steps} steps for offsets ending at {}", step_row.last().unwrap_or(&0))));
+        }
+        let (mut step_token, mut step_up, mut step_relation) = (Vec::new(), Vec::new(), Vec::new());
+        for _ in 0..steps {
+            step_token.push(r.u32()?);
+            step_up.push(match r.u8()? {
+                0 => false,
+                1 => true,
+                other => return Err(malformed(format!("a step direction byte of {other}"))),
+            });
+            let tag = r.u16()?;
+            if tag as usize >= relations.len() {
+                return Err(malformed(format!("a step relation outside {}", relations.name)));
+            }
+            step_relation.push(Tag(tag));
+        }
+        done(&r, "relation paths")?;
+        checked(
+            RelationPaths {
+                spans,
+                subject,
+                object,
+                subject_head,
+                object_head,
+                pivot,
+                step_row,
+                step_token,
+                step_up,
+                step_relation,
+                relations,
+            },
+            cx,
+        )
+    }
 }

@@ -39,6 +39,7 @@ members = [
     "analysis/tokenize",
     "analysis/tokenize-layers",
     "analysis/langdetect",
+    "analysis/keywords",
     "analysis/doccat",
     "analysis/depparse",
     "analysis/relation",

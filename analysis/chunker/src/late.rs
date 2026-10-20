@@ -111,9 +111,12 @@ impl<L> LateChunkAnnotator<L> {
         Error::Annotator { annotator: "turbo:late-chunk", detail }
     }
 
-    /// Whether the mask drops a piece with this surface text.
-    fn masked(&self, text: &str) -> bool {
-        !text.chars().any(char::is_alphanumeric) || self.stopwords.contains(&fold(text))
+    /// Whether the mask drops a piece with this surface text,
+    /// against a stopword set already folded by the caller
+    /// (the public field is folded at use, so entries inserted
+    /// directly, in any case, mask as the builder's do).
+    fn masked(&self, text: &str, stopwords: &BTreeSet<String>) -> bool {
+        !text.chars().any(char::is_alphanumeric) || stopwords.contains(&fold(text))
     }
 }
 
@@ -205,11 +208,41 @@ impl<L: Layer> Annotator for LateChunkAnnotator<L> {
         // The fragment table is indexed below; hold it to its own
         // invariants even for a layer whose check is lenient.
         target_spans.check(Overlap::Any).map_err(fail)?;
+        // Every span this step reads must lie in the view text
+        // on UTF-8 boundaries, in every pooling mode: a direct
+        // call gets no `Document::add` to catch coordinates
+        // outside the view or inside a character, and only
+        // masked mean would otherwise notice while slicing.
+        let text = view.text();
+        let in_text = |what: &str, i: usize, start: u32, end: u32| -> Result<(), Error> {
+            let (start, end) = (start as usize, end as usize);
+            if end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+                return Err(fail(format!(
+                    "{what} {i} ({start}..{end}) is outside the view text or inside a character"
+                )));
+            }
+            Ok(())
+        };
+        for (i, span) in windows.spans.iter() {
+            in_text("window", i.get(), span.start, span.end)?;
+        }
+        for (i, span) in subwords.spans.iter() {
+            in_text("subword", i.get(), span.start, span.end)?;
+        }
+        for (i, (&start, &end)) in target_spans.start.iter().zip(target_spans.end).enumerate() {
+            in_text("target", i, start, end)?;
+        }
+        for (i, (&start, &end)) in target_spans.frag_start.iter().zip(target_spans.frag_end).enumerate() {
+            in_text("target fragment", i, start, end)?;
+        }
+        // Fold the configured stopwords at use, so entries
+        // inserted through the public field in any case mask
+        // exactly as the builder's folded entries do.
+        let stopwords: BTreeSet<String> = self.stopwords.iter().map(|w| fold(w)).collect();
 
         // The window holding each piece, by binary search over
         // the ordered windows. A piece no window contains means
         // the windows do not describe these vectors.
-        let text = view.text();
         let (win_starts, win_ends) = windows.spans.columns();
         let (piece_starts, piece_ends) = subwords.spans.columns();
         let mut piece_window = Vec::with_capacity(subwords.len());
@@ -262,7 +295,7 @@ impl<L: Layer> Annotator for LateChunkAnnotator<L> {
                     let surface = text.get(span.range()).ok_or_else(|| {
                         fail(format!("subword {piece} ({}..{}) is outside the view text", span.start, span.end))
                     })?;
-                    if self.masked(surface) {
+                    if self.masked(surface, &stopwords) {
                         continue;
                     }
                 }
@@ -351,7 +384,10 @@ impl<L: Layer> Annotator for LateChunkAnnotator<L> {
         let mut hash = 0xcbf29ce484222325u64;
         feed(&mut hash, Self::ID.as_bytes());
         feed(&mut hash, &[self.pooling as u8, self.window_policy as u8, u8::from(self.normalize)]);
-        for word in &self.stopwords {
+        // Folded, matching how the set is read at use: a word
+        // inserted in any case hashes as its folded form.
+        let folded: BTreeSet<String> = self.stopwords.iter().map(|w| fold(w)).collect();
+        for word in &folded {
             feed(&mut hash, word.as_bytes());
             feed(&mut hash, &[0]);
         }

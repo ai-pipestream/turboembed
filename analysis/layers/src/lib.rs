@@ -12,8 +12,9 @@
 
 use turbo_analysis::Ix;
 pub use turbo_analysis::{
-    Alternative, Alternatives, Edge, Edges, FilterRule, FragmentError, Fragments, Groups, ModeSet, NBest, Overlap,
-    SplitMode, Tag, TagSet, TextSpans, filter_spans,
+    Alternative, Alternatives, ConditionalAnnotator, ConditionalStep, Edge, Edges, FilterAnnotator, FilterRule,
+    FilterableLayer, FragmentError, Fragments, Groups, LayerStatus, ModeSet, NBest, Overlap, SpanFilter, SplitMode,
+    Tag, TagSet, TextSpans, filter_spans, retain_aligned_anchor,
 };
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
@@ -114,6 +115,7 @@ mod money;
 mod numbers;
 mod ordinals;
 mod pii;
+mod predicate;
 mod quantities;
 mod regions;
 mod segmentation;

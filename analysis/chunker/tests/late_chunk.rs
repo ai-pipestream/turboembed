@@ -336,3 +336,50 @@ fn zero_length_targets_pool_nothing_wherever_they_sit() {
         assert!(out.is_empty(Ix::new(i)), "zero-length target {i} must be empty");
     }
 }
+
+#[test]
+fn spans_outside_the_view_or_inside_a_character_are_refused_in_every_mode() {
+    for pooling in [Pooling::Mean, Pooling::Max, Pooling::MaskedMean] {
+        // One byte of text; the piece, window and target all
+        // claim bytes past it.
+        let doc = Document::new("x");
+        let subwords = Subwords { spans: spans(&[(2, 3)]), ids: vec![0], model: model(), token: None };
+        let vectors = Vectors::new(1, vec![2.0], Vec::new(), model());
+        let target = Sentences { spans: spans(&[(2, 3)]) };
+        let view = doc.get::<turbo_analysis::View>().unwrap();
+        let annotator = LateChunkAnnotator::<Sentences>::new(pooling, WindowPolicy::Allow);
+        let err = match annotator.annotate((view, &vectors, &subwords, &windows(&[(0, 3)]), &target)) {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("{pooling:?} accepted coordinates outside the view"),
+        };
+        assert!(err.contains("outside the view text"), "{pooling:?}: {err}");
+
+        // A two-byte character; the piece ends inside it.
+        let doc = Document::new("\u{e9}");
+        let subwords = Subwords { spans: spans(&[(0, 1)]), ids: vec![0], model: model(), token: None };
+        let target = Sentences { spans: spans(&[(0, 2)]) };
+        let view = doc.get::<turbo_analysis::View>().unwrap();
+        assert!(
+            annotator.annotate((view, &vectors, &subwords, &windows(&[(0, 2)]), &target)).is_err(),
+            "{pooling:?} accepted a piece ending inside a character"
+        );
+    }
+}
+
+#[test]
+fn stopwords_inserted_through_the_public_field_are_folded() {
+    let doc = Document::new("the");
+    let subwords = Subwords { spans: spans(&[(0, 3)]), ids: vec![0], model: model(), token: None };
+    let vectors = Vectors::new(1, vec![2.0], Vec::new(), model());
+    let target = Sentences { spans: spans(&[(0, 3)]) };
+    let view = doc.get::<turbo_analysis::View>().unwrap();
+    let mut annotator = LateChunkAnnotator::<Sentences>::new(Pooling::MaskedMean, WindowPolicy::Allow);
+    annotator.stopwords.insert("THE".into());
+    let (out,) = annotator.annotate((view, &vectors, &subwords, &windows(&[(0, 3)]), &target)).unwrap();
+    assert!(out.is_empty(Ix::new(0)), "an upper-case field entry masks the lower-case piece");
+    assert_eq!(
+        annotator.config_hash(),
+        LateChunkAnnotator::<Sentences>::new(Pooling::MaskedMean, WindowPolicy::Allow).stopwords(["the"]).config_hash(),
+        "the same effective set hashes the same however it was inserted"
+    );
+}

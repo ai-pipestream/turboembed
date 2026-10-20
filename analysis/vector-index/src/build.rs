@@ -97,4 +97,12 @@ impl<M> IndexBuilder<M> {
     pub fn build(self) -> VectorIndex<M> {
         VectorIndex::from_parts(self.space, self.metric, self.bpr, self.rows, self.meta, kernel::detect())
     }
+
+    /// The index of the rows added, in the order they were added, stored
+    /// as TurboQuant codes under `config`. Refused when the dimension is
+    /// not a positive multiple of 8 or is past 16384.
+    #[cfg(feature = "turboquant")]
+    pub fn build_quantized(self, config: crate::TurboQuant) -> Result<crate::QuantizedIndex<M>, IndexError> {
+        crate::QuantizedIndex::from_rows(self.space, self.metric, self.bpr, &self.rows, self.meta, config)
+    }
 }
