@@ -196,8 +196,7 @@ fn aggregation_modes_over_one_parent() {
 #[test]
 fn parent_token_budget_keeps_leaves() {
     let levels = levels();
-    let mut p = ExpansionPolicy::default();
-    p.max_parent_tokens = 25;
+    let p = ExpansionPolicy { max_parent_tokens: 25, ..ExpansionPolicy::default() };
     let out = ParentExpander::new(p).expand(&levels, &tokens(), &[(ix(C0), 0.5), (ix(C1), 0.9)]).unwrap();
     let units: Vec<u32> = out.iter().map(|h| h.unit.get() as u32).collect();
     assert_eq!(units, [C1, C0], "the 30-token section is over budget, leaves stay, best first");
@@ -215,8 +214,7 @@ fn parent_token_budget_keeps_leaves() {
 #[test]
 fn ancestor_and_descendant_never_both_emitted() {
     let levels = levels();
-    let mut p = ExpansionPolicy::default();
-    p.max_parent_tokens = 0;
+    let p = ExpansionPolicy { max_parent_tokens: 0, ..ExpansionPolicy::default() };
     // The child outranks its section: the section is blocked.
     let out = ParentExpander::new(p.clone()).expand(&levels, &tokens(), &[(ix(SEC1), 0.9), (ix(C2), 0.95)]).unwrap();
     assert_eq!(out.iter().map(|h| h.unit.get() as u32).collect::<Vec<_>>(), [C2]);
@@ -230,16 +228,14 @@ fn ancestor_and_descendant_never_both_emitted() {
 fn total_budget_caps_and_skips_to_what_fits() {
     let levels = levels();
     let hits = [(ix(SEC0), 0.9), (ix(SEC1), 0.8)];
-    let mut p = ExpansionPolicy::default();
-    p.max_total_tokens = Some(50);
+    let p = ExpansionPolicy { max_total_tokens: Some(50), ..ExpansionPolicy::default() };
     let out = ParentExpander::new(p).expand(&levels, &tokens(), &hits).unwrap();
     assert_eq!(out.iter().map(|h| h.unit.get() as u32).collect::<Vec<_>>(), [SEC0]);
 
     // A too-large best candidate is skipped, not fatal: the
     // smaller later one still fits.
     let hits = [(ix(SEC1), 0.9), (ix(SEC0), 0.8)];
-    let mut p = ExpansionPolicy::default();
-    p.max_total_tokens = Some(50);
+    let p = ExpansionPolicy { max_total_tokens: Some(50), ..ExpansionPolicy::default() };
     let out = ParentExpander::new(p).expand(&levels, &tokens(), &hits).unwrap();
     assert_eq!(out.iter().map(|h| h.unit.get() as u32).collect::<Vec<_>>(), [SEC0]);
 }
