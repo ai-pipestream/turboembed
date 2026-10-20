@@ -7,12 +7,13 @@ impl Manifest {
                 self.bundle_version
             )));
         }
-        if self.task != "TASK_EMBED" && self.task != "TASK_RERANK" {
+        if self.task != "TASK_EMBED" && self.task != "TASK_RERANK" && self.task != "TASK_EXTRACTIVE_QA" {
             if is_task_name(&self.task) {
                 return Err(unsupported_task(&self.task));
             }
             return Err(invalid(format!("manifest.json: task: unknown value {:?}", self.task)));
         }
+        self.validate_qa()?;
 
         self.validate_rerank()?;
 
