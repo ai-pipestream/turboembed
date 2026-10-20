@@ -111,15 +111,16 @@ impl VectorAnnotator {
 
     /// Extracts one contextual vector per subword piece in `subwords`
     /// through the encoder's stage 2 range write (`turbo_embed_write_ranges`,
-    /// `#263`), returning `Vectors<Subwords>`.
+    /// `#263`, `#709`), selecting for each piece the window where it is most
+    /// interior and applying the bundle's optional projection head before
+    /// L2 normalization, returning `Vectors<Subwords>`.
     pub fn embed_subwords(
         &self,
         annotator: &'static str,
         subwords: &Subwords,
         sentences: Option<&Spans<Sentences>>,
     ) -> Result<Vectors<Subwords>, Error> {
-        let spans: Vec<Span> = (0..subwords.len()).map(|i| subwords.spans.get(Ix::new(i as u32))).collect();
-        self.embed_spans(annotator, subwords, sentences, subwords.spans.view(), &spans)
+        Ok(self.embed_subword_tokens(annotator, subwords, sentences, self.stride)?.into_subword_vectors())
     }
 
     /// Zero vectors for every item of `i`, or why its layers do not fit

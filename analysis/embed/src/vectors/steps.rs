@@ -97,7 +97,7 @@ impl Annotator for SentenceChunkVectors {
 }
 
 /// Writes `opennlp:embeddings<opennlp:subwords>`: a contextual vector per
-/// subword piece, extracted from the sentence windows via `#263`.
+/// subword piece, extracted from its most-interior window via `#263` and `#709`.
 #[derive(Clone)]
 pub struct SubwordVectors(pub Arc<VectorAnnotator>);
 
@@ -110,18 +110,43 @@ impl Annotator for SubwordVectors {
         Ok((self.0.embed_subwords(Self::ID, subwords, sentences.map(|s| &s.spans))?,))
     }
 
-    provenance!(Which::Sentences);
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let batch: Vec<(&Subwords, Option<&Spans<Sentences>>)> =
+            inputs.into_iter().map(|(sub, s)| (sub, s.map(|s| &s.spans))).collect();
+        self.0
+            .embed_subword_tokens_batch(Self::ID, &batch, self.0.stride())
+            .into_iter()
+            .map(|r| r.map(|t| (t.into_subword_vectors(),)))
+            .collect()
+    }
+
+    const VERSION: &'static str = "1";
+
+    fn model(&self) -> Option<ModelRef> {
+        Some(self.0.model.clone())
+    }
+
+    fn execution(&self) -> Option<Execution> {
+        Some(self.0.execution.clone())
+    }
+
+    fn config_hash(&self) -> u64 {
+        self.0.token_config()
+    }
 }
 
 /// Offers the vector steps to pipelines built from configuration, as
 /// "vectors". The spec's location is the bundle directory; its options:
 ///
-/// - `layers`: `sentences`, `chunks`, `both` (the default), or `levels`
-///   for the local and contextual vectors of `Levels` (`LevelVectors`);
+/// - `layers`: `sentences`, `chunks`, `both` (the default), `levels`
+///   for the local and contextual vectors of `Levels` (`LevelVectors`),
+///   or `subwords` for per-token contextual vectors (`SubwordVectors`);
 /// - `device`: `cpu` (the default), `select`, a device index, or a backend
 ///   name such as `cuda`;
 /// - `precision`: `model` (the default), `fastest` or `exact`;
-/// - `prompt`: `document` (the default), `query` or `none`.
+/// - `prompt`: `document` (the default), `query` or `none`;
+/// - `stride`: sliding-window stride in subword pieces for `subwords` (`0`
+///   by default, selecting half the window width).
 pub struct VectorsProvider;
 
 fn parse_options(spec: &Spec) -> Result<VectorOptions, String> {
@@ -145,7 +170,11 @@ fn parse_options(spec: &Spec) -> Result<VectorOptions, String> {
         "none" => PromptRole::None,
         p => return Err(format!("prompt {p:?}: document, query or none")),
     };
-    Ok(VectorOptions { encoder: EncoderOptions { device, precision, ..EncoderOptions::default() }, prompt })
+    let stride = match spec.option("stride", "0").parse::<u32>() {
+        Ok(s) => s,
+        Err(_) => return Err(format!("stride {:?}: expected a non-negative integer", spec.option("stride", "0"))),
+    };
+    Ok(VectorOptions { encoder: EncoderOptions { device, precision, ..EncoderOptions::default() }, prompt, stride })
 }
 
 impl Provider<dyn Step> for VectorsProvider {
@@ -161,8 +190,10 @@ impl Provider<dyn Step> for VectorsProvider {
         let dir = spec.location.as_deref().ok_or_else(|| Error::Pipeline("vectors: no bundle location".into()))?;
         let o = parse_options(spec).map_err(|e| Error::Pipeline(format!("vectors: {e}")))?;
         let layers = spec.option("layers", "both");
-        if !matches!(layers, "sentences" | "chunks" | "both" | "levels") {
-            return Err(Error::Pipeline(format!("vectors: layers {layers:?}: sentences, chunks, both or levels")));
+        if !matches!(layers, "sentences" | "chunks" | "both" | "levels" | "subwords") {
+            return Err(Error::Pipeline(format!(
+                "vectors: layers {layers:?}: sentences, chunks, both, levels or subwords"
+            )));
         }
         let a =
             VectorAnnotator::open(dir, &o).map_err(|e| Error::Pipeline(format!("vectors: {}: {e}", dir.display())))?;
@@ -171,6 +202,7 @@ impl Provider<dyn Step> for VectorsProvider {
             "sentences" => Box::new(Bound::new(SentenceVectors(a))),
             "chunks" => Box::new(Bound::new(ChunkVectors(a))),
             "levels" => Box::new(crate::levels::LevelVectors(a).bound()),
+            "subwords" => Box::new(Bound::new(SubwordVectors(a))),
             _ => Box::new(Bound::new(SentenceChunkVectors(a))),
         })
     }

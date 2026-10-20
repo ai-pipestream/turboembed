@@ -175,6 +175,10 @@ pub enum TensorRole {
     MlmDecoderWeight,
     /// An MLM head's decoder bias, `[vocab_size]`; with `embed.sparse`.
     MlmDecoderBias,
+    /// A token-vector linear projection head's weight, `[projection.dim, hidden]`.
+    ProjectionWeight,
+    /// A token-vector linear projection head's bias, `[projection.dim]`; optional.
+    ProjectionBias,
 }
 
 impl TensorRole {
@@ -200,6 +204,8 @@ impl TensorRole {
                 | TensorRole::MlmTransformLnBias
                 | TensorRole::MlmDecoderWeight
                 | TensorRole::MlmDecoderBias
+                | TensorRole::ProjectionWeight
+                | TensorRole::ProjectionBias
         )
     }
 
@@ -230,5 +236,10 @@ impl TensorRole {
                 | TensorRole::MlmDecoderWeight
                 | TensorRole::MlmDecoderBias
         )
+    }
+
+    /// Roles a linear token-projection head has.
+    pub fn is_projection(self) -> bool {
+        matches!(self, TensorRole::ProjectionWeight | TensorRole::ProjectionBias)
     }
 }

@@ -238,7 +238,7 @@ fn annotators_reject_mismatched_views_and_layer_lengths() {
     // 1. Chunker rejects Boundaries whose length does not match Sentences.
     let short_bounds = Boundaries { cost: vec![0], reason: vec![Cut::Sentence] };
     let chunker = Chunker { budget: Budget { max: 100, target: 50, size_weight: 100, overhead: 0 } };
-    let err = chunker.annotate((sents, subwords, &short_bounds, None)).err().unwrap();
+    let err = chunker.annotate((sents, subwords, &short_bounds, None, None)).err().unwrap();
     assert!(err.to_string().contains("boundary costs"), "unexpected error: {err}");
 
     // 2. SentimentBoundaries rejects Tokens in a different view.
@@ -265,7 +265,7 @@ fn annotators_reject_mismatched_views_and_layer_lengths() {
     assert!(err.to_string().contains("different views"), "unexpected error: {err}");
 
     let valid_bounds = Boundaries { cost: vec![0, 0], reason: vec![Cut::Sentence; 2] };
-    let (chunks,) = chunker.annotate((sents, subwords, &valid_bounds, None)).unwrap();
+    let (chunks,) = chunker.annotate((sents, subwords, &valid_bounds, None, None)).unwrap();
     let short_cats = Categories::<Sentences>::with_capacity(TagSet::new("sentiment", &["pos"]), 1);
     let err = ChunkFacetBuilder
         .annotate((&chunks, sents, doc.get::<View>(), None, Some(&short_cats), None, None))

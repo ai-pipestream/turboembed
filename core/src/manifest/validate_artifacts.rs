@@ -139,6 +139,11 @@ impl Manifest {
                         "manifest.json: {field}: an MLM head role, and the bundle declares no embed.sparse"
                     )));
                 }
+                if role.is_projection() && self.projection.is_none() {
+                    return Err(invalid(format!(
+                        "manifest.json: {field}: a projection role, and the bundle has no projection"
+                    )));
+                }
                 if role.per_layer() != name.contains("{layer}") {
                     let want = if role.per_layer() { "must" } else { "must not" };
                     return Err(invalid(format!("manifest.json: {field}: {want} contain {{layer}}")));

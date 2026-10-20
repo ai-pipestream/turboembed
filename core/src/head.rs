@@ -6,6 +6,7 @@
 use crate::bundle::{AlignedBytes, Bundle};
 use crate::manifest::{ClassifierKind, Format};
 use crate::model::{Placed, classifier_tensors, place};
+pub use crate::projection::ProjectionHead;
 use crate::status::{BUNDLE_NO_ARTIFACT, Error, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
 use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
@@ -312,8 +313,6 @@ pub fn softmax(logits: &[f32], out: &mut [f64]) -> Result<()> {
     Ok(())
 }
 
-/// The bytes of `files[p.file]` where `p` lies, as F32, widening F16 and
-/// BF16; shared with mlm.rs, whose head loads tensors the same way.
 pub(crate) fn read_f32(files: &[AlignedBytes], p: &Placed) -> Vec<f32> {
     let bytes = &files[p.file][p.range.clone()];
     if p.dtype == TURBO_DTYPE_F32 {

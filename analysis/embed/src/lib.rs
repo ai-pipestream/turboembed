@@ -36,8 +36,8 @@ pub use levels::LevelVectors;
 pub use sparse::{SparseAnnotator, SparseOptions, SparseProvider};
 pub use subwords::{SubwordAnnotator, SubwordsProvider, align};
 pub use vectors::{
-    ChunkVectors, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorAnnotator, VectorOptions,
-    VectorsProvider,
+    ChunkVectors, ContextualTokens, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors,
+    VectorAnnotator, VectorOptions, VectorsProvider,
 };
 
 use turbo::bundle::Bundle;

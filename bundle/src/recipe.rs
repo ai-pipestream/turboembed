@@ -34,6 +34,12 @@ pub struct Recipe {
     /// Absent when the model declares none.
     #[serde(default)]
     pub sparse: Option<crate::sparse::SparseDecl>,
+    /// The widths a model trained with the Matryoshka objective is cut to,
+    /// read off its model card and pinned here: the tool checks the list
+    /// and copies it into `manifest.embed.output_dims` (matryoshka.rs).
+    /// Absent when the model declares none.
+    #[serde(default)]
+    pub matryoshka: Option<Vec<u32>>,
     /// The directory the recipe was read from, which `local` paths are
     /// relative to.
     #[serde(skip)]
@@ -76,7 +82,9 @@ impl Recipe {
                 None => return Err(format!("{}: {e}, and no model of the catalogue has that id", path.display())),
             },
         };
-        let mut r: Recipe = serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+        // Through serde_path_to_error, so a malformed field is named, as
+        // the core's manifest parse names one.
+        let mut r = parse_recipe(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
         r.dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
         if r.manifest.get("files").is_some() {
             return Err(format!("{}: manifest.files is written by the tool, not the recipe", path.display()));
@@ -110,6 +118,9 @@ impl Recipe {
         // The declared learned sparse output, checked and filled into the
         // manifest, before anything is fetched.
         crate::sparse::declare(&mut r)?;
+        // The declared Matryoshka widths, checked and filled into the
+        // manifest, before anything is fetched.
+        crate::matryoshka::declare(&mut r)?;
         Ok(r)
     }
 
@@ -125,4 +136,13 @@ impl Recipe {
     pub fn str_at<'a>(&'a self, pointer: &str) -> Result<&'a str> {
         self.manifest.pointer(pointer).and_then(Value::as_str).ok_or_else(|| format!("manifest{pointer}: missing"))
     }
+}
+
+/// The recipe JSON, with the field path in every parse error, as the
+/// core's manifest parse does (turbo::manifest::Manifest::parse).
+fn parse_recipe(bytes: &[u8]) -> std::result::Result<Recipe, String> {
+    let de = &mut serde_json::Deserializer::from_slice(bytes);
+    let r: Recipe = serde_path_to_error::deserialize(&mut *de).map_err(|e| format!("{}: {}", e.path(), e.inner()))?;
+    de.end().map_err(|e| e.to_string())?;
+    Ok(r)
 }

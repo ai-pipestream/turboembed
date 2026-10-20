@@ -13,7 +13,10 @@ use turbo_analysis::registry::{Provider, Spec};
 use turbo_analysis::{Bound, Error};
 
 use crate::boundaries::{Costs, StructureBoundaries};
+use crate::clauses::{ClauseBoundaries, ClauseCosts};
+use crate::coref::{CorefBoundaries, CorefCohesion};
 use crate::drift::{Drift, DriftBoundaries, Score};
+use crate::scorer::{DistilledBoundaryScorer, DistilledWeights};
 use crate::sentiment::{SentimentBoundaries, SentimentShift};
 use crate::weigh::{STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight};
 
@@ -124,9 +127,109 @@ impl Provider<dyn Step> for SentimentBoundariesProvider {
     }
 }
 
+/// Offers `ClauseBoundaries` as "clause-boundaries", writing the default
+/// `ClauseCuts` instance. Options, each defaulting to `ClauseCosts::default()`:
+/// `clause`, `subordinate`, `phrase`, and `token`.
+pub struct ClauseCutProvider;
+
+impl Provider<dyn Step> for ClauseCutProvider {
+    fn name(&self) -> &'static str {
+        "clause-boundaries"
+    }
+
+    fn supports(&self, spec: &Spec) -> bool {
+        only(spec, &["clause", "subordinate", "phrase", "token"])
+    }
+
+    fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
+        let p = self.name();
+        let d = ClauseCosts::default();
+        let costs = ClauseCosts {
+            clause: number(p, spec, "clause", d.clause)?,
+            subordinate: number(p, spec, "subordinate", d.subordinate)?,
+            phrase: number(p, spec, "phrase", d.phrase)?,
+            token: number(p, spec, "token", d.token)?,
+        };
+        Ok(Box::new(Bound::new(ClauseBoundaries { costs })))
+    }
+}
+
+/// Offers `CorefBoundaries` as "coref-boundaries", writing the `coref`
+/// `Boundaries` instance. Options default to `CorefCohesion::default()`.
+pub struct CorefBoundariesProvider;
+
+impl Provider<dyn Step> for CorefBoundariesProvider {
+    fn name(&self) -> &'static str {
+        "coref-boundaries"
+    }
+
+    fn supports(&self, spec: &Spec) -> bool {
+        only(
+            spec,
+            &[
+                "chain_penalty",
+                "adjacent_penalty",
+                "pronoun_penalty",
+                "break_reward",
+                "max_sentence_distance",
+                "pronoun_window",
+                "shift_threshold",
+            ],
+        )
+    }
+
+    fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
+        let p = self.name();
+        let d = CorefCohesion::default();
+        let cohesion = CorefCohesion {
+            chain_penalty: number(p, spec, "chain_penalty", d.chain_penalty)?,
+            adjacent_penalty: number(p, spec, "adjacent_penalty", d.adjacent_penalty)?,
+            pronoun_penalty: number(p, spec, "pronoun_penalty", d.pronoun_penalty)?,
+            break_reward: number(p, spec, "break_reward", d.break_reward)?,
+            max_sentence_distance: number(p, spec, "max_sentence_distance", d.max_sentence_distance)?,
+            pronoun_window: number(p, spec, "pronoun_window", d.pronoun_window)?,
+            shift_threshold: number(p, spec, "shift_threshold", d.shift_threshold)?,
+        };
+        Ok(Box::new(CorefBoundaries { cohesion }.bound()))
+    }
+}
+
+/// Offers `DistilledBoundaryScorer` as "distilled-boundaries", combining
+/// `structure`, `drift`, `sentiment`, `coref`, `lexical` token overlap,
+/// `entity` surface continuity, and `bias` into the default `Boundaries`
+/// instance.
+pub struct DistilledBoundariesProvider;
+
+impl Provider<dyn Step> for DistilledBoundariesProvider {
+    fn name(&self) -> &'static str {
+        "distilled-boundaries"
+    }
+
+    fn supports(&self, spec: &Spec) -> bool {
+        only(spec, &["structure", "drift", "sentiment", "coref", "lexical", "entity", "bias"])
+    }
+
+    fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
+        let p = self.name();
+        let d = DistilledWeights::default();
+        let weights = DistilledWeights {
+            structure: Weight(number(p, spec, "structure", d.structure.0)?),
+            drift: Weight(number(p, spec, "drift", d.drift.0)?),
+            sentiment: Weight(number(p, spec, "sentiment", d.sentiment.0)?),
+            coref: Weight(number(p, spec, "coref", d.coref.0)?),
+            lexical_overlap: number(p, spec, "lexical", d.lexical_overlap)?,
+            entity_continuity: number(p, spec, "entity", d.entity_continuity)?,
+            bias: number(p, spec, "bias", d.bias)?,
+        };
+        Ok(Box::new(DistilledBoundaryScorer { weights }.bound()))
+    }
+}
+
 /// Offers `WeighBoundaries` (or `WeighAllBoundaries` when `sentiment` is
-/// given) as "weigh-boundaries". Options `structure` and `drift` default
-/// to `1000`; `sentiment` defaults to `0` (off by default).
+/// given, or `DistilledBoundaryScorer` when `coref`, `lexical`, `entity`, or
+/// `bias` is given) as "weigh-boundaries". Options `structure` and `drift`
+/// default to `1000`; `sentiment`, `coref`, `lexical`, `entity`, and `bias`
+/// default to `0` (off by default).
 pub struct WeighProvider;
 
 impl Provider<dyn Step> for WeighProvider {
@@ -135,14 +238,27 @@ impl Provider<dyn Step> for WeighProvider {
     }
 
     fn supports(&self, spec: &Spec) -> bool {
-        only(spec, &["structure", "drift", "sentiment"])
+        only(spec, &["structure", "drift", "sentiment", "coref", "lexical", "entity", "bias"])
     }
 
     fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
         let p = self.name();
         let structure = Weight(number(p, spec, "structure", Weight::ONE.0)?);
         let drift = Weight(number(p, spec, "drift", Weight::ONE.0)?);
-        if spec.options.iter().any(|(k, _)| k == "sentiment") {
+        let has_distilled =
+            spec.options.iter().any(|(k, _)| matches!(k.as_str(), "coref" | "lexical" | "entity" | "bias"));
+        if has_distilled {
+            let weights = DistilledWeights {
+                structure,
+                drift,
+                sentiment: Weight(number(p, spec, "sentiment", 0)?),
+                coref: Weight(number(p, spec, "coref", 0)?),
+                lexical_overlap: number(p, spec, "lexical", 0)?,
+                entity_continuity: number(p, spec, "entity", 0)?,
+                bias: number(p, spec, "bias", 0)?,
+            };
+            Ok(Box::new(DistilledBoundaryScorer { weights }.bound()))
+        } else if spec.options.iter().any(|(k, _)| k == "sentiment") {
             let sentiment = Weight(number(p, spec, "sentiment", 0)?);
             let w = WeighAllBoundaries { structure, drift, sentiment };
             Ok(Box::new(w.bound()))

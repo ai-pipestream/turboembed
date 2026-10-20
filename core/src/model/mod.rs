@@ -16,7 +16,7 @@ use crate::backend::{
 use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
     Activation, Architecture, Artifact, Classifier, Family, Format, GraphInput, Manifest, PositionEmbedding,
-    TensorRole, role_name,
+    Projection, TensorRole, role_name,
 };
 use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, INVALID_ARGUMENT, Result, invalid};
 
@@ -88,6 +88,9 @@ fn bert_shape(role: TensorRole, a: &Architecture) -> Vec<u64> {
         }
         MlmTransformWeight | MlmTransformBias | MlmTransformLnWeight | MlmTransformLnBias | MlmDecoderWeight
         | MlmDecoderBias => unreachable!("MLM roles are shaped by mlm_tensors"),
+        ProjectionWeight | ProjectionBias => {
+            unreachable!("projection roles are shaped by projection_tensors")
+        }
     }
 }
 
@@ -202,6 +205,25 @@ pub fn mlm_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Vec
     out.push(Expected { name: bias.clone(), shape: vec![v], what: role_name(TensorRole::MlmDecoderBias) });
     if let Some(w) = art.tensor_names.get(&TensorRole::MlmDecoderWeight) {
         out.push(Expected { name: w.clone(), shape: vec![v, h], what: role_name(TensorRole::MlmDecoderWeight) });
+    }
+    Ok(out)
+}
+
+/// The linear projection head tensors an artifact names, with the shapes
+/// the architecture and `projection.dim` imply.
+pub fn projection_tensors(index: usize, art: &Artifact, a: &Architecture, p: &Projection) -> Result<Vec<Expected>> {
+    let h = a.hidden as u64;
+    let dim = p.dim as u64;
+    let mut out = Vec::with_capacity(2);
+    let w = art.tensor_names.get(&TensorRole::ProjectionWeight).ok_or_else(|| {
+        invalid(format!(
+            "manifest.json: artifacts[{index}].tensor_names: no {}, which a projection needs",
+            role_name(TensorRole::ProjectionWeight)
+        ))
+    })?;
+    out.push(Expected { name: w.clone(), shape: vec![dim, h], what: role_name(TensorRole::ProjectionWeight) });
+    if let Some(b) = art.tensor_names.get(&TensorRole::ProjectionBias) {
+        out.push(Expected { name: b.clone(), shape: vec![dim], what: role_name(TensorRole::ProjectionBias) });
     }
     Ok(out)
 }
@@ -332,6 +354,11 @@ impl Weights {
                     && let Some(c) = &m.classifier
                 {
                     expected.extend(classifier_tensors(t, ta, a, c)?);
+                }
+                if t == index
+                    && let Some(p) = &m.projection
+                {
+                    expected.extend(projection_tensors(t, ta, a, p)?);
                 }
                 let files = ta.files.iter().map(|f| bundle.read_verified_aligned(f)).collect::<Result<Vec<_>>>()?;
                 let (mut tensors, dtype) = place(ta, &files, &expected)?;
