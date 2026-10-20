@@ -214,10 +214,11 @@ impl<M> TokenIndexBuilder<M> {
 /// Whether the empty piece `i` belongs to `fragment`, which holds it: one
 /// before the fragment's end does, so one on the boundary of two units is
 /// the second's; one at the end does only when no non-empty piece follows,
-/// so one at the end of the text stays in the units that end there.
+/// so one at the end of the text stays in the units that end there. An
+/// empty fragment takes no empty piece, so an empty unit stays empty.
 fn empty_piece_in(spans: &Spans<Subwords>, i: usize, fragment: Span) -> bool {
     if spans.get(Ix::new(i as u32)).start < fragment.end {
         return true;
     }
-    (i + 1..spans.len()).all(|j| spans.get(Ix::new(j as u32)).is_empty())
+    !fragment.is_empty() && (i + 1..spans.len()).all(|j| spans.get(Ix::new(j as u32)).is_empty())
 }

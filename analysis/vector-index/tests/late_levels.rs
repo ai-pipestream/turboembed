@@ -231,3 +231,27 @@ fn an_empty_piece_inside_a_chunk_of_no_other_piece_stays_in_it() {
     assert_eq!(pieces(index.sources(1)), [0]);
     assert_eq!(pieces(index.sources(2)), [1, 2]);
 }
+
+#[test]
+fn an_empty_unit_at_the_end_of_the_text_takes_no_piece() {
+    // "ab" "": chunk 0..2 and an empty chunk at 2..2, the empty piece at 2.
+    let m = model("colbert-small");
+    let sp = Space::new(m.clone(), 4, Normalization::None);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    for (a, b) in [(0, 2), (2, 2)] {
+        spans.push(Span::new(a, b));
+    }
+    let sub = Subwords { spans, ids: vec![0, 1], model: m.clone(), token: None };
+    let vec = Vectors::new(4, vec![1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0], Vec::new(), m);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    for (a, b) in [(0, 2), (0, 2), (2, 2)] {
+        spans.push(Span::new(a, b));
+    }
+    let unit = vec![Unit::Document, Unit::Chunk(Ix::new(0)), Unit::Chunk(Ix::new(1))];
+    let lev = Levels { spans, unit, parent: vec![None, Some(Ix::new(0)), Some(Ix::new(0))] };
+    let mut b = TokenIndexBuilder::new(sp).unwrap();
+    assert_eq!(b.push_levels(&vec, &sub, &lev, (0..3).map(Ix::new), None, |u| u.get()), Ok(2));
+    let index = b.build();
+    assert_eq!(pieces(index.sources(0)), [0, 1]);
+    assert_eq!(pieces(index.sources(1)), [0, 1]);
+}

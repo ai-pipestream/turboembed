@@ -2210,7 +2210,7 @@ subword pieces inside its span (inside each fragment, for a
 discontinuous unit; an empty piece counts where it lies before the
 fragment's end, or at the end when no non-empty piece follows, so one on
 the boundary of two units is the second's and one at the end of the text
-the last unit's), in text order, less the items the vectors list as
+the last unit's; an empty unit takes none), in text order, less the items the vectors list as
 empty and the pieces a `Prune` rule drops (punctuation, stopwords). The
 index records the rule's name and how many tokens it dropped for each
 candidate (`pruning`). A unit left with no token is not added. The layers
