@@ -27,7 +27,7 @@ pub enum Case {
 
 impl Case {
     #[inline]
-    fn fold(self, c: char) -> u32 {
+    pub(crate) fn fold(self, c: char) -> u32 {
         match self {
             Case::Sensitive => c as u32,
             Case::Insensitive => to_lower_char(c) as u32,
@@ -37,6 +37,10 @@ impl Case {
 
 /// No state, no entry.
 const NO: u32 = u32::MAX;
+
+/// [`TextMatcher::tables`]: the edges, the per-state columns and the
+/// longest pattern.
+pub(crate) type Tables<'a> = (Vec<(u32, u32, u32)>, [&'a [u32]; 4], u32);
 const ROOT: u32 = 0;
 
 /// The goto edges below the root: `(state, code point)` packed into a
@@ -296,6 +300,24 @@ impl TextMatcher {
             + self.entry.capacity() * 4
             + self.dict.capacity() * 4
             + self.leaf.capacity()
+    }
+
+    /// The automaton as plain tables, for [`crate::MappedGlossaryWriter`]:
+    /// every goto edge `(state, code point, target)`, in no order, and per
+    /// state the failure link, depth, entry and next state with an entry.
+    pub(crate) fn tables(&self) -> Tables<'_> {
+        let mut edges: Vec<(u32, u32, u32)> = Vec::with_capacity(self.fail.len());
+        for (cp, &t) in self.root_ascii.iter().enumerate() {
+            if t != ROOT {
+                edges.push((ROOT, cp as u32, t));
+            }
+        }
+        for (&k, &t) in self.edges.keys.iter().zip(&self.edges.targets) {
+            if k != EMPTY {
+                edges.push(((k >> 32) as u32, k as u32, t));
+            }
+        }
+        (edges, [&self.fail, &self.depth, &self.entry, &self.dict], self.longest)
     }
 
     /// Calls `hit` with every occurrence of every pattern in `text`, in
