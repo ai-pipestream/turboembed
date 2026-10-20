@@ -175,3 +175,61 @@ fn named_reference_lookahead_never_panics_on_multibyte_text() {
         Some(format!("fish &{}🙂 chips", "x".repeat(25)))
     );
 }
+
+#[test]
+fn stray_quotes_inside_a_tag_do_not_hide_its_end() {
+    // A quote is plain text inside an attribute name or an
+    // unquoted attribute value; only a quote right after '='
+    // opens a quoted value.
+    assert_eq!(
+        stripped("<p don't>Hello world</p><p>Next para</p> and 'more' text"),
+        "Hello world Next para  and 'more' text"
+    );
+    assert_eq!(stripped("<img alt=it's>Caption here</p>end"), "Caption here end");
+    assert_eq!(stripped("<a href=x\">Link</a> after"), "Link after");
+    // And a quoted value after '=' (with spaces) still hides '>'.
+    assert_eq!(stripped("<a title = \"x>y\">Hello</a>"), "Hello");
+    assert_eq!(stripped("<a title= 'x>y'>Hello</a>"), "Hello");
+}
+
+fn best_of_three(run: impl Fn() -> String) -> (String, std::time::Duration) {
+    let mut best: Option<(String, std::time::Duration)> = None;
+    for _ in 0..3 {
+        let start = std::time::Instant::now();
+        let out = run();
+        let took = start.elapsed();
+        if best.as_ref().is_none_or(|(_, t)| took < *t) {
+            best = Some((out, took));
+        }
+    }
+    best.unwrap()
+}
+
+#[test]
+fn comment_stripping_scales_linearly() {
+    let unit = "<!-- c -->word ";
+    let scaled = |n: usize| best_of_three(|| stripped(&unit.repeat(n)));
+    let (small, small_took) = scaled(2_000);
+    let (large, large_took) = scaled(16_000);
+    assert_eq!(large, "word ".repeat(16_000));
+    assert_eq!(small, "word ".repeat(2_000));
+    assert!(large_took < small_took * 24, "8x the comments must stay near-linear: {small_took:?} -> {large_took:?}");
+}
+
+#[test]
+fn entity_decoding_scales_linearly() {
+    let unit = "&amp; x &zzzzzzzzzzzz y &#169; ";
+    let unit_out = "& x &zzzzzzzzzzzz y \u{a9} ";
+    assert_eq!(decoded(unit), unit_out);
+    assert_eq!(decoded("&notit;"), "\u{ac}it;");
+    assert_eq!(decoded("&notin;"), "\u{2209}");
+    assert_eq!(decoded("&"), "&");
+    assert_eq!(decoded("&;"), "&;");
+    assert_eq!(decoded("&9lives;"), "&9lives;");
+    let scaled = |n: usize| best_of_three(|| decoded(&unit.repeat(n)));
+    let (small, small_took) = scaled(4_000);
+    let (large, large_took) = scaled(32_000);
+    assert_eq!(large, unit_out.repeat(32_000));
+    assert_eq!(small, unit_out.repeat(4_000));
+    assert!(large_took < small_took * 24, "8x the references must stay near-linear: {small_took:?} -> {large_took:?}");
+}

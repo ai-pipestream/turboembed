@@ -133,7 +133,7 @@ fn construct(scan: &mut Scanner<'_>, out: &mut ViewBuilder<'_>, at: usize) -> us
             // Abruptly closed empty comments: <!--> and <!--->.
             body + if inner.starts_with('>') { 1 } else { 2 }
         } else {
-            match find_close(scan.text, body, &["-->", "--!>"]) {
+            match find_comment_close(scan.text, body) {
                 Some((at, len)) => at + len,
                 None => bytes.len(),
             }
@@ -236,6 +236,11 @@ fn construct(scan: &mut Scanner<'_>, out: &mut ViewBuilder<'_>, at: usize) -> us
 fn scan_tag_end(text: &str, at: usize) -> usize {
     let bytes = text.as_bytes();
     let mut quote = 0u8;
+    // A quote opens a quoted attribute value only as the
+    // first non-whitespace byte after `=`; anywhere else
+    // (inside an attribute name or an unquoted value) it is
+    // plain text and does not hide the closing `>`.
+    let mut after_eq = false;
     let mut i = at + 1;
     while i < bytes.len() {
         let b = bytes[i];
@@ -243,10 +248,15 @@ fn scan_tag_end(text: &str, at: usize) -> usize {
             if b == quote {
                 quote = 0;
             }
-        } else if b == b'"' || b == b'\'' {
+        } else if after_eq && (b == b'"' || b == b'\'') {
             quote = b;
+            after_eq = false;
+        } else if b == b'=' {
+            after_eq = true;
         } else if b == b'>' {
             return i + 1;
+        } else if !b.is_ascii_whitespace() {
+            after_eq = false;
         }
         i += 1;
     }
@@ -279,10 +289,23 @@ fn scan_doctype(text: &str, at: usize) -> usize {
     bytes.len()
 }
 
-/// The first of `closers` at or after `from`: its offset and
-/// length.
-fn find_close(text: &str, from: usize, closers: &[&str]) -> Option<(usize, usize)> {
-    closers.iter().filter_map(|c| text[from..].find(c).map(|off| (from + off, c.len()))).min_by_key(|(at, _)| *at)
+/// The comment closer (`-->` or `--!>`) at or after `from`:
+/// its offset and length. One forward scan over `--`
+/// candidates, so a document full of ordinary comments is
+/// linear work, never a rescan to end of input per comment
+/// searching for the rarer closer.
+fn find_comment_close(text: &str, from: usize) -> Option<(usize, usize)> {
+    let bytes = text.as_bytes();
+    let mut at = from;
+    while let Some(off) = text[at..].find("--") {
+        let dashes = at + off;
+        match bytes.get(dashes + 2) {
+            Some(b'>') => return Some((dashes, 3)),
+            Some(b'!') if bytes.get(dashes + 3) == Some(&b'>') => return Some((dashes, 4)),
+            _ => at = dashes + 1,
+        }
+    }
+    None
 }
 
 /// The offset of the `</name` closing a raw-text element:

@@ -78,15 +78,28 @@ fn reference_at(text: &str, at: usize) -> Option<(usize, String)> {
         return Some((end, map_code_point(value).to_string()));
     }
     // Named: the longest table key that prefixes the input.
-    // The lookahead runs on bytes, not the &str: every key is
-    // ASCII and at most MAX_KEY bytes, and slicing the string
-    // at byte MAX_KEY would panic when a multibyte character
-    // straddles that offset; on bytes such a prefix is simply
-    // invalid UTF-8 and cannot be a key.
-    let window = &rest.as_bytes()[..rest.len().min(entities_table::MAX_KEY)];
-    for len in (1..=window.len()).rev() {
-        let Ok(candidate) = std::str::from_utf8(&window[..len]) else { continue };
-        if let Some(decoded) = entities_table::lookup(candidate) {
+    // Every key is an ASCII letter followed by ASCII
+    // alphanumerics and at most one trailing semicolon, so
+    // the only candidates are the whole alphanumeric run
+    // plus a following semicolon, then the semicolon-less
+    // legacy prefixes of the run (at most MAX_LEGACY bytes).
+    // An '&' not followed by an ASCII letter starts no named
+    // reference and is refused in O(1); the run and its
+    // prefixes are ASCII, so slicing them out of `rest`
+    // never splits a character.
+    let bytes = rest.as_bytes();
+    if !bytes.first().is_some_and(u8::is_ascii_alphabetic) {
+        return None;
+    }
+    let run = bytes.iter().take_while(|b| b.is_ascii_alphanumeric()).count();
+    if bytes.get(run) == Some(&b';')
+        && run < entities_table::MAX_KEY
+        && let Some(decoded) = entities_table::lookup(&rest[..run + 1])
+    {
+        return Some((at + 1 + run + 1, decoded.to_string()));
+    }
+    for len in (1..=run.min(entities_table::MAX_LEGACY)).rev() {
+        if let Some(decoded) = entities_table::lookup(&rest[..len]) {
             return Some((at + 1 + len, decoded.to_string()));
         }
     }
