@@ -2131,6 +2131,9 @@ in the order they were added.
   names its space, and one from another model (id, revision or manifest
   hash), another dimension or another normalization is refused with
   `IndexError::Model`, `Dimension` or `Normalization`, never scored.
+  The dimension is the width the vectors were cut to: a Matryoshka
+  model's vectors at two declared widths (docs/bundle.md) are vectors
+  of two dimensions, and do not compare.
 - **Vectors refused.** A vector of zeros, a value that is not finite, a
   vector longer than `MAX_LENGTH` (`2^50`), and in a unit space a
   vector whose length is not within `UNIT_TOLERANCE` (`1e-3`) of 1, on

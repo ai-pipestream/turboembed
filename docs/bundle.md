@@ -234,7 +234,7 @@ this form before it is written or loaded.
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
 | `embed.prefix_query`, `.prefix_document` | string | no | Prepended for `TURBO_PROMPT_QUERY` and `TURBO_PROMPT_DOCUMENT`. |
-| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to, each in 1 to `dim` and listed once, at most `TURBO_OUTPUT_DIMS_MAX` (16) of them. `turbo_model_info.output_dims` reports them ascending. An `output_dim` above `dim` is `INVALID_ARGUMENT`; one that is neither `dim` nor listed is `UNSUPPORTED_OPTION`. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. |
+| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to, each in 1 to `dim` and listed once, at most `TURBO_OUTPUT_DIMS_MAX` (16) of them. `turbo_model_info.output_dims` reports them ascending. An `output_dim` above `dim` is `INVALID_ARGUMENT`; one that is neither `dim` nor listed is `UNSUPPORTED_OPTION`. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. Below, "Declared widths". |
 | `tokenizer.file` | path | yes | The upstream tokenizer file, unchanged: a `tokenizer.json`, or with `sentencepiece` the model's SentencePiece `.model` file. Its hash is `tokenizer_sha256`. |
 | `tokenizer.normalizer.*` | bool, enum | with `wordpiece` | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. A `unigram` tokenizer has none: it normalizes with the map its file carries. A `bpe` tokenizer has none either: it reads the text as it is. A `sentencepiece` tokenizer has none: its model holds its normalizer. |
 | `tokenizer.wordpiece`, `.bpe`, `.unigram`, `.sentencepiece` | message | one of | The kind and its parameters: `wordpiece` (`continuing_prefix`, `max_chars_per_word`), `unigram`, `bpe` and `sentencepiece`, below. |
@@ -270,6 +270,38 @@ this form before it is written or loaded.
 | `reference.cases[]` | text, prompt_role | yes | The exact bytes the core is handed. If a service normalizes text upstream, these are post-normalization. One case is longer than `max_seq`, so truncation is checked too. |
 | `reference.produced_by` | message | yes | The upstream pipeline, fp32 on CPU, in a pinned container. |
 | `files[]` | path, uint64, hex | yes | Every file in the directory except the manifest, with size and SHA-256. |
+
+## Declared widths
+
+A dense model trained to be cut to several widths (the Matryoshka
+objective) declares them in its recipe's top-level `matryoshka` field,
+a JSON list the recipe's author reads off the upstream model card and
+pins beside the rest of the model's facts:
+
+```json
+"matryoshka": [64, 128, 256]
+```
+
+The bundle tool checks the list when the recipe is loaded, before
+anything is fetched: every width a nonzero integer within the model's
+`embed.dim`, the list ascending (so no width twice), and at most
+`TURBO_OUTPUT_DIMS_MAX` of them. It then fills `embed.output_dims` with
+it; a list the manifest itself carries is checked the same way, and
+giving both is refused. The tool never guesses: a model whose recipe
+declares no widths serves its own `dim` alone, and a card that lists
+none is a model with none. The core validates the manifest field again
+when it is parsed at seal.
+
+A session asked for another `output_dim` is refused with
+`UNSUPPORTED_OPTION`, the message naming the declared widths; one over
+`dim` is `INVALID_ARGUMENT`. The write itself pools each row into the
+first `output_dim` coordinates and normalizes them there: no full-width
+vector is materialized first, and the result moves `output_dim` values
+a vector, so the narrower write is no slower than the full-width one.
+The width is part of the vector's identity in analysis: a `Vectors`
+layer cut to one width does not compare with one cut to another, and
+the exact vector index refuses them (`IndexError::Dimension`,
+docs/analysis.md).
 
 ## Graph inputs
 
