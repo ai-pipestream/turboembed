@@ -9,6 +9,7 @@ publish = false
 name = "turbo_namefind"
 
 [dependencies]
+turbo-sequence = { path = "../sequence" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 # The dictionary XML reader and OpenNLP's dictionary lookups.

@@ -1,0 +1,5 @@
+rust_seconds=[0.110399058, 0.113624055, 0.114597626, 0.126822366] median=0.114110841
+java_seconds=[0.293133654, 0.319155839, 0.288217541, 0.292892419] median=0.293013036
+java_over_rust=2.567793
+paths_identical=True
+max_checked_marginal_error=2.303712776097e-15

@@ -62,6 +62,9 @@
 //!   `HashMap`: `manifest.properties`, `nameFinder.model`,
 //!   `generator.featuregen`.
 
+pub mod crf;
+pub use crf::{TrainedCrfNameModel, crf_sequences, train_crf_name_model};
+
 use turbo_formats::NameSample;
 use turbo_sequence::codec::Span;
 use turbo_sequence::featuregen::{AdditionalContext, Window, descriptor};

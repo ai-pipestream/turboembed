@@ -48,6 +48,7 @@ turbo-depparse = { path = "../depparse" }
 turbo-analysis-layers = { path = "../layers" }
 
 [dev-dependencies]
+turbo-namefind = { path = "../namefind" }
 # The JVM's events over the golden inputs, which the event streams are
 # compared with, and the fixture models.
 turbo-goldens = { path = "../goldens" }

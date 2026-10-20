@@ -74,6 +74,7 @@
 
 pub mod context;
 pub mod crc32c;
+pub mod crf;
 pub mod error;
 pub mod event;
 pub mod gis;

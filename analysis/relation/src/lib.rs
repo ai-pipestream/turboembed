@@ -16,10 +16,18 @@
 //! optionally POS tags and lemmas.
 
 pub mod annotator;
+pub mod defaults;
+pub mod discover;
+pub mod explore;
 pub mod export;
 pub mod layer;
+pub mod paths;
 pub mod pattern;
+mod prepare;
 
 pub use annotator::RelationAnnotator;
+pub use discover::RelationPathAnnotator;
+pub use explore::{DistantSupervisionMiner, MinedRule, RelationPathExplorer, Seed, SignatureKey, SignatureRow};
 pub use layer::Relations;
+pub use paths::{DependencyPath, RelationPaths};
 pub use pattern::{RelationMention, RelationPattern, Step};
