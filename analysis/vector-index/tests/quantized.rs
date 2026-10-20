@@ -33,6 +33,11 @@ fn bit_widths_outside_2_to_4_are_refused() {
     for bits in 2..=4 {
         assert!(TurboQuant::new(bits, true).is_ok());
     }
+    let rows = [values(1, 16)];
+    for bits in [0, 1, 5, 8] {
+        let got = quantized(&space(16), Metric::Dot, &rows, TurboQuant { bits, calibrate: false });
+        assert_eq!(got.err(), Some(IndexError::Bits(bits)), "built with {bits} bits");
+    }
 }
 
 #[test]

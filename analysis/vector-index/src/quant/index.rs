@@ -33,6 +33,8 @@ impl<M> QuantizedIndex<M> {
         meta: Vec<M>,
         config: TurboQuant,
     ) -> Result<QuantizedIndex<M>, IndexError> {
+        // The fields are public, so a width can reach here without `new`.
+        TurboQuant::new(config.bits, config.calibrate)?;
         let dim = space.dim as usize;
         let mut codes = TurboQuantIndex::new(dim, usize::from(config.bits)).map_err(refused)?;
         let flat: Vec<f32> = rows.chunks_exact(bpr).flat_map(|r| rows::flat(r)[..dim].iter().copied()).collect();
@@ -80,7 +82,8 @@ impl<M> QuantizedIndex<M> {
 
     /// The estimated score of `query`, a vector of `space`, against `row`:
     /// the value a [`Hit`] for that row carries. Panics if `row` is not
-    /// below [`QuantizedIndex::len`].
+    /// below [`QuantizedIndex::len`]. Each call is a masked search over
+    /// the whole index, so it costs a scan, not one row's work.
     pub fn score(&self, space: &Space, query: &[f32], row: u32) -> Result<f32, IndexError> {
         assert!((row as usize) < self.len(), "row {row} of {}", self.len());
         let q = self.prepare(space, query, 1)?;
@@ -92,7 +95,11 @@ impl<M> QuantizedIndex<M> {
 
     /// The `k` rows whose estimated scores against `query`, a vector of
     /// `space`, are highest, best first. Fewer than `k` when the index
-    /// holds fewer rows.
+    /// holds fewer rows. From 32,768 rows turbovec searches 2- and 4-bit
+    /// indexes in stages (a sign-bit shortlist, then full scores for the
+    /// shortlist only), so a row whose estimate would rank in the top `k`
+    /// can be missed; the scores of the rows returned are still exact
+    /// estimates.
     pub fn top_k(&self, space: &Space, query: &[f32], k: usize) -> Result<Vec<Hit>, IndexError> {
         Ok(self.top_k_batch(space, query, k)?.pop().unwrap_or_default())
     }
