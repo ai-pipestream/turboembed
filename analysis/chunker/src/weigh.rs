@@ -10,6 +10,8 @@ pub const STRUCTURE: &str = "structure";
 pub const DRIFT: &str = "drift";
 /// The instance the sentiment, aspect, and incivility shift costs are written to.
 pub const SENTIMENT: &str = "sentiment";
+/// The instance the coreference chain continuity costs are written to.
+pub const COREF: &str = "coref";
 
 /// A signal's weight, in thousandths: `Weight(1000)` takes its costs as
 /// they are, `Weight(500)` at half, `Weight(0)` leaves the signal out.
@@ -84,15 +86,59 @@ pub fn weigh_with_sentiment(
         .collect();
     let reason = (0..n)
         .map(|i| {
+            let (s, d, sent) = (structure.reason[i], drift.reason[i], sentiment.reason[i]);
+            let shift = (d == Cut::TopicShift && wd.0 != 0) || (sent == Cut::TopicShift && wsent.0 != 0);
+            if s == Cut::Sentence && shift { Cut::TopicShift } else { s }
+        })
+        .collect();
+    Some(Boundaries { cost, reason })
+}
+
+/// Weighs structure, embedding drift, sentiment/aspect shift, and coreference
+/// continuity boundary costs at each gap:
+/// `(structure * ws + drift * wd + sentiment * wsent + coref * wc) / 1000`,
+/// computed in `i128`, rounded down with `div_euclid(1000)`, and saturated to `i32`.
+///
+/// The reason is the structure's unless the structure saw only `Cut::Sentence`
+/// and an active (`Weight != 0`) drift, sentiment, or coref signal marked
+/// `Cut::TopicShift`. Returns `None` if the layers do not all have the same length.
+pub fn weigh_with_coref(
+    structure: &Boundaries,
+    drift: &Boundaries,
+    sentiment: &Boundaries,
+    coref: &Boundaries,
+    (ws, wd, wsent, wc): (Weight, Weight, Weight, Weight),
+) -> Option<Boundaries> {
+    let n = structure.cost.len();
+    if drift.cost.len() != n
+        || sentiment.cost.len() != n
+        || coref.cost.len() != n
+        || structure.reason.len() != n
+        || drift.reason.len() != n
+        || sentiment.reason.len() != n
+        || coref.reason.len() != n
+    {
+        return None;
+    }
+    let cost = (0..n)
+        .map(|i| {
+            let sum = i128::from(structure.cost[i]) * i128::from(ws.0)
+                + i128::from(drift.cost[i]) * i128::from(wd.0)
+                + i128::from(sentiment.cost[i]) * i128::from(wsent.0)
+                + i128::from(coref.cost[i]) * i128::from(wc.0);
+            sum.div_euclid(1000).clamp(i128::from(i32::MIN), i128::from(i32::MAX)) as i32
+        })
+        .collect();
+    let reason = (0..n)
+        .map(|i| {
             let s = structure.reason[i];
             let d = drift.reason[i];
             let sent = sentiment.reason[i];
-            if s == Cut::Sentence && ((d == Cut::TopicShift && wd.0 != 0) || (sent == Cut::TopicShift && wsent.0 != 0))
-            {
-                Cut::TopicShift
-            } else {
-                s
-            }
+            let c = coref.reason[i];
+            let shift = (d == Cut::TopicShift && wd.0 != 0)
+                || (sent == Cut::TopicShift && wsent.0 != 0)
+                || (c == Cut::TopicShift && wc.0 != 0);
+            if s == Cut::Sentence && shift { Cut::TopicShift } else { s }
         })
         .collect();
     Some(Boundaries { cost, reason })

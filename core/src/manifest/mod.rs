@@ -32,6 +32,8 @@ pub struct Manifest {
     pub static_embedding: Option<StaticEmbedding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub classifier: Option<Classifier>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projection: Option<Projection>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,

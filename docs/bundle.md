@@ -234,7 +234,7 @@ this form before it is written or loaded.
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
 | `embed.prefix_query`, `.prefix_document` | string | no | Prepended for `TURBO_PROMPT_QUERY` and `TURBO_PROMPT_DOCUMENT`. |
-| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to, each in 1 to `dim` and listed once, at most `TURBO_OUTPUT_DIMS_MAX` (16) of them. `turbo_model_info.output_dims` reports them ascending. An `output_dim` above `dim` is `INVALID_ARGUMENT`; one that is neither `dim` nor listed is `UNSUPPORTED_OPTION`. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. |
+| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to, each in 1 to `dim` and listed once, at most `TURBO_OUTPUT_DIMS_MAX` (16) of them. `turbo_model_info.output_dims` reports them ascending. An `output_dim` above `dim` is `INVALID_ARGUMENT`; one that is neither `dim` nor listed is `UNSUPPORTED_OPTION`. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. Below, "Declared widths". |
 | `tokenizer.file` | path | yes | The upstream tokenizer file, unchanged: a `tokenizer.json`, or with `sentencepiece` the model's SentencePiece `.model` file. Its hash is `tokenizer_sha256`. |
 | `tokenizer.normalizer.*` | bool, enum | with `wordpiece` | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. A `unigram` tokenizer has none: it normalizes with the map its file carries. A `bpe` tokenizer has none either: it reads the text as it is. A `sentencepiece` tokenizer has none: its model holds its normalizer. |
 | `tokenizer.wordpiece`, `.bpe`, `.unigram`, `.sentencepiece` | message | one of | The kind and its parameters: `wordpiece` (`continuing_prefix`, `max_chars_per_word`), `unigram`, `bpe` and `sentencepiece`, below. |
@@ -252,6 +252,7 @@ this form before it is written or loaded.
 | `static_embedding.quality.texts` | path | with `distilled_from` | The texts the cost was measured on, JSON lines of `text` and `group`. |
 | `classifier.kind` | enum | with `classifier` | `CLASSIFIER_TOKEN` or `CLASSIFIER_SEQUENCE`: whether the classification head scores each token's hidden state (`AutoModelForTokenClassification`) or the pooled sequence (`AutoModelForSequenceClassification`). Requires an encoder `architecture`. |
 | `classifier.labels` | string[] | with `classifier` | The output labels in id order (`0..labels.len()`), matching `id2label` in the upstream `config.json`. At least one non-empty label. |
+| `projection.dim` | uint32 | with `projection` | Output width of a linear token-projection head (`[projection.dim, hidden]` weight, optional `[projection.dim]` bias) applied to unpooled token hidden states before L2 normalization, as ColBERT and late-interaction models carry. Requires an encoder `architecture`. |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_GGUF`, `FORMAT_ONNX`. |
 | `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. A `FORMAT_OPENVINO_IR` artifact is two: the xml, then its weights. A `FORMAT_ONNX` artifact's first file is the graph; any others are its external data, beside it in the same directory, as the exporter wrote them. |
@@ -261,7 +262,7 @@ this form before it is written or loaded.
 | `artifacts[].compute_dtype` | enum | yes for `FORMAT_HEF` and `FORMAT_OPENVINO_IR` | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
 | `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. `INPUT_EMBEDDINGS` is defined under "Graph inputs" below. `OUTPUT_HIDDEN_STATES` is the last layer's hidden states, before pooling; raw weights stop there, the backend pools. `OUTPUT_EMBEDDINGS` is the pooled, normalized vectors, for a graph that carries the embed block's pooling and normalization (a sentence-transformers export); only graphs no backend runs stop there. |
 | `artifacts[].host_weights` | string | when input is embeddings | The `FORMAT_SAFETENSORS` artifact whose embedding tensors the host lookup uses. Its `tensor_names` must name the five embedding roles; the layer roles are not read. |
-| `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. A static model's roles (`static_embeddings`, `static_weights`, `static_mapping`) and an encoder's are never mixed. With `classifier`, raw-weights artifacts also name `classifier_weight` (`[labels, hidden]`) and `classifier_bias` (`[labels]`), and for `CLASSIFIER_SEQUENCE` with a BERT pooler, `pooler_weight` (`[hidden, hidden]`) and `pooler_bias` (`[hidden]`). |
+| `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. A static model's roles (`static_embeddings`, `static_weights`, `static_mapping`) and an encoder's are never mixed. With `classifier`, raw-weights artifacts also name `classifier_weight` (`[labels, hidden]`) and `classifier_bias` (`[labels]`), and for `CLASSIFIER_SEQUENCE` with a BERT pooler, `pooler_weight` (`[hidden, hidden]`) and `pooler_bias` (`[hidden]`). With `projection`, raw-weights artifacts name `projection_weight` (`[projection.dim, hidden]`) and optionally `projection_bias` (`[projection.dim]`). |
 | `artifacts[].produced_by` | message | no | Absent means the upstream file, unchanged. |
 | `produced_by.tool`, `.tool_version`, `.container`, `.reproducible` | string, bool | yes when present | What ran, in which pinned container, and whether two runs give identical bytes. |
 | `produced_by.from` | string | yes in a converted artifact but raw weights, empty in `reference` | The artifact this one was converted from. The reference, and raw weights the bundle tool wrote from an upstream PyTorch checkpoint the bundle does not carry, are made from the upstream model, so their `from` is empty; the weights' `args` name the checkpoint. |
@@ -270,6 +271,38 @@ this form before it is written or loaded.
 | `reference.cases[]` | text, prompt_role | yes | The exact bytes the core is handed. If a service normalizes text upstream, these are post-normalization. One case is longer than `max_seq`, so truncation is checked too. |
 | `reference.produced_by` | message | yes | The upstream pipeline, fp32 on CPU, in a pinned container. |
 | `files[]` | path, uint64, hex | yes | Every file in the directory except the manifest, with size and SHA-256. |
+
+## Declared widths
+
+A dense model trained to be cut to several widths (the Matryoshka
+objective) declares them in its recipe's top-level `matryoshka` field,
+a JSON list the recipe's author reads off the upstream model card and
+pins beside the rest of the model's facts:
+
+```json
+"matryoshka": [64, 128, 256]
+```
+
+The bundle tool checks the list when the recipe is loaded, before
+anything is fetched: every width a nonzero integer within the model's
+`embed.dim`, the list ascending (so no width twice), and at most
+`TURBO_OUTPUT_DIMS_MAX` of them. It then fills `embed.output_dims` with
+it; a list the manifest itself carries is checked the same way, and
+giving both is refused. The tool never guesses: a model whose recipe
+declares no widths serves its own `dim` alone, and a card that lists
+none is a model with none. The core validates the manifest field again
+when it is parsed at seal.
+
+A session asked for another `output_dim` is refused with
+`UNSUPPORTED_OPTION`, the message naming the declared widths; one over
+`dim` is `INVALID_ARGUMENT`. The write itself pools each row into the
+first `output_dim` coordinates and normalizes them there: no full-width
+vector is materialized first, and the result moves `output_dim` values
+a vector, so the narrower write is no slower than the full-width one.
+The width is part of the vector's identity in analysis: a `Vectors`
+layer cut to one width does not compare with one cut to another, and
+the exact vector index refuses them (`IndexError::Dimension`,
+docs/analysis.md).
 
 ## Graph inputs
 

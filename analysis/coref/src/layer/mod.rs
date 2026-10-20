@@ -33,7 +33,7 @@ pub use agreement::{Agreement, Animacy, Gender, MentionKind, Number, Origin, Per
 /// `Document::add` the bounds of every index into [`Sentences`],
 /// [`Tokens`] and [`Entities`], so a mention cannot point past the
 /// instances its step read.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Mentions {
     pub spans: Spans<Mentions>,
     pub sentence: Vec<Ix<Sentences>>,
@@ -52,6 +52,43 @@ pub struct Mentions {
 }
 
 impl Mentions {
+    /// Creates an empty `Mentions` layer in `view`.
+    pub fn new(view: turbo_analysis::ViewId) -> Self {
+        Self {
+            spans: Spans::new(view),
+            sentence: Vec::new(),
+            tokens: Vec::new(),
+            head: Vec::new(),
+            entity: None,
+            kind: Vec::new(),
+            origin: Vec::new(),
+            agreement: Vec::new(),
+        }
+    }
+
+    /// Pushes one mention with default `Agreement::unknown()`.
+    pub fn push(
+        &mut self,
+        span: Span,
+        sentence: Ix<Sentences>,
+        tokens: IxRange<Tokens>,
+        head: Ix<Tokens>,
+        kind: MentionKind,
+    ) -> Ix<Mentions> {
+        let origin = match kind {
+            MentionKind::Proper => Origin::Entity,
+            MentionKind::Nominal => Origin::NounPhrase,
+            MentionKind::Pronominal | MentionKind::Demonstrative => Origin::Pronoun,
+        };
+        self.sentence.push(sentence);
+        self.tokens.push(tokens);
+        self.head.push(head);
+        self.kind.push(kind);
+        self.origin.push(origin);
+        self.agreement.push(Agreement::new(Number::Unknown, Gender::Unknown, Animacy::Unknown, Person::Unknown));
+        self.spans.push(span)
+    }
+
     /// The span of mention `i` in source bytes, through `doc`'s views.
     pub fn source_span(&self, doc: &Document, i: Ix<Mentions>) -> Span {
         doc.to_source_bytes(self.spans.view(), self.spans.get(i))
