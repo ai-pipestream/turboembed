@@ -289,7 +289,7 @@ fn id_of(hashes: Option<&ContentHashes<Levels>>, unit: Ix<Levels>) -> Option<Chu
     hashes.map(|h| h.get(unit))
 }
 
-fn slice<'a>(text: &'a str, span: Span, unit: Ix<Levels>) -> Result<&'a str, String> {
+fn slice(text: &str, span: Span, unit: Ix<Levels>) -> Result<&str, String> {
     text.get(span.range())
         .ok_or_else(|| format!("unit {} span {}..{} does not slice the text", unit.get(), span.start, span.end))
 }
