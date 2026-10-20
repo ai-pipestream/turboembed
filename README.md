@@ -214,6 +214,7 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<backend> TURBO_TEST_PRECISION=
 | Autotuning | [docs/autotune.md](docs/autotune.md) |
 | Static (Model2Vec-style) models | [docs/static.md](docs/static.md) |
 | Document analysis and the chunker | [docs/analysis.md](docs/analysis.md) |
+| Keyword and keyphrase extraction | [docs/keywords.md](docs/keywords.md) |
 | gRPC server and KServe mapping | [docs/grpc.md](docs/grpc.md), [docs/kserve.md](docs/kserve.md) |
 | Web demo | [docs/demo.md](docs/demo.md) |
 | Backends | [CPU](docs/cpu.md), [CUDA](docs/cuda.md), [Intel GPU](docs/levelzero.md), [Intel NPU](docs/npu.md), [Metal](docs/metal.md), [Hailo](docs/hailo.md) |

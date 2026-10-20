@@ -19,6 +19,7 @@
 use turbo_analysis::{Annotator, Error, Layer, Refs};
 use turbo_analysis_layers::{Boundaries, Chunks, Sentences, Structure, Subwords, Vectors};
 
+use crate::clauses::ClauseCuts;
 use crate::sums::{Rows, Sums};
 use crate::{Chunker, TERM_MAX};
 
@@ -65,10 +66,13 @@ pub struct CohesiveChunker {
 
 impl Annotator for CohesiveChunker {
     const ID: &'static str = "turbo:cohesive-chunker";
-    type Reads = (Sentences, Subwords, Boundaries, Option<Structure>, Vectors<Sentences>);
+    type Reads = (Sentences, Subwords, Boundaries, Option<Structure>, Vectors<Sentences>, Option<ClauseCuts>);
     type Writes = (Chunks,);
 
-    fn annotate(&self, (sentences, subwords, bounds, structure, vectors): Refs<'_, Self>) -> Result<(Chunks,), Error> {
+    fn annotate(
+        &self,
+        (sentences, subwords, bounds, structure, vectors, clauses): Refs<'_, Self>,
+    ) -> Result<(Chunks,), Error> {
         if vectors.len() != sentences.spans.len() {
             return Err(Error::Annotator {
                 annotator: Self::ID,
@@ -81,7 +85,7 @@ impl Annotator for CohesiveChunker {
             let sums = Sums::new(&rows, run.clone());
             move |i: usize, j: usize| c.term(&sums, i - run.start, j - run.start)
         };
-        Ok((self.chunker.chunk(Self::ID, sentences, subwords, bounds, structure, term)?,))
+        Ok((self.chunker.chunk(Self::ID, sentences, subwords, bounds, structure, clauses, term)?,))
     }
 
     fn config_hash(&self) -> u64 {

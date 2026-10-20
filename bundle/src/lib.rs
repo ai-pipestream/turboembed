@@ -13,6 +13,7 @@ pub mod catalogue;
 pub mod convert;
 pub mod distill;
 pub mod fetch;
+pub mod matryoshka;
 pub mod recipe;
 pub mod reference;
 pub mod seal;

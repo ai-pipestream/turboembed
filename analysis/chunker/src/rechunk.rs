@@ -22,7 +22,7 @@ use std::ops::Range;
 use turbo_analysis::{Alignment, Annotator, Error, Ix, Span, Spans};
 use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences, Structure, Subwords};
 
-use crate::{Budget, Chunker, Lengths, Row, RunCx, chunk_cost, gaps, limits, no_term, run_atoms, saturate, sections};
+use crate::{Budget, Chunker, Lengths, Row, RunCx, chunk_cost, gaps, limits, no_term, run_atoms, saturate};
 
 /// The previous chunking of a document and the layers it was cut
 /// from, everything [`Chunker::rechunk`] reads on the parent (old)
@@ -130,7 +130,7 @@ impl<'a> Side<'a> {
         let gaps = gaps::gaps(&sentences.spans, structure);
         let limits = limits::limits(&gaps.units, n, |u| size(u.clone()) <= u64::from(budget.max));
         let runs = match structure {
-            Some(st) => sections(sentences, st),
+            Some(st) => gaps::sections(sentences, st),
             None if n == 0 => Vec::new(),
             None => std::iter::once(0..n).collect(),
         };
@@ -196,7 +196,14 @@ impl Chunker {
             model_tokens: Vec::new(),
             over_budget: Vec::new(),
         };
-        let new_cx = RunCx { sentences: new.sentences, lengths: &new.lengths, bounds: new.bounds, limits: &new.limits };
+        let new_cx = RunCx {
+            sentences: new.sentences,
+            subwords,
+            lengths: &new.lengths,
+            bounds: new.bounds,
+            limits: &new.limits,
+            clauses: None,
+        };
         for run in &new.runs {
             let carried = old_run_for(edit, &old, &new, run)
                 .filter(|old_run| clean(edit, &old, &new, old_run, run, b))

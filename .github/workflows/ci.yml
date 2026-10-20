@@ -29,6 +29,8 @@ jobs:
         run: cargo clippy -p turbo-goldens-tool --features fuzz --all-targets
       - name: clippy (npu)
         run: cargo clippy -p turbo --features npu --all-targets
+      - name: clippy (turboquant)
+        run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       # The OpenNLP models the JVM goldens were made with, downloaded from
       # downloads.apache.org and checked against their published SHA-512
       # (analysis/goldens-tool/src/recipe.rs). With them present and
@@ -53,6 +55,9 @@ jobs:
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
         run: cargo test --workspace --exclude turbo
+      # TurboQuant storage is behind a feature that brings in turbovec.
+      - name: test (turboquant)
+        run: cargo test -p turbo-vector-index --features turboquant
       - name: test (fuzz command)
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models

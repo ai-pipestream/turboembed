@@ -1,5 +1,7 @@
 use super::*;
+use crate::gaps::sections;
 use turbo_analysis::ViewId;
+use turbo_analysis_layers::Block;
 
 /// Fills each chunk to the budget, then cuts: what most libraries do.
 fn greedy(tokens: &[u32], b: Budget) -> Vec<usize> {

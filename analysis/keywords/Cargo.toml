@@ -1,0 +1,16 @@
+[package]
+name = "turbo-keywords"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_keywords"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# OpenNLP's bundled stopword lists, the stopword seam YAKE excludes
+# candidates with.
+turbo-stopword = { path = "../stopword" }

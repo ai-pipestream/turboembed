@@ -254,25 +254,7 @@ impl Entities {
     /// order, according to `rule`.
     pub fn filter(&self, rule: FilterRule) -> Entities {
         let kept = self.spans.filter(Some(&self.score), rule);
-        let mut spans = Spans::with_capacity(self.spans.view(), kept.len());
-        let mut tokens = Vec::with_capacity(kept.len());
-        let mut kind = Vec::with_capacity(kept.len());
-        let mut score = Vec::with_capacity(kept.len());
-        let mut frag_buf: Vec<Span> = Vec::new();
-        for ix in kept {
-            let i = ix.get();
-            if self.spans.is_discontinuous(ix) {
-                frag_buf.clear();
-                frag_buf.extend(self.spans.fragments(ix));
-                spans.push_fragments(&frag_buf);
-            } else {
-                spans.push(self.spans.get(ix));
-            }
-            tokens.push(self.tokens[i]);
-            kind.push(self.kind[i]);
-            score.push(self.score[i]);
-        }
-        Entities { spans, tokens, kind, kinds: Arc::clone(&self.kinds), score }
+        <Self as turbo_analysis::FilterableLayer>::retain_indices(self, &kept)
     }
 }
 

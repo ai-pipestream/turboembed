@@ -351,6 +351,24 @@ impl<L> Spans<L> {
     pub fn filter(&self, scores: Option<&[f64]>, rule: FilterRule) -> Vec<Ix<L>> {
         filter_spans(self, scores, rule)
     }
+
+    /// Returns a new [`Spans<L>`] in the same view containing only the
+    /// items at `kept` (in the order given), preserving discontinuous
+    /// fragments when present.
+    pub fn retain_indices(&self, kept: &[Ix<L>]) -> Spans<L> {
+        let mut out = Spans::with_capacity(self.view, kept.len());
+        let mut frag_buf: Vec<Span> = Vec::new();
+        for &ix in kept {
+            if self.is_discontinuous(ix) {
+                frag_buf.clear();
+                frag_buf.extend(self.fragments(ix));
+                out.push_fragments(&frag_buf);
+            } else {
+                out.push(self.get(ix));
+            }
+        }
+        out
+    }
 }
 
 #[inline]

@@ -31,6 +31,7 @@ pub mod metal;
 pub mod model;
 #[cfg(feature = "npu")]
 pub mod npu;
+pub mod projection;
 pub mod record;
 pub mod safetensors;
 pub mod sentencepiece;

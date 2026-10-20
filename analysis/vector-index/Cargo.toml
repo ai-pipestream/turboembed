@@ -11,3 +11,17 @@ name = "turbo_vector_index"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+# TurboQuant storage (`IndexBuilder::build_quantized`). Pinned to a commit
+# of the ai-pipestream fork so encoded bytes cannot move under the index.
+turbovec = { git = "https://github.com/ai-pipestream/turbovec", rev = "acd0c1ee632acc2f5b6ad848443cf8e77d10ef2a", optional = true }
+
+[features]
+turboquant = ["dep:turbovec"]
+
+[[example]]
+name = "quant_bench"
+required-features = ["turboquant"]
+
+[[test]]
+name = "quantized"
+required-features = ["turboquant"]
