@@ -15,28 +15,29 @@ pub(crate) enum Path {
 
 /// The fastest path this CPU runs.
 pub(crate) fn detect() -> Path {
-    #[cfg(target_arch = "x86_64")]
-    {
-        if std::arch::is_x86_feature_detected!("avx512f") {
-            return Path::Avx512;
-        }
-        if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma") {
-            return Path::Avx2;
-        }
-    }
-    Path::Scalar
+    *available().last().unwrap_or(&Path::Scalar)
 }
 
 /// Every path this CPU runs, the scalar one first.
-#[cfg(test)]
 pub(crate) fn available() -> Vec<Path> {
-    let mut out = vec![Path::Scalar];
     #[cfg(target_arch = "x86_64")]
     {
-        if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma") {
-            out.push(Path::Avx2);
-        }
-        if std::arch::is_x86_feature_detected!("avx512f") {
+        use std::arch::is_x86_feature_detected as has;
+        paths_for(has!("avx512f"), has!("avx2"), has!("fma"))
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    vec![Path::Scalar]
+}
+
+/// The paths a CPU with these features runs, the scalar one first. The
+/// AVX-512 path folds its lanes with AVX2 code and the AVX2 path uses FMA,
+/// so each needs every feature it calls.
+#[cfg(target_arch = "x86_64")]
+pub(crate) fn paths_for(avx512f: bool, avx2: bool, fma: bool) -> Vec<Path> {
+    let mut out = vec![Path::Scalar];
+    if avx2 && fma {
+        out.push(Path::Avx2);
+        if avx512f {
             out.push(Path::Avx512);
         }
     }

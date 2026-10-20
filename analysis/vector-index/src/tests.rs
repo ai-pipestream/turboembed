@@ -50,3 +50,14 @@ fn every_path_scores_the_same_bits_as_the_scalar_one() {
         }
     }
 }
+
+#[cfg(target_arch = "x86_64")]
+#[test]
+fn the_avx512_path_needs_avx2_and_fma_as_well() {
+    use crate::kernel::paths_for;
+    assert_eq!(paths_for(true, false, false), [Path::Scalar]);
+    assert_eq!(paths_for(true, true, false), [Path::Scalar]);
+    assert_eq!(paths_for(true, false, true), [Path::Scalar]);
+    assert_eq!(paths_for(false, true, true), [Path::Scalar, Path::Avx2]);
+    assert_eq!(paths_for(true, true, true), [Path::Scalar, Path::Avx2, Path::Avx512]);
+}
