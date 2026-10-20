@@ -15,6 +15,9 @@
 //!   ([`Metric`]), and ties keep insertion order.
 //! - Zero vectors, values that are not finite and vectors too long to
 //!   score in `f32` are refused on insert and on query.
+//! - [`IndexBuilder::build_quantized`] stores the rows as TurboQuant codes
+//!   instead, 1 to 4 bits a coordinate, in a [`QuantizedIndex`] that
+//!   answers the same queries with estimated scores.
 //!
 //! A score is an `f32` dot product summed in one fixed order (16 lanes,
 //! element `i` in lane `i % 16`, each lane a chain of fused multiply-adds,
@@ -28,6 +31,7 @@
 mod build;
 mod index;
 mod kernel;
+mod quant;
 mod rows;
 mod topk;
 
@@ -36,6 +40,7 @@ mod tests;
 
 pub use build::IndexBuilder;
 pub use index::VectorIndex;
+pub use quant::{Estimator, QuantizedIndex, TurboQuant};
 
 use std::fmt;
 
@@ -140,6 +145,8 @@ pub enum IndexError {
     Layer(String),
     /// More rows than a `u32` numbers.
     Full,
+    /// A [`TurboQuant`] bit width other than 1 to 4.
+    Bits(u8),
 }
 
 impl fmt::Display for IndexError {
@@ -163,6 +170,7 @@ impl fmt::Display for IndexError {
             IndexError::TooLong(w, len) => write!(f, "{w} has length {len}, more than {MAX_LENGTH}"),
             IndexError::Layer(detail) => write!(f, "the vectors layer fails its check: {detail}"),
             IndexError::Full => write!(f, "more rows than the index numbers"),
+            IndexError::Bits(bits) => write!(f, "{bits} bits a coordinate, TurboQuant codes 1 to 4"),
         }
     }
 }

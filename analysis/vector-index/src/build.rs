@@ -2,7 +2,7 @@ use turbo_analysis::{Ix, Layer};
 use turbo_analysis_layers::Vectors;
 
 use crate::rows::{self, Block};
-use crate::{IndexError, Metric, Space, VectorIndex, Which, kernel};
+use crate::{IndexError, Metric, QuantizedIndex, Space, TurboQuant, VectorIndex, Which, kernel};
 
 /// Collects rows and their metadata for a [`VectorIndex`]. A row the
 /// builder refuses leaves it as it was.
@@ -96,5 +96,11 @@ impl<M> IndexBuilder<M> {
     /// The index of the rows added, in the order they were added.
     pub fn build(self) -> VectorIndex<M> {
         VectorIndex::from_parts(self.space, self.metric, self.bpr, self.rows, self.meta, kernel::detect())
+    }
+
+    /// The index of the rows added, in the order they were added, stored
+    /// as TurboQuant codes under `config`.
+    pub fn build_quantized(self, config: TurboQuant) -> QuantizedIndex<M> {
+        QuantizedIndex::from_rows(self.space, self.metric, self.bpr, &self.rows, self.meta, config)
     }
 }
