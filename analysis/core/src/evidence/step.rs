@@ -22,7 +22,8 @@ use super::{Evidence, Producer, Support};
 pub trait Evidenced: Layer {
     /// Every item's spans, in the one view they are all in, which it
     /// returns: item i's are `spans[row[i]..row[i + 1]]`. `row` arrives
-    /// holding the 0 the first item starts at, and gets one end per item.
+    /// holding the 0 the first item starts at, and gets one end per item;
+    /// a layer with exactly one span per item may leave it as it is.
     /// `provenance` is the layer's own, so an item made of another
     /// layer's units (a category of a sentence) can find the instance its
     /// producer read.
@@ -41,8 +42,8 @@ pub trait Evidenced: Layer {
 
     /// The units of other layers that support each item: the layer
     /// instances in `layers` (indexed by `Support::layer`), and item i's
-    /// ranges `support[row[i]..row[i + 1]]`, as for the spans. None by
-    /// default.
+    /// ranges `support[row[i]..row[i + 1]]`, as for the spans, and again
+    /// left as it is for exactly one range per item. None by default.
     fn evidence_support(
         &self,
         _provenance: &Provenance,
@@ -61,8 +62,10 @@ pub fn read_of<T: Layer>(provenance: &Provenance) -> Option<KeyId> {
 }
 
 /// Writes `Evidence<L>` for the `L` instance `key` names, one record per
-/// item, and checks it against the document (`Evidence::verify`). Its
-/// cost is one pass over the items of `L` and their spans.
+/// item. It checks again only the spans it maps from a derived view to
+/// the source; the rest comes from a layer the document already checked,
+/// and `Evidence::verify` checks everything. Its cost is one pass over the
+/// items of `L` and their spans.
 pub struct EvidenceStep<L> {
     pub key: Key<L>,
 }
@@ -97,11 +100,12 @@ impl<L: Evidenced> EvidenceStep<L> {
         if u32::try_from(n).is_err() {
             return Err(fail(format!("{n} items, more than a u32 counts")));
         }
-        let mut span_row = Vec::with_capacity(n + 1);
-        span_row.push(0);
+        // One row start: a layer with one span per item leaves it so, and
+        // the short form then needs no column at all.
+        let span_row = vec![0];
         let mut ev = Evidence::<L> {
             producers: shared.producers(provenance),
-            producer: vec![0; n],
+            producer: Vec::new(),
             span_row,
             spans: Vec::new(),
             raw: Vec::new(),
@@ -111,8 +115,10 @@ impl<L: Evidenced> EvidenceStep<L> {
             support_row: vec![0],
             support: Vec::new(),
             _of: PhantomData,
+            built: false,
         };
         let view = layer.evidence_spans(doc, provenance, &mut ev.span_row, &mut ev.spans)?;
+        compact(&mut ev.span_row, ev.spans.len(), n);
         if view != ViewId::SOURCE {
             for s in &mut ev.spans {
                 *s = doc.to_source(view, *s);
@@ -129,10 +135,20 @@ impl<L: Evidenced> EvidenceStep<L> {
         layer.raw_scores(provenance, &mut ev.raw);
         shared.keys.clear();
         layer.evidence_support(provenance, &mut shared.keys, &mut ev.support_row, &mut ev.support);
+        compact(&mut ev.support_row, ev.support.len(), n);
         if !shared.keys.is_empty() {
             ev.layers = shared.layers();
         }
         Ok(ev)
+    }
+}
+
+/// A row column a layer left at its first start, with one item per
+/// record, becomes the short form: empty. Anything else is left for the
+/// layer check to judge.
+fn compact(row: &mut Vec<u32>, items: usize, n: usize) {
+    if row.len() == 1 && items == n && n > 0 {
+        row.clear();
     }
 }
 
@@ -221,7 +237,10 @@ impl<L: Evidenced> Step for EvidenceStep<L> {
             let Some(r) = r else { continue };
             let p = Provenance { reads: vec![self.key.id()], ..Provenance::by(Self::ID) };
             let failure = match r {
-                Ok(ev) => docs[i].add(&key, ev, p.clone()).err(),
+                Ok(mut ev) => {
+                    ev.built = true;
+                    docs[i].add(&key, ev, p.clone()).err()
+                }
                 Err(Error::Skipped(why)) => docs[i].skip(key.id(), why, p.clone()).err(),
                 Err(e) => Some(e),
             };

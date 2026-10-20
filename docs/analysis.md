@@ -586,9 +586,11 @@ copying them. The result layers keep their own encoding.
 
 `EvidenceStep<L>` builds the layer after the step that writes `L`, for
 any `L` that implements `Evidenced`: `Entities`, `Categories` and
-`Categories<L>` for sentences, structure blocks and chunks. A finder
-without a model writes 0 where it has no score, so an entity's raw
-score is recorded only when a model produced it. `Evidence::verify`
+`Categories<L>` for sentences, structure blocks and chunks. The
+dictionary and regex finders run no model and write 0 where they have
+no score, so an entity's raw score is recorded only when a model (the
+CRF finder's, say) produced it. A raw score that is not finite fails
+the step on that document. `Evidence::verify`
 checks a layer against its document and fails with a typed
 `EvidenceError`: a model no layer of the document was made with, a span
 outside the source or inside a character, or support outside a layer

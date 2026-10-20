@@ -14,8 +14,8 @@ use crate::{Categories, CategoryScope, Chunks, Entities, Sentences, Structure, T
 fn fragments<L>(items: &Spans<L>, row: &mut Vec<u32>, spans: &mut Vec<Span>) -> ViewId {
     let (starts, ends) = items.columns();
     if items.fragment_columns().is_none() {
+        // One span per item: the row column's short form.
         spans.extend(starts.iter().zip(ends).map(|(&a, &b)| Span::new(a, b)));
-        row.extend(1..=starts.len() as u32);
     } else {
         for i in 0..items.len() {
             spans.extend(items.fragments(Ix::new(i as u32)));
@@ -41,9 +41,9 @@ impl Evidenced for Entities {
         Ok(fragments(&self.spans, row, spans))
     }
 
-    /// A finder without a model writes 0 where it has no score (the
-    /// probability OpenNLP's `Span` carries by default), so scores count
-    /// only when a model produced them.
+    /// The dictionary and regex finders, which run no model, write 0 where
+    /// they have no score (the probability OpenNLP's `Span` carries by
+    /// default), so scores count only when a model produced them.
     fn raw_scores(&self, provenance: &Provenance, out: &mut Vec<(u32, f64)>) {
         if provenance.model.is_some() {
             out.extend(self.score.iter().enumerate().map(|(i, &s)| (i as u32, s)));
@@ -55,11 +55,12 @@ impl Evidenced for Entities {
         &self,
         provenance: &Provenance,
         layers: &mut Vec<KeyId>,
-        row: &mut Vec<u32>,
+        _row: &mut Vec<u32>,
         support: &mut Vec<Support>,
     ) {
+        // One range per entity: `_row` keeps the short form.
         layers.push(read_key::<Tokens>(provenance).id());
-        row.extend(1..=self.tokens.len() as u32);
+        support.reserve(self.tokens.len());
         support.extend(self.tokens.iter().map(|t| Support {
             layer: 0,
             start: t.start.get() as u32,

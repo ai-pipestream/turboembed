@@ -147,6 +147,7 @@ impl<L: Layer> LayerCodec for Evidence<L> {
             support_row,
             support,
             _of: PhantomData,
+            built: false,
         };
         ev.verify(doc).map_err(|e| invalid(e.to_string()))?;
         Ok(ev)

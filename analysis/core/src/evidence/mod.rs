@@ -57,7 +57,12 @@ pub struct Support {
 
 /// The evidence for each item of `L`, by column. Record i's spans are
 /// `spans[span_row[i]..span_row[i + 1]]` and its support
-/// `support[support_row[i]..support_row[i + 1]]`. The scores and the
+/// `support[support_row[i]..support_row[i + 1]]`. Three columns have a
+/// short form for the common case, so that case costs no column at all:
+/// an empty `span_row` is one span per record, an empty `support_row` one
+/// support range per record, and an empty `producer` producer 0 for every
+/// record. The record count is the span rows', or with no span rows the
+/// spans'. The scores and the
 /// abstentions are sparse, `(record, value)` in record order, so a record
 /// whose producer gave none has none, and a producer that gives none at
 /// all costs nothing.
@@ -65,7 +70,8 @@ pub struct Evidence<L> {
     /// Shared: the documents of a batch that one step ran on hold one
     /// table.
     pub producers: Arc<Vec<Producer>>,
-    /// Each record's producer: an index into `producers`.
+    /// Each record's producer: an index into `producers`; empty when
+    /// every record's is 0.
     pub producer: Vec<u32>,
     pub span_row: Vec<u32>,
     /// Byte spans of the source text (view 0).
@@ -82,6 +88,11 @@ pub struct Evidence<L> {
     pub support_row: Vec<u32>,
     pub support: Vec<Support>,
     pub _of: PhantomData<fn() -> L>,
+    /// Set by `EvidenceStep` on a layer it built from a layer the
+    /// document checked, as it hands it to the document, so the layer
+    /// check does not scan the columns a second time. A clone, a decode
+    /// or any other construction starts without it.
+    pub(crate) built: bool,
 }
 
 impl<L> Clone for Evidence<L> {
@@ -98,6 +109,7 @@ impl<L> Clone for Evidence<L> {
             support_row: self.support_row.clone(),
             support: self.support.clone(),
             _of: PhantomData,
+            built: false,
         }
     }
 }
@@ -116,6 +128,7 @@ impl<L> Default for Evidence<L> {
             support_row: vec![0],
             support: Vec::new(),
             _of: PhantomData,
+            built: false,
         }
     }
 }
@@ -129,22 +142,28 @@ fn sparse<T>(column: &[(u32, T)], i: usize) -> Option<&T> {
 impl<L> Evidence<L> {
     /// How many records.
     pub fn records(&self) -> usize {
-        self.producer.len()
+        if self.span_row.is_empty() { self.spans.len() } else { self.span_row.len() - 1 }
     }
 
     /// Record i's producer.
     pub fn producer_of(&self, i: usize) -> &Producer {
-        &self.producers[self.producer[i] as usize]
+        &self.producers[self.producer.get(i).map_or(0, |&p| p as usize)]
     }
 
     /// Record i's source spans.
     pub fn spans_of(&self, i: usize) -> &[Span] {
-        &self.spans[self.span_row[i] as usize..self.span_row[i + 1] as usize]
+        match self.span_row.is_empty() {
+            true => std::slice::from_ref(&self.spans[i]),
+            false => &self.spans[self.span_row[i] as usize..self.span_row[i + 1] as usize],
+        }
     }
 
     /// Record i's support.
     pub fn support_of(&self, i: usize) -> &[Support] {
-        &self.support[self.support_row[i] as usize..self.support_row[i + 1] as usize]
+        match self.support_row.is_empty() {
+            true => std::slice::from_ref(&self.support[i]),
+            false => &self.support[self.support_row[i] as usize..self.support_row[i + 1] as usize],
+        }
     }
 
     /// Record i's raw score, if its producer gave one.
@@ -168,10 +187,16 @@ impl<L> Evidence<L> {
     /// columns in record order with each record once, raw scores finite
     /// and calibrated scores in [0, 1].
     pub fn validate(&self) -> Result<(), String> {
-        let n = self.producer.len();
+        let n = self.records();
         rows(&self.span_row, n, self.spans.len(), "span")?;
         rows(&self.support_row, n, self.support.len(), "support")?;
-        if let Some(p) = self.producer.iter().find(|&&p| p as usize >= self.producers.len()) {
+        if self.producer.is_empty() {
+            if n > 0 && self.producers.is_empty() {
+                return Err(format!("{n} records and no producer"));
+            }
+        } else if self.producer.len() != n {
+            return Err(format!("{} producers for {n} records", self.producer.len()));
+        } else if let Some(p) = self.producer.iter().find(|&&p| p as usize >= self.producers.len()) {
             return Err(format!("producer {p} of {}", self.producers.len()));
         }
         if let Some(s) = self.support.iter().find(|s| s.layer as usize >= self.layers.len() || s.start > s.end) {
@@ -198,7 +223,10 @@ impl<L> Evidence<L> {
             if let Some(m) = &producer.model
                 && !ran.contains(&m)
             {
-                let record = self.producer.iter().position(|&q| q as usize == p);
+                let record = match self.producer.is_empty() {
+                    true => (self.records() > 0 && p == 0).then_some(0),
+                    false => self.producer.iter().position(|&q| q as usize == p),
+                };
                 return Err(EvidenceError::UnknownModel { record, model: m.clone() });
             }
         }
@@ -249,7 +277,14 @@ fn sparse_rows(records: impl Iterator<Item = u32>, n: usize, what: &str) -> Resu
     Ok(())
 }
 
+/// A row column, or its short form: empty, one item per record.
 fn rows(row: &[u32], n: usize, items: usize, what: &str) -> Result<(), String> {
+    if row.is_empty() {
+        if items != n {
+            return Err(format!("{items} {what}s for {n} records, one each"));
+        }
+        return Ok(());
+    }
     if row.len() != n + 1 || row[0] != 0 || row[n] as usize != items {
         return Err(format!("one {what} row start per record and one past the last {what}"));
     }
@@ -308,9 +343,12 @@ impl<L: Layer> Layer for Evidence<L> {
         Anchor::aligned::<L>()
     }
     fn len(&self) -> usize {
-        self.producer.len()
+        self.records()
     }
     fn check(&self) -> Result<(), String> {
+        if self.built {
+            return Ok(());
+        }
         self.validate()
     }
 }

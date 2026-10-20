@@ -50,6 +50,7 @@ fn evidence(producer: Producer, spans: &[(u32, u32)]) -> Evidence<Marks> {
         support_row: (0..=n).collect(),
         support: (0..n).map(|i| Support { layer: 0, start: i, end: i + 1 }).collect(),
         _of: PhantomData,
+        built: false,
     }
 }
 
@@ -123,4 +124,26 @@ fn columns_that_do_not_hold_together_are_refused() {
     assert_eq!((ev.abstention_of(0), ev.abstention_of(1)), (None, Some("below the threshold")));
     ev.abstention.push((2, "past the records".into()));
     assert!(ev.validate().is_err());
+}
+
+#[test]
+fn the_short_forms_read_as_the_full_ones() {
+    let full = evidence(marker(), &[(0, 6), (7, 13)]);
+    let mut short = full.clone();
+    (short.producer, short.span_row, short.support_row) = (Vec::new(), Vec::new(), Vec::new());
+    assert_eq!((short.validate(), short.verify(&doc())), (Ok(()), Ok(())));
+    assert_eq!(short.records(), 2);
+    for i in 0..2 {
+        assert_eq!(short.spans_of(i), full.spans_of(i));
+        assert_eq!(short.support_of(i), full.support_of(i));
+        assert_eq!(short.producer_of(i), full.producer_of(i));
+    }
+    // One span per record means one support range per record too.
+    let mut uneven = short.clone();
+    uneven.support.pop();
+    assert!(uneven.validate().is_err());
+    // A record count from the spans, and no producer to name.
+    let mut nobody = short;
+    nobody.producers = Arc::new(Vec::new());
+    assert!(nobody.validate().is_err());
 }
