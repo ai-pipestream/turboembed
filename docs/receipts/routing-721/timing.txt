@@ -1,0 +1,14 @@
+model=273ee3dfe946989a27a68e37d58e1dd7bc537c06b404075279f02a1b640b91f7 cost_ns=12499
+round=0 direct_ns=12634.3 routed_ns=13000.7 delta_pct=2.8997
+round=1 direct_ns=13289.0 routed_ns=12562.7 delta_pct=-5.4657
+round=2 direct_ns=13090.8 routed_ns=12365.9 delta_pct=-5.5374
+round=3 direct_ns=14923.7 routed_ns=12470.2 delta_pct=-16.4398
+round=4 direct_ns=12331.0 routed_ns=12404.0 delta_pct=0.5927
+round=5 direct_ns=12343.5 routed_ns=12388.5 delta_pct=0.3641
+round=6 direct_ns=12381.5 routed_ns=12341.9 delta_pct=-0.3194
+round=7 direct_ns=12326.7 routed_ns=12343.4 delta_pct=0.1357
+round=8 direct_ns=12348.8 routed_ns=12354.1 delta_pct=0.0422
+round=9 direct_ns=15007.5 routed_ns=15888.8 delta_pct=5.8721
+round=10 direct_ns=14811.3 routed_ns=12453.8 delta_pct=-15.9169
+round=11 direct_ns=12347.4 routed_ns=12466.5 delta_pct=0.9651
+median_delta_pct=0.0890

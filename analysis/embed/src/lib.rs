@@ -23,6 +23,8 @@ pub mod levels;
 pub mod rerank;
 pub mod sparse;
 pub use rerank::{RerankAnnotator, Reranked, Shortlist};
+pub mod routing;
+pub use routing::{LatencyBudget, ModelRouter, RoleCapability, RoutingPolicy};
 pub mod qa;
 pub use qa::{Answers, ExtractiveQaAnnotator, Question};
 pub mod subwords;
