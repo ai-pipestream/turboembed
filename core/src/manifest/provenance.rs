@@ -29,6 +29,9 @@ pub struct Case {
     pub passage: Option<String>,
     pub text: String,
     pub prompt_role: PromptRole,
+    /// Context for TASK_EXTRACTIVE_QA; text is the question.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
