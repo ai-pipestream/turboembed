@@ -120,10 +120,10 @@ fn windows(reference: &Segmentation, hypothesis: &Segmentation, k: usize) -> (f6
 pub fn prf(reference: &[usize], hypothesis: &[usize], t: usize) -> Prf {
     let (mut matched, mut r) = (0, 0);
     for &h in hypothesis {
-        while r < reference.len() && reference[r] + t < h {
+        while r < reference.len() && reference[r].saturating_add(t) < h {
             r += 1;
         }
-        if r < reference.len() && reference[r] <= h + t {
+        if r < reference.len() && reference[r] <= h.saturating_add(t) {
             matched += 1;
             r += 1;
         }

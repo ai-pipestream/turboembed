@@ -32,6 +32,8 @@ fn a_segmentation_checks_its_boundaries() {
     assert!(Segmentation::new(5, vec![3, 2]).is_err());
     assert!(Segmentation::new(5, vec![2, 2]).is_err());
     assert!(Segmentation::of_lengths(&[2, 0, 1]).is_err());
+    // Lengths past usize::MAX in all are an error, not an overflow.
+    assert!(Segmentation::of_lengths(&[usize::MAX, 1]).is_err());
     let s = seg(&[3, 4, 2]);
     assert_eq!((s.units(), s.boundaries(), s.segments()), (9, &[3, 7][..], 3));
     assert_eq!((s.between(0, 3), s.between(3, 7), s.between(2, 8), s.between(5, 1)), (1, 1, 2, 0));
@@ -90,6 +92,9 @@ fn tolerance_matches_each_boundary_once() {
     // only one matches.
     let p = prf(&[5], &[4, 6], 1);
     assert_eq!((p.matched, p.precision, p.recall), (1, 0.5, 1.0));
+    // A tolerance as wide as usize matches every pair without overflow.
+    assert_eq!(prf(&[1], &[2], usize::MAX).matched, 1);
+    assert_eq!(prf(&[usize::MAX - 1], &[2, usize::MAX - 1], usize::MAX).matched, 1);
 }
 
 /// The largest matching by augmenting paths, to check the greedy one.
@@ -199,6 +204,9 @@ fn a_byte_span_becomes_the_subwords_it_touches() {
     assert_eq!(token_range(&subwords, Span::new(5, 10)), 1..3);
     assert_eq!(token_range(&subwords, Span::new(11, 12)), 3..3);
     assert_eq!(token_range(&subwords, Span::new(0, 16)), 0..4);
+    // An empty span touches no subword, even inside one.
+    assert_eq!(token_range(&subwords, Span::new(2, 2)), 0..0);
+    assert_eq!(token_range(&subwords, Span::new(9, 9)), 0..0);
 }
 
 #[test]

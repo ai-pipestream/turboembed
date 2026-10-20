@@ -102,8 +102,12 @@ fn intersection(a: &[Range<u64>], b: &[Range<u64>]) -> u128 {
 
 /// The subwords a byte span touches, as a range of their indexes: the
 /// first that ends after it starts up to the last that starts before it
-/// ends. Two binary searches; the subwords are in text order.
+/// ends; an empty span touches none. Two binary searches; the subwords
+/// are in text order.
 pub fn token_range(subwords: &Spans<Subwords>, bytes: Span) -> Range<u64> {
+    if bytes.start >= bytes.end {
+        return 0..0;
+    }
     let (starts, ends) = subwords.columns();
     let first = ends.partition_point(|&x| x <= bytes.start) as u64;
     let last = starts.partition_point(|&x| x < bytes.end) as u64;

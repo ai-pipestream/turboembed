@@ -61,18 +61,19 @@ impl Segmentation {
         Ok(Segmentation { units, boundaries })
     }
 
-    /// Segments of these lengths, in order; a zero length is refused.
+    /// Segments of these lengths, in order; a zero length, or lengths
+    /// past `usize::MAX` in all, is refused.
     pub fn of_lengths(lengths: &[usize]) -> Result<Segmentation, Error> {
         if lengths.contains(&0) {
             return Err(invalid(format!("segment lengths {lengths:?} hold a zero")));
         }
-        let mut at = 0;
+        let mut at = 0usize;
         let mut boundaries = Vec::with_capacity(lengths.len().saturating_sub(1));
         for &l in lengths {
             if at > 0 {
                 boundaries.push(at);
             }
-            at += l;
+            at = at.checked_add(l).ok_or_else(|| invalid(format!("segment lengths {lengths:?} overflow usize")))?;
         }
         Segmentation::new(at, boundaries)
     }
