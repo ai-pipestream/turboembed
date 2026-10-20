@@ -19,6 +19,7 @@ pub use turbo_analysis::{
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
 pub use boilerplate::{Boilerplate, BoilerplateKind, Covered};
+pub use calibrated::Calibrated;
 pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
@@ -101,6 +102,7 @@ macro_rules! positional {
 
 mod abbreviations;
 mod boilerplate;
+mod calibrated;
 mod categories;
 mod containment;
 #[cfg(test)]

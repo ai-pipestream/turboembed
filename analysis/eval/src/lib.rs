@@ -38,6 +38,8 @@
 //! - [`model_gate`]: a trained model against the reference model for the
 //!   same task on the same held-out samples, and its record.
 
+pub use turbo_calibration::metrics as calibration;
+
 pub mod analysis;
 pub mod chunkers;
 pub mod cost;

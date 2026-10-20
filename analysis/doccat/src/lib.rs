@@ -40,6 +40,7 @@
 //! tolerances, and why the predictor is a port rather than linfa-svm;
 //! docs/sentiment.md describes the sentiment detector.
 
+pub mod calibrated;
 pub mod categorizer;
 pub mod error;
 pub mod features;

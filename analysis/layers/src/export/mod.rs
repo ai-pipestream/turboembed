@@ -39,6 +39,7 @@ use crate::{
 };
 
 mod boilerplate;
+mod calibrated;
 mod core_layers;
 mod helpers;
 mod indexes;
@@ -60,6 +61,8 @@ use indexes::*;
 /// cross until their crates register a codec.
 pub fn register_codecs(codecs: &mut Codecs) {
     codecs
+        .register::<crate::Calibrated<Categories>>()
+        .register::<crate::Calibrated<Tokens>>()
         .register::<Sentences>()
         .register::<Tokens>()
         .register::<Words>()

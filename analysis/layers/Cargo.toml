@@ -9,6 +9,7 @@ publish = false
 name = "turbo_analysis_layers"
 
 [dependencies]
+turbo-calibration = { path = "../calibration" }
 turbo-analysis = { path = "../core" }
 # The Script property, the type of a language span's script.
 turbo-unicode = { path = "../unicode" }

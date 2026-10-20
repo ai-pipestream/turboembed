@@ -6,6 +6,7 @@ members = [
     "server",
     "demo",
     "analysis/core",
+    "analysis/calibration",
     "analysis/abbrev",
     "analysis/matcher",
     "analysis/glossary",
