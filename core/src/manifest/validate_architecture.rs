@@ -177,6 +177,21 @@ impl Manifest {
             }
         }
 
+        // projection
+        if let Some(p) = &self.projection {
+            if self.architecture.is_none() {
+                return Err(invalid("manifest.json: projection: requires an encoder architecture"));
+            }
+            positive("projection.dim", p.dim)?;
+            for (i, a) in self.artifacts.iter().enumerate().filter(|(_, a)| a.format == Format::Safetensors) {
+                if !a.tensor_names.contains_key(&TensorRole::ProjectionWeight) {
+                    return Err(invalid(format!(
+                        "manifest.json: artifacts[{i}].tensor_names: no projection_weight, which a projection needs"
+                    )));
+                }
+            }
+        }
+
         Ok(())
     }
 }

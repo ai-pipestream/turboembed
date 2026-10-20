@@ -84,6 +84,14 @@ impl MultiRepChunkIndex {
         text: impl Into<String>,
     ) -> Result<usize, String> {
         let text = text.into();
+        if span.start > span.end {
+            return Err(format!(
+                "representation {kind:?} for chunk {} has a reversed span {}..{}",
+                chunk.get(),
+                span.start,
+                span.end
+            ));
+        }
         if text.trim().is_empty() {
             return Err(format!("representation {kind:?} for chunk {} has no text", chunk.get()));
         }
@@ -133,7 +141,19 @@ impl MultiRepChunkIndex {
         let mut index = MultiRepChunkIndex::new();
         for unit in levels.of(Level::Chunk) {
             let span = levels.spans.get(unit);
-            index.add(RepresentationKind::Surface, unit, id_of(hashes, unit), span, slice(text, span, unit)?)?;
+            // The chunk's text is its fragments' text, never
+            // the bounding envelope's: a discontinuous chunk
+            // must not index the gap it excludes. Fragments
+            // join with a space so tokens across a gap stay
+            // separate words.
+            let mut surface = String::new();
+            for fragment in levels.spans.fragments(unit) {
+                if !surface.is_empty() {
+                    surface.push(' ');
+                }
+                surface.push_str(slice(text, fragment, unit)?);
+            }
+            index.add(RepresentationKind::Surface, unit, id_of(hashes, unit), span, surface)?;
         }
         Ok(index)
     }
@@ -164,14 +184,17 @@ impl MultiRepChunkIndex {
             let hi = starts.partition_point(|&s| s < span.end).max(lo);
             for s in lo..hi {
                 let child = Span::new(starts[s], ends[s]);
-                if child.start >= span.start && child.end <= span.end && child.start < child.end {
-                    self.add(
-                        RepresentationKind::ChildSpan,
-                        unit,
-                        id_of(hashes, unit),
-                        child,
-                        slice(text, child, unit)?,
-                    )?;
+                // Contained in one fragment of the chunk, not
+                // merely inside its envelope: a sentence in a
+                // discontinuous chunk's gap is not its child.
+                // Whitespace-only slices index nothing and are
+                // skipped rather than aborting the build.
+                if child.start < child.end && levels.spans.fragments(unit).any(|f| f.contains(child)) {
+                    let surface = slice(text, child, unit)?;
+                    if surface.trim().is_empty() {
+                        continue;
+                    }
+                    self.add(RepresentationKind::ChildSpan, unit, id_of(hashes, unit), child, surface)?;
                     added += 1;
                 }
             }

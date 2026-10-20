@@ -2016,6 +2016,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "serde_path_to_error",
  "turbo",
  "ureq",
 ]
@@ -2026,6 +2027,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-coref",
  "turbo-normalize",
  "turbo-stem",
  "turbo-structure",
@@ -2242,6 +2244,15 @@ dependencies = [
 [[package]]
 name = "turbo-jvm"
 version = "0.1.0"
+
+[[package]]
+name = "turbo-keywords"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-stopword",
+]
 
 [[package]]
 name = "turbo-kserve"

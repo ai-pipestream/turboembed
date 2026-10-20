@@ -306,5 +306,11 @@ impl Plan {
     }
 }
 
+mod tokens;
+pub use tokens::{
+    TokenPlacement, default_token_stride, interior_distance, most_interior_window, place_tokens_in_windows,
+    plan_sliding_windows,
+};
+
 #[cfg(test)]
 mod tests;

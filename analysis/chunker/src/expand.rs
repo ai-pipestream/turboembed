@@ -260,6 +260,15 @@ impl ParentExpander {
                 return at;
             }
             let Some(parent) = levels.parent[at.get()] else { return at };
+            // Never step past the target level: a chunk with no
+            // enclosing section has the document as its parent,
+            // and promoting it there would overshoot a section
+            // target entirely.
+            if let Some(target) = self.policy.target_level
+                && levels.level(parent) > target
+            {
+                return at;
+            }
             if tokens[parent.get()] > self.policy.max_parent_tokens {
                 return at;
             }

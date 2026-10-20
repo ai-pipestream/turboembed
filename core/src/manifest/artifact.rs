@@ -159,6 +159,10 @@ pub enum TensorRole {
     ClassifierWeight,
     /// A classification head's linear bias, `[labels]`.
     ClassifierBias,
+    /// A token-vector linear projection head's weight, `[projection.dim, hidden]`.
+    ProjectionWeight,
+    /// A token-vector linear projection head's bias, `[projection.dim]`; optional.
+    ProjectionBias,
 }
 
 impl TensorRole {
@@ -178,6 +182,8 @@ impl TensorRole {
                 | TensorRole::PoolerBias
                 | TensorRole::ClassifierWeight
                 | TensorRole::ClassifierBias
+                | TensorRole::ProjectionWeight
+                | TensorRole::ProjectionBias
         )
     }
 
@@ -195,5 +201,10 @@ impl TensorRole {
                 | TensorRole::ClassifierWeight
                 | TensorRole::ClassifierBias
         )
+    }
+
+    /// Roles a linear token-projection head has.
+    pub fn is_projection(self) -> bool {
+        matches!(self, TensorRole::ProjectionWeight | TensorRole::ProjectionBias)
     }
 }

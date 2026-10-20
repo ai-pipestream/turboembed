@@ -6,6 +6,7 @@
 use crate::bundle::{AlignedBytes, Bundle};
 use crate::manifest::{ClassifierKind, Format};
 use crate::model::{Placed, classifier_tensors, place};
+pub use crate::projection::ProjectionHead;
 use crate::status::{BUNDLE_NO_ARTIFACT, Error, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
 use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
@@ -312,7 +313,7 @@ pub fn softmax(logits: &[f32], out: &mut [f64]) -> Result<()> {
     Ok(())
 }
 
-fn read_f32(files: &[AlignedBytes], p: &Placed) -> Vec<f32> {
+pub(crate) fn read_f32(files: &[AlignedBytes], p: &Placed) -> Vec<f32> {
     let bytes = &files[p.file][p.range.clone()];
     if p.dtype == TURBO_DTYPE_F32 {
         return bytes.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();

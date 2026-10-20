@@ -257,3 +257,74 @@ fn expansion_refusals() {
     hits[0].chunk = ix(C1);
     assert!(expander.expand_rep_hits(&index, &levels, &tokens(), &hits).is_err());
 }
+
+#[test]
+fn sectionless_chunks_stay_below_the_target_level() {
+    // A chunk before the first section (parent: the document)
+    // next to a chunk inside a section. A section target must
+    // not overshoot the sectionless chunk to the document.
+    let s = sentence_spans();
+    let end = TEXT.len() as u32;
+    let levels = Levels {
+        spans: spans(&[(0, end), s[0], (s[1].0, s[3].1), s[1], s[2]]),
+        unit: vec![
+            Unit::Document,
+            Unit::Chunk(Ix::new(0)),
+            Unit::Section(Ix::new(0)),
+            Unit::Chunk(Ix::new(1)),
+            Unit::Chunk(Ix::new(2)),
+        ],
+        parent: vec![None, Some(Ix::new(0)), Some(Ix::new(0)), Some(Ix::new(2)), Some(Ix::new(2))],
+    };
+    levels.check().unwrap();
+    let tokens = vec![100, 10, 90, 40, 50];
+    let out = ParentExpander::default().expand(&levels, &tokens, &[(Ix::new(1), 0.9), (Ix::new(3), 0.8)]).unwrap();
+    let units: Vec<u32> = out.iter().map(|h| h.unit.get() as u32).collect();
+    assert_eq!(units, [1, 2], "the sectionless chunk stays a chunk; the other promotes to its section");
+    assert_eq!(out[0].level, Level::Chunk);
+}
+
+#[test]
+fn discontinuous_chunks_index_only_their_fragments() {
+    const GAP_TEXT: &str = "Alpha. Secret. Omega.";
+    let mut level_spans = Spans::new(ViewId::SOURCE);
+    level_spans.push(Span::new(0, 21));
+    level_spans.push_fragments(&[Span::new(0, 6), Span::new(15, 21)]);
+    let gapped = Levels {
+        spans: level_spans,
+        unit: vec![Unit::Document, Unit::Chunk(Ix::new(0))],
+        parent: vec![None, Some(Ix::new(0))],
+    };
+    gapped.check().unwrap();
+    let mut index = MultiRepChunkIndex::surface(GAP_TEXT, &gapped, None).unwrap();
+    assert_eq!(index.entries()[0].text, "Alpha. Omega.", "fragments joined with a space, the gap excluded");
+    assert!(index.rank(&["secret"]).unwrap().is_empty(), "the excluded gap is not indexed");
+    assert_eq!(index.rank(&["alpha"]).unwrap().len(), 1);
+    assert_eq!(index.rank(&["omega"]).unwrap().len(), 1, "tokens across the gap stay separate words");
+
+    let secret_only = Sentences { spans: spans(&[(7, 14)]) };
+    assert_eq!(index.add_sentence_spans(GAP_TEXT, &gapped, &secret_only, None).unwrap(), 0);
+    let all = Sentences { spans: spans(&[(0, 6), (7, 14), (15, 21)]) };
+    assert_eq!(index.add_sentence_spans(GAP_TEXT, &gapped, &all, None).unwrap(), 2);
+}
+
+#[test]
+fn reversed_spans_and_whitespace_sentences() {
+    let mut index = MultiRepChunkIndex::new();
+    let err = index.add(RepresentationKind::Surface, Ix::new(0), None, Span { start: 8, end: 1 }, "text").unwrap_err();
+    assert!(err.contains("reversed span 8..1"), "{err}");
+    assert!(index.is_empty());
+
+    // A whitespace-only sentence wholly inside a chunk is
+    // skipped, not an abort of the whole build.
+    let whole = Levels {
+        spans: spans(&[(0, 48), (0, 48)]),
+        unit: vec![Unit::Document, Unit::Chunk(Ix::new(0))],
+        parent: vec![None, Some(Ix::new(0))],
+    };
+    let with_space = Sentences { spans: spans(&[(0, 11), (11, 12), (12, 24), (25, 38), (39, 48)]) };
+    with_space.check().unwrap();
+    let mut index = MultiRepChunkIndex::new();
+    let added = index.add_sentence_spans(TEXT, &whole, &with_space, None).unwrap();
+    assert_eq!(added, 4, "the four real sentences, without the space slice");
+}
