@@ -237,7 +237,7 @@ fn the_qn_sentence_model_is_the_jvms_and_its_bin_is_the_fixture() {
     // does with the same file.
     let ours = Arc::new(SentenceModel::open(ours).unwrap());
     let mut spans = Vec::new();
-    SentenceDetector::new(ours, WhitespaceMode::Unicode).detect(&text, &mut spans);
+    SentenceDetector::new(ours, WhitespaceMode::Unicode).with_jvm_parity().detect(&text, &mut spans);
     assert_eq!(spans.len(), 210);
 }
 
@@ -293,6 +293,6 @@ fn the_perceptron_sentence_model_is_the_jvms_and_its_bin_is_the_fixture() {
     // does with the same file.
     let ours = Arc::new(SentenceModel::open(ours).unwrap());
     let mut spans = Vec::new();
-    SentenceDetector::new(ours, WhitespaceMode::Unicode).detect(&text, &mut spans);
+    SentenceDetector::new(ours, WhitespaceMode::Unicode).with_jvm_parity().detect(&text, &mut spans);
     assert_eq!(spans.len(), 212);
 }

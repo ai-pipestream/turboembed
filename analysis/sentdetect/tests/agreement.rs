@@ -129,12 +129,12 @@ fn english() {
         golden,
         Agreement {
             texts: 45,
-            identical: 31,
-            maxent_sentences: 125,
-            rule_sentences: 123,
-            same_spans: 93,
-            maxent_boundaries: 82,
-            rule_boundaries: 80,
+            identical: 33,
+            maxent_sentences: 121,
+            rule_sentences: 119,
+            same_spans: 99,
+            maxent_boundaries: 78,
+            rule_boundaries: 76,
             same_boundaries: 69
         }
     );
@@ -142,13 +142,13 @@ fn english() {
         conformance,
         Agreement {
             texts: 482,
-            identical: 258,
-            maxent_sentences: 3253,
-            rule_sentences: 2673,
-            same_spans: 1773,
-            maxent_boundaries: 2771,
-            rule_boundaries: 2191,
-            same_boundaries: 1950
+            identical: 292,
+            maxent_sentences: 3180,
+            rule_sentences: 2649,
+            same_spans: 1803,
+            maxent_boundaries: 2698,
+            rule_boundaries: 2167,
+            same_boundaries: 1934
         }
     );
 }

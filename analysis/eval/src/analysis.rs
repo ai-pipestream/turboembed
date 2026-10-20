@@ -34,7 +34,8 @@ pub enum Sentencer {
 
 impl Sentencer {
     /// The maxent detector with the model file at `path`, in OpenNLP
-    /// 3.x's whitespace mode.
+    /// 3.x's whitespace mode, with the bundled abbreviation inventory of
+    /// the model's language.
     pub fn maxent(path: &Path) -> Result<Sentencer> {
         let at = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
         let file = ModelFile::read(path).map_err(|e| at(&e))?;
@@ -47,7 +48,15 @@ impl Sentencer {
     fn name(&self) -> String {
         match self {
             Sentencer::Newline => "opennlp:sentences newline".into(),
-            Sentencer::Maxent { file, sha256, .. } => format!("opennlp:sentences maxent {file} sha256 {sha256}"),
+            // The JVM's spans unless the detector has an abbreviation
+            // inventory, whose hash then names it too.
+            Sentencer::Maxent { detector, file, sha256 } if detector.is_jvm_parity() => {
+                format!("opennlp:sentences maxent {file} sha256 {sha256}")
+            }
+            Sentencer::Maxent { detector, file, sha256 } => format!(
+                "opennlp:sentences maxent {file} sha256 {sha256} abbreviations {:016x}",
+                detector.abbreviations().config_hash()
+            ),
         }
     }
 
@@ -140,11 +149,13 @@ mod tests {
         assert!(doc.get::<Structure>().is_some());
         // The SHA-256 of the file in analysis/sentdetect/tests/models/README.md.
         let names = a.names();
-        assert_eq!(
-            names[0],
-            "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 \
-             4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8"
-        );
+        let parity = "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 \
+                      4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8";
+        let inventory = turbo_sentdetect::AbbreviationInventory::english().config_hash();
+        assert_eq!(names[0], format!("{parity} abbreviations {inventory:016x}"));
+        let Sentencer::Maxent { detector, file, sha256 } = a.sentences else { unreachable!() };
+        let jvm = Sentencer::Maxent { detector: detector.with_jvm_parity(), file, sha256 };
+        assert_eq!(jvm.name(), parity);
         assert_eq!(names[1..], ["turbo:structure plain", "opennlp:subwords"]);
     }
 }
