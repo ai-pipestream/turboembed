@@ -101,6 +101,32 @@ pub(crate) fn group_into_sentences<'a>(
     groups
 }
 
+/// Computes a deterministic 64-bit FNV-1a content fingerprint over `lm`'s
+/// order, n-grams, and counts.
+pub(crate) fn lm_fingerprint(lm: &NGramLanguageModel) -> u64 {
+    const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x00000100000001b3;
+    let mut hash = FNV_OFFSET;
+    let mut mix = |bytes: &[u8]| {
+        for &b in bytes {
+            hash ^= u64::from(b);
+            hash = hash.wrapping_mul(FNV_PRIME);
+        }
+    };
+    mix(&(lm.order() as u64).to_le_bytes());
+    mix(&(lm.size() as u64).to_le_bytes());
+    for ngram in lm.iter() {
+        mix(&(ngram.len() as u64).to_le_bytes());
+        for token in ngram {
+            mix(&(token.len() as u64).to_le_bytes());
+            mix(token.as_bytes());
+        }
+        let count = lm.get_count(ngram);
+        mix(&count.to_le_bytes());
+    }
+    hash
+}
+
 /// Decodes the minimum-cost candidate sequence across `cand_sets` via Viterbi.
 pub(crate) fn viterbi_decode(
     lm: &NGramLanguageModel,
@@ -112,7 +138,7 @@ pub(crate) fn viterbi_decode(
     }
     let m = cand_sets.len();
     let order = lm.order().max(1);
-    let history_len = (order - 1).min(3);
+    let history_len = order - 1;
     let use_bos = order > 1 && lm.contains(&["<s>"]);
     let use_eos = order > 1 && lm.contains(&["</s>"]);
 

@@ -338,3 +338,100 @@ fn custom_confusable_set_and_protected_spans_codec_roundtrip() {
     let spans: Vec<Span> = rt_protected.spans.iter().map(|(_, s)| s).collect();
     assert_eq!(spans, vec![Span::new(5, 10), Span::new(15, 19)]);
 }
+
+#[test]
+fn config_hash_changes_with_lm_counts_and_confusables_and_max_candidates_bounds_total_pool() {
+    use turbo_analysis::Annotator;
+
+    let mut engine = SymSpell::default();
+    engine.add("form", 10);
+    engine.add("from", 10);
+    let engine = Arc::new(engine);
+
+    let mut lm_a = NGramLanguageModel::new(1).unwrap();
+    for _ in 0..100 {
+        lm_a.add(&["form"]).unwrap();
+    }
+    lm_a.add(&["from"]).unwrap();
+
+    let mut lm_b = NGramLanguageModel::new(1).unwrap();
+    lm_b.add(&["form"]).unwrap();
+    for _ in 0..100 {
+        lm_b.add(&["from"]).unwrap();
+    }
+
+    let ann_a = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm_a));
+    let ann_b = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm_b.clone()));
+    assert_ne!(
+        ann_a.config_hash(),
+        ann_b.config_hash(),
+        "models with identical (order, size) but swapped counts must produce distinct config_hash"
+    );
+
+    let mut conf_x = ConfusableSet::empty();
+    conf_x.add_group(["alpha", "beta"]);
+    let mut conf_y = ConfusableSet::empty();
+    conf_y.add_group(["gamma", "delta"]);
+    let ann_x = ContextSpellCorrector::new(Arc::clone(&engine), Arc::new(lm_b.clone())).with_confusables(conf_x);
+    let ann_y = ContextSpellCorrector::new(Arc::clone(&engine), Arc::new(lm_b.clone())).with_confusables(conf_y);
+    assert_ne!(ann_x.config_hash(), ann_y.config_hash());
+
+    // With max_candidates(1), a known token ("form") retains only the original candidate.
+    let single_cand = ContextSpellCorrector::new(engine, Arc::new(lm_b)).max_candidates(1);
+    assert_eq!(apply(&single_cand, "form"), "form");
+}
+
+#[test]
+fn discontinuous_entity_protects_only_fragments_and_higher_order_lm_uses_full_history() {
+    let mut engine = SymSpell::default();
+    for w in ["aa", "bb", "cc", "dd", "xx", "zz", "form", "from"] {
+        engine.add(w, 10);
+    }
+    let engine = Arc::new(engine);
+
+    let mut lm1 = NGramLanguageModel::new(1).unwrap();
+    lm1.add(&["form"]).unwrap();
+    for _ in 0..100 {
+        lm1.add(&["from"]).unwrap();
+    }
+    let annotator = ContextSpellAnnotator::new(Arc::clone(&engine), Arc::new(lm1));
+
+    // Discontinuous entity covering fragments 0..2 ("aa") and 8..10 ("zz") leaves "form" (3..7) unprotected.
+    let mut doc = Document::new("aa form zz");
+    let v0 = ViewId::SOURCE;
+    let mut tok_spans = Spans::new(v0);
+    tok_spans.push(Span::new(0, 2));
+    tok_spans.push(Span::new(3, 7));
+    tok_spans.push(Span::new(8, 10));
+    doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: None }, Provenance::by("test")).unwrap();
+
+    let mut ent_spans = Spans::new(v0);
+    ent_spans.push_fragments(&[Span::new(0, 2), Span::new(8, 10)]);
+    let entities = Entities {
+        spans: ent_spans,
+        tokens: vec![IxRange::new(0, 3)],
+        kind: vec![Tag(0)],
+        kinds: TagSet::new("ner", &["MISC"]),
+        score: vec![1.0],
+    };
+    doc.add(&Key::<Entities>::DEFAULT, entities, Provenance::by("test")).unwrap();
+
+    let analyzer = Analyzer::builder()
+        .given(Key::<Entities>::DEFAULT)
+        .step(Bound::new(annotator).write(0, "corrected"))
+        .build()
+        .unwrap();
+    let res = analyzer.run(std::slice::from_mut(&mut doc));
+    assert!(res[0].is_ok(), "{:?}", res[0]);
+    let corrected = doc.get_key(&Key::<View>::named("corrected")).unwrap();
+    assert_eq!(corrected.text(), "aa from zz");
+
+    // 5-gram language model uses all 4 history tokens (order - 1 = 4).
+    let mut lm5 = NGramLanguageModel::new(5).unwrap();
+    for _ in 0..100 {
+        lm5.add(&["aa", "bb", "cc", "dd", "form"]).unwrap();
+    }
+    lm5.add(&["xx", "bb", "cc", "dd", "from"]).unwrap();
+    let corr5 = ContextSpellCorrector::new(engine, Arc::new(lm5)).edit_weight(0.0);
+    assert_eq!(apply(&corr5, "xx bb cc dd form"), "xx bb cc dd from");
+}

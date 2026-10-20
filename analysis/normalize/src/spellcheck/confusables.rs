@@ -85,11 +85,6 @@ impl ConfusableSet {
         if normalized.len() < 2 {
             return;
         }
-        let mut hasher = DefaultHasher::new();
-        self.fingerprint.hash(&mut hasher);
-        normalized.hash(&mut hasher);
-        self.fingerprint = hasher.finish();
-
         for word in &normalized {
             let entry = self.by_word.entry(word.clone()).or_default();
             for other in &normalized {
@@ -99,6 +94,19 @@ impl ConfusableSet {
             }
             entry.sort();
         }
+        self.recompute_fingerprint();
+    }
+
+    fn recompute_fingerprint(&mut self) {
+        let mut keys: Vec<&String> = self.by_word.keys().collect();
+        keys.sort();
+        let mut hasher = DefaultHasher::new();
+        keys.len().hash(&mut hasher);
+        for k in keys {
+            k.hash(&mut hasher);
+            self.by_word[k].hash(&mut hasher);
+        }
+        self.fingerprint = hasher.finish();
     }
 
     /// The confusable alternatives registered for `lower_word` (excluding
@@ -179,15 +187,12 @@ fn append_layer_spans<L>(
     let layer_view = spans.view();
     if layer_view == src.id() {
         for (i, s) in spans.iter() {
+            validate_span(annotator_id, label, i.get(), s, text)?;
             for frag in spans.fragments(i) {
                 validate_span(annotator_id, label, i.get(), frag, text)?;
                 if !frag.is_empty() {
                     out.push(frag);
                 }
-            }
-            validate_span(annotator_id, label, i.get(), s, text)?;
-            if !s.is_empty() {
-                out.push(s);
             }
         }
         return Ok(());

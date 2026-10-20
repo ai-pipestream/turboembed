@@ -16,7 +16,7 @@ use super::distance::EditDistance;
 use super::guards::{is_number_like, is_url_like};
 use super::suggestion::Verbosity;
 use super::symspell::{LookupError, SymSpell};
-use super::trellis::{Candidate, TokenSlot, collect_tokens, group_into_sentences, viterbi_decode};
+use super::trellis::{Candidate, TokenSlot, collect_tokens, group_into_sentences, lm_fingerprint, viterbi_decode};
 use crate::{Normalizer, hash_config};
 
 /// Default minimum token length (in code points) for [`ContextSpellCorrector`],
@@ -48,6 +48,7 @@ pub const DEFAULT_MAX_CANDIDATES: usize = 8;
 pub struct ContextSpellCorrector {
     engine: Arc<SymSpell>,
     lm: Arc<NGramLanguageModel>,
+    lm_digest: u64,
     confusables: ConfusableSet,
     min_token_length: usize,
     max_edit_distance: usize,
@@ -68,9 +69,11 @@ impl ContextSpellCorrector {
     /// initialized with [`ConfusableSet::english_default`].
     pub fn new(engine: Arc<SymSpell>, lm: Arc<NGramLanguageModel>) -> ContextSpellCorrector {
         let max_edit_distance = engine.max_edit_distance();
+        let lm_digest = lm_fingerprint(&lm);
         ContextSpellCorrector {
             engine,
             lm,
+            lm_digest,
             confusables: ConfusableSet::english_default(),
             min_token_length: DEFAULT_CONTEXT_MIN_TOKEN_LENGTH,
             max_edit_distance,
@@ -172,9 +175,7 @@ impl ContextSpellCorrector {
                 self.use_protected_spans,
                 self.engine.fingerprint(),
                 self.confusables.fingerprint(),
-                self.lm.order(),
-                self.lm.size(),
-                self.lm.number_of_grams(),
+                self.lm_digest,
             ),
         ))
     }
@@ -231,21 +232,36 @@ impl ContextSpellCorrector {
         if known {
             out.push(original.clone());
         }
+        if out.len() >= self.max_candidates {
+            return out;
+        }
 
         let metric = self.engine.config().metric();
+        let mut confusable_cands: Vec<(usize, i32, u64, Candidate)> = Vec::new();
         for alt in self.confusables.alternatives(&lower) {
             if (self.engine.contains(alt) || self.lm.contains(&[alt.as_str()])) && !out.iter().any(|c| c.word == *alt) {
                 let dist = metric.distance(&lower, alt, 255).unwrap_or(1).max(1);
-                out.push(Candidate {
-                    word: alt.clone(),
-                    trellis_edit_cost: 1.0,
-                    report_distance: dist,
-                    is_original: false,
-                });
+                let lm_cnt = self.lm.get_count(&[alt.as_str()]);
+                let dict_cnt = self.engine.count(alt).unwrap_or(0);
+                confusable_cands.push((
+                    dist,
+                    lm_cnt,
+                    dict_cnt,
+                    Candidate { word: alt.clone(), trellis_edit_cost: 1.0, report_distance: dist, is_original: false },
+                ));
             }
         }
+        confusable_cands.sort_by(|a, b| {
+            a.0.cmp(&b.0).then_with(|| b.1.cmp(&a.1)).then_with(|| b.2.cmp(&a.2)).then_with(|| a.3.word.cmp(&b.3.word))
+        });
+        for (_, _, _, cand) in confusable_cands {
+            if out.len() >= self.max_candidates {
+                break;
+            }
+            out.push(cand);
+        }
 
-        if !in_dict || self.check_real_word_edits {
+        if (!in_dict || self.check_real_word_edits) && out.len() < self.max_candidates {
             let suggestions = self.engine.lookup_within(&lower, Verbosity::All, self.max_edit_distance);
             for s in suggestions {
                 if out.len() >= self.max_candidates {
@@ -266,6 +282,7 @@ impl ContextSpellCorrector {
         if out.is_empty() {
             out.push(original);
         }
+        out.truncate(self.max_candidates);
         out
     }
 
