@@ -12,7 +12,6 @@ use tonic::{Code, Status};
 use turbo_analysis::{Ix, Key, Layer, ModelRef, Span, View, ViewId};
 use turbo_analysis_embed::{Answers, Reranked};
 use turbo_analysis_layers::{Chunks, SparseTerms, Subwords, TokenVectorWindows, Vectors};
-use turbo_kserve::Server;
 use turbo_kserve::api::Runtime;
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
 use turbo_kserve::proto::grpc_inference_service_client::GrpcInferenceServiceClient;
@@ -20,6 +19,7 @@ use turbo_kserve::proto::model_infer_request::InferInputTensor;
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::*;
 use turbo_kserve::proto::{InferTensorContents, ModelInferRequest};
+use turbo_kserve::{Serve, Server};
 
 pub type Analysis = AnalysisServiceClient<Channel>;
 pub type Kserve = GrpcInferenceServiceClient<Channel>;
@@ -81,8 +81,21 @@ fn model(bundle: &Path, name: Option<&str>, sessions: u32) -> ModelConfig {
     }
 }
 
+/// A server whose admin calls are served, for the load and unload tests.
 pub async fn serve() -> (Server, Analysis) {
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), None, 2)], MAX).await.unwrap();
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), None, 2)], MAX, Serve { admin: true })
+        .await
+        .unwrap();
+    s.load().await.unwrap();
+    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    (s, c)
+}
+
+/// The default server: admin calls refused, for the opt-in test.
+pub async fn serve_no_admin() -> (Server, Analysis) {
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), None, 2)], MAX, Serve::default())
+        .await
+        .unwrap();
     s.load().await.unwrap();
     let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
     (s, c)

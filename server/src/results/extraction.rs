@@ -7,7 +7,7 @@
 use turbo_analysis::{Layer, ModelRef, Span, ViewId};
 use turbo_analysis_embed::Answers;
 
-use super::{MAX_ANSWERS, Wire, mismatched, model_from_proto, model_to_proto, over};
+use super::{MAX_ANSWER_FRAGMENTS, MAX_ANSWERS, Wire, mismatched, model_from_proto, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result::ExtractionResult;
 
@@ -175,6 +175,11 @@ impl Wire for Extraction {
     fn from_msg(msg: &ExtractionResult) -> Result<Self, Failure> {
         if msg.span_start.len() as u64 > MAX_ANSWERS {
             return Err(over("max_answers", "answers", msg.span_start.len() as u64));
+        }
+        // The fragment columns refuse past the listed limit before
+        // anything is allocated for them.
+        if msg.frag_start.len() as u64 > MAX_ANSWER_FRAGMENTS {
+            return Err(over("max_answer_fragments", "answer fragments", msg.frag_start.len() as u64));
         }
         if msg.span_start.len() != msg.span_end.len() {
             return Err(mismatched("span_start", msg.span_start.len(), msg.span_end.len()));
@@ -358,6 +363,27 @@ mod tests {
         assert!(e.message.contains("envelope"), "{e:?}");
         let e = Extraction::from_msg(&ExtractionResult::default()).unwrap_err();
         assert!(e.message.contains("extraction answers"), "{e:?}");
+    }
+
+    #[test]
+    fn the_fragments_refuse_before_allocating() {
+        // One answer claiming a fragment column past the listed limit.
+        let msg = ExtractionResult {
+            model: Some(model_to_proto(&model())),
+            view: 0,
+            span_start: vec![0],
+            span_end: vec![8],
+            score: vec![1.0],
+            probability: vec![1.0],
+            null_score: 0.0,
+            null_probability: 0.0,
+            frag_start: vec![0; MAX_ANSWER_FRAGMENTS as usize + 1],
+            frag_end: vec![1; MAX_ANSWER_FRAGMENTS as usize + 1],
+            frag_at: vec![1],
+        };
+        let e = Extraction::from_msg(&msg).unwrap_err();
+        assert_eq!(e.code, TURBO_E_CAPACITY);
+        assert!(e.message.contains("max_answer_fragments"), "{e:?}");
     }
 
     #[test]

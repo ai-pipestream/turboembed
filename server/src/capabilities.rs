@@ -5,11 +5,12 @@
 
 use crate::api::{self, Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM};
 use crate::config::{Device, ModelConfig};
-use crate::proto::result::{BundleCapabilities, LoadBundleRequest, ModelRef, ResultLimits};
+use crate::proto::result::{BundleCapabilities, LoadBundleRequest, ModelRef, ResultLimits, ServerLimits};
 use crate::results::{
-    MAX_ANSWERS, MAX_RERANK_ITEMS, MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, MAX_TOKEN_VECTOR_BYTES,
+    MAX_ANSWER_FRAGMENTS, MAX_ANSWERS, MAX_RERANK_ITEMS, MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES,
+    MAX_TOKEN_VECTOR_BYTES, MAX_WINDOWS, over,
 };
-use crate::state::Loaded;
+use crate::state::{Loaded, MAX_LOADED_MODELS, MAX_SESSIONS_PER_MODEL};
 
 fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
@@ -23,7 +24,14 @@ pub(crate) fn result_limits() -> ResultLimits {
         max_token_vector_bytes: MAX_TOKEN_VECTOR_BYTES,
         max_rerank_items: MAX_RERANK_ITEMS,
         max_answers: MAX_ANSWERS,
+        max_answer_fragments: MAX_ANSWER_FRAGMENTS,
+        max_windows: MAX_WINDOWS,
     }
+}
+
+/// What LoadBundle may ask for, as the capability listing shows it.
+pub(crate) fn server_limits() -> ServerLimits {
+    ServerLimits { max_sessions_per_model: MAX_SESSIONS_PER_MODEL, max_loaded_models: MAX_LOADED_MODELS as u32 }
 }
 
 /// What a loaded bundle is and takes: its name, identity, task, roles,
@@ -81,8 +89,13 @@ pub(crate) fn load_config(req: &LoadBundleRequest) -> Result<(String, ModelConfi
     } else {
         req.name.clone()
     };
+    // The caps are refused before anything is allocated, with the
+    // limit named.
     if req.sessions == 0 {
         return Err(bad("sessions: at least 1"));
+    }
+    if req.sessions > MAX_SESSIONS_PER_MODEL {
+        return Err(over("max_sessions_per_model", "sessions", req.sessions as u64));
     }
     if crate::api::names::PRECISION.iter().all(|(v, _)| *v != req.precision) {
         return Err(Failure::new(
@@ -103,4 +116,43 @@ pub(crate) fn load_config(req: &LoadBundleRequest) -> Result<(String, ModelConfi
             sessions: req.sessions,
         },
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::TURBO_E_CAPACITY;
+    use crate::state::MAX_LOADED_MODELS;
+
+    fn req(sessions: u32) -> LoadBundleRequest {
+        LoadBundleRequest {
+            name: "x".into(),
+            bundle: "b/x".into(),
+            device: 0,
+            sessions,
+            precision: 0,
+            max_batch: 0,
+            max_seq: 0,
+        }
+    }
+
+    #[test]
+    fn sessions_are_capped_before_anything_is_allocated() {
+        let (name, config) = load_config(&req(MAX_SESSIONS_PER_MODEL)).unwrap();
+        assert_eq!(name, "x");
+        assert_eq!(config.sessions, MAX_SESSIONS_PER_MODEL);
+        let e = load_config(&req(MAX_SESSIONS_PER_MODEL + 1)).unwrap_err();
+        assert_eq!(e.code, TURBO_E_CAPACITY);
+        assert!(e.message.contains("max_sessions_per_model"), "{e:?}");
+        assert!(e.message.contains(&(MAX_SESSIONS_PER_MODEL + 1).to_string()), "{e:?}");
+        let e = load_config(&req(0)).unwrap_err();
+        assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT);
+    }
+
+    #[test]
+    fn the_listing_shows_the_server_limits() {
+        let l = server_limits();
+        assert_eq!(l.max_sessions_per_model, MAX_SESSIONS_PER_MODEL);
+        assert_eq!(l.max_loaded_models, MAX_LOADED_MODELS as u32);
+    }
 }

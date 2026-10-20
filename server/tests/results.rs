@@ -133,6 +133,10 @@ async fn the_capability_listing_matches_the_loaded_bundle() {
     let limits = list.limits.as_ref().unwrap();
     assert!(limits.max_sparse_entries > 0 && limits.max_sparse_occurrences >= limits.max_sparse_entries);
     assert!(limits.max_token_vector_bytes > 0 && limits.max_rerank_items > 0 && limits.max_answers > 0);
+    assert!(limits.max_answer_fragments >= limits.max_answers && limits.max_windows > 0);
+    let server = list.server.as_ref().unwrap();
+    assert!(server.max_sessions_per_model > 0 && server.max_sessions_per_model <= 64);
+    assert!(server.max_loaded_models > 0);
 }
 
 #[tokio::test]

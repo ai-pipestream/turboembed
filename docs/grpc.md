@@ -66,6 +66,7 @@ no way to stop a load part way.
 | `--listen ADDR:PORT` | Where to answer gRPC, without TLS. | Required. |
 | `--model SETTINGS` | One served model; repeat for more. | At least one is required. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
+| `--admin` | Answer the analysis service's admin calls, `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md). Without it they refuse with `UNIMPLEMENTED`. | Off. |
 
 `SETTINGS` is comma-separated `key=value` pairs:
 
@@ -108,6 +109,7 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_LISTEN` | `--listen` |
 | `TURBO_KSERVE_MODELS` | `--model`, one or more values separated by `;` |
 | `TURBO_KSERVE_MAX_MESSAGE_BYTES` | `--max-message-bytes` |
+| `TURBO_KSERVE_ADMIN` | `--admin` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 
 ```
 TURBO_KSERVE_LISTEN=0.0.0.0:8081 \

@@ -456,7 +456,7 @@ answered as follows.
 
 | Protocol | Answer |
 |---|---|
-| Any method not in `GRPCInferenceService` (repository load and unload, streaming inference, shared-memory registration, statistics, trace, logging) | `UNIMPLEMENTED`, from gRPC: this service does not register them. Loading and unloading a bundle while serving lives in the analysis service beside this one (docs/grpc-analysis.md). |
+| Any method not in `GRPCInferenceService` (repository load and unload, streaming inference, shared-memory registration, statistics, trace, logging) | `UNIMPLEMENTED`, from gRPC: this service does not register them. Loading and unloading a bundle while serving lives in the analysis service beside this one, behind its `--admin` flag and off by default (docs/grpc-analysis.md). |
 | `grpc.health.v1.Health` | `UNIMPLEMENTED`, not registered. Probe with `ServerLive` and `ServerReady`. |
 | `ServerMetadataResponse.extensions` | Empty: no extension is implemented. |
 | More than one version of a model | One: the revision. |

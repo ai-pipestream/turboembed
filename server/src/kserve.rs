@@ -152,7 +152,7 @@ fn fits(si: &turbo_session_info, batch: u32, seq: u32) -> Result<()> {
 
 /// One ModelInfer: one write, one run and one read on one held session.
 fn infer(state: &State, req: ModelInferRequest) -> Result<ModelInferResponse> {
-    let (name, loaded) = state.ready(&req.model_name, &req.model_version)?;
+    let (served, loaded) = state.ready(&req.model_name, &req.model_version)?;
     let plan = infer::plan(&req)?;
     // Every session of a model is made alike, so the first one's limits are
     // the held one's: an oversized raw request is refused before BUSY.
@@ -200,7 +200,7 @@ fn infer(state: &State, req: ModelInferRequest) -> Result<ModelInferResponse> {
     })?;
     let vectors = Vectors { data, _result: result, _held: held };
     Ok(ModelInferResponse {
-        model_name: name,
+        model_name: served.name.clone(),
         model_version: loaded.revision.clone(),
         id: req.id.clone(),
         parameters: result_parameters(&info),
@@ -266,10 +266,10 @@ impl GrpcInferenceService for Inference {
 
     async fn model_metadata(&self, req: Request<ModelMetadataRequest>) -> Reply<ModelMetadataResponse> {
         let req = req.into_inner();
-        let (name, loaded) = self.state.ready(&req.name, &req.version).map_err(plain)?;
+        let (served, loaded) = self.state.ready(&req.name, &req.version).map_err(plain)?;
         let properties = properties(&self.state, &loaded).map_err(plain)?;
         Ok(Response::new(ModelMetadataResponse {
-            name,
+            name: served.name.clone(),
             versions: vec![loaded.revision.clone()],
             platform: String::new(),
             inputs: vec![

@@ -138,6 +138,89 @@ async fn a_malformed_result_message_is_a_typed_refusal_not_a_panic() {
 }
 
 #[tokio::test]
+async fn the_admin_calls_refuse_until_the_server_opts_in() {
+    let (_s, mut c) = serve_no_admin().await;
+    let bundle = tiny().to_str().unwrap().to_string();
+    let req = load_req("extra", &bundle, 1, 0);
+    let e = c.load_bundle(req.clone()).await.expect_err("admin is off");
+    assert_eq!(refusal(&e), (Code::Unimplemented, 512));
+    assert!(e.message().contains("--admin"), "{}", e.message());
+    let e = c.unload_bundle(UnloadBundleRequest { name: NAME.into() }).await.expect_err("admin is off");
+    assert_eq!(refusal(&e), (Code::Unimplemented, 512));
+    // The listing and inference answer all the same.
+    let list = c.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+    assert_eq!(list.bundles.len(), 1);
+    let mut k = kserve(&_s).await;
+    assert_eq!(embed_shape(&mut k, NAME, &[b"hi"]).await, [1, 32]);
+}
+
+#[tokio::test]
+async fn sessions_and_registrations_are_capped_with_the_limits_named() {
+    let (_s, mut c) = serve().await;
+    let bundle = tiny().to_str().unwrap().to_string();
+    let list = c.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+    let server = list.server.as_ref().unwrap();
+    // One past the advertised cap refuses with the limit named, before
+    // anything is allocated.
+    let e = c.load_bundle(load_req("too-many", &bundle, server.max_sessions_per_model + 1, 0)).await.unwrap_err();
+    assert_eq!(refusal(&e), (Code::OutOfRange, 771));
+    assert!(e.message().contains("max_sessions_per_model"), "{}", e.message());
+    // At the cap the load stands.
+    let name = format!("sessions-{}", server.max_sessions_per_model);
+    c.load_bundle(load_req(&name, &bundle, server.max_sessions_per_model, 0)).await.unwrap();
+    c.unload_bundle(UnloadBundleRequest { name }).await.unwrap();
+    // The unit test in state.rs covers max_loaded_models; here the
+    // listing carries it for a client to pre-check.
+    assert!(server.max_loaded_models > 0);
+}
+
+#[tokio::test]
+async fn a_same_name_unload_and_replacement_never_loses_a_registration() {
+    let (_s, mut c) = serve().await;
+    let bundle = tiny().to_str().unwrap().to_string();
+    // A storm over one name: valid loads, a failing load, and an unload
+    // racing. Every outcome is coherent: the listing shows the name at
+    // most once, and a listed name answers inference.
+    for round in 0..5 {
+        let mut set = tokio::task::JoinSet::new();
+        for _ in 0..3 {
+            let mut c = c.clone();
+            let bundle = bundle.clone();
+            set.spawn(async move {
+                c.load_bundle(load_req("dup", &bundle, 1, 0)).await.map(|_| ()).map_err(|s| s.message().to_string())
+            });
+        }
+        let mut c2 = c.clone();
+        set.spawn(async move {
+            c2.load_bundle(load_req("dup", "/no/such/bundle", 1, 0))
+                .await
+                .map(|_| ())
+                .map_err(|s| s.message().to_string())
+        });
+        let mut c3 = c.clone();
+        set.spawn(async move {
+            c3.unload_bundle(UnloadBundleRequest { name: "dup".into() })
+                .await
+                .map(|_| ())
+                .map_err(|s| s.message().to_string())
+        });
+        while let Some(r) = set.join_next().await {
+            let _ = r.unwrap();
+        }
+        let list = c.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+        let dups = list.bundles.iter().filter(|b| b.name == "dup").count();
+        assert!(dups <= 1, "round {round}: {dups} registrations of one name");
+        if dups == 1 {
+            let mut k = kserve(&_s).await;
+            assert_eq!(embed_shape(&mut k, "dup", &[b"hi"]).await, [1, 32], "round {round}");
+            c.unload_bundle(UnloadBundleRequest { name: "dup".into() }).await.unwrap();
+        }
+    }
+    let list = c.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+    assert_eq!(list.bundles.len(), 1);
+}
+
+#[tokio::test]
 async fn concurrent_loads_fail_only_their_own_registration() {
     let (_s, mut c) = serve().await;
     let bundle = tiny().to_str().unwrap().to_string();

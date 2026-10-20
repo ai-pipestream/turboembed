@@ -9,6 +9,7 @@ use turbo::{TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, turbo_session
 
 use crate::api::{self, *};
 use crate::config::ModelConfig;
+use crate::results::over;
 use crate::status::{SESSION_DESC, describe};
 
 /// One session of a model, with its three pinned I32 buffers for raw token
@@ -90,6 +91,13 @@ fn not_found(name: &str) -> Failure {
     Failure::new(TURBO_E_BUNDLE_NOT_FOUND, 0, format!("no model {name} is served here"))
 }
 
+/// The most a server serves: sessions pile up pinned buffers, and every
+/// served name holds a loaded model. LoadBundle refuses past these with
+/// TURBO_E_CAPACITY naming the limit, before anything is allocated; the
+/// capability listing shows them.
+pub(crate) const MAX_SESSIONS_PER_MODEL: u32 = 32;
+pub(crate) const MAX_LOADED_MODELS: usize = 64;
+
 impl State {
     pub(crate) fn new(names: Vec<String>, models: Vec<ModelConfig>) -> Self {
         Self {
@@ -106,28 +114,28 @@ impl State {
         }
     }
 
-    /// The served model's name and, when it is loaded, its load. The
-    /// answer is a snapshot: a load or unload after it returns does not
-    /// change it.
-    pub(crate) fn peek(&self, name: &str) -> api::Result<(String, Option<Arc<Loaded>>)> {
+    /// The served model and, when it is loaded, its load. The answer is
+    /// a snapshot: a load or unload after it returns does not change it.
+    /// No name is cloned: the Arc names the registration.
+    pub(crate) fn peek(&self, name: &str) -> api::Result<(Arc<Served>, Option<Arc<Loaded>>)> {
         let models = self.models.read().unwrap_or_else(|e| e.into_inner());
         let m = models.iter().find(|m| m.name == name).ok_or_else(|| not_found(name))?;
-        Ok((m.name.clone(), m.loaded.get().cloned()))
+        Ok((m.clone(), m.loaded.get().cloned()))
     }
 
     /// A ready model, the version empty or its revision.
-    pub(crate) fn ready(&self, name: &str, version: &str) -> api::Result<(String, Arc<Loaded>)> {
-        let (name, loaded) = self.peek(name)?;
-        let l =
-            loaded.ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {name} is not loaded yet")))?;
+    pub(crate) fn ready(&self, name: &str, version: &str) -> api::Result<(Arc<Served>, Arc<Loaded>)> {
+        let (m, loaded) = self.peek(name)?;
+        let l = loaded
+            .ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {} is not loaded yet", m.name)))?;
         if !version.is_empty() && version != l.revision {
             return Err(Failure::new(
                 TURBO_E_BUNDLE_NOT_FOUND,
                 0,
-                format!("model {name} has version {}, not {version}", l.revision),
+                format!("model {} has version {}, not {version}", m.name, l.revision),
             ));
         }
-        Ok((name, l))
+        Ok((m, l))
     }
 
     /// The served models as they are now: name, configuration and load,
@@ -137,13 +145,34 @@ impl State {
     }
 
     /// Starts serving a model: it lists from here on, not loaded yet, and
-    /// load() makes it. The name must not be served already.
-    pub(crate) fn add(&self, name: String, config: ModelConfig) -> api::Result<()> {
+    /// load() makes it. The name must not be served already, and the
+    /// served-models cap must not be hit. The returned registration is
+    /// the caller's identity for loading and for rolling back: the same
+    /// name re-registered is a different registration.
+    pub(crate) fn add(&self, name: String, config: ModelConfig) -> api::Result<Arc<Served>> {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
         if models.iter().any(|m| m.name == name) {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("a model named {name} is already served")));
         }
-        models.push(Arc::new(Served { name, config, loaded: OnceLock::new() }));
+        if models.len() >= MAX_LOADED_MODELS {
+            return Err(over("max_loaded_models", "served models", models.len() as u64 + 1));
+        }
+        let m = Arc::new(Served { name, config, loaded: OnceLock::new() });
+        models.push(m.clone());
+        Ok(m)
+    }
+
+    /// Removes the caller's own registration, whatever name it carries:
+    /// the entry goes only when it is still the one the caller
+    /// registered, under the write lock, so a concurrent unload and
+    /// re-registration of the same name is never touched. An entry the
+    /// caller no longer holds is not an error: there is nothing of
+    /// theirs to roll back.
+    pub(crate) fn remove_if(&self, expected: &Arc<Served>) -> api::Result<()> {
+        let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(i) = models.iter().position(|m| Arc::ptr_eq(m, expected)) {
+            models.remove(i);
+        }
         Ok(())
     }
 
@@ -155,11 +184,6 @@ impl State {
         let i = models.iter().position(|m| m.name == name).ok_or_else(|| not_found(name))?;
         models.remove(i);
         Ok(())
-    }
-
-    /// The served model by name, as a snapshot.
-    pub(crate) fn served(&self, name: &str) -> api::Result<Arc<Served>> {
-        self.listing().into_iter().find(|m| m.name == name).ok_or_else(|| not_found(name))
     }
 
     /// Loads every model in order, stopping at the first failure with the
@@ -176,14 +200,14 @@ impl State {
         Ok(())
     }
 
-    /// Loads one named model; an already loaded model is a no-op. Every
-    /// other pending registration is untouched, so one LoadBundle's
+    /// Loads exactly the registration given; an already loaded one is a
+    /// no-op. Every other registration is untouched, and a same-named
+    /// replacement is a different registration, so one LoadBundle's
     /// failure cannot fail or roll back another's.
-    pub(crate) fn load_one(&self, name: &str) -> std::result::Result<(), String> {
+    pub(crate) fn load_one(&self, m: &Arc<Served>) -> std::result::Result<(), String> {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
-        let m = self.served(name).map_err(|f| describe(&f, &[]))?;
         if m.loaded.get().is_none() {
-            self.load_model(&m)?;
+            self.load_model(m)?;
         }
         Ok(())
     }
@@ -309,4 +333,71 @@ pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<
         ("capability.reason", api::field(&cap.reason)),
     ];
     Ok(p.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Device;
+
+    fn config(name: &str) -> ModelConfig {
+        ModelConfig {
+            bundle: format!("b/{name}"),
+            name: Some(name.into()),
+            device: Device::Index(0),
+            precision: 0,
+            max_batch: 0,
+            max_seq: 0,
+            sessions: 1,
+        }
+    }
+
+    /// The error of a refused registration.
+    fn refused(r: api::Result<Arc<Served>>) -> Failure {
+        match r {
+            Err(e) => e,
+            Ok(_) => panic!("a capped registration was accepted"),
+        }
+    }
+
+    #[test]
+    fn registration_is_capped_with_the_limit_named() {
+        let state = State::new(vec!["base".into()], vec![config("base")]);
+        for k in 0..MAX_LOADED_MODELS - 1 {
+            state.add(format!("m{k}"), config(&format!("m{k}"))).unwrap();
+        }
+        let e = refused(state.add("one-more".into(), config("one-more")));
+        assert_eq!(e.code, TURBO_E_CAPACITY);
+        assert!(e.message.contains("max_loaded_models"), "{e:?}");
+        // The base model still serves.
+        assert!(state.peek("base").is_ok());
+    }
+
+    #[test]
+    fn rollback_removes_only_the_exact_registration() {
+        let state = State::new(Vec::new(), Vec::new());
+        let a = state.add("x".into(), config("x")).unwrap();
+        // A same-named registration is a different identity: rolling
+        // back against it must not remove the live one.
+        state.remove("x").unwrap();
+        let b = state.add("x".into(), config("x")).unwrap();
+        assert!(!Arc::ptr_eq(&a, &b));
+        state.remove_if(&a).unwrap();
+        assert!(state.peek("x").is_ok(), "the replacement registration stands");
+        assert!(Arc::ptr_eq(&state.peek("x").unwrap().0, &b));
+        // Rolling back the live one removes it.
+        state.remove_if(&b).unwrap();
+        assert!(state.peek("x").is_err());
+        // Rolling back what is already gone is not an error.
+        state.remove_if(&b).unwrap();
+    }
+
+    #[test]
+    fn peek_returns_the_registration_without_cloning_the_name() {
+        let state = State::new(vec!["x".into()], vec![config("x")]);
+        let (m, loaded) = state.peek("x").unwrap();
+        assert_eq!(m.name, "x");
+        assert!(loaded.is_none(), "nothing is loaded yet; ready() reports that on the same path");
+        assert!(state.ready("x", "").is_err());
+    }
 }

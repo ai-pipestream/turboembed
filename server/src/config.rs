@@ -123,10 +123,15 @@ pub struct Args {
     pub models: Vec<ModelConfig>,
     /// The largest request message gRPC reads.
     pub max_message_bytes: usize,
+    /// Whether the admin calls, LoadBundle and UnloadBundle, are served.
+    pub admin: bool,
 }
 
 /// `--max-message-bytes` when absent: 64 MiB.
 pub const DEFAULT_MAX_MESSAGE_BYTES: usize = 64 << 20;
+
+/// The variable `--admin` reads when absent.
+pub const ENV_ADMIN: &str = "TURBO_KSERVE_ADMIN";
 
 /// The environment variables, each what the flag of the same name is when
 /// the flag is absent. `TURBO_KSERVE_MODELS` holds `--model` values
@@ -137,9 +142,9 @@ pub const ENV_MAX_MESSAGE_BYTES: &str = "TURBO_KSERVE_MAX_MESSAGE_BYTES";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT --model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] [--model ...] \
-[--max-message-bytes N]\n\
+[--max-message-bytes N] [--admin]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
-TURBO_KSERVE_MAX_MESSAGE_BYTES; a flag on the command line replaces its variable";
+TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN; a flag on the command line replaces its variable";
 
 impl Args {
     /// The command line, with the process environment filling in what it
@@ -155,6 +160,7 @@ impl Args {
     ) -> Result<Args, String> {
         let mut listen = None;
         let mut max_message_bytes = None;
+        let mut admin = None;
         let mut models = Vec::new();
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
@@ -172,6 +178,11 @@ impl Args {
                     }
                 }
                 "--model" => models.push(ModelConfig::parse(&value()?)?),
+                "--admin" => {
+                    if inline.is_some() || admin.replace(true).is_some() {
+                        return Err("--admin takes no value and may be given once".into());
+                    }
+                }
                 "--max-message-bytes" => {
                     let v = value()?;
                     let n: usize = v.parse().map_err(|_| format!("--max-message-bytes {v}: not a byte count"))?;
@@ -199,9 +210,23 @@ impl Args {
         {
             max_message_bytes = Some(v.parse().map_err(|_| format!("{ENV_MAX_MESSAGE_BYTES}={v}: not a byte count"))?);
         }
+        if admin.is_none()
+            && let Some(v) = env(ENV_ADMIN).filter(|v| !v.is_empty())
+        {
+            admin = Some(match v.as_str() {
+                "1" | "true" | "yes" => true,
+                "0" | "false" | "no" => false,
+                _ => return Err(format!("{ENV_ADMIN}={v}: not one of 1, true, yes, 0, false, no")),
+            });
+        }
         let listen = listen.ok_or("--listen is required")?;
         names(&models)?;
-        Ok(Args { listen, models, max_message_bytes: max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES) })
+        Ok(Args {
+            listen,
+            models,
+            max_message_bytes: max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES),
+            admin: admin.unwrap_or(false),
+        })
     }
 }
 

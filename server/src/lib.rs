@@ -64,15 +64,26 @@ pub struct Server {
     task: JoinHandle<std::result::Result<(), tonic::transport::Error>>,
 }
 
+/// Whether the server builder serves the admin calls, LoadBundle and
+/// UnloadBundle: the explicit opt-in this listener needs before any
+/// client may add or remove bundles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Serve {
+    pub admin: bool,
+}
+
 impl Server {
     /// Binds `listen` and answers gRPC, with nothing loaded yet. A bundle
     /// path that names no bundle, or two models of one name, is refused. A
     /// request message over `max_message_bytes` is refused by gRPC with
-    /// RESOURCE_EXHAUSTED before it is read.
+    /// RESOURCE_EXHAUSTED before it is read. `serve.admin` opts in to the
+    /// admin calls LoadBundle and UnloadBundle; off, they refuse
+    /// UNIMPLEMENTED.
     pub async fn start(
         listen: SocketAddr,
         models: Vec<ModelConfig>,
         max_message_bytes: usize,
+        serve: Serve,
     ) -> std::result::Result<Server, String> {
         let names = config::names(&models)?;
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
@@ -80,7 +91,7 @@ impl Server {
         let state = Arc::new(State::new(names, models));
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
             .max_decoding_message_size(max_message_bytes);
-        let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone() })
+        let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone(), admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
         let task = tokio::spawn(

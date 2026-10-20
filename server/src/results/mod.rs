@@ -23,6 +23,8 @@ pub const MAX_SPARSE_OCCURRENCES: u64 = 1 << 22;
 pub const MAX_TOKEN_VECTOR_BYTES: u64 = 32 << 20;
 pub const MAX_RERANK_ITEMS: u64 = 1 << 20;
 pub const MAX_ANSWERS: u64 = 1 << 16;
+pub const MAX_ANSWER_FRAGMENTS: u64 = 1 << 20;
+pub const MAX_WINDOWS: u64 = 1 << 20;
 
 /// One result kind's wire form: to the message, and back with the
 /// message's own validation, whose refusal names what it found.
@@ -39,7 +41,7 @@ pub trait Wire: Sized {
 /// A count over a listed limit: TURBO_E_CAPACITY naming the limit, the
 /// way the server answers OUT_OF_RANGE for a request past a published
 /// limit, and nothing is cut down to fit.
-fn over(limit: &str, what: &str, n: u64) -> Failure {
+pub(crate) fn over(limit: &str, what: &str, n: u64) -> Failure {
     Failure::new(TURBO_E_CAPACITY, 0, format!("{what} is {n}, over the {limit} limit"))
 }
 

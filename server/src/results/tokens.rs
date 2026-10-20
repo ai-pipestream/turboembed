@@ -5,7 +5,7 @@
 use turbo_analysis::{Layer, ModelRef, Span, ViewId};
 use turbo_analysis_layers::{Subwords, TokenVectorWindows, Vectors};
 
-use super::{MAX_TOKEN_VECTOR_BYTES, Wire, mismatched, model_from_proto, model_to_proto, over};
+use super::{MAX_TOKEN_VECTOR_BYTES, MAX_WINDOWS, Wire, mismatched, model_from_proto, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result::TokenVectorsResult;
 
@@ -114,6 +114,16 @@ impl Wire for TokenVectors {
                 format!("data: {} f32 values do not make rows of dim {}", values, msg.dim),
             ));
         }
+        // The row-count bounds refuse before anything is allocated for
+        // the columns: windows past the listed limit, or more empty rows
+        // than the data carries.
+        let rows = values / msg.dim as usize;
+        if msg.window_start.len() as u64 > MAX_WINDOWS {
+            return Err(over("max_windows", "encoder windows", msg.window_start.len() as u64));
+        }
+        if msg.empty.len() as u64 > rows as u64 {
+            return Err(over("the data's rows", "empty rows", msg.empty.len() as u64));
+        }
         if msg.window_start.len() != msg.window_end.len() {
             return Err(mismatched("window_start", msg.window_start.len(), msg.window_end.len()));
         }
@@ -133,7 +143,6 @@ impl Wire for TokenVectors {
             view: msg.view as u16,
             windows: msg.window_start.iter().zip(&msg.window_end).map(|(&s, &e)| Span { start: s, end: e }).collect(),
         };
-        let rows = out.data.len() / out.dim as usize;
         out.vectors()?;
         out.windows_layer(rows)?;
         Ok(out)
@@ -262,6 +271,45 @@ mod tests {
         // Nothing at all: no dim.
         let e = TokenVectors::from_msg(&TokenVectorsResult::default()).unwrap_err();
         assert!(e.message.contains("dim"), "{e:?}");
+    }
+
+    #[test]
+    fn the_column_counts_refuse_before_allocating() {
+        use crate::results::MAX_WINDOWS;
+        // More windows than the listed limit, with tiny data.
+        let msg = TokenVectorsResult {
+            dim: 1,
+            data: vec![0; 4].into(),
+            window_start: vec![0; MAX_WINDOWS as usize + 1],
+            window_end: vec![1; MAX_WINDOWS as usize + 1],
+            ..Default::default()
+        };
+        let e = TokenVectors::from_msg(&msg).unwrap_err();
+        assert_eq!(e.code, TURBO_E_CAPACITY);
+        assert!(e.message.contains("max_windows"), "{e:?}");
+        // More empty rows than the data carries.
+        let msg = TokenVectorsResult {
+            dim: 1,
+            data: vec![0; 4].into(),
+            empty: vec![0, 1],
+            window_start: vec![0],
+            window_end: vec![4],
+            ..Default::default()
+        };
+        let e = TokenVectors::from_msg(&msg).unwrap_err();
+        assert_eq!(e.code, TURBO_E_CAPACITY);
+        assert!(e.message.contains("empty rows"), "{e:?}");
+        // A window count at the limit with no data is still layout-refused
+        // for its windows, not capacity-refused: limits bound size, the
+        // layer rules bound shape.
+        let msg = TokenVectorsResult {
+            dim: 1,
+            data: Vec::new().into(),
+            window_start: vec![0; MAX_WINDOWS as usize],
+            window_end: vec![1; MAX_WINDOWS as usize],
+            ..Default::default()
+        };
+        assert_eq!(TokenVectors::from_msg(&msg).unwrap_err().code, TURBO_E_INVALID_ARGUMENT);
     }
 
     #[test]

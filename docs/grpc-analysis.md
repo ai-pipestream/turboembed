@@ -80,10 +80,22 @@ truncated.
 The listing follows the bundles: `LoadBundle` serves one more and answers
 with its entry, `UnloadBundle` stops serving a name (requests holding its
 sessions finish; the name is then refused as never served), and the next
-`Capabilities` shows the change. Load and unload take a plaintext,
-unauthenticated gRPC port into trust, the same trust every request
-already carries; put the port behind what a deployment uses for that
-(docs/grpc.md, Starting it).
+`Capabilities` shows the change.
+
+Load and unload are admin calls, and the server does not serve them by
+default: start it with `--admin` (docs/grpc.md, Flags) to answer them,
+and until then they refuse with `TURBO_E_UNSUPPORTED` (`UNIMPLEMENTED`).
+Even with the flag they take a plaintext, unauthenticated gRPC port into
+trust, the same trust every request already carries; put the port behind
+what a deployment uses for that (docs/grpc.md, Starting it).
+
+A request is bounded before anything is allocated. `sessions` over
+`max_sessions_per_model`, or a registration past `max_loaded_models`,
+refuses with `TURBO_E_CAPACITY` naming the limit; both caps are listed
+in `CapabilitiesResponse.server`, and a client reads them there before
+asking. One request's load, answer, and rollback carry the exact
+registration it made: a same-named replacement is a different
+registration and is never touched.
 
 ## A client call
 

@@ -51,6 +51,24 @@ message CapabilitiesResponse
   // What one result message may carry; a larger one is refused with
   // TURBO_E_CAPACITY naming the limit. Nothing is truncated.
   ResultLimits limits = 2;
+
+  // What LoadBundle may ask for; a larger request is refused with
+  // TURBO_E_CAPACITY naming the limit, before anything is allocated.
+  ServerLimits server = 3;
+}
+
+// What LoadBundle may ask for. The caps keep one request from taking
+// the server down: sessions pile up pinned buffers, and every served
+// name holds a loaded model.
+message ServerLimits
+{
+  // Sessions per model; a larger request is TURBO_E_CAPACITY naming
+  // max_sessions_per_model.
+  uint32 max_sessions_per_model = 1;
+
+  // Served models in all, startup ones included; a registration past
+  // it is TURBO_E_CAPACITY naming max_loaded_models.
+  uint32 max_loaded_models = 2;
 }
 
 // What one loaded bundle is and takes, so a client rejects an
@@ -109,6 +127,8 @@ message ResultLimits
   uint64 max_token_vector_bytes = 3;
   uint64 max_rerank_items = 4;
   uint64 max_answers = 5;
+  uint64 max_answer_fragments = 6;
+  uint64 max_windows = 7;
 }
 
 message LoadBundleRequest
