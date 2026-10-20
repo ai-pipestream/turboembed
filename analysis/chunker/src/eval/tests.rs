@@ -71,6 +71,9 @@ fn a_near_miss_by_hand() {
     // Ten units, one reference boundary at 5, a hypothesis one at 6:
     // k = 10 / 4 = 2, eight probes, and they disagree at i = 3 and i = 5.
     let (r, h) = (Segmentation::new(10, vec![5]).unwrap(), Segmentation::new(10, vec![6]).unwrap());
+    // A window as long as the text holds no probe.
+    assert!(pk(&r, &h, 10).is_err() && window_diff(&r, &h, 12).is_err());
+    assert_eq!(pk(&r, &h, 9).unwrap(), 0.0);
     let s = score(&r, &h).unwrap();
     assert_eq!((s.k, s.pk, s.window_diff), (2, 0.25, 0.25));
     assert_eq!((s.exact.f1, s.within_1.f1, s.within_2.f1), (0.0, 1.0, 1.0));
@@ -141,6 +144,11 @@ fn pk_and_window_diff_follow_their_definitions() {
         let units = 1 + rand(40) as usize;
         let (r, h) = (random_seg(&mut rand, units), random_seg(&mut rand, units));
         let k = 1 + rand(6) as usize;
+        if units <= k {
+            // No probe fits: an error, not a perfect score.
+            assert!(pk(&r, &h, k).is_err() && window_diff(&r, &h, k).is_err(), "case {case}");
+            continue;
+        }
         let (p, w) = (pk(&r, &h, k).unwrap(), window_diff(&r, &h, k).unwrap());
         assert_eq!((p, w), direct(&r, &h, k), "case {case}: {r:?} {h:?} k {k}");
         assert!((0.0..=1.0).contains(&p) && (0.0..=1.0).contains(&w) && p <= w);
@@ -172,6 +180,13 @@ fn span_coverage_by_hand() {
     // A chunk that starts before the evidence but ends short of it, beside
     // one that starts inside it: neither contains it.
     assert_eq!(cov(&[(10, 20)], &[(0, 18), (12, 25)]).contained, 0.0);
+}
+
+#[test]
+fn coverage_of_the_widest_ranges_does_not_overflow() {
+    let c = cov(&[(0, u64::MAX)], &[(0, u64::MAX), (1, u64::MAX)]);
+    assert_eq!((c.iou, c.contained), (1.0, 1.0));
+    assert_eq!(c.redundancy, ((u64::MAX as u128 * 2 - 1) as f64) / u64::MAX as f64);
 }
 
 #[test]

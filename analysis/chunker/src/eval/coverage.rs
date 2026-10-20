@@ -14,6 +14,7 @@
 //!   overlap, 2 when every unit is retrieved twice; 1 with no chunk.
 //!
 //! Empty spans are left out. Overlapping spans count once in the unions.
+//! Lengths are summed in u128, so no range of u64 offsets overflows them.
 
 use std::ops::Range;
 
@@ -61,7 +62,7 @@ pub fn coverage(gold: &[Range<u64>], chunks: &[Range<u64>]) -> Coverage {
             .count();
         inside as f64 / golds.len() as f64
     };
-    let summed: u64 = chunks.iter().map(|r| r.end.saturating_sub(r.start)).sum();
+    let summed: u128 = chunks.iter().map(|r| u128::from(r.end.saturating_sub(r.start))).sum();
     let redundancy = if lc == 0 { 1.0 } else { summed as f64 / lc as f64 };
     Coverage { iou, contained, redundancy }
 }
@@ -80,16 +81,16 @@ fn union(ranges: &[Range<u64>]) -> Vec<Range<u64>> {
     out
 }
 
-fn length(disjoint: &[Range<u64>]) -> u64 {
-    disjoint.iter().map(|r| r.end - r.start).sum()
+fn length(disjoint: &[Range<u64>]) -> u128 {
+    disjoint.iter().map(|r| u128::from(r.end - r.start)).sum()
 }
 
 /// The overlap of two sorted disjoint lists, in one merge pass.
-fn intersection(a: &[Range<u64>], b: &[Range<u64>]) -> u64 {
+fn intersection(a: &[Range<u64>], b: &[Range<u64>]) -> u128 {
     let (mut i, mut j, mut sum) = (0, 0, 0);
     while i < a.len() && j < b.len() {
         let (lo, hi) = (a[i].start.max(b[j].start), a[i].end.min(b[j].end));
-        sum += hi.saturating_sub(lo);
+        sum += u128::from(hi.saturating_sub(lo));
         if a[i].end < b[j].end {
             i += 1;
         } else {

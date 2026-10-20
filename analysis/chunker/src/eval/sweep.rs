@@ -22,6 +22,7 @@
 //! Span IoU here retrieves, for each gold evidence span, the leaf chunks
 //! that overlap it: the chunks an oracle would retrieve, so it measures
 //! how tightly the cuts wrap the evidence, not how well an embedder ranks.
+//! Empty evidence spans are left out.
 //!
 //! Rank 0 is the Pareto frontier: the settings nothing dominates. Rank r
 //! is the frontier once ranks below r are removed. The frontier is listed
@@ -247,7 +248,8 @@ fn evaluate<'a>(docs: &[SweepDoc], budget: Budget, costs: impl Fn(usize) -> &'a 
         preservation.add(Preservation::of(&doc.protected, &cuts));
         let leaf: Vec<Span> =
             chunks.spans.iter().filter(|&(i, _)| chunks.level[i.get()] == 0).map(|(_, s)| s).collect();
-        for &e in &doc.evidence {
+        // An empty span has nothing to cover, as in `coverage`.
+        for &e in doc.evidence.iter().filter(|e| e.start < e.end) {
             let hit: Vec<Span> = leaf.iter().copied().filter(|c| c.start < e.end && e.start < c.end).collect();
             let bytes = |s: Span| u64::from(s.start)..u64::from(s.end);
             let c = coverage(&[bytes(e)], &hit.iter().map(|&s| bytes(s)).collect::<Vec<_>>());

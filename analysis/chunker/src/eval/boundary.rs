@@ -14,8 +14,9 @@
 //!   numbers of boundaries. It counts a near miss and a false cut alike.
 //!
 //! k is half the mean reference segment length, rounded down, and at least
-//! one: `units / (2 * segments)`. Both are in [0, 1], and 0 when there is
-//! no probe (fewer than k + 1 units).
+//! one: `units / (2 * segments)`. Both are in [0, 1]. `score` reports 0
+//! for a text too short for a probe (one unit or none); `pk` and
+//! `window_diff`, which take the caller's k, refuse a k with no probe.
 
 use turbo_analysis::Error;
 
@@ -70,16 +71,25 @@ pub fn probe_distance(reference: &Segmentation) -> usize {
     (reference.units() / (2 * reference.segments().max(1))).max(1)
 }
 
-/// Pk at probe distance k; an error when the units differ.
+/// Pk at probe distance k (a k of 0 is taken as 1); an error when the
+/// units differ or no probe fits, k at or past the units.
 pub fn pk(reference: &Segmentation, hypothesis: &Segmentation, k: usize) -> Result<f64, Error> {
-    same_units(reference, hypothesis)?;
-    Ok(windows(reference, hypothesis, k.max(1)).0)
+    Ok(windows(reference, hypothesis, probes(reference, hypothesis, k)?).0)
 }
 
-/// WindowDiff at window k; an error when the units differ.
+/// WindowDiff at window k, under the same rules as `pk`.
 pub fn window_diff(reference: &Segmentation, hypothesis: &Segmentation, k: usize) -> Result<f64, Error> {
+    Ok(windows(reference, hypothesis, probes(reference, hypothesis, k)?).1)
+}
+
+/// k, at least 1, when the units agree and at least one probe fits.
+fn probes(reference: &Segmentation, hypothesis: &Segmentation, k: usize) -> Result<usize, Error> {
     same_units(reference, hypothesis)?;
-    Ok(windows(reference, hypothesis, k.max(1)).1)
+    let k = k.max(1);
+    if reference.units() <= k {
+        return Err(invalid(format!("a window of {k} over {} units holds no probe", reference.units())));
+    }
+    Ok(k)
 }
 
 /// Pk and WindowDiff together, over one pass of the probes. k >= 1.

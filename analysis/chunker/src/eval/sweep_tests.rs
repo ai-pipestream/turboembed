@@ -136,6 +136,16 @@ fn the_frontier_is_what_nothing_dominates() {
 }
 
 #[test]
+fn empty_evidence_spans_are_left_out() {
+    // One empty span inside a chunk, one between sentences: neither
+    // changes a score.
+    let s = ChunkerSweep { grid: grid(), overhead: 0 };
+    let mut with = doc();
+    with.evidence.extend([Span::new(40, 40), Span::new(65, 65)]);
+    assert_eq!(s.run(&[with]).unwrap(), s.run(&[doc()]).unwrap());
+}
+
+#[test]
 fn the_sweep_refuses_what_it_cannot_score() {
     let s = ChunkerSweep { grid: grid(), overhead: 0 };
     assert!(s.run(&[]).is_err());
