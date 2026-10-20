@@ -1,27 +1,25 @@
-use super::encode::Encoder;
-use super::hadamard::Rotation;
-use super::levels::Grid;
-use super::scan::Tables;
-use super::{Layout, TurboQuant, sketch_seed};
+use turbovec::TurboQuantIndex;
+
+use super::{CALIBRATION_ROWS, TurboQuant};
 use crate::rows::{self, Block};
-use crate::topk::TopK;
 use crate::{Hit, IndexError, Metric, Space, Which};
 
 /// An index whose rows are stored as TurboQuant codes. It answers the
 /// same queries as [`crate::VectorIndex`], checks the query's [`Space`]
-/// the same way, and keeps the same metadata; its scores are estimates.
-/// Immutable: queries take `&self`, so one index serves many threads.
+/// the same way, and keeps the same metadata; its scores are estimates of
+/// the exact index's, and rows whose estimates tie come in the order the
+/// turbovec kernel returns them. Immutable: queries take `&self`, so one
+/// index serves many threads.
 pub struct QuantizedIndex<M> {
     space: Space,
     metric: Metric,
     config: TurboQuant,
-    layout: Layout,
-    grid: Option<Grid>,
-    rotation: Rotation,
-    sketch: Rotation,
-    codes: Vec<u8>,
-    factors: Vec<[f32; 2]>,
+    codes: TurboQuantIndex,
     meta: Vec<M>,
+}
+
+fn refused(detail: impl std::fmt::Display) -> IndexError {
+    IndexError::Quantized(detail.to_string())
 }
 
 impl<M> QuantizedIndex<M> {
@@ -34,20 +32,19 @@ impl<M> QuantizedIndex<M> {
         rows: &[Block],
         meta: Vec<M>,
         config: TurboQuant,
-    ) -> QuantizedIndex<M> {
-        let layout = Layout::new(space.dim, config, metric == Metric::Cosine);
-        let grid = (layout.grid_bits > 0).then(|| Grid::new(layout.grid_bits as u8));
-        let rotation = Rotation::new(layout.padded, config.seed);
-        let sketch = Rotation::new(layout.padded, sketch_seed(config.seed));
-        let n = meta.len();
-        let mut codes = vec![0u8; n * layout.row_bytes];
-        let mut factors = Vec::with_capacity(n);
+    ) -> Result<QuantizedIndex<M>, IndexError> {
         let dim = space.dim as usize;
-        let mut encoder = Encoder::new(&layout, grid.as_ref(), &rotation, &sketch);
-        for (row, out) in rows.chunks_exact(bpr).zip(codes.chunks_exact_mut(layout.row_bytes)) {
-            factors.push(encoder.encode(&rows::flat(row)[..dim], out));
+        let mut codes = TurboQuantIndex::new(dim, usize::from(config.bits)).map_err(refused)?;
+        let flat: Vec<f32> = rows.chunks_exact(bpr).flat_map(|r| rows::flat(r)[..dim].iter().copied()).collect();
+        let n = meta.len();
+        if config.calibrate && n > 0 {
+            let stride = n.div_ceil(CALIBRATION_ROWS);
+            let sample: Vec<f32> = flat.chunks_exact(dim).step_by(stride).flatten().copied().collect();
+            codes.calibrate(&sample).map_err(refused)?;
         }
-        QuantizedIndex { space, metric, config, layout, grid, rotation, sketch, codes, factors, meta }
+        codes.add_2d(&flat, dim).map_err(refused)?;
+        codes.prepare();
+        Ok(QuantizedIndex { space, metric, config, codes, meta })
     }
 
     pub fn space(&self) -> &Space {
@@ -75,32 +72,27 @@ impl<M> QuantizedIndex<M> {
         &self.meta[row as usize]
     }
 
-    /// The bytes each row stores: its packed codes and its two `f32`
-    /// factors.
-    pub fn bytes_per_row(&self) -> usize {
-        self.layout.row_bytes + size_of::<[f32; 2]>()
-    }
-
-    /// The packed codes of `row`: the grid codes, `bits` (or `bits - 1`)
-    /// a padded coordinate, little-endian, then for
-    /// [`super::Estimator::InnerProduct`] one sign bit a padded
-    /// coordinate.
-    pub fn codes(&self, row: u32) -> &[u8] {
-        let at = row as usize * self.layout.row_bytes;
-        &self.codes[at..at + self.layout.row_bytes]
+    /// The index in turbovec's `.tv` format, which pins the codes: the
+    /// same rows and settings give the same bytes.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.codes.to_bytes()
     }
 
     /// The estimated score of `query`, a vector of `space`, against `row`:
     /// the value a [`Hit`] for that row carries. Panics if `row` is not
     /// below [`QuantizedIndex::len`].
     pub fn score(&self, space: &Space, query: &[f32], row: u32) -> Result<f32, IndexError> {
-        let tables = self.tables(space, query, 1)?.pop().expect("one query");
-        Ok(self.row_score(&tables, row as usize))
+        assert!((row as usize) < self.len(), "row {row} of {}", self.len());
+        let q = self.prepare(space, query, 1)?;
+        let mut mask = vec![false; self.len()];
+        mask[row as usize] = true;
+        let found = self.codes.try_search_with_mask(&q, 1, Some(&mask)).map_err(refused)?;
+        Ok(self.finish(found.scores[0]))
     }
 
     /// The `k` rows whose estimated scores against `query`, a vector of
-    /// `space`, are highest, best first; rows that tie are in insertion
-    /// order. Fewer than `k` when the index holds fewer rows.
+    /// `space`, are highest, best first. Fewer than `k` when the index
+    /// holds fewer rows.
     pub fn top_k(&self, space: &Space, query: &[f32], k: usize) -> Result<Vec<Hit>, IndexError> {
         Ok(self.top_k_batch(space, query, k)?.pop().unwrap_or_default())
     }
@@ -113,34 +105,35 @@ impl<M> QuantizedIndex<M> {
         if !queries.len().is_multiple_of(dim) || queries.is_empty() {
             return Err(IndexError::Dimension { index: self.space.dim, other: queries.len() });
         }
-        let all = self.tables(space, queries, queries.len() / dim)?;
-        Ok(all
-            .iter()
-            .map(|tables| {
-                let mut top = TopK::new(k.min(self.len()));
-                if k > 0 {
-                    for row in 0..self.len() {
-                        top.offer(row as u32, self.row_score(tables, row));
-                    }
-                }
-                top.into_sorted()
+        let nq = queries.len() / dim;
+        let qs = self.prepare(space, queries, nq)?;
+        if k == 0 || self.is_empty() {
+            return Ok(vec![Vec::new(); nq]);
+        }
+        let found = self.codes.try_search_with_mask(&qs, k, None).map_err(refused)?;
+        Ok((0..nq)
+            .map(|q| {
+                let at = q * found.k..(q + 1) * found.k;
+                found.indices[at.clone()]
+                    .iter()
+                    .zip(&found.scores[at])
+                    .map(|(&row, &s)| Hit { row: row as u32, score: self.finish(s) })
+                    .collect()
             })
             .collect())
     }
 
     #[inline]
-    fn row_score(&self, tables: &Tables, row: usize) -> f32 {
-        let at = row * self.layout.row_bytes;
-        let s = tables.score(&self.layout, &self.codes[at..at + self.layout.row_bytes], self.factors[row]);
+    fn finish(&self, s: f32) -> f32 {
         match self.metric {
             Metric::Dot => s,
             Metric::Cosine => s.clamp(-1.0, 1.0),
         }
     }
 
-    /// Checks that `space` is the index's and builds the tables of the
-    /// `nq` queries of `values`.
-    fn tables(&self, space: &Space, values: &[f32], nq: usize) -> Result<Vec<Tables>, IndexError> {
+    /// Checks that `space` is the index's and returns the `nq` queries of
+    /// `values` as the index scores them, one after another.
+    fn prepare(&self, space: &Space, values: &[f32], nq: usize) -> Result<Vec<f32>, IndexError> {
         if space.model != self.space.model {
             return Err(IndexError::Model {
                 index: Box::new(self.space.model.clone()),
@@ -158,11 +151,10 @@ impl<M> QuantizedIndex<M> {
             return Err(IndexError::Dimension { index: self.space.dim, other: values.len() });
         }
         let mut block = vec![Block::default(); rows::blocks(self.space.dim)];
-        let mut out = Vec::with_capacity(nq);
+        let mut out = Vec::with_capacity(nq * dim);
         for (i, v) in values.chunks_exact(dim).enumerate() {
             rows::prepare(v, &self.space, self.metric, Which::Query(i), &mut block)?;
-            let q = &rows::flat(&block)[..dim];
-            out.push(Tables::new(&self.layout, self.grid.as_ref(), &self.rotation, &self.sketch, q));
+            out.extend_from_slice(&rows::flat(&block)[..dim]);
         }
         Ok(out)
     }

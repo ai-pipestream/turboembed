@@ -20,7 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-group` | `analysis/group/` | Sketches, near-duplicate groups and version links inside a document and across a batch, and boilerplate detection (Near duplicates and boilerplate, below) |
-| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization; TurboQuant storage at 1 to 4 bits a coordinate behind the same queries (Exact vector index, below; [turboquant.md](turboquant.md)) |
+| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization; TurboQuant storage at 2 to 4 bits a coordinate behind the same queries (feature `turboquant`) (Exact vector index, below; [turboquant.md](turboquant.md)) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
@@ -2159,33 +2159,27 @@ at a time and a batch over random unit rows.
 
 ### TurboQuant storage
 
-`IndexBuilder::build_quantized` stores the same rows as TurboQuant codes
-(arXiv 2504.19874) and returns a `QuantizedIndex` with the same `Space`
-checks, metadata, `score`, `top_k` and `top_k_batch`; its scores are
-estimates. A row is padded with zeros to a power of two of at least 8,
-rotated by a seeded randomized Hadamard transform (sign flips from
-SplitMix64, then the Walsh-Hadamard transform), and each rotated
-coordinate is coded against the Lloyd-Max grid of a standard normal
-value, with one least-squares scale a row. `TurboQuant` sets the bits a
-coordinate (1 to 4, others refused with `IndexError::Bits`), the seed and
-the estimator:
+With the `turboquant` feature, `IndexBuilder::build_quantized` stores the
+same rows as TurboQuant codes (arXiv 2504.19874) and returns a
+`QuantizedIndex` with the same `Space` checks, metadata, `score`, `top_k`
+and `top_k_batch`; its scores are estimates of the dot product. The codes
+and search kernels are the `turbovec` crate's, pinned to one commit of
+`ai-pipestream/turbovec`: a fixed random rotation, Lloyd-Max codes for the
+rotated coordinates, a stored length a row that removes the codes'
+shrinkage from the estimate, and SIMD scans on AVX-512, AVX2 and NEON,
+searched on rayon's pool. The feature brings in turbovec's dependencies
+(rayon, memmap2, rand, rand_chacha, statrs, ordered-float); without it
+the crate depends on nothing new.
 
-- `Estimator::Mse` spends every bit on the grid and scores the query's
-  dot product with the decoded row (its cosine for `Metric::Cosine`).
-- `Estimator::InnerProduct` spends one bit less on the grid and keeps the
-  signs of the residual after a second, independent seeded Hadamard
-  rotation, with the residual's length (a QJL sketch), so the score
-  estimates the dot product without bias. The paper's sketch is a dense
-  Gaussian matrix; a Hadamard transform costs `O(d log d)` instead of
-  `O(d^2)`.
-
-A query is rotated once and turned into lookup tables, one entry for
-each value of each byte of codes, and a row is scored with one table
-read a byte, without decoding it. Encoding is `f64` arithmetic in a
-fixed order with the grids as constants, so the same rows and settings
-give the same bytes; a test pins them. The tests check refusals, top-k
-against a full sort of the estimated scores, the paper's error bounds at
-each width and the inner-product estimate's mean.
+`TurboQuant` sets the bits a coordinate (2 to 4, others refused with
+`IndexError::Bits`) and whether to fit turbovec's per-coordinate
+calibration (TQ+) first, on up to 1024 rows taken at an even stride so
+the same rows give the same calibration. A dimension that is not a
+positive multiple of 8, or is past 16384, is refused at build with
+`IndexError::Quantized`. `to_bytes` returns turbovec's `.tv` image, and a
+test pins its bytes for fixed rows. The tests also check the refusals,
+top-k against a full sort of the estimated scores, and the paper's error
+bound and the estimate's mean at each width.
 `analysis/vector-index/examples/quant_bench.rs` measures recall, error
 and speed against the exact index; [turboquant.md](turboquant.md) is the
 record, with the OpenNLP Java reference on the same rows.

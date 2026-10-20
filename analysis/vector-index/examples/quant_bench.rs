@@ -1,18 +1,21 @@
 //! Recall and speed of TurboQuant storage against the exact index.
 //!
-//! `cargo run --release -p turbo-vector-index --example quant_bench --
-//! VECTORS QUERY_EVERY K [DUMP]`. VECTORS is a text file of one vector a
-//! line, a token then its values separated by spaces (the GloVe text
-//! format), or `random:ROWS:DIM` for rows from a fixed LCG. Every QUERY_EVERY-th vector is held out as a query and the
+//! `cargo run --release -p turbo-vector-index --features turboquant
+//! --example quant_bench -- VECTORS QUERY_EVERY K [DUMP]`. VECTORS is a
+//! text file of one vector a line, a token then its values separated by
+//! spaces (the GloVe text format), or `random:ROWS:DIM` for rows from a
+//! fixed LCG. Every QUERY_EVERY-th vector is held out as a query and the
 //! rest are indexed, all scaled to unit length and compared by cosine.
 //! With DUMP the indexed rows and the queries are also written there as
 //! little-endian `f32` files, `rows.f32` and `queries.f32`, for another
-//! program to time the same data.
+//! program to time the same data. TurboQuant search runs on rayon's
+//! pool; `RAYON_NUM_THREADS=1` times it on one thread, as the exact index
+//! runs.
 
 use std::time::Instant;
 
 use turbo_analysis::ModelRef;
-use turbo_vector_index::{Estimator, IndexBuilder, Metric, Normalization, Space, TurboQuant};
+use turbo_vector_index::{IndexBuilder, Metric, Normalization, Space, TurboQuant};
 
 fn unit(v: &[f32]) -> Vec<f32> {
     let n = v.iter().map(|&x| f64::from(x) * f64::from(x)).sum::<f64>().sqrt();
@@ -90,19 +93,30 @@ fn main() {
         }
         (median(times), check)
     };
+    let time_batch = |run: &dyn Fn() -> usize| {
+        let times = (0..5)
+            .map(|_| {
+                let t = Instant::now();
+                std::hint::black_box(run());
+                t.elapsed().as_secs_f64() * 1e3 / queries.len() as f64
+            })
+            .collect();
+        median(times)
+    };
     let (ms, _) = time_queries(&|q| exact.top_k(&space, q, k).unwrap()[0].row);
+    let batch = time_batch(&|| exact.top_k_batch(&space, &flat, k).unwrap().len());
     println!(
-        "exact rows={} queries={} dim={dim} k={k} bytes_per_row={} query_ms={ms:.4}",
+        "exact rows={} queries={} dim={dim} k={k} bytes_per_row={} query_ms={ms:.4} batch_ms_per_query={batch:.4}",
         rows.len(),
         queries.len(),
         dim * 4
     );
-    for estimator in [Estimator::Mse, Estimator::InnerProduct] {
-        for bits in 1..=4 {
-            let config = TurboQuant::new(bits, estimator, 0x5eed).unwrap();
+    for calibrate in [false, true] {
+        for bits in 2..=4 {
+            let config = TurboQuant::new(bits, calibrate).unwrap();
             let b = builder();
             let t = Instant::now();
-            let index = b.build_quantized(config);
+            let index = b.build_quantized(config).unwrap();
             let encode_s = t.elapsed().as_secs_f64();
             let got = index.top_k_batch(&space, &flat, k).unwrap();
             let found: usize = got
@@ -112,6 +126,7 @@ fn main() {
                 .sum();
             let recall = found as f64 / (truth.len() * k) as f64;
             let (ms, _) = time_queries(&|q| index.top_k(&space, q, k).unwrap()[0].row);
+            let batch = time_batch(&|| index.top_k_batch(&space, &flat, k).unwrap().len());
             // The error of every estimated score of the first 20 queries.
             let (mut sum, mut squares, mut n) = (0.0f64, 0.0f64, 0.0f64);
             for q in queries.iter().take(20) {
@@ -123,9 +138,9 @@ fn main() {
                 }
             }
             println!(
-                "{estimator:?} bits={bits} bytes_per_row={} encode_rows_per_s={:.0} query_ms={ms:.4} recall@{k}={recall:.4} \
-                 mean_error={:.6} mse={:.3e}",
-                index.bytes_per_row(),
+                "turboquant bits={bits} calibrate={calibrate} bytes_per_row={:.1} encode_rows_per_s={:.0} query_ms={ms:.4} \
+                 batch_ms_per_query={batch:.4} recall@{k}={recall:.4} mean_error={:.6} mse={:.3e}",
+                index.to_bytes().len() as f64 / rows.len() as f64,
                 rows.len() as f64 / encode_s,
                 sum / n,
                 squares / n
