@@ -194,6 +194,9 @@ impl Encoder {
         let mut m: turbo_model_info = unsafe { std::mem::zeroed() };
         m.struct_size = size_of::<turbo_model_info>() as u32;
         check(unsafe { turbo_model_get_info(e.model, &mut m, &mut err) }, &err)?;
+        if m.task != TURBO_TASK_EMBED {
+            return Err(Error::new(turbo::status::UNSUPPORTED_TASK, "embedding Encoder requires TASK_EMBED"));
+        }
 
         let max_batch = if o.max_batch == 0 { m.max_batch } else { o.max_batch };
         let max_seq = if o.max_seq == 0 { m.max_seq } else { o.max_seq };

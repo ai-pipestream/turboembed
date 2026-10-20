@@ -276,6 +276,9 @@ impl Tokenizer {
     /// Loader rule 5: encode every reference case and compare the ids
     /// exactly with the reference file's.
     pub(super) fn check_reference(&self, bundle: &Bundle) -> Result<()> {
+        if bundle.manifest.qa.is_some() {
+            return crate::qa::check_reference(bundle, self);
+        }
         let m = &bundle.manifest;
         if m.rerank.is_some() {
             return self.check_pair_reference(bundle);
