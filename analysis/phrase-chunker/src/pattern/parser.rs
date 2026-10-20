@@ -1,6 +1,8 @@
 //! Declarative POS-tag and token-literal pattern parser.
 
-use super::{MAX_QUANTIFIER_BOUND, PatternError, TagCond, TokenMatcher, WordCond};
+use super::{
+    MAX_AUTOMATON_STATES, MAX_NESTING_DEPTH, MAX_QUANTIFIER_BOUND, PatternError, TagCond, TokenMatcher, WordCond,
+};
 
 #[derive(Clone, Debug)]
 pub(super) enum Expr {
@@ -24,6 +26,22 @@ impl Expr {
         self.min_tokens() > 0 && !self.has_nullable_repeat()
     }
 
+    pub(super) fn estimated_states(&self) -> Option<usize> {
+        match self {
+            Expr::Atom(_) => Some(1),
+            Expr::Seq(items) => items.iter().try_fold(0usize, |acc, it| acc.checked_add(it.estimated_states()?)),
+            Expr::Alt(branches) => {
+                branches.iter().try_fold(branches.len(), |acc, b| acc.checked_add(b.estimated_states()?))
+            }
+            Expr::Repeat { inner, min, max } => {
+                let sub = inner.estimated_states()?;
+                let copies = max.unwrap_or_else(|| (*min).max(1));
+                let extra_splits = max.map_or(1usize, |hi| hi.saturating_sub(*min));
+                copies.checked_mul(sub)?.checked_add(extra_splits)
+            }
+        }
+    }
+
     fn has_nullable_repeat(&self) -> bool {
         match self {
             Expr::Atom(_) => false,
@@ -37,7 +55,7 @@ impl Expr {
 }
 
 pub(super) fn parse_pattern(pattern: &str) -> Result<Expr, PatternError> {
-    let mut parser = Parser { src: pattern, pos: 0 };
+    let mut parser = Parser { src: pattern, pos: 0, depth: 0 };
     let expr = parser.parse_alt()?;
     parser.skip_ws();
     if parser.pos < parser.src.len() {
@@ -49,12 +67,19 @@ pub(super) fn parse_pattern(pattern: &str) -> Result<Expr, PatternError> {
     if !expr.is_valid_non_empty() {
         return Err(PatternError::ZeroLengthPattern);
     }
+    if expr.estimated_states().is_none_or(|n| n > MAX_AUTOMATON_STATES) {
+        return Err(PatternError::InvalidQuantifier {
+            pos: 0,
+            detail: format!("compiled automaton exceeds maximum state budget of {MAX_AUTOMATON_STATES}"),
+        });
+    }
     Ok(expr)
 }
 
 struct Parser<'a> {
     src: &'a str,
     pos: usize,
+    depth: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -102,8 +127,16 @@ impl<'a> Parser<'a> {
                 }
                 Some('(') => {
                     let open_pos = self.pos;
+                    if self.depth >= MAX_NESTING_DEPTH {
+                        return Err(PatternError::InvalidQuantifier {
+                            pos: open_pos,
+                            detail: format!("group nesting depth exceeds {MAX_NESTING_DEPTH}"),
+                        });
+                    }
                     self.pos += 1;
+                    self.depth += 1;
                     let inner = self.parse_alt()?;
+                    self.depth -= 1;
                     self.skip_ws();
                     if self.peek() != Some(')') {
                         return Err(PatternError::UnclosedGroup { pos: open_pos });
@@ -286,7 +319,7 @@ impl<'a> Parser<'a> {
 
         let mut word_alts = Vec::new();
         if let Some(wp) = word_part {
-            let mut sub = Parser { src: wp, pos: 0 };
+            let mut sub = Parser { src: wp, pos: 0, depth: 0 };
             loop {
                 sub.skip_ws();
                 if matches!(sub.peek(), Some('"') | Some('\'')) {

@@ -310,11 +310,35 @@ fn invalid_patterns_and_malformed_inputs_are_rejected() {
         TagPatternRule::compile("NP", "<NN>{0,9999}").unwrap_err(),
         PatternError::InvalidQuantifier { .. }
     ));
+    assert!(matches!(
+        TagPatternRule::compile("NP", "(<NN>{256}){256}").unwrap_err(),
+        PatternError::InvalidQuantifier { .. }
+    ));
+    assert!(matches!(
+        TagPatternRule::compile("NP", "((<NN>{256}){256}){256}").unwrap_err(),
+        PatternError::InvalidQuantifier { .. }
+    ));
 
-    // Provenance config_hash distinguishes different rule sets
+    // Provenance config_hash distinguishes different rule sets, including programmatic TagCond/WordCond variants
     let c1 = PatternChunker::from_patterns([("NP", "<DT>?<NN>+")]).unwrap();
     let c2 = PatternChunker::from_patterns([("NP", "<DT><NN>+")]).unwrap();
     assert_ne!(c1.config_hash(), c2.config_hash());
+
+    let r_exact_tag = TagPatternRule::from_steps("NP", [(TokenMatcher::exact_tag("NN"), 1, Some(1))]).unwrap();
+    let r_prefix_tag = TagPatternRule::from_steps("NP", [(TokenMatcher::prefix_tag("NN"), 1, Some(1))]).unwrap();
+    assert_ne!(r_exact_tag.fingerprint(), r_prefix_tag.fingerprint());
+    assert_ne!(
+        PatternChunker::new(vec![r_exact_tag]).config_hash(),
+        PatternChunker::new(vec![r_prefix_tag]).config_hash()
+    );
+
+    let r_exact_word = TagPatternRule::from_steps("NP", [(TokenMatcher::exact_word("dog"), 1, Some(1))]).unwrap();
+    let r_icase_word = TagPatternRule::from_steps("NP", [(TokenMatcher::word_ignore_case("dog"), 1, Some(1))]).unwrap();
+    assert_ne!(r_exact_word.fingerprint(), r_icase_word.fingerprint());
+    assert_ne!(
+        PatternChunker::new(vec![r_exact_word]).config_hash(),
+        PatternChunker::new(vec![r_icase_word]).config_hash()
+    );
 
     // Malformed base PhraseChunks in compose() are rejected
     let doc = build_doc_with_tags("The cat", "penn", &[("The", "DT", 0), ("cat", "NN", 0)]);

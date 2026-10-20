@@ -11,6 +11,10 @@ use self::parser::{Expr, parse_pattern};
 
 /// Maximum upper bound accepted in a `{m,n}` quantifier to prevent state blowup.
 pub(crate) const MAX_QUANTIFIER_BOUND: usize = 256;
+/// Maximum total expanded NFA state count permitted for a single compiled pattern rule.
+pub(crate) const MAX_AUTOMATON_STATES: usize = 1024;
+/// Maximum group nesting depth permitted in a pattern expression.
+pub(crate) const MAX_NESTING_DEPTH: usize = 32;
 
 /// Error returned when compiling a [`TagPatternRule`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -233,6 +237,12 @@ impl TagPatternRule {
         if !expr.is_valid_non_empty() {
             return Err(PatternError::ZeroLengthPattern);
         }
+        if expr.estimated_states().is_none_or(|n| n > MAX_AUTOMATON_STATES) {
+            return Err(PatternError::InvalidQuantifier {
+                pos: 0,
+                detail: format!("compiled automaton exceeds maximum state budget of {MAX_AUTOMATON_STATES}"),
+            });
+        }
         let desc = format!("programmatic:{kind}:{}", expr_fingerprint(&expr));
         Ok(Self::from_expr(kind, desc, &expr))
     }
@@ -406,29 +416,48 @@ fn hash_expr(expr: &Expr, h: &mut u64) {
     match expr {
         Expr::Atom(m) => {
             mix_bytes(h, &[1, u8::from(m.negate_tag)]);
+            mix_bytes(h, &(m.tag_alts.len() as u64).to_le_bytes());
             for tc in &m.tag_alts {
                 match tc {
-                    TagCond::Any => mix_bytes(h, b"any"),
-                    TagCond::Exact(s) => mix_bytes(h, s.as_bytes()),
-                    TagCond::Prefix(s) => mix_bytes(h, s.as_bytes()),
-                    TagCond::Suffix(s) => mix_bytes(h, s.as_bytes()),
+                    TagCond::Any => mix_bytes(h, &[10]),
+                    TagCond::Exact(s) => {
+                        mix_bytes(h, &[11]);
+                        mix_bytes(h, s.as_bytes());
+                    }
+                    TagCond::Prefix(s) => {
+                        mix_bytes(h, &[12]);
+                        mix_bytes(h, s.as_bytes());
+                    }
+                    TagCond::Suffix(s) => {
+                        mix_bytes(h, &[13]);
+                        mix_bytes(h, s.as_bytes());
+                    }
                 }
             }
+            mix_bytes(h, &(m.word_alts.len() as u64).to_le_bytes());
             for wc in &m.word_alts {
                 match wc {
-                    WordCond::Exact(s) => mix_bytes(h, s.as_bytes()),
-                    WordCond::CaseInsensitive(s) => mix_bytes(h, s.as_bytes()),
+                    WordCond::Exact(s) => {
+                        mix_bytes(h, &[20]);
+                        mix_bytes(h, s.as_bytes());
+                    }
+                    WordCond::CaseInsensitive(s) => {
+                        mix_bytes(h, &[21]);
+                        mix_bytes(h, s.as_bytes());
+                    }
                 }
             }
         }
         Expr::Seq(items) => {
             mix_bytes(h, &[2]);
+            mix_bytes(h, &(items.len() as u64).to_le_bytes());
             for it in items {
                 hash_expr(it, h);
             }
         }
         Expr::Alt(branches) => {
             mix_bytes(h, &[3]);
+            mix_bytes(h, &(branches.len() as u64).to_le_bytes());
             for b in branches {
                 hash_expr(b, h);
             }
