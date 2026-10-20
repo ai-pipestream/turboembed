@@ -4,9 +4,9 @@
 use super::*;
 use turbo_analysis::{Document, Span};
 
-fn split(splitter: RuleSplitter, text: &str) -> Vec<String> {
+fn split(splitter: impl std::borrow::Borrow<RuleSplitter>, text: &str) -> Vec<String> {
     let mut out = Vec::new();
-    splitter.split(text, &mut out);
+    splitter.borrow().split(text, &mut out);
     out.iter().map(|s: &Span| text[s.start as usize..s.end as usize].to_owned()).collect()
 }
 
@@ -23,11 +23,11 @@ fn without(tag: &str, text: &str, off: impl Fn(&mut Rules)) -> Vec<String> {
 #[test]
 fn plain_uax29() {
     let s = RuleSplitter::uax29();
-    assert_eq!(split(s, "Hello World. My name is Jonas."), ["Hello World.", "My name is Jonas."]);
-    assert_eq!(split(s, "Mr. Smith left.\nHe came back."), ["Mr.", "Smith left.", "He came back."]);
-    assert_eq!(split(s, "etc. and so on"), ["etc. and so on"]);
-    assert_eq!(split(s, "  \n \t "), Vec::<String>::new());
-    assert_eq!(split(s, ""), Vec::<String>::new());
+    assert_eq!(split(&s, "Hello World. My name is Jonas."), ["Hello World.", "My name is Jonas."]);
+    assert_eq!(split(&s, "Mr. Smith left.\nHe came back."), ["Mr.", "Smith left.", "He came back."]);
+    assert_eq!(split(&s, "etc. and so on"), ["etc. and so on"]);
+    assert_eq!(split(&s, "  \n \t "), Vec::<String>::new());
+    assert_eq!(split(&s, ""), Vec::<String>::new());
 }
 
 #[test]

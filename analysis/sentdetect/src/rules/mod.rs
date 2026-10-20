@@ -20,7 +20,9 @@
 //! 6. A full stop after one of the language's abbreviations (the CLDR
 //!    suppressions or the sentencex lists) or after an initial (`J. Smith`)
 //!    ends no sentence, unless one of the language's sentence starters
-//!    follows (`and co. They`).
+//!    follows (`and co. They`). An [`AbbreviationInventory`] given with
+//!    [`RuleSplitter::with_abbreviations`] is asked first, and its verdict
+//!    stands when it has one.
 //! 7. List item markers start sentences, and a full stop inside one ends
 //!    none.
 //! 8. No boundary falls between a bracket or quotation mark and the one
@@ -44,8 +46,9 @@ use turbo_analysis::{Annotator, Error, Refs, Span, Spans, View};
 use turbo_analysis_layers::Sentences;
 use turbo_unicode::WhitespaceMode;
 
-use crate::check_len;
+use crate::inventory::AbbreviationInventory;
 use crate::scan::trim;
+use crate::{check_len, fold_hash};
 pub use languages::{LANGUAGES, Language, Resolved, resolve};
 pub use profile::LanguageRules;
 use refine::Text;
@@ -129,11 +132,12 @@ impl Default for Rules {
 }
 
 /// The rule splitter for one language.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct RuleSplitter {
     language: Resolved,
     rules: Rules,
     line_breaks: LineBreaks,
+    inventory: AbbreviationInventory,
 }
 
 /// Buffers a split reuses, so repeated calls allocate nothing once they
@@ -155,12 +159,22 @@ impl RuleSplitter {
     /// [`LineBreaks::Paragraph`]. A tag the table does not know gets the
     /// root rules.
     pub fn new(tag: &str) -> RuleSplitter {
-        RuleSplitter { language: resolve(tag), rules: Rules::ALL, line_breaks: LineBreaks::Paragraph }
+        RuleSplitter {
+            language: resolve(tag),
+            rules: Rules::ALL,
+            line_breaks: LineBreaks::Paragraph,
+            inventory: AbbreviationInventory::EMPTY,
+        }
     }
 
     /// Plain UAX #29: no tailoring, and every line break ends a sentence.
     pub fn uax29() -> RuleSplitter {
-        RuleSplitter { language: resolve("und"), rules: Rules::NONE, line_breaks: LineBreaks::Sentence }
+        RuleSplitter {
+            language: resolve("und"),
+            rules: Rules::NONE,
+            line_breaks: LineBreaks::Sentence,
+            inventory: AbbreviationInventory::EMPTY,
+        }
     }
 
     pub fn with_rules(self, rules: Rules) -> RuleSplitter {
@@ -169,6 +183,19 @@ impl RuleSplitter {
 
     pub fn with_line_breaks(self, line_breaks: LineBreaks) -> RuleSplitter {
         RuleSplitter { line_breaks, ..self }
+    }
+
+    /// The same splitter with an abbreviation inventory, consulted at a
+    /// full stop while [`Rules::abbreviations`] is on, before the
+    /// language's own abbreviations and initials: a
+    /// [`Verdict::Suppress`](crate::Verdict::Suppress) removes the
+    /// boundary, a [`Verdict::Allow`](crate::Verdict::Allow) keeps it.
+    pub fn with_abbreviations(self, inventory: AbbreviationInventory) -> RuleSplitter {
+        RuleSplitter { inventory, ..self }
+    }
+
+    pub fn abbreviations(&self) -> &AbbreviationInventory {
+        &self.inventory
     }
 
     /// How the tag was resolved.
@@ -225,7 +252,11 @@ impl RuleSplitter {
         units::classify(text, rules, language, self.line_breaks, &mut scratch.units);
         uax29::boundaries(&scratch.units, &mut scratch.breaks);
         let t = Text { text, units: &scratch.units };
-        let options = refine::Options { abbreviations: rules.abbreviations, initials: rules.initials };
+        let options = refine::Options {
+            abbreviations: rules.abbreviations,
+            initials: rules.initials,
+            inventory: &self.inventory,
+        };
         let lower = &mut scratch.lower;
         let mut kept = 0;
         for k in 0..scratch.breaks.len() {
@@ -287,7 +318,7 @@ fn push_trimmed(text: &str, start: usize, end: usize, out: &mut Vec<Span>) {
 }
 
 /// Writes the sentences of a view with the rule splitter.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct RuleSentenceDetector {
     pub splitter: RuleSplitter,
 }
@@ -325,7 +356,8 @@ impl Annotator for RuleSentenceDetector {
     }
 
     /// FNV-1a over the code of the language whose rules apply, the
-    /// tailorings and the line break mode.
+    /// tailorings and the line break mode, then the abbreviation
+    /// inventory's hash when there is one.
     fn config_hash(&self) -> u64 {
         let s = &self.splitter;
         let mut h: u64 = 0xcbf2_9ce4_8422_2325;
@@ -341,7 +373,7 @@ impl Annotator for RuleSentenceDetector {
             LineBreaks::Sentence => 1,
             LineBreaks::Paragraph => 2,
         });
-        h
+        if s.inventory.is_unset() { h } else { fold_hash(h, s.inventory.config_hash()) }
     }
 }
 

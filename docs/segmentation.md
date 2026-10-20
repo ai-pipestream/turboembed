@@ -440,6 +440,55 @@ without them; the CI job fetches the models and runs both with
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, so that there a missing model
 fails.
 
+### Abbreviation inventories
+
+`AbbreviationInventory` (`analysis/sentdetect/src/inventory/`) is a
+classified list of abbreviations that the maxent detector and the rule
+splitter consult at a full stop, on top of a model's dictionary or a
+language's CLDR suppressions. Neither consults one unless given one:
+`SentenceDetector::with_abbreviations` (or `with_bundled_abbreviations`,
+the inventory of the model's language) and
+`RuleSplitter::with_abbreviations`. Without one, both split as before,
+and their configuration hashes are unchanged.
+
+The bundled English inventory
+(`analysis/sentdetect/src/inventory/english.rs`) has four classes,
+composed with `|` or named by an `AbbreviationPreset`
+(`Minimal`, `Standard`, `Scholarly`, `Full`):
+
+| Class | Examples |
+|---|---|
+| `General` | `etc.`, `vs.`, `e.g.`, `i.e.`, `fig.`, `a.m.`, months |
+| `Titles` | `Mr.`, `Mrs.`, `Dr.`, `Prof.`, `Sen.`, `Rep.`, `Gen.`, `Jr.` |
+| `Academic` | `et al.`, `op. cit.`, `ib.`, `cf.`, `Ph.D.`, `vol.`, `no.`, `pp.` |
+| `LegalTechnical` | `Inc.`, `Corp.`, `Ltd.`, `Co.`, `v.`, `Sec.`, `Art.`, `No.`, `U.S.C.`, `Fed. Reg.` |
+
+Each entry has a context rule. A `Prepositive` entry (titles, `e.g.`,
+`v.`) ends no sentence before a word, an initial or a number. A
+`Numeric` entry (`fig.`, `vol.`, `No.`, `pp.`, `Sec.`) ends none before
+a number or a canonical Roman numeral (not a lone `I`). A `Trailing`
+entry (`etc.`, `Inc.`, `et al.`) ends none before a lower case word or a
+number, and has no opinion before a capitalized word, so a sentence
+that ends with it still ends. Any entry ends no sentence before `,`, `;`
+or `:`, and a full stop inside an entry (`U.` of `U.S.C.`, `op.` of
+`op. cit.`) ends none. An entry matches as written or with its first
+letter in the other case (`Fig.` for `fig.`). A short list of words that
+are never abbreviations (`no`, `ok`, `it`) allows a split that a
+dictionary or a CLDR suppression would refuse. Users add entries with a
+rule (`with_addition`) and remove entries or words (`with_exclusion`).
+
+In the maxent detector the inventory acts where the model says split:
+a suppression vetoes the split, an allowance takes it whatever the
+model's dictionary says, and otherwise the dictionary decides. The
+model's features and probabilities are not changed, since they must be
+those it was trained with. In the rule splitter the inventory is part of
+the abbreviation tailoring and is asked before the language's own
+abbreviations, initials and sentence starters.
+
+`config_hash` of both annotators folds in the inventory's hash: the
+language, the classes, every active entry with its rule, the
+never-abbreviation words, the additions and the exclusions.
+
 ## Tokenization
 
 Every tokenizer reads a `View` and an optional `Sentences` layer. With

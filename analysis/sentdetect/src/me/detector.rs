@@ -11,9 +11,10 @@ use turbo_unicode::{WhitespaceMode, java::code_point as java};
 use crate::context::{Limits, Lookup, SdContext, Walks};
 use crate::eos::Position;
 use crate::features::Features;
+use crate::inventory::{AbbreviationInventories, AbbreviationInventory, Verdict};
 use crate::me::model::SentenceModel;
 use crate::scan::{decode, find_whitespace, skip_whitespace, trim};
-use crate::{check_len, mode_hash};
+use crate::{check_len, fold_hash, mode_hash};
 
 /// What became of a candidate the model was asked about.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -22,7 +23,8 @@ pub enum Decision {
     Split,
     /// The model's best outcome is not a split.
     NoSplit,
-    /// The model said split, and the abbreviation dictionary refused it.
+    /// The model said split, and the abbreviation dictionary or the
+    /// abbreviation inventory refused it.
     Vetoed,
 }
 
@@ -68,11 +70,36 @@ pub struct SentenceDetector {
     /// one the model was trained with; OpenNLP's models are trained in the
     /// mode of their OpenNLP version, `Unicode` for 3.x.
     pub whitespace: WhitespaceMode,
+    /// Consulted when the model says split; empty by default.
+    inventory: AbbreviationInventory,
 }
 
 impl SentenceDetector {
+    /// The detector of a model, with no abbreviation inventory: it splits
+    /// as `SentenceDetectorME` does.
     pub fn new(model: impl Into<Arc<SentenceModel>>, whitespace: WhitespaceMode) -> SentenceDetector {
-        SentenceDetector { model: model.into(), whitespace }
+        SentenceDetector { model: model.into(), whitespace, inventory: AbbreviationInventory::EMPTY }
+    }
+
+    /// The same detector with an abbreviation inventory. Where the model
+    /// says split, a [`Verdict::Suppress`] refuses the split, a
+    /// [`Verdict::Allow`] takes it whatever the model's dictionary says,
+    /// and [`Verdict::Neutral`] leaves the dictionary to decide. The
+    /// features are the model's own, so the probabilities do not change.
+    pub fn with_abbreviations(self, inventory: AbbreviationInventory) -> SentenceDetector {
+        SentenceDetector { inventory, ..self }
+    }
+
+    /// The same detector with the bundled inventory of the model's
+    /// language, all classes ([`AbbreviationInventories::for_language`]).
+    pub fn with_bundled_abbreviations(self) -> SentenceDetector {
+        let inventory = AbbreviationInventories::for_language(self.model.language());
+        self.with_abbreviations(inventory)
+    }
+
+    /// The abbreviation inventory it consults.
+    pub fn abbreviations(&self) -> &AbbreviationInventory {
+        &self.inventory
     }
 
     /// The model it runs.
@@ -171,10 +198,19 @@ impl SentenceDetector {
             let best = best_outcome(probs);
             let decision = if best != model.split_outcome() {
                 Decision::NoSplit
-            } else if model.abbreviation_index().is_some_and(|a| !a.allows_break(scanned, index, cint, window)) {
-                Decision::Vetoed
             } else {
-                Decision::Split
+                match self.inventory.judge(text, cint.byte as usize) {
+                    Verdict::Suppress => Decision::Vetoed,
+                    Verdict::Allow => Decision::Split,
+                    Verdict::Neutral
+                        if model
+                            .abbreviation_index()
+                            .is_some_and(|a| !a.allows_break(scanned, index, cint, window)) =>
+                    {
+                        Decision::Vetoed
+                    }
+                    Verdict::Neutral => Decision::Split,
+                }
             };
             trace(Candidate { at: cint, features, probs, decision });
             if decision != Decision::Split {
@@ -245,8 +281,11 @@ impl Annotator for SentenceDetector {
         Some(self.model.model_ref().clone())
     }
 
+    /// The whitespace mode, and the abbreviation inventory when there is
+    /// one; without one the hash is what it was before inventories.
     fn config_hash(&self) -> u64 {
-        mode_hash(self.whitespace)
+        let h = mode_hash(self.whitespace);
+        if self.inventory.is_unset() { h } else { fold_hash(h, self.inventory.config_hash()) }
     }
 }
 

@@ -92,13 +92,34 @@ type TurnOff = fn(RuleSplitter) -> RuleSplitter;
 
 /// The rule splitter's tailorings, each with the change that turns it off.
 const TAILORINGS: [(&str, TurnOff); 8] = [
-    ("terminators", |s| s.with_rules(Rules { terminators: false, ..s.rules() })),
-    ("references", |s| s.with_rules(Rules { references: false, ..s.rules() })),
-    ("continuation", |s| s.with_rules(Rules { continuation: false, ..s.rules() })),
-    ("abbreviations", |s| s.with_rules(Rules { abbreviations: false, ..s.rules() })),
-    ("initials", |s| s.with_rules(Rules { initials: false, ..s.rules() })),
-    ("lists", |s| s.with_rules(Rules { lists: false, ..s.rules() })),
-    ("brackets", |s| s.with_rules(Rules { brackets: false, ..s.rules() })),
+    ("terminators", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { terminators: false, ..r })
+    }),
+    ("references", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { references: false, ..r })
+    }),
+    ("continuation", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { continuation: false, ..r })
+    }),
+    ("abbreviations", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { abbreviations: false, ..r })
+    }),
+    ("initials", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { initials: false, ..r })
+    }),
+    ("lists", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { lists: false, ..r })
+    }),
+    ("brackets", |s| {
+        let r = s.rules();
+        s.with_rules(Rules { brackets: false, ..r })
+    }),
     ("paragraph line breaks", |s| s.with_line_breaks(LineBreaks::Sentence)),
 ];
 
