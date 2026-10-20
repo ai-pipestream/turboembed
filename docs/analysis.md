@@ -340,6 +340,22 @@ continuous or discontinuous, stays inside its sentence, and
 `Spans::overlapping` and `Spans::covering` find the entities whose
 fragments touch a chunk.
 
+Entities are a cost, not a constraint. `turbo_chunker::EntityBoundaries`
+keys the entities of `opennlp:entities` (normalized surface: NFKC, full
+case folding, whitespace collapsed, edge punctuation dropped; merged by
+`Groups<Entities>` or `Groups<Mentions>` chains when present, whose
+pronoun and nominal mentions then count as mentions of the entity) and
+writes the `entity` instance of `turbo:boundaries`: each entity whose
+run of mentions (two mentions at most `max_gap` sentences apart) spans
+a gap adds `per_entity` to it, up to `cap`. `DistilledBoundaryScorer`
+sums that instance into the default one at `entity_runs` (`Weight::ONE`
+by default); a pipeline that does not write it is unchanged, hashes
+included. `ChunkEntityHeaders` writes `ChunkEntities`
+(`turbo:chunk-entities`, aligned to `Chunks`): per chunk the entity
+keys it mentions and the ones carried from earlier in its section, each
+key named by the index of its first entity, never a copied string;
+`ChunkEntities::header` projects them onto the text.
+
 Query-time routing (`turbo_chunker::LevelRouter`) ranks the chunk,
 section and document units of `Levels` in one list, fusing BM25 over
 `TermStats<Levels>` with dense cosine scores over `Vectors<Levels>`
@@ -797,6 +813,7 @@ fields mean bumps its `SCHEMA`.
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
 | `WeightedTerms<L>` | `turbo:weighted-terms<L>` | `L` | `turbo-chunker` |
 | `ContentHashes<L>` | `turbo:content-hashes<L>` | `L` | `turbo-chunker` |
+| `ChunkEntities` | `turbo:chunk-entities<turbo:chunks>` | `Chunks` (indexes `Entities`) | `turbo-chunker` |
 | `TokenVectorWindows` | `turbo:token-vector-windows` | text | `turbo-analysis-layers` |
 | `Mentions` | `opennlp:mentions` | text (indexes `Sentences`, `Tokens`, `Entities` when lifted from entities) | `turbo-coref` |
 | `Speakers` | `opennlp:speakers` | text | `turbo-coref` |

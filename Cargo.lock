@@ -2032,6 +2032,7 @@ dependencies = [
  "turbo-normalize",
  "turbo-stem",
  "turbo-structure",
+ "turbo-unicode",
 ]
 
 [[package]]

@@ -1,15 +1,17 @@
 //! The document graph codecs for this crate's layers, so a
 //! chunked document's vocabulary, indexed terms, term statistics,
-//! term weights and chunk facets cross the export boundary with the
-//! rest of the graph.
+//! term weights, chunk facets and chunk entity headers cross the export
+//! boundary with the rest of the graph.
 
 use std::marker::PhantomData;
 
 use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer};
 use turbo_analysis::{Document, Ix, Layer, View};
 use turbo_analysis_layers::{
-    Aspects, Chunks, IncivilityLabel, IncivilityScores, Levels, Polarity, Sentences, Strs, Structure, Tokens,
+    Aspects, Chunks, Entities, IncivilityLabel, IncivilityScores, Levels, Polarity, Sentences, Strs, Structure, Tokens,
 };
+
+use crate::entity::ChunkEntities;
 
 use crate::hashes::{ChunkId, ContentHashes};
 use crate::sentiment::ChunkFacets;
@@ -317,6 +319,41 @@ impl LayerCodec for ChunkFacets {
     }
 }
 
+impl LayerCodec for ChunkEntities {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        w.usize(self.first.len())?;
+        for e in &self.first {
+            w.u32(e.get() as u32);
+        }
+        put_u32s(&mut w, &self.row)?;
+        put_u32s(&mut w, &self.key)?;
+        put_u32s(&mut w, &self.mentions)?;
+        Ok(w.finish())
+    }
+
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let entities = resolved::<Entities>(cx);
+        let mut first = Vec::new();
+        for _ in 0..r.usize()? {
+            first.push(get_ix::<Entities>(&mut r, cx, &entities)?);
+        }
+        let row = get_u32s(&mut r)?;
+        let key = get_u32s(&mut r)?;
+        let mentions = get_u32s(&mut r)?;
+        done(&r, "chunk entities")?;
+        let chunks = aligned_len::<Chunks>(cx)?;
+        if row.len() != chunks + 1 {
+            return Err(malformed(format!("{} row starts for {chunks} chunks", row.len())));
+        }
+        // The layer's own check settles the rest: rows from zero to the
+        // last entry, keys inside `first`, one count per entry, each key
+        // once per chunk and mentioned entries before carried ones.
+        checked(ChunkEntities { first, row, key, mentions }, cx)
+    }
+}
+
 impl<L: Layer> LayerCodec for ContentHashes<L> {
     fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
@@ -347,7 +384,7 @@ impl<L: Layer> LayerCodec for ContentHashes<L> {
 /// Registers this crate's layer codecs on `codecs`: the vocabulary,
 /// the indexed terms, term statistics at the chunk, sentence,
 /// structure and whole-view levels, term weights at the chunk, level
-/// and whole-view levels, the chunk facets, and content
+/// and whole-view levels, the chunk facets, the chunk entity headers, and content
 /// hashes over the chunks and over the level units. The
 /// token-vector windows late pooling checks against are a
 /// shared layer, registered by `turbo-analysis-layers`.
@@ -363,6 +400,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<WeightedTerms<Levels>>()
         .register::<WeightedTerms<View>>()
         .register::<ChunkFacets>()
+        .register::<ChunkEntities>()
         .register::<ContentHashes<Chunks>>()
         .register::<ContentHashes<Levels>>();
 }
