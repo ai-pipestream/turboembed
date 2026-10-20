@@ -95,6 +95,15 @@ impl FeedforwardDependencyTrainer {
             return Err(error("no projective training examples"));
         }
         optimize::optimize(&mut model, &examples, settings)?;
+        let mut counts = std::collections::BTreeMap::<String, usize>::new();
+        for sample in samples.iter().filter(|s| s.graph().is_projective()) {
+            for word in sample.tokens() {
+                *counts.entry(super::normalize::normalize(word)).or_default() += 1;
+            }
+        }
+        // Cache only after the final update so no stale weights can be used.
+        // One million doubles bounds the returned model's cache at 8 MB of values.
+        model.precompute_words(&counts.into_iter().collect::<Vec<_>>(), 1_000_000);
         Ok(model)
     }
 }

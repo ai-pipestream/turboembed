@@ -146,7 +146,8 @@ fn scoring_uses_double_products_and_cache_preserves_cancellation() {
 
 #[test]
 fn cache_matches_direct_scoring_for_trained_model_at_all_oracle_states() {
-    let direct = FeedforwardDependencyTrainer::train(&samples(), &settings(true)).unwrap();
+    let mut direct = FeedforwardDependencyTrainer::train(&samples(), &settings(true)).unwrap();
+    direct.precompute_words(&[], 0);
     let mut cached = direct.clone();
     let count = cached
         .precompute_words(&[("birds".into(), 3), ("I".into(), 2), ("see".into(), 1), ("birds".into(), 1)], 10_000);

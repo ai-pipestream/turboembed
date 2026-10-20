@@ -1,4 +1,5 @@
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+   Compiling turbo-bench v0.1.0 (<checkout>/bench)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
      Running tests/tree.rs (target/debug/deps/tree-1a9beef376d3ed20)
 
 running 3 tests

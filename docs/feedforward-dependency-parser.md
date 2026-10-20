@@ -57,7 +57,10 @@ The model exposes immutable weights and vocabulary. `precompute_words`
 accepts word frequencies, orders by frequency with a deterministic ID tie
 break, and caches hidden contributions within a caller-supplied value budget
 (capped at 8 million f64 values). This cache leaves serialization and exact
-scoring unchanged. Loaded models do not need training-time assets.
+scoring unchanged. Training returns a model with frequent-word contributions
+precomputed after the last weight update, using a one-million-value budget
+(8 MB of values). Callers can clear or replace that cache with
+`precompute_words`. Loaded models do not need training-time assets.
 
 ## Training and annotation
 
