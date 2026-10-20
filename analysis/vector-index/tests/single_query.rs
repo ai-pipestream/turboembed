@@ -7,7 +7,7 @@ use common::{index_of, space};
 use turbo_vector_index::{IndexError, Metric};
 
 #[test]
-fn a_single_query_of_several_vectors_is_refused() {
+fn a_single_query_of_several_vectors_gets_a_dimension_error() {
     for dim in [1u32, 2, 5] {
         let sp = space(dim);
         let d = dim as usize;

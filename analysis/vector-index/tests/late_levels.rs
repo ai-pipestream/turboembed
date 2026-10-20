@@ -103,7 +103,7 @@ fn pruned_pieces_are_dropped_and_recorded() {
 }
 
 #[test]
-fn layers_of_another_model_or_view_or_out_of_step_add_nothing() {
+fn layers_of_another_model_or_view_or_out_of_step_add_no_candidates() {
     let m = model("colbert-small");
     let sp = Space::new(m.clone(), 4, Normalization::None);
     let (sub, vec, lev) = (subwords(m.clone()), vectors(m.clone()), levels());

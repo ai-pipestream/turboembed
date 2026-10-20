@@ -106,7 +106,7 @@ fn rerank_and_top_k_are_the_head_of_a_full_sort() {
 }
 
 #[test]
-fn queries_and_candidates_of_another_space_or_unscorable_tokens_are_refused() {
+fn queries_and_candidates_of_another_space_or_unscorable_tokens_get_typed_errors() {
     let sp = space(4);
     let mut b = TokenIndexBuilder::new(sp.clone()).unwrap();
     assert_eq!(b.push(&[], 0), Err(IndexError::NoTokens(Which::Row(0))));
