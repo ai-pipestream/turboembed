@@ -2244,6 +2244,15 @@ name = "turbo-jvm"
 version = "0.1.0"
 
 [[package]]
+name = "turbo-keywords"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-stopword",
+]
+
+[[package]]
 name = "turbo-kserve"
 version = "0.1.0"
 dependencies = [
