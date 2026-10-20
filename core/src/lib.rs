@@ -32,6 +32,7 @@ pub mod model;
 #[cfg(feature = "npu")]
 pub mod npu;
 pub mod projection;
+pub mod qa;
 pub mod record;
 pub mod rerank;
 pub mod safetensors;
