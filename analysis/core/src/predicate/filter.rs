@@ -68,10 +68,7 @@ pub fn retain_aligned_anchor<L: Layer, A: FilterableLayer>(
     let target_anchor: Key<A> = Key::named(target_name);
     let src_anchor_key: Key<A> = Key::named(source_anchor.name);
     let kept_anchor: Vec<Ix<A>> = kept.iter().map(|ix| Ix::new(ix.get() as u32)).collect();
-    let (filtered_anchor, src_len) = {
-        let src_anchor = doc.require(&src_anchor_key)?;
-        (src_anchor.retain_indices(&kept_anchor), src_anchor.len())
-    };
+    let filtered_anchor = doc.require(&src_anchor_key)?.retain_indices(&kept_anchor);
     if !doc.has(target_anchor.id()) {
         let mut parent_on = Vec::new();
         if let Anchor::Aligned { ty, layer } = A::anchor() {
@@ -80,9 +77,7 @@ pub fn retain_aligned_anchor<L: Layer, A: FilterableLayer>(
                 layer,
                 name: source_anchor.name,
             });
-            if let Some(pid) = A::retain_anchor(doc, parent_src, target_name, &kept_anchor, provenance.clone())?
-                && kept_anchor.len() != src_len
-            {
+            if let Some(pid) = A::retain_anchor(doc, parent_src, target_name, &kept_anchor, provenance.clone())? {
                 parent_on.push(pid);
             }
         }
@@ -258,7 +253,7 @@ impl<L: FilterableLayer> FilterAnnotator<L> {
     }
 }
 
-type FilterOutcome<L> = Result<(L, Vec<Ix<L>>, usize), Error>;
+type FilterOutcome<L> = Result<(L, Vec<Ix<L>>), Error>;
 
 impl<L: FilterableLayer> Step for FilterAnnotator<L> {
     fn id(&self) -> &'static str {
@@ -325,7 +320,7 @@ impl<L: FilterableLayer> Step for FilterAnnotator<L> {
                         }
                     }
                     let filtered = src.retain_indices(&kept);
-                    (filtered, kept, src_len)
+                    (filtered, kept)
                 })) {
                     Ok(res) => Ok(res),
                     Err(panic) => Err(panicked(Self::ID, panic)),
@@ -341,7 +336,7 @@ impl<L: FilterableLayer> Step for FilterAnnotator<L> {
         for (i, r) in out.into_iter().enumerate() {
             let mut p = self.provenance(&docs[i]);
             let failure = match r {
-                Ok((layer, kept, src_len)) => {
+                Ok((layer, kept)) => {
                     let anchor_res = if let Anchor::Aligned { ty, layer: anchor_layer } = L::anchor() {
                         let src_anchor = docs[i]
                             .made_on(self.source.id())
@@ -356,9 +351,7 @@ impl<L: FilterableLayer> Step for FilterAnnotator<L> {
                     };
                     match anchor_res {
                         Ok(Some(anchor_id)) => {
-                            if kept.len() != src_len {
-                                p.on.push(anchor_id);
-                            }
+                            p.on.push(anchor_id);
                             docs[i].add(&self.target, layer, p.clone()).err()
                         }
                         Ok(None) => docs[i].add(&self.target, layer, p.clone()).err(),

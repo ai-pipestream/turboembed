@@ -103,11 +103,18 @@ fn additional_predicate_read_must_not_rebind_aligned_output() {
     .require(original);
 
     filter.annotate_doc(&mut doc).unwrap();
+    let filtered_tokens: Key<Tokens> = Key::named("filtered");
     assert_eq!(
         doc.made_on(filtered.id()),
-        &[original.id()],
-        "filtered PosTags must stay anchored to the source PosTags' token layer"
+        &[filtered_tokens.id()],
+        "filtered PosTags must be anchored to its co-filtered token layer"
     );
+    assert_eq!(
+        doc.provenance(filtered_tokens.id()).unwrap().reads,
+        vec![original.id()],
+        "co-filtered Tokens must be derived from the source PosTags' token layer, not extra predicate reads"
+    );
+    assert_eq!(doc.require(&filtered_tokens).unwrap().spans.get(Ix::new(0)), Span::new(0, 2));
 }
 
 #[test]
@@ -213,6 +220,39 @@ fn cofiltered_tokens_must_be_a_declared_pipeline_output() {
     let mut docs = vec![two_token_doc()];
     assert!(analyzer.run(&mut docs)[0].is_ok());
     assert_eq!(docs[0].require(&Key::<Language>::DEFAULT).unwrap().score, vec![1.0]);
+}
+
+struct ReadTokensAndPos;
+
+impl Annotator for ReadTokensAndPos {
+    const ID: &'static str = "test:read-tokens-and-pos";
+    type Reads = (Tokens, PosTags);
+    type Writes = (Language,);
+
+    fn annotate(&self, (tokens, pos): (&Tokens, &PosTags)) -> Result<(Language,), Error> {
+        assert_eq!(tokens.len(), pos.len());
+        let mut code = Strs::default();
+        code.push("en");
+        Ok((Language { code, score: vec![tokens.len() as f64] },))
+    }
+}
+
+#[test]
+fn all_keep_aligned_filter_binds_to_cofiltered_anchor_in_pipeline() {
+    let f = FilterAnnotator::new(Key::<PosTags>::DEFAULT, Key::named("kept"), |_, _| true).unwrap();
+    let analyzer = Analyzer::builder()
+        .given(Key::<Tokens>::DEFAULT)
+        .given(Key::<PosTags>::DEFAULT)
+        .step(f)
+        .step(Bound::new(ReadTokensAndPos).read(0, "kept").read(1, "kept"))
+        .build()
+        .unwrap();
+    let mut docs = vec![two_token_doc()];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    assert_eq!(docs[0].made_on(Key::<PosTags>::named("kept").id()), &[Key::<Tokens>::named("kept").id()]);
+    assert_eq!(docs[0].require(&Key::<Language>::DEFAULT).unwrap().score, vec![2.0]);
 }
 
 struct BatchCountWriter(Arc<AtomicUsize>);
