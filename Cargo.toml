@@ -41,6 +41,7 @@ members = [
     "analysis/langdetect",
     "analysis/doccat",
     "analysis/depparse",
+    "analysis/relation",
     "analysis/langspan",
     "analysis/lemmatizer",
     "analysis/morfologik",

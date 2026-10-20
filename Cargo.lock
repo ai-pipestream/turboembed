@@ -2247,6 +2247,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-relation"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-depparse",
+ "turbo-unicode",
+]
+
+[[package]]
 name = "turbo-sat"
 version = "0.1.0"
 dependencies = [
