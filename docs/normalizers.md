@@ -2371,3 +2371,36 @@ same under both. The texts where an output differs on purpose are listed
 in the test with the section of this file that records the difference.
 `emoji` runs `EmojiRemove::supplementary()`, which is OpenNLP's output;
 the sequence mode is a documented difference.
+
+### HTML/XML markup (`markup.rs`) and character references (`entities.rs`)
+
+`HtmlTagStripNormalizer` (`turbo:normalize:html-strip`) removes markup
+with a cursor state machine: element tags (a quoted attribute value may
+hold `>`), comments (including the abruptly closed `<!-->` and
+`<!--->` forms and the `--!>` close), doctypes (a `>` inside the
+internal subset does not end one), processing instructions, and the
+bodies of `<script>` and `<style>` elements. CDATA wrappers drop but
+their inner text stays, and `<title>`/`<textarea>` bodies stay as text.
+A `<` that starts no valid markup is literal. Removed block-level tags
+leave one space behind (never two in a row) unless configured off, so
+words across `</p><p>` cannot fuse while `un<b>break</b>able` stays
+one word; an unterminated construct drops to the end of input. This is
+a text-extraction stripper, not a parser: it builds no tree, checks no
+nesting, and a start tag closed with `/>` is treated as having no body
+even for `script` (where HTML proper would keep reading raw text).
+
+`HtmlEntityDecodeNormalizer` (`turbo:normalize:html-entities`) decodes
+character references in one pass that never rescans its own output, so
+`&amp;lt;` becomes the literal text `&lt;`. Named references cover the
+full WHATWG table (`entities_table/`, 2,231 names sorted for binary
+search; the 106 legacy names also match without their semicolon, and
+the longest matching name wins). Numeric references, decimal or hex,
+with or without the semicolon, apply the spec replacements: NUL,
+surrogates and values above U+10FFFF become U+FFFD, and C1 controls
+remap through the Windows-1252 table. An `&` starting no valid
+reference is kept. Both normalizers record one edit per removed or
+decoded stretch, so spans found on the cleaned view (entities,
+chunks, answers) project back to the exact raw markup bytes through
+the view alignment; `analysis/normalize/tests/markup.rs` holds the
+adversary fixtures, including that byte-for-byte projection. There is
+no OpenNLP counterpart to either normalizer.
