@@ -30,11 +30,21 @@
 //!   `categorize` and, as an annotator, reads `opennlp:tokens` and writes
 //!   `turbo:categories`. Its LIBSVM predictor ([`svm::libsvm`]) is a port
 //!   of LIBSVM's Java prediction code.
+//! - [`zeroshot`] categorizes against caller-supplied labels with no
+//!   per-label training, framing each label as an NLI hypothesis over
+//!   the text: [`ZeroShotCategorizer`] scores premise/hypothesis pairs
+//!   through an [`NliScorer`], and [`ZeroShotAnnotator`] /
+//!   [`ZeroShotSpanAnnotator`] write the same `Categories` layers.
 //! - [`sentiment`] is `SentimentME` (`opennlp.tools.sentiment`), a maxent
 //!   classifier over the tokens and, with `EmojiSentimentFactory`, their
 //!   emoji features: [`SentimentModel`] opens its model file and
 //!   [`SentimentMe`] reads `opennlp:tokens` and writes the `sentiment`
 //!   instance of `turbo:categories`.
+//! - [`multilabel`] is this crate's own multi-label categorizer (not an
+//!   OpenNLP port): [`MultiLabelDoccatModel`] scores every label
+//!   independently through its OvR sigmoid heads, [`train_multilabel`]
+//!   fits the heads, and [`ThresholdCalibrator`] moves each label's
+//!   threshold to its validation F_beta.
 //!
 //! docs/doccat.md describes the model files, the parity tests and their
 //! tolerances, and why the predictor is a port rather than linfa-svm;
@@ -48,9 +58,11 @@ mod hash;
 pub mod java;
 pub mod layer;
 pub mod model;
+pub mod multilabel;
 pub mod sentiment;
 pub mod svm;
 pub mod train;
+pub mod zeroshot;
 
 pub use categorizer::{DocumentCategorizerME, SpanCategorizer};
 pub use error::DoccatError;
@@ -62,6 +74,11 @@ pub use layer::SpanCategorizable;
 pub use model::{
     COMPONENT_NAME, DoccatModel, FACTORY_NAME, FEATURE_GENERATORS_KEY, MODEL_ENTRY, parse_feature_generators,
 };
+pub use multilabel::{
+    COMPONENT_NAME as MULTILABEL_COMPONENT_NAME, LinearHead, MultiLabelCategorizer, MultiLabelDoccatModel,
+    MultiLabelError, MultiLabelReport, MultiLabelSample, MultiLabelSpanCategorizer, MultiLabelTrainingParameters, Prf,
+    ThresholdCalibrator, evaluate, open_package as open_multilabel_package, package_multilabel_model, train_multilabel,
+};
 pub use sentiment::{
     AbsaMetrics, AbsaTriplet, AspectCategoryScorer, DEFAULT_ASPECT_CATEGORIES, DEFAULT_INCIVILITY_THRESHOLD,
     GoldIncivilityUnit, IncivilityAnnotator, IncivilityLexicon, IncivilityMetrics, IncivilityUnit,
@@ -71,6 +88,10 @@ pub use sentiment::{
 };
 pub use svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};
 pub use train::{DoccatEventStream, DoccatFactory, doccat_events, doccat_index};
+pub use zeroshot::{
+    NliScorer, WindowAggregation, ZeroShotAnnotator, ZeroShotCategorizer, ZeroShotConfig, ZeroShotError, ZeroShotMode,
+    ZeroShotSpanAnnotator,
+};
 
 #[cfg(test)]
 mod tests {
@@ -200,3 +221,6 @@ mod tests {
         assert!(plain.is_empty());
     }
 }
+
+pub mod selection;
+pub use selection::{DoccatTrainer, FeatureSelection, SelectedFeatures, SelectionMetric};

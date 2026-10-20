@@ -1,7 +1,7 @@
 //! The document graph codecs for this crate's layers, so a
-//! chunked document's vocabulary, indexed terms, term statistics
-//! and chunk facets cross the export boundary with the rest of the
-//! graph.
+//! chunked document's vocabulary, indexed terms, term statistics,
+//! term weights and chunk facets cross the export boundary with the
+//! rest of the graph.
 
 use std::marker::PhantomData;
 
@@ -13,7 +13,7 @@ use turbo_analysis_layers::{
 
 use crate::hashes::{ChunkId, ContentHashes};
 use crate::sentiment::ChunkFacets;
-use crate::terms::{IndexedTerms, TermStats, Vocabulary};
+use crate::terms::{IndexedTerms, TermStats, Vocabulary, WeightedTerms};
 
 /// The polarities in wire order: a variant crosses as its position
 /// here, so a position outside the table is refused rather than
@@ -220,6 +220,29 @@ impl<L: Layer> LayerCodec for TermStats<L> {
     }
 }
 
+impl<L: Layer> LayerCodec for WeightedTerms<L> {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_u32s(&mut w, &self.row)?;
+        put_f64s(&mut w, &self.weight)?;
+        Ok(w.finish())
+    }
+
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let row = get_u32s(&mut r)?;
+        let weight = get_f64s(&mut r)?;
+        done(&r, "weighted terms")?;
+        let units = aligned_len::<L>(cx)?;
+        if row.len() != units + 1 {
+            return Err(malformed(format!("{} row starts for {units} aligned units", row.len())));
+        }
+        // The layer's own check settles the rest: rows from zero to
+        // the last weight, in unit order, and every weight finite.
+        checked(WeightedTerms { row, weight, _of: PhantomData }, cx)
+    }
+}
+
 impl LayerCodec for ChunkFacets {
     fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
@@ -323,7 +346,8 @@ impl<L: Layer> LayerCodec for ContentHashes<L> {
 
 /// Registers this crate's layer codecs on `codecs`: the vocabulary,
 /// the indexed terms, term statistics at the chunk, sentence,
-/// structure and whole-view levels, the chunk facets, and content
+/// structure and whole-view levels, term weights at the chunk, level
+/// and whole-view levels, the chunk facets, and content
 /// hashes over the chunks and over the level units. The
 /// token-vector windows late pooling checks against are a
 /// shared layer, registered by `turbo-analysis-layers`.
@@ -335,6 +359,9 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<TermStats<Sentences>>()
         .register::<TermStats<Structure>>()
         .register::<TermStats<View>>()
+        .register::<WeightedTerms<Chunks>>()
+        .register::<WeightedTerms<Levels>>()
+        .register::<WeightedTerms<View>>()
         .register::<ChunkFacets>()
         .register::<ContentHashes<Chunks>>()
         .register::<ContentHashes<Levels>>();

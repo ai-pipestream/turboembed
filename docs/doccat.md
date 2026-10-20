@@ -9,7 +9,8 @@ sentence-, structure-, and chunk-level categorization and
 perceptron `DoccatModel` archives.
 
 The crate also holds OpenNLP's maxent sentiment detector, `SentimentME`,
-which [sentiment.md](sentiment.md) describes.
+which [sentiment.md](sentiment.md) describes, and its own multi-label
+categorizer, [`MultiLabelDoccatModel`](#multi-label-categorization-multilabeldoccatmodel).
 
 It depends on `turbo-analysis`, `turbo-analysis-layers`, `turbo-jvm`
 (Java's `Double.toString`, `Double.parseDouble`, `Integer.parseInt`,
@@ -61,6 +62,58 @@ category probabilities on 12 test documents (`analysis/goldens/data/doccat`);
 `analysis/doccat/tests/maxent_goldens.rs` and
 `analysis/train-components/tests/doccat_goldens.rs` verify bit-for-bit feature,
 model binary, and probability parity against the JVM.
+
+## Multi-label categorization (`MultiLabelDoccatModel`)
+
+`turbo_doccat::multilabel` (this crate's own design, not an OpenNLP port)
+extends categorization beyond mutually exclusive labels: a document or
+span scores every known label independently and receives zero, one, or
+many of them.
+
+- `MultiLabelDoccatModel` holds one linear head per label (weights and a
+  bias, as `LinearHead`), trained one-vs-rest by `train_multilabel` with
+  full-batch gradient descent over the `DoccatFactory` feature
+  generators. The sigmoid turns each head's linear score into an
+  independent score in `0.0..=1.0`; the scores do not sum to 1.0.
+- Each label carries its own threshold in the open interval `(0.0, 1.0)`
+  (default 0.5). `MultiLabelCategorizer` emits every label whose score
+  reaches its threshold, optionally capped by `max_labels`, floored by
+  `min_score` (a hard floor: a label under it never emits), and, where
+  fewer than `min_labels` would emit, back-filled up to `min_labels`
+  with the highest-scoring labels that pass `min_score`. When no label
+  clears its threshold and `min_labels` is `None`, the prediction is
+  empty: the annotators write the item with best category `Tag::NONE`,
+  the clean abstention, never a forced argmax, and every score is still
+  in the item. `MultiLabelSpanCategorizer<L>` does the same per
+  sentence, structure block, or chunk.
+- `ThresholdCalibrator` fits the thresholds on a held-out validation set:
+  for each label it sweeps the validation scores as candidate cut points,
+  keeps the threshold maximizing that label's F_beta (beta configurable,
+  default 1.0), breaking ties toward the highest threshold, and can
+  restrict candidates to a minimum-precision floor (when no candidate
+  reaches the floor, the fallback is the candidate of the highest
+  precision). A label with no positive in the validation set keeps the
+  default threshold.
+- `multilabel::metrics::evaluate` scores a run: micro-, macro-, and
+  sample-averaged precision, recall, and F1, plus Exact Match (the
+  fraction of documents whose predicted set equals the gold set), under
+  the crate's division conventions (predicting nothing is precision 1.0,
+  no gold positive is recall 1.0, both 0 is an F of 0.0).
+- The model serializes as a `.bin` package (`package_multilabel_model` /
+  `open_package` in the format `turbo_train::ModelPackage` writes, with
+  the calibrated thresholds inside the model entry and a trailing
+  CRC-32C). The entry is format version 2, which added `min_labels`;
+  version 1 entries still open with `min_labels` `None`. Truncated or
+  corrupted bytes fail with `MultiLabelError`, never panic.
+
+`analysis/doccat/tests/multilabel.rs` covers the scoring, the abstention
+into `Categories`, the calibration sweep (beta, floor, ties, zero
+positives), and trains on an imbalanced fixture whose rare label's
+optimal threshold is far from 0.5, proving the calibrated thresholds
+strictly improve macro-F1 over a flat 0.5.
+`analysis/doccat/tests/multilabel_extra.rs` covers the cardinality
+bounds, the format's backward compatibility, and the evaluation metrics
+against hand-computed values.
 
 ## SVM categorization (`SvmCategorizer`)
 
@@ -288,3 +341,36 @@ depends on nothing new. It predicts only; SVM training stays on the JVM.
   features.
 - Bit for bit RBF and sigmoid decision values and probabilities, for the
   reasons under "Tolerances".
+
+## Zero-shot categorization (`ZeroShotCategorizer`)
+
+Zero-shot categorization needs no per-label training: the caller supplies
+candidate labels at run time, and each label becomes the hypothesis of a
+natural-language-inference pair whose premise is the text (template:
+`"This example is {}."` by default, validated to hold exactly one `{}`
+with text around it). The model sits behind the `NliScorer` trait, so
+this crate owns the framing and the scoring modes without assuming a
+sequence-pair runtime; a scorer declares its outcome names, its pair
+token budget, and its own token counting.
+
+Outcome names resolve case-insensitively at construction: either the
+3-outcome head (entailment, neutral, contradiction) or the 2-outcome
+head (entailment, not_entailment); anything else is refused, as are an
+empty label list, a blank or duplicate label, and a hypothesis that
+already fills the pair budget. Single-label mode takes a softmax over
+the entailment logits across labels (scores sum to 1); multi-label
+mode takes an independent two-way softmax over (entailment,
+contradiction) per label. The neutral logit never enters either mode.
+
+A premise longer than the pair budget less the longest hypothesis
+and the scorer's pair special tokens (3 for BERT-style templates, 4
+for RoBERTa-style) is windowed by words (measured with the scorer's
+token counter, with an optional word overlap), every window
+carrying the full hypothesis;
+per-window logits combine by max, mean, or premise-length-weighted
+mean before the mode's softmax runs once. `ZeroShotAnnotator` writes
+the document's `Categories` and `ZeroShotSpanAnnotator` writes
+`Categories<L>` per sentence, block, or chunk, with the scorer's model
+as provenance and the template, labels, mode, aggregation, and overlap
+in the annotator config hash. Blank items score zero everywhere rather
+than failing the document.

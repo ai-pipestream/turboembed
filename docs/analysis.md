@@ -53,11 +53,11 @@ nothing here is in the C header or the gRPC server.
 | `turbo-train-recipes` | `analysis/train-recipes/` | Recipes that train models on permissive data and gate them: MASC 3.0.0 (CC BY 3.0 US) with the record of its release and fixed split, the English sentence detector, tokenizer, part-of-speech tagger and chunker trained on it, their gates against the OpenNLP English UD models and OpenNLP 1.5's Penn tagger and chunker (`en-pos-maxent.bin`, `en-chunker.bin`); the CC BY 4.0 UD treebanks at release 2.16 (Spanish and Catalan AnCora, Portuguese Porttinari, Finnish FTB, Italian MarkIT) with their file digests and licence check, the sentence detectors, tokenizers, taggers and lemmatizers trained on them and their gates against the OpenNLP UD 1.3 models; the language detector trained on Tatoeba's CC BY 2.0 FR sentences and gated against `langdetect-183.bin`; the web language detector trained on those sentences and on FineWeb-2 and FineWeb (ODC-By 1.0) windows read by range request, gated on held-out sentences and held-out windows; the model cards and the permissive zoo entries, and the `turbo-train-recipes` binary ("Models trained on permissive data", below) |
 | `turbo-formats` | `analysis/formats/` | OpenNLP's training samples (name, part-of-speech, lemma, chunk, token, sentence, document category and language samples), a reader per native format that reproduces OpenNLP's sample stream over the same text, the conversion of name and part-of-speech samples into token and sentence samples, the CoNLL-U readers of part-of-speech, lemma, sentence and token samples, the CoNLL-2002 and CoNLL-2003 name readers and the CoNLL-X part-of-speech reader, the MASC corpus reader and its part-of-speech, token, sentence and name samples, the named entity corpus readers (GermEval 2014, BioNLP 2004, Evalita, the 1990 census names, MUC-6 and brat, including discontinuous entity standoff round-tripping), the sentence corpus readers (Moses, LetsMT, NKJP, the Irish Sentence Bank, which also gives token samples), the Leipzig language corpus reader and the 20 Newsgroups reader, the Arvores Deitadas readers of the Floresta Sinta(c)tica treebank (name, part-of-speech, chunk, sentence and token samples), the OntoNotes name, parse and part-of-speech readers and the French Treebank parse reader (`turbo_parser::Parse` trees), the format registry, and the evaluators and cross-validation folds (`FMeasure`, `Mean`, an evaluator per component). Every token and tag keeps its byte span in the source; the crate documentation lists the OpenNLP behaviour that is surprising, and its tests compare with the `formats`, `masc`, `ner`, `corpora`, `ontonotes`, `frenchtreebank` and `evaluate` goldens |
 | `turbo-parser` | `analysis/parser/` | OpenNLP's constituency `Parse` tree and Penn Treebank bracket I/O (`Parse::parse`, `Parse::show`, `ParseSampleStream`, `ParserPosSample`, `ParserChunkSample`, `space_untokenized_parens`), the `HeadRules` and `GapLabeler` traits, `EnglishHeadRules` (`opennlp.tools.parser.lang.en.HeadRules`), and `AncoraSpanishHeadRules` (`opennlp.tools.parser.lang.es.AncoraSpanishHeadRules`), whose tags are Java regular expressions (`TagPattern`); and the `CHUNKING` and `TREEINSERT` bottom-up parsers: reading a `ParserModel` file, the context generators, the shared search of `AbstractBottomUpParser`, `ParserTool.parseLine` and `ParserAnnotator` (the `Phrases` layer). Training the parsers is `turbo-train-components`. `analysis/parser/README.md` describes where it differs from OpenNLP and its JVM golden files |
-| `turbo-coref` | `analysis/coref/` | OpenNLP's coreference resolver: mention detection from entities, noun phrases (chunks or parse phrases) and pronouns, the precision-ordered sieves (speaker, exact, relaxed, acronym, person name, the strict and relaxed head sieves, pronoun match), the pair classifier and mention ranker read from a `CorefModel` file, word vectors for head similarity and token vectors for span features, `CorefAnnotator` writing `opennlp:mentions` (`Mentions`), the chains as `Groups<Mentions>` and the antecedent links as `Edges<Mentions, Mentions>` tagged with the deciding sieve, the pairwise and ranking trainers, and `CorefScorer` (MUC, B-cubed, CEAF-m, CEAF-e, mention detection and the CoNLL average); [coref.md](coref.md) |
+| `turbo-coref` | `analysis/coref/` | OpenNLP's coreference resolver: mention detection from entities, noun phrases (chunks or parse phrases) and pronouns, the precision-ordered sieves (speaker, exact, relaxed, acronym, person name, the strict and relaxed head sieves, pronoun match), the pair classifier and mention ranker read from a `CorefModel` file, word vectors for head similarity (or trained from a corpus by the skip-gram and CBOW `Word2VecTrainer`) and token vectors for span features, `CorefAnnotator` writing `opennlp:mentions` (`Mentions`), the chains as `Groups<Mentions>` and the antecedent links as `Edges<Mentions, Mentions>` tagged with the deciding sieve, the pairwise and ranking trainers, and `CorefScorer` (MUC, B-cubed, CEAF-m, CEAF-e, mention detection and the CoNLL average); [coref.md](coref.md) |
 | `turbo-encoding` | `analysis/encoding/` | Bytes to a document: decoders for the 40 encodings of the WHATWG Encoding Standard, each recording an alignment from the bytes to the text; encoding detection (a port of chardetng); `open`, which settles the encoding and writes `turbo:encoding`; and mojibake repair (a port of ftfy's encoding fix, by Robyn Speer), one edit per fix. `analysis/encoding/README.md` lists the generated files and their sources |
 | `turbo-encoding-layers` | `analysis/encoding-layers/` | The `Encoding` enum with the standard's labels, and the `turbo:encoding` layer (`SourceEncoding`) |
 | `turbo-encoding-gen` | `analysis/encoding-gen/` | The generator of the WHATWG tables, and `ftfy.py`, which generates the repair's character classes and test fixture from ftfy |
-| `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `MentionPolicy`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
+| `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `MentionPolicy`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. A gazetteer's match keys can also be written as one mapped automaton image (`name_image`), which `NameFinder` reads in place to find the gazetteer's names in running text and `NameAnnotator` writes as location entities for the geocoder and the linker. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
 | `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
 | `turbo-zstd` | `analysis/zstd/` | A Zstandard decoder after RFC 8878: frames one after another, skippable frames, raw, RLE and compressed blocks, every kind of literals and sequences section, and the content checksum (XXH64); frames that need a dictionary or a window over 128 MiB are refused. The Parquet reader of `turbo-eval` uses it for ZSTD pages |
 
@@ -571,6 +571,31 @@ skipped: no language evidence`, or `opennlp:tokens failed: ...`. So
 "skipped" is never mistaken for "found nothing", and a stored document
 says why a layer is missing.
 
+### Evidence
+
+`Evidence<L>` (`turbo:evidence<L>`) is one record per item of a result
+layer `L`, so an entity, a category or any other result can be audited
+the same way whatever produced it. A record names the producing
+annotator and, when it ran a model, the model's identity; holds the
+item's spans mapped through the views back to the source text; holds
+the raw score, and the calibrated score and abstention reason when the
+producer gives them (a field a producer does not give is absent, never
+zero); and points at the units of other layers that support it (the
+tokens an entity covers) by layer instance and item range, without
+copying them. The result layers keep their own encoding.
+
+`EvidenceStep<L>` builds the layer after the step that writes `L`, for
+any `L` that implements `Evidenced`: `Entities`, `Categories` and
+`Categories<L>` for sentences, structure blocks and chunks. The
+dictionary and regex finders run no model and write 0 where they have
+no score, so an entity's raw score is recorded only when a model (the
+CRF finder's, say) produced it. A raw score that is not finite fails
+the step on that document. `Evidence::verify`
+checks a layer against its document and fails with a typed
+`EvidenceError`: a model no layer of the document was made with, a span
+outside the source or inside a character, or support outside a layer
+the document holds. The graph import applies the same check.
+
 ## Document graph export
 
 A search index or a coordinator that is not the process which ran the
@@ -762,6 +787,7 @@ fields mean bumps its `SCHEMA`.
 | `LanguageSpans` | `turbo:language-spans` | text | `turbo-analysis-layers` |
 | `Categories` | `turbo:categories` | the document | `turbo-analysis-layers` |
 | `Categories<L>` (`L` is `Sentences`, `Structure` or `Chunks`) | `turbo:categories<L>` | `L` | `turbo-analysis-layers` |
+| `Evidence<L>` (`L` is `Entities`, `Categories` or `Categories<L>`) | `turbo:evidence<L>` | `L` | `turbo-analysis` |
 | `Locations` | `turbo:locations` | text | `turbo-geo` |
 | `Regions` | `turbo:regions` | the document | `turbo-analysis-layers` |
 | `Containment` | `turbo:containment` | text | `turbo-analysis-layers` |
@@ -775,6 +801,7 @@ fields mean bumps its `SCHEMA`.
 | `Speakers` | `opennlp:speakers` | text | `turbo-coref` |
 | `Sketches<L>` | `turbo:sketches<L>` | `L` | `turbo-group` |
 | `Boilerplate<L>` | `turbo:boilerplate<L>` | `L` | `turbo-analysis-layers` |
+| `ProtectedSpans` | `turbo:protected_spans` | text | `turbo-normalize-layers` |
 
 `Chunks` are retrieval chunks. The standard's `opennlp:chunks` are
 phrase chunks (noun and verb groups), a different layer, which a phrase
@@ -4484,3 +4511,9 @@ layer's key from `turbo:terms`, which remains the linguistic text layer.
 Consumers of textual layer keys must update the retrieval key. The raw
 `TermIndexer` continues to index token text from a view and can coexist
 with linguistic terms.
+
+## Trainable dense classifiers
+
+[Dense classifiers and feature selection](dense-classifier.md) describes Adam
+training over typed vectors, temperature calibration, and MI/Chi2 selection
+before document categorizer training.

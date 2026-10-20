@@ -14,6 +14,7 @@
 //! import; the codec checks are the ones that need the graph around
 //! the layer.
 
+use turbo_analysis::Evidence;
 use turbo_analysis::export::{
     Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, get_spans, get_tagset,
     put_spans, put_tagset,
@@ -97,6 +98,11 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Categories<Chunks>>()
         .register::<Categories<Opinions>>()
         .register::<Categories<Aspects>>()
+        .register::<Evidence<Entities>>()
+        .register::<Evidence<Categories<View>>>()
+        .register::<Evidence<Categories<Sentences>>>()
+        .register::<Evidence<Categories<Structure>>>()
+        .register::<Evidence<Categories<Chunks>>>()
         .register::<Phrases>()
         .register::<Opinions>()
         .register::<Aspects>()

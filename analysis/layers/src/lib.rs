@@ -38,6 +38,7 @@ pub use sentiment::{
     Aspect, AspectTarget, Aspects, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget,
     Incongruity, Opinion, Opinions, Polarity, PolarityScores, Pragmatics, PragmaticsItem,
 };
+pub use sparse::SparseTerms;
 pub use syntax::{
     ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
 };
@@ -104,10 +105,13 @@ mod abbreviations;
 mod boilerplate;
 mod calibrated;
 mod categories;
+#[cfg(test)]
+mod categories_tests;
 mod containment;
 #[cfg(test)]
 mod core_tests;
 mod date;
+mod evidence;
 pub mod export;
 mod generic;
 mod language_spans;
@@ -122,6 +126,7 @@ mod quantities;
 mod regions;
 mod segmentation;
 mod sentiment;
+mod sparse;
 mod syntax;
 mod temporal;
 mod times;

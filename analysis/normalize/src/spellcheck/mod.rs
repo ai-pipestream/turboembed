@@ -21,6 +21,8 @@
 mod casing;
 mod compound;
 mod config;
+mod confusables;
+mod context;
 mod correct;
 mod deletes;
 mod dictionary;
@@ -31,9 +33,15 @@ mod model;
 mod suggestion;
 mod symspell;
 mod table;
+mod trellis;
 
 pub use compound::{Compound, CompoundPart};
 pub use config::{ConfigError, DERIVE_CORPUS_WORD_COUNT, MAX_COUNT, SymSpellConfig, SymSpellConfigBuilder};
+pub use confusables::ConfusableSet;
+pub use context::{
+    ContextSpellAnnotator, ContextSpellCorrector, DEFAULT_CONTEXT_MIN_TOKEN_LENGTH, DEFAULT_EDIT_WEIGHT,
+    DEFAULT_MAX_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES,
+};
 pub use correct::{DEFAULT_MIN_TOKEN_LENGTH, SpellCorrect, SpellCorrectMode};
 pub use dictionary::{FrequencyDictionary, MalformedLine, MalformedReason};
 pub use distance::{DamerauOsa, EditDistance, Levenshtein, Metric};
