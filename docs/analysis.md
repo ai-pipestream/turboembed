@@ -735,6 +735,7 @@ fields mean bumps its `SCHEMA`.
 | `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
 | `IndexedTerms` (`Terms` alias) | `turbo:indexed-terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
+| `WeightedTerms<L>` | `turbo:weighted-terms<L>` | `L` | `turbo-chunker` |
 | `ContentHashes<L>` | `turbo:content-hashes<L>` | `L` | `turbo-chunker` |
 | `Mentions` | `opennlp:mentions` | text (indexes `Sentences`, `Tokens`, `Entities` when lifted from entities) | `turbo-coref` |
 | `Speakers` | `opennlp:speakers` | text | `turbo-coref` |
@@ -1949,6 +1950,32 @@ units can differ slightly. Query terms are matched byte for byte and
 must be normalized as the document's terms were; a term given twice
 counts twice. `Query::rank` lists the units holding a query term, best
 first, equal scores in unit order.
+
+`CollectionStatisticsBuilder` gathers a corpus's statistics over the
+`TermStats` of many documents (each unit with terms one unit of N, its
+length added to the total, each term's df added) and merges builders
+made apart, one per shard or thread; `build` gives `CollectionStatistics`,
+terms in byte order, the same whatever order documents were added or
+merged in. It is a `Collection`, has each term's `idf`, and has a binary
+form (`to_bytes`, `from_bytes`: a magic and version, the counts, then
+each term with its df) whose reader refuses truncation, trailing bytes,
+counts past the payload, terms empty or out of byte order, and a df of
+zero or past N.
+
+`Bm25PostingIndexBuilder` adds the units of many documents as rows,
+numbered in the order added, and `build` gives a `Bm25PostingIndex`: each
+term's rows with its count, in row order, and the rows' own statistics.
+`top_k` (with those statistics) and `top_k_with` (with a larger corpus's)
+walk the query's lists a row at a time with MaxScore pruning: once k rows
+are held, terms whose bounds (idf times the weight of the term's largest
+count in its shortest row), added up from the weakest, cannot beat the
+k-th score stop bringing in rows. Each row returned is scored term by
+term in query order, as `Query::score` scores it, so the scores are the
+full scan's to the bit and equal scores go to the earlier row; the tests
+compare both over four `k1`/`b` settings, and
+`analysis/chunker/examples/bm25_posting_bench.rs` times them.
+`WeightedTerms<L>` holds, for each entry of a `TermStats<L>`, the weight
+it adds to a query holding its term once.
 
 The layers live in `turbo-chunker` beside the code that makes them while
 only it reads them; they move to a schema crate of their own once
