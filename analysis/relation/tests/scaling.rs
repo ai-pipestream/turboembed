@@ -119,10 +119,13 @@ fn sentences(n: u32) -> Input {
 
 #[test]
 fn pairs_and_heads_grow_linearly_with_the_document() {
-    let (small, large) = (sentences(2_000), sentences(8_000));
+    // Sized so the small run lasts tens of milliseconds even in a
+    // release build; at millisecond scale a loaded machine can
+    // preempt only the large run and fake a quadratic ratio.
+    let (small, large) = (sentences(16_000), sentences(64_000));
     let (_, _, small_time) = run(&small, "<nsubj >obj");
     let (relations, _, large_time) = run(&large, "<nsubj >obj");
-    assert_eq!(relations.subject.len(), 8_000);
+    assert_eq!(relations.subject.len(), 64_000);
     assert!(relations.subject.iter().zip(&relations.object).all(|(s, o)| s.get() % 2 == 0 && o.get() == s.get() + 1));
     assert_linear(small_time, large_time);
 }
