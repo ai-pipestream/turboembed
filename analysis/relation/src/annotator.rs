@@ -19,6 +19,8 @@
 //! included) to [`Relations`] and the same triples, each once at
 //! its best confidence, to `Edges<Entities, Entities>`.
 
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -230,14 +232,23 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
         let relations = Relations { spans, subject, object, kind, kinds: Arc::clone(&self.kinds), score };
         relations.check().map_err(fail)?;
         // The edge layer holds each (subject, object, type) once,
-        // at the best confidence any mention of it carries.
+        // at the best confidence any mention of it carries, in
+        // first-mention order. The index keeps this linear in the
+        // mention count.
         let mut edges: Vec<Edge<Entities, Entities>> = Vec::new();
+        let mut index = HashMap::new();
         for (i, _) in relations.spans.iter() {
             let (s, o, _, sc) = relations.mention(i);
             let edge = Edge::new(s, o, relations.kind[i.get()], sc);
-            match edges.iter_mut().find(|e| (e.from, e.to, e.kind) == (edge.from, edge.to, edge.kind)) {
-                Some(e) => e.score = e.score.max(edge.score),
-                None => edges.push(edge),
+            match index.entry((edge.from, edge.to, edge.kind)) {
+                Entry::Occupied(at) => {
+                    let e: &mut Edge<Entities, Entities> = &mut edges[*at.get()];
+                    e.score = e.score.max(edge.score);
+                }
+                Entry::Vacant(at) => {
+                    at.insert(edges.len());
+                    edges.push(edge);
+                }
             }
         }
         Ok((relations, Edges::new(Arc::clone(&self.kinds), edges)))
