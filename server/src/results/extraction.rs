@@ -11,15 +11,20 @@ use super::{MAX_ANSWERS, Wire, mismatched, model_from_proto, model_to_proto, ove
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result::ExtractionResult;
 
-/// The extraction answers unbundled from the layer: one span per answer
-/// in rank order, its score and normalized probability, the abstention
-/// score and its probability, and the model's identity.
+/// The extraction answers unbundled from the layer: one bounding span
+/// per answer in rank order, the fragments of answers made of separated
+/// pieces (empty when every answer is one continuous piece), scores,
+/// probabilities, the abstention mass, and the model's identity.
 #[derive(Debug)]
 pub struct Extraction {
     pub model: ModelRef,
     /// The text view the spans are offsets into; 0 is the source text.
     pub view: u16,
     pub spans: Vec<Span>,
+    /// The fragments of discontinuous answers, flat in answer order.
+    pub fragments: Vec<Span>,
+    /// One past the last fragment of each answer; empty with fragments.
+    pub frag_at: Vec<u32>,
     pub scores: Vec<f64>,
     pub probabilities: Vec<f64>,
     pub null_score: f64,
@@ -29,10 +34,18 @@ pub struct Extraction {
 impl Extraction {
     /// The answers layer the extraction came from.
     pub fn new(a: &Answers, model: ModelRef) -> Extraction {
+        let (fragments, frag_at) = match a.spans.fragment_columns() {
+            Some((start, end, at)) => {
+                (start.iter().zip(end).map(|(&s, &e)| Span { start: s, end: e }).collect(), at.to_vec())
+            }
+            None => (Vec::new(), Vec::new()),
+        };
         Extraction {
             model,
             view: a.spans.view().0,
             spans: (0..a.len()).map(|i| a.spans.get(turbo_analysis::Ix::new(i as u32))).collect(),
+            fragments,
+            frag_at,
             scores: a.scores.clone(),
             probabilities: a.probabilities.clone(),
             null_score: a.null_score,
@@ -40,15 +53,93 @@ impl Extraction {
         }
     }
 
+    /// The layout checks that keep the rebuild below from slicing or
+    /// pushing out of range, naming the column at fault.
+    fn layout(&self) -> Result<(), Failure> {
+        let n = self.spans.len();
+        if self.scores.len() != n || self.probabilities.len() != n {
+            return Err(mismatched("score", self.scores.len(), n));
+        }
+        for (i, &s) in self.spans.iter().enumerate() {
+            if s.start >= s.end {
+                return Err(Failure::new(
+                    TURBO_E_INVALID_ARGUMENT,
+                    0,
+                    format!("answer {i} ends at or before it starts"),
+                ));
+            }
+        }
+        let frags = self.fragments.len();
+        if self.frag_at.is_empty() && frags == 0 {
+            return Ok(());
+        }
+        // Fragment columns present: one per answer, laid over the
+        // fragment column, each answer holding at least one fragment.
+        if self.frag_at.len() != n {
+            return Err(mismatched("frag_at", self.frag_at.len(), n));
+        }
+        if !self.frag_at.windows(2).all(|w| w[0] <= w[1]) || self.frag_at.last().is_some_and(|&e| e as usize != frags) {
+            return Err(Failure::new(
+                TURBO_E_INVALID_ARGUMENT,
+                0,
+                "frag_at: fragment ends in answer order, the last past the last fragment",
+            ));
+        }
+        let mut k = 0;
+        for (a, &span) in self.spans.iter().enumerate() {
+            let lo = k;
+            let hi = self.frag_at[a] as usize;
+            if hi <= lo {
+                return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("answer {a} has no fragments")));
+            }
+            let frags = &self.fragments[lo..hi];
+            let multi = frags.len() > 1;
+            for w in frags.windows(2) {
+                if w[0].end >= w[1].start {
+                    return Err(Failure::new(
+                        TURBO_E_INVALID_ARGUMENT,
+                        0,
+                        format!("answer {a}: fragments separated in text order"),
+                    ));
+                }
+            }
+            for f in frags {
+                if f.start > f.end || (multi && f.start == f.end) {
+                    return Err(Failure::new(
+                        TURBO_E_INVALID_ARGUMENT,
+                        0,
+                        format!("answer {a}: a fragment that ends at or before it starts"),
+                    ));
+                }
+            }
+            let (first, last) = (frags[0], frags[frags.len() - 1]);
+            if span.start != first.start || span.end != last.end {
+                return Err(Failure::new(
+                    TURBO_E_INVALID_ARGUMENT,
+                    0,
+                    format!("answer {a}: the envelope does not match its fragments"),
+                ));
+            }
+            k = hi;
+        }
+        Ok(())
+    }
+
     /// The layer this extraction's columns make, checked the way
     /// `Answers` checks itself.
     pub fn answers(&self) -> Result<Answers, Failure> {
+        self.layout()?;
         let mut spans = turbo_analysis::Spans::new(ViewId(self.view));
-        for &s in &self.spans {
-            if s.start >= s.end {
-                return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "an answer that ends at or before it starts"));
+        if self.frag_at.is_empty() {
+            for &s in &self.spans {
+                spans.push(s);
             }
-            spans.push(s);
+        } else {
+            let mut k = 0;
+            for &hi in &self.frag_at {
+                spans.push_fragments(&self.fragments[k..hi as usize]);
+                k = hi as usize;
+            }
         }
         let out = Answers {
             spans,
@@ -75,6 +166,9 @@ impl Wire for Extraction {
             probability: self.probabilities.clone(),
             null_score: self.null_score,
             null_probability: self.null_probability,
+            frag_start: self.fragments.iter().map(|s| s.start).collect(),
+            frag_end: self.fragments.iter().map(|s| s.end).collect(),
+            frag_at: self.frag_at.clone(),
         }
     }
 
@@ -84,6 +178,9 @@ impl Wire for Extraction {
         }
         if msg.span_start.len() != msg.span_end.len() {
             return Err(mismatched("span_start", msg.span_start.len(), msg.span_end.len()));
+        }
+        if msg.frag_start.len() != msg.frag_end.len() {
+            return Err(mismatched("frag_start", msg.frag_start.len(), msg.frag_end.len()));
         }
         if msg.view > u16::MAX as u32 {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("view {} is outside 0 to 65535", msg.view)));
@@ -96,6 +193,8 @@ impl Wire for Extraction {
             }),
             view: msg.view as u16,
             spans: msg.span_start.iter().zip(&msg.span_end).map(|(&s, &e)| Span { start: s, end: e }).collect(),
+            fragments: msg.frag_start.iter().zip(&msg.frag_end).map(|(&s, &e)| Span { start: s, end: e }).collect(),
+            frag_at: msg.frag_at.clone(),
             scores: msg.score.clone(),
             probabilities: msg.probability.clone(),
             null_score: msg.null_score,
@@ -131,6 +230,17 @@ mod tests {
         out
     }
 
+    /// One answer in two separated pieces: [0, 2) and [8, 10), envelope
+    /// [0, 10). The gap is not answer text.
+    fn discontinuous() -> Answers {
+        let mut spans = turbo_analysis::Spans::new(ViewId::SOURCE);
+        spans.push_fragments(&[Span::new(0, 2), Span::new(8, 10)]);
+        let out =
+            Answers { spans, scores: vec![6.0], probabilities: vec![0.8], null_score: -1.0, null_probability: 0.2 };
+        out.check().unwrap();
+        out
+    }
+
     #[test]
     fn the_wire_round_trip_is_unchanged() {
         let a = sample();
@@ -142,11 +252,49 @@ mod tests {
         assert_eq!(back.scores, x.scores);
         assert_eq!(back.probabilities, x.probabilities);
         assert_eq!((back.null_score, back.null_probability), (-2.0, 0.2));
+        assert!(back.fragments.is_empty() && back.frag_at.is_empty());
         // The rebuilt layer holds what the original held.
         let ra = back.answers().unwrap();
         assert_eq!(ra.spans.columns(), a.spans.columns());
         assert_eq!((ra.scores, ra.probabilities), (a.scores.clone(), a.probabilities.clone()));
         assert_eq!(ra.null_probability, a.null_probability);
+    }
+
+    #[test]
+    fn discontinuous_answers_keep_their_fragments() {
+        let a = discontinuous();
+        assert!(a.spans.is_discontinuous(turbo_analysis::Ix::new(0)));
+        let x = Extraction::new(&a, model());
+        assert_eq!(x.spans, [Span::new(0, 10)]);
+        assert_eq!(x.fragments, [Span::new(0, 2), Span::new(8, 10)]);
+        assert_eq!(x.frag_at, [2]);
+        // Through the conversions, and back to the same layer.
+        let back = Extraction::from_msg(&x.to_msg()).unwrap();
+        assert_eq!(back.fragments, x.fragments);
+        assert_eq!(back.frag_at, x.frag_at);
+        let ra = back.answers().unwrap();
+        assert_eq!(ra.spans.fragment_columns(), a.spans.fragment_columns());
+        assert_eq!(
+            ra.spans.fragments(turbo_analysis::Ix::new(0)).collect::<Vec<_>>(),
+            [Span::new(0, 2), Span::new(8, 10)]
+        );
+        // A continuous answer beside a discontinuous one keeps one
+        // fragment entry each.
+        let mut spans = turbo_analysis::Spans::new(ViewId::SOURCE);
+        spans.push(Span::new(0, 4));
+        spans.push_fragments(&[Span::new(10, 12), Span::new(18, 20)]);
+        let mixed = Answers {
+            spans,
+            scores: vec![5.0, 4.0],
+            probabilities: vec![0.6, 0.3],
+            null_score: -1.0,
+            null_probability: 0.1,
+        };
+        mixed.check().unwrap();
+        let back = Extraction::from_msg(&Extraction::new(&mixed, model()).to_msg()).unwrap();
+        assert_eq!(back.fragments, [Span::new(0, 4), Span::new(10, 12), Span::new(18, 20)]);
+        assert_eq!(back.frag_at, [1, 3]);
+        back.answers().unwrap();
     }
 
     #[test]
@@ -159,7 +307,7 @@ mod tests {
             null_probability: 1.0,
         };
         let back = Extraction::from_msg(&Extraction::new(&a, model()).to_msg()).unwrap();
-        assert!(back.spans.is_empty() && back.null_probability == 1.0);
+        assert!(back.spans.is_empty() && back.fragments.is_empty() && back.null_probability == 1.0);
         back.answers().unwrap();
     }
 
@@ -195,6 +343,19 @@ mod tests {
             m.view = 70000;
         });
         assert!(e.message.contains("view"), "{e:?}");
+        // Fragment corruptions refuse by name.
+        let mut msg = Extraction::new(&discontinuous(), model()).to_msg();
+        msg.frag_at[0] = 3;
+        let e = Extraction::from_msg(&msg).unwrap_err();
+        assert!(e.message.contains("frag_at"), "{e:?}");
+        let mut msg = Extraction::new(&discontinuous(), model()).to_msg();
+        msg.frag_end[0] = 0;
+        let e = Extraction::from_msg(&msg).unwrap_err();
+        assert!(e.message.contains("fragment"), "{e:?}");
+        let mut msg = Extraction::new(&discontinuous(), model()).to_msg();
+        msg.span_end[0] = 4;
+        let e = Extraction::from_msg(&msg).unwrap_err();
+        assert!(e.message.contains("envelope"), "{e:?}");
         let e = Extraction::from_msg(&ExtractionResult::default()).unwrap_err();
         assert!(e.message.contains("extraction answers"), "{e:?}");
     }

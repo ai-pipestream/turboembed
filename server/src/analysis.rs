@@ -55,14 +55,20 @@ impl AnalysisService for Analysis {
         let req = req.into_inner();
         let (name, config) = load_config(&req).map_err(plain)?;
         self.state.add(name.clone(), config).map_err(plain)?;
-        // A failed load leaves nothing served, as a startup refusal does.
-        // load() loads every not-yet-loaded model, this one included.
+        // Only this registration loads, so one LoadBundle's failure
+        // cannot fail another's; a failed load leaves nothing served,
+        // as a startup refusal does.
         let state = self.state.clone();
-        let loaded = tokio::task::spawn_blocking(move || state.load()).await;
+        let loading = name.clone();
+        let loaded = tokio::task::spawn_blocking(move || state.load_one(&loading)).await;
         let loaded =
             loaded.map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the load's task failed: {e}"))))?;
         if let Err(e) = loaded {
-            let _ = self.state.remove(&name);
+            // Roll back only this registration, and only if it never
+            // loaded: a concurrent unload may have taken the name first.
+            if let Ok((_, None)) = self.state.peek(&name) {
+                let _ = self.state.remove(&name);
+            }
             return Err(Status::internal(e));
         }
         let (_, l) = self.state.ready(&name, "").map_err(plain)?;

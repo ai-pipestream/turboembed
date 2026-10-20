@@ -157,78 +157,100 @@ impl State {
         Ok(())
     }
 
+    /// The served model by name, as a snapshot.
+    pub(crate) fn served(&self, name: &str) -> api::Result<Arc<Served>> {
+        self.listing().into_iter().find(|m| m.name == name).ok_or_else(|| not_found(name))
+    }
+
     /// Loads every model in order, stopping at the first failure with the
     /// call, its status, the field it names and the library's message.
-    /// One load at a time, so concurrent LoadBundle calls cannot load one
-    /// new model twice.
+    /// One load at a time, so concurrent loads cannot load one new model
+    /// twice.
     pub(crate) fn load(&self) -> std::result::Result<(), String> {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         for m in self.listing() {
-            if m.loaded.get().is_some() {
-                continue;
+            if m.loaded.get().is_none() {
+                self.load_model(&m)?;
             }
-            let fail = |call: &str, fields: &[&str]| {
-                let (name, call) = (m.name.clone(), call.to_string());
-                let fields: Vec<String> = fields.iter().map(|s| s.to_string()).collect();
-                move |f: Failure| {
-                    let fields: Vec<&str> = fields.iter().map(String::as_str).collect();
-                    format!("model {name}: {call}: {}", describe(&f, &fields))
-                }
-            };
-            let rt = match self.runtime.get() {
-                Some(rt) => rt,
-                None => {
-                    let rt = Runtime::create().map_err(fail("turbo_runtime_create", &[]))?;
-                    self.runtime.get_or_init(|| rt)
-                }
-            };
-            let c = &m.config;
-            let device = match c.device {
-                crate::config::Device::Index(i) => i,
-                crate::config::Device::Select => {
-                    rt.select(TURBO_TASK_EMBED).map_err(fail("turbo_runtime_select", &[]))?
-                }
-            };
-            let ctx = {
-                let mut contexts = self.contexts.lock().unwrap_or_else(|e| e.into_inner());
-                if !contexts.iter().any(|(d, _)| *d == device) {
-                    let ctx = rt.context(device).map_err(fail("turbo_context_create", &[]))?;
-                    contexts.push((device, Arc::new(ctx)));
-                }
-                contexts.iter().find(|(d, _)| *d == device).unwrap().1.clone()
-            };
-            let model = ctx.load(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
-            let info = model.info().map_err(fail("turbo_model_get_info", &[]))?;
-            let desc = turbo_session_desc {
-                struct_size: size_of::<turbo_session_desc>() as u32,
-                max_batch: c.max_batch,
-                max_seq: c.max_seq,
-                precision: c.precision,
-                tuning: 0,
-                tuning_budget_ms: 0,
-                cpu_threads: 0,
-                max_ranges: 0,
-            };
-            let mut slots = Vec::new();
-            for _ in 0..c.sessions {
-                let session = model.session(&desc).map_err(fail("turbo_session_create", &SESSION_DESC))?;
-                let si = session.info().map_err(fail("turbo_session_get_info", &[]))?;
-                let alloc = || {
-                    let b = ctx
-                        .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
-                        .map_err(fail("turbo_buffer_alloc", &[]))?;
-                    let p = b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?;
-                    Ok::<_, String>((b, p))
-                };
-                let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
-                slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
-            }
-            let idle = Mutex::new((0..slots.len()).rev().collect());
-            let loaded = Loaded { slots, model, device, revision: api::field(&info.revision), idle };
-            // load() holds the loading mutex: no other load can have set
-            // this entry's load.
-            let _ = m.loaded.set(Arc::new(loaded));
         }
+        Ok(())
+    }
+
+    /// Loads one named model; an already loaded model is a no-op. Every
+    /// other pending registration is untouched, so one LoadBundle's
+    /// failure cannot fail or roll back another's.
+    pub(crate) fn load_one(&self, name: &str) -> std::result::Result<(), String> {
+        let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
+        let m = self.served(name).map_err(|f| describe(&f, &[]))?;
+        if m.loaded.get().is_none() {
+            self.load_model(&m)?;
+        }
+        Ok(())
+    }
+
+    /// One model's load: its context, model, sessions and pinned buffers,
+    /// published on its entry. The loading mutex is held by the caller, so
+    /// this entry cannot load twice.
+    fn load_model(&self, m: &Arc<Served>) -> std::result::Result<(), String> {
+        let fail = |call: &str, fields: &[&str]| {
+            let (name, call) = (m.name.clone(), call.to_string());
+            let fields: Vec<String> = fields.iter().map(|s| s.to_string()).collect();
+            move |f: Failure| {
+                let fields: Vec<&str> = fields.iter().map(String::as_str).collect();
+                format!("model {name}: {call}: {}", describe(&f, &fields))
+            }
+        };
+        let rt = match self.runtime.get() {
+            Some(rt) => rt,
+            None => {
+                let rt = Runtime::create().map_err(fail("turbo_runtime_create", &[]))?;
+                self.runtime.get_or_init(|| rt)
+            }
+        };
+        let c = &m.config;
+        let device = match c.device {
+            crate::config::Device::Index(i) => i,
+            crate::config::Device::Select => rt.select(TURBO_TASK_EMBED).map_err(fail("turbo_runtime_select", &[]))?,
+        };
+        let ctx = {
+            let mut contexts = self.contexts.lock().unwrap_or_else(|e| e.into_inner());
+            if !contexts.iter().any(|(d, _)| *d == device) {
+                let ctx = rt.context(device).map_err(fail("turbo_context_create", &[]))?;
+                contexts.push((device, Arc::new(ctx)));
+            }
+            contexts.iter().find(|(d, _)| *d == device).unwrap().1.clone()
+        };
+        let model = ctx.load(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
+        let info = model.info().map_err(fail("turbo_model_get_info", &[]))?;
+        let desc = turbo_session_desc {
+            struct_size: size_of::<turbo_session_desc>() as u32,
+            max_batch: c.max_batch,
+            max_seq: c.max_seq,
+            precision: c.precision,
+            tuning: 0,
+            tuning_budget_ms: 0,
+            cpu_threads: 0,
+            max_ranges: 0,
+        };
+        let mut slots = Vec::new();
+        for _ in 0..c.sessions {
+            let session = model.session(&desc).map_err(fail("turbo_session_create", &SESSION_DESC))?;
+            let si = session.info().map_err(fail("turbo_session_get_info", &[]))?;
+            let alloc = || {
+                let b = ctx
+                    .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
+                    .map_err(fail("turbo_buffer_alloc", &[]))?;
+                let p = b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?;
+                Ok::<_, String>((b, p))
+            };
+            let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
+            slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
+        }
+        let idle = Mutex::new((0..slots.len()).rev().collect());
+        let loaded = Loaded { slots, model, device, revision: api::field(&info.revision), idle };
+        // The caller holds the loading mutex: no other load can have set
+        // this entry's load.
+        let _ = m.loaded.set(Arc::new(loaded));
         Ok(())
     }
 }

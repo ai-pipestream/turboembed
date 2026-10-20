@@ -212,6 +212,10 @@ message TokenVectorsResult
   // zeros.
   repeated uint32 empty = 4;
 
+  // The text view the windows are offsets into; 0 is the source text.
+  // Offsets of another view read against the wrong text without it.
+  uint32 view = 7;
+
   // The encoder windows, in text order, non-overlapping and
   // continuous: token i's vector is taken from the window holding its
   // piece.
@@ -229,6 +233,12 @@ message RerankScoresResult
 
   // The layer the items index, its full name (turbo:chunks, say).
   string source = 2;
+
+  // The source layer instance the items index: a Key's instance name,
+  // empty for the default instance. Two instances of one layer (a gold
+  // shortlist beside a predicted one) index different items under one
+  // type, so the name rides with the layer name.
+  string source_instance = 5;
 
   // The source layer's items, a vocabulary index per entry, in
   // relevance order, each once.
@@ -251,7 +261,8 @@ message ExtractionResult
   uint32 view = 2;
 
   // One answer per entry, in rank order, as byte offsets [start, end)
-  // into the view.
+  // into the view: the bounding envelope of a discontinuous answer
+  // (first fragment's start to last fragment's end).
   repeated uint32 span_start = 3;
   repeated uint32 span_end = 4;
 
@@ -263,4 +274,14 @@ message ExtractionResult
   // null_probability sum to 1.
   double null_score = 7;
   double null_probability = 8;
+
+  // The fragments of answers made of separated pieces, flat by column
+  // in answer order: answer a's fragments are
+  // frag_at[a - 1]..frag_at[a] (0..frag_at[0] for the first). Empty
+  // when every answer is one continuous piece; the envelope columns
+  // then say it all. Without these, the gap inside a discontinuous
+  // answer would decode as answer text.
+  repeated uint32 frag_start = 9;
+  repeated uint32 frag_end = 10;
+  repeated uint32 frag_at = 11;
 }

@@ -72,27 +72,36 @@ impl Wire for SparseTerms<View> {
             }
             spans
         };
-        // The occurrence columns are all empty, or occ_at holds one end
-        // per entry and the starts match the ends.
+        // The occurrence columns are all empty; or occ_at holds one end
+        // per entry and the starts match the ends, the last end one past
+        // the last occurrence; or the zero-occurrence form, one offset
+        // per entry, all 0.
         if msg.occ_start.len() != msg.occ_end.len() {
             return Err(mismatched("occ_start", msg.occ_start.len(), msg.occ_end.len()));
         }
         let (occ, occ_at) = if msg.occ_start.is_empty() {
-            if !msg.occ_at.is_empty() {
-                return Err(mismatched("occ_at", msg.occ_at.len(), 0));
+            if msg.occ_at.is_empty() {
+                (Vec::new(), Vec::new())
+            } else {
+                if msg.occ_at.len() != n || msg.occ_at.iter().any(|&e| e != 0) {
+                    return Err(Failure::new(
+                        TURBO_E_INVALID_ARGUMENT,
+                        0,
+                        "occ_at: zero-occurrence offsets are 0, one per entry",
+                    ));
+                }
+                (Vec::new(), msg.occ_at.clone())
             }
-            (Vec::new(), Vec::new())
         } else {
             if msg.occ_at.len() != n {
                 return Err(mismatched("occ_at", msg.occ_at.len(), n));
             }
-            if !msg.occ_at.windows(2).all(|w| w[0] <= w[1])
-                || msg.occ_at.last().is_some_and(|&e| e as usize > msg.occ_start.len())
+            if !msg.occ_at.windows(2).all(|w| w[0] <= w[1]) || msg.occ_at.last() != Some(&(msg.occ_start.len() as u32))
             {
                 return Err(Failure::new(
                     TURBO_E_INVALID_ARGUMENT,
                     0,
-                    "occ_at: occurrence ends in entry order, the last past the last occurrence",
+                    "occ_at: occurrence ends in entry order, the last one past the last occurrence",
                 ));
             }
             let occ: Vec<Span> =
@@ -268,6 +277,56 @@ mod tests {
         // A wire message built from nothing at all.
         let e = refuse(SparseTerms::from_msg(&SparseTermsResult::default()));
         assert!(e.message.contains("row"), "{e:?}");
+    }
+
+    #[test]
+    fn occurrence_columns_cannot_drop_occurrences() {
+        // The last offset must be one past the last occurrence: with it
+        // short, the second occurrence would silently disappear.
+        let msg = SparseTermsResult {
+            model: Some(model_to_proto(&model())),
+            row: vec![0, 1],
+            term: vec![1],
+            weight: vec![1.0],
+            has_span: vec![true],
+            span_start: vec![0],
+            span_end: vec![100],
+            occ_start: vec![0, 99],
+            occ_end: vec![1, 100],
+            occ_at: vec![1],
+        };
+        let e = refuse(SparseTerms::from_msg(&msg));
+        assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT);
+        assert!(e.message.contains("occ_at"), "{e:?}");
+        // And exactly at the count it is accepted.
+        let msg = SparseTermsResult { occ_at: vec![2], ..msg };
+        let back = SparseTerms::from_msg(&msg).unwrap();
+        assert_eq!(back.occ, vec![Span::new(0, 1), Span::new(99, 100)]);
+    }
+
+    #[test]
+    fn the_zero_occurrence_form_round_trips() {
+        // One expanded term recording no occurrences carries occ_at
+        // [0], one offset per entry, all zero. The layer's own form.
+        let mut t = SparseTerms::new(model());
+        t.push(5, 1.5, None);
+        t.push_occurrences(&[]);
+        t.unit();
+        t.check().unwrap();
+        assert!(t.has_occurrences());
+        let msg = t.to_msg();
+        assert!(msg.occ_start.is_empty() && msg.occ_end.is_empty());
+        assert_eq!(msg.occ_at, [0]);
+        let back = SparseTerms::from_msg(&msg).unwrap();
+        assert!(back.has_occurrences());
+        assert_eq!(back.occ_at, [0]);
+        assert!(back.occurrences(0).is_empty());
+        assert_eq!(back.check(), Ok(()));
+        // Not all zero, or not one per entry, refuses by name.
+        let e = refused(|m| {
+            m.occ_at[0] = 9;
+        });
+        assert!(e.message.contains("occ_at"), "{e:?}");
     }
 
     #[test]

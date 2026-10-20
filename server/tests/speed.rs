@@ -41,29 +41,35 @@ fn alternating(
     }
     let (mut tn, mut tb) = (Duration::ZERO, Duration::ZERO);
     for r in 0..ROUNDS {
-        let ((en, dn), (eb, db)) = if r % 2 == 0 {
-            (time(&new_enc, &new_dec, &new_buf), time(&base_enc, &base_dec, &base_buf))
+        // The side running first alternates; the accumulators key on the
+        // implementation, never on the order of the tuple.
+        let (t_new, t_base) = if r % 2 == 0 {
+            let a = time(&new_enc, &new_dec, &new_buf);
+            let b = time(&base_enc, &base_dec, &base_buf);
+            (a, b)
         } else {
-            (time(&base_enc, &base_dec, &base_buf), time(&new_enc, &new_dec, &new_buf))
+            let b = time(&base_enc, &base_dec, &base_buf);
+            let a = time(&new_enc, &new_dec, &new_buf);
+            (a, b)
         };
-        tn += en + dn;
-        tb += eb + db;
+        tn += t_new;
+        tb += t_base;
     }
     let per = |bytes: usize, t: Duration| (ROUNDS * bytes) as f64 / t.as_secs_f64();
     println!("{new_name}: {} encoded bytes; {base_name}: {} encoded bytes", new_buf.len(), base_buf.len());
     (per(new_buf.len(), tn), per(base_buf.len(), tb))
 }
 
-/// One encode and one decode, timed apart. The encode is checked against
-/// the fixed buffer before the stop, the decode never allocates for it.
-fn time(enc: &impl Fn() -> Vec<u8>, dec: &impl Fn(&[u8]), buf: &[u8]) -> (Duration, Duration) {
+/// One encode and one decode, timed together: what a serving pass costs.
+/// The encode is checked against the fixed buffer before its stop.
+fn time(enc: &impl Fn() -> Vec<u8>, dec: &impl Fn(&[u8]), buf: &[u8]) -> Duration {
     let t = Instant::now();
     let b = enc();
     let e = t.elapsed();
     assert_eq!(b, buf, "the encoding is stable");
     let t = Instant::now();
     dec(buf);
-    (e, t.elapsed())
+    e + t.elapsed()
 }
 
 fn gb(bytes_per_s: f64) -> f64 {
@@ -140,6 +146,7 @@ fn result_kinds_encode_and_decode_as_fast_per_byte_as_vector_and_span_messages()
         dim,
         data: data.clone().into(),
         empty: vec![3, 77],
+        view: 0,
         window_start: (0..windows).map(|i| i * 16 * dim).collect(),
         window_end: (0..windows).map(|i| i * 16 * dim + 16 * dim).collect(),
     };
@@ -162,6 +169,7 @@ fn result_kinds_encode_and_decode_as_fast_per_byte_as_vector_and_span_messages()
     let rerank = RerankScoresResult {
         model: Some(model()),
         source: "turbo:chunks".into(),
+        source_instance: "candidates".into(),
         item: (0..items as u32).rev().collect(),
         score: (0..items).map(|i| items as f32 - i as f32).collect(),
     };
@@ -190,6 +198,7 @@ fn result_kinds_encode_and_decode_as_fast_per_byte_as_vector_and_span_messages()
         probability: vec![1.0 / answers as f64; answers],
         null_score: -1.0,
         null_probability: 0.0,
+        ..Default::default()
     };
     let (ev, edec) = span_msg(extraction.encoded_len() / 6);
     let (en, be) = alternating(

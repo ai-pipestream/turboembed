@@ -37,15 +37,19 @@ rpcs from the same messages.
   layers (issue #709): one contextual vector per model token
   (little-endian f32, row-major, the way `raw_output_contents` carries
   vectors), the zero rows a producer could make no vector for, and the
-  encoder windows in text order, non-overlapping, that tie each row to
-  its source span.
+  encoder windows on their text view, in text order, non-overlapping,
+  that tie each row to its source span.
 - `RerankScoresResult`: the `Reranked` layer (issue #707): the source
   layer's items in relevance order, one finite descending score per item,
-  and the scoring model's identity, not a bare float.
+  the source key's instance name (two instances of one layer index
+  different items under one type), and the scoring model's identity, not
+  a bare float.
 - `ExtractionResult`: the `Answers` layer of extractive QA (issue #745):
   ranked answer spans over a text view with scores, normalized
   probabilities, and the abstention score and its probability; an empty
-  result is a calibrated abstention. The schema-driven structured
+  result is a calibrated abstention. Answers made of separated pieces
+  carry their fragments beside the bounding envelope, so the gap inside
+  a discontinuous answer never decodes as answer text. The schema-driven structured
   records of issue #715 have no merged layer yet; when one lands, its
   results join this message or grow one beside it.
 

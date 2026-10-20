@@ -11,7 +11,8 @@ use crate::proto::result::TokenVectorsResult;
 
 /// The token-vector result unbundled from its two layers: the vectors and
 /// the encoder windows beside them. `Vectors<Subwords>` is the layer;
-/// `windows` is what `TokenVectorWindows` carries.
+/// `windows` is what `TokenVectorWindows` carries, whose text view the
+/// offsets are in.
 #[derive(Debug)]
 pub struct TokenVectors {
     pub model: ModelRef,
@@ -20,6 +21,8 @@ pub struct TokenVectors {
     pub data: Vec<f32>,
     /// The rows with no vector, ascending; their rows are zeros.
     pub empty: Vec<u32>,
+    /// The text view the windows are offsets into; 0 is the source text.
+    pub view: u16,
     /// The encoder windows, in text order, non-overlapping.
     pub windows: Vec<Span>,
 }
@@ -32,6 +35,7 @@ impl TokenVectors {
             dim: v.dim,
             data: v.data.clone(),
             empty: v.empty.iter().map(|i| i.get() as u32).collect(),
+            view: windows.spans.view().0,
             windows: (0..windows.spans.len()).map(|i| windows.spans.get(turbo_analysis::Ix::new(i as u32))).collect(),
         }
     }
@@ -50,12 +54,13 @@ impl TokenVectors {
 
     /// The windows layer this result's windows make, checked the way
     /// `TokenVectorWindows` checks itself: at least one window when rows
-    /// carry vectors, ordered, non-overlapping, each non-empty.
+    /// carry vectors, ordered, non-overlapping, each non-empty, on this
+    /// result's view.
     pub fn windows_layer(&self, rows: usize) -> Result<TokenVectorWindows, Failure> {
         if rows > 0 && self.windows.is_empty() {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "at least one encoder window for the rows"));
         }
-        let mut spans = turbo_analysis::Spans::new(ViewId::SOURCE);
+        let mut spans = turbo_analysis::Spans::new(ViewId(self.view));
         for &w in &self.windows {
             if w.start >= w.end {
                 return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "a window that ends at or before it starts"));
@@ -82,6 +87,7 @@ impl Wire for TokenVectors {
             dim: self.dim,
             data: data.into(),
             empty: self.empty.clone(),
+            view: self.view as u32,
             window_start: self.windows.iter().map(|s| s.start).collect(),
             window_end: self.windows.iter().map(|s| s.end).collect(),
         }
@@ -93,6 +99,9 @@ impl Wire for TokenVectors {
         }
         if msg.dim == 0 {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "dim: over 0"));
+        }
+        if msg.view > u16::MAX as u32 {
+            return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("view {} is outside 0 to 65535", msg.view)));
         }
         if !msg.data.len().is_multiple_of(4) {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "data: whole little-endian f32 values"));
@@ -121,6 +130,7 @@ impl Wire for TokenVectors {
             dim: msg.dim,
             data,
             empty: msg.empty.clone(),
+            view: msg.view as u16,
             windows: msg.window_start.iter().zip(&msg.window_end).map(|(&s, &e)| Span { start: s, end: e }).collect(),
         };
         let rows = out.data.len() / out.dim as usize;
@@ -150,6 +160,20 @@ mod tests {
         let w = TokenVectorWindows { spans };
         w.check().unwrap();
         (v, w)
+    }
+
+    #[test]
+    fn the_view_identity_crosses_so_offsets_keep_their_text() {
+        let (v, w) = sample();
+        let t = TokenVectors { view: 7, ..TokenVectors::new(&v, &w) };
+        let back = TokenVectors::from_msg(&t.to_msg()).unwrap();
+        assert_eq!(back.view, 7);
+        let layer = back.windows_layer(back.data.len() / 3).unwrap();
+        assert_eq!(layer.spans.view(), ViewId(7));
+        assert_eq!(layer.spans.columns(), w.spans.columns());
+        // Offsets against another view are a different text: the field is
+        // what keeps them honest.
+        assert_ne!(ViewId(7), ViewId::SOURCE);
     }
 
     #[test]
@@ -213,7 +237,13 @@ mod tests {
         assert!(e.message.contains("zeros"), "{e:?}");
         let e = refused(|m| m.empty = vec![1, 1]);
         assert!(e.message.contains("order"), "{e:?}");
-        let e = refused(|m| m.window_start = vec![10, 0]);
+        let e = refused(|m| {
+            m.view = 70000;
+        });
+        assert!(e.message.contains("view"), "{e:?}");
+        let e = refused(|m| {
+            m.window_start = vec![10, 0];
+        });
         assert!(e.message.contains("ends at or before"), "{e:?}");
         let e = refused(|m| m.window_start = vec![0, 5]);
         assert!(e.message.contains("windows"), "{e:?}");

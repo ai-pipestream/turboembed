@@ -12,13 +12,17 @@ use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result::RerankScoresResult;
 
 /// The reranked shortlist unbundled from its layer: the source layer's
-/// name, its items in relevance order, one finite descending score per
-/// item, and the scoring model's identity.
+/// name and the instance the key names (two instances of one layer
+/// index different items under one type), its items in relevance order,
+/// one finite descending score per item, and the scoring model's
+/// identity.
 #[derive(Debug)]
 pub struct RerankScores {
     pub model: ModelRef,
     /// The layer the items index, its full name (turbo:levels, say).
     pub source: String,
+    /// The source key's instance name; empty is the default instance.
+    pub instance: String,
     pub items: Vec<u32>,
     pub scores: Vec<f32>,
 }
@@ -29,6 +33,7 @@ impl RerankScores {
         RerankScores {
             model: r.model.clone(),
             source: r.source.id().layer.to_string(),
+            instance: r.source.name.to_string(),
             items: r.items.iter().map(|i| i.get() as u32).collect(),
             scores: r.scores.clone(),
         }
@@ -60,6 +65,7 @@ impl Wire for RerankScores {
         RerankScoresResult {
             model: Some(model_to_proto(&self.model)),
             source: self.source.clone(),
+            source_instance: self.instance.clone(),
             item: self.items.clone(),
             score: self.scores.clone(),
         }
@@ -76,6 +82,7 @@ impl Wire for RerankScores {
                 sha256: String::new(),
             }),
             source: msg.source.clone(),
+            instance: msg.source_instance.clone(),
             items: msg.item.clone(),
             scores: msg.score.clone(),
         };
@@ -112,10 +119,41 @@ mod tests {
         let r = sample();
         let m = RerankScores::new(&r);
         assert_eq!(m.source, "turbo:chunks");
+        assert_eq!(m.instance, "candidates");
         let back = RerankScores::from_msg(&m.to_msg()).unwrap();
         assert_eq!(back.model, r.model);
         assert_eq!(back.items, r.items.iter().map(|i| i.get() as u32).collect::<Vec<_>>());
         assert_eq!(back.scores, r.scores);
+        assert_eq!(back.instance, "candidates");
+    }
+
+    #[test]
+    fn the_source_instance_distinguishes_two_instances_of_one_layer() {
+        // Item 0 of one instance can be a different chunk than item 0 of
+        // the other; the name keeps them apart on the wire.
+        for name in ["shortlist-a", "shortlist-b"] {
+            let r = Reranked {
+                source: Key::<Chunks>::named(name),
+                items: vec![turbo_analysis::Ix::new(0)],
+                scores: vec![1.0],
+                model: model(),
+            };
+            r.check().unwrap();
+            let m = RerankScores::new(&r);
+            assert_eq!(m.instance, name);
+            let back = RerankScores::from_msg(&m.to_msg()).unwrap();
+            assert_eq!((back.source.as_str(), back.instance.as_str()), ("turbo:chunks", name));
+        }
+        // The default instance is empty on the wire.
+        let r = Reranked {
+            source: Key::<Chunks>::DEFAULT,
+            items: vec![turbo_analysis::Ix::new(3)],
+            scores: vec![2.0],
+            model: model(),
+        };
+        let m = RerankScores::new(&r);
+        assert_eq!(m.instance, "");
+        assert_eq!(RerankScores::from_msg(&m.to_msg()).unwrap().instance, "");
     }
 
     fn refused(mut f: impl FnMut(&mut RerankScoresResult)) -> Failure {
@@ -149,7 +187,7 @@ mod tests {
         assert_eq!(back.scores[0], back.scores[1]);
         // Nothing at all: an empty rerank is a valid abstention.
         let back = RerankScores::from_msg(&RerankScoresResult::default()).unwrap();
-        assert!(back.items.is_empty() && back.scores.is_empty());
+        assert!(back.items.is_empty() && back.scores.is_empty() && back.instance.is_empty());
     }
 
     #[test]
