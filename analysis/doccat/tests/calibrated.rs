@@ -63,9 +63,9 @@ fn parity<C: CalibratableCategorizer>(cat: C) {
     let (unchanged, side) = wrap.annotate((view, &t)).unwrap();
     side.check().unwrap();
     assert_eq!(raw.iter().next().unwrap().scores, unchanged.iter().next().unwrap().scores);
-    assert_eq!(side.rows[0].raw, raw.iter().next().unwrap().scores);
-    assert_ne!(side.rows[0].raw, side.rows[0].calibrated);
-    assert!(side.rows[0].abstention.is_some());
+    assert_eq!(side.row(0).raw, raw.iter().next().unwrap().scores);
+    assert_ne!(side.row(0).raw, side.row(0).calibrated);
+    assert!(side.row(0).abstention.is_some());
     assert_eq!(unchanged.len(), 1);
     assert_eq!(wrap.config_hash(), wrap.predictor().config_hash());
 }
@@ -182,8 +182,11 @@ fn analyzer_provenance_and_document_graph_keep_the_calibrated_sidecar() {
     let mut docs = [doc];
     analyzer.run(&mut docs)[0].as_ref().unwrap();
     let side = docs[0].get::<Calibrated<Categories>>().unwrap();
-    assert!(side.rows[0].abstention.is_some());
+    assert!(side.row(0).abstention.is_some());
     let graph = export(&docs[0], &codecs()).unwrap();
     let back = import(&graph, &codecs()).unwrap();
-    assert_eq!(back.get::<Calibrated<Categories>>().unwrap().rows, side.rows);
+    assert_eq!(
+        back.get::<Calibrated<Categories>>().unwrap().rows().collect::<Vec<_>>(),
+        side.rows().collect::<Vec<_>>()
+    );
 }

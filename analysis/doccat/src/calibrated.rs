@@ -88,11 +88,9 @@ impl<C: CalibratableCategorizer> Annotator for CalibratedCategorizer<C> {
         let (raw,) = self.categorizer.annotate(inputs)?;
         let mut calibrated = Calibrated::new(&self.predictor);
         for row in raw.iter() {
-            calibrated.rows.push(
-                self.predictor
-                    .predict(row.scores)
-                    .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?,
-            );
+            calibrated
+                .push(&self.predictor, row.scores)
+                .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         }
         Ok((raw, calibrated))
     }

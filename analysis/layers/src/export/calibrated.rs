@@ -1,13 +1,14 @@
 use super::*;
 use crate::Calibrated;
-use std::marker::PhantomData;
-use turbo_calibration::{Abstention, Identity, Policy, Prediction, Task};
+
+use turbo_calibration::{Abstention, DecisionMetadata, Identity, Policy, Prediction, Task};
 impl<L: Layer> LayerCodec for Calibrated<L> {
     fn export(&self, _: &ExportCx) -> Result<Vec<u8>, ExportError> {
         self.check().map_err(malformed)?;
         let mut w = Writer::new();
-        let i = &self.identity;
-        for s in [self.calibration_id.as_ref(), &i.model, &i.revision, &i.sha256, &i.domain] {
+        let meta = self.metadata();
+        let i = meta.identity();
+        for s in [meta.calibration_id(), &i.model, &i.revision, &i.sha256, &i.domain] {
             w.str(s)?;
         }
         w.u8(match i.task {
@@ -19,16 +20,16 @@ impl<L: Layer> LayerCodec for Calibrated<L> {
         for label in &i.labels {
             w.str(label)?;
         }
-        w.f64(self.policy.coverage);
-        w.usize(self.policy.max_set_size)?;
-        w.f64(self.policy.min_confidence);
-        w.f64(self.cutoff);
-        w.usize(self.rows.len())?;
-        for row in &self.rows {
-            put_f64s(&mut w, &row.raw)?;
-            put_f64s(&mut w, &row.calibrated)?;
+        w.f64(meta.policy().coverage);
+        w.usize(meta.policy().max_set_size)?;
+        w.f64(meta.policy().min_confidence);
+        w.f64(meta.cutoff());
+        w.usize(self.len())?;
+        for row in self.rows() {
+            put_f64s(&mut w, row.raw)?;
+            put_f64s(&mut w, row.calibrated)?;
             w.usize(row.set.len())?;
-            for &v in &row.set {
+            for &v in row.set {
                 w.usize(v)?;
             }
             w.u8(match row.abstention {
@@ -78,15 +79,8 @@ impl<L: Layer> LayerCodec for Calibrated<L> {
             rows.push(Prediction { raw, calibrated, set, abstention });
         }
         done(&r, "calibrated layer")?;
-        let out = Self {
-            identity: identity.into(),
-            calibration_id: calibration_id.into(),
-            policy,
-            cutoff,
-            rows,
-            _of: PhantomData,
-        };
-        out.check().map_err(malformed)?;
-        Ok(out)
+        let metadata =
+            DecisionMetadata::new(identity.into(), calibration_id.into(), policy, cutoff).map_err(malformed)?;
+        Self::from_rows(metadata.into(), rows).map_err(malformed)
     }
 }

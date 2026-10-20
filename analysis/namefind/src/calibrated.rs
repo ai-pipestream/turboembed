@@ -8,7 +8,7 @@ use turbo_calibration::{Calibration, Identity, Policy, Predictor, Task};
 use turbo_maxent::{MaxentModel, ModelFile};
 use turbo_sequence::{
     PatternMode,
-    namefind::{MODEL_ENTRY_NAME, NameFinder},
+    namefind::{DEFAULT_BEAM_SIZE, MODEL_ENTRY_NAME, NameFinder},
 };
 
 pub fn identity(file: &ModelFile, domain: &str) -> Result<Identity, String> {
@@ -26,7 +26,12 @@ pub fn identity(file: &ModelFile, domain: &str) -> Result<Identity, String> {
         task: Task::TokenTagging,
         domain: domain.into(),
         labels,
-        inference_hash: 1,
+        inference_hash: (turbo_sequence::manifest_beam_size(file, DEFAULT_BEAM_SIZE).map_err(|e| e.to_string())?
+            as u64)
+            .to_le_bytes()
+            .into_iter()
+            .chain(b"PatternMode=Utf16Units".iter().copied())
+            .fold(0xcbf29ce484222325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3)),
     };
     i.check()?;
     Ok(i)
@@ -35,6 +40,7 @@ pub struct CalibratedNameAnnotator {
     file: Arc<ModelFile>,
     model: MaxentModel,
     predictor: Predictor,
+    kinds: Arc<TagSet>,
 }
 impl CalibratedNameAnnotator {
     pub fn new(file: Arc<ModelFile>, calibration: Calibration, domain: &str, policy: Policy) -> Result<Self, String> {
@@ -42,7 +48,15 @@ impl CalibratedNameAnnotator {
         let predictor = Predictor::new(calibration, &expected, policy)?;
         let model = file.maxent(MODEL_ENTRY_NAME).map_err(|e| e.to_string())?;
         NameFinder::new(&file, &model, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
-        Ok(Self { file, model, predictor })
+        let mut types: Vec<_> =
+            predictor.artifact().identity().labels.iter().filter_map(|s| s.rsplit_once('-').map(|(t, _)| t)).collect();
+        if predictor.artifact().identity().labels.iter().any(|s| matches!(s.as_str(), "start" | "cont")) {
+            types.push("default");
+        }
+        types.sort_unstable();
+        types.dedup();
+        let kinds = TagSet::new("turbo:calibrated-name-types", &types);
+        Ok(Self { file, model, predictor, kinds })
     }
     pub fn predictor(&self) -> &Predictor {
         &self.predictor
@@ -66,22 +80,13 @@ impl Annotator for CalibratedNameAnnotator {
         tokens.check().map_err(fail)?;
         check_spans(&sentences.spans, view).map_err(fail)?;
         check_spans(&tokens.spans, view).map_err(fail)?;
-        let mut types: Vec<_> = self
-            .predictor
-            .artifact()
-            .identity()
-            .labels
-            .iter()
-            .filter_map(|s| s.rsplit_once('-').map(|(t, _)| t))
-            .collect();
-        if self.predictor.artifact().identity().labels.iter().any(|s| matches!(s.as_str(), "start" | "cont")) {
-            types.push("default");
-        }
-        types.sort_unstable();
-        types.dedup();
-        let kinds = TagSet::new("turbo:calibrated-name-types", &types);
-        let mut entities =
-            Entities { spans: Spans::new(view.id()), tokens: Vec::new(), kind: Vec::new(), kinds, score: Vec::new() };
+        let mut entities = Entities {
+            spans: Spans::new(view.id()),
+            tokens: Vec::new(),
+            kind: Vec::new(),
+            kinds: self.kinds.clone(),
+            score: Vec::new(),
+        };
         let mut calibrated = Calibrated::new(&self.predictor);
         let mut finder =
             NameFinder::new(&self.file, &self.model, PatternMode::Utf16Units).map_err(|e| fail(e.to_string()))?;
@@ -100,12 +105,13 @@ impl Annotator for CalibratedNameAnnotator {
                 end += 1;
             }
             let words: Vec<_> = (base..end).map(|i| &view.text()[starts[i] as usize..ends[i] as usize]).collect();
-            let (names, rows) = finder.find_scored(&words);
-            if rows.len() != words.len() {
+            let (names, rows) = finder.find_scored_flat(&words);
+            let width = self.predictor.artifact().identity().labels.len();
+            if rows.len() / width != words.len() || rows.len() % width != 0 {
                 return Err(fail("name finder produced no token sequence".into()));
             }
-            for row in rows {
-                calibrated.rows.push(self.predictor.predict_owned(row).map_err(fail)?);
+            for row in rows.chunks_exact(width) {
+                calibrated.push(&self.predictor, row).map_err(fail)?;
             }
             for name in names {
                 let start = base + name.span.start;

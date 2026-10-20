@@ -85,6 +85,7 @@ pub struct Predictor {
     id: Arc<str>,
     identity: Arc<Identity>,
     hash: u64,
+    metadata: Arc<crate::DecisionMetadata>,
 }
 impl Predictor {
     pub fn new(calibration: Calibration, expected: &Identity, policy: Policy) -> Result<Self> {
@@ -102,7 +103,14 @@ impl Predictor {
         bytes.extend((policy.max_set_size as u64).to_le_bytes());
         bytes.extend(policy.min_confidence.to_le_bytes());
         let hash = bytes.iter().fold(0xcbf29ce484222325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3));
-        Ok(Self { calibration, policy, cutoff, id, identity, hash })
+        let metadata = Arc::new(crate::DecisionMetadata::new(identity.clone(), id.clone(), policy, cutoff)?);
+        Ok(Self { calibration, policy, cutoff, id, identity, hash, metadata })
+    }
+    pub fn shared_metadata(&self) -> Arc<crate::DecisionMetadata> {
+        self.metadata.clone()
+    }
+    pub fn metadata(&self) -> &crate::DecisionMetadata {
+        &self.metadata
     }
     pub fn artifact(&self) -> &Calibration {
         &self.calibration
@@ -130,22 +138,43 @@ impl Predictor {
     }
     /// Retain an already-owned model output without another copy.
     pub fn predict_owned(&self, raw: Vec<f64>) -> Result<Prediction> {
-        if raw.len() != self.calibration.identity().labels.len() {
+        let mut calibrated = vec![0.0; raw.len()];
+        let mut set = vec![0; raw.len()];
+        let (size, abstention) = self.predict_into(&raw, &mut calibrated, &mut set)?;
+        set.truncate(size);
+        Ok(Prediction { raw, calibrated, set, abstention })
+    }
+    /// Write into caller-owned buffers. The label-set prefix of returned length
+    /// is valid; the rest of `set` is workspace. No allocation is performed.
+    #[inline]
+    pub fn predict_into(
+        &self,
+        raw: &[f64],
+        calibrated: &mut [f64],
+        set: &mut [usize],
+    ) -> Result<(usize, Option<Abstention>)> {
+        if raw.len() != self.identity.labels.len() || set.len() < raw.len() {
             return Err("calibration label dimension mismatch".into());
         }
-        let mut calibrated = vec![0.0; raw.len()];
-        self.calibration.transform().apply_checked(&raw, &mut calibrated)?;
-        let set: Vec<_> =
-            calibrated.iter().enumerate().filter_map(|(i, &p)| (1.0 - p <= self.cutoff).then_some(i)).collect();
-        let abstention = if set.is_empty() {
+        self.calibration.transform().apply_checked(raw, calibrated)?;
+        let mut count = 0;
+        let mut max = 0.0f64;
+        for (i, &p) in calibrated.iter().enumerate() {
+            max = max.max(p);
+            if 1.0 - p <= self.cutoff {
+                set[count] = i;
+                count += 1;
+            }
+        }
+        let abstention = if count == 0 {
             Some(Abstention::EmptySet)
-        } else if set.len() > self.policy.max_set_size {
+        } else if count > self.policy.max_set_size {
             Some(Abstention::SetTooLarge)
-        } else if calibrated.iter().copied().fold(0.0, f64::max) < self.policy.min_confidence {
+        } else if max < self.policy.min_confidence {
             Some(Abstention::BelowThreshold)
         } else {
             None
         };
-        Ok(Prediction { raw, calibrated, set, abstention })
+        Ok((count, abstention))
     }
 }

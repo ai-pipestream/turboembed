@@ -149,3 +149,44 @@ fn prepared_tables_validate_each_input_and_owned_predictions_match() {
     let p = Predictor::new(artifact(t, vec![0.2; 20]), &identity(), policy()).unwrap();
     assert_eq!(p.predict(&[0.3, 0.7]).unwrap(), p.predict_owned(vec![0.3, 0.7]).unwrap());
 }
+
+#[test]
+fn binary_temperature_matches_log_space_reference() {
+    for t in [1e-6, 0.13, 1.0, 2.0, 13.0, 1e6] {
+        for p in [0.0, f64::from_bits(1), 1e-300, 0.001, 0.13, 0.5, 0.9, 1.0] {
+            let raw = [p, 1.0 - p];
+            let max = raw[0].max(raw[1]).ln();
+            let weights = raw.map(|v| if v == 0.0 { 0.0 } else { ((v.ln() - max) / t).exp() });
+            let sum = weights.iter().sum::<f64>();
+            let expected = weights.map(|v| v / sum);
+            let mut actual = [0.0; 2];
+            Transform::Temperature(t).apply(&raw, &mut actual).unwrap();
+            for i in 0..2 {
+                assert!((actual[i] - expected[i]).abs() < 1e-13, "t={t}, p={p}: {actual:?} / {expected:?}");
+            }
+        }
+    }
+}
+#[test]
+fn scratch_predictions_reuse_storage_and_reject_bad_dimensions() {
+    for transform in [
+        Transform::Temperature(2.0),
+        Transform::Platt { slope: 0.7, intercept: 0.2 },
+        Transform::Isotonic { upper: vec![0.2, 0.7, 1.0], value: vec![0.1, 0.4, 0.9] },
+    ] {
+        let p = Predictor::new(artifact(transform, vec![0.6; 20]), &identity(), policy()).unwrap();
+        let mut scores = [0.0; 2];
+        let mut set = [99; 2];
+        for raw in [[0.1, 0.9], [0.8, 0.2], [0.0, 1.0]] {
+            let expected = p.predict(&raw).unwrap();
+            let (n, reason) = p.predict_into(&raw, &mut scores, &mut set).unwrap();
+            assert_eq!(scores.as_slice(), expected.calibrated);
+            assert_eq!(&set[..n], expected.set);
+            assert_eq!(reason, expected.abstention);
+        }
+        assert!(p.predict_into(&[0.5, 0.5], &mut scores, &mut []).is_err());
+        assert!(p.predict_into(&[0.5, 0.5], &mut [], &mut set).is_err());
+        assert!(p.predict_into(&[1.0], &mut scores, &mut set).is_err());
+        assert!(p.predict_into(&[f64::NAN, 0.5], &mut scores, &mut set).is_err());
+    }
+}

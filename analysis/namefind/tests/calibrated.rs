@@ -53,9 +53,14 @@ fn scored_search_preserves_names_probabilities_and_adaptive_state() {
     let model = f.maxent(MODEL_ENTRY_NAME).unwrap();
     let mut raw = NameFinder::new(&f, &model, PatternMode::Utf16Units).unwrap();
     let mut scored = NameFinder::new(&f, &model, PatternMode::Utf16Units).unwrap();
+    let mut flat = NameFinder::new(&f, &model, PatternMode::Utf16Units).unwrap();
     for words in [vec!["Alice", "walked"], vec!["Bob", "Alice", "home"], vec![], vec!["Alice"]] {
         let a = raw.find(&words);
         let (b, rows) = scored.find_scored(&words);
+        let (c, flat_rows) = flat.find_scored_flat(&words);
+        assert_eq!(a, c);
+        assert_eq!(flat_rows, rows.concat());
+        assert_eq!(raw.probs(), flat.probs());
         assert_eq!(a, b);
         assert_eq!(raw.probs(), scored.probs());
         assert_eq!(rows.len(), words.len());
@@ -88,7 +93,7 @@ fn name_annotator_preserves_raw_entities_and_validates_boundaries() {
         assert_eq!(entities.score[i], n.prob);
         assert_eq!(entities.tokens[i].start.get(), n.span.start);
     }
-    assert!(side.rows.iter().all(|r| r.abstention.is_some()));
+    assert!(side.rows().all(|r| r.abstention.is_some()));
     t.spans = Spans::new(ViewId(99));
     assert!(ann.annotate((v, &s, &t)).is_err());
     let bad = Document::new("é");

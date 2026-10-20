@@ -109,32 +109,52 @@ Run the numerical test with `cargo test --locked -p turbo-train --test calibrati
 and the model integration receipts with
 `cargo test --locked -p turbo-doccat -p turbo-namefind --test calibrated -- --nocapture`.
 
+## Allocation and validation contract
+
+`Predictor::predict_into` writes scores and prediction-set indices into caller
+buffers. `Calibrated<L>` stores binary single-row outputs inline and larger
+batches in flat columns with CSR prediction sets. Its identity and policy are
+immutable and checked once; public `push` checks every model distribution,
+and `from_rows` checks every imported decision against its policy. The wire
+codec uses that checked constructor. Consequently `Layer::check` does not
+repeat an identity walk or revalidate unchanged rows.
+
+Use `row(i)` or `rows()` to read decisions and `metadata()` for the identity,
+calibration digest and policy. Mutable public columns are no longer exposed.
+The allocation regression verifies zero allocations for binary single-row
+construction, prediction and validation, and fewer than 64 allocations for a
+1,024-row batch. Name-finder capture uses one flat score vector rather than
+one vector per token; its type tags are prepared once per annotator. Its
+calibration identity now includes the parsed beam size and pattern mode.
+
 ## Release timing and remaining limit
 
-The timing driver is `analysis/doccat/examples/calibration_timing.rs`. Build
-with `cargo build --locked --release -p turbo-doccat --example calibration_timing`.
-Its arguments are `maxent`, `svm`, or `names`, a token count, and optional
-`calibrated`. Model construction/training and artifact binding are outside
-the timed loop. Each process warms up for 100 calls, then measures 10,000
-classifier calls or 1,000 name-finder calls.
+The driver is `analysis/doccat/examples/calibration_timing.rs`. Build with
+`cargo build --locked --release -p turbo-doccat --example calibration_timing`.
+Arguments: `maxent`, `svm`, or `names`; token count; `raw` or `calibrated`;
+optional `checked` to include output `Layer::check` for categorizers. Both
+variants use the same release executable and the same tiny two-label fixtures.
+Model construction and artifact binding are outside the timed loop. Each
+process warms up for 100 calls, then measures 500,000 classifier calls or
+3,000 name-finder calls. Four CPU-4-pinned ABBA rounds yield eight observations
+per variant. Names measures decoding plus token calibration, without the
+adapter's input validation and entity assembly. These are not deployment-model
+or complete Document/Analyzer timings.
 
-These measurements compare a separate release binary built from main
-`4c780f56` using the same raw fixture with this implementation. Four ABBA
-rounds on CPU 4 give eight measurements per variant; the table reports
-medians. The name case measures the existing decoder plus token calibration,
-not the new layer adapter's span validation and entity assembly.
+The updated measurements below include output validation for classifiers.
 
-| Producer | Tokens | Main ns/call | Calibrated ns/call | Change |
+| Producer | Tokens | Raw ns/call | Calibrated ns/call | Change |
 | --- | ---: | ---: | ---: | ---: |
-| maxent | 16 | 342.96 | 437.71 | +27.63% |
-| svm | 16 | 350.54 | 439.53 | +25.38% |
-| names | 16 | 22597.62 | 24002.68 | +6.22% |
-| maxent | 128 | 3057.52 | 3274.16 | +7.09% |
-| svm | 128 | 2322.58 | 2437.84 | +4.96% |
-| names | 128 | 220000.95 | 228919.20 | +4.05% |
+| maxent | 16 | 385.05 | 531.91 | +38.14% |
+| maxent | 128 | 3097.80 | 3167.01 | +2.23% |
+| svm | 16 | 355.11 | 400.81 | +12.87% |
+| svm | 128 | 2278.77 | 2327.43 | +2.14% |
+| names | 16 | 22302.62 | 22969.38 | +2.99% |
+| names | 128 | 227152.73 | 238230.23 | +4.88% |
 
-The short-input measurements exceed issue #718's few-percent speed bar.
-This is an open acceptance gap, not a passing performance result. Calibration
-is opt-in; plain annotators continue to return their existing outputs.
-An unchanged-head performance review should include real deployment models
-and full adapter timing before this work is treated as ready to merge.
+The short classifier cases still exceed the few-percent acceptance bar. The
+MaxEnt short-input run was noisy (raw 365-669 ns, calibrated 458-705 ns), so
+its median ratio is not a stable estimate. No performance pass is claimed.
+The 128-token classifier cases and token-calibration cases are within about
+2-5% in this run. Deployment-model and full pipeline measurements remain
+required before claiming the issue's complete speed acceptance.

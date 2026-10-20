@@ -1,8 +1,10 @@
 //! Probability calibration and split conformal prediction. Fitting lives
 //! in turbo-train; applications bind artifacts to an exact model/task/domain.
 mod codec;
+mod metadata;
 pub mod metrics;
 mod prediction;
+pub use metadata::DecisionMetadata;
 mod transform;
 pub use prediction::{Abstention, Policy, Prediction, Predictor};
 use sha2::{Digest, Sha256};
@@ -142,9 +144,11 @@ impl Calibration {
         Ok(())
     }
 }
+#[inline]
 pub fn probability(p: f64) -> bool {
     p.is_finite() && (0.0..=1.0).contains(&p)
 }
+#[inline]
 pub fn check_distribution(p: &[f64]) -> Result<()> {
     if p.len() < 2 || p.iter().any(|&v| !probability(v)) || (p.iter().sum::<f64>() - 1.0).abs() > 1e-6 {
         return Err("expected finite probability distribution summing to one".into());

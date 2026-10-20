@@ -9,6 +9,18 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
         context: &mut (impl ContextGenerator<T, L> + ?Sized),
         validator: &(impl SequenceValidator<T, L> + ?Sized),
     ) -> Option<(Sequence<'m, L>, Vec<Vec<f64>>)> {
+        self.best_sequence_scored_flat(sequence, context, validator)
+            .map(|(s, rows)| (s, rows.chunks(self.outcomes.len().max(1)).map(<[f64]>::to_vec).collect()))
+    }
+
+    /// Best sequence with row-major scores in model outcome order.
+    /// This avoids allocating a separate vector for each token.
+    pub fn best_sequence_scored_flat<T>(
+        &self,
+        sequence: &[T],
+        context: &mut (impl ContextGenerator<T, L> + ?Sized),
+        validator: &(impl SequenceValidator<T, L> + ?Sized),
+    ) -> Option<(Sequence<'m, L>, Vec<f64>)> {
         let (mut seq, mut rows) = self.search::<true, T>(1, sequence, Self::DEFAULT_MIN_SCORE, context, validator);
         seq.pop().map(|s| (s, rows.pop().unwrap()))
     }
@@ -21,7 +33,7 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
         min_score: f64,
         context: &mut (impl ContextGenerator<T, L> + ?Sized),
         validator: &(impl SequenceValidator<T, L> + ?Sized),
-    ) -> (Vec<Sequence<'m, L>>, Vec<Vec<Vec<f64>>>) {
+    ) -> (Vec<Sequence<'m, L>>, Vec<Vec<f64>>) {
         let mut distributions = Vec::new();
         let mut node_distributions = Vec::new();
         let model = self.model;
@@ -109,13 +121,14 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
                 probs: Vec::with_capacity(node.len as usize),
                 score: node.score,
             };
-            let mut rows = Vec::new();
+            let mut rows = vec![0.0; node.len as usize * outcomes.len()];
             let mut at = id;
             while at != ROOT {
                 let n = nodes[at as usize];
                 if SCORED {
                     let start = node_distributions[at as usize] as usize;
-                    rows.push(distributions[start..start + outcomes.len()].to_vec());
+                    let dest = (n.len as usize - 1) * outcomes.len();
+                    rows[dest..dest + outcomes.len()].copy_from_slice(&distributions[start..start + outcomes.len()]);
                 }
                 seq.outcomes.push(outcomes[n.outcome as usize]);
                 seq.probs.push(n.prob);
@@ -125,7 +138,6 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
             seq.probs.reverse();
             result.push(seq);
             if SCORED {
-                rows.reverse();
                 result_rows.push(rows);
             }
         }

@@ -37,10 +37,30 @@ impl Transform {
         self.check()?;
         self.apply_checked(raw, out)
     }
+    #[inline]
     pub(crate) fn apply_checked(&self, raw: &[f64], out: &mut [f64]) -> Result<()> {
         check_distribution(raw)?;
         if out.len() != raw.len() {
             return Err("calibration output dimension mismatch".into());
+        }
+        // Binary temperature uses one ratio and one power. T=1 and T=2
+        // have exact algebraic specializations, including zero endpoints.
+        if let Self::Temperature(t) = self {
+            if *t == 1.0 {
+                let sum = raw.iter().sum::<f64>();
+                for (o, &p) in out.iter_mut().zip(raw) {
+                    *o = p / sum;
+                }
+                return Ok(());
+            }
+            if raw.len() == 2 {
+                let (lo, hi) = if raw[0] <= raw[1] { (0, 1) } else { (1, 0) };
+                let ratio = raw[lo] / raw[hi];
+                let v = if *t == 2.0 { ratio.sqrt() } else { ratio.powf(1.0 / t) };
+                out[hi] = 1.0 / (1.0 + v);
+                out[lo] = v / (1.0 + v);
+                return Ok(());
+            }
         }
         match self {
             Self::Temperature(t) => {

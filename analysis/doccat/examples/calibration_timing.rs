@@ -1,7 +1,7 @@
 //! Release timing driver: MODE (maxent|svm|names), TOKEN_COUNT, optional calibrated.
 //! The name case measures decoding plus token calibration, not layer construction.
 use std::{hint::black_box, sync::Arc, time::Instant};
-use turbo_analysis::{Annotator, Document, Span, Spans, View, ViewId};
+use turbo_analysis::{Annotator, Document, Layer, Span, Spans, View, ViewId};
 use turbo_analysis_layers::Tokens;
 use turbo_doccat::*;
 use turbo_maxent::ModelFile;
@@ -72,6 +72,7 @@ fn measure(mut f: impl FnMut(), n: usize) -> f64 {
 fn main() {
     let mode = std::env::args().nth(1).unwrap();
     let calibrated = std::env::args().nth(3).is_some_and(|s| s == "calibrated");
+    let checked = std::env::args().nth(4).is_some_and(|s| s == "checked");
     let count: usize = std::env::args().nth(2).unwrap_or("128".into()).parse().unwrap();
     let text = vec!["good"; count].join(" ");
     let doc = Document::new(text.as_str());
@@ -91,9 +92,13 @@ fn main() {
                     count,
                     measure(
                         || {
-                            black_box(c.annotate((view, &tokens)).unwrap());
+                            let out = c.annotate((view, &tokens)).unwrap();
+                            if checked {
+                                out.0.check().unwrap();
+                            }
+                            black_box(out);
                         },
-                        10000
+                        500000
                     )
                 );
                 return;
@@ -110,9 +115,14 @@ fn main() {
             };
             measure(
                 || {
-                    black_box(c.annotate((view, &tokens)).unwrap());
+                    let out = c.annotate((view, &tokens)).unwrap();
+                    if checked {
+                        out.0.check().unwrap();
+                        out.1.check().unwrap();
+                    }
+                    black_box(out);
                 },
-                10000,
+                500000,
             )
         }
         "svm" => {
@@ -124,9 +134,13 @@ fn main() {
                     count,
                     measure(
                         || {
-                            black_box(c.annotate((view, &tokens)).unwrap());
+                            let out = c.annotate((view, &tokens)).unwrap();
+                            if checked {
+                                out.0.check().unwrap();
+                            }
+                            black_box(out);
                         },
-                        10000
+                        500000
                     )
                 );
                 return;
@@ -143,9 +157,14 @@ fn main() {
             };
             measure(
                 || {
-                    black_box(c.annotate((view, &tokens)).unwrap());
+                    let out = c.annotate((view, &tokens)).unwrap();
+                    if checked {
+                        out.0.check().unwrap();
+                        out.1.check().unwrap();
+                    }
+                    black_box(out);
                 },
-                10000,
+                500000,
             )
         }
         "names" => {
@@ -174,16 +193,18 @@ fn main() {
                 || {
                     finder.clear_adaptive_data();
                     if calibrated {
-                        let (names, rows) = finder.find_scored(&words);
+                        let (names, rows) = finder.find_scored_flat(&words);
                         black_box(names);
-                        for row in rows {
-                            black_box(p.predict_owned(row).unwrap());
+                        let mut scores = [0.0; 2];
+                        let mut set = [0; 2];
+                        for row in rows.as_chunks::<2>().0 {
+                            black_box(p.predict_into(row, &mut scores, &mut set).unwrap());
                         }
                     } else {
                         black_box(finder.find(&words));
                     }
                 },
-                1000,
+                3000,
             )
         }
         _ => panic!(),

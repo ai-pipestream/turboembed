@@ -30,42 +30,60 @@ fn graph_roundtrip_retains_scores_policy_identity_and_reason() {
     spans.push(Span::new(0, 5));
     doc.add(&Key::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("test")).unwrap();
     let mut side = Calibrated::<Tokens>::new(&p);
-    side.rows.push(p.predict(&[0.8, 0.2]).unwrap());
+    side.push(&p, &[0.8, 0.2]).unwrap();
     doc.add(&Key::DEFAULT, side.clone(), Provenance::by("test")).unwrap();
     let g = export(&doc, &codecs()).unwrap();
     let bytes = g.to_bytes().unwrap();
     let back = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs()).unwrap();
     let b = back.get::<Calibrated<Tokens>>().unwrap();
-    assert_eq!(b.identity, side.identity);
-    assert_eq!(b.calibration_id, side.calibration_id);
-    assert_eq!(b.rows, side.rows);
-    assert_eq!(b.policy, side.policy);
-    assert_eq!(b.cutoff, side.cutoff);
+    assert_eq!(b.metadata(), side.metadata());
+    assert_eq!(b.rows().collect::<Vec<_>>(), side.rows().collect::<Vec<_>>());
     assert_eq!(export(&back, &codecs()).unwrap().to_bytes().unwrap(), bytes);
 }
 #[test]
 fn inconsistent_decisions_and_nonfinite_metadata_are_rejected() {
     let p = predictor();
     let mut side = Calibrated::<Tokens>::new(&p);
-    side.rows.push(p.predict(&[0.8, 0.2]).unwrap());
+    side.push(&p, &[0.8, 0.2]).unwrap();
     side.check().unwrap();
-    let mut bad = side.clone();
-    bad.rows[0].abstention = None;
-    assert!(bad.check().is_err());
-    let mut bad = side.clone();
-    bad.rows[0].set = vec![1];
-    assert!(bad.check().is_err());
-    let mut bad = side.clone();
-    bad.cutoff = f64::NAN;
-    assert!(bad.check().is_err());
-    let mut bad = side.clone();
-    bad.policy.min_confidence = f64::INFINITY;
-    assert!(bad.check().is_err());
-    let mut bad = side.clone();
-    std::sync::Arc::make_mut(&mut bad.identity).labels.reverse(); // Labels can be different but remain unique.
-    std::sync::Arc::make_mut(&mut bad.identity).labels[1] = bad.identity.labels[0].clone();
-    assert!(bad.check().is_err());
-    let mut bad = side;
-    bad.rows[0].calibrated[0] = f64::NAN;
-    assert!(bad.check().is_err());
+    let reject = |row| assert!(Calibrated::<Tokens>::from_rows(p.shared_metadata(), [row]).is_err());
+    let row = p.predict(&[0.8, 0.2]).unwrap();
+    let mut bad = row.clone();
+    bad.abstention = None;
+    reject(bad);
+    let mut bad = row.clone();
+    bad.set = vec![1];
+    reject(bad);
+    let mut bad = row;
+    bad.calibrated[0] = f64::NAN;
+    reject(bad);
+    let m = p.metadata();
+    let make = |identity, policy, cutoff| DecisionMetadata::new(identity, m.calibration_id().into(), policy, cutoff);
+    assert!(make(std::sync::Arc::new(m.identity().clone()), m.policy(), f64::NAN).is_err());
+    let mut policy = m.policy();
+    policy.min_confidence = f64::INFINITY;
+    assert!(make(std::sync::Arc::new(m.identity().clone()), policy, m.cutoff()).is_err());
+    let mut identity = m.identity().clone();
+    identity.labels[1] = identity.labels[0].clone();
+    assert!(make(std::sync::Arc::new(identity), m.policy(), m.cutoff()).is_err());
+}
+
+#[test]
+fn flat_rows_preserve_small_row_and_failed_append_is_atomic() {
+    let p = predictor();
+    let mut side = Calibrated::<Tokens>::new(&p);
+    let inputs = [[0.8, 0.2], [0.5, 0.5], [1.0, 0.0]];
+    for raw in inputs {
+        side.push(&p, &raw).unwrap();
+        let n = side.len();
+        assert!(side.push(&p, &[f64::NAN, 0.0]).is_err());
+        assert_eq!(side.len(), n);
+    }
+    for (row, raw) in side.rows().zip(inputs) {
+        let expected = p.predict(&raw).unwrap();
+        assert_eq!(row.raw, expected.raw);
+        assert_eq!(row.calibrated, expected.calibrated);
+        assert_eq!(row.set, expected.set);
+        assert_eq!(row.abstention, expected.abstention);
+    }
 }
