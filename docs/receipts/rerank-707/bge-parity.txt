@@ -1,0 +1,1 @@
+model=BAAI/bge-reranker-base threads=1 pairs=5 max_abs_error=0.000010490 scores=[-4.2417207, 6.157336, -3.6593919, 9.103392, 1.675937]

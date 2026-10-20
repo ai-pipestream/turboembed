@@ -60,11 +60,16 @@ impl Manifest {
                     "manifest.json: tokenizer.special_tokens[{i}]: single_word and rstrip are read with normalized"
                 )));
             }
+            if t.unigram.is_some() && s.normalized && (s.single_word || s.rstrip) {
+                return Err(invalid(
+                    "manifest.json: tokenizer.special_tokens: unigram single_word/rstrip are unsupported",
+                ));
+            }
             // A bpe tokenizer has no normalizer: a normalized token is
             // matched in the text as it is, like the others.
-            if s.normalized && t.wordpiece.is_none() && t.bpe.is_none() {
+            if s.normalized && t.wordpiece.is_none() && t.bpe.is_none() && t.unigram.is_none() {
                 return Err(invalid(format!(
-                    "manifest.json: tokenizer.special_tokens[{i}].normalized: a wordpiece or bpe tokenizer only"
+                    "manifest.json: tokenizer.special_tokens[{i}].normalized: requires wordpiece, bpe, or unigram"
                 )));
             }
             if (s.single_word || s.rstrip) && t.wordpiece.is_none() {

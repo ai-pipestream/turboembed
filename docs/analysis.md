@@ -20,7 +20,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-analysis-layers` | `analysis/layers/` | The layers add-ons share (below) |
 | `turbo-chunker` | `analysis/chunker/` | The chunker, and term statistics and BM25 per chunk, section and document |
 | `turbo-group` | `analysis/group/` | Sketches, near-duplicate groups and version links inside a document and across a batch, and boilerplate detection (Near duplicates and boilerplate, below) |
-| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization; TurboQuant storage at 2 to 4 bits a coordinate behind the same queries (feature `turboquant`) (Exact vector index, below; [turboquant.md](turboquant.md)) |
+| `turbo-vector-index` | `analysis/vector-index/` | An exact in-memory vector index over rows of one embedding space: top-k by dot product or cosine, ties in insertion order, and a typed refusal of vectors from another model, dimension or normalization; TurboQuant storage at 2 to 4 bits a coordinate behind the same queries (feature `turboquant`); and late interaction (MaxSim) over candidates of token vectors from `Vectors<Subwords>` and `Levels` (Exact vector index, below; [turboquant.md](turboquant.md)) |
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
@@ -349,6 +349,39 @@ their parent section, and hits carry their parent context with exact
 view spans. `ContentHashes<L>` (`turbo:content-hashes<L>`) gives every
 unit a deterministic content ID over its level, heading path and
 fragment text, so a re-chunked document diffs cleanly.
+
+Multi-representation indexing (`turbo_chunker::MultiRepChunkIndex`)
+registers several indexable views of one chunk unit (its surface
+text, a summary or header, its keyphrases from `TermStats<Levels>`,
+its sentence sub-spans), each carrying provenance back to the
+canonical unit and its `ChunkId`, and ranks them lexically in one
+list. Parent expansion (`turbo_chunker::ParentExpander`) then
+promotes ranked leaf or representation hits to the parent unit that
+should enter the context ("small-to-big" retrieval): promotion
+climbs the `Levels` tree toward a target level while the parent
+fits `max_parent_tokens`, scores of hits resolving to one parent
+combine by max, sum, mean or reciprocal rank fusion with
+deterministic tie-breaking, an accepted unit blocks its ancestors
+and its whole subtree so a parent and its own child are never both
+emitted, and `max_total_tokens` caps the emitted context.
+`unit_tokens` derives every unit's token count from the chunk
+rows' `model_tokens`.
+
+Late pooling (`turbo_chunker::LateChunkAnnotator<L>`) pools the
+already-contextualized `Vectors<Subwords>` into `Vectors<L>` for any
+span layer `L` with mean, max or masked-mean pooling (masked mean
+drops punctuation pieces and configured stopwords first) and optional
+L2 normalization, without re-running the encoder per item. It reads
+`TokenVectorWindows` (`turbo:token-vector-windows`), the encoder
+window spans the token vectors were produced under, and refuses
+vectors whose model differs from the subwords' model or pieces no
+window holds; an item straddling a window seam is refused, split and
+recombined by piece count, or pooled across the seam, according to
+its `WindowPolicy` (`Reject` by default). Items selecting no piece
+get an empty vector row, and discontinuous items pool only their
+fragments. Because the output is the ordinary `Vectors<L>` layer,
+bind the step at a named instance to keep late and naive embeddings
+side by side on one document.
 
 `Spans<L>` provides lookup and conflict-resolution helpers that work
 across continuous, nested, overlapping and discontinuous spans:
@@ -735,7 +768,9 @@ fields mean bumps its `SCHEMA`.
 | `Vocabulary` | `turbo:vocabulary` | the document | `turbo-chunker` |
 | `IndexedTerms` (`Terms` alias) | `turbo:indexed-terms` | tokens | `turbo-chunker` |
 | `TermStats<L>` | `turbo:term-stats<L>` | `L` | `turbo-chunker` |
+| `WeightedTerms<L>` | `turbo:weighted-terms<L>` | `L` | `turbo-chunker` |
 | `ContentHashes<L>` | `turbo:content-hashes<L>` | `L` | `turbo-chunker` |
+| `TokenVectorWindows` | `turbo:token-vector-windows` | text | `turbo-analysis-layers` |
 | `Mentions` | `opennlp:mentions` | text (indexes `Sentences`, `Tokens`, `Entities` when lifted from entities) | `turbo-coref` |
 | `Speakers` | `opennlp:speakers` | text | `turbo-coref` |
 | `Sketches<L>` | `turbo:sketches<L>` | `L` | `turbo-group` |
@@ -1950,6 +1985,32 @@ must be normalized as the document's terms were; a term given twice
 counts twice. `Query::rank` lists the units holding a query term, best
 first, equal scores in unit order.
 
+`CollectionStatisticsBuilder` gathers a corpus's statistics over the
+`TermStats` of many documents (each unit with terms one unit of N, its
+length added to the total, each term's df added) and merges builders
+made apart, one per shard or thread; `build` gives `CollectionStatistics`,
+terms in byte order, the same whatever order documents were added or
+merged in. It is a `Collection`, has each term's `idf`, and has a binary
+form (`to_bytes`, `from_bytes`: a magic and version, the counts, then
+each term with its df) whose reader refuses truncation, trailing bytes,
+counts past the payload, terms empty or out of byte order, and a df of
+zero or past N.
+
+`Bm25PostingIndexBuilder` adds the units of many documents as rows,
+numbered in the order added, and `build` gives a `Bm25PostingIndex`: each
+term's rows with its count, in row order, and the rows' own statistics.
+`top_k` (with those statistics) and `top_k_with` (with a larger corpus's)
+walk the query's lists a row at a time with MaxScore pruning: once k rows
+are held, terms whose bounds (idf times the weight of the term's largest
+count in its shortest row), added up from the weakest, cannot beat the
+k-th score stop bringing in rows. Each row returned is scored term by
+term in query order, as `Query::score` scores it, so the scores are the
+full scan's to the bit and equal scores go to the earlier row; the tests
+compare both over four `k1`/`b` settings, and
+`analysis/chunker/examples/bm25_posting_bench.rs` times them.
+`WeightedTerms<L>` holds, for each entry of a `TermStats<L>`, the weight
+it adds to a query holding its term once.
+
 The layers live in `turbo-chunker` beside the code that makes them while
 only it reads them; they move to a schema crate of their own once
 another crate does.
@@ -2192,6 +2253,49 @@ bound and the estimate's mean at each width.
 `analysis/vector-index/examples/quant_bench.rs` measures recall, error
 and speed against the exact index; [turboquant.md](turboquant.md) is the
 record, with the OpenNLP Java reference on the same rows.
+
+### Late interaction
+
+A `TokenIndex` holds candidates of several token vectors each and scores
+a query of several token vectors against them by MaxSim, as ColBERT
+does: for each query token the highest dot product over the candidate's
+tokens, and the sum of those maxima over the query tokens. It reranks a
+shortlist (`rerank`, the candidates given) or the whole index (`top_k`),
+best first with ties in insertion order; `score` gives one candidate's
+score, and `explain` also gives, for each query token, the candidate
+token that won it (the first with the highest dot product), its dot
+product and its source: the row it came from and, from a layer, its
+bytes, so a hit can be highlighted.
+
+`TokenIndexBuilder::push` adds a candidate from a slice of token vectors.
+`push_levels` adds one candidate a unit of `Levels` (chunk, section or
+document) from a text's `Vectors<Subwords>`: a unit's tokens are the
+subword pieces inside its span (inside each fragment, for a
+discontinuous unit; an empty piece counts where it lies before the
+fragment's end, or at the end when no non-empty piece follows, so one on
+the boundary of two units is the second's and one at the end of the text
+the last unit's; an empty unit takes none), in text order, less the items the vectors list as
+empty and the pieces a `Prune` rule drops (punctuation, stopwords). The
+index records the rule's name and how many tokens it dropped for each
+candidate (`pruning`). A unit left with no token is not added. The layers
+must be of the index's model and dimension and of one view, and a layer
+refused for any unit adds none of its units.
+
+The space checks are the exact index's: a query from another model
+(id, revision or manifest hash, so another projection of the same encoder
+too), dimension or normalization is refused, and so are zero, non-finite
+and overlong token vectors, each error naming the candidate and token
+(`Which::Token`) or the query token. A candidate or query of no tokens is
+refused with `IndexError::NoTokens`. The dot products are the exact
+index's kernel, computed a candidate at a time as a block of query by
+candidate scores, four query tokens by four candidate tokens a step on
+AVX-512; the maximum of each query token is exact in any order, and the
+maxima are added in query order, so a score is the same bits on every
+path. `analysis/vector-index/tests/late.rs` checks scores and winning tokens against a naive
+double loop bit for bit, reranking against a full sort, the refusals and
+eight threads against one; `analysis/vector-index/tests/late_levels.rs` checks the tokens of
+each unit, pruning, and the refusal of layers of another model or view.
+`analysis/vector-index/examples/late_bench.rs` times a rerank.
 
 ## Levels
 

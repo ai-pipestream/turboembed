@@ -49,6 +49,23 @@ impl Unigram {
     /// A space written around punctuation, and the metaspace in front,
     /// come from the character they are written beside.
     fn normalize_aligned(&self, piece: &str, base: usize, s: &mut String, sources: &mut Vec<Span>) {
+        let chars = self.normalized_chars(piece, base);
+        let Some(&(first, at)) = chars.first() else { return };
+        let mut put = |c: char, at: Span| {
+            s.push(c);
+            sources.extend(std::iter::repeat_n(at, c.len_utf8()));
+        };
+        // The metaspace in front comes from the character it is put
+        // before.
+        if self.add_prefix_space && first != ' ' && first != self.metaspace {
+            put(self.metaspace, at);
+        }
+        for (c, at) in chars {
+            put(if c == ' ' { self.metaspace } else { c }, at);
+        }
+    }
+
+    pub(super) fn normalized_chars(&self, piece: &str, base: usize) -> Vec<(char, Span)> {
         let mut chars: Vec<(char, Span)> = Vec::with_capacity(piece.len());
         match &self.charsmap {
             Some(c) => c.normalize_aligned(piece, base, &mut chars),
@@ -100,23 +117,11 @@ impl Unigram {
             let trail = chars.iter().rev().take_while(|(c, _)| c.is_whitespace()).count();
             chars.truncate(chars.len() - trail);
         }
-        let Some(&(first, at)) = chars.first() else { return };
-        let mut put = |c: char, at: Span| {
-            s.push(c);
-            sources.extend(std::iter::repeat_n(at, c.len_utf8()));
-        };
-        // The metaspace in front comes from the character it is put
-        // before.
-        if self.add_prefix_space && first != ' ' && first != self.metaspace {
-            put(self.metaspace, at);
-        }
-        for (c, at) in chars {
-            put(if c == ' ' { self.metaspace } else { c }, at);
-        }
+        chars
     }
 
     /// The precompiled map, then runs of spaces collapsed to one.
-    fn normalize(&self, text: &str) -> String {
+    pub(crate) fn normalize(&self, text: &str) -> String {
         let mapped = match &self.charsmap {
             Some(c) => c.normalize(text),
             None => text.to_owned(),

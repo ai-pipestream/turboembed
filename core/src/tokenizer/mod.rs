@@ -98,16 +98,17 @@ enum Kind {
 }
 
 /// A special token as it is matched in raw text, or in normalized text.
-struct Special {
-    content: String,
-    id: i32,
+pub(crate) struct Special {
+    pub(crate) content: String,
+    pub(crate) id: i32,
     /// The whitespace before it is part of the match.
-    lstrip: bool,
+    pub(crate) lstrip: bool,
     /// Matched only with no word character on either side.
     single_word: bool,
 }
 
 pub struct Tokenizer {
+    pub(crate) rerank: Option<crate::manifest::Rerank>,
     kind: Kind,
     /// Special tokens as they are matched in raw text: longest first.
     specials: Vec<Special>,
@@ -202,3 +203,9 @@ pub(crate) use normalize::*;
 
 #[cfg(test)]
 mod tests;
+
+mod pair;
+pub use pair::PairWindow;
+
+#[cfg(test)]
+mod pair_tests;

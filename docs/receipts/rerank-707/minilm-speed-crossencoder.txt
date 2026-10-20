@@ -1,0 +1,1 @@
+CrossEncoder 6.1.0 torch=2.14.0+cpu batch=4 threads=1 median_seconds=0.013848230999428779 pairs_per_second=288.8455572531246

@@ -10,16 +10,20 @@
 //! structure says about each gap between sentences, and `limits` turns
 //! that into the places a chunk may not end. At query time, `route`
 //! ranks the chunk, section and document units of `Levels` together,
-//! and `hashes` gives every unit a content-addressed ID.
+//! and `hashes` gives every unit a content-addressed ID. `eval` scores a
+//! chunking against a gold one and sweeps the chunker's settings.
 
 mod boundaries;
 pub mod clauses;
 mod cohesion;
 pub mod coref;
 mod drift;
+pub mod expand;
 mod gaps;
 mod hashes;
+pub mod late;
 mod limits;
+pub mod multirep;
 mod providers;
 pub mod rechunk;
 pub mod route;
@@ -37,7 +41,10 @@ pub use coref::{
     chunk_antecedents, coref_boundaries, coref_boundaries_from_chains, extract_chains,
 };
 pub use drift::{Drift, DriftBoundaries, Score, drift};
+pub use expand::{ExpandedHit, ExpansionPolicy, ParentExpander, ScoreAggregation, unit_tokens};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
+pub use late::{LateChunkAnnotator, Pooling, WindowPolicy};
+pub use multirep::{ChunkRepresentation, MultiRepChunkIndex, RepHit, RepresentationKind};
 pub use providers::{
     ClauseCutProvider, CorefBoundariesProvider, DistilledBoundariesProvider, DriftProvider,
     SentimentBoundariesProvider, StructureBoundariesProvider, WeighProvider,
@@ -49,6 +56,7 @@ pub use sentiment::{
     sentiment_shift,
 };
 pub use sums::{Rows, Sums};
+pub use turbo_analysis_layers::TokenVectorWindows;
 pub use weigh::{
     COREF, DRIFT, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_coref,
     weigh_with_sentiment,
@@ -59,6 +67,7 @@ pub mod levels;
 pub mod terms;
 
 pub mod compare;
+pub mod eval;
 
 use std::ops::Range;
 
