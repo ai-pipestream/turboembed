@@ -19,6 +19,7 @@ impl Policy {
             || self.coverage <= 0.0
             || self.coverage >= 1.0
             || self.max_set_size == 0
+            || self.max_set_size > u32::MAX as usize
             || !probability(self.min_confidence)
         {
             Err("invalid coverage, set size or abstention threshold".into())
@@ -57,18 +58,20 @@ impl Prediction {
         if !probability(cutoff) && cutoff != f64::INFINITY {
             return Err("invalid conformal cutoff".into());
         }
-        let expected: Vec<_> =
-            self.calibrated.iter().enumerate().filter_map(|(i, &p)| (1.0 - p <= cutoff).then_some(i)).collect();
-        let reason = if expected.is_empty() {
+        let expected = self.calibrated.iter().enumerate().filter_map(|(i, &p)| (1.0 - p <= cutoff).then_some(i));
+        if !self.set.iter().copied().eq(expected) {
+            return Err("calibrated decision does not match policy".into());
+        }
+        let reason = if self.set.is_empty() {
             Some(Abstention::EmptySet)
-        } else if expected.len() > policy.max_set_size {
+        } else if self.set.len() > policy.max_set_size {
             Some(Abstention::SetTooLarge)
         } else if self.calibrated.iter().copied().fold(0.0, f64::max) < policy.min_confidence {
             Some(Abstention::BelowThreshold)
         } else {
             None
         };
-        if self.set != expected || self.abstention != reason {
+        if self.abstention != reason {
             return Err("calibrated decision does not match policy".into());
         }
         Ok(())
@@ -123,11 +126,15 @@ impl Predictor {
         self.cutoff
     }
     pub fn predict(&self, raw: &[f64]) -> Result<Prediction> {
+        self.predict_owned(raw.to_vec())
+    }
+    /// Retain an already-owned model output without another copy.
+    pub fn predict_owned(&self, raw: Vec<f64>) -> Result<Prediction> {
         if raw.len() != self.calibration.identity().labels.len() {
             return Err("calibration label dimension mismatch".into());
         }
         let mut calibrated = vec![0.0; raw.len()];
-        self.calibration.transform().apply_checked(raw, &mut calibrated)?;
+        self.calibration.transform().apply_checked(&raw, &mut calibrated)?;
         let set: Vec<_> =
             calibrated.iter().enumerate().filter_map(|(i, &p)| (1.0 - p <= self.cutoff).then_some(i)).collect();
         let abstention = if set.is_empty() {
@@ -139,6 +146,6 @@ impl Predictor {
         } else {
             None
         };
-        Ok(Prediction { raw: raw.to_vec(), calibrated, set, abstention })
+        Ok(Prediction { raw, calibrated, set, abstention })
     }
 }

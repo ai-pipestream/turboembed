@@ -124,7 +124,7 @@ fn heldout<C: CalibratableCategorizer>(cat: C) {
         Samples { split: "conformal", probabilities: &c, gold: &cy },
     )
     .unwrap();
-    let p = turbo_calibration::Predictor::new(a, &id, Policy { coverage: 0.9, max_set_size: 2, min_confidence: 0.0 })
+    let p = turbo_calibration::Predictor::new(a, &id, Policy { coverage: 0.99, max_set_size: 2, min_confidence: 0.0 })
         .unwrap();
     let predictions: Vec<_> = t.iter().map(|r| p.predict(r).unwrap()).collect();
     let before = metrics::reliability(&t, &ty, 10).unwrap();
@@ -132,7 +132,7 @@ fn heldout<C: CalibratableCategorizer>(cat: C) {
         metrics::reliability(&predictions.iter().map(|r| r.calibrated.clone()).collect::<Vec<_>>(), &ty, 10).unwrap();
     let coverage = metrics::coverage(&predictions, &ty).unwrap();
     assert!(after.ece < before.ece, "{before:?} {after:?}");
-    assert!(coverage.set_coverage >= 0.87);
+    assert!((coverage.set_coverage - 0.99).abs() <= 0.03);
     println!(
         "{}: ECE {:.6} -> {:.6}; Brier {:.6} -> {:.6}; coverage {:.6}",
         id.model, before.ece, after.ece, before.brier, after.brier, coverage.set_coverage
@@ -142,4 +142,48 @@ fn heldout<C: CalibratableCategorizer>(cat: C) {
 fn heldout_receipts_for_each_categorizer() {
     heldout(maxent());
     heldout(svm());
+}
+
+#[test]
+fn producer_feature_configuration_is_bound_and_custom_features_are_rejected() {
+    let cat = maxent();
+    let original = identity(&cat, "reviews").unwrap();
+    let model = cat.model().clone();
+    for generator in [
+        BuiltinFeatureGenerator::BagOfWords(BagOfWordsFeatureGenerator::only_all_letter_tokens()),
+        BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::new(1, 2).unwrap()),
+    ] {
+        let changed = DocumentCategorizerME::new(
+            model.clone().with_context_generator(DoccatContextGenerator::from_builtins(vec![generator])),
+        );
+        let expected = identity(&changed, "reviews").unwrap();
+        assert_ne!(original.inference_hash, expected.inference_hash);
+        assert!(artifact(&cat).bind(&expected).is_err());
+    }
+    let custom = DocumentCategorizerME::new(model.with_context_generator(DoccatContextGenerator::from_custom(vec![
+        std::sync::Arc::new(FeatureGenerator::BagOfWords),
+    ])));
+    assert!(identity(&custom, "reviews").unwrap_err().contains("custom"));
+}
+
+#[test]
+fn analyzer_provenance_and_document_graph_keep_the_calibrated_sidecar() {
+    use turbo_analysis::export::{export, import};
+    use turbo_analysis::{Analyzer, Key, Provenance};
+    use turbo_analysis_layers::{Calibrated, Categories, export::codecs};
+    let cat = maxent();
+    let a = artifact(&cat);
+    let wrapped =
+        CalibratedCategorizer::new(cat, a, "reviews", Policy { coverage: 0.9, max_set_size: 1, min_confidence: 0.99 })
+            .unwrap();
+    let analyzer = Analyzer::builder().given(Key::<Tokens>::DEFAULT).add(wrapped).build().unwrap();
+    let mut doc = Document::new("good");
+    doc.add(&Key::DEFAULT, tokens("good"), Provenance::by("test")).unwrap();
+    let mut docs = [doc];
+    analyzer.run(&mut docs)[0].as_ref().unwrap();
+    let side = docs[0].get::<Calibrated<Categories>>().unwrap();
+    assert!(side.rows[0].abstention.is_some());
+    let graph = export(&docs[0], &codecs()).unwrap();
+    let back = import(&graph, &codecs()).unwrap();
+    assert_eq!(back.get::<Calibrated<Categories>>().unwrap().rows, side.rows);
 }

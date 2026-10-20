@@ -34,6 +34,8 @@
 //! search over `str` refuses a model with such an outcome
 //! ([`Error::OutcomeNotText`]).
 
+mod scored;
+
 use std::cmp::Ordering;
 use std::convert::Infallible;
 
@@ -175,7 +177,6 @@ struct Node {
     prob: f64,
     score: f64,
     len: u32,
-    distribution: u32,
 }
 
 const ROOT: u32 = u32::MAX;
@@ -231,31 +232,6 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
         context: &mut (impl ContextGenerator<T, L> + ?Sized),
         validator: &(impl SequenceValidator<T, L> + ?Sized),
     ) -> Vec<Sequence<'m, L>> {
-        self.search::<false, T>(count, sequence, min_score, context, validator).0
-    }
-
-    /// Best sequence with the full distributions already evaluated along
-    /// its prefix. Ordinary search compiles out distribution collection.
-    pub fn best_sequence_scored<T>(
-        &self,
-        sequence: &[T],
-        context: &mut (impl ContextGenerator<T, L> + ?Sized),
-        validator: &(impl SequenceValidator<T, L> + ?Sized),
-    ) -> Option<(Sequence<'m, L>, Vec<Vec<f64>>)> {
-        let (mut seq, mut rows) = self.search::<true, T>(1, sequence, Self::DEFAULT_MIN_SCORE, context, validator);
-        seq.pop().map(|s| (s, rows.pop().unwrap()))
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn search<const SCORED: bool, T>(
-        &self,
-        count: usize,
-        sequence: &[T],
-        min_score: f64,
-        context: &mut (impl ContextGenerator<T, L> + ?Sized),
-        validator: &(impl SequenceValidator<T, L> + ?Sized),
-    ) -> (Vec<Sequence<'m, L>>, Vec<Vec<Vec<f64>>>) {
-        let mut distributions = Vec::new();
         let model = self.model;
         let outcomes = &self.outcomes;
         let n = outcomes.len();
@@ -279,13 +255,6 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
                 context.context(i, sequence, &prior, &mut features);
                 model.eval_features(features.iter(), &mut probs);
 
-                let distribution = if SCORED {
-                    let ix = u32::try_from(distributions.len()).expect("fewer than 2^32 contexts");
-                    distributions.extend_from_slice(&probs);
-                    ix
-                } else {
-                    0
-                };
                 let min = threshold(&probs, &mut sorted, self.size);
 
                 let (top_score, top_len) =
@@ -301,7 +270,6 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
                                 prob: probs[p],
                                 score,
                                 len: top_len + 1,
-                                distribution,
                             });
                             next.push(id);
                         }
@@ -326,13 +294,9 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
         }
 
         let mut result = Vec::with_capacity(count.min(prev.len()));
-        let mut result_rows = Vec::new();
         for &id in prev.iter().take(count) {
             if id == ROOT {
                 result.push(Sequence { outcomes: Vec::new(), probs: Vec::new(), score: 0.0 });
-                if SCORED {
-                    result_rows.push(Vec::new());
-                }
                 continue;
             }
             let node = nodes[id as usize];
@@ -341,14 +305,9 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
                 probs: Vec::with_capacity(node.len as usize),
                 score: node.score,
             };
-            let mut rows = Vec::new();
             let mut at = id;
             while at != ROOT {
                 let n = nodes[at as usize];
-                if SCORED {
-                    let start = n.distribution as usize;
-                    rows.push(distributions[start..start + outcomes.len()].to_vec());
-                }
                 seq.outcomes.push(outcomes[n.outcome as usize]);
                 seq.probs.push(n.prob);
                 at = n.parent;
@@ -356,12 +315,8 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
             seq.outcomes.reverse();
             seq.probs.reverse();
             result.push(seq);
-            if SCORED {
-                rows.reverse();
-                result_rows.push(rows);
-            }
         }
-        (result, result_rows)
+        result
     }
 }
 
@@ -429,5 +384,61 @@ fn compare_nodes<L: OutcomeLabel + ?Sized>(nodes: &[Node], outcomes: &[&L], a: u
 }
 
 #[cfg(test)]
-#[path = "beam_tests.rs"]
-mod tests;
+mod tests {
+    use super::*;
+
+    #[test]
+    fn threshold_matches_sorted_across_beam_sizes_and_special_floats() {
+        let samples: &[&[f64]] = &[
+            &[0.5],
+            &[0.1, 0.7, 0.2],
+            &[0.25, 0.25, 0.25, 0.25],
+            &[-0.0, 0.0, -1.0, 1.0, f64::NAN, f64::INFINITY],
+            &[0.05, 0.15, 0.30, 0.10, 0.25, 0.08, 0.07],
+        ];
+        for &probs in samples {
+            let mut full = probs.to_vec();
+            full.sort_by(|a, b| compare_doubles(*a, *b));
+            let mut scratch = vec![0.0; probs.len()];
+            for size in 0..=(probs.len() + 2) {
+                let got = threshold(probs, &mut scratch, size);
+                let want = full[probs.len().saturating_sub(size.max(1))];
+                assert_eq!(compare_doubles(got, want), Ordering::Equal, "size={size}, probs={probs:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn compare_nodes_matches_full_path_comparison() {
+        let outcomes: &[&str] = &["A", "B", "C", "D"];
+        let nodes = vec![
+            Node { parent: ROOT, outcome: 1, prob: 0.5, score: -1.0, len: 1 },
+            Node { parent: 0, outcome: 0, prob: 0.5, score: -1.0, len: 2 },
+            Node { parent: 0, outcome: 2, prob: 0.5, score: -1.0, len: 2 },
+            Node { parent: 1, outcome: 3, prob: 0.5, score: -1.0, len: 3 },
+            Node { parent: 2, outcome: 0, prob: 0.5, score: -1.0, len: 3 },
+        ];
+        let reference = |a: u32, b: u32| -> Ordering {
+            let (x, y) = (nodes[a as usize], nodes[b as usize]);
+            let by_score = compare_doubles(y.score, x.score);
+            if by_score != Ordering::Equal {
+                return by_score;
+            }
+            let (mut pa, mut pb) = (Vec::new(), Vec::new());
+            path(&nodes, a, outcomes, &mut pa);
+            path(&nodes, b, outcomes, &mut pb);
+            for (s, t) in pa.iter().zip(&pb) {
+                let by_outcome = str::compare(s, t);
+                if by_outcome != Ordering::Equal {
+                    return by_outcome;
+                }
+            }
+            pa.len().cmp(&pb.len())
+        };
+        for a in 0..nodes.len() as u32 {
+            for b in 0..nodes.len() as u32 {
+                assert_eq!(compare_nodes(&nodes, outcomes, a, b), reference(a, b), "a={a}, b={b}");
+            }
+        }
+    }
+}

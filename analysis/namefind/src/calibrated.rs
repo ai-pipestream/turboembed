@@ -105,7 +105,7 @@ impl Annotator for CalibratedNameAnnotator {
                 return Err(fail("name finder produced no token sequence".into()));
             }
             for row in rows {
-                calibrated.rows.push(self.predictor.predict(&row).map_err(fail)?);
+                calibrated.rows.push(self.predictor.predict_owned(row).map_err(fail)?);
             }
             for name in names {
                 let start = base + name.span.start;

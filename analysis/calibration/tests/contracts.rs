@@ -135,3 +135,17 @@ fn metrics_are_known_and_do_not_hide_abstention() {
     assert_eq!(c.delivered_coverage, 0.0);
     assert_eq!(c.abstention_rate, 1.0);
 }
+
+#[test]
+fn prepared_tables_validate_each_input_and_owned_predictions_match() {
+    let t = Transform::Isotonic { upper: vec![0.2, 0.8], value: vec![0.1, 0.9] };
+    let prepared = t.prepare().unwrap();
+    let mut a = [0.0; 2];
+    let mut b = a;
+    prepared.apply(&[0.3, 0.7], &mut a).unwrap();
+    t.apply(&[0.3, 0.7], &mut b).unwrap();
+    assert_eq!(a, b);
+    assert!(prepared.apply(&[f64::NAN, 0.5], &mut a).is_err());
+    let p = Predictor::new(artifact(t, vec![0.2; 20]), &identity(), policy()).unwrap();
+    assert_eq!(p.predict(&[0.3, 0.7]).unwrap(), p.predict_owned(vec![0.3, 0.7]).unwrap());
+}

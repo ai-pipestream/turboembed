@@ -27,6 +27,12 @@ impl Transform {
         };
         if valid { Ok(()) } else { Err("invalid calibration transform parameters".into()) }
     }
+    /// Validate a fitted table once for a streaming batch. The immutable
+    /// borrow prevents changing its parameters while it is prepared.
+    pub fn prepare(&self) -> Result<PreparedTransform<'_>> {
+        self.check()?;
+        Ok(PreparedTransform(self))
+    }
     pub fn apply(&self, raw: &[f64], out: &mut [f64]) -> Result<()> {
         self.check()?;
         self.apply_checked(raw, out)
@@ -71,5 +77,13 @@ pub fn sigmoid(x: f64) -> f64 {
     } else {
         let e = x.exp();
         e / (1.0 + e)
+    }
+}
+
+/// Validated immutable transform; each call still validates its input row.
+pub struct PreparedTransform<'a>(&'a Transform);
+impl PreparedTransform<'_> {
+    pub fn apply(&self, raw: &[f64], out: &mut [f64]) -> Result<()> {
+        self.0.apply_checked(raw, out)
     }
 }

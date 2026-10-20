@@ -6,7 +6,7 @@ mod prediction;
 mod transform;
 pub use prediction::{Abstention, Policy, Prediction, Predictor};
 use sha2::{Digest, Sha256};
-pub use transform::Transform;
+pub use transform::{PreparedTransform, Transform};
 
 pub type Result<T> = std::result::Result<T, String>;
 

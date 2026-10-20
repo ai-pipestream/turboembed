@@ -93,10 +93,11 @@ absolute tolerance 4 percentage points:
 
 The per-model tests use 300 fitting, 301 conformal, and 1,000 evaluation rows.
 Their deliberately coarse probability values have ties: coverage is 100%
-for a 90% request. This is conservative set coverage, not 100% classification
-accuracy. The acceptance tolerance for these discrete smoke tests is a
-one-sided shortfall of 3 percentage points; they do not establish closeness
-to 90% from above.
+for a 99% request, within the stated absolute tolerance of 3 percentage points.
+At this high requested coverage the sets contain both labels. This is
+conservative set coverage, not 100% classification accuracy; a one-label
+set-size policy would abstain. The continuous test above also checks a
+less conservative 90% request.
 
 | Producer | ECE before | ECE after | Brier before | Brier after |
 | --- | ---: | ---: | ---: | ---: |
@@ -107,3 +108,33 @@ to 90% from above.
 Run the numerical test with `cargo test --locked -p turbo-train --test calibration -- --nocapture`
 and the model integration receipts with
 `cargo test --locked -p turbo-doccat -p turbo-namefind --test calibrated -- --nocapture`.
+
+## Release timing and remaining limit
+
+The timing driver is `analysis/doccat/examples/calibration_timing.rs`. Build
+with `cargo build --locked --release -p turbo-doccat --example calibration_timing`.
+Its arguments are `maxent`, `svm`, or `names`, a token count, and optional
+`calibrated`. Model construction/training and artifact binding are outside
+the timed loop. Each process warms up for 100 calls, then measures 10,000
+classifier calls or 1,000 name-finder calls.
+
+These measurements compare a separate release binary built from main
+`4c780f56` using the same raw fixture with this implementation. Four ABBA
+rounds on CPU 4 give eight measurements per variant; the table reports
+medians. The name case measures the existing decoder plus token calibration,
+not the new layer adapter's span validation and entity assembly.
+
+| Producer | Tokens | Main ns/call | Calibrated ns/call | Change |
+| --- | ---: | ---: | ---: | ---: |
+| maxent | 16 | 342.96 | 437.71 | +27.63% |
+| svm | 16 | 350.54 | 439.53 | +25.38% |
+| names | 16 | 22597.62 | 24002.68 | +6.22% |
+| maxent | 128 | 3057.52 | 3274.16 | +7.09% |
+| svm | 128 | 2322.58 | 2437.84 | +4.96% |
+| names | 128 | 220000.95 | 228919.20 | +4.05% |
+
+The short-input measurements exceed issue #718's few-percent speed bar.
+This is an open acceptance gap, not a passing performance result. Calibration
+is opt-in; plain annotators continue to return their existing outputs.
+An unchanged-head performance review should include real deployment models
+and full adapter timing before this work is treated as ready to merge.

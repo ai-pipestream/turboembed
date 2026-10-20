@@ -42,10 +42,11 @@ pub fn fit(identity: Identity, method: Method, fitting: Samples<'_>, conformal: 
     fitting.check(identity.labels.len())?;
     conformal.check(identity.labels.len())?;
     let transform = fit_transform(method, &fitting)?;
+    let prepared = transform.prepare()?;
     let mut scores = Vec::with_capacity(conformal.gold.len());
     let mut out = vec![0.0; identity.labels.len()];
     for (p, &y) in conformal.probabilities.iter().zip(conformal.gold) {
-        transform.apply(p, &mut out)?;
+        prepared.apply(p, &mut out)?;
         scores.push(1.0 - out[y]);
     }
     scores.sort_by(f64::total_cmp);

@@ -141,7 +141,7 @@ fn heldout_token_calibration_receipt() {
         Samples { split: "conformal", probabilities: &conf, gold: &cy },
     )
     .unwrap();
-    let p = turbo_calibration::Predictor::new(a, &id, Policy { coverage: 0.9, max_set_size: 2, min_confidence: 0.0 })
+    let p = turbo_calibration::Predictor::new(a, &id, Policy { coverage: 0.99, max_set_size: 2, min_confidence: 0.0 })
         .unwrap();
     let predictions: Vec<_> = test.iter().map(|r| p.predict(r).unwrap()).collect();
     let before = metrics::reliability(&test, &ty, 10).unwrap();
@@ -149,7 +149,7 @@ fn heldout_token_calibration_receipt() {
         metrics::reliability(&predictions.iter().map(|r| r.calibrated.clone()).collect::<Vec<_>>(), &ty, 10).unwrap();
     let c = metrics::coverage(&predictions, &ty).unwrap();
     assert!(after.ece < before.ece);
-    assert!(c.set_coverage >= 0.87);
+    assert!((c.set_coverage - 0.99).abs() <= 0.03);
     println!(
         "NameFinderME: ECE {:.6} -> {:.6}; Brier {:.6} -> {:.6}; coverage {:.6}",
         before.ece, after.ece, before.brier, after.brier, c.set_coverage
