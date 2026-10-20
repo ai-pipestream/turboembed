@@ -45,7 +45,8 @@ impl MaxentSentences {
         };
         let file = ModelFile::read(&path).map_err(|e| Unavailable::Broken(format!("{}: {e}", path.display())))?;
         let model = SentenceModel::open(file).map_err(|e| Unavailable::Broken(format!("{}: {e}", path.display())))?;
-        let detector = SentenceDetector::new(Arc::new(model), mode);
+        // The goldens are the JVM's: no abbreviation inventory.
+        let detector = SentenceDetector::new(Arc::new(model), mode).with_jvm_parity();
         let analyzer = Analyzer::builder().add(detector).build().map_err(|e| Unavailable::Broken(e.to_string()))?;
         Ok(Box::new(MaxentSentences { analyzer }))
     }

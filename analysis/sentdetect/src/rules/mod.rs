@@ -20,9 +20,9 @@
 //! 6. A full stop after one of the language's abbreviations (the CLDR
 //!    suppressions or the sentencex lists) or after an initial (`J. Smith`)
 //!    ends no sentence, unless one of the language's sentence starters
-//!    follows (`and co. They`). An [`AbbreviationInventory`] given with
-//!    [`RuleSplitter::with_abbreviations`] is asked first, and its verdict
-//!    stands when it has one.
+//!    follows (`and co. They`). The language's bundled
+//!    [`AbbreviationInventory`] (English has one) is asked first, and its
+//!    verdict stands when it has one.
 //! 7. List item markers start sentences, and a full stop inside one ends
 //!    none.
 //! 8. No boundary falls between a bracket or quotation mark and the one
@@ -46,7 +46,7 @@ use turbo_analysis::{Annotator, Error, Refs, Span, Spans, View};
 use turbo_analysis_layers::Sentences;
 use turbo_unicode::WhitespaceMode;
 
-use crate::inventory::AbbreviationInventory;
+use crate::inventory::{AbbreviationInventories, AbbreviationInventory};
 use crate::scan::trim;
 use crate::{check_len, fold_hash};
 pub use languages::{LANGUAGES, Language, Resolved, resolve};
@@ -155,15 +155,17 @@ pub struct RuleScratch {
 }
 
 impl RuleSplitter {
-    /// The splitter for a BCP 47 language tag, with every tailoring and
-    /// [`LineBreaks::Paragraph`]. A tag the table does not know gets the
-    /// root rules.
+    /// The splitter for a BCP 47 language tag, with every tailoring,
+    /// [`LineBreaks::Paragraph`] and the bundled abbreviation inventory of
+    /// the tag ([`AbbreviationInventories::for_language`]): every class for
+    /// English, none for a language without one. A tag the table does not
+    /// know gets the root rules.
     pub fn new(tag: &str) -> RuleSplitter {
         RuleSplitter {
             language: resolve(tag),
             rules: Rules::ALL,
             line_breaks: LineBreaks::Paragraph,
-            inventory: AbbreviationInventory::EMPTY,
+            inventory: AbbreviationInventories::for_language(tag),
         }
     }
 
@@ -183,6 +185,12 @@ impl RuleSplitter {
 
     pub fn with_line_breaks(self, line_breaks: LineBreaks) -> RuleSplitter {
         RuleSplitter { line_breaks, ..self }
+    }
+
+    /// The same splitter with no abbreviation inventory: the language's
+    /// own data alone, as the splitter split before inventories.
+    pub fn without_inventory(self) -> RuleSplitter {
+        self.with_abbreviations(AbbreviationInventory::EMPTY)
     }
 
     /// The same splitter with an abbreviation inventory, consulted at a
@@ -339,7 +347,7 @@ thread_local! {
 impl Annotator for RuleSentenceDetector {
     const ID: &'static str = "turbo-sentdetect:rules";
     /// Changes whenever the rules or the data change what is split.
-    const VERSION: &'static str = "2";
+    const VERSION: &'static str = "3";
     type Reads = (View,);
     type Writes = (Sentences,);
 

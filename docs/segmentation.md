@@ -387,9 +387,11 @@ Rules), the pySBD tests (MIT; 471 cases) and `SentenceBreakTest.txt`
 sentences equal the expected ones once runs of whitespace are made one
 space; a break test line passes when the spans equal the UAX segments
 trimmed of whitespace. The detectors are `rules` (every tailoring, the
-case's language), `uax29` (no tailoring) and the maxent detector with
-the published UD model of each language that has one, on the cases in
-that language. The CI step "sentence conformance and agreement, models
+case's language, with the bundled abbreviation inventory), `uax29` (no
+tailoring) and the maxent detector with the published UD model of each
+language that has one, in JVM parity mode, on the cases in that
+language; `maxent-en-inventory` is the English model with its default
+inventory. The CI step "sentence conformance and agreement, models
 required" prints the pass counts. Every failing case is listed with what differs in
 `analysis/sentdetect/tests/conformance/<detector>.<suite>.failures`, and for `rules` with
 the tailoring without which it would pass; the test fails when the
@@ -398,9 +400,10 @@ cleaning step rewrote, and fail for every detector that runs them.
 
 | Detector | Pragmatic Segmenter | Golden Rules (English) | pySBD | `SentenceBreakTest.txt` |
 |---|---|---|---|---|
-| `rules` | 429 of 585 | 44 of 52 | 372 of 471 | 504 of 512 |
+| `rules` | 437 of 585 | 46 of 52 | 377 of 471 | 504 of 512 |
 | `uax29` | 305 of 585 | 29 of 52 | 264 of 471 | 512 of 512 |
-| maxent, English UD model | 133 of 289 (English cases) | 31 of 52 | 98 of 193 (English) | 467 of 512 |
+| maxent, English UD model, parity | 133 of 289 (English cases) | 31 of 52 | 98 of 193 (English) | 467 of 512 |
+| maxent, English UD model, default | 155 of 289 (English cases) | 36 of 52 | 112 of 193 (English) | |
 | maxent, German UD model | 22 of 37 (German cases) | | 20 of 35 (German) | |
 
 The Portuguese model has no case in its language. Among the rules
@@ -409,13 +412,14 @@ list for Dutch or Slovak, and CLDR's lists are short), a sentence that
 starts with a lower case letter after a full stop (the Greek cases,
 which SB8 keeps together), `:` as a sentence end in Arabic, and the
 references' document cleaning. By language, the rules detector passes
-all cases of `am bg fa fr hi hy mr my pl ur zh`, and 329 of 482 English,
+all cases of `am bg fa fr hi hy mr my pl ur zh`, and 342 of 482 English,
 61 of 72 German, 86 of 109 Danish, 78 of 84 Russian, 60 of 72 Italian
 and 54 of 72 Spanish cases, against 234, 29, 63, 72, 56 and 41 for
 plain UAX #29.
 
 **Agreement with the maxent detector.** `analysis/sentdetect/tests/agreement.rs` runs the
-rule splitter and the maxent detector with the published model on the
+rule splitter and the maxent detector with the published model, both
+as they run by default (with the bundled abbreviation inventory), on the
 same texts, for the three languages with a model: the golden inputs in
 that language and the texts of the conformance cases in it (not their
 expected sentences). Boundaries are the starts of the sentences after
@@ -425,8 +429,8 @@ that the rule splitter places.
 
 | Language, texts | Texts | Split alike | Sentences (maxent, rules, same span) | Boundaries (maxent, rules, same) | Precision | Recall |
 |---|---|---|---|---|---|---|
-| English, golden inputs | 45 | 31 | 125, 123, 93 | 82, 80, 69 | 86.2% | 84.1% |
-| English, conformance texts | 482 | 258 | 3253, 2673, 1773 | 2771, 2191, 1950 | 89.0% | 70.4% |
+| English, golden inputs | 45 | 33 | 121, 119, 99 | 78, 76, 69 | 90.8% | 88.5% |
+| English, conformance texts | 482 | 292 | 3180, 2649, 1803 | 2698, 2167, 1934 | 89.2% | 71.7% |
 | German, golden inputs | 2 | 1 | 7, 6, 5 | 5, 4, 4 | 100% | 80.0% |
 | German, conformance texts | 72 | 42 | 194, 179, 100 | 122, 107, 76 | 71.0% | 62.3% |
 | Portuguese, golden inputs | 1 | 1 | 5, 5, 5 | 4, 4, 4 | 100% | 100% |
@@ -445,11 +449,24 @@ fails.
 `AbbreviationInventory` (`analysis/sentdetect/src/inventory/`) is a
 classified list of abbreviations that the maxent detector and the rule
 splitter consult at a full stop, on top of a model's dictionary or a
-language's CLDR suppressions. Neither consults one unless given one:
-`SentenceDetector::with_abbreviations` (or `with_bundled_abbreviations`,
-the inventory of the model's language) and
-`RuleSplitter::with_abbreviations`. Without one, both split as before,
-and their configuration hashes are unchanged.
+language's CLDR suppressions. It is on by default:
+`SentenceDetector::new` takes the bundled inventory of the model's
+language and `RuleSplitter::new` (and so `RuleSentenceDetector::new`)
+that of its tag, through `AbbreviationInventories::for_language`. Only
+English has a bundled inventory; every other language gets
+`AbbreviationInventory::EMPTY`, and splits as before. `RuleSplitter::uax29`
+has none. `with_abbreviations` sets another inventory.
+
+**JVM parity mode.** `SentenceDetector::with_jvm_parity()` drops the
+inventory (it is `with_abbreviations(AbbreviationInventory::EMPTY)`), and
+the detector's spans, probabilities and `config_hash` are then those of
+OpenNLP's `SentenceDetectorME` bit for bit, as before inventories. The
+JVM golden comparisons (`analysis/sentdetect/tests/golden.rs`, the fuzz
+runs against the goldens, the sentence counts of
+`analysis/train/tests/roundtrip.rs`), the `maxent-<language>`
+conformance runs and the `turbo-train-recipes` model gate, which
+compares models and not the inventory, use it. `RuleSplitter::without_inventory()` is the same
+for the rule splitter.
 
 The bundled English inventory
 (`analysis/sentdetect/src/inventory/english.rs`) has four classes,
@@ -487,7 +504,20 @@ abbreviations, initials and sentence starters.
 
 `config_hash` of both annotators folds in the inventory's hash: the
 language, the classes, every active entry with its rule, the
-never-abbreviation words, the additions and the exclusions.
+never-abbreviation words, the additions and the exclusions. So the
+default hash of an English detector changed with inventories, and the
+hash in parity mode (or of a language without an inventory) is the hash
+from before them; `analysis/sentdetect/tests/abbreviations.rs` checks
+both. `RuleSentenceDetector::VERSION` is `3` since the default changed.
+`turbo-eval` names a maxent sentencer with an inventory by the model and
+the inventory's hash (`... abbreviations <hash>`), so its records tell
+the two modes apart.
+
+On the conformance suites the inventory adds 8 Pragmatic Segmenter and
+5 pySBD passes to the rule splitter and 22 and 14 to the English maxent
+model, and fails no case that passed without it. The fixed cases are
+abbreviations before a name, a number or a lower case word (`St.`, `Mt.`,
+`e.g.`, `p.`, `no.`, `co.`, `Ph.D.`, `a.m.`, `Jan. 20, former Sen.`).
 
 ## Tokenization
 

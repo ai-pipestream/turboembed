@@ -70,15 +70,34 @@ pub struct SentenceDetector {
     /// one the model was trained with; OpenNLP's models are trained in the
     /// mode of their OpenNLP version, `Unicode` for 3.x.
     pub whitespace: WhitespaceMode,
-    /// Consulted when the model says split; empty by default.
+    /// Consulted when the model says split; the bundled inventory of the
+    /// model's language by default.
     inventory: AbbreviationInventory,
 }
 
 impl SentenceDetector {
-    /// The detector of a model, with no abbreviation inventory: it splits
-    /// as `SentenceDetectorME` does.
+    /// The detector of a model with the bundled abbreviation inventory of
+    /// the model's language ([`AbbreviationInventories::for_language`]):
+    /// every class for English, none for a language without one. Use
+    /// [`with_jvm_parity`](Self::with_jvm_parity) to split exactly as
+    /// `SentenceDetectorME` does.
     pub fn new(model: impl Into<Arc<SentenceModel>>, whitespace: WhitespaceMode) -> SentenceDetector {
-        SentenceDetector { model: model.into(), whitespace, inventory: AbbreviationInventory::EMPTY }
+        let model = model.into();
+        let inventory = AbbreviationInventories::for_language(model.language());
+        SentenceDetector { model, whitespace, inventory }
+    }
+
+    /// The same detector with no abbreviation inventory: its spans,
+    /// probabilities and configuration hash are those of OpenNLP's
+    /// `SentenceDetectorME` with the same model, bit for bit. The JVM
+    /// golden comparisons run in this mode.
+    pub fn with_jvm_parity(self) -> SentenceDetector {
+        self.with_abbreviations(AbbreviationInventory::EMPTY)
+    }
+
+    /// Whether it splits as `SentenceDetectorME` does: no inventory.
+    pub fn is_jvm_parity(&self) -> bool {
+        self.inventory.is_unset()
     }
 
     /// The same detector with an abbreviation inventory. Where the model
@@ -88,13 +107,6 @@ impl SentenceDetector {
     /// features are the model's own, so the probabilities do not change.
     pub fn with_abbreviations(self, inventory: AbbreviationInventory) -> SentenceDetector {
         SentenceDetector { inventory, ..self }
-    }
-
-    /// The same detector with the bundled inventory of the model's
-    /// language, all classes ([`AbbreviationInventories::for_language`]).
-    pub fn with_bundled_abbreviations(self) -> SentenceDetector {
-        let inventory = AbbreviationInventories::for_language(self.model.language());
-        self.with_abbreviations(inventory)
     }
 
     /// The abbreviation inventory it consults.
@@ -282,7 +294,7 @@ impl Annotator for SentenceDetector {
     }
 
     /// The whitespace mode, and the abbreviation inventory when there is
-    /// one; without one the hash is what it was before inventories.
+    /// one; in JVM parity mode the hash is what it was before inventories.
     fn config_hash(&self) -> u64 {
         let h = mode_hash(self.whitespace);
         if self.inventory.is_unset() { h } else { fold_hash(h, self.inventory.config_hash()) }

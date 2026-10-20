@@ -1,6 +1,6 @@
 //! The classified abbreviation inventory in the maxent and rule
-//! detectors: false sentence ends it removes, true ends it keeps, and the
-//! legacy behaviour without it.
+//! detectors, where it is on by default: false sentence ends it removes,
+//! true ends it keeps, and the JVM parity mode without it.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -32,7 +32,18 @@ fn rules(s: &RuleSplitter, text: &str) -> Vec<String> {
 }
 
 fn en_rules() -> RuleSplitter {
-    RuleSplitter::new("en").with_abbreviations(AbbreviationInventory::english())
+    RuleSplitter::new("en")
+}
+
+/// The detector of a fixture model, by default and in JVM parity mode.
+fn detectors(name: &str) -> (SentenceDetector, SentenceDetector) {
+    let d = SentenceDetector::new(model(name), WhitespaceMode::Unicode);
+    (d.clone(), d.with_jvm_parity())
+}
+
+/// FNV-1a over `bytes` from the offset basis.
+fn fnv(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
 }
 
 fn fixture_text() -> String {
@@ -47,11 +58,12 @@ fn the_issue_examples_segment_out_of_the_box() {
     assert_eq!(rules(&en_rules(), a), want_a);
     assert_eq!(rules(&en_rules(), b), [b]);
     // Without the inventory the rule splitter breaks both.
-    assert_eq!(rules(&RuleSplitter::new("en"), a).len(), 3);
-    assert_eq!(rules(&RuleSplitter::new("en"), b).len(), 2);
+    assert_eq!(rules(&RuleSplitter::new("en").without_inventory(), a).len(), 3);
+    assert_eq!(rules(&RuleSplitter::new("en").without_inventory(), b).len(), 2);
     for name in MODELS {
-        let d = SentenceDetector::new(model(name), WhitespaceMode::Unicode).with_bundled_abbreviations();
+        let (d, _) = detectors(name);
         assert_eq!(d.abbreviations(), &AbbreviationInventory::english());
+        assert!(!d.is_jvm_parity());
         assert_eq!(me(&d, a), want_a, "{name}");
         assert_eq!(me(&d, b), [b], "{name}");
     }
@@ -61,9 +73,8 @@ fn the_issue_examples_segment_out_of_the_box() {
 fn false_ends_are_suppressed() {
     let text = "See fig. 3 and Sec. 230 of 42 U.S.C. 1983 today.";
     for name in MODELS {
-        let base = SentenceDetector::new(model(name), WhitespaceMode::Unicode);
+        let (d, base) = detectors(name);
         assert_eq!(me(&base, text), ["See fig.", "3 and Sec. 230 of 42 U.S.C. 1983 today."], "{name}");
-        let d = base.clone().with_bundled_abbreviations();
         assert_eq!(me(&d, text), [text], "{name}");
         // The model's probabilities are its own; the split is vetoed.
         let (mut seen, mut out) = (Vec::new(), Vec::new());
@@ -92,8 +103,7 @@ fn true_ends_are_kept() {
         "The deal closed with Acme Inc. It was late.",
     ];
     for name in MODELS {
-        let base = SentenceDetector::new(model(name), WhitespaceMode::Unicode);
-        let d = base.clone().with_bundled_abbreviations();
+        let (d, base) = detectors(name);
         for text in texts {
             assert_eq!(me(&d, text), me(&base, text), "{name}: {text:?}");
         }
@@ -109,38 +119,57 @@ fn true_ends_are_kept() {
     // A word that is never an abbreviation ends the sentence although the
     // CLDR suppressions list `OK.`.
     let text = "Everything is OK. Smith left.";
-    assert_eq!(rules(&RuleSplitter::new("en"), text), [text]);
+    assert_eq!(rules(&RuleSplitter::new("en").without_inventory(), text), [text]);
     assert_eq!(rules(&r, text), ["Everything is OK.", "Smith left."]);
 }
 
 #[test]
-fn without_an_inventory_nothing_changes() {
+fn jvm_parity_is_the_detector_without_an_inventory() {
     let text = fixture_text();
+    let bits = |v: &[(turbo_analysis::Span, f64)]| v.iter().map(|&(s, p)| (s, p.to_bits())).collect::<Vec<_>>();
     for name in MODELS {
-        let base = SentenceDetector::new(model(name), WhitespaceMode::Unicode);
-        let empty = base.clone().with_abbreviations(AbbreviationInventory::EMPTY);
-        let german = base.clone().with_abbreviations(AbbreviationInventories::for_language("de"));
+        let (d, parity) = detectors(name);
+        assert!(parity.is_jvm_parity());
+        let empty = d.clone().with_abbreviations(AbbreviationInventory::EMPTY);
+        let german = d.clone().with_abbreviations(AbbreviationInventories::for_language("de"));
         let (mut a, mut b, mut c) = (Vec::new(), Vec::new(), Vec::new());
-        base.detect(&text, &mut a);
+        parity.detect(&text, &mut a);
         empty.detect(&text, &mut b);
         german.detect(&text, &mut c);
-        let bits = |v: &[(turbo_analysis::Span, f64)]| v.iter().map(|&(s, p)| (s, p.to_bits())).collect::<Vec<_>>();
         assert_eq!(bits(&a), bits(&b), "{name}");
         assert_eq!(bits(&a), bits(&c), "{name}");
-        assert_eq!(base.config_hash(), empty.config_hash());
-        assert_ne!(base.config_hash(), base.clone().with_bundled_abbreviations().config_hash());
+        // The parity hash is the hash before inventories, FNV-1a of the
+        // whitespace mode's number (2 for Unicode); the default differs.
+        let old = (0xcbf2_9ce4_8422_2325_u64 ^ 2).wrapping_mul(0x0100_0000_01b3);
+        assert_eq!(parity.config_hash(), old);
+        assert_ne!(d.config_hash(), old);
+        assert_eq!(d.config_hash(), d.clone().with_abbreviations(AbbreviationInventory::english()).config_hash());
     }
-    assert_eq!(rules(&RuleSplitter::new("en").with_abbreviations(AbbreviationInventory::EMPTY), &text), {
-        rules(&RuleSplitter::new("en"), &text)
-    });
+    // The rule splitter without its inventory: the hash before inventories,
+    // over the language code, a zero, every tailoring on and paragraph
+    // line breaks. A language with no inventory keeps that hash.
+    let old = |code: &str| {
+        let mut bytes = code.as_bytes().to_vec();
+        bytes.push(0);
+        bytes.extend(0x7f_u64.to_le_bytes());
+        bytes.push(2);
+        fnv(&bytes)
+    };
+    let parity = RuleSentenceDetector { splitter: RuleSplitter::new("en").without_inventory() };
+    assert_eq!(parity.config_hash(), old("en"));
+    assert_ne!(RuleSentenceDetector::new("en").config_hash(), old("en"));
+    assert_eq!(RuleSentenceDetector::new("de").config_hash(), old("de"));
+    assert_eq!(
+        rules(&RuleSplitter::new("en").with_abbreviations(AbbreviationInventory::EMPTY), &text),
+        rules(&RuleSplitter::new("en").without_inventory(), &text)
+    );
 }
 
 #[test]
 fn the_inventory_only_vetoes_or_allows() {
     let text = fixture_text();
     for name in MODELS {
-        let base = SentenceDetector::new(model(name), WhitespaceMode::Unicode);
-        let d = base.clone().with_bundled_abbreviations();
+        let (d, base) = detectors(name);
         let trace = |d: &SentenceDetector| {
             let (mut seen, mut out) = (Vec::new(), Vec::new());
             d.detect_traced(&text, &mut Scratch::new(), &mut out, |c| {
@@ -178,12 +207,19 @@ fn the_rule_splitter_honours_its_switches() {
     let added = RuleSplitter::new("en")
         .with_abbreviations(AbbreviationInventory::EMPTY.with_addition("Art.", ContextRule::Numeric).unwrap());
     assert_eq!(rules(&added, text).len(), 2);
+    assert_eq!(rules(&RuleSplitter::new("en").without_inventory(), text).len(), 3);
+    // Languages without a bundled inventory get none.
+    for tag in ["de", "pt", "qaa", "und"] {
+        assert!(RuleSplitter::new(tag).abbreviations().is_empty(), "{tag}");
+    }
+    assert!(RuleSplitter::uax29().abbreviations().is_empty());
+    assert_eq!(RuleSplitter::new("en-GB").abbreviations(), &AbbreviationInventory::english());
 }
 
 #[test]
 fn annotators_hash_the_inventory() {
-    let plain = RuleSentenceDetector::new("en");
-    let with = RuleSentenceDetector { splitter: en_rules() };
+    let plain = RuleSentenceDetector { splitter: RuleSplitter::new("en").without_inventory() };
+    let with = RuleSentenceDetector::new("en");
     let fewer = RuleSentenceDetector {
         splitter: RuleSplitter::new("en").with_abbreviations(AbbreviationInventory::with_classes(
             AbbreviationClass::General | AbbreviationClass::Titles,
@@ -201,6 +237,7 @@ fn annotators_hash_the_inventory() {
     let empty =
         RuleSentenceDetector { splitter: RuleSplitter::new("en").with_abbreviations(AbbreviationInventory::EMPTY) };
     assert_eq!(plain.config_hash(), empty.config_hash());
+    assert_eq!(with.config_hash(), RuleSentenceDetector { splitter: en_rules() }.config_hash());
 
     let doc = Document::new("Dr. Smith met Gen. Lee at noon. They talked.");
     let view = doc.get::<View>().unwrap();

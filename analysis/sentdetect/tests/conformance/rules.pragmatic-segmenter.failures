@@ -1,6 +1,6 @@
 # The cases of the pragmatic-segmenter suite that the rules detector gets wrong, and what
 # differs. tests/conformance.rs writes this file and fails when a run differs
-# from it. 156 of 585 cases fail.
+# from it. 148 of 585 cases fail.
 pragmatic-segmenter/arabic_spec/001	1 missing, first after "سؤال وجواب:"
 pragmatic-segmenter/arabic_spec/002	1 extra, first after "وقال د‪.‬"
 pragmatic-segmenter/arabic_spec/004	1 missing, first after "...05:01 GMT الصنداي تايمز:"
@@ -33,23 +33,20 @@ pragmatic-segmenter/danish_spec/077	the same breaks, different text
 pragmatic-segmenter/danish_spec/082	the expected sentences rewrite the text
 pragmatic-segmenter/danish_spec/083	the same breaks, different text
 pragmatic-segmenter/danish_spec/084	the expected sentences rewrite the text
-pragmatic-segmenter/danish_spec/092	1 extra, first after "St."
-pragmatic-segmenter/danish_spec/094	1 extra, first after "This is e.g."
 pragmatic-segmenter/danish_spec/096	the expected sentences rewrite the text
 pragmatic-segmenter/danish_spec/100	the expected sentences rewrite the text
 pragmatic-segmenter/danish_spec/102	5 extra, first after "He speaks !"
 pragmatic-segmenter/danish_spec/103	1 missing, first after "Test strange period．"
 pragmatic-segmenter/danish_spec/104	the expected sentences rewrite the text
-pragmatic-segmenter/danish_spec/108	1 extra, first after "St."
 pragmatic-segmenter/danish_spec/110	1 extra, first after "...e works at Yahoo! and Y!"
 pragmatic-segmenter/danish_spec/112	2 missing, first after "...ng Scavenger Hunt Trophy"; passes without the paragraph line breaks rule
 pragmatic-segmenter/danish_spec/114	2 missing, first after "...mpliance Log – Volume 12"; passes without the paragraph line breaks rule
 pragmatic-segmenter/danish_spec/119	the expected sentences rewrite the text
-pragmatic-segmenter/danish_spec/120	1 missing, first after "...th President of the U.S."; 1 extra, first after "On Jan. 20, former Sen."
+pragmatic-segmenter/danish_spec/120	1 missing, first after "...th President of the U.S."
 pragmatic-segmenter/danish_spec/122	1 missing, first after "He left at 6 P.M."
 pragmatic-segmenter/danish_spec/123	1 missing, first after "He left at 6 a.m."; passes without the abbreviations rule
 pragmatic-segmenter/danish_spec/124	1 missing, first after "He left at 6 A.M."
-pragmatic-segmenter/danish_spec/125	6 missing, first after "c. The third list item"; 5 extra, first after "Please turn to p."
+pragmatic-segmenter/danish_spec/125	6 missing, first after "c. The third list item"; 3 extra, first after "...s You can find it at N°."
 pragmatic-segmenter/danish_spec/126	1 missing, first after "c. one more"; 2 extra, first after "It was John"; passes without the paragraph line breaks rule
 pragmatic-segmenter/danish_spec/127	1 missing, first after "c) one more"; passes without the paragraph line breaks rule
 pragmatic-segmenter/danish_spec/128	the expected sentences rewrite the text
@@ -73,8 +70,6 @@ pragmatic-segmenter/deutsch_spec/026	1 missing, first after "...rfasst von Anna 
 pragmatic-segmenter/deutsch_spec/032	14 missing, first after "1. Ich ___ gern Tennis." [doc_type=docx]; passes without the paragraph line breaks rule
 pragmatic-segmenter/dutch_spec/001	1 missing, first after "...ssiles op hem af kwamen."
 pragmatic-segmenter/dutch_spec/002	1 missing, first after "...van de schoten was raak."
-pragmatic-segmenter/english_spec/005	1 extra, first after "Please turn to p."
-pragmatic-segmenter/english_spec/011	1 extra, first after "St."
 pragmatic-segmenter/english_spec/018	1 missing, first after "... left the bank at 6 P.M." [skipped-upstream]
 pragmatic-segmenter/english_spec/042	2 missing, first after "features"; passes without the paragraph line breaks rule
 pragmatic-segmenter/english_spec/043	1 extra, first after "You can find it at N°."
@@ -95,23 +90,20 @@ pragmatic-segmenter/english_spec/078	the same breaks, different text
 pragmatic-segmenter/english_spec/083	the expected sentences rewrite the text
 pragmatic-segmenter/english_spec/084	the same breaks, different text
 pragmatic-segmenter/english_spec/085	the expected sentences rewrite the text
-pragmatic-segmenter/english_spec/093	1 extra, first after "St."
-pragmatic-segmenter/english_spec/095	1 extra, first after "This is e.g."
 pragmatic-segmenter/english_spec/097	the expected sentences rewrite the text
 pragmatic-segmenter/english_spec/101	the expected sentences rewrite the text
 pragmatic-segmenter/english_spec/103	5 extra, first after "He speaks !"
 pragmatic-segmenter/english_spec/104	1 missing, first after "Test strange period．"
 pragmatic-segmenter/english_spec/105	the expected sentences rewrite the text
-pragmatic-segmenter/english_spec/109	1 extra, first after "St."
 pragmatic-segmenter/english_spec/111	1 extra, first after "...e works at Yahoo! and Y!"
 pragmatic-segmenter/english_spec/113	2 missing, first after "...ng Scavenger Hunt Trophy"; passes without the paragraph line breaks rule
 pragmatic-segmenter/english_spec/115	2 missing, first after "...mpliance Log – Volume 12"; passes without the paragraph line breaks rule
 pragmatic-segmenter/english_spec/120	the expected sentences rewrite the text
-pragmatic-segmenter/english_spec/121	1 missing, first after "...th President of the U.S."; 1 extra, first after "On Jan. 20, former Sen."
+pragmatic-segmenter/english_spec/121	1 missing, first after "...th President of the U.S."
 pragmatic-segmenter/english_spec/123	1 missing, first after "He left at 6 P.M."
 pragmatic-segmenter/english_spec/124	1 missing, first after "He left at 6 a.m."; passes without the abbreviations rule
 pragmatic-segmenter/english_spec/125	1 missing, first after "He left at 6 A.M."
-pragmatic-segmenter/english_spec/126	6 missing, first after "c. The third list item"; 5 extra, first after "Please turn to p."
+pragmatic-segmenter/english_spec/126	6 missing, first after "c. The third list item"; 3 extra, first after "...s You can find it at N°."
 pragmatic-segmenter/english_spec/127	1 missing, first after "c. one more"; 2 extra, first after "It was John"; passes without the paragraph line breaks rule
 pragmatic-segmenter/english_spec/128	1 missing, first after "c) one more"; passes without the paragraph line breaks rule
 pragmatic-segmenter/english_spec/129	the expected sentences rewrite the text
