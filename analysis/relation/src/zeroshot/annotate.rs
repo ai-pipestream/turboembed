@@ -160,14 +160,14 @@ impl<S: RelationScorer> ZeroShotRelationAnnotator<S> {
 }
 
 /// Which labels admit each mention as head and as tail, as bit sets over
-/// the labels, kept once per distinct kind the mentions hold: the size
-/// follows the mentions, not the entity tag set. `admits(l, h, t)` is a
+/// the labels, worked out once per distinct kind the mentions hold and
+/// kept per mention: the size follows the mentions, not the entity tag
+/// set. `admits(l, h, t)` is a
 /// mask test, and `any(h, t)` whether some label admits the pair in some
 /// order it allows.
 struct Kinds {
     words: usize,
-    /// Each mention's index into the distinct kinds.
-    of: Vec<usize>,
+    /// Mention i's head and tail label sets, `words` words each.
     head: Vec<u64>,
     tail: Vec<u64>,
     symmetric: Vec<u64>,
@@ -178,7 +178,6 @@ impl Kinds {
         let mut present: Vec<u16> = entities.kind.iter().map(|k| k.0).collect();
         present.sort_unstable();
         present.dedup();
-        let of = entities.kind.iter().map(|k| present.binary_search(&k.0).unwrap_or(0)).collect();
         let size = present
             .len()
             .checked_mul(words)
@@ -201,16 +200,31 @@ impl Kinds {
                 }
             }
         }
-        Ok(Kinds { words, of, head, tail, symmetric })
+        // Each mention's own copy of its kind's sets, so a pair test reads
+        // them directly. Both sizes are bounded by the mentions.
+        let n = entities.kind.len();
+        n.checked_mul(words)
+            .ok_or_else(|| RelationError::InvalidInput(format!("{n} mentions by {words} label words")))?;
+        let (mut mh, mut mt) = (Vec::with_capacity(n * words), Vec::with_capacity(n * words));
+        for k in &entities.kind {
+            let u = present.binary_search(&k.0).unwrap_or(0) * words;
+            mh.extend_from_slice(&head[u..u + words]);
+            mt.extend_from_slice(&tail[u..u + words]);
+        }
+        Ok(Kinds { words, head: mh, tail: mt, symmetric })
     }
 
     fn admits(&self, l: usize, h: usize, t: usize) -> bool {
-        let w = l / 64;
-        self.head[self.of[h] * self.words + w] & self.tail[self.of[t] * self.words + w] & (1 << (l % 64)) != 0
+        let (w, bit) = (l / 64, 1u64 << (l % 64));
+        self.head[h * self.words + w] & self.tail[t * self.words + w] & bit != 0
     }
 
     fn any(&self, h: usize, t: usize) -> bool {
-        let (hh, ht) = (self.of[h] * self.words, self.of[t] * self.words);
+        if self.words == 1 {
+            let (hh, ht, th, tt) = (self.head[h], self.head[t], self.tail[h], self.tail[t]);
+            return hh & tt | self.symmetric[0] & ht & th != 0;
+        }
+        let (hh, ht) = (h * self.words, t * self.words);
         (0..self.words).any(|w| {
             let forward = self.head[hh + w] & self.tail[ht + w];
             let back = self.symmetric[w] & self.head[ht + w] & self.tail[hh + w];
