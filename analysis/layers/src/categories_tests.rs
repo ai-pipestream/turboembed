@@ -71,7 +71,8 @@ fn check_refuses_inconsistent_layers() {
 
     let mut c = Categories::<Sentences>::new(TagSet::new("test", &["a", "b"]));
     c.category.push(Tag(0));
-    c.selected.push(vec![Tag(0)]);
+    c.selected.push(Tag(0));
+    c.selected_end.push(1);
     c.scores.push(1.0);
     assert_eq!(c.check(), Err("1 items of 2 categories and 1 scores".into()));
     c.scores.push(0.0);
@@ -92,7 +93,8 @@ fn an_item_can_abstain_with_no_best_category() {
     // pushes Tag::NONE: the item is scored, nothing is predicted.
     let mut c = document(&["a", "b"], &[0.1, 0.2]);
     c.category[0] = Tag::NONE;
-    c.selected[0].clear();
+    c.selected.clear();
+    c.selected_end[0] = 0;
     assert_eq!(c.check(), Ok(()));
     assert_eq!(c.best(), None);
     assert_eq!(c.best_category(0), "");
@@ -170,6 +172,52 @@ fn check_refuses_inconsistent_selected_sets() {
 
     // A column shorter than the items.
     let mut c = Categories::document(cats(), Tag(0), &[0.8, 0.7]);
-    c.selected.clear();
-    assert_eq!(c.check(), Err("1 items and 0 selected label sets".into()));
+    c.selected_end.clear();
+    assert_eq!(c.check(), Err("1 items and 0 selected row ends".into()));
+
+    // A row end past the selected labels.
+    let mut c = Categories::document(cats(), Tag(0), &[0.8, 0.7]);
+    c.selected_end[0] = 2;
+    assert_eq!(c.check(), Err("selected row 0 ends past the selected labels".into()));
+
+    // Selected labels past the last row end.
+    let mut c = Categories::document(cats(), Tag(0), &[0.8, 0.7]);
+    c.selected.push(Tag(1));
+    assert_eq!(c.check(), Err("1 selected labels past the last row end".into()));
+}
+
+#[test]
+fn ten_thousand_pushes_keep_the_reserved_capacity() {
+    // The allocation regression: `selected` used to be one Vec per item,
+    // so pushing 10,000 items made 10,000 heap allocations. The CSR pair
+    // is reserved with the items; pushing appends, never reallocating.
+    let mut c = Categories::<Sentences>::with_capacity(TagSet::new("test", &["a", "b"]), 10_000);
+    let selected_capacity = c.selected.capacity();
+    let ends_capacity = c.selected_end.capacity();
+    let selected_ptr = c.selected.as_ptr();
+    let ends_ptr = c.selected_end.as_ptr();
+    for i in 0..10_000 {
+        let best = if i % 2 == 0 { Tag(0) } else { Tag(1) };
+        c.push(best, &[0.4, 0.6]);
+    }
+    assert_eq!(c.selected.capacity(), selected_capacity, "selected reallocated");
+    assert_eq!(c.selected_end.capacity(), ends_capacity, "selected_end reallocated");
+    assert_eq!(c.selected.as_ptr(), selected_ptr, "selected moved");
+    assert_eq!(c.selected_end.as_ptr(), ends_ptr, "selected_end moved");
+    assert_eq!(c.len(), 10_000);
+    assert_eq!(c.selected.len(), 10_000);
+    assert_eq!(c.selected_end.len(), 10_000);
+    assert_eq!(c.selected(0), [Tag(0)]);
+    assert_eq!(c.selected(9_999), [Tag(1)]);
+    assert_eq!(c.get(5_432).unwrap().selected, [Tag(0)]);
+    assert!(c.check().is_ok());
+
+    // Multi-label pushes grow the CSR columns correctly too.
+    let mut c = Categories::<Sentences>::with_capacity(TagSet::new("test", &["a", "b"]), 2);
+    c.push_selected(Tag(0), &[Tag(0), Tag(1)], &[0.7, 0.6]);
+    c.push(Tag::NONE, &[0.1, 0.2]);
+    assert_eq!(c.selected(0), [Tag(0), Tag(1)]);
+    assert!(c.selected(1).is_empty());
+    assert_eq!(c.selected_end, [2, 2]);
+    assert!(c.check().is_ok());
 }

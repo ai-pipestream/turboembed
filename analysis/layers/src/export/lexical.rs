@@ -138,7 +138,7 @@ impl<L: CategoryScope> LayerCodec for Categories<L> {
         let mut w = Writer::new();
         put_tagset(&mut w, &self.categories)?;
         put_tags(&mut w, &self.category)?;
-        put_selected(&mut w, &self.selected)?;
+        put_selected(&mut w, &self.selected, &self.selected_end)?;
         put_f64s(&mut w, &self.scores)?;
         Ok(w.finish())
     }
@@ -177,14 +177,18 @@ fn get_category_tags(r: &mut Reader<'_>, tagset: &TagSet) -> Result<Vec<Tag>, Ex
     Ok(tags)
 }
 
-/// The selected-set column: one label list per item, in category order.
-fn put_selected(w: &mut Writer, selected: &[Vec<Tag>]) -> Result<(), ExportError> {
-    w.usize(selected.len())?;
-    for set in selected {
+/// The selected-set column: one label list per item, in category order,
+/// sliced out of the layer's CSR pair.
+fn put_selected(w: &mut Writer, selected: &[Tag], ends: &[u32]) -> Result<(), ExportError> {
+    w.usize(ends.len())?;
+    let mut start = 0usize;
+    for &end in ends {
+        let set = &selected[start..end as usize];
         w.usize(set.len())?;
         for t in set {
             w.u16(t.0);
         }
+        start = end as usize;
     }
     Ok(())
 }

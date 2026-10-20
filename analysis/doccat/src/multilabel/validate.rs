@@ -2,6 +2,8 @@
 //! label names like the entry's reader enforces them, and the per-label
 //! threshold vector.
 
+use std::collections::HashSet;
+
 use super::bytes::MAX_UTF_BYTES;
 use super::error::MultiLabelError;
 
@@ -9,7 +11,7 @@ use super::error::MultiLabelError;
 /// none empty, over `writeUTF`'s 65535 bytes, or duplicated (`open`
 /// refuses what `new` would otherwise smuggle in).
 pub(super) fn check_label_names(labels: &[&str]) -> Result<(), MultiLabelError> {
-    let mut seen: Vec<&str> = Vec::with_capacity(labels.len());
+    let mut seen: HashSet<&str> = HashSet::with_capacity(labels.len());
     for &name in labels {
         if name.is_empty() {
             return Err(MultiLabelError::Invalid("an empty label name".into()));
@@ -20,10 +22,9 @@ pub(super) fn check_label_names(labels: &[&str]) -> Result<(), MultiLabelError> 
                 name.len()
             )));
         }
-        if seen.contains(&name) {
+        if !seen.insert(name) {
             return Err(MultiLabelError::Invalid(format!("duplicate label {name:?}")));
         }
-        seen.push(name);
     }
     Ok(())
 }

@@ -20,7 +20,9 @@ pub(crate) fn sigmoid(z: f64) -> f64 {
 /// One label's One-vs-Rest head: a linear scorer (`bias` plus a weight
 /// per document feature present) that the sigmoid turns into a score in
 /// `0.0..=1.0`. The weights are the nonzero ones, sorted by feature name
-/// so the bytes a model writes are deterministic.
+/// (`LinearHead::new` enforces the strict order): the bytes a model
+/// writes stay deterministic, and scoring binary-searches a feature's
+/// weight in them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LinearHead {
     pub(crate) bias: f64,
@@ -75,10 +77,17 @@ impl LinearHead {
     /// its feature's count. The counts are the bag-of-features convention
     /// [`train`](crate::multilabel::train) fits the heads with, so a
     /// document scores the same at inference as in training: a repeated
-    /// token counts once per occurrence.
+    /// token counts once per occurrence. Each feature looks its weight up
+    /// with a binary search over the head's sorted weights, so scoring
+    /// costs `O(features * log weights)` per head, not `O(weights)`.
     pub fn score(&self, features: &BTreeMap<&str, f64>) -> f64 {
-        self.bias
-            + self.weights.iter().filter_map(|(n, w)| features.get(n.as_str()).map(|&count| w * count)).sum::<f64>()
+        let mut sum = self.bias;
+        for (name, count) in features {
+            if let Ok(i) = self.weights.binary_search_by(|(n, _)| n.as_str().cmp(name)) {
+                sum += self.weights[i].1 * count;
+            }
+        }
+        sum
     }
 
     /// The sigmoid score in `0.0..=1.0`.

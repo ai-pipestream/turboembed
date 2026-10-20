@@ -115,7 +115,10 @@ impl CategoryScope for Aspects {
 /// for a single-label categorizer, and empty where the item abstained
 /// (`best` [`Tag::NONE`]). Two items with the same best category and
 /// scores but different selected sets (thresholds [0.5, 0.5] emitting
-/// {a, b} against [0.5, 0.9] emitting {a}) stay distinguishable.
+/// {a, b} against [0.5, 0.9] emitting {a}) stay distinguishable. The sets
+/// are one CSR column pair, `selected` holding every item's tags
+/// contiguous and `selected_end` one prefix offset per item, so pushing an
+/// item appends and never allocates once the layer is reserved.
 pub struct Categories<L: CategoryScope = View> {
     /// The categories, in the categorizer's order.
     pub categories: Arc<TagSet>,
@@ -124,11 +127,15 @@ pub struct Categories<L: CategoryScope = View> {
     /// (a multi-label categorizer whose no label cleared its threshold,
     /// abstaining instead of forcing a best category).
     pub category: Vec<Tag>,
-    /// The label set each item was given, item by item: the emitted
-    /// labels in category order, empty on abstention. `[category[i]]`
+    /// Every item's selected labels contiguous, in category order: item
+    /// `i` holds `selected[selected_end[i - 1]..selected_end[i]]` (from
+    /// the start when `i == 0`). Empty on abstention. `[category[i]]`
     /// unless a categorizer selected a different set
     /// ([`Categories::push_selected`]).
-    pub selected: Vec<Vec<Tag>>,
+    pub selected: Vec<Tag>,
+    /// One prefix offset per item into [`Categories::selected`], the end
+    /// of item `i`'s run; the last entry is `selected.len()`.
+    pub selected_end: Vec<u32>,
     /// The scores, item by item: `categories.len()` per item, in category
     /// order.
     pub scores: Vec<f64>,
@@ -141,6 +148,7 @@ impl<L: CategoryScope> Clone for Categories<L> {
             categories: Arc::clone(&self.categories),
             category: self.category.clone(),
             selected: self.selected.clone(),
+            selected_end: self.selected_end.clone(),
             scores: self.scores.clone(),
             _of: PhantomData,
         }
@@ -153,6 +161,7 @@ impl<L: CategoryScope> fmt::Debug for Categories<L> {
             .field("categories", &self.categories.name)
             .field("category", &self.category)
             .field("selected", &self.selected)
+            .field("selected_end", &self.selected_end)
             .field("scores", &self.scores)
             .finish()
     }
@@ -167,6 +176,7 @@ impl<L: CategoryScope> PartialEq for Categories<L> {
             && (0..a.len()).all(|i| a.label(Tag(i as u16)) == b.label(Tag(i as u16)))
             && self.category == other.category
             && self.selected == other.selected
+            && self.selected_end == other.selected_end
             && self.scores == other.scores
     }
 }
@@ -244,6 +254,7 @@ impl<L: CategoryScope> Categories<L> {
             categories,
             category: Vec::with_capacity(cap),
             selected: Vec::with_capacity(cap),
+            selected_end: Vec::with_capacity(cap),
             scores: Vec::with_capacity(cap.saturating_mul(n)),
             _of: PhantomData,
         }
@@ -255,11 +266,16 @@ impl<L: CategoryScope> Categories<L> {
     /// predicted, as a multi-label categorizer emits when no label clears
     /// its threshold. The selected set is `[best]`, or empty on
     /// abstention; categorizers selecting several labels use
-    /// [`Categories::push_selected`].
+    /// [`Categories::push_selected`]. Appends to the reserved CSR columns:
+    /// no heap allocation once `with_capacity` reserved the items.
     pub fn push(&mut self, best: Tag, scores: &[f64]) {
         debug_assert_eq!(scores.len(), self.categories.len());
-        let selected = if best == Tag::NONE { Vec::new() } else { vec![best] };
-        self.push_parts(best, selected, scores);
+        if best != Tag::NONE {
+            self.selected.push(best);
+        }
+        self.selected_end.push(self.selected.len() as u32);
+        self.category.push(best);
+        self.scores.extend_from_slice(scores);
     }
 
     /// Adds an item like [`Categories::push`], with the full label set the
@@ -269,19 +285,17 @@ impl<L: CategoryScope> Categories<L> {
     /// the abstention.
     pub fn push_selected(&mut self, best: Tag, selected: &[Tag], scores: &[f64]) {
         debug_assert_eq!(scores.len(), self.categories.len());
-        self.push_parts(best, selected.to_vec(), scores);
-    }
-
-    fn push_parts(&mut self, best: Tag, selected: Vec<Tag>, scores: &[f64]) {
+        self.selected.extend_from_slice(selected);
+        self.selected_end.push(self.selected.len() as u32);
         self.category.push(best);
-        self.selected.push(selected);
         self.scores.extend_from_slice(scores);
     }
 
     /// The label set item `i` was given, in category order; empty where
     /// the item abstained ([`Tag::NONE`]).
     pub fn selected(&self, i: usize) -> &[Tag] {
-        &self.selected[i]
+        let start = if i == 0 { 0 } else { self.selected_end[i - 1] };
+        &self.selected[start as usize..self.selected_end[i] as usize]
     }
 
     /// The name of item `i`'s best category, or `""` when the item
@@ -319,7 +333,7 @@ impl<L: CategoryScope> Categories<L> {
         CategoryRow {
             best_tag,
             best: if best_tag == Tag::NONE { "" } else { self.categories.label(best_tag) },
-            selected: &self.selected[i],
+            selected: self.selected(i),
             scores: self.row_scores(i),
             categories: &self.categories,
         }
@@ -381,13 +395,19 @@ impl<L: CategoryScope> Layer for Categories<L> {
         if self.scores.len() != n.saturating_mul(k) {
             return Err(format!("{n} items of {k} categories and {} scores", self.scores.len()));
         }
-        if self.selected.len() != n {
-            return Err(format!("{n} items and {} selected label sets", self.selected.len()));
+        if self.selected_end.len() != n {
+            return Err(format!("{n} items and {} selected row ends", self.selected_end.len()));
         }
         if self.category.iter().any(|t| *t != Tag::NONE && t.0 as usize >= k) {
             return Err(format!("a best category outside {}", self.categories.name));
         }
-        for (i, set) in self.selected.iter().enumerate() {
+        let mut start = 0usize;
+        for (i, &end) in self.selected_end.iter().enumerate() {
+            let end = end as usize;
+            if end < start || end > self.selected.len() {
+                return Err(format!("selected row {i} ends past the selected labels"));
+            }
+            let set = &self.selected[start..end];
             if set.iter().any(|t| t.0 as usize >= k) {
                 return Err(format!("a selected label of item {i} outside {}", self.categories.name));
             }
@@ -400,6 +420,10 @@ impl<L: CategoryScope> Layer for Categories<L> {
             if self.category[i] != Tag::NONE && !set.contains(&self.category[i]) {
                 return Err(format!("item {i}'s best category not among its selected labels"));
             }
+            start = end;
+        }
+        if start != self.selected.len() {
+            return Err(format!("{} selected labels past the last row end", self.selected.len() - start));
         }
         if self.scores.iter().any(|s| s.is_nan() || *s < 0.0) {
             return Err("a score that is negative or NaN".into());
