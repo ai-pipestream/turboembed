@@ -7,7 +7,7 @@ mod package;
 mod parser;
 mod trainer;
 mod wire;
-pub use context::{FeatureLayout, FeedforwardContext};
+pub use context::{FeatureLayout, FeedforwardContext, FeedforwardFeatureIds};
 pub use model::{Activation, FeedforwardDependencyModel, NeuralWeights, Vocabulary};
 pub use parser::FeedforwardDependencyParser;
 pub use trainer::{FeedforwardDependencyTrainer, FeedforwardSettings};

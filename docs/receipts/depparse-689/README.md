@@ -15,7 +15,7 @@ Checks:
 
 - `cargo fmt --all --check`: PASS.
 - `cargo clippy --locked -p turbo-depparse -p turbo-train-components --all-targets -- -D warnings`: PASS.
-- `cargo test --locked -p turbo-depparse -p turbo-train-components`: 159 passed,
+- `cargo test --locked -p turbo-depparse -p turbo-train-components`: 160 passed,
   0 failed, 1 pre-existing ignored test.
 - `cargo test --locked -p turbo-bench --test tree`: 3 passed.
 - Every touched Rust file is below 500 lines. No added runtime regex dependency,

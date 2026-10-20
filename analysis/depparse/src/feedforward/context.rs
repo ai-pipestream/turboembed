@@ -20,6 +20,18 @@ impl FeatureLayout {
     }
 }
 
+/// Typed feature groups before concatenation into the network input order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FeedforwardFeatureIds {
+    pub word_ids: Vec<usize>,
+    pub pos_ids: Vec<usize>,
+    pub label_ids: Vec<usize>,
+}
+impl FeedforwardFeatureIds {
+    pub fn flatten(&self) -> Vec<usize> {
+        self.word_ids.iter().chain(&self.pos_ids).chain(&self.label_ids).copied().collect()
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FeedforwardContext {
     pub words: Vec<Option<String>>,
@@ -27,6 +39,22 @@ pub struct FeedforwardContext {
     pub labels: Vec<Option<String>>,
 }
 impl FeedforwardContext {
+    /// Extracts the word, POS and label ID groups for the model's template.
+    pub fn extract_ids<A: WordOrTokenAnchor>(
+        state: &ArcStandardState<A>,
+        words: &[&str],
+        tags: &[&str],
+        model: &super::FeedforwardDependencyModel,
+    ) -> Result<FeedforwardFeatureIds> {
+        let context = Self::extract(state, words, tags, model.layout())?;
+        let ids = model.feature_ids(&context)?;
+        let n = model.layout().positions();
+        Ok(FeedforwardFeatureIds {
+            word_ids: ids[..n].to_vec(),
+            pos_ids: ids[n..2 * n].to_vec(),
+            label_ids: ids[2 * n..].to_vec(),
+        })
+    }
     /// Slots: s0,s1,s2,b0,b1,b2; for s0 then s1, first left/right children
     /// followed by second left/right children in the expanded layout;
     /// finally left-of-left and right-of-right children of s0,s1.

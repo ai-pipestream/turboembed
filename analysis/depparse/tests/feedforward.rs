@@ -17,3 +17,13 @@ mod parity;
 mod pipeline;
 #[path = "feedforward/support.rs"]
 mod support;
+
+#[test]
+fn numeric_feature_groups_preserve_network_input_order() {
+    let model = support::minimal(FeatureLayout::ChenManning18);
+    let state = ArcStandardState::<Tokens>::new(1).unwrap();
+    let ids = FeedforwardContext::extract_ids(&state, &["word"], &["N"], &model).unwrap();
+    assert_eq!((ids.word_ids.len(), ids.pos_ids.len(), ids.label_ids.len()), (18, 18, 12));
+    let context = FeedforwardContext::extract(&state, &["word"], &["N"], model.layout()).unwrap();
+    assert_eq!(ids.flatten(), model.feature_ids(&context).unwrap());
+}

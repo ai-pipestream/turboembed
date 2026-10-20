@@ -26,7 +26,9 @@ follows it. Missing positions and the artificial root have separate symbols.
 Child extrema and second children are updated during attachment in O(1).
 
 `FeedforwardContext` carries symbolic word/POS/label groups;
-`model.feature_ids` maps them to the shared embedding rows. Words use the
+`model.feature_ids` maps them to the shared embedding rows. `extract_ids`
+returns separate `word_ids`, `pos_ids`, and `label_ids` vectors whose `flatten`
+method preserves the network input order. Words use the
 reference's simple lowercase mapping plus contextual final sigma. Reserved
 `*UNK*`, `*NULL*`, and `*ROOT*` symbols retain their spelling.
 
