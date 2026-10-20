@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{FilterableLayer, Ix, Layer};
+use turbo_analysis::{Document, Error, FilterableLayer, Ix, KeyId, Provenance, retain_aligned_anchor};
 
 use crate::{
     Abbreviations, Boilerplate, Categories, CategoryScope, ChunkTags, Confidence, Entities, LanguageSpans, Lemmas,
@@ -96,18 +96,38 @@ impl FilterableLayer for Abbreviations {
     }
 }
 
-impl<L: Layer> FilterableLayer for Confidence<L> {
+impl<L: FilterableLayer> FilterableLayer for Confidence<L> {
     fn retain_indices(&self, kept: &[Ix<Self>]) -> Self {
         Confidence::new(kept.iter().map(|&ix| self.value[ix.get()]).collect())
     }
+
+    fn retain_anchor(
+        doc: &mut Document,
+        source_anchor: KeyId,
+        target_name: &'static str,
+        kept: &[Ix<Self>],
+        provenance: Provenance,
+    ) -> Result<Option<KeyId>, Error> {
+        retain_aligned_anchor::<Self, L>(doc, source_anchor, target_name, kept, provenance)
+    }
 }
 
-impl<L: Layer> FilterableLayer for Boilerplate<L> {
+impl<L: FilterableLayer> FilterableLayer for Boilerplate<L> {
     fn retain_indices(&self, kept: &[Ix<Self>]) -> Self {
         Boilerplate::new(
             kept.iter().map(|&ix| self.kind[ix.get()]).collect(),
             kept.iter().map(|&ix| self.score[ix.get()]).collect(),
         )
+    }
+
+    fn retain_anchor(
+        doc: &mut Document,
+        source_anchor: KeyId,
+        target_name: &'static str,
+        kept: &[Ix<Self>],
+        provenance: Provenance,
+    ) -> Result<Option<KeyId>, Error> {
+        retain_aligned_anchor::<Self, L>(doc, source_anchor, target_name, kept, provenance)
     }
 }
 
@@ -119,6 +139,16 @@ impl FilterableLayer for PosTags {
             prob: self.prob.as_ref().map(|p| kept.iter().map(|&ix| p[ix.get()]).collect()),
         }
     }
+
+    fn retain_anchor(
+        doc: &mut Document,
+        source_anchor: KeyId,
+        target_name: &'static str,
+        kept: &[Ix<Self>],
+        provenance: Provenance,
+    ) -> Result<Option<KeyId>, Error> {
+        retain_aligned_anchor::<Self, Tokens>(doc, source_anchor, target_name, kept, provenance)
+    }
 }
 
 impl FilterableLayer for ChunkTags {
@@ -128,6 +158,16 @@ impl FilterableLayer for ChunkTags {
             tags: kept.iter().map(|&ix| self.tags[ix.get()]).collect(),
             prob: self.prob.as_ref().map(|p| kept.iter().map(|&ix| p[ix.get()]).collect()),
         }
+    }
+
+    fn retain_anchor(
+        doc: &mut Document,
+        source_anchor: KeyId,
+        target_name: &'static str,
+        kept: &[Ix<Self>],
+        provenance: Provenance,
+    ) -> Result<Option<KeyId>, Error> {
+        retain_aligned_anchor::<Self, Tokens>(doc, source_anchor, target_name, kept, provenance)
     }
 }
 
@@ -139,6 +179,16 @@ impl FilterableLayer for Lemmas {
         }
         Lemmas { lemma }
     }
+
+    fn retain_anchor(
+        doc: &mut Document,
+        source_anchor: KeyId,
+        target_name: &'static str,
+        kept: &[Ix<Self>],
+        provenance: Provenance,
+    ) -> Result<Option<KeyId>, Error> {
+        retain_aligned_anchor::<Self, Tokens>(doc, source_anchor, target_name, kept, provenance)
+    }
 }
 
 impl FilterableLayer for Stems {
@@ -148,6 +198,16 @@ impl FilterableLayer for Stems {
             stem.push(self.stem.get(ix.get()));
         }
         Stems { stem }
+    }
+
+    fn retain_anchor(
+        doc: &mut Document,
+        source_anchor: KeyId,
+        target_name: &'static str,
+        kept: &[Ix<Self>],
+        provenance: Provenance,
+    ) -> Result<Option<KeyId>, Error> {
+        retain_aligned_anchor::<Self, Tokens>(doc, source_anchor, target_name, kept, provenance)
     }
 }
 
@@ -175,6 +235,16 @@ impl FilterableLayer for Terms {
         });
         Terms { surface, folded, stem, lemma }
     }
+
+    fn retain_anchor(
+        doc: &mut Document,
+        source_anchor: KeyId,
+        target_name: &'static str,
+        kept: &[Ix<Self>],
+        provenance: Provenance,
+    ) -> Result<Option<KeyId>, Error> {
+        retain_aligned_anchor::<Self, Tokens>(doc, source_anchor, target_name, kept, provenance)
+    }
 }
 
 impl<L: CategoryScope> FilterableLayer for Categories<L> {
@@ -186,13 +256,23 @@ impl<L: CategoryScope> FilterableLayer for Categories<L> {
         }
         out
     }
+
+    fn retain_anchor(
+        doc: &mut Document,
+        source_anchor: KeyId,
+        target_name: &'static str,
+        kept: &[Ix<Self>],
+        provenance: Provenance,
+    ) -> Result<Option<KeyId>, Error> {
+        L::retain_categories_anchor::<Self>(doc, source_anchor, target_name, kept, provenance)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use turbo_analysis::{
-        Analyzer, ConditionalAnnotator, Document, FilterAnnotator, IxRange, Key, Provenance, Span, Spans, Tag, TagSet,
-        ViewId,
+        Analyzer, ConditionalAnnotator, Document, FilterAnnotator, IxRange, Key, Layer, Provenance, Span, Spans, Tag,
+        TagSet, ViewId,
     };
 
     use super::*;

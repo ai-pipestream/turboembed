@@ -4,7 +4,7 @@
 
 mod filter;
 
-pub use filter::{FilterAnnotator, FilterableLayer, SpanFilter};
+pub use filter::{FilterAnnotator, FilterableLayer, SpanFilter, retain_aligned_anchor};
 
 use std::any::Any;
 use std::collections::HashSet;
@@ -230,17 +230,35 @@ impl ConditionalAnnotator {
     }
 
     /// Deterministic hash combining the predicate identifier and the branch
-    /// steps' identifiers, `config_hash` values, reads, and writes.
+    /// steps' identifiers, `config_hash` values, and ordered read/write bindings.
     pub fn config_hash(&self) -> u64 {
+        fn hash_step(mut h: u64, step: &dyn Step) -> u64 {
+            h = fnv_mix_str(h, step.id());
+            h = fnv_mix_u64(h, step.config_hash());
+            let reads = step.reads();
+            let required = step.required();
+            h = fnv_mix_u64(h, reads.len() as u64);
+            for (slot, (&r, &req)) in reads.iter().zip(&required).enumerate() {
+                h = fnv_mix_u64(h, slot as u64);
+                h = fnv_mix_key(h, r);
+                h = fnv_mix_bytes(h, &[u8::from(req)]);
+            }
+            let writes = step.writes();
+            h = fnv_mix_u64(h, writes.len() as u64);
+            for (slot, &w) in writes.iter().enumerate() {
+                h = fnv_mix_u64(h, slot as u64);
+                h = fnv_mix_key(h, w);
+            }
+            h
+        }
+
         let mut h = fnv_mix_str(FNV_OFFSET_BASIS, Self::ID);
         h = fnv_mix_str(h, self.predicate_name);
-        h = fnv_mix_str(h, self.when_true.id());
-        h = fnv_mix_u64(h, self.when_true.config_hash());
+        h = hash_step(h, self.when_true.as_ref());
         match &self.when_false {
             Some(wf) => {
                 h = fnv_mix_bytes(h, &[1]);
-                h = fnv_mix_str(h, wf.id());
-                h = fnv_mix_u64(h, wf.config_hash());
+                h = hash_step(h, wf.as_ref());
             }
             None => {
                 h = fnv_mix_bytes(h, &[0]);

@@ -1,0 +1,22 @@
+   Compiling turbo-analysis-layers v0.1.0 ($REPO/analysis/layers)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running tests/dependency_cycles.rs (target/debug/deps/dependency_cycles-e3350fe80f70ea02)
+
+running 1 test
+test dependency_forests_reject_nontrivial_cycles ... FAILED
+
+failures:
+
+---- dependency_forests_reject_nontrivial_cycles stdout ----
+
+thread 'dependency_forests_reject_nontrivial_cycles' (3698374) panicked at analysis/layers/tests/dependency_cycles.rs:12:5:
+a rooted component must not hide a cycle
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    dependency_forests_reject_nontrivial_cycles
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-analysis-layers --test dependency_cycles`

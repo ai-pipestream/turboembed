@@ -25,6 +25,18 @@ pub trait CategoryScope: Layer {
 
     /// The anchor of `Categories<Self>`.
     fn categories_anchor() -> Anchor;
+
+    /// Filters `Self` as the aligned anchor of `Categories<Self>` when row
+    /// removal changes the item count.
+    fn retain_categories_anchor<C: Layer>(
+        _doc: &mut turbo_analysis::Document,
+        _source_anchor: turbo_analysis::KeyId,
+        _target_name: &'static str,
+        _kept: &[turbo_analysis::Ix<C>],
+        _provenance: turbo_analysis::Provenance,
+    ) -> Result<Option<turbo_analysis::KeyId>, turbo_analysis::Error> {
+        Ok(None)
+    }
 }
 
 impl CategoryScope for View {
@@ -38,6 +50,15 @@ impl CategoryScope for Sentences {
     const CATEGORIES_OF: Option<&'static LayerName> = Some(Sentences::NAME);
     fn categories_anchor() -> Anchor {
         Anchor::aligned::<Sentences>()
+    }
+    fn retain_categories_anchor<C: Layer>(
+        doc: &mut turbo_analysis::Document,
+        source_anchor: turbo_analysis::KeyId,
+        target_name: &'static str,
+        kept: &[turbo_analysis::Ix<C>],
+        provenance: turbo_analysis::Provenance,
+    ) -> Result<Option<turbo_analysis::KeyId>, turbo_analysis::Error> {
+        turbo_analysis::retain_aligned_anchor::<C, Sentences>(doc, source_anchor, target_name, kept, provenance)
     }
 }
 

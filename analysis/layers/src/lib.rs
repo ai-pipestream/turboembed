@@ -14,7 +14,7 @@ use turbo_analysis::Ix;
 pub use turbo_analysis::{
     Alternative, Alternatives, ConditionalAnnotator, ConditionalStep, Edge, Edges, FilterAnnotator, FilterRule,
     FilterableLayer, FragmentError, Fragments, Groups, LayerStatus, ModeSet, NBest, Overlap, SpanFilter, SplitMode,
-    Tag, TagSet, TextSpans, filter_spans,
+    Tag, TagSet, TextSpans, filter_spans, retain_aligned_anchor,
 };
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
@@ -43,8 +43,8 @@ pub use syntax::{
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
 pub use words::{
-    MorphFeatures, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor, WordPosTags,
-    Words,
+    MorphFeatures, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor,
+    WordPosTags, Words,
 };
 
 /// Strings by column: one buffer and an end offset per item, never a

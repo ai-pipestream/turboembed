@@ -39,6 +39,7 @@ members = [
     "analysis/tokenize-layers",
     "analysis/langdetect",
     "analysis/doccat",
+    "analysis/depparse",
     "analysis/langspan",
     "analysis/lemmatizer",
     "analysis/morfologik",

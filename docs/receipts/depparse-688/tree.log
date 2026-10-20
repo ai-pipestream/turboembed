@@ -1,0 +1,14 @@
+$ cargo test --locked -p turbo-bench --test tree
+   Compiling turbo-bench v0.1.0 ($REPO/bench)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.28s
+     Running tests/tree.rs (target/debug/deps/tree-1a9beef376d3ed20)
+
+running 3 tests
+test the_readme_and_docs_point_at_files_that_exist ... ok
+test the_committed_records_carry_the_name_of_their_contents ... ok
+test the_committed_text_carries_no_host_path ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+
+exit=0

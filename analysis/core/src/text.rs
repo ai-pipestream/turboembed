@@ -21,6 +21,10 @@ pub struct Edit {
     pub child: Span,
 }
 
+mod compose;
+
+use compose::compose_alignments;
+
 /// How a view's bytes line up with its parent's: the edits, in text order
 /// on both sides, never overlapping. Identity is no edits. Mapping is a
 /// binary search, both ways.
@@ -110,6 +114,30 @@ impl Alignment {
     pub fn span_to_child(&self, s: Span) -> Span {
         ordered(self.to_child(s.start, Side::Start), self.to_child(s.end, Side::End))
     }
+
+    /// Inverts this alignment in $O(n)$, swapping `parent` and `child` in
+    /// every edit so the returned alignment maps from `child` (as parent)
+    /// to `parent` (as child).
+    pub fn invert(&self) -> Alignment {
+        Alignment { edits: self.edits.iter().map(|e| Edit { parent: e.child, child: e.parent }).collect() }
+    }
+
+    /// Composes `self` (`A -> B`) with `child` (`B -> C`) into a single flat
+    /// net `Alignment` (`A -> C`) represented purely by `edits: Vec<Edit>`.
+    ///
+    /// Pure insertions in `self` and pure deletions in `child` are split at
+    /// adjacent edit boundaries before merging, overlapping edits in `B`
+    /// coalesce into net `A -> C` edits, and cancelled `0..0 -> 0..0` edits
+    /// are omitted. Because the result is a single flat edit list, it
+    /// round-trips losslessly through [`Alignment::from_edits`] and
+    /// `DocumentGraph` serialization and applies single-stage `Side::Start` /
+    /// `Side::End` and `ordered` rules on the net `A -> C` edits. For
+    /// sequential step-by-step projection across intermediate views in a
+    /// [`crate::Document`], use [`crate::Document::map_offset`],
+    /// [`crate::Document::map_span`], and [`crate::Document::project_spans`].
+    pub fn compose(&self, child: &Alignment) -> Alignment {
+        compose_alignments(self, child)
+    }
 }
 
 /// The span from a mapped start to a mapped end. A start can only map past
@@ -121,16 +149,6 @@ fn ordered(start: u32, end: u32) -> Span {
 }
 
 fn map(edits: &[Edit], x: u32, side: Side, from: impl Fn(&Edit) -> Span, to: impl Fn(&Edit) -> Span) -> u32 {
-    // k is the first edit not wholly before x. For a start, an edit ending
-    // at x is before it, so a start at the boundary of two touching edits
-    // lands at the beginning of the second edit's output. For an end, an
-    // edit ending at x is not before it, so an end at that boundary lands at
-    // the end of the first edit's output. An edit whose `from` side is
-    // empty (an insertion, read from the parent; a deletion, read from the
-    // child) is never strictly inside, so the offset falls through to the
-    // identity shift: a start goes after its output, an end before it, and
-    // the inserted or deleted bytes belong to neither neighbour. Edits only
-    // have to be sorted and non-overlapping: touching edits are fine.
     let k = match side {
         Side::Start => edits.partition_point(|e| from(e).end <= x),
         Side::End => edits.partition_point(|e| from(e).end < x),
@@ -144,7 +162,6 @@ fn map(edits: &[Edit], x: u32, side: Side, from: impl Fn(&Edit) -> Span, to: imp
             };
         }
     }
-    // Identity, shifted by the edits before x.
     match k.checked_sub(1).map(|p| &edits[p]) {
         Some(prev) => to(prev).end + (x - from(prev).end),
         None => x,
@@ -177,16 +194,8 @@ impl<'a> ViewBuilder<'a> {
     }
 
     /// Writes `with` in place of the parent's bytes up to `end`. An empty
-    /// `with` deletes them; `end` at the current position inserts.
-    ///
-    /// Each call records exactly one edit, and an edit is the smallest unit
-    /// an offset can be mapped to: an offset inside it widens to the whole
-    /// edit. Calls are never merged with the edit before them, even when
-    /// they touch, so the caller chooses the granularity. Replacing three
-    /// characters one call each keeps a one-to-one mapping per character;
-    /// replacing them in one call makes one edit over all three. A call that
-    /// neither consumes nor writes any bytes changes nothing and records
-    /// nothing.
+    /// `with` deletes them; `end` at the current position inserts. One call
+    /// records one edit; calls are not merged.
     pub fn replace(&mut self, end: usize, with: &str) {
         let parent = Span::new(self.at as u32, end as u32);
         let child = Span::new(self.out.len() as u32, (self.out.len() + with.len()) as u32);
@@ -205,206 +214,4 @@ impl<'a> ViewBuilder<'a> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn spans_map_both_ways_through_edits() {
-        // "The ﬁnal  report" -> "The final report": a ligature expanded and
-        // a run of spaces folded.
-        let src = "The \u{FB01}nal  report";
-        let mut b = ViewBuilder::new(src);
-        b.keep(4);
-        b.replace(7, "fi"); // U+FB01 is 3 bytes
-        b.keep(10);
-        b.replace(12, " ");
-        let (out, a) = b.finish();
-        assert_eq!(out, "The final report");
-        // "final" in the view is the ligature and "nal" in the source.
-        let final_view = Span::new(4, 9);
-        assert_eq!(&src[a.span_to_parent(final_view).range()], "\u{FB01}nal");
-        // "report" moves back by one byte.
-        let report = Span::new(10, 16);
-        assert_eq!(&out[report.range()], "report");
-        assert_eq!(&src[a.span_to_parent(report).range()], "report");
-        // And forward again.
-        assert_eq!(a.span_to_child(Span::new(12, 18)), report);
-        // An offset inside the ligature widens to the whole of it.
-        assert_eq!(a.span_to_parent(Span::new(5, 6)), Span::new(4, 7));
-    }
-
-    #[test]
-    fn deleted_bytes_belong_to_neither_neighbour() {
-        // A soft hyphen (2 bytes) removed: "co\u{AD}operate" -> "cooperate".
-        let src = "co\u{AD}operate";
-        let mut b = ViewBuilder::new(src);
-        b.keep(2);
-        b.replace(4, "");
-        let (out, a) = b.finish();
-        assert_eq!(out, "cooperate");
-        assert_eq!(&src[a.span_to_parent(Span::new(0, 2)).range()], "co");
-        assert_eq!(&src[a.span_to_parent(Span::new(2, 9)).range()], "operate");
-        assert_eq!(&src[a.span_to_parent(Span::new(0, 9)).range()], src);
-    }
-
-    #[test]
-    fn characters_replaced_one_by_one_keep_their_own_source_bytes() {
-        // Three Arabic-Indic digits (2 bytes each) folded to ASCII, one
-        // replace call per digit.
-        let src = "n=\u{661}\u{662}\u{663};";
-        let mut b = ViewBuilder::new(src);
-        b.keep(2);
-        b.replace(4, "1");
-        b.replace(6, "2");
-        b.replace(8, "3");
-        let (out, a) = b.finish();
-        assert_eq!(out, "n=123;");
-        assert_eq!(
-            a.edits(),
-            [
-                Edit { parent: Span::new(2, 4), child: Span::new(2, 3) },
-                Edit { parent: Span::new(4, 6), child: Span::new(3, 4) },
-                Edit { parent: Span::new(6, 8), child: Span::new(4, 5) },
-            ]
-        );
-        // The middle digit maps to its own source digit and back.
-        assert_eq!(a.span_to_parent(Span::new(3, 4)), Span::new(4, 6));
-        assert_eq!(&src[a.span_to_parent(Span::new(3, 4)).range()], "\u{662}");
-        assert_eq!(a.span_to_child(Span::new(4, 6)), Span::new(3, 4));
-        // The whole number still maps to the whole run.
-        assert_eq!(a.span_to_parent(Span::new(2, 5)), Span::new(2, 8));
-        assert_eq!(a.span_to_child(Span::new(2, 8)), Span::new(2, 5));
-    }
-
-    #[test]
-    fn a_run_replaced_in_one_call_is_one_edit() {
-        let src = "n=\u{661}\u{662}\u{663};";
-        let mut b = ViewBuilder::new(src);
-        b.keep(2);
-        b.replace(8, "123");
-        let (out, a) = b.finish();
-        assert_eq!(out, "n=123;");
-        assert_eq!(a.edits(), [Edit { parent: Span::new(2, 8), child: Span::new(2, 5) }]);
-        // One edit is one unit: the middle digit widens to the whole run.
-        assert_eq!(a.span_to_parent(Span::new(3, 4)), Span::new(2, 8));
-    }
-
-    #[test]
-    fn a_call_that_changes_nothing_records_nothing() {
-        let mut b = ViewBuilder::new("abc");
-        b.keep(1);
-        b.replace(1, "");
-        let (out, a) = b.finish();
-        assert_eq!(out, "abc");
-        assert!(a.edits().is_empty());
-    }
-
-    /// Checks every offset of both texts against a table written out by
-    /// hand: `to_child[x]` is where parent offset x lands as (a start, an
-    /// end), and `to_parent` the same the other way.
-    fn assert_maps(a: &Alignment, to_child: &[(u32, u32)], to_parent: &[(u32, u32)]) {
-        for (x, &want) in to_child.iter().enumerate() {
-            let got = (a.to_child(x as u32, Side::Start), a.to_child(x as u32, Side::End));
-            assert_eq!(got, want, "parent offset {x} to child");
-        }
-        for (x, &want) in to_parent.iter().enumerate() {
-            let got = (a.to_parent(x as u32, Side::Start), a.to_parent(x as u32, Side::End));
-            assert_eq!(got, want, "child offset {x} to parent");
-        }
-    }
-
-    // The tables below follow these rules. Outside every edit an offset
-    // shifts by the edits before it. Strictly inside an edit, a start goes
-    // to the start of the edit's output and an end to its end. At the
-    // boundary between two touching edits, a start goes with the edit that
-    // begins there and an end with the edit that ends there. Inserted or
-    // deleted bytes (an edit with one empty side) belong to neither
-    // neighbour: a start at them goes after them, an end before them.
-
-    #[test]
-    fn touching_replacements_map_at_every_boundary() {
-        // "aXYb" -> "apqrb": X became "pq", then Y became "r".
-        let mut b = ViewBuilder::new("aXYb");
-        b.keep(1);
-        b.replace(2, "pq");
-        b.replace(3, "r");
-        let (out, a) = b.finish();
-        assert_eq!(out, "apqrb");
-        assert_eq!(a.edits().len(), 2);
-        assert_maps(
-            &a,
-            &[(0, 0), (1, 1), (3, 3), (4, 4), (5, 5)],
-            // Child 2 is inside "pq", so it widens to X alone; child 3 is
-            // the boundary between "pq" and "r", which is parent 2.
-            &[(0, 0), (1, 1), (1, 2), (2, 2), (3, 3), (4, 4)],
-        );
-    }
-
-    #[test]
-    fn an_insertion_touching_a_replacement_maps_at_every_boundary() {
-        // "aXb" -> "a+pqb": "+" inserted before X, then X became "pq".
-        let mut b = ViewBuilder::new("aXb");
-        b.keep(1);
-        b.replace(1, "+");
-        b.replace(2, "pq");
-        let (out, a) = b.finish();
-        assert_eq!(out, "a+pqb");
-        assert_eq!(a.edits().len(), 2);
-        assert_maps(
-            &a,
-            // Parent 1: a start goes after "+", to the start of "pq"; an
-            // end goes before "+".
-            &[(0, 0), (2, 1), (4, 4), (5, 5)],
-            // Child 1 and 2 are both parent 1 (before and after "+"); child
-            // 3 is inside "pq", which widens to X.
-            &[(0, 0), (1, 1), (1, 1), (1, 2), (2, 2), (3, 3)],
-        );
-    }
-
-    #[test]
-    fn a_replacement_touching_a_deletion_maps_at_every_boundary() {
-        // "aXYb" -> "apqb": X became "pq", then Y was deleted.
-        let mut b = ViewBuilder::new("aXYb");
-        b.keep(1);
-        b.replace(2, "pq");
-        b.replace(3, "");
-        let (out, a) = b.finish();
-        assert_eq!(out, "apqb");
-        assert_eq!(a.edits().len(), 2);
-        assert_maps(
-            &a,
-            // Parent 2 and 3 are both child 3 (before and after Y).
-            &[(0, 0), (1, 1), (3, 3), (3, 3), (4, 4)],
-            // Child 3: a start goes after Y, an end before it.
-            &[(0, 0), (1, 1), (1, 2), (3, 2), (4, 4)],
-        );
-        // "pq" maps back to X without Y, "b" to "b" without Y.
-        assert_eq!(a.span_to_parent(Span::new(1, 3)), Span::new(1, 2));
-        assert_eq!(a.span_to_parent(Span::new(3, 4)), Span::new(3, 4));
-    }
-
-    #[test]
-    fn a_deletion_touching_an_insertion_maps_at_every_boundary() {
-        // "aXb" -> "a+b": X deleted, then "+" inserted after it. Two
-        // calls, so two edits, not one replacement of X by "+".
-        let mut b = ViewBuilder::new("aXb");
-        b.keep(1);
-        b.replace(2, "");
-        b.replace(2, "+");
-        let (out, a) = b.finish();
-        assert_eq!(out, "a+b");
-        assert_eq!(a.edits().len(), 2);
-        assert_maps(
-            &a,
-            // Parent 2: a start goes after "+", an end before it (and
-            // after X, which became nothing).
-            &[(0, 0), (1, 1), (2, 1), (3, 3)],
-            // Child 1: a start goes after X, an end before it.
-            &[(0, 0), (2, 1), (2, 2), (3, 3)],
-        );
-        // "+" maps to the empty stretch after X, X to the empty stretch
-        // before "+".
-        assert_eq!(a.span_to_parent(Span::new(1, 2)), Span::new(2, 2));
-        assert_eq!(a.span_to_child(Span::new(1, 2)), Span::new(1, 1));
-    }
-}
+mod tests;

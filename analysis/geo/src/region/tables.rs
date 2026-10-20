@@ -289,13 +289,13 @@ pub(super) const COUNTRY_BY_ENGLISH_NAME: [(&str, [u8; 2]); 256] = [
     ("åland islands", *b"AX"),
 ];
 
-pub(super) fn lookup_english_country(name: &str) -> Option<RegionCode> {
+pub(crate) fn lookup_english_country(name: &str) -> Option<RegionCode> {
     COUNTRY_BY_ENGLISH_NAME
         .binary_search_by_key(&name, |&(k, _)| k)
         .ok()
         .and_then(|idx| RegionCode::new(COUNTRY_BY_ENGLISH_NAME[idx].1))
 }
 
-pub(super) fn is_assigned_iso_country(bytes: [u8; 2]) -> bool {
+pub(crate) fn is_assigned_iso_country(bytes: [u8; 2]) -> bool {
     ISO_COUNTRIES.binary_search(&bytes).is_ok()
 }

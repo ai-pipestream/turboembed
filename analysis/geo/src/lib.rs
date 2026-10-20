@@ -96,6 +96,7 @@ mod geocode;
 mod geonames;
 mod in_memory;
 mod index;
+pub mod linker;
 mod load;
 mod overlay;
 mod overture;
@@ -128,6 +129,11 @@ pub use geocode::{
 };
 pub use geonames::{GEONAMES_SOURCE, GeoNamesGazetteer};
 pub use in_memory::InMemoryGazetteer;
+pub use linker::{
+    CANDIDATE_LINK_LABEL, CountryProximityScorer, CountrySignal, EntityLocationLinks, FuzzyMetric, FuzzyStringScorer,
+    GeoEntityLinker, GeoHashBinningScorer, LinkedCandidate, LinkerWeights, PRIMARY_LINK_LABEL, ProvinceProximityScorer,
+    ProvinceSignal, encode_geohash, jaro_similarity, jaro_winkler, normalized_levenshtein, shared_geohash_prefix_len,
+};
 pub use overlay::{EmptyOverlay, OverlayGazetteer};
 pub use overture::{OVERTURE_SOURCE, OvertureGazetteer};
 pub use profiles::{Neighbor, Place, PlaceProfiles, ProfileError, Similarity};

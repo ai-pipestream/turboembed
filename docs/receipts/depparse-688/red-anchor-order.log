@@ -1,0 +1,22 @@
+   Compiling turbo-depparse v0.1.0 ($REPO/analysis/depparse)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.42s
+     Running tests/annotator.rs (target/debug/deps/annotator-826d312a5ad9ed30)
+
+running 1 test
+test reversed_surface_order_is_rejected_before_resolving_word_ranges ... FAILED
+
+failures:
+
+---- reversed_surface_order_is_rejected_before_resolving_word_ranges stdout ----
+
+thread 'reversed_surface_order_is_rejected_before_resolving_word_ranges' (3923188) panicked at analysis/core/src/span/mod.rs:29:9:
+a span ends at or after its start
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    reversed_surface_order_is_rejected_before_resolving_word_ranges
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p turbo-depparse --test annotator`
