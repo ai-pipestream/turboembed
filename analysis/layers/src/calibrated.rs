@@ -27,6 +27,8 @@ impl Default for Small {
 }
 #[derive(Clone, Debug, Default)]
 struct Columns {
+    // Keep raw probabilities in the sidecar so graph export/import and policy
+    // validation do not require the producer layer to remain loaded or unchanged.
     raw: Vec<f64>,
     calibrated: Vec<f64>,
     set: Vec<usize>,

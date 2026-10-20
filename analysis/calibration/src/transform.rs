@@ -61,6 +61,19 @@ impl Transform {
                 out[lo] = v / (1.0 + v);
                 return Ok(());
             }
+            if *t == 2.0 {
+                // sqrt(p) normalized is exactly softmax(log(p) / 2).
+                // It also retains subnormal probabilities and exact zeros.
+                let mut sum = 0.0;
+                for (o, &p) in out.iter_mut().zip(raw) {
+                    *o = p.sqrt();
+                    sum += *o;
+                }
+                for o in out {
+                    *o /= sum;
+                }
+                return Ok(());
+            }
         }
         match self {
             Self::Temperature(t) => {
