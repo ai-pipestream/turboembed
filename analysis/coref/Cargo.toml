@@ -1,0 +1,22 @@
+[package]
+name = "turbo-coref"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_coref"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# StrictMath.exp for the real-valued pair model, and java.util.Random for
+# the ranking trainer's shuffle.
+turbo-jvm = { path = "../jvm" }
+# Reading the CorefModel archive and evaluating its pair classifier.
+turbo-maxent = { path = "../maxent" }
+# Training the pair classifier and writing the CorefModel archive.
+turbo-train = { path = "../train" }
+# Java's lower case mapping and character classes.
+turbo-unicode = { path = "../unicode" }
