@@ -126,7 +126,17 @@ impl<A: WordOrTokenAnchor> Annotator for RelationPathAnnotator<A> {
     }
 
     fn config_hash(&self) -> u64 {
-        // The only output-affecting setting.
-        self.max_path_len.map_or(0, |cap| cap as u64 + 1)
+        // The only output-affecting setting: hash the Option
+        // discriminant and the cap separately, so no cap value
+        // (not even usize::MAX) collides with None or overflows.
+        let (discriminant, cap) = match self.max_path_len {
+            None => (0u8, 0u64),
+            Some(cap) => (1u8, cap as u64),
+        };
+        let mut hash = 0xcbf29ce484222325u64;
+        for byte in std::iter::once(discriminant).chain(cap.to_le_bytes()) {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+        }
+        hash
     }
 }

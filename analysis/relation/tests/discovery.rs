@@ -6,7 +6,7 @@ use turbo_analysis::export::{export, import};
 use turbo_analysis::{
     Analyzer, Annotator, Document, Ix, IxRange, Key, Layer, Provenance, Span, Spans, Tag, TagSet, ViewId,
 };
-use turbo_analysis_layers::{Dependencies, Entities, PosTags, Sentences, Tokens};
+use turbo_analysis_layers::{Dependencies, Entities, Lemmas, PosTags, Sentences, Strs, Tokens};
 use turbo_relation::defaults::{english_defaults, english_semantic_defaults};
 use turbo_relation::export::codecs;
 use turbo_relation::{
@@ -131,8 +131,8 @@ fn english_defaults_extract_subject_object() {
     assert_eq!(relations.spans.len(), 1);
     let (s, o, kind, _) = relations.mention(Ix::new(0));
     assert_eq!((s.get(), o.get(), kind), (0, 1, "subject-object"));
-    assert_eq!(english_defaults().len(), 6);
-    assert_eq!(english_semantic_defaults().len(), 8);
+    assert_eq!(english_defaults().len(), 7);
+    assert_eq!(english_semantic_defaults().len(), 12);
     for p in english_semantic_defaults() {
         assert!(p.pivot_lemma_constraint().is_some() && p.subject_kind_constraint().is_some());
     }
@@ -215,4 +215,130 @@ fn relation_paths_cross_the_graph_boundary() {
     assert_eq!(back.get::<RelationPaths>().unwrap().len(), 6);
     assert_eq!(back.get::<Relations>().unwrap().spans.len(), 1);
     assert_eq!(export(&back, &registry).unwrap().to_bytes(), graph.to_bytes());
+}
+
+#[test]
+fn duplicate_normalized_seeds_count_once() {
+    let f = fixture();
+    let paths = discover(&f);
+    let seed = |subject: &str, object: &str| Seed {
+        subject: subject.into(),
+        relation_type: "acquisition".into(),
+        object: object.into(),
+    };
+    let mut miner =
+        DistantSupervisionMiner::new(vec![seed("Acme Corp", "Bolt"), seed(" acme corp ", " bolt ")], 1, 0.5).unwrap();
+    miner.observe(&paths, &f.entities, &["Acme Corp", "Bolt", "2024"]);
+    let rules = miner.rules();
+    assert_eq!(rules.len(), 1);
+    assert_eq!((rules[0].support, rules[0].matches), (1, 1), "one fact, counted once");
+    assert_eq!(rules[0].precision, 1.0);
+    assert_eq!(rules[0].pattern().unwrap().confidence_value(), 1.0);
+}
+
+#[test]
+fn unbounded_and_maximal_caps_hash_distinctly() {
+    let hash = |cap: Option<usize>| {
+        let mut annotator = RelationPathAnnotator::<Tokens>::default();
+        annotator.max_path_len = cap;
+        annotator.config_hash()
+    };
+    let (none, zero, max) = (hash(None), hash(Some(0)), hash(Some(usize::MAX)));
+    assert!(none != zero && none != max && zero != max, "None, Some(0) and Some(usize::MAX) must differ");
+}
+
+#[test]
+fn miners_skip_paths_past_a_shorter_entities_layer() {
+    let f = fixture();
+    let paths = discover(&f);
+    // A valid one-entity layer: every discovered path touches an
+    // entity past its end, so both miners must skip, not panic.
+    let short = Entities {
+        spans: spans(&[(0, 9)]),
+        tokens: vec![IxRange::new(0, 2)],
+        kind: vec![Tag(0)],
+        kinds: TagSet::new("entity", &["organization", "date"]),
+        score: vec![1.0],
+    };
+    let mut explorer = RelationPathExplorer::new(1);
+    explorer.observe(&paths, &short, &["Acme", "Corp", "acquired", "Bolt", "in", "2024", "."], None, None);
+    assert!(explorer.rows().is_empty());
+    let mut miner = DistantSupervisionMiner::new(
+        vec![Seed { subject: "acme corp".into(), relation_type: "acquisition".into(), object: "Bolt".into() }],
+        1,
+        0.5,
+    )
+    .unwrap();
+    miner.observe(&paths, &short, &["Acme Corp", "Bolt", "2024"]);
+    assert!(miner.rules().is_empty());
+}
+
+#[test]
+fn passive_agent_defaults_cover_obl_agent() {
+    // "Bolt was acquired by Acme Corp."
+    let doc = Document::new("Bolt was acquired by Acme Corp.");
+    let sentences = Sentences { spans: spans(&[(0, 31)]) };
+    let tokens = Tokens {
+        spans: spans(&[(0, 4), (5, 8), (9, 17), (18, 20), (21, 25), (26, 30), (30, 31)]),
+        sentence: Some(vec![Ix::new(0); 7]),
+    };
+    let labels = ["nsubj:pass", "aux:pass", "root", "case", "compound", "obl:agent", "punct"];
+    let tag = |l: &str| Tag(labels.iter().position(|x| *x == l).unwrap() as u16);
+    let deps: Dependencies = Dependencies {
+        head: vec![
+            Some(Ix::new(2)),
+            Some(Ix::new(2)),
+            None,
+            Some(Ix::new(5)),
+            Some(Ix::new(5)),
+            Some(Ix::new(2)),
+            Some(Ix::new(2)),
+        ],
+        relation: vec![
+            tag("nsubj:pass"),
+            tag("aux:pass"),
+            tag("root"),
+            tag("case"),
+            tag("compound"),
+            tag("obl:agent"),
+            tag("punct"),
+        ],
+        relations: TagSet::new("dependency", &labels),
+    };
+    let entities = Entities {
+        spans: spans(&[(0, 4), (21, 30)]),
+        tokens: vec![IxRange::new(0, 1), IxRange::new(4, 6)],
+        kind: vec![Tag(0), Tag(0)],
+        kinds: TagSet::new("entity", &["organization"]),
+        score: vec![1.0; 2],
+    };
+    let mut lemma = Strs::default();
+    for l in ["bolt", "be", "acquire", "by", "acme", "corp", "."] {
+        lemma.push(l);
+    }
+    let lemmas = Lemmas { lemma };
+    let view = doc.get::<turbo_analysis::View>().unwrap();
+    let (shapes, _) = RelationAnnotator::new(english_defaults())
+        .unwrap()
+        .annotate((view, &sentences, &tokens, &tokens, &deps, &entities, None, None))
+        .unwrap();
+    assert_eq!(shapes.spans.len(), 1);
+    let (s, o, kind, _) = shapes.mention(Ix::new(0));
+    assert_eq!((s.get(), o.get(), kind), (0, 1, "passive-agent"));
+    let (semantic, _) = RelationAnnotator::new(english_semantic_defaults())
+        .unwrap()
+        .annotate((view, &sentences, &tokens, &tokens, &deps, &entities, None, Some(&lemmas)))
+        .unwrap();
+    assert_eq!(semantic.spans.len(), 1);
+    let (s, o, kind, _) = semantic.mention(Ix::new(0));
+    assert_eq!((s.get(), o.get(), kind), (0, 1, "acquired_by"));
+    assert!(english_defaults().iter().any(|p| p.path() == "<nsubj:pass >obl:agent"));
+    for relation_type in ["founded_by", "headquartered_in", "acquired_by", "born_in"] {
+        assert!(
+            english_semantic_defaults()
+                .iter()
+                .any(|p| p.relation_type() == relation_type && p.path() == "<nsubj:pass >obl:agent"),
+            "{relation_type} needs an obl:agent variant"
+        );
+    }
 }

@@ -11,7 +11,7 @@ fn shape(relation_type: &str, path: &str) -> RelationPattern {
     RelationPattern::new(relation_type, path).expect("a shipped default pattern is valid")
 }
 
-/// The six shape rules of the reference design: no triggers, so
+/// The shape rules of the reference design: no triggers, so
 /// they match on dependency shape alone and a user narrows them
 /// with triggers (which is what the discovery report is for).
 /// One honest limitation: `prepositional-attachment` cannot
@@ -22,6 +22,7 @@ pub fn english_defaults() -> Vec<RelationPattern> {
     vec![
         shape("subject-object", "<nsubj >obj"),
         shape("passive-agent", "<nsubj:pass >obl"),
+        shape("passive-agent", "<nsubj:pass >obl:agent"),
         shape("apposition", ">appos"),
         shape("possession", "<nmod:poss"),
         shape("prepositional-attachment", ">nmod"),
@@ -60,10 +61,14 @@ pub fn english_semantic_defaults() -> Vec<RelationPattern> {
         semantic("works_for", "<nsubj >obl", "work", "person", "organization"),
         semantic("located_in", "<nsubj >obl", "locate", "organization", "location"),
         semantic("founded_by", "<nsubj:pass >obl", "found", "organization", "person"),
+        semantic("founded_by", "<nsubj:pass >obl:agent", "found", "organization", "person"),
         semantic("headquartered_in", "<nsubj:pass >obl", "headquarter", "organization", "location"),
+        semantic("headquartered_in", "<nsubj:pass >obl:agent", "headquarter", "organization", "location"),
         semantic("member_of", "<nsubj >obl", "join", "person", "organization"),
         semantic("acquired_by", "<nsubj:pass >obl", "acquire", "organization", "organization"),
+        semantic("acquired_by", "<nsubj:pass >obl:agent", "acquire", "organization", "organization"),
         semantic("born_in", "<nsubj:pass >obl", "bear", "person", "location"),
+        semantic("born_in", "<nsubj:pass >obl:agent", "bear", "person", "location"),
         semantic("spouse_of", "<nsubj >obl", "marry", "person", "person"),
     ]
 }

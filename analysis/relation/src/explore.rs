@@ -5,10 +5,18 @@
 //! be a relation type; both rank, and [`SignatureRow::to_pattern`]
 //! and [`MinedRule::pattern`] turn a chosen row into the rule.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use turbo_analysis::Ix;
+use turbo_analysis::{Ix, Layer};
 use turbo_analysis_layers::Entities;
+
+/// The kind label of entity `e`, or `None` when the paths layer
+/// refers past the entities layer (or at a tag outside its set):
+/// a cross-layer mismatch skips the row instead of panicking.
+fn kind_of(entities: &Entities, e: Ix<Entities>) -> Option<String> {
+    let tag = *entities.kind.get(e.get())?;
+    ((tag.0 as usize) < entities.kinds.len()).then(|| entities.kinds.label(tag).to_owned())
+}
 
 use crate::paths::RelationPaths;
 use crate::pattern::RelationPattern;
@@ -85,18 +93,25 @@ impl RelationPathExplorer {
         pivot_pos: Option<&[Option<&str>]>,
         pivot_lemma: Option<&[Option<&str>]>,
     ) {
-        let kind = |e: Ix<Entities>| entities.kinds.label(entities.kind[e.get()]).to_owned();
+        if paths.check().is_err() || entities.check().is_err() {
+            return;
+        }
         let at = |table: Option<&[Option<&str>]>, word: u32| {
             table.and_then(|t| t.get(word as usize)).copied().flatten().map(str::to_owned)
         };
         for (i, _) in paths.spans.iter() {
             let path = paths.path(i);
+            let (Some(subject_kind), Some(object_kind)) =
+                (kind_of(entities, path.subject), kind_of(entities, path.object))
+            else {
+                continue;
+            };
             let key = SignatureKey {
-                subject_kind: kind(path.subject),
+                subject_kind,
                 signature: path.signature(),
                 pivot_pos: at(pivot_pos, path.pivot),
                 pivot_lemma: at(pivot_lemma, path.pivot),
-                object_kind: kind(path.object),
+                object_kind,
             };
             let example =
                 path.tokens.iter().map(|&t| forms.get(t as usize).copied().unwrap_or("")).collect::<Vec<_>>().join(" ");
@@ -186,17 +201,22 @@ impl DistantSupervisionMiner {
         if !min_precision.is_finite() || !(0.0..=1.0).contains(&min_precision) {
             return Err(format!("minimum precision must be finite and in [0, 1]: {min_precision}"));
         }
-        let seeds = seeds
-            .into_iter()
-            .map(|s| {
-                if s.subject.trim().is_empty() || s.object.trim().is_empty() || s.relation_type.trim().is_empty() {
-                    return Err("seed subjects, objects and relation types must not be blank".into());
-                }
-                Ok((fold(&s.subject), s.relation_type, fold(&s.object)))
-            })
-            .collect::<Result<_, String>>()?;
+        let mut seen: BTreeSet<(String, String, String)> = BTreeSet::new();
+        let mut deduped: Vec<(String, String, String)> = Vec::new();
+        for s in seeds {
+            if s.subject.trim().is_empty() || s.object.trim().is_empty() || s.relation_type.trim().is_empty() {
+                return Err("seed subjects, objects and relation types must not be blank".into());
+            }
+            // Facts that fold to the same triple are one fact:
+            // counting both would let support outrun the pairs a
+            // signature fired on and push precision past 1.0.
+            let triple = (fold(&s.subject), s.relation_type, fold(&s.object));
+            if seen.insert(triple.clone()) {
+                deduped.push(triple);
+            }
+        }
         Ok(DistantSupervisionMiner {
-            seeds,
+            seeds: deduped,
             min_support: min_support.max(1),
             min_precision,
             support: BTreeMap::new(),
@@ -207,7 +227,9 @@ impl DistantSupervisionMiner {
     /// Folds one document's paths in. `entity_texts` are the
     /// entity surface texts by entity index.
     pub fn observe(&mut self, paths: &RelationPaths, entities: &Entities, entity_texts: &[&str]) {
-        let kind = |e: Ix<Entities>| entities.kinds.label(entities.kind[e.get()]).to_owned();
+        if paths.check().is_err() || entities.check().is_err() {
+            return;
+        }
         for (i, _) in paths.spans.iter() {
             let path = paths.path(i);
             let (Some(subject_text), Some(object_text)) =
@@ -215,9 +237,14 @@ impl DistantSupervisionMiner {
             else {
                 continue;
             };
+            let (Some(subject_kind), Some(object_kind)) =
+                (kind_of(entities, path.subject), kind_of(entities, path.object))
+            else {
+                continue;
+            };
             let (fs, fo) = (fold(subject_text), fold(object_text));
             let signature = path.signature();
-            let kinds = (kind(path.subject), kind(path.object));
+            let kinds = (subject_kind, object_kind);
             *self.matches.entry((signature.clone(), kinds.0.clone(), kinds.1.clone())).or_default() += 1;
             for (seed_subject, relation_type, seed_object) in &self.seeds {
                 if *seed_subject == fs && *seed_object == fo {
