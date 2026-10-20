@@ -81,6 +81,34 @@ impl Folder {
         key
     }
 
+    /// The word tokens of a running text, each folded as a match key folds
+    /// it, joined by one space into `folded`: token `i` is `spans[i]` in
+    /// `text` and `starts[i]..ends[i]` in `folded`. A name made of tokens
+    /// `i..=j` has the key `folded[starts[i]..ends[j]]`.
+    pub(crate) fn fold_text(
+        &mut self,
+        text: &str,
+        folded: &mut String,
+        spans: &mut Vec<Span>,
+        starts: &mut Vec<u32>,
+        ends: &mut Vec<u32>,
+    ) {
+        folded.clear();
+        spans.clear();
+        starts.clear();
+        ends.clear();
+        self.types.clear();
+        word_tokens(text, MAX_TOKEN_LENGTH, spans, &mut self.types);
+        for (i, s) in spans.iter().enumerate() {
+            if i > 0 {
+                folded.push(' ');
+            }
+            starts.push(folded.len() as u32);
+            self.fold_token(&text[s.start as usize..s.end as usize], folded);
+            ends.push(folded.len() as u32);
+        }
+    }
+
     /// Appends NFC, then `toLowerCase(Locale.ROOT)`, then the accent fold
     /// of one token to `out`. An ASCII token is in NFC and has nothing to
     /// fold, so it is only lowercased.
