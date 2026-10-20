@@ -1,0 +1,20 @@
+   Compiling turbo-sequence v0.1.0 (<workspace>/analysis/sequence)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running tests/crf.rs (target/debug/deps/crf-450da98c7c6bb87a)
+
+running 4 tests
+test large_common_emissions_keep_probabilities_normalized ... ok
+test masks_refuse_open_bilou_entities_and_invalid_types ... ok
+test wire_round_trip_and_all_truncations ... ok
+test lattice_and_k_best_equal_exhaustive_enumeration ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/crf_numeric.rs (target/debug/deps/crf_numeric-12d52fc1e3f4cdd3)
+
+running 2 tests
+test unreachable_span_is_zero_even_with_large_finite_weights ... ok
+test common_start_end_transition_offsets_do_not_change_probabilities ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

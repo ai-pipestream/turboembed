@@ -16,7 +16,7 @@ pub struct CrfGradient {
     pub end: Vec<f64>,
 }
 /// Forward/backward tables over only legal paths. Emission row centering
-/// avoids losing the normalizer for large common emission offsets.
+/// and parameter centering retain probabilities under large common offsets.
 pub struct CrfLattice {
     pub(crate) emissions: Vec<Vec<f64>>,
     pub(crate) transitions: Vec<f64>,
@@ -40,6 +40,13 @@ pub(crate) fn logsum(values: impl Iterator<Item = f64>) -> f64 {
         }
     })
 }
+fn center(values: &mut [f64]) -> Result<f64> {
+    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    for value in values {
+        *value = finite(*value - max)?;
+    }
+    Ok(max)
+}
 impl CrfLattice {
     pub fn new(scores: CrfScores<'_>, mask: &CrfConstraints) -> Result<Self> {
         let n = mask.labels();
@@ -60,17 +67,23 @@ impl CrfLattice {
         let mut emissions = scores.emissions.to_vec();
         let mut offset = 0.0;
         for row in &mut emissions {
-            let max = row.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-            offset = finite(offset + max)?;
-            for x in row {
-                *x = finite(*x - max)?;
-            }
+            offset = finite(offset + center(row)?)?;
+        }
+        let mut transitions = scores.transitions.to_vec();
+        let mut start = scores.start.to_vec();
+        let mut end = scores.end.to_vec();
+        if t > 0 {
+            offset = finite(offset + center(&mut start)?)?;
+            offset = finite(offset + center(&mut end)?)?;
+        }
+        if t > 1 {
+            offset = finite(offset + finite(center(&mut transitions)? * (t - 1) as f64)?)?;
         }
         let mut a = Self {
             emissions,
-            transitions: scores.transitions.to_vec(),
-            start: scores.start.to_vec(),
-            end: scores.end.to_vec(),
+            transitions,
+            start,
+            end,
             mask: mask.clone(),
             alpha: vec![vec![f64::NEG_INFINITY; n]; t],
             beta: vec![vec![f64::NEG_INFINITY; n]; t],
@@ -117,6 +130,13 @@ impl CrfLattice {
                 }
             }
         }
+        // Reject loss of normalization from extreme cancellation rather than
+        // returning finite but invalid probabilities to training or callers.
+        for row in a.marginals() {
+            if row.iter().any(|x| !x.is_finite()) || (row.iter().sum::<f64>() - 1.0).abs() > 1e-8 {
+                return Err(CrfError::NonFinite);
+            }
+        }
         Ok(a)
     }
     pub fn log_partition(&self) -> Result<f64> {
@@ -158,12 +178,15 @@ impl CrfLattice {
             return Err(invalid("span labels"));
         }
         let mut score = self.alpha[start][labels[0]];
+        if score == f64::NEG_INFINITY {
+            return Ok(0.0);
+        }
         for j in 1..labels.len() {
             let (p, y) = (labels[j - 1], labels[j]);
             if !self.mask.allows_transition(p, y) {
                 return Ok(0.0);
             }
-            score += self.transitions[p * n + y] + self.emissions[start + j][y];
+            score = finite(score + self.transitions[p * n + y] + self.emissions[start + j][y])?;
         }
         let last = *labels.last().unwrap();
         let suffix = if end == self.alpha.len() {
@@ -175,7 +198,10 @@ impl CrfLattice {
                     .map(|y| self.transitions[last * n + y] + self.emissions[end][y] + self.beta[end][y]),
             )
         };
-        Ok((score + suffix - self.z).exp().clamp(0.0, 1.0))
+        if suffix == f64::NEG_INFINITY {
+            return Ok(0.0);
+        }
+        Ok(finite(score + suffix - self.z)?.exp().clamp(0.0, 1.0))
     }
     /// Negative log likelihood and derivatives in emission, transition,
     /// start, end order. Forbidden parameters have exactly zero gradient.

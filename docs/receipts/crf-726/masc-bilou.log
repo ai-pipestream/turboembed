@@ -1,13 +1,13 @@
 training_entities=439 held_out_entities=105
 corpus_sha256=445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd train_samples=2048 test_samples=512 codec=Bilou
-MASC gradient codec=Bio sample=31 tokens=10 parameters=405 max_absolute_error=2.032995993773e-10
-MASC gradient codec=Bilou sample=31 tokens=10 parameters=685 max_absolute_error=2.316963287896e-10
-CRF training_seconds=26.278261
-Maxent training_seconds=1.023580
+MASC gradient codec=Bio sample=31 tokens=10 parameters=405 max_absolute_error=2.416905564573e-10
+MASC gradient codec=Bilou sample=31 tokens=10 parameters=685 max_absolute_error=1.713371666767e-10
+CRF training_seconds=26.608977
+Maxent training_seconds=0.997238
 CRF Counts { correct: 11, predicted: 19, gold: 105 } f1=0.177419355
 Maxent Counts { correct: 3, predicted: 7, gold: 105 } f1=0.053571429
-CRF decode_run=0 tokens=6694 seconds=0.019824695
-CRF decode_run=1 tokens=6694 seconds=0.020005617
-CRF decode_run=2 tokens=6694 seconds=0.020244448
-CRF decode_run=3 tokens=6694 seconds=0.019788546
-CRF decode_run=4 tokens=6694 seconds=0.019627393
+CRF decode_run=0 tokens=6694 seconds=0.021267556
+CRF decode_run=1 tokens=6694 seconds=0.020828215
+CRF decode_run=2 tokens=6694 seconds=0.020731623
+CRF decode_run=3 tokens=6694 seconds=0.020561652
+CRF decode_run=4 tokens=6694 seconds=0.020904590
