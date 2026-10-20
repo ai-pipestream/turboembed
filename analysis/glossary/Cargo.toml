@@ -17,6 +17,11 @@ turbo-matcher = { path = "../matcher" }
 turbo-stem-layers = { path = "../stem-layers" }
 # Java's per character lowercase mapping.
 turbo-unicode = { path = "../unicode" }
+# Mapping an automaton image file (`MappedFile`), with the `mmap` feature.
+memmap2 = { version = "0.9.11", optional = true }
+
+[features]
+mmap = ["dep:memmap2"]
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }

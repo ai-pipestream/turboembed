@@ -53,6 +53,10 @@ fn stage_named(recipe: &Recipe, upstream: &Path, bundle: &Path, keep: Option<&BT
 /// has `config.json`, verify that `id2label` in `config.json` matches
 /// `manifest.classifier.labels` in id order `0..n`.
 pub fn check_classifier_config(recipe: &Recipe, upstream: &Path, require_listed: bool) -> Result<()> {
+    // QA output columns mean start/end, independent of generic id2label names.
+    if recipe.manifest["task"] == "TASK_EXTRACTIVE_QA" {
+        return Ok(());
+    }
     let Some(c) = recipe.manifest.get("classifier").filter(|v| !v.is_null()) else {
         return Ok(());
     };
@@ -406,6 +410,9 @@ pub fn verify(bundle: &Path) -> Result<()> {
         }
     }
 
+    if m.qa.is_some() {
+        return crate::qa::verify(bundle, &b);
+    }
     let bytes = b.read_verified(&m.reference.file).map_err(|e| e.message)?;
     let st = safetensors::File::parse(&m.reference.file, &bytes).map_err(|e| e.message)?;
     if m.task == "TASK_RERANK" {
