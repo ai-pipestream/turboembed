@@ -129,6 +129,51 @@ pub fn jaro_similarity(a: &str, b: &str) -> f64 {
     if a == b {
         return 1.0;
     }
+    if a.is_ascii() && b.is_ascii() && a.len() <= 128 && b.len() <= 128 {
+        let a_bytes = a.as_bytes();
+        let b_bytes = b.as_bytes();
+        let a_len = a_bytes.len();
+        let b_len = b_bytes.len();
+        if a_len == 0 || b_len == 0 {
+            return 0.0;
+        }
+        let match_distance = (a_len.max(b_len) / 2).saturating_sub(1);
+        let mut a_matches = 0u128;
+        let mut b_matches = 0u128;
+        let mut matches = 0usize;
+        for (i, &ac) in a_bytes.iter().enumerate() {
+            let start = i.saturating_sub(match_distance);
+            let end = (i + match_distance + 1).min(b_len);
+            for (j, &bc) in b_bytes.iter().enumerate().take(end).skip(start) {
+                let b_bit = 1u128 << j;
+                if (b_matches & b_bit) == 0 && ac == bc {
+                    a_matches |= 1u128 << i;
+                    b_matches |= b_bit;
+                    matches += 1;
+                    break;
+                }
+            }
+        }
+        if matches == 0 {
+            return 0.0;
+        }
+        let mut transpositions = 0usize;
+        let mut rem_b = b_matches;
+        for (i, &ac) in a_bytes.iter().enumerate() {
+            if (a_matches & (1u128 << i)) == 0 {
+                continue;
+            }
+            let k = rem_b.trailing_zeros() as usize;
+            rem_b &= rem_b - 1;
+            if ac != b_bytes[k] {
+                transpositions += 1;
+            }
+        }
+        let m = matches as f64;
+        let t = (transpositions as f64) / 2.0;
+        return ((m / (a_len as f64)) + (m / (b_len as f64)) + ((m - t) / m)) / 3.0;
+    }
+
     let a_chars: Vec<char> = a.chars().collect();
     let b_chars: Vec<char> = b.chars().collect();
     let a_len = a_chars.len();
@@ -195,6 +240,9 @@ pub fn token_dice_similarity(folded_a: &str, folded_b: &str) -> f64 {
     if folded_a == folded_b {
         return if folded_a.is_empty() { 0.0 } else { 1.0 };
     }
+    if !folded_a.contains(char::is_whitespace) && !folded_b.contains(char::is_whitespace) {
+        return 0.0;
+    }
     let mut a_tokens: Vec<&str> = folded_a.split_whitespace().collect();
     let mut b_tokens: Vec<&str> = folded_b.split_whitespace().collect();
     if a_tokens.is_empty() || b_tokens.is_empty() {
@@ -230,6 +278,9 @@ pub fn alias_similarity(query_folded: &str, candidate_folded: &str) -> f64 {
         return 1.0;
     }
     let jw = jaro_winkler(query_folded, candidate_folded);
+    if jw >= 0.95 {
+        return jw.clamp(0.0, 1.0);
+    }
     let dice = token_dice_similarity(query_folded, candidate_folded) * 0.95;
     jw.max(dice).clamp(0.0, 1.0)
 }

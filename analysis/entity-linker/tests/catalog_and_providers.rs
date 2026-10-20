@@ -463,4 +463,17 @@ fn fuzzy_index_sublinear_lookup_scales_from_10k_to_160k_aliases() {
         c_prefix.iter().any(|c| c.kb_id == "P_TARGET"),
         "expected P_TARGET ('Common Prefix zzyzzz') in candidates for 'Common Prefix yyyyyy', got {c_prefix:?}"
     );
+
+    // Crowded shared-feature catalog (4096 distractors sharing all query tokens/grams/characters)
+    // must preserve recall for the sole qualifying target at threshold 0.95.
+    let mut crowded: Vec<KbEntity> = Vec::with_capacity(4097);
+    for i in 0..2048 {
+        crowded.push(KbEntity::new(format!("D1_{i}"), format!("Common Prefix {i:04}abcacbzz")));
+        crowded.push(KbEntity::new(format!("D2_{i}"), format!("Common Prefix {i:04}bcabaczz")));
+    }
+    crowded.push(KbEntity::new("CROWDED_TARGET", "Common Prefix zzzzabcabczz"));
+    let crowded_prov = CatalogProvider::new(KnowledgeBase::from_entities("crowded-kb", crowded).unwrap());
+    let c_crowded = crowded_prov.generate_candidates("Common Prefix abcabc", None, 32, 0.95);
+    assert_eq!(c_crowded.len(), 1);
+    assert_eq!(c_crowded[0].kb_id, "CROWDED_TARGET");
 }
