@@ -67,10 +67,10 @@ pub unsafe extern "C" fn turbo_rerank_write_pairs(
             if count > s.info.max_batch {
                 return Err(Error::new(CAPACITY, "pair count exceeds max_batch"));
             }
-            let max_tokens = if o.max_tokens == 0 { s.model.tokenizer.max_seq } else { o.max_tokens };
-            if max_tokens > s.info.max_seq {
-                return Err(Error::new(CAPACITY, "rerank max_tokens exceeds session max_seq"));
+            if o.max_tokens > s.info.max_seq {
+                return Err(Error::field(CAPACITY, 2, "rerank max_tokens exceeds session max_seq"));
             }
+            let max_tokens = if o.max_tokens == 0 { s.info.max_seq } else { o.max_tokens };
             let pairs = std::slice::from_raw_parts(pairs, count as usize);
             let mut windows = Vec::new();
             let mut owners = Vec::new();
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn turbo_tokenizer_encode_pair(
             let tok = &tokenizer(tok)?.tok;
             let o = options(opts)?;
             if o.stride != 0 {
-                return Err(Error::new(INVALID_ARGUMENT, "single-window encoding requires stride 0"));
+                return Err(Error::field(INVALID_ARGUMENT, 3, "single-window encoding requires stride 0"));
             }
             let encoded = tok.encode_pair(
                 text(pair.query, "query")?,

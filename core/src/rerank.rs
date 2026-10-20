@@ -16,7 +16,7 @@ pub struct RerankIdentity {
 pub struct RerankOptions {
     /// Zero uses the model's query budget.
     pub query_tokens: u32,
-    /// Zero uses the model's sequence limit.
+    /// Zero uses the session's sequence limit.
     pub max_tokens: u32,
     /// Passage window advance; zero means non-overlapping windows.
     pub stride: u32,

@@ -103,7 +103,10 @@ pub(super) fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<Se
                 format!("precision {}: the {} backend does not run it: {reason}", d.precision, b.name()),
             ));
         }
-        return Err(Error::new(UNSUPPORTED_TASK, format!("the {} backend does not run embed: {reason}", b.name())));
+        return Err(Error::new(
+            UNSUPPORTED_TASK,
+            format!("the {} backend does not run task {}: {reason}", b.name(), mi.task),
+        ));
     }
     let mut compute_dtype = 0;
     let mut raw = std::ptr::null_mut();

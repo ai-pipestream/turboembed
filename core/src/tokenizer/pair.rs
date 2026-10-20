@@ -27,8 +27,11 @@ impl Tokenizer {
         let max_tokens = if max_tokens == 0 { r.max_seq } else { max_tokens };
         let query_tokens = if query_tokens == 0 { r.query_tokens } else { query_tokens };
         let specials = r.pair_template.specials();
-        if max_tokens > r.max_seq || max_tokens <= specials + 1 || query_tokens >= max_tokens - specials {
-            return Err(Error::new(INVALID_ARGUMENT, "pair budgets must leave a passage token within max_seq"));
+        if max_tokens > r.max_seq || max_tokens <= specials + 1 {
+            return Err(Error::field(INVALID_ARGUMENT, 2, "pair max_tokens must leave content space within max_seq"));
+        }
+        if query_tokens >= max_tokens - specials {
+            return Err(Error::field(INVALID_ARGUMENT, 1, "pair query_tokens must leave a passage token"));
         }
         let opts = Encode {
             add_special_tokens: false,
@@ -41,7 +44,7 @@ impl Tokenizer {
         let room = max_tokens as usize - specials as usize - query.len();
         let step = if stride == 0 { room } else { stride as usize };
         if step == 0 || step > room {
-            return Err(Error::new(INVALID_ARGUMENT, "pair stride must be within passage capacity"));
+            return Err(Error::field(INVALID_ARGUMENT, 3, "pair stride must be within passage capacity"));
         }
         let (head, tail) = self.template_ends();
         if head.len() != 1 || tail.len() != 1 {
