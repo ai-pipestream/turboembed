@@ -45,10 +45,16 @@ impl Vocabulary {
     }
 
     /// The layer's check: terms in byte order, each once.
+    /// One pass, each term read once.
     pub fn validate(&self) -> Result<(), String> {
-        let n = self.text.len();
-        if (1..n).any(|i| self.text.get(i - 1) >= self.text.get(i)) {
-            return Err("terms in byte order, each once".into());
+        let mut terms = self.text.iter();
+        if let Some(mut prev) = terms.next() {
+            for term in terms {
+                if prev >= term {
+                    return Err("terms in byte order, each once".into());
+                }
+                prev = term;
+            }
         }
         Ok(())
     }
@@ -150,23 +156,30 @@ impl<L> TermStats<L> {
         if !self.row.windows(2).all(|w| w[0] <= w[1]) {
             return Err("rows in unit order".into());
         }
+        // One pass over the entries: each unit's terms ascending, its
+        // counts nonzero and summing to its length, and each term counted
+        // toward its df.
         let mut df = vec![0u32; self.df.len()];
         for i in 0..n {
-            let r = self.row[i] as usize..self.row[i + 1] as usize;
-            if !self.term[r.clone()].windows(2).all(|w| w[0] < w[1]) {
-                return Err(format!("unit {i}: terms in ascending id, each once"));
-            }
-            if self.tf[r.clone()].contains(&0) {
-                return Err(format!("unit {i}: a count of zero"));
-            }
-            if self.tf[r.clone()].iter().map(|&c| u64::from(c)).sum::<u64>() != u64::from(self.length[i]) {
-                return Err(format!("unit {i}: a length that is not the sum of its counts"));
-            }
-            for t in &self.term[r] {
-                let Some(d) = df.get_mut(t.get()) else {
+            let (mut prev, mut sum) = (None, 0u64);
+            for (t, &c) in
+                self.term[self.row[i] as usize..self.row[i + 1] as usize].iter().zip(&self.tf[self.row[i] as usize..])
+            {
+                let t = t.get();
+                if prev.is_some_and(|p| p >= t) {
+                    return Err(format!("unit {i}: terms in ascending id, each once"));
+                }
+                if c == 0 {
+                    return Err(format!("unit {i}: a count of zero"));
+                }
+                let Some(d) = df.get_mut(t) else {
                     return Err(format!("unit {i}: a term past the vocabulary's {}", self.df.len()));
                 };
                 *d += 1;
+                (prev, sum) = (Some(t), sum + u64::from(c));
+            }
+            if sum != u64::from(self.length[i]) {
+                return Err(format!("unit {i}: a length that is not the sum of its counts"));
             }
         }
         if df != self.df {
