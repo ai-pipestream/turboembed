@@ -2389,6 +2389,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-encoding",
  "turbo-goldens",
+ "turbo-ngram",
  "turbo-normalize-layers",
  "turbo-unicode",
 ]

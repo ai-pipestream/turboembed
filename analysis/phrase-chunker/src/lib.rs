@@ -50,10 +50,14 @@
 pub mod chunker;
 pub mod error;
 pub mod model;
+pub mod pattern;
+pub mod pattern_chunker;
 pub mod phrases;
 
 pub use chunker::PhraseChunker;
 pub use error::{ModelError, PhraseError};
 pub use model::{COMPONENT_NAME, ChunkerModel, FACTORY};
+pub use pattern::{PatternError, TagCond, TagPatternRule, TokenMatcher, WordCond};
+pub use pattern_chunker::{ComposeMode, PatternChunkComposer, PatternChunker, PatternMatch};
 pub use phrases::{Phrase, kind_of, phrases};
 pub use turbo_sequence::chunker::{DEFAULT_BEAM_SIZE, MODEL_ENTRY_NAME, TokenTag};

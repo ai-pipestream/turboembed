@@ -14,6 +14,8 @@ use crate::sieve::Resolver;
 
 mod vectors;
 
+pub(crate) use vectors::cosine;
+
 /// Name prefix of the products of two span vectors.
 pub const PRODUCT: &str = "vp";
 /// Name prefix of the absolute differences of two span vectors.

@@ -1509,6 +1509,21 @@ Differences from OpenNLP:
   - `Compound::parts`, the provenance of each output word, which the
     alignment and the layer are built from. Test
     `compound_parts_say_where_each_word_came_from`.
+  - `ContextSpellCorrector` / `ContextSpellAnnotator` (id
+    `turbo:normalize:context-spell-correct`, in
+    `analysis/normalize/src/spellcheck/context.rs`): generates per-token
+    candidates from `SymSpell` within `max_edit_distance` together with
+    real-word homophone and confusable groups (`ConfusableSet`, such as
+    `there`/`their`/`they're`, `to`/`too`/`two`, `form`/`from`), builds a
+    sentence trellis, and decodes the optimal candidate path via Viterbi
+    under $\lambda \cdot d_{\text{edit}}(w_i, c_i) - \log P_{\text{LM}}(c_i \mid c_{i-n+1..i-1})$
+    scored by an `NGramLanguageModel` (`turbo-ngram`). As an `Annotator`,
+    it automatically protects any token overlapping `ProtectedSpans`
+    (`turbo:protected_spans`), `Placeholders`, `Pii`, `Temporals`,
+    `Money`, `Quantities`, `Entities`, or `Abbreviations`, writing a
+    derived `View` with exact bidirectional `Alignment` and a
+    `Corrections` layer. Tests in
+    `analysis/normalize/tests/context_spellcheck.rs`.
 
 Tests: `analysis/normalize/tests/spellcheck.rs` ports `SymSpellTest`,
 `LookupTest`, the distance, configuration, loader and serializer tests,

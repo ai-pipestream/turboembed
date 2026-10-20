@@ -22,7 +22,7 @@ use crate::phrases::phrases;
 /// doubles; the phrases are `ChunkSample.phrasesAsSpanList` over those
 /// tags, as `chunkAsSpans` returns them. A sentence is chunked on its
 /// own.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PhraseChunker {
     model: Arc<ChunkerModel>,
 }
@@ -83,7 +83,7 @@ impl PhraseChunker {
 
 /// The `(from, to)` token ranges of each sentence of `tokens`, or one
 /// range over all of them when they were not made per sentence.
-fn sentence_ranges(tokens: &Tokens) -> Vec<(usize, usize)> {
+pub(crate) fn sentence_ranges(tokens: &Tokens) -> Vec<(usize, usize)> {
     let n = tokens.spans.columns().0.len();
     let mut ranges = Vec::new();
     let mut from = 0;

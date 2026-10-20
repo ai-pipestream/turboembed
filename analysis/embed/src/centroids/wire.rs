@@ -53,7 +53,7 @@ impl<'a> Cursor<'a> {
         Ok(s.to_owned())
     }
 
-    pub(super) fn remaining(&self) -> usize {
+    pub(crate) fn remaining(&self) -> usize {
         self.bytes.len() - self.pos
     }
 
