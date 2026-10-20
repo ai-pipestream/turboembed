@@ -225,7 +225,7 @@ fn random_names_are_found_as_the_gazetteer_looks_them_up() {
 }
 
 #[test]
-fn bad_images_are_refused() {
+fn bad_images_fail_to_load() {
     let g = BundledGazetteer::get();
     let bytes = g.name_image().unwrap();
     let cut = ImageBuf::copy_from(&bytes[..bytes.len() - 8]);
@@ -239,7 +239,7 @@ fn bad_images_are_refused() {
     glossary.push("0", "paris").unwrap();
     let folding = ImageBuf::copy_from(&MappedGlossaryWriter::write(&glossary, Case::Insensitive).unwrap());
     assert_eq!(NameFinder::from_bytes(folding.bytes()).err(), Some(NameImageError::Insensitive));
-    // Every truncation of a small image is refused.
+    // No truncation of a small image loads.
     let small = InMemoryGazetteer::from_entries(&[place(0, "Lyon", vec!["Lugdunum".into()])]).unwrap();
     let bytes = small.name_image().unwrap();
     for n in 0..bytes.len() {
