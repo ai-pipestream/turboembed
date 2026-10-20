@@ -50,6 +50,75 @@ pub trait Gazetteer {
             .take(limit)
             .collect()
     }
+
+    /// Deterministic 64-bit fingerprint of the gazetteer's records and sources.
+    fn fingerprint(&self) -> u64 {
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        for src in self.sources() {
+            for b in src.bytes().chain(std::iter::once(0xff)) {
+                h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        for c1 in b'A'..=b'Z' {
+            for c2 in b'A'..=b'Z' {
+                if let Some(code) = RegionCode::new([c1, c2])
+                    && let Some(e) = self.by_region(code)
+                {
+                    let pt = e.location();
+                    for b in e
+                        .source()
+                        .bytes()
+                        .chain(std::iter::once(0xff))
+                        .chain(e.record_id().bytes())
+                        .chain(std::iter::once(0xff))
+                        .chain(e.name().bytes())
+                        .chain(pt.latitude().to_bits().to_le_bytes())
+                        .chain(pt.longitude().to_bits().to_le_bytes())
+                        .chain(e.population().to_le_bytes())
+                    {
+                        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+                    }
+                }
+            }
+        }
+        h
+    }
+}
+
+pub(crate) fn fingerprint_index(index: &crate::index::GazetteerIndex) -> u64 {
+    const P: u64 = 0x0100_0000_01b3;
+    let mix = |h: u64, v: u64| (h ^ v).wrapping_mul(P);
+    let store = &index.store;
+    let mut h = mix(0xcbf2_9ce4_8422_2325, crate::checksum::checksum(store.text.as_bytes()));
+    h = mix(h, store.bounds.len() as u64);
+    for &b in &store.bounds {
+        h = mix(h, u64::from(b));
+    }
+    for name in store.codes.names() {
+        h = mix(h, crate::checksum::checksum(name.as_bytes()));
+    }
+    for i in 0..store.len() {
+        h = mix(h, store.latitude[i].to_bits());
+        h = mix(h, store.longitude[i].to_bits());
+        h = mix(h, store.population[i]);
+        h = mix(h, (u64::from(store.strings[i]) << 32) | u64::from(store.alternates[i]));
+        h = mix(h, (u64::from(store.attributes[i]) << 32) | u64::from(store.box_of[i]));
+        let meta = (u64::from(store.source[i]) << 32)
+            | (u64::from(store.feature[i]) << 16)
+            | u64::from(u16::from_le_bytes(store.country[i]));
+        h = mix(h, meta);
+    }
+    for &[w, s, e, n] in &store.boxes {
+        h = mix(mix(mix(mix(h, w.to_bits()), s.to_bits()), e.to_bits()), n.to_bits());
+    }
+    for i in 0..store.attribute_key.len() {
+        h = mix(h, (u64::from(store.attribute_key[i]) << 32) | u64::from(store.attribute_value[i]));
+        h = mix(h, (u64::from(store.attribute_notes[i]) << 16) | u64::from(store.attribute_source[i]));
+    }
+    for &src in &index.sources {
+        h = mix(h, u64::from(src));
+    }
+    h
 }
 
 impl<G: Gazetteer + ?Sized> Gazetteer for &G {
@@ -77,6 +146,10 @@ impl<G: Gazetteer + ?Sized> Gazetteer for &G {
         limit: usize,
     ) -> Vec<(Entry<'_>, f64)> {
         (**self).lookup_fuzzy(name, scorer, min_similarity, limit)
+    }
+
+    fn fingerprint(&self) -> u64 {
+        (**self).fingerprint()
     }
 }
 
@@ -106,6 +179,10 @@ impl<G: Gazetteer + ?Sized> Gazetteer for Box<G> {
     ) -> Vec<(Entry<'_>, f64)> {
         (**self).lookup_fuzzy(name, scorer, min_similarity, limit)
     }
+
+    fn fingerprint(&self) -> u64 {
+        (**self).fingerprint()
+    }
 }
 
 impl<G: Gazetteer + ?Sized> Gazetteer for std::sync::Arc<G> {
@@ -133,6 +210,10 @@ impl<G: Gazetteer + ?Sized> Gazetteer for std::sync::Arc<G> {
         limit: usize,
     ) -> Vec<(Entry<'_>, f64)> {
         (**self).lookup_fuzzy(name, scorer, min_similarity, limit)
+    }
+
+    fn fingerprint(&self) -> u64 {
+        (**self).fingerprint()
     }
 }
 
@@ -166,6 +247,10 @@ macro_rules! indexed_gazetteer {
                 limit: usize,
             ) -> Vec<($crate::Entry<'_>, f64)> {
                 self.index.lookup_fuzzy(name, scorer, min_similarity, limit)
+            }
+
+            fn fingerprint(&self) -> u64 {
+                $crate::gazetteer::fingerprint_index(&self.index)
             }
         }
 

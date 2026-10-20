@@ -22,6 +22,7 @@ const IDX_ITA: u32 = 6;
 const IDX_NLD: u32 = 9;
 const IDX_POR: u32 = 10;
 const IDX_SPA: u32 = 12;
+const LATIN_OUTCOMES: [u32; 7] = [IDX_DEU, IDX_ENG, IDX_FRA, IDX_ITA, IDX_NLD, IDX_POR, IDX_SPA];
 
 #[rustfmt::skip]
 const PREDICATES: &[(&str, &[(u32, f64)])] = &[
@@ -183,18 +184,111 @@ pub(crate) fn with_lowercase<R>(tok: &str, f: impl FnOnce(&str) -> R) -> R {
 
 pub(crate) use crate::SequentialBuilder;
 
-/// Query-tuned wrapper around [`SpanDetector`] that fast-paths single-sentence
-/// pure-ASCII English queries and delegates mixed-language, multi-sentence, or
-/// non-ASCII queries to the underlying [`SpanDetector`].
+/// Query wrapper around [`SpanDetector`] that converts `Error::Skipped` on
+/// digit- or punctuation-only queries into empty language layers.
 pub struct QuerySpanDetector {
     inner: SpanDetector,
-    eng_tag: Option<Tag>,
+    fast_ascii_english: bool,
 }
 
 impl QuerySpanDetector {
     pub fn new(inner: SpanDetector, fast_ascii_english: bool) -> Self {
-        let eng_tag = if fast_ascii_english { inner.languages().tag("eng") } else { None };
-        Self { inner, eng_tag }
+        Self { inner, fast_ascii_english }
+    }
+
+    fn try_eval_single_clause_ascii(
+        &self,
+        view: &View,
+        sentences: Option<&Sentences>,
+        tokens: Option<&Tokens>,
+    ) -> Option<(LanguageSpans, Language)> {
+        if !self.fast_ascii_english {
+            return None;
+        }
+        let text = view.text();
+        let bytes = text.as_bytes();
+        if !text.is_ascii()
+            || bytes.len() > 512
+            || sentences.is_some_and(|s| s.spans.view() != view.id() || s.spans.len() > 1)
+        {
+            return None;
+        }
+        let toks = tokens?;
+        if toks.spans.view() != view.id() || !toks.spans.is_ordered() {
+            return None;
+        }
+        if bytes.iter().any(|&b| {
+            matches!(b, b'x' | b'X' | b'\n' | b'\r' | b'\t') || (b.is_ascii_punctuation() && !matches!(b, b'$' | b'%'))
+        }) {
+            return None;
+        }
+        let (starts, ends) = toks.spans.columns();
+        let (mut first_alpha, mut last_alpha) = (None, None);
+        for (&s, &e) in starts.iter().zip(ends) {
+            let tok = &bytes[s as usize..e as usize];
+            let has_alpha = tok.iter().any(u8::is_ascii_alphabetic);
+            let has_digit = tok.iter().any(u8::is_ascii_digit);
+            if has_alpha && has_digit {
+                return None;
+            }
+            if has_alpha {
+                first_alpha.get_or_insert(s);
+                last_alpha = Some(e);
+            }
+        }
+        let (start, end) = (first_alpha?, last_alpha?);
+        if (start > 0 && !bytes[start as usize - 1].is_ascii_whitespace())
+            || bytes.get(end as usize).is_some_and(|b| !b.is_ascii_whitespace())
+        {
+            return None;
+        }
+        let mut prep = [0u8; 512];
+        let mut plen = 0usize;
+        for &b in &bytes[start as usize..end as usize] {
+            let c = if b.is_ascii_whitespace() || b.is_ascii_digit() { b' ' } else { b.to_ascii_lowercase() };
+            if (c == b' ' && plen > 0 && prep[plen - 1] == b' ')
+                || (plen >= 2 && prep[plen - 1] == c && prep[plen - 2] == c)
+            {
+                continue;
+            }
+            prep[plen] = c;
+            plen += 1;
+        }
+        if plen < 3 {
+            return None;
+        }
+        let mut logits = [0.0f64; 14];
+        let mut seen = [[0u8; 3]; 64];
+        let mut seen_len = 0usize;
+        for i in 0..=plen - 3 {
+            let tri: [u8; 3] = [prep[i], prep[i + 1], prep[i + 2]];
+            if seen[..seen_len].contains(&tri) {
+                continue;
+            }
+            if let Some((_, params)) = PREDICATES.iter().find(|(p, _)| p.as_bytes() == tri) {
+                seen[seen_len] = tri;
+                seen_len += 1;
+                for &(o, w) in *params {
+                    logits[o as usize] += w;
+                }
+            }
+        }
+        if seen_len == 0 {
+            return None;
+        }
+        let mut best = LATIN_OUTCOMES[0];
+        for &c in &LATIN_OUTCOMES[1..] {
+            if logits[c as usize] > logits[best as usize] {
+                best = c;
+            }
+        }
+        let total: f64 = LATIN_OUTCOMES.iter().map(|&c| logits[c as usize].exp()).sum();
+        let confidence = (logits[best as usize].exp() / total).clamp(0.0, 1.0);
+        let mut layer = LanguageSpans::new(view.id(), self.inner.languages().clone());
+        layer.push(Span::new(start, end), Tag(best as u16), Script::Latin, confidence);
+        let mut code = Strs::default();
+        code.push(OUTCOMES[best as usize]);
+        Some((layer, Language { code, score: vec![1.0] }))
     }
 }
 
@@ -205,41 +299,8 @@ impl Annotator for QuerySpanDetector {
     type Writes = (LanguageSpans, Language);
 
     fn annotate(&self, (view, sentences, tokens): Refs<'_, Self>) -> Result<(LanguageSpans, Language), Error> {
-        let text = view.text();
-        if let Some(eng_tag) = self.eng_tag
-            && text.is_ascii()
-            && sentences.is_none_or(|s| s.spans.view() == view.id() && s.spans.len() <= 1)
-            && let Some(toks) = tokens
-            && toks.spans.view() == view.id()
-            && toks.spans.is_ordered()
-        {
-            let (starts, ends) = toks.spans.columns();
-            let mut first_alpha: Option<u32> = None;
-            let mut last_alpha: Option<u32> = None;
-            let mut has_non_en = false;
-            for (&s, &e) in starts.iter().zip(ends) {
-                let tok = &text[s as usize..e as usize];
-                if tok.bytes().any(|b| b.is_ascii_alphabetic()) {
-                    first_alpha.get_or_insert(s);
-                    last_alpha = Some(e);
-                    if with_lowercase(tok, |lower| NON_EN_ASCII_WORDS.binary_search(&lower).is_ok()) {
-                        has_non_en = true;
-                        break;
-                    }
-                }
-            }
-            if !has_non_en {
-                let mut layer = LanguageSpans::new(view.id(), self.inner.languages().clone());
-                let mut code = Strs::default();
-                let mut score = Vec::new();
-                if let Some(start) = first_alpha {
-                    let end = ends.last().copied().unwrap_or_else(|| last_alpha.unwrap_or(start));
-                    layer.push(Span::new(start, end), eng_tag, Script::Latin, 1.0);
-                    code.push("eng");
-                    score.push(1.0);
-                }
-                return Ok((layer, Language { code, score }));
-            }
+        if let Some(res) = self.try_eval_single_clause_ascii(view, sentences, tokens) {
+            return Ok(res);
         }
         match self.inner.annotate((view, sentences, tokens)) {
             Ok(res) => Ok(res),
@@ -256,16 +317,10 @@ impl Annotator for QuerySpanDetector {
     }
 
     fn config_hash(&self) -> u64 {
-        self.inner.config_hash()
+        let base = self.inner.config_hash();
+        if self.fast_ascii_english { base ^ 0x9e37_79b9_7f4a_7c15 } else { base }
     }
 }
-
-#[rustfmt::skip]
-pub(crate) const NON_EN_ASCII_WORDS: &[&str] = &[
-    "ach", "al", "ayer", "baratos", "billig", "billige", "con", "de", "del", "demain", "der", "des", "du", "een",
-    "el", "en", "esta", "este", "het", "hoy", "la", "las", "le", "les", "los", "lunes", "martes", "mes", "meses",
-    "morgen", "naar", "nach", "para", "por", "semana", "tarde", "un", "una", "van", "vluchten", "vols", "vuelos",
-];
 
 /// Non-place query words that can collide with minor town names in a global gazetteer.
 #[rustfmt::skip]

@@ -38,20 +38,12 @@ impl<G: Gazetteer> GazetteerCandidateAnnotator<G> {
     pub fn new(gazetteer: Arc<G>) -> Self {
         let min_lowercase_population = 50_000u64;
         let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for b in std::any::type_name::<G>().bytes().chain(min_lowercase_population.to_le_bytes()) {
+        for b in std::any::type_name::<G>()
+            .bytes()
+            .chain(min_lowercase_population.to_le_bytes())
+            .chain(gazetteer.fingerprint().to_le_bytes())
+        {
             h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-        }
-        for probe in ["Paris", "London", "New York", "Tokyo", "Berlin", "Madrid"] {
-            for e in gazetteer.lookup(probe) {
-                for b in e
-                    .record_id()
-                    .bytes()
-                    .chain(e.country_code().unwrap_or("").bytes())
-                    .chain(e.population().to_le_bytes())
-                {
-                    h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-                }
-            }
         }
         Self {
             gazetteer,
@@ -360,9 +352,10 @@ impl Annotator for QueryTimeAnnotator {
         }
         let (starts, ends) = tokens.spans.columns();
         let n = starts.len();
-        if n == 0 || (self.is_spanish && n >= 4 && lang.is_some_and(|l| l.code.len() == 1)) {
+        if n == 0 {
             return Ok((Times::new(view.id()),));
         }
+        let sole_english = self.is_spanish && lang.is_some_and(|l| l.code.len() == 1 && l.code.get(0) == "eng");
         let doc_ref = doc_date.and_then(|d| d.date).map(DateTime::midnight);
         let r = doc_ref.or(self.reference);
 
@@ -384,8 +377,28 @@ impl Annotator for QueryTimeAnnotator {
                 !self.is_spanish && !is_currency_num && (is_numeric_time_token(text, s, e) || (n <= 6 && has_digit));
             let trig = num_time
                 || (!has_digit
-                    && (2..=12).contains(&tok.len())
-                    && with_lowercase(tok, |l| self.triggers.binary_search(&l).is_ok()));
+                    && (2..=16).contains(&tok.len())
+                    && with_lowercase(tok, |l| {
+                        self.triggers.binary_search(&l).is_ok()
+                            && !(sole_english
+                                && matches!(
+                                    l,
+                                    "ago"
+                                        | "feb"
+                                        | "hr"
+                                        | "hrs"
+                                        | "jul"
+                                        | "jun"
+                                        | "mar"
+                                        | "may"
+                                        | "min"
+                                        | "mins"
+                                        | "nov"
+                                        | "oct"
+                                        | "sep"
+                                        | "sept"
+                                ))
+                    }));
             any_trigger |= trig;
             is_trig[idx] = trig;
         }

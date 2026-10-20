@@ -361,6 +361,59 @@ fn recognizes_numeric_clock_expressions_and_distinguishes_time_annotator_config_
     assert_ne!(prov_en_14.config, 0);
     assert_ne!(prov_en_14.config, prov_es_14.config);
     assert_ne!(prov_en_14.config, prov_en_15.config);
+
+    // 3. >= 4-token Spanish queries ("vuelos baratos para mañana" and "vuelos baratos para hoy") extract Spanish times.
+    let a_es_4 = profile_14.analyze("vuelos baratos para mañana").unwrap();
+    assert_span_and_evidence_invariants("vuelos baratos para mañana", &a_es_4);
+    assert_eq!(a_es_4.language.as_ref().unwrap().best_code, "spa");
+    let es_4_temp: Vec<_> = a_es_4.temporal_filters().collect();
+    assert_eq!(es_4_temp.len(), 1);
+    assert_eq!(es_4_temp[0].0.surface, "mañana");
+    assert_eq!(es_4_temp[0].0.evidence.instance.as_deref(), Some("es"));
+    assert_eq!(es_4_temp[0].1.start_epoch_seconds, Some(ref_july_15.local_seconds()));
+
+    let a_es_hoy = profile_14.analyze("vuelos baratos para hoy").unwrap();
+    assert_eq!(a_es_hoy.language.as_ref().unwrap().best_code, "spa");
+    let es_hoy_temp: Vec<_> = a_es_hoy.temporal_filters().collect();
+    assert_eq!(es_hoy_temp.len(), 1);
+    assert_eq!(es_hoy_temp[0].0.surface, "hoy");
+    assert_eq!(es_hoy_temp[0].1.start_epoch_seconds, Some(ref_july_14.local_seconds()));
+
+    // 4. Single-word ASCII Spanish ("barato") matches the underlying SpanDetector ("spa"), and QuerySpanDetector hashes its flag.
+    let a_barato = profile_14.analyze("barato").unwrap();
+    assert_eq!(a_barato.language.as_ref().unwrap().best_code, "spa");
+    let qsd_fast = turbo_query::annotators::QuerySpanDetector::new(turbo_query::default_span_detector(), true);
+    let qsd_slow = turbo_query::annotators::QuerySpanDetector::new(turbo_query::default_span_detector(), false);
+    assert_ne!(qsd_fast.config_hash(), qsd_slow.config_hash());
+
+    // 5. GazetteerCandidateAnnotator::config_hash() distinguishes custom gazetteers on non-sampled cities ("Rome").
+    let rome_entry = |id: &str, lat: f64, lon: f64, src: &str| {
+        turbo_geo::GazetteerEntry::new(turbo_geo::EntryParts {
+            source: src.to_owned(),
+            record_id: id.to_owned(),
+            name: "Rome".to_owned(),
+            alternate_names: Vec::new(),
+            location: turbo_geo::GeoPoint::new(lat, lon).unwrap(),
+            bounding_box: None,
+            country_code: Some("IT".to_owned()),
+            containment: Vec::new(),
+            population: 2_873_000,
+            feature_class: Some(turbo_geo::FEATURE_CLASS_CITY.to_owned()),
+            attributes: Vec::new(),
+        })
+        .unwrap()
+    };
+    let rome_a = Arc::new(InMemoryGazetteer::from_entries(&[rome_entry("rome-1", 41.9028, 12.4964, "src_a")]).unwrap());
+    let rome_b = Arc::new(InMemoryGazetteer::from_entries(&[rome_entry("rome-2", 41.9028, 12.4964, "src_a")]).unwrap());
+    let rome_c = Arc::new(InMemoryGazetteer::from_entries(&[rome_entry("rome-1", 42.0000, 12.4964, "src_a")]).unwrap());
+    let rome_d = Arc::new(InMemoryGazetteer::from_entries(&[rome_entry("rome-1", 41.9028, 12.4964, "src_b")]).unwrap());
+    let ha = GazetteerCandidateAnnotator::new(rome_a).config_hash();
+    let hb = GazetteerCandidateAnnotator::new(rome_b).config_hash();
+    let hc = GazetteerCandidateAnnotator::new(rome_c).config_hash();
+    let hd = GazetteerCandidateAnnotator::new(rome_d).config_hash();
+    assert_ne!(ha, hb, "record_id difference on 'Rome' must change config_hash");
+    assert_ne!(ha, hc, "coordinate difference on 'Rome' must change config_hash");
+    assert_ne!(ha, hd, "source difference on 'Rome' must change config_hash");
 }
 
 #[test]
