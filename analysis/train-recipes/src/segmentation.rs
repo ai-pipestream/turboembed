@@ -338,7 +338,9 @@ impl SegmentationRecipe {
         match (self.component, held_out) {
             (Component::Sentence, HeldOut::Sentences(samples)) => {
                 let model = SentenceModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
-                let detector = SentenceDetector::new(Arc::new(model), WHITESPACE);
+                // The gate compares models, so neither gets the bundled
+                // abbreviation inventory: the JVM's splits.
+                let detector = SentenceDetector::new(Arc::new(model), WHITESPACE).with_jvm_parity();
                 for sample in samples {
                     predicted.clear();
                     detector.detect(sample.document(), &mut predicted);
