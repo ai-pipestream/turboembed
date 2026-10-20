@@ -102,6 +102,8 @@ macro_rules! positional {
 mod abbreviations;
 mod boilerplate;
 mod categories;
+#[cfg(test)]
+mod categories_tests;
 mod containment;
 #[cfg(test)]
 mod core_tests;

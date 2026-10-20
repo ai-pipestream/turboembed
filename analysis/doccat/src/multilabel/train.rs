@@ -122,9 +122,9 @@ pub fn train_multilabel(
         .iter()
         .map(|&label| {
             let target: Vec<f64> = samples.iter().map(|s| f64::from(u8::from(s.labels.contains(label)))).collect();
-            fit_head(&vocab, &docs, &target, n, params)
+            fit_head(label, &vocab, &docs, &target, n, params)
         })
-        .collect::<Vec<LinearHead>>();
+        .collect::<Result<Vec<LinearHead>, MultiLabelError>>()?;
 
     let names: Vec<&str> = labels.into_iter().collect();
     let k = names.len();
@@ -133,14 +133,17 @@ pub fn train_multilabel(
 
 /// Full-batch gradient descent for one label: weights over the shared
 /// vocabulary, a bias, and the mean cross-entropy gradient, stepped
-/// `params.iterations` times.
+/// `params.iterations` times. Extreme-but-finite parameters (an enormous
+/// learning rate or weight decay) overflow the updates; that is an error,
+/// not a panic.
 fn fit_head(
+    label: &str,
     vocab: &[String],
     docs: &[Vec<(u32, f64)>],
     target: &[f64],
     n: f64,
     params: &MultiLabelTrainingParameters,
-) -> LinearHead {
+) -> Result<LinearHead, MultiLabelError> {
     let mut w = vec![0.0; vocab.len()];
     let mut bias = 0.0;
     for _ in 0..params.iterations {
@@ -158,7 +161,12 @@ fn fit_head(
             *wj -= params.learning_rate * (*gj / n + params.l2 * *wj);
         }
         bias -= params.learning_rate * grad_b / n;
+        if !bias.is_finite() || w.iter().any(|wj| !wj.is_finite()) {
+            return Err(MultiLabelError::Train(format!(
+                "label {label:?} trained to non-finite weights: the parameters are too extreme"
+            )));
+        }
     }
     let weights = w.into_iter().enumerate().filter(|(_, w)| *w != 0.0).map(|(j, w)| (vocab[j].clone(), w)).collect();
-    LinearHead::new(bias, weights).expect("trained weights are finite and the vocabulary is sorted")
+    LinearHead::new(bias, weights)
 }

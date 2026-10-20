@@ -2,7 +2,7 @@
 //! per document feature present) that the sigmoid turns into a score in
 //! `0.0..=1.0`.
 
-use std::collections::HashSet;
+use std::collections::BTreeMap;
 
 use super::bytes::MAX_UTF_BYTES;
 use super::error::MultiLabelError;
@@ -70,15 +70,19 @@ impl LinearHead {
         &self.weights
     }
 
-    /// The linear score for a document whose features are `features`,
-    /// before the sigmoid: the bias plus every weight whose feature is
-    /// present.
-    pub fn score(&self, features: &HashSet<&str>) -> f64 {
-        self.bias + self.weights.iter().filter(|(n, _)| features.contains(n.as_str())).map(|(_, w)| w).sum::<f64>()
+    /// The linear score for a document whose feature counts are
+    /// `features`, before the sigmoid: the bias plus every weight times
+    /// its feature's count. The counts are the bag-of-features convention
+    /// [`train`](crate::multilabel::train) fits the heads with, so a
+    /// document scores the same at inference as in training: a repeated
+    /// token counts once per occurrence.
+    pub fn score(&self, features: &BTreeMap<&str, f64>) -> f64 {
+        self.bias
+            + self.weights.iter().filter_map(|(n, w)| features.get(n.as_str()).map(|&count| w * count)).sum::<f64>()
     }
 
     /// The sigmoid score in `0.0..=1.0`.
-    pub fn probability(&self, features: &HashSet<&str>) -> f64 {
+    pub fn probability(&self, features: &BTreeMap<&str, f64>) -> f64 {
         sigmoid(self.score(features))
     }
 }

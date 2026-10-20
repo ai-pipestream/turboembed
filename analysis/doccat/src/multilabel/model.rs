@@ -3,7 +3,7 @@
 //! bytes, which `MultiLabelDoccatModel::write` and `::open` round-trip
 //! with a trailing CRC-32C.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use turbo_analysis::{ModelRef, Tag, TagSet};
@@ -12,6 +12,7 @@ use turbo_train::crc32c;
 use super::bytes::{MAX_UTF_BYTES, Reader, put_utf};
 use super::error::MultiLabelError;
 use super::head::LinearHead;
+use super::validate::{check_label_names, check_thresholds};
 use crate::features::{BuiltinFeatureGenerator, DoccatContextGenerator};
 use crate::model::parse_feature_generators;
 
@@ -30,6 +31,11 @@ pub const MODEL_ENTRY: &str = "doccat.multilabel.model";
 pub const TAGSET_NAME: &str = "turbo:multilabel-doccat";
 /// The threshold every label gets until calibration moves it.
 pub const DEFAULT_THRESHOLD: f64 = 0.5;
+/// The open interval a threshold validates against is `(0.0, 1.0)`;
+/// calibrated thresholds clamp to this epsilon inside it, so a cut point
+/// at a validation score of exactly 0.0 or 1.0 still applies.
+pub const MIN_THRESHOLD: f64 = 1e-6;
+pub const MAX_THRESHOLD: f64 = 1.0 - 1e-6;
 
 /// A multi-label document categorizer model: every known category label
 /// scored independently in `0.0..=1.0` by its own [`LinearHead`] through
@@ -65,17 +71,29 @@ struct Bounds {
 
 impl Bounds {
     /// Validates the bounds against each other and `num_labels`:
-    /// `max_labels` and `min_labels` are `None` or positive, `min_labels`
-    /// at most `num_labels` labels and at most `max_labels` where both are
-    /// set, and `min_score` finite in `0.0..=1.0`.
+    /// `max_labels` and `min_labels` are `None` or positive and at most
+    /// `i32::MAX` (the wire field is 32 bits; a larger value would
+    /// truncate), `min_labels` at most `num_labels` labels and at most
+    /// `max_labels` where both are set, and `min_score` finite in
+    /// `0.0..=1.0`.
     fn check(&self, num_labels: usize) -> Result<(), MultiLabelError> {
-        if self.max_labels == Some(0) {
-            return Err(MultiLabelError::Invalid("max_labels of 0: at least one label must be able to emit".into()));
-        }
-        if self.min_labels == Some(0) {
-            return Err(MultiLabelError::Invalid(
-                "min_labels of 0: no forced emission is the default, leave it None".into(),
-            ));
+        for (what, value) in [("max_labels", self.max_labels), ("min_labels", self.min_labels)] {
+            if let Some(value) = value {
+                if value == 0 {
+                    let detail = if what == "max_labels" {
+                        "max_labels of 0: at least one label must be able to emit"
+                    } else {
+                        "min_labels of 0: no forced emission is the default, leave it None"
+                    };
+                    return Err(MultiLabelError::Invalid(detail.into()));
+                }
+                if value > i32::MAX as usize {
+                    return Err(MultiLabelError::Invalid(format!(
+                        "{what} of {value}, over the wire field's {} (i32::MAX)",
+                        i32::MAX as usize
+                    )));
+                }
+            }
         }
         if let Some(min) = self.min_labels {
             if min > num_labels {
@@ -114,6 +132,7 @@ impl MultiLabelDoccatModel {
         thresholds: Vec<f64>,
         context_generator: DoccatContextGenerator,
     ) -> Result<MultiLabelDoccatModel, MultiLabelError> {
+        check_label_names(labels)?;
         let categories = TagSet::new(TAGSET_NAME, labels);
         Self::assemble(language.into(), categories, heads, thresholds, Bounds::default(), context_generator)
     }
@@ -313,9 +332,15 @@ impl MultiLabelDoccatModel {
         out: &mut Vec<f64>,
     ) {
         self.context_generator.extract_features(text, extra_information, feature_scratch);
-        let features: HashSet<&str> = feature_scratch.iter().map(String::as_str).collect();
+        // Feature counts, the bag-of-features representation training
+        // fits the heads with: a repeated token counts once per
+        // occurrence at inference as it did in training.
+        let mut counts: BTreeMap<&str, f64> = BTreeMap::new();
+        for feature in feature_scratch.iter().map(String::as_str) {
+            *counts.entry(feature).or_default() += 1.0;
+        }
         out.clear();
-        out.extend(self.heads.iter().map(|h| h.probability(&features)));
+        out.extend(self.heads.iter().map(|h| h.probability(&counts)));
     }
 
     /// The labels `scores` emits, in label order: every label whose score
@@ -448,18 +473,4 @@ impl MultiLabelDoccatModel {
         let categories = TagSet::new(TAGSET_NAME, &names.iter().map(String::as_str).collect::<Vec<_>>());
         Self::assemble(language, categories, heads, thresholds, bounds, context_generator)
     }
-}
-
-/// The thresholds every constructor validates: `k` of them, each finite
-/// and in the open interval `(0.0, 1.0)`.
-fn check_thresholds(thresholds: &[f64], k: usize) -> Result<(), MultiLabelError> {
-    if thresholds.len() != k {
-        return Err(MultiLabelError::Invalid(format!("{} thresholds for {k} labels", thresholds.len())));
-    }
-    for (i, &t) in thresholds.iter().enumerate() {
-        if !t.is_finite() || t <= 0.0 || t >= 1.0 {
-            return Err(MultiLabelError::Invalid(format!("threshold {t} of label {i}, outside the open 0.0..1.0")));
-        }
-    }
-    Ok(())
 }

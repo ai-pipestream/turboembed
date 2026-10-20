@@ -8,7 +8,7 @@
 use std::collections::BTreeSet;
 
 use super::error::MultiLabelError;
-use super::model::{DEFAULT_THRESHOLD, MultiLabelDoccatModel};
+use super::model::{DEFAULT_THRESHOLD, MAX_THRESHOLD, MIN_THRESHOLD, MultiLabelDoccatModel};
 
 /// Fits per-label decision thresholds on validation scores. The
 /// predictions a candidate threshold `t` makes for a label are "every
@@ -95,11 +95,17 @@ impl ThresholdCalibrator {
         if truth.iter().flatten().any(|&t| t >= k) {
             return Err(MultiLabelError::Invalid("a validation truth index outside the labels".into()));
         }
+        if scores.iter().flatten().any(|&s| !s.is_finite() || !(0.0..=1.0).contains(&s)) {
+            return Err(MultiLabelError::Invalid("a validation score that is not a probability in 0.0..=1.0".into()));
+        }
         Ok((0..k).map(|label| self.fit_label(scores, truth, label)).collect())
     }
 
     /// The threshold for one label: its validation scores and which rows
-    /// hold it, swept as the candidate cut points.
+    /// hold it, swept as the candidate cut points. The result is clamped
+    /// into the open interval `(0.0, 1.0)` a model's thresholds validate
+    /// against, so a candidate at a validation score of 0.0 or 1.0 still
+    /// applies.
     fn fit_label(&self, scores: &[Vec<f64>], truth: &[BTreeSet<usize>], label: usize) -> f64 {
         let col: Vec<(f64, bool)> = scores.iter().zip(truth).map(|(row, t)| (row[label], t.contains(&label))).collect();
         if !col.iter().any(|&(_, positive)| positive) {
@@ -125,7 +131,8 @@ impl ThresholdCalibrator {
                 best = Some((t, f));
             }
         }
-        best.map_or_else(|| self.floor_fallback(&col, &candidates), |(t, _)| t)
+        let fitted = best.map_or_else(|| self.floor_fallback(&col, &candidates), |(t, _)| t);
+        fitted.clamp(MIN_THRESHOLD, MAX_THRESHOLD)
     }
 
     /// No candidate met the precision floor: the candidate of the
@@ -181,12 +188,22 @@ pub fn precision_recall(tp: usize, fp: usize, fn_: usize) -> (f64, f64) {
 
 /// Precision, recall, and their F_beta (`beta` positive; recall weighs
 /// `beta` times precision). Precision and recall both 0 is an F_beta of
-/// 0.0.
+/// 0.0. Above beta 1.0 the dividend and divisor are scaled by
+/// `1 / beta^2` first, so a beta whose square overflows still gives a
+/// finite F (the limit as beta grows is the recall); betas at most 1.0
+/// keep the plain formula's bits.
 pub fn f_beta(tp: usize, fp: usize, fn_: usize, beta: f64) -> (f64, f64, f64) {
     debug_assert!(beta.is_finite() && beta > 0.0);
     let (precision, recall) = precision_recall(tp, fp, fn_);
-    let b2 = beta * beta;
-    let f = if precision + recall == 0.0 { 0.0 } else { (1.0 + b2) * precision * recall / (b2 * precision + recall) };
+    let f = if precision + recall == 0.0 {
+        0.0
+    } else if beta > 1.0 {
+        let inv_b2 = 1.0 / (beta * beta);
+        (1.0 + inv_b2) * precision * recall / (precision + inv_b2 * recall)
+    } else {
+        let b2 = beta * beta;
+        (1.0 + b2) * precision * recall / (b2 * precision + recall)
+    };
     (precision, recall, f)
 }
 

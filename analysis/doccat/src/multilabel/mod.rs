@@ -28,6 +28,7 @@ pub mod metrics;
 pub mod model;
 pub mod package;
 pub mod train;
+pub mod validate;
 
 pub use calibrate::{ThresholdCalibrator, f_beta, macro_f1, precision_recall};
 pub use categorizer::{MultiLabelCategorizer, MultiLabelSpanCategorizer};

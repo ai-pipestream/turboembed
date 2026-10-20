@@ -138,6 +138,7 @@ impl<L: CategoryScope> LayerCodec for Categories<L> {
         let mut w = Writer::new();
         put_tagset(&mut w, &self.categories)?;
         put_tags(&mut w, &self.category)?;
+        put_selected(&mut w, &self.selected)?;
         put_f64s(&mut w, &self.scores)?;
         Ok(w.finish())
     }
@@ -145,15 +146,17 @@ impl<L: CategoryScope> LayerCodec for Categories<L> {
         let mut r = Reader::new(data);
         let categories = get_tagset(&mut r)?;
         let category = get_category_tags(&mut r, &categories)?;
+        let selected = get_selected(&mut r, &categories)?;
         let scores = get_f64s(&mut r)?;
         let want =
             category.len().checked_mul(categories.len()).ok_or_else(|| malformed("a score count that overflows"))?;
         want_len(scores.len(), want, "scores")?;
+        want_len(selected.len(), category.len(), "selected label sets")?;
         done(&r, "categories")?;
         let mut out = Categories::with_capacity(categories, category.len());
         let k = out.categories.len();
         for (i, best) in category.into_iter().enumerate() {
-            out.push(best, &scores[i * k..(i + 1) * k]);
+            out.push_selected(best, &selected[i], &scores[i * k..(i + 1) * k]);
         }
         Ok(out)
     }
@@ -172,4 +175,34 @@ fn get_category_tags(r: &mut Reader<'_>, tagset: &TagSet) -> Result<Vec<Tag>, Ex
         tags.push(tag);
     }
     Ok(tags)
+}
+
+/// The selected-set column: one label list per item, in category order.
+fn put_selected(w: &mut Writer, selected: &[Vec<Tag>]) -> Result<(), ExportError> {
+    w.usize(selected.len())?;
+    for set in selected {
+        w.usize(set.len())?;
+        for t in set {
+            w.u16(t.0);
+        }
+    }
+    Ok(())
+}
+
+/// The selected-set column read back: every tag an index into the set,
+/// so no [`Tag::NONE`] (abstention is the empty list).
+fn get_selected(r: &mut Reader<'_>, tagset: &TagSet) -> Result<Vec<Vec<Tag>>, ExportError> {
+    let mut out = Vec::new();
+    for _ in 0..r.usize()? {
+        let mut set = Vec::new();
+        for _ in 0..r.usize()? {
+            let tag = Tag(r.u16()?);
+            if tag.0 as usize >= tagset.len() {
+                return Err(malformed(format!("a selected tag outside {}", tagset.name)));
+            }
+            set.push(tag);
+        }
+        out.push(set);
+    }
+    Ok(out)
 }

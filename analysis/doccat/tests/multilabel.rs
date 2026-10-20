@@ -83,13 +83,15 @@ fn abstention_emits_no_labels_and_no_best_category() {
     assert!(cat.predicted_tags(&scores).is_empty());
 
     // The annotator writes the abstention into the layer: one item, no
-    // best category, every score present, the layer's invariants hold.
+    // best category, an empty selected set, every score present, the
+    // layer's invariants hold.
     let doc = Document::new("recipe kitchen");
     let view = doc.get::<View>().unwrap();
     let tokens = Tokens { spans: token_spans(&[(0, 6), (7, 14)]), sentence: None };
     let (cats,) = cat.annotate((view, &tokens)).unwrap();
     assert_eq!(cats.len(), 1);
     assert_eq!(cats.category, [Tag::NONE]);
+    assert!(cats.selected(0).is_empty(), "abstention selects nothing");
     assert!(cats.check().is_ok());
     assert_eq!(cats.best(), None);
     assert_eq!(cats.best_category(0), "");
@@ -98,6 +100,29 @@ fn abstention_emits_no_labels_and_no_best_category() {
 
     // What ran is still recorded on the layer's provenance path.
     assert!(cat.model().model_ref().id.starts_with("turbo:MultiLabelDoccat:"));
+}
+
+#[test]
+fn the_annotation_keeps_the_full_selected_label_set() {
+    // The regression: label sets {a, b} (thresholds [0.5, 0.5]) and {a}
+    // (thresholds [0.5, 0.9]) share best and scores, so the layer must
+    // carry the selected set to tell them apart.
+    let cat = MultiLabelCategorizer::new(hand_built_model());
+    let doc = Document::new("team stock");
+    let view = doc.get::<View>().unwrap();
+    let tokens = Tokens { spans: token_spans(&[(0, 4), (5, 10)]), sentence: None };
+    let (both,) = cat.annotate((view, &tokens)).unwrap();
+    assert_eq!(both.selected(0), [Tag(0), Tag(1)]);
+    assert_eq!(both.get(0).unwrap().selected, [Tag(0), Tag(1)]);
+
+    let raised = hand_built_model().with_thresholds(vec![0.5, 0.95]).unwrap();
+    let cat = MultiLabelCategorizer::new(raised);
+    let (one,) = cat.annotate((view, &tokens)).unwrap();
+    assert_eq!(one.selected(0), [Tag(0)]);
+
+    assert_eq!(both.category, one.category, "same best, same scores");
+    assert_eq!(both.row_scores(0), one.row_scores(0));
+    assert_ne!(both, one, "the selected sets differ and the layer shows it");
 }
 
 #[test]

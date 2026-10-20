@@ -118,8 +118,9 @@ impl Annotator for MultiLabelCategorizer {
         }
         let tok_strs = extract_tokens(Self::ID, tokens, view.text())?;
         let scores = self.categorize(&tok_strs);
-        let best = best_predicted(&self.model, &scores);
-        Ok((Categories::document(Arc::clone(self.model.categories()), best, &scores),))
+        let predicted = self.model.predicted_tags(&scores);
+        let best = best_predicted(&scores, &predicted);
+        Ok((Categories::document_selected(Arc::clone(self.model.categories()), best, &predicted, &scores),))
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -131,10 +132,10 @@ impl Annotator for MultiLabelCategorizer {
 /// label, ties toward the lower index as `getBestCategory` breaks them;
 /// [`Tag::NONE`] when no label cleared its threshold, the clean
 /// abstention.
-fn best_predicted(model: &MultiLabelDoccatModel, scores: &[f64]) -> Tag {
+fn best_predicted(scores: &[f64], predicted: &[Tag]) -> Tag {
     let mut best = Tag::NONE;
     let mut best_score = 0.0;
-    for t in model.predicted_tags(scores) {
+    for &t in predicted {
         let s = scores[t.0 as usize];
         if best == Tag::NONE || s > best_score {
             best = t;
@@ -220,7 +221,8 @@ impl<L: SpanCategorizable> Annotator for MultiLabelSpanCategorizer<L> {
                 }
             }
             model.scores_into(&tok_strs, &extra, &mut scratch, &mut scores);
-            out.push(best_predicted(model, &scores), &scores);
+            let predicted = model.predicted_tags(&scores);
+            out.push_selected(best_predicted(&scores, &predicted), &predicted, &scores);
         }
 
         Ok((out,))

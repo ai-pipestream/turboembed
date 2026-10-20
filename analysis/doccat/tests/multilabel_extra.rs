@@ -7,7 +7,8 @@
 use std::collections::BTreeSet;
 
 use turbo_doccat::multilabel::{
-    FORMAT_VERSION_V1, LinearHead, MultiLabelCategorizer, MultiLabelDoccatModel, MultiLabelError, Prf, evaluate,
+    FORMAT_VERSION_V1, LinearHead, MultiLabelCategorizer, MultiLabelDoccatModel, MultiLabelError, Prf,
+    ThresholdCalibrator, evaluate, f_beta,
 };
 
 use turbo_doccat::{BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator};
@@ -206,4 +207,98 @@ fn the_metrics_validate_their_inputs() {
     assert!(evaluate(&one, &one, 0).is_err(), "no labels to evaluate over");
     assert!(evaluate(&[BTreeSet::from([1])], &one, 1).is_err(), "a prediction outside the labels");
     assert!(evaluate(&one, &[BTreeSet::from([1])], 1).is_err(), "a gold set outside the labels");
+}
+
+#[test]
+fn repeated_features_count_at_inference_as_they_did_in_training() {
+    // Training sums a feature's counts; inference must too. One head,
+    // weight 1 on bow=x, bias 0: ["x","x"] scores sigmoid(2), ["x"]
+    // sigmoid(1).
+    let model = MultiLabelDoccatModel::new(
+        "en",
+        &["a"],
+        vec![LinearHead::new(0.0, vec![("bow=x".into(), 1.0)]).unwrap()],
+        vec![0.5],
+        DoccatContextGenerator::from_builtins(vec![BuiltinFeatureGenerator::BagOfWords(
+            BagOfWordsFeatureGenerator::new(),
+        )]),
+    )
+    .unwrap();
+    let single = model.scores(&["x"])[0];
+    let double = model.scores(&["x", "x"])[0];
+    let sigmoid = |z: f64| 1.0 / (1.0 + (-z).exp());
+    assert!((single - sigmoid(1.0)).abs() < 1e-12, "one token: {}", single);
+    assert!((double - sigmoid(2.0)).abs() < 1e-12, "the count weights: {double}");
+    assert!(double > single);
+}
+
+#[test]
+fn calibration_rejects_bad_probabilities_and_clamps_into_the_open_interval() {
+    // A validation set of all-1.0 scores fits threshold 1.0, which the
+    // open interval (0.0, 1.0) refuses; the fitted value must clamp so
+    // fit plus apply round-trips.
+    let scores = vec![vec![1.0, 1.0, 0.3]];
+    let truth = [BTreeSet::from([0])];
+    let calibrator = ThresholdCalibrator::new();
+    let fitted = calibrator.fit(&scores, &truth).expect("fit clamps into the open interval");
+    assert_eq!(fitted.len(), 3);
+    assert!(fitted.iter().all(|&t| (0.0..1.0).contains(&t)), "thresholds {fitted:?}");
+    let model = model().with_thresholds(fitted.clone()).expect("the calibrated model applies");
+    assert_eq!(model.thresholds(), fitted);
+
+    // NaN and out-of-range scores are probabilities no model emits.
+    assert!(calibrator.fit(&[vec![f64::NAN, 0.5]], &truth).is_err());
+    assert!(calibrator.fit(&[vec![1.5, 0.5]], &truth).is_err());
+    assert!(calibrator.fit(&[vec![-0.1, 0.5]], &truth).is_err());
+    assert!(calibrator.fit(&[vec![f64::INFINITY, 0.5]], &truth).is_err());
+}
+
+#[test]
+fn f_beta_stays_finite_for_extreme_beta() {
+    let (p, r, f) = f_beta(1, 1, 1, 1e300);
+    assert_eq!((p, r), (0.5, 0.5));
+    assert_eq!(f, 0.5, "no NaN from beta * beta overflowing");
+    // Small betas keep the plain formula's values.
+    let (_, _, f) = f_beta(1, 1, 1, 1.0);
+    assert_eq!(f, 0.5);
+    let (_, _, f) = f_beta(2, 1, 1, 0.5);
+    assert!(f.is_finite());
+}
+
+#[test]
+fn wire_sized_bounds_and_unique_labels_are_enforced() {
+    // i32::MAX + 1 truncates on the wire; it is refused up front.
+    assert!(model().with_max_labels(Some(i32::MAX as usize + 1)).is_err());
+    assert!(model().with_min_labels(Some(i32::MAX as usize + 1)).is_err());
+    assert!(model().with_max_labels(Some(i32::MAX as usize)).is_ok());
+
+    // new() enforces what open() enforces: names non-empty and unique.
+    let head = LinearHead::new(0.0, vec![]).unwrap();
+    let cg = DoccatContextGenerator::default();
+    let dup =
+        MultiLabelDoccatModel::new("en", &["a", "a"], vec![head.clone(), head.clone()], vec![0.5, 0.5], cg.clone());
+    assert!(dup.is_err(), "duplicate label names");
+    let blank =
+        MultiLabelDoccatModel::new("en", &["a", ""], vec![head.clone(), head.clone()], vec![0.5, 0.5], cg.clone());
+    assert!(blank.is_err(), "an empty label name");
+    let fine = MultiLabelDoccatModel::new("en", &["a", "b"], vec![head.clone(), head], vec![0.5, 0.5], cg);
+    assert!(fine.is_ok());
+}
+
+#[test]
+fn extreme_training_parameters_error_instead_of_panicking() {
+    use turbo_doccat::DoccatFactory;
+    use turbo_doccat::multilabel::{MultiLabelSample, MultiLabelTrainingParameters, train_multilabel};
+    let factory = DoccatFactory::new();
+    let samples = [MultiLabelSample::new(["a"], ["x"])];
+    for params in [
+        MultiLabelTrainingParameters { learning_rate: f64::MAX, ..MultiLabelTrainingParameters::default() },
+        MultiLabelTrainingParameters { l2: f64::MAX, ..MultiLabelTrainingParameters::default() },
+    ] {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            train_multilabel("en", &samples, &factory, &params)
+        }));
+        let err = result.expect("training must not panic");
+        assert!(err.is_err(), "non-finite weights are an error, not a panic");
+    }
 }
