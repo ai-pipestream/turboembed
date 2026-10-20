@@ -63,7 +63,9 @@ impl<M> TokenIndexBuilder<M> {
 
     /// Adds a candidate for each unit of `units` from the subword vectors
     /// of a text: a unit's tokens are the pieces of `subwords` inside its
-    /// span (inside each fragment, for a discontinuous one), in text order,
+    /// span (inside each fragment, for a discontinuous one; an empty piece
+    /// only where a fragment covers its offset, so one on the boundary of
+    /// two units is the second's), in text order,
     /// less the items `vectors` lists as empty and the pieces `prune`
     /// drops. A unit left with no token is not added. Returns how many
     /// candidates were added; `meta` names each from its unit. The layers
@@ -113,14 +115,17 @@ impl<M> TokenIndexBuilder<M> {
                 let r = subwords.spans.within(fragment);
                 for i in r.start.get()..r.end.get() {
                     let ix = Ix::<Subwords>::new(i as u32);
-                    if vectors.is_empty(ix) {
+                    let span = subwords.spans.get(ix);
+                    // An empty piece where one unit ends and the next
+                    // starts belongs to the next one only.
+                    if vectors.is_empty(ix) || (span.is_empty() && !fragment.covers(span.start)) {
                         continue;
                     }
                     if prune.is_some_and(|p| (p.drop)(ix)) {
                         dropped += 1;
                         continue;
                     }
-                    kept.push((vectors.row(ix), Source { piece: i as u32, span: Some(subwords.spans.get(ix)) }));
+                    kept.push((vectors.row(ix), Source { piece: i as u32, span: Some(span) }));
                 }
             }
             if kept.is_empty() {
@@ -169,7 +174,7 @@ impl<M> TokenIndexBuilder<M> {
         }
         let ix = &mut self.index;
         if ix.sources.len() == before.1 {
-            return Err(IndexError::NoTokens(Which::Row(c)));
+            return Err(IndexError::NoTokens(Which::Candidate(c)));
         }
         let Ok(end) = u32::try_from(ix.sources.len()) else {
             self.undo(before);

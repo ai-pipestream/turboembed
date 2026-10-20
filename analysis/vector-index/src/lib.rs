@@ -120,6 +120,8 @@ pub enum Which {
     /// The query of this number in a batch, 0 for a single query; for a
     /// late-interaction query, its token of this number.
     Query(usize),
+    /// The late-interaction candidate of this number, added or about to be.
+    Candidate(usize),
     /// Token `.1` of late-interaction candidate `.0`.
     Token(usize, usize),
 }
@@ -129,6 +131,7 @@ impl fmt::Display for Which {
         match self {
             Which::Row(i) => write!(f, "row {i}"),
             Which::Query(i) => write!(f, "query {i}"),
+            Which::Candidate(c) => write!(f, "candidate {c}"),
             Which::Token(c, i) => write!(f, "token {i} of candidate {c}"),
         }
     }
