@@ -429,4 +429,26 @@ fn fuzzy_index_sublinear_lookup_scales_from_10k_to_160k_aliases() {
         per_query_160k_ms < 5.0 && elapsed_160k.as_secs_f64() <= (elapsed_10k.as_secs_f64() * 4.5).max(0.05),
         "expected sublinear fuzzy lookup scaling: 10k={elapsed_10k:?}, 160k={elapsed_160k:?} ({per_query_160k_ms:.3} ms/query)"
     );
+
+    // Short and transposed aliases ("abcd" vs "acbd", "nyx" vs "nxy", "meta" vs "mtea")
+    // that share no 2-char prefix or padded trigram must still be retrieved by FuzzyAliasIndex.
+    let short_kb = KnowledgeBase::from_entities(
+        "short-kb",
+        vec![
+            KbEntity::new("one", "abcd"),
+            KbEntity::new("two", "nyx"),
+            KbEntity::new("three", "meta"),
+            KbEntity::new("four", "ibm"),
+        ],
+    )
+    .unwrap();
+    let short_prov = CatalogProvider::new(short_kb);
+    let c_acbd = short_prov.generate_candidates("acbd", None, 32, 0.88);
+    assert_eq!(c_acbd.len(), 1);
+    assert_eq!(c_acbd[0].kb_id, "one");
+    assert!((c_acbd[0].match_similarity - 0.925).abs() < 1e-6);
+
+    let c_mtea = short_prov.generate_candidates("mtea", None, 32, 0.88);
+    assert_eq!(c_mtea.len(), 1);
+    assert_eq!(c_mtea[0].kb_id, "three");
 }
