@@ -29,8 +29,9 @@ impl MappedGlossaryWriter {
         Self::write_matcher(&TextMatcher::with_normalizer(glossary, case, normalize)?, glossary)
     }
 
-    /// The image of `matcher`, built from `glossary`.
-    pub fn write_matcher(matcher: &TextMatcher, glossary: &Glossary) -> Result<Vec<u8>, BuildError> {
+    /// The image of `matcher`, which was built from `glossary`: the ids and
+    /// terms are taken from `glossary` as given.
+    pub(crate) fn write_matcher(matcher: &TextMatcher, glossary: &Glossary) -> Result<Vec<u8>, BuildError> {
         let (mut edges, [fail, depth, entry, dict], longest) = matcher.tables();
         if let Some(&e) = entry.iter().filter(|&&e| e != NO).max()
             && e as usize >= glossary.len()
@@ -71,7 +72,8 @@ impl MappedGlossaryWriter {
         let too_large = |what: &'static str| BuildError::TooLarge { what };
         let counts = Counts {
             case: matcher.case(),
-            cells: u32::try_from(cells.len()).map_err(|_| too_large("cells"))?,
+            // The two highest numbers mark the root and free cells.
+            cells: u32::try_from(cells.len()).ok().filter(|&n| n < ROOT_CHECK).ok_or_else(|| too_large("cells"))?,
             entries: u32::try_from(glossary.len()).map_err(|_| too_large("entries"))?,
             longest,
             pages: (pages.len() / 256) as u32,

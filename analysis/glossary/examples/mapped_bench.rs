@@ -33,7 +33,10 @@ fn ms(t: Instant) -> f64 {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let terms: usize = args[0].parse().unwrap();
+    let Some(terms) = args.first().and_then(|a| a.parse::<usize>().ok()) else {
+        eprintln!("usage: mapped_bench TERMS [insensitive]");
+        std::process::exit(2);
+    };
     let case = if args.get(1).is_some_and(|a| a == "insensitive") { Case::Insensitive } else { Case::Sensitive };
     let mut rng = Lcg(202);
     const LETTERS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDE";
@@ -62,9 +65,11 @@ fn main() {
     let t = Instant::now();
     let heap = TextMatcher::new(&glossary, case).unwrap();
     let build_ms = ms(t);
+    // Writing builds its own in-heap automaton, so the write time is the
+    // whole time less the build time above.
     let t = Instant::now();
-    let bytes = MappedGlossaryWriter::write_matcher(&heap, &glossary).unwrap();
-    let write_ms = ms(t);
+    let bytes = MappedGlossaryWriter::write(&glossary, case).unwrap();
+    let write_ms = ms(t) - build_ms;
     let image = ImageBuf::copy_from(&bytes);
     let mut load = Vec::new();
     for _ in 0..5 {

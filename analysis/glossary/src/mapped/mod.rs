@@ -164,7 +164,10 @@ impl<'a> MappedGlossaryMatcher<'a> {
         self.counts.longest
     }
 
-    /// The in-heap matcher's fingerprint of the patterns and their entries.
+    /// The in-heap matcher's fingerprint of the patterns and their entries,
+    /// as the build that wrote the image computed it. It is not stable
+    /// across Rust releases, so compare it only within one build; loading
+    /// does not check it.
     pub fn fingerprint(&self) -> u64 {
         self.fingerprint
     }
