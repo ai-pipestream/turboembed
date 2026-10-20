@@ -149,12 +149,12 @@ impl KbProvider for CatalogProvider {
         let threshold = fuzzy_threshold.clamp(0.0, 1.0);
         if !query_folded.is_empty() && threshold < 1.0 && by_entity.len() < max_candidates {
             let mut fuzzy_hits: Vec<(u32, String, f64, f64)> = Vec::new();
-            for key in self.kb.folded_keys() {
-                if key == &query_folded {
-                    continue;
-                }
-                let sim = alias_similarity(&query_folded, key);
-                if sim >= threshold
+            let keys = self.kb.folded_keys();
+            for k_idx in self.kb.fuzzy_candidate_keys(&query_folded, threshold) {
+                let key = &keys[k_idx as usize];
+                if key != &query_folded
+                    && let sim = alias_similarity(&query_folded, key)
+                    && sim >= threshold
                     && let Some(postings) = self.kb.exact_postings(key)
                 {
                     for p in postings {
@@ -165,12 +165,11 @@ impl KbProvider for CatalogProvider {
             fuzzy_hits
                 .sort_by(|a, b| b.3.total_cmp(&a.3).then_with(|| b.2.total_cmp(&a.2)).then_with(|| a.0.cmp(&b.0)));
             for (ent_idx, alias, prior, sim) in fuzzy_hits {
-                if by_entity.len() >= max_candidates && !by_entity.contains_key(&ent_idx) {
-                    continue;
+                if by_entity.len() < max_candidates || by_entity.contains_key(&ent_idx) {
+                    by_entity.entry(ent_idx).or_insert_with(|| {
+                        self.candidate_from_idx(ent_idx, alias, prior, sim, None).expect("valid entity index")
+                    });
                 }
-                by_entity.entry(ent_idx).or_insert_with(|| {
-                    self.candidate_from_idx(ent_idx, alias, prior, sim, None).expect("valid entity index")
-                });
             }
         }
 

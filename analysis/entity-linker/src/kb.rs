@@ -136,6 +136,7 @@ pub struct KnowledgeBase {
     id_to_idx: HashMap<String, u32>,
     alias_map: HashMap<String, Vec<AliasPosting>>,
     folded_keys: Vec<String>,
+    fuzzy_index: crate::fuzzy_index::FuzzyAliasIndex,
     entity_context_terms: Vec<Vec<String>>,
     term_idf: HashMap<String, f64>,
     vector_index: Option<Arc<VectorIndex<u32>>>,
@@ -256,6 +257,7 @@ impl KnowledgeBase {
             alias_map.insert(folded, postings);
         }
         folded_keys.sort_unstable();
+        let fuzzy_index = crate::fuzzy_index::FuzzyAliasIndex::build(&folded_keys);
 
         let n_docs = entities.len().max(1) as f64;
         let term_idf = doc_freq
@@ -272,6 +274,7 @@ impl KnowledgeBase {
             id_to_idx,
             alias_map,
             folded_keys,
+            fuzzy_index,
             entity_context_terms,
             term_idf,
             vector_index: None,
@@ -334,6 +337,10 @@ impl KnowledgeBase {
 
     pub(crate) fn folded_keys(&self) -> &[String] {
         &self.folded_keys
+    }
+
+    pub(crate) fn fuzzy_candidate_keys(&self, query_folded: &str, threshold: f64) -> Vec<u32> {
+        self.fuzzy_index.candidate_indices(query_folded, threshold)
     }
 
     pub(crate) fn vector_index(&self) -> Option<&Arc<VectorIndex<u32>>> {

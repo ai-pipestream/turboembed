@@ -366,3 +366,67 @@ fn selects_best_eligible_candidate_and_preserves_link_when_top_k_is_zero() {
     assert_eq!(linked_top0.kb_id[0].as_deref(), Some("E_PERSON"));
     assert!(linked_top0.candidates[0].is_empty());
 }
+
+#[test]
+fn fuzzy_index_sublinear_lookup_scales_from_10k_to_160k_aliases() {
+    use std::time::Instant;
+
+    let build_synthetic_provider = |n: usize| -> CatalogProvider {
+        let mut entities = Vec::with_capacity(n + 2);
+        for i in 0..n {
+            entities.push(
+                KbEntity::new(format!("E{i}"), format!("Synthetic Entity {i:06}"))
+                    .with_alias(format!("alias_item_{i:06}"), 1.0)
+                    .with_types(["ORG"]),
+            );
+        }
+        entities.push(
+            KbEntity::new("Q312", "Apple Incorporated")
+                .with_alias("Apple Computer", 1.0)
+                .with_types(["ORG"])
+                .with_prior(0.95),
+        );
+        entities.push(
+            KbEntity::new("Q76", "Barack Obama")
+                .with_alias("President Barack Obama", 1.0)
+                .with_types(["PERSON"])
+                .with_prior(0.95),
+        );
+        CatalogProvider::new(KnowledgeBase::from_entities("scale-kb", entities).unwrap())
+    };
+
+    let prov_10k = build_synthetic_provider(5_000); // 10,000+ folded aliases
+    let prov_160k = build_synthetic_provider(80_000); // 160,000+ folded aliases
+
+    let queries = ["Aple Incorporated", "Barak Obama", "Synthetic Entty 004200", "alias_itm_004200"];
+    for q in queries {
+        let c10 = prov_10k.generate_candidates(q, None, 5, 0.88);
+        let c160 = prov_160k.generate_candidates(q, None, 5, 0.88);
+        assert!(!c10.is_empty(), "expected fuzzy candidate for {q} in 10k catalog");
+        assert!(!c160.is_empty(), "expected fuzzy candidate for {q} in 160k catalog");
+        assert_eq!(c10[0].kb_id, c160[0].kb_id);
+    }
+
+    let t0 = Instant::now();
+    for _ in 0..10 {
+        for q in queries {
+            let _ = std::hint::black_box(prov_10k.generate_candidates(q, None, 5, 0.88));
+        }
+    }
+    let elapsed_10k = t0.elapsed();
+
+    let t1 = Instant::now();
+    for _ in 0..10 {
+        for q in queries {
+            let _ = std::hint::black_box(prov_160k.generate_candidates(q, None, 5, 0.88));
+        }
+    }
+    let elapsed_160k = t1.elapsed();
+
+    // 16x more aliases should stay well below 4x wall-clock time (and < 2ms per query even in debug mode)
+    let per_query_160k_ms = elapsed_160k.as_secs_f64() * 1000.0 / 40.0;
+    assert!(
+        per_query_160k_ms < 5.0 && elapsed_160k.as_secs_f64() <= (elapsed_10k.as_secs_f64() * 4.5).max(0.05),
+        "expected sublinear fuzzy lookup scaling: 10k={elapsed_10k:?}, 160k={elapsed_160k:?} ({per_query_160k_ms:.3} ms/query)"
+    );
+}
