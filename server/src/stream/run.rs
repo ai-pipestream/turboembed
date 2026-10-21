@@ -13,11 +13,12 @@ use turbo::{TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, turbo_embe
 
 use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL};
 use crate::state::{Held, Loaded};
-use crate::stream::Shared;
+use crate::stream::{BatchKey, Room, Shared};
 
 /// One admitted, queued document: everything a batch run needs, the
 /// model load held alive by its Arc from admission through the run, so
-/// an unload mid-stream never drops a session from under it.
+/// an unload mid-stream never drops a session from under it, and the
+/// queue room it holds until its answer is sent or the stream dies.
 pub(crate) struct Doc {
     pub(crate) seq: u64,
     pub(crate) id: String,
@@ -27,29 +28,43 @@ pub(crate) struct Doc {
     pub(crate) model: String,
     pub(crate) version: String,
     pub(crate) batch_limit: u32,
+    pub(crate) room: Room,
 }
 
-/// One document's row, with the id the answer is tagged by.
-pub(crate) type Row = (u64, String, Vec<u8>);
+/// One document's answer: its row or its failure, with the queue room
+/// and the window permit the document still holds; both free where the
+/// answer frees, on the stream's cancellation too.
+pub(crate) struct Row {
+    pub(crate) seq: u64,
+    pub(crate) id: String,
+    pub(crate) data: Vec<u8>,
+    pub(crate) room: Room,
+    pub(crate) window: OwnedSemaphorePermit,
+}
+
+/// A batch that failed whole, to be retried one document at a time: the
+/// documents with their rooms, and their window permits.
+pub(crate) struct Whole {
+    pub(crate) failure: Failure,
+    pub(crate) docs: Vec<Doc>,
+    pub(crate) permits: Vec<OwnedSemaphorePermit>,
+}
 
 /// A batch's answer: the metadata once, then one row per document, in
-/// the batch's order. `rows` is `Err` only when the batch came back
-/// whole, to be retried one document at a time. `window` carries the
-/// executed documents' window permits back: they free where the answer
-/// frees, on the stream's cancellation too.
+/// the batch's order.
 pub(crate) struct Outcome {
     pub(crate) model: String,
     pub(crate) version: String,
     pub(crate) dim: u32,
-    pub(crate) rows: std::result::Result<Vec<Row>, (Failure, Vec<Doc>)>,
-    pub(crate) window: Vec<OwnedSemaphorePermit>,
+    pub(crate) rows: std::result::Result<Vec<Row>, Whole>,
 }
 
-/// The grouping key: the same model, the same options. Documents batch
-/// together only under one key.
-pub(crate) fn key(d: &Doc) -> crate::stream::engine::BatchKey {
+/// The grouping key: the same load, the same options. The load's
+/// identity, not the served name: an unload and a reload under one name
+/// are different loads and never batch together.
+pub(crate) fn key(d: &Doc) -> BatchKey {
     let o = &d.opts;
-    (d.model.clone(), o.truncate, o.max_tokens, o.prompt_role, o.normalize, o.pooling, o.output_dim)
+    (Arc::as_ptr(&d.loaded) as usize, o.truncate, o.max_tokens, o.prompt_role, o.normalize, o.pooling, o.output_dim)
 }
 
 /// Runs one batch on the held session, one write, one run and one read.
@@ -60,29 +75,45 @@ pub(crate) fn run(
     held: Held,
     docs: Vec<Doc>,
     opts: &turbo_embed_options,
-    window: Vec<OwnedSemaphorePermit>,
+    permits: Vec<OwnedSemaphorePermit>,
 ) -> Outcome {
     let (model, version) = (docs[0].model.clone(), docs[0].version.clone());
-    let fail = |rows, window| Outcome { model: model.clone(), version: version.clone(), dim: 0, rows, window };
+    let fail = |failure, docs, permits| Outcome {
+        model: model.clone(),
+        version: version.clone(),
+        dim: 0,
+        rows: Err(Whole { failure, docs, permits }),
+    };
     let texts: Vec<turbo_text> =
         docs.iter().map(|d| turbo_text { ptr: d.text.as_ptr().cast(), len: d.text.len() as u64 }).collect();
     let slot = held.slot();
     if let Err(f) = slot.session.write_text(&texts, opts) {
-        return fail(Err((f, docs)), window);
+        return fail(f, docs, permits);
     }
     shared.runs.fetch_add(1, Ordering::Relaxed);
     let result = match slot.session.run() {
         Ok(r) => r,
-        Err(f) => return fail(Err((f, docs)), window),
+        Err(f) => return fail(f, docs, permits),
     };
     drop(texts);
     let (dim, data) = match read(&result, docs.len()) {
         Ok(v) => v,
-        Err(f) => return fail(Err((f, docs)), window),
+        Err(f) => return fail(f, docs, permits),
     };
     let row = dim as usize * 4;
-    let rows: Vec<Row> = data.chunks_exact(row).zip(docs).map(|(c, d)| (d.seq, d.id, c.to_vec())).collect();
-    Outcome { model, version, dim, rows: Ok(rows), window }
+    let mut permits = permits.into_iter();
+    let rows: Vec<Row> = data
+        .chunks_exact(row)
+        .zip(docs)
+        .map(|(c, d)| Row {
+            seq: d.seq,
+            id: d.id,
+            data: c.to_vec(),
+            room: d.room,
+            window: permits.next().expect("one window permit per document"),
+        })
+        .collect();
+    Outcome { model, version, dim, rows: Ok(rows) }
 }
 
 /// The result's whole bytes and dim, read the way the single-document

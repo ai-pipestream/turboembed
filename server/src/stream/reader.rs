@@ -1,9 +1,13 @@
 //! One stream's reader (issue #722): the request messages after the
-//! header, validated and admitted through the advertised queue caps.
-//! A document past the caps does not error the stream: the reader
-//! waits, and stops waiting the moment the stream dies, so a fast
-//! client is held by backpressure alone and a cancelled stream leaks
-//! nothing it had not yet handed over.
+//! header, admitted through the advertised queue caps and validated.
+//! Every message, a failure included, takes its queue room before it
+//! reaches the engine, so the caps bound failures and results alike; a
+//! document over a byte cap refuses at once, naming the limit, without
+//! waiting for room it can never take. A document past the caps does
+//! not error the stream: the reader waits, and stops waiting the
+//! moment the stream dies, so a fast client is held by backpressure
+//! alone and a cancelled stream leaks nothing it had not yet handed
+//! over.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -19,28 +23,35 @@ use crate::proto::result::{AnalyzeDocument, AnalyzeStreamRequest};
 use crate::state::State;
 use crate::stream::handler;
 use crate::stream::run::Doc;
-use crate::stream::{Envelope, Shared, admit};
+use crate::stream::{Envelope, Room, Shared, admit, over_byte_cap, over_bytes};
 
 /// Validates one document the way the single-document call validates
 /// its model and options, and builds the work the scheduler queues.
 /// The refusal is the document's own: it crosses as a failed answer,
-/// tagged with the document's id, and the stream continues.
-fn check(state: &State, d: AnalyzeDocument) -> Result<Doc, (String, Failure)> {
+/// tagged with the document's id, holding the room it was admitted
+/// with, and the stream continues.
+fn check(state: &State, d: AnalyzeDocument, room: Room) -> Result<Doc, Box<(String, Failure, Room)>> {
     let id = d.id.clone();
-    let checked = (|d: AnalyzeDocument| {
+    let checked = (|d: AnalyzeDocument, room: Room| -> Result<Doc, (Failure, Room)> {
         if d.id.is_empty() {
-            return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "id is empty"));
+            return Err((Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "id is empty"), room));
         }
         if d.model.is_empty() {
-            return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "model is empty"));
+            return Err((Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "model is empty"), room));
         }
-        let (served, loaded) = state.ready(&d.model, "")?;
-        let opts = handler::options(d.options.as_ref())?;
+        let (served, loaded) = match state.ready(&d.model, "") {
+            Ok(v) => v,
+            Err(f) => return Err((f, room)),
+        };
+        let opts = match handler::options(d.options.as_ref()) {
+            Ok(o) => o,
+            Err(f) => return Err((f, room)),
+        };
         let batch_limit = loaded.slots[0].info.max_batch;
         let version = loaded.revision.clone();
-        Ok(Doc { seq: 0, id: d.id, text: d.text, opts, loaded, model: served.name.clone(), version, batch_limit })
-    })(d);
-    checked.map_err(|f| (id, f))
+        Ok(Doc { seq: 0, id: d.id, text: d.text, opts, loaded, model: served.name.clone(), version, batch_limit, room })
+    })(d, room);
+    checked.map_err(|(f, room)| Box::new((id, f, room)))
 }
 
 /// Reads and admits until the input closes, the client cancels, or the
@@ -55,17 +66,32 @@ pub(crate) async fn run(
     work: mpsc::Sender<Envelope>,
     dead: Arc<AtomicBool>,
 ) {
-    let mut backlog: VecDeque<AnalyzeStreamRequest> = VecDeque::new();
+    let mut backlog: VecDeque<AnalyzeDocument> = VecDeque::new();
     let mut input_closed = false;
     loop {
         if dead.load(Ordering::SeqCst) {
             return;
         }
-        let request = match backlog.pop_front() {
-            Some(r) => r,
+        let document = match backlog.pop_front() {
+            Some(d) => d,
             None if input_closed => return,
             None => match inbound.message().await {
-                Ok(Some(r)) => r,
+                Ok(Some(r)) => match r.kind {
+                    Some(Kind::Document(d)) => d,
+                    Some(Kind::Header(_)) => {
+                        let _ = work
+                            .send(Envelope::Abort(Status::invalid_argument(
+                                "the header must be the stream's first message",
+                            )))
+                            .await;
+                        return;
+                    }
+                    None => {
+                        let _ =
+                            work.send(Envelope::Abort(Status::invalid_argument("a request message has no kind"))).await;
+                        return;
+                    }
+                },
                 // The client half-closed: the documents in flight and
                 // queued still answer.
                 Ok(None) => {
@@ -80,29 +106,17 @@ pub(crate) async fn run(
                 }
             },
         };
-        let doc = match request.kind {
-            Some(Kind::Document(d)) => d,
-            Some(Kind::Header(_)) => {
-                let _ = work
-                    .send(Envelope::Abort(Status::invalid_argument("the header must be the stream's first message")))
-                    .await;
+        let id = document.id.clone();
+        let bytes = document.text.len() + document.id.len() + document.model.len();
+        // A document over a byte cap refuses at once, naming the limit:
+        // admitting it would wait for room it can never take.
+        if let Some((limit, _)) = over_byte_cap(bytes) {
+            let failure = over_bytes(bytes, limit);
+            if work.send(Envelope::Failed { id, failure, room: None }).await.is_err() {
                 return;
             }
-            None => {
-                let _ = work.send(Envelope::Abort(Status::invalid_argument("a request message has no kind"))).await;
-                return;
-            }
-        };
-        let doc = match check(&state, doc) {
-            Ok(doc) => doc,
-            Err((id, failure)) => {
-                if work.send(Envelope::Failed { id, failure }).await.is_err() {
-                    return;
-                }
-                continue;
-            }
-        };
-        let bytes = doc.text.len() + doc.id.len() + doc.model.len();
+            continue;
+        }
         let mut admit = Box::pin(admit(shared.clone(), stream_items.clone(), stream_bytes.clone(), bytes));
         let room = loop {
             if dead.load(Ordering::SeqCst) {
@@ -117,8 +131,20 @@ pub(crate) async fn run(
                 None => continue,
             }
         };
-        if work.send(Envelope::Doc(doc, room)).await.is_err() {
-            return;
+        // Every admitted message holds its room from here on, the
+        // failures included: the room frees where the answer frees.
+        match check(&state, document, room) {
+            Ok(doc) => {
+                if work.send(Envelope::Doc(doc)).await.is_err() {
+                    return;
+                }
+            }
+            Err(failed) => {
+                let (id, failure, room) = *failed;
+                if work.send(Envelope::Failed { id, failure, room: Some(room) }).await.is_err() {
+                    return;
+                }
+            }
         }
     }
 }

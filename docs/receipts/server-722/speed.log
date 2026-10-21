@@ -1,20 +1,17 @@
 Command: cargo test --release --locked -p turbo-kserve --test stream_speed -- --ignored --nocapture
 Machine: AMD Ryzen 9 9950X3D 16-Core Processor, 32 cores, Linux.
+Post-#798 (TCP_NODELAY): the unary baseline no longer pays the Nagle stall.
 Rounds alternate which side runs first; per-round times and totals below.
 
-
 running 1 test
-round 0: stream 50.05ms, unary 2.51s
-round 1: stream 47.71ms, unary 2.27s
-round 2: stream 49.79ms, unary 2.55s
-round 3: stream 8.37ms, unary 2.39s
-round 4: stream 8.56ms, unary 2.63s
-round 5: stream 8.12ms, unary 2.59s
-analyze stream: 512 docs x 6 rounds in 172.59ms: 17800 docs/sec
-concurrent single calls: 512 docs x 6 rounds in 14.95s: 206 docs/sec
-stream/unary: 86.60x
+round 0: stream 8.98ms, unary 39.63ms
+round 1: stream 9.11ms, unary 40.44ms
+round 2: stream 8.54ms, unary 37.39ms
+round 3: stream 6.84ms, unary 38.35ms
+round 4: stream 7.79ms, unary 37.28ms
+round 5: stream 7.64ms, unary 38.74ms
+analyze stream: 512 docs x 6 rounds in 48.90ms: 62818 docs/sec
+concurrent single calls: 512 docs x 6 rounds in 231.83ms: 13251 docs/sec
+stream/unary: 4.74x
 test stream_documents_per_second_match_concurrent_single_calls ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.20s
-
-speed test exit: 0
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s

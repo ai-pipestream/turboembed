@@ -15,67 +15,11 @@ use std::time::Duration;
 
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Request;
-use turbo_kserve::proto::result::analyze_stream_request::Kind;
 use turbo_kserve::proto::result::analyze_stream_response::Outcome;
-use turbo_kserve::proto::result::{
-    AnalyzeDocument, AnalyzeOptions, AnalyzeStreamHeader, AnalyzeStreamRequest, CapabilitiesRequest,
-};
+use turbo_kserve::proto::result::{AnalyzeOptions, AnalyzeStreamRequest, CapabilitiesRequest};
 use turbo_kserve::stream;
 
 use common::*;
-
-fn header(order: i32, max_inflight: u32, batch_linger_ms: u32) -> AnalyzeStreamRequest {
-    AnalyzeStreamRequest { kind: Some(Kind::Header(AnalyzeStreamHeader { order, max_inflight, batch_linger_ms })) }
-}
-
-fn doc(id: &str, model: &str, text: &str, options: Option<AnalyzeOptions>) -> AnalyzeStreamRequest {
-    AnalyzeStreamRequest {
-        kind: Some(Kind::Document(AnalyzeDocument { id: id.into(), model: model.into(), text: text.into(), options })),
-    }
-}
-
-/// One open stream: the sender half, the response half, the ids in
-/// send order.
-struct Stream {
-    tx: tokio::sync::mpsc::Sender<AnalyzeStreamRequest>,
-    responses: tonic::Streaming<turbo_kserve::proto::result::AnalyzeStreamResponse>,
-    sent: Vec<String>,
-}
-
-async fn open(c: &mut Analysis, order: i32, max_inflight: u32, batch_linger_ms: u32) -> Stream {
-    let (tx, rx) = tokio::sync::mpsc::channel(64);
-    tx.send(header(order, max_inflight, batch_linger_ms)).await.unwrap();
-    let responses = c.analyze_stream(Request::new(ReceiverStream::new(rx))).await.unwrap().into_inner();
-    Stream { tx, responses, sent: Vec::new() }
-}
-
-impl Stream {
-    async fn send(&mut self, id: &str, model: &str, text: &str, options: Option<AnalyzeOptions>) {
-        self.tx.send(doc(id, model, text, options)).await.unwrap();
-        self.sent.push(id.into());
-    }
-
-    /// The client is done sending; the answers keep flowing.
-    fn half_close(self) -> Self {
-        drop(self.tx);
-        Self { tx: tokio::sync::mpsc::channel(1).0, ..self }
-    }
-
-    /// Every document's answer, in arrival order.
-    async fn collect(mut self) -> Vec<(String, Outcome)> {
-        let mut out = Vec::new();
-        while let Some(r) = self.responses.message().await.unwrap() {
-            out.push((r.id.clone(), r.outcome.unwrap()));
-        }
-        assert_eq!(out.len(), self.sent.len(), "every document answers exactly once");
-        out
-    }
-}
-
-/// The collected answers keyed by id.
-async fn by_id(stream: Stream) -> HashMap<String, Outcome> {
-    stream.collect().await.into_iter().collect()
-}
 
 /// The single-document call's vector row for one text, what the stream
 /// must answer byte for byte.
@@ -101,7 +45,7 @@ async fn stream_results_match_single_document_calls_byte_for_byte_in_both_orders
     let want = unary_each(&mut k, &texts).await;
 
     for (order, name) in [(0, "input order"), (1, "completion order")] {
-        let mut stream = open(&mut c, order, 0, 0).await;
+        let mut stream = open_stream(&mut c, order, 0, 0).await;
         for (i, text) in texts.iter().enumerate() {
             stream.send(&format!("doc-{i}"), NAME, text, None).await;
         }
@@ -137,7 +81,7 @@ async fn documents_waiting_on_one_model_run_as_one_batch_with_the_same_results()
     let want = unary_each(&mut k, &texts).await;
     let before = s.stream_stats().runs;
 
-    let mut stream = open(&mut c, 1, 0, 1000).await;
+    let mut stream = open_stream(&mut c, 1, 0, 1000).await;
     for (i, text) in texts.iter().enumerate() {
         stream.send(&format!("b-{i}"), NAME, text, None).await;
     }
@@ -161,14 +105,16 @@ async fn a_client_that_sends_without_reading_is_held_to_the_advertised_caps() {
     let item_cap = caps.max_queued_items_per_stream as usize;
     let byte_cap = caps.max_queued_bytes_per_stream as usize;
 
-    let stream = open(&mut c, 1, 0, 0).await;
+    let stream = open_stream(&mut c, 1, 0, 0).await;
     let n = item_cap * 3;
     let sent = Arc::new(AtomicUsize::new(0));
     let sender = tokio::spawn({
         let (tx, sent) = (stream.tx.clone(), sent.clone());
         async move {
             for i in 0..n {
-                tx.send(doc(&format!("flood-{i}"), NAME, &"held by backpressure ".repeat(64), None)).await.unwrap();
+                tx.send(stream_doc(&format!("flood-{i}"), NAME, &"held by backpressure ".repeat(64), None))
+                    .await
+                    .unwrap();
                 sent.fetch_add(1, Ordering::Relaxed);
             }
         }
@@ -205,7 +151,7 @@ async fn a_client_that_sends_without_reading_is_held_to_the_advertised_caps() {
 async fn cancelling_a_stream_drops_the_work_queued_for_it() {
     let (s, mut c) = serve().await;
     let before = s.stream_stats().runs;
-    let mut stream = open(&mut c, 1, 1, 1000).await;
+    let mut stream = open_stream(&mut c, 1, 1, 1000).await;
     // One document runs alone (window 1, long linger); the rest arrive
     // after it executed and wait queued.
     stream.send("a", NAME, "first", None).await;
@@ -248,7 +194,7 @@ async fn a_failed_document_returns_its_error_with_its_id_and_the_stream_continue
     let over = "x ".repeat(200);
     let want_good = unary(&mut k, good).await;
 
-    let mut stream = open(&mut c, 0, 0, 0).await;
+    let mut stream = open_stream(&mut c, 0, 0, 0).await;
     stream.send("ok-1", NAME, good, None).await;
     stream.send("no-model", "served-nowhere", good, None).await;
     stream.send("ok-2", NAME, good, None).await;
@@ -319,13 +265,13 @@ async fn the_stream_advertises_and_enforces_its_caps() {
 
     // A header past an advertised cap refuses, naming the limit, before
     // anything is allocated.
-    let e = open_err(&mut c, header(0, (caps.max_inflight_items_per_stream + 1) as u32, 0)).await;
+    let e = open_err(&mut c, stream_header(0, (caps.max_inflight_items_per_stream + 1) as u32, 0)).await;
     assert_eq!(e.code(), tonic::Code::InvalidArgument);
     assert!(e.message().contains("max_inflight"), "{}", e.message());
-    let e = open_err(&mut c, header(2, 0, 0)).await;
+    let e = open_err(&mut c, stream_header(2, 0, 0)).await;
     assert_eq!(e.code(), tonic::Code::InvalidArgument);
     assert!(e.message().contains("order"), "{}", e.message());
-    let e = open_err(&mut c, doc("x", NAME, "hi", None)).await;
+    let e = open_err(&mut c, stream_doc("x", NAME, "hi", None)).await;
     assert!(e.message().contains("first message"), "{}", e.message());
 }
 

@@ -24,12 +24,18 @@ use crate::proto::result::StreamLimits;
 use crate::status::to_status;
 use crate::stream::run::Doc;
 
+/// The batching key: the load's identity, then the options. Documents
+/// batch together only under one key.
+pub(crate) type BatchKey = (usize, u32, u32, u32, u32, u32, u32);
+
 /// What the reader hands the engine for one stream message: an
-/// admitted document, a document that failed validation, or the
-/// stream-ending refusal for a misplaced header.
+/// admitted document holding its queue room, a document that failed
+/// validation or admission holding the room it was admitted with (the
+/// room frees when its answer is sent), or the stream-ending refusal
+/// for a misplaced header or a reset.
 pub(crate) enum Envelope {
-    Doc(Doc, Room),
-    Failed { id: String, failure: Failure },
+    Doc(Doc),
+    Failed { id: String, failure: Failure, room: Option<Room> },
     Abort(Status),
 }
 
@@ -99,10 +105,11 @@ pub(crate) struct Shared {
     /// cancellation and batching proofs read.
     pub(crate) runs: AtomicU64,
 
-    /// Documents queued across every stream, right now.
+    /// Documents admitted and not yet answered across every stream,
+    /// right now: queued, executing and buffered for ordering.
     pub(crate) queued_item_count: AtomicUsize,
 
-    /// Document bytes queued across every stream, right now.
+    /// Their bytes, right now.
     pub(crate) queued_byte_count: AtomicUsize,
 }
 
@@ -118,17 +125,19 @@ impl Shared {
     }
 }
 
-/// The gauges `Server::stream_stats` answers: what is queued and how
-/// many model executions have run, at the moment of the read.
+/// The gauges `Server::stream_stats` answers: what is admitted and not
+/// yet answered, and how many model executions have run, at the moment
+/// of the read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Stats {
     /// Model executions since the server started.
     pub runs: u64,
 
-    /// Documents queued across every stream, right now.
+    /// Documents admitted and not yet answered across every stream:
+    /// queued, executing, and buffered for ordering.
     pub queued_items: usize,
 
-    /// Document bytes queued across every stream, right now.
+    /// Their bytes.
     pub queued_bytes: usize,
 }
 
@@ -144,8 +153,8 @@ impl Shared {
 
 /// The queue room one admitted document holds: the per-stream and
 /// server-wide item and byte permits. Dropping it hands the room back,
-/// so a cancelled stream's queue is freed with its documents, and a
-/// dequeued document's room is freed for the next one.
+/// so a cancelled stream's work is freed with its documents, and a
+/// answered document's room is freed for the next one.
 pub(crate) struct Room {
     _server_items: OwnedSemaphorePermit,
     _server_bytes: OwnedSemaphorePermit,
@@ -162,9 +171,29 @@ impl Drop for Room {
     }
 }
 
+/// A document past a byte cap refuses with the limit named, before any
+/// room is taken for what is not admitted.
+pub(crate) fn over_bytes(bytes: usize, limit: &'static str) -> Failure {
+    crate::results::over(limit, "document bytes", bytes.min(u64::MAX as usize) as u64)
+}
+
+/// The byte cap a document of `bytes` length is over, if any.
+pub(crate) fn over_byte_cap(bytes: usize) -> Option<(&'static str, usize)> {
+    if bytes > MAX_QUEUED_BYTES_PER_STREAM {
+        Some(("max_queued_bytes_per_stream", MAX_QUEUED_BYTES_PER_STREAM))
+    } else if bytes > MAX_QUEUED_BYTES_SERVER {
+        Some(("max_queued_bytes_server", MAX_QUEUED_BYTES_SERVER))
+    } else {
+        None
+    }
+}
+
 /// Admits one document of `bytes` length: the server-wide caps first,
 /// then the stream's, in one order everywhere, so two admits never
-/// deadlock. The permits come back with the returned room's drop.
+/// deadlock. The byte semaphores reserve the document's own byte count,
+/// so byte pressure blocks admission even while item permits remain;
+/// a document over a byte cap refuses before it is admitted. The
+/// permits come back with the returned room's drop.
 pub(crate) async fn admit(
     shared: Arc<Shared>,
     stream_items: Arc<Semaphore>,
@@ -172,9 +201,10 @@ pub(crate) async fn admit(
     bytes: usize,
 ) -> Room {
     let server_items = shared.queued_items.clone().acquire_owned().await.expect("queue semaphore open");
-    let server_bytes = shared.queued_bytes.clone().acquire_owned().await.expect("queue semaphore open");
+    let server_bytes =
+        shared.queued_bytes.clone().acquire_many_owned(bytes.max(1) as u32).await.expect("queue semaphore open");
     let stream_items = stream_items.acquire_owned().await.expect("queue semaphore open");
-    let stream_bytes = stream_bytes.acquire_owned().await.expect("queue semaphore open");
+    let stream_bytes = stream_bytes.acquire_many_owned(bytes.max(1) as u32).await.expect("queue semaphore open");
     shared.queued_item_count.fetch_add(1, Ordering::Relaxed);
     shared.queued_byte_count.fetch_add(bytes, Ordering::Relaxed);
     Room {

@@ -9,7 +9,7 @@ pub mod config;
 mod infer;
 mod kserve;
 pub mod results;
-pub mod state;
+mod state;
 pub mod status;
 pub mod stream;
 
@@ -132,8 +132,9 @@ impl Server {
     }
 
     /// The streaming bulk analysis call's gauges: model executions
-    /// since the server started, and the documents and bytes queued
-    /// across every stream right now, never over the advertised caps.
+    /// since the server started, and the documents and bytes admitted
+    /// and not yet answered across every stream right now, never over
+    /// the advertised caps.
     pub fn stream_stats(&self) -> stream::Stats {
         self.state.stream.stats()
     }
