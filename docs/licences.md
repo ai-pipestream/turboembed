@@ -182,11 +182,14 @@ of it.
 
 ## Neural annotator checkpoints (not in the index)
 
-The SaT and GLiNER checkpoints docs/neural-annotators.md considers. None
-is in the zoo's index yet: no file was fetched, so no entry has the
-SHA-512s an entry needs. "Checked" is **here**: the `license` of the
-model card's metadata at the revision named, read on 2026-10-15 from
-the hub's model API.
+The SaT and GLiNER checkpoints docs/neural-annotators.md considers, and
+the GLiNER2 and GLiREL checkpoints the relation scorer considers
+(docs/gliner2-relations.md). Only `fastino/gliner2-base-v1` is in the
+zoo's index (`fastino-gliner2-base-v1`): the others were not fetched, so
+no entry has the SHA-512s an entry needs. "Checked" is **here**: the
+`license` of the model card's metadata at the revision named, read on
+2026-10-15 from the hub's model API, and on 2026-10-21 for the GLiNER2
+and GLiREL rows.
 
 | Checkpoint | Revision | Licence | Base and data | Class | Checked |
 |---|---|---|---|---|---|
@@ -196,6 +199,8 @@ the hub's model API.
 | [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive | here |
 | [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive | here |
 | [urchade/gliner_small](https://huggingface.co/urchade/gliner_small) (v1) | `0f0f4e7d3f10e48844110162d6b5c6072ddd5a4e` | CC BY-NC 4.0 | | local-only; not used | here |
+| [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index | here |
+| [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | | local-only; not in the index | here |
 
 ## Datasets
 

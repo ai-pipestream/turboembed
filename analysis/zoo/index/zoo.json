@@ -3487,6 +3487,60 @@
           "sha512": "f742accdde85121c82321c877359ced14e7ef16abb3c04bbaf4abb3497b5f0c83caa052602fe8ac6dfd7ff7d354a9a6a9e793ce28f9d9b6c472b52e80b6ad0df"
         }
       ]
+    },
+    {
+      "id": "fastino-gliner2-base-v1",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "f9634218e53580c56edf0de97ca1a7d3f1c2354e",
+      "license": "Apache-2.0",
+      "license_terms": "https://huggingface.co/fastino/gliner2-base-v1/blob/f9634218e53580c56edf0de97ca1a7d3f1c2354e/README.md",
+      "trained_on": [
+        {
+          "name": "microsoft/deberta-v3-base",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/microsoft/deberta-v3-base"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "model.safetensors",
+          "url": "https://huggingface.co/fastino/gliner2-base-v1/resolve/f9634218e53580c56edf0de97ca1a7d3f1c2354e/model.safetensors",
+          "size": 833938108,
+          "sha256": "845fc4bd93c525b86124c58ab4f56c9eacf8587953086b14c501fab25957c007",
+          "sha512": "32d64663577d0d1140b4810e3771c95f37c4a03cecc1905e193739793fb3dd70a00217908fab407de831c99191bf06be1dd7757cccd2889ba002fed098ab5bff"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/fastino/gliner2-base-v1/resolve/f9634218e53580c56edf0de97ca1a7d3f1c2354e/config.json",
+          "size": 236,
+          "sha256": "33d8aa009deed4b5435d162e08b5a720b252a0084e59d30d366b37da8c0193c5",
+          "sha512": "0de8be4343c56029deb5ef40068ed2e492fafa681d63a1e77fa1104c1e6fef8ad0f095be581256525772ce2992c812febf81ccbf72b72f51d45fa5d5cf9aa932"
+        },
+        {
+          "path": "added_tokens.json",
+          "url": "https://huggingface.co/fastino/gliner2-base-v1/resolve/f9634218e53580c56edf0de97ca1a7d3f1c2354e/added_tokens.json",
+          "size": 230,
+          "sha256": "3c274ca559be8b7b18febf616724ec05f8a8abccd428bd2744608f45f7a0b067",
+          "sha512": "afd410b2383e30fd360bbd6b2ca79043441907cef10bec4f44c0ab8fa5871a398a5bdad460d8633a7828f54de972108d767b7c354628c0ae1347356c8daa872c"
+        },
+        {
+          "path": "spm.model",
+          "url": "https://huggingface.co/fastino/gliner2-base-v1/resolve/f9634218e53580c56edf0de97ca1a7d3f1c2354e/spm.model",
+          "size": 2464616,
+          "sha256": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+          "sha512": "950cf1b397c25342053efaea576419e104f11e085796d741e5e78d6765ffe5474f4f096ee578099b04a611bde03e12808c51e2b6e89d2962a8665a35da6eb081"
+        },
+        {
+          "path": "encoder_config/config.json",
+          "url": "https://huggingface.co/fastino/gliner2-base-v1/resolve/f9634218e53580c56edf0de97ca1a7d3f1c2354e/encoder_config/config.json",
+          "size": 823,
+          "sha256": "9840a4db70bc007e6b65d336ebe2bddc53bc2ce210dc5757e50d5bb17122f7cd",
+          "sha512": "937ea4b0754b4f97ab2189970d403a0a0d0bd72e3a10d31892db3d4f689a7078610892deb1ec347a99f2163ed186b2c84b73527f4136c3ceed2d60b8c524d779"
+        }
+      ]
     }
   ]
 }
