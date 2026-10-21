@@ -203,3 +203,11 @@ fn mecab_ko_dic() {
     let got = matches("mecab-ko-dic-2.1.1-20180720", &dir, &[&dir], WhitespaceMode::Unicode);
     assert_eq!(got, counts(61, 1360, 971, 0));
 }
+
+#[test]
+#[ignore = "needs UniDic from turbo-goldens fetch-models"]
+fn unidic() {
+    let dir = dictionaries_dir().join("unidic-mecab-2.1.2");
+    let got = matches("unidic-mecab-2.1.2", &dir, &[&dir], WhitespaceMode::Unicode);
+    assert_eq!(got, counts(65, 2016, 519, 0));
+}

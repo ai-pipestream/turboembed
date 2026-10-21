@@ -1051,7 +1051,7 @@ Deviations, each with a test in `analysis/tokenize/src/lattice`:
 - More than 65536 distinct first feature columns are refused, since a
   `Tag` numbers at most that many. The Java has no tags.
 
-The goldens are the runs of five dictionaries
+The goldens are the runs of six dictionaries
 (`analysis/goldens-tool/README.md`, "Lattice goldens"). Three are
 fixtures written for this project. `mecab-fixture-ja`, run in both
 whitespace modes on the `ja`, `multi`, `edge` and `surrogate` inputs,
@@ -1059,12 +1059,12 @@ has costs that make ties, a quoted surface with a comma, overlapping
 categories and supplementary characters. `mecab-fixture-ko` runs on the
 `ko`, `multi` and `edge` inputs. `mecab-fixture-partial`, whose
 `unk.def` has no `DEFAULT` template, runs on `ja` and `edge`, and throws
-on most of them. The other two are published dictionaries:
-`mecab-ipadic-2.7.0-20070801` on `ja`, `multi`, `edge` and `surrogate`,
-and `mecab-ko-dic-2.1.1-20180720` on `ko`, `multi`, `edge` and
-`surrogate`. For every golden, the port's spans, feature columns and
-unknown flags equal the JVM's, and on every golden where the JVM threw,
-the port fails at the same character:
+on most of them. The other three are published dictionaries:
+`mecab-ipadic-2.7.0-20070801` and `unidic-mecab-2.1.2` on `ja`, `multi`,
+`edge` and `surrogate`, and `mecab-ko-dic-2.1.1-20180720` on `ko`,
+`multi`, `edge` and `surrogate`. For every golden, the port's spans,
+feature columns and unknown flags equal the JVM's, and on every golden
+where the JVM threw, the port fails at the same character:
 
 | Dictionary | Goldens | Morphemes | Unknown | JVM errors |
 |---|---|---|---|---|
@@ -1074,16 +1074,18 @@ the port fails at the same character:
 | `mecab-fixture-partial` | 48 | 17 | 11 | 44 |
 | `mecab-ipadic-2.7.0-20070801` | 65 | 1512 | 1068 | 0 |
 | `mecab-ko-dic-2.1.1-20180720` | 61 | 1360 | 971 | 0 |
+| `unidic-mecab-2.1.2` | 65 | 2016 | 519 | 0 |
 
 `analysis/tokenize/tests/lattice_golden.rs` asserts these numbers. The
-fixture runs always run. The IPADIC and mecab-ko-dic tests are ignored
-by default and read the dictionaries `turbo-goldens fetch-models`
+fixture runs always run. The IPADIC, mecab-ko-dic and UniDic tests are
+ignored by default and read the dictionaries `turbo-goldens fetch-models`
 fetched, from `TURBO_MECAB_DICTIONARIES` or
 `target/turbo-goldens/models`. CI runs them after `fetch-models`, with
-the dictionaries required. UniDic is not in the goldens. The package
-checked first (unidic-lite 1.0.8) holds only a compiled dictionary,
-which neither reader reads; the UniDic source distribution, which both
-read, is not fetched (see "Compiled dictionaries" below).
+the dictionaries required. The UniDic run uses the 17-column source
+distribution (`unidic-mecab-2.1.2.tar.gz`), which both the JVM and Rust
+readers parse directly; unidic-lite 1.0.8 holds only a compiled
+dictionary, which neither reader reads (see "Compiled dictionaries"
+below).
 
 #### Readings
 
@@ -1128,11 +1130,12 @@ lexeme in a standard spelling with an English gloss on some loanwords
 
 `analysis/tokenize/tests/lattice_readings.rs` runs the analyzer on every
 golden of `mecab-fixture-ko` (in mecab-ko-dic's layout),
-`mecab-ipadic-2.7.0-20070801` and `mecab-ko-dic-2.1.1-20180720`, and
-checks each token's three items against the columns of the feature
-string the JVM printed for it. The fetched dictionaries' tests run in CI
-with the lattice goldens. No UniDic is fetched, so the UniDic layouts are
-tested on entries written in each layout
+`mecab-ipadic-2.7.0-20070801`, `mecab-ko-dic-2.1.1-20180720` and
+`unidic-mecab-2.1.2` (`Unidic(Source17)`), and checks each token's three
+items against the columns of the feature string the JVM printed for it.
+The fetched dictionaries' tests run in CI with the lattice goldens. The
+26- and 29-column UniDic layouts (`Full26` and `Full29`) are also tested
+on entries written in each layout
 (`analysis/tokenize/src/lattice/format.rs`):
 
 | Dictionary | Tokens | With a reading | With a pronunciation | With a lemma |
@@ -1140,8 +1143,12 @@ tested on entries written in each layout
 | `mecab-fixture-ko` | 1310 | 46 | none | none |
 | `mecab-ipadic-2.7.0-20070801` | 1512 | 444 | 444 | 444 |
 | `mecab-ko-dic-2.1.1-20180720` | 1360 | 211 | none | none |
+| `unidic-mecab-2.1.2` | 2016 | none | 1219 | 1496 |
 
-On IPADIC the 444 are the tokens that are not unknown words. On the
+On IPADIC the 444 are the tokens that are not unknown words. On UniDic
+2.1.2 (`Source17`), 1496 are the tokens that are not unknown words (and
+carry `orthBase`), while 277 of those are symbols and punctuation whose
+`pron` column is empty (`""`), leaving 1219 with a pronunciation. On the
 Korean dictionaries the other known tokens are mostly punctuation.
 
 #### Compiled dictionaries, lindera and vibrato
@@ -1162,13 +1169,13 @@ Apache-2.0). Neither is a dependency, and no code was taken from either.
 
 Neither reads MeCab's compiled files: both build from the source
 distribution into a format of their own. UniDic is published in source
-form as well as compiled: lindera-unidic builds from
-`unidic-mecab-2.1.2.tar.gz`, the 17-column source distribution, under
-UniDic's BSD licence (UniDic is offered under BSD, GPL or LGPL). Only
-unidic-lite was found to ship compiled files alone. So every dictionary
-this reader is meant for can be read from source, and reading compiled
-dictionaries is not added. What reading one would take, from unidic-lite's
-files:
+form as well as compiled: lindera-unidic and `turbo-goldens fetch-models`
+both use `unidic-mecab-2.1.2.tar.gz`, the 17-column source distribution,
+under UniDic's BSD licence (UniDic is offered under BSD, GPL or LGPL).
+Only unidic-lite was found to ship compiled files alone. So every
+dictionary this reader is meant for can be read from source, and reading
+compiled dictionaries is not added. What reading one would take, from
+unidic-lite's files:
 
 - `sys.dic` and `unk.dic`: a 72-byte header (ten little-endian `u32`,
   the first the file size XOR `0xEF718F77`, the second the
@@ -1189,27 +1196,73 @@ the source, so no golden covers the compiled path. The entries of one
 surface are in the order `mecab-dict-index` wrote them, and that order
 decides ties, so a compiled dictionary could segment differently from
 its source here without any test noticing. The source distributions
-remain the input; adding UniDic's to `turbo-goldens fetch-models` and to
-the lattice goldens is the way to cover UniDic.
+remain the input, and `unidic-mecab-2.1.2` is fetched by
+`turbo-goldens fetch-models` and checked in the lattice goldens.
 
 #### Throughput
 
-No speed is claimed here: no benchmark record of the lattice tokenizer is
-committed. `turbo-bench` records embedding runs only. The command for a
-lattice run is
+`turbo-bench` records embedding runs only. The command for a lattice run
+is
 
 ```text
-cargo run --release -p turbo-tokenize --example lattice_throughput [ipadic|ko-dic] [readings]
+cargo run --release -p turbo-tokenize --example lattice_throughput [ipadic|ko-dic|unidic] [readings]
 ```
 
 with the dictionaries in `TURBO_MECAB_DICTIONARIES` or
 `target/turbo-goldens/models`. It reads the golden inputs of the
-language (`inputs/ja` or `inputs/ko`) repeated to 10 MiB and prints the
-dictionary's manifest digest, the text's SHA-256 and size, the morpheme
-count, and the best of five timed runs after a warm one, and with
-`readings` also the analyzer through a document. lindera and vibrato are
-not part of it; a matched run of them reads the same text and the same
-dictionary directory (IPADIC's UTF-8 copy) outside the workspace.
+language (`inputs/ja` or `inputs/ko`) repeated to at least 10 MiB and
+prints the dictionary's manifest digest, the text's SHA-256 and size,
+the morpheme count, and the best of five timed runs after a warm one,
+and with `readings` also the analyzer (`Tokens`, `PosTags` and
+`Readings`) through a document.
+
+On an `Intel(R) Core(TM) Ultra 9 285K` (Linux x86_64, `rustc` release
+profile, Eclipse Temurin `21.0.12.1+1-LTS` on OpenNLP
+`cdf33c653d5d61d5af7d37ffee189a83bd8392ea`), the matched runs on the
+three published dictionaries and two 10 MiB texts are:
+
+- Texts:
+  - `inputs/ja`: `10,485,900` bytes, SHA-256
+    `97b817559b05be586c663b559bc837996a1473eae7b731c1dbe3f4805d5c6d24`
+  - `inputs/ko`: `10,486,625` bytes, SHA-256
+    `9d0b2460367c153343f93d589eb3229c100fc99db5433ff812835f0478864667`
+- Dictionaries (manifest SHA-256 over `matrix.def`, sorted `*.csv`,
+  `char.def`, `unk.def`):
+  - `ipadic`: `mecab-ipadic-2.7.0-20070801.utf8`,
+    `6103f8e96a3c1cc7275da1efea6257656f8e50d2c427ab08646d920a4aece735`
+    (JVM EUC-JP `mecab-ipadic-2.7.0-20070801`:
+    `e85ee610665107cf79ecaa877c642362a64ce7ef32ddbe302956144ec901d8a8`)
+  - `ko-dic`: `mecab-ko-dic-2.1.1-20180720`,
+    `5fe7fa0a0274fbb36ae3cce5c94f7180adbdc8793a5fdf10b83f954ea2c42f83`
+  - `unidic`: `unidic-mecab-2.1.2`,
+    `a14472763e76de14df09f12bc66896e4bb69d4fea35c43eba8bfa3dc901d5505`
+
+| Dictionary | Engine | Build / load | Morphemes | Best of 5 (s) | Throughput (MB/s) | Morphemes/s |
+|---|---|---|---:|---:|---:|---:|
+| `ipadic` (`inputs/ja`) | `turbo_tokenize::lattice` (`analyze_with`) | load `0.468 s` (source) | 2,220,400 | 0.2845 | 36.86 | 7,804,816 |
+| `ipadic` (`inputs/ja`) | `turbo_tokenize::lattice` (`LatticeAnalyzer` + `Readings`) | load `0.468 s` (source) | 2,220,400 | 0.3754 | 27.93 | 5,914,758 |
+| `ipadic` (`inputs/ja`) | OpenNLP `LatticeTokenizer` (JVM, UTF-8 / EUC-JP) | load `0.739 s` / `1.243 s` (source) | 2,220,400 | 0.5586 / 0.5302 | 18.77 / 19.78 | 3,975,142 / 4,187,495 |
+| `ipadic` (`inputs/ja`) | `lindera 6.2.0` (`Segmenter::segment_with_lattice`) | build `0.778 s`, load `0.0006 s` | 2,281,400 | 0.3156 | 33.22 | 7,228,578 |
+| `ipadic` (`inputs/ja`) | `vibrato 0.5.2` (`Worker`, whitespace-split / lines) | build `0.613 s`, load `0.025 s` | 2,220,400 / 2,250,900 | 0.2851 / 0.2784 | 36.78 / 37.66 | 7,788,464 / 8,083,879 |
+| `ko-dic` (`inputs/ko`) | `turbo_tokenize::lattice` (`analyze_with`) | load `1.280 s` (source) | 1,824,185 | 0.7582 | 13.83 | 2,405,993 |
+| `ko-dic` (`inputs/ko`) | `turbo_tokenize::lattice` (`LatticeAnalyzer` + `Readings`) | load `1.280 s` (source) | 1,824,185 | 0.7747 | 13.54 | 2,354,699 |
+| `ko-dic` (`inputs/ko`) | OpenNLP `LatticeTokenizer` (JVM, UTF-8) | load `2.565 s` (source) | 1,824,185 | 1.0919 | 9.60 | 1,670,582 |
+| `ko-dic` (`inputs/ko`) | `lindera 6.2.0` (`Segmenter::segment_with_lattice`) | build `2.230 s`, load `0.0005 s` | 1,863,205 | 0.6650 | 15.77 | 2,801,977 |
+| `ko-dic` (`inputs/ko`) | `vibrato 0.5.2` (`Worker`, whitespace-split / lines) | build `2.437 s`, load `0.045 s` | 1,824,185 / 1,863,205 | 0.6358 / 0.6418 | 16.49 / 16.34 | 2,869,244 / 2,903,253 |
+| `unidic` (`inputs/ja`) | `turbo_tokenize::lattice` (`analyze_with`) | load `4.015 s` (source) | 2,348,500 | 0.4225 | 24.82 | 5,558,656 |
+| `unidic` (`inputs/ja`) | `turbo_tokenize::lattice` (`LatticeAnalyzer` + `Readings`) | load `4.015 s` (source) | 2,348,500 | 0.5332 | 19.67 | 4,404,539 |
+| `unidic` (`inputs/ja`) | OpenNLP `LatticeTokenizer` (JVM, UTF-8) | load `5.117 s` (source) | 2,348,500 | 0.7587 | 13.82 | 3,095,325 |
+| `unidic` (`inputs/ja`) | `lindera 6.2.0` (`Segmenter::segment_with_lattice`) | build `2.207 s`, load `0.0004 s` | 2,366,800 | 0.4330 | 24.22 | 5,466,111 |
+| `unidic` (`inputs/ja`) | `vibrato 0.5.2` (`Worker`, whitespace-split / lines) | build `3.049 s`, load `0.110 s` | 2,348,500 / 2,360,700 | 0.4067 / 0.4047 | 25.78 / 25.91 | 5,774,240 / 5,833,625 |
+
+`LatticeTokenizer` (both OpenNLP and `turbo_tokenize::lattice`) splits
+at Unicode `White_Space` and runs Viterbi on each whitespace-free
+stretch. When `vibrato` (`ignore_space(true)`) is fed the same
+whitespace-split stretches, it produces the exact same morpheme counts
+(`2,220,400`, `1,824,185`, `2,348,500`). When fed whole lines (`vibrato`
+lines) or sentence-split text (`lindera`), non-ASCII whitespace not
+listed in the dictionary's `SPACE` category remains in the lattice,
+increasing the token count slightly.
 
 ### `Detokenizer`
 
