@@ -37,6 +37,7 @@ impl Host {
     /// on demand, so memory_free is a floor.
     #[cfg(target_os = "macos")]
     pub(super) fn read() -> Host {
+        use std::ffi::{c_char, c_void};
         unsafe extern "C" {
             fn sysctlbyname(
                 name: *const c_char,
