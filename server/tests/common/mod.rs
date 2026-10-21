@@ -188,3 +188,16 @@ pub fn load_req(name: &str, bundle: &str, sessions: u32, precision: u32) -> Load
         max_seq: 0,
     }
 }
+
+/// The reference cases' texts of the tiny harness bundle: the empty
+/// document, ASCII, accents, CJK, emoji and tabs, and two long ones.
+/// What the stream must answer byte for byte like the single-document
+/// call does.
+pub fn harness_texts() -> Vec<String> {
+    manifest()["reference"]["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["text"].as_str().unwrap().to_string())
+        .collect()
+}

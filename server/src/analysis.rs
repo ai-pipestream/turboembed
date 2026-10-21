@@ -14,13 +14,15 @@ use crate::capabilities::{bundle_capabilities, load_config, result_limits, serve
 use crate::kserve::Reply;
 use crate::proto::result::analysis_service_server::AnalysisService;
 use crate::proto::result::{
-    CapabilitiesRequest, CapabilitiesResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse,
-    RerankScoresResult, SparseTermsResult, TokenVectorsResult, UnloadBundleRequest, UnloadBundleResponse,
+    AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ExtractionResult, LoadBundleRequest,
+    LoadBundleResponse, RerankScoresResult, SparseTermsResult, TokenVectorsResult, UnloadBundleRequest,
+    UnloadBundleResponse,
 };
 use crate::results::Wire;
 use crate::results::{extraction::Extraction, rerank::RerankScores, tokens::TokenVectors};
 use crate::state::{Loaded, State};
 use crate::status::to_status;
+use crate::stream;
 use turbo_analysis::View;
 use turbo_analysis_layers::SparseTerms;
 
@@ -57,6 +59,8 @@ where
 
 #[tonic::async_trait]
 impl AnalysisService for Analysis {
+    type AnalyzeStreamStream = stream::handler::AnswerStream;
+
     async fn capabilities(&self, _: Request<CapabilitiesRequest>) -> Reply<CapabilitiesResponse> {
         let mut bundles = Vec::new();
         for m in self.state.listing() {
@@ -120,5 +124,12 @@ impl AnalysisService for Analysis {
 
     async fn round_trip_extraction(&self, req: Request<ExtractionResult>) -> Reply<ExtractionResult> {
         round_trip::<_, Extraction>(req)
+    }
+
+    async fn analyze_stream(
+        &self,
+        req: Request<tonic::Streaming<AnalyzeStreamRequest>>,
+    ) -> Reply<Self::AnalyzeStreamStream> {
+        crate::stream::handler::start(self.state.clone(), req.into_inner()).await
     }
 }

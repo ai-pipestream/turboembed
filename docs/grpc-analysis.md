@@ -18,6 +18,7 @@ own file; generate a client from it in any language with gRPC.
 | `RoundTripTokenVectors` | The message, validated, unchanged. |
 | `RoundTripRerankScores` | The message, validated, unchanged. |
 | `RoundTripExtraction` | The message, validated, unchanged. |
+| `AnalyzeStream` | Bulk document analysis over one bidirectional stream. |
 
 Every message is the data columns of one in-process result layer in the
 layer's own layout, plus the model identity that produced it. Decoding
@@ -122,6 +123,53 @@ From Rust, the crate's generated client does the same, and
 layers: `Wire::to_msg` builds a message from a result, `Wire::from_msg`
 reads one back with the message's own validation.
 
+## Streaming bulk document analysis (issue #722)
+
+`AnalyzeStream` is one bidirectional stream for many documents. The
+first message must be an `AnalyzeStreamHeader` naming the ordering,
+`ANALYZE_ORDER_INPUT` for the documents' own order or
+`ANALYZE_ORDER_COMPLETION` for the order they finish in, plus two flow
+control knobs: `max_inflight` (how many documents may be executing or
+awaiting their answer at once) and `batch_linger_ms` (how long documents
+wait on one model so they can run as one batch). Every knob is capped by
+what `Capabilities` advertises under `server.stream`; a larger one is
+`TURBO_E_INVALID_ARGUMENT` naming the limit, and a header that is not
+first, or an unknown order value, refuses the same way.
+
+After the header the client sends `AnalyzeDocument` messages: a client
+correlation `id` (non-empty, carried back on the answer), the served
+model's `name`, the `text`, and `AnalyzeOptions` (the fields of
+`turbo_embed_options`, each 0 for the model's default, exactly what the
+single-document call's parameters carry). Every document answers exactly
+once as an `AnalyzeStreamResponse` tagged with its id: `AnalyzeVectors`,
+whose `data` is byte for byte the row the single-document call's
+`raw_output_contents` carries for the same text and options, or
+`AnalyzeFailure` with the turbo status code, field and refusal the
+single-document call would carry. A failed document never ends the
+stream; unknown model, unknown option value, and an over-limit document
+all answer this way, and a batch whose write fails is retried one
+document at a time so the failure lands on its document alone.
+
+Documents waiting on the same model with the same options gather into
+one batch up to the bundle's `batch_limit`, one write, one run and one
+read on one held session; batching never changes a document's answer.
+Queued work is bounded per stream and server-wide by
+`ServerLimits.stream` (`max_queued_items_per_stream`,
+`max_queued_bytes_per_stream`, and the server-wide pair); a send past
+them is held by backpressure until the queue drains, never a mid-stream
+error, so a fast client that does not read cannot grow the server's
+memory without limit. Cancelling the stream (or dropping it) drops the
+work already queued for it; a batch already running on a session
+finishes, but its answer goes nowhere.
+
+`Server::stream_stats` reads the model-execution count and the queued
+gauges, what the cancellation and backpressure proofs in
+`server/tests/stream.rs` count. The speed bar sits in
+`server/tests/stream_speed.rs`, release only: the same documents
+through one stream must answer at least as fast as the same documents as
+concurrent single-document calls on the same server, CPU and thread
+count, in alternating rounds (docs/receipts/server-722/README.md).
+
 ## Tests
 
 `cargo test -p turbo-kserve` runs everything against the server
@@ -130,6 +178,12 @@ with a real client (`server/tests/results.rs`); nothing is mocked. Each result
 kind crosses the wire and back unchanged from its in-process layer; the
 capability listing matches the manifest and follows load and unload; an
 over-limit request is refused with the named limit, for every limit the
-listing names. `cargo test --release -p turbo-kserve --test speed --
+listing names. `server/tests/stream.rs` proves the streaming call:
+byte-for-byte parity with the single-document call across the harness
+texts in both ordering modes, one model execution for eight same-key
+documents with unchanged results, the advertised queue caps holding
+under a non-reading client, cancellation dropping queued work by the
+model-execution count, and per-document failures answered in order.
+`cargo test --release -p turbo-kserve --test speed --
 --ignored` measures the encoding and decoding speed bar against the
 current vector and span messages (docs/receipts/server-723/README.md).

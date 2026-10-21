@@ -23,7 +23,8 @@ turbo-analysis-embed = { path = "../analysis/embed" }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
 prost = "0.14"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
+tokio-stream = "0.1"
 tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "router", "server", "channel"] }
 tonic-prost = "0.14"
 # Gives a message over the size limit RESOURCE_EXHAUSTED (Server::start).

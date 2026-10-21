@@ -39,6 +39,20 @@ service AnalysisService
   rpc RoundTripTokenVectors(TokenVectorsResult) returns (TokenVectorsResult) {}
   rpc RoundTripRerankScores(RerankScoresResult) returns (RerankScoresResult) {}
   rpc RoundTripExtraction(ExtractionResult) returns (ExtractionResult) {}
+
+  // Bulk document analysis over one bidirectional stream (issue #722):
+  // the client opens with one AnalyzeStreamHeader naming the ordering and
+  // its flow-control knobs, then sends documents, each with its own
+  // correlation id. Every document answers exactly once, tagged with its
+  // id: the document's vectors, or a structured per-document failure the
+  // stream then continues past. Documents waiting on the same model are
+  // micro-batched up to the bundle's batch limit, which never changes a
+  // document's answer. Queued work is bounded and advertised in
+  // ServerLimits.stream: a client that sends without reading is stopped
+  // by backpressure, and cancelling the stream drops what was queued for
+  // it. The answer bytes per document equal the single-document call's
+  // raw_output_contents row for the same text and options.
+  rpc AnalyzeStream(stream AnalyzeStreamRequest) returns (stream AnalyzeStreamResponse) {}
 }
 
 message CapabilitiesRequest {}
@@ -69,6 +83,10 @@ message ServerLimits
   // Served models in all, startup ones included; a registration past
   // it is TURBO_E_CAPACITY naming max_loaded_models.
   uint32 max_loaded_models = 2;
+
+  // What the streaming bulk analysis call may queue, per stream and
+  // server-wide; its flow control holds queued work to these caps.
+  StreamLimits stream = 3;
 }
 
 // What one loaded bundle is and takes, so a client rejects an
@@ -304,4 +322,177 @@ message ExtractionResult
   repeated uint32 frag_start = 9;
   repeated uint32 frag_end = 10;
   repeated uint32 frag_at = 11;
+}
+
+// What the streaming bulk analysis call accepts and answers (issue
+// #722). One stream carries one header followed by any number of
+// documents; each document answers exactly once, in the header's order
+// or as it completes, tagged with its correlation id.
+
+// Which order response items leave the stream in.
+enum AnalyzeOrder
+{
+  // The order the documents were sent in; the default.
+  ANALYZE_ORDER_INPUT = 0;
+
+  // The order the documents finish in.
+  ANALYZE_ORDER_COMPLETION = 1;
+}
+
+// One stream message: the header first, then documents.
+message AnalyzeStreamRequest
+{
+  oneof kind
+  {
+    // The first message of the stream must be the header; a header
+    // anywhere else is TURBO_E_INVALID_ARGUMENT and ends the stream.
+    AnalyzeStreamHeader header = 1;
+
+    // One document to analyze.
+    AnalyzeDocument document = 2;
+  }
+}
+
+// The stream's opening message: the ordering and the client side of the
+// flow control. Every knob is capped by ServerLimits.stream, which the
+// capability listing advertises; a larger one is TURBO_E_INVALID_ARGUMENT
+// naming the limit.
+message AnalyzeStreamHeader
+{
+  // The order response items leave the stream in.
+  AnalyzeOrder order = 1;
+
+  // How many documents may be executing or awaiting their answer at
+  // once, this client's own bound; 0 is the server's default
+  // max_inflight_items_per_stream.
+  uint32 max_inflight = 2;
+
+  // How long documents wait on the same model so they can be batched
+  // into one run, in milliseconds; 0 is the server's default
+  // default_batch_linger_ms.
+  uint32 batch_linger_ms = 3;
+}
+
+// The embed options one document asks for: the fields of
+// turbo_embed_options, each 0 for the model's default, exactly what the
+// single-document call's parameters carry. Documents batch together only
+// with documents of the same model and the same options.
+message AnalyzeOptions
+{
+  // TURBO_TRUNCATE_*.
+  uint32 truncate = 1;
+
+  // Tokens per row; 0 is the model's max_seq.
+  uint32 max_tokens = 2;
+
+  // TURBO_PROMPT_*.
+  uint32 prompt_role = 3;
+
+  // TURBO_NORMALIZE_*.
+  uint32 normalize = 4;
+
+  // TURBO_POOLING_*.
+  uint32 pooling = 5;
+
+  // One of the widths the capability listing names; 0 is the model's dim.
+  uint32 output_dim = 6;
+}
+
+// One document to analyze: its client correlation id, the served model's
+// name, the text, and the options.
+message AnalyzeDocument
+{
+  // The client's correlation id; non-empty, carried back on the answer.
+  string id = 1;
+
+  // The served model's name, as the capability listing names it.
+  string model = 2;
+
+  // The document's text; empty is a document.
+  bytes text = 3;
+
+  // What to compute; absent is every model default.
+  AnalyzeOptions options = 4;
+}
+
+// One document's answer, tagged with its correlation id: its vectors, or
+// its failure. A failed document never ends the stream.
+message AnalyzeStreamResponse
+{
+  // The document's correlation id.
+  string id = 1;
+
+  oneof outcome
+  {
+    // The document's vectors.
+    AnalyzeVectors vectors = 2;
+
+    // Why this document failed.
+    AnalyzeFailure failure = 3;
+  }
+}
+
+// The vectors of one document: the model identity and the row the
+// single-document call's raw_output_contents carries for the same text
+// and options, one row of little-endian f32, dim values.
+message AnalyzeVectors
+{
+  // The served model's name.
+  string model = 1;
+
+  // The bundle's revision.
+  string version = 2;
+
+  // Values per row; over 0.
+  uint32 dim = 3;
+
+  // dim x 4 little-endian f32, row-major: exactly the row the
+  // single-document call answers with.
+  bytes data = 4;
+}
+
+// Why one document failed: the turbo status the refusal carries, as the
+// single-document call's status would carry it, so a client routes it
+// the same way. The stream continues past it.
+message AnalyzeFailure
+{
+  // The turbo status code, TURBO_E_* as decimal.
+  int32 turbo_code = 1;
+
+  // turbo_error.field, when the failure names a field.
+  uint32 field = 2;
+
+  // The refusal, named the way the layer refuses a malformed column.
+  string message = 3;
+}
+
+// What the streaming bulk analysis call may queue, per stream and
+// server-wide: the caps its flow control holds queued work to, so a fast
+// client cannot grow the server's memory without limit. A send past them
+// is held by backpressure until the queue drains, never a mid-stream
+// error.
+message StreamLimits
+{
+  // Documents a stream may have queued, not yet executing.
+  uint64 max_queued_items_per_stream = 1;
+
+  // Document bytes a stream may have queued.
+  uint64 max_queued_bytes_per_stream = 2;
+
+  // Documents all streams may have queued in all.
+  uint64 max_queued_items_server = 3;
+
+  // Document bytes all streams may have queued in all.
+  uint64 max_queued_bytes_server = 4;
+
+  // Documents a stream may have executing or awaiting their answer at
+  // once; the most its max_inflight may ask for.
+  uint64 max_inflight_items_per_stream = 5;
+
+  // The wait that gathers one model's documents into a batch, in
+  // milliseconds, when the header does not say.
+  uint64 default_batch_linger_ms = 6;
+
+  // The most a header's batch_linger_ms may ask for.
+  uint64 max_batch_linger_ms = 7;
 }
