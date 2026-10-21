@@ -60,6 +60,15 @@ fn no_labels_is_an_error() {
 }
 
 #[test]
+fn more_labels_than_the_scorer_reports_is_an_error() {
+    let m = model();
+    let names: Vec<String> = (0..=m.max_labels()).map(|i| format!("l{i}")).collect();
+    let labels: Vec<&str> = names.iter().map(String::as_str).collect();
+    let got = m.pass("a b", &labels).err();
+    assert!(matches!(got, Some(RelationError::OverLimit { limit: "max_labels", max: 64, got: 65 })), "{got:?}");
+}
+
+#[test]
 fn a_threshold_that_is_not_a_probability_is_an_error() {
     let m = model();
     for t in [f32::NAN, f32::INFINITY, -0.1, 1.5] {

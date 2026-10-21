@@ -151,6 +151,9 @@ impl GlirelRelations {
         if labels.is_empty() {
             return Err(RelationError::NoLabels);
         }
+        if labels.len() > MAX_LABELS {
+            return Err(RelationError::OverLimit { limit: "max_labels", max: MAX_LABELS, got: labels.len() });
+        }
         run(&self.encoder, &self.heads, self.prompt(text, labels)?)
     }
 
@@ -208,6 +211,9 @@ impl GlirelRelations {
     }
 }
 
+/// The most labels one pass reads, as the scorer reports to the annotator.
+const MAX_LABELS: usize = 64;
+
 fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
 }
@@ -262,7 +268,7 @@ impl RelationScorer for GlirelRelations {
     }
 
     fn max_labels(&self) -> usize {
-        64
+        MAX_LABELS
     }
 
     fn max_mentions(&self) -> usize {

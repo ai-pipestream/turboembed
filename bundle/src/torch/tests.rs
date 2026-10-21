@@ -183,3 +183,61 @@ fn offsets_outside_the_archive_are_errors() {
         assert!(read(&far).is_err(), "{local}");
     }
 }
+
+/// `NONE, TUPLE2` repeated: each pair wraps the tuple before it, two bytes
+/// a level, so 50,000 levels fit in 100 KB. The nesting limit refuses it
+/// while it builds, before a deep value exists to drop.
+#[test]
+fn deep_nesting_is_refused_while_it_builds() {
+    let mut p = vec![0x80, 2, b'N'];
+    for _ in 0..50_000 {
+        p.extend([b'N', 0x86]);
+    }
+    p.extend(*b"}.");
+    let err = error(&archive(&[("archive/data.pkl", &p)]));
+    assert!(err.contains("values nest deeper than 32"), "{err}");
+}
+
+/// A value memoized once and fetched `gets` times: each fetch copies all
+/// of it.
+fn fetched(value: &[u8], gets: usize) -> Vec<u8> {
+    let mut p = Vec::from([0x80, 2]);
+    p.extend(value);
+    p.extend([b'q', 0]);
+    p.extend([b'h', 0].repeat(gets));
+    p.extend(*b"}.");
+    p
+}
+
+fn string(len: u32) -> Vec<u8> {
+    let mut v = vec![b'X'];
+    v.extend(len.to_le_bytes());
+    v.extend(std::iter::repeat_n(b'a', len as usize));
+    v
+}
+
+#[test]
+fn a_long_string_is_charged_by_its_bytes() {
+    // 65,536 bytes fetched 60,000 times would copy 3.9 GB.
+    let err = pickle::state_dict(&fetched(&string(1 << 16), 60_000)).unwrap_err();
+    assert!(err.contains("the memo copies more than 65536 values"), "{err}");
+    // Names as long as a state dict's are fetched as before.
+    assert!(pickle::state_dict(&fetched(&string(200), 10_000)).is_ok());
+}
+
+#[test]
+fn a_tensor_of_high_rank_is_charged_by_its_dimensions() {
+    // _rebuild_tensor_v2(storage, 0, (1,) * 16000, (1,) * 16000, False, OrderedDict())
+    let mut v = b"ctorch._utils\n_rebuild_tensor_v2\n(".to_vec();
+    v.extend(b"(X\x07\x00\x00\x00storagectorch\nFloatStorage\nX\x01\x00\x00\x000X\x03\x00\x00\x00cpuK\x01tQ");
+    v.push(b'K');
+    v.push(0);
+    for _ in 0..2 {
+        v.push(b'(');
+        v.extend([b'K', 1].repeat(16_000));
+        v.push(b't');
+    }
+    v.extend(b"\x89ccollections\nOrderedDict\n)RtR");
+    let err = pickle::state_dict(&fetched(&v, 60_000)).unwrap_err();
+    assert!(err.contains("the memo copies more than 65536 values"), "{err}");
+}

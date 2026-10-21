@@ -35,7 +35,8 @@ pub fn read(bytes: &[u8]) -> Result<BTreeMap<String, Tensor<'_>>> {
         .collect::<Vec<_>>();
     let [pkl] = pkl.as_slice() else { return Err("torch: the archive holds no single data.pkl".into()) };
     let root = &pkl.name[..pkl.name.len() - "data.pkl".len()];
-    let file = |name: &str| entries.iter().find(|e| e.name == format!("{root}{name}")).map(|e| e.data);
+    let by_name: std::collections::HashMap<&str, &[u8]> = entries.iter().map(|e| (e.name, e.data)).collect();
+    let file = |name: &str| by_name.get(format!("{root}{name}").as_str()).copied();
     if file("byteorder").is_some_and(|b| b != b"little") {
         return Err("torch: only little-endian checkpoints are read".into());
     }

@@ -58,10 +58,20 @@ const MAX_COPIED: usize = 1 << 16;
 /// The deepest nesting read; a state dict nests four deep.
 const MAX_DEPTH: usize = 32;
 
+/// A string, and a tensor's size and stride, are charged by what a copy
+/// allocates: one value per this many bytes of a string, one per dimension.
+const STR_BYTES: usize = 64;
+
+fn chars(s: &str) -> usize {
+    s.len() / STR_BYTES
+}
+
 fn size(v: &Value) -> Size {
     match v {
         Value::Tuple(_, s) => *s,
         Value::Dict(items) => combine(items.iter().flat_map(|(k, v)| [k, v])),
+        Value::Str(s) | Value::Storage { key: s, .. } => Size { nodes: 1 + chars(s), depth: 0 },
+        Value::Tensor(t) => Size { nodes: 1 + chars(&t.key) + t.size.len() + t.stride.len(), depth: 0 },
         _ => Size { nodes: 1, depth: 0 },
     }
 }
