@@ -192,7 +192,15 @@ impl GlirelRelations {
         if !(threshold.is_finite() && (0.0..=1.0).contains(&threshold)) {
             return Err(RelationError::BadThreshold { label: None, threshold: f64::from(threshold) });
         }
+        if entities.len() > MAX_ENTITIES {
+            return Err(RelationError::OverLimit { limit: "max_mentions", max: MAX_ENTITIES, got: entities.len() });
+        }
         let pass = self.pass(text, labels)?;
+        // Every entity checked before the pairs, which grow as its square.
+        let n = pass.prompt.words.len();
+        if entities.iter().any(|&(s, e)| s > e || e >= n) {
+            return Err(bad("an entity outside the words"));
+        }
         let pairs: Vec<(usize, usize)> = (0..entities.len())
             .flat_map(|a| (0..entities.len()).filter(move |&b| b != a).map(move |b| (a, b)))
             .collect();
@@ -213,6 +221,10 @@ impl GlirelRelations {
 
 /// The most labels one pass reads, as the scorer reports to the annotator.
 const MAX_LABELS: usize = 64;
+
+/// The most entities `extract` pairs, and the most mentions the scorer
+/// takes: every ordered pair of 512 is 261,632 pairs.
+const MAX_ENTITIES: usize = 512;
 
 fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
@@ -272,7 +284,7 @@ impl RelationScorer for GlirelRelations {
     }
 
     fn max_mentions(&self) -> usize {
-        usize::MAX
+        MAX_ENTITIES
     }
 
     fn score(
@@ -283,6 +295,9 @@ impl RelationScorer for GlirelRelations {
         labels: &[&str],
         out: &mut Vec<f32>,
     ) -> Result<(), RelationError> {
+        if mentions.len() > MAX_ENTITIES {
+            return Err(RelationError::OverLimit { limit: "max_mentions", max: MAX_ENTITIES, got: mentions.len() });
+        }
         if pairs.iter().any(|&(h, t)| h as usize >= mentions.len() || t as usize >= mentions.len()) {
             return Err(bad("a pair outside the mentions"));
         }
