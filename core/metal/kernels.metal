@@ -316,7 +316,11 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
     // columns, for 64 * WM threads.
     constexpr uint HBM = 8 * TM * WM;
     threadgroup half xs[HBM * HLD];
-    threadgroup half ws[BN * HLD];
+    // w's tile is staged transposed, [HBK][BN], each row padded by 8
+    // values, so its fragments load without a transpose: on the M2 this
+    // is about 7% faster than staging [BN][HBK] and loading transposed.
+    constexpr uint WLD = BN + 8;
+    threadgroup half ws[HBK * WLD];
     const uint layer = tg.z / p.splits, split = tg.z % p.splits;
     device const half *w = layer == 0 ? w0 : layer == 1 ? w1 : w2;
     device const float *bias = layer == 0 ? b0 : layer == 1 ? b1 : b2;
@@ -347,7 +351,7 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
         win[i] = row < n;
         wp[i] = w + ulong(min(row, n - 1)) * k + kbegin + c;
     }
-    threadgroup half *xd = xs + r * HLD + c, *wd = ws + r * HLD + c;
+    threadgroup half *xd = xs + r * HLD + c, *wd = ws + c * WLD + r;
     for (uint k0 = kbegin; k0 < kend; k0 += HBK) {
         // k is a multiple of 8 and c of 8, so eight values lie wholly
         // inside k or wholly past it.
@@ -357,14 +361,20 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
             xp[i] += HBK;
         }
         for (uint i = 0; i < WP; i++) {
-            eight(wd + i * PASS * HLD, wp[i], kin && win[i]);
+            const float4 raw = kin && win[i] ? float4(*(device const packed_float4 *)wp[i]) : float4(0.0f);
+            const half4 lo = as_type<half4>(raw.xy), hi = as_type<half4>(raw.zw);
+            threadgroup half *d = wd + i * PASS;
+            for (uint t = 0; t < 4; t++) {
+                d[t * WLD] = lo[t];
+                d[(t + 4) * WLD] = hi[t];
+            }
             wp[i] += HBK;
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint kk = 0; kk < HBK; kk += 8) {
             simdgroup_half8x8 a[TM], b[4];
             for (uint i = 0; i < TM; i++) simdgroup_load(a[i], xs + (sm + i * 8) * HLD + kk, HLD);
-            for (uint j = 0; j < 4; j++) simdgroup_load(b[j], ws + (sn + j * 8) * HLD + kk, HLD, ulong2(0, 0), true);
+            for (uint j = 0; j < 4; j++) simdgroup_load(b[j], ws + kk * WLD + sn + j * 8, WLD);
             for (uint i = 0; i < TM; i++)
                 for (uint j = 0; j < 4; j++) simdgroup_multiply_accumulate(acc[i][j], a[i], b[j], acc[i][j]);
         }
