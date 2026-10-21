@@ -10,7 +10,9 @@ use turbo_analysis::ModelRef;
 use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result as proto;
 
+pub mod document;
 pub mod extraction;
+pub mod layers;
 pub mod rerank;
 pub mod sparse;
 pub mod tokens;
@@ -25,6 +27,10 @@ pub const MAX_RERANK_ITEMS: u64 = 1 << 20;
 pub const MAX_ANSWERS: u64 = 1 << 16;
 pub const MAX_ANSWER_FRAGMENTS: u64 = 1 << 20;
 pub const MAX_WINDOWS: u64 = 1 << 20;
+pub const MAX_CHUNKS: u64 = 1 << 20;
+pub const MAX_LEVELS: u64 = 1 << 20;
+pub const MAX_FRAGMENTS: u64 = 1 << 22;
+pub const MAX_GRAPH_BYTES: u64 = 64 << 20;
 
 /// One result kind's wire form: to the message, and back with the
 /// message's own validation, whose refusal names what it found.

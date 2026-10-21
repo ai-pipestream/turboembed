@@ -8,6 +8,7 @@ pub mod capabilities;
 pub mod config;
 mod infer;
 mod kserve;
+pub mod offsets;
 pub mod results;
 mod state;
 pub mod status;
@@ -96,10 +97,11 @@ impl Server {
         let (stop, stopped) = oneshot::channel::<()>();
         let task = tokio::spawn(
             tonic::transport::Server::builder()
+                .tcp_nodelay(true)
                 .layer(tower::util::MapResponseLayer::new(too_large))
                 .add_service(kserve)
                 .add_service(analysis)
-                .serve_with_incoming_shutdown(TcpIncoming::from(listener), async {
+                .serve_with_incoming_shutdown(TcpIncoming::from(listener).with_nodelay(Some(true)), async {
                     let _ = stopped.await;
                 }),
         );
