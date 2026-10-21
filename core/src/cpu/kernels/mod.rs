@@ -24,7 +24,8 @@ mod rowwise;
 mod simd;
 
 pub(super) use attend::{Attend, LANES};
-pub(crate) use dense::{Matrix, Mode, softmax};
+pub(crate) use dense::softmax;
+pub use dense::{Matrix, Mode};
 pub(super) use gemm::{Epilogue, Gemm};
 #[cfg(target_arch = "x86_64")]
 pub(super) use micro::{Avx2, Avx512};

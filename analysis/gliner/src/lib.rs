@@ -67,25 +67,7 @@ impl Model {
     pub fn score_packed(&self, p: &PackedInput, schema: &ExtractionSchema) -> Result<Vec<Candidate>, String> {
         p.check(&self.config, self.encoder.config(), schema.labels().len())?;
         let h = self.encoder.encode(&p.ids, &vec![true; p.ids.len()]).map_err(|e| e.message)?;
-        let project = |i: usize| self.heads.project(&h.data()[i * h.width()..(i + 1) * h.width()]);
-        let prompts = p.prompts.iter().map(|&i| self.heads.prompt(&project(i)?)).collect::<Result<Vec<_>, _>>()?;
-        let words = p.words.iter().map(|&i| project(i)).collect::<Result<Vec<_>, _>>()?;
-        let words = self.heads.words(&words)?;
-        let (starts, ends) = self.heads.endpoints(&words)?;
-        let mut out = Vec::new();
-        for (i, start) in starts.iter().enumerate() {
-            for (j, end) in ends.iter().enumerate().skip(i).take(self.config.max_width) {
-                let span = self.heads.span(start, end)?;
-                for (label, prompt) in prompts.iter().enumerate() {
-                    let logit: f32 = span.iter().zip(prompt).map(|(a, b)| a * b).sum();
-                    if !logit.is_finite() {
-                        return Err("gliner non-finite span score".into());
-                    }
-                    out.push(Candidate { start: i, end: j + 1, label, logit, score: heads::sigmoid(logit) });
-                }
-            }
-        }
-        Ok(out)
+        self.heads.score(h.data(), h.width(), &p.prompts, &p.words, self.config.max_width)
     }
 }
 /// Stable score-priority decoding. Nested mode allows containment but rejects

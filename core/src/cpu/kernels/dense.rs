@@ -3,7 +3,9 @@
 //! micro-kernel's panels once, then applied to any number of rows on the
 //! calling thread. As everywhere in kernels/, each output is one chain of
 //! multiply-adds over k in order, so a row's result does not depend on
-//! how many other rows are in the call.
+//! how many other rows are in the call. `Matrix` and `Mode` are public
+//! (turbo::cpu) so that model heads outside this crate (turbo-gliner) use
+//! the same packed kernels.
 
 use super::gemm::{Epilogue, Gemm};
 #[cfg(target_arch = "x86_64")]
@@ -12,7 +14,7 @@ use super::{Isa, Micro, Panels, Portable, rowwise::exp};
 
 /// What a product does with each output once its sum is complete.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Mode {
+pub enum Mode {
     /// y = sum + b
     Plain,
     /// y = gelu(sum + b), GELU by erf.
@@ -22,7 +24,7 @@ pub(crate) enum Mode {
 }
 
 /// W [n, k] (y = x W^T) packed for the processor's widest kernel.
-pub(crate) struct Matrix {
+pub struct Matrix {
     panels: Panels,
     isa: Isa,
     /// n zeros, the bias of a product that has none.
@@ -32,7 +34,7 @@ pub(crate) struct Matrix {
 impl Matrix {
     /// No columns yet: `pack_rows` or `pack_cols` fills it, reusing its
     /// memory from one fill to the next.
-    pub(crate) fn empty() -> Matrix {
+    pub fn empty() -> Matrix {
         let isa = Isa::detect();
         let (mr, nr) = isa.tile();
         Matrix { panels: Panels { buf: Vec::new(), off: 0, n: 0, k: 0, mr, nr }, isa, zero: Vec::new() }
@@ -40,7 +42,7 @@ impl Matrix {
 
     /// The rows of `parts`, each [n_i, k] row-major, one after another.
     /// Err is the bytes it could not allocate.
-    pub(crate) fn from_rows(parts: &[&[f32]], k: usize) -> Result<Matrix, usize> {
+    pub fn from_rows(parts: &[&[f32]], k: usize) -> Result<Matrix, usize> {
         let isa = Isa::detect();
         let panels = Panels::pack(parts, k, isa)?;
         let mut zero = Vec::new();
@@ -50,7 +52,7 @@ impl Matrix {
     }
 
     /// W[o][kk] = src[o * ld + kk] for o under n and kk under k.
-    pub(crate) fn pack_rows(&mut self, src: &[f32], ld: usize, n: usize, k: usize) -> Result<(), usize> {
+    pub fn pack_rows(&mut self, src: &[f32], ld: usize, n: usize, k: usize) -> Result<(), usize> {
         if n > 0 && src.len() < (n - 1) * ld + k {
             return Err(usize::MAX);
         }
@@ -59,7 +61,7 @@ impl Matrix {
 
     /// W[o][kk] = src[kk * ld + o] for o under n and kk under k: the
     /// transpose of a row-major [k, n] block.
-    pub(crate) fn pack_cols(&mut self, src: &[f32], ld: usize, n: usize, k: usize) -> Result<(), usize> {
+    pub fn pack_cols(&mut self, src: &[f32], ld: usize, n: usize, k: usize) -> Result<(), usize> {
         if k > 0 && src.len() < (k - 1) * ld + n {
             return Err(usize::MAX);
         }
@@ -98,7 +100,7 @@ impl Matrix {
     /// # Panics
     /// If x, y or bias is shorter than the shapes need.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn apply(
+    pub fn apply(
         &self,
         x: &[f32],
         ldx: usize,
