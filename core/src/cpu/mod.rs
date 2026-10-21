@@ -31,7 +31,7 @@ pub(crate) use model::{converted_data, tensor_data};
 use run::*;
 use session::*;
 
-pub(crate) use kernels::gelu;
+pub(crate) use kernels::{Matrix, Mode, gelu, softmax};
 
 pub static BACKEND: turbo_backend = turbo_backend {
     struct_size: size_of::<turbo_backend>() as u32,

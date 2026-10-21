@@ -121,7 +121,7 @@ impl Index<'_> {
 }
 
 /// Keeps the first [`DEPTH`] of `items` by `order`, sorted.
-fn top(items: &mut Vec<usize>, order: impl Fn(&usize, &usize) -> Ordering) {
+pub(crate) fn top(items: &mut Vec<usize>, order: impl Fn(&usize, &usize) -> Ordering) {
     if items.len() > DEPTH {
         items.select_nth_unstable_by(DEPTH - 1, &order);
         items.truncate(DEPTH);

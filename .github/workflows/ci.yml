@@ -20,6 +20,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: aarch64-unknown-linux-gnu
       - uses: Swatinem/rust-cache@v2
       - name: fmt
         run: cargo fmt --all --check
@@ -31,6 +32,14 @@ jobs:
         run: cargo clippy -p turbo --features npu --all-targets
       - name: clippy (turboquant)
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
+      # The arm64 machines (aarch64 Linux, Apple silicon) build without
+      # the x86_64 kernels. Checked only: the crates left out reach ring
+      # through ureq, whose build script needs an aarch64 C compiler.
+      - name: check (aarch64)
+        run: >-
+          cargo check --workspace --target aarch64-unknown-linux-gnu
+          --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval
+          --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
       # The OpenNLP models the JVM goldens were made with, downloaded from
       # downloads.apache.org and checked against their published SHA-512
       # (analysis/goldens-tool/src/recipe.rs). With them present and

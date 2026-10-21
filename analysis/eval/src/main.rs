@@ -7,12 +7,14 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use turbo_analysis_embed::{Device, Precision};
+use turbo_chunker::terms::Bm25;
 use turbo_chunker::{Budget, Cohesion, Costs, Drift, WeighBoundaries};
 use turbo_eval::Result;
 use turbo_eval::analysis::{Analysis, Sentencer};
-use turbo_eval::chunkers::{Chunker, FixedTokens, Semantic, SentenceWindows, Signals, TurboChunker};
+use turbo_eval::chunkers::{Chunker, FixedTokens, Semantic, SentenceWindows, Signals, TurboChunker, WholeDocument};
 use turbo_eval::embedder::{Embedder, Role, TurboEmbedder};
 use turbo_eval::fetch::{cache_root, fetch};
+use turbo_eval::lexical::{Lexical, TermRule};
 use turbo_eval::pipeline::{Pipeline, Titles};
 use turbo_eval::run::{gate_dirs, run_sets};
 use turbo_eval::set::LoadedSet;
@@ -49,10 +51,21 @@ run options:
   --structure <s>         plain, markdown or none (default plain)
   --titles <t>            ignore, or prefix each chunk with the document's
                           title (default ignore)
+  --retrieval <r>         dense (the embedder's vectors, by cosine) or
+                          bm25 (the chunks' terms; nothing is embedded)
+                          (default dense)
+  --k1 <f>, --b <f>       BM25's parameters (default 1.2 and 0.75, Lucene's)
+  --terms <t>             BM25's terms: folded (lowercased word tokens) or
+                          english (also Lucene's English stop words,
+                          possessive and Porter stemmer) (default folded)
+  --dump-terms <dir>      with bm25, also write each set's chunk and query
+                          terms there, for a reference BM25
   --repo <dir>            the clean, pushed working tree this tool was
                           built from (default: the one it was built in)
 
 chunkers:
+  --chunker document
+      the whole document, its first sentence to its last, as one chunk
   --chunker fixed-tokens --tokens <n> [--overlap <n>]
       windows of n model tokens (overlap default 0)
   --chunker sentence-windows --window <n>
@@ -181,6 +194,7 @@ fn chunker(o: &mut Opts, embedder: &dyn Embedder) -> Result<Box<dyn Chunker>> {
             }
             Box::new(c)
         }
+        "document" => Box::new(WholeDocument),
         "sentence-windows" => Box::new(SentenceWindows::new(o.required("--window")?)?),
         "opennlp-sandbox-semantic" => Box::new(Semantic::from_config(
             o.parsed("--similarity")?.unwrap_or(0.0),
@@ -258,6 +272,23 @@ fn run_cmd(args: &[String]) -> Result<()> {
         "prefix" => Titles::Prefix,
         t => return Err(format!("--titles {t}: ignore or prefix")),
     };
+    let lexical = match o.take("--retrieval").as_deref().unwrap_or("dense") {
+        "dense" => None,
+        "bm25" => {
+            let terms = match o.take("--terms").as_deref().unwrap_or("folded") {
+                "folded" => TermRule::Folded,
+                "english" => TermRule::English,
+                t => return Err(format!("--terms {t}: folded or english")),
+            };
+            let k1: f64 = o.parsed("--k1")?.unwrap_or(Bm25::LUCENE.k1);
+            let b: f64 = o.parsed("--b")?.unwrap_or(Bm25::LUCENE.b);
+            if !(k1.is_finite() && k1 >= 0.0 && (0.0..=1.0).contains(&b)) {
+                return Err(format!("--k1 {k1} --b {b}: k1 at least 0 and b from 0 to 1"));
+            }
+            Some(Lexical { model: Bm25 { k1, b }, terms, dump: o.take("--dump-terms").map(PathBuf::from) })
+        }
+        r => return Err(format!("--retrieval {r}: dense or bm25")),
+    };
     let repo = o.take("--repo").map_or(workspace, PathBuf::from);
     if sets.is_empty() {
         return Err("--sets names no set".into());
@@ -270,8 +301,13 @@ fn run_cmd(args: &[String]) -> Result<()> {
     if let Some(unknown) = o.0.keys().next() {
         return Err(format!("{unknown}: not an option here\n{USAGE}"));
     }
-    let mut pipeline =
-        Pipeline { analysis: Analysis { sentences, structure }, chunker, embedder: Box::new(embedder), titles };
+    let mut pipeline = Pipeline {
+        analysis: Analysis { sentences, structure },
+        chunker,
+        embedder: Box::new(embedder),
+        titles,
+        lexical,
+    };
     let written = run_sets(&mut pipeline, &sets, &cache, load_set, &out, &source)?;
     if turbo_eval::source::source(&repo)? != source {
         return Err("the working tree moved during the run; the records written name the commit it started at".into());
