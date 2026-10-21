@@ -65,7 +65,8 @@ pub(crate) fn pack(
         pieces.clear();
         sp.encode_ids(text, &mut scratch, &mut pieces);
         if pieces.is_empty() {
-            return Err("gliner empty token encoding".into());
+            // Preserve a position for nonempty text erased by normalization.
+            pieces.push(sp.unk_id());
         }
         // HF DebertaV2TokenizerFast disables SentencePiece byte fallback and
         // fuses adjacent unknown pieces. Preserve that checkpoint frontend.

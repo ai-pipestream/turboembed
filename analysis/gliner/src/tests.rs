@@ -136,3 +136,6 @@ fn decisions_reject_nonfinite_and_out_of_range_values() {
     }
     Decisions { logits: vec![-1000.0, 1000.0], threshold: 0.0 }.check().unwrap();
 }
+
+#[path = "boundary_tests.rs"]
+mod boundaries;

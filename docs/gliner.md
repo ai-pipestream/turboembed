@@ -21,7 +21,9 @@ Each label and input word is encoded independently as the reference's
 pretokenized input does. The pretrained SentencePiece vocabulary is used,
 with the HF fast-tokenizer behavior of joining byte-fallback runs into an
 unknown token. Reserved control-token strings in caller labels or words
-are rejected. Requests are not silently truncated.
+are rejected. A nonempty token erased by SentencePiece normalization receives
+one unknown piece, preserving its source token index. Requests are not silently
+truncated.
 
 A single native encoder call produces all label and document hidden states.
 The checkpoint's 768-to-512 projection is applied to first-subword and entity
@@ -47,7 +49,9 @@ instead of becoming apparently confident predictions.
 view identity, continuous token layout and UTF-8 slicing before inference.
 Entity offsets use the first source token's start and last token's end; they
 are not reconstructed from decoded subwords. Entity scores are sigmoid values;
-`Decisions` stores raw logits and the threshold.
+`Decisions` stores raw logits and the threshold. Empty or token-free documents
+produce empty outputs without inference; the direct packing API still requires
+at least one token. Annotator version 2 records these input-boundary semantics.
 
 After the outputs are added, `GlinerAnnotator::evidence` builds
 `Evidence<Entities>` for their keys. Its raw scores are logits, its producer

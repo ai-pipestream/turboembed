@@ -83,7 +83,7 @@ impl GlinerAnnotator {
 }
 impl Annotator for GlinerAnnotator {
     const ID: &'static str = "turbo:gliner";
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
     type Reads = (View, Tokens);
     type Writes = (Entities, Decisions);
     fn model(&self) -> Option<ModelRef> {
@@ -107,6 +107,17 @@ impl Annotator for GlinerAnnotator {
             return Err(fail("gliner needs contiguous tokens in its input view".into()));
         }
         let (starts, ends) = tokens.spans.columns();
+        let mut entities = Entities {
+            spans: Spans::new(view.id()),
+            tokens: Vec::new(),
+            kind: Vec::new(),
+            kinds: self.kinds.clone(),
+            score: Vec::new(),
+        };
+        let mut decisions = Decisions { logits: Vec::new(), threshold: self.schema.threshold() };
+        if starts.is_empty() {
+            return Ok((entities, decisions));
+        }
         if starts.len() > crate::schema::MAX_TOKENS {
             return Err(fail("max_tokens limit exceeded".into()));
         }
@@ -118,14 +129,6 @@ impl Annotator for GlinerAnnotator {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let candidates = self.model.predict(&words, &self.schema).map_err(fail)?;
-        let mut entities = Entities {
-            spans: Spans::new(view.id()),
-            tokens: Vec::new(),
-            kind: Vec::new(),
-            kinds: self.kinds.clone(),
-            score: Vec::new(),
-        };
-        let mut decisions = Decisions { logits: Vec::new(), threshold: self.schema.threshold() };
         for c in candidates {
             entities.spans.push(Span::new(starts[c.start], ends[c.end - 1]));
             entities.tokens.push(IxRange::new(c.start as u32, c.end as u32));
