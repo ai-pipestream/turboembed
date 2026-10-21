@@ -337,14 +337,14 @@ constexpr uint32_t LOG_DEBUG = 3;
 enum Kernel {
     EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16,
     NARROW_F16, ATTENTION_H, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
-    GEMM_SMALL_H = GEMM_H128 + 4, KERNELS = GEMM_SMALL_H + 4
+    GEMM_SMALL_H = GEMM_H128 + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
     "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
     "pool",             "pool_ranges",     "widen_f16",       "widen_bf16",      "narrow_f16",      "attention_h",
     "gemm_h32_ff",      "gemm_h32_fh",     "gemm_h32_hf",     "gemm_h32_hh",     "gemm_h64_ff",     "gemm_h64_fh",
     "gemm_h64_hf",      "gemm_h64_hh",     "gemm_h128_ff",    "gemm_h128_fh",    "gemm_h128_hf",    "gemm_h128_hh",
-    "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh"};
+    "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16"};
 
 /* The kernels compiled for one device. */
 struct Kernels {
@@ -1070,7 +1070,28 @@ struct Session {
     Linear linear = LINEAR_F32;
     /* Whether TURBO_METAL_CHOICES named the linear layers' kernels. */
     bool forced = false;
+    /* For the tests (turbo_metal_track_peaks): a shared buffer of
+     * PEAK_SLOTS uints, the largest magnitude of each F16 tensor a run
+     * stores, as F32 bits; nil unless tracking was on when it was made. */
+    id<MTLBuffer> peaks = nil;
 };
+
+/* The F16 tensors a FASTEST run stores between kernels, as
+ * turbo_metal_peaks orders them: Q, K, V, the attention context, GELU's
+ * output and the residual stream's F16 copy. */
+constexpr int PEAK_SLOTS = 6;
+
+/* Whether new sessions track their peaks, and the last tracked run's,
+ * for the tests. */
+struct TestPeaks {
+    std::mutex lock;
+    bool on = false;
+    float last[PEAK_SLOTS] = {};
+};
+TestPeaks &test_peaks() {
+    static TestPeaks &t = *new TestPeaks;
+    return t;
+}
 
 /* TURBO_METAL_CHOICES, read when a session is made: items separated by
  * ';', "linear=<f32|h32|h64|h128>" forcing the linear layers' kernels into
@@ -1222,6 +1243,11 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         s->rows = new_buffer(c->device, 4 * ints + pairs + block_pairs + triples, MTLResourceStorageModeShared);
         s->scratch = new_buffer(c->device, 6 * wide + ffn + xh, MTLResourceStorageModePrivate);
         s->queue = [c->device newCommandQueue];
+        {
+            TestPeaks &tp = test_peaks();
+            std::lock_guard<std::mutex> g(tp.lock);
+            if (tp.on) s->peaks = new_buffer(c->device, PEAK_SLOTS * sizeof(uint32_t), MTLResourceStorageModeShared);
+        }
         // The row path and the range path write their vectors to this one
         // buffer, so it holds the larger of the two counts. max_ranges is
         // at most max_batch * max_seq, so this is no more than the scratch
@@ -1494,6 +1520,16 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     [enc setBuffer:sc offset:f16 ? s.xh : s.x atIndex:10];
     per_token();
 
+    // For the tests: each F16 tensor's largest magnitude, into its slot.
+    auto peak = [&](uint64_t at, uint32_t width, int slot) {
+        if (!s.peaks) return;
+        const uint32_t n = tokens * width;
+        [enc setComputePipelineState:kn.k[ABS_MAX_F16]];
+        [enc setBuffer:sc offset:at atIndex:0];
+        [enc setBytes:&n length:sizeof n atIndex:1];
+        [enc setBuffer:s.peaks offset:slot * sizeof(uint32_t) atIndex:2];
+        [enc dispatchThreads:MTLSizeMake(n, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+    };
     const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd)};
     for (uint32_t l = 0; l < d.layers; l++) {
         gemm(f16 ? s.xh : s.x, h, h, EPILOGUE_BIAS,
@@ -1502,6 +1538,12 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
              {&layer(l, TURBO_BERT_Q_BIAS), &layer(l, TURBO_BERT_K_BIAS), &layer(l, TURBO_BERT_V_BIAS)}, f16,
              f16_att);
 
+        if (f16) peak(s.xh, h, 5);
+        if (f16_att) {
+            peak(s.q, h, 0);
+            peak(s.k, h, 1);
+            peak(s.v, h, 2);
+        }
         const bool wide = wide_heads(hd);
         [enc setComputePipelineState:kn.k[f16_att ? ATTENTION_H : wide ? ATTENTION : ATTENTION_NARROW]];
         [enc setBuffer:sc offset:s.q atIndex:0];
@@ -1515,12 +1557,17 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd) : attention_bytes(hd, s.longest) atIndex:0];
         [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1) threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32, 1, 1)];
 
+        if (f16_att) peak(s.att, h, 3);
         uint32_t splits =
             gemm(s.att, h, h, EPILOGUE_NONE, {{weight(l, TURBO_BERT_ATTN_OUT_WEIGHT), s.tmp}}, {}, f16_att);
         add_ln(s.tmp, splits, layer(l, TURBO_BERT_ATTN_OUT_BIAS), layer(l, TURBO_BERT_ATTN_LN_WEIGHT),
                layer(l, TURBO_BERT_ATTN_LN_BIAS));
         gemm(f16 ? s.xh : s.x, h, inter, EPILOGUE_BIAS_GELU, {{weight(l, TURBO_BERT_FFN_IN_WEIGHT), s.ffn}},
              {&layer(l, TURBO_BERT_FFN_IN_BIAS)}, f16, f16);
+        if (f16) {
+            peak(s.xh, h, 5);
+            peak(s.ffn, inter, 4);
+        }
         splits = gemm(s.ffn, inter, h, EPILOGUE_NONE, {{weight(l, TURBO_BERT_FFN_OUT_WEIGHT), s.tmp}}, {}, f16);
         add_ln(s.tmp, splits, layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                layer(l, TURBO_BERT_FFN_LN_BIAS));
@@ -1558,9 +1605,15 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
         {
             id<MTLCommandBuffer> cb = [s.queue commandBufferWithUnretainedReferences];
             id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+            if (s.peaks) memset(s.peaks.contents, 0, PEAK_SLOTS * sizeof(uint32_t));
             encode(s, enc);
             [enc endEncoding];
             TRY(finish(cb, err, "the run"));
+        }
+        if (s.peaks) {
+            TestPeaks &tp = test_peaks();
+            std::lock_guard<std::mutex> g(tp.lock);
+            memcpy(tp.last, s.peaks.contents, sizeof tp.last);
         }
         out->placement = TURBO_PLACE_SHARED;
         out->output = &s.output;
@@ -1795,6 +1848,27 @@ const turbo_backend turbo_metal_backend = {
 void turbo_metal_allocations(uint64_t *host, uint64_t *device) {
     *host = host_total.load(std::memory_order_relaxed);
     *device = device_total.load(std::memory_order_relaxed);
+}
+
+/* For the tests: whether sessions made after this track the largest
+ * magnitude of each F16 tensor their runs store, and the last tracked
+ * run's, PEAK_SLOTS floats in the order PEAK_SLOTS says. */
+void turbo_metal_track_peaks(int on) {
+    try {
+        TestPeaks &t = test_peaks();
+        std::lock_guard<std::mutex> g(t.lock);
+        t.on = on != 0;
+    } catch (...) {
+    }
+}
+
+void turbo_metal_peaks(float *out) {
+    try {
+        TestPeaks &t = test_peaks();
+        std::lock_guard<std::mutex> g(t.lock);
+        memcpy(out, t.last, sizeof t.last);
+    } catch (...) {
+    }
 }
 
 /* A choices line read in place of TURBO_METAL_CHOICES by the sessions

@@ -184,3 +184,58 @@ fn a_weight_past_f16_s_range_refuses_fastest() {
     let v = exact.embed(&TEXTS, None).unwrap();
     assert!(v.iter().flatten().all(|x| x.is_finite()), "EXACT's vectors are finite");
 }
+
+/// F16's largest finite value: a FASTEST tensor that reaches it would be
+/// infinite.
+const F16_MAX: f32 = 65504.0;
+
+/// A real bundle at FASTEST at its longest rows, 8 of up to max_seq
+/// tokens (text, rows that end early, and ids spread over the
+/// vocabulary), against the CPU at EXACT: every row's cosine reaches
+/// FASTEST's floor, and the largest magnitude of each tensor FASTEST stores
+/// in F16 stays inside F16's range. Prints both, for docs/metal.md.
+#[test]
+#[ignore = "needs a real bundle directory in TURBO_TEST_BUNDLE"]
+fn a_real_bundle_at_its_longest_rows_stays_inside_f16() {
+    let _t = turn();
+    let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
+    let Some(_) = metal_device("a_real_bundle_at_its_longest_rows_stays_inside_f16") else { return };
+    let (g, c) = (on_metal(&dir), Loaded::load(&dir).unwrap());
+    let seq = Session::create(g.m, None).unwrap().info().max_seq as usize;
+    let tok = Tok::create(&dir).unwrap();
+    let vocab = tok.info().vocab_size as usize;
+    let text = tok.row(&[long_text(), long_text().to_uppercase(), long_text()].join(" 1234567890 "), None).unwrap();
+    assert!(text.len() >= seq, "{} tokens of text for rows of {seq}", text.len());
+    let mut rows: Vec<Vec<i32>> =
+        [seq, seq, seq - 1, seq * 3 / 4, seq / 2, 9].iter().map(|&n| text[..n].to_vec()).collect();
+    rows.extend((0..2).map(|r| (0..seq).map(|p| (1000 + (r * 131 + p * 17) % (vocab - 1000)) as i32).collect()));
+    let t = Tokens::new(&rows, 0);
+    let desc = |p| session_desc(rows.len() as u32, seq as u32, p);
+    turbo::metal::track_peaks(true);
+    let fastest = Session::create(g.m, Some(&desc(TURBO_PRECISION_FASTEST)));
+    turbo::metal::track_peaks(false);
+    let fastest = fastest.unwrap();
+    assert_eq!(fastest.info().compute_dtype, TURBO_DTYPE_F16);
+    fastest.write_tokens(&t.batch(), None).unwrap();
+    let got = fastest.run().unwrap().rows();
+    let peaks = turbo::metal::peaks();
+    let cpu = Session::create(c.m, Some(&desc(TURBO_PRECISION_EXACT))).unwrap();
+    cpu.write_tokens(&t.batch(), None).unwrap();
+    let want = cpu.run().unwrap().rows();
+    let mut lowest = 1f64;
+    for (r, (a, b)) in got.iter().zip(&want).enumerate() {
+        let cos = cosine(a, b);
+        lowest = lowest.min(cos);
+        assert!(cos >= FASTEST_FLOOR, "row {r}: cosine {cos} with the cpu");
+    }
+    println!(
+        "{}: {} rows of up to {seq} tokens, 1 - lowest cosine with the cpu {:.3e}",
+        dir.display(),
+        rows.len(),
+        1.0 - lowest
+    );
+    for (name, peak) in turbo::metal::PEAK_NAMES.iter().zip(peaks) {
+        println!("  {name}: largest magnitude {peak:.1}, {:.1}% of F16's range", 100.0 * peak / F16_MAX);
+        assert!(peak > 0.0 && peak < F16_MAX, "{name}: largest magnitude {peak}");
+    }
+}
