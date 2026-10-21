@@ -214,6 +214,9 @@ impl Dec {
         }
         // Mantissas have at most MAX_DIGITS (36) digits, so ten times a
         // remainder is below 10^37 and stays well inside i128::MAX (~1.7e38).
+        // A quotient of more than PRECISION digits needs a_m >= 10^34 * b_m
+        // with a_m < 10^36, so b_m < 100 there and the single-step rounding
+        // below cannot overflow either.
         let negative = self.is_negative() != other.is_negative();
         let (a_m, b_m) = (self.mantissa.abs(), other.mantissa.abs());
         let mut q = a_m / b_m;
