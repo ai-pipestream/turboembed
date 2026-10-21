@@ -1,6 +1,8 @@
 //! A retrieval pipeline over one evaluation set: analyze each document,
 //! chunk it, embed each chunk once, embed each query the same way
-//! without chunking, and rank by exact cosine (`retrieve`). The run is
+//! without chunking, and rank by exact cosine (`retrieve`); or, for a
+//! lexical pipeline, rank the chunks by BM25 over their terms (`lexical`)
+//! and embed nothing. The run is
 //! scored with `metrics` and `spans`, and the cost of each stage is
 //! measured as it runs.
 
@@ -12,6 +14,7 @@ use crate::analysis::Analysis;
 use crate::chunkers::Chunker;
 use crate::cost::{Cost, Distribution, StageTimes};
 use crate::embedder::{Counted, Embedder, Role};
+use crate::lexical::{Lexical, Search};
 use crate::metrics::{Run, evaluate};
 use crate::record::{self, EVAL_RECORD_VERSION, EvalRecord, Metrics, Provenance, SetId};
 use crate::retrieve::Index;
@@ -37,6 +40,8 @@ pub struct Pipeline {
     pub chunker: Box<dyn Chunker>,
     pub embedder: Box<dyn Embedder>,
     pub titles: Titles,
+    /// BM25 over the chunks' terms instead of the embedder's vectors.
+    pub lexical: Option<Lexical>,
 }
 
 /// What a pipeline did on a set.
@@ -71,6 +76,7 @@ impl Pipeline {
         record::Pipeline {
             analyzer,
             chunker: record::Chunker { name: self.chunker.name().into(), config: self.chunker.config() },
+            retrieval: self.lexical.as_ref().map(|l| record::Chunker { name: "bm25".into(), config: l.config() }),
         }
     }
 
@@ -114,6 +120,11 @@ impl Pipeline {
             return Err(format!("set {}: the chunker made no chunks", set.name));
         }
 
+        // Bookkeeping for the record, outside every timed stage.
+        let ids: Vec<String> = set.docs.iter().map(|d| d.id.clone()).collect();
+        let chunk_bytes: Vec<u64> = spans.iter().map(|s| (s.end - s.start) as u64).collect();
+        let count = spans.len() as u64;
+
         let t = Instant::now();
         let texts: Vec<String> = doc_of
             .iter()
@@ -128,22 +139,19 @@ impl Pipeline {
             })
             .collect();
         let chunk_tokens: Vec<u64> = texts.iter().map(|t| embedder.count(t, Role::Document)).collect();
-        let dim = embedder.dim();
-        let vectors = embed_all(embedder, &texts, Role::Document)?;
-        drop(texts);
-        let queries: Vec<&str> = set.queries.iter().map(|q| q.text.as_str()).collect();
-        let query_vectors = embed_all(embedder, &queries, Role::Query)?;
-        let embedding_ms = ms(t);
-
-        let t = Instant::now();
-        let ids: Vec<String> = set.docs.iter().map(|d| d.id.clone()).collect();
-        let chunk_bytes: Vec<u64> = spans.iter().map(|s| (s.end - s.start) as u64).collect();
-        let count = spans.len() as u64;
-        let index = Index { dim, vectors, doc: doc_of, span: spans, docs: &ids };
-        let names: Vec<&str> = set.queries.iter().map(|q| q.id.as_str()).collect();
-        let (run, chunks) = index.search(&names, &query_vectors)?;
-        let retrieval_ms = ms(t);
-
+        let (run, chunks, embedding_ms, retrieval_ms) = if let Some(lexical) = &self.lexical {
+            // Nothing is embedded: the index and the search are retrieval.
+            let t = Instant::now();
+            let index = lexical.index(&texts, &doc_of)?;
+            let queries: Vec<(&str, &str)> = set.queries.iter().map(|q| (q.id.as_str(), q.text.as_str())).collect();
+            lexical.dump(&set.name, &ids, &texts, &doc_of, &queries)?;
+            drop(texts);
+            let search = Search { index: &index, doc: &doc_of, span: &spans, docs: &ids };
+            let (run, chunks) = lexical.search(&search, &queries)?;
+            (run, chunks, 0.0, ms(t))
+        } else {
+            dense(set, embedder, texts, doc_of, spans, &ids, t)?
+        };
         let doc_scores = evaluate(&run, &set.qrels)?;
         let span_scores = set.spans.as_ref().map(|r| evaluate_spans(&chunks, r)).transpose()?;
         let metrics = Metrics::new(&doc_scores, span_scores.as_ref())?;
@@ -181,6 +189,34 @@ impl Pipeline {
     }
 }
 
+/// The dense ranking: every chunk and query embedded, ranked by exact
+/// cosine. Returns the runs and the embedding and retrieval times;
+/// `t` started before the chunk texts were made.
+#[allow(clippy::too_many_arguments)]
+fn dense(
+    set: &LoadedSet,
+    embedder: &mut Counted<'_>,
+    texts: Vec<String>,
+    doc_of: Vec<u32>,
+    spans: Vec<crate::spans::Span>,
+    ids: &[String],
+    t: Instant,
+) -> Result<(Run, ChunkRun, f64, f64)> {
+    let dim = embedder.dim();
+    let vectors = embed_all(embedder, &texts, Role::Document)?;
+    drop(texts);
+    let queries: Vec<&str> = set.queries.iter().map(|q| q.text.as_str()).collect();
+    let query_vectors = embed_all(embedder, &queries, Role::Query)?;
+    let embedding_ms = ms(t);
+
+    let t = Instant::now();
+    let index = Index { dim, vectors, doc: doc_of, span: spans, docs: ids };
+    let names: Vec<&str> = set.queries.iter().map(|q| q.id.as_str()).collect();
+    let (run, chunks) = index.search(&names, &query_vectors)?;
+    let retrieval_ms = ms(t);
+    Ok((run, chunks, embedding_ms, retrieval_ms))
+}
+
 /// Every text's vector, in order, embedded `EMBED_BATCH` at a time.
 fn embed_all<S: AsRef<str>>(embedder: &mut dyn Embedder, texts: &[S], role: Role) -> Result<Vec<f32>> {
     let dim = embedder.dim();
@@ -195,7 +231,7 @@ fn embed_all<S: AsRef<str>>(embedder: &mut dyn Embedder, texts: &[S], role: Role
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::path::Path;
 
     use super::*;
@@ -257,6 +293,7 @@ mod tests {
             chunker,
             embedder: Box::new(Stub::new(&VOCAB)),
             titles,
+            lexical: None,
         }
     }
 
