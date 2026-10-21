@@ -198,7 +198,7 @@ frameworks and libc++, which every macOS has.
   base 2 on the precise `exp2`, and the softmax, its running max and sum,
   and every sum are F32. The residual stream itself, LayerNorm and pooling
   are F32 as at EXACT. Cosine must reach 0.999, FASTEST's floor on every
-  backend; all-MiniLM-L6-v2's reference cases reach 1 - 3.9e-7.
+  backend; all-MiniLM-L6-v2's reference cases reach 1 - 4.5e-7.
 - **What a result reports.** Stages: tokenize on the host for text,
   no upload (the rows were copied into the session's shared memory by
   the write, as on the CPU), lookup, encode and pool on the device,
@@ -262,6 +262,37 @@ counts the timed runs alone; past it, what is left is not timed. A
 measured session reports `measured` and logs at INFO `metal device <n>:
 linear layers chosen in <ms> ms: <choice> (<bin>, a run: h64 <ms> ms,
 h32 <ms> ms, h128 <ms> ms)`.
+
+## Speed on the M2
+
+all-minilm-l6-v2 (bundle manifest 3c305237), release builds,
+`turbo-bench record --device metal --warmup 5 --iterations 50` for
+turbo and `bench/metal-peers/mlx_bench.py` (MLX 0.29.3, the same encoder
+written on MLX, `mx.compile`d, 5 untimed then 50 timed runs) for MLX.
+Five rounds, each running every cell once in turn: this backend at
+FASTEST (F16) and EXACT, the backend before FASTEST computed in F16 (F32
+at FASTEST, built from the same main with the macOS build fix), MLX in
+float16 and float32. The machine was in use, not idle (load averages from
+41 down to 5 over the rounds), so the table gives the median of the five
+p50s and, after the slash, the least p50, in ms. MLX runs dense rows
+only; it computes a padded batch, so mixed rows would time its padding.
+
+| Rows | FASTEST, F16 | FASTEST before, F32 | EXACT | MLX float16 | MLX float32 |
+|---|---|---|---|---|---|
+| 32 x 256 dense | 109.2 / 109.1 | 147.1 / 139.9 | 180.2 / 140.1 | 121.5 / 100.9 | 183.3 / 145.4 |
+| 32 x 256 mixed | 22.5 / 19.6 | 26.6 / 23.9 | 26.8 / 24.1 | | |
+| 8 x 128 dense | 13.9 / 13.5 | 17.9 / 17.0 | 17.7 / 17.0 | 11.8 / 11.6 | 16.5 / 15.7 |
+| 1 x 128 dense | 2.78 / 2.74 | 3.21 / 3.04 | 3.18 / 3.15 | 2.48 / 2.45 | 2.85 / 2.81 |
+
+At 32 x 256, FASTEST in F16 is 1.28x the F32 path by the least p50 and
+1.35x by the median, and 0.93x MLX float16's best p50; MLX float16 is
+faster at 8 and 1 rows. F16 halves the bytes the linear layers and
+attention move and stage, but the M2's GPU does F16 and F32 multiply-adds
+at one rate, so the gain is the memory traffic, not the arithmetic. On
+those 32 x 256 rows the encoder's linear layers take about 78 ms and
+attention about 27 ms; MLX's own matrix products for the same four
+shapes take about 59 to 72 ms on the same machine. Vectors at FASTEST
+reach 1 - 4.5e-7 cosine against the bundle's reference.
 
 ## Testing
 

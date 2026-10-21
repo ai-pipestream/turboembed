@@ -14,7 +14,6 @@ mod common;
 mod metal_support;
 
 use std::ffi::{CStr, c_char};
-use std::ptr;
 
 use common::*;
 use metal_support::*;
