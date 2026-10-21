@@ -197,13 +197,6 @@ fn more_tokens_than_attention_holds_are_refused_by_field() {
     Session::create(l.m, Some(&session_desc(1, 512, 0))).unwrap();
 }
 
-/// TURBO_TEST_BUNDLE, a relative path read from the workspace root, as
-/// tests/conformance.rs reads it.
-fn named_bundle() -> Option<std::path::PathBuf> {
-    let p = std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE")?);
-    Some(if p.is_absolute() { p } else { std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p) })
-}
-
 /// One run at the session's largest shape, max_batch rows of max_seq
 /// tokens, on the device and on the CPU: every row's cosine reaches
 /// 0.9999. Rows are full or end early, so the padding is exercised too.

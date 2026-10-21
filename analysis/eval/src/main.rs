@@ -14,6 +14,7 @@ use turbo_eval::analysis::{Analysis, Sentencer};
 use turbo_eval::chunkers::{Chunker, FixedTokens, Semantic, SentenceWindows, Signals, TurboChunker, WholeDocument};
 use turbo_eval::embedder::{Embedder, Role, TurboEmbedder};
 use turbo_eval::fetch::{cache_root, fetch};
+use turbo_eval::hybrid::{Fusion, Hybrid};
 use turbo_eval::lexical::{Lexical, TermRule};
 use turbo_eval::pipeline::{Pipeline, Titles};
 use turbo_eval::run::{gate_dirs, run_sets};
@@ -51,13 +52,21 @@ run options:
   --structure <s>         plain, markdown or none (default plain)
   --titles <t>            ignore, or prefix each chunk with the document's
                           title (default ignore)
-  --retrieval <r>         dense (the embedder's vectors, by cosine) or
-                          bm25 (the chunks' terms; nothing is embedded)
+  --retrieval <r>         dense (the embedder's vectors, by cosine),
+                          bm25 (the chunks' terms; nothing is embedded) or
+                          hybrid (BM25 and exact cosine fused over chunks)
                           (default dense)
   --k1 <f>, --b <f>       BM25's parameters (default 1.2 and 0.75, Lucene's)
   --terms <t>             BM25's terms: folded (lowercased word tokens) or
                           english (also Lucene's English stop words,
                           possessive and Porter stemmer) (default folded)
+  --fusion <f>            with hybrid: weighted (min-max normalized BM25 +
+                          exact cosine) or rrf (reciprocal rank fusion)
+                          (default weighted)
+  --bm25-weight <f>       with hybrid: BM25 weight in (0, 1) (default 0.35
+                          for weighted, 0.5 for rrf)
+  --rrf-k <n>             with --fusion rrf: reciprocal rank constant k >= 1
+                          (default 60)
   --dump-terms <dir>      with bm25, also write each set's chunk and query
                           terms there, for a reference BM25
   --repo <dir>            the clean, pushed working tree this tool was
@@ -178,6 +187,20 @@ fn device(s: &str) -> Device {
     }
 }
 
+fn bm25_opts(o: &mut Opts) -> Result<(Bm25, TermRule)> {
+    let terms = match o.take("--terms").as_deref().unwrap_or("folded") {
+        "folded" => TermRule::Folded,
+        "english" => TermRule::English,
+        t => return Err(format!("--terms {t}: folded or english")),
+    };
+    let k1: f64 = o.parsed("--k1")?.unwrap_or(Bm25::LUCENE.k1);
+    let b: f64 = o.parsed("--b")?.unwrap_or(Bm25::LUCENE.b);
+    if !(k1.is_finite() && k1 >= 0.0 && (0.0..=1.0).contains(&b)) {
+        return Err(format!("--k1 {k1} --b {b}: k1 at least 0 and b from 0 to 1"));
+    }
+    Ok((Bm25 { k1, b }, terms))
+}
+
 /// The chunker the options name, its overhead taken from the embedder.
 fn chunker(o: &mut Opts, embedder: &dyn Embedder) -> Result<Box<dyn Chunker>> {
     let name = o.need("--chunker")?;
@@ -272,22 +295,30 @@ fn run_cmd(args: &[String]) -> Result<()> {
         "prefix" => Titles::Prefix,
         t => return Err(format!("--titles {t}: ignore or prefix")),
     };
-    let lexical = match o.take("--retrieval").as_deref().unwrap_or("dense") {
-        "dense" => None,
+    let (lexical, hybrid) = match o.take("--retrieval").as_deref().unwrap_or("dense") {
+        "dense" => (None, None),
         "bm25" => {
-            let terms = match o.take("--terms").as_deref().unwrap_or("folded") {
-                "folded" => TermRule::Folded,
-                "english" => TermRule::English,
-                t => return Err(format!("--terms {t}: folded or english")),
-            };
-            let k1: f64 = o.parsed("--k1")?.unwrap_or(Bm25::LUCENE.k1);
-            let b: f64 = o.parsed("--b")?.unwrap_or(Bm25::LUCENE.b);
-            if !(k1.is_finite() && k1 >= 0.0 && (0.0..=1.0).contains(&b)) {
-                return Err(format!("--k1 {k1} --b {b}: k1 at least 0 and b from 0 to 1"));
-            }
-            Some(Lexical { model: Bm25 { k1, b }, terms, dump: o.take("--dump-terms").map(PathBuf::from) })
+            let (model, terms) = bm25_opts(&mut o)?;
+            (Some(Lexical { model, terms, dump: o.take("--dump-terms").map(PathBuf::from) }), None)
         }
-        r => return Err(format!("--retrieval {r}: dense or bm25")),
+        "hybrid" => {
+            let (model, terms) = bm25_opts(&mut o)?;
+            let fusion = match o.take("--fusion").as_deref().unwrap_or("weighted") {
+                "weighted" => {
+                    let bm25_weight: f64 = o.parsed("--bm25-weight")?.unwrap_or(0.35);
+                    Fusion::Weighted { bm25_weight }
+                }
+                "rrf" => {
+                    let k: u32 = o.parsed("--rrf-k")?.unwrap_or(60);
+                    let bm25_weight: f64 = o.parsed("--bm25-weight")?.unwrap_or(0.5);
+                    Fusion::Rrf { k, bm25_weight }
+                }
+                f => return Err(format!("--fusion {f}: weighted or rrf")),
+            };
+            fusion.check()?;
+            (None, Some(Hybrid { model, terms, fusion }))
+        }
+        r => return Err(format!("--retrieval {r}: dense, bm25 or hybrid")),
     };
     let repo = o.take("--repo").map_or(workspace, PathBuf::from);
     if sets.is_empty() {
@@ -307,6 +338,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
         embedder: Box::new(embedder),
         titles,
         lexical,
+        hybrid,
     };
     let written = run_sets(&mut pipeline, &sets, &cache, load_set, &out, &source)?;
     if turbo_eval::source::source(&repo)? != source {
