@@ -213,7 +213,7 @@ frameworks and libc++, which every macOS has.
   residual stream's copy): under 0.2% of F16's range. all-MiniLM-L6-v2
   at 256 tokens stays under 31. The test that measures them,
   `a_real_bundle_at_its_longest_rows_stays_inside_f16`, fails a model
-  whose tensors come within F16's range of overflowing.
+  whose largest stored magnitude reaches 65504.
 - **What a result reports.** Stages: tokenize on the host for text,
   no upload (the rows were copied into the session's shared memory by
   the write, as on the CPU), lookup, encode and pool on the device,
