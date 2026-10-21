@@ -128,7 +128,8 @@ pub struct Heads {
     gru_hh: Linear,
     in_projector: Linear,
     layers: Vec<Layer>,
-    out_projector: Mlp,
+    /// Packed, so all of a relation's queries go through it at once.
+    out_projector: [Packed; 3],
     /// The span start and end projections, packed for many rows.
     start: [Packed; 2],
     end: [Packed; 2],
@@ -137,6 +138,9 @@ pub struct Heads {
     first_end: Packed,
     first_bias: Vec<f32>,
     last: Linear,
+    /// `last` folded into queries: its weights as a layer from the model
+    /// width to the span hidden width, without bias.
+    fold: Packed,
 }
 
 fn linear(f: &File, name: &str) -> Result<Linear, String> {
@@ -160,13 +164,31 @@ fn norm(f: &File, name: &str) -> Result<Norm, String> {
     Ok(Norm { weight: w, bias: b })
 }
 
-/// Splits a `[out, 2 * half]` layer into its two `[out, half]` column
-/// blocks, without bias.
+/// `last` as the layer that folds a query into it: `[in][out]` read as
+/// `[out][in]`, from `out_dim` to `in_dim`, packed.
+fn fold(last: &Linear) -> Result<Packed, String> {
+    let zero = vec![0.0; last.in_dim];
+    let l = Linear::new(last.out_dim, last.in_dim, transpose(last), zero).map_err(|e| e.message)?;
+    Ok(Packed::new(&l))
+}
+
+fn transpose(l: &Linear) -> Vec<f32> {
+    let mut t = vec![0.0; l.weight.len()];
+    for (o, row) in l.weight.chunks_exact(l.in_dim).enumerate() {
+        for (i, &v) in row.iter().enumerate() {
+            t[i * l.out_dim + o] = v;
+        }
+    }
+    t
+}
+
 /// A two-layer MLP's layers, packed.
 fn packed(m: &Mlp) -> [Packed; 2] {
     [Packed::new(&m.0[0]), Packed::new(&m.0[1])]
 }
 
+/// Splits a `[out, 2 * half]` layer into its two `[out, half]` column
+/// blocks, without bias.
 fn columns(l: &Linear) -> Result<(Linear, Linear), String> {
     let half = l.in_dim / 2;
     let mut a = Vec::with_capacity(l.out_dim * half);
@@ -207,6 +229,7 @@ impl Heads {
                 })
             })
             .collect::<Result<Vec<_>, String>>()?;
+        let last = linear(f, &format!("{span}.out_project.3"))?;
         let heads = Heads {
             width,
             max_width,
@@ -216,13 +239,20 @@ impl Heads {
             gru_hh: gru(f, "hh")?,
             in_projector: linear(f, &format!("{t}.in_projector"))?,
             layers,
-            out_projector: mlp(f, &format!("{t}.out_projector"), &[0, 2, 4])?,
+            out_projector: mlp(f, &format!("{t}.out_projector"), &[0, 2, 4])?
+                .0
+                .iter()
+                .map(Packed::new)
+                .collect::<Vec<_>>()
+                .try_into()
+                .map_err(|_| "out_projector: three layers".to_string())?,
             start: packed(&mlp(f, &format!("{span}.project_start"), &[0, 3])?),
             end: packed(&mlp(f, &format!("{span}.project_end"), &[0, 3])?),
             first_bias: first.bias.clone(),
             first_start: Packed::new(&first_start),
             first_end: Packed::new(&first_end),
-            last: linear(f, &format!("{span}.out_project.3"))?,
+            fold: fold(&last)?,
+            last,
         };
         heads.check(pos.shape[1] as usize)?;
         Ok(heads)
@@ -243,8 +273,8 @@ impl Heads {
                 .layers
                 .iter()
                 .all(|l| l.in_proj.in_dim == m && l.in_proj.out_dim == 3 * m && l.out_proj.out_dim == m)
-            && self.out_projector.0[0].in_dim == m + d
-            && self.out_projector.0.last().is_some_and(|l| l.out_dim == d)
+            && self.out_projector[0].in_dim == m + d
+            && self.out_projector[2].out_dim == d
             && self.start[0].in_dim == d
             && self.start[1].in_dim == self.start[0].out_dim
             && self.end[0].in_dim == d
@@ -297,6 +327,7 @@ impl Heads {
             }
         }
         let m = self.in_projector.out_dim;
+        let mut cats = Vec::with_capacity(2 * k * (m + d));
         for y in &steps {
             let mut x = vec![0.0; 2 * m];
             for f in 0..2 {
@@ -306,11 +337,20 @@ impl Heads {
                 l.apply(&mut x, 2);
             }
             for f in 0..2 {
-                let mut cat = x[f * m..(f + 1) * m].to_vec();
-                cat.extend_from_slice(&y[f * d..(f + 1) * d]);
-                out.extend(self.out_projector.apply(&cat));
+                cats.extend_from_slice(&x[f * m..(f + 1) * m]);
+                cats.extend_from_slice(&y[f * d..(f + 1) * d]);
             }
         }
+        // Every instance's two fields through the out-projector at once,
+        // so its weights are read once per relation.
+        let mut v = cats;
+        for (i, p) in self.out_projector.iter().enumerate() {
+            v = p.rows(&v, 2 * k);
+            if i + 1 < self.out_projector.len() {
+                v.iter_mut().for_each(|x| *x = x.max(0.0));
+            }
+        }
+        out.extend(v);
         out
     }
 
@@ -343,19 +383,25 @@ impl Heads {
     /// One query's logits over the spans, `[n][max_width]`, with spans
     /// past the last word at negative infinity.
     pub fn logits(&self, spans: &Spans, query: &[f32]) -> Vec<f32> {
-        let h = spans.hidden;
-        let mut folded = vec![0.0; h];
-        for (o, &q) in query.iter().enumerate() {
-            for (f, &w) in folded.iter_mut().zip(&self.last.weight[o * h..(o + 1) * h]) {
-                *f += q * w;
-            }
-        }
-        let bias: f32 = query.iter().zip(&self.last.bias).map(|(a, b)| a * b).sum();
-        let mut out = vec![f32::NEG_INFINITY; spans.n * spans.width];
+        self.logits_all(spans, query)
+    }
+
+    /// [`Heads::logits`] for each query of `queries` (`[q][D]`), one after
+    /// another: the last span layer folds into all queries in one pass
+    /// over its weights, and each span row is read once for all of them.
+    pub fn logits_all(&self, spans: &Spans, queries: &[f32]) -> Vec<f32> {
+        let (h, d) = (spans.hidden, self.width);
+        let q = queries.len() / d;
+        let folded = self.fold.rows(queries, q);
+        let bias: Vec<f32> = queries.chunks_exact(d).map(|x| dot(x, &self.last.bias)).collect();
+        let size = spans.n * spans.width;
+        let mut out = vec![f32::NEG_INFINITY; q * size];
         for i in 0..spans.n {
             for k in 0..spans.width.min(spans.n - i) {
                 let row = &spans.rows[(i * spans.width + k) * h..][..h];
-                out[i * spans.width + k] = dot(row, &folded) + bias;
+                for (j, (f, &b)) in folded.chunks_exact(h).zip(&bias).enumerate() {
+                    out[j * size + i * spans.width + k] = dot(row, f) + b;
+                }
             }
         }
         out

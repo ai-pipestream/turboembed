@@ -73,41 +73,70 @@ pub(super) fn apply(l: &Linear, x: &[f32], out: &mut [f32]) {
 pub(super) struct Packed {
     pub in_dim: usize,
     pub out_dim: usize,
+    /// The transposed weights in panels of `panel` outputs, each panel
+    /// `[in][panel]` contiguous, so a tile streams its weights in order.
     wt: Vec<f32>,
+    panel: usize,
     bias: Vec<f32>,
 }
 
 /// Outputs per tile and rows per block of [`Packed::rows`].
 const TILE: usize = 32;
 const ROWS: usize = 8;
+/// Rows per block of the AVX2 kernel.
+const AVX2_ROWS: usize = 6;
 
 impl Packed {
     pub fn new(l: &Linear) -> Packed {
+        let panel = if l.out_dim.is_multiple_of(TILE) { TILE } else { l.out_dim };
         let mut wt = vec![0.0; l.in_dim * l.out_dim];
         for (o, w) in l.weight.chunks_exact(l.in_dim).enumerate() {
             for (k, &v) in w.iter().enumerate() {
-                wt[k * l.out_dim + o] = v;
+                wt[o / panel * l.in_dim * panel + k * panel + o % panel] = v;
             }
         }
-        Packed { in_dim: l.in_dim, out_dim: l.out_dim, wt, bias: l.bias.clone() }
+        Packed { in_dim: l.in_dim, out_dim: l.out_dim, wt, panel, bias: l.bias.clone() }
+    }
+
+    /// Where input `k`'s weights for outputs from `o0` start in `wt`;
+    /// `o0` and the outputs read after it stay inside one panel.
+    #[inline(always)]
+    fn at(&self, k: usize, o0: usize) -> usize {
+        o0 / self.panel * self.in_dim * self.panel + k * self.panel + o0 % self.panel
     }
 
     /// The layer on each of the `n` rows of `x`, `[n][out]`.
     pub fn rows(&self, x: &[f32], n: usize) -> Vec<f32> {
-        let mut out = vec![0.0; n * self.out_dim];
         #[cfg(target_arch = "x86_64")]
         if std::is_x86_feature_detected!("avx512f") && std::is_x86_feature_detected!("fma") {
             // SAFETY: the processor has AVX-512F and FMA.
-            unsafe { self.rows_avx512(x, n, &mut out) };
-            return out;
+            return self.padded(x, n, ROWS, |p, x, n, out| unsafe { p.rows_avx512(x, n, out) });
         }
         #[cfg(target_arch = "x86_64")]
         if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
             // SAFETY: the processor has AVX2 and FMA.
-            unsafe { self.rows_avx2(x, n, &mut out) };
-            return out;
+            return self.padded(x, n, AVX2_ROWS, |p, x, n, out| unsafe { p.rows_avx2(x, n, out) });
         }
+        let mut out = vec![0.0; n * self.out_dim];
         self.rows_into(x, n, &mut out);
+        out
+    }
+
+    /// `kernel` on `x` padded with zero rows to a whole number of blocks of
+    /// `block` rows, so no row takes the portable loops; the padding's
+    /// outputs are dropped.
+    fn padded(&self, x: &[f32], n: usize, block: usize, kernel: impl Fn(&Self, &[f32], usize, &mut [f32])) -> Vec<f32> {
+        let (k, m) = (self.in_dim, self.out_dim);
+        let rows = n.div_ceil(block) * block;
+        let mut out = vec![0.0; rows * m];
+        if rows == n {
+            kernel(self, x, n, &mut out);
+        } else {
+            let mut xp = vec![0.0; rows * k];
+            xp[..n * k].copy_from_slice(&x[..n * k]);
+            kernel(self, &xp, rows, &mut out);
+            out.truncate(n * m);
+        }
         out
     }
 
@@ -135,7 +164,7 @@ impl Packed {
                 for i0 in (0..full).step_by(ROWS) {
                     let mut acc = [[b[0], b[1]]; ROWS];
                     for k in 0..kd {
-                        let w = self.wt.as_ptr().add(k * m + o0);
+                        let w = self.wt.as_ptr().add(self.at(k, o0));
                         let (w0, w1) = (_mm512_loadu_ps(w), _mm512_loadu_ps(w.add(16)));
                         for (r, a) in acc.iter_mut().enumerate() {
                             let xv = _mm512_set1_ps(*x.get_unchecked((i0 + r) * kd + k));
@@ -169,7 +198,7 @@ impl Packed {
     unsafe fn rows_avx2(&self, x: &[f32], n: usize, out: &mut [f32]) {
         use std::arch::x86_64::*;
         const T: usize = 16;
-        const R: usize = 6;
+        const R: usize = AVX2_ROWS;
         let (m, kd) = (self.out_dim, self.in_dim);
         if !m.is_multiple_of(T) {
             return self.rows_into(x, n, out);
@@ -183,7 +212,7 @@ impl Packed {
                 for i0 in (0..full).step_by(R) {
                     let mut acc = [[b[0], b[1]]; R];
                     for k in 0..kd {
-                        let w = self.wt.as_ptr().add(k * m + o0);
+                        let w = self.wt.as_ptr().add(self.at(k, o0));
                         let (w0, w1) = (_mm256_loadu_ps(w), _mm256_loadu_ps(w.add(8)));
                         for (r, a) in acc.iter_mut().enumerate() {
                             let xv = _mm256_set1_ps(*x.get_unchecked((i0 + r) * kd + k));
@@ -216,12 +245,11 @@ impl Packed {
             for i0 in (0..n).step_by(ROWS) {
                 let rows = ROWS.min(n - i0);
                 let mut acc = [[0.0f32; TILE]; ROWS];
-                for (r, a) in acc.iter_mut().enumerate().take(rows) {
-                    let _ = r;
+                for a in acc.iter_mut().take(rows) {
                     a[..width].copy_from_slice(&self.bias[o0..o0 + width]);
                 }
                 for k in 0..k_dim {
-                    let w = &self.wt[k * m + o0..k * m + o0 + width];
+                    let w = &self.wt[self.at(k, o0)..self.at(k, o0) + width];
                     for (r, a) in acc.iter_mut().enumerate().take(rows) {
                         let xv = x[(i0 + r) * k_dim + k];
                         for (acc, &wv) in a[..width].iter_mut().zip(w) {
@@ -251,7 +279,7 @@ mod tests {
             state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
             ((state >> 40) as f32 / (1u64 << 24) as f32) - 0.5
         };
-        for (inp, out_dim, n) in [(48, 64, 19), (40, 96, 8), (33, 32, 3), (16, 40, 11)] {
+        for (inp, out_dim, n) in [(48, 64, 19), (40, 96, 8), (33, 32, 3), (16, 40, 11), (24, 48, 7)] {
             let w: Vec<f32> = (0..inp * out_dim).map(|_| next()).collect();
             let b: Vec<f32> = (0..out_dim).map(|_| next()).collect();
             let l = Linear::new(inp, out_dim, w, b).unwrap();
@@ -260,20 +288,28 @@ mod tests {
             let fast = p.rows(&x, n);
             let mut slow = vec![0.0; n * out_dim];
             p.rows_into(&x, n, &mut slow);
-            let mut avx2 = slow.clone();
+            // Each kernel by itself, so a wrong AVX2 kernel fails here on a
+            // processor that dispatches to AVX-512.
+            let (mut avx512, mut avx2) = (slow.clone(), slow.clone());
+            #[cfg(target_arch = "x86_64")]
+            if std::is_x86_feature_detected!("avx512f") && std::is_x86_feature_detected!("fma") {
+                // SAFETY: the processor has AVX-512F and FMA.
+                avx512 = p.padded(&x, n, ROWS, |p, x, n, out| unsafe { p.rows_avx512(x, n, out) });
+            }
             #[cfg(target_arch = "x86_64")]
             if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
                 // SAFETY: the processor has AVX2 and FMA.
-                unsafe { p.rows_avx2(&x, n, &mut avx2) };
+                avx2 = p.padded(&x, n, AVX2_ROWS, |p, x, n, out| unsafe { p.rows_avx2(x, n, out) });
             }
             for i in 0..n {
                 let mut one = vec![0.0; out_dim];
                 apply(&l, &x[i * inp..(i + 1) * inp], &mut one);
-                for o in 0..out_dim {
-                    let (f, s, e) = (fast[i * out_dim + o], slow[i * out_dim + o], one[o]);
+                for (o, &want) in one.iter().enumerate() {
+                    let at = i * out_dim + o;
+                    let got = [fast[at], slow[at], avx512[at], avx2[at]];
                     assert!(
-                        (f - e).abs() < 1e-4 && (s - e).abs() < 1e-4,
-                        "{inp}x{out_dim} row {i} out {o}: {f} {s} {e}"
+                        got.iter().all(|g| (g - want).abs() < 1e-4),
+                        "{inp}x{out_dim} row {i} out {o}: dispatched, portable, AVX-512, AVX2 {got:?} against {want}"
                     );
                 }
             }

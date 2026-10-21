@@ -194,7 +194,7 @@ pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, Rel
         .map(|&[p, h, tl]| {
             let count = heads.count(row(p));
             let queries = heads.queries([row(h), row(tl)], count);
-            let logits = queries.chunks_exact(d).flat_map(|q| heads.logits(&spans, q)).collect();
+            let logits = heads.logits_all(&spans, &queries);
             LabelScores { count, logits }
         })
         .collect();

@@ -72,27 +72,35 @@ Python.
 
 ## Speed
 
-Single-threaded on the x86_64 timing machine (Zen 5, AVX-512), release,
-one pinned core. The reference is GLiNER2 on torch 2.14.1 CPU with one
-thread.
+Single-threaded, release, one pinned core. The reference is GLiNER2 on
+torch 2.14.1 CPU with one thread.
 
-The heads alone, measured the same way on both sides: the reference's
+The heads by themselves, measured the same way in both: the reference's
 `count_pred`, `count_embed` and the span head's `score_queries` timed
-around each call during `extract_relations`; ours the span projections,
-the count and query heads and the span logits on a stored encoder
-output. Best of 7 rounds of 5, three alternating rounds:
+around each call during `extract_relations`; the native span
+projections, count and query heads and span logits on a stored encoder
+output. Best of 7 rounds of 5, repeated three times in alternating
+order. Every row is from the timing machine (x86_64, Zen 5, AVX-512, a
+128 MB L3 cache):
 
-| per text | reference heads | native heads | ratio |
+| per text | reference heads | native, AVX-512 | native, AVX2 |
 |---|---|---|---|
-| the three parity texts (37 to 50 subwords) | 10.3 to 10.5 ms | 9.8 to 11.1 ms | 0.95 to 1.06 |
-| a 42-word text, 3 labels | 17.9 to 18.1 ms | 16.8 to 17.3 ms | 0.93 to 0.96 |
+| the three parity texts (37 to 50 subwords) | 10.4 to 10.5 ms | 3.6 to 3.8 ms (0.34 to 0.37x) | 6.0 to 6.7 ms (0.57 to 0.63x) |
+| a 42-word text, 3 labels | 18.0 to 18.1 ms | 7.5 to 7.8 ms (0.42 to 0.44x) | 13.5 to 13.6 ms (0.75x) |
 
-With the AVX-512 kernel switched off, the AVX2 kernel takes 11.0 ms and
-20.9 ms on the same texts (1.06x and 1.16x the reference, whose GEMM
-uses AVX-512 there). The span projections, most of the head work, run
-on the span weights transposed at load and tiled in vector registers
-(`kernel.rs`): 32 outputs by 8 words with AVX-512, 16 by 6 with AVX2 and
-FMA, plain loops otherwise.
+The AVX2 column is the native AVX2 kernel with AVX-512 switched off,
+against torch still on AVX-512. A cache this large flatters code that
+rereads weights. On a second x86_64 machine with AVX-512 and a smaller
+cache, timing GLiNER2's head classes directly at the same shapes, the
+same heads run at 0.88 to 0.98x the reference with AVX-512 and 1.03 to
+1.1x with AVX2.
+
+How the heads get there (`kernel.rs`, `heads.rs`): the layers run over
+all words or all queries at once, on weights transposed at load into
+panels of 32 outputs that a tile reads in order. A tile is 32 outputs by
+8 rows with AVX-512, 16 by 6 with AVX2 and FMA, plain loops otherwise.
+Rows are padded with zeros to whole tiles. The last span layer folds
+into every query of a relation in one pass over its weights.
 
 The encoder is the gap: 194 ms per parity text in the reference, 3,776 ms
 on the native encoder's scalar CPU path (docs/deberta.md). The speed bar
