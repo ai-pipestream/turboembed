@@ -188,7 +188,7 @@ fn offsets_outside_the_archive_are_errors() {
 /// a level, so 50,000 levels fit in 100 KB. The nesting limit refuses it
 /// while it builds, before a deep value exists to drop.
 #[test]
-fn deep_nesting_is_refused_while_it_builds() {
+fn deep_nesting_fails_while_it_builds() {
     let mut p = vec![0x80, 2, b'N'];
     for _ in 0..50_000 {
         p.extend([b'N', 0x86]);
