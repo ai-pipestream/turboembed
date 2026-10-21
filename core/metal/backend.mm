@@ -735,6 +735,9 @@ struct Model {
      * tensors' entries are empty. */
     id<MTLBuffer> narrowed = nil;
     std::vector<Ref> f16;
+    /* Whether a session tried to make f16; it stays empty when a weight
+     * is past F16's range, and FASTEST then computes in F32. */
+    bool narrow_tried = false;
 };
 
 const char *dtype_name(uint32_t d) { return d == TURBO_DTYPE_F32 ? "F32" : d == TURBO_DTYPE_F16 ? "F16" : "BF16"; }
@@ -883,10 +886,12 @@ bool linear_weight(uint32_t i) {
 
 /* The linear layers' weights in F16, made on first need from the F32
  * ones, which f32_weights has made. An F16 model's are its own where each
- * starts 4-byte aligned, as the kernels read them 16 bytes at a time. */
+ * starts 4-byte aligned, as the kernels read them 16 bytes at a time. A
+ * finite F32 or BF16 weight past F16's range (65504) leaves f16 empty, with
+ * a warning: FASTEST computes that model in F32, as the CUDA backend does. */
 int32_t f16_weights(Model *m, turbo_error *err) {
     std::lock_guard<std::mutex> g(m->widen_lock);
-    if (!m->f16.empty()) return TURBO_OK;
+    if (m->narrow_tried) return TURBO_OK;
     const size_t n = m->counts.size();
     bool aligned = m->desc.dtype == TURBO_DTYPE_F16;
     for (size_t i = 0; i < n && aligned; i++)
@@ -895,6 +900,7 @@ int32_t f16_weights(Model *m, turbo_error *err) {
         m->f16.assign(n, Ref{});
         for (size_t i = 0; i < n; i++)
             if (linear_weight((uint32_t)i)) m->f16[i] = m->stored[i];
+        m->narrow_tried = true;
         return TURBO_OK;
     }
     Context *c = m->ctx;
@@ -906,7 +912,10 @@ int32_t f16_weights(Model *m, turbo_error *err) {
         total += round_up(m->counts[i] * 2, 256);
     }
     id<MTLBuffer> half = new_buffer(c->device, std::max<size_t>(total, 1), MTLResourceStorageModePrivate | WEIGHTS);
-    if (!half) return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the linear layers' weights in F16", total);
+    id<MTLBuffer> flag = new_buffer(c->device, sizeof(uint32_t), MTLResourceStorageModeShared);
+    if (!half || !flag)
+        return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the linear layers' weights in F16", total);
+    *static_cast<uint32_t *>(flag.contents) = 0;
     {
         std::lock_guard<std::mutex> cg(c->lock);
         id<MTLCommandBuffer> cb = [c->queue commandBuffer];
@@ -918,10 +927,19 @@ int32_t f16_weights(Model *m, turbo_error *err) {
             [enc setBuffer:m->f32[i].buf offset:m->f32[i].at atIndex:0];
             [enc setBuffer:half offset:at[i] atIndex:1];
             [enc setBytes:&count length:sizeof count atIndex:2];
+            [enc setBuffer:flag offset:0 atIndex:3];
             [enc dispatchThreads:MTLSizeMake(count, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
         }
         [enc endEncoding];
         TRY(finish(cb, err, "narrowing the weights"));
+    }
+    m->narrow_tried = true;
+    if (*static_cast<const uint32_t *>(flag.contents) != 0) {
+        c->say(LOG_WARNING,
+               "metal device %u: a linear layer's weight of this %s model is past F16's range; FASTEST computes it "
+               "in F32",
+               c->ordinal, dtype_name(m->desc.dtype));
+        return TURBO_OK;
     }
     m->narrowed = half;
     m->f16.assign(n, Ref{});
@@ -1171,9 +1189,21 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                 "than 256",
                                 LINEAR_NAMES[forced], c->ordinal);
         TRY(f32_weights(m, err));
-        // The linear layers' kernels: the forced ones, else F16 where allowed.
-        const Linear linear = forced >= 0 ? (Linear)forced : half ? LINEAR_DEFAULT : LINEAR_F32;
-        if (linear != LINEAR_F32) TRY(f16_weights(m, err));
+        // The linear layers' kernels: the forced ones, else F16 where
+        // allowed. A model with a weight past F16's range runs the F32
+        // kernels, as MODEL's, at FASTEST too.
+        Linear linear = forced >= 0 ? (Linear)forced : half ? LINEAR_DEFAULT : LINEAR_F32;
+        if (linear != LINEAR_F32) {
+            TRY(f16_weights(m, err));
+            if (m->f16.empty()) {
+                if (forced >= 0)
+                    return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                        "TURBO_METAL_CHOICES linear=%s: a weight of this model is past F16's range, "
+                                        "so it computes in F32",
+                                        LINEAR_NAMES[forced]);
+                linear = LINEAR_F32;
+            }
+        }
 
         Session *s = make<Session>();
         s->model = m;

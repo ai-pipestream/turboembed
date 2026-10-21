@@ -870,8 +870,15 @@ kernel void widen_bf16(device const ushort *src [[buffer(0)]], device float *dst
     if (i < n) dst[i] = as_type<float>(uint(src[i]) << 16);
 }
 
-// An F32 copy narrowed to F16, for the linear layers at FASTEST.
+// An F32 copy narrowed to F16, for the linear layers at FASTEST. A
+// finite value past F16's range sets *overflow, which the host reads
+// before it uses the copy.
 kernel void narrow_f16(device const float *src [[buffer(0)]], device half *dst [[buffer(1)]],
-                       constant uint &n [[buffer(2)]], uint i [[thread_position_in_grid]]) {
-    if (i < n) dst[i] = half(src[i]);
+                       constant uint &n [[buffer(2)]], device atomic_uint *overflow [[buffer(3)]],
+                       uint i [[thread_position_in_grid]]) {
+    if (i >= n) return;
+    const float f = src[i];
+    const half h = half(f);
+    if (isinf(h) && isfinite(f)) atomic_store_explicit(overflow, 1u, memory_order_relaxed);
+    dst[i] = h;
 }

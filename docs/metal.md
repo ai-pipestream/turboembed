@@ -58,7 +58,9 @@ frameworks and libc++, which every macOS has.
   FASTEST, whose linear layers take F16 operands (Numerics). A model
   stored in F16 or BF16 computes from an F32 copy at EXACT and FASTEST;
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
-  as on the CPU. A cell is SUPPORTED where a benchmark record in
+  as on the CPU. A model with a linear layer's weight past F16's range
+  (65504) computes in F32 at FASTEST too, as the CUDA backend does, with a
+  warning in the log, and `turbo_session_get_info` reports F32 for it. A cell is SUPPORTED where a benchmark record in
   `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
   MODEL and EXACT records against TEI's router built natively with
   Metal. Elsewhere it is EXPERIMENTAL, and so is the M2's FASTEST cell
@@ -109,7 +111,9 @@ frameworks and libc++, which every macOS has.
   The first FASTEST session makes the linear layers' weights in F16 the
   same way, narrowed on the device from the F32 ones, shared by every
   later FASTEST session and freed with the model; an F16 model's are
-  read where they are.
+  read where they are. The narrowing kernel flags a finite weight that
+  F16 cannot hold, and then the copy is dropped and FASTEST runs the F32
+  kernels for that model.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: private scratch,
   shared memory for the rows, the shared buffer the vectors are written
@@ -232,7 +236,8 @@ F32 sums (`TURBO_NUMERIC_F16_F32ACC`); the tile can change how many
 parts a small layer's k is split into, so a different choice moves the
 bits within FASTEST's floor. `forced=` names `linear`
 when the environment fixed it. EXACT and MODEL have one path, the F32
-kernels, and report no choices. A session nothing forces or tunes runs
+kernels, and report no choices, as does FASTEST for a model with a weight
+past F16's range. A session nothing forces or tunes runs
 `h64`.
 
 `TURBO_METAL_CHOICES`, read when a session is made, forces the item it
@@ -241,7 +246,8 @@ EXACT and MODEL);
 a line a session reported, `forced=` and all, forces the same kernels
 back. A kernel outside the precision's numerics (`f32` at FASTEST, an F16
 tile at EXACT or MODEL), or `h128` on a device that does not run it, is
-`TURBO_E_UNSUPPORTED_OPTION` naming field 3, and any other item is
+`TURBO_E_UNSUPPORTED_OPTION` naming field 3, and so is an F16 tile forced
+on a model with a weight past F16's range; any other item is
 `TURBO_E_INVALID_ARGUMENT`.
 
 ### Autotuning
