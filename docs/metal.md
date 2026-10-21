@@ -60,8 +60,10 @@ frameworks and libc++, which every macOS has.
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
   as on the CPU. A cell is SUPPORTED where a benchmark record in
   `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
-  records against TEI's router built natively with Metal. Elsewhere it is
-  EXPERIMENTAL. On the M2, one 16-token request at a time runs in 1.69 ms
+  MODEL and EXACT records against TEI's router built natively with
+  Metal. Elsewhere it is EXPERIMENTAL, and so is the M2's FASTEST cell
+  until a record of FASTEST in F16 backs it (Speed on the M2 has its
+  times). On the M2, one 16-token request at a time runs in 1.69 ms
   p50 against TEI's 10.1 ms. For 32-row batches the ratio is about 50x
   on mixed rows and 8-9x on dense, because TEI's router runs a 32-row
   request as about 3 sequential sub-batches: its own `x-inference-time`
