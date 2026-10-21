@@ -112,6 +112,9 @@ impl Lexical {
     /// whose document is `doc[c]`; chunks of one document are adjacent, so
     /// row `c` of the index is chunk `c`.
     pub fn index(&self, texts: &[String], doc: &[u32]) -> Result<Bm25PostingIndex> {
+        if texts.len() != doc.len() {
+            return Err(format!("{} chunk texts and {} document numbers", texts.len(), doc.len()));
+        }
         let mut builder = Bm25PostingIndexBuilder::new();
         let mut at = 0;
         let mut terms = Vec::new();
@@ -174,6 +177,17 @@ impl Lexical {
     /// Ranks every query against the index, on as many threads as the
     /// machine has.
     pub fn search(&self, index: &Search<'_>, queries: &[(&str, &str)]) -> Result<(Run, ChunkRun)> {
+        let rows = index.index.rows();
+        if index.doc.len() != rows || index.span.len() != rows {
+            return Err(format!(
+                "an index of {rows} rows with {} document numbers and {} spans",
+                index.doc.len(),
+                index.span.len()
+            ));
+        }
+        if let Some(&d) = index.doc.iter().find(|&&d| d as usize >= index.docs.len()) {
+            return Err(format!("document number {d} of {} documents", index.docs.len()));
+        }
         let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(queries.len()).max(1);
         let per = queries.len().div_ceil(threads).max(1);
         let parts: Vec<Vec<(Ranking, ChunkRanking)>> = std::thread::scope(|scope| {

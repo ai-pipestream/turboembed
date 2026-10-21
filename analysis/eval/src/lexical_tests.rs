@@ -101,3 +101,22 @@ fn the_record_names_the_retrieval_and_a_dense_one_names_none() {
     // A dense pipeline's record has no retrieval key, as before.
     assert!(!serde_json::to_string(&d).unwrap().contains("retrieval"));
 }
+
+#[test]
+fn mismatched_index_and_search_inputs_are_errors() {
+    let texts: Vec<String> = vec!["cat".into()];
+    assert!(LUCENE.index(&texts, &[]).is_err());
+    assert!(LUCENE.index(&texts, &[0, 0]).is_err());
+    let index = LUCENE.index(&texts, &[0]).unwrap();
+    let docs = ["d".to_string()];
+    let span = [Span::new(0, 3).unwrap()];
+    let q = [("q", "cat")];
+    let search = |doc: &[u32], span: &[Span], docs: &[String]| {
+        LUCENE.search(&Search { index: &index, doc, span, docs }, &q).map(|(run, _)| run.hits("q").len())
+    };
+    assert_eq!(search(&[0], &span, &docs), Ok(1));
+    assert!(search(&[0], &[], &docs).is_err());
+    assert!(search(&[], &span, &docs).is_err());
+    assert!(search(&[0, 0], &[span[0], span[0]], &docs).is_err());
+    assert!(search(&[1], &span, &docs).is_err());
+}
