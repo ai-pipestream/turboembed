@@ -37,6 +37,9 @@ it was trained on) as its second file, at their addresses in its release
 trains on those sentences and FineWeb-2 and FineWeb text, with
 `training-sentences.txt` and `training-documents.txt`, at their
 addresses in its release `models-tatoeba-fineweb-2026-10-10-1`.
+It also lists one published neural checkpoint, `fastino-gliner2-base-v1`
+(Apache-2.0, the GLiNER2 relation scorer's, docs/gliner2-relations.md),
+at its Hugging Face revision.
 `.github/workflows/models.yml`, `models-ud.yml`, `models-tatoeba.yml`
 and `models-fineweb.yml` create those releases when they are run by
 hand on main; until then fetching those models fails. The recipes
