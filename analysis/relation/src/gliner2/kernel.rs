@@ -86,6 +86,7 @@ pub(super) struct Packed {
 const TILE: usize = 32;
 const ROWS: usize = 8;
 /// Rows per block of the AVX2 kernel.
+#[cfg(target_arch = "x86_64")]
 const AVX2_ROWS: usize = 6;
 
 impl Packed {
@@ -132,6 +133,7 @@ impl Packed {
     /// `kernel` on `x` padded with zero rows to a whole number of blocks of
     /// `block` rows, so no row takes the portable loops; the padding's
     /// outputs are dropped.
+    #[cfg(target_arch = "x86_64")]
     fn padded(&self, x: &[f32], n: usize, block: usize, kernel: impl Fn(&Self, &[f32], usize, &mut [f32])) -> Vec<f32> {
         let (k, m) = (self.in_dim, self.out_dim);
         let rows = n.div_ceil(block) * block;

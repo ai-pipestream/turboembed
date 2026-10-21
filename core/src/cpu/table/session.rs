@@ -24,7 +24,8 @@ pub(in crate::cpu) struct Static {
     quantized: Option<Arc<Quantized>>,
     isa: Isa,
     /// The processor converts F16 to F32 eight at a time (x86_64's F16C,
-    /// with AVX2).
+    /// with AVX2). Read only on x86_64.
+    #[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
     f16c: bool,
     /// Every row's live ids, one row after another.
     ids: Vec<u32>,
