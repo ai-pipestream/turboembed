@@ -3541,6 +3541,40 @@
           "sha512": "937ea4b0754b4f97ab2189970d403a0a0d0bd72e3a10d31892db3d4f689a7078610892deb1ec347a99f2163ed186b2c84b73527f4136c3ceed2d60b8c524d779"
         }
       ]
+    },
+    {
+      "id": "jackboyla-glirel-large-v0",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_PYTORCH",
+      "version": "40a523e12a8432d6da364cf2a195a28755ff04d3",
+      "license": "CC-BY-NC-SA-4.0",
+      "license_terms": "https://huggingface.co/jackboyla/glirel-large-v0/blob/40a523e12a8432d6da364cf2a195a28755ff04d3/README.md",
+      "trained_on": [
+        {
+          "name": "microsoft/deberta-v3-large",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/microsoft/deberta-v3-large"
+        }
+      ],
+      "class": "CLASS_LOCAL_ONLY",
+      "origin": "https://huggingface.co/jackboyla/glirel-large-v0",
+      "files": [
+        {
+          "path": "pytorch_model.bin",
+          "url": "https://huggingface.co/jackboyla/glirel-large-v0/resolve/40a523e12a8432d6da364cf2a195a28755ff04d3/pytorch_model.bin",
+          "size": 1866504702,
+          "sha256": "840aa21bb68a676ebe17451aa2ce8a7e5b987af8db1c0e28850bf0e395b713de",
+          "sha512": "788bd2753d08e35628e9ae307af0828fe8f92025bf3c7155dba106aa177dbc6b5104ebc3992de7710d3ad01ffef3c31e343ccb34145ebac3e87859f8f71278be"
+        },
+        {
+          "path": "glirel_config.json",
+          "url": "https://huggingface.co/jackboyla/glirel-large-v0/resolve/40a523e12a8432d6da364cf2a195a28755ff04d3/glirel_config.json",
+          "size": 1576,
+          "sha256": "207bc889320c2369061b51ab2ff399967ce0629e62d6e1dc2d3b761ccbb86e7b",
+          "sha512": "0dd13eed5612ac815e5163aecee60671f769151db55a4d65601adeb7587145a556c46c6e2ef705ff6f4025d9314181cd063ca10d3829921c5a65927703ad24d8"
+        }
+      ]
     }
   ]
 }

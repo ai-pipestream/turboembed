@@ -123,6 +123,30 @@ fn trained_here(id: &str) -> bool {
 /// "Neural annotator checkpoints"): permissive, so nothing to accept.
 const CHECKPOINTS: [&str; 1] = ["fastino-gliner2-base-v1"];
 
+/// The local-only checkpoints the index lists: fetched only for a user
+/// who has accepted their licence.
+const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
+
+#[test]
+fn the_glirel_checkpoint_is_pinned_local_only_and_needs_its_licence() {
+    let index = Index::builtin();
+    let a = index.get(LOCAL_CHECKPOINTS[0]).unwrap();
+    assert_eq!(
+        (a.kind, a.format, a.license, a.class),
+        (Kind::Model, Format::Pytorch, Licence::CcByNcSa40, LicenceClass::LocalOnly)
+    );
+    let revision = "40a523e12a8432d6da364cf2a195a28755ff04d3";
+    assert_eq!(a.version, revision);
+    let origin = "https://huggingface.co/jackboyla/glirel-large-v0";
+    assert_eq!(a.origin.as_ref().map(|o| o.as_str()), Some(origin));
+    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(paths, ["pytorch_model.bin", "glirel_config.json"]);
+    for f in &a.files {
+        assert_eq!(f.url.as_str(), format!("{origin}/resolve/{revision}/{}", f.path.as_str()));
+    }
+    assert_eq!(a.licences_to_accept(Policy::default()), [turbo_zoo::Requirement::of(Licence::CcByNcSa40).unwrap()]);
+}
+
 #[test]
 fn the_gliner2_checkpoint_is_pinned_and_permissive() {
     let index = Index::builtin();
@@ -179,6 +203,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.insert(TATOEBA_MODEL.to_owned());
     expected.insert(WEB_MODEL.to_owned());
     expected.extend(CHECKPOINTS.map(str::to_owned));
+    expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {
@@ -196,6 +221,8 @@ fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
             || CHECKPOINTS.contains(&a.id.as_str())
         {
             assert!(needs.is_empty(), "{}", a.id);
+        } else if LOCAL_CHECKPOINTS.contains(&a.id.as_str()) {
+            assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcByNcSa40).unwrap()], "{}", a.id);
         } else if a.id.as_str().starts_with("opennlp-ga-") {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap()], "{}", a.id);
         } else {

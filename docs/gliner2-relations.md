@@ -8,9 +8,11 @@ extracts relations on its own, as the reference does.
 
 The checkpoint is `fastino/gliner2-base-v1` at
 `f9634218e53580c56edf0de97ca1a7d3f1c2354e` (Apache-2.0). The zoo lists it
-as `fastino-gliner2-base-v1` and fetches it by digest; GLiREL's
-checkpoints and code are CC BY-NC-SA 4.0 (docs/licences.md) and are not
-used here.
+as `fastino-gliner2-base-v1` and fetches it by digest; it is the
+default. GLiREL's checkpoints and code are CC BY-NC-SA 4.0
+(docs/licences.md). The zoo lists `jackboyla/glirel-large-v0` as the
+local-only `jackboyla-glirel-large-v0`, fetched only after the user runs
+`turbo-zoo accept CC-BY-NC-SA-4.0`; nothing here runs it yet.
 
 ## What runs
 
