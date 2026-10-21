@@ -53,9 +53,10 @@ frameworks and libc++, which every macOS has.
   name's first word. `runtime_version` is the SDK the build compiled
   against (`Metal, macOS SDK 27.0`); `driver_version` is the macOS
   version and build, since Metal ships with it (`macOS 27.0 (26A428)`).
-- **Capability.** Embed runs at every precision, computing in
-  F32, honoring every field of `turbo_embed_options`. A model stored in
-  F16 or BF16 computes in F32 from a converted copy at EXACT and FASTEST;
+- **Capability.** Embed runs at every precision, honoring every field
+  of `turbo_embed_options`: in F32 at EXACT and MODEL, and in F16 at
+  FASTEST, whose linear layers take F16 operands (Numerics). A model
+  stored in F16 or BF16 computes from an F32 copy at EXACT and FASTEST;
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
   as on the CPU. A cell is SUPPORTED where a benchmark record in
   `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
@@ -103,6 +104,10 @@ frameworks and libc++, which every macOS has.
   own, and the context's log says how many bytes. An F16 or BF16
   model's F32 copy is made on the device by the first session that
   computes in F32, shared by every later one, and freed with the model.
+  The first FASTEST session makes the linear layers' weights in F16 the
+  same way, narrowed on the device from the F32 ones, shared by every
+  later FASTEST session and freed with the model; an F16 model's are
+  read where they are.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: private scratch,
   shared memory for the rows, the shared buffer the vectors are written
@@ -130,7 +135,12 @@ frameworks and libc++, which every macOS has.
   groups per 32 x 64 tile of the output, each 16 x 32 of it in SIMD-group
   matrices, go over k in steps of 16 staged in threadgroup memory, and a
   layer that would still leave most of the GPU idle has its k split
-  across more threadgroups, the residual kernel summing the parts. Attention takes
+  across more threadgroups, the residual kernel summing the parts. At
+  FASTEST the same two shapes run with F16 weights: the few-token kernel
+  reads them straight from device memory and stages each group's 32 rows
+  of x as F16; past 128 tokens a threadgroup's tile is 32 x 64 or 64 x
+  64 (Kernel choices), staged in steps of 32 along k as F16, so its
+  operands take half the threadgroup memory of the F32 kernel's. Attention takes
   32 queries of a row and one head per threadgroup, and goes through the
   row's keys in chunks of 32 staged in threadgroup memory, with a running
   softmax; a head width that is not a multiple of 8, or is over 64, runs
@@ -169,7 +179,13 @@ frameworks and libc++, which every macOS has.
   kept as it goes through the keys, and mean pooling sums in position
   order, as on the CPU. Metal has no `erf`; GELU's comes from erfc's
   Chebyshev fit in Numerical Recipes, with relative error under 1.2e-7.
-  Cosine against the fp32 reference must reach 0.9999.
+  Cosine against the fp32 reference must reach 0.9999. At FASTEST the
+  linear layers take F16 operands, the weights narrowed once and x
+  rounded to F16 as it is staged, and sum in F32 SIMD-group matrices;
+  the bias and GELU are added in F32, and the feed-forward block's
+  middle, GELU's output, is stored in F16. Everything else, the residual
+  stream, LayerNorm, attention and pooling, is F32 as at EXACT. Cosine
+  must reach 0.999, FASTEST's floor on every backend.
 - **What a result reports.** Stages: tokenize on the host for text,
   no upload (the rows were copied into the session's shared memory by
   the write, as on the CPU), lookup, encode and pool on the device,
@@ -182,23 +198,73 @@ frameworks and libc++, which every macOS has.
   Metal's own objects, made by Metal for every submission, and are not
   counted.
 
+## Kernel choices
+
+At FASTEST a session chooses one item, which kernel tiles its linear
+layers past 128 packed tokens, and reports it in
+`turbo_session_get_info`'s `choices` (docs/autotune.md):
+
+```
+linear=h64;forced=
+```
+
+`linear=h64` is the 64 x 64 tile, each of the four SIMD groups 32 x 32
+of it, and `linear=h32` the 32 x 64 tile, each group 16 x 32; both are
+F16 operands with F32 sums (`TURBO_NUMERIC_F16_F32ACC`), so a different
+choice moves the bits within FASTEST's floor. `forced=` names `linear`
+when the environment fixed it. EXACT and MODEL have one path, the F32
+kernels, and report no choices. A session nothing forces or tunes runs
+`h64`.
+
+`TURBO_METAL_CHOICES`, read when a session is made, forces the item it
+names (`linear=h32`, `linear=h64`, or `linear=f32` at EXACT and MODEL);
+a line a session reported, `forced=` and all, forces the same kernels
+back. A kernel outside the precision's numerics (`f32` at FASTEST, `h32`
+or `h64` at EXACT or MODEL) is `TURBO_E_UNSUPPORTED_OPTION` naming
+field 3, and any other item is `TURBO_E_INVALID_ARGUMENT`.
+
+### Autotuning
+
+A FASTEST session made with `turbo_session_desc.tuning` ON or RETUNE
+(or `TURBO_AUTOTUNE=on` or `retune`) times both tiles when it is made and
+runs the faster; docs/autotune.md has the switches, the cache and what
+holds across backends. It is off by default, and a forced choice is
+never timed.
+
+How: on the session's own memory and queue, with rows of `max_seq`
+tokens, ids 1, as many as fill 8192 tokens (all of the session's rows
+when it holds fewer). Each tile runs the whole encoder once untimed,
+then five times timed from the host, each run waited for. The least time
+ranks, and the challenger replaces the incumbent (the cached choice,
+else `h64`) only when 5% faster. A tile whose median is more than 25%
+above its least is timed again, up to three times in all; still apart,
+the GPU is shared or throttling, and the session keeps the incumbent,
+reports `default`, is not cached, and an INFO line says so. The budget
+counts the timed runs alone; past it, what is left is not timed. A
+measured session reports `measured` and logs at INFO `metal device <n>:
+linear layers chosen in <ms> ms: <choice> (<bin>, a run: h64 <ms> ms,
+h32 <ms> ms)`.
+
 ## Testing
 
 From the workspace root. `TURBO_TEST_REQUIRE_METAL=1` makes every test in
-`core/tests/metal.rs` that needs a device that runs embed fail when there
+`core/tests/metal*.rs` that needs a device that runs embed fail when there
 is none, where without it the test passes with a line saying it was
 skipped; set it on Apple silicon, so a run that found no GPU cannot pass.
 
 ```
 export TURBO_TEST_REQUIRE_METAL=1
 
-# Everything, with the Metal-only tests in core/tests/metal.rs:
+# Everything, with the Metal-only tests: core/tests/metal.rs (devices,
+# buffers, weights), metal_runs.rs (the encoder's vectors), metal_ranges.rs
+# (late pooling, limits, the largest shape) and metal_f16.rs (FASTEST's
+# F16 linear layers and their choices):
 cargo test -p turbo --features metal
 
-# The Metal-only tests, with what they print (the device, the largest
-# difference from the f64 encoder and the CPU), in release for the
-# largest shape:
-cargo test --release -p turbo --features metal --test metal -- --nocapture
+# The runs and FASTEST's tests, with what they print (the largest
+# difference from the f64 encoder and the CPU, each choice's lowest
+# cosine with the CPU), in release:
+cargo test --release -p turbo --features metal --test metal_runs --test metal_f16 -- --nocapture
 
 # Conformance on the small sealed bundle (docs/conformance.md):
 TURBO_TEST_DEVICE=metal cargo test --release -p turbo --features metal --test conformance -- --nocapture
@@ -208,7 +274,7 @@ TURBO_TEST_DEVICE=metal cargo test --release -p turbo --features metal --test co
 TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=metal \
     cargo test --release -p turbo --features metal --test conformance -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=<bundle-dir> \
-    cargo test --release -p turbo --features metal --test metal -- --include-ignored --nocapture
+    cargo test --release -p turbo --features metal --test metal_ranges -- --include-ignored --nocapture
 ```
 
 `TURBO_TEST_DEVICE=metal` picks the first device the metal backend lists,

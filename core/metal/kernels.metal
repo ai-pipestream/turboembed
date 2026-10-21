@@ -9,7 +9,8 @@
 //
 // The linear layers and attention run on SIMD-group matrices, 8 x 8 F32
 // tiles staged in threadgroup memory, or for few tokens read straight
-// from device memory, with the next step fused into
+// from device memory; at FASTEST the linear layers' operands are F16 and
+// their sums F32 (gemm_h, gemm_small_h). The next step is fused into
 // the linear layers' stores: the bias, or the bias and GELU. LayerNorm and
 // pooling take one SIMD group per token or row.
 //
@@ -257,6 +258,173 @@ kernel void gemm_small(device const float *x [[buffer(0)]], device const float *
         y[ulong(m0 + e / 16) * n + col] = v;
     }
 }
+
+// ---- Linear layers in F16, at FASTEST -------------------------------------------
+//
+// The same products with F16 weights, w [n, k] as half, and x in F32 or
+// F16: each operand is rounded to F16 as it is staged or loaded, and every
+// sum is F32, in F32 SIMD-group matrices. The epilogue adds the bias, or
+// the bias and GELU, in F32 and rounds to the output's type last. Two
+// tiles: 32 x 64, each SIMD group 16 x 32 of it, and 64 x 64, each group
+// 32 x 32; k is staged in steps of 32, as F16, so the tile's operands take
+// half the threadgroup memory of the F32 kernel's and twice its depth.
+// Rows of x at or past m are staged as 0 and never stored. When k is split,
+// y is F32 and each split writes its own [m, n], as in gemm.
+
+constant uint HBK = 32;
+// Staged rows are padded by 8 halves, so the rows a SIMD group reads
+// start in different banks.
+constant uint HLD = HBK + 8;
+
+// Four consecutive values of a row, as F16. x and the weights are read
+// where they lie, 4-byte or 2-byte aligned only.
+half4 four(device const float *p) { return half4(float4(*(device const packed_float4 *)p)); }
+half4 four(device const half *p) { return half4(*(device const packed_half4 *)p); }
+
+template <typename XT, typename YT, uint TM>
+kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buffer(1)]],
+                   device const half *w1 [[buffer(2)]], device const half *w2 [[buffer(3)]],
+                   device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
+                   device const float *b2 [[buffer(6)]], device YT *y0 [[buffer(7)]], device YT *y1 [[buffer(8)]],
+                   device YT *y2 [[buffer(9)]], constant GemmParams &p [[buffer(10)]],
+                   uint3 tg [[threadgroup_position_in_grid]], ushort tid [[thread_index_in_threadgroup]],
+                   ushort sg [[simdgroup_index_in_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
+    // TM 8 x 8 matrices down each group's part of the tile, 4 across: the
+    // tile is 16 * TM rows by 64 columns.
+    constexpr uint HBM = 16 * TM;
+    threadgroup half xs[HBM * HLD];
+    threadgroup half ws[BN * HLD];
+    const uint layer = tg.z / p.splits, split = tg.z % p.splits;
+    device const half *w = layer == 0 ? w0 : layer == 1 ? w1 : w2;
+    device const float *bias = layer == 0 ? b0 : layer == 1 ? b1 : b2;
+    device YT *y = (layer == 0 ? y0 : layer == 1 ? y1 : y2) + ulong(split) * p.m * p.n;
+    const uint m0 = tg.y * HBM, n0 = tg.x * BN, k = p.k, n = p.n, m = p.m;
+    const uint kbegin = split * p.kchunk, kend = min(k, kbegin + p.kchunk);
+    const uint sm = (sg / 2) * (8 * TM), sn = (sg % 2) * 32;
+    simdgroup_float8x8 acc[TM][4];
+    for (uint i = 0; i < TM; i++)
+        for (uint j = 0; j < 4; j++) acc[i][j] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+
+    // Each thread stages four values at a time: a row of the tile is 8
+    // groups of 4 along k, so 128 threads cover 16 rows per pass.
+    const uint r = tid / 8, c = (tid % 8) * 4;
+    for (uint k0 = kbegin; k0 < kend; k0 += HBK) {
+        // k is a multiple of 8 and c of 4, so four values lie wholly
+        // inside k or wholly past it.
+        const bool kin = k0 + c < kend;
+        for (uint rr = r; rr < HBM; rr += 16) {
+            const bool in = kin && m0 + rr < m;
+            *(threadgroup half4 *)(xs + rr * HLD + c) = in ? four(x + ulong(m0 + rr) * k + k0 + c) : half4(0.0h);
+        }
+        for (uint rr = r; rr < BN; rr += 16) {
+            const bool in = kin && n0 + rr < n;
+            *(threadgroup half4 *)(ws + rr * HLD + c) = in ? four(w + ulong(n0 + rr) * k + k0 + c) : half4(0.0h);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        for (uint kk = 0; kk < HBK; kk += 8) {
+            simdgroup_half8x8 a[TM], b[4];
+            for (uint i = 0; i < TM; i++) simdgroup_load(a[i], xs + (sm + i * 8) * HLD + kk, HLD);
+            for (uint j = 0; j < 4; j++) simdgroup_load(b[j], ws + (sn + j * 8) * HLD + kk, HLD, ulong2(0, 0), true);
+            for (uint i = 0; i < TM; i++)
+                for (uint j = 0; j < 4; j++) simdgroup_multiply_accumulate(acc[i][j], a[i], b[j], acc[i][j]);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    const Coord cd = lane_coord(lane);
+    for (uint i = 0; i < TM; i++) {
+        const uint row = m0 + sm + i * 8 + cd.fm;
+        if (row >= m) continue;
+        device YT *yr = y + ulong(row) * n;
+        for (uint j = 0; j < 4; j++) {
+            const uint col = n0 + sn + j * 8 + cd.fn;
+            if (col >= n) continue;
+            thread auto &e = acc[i][j].thread_elements();
+            float v0 = e[0], v1 = e[1];
+            if (p.epilogue >= 1) {
+                v0 += bias[col];
+                v1 += bias[col + 1];
+            }
+            if (p.epilogue == 2) {
+                v0 = gelu(v0);
+                v1 = gelu(v1);
+            }
+            yr[col] = YT(v0);
+            yr[col + 1] = YT(v1);
+        }
+    }
+}
+
+// The small kernel's F16 form: F16 weights read straight from device
+// memory, x read as F16 operands, F32 sums.
+template <typename XT, typename YT>
+kernel void gemm_small_h(device const XT *x [[buffer(0)]], device const half *w0 [[buffer(1)]],
+                         device const half *w1 [[buffer(2)]], device const half *w2 [[buffer(3)]],
+                         device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
+                         device const float *b2 [[buffer(6)]], device YT *y0 [[buffer(7)]],
+                         device YT *y1 [[buffer(8)]], device YT *y2 [[buffer(9)]],
+                         constant GemmParams &p [[buffer(10)]], uint3 tg [[threadgroup_position_in_grid]],
+                         ushort tid [[thread_index_in_threadgroup]], ushort sg [[simdgroup_index_in_threadgroup]],
+                         ushort lane [[thread_index_in_simdgroup]]) {
+    threadgroup float red[4 * 32 * 16];
+    // Each group's 32 rows of x for its step of 8 along k, as F16.
+    threadgroup half xh[4 * 32 * 8];
+    device const half *w = tg.z == 0 ? w0 : tg.z == 1 ? w1 : w2;
+    device const float *bias = tg.z == 0 ? b0 : tg.z == 1 ? b1 : b2;
+    device YT *y = tg.z == 0 ? y0 : tg.z == 1 ? y1 : y2;
+    const uint m0 = tg.y * 32, n0 = tg.x * 16, k = p.k, n = p.n;
+    simdgroup_float8x8 acc[4][2];
+    for (uint i = 0; i < 4; i++)
+        for (uint j = 0; j < 2; j++) acc[i][j] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    device const XT *xa = x + ulong(m0) * k;
+    device const half *wb = w + ulong(n0) * k;
+    threadgroup half *mine = xh + sg * 256;
+    // A lane stages 8 of its group's 32 x 8 values, two groups of 4.
+    const uint xr = lane;
+    for (uint kk = sg * 8; kk < k; kk += 32) {
+        *(threadgroup half4 *)(mine + xr * 8) = four(xa + ulong(xr) * k + kk);
+        *(threadgroup half4 *)(mine + xr * 8 + 4) = four(xa + ulong(xr) * k + kk + 4);
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+        simdgroup_half8x8 a[4], b[2];
+        for (uint j = 0; j < 2; j++) simdgroup_load(b[j], wb + ulong(j * 8) * k + kk, k, ulong2(0, 0), true);
+        for (uint i = 0; i < 4; i++) simdgroup_load(a[i], mine + i * 64, 8);
+        for (uint i = 0; i < 4; i++)
+            for (uint j = 0; j < 2; j++) simdgroup_multiply_accumulate(acc[i][j], a[i], b[j], acc[i][j]);
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    for (uint i = 0; i < 4; i++)
+        for (uint j = 0; j < 2; j++) simdgroup_store(acc[i][j], red + sg * 512 + (i * 8) * 16 + j * 8, 16);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (uint e = tid; e < 512; e += 128) {
+        const uint col = n0 + e % 16;
+        float v = red[e] + red[512 + e] + red[1024 + e] + red[1536 + e];
+        if (p.epilogue >= 1) v += bias[col];
+        if (p.epilogue == 2) v = gelu(v);
+        y[ulong(m0 + e / 16) * n + col] = YT(v);
+    }
+}
+
+// The instances the host names: x and y in F32 (f) or F16 (h).
+#define GEMM_H(XT, YT, TM, name)                                                                                     \
+    template [[host_name(name)]] kernel void gemm_h<XT, YT, TM>(                                                     \
+        device const XT *, device const half *, device const half *, device const half *, device const float *,       \
+        device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
+        uint3, ushort, ushort, ushort);
+GEMM_H(float, float, 2, "gemm_h32_ff")
+GEMM_H(float, half, 2, "gemm_h32_fh")
+GEMM_H(half, float, 2, "gemm_h32_hf")
+GEMM_H(float, float, 4, "gemm_h64_ff")
+GEMM_H(float, half, 4, "gemm_h64_fh")
+GEMM_H(half, float, 4, "gemm_h64_hf")
+
+#define GEMM_SMALL_H(XT, YT, name)                                                                                   \
+    template [[host_name(name)]] kernel void gemm_small_h<XT, YT>(                                                   \
+        device const XT *, device const half *, device const half *, device const half *, device const float *,       \
+        device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
+        uint3, ushort, ushort, ushort);
+GEMM_SMALL_H(float, float, "gemm_small_h_ff")
+GEMM_SMALL_H(float, half, "gemm_small_h_fh")
+GEMM_SMALL_H(half, float, "gemm_small_h_hf")
 
 // ---- Attention ----------------------------------------------------------------
 //
@@ -533,4 +701,10 @@ kernel void widen_f16(device const half *src [[buffer(0)]], device float *dst [[
 kernel void widen_bf16(device const ushort *src [[buffer(0)]], device float *dst [[buffer(1)]],
                        constant uint &n [[buffer(2)]], uint i [[thread_position_in_grid]]) {
     if (i < n) dst[i] = as_type<float>(uint(src[i]) << 16);
+}
+
+// An F32 copy narrowed to F16, for the linear layers at FASTEST.
+kernel void narrow_f16(device const float *src [[buffer(0)]], device half *dst [[buffer(1)]],
+                       constant uint &n [[buffer(2)]], uint i [[thread_position_in_grid]]) {
+    if (i < n) dst[i] = half(src[i]);
 }
