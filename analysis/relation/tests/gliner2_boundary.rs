@@ -91,7 +91,7 @@ fn non_finite_norm_and_position_values_are_refused() {
 #[test]
 fn a_norm_of_another_length_is_refused() {
     let bytes = rewrite(&fixture(), |name, shape, data| {
-        if name == "count_embed.transformer.transformer.layers.1.norm1.weight" {
+        if name.starts_with("count_embed.transformer.transformer.layers.1.norm1.") {
             data.truncate(64 * 4);
             shape[0] = 64;
         }
@@ -165,7 +165,7 @@ fn inconsistent_prompts_are_errors() {
     let (e, h) = (encoder(), heads());
     assert!(run(&e, &h, prompt()).is_ok());
     let mut extra = prompt();
-    extra.words.push(Word { text: "x".into(), start: 10, end: 11 });
+    extra.words.push(Word { text: ".".into(), start: 9, end: 10 });
     assert!(run(&e, &h, extra).is_err(), "a word without a first subword");
     let mut past = prompt();
     past.word_first[4] = 15;
@@ -190,6 +190,24 @@ fn passes_that_do_not_fit_together_are_errors() {
     more[0].count += 1;
     assert!(decode(&rebuild(8, more), 0.5).is_err(), "a count with no logits");
     assert!(decode(&rebuild(8, Vec::new()), 0.5).is_err(), "no scores for a marker");
+}
+
+/// Finite logits in the slots of spans past the last word: the lengths
+/// fit, but no span is there, so none is decoded.
+#[test]
+fn logits_past_the_last_word_are_not_spans() {
+    let prompt = Prompt {
+        ids: vec![1],
+        text: "a".into(),
+        words: vec![Word { text: "a".into(), start: 0, end: 1 }],
+        word_first: vec![0],
+        markers: vec![[0, 0, 0]],
+    };
+    let labels = vec![LabelScores { count: 1, logits: vec![0.0, 10.0, 0.0, 10.0] }];
+    let found = decode(&Pass { prompt, width: 2, labels }, 0.5).unwrap();
+    // Only the one-word span is there, at a score of 0.5.
+    assert_eq!(found.len(), 1);
+    assert_eq!((found[0].head.start, found[0].head.end, found[0].head.score), (0, 1, 0.5));
 }
 
 #[test]

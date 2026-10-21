@@ -243,13 +243,15 @@ fn check_pass(pass: &Pass) -> Result<usize, RelationError> {
     Ok(size)
 }
 
-/// The best span of one query's logits at or above `threshold`: highest
-/// score, ties to the earliest start, then the shortest.
-fn best(logits: &[f32], width: usize, threshold: f32) -> Option<(usize, usize, f32)> {
+/// The best span of one query's logits over `n` words at or above
+/// `threshold`: highest score, ties to the earliest start, then the
+/// shortest.
+fn best(logits: &[f32], n: usize, width: usize, threshold: f32) -> Option<(usize, usize, f32)> {
     let mut out: Option<(usize, usize, f32)> = None;
     for (k, &l) in logits.iter().enumerate() {
-        // Spans past the last word are negative infinity, never kept.
-        if !l.is_finite() {
+        // A slot past the last word is no span, whatever it holds (the
+        // heads put negative infinity there); nor is a non-finite logit.
+        if k / width + k % width >= n || !l.is_finite() {
             continue;
         }
         let s = sigmoid(l);
@@ -270,7 +272,9 @@ pub fn decode(pass: &Pass, threshold: f32) -> Result<Vec<Extracted>, RelationErr
     for (label, s) in pass.labels.iter().enumerate() {
         for inst in 0..s.count {
             let at = |f: usize| &s.logits[(inst * 2 + f) * size..(inst * 2 + f + 1) * size];
-            if let (Some(h), Some(t)) = (best(at(0), width, threshold), best(at(1), width, threshold)) {
+            if let (Some(h), Some(t)) =
+                (best(at(0), words.len(), width, threshold), best(at(1), words.len(), width, threshold))
+            {
                 out.push(Extracted { label, head: found(h), tail: found(t) });
             }
         }
