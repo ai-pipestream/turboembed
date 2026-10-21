@@ -280,8 +280,9 @@ impl BuiltArm1 {
     /// otherwise rank itself first.
     pub fn query(&self, corpus: &EncodedCorpus, q: &EncodedQuery, config: &SplateConfig) -> (Ranking, usize, u64, u64) {
         let refs: Vec<&str> = q.bm25_terms.iter().map(String::as_str).collect();
+        let fetch = config.top_k.saturating_add(1).min(corpus.docs.len());
         let t0 = Instant::now();
-        let raw = self.index.top_k(config.bm25, &refs, config.top_k + 1);
+        let raw = self.index.top_k(config.bm25, &refs, fetch);
         let retrieve_ns = t0.elapsed().as_nanos() as u64;
         let hits: Vec<Hit> = raw
             .into_iter()
@@ -301,9 +302,9 @@ impl BuiltArm2<'_> {
         q: &EncodedQuery,
         config: &SplateConfig,
     ) -> Result<(Ranking, usize, u64, u64)> {
+        let fetch = config.shortlist_k.saturating_add(1).min(corpus.docs.len());
         let t0 = Instant::now();
-        let raw =
-            self.static_index.top_k(&self.space, &q.static_vec, config.shortlist_k + 1).map_err(|e| e.to_string())?;
+        let raw = self.static_index.top_k(&self.space, &q.static_vec, fetch).map_err(|e| e.to_string())?;
         let shortlist: Vec<u32> = raw
             .into_iter()
             .filter(|h| corpus.docs[h.row as usize].id != q.id)
@@ -333,8 +334,9 @@ impl BuiltArm3 {
         q: &EncodedQuery,
         config: &SplateConfig,
     ) -> Result<(Ranking, usize, u64, u64)> {
+        let fetch = config.shortlist_k.saturating_add(1).min(corpus.docs.len());
         let t0 = Instant::now();
-        let raw = self.sparse_index.top_k(&q.splade_terms, config.shortlist_k + 1);
+        let raw = self.sparse_index.top_k(&q.splade_terms, fetch);
         let shortlist: Vec<u32> = raw
             .into_iter()
             .filter(|&(row, _)| corpus.docs[row as usize].id != q.id)
@@ -369,8 +371,9 @@ impl BuiltArm4 {
         q_splate_terms: &[turbo::sparse::SparseTerm],
         config: &SplateConfig,
     ) -> Result<(Ranking, usize, u64, u64)> {
+        let fetch = config.shortlist_k.saturating_add(1).min(corpus.docs.len());
         let t0 = Instant::now();
-        let raw = self.splate_index.top_k(q_splate_terms, config.shortlist_k + 1);
+        let raw = self.splate_index.top_k(q_splate_terms, fetch);
         let shortlist: Vec<u32> = raw
             .into_iter()
             .filter(|&(row, _)| corpus.docs[row as usize].id != q.id)

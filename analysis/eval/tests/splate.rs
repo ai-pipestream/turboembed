@@ -144,6 +144,19 @@ fn query_and_doc_sharing_same_id_are_self_excluded_per_beir_rule() {
         );
         assert!((rep.scores.ndcg_at_10 - 1.0).abs() <= 1e-9, "arm {:?} ndcg_at_10 != 1.0", rep.arm);
     }
+
+    for (shortlist_k, top_k) in [(1, usize::MAX), (usize::MAX, 1), (usize::MAX, usize::MAX)] {
+        let max_cfg = SplateConfig { shortlist_k, top_k, rounds: 1, ..SplateConfig::default() };
+        let max_report = run_study(&arguana_like, &max_cfg).expect("usize::MAX study");
+        for rep in &max_report.arms {
+            assert!(
+                (rep.scores.recall.at_100 - 1.0).abs() <= 1e-9,
+                "arm {:?} failed at shortlist_k={shortlist_k}, top_k={top_k} (Recall@100 = {})",
+                rep.arm,
+                rep.scores.recall.at_100
+            );
+        }
+    }
 }
 
 #[test]
