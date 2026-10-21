@@ -22,6 +22,16 @@ unsafe extern "C" {
     fn turbo_metal_allocations(host: *mut u64, device: *mut u64);
     fn turbo_metal_in_place(model: *mut std::ffi::c_void) -> i32;
     fn turbo_metal_widened(model: *mut std::ffi::c_void) -> *const std::ffi::c_void;
+    fn turbo_metal_use_choices(line: *const std::ffi::c_char);
+}
+
+/// A choices line the sessions made after this read in place of
+/// TURBO_METAL_CHOICES, or None to read the variable again. Built only
+/// with `internals`, for the tests.
+#[cfg(feature = "internals")]
+pub fn use_choices(choices: Option<&str>) {
+    let line = choices.map(|c| std::ffi::CString::new(c).expect("a choices line without NUL"));
+    unsafe { turbo_metal_use_choices(line.as_ref().map_or(std::ptr::null(), |c| c.as_ptr())) };
 }
 
 /// Every allocation the Metal backend has made in this process, host and
