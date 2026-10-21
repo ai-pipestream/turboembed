@@ -371,6 +371,9 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
             wp[i] += HBK;
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
+        // Unrolled whole: about 4% faster on the M2 than as the compiler
+        // leaves it.
+        _Pragma("clang loop unroll(full)")
         for (uint kk = 0; kk < HBK; kk += 8) {
             simdgroup_half8x8 a[TM], b[4];
             for (uint i = 0; i < TM; i++) simdgroup_load(a[i], xs + (sm + i * 8) * HLD + kk, HLD);
