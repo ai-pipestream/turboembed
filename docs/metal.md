@@ -62,8 +62,8 @@ frameworks and libc++, which every macOS has.
   `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
   MODEL and EXACT records against TEI's router built natively with
   Metal. Elsewhere it is EXPERIMENTAL, and so is the M2's FASTEST cell
-  until a record of FASTEST in F16 backs it (Speed on the M2 has its
-  times). On the M2, one 16-token request at a time runs in 1.69 ms
+  until a record of FASTEST in F16 backs it (#813; Speed on the M2 has
+  its times). On the M2, one 16-token request at a time runs in 1.69 ms
   p50 against TEI's 10.1 ms. For 32-row batches the ratio is about 50x
   on mixed rows and 8-9x on dense, because TEI's router runs a 32-row
   request as about 3 sequential sub-batches: its own `x-inference-time`
@@ -198,7 +198,10 @@ frameworks and libc++, which every macOS has.
   base 2 on the precise `exp2`, and the softmax, its running max and sum,
   and every sum are F32. The residual stream itself, LayerNorm and pooling
   are F32 as at EXACT. Cosine must reach 0.999, FASTEST's floor on every
-  backend; all-MiniLM-L6-v2's reference cases reach 1 - 4.5e-7.
+  backend; all-MiniLM-L6-v2's reference cases (up to 256 tokens) reach
+  1 - 4.5e-7. Q, K, V, the context and GELU's output are stored in F16
+  with no guard for values past its range; a larger model at 512 tokens
+  is still to be checked (#814).
 - **What a result reports.** Stages: tokenize on the host for text,
   no upload (the rows were copied into the session's shared memory by
   the write, as on the CPU), lookup, encode and pool on the device,
@@ -276,6 +279,9 @@ float16 and float32. The machine was in use, not idle (load averages from
 41 down to 5 over the rounds), so the table gives the median of the five
 p50s and, after the slash, the least p50, in ms. MLX runs dense rows
 only; it computes a padded batch, so mixed rows would time its padding.
+`mlx_bench.py` casts every weight, LayerNorm's included, to the dtype it
+runs in, so MLX float16 is F16 throughout, a looser contract than
+FASTEST's F32 residual stream, LayerNorm and sums.
 
 | Rows | FASTEST, F16 | FASTEST before, F32 | EXACT | MLX float16 | MLX float32 |
 |---|---|---|---|---|---|
@@ -292,7 +298,10 @@ at one rate, so the gain is the memory traffic, not the arithmetic. On
 those 32 x 256 rows the encoder's linear layers take about 78 ms and
 attention about 27 ms; MLX's own matrix products for the same four
 shapes take about 59 to 72 ms on the same machine. Vectors at FASTEST
-reach 1 - 4.5e-7 cosine against the bundle's reference.
+reach 1 - 4.5e-7 cosine against the bundle's reference. EXACT runs the
+same F32 kernels as before this change: its least p50 at 32 x 256 (140.1)
+matches the F32 FASTEST path's (139.9), and its higher median is the
+machine's load in the later rounds.
 
 ## Testing
 

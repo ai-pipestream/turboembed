@@ -97,7 +97,8 @@ kernel void embed_layer_norm(device const int *ids [[buffer(0)]], device const i
                              device const float *position [[buffer(4)]], device const float *type [[buffer(5)]],
                              device const float *ln_w [[buffer(6)]], device const float *ln_b [[buffer(7)]],
                              device float *x [[buffer(8)]], constant RowParams &p [[buffer(9)]],
-                             device half *xh [[buffer(10)]], uint tg [[threadgroup_position_in_grid]], ushort sg [[simdgroup_index_in_threadgroup]],
+                             device half *xh [[buffer(10)]],
+                             uint tg [[threadgroup_position_in_grid]], ushort sg [[simdgroup_index_in_threadgroup]],
                              ushort lane [[thread_index_in_simdgroup]]) {
     const uint t = tg * 4 + sg, h = p.hidden;
     device const float *w = word + ulong(ids[t]) * h;
@@ -114,7 +115,8 @@ kernel void add_layer_norm(device float *x [[buffer(0)]], device const float *y 
                            device const float *bias [[buffer(2)]], device const float *ln_w [[buffer(3)]],
                            device const float *ln_b [[buffer(4)]], constant RowParams &p [[buffer(5)]],
                            constant uint &splits [[buffer(6)]], constant uint &tokens [[buffer(7)]],
-                           device half *xh [[buffer(8)]], uint tg [[threadgroup_position_in_grid]], ushort sg [[simdgroup_index_in_threadgroup]],
+                           device half *xh [[buffer(8)]],
+                           uint tg [[threadgroup_position_in_grid]], ushort sg [[simdgroup_index_in_threadgroup]],
                            ushort lane [[thread_index_in_simdgroup]]) {
     const uint t = tg * 4 + sg, h = p.hidden;
     device float *row = x + ulong(t) * h;
@@ -443,8 +445,8 @@ kernel void gemm_small_h(device const XT *x [[buffer(0)]], device const half *w0
 }
 
 // The instances the host names: x and y in F32 (f) or F16 (h).
-#define GEMM_H(XT, YT, TM, WM, name)                                                                                 \
-    template [[host_name(name)]] kernel void gemm_h<XT, YT, TM, WM>(                                                     \
+#define GEMM_H(XT, YT, TM, WM, name) \
+    template [[host_name(name)]] kernel void gemm_h<XT, YT, TM, WM>( \
         device const XT *, device const half *, device const half *, device const half *, device const float *,       \
         device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
         uint3, ushort, ushort, ushort);

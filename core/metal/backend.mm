@@ -1102,10 +1102,21 @@ int32_t forced_linear(int *out, turbo_error *err) {
     return TURBO_OK;
 }
 
+/* The numeric classes the core allows each precision (core/src/tuning.rs),
+ * for a session made without a tuning struct to say. */
+uint32_t numerics_for(uint32_t precision) {
+    return precision == TURBO_PRECISION_FASTEST ? TURBO_NUMERIC_F16_F32ACC | TURBO_NUMERIC_F16_CHUNKACC
+                                                : TURBO_NUMERIC_F32_FMA;
+}
+
 /* A session for session_create and session_open: max_ranges is
- * max_batch for the first, the description's for the second. */
+ * max_batch for the first, the description's for the second; numerics
+ * the TURBO_NUMERIC_* classes the precision allows. The linear layers run
+ * in F16 where F16 operands with F32 sums are allowed, else in F32, and
+ * a kernel outside the classes is never launched. */
 int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
-                     uint32_t max_ranges, uint32_t *compute_dtype, void **out, turbo_error *err) {
+                     uint32_t max_ranges, uint32_t numerics, uint32_t *compute_dtype, void **out,
+                     turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Model *m = static_cast<Model *>(model);
         Context *c = m->ctx;
@@ -1137,28 +1148,32 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         const size_t ints = round_up(cap * 4, 256), pairs = round_up(max_batch * 8, 256),
                      block_pairs = round_up(nblk * 8, 256),
                      triples = round_up((size_t)max_ranges * sizeof(turbo_token_range), 256);
-        const size_t xh = precision == TURBO_PRECISION_FASTEST ? round_up(cap * d.hidden * 2, 256) : 0;
+        const bool half = (numerics & TURBO_NUMERIC_F16_F32ACC) != 0;
+        const size_t xh = half ? round_up(cap * d.hidden * 2, 256) : 0;
         if (cap > UINT32_MAX / widest || 6 * wide + ffn + xh > c->device.maxBufferLength)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 1,
                                 "%u rows of %u tokens is more than one of device %u's buffers holds", max_batch,
                                 max_seq, c->ordinal);
-        // FASTEST's linear layers take F16 weights, in the kernels the
-        // environment forces or else the default.
-        const bool half = precision == TURBO_PRECISION_FASTEST;
+        // A kernel the environment forces must compute in a class the
+        // precision allows.
         int forced = -1;
         TRY(forced_linear(&forced, err));
-        if (forced >= 0 && (forced != (int)LINEAR_F32) != half)
+        const uint32_t needs = forced == (int)LINEAR_F32 ? TURBO_NUMERIC_F32_FMA : TURBO_NUMERIC_F16_F32ACC;
+        if (forced >= 0 && !(numerics & needs))
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
-                                "TURBO_METAL_CHOICES linear=%s: %s computes its linear layers %s",
-                                LINEAR_NAMES[forced], half ? "FASTEST" : "this precision",
-                                half ? "in F16 (h32, h64 or h128)" : "in F32 (f32)");
+                                "TURBO_METAL_CHOICES linear=%s: its kernels compute in %s, which precision %u "
+                                "does not allow",
+                                LINEAR_NAMES[forced], forced == (int)LINEAR_F32 ? "F32" : "F16 with F32 sums",
+                                precision);
         if (forced > (int)LINEAR_F32 && !runs_linear(c, (Linear)forced))
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
                                 "TURBO_METAL_CHOICES linear=%s: device %u runs its kernels in threadgroups of fewer "
                                 "than 256",
                                 LINEAR_NAMES[forced], c->ordinal);
         TRY(f32_weights(m, err));
-        if (half) TRY(f16_weights(m, err));
+        // The linear layers' kernels: the forced ones, else F16 where allowed.
+        const Linear linear = forced >= 0 ? (Linear)forced : half ? LINEAR_DEFAULT : LINEAR_F32;
+        if (linear != LINEAR_F32) TRY(f16_weights(m, err));
 
         Session *s = make<Session>();
         s->model = m;
@@ -1202,9 +1217,9 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         s->output.placement = TURBO_PLACE_SHARED;
         s->output.bytes = vectors;
         s->output.owned = false;
-        s->linear = forced >= 0 ? (Linear)forced : half ? LINEAR_DEFAULT : LINEAR_F32;
+        s->linear = linear;
         s->forced = forced >= 0;
-        *compute_dtype = half ? TURBO_DTYPE_F16 : TURBO_DTYPE_F32;
+        *compute_dtype = linear != LINEAR_F32 ? TURBO_DTYPE_F16 : TURBO_DTYPE_F32;
         *out = s;
         return TURBO_OK;
     });
@@ -1212,7 +1227,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
 
 int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
                        uint32_t *compute_dtype, void **out, turbo_error *err) {
-    return open_session(model, task, max_batch, max_seq, precision, max_batch, compute_dtype, out, err);
+    return open_session(model, task, max_batch, max_seq, precision, max_batch, numerics_for(precision),
+                        compute_dtype, out, err);
 }
 
 /* The session's whole description, then its linear layers' kernels
@@ -1234,8 +1250,9 @@ int32_t session_open(void *model, const turbo_backend_session_desc *desc, turbo_
         return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 6,
                             "cpu_threads %u: the metal backend's device is not a CPU; cpu_threads must be 0",
                             desc->cpu_threads);
+    const uint32_t numerics = tuning ? tuning->numerics_allowed : numerics_for(desc->precision);
     const int32_t rc = open_session(model, desc->task, desc->max_batch, desc->max_seq, desc->precision,
-                                    desc->max_ranges, compute_dtype, out, err);
+                                    desc->max_ranges, numerics, compute_dtype, out, err);
     if (rc != TURBO_OK || !tuning) return rc;
     const int32_t tuned = guarded(err, [&]() -> int32_t { return tune(*static_cast<Session *>(*out), *tuning, err); });
     if (tuned != TURBO_OK) {

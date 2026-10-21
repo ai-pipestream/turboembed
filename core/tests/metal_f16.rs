@@ -88,7 +88,7 @@ fn fastest_computes_in_f16_and_says_so() {
         assert_eq!(rt.capability(i, p).dtype, dtype, "precision {p}");
         let info = make(l.m, None, p, TURBO_AUTOTUNE_OFF).unwrap().info();
         assert_eq!(info.compute_dtype, dtype, "precision {p}");
-        // FASTEST has two tilings to choose from; the others one path.
+        // FASTEST has three tilings to choose from; the others one path.
         let want = if p == TURBO_PRECISION_FASTEST { "linear=h64;forced=" } else { "" };
         assert_eq!((field(&info.choices), info.tuned), (want.to_owned(), TURBO_TUNED_DEFAULT), "precision {p}");
     }
