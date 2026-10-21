@@ -104,6 +104,16 @@ panels of 32 outputs that a tile reads in order. A tile is 32 outputs by
 Rows are padded with zeros to whole tiles. The last span layer folds
 into every query of a relation in one pass over its weights.
 
-The encoder is the gap: 194 ms per parity text in the reference, 3,776 ms
-on the native encoder's scalar CPU path (docs/deberta.md). The speed bar
-of #714 waits on its packed GEMM work (#391).
+End to end, on the same machine and core, with the same method:
+`extract_relations` against `Gliner2Relations::extract` on the three
+parity texts, the reference's encoder timed with hooks around its module
+and ours on its own:
+
+| per text | reference | native | ratio |
+|---|---|---|---|
+| end to end | 196.7 to 196.9 ms | 41.0 to 41.7 ms | 0.21x |
+| encoder | 185.2 to 185.5 ms | 36.8 to 36.9 ms | 0.20x |
+| everything else (tokenization, heads, decoding) | 11.4 to 11.8 ms | 4.1 to 4.8 ms | 0.36 to 0.41x, each round with its own reference |
+
+The native encoder, which computes only the visible positions since #391
+(docs/deberta.md), is about nine tenths of the native time.
