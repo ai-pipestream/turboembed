@@ -131,10 +131,15 @@ for ids, markers, words in [
             fixed = count_embed(pc, FIXED_COUNT)
             logits = marker.score_queries(w.unsqueeze(0), fixed.reshape(1, -1, D), mask_invalid=True)[0]
             actual = count_embed(pc, count) if count > 0 else torch.zeros(0, 2, D)
+            # The two [R] rows of one schema are nearly equal at this width,
+            # so attention across them barely shows; the [P] row and the
+            # first word are unlike, and make it count.
+            crossed = count_embed(torch.stack([h[p], h[words[0]]]), FIXED_COUNT)
             labels.append(dict(count=count, count_logits=count_logits.tolist(),
                                queries=fixed.flatten().tolist(),
                                logits=[x if np.isfinite(x) else None for x in logits.flatten().tolist()],
-                               actual_queries=actual.flatten().tolist()))
+                               actual_queries=actual.flatten().tolist(),
+                               crossed_queries=crossed.flatten().tolist()))
     cases.append(dict(ids=ids, markers=markers, words=words, labels=labels))
 (OUT / 'reduced.json').write_text(json.dumps(dict(
     source=f'fastino/gliner2-base-v1@{REVISION}', license='Apache-2.0', fixed_count=FIXED_COUNT,

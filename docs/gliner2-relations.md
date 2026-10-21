@@ -73,8 +73,15 @@ Python.
 ## Speed
 
 Single-threaded on the x86_64 timing machine, release, on the three
-parity texts (37 to 50 subwords): the reference (torch 2.14.1 CPU, one
-thread) takes 202 ms per text; this scorer 3.86 s, of which the encoder
-is 3.79 s and the heads, tokenization and decoding 72 ms. The encoder's
-scalar CPU path is the bottleneck (docs/deberta.md); the speed bar of
-#714 waits on its packed GEMM work.
+parity texts (37 to 50 subwords), best of 7 rounds of 5. The reference
+is GLiNER2 on torch 2.14.1 CPU with one thread, its encoder timed by
+hooks around the encoder module.
+
+| | reference | native |
+|---|---|---|
+| encoder | 194 ms | 3,776 ms |
+| everything else (tokenization, heads, decoding) | 12.5 ms | 13.3 ms |
+
+The heads are at the reference's cost; the encoder's scalar CPU path is
+the gap (docs/deberta.md), and the speed bar of #714 waits on its packed
+GEMM work.

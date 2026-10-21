@@ -85,6 +85,9 @@ fn the_heads_match_the_reference_layers() {
                 &floats(&label["actual_queries"]),
                 &format!("{what} actual"),
             );
+            // Two unlike fields, so the attention across them shows.
+            let crossed = heads.queries([row(p), row(words[0])], fixed);
+            close(&crossed, &floats(&label["crossed_queries"]), &format!("{what} crossed queries"));
             instances += count;
         }
         // The same through the pass the scorer runs.

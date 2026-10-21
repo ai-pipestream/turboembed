@@ -28,11 +28,23 @@ use turbo::safetensors::{Dtype, File};
 struct Mlp(Vec<Linear>);
 
 impl Mlp {
+    /// [`Mlp::apply`] on each of `n` rows of `x`.
+    fn rows(&self, x: &[f32], n: usize) -> Vec<f32> {
+        let mut v = x.to_vec();
+        for (k, l) in self.0.iter().enumerate() {
+            v = rows(l, &v, n);
+            if k + 1 < self.0.len() {
+                v.iter_mut().for_each(|x| *x = x.max(0.0));
+            }
+        }
+        v
+    }
+
     fn apply(&self, x: &[f32]) -> Vec<f32> {
         let mut v = x.to_vec();
         for (k, l) in self.0.iter().enumerate() {
             let mut out = vec![0.0; l.out_dim];
-            l.apply(&v, &mut out);
+            apply(l, &v, &mut out);
             if k + 1 < self.0.len() {
                 out.iter_mut().for_each(|x| *x = x.max(0.0));
             }
@@ -40,6 +52,40 @@ impl Mlp {
         }
         v
     }
+}
+
+/// A dot product in eight independent lanes, so the compiler can keep
+/// them in one vector register.
+fn dot(a: &[f32], b: &[f32]) -> f32 {
+    let mut acc = [0.0f32; 8];
+    let (ac, ar) = a.as_chunks::<8>();
+    let (bc, br) = b.as_chunks::<8>();
+    for (x, y) in ac.iter().zip(bc) {
+        for k in 0..8 {
+            acc[k] += x[k] * y[k];
+        }
+    }
+    let tail: f32 = ar.iter().zip(br).map(|(x, y)| x * y).sum();
+    acc.iter().sum::<f32>() + tail
+}
+
+/// `l` on one row, through [`dot`].
+fn apply(l: &Linear, x: &[f32], out: &mut [f32]) {
+    for ((o, w), &b) in out.iter_mut().zip(l.weight.chunks_exact(l.in_dim)).zip(&l.bias) {
+        *o = dot(w, x) + b;
+    }
+}
+
+/// `l` on each of the `n` rows of `x`, every weight row read once for all
+/// of them.
+fn rows(l: &Linear, x: &[f32], n: usize) -> Vec<f32> {
+    let mut out = vec![0.0; n * l.out_dim];
+    for (o, (w, &b)) in l.weight.chunks_exact(l.in_dim).zip(&l.bias).enumerate() {
+        for (i, row) in x.chunks_exact(l.in_dim).take(n).enumerate() {
+            out[i * l.out_dim + o] = dot(w, row) + b;
+        }
+    }
+    out
 }
 
 struct Norm {
@@ -78,7 +124,7 @@ impl Layer {
         let hd = m / ATTENTION_HEADS;
         let mut qkv = vec![0.0; n * 3 * m];
         for (row, out) in x.chunks_exact(m).zip(qkv.chunks_exact_mut(3 * m)) {
-            self.in_proj.apply(row, out);
+            apply(&self.in_proj, row, out);
         }
         let scale = (hd as f32).sqrt().recip();
         let mut ctx = vec![0.0; n * m];
@@ -104,12 +150,12 @@ impl Layer {
         let mut tmp = vec![0.0; m];
         let mut hidden = vec![0.0; self.linear1.out_dim];
         for (row, c) in x.chunks_exact_mut(m).zip(ctx.chunks_exact(m)) {
-            self.out_proj.apply(c, &mut tmp);
+            apply(&self.out_proj, c, &mut tmp);
             row.iter_mut().zip(&tmp).for_each(|(x, a)| *x += a);
             self.norm1.apply(row);
-            self.linear1.apply(row, &mut hidden);
+            apply(&self.linear1, row, &mut hidden);
             hidden.iter_mut().for_each(|x| *x = x.max(0.0));
-            self.linear2.apply(&hidden, &mut tmp);
+            apply(&self.linear2, &hidden, &mut tmp);
             row.iter_mut().zip(&tmp).for_each(|(x, a)| *x += a);
             self.norm2.apply(row);
         }
@@ -272,9 +318,9 @@ impl Heads {
         let (mut gi, mut gh) = (vec![0.0; 3 * d], vec![0.0; 3 * d]);
         let mut steps = vec![vec![0.0; 2 * d]; k];
         for (t, step) in steps.iter_mut().enumerate() {
-            self.gru_ih.apply(&self.positions[t * d..(t + 1) * d], &mut gi);
+            apply(&self.gru_ih, &self.positions[t * d..(t + 1) * d], &mut gi);
             for (m, h) in states.iter_mut().enumerate() {
-                self.gru_hh.apply(h, &mut gh);
+                apply(&self.gru_hh, h, &mut gh);
                 for j in 0..d {
                     let r = sigmoid(gi[j] + gh[j]);
                     let z = sigmoid(gi[d + j] + gh[d + j]);
@@ -290,7 +336,7 @@ impl Heads {
         for y in &steps {
             let mut x = vec![0.0; 2 * m];
             for f in 0..2 {
-                self.in_projector.apply(&y[f * d..(f + 1) * d], &mut x[f * m..(f + 1) * m]);
+                apply(&self.in_projector, &y[f * d..(f + 1) * d], &mut x[f * m..(f + 1) * m]);
             }
             for l in &self.layers {
                 l.apply(&mut x, 2);
@@ -308,16 +354,14 @@ impl Heads {
     /// `words` (`[n][D]`): `[n][max_width][4D]`, empty rows for spans past
     /// the last word.
     pub fn spans(&self, words: &[f32], n: usize) -> Spans {
-        let (d, w) = (self.width, self.max_width);
+        let w = self.max_width;
         let hidden = self.first_bias.len();
-        let mut start = vec![0.0; n * hidden];
-        let mut end = vec![0.0; n * hidden];
-        for i in 0..n {
-            let h = &words[i * d..(i + 1) * d];
-            let relu = |v: Vec<f32>| v.into_iter().map(|x| x.max(0.0)).collect::<Vec<_>>();
-            self.first_start.apply(&relu(self.start.apply(h)), &mut start[i * hidden..(i + 1) * hidden]);
-            self.first_end.apply(&relu(self.end.apply(h)), &mut end[i * hidden..(i + 1) * hidden]);
-        }
+        let relu = |mut v: Vec<f32>| {
+            v.iter_mut().for_each(|x| *x = x.max(0.0));
+            v
+        };
+        let start = rows(&self.first_start, &relu(self.start.rows(words, n)), n);
+        let end = rows(&self.first_end, &relu(self.end.rows(words, n)), n);
         let mut rows = vec![0.0; n * w * hidden];
         for i in 0..n {
             for k in 0..w.min(n - i) {
@@ -346,7 +390,7 @@ impl Heads {
         for i in 0..spans.n {
             for k in 0..spans.width.min(spans.n - i) {
                 let row = &spans.rows[(i * spans.width + k) * h..][..h];
-                out[i * spans.width + k] = row.iter().zip(&folded).map(|(a, b)| a * b).sum::<f32>() + bias;
+                out[i * spans.width + k] = dot(row, &folded) + bias;
             }
         }
         out

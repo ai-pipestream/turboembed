@@ -180,7 +180,7 @@ directory the user names and checks its size and SHA-256
 (`langdetect::LANGDETECT_183`), and ships, bundles and trains on nothing
 of it.
 
-## Neural annotator checkpoints (not in the index)
+## Neural annotator checkpoints
 
 The SaT and GLiNER checkpoints docs/neural-annotators.md considers, and
 the GLiNER2 and GLiREL checkpoints the relation scorer considers
