@@ -9,8 +9,11 @@
 //! a reference implementation can check them without a model: the golden
 //! test does (testdata/splade-golden), the bundle's MLM head the rest.
 
+mod decode;
+
 use crate::mlm::{MlmHead, layer_norm};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result};
+use decode::Kernel;
 
 /// One term of a learned sparse vector: a model vocabulary id and the
 /// weight the text gives it.
@@ -222,12 +225,9 @@ impl MlmHead {
         }
         // The decoder, transposed so a block of tokens streams its weight
         // once: out[t, i] = b[i] + sum_j x[t, j] * wt[j, i], summed over
-        // j in the order Linear::apply sums it. FMA where the processor
-        // has it, as the encoder's kernels detect (cpu/kernels/micro.rs).
-        #[cfg(target_arch = "x86_64")]
-        let avx2 = std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma");
-        #[cfg(not(target_arch = "x86_64"))]
-        let avx2 = false;
+        // j in the order Linear::apply sums it, with FMA where the
+        // processor has a SIMD kernel for it (sparse/decode.rs).
+        let kernel = Kernel::detect();
         let mut wt = vec![0.0f32; h * v];
         for (i, w) in self.decoder.weight.chunks_exact(h).enumerate() {
             for (j, &x) in w.iter().enumerate() {
@@ -249,24 +249,7 @@ impl MlmHead {
                 for (t, o) in out.chunks_exact_mut(w).enumerate() {
                     o.copy_from_slice(&self.decoder.bias[i0..i0 + w]);
                     let x = &block[t * h..(t + 1) * h];
-                    // `avx2` is only ever true on x86_64; elsewhere the call is
-                    // compiled out and the portable loop below runs.
-                    let fused = avx2 && {
-                        // SAFETY: avx2 says the processor has AVX2 and FMA.
-                        #[cfg(target_arch = "x86_64")]
-                        unsafe {
-                            gemm_avx2(x, &wt, o, v, i0)
-                        };
-                        true
-                    };
-                    if !fused {
-                        for (j, &xj) in x.iter().enumerate() {
-                            let wt = &wt[j * v + i0..j * v + i0 + w];
-                            for i in 0..w {
-                                o[i] += xj * wt[i];
-                            }
-                        }
-                    }
+                    kernel.run(x, &wt, o, v, i0);
                 }
                 for o in out.chunks_exact(w) {
                     pool.observe_at(i0, o)?;
@@ -274,58 +257,6 @@ impl MlmHead {
             }
         }
         Ok(())
-    }
-}
-
-/// `o[i] += x[j] * wt[j * v + i0 + i]` over the `w` columns, with FMA.
-///
-/// # Safety
-/// The processor has AVX2 and FMA, and `wt` holds rows of `v` floats with
-/// `i0 + o.len() <= v`.
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx2,fma")]
-unsafe fn gemm_avx2(x: &[f32], wt: &[f32], o: &mut [f32], v: usize, i0: usize) {
-    use std::arch::x86_64::*;
-    let w = o.len();
-    let mut i = 0;
-    while i + 32 <= w {
-        // Four 8-lane accumulators cover 32 columns a step, unrolled so
-        // the loads and FMAs pipeline.
-        let (mut c0, mut c1, mut c2, mut c3) = unsafe {
-            (
-                _mm256_loadu_ps(o.as_ptr().add(i)),
-                _mm256_loadu_ps(o.as_ptr().add(i + 8)),
-                _mm256_loadu_ps(o.as_ptr().add(i + 16)),
-                _mm256_loadu_ps(o.as_ptr().add(i + 24)),
-            )
-        };
-        for (j, &xj) in x.iter().enumerate() {
-            let a = _mm256_set1_ps(xj);
-            // SAFETY: i + 32 <= w and i0 + w <= v, so the row has these
-            // columns.
-            let row = unsafe { wt.as_ptr().add(j * v + i0 + i) };
-            // SAFETY: i + 32 <= w <= v - i0, so the row has these columns.
-            c0 = unsafe { _mm256_fmadd_ps(a, _mm256_loadu_ps(row), c0) };
-            c1 = unsafe { _mm256_fmadd_ps(a, _mm256_loadu_ps(row.add(8)), c1) };
-            c2 = unsafe { _mm256_fmadd_ps(a, _mm256_loadu_ps(row.add(16)), c2) };
-            c3 = unsafe { _mm256_fmadd_ps(a, _mm256_loadu_ps(row.add(24)), c3) };
-        }
-        unsafe {
-            _mm256_storeu_ps(o.as_mut_ptr().add(i), c0);
-            _mm256_storeu_ps(o.as_mut_ptr().add(i + 8), c1);
-            _mm256_storeu_ps(o.as_mut_ptr().add(i + 16), c2);
-            _mm256_storeu_ps(o.as_mut_ptr().add(i + 24), c3);
-        }
-        i += 32;
-    }
-    // The tail under 32 columns, where the chunk ends: scalar, the same
-    // sum order.
-    for i in i..w {
-        let mut s = o[i];
-        for (j, &xj) in x.iter().enumerate() {
-            s += xj * wt[j * v + i0 + i];
-        }
-        o[i] = s;
     }
 }
 
