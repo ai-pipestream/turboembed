@@ -43,8 +43,11 @@ impl TokenVectors {
     /// The vectors layer this result's rows make, checked.
     pub fn vectors(&self) -> Result<Vectors<Subwords>, Failure> {
         let rows = self.data.len() / self.dim.max(1) as usize;
+        if self.empty.iter().any(|&i| i as usize >= rows) {
+            return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "empty: row indices among the rows"));
+        }
         let empty: Vec<turbo_analysis::Ix<Subwords>> =
-            self.empty.iter().map(|&i| super::ix_bounded("empty", i, rows)).collect::<Result<_, _>>()?;
+            self.empty.iter().map(|&i| super::ix_from_wire("empty", i)).collect::<Result<_, _>>()?;
         let v = Vectors::new(self.dim, self.data.clone(), empty, self.model.clone());
         v.check().map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("token vectors: {e}")))?;
         Ok(v)
