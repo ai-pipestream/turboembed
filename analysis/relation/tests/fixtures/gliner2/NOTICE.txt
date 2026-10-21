@@ -1,0 +1,11 @@
+Reduced numerical test weights derived from fastino/gliner2-base-v1.
+Source: https://huggingface.co/fastino/gliner2-base-v1
+Revision: f9634218e53580c56edf0de97ca1a7d3f1c2354e
+Model card licence: Apache-2.0.
+Modifications: the encoder and the relation heads sliced to width 32, as
+analysis/relation/reference/gliner2/build_fixture.py records; the count
+transformer's width-128 layers are copied whole. These are not production
+model weights. real.json holds only outputs of the full checkpoint.
+Reference outputs produced by GLiNER2 (Apache-2.0) at
+ca4f68235b50fe4c3ecf3876851d748fe4b15c6c and Hugging Face Transformers
+4.57.1 (Apache-2.0).

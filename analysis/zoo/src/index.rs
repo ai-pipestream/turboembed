@@ -104,6 +104,11 @@ constant_enum! {
         Conllu => "FORMAT_CONLLU",
         Text => "FORMAT_TEXT",
         Zip => "FORMAT_ZIP",
+        /// A PyTorch checkpoint as `torch.save` writes it: a zip of a
+        /// pickled state dict and its tensor data. The zoo only fetches and
+        /// checks its bytes; a reader takes the tensors without running the
+        /// pickle.
+        Pytorch => "FORMAT_PYTORCH",
     }
 }
 
