@@ -37,11 +37,25 @@ use words::Word;
 
 /// One encoder pass and the heads that do not depend on the entities.
 pub struct Pass {
-    pub prompt: Prompt,
+    prompt: Prompt,
+    lstm: Vec<f32>,
+    types: Vec<f32>,
+}
+
+impl Pass {
+    pub fn prompt(&self) -> &Prompt {
+        &self.prompt
+    }
+
     /// The LSTM's row for each word, `[words][H]`.
-    pub lstm: Vec<f32>,
+    pub fn lstm(&self) -> &[f32] {
+        &self.lstm
+    }
+
     /// Each label's representation, `[labels][H]`.
-    pub types: Vec<f32>,
+    pub fn types(&self) -> &[f32] {
+        &self.types
+    }
 }
 
 /// One relation at or above a threshold: its head and tail entities (indexes
@@ -134,6 +148,9 @@ impl GlirelRelations {
 
     /// One encoder pass and the entity-free heads over `text` and `labels`.
     pub fn pass(&self, text: &str, labels: &[&str]) -> Result<Pass, RelationError> {
+        if labels.is_empty() {
+            return Err(RelationError::NoLabels);
+        }
         run(&self.encoder, &self.heads, self.prompt(text, labels)?)
     }
 
@@ -145,7 +162,11 @@ impl GlirelRelations {
         entities: &[(usize, usize)],
         pairs: &[(usize, usize)],
     ) -> Result<Vec<f32>, RelationError> {
-        let n = pass.prompt.words.len();
+        let (n, h) = (pass.prompt.words.len(), self.heads.width);
+        // A pass from other heads, or one whose rows do not fit its prompt.
+        if pass.lstm.len() != n * h || pass.types.len() != pass.prompt.labels.len() * h || pass.types.is_empty() {
+            return Err(bad("a pass that does not fit these heads"));
+        }
         if entities.iter().any(|&(s, e)| s > e || e >= n)
             || pairs.iter().any(|&(a, b)| a >= entities.len() || b >= entities.len())
         {
@@ -165,6 +186,9 @@ impl GlirelRelations {
         labels: &[&str],
         threshold: f32,
     ) -> Result<Vec<Extracted>, RelationError> {
+        if !(threshold.is_finite() && (0.0..=1.0).contains(&threshold)) {
+            return Err(RelationError::BadThreshold { label: None, threshold: f64::from(threshold) });
+        }
         let pass = self.pass(text, labels)?;
         let pairs: Vec<(usize, usize)> = (0..entities.len())
             .flat_map(|a| (0..entities.len()).filter(move |&b| b != a).map(move |b| (a, b)))
@@ -253,6 +277,9 @@ impl RelationScorer for GlirelRelations {
         labels: &[&str],
         out: &mut Vec<f32>,
     ) -> Result<(), RelationError> {
+        if pairs.iter().any(|&(h, t)| h as usize >= mentions.len() || t as usize >= mentions.len()) {
+            return Err(bad("a pair outside the mentions"));
+        }
         let pass = self.pass(text, labels)?;
         let at: Vec<Option<(usize, usize)>> = mentions.iter().map(|m| words_of(&pass.prompt.words, m.span)).collect();
         // Only the mentions that are word runs become entities.

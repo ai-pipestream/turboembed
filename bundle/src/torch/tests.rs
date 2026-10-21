@@ -106,3 +106,80 @@ fn the_pickle_runs_no_code() {
     // A truncated pickle never reaches STOP.
     assert!(pickle::state_dict(&p[..p.len() - 1]).is_err());
 }
+
+/// A stored zip of `files`, as `torch.save` lays one out, without zip64.
+fn archive(files: &[(&str, &[u8])]) -> Vec<u8> {
+    let (mut out, mut central) = (Vec::new(), Vec::new());
+    for (name, data) in files {
+        let (at, crc, n) = (out.len() as u32, zip::crc32(data), data.len() as u32);
+        let fixed = |sig: u32| -> Vec<u8> {
+            let mut h = sig.to_le_bytes().to_vec();
+            h.extend([20, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            h.extend(crc.to_le_bytes());
+            h.extend(n.to_le_bytes());
+            h.extend(n.to_le_bytes());
+            h.extend((name.len() as u16).to_le_bytes());
+            h.extend([0, 0]);
+            h
+        };
+        let mut local = fixed(0x0403_4b50);
+        local.drain(4..6);
+        out.extend(local);
+        out.extend(name.as_bytes());
+        out.extend(*data);
+        let mut c = fixed(0x0201_4b50);
+        c.extend([0; 10]);
+        c.extend(at.to_le_bytes());
+        c.extend(name.as_bytes());
+        central.extend(c);
+    }
+    let (offset, size) = (out.len() as u32, central.len() as u32);
+    out.extend(central);
+    out.extend(0x0605_4b50u32.to_le_bytes());
+    out.extend([0, 0, 0, 0]);
+    out.extend((files.len() as u16).to_le_bytes());
+    out.extend((files.len() as u16).to_le_bytes());
+    out.extend(size.to_le_bytes());
+    out.extend(offset.to_le_bytes());
+    out.extend([0, 0]);
+    out
+}
+
+/// A pickle that memoizes a tuple of the previous tuple twice, `depth`
+/// times: copied out of the memo naively, it doubles at every level.
+fn tuple_bomb(depth: u8) -> Vec<u8> {
+    let mut p = vec![0x80, 2, b'N', b'q', 0];
+    for i in 1..=depth {
+        p.extend([b'h', i - 1, b'h', i - 1, 0x86, b'q', i]);
+    }
+    p.extend(*b"}.");
+    p
+}
+
+#[test]
+fn the_memo_cannot_grow_by_doubling() {
+    // The archive itself is read; only its pickle is hostile.
+    assert!(read(&archive(&[("archive/data.pkl", &[0x80, 2, b'}', b'.'])])).unwrap().is_empty());
+    for depth in [14, 32] {
+        let err = error(&archive(&[("archive/data.pkl", &tuple_bomb(depth))]));
+        assert!(err.contains("the memo copies more than 65536 values"), "depth {depth}: {err}");
+    }
+}
+
+#[test]
+fn offsets_outside_the_archive_are_errors() {
+    let bytes = fixture("state.pt");
+    // The zip64 locator's offset of the zip64 end record.
+    let locator = bytes.windows(4).rposition(|w| w == [0x50, 0x4b, 0x06, 0x07]).unwrap();
+    let mut far = bytes.clone();
+    far[locator + 8..locator + 16].copy_from_slice(&u64::MAX.to_le_bytes());
+    assert!(read(&far).is_err());
+    // A central-directory entry's local-header offset: full, so it would
+    // need a zip64 field, and one short of full, past the archive.
+    let cd = bytes.windows(4).position(|w| w == [0x50, 0x4b, 0x01, 0x02]).unwrap();
+    for local in [u32::MAX, u32::MAX - 1] {
+        let mut far = bytes.clone();
+        far[cd + 42..cd + 46].copy_from_slice(&local.to_le_bytes());
+        assert!(read(&far).is_err(), "{local}");
+    }
+}

@@ -11,16 +11,26 @@ pub struct Entry<'a> {
     pub data: &'a [u8],
 }
 
+/// `a + b`, for offsets read from the archive: an overflow is an error.
+fn off(a: usize, b: usize) -> Result<usize> {
+    a.checked_add(b).ok_or_else(|| "zip: an offset overflows".into())
+}
+
+/// The `len` bytes at `at`, inside the archive.
+fn slice(b: &[u8], at: usize, len: usize) -> Result<&[u8]> {
+    b.get(at..off(at, len)?).ok_or_else(|| "zip: truncated, or an offset outside the archive".into())
+}
+
 fn u16_at(b: &[u8], at: usize) -> Result<u16> {
-    b.get(at..at + 2).map(|s| u16::from_le_bytes([s[0], s[1]])).ok_or_else(|| "zip: truncated".into())
+    slice(b, at, 2).map(|s| u16::from_le_bytes([s[0], s[1]]))
 }
 
 fn u32_at(b: &[u8], at: usize) -> Result<u32> {
-    b.get(at..at + 4).map(|s| u32::from_le_bytes([s[0], s[1], s[2], s[3]])).ok_or_else(|| "zip: truncated".into())
+    slice(b, at, 4).map(|s| u32::from_le_bytes([s[0], s[1], s[2], s[3]]))
 }
 
 fn u64_at(b: &[u8], at: usize) -> Result<usize> {
-    let s = b.get(at..at + 8).ok_or("zip: truncated")?;
+    let s = slice(b, at, 8)?;
     usize::try_from(u64::from_le_bytes(s.try_into().expect("eight bytes"))).map_err(|_| "zip: offset overflows".into())
 }
 
@@ -48,11 +58,12 @@ fn directory(bytes: &[u8], end: usize) -> Result<(usize, usize, usize)> {
     if u32_at(bytes, end - 20 + 4)? != 0 || u32_at(bytes, end - 20 + 16)? != 1 || u32_at(bytes, at)? != ZIP64_END {
         return Err("zip: bad zip64 end record".into());
     }
-    let (here, count) = (u64_at(bytes, at + 24)?, u64_at(bytes, at + 32)?);
-    if u32_at(bytes, at + 16)? != 0 || u32_at(bytes, at + 20)? != 0 || here != count {
+    let record = slice(bytes, at, 56)?;
+    let (here, count) = (u64_at(record, 24)?, u64_at(record, 32)?);
+    if u32_at(record, 16)? != 0 || u32_at(record, 20)? != 0 || here != count {
         return Err("zip: multi-disk archives are not read".into());
     }
-    Ok((count, u64_at(bytes, at + 40)?, u64_at(bytes, at + 48)?))
+    Ok((count, u64_at(record, 40)?, u64_at(record, 48)?))
 }
 
 /// An entry's sizes and local offset, each taken from its zip64 extra field
@@ -61,7 +72,7 @@ fn widen(extra: &[u8], mut fields: [usize; 3]) -> Result<[usize; 3]> {
     let mut at = 0;
     while at + 4 <= extra.len() {
         let (id, n) = (u16_at(extra, at)?, u16_at(extra, at + 2)? as usize);
-        let body = extra.get(at + 4..at + 4 + n).ok_or("zip: truncated extra field")?;
+        let body = slice(extra, at + 4, n)?;
         if id == 1 {
             let mut k = 0;
             for f in fields.iter_mut().filter(|f| **f == FULL32) {
@@ -99,44 +110,45 @@ pub fn entries(bytes: &[u8]) -> Result<Vec<Entry<'_>>> {
         return Err("zip: central directory outside the archive".into());
     }
     let mut out = Vec::with_capacity(count.min(size / 46));
-    let mut at = offset;
+    // The central directory, already checked to lie inside the archive:
+    // offsets into it are bounded by its length.
+    let cd = &bytes[offset..offset + size];
+    let mut at = 0;
     for _ in 0..count {
-        if u32_at(bytes, at)? != CENTRAL {
+        let fixed = slice(cd, at, 46)?;
+        if u32_at(fixed, 0)? != CENTRAL {
             return Err("zip: bad central directory entry".into());
         }
-        let method = u16_at(bytes, at + 10)?;
-        let crc = u32_at(bytes, at + 16)?;
+        let method = u16_at(fixed, 10)?;
+        let crc = u32_at(fixed, 16)?;
         let (n, extra, comment) =
-            (u16_at(bytes, at + 28)? as usize, u16_at(bytes, at + 30)? as usize, u16_at(bytes, at + 32)? as usize);
-        let fields =
-            [u32_at(bytes, at + 24)? as usize, u32_at(bytes, at + 20)? as usize, u32_at(bytes, at + 42)? as usize];
-        let [length, stored, local] =
-            widen(bytes.get(at + 46 + n..at + 46 + n + extra).ok_or("zip: truncated")?, fields)?;
-        let name = bytes.get(at + 46..at + 46 + n).ok_or("zip: truncated")?;
+            (u16_at(fixed, 28)? as usize, u16_at(fixed, 30)? as usize, u16_at(fixed, 32)? as usize);
+        let fields = [u32_at(fixed, 24)? as usize, u32_at(fixed, 20)? as usize, u32_at(fixed, 42)? as usize];
+        let [length, stored, local] = widen(slice(cd, at + 46 + n, extra)?, fields)?;
+        let name = slice(cd, at + 46, n)?;
         let name = std::str::from_utf8(name).map_err(|_| "zip: an entry name is not UTF-8")?;
         if method != 0 || stored != length {
             return Err(format!("zip: {name} is compressed (method {method}); only stored entries are read"));
         }
-        if u32_at(bytes, local)? != LOCAL || bytes.get(local + 30..local + 30 + n) != Some(name.as_bytes()) {
+        // The local header lies before the central directory.
+        let files = &bytes[..offset];
+        let header = slice(files, local, 30).map_err(|_| format!("zip: {name}: local header outside the archive"))?;
+        if u32_at(header, 0)? != LOCAL || slice(files, off(local, 30)?, n).ok() != Some(name.as_bytes()) {
             return Err(format!("zip: {name}: local header does not match the central directory"));
         }
-        let start = local + 30 + n + u16_at(bytes, local + 28)? as usize;
-        let data = start
-            .checked_add(length)
-            .filter(|&e| e <= offset)
-            .and_then(|e| bytes.get(start..e))
-            .ok_or_else(|| format!("zip: {name} lies outside the archive's files"))?;
+        let start = off(off(local, 30 + n)?, u16_at(header, 28)? as usize)?;
+        let data = slice(files, start, length).map_err(|_| format!("zip: {name} lies outside the archive's files"))?;
         if crc32(data) != crc {
             return Err(format!("zip: {name}: CRC-32 mismatch"));
         }
         out.push(Entry { name, data });
-        at += 46 + n + extra + comment;
+        at = off(at, 46 + n + extra + comment)?;
     }
     Ok(out)
 }
 
 /// The CRC-32 zip uses (IEEE, reflected, polynomial 0xEDB88320).
-fn crc32(data: &[u8]) -> u32 {
+pub(super) fn crc32(data: &[u8]) -> u32 {
     const TABLE: [u32; 256] = {
         let mut t = [0u32; 256];
         let mut i = 0;

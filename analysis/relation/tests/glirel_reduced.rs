@@ -23,7 +23,7 @@ fn config() -> Config {
         intermediate: 48,
         heads: 2,
         layers: 2,
-        vocabulary: 16,
+        vocabulary: 800,
         max_sequence: 32,
         position_buckets: 8,
         max_relative_positions: 32,
@@ -91,8 +91,8 @@ fn the_heads_match_the_reference_layers() {
             labels,
         };
         let pass = run(&encoder, &heads, prompt).unwrap();
-        close(&pass.lstm, &floats(&case["lstm"]), &format!("case {c} pass lstm"));
-        close(&pass.types, &floats(&case["types"]), &format!("case {c} pass types"));
+        close(pass.lstm(), &floats(&case["lstm"]), &format!("case {c} pass lstm"));
+        close(pass.types(), &floats(&case["types"]), &format!("case {c} pass types"));
     }
 }
 

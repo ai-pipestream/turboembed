@@ -52,7 +52,9 @@ from glirel.modules.rel_rep import RelRepLayer  # noqa: E402
 
 # ---- reduced: seeded random encoder and heads, GLiREL's own classes ----
 E, H = 32, 16
-config = DebertaV2Config(vocab_size=16, hidden_size=E, intermediate_size=48,
+# The vocabulary is as long as testdata/sentencepiece/unigram-identity.model,
+# so the boundary tests can tokenize real text with it.
+config = DebertaV2Config(vocab_size=800, hidden_size=E, intermediate_size=48,
     num_hidden_layers=2, num_attention_heads=2, max_position_embeddings=32,
     relative_attention=True, position_buckets=8, max_relative_positions=32,
     norm_rel_ebd='layer_norm', share_att_key=True, pos_att_type=['c2p', 'p2c'],

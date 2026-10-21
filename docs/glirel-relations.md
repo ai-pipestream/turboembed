@@ -39,7 +39,7 @@ stored entries and each entry's CRC-32 checked. It reads `data.pkl` with
 a stack machine that runs no code: it accepts 23 opcodes and three
 globals (`collections.OrderedDict`, `torch.FloatStorage` and
 `torch._utils._rebuild_tensor_v2`), and it builds only a dict of
-contiguous F32 tensors from them. Anything else is refused by name: the
+contiguous F32 tensors from them. What it copies through the pickle's memo is charged against a budget of 65,536 values, and values nest at most 32 deep, so a pickle that doubles a tuple at every level is refused before it grows. Every offset the archive gives is checked before it is added to or read at. Anything else is refused by name: the
 legacy format, another global or opcode, another dtype, or a tensor
 outside its storage. `turbo-bundle torch-convert` writes the same
 tensors as one safetensors file. On the real checkpoint, all 420 tensors

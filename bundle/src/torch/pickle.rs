@@ -33,11 +33,52 @@ enum Value {
     Bool(bool),
     Int(i64),
     Str(String),
-    Tuple(Vec<Value>),
+    Tuple(Vec<Value>, Size),
     Dict(Vec<(Value, Value)>),
     Global(Global),
     Storage { key: String, numel: u64 },
     Tensor(TensorRef),
+}
+
+/// How many values a value holds, itself included, and how deeply they
+/// nest. A tuple keeps its own, so a copy from the memo is charged without
+/// walking it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Size {
+    nodes: usize,
+    depth: usize,
+}
+
+/// The most values the memo may copy in one pickle. A state dict's memo
+/// copies are small tuples and tensors: the GLiREL checkpoint's 420 tensors
+/// take under 10,000. Copying a tuple that holds itself twice doubles at
+/// every level, and is refused here before the copy is made.
+const MAX_COPIED: usize = 1 << 16;
+
+/// The deepest nesting read; a state dict nests four deep.
+const MAX_DEPTH: usize = 32;
+
+fn size(v: &Value) -> Size {
+    match v {
+        Value::Tuple(_, s) => *s,
+        Value::Dict(items) => combine(items.iter().flat_map(|(k, v)| [k, v])),
+        _ => Size { nodes: 1, depth: 0 },
+    }
+}
+
+fn combine<'a>(items: impl IntoIterator<Item = &'a Value>) -> Size {
+    items.into_iter().map(size).fold(Size { nodes: 1, depth: 1 }, |a, b| Size {
+        nodes: a.nodes.saturating_add(b.nodes),
+        depth: a.depth.max(b.depth + 1),
+    })
+}
+
+fn tuple(items: Vec<Value>) -> Result<Value> {
+    let s = combine(&items);
+    if s.depth > MAX_DEPTH {
+        return Err(format!("pickle: values nest deeper than {MAX_DEPTH}"));
+    }
+    Ok(Value::Tuple(items, s))
 }
 
 struct Reader<'a> {
@@ -93,14 +134,14 @@ fn nat(v: &Value, what: &str) -> Result<u64> {
 
 fn nats(v: &Value, what: &str) -> Result<Vec<u64>> {
     match v {
-        Value::Tuple(t) => t.iter().map(|x| nat(x, what)).collect(),
+        Value::Tuple(t, _) => t.iter().map(|x| nat(x, what)).collect(),
         _ => Err(format!("pickle: {what} is not a tuple")),
     }
 }
 
 /// `callable(*args)` for the two callables a state dict uses.
 fn reduce(callable: Value, args: Value) -> Result<Value> {
-    let Value::Tuple(args) = args else { return Err("pickle: REDUCE arguments are not a tuple".into()) };
+    let Value::Tuple(args, _) = args else { return Err("pickle: REDUCE arguments are not a tuple".into()) };
     match (callable, args.as_slice()) {
         (Value::Global(Global::OrderedDict), []) => Ok(Value::Dict(Vec::new())),
         (Value::Global(Global::RebuildTensor), [storage, offset, size, stride, Value::Bool(_), hooks, rest @ ..])
@@ -127,7 +168,7 @@ fn reduce(callable: Value, args: Value) -> Result<Value> {
 /// A persistent id: `("storage", torch.FloatStorage, key, location, numel)`.
 fn persistent(pid: Value) -> Result<Value> {
     match pid {
-        Value::Tuple(t) => match t.as_slice() {
+        Value::Tuple(t, _) => match t.as_slice() {
             [Value::Str(kind), Value::Global(Global::FloatStorage), Value::Str(key), Value::Str(_), numel]
                 if kind == "storage" =>
             {
@@ -148,6 +189,16 @@ pub fn state_dict(bytes: &[u8]) -> Result<Vec<(String, TensorRef)>> {
     let mut r = Reader { b: bytes, at: 0 };
     let mut stack: Vec<Value> = Vec::new();
     let mut memo: std::collections::HashMap<u32, Value> = std::collections::HashMap::new();
+    // Values copied into and out of the memo, which a pickle can make grow
+    // by doubling; every other value costs an opcode.
+    let mut copied = 0usize;
+    let mut copy = |v: &Value| -> Result<Value> {
+        copied = copied.saturating_add(size(v).nodes);
+        if copied > MAX_COPIED {
+            return Err(format!("pickle: the memo copies more than {MAX_COPIED} values"));
+        }
+        Ok(v.clone())
+    };
     loop {
         let op = r.u8()?;
         match op {
@@ -169,7 +220,7 @@ pub fn state_dict(bytes: &[u8]) -> Result<Vec<(String, TensorRef)>> {
             }
             b'q' | b'r' => {
                 let k = if op == b'q' { u32::from(r.u8()?) } else { r.u32()? };
-                let top = stack.last().ok_or("pickle: stack underflow")?.clone();
+                let top = copy(stack.last().ok_or("pickle: stack underflow")?)?;
                 memo.insert(k, top);
             }
             b'h' | b'j' => {
@@ -180,19 +231,19 @@ pub fn state_dict(bytes: &[u8]) -> Result<Vec<(String, TensorRef)>> {
                 if matches!(v, Value::Dict(_)) {
                     return Err("pickle: a dict referenced twice".into());
                 }
-                stack.push(v.clone());
+                stack.push(copy(v)?);
             }
             b'(' => stack.push(Value::Mark),
-            b')' => stack.push(Value::Tuple(Vec::new())),
+            b')' => stack.push(tuple(Vec::new())?),
             b't' => {
                 let items = pop_mark(&mut stack)?;
-                stack.push(Value::Tuple(items));
+                stack.push(tuple(items)?);
             }
             0x85..=0x87 => {
                 let n = usize::from(op - 0x84);
                 let at = stack.len().checked_sub(n).ok_or("pickle: stack underflow")?;
                 let items = stack.split_off(at);
-                stack.push(Value::Tuple(items));
+                stack.push(tuple(items)?);
             }
             b'X' => {
                 let n = r.u32()? as usize;
@@ -216,6 +267,9 @@ pub fn state_dict(bytes: &[u8]) -> Result<Vec<(String, TensorRef)>> {
                 };
                 if !items.len().is_multiple_of(2) {
                     return Err("pickle: SETITEMS with an odd count".into());
+                }
+                if items.iter().any(|v| size(v).depth >= MAX_DEPTH) {
+                    return Err(format!("pickle: values nest deeper than {MAX_DEPTH}"));
                 }
                 let Some(Value::Dict(d)) = stack.last_mut() else {
                     return Err("pickle: SETITEM on something not a dict".into());
