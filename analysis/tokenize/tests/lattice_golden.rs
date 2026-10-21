@@ -211,3 +211,14 @@ fn unidic() {
     let got = matches("unidic-mecab-2.1.2", &dir, &[&dir], WhitespaceMode::Unicode);
     assert_eq!(got, counts(65, 2016, 519, 0));
 }
+
+#[test]
+fn unidic_goldens_round_trip() {
+    let cases = run("lattice", "unidic-mecab-2.1.2");
+    assert_eq!(cases.len(), 65);
+    for case in cases {
+        let raw = std::fs::read_to_string(&case.path).unwrap();
+        assert!(!raw.contains('\u{2014}'), "{}", case.path.display());
+        assert_eq!(case.golden.to_text().unwrap(), raw, "{}", case.path.display());
+    }
+}
