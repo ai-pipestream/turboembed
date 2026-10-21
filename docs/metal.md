@@ -62,8 +62,8 @@ frameworks and libc++, which every macOS has.
   `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
   MODEL and EXACT records against TEI's router built natively with
   Metal. Elsewhere it is EXPERIMENTAL, and so is the M2's FASTEST cell
-  until a record of FASTEST in F16 backs it (#813; Speed on the M2 has
-  its times). On the M2, one 16-token request at a time runs in 1.69 ms
+  until a record of FASTEST in F16 backs it (Speed on the M2 has its
+  times). On the M2, one 16-token request at a time runs in 1.69 ms
   p50 against TEI's 10.1 ms. For 32-row batches the ratio is about 50x
   on mixed rows and 8-9x on dense, because TEI's router runs a 32-row
   request as about 3 sequential sub-batches: its own `x-inference-time`
@@ -200,8 +200,8 @@ frameworks and libc++, which every macOS has.
   are F32 as at EXACT. Cosine must reach 0.999, FASTEST's floor on every
   backend; all-MiniLM-L6-v2's reference cases (up to 256 tokens) reach
   1 - 4.5e-7. Q, K, V, the context and GELU's output are stored in F16
-  with no guard for values past its range; a larger model at 512 tokens
-  is still to be checked (#814).
+  with no guard for values past its range, and a larger model at 512
+  tokens has not been checked yet.
 - **What a result reports.** Stages: tokenize on the host for text,
   no upload (the rows were copied into the session's shared memory by
   the write, as on the CPU), lookup, encode and pool on the device,
