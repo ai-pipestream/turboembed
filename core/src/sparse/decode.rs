@@ -116,45 +116,39 @@ unsafe fn neon(x: &[f32], wt: &[f32], o: &mut [f32], v: usize, i0: usize) {
     use std::arch::aarch64::*;
     let w = o.len();
     let (op, wp) = (o.as_mut_ptr(), wt.as_ptr());
-    let mut i = 0;
-    while i + 16 <= w {
-        // Four 4-lane accumulators cover 16 columns a step.
-        // SAFETY: i + 16 <= w, and row j has columns i0..i0 + w (contract).
+    let (v16, v4) = (w - w % 16, w - w % 4);
+    // Row by row, as the portable loop: each row's columns are read in
+    // one contiguous run, which the prefetcher follows, while the output
+    // stays in L1. Each column still sums over j in order, one rounding
+    // per step.
+    for (j, &xj) in x.iter().enumerate() {
+        // SAFETY: every column under w of row j is within wt (contract),
+        // and every column under w within o.
         unsafe {
-            let mut c = [0; 4].map(|_| vdupq_n_f32(0.0));
-            for (q, c) in c.iter_mut().enumerate() {
-                *c = vld1q_f32(op.add(i + 4 * q));
-            }
-            for (j, &xj) in x.iter().enumerate() {
-                let a = vdupq_n_f32(xj);
-                let row = wp.add(j * v + i0 + i);
-                for (q, c) in c.iter_mut().enumerate() {
-                    // c + a * row, one rounding.
-                    *c = vfmaq_f32(*c, a, vld1q_f32(row.add(4 * q)));
+            let a = vdupq_n_f32(xj);
+            let row = wp.add(j * v + i0);
+            let mut i = 0;
+            while i < v16 {
+                for q in 0..4 {
+                    let at = i + 4 * q;
+                    vst1q_f32(op.add(at), vfmaq_f32(vld1q_f32(op.add(at)), a, vld1q_f32(row.add(at))));
                 }
+                i += 16;
             }
-            for (q, c) in c.iter().enumerate() {
-                vst1q_f32(op.add(i + 4 * q), *c);
+            while i < v4 {
+                vst1q_f32(op.add(i), vfmaq_f32(vld1q_f32(op.add(i)), a, vld1q_f32(row.add(i))));
+                i += 4;
+            }
+            while i < w {
+                *op.add(i) = xj.mul_add(*row.add(i), *op.add(i));
+                i += 1;
             }
         }
-        i += 16;
     }
-    while i + 4 <= w {
-        // SAFETY: as above, for 4 columns.
-        unsafe {
-            let mut c = vld1q_f32(op.add(i));
-            for (j, &xj) in x.iter().enumerate() {
-                c = vfmaq_f32(c, vdupq_n_f32(xj), vld1q_f32(wp.add(j * v + i0 + i)));
-            }
-            vst1q_f32(op.add(i), c);
-        }
-        i += 4;
-    }
-    tail(x, wt, &mut o[i..], v, i0 + i);
 }
 
 /// The columns under one vector step, fused as the vector loop is.
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(target_arch = "x86_64")]
 #[inline(always)]
 fn tail(x: &[f32], wt: &[f32], o: &mut [f32], v: usize, i0: usize) {
     for (i, o) in o.iter_mut().enumerate() {
@@ -213,24 +207,24 @@ mod tests {
         }
     }
 
-    /// The decoder product at a base model's shape, detected kernel
-    /// against the portable loop. Run in release:
+    /// The decoder product at a base model's shape, in the blocks
+    /// relu_peak_into runs (48 tokens per 2048-column chunk), detected
+    /// kernel against the portable loop. Run in release:
     /// `cargo test --release --locked -p turbo --lib decode -- --ignored --nocapture`
     #[test]
     #[ignore = "timing; run in release"]
     fn decoder_kernel_timing() {
-        let (h, v, tokens) = (768, 30_522, 8);
+        let (h, v, tokens, chunk) = (768, 30_522, 48, 2048);
         let x = values(tokens * h, 4);
         let wt = values(h * v, 5);
-        let kernel = Kernel::detect();
-        for (name, k) in [("portable", Kernel::Portable), ("detected", kernel)] {
-            let mut o = vec![0.0f32; 2048];
+        let mut o = vec![0.0f32; tokens * chunk];
+        for (name, k) in [("portable", Kernel::Portable), ("detected", Kernel::detect())] {
             let mut best = f64::MAX;
-            for _ in 0..5 {
+            for _ in 0..3 {
                 let t = std::time::Instant::now();
-                for row in x.chunks_exact(h) {
-                    for i0 in (0..v).step_by(2048) {
-                        let w = 2048.min(v - i0);
+                for i0 in (0..v).step_by(chunk) {
+                    let w = chunk.min(v - i0);
+                    for (row, o) in x.chunks_exact(h).zip(o.chunks_exact_mut(chunk)) {
                         k.run(row, &wt, &mut o[..w], v, i0);
                     }
                 }
