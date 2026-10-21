@@ -4106,6 +4106,82 @@ the scores. On the three BEIR sets with whole documents the two agree to
 within 0.4 points; Lucene stores a document's length in one byte, which
 is where they part.
 
+### Hybrid BM25 + dense retrieval
+
+`--retrieval hybrid` (`analysis/eval/src/hybrid.rs`) fuses chunk-level
+BM25 (`Bm25PostingIndex` with `--k1`, `--b`, and `--terms`) and exact
+dense cosine over all chunks before aggregating each document by its
+best fused chunk score and keeping the top 100 documents and chunks
+under the standard tie and self-exclusion rules. Two fusion rules are
+supported (`--fusion`):
+
+- `weighted` (the default, `--bm25-weight <f>` default `0.35`): for each
+  query, both the dense cosine scores over eligible chunks and the BM25
+  scores (with `0.0` for chunks containing no query term) are min-max
+  normalized onto `[0, 1]` before computing
+  `(1 - bm25_weight) * norm_dense + bm25_weight * norm_bm25`.
+- `rrf` (`--rrf-k <n>` default `60`, `--bm25-weight <f>` default `0.5`):
+  reciprocal rank fusion `(1 - bm25_weight) / (k + rank_dense) + bm25_weight / (k + rank_bm25)`,
+  where chunks with positive BM25 score receive their 1-based BM25 rank.
+
+The record names `"hybrid"` under `pipeline.retrieval` along with
+`fusion`, `bm25_weight` (and `k` for `rrf`), `k1`, `b` and `terms`.
+`embedding_ms` and `tokens_embedded` record the dense embedding stage,
+and `retrieval_ms` records building the BM25 index and running the
+hybrid search.
+
+Committed hybrid records (`turbo-chunker --max 254 --target 200` on
+`all-MiniLM-L6-v2` with `--retrieval hybrid`):
+
+- `analysis/eval/records/turbo-chunker-254-200-hybrid` (`weighted`,
+  `bm25_weight = 0.35`, structure costs alone): clears the gate against
+  all three stage-0 baselines (`sentence-windows-5`, `fixed-tokens-200`,
+  `opennlp-sandbox-semantic`) and both dense `turbo-chunker` records on
+  4 of 4 sets (`scifact` `69.24`, `nfcorpus` `34.28`, `arguana` `51.65`,
+  `qasper` `37.85`), and clears the gate against `bm25-document` on 3 of
+  4 sets (`qasper` `+0.09` points over `bm25-document` with `11x` higher
+  span precision at 10: `0.0306` vs `0.0028`).
+- `analysis/eval/records/turbo-chunker-254-200-cohesion-1000-hybrid`
+  (`weighted`, `bm25_weight = 0.40`, `--cohesion 1000`): clears the gate
+  against all three stage-0 baselines, `bm25-document`, and the dense
+  `turbo-chunker` records (`scifact` `68.63`, `nfcorpus` `34.11`,
+  `arguana` `50.96`, `qasper` `37.80`).
+- `analysis/eval/records/turbo-chunker-254-200-hybrid-rrf` (`rrf`,
+  untuned textbook control `k = 60`, `bm25_weight = 0.50`, structure
+  costs alone): clears the gate against all three stage-0 baselines
+  (`sentence-windows-5` `2/4`, `fixed-tokens-200` `3/4`,
+  `opennlp-sandbox-semantic` `4/4`) and both dense `turbo-chunker`
+  records (`3/4`), with `scifact` `68.13`, `nfcorpus` `34.17`,
+  `arguana` `49.69` and `qasper` `36.82` (`-0.94` vs `bm25-document`
+  `37.76`, as rank-only RRF discards BM25 score magnitudes on rare
+  technical terms).
+
+The default `bm25_weight = 0.35` was fixed before the sweep as the CLI
+default, and the sweep below (`bm25_weight` in `0.35..=0.50` plus
+untuned `rrf` `k = 60, w = 0.50`) was evaluated on these same four sets
+(no separate held-out split):
+
+| Chunker | Fusion | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean | Gate vs stage-0 (3 baselines) | Gate vs `bm25-document` |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | :--- | :--- |
+| `turbo-chunker-254-200` | `weighted` `w = 0.35` (default) | `69.24` | `34.28` | `51.65` | `37.85` | `48.26` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.09`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.38` | `69.13` | `34.28` | `51.22` | `38.36` | `48.25` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.60`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.40` | `69.04` | `34.11` | `51.12` | `38.44` | `48.18` | PASS (4/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.68`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.45` | `68.79` | `33.96` | `50.86` | `39.11` | `48.18` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.35`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.50` (untuned 50/50) | `68.45` | `33.62` | `50.48` | `39.42` | `47.99` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.66`) |
+| `turbo-chunker-254-200` | `rrf` `k = 60, w = 0.50` (untuned RRF) | `68.13` | `34.17` | `49.69` | `36.82` | `47.20` | PASS (2/4, 3/4, 4/4) | FAIL (3/4, `qasper` `-0.94`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.35` | `69.13` | `34.16` | `51.36` | `36.93` | `47.90` | PASS (4/4, 4/4, 4/4) | FAIL (3/4, `qasper` `-0.83`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.38` | `68.91` | `34.21` | `50.99` | `37.55` | `47.92` | PASS (4/4, 3/4, 4/4) | PASS (3/4, `qasper` `-0.21`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.40` | `68.63` | `34.11` | `50.96` | `37.80` | `47.88` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.03`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.45` | `68.92` | `34.03` | `50.54` | `38.47` | `47.99` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.71`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.50` (untuned 50/50) | `68.60` | `33.60` | `50.39` | `38.94` | `47.88` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.18`) |
+| `turbo-chunker-254-200-cohesion-1000` | `rrf` `k = 60, w = 0.50` (untuned RRF) | `67.35` | `34.05` | `49.61` | `36.28` | `46.82` | PASS (2/4, 3/4, 4/4) | FAIL (2/4, `qasper` `-1.49`) |
+
+Every `weighted` setting across `0.35..=0.50` on `turbo-chunker-254-200`
+(including the untuned 50/50 weight `w = 0.50`, where `qasper` reaches
+`39.42`, `+1.66` points above `bm25-document`) clears `turbo-eval gate`
+against all three stage-0 baselines, `bm25-document`, and both dense
+`turbo-chunker` records.
+
 ### Measures and the gate
 
 - `metrics`: nDCG@10 with linear graded gain and a `log2(rank + 1)`

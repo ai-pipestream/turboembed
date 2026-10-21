@@ -34,6 +34,7 @@ fn pipeline(lexical: Lexical) -> Pipeline {
         embedder: Box::new(Stub::new(&["cat", "dog", "rust", "tea"])),
         titles: Titles::Ignore,
         lexical: Some(lexical),
+        hybrid: None,
     }
 }
 
