@@ -52,21 +52,29 @@ fn url(s: &str) -> Option<usize> {
     (rest > 0).then_some(head.len() + rest)
 }
 
-fn email(s: &str) -> Option<usize> {
+/// An e-mail address at the start of `s`: `Ok` with its length, or `Err`
+/// with the length of the local-part run, since every later start inside
+/// that run reaches the same `@` and fails the same way.
+fn email(s: &str) -> Result<usize, usize> {
     let local = run(s, |c| c.is_ascii_alphanumeric() || "._%+-".contains(c));
     if local == 0 || !s[local..].starts_with('@') {
-        return None;
+        return Err(local);
     }
     let at = local + 1;
     let domain = &s[at..];
     let all = run(domain, |c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
     // The domain is as long as it can be with a dot after it and two or
-    // more letters after the dot, those letters as many as there are.
+    // more letters after the dot, those letters as many as there are. One
+    // pass from the right: `letters` is the run of letters after `k`.
     let bytes = domain.as_bytes();
-    (1..all).rev().find_map(|k| {
-        let letters = run(&domain[k + 1..all], |c| c.is_ascii_alphabetic());
-        (bytes[k] == b'.' && letters >= 2).then_some(at + k + 1 + letters)
-    })
+    let mut letters = 0;
+    for k in (1..all).rev() {
+        if bytes[k] == b'.' && letters >= 2 {
+            return Ok(at + k + 1 + letters);
+        }
+        letters = if bytes[k].is_ascii_alphabetic() { letters + 1 } else { 0 };
+    }
+    Err(local)
 }
 
 fn handle(s: &str) -> Option<usize> {
@@ -94,6 +102,9 @@ fn word(s: &str) -> Option<usize> {
 pub fn split(text: &str) -> Vec<Word> {
     let mut out = Vec::new();
     let mut at = 0;
+    // No e-mail address starts before this: a failed local-part run, so the
+    // scan stays linear in the text.
+    let mut no_mail = 0;
     while at < text.len() {
         let rest = &text[at..];
         let c = rest.chars().next().expect("not at the end");
@@ -101,8 +112,13 @@ pub fn split(text: &str) -> Vec<Word> {
             at += c.len_utf8();
             continue;
         }
-        let len =
-            url(rest).or_else(|| email(rest)).or_else(|| handle(rest)).or_else(|| word(rest)).unwrap_or(c.len_utf8());
+        let mail = || {
+            if at < no_mail {
+                return None;
+            }
+            email(rest).map_err(|local| no_mail = at + local).ok()
+        };
+        let len = url(rest).or_else(mail).or_else(|| handle(rest)).or_else(|| word(rest)).unwrap_or(c.len_utf8());
         out.push(Word { text: rest[..len].to_lowercase(), start: at, end: at + len });
         at += len;
     }
@@ -148,5 +164,22 @@ mod tests {
         // Marks stay inside their word; ZWJ joins.
         assert_eq!(texts("cafe\u{301} a\u{200d}b"), ["cafe\u{301}", "a\u{200d}b"]);
         assert_eq!(texts("\u{1c}x\u{a0}y"), ["x", "y"]);
+        // A failed local part does not hide an address after it.
+        assert_eq!(texts("a.b c@d.ef"), ["a", ".", "b", "c@d.ef"]);
+    }
+
+    /// Inputs that rescanned the rest of the text at every position: a
+    /// local part with no domain, an `@` with no dot after it, and a long
+    /// run of local-part characters. At this length a quadratic scan takes
+    /// minutes; a linear one, milliseconds.
+    #[test]
+    fn failed_addresses_scan_the_text_once() {
+        const N: usize = 400_000;
+        let at_no_dot = format!("a@{}", "a".repeat(N));
+        assert_eq!(texts(&at_no_dot), ["a", &format!("@{}", "a".repeat(N))]);
+        let dots = "a.".repeat(N / 2);
+        assert_eq!(split(&dots).len(), N);
+        let plus = format!("{}@", "a+".repeat(N / 2));
+        assert_eq!(split(&plus).len(), N + 1);
     }
 }

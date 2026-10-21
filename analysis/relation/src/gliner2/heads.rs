@@ -161,6 +161,9 @@ fn mlp(f: &File, prefix: &str, indexes: &[usize]) -> Result<Mlp, String> {
 fn norm(f: &File, name: &str) -> Result<Norm, String> {
     let w = f.get(&format!("{name}.weight"), Dtype::F32, 1).map_err(|e| e.message)?.f32s();
     let b = f.get(&format!("{name}.bias"), Dtype::F32, 1).map_err(|e| e.message)?.f32s();
+    if w.len() != b.len() || !w.iter().chain(&b).all(|x| x.is_finite()) {
+        return Err(format!("{name}: weight and bias must be finite and of one length"));
+    }
     Ok(Norm { weight: w, bias: b })
 }
 
@@ -190,6 +193,9 @@ fn packed(m: &Mlp) -> [Packed; 2] {
 /// Splits a `[out, 2 * half]` layer into its two `[out, half]` column
 /// blocks, without bias.
 fn columns(l: &Linear) -> Result<(Linear, Linear), String> {
+    if !l.in_dim.is_multiple_of(2) {
+        return Err("span_rep out_project.0: odd input width".into());
+    }
     let half = l.in_dim / 2;
     let mut a = Vec::with_capacity(l.out_dim * half);
     let mut b = Vec::with_capacity(l.out_dim * half);
@@ -258,35 +264,60 @@ impl Heads {
         Ok(heads)
     }
 
+    /// Every layer's widths against the next one's and the encoder width,
+    /// so no product in the heads meets a row of another length. Each
+    /// [`Linear`] is finite by construction; the norms and the position
+    /// table are checked here.
     fn check(&self, pos_width: usize) -> Result<(), String> {
         let d = self.width;
         let m = self.in_projector.out_dim;
-        let ok = pos_width == d
+        let hidden = self.first_bias.len();
+        let layer_ok = |l: &Layer| {
+            l.in_proj.in_dim == m
+                && l.in_proj.out_dim == 3 * m
+                && l.out_proj.in_dim == m
+                && l.out_proj.out_dim == m
+                && l.linear1.in_dim == m
+                && l.linear2.in_dim == l.linear1.out_dim
+                && l.linear2.out_dim == m
+                && [&l.norm1, &l.norm2].iter().all(|n| n.weight.len() == m)
+        };
+        let ok = d > 0
+            && pos_width == d
+            && !self.positions.is_empty()
+            && self.positions.len().is_multiple_of(d)
+            && self.positions.iter().all(|x| x.is_finite())
             && self.count_pred.0[0].in_dim == d
+            && self.count_pred.0[1].out_dim > 0
             && self.gru_ih.in_dim == d
             && self.gru_ih.out_dim == 3 * d
             && self.gru_hh.in_dim == d
             && self.gru_hh.out_dim == 3 * d
             && self.in_projector.in_dim == d
             && m.is_multiple_of(ATTENTION_HEADS)
-            && self
-                .layers
-                .iter()
-                .all(|l| l.in_proj.in_dim == m && l.in_proj.out_dim == 3 * m && l.out_proj.out_dim == m)
+            && self.layers.iter().all(layer_ok)
             && self.out_projector[0].in_dim == m + d
+            && self.out_projector[1].in_dim == self.out_projector[0].out_dim
+            && self.out_projector[2].in_dim == self.out_projector[1].out_dim
             && self.out_projector[2].out_dim == d
-            && self.start[0].in_dim == d
-            && self.start[1].in_dim == self.start[0].out_dim
-            && self.end[0].in_dim == d
-            && self.end[1].in_dim == self.end[0].out_dim
+            && [&self.start, &self.end]
+                .iter()
+                .all(|p| p[0].in_dim == d && p[1].in_dim == p[0].out_dim && p[1].out_dim == d)
             && self.first_start.in_dim == d
+            && self.first_end.in_dim == d
+            && self.first_start.out_dim == hidden
+            && self.last.in_dim == hidden
             && self.last.out_dim == d
             && self.max_width > 0;
         if ok { Ok(()) } else { Err("GLiNER2 relation head shapes do not match the encoder width".into()) }
     }
 
     /// The count head's logits on a relation's `[P]` vector.
+    ///
+    /// # Panics
+    /// When `p` is not one row of the model width.
     pub fn count_logits(&self, p: &[f32]) -> Vec<f32> {
+        assert_eq!(p.len(), self.width, "a [P] vector of the model width");
         self.count_pred.apply(p)
     }
 
@@ -305,8 +336,14 @@ impl Heads {
 
     /// The `k` instances' head and tail queries, `[k][2][D]` flattened,
     /// from the two `[R]` vectors.
+    ///
+    /// # Panics
+    /// When a field is not one row of the model width, or `k` is past the
+    /// position table (the count head never predicts that many).
     pub fn queries(&self, fields: [&[f32]; 2], k: usize) -> Vec<f32> {
         let d = self.width;
+        assert!(fields.iter().all(|f| f.len() == d), "[R] vectors of the model width");
+        assert!(k <= self.positions.len() / d, "{k} instances past the position table");
         let mut states: Vec<Vec<f32>> = fields.iter().map(|f| f.to_vec()).collect();
         let mut out = Vec::with_capacity(k * 2 * d);
         let (mut gi, mut gh) = (vec![0.0; 3 * d], vec![0.0; 3 * d]);
@@ -357,7 +394,11 @@ impl Heads {
     /// The span layer's hidden rows for every span of the `n` word vectors
     /// `words` (`[n][D]`): `[n][max_width][4D]`, empty rows for spans past
     /// the last word.
+    ///
+    /// # Panics
+    /// When `words` is not `n` rows of the model width.
     pub fn spans(&self, words: &[f32], n: usize) -> Spans {
+        assert_eq!(Some(words.len()), n.checked_mul(self.width), "{n} word rows of the model width");
         let w = self.max_width;
         let hidden = self.first_bias.len();
         let relu = |mut v: Vec<f32>| {
@@ -389,8 +430,14 @@ impl Heads {
     /// [`Heads::logits`] for each query of `queries` (`[q][D]`), one after
     /// another: the last span layer folds into all queries in one pass
     /// over its weights, and each span row is read once for all of them.
+    ///
+    /// # Panics
+    /// When `queries` is not whole rows of the model width, or `spans`
+    /// came from heads of another span width.
     pub fn logits_all(&self, spans: &Spans, queries: &[f32]) -> Vec<f32> {
         let (h, d) = (spans.hidden, self.width);
+        assert!(queries.len().is_multiple_of(d), "queries of the model width");
+        assert!(h == self.last.in_dim && spans.width == self.max_width, "spans from these heads");
         let q = queries.len() / d;
         let folded = self.fold.rows(queries, q);
         let bias: Vec<f32> = queries.chunks_exact(d).map(|x| dot(x, &self.last.bias)).collect();

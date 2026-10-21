@@ -11,6 +11,7 @@ use turbo::head::Linear;
 /// encoder's kernels detect, else in eight independent lanes the compiler
 /// can keep in one vector register.
 pub(super) fn dot(a: &[f32], b: &[f32]) -> f32 {
+    assert_eq!(a.len(), b.len(), "dot product of unlike lengths");
     #[cfg(target_arch = "x86_64")]
     if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
         // SAFETY: the processor has AVX2 and FMA.
@@ -62,6 +63,7 @@ unsafe fn dot_avx2(a: &[f32], b: &[f32]) -> f32 {
 
 /// `l` on one row, through [`dot`].
 pub(super) fn apply(l: &Linear, x: &[f32], out: &mut [f32]) {
+    assert!(x.len() == l.in_dim && out.len() == l.out_dim, "a row of the layer's widths");
     for ((o, w), &b) in out.iter_mut().zip(l.weight.chunks_exact(l.in_dim)).zip(&l.bias) {
         *o = dot(w, x) + b;
     }
@@ -106,7 +108,12 @@ impl Packed {
     }
 
     /// The layer on each of the `n` rows of `x`, `[n][out]`.
+    ///
+    /// # Panics
+    /// When `x` is not `n` rows of the input width. The kernels read `x`
+    /// unchecked, so this holds before any of them runs.
     pub fn rows(&self, x: &[f32], n: usize) -> Vec<f32> {
+        assert_eq!(Some(x.len()), n.checked_mul(self.in_dim), "{n} rows of width {}", self.in_dim);
         #[cfg(target_arch = "x86_64")]
         if std::is_x86_feature_detected!("avx512f") && std::is_x86_feature_detected!("fma") {
             // SAFETY: the processor has AVX-512F and FMA.
@@ -151,6 +158,8 @@ impl Packed {
     #[target_feature(enable = "avx512f,fma")]
     unsafe fn rows_avx512(&self, x: &[f32], n: usize, out: &mut [f32]) {
         use std::arch::x86_64::*;
+        // The loads below are unchecked; these bounds make them safe.
+        assert!(x.len() == n * self.in_dim && out.len() == n * self.out_dim, "rows of the layer's widths");
         let (m, kd) = (self.out_dim, self.in_dim);
         if !m.is_multiple_of(TILE) {
             return self.rows_into(x, n, out);
@@ -197,6 +206,8 @@ impl Packed {
     #[target_feature(enable = "avx2,fma")]
     unsafe fn rows_avx2(&self, x: &[f32], n: usize, out: &mut [f32]) {
         use std::arch::x86_64::*;
+        // The loads below are unchecked; these bounds make them safe.
+        assert!(x.len() == n * self.in_dim && out.len() == n * self.out_dim, "rows of the layer's widths");
         const T: usize = 16;
         const R: usize = AVX2_ROWS;
         let (m, kd) = (self.out_dim, self.in_dim);

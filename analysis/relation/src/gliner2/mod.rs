@@ -71,6 +71,8 @@ pub struct LabelScores {
 /// One pass over a text and its labels.
 pub struct Pass {
     pub prompt: Prompt,
+    /// The span width the logits were computed at.
+    pub width: usize,
     pub labels: Vec<LabelScores>,
 }
 
@@ -166,7 +168,7 @@ impl Gliner2Relations {
     /// order given, instance by instance.
     pub fn extract(&self, text: &str, labels: &[&str], threshold: f32) -> Result<Vec<Extracted>, RelationError> {
         let pass = self.pass(text, labels)?;
-        Ok(decode(&pass, self.heads.max_width, threshold))
+        decode(&pass, threshold)
     }
 }
 
@@ -178,10 +180,8 @@ pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, Rel
         let (max, got) = (c.max_sequence, prompt.ids.len());
         return Err(RelationError::OverLimit { limit: "encoder max_sequence", max, got });
     }
+    check_prompt(&prompt)?;
     let t = prompt.ids.len();
-    if prompt.word_first.iter().chain(prompt.markers.iter().flatten()).any(|&p| p >= t) {
-        return Err(RelationError::Scorer("a word or marker past the end of the input".into()));
-    }
     let mask = vec![true; t];
     let hidden = encoder.encode(&prompt.ids, &mask).map_err(|e| RelationError::Scorer(e.message))?;
     let (data, d) = (hidden.data(), hidden.width());
@@ -198,7 +198,49 @@ pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, Rel
             LabelScores { count, logits }
         })
         .collect();
-    Ok(Pass { prompt, labels })
+    Ok(Pass { prompt, width: heads.max_width, labels })
+}
+
+fn bad(what: &str) -> RelationError {
+    RelationError::Scorer(format!("GLiNER2 input: {what}"))
+}
+
+/// A prompt the heads and the decoder can index: a first subword for each
+/// word, every position inside the input, and word ranges in order on
+/// character boundaries of the text.
+fn check_prompt(prompt: &Prompt) -> Result<(), RelationError> {
+    let t = prompt.ids.len();
+    if prompt.words.len() != prompt.word_first.len() {
+        return Err(bad("words and first subwords differ in number"));
+    }
+    if prompt.word_first.iter().chain(prompt.markers.iter().flatten()).any(|&p| p >= t) {
+        return Err(bad("a word or marker past the end of the input"));
+    }
+    let mut prev = 0;
+    for w in &prompt.words {
+        let on = |i: usize| prompt.text.is_char_boundary(i);
+        if w.start < prev || w.end <= w.start || !on(w.start) || !on(w.end) {
+            return Err(bad("word ranges out of order or off the text"));
+        }
+        prev = w.end;
+    }
+    Ok(())
+}
+
+/// A pass whose logits are the sizes its prompt and width give.
+fn check_pass(pass: &Pass) -> Result<usize, RelationError> {
+    check_prompt(&pass.prompt)?;
+    let size =
+        pass.prompt.words.len().checked_mul(pass.width).filter(|_| pass.width > 0).ok_or_else(|| bad("span width"))?;
+    if pass.labels.len() != pass.prompt.markers.len() {
+        return Err(bad("label scores and markers differ in number"));
+    }
+    for s in &pass.labels {
+        if s.count.checked_mul(2).and_then(|c| c.checked_mul(size)) != Some(s.logits.len()) {
+            return Err(bad("logits of another size than the count and spans give"));
+        }
+    }
+    Ok(size)
 }
 
 /// The best span of one query's logits at or above `threshold`: highest
@@ -218,10 +260,11 @@ fn best(logits: &[f32], width: usize, threshold: f32) -> Option<(usize, usize, f
     out
 }
 
-/// The relations of a pass at `threshold`.
-pub fn decode(pass: &Pass, width: usize, threshold: f32) -> Vec<Extracted> {
-    let words = &pass.prompt.words;
-    let size = words.len() * width;
+/// The relations of a pass at `threshold`; a pass whose parts do not fit
+/// together is an error.
+pub fn decode(pass: &Pass, threshold: f32) -> Result<Vec<Extracted>, RelationError> {
+    let size = check_pass(pass)?;
+    let (words, width) = (&pass.prompt.words, pass.width);
     let found = |(i, w, score): (usize, usize, f32)| Found { start: words[i].start, end: words[i + w].end, score };
     let mut out = Vec::new();
     for (label, s) in pass.labels.iter().enumerate() {
@@ -232,15 +275,16 @@ pub fn decode(pass: &Pass, width: usize, threshold: f32) -> Vec<Extracted> {
             }
         }
     }
-    out
+    Ok(out)
 }
 
-/// The span index of `span` among the words: its first and last whole
-/// word, when they are no more than `width` words.
-fn span_of(words: &[words::Word], span: Span, width: usize) -> Option<usize> {
-    let first = words.iter().position(|w| w.start >= span.start as usize && w.end <= span.end as usize)?;
-    let last = words.iter().rposition(|w| w.start >= span.start as usize && w.end <= span.end as usize)?;
-    (last - first < width).then_some(first * width + last - first)
+/// The span index of `span` among the words: it starts where a word
+/// starts and ends where a word ends, no more than `width` words on.
+/// Anything else, part of a word included, is no span.
+pub fn span_of(words: &[words::Word], span: Span, width: usize) -> Option<usize> {
+    let first = words.iter().position(|w| w.start == span.start as usize)?;
+    let last = words.iter().position(|w| w.end == span.end as usize)?;
+    (first <= last && last - first < width).then_some(first * width + last - first)
 }
 
 impl RelationScorer for Gliner2Relations {

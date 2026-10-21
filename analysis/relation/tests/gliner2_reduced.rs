@@ -92,7 +92,8 @@ fn the_heads_match_the_reference_layers() {
         }
         // The same through the pass the scorer runs.
         let text_words = words.iter().map(|&p| Word { text: String::new(), start: p, end: p + 1 }).collect();
-        let prompt = Prompt { ids, text: String::new(), words: text_words, word_first: words.clone(), markers };
+        let text = "x".repeat(ids.len() + 1);
+        let prompt = Prompt { ids, text, words: text_words, word_first: words.clone(), markers };
         let pass = run(&encoder, &heads, prompt).unwrap();
         for (l, label) in case["labels"].as_array().unwrap().iter().enumerate() {
             assert_eq!(pass.labels[l].count as u64, label["count"].as_u64().unwrap());
