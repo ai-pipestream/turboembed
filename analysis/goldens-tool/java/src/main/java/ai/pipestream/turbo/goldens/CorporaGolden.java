@@ -12,6 +12,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,9 +57,12 @@ import opennlp.tools.util.WhitespaceMode;
  * <p>The 20 Newsgroups stream keeps its files in a {@code HashMap} keyed by path, so the order of
  * its samples depends on the corpus directory's path: the runs write the corpus to
  * {@link #NEWSGROUPS_DIR} under {@code java.io.tmpdir}, and give the path as the {@code dataDir}
- * config record. They also write {@code turbo:listing}, the files as the directories list them
- * (the order the map is filled in), and {@code turbo:files}, the order the map gives them, each
- * as {@code <group>/<file>}. The Leipzig message that names a file writes the corpus directory as
+ * config record. Directory order is the host file system's, so nothing written may follow it:
+ * {@code turbo:listing} is the files sorted by {@code <group>/<file>}, and when every file read
+ * cleanly (one sample per file, in the map's order) the samples and {@code turbo:files} are
+ * reordered by that same sorted path order, so the golden is byte-equal on every host. A run
+ * with read errors keeps the stream's own order, since samples can then no longer be paired
+ * with files by position. The Leipzig message that names a file writes the corpus directory as
  * {@code <corpus>}.</p>
  *
  * <p>The layers, anchored to the document: {@code turbo:samples} ({@code toString} of each
@@ -325,16 +329,19 @@ final class CorporaGolden implements AnnotatorGolden {
   private List<Layer> read(Input input, Path root) {
     List<Object> samples = new ArrayList<>();
     FormatGolden.Columns errors = new FormatGolden.Columns();
+    boolean[] readFailed = {false};
     List<Layer> layers = new ArrayList<>();
     ObjectStream<Object> stream = null;
     try {
       stream = open(input, root);
     } catch (IOException | RuntimeException e) {
+      readFailed[0] = true;
       errors.u32("after", 0).str("class", e.getClass().getName()).str("message", message(e, root));
     }
+    List<String> newsgroupOrder = List.of();
     if (stream != null) {
       if (kind.inputPrefix.equals("newsgroups")) {
-        newsgroupFiles(stream, root, layers);
+        newsgroupOrder = newsgroupFiles(stream, root, layers);
       }
       for (int reads = 0; ; reads++) {
         if (reads > MAX_READS) {
@@ -344,6 +351,7 @@ final class CorporaGolden implements AnnotatorGolden {
         try {
           sample = stream.read();
         } catch (IOException | RuntimeException e) {
+          readFailed[0] = true;
           errors.u32("after", samples.size()).str("class", e.getClass().getName()).str("message", message(e, root));
           continue;
         }
@@ -354,6 +362,29 @@ final class CorporaGolden implements AnnotatorGolden {
       }
     }
 
+    if (!newsgroupOrder.isEmpty() && !readFailed[0] && samples.size() == newsgroupOrder.size()) {
+      // One sample per file, read in the map's order: reorder both by path
+      // so the golden does not follow the host's directory order.
+      List<Integer> byPath = new ArrayList<>();
+      for (int i = 0; i < newsgroupOrder.size(); i++) {
+        byPath.add(i);
+      }
+      byPath.sort(Comparator.comparing(newsgroupOrder::get));
+      List<Object> sorted = new ArrayList<>(samples.size());
+      FormatGolden.Columns files = new FormatGolden.Columns();
+      for (int i : byPath) {
+        sorted.add(samples.get(i));
+        files.str("file", newsgroupOrder.get(i));
+      }
+      samples = sorted;
+      layers.add(files.layer("turbo:files", "document", "file"));
+    } else if (!newsgroupOrder.isEmpty()) {
+      FormatGolden.Columns files = new FormatGolden.Columns();
+      for (String file : newsgroupOrder) {
+        files.str("file", file);
+      }
+      layers.add(files.layer("turbo:files", "document", "file"));
+    }
     FormatGolden.Columns written = new FormatGolden.Columns();
     for (Object s : samples) {
       written.str("written", s.toString());
@@ -377,33 +408,40 @@ final class CorporaGolden implements AnnotatorGolden {
   }
 
   /**
-   * The {@code turbo:listing} and {@code turbo:files} layers of a 20 Newsgroups run: the files as
-   * the stream's constructor lists them, and as its map gives them.
+   * The {@code turbo:listing} layer of a 20 Newsgroups run (the corpus files sorted by path),
+   * and the files in the order the stream's map gives them, for pairing with the samples read.
    */
-  private static void newsgroupFiles(ObjectStream<Object> stream, Path root, List<Layer> layers) {
-    FormatGolden.Columns listing = new FormatGolden.Columns();
+  private static List<String> newsgroupFiles(ObjectStream<Object> stream, Path root, List<Layer> layers) {
+    List<String> listed = new ArrayList<>();
     try (DirectoryStream<Path> dirs = Files.newDirectoryStream(root, Files::isDirectory)) {
       for (Path dir : dirs) {
         try (DirectoryStream<Path> files = Files.newDirectoryStream(dir)) {
           for (Path file : files) {
-            listing.str("file", root.relativize(file).toString());
+            listed.add(root.relativize(file).toString());
           }
         }
       }
     } catch (IOException e) {
       throw new IllegalStateException("could not list " + root, e);
     }
-    FormatGolden.Columns files = new FormatGolden.Columns();
+    // The directory order above is the host file system's; the listing is
+    // sorted by path so the golden is the same on every host.
+    listed.sort(Comparator.naturalOrder());
+    FormatGolden.Columns listing = new FormatGolden.Columns();
+    for (String file : listed) {
+      listing.str("file", file);
+    }
+    layers.add(listing.layer("turbo:listing", "document", "file"));
+    List<String> inMapOrder = new ArrayList<>();
     try {
       Field f = TwentyNewsgroupSampleStream.class.getDeclaredField("catFileMap");
       f.setAccessible(true);
       for (Object key : ((Map<?, ?>) f.get(stream)).keySet()) {
-        files.str("file", root.relativize((Path) key).toString());
+        inMapOrder.add(root.relativize((Path) key).toString());
       }
     } catch (ReflectiveOperationException e) {
       throw new IllegalStateException(e);
     }
-    layers.add(listing.layer("turbo:listing", "document", "file"));
-    layers.add(files.layer("turbo:files", "document", "file"));
+    return inMapOrder;
   }
 }
