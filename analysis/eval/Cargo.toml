@@ -28,6 +28,8 @@ turbo-analysis-embed = { path = "../embed" }
 turbo-chunker = { path = "../chunker" }
 turbo-sentdetect = { path = "../sentdetect" }
 turbo-structure = { path = "../structure" }
+turbo-tokenize = { path = "../tokenize" }
+turbo-vector-index = { path = "../vector-index" }
 # The sentence model file and its SHA-256.
 turbo-maxent = { path = "../maxent" }
 serde = { version = "1", features = ["derive"] }

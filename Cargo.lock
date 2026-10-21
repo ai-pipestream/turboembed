@@ -2137,6 +2137,8 @@ dependencies = [
  "turbo-maxent",
  "turbo-sentdetect",
  "turbo-structure",
+ "turbo-tokenize",
+ "turbo-vector-index",
  "turbo-zstd",
  "ureq",
 ]
