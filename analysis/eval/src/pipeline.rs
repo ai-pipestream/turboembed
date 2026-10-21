@@ -163,7 +163,6 @@ impl Pipeline {
         Ok(Outcome { run, chunks, metrics, cost })
     }
 
-
     /// Runs the pipeline over the set and makes its record, checked.
     pub fn record(&mut self, set: &LoadedSet, source: &Source, recorded_at: String) -> Result<EvalRecord> {
         let outcome = self.evaluate(set)?;

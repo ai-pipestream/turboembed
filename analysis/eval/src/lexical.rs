@@ -136,7 +136,14 @@ impl Lexical {
     }
 
     /// Writes the terms of the chunks and the queries to `dump`, when set.
-    pub fn dump(&self, set: &str, ids: &[String], texts: &[String], doc: &[u32], queries: &[(&str, &str)]) -> Result<()> {
+    pub fn dump(
+        &self,
+        set: &str,
+        ids: &[String],
+        texts: &[String],
+        doc: &[u32],
+        queries: &[(&str, &str)],
+    ) -> Result<()> {
         let Some(dir) = &self.dump else { return Ok(()) };
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let mut terms = Vec::new();
@@ -201,7 +208,9 @@ impl Lexical {
         let mut chunks = rows;
         let chunk_order = |a: &(u32, f64), b: &(u32, f64)| {
             let (da, db) = (s.doc[a.0 as usize], s.doc[b.0 as usize]);
-            b.1.total_cmp(&a.1).then_with(|| id(db).cmp(id(da))).then_with(|| s.span[a.0 as usize].cmp(&s.span[b.0 as usize]))
+            b.1.total_cmp(&a.1)
+                .then_with(|| id(db).cmp(id(da)))
+                .then_with(|| s.span[a.0 as usize].cmp(&s.span[b.0 as usize]))
         };
         sort_top(&mut chunks, chunk_order);
         let chunk_hits = chunks
@@ -238,8 +247,14 @@ fn counted(units: &[BTreeMap<String, u32>]) -> (Vocabulary, TermStats<Chunk>) {
         text.push(t);
     }
     let vocabulary = Vocabulary { text };
-    let mut stats =
-        TermStats { row: vec![0], term: Vec::new(), tf: Vec::new(), length: Vec::new(), df: vec![0; all.len()], _of: PhantomData };
+    let mut stats = TermStats {
+        row: vec![0],
+        term: Vec::new(),
+        tf: Vec::new(),
+        length: Vec::new(),
+        df: vec![0; all.len()],
+        _of: PhantomData,
+    };
     for u in units {
         for (term, &n) in u {
             let t = all.binary_search(&term.as_str()).expect("a term of the vocabulary");

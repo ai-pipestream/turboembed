@@ -17,7 +17,10 @@ fn terms(rule: TermRule, text: &str) -> Vec<String> {
 #[test]
 fn folded_terms_are_lowercased_word_tokens_with_a_letter_or_digit() {
     let text = "The cat's 2 CATS, running ... over the Café's hills!";
-    assert_eq!(terms(TermRule::Folded, text), ["the", "cat's", "2", "cats", "running", "over", "the", "café's", "hills"]);
+    assert_eq!(
+        terms(TermRule::Folded, text),
+        ["the", "cat's", "2", "cats", "running", "over", "the", "café's", "hills"]
+    );
     // Stop words out, the possessive dropped, Porter's stems.
     assert_eq!(terms(TermRule::English, text), ["cat", "2", "cat", "run", "over", "café", "hill"]);
     assert_eq!(terms(TermRule::English, "it\u{2019}s a test"), ["test"]);

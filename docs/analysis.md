@@ -4055,6 +4055,9 @@ list names the sentence model by file name and SHA-256.
 
 Each chunker records every setting it ran with, defaults included.
 
+- `document`: the whole document, its first sentence's start to its
+  last sentence's end, as one chunk: the unit of a document-level
+  baseline such as BM25 over whole documents.
 - `fixed-tokens`: windows of N of the model's subword pieces, each
   starting N minus the overlap after the one before; the last ends at
   the last piece. N counts the text's pieces, so the binary refuses an N
@@ -4076,6 +4079,30 @@ Each chunker records every setting it ran with, defaults included.
   are retrieved. Drift and cohesion read sentence vectors, which here
   are each sentence embedded alone rather than late pooled as
   `SentenceVectors` pools them; the record says so.
+
+### BM25 retrieval
+
+`--retrieval bm25` ranks the chunks by BM25 over their terms instead of
+by the embedder's vectors, and embeds nothing: the embedder only splits
+the text into its pieces for the analysis and counts chunk tokens for
+the cost. The index is turbo-chunker's `Bm25PostingIndex`, one row a
+chunk, with Lucene's `k1` 1.2 and `b` 0.75 unless `--k1` and `--b` say
+otherwise. A chunk's terms (`--terms folded`, the default) are its UAX
+#29 word tokens that hold a letter or a digit, lowercased: the folded
+column turbo-chunker's term statistics index. `--terms english` also
+drops a trailing `'s`, leaves out Lucene's 33 English stop words and
+applies Porter's stemmer, after Lucene's `EnglishAnalyzer`. A document
+scores its best chunk, ties and the query's own document as in the
+dense ranking, and a chunk with no query term is not ranked. The record
+names the retrieval and its settings under `pipeline.retrieval`; a
+dense record has no such key.
+
+`--dump-terms <dir>` writes each set's chunk and query terms, and
+`analysis/eval/reference/Bm25Reference.java` indexes the same terms with
+Lucene 9.12's `BM25Similarity` and reports nDCG@10, as a reference for
+the scores. On the three BEIR sets with whole documents the two agree to
+within 0.4 points; Lucene stores a document's length in one byte, which
+is where they part.
 
 ### Measures and the gate
 

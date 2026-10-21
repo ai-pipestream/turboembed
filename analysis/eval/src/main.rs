@@ -12,9 +12,9 @@ use turbo_chunker::{Budget, Cohesion, Costs, Drift, WeighBoundaries};
 use turbo_eval::Result;
 use turbo_eval::analysis::{Analysis, Sentencer};
 use turbo_eval::chunkers::{Chunker, FixedTokens, Semantic, SentenceWindows, Signals, TurboChunker, WholeDocument};
-use turbo_eval::lexical::{Lexical, TermRule};
 use turbo_eval::embedder::{Embedder, Role, TurboEmbedder};
 use turbo_eval::fetch::{cache_root, fetch};
+use turbo_eval::lexical::{Lexical, TermRule};
 use turbo_eval::pipeline::{Pipeline, Titles};
 use turbo_eval::run::{gate_dirs, run_sets};
 use turbo_eval::set::LoadedSet;
@@ -301,8 +301,13 @@ fn run_cmd(args: &[String]) -> Result<()> {
     if let Some(unknown) = o.0.keys().next() {
         return Err(format!("{unknown}: not an option here\n{USAGE}"));
     }
-    let mut pipeline =
-        Pipeline { analysis: Analysis { sentences, structure }, chunker, embedder: Box::new(embedder), titles, lexical };
+    let mut pipeline = Pipeline {
+        analysis: Analysis { sentences, structure },
+        chunker,
+        embedder: Box::new(embedder),
+        titles,
+        lexical,
+    };
     let written = run_sets(&mut pipeline, &sets, &cache, load_set, &out, &source)?;
     if turbo_eval::source::source(&repo)? != source {
         return Err("the working tree moved during the run; the records written name the commit it started at".into());
