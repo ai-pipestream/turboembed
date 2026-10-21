@@ -11,13 +11,10 @@
 mod common;
 mod metal_support;
 
-use std::ffi::c_void;
-use std::ptr;
-
 use common::*;
 use metal_support::*;
 use serde_json::json;
-use turbo::status::{INVALID_ARGUMENT, UNSUPPORTED, UNSUPPORTED_OPTION};
+use turbo::status::UNSUPPORTED_OPTION;
 use turbo::*;
 
 // ---- Range pooling ---------------------------------------------------------------------

@@ -13,13 +13,12 @@
 mod common;
 mod metal_support;
 
-use std::ffi::c_void;
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 use common::*;
 use metal_support::*;
-use serde_json::json;
-use turbo::status::{INVALID_ARGUMENT, UNSUPPORTED, UNSUPPORTED_OPTION};
+use turbo::status::{INVALID_ARGUMENT, UNSUPPORTED};
 use turbo::*;
 
 // ---- Devices ---------------------------------------------------------------------
