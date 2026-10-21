@@ -1,17 +1,7 @@
-use crate::head::Linear;
 use crate::status::{Result, invalid};
 
 pub(super) fn finite(values: &[f32]) -> Result<()> {
     if values.iter().all(|x| x.is_finite()) { Ok(()) } else { Err(invalid("deberta non-finite computation")) }
-}
-
-pub(super) fn linear(input: &[f32], layer: &Linear) -> Result<Vec<f32>> {
-    let mut out = vec![0.0; input.len() / layer.in_dim * layer.out_dim];
-    for (x, y) in input.chunks_exact(layer.in_dim).zip(out.chunks_exact_mut(layer.out_dim)) {
-        layer.apply(x, y);
-    }
-    finite(&out)?;
-    Ok(out)
 }
 
 pub(super) struct Norm {

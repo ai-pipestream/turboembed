@@ -7,11 +7,14 @@ mod math;
 pub mod package;
 mod projection_load;
 mod projections;
+#[cfg(test)]
+mod tests;
 mod weights;
 use crate::{
     safetensors::File,
     status::{Result, invalid},
 };
+use attention::Run;
 pub use config::Config;
 pub use projections::TokenPromptProjections;
 use weights::Weights;
@@ -78,39 +81,47 @@ impl Encoder {
         if ids.iter().any(|&id| id as usize >= c.vocabulary) {
             return Err(invalid("deberta token ID outside vocabulary"));
         }
-        let mut x = Vec::with_capacity(ids.len() * c.hidden);
-        for &id in ids {
-            x.extend_from_slice(&self.weights.embedding[id as usize * c.hidden..(id as usize + 1) * c.hidden]);
+        let h = c.hidden;
+        let cached = self.weights.layers.iter().all(|l| l.pos.is_some());
+        let mut run = Run::new(c, mask, cached)?;
+        // Visible rows are their embeddings, LayerNorm'd; the shared
+        // masked row stays zero, as upstream multiplies it by its mask.
+        for (row, &p) in run.x.chunks_exact_mut(h).zip(&run.at) {
+            let id = ids[p] as usize;
+            row.copy_from_slice(&self.weights.embedding[id * h..(id + 1) * h]);
         }
-        self.weights.embedding_norm.apply(&mut x, c.layer_norm_eps)?;
-        for (row, &visible) in x.chunks_exact_mut(c.hidden).zip(mask) {
-            if !visible {
-                row.fill(0.0);
-            }
-        }
+        let visible = run.at.len() * h;
+        self.weights.embedding_norm.apply(&mut run.x[..visible], c.layer_norm_eps)?;
         let mut layers = Vec::new();
         if trace {
-            layers.push(x.clone());
+            layers.push(scatter(&run, h)?);
         }
         for layer in &self.weights.layers {
-            let mut a = attention::attention(c, layer, &x, &self.weights.relative, mask)?;
-            for (v, old) in a.iter_mut().zip(&x) {
-                *v += old;
-            }
-            layer.attention_norm.apply(&mut a, c.layer_norm_eps)?;
-            let mut middle = math::linear(&a, &layer.intermediate)?;
-            for v in &mut middle {
-                *v = crate::cpu::gelu(*v);
-            }
-            x = math::linear(&middle, &layer.output)?;
-            for (v, residual) in x.iter_mut().zip(&a) {
-                *v += residual;
-            }
-            layer.output_norm.apply(&mut x, c.layer_norm_eps)?;
+            run.layer(c, layer, &self.weights.relative)?;
             if trace {
-                layers.push(x.clone());
+                layers.push(scatter(&run, h)?);
             }
         }
-        Ok((layers, x))
+        let last = scatter(&run, h)?;
+        Ok((layers, last))
     }
+}
+
+/// The run's rows at their positions: each visible row where it was, the
+/// shared masked row at every masked position.
+fn scatter(run: &Run, h: usize) -> Result<Vec<f32>> {
+    let mut out = weights::zeros(run.n * h)?;
+    let mut next = run.at.iter().peekable();
+    let mut seen = 0;
+    for (p, dst) in out.chunks_exact_mut(h).enumerate() {
+        let row = if next.peek() == Some(&&p) {
+            next.next();
+            seen += 1;
+            seen - 1
+        } else {
+            run.at.len()
+        };
+        dst.copy_from_slice(&run.x[row * h..(row + 1) * h]);
+    }
+    Ok(out)
 }
