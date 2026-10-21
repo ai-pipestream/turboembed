@@ -12,7 +12,7 @@ Per the issue specification, no new public library API is introduced on any publ
 
 ## 1. The Four Cascade Arms & Stage Timing Boundaries
 
-All four arms run inside the same process (`analysis/eval/src/splate/`), over identical document, query, and relevance judgment sets (`LoadedSet`), with no implicit query-ID-equals-document-ID self-exclusion (`query` and `doc` IDs are independent namespaces).
+All four arms run inside the same process (`analysis/eval/src/splate/`), over identical document, query, and relevance judgment sets (`LoadedSet`), following BEIR's `ignore_identical_ids` self-exclusion rule (`corpus.docs[row].id != q.id` is filtered before the top-$C$ / top-$k$ cut, matching `retrieve.rs` and `lexical.rs` for datasets like ArguAna where queries are also corpus documents).
 
 To ensure identical timing boundaries across all four arms:
 - **`Build (ms)`** (`build_ms`) measures index-structure construction starting from pre-encoded document representations for every arm (`Bm25PostingIndexBuilder` for Arm 1, `IndexBuilder` for Arm 2, and `SparsePostingIndexBuilder` + `TokenIndexBuilder` for Arms 3 and 4, with Arm 4's document `SplateAdapter::encode_tokens` projection completed prior to starting the index-build timer on the same footing as Arm 3).
@@ -133,9 +133,9 @@ cargo test --locked -p turbo-eval --test splate
 
 ---
 
-### 3.3 Synthetic Morphological Benchmark `splate-synth-640d-32q` (`640` docs = `320` relevant + `320` distractors; `32` queries)
+### 3.3 Synthetic Morphological Benchmark `splate-synth-640d-32q` (`640` docs = `320` relevant + `320` distractors; `32` queries, `16` scored)
 
-*Dataset construction (`synthetic_benchmark_set(80, 4)`)*: 8 domains $\times$ 80 documents (`160` grade-2 morphological/pathway matches, `160` grade-1 partial matches, and `320` hard-negative distractors sharing domain and anchor terms) and 8 $\times$ 4 = `32` queries using inflected surface forms.
+*Dataset construction (`synthetic_benchmark_set(80, 4)`)*: 8 domains $\times$ 80 documents (`160` grade-2 morphological/pathway matches, `160` grade-1 partial matches, and `320` hard-negative distractors sharing domain and anchor terms) and 8 $\times$ 4 = `32` queries using inflected surface forms (`16` scored queries with positive qrels).
 
 #### Shortlist $C = 10$ (Synthetic Mechanism Harness)
 | Arm | C | Recall@1 | Recall@5 | Recall@10 | Recall@100 | nDCG@10 | Encode p50 (us) | Retrieve p50 (us) | Rerank p50 (us) | Search p50 (us) | Search p99 (us) | Index (KiB) | Build (ms) |

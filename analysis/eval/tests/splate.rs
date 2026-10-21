@@ -90,11 +90,11 @@ fn splate_adapter_validates_inputs_and_projects_sparse_terms() {
 }
 
 #[test]
-fn query_and_doc_sharing_same_id_are_not_self_excluded() {
+fn query_and_doc_sharing_same_id_are_self_excluded_per_beir_rule() {
     use turbo_eval::set::{Doc, Query};
 
-    let set = LoadedSet {
-        name: "same-id-namespace".into(),
+    let single_self = LoadedSet {
+        name: "self-only".into(),
         sha256: "b".repeat(64),
         docs: vec![Doc {
             id: "1".into(),
@@ -108,11 +108,37 @@ fn query_and_doc_sharing_same_id_are_not_self_excluded() {
         absent: Vec::new(),
     };
     let cfg = SplateConfig { shortlist_k: 1, top_k: 1, rounds: 1, ..SplateConfig::default() };
-    let report = run_study(&set, &cfg).expect("same-id study");
+    let self_report = run_study(&single_self, &cfg).expect("self-only study");
+    for rep in &self_report.arms {
+        assert_eq!(rep.scores.recall.at_1, 0.0, "arm {:?} failed to exclude doc whose id == query.id", rep.arm);
+    }
+
+    let arguana_like = LoadedSet {
+        name: "arguana-like".into(),
+        sha256: "c".repeat(64),
+        docs: vec![
+            Doc {
+                id: "1".into(),
+                title: Some("hypertension study".into()),
+                text: "clinical hypertension vascular arterial myocardium regulation".into(),
+            },
+            Doc {
+                id: "2".into(),
+                title: Some("hypertension counterargument".into()),
+                text: "clinical hypertension vascular arterial myocardium regulation therapy".into(),
+            },
+        ],
+        queries: vec![Query { id: "1".into(), text: "hypertension vascular arterial".into() }],
+        qrels: Qrels::new(vec![Qrel { query: "1".into(), doc: "2".into(), grade: 1 }]).expect("valid qrels"),
+        spans: None,
+        unplaced: Vec::new(),
+        absent: Vec::new(),
+    };
+    let report = run_study(&arguana_like, &cfg).expect("arguana-like study");
     for rep in &report.arms {
         assert!(
             (rep.scores.recall.at_1 - 1.0).abs() <= 1e-9,
-            "arm {:?} dropped doc sharing id with query (Recall@1 = {})",
+            "arm {:?} failed to rank non-self relevant doc at top-1 after excluding self (Recall@1 = {})",
             rep.arm,
             rep.scores.recall.at_1
         );

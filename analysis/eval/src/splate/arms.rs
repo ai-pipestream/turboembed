@@ -273,13 +273,19 @@ pub(crate) fn build_arm4(corpus: &EncodedCorpus, config: &SplateConfig) -> Resul
 }
 
 impl BuiltArm1 {
+    /// A document whose id is the query's own id is left out of the ranking
+    /// before the cut, as BEIR's exact search leaves it out
+    /// (`ignore_identical_ids`, on by default, matching `retrieve.rs` and
+    /// `lexical.rs`): in ArguAna, say, each query is also a document and would
+    /// otherwise rank itself first.
     pub fn query(&self, corpus: &EncodedCorpus, q: &EncodedQuery, config: &SplateConfig) -> (Ranking, usize, u64, u64) {
         let refs: Vec<&str> = q.bm25_terms.iter().map(String::as_str).collect();
         let t0 = Instant::now();
-        let raw = self.index.top_k(config.bm25, &refs, config.top_k);
+        let raw = self.index.top_k(config.bm25, &refs, config.top_k + 1);
         let retrieve_ns = t0.elapsed().as_nanos() as u64;
         let hits: Vec<Hit> = raw
             .into_iter()
+            .filter(|&(row, _)| corpus.docs[row as usize].id != q.id)
             .take(config.top_k)
             .map(|(row, score)| Hit { doc: corpus.docs[row as usize].id.clone(), score })
             .collect();
@@ -296,8 +302,14 @@ impl BuiltArm2<'_> {
         config: &SplateConfig,
     ) -> Result<(Ranking, usize, u64, u64)> {
         let t0 = Instant::now();
-        let raw = self.static_index.top_k(&self.space, &q.static_vec, config.shortlist_k).map_err(|e| e.to_string())?;
-        let shortlist: Vec<u32> = raw.into_iter().map(|h| h.row).take(config.shortlist_k).collect();
+        let raw =
+            self.static_index.top_k(&self.space, &q.static_vec, config.shortlist_k + 1).map_err(|e| e.to_string())?;
+        let shortlist: Vec<u32> = raw
+            .into_iter()
+            .filter(|h| corpus.docs[h.row as usize].id != q.id)
+            .map(|h| h.row)
+            .take(config.shortlist_k)
+            .collect();
         let retrieve_ns = t0.elapsed().as_nanos() as u64;
         let pool = shortlist.len();
         let t1 = Instant::now();
@@ -322,8 +334,13 @@ impl BuiltArm3 {
         config: &SplateConfig,
     ) -> Result<(Ranking, usize, u64, u64)> {
         let t0 = Instant::now();
-        let raw = self.sparse_index.top_k(&q.splade_terms, config.shortlist_k);
-        let shortlist: Vec<u32> = raw.into_iter().map(|(row, _)| row).take(config.shortlist_k).collect();
+        let raw = self.sparse_index.top_k(&q.splade_terms, config.shortlist_k + 1);
+        let shortlist: Vec<u32> = raw
+            .into_iter()
+            .filter(|&(row, _)| corpus.docs[row as usize].id != q.id)
+            .map(|(row, _)| row)
+            .take(config.shortlist_k)
+            .collect();
         let retrieve_ns = t0.elapsed().as_nanos() as u64;
         let pool = shortlist.len();
         if shortlist.is_empty() {
@@ -353,8 +370,13 @@ impl BuiltArm4 {
         config: &SplateConfig,
     ) -> Result<(Ranking, usize, u64, u64)> {
         let t0 = Instant::now();
-        let raw = self.splate_index.top_k(q_splate_terms, config.shortlist_k);
-        let shortlist: Vec<u32> = raw.into_iter().map(|(row, _)| row).take(config.shortlist_k).collect();
+        let raw = self.splate_index.top_k(q_splate_terms, config.shortlist_k + 1);
+        let shortlist: Vec<u32> = raw
+            .into_iter()
+            .filter(|&(row, _)| corpus.docs[row as usize].id != q.id)
+            .map(|(row, _)| row)
+            .take(config.shortlist_k)
+            .collect();
         let retrieve_ns = t0.elapsed().as_nanos() as u64;
         let pool = shortlist.len();
         if shortlist.is_empty() {
