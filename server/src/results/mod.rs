@@ -60,6 +60,25 @@ fn mismatched(what: &str, got: usize, want: usize) -> Failure {
     )
 }
 
+/// An index built from a wire `u32`. `u32::MAX` is `Ix`'s absent
+/// sentinel and `Ix::new` panics on it, so no wire value reaches
+/// `Ix::new` unchecked: the sentinel (and, for `ix_bounded`, any
+/// index at or past `n`) refuses naming the field, before any
+/// layer is constructed.
+pub fn ix_from_wire<L>(what: &str, i: u32) -> Result<turbo_analysis::Ix<L>, Failure> {
+    if i == u32::MAX {
+        return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("{what}: index {i} is the absent sentinel")));
+    }
+    Ok(turbo_analysis::Ix::new(i))
+}
+
+pub fn ix_bounded<L>(what: &str, i: u32, n: usize) -> Result<turbo_analysis::Ix<L>, Failure> {
+    if i as usize >= n {
+        return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("{what}: index {i} is outside the {n} items")));
+    }
+    ix_from_wire(what, i)
+}
+
 fn model_to_proto(m: &ModelRef) -> proto::ModelRef {
     proto::ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: m.sha256.clone() }
 }

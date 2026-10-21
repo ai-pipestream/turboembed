@@ -13,8 +13,8 @@ use turbo_analysis::{Ix, IxRange, Layer, Span, Spans, ViewId};
 use turbo_analysis_layers::{Block, Chunks, Cut, Levels, Sentences, Structure, Unit, Vectors};
 
 use super::{
-    MAX_CHUNKS, MAX_FRAGMENTS, MAX_LEVELS, MAX_TOKEN_VECTOR_BYTES, Wire, mismatched, model_from_proto, model_to_proto,
-    over,
+    MAX_CHUNKS, MAX_FRAGMENTS, MAX_LEVELS, MAX_TOKEN_VECTOR_BYTES, Wire, ix_bounded, ix_from_wire, mismatched,
+    model_from_proto, model_to_proto, over,
 };
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
@@ -276,8 +276,13 @@ impl Wire for ChunkLevels {
                 .chunk_sentence_start
                 .iter()
                 .zip(&msg.chunk_sentence_end)
-                .map(|(&a, &b)| IxRange::<Sentences>::new(a, b))
-                .collect(),
+                .map(|(&a, &b)| {
+                    Ok(IxRange::<Sentences> {
+                        start: ix_from_wire("chunk_sentence_start", a)?,
+                        end: ix_from_wire("chunk_sentence_end", b)?,
+                    })
+                })
+                .collect::<Result<_, _>>()?,
             cut,
             cost: msg.chunk_cost.clone(),
             model_tokens: msg.chunk_model_tokens.clone(),
@@ -287,9 +292,8 @@ impl Wire for ChunkLevels {
         let mut unit = Vec::with_capacity(n_levels);
         for i in 0..n_levels {
             unit.push(match msg.level_kind[i] {
-                0 if (msg.level_ix[i] as usize) < n_chunks => Unit::Chunk(Ix::new(msg.level_ix[i])),
-                0 => return Err(bad(format!("level unit {i} names chunk {} of {n_chunks}", msg.level_ix[i]))),
-                1 => Unit::Section(Ix::<Structure>::new(msg.level_ix[i])),
+                0 => Unit::Chunk(ix_bounded("level_ix", msg.level_ix[i], n_chunks)?),
+                1 => Unit::Section(ix_from_wire::<Structure>("level_ix", msg.level_ix[i])?),
                 2 => Unit::Document,
                 k => return Err(bad(format!("level kind {k} is not chunk, section or document"))),
             });
@@ -316,7 +320,7 @@ impl Wire for ChunkLevels {
         let vectors = Vectors::<Chunks> {
             dim: msg.dim,
             data,
-            empty: msg.empty.iter().map(|&i| Ix::new(i)).collect(),
+            empty: msg.empty.iter().map(|&i| ix_bounded("empty", i, n_chunks)).collect::<Result<_, _>>()?,
             model,
             _of: PhantomData,
         };

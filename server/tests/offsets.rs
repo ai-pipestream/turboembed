@@ -228,3 +228,50 @@ fn overlapping_touching_unordered_and_orphan_fragments_are_refused() {
     msg.chunk_over_budget.clear();
     assert!(ChunkLevels::from_msg(&msg).is_err(), "orphan fragments refused");
 }
+
+#[test]
+fn u32_max_wire_indices_are_refused_not_panicked() {
+    // u32::MAX is Ix's absent sentinel; Ix::new panics on it, so no
+    // wire value may reach it unchecked.
+    let refuse = |msg: &ChunkLevelsResult, field: &str| match ChunkLevels::from_msg(msg) {
+        Ok(_) => panic!("{field} = u32::MAX refused"),
+        Err(e) => {
+            assert_eq!(e.code, turbo_kserve::api::TURBO_E_INVALID_ARGUMENT, "{}", e.message);
+            assert!(e.message.contains(field), "{} names {field}", e.message);
+        }
+    };
+    let mut msg = fixture(OffsetMode::Utf8).to_msg();
+    msg.chunk_sentence_start[0] = u32::MAX;
+    refuse(&msg, "chunk_sentence_start");
+
+    let mut msg = fixture(OffsetMode::Utf8).to_msg();
+    msg.chunk_sentence_end[0] = u32::MAX;
+    refuse(&msg, "chunk_sentence_end");
+
+    let mut msg = fixture(OffsetMode::Utf8).to_msg();
+    msg.level_kind[0] = 1; // the document unit as a section
+    msg.level_ix[0] = u32::MAX;
+    refuse(&msg, "level_ix");
+
+    let mut msg = fixture(OffsetMode::Utf8).to_msg();
+    msg.level_ix[1] = u32::MAX; // a chunk unit
+    refuse(&msg, "level_ix");
+
+    let mut msg = fixture(OffsetMode::Utf8).to_msg();
+    msg.empty = vec![u32::MAX];
+    refuse(&msg, "empty");
+
+    // The token-vectors empty column goes through the same helper.
+    let tokens = turbo_kserve::results::tokens::TokenVectors {
+        model: model(),
+        view: ViewId::SOURCE.0,
+        dim: 2,
+        data: vec![1.0, 0.0],
+        empty: vec![u32::MAX],
+        windows: vec![Span::new(0, 1)],
+    };
+    match tokens.vectors() {
+        Ok(_) => panic!("token empty = u32::MAX refused"),
+        Err(e) => assert_eq!(e.code, turbo_kserve::api::TURBO_E_INVALID_ARGUMENT, "{}", e.message),
+    }
+}
