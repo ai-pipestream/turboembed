@@ -332,17 +332,19 @@ constexpr uint32_t LOG_WARNING = 1;
 constexpr uint32_t LOG_INFO = 2;
 constexpr uint32_t LOG_DEBUG = 3;
 
-/* The F16 linear layers come in threes, for x and y in F32 or F16: ff,
- * fh, hf, in that order (kernels.metal). */
+/* The F16 linear layers come in fours, for x and y in F32 or F16: ff,
+ * fh, hf, hh, in that order (kernels.metal). */
 enum Kernel {
     EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16,
-    NARROW_F16, GEMM_H32, GEMM_H64 = GEMM_H32 + 3, GEMM_SMALL_H = GEMM_H64 + 3, KERNELS = GEMM_SMALL_H + 3
+    NARROW_F16, ATTENTION_H, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
+    GEMM_SMALL_H = GEMM_H128 + 4, KERNELS = GEMM_SMALL_H + 4
 };
 const char *const KERNEL_NAMES[KERNELS] = {
-    "embed_layer_norm", "add_layer_norm", "gemm",           "gemm_small",      "attention",       "attention_narrow",
-    "pool",             "pool_ranges",    "widen_f16",      "widen_bf16",      "narrow_f16",      "gemm_h32_ff",
-    "gemm_h32_fh",      "gemm_h32_hf",    "gemm_h64_ff",    "gemm_h64_fh",     "gemm_h64_hf",     "gemm_small_h_ff",
-    "gemm_small_h_fh",  "gemm_small_h_hf"};
+    "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
+    "pool",             "pool_ranges",     "widen_f16",       "widen_bf16",      "narrow_f16",      "attention_h",
+    "gemm_h32_ff",      "gemm_h32_fh",     "gemm_h32_hf",     "gemm_h32_hh",     "gemm_h64_ff",     "gemm_h64_fh",
+    "gemm_h64_hf",      "gemm_h64_hh",     "gemm_h128_ff",    "gemm_h128_fh",    "gemm_h128_hf",    "gemm_h128_hh",
+    "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh"};
 
 /* The kernels compiled for one device. */
 struct Kernels {
@@ -439,11 +441,12 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
         int32_t rc = c->queue ? TURBO_OK : refuse(err, TURBO_E_RUNTIME, "newCommandQueue gave none");
         if (rc == TURBO_OK) rc = kernels_for(ordinal, &c->kernels, err);
         // kernels.metal's reductions and matrices take SIMD groups of 32.
-        for (int kk : std::initializer_list<int>{GEMM, GEMM_SMALL, ATTENTION, GEMM_H32, GEMM_H32 + 1, GEMM_H32 + 2, GEMM_H64, GEMM_H64 + 1,
-                       GEMM_H64 + 2, GEMM_SMALL_H, GEMM_SMALL_H + 1, GEMM_SMALL_H + 2})
+        for (int kk = GEMM; kk < KERNELS; kk++) {
+            if (kk == ATTENTION_NARROW || (kk >= POOL && kk < ATTENTION_H)) continue;
             if (rc == TURBO_OK && c->kernels->k[kk].maxTotalThreadsPerThreadgroup < 128)
                 rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs the %s kernel in threadgroups of %lu; it needs 128",
                             ordinal, KERNEL_NAMES[kk], (unsigned long)c->kernels->k[kk].maxTotalThreadsPerThreadgroup);
+        }
         if (rc == TURBO_OK && c->kernels->k[GEMM].threadExecutionWidth != 32)
             rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs SIMD groups of %lu threads; the kernels need 32",
                         ordinal, (unsigned long)c->kernels->k[GEMM].threadExecutionWidth);
@@ -879,12 +882,16 @@ bool linear_weight(uint32_t i) {
 }
 
 /* The linear layers' weights in F16, made on first need from the F32
- * ones, which f32_weights has made. An F16 model's are its own. */
+ * ones, which f32_weights has made. An F16 model's are its own where each
+ * starts 4-byte aligned, as the kernels read them 16 bytes at a time. */
 int32_t f16_weights(Model *m, turbo_error *err) {
     std::lock_guard<std::mutex> g(m->widen_lock);
     if (!m->f16.empty()) return TURBO_OK;
     const size_t n = m->counts.size();
-    if (m->desc.dtype == TURBO_DTYPE_F16) {
+    bool aligned = m->desc.dtype == TURBO_DTYPE_F16;
+    for (size_t i = 0; i < n && aligned; i++)
+        aligned = !linear_weight((uint32_t)i) || m->stored[i].at % 4 == 0;
+    if (aligned) {
         m->f16.assign(n, Ref{});
         for (size_t i = 0; i < n; i++)
             if (linear_weight((uint32_t)i)) m->f16[i] = m->stored[i];
@@ -951,6 +958,7 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 struct RowParams {
     uint32_t hidden;
     float eps;
+    uint32_t half_copy;
 };
 struct GemmParams {
     uint32_t m, n, k, epilogue, splits, kchunk;
@@ -982,11 +990,20 @@ size_t capacity(size_t tokens) { return round_up(tokens, 32); }
 
 /* Which kernels run a session's linear layers: F32 at EXACT and MODEL;
  * at FASTEST F16 operands with F32 sums, past SMALL_TOKENS in tiles of 32
- * x 64 or 64 x 64 (docs/metal.md, Kernel choices). */
-enum Linear : uint32_t { LINEAR_F32, LINEAR_H32, LINEAR_H64 };
-const char *const LINEAR_NAMES[] = {"f32", "h32", "h64"};
+ * x 64, 64 x 64 or 128 x 64 (docs/metal.md, Kernel choices). */
+enum Linear : uint32_t { LINEAR_F32, LINEAR_H32, LINEAR_H64, LINEAR_H128 };
+const char *const LINEAR_NAMES[] = {"f32", "h32", "h64", "h128"};
 /* FASTEST's choice when nothing forces or tunes it. */
 constexpr Linear LINEAR_DEFAULT = LINEAR_H64;
+
+/* Whether the context's device runs a choice's kernels: h128's tile takes
+ * threadgroups of 256. */
+bool runs_linear(const Context *c, Linear l) {
+    if (l != LINEAR_H128) return true;
+    for (int i = 0; i < 4; i++)
+        if (c->kernels->k[GEMM_H128 + i].maxTotalThreadsPerThreadgroup < 256) return false;
+    return true;
+}
 
 /* Whether attention runs on SIMD-group matrices for this head width. */
 bool wide_heads(uint32_t head_dim) { return head_dim % 8 == 0 && head_dim <= 64; }
@@ -998,6 +1015,10 @@ size_t attention_bytes(uint32_t head_dim, uint32_t seq) {
     const size_t floats = wide_heads(head_dim) ? 3 * 32 * (head_dim + 4) + 4 * 8 * 32 : round_up(seq, 8);
     return round_up(sizeof(float) * floats, 16);
 }
+
+/* The F16 attention's: a chunk's K and V in F16, rows padded by 8, and
+ * four groups' 8 x 32 scores in F32 and probabilities in F16. */
+size_t attention_h_bytes(uint32_t head_dim) { return round_up(2 * (2 * 32 * (head_dim + 8)) + 6 * 4 * 8 * 32, 16); }
 
 struct Session {
     Model *model = nullptr;
@@ -1012,7 +1033,8 @@ struct Session {
     id<MTLBuffer> rows = nil;
     uint64_t ids = 0, types = 0, mask = 0, pos = 0, starts = 0, blocks = 0, ranges = 0;
     id<MTLBuffer> scratch = nil;
-    uint64_t x = 0, q = 0, k = 0, v = 0, att = 0, tmp = 0, ffn = 0;
+    /* xh: x in F16, for FASTEST's linear layers, after ffn. */
+    uint64_t x = 0, q = 0, k = 0, v = 0, att = 0, tmp = 0, ffn = 0, xh = 0;
     /* The session's own queue: sessions run at the same time, each on the
      * GPU cores the others leave free, and a session has one owner at a
      * time, so its queue needs no lock. */
@@ -1033,7 +1055,7 @@ struct Session {
 };
 
 /* TURBO_METAL_CHOICES, read when a session is made: items separated by
- * ';', "linear=<f32|h32|h64>" forcing the linear layers' kernels into
+ * ';', "linear=<f32|h32|h64|h128>" forcing the linear layers' kernels into
  * *out, and "forced=" as a session reports it, whatever it names, read
  * and left alone. *out is -1 when nothing names them. */
 /* A line the tests set in place of the variable, through
@@ -1069,11 +1091,11 @@ int32_t forced_linear(int *out, turbo_error *err) {
         at = end + 1;
         if (item.empty() || item.rfind("forced=", 0) == 0) continue;
         int found = -1;
-        for (int l = LINEAR_F32; l <= (int)LINEAR_H64; l++)
+        for (int l = LINEAR_F32; l <= (int)LINEAR_H128; l++)
             if (item == std::string("linear=") + LINEAR_NAMES[l]) found = l;
         if (found < 0)
             return refuse(err, TURBO_E_INVALID_ARGUMENT,
-                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32 or h64",
+                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32, h64 or h128",
                           item.c_str());
         *out = found;
     }
@@ -1115,7 +1137,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         const size_t ints = round_up(cap * 4, 256), pairs = round_up(max_batch * 8, 256),
                      block_pairs = round_up(nblk * 8, 256),
                      triples = round_up((size_t)max_ranges * sizeof(turbo_token_range), 256);
-        if (cap > UINT32_MAX / widest || 6 * wide + ffn > c->device.maxBufferLength)
+        const size_t xh = precision == TURBO_PRECISION_FASTEST ? round_up(cap * d.hidden * 2, 256) : 0;
+        if (cap > UINT32_MAX / widest || 6 * wide + ffn + xh > c->device.maxBufferLength)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 1,
                                 "%u rows of %u tokens is more than one of device %u's buffers holds", max_batch,
                                 max_seq, c->ordinal);
@@ -1128,7 +1151,12 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
                                 "TURBO_METAL_CHOICES linear=%s: %s computes its linear layers %s",
                                 LINEAR_NAMES[forced], half ? "FASTEST" : "this precision",
-                                half ? "in F16 (h32 or h64)" : "in F32 (f32)");
+                                half ? "in F16 (h32, h64 or h128)" : "in F32 (f32)");
+        if (forced > (int)LINEAR_F32 && !runs_linear(c, (Linear)forced))
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "TURBO_METAL_CHOICES linear=%s: device %u runs its kernels in threadgroups of fewer "
+                                "than 256",
+                                LINEAR_NAMES[forced], c->ordinal);
         TRY(f32_weights(m, err));
         if (half) TRY(f16_weights(m, err));
 
@@ -1140,7 +1168,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         s->cap = (uint32_t)cap;
         s->max_ranges = max_ranges;
         s->rows = new_buffer(c->device, 4 * ints + pairs + block_pairs + triples, MTLResourceStorageModeShared);
-        s->scratch = new_buffer(c->device, 6 * wide + ffn, MTLResourceStorageModePrivate);
+        s->scratch = new_buffer(c->device, 6 * wide + ffn + xh, MTLResourceStorageModePrivate);
         s->queue = [c->device newCommandQueue];
         // The row path and the range path write their vectors to this one
         // buffer, so it holds the larger of the two counts. max_ranges is
@@ -1151,7 +1179,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         if (!s->rows || !s->scratch || !output || !s->queue) {
             delete s;
             return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes for the session", (unsigned long long)(
-                          4 * ints + pairs + block_pairs + triples + 6 * wide + ffn + vectors));
+                          4 * ints + pairs + block_pairs + triples + 6 * wide + ffn + xh + vectors));
         }
         s->ids = 0;
         s->types = ints;
@@ -1167,6 +1195,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         s->att = 4 * wide;
         s->tmp = 5 * wide;
         s->ffn = 6 * wide;
+        s->xh = 6 * wide + ffn;
         s->output.ctx = c;
         s->output.mtl = output;
         s->output.host = output.contents;
@@ -1315,6 +1344,9 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     // At FASTEST the weights are F16, and the feed-forward block's middle,
     // GELU's output, is F16 too: x_half and y_half say which side is.
     const bool f16 = s.linear != LINEAR_F32;
+    // At FASTEST with heads the matrix kernel takes, Q, K, V and the
+    // context are F16 too.
+    const bool f16_att = f16 && wide_heads(hd);
     const std::vector<Ref> &lw = f16 ? s.model->f16 : w;
     auto layer = [&](uint32_t l, int r) -> const Ref & {
         return w[TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r];
@@ -1335,7 +1367,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
                     std::initializer_list<const Ref *> biases, bool x_half = false, bool y_half = false) -> uint32_t {
         // Few tokens: the small kernel, over all of k.
         const bool small = tokens <= SMALL_TOKENS && n_out % 16 == 0;
-        const uint32_t bm = s.linear == LINEAR_H64 ? 64 : 32, bk = f16 ? 32 : 16;
+        const uint32_t bm = s.linear == LINEAR_H128 ? 128 : s.linear == LINEAR_H64 ? 64 : 32, bk = f16 ? 32 : 16;
         const uint32_t tiles = (n_out + 63) / 64 * ((tokens + bm - 1) / bm);
         uint32_t splits = 1;
         if (!small && outs.size() == 1 && epilogue == EPILOGUE_NONE && tiles < SPREAD) {
@@ -1347,8 +1379,12 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         const GemmParams p{tokens, n_out, n_in, epilogue, splits, kchunk};
         int kernel = small ? GEMM_SMALL : GEMM;
         if (f16) {
-            const int types = x_half ? 2 : y_half ? 1 : 0;
-            kernel = (small ? GEMM_SMALL_H : s.linear == LINEAR_H64 ? GEMM_H64 : GEMM_H32) + types;
+            const int types = (x_half ? 2 : 0) + (y_half ? 1 : 0);
+            kernel = (small                         ? GEMM_SMALL_H
+                      : s.linear == LINEAR_H128 ? GEMM_H128
+                      : s.linear == LINEAR_H64  ? GEMM_H64
+                                                : GEMM_H32) +
+                     types;
         }
         [enc setComputePipelineState:kn.k[kernel]];
         [enc setBuffer:sc offset:x atIndex:0];
@@ -1372,10 +1408,10 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             [enc dispatchThreadgroups:MTLSizeMake(n_out / 16, tokens / 32, n) threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
         else
             [enc dispatchThreadgroups:MTLSizeMake((n_out + 63) / 64, (tokens + bm - 1) / bm, n * splits)
-                threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+                threadsPerThreadgroup:MTLSizeMake(bm == 128 ? 256 : 128, 1, 1)];
         return splits;
     };
-    const RowParams rp{h, (float)d.layer_norm_eps};
+    const RowParams rp{h, (float)d.layer_norm_eps, f16 ? 1u : 0u};
     auto add_ln = [&](uint64_t y, uint32_t splits, const Ref &bias, const Ref &ln_w, const Ref &ln_b) {
         [enc setComputePipelineState:kn.k[ADD_LN]];
         [enc setBuffer:sc offset:s.x atIndex:0];
@@ -1386,6 +1422,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBytes:&rp length:sizeof rp atIndex:5];
         [enc setBytes:&splits length:sizeof splits atIndex:6];
         [enc setBytes:&tokens length:sizeof tokens atIndex:7];
+        [enc setBuffer:sc offset:f16 ? s.xh : s.x atIndex:8];
         per_token();
     };
 
@@ -1400,17 +1437,19 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     bind(w[EMB_LN_B], 7);
     [enc setBuffer:sc offset:s.x atIndex:8];
     [enc setBytes:&rp length:sizeof rp atIndex:9];
+    [enc setBuffer:sc offset:f16 ? s.xh : s.x atIndex:10];
     per_token();
 
     const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd)};
     for (uint32_t l = 0; l < d.layers; l++) {
-        gemm(s.x, h, h, EPILOGUE_BIAS,
+        gemm(f16 ? s.xh : s.x, h, h, EPILOGUE_BIAS,
              {{weight(l, TURBO_BERT_Q_WEIGHT), s.q}, {weight(l, TURBO_BERT_K_WEIGHT), s.k},
               {weight(l, TURBO_BERT_V_WEIGHT), s.v}},
-             {&layer(l, TURBO_BERT_Q_BIAS), &layer(l, TURBO_BERT_K_BIAS), &layer(l, TURBO_BERT_V_BIAS)});
+             {&layer(l, TURBO_BERT_Q_BIAS), &layer(l, TURBO_BERT_K_BIAS), &layer(l, TURBO_BERT_V_BIAS)}, f16,
+             f16_att);
 
         const bool wide = wide_heads(hd);
-        [enc setComputePipelineState:kn.k[wide ? ATTENTION : ATTENTION_NARROW]];
+        [enc setComputePipelineState:kn.k[f16_att ? ATTENTION_H : wide ? ATTENTION : ATTENTION_NARROW]];
         [enc setBuffer:sc offset:s.q atIndex:0];
         [enc setBuffer:sc offset:s.k atIndex:1];
         [enc setBuffer:sc offset:s.v atIndex:2];
@@ -1419,14 +1458,15 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBuffer:rows offset:s.blocks atIndex:5];
         [enc setBuffer:sc offset:s.att atIndex:6];
         [enc setBytes:&ap length:sizeof ap atIndex:7];
-        [enc setThreadgroupMemoryLength:attention_bytes(hd, s.longest) atIndex:0];
+        [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd) : attention_bytes(hd, s.longest) atIndex:0];
         [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1) threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32, 1, 1)];
 
-        uint32_t splits = gemm(s.att, h, h, EPILOGUE_NONE, {{weight(l, TURBO_BERT_ATTN_OUT_WEIGHT), s.tmp}}, {});
+        uint32_t splits =
+            gemm(s.att, h, h, EPILOGUE_NONE, {{weight(l, TURBO_BERT_ATTN_OUT_WEIGHT), s.tmp}}, {}, f16_att);
         add_ln(s.tmp, splits, layer(l, TURBO_BERT_ATTN_OUT_BIAS), layer(l, TURBO_BERT_ATTN_LN_WEIGHT),
                layer(l, TURBO_BERT_ATTN_LN_BIAS));
-        gemm(s.x, h, inter, EPILOGUE_BIAS_GELU, {{weight(l, TURBO_BERT_FFN_IN_WEIGHT), s.ffn}},
-             {&layer(l, TURBO_BERT_FFN_IN_BIAS)}, false, f16);
+        gemm(f16 ? s.xh : s.x, h, inter, EPILOGUE_BIAS_GELU, {{weight(l, TURBO_BERT_FFN_IN_WEIGHT), s.ffn}},
+             {&layer(l, TURBO_BERT_FFN_IN_BIAS)}, f16, f16);
         splits = gemm(s.ffn, inter, h, EPILOGUE_NONE, {{weight(l, TURBO_BERT_FFN_OUT_WEIGHT), s.tmp}}, {}, f16);
         add_ln(s.tmp, splits, layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                layer(l, TURBO_BERT_FFN_LN_BIAS));
@@ -1492,10 +1532,10 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
 
 // ---- Kernel choices --------------------------------------------------------------
 //
-// At FASTEST a session's linear layers run in F16 tiles of 32 x 64 (h32)
-// or 64 x 64 (h64) past SMALL_TOKENS; EXACT and MODEL have one path, F32.
-// A tuned session times both when it is made, on its own memory, and runs
-// the faster; docs/metal.md says how (Autotuning).
+// At FASTEST a session's linear layers run in F16 tiles of 32 x 64 (h32),
+// 64 x 64 (h64) or 128 x 64 (h128) past SMALL_TOKENS; EXACT and MODEL have
+// one path, F32. A tuned session times each when it is made, on its own
+// memory, and runs the fastest; docs/metal.md says how (Autotuning).
 
 /* The tuner times a session on rows of max_seq tokens, this many tokens
  * in all at most (fewer when the session holds fewer). */
@@ -1522,7 +1562,7 @@ std::string choice_line(Linear l, bool forced) {
 
 /* The linear layers a choices line names, or -1. */
 int parse_linear(const char *line) {
-    for (int l = LINEAR_F32; l <= (int)LINEAR_H64; l++) {
+    for (int l = LINEAR_F32; l <= (int)LINEAR_H128; l++) {
         const std::string item = std::string("linear=") + LINEAR_NAMES[l];
         const char *at = strstr(line, item.c_str());
         if (at && (at == line || at[-1] == ';') && (at[item.size()] == ';' || at[item.size()] == 0)) return l;
@@ -1559,7 +1599,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         return TURBO_OK;
     }
     const int cached = t.cached ? parse_linear(t.cached) : -1;
-    const bool usable = cached == (int)LINEAR_H32 || cached == (int)LINEAR_H64;
+    const bool usable = cached > (int)LINEAR_F32 && runs_linear(c, (Linear)cached);
     if (t.mode == TURBO_AUTOTUNE_ON && usable) {
         s.linear = (Linear)cached;
         write_choices(t.choices, choice_line(s.linear, false));
@@ -1570,8 +1610,11 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         write_choices(t.choices, choice_line(s.linear, false));
         return TURBO_OK;
     }
+    // The incumbent first, then every other F16 tiling the device runs.
     const Linear incumbent = usable ? (Linear)cached : s.linear;
-    const Linear challenger = incumbent == LINEAR_H64 ? LINEAR_H32 : LINEAR_H64;
+    std::vector<Linear> order{incumbent};
+    for (int l = LINEAR_H32; l <= (int)LINEAR_H128; l++)
+        if (l != (int)incumbent && runs_linear(c, (Linear)l)) order.push_back((Linear)l);
 
     // Rows of max_seq tokens, ids 1, as many as fill TUNE_TOKENS.
     const auto started = std::chrono::steady_clock::now();
@@ -1596,10 +1639,9 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
 
     const double budget = t.budget_ms;
     double spent = 0;
-    double least[2] = {0, 0};
-    bool timed[2] = {false, false};
-    const Linear order[2] = {incumbent, challenger};
-    for (int v = 0; v < 2; v++) {
+    std::vector<double> least(order.size(), 0);
+    std::vector<bool> timed(order.size(), false);
+    for (size_t v = 0; v < order.size(); v++) {
         s.linear = order[v];
         double ms = 0;
         TRY(timed_run(s, &ms, err));   // untimed: the clocks come up
@@ -1628,11 +1670,16 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         }
     }
     if (!timed[0]) return refuse(err, TURBO_E_INVALID_STATE, "metal: the tuner timed no incumbent");
-    s.linear = timed[1] && least[1] < least[0] * (1.0 - TUNE_MARGIN) ? challenger : incumbent;
+    // The fastest challenger replaces the incumbent only by the margin.
+    size_t best = 0;
+    for (size_t v = 1; v < order.size(); v++)
+        if (timed[v] && least[v] < least[best]) best = v;
+    s.linear = least[best] < least[0] * (1.0 - TUNE_MARGIN) ? order[best] : incumbent;
+    const bool all_timed = std::find(timed.begin(), timed.end(), false) == timed.end();
     const uint32_t tune_ms = (uint32_t)std::min<double>(
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count(), UINT32_MAX);
     std::string lines, said;
-    for (int v = 0; v < 2; v++) {
+    for (size_t v = 0; v < order.size(); v++) {
         if (!timed[v]) continue;
         char one[96];
         snprintf(one, sizeof one, "%s%s/linear/%s=%.4f", lines.empty() ? "" : "\n", BINS[bin], LINEAR_NAMES[order[v]],
@@ -1648,7 +1695,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     }
     c->say(LOG_INFO, "metal device %u: linear layers chosen in %u ms: %s (%s, a run: %s%s)", c->ordinal, tune_ms,
            LINEAR_NAMES[s.linear], BINS[bin], said.c_str(),
-           timed[1] ? "" : "; the challenger not timed, past the budget");
+           all_timed ? "" : "; some not timed, past the budget");
     write_choices(t.choices, choice_line(s.linear, false));
     t.tune_ms = tune_ms;
     t.tuned = TURBO_TUNED_MEASURED;

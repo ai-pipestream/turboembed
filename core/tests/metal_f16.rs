@@ -106,6 +106,7 @@ fn each_f16_choice_matches_the_cpu_within_fastest_s_floor() {
     for (choice, precision, floor) in [
         ("h32", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
         ("h64", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
+        ("h128", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
         ("f32", TURBO_PRECISION_EXACT, 0.9999),
     ] {
         let line = format!("linear={choice}");
@@ -138,7 +139,7 @@ fn the_choices_line_forces_back_and_refuses_what_it_cannot_run() {
     assert_eq!(e.code, INVALID_ARGUMENT, "{e:?}");
 }
 
-/// A tuned FASTEST session times both tilings and runs one of them, or
+/// A tuned FASTEST session times each tiling and runs one of them, or
 /// keeps the default when the GPU's times stay apart; EXACT has nothing
 /// to time.
 #[test]
@@ -151,7 +152,8 @@ fn a_tuned_session_runs_one_of_the_tilings() {
     let s = make(g.m, None, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_RETUNE).unwrap();
     let i = s.info();
     assert!([TURBO_TUNED_MEASURED, TURBO_TUNED_DEFAULT].contains(&i.tuned), "{}", i.tuned);
-    assert!(["linear=h32;forced=", "linear=h64;forced="].contains(&field(&i.choices).as_str()));
+    let lines = ["linear=h32;forced=", "linear=h64;forced=", "linear=h128;forced="];
+    assert!(lines.contains(&field(&i.choices).as_str()), "{}", field(&i.choices));
     // The tuning runs wrote the session's memory: its first run is whole.
     let (_, t) = shapes(&dir, i.max_batch as usize, i.max_seq as usize).pop().unwrap();
     against_cpu(&s, &cpu, &t, FASTEST_FLOOR, "tuned");

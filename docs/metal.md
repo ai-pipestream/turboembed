@@ -138,13 +138,19 @@ frameworks and libc++, which every macOS has.
   across more threadgroups, the residual kernel summing the parts. At
   FASTEST the same two shapes run with F16 weights: the few-token kernel
   reads them straight from device memory and stages each group's 32 rows
-  of x as F16; past 128 tokens a threadgroup's tile is 32 x 64 or 64 x
-  64 (Kernel choices), staged in steps of 32 along k as F16, so its
-  operands take half the threadgroup memory of the F32 kernel's. Attention takes
+  of x as F16; past 128 tokens a threadgroup's tile is 32 x 64, 64 x 64
+  or 128 x 64 (Kernel choices), staged in steps of 32 along k as F16, 16
+  bytes a thread at a time, so its operands take half the threadgroup
+  memory of the F32 kernel's. The LayerNorms also write the residual
+  stream in F16, which the Q, K and V projections and the feed-forward
+  input read, and Q, K, V, the attention context and the feed-forward
+  block's middle are F16 between kernels. Attention takes
   32 queries of a row and one head per threadgroup, and goes through the
   row's keys in chunks of 32 staged in threadgroup memory, with a running
-  softmax; a head width that is not a multiple of 8, or is over 64, runs
-  a narrower kernel, one query at a time. The run waits for the pass to
+  softmax; at FASTEST it stages K and V in F16, holds its queries in
+  registers and runs the softmax in base 2. A head width that is not a
+  multiple of 8, or is over 64, runs a narrower kernel, one query at a
+  time, in F32 at every precision. The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
   `SHARED` buffer, which `turbo_result_buffer` hands out and
   `turbo_result_read` copies from.
@@ -181,11 +187,16 @@ frameworks and libc++, which every macOS has.
   Chebyshev fit in Numerical Recipes, with relative error under 1.2e-7.
   Cosine against the fp32 reference must reach 0.9999. At FASTEST the
   linear layers take F16 operands, the weights narrowed once and x
-  rounded to F16 as it is staged, and sum in F32 SIMD-group matrices;
-  the bias and GELU are added in F32, and the feed-forward block's
-  middle, GELU's output, is stored in F16. Everything else, the residual
-  stream, LayerNorm, attention and pooling, is F32 as at EXACT. Cosine
-  must reach 0.999, FASTEST's floor on every backend.
+  rounded to F16 (the residual stream as the LayerNorm writes it, the
+  rest as the kernel before stores it), and sum in F32 SIMD-group
+  matrices; the bias and GELU are added in F32 and the result rounded to
+  its F16 or F32 store. For head widths the matrix kernel takes,
+  attention's scores and its product with V take F16 operands, the
+  queries scaled by 1 / (sqrt(head width) ln 2) in F16 so the softmax is
+  base 2 on the precise `exp2`, and the softmax, its running max and sum,
+  and every sum are F32. The residual stream itself, LayerNorm and pooling
+  are F32 as at EXACT. Cosine must reach 0.999, FASTEST's floor on every
+  backend; all-MiniLM-L6-v2's reference cases reach 1 - 3.9e-7.
 - **What a result reports.** Stages: tokenize on the host for text,
   no upload (the rows were copied into the session's shared memory by
   the write, as on the CPU), lookup, encode and pool on the device,
@@ -200,50 +211,55 @@ frameworks and libc++, which every macOS has.
 
 ## Kernel choices
 
-At FASTEST a session chooses one item, which kernel tiles its linear
-layers past 128 packed tokens, and reports it in
-`turbo_session_get_info`'s `choices` (docs/autotune.md):
+At FASTEST a session chooses one item, which tile its linear layers run
+in past 128 packed tokens, and reports it in `turbo_session_get_info`'s
+`choices` (docs/autotune.md):
 
 ```
 linear=h64;forced=
 ```
 
-`linear=h64` is the 64 x 64 tile, each of the four SIMD groups 32 x 32
-of it, and `linear=h32` the 32 x 64 tile, each group 16 x 32; both are
-F16 operands with F32 sums (`TURBO_NUMERIC_F16_F32ACC`), so a different
-choice moves the bits within FASTEST's floor. `forced=` names `linear`
+`linear=h64` is the 64 x 64 tile, each of its four SIMD groups 32 x 32
+of it; `linear=h32` the 32 x 64 tile, each of four groups 16 x 32; and
+`linear=h128` the 128 x 64 tile, each of eight groups 32 x 32, on a
+device that runs threadgroups of 256. All three are F16 operands with
+F32 sums (`TURBO_NUMERIC_F16_F32ACC`); the tile can change how many
+parts a small layer's k is split into, so a different choice moves the
+bits within FASTEST's floor. `forced=` names `linear`
 when the environment fixed it. EXACT and MODEL have one path, the F32
 kernels, and report no choices. A session nothing forces or tunes runs
 `h64`.
 
 `TURBO_METAL_CHOICES`, read when a session is made, forces the item it
-names (`linear=h32`, `linear=h64`, or `linear=f32` at EXACT and MODEL);
+names (`linear=h32`, `linear=h64`, `linear=h128`, or `linear=f32` at
+EXACT and MODEL);
 a line a session reported, `forced=` and all, forces the same kernels
-back. A kernel outside the precision's numerics (`f32` at FASTEST, `h32`
-or `h64` at EXACT or MODEL) is `TURBO_E_UNSUPPORTED_OPTION` naming
-field 3, and any other item is `TURBO_E_INVALID_ARGUMENT`.
+back. A kernel outside the precision's numerics (`f32` at FASTEST, an F16
+tile at EXACT or MODEL), or `h128` on a device that does not run it, is
+`TURBO_E_UNSUPPORTED_OPTION` naming field 3, and any other item is
+`TURBO_E_INVALID_ARGUMENT`.
 
 ### Autotuning
 
 A FASTEST session made with `turbo_session_desc.tuning` ON or RETUNE
-(or `TURBO_AUTOTUNE=on` or `retune`) times both tiles when it is made and
-runs the faster; docs/autotune.md has the switches, the cache and what
+(or `TURBO_AUTOTUNE=on` or `retune`) times each tile when it is made and
+runs the fastest; docs/autotune.md has the switches, the cache and what
 holds across backends. It is off by default, and a forced choice is
 never timed.
 
 How: on the session's own memory and queue, with rows of `max_seq`
 tokens, ids 1, as many as fill 8192 tokens (all of the session's rows
-when it holds fewer). Each tile runs the whole encoder once untimed,
-then five times timed from the host, each run waited for. The least time
-ranks, and the challenger replaces the incumbent (the cached choice,
-else `h64`) only when 5% faster. A tile whose median is more than 25%
+when it holds fewer). Each tile, the incumbent (the cached choice, else
+`h64`) first, runs the whole encoder once untimed, then five times timed
+from the host, each run waited for. The least time ranks, and the
+fastest challenger replaces the incumbent only when 5% faster. A tile whose median is more than 25%
 above its least is timed again, up to three times in all; still apart,
 the GPU is shared or throttling, and the session keeps the incumbent,
 reports `default`, is not cached, and an INFO line says so. The budget
 counts the timed runs alone; past it, what is left is not timed. A
 measured session reports `measured` and logs at INFO `metal device <n>:
 linear layers chosen in <ms> ms: <choice> (<bin>, a run: h64 <ms> ms,
-h32 <ms> ms)`.
+h32 <ms> ms, h128 <ms> ms)`.
 
 ## Testing
 
