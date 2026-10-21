@@ -161,28 +161,26 @@ fn a_tuned_session_runs_one_of_the_tilings() {
     assert_eq!((field(&i.choices), i.tuned), (String::new(), TURBO_TUNED_DEFAULT));
 }
 
-/// A model with a finite linear weight past F16's range (65504) computes
-/// in F32 at FASTEST, says so, and gives EXACT's vectors, all finite:
-/// narrowing it to F16 would make that weight infinite. Forcing an F16
-/// tile on it is refused naming the precision.
+/// A model with a finite linear weight past F16's range (65504): its
+/// FASTEST session, whose numerics allow only F16 kernels, is refused
+/// naming the precision, forced or not, since narrowing that weight would
+/// make it infinite; EXACT runs it in F32 with finite vectors.
 #[test]
-fn a_weight_past_f16_s_range_keeps_fastest_in_f32() {
+fn a_weight_past_f16_s_range_refuses_fastest() {
     let _t = turn();
-    let Some(_) = metal_device("a_weight_past_f16_s_range_keeps_fastest_in_f32") else { return };
+    let Some(_) = metal_device("a_weight_past_f16_s_range_refuses_fastest") else { return };
     let mut weights = tiny_weights(0);
     let q = weights.iter_mut().find(|t| t.name.ends_with("layer.0.attention.self.query.weight")).unwrap();
     q.data[..4].copy_from_slice(&100000f32.to_le_bytes());
     let mut f = Fixture::model("metal-f16-past-range");
     f.weights("weights/model.safetensors", &weights);
     let l = f.load_on(metal).unwrap();
+    for choices in [None, Some("linear=h64")] {
+        let e = make(l.m, choices, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).err().expect("FASTEST refused");
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{choices:?}: {e:?}");
+    }
     let exact = make(l.m, None, TURBO_PRECISION_EXACT, TURBO_AUTOTUNE_OFF).unwrap();
-    let fastest = make(l.m, None, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
-    let i = fastest.info();
-    assert_eq!((i.compute_dtype, field(&i.choices)), (TURBO_DTYPE_F32, String::new()));
-    let want = exact.embed(&TEXTS, None).unwrap();
-    let got = fastest.embed(&TEXTS, None).unwrap();
-    assert!(got.iter().flatten().all(|v| v.is_finite()), "FASTEST's vectors are finite");
-    assert_eq!(got, want, "FASTEST runs EXACT's F32 kernels for this model");
-    let e = make(l.m, Some("linear=h64"), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).err().unwrap();
-    assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{e:?}");
+    assert_eq!(exact.info().compute_dtype, TURBO_DTYPE_F32);
+    let v = exact.embed(&TEXTS, None).unwrap();
+    assert!(v.iter().flatten().all(|x| x.is_finite()), "EXACT's vectors are finite");
 }

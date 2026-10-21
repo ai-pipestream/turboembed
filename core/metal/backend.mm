@@ -888,7 +888,7 @@ bool linear_weight(uint32_t i) {
  * ones, which f32_weights has made. An F16 model's are its own where each
  * starts 4-byte aligned, as the kernels read them 16 bytes at a time. A
  * finite F32 or BF16 weight past F16's range (65504) leaves f16 empty, with
- * a warning: FASTEST computes that model in F32, as the CUDA backend does. */
+ * a warning, and the model's sessions run no F16 kernels. */
 int32_t f16_weights(Model *m, turbo_error *err) {
     std::lock_guard<std::mutex> g(m->widen_lock);
     if (m->narrow_tried) return TURBO_OK;
@@ -936,8 +936,8 @@ int32_t f16_weights(Model *m, turbo_error *err) {
     m->narrow_tried = true;
     if (*static_cast<const uint32_t *>(flag.contents) != 0) {
         c->say(LOG_WARNING,
-               "metal device %u: a linear layer's weight of this %s model is past F16's range; FASTEST computes it "
-               "in F32",
+               "metal device %u: a linear layer's weight of this %s model is past F16's range; its sessions run "
+               "no F16 kernels",
                c->ordinal, dtype_name(m->desc.dtype));
         return TURBO_OK;
     }
@@ -1190,17 +1190,24 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                 LINEAR_NAMES[forced], c->ordinal);
         TRY(f32_weights(m, err));
         // The linear layers' kernels: the forced ones, else F16 where
-        // allowed. A model with a weight past F16's range runs the F32
-        // kernels, as MODEL's, at FASTEST too.
+        // allowed, else F32 where allowed. A model with a weight past
+        // F16's range has no F16 kernels; a precision that allows only F16
+        // is refused for it.
+        const bool f32 = (numerics & TURBO_NUMERIC_F32_FMA) != 0;
+        if (forced < 0 && !half && !f32)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "precision %u allows none of the classes the metal backend's linear layers compute "
+                                "in (F32 FMAs, F16 with F32 sums)",
+                                precision);
         Linear linear = forced >= 0 ? (Linear)forced : half ? LINEAR_DEFAULT : LINEAR_F32;
         if (linear != LINEAR_F32) {
             TRY(f16_weights(m, err));
             if (m->f16.empty()) {
-                if (forced >= 0)
+                if (forced >= 0 || !f32)
                     return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
-                                        "TURBO_METAL_CHOICES linear=%s: a weight of this model is past F16's range, "
-                                        "so it computes in F32",
-                                        LINEAR_NAMES[forced]);
+                                        "precision %u: a linear layer's weight of this model is past F16's range "
+                                        "(65504), and the F32 kernels it needs are outside the precision's numerics",
+                                        precision);
                 linear = LINEAR_F32;
             }
         }
