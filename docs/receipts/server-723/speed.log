@@ -1,0 +1,19 @@
+Command: cargo test --release --locked -p turbo-kserve --test speed -- --ignored --nocapture
+Machine: AMD Ryzen 9 9950X3D (16 cores), 121 GB RAM, Linux.
+Alternating rounds: 40 a side, one encode and one decode timed together
+each round, the side running first swapped every round, two warm-up
+rounds; the accumulators key on the implementation, never on the order.
+Each side is measured at its own encoded size; the baselines are the
+current vector message (the vendored protocol's InferTensorContents
+fp32 contents) and span pairs as that protocol's int contents carries
+them, offsets up to 2^21 so a varint costs the three bytes a text
+offset costs.
+
+Result:
+sparse terms: 2531337 bytes; 839463465 B/s vs span pairs 765811547 B/s (1.10x)
+token vectors: 8394773 bytes; 26948456593 B/s vs fp32 contents 3800416038 B/s (7.09x)
+rerank scores: 683540 bytes; 1407670604 B/s vs span pairs 778899203 B/s (1.81x)
+extraction answers: 216373 bytes; 2147635619 B/s vs span pairs 780003112 B/s (2.75x)
+all in GiB/s: sparse 0.84, token vectors 26.95, rerank 1.41, extraction 2.15
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+speed test exit: 0

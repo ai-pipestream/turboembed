@@ -1,0 +1,190 @@
+//! What the analysis result-layer tests share: the served tiny bundle, a
+//! real client, the sample in-process results, and the request builders.
+//! Each test binary uses its own subset.
+#![allow(dead_code)]
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+use serde_json::Value;
+use tonic::transport::Channel;
+use tonic::{Code, Status};
+use turbo_analysis::{Ix, Key, Layer, ModelRef, Span, View, ViewId};
+use turbo_analysis_embed::{Answers, Reranked};
+use turbo_analysis_layers::{Chunks, SparseTerms, Subwords, TokenVectorWindows, Vectors};
+use turbo_kserve::api::Runtime;
+use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
+use turbo_kserve::proto::grpc_inference_service_client::GrpcInferenceServiceClient;
+use turbo_kserve::proto::model_infer_request::InferInputTensor;
+use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
+use turbo_kserve::proto::result::*;
+use turbo_kserve::proto::{InferTensorContents, ModelInferRequest};
+use turbo_kserve::{Serve, Server};
+
+pub type Analysis = AnalysisServiceClient<Channel>;
+pub type Kserve = GrpcInferenceServiceClient<Channel>;
+
+/// The inference protocol's client, connected where the server answers.
+pub async fn kserve(s: &Server) -> Kserve {
+    GrpcInferenceServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap()
+}
+
+/// One ModelInfer of byte texts.
+pub fn texts_req(model: &str, texts: &[&[u8]]) -> ModelInferRequest {
+    ModelInferRequest {
+        model_name: model.into(),
+        model_version: String::new(),
+        id: String::new(),
+        parameters: HashMap::new(),
+        inputs: vec![InferInputTensor {
+            name: "texts".into(),
+            datatype: "BYTES".into(),
+            shape: vec![texts.len() as i64],
+            parameters: HashMap::new(),
+            contents: Some(InferTensorContents {
+                bytes_contents: texts.iter().map(|t| t.to_vec()).collect(),
+                ..Default::default()
+            }),
+        }],
+        outputs: vec![],
+        raw_input_contents: vec![],
+    }
+}
+
+/// The vectors tensor's shape of one ModelInfer.
+pub async fn embed_shape(k: &mut Kserve, model: &str, texts: &[&[u8]]) -> Vec<i64> {
+    let out = k.model_infer(texts_req(model, texts)).await.unwrap().into_inner();
+    out.outputs[0].shape.clone()
+}
+
+pub const NAME: &str = "tiny-bert-bundle";
+
+pub fn tiny() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle")
+}
+
+/// The runtime index of the CPU.
+pub fn cpu() -> u32 {
+    let rt = Runtime::create().unwrap();
+    (0..16).find(|&i| rt.device_info(i).map(|d| d.kind == turbo::TURBO_DEVICE_CPU).unwrap_or(false)).expect("a CPU")
+}
+
+fn model(bundle: &Path, name: Option<&str>, sessions: u32) -> ModelConfig {
+    ModelConfig {
+        bundle: bundle.to_str().unwrap().to_string(),
+        name: name.map(String::from),
+        device: Device::Index(cpu()),
+        precision: 0,
+        max_batch: 0,
+        max_seq: 0,
+        sessions,
+    }
+}
+
+/// A server whose admin calls are served, for the load and unload tests.
+pub async fn serve() -> (Server, Analysis) {
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), None, 2)], MAX, Serve { admin: true })
+        .await
+        .unwrap();
+    s.load().await.unwrap();
+    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    (s, c)
+}
+
+/// The default server: admin calls refused, for the opt-in test.
+pub async fn serve_no_admin() -> (Server, Analysis) {
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), None, 2)], MAX, Serve::default())
+        .await
+        .unwrap();
+    s.load().await.unwrap();
+    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    (s, c)
+}
+
+pub fn model_ref() -> ModelRef {
+    ModelRef { id: "sentence-transformers/all-MiniLM-L6-v2".into(), revision: "1".into(), sha256: String::new() }
+}
+
+/// The gRPC code and turbo-code of a refusal.
+pub fn refusal(s: &Status) -> (Code, i32) {
+    let md = s.metadata().get("turbo-code").unwrap_or_else(|| panic!("no turbo-code in {s:?}")).to_str().unwrap();
+    (s.code(), md.parse().unwrap())
+}
+
+// ---- The four sample result kinds ------------------------------------------
+
+pub fn sparse_terms() -> SparseTerms<View> {
+    let mut t = SparseTerms::new(model_ref());
+    t.push(3, 0.5, Some(Span::new(0, 4)));
+    t.push_occurrences(&[Span::new(0, 4)]);
+    t.push(9, 1.25, None);
+    t.push_occurrences(&[]);
+    t.unit();
+    t.push(1, 0.75, Some(Span::new(5, 9)));
+    t.push_occurrences(&[Span::new(5, 7), Span::new(7, 9)]);
+    t.unit();
+    t.check().unwrap();
+    t
+}
+
+pub fn token_vectors() -> (Vectors<Subwords>, TokenVectorWindows) {
+    let data: Vec<f32> = (0..12).map(|i| if i / 3 == 1 { 0.0 } else { i as f32 * 0.25 }).collect();
+    let v = Vectors::new(3, data, vec![Ix::new(1)], model_ref());
+    v.check().unwrap();
+    let mut spans = turbo_analysis::Spans::new(ViewId::SOURCE);
+    spans.push(Span::new(0, 10));
+    spans.push(Span::new(10, 20));
+    let w = TokenVectorWindows { spans };
+    w.check().unwrap();
+    (v, w)
+}
+
+pub fn reranked() -> Reranked<Chunks> {
+    let r = Reranked {
+        source: Key::named("candidates"),
+        items: vec![Ix::new(7), Ix::new(2)],
+        scores: vec![9.5, 1.25],
+        model: model_ref(),
+    };
+    r.check().unwrap();
+    r
+}
+
+pub fn answers() -> Answers {
+    let mut spans = turbo_analysis::Spans::new(ViewId::SOURCE);
+    spans.push(Span::new(0, 4));
+    spans.push(Span::new(16, 24));
+    let out = Answers {
+        spans,
+        scores: vec![8.0, 4.5],
+        probabilities: vec![0.5, 0.3],
+        null_score: -2.0,
+        null_probability: 0.2,
+    };
+    out.check().unwrap();
+    out
+}
+
+// ---- Capability and request helpers -----------------------------------------
+
+/// The bundle's manifest, for what the listing must match.
+pub fn manifest() -> Value {
+    serde_json::from_slice(&std::fs::read(tiny().join("manifest.json")).unwrap()).unwrap()
+}
+
+pub fn the_one_bundle(list: &CapabilitiesResponse) -> &BundleCapabilities {
+    assert_eq!(list.bundles.len(), 1, "one bundle is loaded");
+    &list.bundles[0]
+}
+
+pub fn load_req(name: &str, bundle: &str, sessions: u32, precision: u32) -> LoadBundleRequest {
+    LoadBundleRequest {
+        name: name.into(),
+        bundle: bundle.into(),
+        device: cpu(),
+        sessions,
+        precision,
+        max_batch: 0,
+        max_seq: 0,
+    }
+}

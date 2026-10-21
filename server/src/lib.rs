@@ -1,316 +1,47 @@
-//! The Open Inference Protocol (KServe v2) over gRPC, served from the
-//! library's C interface as docs/kserve.md maps it.
+//! The Open Inference Protocol (KServe v2) and the analysis result
+//! layer over gRPC, served from the library's C interface as
+//! docs/kserve.md and docs/grpc-analysis.md map them.
 
+pub mod analysis;
 pub mod api;
+pub mod capabilities;
 pub mod config;
 mod infer;
+mod kserve;
+pub mod results;
 mod state;
 pub mod status;
 
 pub use crate::state::Held;
 
-/// The messages and service of open_inference_grpc.proto.
+/// The messages and services of the two protos.
 pub mod proto {
     #![allow(clippy::all)]
     tonic::include_proto!("inference");
+    /// The analysis result layer (docs/grpc-analysis.md).
+    pub mod result {
+        tonic::include_proto!("turbo.result");
+    }
 }
 
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
+use tonic::Code;
 use tonic::codegen::http;
 use tonic::transport::server::TcpIncoming;
-use tonic::{Code, Request, Response, Status};
-use turbo::{
-    TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I32, TURBO_EMBED_STAGE_COUNT, TURBO_PLACE_HOST,
-    TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, TURBO_TASK_EMBED, turbo_embed_options, turbo_result_info,
-    turbo_session_info, turbo_token_batch,
-};
 
-use crate::api::*;
 use crate::config::ModelConfig;
-use crate::infer::Rows;
-use crate::proto::grpc_inference_service_server::{GrpcInferenceService, GrpcInferenceServiceServer};
-use crate::proto::infer_parameter::ParameterChoice;
-use crate::proto::model_infer_response::InferOutputTensor;
-use crate::proto::model_metadata_response::TensorMetadata;
-use crate::proto::*;
-use crate::state::{State, properties};
-use crate::status::{EMBED_OPTIONS, to_status};
-
-/// The vectors of one result, owned until the response that carries them is
-/// encoded; dropping them releases the buffer, then the result, then the
-/// session.
-struct Vectors {
-    data: Data,
-    _result: Output,
-    _held: Held,
-}
-
-enum Data {
-    /// The result's own host memory, from turbo_result_buffer.
-    Mapped { ptr: *const u8, len: usize, _buffer: Buffer },
-    /// What turbo_result_read downloaded.
-    Read(Vec<u8>),
-}
-
-// The mapped memory belongs to the buffer held alongside it.
-unsafe impl Send for Vectors {}
-
-impl AsRef<[u8]> for Vectors {
-    fn as_ref(&self) -> &[u8] {
-        match &self.data {
-            Data::Mapped { ptr, len, .. } if *len > 0 => unsafe { std::slice::from_raw_parts(*ptr, *len) },
-            Data::Mapped { .. } => &[],
-            Data::Read(v) => v,
-        }
-    }
-}
-
-/// Copies little-endian int32 rows into a session's pinned buffer.
-fn copy_rows(src: &[u8], dst: *mut u8) {
-    if cfg!(target_endian = "little") {
-        unsafe { std::ptr::copy_nonoverlapping(src.as_ptr(), dst, src.len()) };
-    } else {
-        for (k, c) in src.as_chunks::<4>().0.iter().enumerate() {
-            let v = i32::from_le_bytes(*c);
-            unsafe { dst.cast::<i32>().add(k).write_unaligned(v) };
-        }
-    }
-}
-
-fn token_batch(batch: u32, seq: u32, ids: *const i32, mask: *const i32, types: *const i32) -> turbo_token_batch {
-    turbo_token_batch {
-        struct_size: size_of::<turbo_token_batch>() as u32,
-        batch,
-        seq,
-        row_stride: 0,
-        ids,
-        mask,
-        types,
-    }
-}
-
-/// The protocol's name for a result dtype.
-fn datatype(dtype: u32) -> Option<&'static str> {
-    match dtype {
-        TURBO_DTYPE_F32 => Some("FP32"),
-        TURBO_DTYPE_F16 => Some("FP16"),
-        TURBO_DTYPE_BF16 => Some("BF16"),
-        TURBO_DTYPE_I32 => Some("INT32"),
-        _ => None,
-    }
-}
-
-fn int(v: impl Into<i128>) -> InferParameter {
-    let v: i128 = v.into();
-    InferParameter {
-        parameter_choice: Some(ParameterChoice::Int64Param(v.clamp(i64::MIN as i128, i64::MAX as i128) as i64)),
-    }
-}
-
-fn string(v: impl Into<String>) -> InferParameter {
-    InferParameter { parameter_choice: Some(ParameterChoice::StringParam(v.into())) }
-}
-
-/// The scalar fields of turbo_result_info as response parameters.
-fn result_parameters(i: &turbo_result_info) -> HashMap<String, InferParameter> {
-    let mut p: HashMap<String, InferParameter> = [
-        ("task", string(names::task(i.task))),
-        ("batch", int(i.batch)),
-        ("dim", int(i.dim)),
-        ("dtype", string(names::dtype(i.dtype))),
-        ("compute_dtype", string(names::dtype(i.compute_dtype))),
-        ("placement", string(names::place(i.placement))),
-        ("device", int(i.device)),
-        ("bytes", int(i.bytes)),
-        ("h2d_bytes", int(i.h2d_bytes)),
-        ("d2h_bytes", int(i.d2h_bytes)),
-        ("host_allocs", int(i.host_allocs)),
-        ("device_allocs", int(i.device_allocs)),
-        ("backend", string(api::field(&i.backend))),
-        ("arch", string(api::field(&i.arch))),
-        ("runtime_version", string(api::field(&i.runtime_version))),
-        ("manifest_sha256", string(api::field(&i.manifest_sha256))),
-        ("artifact_sha256", string(api::field(&i.artifact_sha256))),
-        ("tokenizer_sha256", string(api::field(&i.tokenizer_sha256))),
-        ("stage_count", int(i.stage_count)),
-    ]
-    .into_iter()
-    .map(|(k, v)| (k.to_string(), v))
-    .collect();
-    if i.task == TURBO_TASK_EMBED {
-        for (s, name) in
-            names::EMBED_STAGES.iter().enumerate().take((i.stage_count as usize).min(TURBO_EMBED_STAGE_COUNT))
-        {
-            p.insert(format!("stage.{name}"), string(names::stage(i.stage[s])));
-        }
-    }
-    p
-}
-
-/// Raw token rows fit a session's pinned buffers, or TURBO_E_CAPACITY: what
-/// turbo_embed_write_tokens gives that shape, refused before the copy.
-fn fits(si: &turbo_session_info, batch: u32, seq: u32) -> Result<()> {
-    if batch > si.max_batch || seq > si.max_seq {
-        return Err(Failure::new(
-            TURBO_E_CAPACITY,
-            0,
-            format!(
-                "token rows [{batch}, {seq}] are over the session's max_batch {} or max_seq {}",
-                si.max_batch, si.max_seq
-            ),
-        ));
-    }
-    Ok(())
-}
-
-/// One ModelInfer: one write, one run and one read on one held session.
-fn infer(state: &State, req: ModelInferRequest) -> Result<ModelInferResponse> {
-    let (served, loaded) = state.ready(&req.model_name, &req.model_version)?;
-    let plan = infer::plan(&req)?;
-    // Every session of a model is made alike, so the first one's limits are
-    // the held one's: an oversized raw request is refused before BUSY.
-    if let Rows::Raw { batch, seq, .. } = plan.rows {
-        fits(&loaded.slots[0].info, batch, seq)?;
-    }
-    let held = loaded.take()?;
-    let slot = held.slot();
-    let opts: &turbo_embed_options = &plan.opts;
-    match &plan.rows {
-        Rows::Texts(texts, _) => slot.session.write_text(texts, opts)?,
-        Rows::Typed { batch, seq, ids, mask, types } => {
-            let t = types.map_or(std::ptr::null(), |t| t.as_ptr());
-            slot.session.write_tokens(&token_batch(*batch, *seq, ids.as_ptr(), mask.as_ptr(), t), opts)?
-        }
-        Rows::Raw { batch, seq, ids, mask, types } => {
-            // The copy below stays inside the held session's own buffers.
-            fits(&slot.info, *batch, *seq)?;
-            copy_rows(ids, slot.ptrs[0]);
-            copy_rows(mask, slot.ptrs[1]);
-            let t = match types {
-                Some(t) => {
-                    copy_rows(t, slot.ptrs[2]);
-                    slot.ptrs[2] as *const i32
-                }
-                None => std::ptr::null(),
-            };
-            let b = token_batch(*batch, *seq, slot.ptrs[0] as *const i32, slot.ptrs[1] as *const i32, t);
-            slot.session.write_tokens(&b, opts)?
-        }
-    }
-    let result = slot.session.run()?;
-    let first = result.info()?;
-    let data = match first.placement {
-        TURBO_PLACE_HOST | TURBO_PLACE_PINNED | TURBO_PLACE_SHARED => {
-            let buffer = result.buffer()?;
-            let ptr = buffer.host_ptr()?;
-            Data::Mapped { ptr, len: first.bytes as usize, _buffer: buffer }
-        }
-        _ => Data::Read(result.read(first.bytes)?),
-    };
-    let info = result.info()?;
-    let datatype = datatype(info.dtype).ok_or_else(|| {
-        Failure::new(TURBO_E_INTERNAL, 0, format!("the result's dtype {} has no datatype in the protocol", info.dtype))
-    })?;
-    let vectors = Vectors { data, _result: result, _held: held };
-    Ok(ModelInferResponse {
-        model_name: served.name.clone(),
-        model_version: loaded.revision.clone(),
-        id: req.id.clone(),
-        parameters: result_parameters(&info),
-        outputs: vec![InferOutputTensor {
-            name: "vectors".into(),
-            datatype: datatype.into(),
-            shape: vec![info.batch as i64, info.dim as i64],
-            parameters: HashMap::new(),
-            contents: None,
-        }],
-        raw_output_contents: vec![Bytes::from_owner(vectors)],
-    })
-}
-
-fn tensor(name: &str, datatype: &str, shape: &[i64]) -> TensorMetadata {
-    TensorMetadata { name: name.into(), datatype: datatype.into(), shape: shape.to_vec() }
-}
-
-struct Inference {
-    state: Arc<State>,
-}
-
-type Reply<T> = std::result::Result<Response<T>, Status>;
-
-fn plain(f: Failure) -> Status {
-    to_status(&f, &[])
-}
-
-#[tonic::async_trait]
-impl GrpcInferenceService for Inference {
-    async fn server_live(&self, _: Request<ServerLiveRequest>) -> Reply<ServerLiveResponse> {
-        Ok(Response::new(ServerLiveResponse { live: true }))
-    }
-
-    async fn server_ready(&self, _: Request<ServerReadyRequest>) -> Reply<ServerReadyResponse> {
-        let ready = self.state.models.iter().all(|m| m.loaded.get().is_some());
-        Ok(Response::new(ServerReadyResponse { ready }))
-    }
-
-    async fn model_ready(&self, req: Request<ModelReadyRequest>) -> Reply<ModelReadyResponse> {
-        let req = req.into_inner();
-        let m = self.state.served(&req.name).map_err(plain)?;
-        let ready = match m.loaded.get() {
-            None => false,
-            Some(_) => {
-                self.state.ready(&req.name, &req.version).map_err(plain)?;
-                true
-            }
-        };
-        Ok(Response::new(ModelReadyResponse { ready }))
-    }
-
-    async fn server_metadata(&self, _: Request<ServerMetadataRequest>) -> Reply<ServerMetadataResponse> {
-        Ok(Response::new(ServerMetadataResponse { name: "turboembed".into(), version: version(), extensions: vec![] }))
-    }
-
-    async fn model_metadata(&self, req: Request<ModelMetadataRequest>) -> Reply<ModelMetadataResponse> {
-        let req = req.into_inner();
-        let (m, loaded) = self.state.ready(&req.name, &req.version).map_err(plain)?;
-        let properties = properties(&self.state, &loaded).map_err(plain)?;
-        Ok(Response::new(ModelMetadataResponse {
-            name: m.name.clone(),
-            versions: vec![loaded.revision.clone()],
-            platform: String::new(),
-            inputs: vec![
-                tensor("texts", "BYTES", &[-1]),
-                tensor("ids", "INT32", &[-1, -1]),
-                tensor("mask", "INT32", &[-1, -1]),
-                tensor("types", "INT32", &[-1, -1]),
-            ],
-            outputs: vec![tensor("vectors", "FP32", &[-1, -1])],
-            properties,
-        }))
-    }
-
-    async fn model_infer(&self, req: Request<ModelInferRequest>) -> Reply<ModelInferResponse> {
-        let state = self.state.clone();
-        let req = req.into_inner();
-        // The run blocks; a request whose client goes away keeps its
-        // session until the run ends and the result is released.
-        let out = tokio::task::spawn_blocking(move || infer(&state, req)).await.map_err(|e| {
-            to_status(&Failure::new(TURBO_E_INTERNAL, 0, format!("the request's task failed: {e}")), &[])
-        })?;
-        out.map(Response::new).map_err(|f| to_status(&f, &EMBED_OPTIONS))
-    }
-}
+use crate::proto::grpc_inference_service_server::GrpcInferenceServiceServer;
+use crate::proto::result::analysis_service_server::AnalysisServiceServer;
+use crate::state::State;
 
 /// tonic refuses a request message over the decoding limit with
 /// OUT_OF_RANGE, read from the frame's length prefix before the message.
-/// The service's own refusals all carry turbo-code, so an OUT_OF_RANGE
+/// The services' own refusals all carry turbo-code, so an OUT_OF_RANGE
 /// without it is that one, and is answered RESOURCE_EXHAUSTED as other gRPC
 /// servers answer it: OUT_OF_RANGE is TURBO_E_CAPACITY's (docs/kserve.md).
 fn too_large<B>(mut r: http::Response<B>) -> http::Response<B> {
@@ -322,8 +53,10 @@ fn too_large<B>(mut r: http::Response<B>) -> http::Response<B> {
     r
 }
 
-/// A server answering gRPC on its listener. Models are loaded by `load`,
-/// until which ServerLive is true and ServerReady false.
+/// A server answering gRPC on its listener: the Open Inference Protocol
+/// and the analysis result layer on one port. Models are loaded by
+/// `load`, until which ServerLive is true and ServerReady false; the
+/// analysis service adds and removes bundles while serving.
 pub struct Server {
     state: Arc<State>,
     addr: SocketAddr,
@@ -331,27 +64,41 @@ pub struct Server {
     task: JoinHandle<std::result::Result<(), tonic::transport::Error>>,
 }
 
+/// Whether the server builder serves the admin calls, LoadBundle and
+/// UnloadBundle: the explicit opt-in this listener needs before any
+/// client may add or remove bundles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Serve {
+    pub admin: bool,
+}
+
 impl Server {
     /// Binds `listen` and answers gRPC, with nothing loaded yet. A bundle
     /// path that names no bundle, or two models of one name, is refused. A
     /// request message over `max_message_bytes` is refused by gRPC with
-    /// RESOURCE_EXHAUSTED before it is read.
+    /// RESOURCE_EXHAUSTED before it is read. `serve.admin` opts in to the
+    /// admin calls LoadBundle and UnloadBundle; off, they refuse
+    /// UNIMPLEMENTED.
     pub async fn start(
         listen: SocketAddr,
         models: Vec<ModelConfig>,
         max_message_bytes: usize,
+        serve: Serve,
     ) -> std::result::Result<Server, String> {
         let names = config::names(&models)?;
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
         let state = Arc::new(State::new(names, models));
-        let svc = GrpcInferenceServiceServer::new(Inference { state: state.clone() })
+        let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
+            .max_decoding_message_size(max_message_bytes);
+        let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone(), admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
         let task = tokio::spawn(
             tonic::transport::Server::builder()
                 .layer(tower::util::MapResponseLayer::new(too_large))
-                .add_service(svc)
+                .add_service(kserve)
+                .add_service(analysis)
                 .serve_with_incoming_shutdown(TcpIncoming::from(listener), async {
                     let _ = stopped.await;
                 }),
@@ -373,7 +120,7 @@ impl Server {
     /// Takes an idle session of `model` from its pool as a ModelInfer does,
     /// holding it until the returned value is dropped: TURBO_E_BUSY when
     /// every session is held.
-    pub fn hold(&self, model: &str) -> Result<Held> {
+    pub fn hold(&self, model: &str) -> api::Result<Held> {
         let (_, loaded) = self.state.ready(model, "")?;
         loaded.take()
     }
