@@ -23,23 +23,13 @@
 use turbo::head::Linear;
 use turbo::safetensors::{Dtype, File};
 
+use super::kernel::{Packed, apply, dot};
+
 /// Two linear layers with a ReLU between, as `create_mlp` and
 /// `create_projection_layer` build them.
 struct Mlp(Vec<Linear>);
 
 impl Mlp {
-    /// [`Mlp::apply`] on each of `n` rows of `x`.
-    fn rows(&self, x: &[f32], n: usize) -> Vec<f32> {
-        let mut v = x.to_vec();
-        for (k, l) in self.0.iter().enumerate() {
-            v = rows(l, &v, n);
-            if k + 1 < self.0.len() {
-                v.iter_mut().for_each(|x| *x = x.max(0.0));
-            }
-        }
-        v
-    }
-
     fn apply(&self, x: &[f32]) -> Vec<f32> {
         let mut v = x.to_vec();
         for (k, l) in self.0.iter().enumerate() {
@@ -52,40 +42,6 @@ impl Mlp {
         }
         v
     }
-}
-
-/// A dot product in eight independent lanes, so the compiler can keep
-/// them in one vector register.
-fn dot(a: &[f32], b: &[f32]) -> f32 {
-    let mut acc = [0.0f32; 8];
-    let (ac, ar) = a.as_chunks::<8>();
-    let (bc, br) = b.as_chunks::<8>();
-    for (x, y) in ac.iter().zip(bc) {
-        for k in 0..8 {
-            acc[k] += x[k] * y[k];
-        }
-    }
-    let tail: f32 = ar.iter().zip(br).map(|(x, y)| x * y).sum();
-    acc.iter().sum::<f32>() + tail
-}
-
-/// `l` on one row, through [`dot`].
-fn apply(l: &Linear, x: &[f32], out: &mut [f32]) {
-    for ((o, w), &b) in out.iter_mut().zip(l.weight.chunks_exact(l.in_dim)).zip(&l.bias) {
-        *o = dot(w, x) + b;
-    }
-}
-
-/// `l` on each of the `n` rows of `x`, every weight row read once for all
-/// of them.
-fn rows(l: &Linear, x: &[f32], n: usize) -> Vec<f32> {
-    let mut out = vec![0.0; n * l.out_dim];
-    for (o, (w, &b)) in l.weight.chunks_exact(l.in_dim).zip(&l.bias).enumerate() {
-        for (i, row) in x.chunks_exact(l.in_dim).take(n).enumerate() {
-            out[i * l.out_dim + o] = dot(w, row) + b;
-        }
-    }
-    out
 }
 
 struct Norm {
@@ -173,11 +129,12 @@ pub struct Heads {
     in_projector: Linear,
     layers: Vec<Layer>,
     out_projector: Mlp,
-    start: Mlp,
-    end: Mlp,
+    /// The span start and end projections, packed for many rows.
+    start: [Packed; 2],
+    end: [Packed; 2],
     /// The first span layer's start and end columns, and its bias.
-    first_start: Linear,
-    first_end: Linear,
+    first_start: Packed,
+    first_end: Packed,
     first_bias: Vec<f32>,
     last: Linear,
 }
@@ -205,6 +162,11 @@ fn norm(f: &File, name: &str) -> Result<Norm, String> {
 
 /// Splits a `[out, 2 * half]` layer into its two `[out, half]` column
 /// blocks, without bias.
+/// A two-layer MLP's layers, packed.
+fn packed(m: &Mlp) -> [Packed; 2] {
+    [Packed::new(&m.0[0]), Packed::new(&m.0[1])]
+}
+
 fn columns(l: &Linear) -> Result<(Linear, Linear), String> {
     let half = l.in_dim / 2;
     let mut a = Vec::with_capacity(l.out_dim * half);
@@ -255,11 +217,11 @@ impl Heads {
             in_projector: linear(f, &format!("{t}.in_projector"))?,
             layers,
             out_projector: mlp(f, &format!("{t}.out_projector"), &[0, 2, 4])?,
-            start: mlp(f, &format!("{span}.project_start"), &[0, 3])?,
-            end: mlp(f, &format!("{span}.project_end"), &[0, 3])?,
+            start: packed(&mlp(f, &format!("{span}.project_start"), &[0, 3])?),
+            end: packed(&mlp(f, &format!("{span}.project_end"), &[0, 3])?),
             first_bias: first.bias.clone(),
-            first_start,
-            first_end,
+            first_start: Packed::new(&first_start),
+            first_end: Packed::new(&first_end),
             last: linear(f, &format!("{span}.out_project.3"))?,
         };
         heads.check(pos.shape[1] as usize)?;
@@ -283,8 +245,10 @@ impl Heads {
                 .all(|l| l.in_proj.in_dim == m && l.in_proj.out_dim == 3 * m && l.out_proj.out_dim == m)
             && self.out_projector.0[0].in_dim == m + d
             && self.out_projector.0.last().is_some_and(|l| l.out_dim == d)
-            && self.start.0[0].in_dim == d
-            && self.end.0[0].in_dim == d
+            && self.start[0].in_dim == d
+            && self.start[1].in_dim == self.start[0].out_dim
+            && self.end[0].in_dim == d
+            && self.end[1].in_dim == self.end[0].out_dim
             && self.first_start.in_dim == d
             && self.last.out_dim == d
             && self.max_width > 0;
@@ -360,8 +324,9 @@ impl Heads {
             v.iter_mut().for_each(|x| *x = x.max(0.0));
             v
         };
-        let start = rows(&self.first_start, &relu(self.start.rows(words, n)), n);
-        let end = rows(&self.first_end, &relu(self.end.rows(words, n)), n);
+        let project = |p: &[Packed; 2]| p[1].rows(&relu(p[0].rows(words, n)), n);
+        let start = self.first_start.rows(&relu(project(&self.start)), n);
+        let end = self.first_end.rows(&relu(project(&self.end)), n);
         let mut rows = vec![0.0; n * w * hidden];
         for i in 0..n {
             for k in 0..w.min(n - i) {
