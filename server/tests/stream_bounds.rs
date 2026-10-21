@@ -216,3 +216,69 @@ async fn unload_and_reload_under_one_name_never_share_a_batch() {
     // Two batches ran as two keys: the old document alone.
     assert_eq!(s.stream_stats().runs - before, 1);
 }
+
+#[tokio::test]
+async fn input_order_dispatches_the_earliest_sequence_first() {
+    // With a window of one, seq 0 on the lexicographically later key
+    // must still run before seq 1: a buffered response holds its window
+    // permit until every earlier sequence is answered, so dispatching
+    // the later sequence first would deadlock waiting for it.
+    let (_s, mut c) = serve().await;
+    let mut stream = open_stream(&mut c, 0, 1, 50).await;
+    let later_key = AnalyzeOptions { normalize: 2, ..Default::default() };
+    let earlier_key = AnalyzeOptions { normalize: 1, ..Default::default() };
+    stream.send("d0", NAME, "first by sequence", Some(later_key)).await;
+    stream.send("d1", NAME, "second by sequence", Some(earlier_key)).await;
+    let answers = tokio::time::timeout(Duration::from_secs(30), stream.half_close().collect())
+        .await
+        .expect("input order deadlocked on the key ordering");
+    let ids: Vec<String> = answers.iter().map(|(id, _)| id.clone()).collect();
+    assert_eq!(ids, vec!["d0", "d1"]);
+    for (_, outcome) in answers {
+        match outcome {
+            Outcome::Vectors(v) => assert_eq!(v.dim, 32),
+            o => panic!("{o:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn oversized_documents_hold_queue_room_like_everything_else() {
+    // An over-byte-cap refusal keeps one item and its id's bytes until
+    // its answer is sent, so a flood of oversized documents is bounded
+    // by the same caps as documents, not buffered without accounting.
+    let (s, mut c) = serve().await;
+    let mut stream = open_stream(&mut c, 0, 2, 1000).await;
+    stream.send("d0", NAME, "the slow first document", None).await;
+    let big = "x".repeat(stream::MAX_QUEUED_BYTES_PER_STREAM + 1);
+    let n = 8;
+    for i in 0..n {
+        stream.send(&format!("big-{i}"), NAME, &big, None).await;
+    }
+    // Every oversized refusal holds its room while it waits behind
+    // sequence 0: the queue counts them all.
+    let counted = tokio::time::timeout(Duration::from_secs(5), async {
+        while s.stream_stats().queued_items < 1 + n {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    assert!(counted.is_ok(), "the oversized refusals hold no queue room");
+    assert!(s.stream_stats().queued_bytes <= stream::MAX_QUEUED_BYTES_PER_STREAM);
+    let answers = stream.half_close().collect().await;
+    assert_eq!(answers.len(), 1 + n);
+    assert_eq!(answers[0].0, "d0");
+    match &answers[0].1 {
+        Outcome::Vectors(v) => assert_eq!(v.dim, 32),
+        o => panic!("d0: {o:?}"),
+    }
+    for (id, outcome) in answers.iter().skip(1) {
+        match outcome {
+            Outcome::Failure(f) => {
+                assert_eq!(f.turbo_code, 771, "{id}");
+                assert!(f.message.contains("max_queued_bytes_per_stream"), "{}", f.message);
+            }
+            o => panic!("{id}: {o:?}"),
+        }
+    }
+}

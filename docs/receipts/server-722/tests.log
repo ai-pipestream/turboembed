@@ -1,36 +1,34 @@
    Compiling turbo v0.1.0 (REPO)
    Compiling turbo-analysis-embed v0.1.0 (REPO)
    Compiling turbo-kserve v0.1.0 (REPO)
-   Compiling turbo-kserve-demo v0.1.0 (REPO)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.05s
-     Running unittests src/lib.rs (target/debug/deps/turbo_kserve-0c4c96f3ab150ed1)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.61s
+     Running unittests src/lib.rs (target/debug/deps/turbo_kserve-88217344707e711e)
 
 running 45 tests
 test capabilities::tests::the_listing_shows_the_server_limits ... ok
 test capabilities::tests::sessions_are_capped_before_anything_is_allocated ... ok
 test config::tests::a_model ... ok
-test config::tests::the_environment_fills_in_absent_flags ... ok
 test config::tests::one_bundle_under_two_names ... ok
-test results::extraction::tests::an_empty_result_is_a_calibrated_abstention ... ok
+test config::tests::the_environment_fills_in_absent_flags ... ok
+test config::tests::the_name_is_the_last_component_as_spelled ... ok
 test config::tests::refusals ... ok
 test infer::tests::every_field_by_its_header_name ... ok
 test infer::tests::raw_bytes ... ok
-test results::extraction::tests::discontinuous_answers_keep_their_fragments ... ok
-test config::tests::the_name_is_the_last_component_as_spelled ... ok
-test results::extraction::tests::garbage_is_refused_without_panicking ... ok
+test results::extraction::tests::an_empty_result_is_a_calibrated_abstention ... ok
 test infer::tests::refusals ... ok
+test results::extraction::tests::discontinuous_answers_keep_their_fragments ... ok
+test results::extraction::tests::garbage_is_refused_without_panicking ... ok
 test results::extraction::tests::the_wire_round_trip_is_unchanged ... ok
 test results::rerank::tests::garbage_is_refused_without_panicking ... ok
 test results::rerank::tests::the_source_instance_distinguishes_two_instances_of_one_layer ... ok
-test results::rerank::tests::the_wire_round_trip_is_unchanged ... ok
 test results::sparse::tests::an_empty_instance_is_row_zero_alone ... ok
+test results::rerank::tests::the_wire_round_trip_is_unchanged ... ok
 test results::sparse::tests::an_instance_without_spans_or_occurrences_round_trips ... ok
-test results::extraction::tests::over_the_answer_limit_names_it ... ok
 test results::sparse::tests::occurrence_columns_cannot_drop_occurrences ... ok
+test results::extraction::tests::over_the_answer_limit_names_it ... ok
 test results::sparse::tests::garbage_is_refused_without_panicking ... ok
-test results::tests::a_limit_refusal_names_it ... ok
-test results::sparse::tests::the_wire_round_trip_is_unchanged ... ok
 test results::sparse::tests::the_zero_occurrence_form_round_trips ... ok
+test results::tests::a_limit_refusal_names_it ... ok
 test results::tests::the_model_identity_crosses_both_ways ... ok
 test results::tokens::tests::an_empty_result_has_no_windows_and_round_trips ... ok
 test results::tokens::tests::over_the_byte_limit_names_it ... ok
@@ -41,84 +39,85 @@ test results::tokens::tests::the_wire_round_trip_is_unchanged ... ok
 test state::tests::rollback_removes_only_the_exact_registration ... ok
 test state::tests::registration_is_capped_with_the_limit_named ... ok
 test status::tests::messages_and_trailing_metadata ... ok
-test stream::handler::tests::an_unknown_option_value_is_the_documents_own_refusal ... ok
-test stream::handler::tests::options_default_to_the_model ... ok
-test stream::tests::the_listing_shows_the_same_caps_the_flow_control_enforces ... ok
-test stream::tests::a_header_knob_over_the_listed_cap_names_it ... ok
-test stream::handler::tests::the_header_knobs_fall_back_to_the_defaults ... ok
 test status::tests::every_header_code_maps_as_the_table_says ... ok
+test stream::handler::tests::options_default_to_the_model ... ok
+test stream::handler::tests::the_header_knobs_fall_back_to_the_defaults ... ok
+test stream::handler::tests::an_unknown_option_value_is_the_documents_own_refusal ... ok
+test stream::tests::a_header_knob_over_the_listed_cap_names_it ... ok
+test stream::tests::the_listing_shows_the_same_caps_the_flow_control_enforces ... ok
+test results::sparse::tests::the_wire_round_trip_is_unchanged ... ok
 test results::extraction::tests::the_fragments_refuse_before_allocating ... ok
 test results::rerank::tests::over_the_item_limit_names_it ... ok
 test results::sparse::tests::over_the_entry_limit_names_it ... ok
 test results::tokens::tests::the_column_counts_refuse_before_allocating ... ok
 
-test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
 
-     Running unittests src/main.rs (target/debug/deps/turbo_kserve-542d09eefc8314ce)
+     Running unittests src/main.rs (target/debug/deps/turbo_kserve-6e7ba1ab77dbd409)
 
 running 0 tests
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
-     Running tests/infer.rs (target/debug/deps/infer-6f0e0fd62f73327d)
+     Running tests/infer.rs (target/debug/deps/infer-5669883db1052886)
 
 running 7 tests
-test unknown_model_or_version ... ok
 test a_message_over_the_limit ... ok
 test capacity ... ok
 test busy_when_every_session_is_held ... ok
-test one_request_per_session ... ok
+test unknown_model_or_version ... ok
 test input_refusals ... ok
+test one_request_per_session ... ok
 test sequential_calls_do_not_wait_for_delayed_acks ... ok
 
-test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
 
-     Running tests/limits.rs (target/debug/deps/limits-ec931fc619866af8)
+     Running tests/limits.rs (target/debug/deps/limits-951a319f28b31a71)
 
 running 6 tests
-test a_malformed_result_message_is_a_typed_refusal_not_a_panic ... ok
 test the_admin_calls_refuse_until_the_server_opts_in ... ok
+test a_malformed_result_message_is_a_typed_refusal_not_a_panic ... ok
 test sessions_and_registrations_are_capped_with_the_limits_named ... ok
 test an_over_limit_request_names_each_listed_limit ... ok
 test a_same_name_unload_and_replacement_never_loses_a_registration ... ok
 test concurrent_loads_fail_only_their_own_registration ... ok
 
-test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.65s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.98s
 
-     Running tests/results.rs (target/debug/deps/results-ced627b66589400e)
+     Running tests/results.rs (target/debug/deps/results-44df57e6c929047c)
 
 running 7 tests
-test token_vectors_cross_the_wire_unchanged ... ok
+test rerank_scores_cross_the_wire_unchanged ... ok
 test the_capability_listing_matches_the_loaded_bundle ... ok
 test extraction_answers_cross_the_wire_unchanged ... ok
-test rerank_scores_cross_the_wire_unchanged ... ok
-test sparse_terms_cross_the_wire_unchanged ... ok
+test token_vectors_cross_the_wire_unchanged ... ok
 test discontinuous_answers_keep_their_fragments_over_the_wire ... ok
+test sparse_terms_cross_the_wire_unchanged ... ok
 test the_listing_follows_load_and_unload ... ok
 
-test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
 
-     Running tests/server.rs (target/debug/deps/server-aad30b833aacfca0)
+     Running tests/server.rs (target/debug/deps/server-c615ca84d1c803aa)
 
 running 7 tests
-test server_metadata ... ok
-test readiness_before_and_after_load ... ok
-test model_metadata ... ok
 test parameter_refusals ... ok
+test server_metadata ... ok
+test model_metadata ... ok
+test readiness_before_and_after_load ... ok
+test every_parameter ... ok
 test texts_match_the_reference ... ok
 test token_rows_match_the_reference ... ok
-test every_parameter ... ok
 
-test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
 
-     Running tests/speed.rs (target/debug/deps/speed-54acead2085e901f)
+     Running tests/speed.rs (target/debug/deps/speed-cdc7fa902d8e333c)
 
 running 1 test
 test result_kinds_encode_and_decode_as_fast_per_byte_as_vector_and_span_messages ... ignored, release speed bar: run for the receipt (docs/receipts/server-723)
 
 test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
-     Running tests/startup.rs (target/debug/deps/startup-83fae9e6ecb46ffc)
+     Running tests/startup.rs (target/debug/deps/startup-e82a06b10816f5a9)
 
 running 5 tests
 test the_binary_exits_on_a_load_failure ... ok
@@ -127,9 +126,9 @@ test a_text_over_the_sessions_max_seq ... ok
 test startup_refusals ... ok
 test a_tier_per_model ... ok
 
-test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
 
-     Running tests/stream.rs (target/debug/deps/stream-68d12d4a3071da05)
+     Running tests/stream.rs (target/debug/deps/stream-93f9fdc3ddb2cbc7)
 
 running 6 tests
 test the_stream_advertises_and_enforces_its_caps ... ok
@@ -139,59 +138,29 @@ test stream_results_match_single_document_calls_byte_for_byte_in_both_orders ...
 test a_client_that_sends_without_reading_is_held_to_the_advertised_caps ... ok
 test cancelling_a_stream_drops_the_work_queued_for_it ... ok
 
-test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.38s
 
-     Running tests/stream_bounds.rs (target/debug/deps/stream_bounds-3a3b889656070c2d)
+     Running tests/stream_bounds.rs (target/debug/deps/stream_bounds-1a40b0c311f90cf7)
 
-running 5 tests
-test a_document_over_the_byte_cap_refuses_at_once_naming_the_limit ... ok
+running 7 tests
 test cancelling_while_the_session_pool_is_held_drops_the_stream ... ok
+test input_order_dispatches_the_earliest_sequence_first ... ok
+test a_document_over_the_byte_cap_refuses_at_once_naming_the_limit ... ok
+test oversized_documents_hold_queue_room_like_everything_else ... ok
 test unload_and_reload_under_one_name_never_share_a_batch ... ok
 test a_window_of_one_bounds_failures_waiting_on_an_in_flight_document ... ok
 test byte_pressure_blocks_admission_while_item_room_remains ... ok
 
-test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.34s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.52s
 
-     Running tests/stream_speed.rs (target/debug/deps/stream_speed-5ae981500729ee75)
+     Running tests/stream_speed.rs (target/debug/deps/stream_speed-abdd34dac235af20)
 
 running 1 test
 test stream_documents_per_second_match_concurrent_single_calls ... ignored, release speed bar: run for the receipt (docs/receipts/server-722)
 
 test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
-     Running unittests src/lib.rs (target/debug/deps/turbo_kserve_demo-d383f906c895f363)
-
-running 2 tests
-test tests::decode_infer_reply_validates_outputs_shape_and_float_count ... ok
-test tests::start_rejects_server_without_http_or_https_scheme ... ok
-
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-     Running unittests src/main.rs (target/debug/deps/turbo_kserve_demo-6f08be91d24552bf)
-
-running 1 test
-test tests::parse_rejects_inline_help_and_empty_flag_values_and_deduplicates_models ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-     Running tests/demo.rs (target/debug/deps/demo-bca49fd24264441d)
-
-running 5 tests
-test a_server_that_is_not_there_is_reported ... ok
-test the_page_is_served_whole ... ok
-test parameters_reach_the_server_and_its_refusals_come_back ... ok
-test status_and_metadata_come_from_the_server ... ok
-test texts_through_the_demo_are_the_servers_vectors_at_every_tier ... ok
-
-test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
-
    Doc-tests turbo_kserve
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-   Doc-tests turbo_kserve_demo
 
 running 0 tests
 

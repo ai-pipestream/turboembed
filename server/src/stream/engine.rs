@@ -195,16 +195,26 @@ impl Engine {
         if !force && Instant::now() < self.deadline(false).unwrap() {
             return;
         }
-        let mut groups: BTreeMap<BatchKey, Vec<Queued>> = BTreeMap::new();
-        for queued in self.pending.drain(..) {
-            groups.entry(run::key(&queued.0)).or_default().push(queued);
-        }
+        let mut groups: Vec<(BatchKey, Vec<Queued>)> = {
+            let mut by_key: BTreeMap<BatchKey, Vec<Queued>> = BTreeMap::new();
+            for queued in self.pending.drain(..) {
+                by_key.entry(run::key(&queued.0)).or_default().push(queued);
+            }
+            by_key.into_iter().collect()
+        };
+        // Dispatch in the order documents arrived: the group holding
+        // the earliest pending sequence first. Under input order a
+        // buffered response holds its window permit until every earlier
+        // sequence is answered, so a later sequence must never take the
+        // last permit while an earlier one waits for it.
+        groups.sort_by_key(|(_, docs)| docs[0].0.seq);
         // Each group takes at most a share of the window this round, so
         // one load's backlog never stands between another load's
         // documents and the window.
         let share = (self.config.window / groups.len()).max(1);
         let mut leftover: Vec<Queued> = Vec::new();
-        for (_, mut docs) in groups {
+        let mut iter = groups.into_iter();
+        while let Some((_, mut docs)) = iter.next() {
             let n =
                 docs.len().min(docs[0].0.batch_limit as usize).min(share).min(self.config.window - self.inflight_items);
             if n == 0 {
@@ -215,9 +225,12 @@ impl Engine {
             match self.spawn(batch, dead).await {
                 Ok(()) => leftover.extend(docs),
                 Err(batch) => {
-                    // The window shut mid-dispatch: everything waits.
+                    // The window shut mid-dispatch: the batch, the rest
+                    // of its group, and every group still unvisited go
+                    // back to the queue, nothing dropped.
                     leftover.extend(batch);
                     leftover.extend(docs);
+                    leftover.extend(iter.flat_map(|(_, rest)| rest));
                     break;
                 }
             }

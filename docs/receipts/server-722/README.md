@@ -4,7 +4,14 @@ Base: `8dc5bf2c` (origin/main at branch time), which carries PR #785
 (the gRPC analysis service and capabilities). Round 2: the four P1
 findings from codex, fable, and cursor are fixed below, and origin/main
 is merged in (including #798's TCP_NODELAY, which un-stalls the unary
-speed baseline). All streaming code lives in `server/src/stream/`; the
+speed baseline). Round 3: the two P1 findings from codex and argon in
+the reorder and refusal logic are fixed below: dispatch runs batches in
+the order documents arrived, so under input order a later sequence can
+never take the last window permit while an earlier one waits for it,
+and a mid-dispatch shut window returns every unvisited group to the
+queue instead of dropping it; and an over-byte-cap refusal takes one
+item and its id's bytes before it is buffered, so oversized documents
+are bounded by the same caps as everything else. All streaming code lives in `server/src/stream/`; the
 edits to existing files are append-only (a field in `State`, the
 `stream_stats` accessor, one trait method delegating to the stream
 handler, the `stream` field in `ServerLimits`, and `state` stays
@@ -85,9 +92,13 @@ permits remain; a document over the byte cap refuses at once naming
 document in flight, five hundred validation failures fill the queue to
 its advertised cap and no further; cancelling while another caller
 holds the model's only session drains the queue within milliseconds;
-and an unload plus reload under one name answers the pre-swap document
-from the old load while the over-length post-swap document is refused
-with 771, never batched together.
+an unload plus reload under one name answers the pre-swap document from
+the old load while the over-length post-swap document is refused with
+771, never batched together; with a window of one and the first
+sequence on the lexicographically later batching key, the answers
+still arrive in sequence order instead of deadlocking; and eight
+oversized documents behind a slow first sequence each hold their queue
+room until answered, with the byte gauge never over the cap.
 
 ## Speed
 
@@ -105,9 +116,8 @@ taken against the un-stalled baseline.)
 - `clippy.log`: `cargo clippy --locked -p turbo-kserve -p
   turbo-kserve-demo -p turbo-bench --all-targets -- -D warnings`,
   exit 0.
-- `tests.log`: `cargo test --locked -p turbo-kserve -p
-  turbo-kserve-demo`: 45 unit, 6 stream, 5 stream-bounds, 6 limit, 7
-  result-layer, 7 server, 5 startup, 7 infer, 3 demo; both release
-  speed bars ignored; exit 0.
+- `tests.log`: `cargo test --locked -p turbo-kserve`: 45 unit, 7
+  infer, 6 limit, 7 result-layer, 7 server, 5 startup, 6 stream, 7
+  stream-bounds; both release speed bars ignored; exit 0.
 - `tree.log`: `cargo test --locked -p turbo-bench --test tree`,
   exit 0.

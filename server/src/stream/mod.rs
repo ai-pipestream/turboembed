@@ -200,20 +200,46 @@ pub(crate) async fn admit(
     stream_bytes: Arc<Semaphore>,
     bytes: usize,
 ) -> Room {
+    admit_permits(shared, stream_items, stream_bytes, bytes.max(1) as u32).await
+}
+
+/// Admits one refused document's retained payload: one item and its
+/// id's bytes on every level, so an over-byte-cap refusal is held to
+/// the same caps as a document while its error waits in the ordered
+/// buffer. The document's text is not retained; the id is, and an id
+/// alone over the byte cap reserves the cap itself, bounding how many
+/// such refusals one stream can hold.
+pub(crate) async fn admit_refusal(
+    shared: Arc<Shared>,
+    stream_items: Arc<Semaphore>,
+    stream_bytes: Arc<Semaphore>,
+    id_len: usize,
+) -> Room {
+    let bytes = id_len.clamp(1, MAX_QUEUED_BYTES_PER_STREAM) as u32;
+    admit_permits(shared, stream_items, stream_bytes, bytes).await
+}
+
+/// One admission: an item and `bytes` bytes on every level, in one
+/// order everywhere.
+async fn admit_permits(
+    shared: Arc<Shared>,
+    stream_items: Arc<Semaphore>,
+    stream_bytes: Arc<Semaphore>,
+    bytes: u32,
+) -> Room {
     let server_items = shared.queued_items.clone().acquire_owned().await.expect("queue semaphore open");
-    let server_bytes =
-        shared.queued_bytes.clone().acquire_many_owned(bytes.max(1) as u32).await.expect("queue semaphore open");
+    let server_bytes = shared.queued_bytes.clone().acquire_many_owned(bytes).await.expect("queue semaphore open");
     let stream_items = stream_items.acquire_owned().await.expect("queue semaphore open");
-    let stream_bytes = stream_bytes.acquire_many_owned(bytes.max(1) as u32).await.expect("queue semaphore open");
+    let stream_bytes = stream_bytes.acquire_many_owned(bytes).await.expect("queue semaphore open");
     shared.queued_item_count.fetch_add(1, Ordering::Relaxed);
-    shared.queued_byte_count.fetch_add(bytes, Ordering::Relaxed);
+    shared.queued_byte_count.fetch_add(bytes as usize, Ordering::Relaxed);
     Room {
         _server_items: server_items,
         _server_bytes: server_bytes,
         _stream_items: stream_items,
         _stream_bytes: stream_bytes,
         shared,
-        bytes,
+        bytes: bytes as usize,
     }
 }
 

@@ -1,6 +1,6 @@
    Compiling turbo v0.1.0 (REPO)
    Compiling turbo-bench v0.1.0 (REPO)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.84s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.19s
      Running tests/tree.rs (target/debug/deps/tree-1a9beef376d3ed20)
 
 running 3 tests
