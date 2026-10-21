@@ -57,6 +57,10 @@ fn sparse_posting_index_max_score_matches_exhaustive_top_k() {
 fn splate_adapter_validates_inputs_and_projects_sparse_terms() {
     assert!(SplateAdapter::new(Vec::new(), Vec::new(), 0, 8).is_err());
     assert!(SplateAdapter::new(Vec::new(), Vec::new(), 4, 0).is_err());
+    assert!(SplateAdapter::new(Vec::new(), Vec::new(), usize::MAX, 2).is_err());
+    assert!(SplateAdapter::from_basis(&[], 0, 8, 1.0, 0.0).is_err());
+    assert!(SplateAdapter::from_basis(&[], 4, 0, 1.0, 0.0).is_err());
+    assert!(SplateAdapter::from_basis(&[], usize::MAX, 2, 1.0, 0.0).is_err());
     assert!(SplateAdapter::new(vec![1.0; 7], vec![0.0; 2], 2, 4).is_err());
     assert!(SplateAdapter::new(vec![1.0; 8], vec![0.0; 3], 2, 4).is_err());
     assert!(SplateAdapter::new(vec![1.0, 0.0, 0.0, 0.0, f32::NAN, 0.0, 0.0, 0.0], vec![0.0, 0.0], 2, 4).is_err());
@@ -86,6 +90,37 @@ fn splate_adapter_validates_inputs_and_projects_sparse_terms() {
 }
 
 #[test]
+fn query_and_doc_sharing_same_id_are_not_self_excluded() {
+    use turbo_eval::set::{Doc, Query};
+
+    let set = LoadedSet {
+        name: "same-id-namespace".into(),
+        sha256: "b".repeat(64),
+        docs: vec![Doc {
+            id: "1".into(),
+            title: Some("hypertension study".into()),
+            text: "clinical hypertension vascular arterial myocardium regulation".into(),
+        }],
+        queries: vec![Query { id: "1".into(), text: "hypertension vascular arterial".into() }],
+        qrels: Qrels::new(vec![Qrel { query: "1".into(), doc: "1".into(), grade: 1 }]).expect("valid qrels"),
+        spans: None,
+        unplaced: Vec::new(),
+        absent: Vec::new(),
+    };
+    let cfg = SplateConfig { shortlist_k: 1, top_k: 1, rounds: 1, ..SplateConfig::default() };
+    let report = run_study(&set, &cfg).expect("same-id study");
+    for rep in &report.arms {
+        assert!(
+            (rep.scores.recall.at_1 - 1.0).abs() <= 1e-9,
+            "arm {:?} dropped doc sharing id with query (Recall@1 = {})",
+            rep.arm,
+            rep.scores.recall.at_1
+        );
+        assert!((rep.scores.ndcg_at_10 - 1.0).abs() <= 1e-9, "arm {:?} ndcg_at_10 != 1.0", rep.arm);
+    }
+}
+
+#[test]
 fn four_arm_study_runs_on_synthetic_and_sample_datasets() {
     let synth = synthetic_benchmark_set(20, 3);
     let cfg = SplateConfig { shortlist_k: 25, top_k: 50, rounds: 2, ..SplateConfig::default() };
@@ -103,6 +138,9 @@ fn four_arm_study_runs_on_synthetic_and_sample_datasets() {
         assert!(rep.scores.recall.at_10 >= rep.scores.recall.at_5 - 1e-9);
         assert!(rep.scores.recall.at_100 >= rep.scores.recall.at_10 - 1e-9);
         assert!(rep.index_bytes > 0);
+        assert!(rep.encode_p50_us >= 0.0);
+        assert!(rep.retrieve_p50_us >= 0.0);
+        assert!(rep.rerank_p50_us >= 0.0);
         assert!(rep.p50_us >= 0.0);
         assert!(rep.p99_us >= rep.p50_us);
     }
@@ -110,6 +148,7 @@ fn four_arm_study_runs_on_synthetic_and_sample_datasets() {
     let table = report.to_markdown_table();
     assert!(table.contains("Arm 1: BM25 only"));
     assert!(table.contains("Arm 4: SPLATE adapter + ColBERT MaxSim"));
+    assert!(table.contains("Encode p50 (us)"));
 
     // Verify sample datasets in tests/data also run cleanly through all 4 arms.
     let beir_set = beir::read("beir-sample", &data_dir().join("beir")).expect("beir");
@@ -160,33 +199,44 @@ fn custom_cross_encoder_scorer_integrates_with_arm2() {
     assert_eq!(report.arms[1].scores.per_query.len(), 2);
 }
 
-/// Generates the full multi-dataset, multi-shortlist benchmark receipt for `docs/splate.md`.
+/// Generates the full multi-dataset, multi-shortlist synthetic harness receipt for `docs/splate.md`.
 ///
 /// Run in `--release` on a single pinned core:
 /// `taskset -c 14 cargo test --locked --release -p turbo-eval --test splate splate_benchmark_receipt -- --ignored --nocapture`
 #[test]
 #[ignore = "benchmark receipt generator for docs/splate.md; run explicitly with --release --ignored"]
 fn splate_benchmark_receipt() {
-    let mut datasets: Vec<LoadedSet> = Vec::new();
+    let mut datasets: Vec<(LoadedSet, usize, usize)> = Vec::new();
     if let Ok(cache_root) = std::env::var("TURBO_EVAL_CACHE") {
         let root = PathBuf::from(cache_root);
-        for (name, max_docs, max_queries) in [("scifact", 1_500usize, 100usize), ("nfcorpus", 1_500, 100)] {
+        for (name, max_docs, max_queries) in [("scifact", 1_500usize, 100usize), ("nfcorpus", 3_633, 100)] {
             let dir = root.join(name);
             if dir.join("corpus.jsonl").is_file() {
                 let mut set = beir::read(name, &dir).expect("load cached BEIR set");
-                truncate_set(&mut set, max_docs, max_queries);
-                datasets.push(set);
+                let (rel_docs, distractor_docs) = subset_with_distractors(&mut set, max_docs, max_queries);
+                datasets.push((set, rel_docs, distractor_docs));
             }
         }
     }
-    datasets.push(synthetic_benchmark_set(80, 4));
+    let synth = synthetic_benchmark_set(80, 4);
+    let synth_rel =
+        synth.docs.iter().filter(|d| synth.queries.iter().any(|q| synth.qrels.grade(&q.id, &d.id) > 0)).count();
+    let synth_dist = synth.docs.len() - synth_rel;
+    datasets.push((synth, synth_rel, synth_dist));
 
     let depths = [10usize, 25, 50, 100];
     let base_cfg =
         SplateConfig { dim: 32, max_vocab: 2_048, shortlist_k: 50, top_k: 100, rounds: 5, ..SplateConfig::default() };
-    for set in &datasets {
+    for (set, rel_docs, distractor_docs) in &datasets {
         let reports = run_shortlist_sweep(set, &depths, &base_cfg).expect("sweep");
-        println!("\n=== DATASET: {} (docs={}, queries={}) ===", set.name, set.docs.len(), set.queries.len());
+        println!(
+            "\n=== DATASET: {} (docs={}, rel_docs={}, distractors={}, queries={}) ===",
+            set.name,
+            set.docs.len(),
+            rel_docs,
+            distractor_docs,
+            set.queries.len()
+        );
         for rep in &reports {
             println!("\n--- Shortlist C = {} ---", rep.config.shortlist_k);
             print!("{}", rep.to_markdown_table());
@@ -205,26 +255,30 @@ fn splate_benchmark_receipt() {
     }
 }
 
-fn truncate_set(set: &mut LoadedSet, max_docs: usize, max_queries: usize) {
+fn subset_with_distractors(set: &mut LoadedSet, max_docs: usize, max_queries: usize) -> (usize, usize) {
     let mut selected_qids: Vec<String> = set.qrels.scored_queries().map(str::to_owned).collect();
     selected_qids.truncate(max_queries);
     let keep_qset: BTreeSet<String> = selected_qids.into_iter().collect();
 
-    let mut keep_docs = BTreeSet::new();
+    let mut rel_docs = BTreeSet::new();
     for d in &set.docs {
         for qid in &keep_qset {
             if set.qrels.grade(qid, &d.id) > 0 {
-                keep_docs.insert(d.id.clone());
+                rel_docs.insert(d.id.clone());
                 break;
             }
         }
     }
+    let rel_count = rel_docs.len();
+    let target_docs = max_docs.max(rel_count);
+    let mut keep_docs = rel_docs;
     for d in &set.docs {
-        if keep_docs.len() >= max_docs {
+        if keep_docs.len() >= target_docs {
             break;
         }
         keep_docs.insert(d.id.clone());
     }
+    let distractor_count = keep_docs.len().saturating_sub(rel_count);
 
     set.docs.retain(|d| keep_docs.contains(&d.id));
     set.queries.retain(|q| keep_qset.contains(&q.id));
@@ -239,4 +293,5 @@ fn truncate_set(set: &mut LoadedSet, max_docs: usize, max_queries: usize) {
         }
     }
     set.qrels = Qrels::new(new_qrels).expect("valid truncated qrels");
+    (rel_count, distractor_count)
 }

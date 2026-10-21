@@ -180,13 +180,19 @@ directory the user names and checks its size and SHA-256
 (`langdetect::LANGDETECT_183`), and ships, bundles and trains on nothing
 of it.
 
-## Neural annotator checkpoints (not in the index)
+## Neural annotator checkpoints
 
-The SaT and GLiNER checkpoints docs/neural-annotators.md considers. None
-is in the zoo's index yet: no file was fetched, so no entry has the
-SHA-512s an entry needs. "Checked" is **here**: the `license` of the
-model card's metadata at the revision named, read on 2026-10-15 from
-the hub's model API.
+The SaT and GLiNER checkpoints docs/neural-annotators.md considers, and
+the GLiNER2 and GLiREL checkpoints the relation scorer considers
+(docs/gliner2-relations.md). Two are in the zoo's index:
+`fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`, permissive) and
+`jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`, local-only,
+fetched from its publisher only after the user accepts CC BY-NC-SA 4.0).
+The others were not fetched, so no entry has the SHA-512s an entry
+needs. "Checked" is **here**: the
+`license` of the model card's metadata at the revision named, read on
+2026-10-15 from the hub's model API, and on 2026-10-21 for the GLiNER2
+and GLiREL rows.
 
 | Checkpoint | Revision | Licence | Base and data | Class | Checked |
 |---|---|---|---|---|---|
@@ -196,6 +202,8 @@ the hub's model API.
 | [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive | here |
 | [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive | here |
 | [urchade/gliner_small](https://huggingface.co/urchade/gliner_small) (v1) | `0f0f4e7d3f10e48844110162d6b5c6072ddd5a4e` | CC BY-NC 4.0 | | local-only; not used | here |
+| [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index | here |
+| [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
 
 ## Datasets
 
@@ -210,7 +218,7 @@ the hub's model API.
 | [Open English WordNet](https://github.com/globalwordnet/english-wordnet/blob/main/LICENSE.md) | English lemmas | CC BY 4.0 | permissive | derived from Princeton WordNet; attribute both | here |
 | [Princeton WordNet](https://wordnet.princeton.edu/license-and-commercial-use) | English lemmas | WordNet licence (BSD-like) | permissive | | plan |
 | [PoliMorf / Morfologik](https://github.com/morfologik/polimorf) | Polish lemmas | BSD-2-Clause | permissive | | plan |
-| [GermEval 2014](https://sites.google.com/site/germeval2014ner/) | German NER | CC BY 4.0 | permissive | | plan |
+| [GermEval 2014](https://sites.google.com/site/germeval2014ner/data) | German NER | CC BY 4.0 | permissive | the data page says "This data set is distributed under the CC-BY license" and links CC BY 4.0. Two inputs of the `ner` goldens hold its sentences, each crediting D. Benikova, C. Biemann and M. Reznicek (NoSta-D Named Entity Annotation for German: Guidelines and Dataset, LREC 2014) in its comment lines: `germeval-opennlp.txt`, the 4 sentences of OpenNLP's test sample, and `germeval-excerpt.txt`, 105 sentences of `NER-de-train.tsv`, whose line ranges and SHA-512 are in `analysis/goldens-tool/src/recipe/excerpts.rs`. The full train, dev and test files are not checked in | here |
 | [MultiCoNER v2](https://registry.opendata.aws/multiconer/) | NER, 12 languages | CC BY 4.0 | permissive | | plan |
 | [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) | language detection | ODC-By 1.0 | permissive | also subject to Common Crawl's terms of use; read by the web language detector recipe on GitHub's runners, as Hugging Face could not be reached from the machine it was written on; the windows trained on are listed by document id in `training-documents.txt` | here |
 | [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) | language detection (English) | ODC-By 1.0 | permissive | as FineWeb-2's row | here |

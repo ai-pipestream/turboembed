@@ -135,11 +135,17 @@ pub struct ArmReport {
     pub first_stage_bytes: usize,
     /// Late-interaction token index bytes (`0` for Arms 1 and 2).
     pub token_index_bytes: usize,
-    /// Wall-clock index build time in milliseconds.
+    /// Wall-clock index structure construction time in milliseconds from encoded document inputs.
     pub build_ms: f64,
-    /// Median (`p50`) per-query latency in microseconds across all queries and rounds.
+    /// Median (`p50`) per-query representation/adapter encoding latency in microseconds.
+    pub encode_p50_us: f64,
+    /// Median (`p50`) Stage-1 shortlist retrieval latency in microseconds.
+    pub retrieve_p50_us: f64,
+    /// Median (`p50`) Stage-2 reranking latency in microseconds (`0.0` for Arm 1).
+    pub rerank_p50_us: f64,
+    /// Median (`p50`) per-query search (`retrieve + rerank`) latency in microseconds.
     pub p50_us: f64,
-    /// Tail (`p99`) per-query latency in microseconds across all queries and rounds.
+    /// Tail (`p99`) per-query search (`retrieve + rerank`) latency in microseconds.
     pub p99_us: f64,
     /// Mean number of candidates passed to stage 2 per query.
     pub mean_pool_size: f64,
@@ -167,13 +173,16 @@ impl StudyReport {
         let mut out = String::new();
         let _ = writeln!(
             out,
-            "| Arm | C | Recall@1 | Recall@5 | Recall@10 | Recall@100 | nDCG@10 | p50 (us) | p99 (us) | Index (KiB) | Build (ms) |"
+            "| Arm | C | Recall@1 | Recall@5 | Recall@10 | Recall@100 | nDCG@10 | Encode p50 (us) | Retrieve p50 (us) | Rerank p50 (us) | Search p50 (us) | Search p99 (us) | Index (KiB) | Build (ms) |"
         );
-        let _ = writeln!(out, "| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        let _ = writeln!(
+            out,
+            "| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+        );
         for rep in &self.arms {
             let _ = writeln!(
                 out,
-                "| {} | {} | {:.4} | {:.4} | {:.4} | {:.4} | {:.4} | {:.1} | {:.1} | {:.1} | {:.2} |",
+                "| {} | {} | {:.4} | {:.4} | {:.4} | {:.4} | {:.4} | {:.1} | {:.1} | {:.1} | {:.1} | {:.1} | {:.1} | {:.2} |",
                 rep.arm.label(),
                 rep.shortlist_k,
                 rep.scores.recall.at_1,
@@ -181,6 +190,9 @@ impl StudyReport {
                 rep.scores.recall.at_10,
                 rep.scores.recall.at_100,
                 rep.scores.ndcg_at_10,
+                rep.encode_p50_us,
+                rep.retrieve_p50_us,
+                rep.rerank_p50_us,
                 rep.p50_us,
                 rep.p99_us,
                 rep.index_bytes as f64 / 1024.0,
@@ -191,7 +203,7 @@ impl StudyReport {
     }
 }
 
-/// Runs the four-arm SPLATE study on `set` with the default calibrated interaction cross-encoder.
+/// Runs the four-arm SPLATE study on `set` with the default synthetic interaction cross-encoder.
 pub fn run_study(set: &LoadedSet, config: &SplateConfig) -> Result<StudyReport> {
     let encoded =
         encode_loaded_set(set, config.dim, config.max_vocab, &config.splade_doc_cut, &config.splade_query_cut)?;
@@ -244,60 +256,57 @@ pub fn run_study_with_encoded(
     let arm4 = build_arm4(encoded, config)?;
 
     let q_len = encoded.queries.len();
-    let mut lat1 = Vec::with_capacity(q_len * rounds);
-    let mut lat2 = Vec::with_capacity(q_len * rounds);
-    let mut lat3 = Vec::with_capacity(q_len * rounds);
-    let mut lat4 = Vec::with_capacity(q_len * rounds);
+    let mut q_splate_terms = Vec::with_capacity(q_len);
+    let mut enc_ns: [Vec<u64>; 4] =
+        [Vec::with_capacity(q_len), Vec::with_capacity(q_len), Vec::with_capacity(q_len), Vec::with_capacity(q_len)];
+    for q in &encoded.queries {
+        let t_proj = Instant::now();
+        let terms = arm4.adapter.encode_tokens(&q.token_vecs, &config.splate_query_cut)?;
+        let proj_ns = t_proj.elapsed().as_nanos() as u64;
+        q_splate_terms.push(terms);
+        enc_ns[0].push(q.encode_ns[0]);
+        enc_ns[1].push(q.encode_ns[1]);
+        enc_ns[2].push(q.encode_ns[2]);
+        enc_ns[3].push(q.encode_ns[3] + proj_ns);
+    }
 
-    let mut ranks1: Vec<Ranking> = Vec::with_capacity(q_len);
-    let mut ranks2: Vec<Ranking> = Vec::with_capacity(q_len);
-    let mut ranks3: Vec<Ranking> = Vec::with_capacity(q_len);
-    let mut ranks4: Vec<Ranking> = Vec::with_capacity(q_len);
+    let mut ret_ns: [Vec<u64>; 4] = std::array::from_fn(|_| Vec::with_capacity(q_len * rounds));
+    let mut rer_ns: [Vec<u64>; 4] = std::array::from_fn(|_| Vec::with_capacity(q_len * rounds));
+    let mut tot_ns: [Vec<u64>; 4] = std::array::from_fn(|_| Vec::with_capacity(q_len * rounds));
+    let mut ranks: [Vec<Ranking>; 4] = std::array::from_fn(|_| Vec::with_capacity(q_len));
+    let mut pools: [Vec<usize>; 4] = std::array::from_fn(|_| Vec::with_capacity(q_len));
 
-    let mut pools1 = Vec::with_capacity(q_len);
-    let mut pools2 = Vec::with_capacity(q_len);
-    let mut pools3 = Vec::with_capacity(q_len);
-    let mut pools4 = Vec::with_capacity(q_len);
-
-    // Interleave rounds across all four arms (Arm 1 -> Arm 2 -> Arm 3 -> Arm 4) so any
-    // frequency scaling or thermal drift affects all four arms identically.
     for round in 0..rounds {
-        for q in &encoded.queries {
-            let s1 = Instant::now();
-            let (r1, p1) = arm1.query(encoded, q, config);
-            lat1.push(s1.elapsed().as_nanos() as u64);
+        for (qi, q) in encoded.queries.iter().enumerate() {
+            let (r1, p1, rt1, rk1) = arm1.query(encoded, q, config);
+            let (r2, p2, rt2, rk2) = arm2.query(encoded, q, config)?;
+            let (r3, p3, rt3, rk3) = arm3.query(encoded, q, config)?;
+            let (r4, p4, rt4, rk4) = arm4.query(encoded, q, &q_splate_terms[qi], config)?;
 
-            let s2 = Instant::now();
-            let (r2, p2) = arm2.query(encoded, q, config)?;
-            lat2.push(s2.elapsed().as_nanos() as u64);
-
-            let s3 = Instant::now();
-            let (r3, p3) = arm3.query(encoded, q, config)?;
-            lat3.push(s3.elapsed().as_nanos() as u64);
-
-            let s4 = Instant::now();
-            let (r4, p4) = arm4.query(encoded, q, config)?;
-            lat4.push(s4.elapsed().as_nanos() as u64);
-
+            for (idx, (rt, rk)) in [(rt1, rk1), (rt2, rk2), (rt3, rk3), (rt4, rk4)].into_iter().enumerate() {
+                ret_ns[idx].push(rt);
+                rer_ns[idx].push(rk);
+                tot_ns[idx].push(rt + rk);
+            }
             if round == 0 {
-                ranks1.push(r1);
-                ranks2.push(r2);
-                ranks3.push(r3);
-                ranks4.push(r4);
-                pools1.push(p1);
-                pools2.push(p2);
-                pools3.push(p3);
-                pools4.push(p4);
+                for (idx, (r, p)) in [(r1, p1), (r2, p2), (r3, p3), (r4, p4)].into_iter().enumerate() {
+                    ranks[idx].push(r);
+                    pools[idx].push(p);
+                }
             }
         }
     }
 
+    let [ranks1, ranks2, ranks3, ranks4] = ranks;
     let rep1 = evaluate_arm(
         CascadeArm::Bm25Only,
         config.shortlist_k,
         ranks1,
-        &pools1,
-        &mut lat1,
+        &pools[0],
+        &mut enc_ns[0],
+        &mut ret_ns[0],
+        &mut rer_ns[0],
+        &mut tot_ns[0],
         arm1.index_bytes,
         arm1.index_bytes,
         0,
@@ -308,8 +317,11 @@ pub fn run_study_with_encoded(
         CascadeArm::StaticThenCrossEncoder,
         config.shortlist_k,
         ranks2,
-        &pools2,
-        &mut lat2,
+        &pools[1],
+        &mut enc_ns[1],
+        &mut ret_ns[1],
+        &mut rer_ns[1],
+        &mut tot_ns[1],
         arm2.index_bytes,
         arm2.index_bytes,
         0,
@@ -320,8 +332,11 @@ pub fn run_study_with_encoded(
         CascadeArm::LearnedSparseThenMaxSim,
         config.shortlist_k,
         ranks3,
-        &pools3,
-        &mut lat3,
+        &pools[2],
+        &mut enc_ns[2],
+        &mut ret_ns[2],
+        &mut rer_ns[2],
+        &mut tot_ns[2],
         arm3.index_bytes,
         arm3.sparse_bytes,
         arm3.token_bytes,
@@ -332,8 +347,11 @@ pub fn run_study_with_encoded(
         CascadeArm::SplateThenMaxSim,
         config.shortlist_k,
         ranks4,
-        &pools4,
-        &mut lat4,
+        &pools[3],
+        &mut enc_ns[3],
+        &mut ret_ns[3],
+        &mut rer_ns[3],
+        &mut tot_ns[3],
         arm4.index_bytes,
         arm4.first_stage_bytes,
         arm4.token_bytes,

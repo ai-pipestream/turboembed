@@ -2,6 +2,7 @@
 //! cascade evaluation study (#711).
 
 use std::collections::{BTreeMap, HashMap};
+use std::time::Instant;
 
 use turbo::sparse::{MaxLogPool, SparseOptions as SparseCut, SparseTerm};
 use turbo_analysis::{Annotator, Document, ModelRef, View};
@@ -36,6 +37,9 @@ pub struct EncodedQuery {
     pub static_vec: Vec<f32>,
     pub token_vecs: Vec<f32>,
     pub splade_terms: Vec<SparseTerm>,
+    /// Per-query base representation encoding time in nanoseconds for Arms 1..=4
+    /// (before Arm 4's SPLATE linear adapter projection).
+    pub encode_ns: [u64; 4],
 }
 
 /// Complete encoded corpus and query set ready for indexing and evaluation.
@@ -86,41 +90,12 @@ fn seeded_coords(seed: u64, dim: usize, out: &mut [f32], weight: f32) {
 }
 
 fn is_stopword(w: &str) -> bool {
-    matches!(
-        w,
-        "a" | "an"
-            | "and"
-            | "are"
-            | "as"
-            | "at"
-            | "be"
-            | "by"
-            | "for"
-            | "from"
-            | "has"
-            | "have"
-            | "in"
-            | "is"
-            | "it"
-            | "its"
-            | "of"
-            | "on"
-            | "or"
-            | "that"
-            | "the"
-            | "their"
-            | "this"
-            | "to"
-            | "was"
-            | "were"
-            | "which"
-            | "with"
-            | "what"
-            | "how"
-            | "does"
-            | "do"
-            | "can"
-    )
+    const STOPS: &[&str] = &[
+        "a", "an", "and", "are", "as", "at", "be", "by", "can", "do", "does", "for", "from", "has", "have", "how",
+        "in", "is", "it", "its", "of", "on", "or", "that", "the", "their", "this", "to", "was", "were", "what",
+        "which", "with",
+    ];
+    STOPS.binary_search(&w).is_ok()
 }
 
 fn tokenize_bm25(text: &str) -> Result<(Vocabulary, IndexedTerms, TermStats<View>)> {
@@ -154,9 +129,9 @@ fn extract_query_terms(text: &str) -> Result<Vec<String>> {
     Ok(out)
 }
 
-/// Encodes a [`LoadedSet`] into BM25, static dense, contextual token-vector,
-/// and learned sparse (SPLADE) representations over a shared vocabulary of up
-/// to `max_vocab` terms and embedding dimension `dim`.
+/// Encodes a [`LoadedSet`] into synthetic BM25, static dense, contextual
+/// token-vector, and learned sparse (SPLADE) representations over a shared
+/// vocabulary of up to `max_vocab` terms and embedding dimension `dim`.
 pub fn encode_loaded_set(
     set: &LoadedSet,
     dim: usize,
@@ -197,13 +172,15 @@ pub fn encode_loaded_set(
 
     let mut raw_queries = Vec::with_capacity(set.queries.len());
     for q in &set.queries {
+        let t0 = Instant::now();
         let q_terms = extract_query_terms(&q.text)?;
+        let bm25_ns = t0.elapsed().as_nanos() as u64;
         for w in &q_terms {
             if w.len() >= 2 && !is_stopword(w) {
                 df_map.entry(w.clone()).or_insert(1);
             }
         }
-        raw_queries.push((q.id.clone(), q.text.clone(), q_terms));
+        raw_queries.push((q.id.clone(), q.text.clone(), q_terms, bm25_ns));
     }
 
     let mut vocab_entries: Vec<(String, u32)> = df_map.into_iter().collect();
@@ -236,8 +213,9 @@ pub fn encode_loaded_set(
         unit(row);
     }
 
-    type EncodedText = (Vec<u32>, Vec<f32>, Vec<f32>, Vec<SparseTerm>);
+    type EncodedText = (Vec<u32>, Vec<f32>, Vec<f32>, Vec<SparseTerm>, [u64; 3]);
     let build_representations = |words: &[String], max_toks: usize, cut: &SparseCut| -> Result<EncodedText> {
+        let t_tok = Instant::now();
         let mut tids: Vec<u32> = words
             .iter()
             .filter_map(|w| {
@@ -273,15 +251,20 @@ pub fn encode_loaded_set(
             }
             unit(out);
         }
+        let tok_ns = t_tok.elapsed().as_nanos() as u64;
+
+        let t_static = Instant::now();
         let mut static_vec = vec![0.0f32; dim];
-        let half_dim = (dim / 2).max(4);
-        for tok in token_vecs.chunks_exact(dim) {
-            for (d, &v) in static_vec[..half_dim].iter_mut().zip(&tok[..half_dim]) {
-                *d += v;
+        for (pos, tok) in token_vecs.chunks_exact(dim).enumerate() {
+            let w = term_idf[tids[pos] as usize];
+            for (d, &v) in static_vec.iter_mut().zip(tok) {
+                *d += w * v;
             }
         }
         unit(&mut static_vec);
+        let static_ns = tok_ns + t_static.elapsed().as_nanos() as u64;
 
+        let t_splade = Instant::now();
         let mut pool = MaxLogPool::new(vocab_size);
         let mut logits = vec![0.0f32; vocab_size];
         for (pos, w) in words.iter().take(max_toks).enumerate() {
@@ -303,21 +286,23 @@ pub fn encode_loaded_set(
             pool.observe(&logits).map_err(|e| e.to_string())?;
         }
         let splade_terms = pool.terms(cut).map_err(|e| e.to_string())?;
-        Ok((tids, static_vec, token_vecs, splade_terms))
+        let splade_ns = tok_ns + t_splade.elapsed().as_nanos() as u64;
+        Ok((tids, static_vec, token_vecs, splade_terms, [static_ns, splade_ns, tok_ns]))
     };
 
     let mut docs = Vec::with_capacity(raw_docs.len());
     for (id, text, bm25_vocab, bm25_stats, seq) in raw_docs {
-        let (token_ids, static_vec, token_vecs, splade_terms) =
+        let (token_ids, static_vec, token_vecs, splade_terms, _) =
             build_representations(&seq, MAX_DOC_TOKENS, splade_doc_cut)?;
         docs.push(EncodedDoc { id, text, bm25_stats, bm25_vocab, token_ids, static_vec, token_vecs, splade_terms });
     }
 
     let mut queries = Vec::with_capacity(raw_queries.len());
-    for (id, text, bm25_terms) in raw_queries {
-        let (token_ids, static_vec, token_vecs, splade_terms) =
+    for (id, text, bm25_terms, bm25_ns) in raw_queries {
+        let (token_ids, static_vec, token_vecs, splade_terms, [static_ns, splade_ns, tok_ns]) =
             build_representations(&bm25_terms, MAX_QUERY_TOKENS, splade_query_cut)?;
-        queries.push(EncodedQuery { id, text, bm25_terms, token_ids, static_vec, token_vecs, splade_terms });
+        let encode_ns = [bm25_ns, bm25_ns + static_ns, bm25_ns + splade_ns, bm25_ns + tok_ns];
+        queries.push(EncodedQuery { id, text, bm25_terms, token_ids, static_vec, token_vecs, splade_terms, encode_ns });
     }
 
     let model = ModelRef {

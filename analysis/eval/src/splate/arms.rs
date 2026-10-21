@@ -244,7 +244,6 @@ pub(crate) fn build_arm3(corpus: &EncodedCorpus) -> Result<BuiltArm3> {
 }
 
 pub(crate) fn build_arm4(corpus: &EncodedCorpus, config: &SplateConfig) -> Result<BuiltArm4> {
-    let t0 = Instant::now();
     let space = Space::new(corpus.model.clone(), corpus.dim as u32, Normalization::Unit);
     let adapter = SplateAdapter::from_basis(
         &corpus.vocab_basis,
@@ -253,11 +252,15 @@ pub(crate) fn build_arm4(corpus: &EncodedCorpus, config: &SplateConfig) -> Resul
         config.splate_scale,
         config.splate_bias,
     )?;
+    let mut doc_terms = Vec::with_capacity(corpus.docs.len());
+    for d in &corpus.docs {
+        doc_terms.push(adapter.encode_tokens(&d.token_vecs, &config.splate_doc_cut)?);
+    }
+    let t0 = Instant::now();
     let mut s_builder = SparsePostingIndexBuilder::new();
     let mut t_builder = TokenIndexBuilder::new(space.clone()).map_err(|e| e.to_string())?;
-    for (i, d) in corpus.docs.iter().enumerate() {
-        let terms = adapter.encode_tokens(&d.token_vecs, &config.splate_doc_cut)?;
-        s_builder.add(&terms)?;
+    for (i, (d, terms)) in corpus.docs.iter().zip(&doc_terms).enumerate() {
+        s_builder.add(terms)?;
         t_builder.push(&d.token_vecs, i as u32).map_err(|e| e.to_string())?;
     }
     let splate_index = s_builder.build();
@@ -270,58 +273,66 @@ pub(crate) fn build_arm4(corpus: &EncodedCorpus, config: &SplateConfig) -> Resul
 }
 
 impl BuiltArm1 {
-    pub fn query(&self, corpus: &EncodedCorpus, q: &EncodedQuery, config: &SplateConfig) -> (Ranking, usize) {
+    pub fn query(&self, corpus: &EncodedCorpus, q: &EncodedQuery, config: &SplateConfig) -> (Ranking, usize, u64, u64) {
         let refs: Vec<&str> = q.bm25_terms.iter().map(String::as_str).collect();
-        let raw = self.index.top_k(config.bm25, &refs, config.top_k + 1);
+        let t0 = Instant::now();
+        let raw = self.index.top_k(config.bm25, &refs, config.top_k);
+        let retrieve_ns = t0.elapsed().as_nanos() as u64;
         let hits: Vec<Hit> = raw
             .into_iter()
-            .filter(|&(row, _)| corpus.docs[row as usize].id != q.id)
             .take(config.top_k)
             .map(|(row, score)| Hit { doc: corpus.docs[row as usize].id.clone(), score })
             .collect();
         let pool = hits.len();
-        (Ranking { query: q.id.clone(), hits }, pool)
+        (Ranking { query: q.id.clone(), hits }, pool, retrieve_ns, 0)
     }
 }
 
 impl BuiltArm2<'_> {
-    pub fn query(&self, corpus: &EncodedCorpus, q: &EncodedQuery, config: &SplateConfig) -> Result<(Ranking, usize)> {
-        let raw =
-            self.static_index.top_k(&self.space, &q.static_vec, config.shortlist_k + 1).map_err(|e| e.to_string())?;
-        let shortlist: Vec<u32> = raw
-            .into_iter()
-            .map(|h| h.row)
-            .filter(|&row| corpus.docs[row as usize].id != q.id)
-            .take(config.shortlist_k)
-            .collect();
+    pub fn query(
+        &self,
+        corpus: &EncodedCorpus,
+        q: &EncodedQuery,
+        config: &SplateConfig,
+    ) -> Result<(Ranking, usize, u64, u64)> {
+        let t0 = Instant::now();
+        let raw = self.static_index.top_k(&self.space, &q.static_vec, config.shortlist_k).map_err(|e| e.to_string())?;
+        let shortlist: Vec<u32> = raw.into_iter().map(|h| h.row).take(config.shortlist_k).collect();
+        let retrieve_ns = t0.elapsed().as_nanos() as u64;
         let pool = shortlist.len();
+        let t1 = Instant::now();
         let ce_scores = self.scorer.score_candidates(corpus, q, &shortlist)?;
         let mut order: Vec<usize> = (0..shortlist.len()).collect();
         order.sort_by(|&a, &b| ce_scores[b].total_cmp(&ce_scores[a]).then_with(|| a.cmp(&b)));
+        let rerank_ns = t1.elapsed().as_nanos() as u64;
         let hits = order
             .into_iter()
             .take(config.top_k)
             .map(|i| Hit { doc: corpus.docs[shortlist[i] as usize].id.clone(), score: f64::from(ce_scores[i]) })
             .collect();
-        Ok((Ranking { query: q.id.clone(), hits }, pool))
+        Ok((Ranking { query: q.id.clone(), hits }, pool, retrieve_ns, rerank_ns))
     }
 }
 
 impl BuiltArm3 {
-    pub fn query(&self, corpus: &EncodedCorpus, q: &EncodedQuery, config: &SplateConfig) -> Result<(Ranking, usize)> {
-        let raw = self.sparse_index.top_k(&q.splade_terms, config.shortlist_k + 1);
-        let shortlist: Vec<u32> = raw
-            .into_iter()
-            .map(|(row, _)| row)
-            .filter(|&row| corpus.docs[row as usize].id != q.id)
-            .take(config.shortlist_k)
-            .collect();
+    pub fn query(
+        &self,
+        corpus: &EncodedCorpus,
+        q: &EncodedQuery,
+        config: &SplateConfig,
+    ) -> Result<(Ranking, usize, u64, u64)> {
+        let t0 = Instant::now();
+        let raw = self.sparse_index.top_k(&q.splade_terms, config.shortlist_k);
+        let shortlist: Vec<u32> = raw.into_iter().map(|(row, _)| row).take(config.shortlist_k).collect();
+        let retrieve_ns = t0.elapsed().as_nanos() as u64;
         let pool = shortlist.len();
         if shortlist.is_empty() {
-            return Ok((Ranking { query: q.id.clone(), hits: Vec::new() }, 0));
+            return Ok((Ranking { query: q.id.clone(), hits: Vec::new() }, 0, retrieve_ns, 0));
         }
+        let t1 = Instant::now();
         let reranked =
             self.token_index.rerank(&self.space, &q.token_vecs, &shortlist, config.top_k).map_err(|e| e.to_string())?;
+        let rerank_ns = t1.elapsed().as_nanos() as u64;
         let hits = reranked
             .into_iter()
             .map(|h| Hit {
@@ -329,26 +340,30 @@ impl BuiltArm3 {
                 score: f64::from(h.score),
             })
             .collect();
-        Ok((Ranking { query: q.id.clone(), hits }, pool))
+        Ok((Ranking { query: q.id.clone(), hits }, pool, retrieve_ns, rerank_ns))
     }
 }
 
 impl BuiltArm4 {
-    pub fn query(&self, corpus: &EncodedCorpus, q: &EncodedQuery, config: &SplateConfig) -> Result<(Ranking, usize)> {
-        let q_terms = self.adapter.encode_tokens(&q.token_vecs, &config.splate_query_cut)?;
-        let raw = self.splate_index.top_k(&q_terms, config.shortlist_k + 1);
-        let shortlist: Vec<u32> = raw
-            .into_iter()
-            .map(|(row, _)| row)
-            .filter(|&row| corpus.docs[row as usize].id != q.id)
-            .take(config.shortlist_k)
-            .collect();
+    pub fn query(
+        &self,
+        corpus: &EncodedCorpus,
+        q: &EncodedQuery,
+        q_splate_terms: &[turbo::sparse::SparseTerm],
+        config: &SplateConfig,
+    ) -> Result<(Ranking, usize, u64, u64)> {
+        let t0 = Instant::now();
+        let raw = self.splate_index.top_k(q_splate_terms, config.shortlist_k);
+        let shortlist: Vec<u32> = raw.into_iter().map(|(row, _)| row).take(config.shortlist_k).collect();
+        let retrieve_ns = t0.elapsed().as_nanos() as u64;
         let pool = shortlist.len();
         if shortlist.is_empty() {
-            return Ok((Ranking { query: q.id.clone(), hits: Vec::new() }, 0));
+            return Ok((Ranking { query: q.id.clone(), hits: Vec::new() }, 0, retrieve_ns, 0));
         }
+        let t1 = Instant::now();
         let reranked =
             self.token_index.rerank(&self.space, &q.token_vecs, &shortlist, config.top_k).map_err(|e| e.to_string())?;
+        let rerank_ns = t1.elapsed().as_nanos() as u64;
         let hits = reranked
             .into_iter()
             .map(|h| Hit {
@@ -356,7 +371,7 @@ impl BuiltArm4 {
                 score: f64::from(h.score),
             })
             .collect();
-        Ok((Ranking { query: q.id.clone(), hits }, pool))
+        Ok((Ranking { query: q.id.clone(), hits }, pool, retrieve_ns, rerank_ns))
     }
 }
 
@@ -375,6 +390,9 @@ pub(crate) fn evaluate_arm(
     shortlist_k: usize,
     rankings: Vec<Ranking>,
     pools: &[usize],
+    encode_ns: &mut [u64],
+    retrieve_ns: &mut [u64],
+    rerank_ns: &mut [u64],
     samples_ns: &mut [u64],
     index_bytes: usize,
     first_stage_bytes: usize,
@@ -385,6 +403,9 @@ pub(crate) fn evaluate_arm(
     let run = Run::new(rankings)?;
     let scores = evaluate(&run, qrels)?;
     let mean_pool_size = if pools.is_empty() { 0.0 } else { pools.iter().sum::<usize>() as f64 / pools.len() as f64 };
+    let encode_p50_us = percentile_us(encode_ns, 50);
+    let retrieve_p50_us = percentile_us(retrieve_ns, 50);
+    let rerank_p50_us = percentile_us(rerank_ns, 50);
     let p50_us = percentile_us(samples_ns, 50);
     let p99_us = percentile_us(samples_ns, 99);
     Ok(ArmReport {
@@ -395,6 +416,9 @@ pub(crate) fn evaluate_arm(
         first_stage_bytes,
         token_index_bytes,
         build_ms,
+        encode_p50_us,
+        retrieve_p50_us,
+        rerank_p50_us,
         p50_us,
         p99_us,
         mean_pool_size,

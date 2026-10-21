@@ -68,11 +68,13 @@ pub const COREF_ADDONS_COMMIT: &str = "be11df610e24a9a2a10f80b7199349fe5b3594a9"
 /// another tag.
 pub const IMAGE_TAG: &str = "turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1";
 
+mod excerpts;
 mod fixtures;
 mod models;
 #[cfg(test)]
 mod tests;
 
+pub use self::excerpts::{EXCERPTS, Excerpt};
 pub use self::fixtures::{FIXTURES, Fixture};
 pub use self::models::{
     CORPORA, Corpus, DICTIONARIES, Dictionary, DictionaryEncoding, HUNSPELL_DICTIONARIES_COMMIT, HUNSPELL_FILES,

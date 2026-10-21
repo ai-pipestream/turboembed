@@ -2136,6 +2136,7 @@ dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-sentdetect",
+ "turbo-stem",
  "turbo-structure",
  "turbo-tokenize",
  "turbo-vector-index",
@@ -2531,10 +2532,14 @@ dependencies = [
 name = "turbo-relation"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
+ "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-bundle",
  "turbo-depparse",
  "turbo-unicode",
+ "turbo-zoo",
 ]
 
 [[package]]

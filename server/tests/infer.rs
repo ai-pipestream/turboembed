@@ -107,6 +107,26 @@ async fn one_request_per_session() {
     s.stop().await;
 }
 
+/// One connection answers ModelInfer calls one after another without a
+/// delayed-ACK wait between them. A server socket that leaves Nagle on
+/// holds the second segment of each response until the client's delayed
+/// ACK, about 40 ms on Linux, so 100 calls take 4 s or more; with
+/// TCP_NODELAY they take a few milliseconds each even in a debug build.
+#[tokio::test]
+async fn sequential_calls_do_not_wait_for_delayed_acks() {
+    let (s, mut c) = serve(1).await;
+    for _ in 0..5 {
+        embed(&mut c, texts(&["warm up"])).await;
+    }
+    let start = std::time::Instant::now();
+    for _ in 0..100 {
+        assert_eq!(embed(&mut c, texts(&["hello world"])).await.len(), 1);
+    }
+    let took = start.elapsed();
+    assert!(took < std::time::Duration::from_secs(3), "100 sequential ModelInfer calls took {took:?}");
+    s.stop().await;
+}
+
 #[tokio::test]
 async fn unknown_model_or_version() {
     let (s, mut c) = serve(1).await;

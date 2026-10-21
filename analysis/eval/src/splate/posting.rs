@@ -256,8 +256,11 @@ impl SplateAdapter {
         if vocab == 0 || dim == 0 {
             return Err("SPLATE adapter vocab and dim must be positive".into());
         }
-        if weights.len() != vocab * dim {
-            return Err(format!("SPLATE adapter weights length {} != vocab * dim ({})", weights.len(), vocab * dim));
+        let expected = vocab
+            .checked_mul(dim)
+            .ok_or_else(|| format!("SPLATE adapter vocab ({vocab}) * dim ({dim}) overflows usize"))?;
+        if weights.len() != expected {
+            return Err(format!("SPLATE adapter weights length {} != vocab * dim ({expected})", weights.len()));
         }
         if bias.len() != vocab {
             return Err(format!("SPLATE adapter bias length {} != vocab ({vocab})", bias.len()));
@@ -272,8 +275,14 @@ impl SplateAdapter {
     /// `[vocab, dim]` with a uniform ReLU threshold bias `bias_shift`
     /// and a positive gain `scale`.
     pub fn from_basis(basis: &[f32], vocab: usize, dim: usize, scale: f32, bias_shift: f32) -> Result<Self> {
-        if basis.len() != vocab * dim {
-            return Err(format!("SPLATE basis length {} != vocab * dim ({})", basis.len(), vocab * dim));
+        if vocab == 0 || dim == 0 {
+            return Err("SPLATE adapter vocab and dim must be positive".into());
+        }
+        let expected = vocab
+            .checked_mul(dim)
+            .ok_or_else(|| format!("SPLATE adapter vocab ({vocab}) * dim ({dim}) overflows usize"))?;
+        if basis.len() != expected {
+            return Err(format!("SPLATE basis length {} != vocab * dim ({expected})", basis.len()));
         }
         let weights: Vec<f32> = basis.iter().map(|&w| w * scale).collect();
         let bias = vec![bias_shift; vocab];

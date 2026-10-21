@@ -1,5 +1,9 @@
 use super::*;
 
+/// Lexicon entries whose `next_from` slots [`scan_lexicon`] keeps on the
+/// stack; the bundled lexicon fits, and a test holds it to that.
+pub(super) const NEXT_FROM_ON_STACK: usize = 128;
+
 pub(super) fn scan_lexicon(
     lexicon: &IncivilityLexicon,
     token_lower: &[String],
@@ -15,8 +19,19 @@ pub(super) fn scan_lexicon(
     // the matched run. Matched hits are then sorted by `(entry_idx, start)` so
     // probabilistic folding and evidence order match the entry-major reference
     // scan bit-for-bit.
+    //
+    // `next_from` has one slot per entry and lives on the stack when the
+    // lexicon fits (the bundled one does), so a unit with no match allocates
+    // nothing; `hits` does not allocate until the first match.
     let mut hits: Vec<(u32, u32, u32, IncivilityLabel, f64)> = Vec::new();
-    let mut next_from = vec![0usize; lexicon.entries.len()];
+    let mut stack = [0u32; NEXT_FROM_ON_STACK];
+    let mut heap = Vec::new();
+    let next_from: &mut [u32] = if lexicon.entries.len() <= NEXT_FROM_ON_STACK {
+        &mut stack[..lexicon.entries.len()]
+    } else {
+        heap.resize(lexicon.entries.len(), 0);
+        &mut heap
+    };
     for i in tok_start..tok_end {
         let w = token_lower[i].as_str();
         let Ok(group) = lexicon.first_token.binary_search_by(|(t, _, _)| t.as_str().cmp(w)) else { continue };
@@ -24,7 +39,7 @@ pub(super) fn scan_lexicon(
         let entry_run = &lexicon.entries[lo as usize..hi as usize];
         let next_run = &mut next_from[lo as usize..hi as usize];
         for (offset, ((pat, label, weight), next)) in entry_run.iter().zip(next_run.iter_mut()).enumerate() {
-            if i < *next {
+            if (i as u32) < *next {
                 continue;
             }
             let pat_len = pat.len();
@@ -48,7 +63,7 @@ pub(super) fn scan_lexicon(
                     let entry_idx = lo + offset as u32;
                     hits.push((entry_idx, i as u32, (i + pat_len) as u32, *label, *weight));
                 }
-                *next = i + pat_len;
+                *next = (i + pat_len) as u32;
             }
         }
     }

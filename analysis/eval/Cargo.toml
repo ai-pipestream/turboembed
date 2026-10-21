@@ -28,7 +28,10 @@ turbo-analysis-embed = { path = "../embed" }
 turbo-chunker = { path = "../chunker" }
 turbo-sentdetect = { path = "../sentdetect" }
 turbo-structure = { path = "../structure" }
+# BM25 retrieval's terms: the word tokens, and Porter's stemmer for the
+# English rule.
 turbo-tokenize = { path = "../tokenize" }
+turbo-stem = { path = "../stem" }
 turbo-vector-index = { path = "../vector-index" }
 # The sentence model file and its SHA-256.
 turbo-maxent = { path = "../maxent" }
