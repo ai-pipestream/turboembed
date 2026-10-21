@@ -46,6 +46,7 @@ pub mod cost;
 pub mod embedder;
 pub mod fetch;
 pub mod gate;
+pub mod lexical;
 pub mod metrics;
 pub mod model_gate;
 pub mod pipeline;

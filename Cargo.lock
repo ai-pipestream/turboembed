@@ -2136,7 +2136,9 @@ dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-sentdetect",
+ "turbo-stem",
  "turbo-structure",
+ "turbo-tokenize",
  "turbo-zstd",
  "ureq",
 ]
