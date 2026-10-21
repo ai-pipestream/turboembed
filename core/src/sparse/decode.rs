@@ -45,7 +45,35 @@ impl Kernel {
             // SAFETY: detect chose it, so the processor has NEON; the
             // shapes are checked above.
             #[cfg(target_arch = "aarch64")]
-            Kernel::Neon => unsafe { neon(x, wt, o, v, i0) },
+            Kernel::Neon => unsafe { neon(x, x.len(), wt, o, o.len(), v, i0) },
+        }
+    }
+
+    /// `run` for each token of `xs` (rows of `h`) into its row of `out`
+    /// (rows of `w`), each row the same bits as `run` gives it. NEON takes
+    /// up to 4 tokens per pass over the weight rows, so each row's
+    /// columns are read from memory once for all of them.
+    ///
+    /// # Panics
+    /// As `run`, or if `xs` and `out` hold different numbers of rows.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn run_tokens(self, xs: &[f32], h: usize, wt: &[f32], out: &mut [f32], w: usize, v: usize, i0: usize) {
+        assert!(h > 0 && w > 0 && xs.len() / h == out.len() / w, "decoder token rows");
+        match self {
+            #[cfg(target_arch = "aarch64")]
+            Kernel::Neon => {
+                assert!(i0 + w <= v && wt.len() >= h * v, "decoder product shape");
+                for (x, o) in xs.chunks(4 * h).zip(out.chunks_mut(4 * w)) {
+                    // SAFETY: detect chose it, so the processor has NEON;
+                    // the shapes are checked above.
+                    unsafe { neon(x, h, wt, o, w, v, i0) };
+                }
+            }
+            _ => {
+                for (x, o) in xs.chunks_exact(h).zip(out.chunks_exact_mut(w)) {
+                    self.run(x, wt, o, v, i0);
+                }
+            }
         }
     }
 }
@@ -107,41 +135,47 @@ unsafe fn avx2(x: &[f32], wt: &[f32], o: &mut [f32], v: usize, i0: usize) {
     tail(x, wt, &mut o[i..], v, i0 + i);
 }
 
+/// Up to 4 tokens `xs` (rows of `h`) into their rows of `out` (rows of
+/// `w`).
+///
 /// # Safety
-/// The processor has NEON, and `wt` holds `x.len()` rows of `v` floats
-/// with `i0 + o.len() <= v`.
+/// The processor has NEON, `xs` holds as many rows as `out`, at most 4,
+/// and `wt` holds `h` rows of `v` floats with `i0 + w <= v`.
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "neon")]
-unsafe fn neon(x: &[f32], wt: &[f32], o: &mut [f32], v: usize, i0: usize) {
+unsafe fn neon(xs: &[f32], h: usize, wt: &[f32], out: &mut [f32], w: usize, v: usize, i0: usize) {
     use std::arch::aarch64::*;
-    let w = o.len();
-    let (op, wp) = (o.as_mut_ptr(), wt.as_ptr());
+    let tokens = xs.len() / h;
+    let (op, wp) = (out.as_mut_ptr(), wt.as_ptr());
     let (v16, v4) = (w - w % 16, w - w % 4);
-    // Row by row, as the portable loop: each row's columns are read in
-    // one contiguous run, which the prefetcher follows, while the output
-    // stays in L1. Each column still sums over j in order, one rounding
-    // per step.
-    for (j, &xj) in x.iter().enumerate() {
-        // SAFETY: every column under w of row j is within wt (contract),
-        // and every column under w within o.
+    // Row by row, as the portable loop: each row's columns are read in one
+    // contiguous run, which the prefetcher follows, and used for every
+    // token while the outputs stay in L1. Each column still sums over j
+    // in order, one rounding per step.
+    for j in 0..h {
+        // SAFETY: every column under w of row j is within wt, and every
+        // column under w of each token's row within out (contract).
         unsafe {
-            let a = vdupq_n_f32(xj);
             let row = wp.add(j * v + i0);
-            let mut i = 0;
-            while i < v16 {
-                for q in 0..4 {
-                    let at = i + 4 * q;
-                    vst1q_f32(op.add(at), vfmaq_f32(vld1q_f32(op.add(at)), a, vld1q_f32(row.add(at))));
+            for t in 0..tokens {
+                let xj = *xs.get_unchecked(t * h + j);
+                let (a, o) = (vdupq_n_f32(xj), op.add(t * w));
+                let mut i = 0;
+                while i < v16 {
+                    for q in 0..4 {
+                        let at = i + 4 * q;
+                        vst1q_f32(o.add(at), vfmaq_f32(vld1q_f32(o.add(at)), a, vld1q_f32(row.add(at))));
+                    }
+                    i += 16;
                 }
-                i += 16;
-            }
-            while i < v4 {
-                vst1q_f32(op.add(i), vfmaq_f32(vld1q_f32(op.add(i)), a, vld1q_f32(row.add(i))));
-                i += 4;
-            }
-            while i < w {
-                *op.add(i) = xj.mul_add(*row.add(i), *op.add(i));
-                i += 1;
+                while i < v4 {
+                    vst1q_f32(o.add(i), vfmaq_f32(vld1q_f32(o.add(i)), a, vld1q_f32(row.add(i))));
+                    i += 4;
+                }
+                while i < w {
+                    *o.add(i) = xj.mul_add(*row.add(i), *o.add(i));
+                    i += 1;
+                }
             }
         }
     }
@@ -194,6 +228,15 @@ mod tests {
                 portable(&x, &wt, &mut plain, v, i0);
                 let mut fma = bias[i0..i0 + w].to_vec();
                 fused(&x, &wt, &mut fma, v, i0);
+                // A group of tokens gives each its own bits.
+                let xs: Vec<f32> = (0..6).flat_map(|t| values(h, 10 + t)).collect();
+                let mut block: Vec<f32> = (0..6).flat_map(|_| bias[i0..i0 + w].to_vec()).collect();
+                kernel.run_tokens(&xs, h, &wt, &mut block, w, v, i0);
+                for (x, b) in xs.chunks_exact(h).zip(block.chunks_exact(w)) {
+                    let mut one = bias[i0..i0 + w].to_vec();
+                    kernel.run(x, &wt, &mut one, v, i0);
+                    assert_eq!(b, &one[..], "{kernel:?} {h}x{v} from {i0}: grouped tokens");
+                }
                 if kernel == Kernel::Portable {
                     assert_eq!(got, plain);
                 } else {
@@ -224,9 +267,7 @@ mod tests {
                 let t = std::time::Instant::now();
                 for i0 in (0..v).step_by(chunk) {
                     let w = chunk.min(v - i0);
-                    for (row, o) in x.chunks_exact(h).zip(o.chunks_exact_mut(chunk)) {
-                        k.run(row, &wt, &mut o[..w], v, i0);
-                    }
+                    k.run_tokens(&x, h, &wt, &mut o[..tokens * w], w, v, i0);
                 }
                 best = best.min(t.elapsed().as_secs_f64() * 1e3);
             }

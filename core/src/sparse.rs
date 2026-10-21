@@ -246,11 +246,10 @@ impl MlmHead {
             for i0 in (0..v).step_by(CHUNK) {
                 let w = CHUNK.min(v - i0);
                 let out = &mut out[..n * w];
-                for (t, o) in out.chunks_exact_mut(w).enumerate() {
+                for o in out.chunks_exact_mut(w) {
                     o.copy_from_slice(&self.decoder.bias[i0..i0 + w]);
-                    let x = &block[t * h..(t + 1) * h];
-                    kernel.run(x, &wt, o, v, i0);
                 }
+                kernel.run_tokens(block, h, &wt, out, w, v, i0);
                 for o in out.chunks_exact(w) {
                     pool.observe_at(i0, o)?;
                 }
