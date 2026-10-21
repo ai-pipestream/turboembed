@@ -4106,6 +4106,47 @@ the scores. On the three BEIR sets with whole documents the two agree to
 within 0.4 points; Lucene stores a document's length in one byte, which
 is where they part.
 
+### Hybrid BM25 + dense retrieval
+
+`--retrieval hybrid` (`analysis/eval/src/hybrid.rs`) fuses chunk-level
+BM25 (`Bm25PostingIndex` with `--k1`, `--b`, and `--terms`) and exact
+dense cosine over all chunks before aggregating each document by its
+best fused chunk score and keeping the top 100 documents and chunks
+under the standard tie and self-exclusion rules. Two fusion rules are
+supported (`--fusion`):
+
+- `weighted` (the default, `--bm25-weight <f>` default `0.35`): for each
+  query, both the dense cosine scores over eligible chunks and the BM25
+  scores (with `0.0` for chunks containing no query term) are min-max
+  normalized onto `[0, 1]` before computing
+  `(1 - bm25_weight) * norm_dense + bm25_weight * norm_bm25`.
+- `rrf` (`--rrf-k <n>` default `60`, `--bm25-weight <f>` default `0.5`):
+  reciprocal rank fusion `(1 - bm25_weight) / (k + rank_dense) + bm25_weight / (k + rank_bm25)`,
+  where chunks with positive BM25 score receive their 1-based BM25 rank.
+
+The record names `"hybrid"` under `pipeline.retrieval` along with
+`fusion`, `bm25_weight` (and `k` for `rrf`), `k1`, `b` and `terms`.
+`embedding_ms` and `tokens_embedded` record the dense embedding stage,
+and `retrieval_ms` records building the BM25 index and running the
+hybrid search.
+
+Committed hybrid records (`turbo-chunker --max 254 --target 200` on
+`all-MiniLM-L6-v2` with `--retrieval hybrid`):
+
+- `analysis/eval/records/turbo-chunker-254-200-hybrid` (`weighted`,
+  `bm25_weight = 0.35`, structure costs alone): clears the gate against
+  all three stage-0 baselines (`sentence-windows-5`, `fixed-tokens-200`,
+  `opennlp-sandbox-semantic`) and both dense `turbo-chunker` records on
+  4 of 4 sets (`scifact` `69.24`, `nfcorpus` `34.28`, `arguana` `51.65`,
+  `qasper` `37.85`), and clears the gate against `bm25-document` on 3 of
+  4 sets (`qasper` `+0.09` points over `bm25-document` with `11x` higher
+  span precision at 10: `0.0306` vs `0.0028`).
+- `analysis/eval/records/turbo-chunker-254-200-cohesion-1000-hybrid`
+  (`weighted`, `bm25_weight = 0.40`, `--cohesion 1000`): clears the gate
+  against all three stage-0 baselines, `bm25-document`, and the dense
+  `turbo-chunker` records (`scifact` `68.63`, `nfcorpus` `34.11`,
+  `arguana` `50.96`, `qasper` `37.80`).
+
 ### Measures and the gate
 
 - `metrics`: nDCG@10 with linear graded gain and a `log2(rank + 1)`
