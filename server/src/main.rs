@@ -3,8 +3,8 @@
 
 use std::process::ExitCode;
 
-use turbo_kserve::Server;
 use turbo_kserve::config::{Args, USAGE};
+use turbo_kserve::{Serve, Server};
 
 /// Resolves to the name of the first stop signal: SIGINT (Ctrl-C) or, on
 /// Unix, SIGTERM as well, what an orchestrator sends to stop a service.
@@ -40,13 +40,14 @@ async fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let server = match Server::start(args.listen, args.models, args.max_message_bytes).await {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("turbo-kserve: {e}");
-            return ExitCode::FAILURE;
-        }
-    };
+    let server =
+        match Server::start(args.listen, args.models, args.max_message_bytes, Serve { admin: args.admin }).await {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("turbo-kserve: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
     eprintln!("turbo-kserve: listening on {}", server.local_addr());
     // A stop signal during load stops the server once the load returns:
     // the library has no way to stop a load part way.

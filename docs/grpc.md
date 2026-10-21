@@ -3,9 +3,12 @@
 `turbo-kserve` serves turboembed bundles over gRPC with the Open
 Inference Protocol (KServe v2, `inference.GRPCInferenceService`), so a
 KServe deployment, or any client of that protocol, embeds text through
-the library without linking it. This page says how to run it. What every
-RPC, tensor, parameter and status means, call by call against the C
-interface, is in [kserve.md](kserve.md).
+the library without linking it. On the same port it serves
+`turbo.result.AnalysisService`: the analysis result kinds on the wire and
+a capability call that lists what every loaded bundle is
+(docs/grpc-analysis.md). This page says how to run it. What every RPC,
+tensor, parameter and status of the Open Inference Protocol means, call
+by call against the C interface, is in [kserve.md](kserve.md).
 
 The server is a projection of the library: one `ModelInfer` is one write,
 one run and one read on one session, the vectors go to the wire from the
@@ -63,6 +66,7 @@ no way to stop a load part way.
 | `--listen ADDR:PORT` | Where to answer gRPC, without TLS. | Required. |
 | `--model SETTINGS` | One served model; repeat for more. | At least one is required. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
+| `--admin` | Answer the analysis service's admin calls, `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md). Without it they refuse with `UNIMPLEMENTED`. | Off. |
 
 `SETTINGS` is comma-separated `key=value` pairs:
 
@@ -105,6 +109,7 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_LISTEN` | `--listen` |
 | `TURBO_KSERVE_MODELS` | `--model`, one or more values separated by `;` |
 | `TURBO_KSERVE_MAX_MESSAGE_BYTES` | `--max-message-bytes` |
+| `TURBO_KSERVE_ADMIN` | `--admin` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 
 ```
 TURBO_KSERVE_LISTEN=0.0.0.0:8081 \
@@ -185,9 +190,11 @@ Errors).
 
 `server/proto/open_inference_grpc.proto` is the Open Inference
 Protocol's own file, vendored (Apache-2.0); its first lines say where
-from. Generate a client from it in any language with gRPC. The build
-compiles it with a Rust protobuf compiler, so building the server needs
-no `protoc`.
+from. `server/proto/turbo_analysis.proto` is the crate's own file, the
+analysis result layer's messages and service
+(docs/grpc-analysis.md). Generate a client from either in any language
+with gRPC. The build compiles them with a Rust protobuf compiler, so
+building the server needs no `protoc`.
 
 ## A client call
 
@@ -251,7 +258,9 @@ with `testdata/tiny-bert-bundle` and calls every RPC over gRPC with a
 real client: readiness before and after load, the metadata, texts and
 token rows in both encodings against the bundle's reference vectors,
 every parameter and its refusals, the batch and sequence limits, a tier
-per model, every session held, a message over the limit, and the binary
-itself. Nothing is mocked. On a machine with another backend, serve a
-bundle on that device and run the same calls; the vectors are checked
-against the reference the same way (docs/conformance.md).
+per model, every session held, a message over the limit, the analysis
+result round trips, the capability listing across load and unload, and
+the named-limit refusals, plus the binary itself. Nothing is mocked. On
+a machine with another backend, serve a bundle on that device and run
+the same calls; the vectors are checked against the reference the same
+way (docs/conformance.md).

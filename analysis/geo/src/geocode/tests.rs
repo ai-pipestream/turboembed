@@ -68,6 +68,10 @@ impl<G: Gazetteer> Gazetteer for ReversedGazetteer<G> {
     fn sources(&self) -> Vec<&str> {
         self.0.sources()
     }
+
+    fn fingerprint(&self) -> u64 {
+        self.0.fingerprint().rotate_left(17) ^ 0x5555_5555_5555_5555
+    }
 }
 
 #[test]

@@ -8,9 +8,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use turbo_kserve::Server;
 use turbo_kserve::api::Runtime;
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES, ModelConfig};
+use turbo_kserve::{Serve, Server};
 use turbo_kserve_demo::Demo;
 use turbo_kserve_demo::proto::grpc_inference_service_client::GrpcInferenceServiceClient;
 use turbo_kserve_demo::proto::model_infer_request::InferInputTensor;
@@ -60,7 +60,10 @@ fn models() -> Vec<ModelConfig> {
 
 /// The server loaded, and the demo in front of it offering every tier.
 async fn start() -> (Server, Demo) {
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), models(), DEFAULT_MAX_MESSAGE_BYTES).await.unwrap();
+    // The demo serves inference only; the admin calls stay off.
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), models(), DEFAULT_MAX_MESSAGE_BYTES, Serve::default())
+        .await
+        .unwrap();
     s.load().await.unwrap();
     let names = TIERS.iter().map(|(n, _)| n.to_string()).collect();
     let d = Demo::start("127.0.0.1:0".parse().unwrap(), &format!("http://{}", s.local_addr()), names).await.unwrap();
