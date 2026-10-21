@@ -23,6 +23,30 @@ unsafe extern "C" {
     fn turbo_metal_in_place(model: *mut std::ffi::c_void) -> i32;
     fn turbo_metal_widened(model: *mut std::ffi::c_void) -> *const std::ffi::c_void;
     fn turbo_metal_use_choices(line: *const std::ffi::c_char);
+    fn turbo_metal_track_peaks(on: i32);
+    fn turbo_metal_peaks(out: *mut f32);
+}
+
+/// The F16 tensors a FASTEST run stores between kernels, in the order
+/// `peaks` gives their largest magnitudes.
+#[cfg(feature = "internals")]
+pub const PEAK_NAMES: [&str; 6] = ["Q", "K", "V", "attention context", "GELU output", "residual stream"];
+
+/// Whether sessions made after this track the largest magnitude of each
+/// F16 tensor their runs store. Built only with `internals`, for the
+/// tests.
+#[cfg(feature = "internals")]
+pub fn track_peaks(on: bool) {
+    unsafe { turbo_metal_track_peaks(on as i32) };
+}
+
+/// The last tracked run's largest magnitudes, as PEAK_NAMES orders them;
+/// 0 for a tensor the run stored in F32. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn peaks() -> [f32; 6] {
+    let mut out = [0f32; 6];
+    unsafe { turbo_metal_peaks(out.as_mut_ptr()) };
+    out
 }
 
 /// A choices line the sessions made after this read in place of

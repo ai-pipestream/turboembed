@@ -269,3 +269,10 @@ impl Drop for Pages {
         unsafe { std::alloc::dealloc(self.0, self.1) };
     }
 }
+
+/// TURBO_TEST_BUNDLE, a relative path read from the workspace root, as
+/// tests/conformance.rs reads it.
+pub fn named_bundle() -> Option<std::path::PathBuf> {
+    let p = std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE")?);
+    Some(if p.is_absolute() { p } else { std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p) })
+}
