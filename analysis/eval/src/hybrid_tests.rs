@@ -152,4 +152,43 @@ fn invalid_fusion_and_mismatched_inputs_are_refused() {
     assert!(h.search(&HybridSearch { vectors: &[1.0], ..ok }, &q, &[1.0, 0.0]).is_err());
     assert!(h.search(&ok, &q, &[1.0]).is_err());
     assert!(h.search(&HybridSearch { doc: &[1], ..ok }, &q, &[1.0, 0.0]).is_err());
+
+    // Overflowing rows * dim or queries.len() * dim returns Err without panicking.
+    let texts2 = vec!["cat".to_string(), "dog".to_string()];
+    let bm25_2 = h.index(&texts2, &[0, 1]).unwrap();
+    let docs2 = ["d1".to_string(), "d2".to_string()];
+    let spans2 = [Span::new(0, 3).unwrap(), Span::new(0, 3).unwrap()];
+    let overflow_chunks =
+        HybridSearch { bm25: &bm25_2, dim: usize::MAX, vectors: &[], doc: &[0, 1], span: &spans2, docs: &docs2 };
+    assert!(h.search(&overflow_chunks, &q, &[]).is_err());
+    let q2 = [("q1", "cat"), ("q2", "dog")];
+    let ok2_vecs = vec![0.0f32; 4];
+    let ok2 = HybridSearch { bm25: &bm25_2, dim: 2, vectors: &ok2_vecs, doc: &[0, 1], span: &spans2, docs: &docs2 };
+    assert!(h.search(&HybridSearch { dim: usize::MAX, ..ok2 }, &q2, &[]).is_err());
+
+    // Non-finite vector entries or dot products are rejected before fusion.
+    for fusion in [Fusion::Rrf { k: 60, bm25_weight: 0.5 }, Fusion::Weighted { bm25_weight: 0.5 }] {
+        let h_f = Hybrid { model: Bm25::LUCENE, terms: TermRule::Folded, fusion };
+        let nan_doc = HybridSearch {
+            bm25: &bm25_2,
+            dim: 1,
+            vectors: &[f32::NAN, 1.0],
+            doc: &[0, 1],
+            span: &spans2,
+            docs: &docs2,
+        };
+        assert!(h_f.search(&nan_doc, &[("q", "none")], &[1.0]).is_err());
+        let ok_doc =
+            HybridSearch { bm25: &bm25_2, dim: 1, vectors: &[1.0, 0.0], doc: &[0, 1], span: &spans2, docs: &docs2 };
+        assert!(h_f.search(&ok_doc, &[("q", "none")], &[f32::NAN]).is_err());
+        let huge_doc = HybridSearch {
+            bm25: &bm25_2,
+            dim: 2,
+            vectors: &[f32::MAX, f32::MAX, 1.0, 0.0],
+            doc: &[0, 1],
+            span: &spans2,
+            docs: &docs2,
+        };
+        assert!(h_f.search(&huge_doc, &[("q", "none")], &[f32::MAX, f32::MAX]).is_err());
+    }
 }

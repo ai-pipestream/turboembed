@@ -132,10 +132,16 @@ impl Hybrid {
                 s.span.len()
             ));
         }
-        if s.vectors.len() != rows * s.dim {
+        let want_vecs =
+            rows.checked_mul(s.dim).ok_or_else(|| format!("chunk count {rows} * dim {} overflows usize", s.dim))?;
+        if s.vectors.len() != want_vecs {
             return Err(format!("{} vector values for {rows} chunks of {} dimensions", s.vectors.len(), s.dim));
         }
-        if query_vectors.len() != queries.len() * s.dim {
+        let want_qvecs = queries
+            .len()
+            .checked_mul(s.dim)
+            .ok_or_else(|| format!("query count {} * dim {} overflows usize", queries.len(), s.dim))?;
+        if query_vectors.len() != want_qvecs {
             return Err(format!(
                 "{} vector values for {} queries of {} dimensions",
                 query_vectors.len(),
@@ -143,13 +149,19 @@ impl Hybrid {
                 s.dim
             ));
         }
+        if s.vectors.iter().any(|v| !v.is_finite()) {
+            return Err("hybrid search got a non-finite chunk vector value".into());
+        }
+        if query_vectors.iter().any(|v| !v.is_finite()) {
+            return Err("hybrid search got a non-finite query vector value".into());
+        }
         if let Some(&d) = s.doc.iter().find(|&&d| d as usize >= s.docs.len()) {
             return Err(format!("document number {d} of {} documents", s.docs.len()));
         }
 
         let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(queries.len()).max(1);
         let per = queries.len().div_ceil(threads).max(1);
-        let parts: Vec<Vec<(Ranking, ChunkRanking)>> = std::thread::scope(|scope| {
+        let parts: Vec<Result<Vec<(Ranking, ChunkRanking)>>> = std::thread::scope(|scope| {
             let handles: Vec<_> = queries
                 .chunks(per)
                 .enumerate()
@@ -168,13 +180,27 @@ impl Hybrid {
                 .collect();
             handles.into_iter().map(|h| h.join().unwrap_or_else(|e| std::panic::resume_unwind(e))).collect()
         });
-        let (docs, chunks): (Vec<_>, Vec<_>) = parts.into_iter().flatten().unzip();
+        let mut docs = Vec::with_capacity(queries.len());
+        let mut chunks = Vec::with_capacity(queries.len());
+        for part in parts {
+            for (d, c) in part? {
+                docs.push(d);
+                chunks.push(c);
+            }
+        }
         Ok((Run::new(docs)?, ChunkRun::new(chunks)?))
     }
 
-    fn rank(&self, s: &HybridSearch<'_>, query: &str, text: &str, q_vec: &[f32]) -> (Ranking, ChunkRanking) {
+    fn rank(&self, s: &HybridSearch<'_>, query: &str, text: &str, q_vec: &[f32]) -> Result<(Ranking, ChunkRanking)> {
         let rows = s.bm25.rows();
-        let dense_raw: Vec<f64> = s.vectors.chunks_exact(s.dim).map(|v| f64::from(dot(q_vec, v))).collect();
+        let mut dense_raw = Vec::with_capacity(rows);
+        for v in s.vectors.chunks_exact(s.dim) {
+            let score = f64::from(dot(q_vec, v));
+            if !score.is_finite() {
+                return Err(format!("query {query}: non-finite dense dot product"));
+            }
+            dense_raw.push(score);
+        }
 
         let mut terms = Vec::new();
         self.terms.terms(text, &mut terms);
@@ -240,7 +266,7 @@ impl Hybrid {
         top(&mut chunks, |&a, &b| fused[b].total_cmp(&fused[a]).then_with(|| tie_chunk(a, b)));
         let chunk_hits =
             chunks.iter().map(|&c| ChunkHit { doc: id(s.doc[c]).clone(), span: s.span[c], score: fused[c] }).collect();
-        (Ranking { query: query.into(), hits }, ChunkRanking { query: query.into(), hits: chunk_hits })
+        Ok((Ranking { query: query.into(), hits }, ChunkRanking { query: query.into(), hits: chunk_hits }))
     }
 }
 
