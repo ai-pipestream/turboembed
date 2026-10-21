@@ -120,6 +120,11 @@ impl Pipeline {
             return Err(format!("set {}: the chunker made no chunks", set.name));
         }
 
+        // Bookkeeping for the record, outside every timed stage.
+        let ids: Vec<String> = set.docs.iter().map(|d| d.id.clone()).collect();
+        let chunk_bytes: Vec<u64> = spans.iter().map(|s| (s.end - s.start) as u64).collect();
+        let count = spans.len() as u64;
+
         let t = Instant::now();
         let texts: Vec<String> = doc_of
             .iter()
@@ -134,9 +139,6 @@ impl Pipeline {
             })
             .collect();
         let chunk_tokens: Vec<u64> = texts.iter().map(|t| embedder.count(t, Role::Document)).collect();
-        let ids: Vec<String> = set.docs.iter().map(|d| d.id.clone()).collect();
-        let chunk_bytes: Vec<u64> = spans.iter().map(|s| (s.end - s.start) as u64).collect();
-        let count = spans.len() as u64;
         let (run, chunks, embedding_ms, retrieval_ms) = if let Some(lexical) = &self.lexical {
             // Nothing is embedded: the index and the search are retrieval.
             let t = Instant::now();

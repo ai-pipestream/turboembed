@@ -4,8 +4,10 @@
 //! and counts chunk tokens for the cost.
 //!
 //! A chunk's terms are its UAX #29 word tokens that hold a letter or a
-//! digit, lowercased (`TermRule::Folded`, the folded column turbo-chunker's
-//! term statistics index). `TermRule::English` adds what Lucene's
+//! digit, lowercased with `str::to_lowercase` (`TermRule::Folded`; close
+//! to, but not the same as, the full case fold of the folded view
+//! turbo-chunker's term statistics are read from: `ß` stays `ß`, and a
+//! word-final capital sigma becomes `ς`). `TermRule::English` adds what Lucene's
 //! `EnglishAnalyzer` does after its tokenizer: a trailing `'s` dropped, its
 //! 33 stop words left out, and Porter's stemmer. The tokenizer is not
 //! Lucene's `StandardTokenizer`, so the terms are close to Lucene's but

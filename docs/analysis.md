@@ -4088,8 +4088,10 @@ the text into its pieces for the analysis and counts chunk tokens for
 the cost. The index is turbo-chunker's `Bm25PostingIndex`, one row a
 chunk, with Lucene's `k1` 1.2 and `b` 0.75 unless `--k1` and `--b` say
 otherwise. A chunk's terms (`--terms folded`, the default) are its UAX
-#29 word tokens that hold a letter or a digit, lowercased: the folded
-column turbo-chunker's term statistics index. `--terms english` also
+#29 word tokens that hold a letter or a digit, lowercased with
+`str::to_lowercase`: close to, but not the same as, the full case fold
+of the folded view turbo-chunker's term statistics are read from (`ß`
+stays `ß`). `--terms english` also
 drops a trailing `'s`, leaves out Lucene's 33 English stop words and
 applies Porter's stemmer, after Lucene's `EnglishAnalyzer`. A document
 scores its best chunk, ties and the query's own document as in the
