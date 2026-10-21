@@ -9,7 +9,17 @@ publish = false
 name = "turbo_relation"
 
 [dependencies]
+# The native DeBERTa-v3 encoder, SentencePiece and safetensors reader the
+# GLiNER2 relation scorer runs on.
+turbo = { path = "../../core" }
+serde_json = "1"
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-depparse = { path = "../depparse" }
 turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+# Packages the GLiNER2 encoder for the parity tests, as `turbo-bundle
+# deberta-convert` does, and fetches the real checkpoint by digest.
+turbo-bundle = { path = "../../bundle" }
+turbo-zoo = { path = "../zoo" }

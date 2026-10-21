@@ -73,6 +73,10 @@ pub struct Pipeline {
     /// The analyzer's annotators, by name, in the order they ran.
     pub analyzer: Vec<String>,
     pub chunker: Chunker,
+    /// How chunks are ranked when it is not by the embedder's vectors:
+    /// absent for the dense ranking every record before it used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retrieval: Option<Chunker>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -326,6 +330,7 @@ pub(crate) mod tests {
                     name: "turbo-chunker".into(),
                     config: vec![Setting { name: "max_tokens".into(), value: "256".into() }],
                 },
+                retrieval: None,
             },
             metrics: Metrics {
                 queries: scores.len() as u32,

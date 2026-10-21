@@ -1,0 +1,13 @@
+torch==2.14.1+cpu
+transformers==4.57.1
+safetensors==0.8.0
+numpy==2.5.4
+sentencepiece==0.2.2
+protobuf==7.36.2
+tokenizers==0.22.2
+pydantic==2.14.1
+requests==2.34.2
+tqdm==4.70.1
+urllib3==2.8.0
+huggingface-hub==0.36.2
+gliner2 @ git+https://github.com/fastino-ai/GLiNER2@ca4f68235b50fe4c3ecf3876851d748fe4b15c6c

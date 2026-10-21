@@ -95,13 +95,17 @@ impl Server {
         let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone(), admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
+        // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
+        // does not reach a listener served with serve_with_incoming, and
+        // without it a response written in two segments waits for the
+        // client's delayed ACK (about 40 ms a ModelInfer).
+        let incoming = TcpIncoming::from(listener).with_nodelay(Some(true));
         let task = tokio::spawn(
             tonic::transport::Server::builder()
-                .tcp_nodelay(true)
                 .layer(tower::util::MapResponseLayer::new(too_large))
                 .add_service(kserve)
                 .add_service(analysis)
-                .serve_with_incoming_shutdown(TcpIncoming::from(listener).with_nodelay(Some(true)), async {
+                .serve_with_incoming_shutdown(incoming, async {
                     let _ = stopped.await;
                 }),
         );

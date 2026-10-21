@@ -124,3 +124,39 @@ fn token_and_prompt_heads_select_checked_visible_rows() {
     let heads = TokenPromptProjections::new(bad.clone(), bad).unwrap();
     assert!(heads.tokens(&states, &[0]).is_err());
 }
+
+#[test]
+fn padding_and_masked_ids_never_change_visible_rows() {
+    let model = Encoder::from_safetensors(config(), WEIGHTS).unwrap();
+    let base: Vec<u32> = (0..20).map(|i| (i * 7 % 16) as u32).collect();
+    // A batch of mixed active lengths, each run alone and padded to the
+    // batch's lengths with different pad IDs.
+    for active in [1, 2, 5, 13, 20] {
+        let ids = &base[..active];
+        let alone = model.encode(ids, &vec![true; active]).unwrap();
+        for len in [active + 1, 24, 32] {
+            let mask: Vec<bool> = (0..len).map(|i| i < active).collect();
+            let mut outs = Vec::new();
+            for fill in [0u32, 15] {
+                let mut padded = ids.to_vec();
+                padded.resize(len, fill);
+                let out = model.encode(&padded, &mask).unwrap();
+                assert_eq!(&out.data()[..active * 32], alone.data(), "active {active} len {len}");
+                let pad = &out.data()[active * 32..(active + 1) * 32];
+                assert!(pad.iter().all(|v| v.is_finite()));
+                assert!(out.data()[active * 32..].chunks(32).all(|row| row == pad));
+                outs.push(out.data().to_vec());
+            }
+            assert_eq!(outs[0], outs[1], "masked IDs are never read");
+        }
+    }
+    // Interior masks: visible rows keep their own positions; masked IDs
+    // anywhere are never read, and every masked row is the same.
+    let mask = [true, false, true, true, false, false, true];
+    let a = model.encode(&[3, 4, 5, 6, 7, 8, 9], &mask).unwrap();
+    let b = model.encode(&[3, 12, 5, 6, 0, 1, 9], &mask).unwrap();
+    assert_eq!(a.data(), b.data());
+    let rows: Vec<_> = a.data().chunks(32).collect();
+    assert!(rows[1] == rows[4] && rows[4] == rows[5] && rows[0] != rows[2]);
+    assert!(a.data().iter().all(|v| v.is_finite()));
+}

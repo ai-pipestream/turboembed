@@ -179,3 +179,52 @@ async fn chunk_levels_and_document_graph_cross_grpc() {
     assert_eq!(status.code(), tonic::Code::InvalidArgument, "{status}");
     server.stop().await;
 }
+
+#[test]
+fn overlapping_touching_unordered_and_orphan_fragments_are_refused() {
+    // Over "abcd": fragments [0,2) and [1,3) overlap.
+    let mut msg = fixture(OffsetMode::Utf8).to_msg();
+    msg.text = "abcd".into();
+    msg.chunk_frag_start = vec![0, 1];
+    msg.chunk_frag_end = vec![2, 3];
+    msg.chunk_frag_at = vec![2, 2];
+    let err = match ChunkLevels::from_msg(&msg) {
+        Ok(_) => panic!("overlapping fragments refused, not a panic"),
+        Err(e) => e,
+    };
+    assert_eq!(err.code, turbo_kserve::api::TURBO_E_INVALID_ARGUMENT, "{}", err.message);
+    // Touching fragments are one continuous piece, not two.
+    msg.chunk_frag_start = vec![0, 2];
+    msg.chunk_frag_end = vec![2, 4];
+    assert!(ChunkLevels::from_msg(&msg).is_err(), "touching fragments refused");
+    // Unordered fragments.
+    msg.chunk_frag_start = vec![2, 0];
+    msg.chunk_frag_end = vec![4, 1];
+    assert!(ChunkLevels::from_msg(&msg).is_err(), "unordered fragments refused");
+    // The same on the levels side.
+    let mut msg = fixture(OffsetMode::Utf8).to_msg();
+    msg.level_frag_start = vec![0, 1, 0];
+    msg.level_frag_end = vec![2, 3, 4];
+    msg.level_frag_at = vec![3, 3, 3];
+    assert!(ChunkLevels::from_msg(&msg).is_err(), "overlapping level fragments refused");
+
+    // Orphan fragments: no items, but fragment columns present.
+    let mut msg = fixture(OffsetMode::Utf8).to_msg();
+    msg.chunk_frag_at = vec![];
+    msg.chunk_frag_start = vec![u32::MAX];
+    msg.chunk_frag_end = vec![u32::MAX];
+    for col in [
+        &mut msg.chunk_level,
+        &mut msg.chunk_sentence_start,
+        &mut msg.chunk_sentence_end,
+        &mut msg.chunk_cut,
+        &mut msg.chunk_cut_block,
+        &mut msg.chunk_model_tokens,
+    ] {
+        col.clear();
+    }
+    msg.chunk_parent.clear();
+    msg.chunk_cost.clear();
+    msg.chunk_over_budget.clear();
+    assert!(ChunkLevels::from_msg(&msg).is_err(), "orphan fragments refused");
+}

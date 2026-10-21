@@ -114,7 +114,7 @@ fn spans_from_wire<L>(
     if start.len() as u64 > MAX_FRAGMENTS {
         return Err(over("max_fragments", "span fragments", start.len() as u64));
     }
-    if at.last().is_some_and(|&last| last as usize != start.len()) || at.windows(2).any(|w| w[0] > w[1]) {
+    if at.last().copied().unwrap_or(0) as usize != start.len() || at.windows(2).any(|w| w[0] > w[1]) {
         return Err(bad(format!("{what} fragment counts do not end at the {} fragments in order", start.len())));
     }
     let mut spans = Spans::new(view);
@@ -126,7 +126,9 @@ fn spans_from_wire<L>(
         }
         let frags: Result<Vec<Span>, Failure> =
             (from..to).map(|j| offsetter.from_wire(text, what, start[j], end[j])).collect();
-        spans.push_fragments(&frags?);
+        spans
+            .try_push_fragments(&frags?)
+            .map_err(|e| bad(format!("{what} item {i}: fragments are not ordered and separated: {e:?}")))?;
         from = to;
     }
     Ok(spans)

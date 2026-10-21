@@ -25,11 +25,30 @@ complete the neural portion of #714.
   Callers supply model-specific heads. These projections are not substitutes
   for a checkpoint's nonlinear span or schema heads.
 
-The encoder uses bounded per-call workspace and immutable model weights.
-`encode` retains only the final output; `encode_layers` also retains embedding
-and intermediate outputs for parity tests. Attention uses one score row at a
-time. The current linear execution is scalar CPU code with existing native
-GELU; packed GEMM, batching and device backends remain later work.
+The encoder uses immutable model weights and one workspace per call, allocated
+once and reused by every layer and head. `encode` retains only the final
+output; `encode_layers` also retains embedding and intermediate outputs for
+parity tests.
+
+Execution is single-threaded CPU code over the CPU backend's packed matrix
+kernels (`core/src/cpu/kernels/dense.rs`: AVX-512, AVX2 or portable, chosen at
+run time). Only visible positions are computed. Visible queries attend only to
+visible keys, and buckets depend only on position differences, so visible rows
+come out bit for bit the same whatever padding or masked IDs surround them.
+Every masked position has the same hidden state: zero after the embedding,
+then a uniform attention row over all positions, from upstream's finite mask
+minimum. One shared row is computed for all of them. Per head, c2c, c2p and
+p2c are products against keys and against only the relative rows the
+sequence's distances reach, gathered by bucket. The shared-key relative
+projections depend on weights alone. They are made once at load when all
+layers fit in 1 GiB, and otherwise per call for the reached rows, with the
+same bits. Threading, batching and device backends remain later work.
+
+Latency at DeBERTa-v3 shapes on synthetic weights, one pinned core:
+
+```
+taskset -c 2 cargo test --release --locked -p turbo --test deberta_speed -- --ignored --nocapture
+```
 
 ## Configuration and package contract
 
