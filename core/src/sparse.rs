@@ -249,10 +249,17 @@ impl MlmHead {
                 for (t, o) in out.chunks_exact_mut(w).enumerate() {
                     o.copy_from_slice(&self.decoder.bias[i0..i0 + w]);
                     let x = &block[t * h..(t + 1) * h];
-                    if avx2 {
+                    // `avx2` is only ever true on x86_64; elsewhere the call is
+                    // compiled out and the portable loop below runs.
+                    let fused = avx2 && {
                         // SAFETY: avx2 says the processor has AVX2 and FMA.
-                        unsafe { gemm_avx2(x, &wt, o, v, i0) };
-                    } else {
+                        #[cfg(target_arch = "x86_64")]
+                        unsafe {
+                            gemm_avx2(x, &wt, o, v, i0)
+                        };
+                        true
+                    };
+                    if !fused {
                         for (j, &xj) in x.iter().enumerate() {
                             let wt = &wt[j * v + i0..j * v + i0 + w];
                             for i in 0..w {
