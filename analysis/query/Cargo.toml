@@ -1,0 +1,37 @@
+[package]
+name = "turbo-query"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_query"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-chunker = { path = "../chunker" }
+turbo-geo = { path = "../geo" }
+turbo-glossary = { path = "../glossary" }
+turbo-glossary-layers = { path = "../glossary-layers" }
+turbo-grammar = { path = "../grammar" }
+turbo-langdetect = { path = "../langdetect" }
+turbo-langspan = { path = "../langspan" }
+turbo-maxent = { path = "../maxent" }
+turbo-namefind = { path = "../namefind" }
+turbo-normalize = { path = "../normalize" }
+turbo-normalize-layers = { path = "../normalize-layers" }
+turbo-numeric = { path = "../numeric" }
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-stem = { path = "../stem" }
+turbo-stem-layers = { path = "../stem-layers" }
+turbo-stopword = { path = "../stopword" }
+turbo-stopword-layers = { path = "../stopword-layers" }
+turbo-tokenize = { path = "../tokenize" }
+turbo-tokenize-layers = { path = "../tokenize-layers" }
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+turbo = { path = "../../core" }
+turbo-analysis-embed = { path = "../embed" }
