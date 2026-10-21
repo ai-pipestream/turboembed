@@ -222,6 +222,7 @@ fn a_real_bundle_at_its_longest_rows_stays_inside_f16() {
     let cpu = Session::create(c.m, Some(&desc(TURBO_PRECISION_EXACT))).unwrap();
     cpu.write_tokens(&t.batch(), None).unwrap();
     let want = cpu.run().unwrap().rows();
+    assert_eq!((got.len(), want.len()), (rows.len(), rows.len()), "a vector for every row");
     let mut lowest = 1f64;
     for (r, (a, b)) in got.iter().zip(&want).enumerate() {
         let cos = cosine(a, b);
@@ -234,7 +235,14 @@ fn a_real_bundle_at_its_longest_rows_stays_inside_f16() {
         rows.len(),
         1.0 - lowest
     );
-    for (name, peak) in turbo::metal::PEAK_NAMES.iter().zip(peaks) {
+    // Attention keeps Q, K, V and the context in F32 for heads it has no
+    // F16 kernel for, and those four slots then stay 0 together.
+    let f16_attention = peaks[..4].iter().any(|&p| p > 0.0);
+    for (i, (name, peak)) in turbo::metal::PEAK_NAMES.iter().zip(peaks).enumerate() {
+        if i < 4 && !f16_attention {
+            println!("  {name}: stored in F32");
+            continue;
+        }
         println!("  {name}: largest magnitude {peak:.1}, {:.1}% of F16's range", 100.0 * peak / F16_MAX);
         assert!(peak > 0.0 && peak < F16_MAX, "{name}: largest magnitude {peak}");
     }
