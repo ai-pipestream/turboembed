@@ -892,3 +892,14 @@ kernel void narrow_f16(device const float *src [[buffer(0)]], device half *dst [
     if (isinf(h) && isfinite(f)) atomic_store_explicit(overflow, 1u, memory_order_relaxed);
     dst[i] = h;
 }
+
+// The largest magnitude among n F16 values, as F32 bits into *slot, for
+// the tests that check how close FASTEST's F16 tensors come to F16's
+// range. Magnitudes are non-negative, so their bits order as they do.
+kernel void abs_max_f16(device const half *x [[buffer(0)]], constant uint &n [[buffer(1)]],
+                        device atomic_uint *slot [[buffer(2)]], uint i [[thread_position_in_grid]],
+                        ushort lane [[thread_index_in_simdgroup]]) {
+    const float a = i < n ? abs(float(x[i])) : 0.0f;
+    const float m = simd_max(a);
+    if (lane == 0) atomic_fetch_max_explicit(slot, as_type<uint>(m), memory_order_relaxed);
+}
