@@ -439,7 +439,7 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
         int32_t rc = c->queue ? TURBO_OK : refuse(err, TURBO_E_RUNTIME, "newCommandQueue gave none");
         if (rc == TURBO_OK) rc = kernels_for(ordinal, &c->kernels, err);
         // kernels.metal's reductions and matrices take SIMD groups of 32.
-        for (int kk : {GEMM, GEMM_SMALL, ATTENTION, GEMM_H32, GEMM_H32 + 1, GEMM_H32 + 2, GEMM_H64, GEMM_H64 + 1,
+        for (int kk : std::initializer_list<int>{GEMM, GEMM_SMALL, ATTENTION, GEMM_H32, GEMM_H32 + 1, GEMM_H32 + 2, GEMM_H64, GEMM_H64 + 1,
                        GEMM_H64 + 2, GEMM_SMALL_H, GEMM_SMALL_H + 1, GEMM_SMALL_H + 2})
             if (rc == TURBO_OK && c->kernels->k[kk].maxTotalThreadsPerThreadgroup < 128)
                 rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs the %s kernel in threadgroups of %lu; it needs 128",
@@ -1069,7 +1069,7 @@ int32_t forced_linear(int *out, turbo_error *err) {
         at = end + 1;
         if (item.empty() || item.rfind("forced=", 0) == 0) continue;
         int found = -1;
-        for (int l = LINEAR_F32; l <= LINEAR_H64; l++)
+        for (int l = LINEAR_F32; l <= (int)LINEAR_H64; l++)
             if (item == std::string("linear=") + LINEAR_NAMES[l]) found = l;
         if (found < 0)
             return refuse(err, TURBO_E_INVALID_ARGUMENT,
@@ -1124,7 +1124,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         const bool half = precision == TURBO_PRECISION_FASTEST;
         int forced = -1;
         TRY(forced_linear(&forced, err));
-        if (forced >= 0 && (forced != LINEAR_F32) != half)
+        if (forced >= 0 && (forced != (int)LINEAR_F32) != half)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
                                 "TURBO_METAL_CHOICES linear=%s: %s computes its linear layers %s",
                                 LINEAR_NAMES[forced], half ? "FASTEST" : "this precision",
@@ -1312,6 +1312,10 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     const uint32_t h = d.hidden, inter = d.intermediate, hd = d.hidden / d.heads;
     id<MTLBuffer> sc = s.scratch, rows = s.rows;
     auto bind = [&](const Ref &r, NSUInteger i) { [enc setBuffer:r.buf offset:r.at atIndex:i]; };
+    // At FASTEST the weights are F16, and the feed-forward block's middle,
+    // GELU's output, is F16 too: x_half and y_half say which side is.
+    const bool f16 = s.linear != LINEAR_F32;
+    const std::vector<Ref> &lw = f16 ? s.model->f16 : w;
     auto layer = [&](uint32_t l, int r) -> const Ref & {
         return w[TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r];
     };
@@ -1326,10 +1330,6 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     // most of the GPU idle has its k split, so more threadgroups share the
     // work; the splits land side by side in its output, which holds
     // capacity rows, and add_ln sums them. Returns the splits.
-    // At FASTEST the weights are F16, and the feed-forward block's middle,
-    // GELU's output, is F16 too: x_half and y_half say which side is.
-    const bool f16 = s.linear != LINEAR_F32;
-    const std::vector<Ref> &lw = f16 ? s.model->f16 : w;
     auto gemm = [&](uint64_t x, uint32_t n_in, uint32_t n_out, uint32_t epilogue,
                     std::initializer_list<std::pair<const Ref *, uint64_t>> outs,
                     std::initializer_list<const Ref *> biases, bool x_half = false, bool y_half = false) -> uint32_t {
@@ -1522,7 +1522,7 @@ std::string choice_line(Linear l, bool forced) {
 
 /* The linear layers a choices line names, or -1. */
 int parse_linear(const char *line) {
-    for (int l = LINEAR_F32; l <= LINEAR_H64; l++) {
+    for (int l = LINEAR_F32; l <= (int)LINEAR_H64; l++) {
         const std::string item = std::string("linear=") + LINEAR_NAMES[l];
         const char *at = strstr(line, item.c_str());
         if (at && (at == line || at[-1] == ';') && (at[item.size()] == ';' || at[item.size()] == 0)) return l;
@@ -1559,7 +1559,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         return TURBO_OK;
     }
     const int cached = t.cached ? parse_linear(t.cached) : -1;
-    const bool usable = cached == LINEAR_H32 || cached == LINEAR_H64;
+    const bool usable = cached == (int)LINEAR_H32 || cached == (int)LINEAR_H64;
     if (t.mode == TURBO_AUTOTUNE_ON && usable) {
         s.linear = (Linear)cached;
         write_choices(t.choices, choice_line(s.linear, false));

@@ -251,7 +251,10 @@ impl MlmHead {
                     let x = &block[t * h..(t + 1) * h];
                     if avx2 {
                         // SAFETY: avx2 says the processor has AVX2 and FMA.
-                        unsafe { gemm_avx2(x, &wt, o, v, i0) };
+                        #[cfg(target_arch = "x86_64")]
+                        unsafe {
+                            gemm_avx2(x, &wt, o, v, i0)
+                        };
                     } else {
                         for (j, &xj) in x.iter().enumerate() {
                             let wt = &wt[j * v + i0..j * v + i0 + w];
