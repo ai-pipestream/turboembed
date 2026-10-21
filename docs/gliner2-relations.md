@@ -109,9 +109,9 @@ and ours on its own:
 
 | per text | reference | native | ratio |
 |---|---|---|---|
-| end to end | 196.7 to 196.9 ms | 41.0 to 41.7 ms | 0.21 |
-| encoder | 185.2 to 185.5 ms | 36.8 to 36.9 ms | 0.20 |
-| everything else (tokenization, heads, decoding) | 11.4 to 11.8 ms | 4.2 to 4.8 ms | 0.37 to 0.41 |
+| end to end | 196.7 to 196.9 ms | 41.0 to 41.7 ms | 0.21x |
+| encoder | 185.2 to 185.5 ms | 36.8 to 36.9 ms | 0.20x |
+| everything else (tokenization, heads, decoding) | 11.4 to 11.8 ms | 4.1 to 4.8 ms | 0.36 to 0.41x, each round with its own reference |
 
-The native encoder is the active-position DeBERTa-v3 path of #391
-(docs/deberta.md), and it is nine tenths of the native time.
+The native encoder, which computes only the visible positions since #391
+(docs/deberta.md), is about nine tenths of the native time.
