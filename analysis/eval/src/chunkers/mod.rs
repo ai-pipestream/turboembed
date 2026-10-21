@@ -1,6 +1,7 @@
 //! The chunkers a pipeline can run, behind one trait: the three baselines
 //! and the turbo-chunker steps.
 //!
+//! - [`WholeDocument`]: the whole document as one chunk.
 //! - [`FixedTokens`]: windows of N of the model's tokens, with overlap.
 //! - [`SentenceWindows`]: windows of N sentences.
 //! - [`Semantic`]: the OpenNLP sandbox's semantic chunker, a cut wherever
@@ -11,11 +12,13 @@
 //! Each records every setting it ran with, defaults included, so a record
 //! says exactly what was measured.
 
+mod document;
 mod fixed;
 mod semantic;
 mod sentences;
 mod turbo;
 
+pub use document::WholeDocument;
 pub use fixed::FixedTokens;
 pub use semantic::{Semantic, Threshold, cosine, starts};
 pub use sentences::SentenceWindows;

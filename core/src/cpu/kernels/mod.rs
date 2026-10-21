@@ -17,12 +17,14 @@
 //! x86_64 it multiplies and adds in two roundings.
 
 mod attend;
+mod dense;
 mod gemm;
 mod micro;
 mod rowwise;
 mod simd;
 
 pub(super) use attend::{Attend, LANES};
+pub(crate) use dense::{Matrix, Mode, softmax};
 pub(super) use gemm::{Epilogue, Gemm};
 #[cfg(target_arch = "x86_64")]
 pub(super) use micro::{Avx2, Avx512};

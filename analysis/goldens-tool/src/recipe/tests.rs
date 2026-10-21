@@ -358,3 +358,23 @@ fn every_input_set_and_fixture_is_present() {
         assert!(data.join("fixtures").join(f.file).is_file(), "{}", f.file);
     }
 }
+
+#[test]
+fn every_excerpt_is_present_with_its_hash_and_line_count() {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data");
+    for e in EXCERPTS {
+        assert!(is_lower_hex(e.sha512, 128) && is_lower_hex(e.source_sha512, 128), "{}", e.input);
+        assert!(e.source_url.starts_with("https://") && e.source.starts_with("https://"), "{}", e.input);
+        assert!(!e.license.is_empty() && !e.lines.is_empty(), "{}", e.input);
+        assert!(e.lines.iter().all(|&(a, b)| 0 < a && a <= b), "{}: {:?}", e.input, e.lines);
+        assert!(e.lines.windows(2).all(|w| w[0].1 < w[1].0), "{}: {:?}", e.input, e.lines);
+        assert!(INPUT_SETS.contains(&e.input.split('/').next().unwrap()), "{}", e.input);
+        let bytes = std::fs::read(data.join("inputs").join(e.input)).unwrap_or_else(|err| panic!("{}: {err}", e.input));
+        assert_eq!(crate::sha512::hex(&crate::sha512::sha512(&bytes)), e.sha512, "{}", e.input);
+        let text = std::str::from_utf8(&bytes).unwrap();
+        let (head, body) = text.split_once("\n\n").expect("comment lines, then an empty line");
+        assert!(head.lines().all(|l| l.starts_with("# ")), "{}", e.input);
+        let taken: u32 = e.lines.iter().map(|&(a, b)| b - a + 1).sum();
+        assert_eq!(body.lines().count() as u32, taken, "{}", e.input);
+    }
+}
