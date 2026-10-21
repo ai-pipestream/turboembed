@@ -42,7 +42,11 @@ impl Matrix {
 
     /// The rows of `parts`, each [n_i, k] row-major, one after another.
     /// Err is the bytes it could not allocate.
+    ///
+    /// # Panics
+    /// If k is 0 or a part's length is not a multiple of k.
     pub fn from_rows(parts: &[&[f32]], k: usize) -> Result<Matrix, usize> {
+        assert!(k > 0 && parts.iter().all(|p| p.len() % k == 0), "dense product: parts are not rows of k");
         let isa = Isa::detect();
         let panels = Panels::pack(parts, k, isa)?;
         let mut zero = Vec::new();
@@ -53,7 +57,7 @@ impl Matrix {
 
     /// W[o][kk] = src[o * ld + kk] for o under n and kk under k.
     pub fn pack_rows(&mut self, src: &[f32], ld: usize, n: usize, k: usize) -> Result<(), usize> {
-        if n > 0 && src.len() < (n - 1) * ld + k {
+        if n > 0 && extent(n, ld, k).is_none_or(|e| src.len() < e) {
             return Err(usize::MAX);
         }
         self.fill(n, k, |o, kk| src[o * ld + kk])
@@ -62,7 +66,7 @@ impl Matrix {
     /// W[o][kk] = src[kk * ld + o] for o under n and kk under k: the
     /// transpose of a row-major [k, n] block.
     pub fn pack_cols(&mut self, src: &[f32], ld: usize, n: usize, k: usize) -> Result<(), usize> {
-        if k > 0 && src.len() < (k - 1) * ld + n {
+        if k > 0 && extent(k, ld, n).is_none_or(|e| src.len() < e) {
             return Err(usize::MAX);
         }
         self.fill(n, k, |o, kk| src[kk * ld + o])
@@ -98,7 +102,8 @@ impl Matrix {
     /// bias[o] or 0) for r under rows and o under n.
     ///
     /// # Panics
-    /// If x, y or bias is shorter than the shapes need.
+    /// If ldx < k, ldy < n, or x, y or bias is shorter than the shapes
+    /// need (an extent that overflows usize is too long for any slice).
     #[allow(clippy::too_many_arguments)]
     pub fn apply(
         &self,
@@ -114,8 +119,10 @@ impl Matrix {
         if rows == 0 || n == 0 {
             return;
         }
-        assert!(ldx >= k && x.len() >= (rows - 1) * ldx + k, "dense product: x too short");
-        assert!(ldy >= n && y.len() >= (rows - 1) * ldy + n, "dense product: y too short");
+        assert!(ldx >= k, "dense product: ldx {ldx} under k {k}");
+        assert!(ldy >= n, "dense product: ldy {ldy} under n {n}");
+        assert!(extent(rows, ldx, k).is_some_and(|e| x.len() >= e), "dense product: x too short");
+        assert!(extent(rows, ldy, n).is_some_and(|e| y.len() >= e), "dense product: y too short");
         let bias = bias.unwrap_or(&self.zero);
         assert!(bias.len() >= n, "dense product: bias too short");
         let epilogue = match mode {
@@ -140,6 +147,12 @@ impl Matrix {
             }
         }
     }
+}
+
+/// Floats from the first of `rows` rows `ld` apart to the end of the last
+/// one's `width`, or None if that overflows. rows is at least 1.
+fn extent(rows: usize, ld: usize, width: usize) -> Option<usize> {
+    (rows - 1).checked_mul(ld)?.checked_add(width)
 }
 
 #[inline(always)]
@@ -214,5 +227,52 @@ mod tests {
         softmax(&mut p);
         assert_eq!(p[2], 0.0);
         assert!((p.iter().sum::<f32>() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn no_rows_is_a_no_op() {
+        let m = Matrix::from_rows(&[&[1.0]], 1).unwrap();
+        let mut y = [7.0; 2];
+        m.apply(&[], usize::MAX, 0, None, &mut y, usize::MAX, Mode::Plain);
+        assert_eq!(y, [7.0; 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "x too short")]
+    fn an_input_extent_that_overflows_panics() {
+        let m = Matrix::from_rows(&[&[1.0]], 1).unwrap();
+        let mut y = [0.0; 2];
+        m.apply(&[], usize::MAX, 2, None, &mut y, 1, Mode::Plain);
+    }
+
+    #[test]
+    #[should_panic(expected = "y too short")]
+    fn an_output_extent_that_overflows_panics() {
+        let m = Matrix::from_rows(&[&[1.0]], 1).unwrap();
+        m.apply(&[1.0, 2.0], 1, 2, None, &mut [], usize::MAX, Mode::Plain);
+    }
+
+    #[test]
+    #[should_panic(expected = "ldx")]
+    fn a_short_input_stride_panics() {
+        let m = Matrix::from_rows(&[&[1.0, 2.0]], 2).unwrap();
+        m.apply(&[1.0; 4], 1, 2, None, &mut [0.0; 2], 1, Mode::Plain);
+    }
+
+    #[test]
+    #[should_panic(expected = "not rows of k")]
+    fn ragged_parts_panic() {
+        let _ = Matrix::from_rows(&[&[1.0, 2.0, 3.0]], 2);
+    }
+
+    #[test]
+    fn packing_extents_that_overflow_are_refused() {
+        let mut m = Matrix::empty();
+        assert!(m.pack_rows(&[], usize::MAX, 2, 1).is_err());
+        assert!(m.pack_cols(&[], usize::MAX, 1, 2).is_err());
+        let mut y = [0.0; 2];
+        m.pack_rows(&[1.0, 2.0], 1, 2, 1).unwrap();
+        m.apply(&[3.0], 1, 1, None, &mut y, 2, Mode::Plain);
+        assert_eq!(y, [3.0, 6.0]);
     }
 }

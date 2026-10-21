@@ -124,8 +124,8 @@ impl Panels {
     pub(super) fn pack(parts: &[&[f32]], k: usize, isa: Isa) -> Result<Panels, usize> {
         let (mr, nr) = isa.tile();
         let n: usize = parts.iter().map(|p| p.len() / k).sum();
-        let floats = n.div_ceil(nr).checked_mul(k * nr).ok_or(usize::MAX)?;
-        let mut buf = zeroed::<f32>(floats + 16)?;
+        let floats = k.checked_mul(nr).and_then(|w| n.div_ceil(nr).checked_mul(w)).ok_or(usize::MAX)?;
+        let mut buf = zeroed::<f32>(floats.checked_add(16).ok_or(usize::MAX)?)?;
         let off = buf.as_ptr().align_offset(64).min(16);
         let dst = &mut buf[off..off + floats];
         let mut o = 0;
