@@ -259,6 +259,12 @@ are not taken from any corpus.
   Annotation for German: Guidelines and Dataset", LREC 2014) as Apache
   OpenNLP's test file `germeval2014.sample` holds them (Apache License
   2.0), unchanged after the comment lines that say so.
+  `germeval-excerpt.txt` is 105 sentences of the same data's training
+  file `NER-de-train.tsv`, unchanged after its comment lines, which
+  credit the authors and list the six line ranges taken. Between them
+  they hold each of the twelve labels in both the outer and the inner
+  column; `analysis/goldens-tool/src/recipe/excerpts.rs` records the
+  ranges and the SHA-512 of the input and of the training file.
 
 - `inputs/ad/`: 11 files in the Arvores Deitadas format of the Floresta
   Sinta(c)tica treebank, written for this project in Portuguese-like
