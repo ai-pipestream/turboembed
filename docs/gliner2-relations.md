@@ -12,7 +12,7 @@ as `fastino-gliner2-base-v1` and fetches it by digest; it is the
 default. GLiREL's checkpoints and code are CC BY-NC-SA 4.0
 (docs/licences.md). The zoo lists `jackboyla/glirel-large-v0` as the
 local-only `jackboyla-glirel-large-v0`, fetched only after the user runs
-`turbo-zoo accept CC-BY-NC-SA-4.0`; nothing here runs it yet.
+`turbo-zoo accept CC-BY-NC-SA-4.0`, and docs/glirel-relations.md runs it.
 
 ## What runs
 
@@ -97,7 +97,7 @@ cache, timing GLiNER2's head classes directly at the same shapes, the
 same heads run at 0.88 to 0.98x the reference with AVX-512 and 1.03 to
 1.1x with AVX2.
 
-How the heads get there (`kernel.rs`, `heads.rs`): the layers run over
+How the heads get there (`analysis/relation/src/kernel.rs`, `analysis/relation/src/gliner2/heads.rs`): the layers run over
 all words or all queries at once, on weights transposed at load into
 panels of 32 outputs that a tile reads in order. A tile is 32 outputs by
 8 rows with AVX-512, 16 by 6 with AVX2 and FMA, plain loops otherwise.

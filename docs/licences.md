@@ -184,10 +184,13 @@ of it.
 
 The SaT and GLiNER checkpoints docs/neural-annotators.md considers, and
 the GLiNER2 and GLiREL checkpoints the relation scorer considers
-(docs/gliner2-relations.md). Two are in the zoo's index:
-`fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`, permissive) and
-`jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`, local-only,
-fetched from its publisher only after the user accepts CC BY-NC-SA 4.0).
+(docs/gliner2-relations.md, docs/glirel-relations.md). Three are in the
+zoo's index: `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
+permissive), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
+local-only, fetched from its publisher only after the user accepts CC
+BY-NC-SA 4.0), and GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
+`spm.model` and `config.json` (`microsoft-deberta-v3-large-tokenizer`,
+permissive).
 The others were not fetched, so no entry has the SHA-512s an entry
 needs. "Checked" is **here**: the
 `license` of the model card's metadata at the revision named, read on
@@ -203,6 +206,7 @@ and GLiREL rows.
 | [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive | here |
 | [urchade/gliner_small](https://huggingface.co/urchade/gliner_small) (v1) | `0f0f4e7d3f10e48844110162d6b5c6072ddd5a4e` | CC BY-NC 4.0 | | local-only; not used | here |
 | [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index | here |
+| [microsoft/deberta-v3-large](https://huggingface.co/microsoft/deberta-v3-large) (`spm.model`, `config.json`) | `64a8c8eab3e352a784c658aef62be1662607476f` | MIT | | permissive; in the index | here |
 | [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
 
 ## Datasets

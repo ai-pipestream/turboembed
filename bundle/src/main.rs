@@ -12,6 +12,12 @@ usage:
       create a native DeBERTa-v3 encoder package for the Rust API
   turbo-bundle deberta-verify <directory>
       check encoder configuration, tensor shapes and weight digest
+  turbo-bundle glirel-convert <pytorch_model.bin> <base-config.json> <spm.model> <repo> <revision> <license> <new-dir>
+      write a GLiREL checkpoint as the native scorer's package: the encoder,
+      the heads and glirel.json
+  turbo-bundle torch-convert <checkpoint.bin> <new.safetensors>
+      write a torch.save checkpoint's F32 tensors as safetensors, reading
+      its pickle as data without running it
   turbo-bundle make [--accept-terms] <recipe.json | model-id> <upstream-dir> <bundle-dir>
       fetch, stage, reference, convert, seal and verify, in that order
   turbo-bundle fetch [--accept-terms] <recipe.json | model-id> <upstream-dir>
@@ -58,6 +64,27 @@ fn run(args: &[&str]) -> Result<()> {
                 (repo, revision, license),
                 Path::new(out),
             )
+        }
+        ["glirel-convert", checkpoint, config, spm, repo, revision, license, out] => {
+            let read = |p: &str| std::fs::read(p).map_err(|e| format!("{p}: {e}"));
+            turbo_bundle::glirel::write_package(
+                &read(checkpoint)?,
+                &read(config)?,
+                &read(spm)?,
+                (repo, revision, license),
+                Path::new(out),
+            )
+        }
+        ["torch-convert", checkpoint, out] => {
+            let bytes = std::fs::read(checkpoint).map_err(|e| format!("{checkpoint}: {e}"))?;
+            let tensors = turbo_bundle::torch::read(&bytes)?;
+            let out_bytes = turbo_bundle::torch::to_safetensors(&tensors, |k| Some(k.to_owned()));
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(out)
+                .and_then(|mut f| std::io::Write::write_all(&mut f, &out_bytes))
+                .map_err(|e| format!("{out}: {e}"))
         }
         ["deberta-verify", dir] => {
             turbo::deberta::package::PackageManifest::load(Path::new(dir)).map(|_| ()).map_err(|e| e.message)

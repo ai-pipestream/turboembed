@@ -14,6 +14,7 @@ pub mod convert;
 pub mod deberta;
 pub mod distill;
 pub mod fetch;
+pub mod glirel;
 pub mod matryoshka;
 pub mod qa;
 pub mod recipe;
@@ -21,6 +22,7 @@ pub mod reference;
 pub mod seal;
 pub mod sparse;
 pub mod static_reference;
+pub mod torch;
 
 use std::path::Path;
 

@@ -1,4 +1,4 @@
-//! The products the GLiNER2 heads run on. One row at a time, a dot
+//! The products the GLiNER2 and GLiREL heads run on. One row at a time, a dot
 //! product with AVX2 and FMA where the processor has them, eight portable
 //! lanes otherwise. Many rows at once (the span projections of every
 //! word), a layer with its weights transposed, tiled in vector registers:
@@ -10,7 +10,7 @@ use turbo::head::Linear;
 /// A dot product: with AVX2 and FMA where the processor has them, as the
 /// encoder's kernels detect, else in eight independent lanes the compiler
 /// can keep in one vector register.
-pub(super) fn dot(a: &[f32], b: &[f32]) -> f32 {
+pub(crate) fn dot(a: &[f32], b: &[f32]) -> f32 {
     assert_eq!(a.len(), b.len(), "dot product of unlike lengths");
     #[cfg(target_arch = "x86_64")]
     if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
@@ -62,7 +62,7 @@ unsafe fn dot_avx2(a: &[f32], b: &[f32]) -> f32 {
 }
 
 /// `l` on one row, through [`dot`].
-pub(super) fn apply(l: &Linear, x: &[f32], out: &mut [f32]) {
+pub(crate) fn apply(l: &Linear, x: &[f32], out: &mut [f32]) {
     assert!(x.len() == l.in_dim && out.len() == l.out_dim, "a row of the layer's widths");
     for ((o, w), &b) in out.iter_mut().zip(l.weight.chunks_exact(l.in_dim)).zip(&l.bias) {
         *o = dot(w, x) + b;
@@ -72,7 +72,7 @@ pub(super) fn apply(l: &Linear, x: &[f32], out: &mut [f32]) {
 /// A linear layer with its weights transposed, `[in][out]`, for
 /// [`Packed::rows`]: the outputs of one input value are contiguous, so a
 /// tile of outputs accumulates in vector registers with no reduction.
-pub(super) struct Packed {
+pub(crate) struct Packed {
     pub in_dim: usize,
     pub out_dim: usize,
     /// The transposed weights in panels of `panel` outputs, each panel
