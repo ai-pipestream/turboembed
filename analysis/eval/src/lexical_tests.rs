@@ -15,7 +15,7 @@ fn terms(rule: TermRule, text: &str) -> Vec<String> {
 }
 
 #[test]
-fn folded_terms_are_lowercased_word_tokens_with_a_letter_or_digit() {
+fn default_terms_are_lowercased_word_tokens_with_a_letter_or_digit() {
     let text = "The cat's 2 CATS, running ... over the Café's hills!";
     assert_eq!(
         terms(TermRule::Folded, text),
