@@ -345,3 +345,17 @@ SHA-256 the recipes record (`ud::IT_UD_VIT_POS`, `ud::IT_UD_VIT_LEMMAS`),
 and scored on UD_Italian-MarkIT's `test` file beside the model trained on
 MarkIT. Nothing ships, bundles, mirrors or trains on them, the zoo does
 not list them, and CI does not fetch them.
+
+## GLiNER small-v2.1 numerical fixtures
+
+`urchade/gliner_small-v2.1` revision
+`4e091416cf7c3481db542c2a3d26156916f3a47f` declares Apache-2.0 in its
+[model card](https://huggingface.co/urchade/gliner_small-v2.1/blob/4e091416cf7c3481db542c2a3d26156916f3a47f/README.md).
+The underlying `microsoft/deberta-v3-small` encoder and SentencePiece tokenizer
+declare MIT in their [pinned model card](https://huggingface.co/microsoft/deberta-v3-small/blob/a36c739020e01763fe789b4b85e2df55d6180012/README.md). GLiNER 0.2.21 reference code is Apache-2.0.
+The head fixture in `analysis/gliner/tests/fixtures` contains modified, reduced
+slices of those trained weights, not a usable extraction checkpoint. Its
+provenance lists the slicing rules. Full-width reference outputs and source
+SHA-256 values are in `analysis/gliner/tests/fixtures/full-reference.json`.
+No full model is added to the zoo by this change. The exact checkpoint above
+was checked; this is not a licence decision for other GLiNER checkpoints.

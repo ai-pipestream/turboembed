@@ -2020,6 +2020,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "turbo",
+ "turbo-gliner",
  "ureq",
 ]
 
@@ -2139,6 +2140,7 @@ dependencies = [
  "turbo-stem",
  "turbo-structure",
  "turbo-tokenize",
+ "turbo-vector-index",
  "turbo-zstd",
  "ureq",
 ]
@@ -2194,6 +2196,17 @@ dependencies = [
  "turbo-numeric",
  "turbo-tokenize",
  "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-gliner"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
 ]
 
 [[package]]
