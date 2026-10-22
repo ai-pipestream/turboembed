@@ -5,7 +5,7 @@
 use crate::command::run;
 use crate::recipe::{
     CORPORA, DICTIONARIES, Dictionary, DictionaryEncoding, FIXTURES, HUNSPELL_FILES, LOCAL_MODELS, MODELS, Model,
-    UTF8_COPY_SUFFIX,
+    POOLING_SOURCE, UTF8_COPY_SUFFIX,
 };
 use crate::sha512::{Sha512, hex};
 use std::fs::{self, File};
@@ -34,10 +34,14 @@ pub fn fetch(dir: &Path, which: Models) -> Result<(), String> {
         Models::Published => &[],
         Models::WithLocal => &LOCAL_MODELS,
     };
+    let source: &[Model] = match which {
+        Models::Published => &[],
+        Models::WithLocal => std::slice::from_ref(&POOLING_SOURCE),
+    };
     let hunspell: Vec<Model> =
         HUNSPELL_FILES.iter().map(|f| Model { file: f.file, url: f.url, sha512: f.sha512 }).collect();
     let corpora: Vec<Model> = CORPORA.iter().map(|c| Model { file: c.file, url: c.url, sha512: c.sha512 }).collect();
-    for m in MODELS.iter().chain(local).chain(&hunspell).chain(&corpora) {
+    for m in MODELS.iter().chain(local).chain(source).chain(&hunspell).chain(&corpora) {
         let target = dir.join(m.file);
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
@@ -61,6 +65,9 @@ pub fn fetch(dir: &Path, which: Models) -> Result<(), String> {
     }
     for d in DICTIONARIES {
         fetch_dictionary(dir, &d)?;
+    }
+    if which == Models::WithLocal {
+        crate::pooled::derive(dir)?;
     }
     Ok(())
 }
