@@ -4848,6 +4848,26 @@ C=5 in these subsets because short documents hold few units per
 document. The
 documented default shortlist is C=64 for corpus-scale indexes,
 where one shortlist spans the whole corpus rather than one
-document. Qasper is cached only as a tarball (not BEIR jsonl for
-this reader), GutenQA only as parquet, and ConTEB and HiCBench are
-not cached; none of those four ran.
+document.
+
+GutenQA (long-form books, loaded through the set registry from its
+parquet cache; 100 documents, 339,809 level units, 50 queries) is
+where the funnel matters most:
+
+| Arm | Recall@10 | nDCG@10 | Contextual scored/query |
+|---|---|---|---|
+| Static only | 0.4800 | 0.2806 | 0 |
+| Contextual only | 0.6200 | 0.4374 | 339809 |
+| Cascade C=5 | 0.5800 | 0.4105 | 968 |
+| Cascade C=64 | 0.6000 | 0.4268 | 11651 |
+
+At the default C=64 the cascade scores 3.4% of the contextual units
+for a Recall@10 margin of -0.02 against contextual-only; at C=5 it
+scores 0.3% for -0.04. Structured stage-3 filters built from real
+layers (`Entities` spans via `UnitFilter::overlapping`) are covered
+by `entity_layer_filter_drops_and_boosts_with_measured_recall` in
+the chunker cascade tests, and build-time space isolation by
+`space_mismatches_are_refused_at_build_time`. Qasper is cached only
+as a tarball (not BEIR jsonl for this reader); the ConTEB sets and
+HiCBench are not loadable from this cache (HiCBench has no licence
+recorded), so those did not run.
