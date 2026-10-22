@@ -48,7 +48,7 @@ fn the_three_ways_run_on_the_small_bert() {
         warmup: 1,
         iterations: 3,
     };
-    let p = Provenance { top: String::new(), commit: "a".repeat(40), pushed_to: Vec::new() };
+    let p = Provenance { top: String::new(), commit: "a".repeat(40), pushed_to: vec!["origin/main".into()] };
     let r = measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap();
     // 30 text tokens a row: chunks of 8, 8, 8 and 6.
     assert_eq!((r.shape.chunks_per_row, r.rows.vectors, r.ranges.vectors, r.chunk_rows.vectors), (4, 2, 8, 8));
@@ -61,4 +61,18 @@ fn the_three_ways_run_on_the_small_bert() {
         file_name(&r),
         format!("{arch}.cpu.ranges.model.all-minilm-l6-v2-{}.aaaaaaaaaaaa.json", &r.bundle.manifest_sha256[..8])
     );
+    // The record passes its own check; a home directory, a ratio that is
+    // not the p50s' quotient, or an unpushed commit does not.
+    check(&r).unwrap();
+    let mut bad = r.clone();
+    bad.device.name = "/home/someone/gpu".into();
+    assert!(check(&bad).unwrap_err().contains("host path"));
+    let mut bad = r.clone();
+    bad.ranges_over_rows *= 1.01;
+    assert!(check(&bad).is_err());
+    let mut bad = r.clone();
+    bad.library.pushed_to.clear();
+    assert!(check(&bad).is_err());
+    let dir = std::env::temp_dir().join(format!("turbo-bench-ranges-{}", std::process::id()));
+    assert!(write(&bad, &dir).is_err());
 }

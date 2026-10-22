@@ -8,8 +8,9 @@
 //! - chunk rows: each chunk embedded as a row of its own,
 //!   `[CLS] chunk [SEP]`, in frames of as many rows as a session holds.
 //!
-//! The three are timed in turn, one run of each per round, so their
-//! ratios hold however the device's clock moves.
+//! The three are timed in turn, one run of each per round, the round's
+//! first run rotating, so their ratios hold however the device's clock
+//! moves.
 //!
 //! A chunk is `chunk` consecutive text tokens of a row (the last of a row
 //! may be shorter); the row's first and last positions, its special
@@ -161,19 +162,24 @@ pub fn chunk_rows(rows: &Rows, ranges: &[turbo_token_range], pad: i32) -> Rows {
 
 /// `warmup` untimed rounds, then `iterations` timed ones; a round runs
 /// each of `runs` once, in turn, so a change of clock or temperature
-/// falls on all of them alike.
+/// falls on all of them alike, and round `i` starts at run `i mod n`, so
+/// none always follows the same one.
 fn time(warmup: u32, iterations: u32, runs: &mut [(u32, &mut dyn FnMut() -> Result<()>)]) -> Result<Vec<Mode>> {
     for _ in 0..warmup {
         for (_, f) in runs.iter_mut() {
             f()?;
         }
     }
-    let mut ms = vec![Vec::with_capacity(iterations as usize); runs.len()];
-    for _ in 0..iterations {
-        for ((_, f), m) in runs.iter_mut().zip(ms.iter_mut()) {
+    let n = runs.len();
+    let mut ms = vec![Vec::with_capacity(iterations as usize); n];
+    for i in 0..iterations as usize {
+        // Each round starts one later, so no mode always follows the same
+        // one.
+        for k in 0..n {
+            let at = (i + k) % n;
             let t = Instant::now();
-            f()?;
-            m.push(t.elapsed().as_secs_f64() * 1e3);
+            (runs[at].1)()?;
+            ms[at].push(t.elapsed().as_secs_f64() * 1e3);
         }
     }
     Ok(runs
@@ -357,8 +363,38 @@ pub fn file_name(r: &RangeRecord) -> String {
     )
 }
 
-/// Write the record under `dir`; a record is never replaced.
+/// What a committed range record must be: made from a pushed commit, its
+/// ratios the quotients of its p50s, and no path on the machine that made
+/// it in its text, as `Record::check` holds a record.
+pub fn check(r: &RangeRecord) -> Result<()> {
+    if r.record_version != RANGE_RECORD_VERSION {
+        return Err(format!("record_version {}, expected {RANGE_RECORD_VERSION}", r.record_version));
+    }
+    let c = &r.library.commit;
+    if c.len() != 40 || !c.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(format!("library.commit {c} is not 40 hex"));
+    }
+    if r.library.pushed_to.is_empty() {
+        return Err("library.pushed_to is empty: made from a commit on no branch of origin".into());
+    }
+    let same = |a: f64, b: f64| a.is_finite() && a > 0.0 && (a - b).abs() <= 1e-12 * a.abs();
+    if !same(r.ranges_over_rows, r.ranges.p50_ms / r.rows.p50_ms)
+        || !same(r.chunk_rows_over_ranges, r.chunk_rows.p50_ms / r.ranges.p50_ms)
+    {
+        return Err("ranges_over_rows and chunk_rows_over_ranges are not the quotients of the p50s".into());
+    }
+    let text = serde_json::to_string(r).map_err(|e| e.to_string())?;
+    // JSON writes a backslash as two: fold them back before looking.
+    let text = text.replace("\\\\", "\\");
+    if let Some(home) = record::HOST_PATHS.iter().find(|h| text.contains(*h)) {
+        return Err(format!("the record holds a host path ({home}...)"));
+    }
+    Ok(())
+}
+
+/// Write the record under `dir`, checked; a record is never replaced.
 pub fn write(r: &RangeRecord, dir: &Path) -> Result<PathBuf> {
+    check(r)?;
     let mut bytes = serde_json::to_vec_pretty(r).map_err(|e| e.to_string())?;
     bytes.push(b'\n');
     std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
