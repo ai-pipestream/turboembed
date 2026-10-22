@@ -249,12 +249,12 @@ fn file_shapes(text: &str) -> Vec<turbo_goldens::Shape> {
     shapes
 }
 
-fn collect_goldens(dir: &Path, out: &mut Vec<PathBuf>) {
+fn collect_files(dir: &Path, ext: &str, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
-            collect_goldens(&path, out);
-        } else if path.extension().is_some_and(|e| e == "golden") {
+            collect_files(&path, ext, out);
+        } else if path.extension().is_some_and(|e| e == ext) {
             out.push(path);
         }
     }
@@ -271,7 +271,7 @@ fn unidic_goldens_round_trip() {
     }
 
     let mut all = Vec::new();
-    collect_goldens(&turbo_goldens::data_dir(), &mut all);
+    collect_files(&turbo_goldens::data_dir(), "golden", &mut all);
     all.sort();
     assert!(all.len() > 3000, "{} checked-in goldens", all.len());
     for path in all {
@@ -284,5 +284,15 @@ fn unidic_goldens_round_trip() {
                 if matches!(error.kind, turbo_goldens::escape::EscapeErrorKind::LoneSurrogate(_)) => {}
             Err(e) => panic!("{}: {e}", path.display()),
         }
+    }
+
+    let mut dumps = Vec::new();
+    collect_files(&turbo_goldens::data_dir(), "dump", &mut dumps);
+    dumps.sort();
+    assert!(dumps.len() > 1000, "{} checked-in dumps", dumps.len());
+    for path in dumps {
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(!raw.contains('\u{2014}'), "{}", path.display());
+        turbo_goldens::Dump::parse(&raw).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     }
 }

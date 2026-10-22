@@ -3941,7 +3941,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -3975,7 +3975,7 @@ context	p_1=Ow_2=the
 context	p_1=Ow_1=-
 context	p_1=Ow0=art
 context	p_1=Ow1=re-entry
-context	p_1=Ow2=—
+context	p_1=Ow2=\u2014
 context	p_1=Ow_1=-w0=art
 context	p_1=Ow0=artw1=re-entry
 outcome	B-NP	3fba05f0f79609e7 0.10165315670568696
@@ -3992,7 +3992,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -4026,7 +4026,7 @@ context	p_1=Ow_2=the
 context	p_1=Ow_1=-
 context	p_1=Ow0=art
 context	p_1=Ow1=re-entry
-context	p_1=Ow2=—
+context	p_1=Ow2=\u2014
 context	p_1=Ow_1=-w0=art
 context	p_1=Ow0=artw1=re-entry
 outcome	B-NP	3fba05f0f79609e7 0.10165315670568696
@@ -4043,7 +4043,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -4077,7 +4077,7 @@ context	p_1=Ow_2=the
 context	p_1=Ow_1=-
 context	p_1=Ow0=art
 context	p_1=Ow1=re-entry
-context	p_1=Ow2=—
+context	p_1=Ow2=\u2014
 context	p_1=Ow_1=-w0=art
 context	p_1=Ow0=artw1=re-entry
 outcome	B-NP	3fba05f0f79609e7 0.10165315670568696
@@ -4094,7 +4094,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -4128,7 +4128,7 @@ context	p_1=B-NPw_2=the
 context	p_1=B-NPw_1=-
 context	p_1=B-NPw0=art
 context	p_1=B-NPw1=re-entry
-context	p_1=B-NPw2=—
+context	p_1=B-NPw2=\u2014
 context	p_1=B-NPw_1=-w0=art
 context	p_1=B-NPw0=artw1=re-entry
 outcome	B-NP	3fa543bf98b0d309 0.041532504452709125
@@ -4145,7 +4145,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -4179,7 +4179,7 @@ context	p_1=B-NPw_2=the
 context	p_1=B-NPw_1=-
 context	p_1=B-NPw0=art
 context	p_1=B-NPw1=re-entry
-context	p_1=B-NPw2=—
+context	p_1=B-NPw2=\u2014
 context	p_1=B-NPw_1=-w0=art
 context	p_1=B-NPw0=artw1=re-entry
 outcome	B-NP	3fb14450abd35185 0.0674486560340651
@@ -4196,7 +4196,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -4230,7 +4230,7 @@ context	p_1=I-NPw_2=the
 context	p_1=I-NPw_1=-
 context	p_1=I-NPw0=art
 context	p_1=I-NPw1=re-entry
-context	p_1=I-NPw2=—
+context	p_1=I-NPw2=\u2014
 context	p_1=I-NPw_1=-w0=art
 context	p_1=I-NPw0=artw1=re-entry
 outcome	B-NP	3fbf88c13533ca7a 0.12318046139606934
@@ -4247,7 +4247,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -4281,7 +4281,7 @@ context	p_1=Ow_2=the
 context	p_1=Ow_1=-
 context	p_1=Ow0=art
 context	p_1=Ow1=re-entry
-context	p_1=Ow2=—
+context	p_1=Ow2=\u2014
 context	p_1=Ow_1=-w0=art
 context	p_1=Ow0=artw1=re-entry
 outcome	B-NP	3fb14384c7bd87f6 0.06743650318597347
@@ -4298,7 +4298,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -4332,7 +4332,7 @@ context	p_1=Ow_2=the
 context	p_1=Ow_1=-
 context	p_1=Ow0=art
 context	p_1=Ow1=re-entry
-context	p_1=Ow2=—
+context	p_1=Ow2=\u2014
 context	p_1=Ow_1=-w0=art
 context	p_1=Ow0=artw1=re-entry
 outcome	B-NP	3fc996b2d4dd0d29 0.19991145509457312
@@ -4349,7 +4349,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -4383,7 +4383,7 @@ context	p_1=Ow_2=the
 context	p_1=Ow_1=-
 context	p_1=Ow0=art
 context	p_1=Ow1=re-entry
-context	p_1=Ow2=—
+context	p_1=Ow2=\u2014
 context	p_1=Ow_1=-w0=art
 context	p_1=Ow0=artw1=re-entry
 outcome	B-NP	3fb886369ce1a631 0.09579793291200002
@@ -4400,7 +4400,7 @@ context	w_2=the
 context	w_1=-
 context	w0=art
 context	w1=re-entry
-context	w2=—
+context	w2=\u2014
 context	w_1=-w0=art
 context	w0=artw1=re-entry
 context	t_2=DT
@@ -4434,7 +4434,7 @@ context	p_1=B-NPw_2=the
 context	p_1=B-NPw_1=-
 context	p_1=B-NPw0=art
 context	p_1=B-NPw1=re-entry
-context	p_1=B-NPw2=—
+context	p_1=B-NPw2=\u2014
 context	p_1=B-NPw_1=-w0=art
 context	p_1=B-NPw0=artw1=re-entry
 outcome	B-NP	3fb14450abd35185 0.0674486560340651
@@ -4450,10 +4450,10 @@ point	87	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4484,10 +4484,10 @@ context	p_1=I-NPt0=NNt1=.t2=NN
 context	p_1=I-NPw_2=-
 context	p_1=I-NPw_1=art
 context	p_1=I-NPw0=re-entry
-context	p_1=I-NPw1=—
+context	p_1=I-NPw1=\u2014
 context	p_1=I-NPw2=em
 context	p_1=I-NPw_1=artw0=re-entry
-context	p_1=I-NPw0=re-entryw1=—
+context	p_1=I-NPw0=re-entryw1=\u2014
 outcome	B-NP	3fa573b813e7acdc 0.0418984913156579
 outcome	I-NP	3fc73f52d2c47876 0.18161998072986635
 outcome	B-VP	3fc1ce498f3303b4 0.13910789005424606
@@ -4501,10 +4501,10 @@ point	88	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4535,10 +4535,10 @@ context	p_1=I-NPt0=NNt1=.t2=NN
 context	p_1=I-NPw_2=-
 context	p_1=I-NPw_1=art
 context	p_1=I-NPw0=re-entry
-context	p_1=I-NPw1=—
+context	p_1=I-NPw1=\u2014
 context	p_1=I-NPw2=em
 context	p_1=I-NPw_1=artw0=re-entry
-context	p_1=I-NPw0=re-entryw1=—
+context	p_1=I-NPw0=re-entryw1=\u2014
 outcome	B-NP	3fa573b813e7acdc 0.0418984913156579
 outcome	I-NP	3fc73f52d2c47876 0.18161998072986635
 outcome	B-VP	3fc1ce498f3303b4 0.13910789005424606
@@ -4552,10 +4552,10 @@ point	89	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4586,10 +4586,10 @@ context	p_1=Ot0=NNt1=.t2=NN
 context	p_1=Ow_2=-
 context	p_1=Ow_1=art
 context	p_1=Ow0=re-entry
-context	p_1=Ow1=—
+context	p_1=Ow1=\u2014
 context	p_1=Ow2=em
 context	p_1=Ow_1=artw0=re-entry
-context	p_1=Ow0=re-entryw1=—
+context	p_1=Ow0=re-entryw1=\u2014
 outcome	B-NP	3fa545363eecc41e 0.04154366987348389
 outcome	I-NP	3fcd1bb36bf6b6db 0.227407863346733
 outcome	B-VP	3fc4831ff6129453 0.16025161280882347
@@ -4603,10 +4603,10 @@ point	90	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4637,10 +4637,10 @@ context	p_1=Ot0=NNt1=.t2=NN
 context	p_1=Ow_2=-
 context	p_1=Ow_1=art
 context	p_1=Ow0=re-entry
-context	p_1=Ow1=—
+context	p_1=Ow1=\u2014
 context	p_1=Ow2=em
 context	p_1=Ow_1=artw0=re-entry
-context	p_1=Ow0=re-entryw1=—
+context	p_1=Ow0=re-entryw1=\u2014
 outcome	B-NP	3fa43afcb3e9d265 0.039512536012726675
 outcome	I-NP	3fd2af7a7199b676 0.291960345209055
 outcome	B-VP	3fc32fd6dbcb0b09 0.14989743930899405
@@ -4654,10 +4654,10 @@ point	91	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4688,10 +4688,10 @@ context	p_1=I-NPt0=NNt1=.t2=NN
 context	p_1=I-NPw_2=-
 context	p_1=I-NPw_1=art
 context	p_1=I-NPw0=re-entry
-context	p_1=I-NPw1=—
+context	p_1=I-NPw1=\u2014
 context	p_1=I-NPw2=em
 context	p_1=I-NPw_1=artw0=re-entry
-context	p_1=I-NPw0=re-entryw1=—
+context	p_1=I-NPw0=re-entryw1=\u2014
 outcome	B-NP	3fa573b813e7acdc 0.0418984913156579
 outcome	I-NP	3fc73f52d2c47876 0.18161998072986635
 outcome	B-VP	3fc1ce498f3303b4 0.13910789005424606
@@ -4705,10 +4705,10 @@ point	92	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4739,10 +4739,10 @@ context	p_1=B-PPt0=NNt1=.t2=NN
 context	p_1=B-PPw_2=-
 context	p_1=B-PPw_1=art
 context	p_1=B-PPw0=re-entry
-context	p_1=B-PPw1=—
+context	p_1=B-PPw1=\u2014
 context	p_1=B-PPw2=em
 context	p_1=B-PPw_1=artw0=re-entry
-context	p_1=B-PPw0=re-entryw1=—
+context	p_1=B-PPw0=re-entryw1=\u2014
 outcome	B-NP	3fd352d3fe970258 0.3019304262379925
 outcome	I-NP	3fc177bbbfc1f62b 0.13646647322814096
 outcome	B-VP	3fbd489f991c6aff 0.11438939559995374
@@ -4756,10 +4756,10 @@ point	93	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4790,10 +4790,10 @@ context	p_1=I-NPt0=NNt1=.t2=NN
 context	p_1=I-NPw_2=-
 context	p_1=I-NPw_1=art
 context	p_1=I-NPw0=re-entry
-context	p_1=I-NPw1=—
+context	p_1=I-NPw1=\u2014
 context	p_1=I-NPw2=em
 context	p_1=I-NPw_1=artw0=re-entry
-context	p_1=I-NPw0=re-entryw1=—
+context	p_1=I-NPw0=re-entryw1=\u2014
 outcome	B-NP	3fa472a4331b9d27 0.03993714450717283
 outcome	I-NP	3fc38d266adb9c02 0.15274505822819157
 outcome	B-VP	3fbc7a46a81e2402 0.11124078373372018
@@ -4807,10 +4807,10 @@ point	94	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4841,10 +4841,10 @@ context	p_1=Ot0=NNt1=.t2=NN
 context	p_1=Ow_2=-
 context	p_1=Ow_1=art
 context	p_1=Ow0=re-entry
-context	p_1=Ow1=—
+context	p_1=Ow1=\u2014
 context	p_1=Ow2=em
 context	p_1=Ow_1=artw0=re-entry
-context	p_1=Ow0=re-entryw1=—
+context	p_1=Ow0=re-entryw1=\u2014
 outcome	B-NP	3fc5fe394095ddf2 0.17182078984818322
 outcome	I-NP	3fc79f17ecb1fb83 0.1845426469553467
 outcome	B-VP	3fc95ed4333833ef 0.19820644856409284
@@ -4858,10 +4858,10 @@ point	95	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4892,10 +4892,10 @@ context	p_1=B-PPt0=NNt1=.t2=NN
 context	p_1=B-PPw_2=-
 context	p_1=B-PPw_1=art
 context	p_1=B-PPw0=re-entry
-context	p_1=B-PPw1=—
+context	p_1=B-PPw1=\u2014
 context	p_1=B-PPw2=em
 context	p_1=B-PPw_1=artw0=re-entry
-context	p_1=B-PPw0=re-entryw1=—
+context	p_1=B-PPw0=re-entryw1=\u2014
 outcome	B-NP	3fbbd4ca79de2e82 0.10871568179407556
 outcome	I-NP	3fd2e9cc23f67b47 0.2955198622893715
 outcome	B-VP	3fbbd4ca79de2e82 0.10871568179407556
@@ -4909,10 +4909,10 @@ point	96	28	41	8	0	none
 context	w_2=-
 context	w_1=art
 context	w0=re-entry
-context	w1=—
+context	w1=\u2014
 context	w2=em
 context	w_1=artw0=re-entry
-context	w0=re-entryw1=—
+context	w0=re-entryw1=\u2014
 context	t_2=.
 context	t_1=NN
 context	t0=NN
@@ -4943,10 +4943,10 @@ context	p_1=Ot0=NNt1=.t2=NN
 context	p_1=Ow_2=-
 context	p_1=Ow_1=art
 context	p_1=Ow0=re-entry
-context	p_1=Ow1=—
+context	p_1=Ow1=\u2014
 context	p_1=Ow2=em
 context	p_1=Ow_1=artw0=re-entry
-context	p_1=Ow0=re-entryw1=—
+context	p_1=Ow0=re-entryw1=\u2014
 outcome	B-NP	3fa43afcb3e9d265 0.039512536012726675
 outcome	I-NP	3fd2af7a7199b676 0.291960345209055
 outcome	B-VP	3fc32fd6dbcb0b09 0.14989743930899405
@@ -4959,11 +4959,11 @@ end	96
 point	97	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -4993,11 +4993,11 @@ context	p_1=B-NPt_1=NNt0=.t1=NN
 context	p_1=B-NPt0=.t1=NNt2=NN
 context	p_1=B-NPw_2=art
 context	p_1=B-NPw_1=re-entry
-context	p_1=B-NPw0=—
+context	p_1=B-NPw0=\u2014
 context	p_1=B-NPw1=em
 context	p_1=B-NPw2=dash
-context	p_1=B-NPw_1=re-entryw0=—
-context	p_1=B-NPw0=—w1=em
+context	p_1=B-NPw_1=re-entryw0=\u2014
+context	p_1=B-NPw0=\u2014w1=em
 outcome	B-NP	3fa4d2840e41bf68 0.040668608417830765
 outcome	I-NP	3fbbaa1f3282083d 0.1080646036444088
 outcome	B-VP	3fb3ac437f5b3bc6 0.07684728488241807
@@ -5010,11 +5010,11 @@ end	97
 point	98	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -5044,11 +5044,11 @@ context	p_1=B-PPt_1=NNt0=.t1=NN
 context	p_1=B-PPt0=.t1=NNt2=NN
 context	p_1=B-PPw_2=art
 context	p_1=B-PPw_1=re-entry
-context	p_1=B-PPw0=—
+context	p_1=B-PPw0=\u2014
 context	p_1=B-PPw1=em
 context	p_1=B-PPw2=dash
-context	p_1=B-PPw_1=re-entryw0=—
-context	p_1=B-PPw0=—w1=em
+context	p_1=B-PPw_1=re-entryw0=\u2014
+context	p_1=B-PPw0=\u2014w1=em
 outcome	B-NP	3fb366acfb4f4a86 0.07578545699588277
 outcome	I-NP	3fb27472b52ca878 0.07208935664371718
 outcome	B-VP	3fae381a13c10ff6 0.059021773253817786
@@ -5061,11 +5061,11 @@ end	98
 point	99	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -5095,11 +5095,11 @@ context	p_1=B-PPt_1=NNt0=.t1=NN
 context	p_1=B-PPt0=.t1=NNt2=NN
 context	p_1=B-PPw_2=art
 context	p_1=B-PPw_1=re-entry
-context	p_1=B-PPw0=—
+context	p_1=B-PPw0=\u2014
 context	p_1=B-PPw1=em
 context	p_1=B-PPw2=dash
-context	p_1=B-PPw_1=re-entryw0=—
-context	p_1=B-PPw0=—w1=em
+context	p_1=B-PPw_1=re-entryw0=\u2014
+context	p_1=B-PPw0=\u2014w1=em
 outcome	B-NP	3fb366acfb4f4a86 0.07578545699588277
 outcome	I-NP	3fb27472b52ca878 0.07208935664371718
 outcome	B-VP	3fae381a13c10ff6 0.059021773253817786
@@ -5112,11 +5112,11 @@ end	99
 point	100	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -5146,11 +5146,11 @@ context	p_1=I-NPt_1=NNt0=.t1=NN
 context	p_1=I-NPt0=.t1=NNt2=NN
 context	p_1=I-NPw_2=art
 context	p_1=I-NPw_1=re-entry
-context	p_1=I-NPw0=—
+context	p_1=I-NPw0=\u2014
 context	p_1=I-NPw1=em
 context	p_1=I-NPw2=dash
-context	p_1=I-NPw_1=re-entryw0=—
-context	p_1=I-NPw0=—w1=em
+context	p_1=I-NPw_1=re-entryw0=\u2014
+context	p_1=I-NPw0=\u2014w1=em
 outcome	B-NP	3faac7e99a1e6d45 0.05230646139463117
 outcome	I-NP	3fb44fdb19a08a44 0.07934350371991977
 outcome	B-VP	3fb314d0014606aa 0.07453632384388223
@@ -5163,11 +5163,11 @@ end	100
 point	101	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -5197,11 +5197,11 @@ context	p_1=B-PPt_1=NNt0=.t1=NN
 context	p_1=B-PPt0=.t1=NNt2=NN
 context	p_1=B-PPw_2=art
 context	p_1=B-PPw_1=re-entry
-context	p_1=B-PPw0=—
+context	p_1=B-PPw0=\u2014
 context	p_1=B-PPw1=em
 context	p_1=B-PPw2=dash
-context	p_1=B-PPw_1=re-entryw0=—
-context	p_1=B-PPw0=—w1=em
+context	p_1=B-PPw_1=re-entryw0=\u2014
+context	p_1=B-PPw0=\u2014w1=em
 outcome	B-NP	3fb366acfb4f4a86 0.07578545699588277
 outcome	I-NP	3fb27472b52ca878 0.07208935664371718
 outcome	B-VP	3fae381a13c10ff6 0.059021773253817786
@@ -5214,11 +5214,11 @@ end	101
 point	102	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -5248,11 +5248,11 @@ context	p_1=I-NPt_1=NNt0=.t1=NN
 context	p_1=I-NPt0=.t1=NNt2=NN
 context	p_1=I-NPw_2=art
 context	p_1=I-NPw_1=re-entry
-context	p_1=I-NPw0=—
+context	p_1=I-NPw0=\u2014
 context	p_1=I-NPw1=em
 context	p_1=I-NPw2=dash
-context	p_1=I-NPw_1=re-entryw0=—
-context	p_1=I-NPw0=—w1=em
+context	p_1=I-NPw_1=re-entryw0=\u2014
+context	p_1=I-NPw0=\u2014w1=em
 outcome	B-NP	3faac7e99a1e6d45 0.05230646139463117
 outcome	I-NP	3fb44fdb19a08a44 0.07934350371991977
 outcome	B-VP	3fb314d0014606aa 0.07453632384388223
@@ -5265,11 +5265,11 @@ end	102
 point	103	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -5299,11 +5299,11 @@ context	p_1=Ot_1=NNt0=.t1=NN
 context	p_1=Ot0=.t1=NNt2=NN
 context	p_1=Ow_2=art
 context	p_1=Ow_1=re-entry
-context	p_1=Ow0=—
+context	p_1=Ow0=\u2014
 context	p_1=Ow1=em
 context	p_1=Ow2=dash
-context	p_1=Ow_1=re-entryw0=—
-context	p_1=Ow0=—w1=em
+context	p_1=Ow_1=re-entryw0=\u2014
+context	p_1=Ow0=\u2014w1=em
 outcome	B-NP	3fab477a1c5abd7d 0.05327970119594292
 outcome	I-NP	3fb2695a9d6e583e 0.07192007392436126
 outcome	B-VP	3fb56422d324c2e5 0.08355920462487239
@@ -5316,11 +5316,11 @@ end	103
 point	104	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -5350,11 +5350,11 @@ context	p_1=Ot_1=NNt0=.t1=NN
 context	p_1=Ot0=.t1=NNt2=NN
 context	p_1=Ow_2=art
 context	p_1=Ow_1=re-entry
-context	p_1=Ow0=—
+context	p_1=Ow0=\u2014
 context	p_1=Ow1=em
 context	p_1=Ow2=dash
-context	p_1=Ow_1=re-entryw0=—
-context	p_1=Ow0=—w1=em
+context	p_1=Ow_1=re-entryw0=\u2014
+context	p_1=Ow0=\u2014w1=em
 outcome	B-NP	3fab477a1c5abd7d 0.05327970119594292
 outcome	I-NP	3fb2695a9d6e583e 0.07192007392436126
 outcome	B-VP	3fb56422d324c2e5 0.08355920462487239
@@ -5367,11 +5367,11 @@ end	104
 point	105	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -5401,11 +5401,11 @@ context	p_1=B-VPt_1=NNt0=.t1=NN
 context	p_1=B-VPt0=.t1=NNt2=NN
 context	p_1=B-VPw_2=art
 context	p_1=B-VPw_1=re-entry
-context	p_1=B-VPw0=—
+context	p_1=B-VPw0=\u2014
 context	p_1=B-VPw1=em
 context	p_1=B-VPw2=dash
-context	p_1=B-VPw_1=re-entryw0=—
-context	p_1=B-VPw0=—w1=em
+context	p_1=B-VPw_1=re-entryw0=\u2014
+context	p_1=B-VPw0=\u2014w1=em
 outcome	B-NP	3faea81a3e944006 0.05987627042679837
 outcome	I-NP	3fb4559760317086 0.07943101976838038
 outcome	B-VP	3fb5b466ca80de7d 0.08478395885401287
@@ -5418,11 +5418,11 @@ end	105
 point	106	37	41	8	0	none
 context	w_2=art
 context	w_1=re-entry
-context	w0=—
+context	w0=\u2014
 context	w1=em
 context	w2=dash
-context	w_1=re-entryw0=—
-context	w0=—w1=em
+context	w_1=re-entryw0=\u2014
+context	w0=\u2014w1=em
 context	t_2=NN
 context	t_1=NN
 context	t0=.
@@ -5452,11 +5452,11 @@ context	p_1=B-VPt_1=NNt0=.t1=NN
 context	p_1=B-VPt0=.t1=NNt2=NN
 context	p_1=B-VPw_2=art
 context	p_1=B-VPw_1=re-entry
-context	p_1=B-VPw0=—
+context	p_1=B-VPw0=\u2014
 context	p_1=B-VPw1=em
 context	p_1=B-VPw2=dash
-context	p_1=B-VPw_1=re-entryw0=—
-context	p_1=B-VPw0=—w1=em
+context	p_1=B-VPw_1=re-entryw0=\u2014
+context	p_1=B-VPw0=\u2014w1=em
 outcome	B-NP	3faea81a3e944006 0.05987627042679837
 outcome	I-NP	3fb4559760317086 0.07943101976838038
 outcome	B-VP	3fb5b466ca80de7d 0.08478395885401287
@@ -5468,11 +5468,11 @@ outcome	B-SBAR	3fb62e83eff81e3a 0.08664726837752648
 end	106
 point	107	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5502,11 +5502,11 @@ context	p_1=Ot_2=NNt_1=.t0=NN
 context	p_1=Ot_1=.t0=NNt1=NN
 context	p_1=Ot0=NNt1=NNt2=.
 context	p_1=Ow_2=re-entry
-context	p_1=Ow_1=—
+context	p_1=Ow_1=\u2014
 context	p_1=Ow0=em
 context	p_1=Ow1=dash
 context	p_1=Ow2=–
-context	p_1=Ow_1=—w0=em
+context	p_1=Ow_1=\u2014w0=em
 context	p_1=Ow0=emw1=dash
 outcome	B-NP	3fd30ae726c53371 0.29754046236194315
 outcome	I-NP	3fc6a475bde57323 0.1768939187267274
@@ -5519,11 +5519,11 @@ outcome	B-SBAR	3fac6470ba504d83 0.05545379900299976
 end	107
 point	108	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5553,11 +5553,11 @@ context	p_1=B-PPt_2=NNt_1=.t0=NN
 context	p_1=B-PPt_1=.t0=NNt1=NN
 context	p_1=B-PPt0=NNt1=NNt2=.
 context	p_1=B-PPw_2=re-entry
-context	p_1=B-PPw_1=—
+context	p_1=B-PPw_1=\u2014
 context	p_1=B-PPw0=em
 context	p_1=B-PPw1=dash
 context	p_1=B-PPw2=–
-context	p_1=B-PPw_1=—w0=em
+context	p_1=B-PPw_1=\u2014w0=em
 context	p_1=B-PPw0=emw1=dash
 outcome	B-NP	3fd0bf7b270078bc 0.26168707665227564
 outcome	I-NP	3fd19b4e0f270272 0.27510405997967446
@@ -5570,11 +5570,11 @@ outcome	B-SBAR	3fa51136031a6bb1 0.04114693439370088
 end	108
 point	109	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5604,11 +5604,11 @@ context	p_1=B-PPt_2=NNt_1=.t0=NN
 context	p_1=B-PPt_1=.t0=NNt1=NN
 context	p_1=B-PPt0=NNt1=NNt2=.
 context	p_1=B-PPw_2=re-entry
-context	p_1=B-PPw_1=—
+context	p_1=B-PPw_1=\u2014
 context	p_1=B-PPw0=em
 context	p_1=B-PPw1=dash
 context	p_1=B-PPw2=–
-context	p_1=B-PPw_1=—w0=em
+context	p_1=B-PPw_1=\u2014w0=em
 context	p_1=B-PPw0=emw1=dash
 outcome	B-NP	3fc96cd4f2618669 0.1986337836743133
 outcome	I-NP	3fd16eea694550a0 0.2723947551760464
@@ -5621,11 +5621,11 @@ outcome	B-SBAR	3fa3e50ae7399d5f 0.038856831289019615
 end	109
 point	110	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5655,11 +5655,11 @@ context	p_1=B-PPt_2=NNt_1=.t0=NN
 context	p_1=B-PPt_1=.t0=NNt1=NN
 context	p_1=B-PPt0=NNt1=NNt2=.
 context	p_1=B-PPw_2=re-entry
-context	p_1=B-PPw_1=—
+context	p_1=B-PPw_1=\u2014
 context	p_1=B-PPw0=em
 context	p_1=B-PPw1=dash
 context	p_1=B-PPw2=–
-context	p_1=B-PPw_1=—w0=em
+context	p_1=B-PPw_1=\u2014w0=em
 context	p_1=B-PPw0=emw1=dash
 outcome	B-NP	3fc96cd4f2618669 0.1986337836743133
 outcome	I-NP	3fd16eea694550a0 0.2723947551760464
@@ -5672,11 +5672,11 @@ outcome	B-SBAR	3fa3e50ae7399d5f 0.038856831289019615
 end	110
 point	111	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5706,11 +5706,11 @@ context	p_1=B-PPt_2=NNt_1=.t0=NN
 context	p_1=B-PPt_1=.t0=NNt1=NN
 context	p_1=B-PPt0=NNt1=NNt2=.
 context	p_1=B-PPw_2=re-entry
-context	p_1=B-PPw_1=—
+context	p_1=B-PPw_1=\u2014
 context	p_1=B-PPw0=em
 context	p_1=B-PPw1=dash
 context	p_1=B-PPw2=–
-context	p_1=B-PPw_1=—w0=em
+context	p_1=B-PPw_1=\u2014w0=em
 context	p_1=B-PPw0=emw1=dash
 outcome	B-NP	3fd0bf7b270078bc 0.26168707665227564
 outcome	I-NP	3fd19b4e0f270272 0.27510405997967446
@@ -5723,11 +5723,11 @@ outcome	B-SBAR	3fa51136031a6bb1 0.04114693439370088
 end	111
 point	112	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5757,11 +5757,11 @@ context	p_1=B-PPt_2=NNt_1=.t0=NN
 context	p_1=B-PPt_1=.t0=NNt1=NN
 context	p_1=B-PPt0=NNt1=NNt2=.
 context	p_1=B-PPw_2=re-entry
-context	p_1=B-PPw_1=—
+context	p_1=B-PPw_1=\u2014
 context	p_1=B-PPw0=em
 context	p_1=B-PPw1=dash
 context	p_1=B-PPw2=–
-context	p_1=B-PPw_1=—w0=em
+context	p_1=B-PPw_1=\u2014w0=em
 context	p_1=B-PPw0=emw1=dash
 outcome	B-NP	3fd0bf7b270078bc 0.26168707665227564
 outcome	I-NP	3fd19b4e0f270272 0.27510405997967446
@@ -5774,11 +5774,11 @@ outcome	B-SBAR	3fa51136031a6bb1 0.04114693439370088
 end	112
 point	113	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5808,11 +5808,11 @@ context	p_1=Ot_2=NNt_1=.t0=NN
 context	p_1=Ot_1=.t0=NNt1=NN
 context	p_1=Ot0=NNt1=NNt2=.
 context	p_1=Ow_2=re-entry
-context	p_1=Ow_1=—
+context	p_1=Ow_1=\u2014
 context	p_1=Ow0=em
 context	p_1=Ow1=dash
 context	p_1=Ow2=–
-context	p_1=Ow_1=—w0=em
+context	p_1=Ow_1=\u2014w0=em
 context	p_1=Ow0=emw1=dash
 outcome	B-NP	3fba52f7a4e467ca 0.1028284814423436
 outcome	I-NP	3fd351c89adf735e 0.30186667560865554
@@ -5825,11 +5825,11 @@ outcome	B-SBAR	3fac73ebaf850fd8 0.05557190435004572
 end	113
 point	114	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5859,11 +5859,11 @@ context	p_1=Ot_2=NNt_1=.t0=NN
 context	p_1=Ot_1=.t0=NNt1=NN
 context	p_1=Ot0=NNt1=NNt2=.
 context	p_1=Ow_2=re-entry
-context	p_1=Ow_1=—
+context	p_1=Ow_1=\u2014
 context	p_1=Ow0=em
 context	p_1=Ow1=dash
 context	p_1=Ow2=–
-context	p_1=Ow_1=—w0=em
+context	p_1=Ow_1=\u2014w0=em
 context	p_1=Ow0=emw1=dash
 outcome	B-NP	3fba52f7a4e467ca 0.1028284814423436
 outcome	I-NP	3fd351c89adf735e 0.30186667560865554
@@ -5876,11 +5876,11 @@ outcome	B-SBAR	3fac73ebaf850fd8 0.05557190435004572
 end	114
 point	115	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5910,11 +5910,11 @@ context	p_1=Ot_2=NNt_1=.t0=NN
 context	p_1=Ot_1=.t0=NNt1=NN
 context	p_1=Ot0=NNt1=NNt2=.
 context	p_1=Ow_2=re-entry
-context	p_1=Ow_1=—
+context	p_1=Ow_1=\u2014
 context	p_1=Ow0=em
 context	p_1=Ow1=dash
 context	p_1=Ow2=–
-context	p_1=Ow_1=—w0=em
+context	p_1=Ow_1=\u2014w0=em
 context	p_1=Ow0=emw1=dash
 outcome	B-NP	3fb96d91a2b49bd8 0.09932813856413192
 outcome	I-NP	3fd318f4d80cfba2 0.29839821909620856
@@ -5927,11 +5927,11 @@ outcome	B-SBAR	3fa6d9e02d505341 0.04463100960871325
 end	115
 point	116	41	41	8	0	none
 context	w_2=re-entry
-context	w_1=—
+context	w_1=\u2014
 context	w0=em
 context	w1=dash
 context	w2=–
-context	w_1=—w0=em
+context	w_1=\u2014w0=em
 context	w0=emw1=dash
 context	t_2=NN
 context	t_1=.
@@ -5961,11 +5961,11 @@ context	p_1=B-PPt_2=NNt_1=.t0=NN
 context	p_1=B-PPt_1=.t0=NNt1=NN
 context	p_1=B-PPt0=NNt1=NNt2=.
 context	p_1=B-PPw_2=re-entry
-context	p_1=B-PPw_1=—
+context	p_1=B-PPw_1=\u2014
 context	p_1=B-PPw0=em
 context	p_1=B-PPw1=dash
 context	p_1=B-PPw2=–
-context	p_1=B-PPw_1=—w0=em
+context	p_1=B-PPw_1=\u2014w0=em
 context	p_1=B-PPw0=emw1=dash
 outcome	B-NP	3fd2e4d7f86f67a0 0.2952175069927936
 outcome	I-NP	3fc5cd3b66af8e0c 0.17032568468049225
@@ -5977,7 +5977,7 @@ outcome	I-VP	3fbbcd805760acd6 0.10860445149653528
 outcome	B-SBAR	3fb1ba51b85b321f 0.06924925566563232
 end	116
 point	117	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6011,7 +6011,7 @@ context	p_1=B-NPt1=.t2=NN
 context	p_1=B-NPt_2=.t_1=NNt0=NN
 context	p_1=B-NPt_1=NNt0=NNt1=.
 context	p_1=B-NPt0=NNt1=.t2=NN
-context	p_1=B-NPw_2=—
+context	p_1=B-NPw_2=\u2014
 context	p_1=B-NPw_1=em
 context	p_1=B-NPw0=dash
 context	p_1=B-NPw1=–
@@ -6028,7 +6028,7 @@ outcome	I-VP	3fc04b725da2a05c 0.12730245182069921
 outcome	B-SBAR	3fbd298c9217017e 0.11391523901602871
 end	117
 point	118	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6062,7 +6062,7 @@ context	p_1=B-NPt1=.t2=NN
 context	p_1=B-NPt_2=.t_1=NNt0=NN
 context	p_1=B-NPt_1=NNt0=NNt1=.
 context	p_1=B-NPt0=NNt1=.t2=NN
-context	p_1=B-NPw_2=—
+context	p_1=B-NPw_2=\u2014
 context	p_1=B-NPw_1=em
 context	p_1=B-NPw0=dash
 context	p_1=B-NPw1=–
@@ -6079,7 +6079,7 @@ outcome	I-VP	3fbdb37964b4d67e 0.11601980885174076
 outcome	B-SBAR	3fbdb37964b4d67e 0.11601980885174076
 end	118
 point	119	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6113,7 +6113,7 @@ context	p_1=B-NPt1=.t2=NN
 context	p_1=B-NPt_2=.t_1=NNt0=NN
 context	p_1=B-NPt_1=NNt0=NNt1=.
 context	p_1=B-NPt0=NNt1=.t2=NN
-context	p_1=B-NPw_2=—
+context	p_1=B-NPw_2=\u2014
 context	p_1=B-NPw_1=em
 context	p_1=B-NPw0=dash
 context	p_1=B-NPw1=–
@@ -6130,7 +6130,7 @@ outcome	I-VP	3fbdb37964b4d67e 0.11601980885174076
 outcome	B-SBAR	3fbdb37964b4d67e 0.11601980885174076
 end	119
 point	120	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6164,7 +6164,7 @@ context	p_1=B-NPt1=.t2=NN
 context	p_1=B-NPt_2=.t_1=NNt0=NN
 context	p_1=B-NPt_1=NNt0=NNt1=.
 context	p_1=B-NPt0=NNt1=.t2=NN
-context	p_1=B-NPw_2=—
+context	p_1=B-NPw_2=\u2014
 context	p_1=B-NPw_1=em
 context	p_1=B-NPw0=dash
 context	p_1=B-NPw1=–
@@ -6181,7 +6181,7 @@ outcome	I-VP	3fbdb37964b4d67e 0.11601980885174076
 outcome	B-SBAR	3fbdb37964b4d67e 0.11601980885174076
 end	120
 point	121	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6215,7 +6215,7 @@ context	p_1=B-NPt1=.t2=NN
 context	p_1=B-NPt_2=.t_1=NNt0=NN
 context	p_1=B-NPt_1=NNt0=NNt1=.
 context	p_1=B-NPt0=NNt1=.t2=NN
-context	p_1=B-NPw_2=—
+context	p_1=B-NPw_2=\u2014
 context	p_1=B-NPw_1=em
 context	p_1=B-NPw0=dash
 context	p_1=B-NPw1=–
@@ -6232,7 +6232,7 @@ outcome	I-VP	3fbdb37964b4d67e 0.11601980885174076
 outcome	B-SBAR	3fbdb37964b4d67e 0.11601980885174076
 end	121
 point	122	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6266,7 +6266,7 @@ context	p_1=B-NPt1=.t2=NN
 context	p_1=B-NPt_2=.t_1=NNt0=NN
 context	p_1=B-NPt_1=NNt0=NNt1=.
 context	p_1=B-NPt0=NNt1=.t2=NN
-context	p_1=B-NPw_2=—
+context	p_1=B-NPw_2=\u2014
 context	p_1=B-NPw_1=em
 context	p_1=B-NPw0=dash
 context	p_1=B-NPw1=–
@@ -6283,7 +6283,7 @@ outcome	I-VP	3fbdb37964b4d67e 0.11601980885174076
 outcome	B-SBAR	3fbdb37964b4d67e 0.11601980885174076
 end	122
 point	123	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6317,7 +6317,7 @@ context	p_1=B-NPt1=.t2=NN
 context	p_1=B-NPt_2=.t_1=NNt0=NN
 context	p_1=B-NPt_1=NNt0=NNt1=.
 context	p_1=B-NPt0=NNt1=.t2=NN
-context	p_1=B-NPw_2=—
+context	p_1=B-NPw_2=\u2014
 context	p_1=B-NPw_1=em
 context	p_1=B-NPw0=dash
 context	p_1=B-NPw1=–
@@ -6334,7 +6334,7 @@ outcome	I-VP	3fbdb37964b4d67e 0.11601980885174076
 outcome	B-SBAR	3fbdb37964b4d67e 0.11601980885174076
 end	123
 point	124	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6368,7 +6368,7 @@ context	p_1=B-PPt1=.t2=NN
 context	p_1=B-PPt_2=.t_1=NNt0=NN
 context	p_1=B-PPt_1=NNt0=NNt1=.
 context	p_1=B-PPt0=NNt1=.t2=NN
-context	p_1=B-PPw_2=—
+context	p_1=B-PPw_2=\u2014
 context	p_1=B-PPw_1=em
 context	p_1=B-PPw0=dash
 context	p_1=B-PPw1=–
@@ -6385,7 +6385,7 @@ outcome	I-VP	3fbc2cba17824dcb 0.11005747865629371
 outcome	B-SBAR	3fbc2cba17824dcb 0.11005747865629371
 end	124
 point	125	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6419,7 +6419,7 @@ context	p_1=B-PPt1=.t2=NN
 context	p_1=B-PPt_2=.t_1=NNt0=NN
 context	p_1=B-PPt_1=NNt0=NNt1=.
 context	p_1=B-PPt0=NNt1=.t2=NN
-context	p_1=B-PPw_2=—
+context	p_1=B-PPw_2=\u2014
 context	p_1=B-PPw_1=em
 context	p_1=B-PPw0=dash
 context	p_1=B-PPw1=–
@@ -6436,7 +6436,7 @@ outcome	I-VP	3fbc2cba17824dcb 0.11005747865629371
 outcome	B-SBAR	3fbc2cba17824dcb 0.11005747865629371
 end	125
 point	126	44	41	8	0	none
-context	w_2=—
+context	w_2=\u2014
 context	w_1=em
 context	w0=dash
 context	w1=–
@@ -6470,7 +6470,7 @@ context	p_1=B-ADJPt1=.t2=NN
 context	p_1=B-ADJPt_2=.t_1=NNt0=NN
 context	p_1=B-ADJPt_1=NNt0=NNt1=.
 context	p_1=B-ADJPt0=NNt1=.t2=NN
-context	p_1=B-ADJPw_2=—
+context	p_1=B-ADJPw_2=\u2014
 context	p_1=B-ADJPw_1=em
 context	p_1=B-ADJPw0=dash
 context	p_1=B-ADJPw1=–
