@@ -10,7 +10,9 @@ use turbo_analysis::ModelRef;
 use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result as proto;
 
+pub mod document;
 pub mod extraction;
+pub mod layers;
 pub mod rerank;
 pub mod sparse;
 pub mod tokens;
@@ -25,6 +27,10 @@ pub const MAX_RERANK_ITEMS: u64 = 1 << 20;
 pub const MAX_ANSWERS: u64 = 1 << 16;
 pub const MAX_ANSWER_FRAGMENTS: u64 = 1 << 20;
 pub const MAX_WINDOWS: u64 = 1 << 20;
+pub const MAX_CHUNKS: u64 = 1 << 20;
+pub const MAX_LEVELS: u64 = 1 << 20;
+pub const MAX_FRAGMENTS: u64 = 1 << 22;
+pub const MAX_GRAPH_BYTES: u64 = 64 << 20;
 
 /// One result kind's wire form: to the message, and back with the
 /// message's own validation, whose refusal names what it found.
@@ -52,6 +58,25 @@ fn mismatched(what: &str, got: usize, want: usize) -> Failure {
         0,
         format!("{what} has {got} values and should match the {want} of the column beside it"),
     )
+}
+
+/// An index built from a wire `u32`. `u32::MAX` is `Ix`'s absent
+/// sentinel and `Ix::new` panics on it, so no wire value reaches
+/// `Ix::new` unchecked: the sentinel (and, for `ix_bounded`, any
+/// index at or past `n`) refuses naming the field, before any
+/// layer is constructed.
+pub fn ix_from_wire<L>(what: &str, i: u32) -> Result<turbo_analysis::Ix<L>, Failure> {
+    if i == u32::MAX {
+        return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("{what}: index {i} is the absent sentinel")));
+    }
+    Ok(turbo_analysis::Ix::new(i))
+}
+
+pub fn ix_bounded<L>(what: &str, i: u32, n: usize) -> Result<turbo_analysis::Ix<L>, Failure> {
+    if i as usize >= n {
+        return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("{what}: index {i} is outside the {n} items")));
+    }
+    ix_from_wire(what, i)
 }
 
 fn model_to_proto(m: &ModelRef) -> proto::ModelRef {

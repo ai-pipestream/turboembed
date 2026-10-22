@@ -14,11 +14,12 @@ use crate::capabilities::{bundle_capabilities, load_config, result_limits, serve
 use crate::kserve::Reply;
 use crate::proto::result::analysis_service_server::AnalysisService;
 use crate::proto::result::{
-    CapabilitiesRequest, CapabilitiesResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse,
-    RerankScoresResult, SparseTermsResult, TokenVectorsResult, UnloadBundleRequest, UnloadBundleResponse,
+    CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult, DocumentGraphRequest, DocumentGraphResponse,
+    ExtractionResult, LoadBundleRequest, LoadBundleResponse, RerankScoresResult, SparseTermsResult, TokenVectorsResult,
+    UnloadBundleRequest, UnloadBundleResponse,
 };
 use crate::results::Wire;
-use crate::results::{extraction::Extraction, rerank::RerankScores, tokens::TokenVectors};
+use crate::results::{extraction::Extraction, layers::ChunkLevels, rerank::RerankScores, tokens::TokenVectors};
 use crate::state::{Loaded, State};
 use crate::status::to_status;
 use turbo_analysis::View;
@@ -120,5 +121,19 @@ impl AnalysisService for Analysis {
 
     async fn round_trip_extraction(&self, req: Request<ExtractionResult>) -> Reply<ExtractionResult> {
         round_trip::<_, Extraction>(req)
+    }
+
+    async fn round_trip_chunk_levels(&self, req: Request<ChunkLevelsResult>) -> Reply<ChunkLevelsResult> {
+        round_trip::<_, ChunkLevels>(req)
+    }
+
+    async fn round_trip_document_graph(&self, req: Request<DocumentGraphRequest>) -> Reply<DocumentGraphResponse> {
+        // Import and re-export can walk a whole document; keep the
+        // async runtime free of it.
+        let req = req.into_inner();
+        let out = tokio::task::spawn_blocking(move || crate::results::document::round_trip_document(&req))
+            .await
+            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the round trip's task failed: {e}"))))?;
+        Ok(Response::new(out.map_err(plain)?))
     }
 }
