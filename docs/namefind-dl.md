@@ -61,10 +61,10 @@ upstream `config.json`.
 
 ## Parity with OpenNLP
 
-`reference/NameFinderDlGolden.java` runs OpenNLP's `NameFinderDL` on
+`analysis/namefind-dl/reference/NameFinderDlGolden.java` runs OpenNLP's `NameFinderDL` on
 the model's ONNX export, with the default inference options and each
-line of `tests/data/jvm-cases.txt` as one sentence, and writes
-`tests/data/jvm-golden.json`. It was run against OpenNLP at
+line of `analysis/namefind-dl/tests/data/jvm-cases.txt` as one sentence, and writes
+`analysis/namefind-dl/tests/data/jvm-golden.json`. It was run against OpenNLP at
 `b453b9ee3f2856a1dbf323ad13c8465a1203d3f0` with ONNX Runtime 1.29.0:
 
 ```
@@ -74,13 +74,13 @@ java -cp <opennlp-dl and its dependencies> NameFinderDlGolden.java \
 
 The cases include accented and non-Latin text, an emoji, a text of 620
 words read in three chunks, and an entity across the first chunk
-boundary. `tests/jvm.rs` (ignored; set `TURBO_NER_BUNDLE` to the
+boundary. `analysis/namefind-dl/tests/jvm.rs` (ignored; set `TURBO_NER_BUNDLE` to the
 bundle) checks that the native finder gives every entity the same
 bytes and type and a probability within 1e-5 of OpenNLP's. On the CPU
 backend all 116 entities match, the largest probability difference
 being 3.9e-6.
 
-`tests/offline.rs` runs the finder on the small BERT in `testdata`
+`analysis/namefind-dl/tests/offline.rs` runs the finder on the small BERT in `testdata`
 with a head that labels every piece `B-PER`, so the result is known
 without a reference: every piece is found once however the text is
 chunked, rows are split or runs are batched, a sentence layer limits
