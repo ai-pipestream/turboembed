@@ -874,6 +874,48 @@ commit it was measured at; a new version number needs new records.
 rule; the tool writes records through the same types and checks, and
 `core/tests/conformance.rs` uses the same tolerances.
 
+## Ranges
+
+`turbo-bench ranges --bundle <dir> --device <d> [--precision <p>]
+[--batch <n>] [--seq <n>] [--chunk <n>]` measures what one vector per
+chunk costs, three ways, on dense token rows (every position live; the
+default shape is 32 rows of 256 tokens, or the model's limits if
+smaller):
+
+- rows: one vector per row (`turbo_embed_write_tokens`), the cost of
+  reading the text at all;
+- ranges: the same rows, one range per chunk of `--chunk` text tokens
+  (default 64; the last of a row may be shorter, and the row's first
+  and last positions are in no chunk), through
+  `turbo_embed_write_ranges`: a vector per chunk from one encoder pass;
+- chunk rows: each chunk as a row of its own, `[CLS] chunk [SEP]`, in
+  frames of as many rows as the model's `max_batch` allows.
+
+Rows and ranges share one session. Each timed round runs the three once
+each, in turn, so a change of clock or temperature falls on all three
+and their ratios hold on a shared GPU. The record
+(`bench/src/ranges.rs`, `RangeRecord`) goes to `benchmarks/ranges/`,
+named by machine, backend, precision, model and commit. Beside each
+mode's times it gives `ranges_over_rows` and `chunk_rows_over_ranges`
+(p50 over p50), the largest difference of a range over a whole row from
+that row's vector (0 when they are the same bits), and the lowest cosine
+of a chunk's range vector to its chunk row's vector, which reads the
+chunk without the text around it.
+
+On the RTX 4080 SUPER with all-MiniLM-L6-v2, 32 rows of 256 tokens and
+chunks of 64 (four a row, 128 chunks):
+
+| Precision | Rows p50 | Ranges p50 | One row per chunk p50 | Ranges over rows | One row per chunk over ranges |
+| --- | --- | --- | --- | --- | --- |
+| FASTEST (F16) | 1.5914 ms | 1.6023 ms | 1.8727 ms | 1.007 | 1.169 |
+| MODEL (F32) | 8.3068 ms | 8.3238 ms | 7.8772 ms | 1.002 | 0.946 |
+
+A vector per chunk by ranges costs under 1 percent over reading the rows.
+In F16, embedding each chunk as a row of its own takes 17 percent longer
+than the ranges; in F32 it takes 5 percent less. A range over a whole row gave the
+row's vector to the bit, and the lowest cosine of a chunk's range vector
+to its chunk row's was 0.69.
+
 ## Tests
 
 `bench/tests/` runs without docker or a GPU:

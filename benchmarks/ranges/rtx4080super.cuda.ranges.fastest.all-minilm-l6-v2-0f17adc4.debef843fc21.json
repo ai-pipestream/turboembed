@@ -1,0 +1,119 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-22T14:27:50Z",
+  "machine": {
+    "arch": "rtx4080super",
+    "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cuda",
+    "kind": "DEVICE_GPU",
+    "name": "NVIDIA GeForce RTX 4080 SUPER",
+    "vendor": "NVIDIA",
+    "driver_version": "615.71.09, CUDA 13.4",
+    "runtime_version": "12.4",
+    "memory_total": 16802250752
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cuda cpu",
+    "commit": "debef843fc21fdd8d03132463fbcf0cd530fa38b",
+    "pushed_to": [
+      "origin/fable/308-range-bench"
+    ],
+    "settings": [
+      "TURBO_CUDA_TUNED=default",
+      "TURBO_CUDA_CHOICES=le256:qkv=ctk/sk4,out=ctk/sk4,ffn1=ctk/sk4,ffn2=ctk/sk4,attn=mma128,ln=separate;le1k:qkv=ctk/sk4,out=ctk/sk4,ffn1=ctk/sk4,ffn2=ctk/sk4,attn=mma128,ln=separate;le4k:qkv=ctk/tiles,out=ctk/sk4,ffn1=ctk/tiles,ffn2=ctk/sk4,attn=mma128,ln=separate;le16k:qkv=ctk/tiles,out=ctk/tiles,ffn1=ctk/tiles,ffn2=ctk/sk4,attn=mma128,ln=separate;pool=groups;forced="
+    ]
+  },
+  "precision": "PRECISION_FASTEST",
+  "compute_dtype": "DTYPE_F16",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1",
+    "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+    "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "shape": {
+    "batch": 32,
+    "seq": 256,
+    "chunk": 64,
+    "chunks_per_row": 4,
+    "chunk_batch": 64,
+    "chunk_frames": 2,
+    "cases": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8
+    ],
+    "sha256": "0c85ff407a58448a04661fa81fda7ae4e5ff72e378e19e3bbcafe070f9fdfcc3"
+  },
+  "rows": {
+    "vectors": 32,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 1.5914499999999998,
+    "p99_ms": 1.758054,
+    "mean_ms": 1.6048500899999991,
+    "min_ms": 1.5617940000000001,
+    "max_ms": 1.785867,
+    "vectors_per_second": 19939.55709595282
+  },
+  "ranges": {
+    "vectors": 128,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 1.60226,
+    "p99_ms": 1.8387069999999999,
+    "mean_ms": 1.6235592700000006,
+    "min_ms": 1.573596,
+    "max_ms": 1.86655,
+    "vectors_per_second": 78839.12978427942
+  },
+  "chunk_rows": {
+    "vectors": 128,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 1.8727209999999999,
+    "p99_ms": 2.0470409999999997,
+    "mean_ms": 1.9022318450000018,
+    "min_ms": 1.839599,
+    "max_ms": 2.644571,
+    "vectors_per_second": 67289.37922916535
+  },
+  "whole_row_max_abs_diff": 0.0,
+  "chunk_min_cosine": 0.693281066723285,
+  "ranges_over_rows": 1.0067925476766473,
+  "chunk_rows_over_ranges": 1.1687996954302047
+}
