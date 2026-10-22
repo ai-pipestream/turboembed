@@ -409,6 +409,25 @@ mod tests {
     }
 
     #[test]
+    fn the_level_flags_are_checked() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
+        let e = TurboEmbedder::open(&dir, Device::Cpu, Precision::Model).unwrap();
+        let built = |extra: &[&str]| {
+            let mut a = ["--chunker", "turbo-chunker", "--max", "64", "--target", "48"].map(String::from).to_vec();
+            a.extend(extra.iter().map(|s| s.to_string()));
+            let mut o = Opts::parse(&a).unwrap();
+            chunker(&mut o, &e, (&dir, &Device::Cpu, Precision::Model))
+        };
+        let refused = |extra: &[&str]| built(extra).err().unwrap();
+        assert!(refused(&["--level", "paragraph"]).contains("chunk, section or document"));
+        assert!(refused(&["--level", "chunk", "--level-vectors", "late"]).contains("local or contextual"));
+        assert!(refused(&["--level-vectors", "local"]).contains("needs --level"));
+        let config = built(&["--level", "section", "--level-vectors", "contextual"]).unwrap().config();
+        assert!(config.iter().any(|s| s.name == "level" && s.value == "section"));
+        assert!(config.iter().any(|s| s.name == "level_vectors" && s.value.starts_with("contextual")));
+    }
+
+    #[test]
     fn an_unknown_set_is_refused_by_name() {
         let e = load_set("no-such-set", Path::new("/nonexistent")).unwrap_err();
         assert!(e.contains("no-such-set"), "{e}");
