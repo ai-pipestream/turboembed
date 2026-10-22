@@ -145,7 +145,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 52] = [
+pub const ANNOTATORS: [&str; 53] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -163,6 +163,7 @@ pub const ANNOTATORS: [&str; 52] = [
     "pii-rewrite",
     "detokenize",
     "subwords",
+    "sentvectors",
     "unigram",
     "bpe",
     "lattice",
