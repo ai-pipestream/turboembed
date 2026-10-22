@@ -170,11 +170,9 @@ pub fn dictionary_files(dir: &Path) -> Result<Vec<String>, String> {
 }
 
 /// Checks that every model, Hunspell dictionary file and training corpus
-/// the generator loads is in `dir` with the recipe's SHA-512, the derived
-/// pooled model included.
+/// the generator loads is in `dir` with the recipe's SHA-512.
 pub fn check_all(dir: &Path) -> Result<(), String> {
-    MODELS.iter().chain(&LOCAL_MODELS).chain([&POOLING_SOURCE]).try_for_each(|m| check(&dir.join(m.file), m))?;
-    crate::pooled::derive(dir)?;
+    MODELS.iter().chain(&LOCAL_MODELS).try_for_each(|m| check(&dir.join(m.file), m))?;
     HUNSPELL_FILES
         .iter()
         .try_for_each(|f| check(&dir.join(f.file), &Model { file: f.file, url: f.url, sha512: f.sha512 }))?;

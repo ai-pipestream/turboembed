@@ -4656,8 +4656,9 @@ runs them on any machine:
 - `analysis/embed/tests/vectors_bundle.rs` runs the same steps on a real
   bundle, `TURBO_TEST_VECTORS_BUNDLE`, on the device `TURBO_TEST_DEVICE`
   names, and compares the twelve sentence and three chunk vectors with
-  the same bundle's weights run on the CPU, at the minimum cosine the core
-  gives the device's dtype (0.93 for I8). For a bundle with a HEF next to
+  the same bundle's weights run on the CPU, at the core's tolerance for the
+  device's dtype, or the I8 tier floor of 0.93 (docs/hailo.md) for an I8
+  device. For a bundle with a HEF next to
   its safetensors weights (docs/hailo.md), a Hailo device runs the HEF and
   the CPU runs the weights it was compiled from. Without both variables
   the test prints that it was skipped. On a Hailo machine:
@@ -4665,7 +4666,7 @@ runs them on any machine:
 - `analysis/embed/tests/sentence_vectors_dl.rs` compares the sentence
   vector step with OpenNLP's `SentenceVectorsDL` on the
   `sentvectors/all-minilm-l6-v2-mean` goldens (analysis/goldens-tool/README.md),
-  given an all-MiniLM-L6-v2 bundle in `TURBO_TEST_VECTORS_BUNDLE`. Each
+  given an all-MiniLM-L6-v2 bundle in `TURBO_TEST_MINILM_BUNDLE`. Each
   sentence of the goldens is embedded as a document of its own. The
   step's vector averages the sentence's own pieces, where the golden's
   averages the whole row, [CLS] and [SEP] included, so the two are held to

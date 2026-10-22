@@ -35,8 +35,8 @@ RUN git init -q . \
 
 # The runtime, the formats module (the sample conversion streams), the
 # LIBSVM document categorizer module, the deep learning module
-# (SentenceVectorsDL, with ONNX Runtime from Maven Central), the command line module (ParserTool and
-# ParserEvaluator) and the modules they depend on,
+# (SentenceVectorsDL, with ONNX Runtime from Maven Central), the command
+# line module (ParserTool and ParserEvaluator) and the modules they depend on,
 # installed into the local Maven repository. The forbidden API check is
 # skipped because it fails on classes of this commit (NameSample and Parse in
 # opennlp-api use java.util.regex); it only reads the compiled classes and

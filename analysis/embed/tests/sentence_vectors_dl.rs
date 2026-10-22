@@ -16,7 +16,7 @@
 //! [`ROW_MIN_COSINE`]: that one checks the tokenizer and the encoder
 //! against OpenNLP's and ONNX Runtime's.
 //!
-//! `TURBO_TEST_VECTORS_BUNDLE` is an all-MiniLM-L6-v2 bundle made from the
+//! `TURBO_TEST_MINILM_BUNDLE` is an all-MiniLM-L6-v2 bundle made from the
 //! same upstream revision. Without it the test says it was skipped and passes.
 
 use std::path::{Path, PathBuf};
@@ -78,12 +78,13 @@ fn cosine(g: &[f32], w: &[f32]) -> f64 {
 
 #[test]
 fn sentence_vectors_match_sentence_vectors_dl() {
-    let Ok(bundle) = std::env::var("TURBO_TEST_VECTORS_BUNDLE") else {
-        println!("skipped: TURBO_TEST_VECTORS_BUNDLE is not set");
+    let Ok(bundle) = std::env::var("TURBO_TEST_MINILM_BUNDLE") else {
+        println!("skipped: TURBO_TEST_MINILM_BUNDLE is not set");
         return;
     };
     let bundle = PathBuf::from(bundle);
     let vectors = Arc::new(VectorAnnotator::open(&bundle, &VectorOptions::default()).unwrap());
+    assert_eq!(vectors.dim(), 384, "TURBO_TEST_MINILM_BUNDLE must be an all-MiniLM-L6-v2 bundle");
     let a = Analyzer::builder()
         .given(Key::<Sentences>::DEFAULT)
         .add(SubwordAnnotator::open(&bundle).unwrap())
