@@ -139,3 +139,6 @@ fn decisions_reject_nonfinite_and_out_of_range_values() {
 
 #[path = "boundary_tests.rs"]
 mod boundaries;
+
+#[path = "window_tests.rs"]
+mod windows;

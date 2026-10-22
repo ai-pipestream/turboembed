@@ -7,6 +7,7 @@ mod output;
 pub mod package;
 mod packing;
 mod schema;
+mod window;
 pub use config::Config;
 pub use output::{Decisions, GlinerAnnotator};
 pub use packing::PackedInput;

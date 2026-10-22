@@ -43,9 +43,14 @@ fn tokenizer() -> Vec<u8> {
     panic!("fixture normalizer missing");
 }
 
-fn model() -> Arc<Model> {
+pub(super) fn model() -> Arc<Model> {
+    model_with_sequence(32)
+}
+pub(super) fn model_with_sequence(max_sequence: usize) -> Arc<Model> {
+    let mut encoder_config = ec();
+    encoder_config.max_sequence = max_sequence;
     let encoder = turbo::deberta::Encoder::from_safetensors(
-        ec(),
+        encoder_config,
         include_bytes!("../../../core/tests/fixtures/deberta/weights.safetensors"),
     )
     .unwrap();
@@ -105,4 +110,29 @@ fn zero_piece_tokens_keep_word_positions() {
         assert!(scores.iter().any(|c| c.start == 0 && c.end == 1));
         assert!(scores.iter().any(|c| c.start == 3 && c.end == 4));
     }
+}
+
+#[test]
+fn long_sentence_free_documents_keep_global_token_indexes() {
+    let model = model();
+    let schema = ExtractionSchema::new(vec!["person".into()], 0.0, Decode::Flat).unwrap();
+    let pipeline = Analyzer::builder()
+        .given(Key::<Tokens>::DEFAULT)
+        .step(Bound::new(GlinerAnnotator::new(model, schema)))
+        .build()
+        .unwrap();
+    let text = vec!["é"; 1024].join(" ");
+    let mut doc = Document::new(text.clone());
+    let mut spans = Spans::new(doc.get::<View>().unwrap().id());
+    for (at, _) in text.match_indices('é') {
+        spans.push(turbo_analysis::Span::new(at as u32, at as u32 + 2));
+    }
+    doc.add(&Key::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("fixture:tokens")).unwrap();
+    let mut docs = vec![doc];
+    for result in pipeline.run(&mut docs) {
+        result.unwrap();
+    }
+    let entities = docs[0].get::<Entities>().unwrap();
+    assert!(entities.tokens.iter().any(|r| r.start.get() > 384));
+    GlinerAnnotator::evidence(&docs[0], Key::DEFAULT, Key::DEFAULT).unwrap().verify(&docs[0]).unwrap();
 }
