@@ -349,3 +349,4 @@ fn sentence_vectors_from_another_encoder_are_refused() {
 }
 
 mod context;
+mod lexicon;
