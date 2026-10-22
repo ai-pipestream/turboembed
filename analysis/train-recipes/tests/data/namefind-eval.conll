@@ -1,0 +1,27 @@
+-DOCSTART- -X- -X- O
+
+Alice NNP B-NP I-PER
+Smith NNP I-NP I-PER
+visits VBZ B-VP O
+Paris NNP B-NP I-LOC
+. . O O
+
+Alice NNP B-NP I-PER
+works VBZ B-VP O
+at IN B-PP O
+Acme NNP B-NP I-ORG
+. . O O
+
+-DOCSTART- -X- -X- O
+
+Zoë NNP B-NP B-PER
+and CC O O
+李 NNP B-NP B-PER
+visit VBP B-VP O
+東京 NNP B-NP B-LOC
+. . O O
+
+No DT B-NP O
+names NNS I-NP O
+here RB B-ADVP O
+. . O O
