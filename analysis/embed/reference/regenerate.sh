@@ -32,12 +32,12 @@ fi
 #    in the reference container with --network none.
 docker run --rm --network none --entrypoint python3 "${user_arg[@]}" \
   --mount "type=bind,src=$repo_root,dst=/repo,readonly" \
-  --mount "type=bind,src=$work_abs,dst=/work" \
+  --mount "type=bind,src=$work_abs,dst=/out" \
   "$ref_image" \
   /repo/analysis/embed/reference/export_onnx.py \
   /repo/testdata/tiny-bert-bundle/weights/model.safetensors \
-  /work/mean_l2.onnx \
-  /work/cls.onnx
+  /out/mean_l2.onnx \
+  /out/cls.onnx
 
 mean_sha="$(sha256sum "$work/mean_l2.onnx" | awk '{print $1}')"
 cls_sha="$(sha256sum "$work/cls.onnx" | awk '{print $1}')"
@@ -55,21 +55,21 @@ test "$cls_sha" = "$expected_cls_sha256" || {
 #    No --user flag is passed here so the container's JDK can read /root/.m2.
 docker run --rm --network none --entrypoint sh \
   --mount "type=bind,src=$repo_root,dst=/repo,readonly" \
-  --mount "type=bind,src=$work_abs,dst=/work" \
+  --mount "type=bind,src=$work_abs,dst=/out" \
   "$java_image" -c "
     set -eu
     test \"\$(cat /opennlp.commit)\" = \"$opennlp_commit\"
     m2=/root/.m2/repository
     cp=\"/generator/target/lib/*:\$m2/org/apache/opennlp/opennlp-dl/3.0.0-SNAPSHOT/opennlp-dl-3.0.0-SNAPSHOT.jar:\$m2/com/microsoft/onnxruntime/onnxruntime/1.29.0/onnxruntime-1.29.0.jar\"
-    javac -encoding UTF-8 -cp \"\$cp\" -d /work/classes /repo/analysis/embed/reference/SentenceVectorsDlGolden.java
-    java -cp \"/work/classes:\$cp\" SentenceVectorsDlGolden \
-      /work/mean_l2.onnx \
-      /work/cls.onnx \
+    javac -encoding UTF-8 -cp \"\$cp\" -d /out/classes /repo/analysis/embed/reference/SentenceVectorsDlGolden.java
+    java -cp \"/out/classes:\$cp\" SentenceVectorsDlGolden \
+      /out/mean_l2.onnx \
+      /out/cls.onnx \
       /repo/analysis/goldens/data/fixtures/all-minilm-l6-v2-vocab.txt \
       /repo/testdata/tiny-bert-bundle/weights/model.safetensors \
       /repo/analysis/goldens/data/inputs \
       \"$opennlp_commit\" \
-      /work/sentence_vectors_dl_golden.json
+      /out/sentence_vectors_dl_golden.json
   "
 
 if [[ "${1:-}" == "--write" ]]; then
