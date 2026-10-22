@@ -167,7 +167,8 @@ one thread, `extract` per document or `batch_extract` over all four.
 
 | per document | GLiNER2, one at a time | GLiNER2, batch of 4 | native | documents/s, native |
 |---|---|---|---|---|
-| end to end | 279.8 to 294.8 ms | 264.7 to 268.7 ms | 90.6 to 98.6 ms | 10.1 to 11.0 |
+| end to end | 274.8 to 275.4 ms | 242.3 to 246.7 ms | 84.3 to 84.5 ms | 11.8 to 11.9 |
 
-The native extractor takes one document at a time and is about 2.9 times
-the reference's documents per second against its batch of four.
+The native extractor takes one document at a time. It runs 2.9 times as
+many documents per second as the reference with a batch of four (4.1
+documents/s), and 3.3 times as many as one at a time (3.6).
