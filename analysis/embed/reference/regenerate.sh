@@ -51,8 +51,10 @@ test "$cls_sha" = "$expected_cls_sha256" || {
 }
 
 # 2. Compile and run SentenceVectorsDlGolden in the pinned goldens JVM container
-#    against OpenNLP's opennlp-dl and ONNX Runtime jars with --network none.
-#    No --user flag is passed here so the container's JDK can read /root/.m2.
+#    with --network none. opennlp-dl-3.0.0-SNAPSHOT.jar and onnxruntime-1.29.0.jar
+#    are installed into the image by analysis/goldens-tool/container/Dockerfile
+#    and analysis/goldens-tool/java/pom.xml. No --user flag is passed here so the
+#    container's JDK can read /root/.m2.
 docker run --rm --network none --entrypoint sh \
   --mount "type=bind,src=$repo_root,dst=/repo,readonly" \
   --mount "type=bind,src=$work_abs,dst=/out" \

@@ -4658,7 +4658,7 @@ runs them on any machine:
   On a Hailo-8 machine with a HEF bundle that also carries
   `weights/model.safetensors`:
   `TURBO_TEST_HEF_BUNDLE=<bundle> TURBO_TEST_DEVICE=hailo cargo test -p turbo-analysis-embed --features turbo/hailo --test vectors on_the_device`.
-- `analysis/embed/tests/sentence_vectors_dl.rs` also compares `Encoder`,
+- `analysis/embed/tests/sentence_vectors_dl_tiny.rs` compares `Encoder`,
   `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` offline on
   `testdata/tiny-bert-bundle` against OpenNLP's `SentenceVectorsDL`
   (`analysis/embed/reference/regenerate.sh`, which runs
