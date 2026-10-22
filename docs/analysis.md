@@ -4676,16 +4676,22 @@ runs them on any machine:
   tokenizer and the encoder agree with OpenNLP's and ONNX Runtime's.
 - `analysis/embed/src/calibrate.rs` decides how the sentence vector step
   runs on a device. `Calibration::measure` runs the step over the
-  caller's texts at each window size it is given, on the device and on
-  the CPU at `Precision::Exact` as the reference, and keeps each window's
-  lowest cosine and the median times on the device and on the CPU at
-  `Precision::Model`. It keeps the widest window whose lowest cosine
-  clears the floor (the core's tolerance for the device's dtype, or 0.93
-  for I8), and runs on the device only if a window clears it and the
-  device is faster there. `Calibration::load_or_measure` keeps the result
-  in a directory under a key of the bundle's model and manifest hash, the
-  device's backend, name, runtime and driver versions, the precision and
-  the library's version, and measures again only when the key changes.
+  caller's texts at each window size it is given (each once, at most the
+  model's), on the device and on the CPU at `Precision::Exact` as the
+  reference, and keeps each window's lowest cosine and the median times of
+  the step on the device and on the CPU at `Precision::Model`, the two
+  timed in turns. A cosine that is not a number counts as the lowest, and
+  a device that gives a different number of vectors than the reference is
+  an error. It keeps the widest window whose lowest cosine clears the
+  floor (the core's tolerance for the device's dtype, or 0.93 for I8), and
+  runs on the device only if a window clears it and the device is faster
+  there. `Calibration::load_or_measure` keeps the result in a directory,
+  written to a `.part` file and renamed, under a key of the bundle's model
+  and manifest hash, the device's backend, name, runtime and driver
+  versions, the precision, the library's build (`turbo::tuning::LIBRARY_BUILD`,
+  its version and kernels), the windows, the floor as given and a hash of
+  the texts. It measures again when the key changes, and when the kept
+  file is incomplete or its choice does not follow from its points.
   `Calibration::options` gives the `VectorOptions` to open the step with.
   `analysis/embed/tests/calibrate.rs` checks it with the CPU as the device
   on the small BERT, and on the device `TURBO_TEST_DEVICE` names with the

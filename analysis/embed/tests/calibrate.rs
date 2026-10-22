@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use turbo_analysis_embed::calibrate::{Calibration, CalibrationOptions, Point, Text};
+use turbo_analysis_embed::calibrate::{Calibration, CalibrationOptions, Point, Text, decide, lowest_cosine};
 use turbo_analysis_embed::{Device, Precision, VectorOptions};
 
 const SENTENCES: [&str; 8] = [
@@ -93,9 +93,45 @@ fn the_kept_form_reads_back() {
             Point { max_seq: 128, min_cosine: 0.8351824182316789, device_ms: 63.4, cpu_ms: 882.2 },
         ],
     };
-    assert_eq!(Calibration::parse(&c.to_text()), Some(c));
+    let text = c.to_text();
+    assert_eq!(Calibration::parse(&text), Some(c));
     assert_eq!(Calibration::parse("calibration 2\n"), None);
     assert_eq!(Calibration::parse("calibration 1\nfloor\tx\n"), None);
+    // Every line short of the whole, and a record given twice, is refused.
+    let lines: Vec<&str> = text.lines().collect();
+    for n in 1..lines.len() - 1 {
+        assert_eq!(Calibration::parse(&lines[..n].join("\n")), None, "{n} lines");
+    }
+    assert_eq!(Calibration::parse(&format!("{text}max_seq\t64\n")), None);
+}
+
+#[test]
+fn a_cosine_that_is_not_a_number_is_the_lowest() {
+    assert_eq!(lowest_cosine(&[f32::NAN, 0.0], &[1.0, 0.0], 2), f64::NEG_INFINITY);
+    assert_eq!(lowest_cosine(&[1.0, 0.0, f32::NAN, 0.0], &[1.0, 0.0, 1.0, 0.0], 2), f64::NEG_INFINITY);
+    assert_eq!(lowest_cosine(&[1.0, 0.0, 0.0, 1.0], &[1.0, 0.0, 1.0, 0.0], 2), 0.0);
+    // So a device that gives one is never chosen.
+    let p = Point { max_seq: 64, min_cosine: f64::NEG_INFINITY, device_ms: 1.0, cpu_ms: 2.0 };
+    assert_eq!(decide(0.93, &[p]), (0, false));
+}
+
+#[test]
+fn windows_are_each_given_once_and_within_the_model() {
+    for windows in [vec![], vec![24, 24], vec![0], vec![65]] {
+        let o = CalibrationOptions { windows: windows.clone(), ..options(None) };
+        assert!(Calibration::measure(&bert(), &o, &texts()).is_err(), "{windows:?}");
+    }
+}
+
+#[test]
+fn the_key_names_what_was_asked() {
+    let k = |o: &CalibrationOptions, t: &[Text]| Calibration::key(&bert(), o, t).unwrap();
+    let base = k(&options(None), &texts());
+    assert!(base.contains(turbo::tuning::LIBRARY_BUILD), "{base}");
+    assert_ne!(base, k(&options(Some(0.97)), &texts()));
+    assert_ne!(base, k(&CalibrationOptions { windows: vec![24], ..options(None) }, &texts()));
+    assert_ne!(base, k(&options(None), &texts()[1..]));
+    assert_eq!(base, k(&CalibrationOptions { reps: 7, ..options(None) }, &texts()));
 }
 
 #[test]
@@ -109,9 +145,24 @@ fn a_kept_calibration_is_read_back_not_measured_again() {
     let second = Calibration::load_or_measure(&dir, &bert(), &o, &texts()).unwrap();
     assert_eq!(first, second);
     // Another precision is another key, measured and kept beside it.
-    let exact = CalibrationOptions { precision: Precision::Exact, ..o };
+    let exact = CalibrationOptions { precision: Precision::Exact, ..o.clone() };
     let third = Calibration::load_or_measure(&dir, &bert(), &exact, &texts()).unwrap();
     assert_ne!(third.key, first.key);
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+    // A kept file cut short, or whose choice does not follow from its
+    // points, is measured again and replaced.
+    let file = Calibration::file(&dir, &first.key);
+    let text = first.to_text();
+    std::fs::write(&file, &text[..text.find("max_seq").unwrap()]).unwrap();
+    let again = Calibration::load_or_measure(&dir, &bert(), &o, &texts()).unwrap();
+    assert_eq!((again.key.as_str(), again.max_seq), (first.key.as_str(), 64));
+    assert_ne!(again.points, first.points);
+    let mut wrong = again.clone();
+    wrong.max_seq = 24;
+    std::fs::write(&file, wrong.to_text()).unwrap();
+    let fixed = Calibration::load_or_measure(&dir, &bert(), &o, &texts()).unwrap();
+    assert_eq!(fixed.max_seq, 64);
+    assert_eq!(Calibration::parse(&std::fs::read_to_string(&file).unwrap()), Some(fixed));
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
     std::fs::remove_dir_all(&dir).unwrap();
 }

@@ -9,19 +9,19 @@
 //! over the caller's texts at each window in turn, on the device and as
 //! the reference on the CPU at `Precision::Exact`, and keeps the lowest
 //! cosine and the median times. [`Calibration::load_or_measure`] keeps the
-//! result in a directory, under a key made of the bundle's manifest hash,
-//! the device's backend, name, runtime and driver versions, the precision
-//! and the library's version, so it is measured again only when one of
-//! those changes. [`Calibration::options`] gives the options to open the
-//! step with.
+//! result in a directory, under a key made of the bundle's model and
+//! manifest hash, the device's backend, name, runtime and driver versions,
+//! the precision, the library's build (its version and kernels), and what
+//! was asked: the windows, the floor and a hash of the texts. It is measured
+//! again when any of those changes. [`Calibration::options`] gives the
+//! options to open the step with.
 
 use std::fmt::Write as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
-use turbo::bundle::Bundle;
-use turbo::bundle::sha256_hex;
+use turbo::bundle::{Bundle, sha256_hex};
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
 use turbo_analysis::{Analyzer, Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Sentences, Vectors};
@@ -41,7 +41,8 @@ pub type Text = (String, Vec<(u32, u32)>);
 pub struct CalibrationOptions {
     pub device: Device,
     pub precision: Precision,
-    /// The windows (tokens per row) to try; each at most the model's.
+    /// The windows (tokens per row) to try, each once and at most the
+    /// model's.
     pub windows: Vec<u32>,
     /// The lowest cosine to accept; None is the core's tolerance for the
     /// device's dtype, or [`I8_FLOOR`] for I8.
@@ -73,42 +74,29 @@ pub struct Calibration {
 }
 
 impl Calibration {
-    /// The key a bundle and device are kept under: the bundle's model and
-    /// manifest hash, the device's backend, name, runtime and driver
-    /// versions, the precision and the library's version.
-    pub fn key(bundle: &Path, o: &CalibrationOptions) -> Result<String, CoreError> {
-        let model = crate::model_ref(&Bundle::open(bundle)?);
-        let enc = Encoder::open(
-            bundle,
-            &EncoderOptions {
-                device: o.device.clone(),
-                precision: o.precision,
-                max_batch: 1,
-                ..EncoderOptions::default()
-            },
-        )?;
-        let d = enc.device_info();
-        let f = crate::encoder::field;
-        Ok([
-            model.id,
-            model.sha256,
-            f(&d.backend),
-            f(&d.name),
-            f(&d.runtime_version),
-            f(&d.driver_version),
-            o.precision.name().to_owned(),
-            turbo::record::library_version().to_owned(),
-        ]
-        .join(" | "))
+    /// The key a measurement is kept under (see the module's comment).
+    pub fn key(bundle: &Path, o: &CalibrationOptions, texts: &[Text]) -> Result<String, CoreError> {
+        Ok(probe(bundle, o, texts)?.0)
+    }
+
+    /// Where `load_or_measure` keeps the measurement for `key` in `dir`.
+    pub fn file(dir: &Path, key: &str) -> PathBuf {
+        dir.join(format!("{}.calibration", &sha256_hex(key.as_bytes())[..32]))
     }
 
     /// Runs the step over `texts` at each window of `o`, on the device and
     /// on the CPU, and decides.
     pub fn measure(bundle: &Path, o: &CalibrationOptions, texts: &[Text]) -> Result<Calibration, CoreError> {
-        if o.windows.is_empty() || texts.is_empty() || o.reps == 0 {
-            return Err(CoreError::new(INVALID_ARGUMENT, "calibration needs windows, texts and a run"));
+        let (key, model_max_seq) = probe(bundle, o, texts)?;
+        let mut seen = o.windows.clone();
+        seen.sort_unstable();
+        seen.dedup();
+        if seen.is_empty() || seen.len() != o.windows.len() || o.windows.iter().any(|&w| w == 0 || w > model_max_seq) {
+            return Err(CoreError::new(
+                INVALID_ARGUMENT,
+                format!("calibration windows {:?}: each once, from 1 to the model's {model_max_seq}", o.windows),
+            ));
         }
-        let key = Calibration::key(bundle, o)?;
         let mut floor = o.floor;
         let mut points = Vec::new();
         for &max_seq in &o.windows {
@@ -116,52 +104,56 @@ impl Calibration {
                 let enc = EncoderOptions { device, precision, max_seq, ..EncoderOptions::default() };
                 VectorAnnotator::open(bundle, &VectorOptions { encoder: enc, ..VectorOptions::default() }).map(Arc::new)
             };
-            let (dev, reference, cpu) = (
-                open(o.device.clone(), o.precision)?,
-                open(Device::Cpu, Precision::Exact)?,
-                open(Device::Cpu, Precision::Model)?,
-            );
+            let dev = open(o.device.clone(), o.precision)?;
             floor.get_or_insert_with(|| default_floor(dev.info().compute_dtype));
-            let got = run(bundle, &dev, texts)?;
-            let want = run(bundle, &reference, texts)?;
             let dim = dev.dim() as usize;
-            let min_cosine =
-                got.chunks_exact(dim).zip(want.chunks_exact(dim)).map(|(g, w)| cosine(g, w)).fold(1f64, f64::min);
-            let device_ms = median(o.reps, || run(bundle, &dev, texts).map(drop))?;
-            let cpu_ms = median(o.reps, || run(bundle, &cpu, texts).map(drop))?;
+            let (on_dev, reference, on_cpu) = (
+                pipeline(bundle, dev)?,
+                pipeline(bundle, open(Device::Cpu, Precision::Exact)?)?,
+                pipeline(bundle, open(Device::Cpu, Precision::Model)?)?,
+            );
+            let got = run(&on_dev, texts)?;
+            let want = run(&reference, texts)?;
+            if got.is_empty() || got.len() != want.len() || got.len() % dim != 0 {
+                return Err(CoreError::new(
+                    INVALID_ARGUMENT,
+                    format!("window {max_seq}: {} device values, {} reference", got.len(), want.len()),
+                ));
+            }
+            let min_cosine = lowest_cosine(&got, &want, dim);
+            let (device_ms, cpu_ms) =
+                medians(o.reps, || run(&on_dev, texts).map(drop), || run(&on_cpu, texts).map(drop))?;
             points.push(Point { max_seq, min_cosine, device_ms, cpu_ms });
         }
         let floor = floor.unwrap_or(I8_FLOOR);
-        let best = points.iter().filter(|p| p.min_cosine >= floor).max_by_key(|p| p.max_seq);
-        Ok(Calibration {
-            key,
-            floor,
-            max_seq: best.map_or(0, |p| p.max_seq),
-            use_device: best.is_some_and(|p| p.device_ms < p.cpu_ms),
-            points,
-        })
+        let (max_seq, use_device) = decide(floor, &points);
+        Ok(Calibration { key, floor, max_seq, use_device, points })
     }
 
-    /// The calibration kept in `dir` for this bundle and device, measured
-    /// and kept first when there is none.
+    /// The calibration kept in `dir` for this bundle, device and request,
+    /// measured and kept first when there is none, or when the kept one is
+    /// incomplete or its decision does not follow from its points.
     pub fn load_or_measure(
         dir: &Path,
         bundle: &Path,
         o: &CalibrationOptions,
         texts: &[Text],
     ) -> Result<Calibration, CoreError> {
-        let key = Calibration::key(bundle, o)?;
-        let file = dir.join(format!("{}.calibration", &sha256_hex(key.as_bytes())[..32]));
+        let key = Calibration::key(bundle, o, texts)?;
+        let file = Calibration::file(dir, &key);
         if let Ok(text) = std::fs::read_to_string(&file)
             && let Some(c) = Calibration::parse(&text)
             && c.key == key
+            && decide(c.floor, &c.points) == (c.max_seq, c.use_device)
         {
             return Ok(c);
         }
         let c = Calibration::measure(bundle, o, texts)?;
         let io = |e: std::io::Error| CoreError::new(INVALID_ARGUMENT, format!("{}: {e}", file.display()));
         std::fs::create_dir_all(dir).map_err(io)?;
-        std::fs::write(&file, c.to_text()).map_err(io)?;
+        let part = file.with_extension("part");
+        std::fs::write(&part, c.to_text()).map_err(io)?;
+        std::fs::rename(&part, &file).map_err(io)?;
         Ok(c)
     }
 
@@ -192,35 +184,95 @@ impl Calibration {
         s
     }
 
-    /// Reads [`Calibration::to_text`]'s form; None for anything else.
+    /// Reads [`Calibration::to_text`]'s form, with the key, the floor, the
+    /// window and the choice each exactly once and at least one point;
+    /// None for anything else.
     pub fn parse(text: &str) -> Option<Calibration> {
         let mut lines = text.lines();
         if lines.next()? != "calibration 1" {
             return None;
         }
-        let mut c = Calibration { key: String::new(), floor: 0.0, max_seq: 0, use_device: false, points: Vec::new() };
+        let mut key: Option<String> = None;
+        let mut floor: Option<f64> = None;
+        let mut max_seq: Option<u32> = None;
+        let mut use_device: Option<bool> = None;
+        let mut points = Vec::new();
         for line in lines {
             let (name, rest) = line.split_once('\t')?;
-            match name {
-                "key" => c.key = rest.to_owned(),
-                "floor" => c.floor = rest.parse().ok()?,
-                "max_seq" => c.max_seq = rest.parse().ok()?,
-                "use_device" => c.use_device = rest.parse().ok()?,
+            let again = match name {
+                "key" => key.replace(rest.to_owned()).is_some(),
+                "floor" => floor.replace(rest.parse().ok()?).is_some(),
+                "max_seq" => max_seq.replace(rest.parse().ok()?).is_some(),
+                "use_device" => use_device.replace(rest.parse().ok()?).is_some(),
                 "point" => {
                     let f: Vec<&str> = rest.split('\t').collect();
                     let [a, b, d, e] = f[..] else { return None };
-                    c.points.push(Point {
+                    points.push(Point {
                         max_seq: a.parse().ok()?,
                         min_cosine: b.parse().ok()?,
                         device_ms: d.parse().ok()?,
                         cpu_ms: e.parse().ok()?,
                     });
+                    false
                 }
                 _ => return None,
+            };
+            if again {
+                return None;
             }
         }
-        Some(c)
+        if points.is_empty() {
+            return None;
+        }
+        Some(Calibration { key: key?, floor: floor?, max_seq: max_seq?, use_device: use_device?, points })
     }
+}
+
+/// The widest window whose lowest cosine clears `floor` (0 when none), and
+/// whether the device is faster than the CPU there.
+pub fn decide(floor: f64, points: &[Point]) -> (u32, bool) {
+    let best = points.iter().filter(|p| p.min_cosine >= floor).max_by_key(|p| p.max_seq);
+    (best.map_or(0, |p| p.max_seq), best.is_some_and(|p| p.device_ms < p.cpu_ms))
+}
+
+/// The lowest cosine between the vectors of `got` and `want`, `dim` values
+/// each; a cosine that is not a number counts as the lowest there is.
+pub fn lowest_cosine(got: &[f32], want: &[f32], dim: usize) -> f64 {
+    got.chunks_exact(dim)
+        .zip(want.chunks_exact(dim))
+        .map(|(g, w)| cosine(g, w))
+        .fold(1f64, |m, c| if c.is_nan() { f64::NEG_INFINITY } else { m.min(c) })
+}
+
+/// The key, and the model's own window.
+fn probe(bundle: &Path, o: &CalibrationOptions, texts: &[Text]) -> Result<(String, u32), CoreError> {
+    let model = crate::model_ref(&Bundle::open(bundle)?);
+    let enc = Encoder::open(
+        bundle,
+        &EncoderOptions { device: o.device.clone(), precision: o.precision, max_batch: 1, ..EncoderOptions::default() },
+    )?;
+    let d = enc.device_info();
+    let f = crate::encoder::field;
+    let mut t = String::new();
+    for (text, spans) in texts {
+        let _ = write!(t, "{text}\u{1f}{spans:?}\u{1e}");
+    }
+    let windows: Vec<String> = o.windows.iter().map(u32::to_string).collect();
+    let key = [
+        model.id,
+        model.sha256,
+        f(&d.backend),
+        f(&d.name),
+        f(&d.runtime_version),
+        f(&d.driver_version),
+        o.precision.name().to_owned(),
+        turbo::tuning::LIBRARY_BUILD.to_owned(),
+        windows.join(","),
+        o.floor.map_or("none".to_owned(), |f| f.to_string()),
+        sha256_hex(t.as_bytes()),
+    ]
+    .join(" | ");
+    Ok((key, enc.info().max_seq))
 }
 
 /// The core's tolerance for `dtype`, or [`I8_FLOOR`] for a dtype it gives
@@ -229,15 +281,20 @@ fn default_floor(dtype: u32) -> f64 {
     turbo::record::tolerance(dtype).map_or(I8_FLOOR, |t| t.min_cosine)
 }
 
-/// The sentence vectors of every text, in order.
-fn run(bundle: &Path, vectors: &Arc<VectorAnnotator>, texts: &[Text]) -> Result<Vec<f32>, CoreError> {
-    let err = |e: turbo_analysis::Error| CoreError::new(INVALID_ARGUMENT, e.to_string());
-    let a = Analyzer::builder()
+/// The bundle's subwords, then the sentence vector step on `vectors`.
+fn pipeline(bundle: &Path, vectors: Arc<VectorAnnotator>) -> Result<Analyzer, CoreError> {
+    Analyzer::builder()
         .given(Key::<Sentences>::DEFAULT)
         .add(SubwordAnnotator::open(bundle)?)
-        .add(SentenceVectors(vectors.clone()))
+        .add(SentenceVectors(vectors))
         .build()
-        .map_err(err)?;
+        .map_err(|e| CoreError::new(INVALID_ARGUMENT, e.to_string()))
+}
+
+/// The sentence vectors of every text, in order; an error when a text
+/// with sentences gets none.
+fn run(a: &Analyzer, texts: &[Text]) -> Result<Vec<f32>, CoreError> {
+    let err = |e: turbo_analysis::Error| CoreError::new(INVALID_ARGUMENT, e.to_string());
     let mut docs: Vec<Document> = texts
         .iter()
         .map(|(text, spans)| {
@@ -253,7 +310,15 @@ fn run(bundle: &Path, vectors: &Arc<VectorAnnotator>, texts: &[Text]) -> Result<
     for r in a.run(&mut docs) {
         r.map_err(err)?;
     }
-    Ok(docs.iter().flat_map(|d| d.get::<Vectors<Sentences>>().map(|v| v.data.clone()).unwrap_or_default()).collect())
+    let mut out = Vec::new();
+    for (i, (d, (_, spans))) in docs.iter().zip(texts).enumerate() {
+        match d.get::<Vectors<Sentences>>() {
+            Some(v) => out.extend_from_slice(&v.data),
+            None if spans.is_empty() => {}
+            None => return Err(CoreError::new(INVALID_ARGUMENT, format!("text {i}: no sentence vectors"))),
+        }
+    }
+    Ok(out)
 }
 
 fn cosine(g: &[f32], w: &[f32]) -> f64 {
@@ -263,15 +328,34 @@ fn cosine(g: &[f32], w: &[f32]) -> f64 {
     if d == 0.0 { if n(g) == n(w) { 1.0 } else { 0.0 } } else { dot / d }
 }
 
-/// The median time of `reps` runs of `f` after one untimed run, in ms.
-fn median(reps: usize, mut f: impl FnMut() -> Result<(), CoreError>) -> Result<f64, CoreError> {
-    f()?;
-    let mut t = Vec::with_capacity(reps);
-    for _ in 0..reps {
+/// The median times of `reps` runs each of `a` and `b`, in ms, the two
+/// taking turns after one untimed run each, so drift falls on both.
+fn medians(
+    reps: usize,
+    mut a: impl FnMut() -> Result<(), CoreError>,
+    mut b: impl FnMut() -> Result<(), CoreError>,
+) -> Result<(f64, f64), CoreError> {
+    if reps == 0 {
+        return Err(CoreError::new(INVALID_ARGUMENT, "calibration needs at least one timed run"));
+    }
+    a()?;
+    b()?;
+    let (mut ta, mut tb) = (Vec::with_capacity(reps), Vec::with_capacity(reps));
+    let time = |f: &mut dyn FnMut() -> Result<(), CoreError>| -> Result<f64, CoreError> {
         let s = Instant::now();
         f()?;
-        t.push(s.elapsed().as_secs_f64() * 1e3);
+        Ok(s.elapsed().as_secs_f64() * 1e3)
+    };
+    for i in 0..reps {
+        if i % 2 == 0 {
+            ta.push(time(&mut a)?);
+            tb.push(time(&mut b)?);
+        } else {
+            tb.push(time(&mut b)?);
+            ta.push(time(&mut a)?);
+        }
     }
-    t.sort_by(f64::total_cmp);
-    Ok(t[reps / 2])
+    ta.sort_by(f64::total_cmp);
+    tb.sort_by(f64::total_cmp);
+    Ok((ta[reps / 2], tb[reps / 2]))
 }
