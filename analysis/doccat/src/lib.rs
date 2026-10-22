@@ -52,6 +52,7 @@
 
 pub mod calibrated;
 pub mod categorizer;
+pub mod dl;
 pub mod error;
 pub mod features;
 mod hash;
@@ -65,6 +66,11 @@ pub mod train;
 pub mod zeroshot;
 
 pub use categorizer::{DocumentCategorizerME, SpanCategorizer};
+pub use dl::{
+    AverageClassificationScoringStrategy, ClassificationScoringStrategy, DlChunkingMode, DlDoccatError,
+    DlInferenceOptions, DlSequenceScorer, DlSpanCategorizer, DocumentCategorizerConfig, DocumentCategorizerDL,
+    preprocess_text as dl_preprocess_text, softmax as dl_softmax, whitespace_chunks,
+};
 pub use error::DoccatError;
 pub use features::{
     BAG_OF_WORDS_CLASS, BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator,
