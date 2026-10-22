@@ -132,6 +132,19 @@ pub const LOCAL_MODELS: [Model; 5] = [
     },
 ];
 
+/// The upstream all-MiniLM-L6-v2 ONNX export, at the revision the sentence
+/// vector bundles are made from, which `fetch` turns into the mean-pooled
+/// copy the SentenceVectorsDL goldens run (`crate::pooled`). The generator
+/// never opens it. Hugging Face publishes its SHA-256 (6fd5d72f...); this
+/// is the SHA-512 of the same bytes. Fetched with [`LOCAL_MODELS`].
+pub const POOLING_SOURCE: Model = Model {
+    file: "all-minilm-l6-v2.onnx",
+    url: "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/\
+          c9745ed1d9f207416be6d2e6f8de32d1f16199bf/onnx/model.onnx",
+    sha512: "bcecf6e370eba3d2384b9d98676f79cebadf2462fd583fbd579a87e0149fa369\
+             004cd592a77d0acd45767de8f07efe6103e2474a67b7bbdadf0adec8f573bc7f",
+};
+
 /// A MeCab dictionary the generator loads from the models directory: the
 /// archive it is published in, the SHA-512 of the archive, the directory
 /// the archive unpacks to (where the dictionary's files are) and the
