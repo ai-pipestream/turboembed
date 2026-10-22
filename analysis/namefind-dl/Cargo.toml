@@ -1,0 +1,19 @@
+[package]
+name = "turbo-namefind-dl"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_namefind_dl"
+
+[dependencies]
+turbo = { path = "../../core" }
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+# The bundle encoder and its WordPiece tokenizer.
+turbo-analysis-embed = { path = "../embed" }
+
+[dev-dependencies]
+serde_json = "1"

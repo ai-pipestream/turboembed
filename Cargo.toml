@@ -29,6 +29,7 @@ members = [
     "analysis/unicode-gen",
     "analysis/maxent",
     "analysis/namefind",
+    "analysis/namefind-dl",
     "analysis/ngram",
     "analysis/normalize",
     "analysis/normalize-layers",
