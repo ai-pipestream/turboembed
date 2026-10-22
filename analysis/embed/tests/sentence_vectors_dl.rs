@@ -130,14 +130,8 @@ fn fixture_hashes_match_the_bundle_and_the_vocabulary() {
     let weights = std::fs::read(bert().join("weights/model.safetensors")).unwrap();
     assert_eq!(f.weights_file, "testdata/tiny-bert-bundle/weights/model.safetensors");
     assert_eq!(sha256_hex(&weights), f.weights_sha256);
-    assert_eq!(
-        f.mean_l2_onnx_sha256,
-        "57ec273eae030d2c810d2e1df214684f49d9c0b81da08cc52de952aa985fed49"
-    );
-    assert_eq!(
-        f.cls_onnx_sha256,
-        "7dfd15ea3e880ed3a6808df03b442b07a1d84cd55afeadd758a6108338176f0d"
-    );
+    assert_eq!(f.mean_l2_onnx_sha256, "57ec273eae030d2c810d2e1df214684f49d9c0b81da08cc52de952aa985fed49");
+    assert_eq!(f.cls_onnx_sha256, "7dfd15ea3e880ed3a6808df03b442b07a1d84cd55afeadd758a6108338176f0d");
     assert_eq!(f.sentences.len(), SENTENCES.len());
     assert_eq!(f.golden_inputs.len(), 76);
 }
