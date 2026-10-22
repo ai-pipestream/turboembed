@@ -107,3 +107,99 @@ sentences, both gave:
 | plain word lines (no multiword tokens, no empty nodes) | 24,386 | 22,676 | 92.9878% |
 
 The Rust tags equal the JVM's on all 24,742 tokens.
+
+## BiLSTM-CRF on the CPU backend
+
+`neural::BilstmPosTagger` runs an `ONLP-BLPT` model (char BiLSTM, word
+BiLSTM of one or two layers, optional pretrained vectors and adapter,
+optional CRF) and is an annotator from `opennlp:tokens` to `opennlp:pos`. It
+has two numerics (`neural::Numerics`):
+
+- `Packed`, the default (`BilstmPosTagger::new`). The weights are packed once
+  into `turbo::cpu::Matrix`, the CPU backend's f32 GEMM, and every LSTM runs
+  on it: the input projections of all the tokens of a call in one product,
+  the recurrent product over the sentences still running at each step
+  (longest first), the char LSTM once per distinct word with a
+  per-character projection table, and the output layer in one product.
+  Each row of a product is computed alone, so a sentence's scores do not
+  depend on what it is batched with. Word representations are cached (up to
+  100,000 words). The annotator batches every sentence of a document in one
+  call. The CRF is decoded in f64 by max-plus Viterbi, and the marginals
+  (the probabilities) by forward-backward in log space.
+- `JvmParity` (`BilstmPosTagger::jvm_parity`), for the golden tests and the
+  trainer's evaluation only: the f64 forward pass in the JVM's order and the
+  JVM's exact-sum CRF scorer, which give the JVM's emissions to within
+  rounding.
+
+`tests/neural_goldens/` runs both on every golden of
+`analysis/goldens/data/postag-neural/` (six BiLSTM runs). The parity
+numerics match the JVM as before (42,924 of 43,560 emissions bit for bit,
+the rest within 8.9e-16). The packed numerics
+give the JVM's tag on all 1,980 tokens, with emissions within 7.6e-7 and
+probabilities within 1.7e-7 of the JVM's (the test's tolerance is 1e-5; tags
+must be equal).
+
+### Accuracy and throughput on UD English EWT
+
+No published BiLSTM-CRF model exists, so `tests/bilstm_ewt.rs` trains one on
+the EWT train split (trainer defaults, a CRF, five epochs, the dev split for
+model selection), then tags the test split with both numerics. The treebank
+is CC BY-SA 4.0 and neither it nor the model is in the repository; the test
+is ignored unless the splits are named. Sentences are read as syntactic
+words (a multiword token's range line skipped and its parts kept, empty
+nodes dropped) with their UPOS tags.
+
+```
+for s in train dev test; do curl -sSfL -o /tmp/ud/en_ewt-ud-$s.conllu \
+  https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/r2.15/en_ewt-ud-$s.conllu; done
+TURBO_UD_EWT_TRAIN=/tmp/ud/en_ewt-ud-train.conllu TURBO_UD_EWT_DEV=/tmp/ud/en_ewt-ud-dev.conllu \
+TURBO_UD_EWT_TEST=/tmp/ud/en_ewt-ud-test.conllu TURBO_BILSTM_MODEL=/tmp/ud/bilstm-ewt.bin \
+TURBO_BILSTM_REPS=3 TURBO_BILSTM_BATCH=32 \
+  taskset -c 6 cargo test --release -p turbo-postag --test bilstm_ewt -- --ignored --nocapture
+```
+
+With UD English EWT r2.15 (test split SHA-256 as above), training took
+1,224 s on one core and wrote an `ONLP-BLPT-2` model of 10,204,385 bytes,
+17 tags, SHA-256
+`819328e7b1863ac5247e013547cadbfbf74d81ce09f1a04a1cd2030762adfad2`. On the
+test split's 2,077 sentences and 25,094 words:
+
+| Numerics | Correct | Accuracy |
+|---|---|---|
+| `Packed` (default) | 23,823 | 94.9350% |
+| `JvmParity` | 23,823 | 94.9350% |
+
+The two give the same tag on all 25,094 words.
+
+Throughput, one core of an AMD Ryzen 9 9950X3D (pinned with `taskset`),
+words per second over the test split, the median of six passes of each
+(three rounds of packed, parity, parity, packed). A cold pass loads a fresh
+model and tagger, so the representation cache starts empty; a warm pass
+reuses one tagger. "Emissions alone" is the BiLSTM without the CRF, one
+sentence per call.
+
+| Sentences per call | | Packed | JvmParity | Ratio |
+|---|---|---|---|---|
+| 1 | cold | 66,623 | 1,405 | 47.4x |
+| 1 | warm | 84,526 | 1,466 | 57.7x |
+| 32 | cold | 77,675 | 1,423 | 54.6x |
+| 32 | warm | 101,107 | 1,465 | 69.0x |
+| 128 | cold | 78,893 | 1,431 | 55.1x |
+| 128 | warm | 100,456 | 1,461 | 68.8x |
+| 1, emissions alone | warm | 107,084 | 7,589 | 14.1x |
+
+Most of the parity numerics' time is the exact-sum CRF scorer; the packed
+numerics' gain on the forward pass alone is the last row. The parity
+numerics are as fast as before this path was added (an A/B over 400 test
+sentences on the same core: within 1%).
+
+### Not done
+
+- Other backends. The packed numerics use the CPU backend's GEMM directly;
+  no GPU or NPU kernel runs the tagger, so no `TURBO_TEST_REQUIRE_*`
+  hardware run exists for it.
+- `turbo-bench` records. The numbers above are from the ignored test.
+- A bundle import recipe built in a pinned container: there is no published
+  BiLSTM-CRF model to import.
+- The JVM on EWT. The EWT comparison is packed against the parity numerics,
+  which the goldens tie to the JVM; the JVM was not run on the treebank.
