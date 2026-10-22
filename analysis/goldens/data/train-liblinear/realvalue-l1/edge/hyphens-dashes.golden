@@ -15,7 +15,7 @@ config	p	0
 config	solverType	L1R_LR
 config	source	realvalue
 layer	turbo:events	document	1	outcome:str	context:str	values:str
-long	-- 1990-2000, A--B, a-b-c. and bar dash double em en figure non‑breaking‐hyphen. re-entry state-of-the-art two-em well-known ‒ – — ― −minus ⸺	1.0 1.0 1.0 1.0 1.0 1.0 3.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+long	-- 1990-2000, A--B, a-b-c. and bar dash double em en figure non‑breaking‐hyphen. re-entry state-of-the-art two-em well-known ‒ – \u2014 ― −minus ⸺	1.0 1.0 1.0 1.0 1.0 1.0 3.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
 end	turbo:events
 layer	turbo:liblinear-error	document	1	class:str	message:str
 opennlp.tools.util.InsufficientTrainingDataException	Training data must contain more than one outcome

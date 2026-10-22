@@ -184,10 +184,13 @@ of it.
 
 The SaT and GLiNER checkpoints docs/neural-annotators.md considers, and
 the GLiNER2 and GLiREL checkpoints the relation scorer considers
-(docs/gliner2-relations.md). Two are in the zoo's index:
-`fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`, permissive) and
-`jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`, local-only,
-fetched from its publisher only after the user accepts CC BY-NC-SA 4.0).
+(docs/gliner2-relations.md, docs/glirel-relations.md). Three are in the
+zoo's index: `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
+permissive), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
+local-only, fetched from its publisher only after the user accepts CC
+BY-NC-SA 4.0), and GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
+`spm.model` and `config.json` (`microsoft-deberta-v3-large-tokenizer`,
+permissive).
 The others were not fetched, so no entry has the SHA-512s an entry
 needs. "Checked" is **here**: the
 `license` of the model card's metadata at the revision named, read on
@@ -203,6 +206,7 @@ and GLiREL rows.
 | [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive | here |
 | [urchade/gliner_small](https://huggingface.co/urchade/gliner_small) (v1) | `0f0f4e7d3f10e48844110162d6b5c6072ddd5a4e` | CC BY-NC 4.0 | | local-only; not used | here |
 | [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index | here |
+| [microsoft/deberta-v3-large](https://huggingface.co/microsoft/deberta-v3-large) (`spm.model`, `config.json`) | `64a8c8eab3e352a784c658aef62be1662607476f` | MIT | | permissive; in the index | here |
 | [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
 
 ## Datasets
@@ -345,3 +349,17 @@ SHA-256 the recipes record (`ud::IT_UD_VIT_POS`, `ud::IT_UD_VIT_LEMMAS`),
 and scored on UD_Italian-MarkIT's `test` file beside the model trained on
 MarkIT. Nothing ships, bundles, mirrors or trains on them, the zoo does
 not list them, and CI does not fetch them.
+
+## GLiNER small-v2.1 numerical fixtures
+
+`urchade/gliner_small-v2.1` revision
+`4e091416cf7c3481db542c2a3d26156916f3a47f` declares Apache-2.0 in its
+[model card](https://huggingface.co/urchade/gliner_small-v2.1/blob/4e091416cf7c3481db542c2a3d26156916f3a47f/README.md).
+The underlying `microsoft/deberta-v3-small` encoder and SentencePiece tokenizer
+declare MIT in their [pinned model card](https://huggingface.co/microsoft/deberta-v3-small/blob/a36c739020e01763fe789b4b85e2df55d6180012/README.md). GLiNER 0.2.21 reference code is Apache-2.0.
+The head fixture in `analysis/gliner/tests/fixtures` contains modified, reduced
+slices of those trained weights, not a usable extraction checkpoint. Its
+provenance lists the slicing rules. Full-width reference outputs and source
+SHA-256 values are in `analysis/gliner/tests/fixtures/full-reference.json`.
+No full model is added to the zoo by this change. The exact checkpoint above
+was checked; this is not a licence decision for other GLiNER checkpoints.

@@ -228,3 +228,29 @@ fn mecab_ko_dic() {
     let got = matches("mecab-ko-dic-2.1.1-20180720", a);
     assert_eq!(got, counts(1360, 211, 0, 0));
 }
+
+/// UniDic 2.1.2 (17-column source layout): `pron` and `orthBase` (`lemma`),
+/// no `kana` (`reading`) column.
+#[test]
+#[ignore = "needs UniDic from turbo-goldens fetch-models"]
+fn unidic() {
+    let a = analyzer(&dictionaries_dir().join("unidic-mecab-2.1.2"), DictionaryFormat::Unidic(UnidicLayout::Source17));
+    let d = a.tokenizer().dictionary();
+    assert_eq!(UnidicLayout::of(d), Some(UnidicLayout::Source17));
+    let map = a.format().map();
+    let mut out = Vec::new();
+    a.tokenizer().analyze("東京へ行った", &mut out).unwrap();
+    let seen: Vec<_> =
+        out.iter().map(|m| (map.reading(d, m.entry), map.pronunciation(d, m.entry), map.lemma(d, m.entry))).collect();
+    assert_eq!(
+        seen,
+        [
+            (None, Some("トーキョー"), Some("東京")),
+            (None, Some("エ"), Some("へ")),
+            (None, Some("イッ"), Some("行く")),
+            (None, Some("タ"), Some("た")),
+        ]
+    );
+    let got = matches("unidic-mecab-2.1.2", a);
+    assert_eq!(got, counts(2016, 0, 1219, 1496));
+}

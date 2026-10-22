@@ -121,11 +121,34 @@ fn trained_here(id: &str) -> bool {
 
 /// The published neural checkpoints the index lists (docs/licences.md,
 /// "Neural annotator checkpoints"): permissive, so nothing to accept.
-const CHECKPOINTS: [&str; 1] = ["fastino-gliner2-base-v1"];
+const CHECKPOINTS: [&str; 2] = ["fastino-gliner2-base-v1", "microsoft-deberta-v3-large-tokenizer"];
 
 /// The local-only checkpoints the index lists: fetched only for a user
 /// who has accepted their licence.
 const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
+
+#[test]
+fn the_glirel_tokenizer_is_pinned_and_permissive() {
+    let index = Index::builtin();
+    let a = index.get(CHECKPOINTS[1]).unwrap();
+    assert_eq!(
+        (a.kind, a.format, a.license, a.class),
+        (Kind::Model, Format::Sentencepiece, Licence::Mit, LicenceClass::Permissive)
+    );
+    let revision = "64a8c8eab3e352a784c658aef62be1662607476f";
+    assert_eq!(a.version, revision);
+    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(paths, ["spm.model", "config.json"]);
+    for f in &a.files {
+        let url = format!("https://huggingface.co/microsoft/deberta-v3-large/resolve/{revision}/{}", f.path.as_str());
+        assert_eq!(f.url.as_str(), url);
+    }
+    // The same SentencePiece model GLiNER2's checkpoint carries.
+    let gliner2 = index.get(CHECKPOINTS[0]).unwrap();
+    let spm =
+        |a: &turbo_zoo::Artifact| a.files.iter().find(|f| f.path.as_str() == "spm.model").unwrap().sha256.to_string();
+    assert_eq!(spm(a), spm(gliner2));
+}
 
 #[test]
 fn the_glirel_checkpoint_is_pinned_local_only_and_needs_its_licence() {

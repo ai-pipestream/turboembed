@@ -45,6 +45,7 @@ final class Runs {
   static final String IPADIC_UTF8 = "mecab-ipadic-2.7.0-20070801.utf8";
   static final String IPADIC_CHARSET = "EUC-JP";
   static final String KO_DIC = "mecab-ko-dic-2.1.1-20180720";
+  static final String UNIDIC = "unidic-mecab-2.1.2";
 
   /**
    * The training corpus the maxent document categorizer runs read from the models directory: the
@@ -271,7 +272,7 @@ final class Runs {
 
     // The lattice tokenizer: the fixture dictionaries (the Japanese one in both modes, and one
     // whose unk.def has no DEFAULT template, which throws on some inputs), IPADIC loaded in its
-    // own encoding beside its UTF-8 copy, and mecab-ko-dic.
+    // own encoding beside its UTF-8 copy, mecab-ko-dic, and UniDic 2.1.2.
     for (WhitespaceMode mode : MODES) {
       annotators.add(LatticeGolden.load(fixtures.resolve(LATTICE_JA), mode, Set.of(JA, MULTI, EDGE, SURROGATE)));
     }
@@ -281,6 +282,8 @@ final class Runs {
         models.resolve(IPADIC_UTF8), WhitespaceMode.UNICODE, Set.of(JA, MULTI, EDGE, SURROGATE)));
     annotators.add(LatticeGolden.load(models.resolve(KO_DIC), WhitespaceMode.UNICODE,
         Set.of(KO, MULTI, EDGE, SURROGATE)));
+    annotators.add(LatticeGolden.load(models.resolve(UNIDIC), WhitespaceMode.UNICODE,
+        Set.of(JA, MULTI, EDGE, SURROGATE)));
 
     // Part-of-speech tagging, on the sentences and tokens of the published models of the same
     // language: the English model as it is, with Penn Treebank tags asked for, and rebuilt with

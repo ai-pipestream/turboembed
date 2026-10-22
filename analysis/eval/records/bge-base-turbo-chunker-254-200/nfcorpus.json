@@ -1,0 +1,1422 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-21T23:46:17Z",
+  "provenance": {
+    "commit": "0b02f5a27e5d31cc39c0378101d14b69cecd8012",
+    "pushed_to": [
+      "origin/fable/799-embedder-check"
+    ],
+    "machine": {
+      "arch": "rtx4080super",
+      "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+      "os": "linux"
+    },
+    "device": {
+      "backend": "cuda",
+      "kind": "DEVICE_GPU",
+      "name": "NVIDIA GeForce RTX 4080 SUPER",
+      "vendor": "NVIDIA",
+      "driver_version": "615.71.09, CUDA 13.4",
+      "runtime_version": "12.4",
+      "memory_total": 16802250752
+    },
+    "bundle": {
+      "model_id": "BAAI/bge-base-en-v1.5",
+      "revision": "1",
+      "manifest_sha256": "0ecbae3e134445be5963318db4ff8a94cbb0757e0864c96d3653d1279ab92848",
+      "artifact_sha256": "c7c1988aae201f80cf91a5dbbd5866409503b89dcaba877ca6dba7dd0a5167d7",
+      "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+    }
+  },
+  "set": {
+    "name": "nfcorpus",
+    "sha256": "4fd82484c7baeba3d58ffcab479d9a32670496c58e1f70efd1410782888c7e32"
+  },
+  "pipeline": {
+    "analyzer": [
+      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo:structure plain",
+      "opennlp:subwords"
+    ],
+    "chunker": {
+      "name": "turbo-chunker",
+      "config": [
+        {
+          "name": "max",
+          "value": "254"
+        },
+        {
+          "name": "target",
+          "value": "200"
+        },
+        {
+          "name": "size_weight",
+          "value": "1000"
+        },
+        {
+          "name": "overhead",
+          "value": "2"
+        },
+        {
+          "name": "cost.section",
+          "value": "0"
+        },
+        {
+          "name": "cost.heading",
+          "value": "100"
+        },
+        {
+          "name": "cost.paragraph",
+          "value": "400"
+        },
+        {
+          "name": "cost.item",
+          "value": "600"
+        },
+        {
+          "name": "cost.sentence",
+          "value": "1000"
+        },
+        {
+          "name": "cost.after_heading",
+          "value": "4000"
+        },
+        {
+          "name": "signals",
+          "value": "structure"
+        },
+        {
+          "name": "cohesion.weight",
+          "value": "none"
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "queries": 323,
+    "ndcg_at_10": 0.3665125933443342,
+    "recall": {
+      "at_1": 0.05702039356158436,
+      "at_5": 0.13371168131112243,
+      "at_10": 0.17728419748973157,
+      "at_100": 0.3407312783374949
+    },
+    "span": null,
+    "per_query": [
+      {
+        "query": "PLAIN-1008",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1018",
+        "ndcg_at_10": 0.3190952506395664
+      },
+      {
+        "query": "PLAIN-102",
+        "ndcg_at_10": 0.16195671984435944
+      },
+      {
+        "query": "PLAIN-1028",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1039",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1050",
+        "ndcg_at_10": 0.07336392209936005
+      },
+      {
+        "query": "PLAIN-1066",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1088",
+        "ndcg_at_10": 0.5531464700081437
+      },
+      {
+        "query": "PLAIN-1098",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1109",
+        "ndcg_at_10": 0.6758704024811183
+      },
+      {
+        "query": "PLAIN-1119",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-112",
+        "ndcg_at_10": 0.6506832987719725
+      },
+      {
+        "query": "PLAIN-1130",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1141",
+        "ndcg_at_10": 0.22009176629808017
+      },
+      {
+        "query": "PLAIN-1151",
+        "ndcg_at_10": 0.6785038377365556
+      },
+      {
+        "query": "PLAIN-1161",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1172",
+        "ndcg_at_10": 0.22009176629808017
+      },
+      {
+        "query": "PLAIN-1183",
+        "ndcg_at_10": 0.07336392209936005
+      },
+      {
+        "query": "PLAIN-1193",
+        "ndcg_at_10": 0.07336392209936005
+      },
+      {
+        "query": "PLAIN-12",
+        "ndcg_at_10": 0.20588365030720474
+      },
+      {
+        "query": "PLAIN-1203",
+        "ndcg_at_10": 0.47479014188018454
+      },
+      {
+        "query": "PLAIN-1214",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1225",
+        "ndcg_at_10": 0.6867151830982591
+      },
+      {
+        "query": "PLAIN-123",
+        "ndcg_at_10": 0.1905802041093382
+      },
+      {
+        "query": "PLAIN-1236",
+        "ndcg_at_10": 0.3391602052736161
+      },
+      {
+        "query": "PLAIN-1249",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1262",
+        "ndcg_at_10": 0.4690000933206748
+      },
+      {
+        "query": "PLAIN-1275",
+        "ndcg_at_10": 0.5326208815196265
+      },
+      {
+        "query": "PLAIN-1288",
+        "ndcg_at_10": 0.494639655562801
+      },
+      {
+        "query": "PLAIN-1299",
+        "ndcg_at_10": 0.18340980524840012
+      },
+      {
+        "query": "PLAIN-1309",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1320",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-133",
+        "ndcg_at_10": 0.2669507571941387
+      },
+      {
+        "query": "PLAIN-1331",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1342",
+        "ndcg_at_10": 0.47684658870035296
+      },
+      {
+        "query": "PLAIN-1353",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1363",
+        "ndcg_at_10": 0.23297260855707355
+      },
+      {
+        "query": "PLAIN-1374",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1387",
+        "ndcg_at_10": 0.741670249010153
+      },
+      {
+        "query": "PLAIN-1398",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1409",
+        "ndcg_at_10": 0.32542886242602714
+      },
+      {
+        "query": "PLAIN-1419",
+        "ndcg_at_10": 0.6528642754944294
+      },
+      {
+        "query": "PLAIN-1429",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-143",
+        "ndcg_at_10": 0.5282800663700055
+      },
+      {
+        "query": "PLAIN-1441",
+        "ndcg_at_10": 0.5964984284535195
+      },
+      {
+        "query": "PLAIN-1453",
+        "ndcg_at_10": 0.32506401244400185
+      },
+      {
+        "query": "PLAIN-1463",
+        "ndcg_at_10": 0.23690530871965634
+      },
+      {
+        "query": "PLAIN-1473",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1485",
+        "ndcg_at_10": 0.07839826897867533
+      },
+      {
+        "query": "PLAIN-1496",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1506",
+        "ndcg_at_10": 0.2984900352767555
+      },
+      {
+        "query": "PLAIN-1516",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1527",
+        "ndcg_at_10": 0.9052116356304493
+      },
+      {
+        "query": "PLAIN-153",
+        "ndcg_at_10": 0.8887907867759374
+      },
+      {
+        "query": "PLAIN-1537",
+        "ndcg_at_10": 0.7183627972686238
+      },
+      {
+        "query": "PLAIN-1547",
+        "ndcg_at_10": 0.23119123707664177
+      },
+      {
+        "query": "PLAIN-1557",
+        "ndcg_at_10": 0.23365080824310533
+      },
+      {
+        "query": "PLAIN-1568",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1579",
+        "ndcg_at_10": 0.3391602052736161
+      },
+      {
+        "query": "PLAIN-1590",
+        "ndcg_at_10": 0.07336392209936005
+      },
+      {
+        "query": "PLAIN-1601",
+        "ndcg_at_10": 0.7542686714597936
+      },
+      {
+        "query": "PLAIN-1611",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1621",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1635",
+        "ndcg_at_10": 0.7467045958894682
+      },
+      {
+        "query": "PLAIN-1645",
+        "ndcg_at_10": 0.30260241349881345
+      },
+      {
+        "query": "PLAIN-165",
+        "ndcg_at_10": 0.512380489399321
+      },
+      {
+        "query": "PLAIN-1656",
+        "ndcg_at_10": 0.08514311764162098
+      },
+      {
+        "query": "PLAIN-1667",
+        "ndcg_at_10": 0.5806020001118019
+      },
+      {
+        "query": "PLAIN-1679",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1690",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1700",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1710",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1721",
+        "ndcg_at_10": 0.11004588314904008
+      },
+      {
+        "query": "PLAIN-1731",
+        "ndcg_at_10": 0.7653606369886217
+      },
+      {
+        "query": "PLAIN-1741",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-175",
+        "ndcg_at_10": 0.39327113878329767
+      },
+      {
+        "query": "PLAIN-1752",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1762",
+        "ndcg_at_10": 0.6368547259115425
+      },
+      {
+        "query": "PLAIN-1772",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1784",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1794",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1805",
+        "ndcg_at_10": 0.9216017310213247
+      },
+      {
+        "query": "PLAIN-1817",
+        "ndcg_at_10": 0.4690000933206748
+      },
+      {
+        "query": "PLAIN-1827",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1837",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1847",
+        "ndcg_at_10": 0.13886244387355454
+      },
+      {
+        "query": "PLAIN-1857",
+        "ndcg_at_10": 0.5637884576902256
+      },
+      {
+        "query": "PLAIN-186",
+        "ndcg_at_10": 0.22009176629808017
+      },
+      {
+        "query": "PLAIN-1867",
+        "ndcg_at_10": 0.27487633291429087
+      },
+      {
+        "query": "PLAIN-1877",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1887",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1897",
+        "ndcg_at_10": 0.18457569677956817
+      },
+      {
+        "query": "PLAIN-1909",
+        "ndcg_at_10": 0.835780413693672
+      },
+      {
+        "query": "PLAIN-1919",
+        "ndcg_at_10": 0.7849818707050383
+      },
+      {
+        "query": "PLAIN-1929",
+        "ndcg_at_10": 0.07839826897867533
+      },
+      {
+        "query": "PLAIN-1940",
+        "ndcg_at_10": 0.3589542101716347
+      },
+      {
+        "query": "PLAIN-1950",
+        "ndcg_at_10": 0.2489083270225946
+      },
+      {
+        "query": "PLAIN-196",
+        "ndcg_at_10": 0.388244052766991
+      },
+      {
+        "query": "PLAIN-1962",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1972",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-1983",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-1995",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2",
+        "ndcg_at_10": 0.7450798435456447
+      },
+      {
+        "query": "PLAIN-2009",
+        "ndcg_at_10": 0.39056629538874016
+      },
+      {
+        "query": "PLAIN-2019",
+        "ndcg_at_10": 0.2960819109658652
+      },
+      {
+        "query": "PLAIN-2030",
+        "ndcg_at_10": 0.30260241349881345
+      },
+      {
+        "query": "PLAIN-2040",
+        "ndcg_at_10": 0.5716349530699038
+      },
+      {
+        "query": "PLAIN-2051",
+        "ndcg_at_10": 0.605504765619221
+      },
+      {
+        "query": "PLAIN-2061",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-207",
+        "ndcg_at_10": 0.5988751049740155
+      },
+      {
+        "query": "PLAIN-2071",
+        "ndcg_at_10": 0.5964984284535195
+      },
+      {
+        "query": "PLAIN-2081",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "PLAIN-2092",
+        "ndcg_at_10": 0.6489315753318465
+      },
+      {
+        "query": "PLAIN-2102",
+        "ndcg_at_10": 0.8603818544462509
+      },
+      {
+        "query": "PLAIN-2113",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2124",
+        "ndcg_at_10": 0.6172839611614819
+      },
+      {
+        "query": "PLAIN-2134",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2145",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2156",
+        "ndcg_at_10": 0.843706044175124
+      },
+      {
+        "query": "PLAIN-2167",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-217",
+        "ndcg_at_10": 0.19518900079066107
+      },
+      {
+        "query": "PLAIN-2177",
+        "ndcg_at_10": 0.5328965452000554
+      },
+      {
+        "query": "PLAIN-2187",
+        "ndcg_at_10": 0.23504554941448536
+      },
+      {
+        "query": "PLAIN-2197",
+        "ndcg_at_10": 0.7778721720600673
+      },
+      {
+        "query": "PLAIN-2209",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2220",
+        "ndcg_at_10": 0.38334277998463445
+      },
+      {
+        "query": "PLAIN-2230",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2240",
+        "ndcg_at_10": 0.43231813227099475
+      },
+      {
+        "query": "PLAIN-2250",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2261",
+        "ndcg_at_10": 0.6300426811446146
+      },
+      {
+        "query": "PLAIN-227",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2271",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2281",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2291",
+        "ndcg_at_10": 0.3391602052736161
+      },
+      {
+        "query": "PLAIN-23",
+        "ndcg_at_10": 0.5167970744344442
+      },
+      {
+        "query": "PLAIN-2301",
+        "ndcg_at_10": 0.1731866333482261
+      },
+      {
+        "query": "PLAIN-2311",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2321",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2332",
+        "ndcg_at_10": 0.6947651160602989
+      },
+      {
+        "query": "PLAIN-2343",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2354",
+        "ndcg_at_10": 0.5531464700081437
+      },
+      {
+        "query": "PLAIN-2364",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2375",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-238",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2386",
+        "ndcg_at_10": 0.06943122193677727
+      },
+      {
+        "query": "PLAIN-2396",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2408",
+        "ndcg_at_10": 0.4412576003965278
+      },
+      {
+        "query": "PLAIN-2430",
+        "ndcg_at_10": 0.7916305482208252
+      },
+      {
+        "query": "PLAIN-2440",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2450",
+        "ndcg_at_10": 0.22793826167775827
+      },
+      {
+        "query": "PLAIN-2460",
+        "ndcg_at_10": 0.19532961856410577
+      },
+      {
+        "query": "PLAIN-2470",
+        "ndcg_at_10": 0.6519281412409859
+      },
+      {
+        "query": "PLAIN-248",
+        "ndcg_at_10": 0.41388361500911724
+      },
+      {
+        "query": "PLAIN-2480",
+        "ndcg_at_10": 0.5376412801903863
+      },
+      {
+        "query": "PLAIN-2490",
+        "ndcg_at_10": 0.1720584157289455
+      },
+      {
+        "query": "PLAIN-2500",
+        "ndcg_at_10": 0.2449347733892138
+      },
+      {
+        "query": "PLAIN-2510",
+        "ndcg_at_10": 0.6402900881481708
+      },
+      {
+        "query": "PLAIN-2520",
+        "ndcg_at_10": 0.033127111727194514
+      },
+      {
+        "query": "PLAIN-2530",
+        "ndcg_at_10": 0.9681896059005243
+      },
+      {
+        "query": "PLAIN-2540",
+        "ndcg_at_10": 0.6102370531673313
+      },
+      {
+        "query": "PLAIN-2550",
+        "ndcg_at_10": 0.20413021541210133
+      },
+      {
+        "query": "PLAIN-2560",
+        "ndcg_at_10": 0.9305687780632227
+      },
+      {
+        "query": "PLAIN-2570",
+        "ndcg_at_10": 0.5257830945374167
+      },
+      {
+        "query": "PLAIN-2580",
+        "ndcg_at_10": 0.20778411473733654
+      },
+      {
+        "query": "PLAIN-259",
+        "ndcg_at_10": 0.4690000933206748
+      },
+      {
+        "query": "PLAIN-2590",
+        "ndcg_at_10": 0.07171242235367575
+      },
+      {
+        "query": "PLAIN-2600",
+        "ndcg_at_10": 0.5593499261355288
+      },
+      {
+        "query": "PLAIN-2610",
+        "ndcg_at_10": 0.5648554320973911
+      },
+      {
+        "query": "PLAIN-2620",
+        "ndcg_at_10": 0.6775596985907653
+      },
+      {
+        "query": "PLAIN-2630",
+        "ndcg_at_10": 0.7909506325094737
+      },
+      {
+        "query": "PLAIN-2640",
+        "ndcg_at_10": 0.564069687192456
+      },
+      {
+        "query": "PLAIN-2650",
+        "ndcg_at_10": 0.7151857987862356
+      },
+      {
+        "query": "PLAIN-2660",
+        "ndcg_at_10": 0.23680742154717782
+      },
+      {
+        "query": "PLAIN-2670",
+        "ndcg_at_10": 0.2996484034259831
+      },
+      {
+        "query": "PLAIN-2680",
+        "ndcg_at_10": 0.37314500201968354
+      },
+      {
+        "query": "PLAIN-2690",
+        "ndcg_at_10": 0.6889888704089737
+      },
+      {
+        "query": "PLAIN-270",
+        "ndcg_at_10": 0.2863459897524692
+      },
+      {
+        "query": "PLAIN-2700",
+        "ndcg_at_10": 0.5954424116633985
+      },
+      {
+        "query": "PLAIN-2710",
+        "ndcg_at_10": 0.6263380278851488
+      },
+      {
+        "query": "PLAIN-2720",
+        "ndcg_at_10": 0.23992089480238082
+      },
+      {
+        "query": "PLAIN-2730",
+        "ndcg_at_10": 0.5946086089308148
+      },
+      {
+        "query": "PLAIN-2740",
+        "ndcg_at_10": 0.6823543410840567
+      },
+      {
+        "query": "PLAIN-2750",
+        "ndcg_at_10": 0.6140383348793815
+      },
+      {
+        "query": "PLAIN-2760",
+        "ndcg_at_10": 0.29845075153742456
+      },
+      {
+        "query": "PLAIN-2770",
+        "ndcg_at_10": 0.537001517066787
+      },
+      {
+        "query": "PLAIN-2780",
+        "ndcg_at_10": 0.3202189413174118
+      },
+      {
+        "query": "PLAIN-2790",
+        "ndcg_at_10": 0.830266028814591
+      },
+      {
+        "query": "PLAIN-280",
+        "ndcg_at_10": 0.49435723575344825
+      },
+      {
+        "query": "PLAIN-2800",
+        "ndcg_at_10": 0.05336845745288964
+      },
+      {
+        "query": "PLAIN-2810",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2820",
+        "ndcg_at_10": 0.14382143485626836
+      },
+      {
+        "query": "PLAIN-2830",
+        "ndcg_at_10": 0.6387878864795979
+      },
+      {
+        "query": "PLAIN-2840",
+        "ndcg_at_10": 0.06943122193677727
+      },
+      {
+        "query": "PLAIN-2850",
+        "ndcg_at_10": 0.11002574107570623
+      },
+      {
+        "query": "PLAIN-2860",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-2870",
+        "ndcg_at_10": 0.07623986638854101
+      },
+      {
+        "query": "PLAIN-2880",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2890",
+        "ndcg_at_10": 0.227626228959616
+      },
+      {
+        "query": "PLAIN-2900",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-291",
+        "ndcg_at_10": 0.5326208815196265
+      },
+      {
+        "query": "PLAIN-2910",
+        "ndcg_at_10": 0.36632334652564597
+      },
+      {
+        "query": "PLAIN-2920",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2930",
+        "ndcg_at_10": 0.3607790370815594
+      },
+      {
+        "query": "PLAIN-2940",
+        "ndcg_at_10": 0.11538029521800254
+      },
+      {
+        "query": "PLAIN-2950",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2960",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-2970",
+        "ndcg_at_10": 0.5007008281534941
+      },
+      {
+        "query": "PLAIN-2981",
+        "ndcg_at_10": 0.43122038713502525
+      },
+      {
+        "query": "PLAIN-2991",
+        "ndcg_at_10": 0.3065735963827292
+      },
+      {
+        "query": "PLAIN-3001",
+        "ndcg_at_10": 0.3065735963827292
+      },
+      {
+        "query": "PLAIN-3014",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-3026",
+        "ndcg_at_10": 0.6309297535714575
+      },
+      {
+        "query": "PLAIN-3037",
+        "ndcg_at_10": 0.13905617951077562
+      },
+      {
+        "query": "PLAIN-3053",
+        "ndcg_at_10": 0.7653606369886217
+      },
+      {
+        "query": "PLAIN-3063",
+        "ndcg_at_10": 0.13012668333070054
+      },
+      {
+        "query": "PLAIN-307",
+        "ndcg_at_10": 0.7653606369886217
+      },
+      {
+        "query": "PLAIN-3074",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-3085",
+        "ndcg_at_10": 0.3889580943680543
+      },
+      {
+        "query": "PLAIN-3097",
+        "ndcg_at_10": 0.4770382338730848
+      },
+      {
+        "query": "PLAIN-3116",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-3131",
+        "ndcg_at_10": 0.4872901307151978
+      },
+      {
+        "query": "PLAIN-3141",
+        "ndcg_at_10": 0.0866178136927642
+      },
+      {
+        "query": "PLAIN-3151",
+        "ndcg_at_10": 0.84084168905278
+      },
+      {
+        "query": "PLAIN-3161",
+        "ndcg_at_10": 0.3607790370815594
+      },
+      {
+        "query": "PLAIN-3171",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-3181",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-3191",
+        "ndcg_at_10": 0.25442724851486814
+      },
+      {
+        "query": "PLAIN-320",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-3201",
+        "ndcg_at_10": 0.07768953695765952
+      },
+      {
+        "query": "PLAIN-3211",
+        "ndcg_at_10": 0.06362078819895171
+      },
+      {
+        "query": "PLAIN-3221",
+        "ndcg_at_10": 0.06978419164318803
+      },
+      {
+        "query": "PLAIN-3231",
+        "ndcg_at_10": 0.17267102577991905
+      },
+      {
+        "query": "PLAIN-3241",
+        "ndcg_at_10": 0.3607790370815594
+      },
+      {
+        "query": "PLAIN-3251",
+        "ndcg_at_10": 0.09019475927038985
+      },
+      {
+        "query": "PLAIN-3261",
+        "ndcg_at_10": 0.14982420171299154
+      },
+      {
+        "query": "PLAIN-3271",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-3281",
+        "ndcg_at_10": 0.20436662668128655
+      },
+      {
+        "query": "PLAIN-3292",
+        "ndcg_at_10": 0.5320605550310158
+      },
+      {
+        "query": "PLAIN-33",
+        "ndcg_at_10": 0.41471811569282596
+      },
+      {
+        "query": "PLAIN-3302",
+        "ndcg_at_10": 0.07768953695765952
+      },
+      {
+        "query": "PLAIN-3312",
+        "ndcg_at_10": 0.24900764699301492
+      },
+      {
+        "query": "PLAIN-332",
+        "ndcg_at_10": 0.6131471927654584
+      },
+      {
+        "query": "PLAIN-3322",
+        "ndcg_at_10": 0.08514311764162098
+      },
+      {
+        "query": "PLAIN-3332",
+        "ndcg_at_10": 0.6249167503453505
+      },
+      {
+        "query": "PLAIN-3342",
+        "ndcg_at_10": 0.6508205185601091
+      },
+      {
+        "query": "PLAIN-3352",
+        "ndcg_at_10": 0.20436662668128655
+      },
+      {
+        "query": "PLAIN-3362",
+        "ndcg_at_10": 0.5282800663700055
+      },
+      {
+        "query": "PLAIN-3372",
+        "ndcg_at_10": 0.2797704938061739
+      },
+      {
+        "query": "PLAIN-3382",
+        "ndcg_at_10": 0.49661162773363593
+      },
+      {
+        "query": "PLAIN-3392",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-3402",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-3412",
+        "ndcg_at_10": 0.1561688866220964
+      },
+      {
+        "query": "PLAIN-3422",
+        "ndcg_at_10": 0.10968072647875968
+      },
+      {
+        "query": "PLAIN-3432",
+        "ndcg_at_10": 0.13568544539116628
+      },
+      {
+        "query": "PLAIN-344",
+        "ndcg_at_10": 0.6345964900296196
+      },
+      {
+        "query": "PLAIN-3442",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-3452",
+        "ndcg_at_10": 0.3750050963590405
+      },
+      {
+        "query": "PLAIN-3462",
+        "ndcg_at_10": 0.7203223328252193
+      },
+      {
+        "query": "PLAIN-3472",
+        "ndcg_at_10": 0.13347537859706934
+      },
+      {
+        "query": "PLAIN-358",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-371",
+        "ndcg_at_10": 0.23981246656813146
+      },
+      {
+        "query": "PLAIN-383",
+        "ndcg_at_10": 0.21398626473452756
+      },
+      {
+        "query": "PLAIN-395",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-407",
+        "ndcg_at_10": 0.6387878864795979
+      },
+      {
+        "query": "PLAIN-418",
+        "ndcg_at_10": 0.8670870086853021
+      },
+      {
+        "query": "PLAIN-430",
+        "ndcg_at_10": 0.5974004989549763
+      },
+      {
+        "query": "PLAIN-44",
+        "ndcg_at_10": 0.4610044178561607
+      },
+      {
+        "query": "PLAIN-441",
+        "ndcg_at_10": 0.777747077360283
+      },
+      {
+        "query": "PLAIN-457",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-468",
+        "ndcg_at_10": 0.41754542187436805
+      },
+      {
+        "query": "PLAIN-478",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-488",
+        "ndcg_at_10": 0.9363792118010483
+      },
+      {
+        "query": "PLAIN-499",
+        "ndcg_at_10": 0.24655055544758614
+      },
+      {
+        "query": "PLAIN-510",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-520",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-531",
+        "ndcg_at_10": 0.48882922182497546
+      },
+      {
+        "query": "PLAIN-541",
+        "ndcg_at_10": 0.19092086617893467
+      },
+      {
+        "query": "PLAIN-551",
+        "ndcg_at_10": 0.38685280723454163
+      },
+      {
+        "query": "PLAIN-56",
+        "ndcg_at_10": 0.7647244066777636
+      },
+      {
+        "query": "PLAIN-561",
+        "ndcg_at_10": 0.3589542101716347
+      },
+      {
+        "query": "PLAIN-571",
+        "ndcg_at_10": 0.36650177721905447
+      },
+      {
+        "query": "PLAIN-583",
+        "ndcg_at_10": 0.22009176629808017
+      },
+      {
+        "query": "PLAIN-593",
+        "ndcg_at_10": 0.23463936301137822
+      },
+      {
+        "query": "PLAIN-603",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-613",
+        "ndcg_at_10": 0.07839826897867533
+      },
+      {
+        "query": "PLAIN-623",
+        "ndcg_at_10": 0.6461194268314837
+      },
+      {
+        "query": "PLAIN-634",
+        "ndcg_at_10": 0.424926013816671
+      },
+      {
+        "query": "PLAIN-645",
+        "ndcg_at_10": 0.11004588314904008
+      },
+      {
+        "query": "PLAIN-660",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-671",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-68",
+        "ndcg_at_10": 0.7026062873030101
+      },
+      {
+        "query": "PLAIN-681",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-691",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-701",
+        "ndcg_at_10": 0.5067321766826492
+      },
+      {
+        "query": "PLAIN-711",
+        "ndcg_at_10": 0.5708588662113935
+      },
+      {
+        "query": "PLAIN-721",
+        "ndcg_at_10": 1.0
+      },
+      {
+        "query": "PLAIN-731",
+        "ndcg_at_10": 0.7167674835027339
+      },
+      {
+        "query": "PLAIN-741",
+        "ndcg_at_10": 0.7529694065526482
+      },
+      {
+        "query": "PLAIN-751",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-761",
+        "ndcg_at_10": 0.23811292043488155
+      },
+      {
+        "query": "PLAIN-771",
+        "ndcg_at_10": 0.9217868789962071
+      },
+      {
+        "query": "PLAIN-78",
+        "ndcg_at_10": 0.12741733550370724
+      },
+      {
+        "query": "PLAIN-782",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-792",
+        "ndcg_at_10": 0.4935232796777481
+      },
+      {
+        "query": "PLAIN-806",
+        "ndcg_at_10": 0.857980942822373
+      },
+      {
+        "query": "PLAIN-817",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-827",
+        "ndcg_at_10": 0.6780494608112012
+      },
+      {
+        "query": "PLAIN-838",
+        "ndcg_at_10": 0.7767471075223497
+      },
+      {
+        "query": "PLAIN-850",
+        "ndcg_at_10": 0.6489315753318465
+      },
+      {
+        "query": "PLAIN-872",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-882",
+        "ndcg_at_10": 0.8553475075669357
+      },
+      {
+        "query": "PLAIN-892",
+        "ndcg_at_10": 0.8389574121760602
+      },
+      {
+        "query": "PLAIN-902",
+        "ndcg_at_10": 0.3903800499921017
+      },
+      {
+        "query": "PLAIN-91",
+        "ndcg_at_10": 0.5455951672431597
+      },
+      {
+        "query": "PLAIN-913",
+        "ndcg_at_10": 0.800693766409882
+      },
+      {
+        "query": "PLAIN-924",
+        "ndcg_at_10": 0.5330752584449808
+      },
+      {
+        "query": "PLAIN-934",
+        "ndcg_at_10": 0.6698623505528798
+      },
+      {
+        "query": "PLAIN-946",
+        "ndcg_at_10": 0.07336392209936005
+      },
+      {
+        "query": "PLAIN-956",
+        "ndcg_at_10": 0.8521705090845474
+      },
+      {
+        "query": "PLAIN-966",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-977",
+        "ndcg_at_10": 0.43734888382569426
+      },
+      {
+        "query": "PLAIN-987",
+        "ndcg_at_10": 0.0
+      },
+      {
+        "query": "PLAIN-997",
+        "ndcg_at_10": 0.0
+      }
+    ]
+  },
+  "cost": {
+    "wall": {
+      "analysis_ms": 102.000755,
+      "chunking_ms": 28.532242999999998,
+      "embedding_ms": 8916.066549,
+      "retrieval_ms": 18.261758
+    },
+    "tokens_embedded": 1233173,
+    "chunks": 6819,
+    "chunk_bytes": {
+      "min": 90,
+      "p50": 792,
+      "p90": 1030,
+      "max": 1510
+    },
+    "chunk_tokens": {
+      "min": 19,
+      "p50": 180,
+      "p90": 229,
+      "max": 358
+    }
+  }
+}

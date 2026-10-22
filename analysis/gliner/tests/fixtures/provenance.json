@@ -1,0 +1,10 @@
+{
+  "source": "urchade/gliner_small-v2.1",
+  "revision": "4e091416cf7c3481db542c2a3d26156916f3a47f",
+  "license": "Apache-2.0",
+  "hidden": 16,
+  "input_width": 32,
+  "rows": "embedding rows 1000..1006",
+  "slicing": "prefix dimensions; LSTM first 8 rows from each 256-row gate",
+  "reference": "GLiNER 0.2.21 SpanMarkerV0 and LstmSeq2SeqEncoder, eval mode"
+}

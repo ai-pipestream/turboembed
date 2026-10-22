@@ -19,3 +19,5 @@ ureq = "3"
 half = "2"
 # The pattern a static recipe leaves vocabulary entries out by.
 regex = "1"
+
+turbo-gliner = { path = "../analysis/gliner" }

@@ -999,20 +999,26 @@ constexpr uint32_t SPREAD = 128;
 
 /* Up to this many packed tokens, the linear layers run the small kernel,
  * which reads the weights with more threadgroups in flight; above it the
- * tiled kernel, which reuses them more, is faster. */
-constexpr uint32_t SMALL_TOKENS = 128;
+ * tiled kernel, which reuses them more, is faster. In F16 the tiled
+ * kernel is the faster from fewer tokens on (on the M2, 96 and up). */
+constexpr uint32_t SMALL_TOKENS = 128, SMALL_TOKENS_F16 = 64;
+
+/* linear=auto's tile: 32 x 64 up to this many packed tokens, where more
+ * threadgroups fill the GPU, and 64 x 64 above it (on the M2). */
+constexpr uint32_t AUTO_H32_TOKENS = 1024;
 
 /* The packed tokens a batch of `tokens` can take, rounded up to a
  * multiple of 32. */
 size_t capacity(size_t tokens) { return round_up(tokens, 32); }
 
 /* Which kernels run a session's linear layers: F32 at EXACT and MODEL;
- * at FASTEST F16 operands with F32 sums, past SMALL_TOKENS in tiles of 32
- * x 64, 64 x 64 or 128 x 64 (docs/metal.md, Kernel choices). */
-enum Linear : uint32_t { LINEAR_F32, LINEAR_H32, LINEAR_H64, LINEAR_H128 };
-const char *const LINEAR_NAMES[] = {"f32", "h32", "h64", "h128"};
+ * at FASTEST F16 operands with F32 sums, past SMALL_TOKENS_F16 in tiles of
+ * 32 x 64, 64 x 64 or 128 x 64, or auto: the tile each run's tokens favor
+ * (docs/metal.md, Kernel choices). */
+enum Linear : uint32_t { LINEAR_F32, LINEAR_H32, LINEAR_H64, LINEAR_H128, LINEAR_AUTO, LINEAR_COUNT };
+const char *const LINEAR_NAMES[] = {"f32", "h32", "h64", "h128", "auto"};
 /* FASTEST's choice when nothing forces or tunes it. */
-constexpr Linear LINEAR_DEFAULT = LINEAR_H64;
+constexpr Linear LINEAR_DEFAULT = LINEAR_AUTO;
 
 /* Whether the context's device runs a choice's kernels: h128's tile takes
  * threadgroups of 256. */
@@ -1094,7 +1100,7 @@ TestPeaks &test_peaks() {
 }
 
 /* TURBO_METAL_CHOICES, read when a session is made: items separated by
- * ';', "linear=<f32|h32|h64|h128>" forcing the linear layers' kernels into
+ * ';', "linear=<f32|h32|h64|h128|auto>" forcing the linear layers' kernels into
  * *out, and "forced=" as a session reports it, whatever it names, read
  * and left alone. *out is -1 when nothing names them. */
 /* A line the tests set in place of the variable, through
@@ -1130,11 +1136,11 @@ int32_t forced_linear(int *out, turbo_error *err) {
         at = end + 1;
         if (item.empty() || item.rfind("forced=", 0) == 0) continue;
         int found = -1;
-        for (int l = LINEAR_F32; l <= (int)LINEAR_H128; l++)
+        for (int l = LINEAR_F32; l < (int)LINEAR_COUNT; l++)
             if (item == std::string("linear=") + LINEAR_NAMES[l]) found = l;
         if (found < 0)
             return refuse(err, TURBO_E_INVALID_ARGUMENT,
-                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32, h64 or h128",
+                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32, h64, h128 or auto",
                           item.c_str());
         *out = found;
     }
@@ -1446,8 +1452,10 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
                     std::initializer_list<std::pair<const Ref *, uint64_t>> outs,
                     std::initializer_list<const Ref *> biases, bool x_half = false, bool y_half = false) -> uint32_t {
         // Few tokens: the small kernel, over all of k.
-        const bool small = tokens <= SMALL_TOKENS && n_out % 16 == 0;
-        const uint32_t bm = s.linear == LINEAR_H128 ? 128 : s.linear == LINEAR_H64 ? 64 : 32, bk = f16 ? 32 : 16;
+        const bool small = tokens <= (f16 ? SMALL_TOKENS_F16 : SMALL_TOKENS) && n_out % 16 == 0;
+        const Linear tile =
+            s.linear != LINEAR_AUTO ? s.linear : tokens <= AUTO_H32_TOKENS ? LINEAR_H32 : LINEAR_H64;
+        const uint32_t bm = tile == LINEAR_H128 ? 128 : tile == LINEAR_H64 ? 64 : 32, bk = f16 ? 32 : 16;
         const uint32_t tiles = (n_out + 63) / 64 * ((tokens + bm - 1) / bm);
         uint32_t splits = 1;
         if (!small && outs.size() == 1 && epilogue == EPILOGUE_NONE && tiles < SPREAD) {
@@ -1460,10 +1468,10 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         int kernel = small ? GEMM_SMALL : GEMM;
         if (f16) {
             const int types = (x_half ? 2 : 0) + (y_half ? 1 : 0);
-            kernel = (small                         ? GEMM_SMALL_H
-                      : s.linear == LINEAR_H128 ? GEMM_H128
-                      : s.linear == LINEAR_H64  ? GEMM_H64
-                                                : GEMM_H32) +
+            kernel = (small                     ? GEMM_SMALL_H
+                      : tile == LINEAR_H128 ? GEMM_H128
+                      : tile == LINEAR_H64  ? GEMM_H64
+                                            : GEMM_H32) +
                      types;
         }
         [enc setComputePipelineState:kn.k[kernel]];
@@ -1640,9 +1648,10 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
 // ---- Kernel choices --------------------------------------------------------------
 //
 // At FASTEST a session's linear layers run in F16 tiles of 32 x 64 (h32),
-// 64 x 64 (h64) or 128 x 64 (h128) past SMALL_TOKENS; EXACT and MODEL have
-// one path, F32. A tuned session times each when it is made, on its own
-// memory, and runs the fastest; docs/metal.md says how (Autotuning).
+// 64 x 64 (h64) or 128 x 64 (h128) past SMALL_TOKENS_F16, or in the tile
+// each run's tokens favor (auto); EXACT and MODEL have one path, F32. A
+// tuned session times each when it is made, on its own memory, and runs
+// the fastest; docs/metal.md says how (Autotuning).
 
 /* The tuner times a session on rows of max_seq tokens, this many tokens
  * in all at most (fewer when the session holds fewer). */
@@ -1669,7 +1678,7 @@ std::string choice_line(Linear l, bool forced) {
 
 /* The linear layers a choices line names, or -1. */
 int parse_linear(const char *line) {
-    for (int l = LINEAR_F32; l <= (int)LINEAR_H128; l++) {
+    for (int l = LINEAR_F32; l < (int)LINEAR_COUNT; l++) {
         const std::string item = std::string("linear=") + LINEAR_NAMES[l];
         const char *at = strstr(line, item.c_str());
         if (at && (at == line || at[-1] == ';') && (at[item.size()] == ';' || at[item.size()] == 0)) return l;
@@ -1720,7 +1729,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     // The incumbent first, then every other F16 tiling the device runs.
     const Linear incumbent = usable ? (Linear)cached : s.linear;
     std::vector<Linear> order{incumbent};
-    for (int l = LINEAR_H32; l <= (int)LINEAR_H128; l++)
+    for (int l = LINEAR_H32; l < (int)LINEAR_COUNT; l++)
         if (l != (int)incumbent && runs_linear(c, (Linear)l)) order.push_back((Linear)l);
 
     // Rows of max_seq tokens, ids 1, as many as fill TUNE_TOKENS.

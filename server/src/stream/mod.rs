@@ -222,7 +222,7 @@ pub(crate) async fn admit_refusal(
 /// The id a refusal retains: at most the stream's byte cap, cut at a
 /// char boundary and copied into a fresh allocation sized for it. The
 /// byte semaphores cannot reserve past the cap, so a refusal never holds
-/// an id longer than the charge its room claims — and never keeps the
+/// an id longer than the charge its room claims, and never keeps the
 /// original over-cap allocation either, which a plain truncate would.
 pub(crate) fn bound_retained_id(id: String) -> String {
     if id.len() <= MAX_QUEUED_BYTES_PER_STREAM {

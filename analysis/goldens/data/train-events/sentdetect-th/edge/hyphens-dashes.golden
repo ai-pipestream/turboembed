@@ -12,10 +12,10 @@ config	source	sentdetect
 config	useTokenEnd	false
 layer	turbo:events	document	23	outcome:str	context:str	values:str
 n	eos=  x=well-known 10 v= s=state-of-the-art n=re-entry	
-n	eos=  x=state-of-the-art 16 v=well-known s=re-entry n=—	
-n	eos=  x=re-entry 8 v=state-of-the-art s=— n=em	
-n	eos=  x=— 1 v=re-entry s=em n=dash	
-n	eos=  x=em 2 v=— s=dash n=–	
+n	eos=  x=state-of-the-art 16 v=well-known s=re-entry n=\u2014	
+n	eos=  x=re-entry 8 v=state-of-the-art s=\u2014 n=em	
+n	eos=  x=\u2014 1 v=re-entry s=em n=dash	
+n	eos=  x=em 2 v=\u2014 s=dash n=–	
 n	eos=  x=dash 4 v=em s=– n=en	
 n	eos=  x=– 1 v=dash s=en n=dash	
 n	eos=  x=en 2 v=– s=dash n=‒	

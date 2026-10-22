@@ -18,7 +18,28 @@ own file; generate a client from it in any language with gRPC.
 | `RoundTripTokenVectors` | The message, validated, unchanged. |
 | `RoundTripRerankScores` | The message, validated, unchanged. |
 | `RoundTripExtraction` | The message, validated, unchanged. |
+| `RoundTripChunkLevels` | The message, validated, unchanged. |
+| `RoundTripDocumentGraph` | The document, imported and re-exported, with its layers and views listed. |
 | `AnalyzeStream` | Bulk document analysis over one bidirectional stream. |
+
+Span offsets cross in the unit a message names (`OffsetMode` on
+`ChunkLevelsResult`): UTF-8 bytes (the internal offsets), UTF-16 code
+units (Java string indices), or Unicode code points, converted through
+the view text's checkpoint table (`server/src/offsets.rs`). An offset
+that is out of bounds, inverted, or inside a code point or a UTF-16
+surrogate pair refuses with `TURBO_E_INVALID_ARGUMENT`; nothing is
+snapped to a boundary. `ChunkLevelsResult` carries `turbo:chunks`,
+`turbo:levels`, and `opennlp:embeddings` over the chunks in one round
+trip, fragments included. `RoundTripDocumentGraph` takes binary
+`DocumentGraph` bytes and answers with the same document imported and
+re-exported, listing every layer's standard id (`opennlp:*` or
+`turbo:*`), instance, provenance (annotator, version, model, config
+hash), item count, and status (`OK`, `SKIPPED`, or `FAILED` with its
+detail), and every view likewise. Layers whose codecs the server does
+not register are refused by name, never dropped.
+
+The listener serves with TCP_NODELAY set, so a unary call is not held
+by Nagle and delayed-ACK interaction.
 
 Every message is the data columns of one in-process result layer in the
 layer's own layout, plus the model identity that produced it. Decoding
