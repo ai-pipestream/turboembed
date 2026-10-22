@@ -28,7 +28,9 @@ pub fn source_of(code: u8) -> Option<Source> {
     [Source::Glossary, Source::Pii, Source::Numbers, Source::Locations].get(code as usize).copied()
 }
 
-/// The default instance of the layer `s` names.
+/// The default instance of the layer `s` names. The annotator may read
+/// another instance; the evidence resolves which through the provenance,
+/// and the codec through the instance the record was made on.
 pub fn source_key(s: Source) -> KeyId {
     match s {
         Source::Glossary => Key::<GlossaryTerms>::DEFAULT.id(),
@@ -104,21 +106,6 @@ impl Layer for Records {
 
     fn text_spans(&self) -> Option<TextSpans<'_>> {
         Some(self.spans.text_spans())
-    }
-
-    fn indexes(&self) -> Vec<(KeyId, usize)> {
-        let mut bound = [0usize; 4];
-        for (&s, &r) in self.support_source.iter().zip(&self.support_row) {
-            if let Some(b) = bound.get_mut(s as usize) {
-                *b = (*b).max(r as usize + 1);
-            }
-        }
-        // Only the sources a value cites: the others need not be on the
-        // document at all.
-        (0..4u8)
-            .filter(|&c| bound[c as usize] > 0)
-            .filter_map(|c| source_of(c).map(|s| (source_key(s), bound[c as usize])))
-            .collect()
     }
 
     fn check(&self) -> Result<(), String> {

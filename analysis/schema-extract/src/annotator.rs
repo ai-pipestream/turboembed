@@ -226,7 +226,7 @@ impl Annotator for SchemaAnnotator {
         }
         let pass = self.extractor.pass(view.text(), &self.schema).map_err(|e| fail(e.to_string()))?;
         let layers = DocumentLayers { glossary, pii, numbers, locations };
-        let out = decode(&pass, &self.schema, self.threshold, &layers);
+        let out = decode(&pass, &self.schema, self.threshold, &layers).map_err(fail)?;
         let written = (
             entities(view, tokens, &self.schema, &out),
             categories(&self.schema, &out),

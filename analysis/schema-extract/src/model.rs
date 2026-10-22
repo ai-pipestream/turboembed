@@ -75,11 +75,38 @@ pub enum Scores {
 
 /// One pass over a text and its schema.
 pub struct Pass {
-    pub prompt: Prompt,
+    prompt: Prompt,
+    width: usize,
+    scores: Vec<Scores>,
+}
+
+impl Pass {
+    /// A pass from its parts, for a runner other than [`run`]. Nothing is
+    /// checked here: [`crate::decode`] checks a pass against its schema
+    /// before it reads one score.
+    pub fn new(prompt: Prompt, width: usize, scores: Vec<Scores>) -> Pass {
+        Pass { prompt, width, scores }
+    }
+
+    pub fn prompt(&self) -> &Prompt {
+        &self.prompt
+    }
+
     /// The span width the logits were computed at.
-    pub width: usize,
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
     /// One per task of the prompt, in its order.
-    pub scores: Vec<Scores>,
+    pub fn scores(&self) -> &[Scores] {
+        &self.scores
+    }
+
+    /// The prompt, width and scores, for a caller that builds a pass of its
+    /// own from them.
+    pub fn into_parts(self) -> (Prompt, usize, Vec<Scores>) {
+        (self.prompt, self.width, self.scores)
+    }
 }
 
 /// Why a pass failed.

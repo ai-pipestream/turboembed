@@ -101,7 +101,7 @@ fn spans(
     checks: &[Check],
     layers: &dyn Corroborate,
 ) -> Vec<SpanValue> {
-    let (w, words) = (pass.width, &pass.prompt.words);
+    let (w, words) = (pass.width(), &pass.prompt().words);
     let mut found = Vec::new();
     for start in 0..words.len() {
         for width in 0..w.min(words.len() - start) {
@@ -159,7 +159,7 @@ fn choices(
     threshold: f32,
     cardinality: Cardinality,
 ) -> Vec<FieldValue> {
-    let w = pass.width;
+    let w = pass.width();
     let scored: Vec<(usize, f32, f32)> = (0..choices.len())
         .map(|i| {
             let p = first + 2 * i;
@@ -210,13 +210,71 @@ fn classify(task: usize, schema: &ExtractionSchema, logits: &[f32]) -> Classifie
     Classified { task, labels }
 }
 
+/// Whether `pass` is the pass of `schema`: its tasks are the schema's, in
+/// prompt order, with their children; every score vector has the length
+/// its task, instances, text tokens and width give; no logit is NaN or
+/// positive infinity (negative infinity marks a span past the text); and
+/// the threshold is a probability.
+fn check(pass: &Pass, schema: &ExtractionSchema, threshold: f32) -> Result<(), String> {
+    let p = pass.prompt();
+    if !(threshold.is_finite() && (0.0..=1.0).contains(&threshold)) {
+        return Err(format!("a threshold outside [0, 1]: {threshold}"));
+    }
+    let mut kinds: Vec<(Kind, usize)> =
+        schema.structures.iter().enumerate().map(|(i, s)| (Kind::Record(i), s.fields.len())).collect();
+    if !schema.entities.is_empty() {
+        kinds.push((Kind::Entities, schema.entities.len()));
+    }
+    kinds.extend(schema.classifications.iter().enumerate().map(|(i, c)| (Kind::Classification(i), c.labels.len())));
+    let tasks: Vec<(Kind, usize)> = p.tasks.iter().map(|t| (t.kind, t.markers.len())).collect();
+    if tasks != kinds || pass.scores().len() != tasks.len() {
+        return Err("a pass whose tasks are not the schema's".into());
+    }
+    if p.choice_at.len() != schema.structures.len()
+        || schema.structures.iter().zip(&p.choice_at).any(|(s, at)| {
+            at.len() != s.fields.len()
+                || s.fields.iter().zip(at).any(|(f, a)| match (&f.choices, a) {
+                    (Some(c), Some(first)) => first + 2 * c.len() > p.prefix.len() + 1,
+                    (None, None) => false,
+                    _ => true,
+                })
+        })
+    {
+        return Err("a pass whose choice prefix is not the schema's".into());
+    }
+    let size = p.token_first.len() * pass.width();
+    let bad = |l: &[f32]| l.iter().any(|x| x.is_nan() || *x == f32::INFINITY);
+    for ((kind, fields), scores) in kinds.iter().zip(pass.scores()) {
+        match (kind, scores) {
+            (Kind::Classification(_), Scores::Labels(l)) if l.len() == *fields && l.iter().all(|x| x.is_finite()) => {}
+            (Kind::Record(_) | Kind::Entities, Scores::Spans { count, instances, logits })
+                if instances <= count
+                    && (*kind != Kind::Entities || *instances <= 1)
+                    && Some(logits.len()) == instances.checked_mul(*fields).and_then(|x| x.checked_mul(size))
+                    && !bad(logits) => {}
+            _ => return Err("a task's scores that do not fit it, or are not numbers".into()),
+        }
+    }
+    Ok(())
+}
+
 /// The extraction from `pass` for `schema` at the request's `threshold`,
 /// each field's or type's own threshold taking its place where set.
-pub fn decode(pass: &Pass, schema: &ExtractionSchema, threshold: f32, layers: &dyn Corroborate) -> Extraction {
+///
+/// # Errors
+/// A pass that is not `schema`'s, has scores of the wrong size or that are
+/// not numbers, or a threshold outside [0, 1].
+pub fn decode(
+    pass: &Pass,
+    schema: &ExtractionSchema,
+    threshold: f32,
+    layers: &dyn Corroborate,
+) -> Result<Extraction, String> {
+    check(pass, schema, threshold)?;
     let mut out = Extraction { entities: vec![Vec::new(); schema.entities.len()], ..Extraction::default() };
-    let (n, skip, w) = (pass.prompt.token_first.len(), pass.prompt.prefix_len(), pass.width);
+    let (n, skip, w) = (pass.prompt().token_first.len(), pass.prompt().prefix_len(), pass.width());
     let size = n * w;
-    for (task, scores) in pass.prompt.tasks.iter().zip(&pass.scores) {
+    for (task, scores) in pass.prompt().tasks.iter().zip(pass.scores()) {
         match (task.kind, scores) {
             (Kind::Classification(i), Scores::Labels(l)) => out.classifications.push(classify(i, schema, l)),
             (Kind::Entities, Scores::Spans { instances, logits, .. }) if *instances > 0 => {
@@ -234,7 +292,7 @@ pub fn decode(pass: &Pass, schema: &ExtractionSchema, threshold: f32, layers: &d
                     for (f, fs) in spec.fields.iter().enumerate() {
                         let field = &logits[(inst * m + f) * size..(inst * m + f + 1) * size];
                         let t = fs.threshold.unwrap_or(threshold);
-                        fields.push(match (&fs.choices, pass.prompt.choice_at[s][f]) {
+                        fields.push(match (&fs.choices, pass.prompt().choice_at[s][f]) {
                             (Some(c), Some(first)) => choices(pass, field, c, first, t, fs.cardinality),
                             _ => spans(pass, field, skip, t, fs.cardinality, &fs.checks, layers)
                                 .into_iter()
@@ -250,5 +308,5 @@ pub fn decode(pass: &Pass, schema: &ExtractionSchema, threshold: f32, layers: &d
             _ => {}
         }
     }
-    out
+    Ok(out)
 }

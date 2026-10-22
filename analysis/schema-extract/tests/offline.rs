@@ -313,15 +313,87 @@ fn a_choice_reads_its_own_fields_token() {
         ..Default::default()
     };
     let pass = common::offline(Limits::default()).pass("some words here", &s).unwrap();
-    let out = decode(&pass, &s, 0.0, &Nothing);
-    let Scores::Spans { logits, .. } = &pass.scores[0] else { panic!("a record task") };
-    let size = pass.prompt.token_first.len() * pass.width;
-    let second = pass.prompt.prefix.iter().position(|t| t == "second").unwrap();
+    let out = decode(&pass, &s, 0.0, &Nothing).unwrap();
+    let Scores::Spans { logits, .. } = &pass.scores()[0] else { panic!("a record task") };
+    let size = pass.prompt().token_first.len() * pass.width();
+    let second = pass.prompt().prefix.iter().position(|t| t == "second").unwrap();
     for v in &out.records[0].fields[1] {
         let FieldValue::Choice { choice, logit, .. } = v else { panic!("a choice") };
         let own = second + 2 + 2 * choice;
-        assert_eq!(pass.prompt.prefix[own], s.structures[0].fields[1].choices.as_ref().unwrap()[*choice]);
-        assert_eq!(logit.to_bits(), logits[size + own * pass.width].to_bits(), "choice {choice}");
+        assert_eq!(pass.prompt().prefix[own], s.structures[0].fields[1].choices.as_ref().unwrap()[*choice]);
+        assert_eq!(logit.to_bits(), logits[size + own * pass.width()].to_bits(), "choice {choice}");
     }
     assert_eq!(out.records[0].fields[1].len(), 4);
+}
+
+#[test]
+fn evidence_cites_the_numbers_instance_the_annotator_read() {
+    use turbo_analysis::Bound;
+    let text = "Send 42 units to Ana before 7 May; total 1,250 dollars.";
+    let mut doc = document(text);
+    // A default numbers layer the annotator does not read, as a decoy.
+    let mut decoy = Numbers::new(ViewId::SOURCE);
+    NumberScanner::new(NumberNotation::LatinUs).scan("Nothing here at all, really, 9.", &mut decoy);
+    doc.add(&Key::DEFAULT, decoy, Provenance::by("decoy")).unwrap();
+    let annotator =
+        SchemaAnnotator::new(common::offline(Limits::default()), schema(vec![Check::Require(Source::Numbers)]), 0.0)
+            .unwrap();
+    let analyzer = Analyzer::builder()
+        .given(Key::<Tokens>::DEFAULT)
+        .given(Key::<Numbers>::DEFAULT)
+        .step(Bound::new(NumberScanner::new(NumberNotation::LatinUs)).write(0, "named"))
+        .step(Bound::new(annotator).read(4, "named"))
+        .step(EvidenceStep::new(Key::<Records>::DEFAULT))
+        .build()
+        .unwrap();
+    let mut docs = vec![doc];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    let doc = docs.pop().unwrap();
+    let named = doc.get_key(&Key::<Numbers>::named("named")).unwrap();
+    let r = doc.get::<Records>().unwrap();
+    assert!(!r.support_row.is_empty(), "amounts kept with the named numbers");
+    for i in 0..r.spans.len() {
+        let s = r.spans.get(turbo_analysis::Ix::new(i as u32));
+        for (_, row) in r.support(i) {
+            let n = named.spans.get(turbo_analysis::Ix::new(row));
+            assert!(n.start < s.end && s.start < n.end, "{n:?} of the named layer does not overlap {s:?}");
+        }
+    }
+    assert_eq!(doc.get::<Evidence<Records>>().unwrap().verify(&doc), Ok(()));
+    let registry = codecs();
+    let back = import(&export(&doc, &registry).unwrap(), &registry).unwrap();
+    assert_eq!(back.get::<Records>().unwrap().support_row, r.support_row);
+}
+
+#[test]
+fn a_pass_that_does_not_fit_its_schema_is_an_error() {
+    use turbo_schema_extract::decode::{Nothing, decode};
+    use turbo_schema_extract::model::{Pass, Scores};
+    let m = common::offline(Limits::default());
+    let s = schema(Vec::new());
+    let (prompt, width, scores) = m.pass("Send 42 units.", &s).unwrap().into_parts();
+    let first = scores.iter().position(|x| matches!(x, Scores::Spans { .. })).unwrap();
+    // Truncated scores: an error, not a panic.
+    let mut short = scores.clone();
+    short[first] = Scores::Spans { count: 1, instances: 1, logits: Vec::new() };
+    let pass = Pass::new(prompt, width, short);
+    assert!(decode(&pass, &s, 0.5, &Nothing).is_err());
+    // NaN scores: an error, never a confident value.
+    let (prompt, width, _) = pass.into_parts();
+    let mut nan = scores.clone();
+    if let Scores::Spans { logits, .. } = &mut nan[first] {
+        logits.iter_mut().for_each(|x| *x = f32::NAN);
+    }
+    let pass = Pass::new(prompt, width, nan);
+    assert!(decode(&pass, &s, 0.99, &Nothing).is_err());
+    // Another schema's pass, and a threshold that is not a probability.
+    let (prompt, width, _) = pass.into_parts();
+    let pass = Pass::new(prompt, width, scores);
+    assert!(decode(&pass, &s, 0.5, &Nothing).is_ok());
+    let mut other = s.clone();
+    other.entities.pop();
+    assert!(decode(&pass, &other, 0.5, &Nothing).is_err());
+    assert!(decode(&pass, &s, f32::NAN, &Nothing).is_err());
 }

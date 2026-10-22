@@ -102,9 +102,9 @@ fn the_real_checkpoint_matches_the_reference() {
         let schema = common::schema(&case["schema"]);
         let pass = m.pass(text, &schema).unwrap();
         let ids: Vec<u32> = case["ids"].as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as u32).collect();
-        assert_eq!(pass.prompt.ids, ids, "case {c} ids");
+        assert_eq!(pass.prompt().ids, ids, "case {c} ids");
         let counts: Vec<usize> = pass
-            .scores
+            .scores()
             .iter()
             .filter_map(|s| match s {
                 Scores::Spans { count, .. } => Some(*count),
@@ -115,7 +115,7 @@ fn the_real_checkpoint_matches_the_reference() {
             case["counts"].as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as usize).collect();
         assert_eq!(counts, want, "case {c} counts");
         let logits: Vec<&Vec<f32>> = pass
-            .scores
+            .scores()
             .iter()
             .filter_map(|s| match s {
                 Scores::Labels(l) => Some(l),
@@ -127,7 +127,7 @@ fn the_real_checkpoint_matches_the_reference() {
                 close(*g, w, &format!("case {c} task {t} logit {i}"));
             }
         }
-        let out = decode(&pass, &schema, 0.5, &Nothing);
+        let out = decode(&pass, &schema, 0.5, &Nothing).unwrap();
         let result = &case["result"];
         let triple = |v: &turbo_schema_extract::decode::SpanValue| (v.start, v.end, v.score);
         for (f, e) in schema.entities.iter().enumerate() {
