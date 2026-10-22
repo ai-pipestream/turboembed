@@ -31,6 +31,16 @@ impl Kernel {
         Kernel::Portable
     }
 
+    /// How many tokens one kernel pass takes: NEON sums up to 4 per pass
+    /// over the weight rows, the others 1.
+    pub(super) fn tokens_per_pass(self) -> usize {
+        match self {
+            #[cfg(target_arch = "aarch64")]
+            Kernel::Neon => 4,
+            _ => 1,
+        }
+    }
+
     /// # Panics
     /// If `wt` does not hold `x.len()` rows of `v` floats or the columns
     /// pass `v`.
