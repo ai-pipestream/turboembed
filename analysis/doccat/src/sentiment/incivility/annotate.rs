@@ -1,6 +1,18 @@
 use super::super::validation;
 use super::*;
 
+impl IncivilityAnnotator {
+    /// The context vector the head reads for a unit whose preceding unit
+    /// has the vector `preceding`.
+    fn context_of<'a>(&'a self, preceding: Option<&'a [f32]>) -> Option<&'a [f32]> {
+        match &self.vector_context {
+            IncivilityVectorContext::None => None,
+            IncivilityVectorContext::Preceding => preceding,
+            IncivilityVectorContext::Parent(p) => Some(p),
+        }
+    }
+}
+
 impl Annotator for IncivilityAnnotator {
     const ID: &'static str = "turbo-doccat:incivility";
     const VERSION: &'static str = "1";
@@ -80,6 +92,21 @@ impl Annotator for IncivilityAnnotator {
             validation::vectors(Self::ID, v, chunks.map_or(0, Layer::len))?;
         }
 
+        // The learned stage reads the head alone: it needs one, and the
+        // unit's vectors.
+        if self.stage == IncivilityStage::Learned {
+            if self.vector_scorer.is_none() {
+                return Err(fail("IncivilityStage::Learned needs a vector scorer".into()));
+            }
+            let has = match self.unit {
+                IncivilityUnit::Sentences => sent_vecs.is_some(),
+                IncivilityUnit::Chunks => chunk_vecs.is_some(),
+                IncivilityUnit::Blocks => false,
+            };
+            if !has {
+                return Err(fail("IncivilityStage::Learned needs the unit layer's vectors".into()));
+            }
+        }
         let mut out = Incivility::new();
 
         match self.unit {
@@ -110,12 +137,16 @@ impl Annotator for IncivilityAnnotator {
                     };
 
                     let sent_ix = Ix::<Sentences>::new(s_idx as u32);
-                    let u_vec = sent_vecs.and_then(|v| {
-                        if s_idx < v.len() && !v.is_empty(sent_ix) { Some(v.row(sent_ix)) } else { None }
-                    });
+                    let row = |i: usize| {
+                        let ix = Ix::<Sentences>::new(i as u32);
+                        sent_vecs.and_then(|v| (i < v.len() && !v.is_empty(ix)).then(|| v.row(ix)))
+                    };
+                    let u_vec = row(s_idx);
+                    let ctx = self.context_of(s_idx.checked_sub(1).and_then(row));
 
-                    let (scores, evidence) =
-                        self.score_unit(&token_lower, tok_start, tok_end, parent_range, u_vec).map_err(fail)?;
+                    let (scores, evidence) = self
+                        .score_unit_in_context(&token_lower, tok_start, tok_end, parent_range, u_vec, ctx)
+                        .map_err(fail)?;
                     out.try_push(
                         tokens,
                         Some(sents),
@@ -146,12 +177,16 @@ impl Annotator for IncivilityAnnotator {
                     };
 
                     let chunk_ix = Ix::<Chunks>::new(c_idx as u32);
-                    let u_vec = chunk_vecs.and_then(|v| {
-                        if c_idx < v.len() && !v.is_empty(chunk_ix) { Some(v.row(chunk_ix)) } else { None }
-                    });
+                    let row = |i: usize| {
+                        let ix = Ix::<Chunks>::new(i as u32);
+                        chunk_vecs.and_then(|v| (i < v.len() && !v.is_empty(ix)).then(|| v.row(ix)))
+                    };
+                    let u_vec = row(c_idx);
+                    let ctx = self.context_of(c_idx.checked_sub(1).and_then(row));
 
-                    let (scores, evidence) =
-                        self.score_unit(&token_lower, tok_start, tok_end, parent_range, u_vec).map_err(fail)?;
+                    let (scores, evidence) = self
+                        .score_unit_in_context(&token_lower, tok_start, tok_end, parent_range, u_vec, ctx)
+                        .map_err(fail)?;
                     out.try_push(
                         tokens,
                         sentences,
@@ -198,11 +233,32 @@ impl Annotator for IncivilityAnnotator {
 
     fn model(&self) -> Option<ModelRef> {
         let ctx_suffix = if self.use_reply_context { "reply-context" } else { "no-reply-context" };
-        if let Some(scorer) = &self.vector_scorer
+        let vector_ctx = match self.vector_context {
+            IncivilityVectorContext::None => "",
+            IncivilityVectorContext::Preceding => ":preceding-vector",
+            IncivilityVectorContext::Parent(_) => ":parent-vector",
+        };
+        let scorer = self.vector_scorer.as_ref().filter(|_| self.stage != IncivilityStage::Lexicon);
+        if self.stage == IncivilityStage::Learned
+            && let Some(scorer) = scorer
+        {
+            // A head with no encoder named is known by its configuration.
+            let m = scorer.model().unwrap_or_else(|| ModelRef {
+                id: "incivility-vector-head".into(),
+                revision: "1".into(),
+                sha256: sha256(&scorer.config_hash().to_le_bytes()).to_hex(),
+            });
+            return Some(ModelRef {
+                id: format!("{}:learned{vector_ctx}", m.id),
+                revision: m.revision,
+                sha256: m.sha256,
+            });
+        }
+        if let Some(scorer) = scorer
             && let Some(m) = scorer.model()
         {
             return Some(ModelRef {
-                id: format!("{}+lexicon:{ctx_suffix}", m.id),
+                id: format!("{}+lexicon:{ctx_suffix}{vector_ctx}", m.id),
                 revision: m.revision,
                 sha256: m.sha256,
             });
@@ -226,6 +282,17 @@ impl Annotator for IncivilityAnnotator {
         if let Some(s) = &self.vector_scorer {
             h ^= s.config_hash();
         }
-        h
+        h ^= (self.stage as u64 + 1).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        let mut c: u64 = match &self.vector_context {
+            IncivilityVectorContext::None => 0,
+            IncivilityVectorContext::Preceding => 1,
+            IncivilityVectorContext::Parent(_) => 2,
+        };
+        if let IncivilityVectorContext::Parent(p) = &self.vector_context {
+            for v in p.iter() {
+                c = (c ^ u64::from(v.to_bits())).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        h ^ c.wrapping_mul(0x94d0_49bb_1331_11eb)
     }
 }

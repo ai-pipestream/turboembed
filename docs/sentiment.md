@@ -473,6 +473,39 @@ and writes `Incivility`:
    `<head>+lexicon:no-reply-context`); it does not record whether the
    document had a `Structure` layer.
 
+### The learned vector head (`IncivilityVectorHead`)
+
+`IncivilityVectorHead` is an `IncivilityVectorScorer` of its own: for each
+of the six labels, in `IncivilityLabel::ALL` order, the probability
+`sigmoid(w · v + b)` of a unit's vector `v`, from a `[6, dim]` weight
+matrix and six biases. A head made `with_context` also has a `[6, dim]`
+context matrix and adds `w_ctx · p` for a context vector `p`, which
+`IncivilityAnnotator::with_vector_context` chooses:
+`IncivilityVectorContext::Preceding` (the unit before, none for the
+first or after a unit with no vector) or `Parent` (one vector for every
+unit, the post the document replies to; `with_parent_vector` sets it). A
+head without a context matrix ignores the context vector. The weights
+come from the caller; `IncivilityVectorHead::fit` fits them to labelled
+vectors (logistic regression per label, full-batch gradient descent from
+zero, deterministic), with context vectors when given.
+
+`to_bytes` writes the head as the magic `TIVH`, the version 1, the
+dimension, a flag for the context matrix (all `u32` little-endian), then
+the biases, the weight matrix and the context matrix as little-endian
+`f32`. `from_bytes` checks each part and the exact length, and refuses a
+dimension of 0 or a value that is not finite, with an
+`IncivilityHeadError` and never a panic.
+
+`IncivilityAnnotator::with_stage` picks the signals:
+`IncivilityStage::Lexicon` (the lexicon and the reply rules alone),
+`Learned` (the head alone: it needs a head and the unit layer's vectors,
+and its scores are reported as they are, without the `SevereToxicity`
+rule) or `Fused` (both, the default, as above). The stage and the vector
+context are in the annotator's configuration hash, and the model id
+names them: `<head>:learned` for the learned stage (a head with no
+encoder named is `incivility-vector-head:learned`), and a
+`:preceding-vector` or `:parent-vector` suffix with a vector context.
+
 ### Tests and license posture
 
 Per `#326`, external toxicity corpora with custom platform terms (`Jigsaw`,
@@ -491,6 +524,17 @@ repository.
   beside the lexicon rules. As with `#324`, this fixture pins the rule and
   layer invariants rather than claiming generalisation accuracy on external
   benchmarks.
+- `analysis/doccat/src/sentiment/incivility/tests/head.rs` tests the head's
+  arithmetic, its context matrix, every cut of its bytes and every bad
+  header field, and `fit` on labelled vectors, with and without context.
+  `analysis/doccat/src/sentiment/incivility/tests/learned.rs` gives sentence vectors as data, each value a known
+  property of its sentence: the three stages disagree where the lexicon
+  and the vectors do, the preceding and parent vectors move a reply's
+  score through the context matrix, neutral sentences that mention an
+  identity ("She is a Muslim software engineer from Chicago.") stay below
+  the threshold on every label while attacks on the same groups cross it,
+  for a configured and a fitted head, and the learned layer round-trips
+  through the document graph.
 - `analysis/embed/tests/heads.rs`
   (`incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device`)
   fits a multi-label `ClassifierHead` (`HeadMode::MultiLabel`) and a 6-label
