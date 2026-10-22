@@ -37,8 +37,10 @@ use crate::resources::{Resources, Unavailable};
 /// models of their own and tag token lists rather than texts; the CoNLL-U
 /// dependency and CorefUD readers (`conllu`) and the OntoNotes and French
 /// Treebank readers (`ontonotes`, `frenchtreebank`) read files of their own,
-/// which turbo-formats compares with.
-pub const NOT_COVERED: [&str; 35] = [
+/// which turbo-formats compares with; the sentence vector runs
+/// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
+/// `sentence_vectors_dl` test compares with them.
+pub const NOT_COVERED: [&str; 36] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -74,6 +76,7 @@ pub const NOT_COVERED: [&str; 35] = [
     "corpora",
     "ontonotes",
     "frenchtreebank",
+    "sentvectors",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden

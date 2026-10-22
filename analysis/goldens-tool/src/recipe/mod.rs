@@ -78,7 +78,7 @@ pub use self::excerpts::{EXCERPTS, Excerpt};
 pub use self::fixtures::{FIXTURES, Fixture};
 pub use self::models::{
     CORPORA, Corpus, DICTIONARIES, Dictionary, DictionaryEncoding, HUNSPELL_DICTIONARIES_COMMIT, HUNSPELL_FILES,
-    HunspellFile, LOCAL_MODELS, MODELS, Model, UTF8_COPY_SUFFIX,
+    HunspellFile, LOCAL_MODELS, MODELS, Model, POOLING_SOURCE, UTF8_COPY_SUFFIX,
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.

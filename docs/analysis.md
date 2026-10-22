@@ -4662,6 +4662,17 @@ runs them on any machine:
   the CPU runs the weights it was compiled from. Without both variables
   the test prints that it was skipped. On a Hailo machine:
   `TURBO_TEST_VECTORS_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=hailo cargo test --release -p turbo-analysis-embed --features turbo/hailo --test vectors_bundle -- --nocapture`.
+- `analysis/embed/tests/sentence_vectors_dl.rs` compares the sentence
+  vector step with OpenNLP's `SentenceVectorsDL` on the
+  `sentvectors/all-minilm-l6-v2-mean` goldens (analysis/goldens-tool/README.md),
+  given an all-MiniLM-L6-v2 bundle in `TURBO_TEST_VECTORS_BUNDLE`. Each
+  sentence of the goldens is embedded as a document of its own. The
+  step's vector averages the sentence's own pieces, where the golden's
+  averages the whole row, [CLS] and [SEP] included, so the two are held to
+  a cosine of 0.91, which the shortest sentences set (the lowest of the 57
+  is 0.919, the mean 0.983). The mean over the whole row, computed with the
+  encoder, is held to 0.999999 (the lowest is 0.9999999999984): the
+  tokenizer and the encoder agree with OpenNLP's and ONNX Runtime's.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,

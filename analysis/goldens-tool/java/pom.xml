@@ -86,6 +86,15 @@
       <artifactId>opennlp-formats</artifactId>
       <version>${opennlp.version}</version>
     </dependency>
+    <!--
+      SentenceVectorsDL and the ONNX Runtime it runs models with (SentenceVectorsGolden); the
+      module declares onnxruntime, which comes from Maven Central when the image is built.
+    -->
+    <dependency>
+      <groupId>org.apache.opennlp</groupId>
+      <artifactId>opennlp-dl</artifactId>
+      <version>${opennlp.version}</version>
+    </dependency>
     <!-- ParserTool.parseLine and ParserEvaluator, which the parser model goldens run (ParserTrainGolden). -->
     <dependency>
       <groupId>org.apache.opennlp</groupId>
