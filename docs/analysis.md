@@ -2466,9 +2466,46 @@ tokens (the whole text one window) and of 24 (the document and a
 section in parts), with and without structure, with empty units, and
 twice for the same bits.
 
-What each level and each kind of vector adds to retrieval is not
-measured yet: the evaluation harness retrieves with one vector per
-chunk, and has no pipeline for levels yet.
+### What each level and vector kind retrieves
+
+The records under `analysis/eval/records/turbo-chunker-254-200-level-*`
+retrieve the units of one level (`turbo-eval run --level`, see
+"Evaluation") with all-MiniLM-L6-v2 on the 4080, the turbo-chunker at
+`--max 254 --target 200` and plain structure. nDCG@10, with the units
+retrieved in parentheses:
+
+| Level, vectors | scifact | nfcorpus | arguana | qasper | gutenqa |
+| --- | --- | --- | --- | --- | --- |
+| chunk, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
+| chunk, local | 0.6504 | 0.3172 | 0.4918 | 0.2817 | 0.8637 |
+| chunk, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2750 | 0.8563 |
+| section, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2841 (10207) | 0.8570 (67572) |
+| section, local | 0.6504 | 0.3172 | 0.4918 | 0.2838 | 0.8569 |
+| section, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2771 | 0.8506 |
+| document, text | 0.6402 (5183) | 0.3097 (3633) | 0.5033 (8674) | 0.2519 (416) | 0.3161 (100) |
+| document, local | 0.6518 | 0.3167 | 0.4872 | 0.2328 | 0.6238 |
+
+The document has no parent, so its contextual vector is its local one
+and the document level has no contextual run of its own.
+
+Paired over queries (`turbo-eval gate`, 95 percent bootstrap interval,
+in nDCG@10 points):
+
+- Plain structure finds no sections in the three BEIR sets, so there
+  the section level is the chunk level. In qasper it is +0.24 (+0.02
+  to +0.47) over the chunks, and in gutenqa -0.65 (-0.95 to -0.38).
+- A chunk's local vector retrieves as its text embedded alone does:
+  within 0.1 points everywhere but arguana, -0.37 (-0.64 to -0.12).
+- Over the chunk's local vector, the contextual one moves no set by
+  an interval clear of zero except gutenqa, -0.75 (-1.36 to -0.12);
+  the intervals of scifact, +0.95 (-0.56 to +2.48), nfcorpus, +0.59
+  (-0.14 to +1.33), and qasper, -0.67 (-1.61 to +0.27), hold zero.
+- Retrieving whole documents loses to the chunks on qasper, -2.97
+  (-4.43 to -1.50), and gutenqa, -54.74, and gains on arguana, +0.78
+  (+0.22 to +1.34), whose documents are short arguments. Text
+  embedded in one row stops at the model's 256 tokens; a document's
+  local vector pools all of it, which is +30.77 on gutenqa's books but
+  -1.91 on qasper and -1.60 on arguana.
 
 ## Golden files
 
@@ -4080,6 +4117,21 @@ Each chunker records every setting it ran with, defaults included.
   are retrieved. Drift and cohesion read sentence vectors, which here
   are each sentence embedded alone rather than late pooled as
   `SentenceVectors` pools them; the record says so.
+
+  With `--level`, `LevelBuilder` builds the chunker's levels and the
+  units of one of them are retrieved instead
+  (`analysis/eval/src/chunkers/levels.rs`): `chunk` (the chunks),
+  `section` (every section, nested ones included, and each chunk
+  outside every section, so no chunk's text is left out) or `document`
+  (the whole view). A document with no structure has no sections; its
+  section units are its chunks. Each unit's text is embedded as one
+  row, cut where the bundle cuts it, unless `--level-vectors local` or
+  `--level-vectors contextual` asks for that unit's vector from
+  `LevelVectors` (see "Levels"); pooled vectors are retrieved by dense
+  retrieval only, hold no title (`--titles prefix` is an error with
+  them), and `cost.tokens_embedded` then counts the queries
+  alone; the pooling's encoder time falls in `cost.wall.chunking_ms`.
+  The record's chunker config names the level and the vectors.
 
 ### BM25 retrieval
 
