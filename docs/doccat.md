@@ -2,15 +2,18 @@
 
 `turbo-doccat` (`analysis/doccat/`) ports the document categorizers of
 OpenNLP 3.x (`DocumentCategorizerME` and `DoccatModel` in
-`opennlp.tools.doccat.*`, and `DocumentCategorizerSVM` in the
-`opennlp-ml-libsvm` module), along with `SpanCategorizer<L>` for
-sentence-, structure-, and chunk-level categorization and
-`turbo_train_components::doccat` for training and packaging maxent and
-perceptron `DoccatModel` archives.
+`opennlp.tools.doccat.*`, `DocumentCategorizerSVM` in the
+`opennlp-ml-libsvm` module, and `DocumentCategorizerDL` in
+`opennlp.dl.doccat.*`), along with `SpanCategorizer<L>` and
+`DlSpanCategorizer<S, L, C>` for sentence-, structure-, and chunk-level
+categorization and `turbo_train_components::doccat` for training and
+packaging maxent and perceptron `DoccatModel` archives.
 
 The crate also holds OpenNLP's maxent sentiment detector, `SentimentME`,
-which [sentiment.md](sentiment.md) describes, and its own multi-label
-categorizer, [`MultiLabelDoccatModel`](#multi-label-categorization-multilabeldoccatmodel).
+which [sentiment.md](sentiment.md) describes, its own multi-label
+categorizer, [`MultiLabelDoccatModel`](#multi-label-categorization-multilabeldoccatmodel),
+and zero-shot natural-language-inference categorization,
+[`ZeroShotCategorizer`](#zero-shot-categorization-zeroshotcategorizer).
 
 It depends on `turbo-analysis`, `turbo-analysis-layers`, `turbo-jvm`
 (Java's `Double.toString`, `Double.parseDouble`, `Integer.parseInt`,
@@ -374,3 +377,50 @@ the document's `Categories` and `ZeroShotSpanAnnotator` writes
 as provenance and the template, labels, mode, aggregation, and overlap
 in the annotator config hash. Blank items score zero everywhere rather
 than failing the document.
+
+## Transformer sequence classification (`DocumentCategorizerDL`)
+
+`turbo_doccat::dl` ports OpenNLP's `opennlp.dl.doccat.DocumentCategorizerDL`,
+`DocumentCategorizerConfig`, and `scoring.ClassificationScoringStrategy` /
+`AverageClassificationScoringStrategy`:
+
+1. `DocumentCategorizerConfig::from_json` (or `read_categories_from_json`)
+   parses the `id2label` map from a Hugging Face `config.json` (or standalone
+   `id2label` object) into non-negative `u32` indices `0..N` and category names,
+   validating that indices are contiguous and names are non-empty.
+2. `DlInferenceOptions` configures OpenNLP DL's text preprocessing and
+   chunking:
+   - `lower_case` (default `true`): folds text with `.to_lowercase()` before
+     splitting, matching `InferenceOptions.isLowerCase()`.
+   - `normalize_whitespace` and `normalize_dashes` (default `false`): collapse
+     whitespace runs to single ASCII spaces and normalize Unicode dashes to `-`.
+   - `document_split_size` (default `250`) and `split_overlap_size` (default
+     `50`): sliding window step `document_split_size - split_overlap_size`,
+     rejected when `document_split_size == 0` or `split_overlap_size >= document_split_size`.
+   - `chunking_mode`: `DlChunkingMode::WhitespaceWords` (default, matching
+     OpenNLP's `split("\\s+")` word windowing in `Inference.split`) or
+     `DlChunkingMode::Subwords` (windowing directly over pre-tokenized
+     `opennlp:subwords` IDs from the view).
+3. `DocumentCategorizerDL<S, C>` runs its `DlSequenceScorer` (`S`) over the
+   document's chunks, computes a numerically stable `f64` `softmax` over each
+   chunk's raw `f32` class logits (refusing non-finite logits), and combines
+   chunk probability distributions through `ClassificationScoringStrategy`
+   (`AverageClassificationScoringStrategy` by default, which takes the elementwise
+   mean across chunks). It exposes `categorize` (joining tokens with a space, as
+   `DocumentCategorizerDL.categorize(String[])` does), `categorize_text`,
+   `categorize_subwords`, `best_category`, `best_index`, `get_index`,
+   `get_category`, `number_of_categories`, `score_map`, `sorted_score_map`, and
+   `all_results`.
+4. As an annotator (`opennlp:doccat-dl`), `DocumentCategorizerDL` reads the view
+   (and optional `opennlp:subwords` when `DlChunkingMode::Subwords` is selected
+   and preprocessing is disabled) and writes a single-item `Categories`
+   (`turbo:categories`) layer anchored to the document. `DlSpanCategorizer<S, L, C>`
+   (`opennlp:doccat-dl-spans`) categorizes each span of `L: SpanCategorizable`
+   (`Chunks`, `Structure`, or `Sentences`) and writes `Categories<L>`.
+5. `turbo_analysis_embed::BundleSequenceScorer` implements `DlSequenceScorer` on
+   turboembed's native backends (CPU, Metal, CUDA, Vulkan, HIP) without ONNX
+   Runtime: it opens the bundle's `Encoder` with `TURBO_POOLING_CLS` and
+   `TURBO_NORMALIZE_NONE`, loads the `CLASSIFIER_SEQUENCE` head from `head.bin`
+   (`turbo::head::Head::from_bundle`, applying the optional `pooler.dense` +
+   `tanh` and linear `classifier`), and scores either text chunks (via the
+   bundle's `Tokenizer`) or pre-tokenized subword windows (`Rows::from_ids`).

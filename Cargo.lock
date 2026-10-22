@@ -2307,6 +2307,7 @@ dependencies = [
  "protox",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
@@ -2417,6 +2418,18 @@ dependencies = [
  "turbo-sequence",
  "turbo-train",
  "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-namefind-dl"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-formats",
 ]
 
 [[package]]
@@ -2564,6 +2577,23 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-schema-extract"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-bundle",
+ "turbo-geo",
+ "turbo-glossary-layers",
+ "turbo-numeric",
+ "turbo-pii",
+ "turbo-relation",
+ "turbo-zoo",
 ]
 
 [[package]]

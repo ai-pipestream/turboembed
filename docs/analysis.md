@@ -24,7 +24,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
-| `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
+| `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, a vector per sentence and per chunk, and `BundleSequenceScorer` (`DlSequenceScorer` over the bundle's encoder and sequence-classification `head.bin` for `turbo-doccat`'s `DocumentCategorizerDL`) |
 | `turbo-sat` | `analysis/sat/` | Sentence boundaries from a SaT model (wtpsplit's Segment any Text) on the core's encoder: a score per token from the bundle's classifier over the encoder's final states, wtpsplit's windows and cuts, each cut moved to a grapheme cluster boundary, written as `opennlp:sentences` ([neural-annotators.md](neural-annotators.md); `analysis/sat/README.md` describes its reference fixtures) |
 | `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor (`MoneyExtractor`, `MoneyExtractor::for_region`) and `RegionAwareMoneyAnnotator` (reading `turbo:regions`), which write `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor, which writes `turbo:quantities` ([quantities.md](quantities.md)); the temporal extractor, which writes `turbo:temporal`, the document date selector, which writes `turbo:document-date`, and the conversion step that reads it ([temporal.md](temporal.md)) |
 | `turbo-pii` | `analysis/pii/` | PII detection ported from OpenNLP's `opennlp.tools.pii`: e-mail, phone, IBAN, card, ABA routing, network, credential, Bitcoin and Ethereum, national and device identifiers, each checked with its check digit or checksum (Luhn, mod 97, mod 11, ISO 7064, base58check, bech32, EIP-55 over Keccak-256, all written in the crate), in the packs of `PiiPacks`; writes `turbo:pii` with a kind, a confidence and a normalized form per mention; masking in place or as the `masked` view (`MaskedView`), numbered and keyed (HMAC-SHA-256) labels and audit reports ([pii.md](pii.md)) |
@@ -45,7 +45,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-glossary` | `analysis/glossary/` | OpenNLP's glossary matchers and readers: `TextMatcher` (`AhoCorasickGlossaryMatcher`, an Aho-Corasick automaton over code points whose matches must start and end on given boundaries), `TokenMatcher` (`TermAnalyzingGlossaryMatcher`, on turbo-matcher's phrase matcher, over token text or stems), their composite (`CompositeGlossaryMatcher`), `GlossaryAnnotator`, which reads a view, its `opennlp:tokens` and optionally `turbo:stems` and writes `turbo:glossary-terms`, and the comma or tab separated and TBX 2 and 3 readers (`CsvGlossaryReader`, `TbxGlossaryReader`, with a small XML parser of its own) and a TBX writer; the character automaton can also be written as a flat double-array image and read in place from a slice or a memory-mapped file (`MappedGlossaryWriter`, `MappedGlossaryMatcher`), with the same matches. The crate documentation lists where it differs from OpenNLP and the OpenNLP behaviour that is surprising; `analysis/glossary/README.md` describes its JVM golden files and the timing of the two matchers |
 | `turbo-glossary-layers` | `analysis/glossary-layers/` | The glossary (`Glossary`, an entry's id and term) and the `turbo:glossary-terms` layer, so a consumer of the matches does not depend on the matchers |
-| `turbo-doccat` | `analysis/doccat/` | OpenNLP's SVM document categorizer (`DocumentCategorizerSVM` of `opennlp-ml-libsvm`) at prediction: the LIBSVM text model reader and LIBSVM's prediction (C-SVC and nu-SVC, the linear, polynomial, RBF and sigmoid kernels, probability estimates), the sidecar that holds the rest of the model, the feature generators and term weightings, and the step that reads `opennlp:tokens` and writes `turbo:categories` ([doccat.md](doccat.md)); OpenNLP's maximum entropy document categorizer (`DocumentCategorizerME`) with its model file, feature generators and training events, and the steps that write `turbo:categories` for the document and `turbo:categories<L>` for each sentence, structure block or chunk; and OpenNLP's sentiment detector (`SentimentME` with `SentimentFactory` or `EmojiSentimentFactory`): the `SentimentModel` file, the token and emoji contexts, and the step that reads `opennlp:tokens` and writes the `sentiment` instance of `turbo:categories` ([sentiment.md](sentiment.md)) |
+| `turbo-doccat` | `analysis/doccat/` | OpenNLP's SVM document categorizer (`DocumentCategorizerSVM` of `opennlp-ml-libsvm`) at prediction: the LIBSVM text model reader and LIBSVM's prediction (C-SVC and nu-SVC, the linear, polynomial, RBF and sigmoid kernels, probability estimates), the sidecar that holds the rest of the model, the feature generators and term weightings, and the step that reads `opennlp:tokens` and writes `turbo:categories` ([doccat.md](doccat.md)); OpenNLP's maximum entropy document categorizer (`DocumentCategorizerME`) with its model file, feature generators and training events, and the steps that write `turbo:categories` for the document and `turbo:categories<L>` for each sentence, structure block or chunk; OpenNLP's transformer sequence classification categorizer (`DocumentCategorizerDL`, `DocumentCategorizerConfig`, `AverageClassificationScoringStrategy` and `DlSpanCategorizer<S, L, C>`, backed by `turbo_analysis_embed::BundleSequenceScorer`); multi-label (`MultiLabelDoccatModel`) and zero-shot (`ZeroShotCategorizer`) categorizers; and OpenNLP's sentiment detector (`SentimentME` with `SentimentFactory` or `EmojiSentimentFactory`): the `SentimentModel` file, the token and emoji contexts, and the step that reads `opennlp:tokens` and writes the `sentiment` instance of `turbo:categories` ([sentiment.md](sentiment.md)) |
 | `turbo-langspan` | `analysis/langspan/` | Language by span (code switching): script runs, then OpenNLP's language detector model scoring words and clauses, written as `turbo:language-spans` with the document summary in `opennlp:language` ([langdetect.md](langdetect.md), "Language by span") |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the liblinear trainer of the OpenNLP addons with liblinear-java's logistic regression solvers ([liblinear.md](liblinear.md)), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
@@ -854,7 +854,8 @@ phrase chunks (noun and verb groups), a different layer, which a phrase
 chunker will write under that id.
 
 `Categories<L>` is the one categories layer every categorizer writes:
-the document categorizers (maximum entropy and SVM) and the sentiment
+the document categorizers (maximum entropy, SVM, transformer `DocumentCategorizerDL`,
+multi-label and zero-shot) and the sentiment
 detector. Each item holds the best category and the score of every
 category in the categorizer's order; `CategoryRow::ranked` lists them
 best first, ties in category order. `L` defaults to `View`, the whole
@@ -2465,9 +2466,46 @@ tokens (the whole text one window) and of 24 (the document and a
 section in parts), with and without structure, with empty units, and
 twice for the same bits.
 
-What each level and each kind of vector adds to retrieval is not
-measured yet: the evaluation harness retrieves with one vector per
-chunk, and has no pipeline for levels yet.
+### What each level and vector kind retrieves
+
+The records under `analysis/eval/records/turbo-chunker-254-200-level-*`
+retrieve the units of one level (`turbo-eval run --level`, see
+"Evaluation") with all-MiniLM-L6-v2 on the 4080, the turbo-chunker at
+`--max 254 --target 200` and plain structure. nDCG@10, with the units
+retrieved in parentheses:
+
+| Level, vectors | scifact | nfcorpus | arguana | qasper | gutenqa |
+| --- | --- | --- | --- | --- | --- |
+| chunk, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
+| chunk, local | 0.6504 | 0.3172 | 0.4918 | 0.2817 | 0.8637 |
+| chunk, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2750 | 0.8563 |
+| section, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2841 (10207) | 0.8570 (67572) |
+| section, local | 0.6504 | 0.3172 | 0.4918 | 0.2838 | 0.8569 |
+| section, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2771 | 0.8506 |
+| document, text | 0.6402 (5183) | 0.3097 (3633) | 0.5033 (8674) | 0.2519 (416) | 0.3161 (100) |
+| document, local | 0.6518 | 0.3167 | 0.4872 | 0.2328 | 0.6238 |
+
+The document has no parent, so its contextual vector is its local one
+and the document level has no contextual run of its own.
+
+Paired over queries (`turbo-eval gate`, 95 percent bootstrap interval,
+in nDCG@10 points):
+
+- Plain structure finds no sections in the three BEIR sets, so there
+  the section level is the chunk level. In qasper it is +0.24 (+0.02
+  to +0.47) over the chunks, and in gutenqa -0.65 (-0.95 to -0.38).
+- A chunk's local vector retrieves as its text embedded alone does:
+  within 0.1 points everywhere but arguana, -0.37 (-0.64 to -0.12).
+- Over the chunk's local vector, the contextual one moves no set by
+  an interval clear of zero except gutenqa, -0.75 (-1.36 to -0.12);
+  the intervals of scifact, +0.95 (-0.56 to +2.48), nfcorpus, +0.59
+  (-0.14 to +1.33), and qasper, -0.67 (-1.61 to +0.27), hold zero.
+- Retrieving whole documents loses to the chunks on qasper, -2.97
+  (-4.43 to -1.50), and gutenqa, -54.74, and gains on arguana, +0.78
+  (+0.22 to +1.34), whose documents are short arguments. Text
+  embedded in one row stops at the model's 256 tokens; a document's
+  local vector pools all of it, which is +30.77 on gutenqa's books but
+  -1.91 on qasper and -1.60 on arguana.
 
 ## Golden files
 
@@ -4080,6 +4118,21 @@ Each chunker records every setting it ran with, defaults included.
   are each sentence embedded alone rather than late pooled as
   `SentenceVectors` pools them; the record says so.
 
+  With `--level`, `LevelBuilder` builds the chunker's levels and the
+  units of one of them are retrieved instead
+  (`analysis/eval/src/chunkers/levels.rs`): `chunk` (the chunks),
+  `section` (every section, nested ones included, and each chunk
+  outside every section, so no chunk's text is left out) or `document`
+  (the whole view). A document with no structure has no sections; its
+  section units are its chunks. Each unit's text is embedded as one
+  row, cut where the bundle cuts it, unless `--level-vectors local` or
+  `--level-vectors contextual` asks for that unit's vector from
+  `LevelVectors` (see "Levels"); pooled vectors are retrieved by dense
+  retrieval only, hold no title (`--titles prefix` is an error with
+  them), and `cost.tokens_embedded` then counts the queries
+  alone; the pooling's encoder time falls in `cost.wall.chunking_ms`.
+  The record's chunker config names the level and the vectors.
+
 ### BM25 retrieval
 
 `--retrieval bm25` ranks the chunks by BM25 over their terms instead of
@@ -4181,6 +4234,29 @@ Every `weighted` setting across `0.35..=0.50` on `turbo-chunker-254-200`
 `39.42`, `+1.66` points above `bm25-document`) clears `turbo-eval gate`
 against all three stage-0 baselines, `bm25-document`, and both dense
 `turbo-chunker` records.
+
+### Structure in the chunker
+
+The records under `analysis/eval/records/turbo-chunker-254-200-structure-*`
+run the turbo-chunker at `--max 254 --target 200` with all-MiniLM-L6-v2
+on the 4080, one commit, with `--structure none`, `plain` and
+`markdown`. nDCG@10, with the chunks in parentheses:
+
+| Structure | scifact | nfcorpus | arguana | qasper | gutenqa |
+| --- | --- | --- | --- | --- | --- |
+| none | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2792 (9453) | 0.8631 (69197) |
+| plain | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
+| markdown | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2825 (10544) | 0.8634 (69228) |
+
+The three BEIR sets' documents are single paragraphs, so every
+structure gives the same chunks there. On qasper and gutenqa no
+structure moves nDCG@10 by an interval clear of zero (`turbo-eval
+gate`): plain against none is +0.24 (-0.76 to +1.25) and +0.04 (-0.06
+to +0.15), Markdown against none +0.32 (-0.70 to +1.33) and +0.03
+(-0.08 to +0.13), and no set is below the gate's -0.5 floor. On
+qasper's evidence spans, the share of relevant spans that lie wholly
+inside one of the top 10 chunks rises from 0.088 with no structure to
+0.129 with plain and Markdown, with span recall at 10 the same (0.159).
 
 ### Larger embedders
 

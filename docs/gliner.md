@@ -94,6 +94,71 @@ outputs and evidence graph export/import work as for a single window.
 the union of independently scored windows in flat and nested modes, including
 UTF-8, empty sentences, normalization-erased tokens, and boundary errors.
 
+## End-to-end validation on multi-sentence documents
+
+`bundle/reference/gliner/build_e2e_reference.py` builds six fixed documents
+from fixed sentences: three short ones that fit one window, two longer ones of
+442 and 1,107 words that the 384-word limit splits, and one of 756 words with
+many pieces per word, which the 512-piece limit splits. It also builds three
+timing documents of about 100, 400 and 1,600 words. The script windows each
+document by the native rule (whole sentences, at most 384 words and 512 pieces
+including the prompt and final separator), but with the HF tokenizer, and
+scores every window with the upstream GLiNER 0.2.21 classes as
+`build_reference.py` does. Labels are person, organization, location and date;
+the threshold is 0.5. The output (about 2.4 MB) is not committed. Python versions are pinned in
+`bundle/reference/gliner/requirements.txt`.
+
+```
+python build_e2e_reference.py <checkpoint-dir> e2e-reference.json [reps]
+GLINER_PACKAGE=... GLINER_E2E_REFERENCE=e2e-reference.json cargo test --release --locked -p turbo-gliner --test e2e -- --ignored --nocapture
+```
+
+`analysis/gliner/tests/e2e.rs` checks the following. For every reference
+window, the packed IDs must be equal and logits must be within 0.002. Decoded
+flat and nested entities must be identical, with scores within 0.0001. The
+`GlinerAnnotator` output for the whole document, with a `Sentences` layer,
+must equal the union of the standalone windows. For single-window documents,
+the annotator output must also equal `Model::predict` exactly.
+
+Results for urchade/gliner_small-v2.1 (entity agreement is matched over the
+union of (start, end, label); the counts are the same in both modes except
+where noted):
+
+| document | words | windows | max logit error | entities agreed (flat / nested) |
+|---|---|---|---|---|
+| short-3 | 34 | 1 | 4.2e-5 | 9/9 |
+| short-utf8 | 42 | 1 | 5.7e-5 | 10/10 |
+| short-2 | 26 | 1 | 4.2e-5 | 4/4 / 5/5 |
+| long-2x | 442 | 2 | 8.4e-5 | 73/73 |
+| long-6x | 1107 | 3 | 9.2e-5 | 180/180 |
+| long-pieces | 756 | 3 | 7.3e-5 | 180/180 / 189/189 |
+
+`multi_sentence_timing` times, for each timing document:
+- the annotator with packed sentence windows;
+- one window per sentence, which repeats the label prompt;
+- encoder-only time for the packed windows as they are, and padded to 512
+  with masked rows.
+
+Pass `reps` to the script to time the Python reference end to end on one
+thread. On a Ryzen 9 9950X3D, `taskset -c 6`, median of 5, runs ordered
+native, Python, Python, native, with times in ms:
+
+| words | windows | native packed | native per sentence | Python reference | encoder packed | encoder padded to 512 |
+|---|---|---|---|---|---|---|
+| 108 | 1 | 83.5 / 86.2 | 119.6 / 125.4 | 224.9 / 225.8 | 48.9 / 49.1 | 50.4 / 50.5 |
+| 403 | 2 | 333.0 / 334.0 | 528.5 / 473.7 | 832.2 / 832.6 | 228.5 / 204.1 | 237.5 / 206.4 |
+| 1606 | 5 | 1377.1 / 1350.1 | 1836.3 / 1998.4 | 3128.1 / 3078.0 | 827.2 / 793.7 | 813.5 / 806.8 |
+
+The native encoder computes only the visible rows, so padding a window to 512
+changes encoder time by under 4%; there is no separate padded execution path.
+Packing sentences into shared windows is 1.3x to 1.6x faster than one window
+per sentence. The native annotator is 2.3x to 2.7x faster than the Python
+reference on one thread.
+
+knowledgator/gliner-multitask-large-v0.5 (Apache-2.0) cannot be converted. It
+uses `span_mode: token_level` on DeBERTa-v3-large with max_width 100, while
+the converter and the heads support only the small-v2.1 markerV0 profile.
+
 ## Conversion and loading
 
 The converter accepts F32 safetensors exported from the upstream PyTorch state

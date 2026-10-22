@@ -6,12 +6,17 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use turbo_analysis_embed::{Device, Precision};
+use std::sync::Arc;
+
+use turbo_analysis_embed::{Device, EncoderOptions, Precision, VectorAnnotator, VectorOptions};
+use turbo_analysis_layers::VectorKind;
 use turbo_chunker::terms::Bm25;
 use turbo_chunker::{Budget, Cohesion, Costs, Drift, WeighBoundaries};
 use turbo_eval::Result;
 use turbo_eval::analysis::{Analysis, Sentencer};
-use turbo_eval::chunkers::{Chunker, FixedTokens, Semantic, SentenceWindows, Signals, TurboChunker, WholeDocument};
+use turbo_eval::chunkers::{
+    Chunker, FixedTokens, LevelChunker, Retrieve, Semantic, SentenceWindows, Signals, TurboChunker, WholeDocument,
+};
 use turbo_eval::embedder::{Embedder, Role, TurboEmbedder};
 use turbo_eval::fetch::{cache_root, fetch};
 use turbo_eval::hybrid::{Fusion, Hybrid};
@@ -85,7 +90,13 @@ chunkers:
   --chunker turbo-chunker --max <n> --target <n> [--size-weight <n>]
                   [--drift] [--cohesion <weight>]
       turbo-chunker's optimizer on the structure's costs (size weight
-      default 1000), with drift weighed in and a cohesion term when given";
+      default 1000), with drift weighed in and a cohesion term when given
+    [--level <l>] [--level-vectors <v>]
+      retrieve the units of one level of the chunker's levels: chunk,
+      section (each section, and each chunk outside every section) or
+      document; each unit's text is embedded as one row, or with
+      --level-vectors its local or contextual vector is pooled from the
+      bundle's windows (docs/analysis.md, \"Levels\")";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -201,8 +212,10 @@ fn bm25_opts(o: &mut Opts) -> Result<(Bm25, TermRule)> {
     Ok((Bm25 { k1, b }, terms))
 }
 
-/// The chunker the options name, its overhead taken from the embedder.
-fn chunker(o: &mut Opts, embedder: &dyn Embedder) -> Result<Box<dyn Chunker>> {
+/// The chunker the options name, its overhead taken from the embedder;
+/// `model` is the bundle, device and precision a chunker that pools its
+/// own vectors opens.
+fn chunker(o: &mut Opts, embedder: &dyn Embedder, model: (&Path, &Device, Precision)) -> Result<Box<dyn Chunker>> {
     let name = o.need("--chunker")?;
     Ok(match name.as_str() {
         "fixed-tokens" => {
@@ -244,7 +257,41 @@ fn chunker(o: &mut Opts, embedder: &dyn Embedder) -> Result<Box<dyn Chunker>> {
                 Signals::Structure
             };
             let cohesion = o.parsed("--cohesion")?.map(|weight| Cohesion { weight });
-            Box::new(TurboChunker { budget, costs: Costs::default(), signals, cohesion })
+            let chunker = TurboChunker { budget, costs: Costs::default(), signals, cohesion };
+            let level = match o.take("--level").as_deref() {
+                None => None,
+                Some("chunk") => Some(Retrieve::Chunk),
+                Some("section") => Some(Retrieve::Section),
+                Some("document") => Some(Retrieve::Document),
+                Some(l) => return Err(format!("--level {l}: chunk, section or document")),
+            };
+            let kind = match o.take("--level-vectors").as_deref() {
+                None => None,
+                Some("local") => Some(VectorKind::Local),
+                Some("contextual") => Some(VectorKind::Contextual),
+                Some(v) => return Err(format!("--level-vectors {v}: local or contextual")),
+            };
+            match (level, kind) {
+                (None, None) => Box::new(chunker),
+                (None, Some(_)) => return Err("--level-vectors needs --level".into()),
+                (Some(level), kind) => {
+                    let vectors = match kind {
+                        Some(kind) => {
+                            let encoder = EncoderOptions {
+                                device: model.1.clone(),
+                                precision: model.2,
+                                ..EncoderOptions::default()
+                            };
+                            let o = VectorOptions { encoder, ..VectorOptions::default() };
+                            let a = VectorAnnotator::open(model.0, &o)
+                                .map_err(|e| format!("{}: {e}", model.0.display()))?;
+                            Some((Arc::new(a), kind))
+                        }
+                        None => None,
+                    };
+                    Box::new(LevelChunker { chunker, level, vectors })
+                }
+            }
         }
         other => return Err(format!("--chunker {other}: not a chunker\n{USAGE}")),
     })
@@ -327,8 +374,8 @@ fn run_cmd(args: &[String]) -> Result<()> {
 
     // Refused before the model loads, and checked again before writing.
     let source = turbo_eval::source::source(&repo)?;
-    let embedder = TurboEmbedder::open(&bundle, device, precision)?;
-    let chunker = chunker(&mut o, &embedder)?;
+    let embedder = TurboEmbedder::open(&bundle, device.clone(), precision)?;
+    let chunker = chunker(&mut o, &embedder, (&bundle, &device, precision))?;
     if let Some(unknown) = o.0.keys().next() {
         return Err(format!("{unknown}: not an option here\n{USAGE}"));
     }
@@ -359,6 +406,25 @@ mod tests {
         for s in sets::ALL {
             assert!(USAGE.contains(s.name), "{} is missing from the usage", s.name);
         }
+    }
+
+    #[test]
+    fn the_level_flags_are_checked() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
+        let e = TurboEmbedder::open(&dir, Device::Cpu, Precision::Model).unwrap();
+        let built = |extra: &[&str]| {
+            let mut a = ["--chunker", "turbo-chunker", "--max", "64", "--target", "48"].map(String::from).to_vec();
+            a.extend(extra.iter().map(|s| s.to_string()));
+            let mut o = Opts::parse(&a).unwrap();
+            chunker(&mut o, &e, (&dir, &Device::Cpu, Precision::Model))
+        };
+        let refused = |extra: &[&str]| built(extra).err().unwrap();
+        assert!(refused(&["--level", "paragraph"]).contains("chunk, section or document"));
+        assert!(refused(&["--level", "chunk", "--level-vectors", "late"]).contains("local or contextual"));
+        assert!(refused(&["--level-vectors", "local"]).contains("needs --level"));
+        let config = built(&["--level", "section", "--level-vectors", "contextual"]).unwrap().config();
+        assert!(config.iter().any(|s| s.name == "level" && s.value == "section"));
+        assert!(config.iter().any(|s| s.name == "level_vectors" && s.value.starts_with("contextual")));
     }
 
     #[test]
