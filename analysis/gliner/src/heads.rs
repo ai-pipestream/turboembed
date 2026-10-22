@@ -169,7 +169,8 @@ impl Heads {
         w.starts.iter_mut().chain(w.ends.iter_mut()).for_each(|v| *v = v.max(0.0));
         let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
         let mut out = Vec::new();
-        out.try_reserve_exact(pairs.len() * labels).map_err(|_| memory(pairs.len() * labels * 24))?;
+        out.try_reserve_exact(pairs.len() * labels)
+            .map_err(|_| memory(pairs.len() * labels * size_of::<Candidate>()))?;
         for block in pairs.chunks(SPANS) {
             w.x.clear();
             for &(i, j) in block {

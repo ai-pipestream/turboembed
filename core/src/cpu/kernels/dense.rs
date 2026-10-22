@@ -41,12 +41,12 @@ impl Matrix {
     }
 
     /// The rows of `parts`, each [n_i, k] row-major, one after another.
-    /// Err is the bytes it could not allocate.
-    ///
-    /// # Panics
-    /// If k is 0 or a part's length is not a multiple of k.
+    /// Err is the bytes it could not allocate, or usize::MAX if k is 0 or a
+    /// part's length is not a multiple of k.
     pub fn from_rows(parts: &[&[f32]], k: usize) -> Result<Matrix, usize> {
-        assert!(k > 0 && parts.iter().all(|p| p.len() % k == 0), "dense product: parts are not rows of k");
+        if k == 0 || parts.iter().any(|p| p.len() % k != 0) {
+            return Err(usize::MAX);
+        }
         let isa = Isa::detect();
         let panels = Panels::pack(parts, k, isa)?;
         let mut zero = Vec::new();
@@ -260,9 +260,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "not rows of k")]
-    fn ragged_parts_panic() {
-        let _ = Matrix::from_rows(&[&[1.0, 2.0, 3.0]], 2);
+    fn ragged_parts_and_no_columns_are_refused() {
+        assert_eq!(Matrix::from_rows(&[&[1.0, 2.0, 3.0]], 2).err(), Some(usize::MAX));
+        assert_eq!(Matrix::from_rows(&[&[1.0]], 0).err(), Some(usize::MAX));
     }
 
     #[test]
