@@ -124,6 +124,18 @@ fn windows_are_each_given_once_and_within_the_model() {
 }
 
 #[test]
+fn malformed_sentence_bounds_are_an_error_not_a_panic() {
+    let o = CalibrationOptions { windows: vec![24], ..options(None) };
+    for (text, spans) in
+        [("hello", vec![(4, 1)]), ("hello", vec![(0, 6)]), ("héllo", vec![(0, 2)]), ("hello", vec![(0, 5), (7, 9)])]
+    {
+        let t = vec![(text.to_string(), spans.clone())];
+        let e = Calibration::measure(&bert(), &o, &t).unwrap_err().to_string();
+        assert!(e.contains("not a span"), "{text:?} {spans:?}: {e}");
+    }
+}
+
+#[test]
 fn the_key_names_what_was_asked() {
     let k = |o: &CalibrationOptions, t: &[Text]| Calibration::key(&bert(), o, t).unwrap();
     let base = k(&options(None), &texts());

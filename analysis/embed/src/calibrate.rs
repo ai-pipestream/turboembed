@@ -87,6 +87,7 @@ impl Calibration {
     /// Runs the step over `texts` at each window of `o`, on the device and
     /// on the CPU, and decides.
     pub fn measure(bundle: &Path, o: &CalibrationOptions, texts: &[Text]) -> Result<Calibration, CoreError> {
+        check_texts(texts)?;
         let (key, model_max_seq) = probe(bundle, o, texts)?;
         let mut seen = o.windows.clone();
         seen.sort_unstable();
@@ -244,6 +245,23 @@ pub fn lowest_cosine(got: &[f32], want: &[f32], dim: usize) -> f64 {
         .zip(want.chunks_exact(dim))
         .map(|(g, w)| cosine(g, w))
         .fold(1f64, |m, c| if c.is_nan() { f64::NEG_INFINITY } else { m.min(c) })
+}
+
+/// Fails unless each sentence of each text is a span of it: start at most
+/// end, end at most the text's length, both on UTF-8 boundaries.
+fn check_texts(texts: &[Text]) -> Result<(), CoreError> {
+    for (i, (text, spans)) in texts.iter().enumerate() {
+        for (j, &(a, b)) in spans.iter().enumerate() {
+            let (a, b) = (a as usize, b as usize);
+            if a > b || b > text.len() || !text.is_char_boundary(a) || !text.is_char_boundary(b) {
+                return Err(CoreError::new(
+                    INVALID_ARGUMENT,
+                    format!("text {i}, sentence {j}: {a}..{b} is not a span of the text's {} bytes", text.len()),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The key, and the model's own window.
