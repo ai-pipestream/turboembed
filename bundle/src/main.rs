@@ -8,6 +8,10 @@ use turbo_bundle::{Result, catalogue, distill, fetch, seal};
 
 const USAGE: &str = "\
 usage:
+  turbo-bundle gliner-convert <encoder-config.json> <gliner_config.json> <checkpoint.safetensors> <spm.model> <repo> <revision> <license> <new-dir>
+      convert the native GLiNER small-v2.1 span model
+  turbo-bundle gliner-verify <directory>
+      verify all native GLiNER package digests and tensors
   turbo-bundle deberta-convert <config.json> <checkpoint.safetensors> <prefix-or-dash> <repo> <revision> <license> <new-dir>
       create a native DeBERTa-v3 encoder package for the Rust API
   turbo-bundle deberta-verify <directory>
@@ -50,6 +54,15 @@ fn run(args: &[&str]) -> Result<()> {
     let accept = args.contains(&"--accept-terms");
     let args: Vec<&str> = args.iter().copied().filter(|a| *a != "--accept-terms").collect();
     match args.as_slice() {
+        ["gliner-convert", ec, gc, weights, spm, repo, revision, license, out] => turbo_bundle::gliner::convert_files(
+            Path::new(ec),
+            Path::new(gc),
+            Path::new(weights),
+            Path::new(spm),
+            (repo, revision, license),
+            Path::new(out),
+        ),
+        ["gliner-verify", dir] => turbo_gliner::package::Manifest::load(Path::new(dir)).map(|_| ()),
         ["deberta-convert", config, weights, prefix, repo, revision, license, out] => {
             turbo_bundle::deberta::convert_files(
                 Path::new(config),
