@@ -210,7 +210,8 @@ fn classify(task: usize, schema: &ExtractionSchema, logits: &[f32]) -> Classifie
     Classified { task, labels }
 }
 
-/// Whether `pass` is the pass of `schema`: its tasks are the schema's, in
+/// Whether `pass` is the pass of `schema`: its width is at least one and
+/// its text tokens are its prefix then its words; its tasks are the schema's, in
 /// prompt order, with their children; every score vector has the length
 /// its task, instances, text tokens and width give; no logit is NaN or
 /// positive infinity (negative infinity marks a span past the text); and
@@ -226,6 +227,11 @@ fn check(pass: &Pass, schema: &ExtractionSchema, threshold: f32) -> Result<(), S
         kinds.push((Kind::Entities, schema.entities.len()));
     }
     kinds.extend(schema.classifications.iter().enumerate().map(|(i, c)| (Kind::Classification(i), c.labels.len())));
+    // Every text token is a prefix token or a word, and a span is at least
+    // one word wide: the bounds every score index below rests on.
+    if pass.width() == 0 || p.prefix.len() + p.words.len() != p.token_first.len() {
+        return Err("a pass whose text tokens or width do not fit its prompt".into());
+    }
     let tasks: Vec<(Kind, usize)> = p.tasks.iter().map(|t| (t.kind, t.markers.len())).collect();
     if tasks != kinds || pass.scores().len() != tasks.len() {
         return Err("a pass whose tasks are not the schema's".into());

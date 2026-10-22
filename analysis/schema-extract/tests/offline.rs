@@ -396,4 +396,27 @@ fn a_pass_that_does_not_fit_its_schema_is_an_error() {
     other.entities.pop();
     assert!(decode(&pass, &other, 0.5, &Nothing).is_err());
     assert!(decode(&pass, &s, f32::NAN, &Nothing).is_err());
+    // A width of zero, words past the text tokens, or a prefix longer than
+    // them: errors, not an index past the scores.
+    let (prompt, width, scores) = pass.into_parts();
+    let zero: Vec<Scores> = scores
+        .iter()
+        .map(|x| match x {
+            Scores::Spans { count, .. } => Scores::Spans { count: *count.max(&1), instances: 1, logits: Vec::new() },
+            o => o.clone(),
+        })
+        .collect();
+    let pass = Pass::new(prompt, 0, zero);
+    assert!(decode(&pass, &s, 0.5, &Nothing).is_err());
+    let (mut prompt, _, _) = pass.into_parts();
+    let word = prompt.words[0].clone();
+    prompt.words.extend(std::iter::repeat_n(word, 20));
+    let pass = Pass::new(prompt, width, scores.clone());
+    assert!(decode(&pass, &s, 0.5, &Nothing).is_err());
+    let (mut prompt, _, _) = pass.into_parts();
+    prompt.words.truncate(prompt.words.len() - 20);
+    let extra = prompt.token_first.len() + 50;
+    prompt.prefix.extend(std::iter::repeat_n(String::from("x"), extra));
+    let pass = Pass::new(prompt, width, scores);
+    assert!(decode(&pass, &s, 0.5, &Nothing).is_err());
 }
