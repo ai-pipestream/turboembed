@@ -2140,6 +2140,7 @@ dependencies = [
  "turbo-stem",
  "turbo-structure",
  "turbo-tokenize",
+ "turbo-vector-index",
  "turbo-zstd",
  "ureq",
 ]
