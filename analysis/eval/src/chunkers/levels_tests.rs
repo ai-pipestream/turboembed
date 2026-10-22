@@ -102,29 +102,33 @@ fn the_pipeline_retrieves_by_the_pooled_vectors() {
     use crate::pipeline::{Pipeline, Titles};
     use turbo_chunker::terms::Bm25;
 
-    let run = |level, kind, lexical: Option<Lexical>| {
+    let run = |level, kind, lexical: Option<Lexical>, titles| {
         let (e, a) = tiny();
         let mut p = Pipeline {
             analysis: Analysis { sentences: Sentencer::Newline, structure: Some(Syntax::Markdown) },
             chunker: Box::new(leveled(level, Some((a, kind)))),
             embedder: Box::new(e),
-            titles: Titles::Ignore,
+            titles,
             lexical,
             hybrid: None,
         };
-        p.evaluate(&set(None))
+        p.evaluate(&set(Some("cat cat cat cat")))
     };
     // A document's two vectors are one, so its two runs rank alike; at
     // the chunk level they differ.
-    let local = run(Retrieve::Document, VectorKind::Local, None).unwrap();
-    assert_eq!(local.run, run(Retrieve::Document, VectorKind::Contextual, None).unwrap().run);
+    let local = run(Retrieve::Document, VectorKind::Local, None, Titles::Ignore).unwrap();
+    assert_eq!(local.run, run(Retrieve::Document, VectorKind::Contextual, None, Titles::Ignore).unwrap().run);
     assert_eq!(local.cost.chunks, 3);
-    let chunks = run(Retrieve::Chunk, VectorKind::Contextual, None).unwrap();
-    assert_ne!(chunks.run, run(Retrieve::Chunk, VectorKind::Local, None).unwrap().run);
+    let chunks = run(Retrieve::Chunk, VectorKind::Contextual, None, Titles::Ignore).unwrap();
+    assert_ne!(chunks.run, run(Retrieve::Chunk, VectorKind::Local, None, Titles::Ignore).unwrap().run);
     // Only the queries were embedded by the pipeline: two tokens of
     // overhead and a piece or two each.
     assert!(chunks.cost.tokens_embedded < 20, "{}", chunks.cost.tokens_embedded);
     let bm25 = Lexical { model: Bm25::LUCENE, terms: TermRule::Folded, dump: None };
-    let e = run(Retrieve::Chunk, VectorKind::Local, Some(bm25)).unwrap_err();
+    let e = run(Retrieve::Chunk, VectorKind::Local, Some(bm25), Titles::Ignore).unwrap_err();
     assert!(e.contains("dense retrieval only"), "{e}");
+    // A title the vectors would never hold is an error, not a record
+    // that names it.
+    let e = run(Retrieve::Chunk, VectorKind::Local, None, Titles::Prefix).unwrap_err();
+    assert!(e.contains("--titles prefix"), "{e}");
 }

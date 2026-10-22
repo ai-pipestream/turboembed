@@ -4127,7 +4127,8 @@ Each chunker records every setting it ran with, defaults included.
   row, cut where the bundle cuts it, unless `--level-vectors local` or
   `--level-vectors contextual` asks for that unit's vector from
   `LevelVectors` (see "Levels"); pooled vectors are retrieved by dense
-  retrieval only, and `cost.tokens_embedded` then counts the queries
+  retrieval only, hold no title (`--titles prefix` is an error with
+  them), and `cost.tokens_embedded` then counts the queries
   alone; the pooling's encoder time falls in `cost.wall.chunking_ms`.
   The record's chunker config names the level and the vectors.
 

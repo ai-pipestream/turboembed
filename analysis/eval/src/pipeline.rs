@@ -148,6 +148,11 @@ impl Pipeline {
             if self.lexical.is_some() || self.hybrid.is_some() {
                 return Err("vectors a chunker pools are retrieved by dense retrieval only".into());
             }
+            // The vectors are pooled from the text alone: a title would be
+            // named in the record and never reach them.
+            if self.titles == Titles::Prefix {
+                return Err("vectors a chunker pools hold no title: --titles prefix cannot be used with them".into());
+            }
         }
 
         // Bookkeeping for the record, outside every timed stage.
