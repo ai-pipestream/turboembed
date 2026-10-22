@@ -2,3 +2,6 @@
 //! `NameFinderDL` finds names with a token-classification model.
 
 pub mod decode;
+pub mod finder;
+
+pub use finder::{NameFinderDl, NameFinderDlOptions};

@@ -2423,6 +2423,7 @@ dependencies = [
 name = "turbo-namefind-dl"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "turbo",
  "turbo-analysis",
  "turbo-analysis-embed",
