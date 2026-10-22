@@ -14,9 +14,9 @@ config	source	postag
 layer	turbo:events	document	24	outcome:str	context:str	values:str
 L10	bias w=well-known p=*SB* n=state-of-the-art pre=we suf=wn	
 L16	bias w=state-of-the-art p=well-known n=re-entry pre=st suf=rt	
-L8	bias w=re-entry p=state-of-the-art n=— pre=re suf=ry	
-L1	bias w=— p=re-entry n=em pre=— suf=—	
-L2	bias w=em p=— n=dash pre=em suf=em	
+L8	bias w=re-entry p=state-of-the-art n=\u2014 pre=re suf=ry	
+L1	bias w=\u2014 p=re-entry n=em pre=\u2014 suf=\u2014	
+L2	bias w=em p=\u2014 n=dash pre=em suf=em	
 L4	bias w=dash p=em n=– pre=da suf=sh	
 L1	bias w=– p=dash n=en pre=– suf=–	
 L2	bias w=en p=– n=dash pre=en suf=en	
@@ -72,7 +72,7 @@ n=state-of-the-art	1
 n=two-em	1
 n=‒	1
 n=–	1
-n=—	1
+n=\u2014	1
 n=―	1
 n=−minus	1
 n=⸺	1
@@ -94,7 +94,7 @@ p=two-em	1
 p=well-known	1
 p=‒	1
 p=–	1
-p=—	1
+p=\u2014	1
 p=―	1
 p=−minus	1
 p=⸺	1
@@ -116,7 +116,7 @@ pre=tw	1
 pre=we	1
 pre=‒	1
 pre=–	1
-pre=—	1
+pre=\u2014	1
 pre=―	1
 pre=−m	1
 pre=⸺	1
@@ -138,7 +138,7 @@ suf=us	1
 suf=wn	1
 suf=‒	1
 suf=–	1
-suf=—	1
+suf=\u2014	1
 suf=―	1
 suf=⸺	1
 w=--	1
@@ -159,7 +159,7 @@ w=two-em	1
 w=well-known	1
 w=‒	1
 w=–	1
-w=—	1
+w=\u2014	1
 w=―	1
 w=−minus	1
 w=⸺	1

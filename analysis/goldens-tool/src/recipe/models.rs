@@ -158,13 +158,15 @@ pub enum DictionaryEncoding {
 }
 
 /// The published MeCab dictionaries, with the SHA-512 of each archive.
-/// Neither project publishes a hash beside the archive; these are the
-/// hashes OpenNLP's dictionary catalog test resource lists
-/// (`dictionary-catalog.properties` at the OpenNLP commit), which the
-/// downloads were checked against. IPADIC is under the NAIST and ICOT
-/// notice in its `COPYING`, mecab-ko-dic under the Apache License 2.0; the
-/// archives are fetched, never checked in.
-pub const DICTIONARIES: [Dictionary; 2] = [
+/// No project publishes a hash beside its archive; IPADIC and mecab-ko-dic
+/// use the hashes OpenNLP's dictionary catalog test resource lists
+/// (`dictionary-catalog.properties` at the OpenNLP commit), and UniDic uses
+/// the hash of `unidic-mecab-2.1.2.tar.gz` (whose MD5 matches the one
+/// `lindera-unidic` pins). IPADIC is under the NAIST and ICOT notice in its
+/// `COPYING`, mecab-ko-dic under the Apache License 2.0, and UniDic under
+/// the BSD License in its `BSD` file; the archives are fetched, never
+/// checked in.
+pub const DICTIONARIES: [Dictionary; 3] = [
     Dictionary {
         archive: "mecab-ipadic-2.7.0-20070801.tar.gz",
         url: "https://downloads.sourceforge.net/project/mecab/mecab-ipadic/2.7.0-20070801/mecab-ipadic-2.7.0-20070801.tar.gz",
@@ -179,6 +181,14 @@ pub const DICTIONARIES: [Dictionary; 2] = [
         sha512: "986f8f9c66c53accd296756bf632c979d2d44b695ada33f36c662f210dba34cd\
                  95d67b61dd8c84a1f7d59f80ee6bc22eb1e9afb5dc6a7f9b6b75b4fbf2f8164f",
         dir: "mecab-ko-dic-2.1.1-20180720",
+        encoding: DictionaryEncoding::Utf8,
+    },
+    Dictionary {
+        archive: "unidic-mecab-2.1.2.tar.gz",
+        url: "https://lindera.dev/unidic-mecab-2.1.2.tar.gz",
+        sha512: "0bb18e1559ae4978f886c2e37d10975fd46ff4c5c4b388e7ff26888a368151ad\
+                 d13e1dc9a1450e69d6f5f182b9f6cba67244eb1e65b23099e18eed7942876df2",
+        dir: "unidic-mecab-2.1.2",
         encoding: DictionaryEncoding::Utf8,
     },
 ];

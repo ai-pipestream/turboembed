@@ -177,6 +177,7 @@ a directory with the same model run without them, and its options are
 | | `mecab-fixture-partial` (fixture) | `ja`, `edge` | |
 | | `mecab-ipadic-2.7.0-20070801` | `ja`, `multi`, `edge`, `surrogate` | |
 | | `mecab-ko-dic-2.1.1-20180720` | `ko`, `multi`, `edge`, `surrogate` | |
+| | `unidic-mecab-2.1.2` | `ja`, `multi`, `edge`, `surrogate` | |
 | `formats` (the native sample streams) | `name`, `wordtag`, `token`, `doccat`, each also `+legacy`; `lemma`, `chunk`, `sentence`, `language` | `formats`, the inputs whose id starts with the format | `whitespace legacy` |
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
 | `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
@@ -492,11 +493,12 @@ legacy mode active. There are no dumps.
 The fixture dictionaries are small and written for this project
 (`analysis/goldens/data/README.md`). IPADIC is under the license in its
 `COPYING` file (the NAIST notice and the ICOT terms, which allow
-redistribution with the notice) and mecab-ko-dic under the Apache
-License 2.0; neither is checked in, and only the goldens made with them
-are. Those goldens hold the feature columns of the entries chosen, so
-`analysis/goldens/data/README.md` carries IPADIC's notice and names
-mecab-ko-dic's license.
+redistribution with the notice), mecab-ko-dic under the Apache License
+2.0, and UniDic 2.1.2 under its BSD license (`BSD` in
+`unidic-mecab-2.1.2.tar.gz`); none of the three is checked in, and only
+the goldens made with them are. Those goldens hold the feature columns
+of the entries chosen, so `analysis/goldens/data/README.md` carries
+IPADIC's and UniDic's notices and names mecab-ko-dic's license.
 
 ## Format goldens
 
@@ -683,10 +685,18 @@ goldens.
 The 20 Newsgroups stream keeps its files in a `HashMap` keyed by path, so
 the order of its samples depends on where the corpus is: the runs write it
 under `java.io.tmpdir` and give the directory as the `dataDir` record, and
-add `turbo:listing` (the files in the order the directories list them) and
-`turbo:files` (the order the map gives them) after the read errors. A
-Leipzig message that names a file writes the corpus directory as
-`<corpus>`.
+add `turbo:listing` and `turbo:files` after the read errors. Directory
+order is the host file system's, so the golden follows sorted paths
+instead: `turbo:listing` is sorted by `<group>/<file>`, and when every
+file read cleanly (one sample per file, in the map's order) the samples
+and `turbo:files` are reordered by that same sorted order, making the
+golden byte-equal on every host. A run with read errors keeps the
+stream's own order. Until the goldens are regenerated with the sorted
+generator, `verify` compares the three 20 Newsgroups goldens
+canonically (both sides reordered to sorted sample order, sample-token
+indices renumbered, then byte-compared), so order-only differences
+pass while any content difference still fails. A Leipzig message that
+names a file writes the corpus directory as `<corpus>`.
 
 `analysis/formats/tests/corpora.rs` compares the readers of
 `turbo_formats::corpora` with these goldens. Only these runs read the

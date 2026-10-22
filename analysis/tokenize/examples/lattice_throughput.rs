@@ -5,10 +5,10 @@
 //! timed runs after one warm run.
 //!
 //! ```text
-//! cargo run --release -p turbo-tokenize --example lattice_throughput [ipadic|ko-dic] [readings]
+//! cargo run --release -p turbo-tokenize --example lattice_throughput [ipadic|ko-dic|unidic] [readings]
 //! ```
 //!
-//! With no dictionary named, both run. `readings` also times the
+//! With no dictionary named, all three run. `readings` also times the
 //! analyzer, which writes the readings layer, through a document. The
 //! dictionaries are read from the directory `TURBO_MECAB_DICTIONARIES`
 //! names, or `target/turbo-goldens/models` under the repository root, where
@@ -26,7 +26,7 @@ use std::time::Instant;
 
 use turbo_analysis::{Analyzer, Document};
 use turbo_maxent::sha256;
-use turbo_tokenize::lattice::{DictionaryFormat, Scratch};
+use turbo_tokenize::lattice::{DictionaryFormat, Scratch, UnidicLayout};
 use turbo_tokenize::{LatticeAnalyzer, LatticeTokenizer, MecabDictionary, WhitespaceMode};
 
 const TEN_MIB: usize = 10 << 20;
@@ -38,9 +38,15 @@ struct Setup {
     format: DictionaryFormat,
 }
 
-const SETUPS: [Setup; 2] = [
+const SETUPS: [Setup; 3] = [
     Setup { name: "ipadic", dir: "mecab-ipadic-2.7.0-20070801.utf8", inputs: "ja", format: DictionaryFormat::Ipadic },
     Setup { name: "ko-dic", dir: "mecab-ko-dic-2.1.1-20180720", inputs: "ko", format: DictionaryFormat::MecabKoDic },
+    Setup {
+        name: "unidic",
+        dir: "unidic-mecab-2.1.2",
+        inputs: "ja",
+        format: DictionaryFormat::Unidic(UnidicLayout::Source17),
+    },
 ];
 
 fn main() {
