@@ -256,7 +256,9 @@ fn check(pass: &Pass, schema: &ExtractionSchema, threshold: f32) -> Result<(), S
     let bad = |l: &[f32]| l.iter().any(|x| x.is_nan() || *x == f32::INFINITY);
     for ((kind, fields), scores) in kinds.iter().zip(pass.scores()) {
         match (kind, scores) {
-            (Kind::Classification(_), Scores::Labels(l)) if l.len() == *fields && l.iter().all(|x| x.is_finite()) => {}
+            // A task with no labels has nothing to choose from.
+            (Kind::Classification(_), Scores::Labels(l))
+                if *fields > 0 && l.len() == *fields && l.iter().all(|x| x.is_finite()) => {}
             (Kind::Record(_) | Kind::Entities, Scores::Spans { count, instances, logits })
                 if instances <= count
                     && (*kind != Kind::Entities || *instances <= 1)

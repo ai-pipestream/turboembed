@@ -429,4 +429,30 @@ fn a_pass_that_does_not_fit_its_schema_is_an_error() {
     *at = Some(usize::MAX - 1);
     let pass = Pass::new(prompt, width, scores);
     assert!(decode(&pass, &s, 0.5, &Nothing).is_err());
+    // A classification task with no labels, single- and multi-label.
+    use turbo_schema_extract::prompt::{Kind, Task};
+    for multi_label in [false, true] {
+        let (mut prompt, _, _) = pass_parts(&m, &s);
+        let empty = ExtractionSchema {
+            classifications: vec![ClassificationTask {
+                name: "t".into(),
+                labels: Vec::new(),
+                multi_label,
+                threshold: 0.5,
+                top_k: None,
+            }],
+            ..Default::default()
+        };
+        prompt.tasks = vec![Task { kind: Kind::Classification(0), p: 0, markers: Vec::new() }];
+        prompt.choice_at.clear();
+        let pass = Pass::new(prompt, 1, vec![Scores::Labels(Vec::new())]);
+        assert!(decode(&pass, &empty, 0.5, &Nothing).is_err(), "multi_label {multi_label}");
+    }
+}
+
+fn pass_parts(
+    m: &turbo_schema_extract::Gliner2Extractor,
+    s: &ExtractionSchema,
+) -> (turbo_schema_extract::prompt::Prompt, usize, Vec<turbo_schema_extract::model::Scores>) {
+    m.pass("Send 42 units.", s).unwrap().into_parts()
 }
