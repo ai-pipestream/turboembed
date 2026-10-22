@@ -208,6 +208,17 @@ and GLiREL rows.
 | [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index | here |
 | [microsoft/deberta-v3-large](https://huggingface.co/microsoft/deberta-v3-large) (`spm.model`, `config.json`) | `64a8c8eab3e352a784c658aef62be1662607476f` | MIT | | permissive; in the index | here |
 | [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
+| [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | refused by the class rule, for its training data: not shipped, bundled, listed in the index or trained on; a local reference that is scored, as `en-pos-maxent` is | here |
+
+`dslim/bert-base-NER` is the checkpoint OpenNLP's `NameFinderDL` documents
+and the native token classifier in `turbo-namefind-dl` is compared with.
+It was fetched on 2026-10-22 from the hub at the revision above, by hand,
+into a directory the user names. The SHA-256 of `model.safetensors`
+(433,292,294 bytes) is
+`b04492186cfb45a64908487a17a9f8d6ddec3a403ef39db5bca688f0fa702a34`, and
+that of `onnx/model.onnx` (431,172,619 bytes) is
+`963039b81eec5b33e23d84826ccdf1e8f8ada776f320e692113034cfae384617`; both
+match the hub's LFS object ids at that revision.
 
 ## Datasets
 
