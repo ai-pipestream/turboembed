@@ -118,6 +118,10 @@ pub(crate) async fn run(
         if let Some((limit, _)) = over_byte_cap(bytes) {
             let failure = over_bytes(bytes, limit);
             let id = bound_retained_id(id);
+            // The refused document is dropped before the refusal waits on
+            // admission: while it waits, nothing here holds the document's
+            // text or the id's original over-cap allocation.
+            drop(document);
             let mut admit =
                 Box::pin(admit_refusal(shared.clone(), stream_items.clone(), stream_bytes.clone(), id.len()));
             let Some(room) = wait_room(&mut admit, &dead).await else { return };

@@ -220,15 +220,15 @@ pub(crate) async fn admit_refusal(
 }
 
 /// The id a refusal retains: at most the stream's byte cap, cut at a
-/// char boundary. The byte semaphores cannot reserve past the cap, so a
-/// refusal never holds an id longer than the charge its room claims.
+/// char boundary and copied into a fresh allocation sized for it. The
+/// byte semaphores cannot reserve past the cap, so a refusal never holds
+/// an id longer than the charge its room claims — and never keeps the
+/// original over-cap allocation either, which a plain truncate would.
 pub(crate) fn bound_retained_id(id: String) -> String {
     if id.len() <= MAX_QUEUED_BYTES_PER_STREAM {
         return id;
     }
-    let mut id = id;
-    id.truncate(id.floor_char_boundary(MAX_QUEUED_BYTES_PER_STREAM));
-    id
+    id[..id.floor_char_boundary(MAX_QUEUED_BYTES_PER_STREAM)].to_string()
 }
 
 /// One admission: an item and `bytes` bytes on every level, in one
@@ -275,6 +275,8 @@ mod tests {
     fn a_refusal_id_is_retained_only_up_to_the_stream_byte_cap() {
         let bounded = bound_retained_id("i".repeat(MAX_QUEUED_BYTES_PER_STREAM + 1));
         assert_eq!(bounded.len(), MAX_QUEUED_BYTES_PER_STREAM);
+        // The oversized allocation is released: nothing beyond the charge is held.
+        assert_eq!(bounded.capacity(), bounded.len());
 
         // A multi-byte character straddling the cap is cut at its boundary.
         let mut id = "i".repeat(MAX_QUEUED_BYTES_PER_STREAM - 1);
