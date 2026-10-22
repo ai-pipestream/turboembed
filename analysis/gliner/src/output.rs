@@ -7,7 +7,7 @@ use turbo_analysis::{
     Anchor, Annotator, Document, Error, Evidence, EvidenceStep, IxRange, Key, Layer, ModelRef, Refs, Span, Spans,
     Support, Tag, TagSet, View,
 };
-use turbo_analysis_layers::{Entities, Tokens};
+use turbo_analysis_layers::{Entities, Sentences, Tokens};
 
 /// Checkpoint logits and decision threshold aligned to emitted entities.
 /// Evidence support points here so thresholds are not mistaken for calibrated scores.
@@ -83,8 +83,8 @@ impl GlinerAnnotator {
 }
 impl Annotator for GlinerAnnotator {
     const ID: &'static str = "turbo:gliner";
-    const VERSION: &'static str = "2";
-    type Reads = (View, Tokens);
+    const VERSION: &'static str = "3";
+    type Reads = (View, Tokens, Option<Sentences>);
     type Writes = (Entities, Decisions);
     fn model(&self) -> Option<ModelRef> {
         Some(self.model.identity().clone())
@@ -100,12 +100,9 @@ impl Annotator for GlinerAnnotator {
         self.model.identity().sha256.hash(&mut h);
         h.finish()
     }
-    fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+    fn annotate(&self, (view, tokens, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
-        tokens.check().map_err(fail)?;
-        if tokens.spans.view() != view.id() || tokens.spans.fragment_columns().is_some() {
-            return Err(fail("gliner needs contiguous tokens in its input view".into()));
-        }
+        let windows = crate::window::pack_windows(&self.model, &self.schema, view, tokens, sentences).map_err(fail)?;
         let (starts, ends) = tokens.spans.columns();
         let mut entities = Entities {
             spans: Spans::new(view.id()),
@@ -115,26 +112,18 @@ impl Annotator for GlinerAnnotator {
             score: Vec::new(),
         };
         let mut decisions = Decisions { logits: Vec::new(), threshold: self.schema.threshold() };
-        if starts.is_empty() {
-            return Ok((entities, decisions));
-        }
-        if starts.len() > crate::schema::MAX_TOKENS {
-            return Err(fail("max_tokens limit exceeded".into()));
-        }
-        let words = starts
-            .iter()
-            .zip(ends)
-            .map(|(&a, &b)| {
-                view.text().get(a as usize..b as usize).ok_or_else(|| fail("gliner token UTF-8 bounds".into()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let candidates = self.model.predict(&words, &self.schema).map_err(fail)?;
-        for c in candidates {
-            entities.spans.push(Span::new(starts[c.start], ends[c.end - 1]));
-            entities.tokens.push(IxRange::new(c.start as u32, c.end as u32));
-            entities.kind.push(Tag(c.label as u16));
-            entities.score.push(c.score as f64);
-            decisions.logits.push(c.logit);
+        for window in windows {
+            let candidates =
+                crate::decode(self.model.score_packed(&window.packed, &self.schema).map_err(fail)?, &self.schema);
+            for c in candidates {
+                let start = window.tokens.start + c.start;
+                let end = window.tokens.start + c.end;
+                entities.spans.push(Span::new(starts[start], ends[end - 1]));
+                entities.tokens.push(IxRange::new(start as u32, end as u32));
+                entities.kind.push(Tag(c.label as u16));
+                entities.score.push(c.score as f64);
+                decisions.logits.push(c.logit);
+            }
         }
         Ok((entities, decisions))
     }

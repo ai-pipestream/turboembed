@@ -21,19 +21,10 @@ fn real_checkpoint_heads_match_upstream_python() {
     let reference: Value = serde_json::from_str(include_str!("../tests/fixtures/reference.json")).unwrap();
     let heads = heads::Heads::load(&config(), &ec(), include_bytes!("../tests/fixtures/heads.safetensors")).unwrap();
     let input: Vec<Vec<f32>> = serde_json::from_value(reference["input"].clone()).unwrap();
-    let x = input.iter().map(|r| heads.project(r).unwrap()).collect::<Vec<_>>();
-    let prompts = x[..2].iter().map(|r| heads.prompt(r).unwrap()).collect::<Vec<_>>();
-    let words = heads.words(&x[2..]).unwrap();
-    let (a, b) = heads.endpoints(&words).unwrap();
-    let mut scores = Vec::new();
-    for (i, s) in a.iter().enumerate() {
-        for e in b.iter().skip(i).take(3) {
-            let span = heads.span(s, e).unwrap();
-            for p in &prompts {
-                scores.push(span.iter().zip(p).map(|(a, b)| a * b).sum::<f32>());
-            }
-        }
-    }
+    let width = input[0].len();
+    let states: Vec<f32> = input.concat();
+    let words: Vec<usize> = (2..input.len()).collect();
+    let scores: Vec<f32> = heads.score(&states, width, &[0, 1], &words, 3).unwrap().iter().map(|c| c.logit).collect();
     let expected: Vec<f32> = serde_json::from_value(reference["logits"].clone()).unwrap();
     assert_eq!(scores.len(), expected.len());
     for (a, b) in scores.iter().zip(expected) {
@@ -139,3 +130,6 @@ fn decisions_reject_nonfinite_and_out_of_range_values() {
 
 #[path = "boundary_tests.rs"]
 mod boundaries;
+
+#[path = "window_tests.rs"]
+mod windows;

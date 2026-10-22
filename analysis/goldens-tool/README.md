@@ -683,10 +683,18 @@ goldens.
 The 20 Newsgroups stream keeps its files in a `HashMap` keyed by path, so
 the order of its samples depends on where the corpus is: the runs write it
 under `java.io.tmpdir` and give the directory as the `dataDir` record, and
-add `turbo:listing` (the files in the order the directories list them) and
-`turbo:files` (the order the map gives them) after the read errors. A
-Leipzig message that names a file writes the corpus directory as
-`<corpus>`.
+add `turbo:listing` and `turbo:files` after the read errors. Directory
+order is the host file system's, so the golden follows sorted paths
+instead: `turbo:listing` is sorted by `<group>/<file>`, and when every
+file read cleanly (one sample per file, in the map's order) the samples
+and `turbo:files` are reordered by that same sorted order, making the
+golden byte-equal on every host. A run with read errors keeps the
+stream's own order. Until the goldens are regenerated with the sorted
+generator, `verify` compares the three 20 Newsgroups goldens
+canonically (both sides reordered to sorted sample order, sample-token
+indices renumbered, then byte-compared), so order-only differences
+pass while any content difference still fails. A Leipzig message that
+names a file writes the corpus directory as `<corpus>`.
 
 `analysis/formats/tests/corpora.rs` compares the readers of
 `turbo_formats::corpora` with these goldens. Only these runs read the

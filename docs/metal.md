@@ -144,10 +144,12 @@ frameworks and libc++, which every macOS has.
   across more threadgroups, the residual kernel summing the parts. At
   FASTEST the same two shapes run with F16 weights: the few-token kernel
   reads them straight from device memory and stages each group's 32 rows
-  of x as F16; past 128 tokens a threadgroup's tile is 32 x 64, 64 x 64
-  or 128 x 64 (Kernel choices), staged in steps of 32 along k as F16, 16
-  bytes a thread at a time, so its operands take half the threadgroup
-  memory of the F32 kernel's. The LayerNorms also write the residual
+  of x as F16, up to 64 tokens, where it is the faster in F16; past that
+  a threadgroup's tile is 32 x 64, 64 x 64 or 128 x 64 (Kernel choices),
+  staged in steps of 32 along k as F16, 16 bytes a thread at a time, so
+  its operands take half the threadgroup memory of the F32 kernel's. The
+  weights' part of the tile is staged transposed, so their SIMD-group
+  matrices load without a transpose. The LayerNorms also write the residual
   stream in F16, which the Q, K and V projections and the feed-forward
   input read, and Q, K, V, the attention context and the feed-forward
   block's middle are F16 between kernels. Attention takes
@@ -229,27 +231,30 @@ frameworks and libc++, which every macOS has.
 ## Kernel choices
 
 At FASTEST a session chooses one item, which tile its linear layers run
-in past 128 packed tokens, and reports it in `turbo_session_get_info`'s
+in past 64 packed tokens, and reports it in `turbo_session_get_info`'s
 `choices` (docs/autotune.md):
 
 ```
-linear=h64;forced=
+linear=auto;forced=
 ```
 
 `linear=h64` is the 64 x 64 tile, each of its four SIMD groups 32 x 32
 of it; `linear=h32` the 32 x 64 tile, each of four groups 16 x 32; and
 `linear=h128` the 128 x 64 tile, each of eight groups 32 x 32, on a
-device that runs threadgroups of 256. All three are F16 operands with
-F32 sums (`TURBO_NUMERIC_F16_F32ACC`); the tile can change how many
-parts a small layer's k is split into, so a different choice moves the
-bits within FASTEST's floor. `forced=` names `linear`
-when the environment fixed it. EXACT and MODEL have one path, the F32
-kernels, and report no choices. A session nothing forces or tunes runs
-`h64`.
+device that runs threadgroups of 256. `linear=auto` picks per run: the
+32 x 64 tile up to 1024 packed tokens, where its extra threadgroups fill
+the GPU, and the 64 x 64 tile above, which on the M2 is the faster of
+the two on each side of that line but at about 512 tokens (3% slower
+there). All are F16 operands with F32 sums
+(`TURBO_NUMERIC_F16_F32ACC`); the tile can change how many parts a
+small layer's k is split into, so a different choice moves the bits
+within FASTEST's floor. `forced=` names `linear` when the environment
+fixed it. EXACT and MODEL have one path, the F32 kernels, and report no
+choices. A session nothing forces or tunes runs `auto`.
 
 `TURBO_METAL_CHOICES`, read when a session is made, forces the item it
-names (`linear=h32`, `linear=h64`, `linear=h128`, or `linear=f32` at
-EXACT and MODEL);
+names (`linear=h32`, `linear=h64`, `linear=h128`, `linear=auto`, or
+`linear=f32` at EXACT and MODEL);
 a line a session reported, `forced=` and all, forces the same kernels
 back. A kernel outside the precision's numerics (`f32` at FASTEST, an F16
 tile at EXACT or MODEL), or `h128` on a device that does not run it, is
@@ -259,24 +264,25 @@ tile at EXACT or MODEL), or `h128` on a device that does not run it, is
 ### Autotuning
 
 A FASTEST session made with `turbo_session_desc.tuning` ON or RETUNE
-(or `TURBO_AUTOTUNE=on` or `retune`) times each tile when it is made and
-runs the fastest; docs/autotune.md has the switches, the cache and what
+(or `TURBO_AUTOTUNE=on` or `retune`) times each choice when it is made
+and runs the fastest; docs/autotune.md has the switches, the cache and what
 holds across backends. It is off by default, and a forced choice is
 never timed.
 
 How: on the session's own memory and queue, with rows of `max_seq`
 tokens, ids 1, as many as fill 8192 tokens (all of the session's rows
-when it holds fewer). Each tile, the incumbent (the cached choice, else
-`h64`) first, runs the whole encoder once untimed, then five times timed
+when it holds fewer). Each choice, the incumbent (the cached choice,
+else `auto`) first, runs the whole encoder once untimed, then five times timed
 from the host, each run waited for. The least time ranks, and the
-fastest challenger replaces the incumbent only when 5% faster. A tile whose median is more than 25%
+fastest challenger replaces the incumbent only when 5% faster. A choice
+whose median is more than 25%
 above its least is timed again, up to three times in all; still apart,
 the GPU is shared or throttling, and the session keeps the incumbent,
 reports `default`, is not cached, and an INFO line says so. The budget
 counts the timed runs alone; past it, what is left is not timed. A
 measured session reports `measured` and logs at INFO `metal device <n>:
-linear layers chosen in <ms> ms: <choice> (<bin>, a run: h64 <ms> ms,
-h32 <ms> ms, h128 <ms> ms)`.
+linear layers chosen in <ms> ms: <choice> (<bin>, a run: auto <ms> ms,
+h32 <ms> ms, h64 <ms> ms, h128 <ms> ms)`.
 
 ## Speed on the M2
 
@@ -314,6 +320,28 @@ reach 1 - 4.5e-7 cosine against the bundle's reference. EXACT runs the
 same F32 kernels as before this change: its least p50 at 32 x 256 (140.1)
 matches the F32 FASTEST path's (139.9), and its higher median is the
 machine's load in the later rounds.
+
+### The F16 tile
+
+The table above is FASTEST's first F16 kernels. Since then the weights'
+part of each tile is staged transposed, the k loop is unrolled, the tile
+is chosen per run (`linear=auto`), and the small kernel runs only up to
+64 tokens. The same timing, all-minilm-l6-v2 dense rows, five rounds on
+an M2 with load averages from 3.6 down to 2.1, median p50 / least p50 in
+ms, FASTEST before these changes against after, and MLX 0.29.3 float16:
+
+| Rows | FASTEST before | FASTEST | MLX float16 |
+|---|---|---|---|
+| 32 x 256 | 109.4 / 109.4 | 100.6 / 100.4 | 101.5 / 101.5 |
+| 8 x 128 | 13.71 / 13.68 | 12.39 / 12.38 | 11.68 / 11.67 |
+| 2 x 128 | 4.79 / 4.77 | 3.94 / 3.92 | 3.79 / 3.78 |
+| 1 x 128 | 2.79 / 2.78 | 2.70 / 2.67 | 2.41 / 2.41 |
+| 1 x 32 | 1.28 / 1.27 | 1.27 / 1.26 | 1.95 / 1.95 |
+
+FASTEST is level with MLX float16 at 32 x 256 and ahead at 1 x 32, and
+MLX is 4% to 12% faster from 2 to 8 rows of 128. On those rows the
+linear layers are about three quarters of the time; at 8 x 128 they
+run at about 2.2 TFLOPS, against MLX's 3 TFLOPS for its larger products.
 
 ## Testing
 

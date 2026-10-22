@@ -24,7 +24,6 @@
 //! no longer than `max_width` scores 0.
 
 pub mod heads;
-mod kernel;
 pub mod prompt;
 pub mod words;
 

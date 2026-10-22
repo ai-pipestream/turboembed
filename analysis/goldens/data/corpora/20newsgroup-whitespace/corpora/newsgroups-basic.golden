@@ -8,111 +8,131 @@ annotator	opennlp.tools.formats.TwentyNewsgroupSampleStream	read
 config	dataDir	/tmp/turbo-20newsgroup
 config	tokenizer	whitespace
 layer	turbo:samples	document	16	written:str
-sci.example.waves\tFrom: nobody@host.invalid Malformed UTF-8: � and cé and €.
-rec.example.boats\tFrom: writer50163@host1.invalid (A. Writer) Subject: Re: We sailed past the i Organization: None Lines: 3 We sailed past the island at dawn. > quoted line from an earlier post -- signature line
-comp.example.text\tFrom: writer50142@host2.invalid (A. Writer) Subject: Re: The patch fixes the Organization: None Lines: 3 The patch fixes the line endings. > quoted line from an earlier post -- signature line
-sci.example.waves\tFrom: writer50177@host0.invalid (A. Writer) Subject: Re: Wave height doubles Organization: None Lines: 3 Wave height doubles in the storm model. > quoted line from an earlier post -- signature line
-rec.example.boats\tFrom: writer50170@host2.invalid (A. Writer) Subject: Re: Look for a used outb Organization: None Lines: 3 Look for a used outboard motor. > quoted line from an earlier post -- signature line
-sci.example.waves\tFrom: writer50198@host3.invalid (A. Writer) Subject: Re: A question about swe Organization: None Lines: 3 A question about swell periods. > quoted line from an earlier post -- signature line
-comp.example.text\tFrom: writer50149@host3.invalid (A. Writer) Subject: Re: Try the newer releas Organization: None Lines: 3 Try the newer release first. > quoted line from an earlier post -- signature line
-sci.example.waves\tFrom: writer50184@host1.invalid (A. Writer) Subject: Re: The buoy data has ga Organization: None Lines: 3 The buoy data has gaps in March. > quoted line from an earlier post -- signature line
 alt.example.misc\tFrom: writer50107@host0.invalid (A. Writer) Subject: Re: Has anyone seen the Organization: None Lines: 3 Has anyone seen the comet this week? > quoted line from an earlier post -- signature line
-comp.example.text\tTabs, no-break spaces and ♪ tokens. Second paragraph.
-comp.example.text\tFrom: writer50128@host0.invalid (A. Writer) Subject: Re: Which editor keeps t Organization: None Lines: 3 Which editor keeps tabs as tabs? > quoted line from an earlier post -- signature line
-sci.example.waves\tFrom: writer50191@host2.invalid (A. Writer) Subject: Re: Tidal records go bac Organization: None Lines: 3 Tidal records go back fifty years. > quoted line from an earlier post -- signature line
-rec.example.boats\tFrom: writer50156@host0.invalid (A. Writer) Subject: Re: The hull needs a sec Organization: None Lines: 3 The hull needs a second coat of paint. > quoted line from an earlier post -- signature line
-comp.example.text\tFrom: writer50135@host1.invalid (A. Writer) Subject: Re: My script reads the Organization: None Lines: 3 My script reads the file twice; why? > quoted line from an earlier post -- signature line
-alt.example.misc\tFrom: writer50121@host2.invalid (A. Writer) Subject: Re: Thanks to everyone w Organization: None Lines: 3 Thanks to everyone who replied. > quoted line from an earlier post -- signature line
 alt.example.misc\tFrom: writer50114@host1.invalid (A. Writer) Subject: Re: The meeting moved to Organization: None Lines: 3 The meeting moved to Thursday evening. > quoted line from an earlier post -- signature line
+alt.example.misc\tFrom: writer50121@host2.invalid (A. Writer) Subject: Re: Thanks to everyone w Organization: None Lines: 3 Thanks to everyone who replied. > quoted line from an earlier post -- signature line
+comp.example.text\tFrom: writer50128@host0.invalid (A. Writer) Subject: Re: Which editor keeps t Organization: None Lines: 3 Which editor keeps tabs as tabs? > quoted line from an earlier post -- signature line
+comp.example.text\tFrom: writer50135@host1.invalid (A. Writer) Subject: Re: My script reads the Organization: None Lines: 3 My script reads the file twice; why? > quoted line from an earlier post -- signature line
+comp.example.text\tFrom: writer50142@host2.invalid (A. Writer) Subject: Re: The patch fixes the Organization: None Lines: 3 The patch fixes the line endings. > quoted line from an earlier post -- signature line
+comp.example.text\tFrom: writer50149@host3.invalid (A. Writer) Subject: Re: Try the newer releas Organization: None Lines: 3 Try the newer release first. > quoted line from an earlier post -- signature line
+comp.example.text\tTabs, no-break spaces and ♪ tokens. Second paragraph.
+rec.example.boats\tFrom: writer50156@host0.invalid (A. Writer) Subject: Re: The hull needs a sec Organization: None Lines: 3 The hull needs a second coat of paint. > quoted line from an earlier post -- signature line
+rec.example.boats\tFrom: writer50163@host1.invalid (A. Writer) Subject: Re: We sailed past the i Organization: None Lines: 3 We sailed past the island at dawn. > quoted line from an earlier post -- signature line
+rec.example.boats\tFrom: writer50170@host2.invalid (A. Writer) Subject: Re: Look for a used outb Organization: None Lines: 3 Look for a used outboard motor. > quoted line from an earlier post -- signature line
+sci.example.waves\tFrom: writer50177@host0.invalid (A. Writer) Subject: Re: Wave height doubles Organization: None Lines: 3 Wave height doubles in the storm model. > quoted line from an earlier post -- signature line
+sci.example.waves\tFrom: writer50184@host1.invalid (A. Writer) Subject: Re: The buoy data has ga Organization: None Lines: 3 The buoy data has gaps in March. > quoted line from an earlier post -- signature line
+sci.example.waves\tFrom: writer50191@host2.invalid (A. Writer) Subject: Re: Tidal records go bac Organization: None Lines: 3 Tidal records go back fifty years. > quoted line from an earlier post -- signature line
+sci.example.waves\tFrom: writer50198@host3.invalid (A. Writer) Subject: Re: A question about swe Organization: None Lines: 3 A question about swell periods. > quoted line from an earlier post -- signature line
+sci.example.waves\tFrom: nobody@host.invalid Malformed UTF-8: � and cé and €.
 end	turbo:samples
 layer	turbo:read-errors	document	0	after:u32	class:str	message:str
 end	turbo:read-errors
 layer	turbo:listing	document	16	file:str
-rec.example.boats/50170
-rec.example.boats/50163
-rec.example.boats/50156
-alt.example.misc/50114
 alt.example.misc/50107
+alt.example.misc/50114
 alt.example.misc/50121
-comp.example.text/50142
-comp.example.text/50998
-comp.example.text/50149
-comp.example.text/50135
 comp.example.text/50128
-sci.example.waves/50191
-sci.example.waves/50198
+comp.example.text/50135
+comp.example.text/50142
+comp.example.text/50149
+comp.example.text/50998
+rec.example.boats/50156
+rec.example.boats/50163
+rec.example.boats/50170
 sci.example.waves/50177
 sci.example.waves/50184
+sci.example.waves/50191
+sci.example.waves/50198
 sci.example.waves/50999
 end	turbo:listing
 layer	turbo:files	document	16	file:str
-sci.example.waves/50999
-rec.example.boats/50163
-comp.example.text/50142
-sci.example.waves/50177
-rec.example.boats/50170
-sci.example.waves/50198
-comp.example.text/50149
-sci.example.waves/50184
 alt.example.misc/50107
-comp.example.text/50998
-comp.example.text/50128
-sci.example.waves/50191
-rec.example.boats/50156
-comp.example.text/50135
-alt.example.misc/50121
 alt.example.misc/50114
+alt.example.misc/50121
+comp.example.text/50128
+comp.example.text/50135
+comp.example.text/50142
+comp.example.text/50149
+comp.example.text/50998
+rec.example.boats/50156
+rec.example.boats/50163
+rec.example.boats/50170
+sci.example.waves/50177
+sci.example.waves/50184
+sci.example.waves/50191
+sci.example.waves/50198
+sci.example.waves/50999
 end	turbo:files
 layer	turbo:sample-labels	document	16	label:str
-sci.example.waves
-rec.example.boats
-comp.example.text
-sci.example.waves
-rec.example.boats
-sci.example.waves
-comp.example.text
-sci.example.waves
+alt.example.misc
+alt.example.misc
 alt.example.misc
 comp.example.text
 comp.example.text
-sci.example.waves
-rec.example.boats
 comp.example.text
-alt.example.misc
-alt.example.misc
+comp.example.text
+comp.example.text
+rec.example.boats
+rec.example.boats
+rec.example.boats
+sci.example.waves
+sci.example.waves
+sci.example.waves
+sci.example.waves
+sci.example.waves
 end	turbo:sample-labels
 layer	turbo:sample-tokens	document	444	sample:u32	text:str
 0	From:
-0	nobody@host.invalid
-0	Malformed
-0	UTF-8:
-0	�
-0	and
-0	cé
-0	and
-0	€.
+0	writer50107@host0.invalid
+0	(A.
+0	Writer)
+0	Subject:
+0	Re:
+0	Has
+0	anyone
+0	seen
+0	the
+0	Organization:
+0	None
+0	Lines:
+0	3
+0	Has
+0	anyone
+0	seen
+0	the
+0	comet
+0	this
+0	week?
+0	>
+0	quoted
+0	line
+0	from
+0	an
+0	earlier
+0	post
+0	--
+0	signature
+0	line
 1	From:
-1	writer50163@host1.invalid
+1	writer50114@host1.invalid
 1	(A.
 1	Writer)
 1	Subject:
 1	Re:
-1	We
-1	sailed
-1	past
-1	the
-1	i
+1	The
+1	meeting
+1	moved
+1	to
 1	Organization:
 1	None
 1	Lines:
 1	3
-1	We
-1	sailed
-1	past
-1	the
-1	island
-1	at
-1	dawn.
+1	The
+1	meeting
+1	moved
+1	to
+1	Thursday
+1	evening.
 1	>
 1	quoted
 1	line
@@ -124,25 +144,24 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 1	signature
 1	line
 2	From:
-2	writer50142@host2.invalid
+2	writer50121@host2.invalid
 2	(A.
 2	Writer)
 2	Subject:
 2	Re:
-2	The
-2	patch
-2	fixes
-2	the
+2	Thanks
+2	to
+2	everyone
+2	w
 2	Organization:
 2	None
 2	Lines:
 2	3
-2	The
-2	patch
-2	fixes
-2	the
-2	line
-2	endings.
+2	Thanks
+2	to
+2	everyone
+2	who
+2	replied.
 2	>
 2	quoted
 2	line
@@ -154,25 +173,25 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 2	signature
 2	line
 3	From:
-3	writer50177@host0.invalid
+3	writer50128@host0.invalid
 3	(A.
 3	Writer)
 3	Subject:
 3	Re:
-3	Wave
-3	height
-3	doubles
+3	Which
+3	editor
+3	keeps
+3	t
 3	Organization:
 3	None
 3	Lines:
 3	3
-3	Wave
-3	height
-3	doubles
-3	in
-3	the
-3	storm
-3	model.
+3	Which
+3	editor
+3	keeps
+3	tabs
+3	as
+3	tabs?
 3	>
 3	quoted
 3	line
@@ -184,26 +203,26 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 3	signature
 3	line
 4	From:
-4	writer50170@host2.invalid
+4	writer50135@host1.invalid
 4	(A.
 4	Writer)
 4	Subject:
 4	Re:
-4	Look
-4	for
-4	a
-4	used
-4	outb
+4	My
+4	script
+4	reads
+4	the
 4	Organization:
 4	None
 4	Lines:
 4	3
-4	Look
-4	for
-4	a
-4	used
-4	outboard
-4	motor.
+4	My
+4	script
+4	reads
+4	the
+4	file
+4	twice;
+4	why?
 4	>
 4	quoted
 4	line
@@ -215,24 +234,25 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 4	signature
 4	line
 5	From:
-5	writer50198@host3.invalid
+5	writer50142@host2.invalid
 5	(A.
 5	Writer)
 5	Subject:
 5	Re:
-5	A
-5	question
-5	about
-5	swe
+5	The
+5	patch
+5	fixes
+5	the
 5	Organization:
 5	None
 5	Lines:
 5	3
-5	A
-5	question
-5	about
-5	swell
-5	periods.
+5	The
+5	patch
+5	fixes
+5	the
+5	line
+5	endings.
 5	>
 5	quoted
 5	line
@@ -272,59 +292,37 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 6	--
 6	signature
 6	line
-7	From:
-7	writer50184@host1.invalid
-7	(A.
-7	Writer)
-7	Subject:
-7	Re:
-7	The
-7	buoy
-7	data
-7	has
-7	ga
-7	Organization:
-7	None
-7	Lines:
-7	3
-7	The
-7	buoy
-7	data
-7	has
-7	gaps
-7	in
-7	March.
-7	>
-7	quoted
-7	line
-7	from
-7	an
-7	earlier
-7	post
-7	--
-7	signature
-7	line
+7	Tabs,
+7	no-break
+7	spaces
+7	and
+7	♪
+7	tokens.
+7	Second
+7	paragraph.
 8	From:
-8	writer50107@host0.invalid
+8	writer50156@host0.invalid
 8	(A.
 8	Writer)
 8	Subject:
 8	Re:
-8	Has
-8	anyone
-8	seen
-8	the
+8	The
+8	hull
+8	needs
+8	a
+8	sec
 8	Organization:
 8	None
 8	Lines:
 8	3
-8	Has
-8	anyone
-8	seen
-8	the
-8	comet
-8	this
-8	week?
+8	The
+8	hull
+8	needs
+8	a
+8	second
+8	coat
+8	of
+8	paint.
 8	>
 8	quoted
 8	line
@@ -335,34 +333,59 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 8	--
 8	signature
 8	line
-9	Tabs,
-9	no-break
-9	spaces
-9	and
-9	♪
-9	tokens.
-9	Second
-9	paragraph.
+9	From:
+9	writer50163@host1.invalid
+9	(A.
+9	Writer)
+9	Subject:
+9	Re:
+9	We
+9	sailed
+9	past
+9	the
+9	i
+9	Organization:
+9	None
+9	Lines:
+9	3
+9	We
+9	sailed
+9	past
+9	the
+9	island
+9	at
+9	dawn.
+9	>
+9	quoted
+9	line
+9	from
+9	an
+9	earlier
+9	post
+9	--
+9	signature
+9	line
 10	From:
-10	writer50128@host0.invalid
+10	writer50170@host2.invalid
 10	(A.
 10	Writer)
 10	Subject:
 10	Re:
-10	Which
-10	editor
-10	keeps
-10	t
+10	Look
+10	for
+10	a
+10	used
+10	outb
 10	Organization:
 10	None
 10	Lines:
 10	3
-10	Which
-10	editor
-10	keeps
-10	tabs
-10	as
-10	tabs?
+10	Look
+10	for
+10	a
+10	used
+10	outboard
+10	motor.
 10	>
 10	quoted
 10	line
@@ -374,25 +397,25 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 10	signature
 10	line
 11	From:
-11	writer50191@host2.invalid
+11	writer50177@host0.invalid
 11	(A.
 11	Writer)
 11	Subject:
 11	Re:
-11	Tidal
-11	records
-11	go
-11	bac
+11	Wave
+11	height
+11	doubles
 11	Organization:
 11	None
 11	Lines:
 11	3
-11	Tidal
-11	records
-11	go
-11	back
-11	fifty
-11	years.
+11	Wave
+11	height
+11	doubles
+11	in
+11	the
+11	storm
+11	model.
 11	>
 11	quoted
 11	line
@@ -404,28 +427,27 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 11	signature
 11	line
 12	From:
-12	writer50156@host0.invalid
+12	writer50184@host1.invalid
 12	(A.
 12	Writer)
 12	Subject:
 12	Re:
 12	The
-12	hull
-12	needs
-12	a
-12	sec
+12	buoy
+12	data
+12	has
+12	ga
 12	Organization:
 12	None
 12	Lines:
 12	3
 12	The
-12	hull
-12	needs
-12	a
-12	second
-12	coat
-12	of
-12	paint.
+12	buoy
+12	data
+12	has
+12	gaps
+12	in
+12	March.
 12	>
 12	quoted
 12	line
@@ -437,26 +459,25 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 12	signature
 12	line
 13	From:
-13	writer50135@host1.invalid
+13	writer50191@host2.invalid
 13	(A.
 13	Writer)
 13	Subject:
 13	Re:
-13	My
-13	script
-13	reads
-13	the
+13	Tidal
+13	records
+13	go
+13	bac
 13	Organization:
 13	None
 13	Lines:
 13	3
-13	My
-13	script
-13	reads
-13	the
-13	file
-13	twice;
-13	why?
+13	Tidal
+13	records
+13	go
+13	back
+13	fifty
+13	years.
 13	>
 13	quoted
 13	line
@@ -468,24 +489,24 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 13	signature
 13	line
 14	From:
-14	writer50121@host2.invalid
+14	writer50198@host3.invalid
 14	(A.
 14	Writer)
 14	Subject:
 14	Re:
-14	Thanks
-14	to
-14	everyone
-14	w
+14	A
+14	question
+14	about
+14	swe
 14	Organization:
 14	None
 14	Lines:
 14	3
-14	Thanks
-14	to
-14	everyone
-14	who
-14	replied.
+14	A
+14	question
+14	about
+14	swell
+14	periods.
 14	>
 14	quoted
 14	line
@@ -497,33 +518,12 @@ layer	turbo:sample-tokens	document	444	sample:u32	text:str
 14	signature
 14	line
 15	From:
-15	writer50114@host1.invalid
-15	(A.
-15	Writer)
-15	Subject:
-15	Re:
-15	The
-15	meeting
-15	moved
-15	to
-15	Organization:
-15	None
-15	Lines:
-15	3
-15	The
-15	meeting
-15	moved
-15	to
-15	Thursday
-15	evening.
-15	>
-15	quoted
-15	line
-15	from
-15	an
-15	earlier
-15	post
-15	--
-15	signature
-15	line
+15	nobody@host.invalid
+15	Malformed
+15	UTF-8:
+15	�
+15	and
+15	cé
+15	and
+15	€.
 end	turbo:sample-tokens
