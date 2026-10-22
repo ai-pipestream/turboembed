@@ -4661,24 +4661,26 @@ runs them on any machine:
 - `analysis/embed/tests/sentence_vectors_dl.rs` compares `Encoder`,
   `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` on
   `testdata/tiny-bert-bundle` against OpenNLP's `SentenceVectorsDL`
-  (`analysis/embed/reference/SentenceVectorsDlGolden.java` and
-  `analysis/embed/tests/data/sentence_vectors_dl_golden.json`, generated
-  in the pinned `turbo-goldens-java` container over the 12 test sentences
-  and all 76 golden inputs of the `edge`, `en`, `multi`, `subwords` and
-  `surrogate` sets). `Encoder::run_cls` matches `SentenceVectorsDL` on the
-  raw BERT ONNX graph within `1e-5` (worst `7.15e-7`), and
-  `Encoder::run_rows` matches `SentenceVectorsDL` on the shared
-  mean-pooled L2-normalized ONNX graph within `1e-5` (worst `1.19e-7`).
-  For `SentenceVectors` and `ChunkVectors`, which pool only the item's `N`
-  content subword pieces (`[start, end)` excluding `[CLS]` and `[SEP]`),
-  combining the unnormalized content-range mean with the `[CLS]` and
-  `[SEP]` states as `(N * range_mean + cls + sep) / (N + 2)` and
-  L2-normalizing reproduces `SentenceVectorsDL`'s whole-row vector within
-  `1e-5`, and the content-pooled vectors themselves stay within the stated
-  cosine floors (`>= 0.96` on the 12 sentences alone, `>= 0.85` when the
-  12 sentences share multi-sentence windows, `>= 0.90` on golden inputs of
-  4 or more pieces, `>= 0.70` on 1 to 3 piece golden inputs, and the zero
-  vector listed in `Vectors::empty` on zero-piece inputs).
+  (`analysis/embed/reference/regenerate.sh`, which runs
+  `analysis/embed/reference/export_onnx.py` in `turbo-reference` and
+  `analysis/embed/reference/SentenceVectorsDlGolden.java` in the pinned
+  `turbo-goldens-java` container to write and verify
+  `analysis/embed/tests/data/sentence_vectors_dl_golden.json` over the 12
+  test sentences and all 76 golden inputs of the `edge`, `en`, `multi`,
+  `subwords` and `surrogate` sets). `Encoder::run_cls` matches
+  `SentenceVectorsDL` on the raw BERT ONNX graph within `1e-5` (worst
+  `7.15e-7`), and `Encoder::run_rows` matches `SentenceVectorsDL` on the
+  shared mean-pooled L2-normalized ONNX graph within `1e-5` (worst
+  `1.19e-7`). For `SentenceVectors` and `ChunkVectors`, which pool only
+  the item's `N` content subword pieces (`[start, end)` excluding `[CLS]`
+  and `[SEP]`), combining the unnormalized content-range mean with the
+  `[CLS]` and `[SEP]` states as `(N * range_mean + cls + sep) / (N + 2)`
+  and L2-normalizing reproduces `SentenceVectorsDL`'s whole-row vector
+  within `1e-5`, and the content-pooled vectors themselves stay within the
+  stated cosine floors (`>= 0.96` on the 12 sentences alone, `>= 0.85`
+  when the 12 sentences share multi-sentence windows, `>= 0.90` on golden
+  inputs of 4 or more pieces, `>= 0.70` on 1 to 3 piece golden inputs, and
+  the zero vector listed in `Vectors::empty` on zero-piece inputs).
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,

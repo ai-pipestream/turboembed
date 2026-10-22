@@ -94,6 +94,8 @@ public final class SentenceVectorsDlGolden {
     sb.append("  \"vocab_sha256\": ").append(quote(sha256(vocab.toPath()))).append(",\n");
     sb.append("  \"weights_file\": \"testdata/tiny-bert-bundle/weights/model.safetensors\",\n");
     sb.append("  \"weights_sha256\": ").append(quote(sha256(weights))).append(",\n");
+    sb.append("  \"mean_l2_onnx_sha256\": ").append(quote(sha256(meanModel.toPath()))).append(",\n");
+    sb.append("  \"cls_onnx_sha256\": ").append(quote(sha256(clsModel.toPath()))).append(",\n");
     sb.append("  \"sentences\": [\n");
     try (SentenceVectorsDL meanDl = new SentenceVectorsDL(meanModel, vocab, true);
          SentenceVectorsDL clsDl = new SentenceVectorsDL(clsModel, vocab, true)) {

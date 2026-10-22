@@ -5,8 +5,9 @@
 //! (`analysis/goldens/data/fixtures/all-minilm-l6-v2-vocab.txt`).
 //!
 //! `tests/data/sentence_vectors_dl_golden.json` holds what
-//! `reference/SentenceVectorsDlGolden.java` wrote in the pinned JVM container
-//! (`turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1`) for:
+//! `reference/regenerate.sh` (`reference/export_onnx.py` in `turbo-reference`
+//! followed by `reference/SentenceVectorsDlGolden.java` in
+//! `turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1`) wrote for:
 //! 1. the 12 sentences of `tests/vectors.rs`, and
 //! 2. all 76 golden inputs of the `edge`, `en`, `multi`, `subwords`, and
 //!    `surrogate` sets under `analysis/goldens/data/inputs`.
@@ -41,6 +42,8 @@ struct JvmFixture {
     vocab_sha256: String,
     weights_file: String,
     weights_sha256: String,
+    mean_l2_onnx_sha256: String,
+    cls_onnx_sha256: String,
     sentences: Vec<SentenceEntry>,
     golden_inputs: Vec<GoldenEntry>,
 }
@@ -89,6 +92,8 @@ fn load_fixture() -> JvmFixture {
         vocab_sha256: raw["vocab_sha256"].as_str().unwrap().to_owned(),
         weights_file: raw["weights_file"].as_str().unwrap().to_owned(),
         weights_sha256: raw["weights_sha256"].as_str().unwrap().to_owned(),
+        mean_l2_onnx_sha256: raw["mean_l2_onnx_sha256"].as_str().unwrap().to_owned(),
+        cls_onnx_sha256: raw["cls_onnx_sha256"].as_str().unwrap().to_owned(),
         sentences,
         golden_inputs,
     }
@@ -125,6 +130,14 @@ fn fixture_hashes_match_the_bundle_and_the_vocabulary() {
     let weights = std::fs::read(bert().join("weights/model.safetensors")).unwrap();
     assert_eq!(f.weights_file, "testdata/tiny-bert-bundle/weights/model.safetensors");
     assert_eq!(sha256_hex(&weights), f.weights_sha256);
+    assert_eq!(
+        f.mean_l2_onnx_sha256,
+        "57ec273eae030d2c810d2e1df214684f49d9c0b81da08cc52de952aa985fed49"
+    );
+    assert_eq!(
+        f.cls_onnx_sha256,
+        "7dfd15ea3e880ed3a6808df03b442b07a1d84cd55afeadd758a6108338176f0d"
+    );
     assert_eq!(f.sentences.len(), SENTENCES.len());
     assert_eq!(f.golden_inputs.len(), 76);
 }
