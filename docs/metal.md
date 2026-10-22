@@ -203,9 +203,17 @@ frameworks and libc++, which every macOS has.
   and every sum are F32. The residual stream itself, LayerNorm and pooling
   are F32 as at EXACT. Cosine must reach 0.999, FASTEST's floor on every
   backend; all-MiniLM-L6-v2's reference cases (up to 256 tokens) reach
-  1 - 4.5e-7. Q, K, V, the context and GELU's output are stored in F16
-  with no guard for values past its range, and a larger model at 512
-  tokens has not been checked yet.
+  1 - 4.5e-7, and bge-base-en-v1.5's (12 layers, 768 wide) 1 - 3.1e-7.
+  Q, K, V, the context, GELU's output and the residual stream's copy
+  are stored in F16, whose largest finite value is 65504. On the M2, 8
+  rows of up to 512 tokens of bge-base (text, rows that end early, and
+  ids spread over the vocabulary) reach 1 - 1.2e-6 cosine with the CPU at
+  EXACT, and the largest magnitudes FASTEST stores are 22.5 (Q), 12.4
+  (K), 10.3 (V), 3.3 (the context), 51.8 (GELU's output) and 102.6 (the
+  residual stream's copy): under 0.2% of F16's range. all-MiniLM-L6-v2
+  at 256 tokens stays under 31. The test that measures them,
+  `a_real_bundle_at_its_longest_rows_stays_inside_f16`, fails a model
+  whose largest stored magnitude reaches 65504.
 - **What a result reports.** Stages: tokenize on the host for text,
   no upload (the rows were copied into the session's shared memory by
   the write, as on the CPU), lookup, encode and pool on the device,
@@ -327,6 +335,11 @@ cargo test -p turbo --features metal
 # difference from the f64 encoder and the CPU, each choice's lowest
 # cosine with the CPU), in release:
 cargo test --release -p turbo --features metal --test metal_runs --test metal_f16 -- --nocapture
+
+# FASTEST at a real bundle's longest rows against the CPU, with the
+# largest magnitude of each tensor it stores in F16:
+TURBO_TEST_BUNDLE=<bundle-dir> cargo test --release -p turbo --features metal,internals \
+    --test metal_f16 -- --include-ignored --nocapture
 
 # Conformance on the small sealed bundle (docs/conformance.md):
 TURBO_TEST_DEVICE=metal cargo test --release -p turbo --features metal --test conformance -- --nocapture

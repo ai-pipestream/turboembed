@@ -1,0 +1,8 @@
+torch==2.14.1+cpu
+transformers==4.57.1
+safetensors==0.8.0
+numpy==2.5.4
+sentencepiece==0.2.2
+protobuf==7.36.2
+# Download the gliner==0.2.21 wheel with --no-deps; the reference loads its
+# mathematical components directly, without the optional ONNX frontend.
