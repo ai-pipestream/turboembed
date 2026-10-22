@@ -128,7 +128,12 @@ has two numerics (`neural::Numerics`):
   (the probabilities) by forward-backward in log space. Where plain f64
   cannot hold a sentence's scores (a bound on its paths' scores above 1e6,
   as with CRF weights near 1e300), that sentence is decoded by the exact
-  scorer instead; a probability that is not finite is an error.
+  scorer instead; a probability that is not finite is an error. A weight
+  past f32's range does not fail either: if it cannot be packed, `new`
+  makes a `JvmParity` tagger (`numerics()` says so, and
+  `with_numerics(.., Numerics::Packed)` returns the error), and if it
+  overflows a call's f32 scores, that call's emissions come from the f64
+  reference.
 - `JvmParity` (`BilstmPosTagger::jvm_parity`), for the golden tests and the
   trainer's evaluation only: the f64 forward pass in the JVM's order and the
   JVM's exact-sum CRF scorer, which give the JVM's emissions to within

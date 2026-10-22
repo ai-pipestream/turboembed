@@ -47,31 +47,36 @@ pub struct BilstmPosTagger {
 type Path = (Vec<usize>, Vec<f64>);
 
 impl BilstmPosTagger {
-    /// A tagger over `model` with the default numerics, [`Numerics::Packed`].
-    ///
-    /// # Panics
-    /// If the packed weights cannot be allocated.
+    /// A tagger over `model` with the default numerics, [`Numerics::Packed`],
+    /// or [`Numerics::JvmParity`] if the model's weights cannot be packed
+    /// (a weight past f32's range); [`numerics`](Self::numerics) says which.
     pub fn new(model: impl Into<Arc<BilstmPosModel>>) -> Self {
-        Self::with_numerics(model, Numerics::Packed).expect("packing the BiLSTM weights")
+        let model = model.into();
+        let packed = Packed::new(&model).ok().map(Arc::new);
+        Self::build(model, packed)
     }
 
     /// A tagger over `model` with [`Numerics::JvmParity`]: the f64 reference
     /// forward pass, with its per-token representation cache enabled.
     pub fn jvm_parity(model: impl Into<Arc<BilstmPosModel>>) -> Self {
-        Self::with_numerics(model, Numerics::JvmParity).expect("the reference path packs nothing")
+        Self::build(model.into(), None)
     }
 
-    /// A tagger over `model` with `numerics`; an error if the packed
-    /// weights cannot be allocated.
+    /// A tagger over `model` with `numerics`; an error if the weights
+    /// cannot be packed.
     pub fn with_numerics(model: impl Into<Arc<BilstmPosModel>>, numerics: Numerics) -> Result<Self, NeuralError> {
         let model = model.into();
         let packed = match numerics {
             Numerics::Packed => Some(Arc::new(Packed::new(&model)?)),
-            Numerics::JvmParity => {
-                model.enable_representation_cache();
-                None
-            }
+            Numerics::JvmParity => None,
         };
+        Ok(Self::build(model, packed))
+    }
+
+    fn build(model: Arc<BilstmPosModel>, packed: Option<Arc<Packed>>) -> Self {
+        if packed.is_none() {
+            model.enable_representation_cache();
+        }
         let labels: Vec<&str> = model.tags().iter().map(String::as_str).collect();
         let tagset = TagSet::new("bilstm", &labels);
         let outcome_tags = labels.iter().map(|&l| tagset.tag(l).expect("tag is in tagset")).collect();
@@ -79,7 +84,7 @@ impl BilstmPosTagger {
             (Some(tr), Some(st), Some(en)) => plain::magnitude(tr.iter().map(Vec::as_slice).chain([st, en])),
             _ => 0.0,
         };
-        Ok(Self { model, packed, crf_weights, tagset, outcome_tags })
+        Self { model, packed, crf_weights, tagset, outcome_tags }
     }
 
     /// The numerics the emissions are computed with.
@@ -112,18 +117,25 @@ impl BilstmPosTagger {
         if lens.contains(&0) {
             return Err(NeuralError::InvalidArgument("tokens must not be null or empty".into()));
         }
-        let Some(packed) = &self.packed else {
+        let reference = || {
             let mut at = 0;
-            return lens
-                .iter()
+            lens.iter()
                 .map(|&len| {
                     at += len;
                     self.model.score(&words[at - len..at])
                 })
-                .collect();
+                .collect()
+        };
+        let Some(packed) = &self.packed else {
+            return reference();
         };
         let tags = self.model.tags().len();
-        let flat = packed.score(&self.model, words, lens)?;
+        let flat = match packed.score(&self.model, words, lens) {
+            Ok(flat) => flat,
+            // A value past f32's range: the f64 reference holds it.
+            Err(NeuralError::NonFiniteScore(_)) => return reference(),
+            Err(e) => return Err(e),
+        };
         let mut rows = flat.chunks_exact(tags).map(|r| r.iter().map(|&v| f64::from(v)).collect());
         Ok(lens.iter().map(|&len| rows.by_ref().take(len).collect()).collect())
     }

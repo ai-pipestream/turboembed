@@ -23,20 +23,31 @@ fn lstm(input: usize, hidden: usize) -> LstmLayer {
 /// Two tags, every weight zero but a uniform CRF transition matrix of
 /// `transition`: every emission is zero, so each token's marginal is 1/2.
 fn model(transition: f64) -> BilstmPosModel {
+    model_with(transition, 0.0, 0.0)
+}
+
+/// [`model`] with the forward char LSTM's gate biases at `char_bias` and
+/// tag A's output bias at `out_bias`.
+fn model_with(transition: f64, char_bias: f64, out_bias: f64) -> BilstmPosModel {
+    let mut char_forward = lstm(3, 2);
+    if char_bias != 0.0 {
+        char_forward =
+            LstmLayer::of_weights(3, 2, vec![vec![0.0; 3]; 8], vec![vec![0.0; 2]; 8], vec![char_bias; 8]).unwrap();
+    }
     BilstmPosModel::new(
         vec![(UNKNOWN.to_owned(), 0)],
         char_vocabulary_from_strs([(UNKNOWN, 0)]),
         vec!["A".into(), "B".into()],
         vec![vec![0.0; 2]],
         vec![vec![0.0; 3]],
-        lstm(3, 2),
+        char_forward,
         lstm(3, 2),
         lstm(6, 2),
         lstm(6, 2),
         None,
         None,
         vec![vec![0.0; 4]; 2],
-        vec![0.0; 2],
+        vec![out_bias, 0.0],
         5,
         None,
         None,
@@ -94,4 +105,29 @@ fn config_hash_separates_the_numerics_and_repeats() {
             .fold(0xcbf2_9ce4_8422_2325u64, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
     };
     assert_eq!((packed.config_hash(), parity.config_hash()), (fnv(b"packed"), fnv(b"jvm-parity")));
+}
+
+#[test]
+fn weights_past_f32_fall_back_to_f64_instead_of_failing() {
+    // A char LSTM bias f32 cannot hold: the weights do not pack, so `new`
+    // takes the f64 reference and `with_numerics` says why.
+    let unpackable = model_with(0.0, 1e39, 0.0);
+    assert!(BilstmPosTagger::with_numerics(unpackable.clone(), Numerics::Packed).is_err());
+    let tagger = BilstmPosTagger::new(unpackable.clone());
+    assert_eq!(tagger.numerics(), Numerics::JvmParity);
+    assert_eq!(tagger.config_hash(), BilstmPosTagger::jvm_parity(unpackable).config_hash());
+    assert_halves(tagger.top_k_sequences(&["x", "y", "z"]).unwrap()[0].probs(), "unpackable");
+
+    // An output bias that packs but overflows f32 in the scores: that
+    // call's emissions come from the f64 reference, and tag A wins.
+    let overflowing = model_with(0.0, 0.0, 1e39);
+    let packed = BilstmPosTagger::new(overflowing.clone());
+    assert_eq!(packed.numerics(), Numerics::Packed);
+    let parity = BilstmPosTagger::jvm_parity(overflowing);
+    for tagger in [&packed, &parity] {
+        let best = tagger.best_sequences(&[["x", "y"]]).unwrap().remove(0);
+        assert_eq!(best.outcomes(), ["A", "A"]);
+        assert_eq!(best.probs(), [1.0, 1.0]);
+        assert_eq!(tagger.emissions(&["x"]).unwrap(), vec![vec![1e39, 0.0]]);
+    }
 }
