@@ -19,7 +19,7 @@
 
 use crate::model::{Pass, Scores};
 use crate::prompt::Kind;
-use crate::schema::{Cardinality, Check, ExtractionSchema, Source};
+use crate::schema::{Cardinality, Check, ExtractionSchema, Limits, Source};
 
 /// The deterministic layers a candidate can be checked against.
 pub trait Corroborate {
@@ -218,6 +218,19 @@ fn classify(task: usize, schema: &ExtractionSchema, logits: &[f32]) -> Classifie
 /// the threshold is a probability.
 fn check(pass: &Pass, schema: &ExtractionSchema, threshold: f32) -> Result<(), String> {
     let p = pass.prompt();
+    // A schema built by hand has had no validation: every value and name
+    // is checked here too, with no limit on counts or sizes.
+    let unbounded = Limits {
+        max_entity_types: usize::MAX,
+        max_classification_tasks: usize::MAX,
+        max_labels_per_task: usize::MAX,
+        max_structures: usize::MAX,
+        max_fields_per_structure: usize::MAX,
+        max_text_bytes: usize::MAX,
+        max_prompt_subwords: usize::MAX,
+        max_words: usize::MAX,
+    };
+    schema.validate(&unbounded).map_err(|e| e.to_string())?;
     if !(threshold.is_finite() && (0.0..=1.0).contains(&threshold)) {
         return Err(format!("a threshold outside [0, 1]: {threshold}"));
     }

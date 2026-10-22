@@ -396,6 +396,24 @@ fn a_pass_that_does_not_fit_its_schema_is_an_error() {
     other.entities.pop();
     assert!(decode(&pass, &other, 0.5, &Nothing).is_err());
     assert!(decode(&pass, &s, f32::NAN, &Nothing).is_err());
+    // A schema built by hand with a threshold, boost or top_k out of range.
+    let mut bad = s.clone();
+    bad.entities[0].threshold = Some(f32::NAN);
+    assert!(decode(&pass, &bad, 0.5, &Nothing).is_err());
+    for c in 0..s.classifications.len() {
+        let mut bad = s.clone();
+        bad.classifications[c].threshold = 2.0;
+        assert!(decode(&pass, &bad, 0.5, &Nothing).is_err());
+        let mut bad = s.clone();
+        bad.classifications[c].top_k = Some(0);
+        assert!(decode(&pass, &bad, 0.5, &Nothing).is_err());
+    }
+    for r in 0..s.structures.len() {
+        let mut bad = s.clone();
+        bad.structures[r].fields[0].threshold = Some(-0.1);
+        assert!(decode(&pass, &bad, 0.5, &Nothing).is_err());
+    }
+    assert!(!s.classifications.is_empty() && !s.structures.is_empty());
     // A width of zero, words past the text tokens, or a prefix longer than
     // them: errors, not an index past the scores.
     let (prompt, width, scores) = pass.into_parts();
