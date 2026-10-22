@@ -17,8 +17,15 @@ impl Encoder {
     /// The row path, for comparing a range with its row: a mean-pooled
     /// vector per row into `out`, normalized when `l2`.
     pub fn run_rows(&mut self, rows: &Rows, l2: bool, out: &mut Vec<f32>) -> Result<(), Error> {
+        self.run_rows_pooled(rows, TURBO_POOLING_MEAN, l2, out)
+    }
+
+    /// `run_rows` with the pooling given, `TURBO_POOLING_*`:
+    /// `TURBO_POOLING_MODEL` pools as the bundle says (the first token for
+    /// a CLS-pooled model such as BGE).
+    pub fn run_rows_pooled(&mut self, rows: &Rows, pooling: u32, l2: bool, out: &mut Vec<f32>) -> Result<(), Error> {
         let normalize = if l2 { TURBO_NORMALIZE_L2 } else { TURBO_NORMALIZE_NONE };
-        let o = options(TURBO_POOLING_MEAN, normalize);
+        let o = options(pooling, normalize);
         let mut err = new_error();
         check(unsafe { turbo_embed_write_tokens(self.session, &rows.batch(), &o, &mut err) }, &err)?;
         self.run(rows.len(), out)

@@ -44,14 +44,14 @@ instead of becoming apparently confident predictions.
 
 ## Layers and evidence
 
-`GlinerAnnotator` reads `View` and `Tokens`, and writes `Entities` and aligned
+`GlinerAnnotator` reads `View`, `Tokens`, and optional `Sentences`, and writes `Entities` and aligned
 `Decisions`. Both outputs can be bound to named instances. It validates token
 view identity, continuous token layout and UTF-8 slicing before inference.
 Entity offsets use the first source token's start and last token's end; they
 are not reconstructed from decoded subwords. Entity scores are sigmoid values;
 `Decisions` stores raw logits and the threshold. Empty or token-free documents
 produce empty outputs without inference; the direct packing API still requires
-at least one token. Annotator version 2 records these input-boundary semantics.
+at least one token. Annotator version 3 records the windowing semantics below.
 
 After the outputs are added, `GlinerAnnotator::evidence` builds
 `Evidence<Entities>` for their keys. Its raw scores are logits, its producer
@@ -61,6 +61,33 @@ calibrated probabilities. Register `Decisions` with the graph codec registry
 alongside `turbo_analysis_layers::export::codecs()` to export the entire graph.
 The annotator hash includes the ordered labels, threshold, decoding mode,
 checkpoint configuration and model identity.
+
+## Long documents
+
+The annotator packs consecutive whole sentences into windows that fit both
+384 tokens and the encoder context length, including the complete label prompt
+and final separator. Empty sentences consume no window space. A supplied
+sentence that cannot fit is refused with its zero-based sentence index and
+`max_tokens` or `max_sequence`; it is never truncated. Sentence spans must be
+contiguous, in the input view, on UTF-8 boundaries, and cover every token.
+When token sentence indices exist, they must agree with those spans.
+
+Without a `Sentences` layer, windows end at token boundaries. A single token
+that cannot fit is refused with its zero-based token index. Tokens erased by
+normalization still occupy an unknown piece, including in later windows.
+Each window is scored and decoded independently. No entity crosses a window
+boundary, and entities near that boundary may differ from a hypothetical
+unlimited-context prediction. A single fitting window retains the original
+checkpoint behavior. The prompt is encoded once per document; tokenizer
+scratch and unit buffers are reused. Packing and sentence ownership checks
+are linear in the input size, apart from tokenizer work.
+
+Decoded token indices are shifted to document-global indices; source byte
+spans, logits, and evidence support remain aligned across all windows. Named
+outputs and evidence graph export/import work as for a single window.
+`analysis/gliner/src/window_tests.rs` verifies a 2,048-token document against
+the union of independently scored windows in flat and nested modes, including
+UTF-8, empty sentences, normalization-erased tokens, and boundary errors.
 
 ## Conversion and loading
 
