@@ -4799,3 +4799,57 @@ with linguistic terms.
 [Dense classifiers and feature selection](dense-classifier.md) describes Adam
 training over typed vectors, temperature calibration, and MI/Chi2 selection
 before document categorizer training.
+
+## Static-to-contextual cascade records (#712)
+
+The `turbo_chunker::Cascade` pooled-admission mechanism (static and
+lexical admission, contextual rerank, structured filters) was swept
+over cached BEIR subsets with `analysis/eval/tests/cascade.rs`
+(`cascade_benchmark_receipt`, ignored and release-only; 1500 or 2361
+documents and 100 scored queries per set). The encoders are
+deterministic synthetic mechanism encoders (256-dimension hashed
+static vectors, 768-dimension neighbour-mixed contextual vectors),
+so the records measure the cascade mechanism over real texts and
+qrels, not trained encoder quality. Every arm scores the same
+candidate pool (all `Levels` units), a document's score is its best
+unit's score, and a test asserts exact score equality between the
+cascade at full pool and contextual-only. The latency columns time
+`Cascade::search` only (the timer starts after `Cascade::new`),
+summed over one `Cascade` per document, so they include
+per-document lexical ranking and static scoring and are not the
+single-index latency evidence; the latency fixture in
+`turbo-chunker` (55.5 us cascade vs 316.2 us direct 512-dimension
+contextual scan over 721 units) is. The latency-relevant column
+here is contextual units scored per query, the cost driver with a
+real encoder.
+
+| Set | Arm | Recall@10 | nDCG@10 | Contextual scored/query |
+|---|---|---|---|---|
+| scifact | Static only | 0.3325 | 0.2564 | 0 |
+| scifact | Contextual only | 0.4650 | 0.3726 | 12387 |
+| scifact | Cascade C=5 | 0.4650 | 0.3726 | 8534 |
+| scifact | Cascade C=64 | 0.4650 | 0.3726 | 12387 |
+| nfcorpus | Static only | 0.0537 | 0.1255 | 0 |
+| nfcorpus | Contextual only | 0.1254 | 0.2655 | 21088 |
+| nfcorpus | Cascade C=5 | 0.1254 | 0.2660 | 11841 |
+| nfcorpus | Cascade C=64 | 0.1254 | 0.2655 | 21088 |
+| arguana | Static only | 0.3600 | 0.2280 | 0 |
+| arguana | Contextual only | 0.3700 | 0.2502 | 9564 |
+| arguana | Cascade C=5 | 0.3700 | 0.2502 | 7659 |
+| arguana | Cascade C=64 | 0.3700 | 0.2502 | 9564 |
+
+With the pools aligned, the cascade matches contextual-only
+Recall@10 at every recorded C >= 5 on all three sets while scoring
+fewer contextual units at C=5 (69% of units on scifact, 56% on
+nfcorpus, 80% on arguana). On scifact and arguana every recorded
+cutoff matches from C=5; on nfcorpus the other cutoffs move
+slightly at small pools (Recall@5 0.1034 at C=5 and 0.0984 at C=10
+against 0.0984, Recall@100 0.2204 and 0.2221 against 0.2219, and
+nDCG@10 0.2660 at C=5 against 0.2655). Recall@10 stops changing at
+C=5 in these subsets because short documents hold few units per
+document. The
+documented default shortlist is C=64 for corpus-scale indexes,
+where one shortlist spans the whole corpus rather than one
+document. Qasper is cached only as a tarball (not BEIR jsonl for
+this reader), GutenQA only as parquet, and ConTEB and HiCBench are
+not cached; none of those four ran.
