@@ -11,6 +11,7 @@ use crate::api::{self, *};
 use crate::config::ModelConfig;
 use crate::results::over;
 use crate::status::{SESSION_DESC, describe};
+use crate::stream;
 
 /// One session of a model, with its three pinned I32 buffers for raw token
 /// rows, each [max_batch, max_seq]. Fields are dropped in order, children
@@ -82,6 +83,9 @@ pub(crate) struct State {
     pub(crate) models: RwLock<Vec<Arc<Served>>>,
     pub(crate) contexts: Mutex<Vec<(u32, Arc<Context>)>>,
     pub(crate) runtime: OnceLock<Runtime>,
+    /// The streaming bulk analysis call's server-wide state, shared by
+    /// every stream of this server.
+    pub(crate) stream: Arc<stream::Shared>,
     /// Serializes load(): one load at a time, so two LoadBundle calls
     /// never load the same new model twice.
     loading: Mutex<()>,
@@ -110,6 +114,7 @@ impl State {
             ),
             runtime: OnceLock::new(),
             contexts: Mutex::new(Vec::new()),
+            stream: stream::Shared::new(),
             loading: Mutex::new(()),
         }
     }

@@ -35,7 +35,11 @@ pub(crate) fn result_limits() -> ResultLimits {
 
 /// What LoadBundle may ask for, as the capability listing shows it.
 pub(crate) fn server_limits() -> ServerLimits {
-    ServerLimits { max_sessions_per_model: MAX_SESSIONS_PER_MODEL, max_loaded_models: MAX_LOADED_MODELS as u32 }
+    ServerLimits {
+        max_sessions_per_model: MAX_SESSIONS_PER_MODEL,
+        max_loaded_models: MAX_LOADED_MODELS as u32,
+        stream: Some(crate::stream::stream_limits()),
+    }
 }
 
 /// What a loaded bundle is and takes: its name, identity, task, roles,

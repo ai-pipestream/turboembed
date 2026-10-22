@@ -7,8 +7,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Channel;
-use tonic::{Code, Status};
+use tonic::{Code, Request, Status};
 use turbo_analysis::{Ix, Key, Layer, ModelRef, Span, View, ViewId};
 use turbo_analysis_embed::{Answers, Reranked};
 use turbo_analysis_layers::{Chunks, SparseTerms, Subwords, TokenVectorWindows, Vectors};
@@ -87,7 +88,13 @@ pub async fn serve() -> (Server, Analysis) {
         .await
         .unwrap();
     s.load().await.unwrap();
-    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    // The client decodes answers up to the same message budget the server
+    // decodes requests with: a refusal can carry an id bounded by the
+    // stream's byte cap, which a default 4 MiB decode limit would refuse.
+    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr()))
+        .await
+        .unwrap()
+        .max_decoding_message_size(MAX);
     (s, c)
 }
 
@@ -97,7 +104,10 @@ pub async fn serve_no_admin() -> (Server, Analysis) {
         .await
         .unwrap();
     s.load().await.unwrap();
-    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr()))
+        .await
+        .unwrap()
+        .max_decoding_message_size(MAX);
     (s, c)
 }
 
@@ -187,4 +197,78 @@ pub fn load_req(name: &str, bundle: &str, sessions: u32, precision: u32) -> Load
         max_batch: 0,
         max_seq: 0,
     }
+}
+
+/// The reference cases' texts of the tiny harness bundle: the empty
+/// document, ASCII, accents, CJK, emoji and tabs, and two long ones.
+/// What the stream must answer byte for byte like the single-document
+/// call does.
+pub fn harness_texts() -> Vec<String> {
+    manifest()["reference"]["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["text"].as_str().unwrap().to_string())
+        .collect()
+}
+
+// ---- The streaming bulk analysis call's test client --------------------------
+
+use turbo_kserve::proto::result::analyze_stream_request::Kind;
+use turbo_kserve::proto::result::analyze_stream_response::Outcome;
+use turbo_kserve::proto::result::{AnalyzeDocument, AnalyzeOptions, AnalyzeStreamHeader, AnalyzeStreamRequest};
+
+/// One stream message: the header, opening the call.
+pub fn stream_header(order: i32, max_inflight: u32, batch_linger_ms: u32) -> AnalyzeStreamRequest {
+    AnalyzeStreamRequest { kind: Some(Kind::Header(AnalyzeStreamHeader { order, max_inflight, batch_linger_ms })) }
+}
+
+/// One stream message: a document.
+pub fn stream_doc(id: &str, model: &str, text: &str, options: Option<AnalyzeOptions>) -> AnalyzeStreamRequest {
+    AnalyzeStreamRequest {
+        kind: Some(Kind::Document(AnalyzeDocument { id: id.into(), model: model.into(), text: text.into(), options })),
+    }
+}
+
+/// One open AnalyzeStream: the sender half, the response half, the ids
+/// in send order.
+pub struct Stream {
+    pub tx: tokio::sync::mpsc::Sender<AnalyzeStreamRequest>,
+    pub responses: tonic::Streaming<turbo_kserve::proto::result::AnalyzeStreamResponse>,
+    pub sent: Vec<String>,
+}
+
+pub async fn open_stream(c: &mut Analysis, order: i32, max_inflight: u32, batch_linger_ms: u32) -> Stream {
+    let (tx, rx) = tokio::sync::mpsc::channel(64);
+    tx.send(stream_header(order, max_inflight, batch_linger_ms)).await.unwrap();
+    let responses = c.analyze_stream(Request::new(ReceiverStream::new(rx))).await.unwrap().into_inner();
+    Stream { tx, responses, sent: Vec::new() }
+}
+
+impl Stream {
+    pub async fn send(&mut self, id: &str, model: &str, text: &str, options: Option<AnalyzeOptions>) {
+        self.tx.send(stream_doc(id, model, text, options)).await.unwrap();
+        self.sent.push(id.into());
+    }
+
+    /// The client is done sending; the answers keep flowing.
+    pub fn half_close(self) -> Self {
+        drop(self.tx);
+        Self { tx: tokio::sync::mpsc::channel(1).0, ..self }
+    }
+
+    /// Every document's answer, in arrival order.
+    pub async fn collect(mut self) -> Vec<(String, Outcome)> {
+        let mut out = Vec::new();
+        while let Some(r) = self.responses.message().await.unwrap() {
+            out.push((r.id.clone(), r.outcome.unwrap()));
+        }
+        assert_eq!(out.len(), self.sent.len(), "every document answers exactly once");
+        out
+    }
+}
+
+/// The collected answers keyed by id.
+pub async fn by_id(stream: Stream) -> std::collections::HashMap<String, Outcome> {
+    stream.collect().await.into_iter().collect()
 }
