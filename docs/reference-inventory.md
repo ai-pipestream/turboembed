@@ -72,9 +72,9 @@ OpenNLP. The table records the observed state.
    OpenNLP, or have the collection owner replace those checkouts with
    shallow copies while preserving any local work. This audit changed
    no reference checkout or host inventory file.
-2. Recover `beyond-opennlp/rust-crates.md` and
-   `beyond-opennlp/other-languages.md`. Neither survey is available at
-   the location supplied in #392. The explicit tier-1 list above is
+2. Recover the external `rust-crates.md` and `other-languages.md`
+   surveys named in [#392](https://github.com/ai-pipestream/turboembed/issues/392).
+   Both are missing from the supplied location. The explicit tier-1 list above is
    covered, but the Rust "copy candidates" cannot be checked for
    completeness without that source list. Do not infer that every
    installed Rust crate was an approved candidate.
