@@ -241,6 +241,7 @@ impl NameFinderDl {
             None => vec![(0, text.len())],
         };
         let found = self.find(&[(text, regions)])?.remove(0);
+        let ordered = in_text_order(tokens);
         let mut out = Entities {
             spans: Spans::new(view.id()),
             tokens: Vec::new(),
@@ -249,7 +250,7 @@ impl NameFinderDl {
             score: Vec::new(),
         };
         for c in found {
-            out.tokens.push(token_range(tokens, c.start as u32, c.end as u32)?);
+            out.tokens.push(token_range(tokens, ordered, c.start as u32, c.end as u32)?);
             out.spans.push(Span::new(c.start as u32, c.end as u32));
             out.kind.push(Tag(c.kind as u16));
             out.score.push(c.probability);
@@ -294,11 +295,9 @@ impl Annotator for NameFinderDl {
 /// # Errors
 /// When the overlapping tokens are not consecutive in the layer, or none
 /// overlaps and the tokens are not in text order, so no range names them.
-fn token_range(tokens: &Tokens, start: u32, end: u32) -> Result<IxRange<Tokens>, String> {
+fn token_range(tokens: &Tokens, ordered: bool, start: u32, end: u32) -> Result<IxRange<Tokens>, String> {
     let spans = &tokens.spans;
     let (starts, ends) = spans.columns();
-    let ordered =
-        !spans.has_discontinuous() && starts.windows(2).zip(ends.windows(2)).all(|(s, e)| e[0] <= s[1] && s[0] <= s[1]);
     if ordered {
         let first = ends.partition_point(|&e| e <= start);
         let last = starts.partition_point(|&s| s < end).max(first);
@@ -312,4 +311,12 @@ fn token_range(tokens: &Tokens, start: u32, end: u32) -> Result<IxRange<Tokens>,
         (Some(_), _) => Err(format!("the tokens overlapping {start}..{end} are not consecutive in the token layer")),
         _ => Err(format!("no token overlaps {start}..{end}, and the tokens are not in text order")),
     }
+}
+
+/// Whether the tokens are single fragments in text order, none overlapping
+/// the next: checked once per document, as each lookup is then a search.
+fn in_text_order(tokens: &Tokens) -> bool {
+    let (starts, ends) = tokens.spans.columns();
+    !tokens.spans.has_discontinuous()
+        && starts.windows(2).zip(ends.windows(2)).all(|(s, e)| e[0] <= s[1] && s[0] <= s[1])
 }
