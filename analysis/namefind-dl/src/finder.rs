@@ -2,10 +2,13 @@
 //! turboembed's encoder, read the way OpenNLP reads its ONNX model.
 //!
 //! Each sentence (the whole text when there is no sentence layer) is cut
-//! into chunks of words (decode.rs). Each chunk's text is tokenized
-//! without special tokens and read in one row, `[CLS] pieces [SEP]`, as
-//! `NameFinderDL` encodes a chunk; a chunk with more pieces than a row
-//! holds, which OpenNLP's model would refuse, is read in consecutive rows.
+//! into chunks of words (decode.rs). Each chunk's words, rejoined with
+//! single spaces as `AbstractDL` rejoins them, are tokenized without
+//! special tokens and read in one row, `[CLS] pieces [SEP]`, as
+//! `NameFinderDL` encodes a chunk. A chunk with more pieces than a row
+//! holds, which OpenNLP's model would refuse, is read in consecutive rows;
+//! an entity across two rows then ends at the first, the next row starting
+//! on an `I-` piece.
 //! Every position of a row, its special tokens too, gets its own label
 //! scores from the bundle's token classification head, and decode.rs
 //! turns them into entities, resolved across the whole document.
@@ -105,6 +108,9 @@ impl NameFinderDl {
         }
         let names: Vec<String> = (0..head.num_labels()).map(|i| head.label(i).unwrap_or_default().to_owned()).collect();
         let (labels, types) = decode::labels(&names);
+        if types.is_empty() {
+            return Err(invalid(format!("the head's labels {names:?} name no B-<type> entity type")));
+        }
         let types: Vec<&str> = types.iter().map(String::as_str).collect();
         let m = &bundle.manifest.model;
         Ok(NameFinderDl {
@@ -145,6 +151,10 @@ impl NameFinderDl {
         run.pieces.clear();
         let mut ids = Vec::new();
         let mut spans = Vec::new();
+        // A chunk's words rejoined with single spaces, as `AbstractDL`
+        // rejoins them, and each word's start there and in the text.
+        let mut joined = String::new();
+        let mut starts: Vec<(usize, usize)> = Vec::new();
         let bare = Encode {
             add_special_tokens: false,
             truncation: Truncation::None,
@@ -156,12 +166,24 @@ impl NameFinderDl {
                 let region = text.get(lo..hi).ok_or_else(|| format!("sentence {lo}..{hi} is not in the text"))?;
                 let words = decode::words(region);
                 for (a, b) in decode::chunk_ranges(words.len(), self.split, self.overlap)? {
-                    let (start, end) = (lo + words[a].0, lo + words[b - 1].1);
+                    joined.clear();
+                    starts.clear();
+                    for &(ws, we) in &words[a..b] {
+                        if !joined.is_empty() {
+                            joined.push(' ');
+                        }
+                        starts.push((joined.len(), lo + ws));
+                        joined.push_str(&region[ws..we]);
+                    }
                     ids.clear();
                     spans.clear();
-                    self.tokenizer
-                        .encode_spans(&text[start..end], bare, &mut ids, &mut spans)
-                        .map_err(|e| e.to_string())?;
+                    self.tokenizer.encode_spans(&joined, bare, &mut ids, &mut spans).map_err(|e| e.to_string())?;
+                    // A piece lies inside one word of `joined`: shift it to
+                    // that word in the text.
+                    let place = |s: &[u32; 2]| {
+                        let (j, t) = starts[starts.partition_point(|&(j, _)| j <= s[0] as usize) - 1];
+                        (t + s[0] as usize - j, t + s[1] as usize - j)
+                    };
                     // A chunk of no pieces is still read, as `[CLS] [SEP]`.
                     let parts: Vec<&[i32]> = if ids.is_empty() { vec![&[]] } else { ids.chunks(self.width).collect() };
                     for (k, part) in parts.into_iter().enumerate() {
@@ -172,11 +194,7 @@ impl NameFinderDl {
                         }
                         let row = run.rows.push(&[&self.cls, part, &self.sep]);
                         let mut at: Positions = vec![None; self.cls.len()];
-                        at.extend(
-                            spans[first..first + part.len()]
-                                .iter()
-                                .map(|s| (s[0] < s[1]).then(|| (start + s[0] as usize, start + s[1] as usize))),
-                        );
+                        at.extend(spans[first..first + part.len()].iter().map(|s| (s[0] < s[1]).then(|| place(s))));
                         at.resize(rows, None);
                         for p in 0..rows as u32 {
                             run.ranges.push(turbo_token_range { row, start: p, end: p + 1 });
@@ -223,7 +241,6 @@ impl NameFinderDl {
             None => vec![(0, text.len())],
         };
         let found = self.find(&[(text, regions)])?.remove(0);
-        let (starts, ends) = tokens.spans.columns();
         let mut out = Entities {
             spans: Spans::new(view.id()),
             tokens: Vec::new(),
@@ -232,10 +249,8 @@ impl NameFinderDl {
             score: Vec::new(),
         };
         for c in found {
-            let first = ends.partition_point(|&e| e as usize <= c.start);
-            let last = starts.partition_point(|&s| (s as usize) < c.end).max(first);
+            out.tokens.push(token_range(tokens, c.start as u32, c.end as u32)?);
             out.spans.push(Span::new(c.start as u32, c.end as u32));
-            out.tokens.push(IxRange::new(first as u32, last as u32));
             out.kind.push(Tag(c.kind as u16));
             out.score.push(c.probability);
         }
@@ -263,6 +278,38 @@ impl Annotator for NameFinderDl {
     }
 
     fn config_hash(&self) -> u64 {
-        (self.split as u64) << 32 | self.overlap as u64
+        // What changes the entities beside the model: the chunks, and the
+        // pieces a row holds, where a long chunk is cut.
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        for b in [self.split, self.overlap, self.width].iter().flat_map(|v| (*v as u64).to_le_bytes()) {
+            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+        }
+        h
+    }
+}
+
+/// The tokens the bytes `start..end` overlap, by their fragments, as one
+/// range; when none does, the empty range where the bytes would sit.
+///
+/// # Errors
+/// When the overlapping tokens are not consecutive in the layer, or none
+/// overlaps and the tokens are not in text order, so no range names them.
+fn token_range(tokens: &Tokens, start: u32, end: u32) -> Result<IxRange<Tokens>, String> {
+    let spans = &tokens.spans;
+    let (starts, ends) = spans.columns();
+    let ordered =
+        !spans.has_discontinuous() && starts.windows(2).zip(ends.windows(2)).all(|(s, e)| e[0] <= s[1] && s[0] <= s[1]);
+    if ordered {
+        let first = ends.partition_point(|&e| e <= start);
+        let last = starts.partition_point(|&s| s < end).max(first);
+        return Ok(IxRange::new(first as u32, last as u32));
+    }
+    let hits: Vec<usize> = (0..spans.len())
+        .filter(|&i| spans.fragments(turbo_analysis::Ix::new(i as u32)).any(|f| f.start < end && start < f.end))
+        .collect();
+    match (hits.first(), hits.last()) {
+        (Some(&a), Some(&b)) if b - a + 1 == hits.len() => Ok(IxRange::new(a as u32, b as u32 + 1)),
+        (Some(_), _) => Err(format!("the tokens overlapping {start}..{end} are not consecutive in the token layer")),
+        _ => Err(format!("no token overlaps {start}..{end}, and the tokens are not in text order")),
     }
 }

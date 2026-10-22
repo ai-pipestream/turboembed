@@ -14,6 +14,8 @@
 //! searches the chunk's text for it, this takes the pieces' own offsets,
 //! so an entity is exactly the bytes its pieces cover.
 
+use std::collections::BTreeMap;
+
 /// One label of the model's label map.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Label {
@@ -167,14 +169,18 @@ pub fn decode(pieces: &[Option<(usize, usize)>], scores: &[f32], labels: &[Label
 pub fn resolve(text: &str, mut candidates: Vec<Candidate>) -> Vec<Candidate> {
     let utf16 = |c: &Candidate| text[c.start..c.end].encode_utf16().count();
     candidates.sort_by(|a, b| utf16(b).cmp(&utf16(a)).then(b.probability.total_cmp(&a.probability)));
-    let mut kept: Vec<Candidate> = Vec::new();
+    // Kept spans do not overlap, so only the one starting at or before a
+    // candidate and the one after it can overlap it.
+    let mut kept: BTreeMap<usize, Candidate> = BTreeMap::new();
     for c in candidates {
-        if kept.iter().all(|k| !(k.start < c.end && c.start < k.end)) {
-            kept.push(c);
+        let before = kept.range(..=c.start).next_back().is_some_and(|(_, k)| c.start < k.end);
+        let after = kept.range(c.start..).next().is_some_and(|(_, k)| k.start < c.end);
+        // An empty candidate overlaps nothing, but would share a start.
+        if !before && !after && !kept.contains_key(&c.start) {
+            kept.insert(c.start, c);
         }
     }
-    kept.sort_by_key(|c| c.start);
-    kept
+    kept.into_values().collect()
 }
 
 #[cfg(test)]

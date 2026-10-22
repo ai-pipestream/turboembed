@@ -29,11 +29,12 @@ fn tiny() -> PathBuf {
 /// The tiny bundle with a `[O, B-PER, I-PER]` token head appended.
 fn bundle() -> PathBuf {
     static DIR: OnceLock<PathBuf> = OnceLock::new();
-    DIR.get_or_init(write_bundle).clone()
+    DIR.get_or_init(|| write_bundle("per", &["O", "B-PER", "I-PER"])).clone()
 }
 
-fn write_bundle() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-namefind-dl-{}", std::process::id()));
+/// The tiny bundle with a zero-weight head of `labels`, the bias `BIAS`.
+fn write_bundle(name: &str, labels: &[&str; 3]) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("turbo-namefind-dl-{}-{name}", std::process::id()));
     let tmp = dir.clone();
     let _ = fs::remove_dir_all(&tmp);
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
@@ -60,7 +61,7 @@ fn write_bundle() -> PathBuf {
     fs::create_dir_all(tmp.join("weights")).unwrap();
     fs::write(tmp.join("weights/model.safetensors"), &weights).unwrap();
     let mut m: Value = serde_json::from_slice(&fs::read(tiny().join("manifest.json")).unwrap()).unwrap();
-    m["classifier"] = json!({"kind": "CLASSIFIER_TOKEN", "labels": ["O", "B-PER", "I-PER"]});
+    m["classifier"] = json!({"kind": "CLASSIFIER_TOKEN", "labels": labels});
     let names = m["artifacts"][0]["tensor_names"].as_object_mut().unwrap();
     names.insert("classifier_weight".into(), json!("classifier.weight"));
     names.insert("classifier_bias".into(), json!("classifier.bias"));
@@ -121,6 +122,9 @@ fn options_that_cannot_cut_are_errors() {
     assert!(open(0, 0, 0).is_err());
     // A row of only `[CLS] [SEP]` has no room for a piece.
     assert!(open(5, 1, 2).is_err());
+    // A head with no `B-<type>` label finds no entity type.
+    let pos = write_bundle("pos", &["NOUN", "VERB", "I-"]);
+    assert!(NameFinderDl::open(&pos, &NameFinderDlOptions::default()).is_err());
     let f = finder(250, 50, 0, 0);
     assert!(f.find(&[(TEXT, vec![(0, TEXT.len() + 1)])]).is_err());
     assert!(f.find(&[("é", vec![(0, 1)])]).is_err());
@@ -156,4 +160,68 @@ fn as_a_step_it_reads_sentences_and_maps_tokens() {
     let word = |b: usize| text[..b].matches(" ").count();
     let expect: Vec<(usize, usize, usize, usize)> = want.iter().map(|&(a, b)| (a, b, word(a), word(a) + 1)).collect();
     assert_eq!(got, expect);
+}
+
+/// Each entity's bytes and token range on "Ann met Bob" with the token
+/// rows `tokens`, each a list of fragments, or the step's failure.
+fn ranges(tokens: &[&[(u32, u32)]]) -> Result<Vec<(u32, u32, usize, usize)>, String> {
+    let mut doc = Document::new("Ann met Bob");
+    let mut spans = Spans::new(ViewId::SOURCE);
+    for t in tokens {
+        let f: Vec<Span> = t.iter().map(|&(a, b)| Span::new(a, b)).collect();
+        spans.push_fragments(&f);
+    }
+    doc.add(&Key::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("test")).unwrap();
+    let analyzer =
+        Analyzer::builder().given(Key::<Tokens>::DEFAULT).step(Bound::new(finder(250, 50, 0, 0))).build().unwrap();
+    let mut docs = vec![doc];
+    if let Some(Err(e)) = analyzer.run(&mut docs).into_iter().next() {
+        return Err(format!("{e:?}"));
+    }
+    let e = docs[0].get::<Entities>().unwrap();
+    Ok(e.spans
+        .iter()
+        .map(|(i, s)| (s.start, s.end, e.tokens[i.get()].start.get(), e.tokens[i.get()].end.get()))
+        .collect())
+}
+
+#[test]
+fn tokens_out_of_order_or_in_pieces_map_by_overlap() {
+    // Every word here is one piece of the tiny model's vocabulary.
+    assert_eq!(pieces("Ann met Bob"), [(0, 3), (4, 7), (8, 11)]);
+    assert_eq!(ranges(&[&[(8, 11)], &[(0, 3)], &[(4, 7)]]).unwrap(), [(0, 3, 1, 2), (4, 7, 2, 3), (8, 11, 0, 1)]);
+    // A token of two fragments holds Ann and Bob, not met between them.
+    assert_eq!(ranges(&[&[(0, 3), (8, 11)], &[(4, 7)]]).unwrap(), [(0, 3, 0, 1), (4, 7, 1, 2), (8, 11, 0, 1)]);
+    // Ann overlaps rows 0 and 2 but not 1: no one range names it.
+    assert!(ranges(&[&[(0, 2)], &[(4, 7)], &[(2, 3)], &[(8, 11)]]).is_err());
+    // Bob overlaps no token, and the tokens are out of order.
+    assert!(ranges(&[&[(4, 7)], &[(0, 3)]]).is_err());
+    // In order, a name between tokens is the empty range where it sits.
+    assert_eq!(ranges(&[&[(0, 3)], &[(8, 11)]]).unwrap(), [(0, 3, 0, 1), (4, 7, 1, 1), (8, 11, 1, 2)]);
+}
+
+#[test]
+fn the_configuration_hash_follows_the_row_length() {
+    use turbo_analysis::Annotator;
+    let hash = |split, overlap, max_seq| finder(split, overlap, max_seq, 0).config_hash();
+    assert_ne!(hash(250, 50, 4), hash(250, 50, 16));
+    assert_ne!(hash(250, 50, 0), hash(250, 49, 0));
+    assert_ne!(hash(250, 50, 0), hash(249, 50, 0));
+    assert_eq!(hash(250, 50, 16), hash(250, 50, 16));
+}
+
+#[test]
+fn words_are_read_as_opennlp_rejoins_them() {
+    // Form feed, line tabulation and next line are Unicode whitespace, so
+    // they part words, but WordPiece drops them as control characters: the
+    // chunk must reach the tokenizer with its words rejoined by spaces.
+    let f = finder(250, 50, 0, 0);
+    let spans = |t: &str| -> Vec<(usize, usize)> {
+        f.find(&[(t, Vec::from([(0, t.len())]))]).unwrap()[0].iter().map(|c| (c.start, c.end)).collect()
+    };
+    for t in ["John\u{c}Smith", "John\u{b}Smith", "a  b\u{c}\u{c}c"] {
+        assert_eq!(spans(t), pieces(&t.replace(['\u{b}', '\u{c}'], " ")), "{t:?}");
+    }
+    let t = "Ann\u{85}Lee";
+    assert_eq!(spans(t), [(0, 3), (5, 8)]);
 }

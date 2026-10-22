@@ -13,8 +13,11 @@ For each sentence (the whole text when there is no sentence layer):
 1. The sentence is cut at Unicode whitespace into words, and the words
    into chunks of `split` words (250), consecutive chunks sharing
    `overlap` words (50), as `AbstractDL.chunkRanges` cuts them.
-2. Each chunk is tokenized by the bundle's WordPiece tokenizer and read
-   as one row, `[CLS] pieces [SEP]`.
+2. Each chunk's words are rejoined with single spaces, as `AbstractDL`
+   rejoins them, tokenized by the bundle's WordPiece tokenizer and read
+   as one row, `[CLS] pieces [SEP]`. A separator WordPiece would drop as
+   a control character (form feed, line tabulation, next line) still
+   parts two words.
 3. The token classification head scores every position of the row, the
    special tokens too. A position's label is the first highest score
    that is not NaN, and its probability that label's softmax
@@ -28,7 +31,10 @@ For each sentence (the whole text when there is no sentence layer):
    as Java measures a span, then most probable, each kept unless it
    overlaps one kept before it.
 
-An entity's token range is the tokens its bytes overlap.
+An entity's token range is the tokens its bytes overlap, by their
+fragments, in any order the token layer holds them; when those tokens
+are not consecutive in the layer, the step fails rather than name the
+wrong ones.
 
 Where it differs from `NameFinderDL`, by design:
 
@@ -38,7 +44,8 @@ Where it differs from `NameFinderDL`, by design:
   piece, say).
 - A chunk with more pieces than a row holds is read in consecutive rows.
   `NameFinderDL` hands the whole chunk to ONNX Runtime, which fails past
-  the model's 512 positions.
+  the model's 512 positions. An entity across two rows ends at the
+  first, since the next row starts on an `I-` piece.
 - Sentences come from the document's `Sentences` layer rather than a
   `SentenceDetector`, and the text is not folded first (whitespace and
   dash folding are off by default in `InferenceOptions` too).
