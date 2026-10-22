@@ -1,28 +1,18 @@
 //! The static-to-contextual cascade (#712) over cached BEIR sets:
-//! static-only, contextual-only, and the two-stage
-//! `turbo_chunker::Cascade` at several shortlist sizes, scored as
-//! document retrieval (a document's score is its best chunk's
-//! score) with recall@k, nDCG@10, and per-query latency.
+//! static-only, contextual-only, and `turbo_chunker::Cascade` at
+//! several shortlist sizes, scored as document retrieval (a
+//! document's score is its best unit's score; every arm uses the
+//! same pool of all `Levels` units) with recall@k and nDCG@10.
+//! Latency columns time `Cascade::search` only (after
+//! `Cascade::new`), summed over one cascade per document, so they
+//! are not the single-index latency evidence (the `turbo-chunker`
+//! fixture is); the latency-relevant column is contextual units
+//! scored per query. Encoders are deterministic synthetic
+//! mechanism encoders, so records measure the cascade mechanism
+//! over real texts and qrels, not trained model quality. Receipt:
 //!
-//! Each document gets its own `Cascade` (1500 constructions and
-//! full space validations per query), so this harness's wall-clock
-//! column is construction-dominated and is not the latency
-//! evidence; the single-index latency fixture in `turbo-chunker`
-//! is. The latency-relevant columns here are the contextual units
-//! scored per query, which is the cost driver with a real
-//! encoder.
-//!
-//! The encoders are deterministic synthetic mechanism encoders
-//! (hashed token vectors; the contextual arm mixes neighbour
-//! tokens), in the same spirit as the SPLATE study: the records
-//! measure the cascade mechanism (pool admission, rerank cost,
-//! recall retention) over real BEIR texts and qrels, not trained
-//! model quality. The receipt test is ignored and release-only:
-//!
-//! TURBO_EVAL_CACHE=/work/eval-cache cargo test --locked --release \
+//! TURBO_EVAL_CACHE=<BEIR_CACHE> cargo test --locked --release \
 //!   -p turbo-eval --test cascade cascade_benchmark_receipt -- --ignored --nocapture
-
-use std::collections::BTreeSet;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -94,7 +84,6 @@ fn token_vec_wide(token: &str) -> Vec<f32> {
     v
 }
 
-/// The static arm's bag-of-words vector.
 fn static_vec(tokens: &[String]) -> Vec<f32> {
     let mut v = vec![0.0f32; DIM];
     for t in tokens {
@@ -106,8 +95,6 @@ fn static_vec(tokens: &[String]) -> Vec<f32> {
     v
 }
 
-/// The contextual arm's per-token vectors: each token mixed with
-/// its neighbours, so word order changes the representation.
 fn contextual_tokens(tokens: &[String]) -> Vec<Vec<f32>> {
     let base: Vec<Vec<f32>> = tokens.iter().map(|t| token_vec_wide(t)).collect();
     (0..base.len())
@@ -148,8 +135,6 @@ fn cosine(a: &[f32], b: &[f32]) -> f64 {
     ((dot / (na.sqrt() * nb.sqrt())).clamp(-1.0, 1.0) + 1.0) / 2.0
 }
 
-/// Sentence spans by terminal punctuation: enough segmentation
-/// for a mechanism study, always on char boundaries.
 fn sentence_spans(text: &str) -> Vec<Span> {
     let mut out = Vec::new();
     let mut start = 0usize;
@@ -177,7 +162,7 @@ struct Prepared {
     doc: Document,
     statics: Vectors<Levels>,
     contextuals: Vectors<Levels>,
-    chunk_units: Vec<Ix<Levels>>,
+    units: Vec<Ix<Levels>>,
 }
 
 fn prepare(id: &str, text: &str) -> Prepared {
@@ -252,8 +237,8 @@ fn prepare(id: &str, text: &str) -> Prepared {
         model: model("study/contextual"),
         _of: PhantomData,
     };
-    let chunk_units = levels.of(turbo_analysis_layers::Level::Chunk).collect();
-    Prepared { id: id.into(), doc, statics, contextuals, chunk_units }
+    let units: Vec<Ix<Levels>> = (0..levels.len() as u32).map(Ix::new).collect();
+    Prepared { id: id.into(), doc, statics, contextuals, units }
 }
 
 fn subset(set: &mut LoadedSet, max_docs: usize, max_queries: usize) {
@@ -300,9 +285,8 @@ fn run_doc(p: &Prepared, queries: &[QueryIn], arms: &mut [Arms], times: &mut [Ve
     let stats = p.doc.get::<TermStats<Levels>>().unwrap();
     let vocab = p.doc.get::<Vocabulary>().unwrap();
     let collection = LocalCollection::new(stats, vocab);
-    let best = |rows: &Vectors<Levels>, q: &[f32]| {
-        p.chunk_units.iter().map(|&u| cosine(rows.row(u), q)).fold(0.0f64, f64::max)
-    };
+    let best =
+        |rows: &Vectors<Levels>, q: &[f32]| p.units.iter().map(|&u| cosine(rows.row(u), q)).fold(0.0f64, f64::max);
     for (qi, q) in queries.iter().enumerate() {
         let qterms: Vec<&str> = q.terms.iter().map(String::as_str).collect();
         let t = Instant::now();
@@ -353,12 +337,12 @@ fn study(set: &LoadedSet, depths: &[usize]) -> String {
             prepare(&d.id, &text)
         })
         .collect();
-    let total_chunks: usize = prepared.iter().map(|p| p.chunk_units.len()).sum();
+    let total_units: usize = prepared.iter().map(|p| p.units.len()).sum();
     let mut out = format!(
-        "### {} ({} docs, {} chunk units, {} queries)\n\n",
+        "### {} ({} docs, {} level units, {} queries)\n\n",
         set.name,
         prepared.len(),
-        total_chunks,
+        total_units,
         set.queries.len()
     );
     out.push_str("| Arm | C | Recall@1 | Recall@5 | Recall@10 | Recall@100 | nDCG@10 | Search p50 (us) | Contextual scored/query |\n|---|---|---|---|---|---|---|---|---|\n");
@@ -401,7 +385,7 @@ fn study(set: &LoadedSet, depths: &[usize]) -> String {
             scored[k] += *s as f64;
         }
     }
-    let names: Vec<String> = std::iter::once("Static only (Model2Vec-style + BM25 pool)".to_string())
+    let names: Vec<String> = std::iter::once("Static only (static vectors, full scan)".to_string())
         .chain(std::iter::once("Contextual only".to_string()))
         .chain(depths.iter().map(|c| format!("Cascade C={c}")))
         .collect();
@@ -412,7 +396,13 @@ fn study(set: &LoadedSet, depths: &[usize]) -> String {
     for k in 0..n_arms {
         let n = per_arm[k].len() as f64;
         let m = |f: &dyn Fn(&Metrics) -> f64| per_arm[k].iter().map(f).sum::<f64>() / n;
-        let scored_cell = if k < 2 { total_chunks.to_string() } else { format!("{:.0}", scored[k - 2] / n) };
+        let scored_cell = if k == 0 {
+            "0".to_string()
+        } else if k == 1 {
+            total_units.to_string()
+        } else {
+            format!("{:.0}", scored[k - 2] / n)
+        };
         out.push_str(&format!(
             "| {} | {} | {:.4} | {:.4} | {:.4} | {:.4} | {:.4} | {:.1} | {} |\n",
             names[k],
@@ -467,6 +457,25 @@ fn cascade_matches_contextual_at_full_pool_on_synthetic_set() {
 }
 
 #[test]
+fn cascade_at_full_pool_equals_contextual_only_scores() {
+    let text = (0..4)
+        .map(|i| format!("{} ", format!("topic{i} ").repeat(30)).trim_end().to_string() + ".")
+        .collect::<Vec<_>>()
+        .join(" ");
+    let p = prepare("d0", &text);
+    assert!(p.units.len() > 4, "document unit is in the shared pool: {}", p.units.len());
+    let inputs = vec![query_in("topic0 topic1 topic2 topic3")];
+    let mut arms =
+        vec![Arms { static_only: Vec::new(), contextual_only: Vec::new(), cascade: vec![(64, Vec::new(), 0)] }];
+    let mut times = vec![vec![0.0; 3]];
+    run_doc(&p, &inputs, &mut arms, &mut times);
+    let contextual = arms[0].contextual_only[0].score;
+    let cascade = arms[0].cascade[0].1[0].score;
+    assert!((contextual - cascade).abs() < 1e-9, "contextual {contextual} vs cascade {cascade}");
+    assert_eq!(arms[0].cascade[0].2, p.units.len());
+}
+
+#[test]
 #[ignore = "benchmark receipt generator for docs/analysis.md; run explicitly with --release --ignored"]
 fn cascade_benchmark_receipt() {
     let root = PathBuf::from(std::env::var("TURBO_EVAL_CACHE").expect("TURBO_EVAL_CACHE"));
@@ -483,5 +492,4 @@ fn cascade_benchmark_receipt() {
         println!("{}", study(&set, &[5, 10, 25, 50, 64]));
     }
     println!("### gutenqa: cached but not in BEIR jsonl layout for this reader; ConTEB / HiCBench: not cached\n");
-    let _ = BTreeSet::<String>::new();
 }
