@@ -4674,6 +4674,23 @@ runs them on any machine:
   is 0.919, the mean 0.983). The mean over the whole row, computed with the
   encoder, is held to 0.999999 (the lowest is 0.9999999999984): the
   tokenizer and the encoder agree with OpenNLP's and ONNX Runtime's.
+- `analysis/embed/src/calibrate.rs` decides how the sentence vector step
+  runs on a device. `Calibration::measure` runs the step over the
+  caller's texts at each window size it is given, on the device and on
+  the CPU at `Precision::Exact` as the reference, and keeps each window's
+  lowest cosine and the median times on the device and on the CPU at
+  `Precision::Model`. It keeps the widest window whose lowest cosine
+  clears the floor (the core's tolerance for the device's dtype, or 0.93
+  for I8), and runs on the device only if a window clears it and the
+  device is faster there. `Calibration::load_or_measure` keeps the result
+  in a directory under a key of the bundle's model and manifest hash, the
+  device's backend, name, runtime and driver versions, the precision and
+  the library's version, and measures again only when the key changes.
+  `Calibration::options` gives the `VectorOptions` to open the step with.
+  `analysis/embed/tests/calibrate.rs` checks it with the CPU as the device
+  on the small BERT, and on the device `TURBO_TEST_DEVICE` names with the
+  bundle `TURBO_TEST_VECTORS_BUNDLE` prints what it decided over windows
+  of 64, 96 and 128 tokens.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,
