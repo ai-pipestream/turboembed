@@ -120,6 +120,16 @@ fn values_are_byte_spans_of_the_text_and_may_nest() {
         })
     });
     assert!(overlapping, "no two fields of a record overlap");
+    // Within one field of one record, a kept value overlaps no other: the
+    // decoder suppressed the rest of the candidates a threshold of 0 keeps.
+    let ix = |i: usize| r.spans.get(turbo_analysis::Ix::new(i as u32));
+    for i in 0..r.spans.len() {
+        for j in i + 1..r.spans.len() {
+            let (a, b) = (ix(i), ix(j));
+            let same = r.record[i] == r.record[j] && r.path[i] == r.path[j];
+            assert!(!(same && a.start < b.end && b.start < a.end), "{a:?} and {b:?} in one field");
+        }
+    }
     // The closed choice is a choice value, not a span.
     assert!(r.choice.iter().all(|c| ["paid", "open"].contains(&r.choices.label(*c))));
     let e = doc.get::<Entities>().unwrap();
