@@ -892,8 +892,8 @@ smaller):
   frames of as many rows as the model's `max_batch` allows.
 
 Rows and ranges share one session. Each timed round runs the three once
-each, in turn, so a change of clock or temperature falls on all three
-and their ratios hold on a shared GPU. The record
+each, in turn, starting one later each round, so a change of clock or
+temperature falls on all three and their ratios hold on a shared GPU. The record
 (`bench/src/ranges.rs`, `RangeRecord`) goes to `benchmarks/ranges/`,
 named by machine, backend, precision, model and commit. Beside each
 mode's times it gives `ranges_over_rows` and `chunk_rows_over_ranges`
@@ -907,14 +907,18 @@ chunks of 64 (four a row, 128 chunks):
 
 | Precision | Rows p50 | Ranges p50 | One row per chunk p50 | Ranges over rows | One row per chunk over ranges |
 | --- | --- | --- | --- | --- | --- |
-| FASTEST (F16) | 1.5914 ms | 1.6023 ms | 1.8727 ms | 1.007 | 1.169 |
-| MODEL (F32) | 8.3068 ms | 8.3238 ms | 7.8772 ms | 1.002 | 0.946 |
+| FASTEST (F16) | 1.5887 ms | 1.6026 ms | 1.8701 ms | 1.009 | 1.167 |
+| MODEL (F32) | 8.3382 ms | 8.4094 ms | 7.8776 ms | 1.009 | 0.937 |
 
-A vector per chunk by ranges costs under 1 percent over reading the rows.
-In F16, embedding each chunk as a row of its own takes 17 percent longer
-than the ranges; in F32 it takes 5 percent less. A range over a whole row gave the
-row's vector to the bit, and the lowest cosine of a chunk's range vector
-to its chunk row's was 0.69.
+The GPU's SM clock was 2400 MHz at the median and its peak temperature
+74 C, outside the bounds the absolute times are read against (a median
+of at least 2600 MHz, at most 70 C): read the ratios, not the
+milliseconds. A vector per chunk by ranges costs under 1 percent over
+reading the rows. In F16, embedding each chunk as a row of its own
+takes 17 percent longer than the ranges; in F32 it takes 6 percent
+less. A range over a whole row gave the row's vector to the bit, and
+the lowest cosine of a chunk's range vector to its chunk row's was
+0.69.
 
 ## Tests
 

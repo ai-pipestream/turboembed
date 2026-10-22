@@ -1,6 +1,6 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-22T14:27:44Z",
+  "recorded_at": "2026-10-22T14:40:28Z",
   "machine": {
     "arch": "rtx4080super",
     "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
@@ -18,17 +18,17 @@
   "library": {
     "version": "0.1.0",
     "build": "0.1.0 cuda cpu",
-    "commit": "debef843fc21fdd8d03132463fbcf0cd530fa38b",
+    "commit": "0dbcc9b4497766df052d9872c504695eb2ffaf18",
     "pushed_to": [
       "origin/fable/308-range-bench"
     ],
     "settings": [
       "TURBO_CUDA_TUNED=default",
-      "TURBO_CUDA_CHOICES=le256:qkv=kt/sk4,out=kt/sk4,ffn1=kt/sk4,ffn2=kt/sk4,attn=fma-tiled,ln=separate;le1k:qkv=kt/sk4,out=kt/sk4,ffn1=kt/sk4,ffn2=kt/sk4,attn=fma-tiled,ln=separate;le4k:qkv=kt/sk4,out=kt/sk4,ffn1=kt/sk4,ffn2=kt/sk4,attn=fma-tiled,ln=separate;le16k:qkv=kt/sk4,out=kt/sk4,ffn1=kt/sk4,ffn2=kt/sk4,attn=fma-tiled,ln=separate;pool=groups;forced="
+      "TURBO_CUDA_CHOICES=le256:qkv=ctk/sk4,out=ctk/sk4,ffn1=ctk/sk4,ffn2=ctk/sk4,attn=mma128,ln=separate;le1k:qkv=ctk/sk4,out=ctk/sk4,ffn1=ctk/sk4,ffn2=ctk/sk4,attn=mma128,ln=separate;le4k:qkv=ctk/tiles,out=ctk/sk4,ffn1=ctk/tiles,ffn2=ctk/sk4,attn=mma128,ln=separate;le16k:qkv=ctk/tiles,out=ctk/tiles,ffn1=ctk/tiles,ffn2=ctk/sk4,attn=mma128,ln=separate;pool=groups;forced="
     ]
   },
-  "precision": "PRECISION_MODEL",
-  "compute_dtype": "DTYPE_F32",
+  "precision": "PRECISION_FASTEST",
+  "compute_dtype": "DTYPE_F16",
   "bundle": {
     "model_id": "sentence-transformers/all-MiniLM-L6-v2",
     "revision": "1",
@@ -83,37 +83,37 @@
     "vectors": 32,
     "warmup": 20,
     "iterations": 200,
-    "p50_ms": 8.306808,
-    "p99_ms": 8.903787,
-    "mean_ms": 8.324264899999998,
-    "min_ms": 8.029855000000001,
-    "max_ms": 9.516375,
-    "vectors_per_second": 3844.1832863824416
+    "p50_ms": 1.588734,
+    "p99_ms": 1.773524,
+    "mean_ms": 1.6083160649999997,
+    "min_ms": 1.578916,
+    "max_ms": 2.200301,
+    "vectors_per_second": 19896.586682419296
   },
   "ranges": {
     "vectors": 128,
     "warmup": 20,
     "iterations": 200,
-    "p50_ms": 8.32378,
-    "p99_ms": 9.316698,
-    "mean_ms": 8.353008770000006,
-    "min_ms": 8.032119000000002,
-    "max_ms": 9.655138,
-    "vectors_per_second": 15323.81965881737
+    "p50_ms": 1.6026099999999999,
+    "p99_ms": 1.855208,
+    "mean_ms": 1.6260061750000003,
+    "min_ms": 1.595858,
+    "max_ms": 2.234916,
+    "vectors_per_second": 78720.48825398833
   },
   "chunk_rows": {
     "vectors": 128,
     "warmup": 20,
     "iterations": 200,
-    "p50_ms": 7.877166,
-    "p99_ms": 8.853672,
-    "mean_ms": 7.901835814999999,
-    "min_ms": 7.591586,
-    "max_ms": 9.131708,
-    "vectors_per_second": 16198.767349356778
+    "p50_ms": 1.870076,
+    "p99_ms": 2.0567889999999998,
+    "mean_ms": 1.9005398299999998,
+    "min_ms": 1.862372,
+    "max_ms": 2.1152699999999998,
+    "vectors_per_second": 67349.28570268374
   },
   "whole_row_max_abs_diff": 0.0,
-  "chunk_min_cosine": 0.6937697049794666,
-  "ranges_over_rows": 1.0020431434071908,
-  "chunk_rows_over_ranges": 0.9463448096898285
+  "chunk_min_cosine": 0.693281066723285,
+  "ranges_over_rows": 1.0087339982652852,
+  "chunk_rows_over_ranges": 1.1668940041557212
 }
