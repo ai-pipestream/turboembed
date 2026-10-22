@@ -2420,6 +2420,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-namefind-dl"
+version = "0.1.0"
+dependencies = [
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+]
+
+[[package]]
 name = "turbo-ngram"
 version = "0.1.0"
 dependencies = [
