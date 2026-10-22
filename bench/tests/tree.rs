@@ -1,5 +1,6 @@
 //! What is committed in the tree, checked as a reader would: the records
-//! under benchmarks/records are what their names say, the README and the
+//! under benchmarks/records and benchmarks/ranges are what their names
+//! say, the README and the
 //! docs point at files that exist, and no committed text names a home
 //! directory on one of our machines.
 
@@ -9,6 +10,7 @@ use std::path::{Path, PathBuf};
 
 use common::workspace;
 use turbo::record::{self, HOST_PATHS, Record};
+use turbo_bench::ranges::{self, RangeRecord};
 
 /// The `*.json` files under benchmarks/records, by name.
 fn committed_records() -> Vec<(String, Vec<u8>)> {
@@ -35,6 +37,28 @@ fn the_committed_records_carry_the_name_of_their_contents() {
         assert_eq!(r.library.commit.len(), 40, "{name}: commit {}", r.library.commit);
         assert!(r.library.commit.bytes().all(|b| b.is_ascii_hexdigit()), "{name}: commit {}", r.library.commit);
         assert!(!r.library.pushed_to.is_empty(), "{name}: made from a commit on no branch of origin");
+    }
+}
+
+/// The `*.json` files under benchmarks/ranges, by name.
+fn committed_range_records() -> Vec<(String, Vec<u8>)> {
+    let dir = workspace().join("benchmarks/ranges");
+    let Ok(rd) = std::fs::read_dir(&dir) else { return Vec::new() };
+    let mut out: Vec<(String, Vec<u8>)> = rd
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|x| x == "json"))
+        .map(|p| (p.file_name().unwrap().to_str().unwrap().to_owned(), std::fs::read(&p).unwrap()))
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn the_committed_range_records_carry_the_name_of_their_contents() {
+    for (name, bytes) in committed_range_records() {
+        let r: RangeRecord = serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(ranges::file_name(&r), name, "{name}: named for other contents");
+        ranges::check(&r).unwrap_or_else(|e| panic!("{name}: {e}"));
     }
 }
 
@@ -106,6 +130,7 @@ fn the_committed_text_carries_no_host_path() {
     let root = workspace();
     let mut files: Vec<PathBuf> = documents();
     files.extend(committed_records().iter().map(|(n, _)| root.join("benchmarks/records").join(n)));
+    files.extend(committed_range_records().iter().map(|(n, _)| root.join("benchmarks/ranges").join(n)));
     for dir in ["bundle/recipes", "include/turbo", ".github/workflows"] {
         if let Ok(rd) = std::fs::read_dir(root.join(dir)) {
             files.extend(rd.map(|e| e.unwrap().path()).filter(|p| p.is_file()));

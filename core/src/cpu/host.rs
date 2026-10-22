@@ -10,6 +10,27 @@ pub(super) struct Host {
     pub(super) memory_free: u64,
 }
 
+/// An Arm core's name from the implementer and part the kernel reports
+/// (`0x41`, `0xd42`), as lscpu names the common ones, else the two
+/// numbers.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(super) fn arm_name(implementer: &str, part: &str) -> String {
+    let known = match (implementer, part) {
+        ("0x41", "0xd03") => Some("Cortex-A53"),
+        ("0x41", "0xd05") => Some("Cortex-A55"),
+        ("0x41", "0xd08") => Some("Cortex-A72"),
+        ("0x41", "0xd0b") => Some("Cortex-A76"),
+        ("0x41", "0xd0c") => Some("Neoverse-N1"),
+        ("0x41", "0xd40") => Some("Neoverse-V1"),
+        ("0x41", "0xd41") => Some("Cortex-A78"),
+        ("0x41", "0xd42") => Some("Cortex-A78AE"),
+        ("0x41", "0xd49") => Some("Neoverse-N2"),
+        ("0x41", "0xd4f") => Some("Neoverse-V2"),
+        _ => None,
+    };
+    known.map_or_else(|| format!("CPU implementer {implementer} part {part}"), str::to_owned)
+}
+
 impl Host {
     #[cfg(target_os = "linux")]
     pub(super) fn read() -> Host {
@@ -21,7 +42,10 @@ impl Host {
         if let Ok(cpu) = std::fs::read_to_string("/proc/cpuinfo") {
             // x86 names the model; Arm cores often do not, so fall back to
             // the implementer and part the kernel reports.
-            h.name = field(&cpu, "model name").or_else(|| field(&cpu, "Model")).unwrap_or_default();
+            h.name = field(&cpu, "model name")
+                .or_else(|| field(&cpu, "Model"))
+                .or_else(|| Some(arm_name(&field(&cpu, "CPU implementer")?, &field(&cpu, "CPU part")?)))
+                .unwrap_or_default();
             h.vendor = field(&cpu, "vendor_id").or_else(|| field(&cpu, "CPU implementer")).unwrap_or_default();
         }
         if let Ok(mem) = std::fs::read_to_string("/proc/meminfo") {
@@ -84,5 +108,15 @@ impl Host {
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     pub(super) fn read() -> Host {
         Host::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn arm_cores_are_named_from_implementer_and_part() {
+        assert_eq!(super::arm_name("0x41", "0xd42"), "Cortex-A78AE");
+        assert_eq!(super::arm_name("0x41", "0xd0b"), "Cortex-A76");
+        assert_eq!(super::arm_name("0x61", "0x022"), "CPU implementer 0x61 part 0x022");
     }
 }

@@ -31,7 +31,13 @@ unsafe extern "C" {
     fn cudaMemcpy(dst: *mut c_void, src: *const c_void, count: usize, kind: i32) -> i32;
     fn cudaMemGetInfo(free: *mut usize, total: *mut usize) -> i32;
     fn cudaSetDevice(device: i32) -> i32;
+    fn cudaDeviceGetPCIBusId(bus: *mut std::ffi::c_char, len: i32, device: i32) -> i32;
+    fn cudaMalloc(ptr: *mut *mut c_void, size: usize) -> i32;
+    fn cudaFree(ptr: *mut c_void) -> i32;
 }
+
+#[path = "cuda_support/nvml.rs"]
+mod nvml;
 const HOST_TO_DEVICE: i32 = 1;
 const DEVICE_TO_HOST: i32 = 2;
 
@@ -674,7 +680,14 @@ fn warm_runs_allocate_nothing_at(precision: u32) {
         assert_eq!(unsafe { cudaMemGetInfo(&mut f, &mut t) }, 0);
         f
     };
-    let (before, free_before) = (turbo::cuda::allocations(), free());
+    // What this process holds on the device, when NVML reports it: the
+    // device's free memory also moves with every other process on a
+    // shared GPU.
+    let mut bus = [0u8; 32];
+    assert_eq!(unsafe { cudaDeviceGetPCIBusId(bus.as_mut_ptr().cast(), 32, rt_ordinal(&l) as i32) }, 0);
+    let nvml = nvml::Nvml::open(&bus);
+    let own = || nvml.as_ref().and_then(nvml::Nvml::own_bytes);
+    let (before, free_before, own_before) = (turbo::cuda::allocations(), free(), own());
     let warm = [(&small, None), (&long, None), (&long, Some(&halves[..])), (&small, None), (&long, Some(&halves[..]))];
     for (i, (t, g)) in warm.into_iter().enumerate() {
         assert_eq!(run(t, g), (0, 0), "precision {precision} warm run {i}: the result's count");
@@ -682,12 +695,29 @@ fn warm_runs_allocate_nothing_at(precision: u32) {
     assert_eq!(turbo::cuda::allocations(), before, "precision {precision}: the backend allocated nothing in warm runs");
     // The count above is exact for the backend's own allocations. This
     // catches what it cannot count, cuBLAS or the driver growing a pool:
-    // the driver reserves device memory in pages of 2 MiB, so free memory
-    // moves in those steps when it moves, and another process's use of
-    // the device moves it by less.
-    let (after, page) = (free(), 2usize << 20);
-    println!("free device memory before the warm runs {free_before}, after {after}");
-    assert!(after + page > free_before, "the device's free memory fell by {} bytes", free_before - after);
+    // the driver reserves device memory in pages of 2 MiB, so the memory
+    // moves in those steps when it moves.
+    let page = 2usize << 20;
+    match (own_before, own()) {
+        (Some(was), Some(now)) => {
+            println!("this process's device memory before the warm runs {was}, after {now}");
+            assert!(now < was + page as u64, "this process's device memory grew by {} bytes", now - was);
+            // The count sees this process's own allocations: 8 MiB more
+            // shows.
+            let mut p = ptr::null_mut();
+            assert_eq!(unsafe { cudaMalloc(&mut p, 4 * page) }, 0);
+            let grown = own().unwrap();
+            assert_eq!(unsafe { cudaFree(p) }, 0);
+            assert!(grown >= now + 2 * page as u64, "an allocation of {} bytes left the count at {grown}", 4 * page);
+        }
+        // No per-process count: the device's free memory, which another
+        // process can move.
+        _ => {
+            let after = free();
+            println!("free device memory before the warm runs {free_before}, after {after}");
+            assert!(after + page > free_before, "the device's free memory fell by {} bytes", free_before - after);
+        }
+    }
 }
 
 /// A model stored in F16 or BF16: MODEL is refused; EXACT computes in F32
