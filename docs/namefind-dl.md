@@ -92,3 +92,31 @@ with a head that labels every piece `B-PER`, so the result is known
 without a reference: every piece is found once however the text is
 chunked, rows are split or runs are batched, a sentence layer limits
 what is read, and each entity maps to its token.
+
+## CoNLL-2003
+
+`analysis/namefind-dl/tests/conll.rs` (ignored; set `TURBO_NER_BUNDLE`
+to the bundle and `TURBO_CONLL2003_TEST` to a local copy of the English
+test set, `eng.testb`) scores the finder as OpenNLP scores a name
+finder: the samples of `Conll03NameSampleStream`
+(`turbo_formats::conll::Conll03Reader`) and the counts of `FMeasure`, a
+name right when its tokens and type both are. Each sentence is one
+text, its tokens joined by single spaces as `NameFinderDL.find` joins
+them. A name covers the tokens its bytes overlap, and names with the
+same tokens and type count once: when the model labels two pieces of
+one word `B-` each, both names cover that word.
+
+On `dslim/bert-base-NER` with the CPU backend, the 3,453 test sentences
+hold 5,648 names; the finder gives 6,360, of which 5,188 are right:
+
+| Type | Precision | Recall | F1 |
+| --- | --- | --- | --- |
+| all | 0.8157 | 0.9186 | 0.8641 |
+| person | 0.6976 | 0.9573 | 0.8071 |
+| organization | 0.8770 | 0.9097 | 0.8930 |
+| location | 0.9214 | 0.9281 | 0.9247 |
+| misc | 0.7873 | 0.8276 | 0.8069 |
+
+The model card reports a test F1 of 0.913 from its own evaluation.
+`NameFinderDL` decodes every piece, so a `B-` the model gives a piece
+inside a word starts a name there.
