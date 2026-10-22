@@ -23,7 +23,7 @@ use crate::proto::result::{AnalyzeDocument, AnalyzeStreamRequest};
 use crate::state::State;
 use crate::stream::handler;
 use crate::stream::run::Doc;
-use crate::stream::{Envelope, Room, Shared, admit, admit_refusal, over_byte_cap, over_bytes};
+use crate::stream::{Envelope, Room, Shared, admit, admit_refusal, bound_retained_id, over_byte_cap, over_bytes};
 
 /// Validates one document the way the single-document call validates
 /// its model and options, and builds the work the scheduler queues.
@@ -112,11 +112,14 @@ pub(crate) async fn run(
         // but its refusal is admitted like anything else: one item and
         // the id's bytes, held until the answer is sent. Without that
         // room a flood of oversized documents would pile into the
-        // ordered buffer past every cap.
+        // ordered buffer past every cap. The retained id is bounded to
+        // the stream's byte cap first, so the refusal holds exactly the
+        // id bytes its room charges.
         if let Some((limit, _)) = over_byte_cap(bytes) {
             let failure = over_bytes(bytes, limit);
+            let id = bound_retained_id(id);
             let mut admit =
-                Box::pin(admit_refusal(shared.clone(), stream_items.clone(), stream_bytes.clone(), document.id.len()));
+                Box::pin(admit_refusal(shared.clone(), stream_items.clone(), stream_bytes.clone(), id.len()));
             let Some(room) = wait_room(&mut admit, &dead).await else { return };
             if work.send(Envelope::Failed { id, failure, room: Some(room) }).await.is_err() {
                 return;

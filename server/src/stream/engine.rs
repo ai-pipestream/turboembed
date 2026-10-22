@@ -58,8 +58,6 @@ pub(crate) struct Engine {
     pending: VecDeque<Queued>,
     /// Batches running on held sessions.
     inflight: JoinSet<Outcome>,
-    /// Documents executing or awaiting their answer.
-    inflight_items: usize,
     /// The next sequence number to assign, and the next one an
     /// input-ordered stream may answer with.
     next_seq: u64,
@@ -83,7 +81,6 @@ impl Engine {
             window_sem: Arc::new(Semaphore::new(window)),
             pending: VecDeque::new(),
             inflight: JoinSet::new(),
-            inflight_items: 0,
             next_seq: 0,
             next_send: 0,
             buffer: BTreeMap::new(),
@@ -136,7 +133,6 @@ impl Engine {
                 },
                 outcome = self.inflight.join_next(), if !self.inflight.is_empty() => match outcome {
                     Some(Ok(outcome)) => {
-                        self.inflight_items -= outcome_len(&outcome);
                         if self.deliver(outcome, &answers).await.is_err() {
                             break;
                         }
@@ -175,9 +171,11 @@ impl Engine {
     }
 
     /// When the next dispatch is due: the linger after the oldest
-    /// queued document, while more may still arrive.
+    /// queued document, while more may still arrive. No deadline runs
+    /// while no window permit is free: nothing could dispatch, and the
+    /// next completion or send re-enters the loop and dispatches anyway.
     fn deadline(&self, input_ended: bool) -> Option<Instant> {
-        if input_ended || self.pending.is_empty() || self.inflight_items >= self.config.window {
+        if input_ended || self.pending.is_empty() || self.window_sem.available_permits() == 0 {
             return None;
         }
         self.pending.front().map(|(_, at)| *at + self.config.linger)
@@ -185,11 +183,16 @@ impl Engine {
 
     /// Runs every dispatchable batch: pending documents grouped by load
     /// and options, each batch up to the bundle's batch limit and the
-    /// window's room. `force` dispatches past the linger, for the
+    /// window permits actually free. A dispatched document holds its
+    /// permit until its answer is sent, so under input order an answered
+    /// document's permit stays parked in the ordered buffer while an
+    /// earlier one is still pending: sizing by the configured window
+    /// alone would ask for permits that park there and deadlock the
+    /// stream. `force` dispatches past the linger, for the
     /// linger's own deadline and the input's half-close. Batches whose
     /// sessions are all held go to `stalled`, never to a wait here.
     async fn dispatch(&mut self, force: bool, dead: &Arc<AtomicBool>) {
-        if self.pending.is_empty() || self.inflight_items >= self.config.window {
+        if self.pending.is_empty() || self.window_sem.available_permits() == 0 {
             return;
         }
         if !force && Instant::now() < self.deadline(false).unwrap() {
@@ -215,8 +218,7 @@ impl Engine {
         let mut leftover: Vec<Queued> = Vec::new();
         let mut iter = groups.into_iter();
         while let Some((_, mut docs)) = iter.next() {
-            let n =
-                docs.len().min(docs[0].0.batch_limit as usize).min(share).min(self.config.window - self.inflight_items);
+            let n = docs.len().min(docs[0].0.batch_limit as usize).min(share).min(self.window_sem.available_permits());
             if n == 0 {
                 leftover.append(&mut docs);
                 continue;
@@ -246,10 +248,9 @@ impl Engine {
         }
     }
 
-    /// Starts one batch: window permits first, counted once here, then
-    /// a session. On a shut window the documents come back to stay
-    /// queued; on a busy pool they wait on `stalled` holding their
-    /// permits.
+    /// Starts one batch: window permits first, then a session. On a shut
+    /// window the documents come back to stay queued; on a busy pool they
+    /// wait on `stalled` holding their permits.
     async fn spawn(&mut self, batch: Vec<Queued>, dead: &Arc<AtomicBool>) -> std::result::Result<(), Vec<Queued>> {
         let n = batch.len();
         let mut permits = Vec::with_capacity(n);
@@ -262,7 +263,6 @@ impl Engine {
                 }
             }
         }
-        self.inflight_items += n;
         let (docs, _ats): (Vec<Doc>, Vec<Instant>) = batch.into_iter().unzip();
         self.respawn(docs, permits, dead).await;
         Ok(())
@@ -334,7 +334,6 @@ impl Engine {
             }
             Err(Whole { failure: _, docs, permits }) => {
                 for (doc, permit) in docs.into_iter().zip(permits) {
-                    self.inflight_items += 1;
                     match doc.loaded.take() {
                         Ok(held) => {
                             let opts = doc.opts;
@@ -406,14 +405,6 @@ fn failure_response(id: String, failure: Failure) -> AnalyzeStreamResponse {
                 message: crate::status::describe(&failure, &crate::status::EMBED_OPTIONS),
             },
         )),
-    }
-}
-
-/// How many documents one outcome carries, for the window accounting.
-fn outcome_len(outcome: &Outcome) -> usize {
-    match &outcome.rows {
-        Ok(rows) => rows.len(),
-        Err(whole) => whole.docs.len(),
     }
 }
 

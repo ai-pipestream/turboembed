@@ -88,7 +88,13 @@ pub async fn serve() -> (Server, Analysis) {
         .await
         .unwrap();
     s.load().await.unwrap();
-    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    // The client decodes answers up to the same message budget the server
+    // decodes requests with: a refusal can carry an id bounded by the
+    // stream's byte cap, which a default 4 MiB decode limit would refuse.
+    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr()))
+        .await
+        .unwrap()
+        .max_decoding_message_size(MAX);
     (s, c)
 }
 
@@ -98,7 +104,10 @@ pub async fn serve_no_admin() -> (Server, Analysis) {
         .await
         .unwrap();
     s.load().await.unwrap();
-    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr()))
+        .await
+        .unwrap()
+        .max_decoding_message_size(MAX);
     (s, c)
 }
 

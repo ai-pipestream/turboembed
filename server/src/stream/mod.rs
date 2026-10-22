@@ -206,9 +206,9 @@ pub(crate) async fn admit(
 /// Admits one refused document's retained payload: one item and its
 /// id's bytes on every level, so an over-byte-cap refusal is held to
 /// the same caps as a document while its error waits in the ordered
-/// buffer. The document's text is not retained; the id is, and an id
-/// alone over the byte cap reserves the cap itself, bounding how many
-/// such refusals one stream can hold.
+/// buffer. The document's text is not retained; the id is, bounded to
+/// the stream's byte cap by [`bound_retained_id`] before this call, so
+/// the room's charge is exactly the id held.
 pub(crate) async fn admit_refusal(
     shared: Arc<Shared>,
     stream_items: Arc<Semaphore>,
@@ -217,6 +217,18 @@ pub(crate) async fn admit_refusal(
 ) -> Room {
     let bytes = id_len.clamp(1, MAX_QUEUED_BYTES_PER_STREAM) as u32;
     admit_permits(shared, stream_items, stream_bytes, bytes).await
+}
+
+/// The id a refusal retains: at most the stream's byte cap, cut at a
+/// char boundary. The byte semaphores cannot reserve past the cap, so a
+/// refusal never holds an id longer than the charge its room claims.
+pub(crate) fn bound_retained_id(id: String) -> String {
+    if id.len() <= MAX_QUEUED_BYTES_PER_STREAM {
+        return id;
+    }
+    let mut id = id;
+    id.truncate(id.floor_char_boundary(MAX_QUEUED_BYTES_PER_STREAM));
+    id
 }
 
 /// One admission: an item and `bytes` bytes on every level, in one
@@ -257,6 +269,20 @@ mod tests {
         assert_eq!(l.max_inflight_items_per_stream as usize, MAX_INFLIGHT_ITEMS_PER_STREAM);
         assert_eq!(l.default_batch_linger_ms, DEFAULT_BATCH_LINGER.as_millis() as u64);
         assert_eq!(l.max_batch_linger_ms, MAX_BATCH_LINGER.as_millis() as u64);
+    }
+
+    #[test]
+    fn a_refusal_id_is_retained_only_up_to_the_stream_byte_cap() {
+        let bounded = bound_retained_id("i".repeat(MAX_QUEUED_BYTES_PER_STREAM + 1));
+        assert_eq!(bounded.len(), MAX_QUEUED_BYTES_PER_STREAM);
+
+        // A multi-byte character straddling the cap is cut at its boundary.
+        let mut id = "i".repeat(MAX_QUEUED_BYTES_PER_STREAM - 1);
+        id.push('\u{e9}');
+        assert_eq!(bound_retained_id(id).len(), MAX_QUEUED_BYTES_PER_STREAM - 1);
+
+        let ordinary = "an ordinary id";
+        assert_eq!(bound_retained_id(ordinary.to_string()), ordinary);
     }
 
     #[test]

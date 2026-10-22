@@ -282,3 +282,52 @@ async fn oversized_documents_hold_queue_room_like_everything_else() {
         }
     }
 }
+
+#[tokio::test]
+async fn a_partially_parked_window_still_runs_the_earliest_pending_document() {
+    let (_s, mut c) = serve().await;
+    // d0 and d4 share one options key (normalize 1), the rest another: two
+    // dispatch groups, window 4, input order. The first round runs d0, d4,
+    // d1, d2; d0, d1, d2 answer and free their permits while d4's answer
+    // parks its permit in the ordered buffer behind the unanswered d3. The
+    // pending group of four must then dispatch three (the permits actually
+    // free), not deadlock asking for all four.
+    let mut stream = open_stream(&mut c, 0, 4, 500).await;
+    for (i, normalize) in [1, 0, 0, 0, 1, 0, 0, 0].into_iter().enumerate() {
+        let options = AnalyzeOptions { normalize, ..Default::default() };
+        stream.send(&format!("d{i}"), NAME, "a short document", Some(options)).await;
+    }
+    let answers = tokio::time::timeout(Duration::from_secs(10), stream.half_close().collect())
+        .await
+        .expect("a window permit parked in the ordered buffer deadlocked the stream");
+    assert_eq!(answers.len(), 8);
+    for (k, (id, outcome)) in answers.iter().enumerate() {
+        assert_eq!(id, &format!("d{k}"));
+        match outcome {
+            Outcome::Vectors(v) => assert_eq!(v.dim, 32, "{id}"),
+            o => panic!("{id}: {o:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_refusal_retains_only_the_id_bytes_it_charges() {
+    let (_s, mut c) = serve().await;
+    // An id over the stream's byte cap on its own: the refusal retains the
+    // id only up to the cap, exactly the charge its room claims, instead of
+    // holding the whole id behind a clamped charge.
+    let big_id = "i".repeat(2 * stream::MAX_QUEUED_BYTES_PER_STREAM);
+    let mut stream = open_stream(&mut c, 0, 1, 0).await;
+    stream.send(&big_id, NAME, "x", None).await;
+    let answers = stream.half_close().collect().await;
+    assert_eq!(answers.len(), 1);
+    let (id, outcome) = &answers[0];
+    assert_eq!(id.len(), stream::MAX_QUEUED_BYTES_PER_STREAM);
+    match outcome {
+        Outcome::Failure(f) => {
+            assert_eq!(f.turbo_code, 771, "TURBO_E_CAPACITY");
+            assert!(f.message.contains("max_queued_bytes_per_stream"), "{}", f.message);
+        }
+        o => panic!("big id: {o:?}"),
+    }
+}
