@@ -60,6 +60,7 @@ pub mod sets;
 pub mod significance;
 pub mod source;
 pub mod spans;
+pub mod splate;
 
 /// Errors are messages, as in the rest of the workspace.
 pub type Result<T> = std::result::Result<T, String>;
