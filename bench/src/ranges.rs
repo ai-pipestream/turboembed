@@ -8,6 +8,9 @@
 //! - chunk rows: each chunk embedded as a row of its own,
 //!   `[CLS] chunk [SEP]`, in frames of as many rows as a session holds.
 //!
+//! The three are timed in turn, one run of each per round, so their
+//! ratios hold however the device's clock moves.
+//!
 //! A chunk is `chunk` consecutive text tokens of a row (the last of a row
 //! may be shorter); the row's first and last positions, its special
 //! tokens, are in no chunk. Rows and ranges share one session. The record
@@ -156,32 +159,43 @@ pub fn chunk_rows(rows: &Rows, ranges: &[turbo_token_range], pad: i32) -> Rows {
     }
 }
 
-/// `warmup` untimed runs of `f`, then `iterations` timed ones.
-fn time(warmup: u32, iterations: u32, vectors: u32, mut f: impl FnMut() -> Result<()>) -> Result<Mode> {
+/// `warmup` untimed rounds, then `iterations` timed ones; a round runs
+/// each of `runs` once, in turn, so a change of clock or temperature
+/// falls on all of them alike.
+fn time(warmup: u32, iterations: u32, runs: &mut [(u32, &mut dyn FnMut() -> Result<()>)]) -> Result<Vec<Mode>> {
     for _ in 0..warmup {
-        f()?;
+        for (_, f) in runs.iter_mut() {
+            f()?;
+        }
     }
-    let mut ms = Vec::with_capacity(iterations as usize);
-    let started = Instant::now();
+    let mut ms = vec![Vec::with_capacity(iterations as usize); runs.len()];
     for _ in 0..iterations {
-        let t = Instant::now();
-        f()?;
-        ms.push(t.elapsed().as_secs_f64() * 1e3);
+        for ((_, f), m) in runs.iter_mut().zip(ms.iter_mut()) {
+            let t = Instant::now();
+            f()?;
+            m.push(t.elapsed().as_secs_f64() * 1e3);
+        }
     }
-    let total = started.elapsed().as_secs_f64();
-    let mut sorted = ms.clone();
-    sorted.sort_by(f64::total_cmp);
-    Ok(Mode {
-        vectors,
-        warmup,
-        iterations,
-        p50_ms: percentile(&sorted, 50.0),
-        p99_ms: percentile(&sorted, 99.0),
-        mean_ms: ms.iter().sum::<f64>() / ms.len() as f64,
-        min_ms: sorted[0],
-        max_ms: sorted[sorted.len() - 1],
-        vectors_per_second: f64::from(vectors) * f64::from(iterations) / total,
-    })
+    Ok(runs
+        .iter()
+        .zip(ms)
+        .map(|(&(vectors, _), ms)| {
+            let mut sorted = ms.clone();
+            sorted.sort_by(f64::total_cmp);
+            let total_ms: f64 = ms.iter().sum();
+            Mode {
+                vectors,
+                warmup,
+                iterations,
+                p50_ms: percentile(&sorted, 50.0),
+                p99_ms: percentile(&sorted, 99.0),
+                mean_ms: total_ms / ms.len() as f64,
+                min_ms: sorted[0],
+                max_ms: sorted[sorted.len() - 1],
+                vectors_per_second: f64::from(vectors) * f64::from(iterations) * 1e3 / total_ms,
+            }
+        })
+        .collect())
 }
 
 /// Measure the three ways and make the record.
@@ -248,11 +262,10 @@ pub fn measure(plan: &RangePlan, p: &Provenance, recorded_at: String) -> Result<
         range_vectors.chunks(dim).zip(chunk_vectors.chunks(dim)).map(|(a, b)| cosine(a, b)).fold(1.0, f64::min);
 
     let (w, it) = (plan.warmup, plan.iterations);
-    let rows_mode = time(w, it, batch, || session.embed_into(&rows.as_batch(), &mut row_vectors).map(drop))?;
-    let ranges_mode = time(w, it, ranges.len() as u32, || {
-        session.embed_ranges_into(&rows.as_batch(), &ranges, &mut range_vectors).map(drop)
-    })?;
-    let chunk_mode = time(w, it, ranges.len() as u32, || {
+    let n = ranges.len() as u32;
+    let mut by_rows = || session.embed_into(&rows.as_batch(), &mut row_vectors).map(drop);
+    let mut by_ranges = || session.embed_ranges_into(&rows.as_batch(), &ranges, &mut range_vectors).map(drop);
+    let mut by_chunk_rows = || {
         for f in 0..frames {
             let a = (f * chunk_batch) as usize * dim;
             let b = frame(f);
@@ -260,7 +273,10 @@ pub fn measure(plan: &RangePlan, p: &Provenance, recorded_at: String) -> Result<
             chunk_session.embed_into(&b, &mut chunk_vectors[a..a + n])?;
         }
         Ok(())
-    })?;
+    };
+    let mut modes =
+        time(w, it, &mut [(batch, &mut by_rows), (n, &mut by_ranges), (n, &mut by_chunk_rows)])?.into_iter();
+    let (rows_mode, ranges_mode, chunk_mode) = (modes.next().unwrap(), modes.next().unwrap(), modes.next().unwrap());
 
     let backend = field(&d.backend);
     let r = RangeRecord {
