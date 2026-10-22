@@ -125,11 +125,19 @@ has two numerics (`neural::Numerics`):
   depend on what it is batched with. Word representations are cached (up to
   100,000 words). The annotator batches every sentence of a document in one
   call. The CRF is decoded in f64 by max-plus Viterbi, and the marginals
-  (the probabilities) by forward-backward in log space.
+  (the probabilities) by forward-backward in log space. Where plain f64
+  cannot hold a sentence's scores (a bound on its paths' scores above 1e6,
+  as with CRF weights near 1e300), that sentence is decoded by the exact
+  scorer instead; a probability that is not finite is an error.
 - `JvmParity` (`BilstmPosTagger::jvm_parity`), for the golden tests and the
   trainer's evaluation only: the f64 forward pass in the JVM's order and the
   JVM's exact-sum CRF scorer, which give the JVM's emissions to within
   rounding.
+
+The two numerics have different configuration hashes (`config_hash`, FNV-1a
+over the numerics and the model's SHA-256), so their outputs are never
+cached as each other's. `tests/bilstm_numerics.rs` checks both rules
+through the public API.
 
 `tests/neural_goldens/` runs both on every golden of
 `analysis/goldens/data/postag-neural/` (six BiLSTM runs). The parity
@@ -189,7 +197,11 @@ sentence per call.
 | 1, emissions alone | warm | 107,084 | 7,589 | 14.1x |
 
 Most of the parity numerics' time is the exact-sum CRF scorer; the packed
-numerics' gain on the forward pass alone is the last row. The parity
+numerics' gain on the forward pass alone is the last row. The check that
+sends a sentence with huge scores to the exact scorer costs nothing
+measurable: against the code without it, three runs each on the same core,
+32 sentences per call, the medians were 97,568 against 97,655 words per
+second warm and 77,083 against 77,078 cold. The parity
 numerics are as fast as before this path was added (an A/B over 400 test
 sentences on the same core: within 1%).
 

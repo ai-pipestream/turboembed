@@ -4,6 +4,32 @@
 //! exactly and is the opt-in parity path; this one rounds each sum as it
 //! goes, so it can pick another path only where two paths' scores are
 //! within rounding of each other, and runs far faster.
+//!
+//! Rounding grows with the size of the scores: a path's score is a sum of
+//! `steps + 1` terms, each rounded to its own magnitude, and with weights
+//! near `1e300` or `f64::MAX` the plain sums lose every digit or overflow.
+//! [`trusted`] says when they cannot; the caller decodes with the exact
+//! scorer otherwise.
+
+/// The largest bound on a path's absolute score ([`trusted`]) decoded in
+/// plain f64: its rounding then stays near `1e6 * f64::EPSILON`, about
+/// `2e-10` in log space.
+const TRUSTED_BOUND: f64 = 1e6;
+
+/// The largest absolute value of `rows`, for [`trusted`]; infinite if one
+/// is `NaN`.
+pub(crate) fn magnitude<'a>(rows: impl IntoIterator<Item = &'a [f64]>) -> f64 {
+    rows.into_iter().flatten().fold(0.0, |m: f64, &x| if x.is_nan() { f64::INFINITY } else { m.max(x.abs()) })
+}
+
+/// Whether the plain decode is trusted for `emissions`, given `weights`,
+/// the [`magnitude`] of the transition, start and end weights: every
+/// path's score is bounded by `(steps + 1) * (weights + emissions)`, and
+/// that bound must be finite and at most [`TRUSTED_BOUND`].
+pub(crate) fn trusted(emissions: &[Vec<f64>], weights: f64) -> bool {
+    let bound = (emissions.len() as f64 + 1.0) * (weights + magnitude(emissions.iter().map(Vec::as_slice)));
+    bound <= TRUSTED_BOUND
+}
 
 /// `log(sum(exp(v)))` over `v`, from its maximum.
 fn log_sum_exp(v: impl Iterator<Item = f64> + Clone) -> f64 {
@@ -106,6 +132,15 @@ mod tests {
             }
         }
         assert!(viterbi(&[], &[], &[], &[]).is_empty() && marginals(&[], &[], &[], &[]).is_empty());
+    }
+
+    #[test]
+    fn huge_or_non_finite_scores_are_not_trusted() {
+        let e = vec![vec![0.5, -2.0]; 3];
+        assert!(trusted(&e, 10.0) && trusted(&[], 0.0));
+        assert!(!trusted(&e, 1e300) && !trusted(&e, f64::MAX) && !trusted(&e, 3e5));
+        assert!(!trusted(&[vec![f64::NAN, 0.0]], 0.0) && !trusted(&e, f64::INFINITY));
+        assert_eq!(magnitude([[1.0, -4.0].as_slice(), &[2.0]]), 4.0);
     }
 
     #[test]

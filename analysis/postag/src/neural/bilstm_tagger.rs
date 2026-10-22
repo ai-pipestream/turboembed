@@ -6,8 +6,9 @@
 //! runs the f64 reference that follows Java operation by operation, for
 //! the golden tests. The CRF Viterbi path and marginals (or the softmax of
 //! a model without a CRF) are computed in f64 on the host in both: by
-//! default with plain rounding (`crf::plain`), for parity with
-//! [`CrfScorer`]'s exact sums.
+//! default with plain rounding (`crf::plain`), and with [`CrfScorer`]'s
+//! exact sums for parity, or by default when a sentence's scores are too
+//! large for plain rounding. A probability that is not finite is an error.
 
 use std::sync::Arc;
 
@@ -36,6 +37,8 @@ pub enum Numerics {
 pub struct BilstmPosTagger {
     model: Arc<BilstmPosModel>,
     packed: Option<Arc<Packed>>,
+    /// The largest absolute CRF transition, start or end weight.
+    crf_weights: f64,
     tagset: Arc<TagSet>,
     outcome_tags: Vec<Tag>,
 }
@@ -72,7 +75,11 @@ impl BilstmPosTagger {
         let labels: Vec<&str> = model.tags().iter().map(String::as_str).collect();
         let tagset = TagSet::new("bilstm", &labels);
         let outcome_tags = labels.iter().map(|&l| tagset.tag(l).expect("tag is in tagset")).collect();
-        Ok(Self { model, packed, tagset, outcome_tags })
+        let crf_weights = match (model.transition_weights(), model.start_weights(), model.end_weights()) {
+            (Some(tr), Some(st), Some(en)) => plain::magnitude(tr.iter().map(Vec::as_slice).chain([st, en])),
+            _ => 0.0,
+        };
+        Ok(Self { model, packed, crf_weights, tagset, outcome_tags })
     }
 
     /// The numerics the emissions are computed with.
@@ -136,9 +143,9 @@ impl BilstmPosTagger {
             self.model.start_weights().unwrap(),
             self.model.end_weights().unwrap(),
         );
-        let best = match self.packed {
-            Some(_) => plain::viterbi(&scores, tr, st, en),
-            None => CrfScorer::viterbi(&scores, tr, st, en)?,
+        let best = match self.plain(&scores) {
+            true => plain::viterbi(&scores, tr, st, en),
+            false => CrfScorer::viterbi(&scores, tr, st, en)?,
         };
         Ok(best.into_iter().map(|idx| tags[idx].clone()).collect())
     }
@@ -188,18 +195,33 @@ impl BilstmPosTagger {
             let tr = self.model.transition_weights().unwrap();
             let st = self.model.start_weights().unwrap();
             let en = self.model.end_weights().unwrap();
-            let (best, marginals) = if self.packed.is_some() {
+            let (best, marginals) = if self.plain(scores) {
                 (plain::viterbi(scores, tr, st, en), plain::marginals(scores, tr, st, en))
             } else {
                 (CrfScorer::viterbi(scores, tr, st, en)?, CrfScorer::marginals(scores, tr, st, en)?)
             };
             let probs = best.iter().zip(&marginals).map(|(&b, m)| m[b]).collect();
-            Ok((best, probs))
+            finite((best, probs))
         } else {
             let best: Vec<usize> = scores.iter().map(|s| argmax(s)).collect();
             let probs = best.iter().zip(scores).map(|(&b, s)| softmax_at(s, b)).collect();
-            Ok((best, probs))
+            finite((best, probs))
         }
+    }
+
+    /// Whether a sentence's CRF is decoded in plain f64: with the packed
+    /// numerics, and only where its scores are small enough
+    /// ([`plain::trusted`]).
+    fn plain(&self, scores: &[Vec<f64>]) -> bool {
+        self.packed.is_some() && plain::trusted(scores, self.crf_weights)
+    }
+}
+
+/// `path`, unless one of its probabilities is not finite.
+fn finite(path: Path) -> Result<Path, NeuralError> {
+    match path.1.iter().position(|p| !p.is_finite()) {
+        None => Ok(path),
+        Some(i) => Err(NeuralError::NonFiniteScore(format!("the probability of token {i} is {}", path.1[i]))),
     }
 }
 
@@ -273,6 +295,19 @@ impl Annotator for BilstmPosTagger {
     fn model(&self) -> Option<ModelRef> {
         Some(self.model.model_ref().clone())
     }
+
+    /// FNV-1a over the numerics and the model's SHA-256: the two taggers
+    /// of one model give different probabilities, so they hash apart.
+    fn config_hash(&self) -> u64 {
+        let numerics: &[u8] = match self.numerics() {
+            Numerics::Packed => b"packed",
+            Numerics::JvmParity => b"jvm-parity",
+        };
+        [numerics, b"\0", self.model.model_ref().sha256.as_bytes()]
+            .into_iter()
+            .flatten()
+            .fold(0xcbf2_9ce4_8422_2325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+    }
 }
 
 #[cfg(test)]
@@ -291,6 +326,14 @@ mod tests {
         let mut settings = BilstmSettings::defaults();
         (settings.epochs, settings.word_cutoff, settings.crf) = (2, 1, crf);
         BilstmPosTrainer::train(&samples, settings).unwrap()
+    }
+
+    #[test]
+    fn a_non_finite_probability_is_an_error() {
+        for bad in [f64::NAN, f64::INFINITY] {
+            assert!(matches!(finite((vec![0, 1], vec![0.5, bad])), Err(NeuralError::NonFiniteScore(_))));
+        }
+        assert_eq!(finite((vec![1], vec![0.25])).unwrap(), (vec![1], vec![0.25]));
     }
 
     #[test]
