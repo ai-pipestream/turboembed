@@ -162,7 +162,15 @@ fn a_kept_calibration_is_read_back_not_measured_again() {
     std::fs::write(&file, wrong.to_text()).unwrap();
     let fixed = Calibration::load_or_measure(&dir, &bert(), &o, &texts()).unwrap();
     assert_eq!(fixed.max_seq, 64);
-    assert_eq!(Calibration::parse(&std::fs::read_to_string(&file).unwrap()), Some(fixed));
+    assert_eq!(Calibration::parse(&std::fs::read_to_string(&file).unwrap()), Some(fixed.clone()));
+    // Cut between its points, a file still parses, but lacks a window asked.
+    let text = fixed.to_text();
+    let cut = &text[..text.rfind("point").unwrap()];
+    assert!(Calibration::parse(cut).is_some());
+    std::fs::write(&file, cut).unwrap();
+    let whole = Calibration::load_or_measure(&dir, &bert(), &o, &texts()).unwrap();
+    assert_eq!(whole.points.len(), 2);
+    assert_ne!(whole.points, fixed.points);
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
     std::fs::remove_dir_all(&dir).unwrap();
 }

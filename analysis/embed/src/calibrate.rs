@@ -132,7 +132,8 @@ impl Calibration {
 
     /// The calibration kept in `dir` for this bundle, device and request,
     /// measured and kept first when there is none, or when the kept one is
-    /// incomplete or its decision does not follow from its points.
+    /// incomplete (a point for each window asked, in order) or its
+    /// decision does not follow from its points.
     pub fn load_or_measure(
         dir: &Path,
         bundle: &Path,
@@ -144,6 +145,7 @@ impl Calibration {
         if let Ok(text) = std::fs::read_to_string(&file)
             && let Some(c) = Calibration::parse(&text)
             && c.key == key
+            && c.points.iter().map(|p| p.max_seq).eq(o.windows.iter().copied())
             && decide(c.floor, &c.points) == (c.max_seq, c.use_device)
         {
             return Ok(c);
