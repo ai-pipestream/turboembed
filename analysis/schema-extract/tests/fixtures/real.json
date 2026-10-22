@@ -1,0 +1,953 @@
+{
+ "source": "fastino/gliner2-base-v1@f9634218e53580c56edf0de97ca1a7d3f1c2354e",
+ "license": "Apache-2.0",
+ "gliner2": "ca4f68235b50fe4c3ecf3876851d748fe4b15c6c",
+ "torch": "2.14.1+cpu",
+ "cases": [
+  {
+   "text": "Apple released the new iPhone 16 in Cupertino on Monday. Tim Cook said it costs $799 and has a faster chip, a brighter screen and a longer battery. Reviewers loved it.",
+   "schema": {
+    "entities": [
+     {
+      "name": "person"
+     },
+     {
+      "name": "company",
+      "description": "a business or firm"
+     },
+     {
+      "name": "city",
+      "threshold": 0.3
+     },
+     {
+      "name": "product",
+      "single": true
+     }
+    ],
+    "classifications": [
+     {
+      "task": "sentiment",
+      "labels": [
+       {
+        "name": "positive"
+       },
+       {
+        "name": "negative"
+       },
+       {
+        "name": "neutral"
+       }
+      ]
+     },
+     {
+      "task": "topics",
+      "labels": [
+       {
+        "name": "technology",
+        "description": "computers and software"
+       },
+       {
+        "name": "business"
+       },
+       {
+        "name": "sports"
+       }
+      ],
+      "multi": true,
+      "threshold": 0.4,
+      "top_k": 2
+     }
+    ],
+    "structures": [
+     {
+      "name": "product",
+      "fields": [
+       {
+        "name": "name",
+        "single": true
+       },
+       {
+        "name": "price",
+        "single": true,
+        "description": "the cost in money"
+       },
+       {
+        "name": "features"
+       },
+       {
+        "name": "condition",
+        "single": true,
+        "choices": [
+         "new",
+         "used",
+         "refurbished"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "ids": [
+    287,
+    128003,
+    714,
+    128010,
+    710,
+    294,
+    262,
+    751,
+    267,
+    580,
+    287,
+    128004,
+    601,
+    128004,
+    710,
+    128004,
+    830,
+    128004,
+    1706,
+    1263,
+    1263,
+    128001,
+    287,
+    128003,
+    6967,
+    128010,
+    483,
+    294,
+    266,
+    460,
+    289,
+    1695,
+    287,
+    128005,
+    604,
+    128005,
+    483,
+    128005,
+    707,
+    128005,
+    714,
+    1263,
+    1263,
+    128001,
+    287,
+    128003,
+    9481,
+    287,
+    128007,
+    1453,
+    128007,
+    2330,
+    128007,
+    5678,
+    1263,
+    1263,
+    128001,
+    287,
+    128003,
+    3062,
+    128010,
+    835,
+    294,
+    4659,
+    263,
+    1036,
+    287,
+    128007,
+    835,
+    128007,
+    460,
+    128007,
+    1948,
+    1263,
+    1263,
+    128002,
+    287,
+    714,
+    294,
+    1706,
+    287,
+    353,
+    1540,
+    427,
+    1540,
+    19751,
+    1263,
+    1263,
+    6038,
+    1315,
+    262,
+    353,
+    16998,
+    922,
+    267,
+    3189,
+    649,
+    41290,
+    277,
+    44840,
+    323,
+    41718,
+    3712,
+    357,
+    278,
+    1294,
+    419,
+    84826,
+    263,
+    303,
+    266,
+    2663,
+    6288,
+    366,
+    266,
+    13284,
+    1531,
+    263,
+    266,
+    1032,
+    2643,
+    323,
+    18640,
+    1520,
+    278,
+    323
+   ],
+   "counts": [
+    1,
+    1
+   ],
+   "classifier": [
+    [
+     10.36004638671875,
+     -12.500504493713379,
+     -12.023151397705078
+    ],
+    [
+     8.55870532989502,
+     -5.037128925323486,
+     -9.296650886535645
+    ]
+   ],
+   "result": {
+    "product": [
+     {
+      "name": {
+       "text": "iPhone 16",
+       "confidence": 0.9999938011169434,
+       "start": 23,
+       "end": 32
+      },
+      "price": {
+       "text": "$799",
+       "confidence": 1.0,
+       "start": 80,
+       "end": 84
+      },
+      "features": [
+       {
+        "text": "faster chip",
+        "confidence": 1.0,
+        "start": 95,
+        "end": 106
+       },
+       {
+        "text": "brighter screen",
+        "confidence": 1.0,
+        "start": 110,
+        "end": 125
+       },
+       {
+        "text": "longer battery",
+        "confidence": 1.0,
+        "start": 132,
+        "end": 146
+       }
+      ],
+      "condition": {
+       "text": "new",
+       "confidence": 1.0
+      }
+     }
+    ],
+    "entities": {
+     "person": [
+      {
+       "text": "Tim Cook",
+       "confidence": 0.9999947547912598,
+       "start": 57,
+       "end": 65
+      }
+     ],
+     "company": [
+      {
+       "text": "Apple",
+       "confidence": 0.9999421834945679,
+       "start": 0,
+       "end": 5
+      }
+     ],
+     "city": [
+      {
+       "text": "Cupertino",
+       "confidence": 0.9999966621398926,
+       "start": 36,
+       "end": 45
+      }
+     ],
+     "product": {
+      "text": "iPhone 16",
+      "confidence": 0.9999147653579712,
+      "start": 23,
+      "end": 32
+     }
+    },
+    "sentiment": {
+     "label": "positive",
+     "confidence": 1.0
+    },
+    "topics": [
+     {
+      "label": "technology",
+      "confidence": 0.999808132648468
+     }
+    ]
+   }
+  },
+  {
+   "text": "Marie Dubois joined Renault as an engineer in Paris on 3 March 2021, after the company opened its new research centre.",
+   "schema": {
+    "entities": [
+     {
+      "name": "person"
+     },
+     {
+      "name": "organization"
+     },
+     {
+      "name": "location"
+     },
+     {
+      "name": "date"
+     }
+    ],
+    "structures": [
+     {
+      "name": "event",
+      "fields": [
+       {
+        "name": "what"
+       },
+       {
+        "name": "when",
+        "single": true
+       },
+       {
+        "name": "where"
+       }
+      ]
+     },
+     {
+      "name": "employment",
+      "fields": [
+       {
+        "name": "employee"
+       },
+       {
+        "name": "employer",
+        "single": true
+       },
+       {
+        "name": "role",
+        "choices": [
+         "engineer",
+         "manager",
+         "founder"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "ids": [
+    287,
+    128003,
+    720,
+    287,
+    128004,
+    339,
+    128004,
+    335,
+    128004,
+    399,
+    1263,
+    1263,
+    128001,
+    287,
+    128003,
+    3192,
+    287,
+    128004,
+    2802,
+    128004,
+    4619,
+    128004,
+    985,
+    1263,
+    1263,
+    128001,
+    287,
+    128003,
+    6967,
+    287,
+    128005,
+    604,
+    128005,
+    1416,
+    128005,
+    1250,
+    128005,
+    1043,
+    1263,
+    1263,
+    128002,
+    287,
+    3192,
+    294,
+    985,
+    287,
+    6247,
+    1540,
+    2140,
+    1540,
+    4734,
+    1263,
+    1263,
+    108585,
+    5425,
+    68990,
+    2280,
+    961,
+    63664,
+    283,
+    299,
+    6247,
+    267,
+    47136,
+    277,
+    404,
+    9409,
+    16789,
+    366,
+    385,
+    262,
+    483,
+    1932,
+    359,
+    353,
+    677,
+    2496,
+    323
+   ],
+   "counts": [
+    1,
+    1,
+    1
+   ],
+   "classifier": [],
+   "result": {
+    "event": [
+     {
+      "what": [
+       {
+        "text": "opened its new research centre",
+        "confidence": 0.6299765110015869,
+        "start": 87,
+        "end": 117
+       }
+      ],
+      "when": {
+       "text": "3 March 2021",
+       "confidence": 0.9991751313209534,
+       "start": 55,
+       "end": 67
+      },
+      "where": [
+       {
+        "text": "Paris",
+        "confidence": 0.9997120499610901,
+        "start": 46,
+        "end": 51
+       }
+      ]
+     }
+    ],
+    "employment": [
+     {
+      "employee": [
+       {
+        "text": "Marie Dubois",
+        "confidence": 0.9999998807907104,
+        "start": 0,
+        "end": 12
+       }
+      ],
+      "employer": {
+       "text": "Renault",
+       "confidence": 0.9999908208847046,
+       "start": 20,
+       "end": 27
+      },
+      "role": [
+       {
+        "text": "engineer",
+        "confidence": 1.0
+       }
+      ]
+     }
+    ],
+    "entities": {
+     "person": [
+      {
+       "text": "Marie Dubois",
+       "confidence": 1.0,
+       "start": 0,
+       "end": 12
+      }
+     ],
+     "organization": [
+      {
+       "text": "Renault",
+       "confidence": 0.9999903440475464,
+       "start": 20,
+       "end": 27
+      }
+     ],
+     "location": [
+      {
+       "text": "Paris",
+       "confidence": 0.9999992847442627,
+       "start": 46,
+       "end": 51
+      }
+     ],
+     "date": [
+      {
+       "text": "3 March 2021",
+       "confidence": 0.999998927116394,
+       "start": 55,
+       "end": 67
+      }
+     ]
+    }
+   }
+  },
+  {
+   "text": "We ate a café crème and a croque-monsieur at a naïve little bistro near Montmartre.",
+   "schema": {
+    "classifications": [
+     {
+      "task": "language",
+      "labels": [
+       {
+        "name": "english"
+       },
+       {
+        "name": "french"
+       },
+       {
+        "name": "german"
+       }
+      ]
+     }
+    ],
+    "entities": [
+     {
+      "name": "dish",
+      "description": "a food or meal"
+     },
+     {
+      "name": "place"
+     }
+    ]
+   },
+   "ids": [
+    287,
+    128003,
+    6967,
+    128010,
+    4130,
+    294,
+    266,
+    645,
+    289,
+    2867,
+    287,
+    128005,
+    4130,
+    128005,
+    470,
+    1263,
+    1263,
+    128001,
+    287,
+    128003,
+    1402,
+    287,
+    128007,
+    13247,
+    128007,
+    12771,
+    128007,
+    31290,
+    1263,
+    1263,
+    128002,
+    301,
+    7965,
+    266,
+    15924,
+    49016,
+    263,
+    266,
+    36604,
+    8265,
+    271,
+    8431,
+    7711,
+    16222,
+    288,
+    266,
+    34972,
+    480,
+    32215,
+    941,
+    39678,
+    32745,
+    368,
+    323
+   ],
+   "counts": [
+    1
+   ],
+   "classifier": [
+    [
+     -5.306743144989014,
+     7.272617816925049,
+     -10.01761531829834
+    ]
+   ],
+   "result": {
+    "entities": {
+     "dish": [
+      {
+       "text": "café crème",
+       "confidence": 0.9999996423721313,
+       "start": 9,
+       "end": 21
+      },
+      {
+       "text": "croque-monsieur",
+       "confidence": 0.9999980926513672,
+       "start": 28,
+       "end": 43
+      }
+     ],
+     "place": [
+      {
+       "text": "naïve little bistro near Montmartre",
+       "confidence": 0.9590303897857666,
+       "start": 49,
+       "end": 85
+      }
+     ]
+    },
+    "language": {
+     "label": "french",
+     "confidence": 0.999996542930603
+    }
+   }
+  },
+  {
+   "text": "Steve Jobs founded Apple in 1976 with Steve Wozniak; the company later sold the refurbished Mac at a discount of 20 percent.",
+   "schema": {
+    "entities": [
+     {
+      "name": "person"
+     },
+     {
+      "name": "company",
+      "description": "a business or firm"
+     },
+     {
+      "name": "city",
+      "threshold": 0.3
+     },
+     {
+      "name": "product",
+      "single": true
+     }
+    ],
+    "classifications": [
+     {
+      "task": "sentiment",
+      "labels": [
+       {
+        "name": "positive"
+       },
+       {
+        "name": "negative"
+       },
+       {
+        "name": "neutral"
+       }
+      ]
+     },
+     {
+      "task": "topics",
+      "labels": [
+       {
+        "name": "technology",
+        "description": "computers and software"
+       },
+       {
+        "name": "business"
+       },
+       {
+        "name": "sports"
+       }
+      ],
+      "multi": true,
+      "threshold": 0.4,
+      "top_k": 2
+     }
+    ],
+    "structures": [
+     {
+      "name": "product",
+      "fields": [
+       {
+        "name": "name",
+        "single": true
+       },
+       {
+        "name": "price",
+        "single": true,
+        "description": "the cost in money"
+       },
+       {
+        "name": "features"
+       },
+       {
+        "name": "condition",
+        "single": true,
+        "choices": [
+         "new",
+         "used",
+         "refurbished"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "ids": [
+    287,
+    128003,
+    714,
+    128010,
+    710,
+    294,
+    262,
+    751,
+    267,
+    580,
+    287,
+    128004,
+    601,
+    128004,
+    710,
+    128004,
+    830,
+    128004,
+    1706,
+    1263,
+    1263,
+    128001,
+    287,
+    128003,
+    6967,
+    128010,
+    483,
+    294,
+    266,
+    460,
+    289,
+    1695,
+    287,
+    128005,
+    604,
+    128005,
+    483,
+    128005,
+    707,
+    128005,
+    714,
+    1263,
+    1263,
+    128001,
+    287,
+    128003,
+    9481,
+    287,
+    128007,
+    1453,
+    128007,
+    2330,
+    128007,
+    5678,
+    1263,
+    1263,
+    128001,
+    287,
+    128003,
+    3062,
+    128010,
+    835,
+    294,
+    4659,
+    263,
+    1036,
+    287,
+    128007,
+    835,
+    128007,
+    460,
+    128007,
+    1948,
+    1263,
+    1263,
+    128002,
+    287,
+    714,
+    294,
+    1706,
+    287,
+    353,
+    1540,
+    427,
+    1540,
+    19751,
+    1263,
+    1263,
+    63278,
+    1851,
+    3679,
+    6038,
+    267,
+    9371,
+    275,
+    63278,
+    2976,
+    9919,
+    71059,
+    2600,
+    262,
+    483,
+    734,
+    1758,
+    262,
+    19751,
+    12412,
+    288,
+    266,
+    3334,
+    265,
+    602,
+    864,
+    323
+   ],
+   "counts": [
+    1,
+    1
+   ],
+   "classifier": [
+    [
+     1.8164657354354858,
+     -8.882866859436035,
+     -1.5213040113449097
+    ],
+    [
+     5.912330627441406,
+     4.855612277984619,
+     -9.484271049499512
+    ]
+   ],
+   "result": {
+    "product": [
+     {
+      "name": {
+       "text": "Mac",
+       "confidence": 0.9940186738967896,
+       "start": 92,
+       "end": 95
+      },
+      "price": null,
+      "features": [],
+      "condition": {
+       "text": "refurbished",
+       "confidence": 0.9970945119857788
+      }
+     }
+    ],
+    "entities": {
+     "person": [
+      {
+       "text": "Steve Wozniak",
+       "confidence": 0.9999856948852539,
+       "start": 38,
+       "end": 51
+      },
+      {
+       "text": "Steve Jobs",
+       "confidence": 0.9998559951782227,
+       "start": 0,
+       "end": 10
+      }
+     ],
+     "company": [
+      {
+       "text": "Apple",
+       "confidence": 0.9991661310195923,
+       "start": 19,
+       "end": 24
+      }
+     ],
+     "city": [],
+     "product": {
+      "text": "Mac",
+      "confidence": 0.990574300289154,
+      "start": 92,
+      "end": 95
+     }
+    },
+    "sentiment": {
+     "label": "positive",
+     "confidence": 0.9656810760498047
+    },
+    "topics": [
+     {
+      "label": "technology",
+      "confidence": 0.9973013997077942
+     },
+     {
+      "label": "business",
+      "confidence": 0.9922755360603333
+     }
+    ]
+   }
+  }
+ ]
+}

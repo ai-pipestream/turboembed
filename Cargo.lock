@@ -2579,6 +2579,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-schema-extract"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-bundle",
+ "turbo-geo",
+ "turbo-glossary-layers",
+ "turbo-numeric",
+ "turbo-pii",
+ "turbo-relation",
+ "turbo-zoo",
+]
+
+[[package]]
 name = "turbo-sentdetect"
 version = "0.1.0"
 dependencies = [
