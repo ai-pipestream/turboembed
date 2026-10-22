@@ -101,8 +101,8 @@ pub enum IncivilityStage {
     /// The lexicon (and reply-context rules) alone; a vector scorer, if
     /// set, is not read.
     Lexicon = 0,
-    /// The vector scorer alone; it must be set, and every unit needs a
-    /// vector.
+    /// The vector scorer alone; it must be set, and a unit with no vector
+    /// fails the document.
     Learned = 1,
     /// Both, the head's scores fused with the lexicon's.
     #[default]

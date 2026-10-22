@@ -53,6 +53,9 @@ impl IncivilityVectorHead {
         if targets.iter().any(|t| t.iter().into_iter().any(|(_, y)| !(0.0..=1.0).contains(&y))) {
             return value("a target outside 0..=1".into());
         }
+        if o.epochs == 0 {
+            return value("0 epochs: the head would not be fitted at all".into());
+        }
         if !(o.learning_rate.is_finite() && o.learning_rate > 0.0 && o.l2.is_finite() && o.l2 >= 0.0) {
             return value(format!("learning rate {} and L2 {}", o.learning_rate, o.l2));
         }

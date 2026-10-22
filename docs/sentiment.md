@@ -499,12 +499,14 @@ dimension of 0 or a value that is not finite, with an
 `IncivilityAnnotator::with_stage` picks the signals:
 `IncivilityStage::Lexicon` (the lexicon and the reply rules alone),
 `Learned` (the head alone: it needs a head and the unit layer's vectors,
-and its scores are reported as they are, without the `SevereToxicity`
-rule) or `Fused` (both, the default, as above). The stage and the vector
-context are in the annotator's configuration hash, and the model id
-names them: `<head>:learned` for the learned stage (a head with no
-encoder named is `incivility-vector-head:learned`), and a
-`:preceding-vector` or `:parent-vector` suffix with a vector context.
+a unit with no vector fails the document, and its scores are reported
+as they are, without the `SevereToxicity` rule) or `Fused` (both, the
+default, as above). The stage and the vector context are in the
+annotator's configuration hash, and the model id names them:
+`<head>:learned` for the learned stage and
+`<head>+lexicon:<reply context>` for the fused one, where a head with no
+encoder named is `incivility-vector-head`, and a `:preceding-vector` or
+`:parent-vector` suffix with a vector context.
 
 ### Tests and license posture
 
@@ -533,8 +535,10 @@ repository.
   score through the context matrix, neutral sentences that mention an
   identity ("She is a Muslim software engineer from Chicago.") stay below
   the threshold on every label while attacks on the same groups cross it,
-  for a configured and a fitted head, and the learned layer round-trips
-  through the document graph.
+  in the learned and the fused stage, for a configured head and for one
+  fitted to rows where the identity term and hostility vary apart (a head
+  keyed on the identity term fails the same check), and the learned layer
+  round-trips through the document graph.
 - `analysis/embed/tests/heads.rs`
   (`incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device`)
   fits a multi-label `ClassifierHead` (`HeadMode::MultiLabel`) and a 6-label

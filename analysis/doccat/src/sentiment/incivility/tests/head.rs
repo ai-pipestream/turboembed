@@ -123,6 +123,8 @@ fn fitting_learns_the_labels_and_is_deterministic() {
     assert!(IncivilityVectorHead::fit(&rows, None, &t[1..], &o).is_err());
     let bad_target = vec![IncivilityScores { threat: 1.5, ..Default::default() }; rows.len()];
     assert!(IncivilityVectorHead::fit(&rows, None, &bad_target, &o).is_err());
+    let none = IncivilityFitOptions { epochs: 0, ..o };
+    assert!(IncivilityVectorHead::fit(&rows, None, &t, &none).is_err());
     let lr = IncivilityFitOptions { learning_rate: f64::NAN, ..o };
     assert!(IncivilityVectorHead::fit(&rows, None, &t, &lr).is_err());
 }

@@ -56,7 +56,7 @@ fn each_stage_scores_with_its_own_signals() {
     let with = |stage| IncivilityAnnotator::new().with_vector_scorer(Arc::clone(&head)).with_stage(stage);
     let (lex, lex_id) = run(with(IncivilityStage::Lexicon), &mut doc(TEXT, &RANGES, &vectors)).unwrap();
     let (learned, learned_id) = run(with(IncivilityStage::Learned), &mut doc(TEXT, &RANGES, &vectors)).unwrap();
-    let (fused, _) = run(with(IncivilityStage::Fused), &mut doc(TEXT, &RANGES, &vectors)).unwrap();
+    let (fused, fused_id) = run(with(IncivilityStage::Fused), &mut doc(TEXT, &RANGES, &vectors)).unwrap();
     assert!(lex[0].insult >= 0.5 && lex[1].insult < 0.5);
     assert!(learned[0].insult < 0.5 && learned[1].insult >= 0.5);
     assert!(fused[0].insult >= 0.5 && fused[1].insult >= 0.5);
@@ -64,6 +64,12 @@ fn each_stage_scores_with_its_own_signals() {
     assert_eq!(learned[1], hostility_head().score(&vectors[1], None).unwrap());
     assert_eq!(lex_id, "oasis-incivility:lexicon:no-reply-context");
     assert_eq!(learned_id, "incivility-vector-head:learned");
+    // A head with no encoder named is still in the fused stage's id.
+    assert_eq!(fused_id, "incivility-vector-head+lexicon:no-reply-context");
+    assert!(lex_id != learned_id && learned_id != fused_id && lex_id != fused_id);
+    let preceding = with(IncivilityStage::Fused).with_vector_context(IncivilityVectorContext::Preceding);
+    let (_, id) = run(preceding, &mut doc(TEXT, &RANGES, &vectors)).unwrap();
+    assert_eq!(id, "incivility-vector-head+lexicon:no-reply-context:preceding-vector");
     let hashes: Vec<u64> = [IncivilityStage::Lexicon, IncivilityStage::Learned, IncivilityStage::Fused]
         .into_iter()
         .map(|s| Annotator::config_hash(&with(s)))
@@ -89,6 +95,15 @@ fn the_learned_stage_needs_a_head_and_vectors() {
         .unwrap();
     let e = p.run(std::slice::from_mut(&mut bare)).remove(0).unwrap_err().to_string();
     assert!(e.contains("needs the unit layer's vectors"), "{e}");
+    // A unit the vectors list as empty fails the document rather than
+    // scoring 0 on every label.
+    let mut d = make_doc_with_sentences(TEXT, &RANGES);
+    let v = Vectors::<Sentences>::new(2, vec![0.0, 0.0, 1.0, 0.0], vec![Ix::new(0)], model());
+    d.add(&Key::DEFAULT, v, Provenance::by("test")).unwrap();
+    let a =
+        IncivilityAnnotator::new().with_stage(IncivilityStage::Learned).with_vector_scorer(Arc::new(hostility_head()));
+    let e = run(a, &mut d).unwrap_err();
+    assert!(e.contains("unit 0 has no vector"), "{e}");
 }
 
 #[test]
@@ -126,37 +141,59 @@ fn the_preceding_or_parent_vector_is_read_through_the_context_matrix() {
     assert!(run(wrong, &mut doc(text, &ranges, &vectors)).is_err());
 }
 
-#[test]
-fn neutral_identity_mentions_stay_below_while_attacks_cross() {
-    // Vector values: [identity term mentioned, hostility toward it].
+/// The identity sentences: two neutral mentions, then two attacks.
+fn identity_doc() -> Document {
     let text = "The community center hosts an LGBTQ+ book club on Tuesdays. \
                 She is a Muslim software engineer from Chicago. \
                 Muslims are vermin and should be thrown out. \
                 Gay people are a plague on this town.";
-    let starts: Vec<u32> = [0usize, 60, 108, 153].iter().map(|&s| s as u32).collect();
+    let starts = [0u32, 60, 108, 153];
     let ranges: Vec<(u32, u32)> =
         (0..4).map(|i| (starts[i], if i < 3 { starts[i + 1] - 1 } else { text.len() as u32 })).collect();
-    let vectors = [[1.0, 0.0], [1.0, 0.0], [1.0, 1.0], [1.0, 1.0]];
+    // Vector values: [identity term mentioned, hostility].
+    doc(text, &ranges, &[[1.0, 0.0], [1.0, 0.0], [1.0, 1.0], [1.0, 1.0]])
+}
+
+/// Each sentence's scores from `head` at `stage`.
+fn identity_scores(head: IncivilityVectorHead, stage: IncivilityStage) -> Vec<IncivilityScores> {
+    let a = IncivilityAnnotator::new().with_vector_scorer(Arc::new(head)).with_stage(stage);
+    run(a, &mut identity_doc()).unwrap().0
+}
+
+fn neutral_below_attacks_above(scores: &[IncivilityScores]) -> bool {
+    let t = DEFAULT_INCIVILITY_THRESHOLD;
+    scores[..2].iter().all(|s| IncivilityLabel::ALL.into_iter().all(|l| s.get(l) < t))
+        && scores[2..].iter().all(|s| s.identity_attack >= t)
+}
+
+#[test]
+fn neutral_identity_mentions_stay_below_while_attacks_cross() {
     // Configured: identity attack reads hostility, not the identity term.
     let w: Vec<f32> = (0..6).flat_map(|l| if l == 3 { [0.0, 6.0] } else { [0.0, 0.0] }).collect();
     let configured = IncivilityVectorHead::new(2, w, [-3.0; 6]).unwrap();
-    // Fitted: the same, learned from the four sentences labelled.
-    let rows: Vec<&[f32]> = vectors.iter().map(|v| &v[..]).collect();
-    let attack = IncivilityScores { identity_attack: 1.0, ..Default::default() };
-    let targets = [IncivilityScores::default(), IncivilityScores::default(), attack, attack];
-    let fitted = IncivilityVectorHead::fit(&rows, None, &targets, &IncivilityFitOptions::default()).unwrap();
+    // Fitted, from rows where the identity term and hostility vary apart:
+    // hostility without an identity term is an insult, an identity term
+    // without hostility is nothing, both together is an identity attack.
+    let rows: [[f32; 2]; 8] =
+        [[1.0, 0.0], [1.0, 0.0], [1.0, 1.0], [1.0, 1.0], [0.0, 1.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]];
+    let insult = IncivilityScores { insult: 1.0, ..Default::default() };
+    let attack = IncivilityScores { identity_attack: 1.0, insult: 1.0, ..Default::default() };
+    let none = IncivilityScores::default();
+    let targets = [none, none, attack, attack, insult, insult, none, none];
+    let refs: Vec<&[f32]> = rows.iter().map(|r| &r[..]).collect();
+    let fitted = IncivilityVectorHead::fit(&refs, None, &targets, &IncivilityFitOptions::default()).unwrap();
     for head in [configured, fitted] {
-        let a = IncivilityAnnotator::new().with_vector_scorer(Arc::new(head));
-        let (scores, _) = run(a, &mut doc(text, &ranges, &vectors)).unwrap();
-        for (i, s) in scores.iter().enumerate().take(2) {
-            for label in IncivilityLabel::ALL {
-                assert!(s.get(label) < DEFAULT_INCIVILITY_THRESHOLD, "neutral sentence {i}: {label} {}", s.get(label));
-            }
-        }
-        for s in &scores[2..] {
-            assert!(s.identity_attack >= DEFAULT_INCIVILITY_THRESHOLD, "{}", s.identity_attack);
+        // The head alone, then with the lexicon.
+        for stage in [IncivilityStage::Learned, IncivilityStage::Fused] {
+            let scores = identity_scores(head.clone(), stage);
+            assert!(neutral_below_attacks_above(&scores), "{stage:?}: {scores:?}");
         }
     }
+    // A head keyed on the identity term itself fails the check: the test
+    // can tell such a head from the ones above.
+    let w: Vec<f32> = (0..6).flat_map(|l| if l == 3 { [6.0, 0.0] } else { [0.0, 0.0] }).collect();
+    let keyed = IncivilityVectorHead::new(2, w, [-3.0; 6]).unwrap();
+    assert!(!neutral_below_attacks_above(&identity_scores(keyed, IncivilityStage::Learned)));
 }
 
 #[test]

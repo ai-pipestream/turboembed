@@ -142,6 +142,9 @@ impl Annotator for IncivilityAnnotator {
                         sent_vecs.and_then(|v| (i < v.len() && !v.is_empty(ix)).then(|| v.row(ix)))
                     };
                     let u_vec = row(s_idx);
+                    if self.stage == IncivilityStage::Learned && u_vec.is_none() {
+                        return Err(fail(format!("IncivilityStage::Learned: unit {s_idx} has no vector")));
+                    }
                     let ctx = self.context_of(s_idx.checked_sub(1).and_then(row));
 
                     let (scores, evidence) = self
@@ -182,6 +185,9 @@ impl Annotator for IncivilityAnnotator {
                         chunk_vecs.and_then(|v| (i < v.len() && !v.is_empty(ix)).then(|| v.row(ix)))
                     };
                     let u_vec = row(c_idx);
+                    if self.stage == IncivilityStage::Learned && u_vec.is_none() {
+                        return Err(fail(format!("IncivilityStage::Learned: unit {c_idx} has no vector")));
+                    }
                     let ctx = self.context_of(c_idx.checked_sub(1).and_then(row));
 
                     let (scores, evidence) = self
@@ -238,30 +244,18 @@ impl Annotator for IncivilityAnnotator {
             IncivilityVectorContext::Preceding => ":preceding-vector",
             IncivilityVectorContext::Parent(_) => ":parent-vector",
         };
-        let scorer = self.vector_scorer.as_ref().filter(|_| self.stage != IncivilityStage::Lexicon);
-        if self.stage == IncivilityStage::Learned
-            && let Some(scorer) = scorer
-        {
+        if let Some(scorer) = self.vector_scorer.as_ref().filter(|_| self.stage != IncivilityStage::Lexicon) {
             // A head with no encoder named is known by its configuration.
             let m = scorer.model().unwrap_or_else(|| ModelRef {
                 id: "incivility-vector-head".into(),
                 revision: "1".into(),
                 sha256: sha256(&scorer.config_hash().to_le_bytes()).to_hex(),
             });
-            return Some(ModelRef {
-                id: format!("{}:learned{vector_ctx}", m.id),
-                revision: m.revision,
-                sha256: m.sha256,
-            });
-        }
-        if let Some(scorer) = scorer
-            && let Some(m) = scorer.model()
-        {
-            return Some(ModelRef {
-                id: format!("{}+lexicon:{ctx_suffix}{vector_ctx}", m.id),
-                revision: m.revision,
-                sha256: m.sha256,
-            });
+            let id = match self.stage {
+                IncivilityStage::Learned => format!("{}:learned{vector_ctx}", m.id),
+                _ => format!("{}+lexicon:{ctx_suffix}{vector_ctx}", m.id),
+            };
+            return Some(ModelRef { id, revision: m.revision, sha256: m.sha256 });
         }
         Some(ModelRef {
             id: format!("oasis-incivility:lexicon:{ctx_suffix}"),
