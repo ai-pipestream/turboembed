@@ -306,6 +306,26 @@ fn rebuild(run: &str, golden: &Golden, input: &str, scratch: &Path) -> Rebuilt {
             let documents: Vec<NewsgroupDocument> =
                 ordered.iter().map(|f| NewsgroupDocument::read(f).unwrap()).collect();
             let samples: Vec<_> = documents.iter().map(|d| d.sample(&tokenizer).unwrap()).collect();
+            // Since #793 the generator writes newsgroups samples in sorted
+            // path order so the golden does not follow the host's directory
+            // order; goldens written before that follow the map order
+            // newsgroup_order emulates. Follow the golden's own turbo:files
+            // order so this test passes against both generations.
+            let golden_files: Vec<String> =
+                golden.layer("turbo:files").unwrap().strs("file").unwrap().iter().map(str::to_owned).collect();
+            let mut triples: Vec<_> = ordered.iter().zip(&documents).zip(&samples).collect();
+            if golden_files.windows(2).all(|w| w[0] <= w[1]) {
+                triples.sort_by_key(|((f, _), _)| f.path.strip_prefix(scratch).unwrap().to_str().unwrap().to_owned());
+            }
+            let (ordered, documents, samples): (Vec<_>, Vec<_>, Vec<_>) = triples
+                .into_iter()
+                .map(|((f, d), s)| (f, d, s))
+                .fold((Vec::new(), Vec::new(), Vec::new()), |(mut a, mut b, mut c), (f, d, s)| {
+                    a.push(f);
+                    b.push(d);
+                    c.push(s);
+                    (a, b, c)
+                });
             written(&samples, &mut out);
             for (i, (f, s)) in ordered.iter().zip(&samples).enumerate() {
                 out.row("turbo:files", vec![f.path.strip_prefix(scratch).unwrap().to_str().unwrap().to_owned()]);
