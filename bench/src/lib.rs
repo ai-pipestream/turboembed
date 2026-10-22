@@ -11,6 +11,7 @@ pub mod git;
 pub mod measure;
 pub mod onnx;
 pub mod openvino;
+pub mod ranges;
 pub mod tei;
 pub mod tensorrt;
 
@@ -131,7 +132,7 @@ pub fn utc(t: SystemTime) -> String {
     format!("{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
 }
 
-fn kind_name(kind: u32) -> &'static str {
+pub(crate) fn kind_name(kind: u32) -> &'static str {
     match kind {
         TURBO_DEVICE_CPU => "DEVICE_CPU",
         TURBO_DEVICE_GPU => "DEVICE_GPU",

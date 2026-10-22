@@ -8,6 +8,13 @@ usage:
       measure the library on one device, run the reference programs on
       the same token rows, and write the record; a bundle under
       testdata/ is refused
+  turbo-bench ranges --bundle <dir> [--device <d>] [--precision <p>]
+                     [--batch <n>] [--seq <n>] [--chunk <n>] [--warmup <n>]
+                     [--iterations <n>] [--repo <dir>] [--out <dir>]
+      on dense rows (default 32 or the model's max_batch if smaller, and 256
+      or its max_seq), time one vector per row, one per chunk of --chunk
+      text tokens (default 64) by ranges, and one per chunk embedded as a
+      row of its own; write the record to <repo>/benchmarks/ranges
   turbo-bench check <record.json>...
       parse records and say whether each backs SUPPORTED for its cell
 
