@@ -228,6 +228,16 @@ impl ExtractionSchema {
         over("max_structures", limits.max_structures, self.structures.len())?;
         let tasks = self.classifications.iter().map(|c| c.name.as_str());
         unique("task or record", tasks.chain(self.structures.iter().map(|s| s.name.as_str())))?;
+        // The entity types' task is named `entities` in the prompt.
+        if self
+            .classifications
+            .iter()
+            .map(|c| &c.name)
+            .chain(self.structures.iter().map(|s| &s.name))
+            .any(|n| n == "entities")
+        {
+            return Err(SchemaError::Reserved("task or record \"entities\"".into()));
+        }
         unique("entity type", self.entities.iter().map(|e| e.name.as_str()))?;
         for e in &self.entities {
             let p = format!("entity {:?}", e.name);

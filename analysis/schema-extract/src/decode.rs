@@ -23,29 +23,29 @@ use crate::schema::{Cardinality, Check, ExtractionSchema, Source};
 
 /// The deterministic layers a candidate can be checked against.
 pub trait Corroborate {
-    /// Whether `source` has a span overlapping bytes `start..end` of the
-    /// text.
-    fn overlaps(&self, source: Source, start: usize, end: usize) -> bool;
+    /// The rows of `source` whose spans overlap bytes `start..end` of the
+    /// text, in row order.
+    fn supporting(&self, source: Source, start: usize, end: usize) -> Vec<u32>;
 }
 
 /// No deterministic layers: every `Require` check fails, no boost applies.
 pub struct Nothing;
 
 impl Corroborate for Nothing {
-    fn overlaps(&self, _: Source, _: usize, _: usize) -> bool {
-        false
+    fn supporting(&self, _: Source, _: usize, _: usize) -> Vec<u32> {
+        Vec::new()
     }
 }
 
 /// One span value: its bytes in the prompt's text, its score and logit,
-/// and the deterministic layers that corroborate it.
+/// and the rows of the deterministic layers that corroborate it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpanValue {
     pub start: usize,
     pub end: usize,
     pub score: f32,
     pub logit: f32,
-    pub supported_by: Vec<Source>,
+    pub supported_by: Vec<(Source, u32)>,
 }
 
 /// One field value: a span of the text or a closed choice.
@@ -107,23 +107,28 @@ fn spans(
         for width in 0..w.min(words.len() - start) {
             let logit = logits[(skip + start) * w + width];
             let (s, e) = (words[start].start, words[start + width].end);
-            let supported_by: Vec<Source> = checks
-                .iter()
-                .map(|c| match c {
-                    Check::Require(s) | Check::Boost(s, _) => *s,
-                })
-                .filter(|&src| layers.overlaps(src, s, e))
-                .collect();
+            let mut supported_by: Vec<(Source, u32)> = Vec::new();
+            let mut sources: Vec<Source> = Vec::new();
+            for c in checks {
+                let (Check::Require(src) | Check::Boost(src, _)) = c;
+                if !sources.contains(src) {
+                    let rows = layers.supporting(*src, s, e);
+                    if !rows.is_empty() {
+                        sources.push(*src);
+                        supported_by.extend(rows.into_iter().map(|r| (*src, r)));
+                    }
+                }
+            }
             let boost: f32 = checks
                 .iter()
                 .filter_map(|c| match c {
-                    Check::Boost(src, b) if supported_by.contains(src) => Some(*b),
+                    Check::Boost(src, b) if sources.contains(src) => Some(*b),
                     _ => None,
                 })
                 .sum();
             let score = (sigmoid(logit) + boost).min(1.0);
             let required = checks.iter().all(|c| match c {
-                Check::Require(src) => supported_by.contains(src),
+                Check::Require(src) => sources.contains(src),
                 Check::Boost(..) => true,
             });
             if score >= threshold && required {

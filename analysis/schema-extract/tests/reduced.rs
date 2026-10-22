@@ -50,7 +50,7 @@ fn queries_over_many_fields_and_the_classifier_match_the_reference() {
     let canonical = turbo_bundle::deberta::convert(&config(), &bytes, "encoder.").unwrap();
     let encoder = Encoder::from_safetensors(config(), &canonical).unwrap();
     let heads = Heads::load(&File::parse("reduced", &bytes).unwrap(), 32, 8).unwrap();
-    let classifier_bytes = std::fs::read(format!("{DIR}/classifier.safetensors")).unwrap();
+    let classifier_bytes = std::fs::read(format!("{DIR}/extra.safetensors")).unwrap();
     let classifier = Classifier::load(&File::parse("classifier", &classifier_bytes).unwrap(), 32).unwrap();
     let reference: Value = serde_json::from_slice(&std::fs::read(format!("{DIR}/reduced.json")).unwrap()).unwrap();
     for (c, case) in reference["cases"].as_array().unwrap().iter().enumerate() {
@@ -73,6 +73,6 @@ fn queries_over_many_fields_and_the_classifier_match_the_reference() {
 
 #[test]
 fn a_classifier_of_another_width_is_refused() {
-    let bytes = std::fs::read(format!("{DIR}/classifier.safetensors")).unwrap();
+    let bytes = std::fs::read(format!("{DIR}/extra.safetensors")).unwrap();
     assert!(Classifier::load(&File::parse("classifier", &bytes).unwrap(), 48).is_err());
 }

@@ -16,9 +16,15 @@ serde_json = "1"
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-relation = { path = "../relation" }
+# The deterministic layers a schema's checks read.
+turbo-geo = { path = "../geo" }
+turbo-glossary-layers = { path = "../glossary-layers" }
 
 [dev-dependencies]
 # Packages the GLiNER2 encoder for the parity tests, as `turbo-bundle
 # deberta-convert` does, and fetches the real checkpoint by digest.
 turbo-bundle = { path = "../../bundle" }
 turbo-zoo = { path = "../zoo" }
+# Real number and PII layers for the deterministic checks.
+turbo-numeric = { path = "../numeric" }
+turbo-pii = { path = "../pii" }

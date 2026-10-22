@@ -5,9 +5,10 @@ Usage: build_fixture.py <gliner2-base-v1 checkout> <relation reduced.safetensors
 The checkout is fastino/gliner2-base-v1 at REVISION (Apache-2.0). Two
 fixtures are written:
 
-- classifier.safetensors and reduced.json: the classification head
-  sliced to width 32 to go with the relation scorer's reduced fixture
-  (the encoder and heads sliced to width 32), and the outputs of
+- extra.safetensors and reduced.json: the classification head sliced to
+  width 32 to go with the relation scorer's reduced fixture (the encoder
+  and heads sliced to width 32), the first 800 word embedding rows at that
+  width for the offline tests, and the outputs of
   GLiNER2's own layer classes: count queries across three and four
   fields, and classifier logits.
 - real.json: what the full checkpoint gives through GLiNER2's own
@@ -45,9 +46,13 @@ tensors['classifier.0.weight'] = np.ascontiguousarray(full['classifier.0.weight'
 tensors['classifier.0.bias'] = np.ascontiguousarray(full['classifier.0.bias'][:2 * D])
 tensors['classifier.2.weight'] = np.ascontiguousarray(full['classifier.2.weight'][:, :2 * D])
 tensors['classifier.2.bias'] = np.ascontiguousarray(full['classifier.2.bias'])
-# Only the classifier is written; the rest is the relation fixture's.
-save_file({k: torch.from_numpy(v) for k, v in tensors.items() if k.startswith('classifier.')},
-          OUT / 'classifier.safetensors')
+# Only the classifier is written, with the first 800 rows of the word
+# embeddings at width 32 for the offline tests, which tokenize text with an
+# 800-piece SentencePiece model; the rest is the relation fixture's.
+extra = {k: v for k, v in tensors.items() if k.startswith('classifier.')}
+extra['encoder.embeddings.word_embeddings.weight'] = np.ascontiguousarray(
+    full['encoder.embeddings.word_embeddings.weight'][:800, :D])
+save_file({k: torch.from_numpy(v) for k, v in extra.items()}, OUT / 'extra.safetensors')
 
 config = DebertaV2Config(vocab_size=16, hidden_size=D, intermediate_size=48,
     num_hidden_layers=2, num_attention_heads=2, max_position_embeddings=32,

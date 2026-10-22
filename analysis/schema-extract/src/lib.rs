@@ -2,12 +2,18 @@
 //! document classification tasks and structured record types together
 //! (docs/schema-extract.md).
 
+pub mod annotator;
 pub mod decode;
+mod evidence;
+pub mod export;
+pub mod layer;
 pub mod model;
 pub mod prompt;
 pub mod schema;
 
+pub use annotator::SchemaAnnotator;
 pub use decode::{Corroborate, Extraction, decode};
+pub use layer::Records;
 pub use model::{ExtractError, Gliner2Extractor};
 pub use schema::{
     Cardinality, Check, ClassificationTask, EntityType, ExtractionSchema, FieldSpec, Label, Limits, SchemaError,

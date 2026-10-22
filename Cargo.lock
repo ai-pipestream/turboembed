@@ -2562,6 +2562,10 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-bundle",
+ "turbo-geo",
+ "turbo-glossary-layers",
+ "turbo-numeric",
+ "turbo-pii",
  "turbo-relation",
  "turbo-zoo",
 ]
