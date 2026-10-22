@@ -4182,6 +4182,37 @@ Every `weighted` setting across `0.35..=0.50` on `turbo-chunker-254-200`
 against all three stage-0 baselines, `bm25-document`, and both dense
 `turbo-chunker` records.
 
+### Larger embedders
+
+`TurboEmbedder` pools as the bundle's manifest says: by the mean (as
+all-MiniLM-L6-v2 does) or by the first token (as BGE does).
+`analysis/eval/tests/bundle_pooling.rs` checks the harness's vectors
+against each bundle's own reference vectors when `TURBO_EVAL_BUNDLES`
+names the bundles. The BGE bundles carry no query prompt, so queries are
+embedded without BGE's retrieval instruction.
+
+With `turbo-chunker --max 254 --target 200`, nDCG@10:
+
+| Embedder | Retrieval | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| all-MiniLM-L6-v2 | dense | `65.06` | `31.76` | `49.55` | `28.17` | `43.63` |
+| bge-small-en-v1.5 | dense | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
+| bge-base-en-v1.5 | dense | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
+| all-MiniLM-L6-v2 | hybrid, `w = 0.35` | `69.24` | `34.28` | `51.65` | `37.85` | `48.25` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
+
+The records are `analysis/eval/records/bge-small-turbo-chunker-254-200`,
+`bge-base-turbo-chunker-254-200` and their `-hybrid` twins. A larger
+embedder narrows the dense gap on qasper by little (28.17 to 30.82,
+against `bm25-document`'s 37.76) while it gains 13 to 15 points on
+arguana, so the qasper gap is lexical rather than a matter of model
+size. With BGE, the hybrid's BM25 weight, fixed for MiniLM, costs 4 points
+on arguana and 1.5 on scifact against BGE alone; the dense BGE records
+pass the gate against `sentence-windows-5` and `fixed-tokens-200` but
+not against the semantic chunker (qasper under the floor), and the BGE
+hybrids pass against all three stage 0 baselines and `bm25-document`.
+
 ### Measures and the gate
 
 - `metrics`: nDCG@10 with linear graded gain and a `log2(rank + 1)`

@@ -23,7 +23,7 @@
 use turbo::head::Linear;
 use turbo::safetensors::{Dtype, File};
 
-use super::kernel::{Packed, apply, dot};
+use crate::kernel::{Packed, apply, dot};
 
 /// Two linear layers with a ReLU between, as `create_mlp` and
 /// `create_projection_layer` build them.

@@ -8,6 +8,7 @@ pub mod capabilities;
 pub mod config;
 mod infer;
 mod kserve;
+pub mod offsets;
 pub mod results;
 mod state;
 pub mod status;

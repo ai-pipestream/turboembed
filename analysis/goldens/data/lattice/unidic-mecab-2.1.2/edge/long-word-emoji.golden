@@ -1,0 +1,18 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/long-word-emoji	299	297	5dbd5bc952a059e356487829312c19b1326aefb63f1d30ac6deff30397496ebb
+model	unidic-mecab-2.1.2	31954712a563e3cf046f4e53ae33a44bd892800dc1b38057242ccbb82f2914ec1f79f3878b1341d980877fdc3580efee933c51e0a492a2d91a60206a4d6e6e1f
+annotator	opennlp.tools.tokenize.lattice.LatticeTokenizer	analyze
+layer	opennlp:tokens	text	3	start:u32	end:u32
+0	254
+254	258
+258	298
+end	opennlp:tokens
+layer	turbo:morphemes	aligned:opennlp:tokens	3	unknown:u32	features:str
+1	名詞,普通名詞,一般,*,*,*
+1	補助記号,一般,*,*,*,*
+1	名詞,普通名詞,一般,*,*,*
+end	turbo:morphemes

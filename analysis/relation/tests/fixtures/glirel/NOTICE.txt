@@ -1,0 +1,13 @@
+reduced.safetensors holds seeded random weights (seed 20261021) in the
+shapes and under the tensor names of a GLiREL checkpoint, at widths 32
+(encoder) and 16 (heads). No value comes from a GLiREL or DeBERTa
+checkpoint. reduced.json holds the outputs of GLiREL's own layer classes
+on those weights.
+
+real.json holds only outputs (token ids, logits and predicted relations)
+of jackboyla/glirel-large-v0 at 40a523e12a8432d6da364cf2a195a28755ff04d3,
+whose model card gives CC BY-NC-SA 4.0; no weights.
+
+Both were produced by analysis/relation/reference/glirel/build_fixture.py
+with GLiREL at 1f485a268c2144cdc0221bcf0b24152f93c0a155 and Hugging Face
+Transformers 4.57.1 (Apache-2.0).

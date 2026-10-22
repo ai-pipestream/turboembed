@@ -88,8 +88,8 @@ fn fastest_computes_in_f16_and_says_so() {
         assert_eq!(rt.capability(i, p).dtype, dtype, "precision {p}");
         let info = make(l.m, None, p, TURBO_AUTOTUNE_OFF).unwrap().info();
         assert_eq!(info.compute_dtype, dtype, "precision {p}");
-        // FASTEST has three tilings to choose from; the others one path.
-        let want = if p == TURBO_PRECISION_FASTEST { "linear=h64;forced=" } else { "" };
+        // FASTEST has four choices (three tiles and auto); the others one path.
+        let want = if p == TURBO_PRECISION_FASTEST { "linear=auto;forced=" } else { "" };
         assert_eq!((field(&info.choices), info.tuned), (want.to_owned(), TURBO_TUNED_DEFAULT), "precision {p}");
     }
 }
@@ -107,6 +107,7 @@ fn each_f16_choice_matches_the_cpu_within_fastest_s_floor() {
         ("h32", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
         ("h64", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
         ("h128", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
+        ("auto", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
         ("f32", TURBO_PRECISION_EXACT, 0.9999),
     ] {
         let line = format!("linear={choice}");
@@ -152,7 +153,7 @@ fn a_tuned_session_runs_one_of_the_tilings() {
     let s = make(g.m, None, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_RETUNE).unwrap();
     let i = s.info();
     assert!([TURBO_TUNED_MEASURED, TURBO_TUNED_DEFAULT].contains(&i.tuned), "{}", i.tuned);
-    let lines = ["linear=h32;forced=", "linear=h64;forced=", "linear=h128;forced="];
+    let lines = ["linear=h32;forced=", "linear=h64;forced=", "linear=h128;forced=", "linear=auto;forced="];
     assert!(lines.contains(&field(&i.choices).as_str()), "{}", field(&i.choices));
     // The tuning runs wrote the session's memory: its first run is whole.
     let (_, t) = shapes(&dir, i.max_batch as usize, i.max_seq as usize).pop().unwrap();

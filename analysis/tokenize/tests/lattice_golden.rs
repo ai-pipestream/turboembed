@@ -203,3 +203,96 @@ fn mecab_ko_dic() {
     let got = matches("mecab-ko-dic-2.1.1-20180720", &dir, &[&dir], WhitespaceMode::Unicode);
     assert_eq!(got, counts(61, 1360, 971, 0));
 }
+
+#[test]
+#[ignore = "needs UniDic from turbo-goldens fetch-models"]
+fn unidic() {
+    let dir = dictionaries_dir().join("unidic-mecab-2.1.2");
+    let got = matches("unidic-mecab-2.1.2", &dir, &[&dir], WhitespaceMode::Unicode);
+    assert_eq!(got, counts(65, 2016, 519, 0));
+}
+
+fn file_shapes(text: &str) -> Vec<turbo_goldens::Shape> {
+    use turbo_goldens::{ColumnSpec, ColumnType, GoldenAnchor, Shape, segmentation_shapes};
+    let mut shapes = segmentation_shapes();
+    for line in text.lines() {
+        let fields: Vec<&str> = line.split('\t').collect();
+        if fields.first() != Some(&"layer") || fields.len() < 5 {
+            continue;
+        }
+        let id = fields[1];
+        if shapes.iter().any(|s| s.id == id) {
+            continue;
+        }
+        let anchor = match fields[2] {
+            "text" => GoldenAnchor::Text,
+            "document" => GoldenAnchor::Document,
+            a => GoldenAnchor::Aligned(a.strip_prefix("aligned:").unwrap().into()),
+        };
+        let cols: Vec<ColumnSpec> = fields[4..]
+            .iter()
+            .map(|f| {
+                let (name, ty) = f.split_once(':').unwrap();
+                let name: &'static str = Box::leak(name.to_string().into_boxed_str());
+                let ty = match ty {
+                    "u32" => ColumnType::U32,
+                    "f64" => ColumnType::F64,
+                    "str" => ColumnType::Str,
+                    other => panic!("unexpected column type {other}"),
+                };
+                ColumnSpec::new(name, ty)
+            })
+            .collect();
+        let columns: &'static [ColumnSpec] = Box::leak(cols.into_boxed_slice());
+        shapes.push(Shape { id: id.into(), anchor, columns });
+    }
+    shapes
+}
+
+fn collect_files(dir: &Path, ext: &str, out: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            collect_files(&path, ext, out);
+        } else if path.extension().is_some_and(|e| e == ext) {
+            out.push(path);
+        }
+    }
+}
+
+#[test]
+fn unidic_goldens_round_trip() {
+    let cases = run("lattice", "unidic-mecab-2.1.2");
+    assert_eq!(cases.len(), 65);
+    for case in cases {
+        let raw = std::fs::read_to_string(&case.path).unwrap();
+        assert!(!raw.contains('\u{2014}'), "{}", case.path.display());
+        assert_eq!(case.golden.to_text().unwrap(), raw, "{}", case.path.display());
+    }
+
+    let mut all = Vec::new();
+    collect_files(&turbo_goldens::data_dir(), "golden", &mut all);
+    all.sort();
+    assert!(all.len() > 3000, "{} checked-in goldens", all.len());
+    for path in all {
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(!raw.contains('\u{2014}'), "{}", path.display());
+        let shapes = file_shapes(&raw);
+        match turbo_goldens::Golden::parse_with(&raw, &shapes) {
+            Ok(golden) => assert_eq!(golden.to_text().unwrap(), raw, "{}", path.display()),
+            Err(turbo_goldens::GoldenError::Escape { error, .. })
+                if matches!(error.kind, turbo_goldens::escape::EscapeErrorKind::LoneSurrogate(_)) => {}
+            Err(e) => panic!("{}: {e}", path.display()),
+        }
+    }
+
+    let mut dumps = Vec::new();
+    collect_files(&turbo_goldens::data_dir(), "dump", &mut dumps);
+    dumps.sort();
+    assert!(dumps.len() > 1000, "{} checked-in dumps", dumps.len());
+    for path in dumps {
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(!raw.contains('\u{2014}'), "{}", path.display());
+        turbo_goldens::Dump::parse(&raw).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    }
+}

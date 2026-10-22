@@ -3,6 +3,7 @@
 //!
 //! - `\t`, `\n`, `\r` and `\\` for a tab, a line feed, a carriage return
 //!   and a backslash;
+//! - `\u2014` for U+2014 (em dash);
 //! - `\uXXXX`, four lowercase hex digits naming one UTF-16 unit, for every
 //!   other character below U+0020.
 //!
@@ -24,7 +25,7 @@ const HEX: &[u8; 16] = b"0123456789abcdef";
 
 /// Appends `s` to `out` with the escapes above.
 pub fn escape_into(s: &str, out: &mut String) {
-    if !s.bytes().any(|b| b < 0x20 || b == b'\\') {
+    if !s.bytes().any(|b| b < 0x20 || b == b'\\') && !s.contains('\u{2014}') {
         out.push_str(s);
         return;
     }
@@ -34,6 +35,7 @@ pub fn escape_into(s: &str, out: &mut String) {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\\' => out.push_str("\\\\"),
+            '\u{2014}' => out.push_str("\\u2014"),
             c if (c as u32) < 0x20 => {
                 let b = c as u32 as u8;
                 out.push_str("\\u00");
@@ -234,7 +236,9 @@ mod tests {
         assert_eq!(unescape("a\\\\b").unwrap(), "a\\b");
         assert_eq!(escape("\\u0041"), "\\\\u0041");
         assert_eq!(unescape("\\\\u0041").unwrap(), "\\u0041");
-        // DEL and every character from U+0020 up are written as they are.
+        assert_eq!(escape("a\u{2014}b"), "a\\u2014b");
+        assert_eq!(unescape("a\\u2014b").unwrap(), "a\u{2014}b");
+        // DEL and every character from U+0020 up (except U+2014) are written as they are.
         let plain = "Zürich \u{7f} \u{a0} \u{2028} 東京 😀";
         assert_eq!(escape(plain), plain);
         assert_eq!(unescape(plain).unwrap(), plain);

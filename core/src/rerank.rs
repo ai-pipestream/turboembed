@@ -54,7 +54,8 @@ impl Drop for Reranker {
 }
 
 fn string(chars: &[c_char]) -> String {
-    String::from_utf8_lossy(&chars.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect::<Vec<_>>()).into_owned()
+    String::from_utf8_lossy(&chars.iter().take_while(|&&c| c != 0).map(|&c| c.to_ne_bytes()[0]).collect::<Vec<_>>())
+        .into_owned()
 }
 fn error() -> turbo_error {
     turbo_error {

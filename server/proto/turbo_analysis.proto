@@ -39,6 +39,14 @@ service AnalysisService
   rpc RoundTripTokenVectors(TokenVectorsResult) returns (TokenVectorsResult) {}
   rpc RoundTripRerankScores(RerankScoresResult) returns (RerankScoresResult) {}
   rpc RoundTripExtraction(ExtractionResult) returns (ExtractionResult) {}
+
+  // Chunks, their level tree and their embeddings in one round trip,
+  // with every span offset in the message's chosen OffsetMode.
+  rpc RoundTripChunkLevels(ChunkLevelsResult) returns (ChunkLevelsResult) {}
+
+  // A binary DocumentGraph in, the same document re-exported out,
+  // with every view and layer's identity, provenance and status.
+  rpc RoundTripDocumentGraph(DocumentGraphRequest) returns (DocumentGraphResponse) {}
 }
 
 message CapabilitiesRequest {}
@@ -129,6 +137,10 @@ message ResultLimits
   uint64 max_answers = 5;
   uint64 max_answer_fragments = 6;
   uint64 max_windows = 7;
+  uint64 max_chunks = 8;
+  uint64 max_levels = 9;
+  uint64 max_fragments = 10;
+  uint64 max_graph_bytes = 11;
 }
 
 message LoadBundleRequest
@@ -304,4 +316,118 @@ message ExtractionResult
   repeated uint32 frag_start = 9;
   repeated uint32 frag_end = 10;
   repeated uint32 frag_at = 11;
+}
+
+// The unit every span offset in a message is counted in. UTF-8 bytes
+// are the internal offsets; UTF-16 code units are Java's string
+// indices; code points count Unicode scalar values. Conversion uses
+// the view text's checkpoint table and refuses offsets that are out
+// of bounds, inverted, or inside a code point or UTF-16 surrogate
+// pair, with TURBO_E_INVALID_ARGUMENT: nothing is snapped or cut.
+enum OffsetMode
+{
+  OFFSET_MODE_UTF8 = 0;
+  OFFSET_MODE_UTF16 = 1;
+  OFFSET_MODE_CODE_POINT = 2;
+}
+
+// What became of one layer or view on its document.
+enum LayerWireStatus
+{
+  LAYER_WIRE_STATUS_OK = 0;
+  LAYER_WIRE_STATUS_SKIPPED = 1;
+  LAYER_WIRE_STATUS_FAILED = 2;
+}
+
+// One layer instance of a document graph: its standard layer id
+// (opennlp:* or turbo:*), instance, status and provenance.
+message LayerInfo
+{
+  string layer = 1;
+  string instance = 2;
+  LayerWireStatus status = 3;
+  // Why the layer was skipped, or its failure; empty when OK.
+  string status_detail = 4;
+  string annotator = 5;
+  string version = 6;
+  ModelRef model = 7;
+  uint64 config_hash = 8;
+  uint32 items = 9;
+}
+
+// One text view of a document graph.
+message ViewInfo
+{
+  string instance = 1;
+  LayerWireStatus status = 2;
+  string status_detail = 3;
+  string annotator = 4;
+  // The parent view's instance; empty for the source view.
+  string parent = 5;
+}
+
+// A whole document as binary DocumentGraph bytes (turbo-analysis
+// export). The answer is the same document imported and re-exported,
+// with its layers and views listed.
+message DocumentGraphRequest
+{
+  bytes graph = 1;
+}
+
+message DocumentGraphResponse
+{
+  bytes graph = 1;
+  repeated LayerInfo layers = 2;
+  repeated ViewInfo views = 3;
+  string source_text = 4;
+}
+
+// turbo:chunks, turbo:levels and opennlp:embeddings (over the chunks)
+// in one message, over one view's text. Every span offset is counted
+// in `offsets`. Spans are fragment columns in item order: item i's
+// fragments are frag_at[i - 1]..frag_at[i] (0..frag_at[0] first), at
+// least one per item, ascending and non-overlapping, as the layers'
+// own checks prove them.
+message ChunkLevelsResult
+{
+  // The view text the spans are offsets into.
+  string text = 1;
+  uint32 view = 2;
+  OffsetMode offsets = 3;
+
+  // Chunks: one entry per column per chunk.
+  repeated uint32 chunk_frag_start = 4;
+  repeated uint32 chunk_frag_end = 5;
+  repeated uint32 chunk_frag_at = 6;
+  repeated uint32 chunk_level = 7;
+  // The parent chunk index, or -1 for a level-0 chunk.
+  repeated int32 chunk_parent = 8;
+  repeated uint32 chunk_sentence_start = 9;
+  repeated uint32 chunk_sentence_end = 10;
+  // The cut reason tag of the DocumentGraph layer codec (0 document,
+  // 1 sentence, 2 section, 3 heading, 4 paragraph, 5 topic, 6 clause,
+  // 7 item, 8 inside a block, 9 overlap into a block); chunk_cut_block
+  // names the block (its codec table index) for tags 8 and 9, else 0.
+  repeated uint32 chunk_cut = 11;
+  repeated uint32 chunk_cut_block = 12;
+  repeated int64 chunk_cost = 13;
+  repeated uint32 chunk_model_tokens = 24;
+  repeated bool chunk_over_budget = 25;
+
+  // Levels: the chunk/section/document tree over the same view.
+  repeated uint32 level_frag_start = 14;
+  repeated uint32 level_frag_end = 15;
+  repeated uint32 level_frag_at = 16;
+  // 0 chunk, 1 section, 2 document.
+  repeated uint32 level_kind = 17;
+  // The chunk or structure index the unit names; 0 for the document.
+  repeated uint32 level_ix = 18;
+  // The parent unit index, or -1 for the document unit.
+  repeated int32 level_parent = 19;
+
+  // Embeddings: one row per chunk.
+  ModelRef model = 20;
+  uint32 dim = 21;
+  bytes data = 22;
+  repeated uint32 empty = 23;
 }

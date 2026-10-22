@@ -54,8 +54,11 @@ pub fn trees(expected: &Path, actual: &Path) -> io::Result<Differences> {
     for p in &e {
         if !a.contains(p) {
             d.missing.push(p.clone());
-        } else if fs::read(expected.join(p))? != fs::read(actual.join(p))? {
-            d.differ.push(p.clone());
+        } else {
+            let (want, got) = (fs::read(expected.join(p))?, fs::read(actual.join(p))?);
+            if want != got && !newsgroups_equal(p, &want, &got) {
+                d.differ.push(p.clone());
+            }
         }
     }
     d.extra = a.difference(&e).cloned().collect();
@@ -175,5 +178,125 @@ mod tests {
         assert_eq!(all.differ, vec![PathBuf::from("chunk/m/en/a.golden"), PathBuf::from("sentdetect/m/en/a.golden")]);
         assert_eq!(all.missing, vec![PathBuf::from("chunk/m/en/b.golden"), PathBuf::from("sentdetect/m/en/b.golden")]);
         assert_eq!(all.extra, vec![PathBuf::from("chunk/m/en/c.golden"), PathBuf::from("sentdetect/m/en/c.golden")]);
+    }
+}
+
+/// Whether `p` names a 20 Newsgroups golden, whose sample order followed
+/// the generating host's directory order before the generator sorted it
+/// (#793). Two such goldens count as equal when they differ only in that
+/// order: both sides are canonicalized to path-sorted sample order and
+/// then compared byte for byte, so every sample row's content is still
+/// verified exactly. A golden with read errors cannot be canonicalized
+/// (its samples no longer pair with files by position) and compares
+/// strictly.
+fn newsgroups_equal(p: &Path, want: &[u8], got: &[u8]) -> bool {
+    let named = p.components().any(|c| c.as_os_str().to_string_lossy().starts_with("20newsgroup-"));
+    if !named {
+        return false;
+    }
+    match (canonical_newsgroups(want), canonical_newsgroups(got)) {
+        (Some(a), Some(b)) => a == b,
+        _ => false,
+    }
+}
+
+/// One parsed layer block: its header line and its row lines.
+struct Block<'a> {
+    id: &'a str,
+    header: &'a str,
+    rows: Vec<&'a str>,
+}
+
+fn canonical_newsgroups(bytes: &[u8]) -> Option<Vec<u8>> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    let mut head: Vec<&str> = Vec::new();
+    let mut blocks: Vec<Block<'_>> = Vec::new();
+    let mut lines = text.lines().peekable();
+    while let Some(line) = lines.peek() {
+        if line.starts_with("layer\t") {
+            break;
+        }
+        head.push(lines.next()?);
+    }
+    while let Some(header) = lines.next() {
+        let id = header.strip_prefix("layer\t")?.split('\t').next()?;
+        let mut rows = Vec::new();
+        loop {
+            let line = lines.next()?;
+            if line == format!("end\t{id}") {
+                break;
+            }
+            rows.push(line);
+        }
+        blocks.push(Block { id, header, rows });
+    }
+    let files = &blocks.iter().find(|b| b.id == "turbo:files")?.rows;
+    if blocks.iter().find(|b| b.id == "turbo:read-errors").is_some_and(|b| !b.rows.is_empty()) {
+        return None;
+    }
+    // The sample order that sorts samples by their file path, and its
+    // inverse for renumbering sample-index columns.
+    let mut order: Vec<usize> = (0..files.len()).collect();
+    order.sort_by_key(|&i| files[i]);
+    let mut inverse = vec![0_usize; files.len()];
+    for (new, &old) in order.iter().enumerate() {
+        inverse[old] = new;
+    }
+    let mut out = String::new();
+    for line in &head {
+        out.push_str(line);
+        out.push('\n');
+    }
+    for block in &blocks {
+        out.push_str(block.header);
+        out.push('\n');
+        let mut rows: Vec<String> = match block.id {
+            "turbo:samples" | "turbo:sample-labels" | "turbo:files" => {
+                if block.rows.len() != files.len() {
+                    return None;
+                }
+                order.iter().map(|&i| block.rows[i].to_string()).collect()
+            }
+            "turbo:listing" => {
+                let mut rows: Vec<String> = block.rows.iter().map(|r| r.to_string()).collect();
+                rows.sort();
+                rows
+            }
+            "turbo:sample-tokens" => {
+                let mut rows: Vec<(usize, String)> = Vec::with_capacity(block.rows.len());
+                for row in &block.rows {
+                    let (sample, rest) = row.split_once('\t')?;
+                    let old: usize = sample.parse().ok()?;
+                    rows.push((*inverse.get(old)?, format!("{}\t{rest}", inverse[old])));
+                }
+                rows.sort_by_key(|(sample, _)| *sample);
+                rows.into_iter().map(|(_, row)| row).collect()
+            }
+            _ => block.rows.iter().map(|r| r.to_string()).collect(),
+        };
+        for row in rows.drain(..) {
+            out.push_str(&row);
+            out.push('\n');
+        }
+        out.push_str(&format!("end\t{}\n", block.id));
+    }
+    Some(out.into_bytes())
+}
+
+#[cfg(test)]
+mod newsgroups_tests {
+    use super::canonical_newsgroups;
+
+    const A: &str = "golden 1\nlayer\tturbo:samples\tdocument\t2\twritten:str\nb-text\na-text\nend\tturbo:samples\nlayer\tturbo:read-errors\tdocument\t0\tafter:u32\tclass:str\tmessage:str\nend\tturbo:read-errors\nlayer\tturbo:listing\tdocument\t2\tfile:str\ng2/f2\ng1/f1\nend\tturbo:listing\nlayer\tturbo:files\tdocument\t2\tfile:str\ng2/f2\ng1/f1\nend\tturbo:files\nlayer\tturbo:sample-labels\tdocument\t2\tlabel:str\ng2\ng1\nend\tturbo:sample-labels\nlayer\tturbo:sample-tokens\tdocument\t3\tsample:u32\ttext:str\n0\tb1\n1\ta1\n0\tb2\nend\tturbo:sample-tokens\n";
+    const B: &str = "golden 1\nlayer\tturbo:samples\tdocument\t2\twritten:str\na-text\nb-text\nend\tturbo:samples\nlayer\tturbo:read-errors\tdocument\t0\tafter:u32\tclass:str\tmessage:str\nend\tturbo:read-errors\nlayer\tturbo:listing\tdocument\t2\tfile:str\ng1/f1\ng2/f2\nend\tturbo:listing\nlayer\tturbo:files\tdocument\t2\tfile:str\ng1/f1\ng2/f2\nend\tturbo:files\nlayer\tturbo:sample-labels\tdocument\t2\tlabel:str\ng1\ng2\nend\tturbo:sample-labels\nlayer\tturbo:sample-tokens\tdocument\t3\tsample:u32\ttext:str\n0\ta1\n1\tb1\n1\tb2\nend\tturbo:sample-tokens\n";
+
+    #[test]
+    fn reordered_goldens_canonicalize_equal() {
+        assert_eq!(canonical_newsgroups(A.as_bytes()), canonical_newsgroups(B.as_bytes()));
+        let changed = B.replace("a-text", "a-changed");
+        assert_ne!(canonical_newsgroups(A.as_bytes()), canonical_newsgroups(changed.as_bytes()));
+        let errors =
+            B.replace("after:u32\tclass:str\tmessage:str\nend", "after:u32\tclass:str\tmessage:str\n0\tE\tboom\nend");
+        assert_eq!(canonical_newsgroups(errors.as_bytes()), None, "read errors compare strictly");
     }
 }
