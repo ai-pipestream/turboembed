@@ -4794,8 +4794,9 @@ cascade at full pool and contextual-only. The latency columns time
 summed over one `Cascade` per document, so they include
 per-document lexical ranking and static scoring and are not the
 single-index latency evidence; the latency fixture in
-`turbo-chunker` (55.5 us cascade vs 316.2 us direct 512-dimension
-contextual scan over 721 units) is. The latency-relevant column
+`turbo-chunker` (about 70 us for the cascade at 64 candidates against
+about 342 us for a direct 512-dimension contextual scan over 721 units,
+recorded above) is. The latency-relevant column
 here is contextual units scored per query, the cost driver with a
 real encoder.
 
