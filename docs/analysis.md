@@ -4668,3 +4668,48 @@ with linguistic terms.
 [Dense classifiers and feature selection](dense-classifier.md) describes Adam
 training over typed vectors, temperature calibration, and MI/Chi2 selection
 before document categorizer training.
+
+## Static-to-contextual cascade records (#712)
+
+The `turbo_chunker::Cascade` pooled-admission mechanism (static and
+lexical admission, contextual rerank, structured filters) was swept
+over cached BEIR subsets with `analysis/eval/tests/cascade.rs`
+(`cascade_benchmark_receipt`, ignored and release-only; 1500 or 2361
+documents and 100 scored queries per set). The encoders are
+deterministic synthetic mechanism encoders (256-dimension hashed
+static vectors, 768-dimension neighbour-mixed contextual vectors),
+so the records measure the cascade mechanism over real texts and
+qrels, not trained encoder quality. A document's score is its best
+chunk unit's score. Each document runs its own `Cascade`, so the
+wall-clock column is construction-dominated (1500 constructions and
+validations per query) and is not the latency evidence; the
+single-index latency fixture in `turbo-chunker` (55.5 us cascade vs
+316.2 us direct 512-dimension contextual scan over 721 units) is.
+The latency-relevant column here is contextual units scored per
+query, the cost driver with a real encoder.
+
+| Set | Arm | Recall@10 | nDCG@10 | Contextual scored/query |
+|---|---|---|---|---|
+| scifact | Static only | 0.2967 | 0.2306 | 10887 |
+| scifact | Contextual only | 0.4233 | 0.3511 | 10887 |
+| scifact | Cascade C=5 | 0.4650 | 0.3726 | 8534 |
+| scifact | Cascade C=10 | 0.4650 | 0.3726 | 11892 |
+| nfcorpus | Static only | 0.0537 | 0.1249 | 18727 |
+| nfcorpus | Contextual only | 0.1250 | 0.2646 | 18727 |
+| nfcorpus | Cascade C=5 | 0.1254 | 0.2660 | 11841 |
+| nfcorpus | Cascade C=10 | 0.1254 | 0.2655 | 19907 |
+| arguana | Static only | 0.1600 | 0.1123 | 8064 |
+| arguana | Contextual only | 0.1800 | 0.1147 | 8064 |
+| arguana | Cascade C=5 | 0.3700 | 0.2502 | 7659 |
+| arguana | Cascade C=10 | 0.3700 | 0.2502 | 9349 |
+
+Recall curves saturate at C=5 in these subsets (C=25/50/64 change
+nothing), because short documents hold few chunk units per
+document; the documented default shortlist is C=64 for
+corpus-scale indexes, where one shortlist spans the whole corpus
+rather than one document. Recall@10 margins of the cascade over
+contextual-only: +0.0417 (scifact), +0.0004 (nfcorpus), +0.1900
+(arguana), from lexical admission rescuing units the contextual
+arm ranks low. Qasper is cached only as a tarball (not BEIR jsonl
+for this reader), GutenQA only as parquet, and ConTEB and
+HiCBench are not cached; none of those four ran.
