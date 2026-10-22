@@ -4183,6 +4183,29 @@ Every `weighted` setting across `0.35..=0.50` on `turbo-chunker-254-200`
 against all three stage-0 baselines, `bm25-document`, and both dense
 `turbo-chunker` records.
 
+### Structure in the chunker
+
+The records under `analysis/eval/records/turbo-chunker-254-200-structure-*`
+run the turbo-chunker at `--max 254 --target 200` with all-MiniLM-L6-v2
+on the 4080, one commit, with `--structure none`, `plain` and
+`markdown`. nDCG@10, with the chunks in parentheses:
+
+| Structure | scifact | nfcorpus | arguana | qasper | gutenqa |
+| --- | --- | --- | --- | --- | --- |
+| none | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2792 (9453) | 0.8631 (69197) |
+| plain | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
+| markdown | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2825 (10544) | 0.8634 (69228) |
+
+The three BEIR sets' documents are single paragraphs, so every
+structure gives the same chunks there. On qasper and gutenqa no
+structure moves nDCG@10 by an interval clear of zero (`turbo-eval
+gate`): plain against none is +0.24 (-0.76 to +1.25) and +0.04 (-0.06
+to +0.15), Markdown against none +0.32 (-0.70 to +1.33) and +0.03
+(-0.08 to +0.13), and no set is below the gate's -0.5 floor. On
+qasper's evidence spans, the share of relevant spans that lie wholly
+inside one of the top 10 chunks rises from 0.088 with no structure to
+0.129 with plain and Markdown, with span recall at 10 the same (0.159).
+
 ### Larger embedders
 
 `TurboEmbedder` pools as the bundle's manifest says: by the mean (as
