@@ -203,7 +203,9 @@ impl LocalOnlyReason {
                 "This project's policy: the zoo requests data under this licence only at addresses under its \
                  original source, and the project never ships, bundles or redistributes the data or any model \
                  trained on it. By accepting, you agree to treat any model you train on it as non-commercial and \
-                 to keep that model on your machine."
+                 to keep that model on your machine. Model weights under this licence are held to the same: the \
+                 project never ships or redistributes them or anything converted from them, and you agree to use \
+                 them, and what you convert from them, for non-commercial purposes only and on your machine."
             }
         }
     }

@@ -3543,6 +3543,33 @@
       ]
     },
     {
+      "id": "microsoft-deberta-v3-large-tokenizer",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_SENTENCEPIECE",
+      "version": "64a8c8eab3e352a784c658aef62be1662607476f",
+      "license": "MIT",
+      "license_terms": "https://huggingface.co/microsoft/deberta-v3-large/blob/64a8c8eab3e352a784c658aef62be1662607476f/README.md",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "files": [
+        {
+          "path": "spm.model",
+          "url": "https://huggingface.co/microsoft/deberta-v3-large/resolve/64a8c8eab3e352a784c658aef62be1662607476f/spm.model",
+          "size": 2464616,
+          "sha256": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+          "sha512": "950cf1b397c25342053efaea576419e104f11e085796d741e5e78d6765ffe5474f4f096ee578099b04a611bde03e12808c51e2b6e89d2962a8665a35da6eb081"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/microsoft/deberta-v3-large/resolve/64a8c8eab3e352a784c658aef62be1662607476f/config.json",
+          "size": 580,
+          "sha256": "ddec8b81d079d218ce9e54fc0af5d1d5937d6d53b5d42e70c1f251a1cebc830d",
+          "sha512": "9b1815d7aa216db719f6773f37f7d4203bb154d74f09c26e3481d1775a681e1f66a118c7191622e307c7f6706d9b2e6f0ecceb25ba2d4759ccb314137bee19cf"
+        }
+      ]
+    },
+    {
       "id": "jackboyla-glirel-large-v0",
       "kind": "KIND_MODEL",
       "language": "en",
