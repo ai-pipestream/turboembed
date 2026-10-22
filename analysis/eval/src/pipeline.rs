@@ -107,8 +107,18 @@ impl Pipeline {
 
         let t = Instant::now();
         let (mut doc_of, mut spans) = (Vec::new(), Vec::new());
+        // Vectors the chunker pooled itself, one per chunk: from every
+        // document or from none.
+        let mut pooled: Option<Vec<f32>> = None;
         for (i, (d, doc)) in set.docs.iter().zip(&docs).enumerate() {
-            let chunks = self.chunker.chunk(doc, embedder).map_err(|e| format!("document {}: {e}", d.id))?;
+            let (chunks, vectors) =
+                self.chunker.chunk_vectors(doc, embedder).map_err(|e| format!("document {}: {e}", d.id))?;
+            match (i, vectors, pooled.as_mut()) {
+                (_, None, None) => {}
+                (0, Some(v), None) => pooled = Some(v),
+                (_, Some(v), Some(p)) => p.extend_from_slice(&v),
+                _ => return Err(format!("document {}: the chunker pooled vectors for some documents only", d.id)),
+            }
             let mut seen = BTreeSet::new();
             for s in chunks {
                 if s.start >= s.end
@@ -130,6 +140,14 @@ impl Pipeline {
         drop(docs);
         if spans.is_empty() {
             return Err(format!("set {}: the chunker made no chunks", set.name));
+        }
+        if let Some(p) = &pooled {
+            if p.len() != spans.len() * embedder.dim() {
+                return Err(format!("set {}: {} pooled values for {} chunks", set.name, p.len(), spans.len()));
+            }
+            if self.lexical.is_some() || self.hybrid.is_some() {
+                return Err("vectors a chunker pools are retrieved by dense retrieval only".into());
+            }
         }
 
         // Bookkeeping for the record, outside every timed stage.
@@ -164,7 +182,7 @@ impl Pipeline {
         } else if let Some(hybrid) = &self.hybrid {
             hybrid_run(hybrid, set, embedder, texts, doc_of, spans, &ids, t)?
         } else {
-            dense(set, embedder, texts, doc_of, spans, &ids, t)?
+            dense(set, embedder, texts, pooled, doc_of, spans, &ids, t)?
         };
         let doc_scores = evaluate(&run, &set.qrels)?;
         let span_scores = set.spans.as_ref().map(|r| evaluate_spans(&chunks, r)).transpose()?;
@@ -203,21 +221,25 @@ impl Pipeline {
     }
 }
 
-/// The dense ranking: every chunk and query embedded, ranked by exact
-/// cosine. Returns the runs and the embedding and retrieval times;
+/// The dense ranking: every chunk (unless the chunker pooled its
+/// vectors) and query embedded, ranked by exact cosine. Returns the runs and the embedding and retrieval times;
 /// `t` started before the chunk texts were made.
 #[allow(clippy::too_many_arguments)]
 fn dense(
     set: &LoadedSet,
     embedder: &mut Counted<'_>,
     texts: Vec<String>,
+    pooled: Option<Vec<f32>>,
     doc_of: Vec<u32>,
     spans: Vec<crate::spans::Span>,
     ids: &[String],
     t: Instant,
 ) -> Result<(Run, ChunkRun, f64, f64)> {
     let dim = embedder.dim();
-    let vectors = embed_all(embedder, &texts, Role::Document)?;
+    let vectors = match pooled {
+        Some(v) => v,
+        None => embed_all(embedder, &texts, Role::Document)?,
+    };
     drop(texts);
     let queries: Vec<&str> = set.queries.iter().map(|q| q.text.as_str()).collect();
     let query_vectors = embed_all(embedder, &queries, Role::Query)?;

@@ -4080,6 +4080,19 @@ Each chunker records every setting it ran with, defaults included.
   are each sentence embedded alone rather than late pooled as
   `SentenceVectors` pools them; the record says so.
 
+  With `--level`, `LevelBuilder` builds the chunker's levels and the
+  units of one of them are retrieved instead
+  (`analysis/eval/src/chunkers/levels.rs`): `chunk` (the chunks),
+  `section` (every section, nested ones included, and each chunk
+  outside every section, so no chunk's text is left out) or `document`
+  (the whole view). A document with no structure has no sections; its
+  section units are its chunks. Each unit's text is embedded as one
+  row, cut where the bundle cuts it, unless `--level-vectors local` or
+  `--level-vectors contextual` asks for that unit's vector from
+  `LevelVectors` (see "Levels"); pooled vectors are retrieved by dense
+  retrieval only, and `cost.tokens_embedded` then counts the queries
+  alone. The record's chunker config names the level and the vectors.
+
 ### BM25 retrieval
 
 `--retrieval bm25` ranks the chunks by BM25 over their terms instead of
