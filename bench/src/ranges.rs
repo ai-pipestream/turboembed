@@ -125,7 +125,7 @@ pub fn chunk_ranges(batch: u32, seq: u32, chunk: u32) -> Result<Vec<turbo_token_
     for row in 0..batch {
         let mut start = 1;
         while start < seq - 1 {
-            let end = (start + chunk).min(seq - 1);
+            let end = start.saturating_add(chunk).min(seq - 1);
             out.push(turbo_token_range { row, start, end });
             start = end;
         }

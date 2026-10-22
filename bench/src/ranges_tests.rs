@@ -15,6 +15,9 @@ fn chunks_cover_the_text_tokens_of_each_row() {
     // Positions 1 to 8 of each row: 1..4, 4..7, 7..9.
     assert_eq!(got, [(0, 1, 4), (0, 4, 7), (0, 7, 9), (1, 1, 4), (1, 4, 7), (1, 7, 9)]);
     assert!(chunk_ranges(1, 10, 0).is_err());
+    // A chunk longer than the text is the text, with no overflow.
+    let one: Vec<(u32, u32)> = chunk_ranges(1, 10, u32::MAX).unwrap().iter().map(|x| (x.start, x.end)).collect();
+    assert_eq!(one, [(1, 9)]);
     assert!(chunk_ranges(1, 2, 1).is_err());
 }
 
@@ -65,7 +68,8 @@ fn the_three_ways_run_on_the_small_bert() {
     // not the p50s' quotient, or an unpushed commit does not.
     check(&r).unwrap();
     let mut bad = r.clone();
-    bad.device.name = "/home/someone/gpu".into();
+    // A home directory, built so this file holds no such prefix itself.
+    bad.device.name = ["", "home", "someone", "gpu"].join("/");
     assert!(check(&bad).unwrap_err().contains("host path"));
     let mut bad = r.clone();
     bad.ranges_over_rows *= 1.01;
