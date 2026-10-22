@@ -149,20 +149,22 @@ fn spans(
     kept
 }
 
-/// The values of a closed-choice field from its logits over the prefix.
+/// The values of a closed-choice field, whose first choice is prefix token
+/// `first`, from its logits over the prefix.
 fn choices(
     pass: &Pass,
     logits: &[f32],
     choices: &[String],
+    first: usize,
     threshold: f32,
     cardinality: Cardinality,
 ) -> Vec<FieldValue> {
     let w = pass.width;
-    let at = |c: &str| pass.prompt.prefix.iter().position(|t| t.to_lowercase() == c.to_lowercase());
-    let scored: Vec<(usize, f32, f32)> = choices
-        .iter()
-        .enumerate()
-        .filter_map(|(i, c)| at(c).map(|p| (i, sigmoid(logits[p * w]), logits[p * w])))
+    let scored: Vec<(usize, f32, f32)> = (0..choices.len())
+        .map(|i| {
+            let p = first + 2 * i;
+            (i, sigmoid(logits[p * w]), logits[p * w])
+        })
         .collect();
     let value = |(choice, score, logit): (usize, f32, f32)| FieldValue::Choice { choice, score, logit };
     match cardinality {
@@ -232,9 +234,9 @@ pub fn decode(pass: &Pass, schema: &ExtractionSchema, threshold: f32, layers: &d
                     for (f, fs) in spec.fields.iter().enumerate() {
                         let field = &logits[(inst * m + f) * size..(inst * m + f + 1) * size];
                         let t = fs.threshold.unwrap_or(threshold);
-                        fields.push(match &fs.choices {
-                            Some(c) => choices(pass, field, c, t, fs.cardinality),
-                            None => spans(pass, field, skip, t, fs.cardinality, &fs.checks, layers)
+                        fields.push(match (&fs.choices, pass.prompt.choice_at[s][f]) {
+                            (Some(c), Some(first)) => choices(pass, field, c, first, t, fs.cardinality),
+                            _ => spans(pass, field, skip, t, fs.cardinality, &fs.checks, layers)
                                 .into_iter()
                                 .map(FieldValue::Span)
                                 .collect(),

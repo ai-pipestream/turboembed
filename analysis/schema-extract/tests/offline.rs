@@ -296,3 +296,32 @@ fn glossary_and_location_layers_check_candidates() {
     }
     assert_eq!(doc.get::<Evidence<Records>>().unwrap().verify(&doc), Ok(()));
 }
+
+#[test]
+fn a_choice_reads_its_own_fields_token() {
+    use turbo_schema_extract::decode::{FieldValue, Nothing, decode};
+    use turbo_schema_extract::model::Scores;
+    let choice = |name: &str, c: &[&str]| FieldSpec {
+        choices: Some(c.iter().map(|s| s.to_string()).collect()),
+        ..field(name, Cardinality::Repeated, Vec::new())
+    };
+    let s = ExtractionSchema {
+        structures: vec![StructureSpec {
+            name: "r".into(),
+            fields: vec![choice("first", &["yes", "no"]), choice("second", &["no", "yes", "first", "("])],
+        }],
+        ..Default::default()
+    };
+    let pass = common::offline(Limits::default()).pass("some words here", &s).unwrap();
+    let out = decode(&pass, &s, 0.0, &Nothing);
+    let Scores::Spans { logits, .. } = &pass.scores[0] else { panic!("a record task") };
+    let size = pass.prompt.token_first.len() * pass.width;
+    let second = pass.prompt.prefix.iter().position(|t| t == "second").unwrap();
+    for v in &out.records[0].fields[1] {
+        let FieldValue::Choice { choice, logit, .. } = v else { panic!("a choice") };
+        let own = second + 2 + 2 * choice;
+        assert_eq!(pass.prompt.prefix[own], s.structures[0].fields[1].choices.as_ref().unwrap()[*choice]);
+        assert_eq!(logit.to_bits(), logits[size + own * pass.width].to_bits(), "choice {choice}");
+    }
+    assert_eq!(out.records[0].fields[1].len(), 4);
+}

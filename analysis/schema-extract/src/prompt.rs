@@ -63,6 +63,9 @@ pub struct Prompt {
     pub words: Vec<Word>,
     /// The choice prefix's tokens, before the words.
     pub prefix: Vec<String>,
+    /// Per record type and field, the index in `prefix` of a closed-choice
+    /// field's first choice; its choice `i` is at that index plus `2 * i`.
+    pub choice_at: Vec<Vec<Option<usize>>>,
     /// The first subword of each text token, prefix then words; a token
     /// with no subwords takes the position the next element starts at.
     pub token_first: Vec<usize>,
@@ -99,13 +102,21 @@ fn prompt_text<'a>(name: &str, described: impl Iterator<Item = (&'a str, Option<
     s
 }
 
-/// The choice prefix: every closed-choice field of every record type.
-fn prefix(schema: &ExtractionSchema) -> Vec<String> {
+/// The choice prefix: every closed-choice field of every record type, and
+/// where each field's first choice stands in it.
+fn prefix(schema: &ExtractionSchema) -> (Vec<String>, Vec<Vec<Option<usize>>>) {
     let mut out = Vec::new();
+    let mut at = Vec::with_capacity(schema.structures.len());
     for s in &schema.structures {
         let mut inner: Vec<String> = Vec::new();
+        let mut first = Vec::with_capacity(s.fields.len());
         for f in &s.fields {
-            let Some(choices) = &f.choices else { continue };
+            let Some(choices) = &f.choices else {
+                first.push(None);
+                continue;
+            };
+            // After `(`, `<record>:`, the earlier fields and `<field> (`.
+            first.push(Some(out.len() + 2 + inner.len() + 2));
             inner.extend([f.name.clone(), "(".into()]);
             for (i, c) in choices.iter().enumerate() {
                 if i > 0 {
@@ -120,8 +131,9 @@ fn prefix(schema: &ExtractionSchema) -> Vec<String> {
             out.extend(inner);
             out.push(")".into());
         }
+        at.push(first);
     }
-    out
+    (out, at)
 }
 
 /// The input for `schema` over `text`. The schema is assumed validated.
@@ -164,11 +176,11 @@ pub fn build(sp: &SentencePiece, specials: &Specials, text: &str, schema: &Extra
     ids.push(specials.sep_text);
     let text = normalize(text);
     let words = split(&text);
-    let prefix = prefix(schema);
+    let (prefix, choice_at) = prefix(schema);
     let mut token_first = Vec::with_capacity(prefix.len() + words.len());
     for t in prefix.iter().map(String::as_str).chain(words.iter().map(|w| w.text.as_str())) {
         token_first.push(ids.len());
         encode(sp, specials, t, &mut scratch, &mut ids);
     }
-    Prompt { ids, text, words, prefix, token_first, tasks: out_tasks }
+    Prompt { ids, text, words, prefix, choice_at, token_first, tasks: out_tasks }
 }

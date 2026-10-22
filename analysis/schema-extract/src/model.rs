@@ -195,8 +195,10 @@ impl Gliner2Extractor {
         schema.validate(&self.limits).map_err(ExtractError::Schema)?;
         let p = build(&self.tokenizer, &self.specials, text, schema);
         let l = &self.limits;
-        if p.words.len() > l.max_words {
-            return Err(ExtractError::OverLimit { limit: "max_words", max: l.max_words, got: p.words.len() });
+        // The caller's words: not the `.` the model's reading may add.
+        let words = p.words.iter().filter(|w| w.start < text.len()).count();
+        if words > l.max_words {
+            return Err(ExtractError::OverLimit { limit: "max_words", max: l.max_words, got: words });
         }
         let schema_len = p.token_first.first().copied().unwrap_or(p.ids.len());
         if schema_len > l.max_prompt_subwords {

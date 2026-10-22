@@ -140,7 +140,8 @@ pub enum SchemaError {
     Duplicate(String),
     /// A model control token such as `[P]` inside a string, at this path.
     Reserved(String),
-    /// A threshold, boost or `top_k` outside its range, at this path.
+    /// A threshold, boost or `top_k` outside its range, or a check on a
+    /// closed-choice field, at this path.
     BadValue(String),
 }
 
@@ -239,6 +240,20 @@ impl ExtractionSchema {
             return Err(SchemaError::Reserved("task or record \"entities\"".into()));
         }
         unique("entity type", self.entities.iter().map(|e| e.name.as_str()))?;
+        // The layers name a field `record.field` and a label `task: label`;
+        // those names must not collide across records or tasks either.
+        let paths: Vec<String> = self
+            .structures
+            .iter()
+            .flat_map(|s| s.fields.iter().map(move |f| format!("{}.{}", s.name, f.name)))
+            .collect();
+        unique("field path", paths.iter().map(String::as_str))?;
+        let labels: Vec<String> = self
+            .classifications
+            .iter()
+            .flat_map(|c| c.labels.iter().map(move |l| format!("{}: {}", c.name, l.name)))
+            .collect();
+        unique("task label", labels.iter().map(String::as_str))?;
         for e in &self.entities {
             let p = format!("entity {:?}", e.name);
             text(&p, &e.name, limits)?;
@@ -284,11 +299,17 @@ impl ExtractionSchema {
                 unit(&format!("{fp} threshold"), f.threshold)?;
                 checks(&fp, &f.checks)?;
                 if let Some(choices) = &f.choices {
+                    // A choice has no span for a deterministic layer to cover.
+                    if !f.checks.is_empty() {
+                        return Err(SchemaError::BadValue(format!("{fp} checks")));
+                    }
                     if choices.is_empty() {
                         return Err(SchemaError::Blank(format!("{fp} choices")));
                     }
                     over("max_labels_per_task", limits.max_labels_per_task, choices.len())?;
-                    unique(&format!("{fp} choice"), choices.iter().map(String::as_str))?;
+                    // Choices that differ only in case name one value.
+                    let folded: Vec<String> = choices.iter().map(|c| c.to_lowercase()).collect();
+                    unique(&format!("{fp} choice"), folded.iter().map(String::as_str))?;
                     for c in choices {
                         text(&format!("{fp} choice"), c, limits)?;
                     }

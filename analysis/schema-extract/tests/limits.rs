@@ -150,6 +150,29 @@ fn malformed_schemas_are_refused_by_rule() {
         ..Default::default()
     };
     assert!(matches!(check(both), SchemaError::Duplicate(_)), "a task and a record share a name");
+    // Names the layers join must not collide: `a` + `b.c` and `a.b` + `c`
+    // are both `a.b.c`; `t` + `x: y` and `t: x` + `y` both `t: x: y`.
+    let dotted =
+        ExtractionSchema { structures: vec![record("a", &["b.c"]), record("a.b", &["c"])], ..Default::default() };
+    assert!(matches!(check(dotted), SchemaError::Duplicate(_)), "two fields named a.b.c");
+    let colons =
+        ExtractionSchema { classifications: vec![task("t", &["x: y"]), task("t: x", &["y"])], ..Default::default() };
+    assert!(matches!(check(colons), SchemaError::Duplicate(_)), "two labels named t: x: y");
+    // A check on a closed-choice field could never apply.
+    let mut checked = record("r", &["f"]);
+    checked.fields[0].choices = Some(vec!["a".into()]);
+    checked.fields[0].checks = vec![Check::Require(Source::Numbers)];
+    assert!(matches!(
+        check(ExtractionSchema { structures: vec![checked], ..Default::default() }),
+        SchemaError::BadValue(_)
+    ));
+    // Choices that differ only in case are one choice given twice.
+    let mut cased = record("r", &["f"]);
+    cased.fields[0].choices = Some(vec!["Yes".into(), "yes".into()]);
+    assert!(matches!(
+        check(ExtractionSchema { structures: vec![cased], ..Default::default() }),
+        SchemaError::Duplicate(_)
+    ));
     let entities_record = ExtractionSchema { structures: vec![record("entities", &["f"])], ..Default::default() };
     assert!(matches!(check(entities_record), SchemaError::Reserved(_)), "a record named as the entity task");
 }
@@ -168,7 +191,9 @@ fn requests_over_the_tokenized_limits_are_refused_by_name() {
         Err(e) => panic!("not a named limit: {e}"),
         Ok(_) => panic!("accepted"),
     };
-    assert!(m.prompt("a b c d", &one).is_ok());
+    // Five words without final punctuation: the `.` the model adds is not
+    // the caller's sixth word.
+    assert!(m.prompt("a b c d e", &one).is_ok());
     assert_eq!(limit(m.prompt("a b c d e f g", &one)), "max_words");
     assert_eq!(limit(m.prompt("a", &entities(4))), "max_prompt_subwords");
     let text = "word ".repeat(600);
