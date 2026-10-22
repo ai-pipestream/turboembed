@@ -417,6 +417,16 @@ fn a_pass_that_does_not_fit_its_schema_is_an_error() {
     prompt.words.truncate(prompt.words.len() - 20);
     let extra = prompt.token_first.len() + 50;
     prompt.prefix.extend(std::iter::repeat_n(String::from("x"), extra));
+    let pass = Pass::new(prompt, width, scores.clone());
+    assert!(decode(&pass, &s, 0.5, &Nothing).is_err());
+    // A width or a choice position whose products overflow: errors too.
+    let (mut prompt, _, _) = pass.into_parts();
+    prompt.prefix.truncate(prompt.prefix.len() - extra);
+    let pass = Pass::new(prompt, usize::MAX, scores.clone());
+    assert!(decode(&pass, &s, 0.5, &Nothing).is_err());
+    let (mut prompt, _, _) = pass.into_parts();
+    let at = prompt.choice_at.iter_mut().flatten().find(|a| a.is_some()).expect("a choice field");
+    *at = Some(usize::MAX - 1);
     let pass = Pass::new(prompt, width, scores);
     assert!(decode(&pass, &s, 0.5, &Nothing).is_err());
 }

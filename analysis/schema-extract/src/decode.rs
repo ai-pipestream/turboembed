@@ -240,7 +240,11 @@ fn check(pass: &Pass, schema: &ExtractionSchema, threshold: f32) -> Result<(), S
         || schema.structures.iter().zip(&p.choice_at).any(|(s, at)| {
             at.len() != s.fields.len()
                 || s.fields.iter().zip(at).any(|(f, a)| match (&f.choices, a) {
-                    (Some(c), Some(first)) => first + 2 * c.len() > p.prefix.len() + 1,
+                    (Some(c), Some(first)) => c
+                        .len()
+                        .checked_mul(2)
+                        .and_then(|k| k.checked_add(*first))
+                        .is_none_or(|end| end > p.prefix.len() + 1),
                     (None, None) => false,
                     _ => true,
                 })
@@ -248,7 +252,7 @@ fn check(pass: &Pass, schema: &ExtractionSchema, threshold: f32) -> Result<(), S
     {
         return Err("a pass whose choice prefix is not the schema's".into());
     }
-    let size = p.token_first.len() * pass.width();
+    let size = p.token_first.len().checked_mul(pass.width()).ok_or("a width that overflows the score size")?;
     let bad = |l: &[f32]| l.iter().any(|x| x.is_nan() || *x == f32::INFINITY);
     for ((kind, fields), scores) in kinds.iter().zip(pass.scores()) {
         match (kind, scores) {
