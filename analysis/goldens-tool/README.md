@@ -75,6 +75,15 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   each checked against the SHA-512 in the recipe: the SMS Spam Collection
   (CC BY 4.0), which the `doccat` runs train on and which is never checked
   in.
+  With `--local` it also fetches the upstream all-MiniLM-L6-v2 ONNX export
+  (`POOLING_SOURCE`, Hugging Face revision
+  `c9745ed1d9f207416be6d2e6f8de32d1f16199bf`, checked against the SHA-512
+  in the recipe) and derives from it the mean-pooled copy the `sentvectors`
+  run loads, `all-minilm-l6-v2-mean.onnx` (`src/pooled.rs`): it runs
+  `container/mean_pool_onnx.py` in the bundle tool's reference image
+  (`REFERENCE_IMAGE`, bundle/README.md) with no network, and keeps the copy
+  only if its SHA-512 is `POOLED_SHA512`. `generate`, `verify` and `fuzz`
+  do the same, so they need that image.
   It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
@@ -157,6 +166,7 @@ a directory with the same model run without them, and its options are
 | `pii` (`PiiAnnotator` over a `PiiPacks` extractor) | `payment`, `contact`, `network`, `secrets`, `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`, `all-structured` | `pii` | `pack` |
 | `pii-rewrite` (`Masker`, `Pseudonymizer`, `HmacTokenizer`, `PiiAuditReport` over the `pii` runs' mentions) | the same packs | `pii` | `pack`, `key`, `mask`, `mask-all` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
+| `sentvectors` (`SentenceVectorsDL`) | `all-minilm-l6-v2-mean` (derived), with the fixture vocabulary and the English sentence model | `en` | `lowerCase true` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
 | `train` (`QNTrainer`) | the same, with `-qn` appended, then `-l1`, `-l2` or `-plain` when only one cost, or neither, is on: eight runs over `sentdetect`, `realvalue` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train`, one only `train` | the same with `Algorithm`, `L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval`, `Threads` |
@@ -447,6 +457,22 @@ canonical order, final sigma, the dotted capital I, Hangul, kana and CJK
 upstream `tokenizers` disagree), format characters, punctuation, spacing
 marks, pieces with no entry, special token strings, compatibility
 characters and words at the 100 code point limit.
+
+## Sentence vector goldens
+
+`sentvectors/all-minilm-l6-v2-mean/en/<id>.golden` is what OpenNLP's
+`SentenceVectorsDL` gave each sentence of an `en` input. The sentences
+are the English sentence model's (`opennlp:sentences`), and each one's
+vector is `turbo:vector<opennlp:sentences>`: one string per sentence, the
+32-bit pattern of each float in hex, space separated. `SentenceVectorsDL`
+runs `all-minilm-l6-v2-mean.onnx` with the fixture vocabulary and lower
+casing, and returns the first row of the graph's first output. On the
+upstream export that row is the [CLS] hidden state; the pooled copy puts
+the mean over the masked positions there instead, [CLS] and [SEP]
+included, so the vector is the one sentence-transformers pools. The
+header lists the pooled model, the vocabulary and the sentence model with
+their SHA-512. `analysis/embed/tests/sentence_vectors_dl.rs` compares the
+sentence vector step with these.
 
 ## Unigram goldens
 

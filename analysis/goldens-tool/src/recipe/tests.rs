@@ -34,6 +34,20 @@ fn every_model_has_a_file_an_https_url_and_a_sha512() {
         assert!(m.url.ends_with(&format!("/{}", m.file)), "{} does not end in {}", m.url, m.file);
         assert!(m.file.ends_with(".bin"));
     }
+    assert!(is_lower_hex(POOLING_SOURCE.sha512, 128));
+    assert!(POOLING_SOURCE.url.starts_with("https://huggingface.co/"), "{}", POOLING_SOURCE.url);
+    assert!(is_lower_hex(crate::pooled::POOLED_SHA512, 128));
+}
+
+#[test]
+fn the_generator_opens_the_pooled_model_the_tool_derives() {
+    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+    assert!(
+        runs.contains(&format!("\"{}\"", crate::pooled::POOLED)),
+        "Runs.java does not name {}",
+        crate::pooled::POOLED
+    );
+    assert_eq!(crate::pooled::SOURCE, POOLING_SOURCE.file);
 }
 
 #[test]

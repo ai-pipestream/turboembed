@@ -1,32 +1,31 @@
 //! Parity between `turbo-analysis-embed` (`Encoder`, `SentenceVectors`,
 //! `ChunkVectors`, `SentenceChunkVectors`) and OpenNLP's
-//! `opennlp.dl.vectors.SentenceVectorsDL` on the shared 2-layer BERT model
-//! (`testdata/tiny-bert-bundle`) and vocabulary
-//! (`analysis/goldens/data/fixtures/all-minilm-l6-v2-vocab.txt`).
+//! `opennlp.dl.vectors.SentenceVectorsDL`:
 //!
-//! `tests/data/sentence_vectors_dl_golden.json` holds what
-//! `reference/regenerate.sh` (`reference/export_onnx.py` in `turbo-reference`
-//! followed by `reference/SentenceVectorsDlGolden.java` in
-//! `turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1`) wrote for:
-//! 1. the 12 sentences of `tests/vectors.rs`, and
-//! 2. all 76 golden inputs of the `edge`, `en`, `multi`, `subwords`, and
-//!    `surrogate` sets under `analysis/goldens/data/inputs`.
-//!
-//! Each input is evaluated on both the raw BERT ONNX graph (`cls`, where
-//! `SentenceVectorsDL.getVectors` returns `last_hidden_state[0][0]`) and the
-//! mean-pooled L2-normalized ONNX graph (`mean_l2`, where
-//! `SentenceVectorsDL.getVectors` returns the unit mean over
-//! `[CLS] + pieces + [SEP]`).
+//! 1. Offline on the shared 2-layer BERT model (`testdata/tiny-bert-bundle`)
+//!    and vocabulary (`analysis/goldens/data/fixtures/all-minilm-l6-v2-vocab.txt`),
+//!    checked against `tests/data/sentence_vectors_dl_golden.json` (generated
+//!    by `reference/regenerate.sh` over the 12 sentences of `tests/vectors.rs`
+//!    and all 76 golden inputs of the `edge`, `en`, `multi`, `subwords`, and
+//!    `surrogate` sets on both the `cls` and `mean_l2` ONNX graphs).
+//! 2. Against the `sentvectors/all-minilm-l6-v2-mean` goldens
+//!    (`analysis/goldens-tool/README.md`) when `TURBO_TEST_MINILM_BUNDLE` names
+//!    an `all-MiniLM-L6-v2` bundle.
 
 #[path = "vectors/common.rs"]
 mod common;
 
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
 use serde_json::Value;
 use turbo::bundle::sha256_hex;
+use turbo::manifest::{PromptRole, Truncation};
+use turbo::tokenizer::Encode;
 use turbo::turbo_token_range;
 use turbo_analysis::*;
 use turbo_analysis_embed::*;
-use turbo_analysis_layers::Subwords;
+use turbo_analysis_layers::{Sentences, Subwords, Vectors};
 use turbo_goldens::{Golden, data_dir};
 
 use common::*;
@@ -35,6 +34,14 @@ use common::*;
 /// `WordpieceEncoder` produce different piece IDs (`tests/goldens.rs`).
 const DIFFERENT_PIECE_IDS: [&str; 4] =
     ["subwords/accents-reordered", "subwords/cjk-extension", "subwords/final-sigma", "subwords/special-tokens"];
+
+/// The lowest cosine allowed between a sentence's vector on `all-MiniLM-L6-v2`
+/// and the one `SentenceVectorsDL` wrote: content-only vs whole-row mean.
+const MIN_COSINE: f64 = 0.91;
+
+/// The lowest cosine allowed between the mean over a sentence's whole row on
+/// `all-MiniLM-L6-v2` and `SentenceVectorsDL`'s vector.
+const ROW_MIN_COSINE: f64 = 0.999999;
 
 struct JvmFixture {
     opennlp_commit: String,
@@ -113,12 +120,41 @@ fn max_abs_diff(a: &[f32], b: &[f32]) -> f32 {
 
 /// Runs `SubwordAnnotator` and `SentenceChunkVectors` on a single-sentence,
 /// single-chunk document holding `text`.
-fn annotate_single(a: &std::sync::Arc<VectorAnnotator>, text: &str) -> Document {
+fn annotate_single(a: &Arc<VectorAnnotator>, text: &str) -> Document {
     let n = text.len() as u32;
     let mut docs = [document(text, &[(0, n)], &[(0, 1, 0, None)])];
     run(SentenceChunkVectors(a.clone()), &mut docs);
     let [d] = docs;
     d
+}
+
+/// The sentences of a `sentvectors` golden, as byte spans, and each one's vector.
+fn read_sentvectors_golden(text: &str) -> Vec<((usize, usize), Vec<f32>)> {
+    let mut spans = Vec::new();
+    let mut vectors = Vec::new();
+    let mut layer = "";
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("layer\t") {
+            layer = rest.split('\t').next().unwrap();
+            continue;
+        }
+        if line.starts_with("end\t") {
+            layer = "";
+            continue;
+        }
+        match layer {
+            "opennlp:sentences" => {
+                let mut f = line.split('\t').map(|x| x.parse::<usize>().unwrap());
+                spans.push((f.next().unwrap(), f.next().unwrap()));
+            }
+            "turbo:vector<opennlp:sentences>" => {
+                vectors.push(line.split(' ').map(|h| f32::from_bits(u32::from_str_radix(h, 16).unwrap())).collect());
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(spans.len(), vectors.len());
+    spans.into_iter().zip(vectors).collect()
 }
 
 #[test]
@@ -196,23 +232,7 @@ fn cls_and_whole_row_mean_match_opennlp_sentence_vectors_dl() {
 
 /// Compares `SentenceVectors`, `ChunkVectors`, and `SentenceChunkVectors`
 /// against OpenNLP's `SentenceVectorsDL` on the shared mean-pooled ONNX model
-/// across the 12 test sentences and all 76 golden inputs:
-///
-/// 1. For every single-window non-empty input with matching piece IDs, the
-///    unnormalized `SentenceVectors` range mean over the `N` content pieces,
-///    combined with the `[CLS]` and `[SEP]` token states as
-///    `(N * range_mean + cls + sep) / (N + 2)` and L2-normalized, equals
-///    `SentenceVectorsDL`'s whole-row mean vector within `1e-5`.
-/// 2. Content-only late pooling (`SentenceVectors` / `ChunkVectors`) agrees
-///    with `SentenceVectorsDL`'s whole-row pooling (`[CLS] + pieces + [SEP]`)
-///    within the stated cosine floor (`>= 0.96` on the 12 sentences alone,
-///    `>= 0.85` when the 12 sentences share multi-sentence windows, `>= 0.90`
-///    on golden inputs of 4 or more content pieces, and `>= 0.70` on 1-3
-///    piece golden inputs where `[CLS]` and `[SEP]` are up to two thirds of
-///    the row).
-/// 3. Inputs with zero content pieces (`edge/empty`, `edge/whitespace-only`)
-///    receive the zero vector and are listed in `Vectors::empty`, whereas
-///    `SentenceVectorsDL` embeds `[CLS] [SEP]`.
+/// across the 12 test sentences and all 76 golden inputs.
 #[test]
 fn sentence_and_chunk_vectors_against_opennlp_sentence_vectors_dl_on_golden_inputs() {
     let f = load_fixture();
@@ -222,7 +242,6 @@ fn sentence_and_chunk_vectors_against_opennlp_sentence_vectors_dl_on_golden_inpu
     let mut rows = Rows::new(enc.info().max_seq, 0);
     let mut states = Vec::new();
 
-    // 1. Twelve sentences alone vs in a shared multi-sentence document.
     let mut lowest_alone = 1.0f64;
     for (s, want) in SENTENCES.iter().zip(&f.sentences) {
         let d = annotate_single(&a, s);
@@ -244,7 +263,6 @@ fn sentence_and_chunk_vectors_against_opennlp_sentence_vectors_dl_on_golden_inpu
         lowest_shared = lowest_shared.min(c);
     }
 
-    // 2. All 76 golden inputs.
     let mut empty_names = Vec::new();
     let mut long_names = Vec::new();
     let (mut lowest_ge4, mut lowest_short) = (1.0f64, 1.0f64);
@@ -311,5 +329,80 @@ fn sentence_and_chunk_vectors_against_opennlp_sentence_vectors_dl_on_golden_inpu
     println!(
         "SentenceVectors vs SentenceVectorsDL: alone >= {lowest_alone:.4}, shared >= {lowest_shared:.4}, \
          golden (>=4 pieces) >= {lowest_ge4:.4}, golden (1..3 pieces) >= {lowest_short:.4}"
+    );
+}
+
+#[test]
+fn sentence_vectors_match_sentence_vectors_dl() {
+    let Ok(bundle) = std::env::var("TURBO_TEST_MINILM_BUNDLE") else {
+        println!("skipped: TURBO_TEST_MINILM_BUNDLE is not set");
+        return;
+    };
+    let bundle = PathBuf::from(bundle);
+    let vectors = Arc::new(VectorAnnotator::open(&bundle, &VectorOptions::default()).unwrap());
+    assert_eq!(vectors.dim(), 384, "TURBO_TEST_MINILM_BUNDLE must be an all-MiniLM-L6-v2 bundle");
+    let a = Analyzer::builder()
+        .given(Key::<Sentences>::DEFAULT)
+        .add(SubwordAnnotator::open(&bundle).unwrap())
+        .add(SentenceVectors(vectors))
+        .build()
+        .unwrap();
+    let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data");
+    let dir = data.join("sentvectors/all-minilm-l6-v2-mean/en");
+    let mut goldens: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+        .map(|e| e.unwrap().path())
+        .collect();
+    goldens.sort();
+    assert!(!goldens.is_empty());
+    let sub = SubwordAnnotator::open(&bundle).unwrap();
+    let tok = sub.tokenizer();
+    let mut enc = Encoder::open(&bundle, &EncoderOptions { max_batch: 1, ..EncoderOptions::default() }).unwrap();
+    let mut rows = Rows::new(enc.info().max_seq, 0);
+    let mut row = Vec::new();
+    let (mut worst, mut sum, mut count, mut row_worst) = (1f64, 0f64, 0usize, 1f64);
+    for golden in goldens {
+        let id = golden.file_stem().unwrap().to_str().unwrap().to_owned();
+        let input = std::fs::read_to_string(data.join(format!("inputs/en/{id}.txt"))).unwrap();
+        for ((start, end), want) in read_sentvectors_golden(&std::fs::read_to_string(&golden).unwrap()) {
+            let sentence = &input[start..end];
+            let mut d = Document::new(sentence);
+            let mut s = Spans::new(ViewId::SOURCE);
+            s.push(Span::new(0, sentence.len() as u32));
+            d.add(&Key::DEFAULT, Sentences { spans: s }, Provenance::by("test")).unwrap();
+            let mut docs = [d];
+            a.run(&mut docs).remove(0).unwrap();
+            let got = &docs[0].get::<Vectors<Sentences>>().expect("sentence vectors").data;
+            assert_eq!(got.len(), want.len(), "{id} {start}..{end}");
+            let c = cosine(got, &want);
+            assert!(c >= MIN_COSINE, "{id} {start}..{end} {sentence:?}: cosine {c} under {MIN_COSINE}");
+            let ids = tok
+                .encode(
+                    sentence,
+                    Encode {
+                        add_special_tokens: true,
+                        truncation: Truncation::None,
+                        max_tokens: u32::MAX,
+                        prompt: PromptRole::None,
+                    },
+                )
+                .unwrap();
+            rows.clear();
+            rows.push(&[&ids]);
+            enc.run_rows(&rows, false, &mut row).unwrap();
+            let r = cosine(&row, &want);
+            assert!(
+                r >= ROW_MIN_COSINE,
+                "{id} {start}..{end} {sentence:?}: whole row cosine {r} under {ROW_MIN_COSINE}"
+            );
+            row_worst = row_worst.min(r);
+            worst = worst.min(c);
+            sum += c;
+            count += 1;
+        }
+    }
+    println!(
+        "{count} sentences: lowest cosine {worst}, mean {}; whole rows: lowest cosine {row_worst}",
+        sum / count as f64
     );
 }

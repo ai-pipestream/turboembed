@@ -15,5 +15,6 @@ pub mod fuzz;
 pub mod models;
 pub mod output;
 pub mod paths;
+pub mod pooled;
 pub mod recipe;
 pub mod sha512;

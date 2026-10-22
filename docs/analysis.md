@@ -4658,8 +4658,8 @@ runs them on any machine:
   On a Hailo-8 machine with a HEF bundle that also carries
   `weights/model.safetensors`:
   `TURBO_TEST_HEF_BUNDLE=<bundle> TURBO_TEST_DEVICE=hailo cargo test -p turbo-analysis-embed --features turbo/hailo --test vectors on_the_device`.
-- `analysis/embed/tests/sentence_vectors_dl.rs` compares `Encoder`,
-  `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` on
+- `analysis/embed/tests/sentence_vectors_dl.rs` also compares `Encoder`,
+  `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` offline on
   `testdata/tiny-bert-bundle` against OpenNLP's `SentenceVectorsDL`
   (`analysis/embed/reference/regenerate.sh`, which runs
   `analysis/embed/reference/export_onnx.py` in `turbo-reference` and
@@ -4681,6 +4681,27 @@ runs them on any machine:
   when the 12 sentences share multi-sentence windows, `>= 0.90` on golden
   inputs of 4 or more pieces, `>= 0.70` on 1 to 3 piece golden inputs, and
   the zero vector listed in `Vectors::empty` on zero-piece inputs).
+- `analysis/embed/tests/vectors_bundle.rs` runs the same steps on a real
+  bundle, `TURBO_TEST_VECTORS_BUNDLE`, on the device `TURBO_TEST_DEVICE`
+  names, and compares the twelve sentence and three chunk vectors with
+  the same bundle's weights run on the CPU, at the core's tolerance for the
+  device's dtype, or the I8 tier floor of 0.93 (docs/hailo.md) for an I8
+  device. For a bundle with a HEF next to
+  its safetensors weights (docs/hailo.md), a Hailo device runs the HEF and
+  the CPU runs the weights it was compiled from. Without both variables
+  the test prints that it was skipped. On a Hailo machine:
+  `TURBO_TEST_VECTORS_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=hailo cargo test --release -p turbo-analysis-embed --features turbo/hailo --test vectors_bundle -- --nocapture`.
+- `analysis/embed/tests/sentence_vectors_dl.rs` compares the sentence
+  vector step with OpenNLP's `SentenceVectorsDL` on the
+  `sentvectors/all-minilm-l6-v2-mean` goldens (analysis/goldens-tool/README.md),
+  given an all-MiniLM-L6-v2 bundle in `TURBO_TEST_MINILM_BUNDLE`. Each
+  sentence of the goldens is embedded as a document of its own. The
+  step's vector averages the sentence's own pieces, where the golden's
+  averages the whole row, [CLS] and [SEP] included, so the two are held to
+  a cosine of 0.91, which the shortest sentences set (the lowest of the 57
+  is 0.919, the mean 0.983). The mean over the whole row, computed with the
+  encoder, is held to 0.999999 (the lowest is 0.9999999999984): the
+  tokenizer and the encoder agree with OpenNLP's and ONNX Runtime's.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,
@@ -4818,8 +4839,9 @@ cascade at full pool and contextual-only. The latency columns time
 summed over one `Cascade` per document, so they include
 per-document lexical ranking and static scoring and are not the
 single-index latency evidence; the latency fixture in
-`turbo-chunker` (55.5 us cascade vs 316.2 us direct 512-dimension
-contextual scan over 721 units) is. The latency-relevant column
+`turbo-chunker` (about 70 us for the cascade at 64 candidates against
+about 342 us for a direct 512-dimension contextual scan over 721 units,
+recorded above) is. The latency-relevant column
 here is contextual units scored per query, the cost driver with a
 real encoder.
 
