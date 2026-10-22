@@ -67,7 +67,9 @@ impl Annotator for IncivilityAnnotator {
             token_lower.push(slice.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'').to_ascii_lowercase());
         }
 
-        let scorer_model = self.vector_scorer.as_ref().and_then(|s| s.model());
+        // The lexicon stage reads no vectors, so it checks no encoder.
+        let scorer_model =
+            self.vector_scorer.as_ref().filter(|_| self.stage != IncivilityStage::Lexicon).and_then(|s| s.model());
         let check_encoder = |vectors_model: &ModelRef| -> Result<(), Error> {
             if let Some(m) = &scorer_model
                 && *vectors_model != *m
@@ -273,7 +275,7 @@ impl Annotator for IncivilityAnnotator {
         h ^= (self.unit as u64).wrapping_mul(0x9e3779b97f4a7c15);
         h ^= self.threshold.to_bits();
         h ^= u64::from(self.use_reply_context);
-        if let Some(s) = &self.vector_scorer {
+        if let Some(s) = self.vector_scorer.as_ref().filter(|_| self.stage != IncivilityStage::Lexicon) {
             h ^= s.config_hash();
         }
         h ^= (self.stage as u64 + 1).wrapping_mul(0xbf58_476d_1ce4_e5b9);
