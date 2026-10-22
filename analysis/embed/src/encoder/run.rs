@@ -24,6 +24,16 @@ impl Encoder {
         self.run(rows.len(), out)
     }
 
+    /// Sequence-classification CLS path (`#208`): `rows` encoded once and, into
+    /// `out`, the first token's (`[CLS]` / `<s>`) final hidden state per row,
+    /// unnormalized: `[rows.len(), dim]` values.
+    pub fn run_cls(&mut self, rows: &Rows, out: &mut Vec<f32>) -> Result<(), Error> {
+        let o = options(TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE);
+        let mut err = new_error();
+        check(unsafe { turbo_embed_write_tokens(self.session, &rows.batch(), &o, &mut err) }, &err)?;
+        self.run(rows.len(), out)
+    }
+
     /// Runs what was written and reads its `batch` vectors into `out`,
     /// which is resized to them and otherwise reused. A result of another
     /// shape, or a read of fewer bytes, is an error.

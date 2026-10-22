@@ -58,3 +58,5 @@ pub(crate) fn model_ref(bundle: &Bundle) -> ModelRef {
 
 pub mod dense;
 pub use dense::{DenseClassifierAnnotator, DenseClassifierModel, DenseClassifierTrainer};
+pub mod doccat;
+pub use doccat::BundleSequenceScorer;
