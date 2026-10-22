@@ -212,6 +212,54 @@ fn unidic() {
     assert_eq!(got, counts(65, 2016, 519, 0));
 }
 
+fn file_shapes(text: &str) -> Vec<turbo_goldens::Shape> {
+    use turbo_goldens::{ColumnSpec, ColumnType, GoldenAnchor, Shape, segmentation_shapes};
+    let mut shapes = segmentation_shapes();
+    for line in text.lines() {
+        let fields: Vec<&str> = line.split('\t').collect();
+        if fields.first() != Some(&"layer") || fields.len() < 5 {
+            continue;
+        }
+        let id = fields[1];
+        if shapes.iter().any(|s| s.id == id) {
+            continue;
+        }
+        let anchor = match fields[2] {
+            "text" => GoldenAnchor::Text,
+            "document" => GoldenAnchor::Document,
+            a => GoldenAnchor::Aligned(a.strip_prefix("aligned:").unwrap().into()),
+        };
+        let cols: Vec<ColumnSpec> = fields[4..]
+            .iter()
+            .map(|f| {
+                let (name, ty) = f.split_once(':').unwrap();
+                let name: &'static str = Box::leak(name.to_string().into_boxed_str());
+                let ty = match ty {
+                    "u32" => ColumnType::U32,
+                    "f64" => ColumnType::F64,
+                    "str" => ColumnType::Str,
+                    other => panic!("unexpected column type {other}"),
+                };
+                ColumnSpec::new(name, ty)
+            })
+            .collect();
+        let columns: &'static [ColumnSpec] = Box::leak(cols.into_boxed_slice());
+        shapes.push(Shape { id: id.into(), anchor, columns });
+    }
+    shapes
+}
+
+fn collect_goldens(dir: &Path, out: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            collect_goldens(&path, out);
+        } else if path.extension().is_some_and(|e| e == "golden") {
+            out.push(path);
+        }
+    }
+}
+
 #[test]
 fn unidic_goldens_round_trip() {
     let cases = run("lattice", "unidic-mecab-2.1.2");
@@ -220,5 +268,21 @@ fn unidic_goldens_round_trip() {
         let raw = std::fs::read_to_string(&case.path).unwrap();
         assert!(!raw.contains('\u{2014}'), "{}", case.path.display());
         assert_eq!(case.golden.to_text().unwrap(), raw, "{}", case.path.display());
+    }
+
+    let mut all = Vec::new();
+    collect_goldens(&turbo_goldens::data_dir(), &mut all);
+    all.sort();
+    assert!(all.len() > 3000, "{} checked-in goldens", all.len());
+    for path in all {
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(!raw.contains('\u{2014}'), "{}", path.display());
+        let shapes = file_shapes(&raw);
+        match turbo_goldens::Golden::parse_with(&raw, &shapes) {
+            Ok(golden) => assert_eq!(golden.to_text().unwrap(), raw, "{}", path.display()),
+            Err(turbo_goldens::GoldenError::Escape { error, .. })
+                if matches!(error.kind, turbo_goldens::escape::EscapeErrorKind::LoneSurrogate(_)) => {}
+            Err(e) => panic!("{}: {e}", path.display()),
+        }
     }
 }

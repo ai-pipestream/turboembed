@@ -128,6 +128,7 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lattice", "mecab-fixture-partial"),
     ("lattice", "mecab-ipadic-2.7.0-20070801"),
     ("lattice", "mecab-ko-dic-2.1.1-20180720"),
+    ("lattice", "unidic-mecab-2.1.2"),
     ("postag", "opennlp-de-ud-gsd-pos-1.3-2.5.4"),
     ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4"),
     ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1"),
