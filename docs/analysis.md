@@ -4814,11 +4814,16 @@ real encoder.
 | arguana | Cascade C=5 | 0.3700 | 0.2502 | 7659 |
 | arguana | Cascade C=64 | 0.3700 | 0.2502 | 9564 |
 
-With the pools aligned, the cascade retains contextual-only recall
-exactly at every recorded depth in these subsets while scoring
+With the pools aligned, the cascade matches contextual-only
+Recall@10 at every recorded C >= 5 on all three sets while scoring
 fewer contextual units at C=5 (69% of units on scifact, 56% on
-nfcorpus, 80% on arguana); recall curves saturate at C=5 here
-because short documents hold few units per document. The
+nfcorpus, 80% on arguana). On scifact and arguana every recorded
+cutoff matches from C=5; on nfcorpus the other cutoffs move
+slightly at small pools (Recall@5 0.1034 at C=5 and 0.0984 at C=10
+against 0.0984, Recall@100 0.2204 and 0.2221 against 0.2219, and
+nDCG@10 0.2660 at C=5 against 0.2655). Recall@10 stops changing at
+C=5 in these subsets because short documents hold few units per
+document. The
 documented default shortlist is C=64 for corpus-scale indexes,
 where one shortlist spans the whole corpus rather than one
 document. Qasper is cached only as a tarball (not BEIR jsonl for
