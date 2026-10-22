@@ -63,10 +63,11 @@ frameworks and libc++, which every macOS has.
   allow only F16 operands, is refused (`TURBO_E_UNSUPPORTED_OPTION`,
   field 3), with a warning in the log, and EXACT runs it in F32. A cell is SUPPORTED where a benchmark record in
   `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
-  MODEL and EXACT records against TEI's router built natively with
-  Metal. Elsewhere it is EXPERIMENTAL, and so is the M2's FASTEST cell
-  until a record of FASTEST in F16 backs it (Speed on the M2 has its
-  times). On the M2, one 16-token request at a time runs in 1.69 ms
+  records against TEI's router built natively with Metal, FASTEST's
+  against TEI 1.8.3 in float16. Elsewhere it is EXPERIMENTAL. At FASTEST,
+  32 rows of 256 tokens take 18.1 ms p50 on mixed rows against TEI's
+  623 ms round trip (float16), and 100.2 ms on dense rows against TEI's
+  1083 ms; Speed on the M2 has the comparison with MLX. On the M2, one 16-token request at a time runs in 1.69 ms
   p50 against TEI's 10.1 ms. For 32-row batches the ratio is about 50x
   on mixed rows and 8-9x on dense, because TEI's router runs a 32-row
   request as about 3 sequential sub-batches: its own `x-inference-time`
