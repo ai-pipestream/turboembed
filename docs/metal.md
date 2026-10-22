@@ -67,11 +67,13 @@ frameworks and libc++, which every macOS has.
   against TEI 1.8.3 in float16. Elsewhere it is EXPERIMENTAL. At FASTEST,
   32 rows of 256 tokens take 18.1 ms p50 on mixed rows against TEI's
   623 ms round trip (float16), and 100.2 ms on dense rows against TEI's
-  1083 ms; Speed on the M2 has the comparison with MLX. On the M2, one 16-token request at a time runs in 1.69 ms
-  p50 against TEI's 10.1 ms. For 32-row batches the ratio is about 50x
-  on mixed rows and 8-9x on dense, because TEI's router runs a 32-row
-  request as about 3 sequential sub-batches: its own `x-inference-time`
-  p50 was 609 ms on mixed and 1618 ms on dense, so its time is its
+  1083 ms; Speed on the M2 has the comparison with MLX. At MODEL and
+  EXACT on the M2, one 16-token request at a time runs in 1.69 ms p50
+  against TEI's 10.1 ms. For 32-row batches the ratio there is about
+  50x on mixed rows and 8-9x on dense, because TEI's router runs a
+  32-row request as about 3 sequential sub-batches: its own
+  `x-inference-time` p50 was 609 to 723 ms on mixed and 1471 to 1549 ms
+  on dense, so its time is its
   forward passes on candle Metal (77 to 1067 ms per sub-batch), with
   HTTP and queueing under 25 ms of it. That forward grows steeply with
   the padded batch, 3 ms for one 12-token row against 400-900 ms for a
