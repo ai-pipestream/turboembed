@@ -246,10 +246,26 @@ impl MlmHead {
             for i0 in (0..v).step_by(CHUNK) {
                 let w = CHUNK.min(v - i0);
                 let out = &mut out[..n * w];
-                for o in out.chunks_exact_mut(w) {
-                    o.copy_from_slice(&self.decoder.bias[i0..i0 + w]);
+                // Each pass's rows start from the bias just before the
+                // kernel sums into them, while they are still in L1:
+                // filling the whole block first costs the x86 decoder
+                // about 2%. A kernel that takes one token a pass gets
+                // exactly one row per call, which keeps that gain.
+                let bias = &self.decoder.bias[i0..i0 + w];
+                let k = kernel.tokens_per_pass();
+                if k == 1 {
+                    for (x, o) in block.chunks_exact(h).zip(out.chunks_exact_mut(w)) {
+                        o.copy_from_slice(bias);
+                        kernel.run_tokens(x, h, &wt, o, w, v, i0);
+                    }
+                } else {
+                    for (x, o) in block.chunks(k * h).zip(out.chunks_mut(k * w)) {
+                        for o in o.chunks_exact_mut(w) {
+                            o.copy_from_slice(bias);
+                        }
+                        kernel.run_tokens(x, h, &wt, o, w, v, i0);
+                    }
                 }
-                kernel.run_tokens(block, h, &wt, out, w, v, i0);
                 for o in out.chunks_exact(w) {
                     pool.observe_at(i0, o)?;
                 }
