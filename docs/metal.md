@@ -321,6 +321,28 @@ same F32 kernels as before this change: its least p50 at 32 x 256 (140.1)
 matches the F32 FASTEST path's (139.9), and its higher median is the
 machine's load in the later rounds.
 
+### The F16 tile
+
+The table above is FASTEST's first F16 kernels. Since then the weights'
+part of each tile is staged transposed, the k loop is unrolled, the tile
+is chosen per run (`linear=auto`), and the small kernel runs only up to
+64 tokens. The same timing, all-minilm-l6-v2 dense rows, five rounds on
+an M2 with load averages from 3.6 down to 2.1, median p50 / least p50 in
+ms, FASTEST before these changes against after, and MLX 0.29.3 float16:
+
+| Rows | FASTEST before | FASTEST | MLX float16 |
+|---|---|---|---|
+| 32 x 256 | 109.4 / 109.4 | 100.6 / 100.4 | 101.5 / 101.5 |
+| 8 x 128 | 13.71 / 13.68 | 12.39 / 12.38 | 11.68 / 11.67 |
+| 2 x 128 | 4.79 / 4.77 | 3.94 / 3.92 | 3.79 / 3.78 |
+| 1 x 128 | 2.79 / 2.78 | 2.70 / 2.67 | 2.41 / 2.41 |
+| 1 x 32 | 1.28 / 1.27 | 1.27 / 1.26 | 1.95 / 1.95 |
+
+FASTEST is level with MLX float16 at 32 x 256 and ahead at 1 x 32, and
+MLX is 4% to 12% faster from 2 to 8 rows of 128. On those rows the
+linear layers are about three quarters of the time; at 8 x 128 they
+run at about 2.2 TFLOPS, against MLX's 3 TFLOPS for its larger products.
+
 ## Testing
 
 From the workspace root. `TURBO_TEST_REQUIRE_METAL=1` makes every test in
