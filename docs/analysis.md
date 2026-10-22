@@ -4653,6 +4653,15 @@ runs them on any machine:
   CPU's within the tolerance the core gives that dtype; without the
   variable it says it was skipped. On a CUDA machine:
   `TURBO_TEST_DEVICE=cuda cargo test -p turbo-analysis-embed --features turbo/cuda --test vectors on_the_device`.
+- `analysis/embed/tests/vectors_bundle.rs` runs the same steps on a real
+  bundle, `TURBO_TEST_VECTORS_BUNDLE`, on the device `TURBO_TEST_DEVICE`
+  names, and compares the twelve sentence and three chunk vectors with
+  the same bundle's weights run on the CPU, at the minimum cosine the core
+  gives the device's dtype (0.93 for I8). For a bundle with a HEF next to
+  its safetensors weights (docs/hailo.md), a Hailo device runs the HEF and
+  the CPU runs the weights it was compiled from. Without both variables
+  the test prints that it was skipped. On a Hailo machine:
+  `TURBO_TEST_VECTORS_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=hailo cargo test --release -p turbo-analysis-embed --features turbo/hailo --test vectors_bundle -- --nocapture`.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,
