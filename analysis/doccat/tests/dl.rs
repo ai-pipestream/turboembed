@@ -22,6 +22,7 @@ struct MockSequenceScorer {
     model: ModelRef,
     chunk_logits: BTreeMap<String, Vec<f32>>,
     default_logits: Vec<f32>,
+    max_content_tokens: usize,
 }
 
 impl MockSequenceScorer {
@@ -35,11 +36,17 @@ impl MockSequenceScorer {
             },
             chunk_logits: BTreeMap::new(),
             default_logits,
+            max_content_tokens: 8,
         }
     }
 
     fn with_chunk(mut self, chunk: &str, logits: Vec<f32>) -> Self {
         self.chunk_logits.insert(chunk.to_owned(), logits);
+        self
+    }
+
+    fn with_max_content_tokens(mut self, max_content_tokens: usize) -> Self {
+        self.max_content_tokens = max_content_tokens;
         self
     }
 }
@@ -58,7 +65,7 @@ impl DlSequenceScorer for MockSequenceScorer {
     }
 
     fn max_content_tokens(&self) -> usize {
-        8
+        self.max_content_tokens
     }
 
     fn score_chunks(&self, chunks: &[String], options: &DlInferenceOptions) -> Result<Vec<Vec<f32>>, DlDoccatError> {
@@ -105,9 +112,22 @@ fn document_categorizer_config_matches_opennlp_config_test() {
     assert_eq!(indexed.get(&0).map(String::as_str), Some("1 star"));
     assert_eq!(indexed.get(&4).map(String::as_str), Some("5 stars"));
 
-    // Invalid JSON without id2label returns None, matching DocumentCategorizerConfig.fromJson.
+    // Invalid JSON without id2label or with malformed/nested/trailing payloads returns None.
     assert!(DocumentCategorizerConfig::from_json("bad json").is_none());
     assert!(DocumentCategorizerConfig::from_json(r#"{"other": 1}"#).is_none());
+    assert!(DocumentCategorizerConfig::from_json(r#"garbage "id2label": {"0": "a", "1": "b"}"#).is_none());
+    assert!(DocumentCategorizerConfig::from_json(r#"{"nested": {"id2label": {"0": "a", "1": "b"}}}"#).is_none());
+    assert!(DocumentCategorizerConfig::from_json(r#"{"id2label": {"0": "a", "1": "b"}} trailing"#).is_none());
+    assert!(
+        DocumentCategorizerConfig::from_json(r#"{"id2label": {"0": "a", "1": "b"}, "id2label": {"0": "a", "1": "b"}}"#)
+            .is_none()
+    );
+    assert!(DocumentCategorizerConfig::from_json(r#"{"id2label": {"0": "a"}, "bad": [1, 2}"#).is_none());
+
+    // Valid top-level id2label alongside booleans, nulls, numbers, escapes, and nested objects/arrays succeeds.
+    let rich_json = r#"{"num": -12.5e+2, "ok": true, "no": false, "nil": null, "nested": {"id2label": "ignored", "arr": [1, {"k": "v\u0020"}]}, "id2label": {"0": "neg", "1": "pos"}}"#;
+    let rich_cfg = DocumentCategorizerConfig::from_json(rich_json).expect("rich top-level config.json");
+    assert_eq!(rich_cfg.ordered_categories().unwrap(), vec!["neg", "pos"]);
 
     // Non-contiguous or non-numeric keys in read_categories_from_json fail cleanly.
     let gap_json = r#"{"id2label": {"0": "neg", "2": "pos"}}"#;
@@ -360,4 +380,85 @@ fn annotator_pipeline_writes_document_and_span_categories_in_both_chunking_modes
     let (blank_cats,) = doc_cat.annotate((blank_doc.get::<View>().unwrap(), None)).unwrap();
     assert_eq!(blank_cats.category[0], Tag::NONE);
     assert_eq!(blank_cats.best_category(0), "");
+}
+
+struct WeightedFirstChunkStrategy {
+    first_weight: f64,
+}
+
+impl ClassificationScoringStrategy for WeightedFirstChunkStrategy {
+    fn score(&self, scores: &[Vec<f64>]) -> Result<Vec<f64>, DlDoccatError> {
+        let mut out = scores[0].clone();
+        for v in &mut out {
+            *v *= self.first_weight;
+        }
+        Ok(out)
+    }
+
+    fn strategy_hash(&self) -> u64 {
+        self.first_weight.to_bits()
+    }
+}
+
+#[test]
+fn overlapping_subwords_empty_unit_abstention_and_config_hash_fingerprints() {
+    let labels = ["neg", "pos"];
+    let scorer = MockSequenceScorer::new(&labels, vec![1.0, -1.0]).with_chunk("10,11,12", vec![-3.0, 3.0]);
+    let model_ref = scorer.model_ref();
+
+    // Subwords with overlapping spans [0..4, 1..4, 4..5] and IDs [10, 11, 12] in "abcde".
+    // Sentence 0 is 2..5 (must select all three overlapping pieces [10, 11, 12], not just [11, 12]);
+    // Sentence 1 is empty 2..2 inside piece 0..4 (must abstain with Tag::NONE, not score piece 11).
+    let text = "abcde";
+    let mut sub_spans = Spans::new(ViewId::SOURCE);
+    sub_spans.push(Span::new(0, 4));
+    sub_spans.push(Span::new(1, 4));
+    sub_spans.push(Span::new(4, 5));
+    let subwords = Subwords { spans: sub_spans, ids: vec![10, 11, 12], model: model_ref, token: None };
+
+    let mut sent_spans = Spans::new(ViewId::SOURCE);
+    sent_spans.push(Span::new(2, 5));
+    let mut empty_sent_spans = Spans::new(ViewId::SOURCE);
+    empty_sent_spans.push(Span::new(2, 2));
+
+    let opts = DlInferenceOptions::default().with_chunking_mode(DlChunkingMode::Subwords);
+    let doc_cat = Arc::new(DocumentCategorizerDL::with_options(scorer, opts.clone()).unwrap());
+    let sent_cat = DlSpanCategorizer::<_, Sentences>::new(Arc::clone(&doc_cat));
+
+    let doc = Document::new(text);
+    let view = doc.get::<View>().unwrap();
+    let (cats,) = sent_cat.annotate((view, Some(&subwords), &Sentences { spans: sent_spans })).unwrap();
+    assert_eq!(cats.best_category(0), "pos");
+
+    let (empty_cats,) = sent_cat.annotate((view, Some(&subwords), &Sentences { spans: empty_sent_spans })).unwrap();
+    assert_eq!(empty_cats.category[0], Tag::NONE);
+    assert_eq!(empty_cats.best_category(0), "");
+
+    // Different max_content_tokens or custom strategy parameters must produce distinct config_hash values.
+    let split_opts = DlInferenceOptions::default().with_document_split_size(4).with_split_overlap_size(0);
+    let cat_cap2 = DocumentCategorizerDL::with_options(
+        MockSequenceScorer::new(&labels, vec![0.0, 0.0]).with_max_content_tokens(2),
+        split_opts.clone(),
+    )
+    .unwrap();
+    let cat_cap4 = DocumentCategorizerDL::with_options(
+        MockSequenceScorer::new(&labels, vec![0.0, 0.0]).with_max_content_tokens(4),
+        split_opts.clone(),
+    )
+    .unwrap();
+    assert_ne!(cat_cap2.config_hash(), cat_cap4.config_hash());
+
+    let cat_strat_a = DocumentCategorizerDL::with_options_and_strategy(
+        MockSequenceScorer::new(&labels, vec![0.0, 0.0]),
+        split_opts.clone(),
+        WeightedFirstChunkStrategy { first_weight: 0.25 },
+    )
+    .unwrap();
+    let cat_strat_b = DocumentCategorizerDL::with_options_and_strategy(
+        MockSequenceScorer::new(&labels, vec![0.0, 0.0]),
+        split_opts,
+        WeightedFirstChunkStrategy { first_weight: 0.75 },
+    )
+    .unwrap();
+    assert_ne!(cat_strat_a.config_hash(), cat_strat_b.config_hash());
 }

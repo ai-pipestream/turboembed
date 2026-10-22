@@ -107,6 +107,12 @@ pub trait DlSequenceScorer: Send + Sync {
         510
     }
 
+    /// Scorer-specific configuration fingerprint folded into
+    /// [`DocumentCategorizerDL`]'s provenance `config_hash`.
+    fn scorer_config_hash(&self) -> u64 {
+        0
+    }
+
     /// Scores each text chunk in `chunks` using `options` and returns one row
     /// of raw `f32` logits (`[categories().len()]`) per chunk.
     fn score_chunks(&self, chunks: &[String], options: &DlInferenceOptions) -> Result<Vec<Vec<f32>>, DlDoccatError>;
@@ -419,8 +425,11 @@ impl<S: DlSequenceScorer, C: ClassificationScoringStrategy> DocumentCategorizerD
         );
         feed(&mut hash, &(self.options.document_split_size as u64).to_le_bytes());
         feed(&mut hash, &(self.options.split_overlap_size as u64).to_le_bytes());
+        feed(&mut hash, &(self.scorer.max_content_tokens() as u64).to_le_bytes());
+        feed(&mut hash, &self.scorer.scorer_config_hash().to_le_bytes());
         feed(&mut hash, self.strategy.strategy_id().as_bytes());
         feed(&mut hash, &[0]);
+        feed(&mut hash, &self.strategy.strategy_hash().to_le_bytes());
         for cat in &self.categories {
             feed(&mut hash, cat.as_bytes());
             feed(&mut hash, &[0]);

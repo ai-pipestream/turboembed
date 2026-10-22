@@ -147,46 +147,176 @@ fn parse_json_string(src: &str, start: usize) -> Option<(String, usize)> {
     None
 }
 
-fn parse_id2label_object(json: &str) -> Option<BTreeMap<String, String>> {
+const MAX_JSON_DEPTH: usize = 64;
+
+fn parse_string_map(json: &str, start: usize) -> Option<(BTreeMap<String, String>, usize)> {
     let bytes = json.as_bytes();
-    let mut i = 0usize;
-    while i < bytes.len() {
-        if bytes[i] == b'"' {
-            let (key, next_i) = parse_json_string(json, i)?;
-            i = skip_ws(bytes, next_i);
-            if key == ID2LABEL_KEY && bytes.get(i).copied() == Some(b':') {
+    if bytes.get(start).copied() != Some(b'{') {
+        return None;
+    }
+    let mut i = skip_ws(bytes, start + 1);
+    let mut map = BTreeMap::new();
+    if bytes.get(i).copied() == Some(b'}') {
+        return Some((map, i + 1));
+    }
+    loop {
+        let (entry_key, after_key) = parse_json_string(json, i)?;
+        i = skip_ws(bytes, after_key);
+        if bytes.get(i).copied() != Some(b':') {
+            return None;
+        }
+        i = skip_ws(bytes, i + 1);
+        let (entry_val, after_val) = parse_json_string(json, i)?;
+        if map.insert(entry_key, entry_val).is_some() {
+            return None;
+        }
+        i = skip_ws(bytes, after_val);
+        match bytes.get(i).copied() {
+            Some(b',') => {
                 i = skip_ws(bytes, i + 1);
-                if bytes.get(i).copied() != Some(b'{') {
-                    return None;
-                }
-                i = skip_ws(bytes, i + 1);
-                let mut map = BTreeMap::new();
-                if bytes.get(i).copied() == Some(b'}') {
-                    return Some(map);
-                }
-                loop {
-                    let (entry_key, after_key) = parse_json_string(json, i)?;
-                    i = skip_ws(bytes, after_key);
-                    if bytes.get(i).copied() != Some(b':') {
-                        return None;
-                    }
-                    i = skip_ws(bytes, i + 1);
-                    let (entry_val, after_val) = parse_json_string(json, i)?;
-                    map.insert(entry_key, entry_val);
-                    i = skip_ws(bytes, after_val);
-                    match bytes.get(i).copied() {
-                        Some(b',') => {
-                            i = skip_ws(bytes, i + 1);
-                        }
-                        Some(b'}') => return Some(map),
-                        _ => return None,
-                    }
-                }
             }
-        } else {
-            let ch = json[i..].chars().next()?;
-            i += ch.len_utf8();
+            Some(b'}') => return Some((map, i + 1)),
+            _ => return None,
         }
     }
-    None
+}
+
+fn skip_json_number(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut i = start;
+    if bytes.get(i).copied() == Some(b'-') {
+        i += 1;
+    }
+    match bytes.get(i).copied()? {
+        b'0' => {
+            i += 1;
+            if matches!(bytes.get(i).copied(), Some(b'0'..=b'9')) {
+                return None;
+            }
+        }
+        b'1'..=b'9' => {
+            i += 1;
+            while matches!(bytes.get(i).copied(), Some(b'0'..=b'9')) {
+                i += 1;
+            }
+        }
+        _ => return None,
+    }
+    if bytes.get(i).copied() == Some(b'.') {
+        i += 1;
+        if !matches!(bytes.get(i).copied(), Some(b'0'..=b'9')) {
+            return None;
+        }
+        while matches!(bytes.get(i).copied(), Some(b'0'..=b'9')) {
+            i += 1;
+        }
+    }
+    if matches!(bytes.get(i).copied(), Some(b'e' | b'E')) {
+        i += 1;
+        if matches!(bytes.get(i).copied(), Some(b'+' | b'-')) {
+            i += 1;
+        }
+        if !matches!(bytes.get(i).copied(), Some(b'0'..=b'9')) {
+            return None;
+        }
+        while matches!(bytes.get(i).copied(), Some(b'0'..=b'9')) {
+            i += 1;
+        }
+    }
+    Some(i)
+}
+
+fn skip_json_value(json: &str, start: usize, depth: usize) -> Option<usize> {
+    if depth > MAX_JSON_DEPTH {
+        return None;
+    }
+    let bytes = json.as_bytes();
+    let i = skip_ws(bytes, start);
+    match bytes.get(i).copied()? {
+        b'"' => parse_json_string(json, i).map(|(_, next)| next),
+        b'{' => {
+            let mut cur = skip_ws(bytes, i + 1);
+            if bytes.get(cur).copied() == Some(b'}') {
+                return Some(cur + 1);
+            }
+            loop {
+                let (_, after_key) = parse_json_string(json, cur)?;
+                cur = skip_ws(bytes, after_key);
+                if bytes.get(cur).copied() != Some(b':') {
+                    return None;
+                }
+                cur = skip_json_value(json, cur + 1, depth + 1)?;
+                cur = skip_ws(bytes, cur);
+                match bytes.get(cur).copied() {
+                    Some(b',') => cur = skip_ws(bytes, cur + 1),
+                    Some(b'}') => return Some(cur + 1),
+                    _ => return None,
+                }
+            }
+        }
+        b'[' => {
+            let mut cur = skip_ws(bytes, i + 1);
+            if bytes.get(cur).copied() == Some(b']') {
+                return Some(cur + 1);
+            }
+            loop {
+                cur = skip_json_value(json, cur, depth + 1)?;
+                cur = skip_ws(bytes, cur);
+                match bytes.get(cur).copied() {
+                    Some(b',') => cur = skip_ws(bytes, cur + 1),
+                    Some(b']') => return Some(cur + 1),
+                    _ => return None,
+                }
+            }
+        }
+        b't' => bytes.get(i..i + 4).filter(|&s| s == b"true").map(|_| i + 4),
+        b'f' => bytes.get(i..i + 5).filter(|&s| s == b"false").map(|_| i + 5),
+        b'n' => bytes.get(i..i + 4).filter(|&s| s == b"null").map(|_| i + 4),
+        b'-' | b'0'..=b'9' => skip_json_number(bytes, i),
+        _ => None,
+    }
+}
+
+fn parse_id2label_object(json: &str) -> Option<BTreeMap<String, String>> {
+    let bytes = json.as_bytes();
+    let mut i = skip_ws(bytes, 0);
+    if bytes.get(i).copied() != Some(b'{') {
+        return None;
+    }
+    i = skip_ws(bytes, i + 1);
+    if bytes.get(i).copied() == Some(b'}') {
+        return None;
+    }
+    let mut found: Option<BTreeMap<String, String>> = None;
+    loop {
+        let (key, after_key) = parse_json_string(json, i)?;
+        i = skip_ws(bytes, after_key);
+        if bytes.get(i).copied() != Some(b':') {
+            return None;
+        }
+        i = skip_ws(bytes, i + 1);
+        if key == ID2LABEL_KEY {
+            if found.is_some() {
+                return None;
+            }
+            let (map, after_map) = parse_string_map(json, i)?;
+            found = Some(map);
+            i = skip_ws(bytes, after_map);
+        } else {
+            let after_val = skip_json_value(json, i, 1)?;
+            i = skip_ws(bytes, after_val);
+        }
+        match bytes.get(i).copied() {
+            Some(b',') => {
+                i = skip_ws(bytes, i + 1);
+            }
+            Some(b'}') => {
+                i = skip_ws(bytes, i + 1);
+                if i != bytes.len() {
+                    return None;
+                }
+                return found;
+            }
+            _ => return None,
+        }
+    }
 }

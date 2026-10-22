@@ -16,6 +16,13 @@ pub trait ClassificationScoringStrategy: Send + Sync {
     fn strategy_id(&self) -> &'static str {
         "custom"
     }
+
+    /// Strategy-specific parameter fingerprint folded into [`super::DocumentCategorizerDL`]'s
+    /// provenance `config_hash`. Custom strategies with configurable parameters
+    /// should override this to distinguish instances with different settings.
+    fn strategy_hash(&self) -> u64 {
+        0
+    }
 }
 
 /// Computes the arithmetic mean across all chunks for each category, ported

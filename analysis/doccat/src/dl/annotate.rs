@@ -40,16 +40,19 @@ fn check_subwords(
 
 /// Extracts the subword piece IDs from `subwords` that belong to item `unit_ix`
 /// of `unit_spans`: any piece overlapping a non-empty fragment (`p_start < frag.end && p_end > frag.start`)
-/// or an empty piece inside the fragment (`p_start == p_end && p_start >= frag.start && p_end <= frag.end`).
+/// or an empty piece inside a non-empty fragment (`p_start == p_end && p_start >= frag.start && p_end <= frag.end`).
 pub(crate) fn subword_ids_in_unit<L>(subwords: &Subwords, unit_spans: &Spans<L>, unit_ix: Ix<L>) -> Vec<i32> {
     let (p_starts, p_ends) = subwords.spans.columns();
     let n_pieces = subwords.ids.len();
-    let ordered = subwords.spans.is_start_ordered();
+    let starts_ordered = subwords.spans.is_start_ordered();
+    let ends_ordered = p_ends.windows(2).all(|w| w[0] <= w[1]);
     let mut out = Vec::new();
     for frag in unit_spans.fragments(unit_ix) {
-        if ordered {
-            let first = p_starts.partition_point(|&s| s < frag.start);
-            let scan_from = first.saturating_sub(1);
+        if frag.start >= frag.end {
+            continue;
+        }
+        if starts_ordered && ends_ordered {
+            let scan_from = p_ends.partition_point(|&e| e < frag.start);
             for idx in scan_from..n_pieces {
                 let ps = p_starts[idx];
                 let pe = p_ends[idx];
@@ -66,6 +69,9 @@ pub(crate) fn subword_ids_in_unit<L>(subwords: &Subwords, unit_spans: &Spans<L>,
             for idx in 0..n_pieces {
                 let ps = p_starts[idx];
                 let pe = p_ends[idx];
+                if starts_ordered && ps > frag.end {
+                    break;
+                }
                 let inside =
                     if ps == pe { ps >= frag.start && pe <= frag.end } else { ps < frag.end && pe > frag.start };
                 if inside {
