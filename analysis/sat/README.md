@@ -79,6 +79,9 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
 - `tests/parity.rs`: the scores and pieces against the fixtures, and
   the layer against wtpsplit's pieces with each cut moved to the end of
   its grapheme cluster.
+  `TURBO_TEST_DEVICE` and `TURBO_TEST_PRECISION` run it on a device,
+  for example `TURBO_TEST_DEVICE=cuda cargo test --release -p turbo-sat
+  --features turbo/cuda --test parity`.
 - `tests/annotator.rs`: batching, texts longer than a window, texts
   without words, the threshold and line feeds, the options, the
   configuration hash, the provider and the analyzer.

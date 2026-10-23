@@ -25,6 +25,7 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 use turbo::bundle::Bundle;
 use turbo_analysis::{Analyzer, Document, Span};
+use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_analysis_layers::Sentences;
 use turbo_sat::{SatAnnotator, SatOptions, cuts};
 
@@ -72,8 +73,34 @@ fn fixture(name: &str) -> Fixture {
     }
 }
 
+/// The device TURBO_TEST_DEVICE names (a backend name or a device index;
+/// the CPU when it is not set) at the precision TURBO_TEST_PRECISION
+/// names (model by default): every fixture holds there as on the CPU.
+fn encoder() -> EncoderOptions {
+    let device = match std::env::var("TURBO_TEST_DEVICE") {
+        Err(_) => Device::Cpu,
+        Ok(d) => match d.parse() {
+            Ok(i) => Device::Index(i),
+            Err(_) => Device::Backend(d),
+        },
+    };
+    let precision = match std::env::var("TURBO_TEST_PRECISION").as_deref() {
+        Err(_) | Ok("model") => Precision::Model,
+        Ok("fastest") => Precision::Fastest,
+        Ok("exact") => Precision::Exact,
+        Ok(p) => panic!("TURBO_TEST_PRECISION={p}: model, fastest or exact"),
+    };
+    EncoderOptions { device, precision, ..EncoderOptions::default() }
+}
+
 fn open(f: &Fixture) -> SatAnnotator {
-    let o = SatOptions { threshold: f.threshold, stride: f.stride, block_size: f.block, ..SatOptions::default() };
+    let o = SatOptions {
+        encoder: encoder(),
+        threshold: f.threshold,
+        stride: f.stride,
+        block_size: f.block,
+        ..SatOptions::default()
+    };
     SatAnnotator::open(&bundle(), &o).unwrap()
 }
 
