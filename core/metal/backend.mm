@@ -1753,7 +1753,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     std::vector<std::vector<double>> least(counts.size(), std::vector<double>(order.size(), 0));
     std::vector<std::vector<bool>> timed(counts.size(), std::vector<bool>(order.size(), false));
     std::vector<uint32_t> bins(counts.size(), 0);
-    for (size_t b = 0; b < counts.size(); b++) {
+    for (size_t b = 0; b < counts.size() && spent < budget; b++) {
         // Rows of up to max_seq tokens, ids 1, as many as make counts[b].
         const uint32_t len = std::min(s.max_seq, counts[b]);
         const uint32_t batch = std::clamp(counts[b] / len, 1u, s.max_batch);
@@ -1803,17 +1803,17 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         }
     }
     if (!timed[0][0]) return refuse(err, TURBO_E_INVALID_STATE, "metal: the tuner timed no incumbent");
-    // A challenger replaces the incumbent only when it was timed at every
-    // count the incumbent was and beat it by the margin at each; of those,
-    // the one least in all.
+    // A challenger replaces the incumbent only when both were timed at
+    // every count and it beat the incumbent by the margin at each; of
+    // those, the one least in all. A count past the budget leaves the
+    // incumbent in place.
     size_t best = 0;
     double best_total = 0;
     for (size_t v = 1; v < order.size(); v++) {
         bool wins = true;
         double total = 0;
         for (size_t b = 0; b < counts.size() && wins; b++) {
-            if (!timed[b][0]) continue;
-            wins = timed[b][v] && least[b][v] < least[b][0] * (1.0 - TUNE_MARGIN);
+            wins = timed[b][0] && timed[b][v] && least[b][v] < least[b][0] * (1.0 - TUNE_MARGIN);
             total += least[b][v];
         }
         if (wins && (best == 0 || total < best_total)) {
@@ -1828,6 +1828,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count(), UINT32_MAX);
     std::string lines, said;
     for (size_t b = 0; b < counts.size(); b++) {
+        if (!timed[b][0]) continue;
         said += std::string(said.empty() ? "" : "; ") + BINS[bins[b]] + ":";
         for (size_t v = 0; v < order.size(); v++) {
             if (!timed[b][v]) continue;

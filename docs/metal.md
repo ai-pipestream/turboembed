@@ -279,16 +279,16 @@ packed tokens, each that the session's `max_batch` x `max_seq` holds
 tokens or fewer, ids 1, as many as make the count. At each count, each
 choice, the incumbent (the cached choice, else `auto`) first, runs the
 whole encoder once untimed, then five times timed from the host, each
-run waited for. A challenger replaces the incumbent only when it was
-timed at every count the incumbent was and its least time is 5% under
-the incumbent's at each; of those, the one with the least total wins.
+run waited for. A challenger replaces the incumbent only when both
+were timed at every count and its least time is 5% under the
+incumbent's at each; of those, the one with the least total wins.
 So `auto`, which picks its tile per run, stays unless one fixed tile is
 the faster at every size the session runs. A choice whose median is more
 than 25% above its least is timed again, up to three times in all;
 still apart, the GPU is shared or throttling, and the session keeps the
 incumbent, reports `default`, is not cached, and an INFO line says so.
 The budget counts the timed runs alone; past it, what is left is not
-timed, and a challenger not timed at every count does not win. A
+timed, so a count it cuts off leaves the incumbent in place. A
 measured session reports `measured`, gives its timings as
 `<bin>/linear/<choice>=<least ms>` lines, one per count and choice, and
 logs at INFO `metal device <n>: linear layers chosen in <ms> ms:
