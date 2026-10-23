@@ -125,9 +125,16 @@ pub const CIVIL_IDENTITIES: [&str; 9] = [
     "psychiatric_or_mental_illness",
 ];
 
-/// `all_data_with_identities.csv`, split by its `split` column into
-/// (train, test). An identity column at or above 0.5 is a mention.
-pub fn civil(dir: &Path) -> Result<(Vec<Unit>, Vec<Unit>), String> {
+/// The Civil Comments splits.
+pub struct Civil {
+    pub train: Vec<Unit>,
+    pub val: Vec<Unit>,
+    pub test: Vec<Unit>,
+}
+
+/// `all_data_with_identities.csv`, split by its `split` column. An
+/// identity column at or above 0.5 is a mention.
+pub fn civil(dir: &Path) -> Result<Civil, String> {
     let rows = read(&dir.join("all_data_with_identities.csv"))?;
     let h = &rows[0];
     let (text, split) = (column(h, "comment_text")?, column(h, "split")?);
@@ -139,7 +146,7 @@ pub fn civil(dir: &Path) -> Result<(Vec<Unit>, Vec<Unit>), String> {
     let number = |s: &str| -> Result<f64, String> {
         if s.is_empty() { Ok(0.0) } else { s.parse::<f64>().map_err(|e| format!("{s:?}: {e}")) }
     };
-    let (mut train, mut test) = (Vec::new(), Vec::new());
+    let (mut train, mut val, mut test) = (Vec::new(), Vec::new(), Vec::new());
     for (n, r) in rows[1..].iter().enumerate() {
         if r.len() != h.len() {
             return Err(format!("record {n} has {} fields, the header {}", r.len(), h.len()));
@@ -160,9 +167,9 @@ pub fn civil(dir: &Path) -> Result<(Vec<Unit>, Vec<Unit>), String> {
         match r[split].as_str() {
             "train" => train.push(unit),
             "test" => test.push(unit),
-            "val" => {}
+            "val" => val.push(unit),
             s => return Err(format!("record {n} has the split {s:?}")),
         }
     }
-    Ok((train, test))
+    Ok(Civil { train, val, test })
 }

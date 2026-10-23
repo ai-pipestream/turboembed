@@ -550,7 +550,7 @@ lexicon uses (`analysis/doccat/src/sentiment/token_key.rs`): typographic
 apostrophes read as `'`, Unicode punctuation trimmed, and full Unicode
 case folding, so "MUSLIM." and "Muslim" match alike.
 
-### Identity-term bias on real data
+### Precision, recall and identity-term bias on real data
 
 `analysis/embed/examples/incivility_bias` measures the three stages on
 two sets:
@@ -561,9 +561,10 @@ two sets:
   from the CC0 mirror
   [shlomihod/civil-comments-wilds at 3fbfeca](https://huggingface.co/datasets/shlomihod/civil-comments-wilds/tree/3fbfeca80bad0f3aec37e72fa07eff222b6e752f);
   the TFDS download address answers 403). The head is fitted to the
-  269,038 train comments; the numbers are on the 133,782 test comments.
-  A label is positive at a rater fraction of 0.5 and above; an identity
-  is mentioned at 0.5 and above, for the nine identities Borkan et al.
+  269,038 train comments, a threshold is chosen on the 45,180 val
+  comments, and the numbers are on the 133,782 test comments. A label is
+  positive at a rater fraction of 0.5 and above; an identity is
+  mentioned at 0.5 and above, for the nine identities Borkan et al.
   report.
 - **Jigsaw sentence templates** ("bias madlibs"),
   `sentence_templates/en_sentence_templates.csv` (76,564 sentences,
@@ -578,68 +579,95 @@ two sets:
 Each comment or sentence is one unit with one vector: the encoder's
 pooled vector of its text, cut to the model's longest row (256 tokens
 for MiniLM, 512 for BGE-small). The head is `IncivilityVectorHead::fit`
-with the default options (500 epochs, rate 0.5, L2 1e-4) on the six
-rater fractions; Civil Comments has no intolerance column, so that
-label's target is 0 and it has no numbers here. Units are scored with
-`score_unit_in_context` at the default threshold of 0.5. The records
-are in `docs/receipts/incivility-bias-889/`; the run takes about four
-minutes per encoder on an RTX 4080 SUPER, three of them fitting the
-head on one CPU thread.
+over the train comments with 0 and 1 targets (a rater fraction at 0.5
+and above is 1), 500 epochs, learning rate 16 and L2 1e-4. Fitted to
+the rater fractions with the default rate of 0.5, the head ranks worse
+(insult AUC 0.797 against 0.862 on MiniLM) and scores almost nothing
+at or above 0.5. Civil
+Comments has no intolerance column, so that label's target is 0 and it
+has no numbers here. Units are scored with `score_unit_in_context`, and
+the records are in `docs/receipts/incivility-bias-889/`. A run takes
+about three and a half minutes per encoder on an RTX 4080 SUPER, most
+of it fitting the head on one CPU thread.
 
-ROC AUC per label on the Civil Comments test split (the lexicon stage
-reads no vector, so it has one row):
+#### Precision and recall
+
+Per label on the Civil Comments test split, at the annotator's default
+threshold of 0.5 and at the threshold with the best micro F1 on the val
+split (from 0.05 to 0.5 in steps of 0.05). Each cell is precision /
+recall; the lexicon stage reads no vector, so it has one row. At the
+default threshold, a stage that predicts nothing for a label has
+precision 1 by the convention of `evaluate_incivility_corpus`.
+
+| Stage | Encoder | Threshold | insult | profanity | threat | identity_attack | micro P / R / F1 |
+|---|---|---|---|---|---|---|---|
+| lexicon | none | 0.5 | 0.646 / 0.306 | 0.223 / 0.520 | 0.102 / 0.034 | 0.113 / 0.003 | 0.498 / 0.230 / 0.315 |
+| learned | all-MiniLM-L6-v2 | 0.5 | 0.771 / 0.090 | none | none | 0.593 / 0.016 | 0.755 / 0.062 / 0.115 |
+| learned | all-MiniLM-L6-v2 | 0.15 | 0.339 / 0.545 | none | none | 0.291 / 0.397 | 0.326 / 0.461 / 0.382 |
+| learned | bge-small-en-v1.5 | 0.5 | 0.774 / 0.085 | none | none | 0.667 / 0.009 | 0.769 / 0.057 / 0.107 |
+| learned | bge-small-en-v1.5 | 0.15 | 0.344 / 0.565 | none | none | 0.328 / 0.337 | 0.341 / 0.457 / 0.390 |
+| fused | all-MiniLM-L6-v2 | 0.5 | 0.645 / 0.344 | 0.223 / 0.520 | 0.102 / 0.034 | 0.366 / 0.019 | 0.510 / 0.259 / 0.344 |
+| fused | all-MiniLM-L6-v2 | 0.2 | 0.434 / 0.566 | 0.223 / 0.520 | 0.102 / 0.034 | 0.327 / 0.267 | 0.387 / 0.470 / 0.425 |
+| fused | bge-small-en-v1.5 | 0.5 | 0.646 / 0.347 | 0.223 / 0.520 | 0.102 / 0.034 | 0.304 / 0.012 | 0.512 / 0.259 / 0.344 |
+| fused | bge-small-en-v1.5 | 0.2 | 0.444 / 0.582 | 0.223 / 0.520 | 0.102 / 0.034 | 0.369 / 0.208 | 0.404 / 0.464 / 0.432 |
+
+"none" is a label the head predicts for no test comment at that
+threshold. The lexicon stage's best val threshold is 0.05, where its
+test numbers equal those at 0.5 (its weights are at or above 0.5). The
+test split has 9,278 insults, 848 obscene comments, 323 threats, 3,898
+identity attacks and one severely toxic comment, so the severe toxicity
+numbers (precision 0.02 and recall 1 for the fused stage at 0.2) do not
+measure anything. Every positive prediction in every row carries an
+evidence span.
+
+#### Identity-term bias
+
+ROC AUC per label on the Civil Comments test split:
 
 | Stage | Encoder | insult | profanity | threat | identity_attack |
 |---|---|---|---|---|---|
 | lexicon | none | 0.647 | 0.756 | 0.517 | 0.501 |
-| learned | all-MiniLM-L6-v2 | 0.797 | 0.607 | 0.722 | 0.894 |
-| learned | bge-small-en-v1.5 | 0.822 | 0.602 | 0.727 | 0.894 |
-| fused | all-MiniLM-L6-v2 | 0.849 | 0.825 | 0.733 | 0.893 |
-| fused | bge-small-en-v1.5 | 0.868 | 0.822 | 0.737 | 0.894 |
+| learned | all-MiniLM-L6-v2 | 0.862 | 0.814 | 0.923 | 0.923 |
+| learned | bge-small-en-v1.5 | 0.877 | 0.824 | 0.900 | 0.922 |
+| fused | all-MiniLM-L6-v2 | 0.888 | 0.917 | 0.925 | 0.923 |
+| fused | bge-small-en-v1.5 | 0.898 | 0.917 | 0.902 | 0.921 |
 
-Severe toxicity has one positive comment in the test split at 0.5, so
-its AUC (0.41 and 0.45) is not a measure of anything.
+Insult, fused stage, per identity on the Civil Comments test split:
+subgroup, BPSN and BNSP AUC, and the false positive rate on neutral
+mentions at the tuned threshold of 0.2.
 
-Insult, fused stage, per identity on the Civil Comments test split
-(subgroup, BPSN and BNSP AUC):
+| Identity | Comments | Insults | MiniLM sub | MiniLM BPSN | MiniLM BNSP | MiniLM FPR | BGE sub | BGE BPSN | BGE BNSP | BGE FPR |
+|---|---|---|---|---|---|---|---|---|---|---|
+| black | 4,872 | 600 | 0.821 | 0.850 | 0.872 | 0.074 | 0.837 | 0.852 | 0.892 | 0.077 |
+| christian | 13,361 | 587 | 0.882 | 0.935 | 0.809 | 0.024 | 0.894 | 0.937 | 0.836 | 0.026 |
+| female | 16,449 | 1,234 | 0.862 | 0.875 | 0.879 | 0.069 | 0.876 | 0.881 | 0.897 | 0.069 |
+| homosexual_gay_or_lesbian | 3,810 | 332 | 0.813 | 0.893 | 0.814 | 0.040 | 0.819 | 0.902 | 0.824 | 0.039 |
+| jewish | 2,674 | 169 | 0.848 | 0.895 | 0.841 | 0.040 | 0.869 | 0.901 | 0.868 | 0.044 |
+| male | 14,295 | 1,227 | 0.861 | 0.865 | 0.887 | 0.074 | 0.873 | 0.876 | 0.899 | 0.071 |
+| muslim | 6,982 | 583 | 0.833 | 0.863 | 0.869 | 0.056 | 0.844 | 0.877 | 0.876 | 0.056 |
+| psychiatric_or_mental_illness | 1,676 | 273 | 0.861 | 0.772 | 0.941 | 0.160 | 0.882 | 0.848 | 0.922 | 0.087 |
+| white | 7,969 | 1,008 | 0.811 | 0.797 | 0.906 | 0.123 | 0.825 | 0.817 | 0.912 | 0.109 |
 
-| Identity | Comments | Insults | MiniLM sub | MiniLM BPSN | MiniLM BNSP | BGE sub | BGE BPSN | BGE BNSP |
-|---|---|---|---|---|---|---|---|---|
-| black | 4,872 | 600 | 0.779 | 0.690 | 0.912 | 0.802 | 0.767 | 0.897 |
-| christian | 13,361 | 587 | 0.837 | 0.912 | 0.744 | 0.863 | 0.923 | 0.780 |
-| female | 16,449 | 1,234 | 0.827 | 0.831 | 0.849 | 0.849 | 0.846 | 0.873 |
-| homosexual_gay_or_lesbian | 3,810 | 332 | 0.756 | 0.837 | 0.784 | 0.790 | 0.866 | 0.804 |
-| jewish | 2,674 | 169 | 0.800 | 0.801 | 0.853 | 0.823 | 0.846 | 0.851 |
-| male | 14,295 | 1,227 | 0.828 | 0.811 | 0.867 | 0.847 | 0.844 | 0.874 |
-| muslim | 6,982 | 583 | 0.783 | 0.752 | 0.880 | 0.808 | 0.812 | 0.872 |
-| psychiatric_or_mental_illness | 1,676 | 273 | 0.830 | 0.774 | 0.891 | 0.874 | 0.858 | 0.877 |
-| white | 7,969 | 1,008 | 0.766 | 0.625 | 0.935 | 0.782 | 0.708 | 0.920 |
-
-The low BPSN for `white`, `black` and `muslim` means neutral comments
-that mention them score above insults elsewhere: the bias Borkan et al.
-describe. The low BNSP for `christian` means insults that mention it
-score below neutral comments elsewhere.
+The lowest BPSN, for `psychiatric_or_mental_illness` and `white`,
+means neutral comments that mention them score above insults
+elsewhere, and their neutral mentions are flagged most often: the bias
+Borkan et al. describe. The lowest BNSP, for `christian` and
+`homosexual_gay_or_lesbian`, means insults that mention them score
+below neutral comments elsewhere. At the default threshold of 0.5 the
+fused stage flags 0.9% to 2.7% of neutral mentions per identity.
 
 Insult on the madlibs, with the lowest BPSN and BNSP over the 50 terms:
 
 | Stage | Encoder | AUC | lowest BPSN | lowest BNSP |
 |---|---|---|---|---|
 | lexicon | none | 0.562 | 0.562 | 0.562 |
-| learned | all-MiniLM-L6-v2 | 0.915 | 0.632 (white) | 0.631 (protestant) |
-| learned | bge-small-en-v1.5 | 1.000 | 0.997 (homosexual) | 0.997 (older) |
-| fused | all-MiniLM-L6-v2 | 0.921 | 0.665 (white) | 0.669 (catholic) |
-| fused | bge-small-en-v1.5 | 1.000 | 0.997 (homosexual) | 0.997 (older) |
+| learned | all-MiniLM-L6-v2 | 0.957 | 0.819 (homosexual) | 0.836 (older) |
+| learned | bge-small-en-v1.5 | 1.000 | 0.998 (homosexual) | 0.999 (older) |
+| fused | all-MiniLM-L6-v2 | 0.958 | 0.822 (homosexual) | 0.837 (older) |
+| fused | bge-small-en-v1.5 | 1.000 | 0.998 (homosexual) | 0.999 (older) |
 
 The lexicon finds few of the templates' toxic adjectives, so its scores
 barely depend on the identity term and every term has the same AUC.
-
-For insult on Civil Comments, the false positive rate on neutral
-mentions at 0.5 comes from the lexicon alone: in the lexicon and fused
-stages it is 0.9% to 1.8% per identity for both encoders, and no head
-score on a neutral mention reaches 0.5. The head is fitted to rater fractions, and
-most insults have a fraction below 1, so its scores sit low; at this
-threshold its false positive rate is 0 and says nothing about bias. The
-AUC metrics do not depend on a threshold.
 
 ### Tests and license posture
 
