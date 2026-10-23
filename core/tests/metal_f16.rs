@@ -263,18 +263,19 @@ fn a_real_bundle_at_its_longest_rows_stays_inside_f16() {
     }
 }
 
-/// How close FASTEST comes to the CPU on the masked rows below: the tiny
-/// bundle's rows agree to 1 - 2.7e-11 on the M2, so this bound has room,
-/// and it is 100 times tighter than the distance masking makes (checked
-/// below), so a kernel that let a masked key in would fail it.
-const MASKED_FLOOR: f64 = 1.0 - 1e-6;
+/// How close FASTEST comes to the CPU on the masked rows below. They agree
+/// to 1 - 2.7e-11 on the M2. A kernel that let the masked keys into the
+/// scores, while the pooling still left those tokens out, comes to only
+/// 1 - 6.0e-7 there: the tiny bundle's attention moves the vectors little,
+/// so the bound sits well inside that.
+const MASKED_FLOOR: f64 = 1.0 - 1e-8;
 
 /// Keys masked in the middle of a row at FASTEST, in the first chunk of 32
 /// keys and in later ones, for each choice: every row comes within
 /// MASKED_FLOOR of the CPU, which drops the same keys. The CPU's vectors
-/// with those keys masked and with them live are at least 100 times
-/// MASKED_FLOOR's distance apart, so the check has the power to see a key
-/// the device failed to mask.
+/// with those keys masked and with them live are first checked to be at
+/// least 100 times MASKED_FLOOR's distance apart, so the gaps change what
+/// the rows mean.
 #[test]
 fn masked_keys_inside_a_row_are_left_out_at_fastest() {
     let _t = turn();
@@ -304,5 +305,6 @@ fn masked_keys_inside_a_row_are_left_out_at_fastest() {
     }
     let awkward = awkward_rows(&dir);
     let s = make(g.m, None, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
-    against_cpu(&s, &cpu, &awkward, MASKED_FLOOR, "awkward rows");
+    let lowest = against_cpu(&s, &cpu, &awkward, MASKED_FLOOR, "awkward rows");
+    println!("awkward rows: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
 }
