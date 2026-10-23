@@ -336,12 +336,13 @@ constexpr uint32_t LOG_DEBUG = 3;
  * fh, hf, hh, in that order (kernels.metal). */
 enum Kernel {
     EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16,
-    NARROW_F16, ATTENTION_H, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
+    NARROW_F16, ATTENTION_H, ATTENTION_HR, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
     GEMM_SMALL_H = GEMM_H128 + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
     "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
     "pool",             "pool_ranges",     "widen_f16",       "widen_bf16",      "narrow_f16",      "attention_h",
+    "attention_hr",
     "gemm_h32_ff",      "gemm_h32_fh",     "gemm_h32_hf",     "gemm_h32_hh",     "gemm_h64_ff",     "gemm_h64_fh",
     "gemm_h64_hf",      "gemm_h64_hh",     "gemm_h128_ff",    "gemm_h128_fh",    "gemm_h128_hf",    "gemm_h128_hh",
     "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16"};
@@ -1020,6 +1021,21 @@ const char *const LINEAR_NAMES[] = {"f32", "h32", "h64", "h128", "auto"};
 /* FASTEST's choice when nothing forces or tunes it. */
 constexpr Linear LINEAR_DEFAULT = LINEAR_AUTO;
 
+/* Which kernel runs FASTEST's attention, for heads the matrix kernel
+ * takes: staged passes each group's scores and probabilities through
+ * threadgroup memory, registers keeps them in the SIMD-group matrices'
+ * registers, and auto runs registers past ATTN_REGISTERS_TOKENS packed
+ * tokens and staged up to them (docs/metal.md, Kernel choices). */
+enum Attn : uint32_t { ATTN_STAGED, ATTN_REGISTERS, ATTN_AUTO, ATTN_COUNT };
+const char *const ATTN_NAMES[] = {"staged", "registers", "auto"};
+/* FASTEST's choice when nothing forces it. */
+constexpr Attn ATTN_DEFAULT = ATTN_AUTO;
+
+/* attn=auto's line: up to this many packed tokens staged is the faster
+ * on the M2 (by 3 to 4% at 2 and 4 rows of 128), and registers past it
+ * (by 0.2 to 0.7% from 8 to 32 rows of 128, 1.6% at 32 of 256). */
+constexpr uint32_t ATTN_REGISTERS_TOKENS = 512;
+
 /* Whether the context's device runs a choice's kernels: h128's tile takes
  * threadgroups of 256. */
 bool runs_linear(const Context *c, Linear l) {
@@ -1040,9 +1056,13 @@ size_t attention_bytes(uint32_t head_dim, uint32_t seq) {
     return round_up(sizeof(float) * floats, 16);
 }
 
-/* The F16 attention's: a chunk's K and V in F16, rows padded by 8, and
- * four groups' 8 x 32 scores in F32 and probabilities in F16. */
-size_t attention_h_bytes(uint32_t head_dim) { return round_up(2 * (2 * 32 * (head_dim + 8)) + 6 * 4 * 8 * 32, 16); }
+/* The F16 attention's: a chunk's K transposed, [head_dim][32 + 8], and V,
+ * [32][head_dim + 8], in F16; for the staged kernel, four groups' 8 x 32
+ * scores in F32 and probabilities in F16; and the chunk's 32 key biases
+ * in F32. */
+size_t attention_h_bytes(uint32_t head_dim, bool registers) {
+    return round_up(2 * (head_dim * (32 + 8) + 32 * (head_dim + 8)) + (registers ? 0 : 6 * 4 * 8 * 32) + 4 * 32, 16);
+}
 
 struct Session {
     Model *model = nullptr;
@@ -1076,6 +1096,9 @@ struct Session {
     Linear linear = LINEAR_F32;
     /* Whether TURBO_METAL_CHOICES named the linear layers' kernels. */
     bool forced = false;
+    Attn attn = ATTN_DEFAULT;
+    /* Whether it named attention's. */
+    bool attn_forced = false;
     /* For the tests (turbo_metal_track_peaks): a shared buffer of
      * PEAK_SLOTS uints, the largest magnitude of each F16 tensor a run
      * stores, as F32 bits; nil unless tracking was on when it was made. */
@@ -1101,8 +1124,9 @@ TestPeaks &test_peaks() {
 
 /* TURBO_METAL_CHOICES, read when a session is made: items separated by
  * ';', "linear=<f32|h32|h64|h128|auto>" forcing the linear layers' kernels into
- * *out, and "forced=" as a session reports it, whatever it names, read
- * and left alone. *out is -1 when nothing names them. */
+ * *linear, "attn=<staged|registers|auto>" forcing attention's into *attn,
+ * and "forced=" as a session reports it, whatever it names, read and left
+ * alone. Each is -1 when nothing names it. */
 /* A line the tests set in place of the variable, through
  * turbo_metal_use_choices. */
 struct TestChoices {
@@ -1115,8 +1139,9 @@ TestChoices &test_choices() {
     return t;
 }
 
-int32_t forced_linear(int *out, turbo_error *err) {
-    *out = -1;
+int32_t forced_choices(int *linear, int *attn, turbo_error *err) {
+    *linear = -1;
+    *attn = -1;
     std::string line;
     {
         TestChoices &t = test_choices();
@@ -1135,14 +1160,18 @@ int32_t forced_linear(int *out, turbo_error *err) {
         const std::string item = line.substr(at, end - at);
         at = end + 1;
         if (item.empty() || item.rfind("forced=", 0) == 0) continue;
-        int found = -1;
+        int found = -1, found_attn = -1;
         for (int l = LINEAR_F32; l < (int)LINEAR_COUNT; l++)
             if (item == std::string("linear=") + LINEAR_NAMES[l]) found = l;
-        if (found < 0)
+        for (int a = ATTN_STAGED; a < (int)ATTN_COUNT; a++)
+            if (item == std::string("attn=") + ATTN_NAMES[a]) found_attn = a;
+        if (found < 0 && found_attn < 0)
             return refuse(err, TURBO_E_INVALID_ARGUMENT,
-                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32, h64, h128 or auto",
+                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32, h64, h128 or "
+                          "auto, and attn=staged, registers or auto",
                           item.c_str());
-        *out = found;
+        if (found >= 0) *linear = found;
+        if (found_attn >= 0) *attn = found_attn;
     }
     return TURBO_OK;
 }
@@ -1201,8 +1230,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                 max_seq, c->ordinal);
         // A kernel the environment forces must compute in a class the
         // precision allows.
-        int forced = -1;
-        TRY(forced_linear(&forced, err));
+        int forced = -1, forced_attn = -1;
+        TRY(forced_choices(&forced, &forced_attn, err));
         const uint32_t needs = forced == (int)LINEAR_F32 ? TURBO_NUMERIC_F32_FMA : TURBO_NUMERIC_F16_F32ACC;
         if (forced >= 0 && !(numerics & needs))
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
@@ -1238,6 +1267,13 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                 linear = LINEAR_F32;
             }
         }
+        // Attention's kernels are F16 ones, and run where the linear
+        // layers' do and the heads are ones the matrix kernel takes.
+        if (forced_attn >= 0 && !(linear != LINEAR_F32 && wide_heads(d.hidden / d.heads)))
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "TURBO_METAL_CHOICES attn=%s: its kernels compute in F16 with F32 sums, for heads "
+                                "of a multiple of 8 up to 64, and this session's attention runs in F32 (heads of %u)",
+                                ATTN_NAMES[forced_attn], d.hidden / d.heads);
 
         Session *s = make<Session>();
         s->model = m;
@@ -1288,6 +1324,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         s->output.owned = false;
         s->linear = linear;
         s->forced = forced >= 0;
+        s->attn = forced_attn >= 0 ? (Attn)forced_attn : ATTN_DEFAULT;
+        s->attn_forced = forced_attn >= 0;
         *compute_dtype = linear != LINEAR_F32 ? TURBO_DTYPE_F16 : TURBO_DTYPE_F32;
         *out = s;
         return TURBO_OK;
@@ -1433,6 +1471,8 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     // At FASTEST with heads the matrix kernel takes, Q, K, V and the
     // context are F16 too.
     const bool f16_att = f16 && wide_heads(hd);
+    const bool registers =
+        f16_att && (s.attn == ATTN_REGISTERS || (s.attn == ATTN_AUTO && tokens > ATTN_REGISTERS_TOKENS));
     const std::vector<Ref> &lw = f16 ? s.model->f16 : w;
     auto layer = [&](uint32_t l, int r) -> const Ref & {
         return w[TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r];
@@ -1553,7 +1593,10 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             peak(s.v, h, 2);
         }
         const bool wide = wide_heads(hd);
-        [enc setComputePipelineState:kn.k[f16_att ? ATTENTION_H : wide ? ATTENTION : ATTENTION_NARROW]];
+        [enc setComputePipelineState:kn.k[registers ? ATTENTION_HR
+                                          : f16_att ? ATTENTION_H
+                                          : wide    ? ATTENTION
+                                                    : ATTENTION_NARROW]];
         [enc setBuffer:sc offset:s.q atIndex:0];
         [enc setBuffer:sc offset:s.k atIndex:1];
         [enc setBuffer:sc offset:s.v atIndex:2];
@@ -1562,7 +1605,8 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBuffer:rows offset:s.blocks atIndex:5];
         [enc setBuffer:sc offset:s.att atIndex:6];
         [enc setBytes:&ap length:sizeof ap atIndex:7];
-        [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd) : attention_bytes(hd, s.longest) atIndex:0];
+        [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd, registers) : attention_bytes(hd, s.longest)
+                                atIndex:0];
         [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1) threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32, 1, 1)];
 
         if (f16_att) peak(s.att, h, 3);
@@ -1650,11 +1694,14 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
 // At FASTEST a session's linear layers run in F16 tiles of 32 x 64 (h32),
 // 64 x 64 (h64) or 128 x 64 (h128) past SMALL_TOKENS_F16, or in the tile
 // each run's tokens favor (auto); EXACT and MODEL have one path, F32. A
-// tuned session times each when it is made, on its own memory, and runs
-// the fastest; docs/metal.md says how (Autotuning).
+// tuned session times each when it is made, on its own memory, at each
+// token bin it can hold, and keeps the incumbent unless another is faster
+// at every one; docs/metal.md says how (Autotuning).
 
-/* The tuner times a session on rows of max_seq tokens, this many tokens
- * in all at most (fewer when the session holds fewer). */
+/* The packed tokens the tuner times each choice at, one per token bin up
+ * to the session's capacity, and the capacity when it lies past the last;
+ * at most TUNE_TOKENS in all. */
+constexpr uint32_t TUNE_BIN_TOKENS[] = {256, 1024, 4096, 8192};
 constexpr uint32_t TUNE_TOKENS = 8192;
 /* Timed runs of each variant, after an untimed one. */
 constexpr size_t TUNE_RUNS = 5;
@@ -1672,8 +1719,16 @@ void write_choices(char *dst, const std::string &text) {
     memset(dst + n, 0, TURBO_CHOICES_LEN - n);
 }
 
-std::string choice_line(Linear l, bool forced) {
-    return std::string("linear=") + LINEAR_NAMES[l] + ";forced=" + (forced ? "linear" : "");
+/* A FASTEST session's line: its linear layers', then, where attention
+ * runs in F16, attention's, then what the environment forced. */
+std::string choice_line(const Session &s) {
+    const turbo_backend_model &d = s.model->desc;
+    std::string line = std::string("linear=") + LINEAR_NAMES[s.linear];
+    if (s.linear != LINEAR_F32 && wide_heads(d.hidden / d.heads)) line += std::string(";attn=") + ATTN_NAMES[s.attn];
+    line += ";forced=";
+    if (s.forced) line += "linear";
+    if (s.attn_forced) line += s.forced ? ",attn" : "attn";
+    return line;
 }
 
 /* The linear layers a choices line names, or -1. */
@@ -1704,8 +1759,8 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     t.tune_ms = 0;
     t.numerics_used = t.numerics_allowed;
     Context *c = s.ctx;
-    if (s.forced) {
-        write_choices(t.choices, choice_line(s.linear, true));
+    if (s.forced || s.attn_forced) {
+        write_choices(t.choices, choice_line(s));
         t.tuned = TURBO_TUNED_FORCED;
         return TURBO_OK;
     }
@@ -1718,12 +1773,12 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     const bool usable = cached > (int)LINEAR_F32 && runs_linear(c, (Linear)cached);
     if (t.mode == TURBO_AUTOTUNE_ON && usable) {
         s.linear = (Linear)cached;
-        write_choices(t.choices, choice_line(s.linear, false));
+        write_choices(t.choices, choice_line(s));
         t.tuned = TURBO_TUNED_CACHE;
         return TURBO_OK;
     }
     if (t.mode != TURBO_AUTOTUNE_ON && t.mode != TURBO_AUTOTUNE_RETUNE) {
-        write_choices(t.choices, choice_line(s.linear, false));
+        write_choices(t.choices, choice_line(s));
         return TURBO_OK;
     }
     // The incumbent first, then every other F16 tiling the device runs.
@@ -1732,87 +1787,142 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     for (int l = LINEAR_H32; l < (int)LINEAR_COUNT; l++)
         if (l != (int)incumbent && runs_linear(c, (Linear)l)) order.push_back((Linear)l);
 
-    // Rows of max_seq tokens, ids 1, as many as fill TUNE_TOKENS.
+    // The token counts to time at: each bin's in TUNE_BIN_TOKENS the session
+    // can hold, and its capacity (up to TUNE_TOKENS) when that lies past
+    // the last of them.
     const auto started = std::chrono::steady_clock::now();
-    const uint32_t batch = std::clamp(TUNE_TOKENS / s.max_seq, 1u, s.max_batch);
-    std::vector<int32_t> ones((size_t)batch * s.max_seq, 1);
-    turbo_backend_embed_rows rows{};
-    rows.struct_size = sizeof rows;
-    rows.batch = batch;
-    rows.seq = s.max_seq;
-    rows.row_stride = s.max_seq;
-    rows.ids = ones.data();
-    rows.mask = ones.data();
-    rows.pooling = TURBO_POOLING_MEAN;
-    rows.normalize = TURBO_NORMALIZE_NONE;
-    rows.output_dim = s.model->desc.hidden;
-    pack(s, &rows);
-    s.nranges = 0;
-    s.written = false;
+    const uint32_t capacity = (uint32_t)std::min<uint64_t>((uint64_t)s.max_batch * s.max_seq, TUNE_TOKENS);
+    std::vector<uint32_t> counts;
+    for (uint32_t n : TUNE_BIN_TOKENS)
+        if (n <= capacity) counts.push_back(n);
+    if (counts.empty() || counts.back() < capacity) counts.push_back(capacity);
     static const char *const BINS[] = {"le256", "le1k", "le4k", "le16k", "gt16k"};
-    uint32_t bin = 0;
-    for (uint32_t edge : {256u, 1024u, 4096u, 16384u}) bin += s.tokens > edge;
 
     const double budget = t.budget_ms;
     double spent = 0;
-    std::vector<double> least(order.size(), 0);
-    std::vector<bool> timed(order.size(), false);
-    for (size_t v = 0; v < order.size(); v++) {
-        s.linear = order[v];
-        double ms = 0;
-        TRY(timed_run(s, &ms, err));   // untimed: the clocks come up
-        bool apart = true;
-        for (int tries = 0; tries < TUNE_TRIES && apart; tries++) {
-            std::vector<double> times;
-            while (times.size() < TUNE_RUNS && spent < budget) {
-                TRY(timed_run(s, &ms, err));
-                spent += ms;
-                times.push_back(ms);
+    // least[b][v]: choice v's least time at count b; timed[b][v] whether
+    // it was timed there.
+    std::vector<std::vector<double>> least(counts.size(), std::vector<double>(order.size(), 0));
+    std::vector<std::vector<bool>> timed(counts.size(), std::vector<bool>(order.size(), false));
+    std::vector<uint32_t> bins(counts.size(), 0);
+    // A challenger stays in only while it beats the incumbent by the margin
+    // at every count timed so far, since it must at all of them to win:
+    // the larger counts, the costly ones, time the incumbent and those
+    // left, and none left settles the choice.
+    std::vector<bool> alive(order.size(), true);
+    size_t left = order.size() - 1;
+    for (size_t b = 0; b < counts.size() && spent < budget && left > 0; b++) {
+        // Rows of up to max_seq tokens, ids 1, as many as make counts[b].
+        const uint32_t len = std::min(s.max_seq, counts[b]);
+        const uint32_t batch = std::clamp(counts[b] / len, 1u, s.max_batch);
+        std::vector<int32_t> ones((size_t)batch * len, 1);
+        turbo_backend_embed_rows rows{};
+        rows.struct_size = sizeof rows;
+        rows.batch = batch;
+        rows.seq = len;
+        rows.row_stride = len;
+        rows.ids = ones.data();
+        rows.mask = ones.data();
+        rows.pooling = TURBO_POOLING_MEAN;
+        rows.normalize = TURBO_NORMALIZE_NONE;
+        rows.output_dim = s.model->desc.hidden;
+        pack(s, &rows);
+        s.nranges = 0;
+        s.written = false;
+        for (uint32_t edge : {256u, 1024u, 4096u, 16384u}) bins[b] += s.tokens > edge;
+        // Timed runs per choice here: as many as the budget left shares
+        // out over the counts and choices left, by the incumbent's untimed
+        // run, two at least and TUNE_RUNS at most.
+        size_t runs = TUNE_RUNS;
+        for (size_t v = 0; v < order.size(); v++) {
+            if (spent >= budget) break;
+            if (v > 0 && !alive[v]) continue;
+            s.linear = order[v];
+            double ms = 0;
+            TRY(timed_run(s, &ms, err));   // untimed: the clocks come up
+            if (v == 0) {
+                const double share = (budget - spent) / (double)(counts.size() - b) / (double)(left + 1);
+                runs = std::clamp<size_t>((size_t)(share / std::max(ms, 1e-3)), 2, TUNE_RUNS);
             }
-            if (times.empty()) break;
-            std::sort(times.begin(), times.end());
-            least[v] = times[0];
-            timed[v] = true;
-            apart = times.size() > 1 && times[times.size() / 2] > times[0] * (1.0 + TUNE_APART);
+            bool apart = true;
+            for (int tries = 0; tries < TUNE_TRIES && apart; tries++) {
+                std::vector<double> times;
+                while (times.size() < runs && spent < budget) {
+                    TRY(timed_run(s, &ms, err));
+                    spent += ms;
+                    times.push_back(ms);
+                }
+                if (times.empty()) break;
+                std::sort(times.begin(), times.end());
+                least[b][v] = times[0];
+                timed[b][v] = true;
+                apart = times.size() > 1 && times[times.size() / 2] > times[0] * (1.0 + TUNE_APART);
+            }
+            if (apart && timed[b][v]) {
+                s.linear = incumbent;
+                c->say(LOG_INFO,
+                       "metal device %u: not tuned: linear=%s's times at %s stayed more than %.0f%% apart, so the GPU "
+                       "is shared or throttling; the next session measures again",
+                       c->ordinal, LINEAR_NAMES[order[v]], BINS[bins[b]], TUNE_APART * 100);
+                write_choices(t.choices, choice_line(s));
+                return TURBO_OK;
+            }
         }
-        if (apart && timed[v]) {
-            s.linear = incumbent;
-            c->say(LOG_INFO,
-                   "metal device %u: not tuned: linear=%s's times stayed more than %.0f%% apart, so the GPU is shared "
-                   "or throttling; the next session measures again",
-                   c->ordinal, LINEAR_NAMES[order[v]], TUNE_APART * 100);
-            write_choices(t.choices, choice_line(incumbent, false));
-            return TURBO_OK;
+        for (size_t v = 1; v < order.size(); v++) {
+            if (!alive[v]) continue;
+            alive[v] = timed[b][0] && timed[b][v] && least[b][v] < least[b][0] * (1.0 - TUNE_MARGIN);
+            if (!alive[v]) left--;
         }
     }
-    if (!timed[0]) return refuse(err, TURBO_E_INVALID_STATE, "metal: the tuner timed no incumbent");
-    // The fastest challenger replaces the incumbent only by the margin.
+    if (!timed[0][0]) return refuse(err, TURBO_E_INVALID_STATE, "metal: the tuner timed no incumbent");
+    // A challenger replaces the incumbent only when both were timed at
+    // every count and it beat the incumbent by the margin at each; of
+    // those, the one least in all. A count past the budget leaves the
+    // incumbent in place, and so does a challenger dropped at a count.
     size_t best = 0;
-    for (size_t v = 1; v < order.size(); v++)
-        if (timed[v] && least[v] < least[best]) best = v;
-    s.linear = least[best] < least[0] * (1.0 - TUNE_MARGIN) ? order[best] : incumbent;
-    const bool all_timed = std::find(timed.begin(), timed.end(), false) == timed.end();
+    double best_total = 0;
+    for (size_t v = 1; v < order.size(); v++) {
+        bool wins = true;
+        double total = 0;
+        for (size_t b = 0; b < counts.size() && wins; b++) {
+            wins = timed[b][0] && timed[b][v] && least[b][v] < least[b][0] * (1.0 - TUNE_MARGIN);
+            total += least[b][v];
+        }
+        if (wins && (best == 0 || total < best_total)) {
+            best = v;
+            best_total = total;
+        }
+    }
+    s.linear = order[best];
+    // Why the larger counts were not timed, if they were not: every
+    // challenger dropped out, or the budget ran out.
+    bool cut = false;
+    for (size_t b = 0; b < counts.size(); b++) cut = cut || !timed[b][0];
+    const char *why = !cut ? "" : left == 0 ? "; the rest settled, no challenger left" : "; the rest past the budget";
     const uint32_t tune_ms = (uint32_t)std::min<double>(
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count(), UINT32_MAX);
     std::string lines, said;
-    for (size_t v = 0; v < order.size(); v++) {
-        if (!timed[v]) continue;
-        char one[96];
-        snprintf(one, sizeof one, "%s%s/linear/%s=%.4f", lines.empty() ? "" : "\n", BINS[bin], LINEAR_NAMES[order[v]],
-                 least[v]);
-        lines += one;
-        snprintf(one, sizeof one, "%s%s %.3f ms", said.empty() ? "" : ", ", LINEAR_NAMES[order[v]], least[v]);
-        said += one;
+    for (size_t b = 0; b < counts.size(); b++) {
+        if (!timed[b][0]) continue;
+        said += std::string(said.empty() ? "" : "; ") + BINS[bins[b]] + ":";
+        for (size_t v = 0; v < order.size(); v++) {
+            if (!timed[b][v]) continue;
+            char one[96];
+            snprintf(one, sizeof one, "%s%s/linear/%s=%.4f", lines.empty() ? "" : "\n", BINS[bins[b]],
+                     LINEAR_NAMES[order[v]], least[b][v]);
+            lines += one;
+            snprintf(one, sizeof one, " %s %.3f ms", LINEAR_NAMES[order[v]], least[b][v]);
+            said += one;
+        }
     }
     if (t.timings && t.timings_len > 0) {
         const size_t n = std::min(lines.size(), (size_t)t.timings_len - 1);
         memcpy(t.timings, lines.data(), n);
         t.timings[n] = 0;
     }
-    c->say(LOG_INFO, "metal device %u: linear layers chosen in %u ms: %s (%s, a run: %s%s)", c->ordinal, tune_ms,
-           LINEAR_NAMES[s.linear], BINS[bin], said.c_str(),
-           all_timed ? "" : "; some not timed, past the budget");
-    write_choices(t.choices, choice_line(s.linear, false));
+    c->say(LOG_INFO, "metal device %u: linear layers chosen in %u ms: %s (a run at %s%s)", c->ordinal, tune_ms,
+           LINEAR_NAMES[s.linear], said.c_str(), why);
+    write_choices(t.choices, choice_line(s));
     t.tune_ms = tune_ms;
     t.tuned = TURBO_TUNED_MEASURED;
     return TURBO_OK;

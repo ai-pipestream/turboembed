@@ -121,7 +121,8 @@ are not taken from any corpus.
   `person`, `organization`, `location` and `date` names, one name without
   a type, and non-ASCII names and an emoji; the fixture
   `ner-fixture-rust.bin` was trained on it, and the `namefind` training
-  and fixture goldens run on it.
+  and fixture goldens and the `cross-validate` name finder goldens run on
+  it.
 
 - `inputs/langdetect/samples.txt`: 56 language samples written for this
   project, a language code, a tab and the text per line: six to nine
@@ -132,7 +133,7 @@ are not taken from any corpus.
   backslash, a CR LF line end and no newline at the end; and two lines
   the sample stream skips (one starting with a tab, one without a tab).
   The fixture `langdetect-fixture-rust.bin` was trained on them, and the
-  `train-langdetect` goldens run on them.
+  `train-langdetect` and `cross-validate` goldens run on them.
 
 - `inputs/langdetect/tree-bucket.txt`: six language samples written for
   this project, three of the local-use code `qaa` and three of `qab`,
@@ -445,7 +446,7 @@ the sentence detectors over them.
 ## Fixtures
 
 `fixtures/` holds the models and dictionaries that are not published
-models. They are checked in, and `analysis/goldens-tool/src/recipe.rs`
+models. They are checked in, and `analysis/goldens-tool/src/recipe/fixtures.rs`
 lists each with its SHA-512; `generate` and `verify` refuse a directory
 that differs.
 
@@ -752,6 +753,16 @@ compares with them.
 predicate, the checksum, the index, the GIS training iteration by
 iteration, and the manifest and zip entries of the model file.
 `analysis/train-components/tests/langdetect.rs` compares with them.
+
+`cross-validate/<run>/<set>/<id>.golden` is what
+`TokenNameFinderCrossValidator` (`namefind-bio`, `namefind-bilou`, on
+`inputs/tagged/names.txt`) or `LanguageDetectorCrossValidator`
+(`langdetect-default`, `langdetect-cutoff1`, on
+`inputs/langdetect/samples.txt`) did with 3 folds: per fold the
+documents and samples on each side, the training events and their
+checksum, the counts and scores and every prediction, and the merged
+precision, recall and F-measure or accuracy.
+`analysis/train-components/tests/cross_validate.rs` compares with them.
 
 ## Normalizer goldens
 

@@ -242,7 +242,11 @@ fn a_hef_is_compiled_from_the_export_in_a_pinned_container() {
         fs::write(&p, serde_json::to_vec(&r).unwrap()).unwrap();
         Recipe::load(&p).map(|r| convert::conversions(&r).unwrap())
     };
-    let c = write(&|_| {}).unwrap();
+    // Absent, compiler_optimization is the compiler's default.
+    let c = write(&|a| {
+        a["produced_by"].as_object_mut().unwrap().remove("compiler_optimization");
+    })
+    .unwrap();
     let hef = c.iter().find(|c| c.name == "hef-hailo10h-s128").unwrap();
     assert_eq!(hef.script, convert::HEF_COMPILE);
     assert_eq!(hef.inputs, ["calibration/texts.jsonl"]);
@@ -261,7 +265,7 @@ fn a_hef_is_compiled_from_the_export_in_a_pinned_container() {
             "4"
         ]
     );
-    // compiler_optimization "max" is passed on; absent, the compiler's default.
+    // compiler_optimization "max" is passed on.
     let c = write(&|a| a["produced_by"]["compiler_optimization"] = json!("max")).unwrap();
     let hef = c.iter().find(|c| c.name == "hef-hailo10h-s128").unwrap();
     assert_eq!(hef.args[10..], ["--compiler-optimization", "max"]);

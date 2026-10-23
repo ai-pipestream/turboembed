@@ -4,8 +4,9 @@
 //! `pii/<pack>/pii/<id>.golden` holds the mentions OpenNLP's
 //! `PiiAnnotator` found with the pack's extractor: span, type and
 //! normalized form (see `analysis/goldens-tool/README.md`). Each test runs
-//! `PiiDetector::pack` in an analyzer over every text and compares the
-//! `turbo:pii` layer with the golden row for row. No tolerance is applied.
+//! `PiiDetector::pack(pack).keeping_nested()` in an analyzer over every
+//! text and compares the `turbo:pii` layer with the golden row for row.
+//! No tolerance is applied.
 //!
 //! The goldens come from `cargo run -p turbo-goldens-tool -- generate`;
 //! while the `pii` directory is not on disk the tests say so and pass.
@@ -57,7 +58,7 @@ fn config<'g>(golden: &'g Golden, key: &str) -> &'g str {
 fn check(pack: Pack) -> usize {
     let ids = inputs();
     assert!(ids.len() > 50, "only {} inputs in the pii set", ids.len());
-    let analyzer = Analyzer::builder().add(PiiDetector::pack(pack)).build().expect("the analyzer");
+    let analyzer = Analyzer::builder().add(PiiDetector::pack(pack).keeping_nested()).build().expect("the analyzer");
     let mut mentions = 0;
     let mut failures = Vec::new();
     for id in &ids {

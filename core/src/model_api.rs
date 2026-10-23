@@ -12,8 +12,11 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     if bundle.manifest.rerank.is_some() && b.name() != "cpu" {
         return Err(Error::new(status::UNSUPPORTED_TASK, "rerank requires the CPU backend"));
     }
-    if bundle.manifest.qa.is_some() && b.name() != "cpu" {
-        return Err(Error::new(status::UNSUPPORTED_TASK, "extractive QA requires the CPU backend"));
+    if bundle.manifest.qa.is_some() && backend::offered!(b, embed_write_ranges).is_err() {
+        return Err(Error::new(
+            status::UNSUPPORTED_TASK,
+            format!("extractive QA needs range writes, which the {} backend does not offer", b.name()),
+        ));
     }
     let tokenizer = Tokenizer::load(&bundle)?; // rule 5
     let m = &bundle.manifest;

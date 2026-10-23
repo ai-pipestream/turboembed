@@ -1,0 +1,93 @@
+name: Feature assignment
+description: A unit of work for one agent, one branch and one worktree.
+title: "<area>: <what the change does>"
+labels: ["type:feature", "status:ready"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One issue is one assignment: one branch named `<agent>/<issue>-<slug>`, one owning implementer.
+        Do not write real host names, user names or private paths; use Machine A, B or C or a device class.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What this change does, in two or three full sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why this is needed now and what it unblocks.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is in this change. Name the files, modules or APIs expected to change.
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this change must not touch, and related work that belongs to other issues (link them).
+    validations:
+      required: true
+  - type: textarea
+    id: definition-of-done
+    attributes:
+      label: Definition of done
+      description: The checks that must all be true before review.
+      value: |
+        - [ ] The behaviour in Scope works, with a test that fails without the change.
+        - [ ] fmt, clippy and tests pass, including the feature-gated CI lines that apply.
+        - [ ] Docs describing the behaviour are updated.
+        - [ ] Hardware proof below is attached to the pull request.
+        - [ ] Two adversary reviewers pass the pull request's current head, with no open block.
+    validations:
+      required: true
+  - type: textarea
+    id: hardware-proof
+    attributes:
+      label: Hardware proof required
+      description: >
+        Exact commands, including every TURBO_TEST_REQUIRE_*, TURBO_TEST_DEVICE, TURBO_TEST_BUNDLE and
+        TURBO_TEST_PRECISION value, and any benchmark record expected. Write "none" with the reason only
+        when the change makes no device claim.
+    validations:
+      required: true
+  - type: dropdown
+    id: target-machine
+    attributes:
+      label: Target machine
+      options:
+        - Machine A (rtx4080super, arl-npu)
+        - Machine B (b70)
+        - Machine C (m2)
+        - Hailo board (pi5-hailo8, pi5-hailo10h)
+        - Any machine (no device claim)
+    validations:
+      required: true
+  - type: input
+    id: suggested-agent
+    attributes:
+      label: Suggested agent
+      description: The agent label to assign, for example agent:<name>. The coordinator makes the final call.
+  - type: dropdown
+    id: merge
+    attributes:
+      label: Merge
+      description: Who merges once the pull request is ready. Merge commits only, never squash or rebase.
+      options:
+        - Second passing reviewer merges on green CI (default)
+        - Owner merges by hand
+    validations:
+      required: true
+  - type: textarea
+    id: docs-links
+    attributes:
+      label: Docs links
+      description: Docs pages and earlier issues or pull requests.

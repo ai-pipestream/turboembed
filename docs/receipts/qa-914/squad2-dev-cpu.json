@@ -1,0 +1,44 @@
+{
+  "model_id": "deepset/roberta-base-squad2",
+  "revision": "1",
+  "manifest_sha256": "da0398773c5b3c8d547dd5b46f5f7d030eb42ebb74c3a4693ce081a3bb792630",
+  "device": "cpu",
+  "precision": "exact",
+  "dev_sha256": "80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8",
+  "at_zero": {
+    "exact": 79.92082877116145,
+    "f1": 82.92311388807785,
+    "total": 11873,
+    "has_ans_exact": 78.0195681511471,
+    "has_ans_f1": 84.03274817698215,
+    "has_ans_total": 5928,
+    "no_ans_exact": 81.81665264928512,
+    "no_ans_f1": 81.81665264928512,
+    "no_ans_total": 5945
+  },
+  "best_exact_threshold": 1.6492550373077393,
+  "at_best_exact": {
+    "exact": 80.64516129032258,
+    "f1": 83.45970952070908,
+    "total": 11873,
+    "has_ans_exact": 74.98313090418354,
+    "has_ans_f1": 80.62029877519917,
+    "has_ans_total": 5928,
+    "no_ans_exact": 86.29100084104289,
+    "no_ans_f1": 86.29100084104289,
+    "no_ans_total": 5945
+  },
+  "best_f1_threshold": 1.6415050029754639,
+  "at_best_f1": {
+    "exact": 80.64516129032258,
+    "f1": 83.4597095207091,
+    "total": 11873,
+    "has_ans_exact": 75.0,
+    "has_ans_f1": 80.63716787101563,
+    "has_ans_total": 5928,
+    "no_ans_exact": 86.27417998317914,
+    "no_ans_f1": 86.27417998317914,
+    "no_ans_total": 5945
+  },
+  "seconds": 154.642186372
+}

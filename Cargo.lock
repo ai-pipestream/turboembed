@@ -2015,7 +2015,6 @@ name = "turbo-bundle"
 version = "0.1.0"
 dependencies = [
  "half",
- "regex",
  "serde",
  "serde_json",
  "serde_path_to_error",
@@ -2084,6 +2083,7 @@ dependencies = [
  "turbo-normalize-layers",
  "turbo-sequence",
  "turbo-train",
+ "turbo-unicode",
 ]
 
 [[package]]
@@ -2140,6 +2140,7 @@ dependencies = [
  "turbo-stem",
  "turbo-structure",
  "turbo-tokenize",
+ "turbo-unicode",
  "turbo-vector-index",
  "turbo-zstd",
  "ureq",
