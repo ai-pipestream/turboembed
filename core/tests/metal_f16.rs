@@ -140,24 +140,38 @@ fn the_choices_line_forces_back_and_refuses_what_it_cannot_run() {
     assert_eq!(e.code, INVALID_ARGUMENT, "{e:?}");
 }
 
-/// A tuned FASTEST session times each tiling and runs one of them, or
-/// keeps the default when the GPU's times stay apart; EXACT has nothing
+/// The session's vectors for t.
+fn vectors(s: &Session, t: &Tokens) -> Vec<Vec<f32>> {
+    s.write_tokens(&t.batch(), None).unwrap();
+    s.run().unwrap().rows()
+}
+
+/// A tuned FASTEST session times each choice at each token bin it can
+/// hold and runs one of them, or keeps the default when the GPU's times
+/// stay apart. Its line, forced back, makes a session of the same kernels:
+/// the same vectors, bit for bit, at a few tokens, at 160 and at the
+/// largest shape, each within FASTEST's floor of the CPU. EXACT has nothing
 /// to time.
 #[test]
-fn a_tuned_session_runs_one_of_the_tilings() {
+fn a_tuned_session_runs_one_of_the_choices_and_forces_back() {
     let _t = turn();
-    let Some(_) = metal_device("a_tuned_session_runs_one_of_the_tilings") else { return };
+    let Some(_) = metal_device("a_tuned_session_runs_one_of_the_choices_and_forces_back") else { return };
     let dir = tiny_bundle();
     let (g, c) = (on_metal(&dir), Loaded::load(&dir).unwrap());
     let cpu = Session::create(c.m, None).unwrap();
     let s = make(g.m, None, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_RETUNE).unwrap();
     let i = s.info();
     assert!([TURBO_TUNED_MEASURED, TURBO_TUNED_DEFAULT].contains(&i.tuned), "{}", i.tuned);
+    let line = field(&i.choices);
     let lines = ["linear=h32;forced=", "linear=h64;forced=", "linear=h128;forced=", "linear=auto;forced="];
-    assert!(lines.contains(&field(&i.choices).as_str()), "{}", field(&i.choices));
+    assert!(lines.contains(&line.as_str()), "{line}");
+    let forced = make(g.m, Some(&line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
+    assert_eq!(field(&forced.info().choices), line.replace("forced=", "forced=linear"));
     // The tuning runs wrote the session's memory: its first run is whole.
-    let (_, t) = shapes(&dir, i.max_batch as usize, i.max_seq as usize).pop().unwrap();
-    against_cpu(&s, &cpu, &t, FASTEST_FLOOR, "tuned");
+    for (what, t) in shapes(&dir, i.max_batch as usize, i.max_seq as usize) {
+        against_cpu(&s, &cpu, &t, FASTEST_FLOOR, &format!("tuned, {what}"));
+        assert_eq!(vectors(&s, &t), vectors(&forced, &t), "{line}, {what}: the forced line runs the same kernels");
+    }
     let i = make(g.m, None, TURBO_PRECISION_EXACT, TURBO_AUTOTUNE_RETUNE).unwrap().info();
     assert_eq!((field(&i.choices), i.tuned), (String::new(), TURBO_TUNED_DEFAULT));
 }
