@@ -31,6 +31,7 @@ fn run(args: &[String]) -> Result<()> {
     match args.first().map(String::as_str) {
         Some("record") => record_cmd(&args[1..]),
         Some("ranges") => ranges_cmd(&args[1..]),
+        Some("postag") => turbo_bench::postag::cmd(&args[1..]),
         Some("check") if args.len() > 1 => {
             for a in &args[1..] {
                 check(Path::new(a))?;

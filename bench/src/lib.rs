@@ -11,6 +11,7 @@ pub mod git;
 pub mod measure;
 pub mod onnx;
 pub mod openvino;
+pub mod postag;
 pub mod ranges;
 pub mod tei;
 pub mod tensorrt;
