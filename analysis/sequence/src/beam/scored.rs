@@ -42,7 +42,7 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
         let mut probs = vec![0.0; n];
         let mut sorted = vec![0.0; n];
         let mut features = Features::new();
-        let mut path_slots: PathSlots<'m, L> = PathSlots::new(self.size, sequence.len());
+        let mut path_slots: PathSlots<'m, L> = PathSlots::new(sequence.len());
 
         let mut nodes: Vec<Node> = Vec::new();
         // The partial sequences of the last step, best first. The empty

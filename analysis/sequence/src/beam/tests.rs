@@ -84,7 +84,7 @@ fn compare_step_nodes_and_path_slots_match_full_path_reference() {
         }
     }
 
-    let mut slots = PathSlots::new(4, 3);
+    let mut slots = PathSlots::new(3);
     let mut want = Vec::new();
     for step in [&[ROOT][..], &step1[..], &step2[..], &step3[..]] {
         slots.prepare(&nodes, step, outcomes);

@@ -241,7 +241,7 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
         let mut probs = vec![0.0; n];
         let mut sorted = vec![0.0; n];
         let mut features = Features::new();
-        let mut path_slots: PathSlots<'m, L> = PathSlots::new(self.size, sequence.len());
+        let mut path_slots: PathSlots<'m, L> = PathSlots::new(sequence.len());
 
         let mut nodes: Vec<Node> = Vec::new();
         // The partial sequences of the last step, best first. The empty
@@ -357,13 +357,8 @@ struct PathSlots<'m, L: ?Sized> {
 }
 
 impl<'m, L: ?Sized> PathSlots<'m, L> {
-    fn new(size: usize, seq_len: usize) -> Self {
-        Self {
-            slots: Vec::with_capacity(size),
-            assigned: Vec::with_capacity(size),
-            used: Vec::with_capacity(size),
-            seq_len,
-        }
+    fn new(seq_len: usize) -> Self {
+        Self { slots: Vec::new(), assigned: Vec::new(), used: Vec::new(), seq_len }
     }
 
     fn prepare(&mut self, nodes: &[Node], prev: &[u32], outcomes: &[&'m L]) {
