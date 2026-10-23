@@ -62,18 +62,23 @@ provides:
 - `thresholds(&self) -> &[f64]` and `with_thresholds(self, Vec<f64>) -> Result<Self, String>`
   for inspecting or setting per-label sigmoid decision thresholds in `(0.0, 1.0)`.
 - `select_tags(&self, probabilities: &[f64]) -> Result<(Tag, Vec<Tag>), String>`
-  and `predicted_tags(&self, vectors: &Vectors<L>) -> Result<Vec<BTreeSet<usize>>, String>`
-  for applying per-label thresholds to probability rows or a `Vectors<L>` layer.
-- `calibrate_thresholds(&self, vectors: &Vectors<L>, gold: &[BTreeSet<usize>], calibrator: &ThresholdCalibrator) -> Result<Self, String>`
+  and `predicted_tags(&self, vector: &[f32]) -> Result<Vec<Tag>, String>`
+  for applying per-label thresholds to a probability slice or scoring a single
+  input vector and returning the emitted [`Tag`]s in label order.
+- `calibrate_thresholds(&self, vectors: &Vectors<L>, truth: &[BTreeSet<usize>], calibrator: &ThresholdCalibrator) -> Result<Self, String>`
   and `calibrate_thresholds_from_targets(&self, vectors: &Vectors<L>, targets: &[Vec<f64>], calibrator: &ThresholdCalibrator) -> Result<Self, String>`
-  to tune each label's threshold independently on held-out development vectors
-  by maximizing per-label $F_\beta$ over observed midpoint candidates while
-  falling back to `default_threshold` (`0.5`) when a label has fewer than
-  `min_positives` positive development examples.
+  to tune each label's threshold independently on held-out validation vectors
+  by sweeping the label's observed validation scores as candidate cut points and
+  maximizing per-label $F_\beta$ (optionally subject to `min_precision`, with
+  ties broken toward the highest threshold), clamping the fitted threshold into
+  `[1e-6, 1.0 - 1e-6]` and retaining `DEFAULT_THRESHOLD` (`0.5`) when a label has
+  zero positive validation examples.
 - `evaluate_multilabel(&self, vectors: &Vectors<L>, gold: &[BTreeSet<usize>]) -> Result<MultiLabelReport, String>`
-  to compute micro-averaged, macro-averaged (over labels with positive gold or
-  predicted support), and example-based precision, recall, F1, and subset
-  exact-match accuracy.
+  to compute micro-averaged, macro-averaged (averaged over all `0..num_labels`
+  labels under `f_beta`'s zero-division conventions: precision `1.0` when no
+  predictions are made, recall `1.0` when a label has no gold positives, and F1
+  `0.0` when both precision and recall are `0.0`), and sample-averaged
+  precision, recall, F1, plus subset exact-match accuracy.
 
 On the WILDS Civil Comments multi-label benchmark (`269,038` training,
 `45,180` validation, and `133,782` test comments across five independent toxicity
@@ -81,8 +86,8 @@ facets: `insult`, `obscene`, `threat`, `identity_attack`, and `severe_toxicity`,
 with a rater fraction $\ge 0.5$ marking a positive label), fitting a linear
 `OutputKind::Sigmoid` head (`AdamParameters { seed: 42, learning_rate: 0.01, weight_decay: 1e-5, batch_size: 256, epochs: 8, patience: None }`)
 on sentence embeddings and calibrating per-label thresholds on the validation
-split with `ThresholdCalibrator::default()` (`beta = 1.0`, `min_positives = 5`,
-`min_threshold = 0.01`, `max_threshold = 0.99`) yields:
+split with `ThresholdCalibrator::default()` (`beta = 1.0`,
+`min_precision = None`) yields:
 
 | Encoder | Split | Thresholds (`insult`, `obscene`, `threat`, `identity_attack`, `severe_toxicity`) | Micro P / R / F1 | Macro P / R / F1 | Exact match |
 | :--- | :--- | :--- | :--- | :--- | :--- |
