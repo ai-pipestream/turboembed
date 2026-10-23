@@ -5,7 +5,10 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
-use turbo::{TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, turbo_session_desc, turbo_session_info};
+use turbo::{
+    TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA, TURBO_TASK_RERANK,
+    turbo_session_desc, turbo_session_info,
+};
 
 use crate::api::{self, *};
 use crate::config::ModelConfig;
@@ -34,7 +37,10 @@ unsafe impl Sync for Slot {}
 /// A loaded model and its sessions, dropped sessions first, then the model.
 pub(crate) struct Loaded {
     pub(crate) slots: Vec<Slot>,
+    pub(crate) tokenizer: Option<Tokenizer>,
+    pub(crate) qa: Option<crate::tasks::QaModel>,
     pub(crate) model: Model,
+    pub(crate) task: u32,
     pub(crate) device: u32,
     pub(crate) revision: String,
     pub(crate) idle: Mutex<Vec<usize>>,
@@ -237,9 +243,10 @@ impl State {
             }
         };
         let c = &m.config;
+        let select_task = crate::tasks::peek_task(&c.bundle);
         let device = match c.device {
             crate::config::Device::Index(i) => i,
-            crate::config::Device::Select => rt.select(TURBO_TASK_EMBED).map_err(fail("turbo_runtime_select", &[]))?,
+            crate::config::Device::Select => rt.select(select_task).map_err(fail("turbo_runtime_select", &[]))?,
         };
         let ctx = {
             let mut contexts = self.contexts.lock().unwrap_or_else(|e| e.into_inner());
@@ -251,6 +258,28 @@ impl State {
         };
         let model = ctx.load(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
         let info = model.info().map_err(fail("turbo_model_get_info", &[]))?;
+        if !matches!(info.task, TURBO_TASK_EMBED | TURBO_TASK_RERANK | TURBO_TASK_EXTRACTIVE_QA) {
+            return Err(fail("turbo_model_get_info", &[])(Failure::new(
+                TURBO_E_UNSUPPORTED_TASK,
+                0,
+                format!("unsupported task {}", info.task),
+            )));
+        }
+        let tokenizer = if info.task == TURBO_TASK_RERANK {
+            Some(rt.tokenizer(&c.bundle).map_err(fail("turbo_tokenizer_create", &[]))?)
+        } else {
+            None
+        };
+        let qa = if info.task == TURBO_TASK_EXTRACTIVE_QA {
+            Some(crate::tasks::QaModel::load(&c.bundle).map_err(fail("turbo_model_load", &[]))?)
+        } else {
+            None
+        };
+        let max_ranges = if info.task == TURBO_TASK_EXTRACTIVE_QA {
+            if c.max_seq == 0 { info.max_seq } else { c.max_seq }
+        } else {
+            0
+        };
         let desc = turbo_session_desc {
             struct_size: size_of::<turbo_session_desc>() as u32,
             max_batch: c.max_batch,
@@ -259,7 +288,7 @@ impl State {
             tuning: 0,
             tuning_budget_ms: 0,
             cpu_threads: 0,
-            max_ranges: 0,
+            max_ranges,
         };
         let mut slots = Vec::new();
         for _ in 0..c.sessions {
@@ -276,7 +305,8 @@ impl State {
             slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
         }
         let idle = Mutex::new((0..slots.len()).rev().collect());
-        let loaded = Loaded { slots, model, device, revision: api::field(&info.revision), idle };
+        let loaded =
+            Loaded { slots, tokenizer, qa, model, task: info.task, device, revision: api::field(&info.revision), idle };
         // The caller holds the loading mutex: no other load can have set
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));
@@ -297,7 +327,7 @@ pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<
         .take((mi.output_dims_count as usize).min(mi.output_dims.len()))
         .map(u32::to_string)
         .collect();
-    let p: Vec<(&str, String)> = vec![
+    let mut p: Vec<(&str, String)> = vec![
         ("model_info.task", names::task(mi.task)),
         ("model_info.dim", mi.dim.to_string()),
         ("model_info.pooling", names::pooling(mi.pooling)),
@@ -337,6 +367,10 @@ pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<
         ("capability.benchmark", api::field(&cap.benchmark)),
         ("capability.reason", api::field(&cap.reason)),
     ];
+    if mi.task == TURBO_TASK_RERANK {
+        p.push(("model_info.rerank_query_tokens", mi.rerank_query_tokens.to_string()));
+        p.push(("model_info.rerank_pair_template", names::pair_template(mi.rerank_pair_template)));
+    }
     Ok(p.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
 }
 
