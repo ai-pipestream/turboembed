@@ -627,9 +627,11 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
 
 // The same at FASTEST, with Q, K and V and the context in F16: the
 // queries are staged once and held in registers, scaled by scale / ln 2
-// so the softmax runs in base 2; each chunk's K and V are staged as F16;
-// the scores and the running softmax are F32, and the probabilities go
-// to F16 for the product with V, which sums in F32.
+// so the softmax runs in base 2; each chunk's K and V are staged as F16,
+// K transposed so the scores' fragments load without a transpose (on the
+// M2 that, with the mask staged as a bias, takes 2 to 9% off attention
+// with the same bits); the scores and the running softmax are F32, and
+// the probabilities go to F16 for the product with V, which sums in F32.
 kernel void attention_h(device const half *q [[buffer(0)]], device const half *k [[buffer(1)]],
                         device const half *v [[buffer(2)]], device const int *mask [[buffer(3)]],
                         device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
@@ -637,14 +639,17 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
                         threadgroup half *mem [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
                         ushort tid [[thread_index_in_threadgroup]], ushort sg [[simdgroup_index_in_threadgroup]],
                         ushort lane [[thread_index_in_simdgroup]]) {
-    // Threadgroup memory, given at dispatch: a chunk's K and V (the
-    // queries first, in the same room), rows padded by 8 halves; then each
-    // group's 8 x 32 scores in F32 and probabilities in F16.
-    const uint LDH = p.head_dim + 8;
+    // Threadgroup memory, given at dispatch (attention_h_bytes): a chunk's
+    // K transposed, [head_dim][KC + 8], so the scores' fragments load
+    // without a transpose; its V, [KC][head_dim + 8] (the queries first, in
+    // the same room); each group's 8 x 32 scores in F32 and probabilities
+    // in F16; and the chunk's keys' mask as an additive 0 or -inf.
+    const uint LDH = p.head_dim + 8, LDK = KC + 8;
     threadgroup half *ks = mem;
-    threadgroup half *vs = ks + KC * LDH;
+    threadgroup half *vs = ks + p.head_dim * LDK;
     threadgroup float *s = (threadgroup float *)(vs + KC * LDH) + sg * 8 * KC;
     threadgroup half *ph = (threadgroup half *)((threadgroup float *)(vs + KC * LDH) + 4 * 8 * KC) + sg * 8 * KC;
+    threadgroup float *kb = (threadgroup float *)((threadgroup half *)((threadgroup float *)(vs + KC * LDH) + 4 * 8 * KC) + 4 * 8 * KC);
     const uint2 blk = blocks[tg.x];
     const uint2 row = rows[blk.x];
     const uint p0 = row.x, len = row.y;
@@ -654,16 +659,16 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
     const uint hd4 = hd / 4;
     const half qscale = half(p.scale * 1.4426950408889634f);
 
-    // The group's queries, through ks, into registers.
+    // The group's queries, through vs, into registers.
     for (uint e = tid; e < 32 * hd4; e += 128) {
         const uint r = e / hd4, d = (e % hd4) * 4;
-        *(threadgroup half4 *)(ks + r * LDH + d) =
+        *(threadgroup half4 *)(vs + r * LDH + d) =
             first + r < len ? *(device const half4 *)(q + ulong(p0 + first + r) * h + col + d) * qscale : half4(0.0h);
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
     simdgroup_half8x8 qa[HD_MAX / 8];
     for (uint f = 0; f < HD_MAX / 8; f++)
-        if (f * 8 < hd) simdgroup_load(qa[f], ks + (sg * 8) * LDH + f * 8, LDH);
+        if (f * 8 < hd) simdgroup_load(qa[f], vs + (sg * 8) * LDH + f * 8, LDH);
 
     simdgroup_float8x8 o[HD_MAX / 8];
     for (uint f = 0; f < HD_MAX / 8; f++) o[f] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
@@ -676,9 +681,11 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
             const uint r = e / hd4, d = (e % hd4) * 4;
             const bool in = c0 + r < len;
             const ulong at = ulong(p0 + c0 + r) * h + col + d;
-            *(threadgroup half4 *)(ks + r * LDH + d) = in ? *(device const half4 *)(k + at) : half4(0.0h);
+            const half4 kv = in ? *(device const half4 *)(k + at) : half4(0.0h);
+            for (uint i = 0; i < 4; i++) ks[(d + i) * LDK + r] = kv[i];
             *(threadgroup half4 *)(vs + r * LDH + d) = in ? *(device const half4 *)(v + at) : half4(0.0h);
         }
+        if (tid < KC) kb[tid] = c0 + tid < len && m[c0 + tid] != 0 ? 0.0f : -INFINITY;
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
         for (uint j = 0; j < KC / 8; j++) {
@@ -686,7 +693,7 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
             for (uint f = 0; f < HD_MAX / 8; f++) {
                 if (f * 8 >= hd) break;
                 simdgroup_half8x8 kt;
-                simdgroup_load(kt, ks + (j * 8) * LDH + f * 8, LDH, ulong2(0, 0), true);
+                simdgroup_load(kt, ks + (f * 8) * LDK + j * 8, LDK);
                 simdgroup_multiply_accumulate(acc, qa[f], kt, acc);
             }
             simdgroup_store(acc, s + j * 8, KC);
@@ -695,8 +702,8 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
 
         float cm = -INFINITY;
         for (uint t = part * 8; t < part * 8 + 8; t++) {
-            const uint key = c0 + t;
-            if (key < len && m[key] != 0) cm = max(cm, s[qr * KC + t]);
+            s[qr * KC + t] += kb[t];
+            cm = max(cm, s[qr * KC + t]);
         }
         cm = max(cm, simd_shuffle_xor(cm, 1));
         cm = max(cm, simd_shuffle_xor(cm, 2));
@@ -704,9 +711,8 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
         const float alpha = nm == -INFINITY ? 1.0f : exp2(mx - nm);
         float cs = 0.0f;
         for (uint t = part * 8; t < part * 8 + 8; t++) {
-            const uint key = c0 + t;
-            float e = 0.0f;
-            if (key < len && m[key] != 0) e = exp2(s[qr * KC + t] - nm);
+            // A masked key's score is -inf, and exp2 of it 0.
+            const float e = nm == -INFINITY ? 0.0f : exp2(s[qr * KC + t] - nm);
             ph[qr * KC + t] = half(e);
             cs += e;
         }

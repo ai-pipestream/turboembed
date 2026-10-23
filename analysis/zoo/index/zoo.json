@@ -3680,6 +3680,72 @@
           "sha512": "fdc6228bf5c43f089f5e41424a0152830f986b6396404d049449a63603c99deb5b0d9662321b8d314b0a972046aa2810661de9aa0b659a010c69bceaacf6f0bd"
         }
       ]
+    },
+    {
+      "id": "deepset-roberta-base-squad2",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "adc3b06f79f797d1c575d5479d6f5efe54a9e3b4",
+      "license": "CC-BY-4.0",
+      "license_terms": "https://huggingface.co/deepset/roberta-base-squad2/blob/adc3b06f79f797d1c575d5479d6f5efe54a9e3b4/README.md",
+      "trained_on": [
+        {
+          "name": "FacebookAI/roberta-base",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/FacebookAI/roberta-base"
+        },
+        {
+          "name": "SQuAD 2.0",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://rajpurkar.github.io/SQuAD-explorer/"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "files": [
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/deepset/roberta-base-squad2/resolve/adc3b06f79f797d1c575d5479d6f5efe54a9e3b4/config.json",
+          "size": 571,
+          "sha256": "64fa58495a722d57609c22f199824bfe98c19be068136a70c268214a08cb8060",
+          "sha512": "49ad6f1972b22cb957c281254c6f7b9347c3e916c429a91308ec3a2663d344dcf18a22027c3fea17a57d8d19657807e9b53ff7fb9008e1bc5fd29247fac6a839"
+        },
+        {
+          "path": "model.safetensors",
+          "url": "https://huggingface.co/deepset/roberta-base-squad2/resolve/adc3b06f79f797d1c575d5479d6f5efe54a9e3b4/model.safetensors",
+          "size": 496254442,
+          "sha256": "ac5db66fdcfecb400345d09787b71009d60805ef9883451071669cf951b5e2c7",
+          "sha512": "d399e7c68fce84c6c55cabfa3fd178cedfa49938c34665621b975122e79fe58ef4d665c5fc9dcf9d5160d240087a794a22298e0b8677916b149dc540abf3246c"
+        },
+        {
+          "path": "vocab.json",
+          "url": "https://huggingface.co/deepset/roberta-base-squad2/resolve/adc3b06f79f797d1c575d5479d6f5efe54a9e3b4/vocab.json",
+          "size": 898822,
+          "sha256": "06b4d46c8e752d410213d9548eb27a54db70fda0319b6271fb8d59dead5e1cab",
+          "sha512": "5b60f499170834c7d8655a29540f23db9acdb3b4cb630b8c7de0c3856d5f62dd582a2e8d6f504d99d13d597aae43780d667e19dc359b2f5b00104ad0e997f4ca"
+        },
+        {
+          "path": "merges.txt",
+          "url": "https://huggingface.co/deepset/roberta-base-squad2/resolve/adc3b06f79f797d1c575d5479d6f5efe54a9e3b4/merges.txt",
+          "size": 456318,
+          "sha256": "1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5",
+          "sha512": "4b615e9652131ff473d49ce71efa1ca4037c64fede919c934d00d2f1e6e4a43fd7797020883fadacc495c8d947874fad188feac73303d7b92eb0721fefa05ce8"
+        },
+        {
+          "path": "special_tokens_map.json",
+          "url": "https://huggingface.co/deepset/roberta-base-squad2/resolve/adc3b06f79f797d1c575d5479d6f5efe54a9e3b4/special_tokens_map.json",
+          "size": 772,
+          "sha256": "c611b1f7d416eb001ee4f293d903ea8c88e703463f1d403f1866a0352743fd00",
+          "sha512": "dbd2e2e7f2a1572fc7db934967aebe990a7cfb95f18b91293b228bf0aeba6df3d1d00e65803a9d2396e246c98492ffec4c740d26794c922a686241a4dfebcde1"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "url": "https://huggingface.co/deepset/roberta-base-squad2/resolve/adc3b06f79f797d1c575d5479d6f5efe54a9e3b4/tokenizer_config.json",
+          "size": 79,
+          "sha256": "7a33226d4265e3989cc6341666af179d0cc710136f4059aae0dd8c0797cba556",
+          "sha512": "6f6102865b5c991065233520ee25681ad5062e29f1a7733c7722414ef12229c13a1d1d948fa98264f4b2384ced476bded8ed88c56354385f47b2a50904215dd3"
+        }
+      ]
     }
   ]
 }

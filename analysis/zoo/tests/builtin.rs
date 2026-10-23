@@ -124,12 +124,41 @@ fn trained_here(id: &str) -> bool {
 const CHECKPOINTS: [&str; 2] = ["fastino-gliner2-base-v1", "microsoft-deberta-v3-large-tokenizer"];
 
 /// The share-alike neural checkpoints the index lists: fetched after the user
-/// accepts their training data's CC BY-SA terms.
-const SHARE_ALIKE_CHECKPOINTS: [&str; 1] = ["cross-encoder-nli-minilm2-l6-h768"];
+/// accepts their training data's CC BY-SA terms, and never bundled.
+const SHARE_ALIKE_CHECKPOINTS: [&str; 2] = ["cross-encoder-nli-minilm2-l6-h768", "deepset-roberta-base-squad2"];
 
 /// The local-only checkpoints the index lists: fetched only for a user
 /// who has accepted their licence.
 const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
+
+#[test]
+fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
+    let index = Index::builtin();
+    let a = index.get(SHARE_ALIKE_CHECKPOINTS[1]).unwrap();
+    assert_eq!(
+        (a.kind, a.format, a.license, a.class),
+        (Kind::Model, Format::Safetensors, Licence::CcBy40, LicenceClass::ShareAlike)
+    );
+    assert!(a.trained_on.iter().any(|t| t.license == Licence::CcBySa40));
+    let revision = "adc3b06f79f797d1c575d5479d6f5efe54a9e3b4";
+    assert_eq!(a.version, revision);
+    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(
+        paths,
+        [
+            "config.json",
+            "model.safetensors",
+            "vocab.json",
+            "merges.txt",
+            "special_tokens_map.json",
+            "tokenizer_config.json"
+        ]
+    );
+    for f in &a.files {
+        let url = format!("https://huggingface.co/deepset/roberta-base-squad2/resolve/{revision}/{}", f.path.as_str());
+        assert_eq!(f.url.as_str(), url);
+    }
+}
 
 #[test]
 fn the_glirel_tokenizer_is_pinned_and_permissive() {
@@ -286,7 +315,7 @@ fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
             || CHECKPOINTS.contains(&a.id.as_str())
         {
             assert!(needs.is_empty(), "{}", a.id);
-        } else if SHARE_ALIKE_CHECKPOINTS.contains(&a.id.as_str()) {
+        } else if a.id.as_str() == SHARE_ALIKE_CHECKPOINTS[0] {
             assert_eq!(
                 needs,
                 [

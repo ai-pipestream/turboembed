@@ -8,14 +8,14 @@ pub use decode::decode;
 mod windows;
 pub use windows::{QaWindow, windows};
 mod session;
-pub use session::ExtractiveQa;
+pub use session::{ExtractiveQa, QaOptions};
 mod reference;
 pub use reference::check_reference;
 
 use std::ops::Range;
 
 /// Raw token-head outputs for one joint question/context window.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct WindowLogits {
     pub start: Vec<f32>,
     pub end: Vec<f32>,
