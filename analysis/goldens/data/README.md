@@ -133,7 +133,8 @@ are not taken from any corpus.
   backslash, a CR LF line end and no newline at the end; and two lines
   the sample stream skips (one starting with a tab, one without a tab).
   The fixture `langdetect-fixture-rust.bin` was trained on them, and the
-  `train-langdetect` and `cross-validate` goldens run on them.
+  `langdetect` (`+probing`, `+probing-chunk50`), `train-langdetect` and
+  `cross-validate` goldens run on them.
 
 - `inputs/langdetect/tree-bucket.txt`: six language samples written for
   this project, three of the local-use code `qaa` and three of `qab`,
@@ -141,7 +142,8 @@ are not taken from any corpus.
   plus the code unit) are multiples of 64, so they share one bucket of
   the n-gram maps, which becomes a tree; the order `getContext` gives
   them (which training reads) then differs from the order `predict`
-  counts them in. The `train-langdetect` goldens run on them.
+  counts them in. The `langdetect` (`+probing`, `+probing-chunk50`) and
+  `train-langdetect` goldens run on them.
 
 - `inputs/formats/`: 41 small files in OpenNLP's native sample formats,
   in CoNLL-U, CoNLL-2002, CoNLL-2003, CoNLL-X and in MASC's layout, written for this project except as
