@@ -1031,9 +1031,10 @@ const char *const ATTN_NAMES[] = {"staged", "registers", "auto"};
 /* FASTEST's choice when nothing forces it. */
 constexpr Attn ATTN_DEFAULT = ATTN_AUTO;
 
-/* attn=auto's line: up to this many packed tokens, where few threadgroups
- * run at once, staged is the faster on the M2, and registers past it. */
-constexpr uint32_t ATTN_REGISTERS_TOKENS = 1024;
+/* attn=auto's line: up to this many packed tokens staged is the faster
+ * on the M2 (by 3 to 4% at 2 and 4 rows of 128), and registers past it
+ * (by 0.2 to 0.7% from 8 to 32 rows of 128, 1.6% at 32 of 256). */
+constexpr uint32_t ATTN_REGISTERS_TOKENS = 512;
 
 /* Whether the context's device runs a choice's kernels: h128's tile takes
  * threadgroups of 256. */
