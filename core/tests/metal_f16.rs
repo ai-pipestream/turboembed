@@ -316,3 +316,24 @@ fn masked_keys_inside_a_row_are_left_out_at_fastest() {
         println!("{line}, awkward rows: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
     }
 }
+
+/// attn=auto runs the staged kernel up to 512 packed tokens and the
+/// register kernel past them: its vectors are bit-equal to the forced
+/// kernel's on each side of the line, and the two kernels' vectors differ
+/// there, so the check can fail.
+#[test]
+fn attn_auto_switches_past_512_packed_tokens() {
+    let _t = turn();
+    let Some(_) = metal_device("attn_auto_switches_past_512_packed_tokens") else { return };
+    let dir = tiny_bundle();
+    let g = on_metal(&dir);
+    let fastest = TURBO_PRECISION_FASTEST;
+    let auto = make(g.m, None, fastest, TURBO_AUTOTUNE_OFF).unwrap();
+    let staged = make(g.m, Some("attn=staged"), fastest, TURBO_AUTOTUNE_OFF).unwrap();
+    let registers = make(g.m, Some("attn=registers"), fastest, TURBO_AUTOTUNE_OFF).unwrap();
+    let (at, past) = (rows_of(&dir, &[256, 256]), rows_of(&dir, &[256, 256, 1]));
+    assert_ne!(vectors(&staged, &at), vectors(&registers, &at), "the kernels' bits differ at 512 tokens");
+    assert_ne!(vectors(&staged, &past), vectors(&registers, &past), "the kernels' bits differ at 513 tokens");
+    assert_eq!(vectors(&auto, &at), vectors(&staged, &at), "512 packed tokens run staged");
+    assert_eq!(vectors(&auto, &past), vectors(&registers, &past), "513 packed tokens run registers");
+}
