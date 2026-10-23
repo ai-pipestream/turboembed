@@ -274,25 +274,31 @@ cache and what holds across backends. It is off by default, and a forced
 choice is never timed.
 
 How: on the session's own memory and queue, at 256, 1024, 4096 and 8192
-packed tokens, each that the session's `max_batch` x `max_seq` holds
-(its whole capacity when that is fewer than 256): rows of `max_seq`
-tokens or fewer, ids 1, as many as make the count. At each count, each
-choice, the incumbent (the cached choice, else `auto`) first, runs the
-whole encoder once untimed, then five times timed from the host, each
-run waited for. A challenger replaces the incumbent only when both
-were timed at every count and its least time is 5% under the
-incumbent's at each; of those, the one with the least total wins.
-So `auto`, which picks its tile per run, stays unless one fixed tile is
-the faster at every size the session runs. A choice whose median is more
-than 25% above its least is timed again, up to three times in all;
-still apart, the GPU is shared or throttling, and the session keeps the
-incumbent, reports `default`, is not cached, and an INFO line says so.
-The budget counts the timed runs alone; past it, what is left is not
-timed, so a count it cuts off leaves the incumbent in place. A
-measured session reports `measured`, gives its timings as
-`<bin>/linear/<choice>=<least ms>` lines, one per count and choice, and
-logs at INFO `metal device <n>: linear layers chosen in <ms> ms:
-<choice> (a run at le256: auto <ms> ms h32 <ms> ms ...; le1k: ...)`.
+packed tokens, each that the session's `max_batch` x `max_seq` holds,
+and at its capacity (up to 8192) when that lies past the last of them:
+rows of `max_seq` tokens or fewer, ids 1, as many as make the count. The
+counts go smallest first. At each, the incumbent (the cached choice,
+else `auto`) and each challenger still in run the whole encoder once
+untimed, then up to five times timed from the host, each run waited for:
+as many as the budget left shares out over the counts and choices left,
+judged by the incumbent's untimed run, and two at least. A challenger
+stays in only while its least time is 5% under the incumbent's at every
+count so far, since it must be at all of them to win, so the larger,
+costlier counts time only the incumbent and the challengers left, and
+none left settles the choice there. A challenger replaces the incumbent
+only when both were timed at every count and it is 5% faster at each; of
+those, the one with the least total wins. So `auto`, which picks its tile
+per run, stays unless one fixed tile is the faster at every size the
+session runs. A choice whose median is more than 25% above its least is
+timed again, up to three times in all; still apart, the GPU is shared or
+throttling, and the session keeps the incumbent, reports `default`, is
+not cached, and an INFO line says so. The budget counts the timed runs
+alone; past it, what is left is not timed, so a count it cuts off leaves
+the incumbent in place. A measured session reports `measured`, gives its
+timings as `<bin>/linear/<choice>=<least ms>` lines, one per count and
+choice timed, and logs at INFO `metal device <n>: linear layers chosen in
+<ms> ms: <choice> (a run at le256: auto <ms> ms h32 <ms> ms ...; le1k:
+...)`, ending with why any larger count was not timed.
 
 ## Speed on the M2
 
