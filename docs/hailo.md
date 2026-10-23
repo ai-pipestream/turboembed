@@ -137,9 +137,10 @@ A HEF is compiled for one architecture (`target`) and a fixed frame:
 with `TURBO_E_CAPACITY`. The backend loads the HEF whose `target` is the
 device's `arch`.
 
-On the Hailo-10H (Raspberry Pi 5, HailoRT 5.1.1), all-MiniLM-L6-v2 is
-compiled in I8 from the upstream ONNX cut at the word-embedding gather
-and the attention mask (128 tokens) by 5.4.0 with
+On the Hailo-10H (Raspberry Pi 5, HailoRT 5.1.1, firmware 5.1.1),
+all-MiniLM-L6-v2 is compiled in I8 from the upstream ONNX cut at the
+word-embedding gather and the attention mask (128 tokens) by the
+Dataflow Compiler 5.4.0 with
 `compiler_optimization` `"max"`, with a minimum cosine of 0.937 to the
 F32 reference vectors, over the tier's floor of 0.93. Frames run in
 bursts of 32, so a HEF's contexts are loaded once a burst. Through the
