@@ -169,7 +169,7 @@ fn failure(e: &MascError, root: &Path) -> (String, String) {
 }
 
 fn relative(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root).unwrap().to_str().unwrap().to_owned()
+    path.strip_prefix(root).unwrap().to_str().unwrap().replace(std::path::MAIN_SEPARATOR, "/")
 }
 
 fn ids(ids: impl Iterator<Item = i32>) -> String {
