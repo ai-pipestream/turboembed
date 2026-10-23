@@ -267,25 +267,32 @@ tile at EXACT or MODEL), or `h128` on a device that does not run it, is
 ### Autotuning
 
 A FASTEST session made with `turbo_session_desc.tuning` ON or RETUNE
-(or `TURBO_AUTOTUNE=on` or `retune`) times each choice when it is made
-and runs the fastest; docs/autotune.md has the switches, the cache and what
-holds across backends. It is off by default, and a forced choice is
-never timed.
+(or `TURBO_AUTOTUNE=on` or `retune`) times each choice at each token bin
+it can hold when it is made, and runs the incumbent unless another
+choice is faster at every one; docs/autotune.md has the switches, the
+cache and what holds across backends. It is off by default, and a forced
+choice is never timed.
 
-How: on the session's own memory and queue, with rows of `max_seq`
-tokens, ids 1, as many as fill 8192 tokens (all of the session's rows
-when it holds fewer). Each choice, the incumbent (the cached choice,
-else `auto`) first, runs the whole encoder once untimed, then five times timed
-from the host, each run waited for. The least time ranks, and the
-fastest challenger replaces the incumbent only when 5% faster. A choice
-whose median is more than 25%
-above its least is timed again, up to three times in all; still apart,
-the GPU is shared or throttling, and the session keeps the incumbent,
-reports `default`, is not cached, and an INFO line says so. The budget
-counts the timed runs alone; past it, what is left is not timed. A
-measured session reports `measured` and logs at INFO `metal device <n>:
-linear layers chosen in <ms> ms: <choice> (<bin>, a run: auto <ms> ms,
-h32 <ms> ms, h64 <ms> ms, h128 <ms> ms)`.
+How: on the session's own memory and queue, at 256, 1024, 4096 and 8192
+packed tokens, each that the session's `max_batch` x `max_seq` holds
+(its whole capacity when that is fewer than 256): rows of `max_seq`
+tokens or fewer, ids 1, as many as make the count. At each count, each
+choice, the incumbent (the cached choice, else `auto`) first, runs the
+whole encoder once untimed, then five times timed from the host, each
+run waited for. A challenger replaces the incumbent only when both
+were timed at every count and its least time is 5% under the
+incumbent's at each; of those, the one with the least total wins.
+So `auto`, which picks its tile per run, stays unless one fixed tile is
+the faster at every size the session runs. A choice whose median is more
+than 25% above its least is timed again, up to three times in all;
+still apart, the GPU is shared or throttling, and the session keeps the
+incumbent, reports `default`, is not cached, and an INFO line says so.
+The budget counts the timed runs alone; past it, what is left is not
+timed, so a count it cuts off leaves the incumbent in place. A
+measured session reports `measured`, gives its timings as
+`<bin>/linear/<choice>=<least ms>` lines, one per count and choice, and
+logs at INFO `metal device <n>: linear layers chosen in <ms> ms:
+<choice> (a run at le256: auto <ms> ms h32 <ms> ms ...; le1k: ...)`.
 
 ## Speed on the M2
 

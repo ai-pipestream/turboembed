@@ -3,6 +3,7 @@
 
 mod infer;
 mod load;
+mod packed;
 mod serialize;
 mod validate;
 
@@ -16,6 +17,7 @@ use crate::neural::NeuralError;
 use crate::neural::lstm::LstmLayer;
 
 pub use load::{char_key_from_unit, char_vocabulary_from_strs};
+pub(crate) use packed::Packed;
 use validate::validate_tensors;
 
 /// Unknown word and character symbol, always stored at row `0`.
