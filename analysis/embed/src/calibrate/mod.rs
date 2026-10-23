@@ -11,7 +11,11 @@
 //! of its own and loads its weights from the host for every burst of
 //! frames, so a run of a few rows pays for all of them. [`Calibration::measure`]
 //! runs the step over the caller's texts at each window and batch in turn,
-//! on the device and on the CPU, against the CPU at `Precision::Exact`.
+//! on the device at the precision asked and on the CPU at
+//! `Precision::Exact`, which is also the reference the cosine is taken
+//! against. The batch is the session's cap on rows a run: the texts are
+//! the caller's own, so the runs a cap leaves short, at the end of a call
+//! or for a call of few texts, are in what is timed.
 //! [`Calibration::load_or_measure`] keeps the result in a directory, under
 //! a key made of the bundle's model and manifest hash, the device's
 //! backend, name, runtime and driver versions, the precision, the
@@ -127,7 +131,7 @@ impl Calibration {
                 floor.get_or_insert_with(|| default_floor(vectors.info().compute_dtype));
                 let dim = vectors.dim() as usize;
                 let dev = pipeline(bundle, vectors)?;
-                let on_cpu = pipeline(bundle, open(Device::Cpu, Precision::Model, max_batch)?)?;
+                let on_cpu = pipeline(bundle, open(Device::Cpu, Precision::Exact, max_batch)?)?;
                 let got = run(&dev, texts)?;
                 if got.is_empty() || got.len() != want.len() || got.len() % dim != 0 {
                     return Err(CoreError::new(
@@ -188,7 +192,7 @@ impl Calibration {
 
     /// The options to open the step with at `base`'s window and rows per
     /// run, which must both be given (not 0): `base` on the device at the
-    /// precision of `o`, or on the CPU at `Precision::Model`, the
+    /// precision of `o`, or on the CPU at `Precision::Exact`, the
     /// precision the CPU was timed at, as [`Calibration::side`] chooses
     /// with the [`FORCE_VAR`] variable.
     pub fn options(&self, o: &CalibrationOptions, base: &VectorOptions) -> Result<VectorOptions, CoreError> {
@@ -201,7 +205,7 @@ impl Calibration {
             }
             Side::Cpu => {
                 v.encoder.device = Device::Cpu;
-                v.encoder.precision = Precision::Model;
+                v.encoder.precision = Precision::Exact;
             }
         }
         Ok(v)
@@ -254,13 +258,19 @@ fn unmeasured(max_seq: u32, max_batch: u32, measured: &[(u32, u32)]) -> CoreErro
     )
 }
 
-/// The median time in ms of `reps` runs of the sentence vector step over
-/// `texts`, opened with `v`, after one untimed run: the measure a chosen
+/// The median time in ms of `reps` runs of the sentence vector step on
+/// `vectors` over `texts`, after one untimed run: the measure a chosen
 /// configuration is checked with.
-pub fn time(bundle: &Path, v: &VectorOptions, texts: &[Text], reps: usize) -> Result<f64, CoreError> {
+pub fn time(bundle: &Path, vectors: &Arc<VectorAnnotator>, texts: &[Text], reps: usize) -> Result<f64, CoreError> {
     check_texts(texts)?;
-    let a = pipeline(bundle, Arc::new(VectorAnnotator::open(bundle, v)?))?;
+    let a = pipeline(bundle, vectors.clone())?;
     Ok(medians(reps, || run(&a, texts).map(drop), || Ok(()))?.0)
+}
+
+/// The sentence vectors the step on `vectors` gives `texts`, in order.
+pub fn vectors(bundle: &Path, vectors: &Arc<VectorAnnotator>, texts: &[Text]) -> Result<Vec<f32>, CoreError> {
+    check_texts(texts)?;
+    run(&pipeline(bundle, vectors.clone())?, texts)
 }
 
 /// The lowest cosine between the vectors of `got` and `want`, `dim` values

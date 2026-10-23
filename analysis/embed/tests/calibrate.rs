@@ -7,8 +7,12 @@
 
 use std::path::{Path, PathBuf};
 
-use turbo_analysis_embed::calibrate::{Calibration, CalibrationOptions, Point, Side, Text, lowest_cosine, time};
-use turbo_analysis_embed::{Device, EncoderOptions, Precision, VectorOptions};
+use std::sync::Arc;
+
+use turbo_analysis_embed::calibrate::{
+    Calibration, CalibrationOptions, Point, Side, Text, lowest_cosine, time, vectors,
+};
+use turbo_analysis_embed::{Device, EncoderOptions, Precision, VectorAnnotator, VectorOptions};
 const SENTENCES: [&str; 8] = [
     "Embedding models turn a passage of text into a vector.",
     "Passages with similar meaning land near each other.",
@@ -107,11 +111,9 @@ fn the_device_runs_where_it_is_faster_within_the_floor() {
     assert!(matches!(&v.encoder.device, Device::Backend(b) if b == "hailo"), "{v:?}");
     assert_eq!((v.encoder.max_seq, v.encoder.max_batch), (32, 32));
     // The CPU side runs at the precision it was timed at, whatever base asks.
-    let mut exact = at(32, 1);
-    exact.encoder.precision = Precision::Exact;
-    let v = c.options(&o, &exact).unwrap();
+    let v = c.options(&o, &at(32, 1)).unwrap();
     assert!(matches!(v.encoder.device, Device::Cpu), "{v:?}");
-    assert_eq!(v.encoder.precision, Precision::Model);
+    assert_eq!(v.encoder.precision, Precision::Exact);
     // A configuration not measured, the model's own (0), and a force that
     // names neither side are errors; a force names the side.
     for (w, b) in [(64, 32), (0, 0), (32, 0)] {
@@ -139,6 +141,22 @@ fn a_configuration_not_asked_is_refused_before_anything_is_measured() {
 }
 
 #[test]
+fn a_document_alone_gets_the_vectors_it_gets_among_the_rest() {
+    // The side is chosen per configuration, so a document's vectors do not
+    // depend on what else a call sends.
+    let mut base = at(24, 4);
+    base.encoder.precision = Precision::Exact;
+    let a = Arc::new(VectorAnnotator::open(&bert(), &base).unwrap());
+    let all = vectors(&bert(), &a, &texts()).unwrap();
+    for i in 0..texts().len() {
+        let alone = vectors(&bert(), &a, &texts()[i..i + 1]).unwrap();
+        let at = vectors(&bert(), &a, &texts()[..i]).unwrap().len();
+        let same = lowest_cosine(&alone, &all[at..at + alone.len()], a.dim() as usize);
+        assert!(same >= 1.0 - 1e-6, "text {i}: {same}");
+    }
+}
+
+#[test]
 fn the_kept_form_reads_back() {
     let c = Calibration {
         key: "m | abc | hailo | Hailo-8 | 4.23.0 | x | model | 1".into(),
@@ -148,7 +166,9 @@ fn the_kept_form_reads_back() {
     let text = c.to_text();
     assert_eq!(Calibration::parse(&text), Some(c));
     assert_eq!(Calibration::parse("calibration 1\n"), None);
-    assert_eq!(Calibration::parse("calibration 2\nfloor\tx\n"), None);
+    assert_eq!(Calibration::parse("calibration 3\nfloor\tx\n"), None);
+    // The second form timed the CPU at Precision::Model: it is not read.
+    assert_eq!(Calibration::parse(&text.replacen("calibration 3", "calibration 2", 1)), None);
     // Every line short of the key, the floor and a point is refused, and
     // so is a record given twice or a point of the first form's four fields.
     let lines: Vec<&str> = text.lines().collect();
@@ -190,7 +210,9 @@ fn malformed_sentence_bounds_are_an_error_not_a_panic() {
         let t = vec![(text.to_string(), spans.clone())];
         let e = Calibration::measure(&bert(), &o, &t).unwrap_err().to_string();
         assert!(e.contains("not a span"), "{text:?} {spans:?}: {e}");
-        assert!(time(&bert(), &at(24, 1), &t, 1).unwrap_err().to_string().contains("not a span"));
+        let a = Arc::new(VectorAnnotator::open(&bert(), &at(24, 1)).unwrap());
+        assert!(time(&bert(), &a, &t, 1).unwrap_err().to_string().contains("not a span"));
+        assert!(vectors(&bert(), &a, &t).unwrap_err().to_string().contains("not a span"));
     }
 }
 
@@ -265,12 +287,20 @@ fn held_out() -> Vec<Text> {
     out
 }
 
+/// How much slower than the faster side's measured time a chosen
+/// configuration may run when timed again: the spread of the Pi 5 CPU's
+/// medians from run to run is about 5%.
+const NOISE: f64 = 1.10;
+
 /// On the device TURBO_TEST_DEVICE names, with the bundle
 /// TURBO_TEST_VECTORS_BUNDLE: windows of 16 to 128 tokens and 1 to 32
 /// rows a run, over the held-out documents three times over, so the widest
 /// windows fill their runs. Prints the table, then opens the step at each
-/// configuration through the calibration and checks it runs on the side
-/// that won, timing it again.
+/// configuration through the calibration and checks, on that one
+/// instance: that it runs on the side that won; that a document sent
+/// alone gets the vectors it gets among all the others; and that the whole
+/// set runs within NOISE of the faster side's time, timed up to three
+/// times. It prints what one sentence sent alone takes on each side.
 #[test]
 fn on_the_device_turbo_test_device_names() {
     let (Ok(bundle), Ok(want)) = (std::env::var("TURBO_TEST_VECTORS_BUNDLE"), std::env::var("TURBO_TEST_DEVICE"))
@@ -292,6 +322,9 @@ fn on_the_device_turbo_test_device_names() {
         reps: 5,
     };
     let texts: Vec<Text> = (0..3).flat_map(|_| held_out()).collect();
+    let (first, first_spans) = &texts[0];
+    let end = first_spans[0].1;
+    let sentence: Vec<Text> = vec![(first[..end as usize].to_string(), vec![(0, end)])];
     let c = Calibration::measure(bundle, &o, &texts).unwrap();
     print!("{}", c.to_text());
     assert!(c.points.iter().all(|p| p.min_cosine > 0.0));
@@ -299,18 +332,43 @@ fn on_the_device_turbo_test_device_names() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(Calibration::file(&dir, &c.key), c.to_text()).unwrap();
-    println!("window\tbatch\tmin cosine\tdevice ms\tcpu ms\tchosen\tchosen ms");
+    println!("window\tbatch\tmin cosine\tdevice ms\tcpu ms\tchosen\tchosen ms\tone sentence: chosen ms\tother ms");
     for p in &c.points {
         let base = at(p.max_seq, p.max_batch);
-        let a = Calibration::annotator(&dir, bundle, &o, &texts, &base).unwrap();
+        let a = Arc::new(Calibration::annotator(&dir, bundle, &o, &texts, &base).unwrap());
         let side = c.side(p.max_seq, p.max_batch, None).unwrap();
         let backend = a.execution().backend.clone();
         assert_eq!(backend == "cpu", side == Side::Cpu, "{p:?}: {backend}");
         assert_eq!(side == Side::Device, p.device_wins(c.floor), "{p:?}");
-        drop(a);
-        let ms = time(bundle, &c.options(&o, &base).unwrap(), &texts, o.reps).unwrap();
+        let all = vectors(bundle, &a, &texts).unwrap();
+        let alone = vectors(bundle, &a, &texts[..1]).unwrap();
+        let dim = a.dim() as usize;
+        let same = lowest_cosine(&alone, &all[..alone.len()], dim);
+        assert!(same >= 1.0 - 1e-6, "{p:?}: a document alone and among the rest: cosine {same}");
+        let best = p.device_ms.min(p.cpu_ms);
+        let mut ms = f64::INFINITY;
+        for _ in 0..3 {
+            ms = time(bundle, &a, &texts, o.reps).unwrap();
+            if ms <= best * NOISE {
+                break;
+            }
+        }
+        assert!(ms <= best * NOISE, "{p:?}: the chosen side took {ms:.1} ms, over {NOISE} times {best:.1}");
+        let other = match side {
+            Side::Device => VectorOptions {
+                encoder: EncoderOptions { device: Device::Cpu, precision: Precision::Exact, ..base.encoder.clone() },
+                ..base.clone()
+            },
+            Side::Cpu => VectorOptions {
+                encoder: EncoderOptions { device: o.device.clone(), precision: o.precision, ..base.encoder.clone() },
+                ..base.clone()
+            },
+        };
+        let other = Arc::new(VectorAnnotator::open(bundle, &other).unwrap());
+        let one = time(bundle, &a, &sentence, 20).unwrap();
+        let one_other = time(bundle, &other, &sentence, 20).unwrap();
         println!(
-            "{}\t{}\t{:.4}\t{:.1}\t{:.1}\t{backend}\t{ms:.1}",
+            "{}\t{}\t{:.4}\t{:.1}\t{:.1}\t{backend}\t{ms:.1}\t{one:.2}\t{one_other:.2}",
             p.max_seq, p.max_batch, p.min_cosine, p.device_ms, p.cpu_ms
         );
     }

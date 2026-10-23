@@ -7,7 +7,7 @@ use super::{Calibration, Point};
 impl Calibration {
     /// The kept form: the key and the floor, then a line per point.
     pub fn to_text(&self) -> String {
-        let mut s = String::from("calibration 2\n");
+        let mut s = String::from("calibration 3\n");
         let _ = writeln!(s, "key\t{}", self.key);
         let _ = writeln!(s, "floor\t{}", self.floor);
         for p in &self.points {
@@ -21,7 +21,7 @@ impl Calibration {
     /// each exactly once and at least one point; None for anything else.
     pub fn parse(text: &str) -> Option<Calibration> {
         let mut lines = text.lines();
-        if lines.next()? != "calibration 2" {
+        if lines.next()? != "calibration 3" {
             return None;
         }
         let mut key: Option<String> = None;
