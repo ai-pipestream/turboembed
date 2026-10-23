@@ -1,20 +1,26 @@
-//! The bundled dictionary files (`data/icu4x-segmenter/*.dict`): their
-//! contents, and how they are made from ICU4X's baked segmenter data.
+//! The bundled dictionary (`data/icu4x-segmenter/*.dict`) and LSTM
+//! (`data/icu4x-segmenter/*.lstm`) files: their contents, and how they are
+//! made from ICU4X's baked segmenter data.
 //!
 //! `regenerate_from_icu4x` (ignored by default) reads ICU4X's
 //! `provider/data/segmenter/data/segmenter_dictionary_extended_v2.rs.data`
-//! from `TURBO_ICU4X_SEGMENTER_DATA`, rebuilds the four files from it and
-//! compares them with the committed ones; with `TURBO_ICU4X_WRITE=1` it
-//! writes them instead. `matches_icu4c_word_lists` (ignored) compares the
-//! words with ICU4C's `icu4c/source/data/brkitr/dictionaries/*dict.txt`
-//! in `TURBO_ICU4C_DICTIONARIES`. The data directory's README says which
+//! from `TURBO_ICU4X_SEGMENTER_DATA`, rebuilds the four `.dict` files from it
+//! and compares them with the committed ones; `regenerate_lstm_from_icu4x`
+//! (ignored by default) reads ICU4X's
+//! `provider/data/segmenter/data/segmenter_lstm_auto_v1.rs.data` from
+//! `TURBO_ICU4X_LSTM_DATA` and rebuilds the four `.lstm` files; with
+//! `TURBO_ICU4X_WRITE=1` they write them instead. `matches_icu4c_word_lists`
+//! (ignored) compares the dictionary words with ICU4C's
+//! `icu4c/source/data/brkitr/dictionaries/*dict.txt` in
+//! `TURBO_ICU4C_DICTIONARIES`. The data directory's README says which
 //! versions were used.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use turbo_tokenize::complex::dictionary::MAGIC;
-use turbo_tokenize::complex::{ComplexScript, Dictionary, bundled_dictionary};
+use turbo_tokenize::complex::lstm::{EMBED_DIM, HUNITS, MAGIC as LSTM_MAGIC};
+use turbo_tokenize::complex::{ComplexScript, Dictionary, Lstm, bundled_dictionary, bundled_lstm};
 
 /// The file name of each script's dictionary, and the name ICU4X gives it.
 const FILES: [(ComplexScript, &str, &str); 4] = [
@@ -22,6 +28,14 @@ const FILES: [(ComplexScript, &str, &str); 4] = [
     (ComplexScript::Lao, "lao.dict", "laodict"),
     (ComplexScript::Khmer, "khmer.dict", "khmerdict"),
     (ComplexScript::Myanmar, "burmese.dict", "burmesedict"),
+];
+
+/// The file name of each script's LSTM model, and the alphabet size it has.
+const LSTM_FILES: [(ComplexScript, &str, usize); 4] = [
+    (ComplexScript::Thai, "thai.lstm", 73),
+    (ComplexScript::Lao, "lao.lstm", 72),
+    (ComplexScript::Khmer, "khmer.lstm", 87),
+    (ComplexScript::Myanmar, "burmese.lstm", 187),
 ];
 
 fn data_dir() -> PathBuf {
@@ -58,6 +72,14 @@ fn bundled_dictionaries() {
     let thai = Dictionary::from_bytes(bundled_dictionary(ComplexScript::Thai)).unwrap();
     assert!(thai.contains("ภาษา") && thai.contains("ไทย") && thai.contains("ประเทศไทย"));
     assert!(!thai.contains("ภาษาไทยภาษา"));
+}
+
+#[test]
+fn bundled_lstm_models() {
+    for (script, _, alphabet) in LSTM_FILES {
+        let lstm = Lstm::from_bytes(bundled_lstm(script)).unwrap();
+        assert_eq!(lstm.alphabet_len(), alphabet, "{script:?}");
+    }
 }
 
 /// A Rust byte string literal's contents with its escapes resolved.
@@ -141,6 +163,54 @@ fn rebuild(source: &str) -> Vec<(&'static str, Vec<u8>)> {
     files
 }
 
+/// The LSTM files rebuilt from ICU4X's baked `segmenter_lstm_auto_v1.rs.data`:
+/// each entry is an `LstmData::Float32` (`ModelType::Codepoints`) whose `dic`
+/// is a `ZeroMap<PotentialUtf8, u16>` of sorted single-character keys (`0..V`)
+/// followed by the 9 `f32` weight slices; the entries come in the order
+/// Burmese, Khmer, Lao, Thai.
+fn rebuild_lstm(source: &str) -> Vec<(&'static str, Vec<u8>)> {
+    assert!(
+        source.contains("uurmese_codepoints_exclusive_model4_heavy\\x80hmer_codepoints_exclusive_model4_heavy\\x81ao_codepoints_exclusive_model4_heavy\\x82hai_codepoints_exclusive_model4_heavy\\x83"),
+        "the four LSTM models, in the order burmese, khmer, lao, thai"
+    );
+    let blocks: Vec<&str> = source.split("LstmData::Float32").skip(1).collect();
+    assert_eq!(blocks.len(), 4, "four LstmData::Float32 entries");
+    let order = ["burmese.lstm", "khmer.lstm", "lao.lstm", "thai.lstm"];
+    let mut files = Vec::new();
+    for (name, block) in order.into_iter().zip(blocks) {
+        let literals = byte_literals(block);
+        assert_eq!(literals.len(), 11, "{name}: dic keys, dic values, and 9 weight slices");
+        let vzv = &literals[0];
+        let count = usize::from(u16::from_le_bytes([vzv[0], vzv[1]]));
+        let text = std::str::from_utf8(&vzv[2 * count..]).expect("UTF-8 alphabet keys");
+        let cps: Vec<u32> = text.chars().map(u32::from).collect();
+        assert_eq!(cps.len(), count, "{name}: one character per key");
+        for (i, w) in literals[1].as_chunks::<2>().0.iter().enumerate() {
+            assert_eq!(usize::from(u16::from_le_bytes(*w)), i, "{name}: identity value map");
+        }
+        let mut ranges: Vec<(u32, u32)> = Vec::new();
+        for cp in cps {
+            match ranges.last_mut() {
+                Some((_, end)) if *end == cp => *end = cp + 1,
+                _ => ranges.push((cp, cp + 1)),
+            }
+        }
+        let mut file = LSTM_MAGIC.to_vec();
+        file.extend_from_slice(&(ranges.len() as u32).to_le_bytes());
+        for (first, end) in ranges {
+            file.extend_from_slice(&first.to_le_bytes());
+            file.extend_from_slice(&end.to_le_bytes());
+        }
+        file.extend_from_slice(&(EMBED_DIM as u32).to_le_bytes());
+        file.extend_from_slice(&(HUNITS as u32).to_le_bytes());
+        for weights in &literals[2..11] {
+            file.extend_from_slice(weights);
+        }
+        files.push((name, file));
+    }
+    files
+}
+
 #[test]
 #[ignore = "needs ICU4X's baked segmenter data in TURBO_ICU4X_SEGMENTER_DATA"]
 fn regenerate_from_icu4x() {
@@ -148,6 +218,22 @@ fn regenerate_from_icu4x() {
     let source = std::fs::read_to_string(&path).unwrap();
     let write = std::env::var("TURBO_ICU4X_WRITE").is_ok_and(|v| v == "1");
     for (name, bytes) in rebuild(&source) {
+        let target = data_dir().join(name);
+        if write {
+            std::fs::write(&target, &bytes).unwrap();
+        } else {
+            assert!(std::fs::read(&target).unwrap() == bytes, "{name} differs from what ICU4X's data gives");
+        }
+    }
+}
+
+#[test]
+#[ignore = "needs ICU4X's baked LSTM segmenter data in TURBO_ICU4X_LSTM_DATA"]
+fn regenerate_lstm_from_icu4x() {
+    let path = std::env::var("TURBO_ICU4X_LSTM_DATA").expect("TURBO_ICU4X_LSTM_DATA");
+    let source = std::fs::read_to_string(&path).unwrap();
+    let write = std::env::var("TURBO_ICU4X_WRITE").is_ok_and(|v| v == "1");
+    for (name, bytes) in rebuild_lstm(&source) {
         let target = data_dir().join(name);
         if write {
             std::fs::write(&target, &bytes).unwrap();
@@ -181,5 +267,8 @@ fn matches_icu4c_word_lists() {
 fn the_file_names_match_the_scripts() {
     for (script, file, _) in FILES {
         assert_eq!(std::fs::read(data_dir().join(file)).unwrap(), bundled_dictionary(script));
+    }
+    for (script, file, _) in LSTM_FILES {
+        assert_eq!(std::fs::read(data_dir().join(file)).unwrap(), bundled_lstm(script));
     }
 }
