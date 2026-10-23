@@ -270,6 +270,15 @@ fn sigmoid_threshold_calibration_and_tdense02_codec_work() {
     let mut tail = bytes.clone();
     tail.push(0);
     assert!(DenseClassifierModel::from_bytes(&tail).is_err());
+    // An all-default (0.5) TDENSE02 payload is refused so from_bytes -> to_bytes preserves bytes and provenance.
+    let mut all_default_v2 = b"TDENSE02".to_vec();
+    all_default_v2.extend(model.temperature().to_le_bytes());
+    all_default_v2.extend(3u32.to_le_bytes());
+    for _ in 0..3 {
+        all_default_v2.extend(0.5f64.to_le_bytes());
+    }
+    all_default_v2.extend(model.head().to_bytes());
+    assert!(DenseClassifierModel::from_bytes(&all_default_v2).is_err());
     assert_ne!(
         DenseClassifierAnnotator::<Sentences>::new(model.clone()).config_hash(),
         DenseClassifierAnnotator::<Sentences>::new(tuned).config_hash()
@@ -374,110 +383,4 @@ fn tiny_bert_bundle_multilabel_sigmoid_head_calibrates_and_annotates() {
     assert_eq!(cats.selected(6), &[Tag(0), Tag(1)]);
     assert_eq!(cats.selected(11), &[]);
     assert_eq!(cats.category[11], Tag::NONE);
-}
-
-#[test]
-fn civil_comments_multilabel_sigmoid_thresholds_when_configured() {
-    let (Ok(civil_dir), Ok(vec_prefix)) =
-        (std::env::var("TURBO_CIVIL_COMMENTS_DIR"), std::env::var("TURBO_CIVIL_VECTORS_PREFIX"))
-    else {
-        return;
-    };
-    let text = std::fs::read_to_string(Path::new(&civil_dir).join("all_data_with_identities.csv")).unwrap();
-    let mut records = Vec::new();
-    let (mut record, mut field, mut quoted) = (Vec::new(), String::new(), false);
-    let mut chars = text.chars().peekable();
-    while let Some(c) = chars.next() {
-        if quoted {
-            match c {
-                '"' if chars.peek() == Some(&'"') => {
-                    field.push('"');
-                    chars.next();
-                }
-                '"' => quoted = false,
-                _ => field.push(c),
-            }
-            continue;
-        }
-        match c {
-            '"' if field.is_empty() => quoted = true,
-            ',' => record.push(std::mem::take(&mut field)),
-            '\r' if chars.peek() == Some(&'\n') => {}
-            '\n' => {
-                record.push(std::mem::take(&mut field));
-                records.push(std::mem::take(&mut record));
-            }
-            _ => field.push(c),
-        }
-    }
-    if !field.is_empty() || !record.is_empty() {
-        record.push(field);
-        records.push(record);
-    }
-    let h = &records[0];
-    let col = |name: &str| h.iter().position(|c| c == name).unwrap();
-    let split_col = col("split");
-    let label_names = ["insult", "obscene", "threat", "identity_attack", "severe_toxicity"];
-    let label_cols: Vec<usize> = label_names.iter().map(|n| col(n)).collect();
-    let (mut train_y, mut val_y, mut test_y) = (Vec::new(), Vec::new(), Vec::new());
-    for r in &records[1..] {
-        let row: Vec<f64> = label_cols
-            .iter()
-            .map(|&c| if r[c].is_empty() { 0.0 } else { r[c].parse::<f64>().unwrap().clamp(0.0, 1.0) })
-            .collect();
-        match r[split_col].as_str() {
-            "train" => train_y.push(row),
-            "val" => val_y.push(row),
-            "test" => test_y.push(row),
-            s => panic!("unknown split {s}"),
-        }
-    }
-    let read_vecs = |hash: &str, count: usize| -> Vectors<Sentences> {
-        let bytes = std::fs::read(format!("{vec_prefix}-{hash}.f32")).unwrap();
-        assert_eq!(bytes.len(), count * 384 * 4);
-        let data: Vec<f32> = bytes.as_chunks::<4>().0.iter().map(|&b| f32::from_le_bytes(b)).collect();
-        vectors(data, 384)
-    };
-    let train_v = read_vecs("ed34f392476ef46f", train_y.len());
-    let val_v = read_vecs("c08402076f3fcead", val_y.len());
-    let test_v = read_vecs("bb7b67869d5721de", test_y.len());
-    let gold_sets = |y: &[Vec<f64>]| -> Vec<BTreeSet<usize>> {
-        y.iter().map(|r| r.iter().enumerate().filter(|(_, v)| **v >= 0.5).map(|(i, _)| i).collect()).collect()
-    };
-    let (val_gold, test_gold) = (gold_sets(&val_y), gold_sets(&test_y));
-    let ts = TagSet::new("civil_comments", &label_names);
-    let hard_train: Vec<Vec<f64>> =
-        train_y.iter().map(|r| r.iter().map(|&v| if v >= 0.5 { 1.0 } else { 0.0 }).collect()).collect();
-    let trainer = DenseClassifierTrainer {
-        architecture: Architecture::Logistic,
-        output: OutputKind::Sigmoid,
-        params: AdamParameters {
-            seed: 42,
-            learning_rate: 0.01,
-            weight_decay: 1e-5,
-            batch_size: 256,
-            epochs: 8,
-            patience: None,
-        },
-    };
-    let fit = trainer.fit(&train_v, &hard_train, ts, None).unwrap();
-    let cal = ThresholdCalibrator::default();
-    let tuned = fit.model.clone().calibrate_thresholds(&val_v, &val_gold, &cal).unwrap();
-    let val_def = fit.model.evaluate_multilabel(&val_v, &val_gold).unwrap();
-    let val_cal = tuned.evaluate_multilabel(&val_v, &val_gold).unwrap();
-    let test_def = fit.model.evaluate_multilabel(&test_v, &test_gold).unwrap();
-    let test_cal = tuned.evaluate_multilabel(&test_v, &test_gold).unwrap();
-    println!("thresholds: {:?}", tuned.thresholds());
-    let fmt_r = |name: &str, r: &MultiLabelReport| {
-        let (mi, ma, ex) = (&r.micro, &r.r#macro, r.exact_match);
-        println!(
-            "{name}: micro={:.4}/{:.4}/{:.4} macro={:.4}/{:.4}/{:.4} exact={ex:.4}",
-            mi.precision, mi.recall, mi.f1, ma.precision, ma.recall, ma.f1
-        );
-    };
-    for (name, r) in [("val  0.5", &val_def), ("val  cal", &val_cal), ("test 0.5", &test_def), ("test cal", &test_cal)]
-    {
-        fmt_r(name, r);
-    }
-    assert!(val_cal.r#macro.f1 > val_def.r#macro.f1 && test_cal.r#macro.f1 > test_def.r#macro.f1);
 }

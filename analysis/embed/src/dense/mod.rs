@@ -312,6 +312,9 @@ impl DenseClassifierModel {
                 for &chunk in bytes[20..head_offset].as_chunks::<8>().0 {
                     thresholds.push(f64::from_le_bytes(chunk));
                 }
+                if thresholds.iter().all(|&th| th == DEFAULT_THRESHOLD) {
+                    return Err("TDENSE02 requires at least one non-default threshold".into());
+                }
                 Self::new(ClassifierHead::from_bytes(&bytes[head_offset..])?)?
                     .with_temperature(t)?
                     .with_thresholds(thresholds)
