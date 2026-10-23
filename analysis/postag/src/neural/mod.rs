@@ -27,7 +27,7 @@ use turbo_unicode::modified_utf8::{push_modified_utf8, push_str_modified_utf8};
 
 pub use adam::AdamOptimizer;
 pub use bilstm_model::BilstmPosModel;
-pub use bilstm_tagger::BilstmPosTagger;
+pub use bilstm_tagger::{BilstmPosTagger, Numerics};
 pub use bilstm_trainer::{BilstmPosTrainer, BilstmSettings, MultiTaskSample};
 pub use crf::{CrfScoreTable, CrfScorer};
 pub use feedforward::{

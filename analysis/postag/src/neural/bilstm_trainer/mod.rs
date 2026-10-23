@@ -219,7 +219,7 @@ impl BilstmPosTrainer {
 }
 
 fn evaluate(model: &BilstmPosModel, dev: &[PosSample]) -> Result<f64, NeuralError> {
-    let tagger = BilstmPosTagger::new(model.clone());
+    let tagger = BilstmPosTagger::jvm_parity(model.clone());
     let mut correct = 0usize;
     let mut total = 0usize;
     for s in dev {

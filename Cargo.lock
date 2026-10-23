@@ -2514,6 +2514,7 @@ dependencies = [
 name = "turbo-postag"
 version = "0.1.0"
 dependencies = [
+ "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",

@@ -254,6 +254,15 @@ DeBERTa.
    and nested (#382's spans).
 3. `gliner_multi-v2.1` for languages other than English.
 
+## BiLSTM-CRF part-of-speech tagger
+
+`turbo-postag`'s BiLSTM-CRF tagger (`neural::BilstmPosTagger`, from
+`opennlp:tokens` to `opennlp:pos`) runs its LSTMs on the CPU backend's
+packed f32 GEMM (`turbo::cpu::Matrix`) by default, with the JVM's f64
+numerics kept for the golden tests. Its goldens, accuracy and throughput
+are in `analysis/postag/README.md`, "BiLSTM-CRF on the CPU backend". It
+has only run on the CPU.
+
 ## Licences
 
 Each checkpoint's licence, read from its model card's metadata at the
