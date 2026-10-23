@@ -23,8 +23,9 @@ choices and Autotuning).
 - `tune_ms`: the time spent measuring, 0 unless MEASURED.
 
 A benchmark record carries the first two in `library.settings`, as
-`TURBO_CUDA_TUNED` and `TURBO_CUDA_CHOICES` for the CUDA backend and
+`TURBO_CUDA_TUNED` and `TURBO_CUDA_CHOICES` for the CUDA backend,
 `TURBO_LEVELZERO_TUNED` and `TURBO_LEVELZERO_CHOICES` for the levelzero
+backend, and `TURBO_METAL_TUNED` and `TURBO_METAL_CHOICES` for the metal
 backend (docs/benchmarks.md).
 
 ## The promise

@@ -96,11 +96,14 @@ fn ipv6_addresses() {
         ("fe80::0202:b3ff:fe1e:8329", "fe80::202:b3ff:fe1e:8329"),
     ] {
         let end = text.len() as u32;
+        assert_found(&network(), text, &[(0, end, "ipv6", norm)]);
         match text.find("192.0.2.128") {
-            Some(at) => {
-                assert_found(&network(), text, &[(0, end, "ipv6", norm), (at as u32, end, "ipv4", "192.0.2.128")])
-            }
-            None => assert_found(&network(), text, &[(0, end, "ipv6", norm)]),
+            Some(at) => assert_found(
+                &network().keeping_nested(),
+                text,
+                &[(0, end, "ipv6", norm), (at as u32, end, "ipv4", "192.0.2.128")],
+            ),
+            None => assert_found(&network().keeping_nested(), text, &[(0, end, "ipv6", norm)]),
         }
     }
     for form in [

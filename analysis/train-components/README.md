@@ -233,6 +233,13 @@ and the model file; docs/langdetect.md, "Training"), among them
 `inputs/langdetect/samples.txt`, which the JVM loads and detects with
 (`analysis/langdetect/tests/fixture.rs`).
 
+`tests/cross_validate.rs` compares `TokenNameFinderCrossValidator`
+(`namefind::cross_validate`) and `LanguageDetectorCrossValidator`
+(`langdetect::cross_validate`) with the `cross-validate` goldens: per
+fold the sides, the training events' checksum, the counts and every
+prediction, and the merged precision, recall and F-measure or accuracy
+(`jvm_accuracy`, the JVM's rounding; `accuracy` is the exact share).
+
 ## Reproducing the UD 1.3 models
 
 `ud::RECIPES` are the eighteen published models

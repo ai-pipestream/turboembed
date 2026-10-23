@@ -63,7 +63,9 @@
 //!   `generator.featuregen`.
 
 pub mod crf;
+pub mod cross_validate;
 pub use crf::{TrainedCrfNameModel, crf_sequences, train_crf_name_model};
+pub use cross_validate::{NameCrossValidation, NameFold, PredictedName, TokenNameFinderCrossValidator};
 
 use turbo_formats::NameSample;
 use turbo_sequence::codec::Span;

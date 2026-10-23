@@ -8,12 +8,24 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the run still going on its older
+# head. Runs on main are grouped by commit, so none is ever cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  # Test builds carry no debug info: linking the test binaries is most of
+  # a run, and without it they link in a fraction of the time. Debug
+  # assertions and overflow checks stay on.
+  CARGO_PROFILE_DEV_DEBUG: "0"
 
+# The lanes run in parallel. `check` at the end passes only when every
+# lane passed, so one green check is still the whole workflow.
 jobs:
-  check:
+  lint:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -21,9 +33,18 @@ jobs:
         with:
           components: rustfmt, clippy
           targets: aarch64-unknown-linux-gnu
+      # Only main saves the build caches; pull requests restore them, so
+      # they do not push each other's caches out of the repository's limit.
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: fmt
         run: cargo fmt --all --check
+      - name: header compiles as C11 and C++17 with no padding
+        run: |
+          printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
+          cc  -std=c11   -Wall -Wextra -Wpadded -Werror -pedantic -fsyntax-only -Iinclude "$RUNNER_TEMP/h.c"
+          c++ -std=c++17 -Wall -Wextra -Wpadded -Werror -pedantic -fsyntax-only -x c++ -Iinclude "$RUNNER_TEMP/h.c"
       - name: clippy
         run: cargo clippy --workspace --all-targets
       - name: clippy (fuzz)
@@ -40,30 +61,92 @@ jobs:
           cargo check --workspace --target aarch64-unknown-linux-gnu
           --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval
           --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
+
+  # The workspace tests other than the core's and turbo-fuzz's, the
+  # crates dealt round robin by sorted name into four shards, from `cargo
+  # metadata`, so a new crate joins a shard without an edit here. With the
+  # fuzz job below, the shards run what `cargo test --workspace --exclude
+  # turbo` ran.
+  test:
+    name: test (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: shard-${{ matrix.shard }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # The OpenNLP models the JVM goldens were made with, downloaded from
       # downloads.apache.org and checked against their published SHA-512
-      # (analysis/goldens-tool/src/recipe.rs). With them present and
-      # required, the language detector's probability and ranking parity
-      # tests, the language by span fixture scores, and the sentence
-      # detector and tokenizer tests over the published UD models compare
-      # instead of skipping.
+      # (analysis/goldens-tool/src/recipe/models.rs). With them present, the
+      # tests over them compare instead of skipping.
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
-      # The core's own tests build it with its `internals` feature, and
-      # the core is a cdylib as well, so its rlib has no hash in its name:
-      # one run building both the core's tests and the crates that use the
-      # core writes two different builds to target/debug/deps/libturbo.rlib,
-      # and a crate compiled against the one overwritten fails to load
-      # (#358). So the core's tests, and every later run that turns on
-      # another core feature, build in a target directory of their own.
+      - name: the shard's crates
+        run: |
+          set -euo pipefail
+          cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name != "turbo" and .name != "turbo-fuzz") | .name' \
+            | sort \
+            | awk -v n="${{ matrix.shard }}" -v k=4 '(NR - 1) % k == n - 1 { printf "-p %s ", $0 }' > "$RUNNER_TEMP/packages"
+          echo "PACKAGES=$(cat "$RUNNER_TEMP/packages")" >> "$GITHUB_ENV"
+          cat "$RUNNER_TEMP/packages"
       - name: test
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
-        run: cargo test --workspace --exclude turbo
+        run: cargo test $PACKAGES
+
+  # turbo-fuzz's tests run every annotator run over every corpus and
+  # golden text, about 20 minutes unoptimized. Here they are built
+  # optimized, with debug assertions and overflow checks kept on, in a
+  # target directory of their own so the other jobs' builds are untouched.
+  fuzz:
+    name: test (turbo-fuzz)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
+      - name: test
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+          CARGO_TARGET_DIR: target/fuzz
+          CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "true"
+          CARGO_PROFILE_DEV_OVERFLOW_CHECKS: "true"
+        run: cargo test -p turbo-fuzz
+
+  features:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       # TurboQuant storage is behind a feature that brings in turbovec.
       - name: test (turboquant)
         run: cargo test -p turbo-vector-index --features turboquant
@@ -71,10 +154,47 @@ jobs:
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
         run: cargo test -p turbo-goldens-tool --features fuzz
+      # The core's own tests build it with its `internals` feature, and
+      # the core is a cdylib as well, so its rlib has no hash in its name:
+      # one run building both the core's tests and the crates that use the
+      # core writes two different builds to target/debug/deps/libturbo.rlib,
+      # and a crate compiled against the one overwritten fails to load
+      # (#358). So the core's tests, and every later run that turns on
+      # another core feature, build in a target directory of their own.
       - name: test (core)
         env:
           CARGO_TARGET_DIR: target/core
         run: cargo test -p turbo
+      # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
+      # The job does not pass --include-ignored and does not set
+      # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs
+      # stay ignored and a missing device is a skip. There is no
+      # self-hosted NPU runner. A green job is not a device run.
+      # docs/npu.md, "Host-only blocker".
+      - name: test (npu)
+        env:
+          CARGO_TARGET_DIR: target/core
+        run: cargo test -p turbo --features npu
+      - name: a benchmark record end to end, from the pushed commit
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          TURBO_BENCH_REQUIRE_RECORD: "1"
+        run: cargo test -p turbo-bench --test tool a_cpu_record_is_measured_and_without_a_reference_backs_nothing
+
+  parity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       # The published UD sentence detector, tokenizer, part-of-speech and
       # lemmatizer models are trained on CC BY-SA treebanks and not checked
       # in either; the tests over them skip without them and fail here.
@@ -123,23 +243,66 @@ jobs:
         env:
           TURBO_MECAB_DICTIONARIES: ${{ github.workspace }}/.opennlp-models
         run: cargo test -p turbo-tokenize --test lattice_golden --test lattice_readings -- --ignored
-      # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
-      # The job does not pass --include-ignored and does not set
-      # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs
-      # stay ignored and a missing device is a skip. There is no
-      # self-hosted NPU runner. A green job is not a device run.
-      # docs/npu.md, "Host-only blocker".
+
+  check:
+    if: always()
+    needs: [lint, test, fuzz, features, parity, windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: every lane passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
+
+  # Windows, the host the Intel NPU machines run (#1011). The CPU backend
+  # and the host-only NPU build: the CUDA, Metal, Level Zero and Hailo
+  # backends need toolchains this runner does not have, and the JVM
+  # parity steps above need the OpenNLP models, so their tests skip here.
+  windows:
+    runs-on: windows-latest
+    steps:
+      # The goldens and fixtures are compared byte for byte; a checkout
+      # with core.autocrlf would rewrite their line endings.
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      # One package at a time: `cargo fmt --all` passes every file to one
+      # rustfmt and passes the Windows command line limit (os error 206).
+      - name: fmt
+        shell: bash
+        run: |
+          for p in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name' | tr -d '\r'); do
+            cargo fmt -p "$p" --check || exit 1
+          done
+      - name: clippy
+        run: cargo clippy --workspace --all-targets
+      - name: clippy (fuzz)
+        run: cargo clippy -p turbo-goldens-tool --features fuzz --all-targets
+      - name: clippy (npu)
+        run: cargo clippy -p turbo --features npu --all-targets
+      - name: clippy (turboquant)
+        run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
+      # --no-fail-fast: a Windows-only failure in one crate should not
+      # hide another's. Skipped: two docker runner tests (unix exit status
+      # text, unix mount paths; the docker runners are Linux-only).
+      - name: test
+        run: >-
+          cargo test --workspace --exclude turbo --no-fail-fast --
+          --skip a_program_that_fails_is_a_reason_and_docker_failing_is_an_error
+          --skip the_two_runs_make_one_measured_reference
+      # Its own target directory, as in the check job (#358).
+      - name: test (core)
+        env:
+          CARGO_TARGET_DIR: target/core
+        run: cargo test -p turbo --no-fail-fast
+      # Host-only: no NPU on the runner, so the device tests stay ignored.
       - name: test (npu)
         env:
           CARGO_TARGET_DIR: target/core
         run: cargo test -p turbo --features npu
-      - name: a benchmark record end to end, from the pushed commit
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          TURBO_BENCH_REQUIRE_RECORD: "1"
-        run: cargo test -p turbo-bench --test tool a_cpu_record_is_measured_and_without_a_reference_backs_nothing
-      - name: header compiles as C11 and C++17 with no padding
-        run: |
-          printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
-          cc  -std=c11   -Wall -Wextra -Wpadded -Werror -pedantic -fsyntax-only -Iinclude "$RUNNER_TEMP/h.c"
-          c++ -std=c++17 -Wall -Wextra -Wpadded -Werror -pedantic -fsyntax-only -x c++ -Iinclude "$RUNNER_TEMP/h.c"

@@ -3098,6 +3098,26 @@ writes from the samples; the generator loads it in the JVM
 (`langdetect/langdetect-fixture-rust`) for
 `analysis/langdetect/tests/fixture.rs` (docs/langdetect.md, "Training").
 
+The name finder's and the language detector's cross-validators are
+ported as `namefind::cross_validate` (`TokenNameFinderCrossValidator`)
+and `langdetect::cross_validate` (`LanguageDetectorCrossValidator`) in
+turbo-train-components (#851), on `turbo_formats::evaluate`'s
+`CrossValidation` and the evaluators. Name samples are grouped into
+documents at each sample that clears adaptive data, so a fold never
+splits a document. Each fold records its sides, the training events and
+their checksum, its counts and every prediction. The merged precision,
+recall and F-measure are merged counts, so they are the JVM's with no
+opt-in. The language detector's merged `accuracy()` is the exact share
+of correct samples; `jvm_accuracy()` is `getDocumentAccuracy()` bit for
+bit (each fold's accuracy times its document count summed, which can
+round differently). `CrossValidateGolden` writes
+`analysis/goldens/data/cross-validate/<run>/<set>/<id>.golden` (3 folds
+over `analysis/goldens/data/inputs/tagged/names.txt` with BIO and
+BILOU, and over `analysis/goldens/data/inputs/langdetect/samples.txt`
+with cutoff 5 and 1), and
+`analysis/train-components/tests/cross_validate.rs` compares every fold
+and the merged figures bit for bit.
+
 The sentiment detector is trained as `SentimentME.train` does (the
 `sentiment` module, #215). `SentimentGolden` writes
 `analysis/goldens/data/sentiment/<run>/sentiment-train/feedback.golden`
@@ -3183,7 +3203,7 @@ container from a recorded `eclipse-temurin:21-jdk` digest with OpenNLP
 built from a recorded commit of the fork, runs the Java generator in it
 without a network over the inputs the models (each model checked
 against its published SHA-512) and the fixtures (checked against the
-SHA-512 `recipe.rs` lists), and writes
+SHA-512 `analysis/goldens-tool/src/recipe/fixtures.rs` lists), and writes
 `<annotator>/<model>/<set>/<id>.golden` for every run and every input
 of the sets it takes. `turbo-goldens verify` regenerates them into a scratch directory and
 fails on any file whose bytes differ. The checked in goldens were made
@@ -4904,6 +4924,26 @@ C=5 in these subsets because short documents hold few units per
 document. The
 documented default shortlist is C=64 for corpus-scale indexes,
 where one shortlist spans the whole corpus rather than one
-document. Qasper is cached only as a tarball (not BEIR jsonl for
-this reader), GutenQA only as parquet, and ConTEB and HiCBench are
-not cached; none of those four ran.
+document.
+
+GutenQA (long-form books, loaded through the set registry from its
+parquet cache; 100 documents, 339,809 level units, 50 queries) is
+where the funnel matters most:
+
+| Arm | Recall@10 | nDCG@10 | Contextual scored/query |
+|---|---|---|---|
+| Static only | 0.4800 | 0.2806 | 0 |
+| Contextual only | 0.6200 | 0.4374 | 339809 |
+| Cascade C=5 | 0.5800 | 0.4105 | 968 |
+| Cascade C=64 | 0.6000 | 0.4268 | 11651 |
+
+At the default C=64 the cascade scores 3.4% of the contextual units
+for a Recall@10 margin of -0.02 against contextual-only; at C=5 it
+scores 0.3% for -0.04. Structured stage-3 filters built from real
+layers (`Entities` spans via `UnitFilter::overlapping`) are covered
+by `entity_layer_filter_drops_and_boosts_with_measured_recall` in
+the chunker cascade tests, and build-time space isolation by
+`space_mismatches_are_refused_at_build_time`. Qasper is cached only
+as a tarball (not BEIR jsonl for this reader); the ConTEB sets and
+HiCBench are not loadable from this cache (HiCBench has no licence
+recorded), so those did not run.

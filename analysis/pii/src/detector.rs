@@ -104,16 +104,19 @@ impl Pack {
 /// Runs scanners over a text and writes their mentions in OpenNLP's
 /// order. A detector over several scanners is a `CompositePiiExtractor`:
 /// candidates of all of them are ordered together, and ties keep the
-/// scanner order.
+/// scanner order. By default, a candidate strictly nested inside a
+/// longer candidate is dropped; [`PiiDetector::keeping_nested`] keeps it
+/// for OpenNLP parity.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiiDetector {
     scanners: Vec<Scanner>,
+    keep_nested: bool,
 }
 
 impl PiiDetector {
     /// The scanners in the order given. An empty list finds nothing.
     pub fn new(scanners: Vec<Scanner>) -> PiiDetector {
-        PiiDetector { scanners }
+        PiiDetector { scanners, keep_nested: false }
     }
 
     /// The scanners of `pack`.
@@ -125,6 +128,18 @@ impl PiiDetector {
     /// and cards.
     pub fn cursor() -> PiiDetector {
         PiiDetector::new(vec![Scanner::all(Extractor::Cursor)])
+    }
+
+    /// This detector, keeping mentions strictly nested inside a longer
+    /// mention as OpenNLP does.
+    pub fn keeping_nested(mut self) -> PiiDetector {
+        self.keep_nested = true;
+        self
+    }
+
+    /// Whether mentions strictly nested inside a longer mention are kept.
+    pub const fn keeps_nested(&self) -> bool {
+        self.keep_nested
     }
 
     pub fn scanners(&self) -> &[Scanner] {
@@ -148,7 +163,7 @@ impl PiiDetector {
         for s in &self.scanners {
             s.scan(text, &mut hits);
         }
-        hits.resolve(out);
+        hits.resolve(self.keep_nested, out);
     }
 
     /// The mentions in `text` as a layer over `view`.
@@ -182,6 +197,7 @@ impl Annotator for PiiDetector {
             let kinds = s.kinds().iter().fold(0u64, |b, k| b | 1 << k.rank());
             [s.extractor() as u64, kinds]
         });
-        words.fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        let h = words.fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3));
+        if self.keep_nested { (h ^ 1).wrapping_mul(0x0100_0000_01b3) } else { h }
     }
 }

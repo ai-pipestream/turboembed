@@ -25,7 +25,7 @@ Universal Dependencies treebanks (English EWT, German GSD). The models are
 under the Apache License 2.0, but the treebanks they were trained on are
 CC BY-SA, so the files are not checked in: `cargo run -p turbo-goldens-tool --
 fetch-models <dir>` downloads them (with the other models of
-`analysis/goldens-tool/src/recipe.rs`, each checked against its published
+`analysis/goldens-tool/src/recipe/models.rs`, each checked against its published
 SHA-512), and the tests read them from the directory `TURBO_GOLDENS_MODELS`
 names, or `target/turbo-goldens/models` under the repository root. A test that
 needs a model that is not there says so and passes, unless

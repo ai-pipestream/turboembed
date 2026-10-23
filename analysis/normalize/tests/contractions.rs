@@ -316,3 +316,20 @@ fn pos_step_refuses_tokens_of_another_view() {
     let input: Refs<'_, EnglishContractionsWithPos> = (view, Some(&tokens), Some(&tags));
     assert!(EnglishContractionsWithPos.annotate(input).is_err());
 }
+
+#[test]
+#[ignore = "timing; run with --release -- --ignored --nocapture"]
+fn cost_per_megabyte() {
+    let mb = 1_000_000;
+    let piece = "We can't and they won't, though 'I'm' sure she'd say y'all shouldn't wait at caf\u{E9} \u{2018}don\u{2019}t\u{2019}. ";
+    let text = piece.repeat(mb / piece.len() + 1);
+    let mut out_len = normalize(&EnglishContractions, &text).0.len();
+    let rounds = 20;
+    let start = std::time::Instant::now();
+    for _ in 0..rounds {
+        out_len += normalize(&EnglishContractions, &text).0.len();
+    }
+    let per_round = start.elapsed().as_secs_f64() / f64::from(rounds);
+    let mbs = text.len() as f64 / 1_000_000.0;
+    println!("EnglishContractions {:>8.2} ms per MB ({out_len} bytes written)", per_round * 1000.0 / mbs);
+}

@@ -127,6 +127,39 @@ const CHECKPOINTS: [&str; 2] = ["fastino-gliner2-base-v1", "microsoft-deberta-v3
 /// who has accepted their licence.
 const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
 
+/// The checkpoints trained on CC BY-SA data: fetched only for a user who
+/// has accepted that licence, and never bundled.
+const SHARE_ALIKE_CHECKPOINTS: [&str; 1] = ["deepset-roberta-base-squad2"];
+
+#[test]
+fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
+    let index = Index::builtin();
+    let a = index.get(SHARE_ALIKE_CHECKPOINTS[0]).unwrap();
+    assert_eq!(
+        (a.kind, a.format, a.license, a.class),
+        (Kind::Model, Format::Safetensors, Licence::CcBy40, LicenceClass::ShareAlike)
+    );
+    assert!(a.trained_on.iter().any(|t| t.license == Licence::CcBySa40));
+    let revision = "adc3b06f79f797d1c575d5479d6f5efe54a9e3b4";
+    assert_eq!(a.version, revision);
+    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(
+        paths,
+        [
+            "config.json",
+            "model.safetensors",
+            "vocab.json",
+            "merges.txt",
+            "special_tokens_map.json",
+            "tokenizer_config.json"
+        ]
+    );
+    for f in &a.files {
+        let url = format!("https://huggingface.co/deepset/roberta-base-squad2/resolve/{revision}/{}", f.path.as_str());
+        assert_eq!(f.url.as_str(), url);
+    }
+}
+
 #[test]
 fn the_glirel_tokenizer_is_pinned_and_permissive() {
     let index = Index::builtin();
@@ -227,6 +260,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.insert(WEB_MODEL.to_owned());
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
+    expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {

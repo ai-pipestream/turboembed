@@ -95,7 +95,10 @@ impl Rebuilt {
     pub fn listing(&mut self, root: &Path, files: &[PathBuf]) {
         self.layer("turbo:listing");
         for f in files {
-            self.row("turbo:listing", vec![s(f.strip_prefix(root).unwrap().to_str().unwrap())]);
+            self.row(
+                "turbo:listing",
+                vec![s(f.strip_prefix(root).unwrap().to_str().unwrap().replace(std::path::MAIN_SEPARATOR, "/"))],
+            );
         }
     }
 

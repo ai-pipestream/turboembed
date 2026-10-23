@@ -354,9 +354,9 @@ holding those files is the offline path, bundle/README.md). The convert
 step writes `openvino/model.xml` and `openvino/model.bin`, and the
 embeddings cut writes `openvino/embeddings.xml` and
 `openvino/embeddings.bin`. `make` then seals every conversion the
-recipe names. The Hailo image
-(`turbo-hailo-dfc@sha256:0972b97df2cfba9ba20abf9efa99a7f57ec675a00e6712a610f6cbd410a575b2`)
-is built locally, and `bundle/hailo/Dockerfile` needs a wheel this
+recipe names. The Hailo image the recipe pinned then
+(`turbo-hailo-dfc@sha256:0972b97df2cfba9ba20abf9efa99a7f57ec675a00e6712a610f6cbd410a575b2`,
+since rebuilt; docs/hailo.md) is built locally, and `bundle/hailo/Dockerfile` needs a wheel this
 repository does not carry. That image was absent for the make that
 sealed the other MiniLM artifacts, so the HEF was left out. That
 make ran in `994f2d1b`, and `turbo-bundle verify` passed. The sealed

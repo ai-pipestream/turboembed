@@ -20,6 +20,8 @@ turbo = { path = "../../core" }
 # The resamples of the bootstrap and the permutation test are drawn from
 # java.util.Random, so a JVM baseline can reproduce them.
 turbo-jvm = { path = "../jvm" }
+# SQuAD scoring's lowercasing, whitespace and character classes.
+turbo-unicode = { path = "../unicode" }
 # The pipeline: the document and its layers, sentences, structure, the
 # embedder's subwords and vectors, and the chunker under test.
 turbo-analysis = { path = "../core" }

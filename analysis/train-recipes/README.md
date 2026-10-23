@@ -2117,9 +2117,10 @@ left out.
 
 ## Tests
 
-`tests/recipes.rs` writes corpora in MASC's layout (`tests/common`, no
-MASC text, Penn tags written for the tests) and runs everything on
-them: the split in the reader's order; the Twitter genre left out of
+`tests/recipes/` (one test binary, a file per part) writes corpora in
+MASC's layout (`tests/common`, no MASC text, Penn tags written for the
+tests) and runs everything on them: the split in the reader's order,
+its paths joined with `/` on every OS; the Twitter genre left out of
 both sides without moving another document; the eight recipes trained,
 scored and gated; the same bytes from a second training; the card, the
 model's directory and its zoo entry; the zoo entries of a release made
