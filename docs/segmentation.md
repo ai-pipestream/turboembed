@@ -745,21 +745,19 @@ evaluated on gold segmentations, scoring the words inside complex runs
 only (a word is correct when the gold has a word over the same
 characters):
 
-- **Thai**: UD Thai PUD (`UniversalDependencies/UD_Thai-PUD`, commit
+- **Thai**: UD Thai PUD (commit
   `670083cd185a2ae215ce7aef1127c2b63640217d`, `th_pud-ud-test.conllu`,
   1000 sentences, 287631 B, 21640 gold words in complex runs).
-- **Burmese**: myPOS 3.0 (`ye-kyaw-thu/myPOS`, commit
-  `f1a620ba271cae3d8658441eb626450fca09cdfa`,
-  `corpus-ver-3.0/corpus/mypos-ver.3.0.txt`, 43196 sentences, 6954379 B,
-  468105 gold words in complex runs).
-- **Khmer**: khPOS 1.0 (`ye-kyaw-thu/khPOS`, commit
-  `0211405c145b0a340ad558569bd06c946b2296b4`,
-  `corpus-draft-ver-1.0/data/after-replace/train.all`, 12000 sentences,
-  1801664 B, 121294 gold words in complex runs).
-- **Lao**: SeqLabeling Lao POS (`ye-kyaw-thu/SeqLabeling`, commit
-  `8025a122e95422901e0907f0fc8ca4b5c1c34235`, `corpus/Lao_train.txt`,
-  4613 sentences, 798438 B, 64882 gold words in complex runs, 63644 in
-  Lao runs and 1238 in embedded Thai runs).
+- **Burmese**: myPOS 3.0 (commit
+  `f1a620ba271cae3d8658441eb626450fca09cdfa`, `mypos-ver.3.0.txt`,
+  43196 sentences, 6954379 B, 468105 gold words in complex runs).
+- **Khmer**: khPOS 1.0 (commit
+  `0211405c145b0a340ad558569bd06c946b2296b4`, `train.all`, 12000
+  sentences, 1801664 B, 121294 gold words in complex runs).
+- **Lao**: SeqLabeling Lao POS (commit
+  `8025a122e95422901e0907f0fc8ca4b5c1c34235`, `Lao_train.txt`, 4613
+  sentences, 798438 B, 64882 gold words in complex runs, 63644 in Lao
+  runs and 1238 in embedded Thai runs).
 
 All rows below come from `analysis/tokenize/tests/complex_eval.rs`
 (ignored, since the corpora are not bundled), which asserts exact word
