@@ -4,7 +4,7 @@ Constituency parse trees, Penn Treebank bracket I/O, language head rules, and th
 
 Training lives in `turbo-train-components` (`turbo_train_components::parser`): the chunking and tree-insertion event streams, `chunking.Parser.train` and `treeinsert.Parser.train`, writing the model file, and `ParserEvaluator` and `ParserCrossValidator`. `turbo-formats` reads treebanks into `Parse` trees, so this crate cannot depend on `turbo-formats` or on the trainers that do.
 
-It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the OpenNLP fork, the commit the goldens name (`analysis/goldens-tool/src/recipe.rs`).
+It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the OpenNLP fork, the commit the goldens name (`analysis/goldens-tool/src/recipe/mod.rs`).
 
 ## Components
 

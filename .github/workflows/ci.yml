@@ -62,10 +62,11 @@ jobs:
           --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval
           --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
 
-  # The workspace tests other than the core's, the crates dealt round
-  # robin by sorted name into four shards, from `cargo metadata`, so a new
-  # crate joins a shard without an edit here. Together the shards run
-  # what `cargo test --workspace --exclude turbo` ran.
+  # The workspace tests other than the core's and turbo-fuzz's, the
+  # crates dealt round robin by sorted name into four shards, from `cargo
+  # metadata`, so a new crate joins a shard without an edit here. With the
+  # fuzz job below, the shards run what `cargo test --workspace --exclude
+  # turbo` ran.
   test:
     name: test (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-24.04
@@ -82,19 +83,19 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # The OpenNLP models the JVM goldens were made with, downloaded from
       # downloads.apache.org and checked against their published SHA-512
-      # (analysis/goldens-tool/src/recipe.rs). With them present, the
+      # (analysis/goldens-tool/src/recipe/models.rs). With them present, the
       # tests over them compare instead of skipping.
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - name: the shard's crates
         run: |
           set -euo pipefail
           cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name != "turbo") | .name' \
+            | jq -r '.packages[] | select(.name != "turbo" and .name != "turbo-fuzz") | .name' \
             | sort \
             | awk -v n="${{ matrix.shard }}" -v k=4 '(NR - 1) % k == n - 1 { printf "-p %s ", $0 }' > "$RUNNER_TEMP/packages"
           echo "PACKAGES=$(cat "$RUNNER_TEMP/packages")" >> "$GITHUB_ENV"
@@ -103,6 +104,34 @@ jobs:
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
         run: cargo test $PACKAGES
+
+  # turbo-fuzz's tests run every annotator run over every corpus and
+  # golden text, about 20 minutes unoptimized. Here they are built
+  # optimized, with debug assertions and overflow checks kept on, in a
+  # target directory of their own so the other jobs' builds are untouched.
+  fuzz:
+    name: test (turbo-fuzz)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
+      - name: test
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+          CARGO_TARGET_DIR: target/fuzz
+          CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "true"
+          CARGO_PROFILE_DEV_OVERFLOW_CHECKS: "true"
+        run: cargo test -p turbo-fuzz
 
   features:
     runs-on: ubuntu-24.04
@@ -115,7 +144,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       # TurboQuant storage is behind a feature that brings in turbovec.
@@ -163,7 +192,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       # The published UD sentence detector, tokenizer, part-of-speech and
@@ -217,7 +246,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, test, features, parity]
+    needs: [lint, test, fuzz, features, parity]
     runs-on: ubuntu-24.04
     steps:
       - name: every lane passed
