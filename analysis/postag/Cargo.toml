@@ -9,6 +9,8 @@ publish = false
 name = "turbo_postag"
 
 [dependencies]
+# The CPU backend's packed matrix product, which the BiLSTM tagger runs on.
+turbo = { path = "../../core" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-jvm = { path = "../jvm" }

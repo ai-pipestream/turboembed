@@ -89,11 +89,15 @@ fn usage_and_edge_cases_match_java_deterministic_outputs() {
     )
     .unwrap();
     let model = BilstmPosTrainer::train(&usage_corpus(), settings).unwrap();
-    let tagger = BilstmPosTagger::new(model.clone());
+    let tagger = BilstmPosTagger::jvm_parity(model.clone());
 
     assert_eq!(tagger.tag(&["the", "cat", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
     assert_eq!(tagger.tag(&["dogs", "bark"]).unwrap(), vec!["NNS", "VBP"]);
     assert_eq!(tagger.tag(&["dog"]).unwrap(), vec!["VBZ"]);
+    let packed = BilstmPosTagger::new(model.clone());
+    for s in [&["the", "cat", "barks"][..], &["dogs", "bark"], &["dog"]] {
+        assert_eq!(packed.tag(s).unwrap(), tagger.tag(s).unwrap(), "{s:?}");
+    }
     assert!(tagger.tag(&Vec::<&str>::new()).unwrap().is_empty());
 
     let overlong = "z".repeat(40);
@@ -118,9 +122,11 @@ fn usage_and_edge_cases_match_java_deterministic_outputs() {
         16, 8, 8, 16, 60, 8, 0.05, 5.0, 0.0, 1, 16, 17, 1, 0.0, 0, true, 2, 0.0, 0.0, 1.0, 0.0, false,
     )
     .unwrap();
-    let crf_tagger = BilstmPosTagger::new(BilstmPosTrainer::train(&usage_corpus(), accurate).unwrap());
-    assert_eq!(crf_tagger.tag(&["the", "cat", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
-    assert_eq!(crf_tagger.tag(&["dogs", "bark"]).unwrap(), vec!["NNS", "VBP"]);
+    let crf_model = BilstmPosTrainer::train(&usage_corpus(), accurate).unwrap();
+    for crf_tagger in [BilstmPosTagger::jvm_parity(crf_model.clone()), BilstmPosTagger::new(crf_model)] {
+        assert_eq!(crf_tagger.tag(&["the", "cat", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
+        assert_eq!(crf_tagger.tag(&["dogs", "bark"]).unwrap(), vec!["NNS", "VBP"]);
+    }
 }
 
 #[test]
