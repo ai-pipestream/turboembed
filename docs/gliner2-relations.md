@@ -8,9 +8,11 @@ extracts relations on its own, as the reference does.
 
 The checkpoint is `fastino/gliner2-base-v1` at
 `f9634218e53580c56edf0de97ca1a7d3f1c2354e` (Apache-2.0). The zoo lists it
-as `fastino-gliner2-base-v1` and fetches it by digest; GLiREL's
-checkpoints and code are CC BY-NC-SA 4.0 (docs/licences.md) and are not
-used here.
+as `fastino-gliner2-base-v1` and fetches it by digest; it is the
+default. GLiREL's checkpoints and code are CC BY-NC-SA 4.0
+(docs/licences.md). The zoo lists `jackboyla/glirel-large-v0` as the
+local-only `jackboyla-glirel-large-v0`, fetched only after the user runs
+`turbo-zoo accept CC-BY-NC-SA-4.0`, and docs/glirel-relations.md runs it.
 
 ## What runs
 
@@ -95,13 +97,23 @@ cache, timing GLiNER2's head classes directly at the same shapes, the
 same heads run at 0.88 to 0.98x the reference with AVX-512 and 1.03 to
 1.1x with AVX2.
 
-How the heads get there (`kernel.rs`, `heads.rs`): the layers run over
+How the heads get there (`analysis/relation/src/kernel.rs`, `analysis/relation/src/gliner2/heads.rs`): the layers run over
 all words or all queries at once, on weights transposed at load into
 panels of 32 outputs that a tile reads in order. A tile is 32 outputs by
 8 rows with AVX-512, 16 by 6 with AVX2 and FMA, plain loops otherwise.
 Rows are padded with zeros to whole tiles. The last span layer folds
 into every query of a relation in one pass over its weights.
 
-The encoder is the gap: 194 ms per parity text in the reference, 3,776 ms
-on the native encoder's scalar CPU path (docs/deberta.md). The speed bar
-of #714 waits on its packed GEMM work (#391).
+End to end, on the same machine and core, with the same method:
+`extract_relations` against `Gliner2Relations::extract` on the three
+parity texts, the reference's encoder timed with hooks around its module
+and ours on its own:
+
+| per text | reference | native | ratio |
+|---|---|---|---|
+| end to end | 196.7 to 196.9 ms | 41.0 to 41.7 ms | 0.21x |
+| encoder | 185.2 to 185.5 ms | 36.8 to 36.9 ms | 0.20x |
+| everything else (tokenization, heads, decoding) | 11.4 to 11.8 ms | 4.1 to 4.8 ms | 0.36 to 0.41x, each round with its own reference |
+
+The native encoder, which computes only the visible positions since #391
+(docs/deberta.md), is about nine tenths of the native time.

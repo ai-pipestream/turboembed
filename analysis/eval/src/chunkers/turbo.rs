@@ -149,6 +149,16 @@ impl Chunker for TurboChunker {
     }
 
     fn chunk(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<Vec<Span>> {
+        let doc = self.chunked(doc, embedder)?;
+        let chunks = need::<Chunks>(&doc, self.name())?;
+        Ok(chunks.spans.iter().filter(|(i, _)| chunks.level[i.get()] == 0).filter_map(|(_, s)| chunk_span(s)).collect())
+    }
+}
+
+impl TurboChunker {
+    /// The document with the optimizer's `Chunks` added, and the layers
+    /// it read.
+    pub(crate) fn chunked(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<Document> {
         let fail = |e: turbo_analysis::Error| format!("turbo-chunker: {e}");
         let mut doc = doc.clone();
         let mut b = Analyzer::builder().given(Key::<Sentences>::DEFAULT).given(Key::<Subwords>::DEFAULT);
@@ -201,8 +211,7 @@ impl Chunker for TurboChunker {
         let analyzer = b.build().map_err(fail)?;
         let mut docs = vec![doc];
         analyzer.run(&mut docs).remove(0).map_err(fail)?;
-        let chunks = need::<Chunks>(&docs[0], self.name())?;
-        Ok(chunks.spans.iter().filter(|(i, _)| chunks.level[i.get()] == 0).filter_map(|(_, s)| chunk_span(s)).collect())
+        Ok(docs.remove(0))
     }
 }
 

@@ -46,6 +46,8 @@ pub mod cost;
 pub mod embedder;
 pub mod fetch;
 pub mod gate;
+pub mod hybrid;
+pub mod lexical;
 pub mod metrics;
 pub mod model_gate;
 pub mod pipeline;
@@ -58,6 +60,7 @@ pub mod sets;
 pub mod significance;
 pub mod source;
 pub mod spans;
+pub mod splate;
 
 /// Errors are messages, as in the rest of the workspace.
 pub type Result<T> = std::result::Result<T, String>;

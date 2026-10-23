@@ -184,9 +184,15 @@ of it.
 
 The SaT and GLiNER checkpoints docs/neural-annotators.md considers, and
 the GLiNER2 and GLiREL checkpoints the relation scorer considers
-(docs/gliner2-relations.md). Only `fastino/gliner2-base-v1` is in the
-zoo's index (`fastino-gliner2-base-v1`): the others were not fetched, so
-no entry has the SHA-512s an entry needs. "Checked" is **here**: the
+(docs/gliner2-relations.md, docs/glirel-relations.md). Three are in the
+zoo's index: `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
+permissive), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
+local-only, fetched from its publisher only after the user accepts CC
+BY-NC-SA 4.0), and GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
+`spm.model` and `config.json` (`microsoft-deberta-v3-large-tokenizer`,
+permissive).
+The others were not fetched, so no entry has the SHA-512s an entry
+needs. "Checked" is **here**: the
 `license` of the model card's metadata at the revision named, read on
 2026-10-15 from the hub's model API, and on 2026-10-21 for the GLiNER2
 and GLiREL rows.
@@ -199,8 +205,20 @@ and GLiREL rows.
 | [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive | here |
 | [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive | here |
 | [urchade/gliner_small](https://huggingface.co/urchade/gliner_small) (v1) | `0f0f4e7d3f10e48844110162d6b5c6072ddd5a4e` | CC BY-NC 4.0 | | local-only; not used | here |
-| [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index | here |
-| [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | | local-only; not in the index | here |
+| [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index; the relation scorer and schema extraction (docs/schema-extract.md) | here |
+| [microsoft/deberta-v3-large](https://huggingface.co/microsoft/deberta-v3-large) (`spm.model`, `config.json`) | `64a8c8eab3e352a784c658aef62be1662607476f` | MIT | | permissive; in the index | here |
+| [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
+| [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | refused by the class rule, for its training data: not shipped, bundled, listed in the index or trained on; a local reference that is scored, as `en-pos-maxent` is | here |
+
+`dslim/bert-base-NER` is the checkpoint OpenNLP's `NameFinderDL` documents
+and the native token classifier in `turbo-namefind-dl` is compared with.
+It was fetched on 2026-10-22 from the hub at the revision above, by hand,
+into a directory the user names. The SHA-256 of `model.safetensors`
+(433,292,294 bytes) is
+`b04492186cfb45a64908487a17a9f8d6ddec3a403ef39db5bca688f0fa702a34`, and
+that of `onnx/model.onnx` (431,172,619 bytes) is
+`963039b81eec5b33e23d84826ccdf1e8f8ada776f320e692113034cfae384617`; both
+match the hub's LFS object ids at that revision.
 
 ## Datasets
 
@@ -236,7 +254,7 @@ and GLiREL rows.
 | [UD_Czech-PDT r2.16](https://github.com/UniversalDependencies/UD_Czech-PDT/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | local-only | non-commercial (the plan counts about 62 non-commercial UD treebanks; not recounted here) | here |
 | [UD_English-GUMReddit r2.16](https://github.com/UniversalDependencies/UD_English-GUMReddit/blob/r2.16/README.md) | | CC BY 4.0 annotations | refused | the text is rebuilt from Reddit, under Reddit's terms | here (annotations); plan (text) |
 | [UD_Portuguese-DANTEStocks r2.16](https://github.com/UniversalDependencies/UD_Portuguese-DANTEStocks/blob/r2.16/README.md) | | CC BY 4.0 | refused | its text is tweets (the README: "a collection of Brazilian Portuguese tweets"), and the policy refuses platform-terms data, as it does MASC's Twitter genre, so no recipe trains on it | here |
-| [CoNLL-2003](https://www.clips.uantwerpen.be/conll2003/ner/) | NER | Reuters RCV1, research only | refused | | plan |
+| [CoNLL-2003](https://www.clips.uantwerpen.be/conll2003/ner/) | NER | Reuters RCV1, research only | refused for training | evaluation runs may use a local copy (`turbo-namefind-dl`, docs/namefind-dl.md); numbers recorded, files not kept | plan |
 | [OntoNotes 5.0](https://catalog.ldc.upenn.edu/LDC2013T19) | NER | LDC, non-commercial | refused | not a CC licence: an LDC user agreement, outside the 2026-10-14 decision on non-commercial data | plan |
 | [MultiNERD](https://github.com/Babelscape/multinerd) | NER | CC BY-NC-SA 4.0 | local-only | non-commercial | plan |
 | [WikiNEuRal](https://github.com/Babelscape/wikineural) | NER | CC BY-NC-SA 4.0 | local-only | non-commercial | plan |
@@ -249,6 +267,83 @@ and GLiREL rows.
 | [20 Newsgroups](http://qwone.com/~jason/20Newsgroups/) | document categorizer | none stated | refused | no licence | plan |
 | [Europarl](https://www.statmt.org/europarl/) | | none stated; its makers know of no restrictions | refused | no licence, unless decided otherwise | plan |
 
+## Complex sentiment licence audit (#326)
+
+Checked on 2026-10-22 for the polarity, pragmatics (#322), incivility
+(#323), aspect (#324), emotion, and boundary-signal (#325) stack. This
+section replaces the earlier blanket description of these candidates as
+unverified. Approval applies to the named release and material, not to
+every dataset from its publisher or every model with the same task.
+No external dataset or checkpoint is added by this audit.
+
+### Approved material and attribution
+
+| Material and provenance | Licence | Project disposition and obligations |
+|---|---|---|
+| [Civil Comments / Jigsaw Unintended Bias in Toxicity Classification (2019)](https://www.tensorflow.org/datasets/catalog/civil_comments), comments from Civil Comments and crowd-labelled toxicity/identity annotations | CC0-1.0, including the underlying comment text according to the publisher's dataset catalogue | `CLASS_PERMISSIVE`: may train redistributable models and be included in bundles. Record the release, source and digest even though CC0 requires no attribution. This approval does not cover the 2018 Wikipedia challenge or the multilingual challenge. |
+| [GoEmotions](https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), Google's released Reddit comments with 27 emotion labels plus neutral | **CC-BY-4.0 for data**, Apache-2.0 for source code: the [root README](https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md) states the distinction | `CLASS_PERMISSIVE` for this published dataset under the #326 approval. Preserve Google Research/Demszky et al. attribution, source and licence links, and describe changes. Record whether raw annotations or the filtered train/dev/test split was used. This does not approve new Reddit collection or unrelated Reddit datasets. |
+| [Jigsaw sentence templates ("bias madlibs")](https://github.com/conversationai/unintended-ml-bias-analysis/tree/1244018d92bed14bd0a2b0197292add67dbac97f), `sentence_templates/en_sentence_templates.csv` and the identity terms of `archive/unintended_ml_bias/new_madlibber/input_data/en/en-us/words.csv`, synthetic sentences built from templates | **CC-BY-4.0 for data**, Apache-2.0 for code: the [README at that commit](https://github.com/conversationai/unintended-ml-bias-analysis/blob/1244018d92bed14bd0a2b0197292add67dbac97f/README.md) states both | `CLASS_PERMISSIVE`: evaluation only for the incivility bias metrics (#889); the files are not in the repository. Credit Jigsaw / Conversation AI with the source link, as `docs/sentiment.md` does where it reports numbers. |
+| Project-authored English incivility vocabulary and phrase rules in `analysis/doccat/src/sentiment/incivility/tables.rs` and `analysis/doccat/src/sentiment/incivility/vocabulary.rs` | Apache-2.0, repository licence | `CLASS_PERMISSIVE`: already in-tree; retain repository notices. The six-label taxonomy is a design reference, not permission to copy an external incivility corpus. |
+| Project-authored aspect seeds and rules in `analysis/doccat/src/sentiment/aspect/tables/`, and pragmatics cues in `analysis/doccat/src/sentiment/pragmatics/tables.rs` | Apache-2.0, repository licence | `CLASS_PERMISSIVE`: may be compiled and shipped, including project-authored regression fixtures. There is no separate reporting lexicon in the current sentiment tree; a future one needs its own provenance entry. Imported VADER scores retain their separate MIT provenance. |
+| VADER vocabulary in `analysis/doccat/src/sentiment/vader_lexicon.txt`, C. J. Hutto; OpenNLP emoji annotations used by the fallback | MIT for VADER; Apache-2.0 for OpenNLP annotations | `CLASS_PERMISSIVE`: already used; retain the VADER copyright and MIT text in `NOTICE`, plus OpenNLP notices. See [sentiment's lexicon description](sentiment.md). |
+| MASC 3.0.0 polarity annotations, including the MPQA annotation layer on MASC text | CC-BY-3.0-US under the MASC release policy above | Existing MASC approval and Twitter-genre exclusion remain in force. An annotation layer called MPQA in MASC does not grant rights to the separate MPQA Opinion Corpus below. |
+
+### Conditional and excluded datasets
+
+A repository's code licence or a dataset-hosting site's label is not
+sufficient evidence of rights in third-party text. A CC-BY-4.0 subset
+can be approved when its exact text and annotations are covered by that
+grant and no conflicting source terms apply. No TweetEval subset has
+passed that check in this audit.
+
+| Candidate | Source evidence and remaining limits | Project disposition |
+|---|---|---|
+| TweetEval sentiment (SemEval-2017 Task 4), emotion (2018 Task 1), emoji (2018 Task 2), irony (2018 Task 3), hate (2019 Hateval), offensive (2019 OffensEval), stance (2016 Task 6) | [Publisher README at 4fbd22cd](https://github.com/cardiffnlp/tweeteval/blob/4fbd22cd78421f05b1ecdb4fc5725bc7a7bd8f66/README.md) identifies the seven sources and explicitly defers to each original task's and Twitter's terms. Its release statement is not an unconditional CC-BY-4.0 grant over all tweet text. | No shipped text, goldens, lexicons mined from it, or trained bundles. `CLASS_REFUSED` while source permissions remain unconfirmed. A later approved subset must name its task, split, release and text/label grants separately. |
+| SemEval-2014 Task 4 restaurant/laptop ABSA | The [organisers' data page](https://alt.qcri.org/semeval2014/task4/index.php?id=data-and-tools) describes collection under fair use and data-provider terms; it does not grant commercial redistribution. | Local evaluation only under the user's #326 direction, with a lawfully obtained copy and its applicable terms. No redistribution, bundle training or zoo entry. The zoo retains `CLASS_REFUSED` for research-only terms. |
+| SemEval-2015/2016 ABSA and ASTE derivatives | [2015 task](https://alt.qcri.org/semeval2015/task12/) and [2016 task](https://alt.qcri.org/semeval2016/task5/). No complete commercial text/annotation grant verified here. Reformatting ABSA into triplets does not supply missing source rights. | Refused for shipped material; local evaluation only after the exact release's terms are checked. A derivative repository's MIT code licence alone cannot clear the underlying reviews. |
+| MPQA Opinion Corpus, separate from MASC | [Publisher corpus page](https://mpqa.cs.pitt.edu/corpora/mpqa_corpus/). Treated as research/evaluation-only by the #326 direction; the publisher endpoint could not be reached during this audit, so its full agreement was not independently re-read. | No shipped text, derived lexicon or checkpoint. Local evaluation requires the user's lawful copy and the corpus agreement; no zoo download approval. Do not substitute the licence of an MPQA processing library or assume it also covers separate MPQA lexicons. |
+| Jigsaw Toxic Comment Classification (2018 Wikipedia) and Multilingual Toxic Comment Classification (2020) | [2018 source](https://www.kaggle.com/c/jigsaw-toxic-comment-classification-challenge/data), [2020 source](https://www.kaggle.com/c/jigsaw-multilingual-toxic-comment-classification/data). Different text sources and translated inputs from the CC0 Civil Comments release; full release-specific permissions not verified. | `CLASS_REFUSED` pending those terms. Civil Comments approval does not clear a mixed training set. |
+| SST / SST-2 | [Stanford publisher](https://nlp.stanford.edu/sentiment/); endpoint unavailable during this audit, so no dataset grant verified. | `LicenseRef-Unconfirmed`, refused. Neither a GLUE wrapper nor a permissive fine-tuned model card proves the source review text's licence. |
+| IMDB / Large Movie Review Dataset | [Stanford publisher](https://ai.stanford.edu/~amaas/data/sentiment/); endpoint unavailable, no text grant verified. | Remains unapproved for distribution and automated download. The restricted-public mechanism below is conditional on reading and accepting the original terms. |
+| Sentiment140 and other SemEval Twitter sentiment releases | [Sentiment140 publisher](http://help.sentiment140.com/for-students/), plus each task's release terms; no unconditional commercial text grant verified here. | No redistribution or trained bundle. Do not treat access to tweet IDs as permission to redistribute rehydrated text. |
+| iSarcasm and SARC | iSarcasm's [original repository](https://github.com/silviu-oprea/iSarcasm) is unavailable. [SARC's repository](https://github.com/NLPrinceton/SARC) carries MIT for its software; that does not establish a licence for its separately hosted Reddit corpus. | `LicenseRef-Unconfirmed`, refused for shipped data and trained bundles; local use requires checking the corpus-specific terms. |
+| Social Bias Frames / SBIC | [Publisher page](https://maartensap.com/social-bias-frames/) describes social-media posts with structured annotations, but supplies no complete commercial text grant on the page checked. | Refused pending the exact release and source-text terms; no automatic download or bundle inclusion. |
+| Emoji Sentiment Ranking | CC-BY-SA-4.0, as recorded in [sentiment's lexicon description](sentiment.md) | `CLASS_SHARE_ALIKE`: not included in the compiled lexicon. Any separate download follows the zoo's acceptance policy. |
+
+The unavailable or incomplete sources above are recorded as unresolved
+permissions, not asserted to be non-commercial licences. They stay
+excluded without blocking the approved Civil Comments, GoEmotions and
+in-tree rule work. Local evaluation eligibility never overrides an
+upstream prohibition or supplies a missing licence.
+
+### Checkpoints and hosted services
+
+| Candidate | Code, weights and training provenance | Bundle decision |
+|---|---|---|
+| Detoxify `original`, `unbiased`, `multilingual`; `unitary/toxic-bert`, `unitary/unbiased-toxic-roberta` | [Detoxify at 9dcc0edf](https://github.com/unitaryai/detoxify/tree/9dcc0edf0f4f1a1d4c6320fa5c1e696064c356d5) has Apache-2.0 code. The [toxic-bert](https://huggingface.co/unitary/toxic-bert/blob/main/README.md) and [unbiased-toxic-roberta](https://huggingface.co/unitary/unbiased-toxic-roberta/blob/main/README.md) cards declare Apache-2.0. They are not blanket non-commercial models. The repository documents Wikipedia, Civil Comments and translated training inputs; its updated `unbiased` model uses both first challenges. Hugging Face exports and library release weights are not interchangeable versions. | No approved redistributable checkpoint in this audit: pin the exact weights, base model and complete training lineage first. Unconfirmed mixed-source rights remain refused; any established restricted or non-commercial lineage stays local-only under project policy. A newly trained head using only approved Civil Comments and an approved backbone can be assessed separately. |
+| `lvwerra/distilbert-imdb` | [Model card](https://huggingface.co/lvwerra/distilbert-imdb/blob/main/README.md) declares Apache-2.0; fine-tuning uses IMDB, whose source permissions remain unresolved above. | Not shippable under the project's most-restrictive-input rule. No new zoo entry or download approval. |
+| Other SST, TweetEval, ABSA, emotion or toxicity fine-tunes | Each needs its own revision, weight licence, base-model licence and training-data inventory. A task name, permissive inference library or inherited card tag is insufficient. | Unlisted checkpoints remain refused until audited; this section does not approve every public sentiment model. |
+| Perspective API | [Publisher](https://www.perspectiveapi.com/) offers a hosted service, not a redistributable checkpoint. API access is governed by its service terms; no weight-distribution grant was verified. | No weights or API credentials in bundles. Any authorised service evaluation must follow the API terms and source-text permissions; service access is not training-data or checkpoint approval. |
+
+### Release gate
+
+Only `CLASS_PERMISSIVE` material whose text, annotations, lexicon entries,
+weights and training inputs are all cleared may be compiled into shipped
+bundles. Record the source URL, immutable release or revision, file
+SHA-256, licence text and attribution beside each model; retain notices
+and describe preprocessing changes. These are requirements for a future
+artifact, not claims that any external corpus was downloaded or hashed
+for this documentation audit.
+
+Use the existing [zoo policy](zoo.md) for share-alike, GPL, LGPL and
+local-only artifacts. Restricted or non-commercial sentiment corpora and
+checkpoints never enter redistributable bundles under this project
+policy. Refused candidates get no fetchable index entry. Research-only
+evaluation reads an authorised local copy and records aggregate results
+and digests, without committing source text, raw span-bearing outputs or
+machine-specific locations. This is a project distribution rule, not a
+claim that every dataset licence legally propagates to trained weights.
+
 ## Unverified
 
 Not classified until someone reads their terms at the source; nothing
@@ -256,9 +351,9 @@ here is used.
 
 - GMB: texts are public domain; the annotation licence is unverified.
 - WikiANN: listed as ODC-By by one source and "unknown" on its card.
-- Sentiment (#326, #318): SST, SemEval 2014 to 2016 ABSA and the ASTE
-  derivatives, Jigsaw Toxic Comment, Civil Comments, iSarcasm, SARC,
-  GoEmotions, and public sentiment and toxicity checkpoints.
+
+Sentiment candidates, including unresolved source permissions, are
+classified in the [complex sentiment audit](#complex-sentiment-licence-audit-326).
 
 ## Restricted but public data (local only)
 
@@ -282,7 +377,7 @@ be read at the source first.
 | IMDB (Large Movie Review Dataset) | polarity, evaluation | no stated licence | local-only | #326 only; host and terms page not opened |
 | Sentiment140 | polarity | Twitter's terms | local-only | #326 only; host and terms page not opened |
 | SemEval Twitter sentiment sets | polarity | Twitter's terms | local-only | #326 only; host and terms page not opened |
-| `lvwerra/distilbert-imdb` | the checkpoint OpenNLP's DL doccat eval downloads | a model trained on IMDB | local-only, by the class rule | #326 only; card not opened |
+| `lvwerra/distilbert-imdb` | the checkpoint OpenNLP's DL doccat eval downloads | Apache-2.0 card; IMDB permissions unresolved | not approved; local-only only after source terms are cleared | card read 2026-10-22; see sentiment audit |
 
 Research-only data stays refused (the tables above) unless an entry
 here places it in this class, with the reason.
@@ -342,3 +437,17 @@ SHA-256 the recipes record (`ud::IT_UD_VIT_POS`, `ud::IT_UD_VIT_LEMMAS`),
 and scored on UD_Italian-MarkIT's `test` file beside the model trained on
 MarkIT. Nothing ships, bundles, mirrors or trains on them, the zoo does
 not list them, and CI does not fetch them.
+
+## GLiNER small-v2.1 numerical fixtures
+
+`urchade/gliner_small-v2.1` revision
+`4e091416cf7c3481db542c2a3d26156916f3a47f` declares Apache-2.0 in its
+[model card](https://huggingface.co/urchade/gliner_small-v2.1/blob/4e091416cf7c3481db542c2a3d26156916f3a47f/README.md).
+The underlying `microsoft/deberta-v3-small` encoder and SentencePiece tokenizer
+declare MIT in their [pinned model card](https://huggingface.co/microsoft/deberta-v3-small/blob/a36c739020e01763fe789b4b85e2df55d6180012/README.md). GLiNER 0.2.21 reference code is Apache-2.0.
+The head fixture in `analysis/gliner/tests/fixtures` contains modified, reduced
+slices of those trained weights, not a usable extraction checkpoint. Its
+provenance lists the slicing rules. Full-width reference outputs and source
+SHA-256 values are in `analysis/gliner/tests/fixtures/full-reference.json`.
+No full model is added to the zoo by this change. The exact checkpoint above
+was checked; this is not a licence decision for other GLiNER checkpoints.

@@ -45,6 +45,7 @@ final class Runs {
   static final String IPADIC_UTF8 = "mecab-ipadic-2.7.0-20070801.utf8";
   static final String IPADIC_CHARSET = "EUC-JP";
   static final String KO_DIC = "mecab-ko-dic-2.1.1-20180720";
+  static final String UNIDIC = "unidic-mecab-2.1.2";
 
   /**
    * The training corpus the maxent document categorizer runs read from the models directory: the
@@ -84,6 +85,11 @@ final class Runs {
   static final List<String> DETOKENIZER_DICTIONARIES = List.of("en-detokenizer.xml", "fr-detokenizer.xml",
       "latin-detokenizer.xml", "pt-detokenizer.xml", "quotes-detokenizer.xml");
   static final String WORDPIECE_VOCABULARY = "all-minilm-l6-v2-vocab.txt";
+  /**
+   * The mean-pooled copy of the upstream all-MiniLM-L6-v2 ONNX export that {@code turbo-goldens}
+   * derives into the models directory (container/mean_pool_onnx.py).
+   */
+  static final String SENTENCE_VECTORS_ONNX = "all-minilm-l6-v2-mean.onnx";
   static final String UNIGRAM_FIXTURE = "zh-unigram-fixture.txt";
   static final String UNIGRAM_JIEBA = "jieba-dict-subset.txt";
   static final String UNIGRAM_MODES = "zh-unigram-modes.txt";
@@ -256,6 +262,8 @@ final class Runs {
 
     annotators.add(WordpieceGolden.load(fixtures.resolve(WORDPIECE_VOCABULARY),
         Set.of(EN, MULTI, EDGE, SURROGATE, SUBWORDS)));
+    annotators.add(SentenceVectorsGolden.load(models.resolve(SENTENCE_VECTORS_ONNX),
+        fixtures.resolve(WORDPIECE_VOCABULARY), models.resolve(SENTENCE_MODEL_EN), Set.of(EN)));
 
     for (int merges : BPE_MERGES) {
       annotators.add(new BpeGolden(merges, Set.of(BPE)));
@@ -271,7 +279,7 @@ final class Runs {
 
     // The lattice tokenizer: the fixture dictionaries (the Japanese one in both modes, and one
     // whose unk.def has no DEFAULT template, which throws on some inputs), IPADIC loaded in its
-    // own encoding beside its UTF-8 copy, and mecab-ko-dic.
+    // own encoding beside its UTF-8 copy, mecab-ko-dic, and UniDic 2.1.2.
     for (WhitespaceMode mode : MODES) {
       annotators.add(LatticeGolden.load(fixtures.resolve(LATTICE_JA), mode, Set.of(JA, MULTI, EDGE, SURROGATE)));
     }
@@ -281,6 +289,8 @@ final class Runs {
         models.resolve(IPADIC_UTF8), WhitespaceMode.UNICODE, Set.of(JA, MULTI, EDGE, SURROGATE)));
     annotators.add(LatticeGolden.load(models.resolve(KO_DIC), WhitespaceMode.UNICODE,
         Set.of(KO, MULTI, EDGE, SURROGATE)));
+    annotators.add(LatticeGolden.load(models.resolve(UNIDIC), WhitespaceMode.UNICODE,
+        Set.of(JA, MULTI, EDGE, SURROGATE)));
 
     // Part-of-speech tagging, on the sentences and tokens of the published models of the same
     // language: the English model as it is, with Penn Treebank tags asked for, and rebuilt with
@@ -366,6 +376,7 @@ final class Runs {
     annotators.addAll(NameEventGolden.all(fixtures.resolve(NAME_FIXTURE_RUST)));
     // The language detector's training, from the events to the model file.
     annotators.addAll(LanguageTrainGolden.all());
+    annotators.addAll(CrossValidateGolden.all());
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));

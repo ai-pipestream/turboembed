@@ -17,13 +17,13 @@ turbo = { path = "../../core" }
 
 # Typed top-k retrieval hits consumed by the reranking adapter.
 turbo-vector-index = { path = "../vector-index" }
+# DocumentCategorizerDL trait and scoring types (#208), plus the lexicon
+# sentiment baseline (#320) compared in tests/heads.rs.
+turbo-doccat = { path = "../doccat" }
 
 [dev-dependencies]
 # The tests build the levels with the chunker crate's builder.
 turbo-chunker = { path = "../chunker" }
-# The lexicon sentiment baseline (#320), which tests/heads.rs compares
-# against label centroids and classifier heads (#321).
-turbo-doccat = { path = "../doccat" }
 # The JVM's WordPiece goldens, which the pieces are compared with.
 turbo-goldens = { path = "../goldens" }
 # Emoji layer (#183) for sarcasm/irony pragmatics integration tests (#324).

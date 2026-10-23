@@ -246,6 +246,30 @@ mod tests {
         fs::remove_dir_all(&root).unwrap();
     }
 
+    /// A sentence vector run, whose golden names models but has no dump:
+    /// the layout check takes its directory, the dump check asks no dump
+    /// of it, and it installs and compares as any annotator directory.
+    #[test]
+    fn a_sentence_vector_run_goes_through_layout_dumps_install_and_compare() {
+        let root = std::env::temp_dir().join(format!("turbo-goldens-sentvectors-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let dir = RunDir::new(&root).unwrap();
+        let (run, target) = (dir.path().to_path_buf(), root.join("data"));
+        let rel = "sentvectors/all-minilm-l6-v2-mean/en/a.golden";
+        for (base, text) in [(&run, GOLDEN), (&target, "old")] {
+            let p = base.join(rel);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(p, text).unwrap();
+        }
+        dir.check_layout().unwrap();
+        assert_eq!(check_dumps(&run).unwrap(), 0);
+        assert!(!compare(&target, &run).unwrap().is_empty());
+        assert_eq!(install(&run, &target).unwrap(), 1);
+        assert_eq!(fs::read_to_string(target.join(rel)).unwrap(), GOLDEN);
+        assert!(compare(&target, &run).unwrap().is_empty());
+        fs::remove_dir_all(&root).unwrap();
+    }
+
     const DUMP: &str = "dump 1\ngenerator\tg\t1\nopennlp\t92d486d05151ef00b6d145c405046aa3a33b5a48\tv\njdk\tj\tvm\tx\n\
         unicode\t15.0\ninput\ten/a\t1\t1\t{sha256}\nmodel\tm.bin\t{sha512}\nannotator\ta.B\trun\n";
 

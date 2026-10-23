@@ -75,6 +75,15 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   each checked against the SHA-512 in the recipe: the SMS Spam Collection
   (CC BY 4.0), which the `doccat` runs train on and which is never checked
   in.
+  With `--local` it also fetches the upstream all-MiniLM-L6-v2 ONNX export
+  (`POOLING_SOURCE`, Hugging Face revision
+  `c9745ed1d9f207416be6d2e6f8de32d1f16199bf`, checked against the SHA-512
+  in the recipe) and derives from it the mean-pooled copy the `sentvectors`
+  run loads, `all-minilm-l6-v2-mean.onnx` (`src/pooled.rs`): it runs
+  `container/mean_pool_onnx.py` in the bundle tool's reference image
+  (`REFERENCE_IMAGE`, bundle/README.md) with no network, and keeps the copy
+  only if its SHA-512 is `POOLED_SHA512`. `generate`, `verify` and `fuzz`
+  do the same, so they need that image.
   It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
@@ -157,6 +166,7 @@ a directory with the same model run without them, and its options are
 | `pii` (`PiiAnnotator` over a `PiiPacks` extractor) | `payment`, `contact`, `network`, `secrets`, `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`, `all-structured` | `pii` | `pack` |
 | `pii-rewrite` (`Masker`, `Pseudonymizer`, `HmacTokenizer`, `PiiAuditReport` over the `pii` runs' mentions) | the same packs | `pii` | `pack`, `key`, `mask`, `mask-all` |
 | `subwords` (`WordpieceEncoder`) | `all-minilm-l6-v2-vocab` (fixture) | `en`, `multi`, `edge`, `surrogate`, `subwords` | `lowerCase true`, `maxWordCodePoints 100` |
+| `sentvectors` (`SentenceVectorsDL`) | `all-minilm-l6-v2-mean` (derived), with the fixture vocabulary and the English sentence model | `en` | `lowerCase true` |
 | `bpe` (`BPETokenizerTrainer`, `BPETokenizer`) | `merges-40`, `merges-400` | `bpe` | `languageCode en`, `numMerges` |
 | `train` (the data indexers and `GISTrainer`) | `<source>-<indexer>-cutoff<n>`, with `-unsorted` when sorting is off, then `-threads2`, `-smoothing`, `-smoothing0.5`, `-gaussian` or `-gaussian0.5` when the trainer is given that: nineteen runs over the sources `sentdetect`, `tokenize`, `realvalue` and `postag` | `en`, `multi`, `edge`; `sentdetect` and `postag` also `train` | `source`, `DataIndexer`, `Cutoff`, `sort`, `Iterations`, and when set `Threads`, `Smoothing`, `SmoothingObservation`, `GaussianSmoothing`, `GaussianSmoothingSigma` |
 | `train` (`QNTrainer`) | the same, with `-qn` appended, then `-l1`, `-l2` or `-plain` when only one cost, or neither, is on: eight runs over `sentdetect`, `realvalue` and `postag` | `en`, `multi`, `edge`; one `sentdetect` run also `train`, one only `train` | the same with `Algorithm`, `L1Cost`, `L2Cost`, `NumOfUpdates`, `MaxFctEval`, `Threads` |
@@ -169,6 +179,7 @@ a directory with the same model run without them, and its options are
 | `train-events` (`ChunkerEventStream`, `ChunkerME.train`) | `chunker-defaults`, `chunker-perceptron`, `chunker-qn`, `chunker-perceptron-sequence` | `tagged`, `formats`; the `chunk` inputs | `run`, `source`, `language`, and every training parameter the run puts (`Algorithm`, `Iterations`, `Cutoff`, `TrainerType`, `BeamSize`) |
 | `train-liblinear` (`LiblinearTrainer.train` of the addons' `liblinear-addon`) | `sentdetect-sample`, `postag-l2`, `postag-dual`, `sentdetect-dual-newton`, `realvalue-l1`, `sentdetect-l2`, `sentdetect-raw` | `en`, `multi`, `edge`, `train` by run | `source`, `DataIndexer`, `Cutoff`, `solverType`, `c`, `eps`, `p`, `bias`, `events` |
 | `train-langdetect` (`LanguageDetectorME.train`) | `default`, `cutoff1` | `langdetect`, and the `formats` inputs whose id starts with `language-` | `run`, `Algorithm`, `Cutoff`, `DataIndexer`, `Iterations` |
+| `cross-validate` (`TokenNameFinderCrossValidator`, `LanguageDetectorCrossValidator`) | `namefind-bio`, `namefind-bilou`, `langdetect-default`, `langdetect-cutoff1` | `tagged/names` (name finder runs), `langdetect/samples` (language detector runs) | `run`, `folds`, and `language`, `codec` (name finder) or `Algorithm`, `Cutoff`, `Iterations` (language detector) |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -177,6 +188,7 @@ a directory with the same model run without them, and its options are
 | | `mecab-fixture-partial` (fixture) | `ja`, `edge` | |
 | | `mecab-ipadic-2.7.0-20070801` | `ja`, `multi`, `edge`, `surrogate` | |
 | | `mecab-ko-dic-2.1.1-20180720` | `ko`, `multi`, `edge`, `surrogate` | |
+| | `unidic-mecab-2.1.2` | `ja`, `multi`, `edge`, `surrogate` | |
 | `formats` (the native sample streams) | `name`, `wordtag`, `token`, `doccat`, each also `+legacy`; `lemma`, `chunk`, `sentence`, `language` | `formats`, the inputs whose id starts with the format | `whitespace legacy` |
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
 | `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
@@ -326,6 +338,25 @@ a directory with the same model run without them, and its options are
   (`turbo:liblinear-scores`, `turbo:liblinear-best`).
   `analysis/train/tests/liblinear_goldens.rs` compares with them
   (`docs/liblinear.md`).
+- A `cross-validate` run (`CrossValidateGolden`) cross-validates the
+  name finder (`namefind-bio`, `namefind-bilou`: 3 folds over
+  `tagged/names`, the factory with the run's codec and no descriptor,
+  `NameFinderME.train`'s defaults) or the language detector
+  (`langdetect-default`, `langdetect-cutoff1`: 3 folds over
+  `langdetect/samples`, the command line trainer's parameters with cutoff
+  5 or 1). The cross-validators keep their folds to themselves, so the
+  generator runs each fold as they do, with the same classes (name samples
+  grouped into documents at each sample that clears adaptive data,
+  `CrossValidationPartitioner`, `train`, the evaluator), and records per
+  fold the documents and samples on each side, the training events and
+  their CRC32C (checked against the fold model's `Training-Eventhash`),
+  the counts and scores (`turbo:name-cv-folds`, `turbo:language-cv-folds`)
+  and every prediction (`turbo:name-cv-names`,
+  `turbo:language-cv-predictions`). It then runs the cross-validator
+  itself and throws unless its merged figures are the folds' merged; those
+  are `turbo:name-cv-merged` (counts, precision, recall, F-measure) and
+  `turbo:language-cv-merged` (document count and `getDocumentAccuracy`).
+  `analysis/train-components/tests/cross_validate.rs` compares with them.
 - A `train-langdetect` run (`LanguageTrainGolden`) trains a language
   detector as `LanguageDetectorME.train` does, on the samples
   `LanguageDetectorSampleStream` reads from the input, with the
@@ -447,6 +478,22 @@ upstream `tokenizers` disagree), format characters, punctuation, spacing
 marks, pieces with no entry, special token strings, compatibility
 characters and words at the 100 code point limit.
 
+## Sentence vector goldens
+
+`sentvectors/all-minilm-l6-v2-mean/en/<id>.golden` is what OpenNLP's
+`SentenceVectorsDL` gave each sentence of an `en` input. The sentences
+are the English sentence model's (`opennlp:sentences`), and each one's
+vector is `turbo:vector<opennlp:sentences>`: one string per sentence, the
+32-bit pattern of each float in hex, space separated. `SentenceVectorsDL`
+runs `all-minilm-l6-v2-mean.onnx` with the fixture vocabulary and lower
+casing, and returns the first row of the graph's first output. On the
+upstream export that row is the [CLS] hidden state; the pooled copy puts
+the mean over the masked positions there instead, [CLS] and [SEP]
+included, so the vector is the one sentence-transformers pools. The
+header lists the pooled model, the vocabulary and the sentence model with
+their SHA-512. `analysis/embed/tests/sentence_vectors_dl.rs` compares the
+sentence vector step with these.
+
 ## Unigram goldens
 
 `unigram/<lexicon>/<set>/<id>.golden` is what OpenNLP's
@@ -492,11 +539,12 @@ legacy mode active. There are no dumps.
 The fixture dictionaries are small and written for this project
 (`analysis/goldens/data/README.md`). IPADIC is under the license in its
 `COPYING` file (the NAIST notice and the ICOT terms, which allow
-redistribution with the notice) and mecab-ko-dic under the Apache
-License 2.0; neither is checked in, and only the goldens made with them
-are. Those goldens hold the feature columns of the entries chosen, so
-`analysis/goldens/data/README.md` carries IPADIC's notice and names
-mecab-ko-dic's license.
+redistribution with the notice), mecab-ko-dic under the Apache License
+2.0, and UniDic 2.1.2 under its BSD license (`BSD` in
+`unidic-mecab-2.1.2.tar.gz`); none of the three is checked in, and only
+the goldens made with them are. Those goldens hold the feature columns
+of the entries chosen, so `analysis/goldens/data/README.md` carries
+IPADIC's and UniDic's notices and names mecab-ko-dic's license.
 
 ## Format goldens
 
@@ -683,10 +731,18 @@ goldens.
 The 20 Newsgroups stream keeps its files in a `HashMap` keyed by path, so
 the order of its samples depends on where the corpus is: the runs write it
 under `java.io.tmpdir` and give the directory as the `dataDir` record, and
-add `turbo:listing` (the files in the order the directories list them) and
-`turbo:files` (the order the map gives them) after the read errors. A
-Leipzig message that names a file writes the corpus directory as
-`<corpus>`.
+add `turbo:listing` and `turbo:files` after the read errors. Directory
+order is the host file system's, so the golden follows sorted paths
+instead: `turbo:listing` is sorted by `<group>/<file>`, and when every
+file read cleanly (one sample per file, in the map's order) the samples
+and `turbo:files` are reordered by that same sorted order, making the
+golden byte-equal on every host. A run with read errors keeps the
+stream's own order. Until the goldens are regenerated with the sorted
+generator, `verify` compares the three 20 Newsgroups goldens
+canonically (both sides reordered to sorted sample order, sample-token
+indices renumbered, then byte-compared), so order-only differences
+pass while any content difference still fails. A Leipzig message that
+names a file writes the corpus directory as `<corpus>`.
 
 `analysis/formats/tests/corpora.rs` compares the readers of
 `turbo_formats::corpora` with these goldens. Only these runs read the
@@ -1177,13 +1233,16 @@ and `turbo:neural-tagged` and `turbo:neural-sequences` (the tags,
 probabilities and score of `topKSequences`, checked against `tag`). These
 runs have no dumps.
 
-`analysis/postag/tests/neural_goldens.rs` reads every one of them: the
+`analysis/postag/tests/neural_goldens/` reads every one of them: the
 model files byte for byte, the feedforward contexts, emissions and tags
 exactly, the BiLSTM tags and Viterbi paths exactly and their emissions,
 marginals and probabilities within 1e-13 (the LSTM gates and the CRF call
 `Math.exp`, which HotSpot computes with an intrinsic that is not ported),
 and it trains each run's model in Rust: the feedforward files are the
-JVM's, byte for byte.
+JVM's, byte for byte. The BiLSTM goldens are compared through the tagger's
+opt-in JVM parity numerics; its default numerics (f32 on the CPU backend's
+packed kernels) must give the same tags, with emissions and probabilities
+within 1e-5 (`analysis/postag/README.md`).
 
 ## PII goldens
 

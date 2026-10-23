@@ -281,7 +281,7 @@ pub unsafe extern "C" fn turbo_tokenizer_decode(
             if out.is_null() {
                 return Err(Error::new(INVALID_ARGUMENT, "out may not be NULL"));
             }
-            std::ptr::copy_nonoverlapping(text.as_ptr(), out as *mut u8, text.len());
+            std::ptr::copy_nonoverlapping(text.as_ptr(), out.cast::<u8>(), text.len());
             *out.add(text.len()) = 0;
             Ok(())
         })

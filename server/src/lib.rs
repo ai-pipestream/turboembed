@@ -8,9 +8,11 @@ pub mod capabilities;
 pub mod config;
 mod infer;
 mod kserve;
+pub mod offsets;
 pub mod results;
 mod state;
 pub mod status;
+pub mod stream;
 
 pub use crate::state::Held;
 
@@ -94,12 +96,17 @@ impl Server {
         let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone(), admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
+        // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
+        // does not reach a listener served with serve_with_incoming, and
+        // without it a response written in two segments waits for the
+        // client's delayed ACK (about 40 ms a ModelInfer).
+        let incoming = TcpIncoming::from(listener).with_nodelay(Some(true));
         let task = tokio::spawn(
             tonic::transport::Server::builder()
                 .layer(tower::util::MapResponseLayer::new(too_large))
                 .add_service(kserve)
                 .add_service(analysis)
-                .serve_with_incoming_shutdown(TcpIncoming::from(listener), async {
+                .serve_with_incoming_shutdown(incoming, async {
                     let _ = stopped.await;
                 }),
         );
@@ -123,6 +130,14 @@ impl Server {
     pub fn hold(&self, model: &str) -> api::Result<Held> {
         let (_, loaded) = self.state.ready(model, "")?;
         loaded.take()
+    }
+
+    /// The streaming bulk analysis call's gauges: model executions
+    /// since the server started, and the documents and bytes admitted
+    /// and not yet answered across every stream right now, never over
+    /// the advertised caps.
+    pub fn stream_stats(&self) -> stream::Stats {
+        self.state.stream.stats()
     }
 
     /// Stops answering and waits for the server to finish.

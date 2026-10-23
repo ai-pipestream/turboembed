@@ -24,7 +24,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-structure` | `analysis/structure/` | Document structure (`turbo:structure`) from plain text and Markdown (`StructureAnnotator`), and projecting `turbo:structure` into a normalized view (`StructureProjector`, [structure-projection.md](structure-projection.md)) |
 | `turbo-abbrev` | `analysis/abbrev/` | Abbreviation and acronym definitions found with the Schwartz and Hearst algorithm, and the later mentions of each short form, as `turbo:abbreviations` and the edges from each short form to its long form; the reader and scoring of Ab3P's MED1250 set (Abbreviations, below) |
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
-| `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, and a vector per sentence and per chunk |
+| `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, a vector per sentence and per chunk, and `BundleSequenceScorer` (`DlSequenceScorer` over the bundle's encoder and sequence-classification `head.bin` for `turbo-doccat`'s `DocumentCategorizerDL`) |
 | `turbo-sat` | `analysis/sat/` | Sentence boundaries from a SaT model (wtpsplit's Segment any Text) on the core's encoder: a score per token from the bundle's classifier over the encoder's final states, wtpsplit's windows and cuts, each cut moved to a grapheme cluster boundary, written as `opennlp:sentences` ([neural-annotators.md](neural-annotators.md); `analysis/sat/README.md` describes its reference fixtures) |
 | `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor (`MoneyExtractor`, `MoneyExtractor::for_region`) and `RegionAwareMoneyAnnotator` (reading `turbo:regions`), which write `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor, which writes `turbo:quantities` ([quantities.md](quantities.md)); the temporal extractor, which writes `turbo:temporal`, the document date selector, which writes `turbo:document-date`, and the conversion step that reads it ([temporal.md](temporal.md)) |
 | `turbo-pii` | `analysis/pii/` | PII detection ported from OpenNLP's `opennlp.tools.pii`: e-mail, phone, IBAN, card, ABA routing, network, credential, Bitcoin and Ethereum, national and device identifiers, each checked with its check digit or checksum (Luhn, mod 97, mod 11, ISO 7064, base58check, bech32, EIP-55 over Keccak-256, all written in the crate), in the packs of `PiiPacks`; writes `turbo:pii` with a kind, a confidence and a normalized form per mention; masking in place or as the `masked` view (`MaskedView`), numbered and keyed (HMAC-SHA-256) labels and audit reports ([pii.md](pii.md)) |
@@ -45,7 +45,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-stopword-layers` | `analysis/stopword-layers/` | The `turbo:stopwords` layer and the languages that have a list (`StopwordLanguage`) |
 | `turbo-glossary` | `analysis/glossary/` | OpenNLP's glossary matchers and readers: `TextMatcher` (`AhoCorasickGlossaryMatcher`, an Aho-Corasick automaton over code points whose matches must start and end on given boundaries), `TokenMatcher` (`TermAnalyzingGlossaryMatcher`, on turbo-matcher's phrase matcher, over token text or stems), their composite (`CompositeGlossaryMatcher`), `GlossaryAnnotator`, which reads a view, its `opennlp:tokens` and optionally `turbo:stems` and writes `turbo:glossary-terms`, and the comma or tab separated and TBX 2 and 3 readers (`CsvGlossaryReader`, `TbxGlossaryReader`, with a small XML parser of its own) and a TBX writer; the character automaton can also be written as a flat double-array image and read in place from a slice or a memory-mapped file (`MappedGlossaryWriter`, `MappedGlossaryMatcher`), with the same matches. The crate documentation lists where it differs from OpenNLP and the OpenNLP behaviour that is surprising; `analysis/glossary/README.md` describes its JVM golden files and the timing of the two matchers |
 | `turbo-glossary-layers` | `analysis/glossary-layers/` | The glossary (`Glossary`, an entry's id and term) and the `turbo:glossary-terms` layer, so a consumer of the matches does not depend on the matchers |
-| `turbo-doccat` | `analysis/doccat/` | OpenNLP's SVM document categorizer (`DocumentCategorizerSVM` of `opennlp-ml-libsvm`) at prediction: the LIBSVM text model reader and LIBSVM's prediction (C-SVC and nu-SVC, the linear, polynomial, RBF and sigmoid kernels, probability estimates), the sidecar that holds the rest of the model, the feature generators and term weightings, and the step that reads `opennlp:tokens` and writes `turbo:categories` ([doccat.md](doccat.md)); OpenNLP's maximum entropy document categorizer (`DocumentCategorizerME`) with its model file, feature generators and training events, and the steps that write `turbo:categories` for the document and `turbo:categories<L>` for each sentence, structure block or chunk; and OpenNLP's sentiment detector (`SentimentME` with `SentimentFactory` or `EmojiSentimentFactory`): the `SentimentModel` file, the token and emoji contexts, and the step that reads `opennlp:tokens` and writes the `sentiment` instance of `turbo:categories` ([sentiment.md](sentiment.md)) |
+| `turbo-doccat` | `analysis/doccat/` | OpenNLP's SVM document categorizer (`DocumentCategorizerSVM` of `opennlp-ml-libsvm`) at prediction: the LIBSVM text model reader and LIBSVM's prediction (C-SVC and nu-SVC, the linear, polynomial, RBF and sigmoid kernels, probability estimates), the sidecar that holds the rest of the model, the feature generators and term weightings, and the step that reads `opennlp:tokens` and writes `turbo:categories` ([doccat.md](doccat.md)); OpenNLP's maximum entropy document categorizer (`DocumentCategorizerME`) with its model file, feature generators and training events, and the steps that write `turbo:categories` for the document and `turbo:categories<L>` for each sentence, structure block or chunk; OpenNLP's transformer sequence classification categorizer (`DocumentCategorizerDL`, `DocumentCategorizerConfig`, `AverageClassificationScoringStrategy` and `DlSpanCategorizer<S, L, C>`, backed by `turbo_analysis_embed::BundleSequenceScorer`); multi-label (`MultiLabelDoccatModel`) and zero-shot (`ZeroShotCategorizer`) categorizers; and OpenNLP's sentiment detector (`SentimentME` with `SentimentFactory` or `EmojiSentimentFactory`): the `SentimentModel` file, the token and emoji contexts, and the step that reads `opennlp:tokens` and writes the `sentiment` instance of `turbo:categories` ([sentiment.md](sentiment.md)) |
 | `turbo-langspan` | `analysis/langspan/` | Language by span (code switching): script runs, then OpenNLP's language detector model scoring words and clauses, written as `turbo:language-spans` with the document summary in `opennlp:language` ([langdetect.md](langdetect.md), "Language by span") |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | BPE trainers, a tool and not an annotator: byte-level BPE as upstream `tokenizers` trains it, SentencePiece BPE as the sentencepiece library trains it, and OpenNLP's `BPETokenizerTrainer` with its `BPETokenizer` ([bpe-trainer.md](bpe-trainer.md)) |
 | `turbo-train` | `analysis/train/` | Training OpenNLP maxent models, the event side: `Event`, the `FileEventStream` and `RealValueFileEventStream` formats, the CRC-32C event checksum, the three data indexers with their cutoffs, sorting and merging, `TrainingParameters` with typed values and OpenNLP's parameters file, `AlgorithmType` and the trainer types, the progress monitors and stop criteria, the GIS trainer (`GISTrainer`, parameters bit for bit the JVM's after every iteration), the liblinear trainer of the OpenNLP addons with liblinear-java's logistic regression solvers ([liblinear.md](liblinear.md)), the binary model writer (`GenericModelWriter`, bytes the JVM's) and the `.bin` packaging with its manifest (`BaseModel.serialize`; the entries are the JVM's bytes, the archive around them is written here and loads in both). Sample types belong to the formats crate; this one starts at events. Its crate documentation lists the OpenNLP behaviour that is surprising, and "Training goldens" below describes its JVM reference |
@@ -59,7 +59,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-encoding-gen` | `analysis/encoding-gen/` | The generator of the WHATWG tables, and `ftfy.py`, which generates the repair's character classes and test fixture from ftfy |
 | `turbo-geo` | `analysis/geo/` | The gazetteer, geocoding, region-ballot, containment and place-profile APIs of the OpenNLP addons `geo` module (`Gazetteer`, `GazetteerEntry`, `GeoPoint`, `GeoBoundingBox`, `AttributeValue`, `Geocoder`, `GeoResolution`, `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`, `MentionPolicy`, `GeocodeAnnotator` writing `turbo:locations`, `DocumentRegionAnnotator` writing `turbo:regions`, `PlaceHierarchy`, `ContainmentSpine` and `HierarchyAnnotator` writing `turbo:containment`, and `PlaceProfiles` / `PlaceProfile`) and its gazetteers: the bundled Natural Earth table (public domain, embedded), GeoNames and Overture tables the caller supplies, user tables with suppression rules, records built in code, and the overlay of additions and suppressions on a base. All share one columnar index with OpenNLP's match key (UAX #29 words, NFC, `toLowerCase(Locale.ROOT)`, the accent fold) and its population ranking; large tables load on several threads and save to a snapshot that reads back without folding again. A gazetteer's match keys can also be written as one mapped automaton image (`name_image`), which `NameFinder` reads in place to find the gazetteer's names in running text and `NameAnnotator` writes as location entities for the geocoder and the linker. The crate documentation lists the OpenNLP behaviour that is surprising, `analysis/geo/data/README.md` the bundled table's origin, and "Gazetteer goldens" in `analysis/goldens-tool/README.md` its JVM golden files |
 | `turbo-entity-linker` | `analysis/entity-linker/` | Generic entity disambiguation and linking (`EntityLinker`, `LinkerConfig`, `LinkerWeights`) against pluggable `KbProvider` backends (`CatalogProvider` over `KnowledgeBase` CSV/TSV catalogs and binary snapshots with optional `VectorIndex` nearest-neighbor retrieval, `GazetteerProvider` over `turbo-geo` gazetteers, `WordNetProvider` over `turbo-wordnet` synsets, and `GlossaryProvider` over `turbo-glossary-layers` glossaries), scoring alias and popularity priors, NER entity-type compatibility, local and document context overlap, and document-level coherence with coreference cluster propagation (`Groups<Mentions>`, `Groups<Entities>`), writing `LinkedEntities` (`turbo:linked_entities`) aligned to `Entities` with explicit `NilReason` and `nil_cluster` assignments |
-| `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate and the `turbo-eval` binary (Evaluation, below) |
+| `turbo-eval` | `analysis/eval/` | The evaluation harness: the evaluation sets with their fetch by checksum and typed readers, the pipeline, the baseline chunkers, measures, significance tests, records, the gate, the four-arm SPLATE retrieval cascade study ([splate.md](splate.md)) and the `turbo-eval` binary (Evaluation, below) |
 | `turbo-zstd` | `analysis/zstd/` | A Zstandard decoder after RFC 8878: frames one after another, skippable frames, raw, RLE and compressed blocks, every kind of literals and sequences section, and the content checksum (XXH64); frames that need a dictionary or a window over 128 MiB are refused. The Parquet reader of `turbo-eval` uses it for ZSTD pages |
 
 They need nothing beyond the standard library and each other, except
@@ -816,6 +816,7 @@ fields mean bumps its `SCHEMA`.
 | `Opinions` | `turbo:opinions` | the document (indexes `Tokens`) | `turbo-analysis-layers` |
 | `Aspects` | `turbo:aspects` | the document (indexes `Tokens`, `Sentences`, `Opinions` when used) | `turbo-analysis-layers` |
 | `Incivility` | `turbo:incivility` | the document (indexes `Tokens`, `Sentences`, `Chunks`, `Structure` when used) | `turbo-analysis-layers` |
+| `EmotionLayer` | `turbo:emotion` | the document (indexes `Tokens`, `Sentences`, `Chunks` when used) | `turbo-analysis-layers` |
 | `Pragmatics` | `turbo:pragmatics` | sentences (indexes `Tokens` when there is evidence) | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `GlossaryTerms` | `turbo:glossary-terms` | text (indexes `Tokens`) | `turbo-glossary-layers` |
@@ -854,7 +855,8 @@ phrase chunks (noun and verb groups), a different layer, which a phrase
 chunker will write under that id.
 
 `Categories<L>` is the one categories layer every categorizer writes:
-the document categorizers (maximum entropy and SVM) and the sentiment
+the document categorizers (maximum entropy, SVM, transformer `DocumentCategorizerDL`,
+multi-label and zero-shot) and the sentiment
 detector. Each item holds the best category and the score of every
 category in the categorizer's order; `CategoryRow::ranked` lists them
 best first, ties in category order. `L` defaults to `View`, the whole
@@ -897,6 +899,14 @@ so byte offsets follow view alignment without duplicating `Spans`:
   `evidence_end: Vec<u32>`) sorted by `(label, start, end)` within each
   row so `Incivility::evidence_for_label` returns a contiguous
   `&[IxRange<Tokens>]` slice by binary search.
+- `EmotionLayer` (`turbo:emotion`, anchored to `Document`, indexing
+  `Tokens` when an item has evidence and whichever of `Sentences` or
+  `Chunks` its items target): `target: Vec<EmotionTarget>` in strictly
+  increasing order, `scores: Vec<f64>` with the 28 GoEmotions scores of
+  each item in `EmotionDimension::ALL` order (`0.0..=1.0`), and CSR
+  evidence spans (`evidence_label`, `evidence_tokens`, `evidence_end`)
+  sorted by `(label, start, end)` within each item. Its `DocumentGraph`
+  codec checks every reference, index, count and label.
 - `Pragmatics` (`turbo:pragmatics`, aligned to `Sentences` and indexing
   `Tokens` when a sentence has evidence): `score: Vec<f64>` (`0.0..=1.0` per sentence) and `evidence:
   Vec<Option<Incongruity>>` where `Incongruity { positive:
@@ -2465,9 +2475,46 @@ tokens (the whole text one window) and of 24 (the document and a
 section in parts), with and without structure, with empty units, and
 twice for the same bits.
 
-What each level and each kind of vector adds to retrieval is not
-measured yet: the evaluation harness retrieves with one vector per
-chunk, and has no pipeline for levels yet.
+### What each level and vector kind retrieves
+
+The records under `analysis/eval/records/turbo-chunker-254-200-level-*`
+retrieve the units of one level (`turbo-eval run --level`, see
+"Evaluation") with all-MiniLM-L6-v2 on the 4080, the turbo-chunker at
+`--max 254 --target 200` and plain structure. nDCG@10, with the units
+retrieved in parentheses:
+
+| Level, vectors | scifact | nfcorpus | arguana | qasper | gutenqa |
+| --- | --- | --- | --- | --- | --- |
+| chunk, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
+| chunk, local | 0.6504 | 0.3172 | 0.4918 | 0.2817 | 0.8637 |
+| chunk, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2750 | 0.8563 |
+| section, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2841 (10207) | 0.8570 (67572) |
+| section, local | 0.6504 | 0.3172 | 0.4918 | 0.2838 | 0.8569 |
+| section, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2771 | 0.8506 |
+| document, text | 0.6402 (5183) | 0.3097 (3633) | 0.5033 (8674) | 0.2519 (416) | 0.3161 (100) |
+| document, local | 0.6518 | 0.3167 | 0.4872 | 0.2328 | 0.6238 |
+
+The document has no parent, so its contextual vector is its local one
+and the document level has no contextual run of its own.
+
+Paired over queries (`turbo-eval gate`, 95 percent bootstrap interval,
+in nDCG@10 points):
+
+- Plain structure finds no sections in the three BEIR sets, so there
+  the section level is the chunk level. In qasper it is +0.24 (+0.02
+  to +0.47) over the chunks, and in gutenqa -0.65 (-0.95 to -0.38).
+- A chunk's local vector retrieves as its text embedded alone does:
+  within 0.1 points everywhere but arguana, -0.37 (-0.64 to -0.12).
+- Over the chunk's local vector, the contextual one moves no set by
+  an interval clear of zero except gutenqa, -0.75 (-1.36 to -0.12);
+  the intervals of scifact, +0.95 (-0.56 to +2.48), nfcorpus, +0.59
+  (-0.14 to +1.33), and qasper, -0.67 (-1.61 to +0.27), hold zero.
+- Retrieving whole documents loses to the chunks on qasper, -2.97
+  (-4.43 to -1.50), and gutenqa, -54.74, and gains on arguana, +0.78
+  (+0.22 to +1.34), whose documents are short arguments. Text
+  embedded in one row stops at the model's 256 tokens; a document's
+  local vector pools all of it, which is +30.77 on gutenqa's books but
+  -1.91 on qasper and -1.60 on arguana.
 
 ## Golden files
 
@@ -3050,6 +3097,26 @@ checks that `langdetect-fixture-rust.bin` is the file the Rust trainer
 writes from the samples; the generator loads it in the JVM
 (`langdetect/langdetect-fixture-rust`) for
 `analysis/langdetect/tests/fixture.rs` (docs/langdetect.md, "Training").
+
+The name finder's and the language detector's cross-validators are
+ported as `namefind::cross_validate` (`TokenNameFinderCrossValidator`)
+and `langdetect::cross_validate` (`LanguageDetectorCrossValidator`) in
+turbo-train-components (#851), on `turbo_formats::evaluate`'s
+`CrossValidation` and the evaluators. Name samples are grouped into
+documents at each sample that clears adaptive data, so a fold never
+splits a document. Each fold records its sides, the training events and
+their checksum, its counts and every prediction. The merged precision,
+recall and F-measure are merged counts, so they are the JVM's with no
+opt-in. The language detector's merged `accuracy()` is the exact share
+of correct samples; `jvm_accuracy()` is `getDocumentAccuracy()` bit for
+bit (each fold's accuracy times its document count summed, which can
+round differently). `CrossValidateGolden` writes
+`analysis/goldens/data/cross-validate/<run>/<set>/<id>.golden` (3 folds
+over `analysis/goldens/data/inputs/tagged/names.txt` with BIO and
+BILOU, and over `analysis/goldens/data/inputs/langdetect/samples.txt`
+with cutoff 5 and 1), and
+`analysis/train-components/tests/cross_validate.rs` compares every fold
+and the merged figures bit for bit.
 
 The sentiment detector is trained as `SentimentME.train` does (the
 `sentiment` module, #215). `SentimentGolden` writes
@@ -4055,6 +4122,9 @@ list names the sentence model by file name and SHA-256.
 
 Each chunker records every setting it ran with, defaults included.
 
+- `document`: the whole document, its first sentence's start to its
+  last sentence's end, as one chunk: the unit of a document-level
+  baseline such as BM25 over whole documents.
 - `fixed-tokens`: windows of N of the model's subword pieces, each
   starting N minus the overlap after the one before; the last ends at
   the last piece. N counts the text's pieces, so the binary refuses an N
@@ -4076,6 +4146,177 @@ Each chunker records every setting it ran with, defaults included.
   are retrieved. Drift and cohesion read sentence vectors, which here
   are each sentence embedded alone rather than late pooled as
   `SentenceVectors` pools them; the record says so.
+
+  With `--level`, `LevelBuilder` builds the chunker's levels and the
+  units of one of them are retrieved instead
+  (`analysis/eval/src/chunkers/levels.rs`): `chunk` (the chunks),
+  `section` (every section, nested ones included, and each chunk
+  outside every section, so no chunk's text is left out) or `document`
+  (the whole view). A document with no structure has no sections; its
+  section units are its chunks. Each unit's text is embedded as one
+  row, cut where the bundle cuts it, unless `--level-vectors local` or
+  `--level-vectors contextual` asks for that unit's vector from
+  `LevelVectors` (see "Levels"); pooled vectors are retrieved by dense
+  retrieval only, hold no title (`--titles prefix` is an error with
+  them), and `cost.tokens_embedded` then counts the queries
+  alone; the pooling's encoder time falls in `cost.wall.chunking_ms`.
+  The record's chunker config names the level and the vectors.
+
+### BM25 retrieval
+
+`--retrieval bm25` ranks the chunks by BM25 over their terms instead of
+by the embedder's vectors, and embeds nothing: the embedder only splits
+the text into its pieces for the analysis and counts chunk tokens for
+the cost. The index is turbo-chunker's `Bm25PostingIndex`, one row a
+chunk, with Lucene's `k1` 1.2 and `b` 0.75 unless `--k1` and `--b` say
+otherwise. A chunk's terms (`--terms folded`, the default) are its UAX
+#29 word tokens that hold a letter or a digit, lowercased with
+`str::to_lowercase`: close to, but not the same as, the full case fold
+of the folded view turbo-chunker's term statistics are read from (`ß`
+stays `ß`). `--terms english` also
+drops a trailing `'s`, leaves out Lucene's 33 English stop words and
+applies Porter's stemmer, after Lucene's `EnglishAnalyzer`. A document
+scores its best chunk, ties and the query's own document as in the
+dense ranking, and a chunk with no query term is not ranked. The record
+names the retrieval and its settings under `pipeline.retrieval`; a
+dense record has no such key.
+
+`--dump-terms <dir>` writes each set's chunk and query terms, and
+`analysis/eval/reference/Bm25Reference.java` indexes the same terms with
+Lucene 9.12's `BM25Similarity` and reports nDCG@10, as a reference for
+the scores. On the three BEIR sets with whole documents the two agree to
+within 0.4 points; Lucene stores a document's length in one byte, which
+is where they part.
+
+### Hybrid BM25 + dense retrieval
+
+`--retrieval hybrid` (`analysis/eval/src/hybrid.rs`) fuses chunk-level
+BM25 (`Bm25PostingIndex` with `--k1`, `--b`, and `--terms`) and exact
+dense cosine over all chunks before aggregating each document by its
+best fused chunk score and keeping the top 100 documents and chunks
+under the standard tie and self-exclusion rules. Two fusion rules are
+supported (`--fusion`):
+
+- `weighted` (the default, `--bm25-weight <f>` default `0.35`): for each
+  query, both the dense cosine scores over eligible chunks and the BM25
+  scores (with `0.0` for chunks containing no query term) are min-max
+  normalized onto `[0, 1]` before computing
+  `(1 - bm25_weight) * norm_dense + bm25_weight * norm_bm25`.
+- `rrf` (`--rrf-k <n>` default `60`, `--bm25-weight <f>` default `0.5`):
+  reciprocal rank fusion `(1 - bm25_weight) / (k + rank_dense) + bm25_weight / (k + rank_bm25)`,
+  where chunks with positive BM25 score receive their 1-based BM25 rank.
+
+The record names `"hybrid"` under `pipeline.retrieval` along with
+`fusion`, `bm25_weight` (and `k` for `rrf`), `k1`, `b` and `terms`.
+`embedding_ms` and `tokens_embedded` record the dense embedding stage,
+and `retrieval_ms` records building the BM25 index and running the
+hybrid search.
+
+Committed hybrid records (`turbo-chunker --max 254 --target 200` on
+`all-MiniLM-L6-v2` with `--retrieval hybrid`):
+
+- `analysis/eval/records/turbo-chunker-254-200-hybrid` (`weighted`,
+  `bm25_weight = 0.35`, structure costs alone): clears the gate against
+  all three stage-0 baselines (`sentence-windows-5`, `fixed-tokens-200`,
+  `opennlp-sandbox-semantic`) and both dense `turbo-chunker` records on
+  4 of 4 sets (`scifact` `69.24`, `nfcorpus` `34.28`, `arguana` `51.65`,
+  `qasper` `37.85`), and clears the gate against `bm25-document` on 3 of
+  4 sets (`qasper` `+0.09` points over `bm25-document` with `11x` higher
+  span precision at 10: `0.0306` vs `0.0028`).
+- `analysis/eval/records/turbo-chunker-254-200-cohesion-1000-hybrid`
+  (`weighted`, `bm25_weight = 0.40`, `--cohesion 1000`): clears the gate
+  against all three stage-0 baselines, `bm25-document`, and the dense
+  `turbo-chunker` records (`scifact` `68.63`, `nfcorpus` `34.11`,
+  `arguana` `50.96`, `qasper` `37.80`).
+- `analysis/eval/records/turbo-chunker-254-200-hybrid-rrf` (`rrf`,
+  untuned textbook control `k = 60`, `bm25_weight = 0.50`, structure
+  costs alone): clears the gate against all three stage-0 baselines
+  (`sentence-windows-5` `2/4`, `fixed-tokens-200` `3/4`,
+  `opennlp-sandbox-semantic` `4/4`) and both dense `turbo-chunker`
+  records (`3/4`), with `scifact` `68.13`, `nfcorpus` `34.17`,
+  `arguana` `49.69` and `qasper` `36.82` (`-0.94` vs `bm25-document`
+  `37.76`, as rank-only RRF discards BM25 score magnitudes on rare
+  technical terms).
+
+The default `bm25_weight = 0.35` was fixed before the sweep as the CLI
+default, and the sweep below (`bm25_weight` in `0.35..=0.50` plus
+untuned `rrf` `k = 60, w = 0.50`) was evaluated on these same four sets
+(no separate held-out split):
+
+| Chunker | Fusion | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean | Gate vs stage-0 (3 baselines) | Gate vs `bm25-document` |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | :--- | :--- |
+| `turbo-chunker-254-200` | `weighted` `w = 0.35` (default) | `69.24` | `34.28` | `51.65` | `37.85` | `48.26` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.09`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.38` | `69.13` | `34.28` | `51.22` | `38.36` | `48.25` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.60`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.40` | `69.04` | `34.11` | `51.12` | `38.44` | `48.18` | PASS (4/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.68`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.45` | `68.79` | `33.96` | `50.86` | `39.11` | `48.18` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.35`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.50` (untuned 50/50) | `68.45` | `33.62` | `50.48` | `39.42` | `47.99` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.66`) |
+| `turbo-chunker-254-200` | `rrf` `k = 60, w = 0.50` (untuned RRF) | `68.13` | `34.17` | `49.69` | `36.82` | `47.20` | PASS (2/4, 3/4, 4/4) | FAIL (3/4, `qasper` `-0.94`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.35` | `69.13` | `34.16` | `51.36` | `36.93` | `47.90` | PASS (4/4, 4/4, 4/4) | FAIL (3/4, `qasper` `-0.83`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.38` | `68.91` | `34.21` | `50.99` | `37.55` | `47.92` | PASS (4/4, 3/4, 4/4) | PASS (3/4, `qasper` `-0.21`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.40` | `68.63` | `34.11` | `50.96` | `37.80` | `47.88` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.03`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.45` | `68.92` | `34.03` | `50.54` | `38.47` | `47.99` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.71`) |
+| `turbo-chunker-254-200-cohesion-1000` | `weighted` `w = 0.50` (untuned 50/50) | `68.60` | `33.60` | `50.39` | `38.94` | `47.88` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.18`) |
+| `turbo-chunker-254-200-cohesion-1000` | `rrf` `k = 60, w = 0.50` (untuned RRF) | `67.35` | `34.05` | `49.61` | `36.28` | `46.82` | PASS (2/4, 3/4, 4/4) | FAIL (2/4, `qasper` `-1.49`) |
+
+Every `weighted` setting across `0.35..=0.50` on `turbo-chunker-254-200`
+(including the untuned 50/50 weight `w = 0.50`, where `qasper` reaches
+`39.42`, `+1.66` points above `bm25-document`) clears `turbo-eval gate`
+against all three stage-0 baselines, `bm25-document`, and both dense
+`turbo-chunker` records.
+
+### Structure in the chunker
+
+The records under `analysis/eval/records/turbo-chunker-254-200-structure-*`
+run the turbo-chunker at `--max 254 --target 200` with all-MiniLM-L6-v2
+on the 4080, one commit, with `--structure none`, `plain` and
+`markdown`. nDCG@10, with the chunks in parentheses:
+
+| Structure | scifact | nfcorpus | arguana | qasper | gutenqa |
+| --- | --- | --- | --- | --- | --- |
+| none | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2792 (9453) | 0.8631 (69197) |
+| plain | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
+| markdown | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2825 (10544) | 0.8634 (69228) |
+
+The three BEIR sets' documents are single paragraphs, so every
+structure gives the same chunks there. On qasper and gutenqa no
+structure moves nDCG@10 by an interval clear of zero (`turbo-eval
+gate`): plain against none is +0.24 (-0.76 to +1.25) and +0.04 (-0.06
+to +0.15), Markdown against none +0.32 (-0.70 to +1.33) and +0.03
+(-0.08 to +0.13), and no set is below the gate's -0.5 floor. On
+qasper's evidence spans, the share of relevant spans that lie wholly
+inside one of the top 10 chunks rises from 0.088 with no structure to
+0.129 with plain and Markdown, with span recall at 10 the same (0.159).
+
+### Larger embedders
+
+`TurboEmbedder` pools as the bundle's manifest says: by the mean (as
+all-MiniLM-L6-v2 does) or by the first token (as BGE does).
+`analysis/eval/tests/bundle_pooling.rs` checks the harness's vectors
+against each bundle's own reference vectors when `TURBO_EVAL_BUNDLES`
+names the bundles. The BGE bundles carry no query prompt, so queries are
+embedded without BGE's retrieval instruction.
+
+With `turbo-chunker --max 254 --target 200`, nDCG@10:
+
+| Embedder | Retrieval | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| all-MiniLM-L6-v2 | dense | `65.06` | `31.76` | `49.55` | `28.17` | `43.63` |
+| bge-small-en-v1.5 | dense | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
+| bge-base-en-v1.5 | dense | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
+| all-MiniLM-L6-v2 | hybrid, `w = 0.35` | `69.24` | `34.28` | `51.65` | `37.85` | `48.25` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
+
+The records are `analysis/eval/records/bge-small-turbo-chunker-254-200`,
+`bge-base-turbo-chunker-254-200` and their `-hybrid` twins. A larger
+embedder narrows the dense gap on qasper by little (28.17 to 30.82,
+against `bm25-document`'s 37.76) while it gains 13 to 15 points on
+arguana, so the qasper gap is lexical rather than a matter of model
+size. With BGE, the hybrid's BM25 weight, fixed for MiniLM, costs 4 points
+on arguana and 1.5 on scifact against BGE alone; the dense BGE records
+pass the gate against `sentence-windows-5` and `fixed-tokens-200` but
+not against the semantic chunker (qasper under the floor), and the BGE
+hybrids pass against all three stage 0 baselines and `bm25-document`.
 
 ### Measures and the gate
 
@@ -4437,10 +4678,82 @@ runs them on any machine:
   pieces of no bytes included; `analysis/embed/src/encoder/tests.rs`'s hold the result's shape
   and the refusal of a backend that pools no ranges. One test runs the steps on the device
   `TURBO_TEST_DEVICE` names (a backend name or a device index), at the
-  precision `TURBO_TEST_PRECISION` names, and holds the vectors to the
-  CPU's within the tolerance the core gives that dtype; without the
-  variable it says it was skipped. On a CUDA machine:
+  precision `TURBO_TEST_PRECISION` names, on `TURBO_TEST_HEF_BUNDLE` or
+  `TURBO_TEST_VECTORS_BUNDLE` when set (or `testdata/tiny-bert-bundle` by
+  default), and holds the vectors to the CPU's built from the same
+  bundle's weights within the tolerance the core gives that dtype; without
+  `TURBO_TEST_DEVICE` it says it was skipped. On a CUDA machine:
   `TURBO_TEST_DEVICE=cuda cargo test -p turbo-analysis-embed --features turbo/cuda --test vectors on_the_device`.
+  On a Hailo-8 machine with a HEF bundle that also carries
+  `weights/model.safetensors`:
+  `TURBO_TEST_HEF_BUNDLE=<bundle> TURBO_TEST_DEVICE=hailo cargo test -p turbo-analysis-embed --features turbo/hailo --test vectors on_the_device`.
+- `analysis/embed/tests/sentence_vectors_dl_tiny.rs` compares `Encoder`,
+  `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` offline on
+  `testdata/tiny-bert-bundle` against OpenNLP's `SentenceVectorsDL`
+  (`analysis/embed/reference/regenerate.sh`, which runs
+  `analysis/embed/reference/export_onnx.py` in `turbo-reference` and
+  `analysis/embed/reference/SentenceVectorsDlGolden.java` in the pinned
+  `turbo-goldens-java` container to write and verify
+  `analysis/embed/tests/data/sentence_vectors_dl_golden.json` over the 12
+  test sentences and all 76 golden inputs of the `edge`, `en`, `multi`,
+  `subwords` and `surrogate` sets). `Encoder::run_cls` matches
+  `SentenceVectorsDL` on the raw BERT ONNX graph within `1e-5` (worst
+  `7.15e-7`), and `Encoder::run_rows` matches `SentenceVectorsDL` on the
+  shared mean-pooled L2-normalized ONNX graph within `1e-5` (worst
+  `1.19e-7`). For `SentenceVectors` and `ChunkVectors`, which pool only
+  the item's `N` content subword pieces (`[start, end)` excluding `[CLS]`
+  and `[SEP]`), combining the unnormalized content-range mean with the
+  `[CLS]` and `[SEP]` states as `(N * range_mean + cls + sep) / (N + 2)`
+  and L2-normalizing reproduces `SentenceVectorsDL`'s whole-row vector
+  within `1e-5`, and the content-pooled vectors themselves stay within the
+  stated cosine floors (`>= 0.96` on the 12 sentences alone, `>= 0.85`
+  when the 12 sentences share multi-sentence windows, `>= 0.90` on golden
+  inputs of 4 or more pieces, `>= 0.70` on 1 to 3 piece golden inputs, and
+  the zero vector listed in `Vectors::empty` on zero-piece inputs).
+- `analysis/embed/tests/vectors_bundle.rs` runs the same steps on a real
+  bundle, `TURBO_TEST_VECTORS_BUNDLE`, on the device `TURBO_TEST_DEVICE`
+  names, and compares the twelve sentence and three chunk vectors with
+  the same bundle's weights run on the CPU, at the core's tolerance for the
+  device's dtype, or the I8 tier floor of 0.93 (docs/hailo.md) for an I8
+  device. For a bundle with a HEF next to
+  its safetensors weights (docs/hailo.md), a Hailo device runs the HEF and
+  the CPU runs the weights it was compiled from. Without both variables
+  the test prints that it was skipped. On a Hailo machine:
+  `TURBO_TEST_VECTORS_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=hailo cargo test --release -p turbo-analysis-embed --features turbo/hailo --test vectors_bundle -- --nocapture`.
+- `analysis/embed/tests/sentence_vectors_dl.rs` compares the sentence
+  vector step with OpenNLP's `SentenceVectorsDL` on the
+  `sentvectors/all-minilm-l6-v2-mean` goldens (analysis/goldens-tool/README.md),
+  given an all-MiniLM-L6-v2 bundle in `TURBO_TEST_MINILM_BUNDLE`. Each
+  sentence of the goldens is embedded as a document of its own. The
+  step's vector averages the sentence's own pieces, where the golden's
+  averages the whole row, [CLS] and [SEP] included, so the two are held to
+  a cosine of 0.91, which the shortest sentences set (the lowest of the 57
+  is 0.919, the mean 0.983). The mean over the whole row, computed with the
+  encoder, is held to 0.999999 (the lowest is 0.9999999999984): the
+  tokenizer and the encoder agree with OpenNLP's and ONNX Runtime's.
+- `analysis/embed/src/calibrate.rs` decides how the sentence vector step
+  runs on a device. `Calibration::measure` runs the step over the
+  caller's texts at each window size it is given (each once, at most the
+  model's), on the device and on the CPU at `Precision::Exact` as the
+  reference, and keeps each window's lowest cosine and the median times of
+  the step on the device and on the CPU at `Precision::Model`, the two
+  timed in turns. A cosine that is not a number counts as the lowest, and
+  a device that gives a different number of vectors than the reference is
+  an error. It keeps the widest window whose lowest cosine clears the
+  floor (the core's tolerance for the device's dtype, or 0.93 for I8), and
+  runs on the device only if a window clears it and the device is faster
+  there. `Calibration::load_or_measure` keeps the result in a directory,
+  written to a `.part` file and renamed, under a key of the bundle's model
+  and manifest hash, the device's backend, name, runtime and driver
+  versions, the precision, the library's build (`turbo::tuning::LIBRARY_BUILD`,
+  its version and kernels), the windows, the floor as given and a hash of
+  the texts. It measures again when the key changes, and when the kept
+  file is incomplete or its choice does not follow from its points.
+  `Calibration::options` gives the `VectorOptions` to open the step with.
+  `analysis/embed/tests/calibrate.rs` checks it with the CPU as the device
+  on the small BERT, and on the device `TURBO_TEST_DEVICE` names with the
+  bundle `TURBO_TEST_VECTORS_BUNDLE` prints what it decided over windows
+  of 64, 96 and 128 tokens.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,
@@ -4528,10 +4841,6 @@ runs them on any machine:
 - The annotators themselves: normalizers, sentence detection,
   tokenization, and the boundary signals besides structure and drift
   (lexical cohesion, coreference, discourse markers).
-- A comparison of the sentence vectors with OpenNLP's
-  `SentenceVectorsDL` on golden inputs, which needs the JVM container,
-  and a measurement of documents per second through the vector steps.
-  The tests build their layers by hand or with toy annotators.
 - The rest of the evaluation harness: baseline records for
   `legalbench-rag-mini`, which is placed by hand, a published copy and
   licence for HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
@@ -4563,3 +4872,78 @@ with linguistic terms.
 [Dense classifiers and feature selection](dense-classifier.md) describes Adam
 training over typed vectors, temperature calibration, and MI/Chi2 selection
 before document categorizer training.
+
+## Static-to-contextual cascade records (#712)
+
+The `turbo_chunker::Cascade` pooled-admission mechanism (static and
+lexical admission, contextual rerank, structured filters) was swept
+over cached BEIR subsets with `analysis/eval/tests/cascade.rs`
+(`cascade_benchmark_receipt`, ignored and release-only; 1500 or 2361
+documents and 100 scored queries per set). The encoders are
+deterministic synthetic mechanism encoders (256-dimension hashed
+static vectors, 768-dimension neighbour-mixed contextual vectors),
+so the records measure the cascade mechanism over real texts and
+qrels, not trained encoder quality. Every arm scores the same
+candidate pool (all `Levels` units), a document's score is its best
+unit's score, and a test asserts exact score equality between the
+cascade at full pool and contextual-only. The latency columns time
+`Cascade::search` only (the timer starts after `Cascade::new`),
+summed over one `Cascade` per document, so they include
+per-document lexical ranking and static scoring and are not the
+single-index latency evidence; the latency fixture in
+`turbo-chunker` (about 70 us for the cascade at 64 candidates against
+about 342 us for a direct 512-dimension contextual scan over 721 units,
+recorded above) is. The latency-relevant column
+here is contextual units scored per query, the cost driver with a
+real encoder.
+
+| Set | Arm | Recall@10 | nDCG@10 | Contextual scored/query |
+|---|---|---|---|---|
+| scifact | Static only | 0.3325 | 0.2564 | 0 |
+| scifact | Contextual only | 0.4650 | 0.3726 | 12387 |
+| scifact | Cascade C=5 | 0.4650 | 0.3726 | 8534 |
+| scifact | Cascade C=64 | 0.4650 | 0.3726 | 12387 |
+| nfcorpus | Static only | 0.0537 | 0.1255 | 0 |
+| nfcorpus | Contextual only | 0.1254 | 0.2655 | 21088 |
+| nfcorpus | Cascade C=5 | 0.1254 | 0.2660 | 11841 |
+| nfcorpus | Cascade C=64 | 0.1254 | 0.2655 | 21088 |
+| arguana | Static only | 0.3600 | 0.2280 | 0 |
+| arguana | Contextual only | 0.3700 | 0.2502 | 9564 |
+| arguana | Cascade C=5 | 0.3700 | 0.2502 | 7659 |
+| arguana | Cascade C=64 | 0.3700 | 0.2502 | 9564 |
+
+With the pools aligned, the cascade matches contextual-only
+Recall@10 at every recorded C >= 5 on all three sets while scoring
+fewer contextual units at C=5 (69% of units on scifact, 56% on
+nfcorpus, 80% on arguana). On scifact and arguana every recorded
+cutoff matches from C=5; on nfcorpus the other cutoffs move
+slightly at small pools (Recall@5 0.1034 at C=5 and 0.0984 at C=10
+against 0.0984, Recall@100 0.2204 and 0.2221 against 0.2219, and
+nDCG@10 0.2660 at C=5 against 0.2655). Recall@10 stops changing at
+C=5 in these subsets because short documents hold few units per
+document. The
+documented default shortlist is C=64 for corpus-scale indexes,
+where one shortlist spans the whole corpus rather than one
+document.
+
+GutenQA (long-form books, loaded through the set registry from its
+parquet cache; 100 documents, 339,809 level units, 50 queries) is
+where the funnel matters most:
+
+| Arm | Recall@10 | nDCG@10 | Contextual scored/query |
+|---|---|---|---|
+| Static only | 0.4800 | 0.2806 | 0 |
+| Contextual only | 0.6200 | 0.4374 | 339809 |
+| Cascade C=5 | 0.5800 | 0.4105 | 968 |
+| Cascade C=64 | 0.6000 | 0.4268 | 11651 |
+
+At the default C=64 the cascade scores 3.4% of the contextual units
+for a Recall@10 margin of -0.02 against contextual-only; at C=5 it
+scores 0.3% for -0.04. Structured stage-3 filters built from real
+layers (`Entities` spans via `UnitFilter::overlapping`) are covered
+by `entity_layer_filter_drops_and_boosts_with_measured_recall` in
+the chunker cascade tests, and build-time space isolation by
+`space_mismatches_are_refused_at_build_time`. Qasper is cached only
+as a tarball (not BEIR jsonl for this reader); the ConTEB sets and
+HiCBench are not loadable from this cache (HiCBench has no licence
+recorded), so those did not run.

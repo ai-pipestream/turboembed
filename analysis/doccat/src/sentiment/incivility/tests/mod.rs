@@ -118,6 +118,45 @@ fn scan_lexicon_matches_the_naive_reference_scan() {
     assert_eq!(unit_ev.len(), 3);
 }
 
+#[test]
+fn scan_lexicon_matches_the_reference_past_the_stack_slots() {
+    // A lexicon with more entries than `scan_lexicon` keeps on the stack
+    // takes the heap path for its non-overlap slots; it must scan the same.
+    // The bundled lexicon itself stays on the stack path.
+    assert!(IncivilityLexicon::bundled().len() <= rules::NEXT_FROM_ON_STACK);
+    let mut lexicon = IncivilityLexicon::bundled();
+    for k in 0..rules::NEXT_FROM_ON_STACK {
+        lexicon.insert(&format!("w{k} a"), IncivilityLabel::Insult, 0.2);
+    }
+    lexicon.insert("a a", IncivilityLabel::Threat, 0.5);
+    lexicon.insert("a", IncivilityLabel::Profanity, 0.4);
+    assert!(lexicon.len() > rules::NEXT_FROM_ON_STACK);
+
+    let cases: &[&[&str]] = &[
+        &["a", "a", "a", "a", "a"],
+        &["w0", "a", "a", "w0", "a", "w127", "a"],
+        &["damned", "crap", "crap", "w3", "a", "a"],
+        &["not", "stupid", "a", "a", "w9", "a"],
+    ];
+    for case in cases {
+        let token_lower: Vec<String> = case.iter().map(|s| s.to_string()).collect();
+        for start in 0..=case.len() {
+            for end in start..=case.len() {
+                let (got_scores, got_evidence) = scan_lexicon(&lexicon, &token_lower, start, end);
+                let (want_scores, want_evidence) = reference_scan_lexicon(&lexicon, &token_lower, start, end);
+                for label in IncivilityLabel::ALL {
+                    assert_eq!(
+                        got_scores.get(label).to_bits(),
+                        want_scores.get(label).to_bits(),
+                        "bitwise score mismatch for {label} on {case:?} over {start}..{end}"
+                    );
+                }
+                assert_eq!(got_evidence, want_evidence, "evidence mismatch on {case:?} over {start}..{end}");
+            }
+        }
+    }
+}
+
 fn make_doc_with_sentences(text: &str, sent_ranges: &[(u32, u32)]) -> Document {
     let mut doc = Document::new(text);
     let spans = spans_from_pairs::<Sentences>(sent_ranges.iter().copied());
@@ -309,4 +348,8 @@ fn sentence_vectors_from_another_encoder_are_refused() {
     assert!(err.to_string().contains("head-encoder"), "{err}");
 }
 
+mod bias;
 mod context;
+mod head;
+mod learned;
+mod lexicon;

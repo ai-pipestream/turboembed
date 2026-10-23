@@ -13,7 +13,10 @@ use turbo::bundle::Bundle;
 use turbo::manifest::{PromptRole, Truncation};
 use turbo::record::{BundleId, Device, Machine};
 use turbo::tokenizer::{Encode, Tokenizer};
-use turbo::{TURBO_DEVICE_CPU, TURBO_DEVICE_GPU, TURBO_DEVICE_IGPU, TURBO_DEVICE_NPU, TURBO_POOLING_MEAN};
+use turbo::{
+    TURBO_DEVICE_CPU, TURBO_DEVICE_GPU, TURBO_DEVICE_IGPU, TURBO_DEVICE_NPU, TURBO_POOLING_CLS, TURBO_POOLING_MEAN,
+    TURBO_POOLING_MODEL,
+};
 use turbo_analysis::{ModelRef, Span, Spans, ViewId};
 use turbo_analysis_embed::{Encoder, EncoderOptions, Precision, Rows};
 use turbo_analysis_layers::Subwords;
@@ -132,8 +135,9 @@ pub fn unit(v: &mut [f32]) {
     }
 }
 
-/// A bundle run through a turbo session, mean pooled, as the reference
-/// embedder (all-MiniLM-L6-v2, the model turbo-bench measures) is.
+/// A bundle run through a turbo session, pooled as its manifest says: by
+/// the mean, as the reference embedder (all-MiniLM-L6-v2, the model
+/// turbo-bench measures) is, or by the first token, as BGE is.
 pub struct TurboEmbedder {
     encoder: Encoder,
     tokenizer: Tokenizer,
@@ -161,17 +165,17 @@ fn kind_name(kind: u32) -> &'static str {
 }
 
 impl TurboEmbedder {
-    /// The bundle at `dir` on `device`. A bundle that does not mean pool
-    /// is refused: the session's row write here pools by mean.
+    /// The bundle at `dir` on `device`. A bundle that pools by anything
+    /// but the mean or the first token is refused.
     pub fn open(dir: &Path, device: turbo_analysis_embed::Device, precision: Precision) -> Result<TurboEmbedder> {
         let at = |e: turbo::status::Error| format!("{}: {e}", dir.display());
         let bundle = Bundle::open(dir).map_err(at)?;
         let tokenizer = Tokenizer::load(&bundle).map_err(at)?;
         let encoder =
             Encoder::open(dir, &EncoderOptions { device, precision, ..EncoderOptions::default() }).map_err(at)?;
-        if encoder.info().pooling != TURBO_POOLING_MEAN {
+        if ![TURBO_POOLING_MEAN, TURBO_POOLING_CLS].contains(&encoder.info().pooling) {
             return Err(format!(
-                "{}: the bundle pools with TURBO_POOLING {}; the harness embeds by mean pooling only",
+                "{}: the bundle pools with TURBO_POOLING {}; the harness embeds by the mean or the first token",
                 dir.display(),
                 encoder.info().pooling
             ));
@@ -271,7 +275,13 @@ impl Embedder for TurboEmbedder {
             for &i in group {
                 self.rows.push(&[&self.ids[i]]);
             }
-            self.encoder.run_rows(&self.rows, true, &mut self.vectors).map_err(|e| e.to_string())?;
+            // The mean path is the one every record before CLS pooling ran.
+            if self.encoder.info().pooling == TURBO_POOLING_MEAN {
+                self.encoder.run_rows(&self.rows, true, &mut self.vectors)
+            } else {
+                self.encoder.run_rows_pooled(&self.rows, TURBO_POOLING_MODEL, true, &mut self.vectors)
+            }
+            .map_err(|e| e.to_string())?;
             for (k, &i) in group.iter().enumerate() {
                 out[i * dim..(i + 1) * dim].copy_from_slice(&self.vectors[k * dim..(k + 1) * dim]);
             }

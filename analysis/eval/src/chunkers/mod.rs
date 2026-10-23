@@ -1,6 +1,7 @@
 //! The chunkers a pipeline can run, behind one trait: the three baselines
 //! and the turbo-chunker steps.
 //!
+//! - [`WholeDocument`]: the whole document as one chunk.
 //! - [`FixedTokens`]: windows of N of the model's tokens, with overlap.
 //! - [`SentenceWindows`]: windows of N sentences.
 //! - [`Semantic`]: the OpenNLP sandbox's semantic chunker, a cut wherever
@@ -11,12 +12,16 @@
 //! Each records every setting it ran with, defaults included, so a record
 //! says exactly what was measured.
 
+mod document;
 mod fixed;
+mod levels;
 mod semantic;
 mod sentences;
 mod turbo;
 
+pub use document::WholeDocument;
 pub use fixed::FixedTokens;
+pub use levels::{LevelChunker, Retrieve, units};
 pub use semantic::{Semantic, Threshold, cosine, starts};
 pub use sentences::SentenceWindows;
 pub use turbo::{Signals, TurboChunker};
@@ -41,6 +46,13 @@ pub trait Chunker {
     /// none empty, none twice. A chunker that embeds (sentence vectors)
     /// does so through `embedder`, so its tokens are counted.
     fn chunk(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<Vec<Span>>;
+
+    /// The chunks and, for a chunker that pools them itself, a vector per
+    /// chunk in order, unit length; None to have the pipeline embed each
+    /// chunk's text.
+    fn chunk_vectors(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<(Vec<Span>, Option<Vec<f32>>)> {
+        Ok((self.chunk(doc, embedder)?, None))
+    }
 }
 
 pub(crate) fn setting(name: &str, value: impl Display) -> Setting {

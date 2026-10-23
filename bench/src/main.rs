@@ -30,6 +30,7 @@ fn main() -> ExitCode {
 fn run(args: &[String]) -> Result<()> {
     match args.first().map(String::as_str) {
         Some("record") => record_cmd(&args[1..]),
+        Some("ranges") => ranges_cmd(&args[1..]),
         Some("check") if args.len() > 1 => {
             for a in &args[1..] {
                 check(Path::new(a))?;
@@ -246,6 +247,64 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let dir = out.map_or_else(|| Path::new(&after.top).join(git::RECORDS_DIR), PathBuf::from);
     let path = turbo_bench::write(&r, &dir)?;
     eprint!("{}", turbo_bench::report(&r));
+    println!("{}", path.display());
+    Ok(())
+}
+
+/// `turbo-bench ranges`: rows, ranges and one row per chunk, measured on
+/// one device and written as a range record.
+fn ranges_cmd(args: &[String]) -> Result<()> {
+    let mut o = Opts::parse(args)?;
+    let bundle = o.take("--bundle").ok_or("--bundle is required")?;
+    let precision = match o.take("--precision").as_deref().unwrap_or("model") {
+        "model" => TURBO_PRECISION_MODEL,
+        "fastest" => TURBO_PRECISION_FASTEST,
+        "exact" => TURBO_PRECISION_EXACT,
+        p => return Err(format!("--precision {p}: model, fastest or exact")),
+    };
+    let plan = turbo_bench::ranges::RangePlan {
+        bundle: PathBuf::from(bundle),
+        device: o.take("--device").unwrap_or_else(|| "cpu".into()),
+        precision,
+        batch: o.number("--batch")?,
+        seq: o.number("--seq")?,
+        chunk: o.number("--chunk")?.unwrap_or(64),
+        warmup: o.number("--warmup")?.unwrap_or(20),
+        iterations: o.number("--iterations")?.unwrap_or(200),
+    };
+    let repo = o.take("--repo").map_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join(".."), PathBuf::from);
+    let out = o.take("--out");
+    if let Some(unknown) = o.0.keys().next() {
+        return Err(format!("{unknown}: not a ranges option\n{USAGE}"));
+    }
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    turbo_bench::check_not_testdata(&plan.bundle, &[workspace.join("testdata"), repo.join("testdata")])?;
+    // Refused before anything is measured, and checked again after.
+    let before = git::provenance(&repo)?;
+    turbo_bench::check_build(&before.commit, turbo_bench::BUILD_COMMIT, turbo_bench::BUILD_CHANGES)?;
+    let r = turbo_bench::ranges::measure(&plan, &before, turbo_bench::utc(SystemTime::now()))?;
+    let after = git::provenance(&repo)?;
+    if after != before {
+        return Err(format!("the working tree moved from {} to {} during the run", before.commit, after.commit));
+    }
+    let dir = out.map_or_else(|| Path::new(&after.top).join(turbo_bench::ranges::RANGES_DIR), PathBuf::from);
+    let path = turbo_bench::ranges::write(&r, &dir)?;
+    eprintln!(
+        "{} {}: [{}, {}], chunks of {}: rows p50 {:.4} ms, ranges p50 {:.4} ms ({:.3}x rows), one row per chunk p50 \
+         {:.4} ms ({:.3}x ranges); whole-row range max abs diff {:e}, chunk min cosine {:.4}",
+        r.device.backend,
+        r.device.name,
+        r.shape.batch,
+        r.shape.seq,
+        r.shape.chunk,
+        r.rows.p50_ms,
+        r.ranges.p50_ms,
+        r.ranges_over_rows,
+        r.chunk_rows.p50_ms,
+        r.chunk_rows_over_ranges,
+        r.whole_row_max_abs_diff,
+        r.chunk_min_cosine
+    );
     println!("{}", path.display());
     Ok(())
 }

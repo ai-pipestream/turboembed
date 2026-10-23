@@ -1,11 +1,12 @@
 //! The kind table zero-shot extraction builds follows the mentions, not
 //! the entity tag set: two mentions under a tag set of thousands of kinds
 //! and 64 labels make no large allocation. A counting allocator records
-//! the largest single request while `extract` runs.
+//! the largest single request the extracting thread makes while `extract`
+//! runs; other threads' requests are not its.
 
 use std::alloc::{GlobalAlloc, Layout, System};
+use std::cell::Cell;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use turbo_analysis::{Document, IxRange, Span, Spans, Tag, TagSet, View, ViewId};
 use turbo_analysis_layers::Entities;
@@ -13,21 +14,26 @@ use turbo_relation::{LexicalRelationScorer, RelationLabel, ZeroShotRelationAnnot
 
 struct Largest;
 
-static WATCHING: AtomicBool = AtomicBool::new(false);
-static LARGEST: AtomicUsize = AtomicUsize::new(0);
+thread_local! {
+    /// Whether this thread's requests are watched, and the largest one.
+    static WATCHING: Cell<bool> = const { Cell::new(false) };
+    static LARGEST: Cell<usize> = const { Cell::new(0) };
+}
+
+fn watch(layout: Layout) {
+    if WATCHING.try_with(Cell::get).unwrap_or(false) {
+        let _ = LARGEST.try_with(|l| l.set(l.get().max(layout.size())));
+    }
+}
 
 unsafe impl GlobalAlloc for Largest {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        if WATCHING.load(Ordering::Relaxed) {
-            LARGEST.fetch_max(layout.size(), Ordering::Relaxed);
-        }
+        watch(layout);
         unsafe { System.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        if WATCHING.load(Ordering::Relaxed) {
-            LARGEST.fetch_max(layout.size(), Ordering::Relaxed);
-        }
+        watch(layout);
         unsafe { System.alloc_zeroed(layout) }
     }
 
@@ -60,14 +66,14 @@ fn two_mentions_under_thousands_of_kinds_allocate_little() {
             kinds: Arc::clone(&TagSet::new("kinds", &names)),
             score: vec![1.0; 2],
         };
-        LARGEST.store(0, Ordering::Relaxed);
-        WATCHING.store(true, Ordering::Relaxed);
+        LARGEST.set(0);
+        WATCHING.set(true);
         let out = a.extract(view, &e, None);
-        WATCHING.store(false, Ordering::Relaxed);
+        WATCHING.set(false);
         let (relations, _) = out.unwrap();
         // "knows" is between Ann and Bob, half of each label's words.
         assert_eq!(relations.subject.len(), 128, "{kinds} kinds");
-        let largest = LARGEST.load(Ordering::Relaxed);
+        let largest = LARGEST.get();
         assert!(largest < 16 * 1024, "{kinds} kinds: a {largest}-byte allocation");
     }
 }

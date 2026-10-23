@@ -186,7 +186,7 @@ is in that form and a test keeps it there.
 | `.kind` | enum | yes | `KIND_MODEL`, `KIND_HEAD` (a classifier head over an encoder, #321), `KIND_LEXICON` (#320), `KIND_CENTROIDS` (a label centroid set), `KIND_DATASET`. |
 | `.component` | enum | no | The component a model serves. `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_POS_GENERIC`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER` and `COMPONENT_PARSER` are OpenNLP's `ModelType` constants; `COMPONENT_LANGUAGE_DETECTOR` and `COMPONENT_DOCUMENT_CATEGORIZER` have no `ModelType`. |
 | `.language` | string | no | A language tag: two or three lowercase letters, then optional `-` subtags of one to eight letters or digits. Absent for a multilingual artifact. |
-| `.format` | enum | yes | `FORMAT_OPENNLP_MODEL` (an OpenNLP `.bin` archive), `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_ZIP`. |
+| `.format` | enum | yes | `FORMAT_OPENNLP_MODEL` (an OpenNLP `.bin` archive), `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_ZIP`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`). |
 | `.version` | string | yes | The publisher's version. Not empty. |
 | `.license` | SPDX string | yes | The artifact's own licence. |
 | `.license_terms` | https URL | yes | Where the artifact's publisher states that licence. |

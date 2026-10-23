@@ -23,7 +23,7 @@
 use turbo::head::Linear;
 use turbo::safetensors::{Dtype, File};
 
-use super::kernel::{Packed, apply, dot};
+use crate::kernel::{Packed, apply, dot};
 
 /// Two linear layers with a ReLU between, as `create_mlp` and
 /// `create_projection_layer` build them.
@@ -338,16 +338,25 @@ impl Heads {
     /// from the two `[R]` vectors.
     ///
     /// # Panics
+    /// As [`Heads::queries_of`].
+    pub fn queries(&self, fields: [&[f32]; 2], k: usize) -> Vec<f32> {
+        self.queries_of(&fields, k)
+    }
+
+    /// The `k` instances' queries for `M` fields, `[k][M][D]` flattened,
+    /// from each field's marker vector; the transformer attends across the
+    /// `M` fields of an instance.
+    ///
+    /// # Panics
     /// When a field is not one row of the model width, or `k` is past the
     /// position table (the count head never predicts that many).
-    pub fn queries(&self, fields: [&[f32]; 2], k: usize) -> Vec<f32> {
-        let d = self.width;
-        assert!(fields.iter().all(|f| f.len() == d), "[R] vectors of the model width");
+    pub fn queries_of(&self, fields: &[&[f32]], k: usize) -> Vec<f32> {
+        let (d, n) = (self.width, fields.len());
+        assert!(fields.iter().all(|f| f.len() == d), "field vectors of the model width");
         assert!(k <= self.positions.len() / d, "{k} instances past the position table");
         let mut states: Vec<Vec<f32>> = fields.iter().map(|f| f.to_vec()).collect();
-        let mut out = Vec::with_capacity(k * 2 * d);
         let (mut gi, mut gh) = (vec![0.0; 3 * d], vec![0.0; 3 * d]);
-        let mut steps = vec![vec![0.0; 2 * d]; k];
+        let mut steps = vec![vec![0.0; n * d]; k];
         for (t, step) in steps.iter_mut().enumerate() {
             apply(&self.gru_ih, &self.positions[t * d..(t + 1) * d], &mut gi);
             for (m, h) in states.iter_mut().enumerate() {
@@ -355,8 +364,8 @@ impl Heads {
                 for j in 0..d {
                     let r = sigmoid(gi[j] + gh[j]);
                     let z = sigmoid(gi[d + j] + gh[d + j]);
-                    let n = (gi[2 * d + j] + r * gh[2 * d + j]).tanh();
-                    h[j] = (1.0 - z) * n + z * h[j];
+                    let g = (gi[2 * d + j] + r * gh[2 * d + j]).tanh();
+                    h[j] = (1.0 - z) * g + z * h[j];
                 }
                 for (s, (&a, &b)) in step[m * d..(m + 1) * d].iter_mut().zip(h.iter().zip(fields[m])) {
                     *s = a + b;
@@ -364,31 +373,30 @@ impl Heads {
             }
         }
         let m = self.in_projector.out_dim;
-        let mut cats = Vec::with_capacity(2 * k * (m + d));
+        let mut cats = Vec::with_capacity(n * k * (m + d));
         for y in &steps {
-            let mut x = vec![0.0; 2 * m];
-            for f in 0..2 {
+            let mut x = vec![0.0; n * m];
+            for f in 0..n {
                 apply(&self.in_projector, &y[f * d..(f + 1) * d], &mut x[f * m..(f + 1) * m]);
             }
             for l in &self.layers {
-                l.apply(&mut x, 2);
+                l.apply(&mut x, n);
             }
-            for f in 0..2 {
+            for f in 0..n {
                 cats.extend_from_slice(&x[f * m..(f + 1) * m]);
                 cats.extend_from_slice(&y[f * d..(f + 1) * d]);
             }
         }
-        // Every instance's two fields through the out-projector at once,
-        // so its weights are read once per relation.
+        // Every instance's fields through the out-projector at once, so its
+        // weights are read once per task.
         let mut v = cats;
         for (i, p) in self.out_projector.iter().enumerate() {
-            v = p.rows(&v, 2 * k);
+            v = p.rows(&v, n * k);
             if i + 1 < self.out_projector.len() {
                 v.iter_mut().for_each(|x| *x = x.max(0.0));
             }
         }
-        out.extend(v);
-        out
+        v
     }
 
     /// The span layer's hidden rows for every span of the `n` word vectors

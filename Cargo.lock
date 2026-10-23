@@ -2020,6 +2020,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "turbo",
+ "turbo-gliner",
  "ureq",
 ]
 
@@ -2083,6 +2084,7 @@ dependencies = [
  "turbo-normalize-layers",
  "turbo-sequence",
  "turbo-train",
+ "turbo-unicode",
 ]
 
 [[package]]
@@ -2136,7 +2138,10 @@ dependencies = [
  "turbo-jvm",
  "turbo-maxent",
  "turbo-sentdetect",
+ "turbo-stem",
  "turbo-structure",
+ "turbo-tokenize",
+ "turbo-vector-index",
  "turbo-zstd",
  "ureq",
 ]
@@ -2192,6 +2197,17 @@ dependencies = [
  "turbo-numeric",
  "turbo-tokenize",
  "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-gliner"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
 ]
 
 [[package]]
@@ -2292,6 +2308,7 @@ dependencies = [
  "protox",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
@@ -2405,6 +2422,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-namefind-dl"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-formats",
+]
+
+[[package]]
 name = "turbo-ngram"
 version = "0.1.0"
 dependencies = [
@@ -2485,6 +2514,7 @@ dependencies = [
 name = "turbo-postag"
 version = "0.1.0"
 dependencies = [
+ "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
@@ -2549,6 +2579,23 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-schema-extract"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-bundle",
+ "turbo-geo",
+ "turbo-glossary-layers",
+ "turbo-numeric",
+ "turbo-pii",
+ "turbo-relation",
+ "turbo-zoo",
 ]
 
 [[package]]

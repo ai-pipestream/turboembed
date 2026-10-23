@@ -205,6 +205,18 @@ impl Model {
     }
 
     pub fn session(&self, max_batch: u32, max_seq: u32, precision: u32) -> Result<Session> {
+        self.session_with_ranges(max_batch, max_seq, precision, 0)
+    }
+
+    /// A session that also writes up to `max_ranges` ranges per run; 0 is
+    /// `max_batch`.
+    pub fn session_with_ranges(
+        &self,
+        max_batch: u32,
+        max_seq: u32,
+        precision: u32,
+        max_ranges: u32,
+    ) -> Result<Session> {
         // Tuning as TURBO_AUTOTUNE says, which the record's settings name.
         let desc = turbo_session_desc {
             struct_size: size_of::<turbo_session_desc>() as u32,
@@ -214,7 +226,7 @@ impl Model {
             tuning: 0,
             tuning_budget_ms: 0,
             cpu_threads: 0,
-            max_ranges: 0,
+            max_ranges,
         };
         let mut s = ptr::null_mut();
         check("turbo_session_create", |e| unsafe { turbo_session_create(self.0, &desc, &mut s, e) })?;
@@ -238,6 +250,21 @@ pub struct Batch<'a> {
     pub types: &'a [i32],
 }
 
+/// `rows` as the C interface takes them.
+fn token_batch(rows: &Batch) -> turbo_token_batch {
+    let n = rows.batch as usize * rows.seq as usize;
+    assert!(rows.ids.len() == n && rows.mask.len() == n && rows.types.len() == n, "rows are [batch, seq]");
+    turbo_token_batch {
+        struct_size: size_of::<turbo_token_batch>() as u32,
+        batch: rows.batch,
+        seq: rows.seq,
+        row_stride: rows.seq,
+        ids: rows.ids.as_ptr(),
+        mask: rows.mask.as_ptr(),
+        types: rows.types.as_ptr(),
+    }
+}
+
 pub struct Session(*mut turbo_session);
 
 impl Session {
@@ -252,18 +279,29 @@ impl Session {
     /// into `out`, which holds batch x dim values. Returns the result's
     /// info.
     pub fn embed_into(&self, rows: &Batch, out: &mut [f32]) -> Result<turbo_result_info> {
-        let n = rows.batch as usize * rows.seq as usize;
-        assert!(rows.ids.len() == n && rows.mask.len() == n && rows.types.len() == n, "rows are [batch, seq]");
-        let b = turbo_token_batch {
-            struct_size: size_of::<turbo_token_batch>() as u32,
-            batch: rows.batch,
-            seq: rows.seq,
-            row_stride: rows.seq,
-            ids: rows.ids.as_ptr(),
-            mask: rows.mask.as_ptr(),
-            types: rows.types.as_ptr(),
-        };
+        let b = token_batch(rows);
         check("turbo_embed_write_tokens", |e| unsafe { turbo_embed_write_tokens(self.0, &b, ptr::null(), e) })?;
+        self.read_into(out)
+    }
+
+    /// Write `rows` and one vector per range of `ranges` (each mean
+    /// pooled over its tokens), run, and copy the vectors into `out`,
+    /// which holds ranges x dim values.
+    pub fn embed_ranges_into(
+        &self,
+        rows: &Batch,
+        ranges: &[turbo_token_range],
+        out: &mut [f32],
+    ) -> Result<turbo_result_info> {
+        let b = token_batch(rows);
+        let n = u32::try_from(ranges.len()).map_err(|_| "more ranges than a u32 counts".to_owned())?;
+        check("turbo_embed_write_ranges", |e| unsafe {
+            turbo_embed_write_ranges(self.0, &b, ranges.as_ptr(), n, ptr::null(), e)
+        })?;
+        self.read_into(out)
+    }
+
+    fn read_into(&self, out: &mut [f32]) -> Result<turbo_result_info> {
         let mut r = ptr::null_mut();
         check("turbo_session_run", |e| unsafe { turbo_session_run(self.0, &mut r, e) })?;
         let r = Output(r);

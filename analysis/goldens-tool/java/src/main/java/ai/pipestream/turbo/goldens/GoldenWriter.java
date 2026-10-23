@@ -161,6 +161,7 @@ final class GoldenWriter {
         case '\n' -> "\\n";
         case '\r' -> "\\r";
         case '\\' -> "\\\\";
+        case '\u2014' -> "\\u2014";
         default -> c < 0x20 || isLoneSurrogate(s, i) ? String.format(Locale.ROOT, "\\u%04x", (int) c) : null;
       };
       if (rep != null && b == null) {

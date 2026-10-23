@@ -104,6 +104,17 @@ constant_enum! {
         Conllu => "FORMAT_CONLLU",
         Text => "FORMAT_TEXT",
         Zip => "FORMAT_ZIP",
+        /// A PyTorch checkpoint in `torch.save`'s zip form only (the legacy
+        /// non-zip form is refused): a stored zip of a pickled state dict
+        /// and its tensor data. The zoo only fetches and checks its bytes.
+        /// The bundle tool's reader takes the tensors without running the
+        /// pickle: it allows only the opcodes a state dict uses, the
+        /// persistent load of a storage and the tensor rebuild among them,
+        /// and only the globals those name.
+        Pytorch => "FORMAT_PYTORCH",
+        /// A SentencePiece model (`spm.model`), with the model's JSON
+        /// configuration beside it.
+        Sentencepiece => "FORMAT_SENTENCEPIECE",
     }
 }
 

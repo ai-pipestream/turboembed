@@ -43,7 +43,7 @@ fn check(code: i32, e: &turbo_error) -> Result<()> {
     if code == 0 {
         return Ok(());
     }
-    let bytes: Vec<_> = e.message.iter().take_while(|&&v| v != 0).map(|&v| v as u8).collect();
+    let bytes: Vec<_> = e.message.iter().take_while(|&&v| v != 0).map(|&v| v.to_ne_bytes()[0]).collect();
     Err(Error::field(code, e.field, String::from_utf8_lossy(&bytes)))
 }
 impl ExtractiveQa {

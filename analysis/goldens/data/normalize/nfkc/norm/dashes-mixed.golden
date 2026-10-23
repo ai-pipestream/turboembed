@@ -7,5 +7,5 @@ input	norm/dashes-mixed	234	212	15c66a9654e83291b1db13f5deab7b8defa504ecfe60db69
 annotator	opennlp.tools.util.normalizer.NfkcCharSequenceNormalizer	normalize
 layer	turbo:view	text	2	start:u32	end:u32	with:str
 106	109	‐
-225	228	—
+225	228	\u2014
 end	turbo:view

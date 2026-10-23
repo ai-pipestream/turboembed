@@ -16,7 +16,7 @@ config	UseSkippedAveraging	true
 config	sort	false
 config	source	realvalue
 layer	turbo:events	document	1	outcome:str	context:str	values:str
-long	well-known state-of-the-art re-entry — em dash – en ‒ figure ― bar ⸺ two-em −minus -- double and a-b-c. 1990-2000, A--B, non‑breaking‐hyphen.	1.0 1.0 1.0 1.0 1.0 3.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+long	well-known state-of-the-art re-entry \u2014 em dash – en ‒ figure ― bar ⸺ two-em −minus -- double and a-b-c. 1990-2000, A--B, non‑breaking‐hyphen.	1.0 1.0 1.0 1.0 1.0 3.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
 end	turbo:events
 layer	turbo:perceptron-training	document	1	iterations:u32	message:str
 0	opennlp.tools.util.InsufficientTrainingDataException: Training data must contain more than one outcome

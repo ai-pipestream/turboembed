@@ -16,7 +16,8 @@ use crate::resources::{Resources, Unavailable};
 /// does not cover: the training stack (`train`, `train-events`,
 /// `train-langdetect`, `train-liblinear`), the format readers (`formats`,
 /// `masc`, `ner`, `corpora`, `ad`) and the parse and head rule readers (`parse`,
-/// `head-rules`) compare files, not layers of a text; the evaluators compare scores; the detokenizer
+/// `head-rules`) compare files, not layers of a text; the evaluators and the
+/// cross-validators (`cross-validate`) compare scores; the detokenizer
 /// runs on token lists; the BPE trainer learns merges from a whole set; the
 /// gazetteers answer queries line by line and load whole tables, and the
 /// place profiles load whole tables; the
@@ -37,14 +38,17 @@ use crate::resources::{Resources, Unavailable};
 /// models of their own and tag token lists rather than texts; the CoNLL-U
 /// dependency and CorefUD readers (`conllu`) and the OntoNotes and French
 /// Treebank readers (`ontonotes`, `frenchtreebank`) read files of their own,
-/// which turbo-formats compares with.
-pub const NOT_COVERED: [&str; 35] = [
+/// which turbo-formats compares with; the sentence vector runs
+/// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
+/// `sentence_vectors_dl` test compares with them.
+pub const NOT_COVERED: [&str; 37] = [
     "train",
     "train-events",
     "train-langdetect",
     "train-liblinear",
     "formats",
     "evaluate",
+    "cross-validate",
     "detokenize",
     "bpe",
     "masc",
@@ -74,6 +78,7 @@ pub const NOT_COVERED: [&str; 35] = [
     "corpora",
     "ontonotes",
     "frenchtreebank",
+    "sentvectors",
 ];
 
 /// Every run the differential covers, as `(annotator, run)`: the golden
@@ -128,6 +133,7 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lattice", "mecab-fixture-partial"),
     ("lattice", "mecab-ipadic-2.7.0-20070801"),
     ("lattice", "mecab-ko-dic-2.1.1-20180720"),
+    ("lattice", "unidic-mecab-2.1.2"),
     ("postag", "opennlp-de-ud-gsd-pos-1.3-2.5.4"),
     ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4"),
     ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+beam1"),

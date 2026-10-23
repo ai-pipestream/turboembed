@@ -121,7 +121,8 @@ are not taken from any corpus.
   `person`, `organization`, `location` and `date` names, one name without
   a type, and non-ASCII names and an emoji; the fixture
   `ner-fixture-rust.bin` was trained on it, and the `namefind` training
-  and fixture goldens run on it.
+  and fixture goldens and the `cross-validate` name finder goldens run on
+  it.
 
 - `inputs/langdetect/samples.txt`: 56 language samples written for this
   project, a language code, a tab and the text per line: six to nine
@@ -132,7 +133,7 @@ are not taken from any corpus.
   backslash, a CR LF line end and no newline at the end; and two lines
   the sample stream skips (one starting with a tab, one without a tab).
   The fixture `langdetect-fixture-rust.bin` was trained on them, and the
-  `train-langdetect` goldens run on them.
+  `train-langdetect` and `cross-validate` goldens run on them.
 
 - `inputs/langdetect/tree-bucket.txt`: six language samples written for
   this project, three of the local-use code `qaa` and three of `qab`,
@@ -616,6 +617,44 @@ is under the Apache License 2.0 (its `COPYING`,
 https://www.apache.org/licenses/LICENSE-2.0); its archive has no
 `NOTICE` file. The dictionary itself is not checked in.
 
+The goldens under `lattice/unidic-mecab-2.1.2/` hold the feature columns
+of the UniDic 2.1.2 entries the JVM chose. UniDic is offered under the
+BSD, GPL or LGPL license (`AUTHORS` in `unidic-mecab-2.1.2.tar.gz`), and
+is used under its BSD license (`BSD` in that archive):
+
+```
+Copyright (c) 2011-2013, The UniDic Consortium
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+ * Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+ * Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the
+   distribution.
+
+ * Neither the name of the UniDic Consortium nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 ## Goldens
 
 `<annotator>/<model>/<set>/<id>.golden` is what the OpenNLP annotator
@@ -714,6 +753,16 @@ compares with them.
 predicate, the checksum, the index, the GIS training iteration by
 iteration, and the manifest and zip entries of the model file.
 `analysis/train-components/tests/langdetect.rs` compares with them.
+
+`cross-validate/<run>/<set>/<id>.golden` is what
+`TokenNameFinderCrossValidator` (`namefind-bio`, `namefind-bilou`, on
+`inputs/tagged/names.txt`) or `LanguageDetectorCrossValidator`
+(`langdetect-default`, `langdetect-cutoff1`, on
+`inputs/langdetect/samples.txt`) did with 3 folds: per fold the
+documents and samples on each side, the training events and their
+checksum, the counts and scores and every prediction, and the merged
+precision, recall and F-measure or accuracy.
+`analysis/train-components/tests/cross_validate.rs` compares with them.
 
 ## Normalizer goldens
 

@@ -132,6 +132,19 @@ pub const LOCAL_MODELS: [Model; 5] = [
     },
 ];
 
+/// The upstream all-MiniLM-L6-v2 ONNX export, at the revision the sentence
+/// vector bundles are made from, which `fetch` turns into the mean-pooled
+/// copy the SentenceVectorsDL goldens run (`crate::pooled`). The generator
+/// never opens it. Hugging Face publishes its SHA-256 (6fd5d72f...); this
+/// is the SHA-512 of the same bytes. Fetched with [`LOCAL_MODELS`].
+pub const POOLING_SOURCE: Model = Model {
+    file: "all-minilm-l6-v2.onnx",
+    url: "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/\
+          c9745ed1d9f207416be6d2e6f8de32d1f16199bf/onnx/model.onnx",
+    sha512: "bcecf6e370eba3d2384b9d98676f79cebadf2462fd583fbd579a87e0149fa369\
+             004cd592a77d0acd45767de8f07efe6103e2474a67b7bbdadf0adec8f573bc7f",
+};
+
 /// A MeCab dictionary the generator loads from the models directory: the
 /// archive it is published in, the SHA-512 of the archive, the directory
 /// the archive unpacks to (where the dictionary's files are) and the
@@ -158,13 +171,15 @@ pub enum DictionaryEncoding {
 }
 
 /// The published MeCab dictionaries, with the SHA-512 of each archive.
-/// Neither project publishes a hash beside the archive; these are the
-/// hashes OpenNLP's dictionary catalog test resource lists
-/// (`dictionary-catalog.properties` at the OpenNLP commit), which the
-/// downloads were checked against. IPADIC is under the NAIST and ICOT
-/// notice in its `COPYING`, mecab-ko-dic under the Apache License 2.0; the
-/// archives are fetched, never checked in.
-pub const DICTIONARIES: [Dictionary; 2] = [
+/// No project publishes a hash beside its archive; IPADIC and mecab-ko-dic
+/// use the hashes OpenNLP's dictionary catalog test resource lists
+/// (`dictionary-catalog.properties` at the OpenNLP commit), and UniDic uses
+/// the hash of `unidic-mecab-2.1.2.tar.gz` (whose MD5 matches the one
+/// `lindera-unidic` pins). IPADIC is under the NAIST and ICOT notice in its
+/// `COPYING`, mecab-ko-dic under the Apache License 2.0, and UniDic under
+/// the BSD License in its `BSD` file; the archives are fetched, never
+/// checked in.
+pub const DICTIONARIES: [Dictionary; 3] = [
     Dictionary {
         archive: "mecab-ipadic-2.7.0-20070801.tar.gz",
         url: "https://downloads.sourceforge.net/project/mecab/mecab-ipadic/2.7.0-20070801/mecab-ipadic-2.7.0-20070801.tar.gz",
@@ -179,6 +194,14 @@ pub const DICTIONARIES: [Dictionary; 2] = [
         sha512: "986f8f9c66c53accd296756bf632c979d2d44b695ada33f36c662f210dba34cd\
                  95d67b61dd8c84a1f7d59f80ee6bc22eb1e9afb5dc6a7f9b6b75b4fbf2f8164f",
         dir: "mecab-ko-dic-2.1.1-20180720",
+        encoding: DictionaryEncoding::Utf8,
+    },
+    Dictionary {
+        archive: "unidic-mecab-2.1.2.tar.gz",
+        url: "https://lindera.dev/unidic-mecab-2.1.2.tar.gz",
+        sha512: "0bb18e1559ae4978f886c2e37d10975fd46ff4c5c4b388e7ff26888a368151ad\
+                 d13e1dc9a1450e69d6f5f182b9f6cba67244eb1e65b23099e18eed7942876df2",
+        dir: "unidic-mecab-2.1.2",
         encoding: DictionaryEncoding::Utf8,
     },
 ];

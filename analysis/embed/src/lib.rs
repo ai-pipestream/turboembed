@@ -16,6 +16,7 @@
 //! This is the one analysis crate that depends on the core crate, `turbo`.
 
 pub mod aspect;
+pub mod calibrate;
 pub mod centroids;
 pub mod encoder;
 pub mod heads;
@@ -32,6 +33,7 @@ pub mod vectors;
 pub mod window;
 
 pub use aspect::{BIO_ASPECT_OPINION_LABELS, LabeledAbsaDoc, LearnedAspectSentiment, bio_aspect_opinion_tagset};
+pub use calibrate::{Calibration, CalibrationOptions};
 pub use centroids::{CentroidNorm, LabelCentroids, add_categories, category_sentence_centroids, centroid};
 pub use encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
 pub use heads::{
@@ -58,3 +60,5 @@ pub(crate) fn model_ref(bundle: &Bundle) -> ModelRef {
 
 pub mod dense;
 pub use dense::{DenseClassifierAnnotator, DenseClassifierModel, DenseClassifierTrainer};
+pub mod doccat;
+pub use doccat::BundleSequenceScorer;

@@ -39,6 +39,28 @@ service AnalysisService
   rpc RoundTripTokenVectors(TokenVectorsResult) returns (TokenVectorsResult) {}
   rpc RoundTripRerankScores(RerankScoresResult) returns (RerankScoresResult) {}
   rpc RoundTripExtraction(ExtractionResult) returns (ExtractionResult) {}
+
+  // Chunks, their level tree and their embeddings in one round trip,
+  // with every span offset in the message's chosen OffsetMode.
+  rpc RoundTripChunkLevels(ChunkLevelsResult) returns (ChunkLevelsResult) {}
+
+  // A binary DocumentGraph in, the same document re-exported out,
+  // with every view and layer's identity, provenance and status.
+  rpc RoundTripDocumentGraph(DocumentGraphRequest) returns (DocumentGraphResponse) {}
+
+  // Bulk document analysis over one bidirectional stream (issue #722):
+  // the client opens with one AnalyzeStreamHeader naming the ordering and
+  // its flow-control knobs, then sends documents, each with its own
+  // correlation id. Every document answers exactly once, tagged with its
+  // id: the document's vectors, or a structured per-document failure the
+  // stream then continues past. Documents waiting on the same model are
+  // micro-batched up to the bundle's batch limit, which never changes a
+  // document's answer. Queued work is bounded and advertised in
+  // ServerLimits.stream: a client that sends without reading is stopped
+  // by backpressure, and cancelling the stream drops what was queued for
+  // it. The answer bytes per document equal the single-document call's
+  // raw_output_contents row for the same text and options.
+  rpc AnalyzeStream(stream AnalyzeStreamRequest) returns (stream AnalyzeStreamResponse) {}
 }
 
 message CapabilitiesRequest {}
@@ -69,6 +91,10 @@ message ServerLimits
   // Served models in all, startup ones included; a registration past
   // it is TURBO_E_CAPACITY naming max_loaded_models.
   uint32 max_loaded_models = 2;
+
+  // What the streaming bulk analysis call may queue, per stream and
+  // server-wide; its flow control holds queued work to these caps.
+  StreamLimits stream = 3;
 }
 
 // What one loaded bundle is and takes, so a client rejects an
@@ -129,6 +155,10 @@ message ResultLimits
   uint64 max_answers = 5;
   uint64 max_answer_fragments = 6;
   uint64 max_windows = 7;
+  uint64 max_chunks = 8;
+  uint64 max_levels = 9;
+  uint64 max_fragments = 10;
+  uint64 max_graph_bytes = 11;
 }
 
 message LoadBundleRequest
@@ -304,4 +334,291 @@ message ExtractionResult
   repeated uint32 frag_start = 9;
   repeated uint32 frag_end = 10;
   repeated uint32 frag_at = 11;
+}
+
+// What the streaming bulk analysis call accepts and answers (issue
+// #722). One stream carries one header followed by any number of
+// documents; each document answers exactly once, in the header's order
+// or as it completes, tagged with its correlation id.
+
+// Which order response items leave the stream in.
+enum AnalyzeOrder
+{
+  // The order the documents were sent in; the default.
+  ANALYZE_ORDER_INPUT = 0;
+
+  // The order the documents finish in.
+  ANALYZE_ORDER_COMPLETION = 1;
+}
+
+// One stream message: the header first, then documents.
+message AnalyzeStreamRequest
+{
+  oneof kind
+  {
+    // The first message of the stream must be the header; a header
+    // anywhere else is TURBO_E_INVALID_ARGUMENT and ends the stream.
+    AnalyzeStreamHeader header = 1;
+
+    // One document to analyze.
+    AnalyzeDocument document = 2;
+  }
+}
+
+// The stream's opening message: the ordering and the client side of the
+// flow control. Every knob is capped by ServerLimits.stream, which the
+// capability listing advertises; a larger one is TURBO_E_INVALID_ARGUMENT
+// naming the limit.
+message AnalyzeStreamHeader
+{
+  // The order response items leave the stream in.
+  AnalyzeOrder order = 1;
+
+  // How many documents may be executing or awaiting their answer at
+  // once, this client's own bound; 0 is the server's default
+  // max_inflight_items_per_stream.
+  uint32 max_inflight = 2;
+
+  // How long documents wait on the same model so they can be batched
+  // into one run, in milliseconds; 0 is the server's default
+  // default_batch_linger_ms.
+  uint32 batch_linger_ms = 3;
+}
+
+// The embed options one document asks for: the fields of
+// turbo_embed_options, each 0 for the model's default, exactly what the
+// single-document call's parameters carry. Documents batch together only
+// with documents of the same model and the same options.
+message AnalyzeOptions
+{
+  // TURBO_TRUNCATE_*.
+  uint32 truncate = 1;
+
+  // Tokens per row; 0 is the model's max_seq.
+  uint32 max_tokens = 2;
+
+  // TURBO_PROMPT_*.
+  uint32 prompt_role = 3;
+
+  // TURBO_NORMALIZE_*.
+  uint32 normalize = 4;
+
+  // TURBO_POOLING_*.
+  uint32 pooling = 5;
+
+  // One of the widths the capability listing names; 0 is the model's dim.
+  uint32 output_dim = 6;
+}
+
+// One document to analyze: its client correlation id, the served model's
+// name, the text, and the options.
+message AnalyzeDocument
+{
+  // The client's correlation id; non-empty, carried back on the answer.
+  string id = 1;
+
+  // The served model's name, as the capability listing names it.
+  string model = 2;
+
+  // The document's text; empty is a document.
+  bytes text = 3;
+
+  // What to compute; absent is every model default.
+  AnalyzeOptions options = 4;
+}
+
+// One document's answer, tagged with its correlation id: its vectors, or
+// its failure. A failed document never ends the stream.
+message AnalyzeStreamResponse
+{
+  // The document's correlation id.
+  string id = 1;
+
+  oneof outcome
+  {
+    // The document's vectors.
+    AnalyzeVectors vectors = 2;
+
+    // Why this document failed.
+    AnalyzeFailure failure = 3;
+  }
+}
+
+// The vectors of one document: the model identity and the row the
+// single-document call's raw_output_contents carries for the same text
+// and options, one row of little-endian f32, dim values.
+message AnalyzeVectors
+{
+  // The served model's name.
+  string model = 1;
+
+  // The bundle's revision.
+  string version = 2;
+
+  // Values per row; over 0.
+  uint32 dim = 3;
+
+  // dim x 4 little-endian f32, row-major: exactly the row the
+  // single-document call answers with.
+  bytes data = 4;
+}
+
+// Why one document failed: the turbo status the refusal carries, as the
+// single-document call's status would carry it, so a client routes it
+// the same way. The stream continues past it.
+message AnalyzeFailure
+{
+  // The turbo status code, TURBO_E_* as decimal.
+  int32 turbo_code = 1;
+
+  // turbo_error.field, when the failure names a field.
+  uint32 field = 2;
+
+  // The refusal, named the way the layer refuses a malformed column.
+  string message = 3;
+}
+
+// What the streaming bulk analysis call may queue, per stream and
+// server-wide: the caps its flow control holds queued work to, so a fast
+// client cannot grow the server's memory without limit. A send past them
+// is held by backpressure until the queue drains, never a mid-stream
+// error.
+message StreamLimits
+{
+  // Documents a stream may have queued, not yet executing.
+  uint64 max_queued_items_per_stream = 1;
+
+  // Document bytes a stream may have queued.
+  uint64 max_queued_bytes_per_stream = 2;
+
+  // Documents all streams may have queued in all.
+  uint64 max_queued_items_server = 3;
+
+  // Document bytes all streams may have queued in all.
+  uint64 max_queued_bytes_server = 4;
+
+  // Documents a stream may have executing or awaiting their answer at
+  // once; the most its max_inflight may ask for.
+  uint64 max_inflight_items_per_stream = 5;
+
+  // The wait that gathers one model's documents into a batch, in
+  // milliseconds, when the header does not say.
+  uint64 default_batch_linger_ms = 6;
+
+  // The most a header's batch_linger_ms may ask for.
+  uint64 max_batch_linger_ms = 7;
+}
+
+// The unit every span offset in a message is counted in. UTF-8 bytes
+// are the internal offsets; UTF-16 code units are Java's string
+// indices; code points count Unicode scalar values. Conversion uses
+// the view text's checkpoint table and refuses offsets that are out
+// of bounds, inverted, or inside a code point or UTF-16 surrogate
+// pair, with TURBO_E_INVALID_ARGUMENT: nothing is snapped or cut.
+enum OffsetMode
+{
+  OFFSET_MODE_UTF8 = 0;
+  OFFSET_MODE_UTF16 = 1;
+  OFFSET_MODE_CODE_POINT = 2;
+}
+
+// What became of one layer or view on its document.
+enum LayerWireStatus
+{
+  LAYER_WIRE_STATUS_OK = 0;
+  LAYER_WIRE_STATUS_SKIPPED = 1;
+  LAYER_WIRE_STATUS_FAILED = 2;
+}
+
+// One layer instance of a document graph: its standard layer id
+// (opennlp:* or turbo:*), instance, status and provenance.
+message LayerInfo
+{
+  string layer = 1;
+  string instance = 2;
+  LayerWireStatus status = 3;
+  // Why the layer was skipped, or its failure; empty when OK.
+  string status_detail = 4;
+  string annotator = 5;
+  string version = 6;
+  ModelRef model = 7;
+  uint64 config_hash = 8;
+  uint32 items = 9;
+}
+
+// One text view of a document graph.
+message ViewInfo
+{
+  string instance = 1;
+  LayerWireStatus status = 2;
+  string status_detail = 3;
+  string annotator = 4;
+  // The parent view's instance; empty for the source view.
+  string parent = 5;
+}
+
+// A whole document as binary DocumentGraph bytes (turbo-analysis
+// export). The answer is the same document imported and re-exported,
+// with its layers and views listed.
+message DocumentGraphRequest
+{
+  bytes graph = 1;
+}
+
+message DocumentGraphResponse
+{
+  bytes graph = 1;
+  repeated LayerInfo layers = 2;
+  repeated ViewInfo views = 3;
+  string source_text = 4;
+}
+
+// turbo:chunks, turbo:levels and opennlp:embeddings (over the chunks)
+// in one message, over one view's text. Every span offset is counted
+// in `offsets`. Spans are fragment columns in item order: item i's
+// fragments are frag_at[i - 1]..frag_at[i] (0..frag_at[0] first), at
+// least one per item, ascending and non-overlapping, as the layers'
+// own checks prove them.
+message ChunkLevelsResult
+{
+  // The view text the spans are offsets into.
+  string text = 1;
+  uint32 view = 2;
+  OffsetMode offsets = 3;
+
+  // Chunks: one entry per column per chunk.
+  repeated uint32 chunk_frag_start = 4;
+  repeated uint32 chunk_frag_end = 5;
+  repeated uint32 chunk_frag_at = 6;
+  repeated uint32 chunk_level = 7;
+  // The parent chunk index, or -1 for a level-0 chunk.
+  repeated int32 chunk_parent = 8;
+  repeated uint32 chunk_sentence_start = 9;
+  repeated uint32 chunk_sentence_end = 10;
+  // The cut reason tag of the DocumentGraph layer codec (0 document,
+  // 1 sentence, 2 section, 3 heading, 4 paragraph, 5 topic, 6 clause,
+  // 7 item, 8 inside a block, 9 overlap into a block); chunk_cut_block
+  // names the block (its codec table index) for tags 8 and 9, else 0.
+  repeated uint32 chunk_cut = 11;
+  repeated uint32 chunk_cut_block = 12;
+  repeated int64 chunk_cost = 13;
+  repeated uint32 chunk_model_tokens = 24;
+  repeated bool chunk_over_budget = 25;
+
+  // Levels: the chunk/section/document tree over the same view.
+  repeated uint32 level_frag_start = 14;
+  repeated uint32 level_frag_end = 15;
+  repeated uint32 level_frag_at = 16;
+  // 0 chunk, 1 section, 2 document.
+  repeated uint32 level_kind = 17;
+  // The chunk or structure index the unit names; 0 for the document.
+  repeated uint32 level_ix = 18;
+  // The parent unit index, or -1 for the document unit.
+  repeated int32 level_parent = 19;
+
+  // Embeddings: one row per chunk.
+  ModelRef model = 20;
+  uint32 dim = 21;
+  bytes data = 22;
+  repeated uint32 empty = 23;
 }
