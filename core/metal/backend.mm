@@ -1655,8 +1655,8 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
 // at every one; docs/metal.md says how (Autotuning).
 
 /* The packed tokens the tuner times each choice at, one per token bin up
- * to the session's capacity: at most this many in all, and fewer when the
- * session holds fewer. */
+ * to the session's capacity, and the capacity when it lies past the last;
+ * at most TUNE_TOKENS in all. */
 constexpr uint32_t TUNE_BIN_TOKENS[] = {256, 1024, 4096, 8192};
 constexpr uint32_t TUNE_TOKENS = 8192;
 /* Timed runs of each variant, after an untimed one. */
@@ -1736,14 +1736,14 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         if (l != (int)incumbent && runs_linear(c, (Linear)l)) order.push_back((Linear)l);
 
     // The token counts to time at: each bin's in TUNE_BIN_TOKENS the session
-    // can hold, and its whole capacity (up to TUNE_TOKENS) when that is
-    // fewer than the first.
+    // can hold, and its capacity (up to TUNE_TOKENS) when that lies past
+    // the last of them.
     const auto started = std::chrono::steady_clock::now();
     const uint32_t capacity = (uint32_t)std::min<uint64_t>((uint64_t)s.max_batch * s.max_seq, TUNE_TOKENS);
     std::vector<uint32_t> counts;
     for (uint32_t n : TUNE_BIN_TOKENS)
         if (n <= capacity) counts.push_back(n);
-    if (counts.empty()) counts.push_back(capacity);
+    if (counts.empty() || counts.back() < capacity) counts.push_back(capacity);
     static const char *const BINS[] = {"le256", "le1k", "le4k", "le16k", "gt16k"};
 
     const double budget = t.budget_ms;
@@ -1753,7 +1753,13 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     std::vector<std::vector<double>> least(counts.size(), std::vector<double>(order.size(), 0));
     std::vector<std::vector<bool>> timed(counts.size(), std::vector<bool>(order.size(), false));
     std::vector<uint32_t> bins(counts.size(), 0);
-    for (size_t b = 0; b < counts.size() && spent < budget; b++) {
+    // A challenger stays in only while it beats the incumbent by the margin
+    // at every count timed so far, since it must at all of them to win:
+    // the larger counts, the costly ones, time the incumbent and those
+    // left, and none left settles the choice.
+    std::vector<bool> alive(order.size(), true);
+    size_t left = order.size() - 1;
+    for (size_t b = 0; b < counts.size() && spent < budget && left > 0; b++) {
         // Rows of up to max_seq tokens, ids 1, as many as make counts[b].
         const uint32_t len = std::min(s.max_seq, counts[b]);
         const uint32_t batch = std::clamp(counts[b] / len, 1u, s.max_batch);
@@ -1772,15 +1778,24 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         s.nranges = 0;
         s.written = false;
         for (uint32_t edge : {256u, 1024u, 4096u, 16384u}) bins[b] += s.tokens > edge;
+        // Timed runs per choice here: as many as the budget left shares
+        // out over the counts and choices left, by the incumbent's untimed
+        // run, two at least and TUNE_RUNS at most.
+        size_t runs = TUNE_RUNS;
         for (size_t v = 0; v < order.size(); v++) {
             if (spent >= budget) break;
+            if (v > 0 && !alive[v]) continue;
             s.linear = order[v];
             double ms = 0;
             TRY(timed_run(s, &ms, err));   // untimed: the clocks come up
+            if (v == 0) {
+                const double share = (budget - spent) / (double)(counts.size() - b) / (double)(left + 1);
+                runs = std::clamp<size_t>((size_t)(share / std::max(ms, 1e-3)), 2, TUNE_RUNS);
+            }
             bool apart = true;
             for (int tries = 0; tries < TUNE_TRIES && apart; tries++) {
                 std::vector<double> times;
-                while (times.size() < TUNE_RUNS && spent < budget) {
+                while (times.size() < runs && spent < budget) {
                     TRY(timed_run(s, &ms, err));
                     spent += ms;
                     times.push_back(ms);
@@ -1801,12 +1816,17 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
                 return TURBO_OK;
             }
         }
+        for (size_t v = 1; v < order.size(); v++) {
+            if (!alive[v]) continue;
+            alive[v] = timed[b][0] && timed[b][v] && least[b][v] < least[b][0] * (1.0 - TUNE_MARGIN);
+            if (!alive[v]) left--;
+        }
     }
     if (!timed[0][0]) return refuse(err, TURBO_E_INVALID_STATE, "metal: the tuner timed no incumbent");
     // A challenger replaces the incumbent only when both were timed at
     // every count and it beat the incumbent by the margin at each; of
     // those, the one least in all. A count past the budget leaves the
-    // incumbent in place.
+    // incumbent in place, and so does a challenger dropped at a count.
     size_t best = 0;
     double best_total = 0;
     for (size_t v = 1; v < order.size(); v++) {
@@ -1822,8 +1842,11 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         }
     }
     s.linear = order[best];
-    bool all_timed = true;
-    for (const auto &row : timed) all_timed = all_timed && std::find(row.begin(), row.end(), false) == row.end();
+    // Why the larger counts were not timed, if they were not: every
+    // challenger dropped out, or the budget ran out.
+    bool cut = false;
+    for (size_t b = 0; b < counts.size(); b++) cut = cut || !timed[b][0];
+    const char *why = !cut ? "" : left == 0 ? "; the rest settled, no challenger left" : "; the rest past the budget";
     const uint32_t tune_ms = (uint32_t)std::min<double>(
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count(), UINT32_MAX);
     std::string lines, said;
@@ -1846,7 +1869,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
         t.timings[n] = 0;
     }
     c->say(LOG_INFO, "metal device %u: linear layers chosen in %u ms: %s (a run at %s%s)", c->ordinal, tune_ms,
-           LINEAR_NAMES[s.linear], said.c_str(), all_timed ? "" : "; some not timed, past the budget");
+           LINEAR_NAMES[s.linear], said.c_str(), why);
     write_choices(t.choices, choice_line(s.linear, false));
     t.tune_ms = tune_ms;
     t.tuned = TURBO_TUNED_MEASURED;
