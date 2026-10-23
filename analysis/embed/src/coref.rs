@@ -272,7 +272,6 @@ pub fn pool_word_tokens(
         &aligned_view
     };
 
-    let (p_starts, p_ends) = sub_ref.spans.columns();
     let mut out = Vec::with_capacity(tokens.len());
     for (t_ix, t_span) in tokens.iter() {
         if sub_ref.spans.is_empty() || sub_ref.token.is_none() {
@@ -283,21 +282,14 @@ pub fn pool_word_tokens(
         let (mut a, mut b) = (range.start.get(), range.end.get());
         if a == b {
             // A byte-level BPE piece spanning two adjacent word tokens is
-            // assigned by `align` to the first token; find overlapping pieces
-            // for this token's byte span, or fall back to the nearest piece.
-            let mut ov_start = None;
-            let mut ov_end = 0usize;
-            for p in 0..p_starts.len() {
-                let (ps, pe) = (p_starts[p], p_ends[p]);
-                if ps < t_span.end && t_span.start < pe {
-                    if ov_start.is_none() {
-                        ov_start = Some(p);
-                    }
-                    ov_end = p + 1;
-                }
-            }
-            if let Some(s) = ov_start {
-                a = s;
+            // assigned by `align` to the first token; use binary search on the
+            // sorted subword endpoints to find overlapping pieces, or fall back
+            // to the insertion point's nearest piece when the tokenizer dropped
+            // the token's characters.
+            let ov_start = p_ends.partition_point(|&e| e <= t_span.start);
+            let ov_end = p_starts.partition_point(|&s| s < t_span.end);
+            if ov_start < ov_end {
+                a = ov_start;
                 b = ov_end;
             } else {
                 let nearest = a.min(p_starts.len() - 1);

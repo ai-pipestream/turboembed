@@ -320,6 +320,23 @@ fn pool_word_tokens_handles_shared_bpe_spans_and_validates_inputs() {
     assert_eq!(pooled[1], vec![1.0, 0.0]);
     assert_eq!(pooled[2], vec![0.0, 1.0]);
 
+    // Nearest-piece fallback when a token's characters were dropped by the tokenizer:
+    // token 1 (4..5) and token 3 (10..11) overlap no piece and receive piece 1 (`a.min(len - 1)`).
+    let mut gapped = Spans::<Tokens>::new(ViewId::SOURCE);
+    for (s, e) in [(0, 4), (4, 5), (5, 9), (10, 11)] {
+        gapped.push(Span::new(s, e));
+    }
+    let gapped_sub = Subwords {
+        spans: subwords.spans.clone(),
+        ids: subwords.ids.clone(),
+        model: subwords.model.clone(),
+        token: align(&subwords.spans, &gapped),
+    };
+    assert_eq!(
+        pool_word_tokens(&gapped, &gapped_sub, &raw, 2, false).unwrap(),
+        vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]],
+    );
+
     // Validation errors: zero dim, mismatched buffer length, mixed views, or malformed token mappings.
     assert!(pool_word_tokens(&t_spans, &subwords, &raw, 0, false).is_err());
     assert!(pool_word_tokens(&t_spans, &subwords, &[1.0, 0.0], 2, false).is_err());
@@ -329,12 +346,7 @@ fn pool_word_tokens_handles_shared_bpe_spans_and_validates_inputs() {
     for bad_token in
         [vec![Ix::new(0), Ix::new(0), Ix::new(1)], vec![Ix::new(1), Ix::new(0)], vec![Ix::new(0), Ix::new(9)]]
     {
-        let bad = Subwords {
-            spans: subwords.spans.clone(),
-            ids: subwords.ids.clone(),
-            model: subwords.model.clone(),
-            token: Some(bad_token),
-        };
+        let bad = Subwords { spans: subwords.spans.clone(), ids: subwords.ids.clone(), model: subwords.model.clone(), token: Some(bad_token) };
         assert!(pool_word_tokens(&t_spans, &bad, &raw, 2, false).is_err());
     }
 }
@@ -408,9 +420,9 @@ fn run_ranking_comparison(bundle_dir: &Path, label: &str) -> (CorefScores, Coref
     let train_inputs: Vec<TrainingDocument<'_>> =
         train_docs.iter().map(|d| TrainingDocument { input: d.input(), gold: d.gold.clone() }).collect();
 
-    // 1. Train static Word2Vec vectors on all sentences of the corpus.
+    // 1. Train static Word2Vec vectors on the training split sentences only.
     let mut sentences_owned: Vec<Vec<String>> = Vec::new();
-    for d in train_docs.iter().chain(&test_docs) {
+    for d in &train_docs {
         for s in d.sentence_tokens() {
             sentences_owned.push(s.into_iter().map(str::to_owned).collect());
         }
@@ -426,7 +438,6 @@ fn run_ranking_comparison(bundle_dir: &Path, label: &str) -> (CorefScores, Coref
     };
     let w2v: Arc<dyn WordVectors> =
         Arc::new(Word2VecTrainer::new(w2v_params).unwrap().train(&sentences_owned).unwrap());
-
     let token_vecs: Arc<dyn TokenVectors> =
         Arc::new(BundleTokenVectors::open(bundle_dir, &VectorOptions::default()).unwrap());
 
@@ -441,7 +452,6 @@ fn run_ranking_comparison(bundle_dir: &Path, label: &str) -> (CorefScores, Coref
     let static_scores = train_and_score(Some(w2v.clone()), None);
     let ctx_scores = train_and_score(None, Some(token_vecs.clone()));
     let both_scores = train_and_score(Some(w2v), Some(token_vecs));
-
     for (arm, s) in [
         ("surface", &base_scores),
         ("static_word2vec", &static_scores),
@@ -456,7 +466,6 @@ fn run_ranking_comparison(bundle_dir: &Path, label: &str) -> (CorefScores, Coref
             s.ceaf_e().f1()
         );
     }
-
     (base_scores, static_scores, ctx_scores, both_scores)
 }
 

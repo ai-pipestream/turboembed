@@ -99,17 +99,22 @@ pieces to word tokens through the `Subwords` layer (`#960`):
    subword vectors from `VectorAnnotator::embed_subword_tokens` (and
    L2-normalized when the bundle normalizes its vectors). When a byte-level BPE
    piece crosses adjacent word tokens so `Subwords::of` is empty for the
-   trailing token, `pool_word_tokens` pools the subword pieces overlapping the
-   token's byte span (or the nearest piece when no piece overlaps).
+   trailing token, `pool_word_tokens` binary-searches the subword span endpoints
+   to pool the pieces overlapping the token's byte span; if the tokenizer
+   dropped all characters of a token so no piece overlaps, it falls back to the
+   single piece at the insertion point (`a.min(subwords.len() - 1)`).
 
-### Recorded CoNLL ranking comparison (`analysis/embed/tests/coref_token_vectors.rs`)
+### Synthetic end-to-end ranking check (`analysis/embed/tests/coref_token_vectors.rs`)
 
 Trained with `train_ranking` (`epochs = 20`, `learning_rate = 0.05`,
-`l2 = 0.001`) on 24 training documents and scored with `CorefScorer` on 12
-held-out test documents where each document introduces two same-type candidate
-antecedents followed by a modifier-disambiguated nominal mention (`"The cloud
-division"` vs `"The bio division"`, `"The solar group"` vs `"The lunar group"`,
-etc.):
+`l2 = 0.001`) on 24 project-written template training documents (and static
+`Word2Vec` trained on those 24 training documents only) and scored with
+`CorefScorer` on 12 held-out template documents whose test sentences differ from
+the training split only in the final verb (`"expanded"` and `"grew"` in
+training, `"succeeded"` in test). Each template document introduces two
+same-type candidate antecedents followed by a modifier-disambiguated nominal
+mention (`"The cloud division"` vs `"The bio division"`, `"The solar group"` vs
+`"The lunar group"`, etc.):
 
 | Feature set | Bundle | MUC F1 | B-cubed F1 | CEAF-e F1 | CoNLL average F1 |
 |---|---|---|---|---|---|
