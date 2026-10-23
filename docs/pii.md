@@ -74,10 +74,14 @@ phone, IBAN and card.
 columns `spans` (UTF-8 byte offsets into the view, on character
 boundaries), `kind`, `confidence` and `normalized`. Mentions are ordered
 by start, then longer first, then by kind rank; equal mentions (span,
-kind and normalized form) appear once, the first found kept. Mentions of
-different kinds may share a span or overlap: an IMEI after its label is
-also a Luhn-valid card number, and the trailing groups of a grouped IBAN
-can be a phone number. `Pii::check` holds a layer to this order.
+kind and normalized form) appear once, the first found kept. By default,
+a mention strictly nested inside a longer mention (such as a phone or
+card inside a grouped IBAN, or an NHS number inside an international
+phone number) is dropped; `PiiDetector::keeping_nested` keeps it for
+OpenNLP parity. Mentions of different kinds may still share an exact
+span or cross each other: an IMEI after its label is also a Luhn-valid
+card number, and `https://user:pass@example.com` has a URL credential
+crossing an e-mail address. `Pii::check` holds a layer to this order.
 
 The kinds, in rank order (`PiiKind::ALL`, `PiiKind::rank`), with the
 normalized form and the confidence each gets:
@@ -205,6 +209,12 @@ spans over multi-byte texts, and that the text equals `mask`.
   custom `CharSequence`) are not ported. Their ordering and masking cases
   are ported with built-in kinds.
 - `PiiConfidence` is added (above).
+- By default, `PiiDetector` drops a mention whose span lies strictly
+  inside a longer mention, so trailing groups of a grouped IBAN are not
+  also reported as a phone or card and ten digits inside an
+  international phone number are not also reported as an NHS number.
+  `PiiDetector::keeping_nested` keeps nested mentions as OpenNLP does;
+  the golden and differential parity checks use it.
 
 ## OpenNLP behaviour kept
 
@@ -223,9 +233,9 @@ them.
   a national length is reported when the whole does not:
   `+44 (0)20 7946 0123` gives `+44 (0)20 7946`, normalized `+440207946`,
   because the trunk `0` counts as a digit.
-- Ten digits grouped `ddd ddd dddd` that pass the NHS mod 11 check are
-  both an NHS number and a phone number in the wide pack, including in a
-  US phone number whose digits pass by chance.
+- Ten digits grouped `ddd ddd dddd` on the same span that pass the NHS
+  mod 11 check are both an NHS number and a phone number in the wide
+  pack.
 
 ## Fixtures
 
@@ -272,21 +282,23 @@ Make them in the recipe container with
 cargo run -p turbo-goldens-tool -- generate
 ```
 
-`analysis/pii/tests/goldens.rs` runs every pack over the set and compares
-the layer with the goldens row for row; while the `pii` golden directory
-is not on disk it says so and passes. The differential fuzzer covers the
-ten packs (`analysis/fuzz/src/runs/pii.rs`), and the `pii` set is among
-the sets it writes generated texts into.
+`analysis/pii/tests/goldens.rs` runs every pack with
+`PiiDetector::keeping_nested` over the set and compares the layer with
+the goldens row for row; while the `pii` golden directory is not on disk
+it says so and passes. The differential fuzzer covers the ten packs in
+the same parity mode (`analysis/fuzz/src/runs/pii.rs`), and the `pii`
+set is among the sets it writes generated texts into.
 
-`analysis/pii/tests/rewrite_goldens.rs` runs every pack and `MaskedView`
-over the set and compares the masked view's edits, the fully masked
-text, both rewrites (or that both sides refuse overlapping mentions; the
-Java message gives UTF-16 offsets, so only the refusal is compared), the
-labels with the spans they replaced and the offset map at them, and the
-audit report, exactly. While the `pii-rewrite` golden directory is not on
-disk it says so and passes. The differential fuzzer leaves these runs out
-(`NOT_COVERED` in `analysis/fuzz/src/runs/catalog.rs`), since they compare
-texts and reports rather than layers.
+`analysis/pii/tests/rewrite_goldens.rs` runs every pack (with
+`keeping_nested`) and `MaskedView` over the set and compares the masked
+view's edits, the fully masked text, both rewrites (or that both sides
+refuse overlapping mentions; the Java message gives UTF-16 offsets, so
+only the refusal is compared), the labels with the spans they replaced
+and the offset map at them, and the audit report, exactly. While the
+`pii-rewrite` golden directory is not on disk it says so and passes. The
+differential fuzzer leaves these runs out (`NOT_COVERED` in
+`analysis/fuzz/src/runs/catalog.rs`), since they compare texts and
+reports rather than layers.
 
 ## Precision and recall
 
@@ -296,22 +308,20 @@ pass their checks, each in a sentence, and near misses of the
 checksummed kinds with no label) together with OpenNLP's golden true and
 false positive corpora: 1112 texts, 720 labels made in the test. A found
 mention is true when a label has its span and kind; every other found
-mention is false, values found inside other values included.
+mention is false.
 
 | | true | false | missed | precision | recall |
 |---|---|---|---|---|---|
-| all kinds | 745 | 88 | 0 | 0.894 | 1.000 |
-| `phone` | 123 | 80 | 0 | 0.606 | 1.000 |
-| `card` | 42 | 4 | 0 | 0.913 | 1.000 |
-| `uk-nhs` | 41 | 4 | 0 | 0.911 | 1.000 |
-| every other kind | 539 | 0 | 0 | 1.000 | 1.000 |
+| all kinds | 744 | 40 | 0 | 0.949 | 1.000 |
+| `phone` | 122 | 40 | 0 | 0.753 | 1.000 |
+| every other kind | 622 | 0 | 0 | 1.000 | 1.000 |
 
 The false mentions are a phone in each near miss NHS number (ten grouped
-digits are a phone shape), phones and cards inside grouped IBANs, and NHS
-numbers inside US phone numbers whose digits pass mod 11. The set is made
-to pass the checks the scanners make, so recall on it says the scanners
-find what they are built to find, not how they do on text written by
-people. `PII_SHOW_FALSE=1` lists the false mentions.
+digits are a phone shape); phones and cards nested inside grouped IBANs
+and NHS numbers nested inside US phone numbers are dropped by default.
+The set is made to pass the checks the scanners make, so recall on it
+says the scanners find what they are built to find, not how they do on
+text written by people. `PII_SHOW_FALSE=1` lists the false mentions.
 
 ## Parity checks
 

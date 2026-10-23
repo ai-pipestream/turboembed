@@ -62,8 +62,11 @@ Face hub):
   `sat-3l`'s config). The core has no banded attention mask, so these
   do not run yet; adding one is a change to every backend's attention.
 - `sat-1l-sm` to `sat-12l-sm`: the supervised mixture models, with no
-  lookahead and one label. These need nothing the core lacks; none has
-  been run here yet (Not done, below).
+  lookahead and one label. These need nothing the core lacks;
+  `sat-1l-sm` matches wtpsplit (Against wtpsplit, below), and the others
+  have not been run here. Their training mixture holds UD
+  treebanks under CC BY-NC-SA, so they are local-only
+  (docs/licences.md, "Neural annotator checkpoints").
 
 ### The step
 
@@ -122,7 +125,7 @@ stride and block size (0.5, 16, 62; 0.25, 62, 62; 0.5, 7, 30):
   encoder states for the recipe's cases.
 
 On a device, `analysis/sat/tests/parity.rs` runs the step where
-`TURBO_TEST_DEVICE` names (a backend name or a device index), at the
+`TURBO_TEST_DEVICE` names (a backend name, a device index or `select`), at the
 precision `TURBO_TEST_PRECISION` names (`model` by default), and holds
 it to the same fixtures and tolerance:
 
@@ -130,12 +133,50 @@ it to the same fixtures and tolerance:
 TURBO_TEST_DEVICE=cuda cargo test --release -p turbo-sat --features turbo/cuda --test parity -- --nocapture
 ```
 
-On CUDA (RTX 4080 SUPER, nvcc 12.4, driver 615.71.09), all four tests
-pass at `model` and at `exact`. The largest probability differences are
-3.2e-4, 1.2e-4 and 2.5e-4, as on the CPU. At `fastest`, which computes
-in F16, the first character it fails on is 1.0e-3 from wtpsplit's
-probability. That is over what the test allows, so the parity holds at
-`model` and `exact` only.
+All four tests pass at `model` and at `exact` on each GPU backend, with
+the largest probability differences within 1e-6 of the CPU's (3.2e-4,
+1.2e-4 and 2.5e-4). At `fastest`, whose linear layers take F16
+operands, the result depends on the backend:
+
+| Backend | Device | `model`, `exact` | `fastest` |
+|---|---|---|---|
+| `cuda` | RTX 4080 SUPER (nvcc 12.4, driver 615.71.09) | pass | fails: a character 1.0e-3 from wtpsplit's |
+| `levelzero` | Arc B70 | pass | fails: a character 1.3e-3 from wtpsplit's |
+| `metal` | Apple M2 (macOS 27.0.1) | pass | pass, largest differences 3.3e-4, 1.2e-4, 2.5e-4 |
+
+A failure at `fastest` is over the 1e-3 the test allows, which is left
+as it is; the parity holds at `model` and `exact` on every backend.
+
+On a released checkpoint, `sat-1l-sm` at revision
+`00a783439c201b20ee91ee1624dc817f1bf0e578` (one layer, width 768, the
+whole XLM-R vocabulary), the same checks pass. The bundle is sealed from
+`bundle/recipes/sat-1l-sm.json`, and the reference's `segment` makes
+the fixtures from the same weights. The tokenizer is BAAI/bge-m3's
+`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`
+(MIT): it has XLM-R's vocabulary and character map, in the Unigram form
+the core reads. `FacebookAI/xlm-roberta-base`'s own `tokenizer.json`
+names no model type, which the core refuses, so both sides read the
+bge-m3 file, as the tiny model's fixtures do. The two files are not the
+same tokenizer pipeline, so this is wtpsplit with the bge-m3 file, not
+wtpsplit as it ships (below, "The released checkpoint's tokenizer").
+`a_released_checkpoint_matches_wtpsplit` in
+`analysis/sat/tests/parity.rs` runs the comparison when
+`TURBO_TEST_SAT_BUNDLE` names the bundle and `TURBO_TEST_SAT_FIXTURES`
+the fixtures. On the 90 texts:
+
+| Threshold, stride, block | Largest probability difference, CPU | On CUDA (`model`) | Characters near the threshold |
+|---|---|---|---|
+| 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 0 |
+| 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 0 |
+| 0.5, 7, 30 | 2.8e-4 | 2.8e-4 | 0 |
+
+The ids and offsets are wtpsplit's on every text but for the six
+cluster spans the tiny model shows too (below), and the pieces are
+`split`'s on every text but the one with a pad token in it. The bundle's
+encoder matches the mean of wtpsplit's encoder states for the recipe's
+16 cases: one minus the lowest cosine is 8.9e-13, and the largest
+absolute difference is 3.1e-6 (`TURBO_TEST_BUNDLE=<bundle> cargo test -p
+turbo --test conformance -- --include-ignored`).
 
 What the step does differently, and why:
 
@@ -148,6 +189,26 @@ What the step does differently, and why:
   U+0085 end words, which XLM-R's character map keeps), and no word
   start piece for whitespace at the end of a text. The core follows the
   file, so wtpsplit with transformers 5 gives other ids for such texts.
+- **The released checkpoint's tokenizer.** wtpsplit as it ships loads
+  `xlm-roberta-base`'s tokenizer, whose `tokenizer.json` (revision
+  `e73636d4f797dec63c3081bb6ed5c7b0bb3f2089`) splits at every Unicode
+  whitespace character before the word start piece (`WhitespaceSplit`,
+  then `Metaspace`), where bge-m3's collapses runs of spaces
+  (`Precompiled`, then a `Replace` of space runs) and splits only at
+  spaces (`Metaspace`). The core reads the second. With the first, the
+  reference's `segment` on `sat-1l-sm` at threshold 0.25, stride 64 and
+  block 510 gives other ids on 9 of the 90 texts: text that is only
+  whitespace (3), whitespace at either end (2), U+2028, U+2029 and
+  U+0085, the special-token strings, a source code text with line feeds
+  and indentation, and a long run of one word ending in a space. On 6 of
+  them a probability moves by more than 1e-3. On one, `Line one` U+2028
+  `Line two` U+2029 `Para two` U+0085 `Next line.`, the last two pieces
+  are one piece where the core gives two. On the other 84 texts the
+  probabilities are the same within 1e-3 and the pieces are the same.
+  Upstream's offsets there start before the space in front of a word
+  where the core's start after it; wtpsplit reads a token's score at its
+  end, so this does not move a probability. Reading `xlm-roberta-base`'s
+  file in the core would remove the difference.
 - **The prefix piece.** Before a text's first word, when no piece
   starts with that word's first characters, the tokenizer emits the
   bare word start `▁`. The core gives it an empty span, as it stands for
@@ -186,30 +247,15 @@ the stride is the main setting for throughput.
 
 ### Not done
 
-- Real checkpoints. Huggingface.co refused the downloads from the
-  machine this was built on, so no real SaT model was run, and there is
-  no zoo entry (an entry needs each file's SHA-512). The checks against
-  a real model are: seal a bundle from `sat-1l-sm` at revision
-  `00a783439c201b20ee91ee1624dc817f1bf0e578` (`model.safetensors`,
-  797951580 bytes, SHA-256
-  `81eb7a4fcd4dab85c50866c7e2cf58f3d848e1c830c9207d132277110489ea0c`)
-  with a recipe like `testdata/tiny-sat-recipe`'s, then run the
-  `segment` command of the reference on it and compare as
-  `analysis/sat/tests/parity.rs` does. CI would fetch it by that
-  digest and cache it.
+- A zoo entry for the `-sm` checkpoints. An entry needs each file's
+  SHA-512, and the checkpoints are local-only (docs/licences.md): the
+  zoo would fetch one only after its user accepts the licence, and CI
+  never fetches it, so the comparison above runs only where a user has
+  the checkpoint. `sat-12l-sm` and the other sizes have not been run.
 - Limited lookahead, for the models without `-sm`.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
   name; the manifest has no place to say what the head is.
-- Devices other than CUDA. The step runs where the range write runs;
-  the wtpsplit parity is recorded on the CPU and on CUDA.
-- The `-sm` models' class. They were trained on Universal Dependencies
-  training sets among other data (the SaT paper, section 4.2), and UD
-  holds treebanks under CC BY-NC-SA (English GUM, Czech PDT;
-  docs/licences.md). Under the zoo's rule a model's class is the most
-  restrictive of its own licence and its data's, so unless the mixture
-  left those treebanks out, the `-sm` models are local-only
-  (docs/licences.md, "Neural annotator checkpoints").
 
 ## GLiNER
 
