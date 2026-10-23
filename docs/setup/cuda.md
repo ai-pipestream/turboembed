@@ -93,7 +93,7 @@ TURBO_TEST_DEVICE=cuda TURBO_TEST_PRECISION=exact \
 TURBO_TEST_BUNDLE=models/bundles/bge-small-en-v1.5 TURBO_TEST_DEVICE=cuda \
     cargo test --release -p turbo --features cuda --test conformance -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=models/bundles/bge-small-en-v1.5 \
-    cargo test --release -p turbo --features cuda --test cuda -- --include-ignored --nocapture
+    cargo test --release -p turbo --features cuda --test 'cuda_*' -- --include-ignored --nocapture
 
 # everything, with the cuBLAS checks
 cargo test -p turbo --features cuda,cuda-cublas
