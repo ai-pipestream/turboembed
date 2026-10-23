@@ -182,16 +182,6 @@ pub fn pool_subword_vectors(
     vectors: &Vectors<Subwords>,
     l2: bool,
 ) -> Result<Vec<Vec<f32>>, Error> {
-    if tokens.spans.view() != subwords.spans.view() {
-        return Err(Error::Annotator {
-            annotator: ANNOTATOR_ID,
-            detail: format!(
-                "the tokens are in view {}, the subwords in view {}",
-                tokens.spans.view().0,
-                subwords.spans.view().0
-            ),
-        });
-    }
     pool_word_tokens(&tokens.spans, subwords, &vectors.data, vectors.dim as usize, l2)
 }
 
@@ -205,6 +195,16 @@ pub fn pool_word_tokens(
     dim: usize,
     l2: bool,
 ) -> Result<Vec<Vec<f32>>, Error> {
+    if tokens.view() != subwords.spans.view() {
+        return Err(Error::Annotator {
+            annotator: ANNOTATOR_ID,
+            detail: format!(
+                "the tokens are in view {}, the subwords in view {}",
+                tokens.view().0,
+                subwords.spans.view().0
+            ),
+        });
+    }
     if dim == 0 {
         return Err(Error::Annotator {
             annotator: ANNOTATOR_ID,
@@ -231,6 +231,32 @@ pub fn pool_word_tokens(
             annotator: ANNOTATOR_ID,
             detail: "the tokens are not in text order, or overlap".into(),
         });
+    }
+    let (p_starts, p_ends) = subwords.spans.columns();
+    if !p_starts.windows(2).all(|w| w[0] <= w[1])
+        || !p_ends.windows(2).all(|w| w[0] <= w[1])
+        || subwords.spans.has_discontinuous()
+    {
+        return Err(Error::Annotator { annotator: ANNOTATOR_ID, detail: "the subwords are not in text order".into() });
+    }
+    if let Some(t) = &subwords.token {
+        if t.len() != subwords.spans.len() {
+            return Err(Error::Annotator {
+                annotator: ANNOTATOR_ID,
+                detail: format!("a token for every subword: {} tokens for {} subwords", t.len(), subwords.spans.len()),
+            });
+        }
+        if !t.windows(2).all(|w| w[0] <= w[1]) {
+            return Err(Error::Annotator { annotator: ANNOTATOR_ID, detail: "subwords are not in token order".into() });
+        }
+        if let Some(last) = t.last()
+            && last.get() >= tokens.len()
+        {
+            return Err(Error::Annotator {
+                annotator: ANNOTATOR_ID,
+                detail: format!("subword token index {} is out of bounds for {} tokens", last.get(), tokens.len()),
+            });
+        }
     }
 
     let aligned_view;

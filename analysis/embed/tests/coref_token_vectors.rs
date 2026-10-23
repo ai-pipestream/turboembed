@@ -320,23 +320,30 @@ fn pool_word_tokens_handles_shared_bpe_spans_and_validates_inputs() {
     assert_eq!(pooled[1], vec![1.0, 0.0]);
     assert_eq!(pooled[2], vec![0.0, 1.0]);
 
-    // Validation errors: zero dim or mismatched buffer length.
+    // Validation errors: zero dim, mismatched buffer length, mixed views, or malformed token mappings.
     assert!(pool_word_tokens(&t_spans, &subwords, &raw, 0, false).is_err());
     assert!(pool_word_tokens(&t_spans, &subwords, &[1.0, 0.0], 2, false).is_err());
+    let mut other_view = Spans::<Tokens>::new(ViewId(1));
+    other_view.push(Span::new(0, 2));
+    assert!(pool_word_tokens(&other_view, &subwords, &raw, 2, false).is_err());
+    for bad_token in
+        [vec![Ix::new(0), Ix::new(0), Ix::new(1)], vec![Ix::new(1), Ix::new(0)], vec![Ix::new(0), Ix::new(9)]]
+    {
+        let bad = Subwords {
+            spans: subwords.spans.clone(),
+            ids: subwords.ids.clone(),
+            model: subwords.model.clone(),
+            token: Some(bad_token),
+        };
+        assert!(pool_word_tokens(&t_spans, &bad, &raw, 2, false).is_err());
+    }
 }
 
 /// Builds a coreference benchmark where each document introduces two candidate
 /// entities of the same entity type in the first two sentences, followed by a
-/// nominal or pronominal anaphor in the third sentence whose modifier/context
-/// disambiguates which of the two antecedents it corefers with.
-///
-/// Static `WordVectors` (`Word2Vec`) only compares the single head noun of
-/// nominal mentions (`"division"`, `"group"`, `"unit"`, `"center"`) and is not
-/// consulted at all on pronouns (`!ana_pronoun`), so two candidates with the
-/// same head noun or pronoun agreement look identical to static head vectors.
-/// Contextual `TokenVectors` (`BundleTokenVectors`) pools the encoder's
-/// contextualized token vectors over the full mention span and supplies `ctx`,
-/// `ctxCluster`, and dense `vp`/`vd`/`vn` features.
+/// nominal anaphor in the third sentence whose modifier disambiguates which
+/// antecedent it corefers with (`BundleTokenVectors` pools over the full
+/// mention span while static `WordVectors` only sees the shared head noun).
 fn benchmark_splits() -> (Vec<BuiltDoc>, Vec<BuiltDoc>) {
     let specs: &[(&str, &str, &str, &str, &str, usize)] = &[
         ("Apex Cloud", "cloud", "Vertex Bio", "bio", "division", 0),
