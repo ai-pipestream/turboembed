@@ -160,7 +160,7 @@ fn the_encoder_a_head_is_bound_to_travels_with_its_bytes() {
     let m =
         ModelRef { id: "sentence-transformers/all-MiniLM-L6-v2".into(), revision: "4".into(), sha256: "a".repeat(64) };
     for head in [two_wide(), two_wide().with_context(vec![0.5; 12]).unwrap()] {
-        let bound = head.with_model(m.clone());
+        let bound = head.with_model(m.clone()).unwrap();
         let bytes = bound.to_bytes();
         let back = IncivilityVectorHead::from_bytes(&bytes).unwrap();
         assert_eq!(back, bound);
@@ -176,7 +176,7 @@ fn the_encoder_a_head_is_bound_to_travels_with_its_bytes() {
         assert!(IncivilityVectorHead::from_bytes(&long).is_err());
     }
     // An encoder string that is not UTF-8, or longer than a head carries.
-    let bytes = two_wide().with_model(m.clone()).to_bytes();
+    let bytes = two_wide().with_model(m.clone()).unwrap().to_bytes();
     let at = 16 + 4 * 18 + 4;
     let mut bad = bytes.clone();
     bad[at] = 0xFF;
@@ -184,4 +184,20 @@ fn the_encoder_a_head_is_bound_to_travels_with_its_bytes() {
     let mut huge = bytes;
     huge[at - 4..at].copy_from_slice(&5000u32.to_le_bytes());
     assert!(IncivilityVectorHead::from_bytes(&huge).is_err());
+}
+
+#[test]
+fn encoder_strings_at_the_cap_round_trip_and_longer_ones_are_refused_at_bind() {
+    let at_cap = "x".repeat(4096);
+    let over = "x".repeat(4097);
+    let m = ModelRef { id: at_cap.clone(), revision: at_cap.clone(), sha256: at_cap.clone() };
+    let bound = two_wide().with_model(m).unwrap();
+    assert_eq!(IncivilityVectorHead::from_bytes(&bound.to_bytes()).unwrap(), bound);
+    for which in 0..3 {
+        let mut parts = [at_cap.clone(), at_cap.clone(), at_cap.clone()];
+        parts[which] = over.clone();
+        let [id, revision, sha256] = parts;
+        let r = two_wide().with_model(ModelRef { id, revision, sha256 });
+        assert!(matches!(r, Err(IncivilityHeadError::Value(_))), "part {which}");
+    }
 }

@@ -36,8 +36,8 @@ pub enum IncivilityHeadError {
     /// The bytes are not a head of this format: magic, version, flags or
     /// length.
     Format(String),
-    /// A dimension of 0, a matrix of the wrong size, or a weight that is
-    /// not finite.
+    /// A dimension of 0, a matrix of the wrong size, a weight that is
+    /// not finite, or an encoder string longer than 4096 bytes.
     Value(String),
 }
 
@@ -100,10 +100,19 @@ impl IncivilityVectorHead {
     }
 
     /// The encoder the vectors must come from; the annotator refuses
-    /// vectors of any other.
-    pub fn with_model(mut self, model: ModelRef) -> Self {
+    /// vectors of any other. Its id, revision and SHA-256 are each at most
+    /// 4096 bytes, the most the binary format stores.
+    pub fn with_model(mut self, model: ModelRef) -> Result<Self, IncivilityHeadError> {
+        for (what, text) in [("id", &model.id), ("revision", &model.revision), ("sha256", &model.sha256)] {
+            if text.len() > MAX_STRING {
+                return Err(IncivilityHeadError::Value(format!(
+                    "an encoder {what} of {} bytes, the most is {MAX_STRING}",
+                    text.len()
+                )));
+            }
+        }
         self.model = Some(model);
-        self
+        Ok(self)
     }
 
     pub fn dim(&self) -> usize {
@@ -214,7 +223,7 @@ impl IncivilityVectorHead {
                 Ok(s.to_owned())
             };
             let (id, revision, sha256) = (text()?, text()?, text()?);
-            head = head.with_model(ModelRef { id, revision, sha256 });
+            head = head.with_model(ModelRef { id, revision, sha256 })?;
         }
         if !rest.is_empty() {
             return bad(format!("{} bytes past the end of the head", rest.len()));

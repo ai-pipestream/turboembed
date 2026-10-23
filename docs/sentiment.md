@@ -494,7 +494,8 @@ dimension and flags (bit 0 a context matrix, bit 1 an encoder; all
 `u32` little-endian), then the biases, the weight matrix and the context
 matrix as little-endian `f32`, then, for a head bound to an encoder
 (`with_model`), the encoder's id, revision and SHA-256, each a `u32`
-length and UTF-8 bytes. A head read back keeps that encoder, so the
+length and UTF-8 bytes. `with_model` refuses a string over 4096 bytes
+with `IncivilityHeadError::Value`, so a head it accepts reads back. A head read back keeps that encoder, so the
 annotator still refuses vectors from any other. `from_bytes` checks each part and the exact length, and refuses a
 dimension of 0 or a value that is not finite, with an
 `IncivilityHeadError` and never a panic.

@@ -86,7 +86,7 @@ fn the_lexicon_stage_does_not_read_the_head() {
     // A head bound to another encoder than the vectors': the stages that
     // read it refuse the document, the lexicon stage does not.
     let other = ModelRef { id: "other-encoder".into(), ..model() };
-    let head: Arc<dyn IncivilityVectorScorer> = Arc::new(hostility_head().with_model(other));
+    let head: Arc<dyn IncivilityVectorScorer> = Arc::new(hostility_head().with_model(other).unwrap());
     let with = |stage| IncivilityAnnotator::new().with_vector_scorer(Arc::clone(&head)).with_stage(stage);
     let vectors = [[0.0, 1.0], [1.0, 0.0]];
     run(with(IncivilityStage::Lexicon), &mut doc(TEXT, &RANGES, &vectors)).unwrap();
@@ -95,7 +95,7 @@ fn the_lexicon_stage_does_not_read_the_head() {
     }
     // A head saved and read back keeps its encoder, so it still refuses
     // these vectors.
-    let saved = hostility_head().with_model(ModelRef { id: "other-encoder".into(), ..model() }).to_bytes();
+    let saved = hostility_head().with_model(ModelRef { id: "other-encoder".into(), ..model() }).unwrap().to_bytes();
     let loaded: Arc<dyn IncivilityVectorScorer> = Arc::new(IncivilityVectorHead::from_bytes(&saved).unwrap());
     let a = IncivilityAnnotator::new().with_vector_scorer(loaded).with_stage(IncivilityStage::Learned);
     let e = run(a, &mut doc(TEXT, &RANGES, &vectors)).unwrap_err();
