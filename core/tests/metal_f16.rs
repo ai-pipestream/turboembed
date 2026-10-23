@@ -132,9 +132,12 @@ fn the_choices_line_forces_back_and_refuses_what_it_cannot_run() {
     let Some(_) = metal_device("the_choices_line_forces_back_and_refuses_what_it_cannot_run") else { return };
     let l = on_metal(&tiny_bundle());
     let fastest = TURBO_PRECISION_FASTEST;
-    for line in ["linear=h32;attn=auto;forced=linear", "linear=h32;attn=registers;forced=linear,attn"] {
+    for (line, reported) in [
+        ("linear=h32;forced=linear", "linear=h32;attn=auto;forced=linear"),
+        ("linear=h32;attn=registers;forced=", "linear=h32;attn=registers;forced=linear,attn"),
+    ] {
         let i = make(l.m, Some(line), fastest, TURBO_AUTOTUNE_OFF).unwrap().info();
-        assert_eq!(field(&i.choices), line);
+        assert_eq!(field(&i.choices), reported);
     }
     let exact = TURBO_PRECISION_EXACT;
     for (line, precision) in [("linear=f32", fastest), ("linear=h64", exact), ("attn=registers", exact)] {

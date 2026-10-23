@@ -1758,7 +1758,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     t.tune_ms = 0;
     t.numerics_used = t.numerics_allowed;
     Context *c = s.ctx;
-    if (s.forced) {
+    if (s.forced || s.attn_forced) {
         write_choices(t.choices, choice_line(s));
         t.tuned = TURBO_TUNED_FORCED;
         return TURBO_OK;
