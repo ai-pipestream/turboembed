@@ -550,6 +550,97 @@ lexicon uses (`analysis/doccat/src/sentiment/token_key.rs`): typographic
 apostrophes read as `'`, Unicode punctuation trimmed, and full Unicode
 case folding, so "MUSLIM." and "Muslim" match alike.
 
+### Identity-term bias on real data
+
+`analysis/embed/examples/incivility_bias` measures the three stages on
+two sets:
+
+- **Civil Comments**, the WILDS release with identity columns
+  (`all_data_with_identities.csv`, 448,000 comments, SHA-256
+  `403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f`,
+  from the CC0 mirror
+  [shlomihod/civil-comments-wilds at 3fbfeca](https://huggingface.co/datasets/shlomihod/civil-comments-wilds/tree/3fbfeca80bad0f3aec37e72fa07eff222b6e752f);
+  the TFDS download address answers 403). The head is fitted to the
+  269,038 train comments; the numbers are on the 133,782 test comments.
+  A label is positive at a rater fraction of 0.5 and above; an identity
+  is mentioned at 0.5 and above, for the nine identities Borkan et al.
+  report.
+- **Jigsaw sentence templates** ("bias madlibs"),
+  `sentence_templates/en_sentence_templates.csv` (76,564 sentences,
+  SHA-256 `8ed7d07f61000a95a2e18747b8f1fbf43d75257cd342cddef1f3533254374633`)
+  and the neutral identity terms of `words.csv` (SHA-256
+  `1cca05c17d7ed990125cbdccca6ca15d469dffd1daa363cecd87de6b26305e47`),
+  from [conversationai/unintended-ml-bias-analysis at 1244018](https://github.com/conversationai/unintended-ml-bias-analysis/tree/1244018d92bed14bd0a2b0197292add67dbac97f),
+  CC BY 4.0, Jigsaw / Conversation AI. Each identity term is its own
+  subgroup. The set marks a sentence toxic or not; a toxic sentence
+  counts as an insult, the label its templates read as.
+
+Each comment or sentence is one unit with one vector: the encoder's
+pooled vector of its text, cut to the model's longest row (256 tokens
+for MiniLM, 512 for BGE-small). The head is `IncivilityVectorHead::fit`
+with the default options (500 epochs, rate 0.5, L2 1e-4) on the six
+rater fractions; Civil Comments has no intolerance column, so that
+label's target is 0 and it has no numbers here. Units are scored with
+`score_unit_in_context` at the default threshold of 0.5. The records
+are in `docs/receipts/incivility-bias-889/`; the run takes about four
+minutes per encoder on an RTX 4080 SUPER, three of them fitting the
+head on one CPU thread.
+
+ROC AUC per label on the Civil Comments test split (the lexicon stage
+reads no vector, so it has one row):
+
+| Stage | Encoder | insult | profanity | threat | identity_attack |
+|---|---|---|---|---|---|
+| lexicon | none | 0.647 | 0.756 | 0.517 | 0.501 |
+| learned | all-MiniLM-L6-v2 | 0.797 | 0.607 | 0.722 | 0.894 |
+| learned | bge-small-en-v1.5 | 0.822 | 0.602 | 0.727 | 0.894 |
+| fused | all-MiniLM-L6-v2 | 0.849 | 0.825 | 0.733 | 0.893 |
+| fused | bge-small-en-v1.5 | 0.868 | 0.822 | 0.737 | 0.894 |
+
+Severe toxicity has one positive comment in the test split at 0.5, so
+its AUC (0.41 and 0.45) is not a measure of anything.
+
+Insult, fused stage, per identity on the Civil Comments test split
+(subgroup, BPSN and BNSP AUC):
+
+| Identity | Comments | Insults | MiniLM sub | MiniLM BPSN | MiniLM BNSP | BGE sub | BGE BPSN | BGE BNSP |
+|---|---|---|---|---|---|---|---|---|
+| black | 4,872 | 600 | 0.779 | 0.690 | 0.912 | 0.802 | 0.767 | 0.897 |
+| christian | 13,361 | 587 | 0.837 | 0.912 | 0.744 | 0.863 | 0.923 | 0.780 |
+| female | 16,449 | 1,234 | 0.827 | 0.831 | 0.849 | 0.849 | 0.846 | 0.873 |
+| homosexual_gay_or_lesbian | 3,810 | 332 | 0.756 | 0.837 | 0.784 | 0.790 | 0.866 | 0.804 |
+| jewish | 2,674 | 169 | 0.800 | 0.801 | 0.853 | 0.823 | 0.846 | 0.851 |
+| male | 14,295 | 1,227 | 0.828 | 0.811 | 0.867 | 0.847 | 0.844 | 0.874 |
+| muslim | 6,982 | 583 | 0.783 | 0.752 | 0.880 | 0.808 | 0.812 | 0.872 |
+| psychiatric_or_mental_illness | 1,676 | 273 | 0.830 | 0.774 | 0.891 | 0.874 | 0.858 | 0.877 |
+| white | 7,969 | 1,008 | 0.766 | 0.625 | 0.935 | 0.782 | 0.708 | 0.920 |
+
+The low BPSN for `white`, `black` and `muslim` means neutral comments
+that mention them score above insults elsewhere: the bias Borkan et al.
+describe. The low BNSP for `christian` means insults that mention it
+score below neutral comments elsewhere.
+
+Insult on the madlibs, with the lowest BPSN and BNSP over the 50 terms:
+
+| Stage | Encoder | AUC | lowest BPSN | lowest BNSP |
+|---|---|---|---|---|
+| lexicon | none | 0.562 | 0.562 | 0.562 |
+| learned | all-MiniLM-L6-v2 | 0.915 | 0.632 (white) | 0.631 (protestant) |
+| learned | bge-small-en-v1.5 | 1.000 | 0.997 (homosexual) | 0.997 (older) |
+| fused | all-MiniLM-L6-v2 | 0.921 | 0.665 (white) | 0.669 (catholic) |
+| fused | bge-small-en-v1.5 | 1.000 | 0.997 (homosexual) | 0.997 (older) |
+
+The lexicon finds few of the templates' toxic adjectives, so its scores
+barely depend on the identity term and every term has the same AUC.
+
+For insult on Civil Comments, the false positive rate on neutral
+mentions at 0.5 comes from the lexicon alone: in the lexicon and fused
+stages it is 0.9% to 1.8% per identity for both encoders, and no head
+score on a neutral mention reaches 0.5. The head is fitted to rater fractions, and
+most insults have a fraction below 1, so its scores sit low; at this
+threshold its false positive rate is 0 and says nothing about bias. The
+AUC metrics do not depend on a threshold.
+
 ### Tests and license posture
 
 The [#326 audit](licences.md#complex-sentiment-licence-audit-326) approves
