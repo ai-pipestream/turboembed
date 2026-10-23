@@ -1,5 +1,6 @@
 //! Sentiment layers for aspect-based sentiment, opinion expressions,
-//! multi-label incivility, and sentence pragmatics (sarcasm and irony).
+//! multi-label incivility and emotion, and sentence pragmatics (sarcasm
+//! and irony).
 //!
 //! Every span is an [`Ix`] or [`IxRange`] into an existing layer
 //! ([`Tokens`], [`Sentences`](crate::Sentences), [`Chunks`](crate::Chunks), or [`Structure`](crate::Structure)), so byte
@@ -13,12 +14,19 @@ use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, Span};
 use crate::Tokens;
 
 mod aspects;
+mod emotion;
+mod emotion_labels;
+#[cfg(test)]
+#[path = "emotion_tests.rs"]
+mod emotion_tests;
 mod incivility;
 mod pragmatics;
 #[cfg(test)]
 mod tests;
 
 pub use aspects::{Aspect, AspectTarget, Aspects, PolarityScores};
+pub use emotion::{EmotionItem, EmotionLayer, EmotionTarget};
+pub use emotion_labels::{EMOTION_DIMENSIONS, EmotionDimension, EmotionScores};
 pub use incivility::{Incivility, IncivilityItem, IncivilityTarget};
 pub use pragmatics::{Incongruity, Pragmatics, PragmaticsItem};
 

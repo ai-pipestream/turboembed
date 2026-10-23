@@ -505,6 +505,74 @@ repository.
   rows, so the test shows the head firing on a sentence it was fitted to,
   not generalisation.
 
+## Emotion annotator (`EmotionAnnotator`, `#855`)
+
+`turbo_doccat::sentiment::emotion` (`EmotionAnnotator`,
+`EmotionVectorHead`, `EmotionVectorScorer`, `EmotionStage`,
+`EmotionUnit`, `evaluate_emotion_corpus`) scores each sentence or chunk on
+the 28 labels of `EmotionLayer` (`turbo:emotion`): GoEmotions' 27
+emotions and neutral (Demszky et al., ACL 2020), in the dataset's label
+order (`EmotionDimension`).
+
+`EmotionAnnotator` (`turbo-doccat:emotion`) reads
+`(View, Tokens, Option<Sentences>, Option<Chunks>, Option<Vectors<Sentences>>, Option<Vectors<Chunks>>)`
+and writes `EmotionLayer` in one of three stages:
+
+1. **Lexicon** (the default): a seed list of cue words and emoji written
+   for this crate (`analysis/doccat/src/sentiment/emotion/lexicon.rs`), a few per label with a weight
+   each. Tokens are looked up lowercased and trimmed of punctuation, an
+   emoji as itself. A cue adds its weight to its label by a noisy-or and
+   records its token as evidence, unless a negator ("not", "never",
+   "hardly", ...) is among the three tokens before it in the unit.
+   Neutral is one minus the strongest emotion.
+2. **Learned**: an `EmotionVectorScorer` over the unit's vector, such as
+   `EmotionVectorHead`, `sigmoid(w · v + b)` per label from a `[28, dim]`
+   matrix and 28 biases. The head's scores are the unit's; a positive
+   emotion's evidence is the unit's token range, the text the head read.
+3. **Hybrid**: each emotion the noisy-or of the lexicon's and the head's
+   scores, with the lexicon's cue tokens as evidence and the unit's range
+   where the lexicon found none; neutral the smaller of the head's
+   neutral and one minus the strongest fused emotion.
+
+The learned and hybrid stages need a head, and a vector for every unit:
+a unit with no vector fails the document. A head bound to an encoder
+(`with_model`) refuses vectors from any other; the lexicon stage reads
+no vectors and checks no encoder. Neutral never carries evidence. The
+model id is `goemotions-seed:<stage>`, or `<encoder>:emotion-<stage>`
+for a head that names its encoder, and the configuration hash covers
+the lexicon, the unit, the stage, the threshold and the head.
+
+`EmotionVectorHead::to_bytes` writes the magic `TEVH`, the version 1,
+the dimension and flags (bit 1 an encoder; all `u32` little-endian), the
+biases and the weights as little-endian `f32`, then, for a head bound to
+an encoder, its id, revision and SHA-256 as `u32`-length-prefixed UTF-8.
+`from_bytes` checks each part and the exact length, and a head read back
+keeps its encoder.
+
+`evaluate_emotion_corpus` gives per-label precision, recall and F1, macro
+and micro averages, and how many active emotions carry evidence.
+
+### Tests and license posture
+
+No emotion lexicon or dataset is fetched: the common emotion lexicons
+carry non-commercial terms, and the GoEmotions text is not in the
+repository, so the seed list is the crate's own and no trained head
+weights ship.
+
+- `analysis/doccat/src/sentiment/emotion/tests/mod.rs`: cues with their
+  token evidence and the noisy-or; negated cues that do not count, and a
+  negator out of reach that does not negate; text with no cue that is
+  neutral with no evidence; an emoji cue; the three stages on vectors
+  given as data, with their model ids and hashes; the errors for a
+  missing head, a missing vector and another encoder; the layer through
+  the document graph; and the evaluation counts.
+- `analysis/doccat/src/sentiment/emotion/tests/head.rs`: the head's
+  arithmetic, its bytes with and without an encoder, every cut of them
+  and every bad header field.
+- `analysis/layers/src/sentiment/emotion_tests.rs`: the taxonomy, the
+  checks on each pushed item, and `EmotionLayer::check` on broken
+  layers.
+
 ## Sentiment and aspect shift as a boundary signal (`SentimentBoundaries` and `ChunkFacets`, `#325`)
 
 `turbo_chunker` generalizes `ChunkEmbedProcessor` and `Centroids` from

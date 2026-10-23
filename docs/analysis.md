@@ -816,6 +816,7 @@ fields mean bumps its `SCHEMA`.
 | `Opinions` | `turbo:opinions` | the document (indexes `Tokens`) | `turbo-analysis-layers` |
 | `Aspects` | `turbo:aspects` | the document (indexes `Tokens`, `Sentences`, `Opinions` when used) | `turbo-analysis-layers` |
 | `Incivility` | `turbo:incivility` | the document (indexes `Tokens`, `Sentences`, `Chunks`, `Structure` when used) | `turbo-analysis-layers` |
+| `EmotionLayer` | `turbo:emotion` | the document (indexes `Tokens`, `Sentences`, `Chunks` when used) | `turbo-analysis-layers` |
 | `Pragmatics` | `turbo:pragmatics` | sentences (indexes `Tokens` when there is evidence) | `turbo-analysis-layers` |
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `GlossaryTerms` | `turbo:glossary-terms` | text (indexes `Tokens`) | `turbo-glossary-layers` |
@@ -898,6 +899,14 @@ so byte offsets follow view alignment without duplicating `Spans`:
   `evidence_end: Vec<u32>`) sorted by `(label, start, end)` within each
   row so `Incivility::evidence_for_label` returns a contiguous
   `&[IxRange<Tokens>]` slice by binary search.
+- `EmotionLayer` (`turbo:emotion`, anchored to `Document`, indexing
+  `Tokens` when an item has evidence and whichever of `Sentences` or
+  `Chunks` its items target): `target: Vec<EmotionTarget>` in strictly
+  increasing order, `scores: Vec<f64>` with the 28 GoEmotions scores of
+  each item in `EmotionDimension::ALL` order (`0.0..=1.0`), and CSR
+  evidence spans (`evidence_label`, `evidence_tokens`, `evidence_end`)
+  sorted by `(label, start, end)` within each item. Its `DocumentGraph`
+  codec checks every reference, index, count and label.
 - `Pragmatics` (`turbo:pragmatics`, aligned to `Sentences` and indexing
   `Tokens` when a sentence has evidence): `score: Vec<f64>` (`0.0..=1.0` per sentence) and `evidence:
   Vec<Option<Incongruity>>` where `Incongruity { positive:
