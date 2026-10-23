@@ -143,3 +143,42 @@ jobs:
           printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
           cc  -std=c11   -Wall -Wextra -Wpadded -Werror -pedantic -fsyntax-only -Iinclude "$RUNNER_TEMP/h.c"
           c++ -std=c++17 -Wall -Wextra -Wpadded -Werror -pedantic -fsyntax-only -x c++ -Iinclude "$RUNNER_TEMP/h.c"
+
+  # Windows, the host the Intel NPU machines run (#1011). The CPU backend
+  # and the host-only NPU build: the CUDA, Metal, Level Zero and Hailo
+  # backends need toolchains this runner does not have, and the JVM
+  # parity steps above need the OpenNLP models, so their tests skip here.
+  windows:
+    runs-on: windows-latest
+    steps:
+      # The goldens and fixtures are compared byte for byte; a checkout
+      # with core.autocrlf would rewrite their line endings.
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets
+      - name: clippy (fuzz)
+        run: cargo clippy -p turbo-goldens-tool --features fuzz --all-targets
+      - name: clippy (npu)
+        run: cargo clippy -p turbo --features npu --all-targets
+      - name: clippy (turboquant)
+        run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
+      - name: test
+        run: cargo test --workspace --exclude turbo
+      # Its own target directory, as in the check job (#358).
+      - name: test (core)
+        env:
+          CARGO_TARGET_DIR: target/core
+        run: cargo test -p turbo
+      # Host-only: no NPU on the runner, so the device tests stay ignored.
+      - name: test (npu)
+        env:
+          CARGO_TARGET_DIR: target/core
+        run: cargo test -p turbo --features npu
