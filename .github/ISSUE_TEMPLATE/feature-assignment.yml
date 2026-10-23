@@ -66,7 +66,7 @@ body:
       options:
         - Machine A (rtx4080super, arl-npu)
         - Machine B (b70)
-        - Machine C (Apple silicon)
+        - Machine C (m2)
         - Hailo board (pi5-hailo8, pi5-hailo10h)
         - Any machine (no device claim)
     validations:
@@ -80,10 +80,10 @@ body:
     id: merge
     attributes:
       label: Merge
-      description: Who may merge once the pull request is ready. Merge commits only.
+      description: Who merges once the pull request is ready. Merge commits only, never squash or rebase.
       options:
-        - Coordinator merges
-        - Owning agent is cleared to merge
+        - Second passing reviewer merges on green CI (default)
+        - Owner merges by hand
     validations:
       required: true
   - type: textarea

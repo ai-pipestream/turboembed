@@ -12,14 +12,14 @@ body:
     id: component
     attributes:
       label: OpenNLP component
-      description: The class or package being ported, for example opennlp.tools.sentdetect.SentenceDetectorME, and its row in the feature inventory.
+      description: The class or package being ported, for example opennlp.tools.sentdetect.SentenceDetectorME, and the docs/analysis.md section it extends.
     validations:
       required: true
   - type: dropdown
     id: stage
     attributes:
       label: Stage
-      description: The landing stage from the analysis design. Set the matching stage label and milestone.
+      description: The landing stage from the analysis design. Set the matching `stage:<n>` label.
       options: ["0", "1", "2", "3", "4", "5", "6", "7"]
     validations:
       required: true

@@ -1,7 +1,7 @@
 name: Bug
 description: A wrong result, a crash, a refusal that should not happen, or a regression.
 title: "<area>: <what goes wrong>"
-labels: ["type:bug", "status:ready"]
+labels: ["type:bug"]
 body:
   - type: markdown
     attributes:
