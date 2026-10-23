@@ -162,7 +162,8 @@ pub fn roc_auc(positives: &[f64], negatives: &[f64]) -> Option<f64> {
 }
 
 /// The bias metrics of `predicted` against `gold` at `threshold`. The
-/// units must match one for one, every score must be finite, and the
+/// units must match one for one, the layer must pass its own check (equal
+/// column lengths, every score in `0.0..=1.0`), and the
 /// threshold must be in `0.0..=1.0`.
 pub fn evaluate_incivility_bias(
     gold: &[GoldBiasUnit],
@@ -172,13 +173,12 @@ pub fn evaluate_incivility_bias(
     if !(0.0..=1.0).contains(&threshold) {
         return Err(format!("a threshold of {threshold}, outside 0..=1"));
     }
+    predicted.check().map_err(|e| format!("the predicted layer: {e}"))?;
     if gold.len() != predicted.len() {
         return Err(format!("{} gold units and {} predicted units", gold.len(), predicted.len()));
     }
+    // `check` has verified equal column lengths and scores in 0..=1.
     let scores: Vec<IncivilityScores> = (0..gold.len()).map(|u| predicted.scores(Ix::new(u as u32))).collect();
-    if let Some(u) = scores.iter().position(|s| s.iter().iter().any(|(_, v)| !v.is_finite())) {
-        return Err(format!("unit {u} has a score that is not finite"));
-    }
     let mut names: Vec<&str> = gold.iter().flat_map(|g| g.subgroups.iter().map(String::as_str)).collect();
     names.sort_unstable();
     names.dedup();

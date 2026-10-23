@@ -115,13 +115,16 @@ fn bias_metrics_on_a_fixed_set() {
 fn bias_metrics_reject_a_count_mismatch_and_a_bad_score() {
     let (mut gold, mut layer) = fixture();
     layer.threat[2] = f64::NAN;
-    assert!(evaluate_incivility_bias(&gold, &layer, 0.5).unwrap_err().contains("unit 2"));
+    assert!(evaluate_incivility_bias(&gold, &layer, 0.5).unwrap_err().contains("item 2"));
     layer.threat[2] = 0.0;
     for bad in [f64::NAN, f64::INFINITY, -0.1, 1.1] {
         assert!(evaluate_incivility_bias(&gold, &layer, bad).unwrap_err().contains("threshold"), "{bad}");
     }
     assert!(evaluate_incivility_bias(&gold, &layer, 0.0).is_ok());
     assert!(evaluate_incivility_bias(&gold, &layer, 1.0).is_ok());
+    let mut short = layer.clone();
+    short.threat.truncate(3);
+    assert!(evaluate_incivility_bias(&gold, &short, 0.5).unwrap_err().contains("predicted layer"));
     gold.pop();
     assert!(evaluate_incivility_bias(&gold, &layer, 0.5).is_err());
 }
