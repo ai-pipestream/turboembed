@@ -122,7 +122,7 @@ stride and block size (0.5, 16, 62; 0.25, 62, 62; 0.5, 7, 30):
   encoder states for the recipe's cases.
 
 On a device, `analysis/sat/tests/parity.rs` runs the step where
-`TURBO_TEST_DEVICE` names (a backend name or a device index), at the
+`TURBO_TEST_DEVICE` names (a backend name, a device index or `select`), at the
 precision `TURBO_TEST_PRECISION` names (`model` by default), and holds
 it to the same fixtures and tolerance:
 
@@ -130,12 +130,19 @@ it to the same fixtures and tolerance:
 TURBO_TEST_DEVICE=cuda cargo test --release -p turbo-sat --features turbo/cuda --test parity -- --nocapture
 ```
 
-On CUDA (RTX 4080 SUPER, nvcc 12.4, driver 615.71.09), all four tests
-pass at `model` and at `exact`. The largest probability differences are
-3.2e-4, 1.2e-4 and 2.5e-4, as on the CPU. At `fastest`, which computes
-in F16, the first character it fails on is 1.0e-3 from wtpsplit's
-probability. That is over what the test allows, so the parity holds at
-`model` and `exact` only.
+All four tests pass at `model` and at `exact` on each GPU backend, with
+the largest probability differences within 1e-6 of the CPU's (3.2e-4,
+1.2e-4 and 2.5e-4). At `fastest`, whose linear layers take F16
+operands, the result depends on the backend:
+
+| Backend | Device | `model`, `exact` | `fastest` |
+|---|---|---|---|
+| `cuda` | RTX 4080 SUPER (nvcc 12.4, driver 615.71.09) | pass | fails: a character 1.0e-3 from wtpsplit's |
+| `levelzero` | Arc B70 | pass | fails: a character 1.3e-3 from wtpsplit's |
+| `metal` | Apple M2 (macOS 27.0.1) | pass | pass, largest differences 3.3e-4, 1.2e-4, 2.5e-4 |
+
+A failure at `fastest` is over the 1e-3 the test allows, which is left
+as it is; the parity holds at `model` and `exact` on every backend.
 
 What the step does differently, and why:
 
@@ -201,8 +208,6 @@ the stride is the main setting for throughput.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
   name; the manifest has no place to say what the head is.
-- Devices other than CUDA. The step runs where the range write runs;
-  the wtpsplit parity is recorded on the CPU and on CUDA.
 - The `-sm` models' class. They were trained on Universal Dependencies
   training sets among other data (the SaT paper, section 4.2), and UD
   holds treebanks under CC BY-NC-SA (English GUM, Czech PDT;
