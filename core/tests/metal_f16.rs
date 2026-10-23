@@ -262,3 +262,49 @@ fn a_real_bundle_at_its_longest_rows_stays_inside_f16() {
         assert!(peak > 0.0 && peak < F16_MAX, "{name}: largest magnitude {peak}");
     }
 }
+
+/// How close FASTEST comes to the CPU on the masked rows below. They agree
+/// to 1 - 2.7e-11 on the M2. A kernel that let the masked keys into the
+/// scores, while the pooling still left those tokens out, comes to only
+/// 1 - 6.0e-7 there: the tiny bundle's attention moves the vectors little,
+/// so the bound sits well inside that.
+const MASKED_FLOOR: f64 = 1.0 - 1e-8;
+
+/// Keys masked in the middle of a row at FASTEST, in the first chunk of 32
+/// keys and in later ones, for each choice: every row comes within
+/// MASKED_FLOOR of the CPU, which drops the same keys. The CPU's vectors
+/// with those keys masked and with them live are first checked to be at
+/// least 100 times MASKED_FLOOR's distance apart, so the gaps change what
+/// the rows mean.
+#[test]
+fn masked_keys_inside_a_row_are_left_out_at_fastest() {
+    let _t = turn();
+    let Some(_) = metal_device("masked_keys_inside_a_row_are_left_out_at_fastest") else { return };
+    let dir = tiny_bundle();
+    let (g, c) = (on_metal(&dir), Loaded::load(&dir).unwrap());
+    let cpu = Session::create(c.m, None).unwrap();
+    let live = rows_of(&dir, &[64, 40, 9, 64]);
+    let mut t = rows_of(&dir, &[64, 40, 9, 64]);
+    let seq = t.seq as usize;
+    let gapped = [(0usize, &[5usize, 6, 40, 41, 42][..]), (1, &[0, 33][..]), (3, &[31, 32, 50][..])];
+    for (r, gaps) in gapped {
+        for &p in gaps {
+            t.mask[r * seq + p] = 0;
+        }
+    }
+    let (masked, unmasked) = (vectors(&cpu, &t), vectors(&cpu, &live));
+    for (r, _) in gapped {
+        let apart = 1.0 - cosine(&masked[r], &unmasked[r]);
+        assert!(apart >= 100.0 * (1.0 - MASKED_FLOOR), "row {r}: masking moves the cpu's vector by only {apart:.3e}");
+    }
+    for choice in ["h32", "h64", "h128", "auto"] {
+        let line = format!("linear={choice}");
+        let s = make(g.m, Some(&line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
+        let lowest = against_cpu(&s, &cpu, &t, MASKED_FLOOR, &format!("{line}, masked keys"));
+        println!("{line}, masked keys inside rows: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
+    }
+    let awkward = awkward_rows(&dir);
+    let s = make(g.m, None, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
+    let lowest = against_cpu(&s, &cpu, &awkward, MASKED_FLOOR, "awkward rows");
+    println!("awkward rows: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
+}
