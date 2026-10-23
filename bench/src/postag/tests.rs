@@ -77,6 +77,7 @@ fn check_refuses_what_a_measurement_cannot_give() {
     refused(&|r| r.runs[0].packed_over_parity = 99.0, "a ratio that is not the quotient");
     refused(&|r| r.runs[0].parity.call_p95_ms = 0.1, "p95 under p50");
     refused(&|r| r.runs.clear(), "no run");
-    refused(&|r| r.command = "--model /home/someone/e5.bin".into(), "a host path");
+    // A home directory, built so this file holds no such prefix itself.
+    refused(&|r| r.command = ["--model ", "home", "someone", "e5.bin"].join("/"), "a host path");
     refused(&|r| r.record_version = 2, "another version");
 }

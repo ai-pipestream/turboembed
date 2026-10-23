@@ -1,0 +1,176 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-23T01:18:05Z",
+  "machine": {
+    "arch": "x86_64",
+    "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "vendor": "AuthenticAMD",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 130171322368
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cpu",
+    "commit": "90e41ce15c8c67120fa5327ae29726d4eae7df72",
+    "pushed_to": [
+      "origin/cursor/858-bilstm-crf-bench-record"
+    ],
+    "settings": []
+  },
+  "procedure": "the tool ran pinned to CPUs 6, the tagger on one thread",
+  "command": "cargo run --release -p turbo-bench --features postag -- postag --model <model> --treebank <dir>/en_ewt-ud-test.conllu --cpus 6 --rounds 3",
+  "model": {
+    "id": "opennlp:BilstmPOSModel",
+    "revision": "ONLP-BLPT-2",
+    "sha256": "819328e7b1863ac5247e013547cadbfbf74d81ce09f1a04a1cd2030762adfad2",
+    "file_sha256": "819328e7b1863ac5247e013547cadbfbf74d81ce09f1a04a1cd2030762adfad2",
+    "file_bytes": 10204385,
+    "tags": 17,
+    "packed_config_hash": "19905fec3a80c80b",
+    "parity_config_hash": "c4b5694db9561402"
+  },
+  "treebank": {
+    "file": "en_ewt-ud-test.conllu",
+    "sha256": "0612e45914359e4b36d187ef2bfeaf66fc8933210925be985c5fbf6a9e311036",
+    "sentences": 2077,
+    "words": 25094
+  },
+  "rounds": 3,
+  "accuracy": {
+    "packed_correct": 23823,
+    "parity_correct": 23823,
+    "tags_agree": 25094
+  },
+  "drift": {
+    "max_emission_abs_diff": 0.000013869677765399047,
+    "max_marginal_abs_diff": 3.6824881356478656e-6
+  },
+  "runs": [
+    {
+      "sentences_per_call": 1,
+      "lengths": "all",
+      "sentences": 2077,
+      "words": 25094,
+      "packed": {
+        "words_per_second": 83534.2832617852,
+        "call_p50_ms": 0.117422,
+        "call_p95_ms": 0.435543
+      },
+      "parity": {
+        "words_per_second": 1335.8216369062648,
+        "call_p50_ms": 6.573696,
+        "call_p95_ms": 26.32419
+      },
+      "packed_over_parity": 62.53400974642757
+    },
+    {
+      "sentences_per_call": 8,
+      "lengths": "all",
+      "sentences": 2077,
+      "words": 25094,
+      "packed": {
+        "words_per_second": 97014.42870229129,
+        "call_p50_ms": 0.903688,
+        "call_p95_ms": 2.167497
+      },
+      "parity": {
+        "words_per_second": 1347.2259662957063,
+        "call_p50_ms": 65.247949,
+        "call_p95_ms": 153.855414
+      },
+      "packed_over_parity": 72.01050983974082
+    },
+    {
+      "sentences_per_call": 32,
+      "lengths": "all",
+      "sentences": 2077,
+      "words": 25094,
+      "packed": {
+        "words_per_second": 100704.21032850056,
+        "call_p50_ms": 3.6479559999999998,
+        "call_p95_ms": 7.630533
+      },
+      "parity": {
+        "words_per_second": 1352.3481566414266,
+        "call_p50_ms": 268.656417,
+        "call_p95_ms": 551.206957
+      },
+      "packed_over_parity": 74.46618670934615
+    },
+    {
+      "sentences_per_call": 128,
+      "lengths": "all",
+      "sentences": 2077,
+      "words": 25094,
+      "packed": {
+        "words_per_second": 101006.46416817419,
+        "call_p50_ms": 14.070948,
+        "call_p95_ms": 28.676526
+      },
+      "parity": {
+        "words_per_second": 1350.5823935552821,
+        "call_p50_ms": 1059.6681820000001,
+        "call_p95_ms": 2161.375138
+      },
+      "packed_over_parity": 74.78733963226345
+    },
+    {
+      "sentences_per_call": 32,
+      "lengths": "1-9",
+      "sentences": 1074,
+      "words": 4974,
+      "packed": {
+        "words_per_second": 106768.50730865207,
+        "call_p50_ms": 1.456974,
+        "call_p95_ms": 2.0566880000000003
+      },
+      "parity": {
+        "words_per_second": 1566.3536178274517,
+        "call_p50_ms": 98.200763,
+        "call_p95_ms": 149.241442
+      },
+      "packed_over_parity": 68.1637314163714
+    },
+    {
+      "sentences_per_call": 32,
+      "lengths": "10-24",
+      "sentences": 751,
+      "words": 11531,
+      "packed": {
+        "words_per_second": 96908.69824859317,
+        "call_p50_ms": 5.085312,
+        "call_p95_ms": 5.707499
+      },
+      "parity": {
+        "words_per_second": 1331.9578444590043,
+        "call_p50_ms": 368.112212,
+        "call_p95_ms": 404.72828599999997
+      },
+      "packed_over_parity": 72.75658058679339
+    },
+    {
+      "sentences_per_call": 32,
+      "lengths": "25-",
+      "sentences": 252,
+      "words": 8589,
+      "packed": {
+        "words_per_second": 98027.07416711996,
+        "call_p50_ms": 11.247921,
+        "call_p95_ms": 13.753378
+      },
+      "parity": {
+        "words_per_second": 1275.3879006546376,
+        "call_p50_ms": 856.6286680000001,
+        "call_p95_ms": 958.387858
+      },
+      "packed_over_parity": 76.8605959934261
+    }
+  ]
+}
