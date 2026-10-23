@@ -729,20 +729,19 @@ expanded. The search follows OpenNLP: each apostrophe is tried as the
 middle of a contraction, and after a candidate the search continues at
 its end.
 
-The word boundaries are in `contractions/word_break/`. `table.rs` holds
-the Word_Break property of Unicode 18.0.0, generated from
-`WordBreakProperty-18.0.0.txt` (OpenNLP carries the 17.0.0 file); the
-file and `WordBreakTest-18.0.0.txt` are in `analysis/normalize/tests/data/` under the
-Unicode License (see `analysis/unicode/ucd/LICENSE`). `is_boundary`
-applies rules WB1 to WB999 at one position. OpenNLP computes all the
-boundaries of the text in a forward pass; the rules only read the
-characters around a position (the one before, the one at it, the last
-two before it that WB4 does not skip, the next one after it that WB4
-does not skip, and the length of the run of regional indicators before
-it), so `is_boundary` reads only those and gives the same answer. Word
-boundaries belong in turbo-unicode, next to the other property tables,
-once a tokenizer needs them too; the module has no dependency on the
-rest of the crate.
+The word boundaries are in `contractions/word_break/`, reading the
+`Word_Break` and `Extended_Pictographic` properties of Unicode 18.0.0
+from `turbo_unicode::word_break` (`WordBreakProperty.txt` in
+`analysis/unicode/ucd/`; OpenNLP carries the 17.0.0 file).
+`WordBreakProperty-18.0.0.txt` and `WordBreakTest-18.0.0.txt` in
+`analysis/normalize/tests/data/` are under the Unicode License (see
+`analysis/unicode/ucd/LICENSE`). `is_boundary` applies rules WB1 to WB999
+at one position. OpenNLP computes all the boundaries of the text in a
+forward pass; the rules only read the characters around a position (the
+one before, the one at it, the last two before it that WB4 does not skip,
+the next one after it that WB4 does not skip, and the length of the run
+of regional indicators before it), so `is_boundary` reads only those and
+gives the same answer.
 
 `EnglishContractionsWithPos` (an `Annotator`, id
 `turbo:normalize:english-contractions-pos`) reads the `View`, and
