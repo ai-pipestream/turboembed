@@ -25,6 +25,7 @@
 
 use super::*;
 use crate::sentiment::token_key::token_key;
+use turbo_unicode::category::general_category;
 
 /// Identity terms, each a word or a phrase of several words, grouped by
 /// the subgroup they name.
@@ -38,7 +39,7 @@ pub struct IdentityTerms {
 impl IdentityTerms {
     /// The terms from `(subgroup, term)` pairs; a term of several words is
     /// split at whitespace and matches that run of tokens. An empty
-    /// subgroup or term is an error.
+    /// subgroup or term, or a word of punctuation only, is an error.
     pub fn new<'a>(entries: impl IntoIterator<Item = (&'a str, &'a str)>) -> Result<Self, String> {
         let mut subgroups: Vec<String> = Vec::new();
         let mut terms = Vec::new();
@@ -46,8 +47,11 @@ impl IdentityTerms {
             if subgroup.trim().is_empty() {
                 return Err(format!("an empty subgroup for the term {term:?}"));
             }
+            if term.split_whitespace().any(|w| w.chars().all(|c| general_category(c).is_punctuation())) {
+                return Err(format!("the term {term:?} in the subgroup {subgroup:?} has a word of punctuation only"));
+            }
             let words: Vec<String> = term.split_whitespace().map(token_key).collect();
-            if words.is_empty() || words.iter().any(String::is_empty) {
+            if words.is_empty() {
                 return Err(format!("an empty term in the subgroup {subgroup:?}"));
             }
             let s = match subgroups.iter().position(|g| g == subgroup) {
@@ -133,9 +137,9 @@ pub struct IncivilityBiasMetrics {
 
 /// The ROC AUC of `positives` against `negatives`: the chance that a
 /// positive scores above a negative, ties counting one half. `None` when
-/// either side is empty; scores must be finite.
+/// either side is empty or a score is not finite.
 pub fn roc_auc(positives: &[f64], negatives: &[f64]) -> Option<f64> {
-    if positives.is_empty() || negatives.is_empty() {
+    if positives.is_empty() || negatives.is_empty() || positives.iter().chain(negatives).any(|s| !s.is_finite()) {
         return None;
     }
     let mut all: Vec<(f64, bool)> =
@@ -145,7 +149,7 @@ pub fn roc_auc(positives: &[f64], negatives: &[f64]) -> Option<f64> {
     let mut rank_sum = 0.0;
     let mut i = 0;
     while i < all.len() {
-        let mut j = i;
+        let mut j = i + 1;
         while j < all.len() && all[j].0 == all[i].0 {
             j += 1;
         }
@@ -158,12 +162,16 @@ pub fn roc_auc(positives: &[f64], negatives: &[f64]) -> Option<f64> {
 }
 
 /// The bias metrics of `predicted` against `gold` at `threshold`. The
-/// units must match one for one, and every score must be finite.
+/// units must match one for one, every score must be finite, and the
+/// threshold must be in `0.0..=1.0`.
 pub fn evaluate_incivility_bias(
     gold: &[GoldBiasUnit],
     predicted: &Incivility,
     threshold: f64,
 ) -> Result<IncivilityBiasMetrics, String> {
+    if !(0.0..=1.0).contains(&threshold) {
+        return Err(format!("a threshold of {threshold}, outside 0..=1"));
+    }
     if gold.len() != predicted.len() {
         return Err(format!("{} gold units and {} predicted units", gold.len(), predicted.len()));
     }

@@ -16,6 +16,9 @@ fn roc_auc_on_fixed_scores() {
     close(roc_auc(&[0.5], &[0.5, 0.3]), 0.75);
     assert_eq!(roc_auc(&[], &[0.1]), None);
     assert_eq!(roc_auc(&[0.1], &[]), None);
+    assert_eq!(roc_auc(&[f64::NAN], &[0.5]), None);
+    assert_eq!(roc_auc(&[0.5], &[f64::INFINITY]), None);
+    assert_eq!(roc_auc(&[0.5, f64::NAN], &[0.5, 0.2]), None);
 }
 
 #[test]
@@ -38,6 +41,9 @@ fn identity_terms_match_case_punctuation_and_phrases() {
     assert_eq!(find("gaiety"), Vec::<&str>::new());
     assert!(IdentityTerms::new([("", "x")]).is_err());
     assert!(IdentityTerms::new([("x", " ")]).is_err());
+    assert!(IdentityTerms::new([("x", "...")]).is_err());
+    assert!(IdentityTerms::new([("x", "gay \u{2026}")]).is_err());
+    assert!(IdentityTerms::new([("x", "\u{1F3F3}\u{FE0F}\u{200D}\u{1F308}")]).is_ok());
 }
 
 /// Nine units, insult scores only. `muslim` has a neutral mention scored
@@ -111,6 +117,11 @@ fn bias_metrics_reject_a_count_mismatch_and_a_bad_score() {
     layer.threat[2] = f64::NAN;
     assert!(evaluate_incivility_bias(&gold, &layer, 0.5).unwrap_err().contains("unit 2"));
     layer.threat[2] = 0.0;
+    for bad in [f64::NAN, f64::INFINITY, -0.1, 1.1] {
+        assert!(evaluate_incivility_bias(&gold, &layer, bad).unwrap_err().contains("threshold"), "{bad}");
+    }
+    assert!(evaluate_incivility_bias(&gold, &layer, 0.0).is_ok());
+    assert!(evaluate_incivility_bias(&gold, &layer, 1.0).is_ok());
     gold.pop();
     assert!(evaluate_incivility_bias(&gold, &layer, 0.5).is_err());
 }
