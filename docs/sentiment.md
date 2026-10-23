@@ -518,6 +518,38 @@ annotator's configuration hash, and the model id names them:
 encoder named is `incivility-vector-head`, and a `:preceding-vector` or
 `:parent-vector` suffix with a vector context.
 
+### Identity-term bias metrics (`evaluate_incivility_bias`)
+
+`evaluate_incivility_bias` measures whether the scores treat text that
+mentions an identity group differently, after Borkan et al., "Nuanced
+Metrics for Measuring Unintended Bias with Real Data for Text
+Classification" (WWW 2019 Companion). Each `GoldBiasUnit` gives a unit's
+positive labels and the identity subgroups it mentions. For each label
+the result has the ROC AUC over all units and, for each subgroup:
+
+- subgroup AUC, over the units that mention the subgroup;
+- BPSN AUC (background positive, subgroup negative): positives that do
+  not mention the subgroup against negatives that do. A low value means
+  neutral mentions score above real positives elsewhere;
+- BNSP AUC (background negative, subgroup positive): positives that
+  mention the subgroup against negatives that do not. A low value means
+  real positives that mention the subgroup score below neutral text
+  elsewhere;
+- the false positive rate on neutral mentions: of the units that mention
+  the subgroup and are negative for the label, the share scored at or
+  above the threshold.
+
+An AUC with no positive or no negative unit is `None`; ties count one
+half (`roc_auc`, the Mann-Whitney statistic). A count mismatch or a score
+that is not finite is an error.
+
+`IdentityTerms` finds the subgroups a unit mentions from
+`(subgroup, term)` pairs. A term of several words matches that run of
+tokens. Tokens and terms are compared by the lookup key the emotion
+lexicon uses (`analysis/doccat/src/sentiment/token_key.rs`): typographic
+apostrophes read as `'`, Unicode punctuation trimmed, and full Unicode
+case folding, so "MUSLIM." and "Muslim" match alike.
+
 ### Tests and license posture
 
 The [#326 audit](licences.md#complex-sentiment-licence-audit-326) approves
@@ -552,6 +584,12 @@ incivility rules and fixtures use the repository licence.
   fitted to rows where the identity term and hostility vary apart (a head
   keyed on the identity term fails the same check), and the learned layer
   round-trips through the document graph.
+- `analysis/doccat/src/sentiment/incivility/tests/bias.rs` checks
+  `roc_auc` on fixed scores with known values (including ties and empty
+  sides), `IdentityTerms` on case, typographic quotes, trailing
+  punctuation and a two-word term, and `evaluate_incivility_bias` on a
+  nine-unit set whose overall, subgroup, BPSN and BNSP AUCs and neutral
+  false positive rates are worked out by hand in the test.
 - `analysis/embed/tests/heads.rs`
   (`incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device`)
   fits a multi-label `ClassifierHead` (`HeadMode::MultiLabel`) and a 6-label
