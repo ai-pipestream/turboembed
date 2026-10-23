@@ -4,14 +4,13 @@
 //! Opens a sequence-classification bundle carrying a `CLASSIFIER_SEQUENCE`
 //! head with 3-way (`entailment`, `neutral`, `contradiction`) or 2-way
 //! (`entailment`, `not_entailment`) NLI outcome labels, encodes each
-//! `(premise, hypothesis)` pair via [`turbo::turbo_tokenizer_encode_pair`],
+//! `(premise, hypothesis)` pair via [`Tokenizer::encode_pair`],
 //! batches the pairs of a document into `max_batch` chunks through
 //! [`Encoder::run_cls`], and evaluates [`turbo::head::Head::logits_into`] on
 //! the resulting CLS hidden states.
 
-use std::mem::size_of;
+use std::collections::HashMap;
 use std::path::Path;
-use std::ptr;
 use std::sync::{Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
@@ -19,39 +18,16 @@ use turbo::head::Head;
 use turbo::manifest::{ClassifierKind, PromptRole, Truncation};
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT, INVALID_SHAPE};
 use turbo::tokenizer::{Encode, Tokenizer};
-use turbo::{
-    turbo_error, turbo_rerank_options, turbo_text, turbo_text_pair, turbo_tokenizer, turbo_tokenizer_create,
-    turbo_tokenizer_encode_pair, turbo_tokenizer_release,
-};
 use turbo_analysis::{Execution, ModelRef};
 use turbo_doccat::{NliScorer, ZeroShotAnnotator, ZeroShotCategorizer, ZeroShotConfig, ZeroShotError};
 
 use crate::encoder::{Encoder, EncoderInfo, EncoderOptions, Rows};
 
 struct NliRun {
-    tok_handle: *mut turbo_tokenizer,
     encoder: Encoder,
     rows: Rows,
     cls_states: Vec<f32>,
-    ids_buf: Vec<i32>,
-    types_buf: Vec<i32>,
     runs: u64,
-}
-
-// SAFETY: `tok_handle` and `encoder` are only accessed under `Mutex<NliRun>`,
-// so at most one thread touches the C handles at any time.
-unsafe impl Send for NliRun {}
-
-impl Drop for NliRun {
-    fn drop(&mut self) {
-        unsafe {
-            turbo_tokenizer_release(self.tok_handle);
-        }
-    }
-}
-
-fn new_error() -> turbo_error {
-    turbo_error { struct_size: size_of::<turbo_error>() as u32, code: 0, field: 0, message: [0; 496] }
 }
 
 fn fold(s: &str) -> String {
@@ -139,27 +115,14 @@ impl BundleNliScorer {
                 format!("NLI head hidden width {} does not match encoder dim {}", head.hidden, info.dim),
             ));
         }
-        let path = dir
-            .to_str()
-            .ok_or_else(|| CoreError::new(INVALID_ARGUMENT, format!("{}: not a UTF-8 path", dir.display())))?;
-        let path_text = turbo_text { ptr: path.as_ptr().cast(), len: path.len() as u64 };
-        let mut tok_handle: *mut turbo_tokenizer = ptr::null_mut();
-        let mut err = new_error();
-        let rc = unsafe { turbo_tokenizer_create(encoder.runtime_handle(), path_text, &mut tok_handle, &mut err) };
-        if rc != 0 {
-            return Err(CoreError::field(rc, err.field, crate::encoder::field(&err.message)));
-        }
         let fill_id = tokenizer.fill_id();
         let execution = info.execution.clone();
         let max_pair_tokens = info.max_seq;
         let max_batch = info.max_batch;
         Ok(Self {
             run: Mutex::new(NliRun {
-                tok_handle,
                 rows: Rows::new(max_pair_tokens, fill_id),
                 cls_states: Vec::new(),
-                ids_buf: vec![0; max_pair_tokens as usize],
-                types_buf: vec![0; max_pair_tokens as usize],
                 runs: 0,
                 encoder,
             }),
@@ -256,6 +219,7 @@ impl NliScorer for BundleNliScorer {
         }
         let num_labels = self.head.num_labels();
         let max_pair = self.max_pair_tokens as usize;
+        let mut hyp_lengths: HashMap<&str, usize> = HashMap::new();
         let mut guard = self.run.lock().unwrap_or_else(PoisonError::into_inner);
         let run = &mut *guard;
         let mut all_logits = Vec::with_capacity(pairs.len());
@@ -263,7 +227,7 @@ impl NliScorer for BundleNliScorer {
         for batch in pairs.chunks(self.max_batch as usize) {
             run.rows.clear();
             for &(premise, hypothesis) in batch {
-                let hyp_tokens = self.count_tokens(hypothesis);
+                let hyp_tokens = *hyp_lengths.entry(hypothesis).or_insert_with(|| self.count_tokens(hypothesis));
                 if hyp_tokens + self.pair_specials >= max_pair {
                     return Err(ZeroShotError::Scorer(format!(
                         "hypothesis of {hyp_tokens} tokens plus {} pair specials fills max_pair_tokens {}",
@@ -271,35 +235,12 @@ impl NliScorer for BundleNliScorer {
                     )));
                 }
                 let query_tokens = (max_pair - self.pair_specials - hyp_tokens.max(1)).max(1) as u32;
-                let pair = turbo_text_pair {
-                    query: turbo_text { ptr: premise.as_ptr().cast(), len: premise.len() as u64 },
-                    passage: turbo_text { ptr: hypothesis.as_ptr().cast(), len: hypothesis.len() as u64 },
-                };
-                let opts = turbo_rerank_options {
-                    struct_size: size_of::<turbo_rerank_options>() as u32,
-                    query_tokens,
-                    max_tokens: self.max_pair_tokens,
-                    stride: 0,
-                };
-                let mut written = 0u32;
-                let mut err = new_error();
-                let rc = unsafe {
-                    turbo_tokenizer_encode_pair(
-                        run.tok_handle,
-                        pair,
-                        &opts,
-                        run.ids_buf.as_mut_ptr(),
-                        run.types_buf.as_mut_ptr(),
-                        self.max_pair_tokens,
-                        &mut written,
-                        &mut err,
-                    )
-                };
-                if rc != 0 {
-                    return Err(ZeroShotError::Scorer(crate::encoder::field(&err.message)));
-                }
-                let n = written as usize;
-                run.rows.push_with_types(&run.ids_buf[..n], &run.types_buf[..n]);
+                let windows = self
+                    .tokenizer
+                    .encode_pair(premise, hypothesis, query_tokens, self.max_pair_tokens, 0)
+                    .map_err(|e| ZeroShotError::Scorer(e.to_string()))?;
+                let w = &windows[0];
+                run.rows.push_with_types(&w.ids, &w.types);
             }
             run.encoder.run_cls(&run.rows, &mut run.cls_states).map_err(|e| ZeroShotError::Scorer(e.to_string()))?;
             run.runs += 1;

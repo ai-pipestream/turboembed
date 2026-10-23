@@ -382,26 +382,29 @@ than failing the document.
 
 `turbo_analysis_embed::BundleNliScorer` implements `NliScorer` on a
 sequence-classification bundle (`TASK_EMBED` with a `CLASSIFIER_SEQUENCE`
-head in `head.bin`) across every backend `Encoder` supports (CPU, Metal,
-CUDA, Vulkan, HIP):
+head in `head.bin`) on the CPU backend:
 
-1. `BundleNliScorer::open(bundle_dir, outcomes, device, max_batch)` opens
-   the bundle's `Tokenizer` (checking that it derives a `PairTemplate`
-   with `PairTemplate::special_tokens()` `3` for BERT or `4` for RoBERTa),
-   loads the `CLASSIFIER_SEQUENCE` head (`Head::from_bundle`), and opens
-   the `Encoder` with `TURBO_POOLING_CLS` and `TURBO_NORMALIZE_NONE`. It
-   refuses a bundle whose `head.num_labels()` does not match `outcomes.len()`
-   or whose `max_seq_len` cannot fit the pair template's special tokens.
-   `BundleNliScorer::open_categorizer` and `BundleNliScorer::open_annotator`
-   construct a `ZeroShotCategorizer<BundleNliScorer>` or `ZeroShotAnnotator<BundleNliScorer>`
-   directly from the bundle directory, outcome list, and `ZeroShotConfig`.
+1. `BundleNliScorer::open(dir, &EncoderOptions)` opens the bundle's
+   `Tokenizer` (checking that `Tokenizer::pair_template()` resolves a
+   `PairTemplate` with `PairTemplate::specials()` equal to `3` for BERT or
+   `4` for RoBERTa), loads the `CLASSIFIER_SEQUENCE` head (`Head::load`), and
+   opens the `Encoder` session. It refuses a bundle whose `head.kind` is not
+   `ClassifierKind::Sequence`, whose `head.labels` do not resolve to a valid
+   3-way (`entailment`/`neutral`/`contradiction`) or 2-way
+   (`entailment`/`not_entailment`) NLI outcome set, whose `head.hidden` does
+   not match `info.dim`, or whose `max_seq` cannot fit at least two content
+   tokens beside `pair_template.specials()`. `BundleNliScorer::open_categorizer`
+   and `BundleNliScorer::open_annotator` construct a
+   `ZeroShotCategorizer<BundleNliScorer>` or `ZeroShotAnnotator<BundleNliScorer>`
+   directly from `dir`, `&EncoderOptions`, candidate `labels`, and
+   `ZeroShotConfig`.
 2. `NliScorer::count_tokens` encodes the single piece without special tokens
-   (`add_special_tokens = 0`) so `ZeroShotCategorizer` budgets hypotheses and
-   windows long premises using exact subword counts.
+   (`add_special_tokens = false`) so `ZeroShotCategorizer` budgets hypotheses
+   and windows long premises using exact subword counts.
 3. `NliScorer::score_pairs` encodes every `(premise, hypothesis)` pair of a
-   categorization call with `turbo_tokenizer_encode_pair` (emitting both
-   token IDs and segment token types `0`/`1`) and batches all pairs of the
-   document into chunks of `max_batch` rows through `Rows::push_with_types`,
+   categorization call with `Tokenizer::encode_pair` (emitting both token IDs
+   and segment token types `0`/`1`) and batches all pairs of the document into
+   chunks of `max_batch` rows through `Rows::push_with_types`,
    `Encoder::run_cls`, and `Head::logits_into`, recording the backend's
    `Execution` provenance on the resulting `Categories` layer.
 4. `bundle/recipes/nli-minilm2-l6-h768.json` packages
