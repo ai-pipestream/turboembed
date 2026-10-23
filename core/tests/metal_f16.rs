@@ -262,3 +262,32 @@ fn a_real_bundle_at_its_longest_rows_stays_inside_f16() {
         assert!(peak > 0.0 && peak < F16_MAX, "{name}: largest magnitude {peak}");
     }
 }
+
+/// Keys masked in the middle of a row at FASTEST, in the first chunk of 32
+/// keys and in later ones, for each choice: the masked keys add nothing,
+/// and every row comes within FASTEST's floor of the CPU, which drops them
+/// the same way.
+#[test]
+fn masked_keys_inside_a_row_are_left_out_at_fastest() {
+    let _t = turn();
+    let Some(_) = metal_device("masked_keys_inside_a_row_are_left_out_at_fastest") else { return };
+    let dir = tiny_bundle();
+    let (g, c) = (on_metal(&dir), Loaded::load(&dir).unwrap());
+    let cpu = Session::create(c.m, None).unwrap();
+    let mut t = rows_of(&dir, &[64, 40, 9, 64]);
+    let seq = t.seq as usize;
+    for (r, gaps) in [(0usize, &[5usize, 6, 40, 41, 42][..]), (1, &[0, 33][..]), (3, &[31, 32, 50][..])] {
+        for &p in gaps {
+            t.mask[r * seq + p] = 0;
+        }
+    }
+    for choice in ["h32", "h64", "h128", "auto"] {
+        let line = format!("linear={choice}");
+        let s = make(g.m, Some(&line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
+        let lowest = against_cpu(&s, &cpu, &t, FASTEST_FLOOR, &format!("{line}, masked keys"));
+        println!("{line}, masked keys inside rows: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
+    }
+    let awkward = awkward_rows(&dir);
+    let s = make(g.m, None, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
+    against_cpu(&s, &cpu, &awkward, FASTEST_FLOOR, "awkward rows");
+}
