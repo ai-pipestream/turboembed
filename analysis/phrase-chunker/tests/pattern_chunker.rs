@@ -365,3 +365,56 @@ fn invalid_patterns_and_malformed_inputs_are_rejected() {
     };
     assert!(composer.compose(view, toks, pos, &bad_base).is_err());
 }
+
+#[test]
+fn regex_style_tag_conditions_match_and_refuse_like_the_shared_reader() {
+    // Acceptance for #854: class/optional tag conditions find the
+    // same noun phrases as their alternation spelling, `.*NN.*`
+    // covers the noun family, unsupported shapes are refused with
+    // a position, and case folding is full Unicode folding.
+    let text = "The quicker brownest foxes jumped .";
+    let tokens = [
+        ("The", "DT", 0),
+        ("quicker", "JJR", 0),
+        ("brownest", "JJS", 0),
+        ("foxes", "NNS", 0),
+        ("jumped", "VBD", 0),
+        (".", ".", 0),
+    ];
+    let doc = build_doc_with_tags(text, "penn", &tokens);
+    let view = doc.get::<View>().unwrap();
+    let toks = doc.get::<Tokens>().unwrap();
+    let pos = doc.get::<PosTags>().unwrap();
+    let by_class = PatternChunker::from_patterns([("NP", "<DT>?<JJ[RS]?>*<NNS?>+")]).unwrap();
+    let by_alts = PatternChunker::from_patterns([("NP", "<DT>?<JJ|JJR|JJS>*<NN|NNS>+")]).unwrap();
+    let (a,) = by_class.annotate((view, toks, pos)).unwrap();
+    let (b,) = by_alts.annotate((view, toks, pos)).unwrap();
+    assert_eq!(summarize_chunks(text, &a), summarize_chunks(text, &b));
+    assert_eq!(summarize_chunks(text, &a), vec![("The quicker brownest foxes", "NP", (0, 4))]);
+    let family = build_doc_with_tags(
+        "cat cats Paris Parises run",
+        "penn",
+        &[("cat", "NN", 0), ("cats", "NNS", 0), ("Paris", "NNP", 0), ("Parises", "NNPS", 0), ("run", "VB", 0)],
+    );
+    let view = family.get::<View>().unwrap();
+    let toks = family.get::<Tokens>().unwrap();
+    let pos = family.get::<PosTags>().unwrap();
+    let nouns = PatternChunker::from_patterns([("NP", "<.*NN.*>+")]).unwrap();
+    let (hits,) = nouns.annotate((view, toks, pos)).unwrap();
+    assert_eq!(summarize_chunks("cat cats Paris Parises run", &hits), vec![("cat cats Paris Parises", "NP", (0, 4))]);
+    for bad in ["<NN{2}>", r"<NN\d>", "<NN(>", "<[>"] {
+        let err = PatternChunker::from_patterns([("NP", bad)]).expect_err("refused");
+        assert!(matches!(err, PatternError::UnexpectedSyntax { pos: 0, .. }), "{bad}: {err:?}");
+    }
+    let greet = build_doc_with_tags(
+        "Die Straße STRASSE",
+        "de",
+        &[("Die", "ART", 0), ("Straße", "NN", 0), ("STRASSE", "NN", 0)],
+    );
+    let view = greet.get::<View>().unwrap();
+    let toks = greet.get::<Tokens>().unwrap();
+    let pos = greet.get::<PosTags>().unwrap();
+    let chunker = PatternChunker::from_patterns([("NP", r#"<NN:"strasse"i>+"#)]).unwrap();
+    let (hits,) = chunker.annotate((view, toks, pos)).unwrap();
+    assert_eq!(summarize_chunks("Die Straße STRASSE", &hits), vec![("Straße STRASSE", "NP", (1, 3))]);
+}

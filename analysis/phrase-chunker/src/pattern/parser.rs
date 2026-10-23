@@ -1,7 +1,10 @@
 //! Declarative POS-tag and token-literal pattern parser.
 
+use turbo_jvm::TagPattern;
+
 use super::{
     MAX_AUTOMATON_STATES, MAX_NESTING_DEPTH, MAX_QUANTIFIER_BOUND, PatternError, TagCond, TokenMatcher, WordCond,
+    folded,
 };
 
 #[derive(Clone, Debug)]
@@ -269,7 +272,7 @@ impl<'a> Parser<'a> {
         }
         if self.peek() == Some('i') {
             self.pos += 1;
-            Ok(WordCond::CaseInsensitive(buf.to_lowercase()))
+            Ok(WordCond::CaseInsensitive(folded(&buf)))
         } else {
             Ok(WordCond::Exact(buf))
         }
@@ -317,7 +320,7 @@ impl<'a> Parser<'a> {
             if p.is_empty() {
                 return Err(PatternError::EmptyTag { pos: open_pos });
             }
-            tag_alts.push(parse_tag_cond(p));
+            tag_alts.push(parse_tag_cond(p, open_pos)?);
         }
 
         let mut word_alts = Vec::new();
@@ -408,23 +411,31 @@ fn unescape(s: &str) -> String {
     out
 }
 
-fn parse_tag_cond(raw: &str) -> TagCond {
+/// One tag alternative. Plain tags and the documented `.*` / `*`
+/// shorthands keep their fast forms; anything holding another
+/// metacharacter compiles through the shared Java tag-pattern
+/// reader, and what that reader refuses is an error at the tag's
+/// position, never a silent literal.
+fn parse_tag_cond(raw: &str, pos: usize) -> Result<TagCond, PatternError> {
     if raw == ".*" || raw == "*" {
-        return TagCond::Any;
+        return Ok(TagCond::Any);
     }
-    if let Some(prefix) = raw.strip_suffix(".*")
-        && !prefix.ends_with('\\')
-    {
-        return TagCond::Prefix(unescape(prefix));
+    let plain = |s: &str| {
+        !s.chars().any(|c| matches!(c, '[' | ']' | '?' | '+' | '.' | '(' | ')' | '{' | '}' | '^' | '$' | '\\'))
+    };
+    if let Some(prefix) = raw.strip_suffix(".*").filter(|p| plain(p)) {
+        return Ok(TagCond::Prefix(unescape(prefix)));
     }
-    if let Some(prefix) = raw.strip_suffix('*')
-        && !prefix.ends_with('\\')
-        && !prefix.is_empty()
-    {
-        return TagCond::Prefix(unescape(prefix));
+    if let Some(prefix) = raw.strip_suffix('*').filter(|p| !p.is_empty() && plain(p)) {
+        return Ok(TagCond::Prefix(unescape(prefix)));
     }
-    if let Some(suffix) = raw.strip_prefix(".*") {
-        return TagCond::Suffix(unescape(suffix));
+    if let Some(suffix) = raw.strip_prefix(".*").filter(|s| plain(s)) {
+        return Ok(TagCond::Suffix(unescape(suffix)));
     }
-    TagCond::Exact(unescape(raw))
+    if plain(raw) {
+        return Ok(TagCond::Exact(unescape(raw)));
+    }
+    TagPattern::compile(raw)
+        .map(|pattern| TagCond::Pattern { source: raw.into(), pattern: Box::new(pattern) })
+        .map_err(|detail| PatternError::UnexpectedSyntax { pos, detail: format!("tag pattern {raw:?}: {detail}") })
 }
