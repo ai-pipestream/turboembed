@@ -79,8 +79,8 @@ fn the_host_processor_is_listed() {
     assert_eq!(s(&info.arch), std::env::consts::ARCH);
     assert_eq!(info.unified_memory, 1);
     assert_eq!(s(&info.runtime_version), "", "the cpu backend links no vendor runtime");
-    if cfg!(any(target_os = "linux", target_os = "macos")) {
-        assert!(!s(&info.name).is_empty(), "/proc/cpuinfo or sysctl names the processor");
+    if cfg!(any(target_os = "linux", target_os = "macos", windows)) {
+        assert!(!s(&info.name).is_empty(), "/proc/cpuinfo, sysctl or CPUID names the processor");
         assert!(!s(&info.vendor).is_empty());
         assert!(
             info.memory_total > 0 && info.memory_free <= info.memory_total,

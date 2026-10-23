@@ -176,13 +176,15 @@ jobs:
         run: cargo clippy -p turbo --features npu --all-targets
       - name: clippy (turboquant)
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
+      # --no-fail-fast: a Windows-only failure in one crate should not
+      # hide another's.
       - name: test
-        run: cargo test --workspace --exclude turbo
+        run: cargo test --workspace --exclude turbo --no-fail-fast
       # Its own target directory, as in the check job (#358).
       - name: test (core)
         env:
           CARGO_TARGET_DIR: target/core
-        run: cargo test -p turbo
+        run: cargo test -p turbo --no-fail-fast
       # Host-only: no NPU on the runner, so the device tests stay ignored.
       - name: test (npu)
         env:
