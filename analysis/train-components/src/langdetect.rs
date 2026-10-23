@@ -38,6 +38,9 @@ use turbo_train::{
 use crate::error::Result;
 use crate::package::{FACTORY_KEY, Stamp, add_artifacts};
 
+pub mod cross_validate;
+pub use cross_validate::{LanguageCrossValidation, LanguageDetectorCrossValidator, LanguageFold};
+
 /// `LanguageDetectorModel.COMPONENT_NAME`.
 pub const COMPONENT_NAME: &str = turbo_langdetect::model::COMPONENT;
 /// `LanguageDetectorModel.LANGDETECT_MODEL_ENTRY_NAME`.

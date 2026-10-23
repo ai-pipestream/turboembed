@@ -16,7 +16,8 @@ use crate::resources::{Resources, Unavailable};
 /// does not cover: the training stack (`train`, `train-events`,
 /// `train-langdetect`, `train-liblinear`), the format readers (`formats`,
 /// `masc`, `ner`, `corpora`, `ad`) and the parse and head rule readers (`parse`,
-/// `head-rules`) compare files, not layers of a text; the evaluators compare scores; the detokenizer
+/// `head-rules`) compare files, not layers of a text; the evaluators and the
+/// cross-validators (`cross-validate`) compare scores; the detokenizer
 /// runs on token lists; the BPE trainer learns merges from a whole set; the
 /// gazetteers answer queries line by line and load whole tables, and the
 /// place profiles load whole tables; the
@@ -40,13 +41,14 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 36] = [
+pub const NOT_COVERED: [&str; 37] = [
     "train",
     "train-events",
     "train-langdetect",
     "train-liblinear",
     "formats",
     "evaluate",
+    "cross-validate",
     "detokenize",
     "bpe",
     "masc",

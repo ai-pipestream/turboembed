@@ -179,6 +179,7 @@ a directory with the same model run without them, and its options are
 | `train-events` (`ChunkerEventStream`, `ChunkerME.train`) | `chunker-defaults`, `chunker-perceptron`, `chunker-qn`, `chunker-perceptron-sequence` | `tagged`, `formats`; the `chunk` inputs | `run`, `source`, `language`, and every training parameter the run puts (`Algorithm`, `Iterations`, `Cutoff`, `TrainerType`, `BeamSize`) |
 | `train-liblinear` (`LiblinearTrainer.train` of the addons' `liblinear-addon`) | `sentdetect-sample`, `postag-l2`, `postag-dual`, `sentdetect-dual-newton`, `realvalue-l1`, `sentdetect-l2`, `sentdetect-raw` | `en`, `multi`, `edge`, `train` by run | `source`, `DataIndexer`, `Cutoff`, `solverType`, `c`, `eps`, `p`, `bias`, `events` |
 | `train-langdetect` (`LanguageDetectorME.train`) | `default`, `cutoff1` | `langdetect`, and the `formats` inputs whose id starts with `language-` | `run`, `Algorithm`, `Cutoff`, `DataIndexer`, `Iterations` |
+| `cross-validate` (`TokenNameFinderCrossValidator`, `LanguageDetectorCrossValidator`) | `namefind-bio`, `namefind-bilou`, `langdetect-default`, `langdetect-cutoff1` | `tagged/names` (name finder runs), `langdetect/samples` (language detector runs) | `run`, `folds`, and `language`, `codec` (name finder) or `Algorithm`, `Cutoff`, `Iterations` (language detector) |
 | `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
 | | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
 | | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
@@ -337,6 +338,25 @@ a directory with the same model run without them, and its options are
   (`turbo:liblinear-scores`, `turbo:liblinear-best`).
   `analysis/train/tests/liblinear_goldens.rs` compares with them
   (`docs/liblinear.md`).
+- A `cross-validate` run (`CrossValidateGolden`) cross-validates the
+  name finder (`namefind-bio`, `namefind-bilou`: 3 folds over
+  `tagged/names`, the factory with the run's codec and no descriptor,
+  `NameFinderME.train`'s defaults) or the language detector
+  (`langdetect-default`, `langdetect-cutoff1`: 3 folds over
+  `langdetect/samples`, the command line trainer's parameters with cutoff
+  5 or 1). The cross-validators keep their folds to themselves, so the
+  generator runs each fold as they do, with the same classes (name samples
+  grouped into documents at each sample that clears adaptive data,
+  `CrossValidationPartitioner`, `train`, the evaluator), and records per
+  fold the documents and samples on each side, the training events and
+  their CRC32C (checked against the fold model's `Training-Eventhash`),
+  the counts and scores (`turbo:name-cv-folds`, `turbo:language-cv-folds`)
+  and every prediction (`turbo:name-cv-names`,
+  `turbo:language-cv-predictions`). It then runs the cross-validator
+  itself and throws unless its merged figures are the folds' merged; those
+  are `turbo:name-cv-merged` (counts, precision, recall, F-measure) and
+  `turbo:language-cv-merged` (document count and `getDocumentAccuracy`).
+  `analysis/train-components/tests/cross_validate.rs` compares with them.
 - A `train-langdetect` run (`LanguageTrainGolden`) trains a language
   detector as `LanguageDetectorME.train` does, on the samples
   `LanguageDetectorSampleStream` reads from the input, with the

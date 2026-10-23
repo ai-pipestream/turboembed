@@ -3098,6 +3098,26 @@ writes from the samples; the generator loads it in the JVM
 (`langdetect/langdetect-fixture-rust`) for
 `analysis/langdetect/tests/fixture.rs` (docs/langdetect.md, "Training").
 
+The name finder's and the language detector's cross-validators are
+ported as `namefind::cross_validate` (`TokenNameFinderCrossValidator`)
+and `langdetect::cross_validate` (`LanguageDetectorCrossValidator`) in
+turbo-train-components (#851), on `turbo_formats::evaluate`'s
+`CrossValidation` and the evaluators. Name samples are grouped into
+documents at each sample that clears adaptive data, so a fold never
+splits a document. Each fold records its sides, the training events and
+their checksum, its counts and every prediction. The merged precision,
+recall and F-measure are merged counts, so they are the JVM's with no
+opt-in. The language detector's merged `accuracy()` is the exact share
+of correct samples; `jvm_accuracy()` is `getDocumentAccuracy()` bit for
+bit (each fold's accuracy times its document count summed, which can
+round differently). `CrossValidateGolden` writes
+`analysis/goldens/data/cross-validate/<run>/<set>/<id>.golden` (3 folds
+over `analysis/goldens/data/inputs/tagged/names.txt` with BIO and
+BILOU, and over `analysis/goldens/data/inputs/langdetect/samples.txt`
+with cutoff 5 and 1), and
+`analysis/train-components/tests/cross_validate.rs` compares every fold
+and the merged figures bit for bit.
+
 The sentiment detector is trained as `SentimentME.train` does (the
 `sentiment` module, #215). `SentimentGolden` writes
 `analysis/goldens/data/sentiment/<run>/sentiment-train/feedback.golden`
