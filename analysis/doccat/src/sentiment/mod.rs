@@ -39,8 +39,9 @@ pub use emotion::{
     EmotionVectorHead, EmotionVectorScorer, GoldEmotionUnit, evaluate_emotion_corpus,
 };
 pub use incivility::{
-    DEFAULT_INCIVILITY_THRESHOLD, GoldIncivilityUnit, IncivilityAnnotator, IncivilityLexicon, IncivilityMetrics,
-    IncivilityUnit, IncivilityVectorScorer, LabelMetrics, evaluate_incivility_corpus,
+    DEFAULT_INCIVILITY_THRESHOLD, GoldIncivilityUnit, IncivilityAnnotator, IncivilityFitOptions, IncivilityHeadError,
+    IncivilityLexicon, IncivilityMetrics, IncivilityStage, IncivilityUnit, IncivilityVectorContext,
+    IncivilityVectorHead, IncivilityVectorScorer, LabelMetrics, evaluate_incivility_corpus,
 };
 pub use lexicon::{
     B_DECR, B_INCR, C_INCR, COMPOUND_THRESHOLD, DEFAULT_ALPHA, LexiconSentiment, N_SCALAR, NegationMode,
