@@ -56,13 +56,18 @@ struct Fixture {
     records: Vec<Value>,
 }
 
+/// The fixture `name` under tests/data, for the tiny bundle.
 fn fixture(name: &str) -> Fixture {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(name);
-    let text = std::fs::read_to_string(&path).unwrap();
+    fixture_at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(name), &bundle())
+}
+
+fn fixture_at(path: &Path, bundle: &Path) -> Fixture {
+    let name = path.display();
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{name}: {e}"));
     let mut lines = text.lines().map(|l| serde_json::from_str::<Value>(l).unwrap());
     let header = lines.next().unwrap();
     // The fixtures were made from the weights the bundle carries.
-    let b = Bundle::open(&bundle()).unwrap();
+    let b = Bundle::open(bundle).unwrap();
     let weights = b.manifest.files.iter().find(|f| f.path == "weights/model.safetensors").unwrap();
     assert_eq!(header["weights_sha256"], weights.sha256.as_str(), "{name}: made from other weights");
     Fixture {
@@ -97,6 +102,10 @@ fn encoder() -> EncoderOptions {
 }
 
 fn open(f: &Fixture) -> SatAnnotator {
+    open_at(f, &bundle())
+}
+
+fn open_at(f: &Fixture, bundle: &Path) -> SatAnnotator {
     let o = SatOptions {
         encoder: encoder(),
         threshold: f.threshold,
@@ -104,7 +113,7 @@ fn open(f: &Fixture) -> SatAnnotator {
         block_size: f.block,
         ..SatOptions::default()
     };
-    SatAnnotator::open(&bundle(), &o).unwrap()
+    SatAnnotator::open(bundle, &o).unwrap()
 }
 
 /// The code point offset of every byte offset that starts a character.
@@ -149,8 +158,15 @@ struct Seen {
 }
 
 fn compare(name: &str) -> Seen {
-    let f = fixture(name);
-    let sat = open(&f);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(name);
+    compare_at(&path, &bundle())
+}
+
+/// Every text of the fixture at `path` through the step on `bundle`.
+fn compare_at(path: &Path, bundle: &Path) -> Seen {
+    let f = fixture_at(path, bundle);
+    let sat = open_at(&f, bundle);
+    let name = path.file_name().unwrap().to_string_lossy().into_owned();
     let mut seen = Seen::default();
     for r in &f.records {
         let text = r["text"].as_str().unwrap();
@@ -277,6 +293,32 @@ fn many_overlapping_windows_match_wtpsplit() {
     let s = compare("t0.5-s7-b30.jsonl");
     eprintln!("t0.5-s7-b30: {s:?}");
     assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, 0, 6, 1));
+}
+
+/// A released checkpoint against wtpsplit: TURBO_TEST_SAT_BUNDLE names a
+/// bundle sealed from it, and TURBO_TEST_SAT_FIXTURES the fixtures,
+/// separated by commas, that the reference's `segment` made from the same
+/// weights over tests/data/texts.jsonl (analysis/sat/README.md). Each is
+/// held to the tiny model's checks, with no character near the threshold
+/// and no more than the one text with a pad token in it left out. With
+/// neither variable set it says it was skipped; one alone is an error.
+#[test]
+fn a_released_checkpoint_matches_wtpsplit() {
+    use std::env::VarError::NotPresent;
+    let (bundle, fixtures) = match (std::env::var("TURBO_TEST_SAT_BUNDLE"), std::env::var("TURBO_TEST_SAT_FIXTURES")) {
+        (Ok(b), Ok(f)) => (b, f),
+        (Err(NotPresent), Err(NotPresent)) => {
+            println!("skipped: TURBO_TEST_SAT_BUNDLE and TURBO_TEST_SAT_FIXTURES are not set");
+            return;
+        }
+        (b, f) => panic!("TURBO_TEST_SAT_BUNDLE ({b:?}) and TURBO_TEST_SAT_FIXTURES ({f:?}) go together"),
+    };
+    for path in fixtures.split(',') {
+        let s = compare_at(Path::new(path), Path::new(&bundle));
+        eprintln!("{path}: {s:?}");
+        assert_eq!((s.texts, s.near_threshold, s.widened), (90, 0, 6), "{path}: texts, near the threshold, widened");
+        assert!(s.pad_in_text <= 1, "{path}: {} texts compared for their tokens only", s.pad_in_text);
+    }
 }
 
 /// The cuts between wtpsplit's pieces, as byte offsets: where each piece
