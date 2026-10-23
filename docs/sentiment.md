@@ -6,6 +6,11 @@ detector, `SentimentME` in `opennlp.tools.sentiment`, at prediction, and
 A model trained in Rust is the JVM's model byte for byte, and its
 probabilities are the JVM's bit for bit.
 
+Dataset, lexicon and checkpoint permissions are recorded in the
+[complex sentiment licence audit](licences.md#complex-sentiment-licence-audit-326).
+It distinguishes shipped material, local evaluation and candidates awaiting
+source permissions.
+
 ## What it does
 
 `SentimentME` is a maxent document classifier. Its context is the
@@ -514,9 +519,12 @@ encoder named is `incivility-vector-head`, and a `:preceding-vector` or
 
 ### Tests and license posture
 
-Per `#326`, external toxicity corpora with custom platform terms (`Jigsaw`,
-`Civil Comments`, `Social Bias Frames`) are not redistributed in the
-repository.
+The [#326 audit](licences.md#complex-sentiment-licence-audit-326) approves
+the published Civil Comments / Jigsaw Unintended Bias release under CC0,
+including its comment text. It is eligible for redistributable training
+and bundles but is not included here. Other Jigsaw releases and Social
+Bias Frames require separate source-permission checks. Project-authored
+incivility rules and fixtures use the repository licence.
 
 - `analysis/doccat/src/sentiment/incivility/tests/mod.rs` tests `IncivilityAnnotator`
   on project-authored regression fixtures covering canonical lexicon SHA-256
