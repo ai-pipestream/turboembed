@@ -268,12 +268,23 @@ jobs:
           --skip a_program_that_fails_is_a_reason_and_docker_failing_is_an_error
           --skip the_two_runs_make_one_measured_reference
       # Its own target directory, as in the check job (#358).
+      # Skipped: three C ABI tests in core/tests/abi.rs. The C programs
+      # print CRLF and receive argv in the ANSI code page on Windows; the
+      # C ABI is checked on Linux (#1011).
       - name: test (core)
         env:
           CARGO_TARGET_DIR: target/core
-        run: cargo test -p turbo --no-fail-fast
+        run: >-
+          cargo test -p turbo --no-fail-fast --
+          --skip struct_layouts_match_the_header
+          --skip mirrored_constants_match_the_header
+          --skip a_c_program_loads_a_model_tokenizes_and_embeds
       # Host-only: no NPU on the runner, so the device tests stay ignored.
       - name: test (npu)
         env:
           CARGO_TARGET_DIR: target/core
-        run: cargo test -p turbo --features npu
+        run: >-
+          cargo test -p turbo --features npu --
+          --skip struct_layouts_match_the_header
+          --skip mirrored_constants_match_the_header
+          --skip a_c_program_loads_a_model_tokenizes_and_embeds
