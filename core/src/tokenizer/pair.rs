@@ -10,6 +10,12 @@ pub struct PairWindow {
 }
 
 impl Tokenizer {
+    /// Returns the tokenizer's sequence-pair template (`PAIR_BERT` or
+    /// `PAIR_ROBERTA`), when the bundle supports pair encoding.
+    pub fn pair_template(&self) -> Option<PairTemplate> {
+        self.rerank.as_ref().map(|r| r.pair_template)
+    }
+
     /// Right-truncate the query first, then cover the passage with windows.
     /// Zero limits select the bundle settings; zero stride uses disjoint windows.
     pub fn encode_pair(

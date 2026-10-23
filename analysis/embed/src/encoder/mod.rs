@@ -255,6 +255,10 @@ impl Encoder {
         &self.model_info
     }
 
+    pub(crate) fn runtime_handle(&self) -> *mut turbo_runtime {
+        self.rt
+    }
+
     /// The first CPU device the runtime lists, which names the host
     /// processor; None when this build lists none.
     pub fn host_cpu(&self) -> Result<Option<turbo_device_info>, Error> {
