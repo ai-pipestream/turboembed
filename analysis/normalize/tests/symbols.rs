@@ -97,8 +97,9 @@ fn joined(text: &str) -> String {
         at += word.len() + 1;
     }
     let tokens = Tokens { spans, sentence: None };
+    let joiner = SymbolJoiner::new();
     let input: Refs<'_, SymbolJoiner> = (view, &tokens);
-    let (out,) = SymbolJoiner.annotate(input).unwrap();
+    let (out, _tokens) = joiner.annotate(input).unwrap();
     check_alignment(text, out.text(), out.alignment());
     out.text().to_string()
 }
@@ -123,7 +124,62 @@ fn joiner_token_maps_back_to_the_symbol() {
         spans.push(Span::new(s, e));
     }
     let tokens = Tokens { spans, sentence: None };
-    let (out,) = SymbolJoiner.annotate((view, &tokens)).unwrap();
+    let (out, out_tokens) = SymbolJoiner::new().annotate((view, &tokens)).unwrap();
     assert_eq!(out.alignment().span_to_parent(Span::new(9, 12)), Span::new(9, 10));
     assert_eq!(out.alignment().span_to_child(Span::new(11, 18)), Span::new(13, 20));
+    let slices: Vec<&str> = out_tokens.spans.iter().map(|(_, s)| &out.text()[s.range()]).collect();
+    assert_eq!(slices, vec!["Dungeons", "and", "Dragons"]);
+}
+
+#[test]
+fn joiner_joins_symbol_sequences_from_table_with_exact_offsets() {
+    use turbo_tokenize::SimpleTokenizer;
+    use turbo_tokenize::uax29::for_each_segment;
+
+    let text = "Migrating C++ & .NET -> C# in R&D + Node.js (x += 1 && a == b)";
+    for tokenize in [
+        |doc: &Document| {
+            let v = doc.get::<View>().unwrap();
+            SimpleTokenizer::default().annotate((v, None)).unwrap().0
+        },
+        |doc: &Document| {
+            let v = doc.get::<View>().unwrap();
+            let mut spans = Spans::new(v.id());
+            for_each_segment(v.text(), |start, end| {
+                let seg = &v.text()[start as usize..end as usize];
+                if !seg.chars().all(turbo_normalize::tables::is_whitespace) {
+                    spans.push(Span::new(start, end));
+                }
+            });
+            Tokens { spans, sentence: None }
+        },
+    ] {
+        let doc = Document::new(text);
+        let view = doc.get::<View>().unwrap();
+        let raw_tokens = tokenize(&doc);
+        let joiner = SymbolJoiner::new();
+        let (out_view, out_tokens) = joiner.annotate((view, &raw_tokens)).unwrap();
+        check_alignment(text, out_view.text(), out_view.alignment());
+        assert_eq!(out_view.text(), "Migrating C++ and .NET -> C# in R&D plus Node.js (x += 1 && a == b)");
+        let token_texts: Vec<&str> = out_tokens.spans.iter().map(|(_, s)| &out_view.text()[s.range()]).collect();
+        for expected in ["C++", "and", ".NET", "->", "C#", "R&D", "plus", "Node.js", "+=", "&&", "=="] {
+            assert!(token_texts.contains(&expected), "missing {expected:?} in {token_texts:?}");
+        }
+        // Every joined token span maps back through the alignment to the exact source substring.
+        for (_, child_span) in out_tokens.spans.iter() {
+            let child_slice = &out_view.text()[child_span.range()];
+            let parent_span = out_view.alignment().span_to_parent(child_span);
+            let parent_slice = &text[parent_span.range()];
+            match child_slice {
+                "and" => assert_eq!(parent_slice, "&"),
+                "plus" => assert_eq!(parent_slice, "+"),
+                _ => assert_eq!(parent_slice, child_slice),
+            }
+        }
+    }
+
+    // Custom table via SymbolJoiner::with_sequences and empty table via without_sequences.
+    let custom = SymbolJoiner::with_sequences(["::=", "<=>"]);
+    assert_ne!(custom.config_hash(), SymbolJoiner::new().config_hash());
+    assert_ne!(SymbolJoiner::without_sequences().config_hash(), SymbolJoiner::new().config_hash());
 }

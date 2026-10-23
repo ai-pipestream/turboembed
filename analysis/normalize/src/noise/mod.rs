@@ -52,6 +52,30 @@ impl Dictionary for BTreeSet<String> {
     }
 }
 
+impl<D: Dictionary + ?Sized> Dictionary for Arc<D> {
+    fn contains(&self, word: &str) -> bool {
+        (**self).contains(word)
+    }
+}
+
+impl Dictionary for turbo_hunspell::Dictionary {
+    fn contains(&self, word: &str) -> bool {
+        !turbo_hunspell::Stemmer::new(self).stems(word).is_empty()
+    }
+}
+
+impl Dictionary for turbo_morfologik::MorfologikDictionary {
+    fn contains(&self, word: &str) -> bool {
+        !self.lookup(word).is_empty()
+    }
+}
+
+impl Dictionary for turbo_morfologik::MorfologikTagDictionary {
+    fn contains(&self, word: &str) -> bool {
+        self.tags(word).is_some()
+    }
+}
+
 /// One finding: where, how bad, and how strong within its severity.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct NoiseFinding {

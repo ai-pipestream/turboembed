@@ -322,3 +322,73 @@ fn generated_texts_match_the_reference() {
         check_alignment(&src, &out, &a, join_edit);
     }
 }
+
+#[test]
+fn lexicon_mode_with_hunspell_and_morfologik_on_extracted_text() {
+    use std::path::Path;
+    use std::sync::Arc;
+    use turbo_hunspell::{Dictionary as HunspellDictionary, LoadMode};
+    use turbo_morfologik::{MorfologikDictionary, MorfologikDictionaryBuilder};
+
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/hunspell");
+    let compound_aff = std::fs::read(fixtures.join("compound.aff")).unwrap();
+    let compound_dic = std::fs::read(fixtures.join("compound.dic")).unwrap();
+    let hunspell_compound =
+        Arc::new(HunspellDictionary::from_bytes(&compound_aff, &compound_dic, LoadMode::Strict).unwrap());
+    let dehyp_compound = Dehyphenate::with_hunspell(hunspell_compound);
+    assert_eq!(dehyp_compound.mode(), DehyphenateMode::Lexicon);
+    assert_ne!(dehyp_compound.config_hash(), Dehyphenate::new().config_hash());
+    assert_ne!(dehyp_compound.config_hash(), Dehyphenate::keep_compounds().config_hash());
+
+    // In compound.dic, "foot/YS" + "ball/YS" forms the compound "football",
+    // whereas "bad/YF" carries COMPOUNDFORBIDFLAG F so "badball" is forbidden
+    // while both "bad" and "ball" are known words.
+    assert_eq!(run_checked(&dehyp_compound, "foot-\nball and bad-\nball", join_edit), "football and bad-ball");
+
+    let affixes_aff = std::fs::read(fixtures.join("affixes.aff")).unwrap();
+    let affixes_dic = std::fs::read(fixtures.join("affixes.dic")).unwrap();
+    let hunspell_affixes =
+        Arc::new(HunspellDictionary::from_bytes(&affixes_aff, &affixes_dic, LoadMode::Strict).unwrap());
+    let dehyp_affixes = Dehyphenate::with_hunspell(hunspell_affixes);
+    // "ponies" is derived from "pony/SM", whereas "co-op" is listed with its hyphen.
+    assert_eq!(run_checked(&dehyp_affixes, "pon-\nies at the co-\nop", join_edit), "ponies at the co-op");
+
+    // Morfologik FSA dictionary on extracted prose with "litiga-\ntion",
+    // "well-\nknown", "Mc-\nDonald", "state-of-the-\nart", and multi-line "inter-\nnation-\nal".
+    let entries = b"litigation,litigation,NN\n\
+well,well,RB\n\
+known,known,JJ\n\
+McDonald,McDonald,NNP\n\
+state,state,NN\n\
+of,of,IN\n\
+the,the,DT\n\
+art,art,NN\n\
+international,international,JJ\n";
+    let info = b"fsa.dict.separator=,\nfsa.dict.encoding=UTF-8\nfsa.dict.encoder=SUFFIX\n";
+    let dict_bytes = MorfologikDictionaryBuilder::compile_bytes(entries, info).unwrap();
+    let morfologik = Arc::new(MorfologikDictionary::from_bytes(&dict_bytes, info).unwrap());
+    let dehyp_morf = Dehyphenate::with_morfologik(morfologik);
+
+    let extracted = "The well-\n  known firm of Mc-\nDonald handled the litiga-\ntion with state-of-the-\nart inter-\nnation-\nal care.";
+    let (out, alignment) = normalize(&dehyp_morf, extracted);
+    check_alignment(extracted, &out, &alignment, join_edit);
+    assert_eq!(out, "The well-known firm of McDonald handled the litigation with state-of-the-art international care.");
+    let well_known_out = out.find("well-known").unwrap();
+    let well_known_src = extracted.find("well-\n  known").unwrap();
+    assert_eq!(
+        back(&alignment, well_known_out, well_known_out + "well-known".len()),
+        (well_known_src as u32, (well_known_src + "well-\n  known".len()) as u32)
+    );
+    let mcdonald_out = out.find("McDonald").unwrap();
+    let mcdonald_src = extracted.find("Mc-\nDonald").unwrap();
+    assert_eq!(
+        back(&alignment, mcdonald_out, mcdonald_out + "McDonald".len()),
+        (mcdonald_src as u32, (mcdonald_src + "Mc-\nDonald".len()) as u32)
+    );
+    let litigation_out = out.find("litigation").unwrap();
+    let litigation_src = extracted.find("litiga-\ntion").unwrap();
+    assert_eq!(
+        back(&alignment, litigation_out, litigation_out + "litigation".len()),
+        (litigation_src as u32, (litigation_src + "litiga-\ntion".len()) as u32)
+    );
+}
