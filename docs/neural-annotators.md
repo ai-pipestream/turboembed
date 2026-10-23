@@ -63,7 +63,9 @@ Face hub):
   do not run yet; adding one is a change to every backend's attention.
 - `sat-1l-sm` to `sat-12l-sm`: the supervised mixture models, with no
   lookahead and one label. These need nothing the core lacks; none has
-  been run here yet (Not done, below).
+  been run here yet (Not done, below). Their training mixture holds UD
+  treebanks under CC BY-NC-SA, so they are local-only
+  (docs/licences.md, "Neural annotator checkpoints").
 
 ### The step
 
@@ -208,13 +210,6 @@ the stride is the main setting for throughput.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
   name; the manifest has no place to say what the head is.
-- The `-sm` models' class. They were trained on Universal Dependencies
-  training sets among other data (the SaT paper, section 4.2), and UD
-  holds treebanks under CC BY-NC-SA (English GUM, Czech PDT;
-  docs/licences.md). Under the zoo's rule a model's class is the most
-  restrictive of its own licence and its data's, so unless the mixture
-  left those treebanks out, the `-sm` models are local-only
-  (docs/licences.md, "Neural annotator checkpoints").
 
 ## GLiNER
 
