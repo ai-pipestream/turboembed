@@ -83,12 +83,12 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # The OpenNLP models the JVM goldens were made with, downloaded from
       # downloads.apache.org and checked against their published SHA-512
-      # (analysis/goldens-tool/src/recipe.rs). With them present, the
+      # (analysis/goldens-tool/src/recipe/models.rs). With them present, the
       # tests over them compare instead of skipping.
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - name: the shard's crates
@@ -121,7 +121,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - name: test
@@ -144,7 +144,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       # TurboQuant storage is behind a feature that brings in turbovec.
@@ -192,7 +192,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .opennlp-models
-          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe.rs') }}
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       # The published UD sentence detector, tokenizer, part-of-speech and
