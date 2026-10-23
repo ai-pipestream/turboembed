@@ -446,7 +446,7 @@ the sentence detectors over them.
 ## Fixtures
 
 `fixtures/` holds the models and dictionaries that are not published
-models. They are checked in, and `analysis/goldens-tool/src/recipe.rs`
+models. They are checked in, and `analysis/goldens-tool/src/recipe/fixtures.rs`
 lists each with its SHA-512; `generate` and `verify` refuse a directory
 that differs.
 
