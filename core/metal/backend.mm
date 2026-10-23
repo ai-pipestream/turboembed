@@ -1650,11 +1650,14 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
 // At FASTEST a session's linear layers run in F16 tiles of 32 x 64 (h32),
 // 64 x 64 (h64) or 128 x 64 (h128) past SMALL_TOKENS_F16, or in the tile
 // each run's tokens favor (auto); EXACT and MODEL have one path, F32. A
-// tuned session times each when it is made, on its own memory, and runs
-// the fastest; docs/metal.md says how (Autotuning).
+// tuned session times each when it is made, on its own memory, at each
+// token bin it can hold, and keeps the incumbent unless another is faster
+// at every one; docs/metal.md says how (Autotuning).
 
-/* The tuner times a session on rows of max_seq tokens, this many tokens
- * in all at most (fewer when the session holds fewer). */
+/* The packed tokens the tuner times each choice at, one per token bin up
+ * to the session's capacity: at most this many in all, and fewer when the
+ * session holds fewer. */
+constexpr uint32_t TUNE_BIN_TOKENS[] = {256, 1024, 4096, 8192};
 constexpr uint32_t TUNE_TOKENS = 8192;
 /* Timed runs of each variant, after an untimed one. */
 constexpr size_t TUNE_RUNS = 5;
@@ -1732,86 +1735,117 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     for (int l = LINEAR_H32; l < (int)LINEAR_COUNT; l++)
         if (l != (int)incumbent && runs_linear(c, (Linear)l)) order.push_back((Linear)l);
 
-    // Rows of max_seq tokens, ids 1, as many as fill TUNE_TOKENS.
+    // The token counts to time at: each bin's in TUNE_BIN_TOKENS the session
+    // can hold, and its whole capacity (up to TUNE_TOKENS) when that is
+    // fewer than the first.
     const auto started = std::chrono::steady_clock::now();
-    const uint32_t batch = std::clamp(TUNE_TOKENS / s.max_seq, 1u, s.max_batch);
-    std::vector<int32_t> ones((size_t)batch * s.max_seq, 1);
-    turbo_backend_embed_rows rows{};
-    rows.struct_size = sizeof rows;
-    rows.batch = batch;
-    rows.seq = s.max_seq;
-    rows.row_stride = s.max_seq;
-    rows.ids = ones.data();
-    rows.mask = ones.data();
-    rows.pooling = TURBO_POOLING_MEAN;
-    rows.normalize = TURBO_NORMALIZE_NONE;
-    rows.output_dim = s.model->desc.hidden;
-    pack(s, &rows);
-    s.nranges = 0;
-    s.written = false;
+    const uint32_t capacity = (uint32_t)std::min<uint64_t>((uint64_t)s.max_batch * s.max_seq, TUNE_TOKENS);
+    std::vector<uint32_t> counts;
+    for (uint32_t n : TUNE_BIN_TOKENS)
+        if (n <= capacity) counts.push_back(n);
+    if (counts.empty()) counts.push_back(capacity);
     static const char *const BINS[] = {"le256", "le1k", "le4k", "le16k", "gt16k"};
-    uint32_t bin = 0;
-    for (uint32_t edge : {256u, 1024u, 4096u, 16384u}) bin += s.tokens > edge;
 
     const double budget = t.budget_ms;
     double spent = 0;
-    std::vector<double> least(order.size(), 0);
-    std::vector<bool> timed(order.size(), false);
-    for (size_t v = 0; v < order.size(); v++) {
-        s.linear = order[v];
-        double ms = 0;
-        TRY(timed_run(s, &ms, err));   // untimed: the clocks come up
-        bool apart = true;
-        for (int tries = 0; tries < TUNE_TRIES && apart; tries++) {
-            std::vector<double> times;
-            while (times.size() < TUNE_RUNS && spent < budget) {
-                TRY(timed_run(s, &ms, err));
-                spent += ms;
-                times.push_back(ms);
+    // least[b][v]: choice v's least time at count b; timed[b][v] whether
+    // it was timed there.
+    std::vector<std::vector<double>> least(counts.size(), std::vector<double>(order.size(), 0));
+    std::vector<std::vector<bool>> timed(counts.size(), std::vector<bool>(order.size(), false));
+    std::vector<uint32_t> bins(counts.size(), 0);
+    for (size_t b = 0; b < counts.size(); b++) {
+        // Rows of up to max_seq tokens, ids 1, as many as make counts[b].
+        const uint32_t len = std::min(s.max_seq, counts[b]);
+        const uint32_t batch = std::clamp(counts[b] / len, 1u, s.max_batch);
+        std::vector<int32_t> ones((size_t)batch * len, 1);
+        turbo_backend_embed_rows rows{};
+        rows.struct_size = sizeof rows;
+        rows.batch = batch;
+        rows.seq = len;
+        rows.row_stride = len;
+        rows.ids = ones.data();
+        rows.mask = ones.data();
+        rows.pooling = TURBO_POOLING_MEAN;
+        rows.normalize = TURBO_NORMALIZE_NONE;
+        rows.output_dim = s.model->desc.hidden;
+        pack(s, &rows);
+        s.nranges = 0;
+        s.written = false;
+        for (uint32_t edge : {256u, 1024u, 4096u, 16384u}) bins[b] += s.tokens > edge;
+        for (size_t v = 0; v < order.size(); v++) {
+            if (spent >= budget) break;
+            s.linear = order[v];
+            double ms = 0;
+            TRY(timed_run(s, &ms, err));   // untimed: the clocks come up
+            bool apart = true;
+            for (int tries = 0; tries < TUNE_TRIES && apart; tries++) {
+                std::vector<double> times;
+                while (times.size() < TUNE_RUNS && spent < budget) {
+                    TRY(timed_run(s, &ms, err));
+                    spent += ms;
+                    times.push_back(ms);
+                }
+                if (times.empty()) break;
+                std::sort(times.begin(), times.end());
+                least[b][v] = times[0];
+                timed[b][v] = true;
+                apart = times.size() > 1 && times[times.size() / 2] > times[0] * (1.0 + TUNE_APART);
             }
-            if (times.empty()) break;
-            std::sort(times.begin(), times.end());
-            least[v] = times[0];
-            timed[v] = true;
-            apart = times.size() > 1 && times[times.size() / 2] > times[0] * (1.0 + TUNE_APART);
-        }
-        if (apart && timed[v]) {
-            s.linear = incumbent;
-            c->say(LOG_INFO,
-                   "metal device %u: not tuned: linear=%s's times stayed more than %.0f%% apart, so the GPU is shared "
-                   "or throttling; the next session measures again",
-                   c->ordinal, LINEAR_NAMES[order[v]], TUNE_APART * 100);
-            write_choices(t.choices, choice_line(incumbent, false));
-            return TURBO_OK;
+            if (apart && timed[b][v]) {
+                s.linear = incumbent;
+                c->say(LOG_INFO,
+                       "metal device %u: not tuned: linear=%s's times at %s stayed more than %.0f%% apart, so the GPU "
+                       "is shared or throttling; the next session measures again",
+                       c->ordinal, LINEAR_NAMES[order[v]], BINS[bins[b]], TUNE_APART * 100);
+                write_choices(t.choices, choice_line(incumbent, false));
+                return TURBO_OK;
+            }
         }
     }
-    if (!timed[0]) return refuse(err, TURBO_E_INVALID_STATE, "metal: the tuner timed no incumbent");
-    // The fastest challenger replaces the incumbent only by the margin.
+    if (!timed[0][0]) return refuse(err, TURBO_E_INVALID_STATE, "metal: the tuner timed no incumbent");
+    // A challenger replaces the incumbent only when it was timed at every
+    // count the incumbent was and beat it by the margin at each; of those,
+    // the one least in all.
     size_t best = 0;
-    for (size_t v = 1; v < order.size(); v++)
-        if (timed[v] && least[v] < least[best]) best = v;
-    s.linear = least[best] < least[0] * (1.0 - TUNE_MARGIN) ? order[best] : incumbent;
-    const bool all_timed = std::find(timed.begin(), timed.end(), false) == timed.end();
+    double best_total = 0;
+    for (size_t v = 1; v < order.size(); v++) {
+        bool wins = true;
+        double total = 0;
+        for (size_t b = 0; b < counts.size() && wins; b++) {
+            if (!timed[b][0]) continue;
+            wins = timed[b][v] && least[b][v] < least[b][0] * (1.0 - TUNE_MARGIN);
+            total += least[b][v];
+        }
+        if (wins && (best == 0 || total < best_total)) {
+            best = v;
+            best_total = total;
+        }
+    }
+    s.linear = order[best];
+    bool all_timed = true;
+    for (const auto &row : timed) all_timed = all_timed && std::find(row.begin(), row.end(), false) == row.end();
     const uint32_t tune_ms = (uint32_t)std::min<double>(
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count(), UINT32_MAX);
     std::string lines, said;
-    for (size_t v = 0; v < order.size(); v++) {
-        if (!timed[v]) continue;
-        char one[96];
-        snprintf(one, sizeof one, "%s%s/linear/%s=%.4f", lines.empty() ? "" : "\n", BINS[bin], LINEAR_NAMES[order[v]],
-                 least[v]);
-        lines += one;
-        snprintf(one, sizeof one, "%s%s %.3f ms", said.empty() ? "" : ", ", LINEAR_NAMES[order[v]], least[v]);
-        said += one;
+    for (size_t b = 0; b < counts.size(); b++) {
+        said += std::string(said.empty() ? "" : "; ") + BINS[bins[b]] + ":";
+        for (size_t v = 0; v < order.size(); v++) {
+            if (!timed[b][v]) continue;
+            char one[96];
+            snprintf(one, sizeof one, "%s%s/linear/%s=%.4f", lines.empty() ? "" : "\n", BINS[bins[b]],
+                     LINEAR_NAMES[order[v]], least[b][v]);
+            lines += one;
+            snprintf(one, sizeof one, " %s %.3f ms", LINEAR_NAMES[order[v]], least[b][v]);
+            said += one;
+        }
     }
     if (t.timings && t.timings_len > 0) {
         const size_t n = std::min(lines.size(), (size_t)t.timings_len - 1);
         memcpy(t.timings, lines.data(), n);
         t.timings[n] = 0;
     }
-    c->say(LOG_INFO, "metal device %u: linear layers chosen in %u ms: %s (%s, a run: %s%s)", c->ordinal, tune_ms,
-           LINEAR_NAMES[s.linear], BINS[bin], said.c_str(),
-           all_timed ? "" : "; some not timed, past the budget");
+    c->say(LOG_INFO, "metal device %u: linear layers chosen in %u ms: %s (a run at %s%s)", c->ordinal, tune_ms,
+           LINEAR_NAMES[s.linear], said.c_str(), all_timed ? "" : "; some not timed, past the budget");
     write_choices(t.choices, choice_line(s.linear, false));
     t.tune_ms = tune_ms;
     t.tuned = TURBO_TUNED_MEASURED;
