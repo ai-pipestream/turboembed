@@ -143,6 +143,7 @@ impl Default for IncivilityLexicon {
 }
 
 mod annotate;
+mod bias;
 mod head;
 mod metrics;
 mod rules;
@@ -151,6 +152,9 @@ mod tables;
 #[cfg(test)]
 mod tests;
 mod vocabulary;
+pub use bias::{
+    GoldBiasUnit, IdentityTerms, IncivilityBiasMetrics, LabelBias, SubgroupBias, evaluate_incivility_bias, roc_auc,
+};
 pub use head::{IncivilityFitOptions, IncivilityHeadError, IncivilityVectorHead};
 pub use metrics::{GoldIncivilityUnit, IncivilityMetrics, LabelMetrics, evaluate_incivility_corpus};
 use rules::*;

@@ -27,6 +27,7 @@ pub mod incivility;
 pub mod lexicon;
 mod model;
 pub mod pragmatics;
+mod token_key;
 mod validation;
 
 pub use aspect::{
@@ -39,9 +40,10 @@ pub use emotion::{
     EmotionVectorHead, EmotionVectorScorer, GoldEmotionUnit, evaluate_emotion_corpus,
 };
 pub use incivility::{
-    DEFAULT_INCIVILITY_THRESHOLD, GoldIncivilityUnit, IncivilityAnnotator, IncivilityFitOptions, IncivilityHeadError,
-    IncivilityLexicon, IncivilityMetrics, IncivilityStage, IncivilityUnit, IncivilityVectorContext,
-    IncivilityVectorHead, IncivilityVectorScorer, LabelMetrics, evaluate_incivility_corpus,
+    DEFAULT_INCIVILITY_THRESHOLD, GoldBiasUnit, GoldIncivilityUnit, IdentityTerms, IncivilityAnnotator,
+    IncivilityBiasMetrics, IncivilityFitOptions, IncivilityHeadError, IncivilityLexicon, IncivilityMetrics,
+    IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorHead, IncivilityVectorScorer, LabelBias,
+    LabelMetrics, SubgroupBias, evaluate_incivility_bias, evaluate_incivility_corpus, roc_auc,
 };
 pub use lexicon::{
     B_DECR, B_INCR, C_INCR, COMPOUND_THRESHOLD, DEFAULT_ALPHA, LexiconSentiment, N_SCALAR, NegationMode,
