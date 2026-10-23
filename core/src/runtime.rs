@@ -61,6 +61,12 @@ impl Runtime {
                         "CPU extractive QA; task benchmark pending"
                     },
                 );
+            } else if task == TURBO_TASK_RERANK && cap.status != backend::TURBO_CAP_UNSUPPORTED {
+                // The pair encoder is the embedding encoder with CLS pooling;
+                // the head and the max over windows run on the host.
+                cap.status = backend::TURBO_CAP_EXPERIMENTAL;
+                cap.options_honored = 0b111;
+                write_str(&mut cap.reason, "cross-encoder through the embedding encoder; rerank speed record pending");
             } else if task == TURBO_TASK_EXTRACTIVE_QA
                 && cap.status != backend::TURBO_CAP_UNSUPPORTED
                 && backend::offered!(d.backend, embed_write_ranges).is_ok()
@@ -76,7 +82,7 @@ impl Runtime {
                 write_str(
                     &mut cap.reason,
                     if task == TURBO_TASK_RERANK {
-                        "rerank requires CPU"
+                        "this backend runs no embedding encoder for the pairs"
                     } else {
                         "extractive QA needs range writes, which this backend does not offer"
                     },

@@ -112,6 +112,10 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
     let write = backend::offered!(s.backend, embed_write)?;
     let mut result: turbo_backend_run = unsafe { std::mem::zeroed() };
     let mut allocations = 0u64;
+    // A device backend leaves the states in device memory: they are read
+    // back here, and the scores the run returns are the session's own.
+    let mut staged: Vec<f32> = Vec::new();
+    let mut read_back = 0u64;
     for start in (0..batch.pair.len()).step_by(s.info.max_batch as usize) {
         let n = (batch.pair.len() - start).min(s.info.max_batch as usize);
         let at = start * batch.seq;
@@ -133,11 +137,22 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
         result.stage[TURBO_EMBED_STAGE_TOKENIZE] = TURBO_STAGE_HOST;
         backend::check(s.backend, "rerank encode run", |err| unsafe { (s.run)(s.raw, &mut result, err) })?;
         check_run(s.backend, &result, true)?;
-        if result.host.is_null() {
-            return Err(Error::new(INTERNAL, "rerank encoder output must be on host"));
-        }
         allocations += result.host_allocs;
-        let states = unsafe { std::slice::from_raw_parts(result.host.cast::<f32>(), n * head.hidden) };
+        let states: &[f32] = if result.host.is_null() {
+            let read = backend::offered!(s.backend, buffer_read)?;
+            if staged.is_empty() {
+                allocations += 1;
+            }
+            staged.resize(n * head.hidden, 0.0);
+            let bytes = size_of_val(staged.as_slice()) as u64;
+            backend::check(s.backend, "rerank encode read", |err| unsafe {
+                read(result.output, staged.as_mut_ptr().cast(), bytes, err)
+            })?;
+            read_back += bytes;
+            &staged
+        } else {
+            unsafe { std::slice::from_raw_parts(result.host.cast::<f32>(), n * head.hidden) }
+        };
         for (j, input) in states.chunks_exact(head.hidden).enumerate() {
             if input.iter().any(|v| !v.is_finite()) {
                 return Err(Error::new(INTERNAL, "non-finite rerank encoder output"));
@@ -167,10 +182,18 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             *score = score.max(value);
         }
     }
-    // CPU output reserves max_batch * hidden elements, including when the
-    // final window batch is shorter. Compact scores into its leading values.
-    unsafe {
-        std::ptr::copy_nonoverlapping(state.scores.as_ptr(), result.host.cast::<f32>(), batch.count);
+    if result.host.is_null() {
+        // The scores are the session's own host buffer, held with the result.
+        result.placement = TURBO_PLACE_HOST;
+        result.output = state.scores.as_mut_ptr().cast();
+        result.host = result.output;
+        result.d2h_bytes += read_back;
+    } else {
+        // CPU output reserves max_batch * hidden elements, including when the
+        // final window batch is shorter. Compact scores into its leading values.
+        unsafe {
+            std::ptr::copy_nonoverlapping(state.scores.as_ptr(), result.host.cast::<f32>(), batch.count);
+        }
     }
     result.host_allocs = allocations;
     result.stage.fill(TURBO_STAGE_UNUSED);
