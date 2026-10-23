@@ -520,7 +520,9 @@ and writes `EmotionLayer` in one of three stages:
 
 1. **Lexicon** (the default): a seed list of cue words and emoji written
    for this crate (`analysis/doccat/src/sentiment/emotion/lexicon.rs`), a few per label with a weight
-   each. Tokens are looked up lowercased and trimmed of punctuation, an
+   each. A token is looked up with typographic apostrophes (U+2019,
+   U+02BC) read as `'`, Unicode punctuation trimmed from both ends but
+   for the apostrophe, and the rest case-folded (`turbo-unicode`); an
    emoji as itself. A cue adds its weight to its label by a noisy-or and
    records its token as evidence, unless a negator ("not", "never",
    "hardly", ...) is among the three tokens before it in the unit.
@@ -539,7 +541,8 @@ a unit with no vector fails the document. A head bound to an encoder
 (`with_model`) refuses vectors from any other; the lexicon stage reads
 no vectors and checks no encoder. Neutral never carries evidence. The
 model id is `goemotions-seed:<stage>`, or `<encoder>:emotion-<stage>`
-for a head that names its encoder, and the configuration hash covers
+for a head that names its encoder (its revision then ends in the head's
+own hash, so two heads on one encoder differ), and the configuration hash covers
 the lexicon, the unit, the stage, the threshold and the head.
 
 `EmotionVectorHead::to_bytes` writes the magic `TEVH`, the version 1,

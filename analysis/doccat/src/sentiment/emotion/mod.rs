@@ -193,7 +193,13 @@ impl EmotionAnnotator {
         };
         let head = self.vector_scorer.as_ref().filter(|_| self.stage != EmotionStage::Lexicon);
         match head.and_then(|h| h.model()) {
-            Some(m) => ModelRef { id: format!("{}:emotion-{stage}", m.id), revision: m.revision, sha256: m.sha256 },
+            // The head's own hash is in the revision, so two heads on one
+            // encoder have two references.
+            Some(m) => ModelRef {
+                id: format!("{}:emotion-{stage}", m.id),
+                revision: format!("{}+head-{:016x}", m.revision, head.map_or(0, |h| h.config_hash())),
+                sha256: m.sha256,
+            },
             None => ModelRef {
                 id: format!("goemotions-seed:{stage}"),
                 revision: "1".into(),

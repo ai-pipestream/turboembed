@@ -6,7 +6,7 @@
 
 use turbo_analysis_layers::EmotionDimension as D;
 
-/// `(word, label, weight)`, lowercase single tokens.
+/// `(word, label, weight)`, case-folded single tokens, in label order.
 pub(super) const WORDS: &[(&str, D, f64)] = &[
     ("admire", D::Admiration, 0.8),
     ("impressive", D::Admiration, 0.75),
@@ -25,7 +25,6 @@ pub(super) const WORDS: &[(&str, D, f64)] = &[
     ("agree", D::Approval, 0.7),
     ("approve", D::Approval, 0.75),
     ("exactly", D::Approval, 0.55),
-    ("hope", D::Optimism, 0.6),
     ("care", D::Caring, 0.6),
     ("careful", D::Caring, 0.55),
     ("confused", D::Confusion, 0.85),
@@ -38,7 +37,7 @@ pub(super) const WORDS: &[(&str, D, f64)] = &[
     ("disappointed", D::Disappointment, 0.85),
     ("disappointing", D::Disappointment, 0.8),
     ("disagree", D::Disapproval, 0.75),
-    ("wrong", D::Disapproval, 0.5),
+    ("wrong", D::Disapproval, 0.45),
     ("disgusting", D::Disgust, 0.9),
     ("gross", D::Disgust, 0.8),
     ("embarrassed", D::Embarrassment, 0.85),
@@ -60,6 +59,7 @@ pub(super) const WORDS: &[(&str, D, f64)] = &[
     ("adore", D::Love, 0.85),
     ("nervous", D::Nervousness, 0.85),
     ("anxious", D::Nervousness, 0.85),
+    ("hope", D::Optimism, 0.6),
     ("hopeful", D::Optimism, 0.8),
     ("optimistic", D::Optimism, 0.85),
     ("proud", D::Pride, 0.85),

@@ -8,7 +8,8 @@ use turbo_analysis_layers::{EmotionLayer, Sentences, Vectors};
 
 mod head;
 
-/// Sentences at `ranges`, tokens at whitespace and ASCII punctuation.
+/// Sentences at `ranges`, tokens at whitespace and at Unicode punctuation
+/// other than an apostrophe.
 pub(super) fn doc(text: &str, ranges: &[(u32, u32)]) -> Document {
     let mut d = Document::new(text);
     let mut sentences = Spans::new(ViewId::SOURCE);
@@ -22,13 +23,15 @@ pub(super) fn doc(text: &str, ranges: &[(u32, u32)]) -> Document {
             sentence.push(Ix::new(s as u32));
         };
         for (i, c) in text[a as usize..b as usize].char_indices().map(|(i, c)| (i + a as usize, c)) {
-            let cut = c.is_whitespace() || (c.is_ascii_punctuation() && c != '\'');
+            let apostrophe = matches!(c, '\'' | '\u{2019}');
+            let cut =
+                c.is_whitespace() || (!apostrophe && turbo_unicode::category::general_category(c).is_punctuation());
             if cut {
                 if let Some(x) = start.take() {
                     push(x, i, &mut tokens);
                 }
                 if !c.is_whitespace() {
-                    push(i, i + 1, &mut tokens);
+                    push(i, i + c.len_utf8(), &mut tokens);
                 }
             } else if start.is_none() {
                 start = Some(i);
@@ -90,6 +93,23 @@ fn a_negated_cue_does_not_count() {
     // A negator past the three tokens before the cue does not reach it.
     let (s, _) = one("Not that it matters, I am happy.");
     assert!(s.get(D::Joy) >= 0.5);
+}
+
+#[test]
+fn typographic_punctuation_and_case_do_not_hide_a_cue() {
+    // A curly apostrophe still negates.
+    let (s, ev) = one("I don\u{2019}t feel happy.");
+    assert!(s.get(D::Joy) < 0.5 && ev.is_empty(), "{s:?}");
+    // Ellipsis, curly quotes, inverted and fullwidth marks around a cue.
+    for text in ["I am happy\u{2026}", "I am \u{201C}happy\u{201D}", "\u{00BF}Happy?", "I am happy\u{3002}"] {
+        assert!(one(text).0.get(D::Joy) >= 0.5, "{text}");
+    }
+    // The lookup form on its own, where a tokenizer left the marks on.
+    assert_eq!(annotate::key("\u{201C}Happy\u{2026}\u{201D}"), "happy");
+    assert_eq!(annotate::key("Don\u{2019}t"), "don't");
+    assert_eq!(annotate::key("n\u{02BC}t"), "n't");
+    assert_eq!(annotate::key("\u{1F602}"), "\u{1F602}");
+    assert_eq!(annotate::key("HAPPY"), "happy");
 }
 
 #[test]
@@ -170,6 +190,10 @@ fn the_three_stages_score_with_their_own_signals() {
         .with_vector_scorer(Arc::new(head().with_model(model())))
         .with_stage(EmotionStage::Hybrid);
     assert_eq!(Annotator::model(&bound).unwrap().id, "test-encoder:emotion-hybrid");
+    // Two heads on one encoder are two references.
+    let other = EmotionVectorHead::new(2, vec![0.5; 56], [0.0; 28]).unwrap().with_model(model());
+    let bound2 = EmotionAnnotator::new().with_vector_scorer(Arc::new(other)).with_stage(EmotionStage::Hybrid);
+    assert_ne!(Annotator::model(&bound).unwrap().revision, Annotator::model(&bound2).unwrap().revision);
 }
 
 #[test]
