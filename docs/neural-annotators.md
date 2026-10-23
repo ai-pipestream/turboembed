@@ -62,8 +62,9 @@ Face hub):
   `sat-3l`'s config). The core has no banded attention mask, so these
   do not run yet; adding one is a change to every backend's attention.
 - `sat-1l-sm` to `sat-12l-sm`: the supervised mixture models, with no
-  lookahead and one label. These need nothing the core lacks; none has
-  been run here yet (Not done, below). Their training mixture holds UD
+  lookahead and one label. These need nothing the core lacks;
+  `sat-1l-sm` matches wtpsplit (Against wtpsplit, below), and the others
+  have not been run here. Their training mixture holds UD
   treebanks under CC BY-NC-SA, so they are local-only
   (docs/licences.md, "Neural annotator checkpoints").
 
@@ -146,6 +147,35 @@ operands, the result depends on the backend:
 A failure at `fastest` is over the 1e-3 the test allows, which is left
 as it is; the parity holds at `model` and `exact` on every backend.
 
+On a released checkpoint, `sat-1l-sm` at revision
+`00a783439c201b20ee91ee1624dc817f1bf0e578` (one layer, width 768, the
+whole XLM-R vocabulary), the same checks pass. The bundle is sealed from
+`bundle/recipes/sat-1l-sm.json`, and the reference's `segment` makes
+the fixtures from the same weights. The tokenizer is BAAI/bge-m3's
+`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`
+(MIT): it has XLM-R's vocabulary and character map, in the Unigram form
+the core reads. `FacebookAI/xlm-roberta-base`'s own `tokenizer.json`
+names no model type, which the core refuses, so both sides read the
+bge-m3 file, as the tiny model's fixtures do.
+`a_released_checkpoint_matches_wtpsplit` in
+`analysis/sat/tests/parity.rs` runs the comparison when
+`TURBO_TEST_SAT_BUNDLE` names the bundle and `TURBO_TEST_SAT_FIXTURES`
+the fixtures. On the 90 texts:
+
+| Threshold, stride, block | Largest probability difference, CPU | On CUDA (`model`) | Characters near the threshold |
+|---|---|---|---|
+| 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 0 |
+| 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 0 |
+| 0.5, 7, 30 | 2.8e-4 | 2.8e-4 | 0 |
+
+The ids and offsets are wtpsplit's on every text but for the six
+cluster spans the tiny model shows too (below), and the pieces are
+`split`'s on every text but the one with a pad token in it. The bundle's
+encoder matches the mean of wtpsplit's encoder states for the recipe's
+16 cases: one minus the lowest cosine is 8.9e-13, and the largest
+absolute difference is 3.1e-6 (`TURBO_TEST_BUNDLE=<bundle> cargo test -p
+turbo --test conformance -- --include-ignored`).
+
 What the step does differently, and why:
 
 - **Tokenizer pipeline.** The reference runs wtpsplit with the model's
@@ -195,18 +225,11 @@ the stride is the main setting for throughput.
 
 ### Not done
 
-- Real checkpoints. Huggingface.co refused the downloads from the
-  machine this was built on, so no real SaT model was run, and there is
-  no zoo entry (an entry needs each file's SHA-512). The checks against
-  a real model are: seal a bundle from `sat-1l-sm` at revision
-  `00a783439c201b20ee91ee1624dc817f1bf0e578` (`model.safetensors`,
-  797951580 bytes, SHA-256
-  `81eb7a4fcd4dab85c50866c7e2cf58f3d848e1c830c9207d132277110489ea0c`)
-  with a recipe like `testdata/tiny-sat-recipe`'s, then run the
-  `segment` command of the reference on it and compare as
-  `analysis/sat/tests/parity.rs` does. The checkpoint is local-only
-  (docs/licences.md), so the check runs only where a user has fetched it
-  through the zoo after accepting its licence; CI does not fetch it.
+- A zoo entry for the `-sm` checkpoints. An entry needs each file's
+  SHA-512, and the checkpoints are local-only (docs/licences.md): the
+  zoo would fetch one only after its user accepts the licence, and CI
+  never fetches it, so the comparison above runs only where a user has
+  the checkpoint. `sat-12l-sm` and the other sizes have not been run.
 - Limited lookahead, for the models without `-sm`.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by

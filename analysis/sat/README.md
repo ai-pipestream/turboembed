@@ -82,6 +82,14 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
   `TURBO_TEST_DEVICE` and `TURBO_TEST_PRECISION` run it on a device,
   for example `TURBO_TEST_DEVICE=cuda cargo test --release -p turbo-sat
   --features turbo/cuda --test parity`.
+- `a_released_checkpoint_matches_wtpsplit` in `tests/parity.rs` holds a
+  bundle sealed from a released checkpoint to fixtures the reference's
+  `segment` made from its weights, when `TURBO_TEST_SAT_BUNDLE` names
+  the bundle and `TURBO_TEST_SAT_FIXTURES` the fixtures, separated by
+  commas. `bundle/recipes/sat-1l-sm.json` is the recipe for `sat-1l-sm`
+  (local-only, docs/licences.md); it is sealed and its fixtures made as
+  above, with the checkpoint's `config.json` and `model.safetensors` in
+  place of the tiny model's `out/model`.
 - `tests/annotator.rs`: batching, texts longer than a window, texts
   without words, the threshold and line feeds, the options, the
   configuration hash, the provider and the analyzer.
