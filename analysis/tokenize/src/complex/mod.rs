@@ -1,25 +1,28 @@
 //! Word boundaries for Thai, Lao, Khmer and Burmese, which are written
-//! without spaces between words, from the dictionaries of ICU4X's
-//! segmenter data.
+//! without spaces between words, from the dictionaries and LSTM models of
+//! ICU4X's segmenter data.
 //!
 //! The text is cut into runs: a complex script run is a maximal run of
 //! characters of one of the four scripts ([`script`]), and everything else
 //! is left to the UAX #29 word rules. Inside a run the words come from the
-//! script's dictionary ([`dictionary`]); a run always starts and ends on
-//! a boundary. This is how ICU4X's word segmenter (the `neo` state machine
-//! with dictionaries loaded) handles complex scripts, except that here a
-//! run and the words inside it always start and end on grapheme cluster
-//! boundaries (docs/segmentation.md lists the differences).
+//! script's segmenter ([`Segmenter`]: either [`dictionary`] or [`lstm`]),
+//! chosen per script by accuracy on gold word segmentations; a run always
+//! starts and ends on a boundary. This is how ICU4X's word segmenter
+//! handles complex scripts, except that here a run and the words inside it
+//! always start and end on grapheme cluster boundaries (docs/segmentation.md
+//! lists the differences).
 //!
 //! - [`zerotrie`]: the trie the dictionaries are stored in.
 //! - [`dictionary`]: the dictionary file and the dictionary segmenter.
+//! - [`lstm`]: the `.lstm` file and the bidirectional LSTM segmenter.
 //! - [`script`]: which characters form complex script runs.
 //! - [`tokenizer`]: the annotators.
 //!
-//! The dictionaries are in `analysis/tokenize/data/icu4x-segmenter/` with
+//! The data files are in `analysis/tokenize/data/icu4x-segmenter/` with
 //! their notices; that directory's README says where they come from.
 
 pub mod dictionary;
+pub mod lstm;
 pub mod script;
 pub mod tokenizer;
 pub(crate) mod zerotrie;
@@ -29,6 +32,7 @@ use std::sync::OnceLock;
 use turbo_unicode::grapheme_boundaries;
 
 pub use dictionary::{Dictionary, DictionaryError};
+pub use lstm::{Lstm, LstmError, LstmScratch};
 pub use script::{ComplexScript, complex_script};
 pub use tokenizer::{DictionaryWordTokenizer, UntypedDictionaryWordTokenizer, dictionary_word_tokens};
 
@@ -37,27 +41,77 @@ use crate::utf8::decode;
 use script::may_start_complex;
 
 /// The dictionary files, as ICU4X's segmenter data holds them.
-static THAI: &[u8] = include_bytes!("../../data/icu4x-segmenter/thai.dict");
-static LAO: &[u8] = include_bytes!("../../data/icu4x-segmenter/lao.dict");
-static KHMER: &[u8] = include_bytes!("../../data/icu4x-segmenter/khmer.dict");
-static BURMESE: &[u8] = include_bytes!("../../data/icu4x-segmenter/burmese.dict");
+static THAI_DICT: &[u8] = include_bytes!("../../data/icu4x-segmenter/thai.dict");
+static LAO_DICT: &[u8] = include_bytes!("../../data/icu4x-segmenter/lao.dict");
+static KHMER_DICT: &[u8] = include_bytes!("../../data/icu4x-segmenter/khmer.dict");
+static BURMESE_DICT: &[u8] = include_bytes!("../../data/icu4x-segmenter/burmese.dict");
+
+/// The LSTM model files, as ICU4X's segmenter data holds them.
+static THAI_LSTM: &[u8] = include_bytes!("../../data/icu4x-segmenter/thai.lstm");
+static LAO_LSTM: &[u8] = include_bytes!("../../data/icu4x-segmenter/lao.lstm");
+static KHMER_LSTM: &[u8] = include_bytes!("../../data/icu4x-segmenter/khmer.lstm");
+static BURMESE_LSTM: &[u8] = include_bytes!("../../data/icu4x-segmenter/burmese.lstm");
 
 /// The bundled dictionary file of `script`.
 pub fn bundled_dictionary(script: ComplexScript) -> &'static [u8] {
     match script {
-        ComplexScript::Thai => THAI,
-        ComplexScript::Lao => LAO,
-        ComplexScript::Khmer => KHMER,
-        ComplexScript::Myanmar => BURMESE,
+        ComplexScript::Thai => THAI_DICT,
+        ComplexScript::Lao => LAO_DICT,
+        ComplexScript::Khmer => KHMER_DICT,
+        ComplexScript::Myanmar => BURMESE_DICT,
     }
 }
 
-/// The word segmenter: UAX #29 rules, with a dictionary for each complex
+/// The bundled LSTM model file of `script`.
+pub fn bundled_lstm(script: ComplexScript) -> &'static [u8] {
+    match script {
+        ComplexScript::Thai => THAI_LSTM,
+        ComplexScript::Lao => LAO_LSTM,
+        ComplexScript::Khmer => KHMER_LSTM,
+        ComplexScript::Myanmar => BURMESE_LSTM,
+    }
+}
+
+/// A word segmenter for one complex script: either a greedy longest-match
+/// dictionary or a bidirectional LSTM.
+#[derive(Clone, Debug)]
+pub enum Segmenter<'a> {
+    /// ICU4X's greedy longest-match dictionary segmenter.
+    Dictionary(Dictionary<'a>),
+    /// ICU4X's bidirectional LSTM code-point segmenter.
+    Lstm(Lstm<'a>),
+}
+
+impl<'a> Segmenter<'a> {
+    /// The word boundaries of `text`, as byte offsets after each word, in
+    /// increasing order; the last is the end of the text. Nothing is
+    /// reported for an empty text.
+    pub fn segment(&self, text: &str, boundary: impl FnMut(usize)) {
+        match self {
+            Segmenter::Dictionary(d) => d.segment(text, boundary),
+            Segmenter::Lstm(l) => l.segment(text, boundary),
+        }
+    }
+}
+
+impl<'a> From<Dictionary<'a>> for Segmenter<'a> {
+    fn from(d: Dictionary<'a>) -> Self {
+        Segmenter::Dictionary(d)
+    }
+}
+
+impl<'a> From<Lstm<'a>> for Segmenter<'a> {
+    fn from(l: Lstm<'a>) -> Self {
+        Segmenter::Lstm(l)
+    }
+}
+
+/// The word segmenter: UAX #29 rules, with a [`Segmenter`] for each complex
 /// script that has one.
 #[derive(Clone, Debug)]
 pub struct ComplexSegmenter<'a> {
-    /// The dictionary of each script, in the order of [`ComplexScript::ALL`].
-    dictionaries: [Option<Dictionary<'a>>; 4],
+    /// The segmenter of each script, in the order of [`ComplexScript::ALL`].
+    segmenters: [Option<Segmenter<'a>>; 4],
 }
 
 impl<'a> ComplexSegmenter<'a> {
@@ -69,12 +123,44 @@ impl<'a> ComplexSegmenter<'a> {
         khmer: Option<Dictionary<'a>>,
         myanmar: Option<Dictionary<'a>>,
     ) -> ComplexSegmenter<'a> {
-        ComplexSegmenter { dictionaries: [thai, lao, khmer, myanmar] }
+        ComplexSegmenter::with_segmenters(
+            thai.map(Segmenter::Dictionary),
+            lao.map(Segmenter::Dictionary),
+            khmer.map(Segmenter::Dictionary),
+            myanmar.map(Segmenter::Dictionary),
+        )
     }
 
-    /// The dictionary used for `script`, if any.
+    /// A segmenter with the given [`Segmenter`] (dictionary or LSTM) for
+    /// each script; a script without one is segmented by the UAX #29 rules.
+    pub fn with_segmenters(
+        thai: Option<Segmenter<'a>>,
+        lao: Option<Segmenter<'a>>,
+        khmer: Option<Segmenter<'a>>,
+        myanmar: Option<Segmenter<'a>>,
+    ) -> ComplexSegmenter<'a> {
+        ComplexSegmenter { segmenters: [thai, lao, khmer, myanmar] }
+    }
+
+    /// The segmenter used for `script`, if any.
+    pub fn segmenter(&self, script: ComplexScript) -> Option<&Segmenter<'a>> {
+        self.segmenters[script as usize].as_ref()
+    }
+
+    /// The dictionary used for `script`, when its segmenter is a dictionary.
     pub fn dictionary(&self, script: ComplexScript) -> Option<&Dictionary<'a>> {
-        self.dictionaries[script as usize].as_ref()
+        match self.segmenter(script)? {
+            Segmenter::Dictionary(d) => Some(d),
+            Segmenter::Lstm(_) => None,
+        }
+    }
+
+    /// The LSTM used for `script`, when its segmenter is an LSTM.
+    pub fn lstm(&self, script: ComplexScript) -> Option<&Lstm<'a>> {
+        match self.segmenter(script)? {
+            Segmenter::Lstm(l) => Some(l),
+            Segmenter::Dictionary(_) => None,
+        }
     }
 
     /// Calls `segment` with the start and end of every word segment of
@@ -99,11 +185,11 @@ impl<'a> ComplexSegmenter<'a> {
             }
             let (cp, len) = decode(bytes, i);
             let found = if may_start_complex(lead) {
-                char::from_u32(cp).and_then(complex_script).and_then(|s| self.dictionary(s).map(|d| (s, d)))
+                char::from_u32(cp).and_then(complex_script).and_then(|s| self.segmenter(s).map(|seg| (s, seg)))
             } else {
                 None
             };
-            let Some((run_script, dictionary)) = found else {
+            let Some((run_script, seg)) = found else {
                 i += len;
                 continue;
             };
@@ -122,7 +208,7 @@ impl<'a> ComplexSegmenter<'a> {
             // same script among them. The one exception: a cluster that
             // goes on into a run of another script (GB9c joins a Khmer
             // COENG to a Myanmar consonant) is cut where that run starts,
-            // so each dictionary sees its own run.
+            // so each segmenter sees its own run.
             let run_end = end;
             while cluster < i {
                 cluster = clusters.next().unwrap_or(bytes.len());
@@ -161,7 +247,7 @@ impl<'a> ComplexSegmenter<'a> {
             }
             let mut from = start;
             let mut last: Option<(u32, u32)> = None;
-            dictionary.segment(&text[start..run_end], |after| {
+            seg.segment(&text[start..run_end], |after| {
                 let after = start + after;
                 if let Some((s0, e0)) = last.replace((from as u32, after as u32)) {
                     segment(s0, e0);
@@ -178,9 +264,9 @@ impl<'a> ComplexSegmenter<'a> {
     }
 
     /// Whether `c` starts a run of a script other than `script` that a
-    /// dictionary segments.
+    /// segmenter handles.
     fn starts_other_run(&self, c: char, script: ComplexScript) -> bool {
-        complex_script(c).is_some_and(|s| s != script && self.dictionary(s).is_some())
+        complex_script(c).is_some_and(|s| s != script && self.segmenter(s).is_some())
     }
 
     /// Appends the word boundaries of `text` to `out`: 0, then the end of
@@ -198,7 +284,7 @@ fn uax29_stretch(text: &str, from: usize, to: usize, segment: &mut impl FnMut(u3
 }
 
 /// The segmenter with the four bundled dictionaries, read once.
-pub fn bundled() -> &'static ComplexSegmenter<'static> {
+pub fn bundled_dictionaries() -> &'static ComplexSegmenter<'static> {
     static SEGMENTER: OnceLock<ComplexSegmenter<'static>> = OnceLock::new();
     SEGMENTER.get_or_init(|| {
         let read = |script| {
@@ -209,6 +295,45 @@ pub fn bundled() -> &'static ComplexSegmenter<'static> {
             Some(read(ComplexScript::Lao)),
             Some(read(ComplexScript::Khmer)),
             Some(read(ComplexScript::Myanmar)),
+        )
+    })
+}
+
+/// The segmenter with the four bundled LSTMs, read once.
+pub fn bundled_lstms() -> &'static ComplexSegmenter<'static> {
+    static SEGMENTER: OnceLock<ComplexSegmenter<'static>> = OnceLock::new();
+    SEGMENTER.get_or_init(|| {
+        let read = |script| {
+            Segmenter::Lstm(Lstm::from_bytes(bundled_lstm(script)).expect("the bundled LSTMs are well formed"))
+        };
+        ComplexSegmenter::with_segmenters(
+            Some(read(ComplexScript::Thai)),
+            Some(read(ComplexScript::Lao)),
+            Some(read(ComplexScript::Khmer)),
+            Some(read(ComplexScript::Myanmar)),
+        )
+    })
+}
+
+/// The default bundled segmenter, choosing the better model per script on
+/// gold word-segmentation corpora: LSTM for Thai, dictionary for Burmese,
+/// Khmer and Lao.
+pub fn bundled() -> &'static ComplexSegmenter<'static> {
+    static SEGMENTER: OnceLock<ComplexSegmenter<'static>> = OnceLock::new();
+    SEGMENTER.get_or_init(|| {
+        let dict = |script| {
+            Segmenter::Dictionary(
+                Dictionary::from_bytes(bundled_dictionary(script)).expect("the bundled dictionaries are well formed"),
+            )
+        };
+        let lstm = |script| {
+            Segmenter::Lstm(Lstm::from_bytes(bundled_lstm(script)).expect("the bundled LSTMs are well formed"))
+        };
+        ComplexSegmenter::with_segmenters(
+            Some(lstm(ComplexScript::Thai)),
+            Some(dict(ComplexScript::Lao)),
+            Some(dict(ComplexScript::Khmer)),
+            Some(dict(ComplexScript::Myanmar)),
         )
     })
 }
@@ -224,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn runs_are_segmented_by_their_dictionary() {
+    fn runs_are_segmented_by_their_segmenter() {
         assert_eq!(segments("ภาษาไทยภาษาไทย"), ["ภาษา", "ไทย", "ภาษา", "ไทย"]);
         assert_eq!(segments("ພາສາລາວພາສາລາວພາສາລາວ"), ["ພາສາ", "ລາວ", "ພາສາ", "ລາວ", "ພາສາ", "ລາວ"]);
         assert_eq!(segments("ភាសាខ្មែរភាសាខ្មែរភាសាខ្មែរ"), ["ភាសាខ្មែរ", "ភាសាខ្មែរ", "ភាសាខ្មែរ"]);
@@ -275,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn a_script_without_a_dictionary_keeps_the_uax29_rules() {
+    fn a_script_without_a_segmenter_keeps_the_uax29_rules() {
         let segmenter = ComplexSegmenter::new(None, None, None, None);
         let text = "ภาษา";
         let mut out = Vec::new();
