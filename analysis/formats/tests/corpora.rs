@@ -286,7 +286,9 @@ fn rebuild(run: &str, golden: &Golden, input: &str, scratch: &Path) -> Rebuilt {
             let mut ours: Vec<String> = newsgroup_listing(scratch)
                 .unwrap()
                 .iter()
-                .map(|f| f.path.strip_prefix(scratch).unwrap().to_str().unwrap().to_owned())
+                .map(|f| {
+                    f.path.strip_prefix(scratch).unwrap().to_str().unwrap().replace(std::path::MAIN_SEPARATOR, "/")
+                })
                 .collect();
             ours.sort();
             let mut theirs = listed.clone();

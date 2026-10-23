@@ -165,7 +165,7 @@ fn headers(root: &Path) -> Vec<PathBuf> {
 /// with the corpus directory written `<corpus>`.
 fn failure(e: &MascError, root: &Path) -> (String, String) {
     let class = e.java_class().unwrap_or_else(|| panic!("{e} has no Java class")).to_owned();
-    (class, e.to_string().replace(root.to_str().unwrap(), "<corpus>"))
+    (class, e.to_string().replace(root.to_str().unwrap(), "<corpus>").replace(std::path::MAIN_SEPARATOR, "/"))
 }
 
 fn relative(root: &Path, path: &Path) -> String {
