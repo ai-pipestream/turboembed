@@ -158,8 +158,10 @@ frameworks and libc++, which every macOS has.
   block's middle are F16 between kernels. Attention takes
   32 queries of a row and one head per threadgroup, and goes through the
   row's keys in chunks of 32 staged in threadgroup memory, with a running
-  softmax; at FASTEST it stages K and V in F16, holds its queries in
-  registers and runs the softmax in base 2. A head width that is not a
+  softmax; at FASTEST it stages K and V in F16 (K transposed, so its
+  SIMD-group matrices load without a transpose) and each chunk's mask as
+  an additive bias, keeps its queries in registers and runs the softmax
+  in base 2. A head width that is not a
   multiple of 8, or is over 64, runs a narrower kernel, one query at a
   time, in F32 at every precision. The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
