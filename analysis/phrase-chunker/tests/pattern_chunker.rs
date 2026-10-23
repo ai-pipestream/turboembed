@@ -1,6 +1,8 @@
 //! Integration and adversarial tests for `TagPatternRule`, `PatternChunker`,
 //! and `PatternChunkComposer` (Issue #749).
 
+mod common;
+
 use std::path::Path;
 
 use turbo_analysis::{Analyzer, Annotator, Document, Ix, IxRange, Key, Provenance, Span, Spans, View, ViewId};
@@ -402,10 +404,11 @@ fn regex_style_tag_conditions_match_and_refuse_like_the_shared_reader() {
     let nouns = PatternChunker::from_patterns([("NP", "<.*NN.*>+")]).unwrap();
     let (hits,) = nouns.annotate((view, toks, pos)).unwrap();
     assert_eq!(summarize_chunks("cat cats Paris Parises run", &hits), vec![("cat cats Paris Parises", "NP", (0, 4))]);
-    for bad in ["<NN{2}>", r"<NN\d>", "<NN(>", "<[>"] {
+    for bad in ["<NN{2}>", r"<NN\d>", "<NN(>", "<[>", "<*NN>", "<NN**>"] {
         let err = PatternChunker::from_patterns([("NP", bad)]).expect_err("refused");
         assert!(matches!(err, PatternError::UnexpectedSyntax { pos: 0, .. }), "{bad}: {err:?}");
     }
+    assert!(PatternChunker::from_patterns([("NP", "<A*B>+")]).is_ok(), "interior star compiles as a pattern");
     let greet = build_doc_with_tags(
         "Die Straße STRASSE",
         "de",
@@ -417,4 +420,30 @@ fn regex_style_tag_conditions_match_and_refuse_like_the_shared_reader() {
     let chunker = PatternChunker::from_patterns([("NP", r#"<NN:"strasse"i>+"#)]).unwrap();
     let (hits,) = chunker.annotate((view, toks, pos)).unwrap();
     assert_eq!(summarize_chunks("Die Straße STRASSE", &hits), vec![("Straße STRASSE", "NP", (1, 3))]);
+}
+
+#[test]
+fn regex_style_tag_conditions_agree_on_chunk_goldens() {
+    // Issue #854 acceptance: over the real Penn Treebank tagged
+    // sentences of the chunk goldens, the class/optional spelling
+    // chunks identically to the alternation spelling.
+    use turbo_analysis::View;
+    use turbo_goldens::{golden_key, load_document};
+    let by_class = PatternChunker::from_patterns([("NP", "<DT>?<JJ[RS]?>*<NNS?>+")]).unwrap();
+    let by_alts = PatternChunker::from_patterns([("NP", "<DT>?<JJ|JJR|JJS>*<NN|NNS>+")]).unwrap();
+    let mut seen = 0usize;
+    for case in common::run("chunker-fixture") {
+        if case.golden.layer("turbo:utf16<opennlp:tokens>").is_some() {
+            continue;
+        }
+        let doc = load_document(&case.golden, &case.text).unwrap();
+        let view = doc.get::<View>().unwrap();
+        let toks = doc.get_key(&golden_key::<Tokens>()).unwrap();
+        let pos = doc.get_key(&golden_key::<PosTags>()).unwrap();
+        let (a,) = by_class.annotate((view, toks, pos)).unwrap();
+        let (b,) = by_alts.annotate((view, toks, pos)).unwrap();
+        assert_eq!(summarize_chunks(&case.text, &a), summarize_chunks(&case.text, &b), "{}", case.path.display());
+        seen += 1;
+    }
+    assert!(seen > 0, "chunk goldens loaded");
 }

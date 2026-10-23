@@ -421,7 +421,7 @@ fn parse_tag_cond(raw: &str, pos: usize) -> Result<TagCond, PatternError> {
         return Ok(TagCond::Any);
     }
     let plain = |s: &str| {
-        !s.chars().any(|c| matches!(c, '[' | ']' | '?' | '+' | '.' | '(' | ')' | '{' | '}' | '^' | '$' | '\\'))
+        !s.chars().any(|c| matches!(c, '*' | '[' | ']' | '?' | '+' | '.' | '(' | ')' | '{' | '}' | '^' | '$' | '\\'))
     };
     if let Some(prefix) = raw.strip_suffix(".*").filter(|p| plain(p)) {
         return Ok(TagCond::Prefix(unescape(prefix)));
