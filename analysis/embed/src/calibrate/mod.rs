@@ -172,33 +172,24 @@ impl Calibration {
         Ok(c)
     }
 
-    /// The side that runs `max_seq` tokens a row and `max_batch` rows a
-    /// run: the device where its point says it wins, else the CPU; `force`
-    /// (the [`FORCE_VAR`] variable's value) overrides it. An error when no
-    /// point was measured for the configuration, or `force` is neither
-    /// `device` nor `cpu`.
+    /// The side that runs `max_seq` tokens a row and at most `max_batch`
+    /// rows a run: the device where its point says it wins, else the CPU;
+    /// `force` (the [`FORCE_VAR`] variable's value) overrides it. An error
+    /// when no point was measured for the configuration, or `force` is
+    /// neither `device` nor `cpu`.
     pub fn side(&self, max_seq: u32, max_batch: u32, force: Option<&str>) -> Result<Side, CoreError> {
+        let forced = forced(force)?;
         let Some(p) = self.points.iter().find(|p| p.max_seq == max_seq && p.max_batch == max_batch) else {
-            let measured: Vec<String> = self.points.iter().map(|p| format!("{}x{}", p.max_seq, p.max_batch)).collect();
-            return Err(CoreError::new(
-                INVALID_ARGUMENT,
-                format!(
-                    "no calibration point for {max_seq} tokens a row and {max_batch} rows a run; measured: {}",
-                    measured.join(", ")
-                ),
-            ));
+            let measured: Vec<(u32, u32)> = self.points.iter().map(|p| (p.max_seq, p.max_batch)).collect();
+            return Err(unmeasured(max_seq, max_batch, &measured));
         };
-        match force {
-            None => Ok(if p.device_wins(self.floor) { Side::Device } else { Side::Cpu }),
-            Some("device") => Ok(Side::Device),
-            Some("cpu") => Ok(Side::Cpu),
-            Some(v) => Err(CoreError::new(INVALID_ARGUMENT, format!("{FORCE_VAR} is {v:?}, not device or cpu"))),
-        }
+        Ok(forced.unwrap_or(if p.device_wins(self.floor) { Side::Device } else { Side::Cpu }))
     }
 
     /// The options to open the step with at `base`'s window and rows per
-    /// run, which must both be given (not 0): `base` on the device and
-    /// precision of `o` or on the CPU, as [`Calibration::side`] chooses
+    /// run, which must both be given (not 0): `base` on the device at the
+    /// precision of `o`, or on the CPU at `Precision::Model`, the
+    /// precision the CPU was timed at, as [`Calibration::side`] chooses
     /// with the [`FORCE_VAR`] variable.
     pub fn options(&self, o: &CalibrationOptions, base: &VectorOptions) -> Result<VectorOptions, CoreError> {
         let force = std::env::var(FORCE_VAR).ok();
@@ -208,14 +199,19 @@ impl Calibration {
                 v.encoder.device = o.device.clone();
                 v.encoder.precision = o.precision;
             }
-            Side::Cpu => v.encoder.device = Device::Cpu,
+            Side::Cpu => {
+                v.encoder.device = Device::Cpu;
+                v.encoder.precision = Precision::Model;
+            }
         }
         Ok(v)
     }
 
     /// The step at `base`'s window and rows per run, on the side the
     /// calibration kept in `dir` chooses, measured first when there is
-    /// none (`load_or_measure`).
+    /// none (`load_or_measure`). A window and batch that `o` does not ask
+    /// for, or a [`FORCE_VAR`] that names neither side, is an error before
+    /// anything is measured.
     pub fn annotator(
         dir: &Path,
         bundle: &Path,
@@ -223,9 +219,39 @@ impl Calibration {
         texts: &[Text],
         base: &VectorOptions,
     ) -> Result<VectorAnnotator, CoreError> {
+        let (max_seq, max_batch) = (base.encoder.max_seq, base.encoder.max_batch);
+        forced(std::env::var(FORCE_VAR).ok().as_deref())?;
+        if !o.windows.contains(&max_seq) || !o.batches.contains(&max_batch) {
+            let asked: Vec<(u32, u32)> =
+                o.windows.iter().flat_map(|&w| o.batches.iter().map(move |&b| (w, b))).collect();
+            return Err(unmeasured(max_seq, max_batch, &asked));
+        }
         let c = Calibration::load_or_measure(dir, bundle, o, texts)?;
         VectorAnnotator::open(bundle, &c.options(o, base)?)
     }
+}
+
+/// The side `force` names, None when it is unset; an error for any
+/// value but `device` and `cpu`.
+fn forced(force: Option<&str>) -> Result<Option<Side>, CoreError> {
+    match force {
+        None => Ok(None),
+        Some("device") => Ok(Some(Side::Device)),
+        Some("cpu") => Ok(Some(Side::Cpu)),
+        Some(v) => Err(CoreError::new(INVALID_ARGUMENT, format!("{FORCE_VAR} is {v:?}, not device or cpu"))),
+    }
+}
+
+/// The error for a configuration that is not among `measured`.
+fn unmeasured(max_seq: u32, max_batch: u32, measured: &[(u32, u32)]) -> CoreError {
+    let list: Vec<String> = measured.iter().map(|(w, b)| format!("{w}x{b}")).collect();
+    CoreError::new(
+        INVALID_ARGUMENT,
+        format!(
+            "no calibration point for {max_seq} tokens a row and {max_batch} rows a run; measured: {}",
+            list.join(", ")
+        ),
+    )
 }
 
 /// The median time in ms of `reps` runs of the sentence vector step over

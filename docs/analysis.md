@@ -4731,29 +4731,45 @@ runs them on any machine:
   is 0.919, the mean 0.983). The mean over the whole row, computed with the
   encoder, is held to 0.999999 (the lowest is 0.9999999999984): the
   tokenizer and the encoder agree with OpenNLP's and ONNX Runtime's.
-- `analysis/embed/src/calibrate.rs` decides how the sentence vector step
-  runs on a device. `Calibration::measure` runs the step over the
-  caller's texts at each window size it is given (each once, at most the
-  model's), on the device and on the CPU at `Precision::Exact` as the
-  reference, and keeps each window's lowest cosine and the median times of
-  the step on the device and on the CPU at `Precision::Model`, the two
-  timed in turns. A cosine that is not a number counts as the lowest, and
-  a device that gives a different number of vectors than the reference is
-  an error. It keeps the widest window whose lowest cosine clears the
-  floor (the core's tolerance for the device's dtype, or 0.93 for I8), and
-  runs on the device only if a window clears it and the device is faster
-  there. `Calibration::load_or_measure` keeps the result in a directory,
-  written to a `.part` file and renamed, under a key of the bundle's model
-  and manifest hash, the device's backend, name, runtime and driver
-  versions, the precision, the library's build (`turbo::tuning::LIBRARY_BUILD`,
-  its version and kernels), the windows, the floor as given and a hash of
-  the texts. It measures again when the key changes, and when the kept
-  file is incomplete or its choice does not follow from its points.
-  `Calibration::options` gives the `VectorOptions` to open the step with.
+- `analysis/embed/src/calibrate/` (`mod.rs`, and `kept.rs` for the kept
+  form) decides where the sentence vector step runs: on a device or on
+  the CPU, for each window and batch. `Calibration::measure` runs the step
+  over the caller's texts at each window (tokens a row; each once, at most
+  the model's) and each batch (the session's cap on rows a run, its
+  `max_batch`; each once, at least 1), on the device and on the CPU at
+  `Precision::Model`, the two timed in turns, against the CPU at
+  `Precision::Exact` as the reference. It keeps a point for each window
+  and batch, windows outer, in the order asked: the lowest cosine and the
+  median times of the device and the CPU. A cosine that is not a number
+  counts as the lowest, and a device that gives a different number of
+  vectors than the reference is an error. `Calibration::side` gives the
+  device for a configuration whose point clears the floor (the core's
+  tolerance for the device's dtype, or 0.93 for I8) and is faster on the
+  device, the CPU for every other, and an error for a configuration with
+  no point. The batch is a cap: a call of fewer documents than fill it
+  runs fewer rows, at the side its cap chose. `TURBO_CALIBRATION_FORCE`
+  set to `device` or `cpu` overrides the choice, and any other value is
+  an error. `Calibration::load_or_measure` keeps the result in a
+  directory, written to a `.part` file and renamed, under a key of the
+  bundle's model and manifest hash, the device's backend, name, runtime
+  and driver versions, the precision, the library's build
+  (`turbo::tuning::LIBRARY_BUILD`, its version and kernels), the windows,
+  the batches, the floor as given and a hash of the texts. It measures
+  again when the key changes, and when the kept file is not the version 2
+  form or lacks a point for each window and batch asked, in order.
+  `Calibration::options` gives the `VectorOptions` for one configuration,
+  or an error: the device at the precision asked, or the CPU at
+  `Precision::Model`, the precision it was timed at.
+  `Calibration::annotator` opens the step on the chosen side, refusing a
+  window and batch that were not asked for before anything is measured,
+  and `calibrate::time` times the step opened with given options.
   `analysis/embed/tests/calibrate.rs` checks it with the CPU as the device
   on the small BERT, and on the device `TURBO_TEST_DEVICE` names with the
-  bundle `TURBO_TEST_VECTORS_BUNDLE` prints what it decided over windows
-  of 64, 96 and 128 tokens.
+  bundle `TURBO_TEST_VECTORS_BUNDLE` measures windows of 16, 32, 64 and
+  128 tokens by batches of 1, 8 and 32 over the documents of
+  `analysis/embed/tests/data/calibration-texts.txt`, and checks that the
+  step opened for each configuration runs on the side that won it.
+  docs/hailo.md ("Device or CPU") gives what it measured on the Hailo-8.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,

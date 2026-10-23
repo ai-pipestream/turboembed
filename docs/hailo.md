@@ -189,7 +189,10 @@ the lowest cosine of the device's vectors to the CPU's at
 `Precision::Exact` and the median time of each side.
 `Calibration::side` gives the device for a configuration where its
 cosine clears the floor (0.93 for I8) and it is faster than the CPU, and
-the CPU elsewhere; a configuration that was not measured is an error.
+the CPU, at `Precision::Model`, elsewhere; a configuration that was not
+measured is an error. The batch is the session's cap on rows a run
+(`max_batch`), not the rows a call sends: a call of fewer documents runs
+fewer rows, on the side its cap chose.
 `Calibration::load_or_measure` keeps the measurement in a directory,
 keyed by the bundle, the device, its runtime and driver, the library's
 build and what was asked, and `Calibration::annotator` opens the step on

@@ -106,7 +106,12 @@ fn the_device_runs_where_it_is_faster_within_the_floor() {
     let v = c.options(&o, &at(32, 32)).unwrap();
     assert!(matches!(&v.encoder.device, Device::Backend(b) if b == "hailo"), "{v:?}");
     assert_eq!((v.encoder.max_seq, v.encoder.max_batch), (32, 32));
-    assert!(matches!(c.options(&o, &at(32, 1)).unwrap().encoder.device, Device::Cpu));
+    // The CPU side runs at the precision it was timed at, whatever base asks.
+    let mut exact = at(32, 1);
+    exact.encoder.precision = Precision::Exact;
+    let v = c.options(&o, &exact).unwrap();
+    assert!(matches!(v.encoder.device, Device::Cpu), "{v:?}");
+    assert_eq!(v.encoder.precision, Precision::Model);
     // A configuration not measured, the model's own (0), and a force that
     // names neither side are errors; a force names the side.
     for (w, b) in [(64, 32), (0, 0), (32, 0)] {
@@ -120,6 +125,17 @@ fn the_device_runs_where_it_is_faster_within_the_floor() {
         let e = c.side(32, 1, Some(v)).unwrap_err().to_string();
         assert!(e.contains("TURBO_CALIBRATION_FORCE"), "{v:?}: {e}");
     }
+}
+
+#[test]
+fn a_configuration_not_asked_is_refused_before_anything_is_measured() {
+    let dir = std::env::temp_dir().join(format!("turbo-calibrate-unasked-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    for (w, b) in [(96, 4), (24, 8), (0, 0)] {
+        let e = Calibration::annotator(&dir, &bert(), &options(None), &texts(), &at(w, b)).err().unwrap().to_string();
+        assert!(e.contains("no calibration point") && e.contains("24x1, 24x4, 64x1, 64x4"), "{e}");
+    }
+    assert!(!dir.exists());
 }
 
 #[test]
