@@ -138,7 +138,7 @@ fn new_error() -> turbo_error {
 }
 
 /// A fixed-size C string field as a String.
-fn field(b: &[c_char]) -> String {
+pub(crate) fn field(b: &[c_char]) -> String {
     let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| u8::from_ne_bytes(c.to_ne_bytes())).collect();
     String::from_utf8_lossy(&bytes).into_owned()
 }

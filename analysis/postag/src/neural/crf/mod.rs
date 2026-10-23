@@ -11,6 +11,7 @@
 //! backward-forward marginal computation so that large path scores that share
 //! high-order bits do not lose low-order transition or emission differences.
 
+pub(crate) mod plain;
 mod table;
 #[cfg(test)]
 mod tests;
