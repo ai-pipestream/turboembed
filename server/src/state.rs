@@ -37,7 +37,6 @@ unsafe impl Sync for Slot {}
 /// A loaded model and its sessions, dropped sessions first, then the model.
 pub(crate) struct Loaded {
     pub(crate) slots: Vec<Slot>,
-    pub(crate) tokenizer: Option<Tokenizer>,
     pub(crate) qa: Option<crate::tasks::QaModel>,
     pub(crate) model: Model,
     pub(crate) task: u32,
@@ -265,18 +264,15 @@ impl State {
                 format!("unsupported task {}", info.task),
             )));
         }
-        let tokenizer = if info.task == TURBO_TASK_RERANK {
-            Some(rt.tokenizer(&c.bundle).map_err(fail("turbo_tokenizer_create", &[]))?)
-        } else {
-            None
-        };
         let qa = if info.task == TURBO_TASK_EXTRACTIVE_QA {
             Some(crate::tasks::QaModel::load(&c.bundle).map_err(fail("turbo_model_load", &[]))?)
         } else {
             None
         };
         let max_ranges = if info.task == TURBO_TASK_EXTRACTIVE_QA {
-            if c.max_seq == 0 { info.max_seq } else { c.max_seq }
+            let mb = if c.max_batch == 0 { info.max_batch } else { c.max_batch };
+            let ms = if c.max_seq == 0 { info.max_seq } else { c.max_seq };
+            mb.saturating_mul(ms)
         } else {
             0
         };
@@ -305,8 +301,7 @@ impl State {
             slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
         }
         let idle = Mutex::new((0..slots.len()).rev().collect());
-        let loaded =
-            Loaded { slots, tokenizer, qa, model, task: info.task, device, revision: api::field(&info.revision), idle };
+        let loaded = Loaded { slots, qa, model, task: info.task, device, revision: api::field(&info.revision), idle };
         // The caller holds the loading mutex: no other load can have set
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));

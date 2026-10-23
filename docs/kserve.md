@@ -448,8 +448,8 @@ other task is refused at startup (or on `LoadBundle`) with
 
 ### Extractive QA (`TURBO_TASK_EXTRACTIVE_QA`)
 
-- `ModelMetadata`: inputs `question` (`BYTES`, `[-1]`) and `context`
-  (`BYTES`, `[-1]`), outputs `spans` (`INT32`, `[-1, 2]`), `scores`
+- `ModelMetadata`: inputs `question` (`BYTES`, `[1]`) and `context`
+  (`BYTES`, `[1]`), outputs `spans` (`INT32`, `[-1, 2]`), `scores`
   (`FP64`, `[-1]`), and `probabilities` (`FP64`, `[-1]`).
 - `ModelInfer`: accepts one `[1]` `question` and `[1]` `context` of
   UTF-8 `BYTES`. Parameters are `max_answer_tokens` (field 1,

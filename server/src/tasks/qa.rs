@@ -5,12 +5,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use turbo::{
-    TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN, turbo_embed_options, turbo_token_batch,
-    turbo_token_range,
-};
 
-use crate::api::{Failure, Result, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8};
+use crate::api::{Failure, Result, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8};
 use crate::infer::{EMPTY, bad, bad_shape, has_contents, kind, only, shape, split_bytes, view};
 use crate::kserve::result_parameters;
 use crate::proto::infer_parameter::ParameterChoice;
@@ -72,7 +68,7 @@ pub(crate) fn infer_qa(
     }
     let outputs_to_build: Vec<&str> = if requested.is_empty() { ALL_OUTPUTS.to_vec() } else { requested };
 
-    let (question, context) = qa_inputs(&req, loaded.slots[0].info.max_batch)?;
+    let (question, context) = qa_inputs(&req)?;
     let decode_opts = qa_options(&req.parameters)?;
     let qa = loaded.qa.as_ref().expect("TASK_EXTRACTIVE_QA loaded state has QaModel");
     let map_err = |e: turbo::status::Error| Failure::new(e.code, e.field, e.message);
@@ -86,63 +82,14 @@ pub(crate) fn infer_qa(
         return Err(bad("extractive QA produced no windows"));
     }
 
-    let h = &qa.head.classifier;
-    let dim = qa.head.hidden;
     let mut win_logits = Vec::with_capacity(windows.len());
     let mut last_info = None;
-
-    for w in windows {
-        let n = w.ids.len() as u32;
-        let mask = vec![1i32; n as usize];
-        let batch = turbo_token_batch {
-            struct_size: size_of::<turbo_token_batch>() as u32,
-            batch: 1,
-            seq: n,
-            row_stride: n,
-            ids: w.ids.as_ptr(),
-            mask: mask.as_ptr(),
-            types: w.types.as_ptr(),
-        };
-        let ranges: Vec<_> = (0..n).map(|i| turbo_token_range { row: 0, start: i, end: i + 1 }).collect();
-        let opts = turbo_embed_options {
-            struct_size: size_of::<turbo_embed_options>() as u32,
-            truncate: 0,
-            max_tokens: 0,
-            prompt_role: 0,
-            normalize: TURBO_NORMALIZE_NONE,
-            pooling: TURBO_POOLING_MEAN,
-            output_dim: 0,
-        };
-        slot.session.write_ranges(&batch, &ranges, &opts)?;
-        let result = slot.session.run()?;
-        let info = result.info()?;
-        if info.batch != n || info.dim as usize != dim || info.dtype != TURBO_DTYPE_F32 {
-            return Err(Failure::new(TURBO_E_INTERNAL, 0, "QA encoder returned an unexpected state shape"));
-        }
-        let raw_bytes = result.read(info.bytes)?;
+    let fill = qa.tokenizer.fill_id();
+    for chunk in windows.chunks(slot.info.max_batch as usize) {
+        let (batch_logits, info) =
+            unsafe { turbo::qa::run_window_batch(slot.session.as_ptr(), fill, &qa.head, chunk) }.map_err(map_err)?;
+        win_logits.extend(batch_logits);
         last_info = Some(info);
-
-        let mut start = Vec::with_capacity(n as usize);
-        let mut end = Vec::with_capacity(n as usize);
-        for tok in 0..n as usize {
-            let row_bytes = &raw_bytes[tok * dim * 4..(tok + 1) * dim * 4];
-            let mut logits = [0f32; 2];
-            for (label, logit) in logits.iter_mut().enumerate() {
-                let weights = &h.weight[label * h.in_dim..(label + 1) * h.in_dim];
-                let mut acc = f64::from(h.bias[label]);
-                for (d, &w_val) in weights.iter().enumerate() {
-                    let c: [u8; 4] = row_bytes[d * 4..(d + 1) * 4].try_into().unwrap();
-                    acc += f64::from(w_val) * f64::from(f32::from_le_bytes(c));
-                }
-                *logit = acc as f32;
-            }
-            if !logits[0].is_finite() || !logits[1].is_finite() {
-                return Err(Failure::new(TURBO_E_INTERNAL, 0, "QA head logits overflow F32"));
-            }
-            start.push(logits[0]);
-            end.push(logits[1]);
-        }
-        win_logits.push(turbo::qa::WindowLogits { start, end, context: w.context, max_context: w.max_context, cls: 0 });
     }
     drop(held);
 
@@ -230,7 +177,7 @@ pub(crate) fn infer_qa(
     })
 }
 
-fn qa_inputs<'a>(req: &'a ModelInferRequest, max_batch: u32) -> Result<(&'a str, &'a str)> {
+fn qa_inputs<'a>(req: &'a ModelInferRequest) -> Result<(&'a str, &'a str)> {
     for i in &req.inputs {
         if !i.parameters.is_empty() {
             return Err(bad(format!("input `{}` has parameters; none are defined", i.name)));
@@ -261,9 +208,6 @@ fn qa_inputs<'a>(req: &'a ModelInferRequest, max_batch: u32) -> Result<(&'a str,
     let batch = q_ext[0];
     if batch == 0 {
         return Err(bad("extractive QA requires a non-empty batch"));
-    }
-    if batch > max_batch {
-        return Err(Failure::new(TURBO_E_CAPACITY, 0, format!("batch of {batch} exceeds max_batch {max_batch}")));
     }
     if batch != 1 {
         return Err(bad_shape(format!("extractive QA takes a single [1] question/context pair, not [{batch}]")));

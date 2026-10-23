@@ -292,7 +292,7 @@ impl GrpcInferenceService for Inference {
                 vec![tensor("scores", "FP32", &[-1, 1])],
             ),
             TURBO_TASK_EXTRACTIVE_QA => (
-                vec![tensor("question", "BYTES", &[-1]), tensor("context", "BYTES", &[-1])],
+                vec![tensor("question", "BYTES", &[1]), tensor("context", "BYTES", &[1])],
                 vec![
                     tensor("spans", "INT32", &[-1, 2]),
                     tensor("scores", "FP64", &[-1]),

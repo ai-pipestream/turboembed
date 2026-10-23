@@ -125,7 +125,7 @@ async fn metadata_capabilities_and_stream_refusal_for_rerank_and_qa() {
     assert_eq!(m_qa.properties["model_info.task"], "TASK_EXTRACTIVE_QA");
     assert_eq!(
         m_qa.inputs.iter().map(|t| (&t.name[..], &t.datatype[..], &t.shape[..])).collect::<Vec<_>>(),
-        [("question", "BYTES", &[-1][..]), ("context", "BYTES", &[-1][..])]
+        [("question", "BYTES", &[1][..]), ("context", "BYTES", &[1][..])]
     );
     assert_eq!(
         m_qa.outputs.iter().map(|t| (&t.name[..], &t.datatype[..], &t.shape[..])).collect::<Vec<_>>(),
@@ -385,7 +385,7 @@ async fn rerank_and_qa_refusals_report_status_code_and_field() {
         inputs: vec![bytes_input("question", &[2], &[b"q1", b"q2"]), bytes_input("context", &[2], &[b"c1", b"c2"])],
         ..base_qa(HashMap::new())
     };
-    assert_eq!(refusal_field(&k.model_infer(over_qa).await.unwrap_err()), (Code::OutOfRange, 771, 0));
+    assert_eq!(refusal_field(&k.model_infer(over_qa).await.unwrap_err()), (Code::InvalidArgument, 260, 0));
 
     let bad_bundle = make_rerank_bundle("PAIR_BERT");
     let mut bad_manifest: Value =

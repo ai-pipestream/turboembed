@@ -24,7 +24,7 @@ pub(crate) fn infer_rerank(
     req: ModelInferRequest,
 ) -> Result<ModelInferResponse> {
     for o in &req.outputs {
-        if o.name != "scores" && o.name != "vectors" {
+        if o.name != "scores" {
             return Err(bad(format!("requested output `{}`: the rerank model's output is `scores`", o.name)));
         }
         if !o.parameters.is_empty() {
@@ -34,7 +34,6 @@ pub(crate) fn infer_rerank(
     if req.outputs.len() > 1 {
         return Err(bad("requested output is named more than once"));
     }
-    let out_name = req.outputs.first().map_or("scores", |o| o.name.as_str()).to_string();
 
     let pairs = rerank_pairs(&req)?;
     let opts = rerank_options(&req.parameters)?;
@@ -49,21 +48,6 @@ pub(crate) fn infer_rerank(
 
     let held = loaded.take()?;
     let slot = held.slot();
-    if opts.stride == 0 && !pairs.is_empty() {
-        let cap = if opts.max_tokens == 0 || opts.max_tokens > slot.info.max_seq {
-            slot.info.max_seq
-        } else {
-            opts.max_tokens
-        };
-        if let Some(tok) = &loaded.tokenizer {
-            let mut check_opts = opts;
-            check_opts.max_tokens = cap;
-            let n = cap as usize;
-            let ids_buf = unsafe { std::slice::from_raw_parts_mut(slot.ptrs[0] as *mut i32, n) };
-            let types_buf = unsafe { std::slice::from_raw_parts_mut(slot.ptrs[2] as *mut i32, n) };
-            let _ = tok.encode_pair(pairs[0], &check_opts, ids_buf, types_buf)?;
-        }
-    }
     slot.session.write_pairs(&pairs, &opts)?;
     let result = slot.session.run()?;
     let first = result.info()?;
@@ -87,7 +71,7 @@ pub(crate) fn infer_rerank(
         id: req.id,
         parameters: result_parameters(&info),
         outputs: vec![InferOutputTensor {
-            name: out_name,
+            name: "scores".to_string(),
             datatype: dt.to_string(),
             shape: vec![info.batch as i64, info.dim as i64],
             parameters: HashMap::new(),

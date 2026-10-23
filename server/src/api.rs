@@ -108,48 +108,6 @@ impl Runtime {
         check(|e| unsafe { turbo_context_create(self.0, device, &mut c, e) })?;
         Ok(Context(c))
     }
-
-    pub fn tokenizer(&self, bundle_path: &str) -> Result<Tokenizer> {
-        let mut t = ptr::null_mut();
-        check(|e| unsafe { turbo_tokenizer_create(self.0, text(bundle_path), &mut t, e) })?;
-        Ok(Tokenizer(t))
-    }
-}
-
-pub struct Tokenizer(*mut turbo_tokenizer);
-unsafe impl Send for Tokenizer {}
-unsafe impl Sync for Tokenizer {}
-
-impl Tokenizer {
-    pub fn encode_pair(
-        &self,
-        pair: turbo_text_pair,
-        opts: &turbo_rerank_options,
-        ids: &mut [i32],
-        types: &mut [i32],
-    ) -> Result<u32> {
-        let capacity = u32::try_from(ids.len().min(types.len())).unwrap_or(u32::MAX);
-        let mut written = 0;
-        check(|e| unsafe {
-            turbo_tokenizer_encode_pair(
-                self.0,
-                pair,
-                opts,
-                ids.as_mut_ptr(),
-                types.as_mut_ptr(),
-                capacity,
-                &mut written,
-                e,
-            )
-        })?;
-        Ok(written)
-    }
-}
-
-impl Drop for Tokenizer {
-    fn drop(&mut self) {
-        unsafe { turbo_tokenizer_release(self.0) };
-    }
 }
 
 impl Drop for Runtime {
@@ -243,6 +201,10 @@ unsafe impl Send for Session {}
 unsafe impl Sync for Session {}
 
 impl Session {
+    pub(crate) fn as_ptr(&self) -> *mut turbo_session {
+        self.0
+    }
+
     pub fn info(&self) -> Result<turbo_session_info> {
         let mut info: turbo_session_info = sized();
         check(|e| unsafe { turbo_session_get_info(self.0, &mut info, e) })?;

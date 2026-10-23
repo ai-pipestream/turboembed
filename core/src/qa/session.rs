@@ -175,96 +175,108 @@ impl ExtractiveQa {
         let mut out: Vec<Vec<WindowLogits>> = vec![Vec::new(); pairs.len()];
         let mut at = 0;
         for chunk in inputs.chunks(self.max_batch as usize) {
-            for (w, pairs) in chunk.iter().zip(self.run(chunk)?) {
-                out[owner[at]].push(WindowLogits {
-                    start: pairs.iter().map(|p| p[0]).collect(),
-                    end: pairs.iter().map(|p| p[1]).collect(),
-                    context: w.context.clone(),
-                    max_context: w.max_context.clone(),
-                    cls: 0,
-                });
+            let (logits, _) = unsafe { run_window_batch(self.session, self.tokenizer.fill_id(), &self.head, chunk)? };
+            for wl in logits {
+                out[owner[at]].push(wl);
                 at += 1;
             }
         }
         Ok(out)
     }
-    /// The start and end logits of each token of each window in `ws`.
-    fn run(&mut self, ws: &[QaWindow]) -> Result<Vec<Vec<[f32; 2]>>> {
-        let seq = ws.iter().map(|w| w.ids.len()).max().unwrap_or(0) as u32;
-        let rows = ws.len();
-        let fill = self.tokenizer.fill_id();
-        let (mut ids, mut types, mut mask) = (Vec::new(), Vec::new(), Vec::new());
-        let mut ranges = Vec::new();
-        for (r, w) in ws.iter().enumerate() {
-            let pad = seq as usize - w.ids.len();
-            ids.extend(w.ids.iter().copied().chain(std::iter::repeat_n(fill, pad)));
-            types.extend(w.types.iter().copied().chain(std::iter::repeat_n(0, pad)));
-            mask.extend(std::iter::repeat_n(1, w.ids.len()).chain(std::iter::repeat_n(0, pad)));
-            ranges.extend((0..w.ids.len() as u32).map(|i| turbo_token_range { row: r as u32, start: i, end: i + 1 }));
+}
+
+/// Runs a batch of QA windows `ws` (`1 <= ws.len() <= max_batch`) on `session`,
+/// reading token hidden states through singleton ranges, verifying finite
+/// values, and projecting start/end logits through `head`.
+///
+/// # Safety
+/// `session` must be a valid, idle `turbo_session` handle configured for the
+/// same model and `max_seq` as `ws` and `head`.
+pub unsafe fn run_window_batch(
+    session: *mut turbo_session,
+    fill: i32,
+    head: &Head,
+    ws: &[QaWindow],
+) -> Result<(Vec<WindowLogits>, turbo_result_info)> {
+    let seq = ws.iter().map(|w| w.ids.len()).max().unwrap_or(0) as u32;
+    let rows = ws.len();
+    let (mut ids, mut types, mut mask) = (Vec::new(), Vec::new(), Vec::new());
+    let mut ranges = Vec::new();
+    for (r, w) in ws.iter().enumerate() {
+        let pad = seq as usize - w.ids.len();
+        ids.extend(w.ids.iter().copied().chain(std::iter::repeat_n(fill, pad)));
+        types.extend(w.types.iter().copied().chain(std::iter::repeat_n(0, pad)));
+        mask.extend(std::iter::repeat_n(1, w.ids.len()).chain(std::iter::repeat_n(0, pad)));
+        ranges.extend((0..w.ids.len() as u32).map(|i| turbo_token_range { row: r as u32, start: i, end: i + 1 }));
+    }
+    let n = ranges.len() as u32;
+    let batch = turbo_token_batch {
+        struct_size: size_of::<turbo_token_batch>() as u32,
+        batch: rows as u32,
+        seq,
+        row_stride: seq,
+        ids: ids.as_ptr(),
+        mask: mask.as_ptr(),
+        types: types.as_ptr(),
+    };
+    let opts = turbo_embed_options {
+        struct_size: size_of::<turbo_embed_options>() as u32,
+        truncate: 0,
+        max_tokens: 0,
+        prompt_role: 0,
+        normalize: TURBO_NORMALIZE_NONE,
+        pooling: TURBO_POOLING_MEAN,
+        output_dim: 0,
+    };
+    let mut e = error();
+    let mut result = Owned(ptr::null_mut());
+    unsafe {
+        check(turbo_embed_write_ranges(session, &batch, ranges.as_ptr(), n, &opts, &mut e), &e)?;
+        check(turbo_session_run(session, &mut result.0, &mut e), &e)?;
+        let mut info: turbo_result_info = std::mem::zeroed();
+        info.struct_size = size_of::<turbo_result_info>() as u32;
+        check(turbo_result_get_info(result.0, &mut info, &mut e), &e)?;
+        if info.batch != n || info.dim as usize != head.hidden || info.dtype != TURBO_DTYPE_F32 {
+            return Err(Error::new(INTERNAL, "QA encoder returned an unexpected state shape"));
         }
-        let n = ranges.len() as u32;
-        let batch = turbo_token_batch {
-            struct_size: size_of::<turbo_token_batch>() as u32,
-            batch: rows as u32,
-            seq,
-            row_stride: seq,
-            ids: ids.as_ptr(),
-            mask: mask.as_ptr(),
-            types: types.as_ptr(),
-        };
-        let opts = turbo_embed_options {
-            struct_size: size_of::<turbo_embed_options>() as u32,
-            truncate: 0,
-            max_tokens: 0,
-            prompt_role: 0,
-            normalize: TURBO_NORMALIZE_NONE,
-            pooling: TURBO_POOLING_MEAN,
-            output_dim: 0,
-        };
-        let mut e = error();
-        let mut result = Owned(ptr::null_mut());
-        unsafe {
-            check(turbo_embed_write_ranges(self.session, &batch, ranges.as_ptr(), n, &opts, &mut e), &e)?;
-            check(turbo_session_run(self.session, &mut result.0, &mut e), &e)?;
-            let mut info: turbo_result_info = std::mem::zeroed();
-            info.struct_size = size_of::<turbo_result_info>() as u32;
-            check(turbo_result_get_info(result.0, &mut info, &mut e), &e)?;
-            if info.batch != n || info.dim as usize != self.head.hidden || info.dtype != TURBO_DTYPE_F32 {
-                return Err(Error::new(INTERNAL, "QA encoder returned an unexpected state shape"));
-            }
-            let mut states = vec![0f32; n as usize * self.head.hidden];
-            let bytes = size_of_val(states.as_slice()) as u64;
-            let mut written = 0;
-            check(turbo_result_read(result.0, states.as_mut_ptr().cast(), bytes, &mut written, &mut e), &e)?;
-            if written != bytes || states.iter().any(|v| !v.is_finite()) {
-                return Err(Error::new(INTERNAL, "QA encoder returned invalid states"));
-            }
-            let h = &self.head.classifier;
-            let mut tokens = states.chunks_exact(h.in_dim);
-            ws.iter()
-                .map(|w| {
-                    tokens
-                        .by_ref()
-                        .take(w.ids.len())
-                        .map(|x| {
-                            let mut logits = [0f32; 2];
-                            for (label, logit) in logits.iter_mut().enumerate() {
-                                let weights = &h.weight[label * h.in_dim..(label + 1) * h.in_dim];
-                                *logit = weights
-                                    .iter()
-                                    .zip(x)
-                                    .fold(f64::from(h.bias[label]), |a, (&w, &v)| a + f64::from(w) * f64::from(v))
-                                    as f32;
-                            }
-                            if logits.iter().any(|v| !v.is_finite()) {
-                                return Err(Error::new(INTERNAL, "QA head logits overflow F32"));
-                            }
-                            Ok(logits)
-                        })
-                        .collect()
-                })
-                .collect()
+        let mut states = vec![0f32; n as usize * head.hidden];
+        let bytes = size_of_val(states.as_slice()) as u64;
+        let mut written = 0;
+        check(turbo_result_read(result.0, states.as_mut_ptr().cast(), bytes, &mut written, &mut e), &e)?;
+        if written != bytes || states.iter().any(|v| !v.is_finite()) {
+            return Err(Error::new(INTERNAL, "QA encoder returned invalid states"));
         }
+        let h = &head.classifier;
+        let mut tokens = states.chunks_exact(h.in_dim);
+        let mut out = Vec::with_capacity(ws.len());
+        for w in ws {
+            let mut start = Vec::with_capacity(w.ids.len());
+            let mut end = Vec::with_capacity(w.ids.len());
+            for x in tokens.by_ref().take(w.ids.len()) {
+                let mut logits = [0f32; 2];
+                for (label, logit) in logits.iter_mut().enumerate() {
+                    let weights = &h.weight[label * h.in_dim..(label + 1) * h.in_dim];
+                    *logit = weights
+                        .iter()
+                        .zip(x)
+                        .fold(f64::from(h.bias[label]), |a, (&w_val, &v)| a + f64::from(w_val) * f64::from(v))
+                        as f32;
+                }
+                if logits.iter().any(|v| !v.is_finite()) {
+                    return Err(Error::new(INTERNAL, "QA head logits overflow F32"));
+                }
+                start.push(logits[0]);
+                end.push(logits[1]);
+            }
+            out.push(WindowLogits {
+                start,
+                end,
+                context: w.context.clone(),
+                max_context: w.max_context.clone(),
+                cls: 0,
+            });
+        }
+        Ok((out, info))
     }
 }
 
