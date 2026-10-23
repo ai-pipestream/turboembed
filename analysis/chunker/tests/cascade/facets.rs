@@ -97,3 +97,41 @@ fn mismatched_facets_are_refused_without_panicking() {
     assert!(err.contains("rows"), "{err}");
     let _ = IncivilityLabel::Insult;
 }
+
+#[test]
+fn per_dimension_and_sarcasm_filters_from_layers() {
+    use turbo_analysis_layers::Pragmatics;
+    let doc = document();
+    let levels = doc.get::<Levels>().unwrap();
+    let chunks = doc.get::<Chunks>().unwrap();
+    let facets = facets(&doc);
+    // Only the insult dimension is high in the fixture, so a
+    // threat-dimension cap keeps every chunk unit.
+    let threat =
+        UnitFilter::incivility_label_at_most("no-threats", levels, &facets, IncivilityLabel::Threat, 0.5).unwrap();
+    let insult =
+        UnitFilter::incivility_label_at_most("no-insults", levels, &facets, IncivilityLabel::Insult, 0.5).unwrap();
+    assert!(threat.units.len() > insult.units.len());
+    assert_eq!(insult.units.len(), 1);
+
+    let sentences = doc.get::<Sentences>().unwrap();
+    let kept = chunks.sentences[1];
+    let pragmatics = Pragmatics {
+        score: (0..sentences.len())
+            .map(|s| if (kept.start.get()..kept.end.get()).contains(&s) { 0.0 } else { 0.95 })
+            .collect(),
+        evidence: vec![None; sentences.len()],
+        tokens_key: Key::<Tokens>::DEFAULT,
+    };
+    let sincere =
+        UnitFilter::sarcasm_at_most("sincere", FilterMode::Require, levels, chunks, &pragmatics, 0.5, true).unwrap();
+    assert_eq!(sincere.units.len(), 1);
+    let out = run(&doc, vec![sincere.clone()]);
+    assert!(!out.hits.is_empty() && out.hits.iter().all(|h| sincere.units.contains(&h.unit)));
+    let short = Pragmatics { score: vec![0.0], evidence: vec![None], tokens_key: Key::<Tokens>::DEFAULT };
+    assert!(UnitFilter::sarcasm_at_most("sincere", FilterMode::Require, levels, chunks, &short, 0.5, true).is_err());
+    assert!(
+        UnitFilter::sarcasm_at_most("sincere", FilterMode::Boost(0.5), levels, chunks, &pragmatics, 2.0, false)
+            .is_err()
+    );
+}
