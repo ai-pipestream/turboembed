@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use std::marker::PhantomData;
 
 use turbo_analysis::*;
-use turbo_analysis_layers::{Levels, Sentences, Subwords, Tokens, Vectors};
+use turbo_analysis_layers::{Entities, Levels, Sentences, Subwords, Tokens, Vectors};
 use turbo_chunker::levels::LevelBuilder;
 use turbo_chunker::terms::{LocalCollection, TermCounter, TermIndexer, TermStats, Vocabulary};
 use turbo_chunker::{
@@ -225,6 +225,60 @@ fn filters_require_and_boost_after_reranking() {
     assert_eq!(out.hits[0].boosted_by, ["mice-entity"]);
     let text: String = out.hits[0].spans.iter().map(|s| &TEXT[s.range()]).collect::<Vec<_>>().join(" ");
     assert!(text.contains("mice"), "{text}");
+}
+
+#[test]
+fn entity_layer_filter_drops_and_boosts_with_measured_recall() {
+    let doc = document();
+    let levels = doc.get::<Levels>().unwrap();
+    let stats = doc.get::<TermStats<Levels>>().unwrap();
+    let vocab = doc.get::<Vocabulary>().unwrap();
+    let collection = LocalCollection::new(stats, vocab);
+    // A real Entities layer over the "mice" mention, as a name
+    // finder would write it; the filter is derived from its spans.
+    let entities = {
+        let tokens = doc.get::<Tokens>().unwrap();
+        let mut spans = Spans::<Entities>::new(ViewId::SOURCE);
+        let mut ix = Vec::new();
+        for (i, s) in tokens.spans.iter() {
+            if &TEXT[s.range()] == "mice" {
+                spans.push(s);
+                ix.push(IxRange::new(i.get() as u32, i.get() as u32 + 1));
+            }
+        }
+        let kinds = TagSet::new("animals", &["animal"]);
+        let n = ix.len();
+        Entities { spans, tokens: ix, kind: vec![kinds.tag("animal").unwrap(); n], kinds, score: vec![0.9; n] }
+    };
+    entities.check().unwrap();
+    let (sm, cm) = (model("static"), model("contextual"));
+    let static_rows = rows(&doc, &["Cats", "Dogs"], "static");
+    let contextual_rows = rows(&doc, &["Cats", "Dogs", "mice"], "contextual");
+    let run = |filters: Vec<UnitFilter>| {
+        Cascade::new(
+            levels,
+            CascadeConfig { candidates: 64, top_k: 10, filters, ..CascadeConfig::default() },
+            Some(VectorSpace { rows: &static_rows, query: QueryVector { model: &sm, vector: &[1.0, 0.0] } }),
+            Some(VectorSpace { rows: &contextual_rows, query: QueryVector { model: &cm, vector: &[0.0, 0.0, 1.0] } }),
+            Some(lexical(&doc, &collection)),
+        )
+        .unwrap()
+        .search(&["cats"])
+    };
+    let relevant: BTreeSet<Ix<Levels>> =
+        UnitFilter::overlapping("animal", FilterMode::Require, levels, &entities.spans).unwrap().units;
+    let plain = run(Vec::new());
+    let required = run(vec![UnitFilter { name: "animal".into(), mode: FilterMode::Require, units: relevant.clone() }]);
+    assert!(!required.hits.is_empty() && required.hits.iter().all(|h| relevant.contains(&h.unit)));
+    // Stage 3 drops after reranking, so the scored count is the
+    // pool either way; the work saving is the pool, not the filter.
+    assert_eq!(required.contextual_scored, plain.contextual_scored);
+    let plain_ids: Vec<Ix<Levels>> = plain.hits.iter().map(|h| h.unit).collect();
+    let required_ids: Vec<Ix<Levels>> = required.hits.iter().map(|h| h.unit).collect();
+    assert_eq!(recall_at_k(&required_ids, &relevant, 10), 1.0);
+    assert!(recall_at_k(&plain_ids, &relevant, 1) <= recall_at_k(&required_ids, &relevant, 1));
+    let boosted = run(vec![UnitFilter { name: "animal".into(), mode: FilterMode::Boost(4.0), units: relevant }]);
+    assert_eq!(boosted.hits[0].boosted_by, ["animal"]);
 }
 
 #[test]

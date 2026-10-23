@@ -478,6 +478,78 @@ and writes `Incivility`:
    `<head>+lexicon:no-reply-context`); it does not record whether the
    document had a `Structure` layer.
 
+### The learned vector head (`IncivilityVectorHead`)
+
+`IncivilityVectorHead` is an `IncivilityVectorScorer` of its own: for each
+of the six labels, in `IncivilityLabel::ALL` order, the probability
+`sigmoid(w · v + b)` of a unit's vector `v`, from a `[6, dim]` weight
+matrix and six biases. A head made `with_context` also has a `[6, dim]`
+context matrix and adds `w_ctx · p` for a context vector `p`, which
+`IncivilityAnnotator::with_vector_context` chooses:
+`IncivilityVectorContext::Preceding` (the unit before, none for the
+first or after a unit with no vector) or `Parent` (one vector for every
+unit, the post the document replies to; `with_parent_vector` sets it). A
+head without a context matrix ignores the context vector. The weights
+come from the caller; `IncivilityVectorHead::fit` fits them to labelled
+vectors (logistic regression per label, full-batch gradient descent from
+zero, deterministic), with context vectors when given.
+
+`to_bytes` writes the head as the magic `TIVH`, the version 1, the
+dimension and flags (bit 0 a context matrix, bit 1 an encoder; all
+`u32` little-endian), then the biases, the weight matrix and the context
+matrix as little-endian `f32`, then, for a head bound to an encoder
+(`with_model`), the encoder's id, revision and SHA-256, each a `u32`
+length and UTF-8 bytes. `with_model` refuses a string over 4096 bytes
+with `IncivilityHeadError::Value`, so a head it accepts reads back. A
+head read back keeps that encoder, so the annotator still refuses
+vectors from any other. `from_bytes` checks each part and the exact
+length, and refuses a dimension of 0 or a value that is not finite,
+with an `IncivilityHeadError` and never a panic.
+
+`IncivilityAnnotator::with_stage` picks the signals:
+`IncivilityStage::Lexicon` (the lexicon and the reply rules alone),
+`Learned` (the head alone: it needs a head and the unit layer's vectors,
+a unit with no vector fails the document, and its scores are reported
+as they are, without the `SevereToxicity` rule) or `Fused` (both, the
+default, as above). The stage and the vector context are in the
+annotator's configuration hash, and the model id names them:
+`<head>:learned` for the learned stage and
+`<head>+lexicon:<reply context>` for the fused one, where a head with no
+encoder named is `incivility-vector-head`, and a `:preceding-vector` or
+`:parent-vector` suffix with a vector context.
+
+### Identity-term bias metrics (`evaluate_incivility_bias`)
+
+`evaluate_incivility_bias` measures whether the scores treat text that
+mentions an identity group differently, after Borkan et al., "Nuanced
+Metrics for Measuring Unintended Bias with Real Data for Text
+Classification" (WWW 2019 Companion). Each `GoldBiasUnit` gives a unit's
+positive labels and the identity subgroups it mentions. For each label
+the result has the ROC AUC over all units and, for each subgroup:
+
+- subgroup AUC, over the units that mention the subgroup;
+- BPSN AUC (background positive, subgroup negative): positives that do
+  not mention the subgroup against negatives that do. A low value means
+  neutral mentions score above real positives elsewhere;
+- BNSP AUC (background negative, subgroup positive): positives that
+  mention the subgroup against negatives that do not. A low value means
+  real positives that mention the subgroup score below neutral text
+  elsewhere;
+- the false positive rate on neutral mentions: of the units that mention
+  the subgroup and are negative for the label, the share scored at or
+  above the threshold.
+
+An AUC with no positive or no negative unit is `None`; ties count one
+half (`roc_auc`, the Mann-Whitney statistic). A count mismatch or a score
+that is not finite is an error.
+
+`IdentityTerms` finds the subgroups a unit mentions from
+`(subgroup, term)` pairs. A term of several words matches that run of
+tokens. Tokens and terms are compared by the lookup key the emotion
+lexicon uses (`analysis/doccat/src/sentiment/token_key.rs`): typographic
+apostrophes read as `'`, Unicode punctuation trimmed, and full Unicode
+case folding, so "MUSLIM." and "Muslim" match alike.
+
 ### Tests and license posture
 
 The [#326 audit](licences.md#complex-sentiment-licence-audit-326) approves
@@ -499,6 +571,25 @@ incivility rules and fixtures use the repository licence.
   beside the lexicon rules. As with `#324`, this fixture pins the rule and
   layer invariants rather than claiming generalisation accuracy on external
   benchmarks.
+- `analysis/doccat/src/sentiment/incivility/tests/head.rs` tests the head's
+  arithmetic, its context matrix, every cut of its bytes and every bad
+  header field, and `fit` on labelled vectors, with and without context.
+  `analysis/doccat/src/sentiment/incivility/tests/learned.rs` gives sentence vectors as data, each value a known
+  property of its sentence: the three stages disagree where the lexicon
+  and the vectors do, the preceding and parent vectors move a reply's
+  score through the context matrix, neutral sentences that mention an
+  identity ("She is a Muslim software engineer from Chicago.") stay below
+  the threshold on every label while attacks on the same groups cross it,
+  in the learned and the fused stage, for a configured head and for one
+  fitted to rows where the identity term and hostility vary apart (a head
+  keyed on the identity term fails the same check), and the learned layer
+  round-trips through the document graph.
+- `analysis/doccat/src/sentiment/incivility/tests/bias.rs` checks
+  `roc_auc` on fixed scores with known values (including ties and empty
+  sides), `IdentityTerms` on case, typographic quotes, trailing
+  punctuation and a two-word term, and `evaluate_incivility_bias` on a
+  nine-unit set whose overall, subgroup, BPSN and BNSP AUCs and neutral
+  false positive rates are worked out by hand in the test.
 - `analysis/embed/tests/heads.rs`
   (`incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device`)
   fits a multi-label `ClassifierHead` (`HeadMode::MultiLabel`) and a 6-label
@@ -512,6 +603,77 @@ incivility rules and fixtures use the repository licence.
   participate in our civic institutions.") is in the head's eight training
   rows, so the test shows the head firing on a sentence it was fitted to,
   not generalisation.
+
+## Emotion annotator (`EmotionAnnotator`, `#855`)
+
+`turbo_doccat::sentiment::emotion` (`EmotionAnnotator`,
+`EmotionVectorHead`, `EmotionVectorScorer`, `EmotionStage`,
+`EmotionUnit`, `evaluate_emotion_corpus`) scores each sentence or chunk on
+the 28 labels of `EmotionLayer` (`turbo:emotion`): GoEmotions' 27
+emotions and neutral (Demszky et al., ACL 2020), in the dataset's label
+order (`EmotionDimension`).
+
+`EmotionAnnotator` (`turbo-doccat:emotion`) reads
+`(View, Tokens, Option<Sentences>, Option<Chunks>, Option<Vectors<Sentences>>, Option<Vectors<Chunks>>)`
+and writes `EmotionLayer` in one of three stages:
+
+1. **Lexicon** (the default): a seed list of cue words and emoji written
+   for this crate (`analysis/doccat/src/sentiment/emotion/lexicon.rs`), a few per label with a weight
+   each. A token is looked up with typographic apostrophes (U+2019,
+   U+02BC) read as `'`, Unicode punctuation trimmed from both ends but
+   for the apostrophe, and the rest case-folded (`turbo-unicode`); an
+   emoji as itself. A cue adds its weight to its label by a noisy-or and
+   records its token as evidence, unless a negator ("not", "never",
+   "hardly", ...) is among the three tokens before it in the unit.
+   Neutral is one minus the strongest emotion.
+2. **Learned**: an `EmotionVectorScorer` over the unit's vector, such as
+   `EmotionVectorHead`, `sigmoid(w · v + b)` per label from a `[28, dim]`
+   matrix and 28 biases. The head's scores are the unit's; a positive
+   emotion's evidence is the unit's token range, the text the head read.
+3. **Hybrid**: each emotion the noisy-or of the lexicon's and the head's
+   scores, with the lexicon's cue tokens as evidence and the unit's range
+   where the lexicon found none; neutral the smaller of the head's
+   neutral and one minus the strongest fused emotion.
+
+The learned and hybrid stages need a head, and a vector for every unit:
+a unit with no vector fails the document. A head bound to an encoder
+(`with_model`) refuses vectors from any other; the lexicon stage reads
+no vectors and checks no encoder. Neutral never carries evidence. The
+model id is `goemotions-seed:<stage>`, or `<encoder>:emotion-<stage>`
+for a head that names its encoder (its revision then ends in the head's
+own hash, so two heads on one encoder differ), and the configuration hash covers
+the lexicon, the unit, the stage, the threshold and the head.
+
+`EmotionVectorHead::to_bytes` writes the magic `TEVH`, the version 1,
+the dimension and flags (bit 1 an encoder; all `u32` little-endian), the
+biases and the weights as little-endian `f32`, then, for a head bound to
+an encoder, its id, revision and SHA-256 as `u32`-length-prefixed UTF-8.
+`from_bytes` checks each part and the exact length, and a head read back
+keeps its encoder.
+
+`evaluate_emotion_corpus` gives per-label precision, recall and F1, macro
+and micro averages, and how many active emotions carry evidence.
+
+### Tests and license posture
+
+No emotion lexicon or dataset is fetched: the common emotion lexicons
+carry non-commercial terms, and the GoEmotions text is not in the
+repository, so the seed list is the crate's own and no trained head
+weights ship.
+
+- `analysis/doccat/src/sentiment/emotion/tests/mod.rs`: cues with their
+  token evidence and the noisy-or; negated cues that do not count, and a
+  negator out of reach that does not negate; text with no cue that is
+  neutral with no evidence; an emoji cue; the three stages on vectors
+  given as data, with their model ids and hashes; the errors for a
+  missing head, a missing vector and another encoder; the layer through
+  the document graph; and the evaluation counts.
+- `analysis/doccat/src/sentiment/emotion/tests/head.rs`: the head's
+  arithmetic, its bytes with and without an encoder, every cut of them
+  and every bad header field.
+- `analysis/layers/src/sentiment/emotion_tests.rs`: the taxonomy, the
+  checks on each pushed item, and `EmotionLayer::check` on broken
+  layers.
 
 ## Sentiment and aspect shift as a boundary signal (`SentimentBoundaries` and `ChunkFacets`, `#325`)
 

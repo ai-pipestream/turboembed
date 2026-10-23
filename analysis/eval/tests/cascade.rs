@@ -45,7 +45,6 @@ fn fnv(token: &str) -> u64 {
     h
 }
 
-/// Lowercase alphanumeric word spans of `text`, with folded forms.
 fn words(text: &str) -> Vec<(Span, String)> {
     let mut out = Vec::new();
     let mut start: Option<usize> = None;
@@ -69,9 +68,7 @@ fn token_vec(token: &str) -> [f32; DIM] {
     v
 }
 
-/// The contextual arm's wider token vector (a real encoder's width),
-/// three salted hash blocks so its scoring cost dominates the
-/// static arm's the way a transformer row dominates a static one.
+/// Wider contextual token vector: three salted hash blocks.
 fn token_vec_wide(token: &str) -> Vec<f32> {
     let mut v = vec![0.0f32; DIM_C];
     for (block, salt) in ["", "\u{1}", "\u{2}"].into_iter().enumerate() {
@@ -422,17 +419,15 @@ fn study(set: &LoadedSet, depths: &[usize]) -> String {
 fn synthetic_set() -> LoadedSet {
     use turbo_eval::metrics::{Qrel, Qrels};
     use turbo_eval::set::{Doc, Query};
-    let mut docs = Vec::new();
-    let mut queries = Vec::new();
-    let mut qrels = std::collections::BTreeMap::new();
-    for i in 0..12 {
-        docs.push(Doc {
+    let docs: Vec<Doc> = (0..12)
+        .map(|i| Doc {
             id: format!("d{i}"),
             title: None,
             text: format!("Cats hunt mice at dawn. Topic {i} filler words here. Dogs bark loudly."),
-        });
-    }
-    queries.push(Query { id: "q0".into(), text: "cats hunt mice".into() });
+        })
+        .collect();
+    let queries = vec![Query { id: "q0".into(), text: "cats hunt mice".into() }];
+    let mut qrels = std::collections::BTreeMap::new();
     qrels.insert(("q0".to_string(), "d3".to_string()), 1);
     LoadedSet {
         name: "synthetic".into(),
@@ -491,5 +486,14 @@ fn cascade_benchmark_receipt() {
         subset(&mut set, max_docs, max_queries);
         println!("{}", study(&set, &[5, 10, 25, 50, 64]));
     }
-    println!("### gutenqa: cached but not in BEIR jsonl layout for this reader; ConTEB / HiCBench: not cached\n");
+    for (name, max_docs) in [("gutenqa", 300usize), ("conteb-covid-qa", 800), ("conteb-squad", 800), ("hicbench", 800)]
+    {
+        match turbo_eval::sets::find(name).and_then(|s| s.load(&root)) {
+            Ok(mut set) => {
+                subset(&mut set, max_docs, 50);
+                println!("{}", study(&set, &[5, 10, 25, 50, 64]));
+            }
+            Err(e) => println!("### {name}: not loadable from this cache ({e})\n"),
+        }
+    }
 }

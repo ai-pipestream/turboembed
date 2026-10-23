@@ -376,6 +376,7 @@ final class Runs {
     annotators.addAll(NameEventGolden.all(fixtures.resolve(NAME_FIXTURE_RUST)));
     // The language detector's training, from the events to the model file.
     annotators.addAll(LanguageTrainGolden.all());
+    annotators.addAll(CrossValidateGolden.all());
     // The sample streams of OpenNLP's native formats, and the conversion streams, which
     // detokenize with the English dictionary.
     annotators.addAll(FormatGolden.all(fixtures.resolve(FORMAT_DETOKENIZER)));
