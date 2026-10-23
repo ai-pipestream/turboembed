@@ -33,6 +33,7 @@
 //! describes the rules and the data in full.
 
 mod brackets;
+pub mod fallback;
 pub mod languages;
 mod lists;
 pub mod profile;
@@ -42,13 +43,19 @@ mod tables;
 mod uax29;
 mod units;
 
-use turbo_analysis::{Annotator, Error, Refs, Span, Spans, View};
+use std::sync::Arc;
+
+use turbo_analysis::{Annotator, Error, Execution, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::Sentences;
 use turbo_unicode::WhitespaceMode;
 
 use crate::inventory::{AbbreviationInventories, AbbreviationInventory};
 use crate::scan::trim;
 use crate::{check_len, fold_hash};
+pub use fallback::{
+    UNPUNCTUATED_SCRIPTS, UnpunctuatedSplitter, has_unpunctuated_script, is_unpunctuated_script,
+    needs_unpunctuated_fallback,
+};
 pub use languages::{LANGUAGES, Language, Resolved, resolve};
 pub use profile::LanguageRules;
 use refine::Text;
@@ -138,6 +145,7 @@ pub struct RuleSplitter {
     rules: Rules,
     line_breaks: LineBreaks,
     inventory: AbbreviationInventory,
+    fallback: Option<Arc<dyn UnpunctuatedSplitter>>,
 }
 
 /// Buffers a split reuses, so repeated calls allocate nothing once they
@@ -166,6 +174,7 @@ impl RuleSplitter {
             rules: Rules::ALL,
             line_breaks: LineBreaks::Paragraph,
             inventory: AbbreviationInventories::for_language(tag),
+            fallback: None,
         }
     }
 
@@ -176,6 +185,7 @@ impl RuleSplitter {
             rules: Rules::NONE,
             line_breaks: LineBreaks::Sentence,
             inventory: AbbreviationInventory::EMPTY,
+            fallback: None,
         }
     }
 
@@ -202,6 +212,22 @@ impl RuleSplitter {
         RuleSplitter { inventory, ..self }
     }
 
+    /// Routes candidate sentence spans containing characters of
+    /// [`UNPUNCTUATED_SCRIPTS`] (`Thai`, `Lao`, `Khmer`) to `fallback`.
+    pub fn with_unpunctuated_fallback(self, fallback: Arc<dyn UnpunctuatedSplitter>) -> RuleSplitter {
+        RuleSplitter { fallback: Some(fallback), ..self }
+    }
+
+    /// Removes any configured [`UnpunctuatedSplitter`] fallback.
+    pub fn without_unpunctuated_fallback(self) -> RuleSplitter {
+        RuleSplitter { fallback: None, ..self }
+    }
+
+    /// The configured [`UnpunctuatedSplitter`] fallback, if any.
+    pub fn unpunctuated_fallback(&self) -> Option<&Arc<dyn UnpunctuatedSplitter>> {
+        self.fallback.as_ref()
+    }
+
     pub fn abbreviations(&self) -> &AbbreviationInventory {
         &self.inventory
     }
@@ -220,17 +246,45 @@ impl RuleSplitter {
     }
 
     /// Appends to `out` the span of every sentence in `text`, in text order,
-    /// as UTF-8 byte offsets.
+    /// as UTF-8 byte offsets. When an [`UnpunctuatedSplitter`] fallback is
+    /// configured, candidate spans containing [`UNPUNCTUATED_SCRIPTS`] are
+    /// refined by it; use [`try_split`](Self::try_split) to handle fallback
+    /// errors without panicking.
     ///
     /// # Panics
     ///
-    /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`.
+    /// When `text` is longer than `u32::MAX` bytes, or when a configured
+    /// [`UnpunctuatedSplitter`] returns an error.
     pub fn split(&self, text: &str, out: &mut Vec<Span>) {
         self.split_with(text, &mut RuleScratch::default(), out);
     }
 
     /// [`split`](Self::split) with buffers from `scratch`.
     pub fn split_with(&self, text: &str, scratch: &mut RuleScratch, out: &mut Vec<Span>) {
+        assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
+        if let Some(ref fb) = self.fallback {
+            fallback::split_with_fallback(self, text, fb.as_ref(), out).expect("unpunctuated fallback splitter failed");
+        } else {
+            self.split_rules_only(text, scratch, out);
+        }
+    }
+
+    /// Fallible counterpart to [`split`](Self::split) that returns any error
+    /// from the configured [`UnpunctuatedSplitter`] fallback or offset range
+    /// check.
+    pub fn try_split(&self, text: &str, out: &mut Vec<Span>) -> Result<(), Error> {
+        check_len(RuleSentenceDetector::ID, text)?;
+        if let Some(ref fb) = self.fallback {
+            fallback::split_with_fallback(self, text, fb.as_ref(), out)
+        } else {
+            RULE_SCRATCH.with_borrow_mut(|scratch| self.split_rules_only(text, scratch, out));
+            Ok(())
+        }
+    }
+
+    /// Runs only the UAX #29 and language rules without consulting
+    /// `self.fallback`.
+    pub(crate) fn split_rules_only(&self, text: &str, scratch: &mut RuleScratch, out: &mut Vec<Span>) {
         assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
         self.boundaries_with(text, scratch);
         let t = Text { text, units: &scratch.units };
@@ -336,12 +390,18 @@ impl RuleSentenceDetector {
     pub fn new(tag: &str) -> RuleSentenceDetector {
         RuleSentenceDetector { splitter: RuleSplitter::new(tag) }
     }
+
+    /// Routes candidate sentence spans containing characters of
+    /// [`UNPUNCTUATED_SCRIPTS`] (`Thai`, `Lao`, `Khmer`) to `fallback`.
+    pub fn with_unpunctuated_fallback(self, fallback: Arc<dyn UnpunctuatedSplitter>) -> RuleSentenceDetector {
+        RuleSentenceDetector { splitter: self.splitter.with_unpunctuated_fallback(fallback) }
+    }
 }
 
 thread_local! {
     /// The buffers of the rule annotator, one set per thread, so that a
     /// pipeline running many documents allocates only while they grow.
-    static RULE_SCRATCH: std::cell::RefCell<RuleScratch> = std::cell::RefCell::new(RuleScratch::default());
+    pub(crate) static RULE_SCRATCH: std::cell::RefCell<RuleScratch> = std::cell::RefCell::new(RuleScratch::default());
 }
 
 impl Annotator for RuleSentenceDetector {
@@ -351,11 +411,15 @@ impl Annotator for RuleSentenceDetector {
     type Reads = (View,);
     type Writes = (Sentences,);
 
-    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Sentences,), Error> {
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<(Sentences,), Error> {
+        if let Some(ref fb) = self.splitter.fallback {
+            return fallback::annotate_batch_with_fallback(self, fb.as_ref(), vec![input]).remove(0);
+        }
+        let (view,) = input;
         let text = view.text();
         check_len(Self::ID, text)?;
         let mut out = Vec::new();
-        RULE_SCRATCH.with_borrow_mut(|scratch| self.splitter.split_with(text, scratch, &mut out));
+        RULE_SCRATCH.with_borrow_mut(|scratch| self.splitter.split_rules_only(text, scratch, &mut out));
         let mut spans = Spans::with_capacity(view.id(), out.len());
         for s in out {
             spans.push(s);
@@ -363,9 +427,25 @@ impl Annotator for RuleSentenceDetector {
         Ok((Sentences { spans },))
     }
 
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<(Sentences,), Error>> {
+        if let Some(ref fb) = self.splitter.fallback {
+            return fallback::annotate_batch_with_fallback(self, fb.as_ref(), inputs);
+        }
+        inputs.into_iter().map(|input| self.annotate(input)).collect()
+    }
+
+    fn model(&self) -> Option<ModelRef> {
+        self.splitter.fallback.as_ref().and_then(|fb| fb.model())
+    }
+
+    fn execution(&self) -> Option<Execution> {
+        self.splitter.fallback.as_ref().and_then(|fb| fb.execution())
+    }
+
     /// FNV-1a over the code of the language whose rules apply, the
     /// tailorings and the line break mode, then the abbreviation
-    /// inventory's hash when there is one.
+    /// inventory's hash and the unpunctuated-script fallback's hash when
+    /// configured.
     fn config_hash(&self) -> u64 {
         let s = &self.splitter;
         let mut h: u64 = 0xcbf2_9ce4_8422_2325;
@@ -381,7 +461,13 @@ impl Annotator for RuleSentenceDetector {
             LineBreaks::Sentence => 1,
             LineBreaks::Paragraph => 2,
         });
-        if s.inventory.is_unset() { h } else { fold_hash(h, s.inventory.config_hash()) }
+        if !s.inventory.is_unset() {
+            h = fold_hash(h, s.inventory.config_hash());
+        }
+        if let Some(ref fb) = s.fallback {
+            h = fold_hash(h, fb.config_hash());
+        }
+        h
     }
 }
 
