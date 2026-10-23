@@ -175,6 +175,63 @@ The two give the same vectors to the last digit the conformance suite
 reports: the setting moves layers between the device's resources and
 changes no weight or quantization.
 
+## Device or CPU
+
+A Hailo-8 has no memory of its own, so a frame of one row pays for
+loading every context from the host, and a frame is always `fixed_seq`
+tokens however few the row holds. The host CPU's time follows the
+tokens instead. So for short rows sent one a run the CPU is faster, and
+the embed crate's `Calibration` (`analysis/embed/src/calibrate/`) decides
+per configuration. `Calibration::measure` runs the sentence vector step
+over the caller's texts at each window (tokens a row) and batch (rows a
+run) asked, on the device at `Precision::Model` and on the CPU, and keeps
+the lowest cosine of the device's vectors to the CPU's at
+`Precision::Exact` and the median time of each side.
+`Calibration::side` gives the device for a configuration where its
+cosine clears the floor (0.93 for I8) and it is faster than the CPU, and
+the CPU elsewhere; a configuration that was not measured is an error.
+`Calibration::load_or_measure` keeps the measurement in a directory,
+keyed by the bundle, the device, its runtime and driver, the library's
+build and what was asked, and `Calibration::annotator` opens the step on
+the chosen side. `TURBO_CALIBRATION_FORCE` set to `device` or `cpu`
+overrides the choice; any other value is an error.
+
+Measured on the Hailo-8 (on a Raspberry Pi 5, HailoRT 4.23.0, firmware
+4.23.0) with the `"max"` HEF of the bundle above, against the Pi 5's CPU
+(4 Cortex-A76 cores, the `cpu` backend, F32), at commit 67e1327b,
+2026-10-23. The texts are the 12 documents of
+`analysis/embed/tests/data/calibration-texts.txt` three times over (168
+sentences); each time is the median of 5 runs of the whole step:
+
+| Window | Rows a run | Min cosine | Hailo-8 | CPU | Runs on |
+|---|---|---|---|---|---|
+| 16 | 1 | 0.965 | 2995 ms | 1625 ms | CPU |
+| 16 | 8 | 0.965 | 1239 ms | 1419 ms | Hailo-8 |
+| 16 | 32 | 0.965 | 640 ms | 1391 ms | Hailo-8 |
+| 32 | 1 | 0.962 | 1602 ms | 1530 ms | CPU |
+| 32 | 8 | 0.962 | 672 ms | 1395 ms | Hailo-8 |
+| 32 | 32 | 0.962 | 351 ms | 1392 ms | Hailo-8 |
+| 64 | 1 | 0.949 | 799 ms | 1297 ms | Hailo-8 |
+| 64 | 8 | 0.949 | 335 ms | 1245 ms | Hailo-8 |
+| 64 | 32 | 0.949 | 176 ms | 1246 ms | Hailo-8 |
+| 128 | 1 | 0.935 | 504 ms | 1147 ms | Hailo-8 |
+| 128 | 8 | 0.935 | 223 ms | 1111 ms | Hailo-8 |
+| 128 | 32 | 0.935 | 133 ms | 1158 ms | Hailo-8 |
+
+The crossover is at one row a run: the CPU wins up to 32 tokens a row
+and the Hailo-8 from 64. From 8 rows a run the Hailo-8 wins at every
+window, by 1.1 times at 16 tokens and 8 rows and up to 8.7 times at 128
+tokens and 32 rows. Every window clears the floor. The same measurement
+on the Hailo-8 on a Compute Module 5 gives the same cosines, device times
+within 0.2% and CPU times within 6%, and the same choice at every
+configuration. Opened through the calibration, each configuration ran
+on the side chosen, in the time that side measured.
+
+On the Hailo-10H (on a Raspberry Pi 5, HailoRT 5.1.1, firmware 5.1.1),
+which has memory of its own, the same measurement chose the device at
+every configuration: its slowest, 16 tokens and one row a run, took
+1025 ms.
+
 ## Testing on a Hailo machine
 
 From the workspace root. `TURBO_TEST_REQUIRE_HAILO=1` makes every test in
