@@ -331,7 +331,9 @@ fn attn_auto_switches_past_512_packed_tokens() {
     let auto = make(g.m, None, fastest, TURBO_AUTOTUNE_OFF).unwrap();
     let staged = make(g.m, Some("attn=staged"), fastest, TURBO_AUTOTUNE_OFF).unwrap();
     let registers = make(g.m, Some("attn=registers"), fastest, TURBO_AUTOTUNE_OFF).unwrap();
-    let (at, past) = (rows_of(&dir, &[256, 256]), rows_of(&dir, &[256, 256, 1]));
+    // Eight rows of 64 tokens, the session's max_seq, pack to 512; one
+    // more token packs to 513, padded to 544.
+    let (at, past) = (rows_of(&dir, &[64; 8]), rows_of(&dir, &[64, 64, 64, 64, 64, 64, 64, 64, 1]));
     assert_ne!(vectors(&staged, &at), vectors(&registers, &at), "the kernels' bits differ at 512 tokens");
     assert_ne!(vectors(&staged, &past), vectors(&registers, &past), "the kernels' bits differ at 513 tokens");
     assert_eq!(vectors(&auto, &at), vectors(&staged, &at), "512 packed tokens run staged");
