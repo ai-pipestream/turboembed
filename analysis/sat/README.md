@@ -79,6 +79,22 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
 - `tests/parity.rs`: the scores and pieces against the fixtures, and
   the layer against wtpsplit's pieces with each cut moved to the end of
   its grapheme cluster.
+  `TURBO_TEST_DEVICE` and `TURBO_TEST_PRECISION` run it on a device,
+  for example `TURBO_TEST_DEVICE=cuda cargo test --release -p turbo-sat
+  --features turbo/cuda --test parity`.
+- `a_released_checkpoint_matches_wtpsplit` in `tests/parity.rs` holds a
+  bundle sealed from a released checkpoint to fixtures the reference's
+  `segment` made from its weights, when `TURBO_TEST_SAT_BUNDLE` names
+  the bundle and `TURBO_TEST_SAT_FIXTURES` the fixtures, separated by
+  commas. `bundle/recipes/sat-1l-sm.json` is the recipe for `sat-1l-sm`
+  (local-only, docs/licences.md). Its upstream directory holds the
+  checkpoint's `model.safetensors` and, as `tokenizer.json`,
+  BAAI/bge-m3's at revision `5617a9f61b028005a4858fdac845db406aefb181`
+  (the checkpoint has no tokenizer of its own). Its reference vectors
+  and fixtures are made as above, with a directory holding the
+  checkpoint's `config.json` and `model.safetensors` as the model in
+  place of the tiny model's `out/model`, and the bge-m3 file as the
+  tokenizer; `config.json` is read by the reference only, not sealed.
 - `tests/annotator.rs`: batching, texts longer than a window, texts
   without words, the threshold and line feeds, the options, the
   configuration hash, the provider and the analyzer.

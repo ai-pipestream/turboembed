@@ -17,8 +17,10 @@ pub(crate) struct PiiRun {
 impl PiiRun {
     pub(crate) fn open(run: &str) -> Result<Box<dyn Run>, Unavailable> {
         let pack = Pack::parse(run).ok_or_else(|| Unavailable::NotCovered(format!("the PII pack {run}")))?;
-        let analyzer =
-            Analyzer::builder().add(PiiDetector::pack(pack)).build().map_err(|e| Unavailable::Broken(e.to_string()))?;
+        let analyzer = Analyzer::builder()
+            .add(PiiDetector::pack(pack).keeping_nested())
+            .build()
+            .map_err(|e| Unavailable::Broken(e.to_string()))?;
         Ok(Box::new(PiiRun { analyzer, pack }))
     }
 }

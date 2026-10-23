@@ -1040,9 +1040,12 @@ size_t attention_bytes(uint32_t head_dim, uint32_t seq) {
     return round_up(sizeof(float) * floats, 16);
 }
 
-/* The F16 attention's: a chunk's K and V in F16, rows padded by 8, and
- * four groups' 8 x 32 scores in F32 and probabilities in F16. */
-size_t attention_h_bytes(uint32_t head_dim) { return round_up(2 * (2 * 32 * (head_dim + 8)) + 6 * 4 * 8 * 32, 16); }
+/* The F16 attention's: a chunk's K transposed, [head_dim][32 + 8], and V,
+ * [32][head_dim + 8], in F16; four groups' 8 x 32 scores in F32 and
+ * probabilities in F16; and the chunk's 32 key biases in F32. */
+size_t attention_h_bytes(uint32_t head_dim) {
+    return round_up(2 * (head_dim * (32 + 8) + 32 * (head_dim + 8)) + 6 * 4 * 8 * 32 + 4 * 32, 16);
+}
 
 struct Session {
     Model *model = nullptr;

@@ -198,10 +198,11 @@
         "host_weights": "weights-f32",
         "produced_by": {
           "from": "onnx-f32",
-          "container": "turbo-hailo-dfc@sha256:0972b97df2cfba9ba20abf9efa99a7f57ec675a00e6712a610f6cbd410a575b2",
+          "container": "turbo-hailo-dfc@sha256:910c672e28cb04dad3ffd13fbc2d0adab800aaad3e2d0976edf402af5afb6f24",
           "inputs": [
             "calibration/texts.jsonl"
-          ]
+          ],
+          "compiler_optimization": "max"
         }
       },
       {

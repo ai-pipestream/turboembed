@@ -136,7 +136,7 @@ All three pass the same tolerances. fdlibm is as fast as the platform's
 trainer, then the exception it threw, or the text model, the SHA-256 and
 length of the serialized model, and `eval` and `getBestOutcome` on the
 contexts of the first 40 events, as given and reversed. The image builds
-the add-on's three classes from the addons commit `recipe.rs` names into
+the add-on's three classes from the addons commit `analysis/goldens-tool/src/recipe/mod.rs` names into
 a jar of their own, since a class in the default package cannot be
 imported. The runs:
 

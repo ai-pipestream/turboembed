@@ -34,6 +34,14 @@ fn stage_named(recipe: &Recipe, upstream: &Path, bundle: &Path, keep: Option<&BT
             crate::fetch::write_atomic(&bundle.join(to), &bytes)?;
         }
     }
+    if let Some(b) = &recipe.bpe_tokenizer
+        && keep.is_none_or(|k| k.contains(&b.to))
+    {
+        let read = |p: &str| fs::read(upstream.join(p)).map_err(|e| format!("upstream {p}: {e}"));
+        let merges = String::from_utf8(read(&b.merges)?).map_err(|e| format!("upstream {}: {e}", b.merges))?;
+        let bytes = crate::bpe_files::tokenizer_json(&read(&b.vocab)?, &merges, &recipe.manifest)?;
+        crate::fetch::write_atomic(&bundle.join(&b.to), &bytes)?;
+    }
     // The recipe's own files, each checked against its pinned hash.
     for l in &recipe.local {
         if keep.is_some_and(|k| !k.contains(&l.to)) {

@@ -377,7 +377,7 @@ Measured with:
 
 ```sh
 TURBO_TEST_REQUIRE_CUDA=1 TURBO_TEST_BUNDLE=<all-MiniLM-L6-v2 bundle> \
-    cargo test --release -p turbo --features cuda --test cuda the_first_tuned_session_s_cost \
+    cargo test --release -p turbo --features cuda --test cuda_tuning the_first_tuned_session_s_cost \
     -- --include-ignored --nocapture
 ```
 
@@ -695,13 +695,13 @@ older than the runtime, it lists none and the runtime's log says why.
   the backend allocated on the running thread during the run, counted
   where it allocates; a run allocates nothing, cold or warm. The first
   run of a shape may still load kernels the driver has not loaded yet
-  (CUDA loads modules lazily); `core/tests/cuda.rs` holds warm runs to an
+  (CUDA loads modules lazily); `core/tests/cuda_runs.rs` holds warm runs to an
   unchanged free-memory figure too.
 
 ## Testing on a GPU machine
 
 With `TURBO_CUDA_ROOT` set as above, from the workspace root.
-`TURBO_TEST_REQUIRE_CUDA=1` makes every test in `core/tests/cuda.rs` that
+`TURBO_TEST_REQUIRE_CUDA=1` makes every test in `core/tests/cuda_*.rs` that
 needs a device fail when the backend lists none, where without it the
 test passes with a line saying it was skipped; set it on a GPU machine,
 so a run that found no GPU cannot pass.
@@ -709,7 +709,7 @@ so a run that found no GPU cannot pass.
 ```
 export TURBO_TEST_REQUIRE_CUDA=1
 
-# Everything, with the CUDA-only tests in core/tests/cuda.rs. The checks
+# Everything, with the CUDA-only tests in core/tests/cuda_*.rs. The checks
 # against cuBLAS (the GEMMs against its products, the F16 sums, the GEMMs
 # handed to it) run with cuda-cublas, and say they were skipped without:
 cargo test -p turbo --features cuda,cuda-cublas
@@ -717,7 +717,7 @@ cargo test -p turbo --features cuda,cuda-cublas
 # The CUDA-only tests, with what they print (the device, the largest
 # difference from the f64 encoder and the CPU), in release too for the
 # largest shape:
-cargo test --release -p turbo --features cuda --test cuda -- --nocapture
+cargo test --release -p turbo --features cuda --test 'cuda_*' -- --nocapture
 
 # Conformance on the small sealed bundle (docs/conformance.md):
 TURBO_TEST_DEVICE=cuda cargo test --release -p turbo --features cuda --test conformance -- --nocapture
@@ -732,7 +732,7 @@ TURBO_TEST_DEVICE=cuda TURBO_TEST_PRECISION=exact \
 TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=cuda \
     cargo test --release -p turbo --features cuda --test conformance -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=<bundle-dir> \
-    cargo test --release -p turbo --features cuda --test cuda -- --include-ignored --nocapture
+    cargo test --release -p turbo --features cuda --test 'cuda_*' -- --include-ignored --nocapture
 
 # Conformance again with its sessions tuned (tests/common's session_desc
 # asks for tuning ON), at each precision as above:
@@ -742,7 +742,7 @@ TURBO_TEST_TUNING=1 TURBO_TEST_DEVICE=cuda \
 
 `TURBO_TEST_DEVICE=cuda` picks the first device the cuda backend lists,
 and the conformance test fails when it lists none. The tests in
-`core/tests/cuda.rs` that need no device (the table, the arch labels)
+`core/tests/cuda_devices.rs` that need no device (the table, the arch labels)
 run everywhere the feature builds.
 
 ## Recording a benchmark

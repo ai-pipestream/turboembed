@@ -205,7 +205,9 @@ fn fixtures(name: &str) -> Vec<String> {
     data(name).lines().filter(|l| !l.trim().is_empty() && !l.starts_with('#')).map(str::to_owned).collect()
 }
 
-/// The two OpenNLP corpora as labelled texts.
+/// The two OpenNLP corpora as labelled texts, with labels strictly
+/// nested inside a longer label of the same text dropped to match the
+/// default detector.
 fn corpora() -> Vec<Labelled> {
     let mut out: Vec<Labelled> = Vec::new();
     for line in fixtures("golden-true-positives.tsv") {
@@ -217,6 +219,10 @@ fn corpora() -> Vec<Labelled> {
             Some(l) => l.labels.push(label),
             None => out.push(Labelled { text: f[3].to_owned(), labels: vec![label] }),
         }
+    }
+    for l in &mut out {
+        let all = l.labels.clone();
+        l.labels.retain(|m| !all.iter().any(|o| o.0 <= m.0 && m.1 <= o.1 && (o.0 < m.0 || m.1 < o.1)));
     }
     out.extend(fixtures("golden-false-positives.txt").into_iter().map(|text| Labelled { text, labels: vec![] }));
     out
@@ -294,10 +300,10 @@ fn precision_and_recall_on_the_synthetic_set() {
     assert!(recall >= RECALL_FLOOR, "recall {recall:.4}");
 }
 
-/// The measured totals are precision 0.8944 and recall 1.0. The false
-/// mentions are values inside values: phones and a card inside grouped
-/// IBANs, phones in near miss NHS numbers (ten grouped digits are a phone
-/// shape), and NHS numbers in US phones whose digits pass mod 11 by
-/// chance. docs/pii.md has the table.
-const PRECISION_FLOOR: f64 = 0.89;
+/// The measured totals are precision 0.9490 and recall 1.0. The false
+/// mentions are a phone in each near miss NHS number (ten grouped digits
+/// are a phone shape); phones and cards nested inside grouped IBANs and
+/// NHS numbers nested inside US phones are dropped by default.
+/// docs/pii.md has the table.
+const PRECISION_FLOOR: f64 = 0.94;
 const RECALL_FLOOR: f64 = 1.0;
