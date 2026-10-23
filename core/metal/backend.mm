@@ -336,12 +336,13 @@ constexpr uint32_t LOG_DEBUG = 3;
  * fh, hf, hh, in that order (kernels.metal). */
 enum Kernel {
     EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16,
-    NARROW_F16, ATTENTION_H, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
+    NARROW_F16, ATTENTION_H, ATTENTION_HR, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
     GEMM_SMALL_H = GEMM_H128 + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
     "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
     "pool",             "pool_ranges",     "widen_f16",       "widen_bf16",      "narrow_f16",      "attention_h",
+    "attention_hr",
     "gemm_h32_ff",      "gemm_h32_fh",     "gemm_h32_hf",     "gemm_h32_hh",     "gemm_h64_ff",     "gemm_h64_fh",
     "gemm_h64_hf",      "gemm_h64_hh",     "gemm_h128_ff",    "gemm_h128_fh",    "gemm_h128_hf",    "gemm_h128_hh",
     "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16"};
@@ -1020,6 +1021,20 @@ const char *const LINEAR_NAMES[] = {"f32", "h32", "h64", "h128", "auto"};
 /* FASTEST's choice when nothing forces or tunes it. */
 constexpr Linear LINEAR_DEFAULT = LINEAR_AUTO;
 
+/* Which kernel runs FASTEST's attention, for heads the matrix kernel
+ * takes: staged passes each group's scores and probabilities through
+ * threadgroup memory, registers keeps them in the SIMD-group matrices'
+ * registers, and auto runs registers past ATTN_REGISTERS_TOKENS packed
+ * tokens and staged up to them (docs/metal.md, Kernel choices). */
+enum Attn : uint32_t { ATTN_STAGED, ATTN_REGISTERS, ATTN_AUTO, ATTN_COUNT };
+const char *const ATTN_NAMES[] = {"staged", "registers", "auto"};
+/* FASTEST's choice when nothing forces it. */
+constexpr Attn ATTN_DEFAULT = ATTN_AUTO;
+
+/* attn=auto's line: up to this many packed tokens, where few threadgroups
+ * run at once, staged is the faster on the M2, and registers past it. */
+constexpr uint32_t ATTN_REGISTERS_TOKENS = 1024;
+
 /* Whether the context's device runs a choice's kernels: h128's tile takes
  * threadgroups of 256. */
 bool runs_linear(const Context *c, Linear l) {
@@ -1041,10 +1056,11 @@ size_t attention_bytes(uint32_t head_dim, uint32_t seq) {
 }
 
 /* The F16 attention's: a chunk's K transposed, [head_dim][32 + 8], and V,
- * [32][head_dim + 8], in F16; four groups' 8 x 32 scores in F32 and
- * probabilities in F16; and the chunk's 32 key biases in F32. */
-size_t attention_h_bytes(uint32_t head_dim) {
-    return round_up(2 * (head_dim * (32 + 8) + 32 * (head_dim + 8)) + 6 * 4 * 8 * 32 + 4 * 32, 16);
+ * [32][head_dim + 8], in F16; for the staged kernel, four groups' 8 x 32
+ * scores in F32 and probabilities in F16; and the chunk's 32 key biases
+ * in F32. */
+size_t attention_h_bytes(uint32_t head_dim, bool registers) {
+    return round_up(2 * (head_dim * (32 + 8) + 32 * (head_dim + 8)) + (registers ? 0 : 6 * 4 * 8 * 32) + 4 * 32, 16);
 }
 
 struct Session {
@@ -1079,6 +1095,9 @@ struct Session {
     Linear linear = LINEAR_F32;
     /* Whether TURBO_METAL_CHOICES named the linear layers' kernels. */
     bool forced = false;
+    Attn attn = ATTN_DEFAULT;
+    /* Whether it named attention's. */
+    bool attn_forced = false;
     /* For the tests (turbo_metal_track_peaks): a shared buffer of
      * PEAK_SLOTS uints, the largest magnitude of each F16 tensor a run
      * stores, as F32 bits; nil unless tracking was on when it was made. */
@@ -1104,8 +1123,9 @@ TestPeaks &test_peaks() {
 
 /* TURBO_METAL_CHOICES, read when a session is made: items separated by
  * ';', "linear=<f32|h32|h64|h128|auto>" forcing the linear layers' kernels into
- * *out, and "forced=" as a session reports it, whatever it names, read
- * and left alone. *out is -1 when nothing names them. */
+ * *linear, "attn=<staged|registers|auto>" forcing attention's into *attn,
+ * and "forced=" as a session reports it, whatever it names, read and left
+ * alone. Each is -1 when nothing names it. */
 /* A line the tests set in place of the variable, through
  * turbo_metal_use_choices. */
 struct TestChoices {
@@ -1118,8 +1138,9 @@ TestChoices &test_choices() {
     return t;
 }
 
-int32_t forced_linear(int *out, turbo_error *err) {
-    *out = -1;
+int32_t forced_choices(int *linear, int *attn, turbo_error *err) {
+    *linear = -1;
+    *attn = -1;
     std::string line;
     {
         TestChoices &t = test_choices();
@@ -1138,14 +1159,18 @@ int32_t forced_linear(int *out, turbo_error *err) {
         const std::string item = line.substr(at, end - at);
         at = end + 1;
         if (item.empty() || item.rfind("forced=", 0) == 0) continue;
-        int found = -1;
+        int found = -1, found_attn = -1;
         for (int l = LINEAR_F32; l < (int)LINEAR_COUNT; l++)
             if (item == std::string("linear=") + LINEAR_NAMES[l]) found = l;
-        if (found < 0)
+        for (int a = ATTN_STAGED; a < (int)ATTN_COUNT; a++)
+            if (item == std::string("attn=") + ATTN_NAMES[a]) found_attn = a;
+        if (found < 0 && found_attn < 0)
             return refuse(err, TURBO_E_INVALID_ARGUMENT,
-                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32, h64, h128 or auto",
+                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32, h64, h128 or "
+                          "auto, and attn=staged, registers or auto",
                           item.c_str());
-        *out = found;
+        if (found >= 0) *linear = found;
+        if (found_attn >= 0) *attn = found_attn;
     }
     return TURBO_OK;
 }
@@ -1204,8 +1229,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                 max_seq, c->ordinal);
         // A kernel the environment forces must compute in a class the
         // precision allows.
-        int forced = -1;
-        TRY(forced_linear(&forced, err));
+        int forced = -1, forced_attn = -1;
+        TRY(forced_choices(&forced, &forced_attn, err));
         const uint32_t needs = forced == (int)LINEAR_F32 ? TURBO_NUMERIC_F32_FMA : TURBO_NUMERIC_F16_F32ACC;
         if (forced >= 0 && !(numerics & needs))
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
@@ -1241,6 +1266,13 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                 linear = LINEAR_F32;
             }
         }
+        // Attention's kernels are F16 ones, and run where the linear
+        // layers' do and the heads are ones the matrix kernel takes.
+        if (forced_attn >= 0 && !(linear != LINEAR_F32 && wide_heads(d.hidden / d.heads)))
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "TURBO_METAL_CHOICES attn=%s: its kernels compute in F16 with F32 sums, for heads "
+                                "of a multiple of 8 up to 64, and this session's attention runs in F32 (heads of %u)",
+                                ATTN_NAMES[forced_attn], d.hidden / d.heads);
 
         Session *s = make<Session>();
         s->model = m;
@@ -1291,6 +1323,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         s->output.owned = false;
         s->linear = linear;
         s->forced = forced >= 0;
+        s->attn = forced_attn >= 0 ? (Attn)forced_attn : ATTN_DEFAULT;
+        s->attn_forced = forced_attn >= 0;
         *compute_dtype = linear != LINEAR_F32 ? TURBO_DTYPE_F16 : TURBO_DTYPE_F32;
         *out = s;
         return TURBO_OK;
@@ -1436,6 +1470,8 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     // At FASTEST with heads the matrix kernel takes, Q, K, V and the
     // context are F16 too.
     const bool f16_att = f16 && wide_heads(hd);
+    const bool registers =
+        f16_att && (s.attn == ATTN_REGISTERS || (s.attn == ATTN_AUTO && tokens > ATTN_REGISTERS_TOKENS));
     const std::vector<Ref> &lw = f16 ? s.model->f16 : w;
     auto layer = [&](uint32_t l, int r) -> const Ref & {
         return w[TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r];
@@ -1556,7 +1592,10 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             peak(s.v, h, 2);
         }
         const bool wide = wide_heads(hd);
-        [enc setComputePipelineState:kn.k[f16_att ? ATTENTION_H : wide ? ATTENTION : ATTENTION_NARROW]];
+        [enc setComputePipelineState:kn.k[registers ? ATTENTION_HR
+                                          : f16_att ? ATTENTION_H
+                                          : wide    ? ATTENTION
+                                                    : ATTENTION_NARROW]];
         [enc setBuffer:sc offset:s.q atIndex:0];
         [enc setBuffer:sc offset:s.k atIndex:1];
         [enc setBuffer:sc offset:s.v atIndex:2];
@@ -1565,7 +1604,8 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBuffer:rows offset:s.blocks atIndex:5];
         [enc setBuffer:sc offset:s.att atIndex:6];
         [enc setBytes:&ap length:sizeof ap atIndex:7];
-        [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd) : attention_bytes(hd, s.longest) atIndex:0];
+        [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd, registers) : attention_bytes(hd, s.longest)
+                                atIndex:0];
         [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1) threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32, 1, 1)];
 
         if (f16_att) peak(s.att, h, 3);
@@ -1678,8 +1718,16 @@ void write_choices(char *dst, const std::string &text) {
     memset(dst + n, 0, TURBO_CHOICES_LEN - n);
 }
 
-std::string choice_line(Linear l, bool forced) {
-    return std::string("linear=") + LINEAR_NAMES[l] + ";forced=" + (forced ? "linear" : "");
+/* A FASTEST session's line: its linear layers', then, where attention
+ * runs in F16, attention's, then what the environment forced. */
+std::string choice_line(const Session &s) {
+    const turbo_backend_model &d = s.model->desc;
+    std::string line = std::string("linear=") + LINEAR_NAMES[s.linear];
+    if (s.linear != LINEAR_F32 && wide_heads(d.hidden / d.heads)) line += std::string(";attn=") + ATTN_NAMES[s.attn];
+    line += ";forced=";
+    if (s.forced) line += "linear";
+    if (s.attn_forced) line += s.forced ? ",attn" : "attn";
+    return line;
 }
 
 /* The linear layers a choices line names, or -1. */
@@ -1711,7 +1759,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     t.numerics_used = t.numerics_allowed;
     Context *c = s.ctx;
     if (s.forced) {
-        write_choices(t.choices, choice_line(s.linear, true));
+        write_choices(t.choices, choice_line(s));
         t.tuned = TURBO_TUNED_FORCED;
         return TURBO_OK;
     }
@@ -1724,12 +1772,12 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     const bool usable = cached > (int)LINEAR_F32 && runs_linear(c, (Linear)cached);
     if (t.mode == TURBO_AUTOTUNE_ON && usable) {
         s.linear = (Linear)cached;
-        write_choices(t.choices, choice_line(s.linear, false));
+        write_choices(t.choices, choice_line(s));
         t.tuned = TURBO_TUNED_CACHE;
         return TURBO_OK;
     }
     if (t.mode != TURBO_AUTOTUNE_ON && t.mode != TURBO_AUTOTUNE_RETUNE) {
-        write_choices(t.choices, choice_line(s.linear, false));
+        write_choices(t.choices, choice_line(s));
         return TURBO_OK;
     }
     // The incumbent first, then every other F16 tiling the device runs.
@@ -1815,7 +1863,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
                        "metal device %u: not tuned: linear=%s's times at %s stayed more than %.0f%% apart, so the GPU "
                        "is shared or throttling; the next session measures again",
                        c->ordinal, LINEAR_NAMES[order[v]], BINS[bins[b]], TUNE_APART * 100);
-                write_choices(t.choices, choice_line(incumbent, false));
+                write_choices(t.choices, choice_line(s));
                 return TURBO_OK;
             }
         }
@@ -1873,7 +1921,7 @@ int32_t tune(Session &s, turbo_backend_tuning &t, turbo_error *err) {
     }
     c->say(LOG_INFO, "metal device %u: linear layers chosen in %u ms: %s (a run at %s%s)", c->ordinal, tune_ms,
            LINEAR_NAMES[s.linear], said.c_str(), why);
-    write_choices(t.choices, choice_line(s.linear, false));
+    write_choices(t.choices, choice_line(s));
     t.tune_ms = tune_ms;
     t.tuned = TURBO_TUNED_MEASURED;
     return TURBO_OK;

@@ -88,8 +88,9 @@ fn fastest_computes_in_f16_and_says_so() {
         assert_eq!(rt.capability(i, p).dtype, dtype, "precision {p}");
         let info = make(l.m, None, p, TURBO_AUTOTUNE_OFF).unwrap().info();
         assert_eq!(info.compute_dtype, dtype, "precision {p}");
-        // FASTEST has four choices (three tiles and auto); the others one path.
-        let want = if p == TURBO_PRECISION_FASTEST { "linear=auto;forced=" } else { "" };
+        // FASTEST has four tilings (three tiles and auto) and three
+        // attention kernels (staged, registers and auto); the others one path.
+        let want = if p == TURBO_PRECISION_FASTEST { "linear=auto;attn=auto;forced=" } else { "" };
         assert_eq!((field(&info.choices), info.tuned), (want.to_owned(), TURBO_TUNED_DEFAULT), "precision {p}");
     }
 }
@@ -103,17 +104,18 @@ fn each_f16_choice_matches_the_cpu_within_fastest_s_floor() {
     let dir = tiny_bundle();
     let (g, c) = (on_metal(&dir), Loaded::load(&dir).unwrap());
     let cpu = Session::create(c.m, None).unwrap();
-    for (choice, precision, floor) in [
-        ("h32", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
-        ("h64", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
-        ("h128", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
-        ("auto", TURBO_PRECISION_FASTEST, FASTEST_FLOOR),
-        ("f32", TURBO_PRECISION_EXACT, 0.9999),
+    for (line, precision, floor, reported) in [
+        ("linear=h32", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h32;attn=auto;forced=linear"),
+        ("linear=h64", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h64;attn=auto;forced=linear"),
+        ("linear=h128", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h128;attn=auto;forced=linear"),
+        ("linear=auto", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=auto;attn=auto;forced=linear"),
+        ("attn=staged", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=auto;attn=staged;forced=attn"),
+        ("attn=registers", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=auto;attn=registers;forced=attn"),
+        ("linear=f32", TURBO_PRECISION_EXACT, 0.9999, "linear=f32;forced=linear"),
     ] {
-        let line = format!("linear={choice}");
-        let s = make(g.m, Some(&line), precision, TURBO_AUTOTUNE_OFF).unwrap();
+        let s = make(g.m, Some(line), precision, TURBO_AUTOTUNE_OFF).unwrap();
         let i = s.info();
-        assert_eq!((field(&i.choices), i.tuned), (format!("{line};forced=linear"), TURBO_TUNED_FORCED));
+        assert_eq!((field(&i.choices), i.tuned), (reported.to_owned(), TURBO_TUNED_FORCED));
         for (what, t) in shapes(&dir, i.max_batch as usize, i.max_seq as usize) {
             let lowest = against_cpu(&s, &cpu, &t, floor, &format!("{line} {what}"));
             println!("{line}, {what}: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
@@ -130,14 +132,19 @@ fn the_choices_line_forces_back_and_refuses_what_it_cannot_run() {
     let Some(_) = metal_device("the_choices_line_forces_back_and_refuses_what_it_cannot_run") else { return };
     let l = on_metal(&tiny_bundle());
     let fastest = TURBO_PRECISION_FASTEST;
-    let i = make(l.m, Some("linear=h32;forced=linear"), fastest, TURBO_AUTOTUNE_OFF).unwrap().info();
-    assert_eq!(field(&i.choices), "linear=h32;forced=linear");
-    for (line, precision) in [("linear=f32", fastest), ("linear=h64", TURBO_PRECISION_EXACT)] {
+    for line in ["linear=h32;attn=auto;forced=linear", "linear=h32;attn=registers;forced=linear,attn"] {
+        let i = make(l.m, Some(line), fastest, TURBO_AUTOTUNE_OFF).unwrap().info();
+        assert_eq!(field(&i.choices), line);
+    }
+    let exact = TURBO_PRECISION_EXACT;
+    for (line, precision) in [("linear=f32", fastest), ("linear=h64", exact), ("attn=registers", exact)] {
         let e = make(l.m, Some(line), precision, TURBO_AUTOTUNE_OFF).err().expect(line);
         assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{line}: {e:?}");
     }
-    let e = make(l.m, Some("linear=fast"), fastest, TURBO_AUTOTUNE_OFF).err().unwrap();
-    assert_eq!(e.code, INVALID_ARGUMENT, "{e:?}");
+    for line in ["linear=fast", "attn=fast"] {
+        let e = make(l.m, Some(line), fastest, TURBO_AUTOTUNE_OFF).err().expect(line);
+        assert_eq!(e.code, INVALID_ARGUMENT, "{line}: {e:?}");
+    }
 }
 
 /// The session's vectors for t.
@@ -163,10 +170,10 @@ fn a_tuned_session_runs_one_of_the_choices_and_forces_back() {
     let i = s.info();
     assert!([TURBO_TUNED_MEASURED, TURBO_TUNED_DEFAULT].contains(&i.tuned), "{}", i.tuned);
     let line = field(&i.choices);
-    let lines = ["linear=h32;forced=", "linear=h64;forced=", "linear=h128;forced=", "linear=auto;forced="];
-    assert!(lines.contains(&line.as_str()), "{line}");
+    let tiles = ["h32", "h64", "h128", "auto"];
+    assert!(tiles.iter().any(|t| line == format!("linear={t};attn=auto;forced=")), "{line}");
     let forced = make(g.m, Some(&line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
-    assert_eq!(field(&forced.info().choices), line.replace("forced=", "forced=linear"));
+    assert_eq!(field(&forced.info().choices), line.replace("forced=", "forced=linear,attn"));
     // The tuning runs wrote the session's memory: its first run is whole.
     for (what, t) in shapes(&dir, i.max_batch as usize, i.max_seq as usize) {
         against_cpu(&s, &cpu, &t, FASTEST_FLOOR, &format!("tuned, {what}"));
@@ -297,14 +304,12 @@ fn masked_keys_inside_a_row_are_left_out_at_fastest() {
         let apart = 1.0 - cosine(&masked[r], &unmasked[r]);
         assert!(apart >= 100.0 * (1.0 - MASKED_FLOOR), "row {r}: masking moves the cpu's vector by only {apart:.3e}");
     }
-    for choice in ["h32", "h64", "h128", "auto"] {
-        let line = format!("linear={choice}");
-        let s = make(g.m, Some(&line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
+    let awkward = awkward_rows(&dir);
+    for line in ["linear=h32", "linear=h64", "linear=h128", "linear=auto", "attn=staged", "attn=registers"] {
+        let s = make(g.m, Some(line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
         let lowest = against_cpu(&s, &cpu, &t, MASKED_FLOOR, &format!("{line}, masked keys"));
         println!("{line}, masked keys inside rows: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
+        let lowest = against_cpu(&s, &cpu, &awkward, MASKED_FLOOR, &format!("{line}, awkward rows"));
+        println!("{line}, awkward rows: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
     }
-    let awkward = awkward_rows(&dir);
-    let s = make(g.m, None, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
-    let lowest = against_cpu(&s, &cpu, &awkward, MASKED_FLOOR, "awkward rows");
-    println!("awkward rows: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
 }
