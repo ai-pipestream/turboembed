@@ -35,6 +35,10 @@ usage:
                  --chunker <name> [options]
       run one pipeline over each named set and write <out>/<set>.json;
       an existing record is never replaced
+  turbo-eval squad --bundle <dir> --dev <file> --out <file> [--device <backend>]
+                   [--precision <p>] [--batch <n>] [--max-batch <n>]
+      SQuAD 2.0 exact match and F1 of an extractive QA bundle on a dev file,
+      at margin 0 and at the best threshold (docs/extractive-qa.md)
   turbo-eval gate <candidate-dir> <baseline-dir>
       compare two directories of records, one per set; exit status 1
       when the gate fails, 2 on an error
@@ -113,6 +117,7 @@ fn run(args: &[String]) -> Result<ExitCode> {
     match args.first().map(String::as_str) {
         Some("fetch") => fetch_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("run") => run_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
+        Some("squad") => turbo_eval::squad::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
             println!("{report}");

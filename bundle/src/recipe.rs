@@ -23,6 +23,10 @@ pub struct Recipe {
     /// compiled artifact's calibration texts, say.
     #[serde(default)]
     pub local: Vec<Local>,
+    /// For a byte-level BPE repository with no `tokenizer.json`: the
+    /// upstream vocabulary and merges it is made from (bpe_files.rs).
+    #[serde(default)]
+    pub bpe_tokenizer: Option<crate::bpe_files::BpeFiles>,
     /// For a static model: how it is distilled from a base bundle
     /// (distill.rs).
     #[serde(default)]
