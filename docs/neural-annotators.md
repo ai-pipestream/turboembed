@@ -121,6 +121,22 @@ stride and block size (0.5, 16, 62; 0.25, 62, 62; 0.5, 7, 30):
   --test conformance` checks the encoder against the mean of wtpsplit's
   encoder states for the recipe's cases.
 
+On a device, `analysis/sat/tests/parity.rs` runs the step where
+`TURBO_TEST_DEVICE` names (a backend name or a device index), at the
+precision `TURBO_TEST_PRECISION` names (`model` by default), and holds
+it to the same fixtures and tolerance:
+
+```
+TURBO_TEST_DEVICE=cuda cargo test --release -p turbo-sat --features turbo/cuda --test parity -- --nocapture
+```
+
+On CUDA (RTX 4080 SUPER, nvcc 12.4, driver 615.71.09), all four tests
+pass at `model` and at `exact`. The largest probability differences are
+3.2e-4, 1.2e-4 and 2.5e-4, as on the CPU. At `fastest`, which computes
+in F16, the first character it fails on is 1.0e-3 from wtpsplit's
+probability. That is over what the test allows, so the parity holds at
+`model` and `exact` only.
+
 What the step does differently, and why:
 
 - **Tokenizer pipeline.** The reference runs wtpsplit with the model's
@@ -185,8 +201,8 @@ the stride is the main setting for throughput.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
   name; the manifest has no place to say what the head is.
-- Devices. The step runs where the range write runs; it has only been
-  run on the CPU.
+- Devices other than CUDA. The step runs where the range write runs;
+  the wtpsplit parity is recorded on the CPU and on CUDA.
 - The `-sm` models' class. They were trained on Universal Dependencies
   training sets among other data (the SaT paper, section 4.2), and UD
   holds treebanks under CC BY-NC-SA (English GUM, Czech PDT;
