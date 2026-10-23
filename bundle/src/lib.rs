@@ -9,6 +9,7 @@
 //! loads the result through the core. Nothing it writes is typed by hand.
 
 pub mod api;
+pub mod bpe_files;
 pub mod catalogue;
 pub mod convert;
 pub mod deberta;

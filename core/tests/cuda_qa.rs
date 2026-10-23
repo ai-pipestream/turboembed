@@ -99,3 +99,38 @@ fn cuda_offers_extractive_qa_as_experimental() {
     // TURBO_CAP_EXPERIMENTAL, turbo.h.
     assert_eq!(cap.status, 1);
 }
+
+/// With `TURBO_TEST_QA_BUNDLE` naming a real extractive QA bundle
+/// (docs/extractive-qa.md), its reference cases on CUDA at EXACT and
+/// MODEL against the bundle's transformers logits and the CPU path, with
+/// windows batched; skipped without it.
+#[test]
+fn a_real_qa_bundle_on_cuda_matches_its_reference_and_the_cpu_path() {
+    let _t = turn();
+    let Ok(dir) = std::env::var("TURBO_TEST_QA_BUNDLE") else {
+        println!(
+            "a_real_qa_bundle_on_cuda_matches_its_reference_and_the_cpu_path: skipped: TURBO_TEST_QA_BUNDLE is not set"
+        );
+        return;
+    };
+    let Some(_) = cuda_device("a_real_qa_bundle_on_cuda_matches_its_reference_and_the_cpu_path") else { return };
+    let dir = Path::new(&dir);
+    let bundle = Bundle::open(dir).unwrap();
+    let bytes = bundle.read_verified(&bundle.manifest.reference.file).unwrap();
+    let reference = File::parse("qa", &bytes).unwrap().get("logits", Dtype::F32, 2).unwrap().f32s();
+    let cases: Vec<(&str, &str)> =
+        bundle.manifest.reference.cases.iter().map(|c| (c.text.as_str(), c.context.as_deref().unwrap())).collect();
+    let open = |backend: &str, precision: u32| {
+        let o = QaOptions { backend: Some(backend.into()), precision, max_batch: 0, ..Default::default() };
+        ExtractiveQa::open_with(dir, &o).unwrap_or_else(|e| panic!("{backend}: {e:?}"))
+    };
+    let cpu = flat(&open("cpu", turbo::TURBO_PRECISION_EXACT).logits_many(&cases).unwrap());
+    let worst = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(x, y)| (x - y).abs()).fold(0f32, f32::max);
+    for (precision, tolerance) in [(turbo::TURBO_PRECISION_EXACT, 1e-4), (turbo::TURBO_PRECISION_MODEL, 1e-4)] {
+        let got = flat(&open("cuda", precision).logits_many(&cases).unwrap());
+        assert_eq!(got.len(), reference.len());
+        let (to_reference, to_cpu) = (worst(&got, &reference), worst(&got, &cpu));
+        println!("precision {precision}: max abs diff {to_reference:e} to the reference, {to_cpu:e} to the cpu path");
+        assert!(to_reference < tolerance && to_cpu < tolerance, "precision {precision}");
+    }
+}

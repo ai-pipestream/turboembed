@@ -233,7 +233,7 @@ pub fn command(args: &[String]) -> Result<()> {
     let o = QaOptions { backend: Some(device.clone()), precision, cpu_threads: 0, max_batch };
     let mut qa = ExtractiveQa::open_with(std::path::Path::new(&bundle), &o).map_err(|e| e.message)?;
     let started = std::time::Instant::now();
-    let decode_all = DecodeOptions { null_threshold: f64::NEG_INFINITY, ..Default::default() };
+    let decode_all = DecodeOptions { null_threshold: -1e30, ..Default::default() };
     let mut predictions = Vec::with_capacity(examples.len());
     for chunk in examples.chunks(batch) {
         let pairs: Vec<(&str, &str)> = chunk.iter().map(|e| (e.question.as_str(), e.context.as_str())).collect();
