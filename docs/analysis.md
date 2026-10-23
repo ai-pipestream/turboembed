@@ -4649,10 +4649,38 @@ runs them on any machine:
   pieces of no bytes included; `analysis/embed/src/encoder/tests.rs`'s hold the result's shape
   and the refusal of a backend that pools no ranges. One test runs the steps on the device
   `TURBO_TEST_DEVICE` names (a backend name or a device index), at the
-  precision `TURBO_TEST_PRECISION` names, and holds the vectors to the
-  CPU's within the tolerance the core gives that dtype; without the
-  variable it says it was skipped. On a CUDA machine:
+  precision `TURBO_TEST_PRECISION` names, on `TURBO_TEST_HEF_BUNDLE` or
+  `TURBO_TEST_VECTORS_BUNDLE` when set (or `testdata/tiny-bert-bundle` by
+  default), and holds the vectors to the CPU's built from the same
+  bundle's weights within the tolerance the core gives that dtype; without
+  `TURBO_TEST_DEVICE` it says it was skipped. On a CUDA machine:
   `TURBO_TEST_DEVICE=cuda cargo test -p turbo-analysis-embed --features turbo/cuda --test vectors on_the_device`.
+  On a Hailo-8 machine with a HEF bundle that also carries
+  `weights/model.safetensors`:
+  `TURBO_TEST_HEF_BUNDLE=<bundle> TURBO_TEST_DEVICE=hailo cargo test -p turbo-analysis-embed --features turbo/hailo --test vectors on_the_device`.
+- `analysis/embed/tests/sentence_vectors_dl_tiny.rs` compares `Encoder`,
+  `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` offline on
+  `testdata/tiny-bert-bundle` against OpenNLP's `SentenceVectorsDL`
+  (`analysis/embed/reference/regenerate.sh`, which runs
+  `analysis/embed/reference/export_onnx.py` in `turbo-reference` and
+  `analysis/embed/reference/SentenceVectorsDlGolden.java` in the pinned
+  `turbo-goldens-java` container to write and verify
+  `analysis/embed/tests/data/sentence_vectors_dl_golden.json` over the 12
+  test sentences and all 76 golden inputs of the `edge`, `en`, `multi`,
+  `subwords` and `surrogate` sets). `Encoder::run_cls` matches
+  `SentenceVectorsDL` on the raw BERT ONNX graph within `1e-5` (worst
+  `7.15e-7`), and `Encoder::run_rows` matches `SentenceVectorsDL` on the
+  shared mean-pooled L2-normalized ONNX graph within `1e-5` (worst
+  `1.19e-7`). For `SentenceVectors` and `ChunkVectors`, which pool only
+  the item's `N` content subword pieces (`[start, end)` excluding `[CLS]`
+  and `[SEP]`), combining the unnormalized content-range mean with the
+  `[CLS]` and `[SEP]` states as `(N * range_mean + cls + sep) / (N + 2)`
+  and L2-normalizing reproduces `SentenceVectorsDL`'s whole-row vector
+  within `1e-5`, and the content-pooled vectors themselves stay within the
+  stated cosine floors (`>= 0.96` on the 12 sentences alone, `>= 0.85`
+  when the 12 sentences share multi-sentence windows, `>= 0.90` on golden
+  inputs of 4 or more pieces, `>= 0.70` on 1 to 3 piece golden inputs, and
+  the zero vector listed in `Vectors::empty` on zero-piece inputs).
 - `analysis/embed/tests/vectors_bundle.rs` runs the same steps on a real
   bundle, `TURBO_TEST_VECTORS_BUNDLE`, on the device `TURBO_TEST_DEVICE`
   names, and compares the twelve sentence and three chunk vectors with
@@ -4784,10 +4812,6 @@ runs them on any machine:
 - The annotators themselves: normalizers, sentence detection,
   tokenization, and the boundary signals besides structure and drift
   (lexical cohesion, coreference, discourse markers).
-- A comparison of the sentence vectors with OpenNLP's
-  `SentenceVectorsDL` on golden inputs, which needs the JVM container,
-  and a measurement of documents per second through the vector steps.
-  The tests build their layers by hand or with toy annotators.
 - The rest of the evaluation harness: baseline records for
   `legalbench-rag-mini`, which is placed by hand, a published copy and
   licence for HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
