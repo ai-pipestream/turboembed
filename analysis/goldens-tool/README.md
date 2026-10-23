@@ -1233,13 +1233,16 @@ and `turbo:neural-tagged` and `turbo:neural-sequences` (the tags,
 probabilities and score of `topKSequences`, checked against `tag`). These
 runs have no dumps.
 
-`analysis/postag/tests/neural_goldens.rs` reads every one of them: the
+`analysis/postag/tests/neural_goldens/` reads every one of them: the
 model files byte for byte, the feedforward contexts, emissions and tags
 exactly, the BiLSTM tags and Viterbi paths exactly and their emissions,
 marginals and probabilities within 1e-13 (the LSTM gates and the CRF call
 `Math.exp`, which HotSpot computes with an intrinsic that is not ported),
 and it trains each run's model in Rust: the feedforward files are the
-JVM's, byte for byte.
+JVM's, byte for byte. The BiLSTM goldens are compared through the tagger's
+opt-in JVM parity numerics; its default numerics (f32 on the CPU backend's
+packed kernels) must give the same tags, with emissions and probabilities
+within 1e-5 (`analysis/postag/README.md`).
 
 ## PII goldens
 
