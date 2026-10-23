@@ -1,22 +1,26 @@
-//! How the sentence vector step should run on a device, measured once per
-//! bundle and device and kept: the widest window whose vectors stay within
-//! a cosine floor of the same weights on the CPU, and whether the device
-//! is faster than the CPU at that window.
+//! Where the sentence vector step should run, measured once per bundle and
+//! device and kept: for each window and rows per run asked, the lowest
+//! cosine of the device's vectors to the same weights on the CPU, and the
+//! median time of the step on each. The device runs a configuration when
+//! its vectors clear a cosine floor there and it is faster than the CPU;
+//! the CPU runs every other.
 //!
 //! A compiled graph can lose accuracy as its rows fill (a quantized HEF
 //! calibrated on short texts, docs/hailo.md), and a device is not faster
-//! than the host for every model. [`Calibration::measure`] runs the step
-//! over the caller's texts at each window in turn, on the device and as
-//! the reference on the CPU at `Precision::Exact`, and keeps the lowest
-//! cosine and the median times. [`Calibration::load_or_measure`] keeps the
-//! result in a directory, under a key made of the bundle's model and
-//! manifest hash, the device's backend, name, runtime and driver versions,
-//! the precision, the library's build (its version and kernels), and what
-//! was asked: the windows, the floor and a hash of the texts. It is measured
+//! than the host for every model, window or batch: a Hailo-8 has no memory
+//! of its own and loads its weights from the host for every burst of
+//! frames, so a run of a few rows pays for all of them. [`Calibration::measure`]
+//! runs the step over the caller's texts at each window and batch in turn,
+//! on the device and on the CPU, against the CPU at `Precision::Exact`.
+//! [`Calibration::load_or_measure`] keeps the result in a directory, under
+//! a key made of the bundle's model and manifest hash, the device's
+//! backend, name, runtime and driver versions, the precision, the
+//! library's build (its version and kernels), and what was asked: the
+//! windows, the batches, the floor and a hash of the texts. It is measured
 //! again when any of those changes. [`Calibration::options`] gives the
-//! options to open the step with.
+//! options to open the step with for one configuration, and
+//! [`Calibration::annotator`] opens it.
 
-use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -29,9 +33,14 @@ use turbo_analysis_layers::{Sentences, Vectors};
 use crate::encoder::{Device, Encoder, EncoderOptions, Precision};
 use crate::{SentenceVectors, SubwordAnnotator, VectorAnnotator, VectorOptions};
 
+mod kept;
+
 /// The cosine floor of an I8 device, the tier's (docs/hailo.md); the core
 /// gives I8 none of its own.
 pub const I8_FLOOR: f64 = 0.93;
+
+/// The variable that overrides a calibration's choice: `device` or `cpu`.
+pub const FORCE_VAR: &str = "TURBO_CALIBRATION_FORCE";
 
 /// A text and its sentences, as byte spans.
 pub type Text = (String, Vec<(u32, u32)>);
@@ -44,6 +53,8 @@ pub struct CalibrationOptions {
     /// The windows (tokens per row) to try, each once and at most the
     /// model's.
     pub windows: Vec<u32>,
+    /// The rows per run to try at each window, each once and at least 1.
+    pub batches: Vec<u32>,
     /// The lowest cosine to accept; None is the core's tolerance for the
     /// device's dtype, or [`I8_FLOOR`] for I8.
     pub floor: Option<f64>,
@@ -51,25 +62,37 @@ pub struct CalibrationOptions {
     pub reps: usize,
 }
 
-/// One window's measurement.
+/// One configuration's measurement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Point {
     pub max_seq: u32,
+    pub max_batch: u32,
     pub min_cosine: f64,
     pub device_ms: f64,
     pub cpu_ms: f64,
 }
 
-/// A measured decision.
+impl Point {
+    /// Whether the device runs this configuration: its vectors clear
+    /// `floor` and it is faster than the CPU.
+    pub fn device_wins(&self, floor: f64) -> bool {
+        self.min_cosine >= floor && self.device_ms < self.cpu_ms
+    }
+}
+
+/// Which side runs a configuration.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Side {
+    Device,
+    Cpu,
+}
+
+/// A measurement: the floor it was decided under, and a point for each
+/// window and batch asked, windows outer, in the order asked.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Calibration {
     pub key: String,
     pub floor: f64,
-    /// The widest window that clears the floor; 0 when none does.
-    pub max_seq: u32,
-    /// Whether the device runs the step: a window clears the floor and the
-    /// device is faster than the CPU there.
-    pub use_device: bool,
     pub points: Vec<Point>,
 }
 
@@ -84,57 +107,46 @@ impl Calibration {
         dir.join(format!("{}.calibration", &sha256_hex(key.as_bytes())[..32]))
     }
 
-    /// Runs the step over `texts` at each window of `o`, on the device and
-    /// on the CPU, and decides.
+    /// Runs the step over `texts` at each window and batch of `o`, on the
+    /// device and on the CPU.
     pub fn measure(bundle: &Path, o: &CalibrationOptions, texts: &[Text]) -> Result<Calibration, CoreError> {
         check_texts(texts)?;
         let (key, model_max_seq) = probe(bundle, o, texts)?;
-        let mut seen = o.windows.clone();
-        seen.sort_unstable();
-        seen.dedup();
-        if seen.is_empty() || seen.len() != o.windows.len() || o.windows.iter().any(|&w| w == 0 || w > model_max_seq) {
-            return Err(CoreError::new(
-                INVALID_ARGUMENT,
-                format!("calibration windows {:?}: each once, from 1 to the model's {model_max_seq}", o.windows),
-            ));
-        }
+        once_each("windows", &o.windows, model_max_seq)?;
+        once_each("batches", &o.batches, u32::MAX)?;
         let mut floor = o.floor;
         let mut points = Vec::new();
         for &max_seq in &o.windows {
-            let open = |device: Device, precision: Precision| {
-                let enc = EncoderOptions { device, precision, max_seq, ..EncoderOptions::default() };
+            let open = |device: Device, precision: Precision, max_batch: u32| {
+                let enc = EncoderOptions { device, precision, max_seq, max_batch, ..EncoderOptions::default() };
                 VectorAnnotator::open(bundle, &VectorOptions { encoder: enc, ..VectorOptions::default() }).map(Arc::new)
             };
-            let dev = open(o.device.clone(), o.precision)?;
-            floor.get_or_insert_with(|| default_floor(dev.info().compute_dtype));
-            let dim = dev.dim() as usize;
-            let (on_dev, reference, on_cpu) = (
-                pipeline(bundle, dev)?,
-                pipeline(bundle, open(Device::Cpu, Precision::Exact)?)?,
-                pipeline(bundle, open(Device::Cpu, Precision::Model)?)?,
-            );
-            let got = run(&on_dev, texts)?;
-            let want = run(&reference, texts)?;
-            if got.is_empty() || got.len() != want.len() || got.len() % dim != 0 {
-                return Err(CoreError::new(
-                    INVALID_ARGUMENT,
-                    format!("window {max_seq}: {} device values, {} reference", got.len(), want.len()),
-                ));
+            let want = run(&pipeline(bundle, open(Device::Cpu, Precision::Exact, 0)?)?, texts)?;
+            for &max_batch in &o.batches {
+                let vectors = open(o.device.clone(), o.precision, max_batch)?;
+                floor.get_or_insert_with(|| default_floor(vectors.info().compute_dtype));
+                let dim = vectors.dim() as usize;
+                let dev = pipeline(bundle, vectors)?;
+                let on_cpu = pipeline(bundle, open(Device::Cpu, Precision::Model, max_batch)?)?;
+                let got = run(&dev, texts)?;
+                if got.is_empty() || got.len() != want.len() || got.len() % dim != 0 {
+                    return Err(CoreError::new(
+                        INVALID_ARGUMENT,
+                        format!("window {max_seq}: {} device values, {} reference", got.len(), want.len()),
+                    ));
+                }
+                let min_cosine = lowest_cosine(&got, &want, dim);
+                let (device_ms, cpu_ms) =
+                    medians(o.reps, || run(&dev, texts).map(drop), || run(&on_cpu, texts).map(drop))?;
+                points.push(Point { max_seq, max_batch, min_cosine, device_ms, cpu_ms });
             }
-            let min_cosine = lowest_cosine(&got, &want, dim);
-            let (device_ms, cpu_ms) =
-                medians(o.reps, || run(&on_dev, texts).map(drop), || run(&on_cpu, texts).map(drop))?;
-            points.push(Point { max_seq, min_cosine, device_ms, cpu_ms });
         }
-        let floor = floor.unwrap_or(I8_FLOOR);
-        let (max_seq, use_device) = decide(floor, &points);
-        Ok(Calibration { key, floor, max_seq, use_device, points })
+        Ok(Calibration { key, floor: floor.unwrap_or(I8_FLOOR), points })
     }
 
     /// The calibration kept in `dir` for this bundle, device and request,
-    /// measured and kept first when there is none, or when the kept one is
-    /// incomplete (a point for each window asked, in order) or its
-    /// decision does not follow from its points.
+    /// measured and kept first when there is none, or when the kept one
+    /// lacks a point for a window and batch asked, in order.
     pub fn load_or_measure(
         dir: &Path,
         bundle: &Path,
@@ -143,11 +155,11 @@ impl Calibration {
     ) -> Result<Calibration, CoreError> {
         let key = Calibration::key(bundle, o, texts)?;
         let file = Calibration::file(dir, &key);
+        let asked = o.windows.iter().flat_map(|&w| o.batches.iter().map(move |&b| (w, b)));
         if let Ok(text) = std::fs::read_to_string(&file)
             && let Some(c) = Calibration::parse(&text)
             && c.key == key
-            && c.points.iter().map(|p| p.max_seq).eq(o.windows.iter().copied())
-            && decide(c.floor, &c.points) == (c.max_seq, c.use_device)
+            && c.points.iter().map(|p| (p.max_seq, p.max_batch)).eq(asked)
         {
             return Ok(c);
         }
@@ -160,82 +172,69 @@ impl Calibration {
         Ok(c)
     }
 
-    /// The options to open the step with: the device at the chosen window,
-    /// or the CPU at the model's own.
-    pub fn options(&self, o: &CalibrationOptions, base: &VectorOptions) -> VectorOptions {
+    /// The side that runs `max_seq` tokens a row and `max_batch` rows a
+    /// run: the device where its point says it wins, else the CPU; `force`
+    /// (the [`FORCE_VAR`] variable's value) overrides it. An error when no
+    /// point was measured for the configuration, or `force` is neither
+    /// `device` nor `cpu`.
+    pub fn side(&self, max_seq: u32, max_batch: u32, force: Option<&str>) -> Result<Side, CoreError> {
+        let Some(p) = self.points.iter().find(|p| p.max_seq == max_seq && p.max_batch == max_batch) else {
+            let measured: Vec<String> = self.points.iter().map(|p| format!("{}x{}", p.max_seq, p.max_batch)).collect();
+            return Err(CoreError::new(
+                INVALID_ARGUMENT,
+                format!(
+                    "no calibration point for {max_seq} tokens a row and {max_batch} rows a run; measured: {}",
+                    measured.join(", ")
+                ),
+            ));
+        };
+        match force {
+            None => Ok(if p.device_wins(self.floor) { Side::Device } else { Side::Cpu }),
+            Some("device") => Ok(Side::Device),
+            Some("cpu") => Ok(Side::Cpu),
+            Some(v) => Err(CoreError::new(INVALID_ARGUMENT, format!("{FORCE_VAR} is {v:?}, not device or cpu"))),
+        }
+    }
+
+    /// The options to open the step with at `base`'s window and rows per
+    /// run, which must both be given (not 0): `base` on the device and
+    /// precision of `o` or on the CPU, as [`Calibration::side`] chooses
+    /// with the [`FORCE_VAR`] variable.
+    pub fn options(&self, o: &CalibrationOptions, base: &VectorOptions) -> Result<VectorOptions, CoreError> {
+        let force = std::env::var(FORCE_VAR).ok();
         let mut v = base.clone();
-        if self.use_device {
-            v.encoder.device = o.device.clone();
-            v.encoder.precision = o.precision;
-            v.encoder.max_seq = self.max_seq;
-        } else {
-            v.encoder.device = Device::Cpu;
-        }
-        v
-    }
-
-    /// The kept form: one record per line, tab separated.
-    pub fn to_text(&self) -> String {
-        let mut s = String::from("calibration 1\n");
-        let _ = writeln!(s, "key\t{}", self.key);
-        let _ = writeln!(s, "floor\t{}", self.floor);
-        let _ = writeln!(s, "max_seq\t{}", self.max_seq);
-        let _ = writeln!(s, "use_device\t{}", self.use_device);
-        for p in &self.points {
-            let _ = writeln!(s, "point\t{}\t{}\t{}\t{}", p.max_seq, p.min_cosine, p.device_ms, p.cpu_ms);
-        }
-        s
-    }
-
-    /// Reads [`Calibration::to_text`]'s form, with the key, the floor, the
-    /// window and the choice each exactly once and at least one point;
-    /// None for anything else.
-    pub fn parse(text: &str) -> Option<Calibration> {
-        let mut lines = text.lines();
-        if lines.next()? != "calibration 1" {
-            return None;
-        }
-        let mut key: Option<String> = None;
-        let mut floor: Option<f64> = None;
-        let mut max_seq: Option<u32> = None;
-        let mut use_device: Option<bool> = None;
-        let mut points = Vec::new();
-        for line in lines {
-            let (name, rest) = line.split_once('\t')?;
-            let again = match name {
-                "key" => key.replace(rest.to_owned()).is_some(),
-                "floor" => floor.replace(rest.parse().ok()?).is_some(),
-                "max_seq" => max_seq.replace(rest.parse().ok()?).is_some(),
-                "use_device" => use_device.replace(rest.parse().ok()?).is_some(),
-                "point" => {
-                    let f: Vec<&str> = rest.split('\t').collect();
-                    let [a, b, d, e] = f[..] else { return None };
-                    points.push(Point {
-                        max_seq: a.parse().ok()?,
-                        min_cosine: b.parse().ok()?,
-                        device_ms: d.parse().ok()?,
-                        cpu_ms: e.parse().ok()?,
-                    });
-                    false
-                }
-                _ => return None,
-            };
-            if again {
-                return None;
+        match self.side(base.encoder.max_seq, base.encoder.max_batch, force.as_deref())? {
+            Side::Device => {
+                v.encoder.device = o.device.clone();
+                v.encoder.precision = o.precision;
             }
+            Side::Cpu => v.encoder.device = Device::Cpu,
         }
-        if points.is_empty() {
-            return None;
-        }
-        Some(Calibration { key: key?, floor: floor?, max_seq: max_seq?, use_device: use_device?, points })
+        Ok(v)
+    }
+
+    /// The step at `base`'s window and rows per run, on the side the
+    /// calibration kept in `dir` chooses, measured first when there is
+    /// none (`load_or_measure`).
+    pub fn annotator(
+        dir: &Path,
+        bundle: &Path,
+        o: &CalibrationOptions,
+        texts: &[Text],
+        base: &VectorOptions,
+    ) -> Result<VectorAnnotator, CoreError> {
+        let c = Calibration::load_or_measure(dir, bundle, o, texts)?;
+        VectorAnnotator::open(bundle, &c.options(o, base)?)
     }
 }
 
-/// The widest window whose lowest cosine clears `floor` (0 when none), and
-/// whether the device is faster than the CPU there.
-pub fn decide(floor: f64, points: &[Point]) -> (u32, bool) {
-    let best = points.iter().filter(|p| p.min_cosine >= floor).max_by_key(|p| p.max_seq);
-    (best.map_or(0, |p| p.max_seq), best.is_some_and(|p| p.device_ms < p.cpu_ms))
+/// The median time in ms of `reps` runs of the sentence vector step over
+/// `texts`, opened with `v`, after one untimed run: the measure a chosen
+/// configuration is checked with.
+pub fn time(bundle: &Path, v: &VectorOptions, texts: &[Text], reps: usize) -> Result<f64, CoreError> {
+    check_texts(texts)?;
+    let a = pipeline(bundle, Arc::new(VectorAnnotator::open(bundle, v)?))?;
+    Ok(medians(reps, || run(&a, texts).map(drop), || Ok(()))?.0)
 }
 
 /// The lowest cosine between the vectors of `got` and `want`, `dim` values
@@ -245,6 +244,22 @@ pub fn lowest_cosine(got: &[f32], want: &[f32], dim: usize) -> f64 {
         .zip(want.chunks_exact(dim))
         .map(|(g, w)| cosine(g, w))
         .fold(1f64, |m, c| if c.is_nan() { f64::NEG_INFINITY } else { m.min(c) })
+}
+
+/// Fails unless `values` is not empty and holds each value once, each
+/// from 1 to `max`.
+fn once_each(what: &str, values: &[u32], max: u32) -> Result<(), CoreError> {
+    let mut seen = values.to_vec();
+    seen.sort_unstable();
+    seen.dedup();
+    if seen.is_empty() || seen.len() != values.len() || values.iter().any(|&v| v == 0 || v > max) {
+        let most = if max == u32::MAX { String::new() } else { format!(" to the model's {max}") };
+        return Err(CoreError::new(
+            INVALID_ARGUMENT,
+            format!("calibration {what} {values:?}: each once, from 1{most}"),
+        ));
+    }
+    Ok(())
 }
 
 /// Fails unless each sentence of each text is a span of it: start at most
@@ -264,20 +279,24 @@ fn check_texts(texts: &[Text]) -> Result<(), CoreError> {
     Ok(())
 }
 
+fn device_options(o: &CalibrationOptions, max_seq: u32, max_batch: u32) -> EncoderOptions {
+    EncoderOptions { device: o.device.clone(), precision: o.precision, max_seq, max_batch, ..EncoderOptions::default() }
+}
+
 /// The key, and the model's own window.
 fn probe(bundle: &Path, o: &CalibrationOptions, texts: &[Text]) -> Result<(String, u32), CoreError> {
     let model = crate::model_ref(&Bundle::open(bundle)?);
-    let enc = Encoder::open(
-        bundle,
-        &EncoderOptions { device: o.device.clone(), precision: o.precision, max_batch: 1, ..EncoderOptions::default() },
-    )?;
+    let enc = Encoder::open(bundle, &device_options(o, 0, 1))?;
     let d = enc.device_info();
     let f = crate::encoder::field;
     let mut t = String::new();
     for (text, spans) in texts {
-        let _ = write!(t, "{text}\u{1f}{spans:?}\u{1e}");
+        t.push_str(text);
+        t.push('\u{1f}');
+        t.push_str(&format!("{spans:?}"));
+        t.push('\u{1e}');
     }
-    let windows: Vec<String> = o.windows.iter().map(u32::to_string).collect();
+    let list = |v: &[u32]| v.iter().map(u32::to_string).collect::<Vec<_>>().join(",");
     let key = [
         model.id,
         model.sha256,
@@ -287,7 +306,8 @@ fn probe(bundle: &Path, o: &CalibrationOptions, texts: &[Text]) -> Result<(Strin
         f(&d.driver_version),
         o.precision.name().to_owned(),
         turbo::tuning::LIBRARY_BUILD.to_owned(),
-        windows.join(","),
+        list(&o.windows),
+        list(&o.batches),
         o.floor.map_or("none".to_owned(), |f| f.to_string()),
         sha256_hex(t.as_bytes()),
     ]
