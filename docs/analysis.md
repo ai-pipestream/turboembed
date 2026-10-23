@@ -3103,8 +3103,9 @@ of correct samples; `jvm_accuracy()` is `getDocumentAccuracy()` bit for
 bit (each fold's accuracy times its document count summed, which can
 round differently). `CrossValidateGolden` writes
 `analysis/goldens/data/cross-validate/<run>/<set>/<id>.golden` (3 folds
-over `inputs/tagged/names.txt` with BIO and BILOU, and over
-`inputs/langdetect/samples.txt` with cutoff 5 and 1), and
+over `analysis/goldens/data/inputs/tagged/names.txt` with BIO and
+BILOU, and over `analysis/goldens/data/inputs/langdetect/samples.txt`
+with cutoff 5 and 1), and
 `analysis/train-components/tests/cross_validate.rs` compares every fold
 and the merged figures bit for bit.
 
