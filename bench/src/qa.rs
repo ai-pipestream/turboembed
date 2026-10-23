@@ -302,4 +302,18 @@ mod tests {
     fn bins_start_at_their_bounds() {
         assert_eq!([0, 127, 128, 255, 256, 383, 384, 5000].map(bin_of), [0, 0, 1, 1, 2, 2, 3, 3]);
     }
+
+    /// Each committed record parses and passes `check`, and is filed
+    /// under the name `file_name` gives it.
+    #[test]
+    fn committed_records_pass_their_check() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(QA_DIR);
+        let Ok(entries) = std::fs::read_dir(&dir) else { return };
+        for e in entries {
+            let path = e.unwrap().path();
+            let r: QaRecord = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            check(&r).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            assert_eq!(path.file_name().unwrap().to_str().unwrap(), file_name(&r));
+        }
+    }
 }
