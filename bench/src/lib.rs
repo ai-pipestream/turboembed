@@ -13,6 +13,7 @@ pub mod onnx;
 pub mod openvino;
 pub mod qa;
 pub mod ranges;
+pub mod rerank;
 pub mod tei;
 pub mod tensorrt;
 

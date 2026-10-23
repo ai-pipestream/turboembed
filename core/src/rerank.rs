@@ -56,6 +56,7 @@ pub struct Reranker {
     identity: RerankIdentity,
     max_batch: usize,
     backend: String,
+    device: u32,
 }
 
 // SAFETY: the C handles support movement between threads. Every session
@@ -118,6 +119,7 @@ impl Reranker {
             },
             max_batch: 0,
             backend: String::new(),
+            device: 0,
         };
         let mut e = error();
         unsafe {
@@ -137,6 +139,7 @@ impl Reranker {
             d.struct_size = size_of::<turbo_device_info>() as u32;
             check(turbo_runtime_device_info(s.runtime, device, &mut d, &mut e), &e)?;
             s.backend = string(&d.backend);
+            s.device = device;
             check(turbo_context_create(s.runtime, device, &mut s.context, &mut e), &e)?;
             check(turbo_model_load(s.context, text(path), &mut s.model, &mut e), &e)?;
             let mut info: turbo_model_info = std::mem::zeroed();
@@ -165,6 +168,15 @@ impl Reranker {
             };
         }
         Ok(s)
+    }
+
+    /// The device the session runs on.
+    pub fn device_info(&self) -> Result<turbo_device_info> {
+        let mut d: turbo_device_info = unsafe { std::mem::zeroed() };
+        d.struct_size = size_of::<turbo_device_info>() as u32;
+        let mut e = error();
+        check(unsafe { turbo_runtime_device_info(self.runtime, self.device, &mut d, &mut e) }, &e)?;
+        Ok(d)
     }
 
     /// The backend the session runs on ("cpu", "cuda", ...).
