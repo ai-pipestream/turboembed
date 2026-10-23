@@ -630,8 +630,9 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
 // so the softmax runs in base 2; each chunk's K and V are staged as F16,
 // K transposed so the scores' fragments load without a transpose (on the
 // M2 that, with the mask staged as a bias, takes about 2.4 of 25 ms off
-// attention at 32 x 256 with the same bits); the scores and the running softmax are F32, and
-// the probabilities go to F16 for the product with V, which sums in F32.
+// attention at 32 x 256 with the same bits); the scores and the running
+// softmax are F32, and the probabilities go to F16 for the product with
+// V, which sums in F32.
 kernel void attention_h(device const half *q [[buffer(0)]], device const half *k [[buffer(1)]],
                         device const half *v [[buffer(2)]], device const int *mask [[buffer(3)]],
                         device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
