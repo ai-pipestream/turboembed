@@ -188,6 +188,7 @@
       }
     }
   },
+  "notice": "Trained on a mixture that includes the training sets of Universal Dependencies treebanks under CC BY-NC-SA, English GUM among them (docs/licences.md). The model card's licence is MIT; the bundle is local-only, for comparison and evaluation, and is not distributed.",
   "upstream": [
     {
       "path": "tokenizer.json",
