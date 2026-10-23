@@ -202,7 +202,7 @@ and GLiREL rows.
 
 | Checkpoint | Revision | Licence | Base and data | Class | Checked |
 |---|---|---|---|---|---|
-| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | local-only unless the mixture left out UD's non-commercial treebanks (English GUM and others, under Datasets); to be confirmed against wtpsplit's training configuration | here |
+| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | local-only: the training mixture holds the training sets of 16 UD treebanks under CC BY-NC-SA, English GUM among them (below) | here |
 | [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | as `sat-1l-sm` | here |
 | [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; needs limited lookahead, which the core lacks | here |
 | [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive | here |
@@ -213,6 +213,33 @@ and GLiREL rows.
 | [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
 | [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | refused by the class rule, for its training data: not shipped, bundled, listed in the index or trained on; a local reference that is scored, as `en-pos-maxent` is | here |
 | [deepset/roberta-base-squad2](https://huggingface.co/deepset/roberta-base-squad2) | `adc3b06f79f797d1c575d5479d6f5efe54a9e3b4` | CC BY 4.0 | [FacebookAI/roberta-base](https://huggingface.co/FacebookAI/roberta-base) (MIT); SQuAD 2.0 (CC BY-SA 4.0, under Datasets) | share-alike, by its training data: in the index, fetched after acceptance; not shipped or bundled; `bundle/recipes/roberta-base-squad2.json` makes a local bundle from it | here, 2026-10-23 |
+
+The `-sm` class was checked on 2026-10-23 against wtpsplit (MIT) at
+commit `3ef928c8e163d11dc6f6336ad610bff2ffe0bda4`.
+`wtpsplit/data_acquisition/extract_all_data.py` reads UD 2.13
+(`ud-treebanks-v2.13`) and keeps the first 10,000 sentences of each
+language's `*-ud-train.conllu`, with `include_train_data` on by default.
+The treebank for each language is the `ud` column of
+`wtpsplit/data/language_info.csv`. `wtpsplit/train/train_SM.py` trains
+on those sentences, and on the same sentences corrupted, for every
+language that has them. The `-sm` configurations (`configs/SM/`) change
+only the layer count and schedule. The README of each named treebank at
+tag `r2.13` gives these licences:
+
+- CC BY-NC-SA, with a training file the glob matches (16): Arabic PADT,
+  Basque BDT, Bulgarian BTB, English GUM, Estonian EDT, Greek GDT, Hindi
+  HDTB, Hungarian Szeged, Italian ISDT, Latin ITTB, Polish PDB, Swedish
+  LinES, Tamil TTB, Turkish IMST, Ukrainian IU and Urdu UDTB.
+- Czech PDT (CC BY-NC-SA 4.0) is not read: its training set is split
+  into several files (`cs_pdt-ud-train-ca.conllu` and others), which the
+  glob does not match.
+- Galician TreeGal is under LGPL-LR.
+- The other 39 are CC BY or CC BY-SA, or have no training file.
+
+The released checkpoints name no training commit, so this is the
+published recipe rather than a record of the run. The SaT paper
+(section 4.2) also says the mixture includes UD training sets. Under the
+class rule, `sat-1l-sm` and `sat-12l-sm` are local-only.
 
 `dslim/bert-base-NER` is the checkpoint OpenNLP's `NameFinderDL` documents
 and the native token classifier in `turbo-namefind-dl` is compared with.

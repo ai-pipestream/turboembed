@@ -73,13 +73,14 @@ fn fixture(name: &str) -> Fixture {
     }
 }
 
-/// The device TURBO_TEST_DEVICE names (a backend name, a device index or
-/// `select`; the CPU when it is not set) at the precision TURBO_TEST_PRECISION
+/// The device TURBO_TEST_DEVICE names (`cpu`, `select`, a device index or
+/// a backend name; the CPU when it is not set) at the precision TURBO_TEST_PRECISION
 /// names (model by default): every fixture holds there as on the CPU.
 fn encoder() -> EncoderOptions {
     let device = match std::env::var("TURBO_TEST_DEVICE") {
         Err(std::env::VarError::NotPresent) => Device::Cpu,
         Err(e) => panic!("TURBO_TEST_DEVICE: {e}"),
+        Ok(d) if d == "cpu" => Device::Cpu,
         Ok(d) if d == "select" => Device::Select,
         Ok(d) => match d.parse() {
             Ok(i) => Device::Index(i),
