@@ -415,4 +415,5 @@ fn unembedded_units_never_outrank_contextually_scored_hits() {
     );
 }
 
+mod facets;
 mod latency;

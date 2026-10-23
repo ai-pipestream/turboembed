@@ -21,8 +21,9 @@
 use std::collections::BTreeSet;
 
 use turbo_analysis::{Ix, Layer, ModelRef, Span, Spans};
-use turbo_analysis_layers::{Level, Levels, Vectors};
+use turbo_analysis_layers::{Chunks, Level, Levels, Polarity, Unit, Vectors};
 
+use crate::sentiment::ChunkFacets;
 use crate::terms::{Bm25, Collection, Query, TermStats, Vocabulary};
 
 /// A query encoded in one named vector space.
@@ -99,6 +100,70 @@ impl UnitFilter {
             }
         }
         Ok(UnitFilter { name: name.into(), mode, units })
+    }
+
+    /// The chunk units whose [`ChunkFacets`] row satisfies
+    /// `keep`. Only `Level::Chunk` units are named, so a
+    /// `Require` filter built this way also drops section and
+    /// document units. Refuses facets that fail their own check
+    /// or that hold fewer rows than `levels` has chunks (a
+    /// mismatched document), never panics on either.
+    pub fn chunks_matching(
+        name: impl Into<String>,
+        mode: FilterMode,
+        levels: &Levels,
+        facets: &ChunkFacets,
+        keep: impl Fn(Ix<Chunks>, &ChunkFacets) -> bool,
+    ) -> Result<UnitFilter, String> {
+        facets.check()?;
+        let mut units = BTreeSet::new();
+        for unit in levels.of(Level::Chunk) {
+            let Unit::Chunk(chunk) = levels.unit[unit.get()] else { continue };
+            if chunk.get() >= facets.len() {
+                return Err(format!(
+                    "chunk facets hold {} rows but chunk {} is named by the levels",
+                    facets.len(),
+                    chunk.get()
+                ));
+            }
+            if keep(chunk, facets) {
+                units.insert(unit);
+            }
+        }
+        Ok(UnitFilter { name: name.into(), mode, units })
+    }
+
+    /// A `Require` filter keeping only chunk units whose every
+    /// incivility dimension score is at most `max` (in
+    /// `0.0..=1.0`): retrieval that must not surface uncivil
+    /// chunks at any rank.
+    pub fn incivility_at_most(
+        name: impl Into<String>,
+        levels: &Levels,
+        facets: &ChunkFacets,
+        max: f64,
+    ) -> Result<UnitFilter, String> {
+        if !max.is_finite() || !(0.0..=1.0).contains(&max) {
+            return Err(format!("incivility threshold {max} is not a score in 0.0..=1.0"));
+        }
+        Self::chunks_matching(name, FilterMode::Require, levels, facets, |c, f| {
+            f.incivility_scores(c).iter().into_iter().all(|(_, s)| s <= max)
+        })
+    }
+
+    /// Chunk units carrying aspect `label` (with `polarity`
+    /// when given), for aspect-targeted require or boost.
+    pub fn aspect_is(
+        name: impl Into<String>,
+        mode: FilterMode,
+        levels: &Levels,
+        facets: &ChunkFacets,
+        label: &str,
+        polarity: Option<Polarity>,
+    ) -> Result<UnitFilter, String> {
+        Self::chunks_matching(name, mode, levels, facets, |c, f| {
+            f.aspects_of(c).any(|(_, l, p)| l == label && polarity.is_none_or(|want| p == want))
+        })
     }
 }
 
