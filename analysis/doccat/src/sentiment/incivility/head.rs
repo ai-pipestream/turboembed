@@ -6,10 +6,13 @@
 //! The weights come from the caller, trained elsewhere or with
 //! [`IncivilityVectorHead::fit`], and travel in a small binary format
 //! ([`IncivilityVectorHead::to_bytes`]): the magic `TIVH`, a version, the
-//! dimension, a flag for the context matrix, then the biases, the label
-//! matrix and the context matrix as little-endian `f32`, rows in
-//! [`IncivilityLabel::ALL`] order. Reading checks every part, so bad
-//! bytes are an error and never a panic.
+//! dimension and flags (bit 0 a context matrix, bit 1 an encoder), then
+//! the biases, the label matrix and the context matrix as little-endian
+//! `f32`, rows in [`IncivilityLabel::ALL`] order, then, with an encoder,
+//! its id, revision and SHA-256 as `u32`-length-prefixed UTF-8. A head
+//! read back keeps the encoder it was bound to, so the annotator still
+//! refuses vectors from another. Reading checks every part, so bad bytes
+//! are an error and never a panic.
 
 use std::fmt;
 
@@ -22,6 +25,10 @@ const MAGIC: &[u8; 4] = b"TIVH";
 const VERSION: u32 = 1;
 const LABELS: usize = IncivilityLabel::ALL.len();
 const HEADER: usize = 16;
+const CONTEXT: u32 = 1;
+const ENCODER: u32 = 2;
+/// The longest encoder string a head carries.
+const MAX_STRING: usize = 4096;
 
 /// Why a head could not be made or read.
 #[derive(Clone, Debug, PartialEq)]
@@ -141,10 +148,17 @@ impl IncivilityVectorHead {
         out.extend_from_slice(MAGIC);
         out.extend_from_slice(&VERSION.to_le_bytes());
         out.extend_from_slice(&(self.dim as u32).to_le_bytes());
-        out.extend_from_slice(&u32::from(self.has_context()).to_le_bytes());
+        let flags = if self.has_context() { CONTEXT } else { 0 } | if self.model.is_some() { ENCODER } else { 0 };
+        out.extend_from_slice(&flags.to_le_bytes());
         let floats = self.bias.iter().chain(&self.weights).chain(self.context.iter().flatten());
         for v in floats {
             out.extend_from_slice(&v.to_le_bytes());
+        }
+        if let Some(m) = &self.model {
+            for text in [&m.id, &m.revision, &m.sha256] {
+                out.extend_from_slice(&(text.len() as u32).to_le_bytes());
+                out.extend_from_slice(text.as_bytes());
+            }
         }
         out
     }
@@ -166,24 +180,46 @@ impl IncivilityVectorHead {
         }
         let dim = word(8) as usize;
         let flags = word(12);
-        if flags > 1 {
+        if flags > (CONTEXT | ENCODER) {
             return bad(format!("flags {flags}"));
         }
         if dim == 0 {
             return Err(IncivilityHeadError::Value("a dimension of 0".into()));
         }
-        let matrices = 1 + flags as usize;
-        let want = (LABELS as u64 + LABELS as u64 * dim as u64 * matrices as u64)
+        let matrices = 1 + (flags & CONTEXT) as usize;
+        let end = (LABELS as u64 + LABELS as u64 * dim as u64 * matrices as u64)
             .checked_mul(4)
-            .and_then(|n| n.checked_add(HEADER as u64));
-        if want != Some(bytes.len() as u64) {
-            return bad(format!("{} bytes, a head of dimension {dim} has {want:?}", bytes.len()));
-        }
-        let floats: Vec<f32> = bytes[HEADER..].as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect();
+            .and_then(|n| n.checked_add(HEADER as u64))
+            .filter(|&n| n <= bytes.len() as u64)
+            .ok_or_else(|| {
+                IncivilityHeadError::Format(format!("{} bytes, too few for a head of dimension {dim}", bytes.len()))
+            })? as usize;
+        let floats: Vec<f32> = bytes[HEADER..end].as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect();
         let n = LABELS * dim;
         let bias: [f32; LABELS] = floats[..LABELS].try_into().expect("six biases");
-        let head = IncivilityVectorHead::new(dim, floats[LABELS..LABELS + n].to_vec(), bias)?;
-        if flags == 1 { head.with_context(floats[LABELS + n..].to_vec()) } else { Ok(head) }
+        let mut head = IncivilityVectorHead::new(dim, floats[LABELS..LABELS + n].to_vec(), bias)?;
+        if flags & CONTEXT != 0 {
+            head = head.with_context(floats[LABELS + n..].to_vec())?;
+        }
+        let mut rest = &bytes[end..];
+        if flags & ENCODER != 0 {
+            let mut text = || -> Result<String, IncivilityHeadError> {
+                let len = rest.get(..4).map(|b| u32::from_le_bytes(b.try_into().expect("four bytes")) as usize);
+                let Some(len) = len.filter(|&l| l <= MAX_STRING && 4 + l <= rest.len()) else {
+                    return Err(IncivilityHeadError::Format("an encoder string past the end or too long".into()));
+                };
+                let s = std::str::from_utf8(&rest[4..4 + len])
+                    .map_err(|_| IncivilityHeadError::Format("an encoder string that is not UTF-8".into()))?;
+                rest = &rest[4 + len..];
+                Ok(s.to_owned())
+            };
+            let (id, revision, sha256) = (text()?, text()?, text()?);
+            head = head.with_model(ModelRef { id, revision, sha256 });
+        }
+        if !rest.is_empty() {
+            return bad(format!("{} bytes past the end of the head", rest.len()));
+        }
+        Ok(head)
     }
 }
 

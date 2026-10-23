@@ -83,7 +83,9 @@ fn the_bytes_round_trip_and_bad_bytes_are_errors() {
     assert!(edit(4, &2u32.to_le_bytes()).is_err());
     assert!(matches!(edit(8, &0u32.to_le_bytes()), Err(IncivilityHeadError::Value(_))));
     assert!(edit(8, &u32::MAX.to_le_bytes()).is_err());
+    // Flag 2 (an encoder) with no encoder strings, and an unknown flag.
     assert!(edit(12, &2u32.to_le_bytes()).is_err());
+    assert!(edit(12, &4u32.to_le_bytes()).is_err());
     // A context flag with no context matrix is a length error.
     assert!(edit(12, &1u32.to_le_bytes()).is_err());
     assert!(edit(16, &f32::NAN.to_le_bytes()).is_err());
@@ -151,4 +153,35 @@ fn fitting_with_contexts_learns_what_the_parent_adds() {
     assert!(h.score(&reply, Some(&hostile)).unwrap().insult > 0.5);
     assert!(h.score(&reply, Some(&calm)).unwrap().insult < 0.5);
     assert!(h.score(&reply, None).unwrap().insult < 0.5);
+}
+
+#[test]
+fn the_encoder_a_head_is_bound_to_travels_with_its_bytes() {
+    let m =
+        ModelRef { id: "sentence-transformers/all-MiniLM-L6-v2".into(), revision: "4".into(), sha256: "a".repeat(64) };
+    for head in [two_wide(), two_wide().with_context(vec![0.5; 12]).unwrap()] {
+        let bound = head.with_model(m.clone());
+        let bytes = bound.to_bytes();
+        let back = IncivilityVectorHead::from_bytes(&bytes).unwrap();
+        assert_eq!(back, bound);
+        assert_eq!(IncivilityVectorScorer::model(&back), Some(m.clone()));
+        // The encoder is in the configuration hash too.
+        assert_ne!(IncivilityVectorScorer::config_hash(&back), IncivilityVectorScorer::config_hash(&two_wide()));
+        // Every cut and one more byte are errors.
+        for n in 0..bytes.len() {
+            assert!(IncivilityVectorHead::from_bytes(&bytes[..n]).is_err(), "{n} bytes");
+        }
+        let mut long = bytes.clone();
+        long.push(0);
+        assert!(IncivilityVectorHead::from_bytes(&long).is_err());
+    }
+    // An encoder string that is not UTF-8, or longer than a head carries.
+    let bytes = two_wide().with_model(m.clone()).to_bytes();
+    let at = 16 + 4 * 18 + 4;
+    let mut bad = bytes.clone();
+    bad[at] = 0xFF;
+    assert!(IncivilityVectorHead::from_bytes(&bad).is_err());
+    let mut huge = bytes;
+    huge[at - 4..at].copy_from_slice(&5000u32.to_le_bytes());
+    assert!(IncivilityVectorHead::from_bytes(&huge).is_err());
 }

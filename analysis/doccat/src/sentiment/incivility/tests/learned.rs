@@ -93,6 +93,13 @@ fn the_lexicon_stage_does_not_read_the_head() {
     for stage in [IncivilityStage::Learned, IncivilityStage::Fused] {
         assert!(run(with(stage), &mut doc(TEXT, &RANGES, &vectors)).is_err(), "{stage:?}");
     }
+    // A head saved and read back keeps its encoder, so it still refuses
+    // these vectors.
+    let saved = hostility_head().with_model(ModelRef { id: "other-encoder".into(), ..model() }).to_bytes();
+    let loaded: Arc<dyn IncivilityVectorScorer> = Arc::new(IncivilityVectorHead::from_bytes(&saved).unwrap());
+    let a = IncivilityAnnotator::new().with_vector_scorer(loaded).with_stage(IncivilityStage::Learned);
+    let e = run(a, &mut doc(TEXT, &RANGES, &vectors)).unwrap_err();
+    assert!(e.contains("other-encoder"), "{e}");
     // Nor is the head in its configuration hash.
     let bare = IncivilityAnnotator::new().with_stage(IncivilityStage::Lexicon);
     assert_eq!(Annotator::config_hash(&with(IncivilityStage::Lexicon)), Annotator::config_hash(&bare));
