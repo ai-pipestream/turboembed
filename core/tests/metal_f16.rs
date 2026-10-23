@@ -331,9 +331,19 @@ fn attn_auto_switches_past_512_packed_tokens() {
     let auto = make(g.m, None, fastest, TURBO_AUTOTUNE_OFF).unwrap();
     let staged = make(g.m, Some("attn=staged"), fastest, TURBO_AUTOTUNE_OFF).unwrap();
     let registers = make(g.m, Some("attn=registers"), fastest, TURBO_AUTOTUNE_OFF).unwrap();
-    // Eight rows of 64 tokens, the session's max_seq, pack to 512; one
-    // more token packs to 513, padded to 544.
-    let (at, past) = (rows_of(&dir, &[64; 8]), rows_of(&dir, &[64, 64, 64, 64, 64, 64, 64, 64, 1]));
+    // Rows of up to 64 tokens, the session's max_seq, some short and some
+    // with keys masked inside them (where the two kernels' sums part), pack
+    // to 512; one more token packs to 513, padded to 544.
+    let lens = [64, 40, 9, 64, 64, 64, 64, 64, 64, 15];
+    let gapped = |lens: &[usize]| {
+        let mut t = rows_of(&dir, lens);
+        let seq = t.seq as usize;
+        for (r, p) in [(0, 5), (0, 40), (1, 0), (1, 33), (3, 31), (3, 50)] {
+            t.mask[r * seq + p] = 0;
+        }
+        t
+    };
+    let (at, past) = (gapped(&lens), gapped(&[&lens[..], &[1]].concat()));
     assert_ne!(vectors(&staged, &at), vectors(&registers, &at), "the kernels' bits differ at 512 tokens");
     assert_ne!(vectors(&staged, &past), vectors(&registers, &past), "the kernels' bits differ at 513 tokens");
     assert_eq!(vectors(&auto, &at), vectors(&staged, &at), "512 packed tokens run staged");
