@@ -246,7 +246,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, test, fuzz, features, parity]
+    needs: [lint, test, fuzz, features, parity, windows]
     runs-on: ubuntu-24.04
     steps:
       - name: every lane passed
