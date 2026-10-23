@@ -102,8 +102,10 @@ evaluation script does (`analysis/eval/src/squad.rs`): normalized exact match an
 token F1, the best over a question's gold answers, and an empty prediction right
 only for an unanswerable question. A question is answered when its best span's
 score is above the null score by more than the threshold; the record gives the
-scores at threshold 0, the decoder's default, and at the threshold with the best
-F1 on the same file (the script's best-threshold search).
+scores at threshold 0, the decoder's default, and, as the script's
+`best_exact` and `best_f1`, the best exact match and the best F1 over thresholds
+on the same file, each at its own threshold. The search starts from abstaining on
+every question and ends with answering every question.
 
 On the SQuAD 2.0 dev set (`dev-v2.0.json`, 11,873 questions, SHA-256
 `80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8`), exact
@@ -114,12 +116,14 @@ precision:
 | deepset's card | 79.93 | 82.95 | | |
 | CUDA, threshold 0 | 79.92 | 82.92 | 78.02 / 84.03 | 81.82 |
 | CPU, threshold 0 | 79.92 | 82.92 | 78.02 / 84.03 | 81.82 |
-| CUDA and CPU, best threshold (1.64) | 80.65 | 83.46 | 75.00 / 80.64 | 86.27 |
+| CUDA and CPU, best EM (threshold 1.65) | 80.65 | 83.46 | 74.98 / 80.62 | 86.29 |
+| CUDA and CPU, best F1 (threshold 1.64) | 80.65 | 83.46 | 75.00 / 80.64 | 86.27 |
 
-The CPU and CUDA scores are the same to the third decimal. The best threshold is
-chosen on the dev set itself, so its row is an upper bound, not a held-out
-number. Scoring the dev set took 22 s on an RTX 4080 SUPER and 191 s on the
-CPU (a Ryzen 9 9950X3D, 32 threads), 16 questions per call.
+The CPU and CUDA scores are the same to the third decimal. The best thresholds
+are chosen on the dev set itself, so those rows are an upper bound, not a
+held-out number. Scoring the dev set took 22 s on an RTX 4080 SUPER and 155 s on
+the CPU (a Ryzen 9 9950X3D, 32 threads), 16 questions per call. The two records
+are `docs/receipts/qa-914/squad2-dev-cuda.json` and `squad2-dev-cpu.json`.
 
 ```sh
 turbo-eval squad --bundle <bundle> --dev dev-v2.0.json --device cuda --out squad.json
@@ -153,4 +157,8 @@ The capability cell stays experimental: no benchmark record compiled into the
 build backs SUPPORTED for extractive QA, and the records above are task records,
 not the embedding records `turbo-bench check` reads. Metal and Level Zero offer
 range writes and so open QA sessions, but neither has been run against the
-reference here. The threshold is not calibrated on held-out data.
+reference here; they are reached only by naming them in `QaOptions`, as
+`ExtractiveQa::open`, which the bundle check and the annotator use, stays on the
+CPU. The threshold is not calibrated on held-out data. On a GPU every token's
+final hidden state comes back to the host for the span head, about 1.2 MB a
+384-token RoBERTa-base window; #1003 moves the head onto the device.

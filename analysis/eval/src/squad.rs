@@ -15,7 +15,7 @@
 //! With threshold `t`, the bundle answers when the margin is above `t`
 //! and abstains otherwise. `best_threshold` is the official script's
 //! best-threshold search, over the margins in place of its
-//! no-answer probabilities.
+//! no-answer probabilities, for exact match and for F1.
 
 use std::collections::HashMap;
 
@@ -77,7 +77,11 @@ pub fn normalize(s: &str) -> String {
 
 /// `s` split at Unicode whitespace, as Python's `str.split()` splits.
 fn tokens(s: &str) -> Vec<&str> {
-    s.split(|c: char| WhitespaceMode::Legacy.is_whitespace(c as u32)).filter(|t| !t.is_empty()).collect()
+    // Python's str.isspace is Unicode's White_Space (U+0085 among them)
+    // and the separators U+001C to U+001F: the two modes together.
+    let space =
+        |c: char| WhitespaceMode::Unicode.is_whitespace(c as u32) || WhitespaceMode::Legacy.is_whitespace(c as u32);
+    s.split(space).filter(|t| !t.is_empty()).collect()
 }
 
 /// Exact match after normalization.
@@ -173,18 +177,20 @@ pub fn score(examples: &[Example], predictions: &[Prediction], threshold: f64) -
     }
 }
 
-/// The threshold with the best F1, among abstaining everywhere and each
-/// margin (answering above it), and its scores; the official script's
-/// `find_best_thresh` on F1.
-pub fn best_threshold(examples: &[Example], predictions: &[Prediction]) -> (f64, Scores) {
-    let mut candidates: Vec<f64> = predictions.iter().map(|p| p.margin).filter(|m| m.is_finite()).collect();
-    candidates.sort_by(f64::total_cmp);
-    candidates.dedup();
-    let top = candidates.last().copied().unwrap_or(0.0);
+/// The threshold with the best `metric`, and its scores: the official
+/// script's `find_best_thresh`. It starts from abstaining on every
+/// question, answers one more margin at a time from the highest down to
+/// answering every question, and keeps a threshold only when it scores
+/// strictly better, so a tie goes to the fewer answers.
+pub fn best_threshold(examples: &[Example], predictions: &[Prediction], metric: fn(&Scores) -> f64) -> (f64, Scores) {
+    let mut margins: Vec<f64> = predictions.iter().map(|p| p.margin).filter(|m| m.is_finite()).collect();
+    margins.sort_by(|a, b| b.total_cmp(a));
+    margins.dedup();
+    let top = margins.first().copied().unwrap_or(0.0);
     let mut best = (top, score(examples, predictions, top));
-    for &t in &candidates {
+    for t in margins.into_iter().skip(1).chain([f64::NEG_INFINITY]) {
         let s = score(examples, predictions, t);
-        if s.f1 > best.1.f1 {
+        if metric(&s) > metric(&best.1) {
             best = (t, s);
         }
     }
@@ -202,9 +208,13 @@ pub struct SquadRecord {
     pub dev_sha256: String,
     /// The scores answering above a margin of 0, the decoder's default.
     pub at_zero: Scores,
-    /// The best F1 threshold over the margins, and its scores.
-    pub best_threshold: f64,
-    pub at_best: Scores,
+    /// The thresholds with the best exact match and the best F1 over the
+    /// margins, each with its scores, as the official script reports
+    /// `best_exact` and `best_f1` with their thresholds.
+    pub best_exact_threshold: f64,
+    pub at_best_exact: Scores,
+    pub best_f1_threshold: f64,
+    pub at_best_f1: Scores,
     pub seconds: f64,
 }
 
@@ -250,7 +260,8 @@ pub fn command(args: &[String]) -> Result<()> {
     }
     eprintln!();
     let seconds = started.elapsed().as_secs_f64();
-    let (best, at_best) = best_threshold(&examples, &predictions);
+    let (best_exact_threshold, at_best_exact) = best_threshold(&examples, &predictions, |s| s.exact);
+    let (best_f1_threshold, at_best_f1) = best_threshold(&examples, &predictions, |s| s.f1);
     let record = SquadRecord {
         model_id: qa.model_id.clone(),
         revision: qa.revision.clone(),
@@ -259,15 +270,22 @@ pub fn command(args: &[String]) -> Result<()> {
         precision: precision_name,
         dev_sha256: turbo::bundle::sha256_hex(&bytes),
         at_zero: score(&examples, &predictions, 0.0),
-        best_threshold: best,
-        at_best,
+        best_exact_threshold,
+        at_best_exact,
+        best_f1_threshold,
+        at_best_f1,
         seconds,
     };
     let text = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())?;
     std::fs::write(&out, text + "\n").map_err(|e| format!("{out}: {e}"))?;
     eprintln!(
-        "EM {:.2} F1 {:.2} at 0; EM {:.2} F1 {:.2} at the best threshold {:.3}",
-        record.at_zero.exact, record.at_zero.f1, record.at_best.exact, record.at_best.f1, best
+        "EM {:.2} F1 {:.2} at 0; best EM {:.2} at {:.3}; best F1 {:.2} at {:.3}",
+        record.at_zero.exact,
+        record.at_zero.f1,
+        record.at_best_exact.exact,
+        best_exact_threshold,
+        record.at_best_f1.f1,
+        best_f1_threshold
     );
     Ok(())
 }

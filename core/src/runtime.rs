@@ -73,7 +73,14 @@ impl Runtime {
                 cap.status = backend::TURBO_CAP_UNSUPPORTED;
                 cap.dtype = 0;
                 cap.options_honored = 0;
-                write_str(&mut cap.reason, "rerank and extractive QA require CPU");
+                write_str(
+                    &mut cap.reason,
+                    if task == TURBO_TASK_RERANK {
+                        "rerank requires CPU"
+                    } else {
+                        "extractive QA needs range writes, which this backend does not offer"
+                    },
+                );
             }
             return Ok(cap);
         }

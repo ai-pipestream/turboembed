@@ -134,3 +134,17 @@ fn a_real_qa_bundle_on_cuda_matches_its_reference_and_the_cpu_path() {
         assert!(to_reference < tolerance && to_cpu < tolerance, "precision {precision}");
     }
 }
+
+/// `ExtractiveQa::open`, the bundle check's and the annotator's path,
+/// stays on the CPU in a build with CUDA: the QA cells tie as
+/// experimental, so device order would otherwise pick the GPU.
+#[test]
+fn open_stays_on_the_cpu_in_a_cuda_build() {
+    let _t = turn();
+    let Some(_) = cuda_device("open_stays_on_the_cpu_in_a_cuda_build") else { return };
+    let f = fixture();
+    let qa = ExtractiveQa::open(&f.dir, 1).unwrap();
+    let b = qa.device_info().unwrap().backend;
+    let name: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+    assert_eq!(name, b"cpu");
+}

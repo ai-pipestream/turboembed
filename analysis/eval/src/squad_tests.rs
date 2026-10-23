@@ -10,6 +10,8 @@ fn normalize_matches_the_official_script() {
     assert_eq!(normalize("the\u{2019}s"), "\u{2019}s");
     assert_eq!(normalize("Ünïcode\u{00A0}Text"), "ünïcode text");
     assert_eq!(normalize("."), "");
+    // Python splits at U+0085 and U+001F as well.
+    assert_eq!(normalize("New\u{0085}York\u{001F}City"), "new york city");
 }
 
 #[test]
@@ -50,12 +52,16 @@ fn scores_and_the_best_threshold() {
     let s = score(&examples, &preds, 0.0);
     assert_eq!((s.total, s.has_ans_total, s.no_ans_total), (4, 2, 2));
     assert_eq!((s.exact, s.has_ans_exact, s.no_ans_exact), (75.0, 100.0, 50.0));
-    // Above -1 and above 0 give 3 of 4; above 1 loses Rome (2 of 4); above
-    // 2 loses Rome and gains Oslo's abstention (3 of 4). The first best,
-    // the lowest threshold, stays.
-    let (t, best) = best_threshold(&examples, &preds);
-    assert_eq!(best.exact, 75.0);
-    assert_eq!(t, -1.0);
+    // From abstaining everywhere (2 of 4) down: above 2 answers Paris (3
+    // of 4), above 1 adds Oslo (2), above -1 adds Rome (3, a tie, so 2
+    // stays), answering all adds Bern (2).
+    let (t, best) = best_threshold(&examples, &preds, |s| s.f1);
+    assert_eq!((t, best.exact), (2.0, 75.0));
+    // Answering every question is a candidate: with Bern right it wins.
+    let answerable = [ex(&["Paris"]), ex(&["Rome"]), ex(&[]), ex(&["Bern"])];
+    let all = [p("Paris", 3.0), p("Rome", 1.0), p("", 2.0), p("Bern", -1.0)];
+    let (t, best) = best_threshold(&answerable, &all, |s| s.exact);
+    assert_eq!((t, best.exact), (f64::NEG_INFINITY, 100.0));
     // Abstaining everywhere: only the unanswerable questions are right.
     assert_eq!(score(&examples, &preds, 3.0).exact, 50.0);
 }

@@ -69,9 +69,11 @@ fn check(code: i32, e: &turbo_error) -> Result<()> {
     Err(Error::field(code, e.field, String::from_utf8_lossy(&bytes)))
 }
 impl ExtractiveQa {
-    /// The selected device, one window per run, at exact precision.
+    /// The CPU, one window per run, at exact precision: the path the
+    /// bundle check and the annotator take. Another backend is chosen by
+    /// name through [`ExtractiveQa::open_with`].
     pub fn open(path: &Path, threads: u32) -> Result<Self> {
-        Self::open_with(path, &QaOptions { cpu_threads: threads, ..Default::default() })
+        Self::open_with(path, &QaOptions { backend: Some("cpu".into()), cpu_threads: threads, ..Default::default() })
     }
     pub fn open_with(path: &Path, o: &QaOptions) -> Result<Self> {
         let bundle = Bundle::open(path)?;
