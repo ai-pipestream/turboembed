@@ -233,7 +233,8 @@ impl Split {
             if inside.as_os_str().is_empty() || !inside.components().all(|c| matches!(c, Component::Normal(_))) {
                 return Err(Error::OutsideCorpus { path: p.to_owned() });
             }
-            Ok(inside.to_string_lossy().into_owned())
+            // Joined with `/` on every OS, so a card reads the same wherever it was made.
+            Ok(inside.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/"))
         };
         if !corpus.skipped().is_empty() {
             let documents = corpus

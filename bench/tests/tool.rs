@@ -177,9 +177,19 @@ fn the_tool_refuses_a_bundle_from_testdata() {
     assert!(String::from_utf8_lossy(&o.stderr).contains("a test fixture under"), "{o:?}");
     // Nor through a link, or a path that only reaches it with `..`.
     let link = root.join("linked");
-    std::os::unix::fs::symlink(tiny_bundle(), &link).unwrap();
-    let dotted = workspace().join("bench/../testdata/tiny-bert-bundle");
-    for b in [link, dotted] {
+    #[cfg(unix)]
+    let linked = std::os::unix::fs::symlink(tiny_bundle(), &link);
+    // A directory symlink on Windows needs a privilege the runner may not
+    // have; without it the link case is skipped and the dotted one runs.
+    #[cfg(windows)]
+    let linked = std::os::windows::fs::symlink_dir(tiny_bundle(), &link);
+    let mut paths = vec![workspace().join("bench/../testdata/tiny-bert-bundle")];
+    match linked {
+        Ok(()) => paths.push(link),
+        Err(e) if cfg!(windows) => eprintln!("note: no directory symlink ({e}); the link case is skipped"),
+        Err(e) => panic!("symlink: {e}"),
+    }
+    for b in paths {
         let o = tool(&record_args(repo.to_str().unwrap(), out.to_str().unwrap(), b.to_str().unwrap()));
         assert!(String::from_utf8_lossy(&o.stderr).contains("a test fixture under"), "{o:?}");
     }
