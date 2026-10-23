@@ -42,21 +42,25 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
         let mut probs = vec![0.0; n];
         let mut sorted = vec![0.0; n];
         let mut features = Features::new();
-        let mut prior: Vec<&'m L> = Vec::with_capacity(sequence.len());
+        let mut path_slots: PathSlots<'m, L> = PathSlots::new(self.size, sequence.len());
 
         let mut nodes: Vec<Node> = Vec::new();
         // The partial sequences of the last step, best first. The empty
         // sequence starts the search.
         let mut prev: Vec<u32> = vec![ROOT];
+        let mut prev_ranks: Vec<u32> = vec![0];
+        let mut rank_order: Vec<usize> = Vec::new();
         let mut next: Vec<u32> = Vec::new();
         context.start_sequence();
 
         for i in 0..sequence.len() {
             let width = self.size.min(prev.len());
-            for &top in &prev[..width] {
-                path(&nodes, top, outcomes, &mut prior);
+            path_slots.prepare(&nodes, &prev[..width], outcomes);
+            for (beam_idx, &top) in prev[..width].iter().enumerate() {
+                let parent_rank = prev_ranks[beam_idx];
+                let prior = path_slots.prior(beam_idx);
                 features.clear();
-                context.context(i, sequence, &prior, &mut features);
+                context.context(i, sequence, prior, &mut features);
                 model.eval_features(features.iter(), &mut probs);
 
                 let distribution = if SCORED {
@@ -71,12 +75,13 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
                 let (top_score, top_len) =
                     if top == ROOT { (0.0, 0) } else { (nodes[top as usize].score, nodes[top as usize].len) };
                 let mut extend = |p: usize, nodes: &mut Vec<Node>, next: &mut Vec<u32>| {
-                    if validator.valid_sequence(i, sequence, &prior, outcomes[p]) {
+                    if validator.valid_sequence(i, sequence, prior, outcomes[p]) {
                         let score = top_score + strict_math::log(probs[p]);
                         if score > min_score {
                             let id = u32::try_from(nodes.len()).expect("fewer than 2^32 nodes");
                             nodes.push(Node {
                                 parent: top,
+                                parent_rank,
                                 outcome: p as u32,
                                 prob: probs[p],
                                 score,
@@ -100,9 +105,10 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
                     }
                 }
             }
-            next.sort_by(|&a, &b| compare_nodes(&nodes, outcomes, a, b));
+            next.sort_by(|&a, &b| compare_step_nodes(&nodes, outcomes, a, b));
             std::mem::swap(&mut prev, &mut next);
             next.clear();
+            assign_beam_ranks(&nodes, outcomes, &prev, self.size, &mut rank_order, &mut prev_ranks);
         }
 
         let mut result = Vec::with_capacity(count.min(prev.len()));
