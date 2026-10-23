@@ -1,0 +1,74 @@
+name: OpenNLP port
+description: Port one OpenNLP 3.x component to Rust as an annotator over the analysis crates.
+title: "analysis: <component> annotator"
+labels: ["type:feature", "area:analysis", "status:ready"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One issue is one component, one branch and one owning implementer.
+        OpenNLP 3.x is the reference; ignore 2.x. Parity is proven against golden files the OpenNLP JVM writes.
+  - type: input
+    id: component
+    attributes:
+      label: OpenNLP component
+      description: The class or package being ported, for example opennlp.tools.sentdetect.SentenceDetectorME, and its row in the feature inventory.
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Stage
+      description: The landing stage from the analysis design. Set the matching stage label and milestone.
+      options: ["0", "1", "2", "3", "4", "5", "6", "7"]
+    validations:
+      required: true
+  - type: textarea
+    id: layers
+    attributes:
+      label: Layers read and written
+      description: Layer ids it reads (for example opennlp:sentences) and writes, and which crate each new layer type lives in.
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What the annotator does and how it should differ from OpenNLP, if at all, in full sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: parity
+    attributes:
+      label: Parity proof
+      description: >
+        The OpenNLP model and inputs the golden files come from, the command that produces them with the
+        OpenNLP 3.x JVM in a pinned container, and the evaluation set and metric. Say where Rust is meant
+        to differ and how that will be shown.
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this change must not touch, and related components that belong to other issues (link them).
+    validations:
+      required: true
+  - type: textarea
+    id: definition-of-done
+    attributes:
+      label: Definition of done
+      value: |
+        - [ ] The annotator declares the layers above and passes the analysis crates' checks.
+        - [ ] Golden files and the command that made them are checked in, and a test compares against them.
+        - [ ] Evaluation numbers are on the pull request, next to OpenNLP's on the same set.
+        - [ ] fmt, clippy and tests pass.
+        - [ ] docs/analysis.md lists the annotator and its layers.
+        - [ ] Two adversary reviewers pass the pull request's current head, with no open block.
+    validations:
+      required: true
+  - type: input
+    id: suggested-agent
+    attributes:
+      label: Suggested agent
+      description: The agent label to assign, for example agent:<name>. The coordinator makes the final call.
