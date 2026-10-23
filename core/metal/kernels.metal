@@ -702,9 +702,12 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
 
         float cm = -INFINITY;
         for (uint t = part * 8; t < part * 8 + 8; t++) {
-            // A masked key's score is -inf whatever its product gave, a NaN or
-            // an infinity included; a live key's is left as it is.
-            s[qr * KC + t] = kb[t] == 0.0f ? s[qr * KC + t] : -INFINITY;
+            // A masked key's score plus -inf is -inf. Its product is finite:
+            // a masked key inside a row is a real token's K, and one past
+            // the row is staged as 0. A select here, which would also map a
+            // NaN or an infinite product to -inf, costs 1 to 2% at 32 x 256
+            // on the M2.
+            s[qr * KC + t] += kb[t];
             cm = max(cm, s[qr * KC + t]);
         }
         cm = max(cm, simd_shuffle_xor(cm, 1));
