@@ -7,7 +7,7 @@
 #
 # Build it with `turbo-goldens image` (analysis/goldens-tool/README.md), which
 # passes ../java as the build context. The base image digest and the commits
-# are also Rust constants in ../src/recipe.rs; a test checks they agree.
+# are also Rust constants in ../src/recipe/mod.rs; a test checks they agree.
 # Models are not in the image: `turbo-goldens generate` mounts them, with the
 # inputs and the checked in fixtures, read only, and runs the container without
 # a network.

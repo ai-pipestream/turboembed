@@ -38,5 +38,5 @@ java -cp "/path/to/classes:$CP" TrainSentenceModel $F/sentences.txt analysis/gol
 ```
 
 A model trained again has new bytes, so its SHA-512 in
-`analysis/goldens-tool/src/recipe.rs` changes with it and the goldens are
+`analysis/goldens-tool/src/recipe/fixtures.rs` changes with it and the goldens are
 generated again.
