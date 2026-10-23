@@ -1,6 +1,7 @@
 //! Candidates and their order, OpenNLP's `Hits`: by start, longer first,
 //! then by kind rank, then in the order they were found; equal mentions
-//! once, the first kept.
+//! once, the first kept. By default, a candidate strictly nested inside a
+//! longer candidate is dropped; OpenNLP parity mode keeps it.
 
 use std::cmp::Reverse;
 use std::ops::Range;
@@ -55,10 +56,13 @@ impl Hits {
 
     /// Orders the candidates (a stable sort keeps the finding order of
     /// ties) and writes each distinct mention to `out`. Equal mentions
-    /// share a span, so they sit in one run of that span.
-    pub(crate) fn resolve(mut self, out: &mut Pii) {
+    /// share a span, so they sit in one run of that span. When
+    /// `keep_nested` is `false`, any candidate whose span lies strictly
+    /// inside an earlier, longer candidate's span is dropped.
+    pub(crate) fn resolve(mut self, keep_nested: bool, out: &mut Pii) {
         self.hits.sort_by_key(|h| (h.start, Reverse(h.end), h.kind));
         let mut run_start = 0;
+        let mut outer: Option<(u32, u32)> = None;
         for i in 0..self.hits.len() {
             let h = &self.hits[i];
             if i > 0 {
@@ -66,6 +70,14 @@ impl Hits {
                 if (p.start, p.end) != (h.start, h.end) {
                     run_start = i;
                 }
+            }
+            if !keep_nested
+                && outer.is_some_and(|(os, oe)| os <= h.start && h.end <= oe && (os < h.start || h.end < oe))
+            {
+                continue;
+            }
+            if outer.is_none_or(|(_, oe)| h.end > oe) {
+                outer = Some((h.start, h.end));
             }
             let value = self.normalized(h);
             let repeat = self.hits[run_start..i].iter().any(|e| e.kind == h.kind && self.normalized(e) == value);
@@ -82,9 +94,9 @@ impl Hits {
 
     /// The resolved mentions as a layer over `view`.
     #[cfg(test)]
-    pub(crate) fn into_layer(self, view: turbo_analysis::ViewId) -> Pii {
+    pub(crate) fn into_layer(self, keep_nested: bool, view: turbo_analysis::ViewId) -> Pii {
         let mut out = Pii::new(view);
-        self.resolve(&mut out);
+        self.resolve(keep_nested, &mut out);
         out
     }
 }
@@ -104,7 +116,7 @@ mod tests {
         h.add(0, 5, PiiKind::Email, f, |s| s.push('d'));
         h.add(0, 5, PiiKind::Email, f, |s| s.push('d'));
         h.add(0, 5, PiiKind::Email, f, |s| s.push('e'));
-        let p = h.into_layer(ViewId::SOURCE);
+        let p = h.into_layer(true, ViewId::SOURCE);
         assert_eq!(p.check(), Ok(()));
         let rows: Vec<_> = p.mentions().map(|m| (m.span.start, m.span.end, m.kind, m.normalized.to_owned())).collect();
         assert_eq!(
@@ -119,19 +131,43 @@ mod tests {
         );
     }
 
-    fn resolved(adds: &[(u32, u32, PiiKind, &str)]) -> Vec<(u32, u32, PiiKind, String)> {
+    fn resolved_with(keep_nested: bool, adds: &[(u32, u32, PiiKind, &str)]) -> Vec<(u32, u32, PiiKind, String)> {
         let mut h = Hits::default();
         for &(start, end, kind, value) in adds {
             h.add(start as usize, end as usize, kind, PiiConfidence::Format, |s| s.push_str(value));
         }
-        h.into_layer(ViewId::SOURCE)
+        h.into_layer(keep_nested, ViewId::SOURCE)
             .mentions()
             .map(|m| (m.span.start, m.span.end, m.kind, m.normalized.to_owned()))
             .collect()
     }
 
+    fn resolved(adds: &[(u32, u32, PiiKind, &str)]) -> Vec<(u32, u32, PiiKind, String)> {
+        resolved_with(true, adds)
+    }
+
     fn row(start: u32, end: u32, kind: PiiKind, value: &str) -> (u32, u32, PiiKind, String) {
         (start, end, kind, value.to_owned())
+    }
+
+    #[test]
+    fn nested_candidates_drop_by_default_and_same_or_crossing_spans_stay() {
+        use PiiKind::*;
+        // Prefix, interior and suffix spans inside 2..10 drop; a second
+        // kind on 2..10 and a crossing span 8..14 stay.
+        let adds = [
+            (2, 10, Iban, "iban"),
+            (2, 10, Card, "same-span"),
+            (2, 6, Phone, "prefix"),
+            (4, 8, Phone, "interior"),
+            (4, 10, UkNhs, "suffix"),
+            (8, 14, Email, "crossing"),
+            (9, 12, Phone, "inside-crossing"),
+        ];
+        assert_eq!(
+            resolved_with(false, &adds),
+            [row(2, 10, Iban, "iban"), row(2, 10, Card, "same-span"), row(8, 14, Email, "crossing")]
+        );
     }
 
     #[test]

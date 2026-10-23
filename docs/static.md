@@ -292,6 +292,11 @@ and the numbers, which the tool fills), the quality texts among its
 }
 ```
 
+`skip` accepts only `PREFIX\d+SUFFIX`: literal edges and one non-empty
+run of ASCII digits. Escape ASCII punctuation with a backslash (for
+example `\[` or `\.`). Other regex constructs are errors that name the
+pattern. Matching covers the entire token; non-ASCII digits do not match.
+
 The tokenizer block must be the base bundle's with the template
 `["$TEXT"]`. The steps:
 
