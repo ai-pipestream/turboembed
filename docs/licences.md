@@ -106,8 +106,8 @@ data (MASC's, the treebank's, Tatoeba's, or for the web language
 detector Tatoeba's, FineWeb-2's and FineWeb's under ODC-By 1.0) is in
 each model's card
 (the `attribution` field, published as `<model id>.card.json` beside the
-model) and in the release notes; the zoo's entries have no field for
-it. The language detectors name the sentences they were trained on by
+model), in the release notes, and on the model's entry in the zoo index
+(`attribution`, shown by `turbo-zoo show`). The language detectors name the sentences they were trained on by
 id in `training-sentences.txt`, which the zoo lists as each model's
 second file, and the web language detector names its documents
 (repository, file, row and FineWeb id) in `training-documents.txt`, its

@@ -169,6 +169,12 @@ impl Treebank {
             license_terms: parse("terms", &self.licence_terms()),
             trained_on: Vec::new(),
             class: class_of([self.licence]),
+            attribution: Some(format!(
+                "{} {UD_RELEASE} ({}, {}).",
+                self.repository,
+                self.licence,
+                self.licence_terms()
+            )),
             origin: None,
             files: vec![turbo_zoo::File {
                 path: parse("path", self.train_file),
