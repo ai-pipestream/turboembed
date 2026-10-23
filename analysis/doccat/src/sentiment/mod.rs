@@ -22,6 +22,7 @@
 
 pub mod aspect;
 mod detector;
+pub mod emotion;
 pub mod incivility;
 pub mod lexicon;
 mod model;
@@ -33,6 +34,10 @@ pub use aspect::{
     evaluate_absa_corpus, extract_triplets,
 };
 pub use detector::{SENTIMENT, Scratch, SentimentMe};
+pub use emotion::{
+    DEFAULT_EMOTION_THRESHOLD, EmotionAnnotator, EmotionHeadError, EmotionMetrics, EmotionStage, EmotionUnit,
+    EmotionVectorHead, EmotionVectorScorer, GoldEmotionUnit, evaluate_emotion_corpus,
+};
 pub use incivility::{
     DEFAULT_INCIVILITY_THRESHOLD, GoldIncivilityUnit, IncivilityAnnotator, IncivilityLexicon, IncivilityMetrics,
     IncivilityUnit, IncivilityVectorScorer, LabelMetrics, evaluate_incivility_corpus,

@@ -42,6 +42,7 @@ use crate::{
 mod boilerplate;
 mod calibrated;
 mod core_layers;
+mod emotion;
 mod helpers;
 mod indexes;
 mod lexical;
@@ -107,6 +108,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Opinions>()
         .register::<Aspects>()
         .register::<Incivility>()
+        .register::<crate::EmotionLayer>()
         .register::<Pragmatics>()
         .register::<Numbers>()
         .register::<Money>()
