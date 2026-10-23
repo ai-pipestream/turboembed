@@ -4898,3 +4898,6 @@ where one shortlist spans the whole corpus rather than one
 document. Qasper is cached only as a tarball (not BEIR jsonl for
 this reader), GutenQA only as parquet, and ConTEB and HiCBench are
 not cached; none of those four ran.
+
+The [cut-identity checker](chunker-cut-identity.md) compares flat chunk
+partitions across backend runs with optional DP runner-up margins.
