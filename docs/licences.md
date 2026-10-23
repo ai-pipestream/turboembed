@@ -184,8 +184,11 @@ of it.
 
 The SaT and GLiNER checkpoints docs/neural-annotators.md considers, and
 the GLiNER2 and GLiREL checkpoints the relation scorer considers
-(docs/gliner2-relations.md, docs/glirel-relations.md). Three are in the
-zoo's index: `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
+(docs/gliner2-relations.md, docs/glirel-relations.md), and the SQuAD 2.0
+checkpoint the extractive QA benchmarks run (docs/extractive-qa.md).
+Four are in the zoo's index: `deepset/roberta-base-squad2`
+(`deepset-roberta-base-squad2`, share-alike through its training data,
+fetched only after the user accepts CC BY-SA 4.0), `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
 permissive), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
 local-only, fetched from its publisher only after the user accepts CC
 BY-NC-SA 4.0), and GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
@@ -209,6 +212,7 @@ and GLiREL rows.
 | [microsoft/deberta-v3-large](https://huggingface.co/microsoft/deberta-v3-large) (`spm.model`, `config.json`) | `64a8c8eab3e352a784c658aef62be1662607476f` | MIT | | permissive; in the index | here |
 | [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
 | [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | refused by the class rule, for its training data: not shipped, bundled, listed in the index or trained on; a local reference that is scored, as `en-pos-maxent` is | here |
+| [deepset/roberta-base-squad2](https://huggingface.co/deepset/roberta-base-squad2) | `adc3b06f79f797d1c575d5479d6f5efe54a9e3b4` | CC BY 4.0 | [FacebookAI/roberta-base](https://huggingface.co/FacebookAI/roberta-base) (MIT); SQuAD 2.0 (CC BY-SA 4.0, under Datasets) | share-alike, by its training data: in the index, fetched after acceptance; not shipped or bundled; `bundle/recipes/roberta-base-squad2.json` makes a local bundle from it | here, 2026-10-23 |
 
 `dslim/bert-base-NER` is the checkpoint OpenNLP's `NameFinderDL` documents
 and the native token classifier in `turbo-namefind-dl` is compared with.
@@ -246,6 +250,7 @@ match the hub's LFS object ids at that revision.
 | [DaNE](https://github.com/alexandrainst/danlp) | Danish NER | CC BY-SA 4.0 | share-alike | | plan |
 | [Wikipedia](https://dumps.wikimedia.org/) | language detection | CC BY-SA 4.0 | share-alike | | plan |
 | [DBpedia-14](https://huggingface.co/datasets/fancyzhx/dbpedia_14) | document categorizer | CC BY-SA 3.0 and GFDL | share-alike | | plan |
+| [SQuAD 2.0](https://rajpurkar.github.io/SQuAD-explorer/) | extractive QA | CC BY-SA 4.0 | share-alike | the dev set `dev-v2.0.json` (4,370,528 bytes, SHA-256 `80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8`) is used for evaluation only (docs/extractive-qa.md); it is not in the repository | here, 2026-10-23 |
 | [UD_English-GUM r2.16](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_English-LinES r2.16](https://github.com/UniversalDependencies/UD_English-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_Swedish-LinES r2.16](https://github.com/UniversalDependencies/UD_Swedish-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |

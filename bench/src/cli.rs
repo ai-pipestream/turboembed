@@ -15,6 +15,15 @@ usage:
       or its max_seq), time one vector per row, one per chunk of --chunk
       text tokens (default 64) by ranges, and one per chunk embedded as a
       row of its own; write the record to <repo>/benchmarks/ranges
+  turbo-bench qa --bundle <dir> --questions <squad.json> [--device <d>]
+                 [--precision <p>] [--batch <n>] [--max-batch <n>]
+                 [--per-bin <n>] [--warmup <n>] [--iterations <n>]
+                 [--repo <dir>] [--out <dir>]
+      extractive QA questions per second on one device, by the context's
+      length in tokens (bins from 0, 128, 256 and 384), up to --per-bin
+      questions each (default 256), --batch questions per call (default
+      8), --max-batch windows per run (default the model's), precision
+      exact by default; write the record to <repo>/benchmarks/qa
   turbo-bench check <record.json>...
       parse records and say whether each backs SUPPORTED for its cell
 
