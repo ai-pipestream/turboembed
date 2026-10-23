@@ -151,8 +151,13 @@ fn rbf_and_sigmoid_kernels_read_their_parameters() {
     read(&rbf).predict_values(&[1], &[1.0], &mut s);
     // |x - sv0|^2 = 0, |x - sv1|^2 = 2.
     assert_eq!(s.decision_values(), [1.0 - (-0.5f64 * 2.0).exp() - 0.25]);
-    let sigmoid = LINEAR.replace("kernel_type linear\n", "kernel_type sigmoid\ngamma 0.5\ncoef0 -1.0\n");
-    assert_eq!(read(&sigmoid).kernel(), Kernel::Sigmoid { gamma: 0.5, coef0: -1.0 });
+    let sigmoid = LINEAR.replace("kernel_type linear\n", "kernel_type sigmoid\ngamma 0.2\ncoef0 0.0\n");
+    let m = read(&sigmoid);
+    assert_eq!(m.kernel(), Kernel::Sigmoid { gamma: 0.2, coef0: 0.0 });
+    // At x = [1:1.0], gamma * dot(x, sv0) + coef0 = 0.2, where StrictMath.tanh(0.2)
+    // is 0x3fc9439830b3a590 (1 ULP below glibc's tanh), and gamma * dot(x, sv1) + coef0 = 0.0.
+    m.predict_values(&[1], &[1.0], &mut s);
+    assert_eq!(s.decision_values()[0].to_bits(), (f64::from_bits(0x3FC9_4398_30B3_A590) - 0.25).to_bits());
 }
 
 #[test]

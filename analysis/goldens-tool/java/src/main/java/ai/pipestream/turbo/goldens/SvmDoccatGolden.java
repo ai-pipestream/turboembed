@@ -185,6 +185,8 @@ final class SvmDoccatGolden implements AnnotatorGolden {
         .kernel(SvmType.C_SVC, KernelType.POLYNOMIAL, 3, 0.5, 1));
     runs.add(Run.linear("topics-sigmoid-binary", "topics", TermWeightingStrategy.BINARY)
         .kernel(SvmType.C_SVC, KernelType.SIGMOID, 3, 0.05, 0));
+    runs.add(Run.linear("topics-sigmoid-tfidf", "topics", TermWeightingStrategy.TF_IDF)
+        .kernel(SvmType.C_SVC, KernelType.SIGMOID, 3, 0.05, -0.1));
     runs.add(Run.linear("topics-nu-linear-tfidf", "topics", TermWeightingStrategy.TF_IDF)
         .kernel(SvmType.NU_SVC, KernelType.LINEAR, 3, 0, 0));
     runs.add(Run.linear("topics-nu-rbf-lognorm", "topics", TermWeightingStrategy.LOG_NORMALIZED_TF)
