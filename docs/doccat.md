@@ -279,11 +279,15 @@ each, 34,200 in all, empty documents and unknown tokens among them:
 | Decision values, linear kernel | 100,800 of 100,800 | none |
 | Decision values, polynomial kernel | 16,800 of 16,800 | none |
 | Decision values, RBF kernel | 25,033 of 25,200 | 1.42e-14 |
-| Decision values, sigmoid kernel | 16,800 of 16,800 | none |
+| Decision values, sigmoid kernel | 16,759 of 16,800 (before `strict_math::tanh`) | 2.2e-16 |
 | Probabilities | 113,294 of 114,000 | 4.94e-15 |
 
 `getAllResults` gave the JVM's string wherever the probabilities had the
-JVM's bits.
+JVM's bits. The wider scratch check above was recorded when the sigmoid
+kernel still called `f64::tanh`; with `k_function` calling
+`turbo_jvm::strict_math::tanh` (verified bit-exact across all committed
+sigmoid golden predictions in `topics-sigmoid-tfidf`), the sigmoid kernel
+matches JDK 21's `Math.tanh` and `StrictMath.tanh` to the bit.
 
 ### Tolerances
 
@@ -309,9 +313,9 @@ JVM's bits.
 `Math.exp` on HotSpot is an intrinsic, not fdlibm: `StrictMath.exp`
 (fdlibm, which `turbo-jvm` ports) differed from it on 192,922 of the same
 arguments, so the fdlibm port would be further from the JVM than the
-platform's `exp`. `Math.tanh` and `StrictMath.tanh` agreed on every
-argument, so `turbo-jvm`'s port of fdlibm's `tanh` makes the sigmoid
-kernel exact.
+platform's `exp`. On JDK 21, HotSpot's `Math.tanh` delegates to
+`StrictMath.tanh` and agreed with it on every tested argument, so
+`turbo-jvm`'s port of fdlibm's `tanh` makes the sigmoid kernel exact.
 
 ## Why an SVM port and not linfa-svm
 
