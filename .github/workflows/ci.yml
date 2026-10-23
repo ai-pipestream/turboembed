@@ -160,8 +160,14 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      # One package at a time: `cargo fmt --all` passes every file to one
+      # rustfmt and passes the Windows command line limit (os error 206).
       - name: fmt
-        run: cargo fmt --all --check
+        shell: bash
+        run: |
+          for p in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name' | tr -d '\r'); do
+            cargo fmt -p "$p" --check || exit 1
+          done
       - name: clippy
         run: cargo clippy --workspace --all-targets
       - name: clippy (fuzz)
