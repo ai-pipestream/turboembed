@@ -261,16 +261,12 @@ jobs:
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       # --no-fail-fast: a Windows-only failure in one crate should not
       # hide another's. Skipped: two docker runner tests (unix exit status
-      # text, unix mount paths; the docker runners are Linux-only) and two
-      # MASC split tests whose expected paths use the host separator
-      # (#1011).
+      # text, unix mount paths; the docker runners are Linux-only).
       - name: test
         run: >-
           cargo test --workspace --exclude turbo --no-fail-fast --
           --skip a_program_that_fails_is_a_reason_and_docker_failing_is_an_error
           --skip the_two_runs_make_one_measured_reference
-          --skip the_split_holds_out_every_tenth_document_in_read_order
-          --skip the_twitter_genre_is_left_out_of_both_sides_and_moves_no_other_document
       # Its own target directory, as in the check job (#358).
       - name: test (core)
         env:
