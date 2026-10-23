@@ -241,6 +241,12 @@ published recipe rather than a record of the run. The SaT paper
 (section 4.2) also says the mixture includes UD training sets. Under the
 class rule, `sat-1l-sm` and `sat-12l-sm` are local-only.
 
+`bundle/recipes/sat-1l-sm.json` seals `sat-1l-sm` with BAAI/bge-m3's
+`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`,
+whose model card declares MIT (checked on 2026-10-23 from the hub's
+model API). It is XLM-R's vocabulary in the form the core reads
+(docs/neural-annotators.md, "Against wtpsplit").
+
 `dslim/bert-base-NER` is the checkpoint OpenNLP's `NameFinderDL` documents
 and the native token classifier in `turbo-namefind-dl` is compared with.
 It was fetched on 2026-10-22 from the hub at the revision above, by hand,

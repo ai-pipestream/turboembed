@@ -1,7 +1,7 @@
 //! Every word boundary of the dictionary segmenter falls on an extended
 //! grapheme cluster boundary.
 
-use turbo_tokenize::complex::{ComplexScript, bundled, complex_script};
+use turbo_tokenize::complex::{ComplexScript, bundled, bundled_dictionaries, bundled_lstms, complex_script};
 use turbo_unicode::grapheme_boundaries;
 
 /// A small deterministic generator (xorshift64*), so the cases are the same on every run.
@@ -35,7 +35,7 @@ const OTHERS: [char; 8] = [' ', 'a', '1', '\u{200C}', '\u{200D}', '\u{0300}', '.
 
 fn words(script: ComplexScript) -> Vec<String> {
     let mut words = Vec::new();
-    bundled().dictionary(script).unwrap().for_each_word(|w| words.push(w.to_owned()));
+    bundled_dictionaries().dictionary(script).unwrap().for_each_word(|w| words.push(w.to_owned()));
     words
 }
 
@@ -43,14 +43,16 @@ fn words(script: ComplexScript) -> Vec<String> {
 /// the text, and every boundary is a grapheme cluster boundary.
 fn check(text: &str) {
     let graphemes: Vec<usize> = grapheme_boundaries(text).collect();
-    let mut previous = 0u32;
-    bundled().for_each_segment(text, |start, end| {
-        assert_eq!(start, previous, "{text:?}");
-        assert!(start < end, "{text:?}");
-        previous = end;
-        assert!(graphemes.binary_search(&(end as usize)).is_ok(), "{end} in {text:?} ({})", text.escape_unicode());
-    });
-    assert_eq!(previous as usize, text.len(), "{text:?}");
+    for segmenter in [bundled(), bundled_dictionaries(), bundled_lstms()] {
+        let mut previous = 0u32;
+        segmenter.for_each_segment(text, |start, end| {
+            assert_eq!(start, previous, "{text:?}");
+            assert!(start < end, "{text:?}");
+            previous = end;
+            assert!(graphemes.binary_search(&(end as usize)).is_ok(), "{end} in {text:?} ({})", text.escape_unicode());
+        });
+        assert_eq!(previous as usize, text.len(), "{text:?}");
+    }
 }
 
 #[test]

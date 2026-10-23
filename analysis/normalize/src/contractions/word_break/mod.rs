@@ -14,53 +14,12 @@
 //! and gives the same answer as the forward pass. The conformance test
 //! runs Unicode's WordBreakTest.txt through it.
 
-mod table;
+use turbo_unicode::word_break::{WordBreak, WordBreak::*, is_extended_pictographic, word_break as unicode_word_break};
 
-use std::cmp::Ordering;
-
-/// The Word_Break property values (UAX #29, table 3), `Other` for every
-/// code point the property file does not list.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum WordBreak {
-    Other,
-    Cr,
-    Lf,
-    Newline,
-    Extend,
-    Zwj,
-    RegionalIndicator,
-    Format,
-    Katakana,
-    HebrewLetter,
-    ALetter,
-    SingleQuote,
-    DoubleQuote,
-    MidNumLet,
-    MidLetter,
-    MidNum,
-    Numeric,
-    ExtendNumLet,
-    WSegSpace,
-}
-
-use WordBreak::*;
-
-/// The Word_Break value of `c`.
+/// The `Word_Break` value of `c`, from `turbo_unicode::word_break`.
+#[inline]
 pub(crate) fn word_break(c: char) -> WordBreak {
-    let cp = u32::from(c);
-    if cp < 0x80 {
-        return table::ASCII[cp as usize];
-    }
-    let found = table::RANGES.binary_search_by(|&(first, last, _)| {
-        if last < cp {
-            Ordering::Less
-        } else if first > cp {
-            Ordering::Greater
-        } else {
-            Ordering::Equal
-        }
-    });
-    found.map_or(Other, |k| table::RANGES[k].2)
+    unicode_word_break(u32::from(c))
 }
 
 /// Extend, Format and ZWJ: the classes WB4 attaches to the character
@@ -125,7 +84,7 @@ fn newline_and_attachment_rules(prev: WordBreak, current: WordBreak, c: char) ->
     if matches!(current, Cr | Lf | Newline) {
         return Some(true); // WB3b
     }
-    if prev == Zwj && turbo_unicode::props::extended_pictographic(c) {
+    if prev == Zwj && is_extended_pictographic(u32::from(c)) {
         return Some(false); // WB3c
     }
     if prev == WSegSpace && current == WSegSpace {
@@ -183,30 +142,6 @@ mod tests {
     const PROPERTY_FILE: &str = include_str!("../../../tests/data/WordBreakProperty-18.0.0.txt");
     const TEST_FILE: &str = include_str!("../../../tests/data/WordBreakTest-18.0.0.txt");
 
-    fn value(name: &str) -> WordBreak {
-        match name {
-            "CR" => Cr,
-            "LF" => Lf,
-            "Newline" => Newline,
-            "Extend" => Extend,
-            "ZWJ" => Zwj,
-            "Regional_Indicator" => RegionalIndicator,
-            "Format" => Format,
-            "Katakana" => Katakana,
-            "Hebrew_Letter" => HebrewLetter,
-            "ALetter" => ALetter,
-            "Single_Quote" => SingleQuote,
-            "Double_Quote" => DoubleQuote,
-            "MidNumLet" => MidNumLet,
-            "MidLetter" => MidLetter,
-            "MidNum" => MidNum,
-            "Numeric" => Numeric,
-            "ExtendNumLet" => ExtendNumLet,
-            "WSegSpace" => WSegSpace,
-            other => panic!("unknown Word_Break value {other}"),
-        }
-    }
-
     #[test]
     fn table_matches_the_property_file() {
         let mut expected = vec![Other; 0x11_0000];
@@ -223,8 +158,10 @@ mod tests {
                     (a, a)
                 }
             };
+            let prop = WordBreak::from_property_name(name.trim())
+                .unwrap_or_else(|| panic!("unknown Word_Break value {}", name.trim()));
             for cp in first..=last {
-                expected[cp as usize] = value(name.trim());
+                expected[cp as usize] = prop;
             }
         }
         for (cp, &want) in expected.iter().enumerate() {
