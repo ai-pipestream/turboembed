@@ -102,8 +102,21 @@ final class NameFindGolden implements AnnotatorGolden {
         new NameFindGolden(Kind.DICTIONARY, dictionaries),
         new NameFindGolden(Kind.REGEX_BUILTIN, List.of()),
         new NameFindGolden(Kind.REGEX_FACTORY, List.of()),
-        new NameFindGolden(Kind.REGEX_USER, List.of(patterns)),
+        new NameFindGolden(Kind.REGEX_USER, List.of(patterns, ModelFile.read(dir.resolve("regex-boundaries.txt")))),
         new NameFindGolden(Kind.MERGE, dictionaries));
+  }
+
+  /** Regenerate regex-user alone, without loading unrelated statistical models. */
+  public static void main(String[] args) throws IOException {
+    if (args.length != 4) {
+      throw new IllegalArgumentException("fixtures input.txt output.golden opennlp-commit");
+    }
+    NameFindGolden run = all(Path.of(args[0])).stream().filter(a -> a.kind == Kind.REGEX_USER).findFirst().orElseThrow();
+    Input input = Input.read(Path.of(args[1]), SET, "sentences");
+    Header header = new Header(args[3], OpennlpVersion.read(), Jdk.current(), input.inputId(),
+        input.bytes().length, input.text().length(), Sha.sha256(input.bytes()), run.models(),
+        run.annotatorClass(), run.method(), run.config());
+    java.nio.file.Files.write(Path.of(args[2]), Main.golden(header, run, input));
   }
 
   @Override
@@ -297,6 +310,17 @@ final class NameFindGolden implements AnnotatorGolden {
         break;
       }
       sentences.put(e.getKey(), e.getValue());
+    }
+    // Dedicated tokens can contain line terminators, unlike the shared
+    // one-sentence-per-line input. Only \n and \r escapes are decoded.
+    String boundaries = new String(files.get(1).bytes(), java.nio.charset.StandardCharsets.UTF_8);
+    int boundary = 0;
+    for (String row : boundaries.split("\n")) {
+      String[] tokens = row.split("\t", -1);
+      for (int i = 0; i < tokens.length; i++) {
+        tokens[i] = tokens[i].replace("\\n", "\n").replace("\\r", "\r");
+      }
+      sentences.put("b" + boundary++, tokens);
     }
     Table patterns = new Table("turbo:patterns", "pattern:u32", "flags:str", "regex:str", "compiled:u32");
     Table names = new Table("turbo:pattern-names", "pattern:u32", "sentence:str", "start:u32", "end:u32", "type:str");
