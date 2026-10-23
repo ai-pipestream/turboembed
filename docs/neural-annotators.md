@@ -156,7 +156,9 @@ the fixtures from the same weights. The tokenizer is BAAI/bge-m3's
 (MIT): it has XLM-R's vocabulary and character map, in the Unigram form
 the core reads. `FacebookAI/xlm-roberta-base`'s own `tokenizer.json`
 names no model type, which the core refuses, so both sides read the
-bge-m3 file, as the tiny model's fixtures do.
+bge-m3 file, as the tiny model's fixtures do. The two files are not the
+same tokenizer pipeline, so this is wtpsplit with the bge-m3 file, not
+wtpsplit as it ships (below, "The released checkpoint's tokenizer").
 `a_released_checkpoint_matches_wtpsplit` in
 `analysis/sat/tests/parity.rs` runs the comparison when
 `TURBO_TEST_SAT_BUNDLE` names the bundle and `TURBO_TEST_SAT_FIXTURES`
@@ -187,6 +189,26 @@ What the step does differently, and why:
   U+0085 end words, which XLM-R's character map keeps), and no word
   start piece for whitespace at the end of a text. The core follows the
   file, so wtpsplit with transformers 5 gives other ids for such texts.
+- **The released checkpoint's tokenizer.** wtpsplit as it ships loads
+  `xlm-roberta-base`'s tokenizer, whose `tokenizer.json` (revision
+  `e73636d4f797dec63c3081bb6ed5c7b0bb3f2089`) splits at every Unicode
+  whitespace character before the word start piece (`WhitespaceSplit`,
+  then `Metaspace`), where bge-m3's collapses runs of spaces
+  (`Precompiled`, then a `Replace` of space runs) and splits only at
+  spaces (`Metaspace`). The core reads the second. With the first, the
+  reference's `segment` on `sat-1l-sm` at threshold 0.25, stride 64 and
+  block 510 gives other ids on 9 of the 90 texts: text that is only
+  whitespace (3), whitespace at either end (2), U+2028, U+2029 and
+  U+0085, the special-token strings, a source code text with line feeds
+  and indentation, and a long run of one word ending in a space. On 6 of
+  them a probability moves by more than 1e-3. On one, `Line one` U+2028
+  `Line two` U+2029 `Para two` U+0085 `Next line.`, the last two pieces
+  are one piece where the core gives two. On the other 84 texts the
+  probabilities are the same within 1e-3 and the pieces are the same.
+  Upstream's offsets there start before the space in front of a word
+  where the core's start after it; wtpsplit reads a token's score at its
+  end, so this does not move a probability. Reading `xlm-roberta-base`'s
+  file in the core would remove the difference.
 - **The prefix piece.** Before a text's first word, when no piece
   starts with that word's first characters, the tokenizer emits the
   bare word start `▁`. The core gives it an empty span, as it stands for

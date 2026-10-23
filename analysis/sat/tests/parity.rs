@@ -298,19 +298,26 @@ fn many_overlapping_windows_match_wtpsplit() {
 /// A released checkpoint against wtpsplit: TURBO_TEST_SAT_BUNDLE names a
 /// bundle sealed from it, and TURBO_TEST_SAT_FIXTURES the fixtures,
 /// separated by commas, that the reference's `segment` made from the same
-/// weights (analysis/sat/README.md). Each is held to the same checks as
-/// the tiny model's. Without both variables it says it was skipped.
+/// weights over tests/data/texts.jsonl (analysis/sat/README.md). Each is
+/// held to the tiny model's checks, with no character near the threshold
+/// and no more than the one text with a pad token in it left out. With
+/// neither variable set it says it was skipped; one alone is an error.
 #[test]
 fn a_released_checkpoint_matches_wtpsplit() {
-    let (Ok(bundle), Ok(fixtures)) = (std::env::var("TURBO_TEST_SAT_BUNDLE"), std::env::var("TURBO_TEST_SAT_FIXTURES"))
-    else {
-        println!("skipped: TURBO_TEST_SAT_BUNDLE and TURBO_TEST_SAT_FIXTURES are not both set");
-        return;
+    use std::env::VarError::NotPresent;
+    let (bundle, fixtures) = match (std::env::var("TURBO_TEST_SAT_BUNDLE"), std::env::var("TURBO_TEST_SAT_FIXTURES")) {
+        (Ok(b), Ok(f)) => (b, f),
+        (Err(NotPresent), Err(NotPresent)) => {
+            println!("skipped: TURBO_TEST_SAT_BUNDLE and TURBO_TEST_SAT_FIXTURES are not set");
+            return;
+        }
+        (b, f) => panic!("TURBO_TEST_SAT_BUNDLE ({b:?}) and TURBO_TEST_SAT_FIXTURES ({f:?}) go together"),
     };
     for path in fixtures.split(',') {
         let s = compare_at(Path::new(path), Path::new(&bundle));
         eprintln!("{path}: {s:?}");
-        assert!(s.texts > 0, "{path}: no texts");
+        assert_eq!((s.texts, s.near_threshold, s.widened), (90, 0, 6), "{path}: texts, near the threshold, widened");
+        assert!(s.pad_in_text <= 1, "{path}: {} texts compared for their tokens only", s.pad_in_text);
     }
 }
 
