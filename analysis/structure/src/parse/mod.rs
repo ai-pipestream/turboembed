@@ -104,9 +104,6 @@ pub(crate) struct Parser<'a> {
     runs: Vec<(usize, usize)>,
     cells: Vec<(usize, usize)>,
     column_starts: Vec<usize>,
-    /// Last separator offsets on the previous/current physical lines.
-    /// Compare them with the content bounds after matching containers.
-    column_separators: [Option<usize>; 2],
 }
 
 /// A depth, at most 255.
@@ -164,7 +161,6 @@ impl<'a> Parser<'a> {
             runs: Vec::new(),
             cells: Vec::new(),
             column_starts: Vec::new(),
-            column_separators: [None; 2],
         }
     }
 
@@ -175,17 +171,8 @@ impl<'a> Parser<'a> {
         if self.markdown {
             from = front_matter(self.text, from);
         }
-        if self.markdown {
-            for (start, end) in Lines::new(self.text, from) {
-                self.line(start, end);
-            }
-        } else {
-            let (mut lines, mut previous) = (Lines::new(self.text, from), None);
-            while let Some((start, end, columns)) = lines.next_columns() {
-                self.column_separators = [previous, columns];
-                self.line(start, end);
-                previous = columns;
-            }
+        for (start, end) in Lines::new(self.text, from) {
+            self.line(start, end);
         }
         self.close_leaf();
         self.close_containers(0);

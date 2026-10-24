@@ -22,87 +22,40 @@ impl<'a> Lines<'a> {
     pub(crate) fn at(&self) -> usize {
         self.at
     }
-
-    /// Plain text also records potential column separators while finding
-    /// the line break, so table detection need not rescan either line.
-    pub(crate) fn next_columns(&mut self) -> Option<(usize, usize, Option<usize>)> {
-        self.next_line::<true>()
-    }
-
-    fn next_line<const COLUMNS: bool>(&mut self) -> Option<(usize, usize, Option<usize>)> {
-        let b = self.text.as_bytes();
-        if self.at >= b.len() {
-            return None;
-        }
-        let start = self.at;
-        let (end, columns) = line_end::<COLUMNS>(&b[start..]);
-        let end = end.map_or(b.len(), |k| start + k);
-        self.at = match b.get(end) {
-            Some(b'\r') if b.get(end + 1) == Some(&b'\n') => end + 2,
-            Some(_) => end + 1,
-            None => end,
-        };
-        Some((start, end, columns.map(|at| start + at)))
-    }
 }
 
 impl Iterator for Lines<'_> {
     type Item = (usize, usize);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_line::<false>().map(|(start, end, _)| (start, end))
+    fn next(&mut self) -> Option<(usize, usize)> {
+        let b = self.text.as_bytes();
+        if self.at >= b.len() {
+            return None;
+        }
+        let start = self.at;
+        let end = line_end(&b[start..]).map_or(b.len(), |k| start + k);
+        self.at = match b.get(end) {
+            Some(b'\r') if b.get(end + 1) == Some(&b'\n') => end + 2,
+            Some(_) => end + 1,
+            None => end,
+        };
+        Some((start, end))
     }
 }
 
 /// Search eight bytes at a time without reading past the slice. The
 /// zero-byte test only selects a candidate word; byte order does not
 /// matter, and the exact first CR or LF is then found in that word.
-fn line_end<const COLUMNS: bool>(bytes: &[u8]) -> (Option<usize>, Option<usize>) {
-    let zero = |x: u64| x.wrapping_sub(0x0101_0101_0101_0101) & !x & 0x8080_8080_8080_8080;
-    let (mut columns, mut space) = (None, false);
+fn line_end(bytes: &[u8]) -> Option<usize> {
+    let zero = |x: u64| x.wrapping_sub(0x0101_0101_0101_0101) & !x & 0x8080_8080_8080_8080 != 0;
     let (chunks, tail) = bytes.as_chunks::<8>();
     for (i, chunk) in chunks.iter().enumerate() {
-        let word = u64::from_le_bytes(*chunk);
-        if zero(word ^ 0x0a0a_0a0a_0a0a_0a0a) != 0 || zero(word ^ 0x0d0d_0d0d_0d0d_0d0d) != 0 {
-            for (at, &byte) in chunk.iter().enumerate() {
-                if matches!(byte, b'\r' | b'\n') {
-                    return (Some(i * 8 + at), columns);
-                }
-                if COLUMNS {
-                    if byte == b'\t' || (space && byte == b' ') {
-                        columns = Some(i * 8 + at - usize::from(byte == b' '));
-                    }
-                    space = byte == b' ';
-                }
-            }
-        }
-        if COLUMNS {
-            let spaces = zero(word ^ 0x2020_2020_2020_2020);
-            // A borrow can mark the byte after a space: confirm pairs.
-            if space && chunk[0] == b' ' {
-                columns = Some(i * 8 - 1);
-            }
-            let tab =
-                (zero(word ^ 0x0909_0909_0909_0909) != 0).then(|| chunk.iter().rposition(|&b| b == b'\t')).flatten();
-            let pair = (spaces & (spaces >> 8) != 0).then(|| chunk.windows(2).rposition(|b| b == b"  ")).flatten();
-            if let Some(at) = tab.into_iter().chain(pair).max() {
-                columns = Some(i * 8 + at);
-            }
-            space = chunk[7] == b' ';
+        let word = u64::from_ne_bytes(*chunk);
+        if zero(word ^ 0x0a0a_0a0a_0a0a_0a0a) || zero(word ^ 0x0d0d_0d0d_0d0d_0d0d) {
+            return chunk.iter().position(|&b| b == b'\r' || b == b'\n').map(|at| i * 8 + at);
         }
     }
-    for (at, &byte) in tail.iter().enumerate() {
-        if matches!(byte, b'\r' | b'\n') {
-            return (Some(bytes.len() - tail.len() + at), columns);
-        }
-        if COLUMNS {
-            if byte == b'\t' || (space && byte == b' ') {
-                columns = Some(bytes.len() - tail.len() + at - usize::from(byte == b' '));
-            }
-            space = byte == b' ';
-        }
-    }
-    (None, columns)
+    tail.iter().position(|&b| b == b'\r' || b == b'\n').map(|at| bytes.len() - tail.len() + at)
 }
 
 /// A position in one line, in bytes and in columns. A tab that is only
@@ -224,45 +177,5 @@ mod tests {
         assert_eq!(c.indent(), (2, 2));
         c.skip_cols(2);
         assert_eq!((c.pos, c.col, c.indent()), (2, 4, (0, 2)));
-    }
-    #[test]
-    fn separator_scan_agrees_on_document_lines_and_word_boundaries() {
-        let candidate = |s: &str| Lines::new(s, 0).next_columns().is_some_and(|(_, _, at)| at.is_some());
-        for text in [include_str!("../../../docs/analysis.md"), "é\t茶  coffee\r\nspace ! café"] {
-            for line in text.lines() {
-                for padding in 0..8 {
-                    let line = "x".repeat(padding) + line;
-                    assert_eq!(candidate(&line), line.contains("  ") || line.contains('\t'), "{line:?}");
-                }
-            }
-        }
-        for boundary in 0..24 {
-            for separator in ["  ", "\t", " !", "\u{100}", " ", ""] {
-                let line = "x".repeat(boundary) + separator + "tail";
-                assert_eq!(candidate(&line), line.contains("  ") || line.contains('\t'), "{line:?}");
-            }
-        }
-    }
-
-    #[test]
-    fn separator_hints_stop_at_each_cr_lf_or_crlf() {
-        let document = include_str!("../../../docs/analysis.md");
-        for text in [document.to_owned(), document.replace('\n', "\r\n"), document.replace('\n', "\r")] {
-            let mut lines = Lines::new(&text, 0);
-            while let Some((a, b, columns)) = lines.next_columns() {
-                let line = &text[a..b];
-                let last = line.rfind("  ").into_iter().chain(line.rfind('\t')).max().map(|at| a + at);
-                assert_eq!(columns, last, "{line:?}");
-            }
-        }
-        for boundary in 0..24 {
-            let text = "é".repeat(boundary) + " \r\nnext\tcolumn\nno  rescan\rfinal";
-            let mut lines = Lines::new(&text, 0);
-            while let Some((a, b, columns)) = lines.next_columns() {
-                let line = &text[a..b];
-                let last = line.rfind("  ").into_iter().chain(line.rfind('\t')).max().map(|at| a + at);
-                assert_eq!(columns, last, "{line:?}");
-            }
-        }
     }
 }

@@ -2,6 +2,9 @@
 //! or more spaces (or a tab), with matching column starts on each row.
 //! Columns count Unicode scalars and tab stops of four, not display width.
 
+mod scan;
+pub(crate) use scan::candidate;
+
 pub(crate) fn cells(text: &str, start: usize, end: usize) -> impl Iterator<Item = (usize, (usize, usize))> + '_ {
     let mut chars = text[start..end].char_indices();
     let mut col = 0;
