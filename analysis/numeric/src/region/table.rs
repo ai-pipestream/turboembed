@@ -136,7 +136,7 @@ pub(crate) const REGION_CONFIGS: [RegionConfig; 143] = [
     (*b"NR", US, US, Some(('\u{0024}', code(b"AUD")))),
     (*b"NU", US, US, Some(('\u{0024}', code(b"NZD")))),
     (*b"NZ", US, US, Some(('\u{0024}', code(b"NZD")))),
-    (*b"PE", EU, EU, None),
+    (*b"PE", US, US, None),
     (*b"PH", US, US, Some(('\u{20B1}', code(b"PHP")))),
     (*b"PL", EU, EU, None),
     (*b"PM", EU, US, Some(('\u{20AC}', code(b"EUR")))),

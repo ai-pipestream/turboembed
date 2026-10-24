@@ -40,6 +40,13 @@ fn locale_notation_matches_opennlp_number_notation_test_vectors() {
         ("hi-IN", NumberNotation::LatinUs),
         ("en-CA", NumberNotation::LatinUs),
         ("es-419", NumberNotation::LatinUs),
+        ("es-419-u-nu-latn", NumberNotation::LatinUs),
+        ("de-CH", NumberNotation::LatinUs),
+        ("de-Latn-CH", NumberNotation::LatinUs),
+        ("de-CH-u-nu-latn", NumberNotation::LatinUs),
+        ("de-CH-1996", NumberNotation::LatinUs),
+        ("es-PE", NumberNotation::LatinUs),
+        ("PE", NumberNotation::LatinUs),
         ("de-DE", NumberNotation::LatinEu),
         ("fr-FR", NumberNotation::LatinEu),
         ("it-IT", NumberNotation::LatinEu),
@@ -58,6 +65,44 @@ fn locale_notation_matches_opennlp_number_notation_test_vectors() {
         assert_eq!(locale_notation(tag), expected, "locale {tag:?}");
         assert_eq!(NumberScanner::for_locale(tag).notation, expected, "scanner {tag:?}");
         assert_eq!(QuantityExtractor::for_locale(tag).notation(), expected, "quantity {tag:?}");
+    }
+
+    for (cc, main_locale) in [
+        ("AL", "sq-AL"),
+        ("BA", "bs-BA"),
+        ("BE", "nl-BE"),
+        ("BG", "bg-BG"),
+        ("BO", "es-BO"),
+        ("BR", "pt-BR"),
+        ("BY", "be-BY"),
+        ("CZ", "cs-CZ"),
+        ("DE", "de-DE"),
+        ("DK", "da-DK"),
+        ("ES", "es-ES"),
+        ("FR", "fr-FR"),
+        ("GR", "el-GR"),
+        ("HU", "hu-HU"),
+        ("ID", "id-ID"),
+        ("IS", "is-IS"),
+        ("IT", "it-IT"),
+        ("MD", "ro-MD"),
+        ("MK", "mk-MK"),
+        ("NL", "nl-NL"),
+        ("NO", "nb-NO"),
+        ("PE", "es-PE"),
+        ("PL", "pl-PL"),
+        ("PT", "pt-PT"),
+        ("PY", "es-PY"),
+        ("RO", "ro-RO"),
+        ("RS", "sr-RS"),
+        ("RU", "ru-RU"),
+        ("SE", "sv-SE"),
+        ("US", "en-US"),
+        ("VE", "es-VE"),
+        ("ZA", "af-ZA"),
+    ] {
+        let rc = RegionCode::parse(cc).unwrap();
+        assert_eq!(region_notation(rc), locale_notation(main_locale), "{cc} vs {main_locale}");
     }
 }
 

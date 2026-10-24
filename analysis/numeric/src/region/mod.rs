@@ -48,8 +48,8 @@ pub fn locale_notation(locale: &str) -> NumberNotation {
     }
     let mut parts = trimmed.split(['-', '_']);
     let first = parts.next().unwrap_or("");
-    let last = parts.next_back();
-    if last.is_none()
+    let rest: Vec<&str> = parts.collect();
+    if rest.is_empty()
         && first.len() == 2
         && first.bytes().all(|b| b.is_ascii_uppercase())
         && let Ok(rc) = RegionCode::parse(first)
@@ -57,8 +57,11 @@ pub fn locale_notation(locale: &str) -> NumberNotation {
         return region_notation(rc);
     }
     let lang = first.to_ascii_lowercase();
-    let country = last
-        .filter(|s| {
+    let country = rest
+        .iter()
+        .copied()
+        .take_while(|s| s.len() > 1)
+        .find(|s| {
             (s.len() == 2 && s.bytes().all(|b| b.is_ascii_alphabetic()))
                 || (s.len() == 3 && s.bytes().all(|b| b.is_ascii_digit()))
         })
