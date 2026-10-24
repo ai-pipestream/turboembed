@@ -5,12 +5,38 @@
 //! decoding the graph itself. Layers whose codecs are not in the
 //! server's registry are refused by name, never dropped silently.
 
-use turbo_analysis::export::{DocumentGraph, LayerRecord, StatusRecord, ViewRecord, export, import};
-use turbo_analysis_layers::export::codecs;
+use std::sync::OnceLock;
+
+use turbo_analysis::export::{Codecs, DocumentGraph, LayerRecord, StatusRecord, ViewRecord, export, import};
 
 use super::{MAX_GRAPH_BYTES, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result::{DocumentGraphRequest, DocumentGraphResponse, LayerInfo, LayerWireStatus, ViewInfo};
+
+/// Returns the cached workspace [`Codecs`] registry containing all
+/// first-party analysis layers.
+pub fn codecs() -> &'static Codecs {
+    static CODECS: OnceLock<Codecs> = OnceLock::new();
+    CODECS.get_or_init(|| {
+        let mut c = turbo_analysis_layers::export::codecs();
+        turbo_abbrev::export::register_codecs(&mut c);
+        turbo_chunker::export::register_codecs(&mut c);
+        turbo_coref::register_codecs(&mut c);
+        turbo_encoding_layers::export::register_codecs(&mut c);
+        turbo_entity_linker::register_codecs(&mut c);
+        turbo_geo::export::register_codecs(&mut c);
+        turbo_gliner::register_codecs(&mut c);
+        turbo_glossary_layers::export::register_codecs(&mut c);
+        turbo_group::export::register_codecs(&mut c);
+        turbo_keywords::register_codecs(&mut c);
+        turbo_normalize_layers::export::register_codecs(&mut c);
+        turbo_relation::export::register_codecs(&mut c);
+        turbo_schema_extract::export::register_codecs(&mut c);
+        turbo_stopword_layers::export::register_codecs(&mut c);
+        turbo_tokenize_layers::export::register_codecs(&mut c);
+        c
+    })
+}
 
 fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
@@ -59,8 +85,8 @@ pub fn round_trip_document(req: &DocumentGraphRequest) -> Result<DocumentGraphRe
     }
     let codecs = codecs();
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
-    let doc = import(&graph, &codecs).map_err(|e| bad(format!("document graph import: {e}")))?;
-    let out = export(&doc, &codecs).map_err(|e| bad(format!("document graph export: {e}")))?;
+    let doc = import(&graph, codecs).map_err(|e| bad(format!("document graph import: {e}")))?;
+    let out = export(&doc, codecs).map_err(|e| bad(format!("document graph export: {e}")))?;
     let bytes = out.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
     Ok(DocumentGraphResponse {
         graph: bytes,

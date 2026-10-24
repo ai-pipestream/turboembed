@@ -5,6 +5,7 @@
 //!
 //! The document's `Categories` hold every task's labels as `task: label`,
 //! task by task: each label's score is its probability within its task,
+//! whether or not it was chosen (a single-label task's scores sum to 1),
 //! the selected set is every task's chosen labels, and the best category
 //! the highest-scoring of them.
 
@@ -13,6 +14,7 @@ use turbo_analysis_layers::{Categories, Entities, Numbers, Pii, Tokens};
 use turbo_geo::Locations;
 use turbo_glossary_layers::GlossaryTerms;
 
+use crate::config_hash::config_hash;
 use crate::decode::{Corroborate, Extraction, FieldValue, decode};
 use crate::layer::{Records, source_code};
 use crate::model::Gliner2Extractor;
@@ -37,11 +39,8 @@ impl SchemaAnnotator {
         if extractor.model().id.is_empty() {
             return Err("a model with no id".into());
         }
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for b in format!("{schema:?}{threshold}").bytes() {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
-        }
-        Ok(SchemaAnnotator { extractor, schema, threshold, hash: h })
+        let hash = config_hash(&schema, threshold, extractor.limits(), extractor.max_width());
+        Ok(SchemaAnnotator { extractor, schema, threshold, hash })
     }
 
     pub fn schema(&self) -> &ExtractionSchema {
@@ -115,8 +114,10 @@ fn categories(schema: &ExtractionSchema, out: &Extraction) -> Categories {
     let mut scores = vec![0.0; names.len()];
     let mut selected = Vec::new();
     for c in &out.classifications {
-        for &(l, p, _) in &c.labels {
+        for (l, &p) in c.probs.iter().enumerate() {
             scores[first[c.task] + l] = f64::from(p);
+        }
+        for &(l, _, _) in &c.labels {
             selected.push(Tag((first[c.task] + l) as u16));
         }
     }

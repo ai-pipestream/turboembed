@@ -42,6 +42,7 @@ fn document() -> Document {
             cost: vec![0, 5],
             model_tokens: vec![3, 3],
             over_budget: vec![false, false],
+            prompt_overhead: 0,
         },
         by.clone(),
     )

@@ -24,6 +24,7 @@ use turbo_doccat::{
 };
 
 use crate::encoder::{Encoder, EncoderInfo, EncoderOptions, Rows};
+pub use crate::zeroshot::BundleNliScorer;
 
 struct SeqRun {
     encoder: Encoder,

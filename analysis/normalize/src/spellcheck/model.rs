@@ -125,7 +125,7 @@ impl From<ConfigError> for ModelError {
 }
 
 fn require_non_blank(value: &str, field: &'static str) -> Result<(), ModelError> {
-    if value.chars().all(java::is_whitespace) { Err(ModelError::Blank(field)) } else { Ok(()) }
+    if java::is_blank(value) { Err(ModelError::Blank(field)) } else { Ok(()) }
 }
 
 impl SymSpellModel {

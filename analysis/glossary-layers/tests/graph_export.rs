@@ -75,10 +75,49 @@ fn body(instance: &str, ranges: &[(u32, u32)], entries: &[(&str, &str)], entry: 
     w.finish()
 }
 
+fn body_with_spans(
+    spans: &[&[Span]],
+    instance: &str,
+    ranges: &[(u32, u32)],
+    entries: &[(&str, &str)],
+    entry: &[u32],
+) -> Vec<u8> {
+    let mut w = Writer::new();
+    w.str("").unwrap();
+    w.usize(spans.len()).unwrap();
+    for frags in spans {
+        w.usize(frags.len()).unwrap();
+        for s in *frags {
+            w.span(*s);
+        }
+    }
+    w.str("opennlp:tokens").unwrap();
+    w.str(instance).unwrap();
+    w.usize(ranges.len()).unwrap();
+    for &(a, b) in ranges {
+        w.u32(a);
+        w.u32(b);
+    }
+    w.usize(entries.len()).unwrap();
+    for &(id, term) in entries {
+        w.str(id).unwrap();
+        w.str(term).unwrap();
+    }
+    w.usize(entry.len()).unwrap();
+    for &e in entry {
+        w.u32(e);
+    }
+    w.finish()
+}
+
 fn splice(graph: &mut DocumentGraph, payload: Vec<u8>) {
+    splice_len(graph, payload, 1);
+}
+
+fn splice_len(graph: &mut DocumentGraph, payload: Vec<u8>, len: u32) {
     let at = graph.layers.iter().position(|l| l.layer == "turbo:glossary-terms").unwrap();
     graph.layers[at].body = Some(payload);
-    graph.layers[at].len = 1;
+    graph.layers[at].len = len;
 }
 
 #[test]
@@ -107,6 +146,40 @@ fn corrupted_glossary_terms_are_refused() {
     ] {
         let mut graph = base.clone();
         splice(&mut graph, payload);
+        assert!(import(&graph, &codecs()).is_err(), "{what} imported");
+    }
+
+    for (what, len, payload) in [
+        (
+            "reversed term spans",
+            2,
+            body_with_spans(
+                &[&[Span::new(8, 13)], &[Span::new(0, 7)]],
+                "",
+                &[(1, 1), (1, 1)],
+                &[("c1", "hot dog")],
+                &[0, 0],
+            ),
+        ),
+        (
+            "overlapping term spans",
+            2,
+            body_with_spans(
+                &[&[Span::new(0, 7)], &[Span::new(4, 13)]],
+                "",
+                &[(0, 1), (1, 2)],
+                &[("c1", "hot dog")],
+                &[0, 0],
+            ),
+        ),
+        (
+            "multi-segment term span",
+            1,
+            body_with_spans(&[&[Span::new(0, 3), Span::new(8, 13)]], "", &[(0, 1)], &[("c1", "hot dog")], &[0]),
+        ),
+    ] {
+        let mut graph = base.clone();
+        splice_len(&mut graph, payload, len);
         assert!(import(&graph, &codecs()).is_err(), "{what} imported");
     }
 }

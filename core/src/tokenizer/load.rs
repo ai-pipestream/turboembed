@@ -258,8 +258,29 @@ impl Tokenizer {
         let mut pieces = vec![Box::<str>::from(""); vocab_size as usize];
         kind.each_piece(|piece, id| pieces[id as usize] = piece.into());
         let e = m.encoder();
+        let rerank = m.rerank.clone().or_else(|| {
+            let a = m.architecture.as_ref()?;
+            if t.template.len() != 3 || t.template[1] != "$TEXT" {
+                return None;
+            }
+            let pair_template = match a.family {
+                crate::manifest::Family::Bert if a.token_types >= 2 => crate::manifest::PairTemplate::Bert,
+                crate::manifest::Family::Roberta => crate::manifest::PairTemplate::Roberta,
+                crate::manifest::Family::Bert => return None,
+            };
+            let specials = pair_template.specials();
+            if e.max_seq <= specials + 1 {
+                return None;
+            }
+            Some(crate::manifest::Rerank {
+                max_seq: e.max_seq,
+                max_batch: e.max_batch,
+                query_tokens: ((e.max_seq - specials) / 2).max(1),
+                pair_template,
+            })
+        });
         Ok(Tokenizer {
-            rerank: m.rerank.clone(),
+            rerank,
             kind,
             specials,
             normalized_specials,

@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer};
+use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, Reader, Writer};
 use turbo_analysis::{Anchor, Document, Groups, Ix, Layer};
 use turbo_analysis_layers::{Entities, Vectors};
 
@@ -332,6 +332,16 @@ impl LayerCodec for LinkedEntities {
             return Err(malformed("trailing bytes in LinkedEntities payload"));
         }
         layer.check().map_err(|detail| invalid(cx, detail))?;
+        // The layer is aligned to `Entities`: one row per entity of the
+        // instance this record's provenance resolves `Entities` to.
+        let entities = LayerRef {
+            layer: Entities::NAME.to_string(),
+            instance: cx.resolved_instance(&Entities::NAME.to_string()).to_owned(),
+        };
+        let want = cx.layer_len(&entities)?;
+        if layer.len() != want {
+            return Err(invalid(cx, format!("{} linked rows for an aligned Entities layer of {want}", layer.len())));
+        }
         Ok(layer)
     }
 }
