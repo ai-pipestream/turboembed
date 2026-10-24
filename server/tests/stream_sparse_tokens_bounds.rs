@@ -327,3 +327,40 @@ async fn embed_bundle_loads_without_eager_companion_and_vectors_batch_across_ign
     let got2 = by_id(stream2.half_close()).await;
     assert!(matches!(got2.get("tv1").unwrap(), Outcome::Failure(_)), "tv1: {:?}", got2.get("tv1"));
 }
+
+#[tokio::test]
+async fn lazy_companion_refuses_bundle_replaced_after_model_load() {
+    let replaced = matryoshka_bundle("replaced-manifest");
+    let (_s, mut c) = serve_models(vec![("replaced", &replaced.0)]).await;
+
+    // Mutate manifest.json after model load (simulating a bundle replacement on disk
+    // before the first structured request). The lazy companion must verify
+    // manifest_sha256 against the loaded encoder's pinned manifest fingerprint.
+    let mut m: Value = serde_json::from_slice(&fs::read(replaced.0.join("manifest.json")).unwrap()).unwrap();
+    m["model"]["id"] = json!("review/replaced-after-load");
+    m["model"]["revision"] = json!("replacement");
+    fs::write(replaced.0.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
+
+    let mut stream = open_stream(&mut c, 0, 0, 0).await;
+    send_typed(&mut stream, "vec-ok", "replaced", b"hello world", AnalyzeOutput::Vectors, ProtoOffsetMode::Utf8, None)
+        .await;
+    send_typed(
+        &mut stream,
+        "tv-mismatch",
+        "replaced",
+        b"hello world",
+        AnalyzeOutput::TokenVectors,
+        ProtoOffsetMode::Utf8,
+        None,
+    )
+    .await;
+    let got = by_id(stream.half_close()).await;
+    assert!(matches!(got.get("vec-ok").unwrap(), Outcome::Vectors(_)), "vec-ok: {:?}", got.get("vec-ok"));
+    match got.get("tv-mismatch").unwrap() {
+        Outcome::Failure(f) => {
+            assert_eq!(f.turbo_code, 1282, "expected TURBO_E_BUNDLE_INTEGRITY (1282), got {f:?}");
+            assert!(f.message.contains("manifest.json: SHA-256"), "message: {}", f.message);
+        }
+        other => panic!("tv-mismatch: {other:?}"),
+    }
+}

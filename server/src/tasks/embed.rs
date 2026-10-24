@@ -28,7 +28,8 @@ use turbo_analysis_embed::{ContextualTokens, Rows};
 use turbo_analysis_layers::{SparseTerms, Subwords, TokenVectorWindows, Vectors};
 
 use crate::api::{
-    Failure, Result, TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_SHAPE, TURBO_E_UNSUPPORTED_OPTION,
+    Failure, Result, TURBO_E_BUNDLE_INTEGRITY, TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_SHAPE,
+    TURBO_E_UNSUPPORTED_OPTION, field,
 };
 use crate::offsets::OffsetMode;
 use crate::proto::result::AnalyzeOutput;
@@ -62,6 +63,14 @@ impl EmbedModel {
     pub fn load(bundle_path: &str, info: &turbo_model_info) -> Result<Self> {
         let map_err = |e: turbo::status::Error| Failure::new(e.code, e.field, e.message);
         let bundle = Bundle::open(Path::new(bundle_path)).map_err(map_err)?;
+        let expected_sha = field(&info.manifest_sha256);
+        if bundle.manifest_sha256 != expected_sha {
+            let msg = format!(
+                "manifest.json: SHA-256 is {}, the loaded model was created from {expected_sha}",
+                bundle.manifest_sha256
+            );
+            return Err(Failure::new(TURBO_E_BUNDLE_INTEGRITY, 0, msg));
+        }
         let tokenizer = Tokenizer::load(&bundle).map_err(map_err)?;
         let projection = ProjectionHead::load_optional(&bundle).map_err(map_err)?;
         if let Some(proj) = &projection {
