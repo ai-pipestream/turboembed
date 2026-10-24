@@ -158,7 +158,7 @@ impl RuleSplitter {
     /// The splitter for a BCP 47 language tag, with every tailoring,
     /// [`LineBreaks::Paragraph`] and the bundled abbreviation inventory of
     /// the tag ([`AbbreviationInventories::for_language`]): every class for
-    /// English, none for a language without one. A tag the table does not
+    /// each bundled language, none for a language without one. A tag the table does not
     /// know gets the root rules.
     pub fn new(tag: &str) -> RuleSplitter {
         RuleSplitter {

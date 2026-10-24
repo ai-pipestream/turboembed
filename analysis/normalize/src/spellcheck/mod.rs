@@ -57,6 +57,10 @@ impl crate::noise::Dictionary for SymSpell {
     fn contains(&self, word: &str) -> bool {
         SymSpell::contains(self, word)
     }
+
+    fn config_hash(&self) -> u64 {
+        self.fingerprint()
+    }
 }
 
 #[cfg(test)]

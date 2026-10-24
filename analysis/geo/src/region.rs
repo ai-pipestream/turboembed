@@ -52,7 +52,8 @@ impl CountryNameScratch {
 /// The one country-name normalization both region votes and
 /// spatial scoring use: NFKC, curly apostrophes read as `'`,
 /// whitespace collapsed to one space, lowercased, trimmed of
-/// non-alphanumerics at the ends; when that names no country,
+/// whitespace at the ends (table keys keep meaningful
+/// punctuation, as in `myanmar (burma)`); when that names no country,
 /// the same with non-spacing marks stripped.
 pub(crate) fn country_code_for_name(raw: &str, buf_a: &mut String, buf_b: &mut String) -> Option<RegionCode> {
     buf_a.clear();
@@ -72,7 +73,7 @@ pub(crate) fn country_code_for_name(raw: &str, buf_a: &mut String, buf_b: &mut S
     }
     buf_a.clear();
     to_lowercase(buf_b, buf_a);
-    let normalized = buf_a.trim_matches(|c: char| !c.is_alphanumeric());
+    let normalized = buf_a.trim_matches(|c: char| c.is_whitespace());
     if normalized.is_empty() {
         return None;
     }
@@ -257,5 +258,12 @@ mod country_key_tests {
         let ci = super::country_code_for_name("C\u{00F4}te d\u{2019}Ivoire", &mut a, &mut b);
         assert!(ci.is_some());
         assert_eq!(super::country_code_for_name("C\u{00D4}TE D'IVOIRE", &mut a, &mut b), ci);
+    }
+
+    #[test]
+    fn parenthesized_country_names_keep_their_closing_paren() {
+        let (mut a, mut b) = (String::new(), String::new());
+        let mm = super::country_code_for_name("Myanmar (Burma)", &mut a, &mut b);
+        assert_eq!(mm.map(|c| c.as_str().to_string()), Some("MM".to_string()));
     }
 }

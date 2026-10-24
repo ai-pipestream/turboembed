@@ -101,7 +101,7 @@ pub fn extract_context_terms(text: &str) -> Vec<String> {
     let folded = fold_alias(text);
     folded
         .split_whitespace()
-        .filter(|w| (w.len() >= 2 || w.chars().all(|c| c.is_ascii_digit())) && !is_stop_word(w))
+        .filter(|w| (w.chars().count() >= 2 || w.chars().all(|c| c.is_ascii_digit())) && !is_stop_word(w))
         .map(str::to_owned)
         .collect()
 }
@@ -408,5 +408,14 @@ mod fold_alias_accent_tests {
         assert_eq!(super::fold_alias("\u{00DE}ingvellir"), "thingvellir");
         assert_eq!(super::fold_alias("\u{0126}amrun"), "hamrun");
         assert_eq!(super::fold_alias("S\u{00E3}o Paulo"), "sao paulo");
+    }
+}
+
+#[cfg(test)]
+mod char_count_tests {
+    #[test]
+    fn single_character_terms_drop_by_character_count() {
+        let terms = super::extract_context_terms("\u{4EAC} \u{00E9} a tokyo paris");
+        assert_eq!(terms, vec!["tokyo".to_string(), "paris".to_string()]);
     }
 }
