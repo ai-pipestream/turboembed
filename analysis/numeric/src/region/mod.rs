@@ -31,7 +31,7 @@ use crate::quantity::{DEFAULT_UNITS, QuantityExtractor, UnitError};
 /// [`NumberNotation::LatinUs`].
 pub fn region_notation(country_code: RegionCode) -> NumberNotation {
     let key = country_code.bytes();
-    match REGION_CONFIGS.binary_search_by_key(&key, |&(k, _, _)| k) {
+    match REGION_CONFIGS.binary_search_by_key(&key, |&(k, _, _, _)| k) {
         Ok(idx) => REGION_CONFIGS[idx].1,
         Err(_) => NumberNotation::LatinUs,
     }
@@ -39,8 +39,8 @@ pub fn region_notation(country_code: RegionCode) -> NumberNotation {
 
 /// Resolves the [`NumberNotation`] for a BCP-47 language tag or two-letter
 /// country code (`"en-US"`, `"de-DE"`, `"fr-FR"`, `"fr-CA"`, `"en-CA"`,
-/// `"pt-BR"`, `"es-ES"`, `"nl-NL"`, `"it-IT"`, `""`), following OpenNLP's
-/// `NumberNotation.forLocale(Locale)` on JDK 21.
+/// `"pt-BR"`, `"es-ES"`, `"es-419"`, `"nl-NL"`, `"it-IT"`, `""`), following
+/// OpenNLP's `NumberNotation.forLocale(Locale)` on JDK 21.
 pub fn locale_notation(locale: &str) -> NumberNotation {
     let trimmed = locale.trim();
     if trimmed.is_empty() {
@@ -48,8 +48,8 @@ pub fn locale_notation(locale: &str) -> NumberNotation {
     }
     let mut parts = trimmed.split(['-', '_']);
     let first = parts.next().unwrap_or("");
-    let last = parts.next_back();
-    if last.is_none()
+    let rest: Vec<&str> = parts.collect();
+    if rest.is_empty()
         && first.len() == 2
         && first.bytes().all(|b| b.is_ascii_uppercase())
         && let Ok(rc) = RegionCode::parse(first)
@@ -57,8 +57,15 @@ pub fn locale_notation(locale: &str) -> NumberNotation {
         return region_notation(rc);
     }
     let lang = first.to_ascii_lowercase();
-    let country =
-        last.filter(|s| s.len() == 2 && s.bytes().all(|b| b.is_ascii_alphabetic())).map(str::to_ascii_uppercase);
+    let country = rest
+        .iter()
+        .copied()
+        .take_while(|s| s.len() > 1)
+        .find(|s| {
+            (s.len() == 2 && s.bytes().all(|b| b.is_ascii_alphabetic()))
+                || (s.len() == 3 && s.bytes().all(|b| b.is_ascii_digit()))
+        })
+        .map(str::to_ascii_uppercase);
     match lang.as_str() {
         "af" | "az" | "be" | "bg" | "bs" | "ca" | "cs" | "da" | "el" | "et" | "eu" | "fi" | "fo" | "fr" | "gl"
         | "hr" | "hu" | "hy" | "id" | "is" | "ka" | "kk" | "ky" | "lb" | "lo" | "lt" | "lv" | "mk" | "nb" | "nl"
@@ -149,7 +156,10 @@ impl QuantityExtractor {
     }
 
     /// Builds a [`QuantityExtractor`] configured with the default unit set and
-    /// the [`NumberNotation`] of `locale` (BCP-47 language tag or country code).
+    /// the [`NumberNotation`] of `locale` (BCP-47 language tag or country code),
+    /// using [`MoneyExtractor::default`] (with `locale`'s notation) to exclude
+    /// money mentions. Use [`QuantityExtractor::for_region`] when the country's
+    /// currency symbol override should also apply.
     pub fn for_locale(locale: &str) -> QuantityExtractor {
         QuantityExtractor::new(locale_notation(locale))
     }
@@ -165,10 +175,10 @@ impl MoneyExtractor {
     /// [`DEFAULT_SYMBOLS`](crate::money::DEFAULT_SYMBOLS).
     pub fn for_region(country_code: RegionCode) -> MoneyExtractor {
         let key = country_code.bytes();
-        match REGION_CONFIGS.binary_search_by_key(&key, |&(k, _, _)| k) {
+        match REGION_CONFIGS.binary_search_by_key(&key, |&(k, _, _, _)| k) {
             Ok(idx) => match REGION_CONFIGS[idx] {
-                (_, notation, Some((sym, cur))) => {
-                    MoneyExtractor::new(notation).with_symbol(sym, cur).expect("checked JDK 21 currency symbol")
+                (_, _, money_notation, Some((sym, cur))) => {
+                    MoneyExtractor::new(money_notation).with_symbol(sym, cur).expect("checked JDK 21 currency symbol")
                 }
                 _ => MoneyExtractor::default(),
             },

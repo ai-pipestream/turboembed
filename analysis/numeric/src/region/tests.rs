@@ -20,7 +20,7 @@ fn run_one(a: &Analyzer, mut doc: Document) -> Document {
 #[test]
 fn region_configs_table_is_sorted_and_valid() {
     assert!(REGION_CONFIGS.windows(2).all(|w| w[0].0 < w[1].0));
-    for &(bytes, expected_notation, _) in &REGION_CONFIGS {
+    for &(bytes, expected_notation, _, _) in &REGION_CONFIGS {
         let rc = RegionCode::new(bytes).unwrap();
         assert_eq!(region_notation(rc), expected_notation);
         assert_eq!(NumberScanner::for_region(rc).notation, expected_notation);
@@ -39,6 +39,14 @@ fn locale_notation_matches_opennlp_number_notation_test_vectors() {
         ("zh-CN", NumberNotation::LatinUs),
         ("hi-IN", NumberNotation::LatinUs),
         ("en-CA", NumberNotation::LatinUs),
+        ("es-419", NumberNotation::LatinUs),
+        ("es-419-u-nu-latn", NumberNotation::LatinUs),
+        ("de-CH", NumberNotation::LatinUs),
+        ("de-Latn-CH", NumberNotation::LatinUs),
+        ("de-CH-u-nu-latn", NumberNotation::LatinUs),
+        ("de-CH-1996", NumberNotation::LatinUs),
+        ("es-PE", NumberNotation::LatinUs),
+        ("PE", NumberNotation::LatinUs),
         ("de-DE", NumberNotation::LatinEu),
         ("fr-FR", NumberNotation::LatinEu),
         ("it-IT", NumberNotation::LatinEu),
@@ -48,12 +56,53 @@ fn locale_notation_matches_opennlp_number_notation_test_vectors() {
         ("fr-CA", NumberNotation::LatinEu),
         ("", NumberNotation::LatinUs),
         ("DE", NumberNotation::LatinEu),
+        ("FR", NumberNotation::LatinEu),
+        ("ES", NumberNotation::LatinEu),
+        ("IT", NumberNotation::LatinEu),
         ("US", NumberNotation::LatinUs),
     ];
     for (tag, expected) in cases {
         assert_eq!(locale_notation(tag), expected, "locale {tag:?}");
         assert_eq!(NumberScanner::for_locale(tag).notation, expected, "scanner {tag:?}");
         assert_eq!(QuantityExtractor::for_locale(tag).notation(), expected, "quantity {tag:?}");
+    }
+
+    for (cc, main_locale) in [
+        ("AL", "sq-AL"),
+        ("BA", "bs-BA"),
+        ("BE", "nl-BE"),
+        ("BG", "bg-BG"),
+        ("BO", "es-BO"),
+        ("BR", "pt-BR"),
+        ("BY", "be-BY"),
+        ("CZ", "cs-CZ"),
+        ("DE", "de-DE"),
+        ("DK", "da-DK"),
+        ("ES", "es-ES"),
+        ("FR", "fr-FR"),
+        ("GR", "el-GR"),
+        ("HU", "hu-HU"),
+        ("ID", "id-ID"),
+        ("IS", "is-IS"),
+        ("IT", "it-IT"),
+        ("MD", "ro-MD"),
+        ("MK", "mk-MK"),
+        ("NL", "nl-NL"),
+        ("NO", "nb-NO"),
+        ("PE", "es-PE"),
+        ("PL", "pl-PL"),
+        ("PT", "pt-PT"),
+        ("PY", "es-PY"),
+        ("RO", "ro-RO"),
+        ("RS", "sr-RS"),
+        ("RU", "ru-RU"),
+        ("SE", "sv-SE"),
+        ("US", "en-US"),
+        ("VE", "es-VE"),
+        ("ZA", "af-ZA"),
+    ] {
+        let rc = RegionCode::parse(cc).unwrap();
+        assert_eq!(region_notation(rc), locale_notation(main_locale), "{cc} vs {main_locale}");
     }
 }
 
@@ -191,6 +240,19 @@ fn region_aware_numbers_and_quantities_read_regional_and_mixed_documents() {
     assert_eq!(us_qty.unit(Ix::new(0)), "kg");
     assert_eq!(us_qty.value(Ix::new(1)).to_plain_string(), "2500");
     assert_eq!(us_qty.unit(Ix::new(1)), "m");
+
+    // FR, ES, IT, PT, and GR ballots read LatinEu numbers and quantities (`1.234,5 kg`).
+    for cc in ["FR", "ES", "IT", "PT", "GR"] {
+        let eu_doc = run_one(&a, with_ballot("Le colis pese 1.234,5 kg.", &[(cc, 1.0)]));
+        let nums = eu_doc.get::<Numbers>().unwrap();
+        assert_eq!(nums.len(), 1, "region {cc}");
+        assert_eq!(nums.value(Ix::new(0)).to_plain_string(), "1234.5", "region {cc}");
+        assert_eq!(nums.notation[0], NumberNotation::LatinEu, "region {cc}");
+        let qty = eu_doc.get::<Quantities>().unwrap();
+        assert_eq!(qty.len(), 1, "region {cc}");
+        assert_eq!(qty.value(Ix::new(0)).to_plain_string(), "1234.5", "region {cc}");
+        assert_eq!(qty.unit(Ix::new(0)), "kg", "region {cc}");
+    }
 
     // A single mixed-region document carrying both DE and US votes on the ballot.
     let mixed = run_one(
