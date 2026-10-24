@@ -220,6 +220,7 @@ marginal drift, and words per second and call latency by sentences per
 call and by sentence length. The record on this model and the EWT test
 split is `benchmarks/records/postag/x86-64.cpu.postag.bilstm-crf.819328e7.90e41ce15c8c.json`; docs/analysis.md ("BiLSTM-CRF
 numerics") reads it.
+
 ### Bundle form
 
 `ONLP-BLPT-1` to `-5` stays the interchange format. For the device
