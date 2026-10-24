@@ -3739,6 +3739,7 @@
     {
       "id": "cross-encoder-nli-minilm2-l6-h768",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_ZERO_SHOT_CATEGORIZER",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
       "version": "b95119ce93d3e065de6214e38cd4a97b0f2f2c6d",

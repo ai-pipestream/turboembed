@@ -33,6 +33,7 @@ pub const BY_PATH: &[(&str, &str)] = &[
     ("roberta-base-squad2.json", "trained on SQuAD 2.0 (CC BY-SA 4.0); the zoo fetches it after acceptance"),
     ("dslim-bert-base-ner.json", "trained on CoNLL-2003, whose text is not under an open licence"),
     ("sat-1l-sm.json", "trained on UD treebanks of several licences, some share-alike"),
+    ("nli-minilm2-l6-h768.json", "trained on SNLI and MultiNLI (CC BY-SA); the zoo fetches it after acceptance"),
 ];
 
 /// The recipe of the model `id`, if the catalogue has it.

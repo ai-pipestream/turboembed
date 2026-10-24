@@ -32,6 +32,9 @@ constant_enum! {
         RelationExtractor => "COMPONENT_RELATION_EXTRACTOR",
         /// An answer span in a context, or none (SQuAD 2.0).
         ExtractiveQa => "COMPONENT_EXTRACTIVE_QA",
+        /// Labels a caller names, scored against a text by an NLI
+        /// cross-encoder (zero-shot categorization, docs/doccat.md).
+        ZeroShotCategorizer => "COMPONENT_ZERO_SHOT_CATEGORIZER",
     }
 }
 
