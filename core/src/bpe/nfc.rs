@@ -4,6 +4,7 @@
 
 use std::cell::Cell;
 
+use unicode_normalization_alignments::char::{canonical_combining_class, compose as char_compose, decompose_canonical};
 use unicode_normalization_alignments::{IsNormalized, UnicodeNormalization, is_nfc_quick};
 
 use crate::tokenizer::Span;
@@ -74,25 +75,52 @@ pub(super) fn aligned(piece: &str, base: usize, out: &mut String, mut sources: O
     copy(&piece[done..], base + done, out, &mut sources);
 }
 
+/// `run` in NFC, each character from every source character it holds a
+/// part of. NFC decomposes, puts marks in canonical order and composes;
+/// each step here carries the sources along, so a mark reordered past
+/// another and composed with the starter still counts, which the
+/// normalizer's own change counts cannot say.
 fn compose(run: &str, base: usize, out: &mut String, sources: &mut Option<&mut Vec<Span>>) {
     let Some(sources) = sources else {
         out.extend(run.nfc().map(|(c, _)| c));
         return;
     };
-    let starts: Vec<(usize, char)> = run.char_indices().collect();
-    let mut next = 0;
-    let mut last: Span = [base as u32; 2];
-    // A change of 0 is one character for one, -n one for n + 1, and 1
-    // one more beside the last.
-    for (c, change) in run.nfc() {
-        if change <= 0 && next < starts.len() {
-            let n = change.unsigned_abs().min(starts.len() - 1 - next);
-            let (z, zc) = starts[next + n];
-            last = [(base + starts[next].0) as u32, (base + z + zc.len_utf8()) as u32];
-            next += 1 + n;
+    let mut parts: Vec<(char, Span)> = Vec::with_capacity(run.len());
+    for (i, c) in run.char_indices() {
+        let from = [(base + i) as u32, (base + i + c.len_utf8()) as u32];
+        decompose_canonical(c, |d| parts.push((d, from)));
+    }
+    // Canonical order: a stable sort of each run of marks by class.
+    let mut i = 0;
+    while i < parts.len() {
+        let n = parts[i..].iter().take_while(|p| canonical_combining_class(p.0) != 0).count();
+        parts[i..i + n].sort_by_key(|p| canonical_combining_class(p.0));
+        i += n.max(1);
+    }
+    // Composition, as UAX #15 has it: a character joins the last starter
+    // unless a character between them has its class or a higher one.
+    let mut done: Vec<(char, Span)> = Vec::with_capacity(parts.len());
+    let (mut starter, mut last): (Option<usize>, Option<u8>) = (None, None);
+    for (c, from) in parts {
+        let class = canonical_combining_class(c);
+        if let Some(s) = starter
+            && last.is_none_or(|l| l < class)
+            && let Some(r) = char_compose(done[s].0, c)
+        {
+            let to: &mut (char, Span) = &mut done[s];
+            *to = (r, [to.1[0].min(from[0]), to.1[1].max(from[1])]);
+            continue;
         }
+        if class == 0 {
+            (starter, last) = (Some(done.len()), None);
+        } else {
+            last = Some(class);
+        }
+        done.push((c, from));
+    }
+    for (c, from) in done {
         out.push(c);
-        sources.extend(std::iter::repeat_n(last, c.len_utf8()));
+        sources.extend(std::iter::repeat_n(from, c.len_utf8()));
     }
 }
 
@@ -133,10 +161,19 @@ mod tests {
         aligned("\u{e9}", 0, &mut s, Some(&mut src));
         assert_eq!((s.as_str(), src.as_slice()), ("\u{e9}", &[[0, 2], [0, 2]][..]));
         // U+0344 decomposes to two marks: the first composes with the a,
-        // and the second is written beside it.
+        // and the second is written beside it, from U+0344 alone.
         aligned("a\u{344}", 0, &mut s, Some(&mut src));
         assert_eq!(s, "\u{e4}\u{301}");
-        assert_eq!(src, [[0, 3]; 4]);
+        assert_eq!(src, [[0, 3], [0, 3], [1, 3], [1, 3]]);
+        // The cedilla (class 202) does not block the acute (230) after it,
+        // so the acute composes with the a, whose span reaches over both.
+        aligned("a\u{327}\u{301}", 0, &mut s, Some(&mut src));
+        assert_eq!(s, "\u{e1}\u{327}");
+        assert_eq!(src, [[0, 5], [0, 5], [1, 3], [1, 3]]);
+        // Marks out of order are reordered with their sources.
+        aligned("a\u{301}\u{327}", 0, &mut s, Some(&mut src));
+        assert_eq!(s, "\u{e1}\u{327}");
+        assert_eq!(src, [[0, 3], [0, 3], [3, 5], [3, 5]]);
         assert!(is_nfc("plain") && is_nfc("\u{e9}") && !is_nfc("e\u{301}") && !is_nfc("\u{344}"));
         assert!(is_nfc("x \u{e9}t\u{e9} y") && !is_nfc("x \u{e9}te\u{301} y"));
         // Only the run that needs it is composed, around text that does not.
@@ -145,5 +182,40 @@ mod tests {
         assert_eq!(&src[..3], [[0, 1], [1, 2], [2, 3]]);
         assert_eq!(&src[3..7], [[3, 6], [3, 6], [6, 8], [6, 8]]);
         assert_eq!(&src[7..], [[8, 9], [9, 10], [10, 11]]);
+    }
+
+    /// The text written is the normalizer's NFC, sources or none, on
+    /// starters, marks of several classes, Hangul and characters that
+    /// decompose to more than one.
+    #[test]
+    fn the_text_is_nfc() {
+        let chars = [
+            'a', 'e', '\u{e9}', '\u{301}', '\u{302}', '\u{327}', '\u{323}', '\u{344}', '\u{1100}', '\u{1161}',
+            '\u{11a8}', '\u{ac00}', '\u{1e0b}', '\u{f900}', ' ',
+        ];
+        let (mut s, mut src) = (String::new(), Vec::new());
+        let mut text = String::new();
+        for i in 0..chars.len().pow(4) {
+            text.clear();
+            let mut k = i;
+            for _ in 0..4 {
+                text.push(chars[k % chars.len()]);
+                k /= chars.len();
+            }
+            let nfc: String = text.nfc().map(|(c, _)| c).collect();
+            aligned(&text, 0, &mut s, Some(&mut src));
+            assert_eq!(s, nfc, "{text:?}");
+            assert_eq!(src.len(), s.len());
+            for (&[a, b], (at, c)) in
+                src.iter().zip(s.char_indices().flat_map(|(i, c)| std::iter::repeat_n((i, c), c.len_utf8())))
+            {
+                assert!(
+                    a < b && text.is_char_boundary(a as usize) && text.is_char_boundary(b as usize),
+                    "{text:?} {at} {c:?}"
+                );
+            }
+            aligned(&text, 0, &mut s, None);
+            assert_eq!(s, nfc, "{text:?}");
+        }
     }
 }

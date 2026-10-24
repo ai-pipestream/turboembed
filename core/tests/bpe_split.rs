@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use common::*;
 use serde_json::{Value, json};
 use turbo::tokenizer::{Encode, NOWHERE, Tokenizer};
+use unicode_normalization_alignments::UnicodeNormalization;
 
 fn tokenizer_json() -> PathBuf {
     testdata().join("tiny-bpe-split/tokenizer.json")
@@ -155,15 +156,17 @@ fn trimmed(text: &str, s: [u32; 2]) -> [u32; 2] {
 /// upstream's are short of the text:
 /// - a token of whitespace alone is that whitespace, not the empty
 ///   offset at its end that upstream's trim leaves;
-/// - a character NFC composes from several comes from all of them, where
-///   upstream's offset keeps the first alone, so the core's span may end
-///   later, over the characters NFC folded in.
+/// - where NFC changes the text, a character comes from every character
+///   it holds a part of, where upstream's offset keeps the first alone
+///   and loses marks NFC reorders; there the core's span must be that
+///   text, which in NFC holds the token's bytes.
 fn check(tok: &Tokenizer, up: &tokenizers::Tokenizer, text: &str, nfc: bool) {
     let (mut ids, mut spans) = (Vec::new(), Vec::new());
     tok.encode_spans(text, whole_text(), &mut ids, &mut spans).unwrap();
     let e = up.encode(text, true).unwrap();
     let theirs: Vec<i32> = e.get_ids().iter().map(|&i| i as i32).collect();
     assert_eq!(ids, theirs, "{text:?}");
+    let changed = nfc && text.nfc().map(|(c, _)| c).ne(text.chars());
     let mut last = 0;
     for (i, (&a, &(x, y))) in spans.iter().zip(e.get_offsets()).enumerate() {
         let b = trimmed(text, [x as u32, y as u32]);
@@ -173,9 +176,12 @@ fn check(tok: &Tokenizer, up: &tokenizers::Tokenizer, text: &str, nfc: bool) {
             last = a[0];
         }
         let blank = text[a[0] as usize..a[1] as usize].trim().is_empty();
-        let folded = nfc && a[0] == b[0] && a[1] > b[1];
+        let piece = token_bytes(&e.get_tokens()[i]);
+        let piece = piece.trim_ascii();
+        let from: String = text[a[0] as usize..a[1] as usize].nfc().map(|(c, _)| c).collect();
+        let holds = !piece.is_empty() && from.as_bytes().windows(piece.len()).any(|w| w == piece);
         assert!(
-            a == b || (blank && b[0] == b[1] && b[1] == a[1]) || folded,
+            a == b || (blank && b[0] == b[1] && b[1] == a[1]) || (changed && holds),
             "{text:?}: token {i} ({}): ours {a:?} {:?}, upstream {b:?}",
             ids[i],
             &text[a[0] as usize..a[1] as usize],
@@ -185,6 +191,14 @@ fn check(tok: &Tokenizer, up: &tokenizers::Tokenizer, text: &str, nfc: bool) {
     for skip in [true, false] {
         assert_eq!(tok.decode(&ids, skip).unwrap(), up.decode(&raw, skip).unwrap(), "{text:?} skip {skip}");
     }
+}
+
+/// The bytes of a byte-level token: GPT-2's alphabet keeps the printable
+/// bytes as themselves and writes each other byte, in order, from U+0100.
+fn token_bytes(token: &str) -> Vec<u8> {
+    let kept = |b: u8| matches!(b, b'!'..=b'~' | 0xa1..=0xac | 0xae..=0xff);
+    let moved: Vec<u8> = (0..=255u8).filter(|&b| !kept(b)).collect();
+    token.chars().map(|c| if c < '\u{100}' { c as u8 } else { moved[c as usize - 0x100] }).collect()
 }
 
 fn base() -> Value {
@@ -212,6 +226,14 @@ fn qwen2_with_nfc_matches_upstream() {
     let (mut ids, mut spans) = (Vec::new(), Vec::new());
     tok.encode_spans(text, whole_text(), &mut ids, &mut spans).unwrap();
     assert_eq!(spans.iter().rfind(|s| **s != NOWHERE), Some(&[2, 7]), "{spans:?}");
+    // The acute composes with the a past the cedilla, so the a's span
+    // reaches over the acute too.
+    let text = "a\u{327}\u{301}";
+    ids.clear();
+    spans.clear();
+    tok.encode_spans(text, whole_text(), &mut ids, &mut spans).unwrap();
+    assert_eq!(spans.iter().find(|s| **s != NOWHERE), Some(&[0, 5]), "{spans:?}");
+    check(&tok, &up, text, true);
 }
 
 /// Llama-3's file with Qwen2's pattern, with merges ignored for a word
@@ -326,7 +348,6 @@ fn speed_beside_gpt2() {
             decomposed.push('\u{301}');
         }
     }
-    use unicode_normalization_alignments::UnicodeNormalization;
     let composed: String = text.as_str().nfc().map(|(c, _)| c).collect();
     for (name, m, json, text) in [
         ("gpt2", gpt2, gpt2_json, &text),
