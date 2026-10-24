@@ -2,6 +2,9 @@
 //! 1. DocumentCategorizerME (4-class genre passages, document-disjoint splits)
 //! 2. NameFinderME token-level calibration (`Task::TokenTagging`)
 //! 3. CrfNameFinder span-marginal calibration (`Task::SpanTagging`, BIO and BILOU)
+#[path = "masc_calibration/tokens.rs"]
+mod tokens;
+
 use std::path::Path;
 use std::sync::Arc;
 use turbo_analysis::{Annotator, Document, Ix, Layer, Span, Spans, View, ViewId};
@@ -15,7 +18,7 @@ use turbo_namefind::calibrated::{
     identity as namefind_identity,
 };
 use turbo_sequence::PatternMode;
-use turbo_sequence::namefind::{CrfNameFinder, MODEL_ENTRY_NAME, NameCodec, NameFinder};
+use turbo_sequence::namefind::{CrfNameFinder, NameCodec};
 use turbo_train::calibration::{Calibration, Identity, Method, Policy, Predictor, Samples, fit};
 use turbo_train::crf::CrfTrainer;
 use turbo_train::{Event, Key, TrainingConfiguration, TrainingParameters};
@@ -85,6 +88,7 @@ fn print_methods(
     (fit_rows, fit_gold): (&[Vec<f64>], &[usize]),
     (conf_rows, conf_gold): (&[Vec<f64>], &[usize]),
     (test_rows, test_gold): (&[Vec<f64>], &[usize]),
+    token_test: Option<(&Arc<ModelFile>, &[turbo_formats::NameSample<'_>])>,
 ) -> Result<Vec<Calibration>, String> {
     let raw = reliability(test_rows, test_gold, 10)?;
     println!(
@@ -105,17 +109,36 @@ fn print_methods(
             Samples { split: "masc-fit", probabilities: fit_rows, gold: fit_gold },
             Samples { split: "masc-conformal", probabilities: conf_rows, gold: conf_gold },
         )?;
-        let pred = Predictor::new(
-            cal.clone(),
-            id,
-            Policy { coverage: 0.90, max_set_size: id.labels.len(), min_confidence: 0.0 },
-        )?;
-        let preds: Vec<_> = test_rows.iter().map(|r| pred.predict(r)).collect::<Result<_, _>>()?;
+        let policy = Policy { coverage: 0.90, max_set_size: id.labels.len(), min_confidence: 0.0 };
+        let pred = Predictor::new(cal.clone(), id, policy)?;
+        let evaluate = |policy| {
+            let predictor = Predictor::new(cal.clone(), id, policy)?;
+            let mut preds: Vec<_> = test_rows.iter().map(|r| predictor.predict(r)).collect::<Result<_, _>>()?;
+            if let Some((file, samples)) = token_test {
+                let loaded = Calibration::from_bytes(&cal.to_bytes(), id)?;
+                let ann = CalibratedNameAnnotator::new(file.clone(), loaded, &id.domain, policy)?;
+                let count = tokens::visit_sidecars(&ann, samples, |i, row| {
+                    let p = preds.get_mut(i).ok_or("unexpected token sidecar row")?;
+                    if row.raw != p.raw {
+                        return Err(format!("token sidecar/raw evaluation mismatch at row {i}"));
+                    }
+                    // Report the emitted decisions, including abstentions,
+                    // rather than recomputing the receipt from raw rows alone.
+                    p.calibrated = row.calibrated.to_vec();
+                    p.set = row.set.to_vec();
+                    p.abstention = row.abstention;
+                    Ok(())
+                })?;
+                if count != preds.len() {
+                    return Err("missing token sidecar rows".into());
+                }
+            }
+            Ok::<_, String>(preds)
+        };
+        let preds = evaluate(policy)?;
         let after = reliability(&preds.iter().map(|p| p.calibrated.clone()).collect::<Vec<_>>(), test_gold, 10)?;
         let cov = coverage(&preds, test_gold)?;
-        let single_pred =
-            Predictor::new(cal.clone(), id, Policy { coverage: 0.90, max_set_size: 1, min_confidence: 0.50 })?;
-        let single_preds: Vec<_> = test_rows.iter().map(|r| single_pred.predict(r)).collect::<Result<_, _>>()?;
+        let single_preds = evaluate(Policy { coverage: 0.90, max_set_size: 1, min_confidence: 0.50 })?;
         let single_cov = coverage(&single_preds, test_gold)?;
         println!(
             "{name}: ECE={:.6} Brier={:.6} set_cov@90={:.6} (cutoff={:.6}, mean_size={:.3}) single_deliv_cov={:.6} abstain_rate={:.6} artifact={}",
@@ -190,7 +213,7 @@ fn eval_doccat(
     let (f_r, f_g) = collect(&fit_samples)?;
     let (c_r, c_g) = collect(&conf_samples)?;
     let (t_r, t_g) = collect(&test_samples)?;
-    print_methods("MASC 3.0.0 DocumentCategorizerME (4 genres)", &id, (&f_r, &f_g), (&c_r, &c_g), (&t_r, &t_g))?;
+    print_methods("MASC 3.0.0 DocumentCategorizerME (4 genres)", &id, (&f_r, &f_g), (&c_r, &c_g), (&t_r, &t_g), None)?;
     Ok(())
 }
 
@@ -243,53 +266,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let maxent_trained =
         train_name_model(&train_ner, &factory_bio, None, &params, &mut TrainingConfiguration::default(), Stamp::at(0))?;
     let maxent_file = Arc::new(ModelFile::open(maxent_trained.package.to_bytes())?);
-    let maxent_model = maxent_file.maxent(MODEL_ENTRY_NAME)?;
     let maxent_id = namefind_identity(&maxent_file, "masc-3.0.0-ner-tokens")?;
-    let maxent_labels = maxent_id.labels.clone();
-    let collect_tokens = |split_sents: &[turbo_formats::NameSample<'_>]| {
-        let mut finder = NameFinder::new(&maxent_file, &maxent_model, PatternMode::Utf16Units).unwrap();
-        let mut rows = Vec::new();
-        let mut gold = Vec::new();
-        for s in split_sents {
-            if s.clear_adaptive_data() {
-                finder.clear_adaptive_data();
-            }
-            let words: Vec<&str> = s.tokens().iter().map(Field::as_str).collect();
-            let spans: Vec<_> = s
-                .names()
-                .iter()
-                .map(|n| turbo_sequence::codec::Span::new(n.start as usize, n.end as usize, n.kind))
-                .collect();
-            let outcomes = NameCodec::Bio.encode(&spans, words.len());
-            let (_, scored) = finder.find_scored(&words);
-            for (row, out) in scored.into_iter().zip(outcomes) {
-                if let Some(g) = maxent_labels.iter().position(|l| l == &out) {
-                    rows.push(row);
-                    gold.push(g);
-                }
-            }
-        }
-        (rows, gold)
-    };
-    let (tf_r, tf_g) = collect_tokens(&fit_ner);
-    let (tc_r, tc_g) = collect_tokens(&conf_ner);
-    let (tt_r, tt_g) = collect_tokens(&test_ner);
+    let (tf_r, tf_g) = tokens::collect(&maxent_file, &maxent_id.labels, &fit_ner)?;
+    let (tc_r, tc_g) = tokens::collect(&maxent_file, &maxent_id.labels, &conf_ner)?;
+    let (tt_r, tt_g) = tokens::collect(&maxent_file, &maxent_id.labels, &test_ner)?;
     let token_cals = print_methods(
         "MASC 3.0.0 NameFinderME Token-Level (BIO)",
         &maxent_id,
         (&tf_r, &tf_g),
         (&tc_r, &tc_g),
         (&tt_r, &tt_g),
+        Some((&maxent_file, &test_ner)),
     )?;
     let token_policy = Policy { coverage: 0.90, max_set_size: maxent_id.labels.len(), min_confidence: 0.0 };
     for cal in token_cals {
         let ann = CalibratedNameAnnotator::new(maxent_file.clone(), cal, "masc-3.0.0-ner-tokens", token_policy)?;
-        if let Some(s) = test_ner.iter().find(|s| !s.tokens().is_empty()) {
-            let (doc, sents, toks) = sample_doc(s);
-            let (_, side) = ann.annotate((doc.get::<View>().unwrap(), &sents, &toks))?;
-            assert_eq!(side.len(), s.tokens().len());
+        for (samples, rows) in [(&fit_ner, &tf_r), (&conf_ner, &tc_r)] {
+            let count = tokens::visit_sidecars(&ann, samples, |i, row| {
+                if rows.get(i).is_none_or(|expected| row.raw != expected) {
+                    return Err(format!("token sidecar/calibration mismatch at row {i}"));
+                }
+                Ok(())
+            })?;
+            if count != rows.len() {
+                return Err("missing token calibration sidecar rows".into());
+            }
         }
     }
+
+    println!(
+        "Verified sentence-scoped token sidecars: fit={} conformal={} test={} (both test decision policies)",
+        tf_r.len(),
+        tc_r.len(),
+        tt_r.len()
+    );
 
     // 2. Span-level CrfNameFinder (BIO and BILOU)
     for (codec_name, codec) in [("BIO", NameCodec::Bio), ("BILOU", NameCodec::Bilou)] {
@@ -341,6 +351,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             (&sf_r, &sf_g),
             (&sc_r, &sc_g),
             (&st_r, &st_g),
+            None,
         )?;
         let span_policy = Policy { coverage: 0.90, max_set_size: crf_id.labels.len(), min_confidence: 0.0 };
         for cal in span_cals {

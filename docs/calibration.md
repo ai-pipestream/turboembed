@@ -165,9 +165,12 @@ with:
 cargo run --release --locked -p turbo-train-recipes --example masc_calibration -- DATA_DIRECTORY
 ```
 
-Models are trained only on `split.train` (351 documents). The 39 held-out
-documents in `split.held_out` are partitioned deterministically (`i % 3`) into
-disjoint `masc-fit`, `masc-conformal`, and `masc-test` splits.
+Models are trained only on `split.train` (351 documents). For document
+categorization, the 39 held-out documents in `split.held_out` are partitioned
+deterministically (`i % 3`) into disjoint `masc-fit`, `masc-conformal`, and
+`masc-test` splits. The name-finder experiment instead samples 900 held-out
+sentences, then partitions those sentences by `i % 3`; its three splits can
+contain different sentences from the same original document.
 `Single-label delivered` reports `delivered_coverage` under the stricter
 decision policy `Policy { coverage: 0.90, max_set_size: 1, min_confidence: 0.50 }`.
 
@@ -188,14 +191,22 @@ decision policy `Policy { coverage: 0.90, max_set_size: 1, min_confidence: 0.50 
 
 2. **`NameFinderME` token-level (`Task::TokenTagging`, BIO, 9 outcomes across `person`, `location`, `organization`, `date`)**:
    Trained on 2,048 genre-spread training sentences; evaluated on 900 held-out
-   sentences split `i % 3` (`fit_n = 4069`, `conformal_n = 3724`, `test_n = 4078` tokens, raw accuracy `0.967141`).
+   sentences split `i % 3` (`fit_n = 4069`, `conformal_n = 3724`, `test_n = 4078` tokens, raw accuracy `0.967876`).
+   Fitting, conformal scoring and evaluation each use a fresh finder per
+   sentence, matching one single-sentence `Document` per adapter call. The
+   model's training recipe is unchanged. Every fitting/conformal raw row is
+   checked against the corresponding adapter sidecar, and both test decision
+   policies are evaluated from all emitted sidecar columns after artifact
+   serialization/loading. These token rows remain correlated within sentences
+   and source documents; their empirical coverage is not a joint span guarantee
+   or a promise that this split achieves nominal 90% coverage.
 
 | Transform | ECE | Brier | Set coverage (`0.90`) | Mean set size | Single-label delivered | Abstention rate | Artifact SHA-256 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Raw | 0.017955 | 0.053879 | n/a | n/a | n/a | n/a | n/a |
-| Temperature | 0.004669 | 0.051509 | 0.896027 | 0.902 | 0.896027 | 0.097842 | `8c2f14558bedd0595e614700a332dc910297a621dccf2d0a62351db992713ac2` |
-| Platt | 0.007387 | 0.051755 | 0.895782 | 0.902 | 0.895782 | 0.098087 | `bb92597bd277e8d765a15599267029d4d71683d1def725b859dd588b97cf0e01` |
-| Isotonic | 0.003900 | 0.051084 | 0.896273 | 0.902 | 0.896273 | 0.097597 | `6f46983328f399809aaeb4f98f34e59229177bfbc3e2638e0c666a7a6454c945` |
+| Raw | 0.013650 | 0.050761 | n/a | n/a | n/a | n/a | n/a |
+| Temperature | 0.009178 | 0.049382 | 0.904610 | 0.910 | 0.904610 | 0.090240 | `cb7b464a9450ba98cf226f6bc7716887fb99afd7f515f0029c1bffc8fadb06eb` |
+| Platt | 0.008671 | 0.049619 | 0.904855 | 0.910 | 0.904855 | 0.090240 | `4987e5847293cb5a0a49743dbaf346f4bbae7f2df6ba36e91ac0fd3485f49fde` |
+| Isotonic | 0.004283 | 0.048234 | 0.904365 | 0.908 | 0.904365 | 0.092202 | `a0b694c191f4b40253466c8750341503ba6a85bafda6255a4a0e96d0b559f067` |
 
 3. **`CrfNameFinder` span-level (`Task::SpanTagging`, BIO, 5 outcomes `["other", "date", "location", "organization", "person"]`)**:
    Candidate spans from `CrfNameFinder::candidate_spans(..., 4)` bound via
