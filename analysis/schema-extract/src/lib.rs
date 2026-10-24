@@ -10,6 +10,7 @@ pub mod layer;
 pub mod model;
 pub mod prompt;
 pub mod schema;
+pub mod window;
 
 pub use annotator::SchemaAnnotator;
 pub use decode::{Corroborate, Extraction, decode};

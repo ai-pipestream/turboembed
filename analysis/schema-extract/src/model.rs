@@ -246,6 +246,11 @@ impl Gliner2Extractor {
     pub fn pass(&self, text: &str, schema: &ExtractionSchema) -> Result<Pass, ExtractError> {
         run(&self.encoder, &self.heads, &self.classifier, self.prompt(text, schema)?)
     }
+
+    /// One encoder pass and every head over an input [`Self::prompt`] built.
+    pub fn pass_prompt(&self, prompt: Prompt) -> Result<Pass, ExtractError> {
+        run(&self.encoder, &self.heads, &self.classifier, prompt)
+    }
 }
 
 /// The encoder and every head over a built input. The parity tests give
