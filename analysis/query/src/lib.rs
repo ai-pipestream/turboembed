@@ -304,6 +304,32 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                 lt = k;
             }
         }
+        // A lowercase ISO code counts only right after an amount
+        // (`500 usd`, never `top 10`), and never when the code is an
+        // ordinary English word, so common queries gain no money cue.
+        let token_at = |i: usize| &text[starts[i] as usize..ends[i] as usize];
+        let lowercase_iso_after_amount = |i: usize| {
+            const ENGLISH_WORD_CODES: [&str; 10] =
+                ["ALL", "BOB", "CUP", "GEL", "MAD", "MOP", "PEN", "SOS", "TOP", "TRY"];
+            let w = token_at(i);
+            if i == 0 || w.len() != 3 || !w.bytes().all(|b| b.is_ascii_lowercase()) {
+                return false;
+            }
+            let upper: String = w.chars().map(|c| c.to_ascii_uppercase()).collect();
+            if ENGLISH_WORD_CODES.contains(&upper.as_str()) {
+                return false;
+            }
+            let prev = token_at(i - 1);
+            let amount_before = prev.bytes().next().is_some_and(|b| b.is_ascii_digit())
+                || (prev.len() > 1 && prev.starts_with('$') && prev.as_bytes()[1].is_ascii_digit());
+            amount_before
+                && turbo_analysis_layers::Currency::new([
+                    w.as_bytes()[0].to_ascii_uppercase(),
+                    w.as_bytes()[1].to_ascii_uppercase(),
+                    w.as_bytes()[2].to_ascii_uppercase(),
+                ])
+                .is_some_and(turbo_numeric::money::is_iso_currency)
+        };
         let mut money = turbo_analysis_layers::Money::new(view.id());
         let mut quantities = turbo_analysis_layers::Quantities::new(view.id());
         for (tok_lo, tok_hi, d_cnt, qty_cue) in d_wins {
@@ -319,32 +345,16 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                         "dollar" | "dollars" | "euro" | "euros" | "pound" | "pounds" | "sterling" | "yen"
                             | "rupee" | "rupees" | "yuan" | "renminbi" | "ruble" | "rubles" | "rouble"
                             | "roubles" | "shekel" | "shekels" | "baht"
-                    ) || (w.len() == 3
-                        && w.bytes().all(|b| b.is_ascii_alphabetic())
-                        && turbo_analysis_layers::Currency::new([
-                            w.as_bytes()[0].to_ascii_uppercase(),
-                            w.as_bytes()[1].to_ascii_uppercase(),
-                            w.as_bytes()[2].to_ascii_uppercase(),
-                        ])
-                        .is_some_and(turbo_numeric::money::is_iso_currency))
+                    ) || lowercase_iso_after_amount(i)
                 });
             // The money extractor reads ISO codes in capitals only
             // (its document behavior is pinned by JVM goldens), but
-            // queries write `500 usd`: scan a copy with standalone
-            // lowercase ISO code tokens uppercased in place, which
-            // keeps every byte offset unchanged.
+            // queries write `500 usd`: scan a copy with such tokens
+            // uppercased in place, which keeps every byte offset
+            // unchanged.
             let mut owned: Option<String> = None;
             for i in tok_lo..tok_hi {
-                let w = &text[starts[i] as usize..ends[i] as usize];
-                if w.len() == 3
-                    && w.bytes().all(|b| b.is_ascii_lowercase())
-                    && turbo_analysis_layers::Currency::new([
-                        w.as_bytes()[0].to_ascii_uppercase(),
-                        w.as_bytes()[1].to_ascii_uppercase(),
-                        w.as_bytes()[2].to_ascii_uppercase(),
-                    ])
-                    .is_some_and(turbo_numeric::money::is_iso_currency)
-                {
+                if lowercase_iso_after_amount(i) {
                     let buf = owned.get_or_insert_with(|| sub_text.to_owned());
                     let at = starts[i] as usize - lo;
                     buf[at..at + 3].make_ascii_uppercase();
@@ -471,34 +481,8 @@ pub(crate) fn query_quantity_extractor(
         notation,
     )
     .unwrap_or_else(|_| turbo_numeric::QuantityExtractor::new(notation))
-#[cfg(test)]
-mod tests {
-    use turbo_analysis::{Analyzer, Document};
-    use turbo_analysis_layers::Sentences;
-    use turbo_chunker::terms::TermForm;
-
-    fn sentences_of(text: &str) -> Vec<(u32, u32)> {
-        let analyzer = Analyzer::builder()
-            .add(crate::QueryTermAnnotator::new(
-                "eng",
-                "eng",
-                TermForm::Surface,
-                crate::annotators::QuerySpanDetector::new(crate::default_span_detector(), false),
-            ))
-            .build()
-            .unwrap();
-        let mut docs = vec![Document::new(text)];
-        analyzer.run(&mut docs).remove(0).unwrap();
-        docs[0].get::<Sentences>().unwrap().spans.iter().map(|(_, s)| (s.start, s.end)).collect()
-    }
-
-    #[test]
-    fn unicode_edge_whitespace_takes_the_detector_path() {
-        // "hello" is bytes 0..5 once any edge whitespace is trimmed.
-        assert_eq!(sentences_of("hello"), vec![(0, 5)]);
-        assert_eq!(sentences_of("hello\u{3000}"), vec![(0, 5)]);
-        assert_eq!(sentences_of("\u{00A0}hello"), vec![(2, 7)]);
-        assert_eq!(sentences_of("hello\u{000B}"), vec![(0, 5)]);
-        assert_eq!(sentences_of("\u{2003}hello\u{2003}"), vec![(3, 8)]);
-    }
 }
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod tests;
