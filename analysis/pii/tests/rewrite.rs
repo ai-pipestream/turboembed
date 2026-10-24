@@ -314,7 +314,10 @@ fn rewrites_coalesce_detector_clusters_and_refuse_invalid_or_reversed_overlaps()
 
     let reversed_overlap =
         manual(&[(13, 29, PiiKind::Email, "pass@example.com"), (8, 17, PiiKind::UrlCredential, "john:pass")]);
-    assert_eq!(Pseudonymizer::default().rewrite(text, &reversed_overlap).unwrap().text(), "https://URL-CREDENTIAL-1/path");
+    assert_eq!(
+        Pseudonymizer::default().rewrite(text, &reversed_overlap).unwrap().text(),
+        "https://URL-CREDENTIAL-1/path"
+    );
     let overlap = Err(RewriteError::Overlap(Span::new(8, 17), Span::new(13, 29)));
     assert_eq!(
         Pseudonymizer::default().refusing_overlaps().rewrite(text, &detected).map(|r| r.into_text()),
