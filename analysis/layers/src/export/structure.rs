@@ -148,6 +148,7 @@ impl LayerCodec for Chunks {
         for b in &self.over_budget {
             w.u8(u8::from(*b));
         }
+        w.u32(self.prompt_overhead);
         Ok(w.finish())
     }
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
@@ -185,8 +186,9 @@ impl LayerCodec for Chunks {
         want_len(sentences.len(), n, "sentence ranges")?;
         want_len(cost.len(), n, "costs")?;
         want_len(model_tokens.len(), n, "model token counts")?;
+        let prompt_overhead = r.u32()?;
         want_len(over_budget.len(), n, "over-budget flags")?;
         done(&r, "chunks")?;
-        Ok(Chunks { spans, level, parent, sentences, cut, cost, model_tokens, over_budget })
+        Ok(Chunks { spans, level, parent, sentences, cut, cost, model_tokens, over_budget, prompt_overhead })
     }
 }

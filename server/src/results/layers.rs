@@ -92,13 +92,12 @@ fn spans_to_wire<L>(spans: &Spans<L>, text: &str, offsetter: &Offsetter) -> (Vec
     let (mut start, mut end, mut at) = (Vec::new(), Vec::new(), Vec::new());
     for i in 0..spans.len() as u32 {
         for frag in spans.fragments(Ix::new(i)) {
-            let (s, e) = offsetter.to_wire(text, frag);
-            start.push(s);
-            end.push(e);
+            start.push(frag.start);
+            end.push(frag.end);
         }
         at.push(start.len() as u32);
     }
-    (start, end, at)
+    (offsetter.column_to_wire(text, &start), offsetter.column_to_wire(text, &end), at)
 }
 
 fn spans_from_wire<L>(
@@ -289,6 +288,7 @@ impl Wire for ChunkLevels {
             cost: msg.chunk_cost.clone(),
             model_tokens: msg.chunk_model_tokens.clone(),
             over_budget: msg.chunk_over_budget.clone(),
+            prompt_overhead: 0,
         };
         chunks.check().map_err(bad)?;
         let mut unit = Vec::with_capacity(n_levels);
