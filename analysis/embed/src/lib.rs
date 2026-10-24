@@ -58,7 +58,11 @@ pub(crate) fn model_ref(bundle: &Bundle) -> ModelRef {
     ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: bundle.manifest_sha256.clone() }
 }
 
+pub mod coref;
+pub use coref::{BundleTokenVectors, pool_subword_vectors, pool_word_tokens};
 pub mod dense;
 pub use dense::{DenseClassifierAnnotator, DenseClassifierModel, DenseClassifierTrainer};
 pub mod doccat;
 pub use doccat::BundleSequenceScorer;
+pub mod zeroshot;
+pub use zeroshot::BundleNliScorer;

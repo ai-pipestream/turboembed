@@ -182,13 +182,15 @@ of it.
 
 ## Neural annotator checkpoints
 
-The SaT and GLiNER checkpoints docs/neural-annotators.md considers, and
+The SaT and GLiNER checkpoints docs/neural-annotators.md considers,
 the GLiNER2 and GLiREL checkpoints the relation scorer considers
-(docs/gliner2-relations.md, docs/glirel-relations.md), and the SQuAD 2.0
-checkpoint the extractive QA benchmarks run (docs/extractive-qa.md).
-Eight are in the zoo's index: `deepset/roberta-base-squad2`
-(`deepset-roberta-base-squad2`, share-alike through its training data,
-fetched only after the user accepts CC BY-SA 4.0), `urchade/gliner_small-v2.1`
+(docs/gliner2-relations.md, docs/glirel-relations.md), the NLI
+checkpoint zero-shot categorization considers (docs/doccat.md), and the
+SQuAD 2.0 checkpoint the extractive QA benchmarks run
+(docs/extractive-qa.md). Nine are in the zoo's index:
+`deepset/roberta-base-squad2` (`deepset-roberta-base-squad2`,
+share-alike through its training data, fetched only after the user
+accepts CC BY-SA 4.0), `urchade/gliner_small-v2.1`
 (`urchade-gliner-small-v2.1`, permissive) and its base tokenizer
 `microsoft/deberta-v3-small`'s `spm.model` and `config.json`
 (`microsoft-deberta-v3-small-tokenizer`, permissive), `urchade/gliner_multi-v2.1`
@@ -197,14 +199,16 @@ fetched only after the user accepts CC BY-SA 4.0), `urchade/gliner_small-v2.1`
 (`microsoft-mdeberta-v3-base-tokenizer`, permissive), `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
 permissive), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
 local-only, fetched from its publisher only after the user accepts CC
-BY-NC-SA 4.0), and GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
+BY-NC-SA 4.0), GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
 `spm.model` and `config.json` (`microsoft-deberta-v3-large-tokenizer`,
-permissive).
+permissive), and `cross-encoder/nli-MiniLM2-L6-H768`
+(`cross-encoder-nli-minilm2-l6-h768`, share-alike, fetched from its
+publisher after the user accepts CC BY-SA 4.0 and CC BY-SA 3.0).
 The others were not fetched, so no entry has the SHA-512s an entry
 needs. "Checked" is **here**: the
 `license` of the model card's metadata at the revision named, read on
-2026-10-15 from the hub's model API, on 2026-10-21 for the GLiNER2
-and GLiREL rows, and on 2026-10-23 for the GLiNER v2.1 tokenizers.
+2026-10-15 from the hub's model API, on 2026-10-21 for the GLiNER2 and
+GLiREL rows, and on 2026-10-23 for the GLiNER v2.1 tokenizers and the NLI row.
 
 | Checkpoint | Revision | Licence | Base and data | Class | Checked |
 |---|---|---|---|---|---|
@@ -219,6 +223,7 @@ and GLiREL rows, and on 2026-10-23 for the GLiNER v2.1 tokenizers.
 | [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index; the relation scorer and schema extraction (docs/schema-extract.md) | here |
 | [microsoft/deberta-v3-large](https://huggingface.co/microsoft/deberta-v3-large) (`spm.model`, `config.json`) | `64a8c8eab3e352a784c658aef62be1662607476f` | MIT | | permissive; in the index | here |
 | [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
+| [cross-encoder/nli-MiniLM2-L6-H768](https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768) | `b95119ce93d3e065de6214e38cd4a97b0f2f2c6d` | Apache-2.0 | [nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large](https://huggingface.co/nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large) (Apache-2.0); [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) (CC BY-SA 4.0) and [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) (CC BY-SA 3.0; majority of OANC genres) | share-alike; in the index, fetched after acceptance; zero-shot categorization (docs/doccat.md) | here |
 | [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | refused by the class rule, for its training data: not shipped, bundled, listed in the index or trained on; a local reference that is scored, as `en-pos-maxent` is | here |
 | [deepset/roberta-base-squad2](https://huggingface.co/deepset/roberta-base-squad2) | `adc3b06f79f797d1c575d5479d6f5efe54a9e3b4` | CC BY 4.0 | [FacebookAI/roberta-base](https://huggingface.co/FacebookAI/roberta-base) (MIT); SQuAD 2.0 (CC BY-SA 4.0, under Datasets) | share-alike, by its training data: in the index, fetched after acceptance; not shipped or bundled; `bundle/recipes/roberta-base-squad2.json` makes a local bundle from it | here, 2026-10-23 |
 
@@ -291,6 +296,8 @@ match the hub's LFS object ids at that revision.
 | [DaNE](https://github.com/alexandrainst/danlp) | Danish NER | CC BY-SA 4.0 | share-alike | | plan |
 | [Wikipedia](https://dumps.wikimedia.org/) | language detection | CC BY-SA 4.0 | share-alike | | plan |
 | [DBpedia-14](https://huggingface.co/datasets/fancyzhx/dbpedia_14) | document categorizer | CC BY-SA 3.0 and GFDL | share-alike | | plan |
+| [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) | natural language inference | CC BY-SA 4.0 | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
+| [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) | natural language inference | CC BY-SA 3.0 (majority of OANC genres; remaining genres OANC, public domain, or CC BY) | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
 | [SQuAD 2.0](https://rajpurkar.github.io/SQuAD-explorer/) | extractive QA | CC BY-SA 4.0 | share-alike | the dev set `dev-v2.0.json` (4,370,528 bytes, SHA-256 `80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8`) is used for evaluation only (docs/extractive-qa.md); it is not in the repository | here, 2026-10-23 |
 | [UD_English-GUM r2.16](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_English-LinES r2.16](https://github.com/UniversalDependencies/UD_English-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |

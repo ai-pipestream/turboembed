@@ -229,7 +229,7 @@ this form before it is written or loaded.
 | `model.source.repository`, `.commit` | string | yes | Where the checkpoint came from. |
 | `model.license` | string | yes | SPDX identifier. Nothing is redistributed without one. |
 | `model.license_file` | path | no | The licence text. |
-| `task` | enum | yes | `TASK_EMBED`, `TASK_RERANK` or `TASK_EXTRACTIVE_QA`. Names the task block that follows. Any other `TASK_*` name is a task this build does not have. |
+| `task` | enum | yes | `TASK_EMBED`, `TASK_RERANK`, or `TASK_EXTRACTIVE_QA`. Names the task block (`embed`, `rerank`, or `qa`) that follows. Any other `TASK_*` name is a task this build does not have. |
 | `embed.dim`, `.pooling`, `.normalize` | uint32, enum | yes | Vector width; what `TURBO_POOLING_MODEL` and `TURBO_NORMALIZE_MODEL` mean. With an `architecture`, `dim` equals `architecture.hidden`: the vectors are pooled hidden states. |
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
