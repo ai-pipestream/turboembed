@@ -31,7 +31,9 @@ usage:
       fetch, stage, reference, convert, seal and verify, in that order
   turbo-bundle fetch [--accept-terms] <recipe.json | model-id> <upstream-dir>
       fetch the upstream files at the recipe's commit. A model with terms
-      beyond its licence is fetched only with --accept-terms
+      beyond its licence, or under a licence the zoo fetches only once it
+      is accepted (CC BY-NC, CC BY-SA, LGPL, GPL), is fetched only with
+      --accept-terms. A licence the zoo refuses is never fetched
   turbo-bundle catalogue
       the models a model-id names, with their licences (docs/static.md)
   turbo-bundle reference <recipe.json> <upstream-dir> <bundle-dir>
