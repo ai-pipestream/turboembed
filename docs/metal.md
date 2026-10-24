@@ -260,13 +260,12 @@ the weights staged as they lie, so nothing is transposed on the way.
 where its extra threadgroups fill the GPU, and the 64 x 64 tile above.
 On the M2 (all-minilm-l6-v2, six alternating rounds, FASTEST against
 main's `auto`, which ran the 32 x 64 tile up to 1024 tokens) the 32 x 32
-tile takes 13.6% off a run at 1 x 128 tokens, 8.8% at 2 x 128, 7.1% at
+tile takes 13.8% off a run at 1 x 128 tokens, 8.8% at 2 x 128, 7.2% at
 4 x 128 and 8.5% at 8 x 128; from 2048 tokens up it was level with or
 slower than the 64 x 64 tile, so `auto` keeps that there. All are F16
-operands with F32 sums
-(`TURBO_NUMERIC_F16_F32ACC`); the tile can change how many parts a
-small layer's k is split into, so a different choice moves the bits
-within FASTEST's floor.
+operands with F32 sums (`TURBO_NUMERIC_F16_F32ACC`); the tile can change
+how many parts a small layer's k is split into, so a different choice
+moves the bits within FASTEST's floor.
 
 `attn=staged` passes each SIMD group's 8 x 32 scores and probabilities
 through threadgroup memory, a query's row to four lanes; `attn=registers`
