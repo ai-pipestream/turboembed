@@ -177,7 +177,10 @@ impl MultiLabelDoccatModel {
 
     /// Recomputes the model reference from the entry's bytes.
     fn refresh_ref(&mut self) {
-        let sha256 = self.write().map(|b| turbo_maxent::sha256(&b).to_hex()).unwrap_or_default();
+        let generators = encode_feature_generators(&self.context_generator)
+            .unwrap_or_else(|_| format!("custom:{:?}", self.context_generator));
+        let gen_slice = &generators[..generators.floor_char_boundary(MAX_UTF_BYTES)];
+        let sha256 = turbo_maxent::sha256(&self.encode_body(gen_slice)).to_hex();
         self.model_ref = ModelRef {
             id: format!("turbo:MultiLabelDoccat:{}", self.language),
             revision: FORMAT_VERSION.to_string(),
@@ -384,11 +387,15 @@ impl MultiLabelDoccatModel {
     /// `(feature, weight)` pairs, then the CRC-32C of all of it.
     pub fn write(&self) -> Result<Vec<u8>, MultiLabelError> {
         let generators = encode_feature_generators(&self.context_generator).map_err(MultiLabelError::Invalid)?;
+        Ok(self.encode_body(&generators))
+    }
+
+    fn encode_body(&self, generators: &str) -> Vec<u8> {
         let mut out = Vec::new();
         put_utf(&mut out, MODEL_TYPE);
         out.extend_from_slice(&FORMAT_VERSION.to_be_bytes());
         put_utf(&mut out, &self.language);
-        put_utf(&mut out, &generators);
+        put_utf(&mut out, generators);
         out.extend_from_slice(&(self.bounds.max_labels.map_or(-1, |m| m as i32)).to_be_bytes());
         out.extend_from_slice(&(self.bounds.min_labels.map_or(-1, |m| m as i32)).to_be_bytes());
         out.extend_from_slice(&self.bounds.min_score.to_be_bytes());
@@ -405,7 +412,7 @@ impl MultiLabelDoccatModel {
         }
         let crc = crc32c(&out);
         out.extend_from_slice(&crc.to_be_bytes());
-        Ok(out)
+        out
     }
 
     /// Opens a model from its entry's bytes, the mirror of

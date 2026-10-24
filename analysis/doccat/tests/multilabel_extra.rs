@@ -361,11 +361,31 @@ fn feature_generator_settings_round_trip_and_custom_generators_error() {
         }
     }
     let custom_cg = DoccatContextGenerator::from_custom(vec![Arc::new(CustomGen)]);
-    let with_custom = trained.with_context_generator(custom_cg);
+    let with_custom = trained.with_context_generator(custom_cg.clone());
     assert!(with_custom.write().is_err(), "write must fail when custom generators are present");
     assert!(
         package_multilabel_model(&with_custom, 1_700_000_000_000).is_err(),
         "package_multilabel_model must fail when custom generators are present"
+    );
+    assert!(
+        !with_custom.model_ref().sha256.is_empty(),
+        "in-memory custom-generator models must still record a non-empty provenance sha256"
+    );
+    let custom_other_weights = MultiLabelDoccatModel::new(
+        "en",
+        &["finance", "sports"],
+        vec![
+            LinearHead::new(0.25, vec![("custom=1".into(), 1.5)]).unwrap(),
+            LinearHead::new(-0.25, vec![("custom=1".into(), -1.5)]).unwrap(),
+        ],
+        vec![0.5, 0.5],
+        custom_cg,
+    )
+    .unwrap();
+    assert_ne!(
+        with_custom.model_ref().sha256,
+        custom_other_weights.model_ref().sha256,
+        "custom-generator models with different head weights must have distinct sha256"
     );
 }
 
