@@ -13,6 +13,8 @@
 //! `UnicodeScript.of`.
 
 pub mod code_point;
+mod ignore_case;
+pub use ignore_case::equals_ignore_case;
 mod word_classes;
 
 use crate::ascii::push_lowercase_run;

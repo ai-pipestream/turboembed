@@ -117,14 +117,7 @@ impl Iterator for Utf16Units<'_> {
 
 impl FusedIterator for Utf16Units<'_> {}
 
-/// The number of UTF-16 code units in `text`: Java's `String.length()` of
-/// the same text. Counts from the bytes without decoding or allocating.
-pub fn utf16_len(text: &str) -> usize {
-    // Every character starts with one byte that is not a continuation byte
-    // (10xxxxxx), and a character of four bytes (lead byte 11110xxx) is two
-    // units.
-    text.as_bytes().iter().map(|&b| usize::from(b & 0xC0 != 0x80) + usize::from(b >= 0xF0)).sum()
-}
+pub use turbo_unicode::utf16::utf16_len;
 
 /// Exactly Java's `a.compareTo(b)`: the difference of the first UTF-16 code
 /// units that differ, or else the difference of the lengths in UTF-16 code
