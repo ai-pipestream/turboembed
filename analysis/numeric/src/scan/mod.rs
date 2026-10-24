@@ -12,9 +12,15 @@
 //! nothing, this reads the whole character and matches nothing too, and
 //! both scans stop at the same place.
 
+#[cfg(target_arch = "x86_64")]
+mod candidate;
+#[cfg(all(test, target_arch = "x86_64"))]
+mod candidate_tests;
 mod extended;
+#[cfg(test)]
+mod prefix_tests;
 
-pub(crate) use extended::{EXTENDED_START_BYTES, has_non_ascii_nd, is_nd_at, next_candidate_pos, utf8_char_width};
+pub(crate) use extended::{EXTENDED_START_BYTES, is_nd_at, next_candidate_pos, utf8_char_width};
 use turbo_analysis_layers::{Multiplier, NumberNotation, ScaleMarker};
 use turbo_unicode::GeneralCategory::{Ll, Lm, Lo, Lt, Lu, Mc, Me, Mn, Nd, Nl, No, Pc, Sc};
 use turbo_unicode::WhitespaceMode;
@@ -70,7 +76,7 @@ pub fn parse(
 
 /// Reads a number whose first digit is at byte `start`, in `notation`,
 /// optionally enforcing strict OpenNLP JVM parity (`opennlp_parity = true`).
-#[inline]
+#[inline(never)]
 pub fn parse_with_parity(
     text: &str,
     start: usize,
@@ -142,7 +148,7 @@ pub fn parse_with_parity(
                 {
                     i = end;
                 }
-            } else if matches!(at_i, b'\'' | 0xC2 | 0xD9 | 0xE2) {
+            } else if at_i == b'\'' || at_i >= 0xC2 {
                 let (end, alt) = extended::consume_alt_ascii_groups(text, i, coefficient);
                 i = end;
                 used_alt_group = alt;
@@ -176,7 +182,7 @@ pub fn parse_with_parity(
                     marker: ScaleMarker::None,
                 });
             }
-        } else if next_b == group_byte || next_b == decimal_byte || matches!(next_b, b'\'' | 0xC2 | 0xD9 | 0xE2) {
+        } else if next_b == group_byte || next_b == decimal_byte || next_b == b'\'' || next_b >= 0xC2 {
             let next = char_or_space(text, i);
             if (next == group || next == decimal || unsupported_separator(next))
                 && (byte_at(b, i + next.len_utf8()).is_ascii_digit()
@@ -275,7 +281,7 @@ pub fn continues_number(text: &str, index: usize, notation: NumberNotation) -> b
 
 /// `NumberScan.continuesNumber`, optionally restricted to ASCII digits when
 /// `opennlp_parity` is `true`.
-#[inline]
+#[inline(never)]
 pub fn continues_number_with_parity(text: &str, index: usize, notation: NumberNotation, opennlp_parity: bool) -> bool {
     let b = text.as_bytes();
     let (group, decimal) = (notation.group_separator(), notation.decimal_separator());

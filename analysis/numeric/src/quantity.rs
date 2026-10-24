@@ -17,8 +17,8 @@ use turbo_unicode::java;
 
 use crate::money::MoneyExtractor;
 use crate::scan::{
-    boundary_after, boundary_before, byte_at, char_at, continues_number_with_parity, has_non_ascii_nd, is_nd_at,
-    next_candidate_pos, parse_with_parity, sign_boundary_before, utf8_char_width, whitespace_at, word_end,
+    boundary_after, boundary_before, byte_at, char_at, continues_number_with_parity, is_nd_at, next_candidate_pos,
+    parse_with_parity, sign_boundary_before, utf8_char_width, whitespace_at, word_end,
 };
 
 /// The units OpenNLP's extractor knows unless a caller gives its own set:
@@ -193,11 +193,10 @@ impl QuantityExtractor {
             }
         }
         let b = text.as_bytes();
-        let ascii_only = self.opennlp_parity || !has_non_ascii_nd(text);
         let mut digits = String::new();
         let mut amount = 0;
         let mut i = 0;
-        while let Some(pos) = next_candidate_pos(text, i, ascii_only) {
+        while let Some(pos) = next_candidate_pos(text, i, self.opennlp_parity) {
             i = pos;
             while amount < money_start.len() && money_end[amount] as usize <= i {
                 amount += 1;
@@ -206,10 +205,8 @@ impl QuantityExtractor {
                 i = money_end[amount] as usize;
                 continue;
             }
-            let found = self.match_at(text, i, ascii_only, &mut digits).or_else(|| {
-                fallback
-                    .filter(|alt| alt.notation != self.notation)
-                    .and_then(|alt| alt.match_at(text, i, ascii_only, &mut digits))
+            let found = self.match_at(text, i, &mut digits).or_else(|| {
+                fallback.filter(|alt| alt.notation != self.notation).and_then(|alt| alt.match_at(text, i, &mut digits))
             });
             let Some(found) = found else {
                 i += utf8_char_width(b[i]);
@@ -237,12 +234,12 @@ impl QuantityExtractor {
     /// it never starts a mention, so the `000` of `1,00,000 kg` is not
     /// `0 kg`.
     #[inline]
-    fn match_at(&self, text: &str, start: usize, ascii_only: bool, digits: &mut String) -> Option<Found> {
+    fn match_at(&self, text: &str, start: usize, digits: &mut String) -> Option<Found> {
         let b = text.as_bytes();
         let negative = b[start] == b'-';
         let first = start + usize::from(negative);
-        let is_digit = byte_at(b, first).is_ascii_digit() || (!ascii_only && is_nd_at(text, first));
-        if !is_digit || continues_number_with_parity(text, first, self.notation, ascii_only) {
+        let is_digit = byte_at(b, first).is_ascii_digit() || (!self.opennlp_parity && is_nd_at(text, first));
+        if !is_digit || continues_number_with_parity(text, first, self.notation, self.opennlp_parity) {
             return None;
         }
         let boundary = if negative { sign_boundary_before(text, start) } else { boundary_before(text, start) };

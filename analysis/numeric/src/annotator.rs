@@ -6,7 +6,7 @@ use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{NumberMention, NumberNotation, Numbers};
 
 use crate::scan::{
-    boundary_before, continues_number_with_parity, has_non_ascii_nd, is_nd_at, next_candidate_pos, parse_with_parity,
+    boundary_before, continues_number_with_parity, is_nd_at, next_candidate_pos, parse_with_parity,
     sign_boundary_before, utf8_char_width,
 };
 
@@ -71,25 +71,30 @@ impl NumberScanner {
     ///
     /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`.
     pub fn scan(&self, text: &str, out: &mut Numbers) {
-        self.scan_with_fallback(text, None, out);
+        self.scan_candidates::<false>(text, self.notation, out);
     }
 
     /// Scans `text` in `self.notation`, falling back to `fallback` at
     /// candidate positions that fail in `self.notation` when a document's
     /// region ballot carries both conventions.
     pub(crate) fn scan_with_fallback(&self, text: &str, fallback: Option<NumberNotation>, out: &mut Numbers) {
+        match fallback.filter(|&n| n != self.notation) {
+            Some(alt) => self.scan_candidates::<true>(text, alt, out),
+            None => self.scan(text, out),
+        }
+    }
+
+    fn scan_candidates<const FALLBACK: bool>(&self, text: &str, fallback: NumberNotation, out: &mut Numbers) {
         assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
         let b = text.as_bytes();
-        let fallback = fallback.filter(|&n| n != self.notation);
-        let ascii_only = self.opennlp_parity || !has_non_ascii_nd(text);
         // One buffer for the digits of every number in the text.
         let mut digits = String::new();
         let mut i = 0;
-        while let Some(pos) = next_candidate_pos(text, i, ascii_only) {
+        while let Some(pos) = next_candidate_pos(text, i, self.opennlp_parity) {
             i = pos;
             let matched = self
-                .match_at(text, i, self.notation, ascii_only, &mut digits, out)
-                .or_else(|| fallback.and_then(|alt| self.match_at(text, i, alt, ascii_only, &mut digits, out)));
+                .match_at(text, i, self.notation, &mut digits, out)
+                .or_else(|| FALLBACK.then(|| self.match_at(text, i, fallback, &mut digits, out)).flatten());
             match matched {
                 Some(end) => i = end,
                 None => i += utf8_char_width(b[i]),
@@ -100,25 +105,27 @@ impl NumberScanner {
     /// `CursorQuantityExtractor.matchAt` without the unit: adds the
     /// number that starts at byte `start` in `notation` to `out` and
     /// returns its end.
-    #[inline]
+    #[inline(always)]
     fn match_at(
         &self,
         text: &str,
         start: usize,
         notation: NumberNotation,
-        ascii_only: bool,
         digits: &mut String,
         out: &mut Numbers,
     ) -> Option<usize> {
         let b = text.as_bytes();
         let negative = b[start] == b'-';
         let first = start + usize::from(negative);
-        let is_digit = b.get(first).is_some_and(u8::is_ascii_digit)
-            || (!ascii_only && is_nd_at(text, first));
-        if !is_digit || continues_number_with_parity(text, first, notation, ascii_only) {
+        let is_digit = b.get(first).is_some_and(u8::is_ascii_digit) || (!self.opennlp_parity && is_nd_at(text, first));
+        // The start of the text or an ASCII space is already a valid word
+        // and sign boundary, and cannot continue a numeral or exponent.
+        let separated = start == 0 || b[start - 1] == b' ';
+        if !is_digit || (!separated && continues_number_with_parity(text, first, notation, self.opennlp_parity)) {
             return None;
         }
-        let boundary = if negative { sign_boundary_before(text, start) } else { boundary_before(text, start) };
+        let boundary =
+            separated || if negative { sign_boundary_before(text, start) } else { boundary_before(text, start) };
         if !boundary {
             return None;
         }
