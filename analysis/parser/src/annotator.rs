@@ -14,7 +14,8 @@ use std::sync::Arc;
 use turbo_analysis::{Annotator, Error, Ix, IxRange, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Phrases, Sentences, Tag, TagSet, Tokens};
 
-use crate::bottom_up::{Parser, ParserEngine, ParserFactory};
+use crate::annotator_inputs::{check_inputs, config_hash, token_text};
+use crate::bottom_up::{DEFAULT_ADVANCE_PERCENTAGE, DEFAULT_BEAM_SIZE, Parser, ParserEngine, ParserFactory};
 use crate::model::ParserModel;
 use crate::parse::{INC_NODE, Parse, ParseError, TOK_NODE, TOP_NODE, space_untokenized_parens};
 
@@ -28,22 +29,23 @@ use crate::parse::{INC_NODE, Parse, ParseError, TOK_NODE, TOP_NODE, space_untoke
 pub struct ParserAnnotator {
     model: Arc<ParserModel>,
     engine: ParserEngine,
+    /// [`Annotator::config_hash`] of the search parameters the engine was built with.
+    config: u64,
 }
 
 impl ParserAnnotator {
     /// Creates a `ParserAnnotator` with OpenNLP's default beam search parameters
     /// (`beamSize = 20`, `advancePercentage = 0.95`).
     pub fn new(model: impl Into<Arc<ParserModel>>) -> Self {
-        let model = model.into();
-        let engine = ParserFactory::create(Arc::clone(&model));
-        Self { model, engine }
+        Self::with_params(model, DEFAULT_BEAM_SIZE, DEFAULT_ADVANCE_PERCENTAGE)
     }
 
     /// Creates a `ParserAnnotator` with explicit `beam_size` and `advance_percentage`.
     pub fn with_params(model: impl Into<Arc<ParserModel>>, beam_size: usize, advance_percentage: f64) -> Self {
         let model = model.into();
         let engine = ParserFactory::create_with_params(Arc::clone(&model), beam_size, advance_percentage);
-        Self { model, engine }
+        let config = config_hash(model.parser_type(), beam_size, advance_percentage);
+        Self { model, engine, config }
     }
 
     /// Borrows the underlying [`ParserEngine`].
@@ -63,12 +65,7 @@ impl Annotator for ParserAnnotator {
     type Writes = (Phrases,);
 
     fn annotate(&self, (view, sentences, tokens): Refs<'_, Self>) -> Result<(Phrases,), Error> {
-        if tokens.spans.view() != view.id() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("the tokens are in view {}, not in view {}", tokens.spans.view().0, view.id().0),
-            });
-        }
+        check_inputs(view, sentences, tokens).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         let text = view.text();
         let mut spans = Spans::<Phrases>::new(view.id());
         let mut token_ranges = Vec::new();
@@ -99,7 +96,12 @@ impl Annotator for ParserAnnotator {
 
             let sent_tok_spans: Vec<Span> =
                 (sent_tok_start..sent_tok_end).map(|ti| Span::new(tok_starts[ti], tok_ends[ti])).collect();
-            let words: Vec<&str> = sent_tok_spans.iter().map(|sp| &text[sp.range()]).collect();
+            let words = sent_tok_spans
+                .iter()
+                .enumerate()
+                .map(|(i, &sp)| token_text(text, sent_tok_start + i, sp))
+                .collect::<Result<Vec<&str>, String>>()
+                .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
 
             let Ok(flat) = Parse::from_tokens(&words) else {
                 continue;
@@ -138,6 +140,10 @@ impl Annotator for ParserAnnotator {
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.model.model_ref().clone())
+    }
+
+    fn config_hash(&self) -> u64 {
+        self.config
     }
 }
 
@@ -229,8 +235,9 @@ impl ParserTool {
     ///
     /// Mirrors `ParserTool.parseLine(String line, Parser parser, int numParses)`:
     /// 1. Spaces untokenized parentheses via [`space_untokenized_parens`].
-    /// 2. Splits into tokens using Java `StringTokenizer` default delimiters
-    ///    (`" \t\n\r\f"`).
+    /// 2. Splits into tokens on the characters `mode` counts as whitespace, as
+    ///    `WhitespaceTokenizer` does with `StringUtil.isWhitespace`; a line with
+    ///    no token gives no parses.
     /// 3. Builds a flat `INC` tree with [`TOK_NODE`] children, runs
     ///    `parser.parse_n(&flat, num_parses)`, and adjusts every node's span
     ///    and the shared backing text back to `line`.
@@ -245,11 +252,12 @@ impl ParserTool {
         mode: turbo_unicode::WhitespaceMode,
         num_parses: usize,
     ) -> Result<Vec<Parse>, ParseError> {
-        if line.trim().is_empty() || num_parses == 0 {
+        if num_parses == 0 {
             return Ok(Vec::new());
         }
         let spaced = space_untokenized_parens(line, mode);
-        let raw_tokens: Vec<&str> = spaced.split([' ', '\t', '\n', '\r', '\x0C']).filter(|s| !s.is_empty()).collect();
+        let raw_tokens: Vec<&str> =
+            spaced.split(|c: char| mode.is_whitespace(c as u32)).filter(|s| !s.is_empty()).collect();
         if raw_tokens.is_empty() {
             return Ok(Vec::new());
         }

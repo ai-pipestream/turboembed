@@ -81,6 +81,7 @@ fn a_span_outside_the_text_is_refused_not_hashed_as_empty() {
         cost: vec![0],
         model_tokens: vec![1],
         over_budget: vec![false],
+        prompt_overhead: 0,
     };
     assert!(ContentHashes::<Chunks>::compute("short", &chunks, None).is_err());
 }
@@ -100,6 +101,7 @@ fn fragmented_chunks(rows: &[&[Span]]) -> Chunks {
         cost: vec![0; n],
         model_tokens: vec![1; n],
         over_budget: vec![false; n],
+        prompt_overhead: 0,
     }
 }
 
