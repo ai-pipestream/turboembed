@@ -158,6 +158,7 @@ fn pos_tags_and_chunks_check_probabilities_and_sentence_ranges() {
         cost: vec![0],
         model_tokens: vec![5],
         over_budget: vec![false],
+        prompt_overhead: 0,
     };
     assert_eq!(chunks.check().unwrap_err(), "no sentence range that ends before it starts");
     chunks.sentences[0] = IxRange::new(1, 3);

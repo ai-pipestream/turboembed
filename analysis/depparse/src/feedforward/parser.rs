@@ -1,4 +1,5 @@
-use super::{FeedforwardContext, FeedforwardDependencyModel};
+use super::FeedforwardDependencyModel;
+use super::sentence::SentenceIds;
 use crate::{ArcStandardState, DependencyGraph, DependencyParser, ParserInput, Result, error};
 use std::sync::Arc;
 use turbo_analysis::ModelRef;
@@ -32,11 +33,15 @@ impl FeedforwardDependencyParser {
     }
     pub fn parse<A: WordOrTokenAnchor>(&self, words: &[&str], pos: &[&str]) -> Result<DependencyGraph<A>> {
         ParserInput::check(words, pos)?;
+        // Each step reads its feature ids from the sentence's resolved rows,
+        // into buffers reused across steps.
+        let sentence = SentenceIds::new(&self.model, words, pos);
+        let (mut positions, mut ids) = (Vec::new(), Vec::new());
         if self.beam_size == 1 {
             let mut state = ArcStandardState::<A>::new(words.len())?;
             while !state.is_terminal() {
-                let context = FeedforwardContext::extract(&state, words, pos, self.model.layout())?;
-                let scores = self.model.score(&self.model.feature_ids(&context)?)?;
+                sentence.fill(&self.model, &state, &mut positions, &mut ids);
+                let scores = self.model.score(&ids)?;
                 let mut best = None;
                 for (i, t) in self.model.transitions.iter().enumerate() {
                     if state.can_apply(t) && best.is_none_or(|b: usize| scores[i] > scores[b]) {
@@ -56,8 +61,7 @@ impl FeedforwardDependencyParser {
                     candidates.push((*score, index, None));
                     continue;
                 }
-                let context = FeedforwardContext::extract(state, words, pos, self.model.layout())?;
-                let ids = self.model.feature_ids(&context)?;
+                sentence.fill(&self.model, state, &mut positions, &mut ids);
                 let scores = self.model.score(&ids)?;
                 let max = scores.iter().copied().fold(f64::NEG_INFINITY, f64::max);
                 let log_z = scores.iter().map(|s| (s - max).exp()).sum::<f64>().ln();

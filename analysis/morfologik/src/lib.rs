@@ -15,6 +15,8 @@ pub mod dictionary;
 pub mod encoding;
 pub mod error;
 pub mod fsa;
+mod identity;
+mod lemmatizer;
 pub mod metadata;
 pub mod reader;
 
