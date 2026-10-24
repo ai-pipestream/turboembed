@@ -20,6 +20,8 @@ turbo-vector-index = { path = "../vector-index" }
 # DocumentCategorizerDL trait and scoring types (#208), plus the lexicon
 # sentiment baseline (#320) compared in tests/heads.rs.
 turbo-doccat = { path = "../doccat" }
+# Coreference contextual TokenVectors trait (#960).
+turbo-coref = { path = "../coref" }
 
 [dev-dependencies]
 # The tests build the levels with the chunker crate's builder.
