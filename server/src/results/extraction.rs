@@ -1,8 +1,7 @@
 //! ExtractionResult: the ranked answers of an extraction or
 //! question-answering run, the turbo-analysis-embed `Answers` layer
-//! (extractive QA, issue #745) plus the model identity. The schema-driven
-//! structured records of issue #715 have no merged layer yet; this
-//! message carries what exists today.
+//! (extractive QA, issue #745) plus the model identity. Schema-driven
+//! structured records travel as RecordsResult (`super::records`).
 
 use turbo_analysis::{Layer, ModelRef, Span, ViewId};
 use turbo_analysis_embed::Answers;
