@@ -43,42 +43,104 @@ pub(crate) static EXTENDED_START_BYTES: [bool; 256] = {
     table
 };
 
-/// Finds the next byte offset `>= start` that can open a number candidate:
-/// ASCII `'-'`, ASCII `'0'..='9'`, or (when `!opennlp_parity`) a non-ASCII
-/// Unicode `Nd` decimal digit.
+/// Pure-arithmetic check on 3 adjacent bytes `(x0, x1, x2)` that is `true` for
+/// every non-ASCII Unicode `Nd` decimal digit and uses only branchless bitwise
+/// operations so LLVM auto-vectorizes it across 32-byte SIMD lanes.
 #[inline]
-pub(crate) fn next_candidate_pos(text: &str, start: usize, opennlp_parity: bool) -> Option<usize> {
+fn may_be_nd_triple(x0: u8, x1: u8, x2: u8) -> bool {
+    let lead = (x0 >= 0xD9) & (x0.wrapping_sub(0xE2) > 7);
+    let e0_ef = (x1 >= 0xA5) & (x1.max(x2) >= 0xA6) & (x1 != 0xB8) & (x2 >= 0x90) & (x2 != 0x9A);
+    let other = (x0 != 0xE0) & (x0 != 0xEF) & ((x1 >= 0xA0) | (x0 != 0xD9)) & ((x1 != 0x9F) | (x2 >= 0xA0));
+    lead & (e0_ef | other)
+}
+
+#[inline]
+fn has_nd_lead_candidate(b: &[u8]) -> bool {
+    let (chunks, rem) = b.as_chunks::<32>();
+    for c in chunks {
+        let mut any = false;
+        for &x in c {
+            any |= x >= 0xD9;
+        }
+        if any {
+            return true;
+        }
+    }
+    rem.iter().any(|&x| x >= 0xD9)
+}
+
+/// Fast SIMD-vectorized first pass that reports whether `text` contains any
+/// non-ASCII Unicode `Nd` decimal digit, falling back to `main`'s ASCII start
+/// scan whenever `text` has no non-ASCII `Nd` digits.
+#[inline]
+pub(crate) fn has_non_ascii_nd(text: &str) -> bool {
     let b = text.as_bytes();
-    if opennlp_parity {
+    let len = b.len();
+    if len < 2 || !has_nd_lead_candidate(b) {
+        return false;
+    }
+    let mut i = 0;
+    while i + 18 <= len {
+        while i + 18 <= len {
+            let w = &b[i..i + 18];
+            let (s0, s1, s2) = (&w[0..16], &w[1..17], &w[2..18]);
+            let mut any = false;
+            for k in 0..16 {
+                any |= may_be_nd_triple(s0[k], s1[k], s2[k]);
+            }
+            if any {
+                break;
+            }
+            i += 16;
+        }
+        if i + 18 > len {
+            break;
+        }
+        for k in 0..16 {
+            if is_nd_at(text, i + k) {
+                return true;
+            }
+        }
+        i += 16;
+    }
+    while i + 2 < len {
+        if may_be_nd_triple(b[i], b[i + 1], b[i + 2]) && is_nd_at(text, i) {
+            return true;
+        }
+        i += 1;
+    }
+    is_nd_at(text, len - 2)
+}
+
+/// Finds the next byte offset `>= start` that can open a number candidate:
+/// ASCII `'-'`, ASCII `'0'..='9'`, or (when `!ascii_only`) a non-ASCII
+/// Unicode `Nd` decimal digit.
+#[inline(always)]
+pub(crate) fn next_candidate_pos(text: &str, start: usize, ascii_only: bool) -> Option<usize> {
+    if ascii_only {
+        let b = text.as_bytes();
         return b[start..].iter().position(|&x| x == b'-' || x.is_ascii_digit()).map(|s| start + s);
     }
-    let mut i = start;
-    while i < b.len() {
-        let b0 = b[i];
-        if EXTENDED_START_BYTES[usize::from(b0)] {
-            if b0 < 0x80 || is_nd_at(text, i) {
-                return Some(i);
-            }
-            i += utf8_char_width(b0);
-        } else {
-            i += 1;
+    next_candidate_pos_extended(text, start)
+}
+
+#[inline(always)]
+fn next_candidate_pos_extended(text: &str, mut i: usize) -> Option<usize> {
+    let b = text.as_bytes();
+    while let Some(rel) = b[i..].iter().position(|&x| EXTENDED_START_BYTES[x as usize]) {
+        let pos = i + rel;
+        if b[pos] == b'-' || b[pos].is_ascii_digit() || is_nd_at(text, pos) {
+            return Some(pos);
         }
+        i = pos + utf8_char_width(b[pos]);
     }
     None
 }
 
-/// UTF-8 byte length of the character starting with lead byte `b0`.
+/// Branchless UTF-8 byte length of the character starting with lead byte `b0`.
 #[inline]
 pub(crate) fn utf8_char_width(b0: u8) -> usize {
-    if b0 < 0x80 {
-        1
-    } else if b0 < 0xE0 {
-        2
-    } else if b0 < 0xF0 {
-        3
-    } else {
-        4
-    }
+    1 + usize::from(b0 >= 0x80) + usize::from(b0 >= 0xE0) + usize::from(b0 >= 0xF0)
 }
 
 /// Whether `text` has a non-ASCII Unicode `Nd` decimal digit at byte `pos`.

@@ -6,7 +6,7 @@ use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{NumberMention, NumberNotation, Numbers};
 
 use crate::scan::{
-    boundary_before, continues_number_with_parity, is_nd_at, next_candidate_pos, parse_with_parity,
+    boundary_before, continues_number_with_parity, has_non_ascii_nd, is_nd_at, next_candidate_pos, parse_with_parity,
     sign_boundary_before, utf8_char_width,
 };
 
@@ -81,14 +81,15 @@ impl NumberScanner {
         assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
         let b = text.as_bytes();
         let fallback = fallback.filter(|&n| n != self.notation);
+        let ascii_only = self.opennlp_parity || !has_non_ascii_nd(text);
         // One buffer for the digits of every number in the text.
         let mut digits = String::new();
         let mut i = 0;
-        while let Some(pos) = next_candidate_pos(text, i, self.opennlp_parity) {
+        while let Some(pos) = next_candidate_pos(text, i, ascii_only) {
             i = pos;
             let matched = self
-                .match_at(text, i, self.notation, &mut digits, out)
-                .or_else(|| fallback.and_then(|alt| self.match_at(text, i, alt, &mut digits, out)));
+                .match_at(text, i, self.notation, ascii_only, &mut digits, out)
+                .or_else(|| fallback.and_then(|alt| self.match_at(text, i, alt, ascii_only, &mut digits, out)));
             match matched {
                 Some(end) => i = end,
                 None => i += utf8_char_width(b[i]),
@@ -105,6 +106,7 @@ impl NumberScanner {
         text: &str,
         start: usize,
         notation: NumberNotation,
+        ascii_only: bool,
         digits: &mut String,
         out: &mut Numbers,
     ) -> Option<usize> {
@@ -112,8 +114,8 @@ impl NumberScanner {
         let negative = b[start] == b'-';
         let first = start + usize::from(negative);
         let is_digit = b.get(first).is_some_and(u8::is_ascii_digit)
-            || (!self.opennlp_parity && is_nd_at(text, first));
-        if !is_digit || continues_number_with_parity(text, first, notation, self.opennlp_parity) {
+            || (!ascii_only && is_nd_at(text, first));
+        if !is_digit || continues_number_with_parity(text, first, notation, ascii_only) {
             return None;
         }
         let boundary = if negative { sign_boundary_before(text, start) } else { boundary_before(text, start) };

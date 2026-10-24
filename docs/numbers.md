@@ -100,32 +100,31 @@ golden comparisons in `analysis/numeric/tests/goldens.rs`,
 `analysis/numeric/tests/quantity_goldens.rs`, and
 `analysis/numeric/tests/money_goldens.rs`.
 
-Interleaved release-build timing (`cargo test --release -p turbo-numeric --test extended_numbers timing_receipt_interleaved_release -- --ignored --nocapture`, 6 interleaved rounds of 100 iterations on the same machine comparing `main` `97dee9b33` against this head):
+Interleaved release-build timing (`cargo test --release -p turbo-numeric --test extended_numbers timing_receipt_interleaved_release -- --ignored --nocapture`, 6 interleaved rounds of 100 iterations on the same machine comparing the ASCII-only baseline path against the default extended path, which runs a SIMD-vectorized 16-byte `has_non_ascii_nd` pre-pass and falls back to `main`'s ASCII start scan whenever a text has no non-ASCII `Nd` digits):
 
 - Existing ASCII/Latin corpus (`prose-english.txt`, `prose-german.txt`,
   `decimals-us.txt`, `eu-grouping.txt`, `both-notations.txt`, 112.8 KB x
   100 iterations, 6,000 mentions/iteration):
-  - `main` (`97dee9b33`): median `21.15 ms` (`533.5 MB/s`, range
-    `20.35 ms` to `23.09 ms`).
+  - ASCII-only baseline (`with_opennlp_parity(true)` / `main`): median
+    `22.54 ms` (`500.4 MB/s`, range `22.43 ms` to `25.45 ms`).
   - Default extended path (`with_opennlp_parity(false)`): median
-    `20.71 ms` (`544.8 MB/s`, range `20.47 ms` to `21.28 ms`).
-  - OpenNLP parity path (`with_opennlp_parity(true)`): median `21.00 ms`
-    (`537.2 MB/s`, range `20.88 ms` to `25.05 ms`).
+    `22.66 ms` (`497.7 MB/s`, range `22.43 ms` to `22.89 ms`).
 - Non-Latin corpus with existing-path ASCII numerals (Devanagari, Thai,
   Arabic, CJK fullwidth punctuation, and emoji prose, 1.58 MB x 100
   iterations, 15,000 mentions/iteration on both):
-  - `main` (`97dee9b33`, ASCII-only scan): median `85.92 ms`
-    (`1,836 MB/s`, range `85.48 ms` to `86.77 ms`).
-  - Default extended path (`with_opennlp_parity(false)`): median
-    `121.45 ms` (`1,299 MB/s`, range `120.43 ms` to `123.59 ms`).
+  - ASCII-only baseline (`with_opennlp_parity(true)` / `main`): median
+    `94.85 ms` (`1,663 MB/s`, range `94.34 ms` to `101.38 ms`).
+  - Default extended path (`with_opennlp_parity(false)`, `has_non_ascii_nd`
+    SIMD pre-pass + fallback to `main`'s ASCII start scan): median
+    `111.49 ms` (`1,415 MB/s`, range `111.12 ms` to `114.57 ms`).
 - Non-Latin corpus with Devanagari, Arabic-Indic, and Fullwidth `Nd`
   numerals alongside ASCII numerals (1.70 MB x 100 iterations):
-  - `main` (`97dee9b33`, skips non-ASCII numerals, 7,500
-    mentions/iteration): median `61.46 ms` (`2,770 MB/s`, range
-    `60.42 ms` to `62.93 ms`).
+  - ASCII-only baseline (`with_opennlp_parity(true)` / `main`, skips
+    non-ASCII numerals, 7,500 mentions/iteration): median `66.35 ms`
+    (`2,566 MB/s`, range `64.05 ms` to `70.09 ms`).
   - Default extended path (`with_opennlp_parity(false)`, extracts all
     15,000 ASCII and non-ASCII `Nd` mentions/iteration): median
-    `154.86 ms` (`1,099 MB/s`, range `154.37 ms` to `161.51 ms`).
+    `171.18 ms` (`995 MB/s`, range `169.24 ms` to `174.84 ms`).
 
 Behaviour that comes from the Java and is kept:
 
