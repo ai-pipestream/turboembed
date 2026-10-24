@@ -1,5 +1,6 @@
 //! Existing exact/set/quantifier path over real CoNLL-U token text.
-//! `token_bench CORPUS.conllu [ITERATIONS]` prints median ns and hit count.
+//! `token_bench CORPUS.conllu [ITERATIONS] [MATCHES]` prints median ns and
+//! hit count, optionally writing every match after timing for comparison.
 use std::{hint::black_box, time::Instant};
 use turbo_analysis::{Span, Spans, ViewId};
 use turbo_analysis_layers::Tokens;
@@ -44,4 +45,7 @@ fn main() {
     }
     times.sort_unstable();
     println!("tokens={} hits={} median_ns={}", input.len(), hits, times[times.len() / 2]);
+    if let Some(path) = args.get(3) {
+        std::fs::write(path, format!("{:?}", matcher.find(&input).unwrap())).unwrap();
+    }
 }
