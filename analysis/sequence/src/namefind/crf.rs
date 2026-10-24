@@ -74,6 +74,67 @@ impl<'m> CrfNameFinder<'m> {
     pub fn find(&mut self, tokens: &[&str]) -> Result<Vec<FoundName>, CrfError> {
         Ok(self.best_sequences(tokens, &[], &[], 1)?.remove(0).names)
     }
+    /// Top-1 decoded entities paired with their exact sequence-marginal
+    /// distributions over `model.span_outcomes()` (`["other", kind_0, ...]`).
+    pub fn find_scored_spans(&mut self, tokens: &[&str]) -> Result<(Vec<FoundName>, Vec<Vec<f64>>), CrfError> {
+        if tokens.is_empty() {
+            return Ok((Vec::new(), Vec::new()));
+        }
+        let rows = self.context.sequence_features(tokens, &[]);
+        let lattice = self.model.lattice(&rows)?;
+        let path = lattice.best_paths(1)?.remove(0);
+        let outcomes: Vec<_> = path.labels.iter().map(|&y| self.model.labels()[y].as_str()).collect();
+        let decoded = self.model.codec().decode(&outcomes);
+        let mut names = Vec::with_capacity(decoded.len());
+        let mut distributions = Vec::with_capacity(decoded.len());
+        for span in decoded {
+            let forbidden = if self.model.codec() == NameCodec::Bio {
+                let label = format!("{}-cont", span.kind.as_deref().unwrap_or("default"));
+                self.model.labels().iter().position(|s| s == &label)
+            } else {
+                None
+            };
+            let prob = lattice.span_probability(span.start, &path.labels[span.start..span.end], forbidden)?;
+            let dist = self.model.span_distribution(&lattice, span.start, span.end)?;
+            names.push(FoundName { span, prob });
+            distributions.push(dist);
+        }
+        Ok((names, distributions))
+    }
+    /// Ordered unique candidate spans from the top-`k` constrained paths paired
+    /// with their exact sequence-marginal distributions over `model.span_outcomes()`.
+    pub fn candidate_spans(&mut self, tokens: &[&str], k: usize) -> Result<Vec<(super::Span, Vec<f64>)>, CrfError> {
+        if k == 0 {
+            return Err(CrfError::Invalid("k must be positive".into()));
+        }
+        if tokens.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = self.context.sequence_features(tokens, &[]);
+        let lattice = self.model.lattice(&rows)?;
+        let paths = lattice.best_paths(k)?;
+        let mut intervals: Vec<(usize, usize)> = Vec::new();
+        for path in &paths {
+            let outcomes: Vec<_> = path.labels.iter().map(|&y| self.model.labels()[y].as_str()).collect();
+            for span in self.model.codec().decode(&outcomes) {
+                intervals.push((span.start, span.end));
+            }
+        }
+        intervals.sort_unstable();
+        intervals.dedup();
+        let kinds = self.model.entity_kinds();
+        let mut out = Vec::with_capacity(intervals.len());
+        for (start, end) in intervals {
+            let dist = self.model.span_distribution(&lattice, start, end)?;
+            let best_kind = dist[1..]
+                .iter()
+                .enumerate()
+                .max_by(|(ia, a), (ib, b)| a.total_cmp(b).then(ib.cmp(ia)))
+                .and_then(|(i, _)| kinds.get(i).map(String::as_str));
+            out.push((super::Span::new(start, end, best_kind), dist));
+        }
+        Ok(out)
+    }
     /// Exact k-best paths, with optional extra signed numeric features per
     /// token. Name probabilities are exact span marginals, not means of
     /// token marginals or normalization over the returned k paths.
