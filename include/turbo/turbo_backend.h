@@ -26,15 +26,15 @@
  *     first. It has no log function of its own: its warnings reach the
  *     caller through the log function the core hands it with a context.
  *   - The table grows only at the end, and struct_size says how much of it
- *     a backend fills. The core knows eight sizes: through capability,
+ *     a backend fills. The core knows nine sizes: through capability,
  *     through buffer_export, through model_release, through session_run,
  *     through buffer_read, through reserved2, through
- *     session_create_tuned, and through embed_write_ranges, which is
- *     sizeof(turbo_backend). It refuses any other. A function added after
- *     the first three may be NULL, and the core calls it only when
- *     struct_size covers it; formats it reads only when struct_size
- *     covers it, and a table that ends before it loads FORMAT_SAFETENSORS
- *     alone.
+ *     session_create_tuned, through embed_write_ranges, and through
+ *     reserved3, which is sizeof(turbo_backend). It refuses any other.
+ *     A function added after the first three may be NULL, and the core
+ *     calls it only when struct_size covers it; formats and token_head it
+ *     reads only when struct_size covers them, and a table that ends
+ *     before formats loads FORMAT_SAFETENSORS alone.
  *   - A backend that offers context_create offers context_release, one
  *     that offers buffer_alloc or buffer_import offers buffer_release, one
  *     that offers model_load offers model_release, one that offers
@@ -249,6 +249,13 @@ typedef struct turbo_backend_model {
     const void *artifact2;        /* a second file's bytes: an OpenVINO IR's weights (.bin);
                                      NULL for every one-file format */
     uint64_t    artifact2_bytes;
+    /* A token head, which only a backend whose table sets token_head is
+     * given: on a TASK_EXTRACTIVE_QA model, the span head, a linear layer
+     * whose weight is head[0], [head_out, hidden] F32, and bias head[1],
+     * [head_out] F32. NULL, with head_out 0, on every other model. */
+    const turbo_backend_tensor *head;
+    uint32_t    head_out;         /* 2 for the span head: start, then end */
+    uint32_t    reserved;
 } turbo_backend_model;
 
 /* A session as session_open receives it: turbo_session_desc's fields with
@@ -292,7 +299,11 @@ typedef struct turbo_backend_embed_rows {
     uint32_t       pooling;      /* TURBO_POOLING_MEAN, CLS or LAST */
     uint32_t       normalize;    /* TURBO_NORMALIZE_NONE or L2 */
     uint32_t       output_dim;   /* the first output_dim values of each vector, 1 to hidden */
-    uint32_t       reserved;
+    uint32_t       head;         /* 1 on a range write to a model loaded with a head: each
+                                    range's vector, the mean of all hidden values with no
+                                    normalization, goes through the head, its sums in F64,
+                                    and the run's output is [count, head_out]; output_dim is
+                                    then head_out and normalize NONE. 0 everywhere else */
 } turbo_backend_embed_rows;
 
 /* What a run produced and what it cost: turbo_result_info's fields that
@@ -454,6 +465,16 @@ typedef struct turbo_backend {
      * write with TURBO_E_UNSUPPORTED naming the backend. */
     int32_t (*embed_write_ranges)(void *session, const turbo_backend_embed_rows *rows,
                                   const turbo_token_range *ranges, uint32_t count, turbo_error *err);
+
+    /* Token heads. */
+
+    /* 1 when model_load takes turbo_backend_model.head and
+     * embed_write_ranges applies it to the vectors it pools when
+     * rows.head is 1; 0 where the core applies a head on the host, from
+     * the range vectors the backend writes. Only a backend that offers
+     * embed_write_ranges sets it. */
+    uint32_t token_head;
+    uint32_t reserved3;
 } turbo_backend;
 
 #ifdef __cplusplus

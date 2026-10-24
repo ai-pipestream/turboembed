@@ -154,6 +154,8 @@ pub struct AlignedBytes {
     /// The allocation's alignment: ALIGN, or HUGE.
     align: usize,
     /// A private mapping of a file (on a page boundary), not an allocation.
+    /// Only unix maps; elsewhere it is always false.
+    #[cfg_attr(not(unix), allow(dead_code))]
     mapped: bool,
 }
 

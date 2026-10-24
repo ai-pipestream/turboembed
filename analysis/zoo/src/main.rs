@@ -117,6 +117,9 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             for t in &a.trained_on {
                 println!("trained on: {} under {} ({})", t.name, t.license, t.license_terms);
             }
+            if let Some(attr) = &a.attribution {
+                println!("attribution: {attr}");
+            }
             for r in a.licences_to_accept(Policy::default()) {
                 println!("accept first: {} {}", r.licence, r.text);
             }

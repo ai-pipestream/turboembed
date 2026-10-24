@@ -408,6 +408,104 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
     }
 }
 
+// The F16 linear layers in 32 x 32 tiles, after the fragment handling of
+// MLX's steel GEMM (MIT): four SIMD groups, 2 x 2, each holding 2 x 2
+// fragments spread across the tile (a group's rows 16 apart, its columns
+// 16 apart), loaded lane by lane from threadgroup memory as F32, with w's
+// tile staged as it lies, [32][HBK], 16 bytes at a time, so no stage
+// transposes. On the M2 it is about 4% faster than gemm_h's 32 x 64 tile
+// over a whole run from 512 to 1024 packed tokens (docs/metal.md, Kernel
+// choices). Same bindings, splits and epilogue as gemm_h.
+template <typename XT, typename YT>
+kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[buffer(1)]],
+                    device const half *w1 [[buffer(2)]], device const half *w2 [[buffer(3)]],
+                    device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
+                    device const float *b2 [[buffer(6)]], device YT *y0 [[buffer(7)]], device YT *y1 [[buffer(8)]],
+                    device YT *y2 [[buffer(9)]], constant GemmParams &p [[buffer(10)]],
+                    uint3 tg [[threadgroup_position_in_grid]], ushort tid [[thread_index_in_threadgroup]],
+                    ushort sg [[simdgroup_index_in_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
+    threadgroup half xs[32 * HLD];
+    threadgroup half ws[32 * HLD];
+    const uint layer = tg.z / p.splits, split = tg.z % p.splits;
+    device const half *w = layer == 0 ? w0 : layer == 1 ? w1 : w2;
+    device const float *bias = layer == 0 ? b0 : layer == 1 ? b1 : b2;
+    device YT *y = (layer == 0 ? y0 : layer == 1 ? y1 : y2) + ulong(split) * p.m * p.n;
+    const uint m0 = tg.y * 32, n0 = tg.x * 32, k = p.k, n = p.n, m = p.m;
+    const uint kbegin = split * p.kchunk, kend = min(k, kbegin + p.kchunk);
+    // Each thread stages eight values of one row of x and one of w per
+    // step: 128 threads cover the 32 rows of each, 4 groups of 8 along k.
+    const uint r = tid / 4, c = (tid % 4) * 8;
+    const bool xin = m0 + r < m, win = n0 + r < n;
+    device const XT *xp = x + ulong(min(m0 + r, m - 1)) * k + kbegin + c;
+    device const half *wp = w + ulong(min(n0 + r, n - 1)) * k + kbegin + c;
+    const Coord cd = lane_coord(lane);
+    const uint tm = 8 * (sg / 2), tn = 8 * (sg % 2);
+    // A lane's two values of each fragment: of x, row tm + 16i + fm at k
+    // fn and fn + 1; of w, k fm at columns tn + 16j + fn and fn + 1.
+    threadgroup const half *ap = xs + (tm + cd.fm) * HLD + cd.fn;
+    threadgroup const half *bp = ws + (tn + cd.fn) * HLD + cd.fm;
+    simdgroup_float8x8 acc[2][2];
+    _Pragma("clang loop unroll(full)")
+    for (uint i = 0; i < 2; i++)
+        _Pragma("clang loop unroll(full)")
+        for (uint j = 0; j < 2; j++) acc[i][j] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    for (uint k0 = kbegin; k0 < kend; k0 += HBK) {
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        // k is a multiple of 8, so eight values lie wholly inside k or
+        // wholly past it.
+        const bool kin = k0 + c < kend;
+        eight(xs + r * HLD + c, xp, kin && xin);
+        *(threadgroup float4 *)(ws + r * HLD + c) = kin && win ? float4(*(device const packed_float4 *)wp) : float4(0.0f);
+        xp += HBK;
+        wp += HBK;
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        _Pragma("clang loop unroll(full)")
+        for (uint kk = 0; kk < HBK; kk += 8) {
+            simdgroup_float8x8 a[2], b[2];
+            _Pragma("clang loop unroll(full)")
+            for (uint i = 0; i < 2; i++) {
+                thread auto &e = a[i].thread_elements();
+                e[0] = float(ap[i * 16 * HLD + kk]);
+                e[1] = float(ap[i * 16 * HLD + kk + 1]);
+            }
+            _Pragma("clang loop unroll(full)")
+            for (uint j = 0; j < 2; j++) {
+                thread auto &e = b[j].thread_elements();
+                e[0] = float(bp[j * 16 * HLD + kk]);
+                e[1] = float(bp[j * 16 * HLD + HLD + kk]);
+            }
+            _Pragma("clang loop unroll(full)")
+            for (uint i = 0; i < 2; i++)
+                _Pragma("clang loop unroll(full)")
+                for (uint j = 0; j < 2; j++) simdgroup_multiply_accumulate(acc[i][j], a[i], b[j], acc[i][j]);
+        }
+    }
+
+    _Pragma("clang loop unroll(full)")
+    for (uint i = 0; i < 2; i++) {
+        const uint row = m0 + tm + i * 16 + cd.fm;
+        if (row >= m) continue;
+        device YT *yr = y + ulong(row) * n;
+        _Pragma("clang loop unroll(full)")
+        for (uint j = 0; j < 2; j++) {
+            const uint col = n0 + tn + j * 16 + cd.fn;
+            if (col >= n) continue;
+            thread auto &e = acc[i][j].thread_elements();
+            float v0 = e[0], v1 = e[1];
+            if (p.epilogue >= 1) {
+                v0 += bias[col];
+                v1 += bias[col + 1];
+            }
+            if (p.epilogue == 2) {
+                v0 = gelu(v0);
+                v1 = gelu(v1);
+            }
+            yr[col] = YT(v0);
+            yr[col + 1] = YT(v1);
+        }
+    }
+}
+
 // The small kernel's F16 form: F16 weights read straight from device
 // memory, x read as F16 operands, F32 sums.
 template <typename XT, typename YT>
@@ -475,6 +573,16 @@ GEMM_H(half, float, 4, 2, "gemm_h64_hf")
 GEMM_H(half, float, 4, 4, "gemm_h128_hf")
 GEMM_H(half, half, 4, 2, "gemm_h64_hh")
 GEMM_H(half, half, 4, 4, "gemm_h128_hh")
+
+#define GEMM_HN(XT, YT, name)                                                                                        \
+    template [[host_name(name)]] kernel void gemm_hn<XT, YT>(                                                         \
+        device const XT *, device const half *, device const half *, device const half *, device const float *,       \
+        device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
+        uint3, ushort, ushort, ushort);
+GEMM_HN(float, float, "gemm_h32n32_ff")
+GEMM_HN(float, half, "gemm_h32n32_fh")
+GEMM_HN(half, float, "gemm_h32n32_hf")
+GEMM_HN(half, half, "gemm_h32n32_hh")
 
 #define GEMM_SMALL_H(XT, YT, name)                                                                                   \
     template [[host_name(name)]] kernel void gemm_small_h<XT, YT>(                                                   \
@@ -632,7 +740,14 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
 // M2 that, with the mask staged as a bias, takes about 2.4 of 25 ms off
 // attention at 32 x 256 with the same bits); the scores and the running
 // softmax are F32, and the probabilities go to F16 for the product with
-// V, which sums in F32.
+// V, which sums in F32. attention_h passes each group's scores and
+// probabilities through threadgroup memory, a row to four lanes;
+// attention_hr (REG) keeps them in the SIMD-group matrices' registers,
+// each lane holding two columns of a row in each 8 x 8 block, so it needs
+// no such memory and no barrier between the scores and the product with
+// V. The two sum in different orders, so their bits differ (docs/metal.md,
+// Kernel choices).
+template <bool REG>
 kernel void attention_h(device const half *q [[buffer(0)]], device const half *k [[buffer(1)]],
                         device const half *v [[buffer(2)]], device const int *mask [[buffer(3)]],
                         device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
@@ -643,14 +758,16 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
     // Threadgroup memory, given at dispatch (attention_h_bytes): a chunk's
     // K transposed, [head_dim][KC + 8], so the scores' fragments load
     // without a transpose; its V, [KC][head_dim + 8] (the queries first, in
-    // the same room); each group's 8 x 32 scores in F32 and probabilities
-    // in F16; and the chunk's keys' mask as an additive 0 or -inf.
+    // the same room); for attention_h, each group's 8 x 32 scores in F32
+    // and probabilities in F16; and the chunk's keys' mask as an additive
+    // 0 or -inf.
     const uint LDH = p.head_dim + 8, LDK = KC + 8;
     threadgroup half *ks = mem;
     threadgroup half *vs = ks + p.head_dim * LDK;
-    threadgroup float *s = (threadgroup float *)(vs + KC * LDH) + sg * 8 * KC;
-    threadgroup half *ph = (threadgroup half *)((threadgroup float *)(vs + KC * LDH) + 4 * 8 * KC) + sg * 8 * KC;
-    threadgroup float *kb = (threadgroup float *)((threadgroup half *)((threadgroup float *)(vs + KC * LDH) + 4 * 8 * KC) + 4 * 8 * KC);
+    threadgroup float *after = (threadgroup float *)(vs + KC * LDH);
+    threadgroup float *s = after + sg * 8 * KC;
+    threadgroup half *ph = (threadgroup half *)(after + 4 * 8 * KC) + sg * 8 * KC;
+    threadgroup float *kb = REG ? after : (threadgroup float *)((threadgroup half *)(after + 4 * 8 * KC) + 4 * 8 * KC);
     const uint2 blk = blocks[tg.x];
     const uint2 row = rows[blk.x];
     const uint p0 = row.x, len = row.y;
@@ -673,6 +790,7 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
 
     simdgroup_float8x8 o[HD_MAX / 8];
     for (uint f = 0; f < HD_MAX / 8; f++) o[f] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    const Coord cd = lane_coord(lane);
     const uint qr = lane / 4, part = lane % 4;
     float mx = -INFINITY, sum = 0.0f;
 
@@ -689,6 +807,12 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
         if (tid < KC) kb[tid] = c0 + tid < len && m[c0 + tid] != 0 ? 0.0f : -INFINITY;
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
+        // A masked key's score plus -inf is -inf. Its product is finite: a
+        // masked key inside a row is a real token's K, and one past the row
+        // is staged as 0. A select here, which would also map a NaN or an
+        // infinite product to -inf, costs 1 to 2% at 32 x 256 on the M2.
+        simdgroup_float8x8 sr[KC / 8];
+        float cm = -INFINITY;
         for (uint j = 0; j < KC / 8; j++) {
             simdgroup_float8x8 acc = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
             for (uint f = 0; f < HD_MAX / 8; f++) {
@@ -697,40 +821,62 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
                 simdgroup_load(kt, ks + (f * 8) * LDK + j * 8, LDK);
                 simdgroup_multiply_accumulate(acc, qa[f], kt, acc);
             }
-            simdgroup_store(acc, s + j * 8, KC);
+            if (REG) {
+                thread auto &e = acc.thread_elements();
+                e[0] += kb[j * 8 + cd.fn];
+                e[1] += kb[j * 8 + cd.fn + 1];
+                cm = max(cm, max(e[0], e[1]));
+                sr[j] = acc;
+            } else {
+                simdgroup_store(acc, s + j * 8, KC);
+            }
         }
-        simdgroup_barrier(mem_flags::mem_threadgroup);
-
-        float cm = -INFINITY;
-        for (uint t = part * 8; t < part * 8 + 8; t++) {
-            // A masked key's score plus -inf is -inf. Its product is finite:
-            // a masked key inside a row is a real token's K, and one past
-            // the row is staged as 0. A select here, which would also map a
-            // NaN or an infinite product to -inf, costs 1 to 2% at 32 x 256
-            // on the M2.
-            s[qr * KC + t] += kb[t];
-            cm = max(cm, s[qr * KC + t]);
+        if (!REG) {
+            simdgroup_barrier(mem_flags::mem_threadgroup);
+            for (uint t = part * 8; t < part * 8 + 8; t++) {
+                s[qr * KC + t] += kb[t];
+                cm = max(cm, s[qr * KC + t]);
+            }
         }
+        // A row's lanes: four apart by 1 and 2 for attention_h, by 1 and 8
+        // in the matrices' layout (lane_coord).
         cm = max(cm, simd_shuffle_xor(cm, 1));
-        cm = max(cm, simd_shuffle_xor(cm, 2));
+        cm = max(cm, simd_shuffle_xor(cm, REG ? 8 : 2));
         const float nm = max(mx, cm);
+        // No live key yet leaves the row's max at -inf: nothing to rescale,
+        // and every probability so far is 0.
         const float alpha = nm == -INFINITY ? 1.0f : exp2(mx - nm);
+        simdgroup_half8x8 pa[KC / 8];
         float cs = 0.0f;
-        for (uint t = part * 8; t < part * 8 + 8; t++) {
-            // A masked key's score is -inf, and exp2 of it 0.
-            const float e = nm == -INFINITY ? 0.0f : exp2(s[qr * KC + t] - nm);
-            ph[qr * KC + t] = half(e);
-            cs += e;
+        if (REG) {
+            for (uint j = 0; j < KC / 8; j++) {
+                thread auto &e = sr[j].thread_elements();
+                const float a = nm == -INFINITY ? 0.0f : exp2(e[0] - nm);
+                const float b = nm == -INFINITY ? 0.0f : exp2(e[1] - nm);
+                thread auto &pe = pa[j].thread_elements();
+                pe[0] = half(a);
+                pe[1] = half(b);
+                cs += a + b;
+            }
+        } else {
+            for (uint t = part * 8; t < part * 8 + 8; t++) {
+                // A masked key's score is -inf, and exp2 of it 0.
+                const float e = nm == -INFINITY ? 0.0f : exp2(s[qr * KC + t] - nm);
+                ph[qr * KC + t] = half(e);
+                cs += e;
+            }
         }
         cs += simd_shuffle_xor(cs, 1);
-        cs += simd_shuffle_xor(cs, 2);
+        cs += simd_shuffle_xor(cs, REG ? 8 : 2);
         sum = sum * alpha + cs;
         mx = nm;
-        simdgroup_barrier(mem_flags::mem_threadgroup);
 
-        const float row_alpha = simd_shuffle(alpha, ushort(lane_coord(lane).fm * 4));
-        simdgroup_half8x8 pa[KC / 8];
-        for (uint j = 0; j < KC / 8; j++) simdgroup_load(pa[j], ph + j * 8, KC);
+        float row_alpha = alpha;
+        if (!REG) {
+            simdgroup_barrier(mem_flags::mem_threadgroup);
+            row_alpha = simd_shuffle(alpha, ushort(cd.fm * 4));
+            for (uint j = 0; j < KC / 8; j++) simdgroup_load(pa[j], ph + j * 8, KC);
+        }
         for (uint f = 0; f < HD_MAX / 8; f++) {
             if (f * 8 >= hd) break;
             thread auto &oe = o[f].thread_elements();
@@ -744,8 +890,7 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
         }
     }
 
-    const Coord cd = lane_coord(lane);
-    const float inv = 1.0f / simd_shuffle(sum, ushort(cd.fm * 4));
+    const float inv = 1.0f / (REG ? sum : simd_shuffle(sum, ushort(cd.fm * 4)));
     const uint qi = first + sg * 8 + cd.fm;
     if (qi >= len) return;
     device half *out = ctx + ulong(p0 + qi) * h + col;
@@ -756,6 +901,15 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
         out[f * 8 + cd.fn + 1] = half(oe[1] * inv);
     }
 }
+
+// The instances the host names.
+#define ATTENTION_H(reg, name)                                                                                  \
+    template [[host_name(name)]] kernel void attention_h<reg>(                                                  \
+        device const half *, device const half *, device const half *, device const int *, device const uint2 *, \
+        device const uint2 *, device half *, constant AttentionParams &, threadgroup half *, uint2, ushort, ushort, \
+        ushort);
+ATTENTION_H(false, "attention_h")
+ATTENTION_H(true, "attention_hr")
 
 // The same, for a head width that is not a multiple of 8 or over 64: each
 // query of the 32 in turn, in one SIMD group, its scores one key per lane.

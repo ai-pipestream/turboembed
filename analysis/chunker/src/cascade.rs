@@ -25,6 +25,8 @@ use turbo_analysis_layers::{Level, Levels, Vectors};
 
 use crate::terms::{Bm25, Collection, Query, TermStats, Vocabulary};
 
+mod facets;
+
 /// A query encoded in one named vector space.
 #[derive(Copy, Clone, Debug)]
 pub struct QueryVector<'a> {

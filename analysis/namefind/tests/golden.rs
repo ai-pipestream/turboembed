@@ -271,7 +271,12 @@ fn user_patterns() {
     let found = layer(&g, "turbo:pattern-names");
     let (number, key) = (u32s(found, "pattern"), strs(found, "sentence"));
     let names = names_by(found, |r| format!("{}\t{}", number[r], key[r]));
-    let keys: Vec<&str> = sentences.keys('h').chain(sentences.keys('f').take(400)).collect();
+    let mut sentences = sentences;
+    for (i, row) in std::fs::read_to_string(fixture("regex-boundaries.txt")).unwrap().split_terminator('\n').enumerate()
+    {
+        sentences.add(format!("b{i}"), row.split('\t').map(|t| t.replace("\\n", "\n").replace("\\r", "\r")).collect());
+    }
+    let keys: Vec<&str> = sentences.keys('h').chain(sentences.keys('f').take(400)).chain(sentences.keys('b')).collect();
     let (mut compared, mut refused_texts) = (0, 0);
     let mut failures = Vec::new();
     let (flags, regex, compiled) = (strs(patterns, "flags"), strs(patterns, "regex"), u32s(patterns, "compiled"));
@@ -295,7 +300,10 @@ fn user_patterns() {
                                 failures.push(format!("{pattern:?} {key} {tokens:?}\n  want {want:?}\n  got  {got:?}"));
                             }
                         }
-                        Err(Error::Text { .. }) => refused_texts += 1,
+                        Err(Error::Text { limit: turbo_namefind::TextLimit::Supplementary, .. }) => {
+                            assert!(tokens.iter().any(|t| t.chars().any(|c| c as u32 > 0xFFFF)));
+                            refused_texts += 1;
+                        }
                         Err(e) => panic!("{pattern:?} {key}: {e}"),
                     }
                 }
@@ -304,7 +312,7 @@ fn user_patterns() {
         }
     }
     assert!(failures.is_empty(), "{} differences:\n{}", failures.len(), failures[..failures.len().min(10)].join("\n"));
-    assert_eq!(patterns.len(), 114);
+    assert_eq!(patterns.len(), 120);
     println!("{compared} sentences compared, {refused_texts} refused");
     assert!(refused_texts * 50 < compared, "{refused_texts} refused of {compared}");
 }

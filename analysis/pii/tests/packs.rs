@@ -10,7 +10,7 @@
 mod support;
 
 use support::*;
-use turbo_analysis::{Analyzer, Document, Layer};
+use turbo_analysis::{Analyzer, Annotator, Document, Layer};
 use turbo_pii::rewrite::mask_all;
 use turbo_pii::{Extractor, Pack, Pii, PiiDetector, PiiKind, PiiKinds, Scanner, ScannerError};
 
@@ -63,12 +63,42 @@ fn every_pack_is_in_order_and_finds_its_kinds_only() {
 
 #[test]
 fn the_wide_pack_keeps_every_mention_of_the_narrow_ones() {
-    let wide = rows(&wide(), &everything());
+    let text = everything();
+    let wide_parity = rows(&wide().keeping_nested(), &text);
+    let wide_default = rows(&wide(), &text);
     for p in Pack::ALL {
-        for row in rows(&pack(p), &everything()) {
-            assert!(wide.contains(&row), "{}: {row:?}", p.name());
+        for row in rows(&pack(p).keeping_nested(), &text) {
+            assert!(wide_parity.contains(&row), "{}: {row:?}", p.name());
+        }
+        for row in rows(&pack(p), &text) {
+            let nested = wide_default.iter().any(|w| w.0 <= row.0 && row.1 <= w.1 && (w.0 < row.0 || row.1 < w.1));
+            assert!(wide_default.contains(&row) || nested, "{}: {row:?}", p.name());
         }
     }
+}
+
+#[test]
+fn nested_identifiers_are_dropped_by_default_and_kept_in_parity() {
+    let d = wide();
+    let parity = wide().keeping_nested();
+    assert!(!d.keeps_nested() && parity.keeps_nested());
+    assert_ne!(d.config_hash(), parity.config_hash());
+
+    let iban = "Please use IBAN DE56 2352 0016 5606 2427 58)";
+    assert_found(&d, iban, &[(16, 43, "iban", "DE56235200165606242758")]);
+    assert_found(
+        &parity,
+        iban,
+        &[
+            (16, 43, "iban", "DE56235200165606242758"),
+            (21, 40, "card", "2352001656062427"),
+            (31, 43, "phone", "5606242758"),
+        ],
+    );
+
+    let us_phone = "Call +1 617-555-0129 today.";
+    assert_found(&d, us_phone, &[(5, 20, "phone", "+16175550129")]);
+    assert_found(&parity, us_phone, &[(5, 20, "phone", "+16175550129"), (8, 20, "uk-nhs", "6175550129")]);
 }
 
 #[test]
@@ -297,9 +327,17 @@ fn golden_true_positives() {
     }
     assert!(groups.len() >= 15);
     for (text, want) in groups {
+        let got_parity: Vec<(u32, u32, String, String)> =
+            rows(&wide().keeping_nested(), &text).into_iter().map(|r| (r.0, r.1, r.2.to_owned(), r.3)).collect();
+        assert_eq!(got_parity, want, "{text}");
+        let unnested: Vec<(u32, u32, String, String)> = want
+            .iter()
+            .filter(|m| !want.iter().any(|o| o.0 <= m.0 && m.1 <= o.1 && (o.0 < m.0 || m.1 < o.1)))
+            .cloned()
+            .collect();
         let got: Vec<(u32, u32, String, String)> =
             rows(&wide(), &text).into_iter().map(|r| (r.0, r.1, r.2.to_owned(), r.3)).collect();
-        assert_eq!(got, want, "{text}");
+        assert_eq!(got, unnested, "{text}");
     }
 }
 

@@ -177,3 +177,43 @@ fn the_most_restrictive_licence_decides_the_class() {
     assert_eq!(class_of([RestrictedPublic, Apache2]), class_of([Apache2, RestrictedPublic]));
     assert_eq!(class_of([CcByNcSa40, Apache2]), class_of([Apache2, CcByNcSa40]));
 }
+
+#[test]
+fn attribution_requirement_matches_licence_terms() {
+    use Licence::*;
+    for l in [
+        Apache2,
+        Mit,
+        Bsd2,
+        Bsd3,
+        CcBy20Fr,
+        CcBy25,
+        CcBy30,
+        CcBy30Us,
+        CcBy40,
+        OdcBy10,
+        CcBySa30,
+        CcBySa40,
+        Odbl10,
+        Lgpl21Only,
+        Lgpl21OrLater,
+        Lgpl30Only,
+        Lgpl30OrLater,
+        Gpl20Only,
+        Gpl20OrLater,
+        Gpl30Only,
+        Gpl30OrLater,
+        CcByNc40,
+        CcByNcSa30,
+        CcByNcSa40,
+        CcByNd40,
+        CcByNcNd40,
+    ] {
+        assert!(l.requires_attribution(), "{l}");
+    }
+    for l in
+        [Cc0, Pddl10, PublicDomain, RestrictedPublic, ResearchOnly, PlatformTerms, NoLicence, Proprietary, Unconfirmed]
+    {
+        assert!(!l.requires_attribution(), "{l}");
+    }
+}

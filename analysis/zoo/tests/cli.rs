@@ -143,6 +143,7 @@ fn show_gives_a_non_commercial_artifacts_terms_and_policy() {
   "license_terms": "https://example.org/m/LICENSE",
   "trained_on": [{{"name": "UD_English-GUM r2.16", "license": "CC-BY-NC-SA-4.0", "license_terms": "https://example.org/gum/README.md"}}],
   "class": "CLASS_LOCAL_ONLY",
+  "attribution": "Trained on UD_English-GUM r2.16 (CC-BY-NC-SA-4.0).",
   "origin": "https://example.org/models/m/",
   "files": [{{"path": "m.bin", "url": "https://example.org/models/m/1/m.bin", "size": {}, "sha256": "{}", "sha512": "{}"}}]
 }}]}}"#,
@@ -169,5 +170,29 @@ fn show_gives_a_non_commercial_artifacts_terms_and_policy() {
     );
     let terms = format!("local only: {}\n", LocalOnlyReason::NonCommercial.terms());
     let policy = format!("local only: {}\n", LocalOnlyReason::NonCommercial.policy());
+    assert!(shown.contains("attribution: Trained on UD_English-GUM r2.16 (CC-BY-NC-SA-4.0).\n"), "{shown}");
     assert!(shown.contains(&format!("{terms}{policy}")), "{shown}");
+}
+
+#[test]
+fn show_prints_attribution_for_builtin_entries() {
+    let home = TempDir::new("show-builtin");
+    for (id, expected) in [
+        (
+            "opennlp-ca-ud-ancora-sentence-1.3-2.5.4",
+            "attribution: Apache OpenNLP UD models 1.3 (Apache-2.0, \
+             https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Catalan-AnCora \
+             r2.16 (CC-BY-4.0, https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md).",
+        ),
+        (
+            "turbo-en-masc-3.0.0-sentence-1",
+            "attribution: Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus",
+        ),
+        ("fastino-gliner2-base-v1", "attribution: fastino/gliner2-base-v1 at f9634218e53580c56edf0de97ca1a7d3f1c2354e"),
+    ] {
+        let out = zoo(&home.0, &["show", id]);
+        assert!(out.status.success(), "{id}: {out:?}");
+        let shown = text(&out.stdout);
+        assert!(shown.contains(expected), "{id}: {shown}");
+    }
 }

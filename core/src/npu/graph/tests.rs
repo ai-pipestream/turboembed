@@ -140,6 +140,9 @@ pub(super) fn manifest(graph_input: u32, hidden: u32, heads: u32, seq: u32, batc
         artifact_bytes: 0,
         artifact2: std::ptr::null(),
         artifact2_bytes: 0,
+        head: std::ptr::null(),
+        head_out: 0,
+        reserved: 0,
     }
 }
 

@@ -71,6 +71,37 @@ least one n-gram of the text is a predicate of the model; without one,
 every probability is the model's prior and the ranking is the outcome
 order.
 
+`LanguageDetector::probing_predict_languages` and
+`probing_predict_languages_with` (`ProbingConfig`, `ProbingContext`)
+reproduce `LanguageDetectorME.probingPredictLanguages`:
+
+1. The text is stepped through in chunks of at most
+   `min(chunk_size, max_length - start)` Unicode code points
+   (`CharSequence.codePoints().skip(start).limit(actualChunkSize)`),
+   with `chunk_size = 200` and `max_length = 10_000` in
+   `ProbingConfig::default()` (`LanguageDetectorConfig.DEFAULT_LANGUAGE_DETECTOR_CONFIG`),
+   stopping when no code points remain before `max_length` or when
+   `seenEnough` returns true.
+2. Each chunk is normalized, lowercased and counted on its own
+   (`ContextGenerator::generate_chunk`), and each n-gram not yet in the
+   cumulative `ProbingContext` is inserted in the chunk's first `HashMap`
+   bucket order (`updateCounts` into `ngramCounts`).
+3. After each chunk, the model evaluates the cumulative map's keys in
+   its current `HashMap` bucket order (each with weight 1.0) and ranks
+   the outcomes as `predict_languages` does.
+4. `seenEnough` keeps a sliding window of up to
+   `min_consec_improvements + 1` top `(outcome, confidence)` pairs
+   (`min_consec_improvements = 2` by default) and returns true once at
+   least `min_consec_improvements` earlier chunks have been recorded,
+   the margin `p[0] - p[1]` is at least `min_diff` (`0.20` by default,
+   when `min_diff > 0.0`), and across the window the top outcome is
+   unchanged and its confidence is non-decreasing (`!(last_conf > conf)`).
+5. When the loop ends, `out` holds the last chunk's ranking (or the
+   evaluation of the empty `ngramCounts` map when zero chunks were read,
+   as on an empty text or `max_length == 0`), and the call returns the
+   number of Unicode code points processed
+   (`ProbingLanguageDetectionResult.getLength()`).
+
 The buffers live in a `Scratch` the caller keeps, so a detector run over
 many texts allocates for the n-grams and the probabilities only while
 they grow. The normalizers return a new string for a text they change
@@ -105,6 +136,21 @@ each outcome (docs/analysis.md, "Decision point dumps").
   annotator writes in a pipeline: the ranking exactly and every
   probability with `Tolerance::exact()`;
 - `predict_language` against row 0 of every golden.
+
+The golden files under `langdetect/langdetect-183+probing` (default
+`LanguageDetectorConfig`: `chunkSize=200`, `maxLength=10000`,
+`minConsecImprovements=2`, `minDiff=0.20`) and
+`langdetect/langdetect-183+probing-chunk50` (`chunkSize=50`,
+`maxLength=250`, `minConsecImprovements=2`, `minDiff=0.20`) were made by
+`LanguageDetectorME.probingPredictLanguages` on the JVM over the 24 texts
+of the `en`, `multi` and `langdetect` (`samples.txt` and
+`tree-bucket.txt`) input sets. Each golden records `opennlp:language`
+and `turbo:probing-length` (the code point count `getLength()` returned),
+and each dump records one decision point per `predict(ngramCounts)`
+evaluation. `analysis/langdetect/tests/goldens.rs` checks every chunk
+context and outcome probability of every dump (100+ chunk evaluations and
+over 25,000 n-grams in all), the final ranking and probabilities bit for
+bit, and `turbo:probing-length` on every input.
 
 The model is not checked in: `langdetect-183.bin` is fetched with
 `cargo run -p turbo-goldens-tool -- fetch-models target/turbo-goldens/models`,
@@ -225,6 +271,12 @@ reaches a tree bucket, where equal-hash n-grams could change the last
 bits); the
 annotator declines the two texts in which the model knows no n-gram
 (Japanese and Chinese), where the JVM ranks every language equal.
+The goldens and dumps under `langdetect/langdetect-fixture-rust+probing`
+and `langdetect/langdetect-fixture-rust+probing-chunk50` run
+`probingPredictLanguages` with the same fixture model over the 24 inputs
+of `en`, `multi` and `langdetect`, and `analysis/langdetect/tests/fixture.rs`
+checks every chunk context, every chunk and final probability bit for
+bit, every ranking, and every stopping `length`.
 
 The recipe that trains a model on Tatoeba and gates it against
 `langdetect-183.bin` is in `analysis/train-recipes` (its README, "The
@@ -232,8 +284,6 @@ language detector recipe").
 
 ## Not ported
 
-- `probingPredictLanguages`, which detects over growing chunks of the
-  text and stops when the best language is stable: no golden covers it.
 - Evaluation (`LanguageDetectorEvaluator`) and cross validation.
 
 ## OpenNLP findings

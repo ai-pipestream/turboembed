@@ -68,7 +68,8 @@ fn index_with_files(files_json: &str, origin_json: &str) -> String {
       "license": "{license}",
       "license_terms": "https://example.org/terms",
       "trained_on": [],
-      "class": "{class}",{origin_json}
+      "class": "{class}",
+      "attribution": "Example attribution for test-art.",{origin_json}
       "files": [{files_json}]
     }}
   ]
