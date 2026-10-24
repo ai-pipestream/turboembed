@@ -49,6 +49,20 @@ pub(super) fn length(v: &Value) -> bool {
     is_unit(v, |u| matches!(u, Unit::Length(_)))
 }
 
+pub(super) fn information(v: &Value) -> bool {
+    is_unit(v, |u| matches!(u, Unit::Information(_)))
+}
+
+/// A quantity in a major imperial unit that takes a bare minor
+/// count after it: feet (inches), stone (pounds), pounds (ounces).
+pub(super) fn compound_major(v: &Value) -> bool {
+    v.quantity().is_some_and(|q| {
+        q.value().is_integer()
+            && !q.value().is_negative()
+            && matches!(q.unit(), Unit::Length(Length::Foot) | Unit::Weight(Weight::Stone | Weight::Pound))
+    })
+}
+
 pub(super) fn ton(v: &Value) -> bool {
     is_unit(v, |u| matches!(u, Unit::Weight(Weight::ShortTon | Weight::MetricTon)))
 }
@@ -109,6 +123,23 @@ pub(super) fn inch_count(v: &Value) -> bool {
 
 pub(super) fn per_time(v: &Value) -> bool {
     v.term().is_some_and(|(t, _)| Time::of(t) <= Time::Hour)
+}
+
+/// Any time word: a money rate runs per day or per year as well
+/// as per hour.
+pub(super) fn rate_time(v: &Value) -> bool {
+    v.term().is_some()
+}
+
+/// Whether what follows an `a <time>` rate keeps it a rate: not
+/// the temporal reference of `a year earlier` or `a day ago`.
+pub(super) fn not_temporal_reference(ctx: &Ctx<'_>) -> bool {
+    match ctx.after() {
+        Some(a) if ctx.lexeme(a).kind == Kind::Word => {
+            !matches!(ctx.word(a), "earlier" | "later" | "ago" | "before" | "after" | "prior" | "hence")
+        }
+        _ => true,
+    }
 }
 
 pub(super) fn age_time(v: &Value) -> bool {
