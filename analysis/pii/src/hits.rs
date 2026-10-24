@@ -18,6 +18,8 @@ pub enum SinkError {
     Span(Span),
     /// The kind name is empty.
     EmptyKind,
+    /// A [`PiiKind::Custom`] name is longer than [`PiiKind::MAX_CUSTOM_NAME_BYTES`].
+    KindTooLong(&'static str),
     /// A [`PiiKind::Custom`] uses one of the reserved built-in kind names.
     ReservedKind(&'static str),
     /// The normalized form is empty.
@@ -29,6 +31,9 @@ impl fmt::Display for SinkError {
         match self {
             SinkError::Span(s) => write!(f, "the span {}..{} is not a non-empty range of the text", s.start, s.end),
             SinkError::EmptyKind => f.write_str("the pii kind name must not be empty"),
+            SinkError::KindTooLong(name) => {
+                write!(f, "custom pii kind {name:?} is {} bytes (max {})", name.len(), PiiKind::MAX_CUSTOM_NAME_BYTES)
+            }
             SinkError::ReservedKind(name) => {
                 write!(f, "custom pii kind {name:?} uses a reserved built-in kind name")
             }
@@ -61,10 +66,13 @@ impl<'a> PiiSink<'a> {
         if kind.name().is_empty() {
             return Err(SinkError::EmptyKind);
         }
-        if let PiiKind::Custom(name) = kind
-            && PiiKind::parse(name).is_some()
-        {
-            return Err(SinkError::ReservedKind(name));
+        if let PiiKind::Custom(name) = kind {
+            if name.len() > PiiKind::MAX_CUSTOM_NAME_BYTES {
+                return Err(SinkError::KindTooLong(name));
+            }
+            if PiiKind::parse(name).is_some() {
+                return Err(SinkError::ReservedKind(name));
+            }
         }
         let (start, end) = (span.start as usize, span.end as usize);
         if start >= end

@@ -220,7 +220,7 @@ impl LayerCodec for Pii {
         w.usize(self.kind.len())?;
         for &k in &self.kind {
             if let PiiKind::Custom(name) = k
-                && (name.is_empty() || PiiKind::parse(name).is_some())
+                && (name.is_empty() || name.len() > PiiKind::MAX_CUSTOM_NAME_BYTES || PiiKind::parse(name).is_some())
             {
                 return Err(malformed(format!("invalid custom pii kind {name:?}")));
             }

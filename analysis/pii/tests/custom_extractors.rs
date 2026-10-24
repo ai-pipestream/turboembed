@@ -316,7 +316,7 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
     assert_eq!(fresh_pii.check(), Ok(()));
     assert_eq!(PiiKind::intern_custom("email"), None);
 
-    // Raw PiiKind::Custom with a reserved built-in name is refused by Pii::check and export.
+    // Raw PiiKind::Custom with a reserved built-in name or >64-byte name is refused by Pii::check and export.
     let mut bad_pii = Pii::new(ViewId::SOURCE);
     bad_pii.push(PiiMention {
         span: Span::new(0, 14),
@@ -326,7 +326,35 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
     });
     assert!(bad_pii.check().unwrap_err().contains("reserved built-in kind name"));
 
-    // SinkError validation on malformed spans, empty kinds, reserved kinds, and empty normalized values.
+    const KIND_64: &str = "internal-employee-badge-number-issued-by-the-regional-hr-offices";
+    const KIND_65: &str = "internal-employee-badge-number-issued-by-the-regional-hr-office-x";
+    assert_eq!(KIND_64.len(), PiiKind::MAX_CUSTOM_NAME_BYTES);
+    assert_eq!(KIND_65.len(), PiiKind::MAX_CUSTOM_NAME_BYTES + 1);
+
+    let mut ok_64_doc = Document::new("BADGE-1");
+    let mut ok_64_pii = Pii::new(ViewId::SOURCE);
+    ok_64_pii.push(PiiMention {
+        span: Span::new(0, 7),
+        kind: PiiKind::custom(KIND_64),
+        confidence: PiiConfidence::Format,
+        normalized: "BADGE1",
+    });
+    assert_eq!(ok_64_pii.check(), Ok(()));
+    ok_64_doc.add(&turbo_analysis::Key::DEFAULT, ok_64_pii, Provenance::by("test")).unwrap();
+    let ok_64_bytes = export(&ok_64_doc, &codecs()).unwrap().to_bytes().unwrap();
+    let ok_64_back = import(&DocumentGraph::from_bytes(&ok_64_bytes).unwrap(), &codecs()).unwrap();
+    assert_eq!(ok_64_back.get::<Pii>().unwrap().kind, [PiiKind::Custom(KIND_64)]);
+
+    let mut bad_65_pii = Pii::new(ViewId::SOURCE);
+    bad_65_pii.push(PiiMention {
+        span: Span::new(0, 7),
+        kind: PiiKind::custom(KIND_65),
+        confidence: PiiConfidence::Format,
+        normalized: "BADGE1",
+    });
+    assert!(bad_65_pii.check().unwrap_err().contains("65 bytes (max 64)"));
+
+    // SinkError validation on malformed spans, empty/overlong/reserved kinds, and empty normalized values.
     let check_sink = |text: &str, sink: &mut PiiSink<'_>| {
         assert_eq!(sink.text(), text);
         assert_eq!(
@@ -344,6 +372,10 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
         assert_eq!(
             sink.try_add(Span::new(0, 2), PiiKind::Custom(""), PiiConfidence::Format, "x"),
             Err(SinkError::EmptyKind)
+        );
+        assert_eq!(
+            sink.try_add(Span::new(0, 2), PiiKind::custom(KIND_65), PiiConfidence::Format, "x"),
+            Err(SinkError::KindTooLong(KIND_65))
         );
         assert_eq!(
             sink.try_add(Span::new(0, 2), PiiKind::Custom("email"), PiiConfidence::Format, "x"),

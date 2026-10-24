@@ -208,10 +208,15 @@ spans over multi-byte texts, and that the text equals `mask`.
   `checksum` / `text` helpers via `PiiSink`
   (`analysis/pii/tests/custom_extractors.rs`). Built-in kinds rank
   `0..20` (`PiiKind::ALL`); `PiiKind::Custom` has rank `20` and orders
-  after built-in kinds on an exact span tie, then by kind name. Caller
-  kinds flow through `mask_all`, `mask_by_kind`, `MaskedView` (with
+  after built-in kinds on an exact span tie, then by kind name. A custom
+  kind name must be 1 to 64 UTF-8 bytes (`PiiKind::MAX_CUSTOM_NAME_BYTES`)
+  and not one of the reserved built-in names in `PiiKind::ALL`; the
+  process-wide custom kind registry interns up to 256 distinct custom
+  kind names (`PiiKind::MAX_CUSTOM_KINDS`) across binary graph
+  exports and imports (`PiiKind::intern_custom`). Caller kinds flow
+  through `mask_all`, `mask_by_kind`, `MaskedView` (with
   `MaskedView::with` overrides), `Pseudonymizer`, `HmacTokenizer`,
-  `PiiAuditReport` and binary graph export/import (`PiiKind::intern_custom`).
+  `PiiAuditReport` and binary graph export/import.
 - `PiiConfidence` is added (above).
 - By default, `PiiDetector` drops a mention whose span lies strictly
   inside a longer mention, so trailing groups of a grouped IBAN are not
