@@ -1749,17 +1749,20 @@ licence is CC BY-SA 4.0. Set `TURBO_SPACY_ORACLE` to the generated file and
 test checks morphology matches and their source offsets; malformed files,
 Unicode edit distance, missing layers, and alignment errors are tested.
 
-The historical [existing-path timing receipt](../analysis/matcher/reference/existing-path-timing.json)
-uses `token_bench` on the complete EWT
-r2.16 train file: 204,577 tokens, 51,765 identical hits. On an AMD Ryzen 9
-9950X3D, release builds of main `0edf2f35` and this change were run on the
-same CPU core in twelve alternating-order pairs, fifteen iterations per
-process after one warmup. Median of process medians: main 16.149 ms,
-changed 11.084 ms (ratio 0.686). No slowdown was observed on this exact,
-set-membership and bounded-repeat workload. This is not a performance
-claim for the added fuzzy or morphology predicates. The raw process
-medians and reproduction commands are retained with the oracle's README;
-this measurement predates the oracle-storage correction.
+The [existing-path timing receipt](../analysis/matcher/reference/existing-path-timing.json)
+compares main `bf52319d` with measured candidate `89c2ed76` on the complete
+EWT r2.16 train file: 204,577 tokens and 51,765 byte-identical matches.
+On an AMD Ryzen 9 9950X3D, native release builds ran on logical CPU 7 in
+twelve alternating-order pairs, fifteen timed calls per process after one
+warmup. Median of process medians: main 13.439 ms, candidate 13.514 ms
+(ratio 1.0056); the median paired ratio is 0.9894. Individual ratios range
+from 0.7757 to 1.3104 on the shared host. These observations are consistent
+with timing parity within the observed variation; no speedup or
+isolated-host result is claimed. This does not measure the added fuzzy or
+morphology predicates. All twelve raw pairs, source/corpus/output hashes
+and ambient load are in the receipt; the oracle's README gives the exact
+reproduction commands. The receipt and subsequent documentation/CI sync
+do not change the measured matcher or example.
 
 ## Term analyzer and per-language normalization profiles (`turbo:terms`, `turbo:stems`)
 
