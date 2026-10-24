@@ -19,6 +19,9 @@ if (command('git', ['status','--porcelain']).length) throw new Error('commit the
 const prepared = JSON.parse(fs.readFileSync(path.join(data,'prepared.json')));
 if (prepared.rows < 32768 || prepared.dim !== 512 || prepared.k !== 10) throw new Error('wrong real-data split');
 const source = JSON.parse(fs.readFileSync(path.join(data,'source.json')));
+const fingerprint = name=>({file:name,bytes:fs.statSync(path.join(data,name)).size,sha256:hash(fs.readFileSync(path.join(data,name)))});
+const files = ['vectors.f32','rows.f32','queries.f32','truth.u32'].map(fingerprint);
+const binaryHash = hash(fs.readFileSync(binary));
 const configs = [2,4].flatMap(bits => [false,true].map(calibrate => ({bits,calibrate})));
 const samples = [], first = new Map();
 const ambient = () => ({load_average:os.loadavg(), processes:command('ps',['-eo','pcpu,comm','--sort=-pcpu']).split('\n').slice(0,7)});
@@ -37,7 +40,7 @@ for (let round=0;round<6;round++) {
       else if (hash(JSON.stringify(first.get(key).ids)) !== idsHash) throw new Error('IDs changed between rounds');
       fs.writeFileSync(path.join(data,`raw-${round}-${config.bits}-${config.calibrate}-${mode}.json`), raw+'\n');
       delete run.ids;
-      samples.push({...run,round:round+1,ids_sha256:idsHash});
+      samples.push({...run,round:round+1,ids_sha256:idsHash,ambient_load_average:os.loadavg()});
       console.log(JSON.stringify({round:round+1,bits:config.bits,calibrate:config.calibrate,mode,query_ms:run.query_ms,batch_ms_per_query:run.batch_ms_per_query}));
     }
   }
@@ -55,9 +58,9 @@ const agreement = configs.map(config => {
   }
   return {...config,queries:prepared.queries,ordered_identical_queries:ordered,same_set_queries:sets,top_10_overlap:overlap/(prepared.queries*10)};
 });
-const files = ['vectors.f32','rows.f32','queries.f32','truth.u32'].map(name=>({file:name,bytes:fs.statSync(path.join(data,name)).size,sha256:hash(fs.readFileSync(path.join(data,name)))}));
+if (files.some(f=>f.sha256!==fingerprint(f.file).sha256) || binaryHash!==hash(fs.readFileSync(binary))) throw new Error('input or binary changed during measurement');
 const receipt = {
-  measured_commit:commit,binary_sha256:hash(fs.readFileSync(binary)),source,prepared,files,
+  measured_commit:commit,binary_sha256:binaryHash,source,prepared,files,
   rustc:command('rustc',['--version']),node:process.version,
   build_command:'cargo build --locked --release -p turbo-vector-index --features turboquant --example quant_search_compare',
   kernel_environment_overrides:[],
