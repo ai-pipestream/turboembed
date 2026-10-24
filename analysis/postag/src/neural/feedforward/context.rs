@@ -2,7 +2,7 @@
 //! the feedforward neural POS tagger (`FeedforwardPOSContext`).
 
 use turbo_unicode::java::code_point::{is_digit, is_letter, is_upper_case};
-use turbo_unicode::java::to_lower_char;
+use turbo_unicode::java::lowercase_code_points;
 
 /// Number of discrete feature slots extracted for each token position.
 pub const SLOTS: usize = 12;
@@ -63,14 +63,14 @@ impl FeedforwardPosContext {
     }
 
     pub(crate) fn lowercase(word: &str) -> String {
-        if word.starts_with('*') { word.to_owned() } else { word.chars().map(to_lower_char).collect() }
+        if word.starts_with('*') { word.to_owned() } else { lowercase_code_points(word) }
     }
 
     /// Lowercases a whole token for the suffix features. Unlike
     /// [`Self::lowercase`] this does not pass symbols starting with `*`
     /// through, matching Java's `StringUtil.toLowerCase` on the token.
     pub(super) fn lowercase_all(word: &str) -> String {
-        word.chars().map(to_lower_char).collect()
+        lowercase_code_points(word)
     }
 
     /// Returns the last `length` code points of `word` as a borrowed slice, or
