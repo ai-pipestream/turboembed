@@ -162,8 +162,7 @@ impl Annotator for LearnedAspectSentiment {
                     text.len()
                 ))
             })?;
-            token_lower
-                .push(slice.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-').to_ascii_lowercase());
+            token_lower.push(turbo_doccat::sentiment::embed_token_key(slice));
         }
 
         // 1. Obtain contextual subword vectors (`Vectors<Subwords>`), either from the document
