@@ -140,7 +140,7 @@ fn read(
     for (n, line) in lines(text).enumerate() {
         let line_number = n as u64 + 1;
         let content = line.strip_prefix('\u{FEFF}').unwrap_or(line);
-        if content.chars().all(java::is_whitespace) || content.starts_with('#') {
+        if java::is_blank(content) || content.starts_with('#') {
             continue;
         }
         columns.clear();

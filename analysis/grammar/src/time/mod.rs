@@ -8,6 +8,7 @@ pub mod duration;
 pub mod resolve;
 pub mod spec;
 pub mod timex;
+pub mod zone;
 
 pub use duration::{Duration, Unit};
 pub use resolve::{Alternative, Instant, Resolution, Resolved, depends_on_reference, resolve};

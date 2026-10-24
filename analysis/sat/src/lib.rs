@@ -12,9 +12,11 @@
 
 pub mod annotator;
 pub mod cuts;
+pub mod fallback;
 pub mod head;
 
 pub use annotator::{SatAnnotator, SatOptions, SatProvider, Scored};
+pub use fallback::{rule_detector_with_sat, rule_splitter_with_sat};
 pub use head::{Head, HeadNames};
 
 use turbo::bundle::Bundle;
