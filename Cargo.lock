@@ -1995,6 +1995,8 @@ dependencies = [
  "serde",
  "serde_json",
  "turbo",
+ "turbo-analysis",
+ "turbo-postag",
  "ureq",
 ]
 
