@@ -114,6 +114,9 @@ pub struct Encoder {
     info: EncoderInfo,
     device: turbo_device_info,
     model_info: turbo_model_info,
+    desc: turbo_session_desc,
+    #[cfg(test)]
+    runs: (usize, usize),
 }
 
 // SAFETY: the runtime, context and model may be used from any thread, and
@@ -183,6 +186,9 @@ impl Encoder {
             // SAFETY: both are plain C data, for which all zeros is a value.
             device: unsafe { std::mem::zeroed() },
             model_info: unsafe { std::mem::zeroed() },
+            desc: unsafe { std::mem::zeroed() },
+            #[cfg(test)]
+            runs: (0, 0),
         };
         check(unsafe { turbo_runtime_create(ptr::null(), &mut e.rt, &mut err) }, &err)?;
         let index = e.device_index(&o.device)?;
@@ -214,6 +220,7 @@ impl Encoder {
             cpu_threads: o.cpu_threads,
             max_ranges,
         };
+        e.desc = desc;
         let backend = field(&device.backend);
         check(unsafe { turbo_session_create(e.model, &desc, &mut e.session, &mut err) }, &err)
             .map_err(|x| needs_range_write(x, &backend))?;

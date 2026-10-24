@@ -132,18 +132,18 @@ const CHECKPOINTS: [&str; 6] = [
     "microsoft-mdeberta-v3-base-tokenizer",
 ];
 
+/// The share-alike neural checkpoints the index lists: fetched after the user
+/// accepts their training data's CC BY-SA terms, and never bundled.
+const SHARE_ALIKE_CHECKPOINTS: [&str; 2] = ["cross-encoder-nli-minilm2-l6-h768", "deepset-roberta-base-squad2"];
+
 /// The local-only checkpoints the index lists: fetched only for a user
 /// who has accepted their licence.
 const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
 
-/// The checkpoints trained on CC BY-SA data: fetched only for a user who
-/// has accepted that licence, and never bundled.
-const SHARE_ALIKE_CHECKPOINTS: [&str; 1] = ["deepset-roberta-base-squad2"];
-
 #[test]
 fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
     let index = Index::builtin();
-    let a = index.get(SHARE_ALIKE_CHECKPOINTS[0]).unwrap();
+    let a = index.get(SHARE_ALIKE_CHECKPOINTS[1]).unwrap();
     assert_eq!(
         (a.kind, a.format, a.license, a.class),
         (Kind::Model, Format::Safetensors, Licence::CcBy40, LicenceClass::ShareAlike)
@@ -329,13 +329,57 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.insert(TATOEBA_MODEL.to_owned());
     expected.insert(WEB_MODEL.to_owned());
     expected.extend(CHECKPOINTS.map(str::to_owned));
-    expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
+    expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {
         assert!(!listed.iter().any(|id| id.starts_with(&format!("opennlp-{lang}-ud-{tb}-"))), "{lang}-{tb}");
     }
+}
+
+#[test]
+fn the_nli_checkpoint_is_pinned_and_share_alike() {
+    let index = Index::builtin();
+    let a = index.get(SHARE_ALIKE_CHECKPOINTS[0]).unwrap();
+    assert_eq!(
+        (a.kind, a.format, a.license, a.class),
+        (Kind::Model, Format::Safetensors, Licence::Apache2, LicenceClass::ShareAlike)
+    );
+    let revision = "b95119ce93d3e065de6214e38cd4a97b0f2f2c6d";
+    assert_eq!(a.version, revision);
+    let notice = a.attribution.as_deref().unwrap();
+    assert!(notice.contains(revision));
+    for source in &a.trained_on {
+        assert!(notice.contains(&source.name));
+        assert!(notice.contains(source.license_terms.as_str()));
+    }
+
+    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(
+        paths,
+        [
+            "model.safetensors",
+            "config.json",
+            "tokenizer.json",
+            "tokenizer_config.json",
+            "special_tokens_map.json",
+            "vocab.json",
+            "merges.txt"
+        ]
+    );
+    for f in &a.files {
+        let url =
+            format!("https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/resolve/{revision}/{}", f.path.as_str());
+        assert_eq!(f.url.as_str(), url);
+    }
+    assert_eq!(
+        a.licences_to_accept(Policy::default()),
+        [
+            turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap(),
+            turbo_zoo::Requirement::of(Licence::CcBySa40).unwrap(),
+        ]
+    );
 }
 
 #[test]
@@ -348,6 +392,16 @@ fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
             || CHECKPOINTS.contains(&a.id.as_str())
         {
             assert!(needs.is_empty(), "{}", a.id);
+        } else if a.id.as_str() == SHARE_ALIKE_CHECKPOINTS[0] {
+            assert_eq!(
+                needs,
+                [
+                    turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap(),
+                    turbo_zoo::Requirement::of(Licence::CcBySa40).unwrap(),
+                ],
+                "{}",
+                a.id
+            );
         } else if LOCAL_CHECKPOINTS.contains(&a.id.as_str()) {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcByNcSa40).unwrap()], "{}", a.id);
         } else if a.id.as_str().starts_with("opennlp-ga-") {
