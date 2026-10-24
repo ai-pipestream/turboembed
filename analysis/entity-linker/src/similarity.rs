@@ -119,7 +119,7 @@ pub fn extract_context_terms(text: &str) -> Vec<String> {
     let folded = fold_alias(text);
     folded
         .split_whitespace()
-        .filter(|w| (w.len() >= 2 || w.chars().all(|c| c.is_ascii_digit())) && !is_stop_word(w))
+        .filter(|w| (w.chars().count() >= 2 || w.chars().all(|c| c.is_ascii_digit())) && !is_stop_word(w))
         .map(str::to_owned)
         .collect()
 }
@@ -415,4 +415,13 @@ pub(crate) fn min_jaro_matches(q_len: usize, k_len: usize, prefix_len: usize, th
     let numer = rhs * (q_len as f64) * (k_len as f64);
     let denom = (q_len + k_len) as f64;
     ((numer / denom) - 1e-9).ceil().max(1.0) as usize
+}
+
+#[cfg(test)]
+mod char_count_tests {
+    #[test]
+    fn single_character_terms_drop_by_character_count() {
+        let terms = super::extract_context_terms("\u{4EAC} \u{00E9} a tokyo paris");
+        assert_eq!(terms, vec!["tokyo".to_string(), "paris".to_string()]);
+    }
 }
