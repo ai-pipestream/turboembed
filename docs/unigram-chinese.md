@@ -57,7 +57,11 @@ jieba parity: forward dictionary ties remain OpenNLP's, ASCII runs are
 atomic, and HMM eligibility follows the shared Han script property and
 observed model characters, rather than jieba's block matching rules.
 
-## Speed
+## Initial speed record
+
+These are the original measurements of blocked head `059947a9`, retained
+for provenance. The default-overhead correction below adds an actual main
+baseline and replaces the repeated scans and output copies.
 
 AMD Ryzen 9 9950X3D, Linux x86-64, Rust 1.99.0, release profile, one pinned
 logical CPU, 2026-10-24. The dictionary and HMM are loaded before timing.
@@ -98,6 +102,45 @@ msr Chinese (BMES): 4.935269, 4.973110, 4.934966, 4.943813, 4.917814, 4.907122, 
 msr jieba-rs without HMM: 4.573899, 4.605562, 4.517818, 4.583729, 4.528827, 4.781332, 4.521852, 4.866359
 msr jieba-rs with HMM: 4.681131, 4.803852, 4.679871, 4.719884, 4.712554, 5.014440, 4.671330, 4.934248
 ```
+
+## Default-overhead correction
+
+The corrected path prepares characters once, detects ASCII during that
+preparation, and decodes non-ASCII ranges from the prepared buffers. Dictionary
+and OpenNLP modes append directly to the output; only BMES needs intermediate
+dictionary words. Shared character helpers, score/tie rules, configuration
+hashes and the trained BMES checkpoint are unchanged.
+
+The [complete receipt](receipts/unigram-984/README.md) compares runtime commit
+`6891e12a9523f2703f3f122154a7d4a8f1135eb7` with actual main
+`bf52319dfc49486e5109f2c76faccb8fcd6edc02` and the original blocked head.
+Twelve paired rounds give 24 measured values per mode and corpus, with 50
+complete corpus repetitions per value. Main's unmodified source also runs
+inside the fixed comparison process under a private package alias. Model load,
+file reading and scoring are excluded. All modes retain their full token-output
+fingerprints and the exact accuracy/OOV counts above.
+
+| Corpus | Main source | Dictionary default | OpenNlp | Chinese BMES | jieba-rs without HMM | jieba-rs with HMM |
+|---|---:|---:|---:|---:|---:|---:|
+| PKU | 4.134205 | 4.054950 | 3.711934 | 5.201425 | 5.182298 | 5.784470 |
+| MSR | 4.461030 | 4.373875 | 4.069040 | 5.550318 | 5.352145 | 5.604904 |
+
+Values are median milliseconds per complete corpus within the fixed process.
+The median of twelve paired default/main ratios is 0.991857 on PKU and
+0.946148 on MSR. This run shows no default slowdown against main. The explicit
+OpenNLP path also benefits from removing copies: default/OpenNLP paired ratios
+remain 1.079423 and 1.043576, respectively. Those costs are reported separately
+from the comparison against main, rather than using the faster new compatibility
+path as a substitute for the missing old baseline.
+
+The shared host had one-minute load readings from 36.77 to 81.72 over 32 logical
+CPUs, with other CPU work, GPU compilation and CUDA correctness work active.
+Our integration scheduler was paused during timing. These are local observations,
+not isolated-host significance claims. All raw samples, per-round pairs, source
+and binary identities, unsuccessful prototypes, and the standalone main and
+blocked controls are retained in the receipt; cross-process ratios are noisy
+under that changing load. No data, default policy or acceptance floor was changed
+to obtain the result.
 
 ## Reproduce
 
