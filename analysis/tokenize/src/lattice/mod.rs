@@ -6,7 +6,8 @@
 //! cut into the morphemes of the path through the word lattice with the
 //! lowest sum of word costs and connection costs (a Viterbi search). The
 //! dictionary is a MeCab source directory: the lexicon files `*.csv`,
-//! `matrix.def`, `char.def` and `unk.def`. Text the lexicon does not cover
+//! `matrix.def`, `char.def` and `unk.def`, or a prebuilt image compiled from
+//! those files (see docs/lattice-prebuilt.md). Text the lexicon does not cover
 //! gets unknown word candidates from the character categories of
 //! `char.def` and the templates of `unk.def`. The feature columns are
 //! kept as the dictionary has them. IPADIC (in a UTF-8 copy) and
@@ -28,6 +29,7 @@ mod format;
 mod limits;
 mod matrix;
 mod number;
+mod prebuilt;
 mod tokenizer;
 mod trie;
 
@@ -36,6 +38,7 @@ pub use entries::Columns;
 pub use error::{CharDefProblem, DictionaryError, DictionaryFile, EntryProblem, NoCandidate};
 pub use format::{DictionaryFormat, FeatureMap, FormatError, IpadicColumn, KoDicColumn, UnidicColumn, UnidicLayout};
 pub use limits::DictionaryLimits;
+pub use prebuilt::{PrebuiltError, PrebuiltImage};
 pub use tokenizer::{LatticeTokenizer, Morpheme, Scratch};
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};

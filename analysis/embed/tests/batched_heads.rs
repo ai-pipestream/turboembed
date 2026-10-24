@@ -58,6 +58,7 @@ fn all_span_heads_batch_real_windows_and_isolate_bad_documents() {
         cost: vec![0; 3],
         model_tokens: vec![0; 3],
         over_budget: vec![false; 3],
+        prompt_overhead: 0,
     };
     let opinions = Opinions::from_items(
         &tokens,
