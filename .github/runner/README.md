@@ -19,6 +19,18 @@ A runner is a container of this image, with a volume for /home/runner:
       -e RUNNER_TOKEN="$(gh api -X POST repos/ai-pipestream/turboembed/actions/runners/registration-token --jq .token)" \
       -v turbo-ci-1:/home/runner turbo-ci-runner
 
+On a host with a GPU, add the device and a label for it. An NVIDIA GPU
+goes in through the NVIDIA Container Toolkit's CDI spec, with the label
+`cuda`:
+
+    --device nvidia.com/gpu=all
+
+An Intel GPU goes in as its DRM nodes, with the groups that own them on
+the host and the label `intel-gpu`:
+
+    --device /dev/dri --group-add "$(getent group render | cut -d: -f3)" \
+      --group-add "$(getent group video | cut -d: -f3)"
+
 The token is read once, on the first start; later starts reuse the
 registration kept in the volume. Name runners by architecture, not by
 host name: runner names show in the public job logs.

@@ -2,8 +2,9 @@
 # training jobs, used when the repository variable TURBO_CI_LINUX names
 # its labels. It carries the tools the workflows call that the hosted
 # ubuntu-24.04 image has; rustup is installed by dtolnay/rust-toolchain at
-# the start of each job. No docker socket and no device is passed in: the
-# jobs are CPU builds and tests, and they run a pull request's code.
+# the start of each job. No docker socket is passed in, since the jobs run
+# a pull request's code; a GPU is passed in when the runner is started
+# (README.md).
 FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 
 ARG RUNNER_VERSION=2.338.1
