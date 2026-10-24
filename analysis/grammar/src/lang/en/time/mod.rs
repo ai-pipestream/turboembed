@@ -15,6 +15,7 @@
 
 pub(crate) mod clock;
 pub(crate) mod compose;
+mod context;
 pub(crate) mod date;
 pub(crate) mod duration;
 pub(crate) mod lexicon;
@@ -275,10 +276,8 @@ fn keep(rules: &[Rule], node: &Node, ctx: &Ctx<'_>) -> bool {
             !matches!(before, Some("at" | "from")) && !(before == Some("by") && ctx.word(ctx.end - 1) == "week")
         }
         "moded_the_eod" => before == Some("at"),
-        "moded_to_date" => {
-            !matches!(before, Some("up" | "equals" | "march"))
-                && ctx.after().is_none_or(|a| ctx.lexeme(a).kind != Kind::Numeral)
-        }
+        // The point form is internal to ranges. Its context is checked
+        // when built, alongside the standalone modified form.
         "date_to_date" => false,
         "range_the_next_n" => ctx.word(ctx.end - 1) == "decades",
         "wd_on_of_week" => false,

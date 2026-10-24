@@ -226,6 +226,17 @@ where they choose a reading:
   reference.
 - `may`, `sun` and a few other words with a common sense need a cue to
   be a date (`in May`, `on Sun`); `last` after `will` or `to` is a verb.
+- Bare `to date` needs an adverbial context: a clause boundary or a
+  recognized finite predicate (`sales to date exceed ...`). An infinitive
+  governor (`wanted to date`) or following object or noun modifier
+  (`to date him`, `to date night`) suppresses both the standalone node
+  and its use inside a larger time expression. These lexical checks are
+  conservative; they do not perform general syntactic tagging.
+- A yearless range with February 29 at either endpoint pairs both dates
+  around the same leap-day occurrence. A range crossing December takes
+  the neighboring year for its other endpoint; inclusive edges apply
+  after pairing. This avoids combining independent year searches into
+  multi-year ranges for adjacent calendar days.
 - A date with a dot after a full month name (`April. One`) is two
   sentences, and a slash pair after a number or before `of` (`21 1/4`,
   `3/4 of`) is a fraction.

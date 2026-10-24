@@ -11,6 +11,8 @@ use super::dates::{Choice, DateTimex, Dated, dates, plus, relative};
 use super::points::{at, point_timex, shift};
 use super::{Instant, Moment, Resolved, Span, finish};
 
+mod yearless;
+
 pub(super) fn resolve(r: &Range, modifier: Modifier, now: DateTime) -> Option<Resolved> {
     let (kind, grain, ms) = match *r {
         Range::Between { start, start_edge, end, end_edge } => between(&start, start_edge, &end, end_edge, now)?,
@@ -129,17 +131,19 @@ fn date_range(cs: &Choice, se: Edge, gs: TimeGrain, ce: &Choice, ee: Edge, ge: T
         Unit::Day
     };
     let bound = |d: &Dated, edge: Edge, g: TimeGrain| edge_of(d.span?, edge, g);
-    let (ps, mut pe) = (bound(&cs.past, se, gs)?, bound(&ce.past, ee, ge)?);
-    let (fs, mut fe) = (bound(&cs.future, se, gs)?, bound(&ce.future, ee, ge)?);
+    let (ps, pe) = (bound(&cs.past, se, gs)?, bound(&ce.past, ee, ge)?);
+    let (fs, fe) = (bound(&cs.future, se, gs)?, bound(&ce.future, ee, ge)?);
     let (os, oe) = (open_year(&cs.past), open_year(&ce.past));
-    if os && oe && (ps.month(), ps.day()) == (2, 29) && pe.year() != ps.year() {
-        pe = Date::new(ps.year(), pe.month(), pe.day())?;
-        fe = Date::new(fs.year(), fe.month(), fe.day())?;
-    }
     // A range whose end comes before its start takes the end's later
     // reading in the past and the start's earlier one in the future.
-    let past = if pe < ps { (ps, bound(&ce.future, ee, ge)?) } else { (ps, pe) };
-    let future = if fe < fs { (bound(&cs.past, se, gs)?, fe) } else { (fs, fe) };
+    let [past, future] = if let Some(pairs) = yearless::pairs(cs, se, ce, ee) {
+        pairs
+    } else {
+        [
+            if pe < ps { (ps, bound(&ce.future, ee, ge)?) } else { (ps, pe) },
+            if fe < fs { (bound(&cs.past, se, gs)?, fe) } else { (fs, fe) },
+        ]
+    };
     let mut out = Vec::with_capacity(2);
     for (is_future, (s, e)) in [(false, past), (true, future)] {
         if e < s {

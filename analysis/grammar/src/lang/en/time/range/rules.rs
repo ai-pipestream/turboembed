@@ -204,6 +204,9 @@ pub(in crate::lang::en::time) static RULES: &[Rule] = &[
         )
     }),
     rr("moded_to_date", MODED, &[word("to"), word("date")], |_, c| {
+        if !super::super::context::adverbial_to_date(c) {
+            return None;
+        }
         emit(
             c,
             TimeValue::Point {

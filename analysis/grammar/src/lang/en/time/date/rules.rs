@@ -254,7 +254,7 @@ pub(in crate::lang::en::time) static RULES: &[Rule] = &[
     }),
     rr("date_current_date", DATE, &[word("current"), word("date")], |_, c| emit_date(c, DateSpec::CurrentDate)),
     rr("date_to_date", DATE, &[word("to"), word("date")], |_, c| {
-        c.before().is_some_and(|p| c.word(p) != "up").then(|| emit_date(c, DateSpec::CurrentDate))?
+        super::super::context::adverbial_to_date(c).then(|| emit_date(c, DateSpec::CurrentDate))?
     }),
     rr("period_workweek", PERIOD, &[node(RELW), word("workweek")], b_workweek),
     rr("period_working_week", PERIOD, &[node(RELW), word("working"), word("week")], b_workweek),
