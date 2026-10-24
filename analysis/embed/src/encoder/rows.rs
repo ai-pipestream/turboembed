@@ -92,7 +92,8 @@ impl Rows {
         (&self.ids[at..at + self.stride as usize], &self.mask[at..at + self.stride as usize])
     }
 
-    pub(super) fn batch(&self) -> turbo_token_batch {
+    /// Builds a `turbo_token_batch` descriptor borrowing these buffers.
+    pub fn batch(&self) -> turbo_token_batch {
         turbo_token_batch {
             struct_size: size_of::<turbo_token_batch>() as u32,
             batch: self.batch,
