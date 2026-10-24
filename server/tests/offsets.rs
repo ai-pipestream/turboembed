@@ -49,6 +49,7 @@ fn fixture(offsets: OffsetMode) -> ChunkLevels {
         cost: vec![0, 7],
         model_tokens: vec![3, 5],
         over_budget: vec![false, false],
+        prompt_overhead: 0,
     };
     let mut level_spans = Spans::<Levels>::new(ViewId::SOURCE);
     level_spans.push_fragments(&[whole]);
@@ -266,6 +267,8 @@ fn u32_max_wire_indices_are_refused_not_panicked() {
     let tokens = turbo_kserve::results::tokens::TokenVectors {
         model: model(),
         view: ViewId::SOURCE.0,
+        text: String::new(),
+        offsets: OffsetMode::Utf8,
         dim: 2,
         data: vec![1.0, 0.0],
         empty: vec![u32::MAX],

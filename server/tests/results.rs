@@ -5,12 +5,21 @@
 
 mod common;
 
+use std::sync::Arc;
+
 use tonic::Code;
-use turbo_analysis::{Ix, Key, Layer, Span, View, ViewId};
+use turbo_analysis::export::export;
+use turbo_analysis::{Document, Edges, Ix, Key, Layer, Provenance, Span, Spans, TagSet, View, ViewId};
 use turbo_analysis_embed::{Answers, Reranked};
+use turbo_analysis_layers::{
+    Abbreviations, Chunks, Entities, Sentences, Subwords, TokenVectorWindows, Tokens, Vectors,
+};
+use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::*;
 use turbo_kserve::results::Wire;
-use turbo_kserve::results::{extraction::Extraction, rerank::RerankScores, tokens::TokenVectors};
+use turbo_kserve::results::{
+    document::codecs, extraction::Extraction, rerank::RerankScores, sparse::SparseTermsWire, tokens::TokenVectors,
+};
 
 use common::*;
 
@@ -183,4 +192,261 @@ async fn the_listing_follows_load_and_unload() {
     }
     let list = c.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
     assert_eq!(list.bundles.len(), 1);
+}
+
+#[tokio::test]
+async fn sparse_terms_token_vectors_and_extraction_round_trip_in_all_offset_modes() {
+    let (_s, mut c) = serve().await;
+    // "a" (0..1, u16 0..1, cp 0..1) + e-acute (1..3, u16 1..2, cp 1..2) +
+    // grinning face (3..7, u16 2..4, cp 2..3) + CJK (7..10, u16 4..5, cp 3..4) +
+    // "!" (10..11, u16 5..6, cp 4..5).
+    const TEXT: &str = "a\u{e9}\u{1f600}\u{4e2d}!";
+
+    let make_sparse = || {
+        let mut sparse = turbo_analysis_layers::SparseTerms::<View>::new(model_ref());
+        sparse.push(2, 0.5, Some(Span::new(1, 3)));
+        sparse.push_occurrences(&[Span::new(1, 3)]);
+        sparse.push(7, 1.25, Some(Span::new(3, 10)));
+        sparse.push_occurrences(&[Span::new(3, 7), Span::new(7, 10)]);
+        sparse.unit();
+        sparse.check().unwrap();
+        sparse
+    };
+    let sparse_ref = make_sparse();
+
+    let vec_data: Vec<f32> = (0..6).map(|i| (i + 1) as f32 * 0.5).collect();
+    let v = Vectors::<Subwords>::new(3, vec_data, Vec::new(), model_ref());
+    let mut win_spans = Spans::new(ViewId::SOURCE);
+    win_spans.push(Span::new(0, 7));
+    win_spans.push(Span::new(7, 11));
+    let w = TokenVectorWindows { spans: win_spans };
+
+    let mut ans_spans = Spans::new(ViewId::SOURCE);
+    ans_spans.push_fragments(&[Span::new(1, 3), Span::new(7, 10)]);
+    ans_spans.push(Span::new(3, 7));
+    let a = Answers {
+        spans: ans_spans,
+        scores: vec![5.0, 3.0],
+        probabilities: vec![0.6, 0.3],
+        null_score: -1.0,
+        null_probability: 0.1,
+    };
+    a.check().unwrap();
+
+    for (mode, expected_emoji, expected_cjk) in [
+        (OffsetMode::Utf8, (3, 7), (7, 10)),
+        (OffsetMode::Utf16, (2, 4), (4, 5)),
+        (OffsetMode::CodePoint, (2, 3), (3, 4)),
+    ] {
+        let s_msg = SparseTermsWire::new(make_sparse(), TEXT, mode).to_msg();
+        assert_eq!((s_msg.span_start[1], s_msg.span_end[1]), (expected_emoji.0, expected_cjk.1));
+        assert_eq!((s_msg.occ_start[1], s_msg.occ_end[1]), expected_emoji);
+        assert_eq!((s_msg.occ_start[2], s_msg.occ_end[2]), expected_cjk);
+        let s_back = c.round_trip_sparse_terms(s_msg.clone()).await.unwrap().into_inner();
+        assert_eq!(s_back, s_msg);
+        let s_dec = SparseTermsWire::from_msg(&s_back).unwrap();
+        assert_eq!(s_dec.terms.span, sparse_ref.span);
+        assert_eq!(s_dec.terms.occ, sparse_ref.occ);
+
+        let tv_msg = TokenVectors::new(&v, &w).with_offsets(TEXT, mode).to_msg();
+        assert_eq!((tv_msg.window_start[0], tv_msg.window_end[0]), (0, expected_emoji.1));
+        let tv_back = c.round_trip_token_vectors(tv_msg.clone()).await.unwrap().into_inner();
+        assert_eq!(tv_back, tv_msg);
+        let tv_dec = TokenVectors::from_msg(&tv_back).unwrap();
+        assert_eq!(tv_dec.windows, [Span::new(0, 7), Span::new(7, 11)]);
+
+        let ex_msg = Extraction::new(&a, model_ref()).with_offsets(TEXT, mode).to_msg();
+        assert_eq!((ex_msg.span_start[1], ex_msg.span_end[1]), expected_emoji);
+        assert_eq!((ex_msg.frag_start[1], ex_msg.frag_end[1]), expected_cjk);
+        let ex_back = c.round_trip_extraction(ex_msg.clone()).await.unwrap().into_inner();
+        assert_eq!(ex_back, ex_msg);
+        let ex_dec = Extraction::from_msg(&ex_back).unwrap();
+        assert_eq!(ex_dec.spans, [Span::new(1, 10), Span::new(3, 7)]);
+        assert_eq!(ex_dec.fragments, [Span::new(1, 3), Span::new(7, 10), Span::new(3, 7)]);
+    }
+
+    // Mid-surrogate (offset 3 in UTF-16 is inside the emoji surrogate pair 2..4) is refused.
+    let mut bad_sparse = SparseTermsWire::new(make_sparse(), TEXT, OffsetMode::Utf16).to_msg();
+    bad_sparse.span_start[1] = 3;
+    let e = c.round_trip_sparse_terms(bad_sparse).await.expect_err("mid-surrogate sparse span");
+    assert_eq!(refusal(&e), (Code::InvalidArgument, 256));
+
+    let mut bad_tv = TokenVectors::new(&v, &w).with_offsets(TEXT, OffsetMode::Utf16).to_msg();
+    bad_tv.window_end[0] = 3;
+    let e = c.round_trip_token_vectors(bad_tv).await.expect_err("mid-surrogate window");
+    assert_eq!(refusal(&e), (Code::InvalidArgument, 256));
+
+    let mut bad_ex = Extraction::new(&a, model_ref()).with_offsets(TEXT, OffsetMode::Utf16).to_msg();
+    bad_ex.span_start[1] = 3;
+    let e = c.round_trip_extraction(bad_ex).await.expect_err("mid-surrogate answer");
+    assert_eq!(refusal(&e), (Code::InvalidArgument, 256));
+}
+
+#[tokio::test]
+async fn round_trip_document_graph_supports_all_registered_workspace_crates() {
+    assert!(std::ptr::eq(codecs(), codecs()), "codecs registry is cached in OnceLock");
+    let (_s, mut c) = serve().await;
+    let mut doc = Document::new("Hello world");
+    let p = || Provenance::by("test");
+
+    let mut sents = Sentences { spans: Spans::new(ViewId::SOURCE) };
+    sents.spans.push(Span::new(0, 11));
+    doc.add(&Key::<Sentences>::DEFAULT, sents, p()).unwrap();
+
+    let mut toks = Tokens { spans: Spans::new(ViewId::SOURCE), sentence: Some(vec![Ix::new(0), Ix::new(0)]) };
+    toks.spans.push(Span::new(0, 5));
+    toks.spans.push(Span::new(6, 11));
+    doc.add(&Key::<Tokens>::DEFAULT, toks, p()).unwrap();
+
+    let ent_tags = TagSet::new("ner", &["PERSON"]);
+    let mut ent_spans = Spans::new(ViewId::SOURCE);
+    ent_spans.push(Span::new(0, 5));
+    let ents = Entities {
+        spans: ent_spans,
+        tokens: vec![turbo_analysis::IxRange::new(0, 1)],
+        kind: vec![turbo_analysis::Tag(0)],
+        kinds: ent_tags,
+        score: vec![0.95],
+    };
+    doc.add(&Key::<Entities>::DEFAULT, ents, p()).unwrap();
+
+    doc.add(&Key::<Abbreviations>::DEFAULT, Abbreviations::new(ViewId::SOURCE), p()).unwrap();
+    doc.add(
+        &Key::<Edges<Abbreviations, Abbreviations>>::DEFAULT,
+        Edges::new(TagSet::new("abbrev", &["definition"]), Vec::new()),
+        p(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::<turbo_chunker::terms::Vocabulary>::DEFAULT,
+        turbo_chunker::terms::Vocabulary { text: turbo_analysis_layers::Strs::default() },
+        p(),
+    )
+    .unwrap();
+    doc.add(&Key::<turbo_coref::Mentions>::DEFAULT, turbo_coref::Mentions::new(ViewId::SOURCE), p()).unwrap();
+    doc.add(
+        &Key::<turbo_coref::Speakers>::DEFAULT,
+        turbo_coref::Speakers {
+            spans: Spans::new(ViewId::SOURCE),
+            speaker: Vec::new(),
+            speakers: TagSet::new("speakers", &["alice"]),
+        },
+        p(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::<turbo_encoding_layers::SourceEncoding>::DEFAULT,
+        turbo_encoding_layers::SourceEncoding {
+            encoding: turbo_encoding_layers::Encoding::Utf8,
+            confidence: 1.0,
+            evidence: turbo_encoding_layers::EncodingEvidence::ValidUtf8,
+        },
+        p(),
+    )
+    .unwrap();
+    let mut linked = turbo_entity_linker::LinkedEntities::with_capacity(1);
+    linked.kb_id.push(None);
+    linked.provider_id.push(String::new());
+    linked.canonical_name.push(String::new());
+    linked.matched_alias.push(String::new());
+    linked.score.push(0.0);
+    linked.nil_reason.push(Some(turbo_entity_linker::NilReason::NoCandidates));
+    linked.nil_cluster.push(Some(0));
+    linked.candidates.push(Vec::new());
+    doc.add(&Key::<turbo_entity_linker::LinkedEntities>::DEFAULT, linked, p()).unwrap();
+    doc.add(&Key::<turbo_geo::Locations>::DEFAULT, turbo_geo::Locations::new(ViewId::SOURCE), p()).unwrap();
+    doc.add(
+        &Key::<turbo_gliner::Decisions>::DEFAULT,
+        turbo_gliner::Decisions { threshold: 0.5, logits: vec![0.9] },
+        p(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::<turbo_glossary_layers::GlossaryTerms>::DEFAULT,
+        turbo_glossary_layers::GlossaryTerms::new(ViewId::SOURCE, Arc::new(turbo_glossary_layers::Glossary::new())),
+        p(),
+    )
+    .unwrap();
+    let mut sketches = turbo_group::Sketches::<Sentences>::empty(3);
+    sketches.words.push(2);
+    sketches.exact.push(1);
+    sketches.shape.push(1);
+    sketches.simhash.push(1);
+    sketches.minhash.resize(64, 1);
+    doc.add(&Key::<turbo_group::Sketches<Sentences>>::DEFAULT, sketches, p()).unwrap();
+    doc.add(&Key::<turbo_keywords::Keywords>::DEFAULT, turbo_keywords::Keywords::new(ViewId::SOURCE), p()).unwrap();
+    doc.add(
+        &Key::<turbo_normalize_layers::Placeholders>::DEFAULT,
+        turbo_normalize_layers::Placeholders::new(ViewId::SOURCE),
+        p(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::<turbo_relation::Relations>::DEFAULT,
+        turbo_relation::Relations {
+            spans: Spans::new(ViewId::SOURCE),
+            subject: Vec::new(),
+            object: Vec::new(),
+            kind: Vec::new(),
+            kinds: TagSet::new("relations", &["works_at"]),
+            score: Vec::new(),
+        },
+        p(),
+    )
+    .unwrap();
+    let empty_tags = TagSet::new("records", &["record"]);
+    doc.add(
+        &Key::<turbo_schema_extract::Records>::DEFAULT,
+        turbo_schema_extract::Records {
+            spans: Spans::new(ViewId::SOURCE),
+            record: Vec::new(),
+            path: Vec::new(),
+            score: Vec::new(),
+            logit: Vec::new(),
+            support_end: Vec::new(),
+            support_source: Vec::new(),
+            support_row: Vec::new(),
+            record_type: Vec::new(),
+            instance: Vec::new(),
+            choice_record: Vec::new(),
+            choice_path: Vec::new(),
+            choice: Vec::new(),
+            choice_score: Vec::new(),
+            choice_logit: Vec::new(),
+            types: empty_tags.clone(),
+            paths: empty_tags.clone(),
+            choices: empty_tags,
+        },
+        p(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::<turbo_stopword_layers::Stopwords>::DEFAULT,
+        turbo_stopword_layers::Stopwords {
+            language: turbo_stopword_layers::StopwordLanguage::English,
+            stop: vec![false, false],
+        },
+        p(),
+    )
+    .unwrap();
+    doc.add(
+        &Key::<turbo_tokenize_layers::WordTypes>::DEFAULT,
+        turbo_tokenize_layers::WordTypes {
+            kind: vec![turbo_tokenize_layers::WordType::Alphanumeric, turbo_tokenize_layers::WordType::Alphanumeric],
+        },
+        p(),
+    )
+    .unwrap();
+    let _ = Chunks::ID;
+
+    let graph_bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
+    let resp = c
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.clone().into() })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(resp.graph, graph_bytes, "re-exported DocumentGraph bytes are byte-identical");
+    assert_eq!(resp.source_text, "Hello world");
+    assert!(resp.layers.iter().all(|l| l.status == LayerWireStatus::Ok as i32));
+    assert!(resp.layers.len() >= 18);
 }
