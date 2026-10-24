@@ -1,0 +1,2237 @@
+{
+  "meta": {
+    "label": "merged",
+    "started": "2026-10-24T19:18:07.610Z",
+    "cpu": 7,
+    "baseline": "654f5f85528c9ab67468d7d11113ba8f778a7a70",
+    "head": "225c1553ca09ac83a45e774cfaa4f4c6c11d43bf",
+    "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "harness_sha256": "d738dd7a1c9b47394905453526fb3453817b1f2703d32782197ef3733744f56b",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "cpu_model": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "governor": "powersave",
+    "ambient_start": "11.51 13.82 20.15 3/10436 1866925",
+    "corpora": {
+      "ascii": "6599e42821a0800d5c77ab00e8342da050ef653e4a1e237b0ac8c60c217025ce",
+      "non_latin": "7f953fc3ffcaf66d0fcfdac73a8f8dc4801a178af73e76b0bf1ac3b69770e8cc",
+      "non_latin_nd": "958671e70265ac26f118f8ec8a8045391356ace7d102d8e11486bae4d58ef962"
+    },
+    "finished": "2026-10-24T19:19:56.438Z",
+    "ambient_end": "11.96 12.97 19.11 30/10570 1885551"
+  },
+  "rows": [
+    {
+      "corpus": "ascii",
+      "round": 1,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 206.174302,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 2/10437 1866928"
+    },
+    {
+      "corpus": "ascii",
+      "round": 1,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 226.430833,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 4/10444 1866939"
+    },
+    {
+      "corpus": "ascii",
+      "round": 2,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 226.56187,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 3/10444 1866942"
+    },
+    {
+      "corpus": "ascii",
+      "round": 2,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 206.748507,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 3/10443 1866984"
+    },
+    {
+      "corpus": "ascii",
+      "round": 3,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 206.703402,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 4/10444 1867013"
+    },
+    {
+      "corpus": "ascii",
+      "round": 3,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 226.613317,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 11/10441 1867035"
+    },
+    {
+      "corpus": "ascii",
+      "round": 4,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 241.712788,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 9/10442 1867071"
+    },
+    {
+      "corpus": "ascii",
+      "round": 4,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 307.585659,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 5/10442 1867095"
+    },
+    {
+      "corpus": "ascii",
+      "round": 5,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 206.77624,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 7/10443 1867098"
+    },
+    {
+      "corpus": "ascii",
+      "round": 5,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 231.380381,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 4/10467 1867176"
+    },
+    {
+      "corpus": "ascii",
+      "round": 6,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 229.239143,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 3/10473 1867186"
+    },
+    {
+      "corpus": "ascii",
+      "round": 6,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 206.571924,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 5/10473 1867189"
+    },
+    {
+      "corpus": "ascii",
+      "round": 7,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 219.955359,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 3/10471 1867191"
+    },
+    {
+      "corpus": "ascii",
+      "round": 7,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 226.231796,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 5/10467 1867198"
+    },
+    {
+      "corpus": "ascii",
+      "round": 8,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 238.136835,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "11.51 13.82 20.15 5/10468 1867205"
+    },
+    {
+      "corpus": "ascii",
+      "round": 8,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 220.009321,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 3/10466 1867231"
+    },
+    {
+      "corpus": "ascii",
+      "round": 9,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 211.695201,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 2/10466 1867418"
+    },
+    {
+      "corpus": "ascii",
+      "round": 9,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 227.487521,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 3/10468 1867443"
+    },
+    {
+      "corpus": "ascii",
+      "round": 10,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 226.220024,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 5/10466 1867445"
+    },
+    {
+      "corpus": "ascii",
+      "round": 10,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 208.951774,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 6/10473 1867464"
+    },
+    {
+      "corpus": "ascii",
+      "round": 11,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 206.702681,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 4/10500 1867574"
+    },
+    {
+      "corpus": "ascii",
+      "round": 11,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 243.547016,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 7/10501 1867584"
+    },
+    {
+      "corpus": "ascii",
+      "round": 12,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 239.510002,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 11/10513 1867598"
+    },
+    {
+      "corpus": "ascii",
+      "round": 12,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 283.015061,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 8/10541 1867629"
+    },
+    {
+      "corpus": "ascii",
+      "round": 13,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 230.397623,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 9/10543 1867671"
+    },
+    {
+      "corpus": "ascii",
+      "round": 13,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 251.416425,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 10/10542 1867696"
+    },
+    {
+      "corpus": "ascii",
+      "round": 14,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 242.070935,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 11/10542 1867718"
+    },
+    {
+      "corpus": "ascii",
+      "round": 14,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 226.669654,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 10/10542 1867720"
+    },
+    {
+      "corpus": "ascii",
+      "round": 15,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 212.934313,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 5/10542 1867722"
+    },
+    {
+      "corpus": "ascii",
+      "round": 15,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 237.017439,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 8/10542 1867744"
+    },
+    {
+      "corpus": "ascii",
+      "round": 16,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 230.296703,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 5/10542 1867746"
+    },
+    {
+      "corpus": "ascii",
+      "round": 16,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 209.50497,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 3/10542 1867748"
+    },
+    {
+      "corpus": "ascii",
+      "round": 17,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 212.712624,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 6/10542 1867751"
+    },
+    {
+      "corpus": "ascii",
+      "round": 17,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 244.823338,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 5/10541 1867753"
+    },
+    {
+      "corpus": "ascii",
+      "round": 18,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 230.148823,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 8/10539 1867755"
+    },
+    {
+      "corpus": "ascii",
+      "round": 18,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 210.743551,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.99 13.67 20.07 8/10535 1867757"
+    },
+    {
+      "corpus": "ascii",
+      "round": 19,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 209.361047,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 7/10534 1867759"
+    },
+    {
+      "corpus": "ascii",
+      "round": 19,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 228.429932,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 8/10534 1867777"
+    },
+    {
+      "corpus": "ascii",
+      "round": 20,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 230.524082,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 11/10531 1867898"
+    },
+    {
+      "corpus": "ascii",
+      "round": 20,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 208.901238,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 8/10531 1867921"
+    },
+    {
+      "corpus": "ascii",
+      "round": 21,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 208.707031,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 3/10550 1867944"
+    },
+    {
+      "corpus": "ascii",
+      "round": 21,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 277.042909,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 18/10534 1868019"
+    },
+    {
+      "corpus": "ascii",
+      "round": 22,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 229.05817,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 8/10534 1868021"
+    },
+    {
+      "corpus": "ascii",
+      "round": 22,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 219.192456,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 5/10534 1868024"
+    },
+    {
+      "corpus": "ascii",
+      "round": 23,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 214.533567,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 3/10527 1868026"
+    },
+    {
+      "corpus": "ascii",
+      "round": 23,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 227.995671,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 2/10525 1868064"
+    },
+    {
+      "corpus": "ascii",
+      "round": 24,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 228.698761,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 2/10525 1868067"
+    },
+    {
+      "corpus": "ascii",
+      "round": 24,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 1000,
+      "ms": 209.460285,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "10.51 13.53 19.99 3/10522 1868116"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 1,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 886.459737,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "10.51 13.53 19.99 9/10532 1868206"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 1,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 965.702447,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "10.51 13.53 19.99 2/10582 1868266"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 2,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 944.081457,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "10.07 13.38 19.91 8/10612 1868442"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 2,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 938.486418,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "10.07 13.38 19.91 11/10636 1868532"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 3,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 917.957903,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "10.07 13.38 19.91 3/10647 1868590"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 3,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 946.803333,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "10.07 13.38 19.91 7/10651 1868662"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 4,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1077.495154,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "10.07 13.38 19.91 9/10656 1868680"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 4,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 941.989101,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.82 13.28 19.84 12/10753 1868804"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 5,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1040.760967,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.82 13.28 19.84 23/10654 1868873"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 5,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1035.327414,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.82 13.28 19.84 5/10660 1868936"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 6,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 966.067578,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.82 13.28 19.84 3/10675 1869052"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 6,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 956.151329,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.82 13.28 19.84 8/10733 1869179"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 7,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 914.160673,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.68 13.19 19.77 3/10741 1869214"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 7,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 946.096056,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.68 13.19 19.77 2/10742 1869438"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 8,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 946.768437,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.68 13.19 19.77 5/10752 1869741"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 8,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 895.770271,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.68 13.19 19.77 4/10750 1869796"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 9,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 902.815071,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.68 13.19 19.77 3/10745 1869826"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 9,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 918.927365,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.22 13.04 19.69 2/10744 1869847"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 10,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 914.006872,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.22 13.04 19.69 2/10739 1869962"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 10,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 863.665066,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.22 13.04 19.69 6/10739 1870016"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 11,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 895.605159,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.22 13.04 19.69 3/10433 1870117"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 11,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 925.722013,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.22 13.04 19.69 4/10421 1870342"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 12,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 917.902037,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "9.22 13.04 19.69 3/10447 1870449"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 12,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 870.280035,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.88 12.90 19.61 4/10448 1870714"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 13,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1372.387282,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.88 12.90 19.61 9/10500 1871826"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 13,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1317.650617,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.88 12.90 19.61 37/10547 1872304"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 14,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 994.911776,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.88 12.90 19.61 7/10498 1872524"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 14,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1017.943986,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.65 12.79 19.54 24/10511 1872568"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 15,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 966.183206,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.65 12.79 19.54 10/10471 1872836"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 15,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1069.914881,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.65 12.79 19.54 14/10503 1873296"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 16,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 951.745167,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.65 12.79 19.54 9/10494 1873426"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 16,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1037.575966,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.65 12.79 19.54 8/10477 1873592"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 17,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 908.55314,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.60 12.71 19.47 5/10543 1873764"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 17,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 948.72643,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.60 12.71 19.47 5/10460 1873983"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 18,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1144.564017,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.60 12.71 19.47 5/10465 1874074"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 18,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1075.178203,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "8.60 12.71 19.47 46/10519 1874237"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 19,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1862.062043,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "12.64 13.48 19.69 38/10530 1874664"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 19,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1919.280401,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "12.64 13.48 19.69 66/10525 1875077"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 20,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 1882.91473,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "12.64 13.48 19.69 20/10550 1875497"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 20,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 924.556479,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "13.55 13.65 19.71 3/10550 1875869"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 21,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 873.077514,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "13.55 13.65 19.71 2/10529 1876162"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 21,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 911.286459,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "13.55 13.65 19.71 7/10474 1876180"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 22,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 913.324282,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "13.55 13.65 19.71 7/10455 1876295"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 22,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 889.21199,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "13.55 13.65 19.71 5/10455 1876383"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 23,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 929.766951,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "13.55 13.65 19.71 2/10412 1876537"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 23,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 912.449298,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "12.86 13.51 19.63 3/10433 1876691"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 24,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 920.032124,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "12.86 13.51 19.63 2/10407 1876792"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 24,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 1000,
+      "ms": 870.783456,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "12.86 13.51 19.63 2/10401 1876837"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 1,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 616.994746,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "12.86 13.51 19.63 5/10412 1876892"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 1,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1256.575938,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "12.86 13.51 19.63 3/10388 1877168"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 2,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1264.550345,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "12.07 13.33 19.54 2/10385 1877411"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 2,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 618.945785,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "12.07 13.33 19.54 4/10388 1877480"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 3,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 617.814295,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "12.07 13.33 19.54 7/10384 1877497"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 3,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1257.68266,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "12.07 13.33 19.54 5/10383 1877656"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 4,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1259.373727,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "12.07 13.33 19.54 4/10382 1877853"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 4,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 618.720709,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "11.51 13.20 19.46 3/10381 1877940"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 5,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 647.622777,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "11.51 13.20 19.46 9/10434 1878393"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 5,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1343.519079,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "11.51 13.20 19.46 2/10464 1878507"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 6,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1298.994902,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "11.51 13.20 19.46 6/10532 1878792"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 6,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 656.923733,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "11.51 13.20 19.46 8/10558 1878928"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 7,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 697.464938,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "11.22 13.11 19.40 8/10564 1879096"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 7,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1464.661052,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "11.22 13.11 19.40 11/10520 1879573"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 8,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1297.891086,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "11.22 13.11 19.40 10/10536 1879730"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 8,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 673.384386,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "11.22 13.11 19.40 7/10516 1879799"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 9,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 731.778237,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "11.22 13.11 19.40 8/10517 1879828"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 9,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1321.252617,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "10.65 12.96 19.32 2/10524 1879894"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 10,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1404.549894,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "10.65 12.96 19.32 18/10533 1880301"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 10,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 708.673792,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "10.65 12.96 19.32 4/10529 1880502"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 11,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 661.090111,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "10.65 12.96 19.32 11/10558 1880631"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 11,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1281.319352,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "10.65 12.96 19.32 8/10537 1880730"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 12,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1317.433356,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "10.51 12.89 19.26 9/10530 1880945"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 12,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 669.073465,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "10.51 12.89 19.26 9/10528 1881008"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 13,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 648.262276,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "10.51 12.89 19.26 13/10526 1881034"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 13,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1319.078697,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "10.51 12.89 19.26 3/10528 1881128"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 14,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1263.360455,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "10.39 12.83 19.21 11/10456 1881211"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 14,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 636.56037,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "10.39 12.83 19.21 3/10425 1881272"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 15,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 623.093277,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "10.39 12.83 19.21 3/10425 1881463"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 15,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1249.739071,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "10.39 12.83 19.21 4/10447 1881514"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 16,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1251.588217,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "10.39 12.83 19.21 4/10442 1881865"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 16,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 614.959086,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "10.39 12.83 19.21 3/10419 1882016"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 17,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 617.538814,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "9.88 12.68 19.13 2/10441 1882151"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 17,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1259.68687,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "9.88 12.68 19.13 4/10419 1882633"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 18,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1256.407809,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "9.88 12.68 19.13 2/10397 1882760"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 18,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 620.96365,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "9.88 12.68 19.13 3/10397 1882783"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 19,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 621.603139,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "9.88 12.68 19.13 3/10393 1882804"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 19,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1266.901862,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "9.65 12.58 19.06 2/10421 1882977"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 20,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1263.588868,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "9.65 12.58 19.06 3/10428 1883391"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 20,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 630.045802,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "9.65 12.58 19.06 9/10445 1883487"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 21,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 622.959263,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "9.65 12.58 19.06 4/10446 1883543"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 21,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1384.662592,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "9.65 12.58 19.06 4/10443 1883865"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 22,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1285.843146,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "9.44 12.49 19.00 6/10440 1884026"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 22,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 658.391788,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "9.44 12.49 19.00 5/10460 1884338"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 23,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 676.918759,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "9.44 12.49 19.00 14/10478 1884558"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 23,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1276.472567,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "9.44 12.49 19.00 5/10459 1884901"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 24,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 1263.988102,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "9.44 12.49 19.00 8/10478 1884958"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 24,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 1000,
+      "ms": 719.024692,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "11.96 12.97 19.11 28/10568 1885549"
+    }
+  ],
+  "summary": {
+    "ascii": {
+      "main_ms": 210.1242605,
+      "head_ms": 230.222763,
+      "paired_ratio": 1.0919639368180387,
+      "main_mentions": [
+        6000
+      ],
+      "head_mentions": [
+        6000
+      ],
+      "main_output": [
+        "8f111db360795c34"
+      ],
+      "head_output": [
+        "8f111db360795c34"
+      ]
+    },
+    "non_latin": {
+      "main_ms": 921.2571909999999,
+      "head_ms": 947.7648815,
+      "paired_ratio": 1.034280740875523,
+      "main_mentions": [
+        15000
+      ],
+      "head_mentions": [
+        15000
+      ],
+      "main_output": [
+        "c2e189ecda130558"
+      ],
+      "head_output": [
+        "c2e189ecda130558"
+      ]
+    },
+    "non_latin_nd": {
+      "main_ms": 642.0915735000001,
+      "head_ms": 1271.6872145,
+      "paired_ratio": 2.0145104178805173,
+      "main_mentions": [
+        7500
+      ],
+      "head_mentions": [
+        15000
+      ],
+      "main_output": [
+        "7065d6328d40e585"
+      ],
+      "head_output": [
+        "a1ff2a2ca7c850cf"
+      ]
+    }
+  }
+}

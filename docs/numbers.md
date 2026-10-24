@@ -100,32 +100,34 @@ golden comparisons in `analysis/numeric/tests/goldens.rs`,
 `analysis/numeric/tests/quantity_goldens.rs`, and
 `analysis/numeric/tests/money_goldens.rs`.
 
-Interleaved release-build timing (`cargo test --release -p turbo-numeric --test extended_numbers timing_receipt_interleaved_release -- --ignored --nocapture`, 6 interleaved rounds of 100 iterations on the same machine comparing `main` `97dee9b33` against this head):
+Candidate scanning uses a bounded AVX2 byte prefilter when available, with
+non-ASCII candidates confirmed by the existing Unicode digit classifier.
+Other CPUs keep the scalar candidate path. The default scanner avoids
+regional fallback dispatch when none was requested and keeps its candidate
+matcher compact. At text start or after an ASCII space, the word/sign
+boundary is already known; all other positions use the general boundary
+rules. Number syntax and the parity option are unchanged.
 
-- Existing ASCII/Latin corpus (`prose-english.txt`, `prose-german.txt`,
-  `decimals-us.txt`, `eu-grouping.txt`, `both-notations.txt`, 112.8 KB x
-  100 iterations, 6,000 mentions/iteration):
-  - `main` (`97dee9b33`): median `21.15 ms` (`533.5 MB/s`, range
-    `20.35 ms` to `23.09 ms`).
-  - Default extended path (`with_opennlp_parity(false)`): median
-    `20.71 ms` (`544.8 MB/s`, range `20.47 ms` to `21.28 ms`).
-  - OpenNLP parity path (`with_opennlp_parity(true)`): median `21.00 ms`
-    (`537.2 MB/s`, range `20.88 ms` to `25.05 ms`).
-- Non-Latin corpus with existing-path ASCII numerals (Devanagari, Thai,
-  Arabic, CJK fullwidth punctuation, and emoji prose, 1.58 MB x 100
-  iterations, 15,000 mentions/iteration on both):
-  - `main` (`97dee9b33`, ASCII-only scan): median `85.92 ms`
-    (`1,836 MB/s`, range `85.48 ms` to `86.77 ms`).
-  - Default extended path (`with_opennlp_parity(false)`): median
-    `121.45 ms` (`1,299 MB/s`, range `120.43 ms` to `123.59 ms`).
-- Non-Latin corpus with Devanagari, Arabic-Indic, and Fullwidth `Nd`
-  numerals alongside ASCII numerals (1.70 MB x 100 iterations):
-  - `main` (`97dee9b33`, skips non-ASCII numerals, 7,500
-    mentions/iteration): median `61.46 ms` (`2,770 MB/s`, range
-    `60.42 ms` to `62.93 ms`).
-  - Default extended path (`with_opennlp_parity(false)`, extracts all
-    15,000 ASCII and non-ASCII `Nd` mentions/iteration): median
-    `154.86 ms` (`1,099 MB/s`, range `154.37 ms` to `161.51 ms`).
+The [paired release receipt](receipts/numeric-931/README.md) retains the
+original regression, a rejected intermediate implementation, and all final
+samples. Code commit `4c025715266e92d02d33113241c0f122936b9f15` was compared
+with main `654f5f85528c9ab67468d7d11113ba8f778a7a70`, using 24 alternating
+pairs per corpus and 1,000 timed iterations per sample on one CPU of a
+shared AMD Ryzen 9 9950X3D host:
+
+- Existing Latin output: 6,000 mentions per iteration on both; median
+  206.73 ms on main and 200.41 ms on the candidate.
+- Existing non-Latin text with ASCII numerals: 15,000 mentions per
+  iteration on both; median 892.58 ms on main and 873.48 ms on the candidate.
+- Non-Latin text with Nd numerals: 7,500 mentions on main versus 15,000 on
+  the candidate; median 643.43 ms versus 1,279.86 ms. This performs new work
+  and is not a same-output speed comparison.
+
+The two existing-output corpora have matching value/span checksums. No
+median slowdown was observed in this run; the small differences are not
+claimed as statistically significant speedups. Raw ordering, ambient load,
+input hashes, binary hashes, and reproduction steps are in the receipt.
+These measurements do not establish performance on other architectures.
 
 Behaviour that comes from the Java and is kept:
 
