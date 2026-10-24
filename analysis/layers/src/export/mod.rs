@@ -65,6 +65,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
     codecs
         .register::<crate::Calibrated<Categories>>()
         .register::<crate::Calibrated<Tokens>>()
+        .register::<crate::Calibrated<Entities>>()
         .register::<Sentences>()
         .register::<Tokens>()
         .register::<Words>()
