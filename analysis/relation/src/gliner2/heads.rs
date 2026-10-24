@@ -479,5 +479,5 @@ fn gru(f: &File, side: &str) -> Result<Linear, String> {
 
 /// The logistic function in single precision, as the reference applies it.
 pub fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
+    turbo::head::sigmoid(x)
 }

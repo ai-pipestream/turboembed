@@ -1,6 +1,6 @@
 # The cases of the pysbd suite that the rules detector gets wrong, and what
 # differs. tests/conformance.rs writes this file and fails when a run differs
-# from it. 94 of 471 cases fail.
+# from it. 86 of 471 cases fail.
 pysbd/test_arabic/001	1 missing, first after "سؤال وجواب:"
 pysbd/test_arabic/002	1 extra, first after "وقال د‪.‬" [xfail-upstream]
 pysbd/test_arabic/004	1 missing, first after "...05:01 GMT الصنداي تايمز:"
@@ -13,8 +13,6 @@ pysbd/test_danish/039	1 extra, first after "You can find it at N°."
 pysbd/test_danish/045	1 extra, first after "...ying, the thing is . . ."
 pysbd/test_danish/047	2 missing, first after "Hello world."; 1 extra, first after "...rld.I dag is Tuesday.Hr." [clean=true]
 pysbd/test_deutsch/012	1 extra, first after "Wir trafen Dr. med." [clean=true]
-pysbd/test_deutsch/015	1 extra, first after "Frau Prof." [clean=true]
-pysbd/test_deutsch/018	1 extra, first after "Das finden Sie auf S." [clean=true]
 pysbd/test_deutsch/024	1 missing, first after "...rfasst von Anna Anderson" [clean=true]; passes without the paragraph line breaks rule
 pysbd/test_deutsch/035	the same breaks, different text [doc_type=pdf, clean=true]
 pysbd/test_dutch/001	1 missing, first after "...ssiles op hem af kwamen."
@@ -70,10 +68,6 @@ pysbd/test_greek/001	1 missing, first after "...ακές δε δούλευε κ�
 pysbd/test_issues/004	1 extra, first after "...ves to each vertex in X."
 pysbd/test_issues/010	1 extra, first after "...d Mahdian [86] at Yahoo!"
 pysbd/test_italian/005	2 extra, first after "Sono l'Ing."
-pysbd/test_italian/006	1 extra, first after "...un appuntamento per mar."
-pysbd/test_italian/009	1 extra, first after "Si ringrazia lo psicol."
-pysbd/test_italian/012	1 extra, first after "...ia di TR quando il Dott."
-pysbd/test_italian/013	1 extra, first after "Egregio Dir."
 pysbd/test_italian/017	1 extra, first after "Nel tribunale, l'Avv."
 pysbd/test_japanese/005	the same breaks, different text [clean=true]
 pysbd/test_kazakh/002	1 missing, first after "... ауыл шаруашылығы – кім?"; passes without the continuation rule
@@ -83,15 +77,13 @@ pysbd/test_russian/036	2 extra, first after "В 2010-2012 гг."
 pysbd/test_russian/042	1 extra, first after "...лся Л.Н.Толстой, 1898 г."
 pysbd/test_segmenter/005	1 extra, first after "...f the top of the house!'" [doc_type=pdf]
 pysbd/test_segmenter/006	1 extra, first after "...f the top of the house!'" [doc_type=pdf]
-pysbd/test_slovak/001	1 extra, first after "...ími spoločnosťami, napr."
 pysbd/test_slovak/004	1 extra, first after "Ide o príslušníkov XII."
 pysbd/test_slovak/005	1 extra, first after "...ločnosť bola založená 7."
 pysbd/test_spanish/014	1 extra, first after "...n el cantar se consuela."
 pysbd/test_spanish/017	1 extra, first after "... constitución de los EE."
 pysbd/test_spanish/027	3 extra, first after "...ras para el almuerzo: 1."
 pysbd/test_spanish/028	1 missing, first after "1 + 1 es 2."
-pysbd/test_spanish/030	1 extra, first after "...pital de Northern en Mt."
-pysbd/test_spanish/031	1 missing, first after "Señores:"; 4 extra, first after "Cra." [clean=true]
+pysbd/test_spanish/031	1 missing, first after "Señores:" [clean=true]; passes without the paragraph line breaks rule
 pysbd/test_spanish/032	1 extra, first after "N°." [clean=true]
 pysbd/test_spanish/033	1 missing, first after "...________________________" [clean=true]; passes without the paragraph line breaks rule
 pysbd/test_spanish/036	1 extra, first after "...ada con el documento N°." [doc_type=pdf]

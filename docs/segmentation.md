@@ -400,21 +400,20 @@ cleaning step rewrote, and fail for every detector that runs them.
 
 | Detector | Pragmatic Segmenter | Golden Rules (English) | pySBD | `SentenceBreakTest.txt` |
 |---|---|---|---|---|
-| `rules` | 437 of 585 | 46 of 52 | 377 of 471 | 504 of 512 |
+| `rules` | 444 of 585 | 46 of 52 | 385 of 471 | 504 of 512 |
 | `uax29` | 305 of 585 | 29 of 52 | 264 of 471 | 512 of 512 |
 | maxent, English UD model, parity | 133 of 289 (English cases) | 31 of 52 | 98 of 193 (English) | 467 of 512 |
 | maxent, English UD model, default | 155 of 289 (English cases) | 36 of 52 | 112 of 193 (English) | |
 | maxent, German UD model | 22 of 37 (German cases) | | 20 of 35 (German) | |
 
 The Portuguese model has no case in its language. Among the rules
-detector's failures are abbreviations it has no data for (there is no
-list for Dutch or Slovak, and CLDR's lists are short), a sentence that
+detector's failures are remaining abbreviation contexts, a sentence that
 starts with a lower case letter after a full stop (the Greek cases,
 which SB8 keeps together), `:` as a sentence end in Arabic, and the
 references' document cleaning. By language, the rules detector passes
 all cases of `am bg fa fr hi hy mr my pl ur zh`, and 342 of 482 English,
-61 of 72 German, 86 of 109 Danish, 78 of 84 Russian, 60 of 72 Italian
-and 54 of 72 Spanish cases, against 234, 29, 63, 72, 56 and 41 for
+65 of 72 German, 86 of 109 Danish, 78 of 84 Russian, 68 of 72 Italian
+and 56 of 72 Spanish cases, against 234, 29, 63, 72, 56 and 41 for
 plain UAX #29.
 
 **Agreement with the maxent detector.** `analysis/sentdetect/tests/agreement.rs` runs the
@@ -432,7 +431,7 @@ that the rule splitter places.
 | English, golden inputs | 45 | 33 | 121, 119, 99 | 78, 76, 69 | 90.8% | 88.5% |
 | English, conformance texts | 482 | 292 | 3180, 2649, 1803 | 2698, 2167, 1934 | 89.2% | 71.7% |
 | German, golden inputs | 2 | 1 | 7, 6, 5 | 5, 4, 4 | 100% | 80.0% |
-| German, conformance texts | 72 | 42 | 194, 179, 100 | 122, 107, 76 | 71.0% | 62.3% |
+| German, conformance texts | 72 | 48 | 190, 175, 106 | 118, 103, 76 | 73.8% | 64.4% |
 | Portuguese, golden inputs | 1 | 1 | 5, 5, 5 | 4, 4, 4 | 100% | 100% |
 
 The maxent detector places more boundaries than the rule splitter on
@@ -452,10 +451,12 @@ splitter consult at a full stop, on top of a model's dictionary or a
 language's CLDR suppressions. It is on by default:
 `SentenceDetector::new` takes the bundled inventory of the model's
 language and `RuleSplitter::new` (and so `RuleSentenceDetector::new`)
-that of its tag, through `AbbreviationInventories::for_language`. Only
-English has a bundled inventory; every other language gets
-`AbbreviationInventory::EMPTY`, and splits as before. `RuleSplitter::uax29`
-has none. `with_abbreviations` sets another inventory.
+that of its tag, through `AbbreviationInventories::for_language`. Bundled
+inventories cover English and the thirteen languages in the table below.
+Other languages get `AbbreviationInventory::EMPTY` and retain their rule
+profiles. `RuleSplitter::uax29` has none. `with_abbreviations` sets another
+inventory; `for_language_with_classes` selects classes or a preset for any
+bundled language.
 
 **JVM parity mode.** `SentenceDetector::with_jvm_parity()` drops the
 inventory (it is `with_abbreviations(AbbreviationInventory::EMPTY)`), and
@@ -518,6 +519,55 @@ On the conformance suites the inventory adds 8 Pragmatic Segmenter and
 model, and fails no case that passed without it. The fixed cases are
 abbreviations before a name, a number or a lower case word (`St.`, `Mt.`,
 `e.g.`, `p.`, `no.`, `co.`, `Ph.D.`, `a.m.`, `Jan. 20, former Sen.`).
+
+The additional inventories use CLDR 48.2, Pragmatic Segmenter and pySBD
+Slovak data, with project classifications for titles, references,
+connectives and company suffixes. Pinned revisions, licences and the
+regeneration command are in
+[the inventory README](../analysis/sentdetect/data/inventory/README.md)
+and [licences](licences.md#sentence-abbreviation-inventories).
+Each table is initialized once per language; the English tables, lookup
+index and matching code are unchanged.
+
+`analysis/sentdetect/tests/inventory_languages.rs` compares each conformance text with and
+without its inventory and refuses any lost pass. Counts below are
+**without / with / total**. The same corpora informed upstream lists, so
+these are conformance results, not held-out accuracy estimates.
+
+| Language | Pragmatic Segmenter | pySBD |
+|---|---|---|
+| Arabic | 2 / 2 / 10 | 1 / 1 / 5 |
+| Bulgarian | 4 / 4 / 4 | 4 / 4 / 4 |
+| Danish | 44 / 44 / 60 | 42 / 42 / 49 |
+| German | 31 / 33 / 37 | 30 / 32 / 35 |
+| Spanish | 27 / 28 / 36 | 27 / 28 / 36 |
+| French | 5 / 5 / 5 | 5 / 5 / 5 |
+| Italian | 30 / 34 / 36 | 30 / 34 / 36 |
+| Kazakh | 11 / 11 / 13 | 11 / 11 / 13 |
+| Dutch | 1 / 1 / 3 | 1 / 1 / 3 |
+| Polish | 1 / 1 / 1 | 1 / 1 / 1 |
+| Portuguese | no cases | no cases |
+| Russian | 39 / 39 / 42 | 39 / 39 / 42 |
+| Slovak | no cases | 2 / 3 / 5 |
+| English (unchanged) | 192 / 200 / 289 | 137 / 142 / 193 |
+
+No previously passing case is lost. Dutch's remaining failures are a
+numeric sentence start and an ellipsis start, not an unknown abbreviation.
+French and Polish already pass all cases; Portuguese has no cases in
+these suites. Title-context tests exercise all seven requested languages,
+but do not supply missing corpus accuracy evidence. The German UD maxent
+model gains two cases in each suite with its inventory (24/37 and 22/35,
+compared with 22/37 and 20/35 in parity mode). Its model probabilities and
+parity mode remain unchanged.
+
+An English release-mode probe split a repeated abbreviation-rich paragraph
+2,000 times per sample, alternating the parent and changed builds for six
+rounds. Parent times were 422.163, 360.158, 361.172, 616.921, 670.270 and
+378.316 ms; changed times were 364.172, 383.991, 364.027, 396.989, 382.411
+and 354.514 ms. Medians were 400.240 and 373.292 ms. The shared host was
+noisy, so this shows no observed slowdown, not a speedup claim. The English
+entry tables and per-boundary lookup implementation are byte-for-byte
+unchanged.
 
 ## Tokenization
 
