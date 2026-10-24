@@ -13,14 +13,7 @@ use turbo::{
 /// Spans per out_project and scoring block.
 const SPANS: usize = 128;
 
-pub(crate) fn sigmoid(x: f32) -> f32 {
-    if x >= 0.0 {
-        1.0 / (1.0 + (-x).exp())
-    } else {
-        let e = x.exp();
-        e / (1.0 + e)
-    }
-}
+pub(crate) use turbo::head::sigmoid;
 fn finite(y: &[f32], what: &str) -> Result<(), String> {
     if y.iter().all(|v| v.is_finite()) { Ok(()) } else { Err(format!("gliner non-finite {what}")) }
 }
