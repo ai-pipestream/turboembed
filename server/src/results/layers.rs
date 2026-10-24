@@ -187,7 +187,7 @@ impl Wire for ChunkLevels {
             level_parent: self.levels.parent.iter().map(|p| p.map_or(-1, |i| i.get() as i32)).collect(),
             model: Some(model_to_proto(&self.vectors.model)),
             dim: self.vectors.dim,
-            data: self.vectors.data.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            data: super::f32_bytes(&self.vectors.data),
             empty: self.vectors.empty.iter().map(|i| i.get() as u32).collect(),
         }
     }
@@ -314,7 +314,7 @@ impl Wire for ChunkLevels {
         if msg.dim == 0 || !msg.data.len().is_multiple_of(4) {
             return Err(bad("embedding data: whole little-endian f32 values at a positive dim"));
         }
-        let data: Vec<f32> = msg.data.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
+        let data = super::f32s(&msg.data);
         let model =
             msg.model.as_ref().map(model_from_proto).ok_or_else(|| bad("embeddings carry no model identity"))?;
         let vectors = Vectors::<Chunks> {

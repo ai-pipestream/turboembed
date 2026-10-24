@@ -79,10 +79,7 @@ impl Wire for TokenVectors {
     type Msg = TokenVectorsResult;
 
     fn to_msg(&self) -> TokenVectorsResult {
-        let mut data = Vec::with_capacity(self.data.len() * 4);
-        for v in &self.data {
-            data.extend_from_slice(&v.to_le_bytes());
-        }
+        let data = super::f32_bytes(&self.data);
         TokenVectorsResult {
             model: Some(model_to_proto(&self.model)),
             dim: self.dim,
@@ -128,10 +125,7 @@ impl Wire for TokenVectors {
         if msg.window_start.len() != msg.window_end.len() {
             return Err(mismatched("window_start", msg.window_start.len(), msg.window_end.len()));
         }
-        let mut data = Vec::with_capacity(values);
-        for c in msg.data.as_chunks::<4>().0 {
-            data.push(f32::from_le_bytes(*c));
-        }
+        let data = super::f32s(&msg.data);
         let out = TokenVectors {
             model: msg.model.as_ref().map(model_from_proto).unwrap_or(ModelRef {
                 id: String::new(),
