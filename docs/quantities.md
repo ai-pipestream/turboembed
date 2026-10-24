@@ -11,6 +11,10 @@ the OpenNLP numeric add-on:
 | `Quantities`, `QuantityMention` | `Quantity` |
 | `DEFAULT_UNITS` | `CursorQuantityExtractor.DEFAULT_UNITS` |
 
+Amounts with spelled-out numbers and compound units (`the 6 ft 2 in
+player`, `5 dollars and 50 cents`) are read by `turbo-grammar`'s
+`ENGLISH_UNITS` ([grammar-units.md](grammar-units.md)).
+
 The number inside a mention is read by the number scan of
 [numbers.md](numbers.md), and money is found by the extractor of
 [money.md](money.md).

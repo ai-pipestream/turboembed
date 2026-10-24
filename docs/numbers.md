@@ -8,6 +8,9 @@ layer. It is a port of the number scan in the OpenNLP numeric add-on:
 money exclusion and without the unit the quantity extractor wants after
 a number.
 
+Numbers spelled out in words (`one hundred and three`, `twenty-first`)
+are read by `turbo-grammar` ([grammar.md](grammar.md)).
+
 ## The layer
 
 `Numbers`, in `turbo-analysis-layers`, has one item per mention:

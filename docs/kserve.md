@@ -69,9 +69,7 @@ no session bound that would refuse it first.
 A failure in any of these calls stops the server before it is ready. It
 logs the call, `turbo_status_name` of the code, the field if the error
 names one, and `turbo_error.message`, and exits with a non-zero status.
-The header has one task, so `select` names `TURBO_TASK_EMBED`, and a
-bundle of another task fails `turbo_model_load` with
-`TURBO_E_UNSUPPORTED_TASK`, which stops the server the same way (Tasks).
+The server serves one task, so `select` names `TURBO_TASK_EMBED` (Tasks).
 
 Each session also has three `TURBO_PLACE_PINNED` buffers of
 `TURBO_DTYPE_I32`, for `ids`, `mask` and `types`, made by
@@ -112,7 +110,9 @@ A model is ready only after `turbo_model_load` and every one of its
 state it needs. Before load the revision is unknown, so `ModelReady`
 with any version is false. A client polls `ModelReady` until it is true rather
 than retrying `ModelInfer` on that status. Once ready, a model stays
-ready until the server stops; the server has no unload.
+ready until the server stops; this service has no unload. A bundle loaded
+through the analysis service's `LoadBundle` can be stopped with its
+`UnloadBundle`, behind the `--admin` flag (docs/grpc-analysis.md).
 
 The server does not serve `grpc.health.v1.Health`. An orchestrator
 probes liveness with `ServerLive` and readiness with `ServerReady`.
@@ -424,9 +424,9 @@ rather than retrying the call.
 
 ## Tasks
 
-The server serves `TURBO_TASK_EMBED`, the one task the header has. A
-bundle of any other task is refused at startup with
-`TURBO_E_UNSUPPORTED_TASK`.
+The server serves `TURBO_TASK_EMBED`. The header also has
+`TURBO_TASK_RERANK` and `TURBO_TASK_EXTRACTIVE_QA`; serving those through
+`ModelInfer` is #908.
 
 The header grows a task by one rule: a task number `TURBO_TASK_<TASK>`,
 an options struct `turbo_<task>_options`, one `turbo_<task>_write_<input>`

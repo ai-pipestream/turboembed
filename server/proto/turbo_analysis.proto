@@ -300,8 +300,9 @@ message RerankScoresResult
 
 // The ranked answers of an extraction or question-answering run: the
 // turbo-analysis-embed Answers layer (extractive QA, #745) plus the
-// model identity. The schema-driven structured records of #715 have no
-// merged layer yet; this message carries what exists today. An empty
+// model identity. The schema-driven structured records of #715 are the
+// turbo-schema-extract Records layer (turbo:records), which this message
+// does not carry yet. An empty
 // result is a calibrated abstention: null_probability is 1.
 message ExtractionResult
 {

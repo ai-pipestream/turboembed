@@ -32,10 +32,10 @@ use crate::scan::{
 /// `USD`) unless the caller gives its own table.
 ///
 /// OpenNLP's `forRegion(Locale)` derives a table and a notation from the
-/// JDK's locale data; that lookup is not here. A caller that knows the
-/// region builds the same extractor from [`MoneyExtractor::with_symbol`]
-/// and [`MoneyExtractor::new`]: for Australia, the default table with `$`
-/// as `AUD`, in `LatinUs`.
+/// JDK's locale data; [`MoneyExtractor::for_region`] gives the same from a
+/// table of JDK 21's regions. A caller can also build one from
+/// [`MoneyExtractor::with_symbol`] and [`MoneyExtractor::new`]: for
+/// Australia, the default table with `$` as `AUD`, in `LatinUs`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoneyExtractor {
     /// The symbol table, sorted by symbol.

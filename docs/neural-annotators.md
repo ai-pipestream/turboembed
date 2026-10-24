@@ -14,11 +14,12 @@ The answer this page records:
   is XLM-RoBERTa, which the core runs as `FAMILY_ROBERTA`; the head is
   one linear layer. The `turbo-sat` crate (`analysis/sat/`) is that
   annotator, on the CPU, compared with wtpsplit itself on a small model
-  with random weights (below); no real checkpoint has been run yet.
-- GLiNER does not. Every GLiNER checkpoint with a permissive licence is
-  built on DeBERTa-v3, whose attention the core does not have, and its
-  head is a BiLSTM and span scorer the analysis crates do not have.
-  What is missing is listed below; it is not built in this change.
+  with random weights and on the released `sat-1l-sm` (below).
+- GLiNER needed more. Every GLiNER checkpoint with a permissive licence
+  is built on DeBERTa-v3, whose attention the core's encoder did not
+  have, and its head is a BiLSTM and span scorer. Both are now built:
+  the DeBERTa-v3 encoder in `turbo::deberta` ([deberta.md](deberta.md))
+  and the head and step in `turbo-gliner` ([gliner.md](gliner.md)).
 - Neither can read the states of the embedding pass: each checkpoint
   fine-tuned its own encoder, so its head is only right on its own
   encoder's states.
@@ -276,7 +277,10 @@ whole row through a DeBERTa-v3 encoder, and then:
    logistic, keeps those over the threshold (0.5), and decodes them
    greedily, flat or nested.
 
-### What the runtime lacks
+### What the runtime lacked
+
+The list below is what GLiNER needed when this page was written; each
+item is now built (see the summary at the top).
 
 - **DeBERTa-v3 attention.** DeBERTa has no absolute position
   embeddings in its input; each layer adds content-to-position and

@@ -9,8 +9,10 @@ compiler holds them to it.
 
 It is the base the chunker is built on, and the base OpenNLP 3.x is to
 be rewritten on, as add-ons: OpenNLP is the reference, and the Rust side
-follows it on its own schedule. The crates are Rust only for now;
-nothing here is in the C header or the gRPC server.
+follows it on its own schedule. The crates are Rust; none of them is in
+the C header. The gRPC server carries the analysis result kinds, a
+capability listing, bundle loading and bulk analysis over a stream
+(`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)).
 
 ## Crates
 
@@ -1848,9 +1850,15 @@ optimizer (an integer, in units), its length in model tokens and
 whether it is over the budget. The chunks layer refuses a parent that is
 not at a level above its child or does not hold the child's span.
 
-Not measured yet: the chunker against the stage 0 baselines on the
-evaluation harness, with significance: the harness runs it (Evaluation,
-below), and no record of it is committed yet.
+The chunker's records against the stage 0 baselines are under
+`analysis/eval/records/turbo-chunker-254-200*` (Evaluation, below). With
+dense retrieval alone, `turbo-chunker-254-200` does not clear
+`turbo-eval gate` against any of the three on scifact, nfcorpus, arguana
+and qasper: against `sentence-windows-5` no set gains 2 points, against
+`fixed-tokens-200` one does (nfcorpus, +2.70), and against
+`opennlp-sandbox-semantic` two do (arguana +11.40, scifact +3.60) while
+qasper falls 4.80 points, below the floor. The hybrid records clear it
+(Hybrid BM25 + dense retrieval, below).
 
 ### Drift and cohesion
 
@@ -1980,12 +1988,17 @@ TextTiling over tokens, windows that stop at section edges, and
 pairwise cohesion (mean cosine between all pairs, which needs a banded
 table of dot products rather than running sums).
 
-The defaults are not tuned. Whether drift or cohesion helps, and at
-what weights, needs the evaluation harness: retrieval records for the
-stage 1 chunker on structure alone, structure with drift at a few
-weights, and the cohesive chunker, at matched mean chunk length, with
-significance, plus the boundary suite (Pk and WindowDiff) and the time
-per document. None of that exists yet, so no gain is claimed.
+The defaults are not tuned. The records
+`analysis/eval/records/turbo-chunker-254-200-drift`,
+`-cohesion-1000` and `-drift-cohesion-1000` run the chunker with drift,
+with cohesion at weight 1000, and with both, at the default weights.
+Against structure alone (`turbo-chunker-254-200`), none moves nDCG@10 on
+scifact, nfcorpus, arguana or qasper by an interval clear of zero
+(`turbo-eval gate`): the largest changes are drift's -0.42 on scifact
+(-1.53 to +0.68) and cohesion's +0.59 on qasper (-0.26 to +1.45). Other
+weights, matched mean chunk length, the boundary suite (Pk and
+WindowDiff) and the time per document are not measured, so no gain is
+claimed.
 
 ## Term statistics and BM25
 
@@ -4838,15 +4851,12 @@ runs them on any machine:
 
 ## Not built yet
 
-- The annotators themselves: normalizers, sentence detection,
-  tokenization, and the boundary signals besides structure and drift
-  (lexical cohesion, coreference, discourse markers).
+- Boundary signals from lexical cohesion over tokens and from
+  discourse markers. Structure, drift, vector cohesion and coreference
+  (`turbo_chunker::coref`) are built.
 - The rest of the evaluation harness: baseline records for
-  `legalbench-rag-mini`, which is placed by hand, a published copy and
-  licence for HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
-  is to be reported, from the term statistics above, and what each
-  level and each kind of level vector adds.
-- A gRPC surface, to be shared with the OpenNLP standard.
+  `legalbench-rag-mini`, which is placed by hand, and a published copy
+  and licence for HiCBench, and the chunker's records on it.
 - A reader for spaCy's JSON pattern files, building `Tok` patterns from
   them.
 

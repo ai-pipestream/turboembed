@@ -6,11 +6,13 @@ Apache-2.0 `urchade/gliner_small-v2.1` checkpoint at
 `4e091416cf7c3481db542c2a3d26156916f3a47f`. See `docs/licences.md`.
 No encoder attention or matrix-multiplication loop is changed here.
 
-This is a Rust CPU API. SaT, other devices, GLiNER2 document classification,
-structured records and deterministic constraint layers remain open work in
-#391 and #715. The entity schema is not a substitute for GLiNER2's counting
-and structured-field heads. There is no new C session task or throughput
-acceptance claim for #715 in this change.
+This is a Rust CPU API; GLiNER and GLiNER2 heads on other devices are
+#920. GLiNER2 document classification, structured records and checks
+against other layers are in `turbo-schema-extract`
+([schema-extract.md](schema-extract.md)), and SaT sentence segmentation is
+in `turbo-sat`. The entity schema here is not a substitute for GLiNER2's
+counting and structured-field heads. There is no C session task or
+throughput claim for GLiNER.
 
 ## One pass and exact checkpoint heads
 

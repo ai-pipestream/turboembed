@@ -15,6 +15,10 @@ OpenNLP numeric add-on:
 | `DocumentDate` | the `LocalDate` annotation `DocumentDateAnnotator` adds |
 | `DatedMoneyConverter` | `MoneyConversionAnnotator`, document-date mode ([money.md](money.md)) |
 
+Dates, times, durations and sets written in words, resolved against a
+reference date-time, are read by `turbo-grammar`'s time rules
+([grammar.md](grammar.md#times)).
+
 `Date`, the calendar date of [money.md](money.md), lives in
 `turbo-analysis-layers` beside the layers, and has the `java.time`
 arithmetic the relative mentions need.

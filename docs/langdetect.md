@@ -112,8 +112,10 @@ which checks its published SHA-512. The tests look for it there, or in
 the directory named by `TURBO_GOLDENS_MODELS`. Without it, the tests
 that need it print where they looked and pass without comparing, unless
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1` makes them fail; the n-gram
-comparison runs either way. CI does not fetch the model, so CI runs
-the n-gram comparison and none of the probability comparisons.
+comparison runs either way. CI fetches the model and runs these tests
+with `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1` (the step "parity against the
+JVM with the published models, models required" in
+`.github/workflows/ci.yml`), so there every comparison runs.
 
 `analysis/langdetect/tests/context.rs` checks the generator on texts
 worked out by hand (the hash map order of `abab`, lowercasing, n-grams
@@ -234,7 +236,10 @@ language detector recipe").
 
 - `probingPredictLanguages`, which detects over growing chunks of the
   text and stops when the best language is stable: no golden covers it.
-- Evaluation (`LanguageDetectorEvaluator`) and cross validation.
+
+Evaluation (`LanguageDetectorEvaluator`) and the folds of cross
+validation (`CrossValidationPartitioner`) are ported in `turbo-formats`
+(`analysis/formats/src/evaluate/`).
 
 ## OpenNLP findings
 
