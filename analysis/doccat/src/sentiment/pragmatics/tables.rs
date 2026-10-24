@@ -171,5 +171,5 @@ pub(super) const NEGATIVE_SITUATIONS: &[(&[&str], f64)] = &[
 
 /// Adversative conjunctions that introduce a contrasting clause in literal
 /// mixed-sentiment sentences (`"The food was great, but the wait was long"`).
-pub(super) const ADVERSATIVE_CONJUNCTIONS: &[&str] =
+pub(super) const PRAGMATICS_ADVERSATIVES: &[&str] =
     &["but", "however", "although", "though", "yet", "whereas", "while", "except", "nonetheless", "nevertheless"];

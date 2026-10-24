@@ -28,6 +28,7 @@ pub mod lexicon;
 mod model;
 pub mod pragmatics;
 mod token_key;
+pub use token_key::embed_token_key;
 mod validation;
 
 pub use aspect::{

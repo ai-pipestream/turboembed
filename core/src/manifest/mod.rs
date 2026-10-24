@@ -49,6 +49,27 @@ pub struct Model {
     pub license: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub license_file: Option<String>,
+    /// The class the model zoo puts `license` in (analysis/zoo), which the
+    /// bundle tool writes from it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub license_class: Option<LicenseClass>,
+}
+
+/// A model licence's class, as the zoo names it: what may be shipped,
+/// and what is fetched only after the user accepts the licence. A bundle
+/// is never made under a refused licence, so there is no refused class.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LicenseClass {
+    #[serde(rename = "CLASS_PERMISSIVE")]
+    Permissive,
+    #[serde(rename = "CLASS_LGPL")]
+    Lgpl,
+    #[serde(rename = "CLASS_SHARE_ALIKE")]
+    ShareAlike,
+    #[serde(rename = "CLASS_GPL")]
+    Gpl,
+    #[serde(rename = "CLASS_LOCAL_ONLY")]
+    LocalOnly,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
