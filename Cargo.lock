@@ -2590,6 +2590,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-depparse",
+ "turbo-matcher",
  "turbo-unicode",
  "turbo-zoo",
 ]

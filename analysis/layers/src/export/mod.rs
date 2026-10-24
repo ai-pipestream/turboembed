@@ -46,6 +46,7 @@ mod emotion;
 mod helpers;
 mod indexes;
 mod lexical;
+mod modality;
 mod numeric;
 mod relations;
 mod sentiment;
@@ -116,6 +117,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Ordinals>()
         .register::<Quantities>()
         .register::<Times>()
+        .register::<crate::Modality>()
         .register::<Pii>()
         .register::<Regions>()
         .register::<Matches>()

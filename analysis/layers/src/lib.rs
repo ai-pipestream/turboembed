@@ -27,6 +27,7 @@ pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors}
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
+pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity as ModalityPolarity};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
@@ -118,6 +119,7 @@ mod generic;
 mod language_spans;
 mod levels;
 mod matches;
+pub mod modality;
 mod money;
 mod numbers;
 mod ordinals;
