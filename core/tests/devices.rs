@@ -143,15 +143,23 @@ fn an_unknown_task_or_precision_is_refused() {
 }
 
 #[test]
-fn the_cpu_runs_embed_unmeasured_in_f32() {
+fn the_cpu_runs_embed_in_f32_measured_only_by_a_record() {
     let rt = Rt::new();
     let i = cpu(&rt);
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
         let cap = rt.capability(i, TURBO_TASK_EMBED, p).unwrap();
-        assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "it runs; no record measures it");
-        assert_eq!(s(&cap.reason), "no benchmark record for this cell");
-        assert_eq!(s(&cap.benchmark), "", "no record backs it");
-        assert_eq!((cap.cosine_floor, cap.speed_ratio), (0.0, 0.0), "no numbers without a record");
+        // A CPU with a benchmark record in this build, such as a CI
+        // runner's, is SUPPORTED and carries the record's numbers.
+        if cap.status == backend::TURBO_CAP_SUPPORTED {
+            assert_eq!(s(&cap.reason), "", "a supported cell gives no reason");
+            assert_ne!(s(&cap.benchmark), "", "a record backs it");
+            assert!(cap.cosine_floor > 0.0, "the record's conformance floor");
+        } else {
+            assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "it runs; no record measures it");
+            assert_eq!(s(&cap.reason), "no benchmark record for this cell");
+            assert_eq!(s(&cap.benchmark), "", "no record backs it");
+            assert_eq!((cap.cosine_floor, cap.speed_ratio), (0.0, 0.0), "no numbers without a record");
+        }
         assert_eq!(cap.dtype, TURBO_DTYPE_F32, "FASTEST too: F32 is the one dtype it computes in");
         assert_eq!(cap.options_honored, 0b111111, "every field of turbo_embed_options");
     }
