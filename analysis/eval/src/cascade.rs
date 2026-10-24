@@ -4,7 +4,8 @@
 //! levels.
 //!
 //! Stage 1 admits the union of two shortlists of `candidates`
-//! chunks: the static space's exact top-k (`VectorIndex`) and
+//! eligible chunks (the query's own never consume the budget):
+//! the static space's exact top-k (`VectorIndex`) and
 //! BM25's top-k (`Bm25PostingIndex`), each score mapped to
 //! `[0, 1]` as `Cascade` maps them (cosine through `(s + 1) / 2`,
 //! BM25 divided by the query's maximum). Stage 2 scores only the
@@ -217,10 +218,20 @@ impl Cascade {
         let own = |c: u32| s.docs[s.doc[c as usize] as usize] != query;
         let unit = |score: f32| (f64::from(score.clamp(-1.0, 1.0)) + 1.0) / 2.0;
 
+        // The query's own chunks never enter the pool, so each
+        // shortlist is fetched deep enough to still fill after
+        // they are left out: the budget counts eligible chunks,
+        // not raw hits.
+        let own_chunks = s
+            .docs
+            .iter()
+            .position(|d| d == query)
+            .map_or(0, |own| s.doc.iter().filter(|&&d| d as usize == own).count());
         let mut static_score: BTreeMap<u32, f64> = BTreeMap::new();
         let mut pool: Vec<u32> = Vec::new();
         let mut in_pool = vec![false; index.rows];
-        let shortlist = index.statics.top_k(static_space, sq, self.candidates).map_err(|e| e.to_string())?;
+        let fetch = self.candidates.saturating_add(own_chunks).min(index.rows.max(1));
+        let shortlist = index.statics.top_k(static_space, sq, fetch).map_err(|e| e.to_string())?;
         for hit in shortlist {
             let row = *index.statics.meta(hit.row);
             static_score.insert(row, unit(hit.score));
@@ -240,10 +251,17 @@ impl Cascade {
             for (row, score) in &bm25_all {
                 lexical_score.insert(*row, (score / max).clamp(0.0, 1.0));
             }
-            for (row, _) in bm25_all.iter().take(self.candidates) {
-                if own(*row) && !in_pool[*row as usize] {
-                    in_pool[*row as usize] = true;
-                    pool.push(*row);
+            let mut admitted = 0;
+            for (row, _) in &bm25_all {
+                if admitted == self.candidates {
+                    break;
+                }
+                if own(*row) {
+                    admitted += 1;
+                    if !in_pool[*row as usize] {
+                        in_pool[*row as usize] = true;
+                        pool.push(*row);
+                    }
                 }
             }
         }

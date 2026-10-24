@@ -177,3 +177,30 @@ fn one_model_in_both_stages_is_refused() {
     let swapped = c.search(&index, &s, &[("q", "cats")]);
     assert!(swapped.is_err(), "swapped query spaces scored");
 }
+
+#[test]
+fn own_document_chunks_do_not_consume_the_shortlist_budget() {
+    // candidates = 1 and the query is document "a" itself, whose
+    // chunks are the top static and lexical hits: the one eligible
+    // slot must still be filled by another document, not spent on
+    // the excluded self chunks.
+    let w = world();
+    let c = cascade(1);
+    let (ss, cs) = spaces();
+    let index = c.build(ss.clone(), &w.statics, cs.clone(), &w.contextuals, 6).unwrap();
+    let bm25 = c.index(&w.texts, &w.doc_of).unwrap();
+    let s = CascadeSearch {
+        bm25: &bm25,
+        doc: &w.doc_of,
+        span: &w.spans,
+        docs: &w.docs,
+        static_space: &ss,
+        static_queries: &[1.0, 0.0],
+        contextual_space: &cs,
+        contextual_queries: &[0.0, 1.0],
+    };
+    let (docs, _chunks) = c.search(&index, &s, &[("a", "cats purr")]).unwrap();
+    let hits: Vec<&str> = docs.hits("a").iter().map(|h| h.doc.as_str()).collect();
+    assert!(!hits.is_empty(), "all stage-one budget was spent on the excluded self document");
+    assert!(!hits.contains(&"a"), "the query document itself is never returned: {hits:?}");
+}
