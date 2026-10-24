@@ -70,6 +70,8 @@ pub enum CharDefProblem {
 /// where they differ.
 #[derive(Debug)]
 pub enum DictionaryError {
+    /// A prebuilt image is malformed or has different whitespace settings.
+    Prebuilt(super::PrebuiltError),
     /// A file could not be read.
     Io { file: DictionaryFile, source: std::io::Error },
     /// A required file is not in the directory.
@@ -127,6 +129,7 @@ impl fmt::Display for DictionaryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use DictionaryError::*;
         match self {
+            Prebuilt(e) => e.fmt(f),
             Io { file, source } => write!(f, "{file}: {source}"),
             Missing(file) => write!(f, "required dictionary file is missing: {file}"),
             Utf8 { file, offset } => write!(f, "{file}: not UTF-8 at byte {offset}"),
@@ -206,6 +209,7 @@ impl std::error::Error for DictionaryError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             DictionaryError::Io { source, .. } => Some(source),
+            DictionaryError::Prebuilt(e) => Some(e),
             _ => None,
         }
     }
