@@ -75,6 +75,7 @@ pub use error::DoccatError;
 pub use features::{
     BAG_OF_WORDS_CLASS, BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator,
     DoccatFeatureGenerator, EMOJI_CLASS, EmojiFeatureGenerator, FeatureGenerator, NGRAM_CLASS, NGramFeatureGenerator,
+    PatternMode,
 };
 pub use layer::SpanCategorizable;
 pub use model::{

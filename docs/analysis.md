@@ -1955,6 +1955,10 @@ a cost per gap. For the gap after sentence g:
    whether a cut is made there. The default is untuned; the tests pin
    this behaviour so a change to it is deliberate.
 
+The optional lexical and discourse boundary steps, their provenance, and
+the full Qasper test-split ablation are documented in
+[chunker text signals](chunker-text-signals.md).
+
 Comparing groups of sentences rather than single sentences keeps one
 odd sentence from looking like a topic of its own: with a window of one,
 both gaps around an outlier are full-depth valleys and the optimizer
@@ -3142,6 +3146,11 @@ checks that `langdetect-fixture-rust.bin` is the file the Rust trainer
 writes from the samples; the generator loads it in the JVM
 (`langdetect/langdetect-fixture-rust`) for
 `analysis/langdetect/tests/fixture.rs` (docs/langdetect.md, "Training").
+
+The [full MASC CRF evaluation](namefinder-crf-evaluation.md) records
+per-type and overall accuracy against matched maxent, published OpenNLP
+1.5 models and the real CPU namefind-dl backend. The full-corpus CRF
+recipe fails its publication gates; no model is published from that run.
 
 The name finder's and the language detector's cross-validators are
 ported as `namefind::cross_validate` (`TokenNameFinderCrossValidator`)
