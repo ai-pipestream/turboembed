@@ -38,6 +38,7 @@
 
 mod link;
 mod propagation;
+pub mod shared;
 mod tables;
 
 use std::fmt;

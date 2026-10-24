@@ -528,7 +528,9 @@ The benchmark also times the parse with the unit rules and
 
 ## Not yet done
 
-The time grammar reads no time zones.
+Time zones are available through `TimeAnnotator::with_time_zones`;
+the default parser retains the existing zone-free specification contract.
+See the explicit-zone section below.
 
 ## Parser boundary checks
 
@@ -548,3 +550,71 @@ grammar and time annotators record version `2` for these parser semantics.
 
 Decimal normalization returns `None` if reducing the scale would underflow.
 The existing unresolved-date convention, including `Feb 30`, is unchanged.
+
+
+## Explicit time zones
+
+Enable zone suffixes with
+`TimeAnnotator::english().with_time_zones(Region::Unspecified)` using
+`time::zone::Region`; Spanish and Dutch annotators use the same zone reader.
+`3pm EST` writes `T15-05:00`; `14:00 UTC+2` writes `T14:00+02:00`.
+The resulting source span includes the zone, and range TIMEX3 values carry
+an offset on each endpoint. Zone suffixes participate in chart selection,
+so `02:30 hora de Madrid` cannot be split into a bare hour and a duration.
+`time::zone::at` also reads a standalone zone at a supplied byte offset.
+
+UTC/GMT accept signed hours, HHMM or HH:MM, within -14:00..+14:00.
+Malformed offsets are refused as a whole. Standard/daylight abbreviations
+have fixed offsets: EST/EDT, PST/PDT, MST/MDT, CET/CEST, EET/EEST and CDT.
+`CST` needs `NorthAmerica` (-06:00) or `China` (+08:00); `IST` needs `India`
+(+05:30) or `Ireland` (+01:00). Without that context the recognized zone
+stays unresolved and the time has no numeric value or TIMEX3 string.
+Unrecognized zones are not consumed. Generic Pacific and Mountain names
+mean standard time, -08:00 and -07:00 respectively. They do not imply a
+geographic daylight-saving rule. Other ambiguous abbreviations, including
+`PT`, are not accepted. Callers can use an explicit numeric offset instead.
+
+`hora de Madrid`, Madrid time, Amsterdam time forms, and London/Londres
+forms use the modern EU rule for 1996 through 2099. A time-only city needs
+a reference date; a dated expression uses that expression's date.
+The last Sundays of March and October change at 01:00 UTC. Missing spring
+hours and repeated autumn hours are unresolved rather than guessed.
+Dates outside that supported interval are refused. This is a bounded
+rule implementation, not a complete historical IANA database; future
+legislation can require an update. Rule source:
+[IANA Europe](https://data.iana.org/time-zones/tzdb/europe).
+Fixed North American abbreviations follow
+[IANA North America](https://data.iana.org/time-zones/tzdb/northamerica).
+
+The `Times` start/end columns retain their existing **local-clock** units;
+the offset is in TIMEX3. Subtract the offset for an absolute UTC instant.
+A time-only value has no absolute date. Range durations remain local-clock
+durations, so a range crossing a daylight-saving transition can differ
+from elapsed UTC duration. Zone policy and region enter the configuration
+hash; the annotator version is 3. No external dependency is added.
+
+### Specification status
+
+Re-running the existing DateTimeModel suite gives 891/970 English,
+561/605 Dutch and 686/744 Spanish: **79, 44 and 58 failures** remain.
+The English documentation previously claimed 893; replaying the original
+selector on the same base commit also gives 891. Zone-free counts are
+unchanged by this change.
+
+All nine fixture cases carrying an expected `utcOffsetMins` are marked
+unsupported by .NET, which the existing conformance test excludes. Thus
+there is no eligible upstream zone case whose pass count can increase.
+The added zone-offset audit runs those cases separately: six offsets agree,
+two generic Mountain cases expect -06:00 in November rather than the
+standard -07:00 policy, and the Dutch `9-6 pt` case uses an unsupported
+abbreviation and expects -07:00 in November. This audit compares offsets,
+not full span/type/alternative conformance. It does not turn disabled cases
+into passing claims or modify the upstream fixture files.
+
+New real-text tests cover English, Spanish and Dutch aligned zone suffixes,
+invalid offsets, regional CST/IST, Madrid summer/winter dates, transition
+boundaries, missing/repeated hours, missing reference dates and provenance.
+Issue #927 stays open for full upstream zone-case resolution, including
+bare `9-6 pt` ranges and an explicit decision about the contradictory
+Mountain/PT expectations. Standalone zones are exposed by the reader,
+not represented as a new `Times` layer kind.

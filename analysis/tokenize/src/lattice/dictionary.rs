@@ -17,6 +17,7 @@ use super::entries::{Columns, Dimensions, Entry, FeatureStore, Record, read_entr
 use super::error::{DictionaryError, DictionaryFile};
 use super::limits::DictionaryLimits;
 use super::matrix::Matrix;
+use super::prebuilt::Table;
 use super::trie::SurfaceTrie;
 
 /// The context id of the start and the end of a text.
@@ -43,20 +44,20 @@ pub struct MecabDictionary {
     pub(crate) matrix: Matrix,
     pub(crate) trie: SurfaceTrie,
     /// The entries of surface group `g` are `groups[g]..groups[g + 1]`.
-    groups: Box<[u32]>,
+    pub(super) groups: Table<u32>,
     /// The lexicon entries by surface group, each group in file order,
     /// then the unknown word templates by category, each in file order.
-    pub(crate) entries: Box<[Entry]>,
-    lexicon_len: u32,
+    pub(crate) entries: Table<Entry>,
+    pub(super) lexicon_len: u32,
     /// The templates of each category, as a range of `entries`; empty when
     /// `unk.def` lists none.
-    unknown: Box<[(u32, u32)]>,
+    pub(super) unknown: Box<[(u32, u32)]>,
     pub(crate) chars: CharDef,
-    features: FeatureStore,
-    pos: Arc<TagSet>,
-    tags: Box<[Tag]>,
-    whitespace: WhitespaceMode,
-    sha256: Digest,
+    pub(super) features: FeatureStore,
+    pub(super) pos: Arc<TagSet>,
+    pub(super) tags: Table<u16>,
+    pub(super) whitespace: WhitespaceMode,
+    pub(super) sha256: Digest,
 }
 
 /// Where the files come from: a directory, or bytes in memory.
@@ -162,7 +163,7 @@ impl Lexicon {
 }
 
 impl MecabDictionary {
-    /// Loads the dictionary directory `dir`, whose files are UTF-8, with
+    /// Loads a prebuilt image file or the dictionary directory `dir`, whose files are UTF-8, with
     /// lines split at whitespace in `whitespace` mode, within the default
     /// limits.
     pub fn load(dir: impl AsRef<Path>, whitespace: WhitespaceMode) -> Result<MecabDictionary, DictionaryError> {
@@ -175,6 +176,13 @@ impl MecabDictionary {
         whitespace: WhitespaceMode,
         limits: DictionaryLimits,
     ) -> Result<MecabDictionary, DictionaryError> {
+        if dir.as_ref().is_file() {
+            let dict = Self::load_prebuilt(&dir, limits).map_err(DictionaryError::Prebuilt)?;
+            if dict.whitespace != whitespace {
+                return Err(DictionaryError::Prebuilt(super::PrebuiltError::Invalid("whitespace mode mismatch")));
+            }
+            return Ok(dict);
+        }
         let mut source = Directory { dir: dir.as_ref().to_path_buf(), lexicons: Vec::new() };
         MecabDictionary::read(&mut source, whitespace, limits)
     }
@@ -300,14 +308,14 @@ impl MecabDictionary {
         Ok(MecabDictionary {
             matrix,
             trie,
-            groups: groups.into_boxed_slice(),
-            entries: entries.into_boxed_slice(),
+            groups: groups.into(),
+            entries: entries.into(),
             lexicon_len,
             unknown: unknown.into_boxed_slice(),
             chars,
             features,
             pos,
-            tags,
+            tags: tags.into(),
             whitespace,
             sha256: sha256(manifest.as_bytes()),
         })
@@ -357,7 +365,7 @@ impl MecabDictionary {
 
     /// The part of speech tag of `entry`, its first feature column.
     pub fn tag(&self, entry: EntryId) -> Tag {
-        self.tags[entry.0 as usize]
+        Tag(self.tags[entry.0 as usize])
     }
 
     /// The number of lexicon entries.
@@ -415,7 +423,7 @@ impl MecabDictionary {
 fn part_of_speech_tags(
     entries: &[Entry],
     features: &FeatureStore,
-) -> Result<(Arc<TagSet>, Box<[Tag]>), DictionaryError> {
+) -> Result<(Arc<TagSet>, Box<[u16]>), DictionaryError> {
     let mut labels: Vec<&str> = Vec::new();
     let mut index: HashMap<&str, u16> = HashMap::new();
     let mut tags = Vec::with_capacity(entries.len());
@@ -430,7 +438,7 @@ fn part_of_speech_tags(
                 t
             }
         };
-        tags.push(Tag(tag));
+        tags.push(tag);
     }
     Ok((TagSet::new("mecab", &labels), tags.into_boxed_slice()))
 }
