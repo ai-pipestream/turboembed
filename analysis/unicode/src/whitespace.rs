@@ -94,7 +94,7 @@ impl WhitespaceMode {
     /// Whether the ASCII byte `byte` is whitespace in this mode. A byte of
     /// 0x80 or above is never ASCII whitespace.
     #[inline]
-    pub fn is_ascii_whitespace(self, byte: u8) -> bool {
+    pub const fn is_ascii_whitespace(self, byte: u8) -> bool {
         let table = match self {
             WhitespaceMode::Legacy => &LEGACY_ASCII,
             WhitespaceMode::Unicode => &UNICODE_ASCII,

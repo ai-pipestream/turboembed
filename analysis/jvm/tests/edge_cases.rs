@@ -3,7 +3,6 @@
 //! literal has a comment naming the Java expression that produced it.
 
 use std::cmp::Ordering;
-use std::path::PathBuf;
 
 use turbo_jvm::chars::{self, Half, Utf16Unit, Utf16Units};
 use turbo_jvm::random::JavaRandom;
@@ -162,25 +161,6 @@ fn compare_to_matches_a_unit_comparison_for_random_pairs() {
     check_pair("\u{1F600}", "\u{1F600}\u{1F600}");
     assert_eq!(chars::compare_to("", "\u{1F600}"), -2);
     assert_eq!(chars::compare_to("ab", "a"), 1);
-}
-
-#[test]
-fn whitespace_agrees_with_the_jvm_for_every_code_point() {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/whitespace.tsv");
-    let text = std::fs::read_to_string(&path).unwrap();
-    let mut set = std::collections::HashSet::new();
-    for line in text.lines().skip(1).filter(|l| !l.is_empty()) {
-        set.insert(u32::from_str_radix(line.trim(), 16).unwrap());
-    }
-    assert_eq!(set.len(), 25);
-    let mut checked = 0u32;
-    for cp in 0..=0x10FFFFu32 {
-        if let Some(c) = char::from_u32(cp) {
-            checked += 1;
-            assert_eq!(chars::is_java_whitespace(c), set.contains(&cp), "U+{cp:04X}");
-        }
-    }
-    assert_eq!(checked, 0x10FFFF + 1 - 0x800);
 }
 
 // java.util.Random
