@@ -148,14 +148,7 @@ pub(super) use nouns::*;
 pub(super) use words::*;
 
 pub(super) fn clean_word_lower(raw: &str) -> String {
-    let trimmed = raw.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-');
-    if trimmed.contains('\u{2019}') {
-        // The tables use ASCII apostrophes; a tokenizer that keeps
-        // contractions whole may write them with U+2019 instead.
-        trimmed.replace('\u{2019}', "'").to_ascii_lowercase()
-    } else {
-        trimmed.to_ascii_lowercase()
-    }
+    crate::sentiment::token_key::token_key_word(raw.trim(), true)
 }
 
 /// The domain opinion valence of `word`, if it is in [`DOMAIN_OPINION_LEXICON`].

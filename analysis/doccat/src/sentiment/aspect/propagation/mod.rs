@@ -4,7 +4,7 @@ use turbo_analysis_layers::{Dependencies, PhraseChunks, PosTags, Tokens};
 use super::RuleAspectSentiment;
 use super::link::{has_adversative_between, range_contains};
 use super::tables::{
-    ADVERSATIVE_CONJUNCTIONS, DEGREE_MODIFIERS, LEADING_DETERMINERS, MULTIWORD_ASPECT_TERMS, is_aspect_stopword,
+    ASPECT_ADVERSATIVES, DEGREE_MODIFIERS, LEADING_DETERMINERS, MULTIWORD_ASPECT_TERMS, is_aspect_stopword,
     is_negation_word, lookup_category_hint, single_word_aspect_category,
 };
 

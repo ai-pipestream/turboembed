@@ -26,6 +26,7 @@ pub fn fetch(recipe: &Recipe, dir: &Path, accept_terms: bool) -> Result<()> {
     let (repository, commit) = recipe.source()?;
     let license = recipe.str_at("/model/license").unwrap_or("not stated");
     println!("{repository} at {commit}, licence {license}");
+    let class = crate::licence::check_fetch(&recipe.manifest, accept_terms)?;
     if let Some(n) = &recipe.notice {
         println!("notice: {n}");
         if !accept_terms {
@@ -63,7 +64,8 @@ pub fn fetch(recipe: &Recipe, dir: &Path, accept_terms: bool) -> Result<()> {
         "revision": commit,
         "license": license,
         "notice": recipe.notice,
-        "terms_accepted": recipe.notice.is_some(),
+        "license_class": class,
+        "terms_accepted": recipe.notice.is_some() || class != turbo::manifest::LicenseClass::Permissive,
         "sha256": files,
     });
     let text = serde_json::to_vec_pretty(&provenance).map_err(|e| e.to_string())?;

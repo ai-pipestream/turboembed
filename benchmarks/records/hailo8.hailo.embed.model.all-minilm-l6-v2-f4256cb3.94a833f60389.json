@@ -1,0 +1,221 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-24T13:15:24Z",
+  "machine": {
+    "arch": "hailo8",
+    "host_cpu": "Raspberry Pi 5 Model B Rev 1.1",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "hailo",
+    "kind": "DEVICE_NPU",
+    "name": "Hailo-8",
+    "vendor": "Hailo",
+    "driver_version": "hailo_pci 4.23.0, firmware 4.23.0",
+    "runtime_version": "4.23.0",
+    "memory_total": 0
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 hailo cpu",
+    "commit": "94a833f60389b886d6ce103fe2ee2a08063ee75d",
+    "pushed_to": [
+      "origin/codex/937-hailo-reference"
+    ],
+    "settings": []
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_MODEL",
+  "compute_dtype": "DTYPE_I8",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1",
+    "manifest_sha256": "f4256cb3162b4272d50d028c08d0965d34f65f672c7d179d90a53709314a3ff5",
+    "artifact_sha256": "18235669d75e750dd991f5c5591a1a16bf0f82e1aa636dc8cd1c3f54d74642a0",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "rows": {
+    "kind": "ROWS_MIXED",
+    "batch": 32,
+    "seq": 128,
+    "live_tokens": 724,
+    "cases": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "sha256": "5d36a55b6ee6445a073c33601077e3d92a7ad64381de7ceac086b5e7eb70b9ef"
+  },
+  "timing": {
+    "warmup": 3,
+    "iterations": 20,
+    "p50_ms": 94.40461,
+    "p99_ms": 94.49225899999999,
+    "mean_ms": 94.410572,
+    "min_ms": 94.38481399999999,
+    "max_ms": 94.49225899999999,
+    "rows_per_second": 338.9434831453537,
+    "computed_tokens": 4096
+  },
+  "conformance": {
+    "rows": 40,
+    "min_cosine": 0.9356557854468811,
+    "max_abs_diff": 0.0546425674110651
+  },
+  "references": [
+    {
+      "name": "hailort",
+      "role": "kernel",
+      "pinned": "hailortcli@sha256:c21c892fad8bde5abb6cc79e7223d6d41e585fe0097a147e3986dad4bd6fb2e4",
+      "version": "HailoRT-CLI version 4.23.0",
+      "commands": [
+        [
+          "<hailortcli>",
+          "--version"
+        ],
+        [
+          "<hailortcli>",
+          "parse-hef",
+          "<inputs>/model.hef"
+        ],
+        [
+          "<hailortcli>",
+          "run",
+          "<inputs>/model.hef",
+          "--time-to-run",
+          "5",
+          "--batch-size",
+          "32",
+          "--quantized",
+          "false",
+          "--user-format-type",
+          "float32",
+          "--input-files",
+          "encoder/input_layer1=<inputs>/words.f32",
+          "encoder/input_layer2=<inputs>/bias.f32"
+        ],
+        [
+          "<hailortcli>",
+          "run",
+          "<inputs>/model.hef",
+          "--time-to-run",
+          "5",
+          "--batch-size",
+          "32",
+          "--quantized",
+          "false",
+          "--user-format-type",
+          "float32",
+          "--input-files",
+          "encoder/input_layer1=<inputs>/words.f32",
+          "encoder/input_layer2=<inputs>/bias.f32"
+        ],
+        [
+          "<hailortcli>",
+          "run",
+          "<inputs>/model.hef",
+          "--time-to-run",
+          "5",
+          "--batch-size",
+          "32",
+          "--quantized",
+          "false",
+          "--user-format-type",
+          "float32",
+          "--input-files",
+          "encoder/input_layer1=<inputs>/words.f32",
+          "encoder/input_layer2=<inputs>/bias.f32"
+        ],
+        [
+          "<hailortcli>",
+          "run",
+          "<inputs>/model.hef",
+          "--time-to-run",
+          "5",
+          "--batch-size",
+          "32",
+          "--quantized",
+          "false",
+          "--user-format-type",
+          "float32",
+          "--input-files",
+          "encoder/input_layer1=<inputs>/words.f32",
+          "encoder/input_layer2=<inputs>/bias.f32"
+        ],
+        [
+          "<hailortcli>",
+          "run",
+          "<inputs>/model.hef",
+          "--time-to-run",
+          "5",
+          "--batch-size",
+          "32",
+          "--quantized",
+          "false",
+          "--user-format-type",
+          "float32",
+          "--input-files",
+          "encoder/input_layer1=<inputs>/words.f32",
+          "encoder/input_layer2=<inputs>/bias.f32"
+        ],
+        [
+          "<hailortcli>",
+          "run",
+          "<inputs>/model.hef",
+          "--time-to-run",
+          "5",
+          "--batch-size",
+          "32",
+          "--quantized",
+          "false",
+          "--user-format-type",
+          "float32",
+          "--input-files",
+          "encoder/input_layer1=<inputs>/words.f32",
+          "encoder/input_layer2=<inputs>/bias.f32"
+        ]
+      ],
+      "procedure": "HailoRT on the same verified HEF and mixed token inputs; F32 word and attention-bias input files. One untimed process, then 5 processes of 5 seconds. Each sample is batch * 1000 / FPS. p50 and p99 describe aggregate service-time estimates across processes, not request latency tails. Host gather, tokenization, pooling and normalization are excluded; CLI input conversion is included. No reference output vectors are read. Runner SHA-256 9e1e3fadd9811f801c8735125408a8f1cd82225f2ffc3f27e9c9767909687739",
+      "measured": {
+        "iterations": 5,
+        "p50_ms": 76.71653241273495,
+        "p99_ms": 76.71653241273495,
+        "rows_per_second": 417.11999999999995,
+        "min_cosine": null,
+        "computed_tokens": 4096
+      },
+      "not_run": null
+    }
+  ],
+  "speed_ratio": 1.23056409135,
+  "speed_reference": "hailort"
+}

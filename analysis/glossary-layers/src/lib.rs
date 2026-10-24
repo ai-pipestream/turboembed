@@ -194,6 +194,8 @@ impl Layer for GlossaryTerms {
         if self.spans.iter().any(|(_, s)| s.is_empty()) {
             return Err("an empty term span".into());
         }
+        self.spans.check(Self::OVERLAP).map_err(|_| "term spans not in text order or overlapping")?;
+        debug_assert_eq!(self.glossary.id.len(), self.glossary.term.len());
         if self.entry.iter().any(|e| e.get() >= self.glossary.len()) {
             return Err(format!("an entry outside the glossary of {}", self.glossary.len()));
         }
@@ -260,10 +262,27 @@ mod tests {
         t.push(Span::new(0, 1), IxRange::new(0, 1), EntryIx(1));
         assert_eq!(t.try_entry_of(0), None);
         assert!(t.check().unwrap_err().starts_with("an entry outside"));
-        let mut t = GlossaryTerms::new(ViewId::SOURCE, g);
+        let mut t = GlossaryTerms::new(ViewId::SOURCE, g.clone());
         t.push(Span::new(0, 1), IxRange::new(0, 1), EntryIx(0));
         t.entry.pop();
         assert_eq!(t.check().unwrap_err(), "tokens and an entry for every term");
         assert_eq!(GlossaryTerms::ID, "turbo:glossary-terms");
+
+        // Reversed, overlapping, or multi-fragment spans are rejected even when token ranges are non-decreasing.
+        let mut reversed = GlossaryTerms::new(ViewId::SOURCE, g.clone());
+        reversed.push(Span::new(4, 6), IxRange::new(1, 1), EntryIx(0));
+        reversed.push(Span::new(0, 2), IxRange::new(1, 1), EntryIx(0));
+        assert_eq!(reversed.check().unwrap_err(), "term spans not in text order or overlapping");
+
+        let mut overlapping = GlossaryTerms::new(ViewId::SOURCE, g.clone());
+        overlapping.push(Span::new(0, 4), IxRange::new(0, 1), EntryIx(0));
+        overlapping.push(Span::new(2, 6), IxRange::new(1, 2), EntryIx(0));
+        assert_eq!(overlapping.check().unwrap_err(), "term spans not in text order or overlapping");
+
+        let mut fragmented = GlossaryTerms::new(ViewId::SOURCE, g);
+        fragmented.spans.push_fragments(&[Span::new(0, 2), Span::new(4, 6)]);
+        fragmented.tokens.push(IxRange::new(0, 2));
+        fragmented.entry.push(EntryIx(0));
+        assert_eq!(fragmented.check().unwrap_err(), "term spans not in text order or overlapping");
     }
 }
