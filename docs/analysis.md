@@ -4796,15 +4796,16 @@ runs them on any machine:
   and cap the calibration does not ask for before it measures, and fits
   each side's time a call (`Cost::fit`: no cost below 0, least relative
   squares) to a cost a run, a row and a token, over the whole set, the one
-  sentence and the one text at each batch measured at that window. Shapes
-  are planned, not run: `VectorAnnotator::shape` packs a call through
-  `pack`, the loop `embed` runs by, so the rows a run holds and the ranges
-  it holds both split runs; `shape_at` refuses limits of 0; and
-  `last_shape` reports what a call sent to the encoder. A call of a shape
-  the calibration timed goes to the side with the lower median over every
-  cap it was timed at; any other runs whole on the side whose cost is
-  lower; the device only where its vectors clear the floor at that window;
-  `TURBO_CALIBRATION_FORCE` still sends every call to one side.
+  sentence and the one text at each batch measured at that window. Each
+  call is planned once (`VectorAnnotator::plan`), counted
+  (`shape_of_plan`: packed through `pack`, the loop `embed` runs by, so
+  the rows a run holds and the ranges it holds both split runs) and run
+  from that plan on the side chosen (`embed_planned`); `shape_at` refuses
+  limits of 0, and `last_shape` reports what a call sent to the encoder. A
+  call of a shape the calibration timed goes to the side with the lower
+  median over every cap it was timed at; any other runs on the side whose
+  cost is lower; the device only where its vectors clear the floor at that
+  window; `TURBO_CALIBRATION_FORCE` still sends every call to one side.
   `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` take any
   `Embedder`, a `VectorAnnotator` or a `Dispatch`, and record each call's
   side on every document's layers (`annotate_batch_placed`).
@@ -4812,14 +4813,16 @@ runs them on any machine:
   the shape predicted is the shape run (one range a row and 40 one-word
   sentences among the cases), and, with the CPU at `Precision::Model`
   standing in for the device, that a call of one sentence and a call of
-  many record different sides and get each side's vectors; on the device
+  many record different sides and get each side's vectors. On the device
   `TURBO_TEST_DEVICE` names, at each of the twelve windows and caps, one
-  sentence, one document and the whole set go through one instance, every
-  document records one side, its vectors are that side's, and the side is
-  the faster of the step fixed on each side, each timed three times in
-  turn, unless their times overlap. `analysis/core/tests/placed.rs` checks
-  that each document records the execution its call returned, and its own
-  after a run again alone.
+  sentence, one document and the whole set go through one instance and
+  through the instances it runs on, timed six rounds in a rotating order:
+  every document records one side, its vectors are that side's, the side
+  is the faster unless the two sides' rounds overlap, and the dispatched
+  instance's best round is no slower than the chosen side's slowest round
+  by more than the planning, timed on its own, and 0.5%.
+  `analysis/core/tests/placed.rs` checks that each document records the
+  execution its call returned, and its own after a run again alone.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,
