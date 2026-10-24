@@ -332,32 +332,38 @@ text written by people.
 
 ### Human-written text
 
-`precision_and_recall_on_human_written_text` scores the same pack on
-eight human-written documents (`45,345` UTF-8 bytes, `87` gold mentions
-across all 20 built-in kinds in `analysis/pii/tests/data/human-eval/labels.tsv`;
-licences and SHA-256 digests in `analysis/pii/tests/data/human-eval/README.md`
-and `docs/licences.md`):
+`precision_and_recall_on_human_written_text` scores the same pack on a
+mixed eight-document evaluation set (`45,401` UTF-8 bytes, `87` gold
+mentions across all 20 built-in kinds in
+`analysis/pii/tests/data/human-eval/labels.tsv`; licences and SHA-256
+digests in `analysis/pii/tests/data/human-eval/README.md` and
+`docs/licences.md`):
 
-- Five documents from MASC 3.0.0 (CC BY 3.0 US): three corporate and
-  non-profit solicitation letters (`masc-att2.escaped`,
-  `masc-hsus4.escaped`, `masc-united1.escaped`), one New York Times News
-  Service travel dispatch (`masc-nyt6.escaped`), and one Legal Services
-  Corporation protocol full of CFR, statutory and federal case citations
-  (`masc-lsc-access.escaped`).
-- Specification prose and published checksum test vectors from EIP-55
-  (`analysis/pii/tests/data/human-eval/eip-55.txt`, CC0-1.0) and
-  BIP-173 / BIP-350 (`analysis/pii/tests/data/human-eval/bip-173-350.txt`,
-  BSD-2-Clause), including invalid mixed-case and Bech32/Bech32m near
-  misses.
+- Five third-party documents from MASC 3.0.0 (`34,969` bytes, CC BY 3.0
+  US, `12` gold spans, all `phone`): three corporate and non-profit
+  solicitation letters (`masc-att2.escaped`, `masc-hsus4.escaped`,
+  `masc-united1.escaped`), one New York Times News Service travel
+  dispatch (`masc-nyt6.escaped`), and one Legal Services Corporation
+  protocol full of CFR, statutory and federal case citations
+  (`masc-lsc-access.escaped`, `0` gold spans).
+- Two project-adapted specification summaries (`4,360` bytes, Apache-2.0
+  prose, `18` gold spans) embedding the canonical published checksum test
+  vectors from ERC-55 (`analysis/pii/tests/data/human-eval/eip-55.txt`,
+  `10` `eth-address` spans, CC0-1.0) and BIP-173 / BIP-350
+  (`analysis/pii/tests/data/human-eval/bip-173-350.txt`, `8`
+  `btc-address` spans, BSD-2-Clause), plus invalid mixed-case and
+  Bech32/Bech32m near misses and the detector's all-zero burn-address
+  exclusion.
 - Project-authored incident, treasury, network, payroll/tax, clinical
   and mobile fleet memos (`analysis/pii/tests/data/human-eval/operational-memos.txt`,
-  Apache-2.0) written with published documentation and specimen ranges
-  (RFC 2606, RFC 5737, RFC 3849, RFC 7042, RFC 7519, AWS documentation
-  example keys, ISO 13616 / Bundesbank specimen IBANs, Federal Reserve
-  specimen routing numbers, the NHS `999` test range, BZSt test
-  Steuer-IDs, CRA specimen SIN `046 454 286`, and GSMA / 3GPP TS 34.108
-  test IMEIs), paired with mistyped check digits, order and invoice
-  numbers, timestamps, software versions and statutory citations.
+  `6,072` bytes, Apache-2.0, `57` gold spans: `3` `phone` spans and every
+  gold mention of the remaining 17 kinds) written with documentation,
+  test, and synthetic checksum-valid specimen identifiers (RFC 2606,
+  RFC 5737, RFC 3849, RFC 7042, RFC 7519, AWS documentation example keys,
+  ISO 13616 / Bundesbank specimen IBANs, Federal Reserve routing numbers,
+  NHS test numbers, ISO 7064 test Steuer-IDs, SIN `046 454 286`, and
+  Luhn-valid test IMEIs), paired with mistyped check digits, order and
+  invoice numbers, timestamps, software versions and statutory citations.
 
 | Kind | true | false | missed | precision | recall |
 |---|---:|---:|---:|---:|---:|
@@ -367,7 +373,7 @@ and `docs/licences.md`):
 | `url-credential` | 2 | 0 | 0 | 1.000 | 1.000 |
 | `email` | 3 | 2 | 0 | 0.600 | 1.000 |
 | `iban` | 4 | 0 | 0 | 1.000 | 1.000 |
-| `imei` | 3 | 0 | 1 | 1.000 | 0.750 |
+| `imei` | 3 | 0 | 2 | 1.000 | 0.600 |
 | `card` | 4 | 2 | 0 | 0.667 | 1.000 |
 | `btc-address` | 8 | 0 | 0 | 1.000 | 1.000 |
 | `eth-address` | 10 | 0 | 0 | 1.000 | 1.000 |
@@ -380,12 +386,12 @@ and `docs/licences.md`):
 | `de-steuer-id` | 3 | 0 | 0 | 1.000 | 1.000 |
 | `ca-sin` | 3 | 0 | 1 | 1.000 | 0.750 |
 | `aba-routing` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `phone` | 14 | 4 | 2 | 0.778 | 0.875 |
-| **all kinds** | **83** | **8** | **4** | **0.912** | **0.954** |
+| `phone` | 13 | 5 | 2 | 0.722 | 0.867 |
+| **all kinds** | **82** | **9** | **5** | **0.901** | **0.943** |
 
 What the false positives and misses are:
 
-- **`phone` false positives (4)**: `2002-07-31 13` in the NYT wire
+- **`phone` false positives (5)**: `2002-07-31 13` in the NYT wire
   timestamp `2002-07-31 13:47` (`masc-nyt6.escaped`), where the date and
   two-digit hour before `:47` form ten digits separated by hyphens and a
   space; `0532 0130 00` inside the rejected near-miss IBAN
@@ -395,9 +401,11 @@ What the false positives and misses are:
   (`operational-memos.txt`), where an 11-digit grouped German Steuer-ID
   shares the exact span of an 11-digit domestic phone candidate (default
   nesting suppression drops strictly nested spans, not identical spans);
-  and `943 476 5918` in `NHS 943 476 5918` (`operational-memos.txt`),
-  where the mistyped NHS check digit is rejected by `uk-nhs`, leaving
-  ten grouped digits.
+  `943 476 5919` (`operational-memos.txt`), where the space-grouped UK
+  NHS number also matches the ten-digit phone rule on the same span; and
+  `943 476 5918` in `NHS 943 476 5918` (`operational-memos.txt`), where
+  the mistyped NHS check digit is rejected by `uk-nhs`, leaving ten
+  grouped digits.
 - **`card` false positives (2)**: both occurrences of the 15-digit GSMA
   test IMEI `490154203237518` (`operational-memos.txt`) begin with `49`
   and pass Luhn, matching the 13-to-19-digit Visa card rule on the same
@@ -410,11 +418,13 @@ What the false positives and misses are:
   state charity-registration disclosures of `masc-hsus4.escaped` use `.`
   as a digit group separator, whereas the phone scanner accepts spaces,
   hyphens and parentheses only.
-- **`ca-sin` and `imei` misses (1 each)**: `SIN (ON) 046 454 286` and
+- **`ca-sin` (1) and `imei` (2) misses**: `SIN (ON) 046 454 286` and
   `IMEI (primary) 001970012345677` in `operational-memos.txt` place a
   parenthesised qualifier between the keyword label and the digits,
   outside the `:`, `=`, `#`, `-` and whitespace separators the labelled
-  scanners skip.
+  scanners skip; and the second occurrence of `490154203237518` in
+  `"Note that 490154203237518 begins with..."` (`operational-memos.txt`)
+  has no immediately preceding `IMEI` keyword.
 
 ## Parity checks
 

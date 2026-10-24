@@ -324,7 +324,7 @@ const HUMAN_DOCS: [(&str, bool, &str, &str); 8] = [
         "masc-lsc-access.escaped",
         "ec16a1e1e8d0deca3db0d6e25800e815e518441c29b7187b4bed6fd2773275f3",
     ),
-    ("eip-55", false, "eip-55.txt", "531b6e4b849e8cc3bce4d5e70e29602f0ac3c0d57aef0a8fc98b878785c87245"),
+    ("eip-55", false, "eip-55.txt", "99d519e93281cb8634d25262f7bd230f9deb68f5d54e3cf0e990acecc27ca666"),
     ("bip-173-350", false, "bip-173-350.txt", "1aebb37a80e7c451b85ee5c611c4267964d7d7c1d77f3f5bfaa7ae92c2b2359a"),
     (
         "operational-memos",
@@ -399,5 +399,31 @@ fn precision_and_recall_on_human_written_text() {
         total.fp,
         total.fn_
     );
-    assert_eq!((total.tp, total.fp, total.fn_), (83, 8, 4));
+    let want_by_kind: [(&str, usize, usize, usize); 20] = [
+        ("jwt", 3, 0, 0),
+        ("aws-access-key", 2, 0, 0),
+        ("github-token", 3, 0, 0),
+        ("url-credential", 2, 0, 0),
+        ("email", 3, 2, 0),
+        ("iban", 4, 0, 0),
+        ("imei", 3, 0, 2),
+        ("card", 4, 2, 0),
+        ("btc-address", 8, 0, 0),
+        ("eth-address", 10, 0, 0),
+        ("mac", 3, 0, 0),
+        ("ipv6", 3, 0, 0),
+        ("ipv4", 3, 0, 0),
+        ("us-ssn", 3, 0, 0),
+        ("us-itin", 3, 0, 0),
+        ("uk-nhs", 3, 0, 0),
+        ("de-steuer-id", 3, 0, 0),
+        ("ca-sin", 3, 0, 1),
+        ("aba-routing", 3, 0, 0),
+        ("phone", 13, 5, 2),
+    ];
+    for (kind, tp, fp, fn_) in want_by_kind {
+        let c = by_kind.get(kind).unwrap();
+        assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
+    }
+    assert_eq!((total.tp, total.fp, total.fn_), (82, 9, 5));
 }

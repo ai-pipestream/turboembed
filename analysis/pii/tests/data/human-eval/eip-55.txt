@@ -41,5 +41,6 @@ remain valid unchecksummed format addresses, such as
 0xFB6916095CA1DF60BB79CE92CE3EA74C37C5D359. By contrast, a mixed-case
 address whose letter casing disagrees with the Keccak-256 nibble rule,
 such as 0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD or
-0x52908400098527886E0F7030069857D2E4169Ee7, or the burn address
-0x0000000000000000000000000000000000000000, must be rejected.
+0x52908400098527886E0F7030069857D2E4169Ee7, fails the EIP-55 checksum,
+and this detector's policy also excludes the all-zero burn address
+0x0000000000000000000000000000000000000000.
