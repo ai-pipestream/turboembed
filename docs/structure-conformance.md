@@ -71,7 +71,11 @@ To regenerate the oracle, pass the downloaded spec JSON, the pinned cmark
 executable and an output file to `analysis/structure/reference/commonmark.py`.
 Run the committed corpus with `cargo test --locked -p turbo-structure`.
 
-## Release timing and remaining gate
+## Original release timing (blocked head)
+
+This section preserves the original `caaa750960aad8679eec60a6bbb69084300ab6ae`
+measurement. The corrected implementation and complete raw paired evidence
+are recorded below.
 
 Baseline `0edf2f35` and this branch used the same benchmark example,
 release profile, AMD Ryzen 9 9950X3D host and CPU affinity (logical CPU 4).
@@ -87,10 +91,11 @@ not a hardware-independent speed claim.
 | Same document, plain text | 0.1989055 | 0.2573960 | 1.2941 |
 | UD English EWT training sentences, plain text | 1.4777415 | 1.3932770 | 0.9428 |
 
-The no-slowdown gate is **not fully met**. The Markdown and prose paths
-improve, but reading Markdown source as plain text is 29.4% slower. That
-input produces no tables, so this is candidate-detection overhead, not
-extra output work. Issue #948 stays open pending that optimization.
+At that original head, the no-slowdown gate was **not fully met**. The
+Markdown and prose paths improve, but reading Markdown source as plain
+text is 29.4% slower. That
+input produces no tables; the only output change is one loose-list flag.
+This prompted the column-detection optimization recorded below.
 
 The analysis-document input is `docs/analysis.md` at the baseline revision,
 324322 bytes, SHA-256
@@ -106,3 +111,27 @@ Reproduce each process with the release `block_bench` example, passing
 `TEXT markdown|plain 201`; alternate the two binaries on the same CPU.
 All 57 structure tests, 160 related library tests, 4 tree tests and clippy
 with warnings denied passed. The 75 explicit CommonMark gaps remain.
+
+## Corrected column detection
+
+The correction keeps the exact original content bounds and table matcher,
+and checks tabs and adjacent spaces together before walking cells. The
+x86-64 path uses baseline SSE2 when enabled at compile time, with a
+portable fallback. A diagnostic ablation identifies column detection as
+the material added cost on the no-table input; removing list tightness
+shows no saving, so list behavior remains intact.
+
+Paired release observations show no median slowdown against main on the
+three original real inputs: analysis as plain text 0.3845315 versus
+0.3972160 ms, Markdown 0.5274720 versus 0.6045485 ms, and EWT prose
+2.5604055 versus 2.7318150 ms. Host load and individual ratios vary; these
+are local observations without an isolated-host significance claim.
+Blocked-feature and corrected-feature full output hashes match in every
+case, and all 1,304 CommonMark trees across both syntaxes remain identical.
+
+The [current receipt](receipts/structure-948/README.md) retains raw samples,
+paired process order, load, input/build/output hashes, unsuccessful
+candidates, diagnostic attribution, and native guard-page checks. The
+implementation is normally synchronized with main and rebuilt artifacts
+remain byte-identical to those measured. The 652-example expectations,
+feature scope and #948 acceptance criteria are unchanged.
