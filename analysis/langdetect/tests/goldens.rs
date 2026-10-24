@@ -11,11 +11,16 @@ mod common;
 use std::slice;
 
 use turbo_analysis::{Analyzer, Document, Key, Status};
-use turbo_goldens::{Golden, Tolerance, assert_matches_golden, data_dir};
-use turbo_langdetect::{ContextGenerator, LanguageDetector, LanguageModel, Ranking, Scratch};
+use turbo_goldens::{Golden, Tolerance, assert_matches_golden, data_dir, segmentation_shapes};
+use turbo_langdetect::{
+    ContextGenerator, LanguageDetector, LanguageModel, ProbingConfig, ProbingContext, Ranking, Scratch,
+};
 use turbo_maxent::ModelFile;
 
-use common::{goldens, model_path, read_dump};
+use common::{goldens, goldens_in, model_path, read_dump};
+
+const CHUNK_50: ProbingConfig =
+    ProbingConfig { max_length: 250, chunk_size: 50, min_consec_improvements: 2, min_diff: 0.20 };
 
 fn input(golden: &Golden) -> String {
     golden.input_text(data_dir()).unwrap()
@@ -163,4 +168,84 @@ fn without_evidence_the_jvm_ranks_every_language_equal_and_the_annotator_decline
         let status = doc.status(Key::<turbo_analysis_layers::Language>::DEFAULT.id());
         assert_eq!(status, Some(&Status::Skipped("no language evidence".into())), "{:?}", doc.source());
     }
+}
+
+#[test]
+fn every_probing_context_is_the_jvm_chunk_context_in_the_jvm_order() {
+    let shapes = segmentation_shapes();
+    let mut probing_ctx = ProbingContext::default();
+    let mut total_points = 0usize;
+    let mut total_ngrams = 0usize;
+    for (run, cfg) in
+        [("langdetect-183+probing", ProbingConfig::default()), ("langdetect-183+probing-chunk50", CHUNK_50)]
+    {
+        let all = goldens_in(&data_dir().join("langdetect").join(run));
+        assert_eq!(all.len(), 24, "{run}");
+        for (set, id, path) in all {
+            let golden = Golden::read_with(&path, &shapes).unwrap();
+            let text = input(&golden);
+            let points = read_dump(&path.with_extension("dump"));
+            let expected_len = golden.layer("turbo:probing-length").unwrap().u32s("length").unwrap()[0] as usize;
+            let chars: Vec<char> = text.chars().collect();
+            probing_ctx.reset();
+            let mut pos = 0usize;
+            for (step, point) in points.iter().enumerate() {
+                assert!(point.values.iter().all(|&v| v == 1.0), "{run}/{set}/{id} step {step}");
+                let take = cfg.chunk_size.min(cfg.max_length.saturating_sub(pos)).min(chars.len().saturating_sub(pos));
+                let chunk: String = chars[pos..pos + take].iter().collect();
+                pos += take;
+                probing_ctx.add_chunk(&chunk);
+                assert!(probing_ctx.exact_order(), "{run}/{set}/{id} step {step}");
+                let rust: Vec<&[u8]> = probing_ctx.features().collect();
+                let jvm: Vec<&[u8]> = point.contexts.iter().map(Vec::as_slice).collect();
+                assert_eq!(rust, jvm, "{run}/{set}/{id} step {step}");
+                total_points += 1;
+                total_ngrams += rust.len();
+            }
+            assert_eq!(pos, expected_len, "{run}/{set}/{id}");
+        }
+    }
+    assert!(total_points > 100, "{total_points}");
+    assert!(total_ngrams > 25_000, "{total_ngrams}");
+}
+
+#[test]
+fn every_probing_probability_ranking_and_length_is_the_jvms_bit_for_bit() {
+    let Some(detector) = detector() else { return };
+    let shapes = segmentation_shapes();
+    let maxent = detector.model().maxent();
+    let mut scratch = Scratch::new();
+    let mut ranking = Ranking::new();
+    let mut compared = 0usize;
+    for (run, cfg) in
+        [("langdetect-183+probing", ProbingConfig::default()), ("langdetect-183+probing-chunk50", CHUNK_50)]
+    {
+        for (set, id, path) in goldens_in(&data_dir().join("langdetect").join(run)) {
+            let golden = Golden::read_with(&path, &shapes).unwrap();
+            let points = read_dump(&path.with_extension("dump"));
+            let last = points.last().unwrap();
+            let expected_len = golden.layer("turbo:probing-length").unwrap().u32s("length").unwrap()[0] as usize;
+            let length = detector.probing_predict_languages_with(&input(&golden), cfg, &mut scratch, &mut ranking);
+            assert_eq!(length, expected_len, "{run}/{set}/{id} length");
+            for (o, (label, p)) in last.outcomes.iter().enumerate() {
+                assert_eq!(maxent.outcome(o), label, "{run}/{set}/{id}");
+                let rust = scratch.probabilities()[o];
+                assert_eq!(
+                    rust.to_bits(),
+                    p.to_bits(),
+                    "{run}/{set}/{id}: {label} is {rust} in Rust and {p} on the JVM"
+                );
+                compared += 1;
+            }
+            let jvm = golden.layer("opennlp:language").unwrap();
+            let codes: Vec<&str> = jvm.strs("code").unwrap().iter().collect();
+            let confs = jvm.f64s("confidence").unwrap();
+            let rust_codes: Vec<&str> = ranking.outcomes().iter().map(|&o| detector.model().code(o as usize)).collect();
+            assert_eq!(rust_codes, codes, "{run}/{set}/{id} ranking");
+            for (r, j) in ranking.probabilities().iter().zip(confs) {
+                assert_eq!(r.to_bits(), j.to_bits(), "{run}/{set}/{id} confidence");
+            }
+        }
+    }
+    assert_eq!(compared, 48 * 103);
 }

@@ -179,7 +179,7 @@ fn embed_rows(batch: u32, seq: u32, pooling: u32) -> turbo_backend_embed_rows {
         pooling,
         normalize: 0,
         output_dim: 2,
-        reserved: 0,
+        head: 0,
     }
 }
 

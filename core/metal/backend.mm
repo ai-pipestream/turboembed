@@ -337,7 +337,7 @@ constexpr uint32_t LOG_DEBUG = 3;
 enum Kernel {
     EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16,
     NARROW_F16, ATTENTION_H, ATTENTION_HR, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
-    GEMM_SMALL_H = GEMM_H128 + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, KERNELS
+    GEMM_H32N32 = GEMM_H128 + 4, GEMM_SMALL_H = GEMM_H32N32 + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
     "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
@@ -345,6 +345,7 @@ const char *const KERNEL_NAMES[KERNELS] = {
     "attention_hr",
     "gemm_h32_ff",      "gemm_h32_fh",     "gemm_h32_hf",     "gemm_h32_hh",     "gemm_h64_ff",     "gemm_h64_fh",
     "gemm_h64_hf",      "gemm_h64_hh",     "gemm_h128_ff",    "gemm_h128_fh",    "gemm_h128_hf",    "gemm_h128_hh",
+    "gemm_h32n32_ff",   "gemm_h32n32_fh",  "gemm_h32n32_hf",  "gemm_h32n32_hh",
     "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16"};
 
 /* The kernels compiled for one device. */
@@ -1004,8 +1005,9 @@ constexpr uint32_t SPREAD = 128;
  * kernel is the faster from fewer tokens on (on the M2, 96 and up). */
 constexpr uint32_t SMALL_TOKENS = 128, SMALL_TOKENS_F16 = 64;
 
-/* linear=auto's tile: 32 x 64 up to this many packed tokens, where more
- * threadgroups fill the GPU, and 64 x 64 above it (on the M2). */
+/* linear=auto's tile: h32n32's 32 x 32 up to this many packed tokens,
+ * where more threadgroups fill the GPU, and 64 x 64 above it (on the
+ * M2). */
 constexpr uint32_t AUTO_H32_TOKENS = 1024;
 
 /* The packed tokens a batch of `tokens` can take, rounded up to a
@@ -1014,10 +1016,10 @@ size_t capacity(size_t tokens) { return round_up(tokens, 32); }
 
 /* Which kernels run a session's linear layers: F32 at EXACT and MODEL;
  * at FASTEST F16 operands with F32 sums, past SMALL_TOKENS_F16 in tiles of
- * 32 x 64, 64 x 64 or 128 x 64, or auto: the tile each run's tokens favor
- * (docs/metal.md, Kernel choices). */
-enum Linear : uint32_t { LINEAR_F32, LINEAR_H32, LINEAR_H64, LINEAR_H128, LINEAR_AUTO, LINEAR_COUNT };
-const char *const LINEAR_NAMES[] = {"f32", "h32", "h64", "h128", "auto"};
+ * 32 x 64, 64 x 64 or 128 x 64 (gemm_h), or 32 x 32 (gemm_hn), or auto:
+ * the tile each run's tokens favor (docs/metal.md, Kernel choices). */
+enum Linear : uint32_t { LINEAR_F32, LINEAR_H32, LINEAR_H64, LINEAR_H128, LINEAR_H32N32, LINEAR_AUTO, LINEAR_COUNT };
+const char *const LINEAR_NAMES[] = {"f32", "h32", "h64", "h128", "h32n32", "auto"};
 /* FASTEST's choice when nothing forces or tunes it. */
 constexpr Linear LINEAR_DEFAULT = LINEAR_AUTO;
 
@@ -1167,7 +1169,7 @@ int32_t forced_choices(int *linear, int *attn, turbo_error *err) {
             if (item == std::string("attn=") + ATTN_NAMES[a]) found_attn = a;
         if (found < 0 && found_attn < 0)
             return refuse(err, TURBO_E_INVALID_ARGUMENT,
-                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32, h64, h128 or "
+                          "TURBO_METAL_CHOICES item \"%s\": the metal backend takes linear=f32, h32, h64, h128, h32n32 or "
                           "auto, and attn=staged, registers or auto",
                           item.c_str());
         if (found >= 0) *linear = found;
@@ -1494,9 +1496,10 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         // Few tokens: the small kernel, over all of k.
         const bool small = tokens <= (f16 ? SMALL_TOKENS_F16 : SMALL_TOKENS) && n_out % 16 == 0;
         const Linear tile =
-            s.linear != LINEAR_AUTO ? s.linear : tokens <= AUTO_H32_TOKENS ? LINEAR_H32 : LINEAR_H64;
+            s.linear != LINEAR_AUTO ? s.linear : tokens <= AUTO_H32_TOKENS ? LINEAR_H32N32 : LINEAR_H64;
         const uint32_t bm = tile == LINEAR_H128 ? 128 : tile == LINEAR_H64 ? 64 : 32, bk = f16 ? 32 : 16;
-        const uint32_t tiles = (n_out + 63) / 64 * ((tokens + bm - 1) / bm);
+        const uint32_t bn = f16 && tile == LINEAR_H32N32 ? 32 : 64;
+        const uint32_t tiles = (n_out + bn - 1) / bn * ((tokens + bm - 1) / bm);
         uint32_t splits = 1;
         if (!small && outs.size() == 1 && epilogue == EPILOGUE_NONE && tiles < SPREAD) {
             splits = std::min({(SPREAD + tiles - 1) / tiles, n_in / 64, s.cap / tokens, 8u});
@@ -1510,6 +1513,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             const int types = (x_half ? 2 : 0) + (y_half ? 1 : 0);
             kernel = (small                     ? GEMM_SMALL_H
                       : tile == LINEAR_H128 ? GEMM_H128
+                      : tile == LINEAR_H32N32 ? GEMM_H32N32
                       : tile == LINEAR_H64  ? GEMM_H64
                                             : GEMM_H32) +
                      types;
@@ -1535,7 +1539,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         if (small)
             [enc dispatchThreadgroups:MTLSizeMake(n_out / 16, tokens / 32, n) threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
         else
-            [enc dispatchThreadgroups:MTLSizeMake((n_out + 63) / 64, (tokens + bm - 1) / bm, n * splits)
+            [enc dispatchThreadgroups:MTLSizeMake((n_out + bn - 1) / bn, (tokens + bm - 1) / bm, n * splits)
                 threadsPerThreadgroup:MTLSizeMake(bm == 128 ? 256 : 128, 1, 1)];
         return splits;
     };
@@ -1692,8 +1696,8 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
 // ---- Kernel choices --------------------------------------------------------------
 //
 // At FASTEST a session's linear layers run in F16 tiles of 32 x 64 (h32),
-// 64 x 64 (h64) or 128 x 64 (h128) past SMALL_TOKENS_F16, or in the tile
-// each run's tokens favor (auto); EXACT and MODEL have one path, F32. A
+// 64 x 64 (h64), 128 x 64 (h128) or 32 x 32 (h32n32) past
+// SMALL_TOKENS_F16, or in the tile each run's tokens favor (auto); EXACT and MODEL have one path, F32. A
 // tuned session times each when it is made, on its own memory, at each
 // token bin it can hold, and keeps the incumbent unless another is faster
 // at every one; docs/metal.md says how (Autotuning).
@@ -1960,6 +1964,8 @@ const turbo_backend turbo_metal_backend = {
     nullptr,
     session_open,
     embed_write_ranges,
+    0,
+    0,
 };
 
 /* Every allocation this backend has made in the process, host and device,

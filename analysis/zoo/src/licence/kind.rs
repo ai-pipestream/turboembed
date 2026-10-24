@@ -115,6 +115,26 @@ impl Licence {
             _ => None,
         }
     }
+
+    /// Whether the licence requires attribution or copyright notices to be
+    /// kept with the work or a work derived from it. Public-domain
+    /// dedications (`CC0-1.0`, `PDDL-1.0`, `LicenseRef-PublicDomain`) and
+    /// host or unconfirmed `LicenseRef-` terms do not; every other licence
+    /// the zoo knows does.
+    pub const fn requires_attribution(self) -> bool {
+        !matches!(
+            self,
+            Licence::Cc0
+                | Licence::Pddl10
+                | Licence::PublicDomain
+                | Licence::RestrictedPublic
+                | Licence::ResearchOnly
+                | Licence::PlatformTerms
+                | Licence::NoLicence
+                | Licence::Proprietary
+                | Licence::Unconfirmed
+        )
+    }
 }
 
 /// The class of an artifact under `licences`: its own licence and those of

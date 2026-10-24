@@ -64,13 +64,6 @@ impl fmt::Display for Feature {
 /// same pattern runs on other texts.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TextLimit {
-    /// `\b` or `\B` on a text with a nonspacing mark that follows a letter
-    /// or digit: Java counts such a mark as a word character at a
-    /// boundary, and ASCII word boundary checks do not.
-    MarkAtBoundary,
-    /// `$` or `\Z` on a text that ends with a line terminator, before which
-    /// Java's `$` also matches.
-    FinalLineTerminator,
     /// A pattern that can start a match on the second half of a surrogate
     /// pair in Java, on a text with a character outside the Basic
     /// Multilingual Plane: one with `\B`, with a class that holds a
@@ -82,8 +75,6 @@ pub enum TextLimit {
 impl fmt::Display for TextLimit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            TextLimit::MarkAtBoundary => "\\b or \\B next to a nonspacing mark on a letter or digit",
-            TextLimit::FinalLineTerminator => "$ or \\Z on a text that ends with a line terminator",
             TextLimit::Supplementary => "a match that Java can start inside a character outside the BMP",
         })
     }

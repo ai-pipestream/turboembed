@@ -18,6 +18,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Afrikaans-AfriBooms r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Afrikaans-AfriBooms/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-af-ud-afribooms-sentence-1.3-2.5.4.bin",
@@ -45,6 +46,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Afrikaans-AfriBooms r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Afrikaans-AfriBooms/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-af-ud-afribooms-tokens-1.3-2.5.4.bin",
@@ -72,6 +74,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Afrikaans-AfriBooms r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Afrikaans-AfriBooms/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-af-ud-afribooms-pos-1.3-2.5.4.bin",
@@ -99,6 +102,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Afrikaans-AfriBooms r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Afrikaans-AfriBooms/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-af-ud-afribooms-lemmas-1.3-2.5.4.bin",
@@ -126,6 +130,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Catalan-AnCora r2.16 (CC-BY-4.0, https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ca-ud-ancora-sentence-1.3-2.5.4.bin",
@@ -153,6 +158,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Catalan-AnCora r2.16 (CC-BY-4.0, https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ca-ud-ancora-tokens-1.3-2.5.4.bin",
@@ -180,6 +186,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Catalan-AnCora r2.16 (CC-BY-4.0, https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ca-ud-ancora-pos-1.3-2.5.4.bin",
@@ -207,6 +214,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Catalan-AnCora r2.16 (CC-BY-4.0, https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ca-ud-ancora-lemmas-1.3-2.5.4.bin",
@@ -234,6 +242,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Danish-DDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Danish-DDT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-da-ud-ddt-sentence-1.3-2.5.4.bin",
@@ -261,6 +270,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Danish-DDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Danish-DDT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-da-ud-ddt-tokens-1.3-2.5.4.bin",
@@ -288,6 +298,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Danish-DDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Danish-DDT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-da-ud-ddt-pos-1.3-2.5.4.bin",
@@ -315,6 +326,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Danish-DDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Danish-DDT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-da-ud-ddt-lemmas-1.3-2.5.4.bin",
@@ -342,6 +354,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_German-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
@@ -369,6 +382,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_German-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
@@ -396,6 +410,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_German-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
@@ -423,6 +438,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_German-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_German-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
@@ -450,6 +466,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_English-EWT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
@@ -477,6 +494,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_English-EWT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
@@ -504,6 +522,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_English-EWT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
@@ -531,6 +550,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_English-EWT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
@@ -558,6 +578,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Spanish-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Spanish-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-es-ud-gsd-sentence-1.3-2.5.4.bin",
@@ -585,6 +606,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Spanish-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Spanish-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
@@ -612,6 +634,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Spanish-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Spanish-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-es-ud-gsd-pos-1.3-2.5.4.bin",
@@ -639,6 +662,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Spanish-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Spanish-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-es-ud-gsd-lemmas-1.3-2.5.4.bin",
@@ -666,6 +690,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Persian-PerDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Persian-PerDT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-fa-ud-perdt-sentence-1.3-2.5.4.bin",
@@ -693,6 +718,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Persian-PerDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Persian-PerDT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-fa-ud-perdt-tokens-1.3-2.5.4.bin",
@@ -720,6 +746,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Persian-PerDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Persian-PerDT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-fa-ud-perdt-pos-1.3-2.5.4.bin",
@@ -747,6 +774,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Persian-PerDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Persian-PerDT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-fa-ud-perdt-lemmas-1.3-2.5.4.bin",
@@ -774,6 +802,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Finnish-TDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Finnish-TDT/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-fi-ud-tdt-sentence-1.3-2.5.4.bin",
@@ -801,6 +830,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Finnish-TDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Finnish-TDT/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-fi-ud-tdt-tokens-1.3-2.5.4.bin",
@@ -828,6 +858,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Finnish-TDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Finnish-TDT/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-fi-ud-tdt-pos-1.3-2.5.4.bin",
@@ -855,6 +886,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Finnish-TDT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Finnish-TDT/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-fi-ud-tdt-lemmas-1.3-2.5.4.bin",
@@ -882,6 +914,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_French-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_French-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-fr-ud-gsd-sentence-1.3-2.5.4.bin",
@@ -909,6 +942,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_French-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_French-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
@@ -936,6 +970,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_French-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_French-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-fr-ud-gsd-pos-1.3-2.5.4.bin",
@@ -963,6 +998,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_French-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_French-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-fr-ud-gsd-lemmas-1.3-2.5.4.bin",
@@ -990,6 +1026,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Irish-IDT r2.16 (CC-BY-SA-3.0, https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-ga-ud-idt-sentence-1.3-2.5.4.bin",
@@ -1017,6 +1054,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Irish-IDT r2.16 (CC-BY-SA-3.0, https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-ga-ud-idt-tokens-1.3-2.5.4.bin",
@@ -1044,6 +1082,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Irish-IDT r2.16 (CC-BY-SA-3.0, https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-ga-ud-idt-pos-1.3-2.5.4.bin",
@@ -1071,6 +1110,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Irish-IDT r2.16 (CC-BY-SA-3.0, https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-ga-ud-idt-lemmas-1.3-2.5.4.bin",
@@ -1098,6 +1138,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Croatian-SET r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Croatian-SET/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-hr-ud-set-sentence-1.3-2.5.4.bin",
@@ -1125,6 +1166,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Croatian-SET r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Croatian-SET/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-hr-ud-set-tokens-1.3-2.5.4.bin",
@@ -1152,6 +1194,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Croatian-SET r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Croatian-SET/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-hr-ud-set-pos-1.3-2.5.4.bin",
@@ -1179,6 +1222,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Croatian-SET r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Croatian-SET/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-hr-ud-set-lemmas-1.3-2.5.4.bin",
@@ -1206,6 +1250,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Armenian-BSUT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-hy-ud-bsut-sentence-1.3-2.5.4.bin",
@@ -1233,6 +1278,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Armenian-BSUT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-hy-ud-bsut-tokens-1.3-2.5.4.bin",
@@ -1260,6 +1306,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Armenian-BSUT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-hy-ud-bsut-pos-1.3-2.5.4.bin",
@@ -1287,6 +1334,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Armenian-BSUT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-hy-ud-bsut-lemmas-1.3-2.5.4.bin",
@@ -1314,6 +1362,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Indonesian-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Indonesian-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-id-ud-gsd-sentence-1.3-2.5.4.bin",
@@ -1341,6 +1390,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Indonesian-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Indonesian-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-id-ud-gsd-tokens-1.3-2.5.4.bin",
@@ -1368,6 +1418,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Indonesian-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Indonesian-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-id-ud-gsd-pos-1.3-2.5.4.bin",
@@ -1395,6 +1446,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Indonesian-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Indonesian-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-id-ud-gsd-lemmas-1.3-2.5.4.bin",
@@ -1422,6 +1474,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Icelandic-IcePaHC r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Icelandic-IcePaHC/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-is-ud-icepahc-sentence-1.3-2.5.4.bin",
@@ -1449,6 +1502,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Icelandic-IcePaHC r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Icelandic-IcePaHC/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-is-ud-icepahc-tokens-1.3-2.5.4.bin",
@@ -1476,6 +1530,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Icelandic-IcePaHC r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Icelandic-IcePaHC/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-is-ud-icepahc-pos-1.3-2.5.4.bin",
@@ -1503,6 +1558,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Icelandic-IcePaHC r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Icelandic-IcePaHC/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-is-ud-icepahc-lemmas-1.3-2.5.4.bin",
@@ -1530,6 +1586,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Georgian-GLC r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ka-ud-glc-sentence-1.3-2.5.4.bin",
@@ -1557,6 +1614,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Georgian-GLC r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ka-ud-glc-tokens-1.3-2.5.4.bin",
@@ -1584,6 +1642,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Georgian-GLC r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ka-ud-glc-pos-1.3-2.5.4.bin",
@@ -1611,6 +1670,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Georgian-GLC r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ka-ud-glc-lemmas-1.3-2.5.4.bin",
@@ -1638,6 +1698,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Kazakh-KTB r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Kazakh-KTB/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-kk-ud-ktb-sentence-1.3-2.5.4.bin",
@@ -1665,6 +1726,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Kazakh-KTB r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Kazakh-KTB/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-kk-ud-ktb-tokens-1.3-2.5.4.bin",
@@ -1692,6 +1754,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Kazakh-KTB r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Kazakh-KTB/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-kk-ud-ktb-pos-1.3-2.5.4.bin",
@@ -1719,6 +1782,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Kazakh-KTB r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Kazakh-KTB/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-kk-ud-ktb-lemmas-1.3-2.5.4.bin",
@@ -1746,6 +1810,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Korean-Kaist r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Korean-Kaist/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ko-ud-kaist-sentence-1.3-2.5.4.bin",
@@ -1773,6 +1838,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Korean-Kaist r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Korean-Kaist/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ko-ud-kaist-tokens-1.3-2.5.4.bin",
@@ -1800,6 +1866,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Korean-Kaist r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Korean-Kaist/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ko-ud-kaist-pos-1.3-2.5.4.bin",
@@ -1827,6 +1894,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Korean-Kaist r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Korean-Kaist/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ko-ud-kaist-lemmas-1.3-2.5.4.bin",
@@ -1854,6 +1922,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Latvian-LVTB r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Latvian-LVTB/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-lv-ud-lvtb-sentence-1.3-2.5.4.bin",
@@ -1881,6 +1950,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Latvian-LVTB r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Latvian-LVTB/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-lv-ud-lvtb-tokens-1.3-2.5.4.bin",
@@ -1908,6 +1978,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Latvian-LVTB r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Latvian-LVTB/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-lv-ud-lvtb-pos-1.3-2.5.4.bin",
@@ -1935,6 +2006,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Latvian-LVTB r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Latvian-LVTB/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-lv-ud-lvtb-lemmas-1.3-2.5.4.bin",
@@ -1962,6 +2034,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Dutch-Alpino r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Dutch-Alpino/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-nl-ud-alpino-sentence-1.3-2.5.4.bin",
@@ -1989,6 +2062,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Dutch-Alpino r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Dutch-Alpino/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-nl-ud-alpino-tokens-1.3-2.5.4.bin",
@@ -2016,6 +2090,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Dutch-Alpino r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Dutch-Alpino/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-nl-ud-alpino-pos-1.3-2.5.4.bin",
@@ -2043,6 +2118,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Dutch-Alpino r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Dutch-Alpino/blob/r2.16/README.txt).",
       "files": [
         {
           "path": "opennlp-nl-ud-alpino-lemmas-1.3-2.5.4.bin",
@@ -2070,6 +2146,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Norwegian-Bokmaal r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-no-ud-bokmaal-sentence-1.3-2.5.4.bin",
@@ -2097,6 +2174,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Norwegian-Bokmaal r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-no-ud-bokmaal-tokens-1.3-2.5.4.bin",
@@ -2124,6 +2202,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Norwegian-Bokmaal r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-no-ud-bokmaal-pos-1.3-2.5.4.bin",
@@ -2151,6 +2230,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Norwegian-Bokmaal r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-no-ud-bokmaal-lemmas-1.3-2.5.4.bin",
@@ -2178,6 +2258,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Portuguese-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Portuguese-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
@@ -2205,6 +2286,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Portuguese-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Portuguese-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
@@ -2232,6 +2314,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Portuguese-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Portuguese-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-pt-ud-gsd-pos-1.3-2.5.4.bin",
@@ -2259,6 +2342,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Portuguese-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Portuguese-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-pt-ud-gsd-lemmas-1.3-2.5.4.bin",
@@ -2286,6 +2370,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Romanian-RRT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Romanian-RRT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ro-ud-rrt-sentence-1.3-2.5.4.bin",
@@ -2313,6 +2398,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Romanian-RRT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Romanian-RRT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ro-ud-rrt-tokens-1.3-2.5.4.bin",
@@ -2340,6 +2426,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Romanian-RRT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Romanian-RRT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ro-ud-rrt-pos-1.3-2.5.4.bin",
@@ -2367,6 +2454,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Romanian-RRT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Romanian-RRT/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ro-ud-rrt-lemmas-1.3-2.5.4.bin",
@@ -2394,6 +2482,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Russian-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Russian-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ru-ud-gsd-sentence-1.3-2.5.4.bin",
@@ -2421,6 +2510,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Russian-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Russian-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ru-ud-gsd-tokens-1.3-2.5.4.bin",
@@ -2448,6 +2538,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Russian-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Russian-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ru-ud-gsd-pos-1.3-2.5.4.bin",
@@ -2475,6 +2566,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Russian-GSD r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Russian-GSD/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-ru-ud-gsd-lemmas-1.3-2.5.4.bin",
@@ -2502,6 +2594,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Slovak-SNK r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sk-ud-snk-sentence-1.3-2.5.4.bin",
@@ -2529,6 +2622,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Slovak-SNK r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sk-ud-snk-tokens-1.3-2.5.4.bin",
@@ -2556,6 +2650,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Slovak-SNK r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sk-ud-snk-pos-1.3-2.5.4.bin",
@@ -2583,6 +2678,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Slovak-SNK r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sk-ud-snk-lemmas-1.3-2.5.4.bin",
@@ -2610,6 +2706,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Slovenian-SSJ r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Slovenian-SSJ/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sl-ud-ssj-sentence-1.3-2.5.4.bin",
@@ -2637,6 +2734,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Slovenian-SSJ r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Slovenian-SSJ/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sl-ud-ssj-tokens-1.3-2.5.4.bin",
@@ -2664,6 +2762,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Slovenian-SSJ r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Slovenian-SSJ/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sl-ud-ssj-pos-1.3-2.5.4.bin",
@@ -2691,6 +2790,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Slovenian-SSJ r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Slovenian-SSJ/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sl-ud-ssj-lemmas-1.3-2.5.4.bin",
@@ -2718,6 +2818,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Serbian-SET r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sr-ud-set-sentence-1.3-2.5.4.bin",
@@ -2745,6 +2846,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Serbian-SET r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sr-ud-set-tokens-1.3-2.5.4.bin",
@@ -2772,6 +2874,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Serbian-SET r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sr-ud-set-pos-1.3-2.5.4.bin",
@@ -2799,6 +2902,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Serbian-SET r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sr-ud-set-lemmas-1.3-2.5.4.bin",
@@ -2826,6 +2930,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Swedish-Talbanken r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Swedish-Talbanken/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sv-ud-talbanken-sentence-1.3-2.5.4.bin",
@@ -2853,6 +2958,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Swedish-Talbanken r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Swedish-Talbanken/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sv-ud-talbanken-tokens-1.3-2.5.4.bin",
@@ -2880,6 +2986,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Swedish-Talbanken r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Swedish-Talbanken/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sv-ud-talbanken-pos-1.3-2.5.4.bin",
@@ -2907,6 +3014,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Swedish-Talbanken r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Swedish-Talbanken/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-sv-ud-talbanken-lemmas-1.3-2.5.4.bin",
@@ -2934,6 +3042,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Turkish-BOUN r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Turkish-BOUN/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-tr-ud-boun-sentence-1.3-2.5.4.bin",
@@ -2961,6 +3070,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Turkish-BOUN r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Turkish-BOUN/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-tr-ud-boun-tokens-1.3-2.5.4.bin",
@@ -2988,6 +3098,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Turkish-BOUN r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Turkish-BOUN/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-tr-ud-boun-pos-1.3-2.5.4.bin",
@@ -3015,6 +3126,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "Apache OpenNLP UD models 1.3 (Apache-2.0, https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Turkish-BOUN r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_Turkish-BOUN/blob/r2.16/README.md).",
       "files": [
         {
           "path": "opennlp-tr-ud-boun-lemmas-1.3-2.5.4.bin",
@@ -3042,6 +3154,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/).",
       "files": [
         {
           "path": "turbo-en-masc-3.0.0-sentence-1.bin",
@@ -3069,6 +3182,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/).",
       "files": [
         {
           "path": "turbo-en-masc-3.0.0-tokens-1.bin",
@@ -3096,6 +3210,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/).",
       "files": [
         {
           "path": "turbo-en-masc-3.0.0-pos-1.bin",
@@ -3123,6 +3238,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/).",
       "files": [
         {
           "path": "turbo-en-masc-3.0.0-chunks-1.bin",
@@ -3150,6 +3266,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Spanish-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16), by Héctor Martínez Alonso and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-es-ud-ancora-2.16-sentence-1.bin",
@@ -3177,6 +3294,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Spanish-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16), by Héctor Martínez Alonso and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-es-ud-ancora-2.16-tokens-1.bin",
@@ -3204,6 +3322,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Spanish-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16), by Héctor Martínez Alonso and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-es-ud-ancora-2.16-pos-1.bin",
@@ -3231,6 +3350,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Spanish-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16), by Héctor Martínez Alonso and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-es-ud-ancora-2.16-lemmas-1.bin",
@@ -3258,6 +3378,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Catalan-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16), by Héctor Martínez Alonso, Elena Pascual and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-ca-ud-ancora-2.16-sentence-1.bin",
@@ -3285,6 +3406,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Catalan-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16), by Héctor Martínez Alonso, Elena Pascual and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-ca-ud-ancora-2.16-tokens-1.bin",
@@ -3312,6 +3434,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Catalan-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16), by Héctor Martínez Alonso, Elena Pascual and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-ca-ud-ancora-2.16-pos-1.bin",
@@ -3339,6 +3462,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Catalan-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16), by Héctor Martínez Alonso, Elena Pascual and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-ca-ud-ancora-2.16-lemmas-1.bin",
@@ -3366,6 +3490,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Finnish-FTB r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Finnish-FTB/tree/r2.16), by Jussi Piitulainen, Hanna Nurmi and Jack Rueter, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). FTB1U is Copyright 2014 FIN-CLARIN. The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-fi-ud-ftb-2.16-pos-1.bin",
@@ -3393,6 +3518,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Finnish-FTB r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Finnish-FTB/tree/r2.16), by Jussi Piitulainen, Hanna Nurmi and Jack Rueter, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). FTB1U is Copyright 2014 FIN-CLARIN. The model is derived from the treebank; the treebank itself is not included.",
       "files": [
         {
           "path": "turbo-fi-ud-ftb-2.16-lemmas-1.bin",
@@ -3420,6 +3546,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on 321026 sentences from Tatoeba (https://tatoeba.org), licensed under CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/), from its export of digest 4421126b36dc0ce206b222296d696aff04a399620f1ca5dbefbfa50a1890aa92. training-sentences.txt, shipped with the model, lists their ids: the sentence of id N, with its author, is at https://tatoeba.org/sentences/show/N.",
       "files": [
         {
           "path": "turbo-mul-tatoeba-langdetect-1.bin",
@@ -3464,6 +3591,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on 321026 sentences from Tatoeba (https://tatoeba.org), licensed under CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/), from its export of digest 4421126b36dc0ce206b222296d696aff04a399620f1ca5dbefbfa50a1890aa92; training-sentences.txt, shipped with the model, lists their ids: the sentence of id N, with its author, is at https://tatoeba.org/sentences/show/N. And on 99543 documents from FineWeb-2 (https://huggingface.co/datasets/HuggingFaceFW/fineweb-2, revision af9c13333eb981300149d5ca60a8e9d659b276b9) and FineWeb (https://huggingface.co/datasets/HuggingFaceFW/fineweb, revision 9bb295ddab0e05d785b879661af7260fed5140fc), made available under the Open Data Commons Attribution License (ODC-By) 1.0 (https://opendatacommons.org/licenses/by/1-0/), their use also subject to CommonCrawl's terms of use (https://commoncrawl.org/terms-of-use); training-documents.txt, shipped with the model, lists each document's dataset, file, row and id.",
       "files": [
         {
           "path": "turbo-mul-tatoeba-fineweb-langdetect-1.bin",
@@ -3504,6 +3632,7 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "fastino/gliner2-base-v1 at f9634218e53580c56edf0de97ca1a7d3f1c2354e (Apache-2.0, https://huggingface.co/fastino/gliner2-base-v1/blob/f9634218e53580c56edf0de97ca1a7d3f1c2354e/README.md), derived from microsoft/deberta-v3-base (MIT, https://huggingface.co/microsoft/deberta-v3-base).",
       "files": [
         {
           "path": "model.safetensors",
@@ -3552,6 +3681,7 @@
       "license_terms": "https://huggingface.co/microsoft/deberta-v3-large/blob/64a8c8eab3e352a784c658aef62be1662607476f/README.md",
       "trained_on": [],
       "class": "CLASS_PERMISSIVE",
+      "attribution": "microsoft/deberta-v3-large at 64a8c8eab3e352a784c658aef62be1662607476f (MIT, https://huggingface.co/microsoft/deberta-v3-large/blob/64a8c8eab3e352a784c658aef62be1662607476f/README.md).",
       "files": [
         {
           "path": "spm.model",
@@ -3585,6 +3715,7 @@
         }
       ],
       "class": "CLASS_LOCAL_ONLY",
+      "attribution": "jackboyla/glirel-large-v0 at 40a523e12a8432d6da364cf2a195a28755ff04d3 (CC-BY-NC-SA-4.0, https://huggingface.co/jackboyla/glirel-large-v0/blob/40a523e12a8432d6da364cf2a195a28755ff04d3/README.md), derived from microsoft/deberta-v3-large (MIT, https://huggingface.co/microsoft/deberta-v3-large).",
       "origin": "https://huggingface.co/jackboyla/glirel-large-v0",
       "files": [
         {
@@ -3624,6 +3755,7 @@
         }
       ],
       "class": "CLASS_SHARE_ALIKE",
+      "attribution": "deepset/roberta-base-squad2 at adc3b06f79f797d1c575d5479d6f5efe54a9e3b4 (CC-BY-4.0, https://huggingface.co/deepset/roberta-base-squad2/blob/adc3b06f79f797d1c575d5479d6f5efe54a9e3b4/README.md), derived from FacebookAI/roberta-base (MIT, https://huggingface.co/FacebookAI/roberta-base) and trained on SQuAD 2.0 (CC-BY-SA-4.0, https://rajpurkar.github.io/SQuAD-explorer/).",
       "files": [
         {
           "path": "config.json",

@@ -45,6 +45,7 @@ namespace turbo_cuda {
  * vector per row). */
 struct RunArgs {
     int32_t batch, seq, pooling, l2, output_dim, has_types, ranges;
+    int32_t head; /* 1: the range vectors go through the model's token head (span_head) */
 };
 
 /* What pack_rows finds, in device memory, for every later kernel. */
@@ -53,6 +54,7 @@ struct Info {
     int32_t batch, seq, pooling, l2, output_dim, has_types;
     int32_t items; /* attention's work items, (row, head, query tile) */
     int32_t ranges; /* the range write's ranges, whose vectors the pooling writes; 0 for a vector per row */
+    int32_t head;   /* RunArgs.head */
 };
 
 /* The packing, in device memory. start, len and holes (whether a masked
@@ -184,6 +186,7 @@ struct GemmChoice {
 struct Shape {
     int batch_cap = 0, seq_cap = 0; /* max_batch, max_seq */
     int ranges_cap = 0;             /* max_ranges: the most vectors a range run pools */
+    int head_out = 0;               /* the model's token head's outputs; 0 without one */
     int tcap = 0;                   /* batch_cap * seq_cap */
     int hidden = 0, heads = 0, inter = 0;
     bool half = false;         /* FASTEST: F16 GEMM operands and attention */
@@ -252,6 +255,7 @@ struct Plan {
     size_t pack_smem = 0;
     int rows_grid = 0; /* the warp-per-token kernels */
     int pool_grid = 0; /* a block per vector, up to max(max_batch, max_ranges) */
+    int head_grid = 0; /* span_head's blocks, HEAD_WARPS output values to a block */
     int epi_grid = 0; /* the cuBLAS epilogues */
     int fetch_grid = 0;
     int gemm_grid[GEMM_COUNT] = {0, 0, 0, 0}; /* by Gemm */
@@ -337,6 +341,15 @@ cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const uint1
  * F16, when it is not NULL, else from x. */
 cudaError_t pool(cudaStream_t s, const float *x, const uint16_t *x16, const int32_t *rows, const Packing &p,
                  int hidden, float *out, const Plan &plan);
+
+/* out[i * head_out + o] = bias[o] + sum_d w[o, d] * pooled[i, d] for each
+ * range i of a range write whose run asks for the head (Info.head), the
+ * products and sums in F64 as the CPU path's head computes them, rounded
+ * to F32 once: w is [head_out, hidden] F32 and bias, [head_out], follows
+ * it. A warp per output value; a run without the head returns at once.
+ * pooled is the pooling's output, [ranges, hidden]. */
+cudaError_t span_head(cudaStream_t s, const float *pooled, const float *w, int head_out, int hidden, const Info *info,
+                      float *out, const Plan &plan);
 
 // ---- GEMMs --------------------------------------------------------------------
 //
