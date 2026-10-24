@@ -2598,6 +2598,7 @@ dependencies = [
  "turbo-numeric",
  "turbo-pii",
  "turbo-relation",
+ "turbo-unicode",
  "turbo-zoo",
 ]
 
