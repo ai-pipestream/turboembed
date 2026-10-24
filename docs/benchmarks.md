@@ -981,7 +981,11 @@ manifest SHA-256 and load seconds, or the compiled-in English
 grammars), the text (its source sets, bytes, characters and
 SHA-256), and per phase the units produced, the median pass's
 seconds over `--rounds` passes after one warm pass, and the
-characters and bytes per second those divide into. The name is
+characters and bytes per second those divide into. A record holds
+exactly the phases its mode times (the lattice readings phase only
+with --readings), on the CPU device, and an unoptimized build
+refuses to measure, so a record's rates are always release rates.
+The name is
 machine, backend, mode, subject and commit:
 `x86-64.cpu.throughput.lattice.ipadic.<commit12>.json`.
 

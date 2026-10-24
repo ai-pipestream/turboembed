@@ -142,6 +142,23 @@ pub fn check(r: &ThroughputRecord) -> Result<()> {
     if !matches!(r.mode.as_str(), "lattice" | "grammar") {
         return Err(format!("mode {:?} is neither lattice nor grammar", r.mode));
     }
+    if r.device.backend != "cpu" || r.device.kind != "DEVICE_CPU" {
+        return Err(format!(
+            "device {}/{} is not the CPU device these modes measure on",
+            r.device.backend, r.device.kind
+        ));
+    }
+    // The phases a mode times, in order. A lattice record without
+    // --readings holds the first alone; partial phase sets are not
+    // a record this tool makes.
+    let phases: Vec<&str> = r.runs.iter().map(|run| run.phase.as_str()).collect();
+    let allowed: &[&[&str]] = match r.mode.as_str() {
+        "grammar" => &[&["find", "lex", "parse", "parse-units", "times"]],
+        _ => &[&["analyze"], &["analyze", "analyzer-readings"]],
+    };
+    if !allowed.contains(&phases.as_slice()) {
+        return Err(format!("{} record with phases {phases:?}, which the tool never times", r.mode));
+    }
     let hex = |s: &str, n: usize| s.len() == n && s.bytes().all(|b| b.is_ascii_hexdigit());
     if !hex(&r.text.sha256, 64) || !(r.subject.sha256.is_empty() || hex(&r.subject.sha256, 64)) {
         return Err("text.sha256 and subject.sha256 must be SHA-256 hex (or empty)".into());
@@ -202,9 +219,21 @@ pub fn write(r: &ThroughputRecord, dir: &Path) -> Result<PathBuf> {
     Ok(path)
 }
 
+/// Throughput records claim release rates, so an unoptimized
+/// build refuses to measure at all.
+pub(super) fn require_optimized(mode: &str) -> Result<()> {
+    if cfg!(debug_assertions) {
+        return Err(format!(
+            "this turbo-bench was built without optimizations: cargo run --release -p turbo-bench              --features {mode} -- {mode} ..."
+        ));
+    }
+    Ok(())
+}
+
 /// `turbo-bench lattice`, with its arguments after the subcommand.
 #[cfg(feature = "lattice")]
 pub fn lattice_cmd(args: &[String]) -> Result<()> {
+    require_optimized("lattice")?;
     lattice::cmd(args)
 }
 
@@ -219,6 +248,7 @@ pub fn lattice_cmd(_: &[String]) -> Result<()> {
 /// `turbo-bench grammar`, with its arguments after the subcommand.
 #[cfg(feature = "grammar")]
 pub fn grammar_cmd(args: &[String]) -> Result<()> {
+    require_optimized("grammar")?;
     grammar::cmd(args)
 }
 

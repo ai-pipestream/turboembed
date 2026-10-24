@@ -32,13 +32,16 @@ fn sample() -> ThroughputRecord {
             sha256: "ab".repeat(32),
         },
         rounds: 5,
-        runs: vec![PhaseRun {
-            phase: "find".into(),
-            units: 42,
-            seconds: 0.5,
-            chars_per_second: 1800.0,
-            bytes_per_second: 2000.0,
-        }],
+        runs: ["find", "lex", "parse", "parse-units", "times"]
+            .iter()
+            .map(|phase| PhaseRun {
+                phase: phase.to_string(),
+                units: 42,
+                seconds: 0.5,
+                chars_per_second: 1800.0,
+                bytes_per_second: 2000.0,
+            })
+            .collect(),
     }
 }
 
@@ -64,6 +67,25 @@ fn check_refuses_what_a_measurement_cannot_give() {
     refused(&|r| r.library.pushed_to.clear(), "a commit on no branch");
     refused(&|r| r.mode = "postag".into(), "another mode");
     refused(&|r| r.mode = "lattice".into(), "a lattice record with no dictionary hash");
+    refused(&|r| r.device.backend = "cuda".into(), "a CUDA backend");
+    refused(&|r| r.device.kind = "DEVICE_GPU".into(), "a GPU device kind");
+    refused(&|r| r.runs[0].phase = "not-a-real-phase".into(), "an unknown phase");
+    refused(&|r| r.runs[0].phase = "parse-units".into(), "a grammar record holding only one phase");
+    refused(
+        &|r| {
+            r.runs = ["find", "find", "parse", "parse-units", "times"]
+                .iter()
+                .map(|p| PhaseRun {
+                    phase: p.to_string(),
+                    units: 1,
+                    seconds: 0.5,
+                    chars_per_second: 1800.0,
+                    bytes_per_second: 2000.0,
+                })
+                .collect();
+        },
+        "a duplicated phase",
+    );
     refused(&|r| r.text.chars = r.text.bytes + 1, "more chars than bytes");
     refused(&|r| r.runs[0].units = 0, "a phase that produced nothing");
     refused(&|r| r.runs[0].seconds = f64::NAN, "a NaN time");
