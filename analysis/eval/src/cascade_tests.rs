@@ -204,3 +204,24 @@ fn own_document_chunks_do_not_consume_the_shortlist_budget() {
     assert!(!hits.is_empty(), "all stage-one budget was spent on the excluded self document");
     assert!(!hits.contains(&"a"), "the query document itself is never returned: {hits:?}");
 }
+
+#[test]
+fn static_shortlist_stops_after_the_eligible_budget() {
+    let w = world();
+    let c = cascade(1);
+    let (ss, cs) = spaces();
+    let index = c.build(ss.clone(), &w.statics, cs.clone(), &w.contextuals, 6).unwrap();
+    let bm25 = c.index(&w.texts, &w.doc_of).unwrap();
+    let s = CascadeSearch {
+        bm25: &bm25,
+        doc: &w.doc_of,
+        span: &w.spans,
+        docs: &w.docs,
+        static_space: &ss,
+        static_queries: &[1.0, 0.0],
+        contextual_space: &cs,
+        contextual_queries: &[0.0, 1.0],
+    };
+    let (_, chunks) = c.search(&index, &s, &[("c", "zzzqqq")]).unwrap();
+    assert_eq!(chunks.hits("c").len(), 1, "no lexical hits: stage 2 may score only one eligible static chunk");
+}

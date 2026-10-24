@@ -232,12 +232,17 @@ impl Cascade {
         let mut in_pool = vec![false; index.rows];
         let fetch = self.candidates.saturating_add(own_chunks).min(index.rows.max(1));
         let shortlist = index.statics.top_k(static_space, sq, fetch).map_err(|e| e.to_string())?;
+        let mut admitted = 0;
         for hit in shortlist {
+            if admitted == self.candidates {
+                break;
+            }
             let row = *index.statics.meta(hit.row);
             static_score.insert(row, unit(hit.score));
             if own(row) && !in_pool[row as usize] {
                 in_pool[row as usize] = true;
                 pool.push(row);
+                admitted += 1;
             }
         }
 
