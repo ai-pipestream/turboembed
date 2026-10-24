@@ -635,7 +635,8 @@ int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err
 typedef struct turbo_rerank_options {
     uint32_t struct_size;
     uint32_t query_tokens; /* 1: query budget excluding specials; 0 uses bundle */
-    uint32_t max_tokens;   /* 2: pair length including specials; 0 uses bundle */
+    uint32_t max_tokens;   /* 2: pair length including specials; 0 = the session's max_seq.
+                              Above the session's max_seq is TURBO_E_CAPACITY */
     uint32_t stride;       /* 3: passage window advance; 0 uses full window */
 } turbo_rerank_options;
 
