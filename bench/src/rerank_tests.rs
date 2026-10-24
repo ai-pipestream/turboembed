@@ -25,6 +25,17 @@ fn requests_take_the_passages_that_fit() {
     assert!(requests(text, &tokenizer, &fits, 4, 2).is_err());
 }
 
+/// The real predicate: a pair fits when one window holds the whole query
+/// and the whole context, and not when either would be cut.
+#[test]
+fn a_pair_fits_only_when_nothing_is_cut() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
+    let t = Tokenizer::load(&Bundle::open(&dir).unwrap()).unwrap();
+    assert!(fits_one_window(&t, "what", "a short context", 4, 16));
+    assert!(!fits_one_window(&t, "what is this long question about", "a short context", 4, 16));
+    assert!(!fits_one_window(&t, "what", "a context far too long to fit in a window of sixteen tokens at all", 4, 16));
+}
+
 /// Each committed record parses and passes `check`, and is filed under
 /// the name `file_name` gives it.
 #[test]

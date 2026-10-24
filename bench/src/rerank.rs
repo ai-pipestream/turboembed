@@ -136,6 +136,14 @@ pub fn requests(
     Ok(out)
 }
 
+/// Whether `query` and `context` make one window at the bundle's budgets
+/// with nothing cut: the window is the same when the query may take half
+/// of `max_seq`, so the query was not truncated to `query_tokens`.
+pub fn fits_one_window(t: &Tokenizer, query: &str, context: &str, query_tokens: u32, max_seq: u32) -> bool {
+    let one = |budget| t.encode_pair(query, context, budget, max_seq, 0).ok().filter(|w| w.len() == 1);
+    one(query_tokens).is_some_and(|w| one(max_seq / 2).is_some_and(|wide| wide[0].ids == w[0].ids))
+}
+
 fn side(warmup: u32, mut ms: Vec<f64>, pairs: usize) -> Side {
     ms.sort_by(f64::total_cmp);
     let p50 = percentile(&ms, 50.0);
@@ -175,11 +183,7 @@ pub fn measure(plan: &RerankPlan, p: &Provenance, recorded_at: String) -> Result
     let rerank = bundle.manifest.rerank.as_ref().ok_or("the bundle is not a rerank bundle")?;
     let (query_tokens, max_seq) = (rerank.query_tokens, rerank.max_seq);
     let tokenizer = Tokenizer::load(&bundle).map_err(|e| e.message)?;
-    let fits = |t: &Tokenizer, q: &str, c: &str| {
-        let whole = t.encode_pair(q, c, u32::MAX, u32::MAX, 0);
-        t.encode_pair(q, c, query_tokens, max_seq, 0).is_ok_and(|w| w.len() == 1)
-            && whole.is_ok_and(|w| w.len() == 1 && w[0].ids.len() <= max_seq as usize)
-    };
+    let fits = |t: &Tokenizer, q: &str, c: &str| fits_one_window(t, q, c, query_tokens, max_seq);
     let reqs = requests(text, &tokenizer, &fits, plan.requests, plan.passages)?;
     let pairs = plan.requests * plan.passages;
 
