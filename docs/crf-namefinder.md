@@ -32,16 +32,21 @@ Use `CrfNameSequence` for exact ranked, typed paths and log probabilities.
 Discontinuous sentence/token input is rejected.
 
 Evidence and limitations: `docs/receipts/crf-726/README.md`.
-Reproduce MASC with `analysis/train-recipes/examples/crf_namefind.rs`:
+Reproduce MASC with `analysis/train-recipes/examples/crf_namefind_fixture.rs`:
 
 ```sh
 cargo run --release --locked -p turbo-train-recipes -- fetch-masc --home target/crf-data
 # Extract the verified archive, then supply its directory:
-cargo run --release --locked -p turbo-train-recipes --example crf_namefind -- DATA_DIRECTORY bio
-cargo run --release --locked -p turbo-train-recipes --example crf_namefind -- DATA_DIRECTORY bilou
+cargo run --release --locked -p turbo-train-recipes --example crf_namefind_fixture -- DATA_DIRECTORY bio
+cargo run --release --locked -p turbo-train-recipes --example crf_namefind_fixture -- DATA_DIRECTORY bilou
 ```
 
 The CPU harnesses are `analysis/sequence/examples/crf_speed.rs` and
 `analysis/sequence/tests/crf-reference/Speed.java`. Compile Speed.java with
 CrfScorer.java and CrfScoreTable.java from the reference commit in the receipt.
 Both calculate marginals and the best path on identical bounded scores.
+
+The [full-corpus MASC evaluation](namefinder-crf-evaluation.md) replaces
+the small fixture as accuracy evidence. It records per-type and overall
+gates against matched maxent, published models and namefind-dl. The full
+run rejects publication; the fixture remains reproducible separately.

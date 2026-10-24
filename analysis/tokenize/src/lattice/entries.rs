@@ -11,11 +11,13 @@
 
 use super::error::{DictionaryError, DictionaryFile, EntryProblem};
 use super::number::parse_java_int;
+use super::prebuilt::{Table, Text};
 use crate::lines::{Lines, trim_unicode_whitespace};
 
 /// One lexicon or unknown word entry: the context ids, the cost and its
 /// features' record in the [`FeatureStore`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(C)]
 pub(crate) struct Entry {
     pub(crate) left: u32,
     pub(crate) right: u32,
@@ -27,15 +29,15 @@ pub(crate) struct Entry {
 /// column in it, and the first column of each record.
 #[derive(Debug, Clone)]
 pub(crate) struct FeatureStore {
-    text: String,
-    ends: Vec<u32>,
+    pub(super) text: Text,
+    pub(super) ends: Table<u32>,
     /// `first[r]..first[r + 1]` are the columns of record `r`.
-    first: Vec<u32>,
+    pub(super) first: Table<u32>,
 }
 
 impl FeatureStore {
     pub(crate) fn new() -> FeatureStore {
-        FeatureStore { text: String::new(), ends: Vec::new(), first: vec![0] }
+        FeatureStore { text: String::new().into(), ends: Vec::new().into(), first: vec![0].into() }
     }
 
     /// Adds a record of the columns in `fields`, which are ranges of
