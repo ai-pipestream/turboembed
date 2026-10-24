@@ -1,0 +1,67 @@
+The ferry left the harbor an hour late because of the fog.
+Passengers crowded the upper deck to watch the gulls.
+A child dropped a sandwich, and three birds fought over it before it reached the water.
+By noon the fog had lifted and the island was in sight.
+The captain announced that the return trip would leave at six.
+
+Our team rewrote the billing service over the winter.
+The old version stored every invoice as a single row with a dozen nullable columns, which made reporting slow and error prone.
+The new schema splits line items, taxes and discounts into their own tables.
+Migration took two weekends.
+Nobody noticed the switch, which was the point.
+Monthly reports now finish in minutes instead of hours.
+
+She planted tomatoes, basil and peppers along the south fence.
+The basil bolted in July.
+Tomatoes ripened late but tasted better than anything from the store.
+Next year she wants to try squash, though the neighbor warns that squash takes over everything within a few weeks if you let it.
+
+The museum reopened after a long renovation.
+Visitors now enter through a glass hall on the east side, where the old loading dock used to be.
+The dinosaur skeleton was moved to the second floor.
+A new gallery shows maps of the city from three centuries, arranged so that you can walk from the oldest street plan to the newest in a single loop.
+Admission is free on the first Sunday of each month.
+
+Rain is expected through Thursday.
+Rivers in the northern valleys may rise above their banks.
+Residents near the water should move vehicles to higher ground.
+Schools will stay open unless the roads close.
+The weather service will update the forecast every six hours, and alerts will go out by text message to anyone who has signed up.
+
+He learned to bake bread during a long winter at home.
+The first loaves were dense and flat.
+After a month of practice, and a great deal of advice from a retired baker who lived down the street, the crust turned crisp and the crumb opened up.
+Now he bakes twice a week and gives most of it away.
+
+The library card catalog was digitized in the nineties.
+Thousands of handwritten cards were typed in by volunteers.
+Some cards had notes in the margins from librarians long gone, describing water damage, missing pages, or a donor who insisted that a book never leave the reading room.
+Those notes were scanned as images and attached to the records.
+Researchers still ask to see them.
+
+The bike lane on Fifth Street is finally finished.
+It runs from the river to the train station.
+Parking spots were removed on one side, which upset some shop owners at first.
+Foot traffic has gone up since then.
+The city plans to extend the lane north next spring if the budget allows.
+
+A good review comment names the problem and suggests a fix.
+It avoids vague words like messy or weird.
+When a reviewer is unsure, a question works better than a demand.
+Small changes are easier to review than large ones, so most teams ask for pull requests that touch one concern at a time and include tests that show the change works.
+
+The orchestra rehearsed the symphony for six weeks.
+The slow movement gave them the most trouble.
+Strings had to hold long notes at a whisper while the horns entered softly over them.
+On opening night the hall was full, and when the last chord faded there was a long silence before anyone began to clap.
+
+Volcanic soil is often rich in minerals.
+Farmers on the slopes grow coffee, grapes and potatoes.
+The risk of an eruption is real, but monitoring stations now give days or even weeks of warning, measuring small earthquakes, ground swelling and gas from vents near the summit.
+Most families have lived there for generations.
+
+The startup built a scheduling app for dental offices.
+Early customers asked for text reminders, so that came first.
+Then they wanted insurance checks, online payments, and a waiting list that fills cancelled slots automatically.
+Two years in, the company employs forty people.
+The founders still answer support tickets on Fridays.
