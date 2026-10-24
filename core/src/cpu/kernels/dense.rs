@@ -1,9 +1,10 @@
 //! The matrix product for callers outside the BERT encoder (the native
 //! DeBERTa encoder in crate::deberta): a right-hand matrix packed in the
 //! micro-kernel's panels once, then applied to any number of rows on the
-//! calling thread. As everywhere in kernels/, each output is one chain of
-//! multiply-adds over k in order, so a row's result does not depend on
-//! how many other rows are in the call. `Matrix` and `Mode` are public
+//! calling thread or across a pool's. As everywhere in kernels/, each
+//! output is one chain of multiply-adds over k in order, so a row's result
+//! does not depend on how many other rows are in the call, nor on which
+//! thread computes its tile. `Matrix` and `Mode` are public
 //! (turbo::cpu) so that model heads outside this crate (turbo-gliner) use
 //! the same packed kernels.
 
@@ -11,6 +12,7 @@ use super::gemm::{Epilogue, Gemm};
 #[cfg(target_arch = "x86_64")]
 use super::{Avx2, Avx512};
 use super::{Isa, Micro, Panels, Portable, rowwise::exp};
+use crate::cpu::pool::Pool;
 
 /// What a product does with each output once its sum is complete.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -115,6 +117,48 @@ impl Matrix {
         ldy: usize,
         mode: Mode,
     ) {
+        self.apply_on(None, x, ldx, rows, bias, y, ldy, mode)
+    }
+
+    /// As `apply`, with the product's tiles spread over `pool`'s threads
+    /// when there is one: the same bits, since each tile is one task and
+    /// computed the same on any thread.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn apply_on(
+        &self,
+        pool: Option<&mut Pool>,
+        x: &[f32],
+        ldx: usize,
+        rows: usize,
+        bias: Option<&[f32]>,
+        y: &mut [f32],
+        ldy: usize,
+        mode: Mode,
+    ) {
+        // SAFETY: y is the caller's whole, borrowed mutably.
+        unsafe { self.apply_to(pool, x, ldx, rows, bias, y.as_mut_ptr(), y.len(), ldy, mode) }
+    }
+
+    /// As `apply_on`, into the `len` floats at `y`.
+    ///
+    /// # Safety
+    /// `y` is valid for writes of `len` floats, and nothing else reads or
+    /// writes the outputs this product writes while it runs: rows under
+    /// `rows`, `ldy` apart, n columns each. Other floats in that range may
+    /// be written by others meanwhile.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) unsafe fn apply_to(
+        &self,
+        pool: Option<&mut Pool>,
+        x: &[f32],
+        ldx: usize,
+        rows: usize,
+        bias: Option<&[f32]>,
+        y: *mut f32,
+        len: usize,
+        ldy: usize,
+        mode: Mode,
+    ) {
         let (n, k) = (self.panels.n, self.panels.k);
         if rows == 0 || n == 0 {
             return;
@@ -122,7 +166,7 @@ impl Matrix {
         assert!(ldx >= k, "dense product: ldx {ldx} under k {k}");
         assert!(ldy >= n, "dense product: ldy {ldy} under n {n}");
         assert!(extent(rows, ldx, k).is_some_and(|e| x.len() >= e), "dense product: x too short");
-        assert!(extent(rows, ldy, n).is_some_and(|e| y.len() >= e), "dense product: y too short");
+        assert!(extent(rows, ldy, n).is_some_and(|e| len >= e), "dense product: y too short");
         let bias = bias.unwrap_or(&self.zero);
         assert!(bias.len() >= n, "dense product: bias too short");
         let epilogue = match mode {
@@ -133,7 +177,15 @@ impl Matrix {
             Mode::Gelu => Epilogue::Gelu,
             Mode::Residual => Epilogue::Residual,
         };
-        let g = Gemm { x: x.as_ptr(), ldx, rows, w: &self.panels, bias, y: y.as_mut_ptr(), ldy, epilogue };
+        let g = Gemm { x: x.as_ptr(), ldx, rows, w: &self.panels, bias, y, ldy, epilogue };
+        if let Some(pool) = pool.filter(|p| p.threads() > 1 && g.tasks() > 1) {
+            let (shared, isa) = (Shared(g), self.isa);
+            // SAFETY: as below, and each task is one tile of y, which the
+            // pool gives to exactly one thread.
+            let shared = &shared;
+            pool.run(g.tasks(), &|t, _| unsafe { one(&shared.0, isa, t) });
+            return;
+        }
         // SAFETY: the shapes are checked above, the panels were packed for
         // self.isa, which this processor has (Isa::detect), and the one
         // thread runs every task in turn.
@@ -147,6 +199,45 @@ impl Matrix {
             }
         }
     }
+}
+
+/// A product shared by a pool's threads, each taking whole tiles.
+struct Shared<'a>(Gemm<'a>);
+
+// SAFETY: the pointers are read through by every thread and written
+// through only within the tile of the task a thread took, which no other
+// thread takes (Pool::run).
+unsafe impl Sync for Shared<'_> {}
+
+/// One tile of `g` with `isa`'s kernel.
+///
+/// # Safety
+/// As Gemm::task, with `isa` the one g's panels were packed for.
+unsafe fn one(g: &Gemm, isa: Isa, t: usize) {
+    // SAFETY: as the caller's.
+    unsafe {
+        match isa {
+            Isa::Portable => g.task::<Portable>(t),
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx2 => avx2_one(g, t),
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx512 => avx512_one(g, t),
+        }
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn avx2_one(g: &Gemm, t: usize) {
+    // SAFETY: as one.
+    unsafe { g.task::<Avx2>(t) }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx512f,avx512vl,avx2,fma")]
+unsafe fn avx512_one(g: &Gemm, t: usize) {
+    // SAFETY: as one.
+    unsafe { g.task::<Avx512>(t) }
 }
 
 /// Floats from the first of `rows` rows `ld` apart to the end of the last
@@ -227,6 +318,24 @@ mod tests {
         softmax(&mut p);
         assert_eq!(p[2], 0.0);
         assert!((p.iter().sum::<f32>() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_product_across_a_pool_gives_the_bits_of_one_thread() {
+        let (rows, n, k) = (70, 45, 33);
+        let x = super::super::values(rows * k, 4, 1.0);
+        let m = Matrix::from_rows(&[&super::super::values(n * k, 5, 1.0)], k).unwrap();
+        let b = super::super::values(n, 6, 1.0);
+        for mode in [Mode::Plain, Mode::Gelu, Mode::Residual] {
+            let mut one = super::super::values(rows * n, 7, 1.0);
+            m.apply(&x, k, rows, Some(&b), &mut one, n, mode);
+            for threads in [2, 3, 4] {
+                let mut pool = Pool::new(threads);
+                let mut y = super::super::values(rows * n, 7, 1.0);
+                m.apply_on(Some(&mut pool), &x, k, rows, Some(&b), &mut y, n, mode);
+                assert_eq!(y, one, "{mode:?}, {threads} threads");
+            }
+        }
     }
 
     #[test]
