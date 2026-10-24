@@ -1,7 +1,8 @@
 # Money
 
 The `money` module of `turbo-numeric` (`analysis/numeric/src/money/`)
-finds amounts of money in a text view, writes them as the `turbo:money`
+and the shared `region` module (`analysis/numeric/src/region/`)
+find amounts of money in a text view, write them as the `turbo:money`
 layer, and converts them into one currency with the European Central
 Bank's euro reference rates. It is a port of the money package of the
 OpenNLP numeric add-on:
