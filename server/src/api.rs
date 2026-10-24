@@ -163,7 +163,7 @@ impl Model {
     pub fn session(&self, desc: &turbo_session_desc) -> Result<Session> {
         let mut s = ptr::null_mut();
         check(|e| unsafe { turbo_session_create(self.0, desc, &mut s, e) })?;
-        Ok(Session(s))
+        Ok(Session(std::sync::atomic::AtomicPtr::new(s)))
     }
 }
 
@@ -196,29 +196,37 @@ impl Drop for Buffer {
 /// A session. Writes and runs go only through the one request that holds it
 /// in the model's pool; turbo_session_get_info reads what was fixed at
 /// turbo_session_create.
-pub struct Session(*mut turbo_session);
+pub struct Session(std::sync::atomic::AtomicPtr<turbo_session>);
 unsafe impl Send for Session {}
 unsafe impl Sync for Session {}
 
 impl Session {
     pub(crate) fn as_ptr(&self) -> *mut turbo_session {
-        self.0
+        self.0.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    pub(crate) fn replace(&self, next: Session) {
+        let next_ptr = next.0.swap(ptr::null_mut(), std::sync::atomic::Ordering::AcqRel);
+        let prev_ptr = self.0.swap(next_ptr, std::sync::atomic::Ordering::AcqRel);
+        if !prev_ptr.is_null() {
+            unsafe { turbo_session_release(prev_ptr) };
+        }
     }
 
     pub fn info(&self) -> Result<turbo_session_info> {
         let mut info: turbo_session_info = sized();
-        check(|e| unsafe { turbo_session_get_info(self.0, &mut info, e) })?;
+        check(|e| unsafe { turbo_session_get_info(self.as_ptr(), &mut info, e) })?;
         Ok(info)
     }
 
     pub fn write_text(&self, texts: &[turbo_text], opts: &turbo_embed_options) -> Result<()> {
         let count = u32::try_from(texts.len())
             .map_err(|_| Failure::new(TURBO_E_INVALID_SHAPE, 0, "more texts than a uint32_t holds"))?;
-        check(|e| unsafe { turbo_embed_write_text(self.0, texts.as_ptr(), count, opts, e) })
+        check(|e| unsafe { turbo_embed_write_text(self.as_ptr(), texts.as_ptr(), count, opts, e) })
     }
 
     pub fn write_tokens(&self, batch: &turbo_token_batch, opts: &turbo_embed_options) -> Result<()> {
-        check(|e| unsafe { turbo_embed_write_tokens(self.0, batch, opts, e) })
+        check(|e| unsafe { turbo_embed_write_tokens(self.as_ptr(), batch, opts, e) })
     }
 
     pub fn write_ranges(
@@ -229,25 +237,28 @@ impl Session {
     ) -> Result<()> {
         let count = u32::try_from(ranges.len())
             .map_err(|_| Failure::new(TURBO_E_INVALID_SHAPE, 0, "more ranges than a uint32_t holds"))?;
-        check(|e| unsafe { turbo_embed_write_ranges(self.0, batch, ranges.as_ptr(), count, opts, e) })
+        check(|e| unsafe { turbo_embed_write_ranges(self.as_ptr(), batch, ranges.as_ptr(), count, opts, e) })
     }
 
     pub fn write_pairs(&self, pairs: &[turbo_text_pair], opts: &turbo_rerank_options) -> Result<()> {
         let count = u32::try_from(pairs.len())
             .map_err(|_| Failure::new(TURBO_E_INVALID_SHAPE, 0, "more pairs than a uint32_t holds"))?;
-        check(|e| unsafe { turbo_rerank_write_pairs(self.0, pairs.as_ptr(), count, opts, e) })
+        check(|e| unsafe { turbo_rerank_write_pairs(self.as_ptr(), pairs.as_ptr(), count, opts, e) })
     }
 
     pub fn run(&self) -> Result<Output> {
         let mut r = ptr::null_mut();
-        check(|e| unsafe { turbo_session_run(self.0, &mut r, e) })?;
+        check(|e| unsafe { turbo_session_run(self.as_ptr(), &mut r, e) })?;
         Ok(Output(r))
     }
 }
 
 impl Drop for Session {
     fn drop(&mut self) {
-        unsafe { turbo_session_release(self.0) };
+        let ptr = *self.0.get_mut();
+        if !ptr.is_null() {
+            unsafe { turbo_session_release(ptr) };
+        }
     }
 }
 
