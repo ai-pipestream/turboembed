@@ -6,6 +6,11 @@ docs/analysis.md ("Models trained on permissive data" and "Model gates")
 describes both. The MASC recipes come first here; the recipes on the
 CC BY 4.0 Universal Dependencies treebanks are under "The UD recipes".
 
+The UD reproduction investigation in #953 identified 12 training partitions
+as the setting that gives the published parameter bytes. New runs using
+`ud::training_parameters` use 12. The historical recipe results below used
+4; their model hashes and gate values remain records of those runs.
+
 | Module | What it holds |
 |---|---|
 | `masc` | MASC 3.0.0 (CC BY 3.0 US): the release record, its zoo dataset entry and fetch, the digest of an extracted copy, the fixed split, and the Twitter genre left out of it |
@@ -95,7 +100,7 @@ status is 1 when a gate fails and 2 on an error.
   (`corpus.excluded_documents`), and the gate record's held-out set is
   named with the exclusion.
 - Parameters: those the UD 1.3 models were trained with
-  (`ud::training_parameters`: GIS, 300 iterations, cutoff 5, 4 threads),
+  (`ud::training_parameters`: GIS, 300 iterations, cutoff 5, 12 partitions),
   the factory defaults for English (for the tagger: the default feature
   generator descriptor, no tag dictionary, beam size 3), OpenNLP 2.5.4's
   whitespace, and a fixed manifest `Timestamp` (2026-10-14T00:00:00Z), so
@@ -859,7 +864,7 @@ read on 2026-10-14 (#415):
 - Split: UD's own. Each model is trained on `train` and gated on `test`;
   `dev` is checked and not read.
 - Parameters: those of the UD 1.3 models (GIS, 300 iterations, cutoff 5,
-  4 threads), the factory defaults for the treebank's language, OpenNLP
+  12 partitions), the factory defaults for the treebank's language, OpenNLP
   2.5.4's whitespace, 10 sentences per sentence detector sample, the
   universal tags, and the fixed manifest `Timestamp`. No randomness, so
   no seed.
