@@ -1,11 +1,20 @@
 use super::*;
 
-use turbo_analysis_layers::Currency;
+use crate::Currency;
+use crate::dec::Dec;
 
 fn symbol(u: Unit) -> String {
     let mut s = String::new();
     u.write_symbol(&mut s);
     s
+}
+
+fn d(s: &str) -> Dec {
+    let neg = s.starts_with('-');
+    let s = s.trim_start_matches('-');
+    let (i, f) = s.split_once('.').unwrap_or((s, ""));
+    let v = Dec::from_digits(i.as_bytes(), f.as_bytes());
+    if neg { v.negated() } else { v }
 }
 
 #[test]
@@ -68,4 +77,46 @@ fn kinds_and_subtypes() {
 #[test]
 fn a_unit_is_small() {
     assert!(std::mem::size_of::<Unit>() <= 6);
+}
+
+#[test]
+fn every_default_unit_maps_through_shared_unit_table() {
+    for &token in &DEFAULT_UNITS {
+        let u = Unit::from_symbol(token).unwrap_or_else(|| panic!("missing unit for {token:?}"));
+        let (norm, base) = u.normalize(Dec::ONE).unwrap_or_else(|| panic!("unnormalizable unit {token:?}"));
+        assert!(norm > Dec::ZERO, "{token:?}");
+        assert!(!base.symbol().is_empty(), "{token:?}");
+    }
+}
+
+#[test]
+fn exact_conversions_across_length_mass_volume_temperature_and_speed() {
+    // Length -> m
+    assert_eq!(Unit::Length(Length::Kilometer).normalize(d("2.5")), Some((d("2500"), Unit::Length(Length::Meter))));
+    assert_eq!(Unit::Length(Length::Mile).normalize(d("1")), Some((d("1609.344"), Unit::Length(Length::Meter))));
+    assert_eq!(Unit::Length(Length::Foot).normalize(d("10")), Some((d("3.048"), Unit::Length(Length::Meter))));
+
+    // Mass -> kg
+    assert_eq!(Unit::Weight(Weight::Gram).normalize(d("500")), Some((d("0.5"), Unit::Weight(Weight::Kilogram))));
+    assert_eq!(Unit::Weight(Weight::Pound).normalize(d("1")), Some((d("0.45359237"), Unit::Weight(Weight::Kilogram))));
+
+    // Volume -> m³
+    let m3 = Unit::Volume(Volume::Cubic(Length::Meter));
+    assert_eq!(Unit::Volume(Volume::Liter).normalize(d("250")), Some((d("0.25"), m3)));
+    assert_eq!(Unit::Volume(Volume::Milliliter).normalize(d("500")), Some((d("0.0005"), m3)));
+    assert_eq!(Unit::Volume(Volume::Gallon).normalize(d("1")), Some((d("0.003785411784"), m3)));
+
+    // Temperature (affine) -> K
+    let k = Unit::Temperature(Temperature::Kelvin);
+    assert_eq!(Unit::Temperature(Temperature::Celsius).normalize(d("0")), Some((d("273.15"), k)));
+    assert_eq!(Unit::Temperature(Temperature::Celsius).normalize(d("100")), Some((d("373.15"), k)));
+    assert_eq!(Unit::Temperature(Temperature::Celsius).normalize(d("-40")), Some((d("233.15"), k)));
+    assert_eq!(Unit::Temperature(Temperature::Fahrenheit).normalize(d("32")), Some((d("273.15"), k)));
+    assert_eq!(Unit::Temperature(Temperature::Fahrenheit).normalize(d("212")), Some((d("373.15"), k)));
+    assert_eq!(Unit::Temperature(Temperature::Fahrenheit).normalize(d("-40")), Some((d("233.15"), k)));
+
+    // Speed -> m/s
+    let mps = Unit::Speed(Speed::Per(Length::Meter, Per::Second));
+    assert_eq!(Unit::Speed(Speed::Per(Length::Kilometer, Per::Hour)).normalize(d("36")), Some((d("10"), mps)));
+    assert_eq!(Unit::Speed(Speed::Per(Length::Mile, Per::Hour)).normalize(d("1")), Some((d("0.44704"), mps)));
 }

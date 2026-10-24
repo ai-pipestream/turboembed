@@ -8,7 +8,7 @@
 
 use std::fmt;
 
-use turbo_analysis_layers::Currency;
+use crate::Currency;
 
 /// A currency unit.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
