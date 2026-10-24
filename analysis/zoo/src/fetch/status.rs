@@ -41,7 +41,13 @@ pub(super) fn local_file(artifact: &Artifact, file: &File, local: &Path) -> Resu
             actual: m.len().to_string(),
         })),
         Ok(_) => {
-            let bytes = fs::read(local).map_err(|e| io(e.to_string()))?;
+            // Another process may remove the file between the stat and
+            // the read; that is a missing file, not an error.
+            let bytes = match fs::read(local) {
+                Ok(bytes) => bytes,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Local::Missing),
+                Err(e) => return Err(io(e.to_string())),
+            };
             Ok(verify(artifact, file, &bytes).map_or_else(Local::Mismatch, |()| Local::Verified))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Local::Missing),
