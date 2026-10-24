@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use turbo_analysis::{Anchor, Annotator, Error, Ix, Key, KeyId, Layer, LayerName, Refs, View};
+use turbo_analysis::{Anchor, Annotator, Error, Ix, IxRange, Key, KeyId, Layer, LayerName, Refs, Span, View};
 use turbo_analysis_layers::{
     Aspects, Categories, Chunks, Incivility, IncivilityLabel, IncivilityScores, IncivilityTarget, Polarity, Sentences,
     Strs, Tokens,
@@ -141,6 +141,17 @@ struct ResolvedAspect {
     label: String,
     polarity: Polarity,
     compound: f64,
+    span: Option<Span>,
+}
+
+/// The byte envelope of a non-empty token range, when the tokens
+/// are known and the range is in bounds.
+fn token_span(toks: Option<&Tokens>, r: IxRange<Tokens>) -> Option<Span> {
+    let toks = toks?;
+    if r.start.get() >= r.end.get() || r.end.get() > toks.spans.len() {
+        return None;
+    }
+    Some(Span::new(toks.spans.get(r.start).start, toks.spans.get(Ix::new(r.end.get() as u32 - 1)).end))
 }
 
 #[inline]
@@ -242,6 +253,7 @@ impl Annotator for ChunkFacetBuilder {
                         label: resolve_aspect_label(a_ix, asp, toks, view),
                         polarity: item.polarity.label(),
                         compound: item.polarity.compound().clamp(-1.0, 1.0),
+                        span: item.target.tokens().and_then(|r| token_span(toks, r)),
                     });
                 }
             }
@@ -256,19 +268,28 @@ impl Annotator for ChunkFacetBuilder {
         };
 
         // Pre-aggregate incivility by sentence and by chunk once: O(n_incivility).
-        let mut sent_incivility = Vec::new();
+        let mut sent_incivility: Vec<Vec<(IncivilityScores, u8, Option<Span>)>> = Vec::new();
         let mut chunk_incivility = Vec::new();
         if let Some(inc) = incivility
             && !inc.is_empty()
         {
-            sent_incivility.resize(n_sents, (IncivilityScores::default(), 0u8));
+            sent_incivility.resize_with(n_sents, Vec::new);
             chunk_incivility.resize(n_chunks, (IncivilityScores::default(), 0u8));
             for i in 0..inc.len() {
                 let item_ix = Ix::<Incivility>::new(i as u32);
                 let entry = item_incivility(inc, item_ix);
                 match inc.target[i] {
                     IncivilityTarget::Sentence(s_ix) if s_ix.get() < n_sents => {
-                        merge_incivility(&mut sent_incivility[s_ix.get()], entry);
+                        let mut evidence: Option<Span> = None;
+                        for (_, r) in inc.evidence_of(item_ix) {
+                            if let Some(s) = token_span(toks, r) {
+                                evidence = Some(match evidence {
+                                    None => s,
+                                    Some(e) => Span::new(e.start.min(s.start), e.end.max(s.end)),
+                                });
+                            }
+                        }
+                        sent_incivility[s_ix.get()].push((entry.0, entry.1, evidence));
                     }
                     IncivilityTarget::Chunk(ch_ix) if ch_ix.get() < n_chunks => {
                         merge_incivility(&mut chunk_incivility[ch_ix.get()], entry);
@@ -284,6 +305,8 @@ impl Annotator for ChunkFacetBuilder {
             let s_start = sr.start.get().min(s_end);
 
             // 1. Collect aspects whose sentence falls in [s_start, s_end).
+            let frags: Vec<Span> = chunks.spans.fragments(Ix::new(ch_idx as u32)).collect();
+            let in_chunk = |s: Option<Span>| s.is_none_or(|sp| frags.iter().any(|f| f.overlaps(sp)));
             let chunk_aspect_start = aspect_ixs.len();
             let mut aspect_compound_sum = 0.0f64;
             let mut aspect_compound_n = 0usize;
@@ -295,7 +318,7 @@ impl Annotator for ChunkFacetBuilder {
                 if !aspects_in_sent_order && chunk_resolved.len() > 1 {
                     chunk_resolved.sort_by_key(|r| r.a_ix.get());
                 }
-                for resolved in &chunk_resolved {
+                for resolved in chunk_resolved.iter().filter(|r| in_chunk(r.span)) {
                     aspect_ixs.push(resolved.a_ix);
                     aspect_label.push(&resolved.label);
                     aspect_polarity.push(resolved.polarity);
@@ -350,8 +373,10 @@ impl Annotator for ChunkFacetBuilder {
             let mut agg = (IncivilityScores::default(), 0u8);
             if !chunk_incivility.is_empty() {
                 agg = chunk_incivility[ch_idx];
-                for &entry in &sent_incivility[s_start..s_end] {
-                    merge_incivility(&mut agg, entry);
+                for items in &sent_incivility[s_start..s_end] {
+                    for &(scores, mask, _) in items.iter().filter(|it| in_chunk(it.2)) {
+                        merge_incivility(&mut agg, (scores, mask));
+                    }
                 }
             }
             let (max_scores, mask) = agg;

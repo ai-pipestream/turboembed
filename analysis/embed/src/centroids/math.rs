@@ -1,15 +1,7 @@
 use super::*;
 pub(crate) use turbo::head::softmax_f64_in_place as softmax_in_place;
 
-pub(crate) fn sigmoid(z: f64) -> f64 {
-    if z >= 0.0 {
-        let e = (-z).exp();
-        1.0 / (1.0 + e)
-    } else {
-        let e = z.exp();
-        e / (1.0 + e)
-    }
-}
+pub(crate) use turbo::head::sigmoid_f64 as sigmoid;
 
 pub(crate) fn argmax_tag(scores: &[f64]) -> (Tag, f64) {
     let mut best_idx = 0usize;

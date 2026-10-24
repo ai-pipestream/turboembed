@@ -75,6 +75,9 @@ impl Layer for Locations {
             return Err("an entry and a confidence for every location span".into());
         }
         self.spans.check(Self::OVERLAP)?;
+        if !self.spans.is_start_ordered() {
+            return Err("location spans must be in non-decreasing start order".into());
+        }
         for (i, span) in self.spans.iter() {
             let idx = i.get();
             if span.is_empty() {
@@ -166,9 +169,13 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
         if entities.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "entities are in a different view".into() });
         }
+        entities.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         let mut mentions = Vec::new();
         let mut lower_buf = String::new();
         for (ix, span) in entities.spans.iter() {
+            if span.is_empty() {
+                continue;
+            }
             lower_buf.clear();
             to_lowercase(entities.kinds.label(entities.kind[ix.get()]), &mut lower_buf);
             if self.location_types.contains(&lower_buf) {
@@ -201,6 +208,7 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
             }
             out.push(resolution);
         }
+        out.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         Ok((out,))
     }
 
@@ -209,7 +217,8 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
             MentionPolicy::All => 0,
             MentionPolicy::ExcludeSingleAsciiLetters => 1,
         };
-        let seed = (FNV_OFFSET_BASIS ^ policy).wrapping_mul(FNV_PRIME);
+        let seed =
+            ((FNV_OFFSET_BASIS ^ policy).wrapping_mul(FNV_PRIME) ^ self.geocoder.fingerprint()).wrapping_mul(FNV_PRIME);
         hash_location_types(seed, &self.location_types)
     }
 }
