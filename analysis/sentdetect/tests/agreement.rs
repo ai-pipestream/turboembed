@@ -177,12 +177,12 @@ fn german() {
         conformance,
         Agreement {
             texts: 72,
-            identical: 42,
-            maxent_sentences: 194,
-            rule_sentences: 179,
-            same_spans: 100,
-            maxent_boundaries: 122,
-            rule_boundaries: 107,
+            identical: 48,
+            maxent_sentences: 190,
+            rule_sentences: 175,
+            same_spans: 106,
+            maxent_boundaries: 118,
+            rule_boundaries: 103,
             same_boundaries: 76
         }
     );

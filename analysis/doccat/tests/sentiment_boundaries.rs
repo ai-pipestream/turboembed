@@ -184,6 +184,7 @@ fn nested_chunks_score_their_own_tokens() {
         cost: vec![0; 2],
         model_tokens: vec![1; 2],
         over_budget: vec![false; 2],
+        prompt_overhead: 0,
     };
     chunks.check().unwrap();
     let (out,) = IncivilityAnnotator::new()

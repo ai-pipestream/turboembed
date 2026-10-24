@@ -187,3 +187,28 @@ fn indivisible_token_and_prompt_overflow_are_named_errors() {
         pack_windows(&model, &crowded, doc.get::<View>().unwrap(), doc.get::<Tokens>().unwrap(), None).err().unwrap();
     assert!(error.contains("schema prompt") && error.contains("max_sequence"), "{error}");
 }
+
+#[test]
+fn annotation_batch_matches_separate_documents_across_multiple_windows() {
+    let model = boundaries::model();
+    let a = GlinerAnnotator::new(model, schema(Decode::Nested));
+    let docs = [document(&vec!["Zoë"; 64], Some(4)), document(&["Paris", "🙂"], Some(2)), document(&[], None)];
+    let bad = Tokens { spans: Spans::new(turbo_analysis::ViewId(99)), sentence: None };
+    let inputs: Vec<_> =
+        docs.iter().map(|d| (d.get::<View>().unwrap(), d.get::<Tokens>().unwrap(), d.get::<Sentences>())).collect();
+    let expected: Vec<_> = inputs.iter().map(|&i| a.annotate(i).unwrap()).collect();
+    let mut batch = inputs.clone();
+    batch.insert(1, (inputs[0].0, &bad, None));
+    let mut actual = a.annotate_batch(batch);
+    assert!(actual.remove(1).is_err());
+    for (got, (entities, decisions)) in actual.into_iter().zip(expected) {
+        let (ge, gd) = got.unwrap();
+        assert_eq!(ge.spans.columns(), entities.spans.columns());
+        assert_eq!(ge.tokens, entities.tokens);
+        assert_eq!(ge.kind, entities.kind);
+        assert_eq!(ge.score, entities.score);
+        assert_eq!(gd.logits, decisions.logits);
+        assert_eq!(gd.threshold, decisions.threshold);
+    }
+    assert!(a.annotate_batch(Vec::new()).is_empty());
+}

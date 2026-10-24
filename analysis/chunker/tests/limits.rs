@@ -412,6 +412,7 @@ fn chunks_nest_inside_their_parents_at_a_level_above() {
             cost: vec![0; 2],
             model_tokens: vec![0; 2],
             over_budget: vec![false; 2],
+            prompt_overhead: 0,
         };
         for (a, b) in spans {
             c.spans.push(Span::new(a, b));

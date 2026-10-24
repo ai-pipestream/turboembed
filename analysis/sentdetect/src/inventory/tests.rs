@@ -74,7 +74,7 @@ fn empty_judges_nothing() {
     assert!(e.is_empty() && e.is_unset());
     assert_eq!(at(&e, "We met Dr. Smith.", "Dr."), Neutral);
     assert_eq!(AbbreviationInventory::with_classes(AbbreviationClasses::NONE).judge("Dr. X", 2), Neutral);
-    assert_eq!(AbbreviationInventories::for_language("de"), AbbreviationInventory::EMPTY);
+    assert_eq!(AbbreviationInventories::for_language("und"), AbbreviationInventory::EMPTY);
     assert_eq!(AbbreviationInventories::for_language("en-US"), AbbreviationInventory::english());
     assert_eq!(AbbreviationInventory::default(), AbbreviationInventory::EMPTY);
 }

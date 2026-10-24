@@ -504,3 +504,18 @@ provenance lists the slicing rules. Full-width reference outputs and source
 SHA-256 values are in `analysis/gliner/tests/fixtures/full-reference.json`.
 No full model is added to the zoo by this change. The exact checkpoint above
 was checked; this is not a licence decision for other GLiNER checkpoints.
+
+## Sentence abbreviation inventories
+
+The non-English tables in `analysis/sentdetect/data/inventory/` may be
+compiled and distributed under `CLASS_PERMISSIVE`. They include only
+abbreviation data and project-authored context classifications.
+
+| Source | Pinned revision and terms | Use |
+|---|---|---|
+| [Unicode CLDR 48.2](https://github.com/unicode-org/cldr/tree/11299982335beb974c1c63c45265184e759c0f41/common/segments) | Commit `11299982335beb974c1c63c45265184e759c0f41`; Unicode License v3, retained in `analysis/sentdetect/data/rules/cldr/LICENSE` | German, Spanish, French, Italian, Portuguese and Russian sentence suppressions |
+| [Pragmatic Segmenter](https://github.com/diasks2/pragmatic_segmenter/tree/358fe97e62902cd86fa6b85063c3bf91aa6c156a/lib/pragmatic_segmenter/languages) | Commit `358fe97e62902cd86fa6b85063c3bf91aa6c156a`; MIT, Copyright (c) 2015 Kevin S. Dias; notice retained beside the tables | Language-specific literal abbreviation, prepositive and number lists; matching code is not copied |
+| [pySBD Slovak](https://github.com/nipunsadvilkar/pySBD/blob/5905f13be4fc95f407b98392e0ec303617a33d86/pysbd/lang/slovak.py) | Commit `5905f13be4fc95f407b98392e0ec303617a33d86`; MIT, Copyright (c) 2019 Nipun Sadvilkar; notice retained beside the tables | Slovak literal lists, including multiword abbreviations |
+
+The inventory README records normalization, deduplication, context
+classification and regeneration. English's existing inventory is unchanged.
