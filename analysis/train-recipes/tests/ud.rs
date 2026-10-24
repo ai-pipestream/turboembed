@@ -288,6 +288,7 @@ fn the_ud_recipes_train_score_gate_and_write_their_cards() {
         }
         r.check_data(&text, &weak_model).unwrap();
         let outcome = run_ud(&r, &text, &weak_model).unwrap();
+        assert_eq!(outcome.card.training.parameters.threads, 4);
         let record = &outcome.gate;
         println!("{}\n{record}", outcome.card.summary());
         record.check().unwrap();
