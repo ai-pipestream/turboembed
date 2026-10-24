@@ -95,11 +95,13 @@ impl UnitFilter {
     /// Chunk units whose sentences' sarcasm scores are all at
     /// most `max` (and, when `drop_evidence`, none carries
     /// incongruity evidence), from the sentence-aligned
-    /// `Pragmatics` layer. Use `FilterMode::Require` to drop
-    /// sarcastic chunks or `Boost(f)` with `0 < f < 1` to
-    /// discount the kept ones. Refuses mismatched layers
-    /// (sentence ranges past the pragmatics rows) without
-    /// panicking.
+    /// `Pragmatics` layer: the sincere chunks. `Require` drops
+    /// sarcastic chunks; `Boost(f)` with `f > 1` promotes the
+    /// sincere ones. A discounting `Boost(f)` with `f < 1` is
+    /// refused here because the cascade multiplies selected
+    /// units, so it would discount the sincere chunks and leave
+    /// sarcastic ones untouched; use
+    /// [`Self::sarcasm_discount`] to discount high sarcasm.
     pub fn sarcasm_at_most(
         name: impl Into<String>,
         mode: FilterMode,
@@ -109,8 +111,64 @@ impl UnitFilter {
         max: f64,
         drop_evidence: bool,
     ) -> Result<UnitFilter, String> {
-        if !max.is_finite() || !(0.0..=1.0).contains(&max) {
-            return Err(format!("sarcasm threshold {max} is not a score in 0.0..=1.0"));
+        if let FilterMode::Boost(f) = mode
+            && f < 1.0
+        {
+            return Err("sarcasm_at_most selects sincere chunks, so a boost below 1.0 would discount them; use sarcasm_discount".into());
+        }
+        Self::sarcasm_select(
+            name,
+            mode,
+            levels,
+            chunks,
+            pragmatics,
+            |scores, evidence| {
+                scores.iter().all(|&s| s <= max) && (!drop_evidence || evidence.iter().all(Option::is_none))
+            },
+            max,
+        )
+    }
+
+    /// A discount on high-sarcasm chunk units: chunks with any
+    /// sentence scoring above `above` (or carrying incongruity
+    /// evidence when `include_evidence`) have their final score
+    /// multiplied by `factor`, which must lie in `(0.0, 1.0)`.
+    pub fn sarcasm_discount(
+        name: impl Into<String>,
+        levels: &Levels,
+        chunks: &Chunks,
+        pragmatics: &Pragmatics,
+        above: f64,
+        factor: f64,
+        include_evidence: bool,
+    ) -> Result<UnitFilter, String> {
+        if !factor.is_finite() || !(0.0 < factor && factor < 1.0) {
+            return Err(format!("sarcasm discount factor {factor} is not in (0.0, 1.0)"));
+        }
+        Self::sarcasm_select(
+            name,
+            FilterMode::Boost(factor),
+            levels,
+            chunks,
+            pragmatics,
+            |scores, evidence| {
+                scores.iter().any(|&s| s > above) || (include_evidence && evidence.iter().any(Option::is_some))
+            },
+            above,
+        )
+    }
+
+    fn sarcasm_select(
+        name: impl Into<String>,
+        mode: FilterMode,
+        levels: &Levels,
+        chunks: &Chunks,
+        pragmatics: &Pragmatics,
+        keep: impl Fn(&[f64], &[Option<turbo_analysis_layers::Incongruity>]) -> bool,
+        threshold: f64,
+    ) -> Result<UnitFilter, String> {
+        if !threshold.is_finite() || !(0.0..=1.0).contains(&threshold) {
+            return Err(format!("sarcasm threshold {threshold} is not a score in 0.0..=1.0"));
         }
         levels.check()?;
         chunks.check()?;
@@ -128,9 +186,8 @@ impl UnitFilter {
                     pragmatics.len()
                 ));
             }
-            let keep = (range.start.get()..range.end.get())
-                .all(|s| pragmatics.score[s] <= max && (!drop_evidence || pragmatics.evidence[s].is_none()));
-            if keep {
+            let r = range.start.get()..range.end.get();
+            if keep(&pragmatics.score[r.clone()], &pragmatics.evidence[r]) {
                 units.insert(unit);
             }
         }

@@ -135,3 +135,57 @@ fn per_dimension_and_sarcasm_filters_from_layers() {
             .is_err()
     );
 }
+
+#[test]
+fn sarcasm_discount_lowers_high_sarcasm_scores_only() {
+    use turbo_analysis_layers::{Incongruity, Pragmatics};
+    let doc = document();
+    let levels = doc.get::<Levels>().unwrap();
+    let chunks = doc.get::<Chunks>().unwrap();
+    let sentences = doc.get::<Sentences>().unwrap();
+    let kept = chunks.sentences[1];
+    let scores = |out: &turbo_chunker::CascadeResult| -> std::collections::BTreeMap<usize, f64> {
+        out.hits.iter().map(|h| (h.unit.get(), h.score)).collect()
+    };
+    let plain = run(&doc, Vec::new());
+    assert!(plain.hits.len() >= 3, "fixture search returns several chunks");
+    let pragmatics = Pragmatics {
+        score: (0..sentences.len())
+            .map(|s| if (kept.start.get()..kept.end.get()).contains(&s) { 0.0 } else { 0.95 })
+            .collect(),
+        evidence: vec![None; sentences.len()],
+        tokens_key: Key::<Tokens>::DEFAULT,
+    };
+    let discount = UnitFilter::sarcasm_discount("sarcasm", levels, chunks, &pragmatics, 0.5, 0.5, false).unwrap();
+    let sincere_unit = levels
+        .of(turbo_analysis_layers::Level::Chunk)
+        .find(|&u| matches!(levels.unit[u.get()], turbo_analysis_layers::Unit::Chunk(c) if c.get() == 1))
+        .unwrap();
+    assert!(!discount.units.contains(&sincere_unit), "sincere chunk is not selected for discounting");
+    let out = run(&doc, vec![discount]);
+    let (before, after) = (scores(&plain), scores(&out));
+    for hit in &out.hits {
+        let base = before[&hit.unit.get()];
+        if hit.boosted_by == ["sarcasm"] {
+            assert!((hit.score - base * 0.5).abs() < 1e-12, "unit {}: {} vs {}", hit.unit.get(), hit.score, base);
+        } else {
+            assert_eq!(hit.score, base, "undiscounted unit {} unchanged", hit.unit.get());
+        }
+    }
+    assert_eq!(after[&sincere_unit.get()], before[&sincere_unit.get()], "sincere chunk keeps its score");
+    assert!(out.hits.iter().any(|h| h.boosted_by == ["sarcasm"]), "some hit was discounted");
+    // The inverted construction is refused, and evidence alone
+    // (score under threshold) can still select a chunk.
+    assert!(UnitFilter::sarcasm_at_most("x", FilterMode::Boost(0.5), levels, chunks, &pragmatics, 0.5, false).is_err());
+    let mut with_evidence = pragmatics.clone();
+    for s in with_evidence.score.iter_mut() {
+        *s = 0.0;
+    }
+    with_evidence.evidence[kept.start.get()] =
+        Some(Incongruity { positive: IxRange::new(0, 1), negative: IxRange::new(1, 2) });
+    let by_evidence = UnitFilter::sarcasm_discount("sarcasm", levels, chunks, &with_evidence, 0.5, 0.5, true).unwrap();
+    assert!(by_evidence.units.contains(&sincere_unit), "evidence selects despite low scores");
+    let ignoring = UnitFilter::sarcasm_discount("sarcasm", levels, chunks, &with_evidence, 0.5, 0.5, false).unwrap();
+    assert!(!ignoring.units.contains(&sincere_unit));
+    assert!(UnitFilter::sarcasm_discount("sarcasm", levels, chunks, &pragmatics, 0.5, 1.5, false).is_err());
+}
