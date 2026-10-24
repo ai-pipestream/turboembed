@@ -571,7 +571,7 @@ Differences from OpenNLP:
     repeated line keeps its span and the line is reported around it. A
     multi-line block that repeats is reported line by line, since each of
     its lines repeats.
-- A labelled four-page PDF evaluation now measures the default and optional
+- A labelled eleven-page PDF evaluation now measures the default and optional
   detectors. See [Extracted PDF evaluation](#extracted-pdf-evaluation) for
   per-kind support, precision, recall and the limits of this sample.
 
@@ -2412,54 +2412,61 @@ no OpenNLP counterpart to either normalizer.
 
 ## Extracted PDF evaluation
 
-The licensed page extracts, hand-selected UTF-8 span labels, source attribution,
-pinned hashes and reproduction recipe are in
+Licensed page extracts, hand-labelled UTF-8 spans, attribution, pinned hashes
+and a Rust reproduction helper are in
 [`analysis/normalize/data/extracted-pdf`](../analysis/normalize/data/extracted-pdf/README.md).
-Pages 2-3 of two ACL papers provide 21,819 bytes and 2,687 whitespace-delimited
-tokens, including genuine mathematical font extraction damage. No synthetic
-corruption was added. Run:
+Eleven complete pages from four CC-BY-4.0 papers provide 50,994 bytes and
+6,555 whitespace-delimited tokens. The two original ACL page pairs use
+Poppler 26.07.0; an additional ACL page uses MuPDF 1.27.0; six JMLR pages
+use Poppler 26.07.0. Extraction identity and page ranges are pinned separately.
+No corruption was injected or source text repaired. Run:
 
 ```sh
+cargo run --locked -p turbo-normalize --example reproduce_extracted_pdf -- target/pdf-reproduction
 cargo test --locked -p turbo-normalize --test extracted_pdf -- --nocapture
 ```
 
-The default `ArtifactDetector` and the optional all-kinds configuration produce
-identical measurements here. Exact kind and both byte boundaries must match;
-partial overlaps receive no credit. Precision is TP/(TP+FP) and recall is
-TP/(TP+FN). N/A means the denominator is zero.
+Exact kind and both byte boundaries must match. TP/FP/FN counts are per
+span, precision is TP/(TP+FP), and recall is TP/(TP+FN). N/A means a zero
+denominator. The default and optional all-kinds configurations differ:
 
-| Kind | Default enabled | TP | FP | FN | Precision | Recall |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| ReplacementChar | yes | 0 | 0 | 0 | N/A | N/A |
-| Control | yes | 11 | 0 | 0 | 1.0000 | 1.0000 |
-| Noncharacter | yes | 0 | 0 | 0 | N/A | N/A |
-| UnpairedSurrogate | yes | 0 | 0 | 0 | N/A | N/A |
-| PrivateUse | yes | 4 | 0 | 0 | 1.0000 | 1.0000 |
-| BidiControl | yes | 0 | 0 | 0 | N/A | N/A |
-| ZeroWidth | yes | 0 | 0 | 0 | N/A | N/A |
-| UnicodeTag | yes | 0 | 0 | 0 | N/A | N/A |
-| Mojibake | yes | 0 | 0 | 0 | N/A | N/A |
-| MojibakeSequence | no | 0 | 0 | 0 | N/A | N/A |
-| RepeatedLine | no | 0 | 0 | 0 | N/A | N/A |
+| Kind | Default TP/FP/FN | Default precision/recall | All-kinds TP/FP/FN | All-kinds precision/recall |
+| --- | --- | --- | --- | --- |
+| ReplacementChar | 1/0/0 | 1.0000/1.0000 | 1/0/0 | 1.0000/1.0000 |
+| Control | 26/0/0 | 1.0000/1.0000 | 26/0/0 | 1.0000/1.0000 |
+| Noncharacter | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
+| UnpairedSurrogate | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
+| PrivateUse | 4/0/0 | 1.0000/1.0000 | 4/0/0 | 1.0000/1.0000 |
+| BidiControl | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
+| ZeroWidth | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
+| UnicodeTag | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
+| Mojibake | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
+| MojibakeSequence | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
+| RepeatedLine | 0/0/6 | N/A/0.0000 | 6/3/0 | 0.6667/1.0000 |
 
-This evaluates eleven control runs and four private-use runs in P19-1423;
-2020.acl-main.1 contributes no positive spans. Both configurations have 15
-true positives, zero false positives and zero false negatives. Kinds absent
-from the sample are **unmeasured**, not proven accurate. A Rust `str` cannot
-contain an unpaired surrogate.
+The six repeated-line gold spans are alternating running headers in JMLR
+pages 2-7. The optional rule also reports three legitimate occurrences of
+`u∼Υ z∼Qθ` inside mathematical expressions, at bytes 17650..17664,
+22423..22437 and 23004..23018 of `jmlr-25-0035`. Those positions remain
+negative labels; the three predictions are recorded as false positives.
+The default disables this optional rule, so all six headers are false
+negatives in its result. The replacement-character positive is an actual
+MuPDF extraction of a summation sign on ACL printed page 174. This
+measurement does not imply that Poppler produces the same damage.
 
-The default `NoiseScorer`, without a dictionary or exclusions, reports one
-false positive: `FFNNs` at bytes 5548..5553 in P19-1423, severity `Damaged`,
-score 0.5. This is a legitimate acronym for feed-forward neural networks.
-There are no predictions in the second paper and no positive lexical noise
-labels in either. Thus noise precision is 0/1 = 0, and recall is N/A. Math
-font mapping errors belong to the artifact labels, not ASCII lexical noise.
-The regression test retains this known error so that changes remain visible.
+The default NoiseScorer evaluation remains negative-only on the two
+original ACL samples. It reports the legitimate acronym `FFNNs` at
+5548..5553 in P19-1423, severity Damaged and score 0.5: precision 0/1 = 0,
+recall N/A. The second sample has no noise prediction. The new pages
+were annotated for artifacts, not for lexical noise, and do not expand
+that auxiliary noise evaluation.
 
-No defaults were tuned. Four pages from two scientific papers, labelled in one
-pass, cannot establish general PDF or OCR quality. Column order, hyphenated
-line wrapping, flattened equations and missing URL underscores are outside
-these artifact kinds. Coverage still needs other scripts, encodings, PDF
-producers, OCR errors and positive examples of the unsupported kinds, plus
-independent annotation review. The checked-in benchmark establishes a
-reproducible baseline, not a production-wide accuracy claim.
+No defaults were tuned. **Mojibake and ZeroWidth remain unsupported by
+positive corpus examples**, so issue #915's coverage work is incomplete.
+Other absent kinds are also unmeasured; a Rust str cannot contain an
+unpaired surrogate. Four scientific papers labelled in one pass cannot
+establish general PDF or OCR quality. Column order, hyphenation and
+flattened equations are outside this taxonomy. Further licensed damaged
+extracts and independent annotation review are still required. The test
+pins observed errors as well as successes; it does not certify unsupported
+kinds by treating N/A as perfect precision or recall.

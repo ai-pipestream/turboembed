@@ -1,4 +1,4 @@
-//! Measured exact-span accuracy on licensed, independently labelled PDF text.
+//! Measured exact-span accuracy on licensed, hand-labelled PDF text.
 //! See data/extracted-pdf/README.md for provenance and annotation policy.
 
 use turbo_analysis::Span;
@@ -6,7 +6,7 @@ use turbo_goldens::{escape::unescape, hex::to_hex, sha256};
 use turbo_normalize::{Artifact, ArtifactDetector, NoiseScorer};
 use turbo_normalize_layers::ArtifactKind;
 
-const SAMPLES: [(&str, &str, &str); 2] = [
+const SAMPLES: [(&str, &str, &str); 4] = [
     (
         "P19-1423",
         include_str!("../data/extracted-pdf/P19-1423.escaped"),
@@ -16,6 +16,16 @@ const SAMPLES: [(&str, &str, &str); 2] = [
         "2020.acl-main.1",
         include_str!("../data/extracted-pdf/2020.acl-main.1.escaped"),
         "61d8ea51cba932c21984731f870eb08efa34e280b91d20c81487577a5d8c86c8",
+    ),
+    (
+        "2022.acl-long.14-mupdf",
+        include_str!("../data/extracted-pdf/2022.acl-long.14-mupdf.escaped"),
+        "ff84db26480ba60169e7e8c8a1803d2a297de852638a5a8f79609e540230c8b6",
+    ),
+    (
+        "jmlr-25-0035",
+        include_str!("../data/extracted-pdf/jmlr-25-0035.escaped"),
+        "f902f5558cea9702dd1184e240f71109605b9fe9c1372be649e64c5d45becd83",
     ),
 ];
 
@@ -80,10 +90,13 @@ fn extracted_pdf_exact_span_report() {
                 ratio(tp, tp + missed)
             );
         }
-        // Baseline measurements, not generated labels. Change only after review.
-        assert_eq!(counts.iter().map(|c| c[0]).sum::<usize>(), 15);
-        assert_eq!(counts.iter().map(|c| c[1]).sum::<usize>(), 0);
-        assert_eq!(counts.iter().map(|c| c[2]).sum::<usize>(), 0);
+        // Measured against the fixed hand labels, including known false positives.
+        let mut expected = [[0usize; 3]; 11];
+        expected[0] = [1, 0, 0];
+        expected[1] = [26, 0, 0];
+        expected[4] = [4, 0, 0];
+        expected[10] = if mode == "default" { [0, 0, 6] } else { [6, 3, 0] };
+        assert_eq!(counts, expected);
     }
 }
 
@@ -91,7 +104,7 @@ fn extracted_pdf_exact_span_report() {
 fn extracted_pdf_noise_negative_control() {
     // Neither page pair has a damaged ASCII word core or encoded binary payload.
     // Math font mapping damage is labelled as artifacts, not lexical gibberish.
-    for (id, encoded, _) in SAMPLES {
+    for (id, encoded, _) in SAMPLES[..2].iter().copied() {
         let text = unescape(encoded.trim_end_matches('\n')).unwrap();
         let found = NoiseScorer::default().score(&text, &[]).unwrap();
         for f in &found {
@@ -106,4 +119,17 @@ fn extracted_pdf_noise_negative_control() {
             assert_eq!(f.score, 0.5);
         }
     }
+}
+
+#[test]
+fn corpus_gold_support_includes_replacement_and_recurring_headers() {
+    let replacement = unescape(SAMPLES[2].1.trim_end_matches('\n')).unwrap();
+    let gold = labels(SAMPLES[2].0, &replacement);
+    assert_eq!(gold, vec![Artifact { span: Span::new(865, 868), kind: ArtifactKind::ReplacementChar }]);
+    assert_eq!(&replacement[gold[0].span.range()], "\u{fffd}");
+    let headers = unescape(SAMPLES[3].1.trim_end_matches('\n')).unwrap();
+    let gold = labels(SAMPLES[3].0, &headers);
+    assert_eq!(gold.iter().filter(|a| a.kind == ArtifactKind::Control).count(), 15);
+    assert_eq!(gold.iter().filter(|a| a.kind == ArtifactKind::RepeatedLine).count(), 6);
+    assert!(!gold.iter().any(|a| matches!(a.kind, ArtifactKind::Mojibake | ArtifactKind::ZeroWidth)));
 }

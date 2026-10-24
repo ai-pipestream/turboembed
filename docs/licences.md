@@ -507,13 +507,18 @@ was checked; this is not a licence decision for other GLiNER checkpoints.
 
 ### Extracted PDF artifact evaluation
 
-The two ACL paper excerpts under `analysis/normalize/data/extracted-pdf` are
+The three ACL paper excerpts and the JMLR excerpt under `analysis/normalize/data/extracted-pdf` are
 CC-BY-4.0 material, with authors, titles, page ranges, source URLs, licence
 links and transformation notices in that directory's README. The ACL
 [copyright policy](https://aclanthology.org/faq/copyright/) places ACL materials
 from 2016 onward under CC-BY-4.0. The paper text is evaluation data, not
 repository-licensed source code; retain attribution when redistributing it.
-The reproduction script verifies original PDF and extracted-text hashes.
+The JMLR excerpt is from Justin Bunker, Mark Girolami, Hefin Lambley,
+Andrew M. Stuart and T. J. Sullivan, 2025, *Autoencoders in Function Space*,
+JMLR 26(165):1-54, pages 2-7. Its PDF explicitly states CC-BY 4.0 and
+requires attribution linking to the
+[original publication](https://jmlr.org/papers/v26/25-0035.html).
+The Rust reproduction helper verifies original PDF and extracted-text hashes.
 
 ## Sentence abbreviation inventories
 
