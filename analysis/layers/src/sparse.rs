@@ -5,9 +5,10 @@
 //! chunker's level router: one unit's terms and weights beside its term
 //! counts, term for term.
 
+use std::any::Any;
 use std::marker::PhantomData;
 
-use turbo_analysis::{Anchor, Ix, Layer, LayerName, ModelRef, Span};
+use turbo_analysis::{Anchor, Document, Ix, Key, KeyId, Layer, LayerName, ModelRef, Span, View};
 
 /// The weighted vocabulary terms of one document or of each unit of level
 /// `L` (each chunk, section and the document of `Levels`). Stored as
@@ -137,6 +138,30 @@ impl<L: Layer> Layer for SparseTerms<L> {
     fn len(&self) -> usize {
         self.row.len().saturating_sub(1)
     }
+    fn check_document(&self, doc: &Document, on: &[KeyId]) -> Result<(), String> {
+        if self.span.iter().all(Option::is_none) && self.occ.is_empty() {
+            return Ok(());
+        }
+        let anchor = on.first().ok_or("sparse terms need an anchor")?;
+        let layer = doc.require(&Key::<L>::named(anchor.name)).map_err(|e| e.to_string())?;
+        let view = if let Some(view) = (layer as &dyn Any).downcast_ref::<View>() {
+            view.id()
+        } else {
+            layer.text_spans().ok_or("sparse source spans need a text-view anchor")?.view
+        };
+        let text = doc.text(view);
+        let spans = self.span.iter().enumerate().filter_map(|(i, s)| s.as_ref().map(|s| ("span", i, s)));
+        let occurrences = self.occ.iter().enumerate().map(|(i, s)| ("occurrence", i, s));
+        for (column, i, s) in spans.chain(occurrences) {
+            if text.get(s.start as usize..s.end as usize).is_none() {
+                return Err(format!(
+                    "sparse {column} {i}: {}..{} outside view {} or not on UTF-8 boundaries",
+                    s.start, s.end, view.0
+                ));
+            }
+        }
+        Ok(())
+    }
     fn check(&self) -> Result<(), String> {
         if self.row.is_empty() {
             return Err("at least the first row start, 0".into());
@@ -150,6 +175,9 @@ impl<L: Layer> Layer for SparseTerms<L> {
         }
         if !self.span.is_empty() && self.span.len() != self.term.len() {
             return Err("a span column for every entry, or none".into());
+        }
+        if self.occ_at.is_empty() && !self.occ.is_empty() {
+            return Err("occurrences need an occurrence column".into());
         }
         if !self.occ_at.is_empty() {
             if self.occ_at.len() != self.term.len() {

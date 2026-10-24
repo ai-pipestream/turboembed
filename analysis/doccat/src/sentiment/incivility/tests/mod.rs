@@ -278,6 +278,7 @@ fn vector_scorer_and_chunk_unit_guarantee_evidence_spans() {
         cost: vec![1000],
         model_tokens: vec![6],
         over_budget: vec![false],
+        prompt_overhead: 0,
     };
     doc.add(&Key::<Chunks>::DEFAULT, chunks, Provenance::by("test")).unwrap();
 

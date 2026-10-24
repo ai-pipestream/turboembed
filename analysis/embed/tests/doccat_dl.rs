@@ -298,6 +298,7 @@ fn pipeline_annotators_categorize_document_chunks_and_structure_on_bundle() {
                 cost: vec![0, 1000],
                 model_tokens: vec![12, 5],
                 over_budget: vec![false, false],
+                prompt_overhead: 0,
             },
             Provenance::by("test"),
         )
@@ -386,3 +387,6 @@ fn bundle_sequence_scorer_rejects_token_classifier_bundle() {
     };
     assert!(err.message.contains("CLASSIFIER_SEQUENCE"), "unexpected error: {err}");
 }
+
+#[path = "doccat/batch.rs"]
+mod batch;
