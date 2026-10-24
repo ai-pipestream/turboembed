@@ -179,7 +179,7 @@ pub fn require_compiled_frame(batch: Option<u32>, seq: Option<u32>, fixed_batch:
 /// that many frames times `seq`. Other backends pack through each row's
 /// last live token.
 pub fn library_computed_tokens(backend: &str, rows: &Rows) -> u64 {
-    if backend == "npu" { rows.padded_tokens() } else { rows.packed_tokens() }
+    if matches!(backend, "npu" | "hailo") { rows.padded_tokens() } else { rows.packed_tokens() }
 }
 
 /// As a record names a graph input.
@@ -230,6 +230,9 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
     let loaded = loaded_artifact(&bundle.manifest, &field(&mi.artifact_sha256))?;
     if backend_name == "npu" {
         require_compiled_frame(plan.batch, plan.seq, loaded.fixed_batch, loaded.fixed_seq)?;
+    }
+    if backend_name == "hailo" && plan.seq != Some(loaded.fixed_seq) {
+        return Err(format!("hailo: --seq must equal the HEF fixed_seq {}", loaded.fixed_seq));
     }
     let graph_input = graph_input_name(loaded.graph_input);
 
