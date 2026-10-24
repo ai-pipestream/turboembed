@@ -10,7 +10,9 @@ const USAGE: &str = "usage: turbo-kserve-demo [--listen ADDR:PORT] [--server htt
   --listen  where the page is served (TURBO_DEMO_LISTEN; default 127.0.0.1:8080)
   --server  the turbo-kserve to call (TURBO_DEMO_SERVER; default http://127.0.0.1:8081)
   --model   a served model name the page offers; repeat for more
-            (TURBO_DEMO_MODELS, comma-separated); more can be added on the page";
+            (TURBO_DEMO_MODELS, comma-separated); without any, the page offers
+            the bundles the server's Capabilities call lists; more can be
+            added on the page";
 
 #[derive(Debug, PartialEq, Eq)]
 struct Args {

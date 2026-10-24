@@ -13,7 +13,9 @@
 //! `UnicodeScript.of`.
 
 pub mod code_point;
+mod strings;
 mod word_classes;
+pub use strings::is_blank;
 
 use crate::ascii::push_lowercase_run;
 use crate::category::{GeneralCategory, general_category};
@@ -148,6 +150,9 @@ pub fn to_lowercase(text: &str, out: &mut String) {
         i += c.len_utf8();
     }
 }
+
+mod borrowed_lowercase;
+pub use borrowed_lowercase::lowercase_cow;
 
 /// What `String.toLowerCase(Locale.ROOT)` writes for one character.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
