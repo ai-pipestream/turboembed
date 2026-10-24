@@ -1,6 +1,6 @@
 use turbovec::TurboQuantIndex;
 
-use super::{CALIBRATION_ROWS, TurboQuant};
+use super::{CALIBRATION_ROWS, QuantizedSearch, TurboQuant};
 use crate::rows::{self, Block};
 use crate::{Hit, IndexError, Metric, Space, Which};
 
@@ -15,7 +15,7 @@ pub struct QuantizedIndex<M> {
     pub(super) metric: Metric,
     pub(super) config: TurboQuant,
     pub(super) codes: TurboQuantIndex,
-    pub(super) exhaustive: std::sync::OnceLock<Vec<TurboQuantIndex>>,
+    pub(super) exhaustive: std::sync::OnceLock<Result<Vec<TurboQuantIndex>, IndexError>>,
     pub(super) meta: Vec<M>,
     /// The factor every row was multiplied by before coding.
     pub(super) scale: f64,
@@ -66,7 +66,12 @@ impl<M> QuantizedIndex<M> {
             codes.calibrate(&sample).map_err(refused)?;
         }
         codes.add_2d(&flat, dim).map_err(refused)?;
-        codes.prepare();
+        // Large exhaustive queries prepare only their shards. Preparing
+        // the original SIMD cache too would retain an unused second cache.
+        // A staged query, score() or .tv export can initialize it on demand.
+        if n < 32_768 || config.bits == 3 {
+            codes.prepare();
+        }
         Ok(QuantizedIndex { space, metric, config, codes, exhaustive: std::sync::OnceLock::new(), meta, scale })
     }
 
@@ -120,16 +125,42 @@ impl<M> QuantizedIndex<M> {
     /// scan of estimated scores, avoiding the sign shortlist's recall
     /// loss. This is exact over quantized estimates, not original vectors.
     pub fn top_k(&self, space: &Space, query: &[f32], k: usize) -> Result<Vec<Hit>, IndexError> {
+        self.top_k_with_search(space, query, k, QuantizedSearch::Exhaustive)
+    }
+
+    /// [`Self::top_k`] with explicit candidate selection. Staged search
+    /// keeps the earlier latency/recall tradeoff available to callers.
+    /// This choice does not change either serialization format.
+    pub fn top_k_with_search(
+        &self,
+        space: &Space,
+        query: &[f32],
+        k: usize,
+        search: QuantizedSearch,
+    ) -> Result<Vec<Hit>, IndexError> {
         if query.len() != self.space.dim as usize {
             return Err(IndexError::Dimension { index: self.space.dim, other: query.len() });
         }
-        Ok(self.top_k_batch(space, query, k)?.pop().unwrap_or_default())
+        Ok(self.top_k_batch_with_search(space, query, k, search)?.pop().unwrap_or_default())
     }
 
     /// [`QuantizedIndex::top_k`] for each query of `queries`, `space.dim`
     /// values a query one after another. Any query refused refuses the
     /// batch.
     pub fn top_k_batch(&self, space: &Space, queries: &[f32], k: usize) -> Result<Vec<Vec<Hit>>, IndexError> {
+        self.top_k_batch_with_search(space, queries, k, QuantizedSearch::Exhaustive)
+    }
+
+    /// [`Self::top_k_batch`] with explicit candidate selection for every
+    /// query. Exhaustive shards are initialized once, only when needed;
+    /// switching modes can retain both original and shard SIMD caches.
+    pub fn top_k_batch_with_search(
+        &self,
+        space: &Space,
+        queries: &[f32],
+        k: usize,
+        search: QuantizedSearch,
+    ) -> Result<Vec<Vec<Hit>>, IndexError> {
         let dim = self.space.dim as usize;
         if !queries.len().is_multiple_of(dim) || queries.is_empty() {
             return Err(IndexError::Dimension { index: self.space.dim, other: queries.len() });
@@ -139,7 +170,7 @@ impl<M> QuantizedIndex<M> {
         if k == 0 || self.is_empty() {
             return Ok(vec![Vec::new(); nq]);
         }
-        if self.len() >= 32_768 && self.config.bits != 3 {
+        if search == QuantizedSearch::Exhaustive && self.len() >= 32_768 && self.config.bits != 3 {
             return self.full_scan(&qs, &lengths, k);
         }
         let found = self.codes.try_search_with_mask(&qs, k, None).map_err(refused)?;
@@ -186,30 +217,31 @@ impl<M> QuantizedIndex<M> {
     }
 
     fn exhaustive_parts(&self) -> Result<&[TurboQuantIndex], IndexError> {
-        if self.exhaustive.get().is_none() {
-            let stride = self.config.bits as usize * self.space.dim as usize / 8;
-            let mut parts = Vec::new();
-            for base in (0..self.len()).step_by(16_384) {
-                let end = (base + 16_384).min(self.len());
-                let codes = self.codes.packed_codes()[base * stride..end * stride].to_vec();
-                let scales = self.codes.scales()[base..end].to_vec();
-                let part = TurboQuantIndex::from_parts(
-                    Some(self.space.dim as usize),
-                    self.config.bits as usize,
-                    end - base,
-                    codes,
-                    scales,
-                    self.codes.tqplus_shift().to_vec(),
-                    self.codes.tqplus_scale().to_vec(),
-                )
-                .map_err(refused)?;
-                part.prepare();
-                parts.push(part);
-            }
-            // A concurrent first query may have installed the same shards.
-            let _ = self.exhaustive.set(parts);
-        }
-        Ok(self.exhaustive.get().expect("shards installed"))
+        self.exhaustive
+            .get_or_init(|| {
+                let stride = self.config.bits as usize * self.space.dim as usize / 8;
+                let mut parts = Vec::new();
+                for base in (0..self.len()).step_by(16_384) {
+                    let end = (base + 16_384).min(self.len());
+                    let codes = self.codes.packed_codes()[base * stride..end * stride].to_vec();
+                    let scales = self.codes.scales()[base..end].to_vec();
+                    let part = TurboQuantIndex::from_parts(
+                        Some(self.space.dim as usize),
+                        self.config.bits as usize,
+                        end - base,
+                        codes,
+                        scales,
+                        self.codes.tqplus_shift().to_vec(),
+                        self.codes.tqplus_scale().to_vec(),
+                    )
+                    .map_err(refused)?;
+                    part.prepare();
+                    parts.push(part);
+                }
+                Ok(parts)
+            })
+            .as_deref()
+            .map_err(Clone::clone)
     }
 
     /// A turbovec score of a unit query of length `length` against rows

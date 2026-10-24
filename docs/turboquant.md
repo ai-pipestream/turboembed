@@ -116,18 +116,34 @@ This image does not include an integrity checksum; content-address it in
 storage when corruption detection is required.
 
 For indexes of at least 32,768 rows, 2- and 4-bit `top_k` and `top_k_batch`
-now merge the top results of every shard of at most 16,384 rows. Each shard
+default to merging the top results of every shard of at most 16,384 rows. Each shard
 is below the dependency's sign-shortlist threshold. The union of their
 local top k contains the global top k of the estimated scores. This avoids
 additional recall loss from staging; quantization error remains. Three-bit
-search already scans all codes and is unchanged.
+search already scans all codes and is unchanged. Callers can explicitly
+choose the pinned kernel's faster sign shortlist with
+`top_k_with_search(space, query, k, QuantizedSearch::Staged)` or
+`top_k_batch_with_search(space, queries, k, QuantizedSearch::Staged)`.
+`QuantizedSearch::Exhaustive` selects the default behavior explicitly.
+Staging may miss high-scoring rows; choose it using measured application
+recall and latency. Below the threshold, and at 3 bits, either choice
+scans all codes. Kernel environment settings still apply to the staged
+path. Candidate selection is a query option, not a stored-code setting:
+it changes neither `.tv` nor `TQPACK01`, and can be chosen after loading.
 
-The shards and their SIMD caches are built on the first large search and
-retained for later queries through `OnceLock`. This adds cold-start work
-and resident code/cache copies. Compact bytes are a storage-size measure,
-not a resident-memory claim. Concurrent first queries may briefly build
-duplicate shard sets before one is retained. No environment variable is
-changed inside the library. The dependency's streaming scan and per-range
+The shards and their SIMD caches are built once on the first large
+exhaustive search and retained for later queries through `OnceLock`.
+Concurrent first queries wait for the same initialization, including its
+result, instead of building duplicate shard sets. A staged-only index
+never builds exhaustive shards. Large 2/4-bit construction does not
+prepare the original SIMD search cache; an exhaustive-only query workload
+prepares the shards instead. The original packed codes and scales remain
+resident for serialization and caller choice. A staged query, `score`, or
+`.tv` export can also initialize the original cache, and switching modes
+can retain both original and shard caches. This adds cold-start work and
+resident code/cache copies. Compact bytes are a storage-size measure,
+not a resident-memory claim. No environment variable is changed inside
+the library. The dependency's streaming scan and per-range
 stored-row conversion could not be used: real 32,769-row tests found
 out-of-bounds panics in their planes-cache slicing. The shard path uses the
 whole packed representation, which passes those tests.
@@ -137,6 +153,10 @@ provenance and MIT notice in `analysis/vector-index/tests/data/README.md`.
 They cover round-trip scores with and without calibration, preserved dot
 scaling, empty indexes, malformed images, compact-width size differences,
 and a 32,769-row index compared to a full sort of all quantized estimates.
+Unique winning query rows placed at positions 16,391 and 32,768 check
+second/third-shard offsets in single, batch and concurrent first queries.
+The explicit staged option is checked against the pinned kernel and both
+serialized representations remain byte-identical after either query mode.
 The large case repeats real vectors to cross the staging threshold; it is
 not a benchmark corpus or evidence of application recall.
 
@@ -203,7 +223,8 @@ FAISS SQ8 gives higher recall at higher storage cost. SQ4 has lower recall
 than TurboQuant 4-bit on Potion, but higher recall on the random set
 (0.853 versus 0.818). TurboQuant 4-bit no longer incurs the earlier
 shortlist loss (0.547): the default now reaches the full-scan 0.818 result.
-The faster staged latency from the historical table is not retained.
+The staged path remains available through `QuantizedSearch::Staged`;
+the historical timing figures are not new measurements of that option.
 
 Reproduce the dumps with `quant_bench`: Potion uses query stride 100;
 `random:1000000:256` uses stride 10000; k is 10. Pass an output directory

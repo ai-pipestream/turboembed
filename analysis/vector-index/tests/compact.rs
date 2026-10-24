@@ -122,3 +122,93 @@ fn compact_dot_scores_keep_the_original_vector_scale_and_empty_space() {
     let loaded = QuantizedIndex::<()>::from_compact_bytes(&empty.to_compact_bytes(), vec![]).unwrap();
     assert!(loaded.top_k(&space(), &source[19], 10).unwrap().is_empty());
 }
+
+#[test]
+fn caller_choice_keeps_native_staging_and_both_storage_formats() {
+    use turbo_vector_index::QuantizedSearch::{Exhaustive, Staged};
+    for bits in [2, 3, 4] {
+        let index = index(bits, false, 32_769);
+        let tv = index.to_bytes();
+        let compact = index.to_compact_bytes();
+        let native = turbovec::TurboQuantIndex::from_bytes(&tv).unwrap();
+        let queries = rows();
+        let queries = &queries[..3];
+        let flat: Vec<f32> = queries.iter().flatten().copied().collect();
+        let staged = index.top_k_batch_with_search(&space(), &flat, 10, Staged).unwrap();
+        for (q, actual) in queries.iter().zip(&staged) {
+            let norm = q.iter().map(|&x| f64::from(x).powi(2)).sum::<f64>().sqrt();
+            let normalized: Vec<f32> = q.iter().map(|&x| (f64::from(x) / norm) as f32).collect();
+            let expected = native.try_search(&normalized, 10).unwrap();
+            assert_eq!(actual.iter().map(|h| i64::from(h.row)).collect::<Vec<_>>(), expected.indices);
+            assert_eq!(*actual, index.top_k_with_search(&space(), q, 10, Staged).unwrap());
+            assert_eq!(
+                index.top_k(&space(), q, 10).unwrap(),
+                index.top_k_with_search(&space(), q, 10, Exhaustive).unwrap()
+            );
+            for mode in [Staged, Exhaustive] {
+                assert!(index.top_k_with_search(&space(), &q[..255], 10, mode).is_err());
+                assert!(index.top_k_with_search(&space(), q, 0, mode).unwrap().is_empty());
+            }
+        }
+        assert_eq!(index.to_bytes(), tv);
+        assert_eq!(index.to_compact_bytes(), compact);
+        let loaded = QuantizedIndex::from_compact_bytes(&compact, (0..index.len()).collect::<Vec<_>>()).unwrap();
+        assert_eq!(loaded.top_k_batch_with_search(&space(), &flat, 10, Staged).unwrap(), staged);
+        assert_eq!(loaded.top_k_batch(&space(), &flat, 10).unwrap(), index.top_k_batch(&space(), &flat, 10).unwrap());
+    }
+}
+
+#[test]
+fn exhaustive_hits_keep_offsets_in_the_second_and_third_shards_under_concurrent_first_queries() {
+    let source = rows();
+    let positions = [(16_391, 17), (32_768, 72)];
+    for bits in [2, 4] {
+        let mut builder = IndexBuilder::new(space(), Metric::Cosine).unwrap();
+        for i in 0..32_769 {
+            // The query rows occur only at their late positions. Other
+            // genuine model rows repeat only to cross the shard boundaries.
+            let row = positions.iter().find(|p| p.0 == i).map_or_else(
+                || {
+                    let mut row = i % source.len();
+                    while positions.iter().any(|p| p.1 == row) {
+                        row = (row + 1) % source.len();
+                    }
+                    row
+                },
+                |p| p.1,
+            );
+            builder.push(&source[row], i).unwrap();
+        }
+        let index = builder.build_quantized(TurboQuant::new(bits, false).unwrap()).unwrap();
+        let raw = turbovec::TurboQuantIndex::from_bytes(&index.to_bytes()).unwrap();
+        let expected: Vec<Vec<u32>> = positions
+            .iter()
+            .map(|&(position, row)| {
+                let q = &source[row];
+                let norm = q.iter().map(|&x| f64::from(x).powi(2)).sum::<f64>().sqrt();
+                let q: Vec<f32> = q.iter().map(|&x| (f64::from(x) / norm) as f32).collect();
+                let all = raw.try_search(&q, raw.len()).unwrap();
+                let mut all: Vec<_> = all.indices.into_iter().zip(all.scores).collect();
+                all.sort_by(|(ai, a), (bi, b)| b.total_cmp(a).then(ai.cmp(bi)));
+                assert_eq!(all[0].0 as usize, position, "real query row must uniquely win in its late shard");
+                all[..10].iter().map(|h| h.0 as u32).collect()
+            })
+            .collect();
+        let actual = std::thread::scope(|scope| {
+            let handles: Vec<_> = positions
+                .iter()
+                .map(|&(_, row)| {
+                    let index = &index;
+                    let source = &source;
+                    scope.spawn(move || index.top_k(&space(), &source[row], 10).unwrap())
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect::<Vec<_>>()
+        });
+        for (actual, expected) in actual.iter().zip(&expected) {
+            assert_eq!(actual.iter().map(|h| h.row).collect::<Vec<_>>(), *expected);
+        }
+        let flat: Vec<f32> = positions.iter().flat_map(|p| source[p.1].iter().copied()).collect();
+        assert_eq!(index.top_k_batch(&space(), &flat, 10).unwrap(), actual);
+    }
+}
