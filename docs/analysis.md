@@ -1738,22 +1738,28 @@ The JSON reader limits files to 16 MiB, nesting to 32, and object members
 to 64. Duplicate keys and unpaired surrogate escapes refuse. It adds no
 crate dependencies. Dependency-tree rules remain outside this reader.
 
-The [oracle fixtures](../analysis/matcher/tests/data/README.md) compare
+The optional local [oracle fixture](../analysis/matcher/tests/data/README.md) compares
 2,580 exact labelled token spans over 31 original EWT sentences (485
 tokens), using spaCy 3.8.7 in the pinned reference container. They include
 Explosion's unchanged 118-rule published drug-pattern file and additional
-operator rules, with original UTF-8 byte spans checked in Rust. A pipeline
+operator rules, with original UTF-8 byte spans checked in Rust. The EWT
+corpus and generated JSON remain outside the committed tree because their
+licence is CC BY-SA 4.0. Set `TURBO_SPACY_ORACLE` to the generated file and
+`TURBO_TEST_REQUIRE_SPACY_ORACLE=1` to require the external comparison. A pipeline
 test checks morphology matches and their source offsets; malformed files,
 Unicode edit distance, missing layers, and alignment errors are tested.
 
-The existing-path timing receipt uses `token_bench` on the complete EWT
+The historical [existing-path timing receipt](../analysis/matcher/reference/existing-path-timing.json)
+uses `token_bench` on the complete EWT
 r2.16 train file: 204,577 tokens, 51,765 identical hits. On an AMD Ryzen 9
 9950X3D, release builds of main `0edf2f35` and this change were run on the
 same CPU core in twelve alternating-order pairs, fifteen iterations per
 process after one warmup. Median of process medians: main 16.149 ms,
 changed 11.084 ms (ratio 0.686). No slowdown was observed on this exact,
 set-membership and bounded-repeat workload. This is not a performance
-claim for the added fuzzy or morphology predicates.
+claim for the added fuzzy or morphology predicates. The raw process
+medians and reproduction commands are retained with the oracle's README;
+this measurement predates the oracle-storage correction.
 
 ## Term analyzer and per-language normalization profiles (`turbo:terms`, `turbo:stems`)
 

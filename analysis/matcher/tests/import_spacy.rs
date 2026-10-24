@@ -1,5 +1,5 @@
-//! Frozen output from the real spaCy oracle, with original EWT text and
-//! token spans. No tokenizer, POS model, or matcher is replaced by a mock.
+//! Import checks and an optional local oracle over original EWT text.
+mod spacy_oracle;
 use turbo_analysis::{Span, Spans, TagSet, ViewId};
 use turbo_analysis_layers::{MorphFeatures, PosTags, Strs, Tokens};
 use turbo_matcher::{
@@ -7,16 +7,6 @@ use turbo_matcher::{
     spacy::{ImportError, RulePattern, read_pattern, read_rules},
 };
 
-struct Case {
-    text: &'static str,
-    spans: &'static [(u32, u32)],
-    pos: &'static [&'static str],
-    tags: &'static [&'static str],
-    lemmas: &'static [&'static str],
-    morph: &'static [&'static str],
-    hits: &'static [(&'static str, usize, usize)],
-}
-include!("data/spacy_oracle.rs");
 fn strs(values: &[&str]) -> Strs {
     let mut s = Strs::default();
     for value in values {
@@ -27,6 +17,7 @@ fn strs(values: &[&str]) -> Strs {
 
 #[test]
 fn published_rules_and_operators_agree_with_spacy_on_ewt() {
+    let Some(cases) = spacy_oracle::load() else { return };
     let mut matcher = Matcher::new();
     for file in [include_str!("data/drugs_patterns.jsonl"), include_str!("data/operators.jsonl")] {
         for rule in read_rules(file).unwrap() {
@@ -34,19 +25,23 @@ fn published_rules_and_operators_agree_with_spacy_on_ewt() {
         }
     }
     assert_eq!(read_rules(include_str!("data/drugs_patterns.jsonl")).unwrap().len(), 118);
-    assert!(CASES.len() >= 20);
-    for case in CASES {
+    assert_eq!(cases.len(), 31);
+    assert_eq!(cases.iter().map(|c| c.spans.len()).sum::<usize>(), 485);
+    assert_eq!(cases.iter().map(|c| c.hits.len()).sum::<usize>(), 2580);
+    for case in &cases {
         let mut spans = Spans::new(ViewId::SOURCE);
-        for &(a, b) in case.spans {
+        for &(a, b) in &case.spans {
             spans.push(Span::new(a, b));
         }
         let tokens = Tokens { spans, sentence: None };
-        let tagset = TagSet::new("upos", case.pos);
+        let pos_names: Vec<&str> = case.pos.iter().map(String::as_str).collect();
+        let tagset = TagSet::new("upos", &pos_names);
         let pos = PosTags { tags: case.pos.iter().map(|s| tagset.tag(s).unwrap()).collect(), tagset, prob: None };
-        let tags = strs(case.tags);
-        let lemmas = strs(case.lemmas);
-        let morph = MorphFeatures::new(strs(case.morph));
-        let input = Input::new(case.text, &tokens)
+        let column = |v: &[String]| strs(&v.iter().map(String::as_str).collect::<Vec<_>>());
+        let tags = column(&case.tags);
+        let lemmas = column(&case.lemmas);
+        let morph = MorphFeatures::new(column(&case.morph));
+        let input = Input::new(&case.text, &tokens)
             .unwrap()
             .with_pos(&pos)
             .unwrap()
@@ -64,7 +59,7 @@ fn published_rules_and_operators_agree_with_spacy_on_ewt() {
                 let span = input.span(h.tokens);
                 assert_eq!(span.start, case.spans[h.tokens.start.get()].0);
                 assert_eq!(span.end, case.spans[h.tokens.end.get() - 1].1);
-                (matcher.label_name(h.label), h.tokens.start.get(), h.tokens.end.get())
+                (matcher.label_name(h.label).to_owned(), h.tokens.start.get(), h.tokens.end.get())
             })
             .collect();
         hits.sort_unstable();
