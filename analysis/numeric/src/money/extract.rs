@@ -17,7 +17,8 @@ use turbo_unicode::category::general_category;
 use super::tables::{DEFAULT_SYMBOLS, MAX_CURRENCY_WORD_UNITS, currency_word, is_iso_currency};
 use crate::scan::{
     EXTENDED_START_BYTES, ScanResult, base_char_before, boundary_after, boundary_before, byte_at, char_at,
-    continues_number_with_parity, is_nd_lead_byte, parse_with_parity, sign_boundary_before, whitespace_at, word_end,
+    continues_number_with_parity, is_nd_at, parse_with_parity, sign_boundary_before, utf8_char_width, whitespace_at,
+    word_end,
 };
 
 /// Writes `turbo:money` over a text view: every amount written with a
@@ -174,7 +175,7 @@ impl MoneyExtractor {
                     });
                     i = found.end;
                 }
-                None => i += char_at(text, i).map_or(1, char::len_utf8),
+                None => i += utf8_char_width(b[i]),
             }
         }
     }
@@ -200,10 +201,7 @@ impl MoneyExtractor {
             return Some(found);
         }
         let boundary = if negative { sign_boundary_before(text, start) } else { boundary_before(text, i) };
-        let is_digit = byte_at(b, i).is_ascii_digit()
-            || (!self.opennlp_parity
-                && is_nd_lead_byte(byte_at(b, i))
-                && char_at(text, i).is_some_and(turbo_unicode::java::is_digit));
+        let is_digit = byte_at(b, i).is_ascii_digit() || (!self.opennlp_parity && is_nd_at(text, i));
         if is_digit && !continues_number_with_parity(text, i, self.notation, self.opennlp_parity) && boundary {
             return self.number_first(text, i, negative, digits);
         }

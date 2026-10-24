@@ -6,8 +6,8 @@ use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{NumberMention, NumberNotation, Numbers};
 
 use crate::scan::{
-    EXTENDED_START_BYTES, boundary_before, char_at, continues_number_with_parity, is_nd_lead_byte, parse_with_parity,
-    sign_boundary_before,
+    boundary_before, continues_number_with_parity, is_nd_at, next_candidate_pos, parse_with_parity,
+    sign_boundary_before, utf8_char_width,
 };
 
 /// Writes `turbo:numbers` over a text view.
@@ -84,22 +84,14 @@ impl NumberScanner {
         // One buffer for the digits of every number in the text.
         let mut digits = String::new();
         let mut i = 0;
-        while i < b.len() {
-            let next_pos = if self.opennlp_parity {
-                b[i..].iter().position(|&x| x == b'-' || x.is_ascii_digit())
-            } else {
-                b[i..].iter().position(|&x| EXTENDED_START_BYTES[usize::from(x)])
-            };
-            match next_pos {
-                Some(skip) => i += skip,
-                None => break,
-            }
+        while let Some(pos) = next_candidate_pos(text, i, self.opennlp_parity) {
+            i = pos;
             let matched = self
                 .match_at(text, i, self.notation, &mut digits, out)
                 .or_else(|| fallback.and_then(|alt| self.match_at(text, i, alt, &mut digits, out)));
             match matched {
                 Some(end) => i = end,
-                None => i += if b[i].is_ascii() { 1 } else { char_at(text, i).map_or(1, char::len_utf8) },
+                None => i += utf8_char_width(b[i]),
             }
         }
     }
@@ -120,9 +112,7 @@ impl NumberScanner {
         let negative = b[start] == b'-';
         let first = start + usize::from(negative);
         let is_digit = b.get(first).is_some_and(u8::is_ascii_digit)
-            || (!self.opennlp_parity
-                && b.get(first).is_some_and(|&x| is_nd_lead_byte(x))
-                && char_at(text, first).is_some_and(turbo_unicode::java::is_digit));
+            || (!self.opennlp_parity && is_nd_at(text, first));
         if !is_digit || continues_number_with_parity(text, first, notation, self.opennlp_parity) {
             return None;
         }

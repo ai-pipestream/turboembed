@@ -43,11 +43,81 @@ pub(crate) static EXTENDED_START_BYTES: [bool; 256] = {
     table
 };
 
-/// Whether byte `x` is one of the 8 UTF-8 lead bytes that can start a
-/// non-ASCII Unicode `Nd` decimal digit (`0xD9, 0xDB, 0xDF, 0xE0, 0xE1, 0xEA, 0xEF, 0xF0`).
+/// Finds the next byte offset `>= start` that can open a number candidate:
+/// ASCII `'-'`, ASCII `'0'..='9'`, or (when `!opennlp_parity`) a non-ASCII
+/// Unicode `Nd` decimal digit.
 #[inline]
-pub(crate) fn is_nd_lead_byte(x: u8) -> bool {
-    matches!(x, 0xD9 | 0xDB | 0xDF | 0xE0 | 0xE1 | 0xEA | 0xEF | 0xF0)
+pub(crate) fn next_candidate_pos(text: &str, start: usize, opennlp_parity: bool) -> Option<usize> {
+    let b = text.as_bytes();
+    if opennlp_parity {
+        return b[start..].iter().position(|&x| x == b'-' || x.is_ascii_digit()).map(|s| start + s);
+    }
+    let mut i = start;
+    while i < b.len() {
+        let b0 = b[i];
+        if EXTENDED_START_BYTES[usize::from(b0)] {
+            if b0 < 0x80 || is_nd_at(text, i) {
+                return Some(i);
+            }
+            i += utf8_char_width(b0);
+        } else {
+            i += 1;
+        }
+    }
+    None
+}
+
+/// UTF-8 byte length of the character starting with lead byte `b0`.
+#[inline]
+pub(crate) fn utf8_char_width(b0: u8) -> usize {
+    if b0 < 0x80 {
+        1
+    } else if b0 < 0xE0 {
+        2
+    } else if b0 < 0xF0 {
+        3
+    } else {
+        4
+    }
+}
+
+/// Whether `text` has a non-ASCII Unicode `Nd` decimal digit at byte `pos`.
+///
+/// Checks the UTF-8 lead and continuation bytes before touching the Unicode
+/// category trie so non-digit Devanagari, Thai, CJK punctuation, and emoji
+/// sequences starting with `0xE0`, `0xE1`, `0xEA`, `0xEF`, or `0xF0` are
+/// rejected in 1-2 byte comparisons.
+#[inline]
+pub(crate) fn is_nd_at(text: &str, pos: usize) -> bool {
+    let b = text.as_bytes();
+    let Some(&b0) = b.get(pos) else { return false };
+    match b0 {
+        0xD9 => b.get(pos + 1).is_some_and(|&b1| (0xA0..=0xA9).contains(&b1)),
+        0xDB => b.get(pos + 1).is_some_and(|&b1| (0xB0..=0xB9).contains(&b1)),
+        0xDF => b.get(pos + 1).is_some_and(|&b1| (0x80..=0x89).contains(&b1)),
+        0xEF => b.get(pos + 1..pos + 3).is_some_and(|s| s[0] == 0xBC && (0x90..=0x99).contains(&s[1])),
+        0xE0 => b.get(pos + 1..pos + 3).is_some_and(|s| {
+            let (b1, b2) = (s[0], s[1]);
+            ((0xA5..=0xB7).contains(&b1) && (b1 & 1 == 1) && (0xA6..=0xAF).contains(&b2))
+                || (matches!(b1, 0xB9 | 0xBB) && (0x90..=0x99).contains(&b2))
+                || (b1 == 0xBC && (0xA0..=0xA9).contains(&b2))
+        }),
+        0xE1 => {
+            b.get(pos + 1)
+                .is_some_and(|&b1| matches!(b1, 0x81 | 0x82 | 0x9F | 0xA0 | 0xA5 | 0xA7 | 0xAA | 0xAD | 0xAE | 0xB1))
+                && char_at(text, pos).is_some_and(java::is_digit)
+        }
+        0xEA => {
+            b.get(pos + 1).is_some_and(|&b1| matches!(b1, 0x98 | 0xA3 | 0xA4 | 0xA7 | 0xA9 | 0xAF))
+                && char_at(text, pos).is_some_and(java::is_digit)
+        }
+        0xF0 => {
+            b.get(pos + 1..pos + 3).is_some_and(|s| {
+                matches!(s[0], 0x90 | 0x91 | 0x96 | 0x9C | 0x9D | 0x9E) || (s[0] == 0x9F && s[1] == 0xAF)
+            }) && char_at(text, pos).is_some_and(java::is_digit)
+        }
+        _ => false,
+    }
 }
 
 /// Whether `c` is an alternative 3-digit group separator (thin/no-break space,

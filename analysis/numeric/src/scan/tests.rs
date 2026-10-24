@@ -242,3 +242,12 @@ fn whitespace_past_the_end() {
     assert!(whitespace_at("5\u{2009}", 1));
     assert!(!whitespace_at("5x", 1));
 }
+
+#[test]
+fn non_ascii_nd_byte_prefilter_matches_unicode_table() {
+    let mut buf = [0u8; 4];
+    for c in (0x80..=0x10_FFFF).filter_map(char::from_u32) {
+        let s = c.encode_utf8(&mut buf);
+        assert_eq!(is_nd_at(s, 0), turbo_unicode::java::is_digit(c), "U+{:04X}", c as u32);
+    }
+}

@@ -17,8 +17,8 @@ use turbo_unicode::java;
 
 use crate::money::MoneyExtractor;
 use crate::scan::{
-    EXTENDED_START_BYTES, boundary_after, boundary_before, byte_at, char_at, continues_number_with_parity,
-    is_nd_lead_byte, parse_with_parity, sign_boundary_before, whitespace_at, word_end,
+    boundary_after, boundary_before, byte_at, char_at, continues_number_with_parity, is_nd_at, next_candidate_pos,
+    parse_with_parity, sign_boundary_before, utf8_char_width, whitespace_at, word_end,
 };
 
 /// The units OpenNLP's extractor knows unless a caller gives its own set:
@@ -196,16 +196,8 @@ impl QuantityExtractor {
         let mut digits = String::new();
         let mut amount = 0;
         let mut i = 0;
-        while i < b.len() {
-            let next_pos = if self.opennlp_parity {
-                b[i..].iter().position(|&x| x == b'-' || x.is_ascii_digit())
-            } else {
-                b[i..].iter().position(|&x| EXTENDED_START_BYTES[usize::from(x)])
-            };
-            match next_pos {
-                Some(skip) => i += skip,
-                None => break,
-            }
+        while let Some(pos) = next_candidate_pos(text, i, self.opennlp_parity) {
+            i = pos;
             while amount < money_start.len() && money_end[amount] as usize <= i {
                 amount += 1;
             }
@@ -217,7 +209,7 @@ impl QuantityExtractor {
                 fallback.filter(|alt| alt.notation != self.notation).and_then(|alt| alt.match_at(text, i, &mut digits))
             });
             let Some(found) = found else {
-                i += if b[i].is_ascii() { 1 } else { char_at(text, i).map_or(1, char::len_utf8) };
+                i += utf8_char_width(b[i]);
                 continue;
             };
             if amount == money_start.len() || found.end <= money_start[amount] as usize {
@@ -246,10 +238,7 @@ impl QuantityExtractor {
         let b = text.as_bytes();
         let negative = b[start] == b'-';
         let first = start + usize::from(negative);
-        let is_digit = byte_at(b, first).is_ascii_digit()
-            || (!self.opennlp_parity
-                && is_nd_lead_byte(byte_at(b, first))
-                && char_at(text, first).is_some_and(java::is_digit));
+        let is_digit = byte_at(b, first).is_ascii_digit() || (!self.opennlp_parity && is_nd_at(text, first));
         if !is_digit || continues_number_with_parity(text, first, self.notation, self.opennlp_parity) {
             return None;
         }

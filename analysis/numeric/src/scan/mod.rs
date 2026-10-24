@@ -14,7 +14,7 @@
 
 mod extended;
 
-pub(crate) use extended::{EXTENDED_START_BYTES, is_nd_lead_byte};
+pub(crate) use extended::{EXTENDED_START_BYTES, is_nd_at, next_candidate_pos, utf8_char_width};
 use turbo_analysis_layers::{Multiplier, NumberNotation, ScaleMarker};
 use turbo_unicode::GeneralCategory::{Ll, Lm, Lo, Lt, Lu, Mc, Me, Mn, Nd, Nl, No, Pc, Sc};
 use turbo_unicode::WhitespaceMode;
@@ -181,8 +181,7 @@ pub fn parse_with_parity(
             if (next == group || next == decimal || unsupported_separator(next))
                 && (byte_at(b, i + next.len_utf8()).is_ascii_digit()
                     || exponent_at(b, i + next.len_utf8())
-                    || (is_nd_lead_byte(byte_at(b, i + next.len_utf8()))
-                        && char_at(text, i + next.len_utf8()).is_some_and(java::is_digit)))
+                    || is_nd_at(text, i + next.len_utf8()))
             {
                 return None;
             }
