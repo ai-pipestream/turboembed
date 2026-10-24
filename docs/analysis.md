@@ -3098,6 +3098,11 @@ writes from the samples; the generator loads it in the JVM
 (`langdetect/langdetect-fixture-rust`) for
 `analysis/langdetect/tests/fixture.rs` (docs/langdetect.md, "Training").
 
+The [full MASC CRF evaluation](namefinder-crf-evaluation.md) records
+per-type and overall accuracy against matched maxent, published OpenNLP
+1.5 models and the real CPU namefind-dl backend. The full-corpus CRF
+recipe fails its publication gates; no model is published from that run.
+
 The name finder's and the language detector's cross-validators are
 ported as `namefind::cross_validate` (`TokenNameFinderCrossValidator`)
 and `langdetect::cross_validate` (`LanguageDetectorCrossValidator`) in
