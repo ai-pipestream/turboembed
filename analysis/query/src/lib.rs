@@ -353,10 +353,10 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
             // uppercased in place, which keeps every byte offset
             // unchanged.
             let mut owned: Option<String> = None;
-            for i in tok_lo..tok_hi {
-                if lowercase_iso_after_amount(i) {
+            for (off_i, &start) in starts[tok_lo..tok_hi].iter().enumerate() {
+                if lowercase_iso_after_amount(tok_lo + off_i) {
                     let buf = owned.get_or_insert_with(|| sub_text.to_owned());
-                    let at = starts[i] as usize - lo;
+                    let at = start as usize - lo;
                     buf[at..at + 3].make_ascii_uppercase();
                 }
             }
