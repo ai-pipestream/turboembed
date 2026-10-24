@@ -11,9 +11,10 @@ mod infer;
 mod kserve;
 pub mod offsets;
 pub mod results;
-mod state;
+pub mod state;
 pub mod status;
 pub mod stream;
+pub mod tasks;
 
 pub use crate::state::Held;
 
