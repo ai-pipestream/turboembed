@@ -31,6 +31,7 @@ for (let round=0;round<6;round++) {
       });
       const run = JSON.parse(raw), key = `${config.bits}/${config.calibrate}/${mode}`;
       if (run.rows !== prepared.rows || run.queries !== prepared.queries) throw new Error('split changed');
+      if (run.bits!==config.bits || run.calibrate!==config.calibrate || run.mode!==mode || run.ids.length!==prepared.queries*10) throw new Error('wrong configuration or hit count');
       const idsHash = hash(JSON.stringify(run.ids));
       if (!first.has(key)) first.set(key,{ids:run.ids});
       else if (hash(JSON.stringify(first.get(key).ids)) !== idsHash) throw new Error('IDs changed between rounds');
@@ -57,6 +58,9 @@ const agreement = configs.map(config => {
 const files = ['vectors.f32','rows.f32','queries.f32','truth.u32'].map(name=>({file:name,bytes:fs.statSync(path.join(data,name)).size,sha256:hash(fs.readFileSync(path.join(data,name)))}));
 const receipt = {
   measured_commit:commit,binary_sha256:hash(fs.readFileSync(binary)),source,prepared,files,
+  rustc:command('rustc',['--version']),node:process.version,
+  build_command:'cargo build --locked --release -p turbo-vector-index --features turboquant --example quant_search_compare',
+  kernel_environment_overrides:[],
   cpu:os.cpus()[0].model,cpu_core:Number(cpu),threads:1,started_at:start,finished_at:new Date().toISOString(),
   method:'Rust release; six alternating staged/exhaustive rounds per configuration; fresh process per sample; three warm-up single-query and batch passes; median of three passes of individual queries; median of five batch passes; k=10; no concurrent measured sweep',
   memory:'rss_* are whole-process resident bytes from /proc/self/status, including inputs, query scratch, metadata and allocator-retained arenas; fresh processes per policy; not code-only allocation or compact storage sizes',
