@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 
 namespace turbo_hailo {
@@ -33,6 +34,18 @@ constexpr uint16_t BURST = 32;
 
 /* How long a frame may take before the run gives up on the device. */
 constexpr std::chrono::milliseconds FRAME_TIMEOUT{10000};
+
+/* FRAME_TIMEOUT, or TURBO_HAILO_FRAME_TIMEOUT_MS when it is a whole number
+ * of ms, read when a session is made. A test sets 0, so a frame genuinely
+ * does not come back in time on a device that answers, to reach what a
+ * device that stopped answering leaves (core/tests/hailo_release.rs). */
+std::chrono::milliseconds frame_timeout() {
+    const char *v = std::getenv("TURBO_HAILO_FRAME_TIMEOUT_MS");
+    if (!v || *v < '0' || *v > '9') return FRAME_TIMEOUT;
+    char *end = nullptr;
+    const unsigned long ms = std::strtoul(v, &end, 10);
+    return *end ? FRAME_TIMEOUT : std::chrono::milliseconds{ms};
+}
 
 Failure fail(int32_t code, std::string message, uint32_t field = 0) {
     Failure f;
@@ -168,6 +181,7 @@ Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, uint
     s->max_batch_ = max_batch;
     s->max_seq_ = max_seq;
     s->max_ranges_ = max_ranges;
+    s->frame_timeout_ = frame_timeout();
     s->ranges_.reserve(max_ranges);
     s->ids_.resize((size_t)max_batch * max_seq);
     s->mask_.resize((size_t)max_batch * max_seq);
@@ -341,7 +355,7 @@ void Session::put_vector(float *dst) {
 Session::~Session() {
     // Once a frame has not come back, in a run or here, the device is
     // taken as gone and the rest are not waited for.
-    std::chrono::milliseconds timeout = broken_.empty() ? FRAME_TIMEOUT : std::chrono::milliseconds{0};
+    std::chrono::milliseconds timeout = broken_.empty() ? frame_timeout_ : std::chrono::milliseconds{0};
     for (auto &s : slots_) {
         if (!s || !s->busy) continue;
         if (s->job.wait(timeout) == HAILO_SUCCESS) continue;
@@ -369,7 +383,7 @@ Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
     };
     auto finish = [&](Slot &s) {
         if (!s.busy) return;
-        const hailo_status st = s.job.wait(FRAME_TIMEOUT);
+        const hailo_status st = s.job.wait(frame_timeout_);
         if (st != HAILO_SUCCESS) {
             // The device may still own this slot's memory: it stays busy,
             // and the session is not used again.

@@ -16,6 +16,7 @@
 
 #include <hailo/hailort.hpp>
 
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -172,6 +173,9 @@ class Session {
     std::vector<double> sum_;   // one row's pooled values, before the cut and the norm
     std::vector<std::unique_ptr<Slot>> slots_;
     bool written_ = false;
+    /* How long a run, and the release, wait for a frame (frame_timeout,
+     * embed.cpp). */
+    std::chrono::milliseconds frame_timeout_{0};
     /* Set when a frame failed or timed out: the device may still own a
      * slot's memory, so the session runs nothing more. */
     std::string broken_;
