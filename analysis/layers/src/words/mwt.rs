@@ -91,8 +91,18 @@ impl RuleMwtExpander {
                 if surface.len() > 10 {
                     return None;
                 }
-                let lower = surface.to_lowercase();
-                let (w1, w2) = lookup_fusional(lang, &lower)?;
+                // All table forms are Latin. Per-character Unicode lowercase
+                // preserves their matching; contextual Greek sigma cannot match.
+                // If folding exceeds ten bytes it cannot be a table form.
+                let mut lower = [0u8; 10];
+                let mut used = 0;
+                for c in surface.chars().flat_map(char::to_lowercase) {
+                    let end = used + c.len_utf8();
+                    c.encode_utf8(lower.get_mut(used..end)?);
+                    used = end;
+                }
+                let lower = std::str::from_utf8(&lower[..used]).expect("encoded UTF-8");
+                let (w1, w2) = lookup_fusional(lang, lower)?;
                 Some(TokenExpansion::Forms(apply_case(surface, w1, w2)))
             }
         }
@@ -139,13 +149,12 @@ pub enum TokenExpansion {
 
 impl Annotator for RuleMwtExpander {
     const ID: &'static str = "turbo:mwt-expander";
+    const VERSION: &'static str = "2";
     type Reads = (View, Tokens);
     type Writes = (Words,);
 
     fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        if tokens.spans.view() != view.id() {
-            return Err(Error::Annotator { annotator: Self::ID, detail: "tokens are not in the given view".into() });
-        }
+        tokens.check_contiguous_in(view).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         let words = self.expand(view.text(), tokens);
         words.check_against(view.text(), tokens).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         Ok((words,))

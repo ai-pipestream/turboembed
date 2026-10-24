@@ -101,7 +101,7 @@ impl SpanScratch {
 pub struct SpanDetector {
     detector: LanguageDetector,
     settings: Settings,
-    candidates: Candidates,
+    pub(crate) candidates: Candidates,
     languages: Arc<TagSet>,
     undetermined: u16,
 }

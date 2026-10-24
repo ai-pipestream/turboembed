@@ -77,7 +77,7 @@ pub fn written_in(code: &str) -> Option<&'static [Script]> {
 /// be. A language the table does not know is a candidate in every group.
 /// A language left out by the caller (to restrict a detector to the
 /// languages a collection can hold) is a candidate in none.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct Candidates {
     /// Each group the table names with its languages, in outcome order.
     by_group: Vec<(Script, Vec<u32>)>,
@@ -86,6 +86,13 @@ pub struct Candidates {
 }
 
 impl Candidates {
+    pub(crate) fn config_hash(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
     /// The candidates for a model's outcome `codes`, in outcome order,
     /// keeping the codes `keep` accepts.
     pub fn new<'a>(codes: impl Iterator<Item = &'a str>, keep: impl Fn(&str) -> bool) -> Candidates {
