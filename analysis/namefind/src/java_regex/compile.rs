@@ -8,6 +8,7 @@ use super::MAX_INSTS;
 pub(super) enum Assertion {
     StartText,
     EndText,
+    EndOrFinalTerminator,
     AsciiWordBoundary,
     AsciiNonWordBoundary,
 }
