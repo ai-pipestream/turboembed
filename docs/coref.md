@@ -145,3 +145,30 @@ and resolves all held-out chains (`CoNLL F1 = 1.0000` vs `0.7222`).
 `CorefAnnotatorTest`, `CorefTrainerTest` and `CorefScorerTest`, and
 adds an analyzer run (`pipeline.rs`), document graph round trips
 (`graph_export.rs`) and word2vec training (`word2vec.rs`, `word2vec_limits.rs`).
+
+## Quotations
+
+`QuotationAnnotator` (`turbo:quotation_annotator`) writes `Quotations`
+(`turbo:quotations`, in `turbo-analysis-layers`): each quoted or reported
+statement with its content span, speaker span, reporting verb span, the
+row of the `Groups<Mentions>` chain the speaker belongs to, its kind
+(`Direct`, `Indirect` or `Mixed`) and a confidence. It needs `Tokens`;
+`Dependencies`, `Mentions` and `Groups<Mentions>` are used when present.
+Quote scanning is shared with the speaker sieve.
+
+| Sieve | Finds | Confidence |
+| --- | --- | --- |
+| dependencies | a verb of speech outside quotes with an arc into the quote; its `nsubj` is the speaker | 0.9 |
+| `ccomp` | indirect speech, or mixed when the complement quotes part of itself | 0.8, 0.7 |
+| surface | a verb of speech up to 3 tokens after the closing mark or before the opening one | 0.75 |
+| dialog | an unattributed quote after quotes of two chains takes the chain before last | 0.5 |
+| none | a quote with no attribution | 0.3 |
+
+A cue after a quote that ends a sentence and leads into the next quote
+(`"Hi." Bob said, "Hello."`) is left to the next quote, and a cue before a
+quote with a sentence end between them is not used.
+
+`analysis/coref/tests/quotation_eval.rs` is a small hand-built check, not
+a corpus score: without a parse, 11 of 11 quotes on eight news and dialog
+lines get their gold speaker, and turn alternation gives 4 of 4 dialog
+turns the right chain against 2 of 4 without it.

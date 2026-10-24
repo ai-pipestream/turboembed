@@ -42,6 +42,7 @@ use crate::{
 mod boilerplate;
 mod calibrated;
 mod core_layers;
+mod discourse;
 mod emotion;
 mod helpers;
 mod indexes;
@@ -82,6 +83,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Dependencies<Tokens>>()
         .register::<Dependencies<Words>>()
         .register::<Entities>()
+        .register::<crate::Quotations>()
         .register::<ChunkTags>()
         .register::<PhraseChunks>()
         .register::<Boundaries>()
