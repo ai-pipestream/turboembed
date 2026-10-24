@@ -21,7 +21,7 @@ use tonic::Status;
 
 use crate::api::Failure;
 use crate::proto::result::{AnalyzeOrder, AnalyzeStreamResponse};
-use crate::stream::run::{self, Doc, Outcome, Whole};
+use crate::stream::run::{self, Doc, Outcome, RowPayload, Whole};
 use crate::stream::{BatchKey, Envelope, Room, Shared};
 
 /// The header as the scheduler holds it.
@@ -306,17 +306,19 @@ impl Engine {
         match rows {
             Ok(rows) => {
                 for row in rows {
-                    let vectors = crate::proto::result::AnalyzeVectors {
-                        model: model.clone(),
-                        version: version.clone(),
-                        dim,
-                        data: row.data,
+                    let response = match row.payload {
+                        RowPayload::Vector(data) => {
+                            let vectors = crate::proto::result::AnalyzeVectors {
+                                model: model.clone(),
+                                version: version.clone(),
+                                dim,
+                                data,
+                            };
+                            ok_response(row.id, vectors)
+                        }
+                        RowPayload::Outcome(outcome) => AnalyzeStreamResponse { id: row.id, outcome: Some(*outcome) },
                     };
-                    let pending = Pending {
-                        response: ok_response(row.id, vectors),
-                        room: Some(row.room),
-                        window: Some(row.window),
-                    };
+                    let pending = Pending { response, room: Some(row.room), window: Some(row.window) };
                     if self.enqueue(row.seq, pending, answers).await.is_err() {
                         return Err(());
                     }

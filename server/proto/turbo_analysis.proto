@@ -240,6 +240,11 @@ message SparseTermsResult
   repeated uint32 occ_start = 8;
   repeated uint32 occ_end = 9;
   repeated uint32 occ_at = 10;
+
+  // The view text the spans are offsets into; when empty in
+  // OFFSET_MODE_UTF8, spans are carried as raw UTF-8 byte offsets.
+  string text = 11;
+  OffsetMode offsets = 12;
 }
 
 // One contextual vector per model token with the spans of the encoder
@@ -272,6 +277,11 @@ message TokenVectorsResult
   // piece.
   repeated uint32 window_start = 5;
   repeated uint32 window_end = 6;
+
+  // The view text the windows are offsets into; when empty in
+  // OFFSET_MODE_UTF8, windows are carried as raw UTF-8 byte offsets.
+  string text = 8;
+  OffsetMode offsets = 9;
 }
 
 // The relevance order of a shortlist (#707): the turbo-analysis-embed
@@ -386,10 +396,25 @@ message AnalyzeStreamHeader
   uint32 batch_linger_ms = 3;
 }
 
+// What kind of analysis output one document in AnalyzeStream asks for.
+enum AnalyzeOutput
+{
+  // Pooled document embedding (AnalyzeVectors).
+  ANALYZE_OUTPUT_VECTORS = 0;
+
+  // Learned sparse lexical expansion (SparseTermsResult, #708 / #917).
+  ANALYZE_OUTPUT_SPARSE_TERMS = 1;
+
+  // Per-token contextual vectors with encoder window spans
+  // (TokenVectorsResult, #709 / #917).
+  ANALYZE_OUTPUT_TOKEN_VECTORS = 2;
+}
+
 // The embed options one document asks for: the fields of
 // turbo_embed_options, each 0 for the model's default, exactly what the
-// single-document call's parameters carry. Documents batch together only
-// with documents of the same model and the same options.
+// single-document call's parameters carry, plus optional sparse-term and
+// token-vector knobs. Documents batch together only with documents of the
+// same model, output kind, offset mode, and options.
 message AnalyzeOptions
 {
   // TURBO_TRUNCATE_*.
@@ -409,6 +434,18 @@ message AnalyzeOptions
 
   // One of the widths the capability listing names; 0 is the model's dim.
   uint32 output_dim = 6;
+
+  // Maximum number of non-zero sparse terms kept per document for
+  // ANALYZE_OUTPUT_SPARSE_TERMS; 0 keeps all non-zero terms.
+  uint32 sparse_top_k = 7;
+
+  // Minimum weight threshold for ANALYZE_OUTPUT_SPARSE_TERMS; terms with
+  // weight <= sparse_floor are dropped (must be finite and >= 0).
+  float sparse_floor = 8;
+
+  // Sliding-window stride in subword pieces for
+  // ANALYZE_OUTPUT_TOKEN_VECTORS; 0 uses half the window width.
+  uint32 token_stride = 9;
 }
 
 // One document to analyze: its client correlation id, the served model's
@@ -426,10 +463,18 @@ message AnalyzeDocument
 
   // What to compute; absent is every model default.
   AnalyzeOptions options = 4;
+
+  // Which result kind to compute; 0 is ANALYZE_OUTPUT_VECTORS.
+  AnalyzeOutput output = 5;
+
+  // Wire unit for span offsets on SparseTermsResult and
+  // TokenVectorsResult; 0 is OFFSET_MODE_UTF8.
+  OffsetMode offsets = 6;
 }
 
-// One document's answer, tagged with its correlation id: its vectors, or
-// its failure. A failed document never ends the stream.
+// One document's answer, tagged with its correlation id: its vectors,
+// sparse terms, token vectors, or failure. A failed document never ends
+// the stream.
 message AnalyzeStreamResponse
 {
   // The document's correlation id.
@@ -442,6 +487,12 @@ message AnalyzeStreamResponse
 
     // Why this document failed.
     AnalyzeFailure failure = 3;
+
+    // The document's learned sparse terms (#917).
+    SparseTermsResult sparse_terms = 4;
+
+    // The document's per-token contextual vectors and windows (#917).
+    TokenVectorsResult token_vectors = 5;
   }
 }
 

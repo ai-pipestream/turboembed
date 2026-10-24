@@ -6,7 +6,7 @@ use turbo::status::Error as CoreError;
 use turbo::tokenizer::Encode;
 use turbo::turbo_token_range;
 use turbo_analysis::{Error, Ix, Layer, ModelRef, Span, Spans, ViewId};
-use turbo_analysis_layers::{Sentences, Subwords, Vectors};
+use turbo_analysis_layers::{Sentences, Subwords, TokenVectorWindows, Vectors};
 
 use crate::encoder::normalize;
 use crate::window::{Placed, Target, Which, Window, pieces_of};
@@ -69,6 +69,28 @@ impl ContextualTokens {
     /// Clones the token vectors into a `Vectors<Subwords>` layer.
     pub fn to_subword_vectors(&self) -> Vectors<Subwords> {
         Vectors::new(self.dim, self.data.clone(), Vec::new(), self.model.clone())
+    }
+
+    /// Builds the [`TokenVectorWindows`] byte-span partition for these tokens
+    /// on `view`, grouping consecutive tokens that took their vector from the
+    /// same encoder window into non-overlapping byte spans `[first.start, last.end)`.
+    pub fn to_token_vector_windows(&self, view: ViewId) -> TokenVectorWindows {
+        let mut spans = Spans::new(view);
+        let mut i = 0;
+        while i < self.spans.len() {
+            let w = self.window_indices[i];
+            let start = self.spans[i].start;
+            let mut end = self.spans[i].end;
+            i += 1;
+            while i < self.spans.len() && self.window_indices[i] == w {
+                end = self.spans[i].end;
+                i += 1;
+            }
+            if start < end {
+                spans.push(Span::new(start, end));
+            }
+        }
+        TokenVectorWindows { spans }
     }
 }
 
