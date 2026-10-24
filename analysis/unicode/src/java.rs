@@ -13,8 +13,8 @@
 //! `UnicodeScript.of`.
 
 pub mod code_point;
+mod codepoint_strings;
 mod word_classes;
-
 use crate::ascii::push_lowercase_run;
 use crate::category::{GeneralCategory, general_category};
 use crate::props::bits;
@@ -24,6 +24,9 @@ use crate::tables::case::{
 use crate::tables::category::DECIMAL_ZEROS;
 use crate::tables::props::{HAS_LOWER, HAS_SPECIAL_LOWER, HAS_UPPER};
 use crate::trie::find;
+pub use codepoint_strings::{
+    eq_lowercase_code_points, lowercase_code_points, lowercase_code_points_changes, to_lowercase_code_points,
+};
 
 const CAPITAL_SIGMA: char = '\u{3A3}';
 const FINAL_SIGMA: char = '\u{3C2}';
