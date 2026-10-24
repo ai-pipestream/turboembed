@@ -20,9 +20,23 @@ turbo = { path = "../core" }
 turbo-analysis = { path = "../analysis/core" }
 turbo-analysis-layers = { path = "../analysis/layers" }
 turbo-analysis-embed = { path = "../analysis/embed" }
+turbo-abbrev = { path = "../analysis/abbrev" }
+turbo-chunker = { path = "../analysis/chunker" }
+turbo-coref = { path = "../analysis/coref" }
+turbo-encoding-layers = { path = "../analysis/encoding-layers" }
+turbo-entity-linker = { path = "../analysis/entity-linker" }
+turbo-geo = { path = "../analysis/geo" }
+turbo-gliner = { path = "../analysis/gliner" }
+turbo-glossary-layers = { path = "../analysis/glossary-layers" }
+turbo-group = { path = "../analysis/group" }
+turbo-keywords = { path = "../analysis/keywords" }
+turbo-normalize-layers = { path = "../analysis/normalize-layers" }
+turbo-relation = { path = "../analysis/relation" }
 # The structured records of a schema extraction and the limits its
 # schemas are held to.
 turbo-schema-extract = { path = "../analysis/schema-extract" }
+turbo-stopword-layers = { path = "../analysis/stopword-layers" }
+turbo-tokenize-layers = { path = "../analysis/tokenize-layers" }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
 prost = "0.14"

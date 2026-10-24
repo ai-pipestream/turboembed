@@ -161,6 +161,7 @@ fn foreign_view_layers_are_rejected() {
         cost: vec![0],
         model_tokens: vec![3],
         over_budget: vec![false],
+        prompt_overhead: 0,
     };
     let bad_structure = Structure {
         spans: {

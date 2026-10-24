@@ -146,3 +146,45 @@ fn binary_format_rejects_corrupt_streams() {
     ff_model.serialize(&mut buf).unwrap();
     assert!(FeedforwardPosModel::load(&buf[..buf.len() / 2]).is_err());
 }
+
+#[test]
+fn neural_batches_preserve_sentence_boundaries_and_invalid_document_positions() {
+    let samples = tiny_samples();
+    let settings =
+        BilstmSettings::new(8, 4, 4, 8, 5, 2, 0.02, 5.0, 0.0, 1, 12, 7, 1, 0.0, 0, true, 1, 0.0, 0.0, 1.0, 0.0, false)
+            .unwrap();
+    let model = BilstmPosTrainer::train(&samples, settings).unwrap();
+    let ff = FeedforwardPosTrainer::train(
+        &samples,
+        FeedforwardSettings::new(8, 12, 10, 2, 0.05, 1e-6, 0.0, 1, 1, 7).unwrap(),
+    )
+    .unwrap();
+    let d = Document::new("The cat sat A dog ran");
+    let v = d.get::<View>().unwrap();
+    let t = build_tokens(ViewId::SOURCE, &[(0, 3, 0), (4, 7, 0), (8, 11, 0), (12, 13, 1), (14, 17, 1), (18, 21, 1)]);
+    let short = build_tokens(ViewId::SOURCE, &[(0, 3, 0), (4, 7, 0), (8, 11, 0)]);
+    let empty = build_tokens(ViewId::SOURCE, &[]);
+    let mut bad = build_tokens(ViewId::SOURCE, &[(0, 3, 0), (4, 7, 0)]);
+    bad.sentence = Some(vec![]);
+    macro_rules! check {
+        ($tagger:expr) => {{
+            let tagger = $tagger;
+            let expected = [
+                tagger.annotate((v, &t)).unwrap().0,
+                tagger.annotate((v, &short)).unwrap().0,
+                tagger.annotate((v, &empty)).unwrap().0,
+            ];
+            let mut got = tagger.annotate_batch(vec![(v, &t), (v, &bad), (v, &short), (v, &empty)]);
+            assert!(got.remove(1).is_err());
+            for (got, want) in got.into_iter().zip(expected) {
+                let got = got.unwrap().0;
+                assert_eq!(got.tags, want.tags);
+                assert_eq!(got.prob, want.prob);
+            }
+            assert!(tagger.annotate_batch(Vec::new()).is_empty());
+        }};
+    }
+    check!(BilstmPosTagger::new(model.clone()));
+    check!(BilstmPosTagger::jvm_parity(model));
+    check!(FeedforwardPosTagger::new(ff));
+}

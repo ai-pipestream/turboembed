@@ -8,6 +8,7 @@ use turbo_analysis_embed::Answers;
 
 use super::{MAX_ANSWER_FRAGMENTS, MAX_ANSWERS, Wire, mismatched, model_from_proto, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
+use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::ExtractionResult;
 
 /// The extraction answers unbundled from the layer: one bounding span
@@ -19,6 +20,11 @@ pub struct Extraction {
     pub model: ModelRef,
     /// The text view the spans are offsets into; 0 is the source text.
     pub view: u16,
+    /// The view text the spans are offsets into; empty when `offsets`
+    /// is `OffsetMode::Utf8` and no reference text is carried.
+    pub text: String,
+    /// The wire unit `to_msg` emits.
+    pub offsets: OffsetMode,
     pub spans: Vec<Span>,
     /// The fragments of discontinuous answers, flat in answer order.
     pub fragments: Vec<Span>,
@@ -42,6 +48,8 @@ impl Extraction {
         Extraction {
             model,
             view: a.spans.view().0,
+            text: String::new(),
+            offsets: OffsetMode::Utf8,
             spans: (0..a.len()).map(|i| a.spans.get(turbo_analysis::Ix::new(i as u32))).collect(),
             fragments,
             frag_at,
@@ -50,6 +58,13 @@ impl Extraction {
             null_score: a.null_score,
             null_probability: a.null_probability,
         }
+    }
+
+    /// Attaches reference view text and wire [`OffsetMode`].
+    pub fn with_offsets(mut self, text: impl Into<String>, offsets: OffsetMode) -> Self {
+        self.text = text.into();
+        self.offsets = offsets;
+        self
     }
 
     /// The layout checks that keep the rebuild below from slicing or
@@ -156,22 +171,38 @@ impl Wire for Extraction {
     type Msg = ExtractionResult;
 
     fn to_msg(&self) -> ExtractionResult {
+        let (span_start, span_end, frag_start, frag_end) = if self.text.is_empty() && self.offsets == OffsetMode::Utf8 {
+            (
+                self.spans.iter().map(|s| s.start).collect(),
+                self.spans.iter().map(|s| s.end).collect(),
+                self.fragments.iter().map(|s| s.start).collect(),
+                self.fragments.iter().map(|s| s.end).collect(),
+            )
+        } else {
+            let offsetter = Offsetter::new(&self.text, self.offsets);
+            let (ss, se) = offsetter.spans_to_wire(&self.text, &self.spans);
+            let (fs, fe) = offsetter.spans_to_wire(&self.text, &self.fragments);
+            (ss, se, fs, fe)
+        };
         ExtractionResult {
             model: Some(model_to_proto(&self.model)),
             view: self.view as u32,
-            span_start: self.spans.iter().map(|s| s.start).collect(),
-            span_end: self.spans.iter().map(|s| s.end).collect(),
+            span_start,
+            span_end,
             score: self.scores.clone(),
             probability: self.probabilities.clone(),
             null_score: self.null_score,
             null_probability: self.null_probability,
-            frag_start: self.fragments.iter().map(|s| s.start).collect(),
-            frag_end: self.fragments.iter().map(|s| s.end).collect(),
+            frag_start,
+            frag_end,
             frag_at: self.frag_at.clone(),
+            text: self.text.clone(),
+            offsets: self.offsets.to_proto(),
         }
     }
 
     fn from_msg(msg: &ExtractionResult) -> Result<Self, Failure> {
+        let offsets = OffsetMode::from_proto(msg.offsets)?;
         if msg.span_start.len() as u64 > MAX_ANSWERS {
             return Err(over("max_answers", "answers", msg.span_start.len() as u64));
         }
@@ -189,6 +220,17 @@ impl Wire for Extraction {
         if msg.view > u16::MAX as u32 {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("view {} is outside 0 to 65535", msg.view)));
         }
+        let (spans, fragments) = if msg.text.is_empty() && offsets == OffsetMode::Utf8 {
+            (
+                msg.span_start.iter().zip(&msg.span_end).map(|(&s, &e)| Span { start: s, end: e }).collect(),
+                msg.frag_start.iter().zip(&msg.frag_end).map(|(&s, &e)| Span { start: s, end: e }).collect(),
+            )
+        } else {
+            let offsetter = Offsetter::new(&msg.text, offsets);
+            let spans = offsetter.spans_from_wire(&msg.text, "answer span", &msg.span_start, &msg.span_end)?;
+            let fragments = offsetter.spans_from_wire(&msg.text, "answer fragment", &msg.frag_start, &msg.frag_end)?;
+            (spans, fragments)
+        };
         let out = Extraction {
             model: msg.model.as_ref().map(model_from_proto).unwrap_or(ModelRef {
                 id: String::new(),
@@ -196,8 +238,10 @@ impl Wire for Extraction {
                 sha256: String::new(),
             }),
             view: msg.view as u16,
-            spans: msg.span_start.iter().zip(&msg.span_end).map(|(&s, &e)| Span { start: s, end: e }).collect(),
-            fragments: msg.frag_start.iter().zip(&msg.frag_end).map(|(&s, &e)| Span { start: s, end: e }).collect(),
+            text: msg.text.clone(),
+            offsets,
+            spans,
+            fragments,
             frag_at: msg.frag_at.clone(),
             scores: msg.score.clone(),
             probabilities: msg.probability.clone(),
@@ -379,6 +423,7 @@ mod tests {
             frag_start: vec![0; MAX_ANSWER_FRAGMENTS as usize + 1],
             frag_end: vec![1; MAX_ANSWER_FRAGMENTS as usize + 1],
             frag_at: vec![1],
+            ..Default::default()
         };
         let e = Extraction::from_msg(&msg).unwrap_err();
         assert_eq!(e.code, TURBO_E_CAPACITY);

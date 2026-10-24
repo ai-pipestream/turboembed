@@ -1,6 +1,8 @@
 //! Integration and adversarial tests for `TagPatternRule`, `PatternChunker`,
 //! and `PatternChunkComposer` (Issue #749).
 
+mod common;
+
 use std::path::Path;
 
 use turbo_analysis::{Analyzer, Annotator, Document, Ix, IxRange, Key, Provenance, Span, Spans, View, ViewId};
@@ -364,4 +366,116 @@ fn invalid_patterns_and_malformed_inputs_are_rejected() {
         kinds: TagSet::new("chunks", &["NP"]),
     };
     assert!(composer.compose(view, toks, pos, &bad_base).is_err());
+}
+
+#[test]
+fn regex_style_tag_conditions_match_and_refuse_like_the_shared_reader() {
+    // Acceptance for #854: class/optional tag conditions find the
+    // same noun phrases as their alternation spelling, `.*NN.*`
+    // covers the noun family, unsupported shapes are refused with
+    // a position, and case folding is full Unicode folding.
+    let text = "The quicker brownest foxes jumped .";
+    let tokens = [
+        ("The", "DT", 0),
+        ("quicker", "JJR", 0),
+        ("brownest", "JJS", 0),
+        ("foxes", "NNS", 0),
+        ("jumped", "VBD", 0),
+        (".", ".", 0),
+    ];
+    let doc = build_doc_with_tags(text, "penn", &tokens);
+    let view = doc.get::<View>().unwrap();
+    let toks = doc.get::<Tokens>().unwrap();
+    let pos = doc.get::<PosTags>().unwrap();
+    let by_class = PatternChunker::from_patterns([("NP", "<DT>?<JJ[RS]?>*<NNS?>+")]).unwrap();
+    let by_alts = PatternChunker::from_patterns([("NP", "<DT>?<JJ|JJR|JJS>*<NN|NNS>+")]).unwrap();
+    let (a,) = by_class.annotate((view, toks, pos)).unwrap();
+    let (b,) = by_alts.annotate((view, toks, pos)).unwrap();
+    assert_eq!(summarize_chunks(text, &a), summarize_chunks(text, &b));
+    assert_eq!(summarize_chunks(text, &a), vec![("The quicker brownest foxes", "NP", (0, 4))]);
+    let family = build_doc_with_tags(
+        "cat cats Paris Parises run",
+        "penn",
+        &[("cat", "NN", 0), ("cats", "NNS", 0), ("Paris", "NNP", 0), ("Parises", "NNPS", 0), ("run", "VB", 0)],
+    );
+    let view = family.get::<View>().unwrap();
+    let toks = family.get::<Tokens>().unwrap();
+    let pos = family.get::<PosTags>().unwrap();
+    let nouns = PatternChunker::from_patterns([("NP", "<.*NN.*>+")]).unwrap();
+    let (hits,) = nouns.annotate((view, toks, pos)).unwrap();
+    assert_eq!(summarize_chunks("cat cats Paris Parises run", &hits), vec![("cat cats Paris Parises", "NP", (0, 4))]);
+    for bad in ["<NN{2}>", r"<NN\d>", "<NN(>", "<*NN>", "<NN**>"] {
+        let err = PatternChunker::from_patterns([("NP", bad)]).expect_err("refused");
+        assert!(matches!(err, PatternError::UnexpectedSyntax { pos: 0, .. }), "{bad}: {err:?}");
+    }
+    assert!(matches!(
+        PatternChunker::from_patterns([("NP", "<[>")]).expect_err("unterminated class"),
+        PatternError::UnclosedTag { pos: 0 }
+    ));
+    assert!(PatternChunker::from_patterns([("NP", "<A*B>+")]).is_ok(), "interior star compiles as a pattern");
+    let greet = build_doc_with_tags(
+        "Die Straße STRASSE",
+        "de",
+        &[("Die", "ART", 0), ("Straße", "NN", 0), ("STRASSE", "NN", 0)],
+    );
+    let view = greet.get::<View>().unwrap();
+    let toks = greet.get::<Tokens>().unwrap();
+    let pos = greet.get::<PosTags>().unwrap();
+    let chunker = PatternChunker::from_patterns([("NP", r#"<NN:"strasse"i>+"#)]).unwrap();
+    let (hits,) = chunker.annotate((view, toks, pos)).unwrap();
+    assert_eq!(summarize_chunks("Die Straße STRASSE", &hits), vec![("Straße STRASSE", "NP", (1, 3))]);
+}
+
+#[test]
+fn regex_style_tag_conditions_agree_on_chunk_goldens() {
+    // Issue #854 acceptance: over the real Penn Treebank tagged
+    // sentences of the chunk goldens, the class/optional spelling
+    // chunks identically to the alternation spelling.
+    use turbo_analysis::View;
+    use turbo_goldens::{golden_key, load_document};
+    let by_class = PatternChunker::from_patterns([("NP", "<DT>?<JJ[RS]?>*<NNS?>+")]).unwrap();
+    let by_alts = PatternChunker::from_patterns([("NP", "<DT>?<JJ|JJR|JJS>*<NN|NNS>+")]).unwrap();
+    let mut seen = 0usize;
+    for case in common::run("chunker-fixture") {
+        if case.golden.layer("turbo:utf16<opennlp:tokens>").is_some() {
+            continue;
+        }
+        let doc = load_document(&case.golden, &case.text).unwrap();
+        let view = doc.get::<View>().unwrap();
+        let toks = doc.get_key(&golden_key::<Tokens>()).unwrap();
+        let pos = doc.get_key(&golden_key::<PosTags>()).unwrap();
+        let (a,) = by_class.annotate((view, toks, pos)).unwrap();
+        let (b,) = by_alts.annotate((view, toks, pos)).unwrap();
+        assert_eq!(summarize_chunks(&case.text, &a), summarize_chunks(&case.text, &b), "{}", case.path.display());
+        seen += 1;
+    }
+    assert!(seen > 0, "chunk goldens loaded");
+}
+
+#[test]
+fn possessive_dollar_tags_and_class_delimiters_survive_wrapping() {
+    // Cursor/codex regressions on #898: PRP$ must stay a literal
+    // Penn tag (not a regex anchor), and class contents must not
+    // be read as outer >, : or | delimiters.
+    let text = "his dog : runs";
+    let tokens = [("his", "PRP$", 0), ("dog", "NN", 0), (":", ":", 0), ("runs", "VBZ", 0)];
+    let doc = build_doc_with_tags(text, "penn", &tokens);
+    let view = doc.get::<View>().unwrap();
+    let toks = doc.get::<Tokens>().unwrap();
+    let pos = doc.get::<PosTags>().unwrap();
+    let (penn,) = PatternChunker::penn_default().annotate((view, toks, pos)).unwrap();
+    assert!(summarize_chunks(text, &penn).contains(&("his dog", "NP", (0, 2))));
+    for pattern in ["<[.:]>", "<[A|B]>", "<[=]>", "<[>]>"] {
+        assert!(PatternChunker::from_patterns([("X", pattern)]).is_ok(), "{pattern}");
+    }
+    let colon = PatternChunker::from_patterns([("P", "<[.:]>")]).unwrap();
+    let (hits,) = colon.annotate((view, toks, pos)).unwrap();
+    assert_eq!(summarize_chunks(text, &hits), vec![(":", "P", (2, 3))]);
+    let wp = PatternChunker::from_patterns([("NP", "<WP$><NN>")]).unwrap();
+    let doc2 = build_doc_with_tags("whose dog", "penn", &[("whose", "WP$", 0), ("dog", "NN", 0)]);
+    let view2 = doc2.get::<View>().unwrap();
+    let toks2 = doc2.get::<Tokens>().unwrap();
+    let pos2 = doc2.get::<PosTags>().unwrap();
+    let (hits,) = wp.annotate((view2, toks2, pos2)).unwrap();
+    assert_eq!(summarize_chunks("whose dog", &hits), vec![("whose dog", "NP", (0, 2))]);
 }
