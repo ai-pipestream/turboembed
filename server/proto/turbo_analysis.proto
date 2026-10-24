@@ -107,7 +107,8 @@ message BundleCapabilities
   // The bundle's own identity.
   ModelRef model = 2;
 
-  // The task it serves, the header constant's name: TASK_EMBED.
+  // The task it serves, the header constant's name: TASK_EMBED,
+  // TASK_RERANK, or TASK_EXTRACTIVE_QA.
   string task = 3;
 
   // The prompt roles it takes: PROMPT_QUERY for a non-empty

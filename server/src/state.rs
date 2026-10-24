@@ -37,7 +37,9 @@ unsafe impl Sync for Slot {}
 /// A loaded model and its sessions, dropped sessions first, then the model.
 pub(crate) struct Loaded {
     pub(crate) slots: Vec<Slot>,
+    pub(crate) qa: Option<crate::tasks::QaModel>,
     pub(crate) model: Model,
+    pub(crate) task: u32,
     pub(crate) device: u32,
     pub(crate) revision: String,
     pub(crate) idle: Mutex<Vec<usize>>,
@@ -236,12 +238,10 @@ impl State {
             }
         };
         let c = &m.config;
+        let select_task = crate::tasks::peek_task(&c.bundle);
         let device = match c.device {
             crate::config::Device::Index(i) => i,
-            crate::config::Device::Select => {
-                let task = bundle_task(&c.bundle);
-                rt.select(task).map_err(fail("turbo_runtime_select", &[]))?
-            }
+            crate::config::Device::Select => rt.select(select_task).map_err(fail("turbo_runtime_select", &[]))?,
         };
         let ctx = {
             let mut contexts = self.contexts.lock().unwrap_or_else(|e| e.into_inner());
@@ -253,6 +253,25 @@ impl State {
         };
         let model = ctx.load(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
         let info = model.info().map_err(fail("turbo_model_get_info", &[]))?;
+        if !matches!(info.task, TURBO_TASK_EMBED | TURBO_TASK_RERANK | TURBO_TASK_EXTRACTIVE_QA) {
+            return Err(fail("turbo_model_get_info", &[])(Failure::new(
+                TURBO_E_UNSUPPORTED_TASK,
+                0,
+                format!("unsupported task {}", info.task),
+            )));
+        }
+        let qa = if info.task == TURBO_TASK_EXTRACTIVE_QA {
+            Some(crate::tasks::QaModel::load(&c.bundle).map_err(fail("turbo_model_load", &[]))?)
+        } else {
+            None
+        };
+        let max_ranges = if info.task == TURBO_TASK_EXTRACTIVE_QA {
+            let mb = if c.max_batch == 0 { info.max_batch } else { c.max_batch };
+            let ms = if c.max_seq == 0 { info.max_seq } else { c.max_seq };
+            mb.saturating_mul(ms)
+        } else {
+            0
+        };
         let desc = turbo_session_desc {
             struct_size: size_of::<turbo_session_desc>() as u32,
             max_batch: c.max_batch,
@@ -261,7 +280,7 @@ impl State {
             tuning: 0,
             tuning_budget_ms: 0,
             cpu_threads: 0,
-            max_ranges: 0,
+            max_ranges,
         };
         let mut slots = Vec::new();
         for _ in 0..c.sessions {
@@ -278,7 +297,7 @@ impl State {
             slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
         }
         let idle = Mutex::new((0..slots.len()).rev().collect());
-        let loaded = Loaded { slots, model, device, revision: api::field(&info.revision), idle };
+        let loaded = Loaded { slots, qa, model, task: info.task, device, revision: api::field(&info.revision), idle };
         // The caller holds the loading mutex: no other load can have set
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));
@@ -315,23 +334,6 @@ impl LoadError {
     }
 }
 
-/// Reads the bundle's `task` from `<bundle>/manifest.json` so `Device::Select`
-/// queries `turbo_runtime_select` for the bundle's actual task, falling back
-/// to `TURBO_TASK_EMBED` when the manifest cannot be read yet.
-pub(crate) fn bundle_task(bundle: &str) -> u32 {
-    let path = std::path::Path::new(bundle).join("manifest.json");
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return TURBO_TASK_EMBED;
-    };
-    if text.contains("\"TASK_RERANK\"") {
-        TURBO_TASK_RERANK
-    } else if text.contains("\"TASK_EXTRACTIVE_QA\"") {
-        TURBO_TASK_EXTRACTIVE_QA
-    } else {
-        TURBO_TASK_EMBED
-    }
-}
-
 /// The model's properties, read from the library on each call.
 pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<String, String>> {
     let rt = state.runtime.get().ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, "no runtime"))?;
@@ -345,7 +347,7 @@ pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<
         .take((mi.output_dims_count as usize).min(mi.output_dims.len()))
         .map(u32::to_string)
         .collect();
-    let p: Vec<(&str, String)> = vec![
+    let mut p: Vec<(&str, String)> = vec![
         ("model_info.task", names::task(mi.task)),
         ("model_info.dim", mi.dim.to_string()),
         ("model_info.pooling", names::pooling(mi.pooling)),
@@ -385,6 +387,10 @@ pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<
         ("capability.benchmark", api::field(&cap.benchmark)),
         ("capability.reason", api::field(&cap.reason)),
     ];
+    if mi.task == TURBO_TASK_RERANK {
+        p.push(("model_info.rerank_query_tokens", mi.rerank_query_tokens.to_string()));
+        p.push(("model_info.rerank_pair_template", names::pair_template(mi.rerank_pair_template)));
+    }
     Ok(p.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
 }
 
@@ -455,18 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn bundle_task_reads_manifest_task_and_load_error_preserves_status() {
-        let dir = std::env::temp_dir().join(format!("turbo-kserve-task-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let p = dir.to_str().unwrap();
-        assert_eq!(bundle_task(p), TURBO_TASK_EMBED);
-        std::fs::write(dir.join("manifest.json"), r#"{"task":"TASK_RERANK"}"#).unwrap();
-        assert_eq!(bundle_task(p), TURBO_TASK_RERANK);
-        std::fs::write(dir.join("manifest.json"), r#"{"task":"TASK_EXTRACTIVE_QA"}"#).unwrap();
-        assert_eq!(bundle_task(p), TURBO_TASK_EXTRACTIVE_QA);
-        let _ = std::fs::remove_dir_all(&dir);
-
+    fn load_error_preserves_status() {
         let err = LoadError {
             model: "m".into(),
             call: "turbo_session_create",

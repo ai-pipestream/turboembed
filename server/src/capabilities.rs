@@ -61,7 +61,7 @@ pub(crate) fn bundle_capabilities(name: &str, loaded: &Loaded) -> api::Result<Bu
     if roles.is_empty() {
         roles.push("PROMPT_NONE".to_string());
     }
-    let mut widths = vec![mi.dim];
+    let mut widths = if mi.task == turbo::TURBO_TASK_EMBED { vec![mi.dim] } else { Vec::new() };
     widths.extend(mi.output_dims.iter().take((mi.output_dims_count as usize).min(mi.output_dims.len())));
     Ok(BundleCapabilities {
         name: name.to_string(),
