@@ -2,14 +2,10 @@
 //! proximity scorers (`CountryProximityScorer`, `ProvinceProximityScorer`).
 
 use turbo_analysis::Span;
-use turbo_unicode::GeneralCategory;
-use turbo_unicode::category::general_category;
-use turbo_unicode::java::to_lowercase;
-use turbo_unicode::normalize::{Form, normalize};
 
 use crate::entry::{GeoPoint, RegionCode};
 use crate::fold::Folder;
-use crate::region::tables::{is_assigned_iso_country, lookup_english_country};
+use crate::region::tables::is_assigned_iso_country;
 
 const GEOHASH_BASE32: &[u8; 32] = b"0123456789bcdefghjkmnpqrstuvwxyz";
 const MAX_GEOHASH_PRECISION: usize = 12;
@@ -202,34 +198,7 @@ fn span_distance_bytes(a: Span, b: Span) -> u32 {
 }
 
 fn normalize_country_token(raw: &str) -> Option<RegionCode> {
-    let mut nfkc = String::new();
-    normalize(Form::Nfkc, raw, &mut nfkc);
-    let mut collapsed = String::with_capacity(nfkc.len());
-    let mut prev_ws = false;
-    for ch in nfkc.chars() {
-        if ch.is_whitespace() {
-            if !prev_ws {
-                collapsed.push(' ');
-                prev_ws = true;
-            }
-        } else {
-            collapsed.push(if ch == '\u{2019}' { '\'' } else { ch });
-            prev_ws = false;
-        }
-    }
-    let mut lower = String::new();
-    to_lowercase(&collapsed, &mut lower);
-    let trimmed = lower.trim_matches(|c: char| !c.is_alphanumeric());
-    if trimmed.is_empty() {
-        return None;
-    }
-    if let Some(code) = lookup_english_country(trimmed) {
-        return Some(code);
-    }
-    let mut nfd = String::new();
-    normalize(Form::Nfd, trimmed, &mut nfd);
-    let stripped: String = nfd.chars().filter(|&c| general_category(c) != GeneralCategory::Mn).collect();
-    lookup_english_country(&stripped)
+    crate::region::country_code_for_name(raw, &mut String::new(), &mut String::new())
 }
 
 /// Scores candidate locations by proximity to country evidence in the document.

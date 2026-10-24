@@ -66,7 +66,7 @@ pub mod unicode_form;
 pub mod url;
 pub mod whitespace;
 
-pub use accent_fold::{AccentFold, StrokeLetters};
+pub use accent_fold::{AccentFold, FoldScratch, StrokeLetters};
 pub use artifacts::{Artifact, ArtifactDetector, ArtifactDetectorBuilder, KindSet, RepeatedLines};
 pub use assets::{Asset, AssetDetector, AssetFold};
 pub use bullets::Bullets;
