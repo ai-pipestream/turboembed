@@ -63,7 +63,7 @@ pub fn round_trip_document(req: &DocumentGraphRequest) -> Result<DocumentGraphRe
     let out = export(&doc, &codecs).map_err(|e| bad(format!("document graph export: {e}")))?;
     let bytes = out.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
     Ok(DocumentGraphResponse {
-        graph: bytes,
+        graph: bytes.into(),
         layers: out.layers.iter().map(layer_info).collect(),
         views: out.views.iter().map(view_info).collect(),
         source_text: out.source.text.clone(),

@@ -187,7 +187,7 @@ impl Wire for ChunkLevels {
             level_parent: self.levels.parent.iter().map(|p| p.map_or(-1, |i| i.get() as i32)).collect(),
             model: Some(model_to_proto(&self.vectors.model)),
             dim: self.vectors.dim,
-            data: super::f32_bytes(&self.vectors.data),
+            data: super::f32_bytes(&self.vectors.data).into(),
             empty: self.vectors.empty.iter().map(|i| i.get() as u32).collect(),
         }
     }
