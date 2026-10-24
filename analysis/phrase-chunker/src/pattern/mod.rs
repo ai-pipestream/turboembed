@@ -3,9 +3,24 @@
 
 pub mod parser;
 
+use std::cell::RefCell;
 use std::fmt;
 
+use turbo_jvm::TagPattern;
 use turbo_sequence::chunker::TokenTag;
+use turbo_unicode::casefold::fold;
+
+thread_local! {
+    /// Reused fold scratch for case-insensitive word matching.
+    static FOLD_SCRATCH: RefCell<String> = const { RefCell::new(String::new()) };
+}
+
+/// The full case folding of `word` (so `strasse` matches `Straße`).
+pub(crate) fn folded(word: &str) -> String {
+    let mut out = String::new();
+    fold(word, &mut out);
+    out
+}
 
 use self::parser::{Expr, parse_pattern};
 
@@ -68,6 +83,9 @@ pub enum TagCond {
     Prefix(String),
     /// Matches a POS tag ending with the given suffix (`<.*NN>`).
     Suffix(String),
+    /// A Java-style whole-tag pattern (`<JJ[RS]?>`, `<.*NN.*>`) via [`TagPattern`]; `source` is
+    /// the pattern text, kept for identity and diagnostics.
+    Pattern { source: String, pattern: Box<TagPattern> },
 }
 
 impl TagCond {
@@ -78,6 +96,7 @@ impl TagCond {
             TagCond::Exact(expected) => tag == expected,
             TagCond::Prefix(prefix) => tag.starts_with(prefix.as_str()),
             TagCond::Suffix(suffix) => tag.ends_with(suffix.as_str()),
+            TagCond::Pattern { pattern, .. } => pattern.matches(tag),
         }
     }
 }
@@ -96,11 +115,16 @@ impl WordCond {
     pub fn matches(&self, word: &str) -> bool {
         match self {
             WordCond::Exact(expected) => word == expected,
-            WordCond::CaseInsensitive(expected_lower) => {
-                if word.is_ascii() && expected_lower.is_ascii() {
-                    word.eq_ignore_ascii_case(expected_lower)
+            WordCond::CaseInsensitive(expected_folded) => {
+                if word.is_ascii() && expected_folded.is_ascii() {
+                    word.eq_ignore_ascii_case(expected_folded)
                 } else {
-                    word.to_lowercase() == *expected_lower
+                    FOLD_SCRATCH.with(|s| {
+                        let mut scratch = s.borrow_mut();
+                        scratch.clear();
+                        fold(word, &mut scratch);
+                        *scratch == *expected_folded
+                    })
                 }
             }
         }
@@ -136,7 +160,7 @@ impl TokenMatcher {
         Self {
             tag_alts: Vec::new(),
             negate_tag: false,
-            word_alts: vec![WordCond::CaseInsensitive(word.into().to_lowercase())],
+            word_alts: vec![WordCond::CaseInsensitive(folded(&word.into()))],
         }
     }
 
@@ -148,7 +172,7 @@ impl TokenMatcher {
 
     /// Adds a case-insensitive surface constraint to this matcher.
     pub fn with_word_ignore_case(mut self, word: impl Into<String>) -> Self {
-        self.word_alts.push(WordCond::CaseInsensitive(word.into().to_lowercase()));
+        self.word_alts.push(WordCond::CaseInsensitive(folded(&word.into())));
         self
     }
 
@@ -421,21 +445,15 @@ fn hash_expr(expr: &Expr, h: &mut u64) {
             mix_bytes(h, &[1, u8::from(m.negate_tag)]);
             mix_bytes(h, &(m.tag_alts.len() as u64).to_le_bytes());
             for tc in &m.tag_alts {
-                match tc {
-                    TagCond::Any => mix_bytes(h, &[10]),
-                    TagCond::Exact(s) => {
-                        mix_bytes(h, &[11]);
-                        mix_bytes(h, s.as_bytes());
-                    }
-                    TagCond::Prefix(s) => {
-                        mix_bytes(h, &[12]);
-                        mix_bytes(h, s.as_bytes());
-                    }
-                    TagCond::Suffix(s) => {
-                        mix_bytes(h, &[13]);
-                        mix_bytes(h, s.as_bytes());
-                    }
-                }
+                let (disc, payload) = match tc {
+                    TagCond::Any => (10, "".as_bytes()),
+                    TagCond::Exact(s) => (11, s.as_bytes()),
+                    TagCond::Prefix(s) => (12, s.as_bytes()),
+                    TagCond::Suffix(s) => (13, s.as_bytes()),
+                    TagCond::Pattern { source, .. } => (14, source.as_bytes()),
+                };
+                mix_bytes(h, &[disc]);
+                mix_bytes(h, payload);
             }
             mix_bytes(h, &(m.word_alts.len() as u64).to_le_bytes());
             for wc in &m.word_alts {

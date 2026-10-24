@@ -1,4 +1,5 @@
 use super::*;
+use crate::feedforward::slots::SlotTable;
 use std::collections::BTreeMap;
 use turbo_jvm::random::JavaRandom;
 
@@ -7,6 +8,8 @@ pub(super) fn optimize(
     examples: &[(Vec<usize>, usize)],
     settings: &FeedforwardSettings,
 ) -> Result<()> {
+    // The weights change below: no slot contribution of the old ones stays.
+    model.fixed = SlotTable::default();
     let w = &mut model.weights;
     let (e, h, o) = (w.embedding_size, w.hidden_bias.len(), w.output_bias.len());
     let input = model.layout.feature_count() * e;
@@ -134,7 +137,9 @@ pub(super) fn optimize(
             }
         }
     }
-    model.check()
+    model.check()?;
+    model.fixed = SlotTable::build(model);
+    Ok(())
 }
 fn update(
     weights: &mut [f32],

@@ -294,6 +294,7 @@ fn tampered_previous_rows_are_not_carried() {
         cost,
         model_tokens: src.model_tokens.clone(),
         over_budget: src.over_budget.clone(),
+        prompt_overhead: src.prompt_overhead,
     };
     let (chunks, stats) = Chunker { budget: BUDGET }
         .rechunk(

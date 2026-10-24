@@ -49,6 +49,7 @@ mod lexical;
 mod numeric;
 mod relations;
 mod sentiment;
+mod sparse;
 mod structure;
 mod temporal;
 mod vectors;
@@ -120,6 +121,8 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Regions>()
         .register::<Matches>()
         .register::<Levels>()
+        .register::<crate::SparseTerms<View>>()
+        .register::<crate::SparseTerms<Levels>>()
         .register::<Containment>()
         .register::<Vectors<View>>()
         .register::<Vectors<Sentences>>()

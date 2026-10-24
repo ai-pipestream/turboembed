@@ -21,7 +21,7 @@ use turbo_stopword::Stopwords;
 pub(crate) use crate::lang_model::SequentialBuilder;
 use crate::lang_model::{
     COMMON_EN_TIME_PHRASES, COMMON_ES_TIME_PHRASES, is_en_time_trigger, is_es_time_trigger, is_loc_preposition,
-    is_non_place_word, is_numeric_time_token, is_place_connector, is_time_ctx, with_lowercase,
+    is_non_place_word, is_numeric_time_token, is_place_connector, is_time_ctx, is_time_modifier, with_lowercase,
 };
 pub use crate::lang_model::{QuerySpanDetector, default_span_detector};
 
@@ -420,10 +420,11 @@ impl Annotator for QueryTimeAnnotator {
                     with_lowercase(sub_text, |lower| self.phrases.binary_search(&lower).ok())
                         .map(|idx| (idx, byte_lo as u32))
                         .or_else(|| {
-                            let outer_digit = (tok_lo..trig_lo).chain(trig_hi..tok_hi).any(|k| {
-                                text[starts[k] as usize..ends[k] as usize].bytes().any(|b| b.is_ascii_digit())
+                            let outer_matters = (tok_lo..trig_lo).chain(trig_hi..tok_hi).any(|k| {
+                                let w = &text[starts[k] as usize..ends[k] as usize];
+                                w.bytes().any(|b| b.is_ascii_digit()) || with_lowercase(w, is_time_modifier)
                             });
-                            (!outer_digit).then(|| {
+                            (!outer_matters).then(|| {
                                 let (t_lo, t_hi) = (starts[trig_lo] as usize, ends[trig_hi - 1] as usize);
                                 with_lowercase(&text[t_lo..t_hi], |lower| self.phrases.binary_search(&lower).ok())
                                     .map(|idx| (idx, t_lo as u32))
