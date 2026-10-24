@@ -3,13 +3,20 @@
 //! 2. NameFinderME token-level calibration (`Task::TokenTagging`)
 //! 3. CrfNameFinder span-marginal calibration (`Task::SpanTagging`, BIO and BILOU)
 use std::path::Path;
+use std::sync::Arc;
+use turbo_analysis::{Annotator, Document, Ix, Layer, Span, Spans, View, ViewId};
+use turbo_analysis_layers::{Sentences, Tokens};
 use turbo_eval::calibration::{coverage, reliability};
 use turbo_formats::Field;
 use turbo_formats::masc::{MascCorpus, MascDocument};
 use turbo_maxent::ModelFile;
+use turbo_namefind::calibrated::{
+    CalibratedCrfNameAnnotator, CalibratedNameAnnotator, crf_identity, crf_identity_with_candidates,
+    identity as namefind_identity,
+};
 use turbo_sequence::PatternMode;
 use turbo_sequence::namefind::{CrfNameFinder, MODEL_ENTRY_NAME, NameCodec, NameFinder};
-use turbo_train::calibration::{Identity, Method, Policy, Predictor, Samples, Task, fit};
+use turbo_train::calibration::{Calibration, Identity, Method, Policy, Predictor, Samples, fit};
 use turbo_train::crf::CrfTrainer;
 use turbo_train::{Event, Key, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::doccat::{
@@ -56,13 +63,29 @@ fn doc_passages<'a>(docs: &'a [MascDocument], root: &Path) -> Result<Vec<(&'stat
     Ok(out)
 }
 
+fn sample_doc(s: &turbo_formats::NameSample<'_>) -> (Document, Sentences, Tokens) {
+    let words: Vec<&str> = s.tokens().iter().map(Field::as_str).collect();
+    let text = words.join(" ");
+    let doc = Document::new(text.as_str());
+    let mut sents = Sentences { spans: Spans::new(ViewId::SOURCE) };
+    sents.spans.push(Span::new(0, text.len() as u32));
+    let mut toks = Tokens { spans: Spans::new(ViewId::SOURCE), sentence: Some(vec![Ix::new(0); words.len()]) };
+    let mut off = 0u32;
+    for w in &words {
+        let end = off + w.len() as u32;
+        toks.spans.push(Span::new(off, end));
+        off = end + 1;
+    }
+    (doc, sents, toks)
+}
+
 fn print_methods(
     title: &str,
     id: &Identity,
     (fit_rows, fit_gold): (&[Vec<f64>], &[usize]),
     (conf_rows, conf_gold): (&[Vec<f64>], &[usize]),
     (test_rows, test_gold): (&[Vec<f64>], &[usize]),
-) -> Result<(), String> {
+) -> Result<Vec<Calibration>, String> {
     let raw = reliability(test_rows, test_gold, 10)?;
     println!(
         "\n=== {title} ===\nlabels={:?} fit_n={} conformal_n={} test_n={}",
@@ -72,6 +95,7 @@ fn print_methods(
         test_rows.len()
     );
     println!("Raw        : ECE={:.6} Brier={:.6} accuracy={:.6}", raw.ece, raw.brier, raw.accuracy);
+    let mut out = Vec::with_capacity(3);
     for (name, method) in
         [("Temperature", Method::Temperature), ("Platt      ", Method::Platt), ("Isotonic   ", Method::Isotonic)]
     {
@@ -104,8 +128,9 @@ fn print_methods(
             single_cov.abstention_rate,
             cal.id()
         );
+        out.push(cal);
     }
-    Ok(())
+    Ok(out)
 }
 
 fn eval_doccat(
@@ -217,23 +242,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     params.put(Key::CUTOFF, 2);
     let maxent_trained =
         train_name_model(&train_ner, &factory_bio, None, &params, &mut TrainingConfiguration::default(), Stamp::at(0))?;
-    let maxent_file = ModelFile::open(maxent_trained.package.to_bytes())?;
+    let maxent_file = Arc::new(ModelFile::open(maxent_trained.package.to_bytes())?);
     let maxent_model = maxent_file.maxent(MODEL_ENTRY_NAME)?;
-    let maxent_labels: Vec<String> = maxent_model
-        .outcome_texts()
-        .map_err(|e| format!("non-UTF-8 outcome: {e:?}"))?
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-    let maxent_id = Identity {
-        model: "opennlp:NameFinderME".into(),
-        revision: maxent_file.opennlp_version().into(),
-        sha256: maxent_file.sha256().to_hex(),
-        task: Task::TokenTagging,
-        domain: "masc-3.0.0-ner-tokens".into(),
-        labels: maxent_labels.clone(),
-        inference_hash: 0,
-    };
+    let maxent_id = namefind_identity(&maxent_file, "masc-3.0.0-ner-tokens")?;
+    let maxent_labels = maxent_id.labels.clone();
     let collect_tokens = |split_sents: &[turbo_formats::NameSample<'_>]| {
         let mut finder = NameFinder::new(&maxent_file, &maxent_model, PatternMode::Utf16Units).unwrap();
         let mut rows = Vec::new();
@@ -262,13 +274,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (tf_r, tf_g) = collect_tokens(&fit_ner);
     let (tc_r, tc_g) = collect_tokens(&conf_ner);
     let (tt_r, tt_g) = collect_tokens(&test_ner);
-    print_methods(
+    let token_cals = print_methods(
         "MASC 3.0.0 NameFinderME Token-Level (BIO)",
         &maxent_id,
         (&tf_r, &tf_g),
         (&tc_r, &tc_g),
         (&tt_r, &tt_g),
     )?;
+    let token_policy = Policy { coverage: 0.90, max_set_size: maxent_id.labels.len(), min_confidence: 0.0 };
+    for cal in token_cals {
+        let ann = CalibratedNameAnnotator::new(maxent_file.clone(), cal, "masc-3.0.0-ner-tokens", token_policy)?;
+        if let Some(s) = test_ner.iter().find(|s| !s.tokens().is_empty()) {
+            let (doc, sents, toks) = sample_doc(s);
+            let (_, side) = ann.annotate((doc.get::<View>().unwrap(), &sents, &toks))?;
+            assert_eq!(side.len(), s.tokens().len());
+        }
+    }
 
     // 2. Span-level CrfNameFinder (BIO and BILOU)
     for (codec_name, codec) in [("BIO", NameCodec::Bio), ("BILOU", NameCodec::Bilou)] {
@@ -279,26 +300,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &CrfTrainer { codec, cutoff: 2, l2: 1.0, iterations: 100 },
             Stamp::at(0),
         )?;
-        let crf_file = ModelFile::open(crf.package.to_bytes())?;
+        let crf_file = Arc::new(ModelFile::open(crf.package.to_bytes())?);
         let span_labels = crf.model.span_outcomes();
-        let crf_id = Identity {
-            model: "turbo-namefind:crf".into(),
-            revision: crf_file.opennlp_version().into(),
-            sha256: crf_file.sha256().to_hex(),
-            task: Task::SpanTagging,
-            domain: format!("masc-3.0.0-ner-spans-{}", codec_name.to_ascii_lowercase()),
-            labels: span_labels.clone(),
-            inference_hash: 0,
-        };
+        let domain = format!("masc-3.0.0-ner-spans-{}", codec_name.to_ascii_lowercase());
+        let crf_id = crf_identity_with_candidates(&crf_file, &domain, 4)?;
         let collect_spans =
-            |split_sents: &[turbo_formats::NameSample<'_>]| -> Result<(Vec<Vec<f64>>, Vec<usize>), String> {
+            |split_sents: &[turbo_formats::NameSample<'_>], k: usize| -> Result<(Vec<Vec<f64>>, Vec<usize>), String> {
                 let mut finder = CrfNameFinder::from_file(&crf.model, &crf_file, PatternMode::Utf16Units)
                     .map_err(|e| e.to_string())?;
                 let mut rows = Vec::new();
                 let mut gold = Vec::new();
                 for s in split_sents {
                     let words: Vec<&str> = s.tokens().iter().map(Field::as_str).collect();
-                    for (cand, dist) in finder.candidate_spans(&words, 4).map_err(|e| e.to_string())? {
+                    let spans = if k == 1 {
+                        let (names, dists) = finder.find_scored_spans(&words).map_err(|e| e.to_string())?;
+                        names.into_iter().zip(dists).map(|(n, d)| (n.span, d)).collect::<Vec<_>>()
+                    } else {
+                        finder.candidate_spans(&words, k).map_err(|e| e.to_string())?
+                    };
+                    for (cand, dist) in spans {
                         let g = s
                             .names()
                             .iter()
@@ -312,16 +332,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Ok((rows, gold))
             };
-        let (sf_r, sf_g) = collect_spans(&fit_ner)?;
-        let (sc_r, sc_g) = collect_spans(&conf_ner)?;
-        let (st_r, st_g) = collect_spans(&test_ner)?;
-        print_methods(
-            &format!("MASC 3.0.0 CrfNameFinder Span-Level ({codec_name})"),
+        let (sf_r, sf_g) = collect_spans(&fit_ner, 4)?;
+        let (sc_r, sc_g) = collect_spans(&conf_ner, 4)?;
+        let (st_r, st_g) = collect_spans(&test_ner, 4)?;
+        let span_cals = print_methods(
+            &format!("MASC 3.0.0 CrfNameFinder Span-Level ({codec_name}, k=4)"),
             &crf_id,
             (&sf_r, &sf_g),
             (&sc_r, &sc_g),
             (&st_r, &st_g),
         )?;
+        let span_policy = Policy { coverage: 0.90, max_set_size: crf_id.labels.len(), min_confidence: 0.0 };
+        for cal in span_cals {
+            let ann = CalibratedCrfNameAnnotator::with_candidates(crf_file.clone(), cal, &domain, span_policy, 4)?;
+            let mut count = 0usize;
+            for s in &test_ner {
+                if s.tokens().is_empty() {
+                    continue;
+                }
+                let (doc, sents, toks) = sample_doc(s);
+                let (ents, side) = ann.annotate((doc.get::<View>().unwrap(), &sents, &toks))?;
+                assert_eq!(ents.len(), side.len());
+                count += side.len();
+            }
+            assert_eq!(count, st_r.len());
+        }
+        let top1_domain = format!("{domain}-top1");
+        let top1_id = crf_identity(&crf_file, &top1_domain)?;
+        let (tf1_r, tf1_g) = collect_spans(&fit_ner, 1)?;
+        let (tc1_r, tc1_g) = collect_spans(&conf_ner, 1)?;
+        let (tt1_r, _) = collect_spans(&test_ner, 1)?;
+        let top1_cal = fit(
+            top1_id,
+            Method::Temperature,
+            Samples { split: "masc-fit", probabilities: &tf1_r, gold: &tf1_g },
+            Samples { split: "masc-conformal", probabilities: &tc1_r, gold: &tc1_g },
+        )?;
+        let top1_ann = CalibratedCrfNameAnnotator::new(crf_file, top1_cal, &top1_domain, span_policy)?;
+        let mut top1_count = 0usize;
+        for s in &test_ner {
+            if s.tokens().is_empty() {
+                continue;
+            }
+            let (doc, sents, toks) = sample_doc(s);
+            let (ents, side) = top1_ann.annotate((doc.get::<View>().unwrap(), &sents, &toks))?;
+            assert_eq!(ents.len(), side.len());
+            top1_count += side.len();
+        }
+        assert_eq!(top1_count, tt1_r.len());
     }
     Ok(())
 }

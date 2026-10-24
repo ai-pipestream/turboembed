@@ -4,7 +4,9 @@ use turbo_analysis::{Analyzer, Annotator, Document, Ix, Key, Layer, Provenance, 
 use turbo_analysis_layers::{Calibrated, Entities, Sentences, Tokens, export::codecs};
 use turbo_calibration::{Calibration, DataIdentity, Policy, Transform, digest, metrics};
 use turbo_maxent::{JavaString, ModelFile};
-use turbo_namefind::calibrated::{CalibratedCrfNameAnnotator, CalibratedNameAnnotator, crf_identity, identity};
+use turbo_namefind::calibrated::{
+    CalibratedCrfNameAnnotator, CalibratedNameAnnotator, crf_identity, crf_identity_with_candidates, identity,
+};
 use turbo_sequence::{
     PatternMode,
     crf::CrfSequenceModel,
@@ -282,11 +284,21 @@ fn crf_span_annotator_preserves_alignment_and_round_trips_document_graph() {
         );
         let ann = CalibratedCrfNameAnnotator::new(
             f.clone(),
-            cal,
+            cal.clone(),
             "news",
             Policy { coverage: 0.75, max_set_size: 1, min_confidence: 0.5 },
         )
         .unwrap();
+        assert!(
+            CalibratedCrfNameAnnotator::with_candidates(
+                f.clone(),
+                cal,
+                "news",
+                Policy { coverage: 0.75, max_set_size: 1, min_confidence: 0.5 },
+                4,
+            )
+            .is_err()
+        );
         let text = "Alice Smith visited Paris .";
         let mut doc = Document::new(text);
         let mut sentences = Sentences { spans: Spans::new(ViewId::SOURCE) };
@@ -394,8 +406,9 @@ fn germeval_real_corpus_token_and_crf_span_calibration_receipts() {
     manifest.set(CODEC_PROPERTY, NameCodec::Bio.class_name());
     let mut pkg = ModelPackage::new(manifest);
     pkg.add_entry(MODEL_ENTRY, crf_model.to_bytes());
-    let crf_file = ModelFile::open(pkg.to_bytes()).unwrap();
-    let crf_id = crf_identity(&crf_file, "germeval-2014-excerpt").unwrap();
+    let crf_file = Arc::new(ModelFile::open(pkg.to_bytes()).unwrap());
+    let crf_id = crf_identity_with_candidates(&crf_file, "germeval-2014-excerpt", 4).unwrap();
+    assert_ne!(crf_id.inference_hash, crf_identity(&crf_file, "germeval-2014-excerpt").unwrap().inference_hash);
     let mut crf_finder = CrfNameFinder::from_file(&crf_model, &crf_file, PatternMode::Utf16Units).unwrap();
     let collect_spans = |finder: &mut CrfNameFinder<'_>, split: &[(Vec<String>, Vec<turbo_sequence::codec::Span>)]| {
         let mut probs = Vec::new();
@@ -435,13 +448,33 @@ fn germeval_real_corpus_token_and_crf_span_calibration_receipts() {
             Samples { split: "germeval-conformal", probabilities: &c_rows, gold: &c_gold },
         )
         .unwrap();
-        let pred = turbo_calibration::Predictor::new(
-            cal,
-            &crf_id,
-            Policy { coverage: 0.9, max_set_size: crf_id.labels.len(), min_confidence: 0.0 },
-        )
-        .unwrap();
-        let preds: Vec<_> = t_rows.iter().map(|r| pred.predict(r).unwrap()).collect();
+        let policy = Policy { coverage: 0.9, max_set_size: crf_id.labels.len(), min_confidence: 0.0 };
+        assert!(
+            CalibratedCrfNameAnnotator::new(crf_file.clone(), cal.clone(), "germeval-2014-excerpt", policy).is_err()
+        );
+        let ann =
+            CalibratedCrfNameAnnotator::with_candidates(crf_file.clone(), cal, "germeval-2014-excerpt", policy, 4)
+                .unwrap();
+        let mut preds = Vec::new();
+        for (w, _) in &test_set {
+            let text = w.join(" ");
+            let doc = Document::new(text.as_str());
+            let mut sents = Sentences { spans: Spans::new(ViewId::SOURCE) };
+            sents.spans.push(Span::new(0, text.len() as u32));
+            let mut toks = Tokens { spans: Spans::new(ViewId::SOURCE), sentence: Some(vec![Ix::new(0); w.len()]) };
+            let mut off = 0u32;
+            for tok in w {
+                let end = off + tok.len() as u32;
+                toks.spans.push(Span::new(off, end));
+                off = end + 1;
+            }
+            let (ents, side) = ann.annotate((doc.get::<View>().unwrap(), &sents, &toks)).unwrap();
+            assert_eq!(ents.len(), side.len());
+            for i in 0..side.len() {
+                preds.push(ann.predictor().predict(side.row(i).raw).unwrap());
+            }
+        }
+        assert_eq!(preds.len(), t_rows.len());
         let after =
             metrics::reliability(&preds.iter().map(|p| p.calibrated.clone()).collect::<Vec<_>>(), &t_gold, 10).unwrap();
         let cov = metrics::coverage(&preds, &t_gold).unwrap();

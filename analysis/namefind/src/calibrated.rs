@@ -139,16 +139,28 @@ impl Annotator for CalibratedNameAnnotator {
     }
 }
 
+pub const DEFAULT_CRF_CANDIDATE_PATHS: usize = 1;
+
 /// Producer identity for span-level CRF calibration (`Task::SpanTagging`)
-/// over `model.span_outcomes()` (`["other", kind_0, ...]`).
+/// over `model.span_outcomes()` (`["other", kind_0, ...]`) on top-1 decoded spans.
 pub fn crf_identity(file: &ModelFile, domain: &str) -> Result<Identity, String> {
+    crf_identity_with_candidates(file, domain, DEFAULT_CRF_CANDIDATE_PATHS)
+}
+
+/// Producer identity for span-level CRF calibration over unique candidate spans
+/// from the top-`k` Viterbi paths (`k == 1` selects top-1 decoded entities).
+pub fn crf_identity_with_candidates(file: &ModelFile, domain: &str, k: usize) -> Result<Identity, String> {
+    if k == 0 || k > 4096 {
+        return Err("CRF candidate path count k must be in 1..=4096".into());
+    }
     let model = CrfNameFinder::read_model(file).map_err(|e| e.to_string())?;
     CrfNameFinder::from_file(&model, file, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
     let inference_hash = model
         .codec()
         .class_name()
         .bytes()
-        .chain(b";PatternMode=Utf16Units".iter().copied())
+        .chain(b";PatternMode=Utf16Units;CandidatePaths=".iter().copied())
+        .chain((k as u64).to_le_bytes())
         .fold(0xcbf29ce484222325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3));
     let i = Identity {
         model: "turbo-namefind:crf".into(),
@@ -170,17 +182,30 @@ pub struct CalibratedCrfNameAnnotator {
     model: CrfSequenceModel,
     predictor: Predictor,
     kinds: Arc<TagSet>,
+    candidate_paths: usize,
 }
 impl CalibratedCrfNameAnnotator {
     pub fn new(file: Arc<ModelFile>, calibration: Calibration, domain: &str, policy: Policy) -> Result<Self, String> {
-        let expected = crf_identity(&file, domain)?;
+        Self::with_candidates(file, calibration, domain, policy, DEFAULT_CRF_CANDIDATE_PATHS)
+    }
+    pub fn with_candidates(
+        file: Arc<ModelFile>,
+        calibration: Calibration,
+        domain: &str,
+        policy: Policy,
+        candidate_paths: usize,
+    ) -> Result<Self, String> {
+        let expected = crf_identity_with_candidates(&file, domain, candidate_paths)?;
         let predictor = Predictor::new(calibration, &expected, policy)?;
         let model = CrfNameFinder::read_model(&file).map_err(|e| e.to_string())?;
         CrfNameFinder::from_file(&model, &file, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
         let entity_kinds = model.entity_kinds();
         let refs: Vec<_> = entity_kinds.iter().map(String::as_str).collect();
         let kinds = TagSet::new("turbo:crf-entities", &refs);
-        Ok(Self { file, model, predictor, kinds })
+        Ok(Self { file, model, predictor, kinds, candidate_paths })
+    }
+    pub fn candidate_paths(&self) -> usize {
+        self.candidate_paths
     }
     pub fn predictor(&self) -> &Predictor {
         &self.predictor
@@ -229,21 +254,32 @@ impl Annotator for CalibratedCrfNameAnnotator {
                 end += 1;
             }
             let words: Vec<_> = (base..end).map(|i| &view.text()[starts[i] as usize..ends[i] as usize]).collect();
-            let (names, rows) = finder.find_scored_spans(&words).map_err(|e| fail(e.to_string()))?;
-            for (name, row) in names.into_iter().zip(rows) {
-                let start = base + name.span.start;
-                let stop = base + name.span.end;
+            let spans_and_rows: Vec<_> = if self.candidate_paths == 1 {
+                let (names, rows) = finder.find_scored_spans(&words).map_err(|e| fail(e.to_string()))?;
+                names.into_iter().zip(rows).map(|(n, r)| (n.span, Some(n.prob), r)).collect()
+            } else {
+                finder
+                    .candidate_spans(&words, self.candidate_paths)
+                    .map_err(|e| fail(e.to_string()))?
+                    .into_iter()
+                    .map(|(s, r)| (s, None, r))
+                    .collect()
+            };
+            for (span, prob, row) in spans_and_rows {
+                let start = base + span.start;
+                let stop = base + span.end;
                 if start >= stop || stop > end {
                     return Err(fail("invalid decoded name span".into()));
                 }
                 let kind = entities
                     .kinds
-                    .tag(name.span.kind.as_deref().unwrap_or("default"))
+                    .tag(span.kind.as_deref().unwrap_or("default"))
                     .ok_or_else(|| fail("name kind absent from model labels".into()))?;
+                let score = prob.unwrap_or_else(|| row.get(1 + kind.0 as usize).copied().unwrap_or(0.0));
                 entities.spans.push(turbo_analysis::Span::new(starts[start], ends[stop - 1]));
                 entities.tokens.push(IxRange::new(start as u32, stop as u32));
                 entities.kind.push(kind);
-                entities.score.push(name.prob);
+                entities.score.push(score);
                 calibrated.push(&self.predictor, &row).map_err(fail)?;
             }
             base = end;

@@ -193,31 +193,33 @@ decision policy `Policy { coverage: 0.90, max_set_size: 1, min_confidence: 0.50 
 | Transform | ECE | Brier | Set coverage (`0.90`) | Mean set size | Single-label delivered | Abstention rate | Artifact SHA-256 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | Raw | 0.017955 | 0.053879 | n/a | n/a | n/a | n/a | n/a |
-| Temperature | 0.004669 | 0.051509 | 0.896027 | 0.902 | 0.896027 | 0.097842 | `d8a60216347bfa1ac897aa86707a0660ee46e0dce820ea71e96cf08fec2f4c86` |
-| Platt | 0.007387 | 0.051755 | 0.895782 | 0.902 | 0.895782 | 0.098087 | `cc39de9ed2b78b84edb5667bbc7bdd66951004489b4d538f0f2038d1ecd469a0` |
-| Isotonic | 0.003900 | 0.051084 | 0.896273 | 0.902 | 0.896273 | 0.097597 | `568906f807d833d39a133660ad1eef7dc6ef5bb524dda3e70787c9c6b13aac36` |
+| Temperature | 0.004669 | 0.051509 | 0.896027 | 0.902 | 0.896027 | 0.097842 | `8c2f14558bedd0595e614700a332dc910297a621dccf2d0a62351db992713ac2` |
+| Platt | 0.007387 | 0.051755 | 0.895782 | 0.902 | 0.895782 | 0.098087 | `bb92597bd277e8d765a15599267029d4d71683d1def725b859dd588b97cf0e01` |
+| Isotonic | 0.003900 | 0.051084 | 0.896273 | 0.902 | 0.896273 | 0.097597 | `6f46983328f399809aaeb4f98f34e59229177bfbc3e2638e0c666a7a6454c945` |
 
 3. **`CrfNameFinder` span-level (`Task::SpanTagging`, BIO, 5 outcomes `["other", "date", "location", "organization", "person"]`)**:
-   Candidate spans from `CrfNameFinder::candidate_spans(..., 4)` on the same
-   held-out sentence splits (`fit_n = 550`, `conformal_n = 558`, `test_n = 542` candidate spans, raw accuracy `0.850554`).
+   Candidate spans from `CrfNameFinder::candidate_spans(..., 4)` bound via
+   `crf_identity_with_candidates(..., 4)` and `CalibratedCrfNameAnnotator::with_candidates(..., 4)`
+   on the same held-out sentence splits (`fit_n = 550`, `conformal_n = 558`, `test_n = 542` candidate spans, raw accuracy `0.850554`).
 
 | Transform | ECE | Brier | Set coverage (`0.90`) | Mean set size | Single-label delivered | Abstention rate | Artifact SHA-256 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | Raw | 0.036268 | 0.213593 | n/a | n/a | n/a | n/a | n/a |
-| Temperature | 0.038892 | 0.211607 | 0.898524 | 1.120 | 0.784133 | 0.132841 | `f08aa6aeb3f4341669b5e9970b43d0bb9296170e17f443b9ece6a32bcde5170b` |
-| Platt | 0.045838 | 0.211462 | 0.898524 | 1.120 | 0.782288 | 0.134686 | `4c3e45d22e80b1db1a2c2bb67ad4d9c36e4fe9eeef4cadbb1802a0855a275ae7` |
-| Isotonic | 0.042270 | 0.209870 | 0.904059 | 1.133 | 0.776753 | 0.154982 | `17a5d1d4b31d5c648ad5c5f33c53f7a9948172f0ee0339d6bd7d7e0d50d61fdf` |
+| Temperature | 0.038892 | 0.211607 | 0.898524 | 1.120 | 0.784133 | 0.132841 | `5de64ae1508fe7cf59ed8ad0edb9eb602779e251464f7d886454d74a291ff6eb` |
+| Platt | 0.045838 | 0.211462 | 0.898524 | 1.120 | 0.782288 | 0.134686 | `c2b0523a7a356a2ce6fcf4af3ddc1ff7dbdfb1d48adbdebfc6178e60574178b6` |
+| Isotonic | 0.042270 | 0.209870 | 0.904059 | 1.133 | 0.776753 | 0.154982 | `0580a9c01865b12fd34144cbe83a027235abc0914d022912c1ab0b467855f4bc` |
 
 4. **`CrfNameFinder` span-level (`Task::SpanTagging`, BILOU, 5 outcomes `["other", "date", "location", "organization", "person"]`)**:
-   Candidate spans from `CrfNameFinder::candidate_spans(..., 4)` on the same
-   held-out sentence splits (`fit_n = 551`, `conformal_n = 553`, `test_n = 548` candidate spans, raw accuracy `0.868613`).
+   Candidate spans from `CrfNameFinder::candidate_spans(..., 4)` bound via
+   `crf_identity_with_candidates(..., 4)` and `CalibratedCrfNameAnnotator::with_candidates(..., 4)`
+   on the same held-out sentence splits (`fit_n = 551`, `conformal_n = 553`, `test_n = 548` candidate spans, raw accuracy `0.868613`).
 
 | Transform | ECE | Brier | Set coverage (`0.90`) | Mean set size | Single-label delivered | Abstention rate | Artifact SHA-256 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | Raw | 0.026169 | 0.185469 | n/a | n/a | n/a | n/a | n/a |
-| Temperature | 0.023087 | 0.183377 | 0.914234 | 1.109 | 0.804745 | 0.124088 | `7cd3f3dc4ef10f4849330d826a814ccbd53bbcbb2c2232a5acdbabb618180f32` |
-| Platt | 0.026345 | 0.183358 | 0.912409 | 1.108 | 0.802920 | 0.125912 | `30585d00b478ded8b6c49959c868584f48ae6c4fdc3ba9fd74a46f1e65b0c6a7` |
-| Isotonic | 0.024549 | 0.185042 | 0.901460 | 1.091 | 0.810219 | 0.105839 | `0af732a3c215c3dfa34be37d2be922c43e9d119932def4b693c07bea77545721` |
+| Temperature | 0.023087 | 0.183377 | 0.914234 | 1.109 | 0.804745 | 0.124088 | `9b60cfe431e886e8522a3cb7673c5ff1291504c8e8a6be34ec281d7022a7a812` |
+| Platt | 0.026345 | 0.183358 | 0.912409 | 1.108 | 0.802920 | 0.125912 | `32284f429c373887ce8041bb4f2166aa89a693c9fe0a8dfb478a1819dc39f973` |
+| Isotonic | 0.024549 | 0.185042 | 0.901460 | 1.091 | 0.810219 | 0.105839 | `6640a979ad41e6c4e08d3b2b654b492509a42b80803ce2316cf26b00b958d5e3` |
 
 ### Checked-in GermEval 2014 and passage excerpts
 
