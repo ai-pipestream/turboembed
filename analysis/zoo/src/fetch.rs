@@ -258,20 +258,21 @@ pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
     let mut f = fs::OpenOptions::new().write(true).create_new(true).open(&tmp).map_err(|e| io(&tmp, e))?;
     let written = f.write_all(bytes).and_then(|_| f.sync_all()).map_err(|e| io(&tmp, e));
     drop(f);
-    let renamed = written.and_then(|_| rename(&tmp, dest).map_err(|e| io(dest, e)));
+    let renamed = written.and_then(|_| denied_again(|| fs::rename(&tmp, dest)).map_err(|e| io(dest, e)));
     if renamed.is_err() {
         let _ = fs::remove_file(&tmp);
     }
     renamed
 }
 
-/// `fs::rename`. Windows refuses to replace a file another handle has
-/// open, reading it or replacing it, with access denied; such a handle is
-/// short-lived, so the rename is tried again, up to about a second.
-fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
+/// `op`, tried again on Windows while it is denied, up to about a second.
+/// Windows refuses to stat, open or replace a file that another handle is
+/// deleting or replacing with access denied; such a handle is short-lived.
+/// A denial that lasts longer is returned.
+pub(super) fn denied_again<T>(mut op: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
     let mut tries = 0;
     loop {
-        match fs::rename(from, to) {
+        match op() {
             Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && tries < 100 => {
                 tries += 1;
                 std::thread::sleep(std::time::Duration::from_millis(10));

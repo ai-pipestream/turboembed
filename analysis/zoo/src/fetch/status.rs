@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::Path;
 
-use super::{Zoo, verify};
+use super::{Zoo, denied_again, verify};
 use crate::error::{Check, ZooError};
 use crate::index::{Artifact, File};
 
@@ -26,28 +26,13 @@ pub(super) enum Local {
     Mismatch(ZooError),
 }
 
-/// The bytes at `path`. Windows refuses to open a file that is being
-/// deleted or replaced with access denied, so there a denied read is tried
-/// again for up to about a second, as the rename onto it is
-/// (fetch.rs); a denial that lasts longer is an error, not a missing file.
-fn read(path: &Path) -> std::io::Result<Vec<u8>> {
-    let mut tries = 0;
-    loop {
-        match fs::read(path) {
-            Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && tries < 100 => {
-                tries += 1;
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-            done => return done,
-        }
-    }
-}
-
 /// The file at `local`, checked against `file`. A symlink, or anything
 /// but a plain file, is an error: the zoo writes only plain files.
 pub(super) fn local_file(artifact: &Artifact, file: &File, local: &Path) -> Result<Local, ZooError> {
     let io = |message: String| ZooError::Io { path: local.to_path_buf(), message };
-    match fs::symlink_metadata(local) {
+    // A stat or a read can meet a file another writer is replacing; on
+    // Windows that is a short-lived access denied (`denied_again`).
+    match denied_again(|| fs::symlink_metadata(local)) {
         Ok(m) if m.file_type().is_symlink() => Err(io("is a symlink; the zoo writes only plain files".into())),
         Ok(m) if !m.is_file() => Err(io("is not a plain file".into())),
         Ok(m) if m.len() != file.size => Ok(Local::Mismatch(ZooError::Integrity {
@@ -60,7 +45,7 @@ pub(super) fn local_file(artifact: &Artifact, file: &File, local: &Path) -> Resu
         Ok(_) => {
             // Another process may remove or replace the file between the
             // stat and the read; that is a missing file, not an error.
-            let bytes = match read(local) {
+            let bytes = match denied_again(|| fs::read(local)) {
                 Ok(bytes) => bytes,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Local::Missing),
                 Err(e) => return Err(io(e.to_string())),
