@@ -298,6 +298,7 @@ fn pipeline_annotators_categorize_document_chunks_and_structure_on_bundle() {
                 cost: vec![0, 1000],
                 model_tokens: vec![12, 5],
                 over_budget: vec![false, false],
+                prompt_overhead: 0,
             },
             Provenance::by("test"),
         )

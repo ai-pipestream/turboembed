@@ -49,6 +49,7 @@ fn fixture(offsets: OffsetMode) -> ChunkLevels {
         cost: vec![0, 7],
         model_tokens: vec![3, 5],
         over_budget: vec![false, false],
+        prompt_overhead: 0,
     };
     let mut level_spans = Spans::<Levels>::new(ViewId::SOURCE);
     level_spans.push_fragments(&[whole]);

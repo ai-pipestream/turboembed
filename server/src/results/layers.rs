@@ -287,6 +287,7 @@ impl Wire for ChunkLevels {
             cost: msg.chunk_cost.clone(),
             model_tokens: msg.chunk_model_tokens.clone(),
             over_budget: msg.chunk_over_budget.clone(),
+            prompt_overhead: 0,
         };
         chunks.check().map_err(bad)?;
         let mut unit = Vec::with_capacity(n_levels);
