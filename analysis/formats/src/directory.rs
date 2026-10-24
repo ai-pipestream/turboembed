@@ -132,7 +132,10 @@ mod tests {
     use super::*;
 
     fn names(root: &Path, files: &[PathBuf]) -> Vec<String> {
-        files.iter().map(|f| f.strip_prefix(root).unwrap().to_string_lossy().into_owned()).collect()
+        files
+            .iter()
+            .map(|f| f.strip_prefix(root).unwrap().to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/"))
+            .collect()
     }
 
     #[test]
