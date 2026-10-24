@@ -125,6 +125,14 @@ class Session {
      * range's index. h2d and d2h count the frames' bytes. */
     Failure run(float *out, uint64_t &h2d, uint64_t &d2h);
 
+    /* Waits for each frame still in flight, FRAME_TIMEOUT (embed.cpp) at
+     * most, as a run does; once one has not come back, here or in a run,
+     * the rest are not waited for, so a device that stopped answering
+     * costs the release one FRAME_TIMEOUT at most. A frame that did not come back is detached from
+     * HailoRT and its slot's memory is left allocated, since the device
+     * may still write into it. */
+    ~Session();
+
     uint32_t normalize() const { return rows_.normalize; }
 
   private:

@@ -92,9 +92,12 @@ device.
   times out on the device (10 s) fails the run with `TURBO_E_RUNTIME`
   and HailoRT's status, and the session then refuses every write and run
   with `TURBO_E_INVALID_STATE`: the device may still own the frame's
-  memory. Releasing the session waits for HailoRT to finish with its
-  frames, with no timeout, so on a device that stopped answering it
-  does not return. A token type other
+  memory. Releasing the session waits for each frame still in flight
+  for 10 s at most; once one has not come back, there or in a run, the
+  rest are not waited for, so on a device that stopped answering the
+  release returns after 10 s at most instead of hanging. Each frame that did not come back is
+  detached from HailoRT and its memory is left allocated, since the
+  device may still write into it. A token type other
   than 0 is `TURBO_E_UNSUPPORTED_OPTION`, naming the row: the HEF
   computes type 0 only.
 - **Late pooling and `cpu_threads`.** The session is made through

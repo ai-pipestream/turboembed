@@ -338,6 +338,21 @@ void Session::put_vector(float *dst) {
     for (uint32_t h = 0; h < dim; h++) dst[h] = (float)(sum_[h] * scale);
 }
 
+Session::~Session() {
+    // Once a frame has not come back, in a run or here, the device is
+    // taken as gone and the rest are not waited for.
+    std::chrono::milliseconds timeout = broken_.empty() ? FRAME_TIMEOUT : std::chrono::milliseconds{0};
+    for (auto &s : slots_) {
+        if (!s || !s->busy) continue;
+        if (s->job.wait(timeout) == HAILO_SUCCESS) continue;
+        timeout = std::chrono::milliseconds{0};
+        // Without the detach the job's destructor waits for the frame with
+        // no timeout. The slot is not freed: the device may still own it.
+        s->job.detach();
+        (void)s.release();
+    }
+}
+
 Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
     if (!broken_.empty()) return fail(TURBO_E_INVALID_STATE, broken_);
     if (!written_) return fail(TURBO_E_INVALID_STATE, "the hailo session has no rows written since its last run");
@@ -386,8 +401,8 @@ Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
     }
     // Every frame still in flight is waited for, until one fails: then the
     // rest stay busy, the run returns after one FRAME_TIMEOUT at most, and
-    // releasing the session waits for them without a timeout
-    // (docs/hailo.md).
+    // releasing the session does not wait for them again (~Session,
+    // docs/hailo.md).
     for (auto &s : slots_)
         if (!failed) finish(*s);
     return failed;
