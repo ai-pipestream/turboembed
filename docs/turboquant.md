@@ -160,6 +160,86 @@ serialized representations remain byte-identical after either query mode.
 The large case repeats real vectors to cross the staging threshold; it is
 not a benchmark corpus or evidence of application recall.
 
+### Search choice on a larger real model table
+
+The follow-up comparison uses the actual Potion base 32M embedding table,
+not repeated test rows: 63,091 rows of 512 values from model commit
+`1e5a03f8eeb2c98b928fbbd846f22f816360919f`, with model SHA-256
+`99f6c33204c9231a7391871b7a3c91409b532c8f587a9ea44fc282303d8dec28`
+(the existing bundle recipe pins both). Every 512th row is held out:
+62,967 indexed rows and 124 queries, cosine, k=10, with no zero rows or
+synthetic repeats. These are vocabulary vectors from a real model,
+not a document-retrieval evaluation.
+
+Measured code: `7b8f5fd56bcfe2ddfdd39b1dd078e01a83a3f1e0`. The
+[raw receipt](receipts/turboquant-977/real-search-comparison.json) includes
+input/split/truth and binary hashes, model provenance, per-round timings,
+hit hashes, agreement, RSS observations and ambient load. The host was an
+AMD Ryzen 9 9950X3D; each child used one thread pinned to core 7, the least
+busy core in a one-second utilization sample. The shared CPU timing slot
+was explicitly handed over after the #1176 worker stopped measuring.
+Other build/test and desktop activity remained: one-minute load average
+was 6.10 at the start and 6.01 at the end. This is a shared-host observation,
+not an isolated-machine or statistical significance claim.
+
+There are six alternating staged/exhaustive rounds per configuration,
+each in a fresh process. An initial untimed batch supplies recall and
+hits; three warm-up passes of individual queries and full batches follow.
+Each run reports the median of three passes of individual-query latencies
+(the upper middle sample for an even count) and the median of five batch
+passes divided by the query count. The table is the median across the six
+runs, averaging the two central values. Encoding, I/O and cold cache
+initialization are outside the timed sections.
+
+| Bits | Calibrated | Query policy | Query ms | Batch ms/query | Recall@10 | Warm process RSS MiB |
+|---|---|---|---:|---:|---:|---:|
+| 2 | no | staged | 0.1036 | 0.0793 | 0.904839 | 16.92 |
+| 2 | no | exhaustive | 0.1338 | 0.0833 | 0.904839 | 39.13 |
+| 2 | yes | staged | 0.1045 | 0.0800 | 0.909677 | 20.42 |
+| 2 | yes | exhaustive | 0.1365 | 0.0848 | 0.909677 | 42.00 |
+| 4 | no | staged | 0.0864 | 0.0608 | 0.966935 | 23.22 |
+| 4 | no | exhaustive | 0.5067 | 0.1644 | 0.966935 | 72.27 |
+| 4 | yes | staged | 0.0870 | 0.0619 | 0.968548 | 26.71 |
+| 4 | yes | exhaustive | 0.5074 | 0.1658 | 0.969355 | 74.78 |
+
+Staged and exhaustive return the same ordered ids for all 124 queries in
+three configurations. At calibrated 4 bits, 123/124 queries have identical
+ids; top-10 overlap is 0.999194 and exhaustive gains one true hit over
+1,240 returned positions. Every policy/configuration returns identical
+ids in all six runs. The uncalibrated 4-bit case shows the cost without a
+recall gain on this set: about 5.9 times the single-query latency and 2.7
+times batch latency, with warm process RSS around 72 MiB rather than 23.
+The explicit staged option lets callers retain that tradeoff. No latency
+waiver is inferred from these results; exhaustive remains the recall-safe
+default over quantized estimates.
+
+RSS comes from `/proc/self/status` after warm-up with the input row buffer
+dropped, before any serialization. It includes query buffers, metadata,
+SIMD caches and allocator-retained arenas; it is neither code-only memory
+nor peak construction memory. A staged-only run creates no exhaustive
+shards. An exhaustive run retains the original packed codes/scales plus
+those in its shards, but does not prepare the original SIMD search cache.
+Switching policies, `score`, or `.tv` export can additionally initialize
+that original cache. These resident costs are separate from the compact
+storage sizes reported above.
+
+Reproduce with `reference/potion_search_data.mjs` and the release
+`quant_search_compare` example under `analysis/vector-index/`:
+
+```sh
+node analysis/vector-index/reference/potion_search_data.mjs model.safetensors target/tq-real
+cargo build --locked --release -p turbo-vector-index --features turboquant --example quant_search_compare
+RAYON_NUM_THREADS=1 taskset -c 7 target/release/examples/quant_search_compare prepare target/tq-real/vectors.f32 512 512 target/tq-real > target/tq-real/prepared.json
+node analysis/vector-index/reference/quant_search_compare.mjs target/release/examples/quant_search_compare target/tq-real target/tq-real/comparison.json 7
+```
+
+The extraction script verifies the pinned model digest. The runner requires
+a clean committed tree, refuses kernel environment overrides, checks input
+and binary hashes before/after measurement, and records the actual inputs
+and toolchain. Run only in a coordinated timing slot. The earlier FAISS
+comparison below remains a historical measurement on its own inputs; FAISS
+was not rerun for this larger policy comparison.
+
 ### FAISS comparison
 
 The reference script `analysis/vector-index/reference/faiss_compare.py`
