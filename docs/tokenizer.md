@@ -12,7 +12,7 @@ compare it with. The same text gives the same ids on every machine.
 |---|---|---|
 | `wordpiece` | BERT, MiniLM, BGE (English) | BertNormalizer (clean, split CJK, strip accents, lowercase), BertPreTokenizer, greedy longest-match WordPiece. |
 | `unigram` | XLM-RoBERTa, BGE-M3, Model2Vec's multilingual models | SentencePiece's precompiled character map, Metaspace, the segmentation of highest total score. |
-| `bpe` | GPT-2, RoBERTa | GPT-2's pattern, byte-level characters, merges by rank. |
+| `bpe` | GPT-2, RoBERTa, Llama-3, Qwen2 | GPT-2's pattern, or Llama-3's or Qwen2's Split pattern (Qwen2's after NFC), byte-level characters, merges by rank. |
 | `sentencepiece` | T5, mT5, XLM-RoBERTa, Llama 2, any SentencePiece `.model` | Google's sentencepiece library itself: the model's normalizer, then its unigram search or its BPE, with byte fallback. |
 
 `docs/bundle.md` lists each kind's manifest fields and what the tokenizer
