@@ -327,7 +327,11 @@ pub mod names {
         (TURBO_PRECISION_FASTEST, "PRECISION_FASTEST"),
         (TURBO_PRECISION_EXACT, "PRECISION_EXACT"),
     ];
-    const TASK: &[(u32, &str)] = &[(TURBO_TASK_EMBED, "TASK_EMBED")];
+    pub const TASK: &[(u32, &str)] = &[
+        (TURBO_TASK_EMBED, "TASK_EMBED"),
+        (TURBO_TASK_RERANK, "TASK_RERANK"),
+        (TURBO_TASK_EXTRACTIVE_QA, "TASK_EXTRACTIVE_QA"),
+    ];
     const DTYPE: &[(u32, &str)] = &[
         (TURBO_DTYPE_I8, "DTYPE_I8"),
         (TURBO_DTYPE_I32, "DTYPE_I32"),

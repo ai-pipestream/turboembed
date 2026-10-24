@@ -87,7 +87,7 @@ impl Server {
         max_message_bytes: usize,
         serve: Serve,
     ) -> std::result::Result<Server, String> {
-        let names = config::names(&models)?;
+        let names = config::names_with(&models, serve.admin)?;
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
         let state = Arc::new(State::new(names, models));

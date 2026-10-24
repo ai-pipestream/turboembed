@@ -5,7 +5,10 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
-use turbo::{TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, turbo_session_desc, turbo_session_info};
+use turbo::{
+    TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA, TURBO_TASK_RERANK,
+    turbo_session_desc, turbo_session_info,
+};
 
 use crate::api::{self, *};
 use crate::config::ModelConfig;
@@ -199,7 +202,7 @@ impl State {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         for m in self.listing() {
             if m.loaded.get().is_none() {
-                self.load_model(&m)?;
+                self.load_model(&m).map_err(|e| e.to_string())?;
             }
         }
         Ok(())
@@ -209,7 +212,7 @@ impl State {
     /// no-op. Every other registration is untouched, and a same-named
     /// replacement is a different registration, so one LoadBundle's
     /// failure cannot fail or roll back another's.
-    pub(crate) fn load_one(&self, m: &Arc<Served>) -> std::result::Result<(), String> {
+    pub(crate) fn load_one(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         if m.loaded.get().is_none() {
             self.load_model(m)?;
@@ -220,14 +223,10 @@ impl State {
     /// One model's load: its context, model, sessions and pinned buffers,
     /// published on its entry. The loading mutex is held by the caller, so
     /// this entry cannot load twice.
-    fn load_model(&self, m: &Arc<Served>) -> std::result::Result<(), String> {
-        let fail = |call: &str, fields: &[&str]| {
-            let (name, call) = (m.name.clone(), call.to_string());
-            let fields: Vec<String> = fields.iter().map(|s| s.to_string()).collect();
-            move |f: Failure| {
-                let fields: Vec<&str> = fields.iter().map(String::as_str).collect();
-                format!("model {name}: {call}: {}", describe(&f, &fields))
-            }
+    fn load_model(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
+        let fail = |call: &'static str, fields: &'static [&'static str]| {
+            let model = m.name.clone();
+            move |failure: Failure| LoadError { model, call, failure, fields }
         };
         let rt = match self.runtime.get() {
             Some(rt) => rt,
@@ -239,7 +238,10 @@ impl State {
         let c = &m.config;
         let device = match c.device {
             crate::config::Device::Index(i) => i,
-            crate::config::Device::Select => rt.select(TURBO_TASK_EMBED).map_err(fail("turbo_runtime_select", &[]))?,
+            crate::config::Device::Select => {
+                let task = bundle_task(&c.bundle);
+                rt.select(task).map_err(fail("turbo_runtime_select", &[]))?
+            }
         };
         let ctx = {
             let mut contexts = self.contexts.lock().unwrap_or_else(|e| e.into_inner());
@@ -270,7 +272,7 @@ impl State {
                     .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
                     .map_err(fail("turbo_buffer_alloc", &[]))?;
                 let p = b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?;
-                Ok::<_, String>((b, p))
+                Ok::<_, LoadError>((b, p))
             };
             let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
             slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
@@ -281,6 +283,52 @@ impl State {
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));
         Ok(())
+    }
+}
+
+/// A structured failure from loading a model or creating its sessions,
+/// preserving the turbo status code, field index, and field name table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LoadError {
+    pub model: String,
+    pub call: &'static str,
+    pub failure: Failure,
+    pub fields: &'static [&'static str],
+}
+
+impl std::fmt::Display for LoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "model {}: {}: {}", self.model, self.call, describe(&self.failure, self.fields))
+    }
+}
+
+impl LoadError {
+    /// Converts the load failure to its mapped gRPC Status with `turbo-code`
+    /// and `turbo-field` trailing metadata.
+    pub fn to_status(&self) -> tonic::Status {
+        let f = Failure::new(
+            self.failure.code,
+            self.failure.field,
+            format!("model {}: {}: {}", self.model, self.call, self.failure.message),
+        );
+        crate::status::to_status(&f, self.fields)
+    }
+}
+
+/// Reads the bundle's `task` from `<bundle>/manifest.json` so `Device::Select`
+/// queries `turbo_runtime_select` for the bundle's actual task, falling back
+/// to `TURBO_TASK_EMBED` when the manifest cannot be read yet.
+pub(crate) fn bundle_task(bundle: &str) -> u32 {
+    let path = std::path::Path::new(bundle).join("manifest.json");
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return TURBO_TASK_EMBED;
+    };
+    if text.contains("\"TASK_RERANK\"") {
+        TURBO_TASK_RERANK
+    } else if text.contains("\"TASK_EXTRACTIVE_QA\"") {
+        TURBO_TASK_EXTRACTIVE_QA
+    } else {
+        TURBO_TASK_EMBED
     }
 }
 
@@ -404,5 +452,31 @@ mod tests {
         assert_eq!(m.name, "x");
         assert!(loaded.is_none(), "nothing is loaded yet; ready() reports that on the same path");
         assert!(state.ready("x", "").is_err());
+    }
+
+    #[test]
+    fn bundle_task_reads_manifest_task_and_load_error_preserves_status() {
+        let dir = std::env::temp_dir().join(format!("turbo-kserve-task-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.to_str().unwrap();
+        assert_eq!(bundle_task(p), TURBO_TASK_EMBED);
+        std::fs::write(dir.join("manifest.json"), r#"{"task":"TASK_RERANK"}"#).unwrap();
+        assert_eq!(bundle_task(p), TURBO_TASK_RERANK);
+        std::fs::write(dir.join("manifest.json"), r#"{"task":"TASK_EXTRACTIVE_QA"}"#).unwrap();
+        assert_eq!(bundle_task(p), TURBO_TASK_EXTRACTIVE_QA);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let err = LoadError {
+            model: "m".into(),
+            call: "turbo_session_create",
+            failure: Failure::new(TURBO_E_UNSUPPORTED_OPTION, 2, "over max_seq"),
+            fields: &SESSION_DESC,
+        };
+        let status = err.to_status();
+        assert_eq!(status.code(), tonic::Code::Unimplemented);
+        assert_eq!(status.metadata().get("turbo-code").unwrap(), "513");
+        assert_eq!(status.metadata().get("turbo-field").unwrap(), "2");
+        assert!(status.message().contains("field 2 (max_seq)"), "{}", status.message());
     }
 }
