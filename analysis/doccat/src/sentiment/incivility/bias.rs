@@ -78,10 +78,14 @@ impl IdentityTerms {
     pub fn find<S: AsRef<str>>(&self, tokens: &[S]) -> Vec<&str> {
         let keys: Vec<String> = tokens.iter().map(|t| token_key(t.as_ref())).collect();
         let mut found = vec![false; self.subgroups.len()];
-        // Every start is tried, as the per-term window scan did, so
-        // overlapping terms of different subgroups are all found.
+        // Every start and every match at it is tried, as the
+        // per-term window scan did: nested terms and one term
+        // under several subgroups all mark their subgroups.
+        let mut hits: Vec<(u32, usize)> = Vec::new();
         for at in 0..keys.len() {
-            if let Some((s, _)) = self.index.matches_at(&keys, at) {
+            hits.clear();
+            self.index.matches_all_at(&keys, at, &mut hits);
+            for &(s, _) in &hits {
                 found[s as usize] = true;
             }
         }

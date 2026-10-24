@@ -35,18 +35,34 @@ impl PhraseIndex {
         PhraseIndex { groups, phrases: all }
     }
 
-    /// The longest phrase starting at token `at`, as
-    /// `(payload, word count)`, or `None`.
-    pub fn matches_at<S: AsRef<str>>(&self, tokens: &[S], at: usize) -> Option<(u32, usize)> {
+    fn group_at<S: AsRef<str>>(&self, tokens: &[S], at: usize) -> Option<&[(Vec<String>, u32)]> {
         let first = tokens.get(at)?.as_ref();
         let g = self.groups.binary_search_by(|(w, _, _)| w.as_str().cmp(first)).ok()?;
         let (_, lo, hi) = self.groups[g];
-        for (words, payload) in &self.phrases[lo as usize..hi as usize] {
+        Some(&self.phrases[lo as usize..hi as usize])
+    }
+
+    /// The longest phrase starting at token `at`, as
+    /// `(payload, word count)`, or `None`.
+    pub fn matches_at<S: AsRef<str>>(&self, tokens: &[S], at: usize) -> Option<(u32, usize)> {
+        self.group_at(tokens, at)?.iter().find_map(|(words, payload)| {
+            (at + words.len() <= tokens.len() && words.iter().enumerate().all(|(k, w)| tokens[at + k].as_ref() == w))
+                .then_some((*payload, words.len()))
+        })
+    }
+
+    /// Every phrase starting at token `at`, longest first,
+    /// appended to `out` as `(payload, word count)`. For callers
+    /// where overlapping phrases at one start all count (nested
+    /// terms, or one term under several payloads), unlike
+    /// `matches_at`, which keeps only the longest.
+    pub fn matches_all_at<S: AsRef<str>>(&self, tokens: &[S], at: usize, out: &mut Vec<(u32, usize)>) {
+        let Some(group) = self.group_at(tokens, at) else { return };
+        for (words, payload) in group {
             if at + words.len() <= tokens.len() && words.iter().enumerate().all(|(k, w)| tokens[at + k].as_ref() == w) {
-                return Some((*payload, words.len()));
+                out.push((*payload, words.len()));
             }
         }
-        None
     }
 
     /// Whether no phrases are indexed.
@@ -82,6 +98,23 @@ mod tests {
         assert_eq!(ix.matches_at(&toks, 0), None);
         assert_eq!(ix.matches_at(&toks, 5), None);
         assert_eq!(ix.len(), 3);
+    }
+
+    #[test]
+    fn all_matches_at_a_start_are_returned_longest_first() {
+        let ix = PhraseIndex::new([
+            (vec!["african".into()], 20),
+            (vec!["african".into(), "american".into()], 21),
+            (vec!["x".into()], 30),
+            (vec!["x".into()], 31),
+        ]);
+        let mut out = Vec::new();
+        ix.matches_all_at(&["an", "african", "american", "author"], 1, &mut out);
+        assert_eq!(out, vec![(21, 2), (20, 1)], "nested phrases at one start both match");
+        out.clear();
+        ix.matches_all_at(&["x"], 0, &mut out);
+        assert_eq!(out.len(), 2, "one term under two payloads matches both");
+        assert!(out.contains(&(30, 1)) && out.contains(&(31, 1)));
     }
 
     #[test]
