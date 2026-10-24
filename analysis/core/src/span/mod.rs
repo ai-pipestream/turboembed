@@ -7,6 +7,7 @@ use std::fmt;
 use std::ops::Range;
 
 mod index;
+pub(crate) mod slice;
 mod spans;
 mod text;
 

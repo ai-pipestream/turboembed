@@ -63,11 +63,12 @@ mod provenance;
 mod records;
 mod registry;
 mod relations;
+mod slice;
 mod view_ref;
 mod wire;
 
-pub use columns::{get_spans, get_tagset, put_spans, put_tagset};
-pub use context::{ExportCx, ImportCx, LayerCodec};
+pub use columns::{get_spans, get_spans_raw, get_tagset, put_spans, put_spans_raw, put_tagset, slice_spans_payload};
+pub use context::{ExportCx, ImportCx, LayerCodec, SliceCx, SlicedBody};
 pub use decode::import;
 pub use diff::{GraphDiff, LayerDiffSummary};
 pub use encode::export;
