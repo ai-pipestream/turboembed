@@ -73,6 +73,7 @@ fn with_levels(doc: &mut Document, view: ViewId) {
             cost: vec![0],
             model_tokens: vec![1],
             over_budget: vec![false],
+            prompt_overhead: 0,
         },
         by.clone(),
     )

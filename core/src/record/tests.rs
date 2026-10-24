@@ -23,7 +23,7 @@ fn the_tolerances_are_the_documented_ones() {
     assert_eq!(tolerance(TURBO_DTYPE_BF16), tolerance(TURBO_DTYPE_F16));
     assert_eq!(tolerance(crate::TURBO_DTYPE_I32), None);
     assert_eq!(dtype_value("DTYPE_I8"), Some(crate::TURBO_DTYPE_I8));
-    assert_eq!(tolerance(crate::TURBO_DTYPE_I8), None, "int8 is recorded and has no floor");
+    assert_eq!(tolerance(crate::TURBO_DTYPE_I8), Some(Tolerance { min_cosine: 0.93, max_abs_diff: None }));
 }
 
 #[test]
