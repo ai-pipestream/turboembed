@@ -90,6 +90,7 @@
 pub mod annotate;
 pub mod calibrated;
 pub mod crf;
+mod entity_kinds;
 pub use crf::{CrfNameAnnotator, CrfNameFinder, CrfNameSequence, CrfSequenceModel};
 pub mod builtin;
 pub mod dictionary;
