@@ -16,8 +16,8 @@ use turbo_unicode::category::general_category;
 
 use super::tables::{DEFAULT_SYMBOLS, MAX_CURRENCY_WORD_UNITS, currency_word, is_iso_currency};
 use crate::scan::{
-    ScanResult, base_char_before, boundary_after, boundary_before, byte_at, char_at, continues_number, parse,
-    sign_boundary_before, whitespace_at, word_end,
+    EXTENDED_START_BYTES, ScanResult, base_char_before, boundary_after, boundary_before, byte_at, char_at,
+    continues_number_with_parity, is_nd_lead_byte, parse_with_parity, sign_boundary_before, whitespace_at, word_end,
 };
 
 /// Writes `turbo:money` over a text view: every amount written with a
@@ -44,6 +44,7 @@ pub struct MoneyExtractor {
     /// capital, or the first byte of a symbol in the table.
     starts: [bool; 256],
     notation: NumberNotation,
+    opennlp_parity: bool,
 }
 
 /// Why a symbol table was refused.
@@ -106,24 +107,32 @@ impl MoneyExtractor {
             return Err(SymbolError::Empty);
         }
         table.sort_unstable_by_key(|&(s, _)| s);
-        let mut starts = [false; 256];
-        starts[usize::from(b'-')] = true;
-        for b in (b'0'..=b'9').chain(b'A'..=b'Z') {
+        let mut starts = EXTENDED_START_BYTES;
+        for b in b'A'..=b'Z' {
             starts[usize::from(b)] = true;
         }
         for &(s, _) in &table {
             let mut buf = [0u8; 4];
             starts[usize::from(s.encode_utf8(&mut buf).as_bytes()[0])] = true;
         }
-        Ok(MoneyExtractor { symbols: table.into_boxed_slice(), starts, notation })
+        Ok(MoneyExtractor { symbols: table.into_boxed_slice(), starts, notation, opennlp_parity: false })
     }
 
     /// The same extractor with `symbol` mapped to `currency`, the other
     /// entries kept: what `forRegion` does for a region whose own currency
     /// is written with one currency sign.
     pub fn with_symbol(self, symbol: char, currency: Currency) -> Result<MoneyExtractor, SymbolError> {
+        let parity = self.opennlp_parity;
         let entries = self.symbols.iter().copied().chain([(symbol, currency)]);
-        MoneyExtractor::with_symbols(entries, self.notation)
+        Ok(MoneyExtractor::with_symbols(entries, self.notation)?.with_opennlp_parity(parity))
+    }
+
+    /// Configures whether to enforce strict OpenNLP JVM parity (rejecting
+    /// Indian grouping, space/apostrophe grouping, exponents, and non-ASCII
+    /// digits).
+    pub fn with_opennlp_parity(mut self, opennlp_parity: bool) -> MoneyExtractor {
+        self.opennlp_parity = opennlp_parity;
+        self
     }
 
     /// The symbol table, sorted by symbol.
@@ -150,9 +159,6 @@ impl MoneyExtractor {
         let mut digits = String::new();
         let mut i = 0;
         while i < b.len() {
-            // Only these bytes can start a mention. Each is ASCII or the
-            // first byte of a symbol, so where one is found is a character
-            // boundary, as the Java's step by code points would reach.
             match b[i..].iter().position(|&x| self.starts[usize::from(x)]) {
                 Some(skip) => i += skip,
                 None => break,
@@ -194,7 +200,11 @@ impl MoneyExtractor {
             return Some(found);
         }
         let boundary = if negative { sign_boundary_before(text, start) } else { boundary_before(text, i) };
-        if byte_at(b, i).is_ascii_digit() && !continues_number(text, i, self.notation) && boundary {
+        let is_digit = byte_at(b, i).is_ascii_digit()
+            || (!self.opennlp_parity
+                && is_nd_lead_byte(byte_at(b, i))
+                && char_at(text, i).is_some_and(turbo_unicode::java::is_digit));
+        if is_digit && !continues_number_with_parity(text, i, self.notation, self.opennlp_parity) && boundary {
             return self.number_first(text, i, negative, digits);
         }
         None
@@ -211,7 +221,7 @@ impl MoneyExtractor {
         digits: &mut String,
     ) -> Option<Found> {
         let number_start = skip_whitespace(text, after_symbol);
-        let r = parse(text, number_start, true, self.notation, digits)?;
+        let r = parse_with_parity(text, number_start, true, self.notation, self.opennlp_parity, digits)?;
         mention(text, r.end, &r, currency, negative)
     }
 
@@ -222,7 +232,14 @@ impl MoneyExtractor {
         if !whitespace_at(text, code_start + 3) {
             return None;
         }
-        let r = parse(text, skip_whitespace(text, code_start + 3), true, self.notation, digits)?;
+        let r = parse_with_parity(
+            text,
+            skip_whitespace(text, code_start + 3),
+            true,
+            self.notation,
+            self.opennlp_parity,
+            digits,
+        )?;
         mention(text, r.end, &r, code, false)
     }
 
@@ -230,7 +247,7 @@ impl MoneyExtractor {
     /// at `digit_start`, then a symbol directly, or one whitespace
     /// character and a code or a currency word.
     fn number_first(&self, text: &str, digit_start: usize, negative: bool, digits: &mut String) -> Option<Found> {
-        let r = parse(text, digit_start, true, self.notation, digits)?;
+        let r = parse_with_parity(text, digit_start, true, self.notation, self.opennlp_parity, digits)?;
         let next = char_at(text, r.end)?;
         if let Some(currency) = self.symbol(next) {
             return mention(text, r.end + next.len_utf8(), &r, currency, negative);
@@ -337,7 +354,8 @@ impl Annotator for MoneyExtractor {
             let [a, b, d] = c.code();
             [u64::from(s), u64::from(a), u64::from(b), u64::from(d)]
         });
-        std::iter::once(notation)
+        [notation, u64::from(self.opennlp_parity)]
+            .into_iter()
             .chain(symbols)
             .fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
     }

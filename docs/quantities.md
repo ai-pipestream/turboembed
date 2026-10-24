@@ -8,6 +8,8 @@ the OpenNLP numeric add-on:
 | Rust | OpenNLP |
 |---|---|
 | `QuantityExtractor` | `CursorQuantityExtractor` and `QuantityAnnotator` |
+| `QuantityExtractor::for_region`, `QuantityExtractor::for_locale` | `NumericPacks.quantity(Locale)` |
+| `RegionAwareQuantityAnnotator` | Region-aware quantity extraction over `turbo:regions` |
 | `Quantities`, `QuantityMention` | `Quantity` |
 | `DEFAULT_UNITS` | `CursorQuantityExtractor.DEFAULT_UNITS` |
 

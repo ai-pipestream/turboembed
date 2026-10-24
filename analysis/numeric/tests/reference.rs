@@ -353,7 +353,7 @@ fn the_scanner_agrees_with_a_transcription_over_chars() {
                 };
                 let expected = reference.extract();
                 mentions += expected.len();
-                let got = scanned(&text, NumberScanner { notation, apply_scale });
+                let got = scanned(&text, NumberScanner { notation, apply_scale, opennlp_parity: true });
                 assert_eq!(got, expected, "{text:?} in {notation:?}, scale {apply_scale}");
             }
         }
