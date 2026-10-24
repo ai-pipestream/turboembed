@@ -292,7 +292,7 @@ fn unmeasured(max_seq: u32, max_batch: u32, measured: &[(u32, u32)]) -> CoreErro
 pub fn time(bundle: &Path, vectors: &Arc<VectorAnnotator>, texts: &[Text], reps: usize) -> Result<f64, CoreError> {
     check_texts(texts)?;
     let a = pipeline(bundle, vectors.clone())?;
-    Ok(medians(reps, || run(&a, texts).map(drop), || Ok(()))?.0)
+    Ok(times(reps, || run(&a, texts).map(drop), || Ok(()))?.0[reps / 2])
 }
 
 /// The sentence vectors the step on `vectors` gives `texts`, in order.
@@ -444,16 +444,6 @@ fn cosine(g: &[f32], w: &[f32]) -> f64 {
     let n = |v: &[f32]| v.iter().map(|&x| x as f64 * x as f64).sum::<f64>().sqrt();
     let d = n(g) * n(w);
     if d == 0.0 { if n(g) == n(w) { 1.0 } else { 0.0 } } else { dot / d }
-}
-
-/// The median times of `reps` runs each of `a` and `b`, in ms.
-fn medians(
-    reps: usize,
-    a: impl FnMut() -> Result<(), CoreError>,
-    b: impl FnMut() -> Result<(), CoreError>,
-) -> Result<(f64, f64), CoreError> {
-    let (ta, tb) = times(reps, a, b)?;
-    Ok((ta[reps / 2], tb[reps / 2]))
 }
 
 /// The fastest times of `reps` runs each of `a` and `b`, in ms: what

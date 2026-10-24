@@ -8,6 +8,12 @@ pub struct Shape {
     /// Tokens computed: each run's rows times its longest row.
     pub tokens: u64,
 }
+
+/// A call planned and not yet run (`VectorAnnotator::plan`).
+pub struct Planned {
+    plan: Plan,
+    out: Vec<Result<Output, Error>>,
+}
 impl VectorAnnotator {
     /// The vectors of a batch of documents, a result for each. A document
     /// whose layers do not fit together fails alone; a run that fails
@@ -16,8 +22,43 @@ impl VectorAnnotator {
     pub fn embed(&self, annotator: &'static str, inputs: &[Input<'_>]) -> Vec<Result<Output, Error>> {
         let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
         let mut guard = self.lock();
+        self.plan_batch(annotator, inputs, &mut guard.plan, &mut out);
+        self.finish(annotator, guard, inputs, out)
+    }
+
+    /// A call of `inputs` planned and not run, for `shape_of_plan` to count
+    /// and `embed_planned` to run without planning it again.
+    pub fn plan(&self, annotator: &'static str, inputs: &[Input<'_>]) -> Planned {
+        let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
+        let mut plan = Plan::new(self.width());
+        self.plan_batch(annotator, inputs, &mut plan, &mut out);
+        Planned { plan, out }
+    }
+
+    /// `embed` of the call `planned` was made for, the same `inputs`, on
+    /// this step, which must lay out windows as the one that planned it
+    /// did: the same bundle, window and prompt.
+    pub fn embed_planned(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+        planned: Planned,
+    ) -> Vec<Result<Output, Error>> {
+        let Planned { mut plan, out } = planned;
+        let mut guard = self.lock();
+        std::mem::swap(&mut guard.plan, &mut plan);
+        self.finish(annotator, guard, inputs, out)
+    }
+
+    /// Runs the plan in `guard` and pools, splits and normalizes into `out`.
+    fn finish(
+        &self,
+        annotator: &'static str,
+        mut guard: std::sync::MutexGuard<'_, State>,
+        inputs: &[Input<'_>],
+        mut out: Vec<Result<Output, Error>>,
+    ) -> Vec<Result<Output, Error>> {
         let st = &mut *guard;
-        self.plan_batch(annotator, inputs, &mut st.plan, &mut out);
         if let Err(e) = self.run(st, inputs, &mut out) {
             let e = Error::Annotator { annotator, detail: e.to_string() };
             for o in out.iter_mut().filter(|o| o.is_ok()) {
@@ -53,7 +94,12 @@ impl VectorAnnotator {
     /// session: packed as `embed` packs them (`pack`), each run's rows as
     /// long as its longest. The call is planned, not run.
     pub fn shape(&self, annotator: &'static str, inputs: &[Input<'_>]) -> Shape {
-        self.shape_at(annotator, inputs, self.max_batch, self.max_ranges).expect("a session's limits are at least 1")
+        self.shape_of_plan(&self.plan(annotator, inputs))
+    }
+
+    /// `shape` of a planned call.
+    pub fn shape_of_plan(&self, planned: &Planned) -> Shape {
+        self.count(&planned.plan, self.max_batch, self.max_ranges)
     }
 
     /// `shape` in a session of `max_batch` rows and `max_ranges` ranges a
@@ -72,13 +118,15 @@ impl VectorAnnotator {
                 format!("shape of {max_batch} rows and {max_ranges} ranges a run: each must be at least 1"),
             ));
         }
-        let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
-        let mut plan = Plan::new(self.width());
-        self.plan_batch(annotator, inputs, &mut plan, &mut out);
+        Ok(self.count(&self.plan(annotator, inputs).plan, max_batch, max_ranges))
+    }
+
+    /// The shape `plan` packs into at these limits, each at least 1.
+    fn count(&self, plan: &Plan, max_batch: u32, max_ranges: u32) -> Shape {
         let ends = (self.head.len() + self.tail.len()) as u64;
         let mut shape = Shape { runs: 0, rows: 0, tokens: 0 };
         let (mut rows, mut longest) = (0u64, 0u64);
-        let counted: Result<(), std::convert::Infallible> = pack(&plan, max_batch, max_ranges, |step| {
+        let counted: Result<(), std::convert::Infallible> = pack(plan, max_batch, max_ranges, |step| {
             match step {
                 Pack::Row { window, .. } => {
                     let w = &plan.windows[window];
@@ -95,7 +143,7 @@ impl VectorAnnotator {
             Ok(())
         });
         let Ok(()) = counted;
-        Ok(shape)
+        shape
     }
 
     /// Lays out the windows of every document of `inputs` whose layers fit

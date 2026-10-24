@@ -13,6 +13,7 @@
 //! sentence alone and its first text alone, at each batch measured.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
 use turbo_analysis::{Analyzer, Error, Execution, Key, ModelRef};
@@ -112,8 +113,8 @@ fn solve(rows: &[([f64; 3], f64)], used: &[usize]) -> Option<Vec<f64>> {
 
 /// The step on the device and on the CPU, and each side's fitted cost.
 pub struct Dispatch {
-    device: VectorAnnotator,
-    cpu: VectorAnnotator,
+    device: Arc<VectorAnnotator>,
+    cpu: Arc<VectorAnnotator>,
     cap: u32,
     /// Whether the device's vectors clear the floor at the step's window.
     eligible: bool,
@@ -156,7 +157,7 @@ impl Dispatch {
             let mut v = base.clone();
             v.encoder.device = device;
             v.encoder.precision = precision;
-            VectorAnnotator::open(bundle, &v)
+            VectorAnnotator::open(bundle, &v).map(Arc::new)
         };
         let (device, cpu) = (open(o.device.clone(), o.precision)?, open(Device::Cpu, Precision::Exact)?);
         let short = first_sentence(texts)?;
@@ -223,8 +224,9 @@ impl Dispatch {
         (self.device_cost, self.cpu_cost)
     }
 
-    /// The step on `side`.
-    pub fn on(&self, side: Side) -> &VectorAnnotator {
+    /// The step on `side`: the instance this dispatch runs that side's
+    /// calls on.
+    pub fn on(&self, side: Side) -> &Arc<VectorAnnotator> {
         match side {
             Side::Device => &self.device,
             Side::Cpu => &self.cpu,
@@ -267,8 +269,10 @@ impl Embedder for Dispatch {
         annotator: &'static str,
         inputs: &[Input<'_>],
     ) -> (Vec<Result<Output, Error>>, Option<Execution>) {
-        let a = self.on(self.side(self.device.shape(annotator, inputs)));
-        (a.embed(annotator, inputs), Some(a.execution().clone()))
+        // Planned once: the side runs the plan its shape was counted from.
+        let planned = self.device.plan(annotator, inputs);
+        let a = self.on(self.side(self.device.shape_of_plan(&planned)));
+        (a.embed_planned(annotator, inputs, planned), Some(a.execution().clone()))
     }
 
     fn model(&self) -> &ModelRef {
