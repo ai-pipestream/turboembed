@@ -42,7 +42,16 @@ RUN git init -q . \
 # opennlp-api use java.util.regex); it only reads the compiled classes and
 # changes nothing in them.
 # -DskipITs is needed as well: the integration tests download models.
-RUN ./mvnw -q -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats,opennlp-core/opennlp-ml/opennlp-ml-libsvm,opennlp-core/opennlp-ml/opennlp-dl,opennlp-core/opennlp-cli -am install
+RUN ./mvnw -q -nsu -DskipTests -DskipITs -Dforbiddenapis.skip=true -pl opennlp-core/opennlp-runtime,opennlp-core/opennlp-formats,opennlp-core/opennlp-ml/opennlp-ml-libsvm,opennlp-core/opennlp-ml/opennlp-dl,opennlp-core/opennlp-cli -am install
+
+# These locally installed SNAPSHOT jars are the pinned fork, not Apache's
+# changing snapshots with the same coordinates. Suppress snapshot updates
+# in every later Maven invocation and verify that the generator packages
+# exactly these bytes, including the API types used by glossary, lattice
+# and PII. A successful build must not silently switch its reference.
+RUN find /root/.m2/repository/org/apache/opennlp -type f -name '*.jar' -print0 \
+      | sort -z | xargs -0 sha256sum > /opennlp-jars.sha256 \
+ && test -s /opennlp-jars.sha256
 
 # The code point StringPattern of the fork's ready/string-pattern-unicode
 # branch: its StringPattern and FeatureGeneratorUtil, and its ParamChecks,
@@ -95,7 +104,9 @@ RUN git init -q . \
  && GIT_LFS_SKIP_SMUDGE=1 git fetch -q --depth 1 origin "$ADDONS_COMMIT" \
  && GIT_LFS_SKIP_SMUDGE=1 git checkout -q --detach FETCH_HEAD \
  && test "$(git rev-parse HEAD)" = "$ADDONS_COMMIT"
-RUN /opennlp/mvnw -q -DskipTests -f /addons/pom.xml -pl numeric -am install
+RUN /opennlp/mvnw -q -nsu -DskipTests -f /addons/pom.xml -pl numeric -am install \
+ && find /root/.m2/repository/org/apache/opennlp/addons/numeric -type f -name '*.jar' -print0 \
+      | sort -z | xargs -0 sha256sum > /addons-jars.sha256
 
 # The geo module of the same addons commit (the gazetteers), installed the
 # same way. Two of its readers drop a byte order mark from the first line with
@@ -116,7 +127,9 @@ RUN GIT_LFS_SKIP_SMUDGE=1 git fetch -q --depth 1 origin "$PLACE_PROFILES_COMMIT"
       geo/src/main/java/opennlp/geo/GazetteerIndex.java geo/src/main/java/opennlp/geo/UserGazetteer.java \
       geo/src/main/java/opennlp/geo/PlaceProfiles.java \
  && ! grep -rq stripByteOrderMark geo/src/main \
- && /opennlp/mvnw -q -Dmaven.test.skip=true -f /addons/pom.xml -pl geo install
+ && /opennlp/mvnw -q -nsu -Dmaven.test.skip=true -f /addons/pom.xml -pl geo install \
+ && find /root/.m2/repository/org/apache/opennlp/addons/geo -type f -name '*.jar' -print0 \
+      | sort -z | xargs -0 sha256sum >> /addons-jars.sha256
 
 # The neural part-of-speech taggers of the OpenNLP addons (neural-postag: the
 # BiLSTM-CRF and the feedforward tagger, PostagNeuralGolden.java), which the
@@ -130,11 +143,14 @@ ARG NEURAL_POSTAG_COMMIT=88767f8d09ffd350bd045e532bdd6f9d76cd9dd8
 RUN GIT_LFS_SKIP_SMUDGE=1 git fetch -q --depth 1 origin "$NEURAL_POSTAG_COMMIT" \
  && git archive "$NEURAL_POSTAG_COMMIT" neural-postag/pom.xml neural-postag/src/main | tar -x \
  && mkdir -p .mvn \
- && /opennlp/mvnw -q -Dmaven.test.skip=true -f /addons/neural-postag/pom.xml install
+ && /opennlp/mvnw -q -nsu -Dmaven.test.skip=true -f /addons/neural-postag/pom.xml install \
+ && find /root/.m2/repository/org/apache/opennlp/addons/neural-postag -type f -name '*.jar' -print0 \
+      | sort -z | xargs -0 sha256sum >> /addons-jars.sha256
 
 # The generator, built with the same Maven as OpenNLP. Its tests run here.
 COPY . /generator
-RUN /opennlp/mvnw -q -f /generator/pom.xml package
+RUN /opennlp/mvnw -q -nsu -f /generator/pom.xml package \
+ && sh /generator/verify-reference-jars.sh /generator/target/lib /opennlp-jars.sha256 /addons-jars.sha256
 
 # The liblinear add-on of the OpenNLP addons, on their main branch: its three
 # classes are in the default package, which the generator cannot import, so

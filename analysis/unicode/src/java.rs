@@ -1,5 +1,4 @@
-//! `java.lang.Character` and `String.toLowerCase(Locale.ROOT)` semantics
-//! on this crate's Unicode data.
+//! `java.lang.Character` and `String.toLowerCase(Locale.ROOT)` semantics on this crate's Unicode data.
 //!
 //! The OpenNLP normalizers are written against these JDK methods. The
 //! functions here follow the JDK's definitions (which categories count as

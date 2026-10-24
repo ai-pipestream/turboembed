@@ -29,8 +29,15 @@ everything that makes them:
   from `eclipse-temurin:21-jdk` pinned by digest, clones the OpenNLP fork
   at a pinned commit, builds the runtime and the formats module with the
   repository's `mvnw`,
-  clones `opennlp-addons` at a pinned commit and installs its `numeric`
-  module, and builds the generator.
+  clones `opennlp-addons` at pinned commits and installs its `numeric`,
+  `geo` and `neural-postag` modules, and builds the generator.
+  Maven runs with `--no-snapshot-updates`: the fork and add-ons use
+  SNAPSHOT coordinates also published by Apache, which must not replace
+  the locally built reference. The build records SHA-256 receipts just
+  after installing the pinned artifacts. `java/verify-reference-jars.sh`
+  checks those installations and every packaged SNAPSHOT, including any
+  classifier, against the receipts. A different or unrecorded artifact
+  fails the build; release dependencies can still be downloaded.
 - `src/`: the driver, the `turbo-goldens` binary. `src/recipe/` holds the
   base image digest, the OpenNLP and addons commits, the published models
   with their URLs and SHA-512 hashes, the checked in fixtures with their

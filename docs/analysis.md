@@ -4045,15 +4045,25 @@ The workflow always uploads the report, inputs, JVM goldens, candidates
 and command log for 14 days. A timeout can interrupt reduction: in that
 case the retained inputs and goldens allow `--reuse` to continue it locally.
 The image and model preparation run before the differential time budget;
-the whole job has a separate 90-minute limit. The schedule is proposed until this workflow reaches the default branch.
-A fresh build at this change is blocked: the generator imports
-`GlossaryEntry`, `GlossaryMatch`, `GlossaryMatcher`, `LatticeTokenizer`,
-`MecabDictionary`, `Morpheme`, `PiiExtractor`, `PiiMention` and
-`UnigramSegmenter`, but the pinned OpenNLP runtime does not provide these
-classes. The generator/runtime pins must be reconciled before enabling the
-workflow. The existing local generator can run the selected Turkish oracle
-(425 comparisons pass), but does not recognize the current `cross-validate`
-skip name; it is not evidence of a successful full nightly run.
+the whole job has a separate 90-minute limit. The schedule is proposed
+until this workflow reaches the default branch.
+
+The generator build preserves the pinned fork's SNAPSHOT artifacts instead
+of updating them from Apache's snapshot repository. It records the installed
+jar hashes and checks the generator's complete packaged SNAPSHOT set against
+them. This matters even with unchanged Maven versions: a newer Apache API
+jar at the same coordinates lacks APIs that the pinned fork supplies. The
+current generator recognizes the complete differential catalog and skip
+list, including `cross-validate`; the older local image does not.
+
+A local run with seed 20261024 and the workflow's count of 200 compared
+25,600 goldens without an unexpected mismatch or invariant violation. The
+fresh Turkish oracle also passes all 425 locale inputs. All 1,980 regenerated
+glossary, lattice, PII, PII rewrite and unigram goldens match the checked-in
+files byte for byte. These are local generator and comparison results,
+not evidence of a hosted scheduled or
+dispatch run. Keep the PR draft and the issue open until that hosted
+evidence and fresh external review are available.
 
 ### The offset invariants
 
