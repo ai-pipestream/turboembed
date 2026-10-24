@@ -382,6 +382,9 @@ impl Weights {
             artifact_bytes,
             artifact2,
             artifact2_bytes,
+            head: std::ptr::null(),
+            head_out: 0,
+            reserved: 0,
         }
     }
 

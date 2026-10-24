@@ -78,7 +78,7 @@ fn rows(ids: &[i32], mask: &[i32], batch: usize, seq: usize, normalize: u32, od:
         pooling: TURBO_POOLING_MEAN,
         normalize,
         output_dim: od as u32,
-        reserved: 0,
+        head: 0,
     }
 }
 

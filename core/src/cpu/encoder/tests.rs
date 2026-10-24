@@ -47,6 +47,9 @@ impl Model {
             artifact_bytes: 0,
             artifact2: std::ptr::null(),
             artifact2_bytes: 0,
+            head: std::ptr::null(),
+            head_out: 0,
+            reserved: 0,
         };
         Model { desc, tensors }
     }
@@ -94,7 +97,7 @@ impl Model {
             pooling: TURBO_POOLING_MEAN,
             normalize: TURBO_NORMALIZE_L2,
             output_dim: self.desc.hidden,
-            reserved: 0,
+            head: 0,
         };
         let mut out = vec![f32::NAN; batch * self.desc.hidden as usize];
         // More than once, to see later runs on the same session agree.
@@ -193,7 +196,7 @@ fn ranged(
         pooling: TURBO_POOLING_MEAN,
         normalize,
         output_dim: output_dim as u32,
-        reserved: 0,
+        head: 0,
     };
     let mut out = vec![f32::NAN; ranges.len() * output_dim];
     e.write_ranges(&rows, ids, mask, None, ranges);
@@ -328,7 +331,7 @@ fn a_write_of_rows_after_ranges_pools_rows() {
         pooling: TURBO_POOLING_MEAN,
         normalize: TURBO_NORMALIZE_L2,
         output_dim: h as u32,
-        reserved: 0,
+        head: 0,
     };
     let mut out = vec![f32::NAN; b * h];
     e.write_ranges(&rows, &ids, &mask, None, &[range(0, 0, 5), range(1, 0, 1), range(2, 0, 3)]);

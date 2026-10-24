@@ -1964,6 +1964,8 @@ const turbo_backend turbo_metal_backend = {
     nullptr,
     session_open,
     embed_write_ranges,
+    0,
+    0,
 };
 
 /* Every allocation this backend has made in the process, host and device,
