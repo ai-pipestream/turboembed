@@ -4749,7 +4749,7 @@ runs them on any machine:
   asked and on the CPU at `Precision::Exact`, the two timed in turns,
   against the CPU at `Precision::Exact` as the reference. It keeps a point
   for each window and batch, windows outer, in the order asked: the lowest
-  cosine and the median times of the device and the CPU. A cosine that is
+  cosine and the fastest times of the device and the CPU. A cosine that is
   not a number counts as the lowest, and a device that gives a different
   number of vectors than the reference is an error. `Calibration::side`
   gives the device for a configuration whose point clears the floor (the
@@ -4766,9 +4766,9 @@ runs them on any machine:
   name, runtime and driver versions, the precision, the library's build
   (`turbo::tuning::LIBRARY_BUILD`, its version and kernels), the windows,
   the batches, the floor as given and a hash of the texts. It measures
-  again when the key changes, and when the kept file is not the version 4
-  form (version 2 timed the CPU at `Precision::Model`, version 3 has no
-  times of one sentence alone) or lacks a point
+  again when the key changes, and when the kept file is not the version 5
+  form (version 2 timed the CPU at `Precision::Model`, versions 3 and 4
+  lack the times of one sentence and one text alone) or lacks a point
   for each window and batch asked, in order. `Calibration::options` gives
   the `VectorOptions` for one configuration, or an error: the device at
   the precision asked, or the CPU at `Precision::Exact`, the precision it
@@ -4788,19 +4788,22 @@ runs them on any machine:
   to three times. docs/hailo.md ("Device or CPU") gives what it measured
   on the Hailo-8.
 - `analysis/embed/src/calibrate/dispatch.rs` chooses the side per call. A
-  point also keeps the median times of the texts' first sentence sent
-  alone on each side. `Dispatch::open` opens the step on the device and on
+  point also keeps each side's fastest time for the texts' first sentence
+  sent alone and for their first text sent alone (kept form version 5; the
+  calibration keeps fastest times throughout, since another process can
+  only slow a run). `Dispatch::open` opens the step on the device and on
   the CPU at `Precision::Exact` at one window and cap, refusing a window
   and cap the calibration does not ask for before it measures, and fits
   each side's time a call (`Cost::fit`: no cost below 0, least relative
-  squares) to a cost a run, a row and a token, over the whole set and the
-  one sentence at each batch measured at that window. Shapes are planned,
-  not run: `VectorAnnotator::shape` packs a call through `pack`, the loop
-  `embed` runs by, so the rows a run holds and the ranges it holds both
-  split runs, and `last_shape` reports what a call sent to the encoder. A
-  call of a shape the calibration timed at the step's cap goes to the side
-  measured faster; any other runs whole on the side whose cost is lower;
-  the device only where its vectors clear the floor at that window;
+  squares) to a cost a run, a row and a token, over the whole set, the one
+  sentence and the one text at each batch measured at that window. Shapes
+  are planned, not run: `VectorAnnotator::shape` packs a call through
+  `pack`, the loop `embed` runs by, so the rows a run holds and the ranges
+  it holds both split runs; `shape_at` refuses limits of 0; and
+  `last_shape` reports what a call sent to the encoder. A call of a shape
+  the calibration timed goes to the side with the lower median over every
+  cap it was timed at; any other runs whole on the side whose cost is
+  lower; the device only where its vectors clear the floor at that window;
   `TURBO_CALIBRATION_FORCE` still sends every call to one side.
   `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` take any
   `Embedder`, a `VectorAnnotator` or a `Dispatch`, and record each call's
@@ -4811,12 +4814,12 @@ runs them on any machine:
   standing in for the device, that a call of one sentence and a call of
   many record different sides and get each side's vectors; on the device
   `TURBO_TEST_DEVICE` names, at each of the twelve windows and caps, one
-  sentence, one document and the whole set through one instance, each
-  timed three times in turn with the step fixed on each side, run within
-  10% of the faster fixed side, every document records one side, and its
-  vectors are that side's. `analysis/core/tests/placed.rs` checks that
-  each document records the execution its call returned, and its own after
-  a run again alone.
+  sentence, one document and the whole set go through one instance, every
+  document records one side, its vectors are that side's, and the side is
+  the faster of the step fixed on each side, each timed three times in
+  turn, unless their times overlap. `analysis/core/tests/placed.rs` checks
+  that each document records the execution its call returned, and its own
+  after a run again alone.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,

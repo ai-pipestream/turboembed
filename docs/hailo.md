@@ -186,7 +186,7 @@ per configuration. `Calibration::measure` runs the sentence vector step
 over the caller's texts at each window (tokens a row) and batch (rows a
 run) asked, on the device at `Precision::Model` and on the CPU at
 `Precision::Exact`, and keeps the lowest cosine of the device's vectors
-to the CPU's and the median time of each side.
+to the CPU's and the fastest time of each side.
 `Calibration::side` gives the device for a configuration where its
 cosine clears the floor (0.93 for I8) and it is faster than the CPU, and
 the CPU, at `Precision::Exact`, elsewhere; a configuration that was not
@@ -240,36 +240,36 @@ the Hailo-8, spends about 6.5 ms more than the CPU would.
 
 `Dispatch` chooses per call instead of per configuration: it holds the
 step on the Hailo-8 and on the CPU at one window and cap, and runs each
-call whole on one side. A call the calibration timed at that cap (the
-whole set, or its first sentence alone) goes to the side measured faster;
-any other goes to the side whose cost is lower, fitted to the
-calibration's times as a cost a run, a row and a token. A call's runs,
+call whole on one side. A call the calibration timed (the whole set, its
+first sentence alone or its first text alone) goes to the side measured
+faster, over every cap it was timed at; any other goes to the side
+whose cost is lower, fitted to the calibration's times as a cost a run,
+a row and a token. The calibration keeps each side's fastest time, since
+another process on the machine can only slow a run, and a call's runs,
 rows and tokens are planned the way it runs. Each document's layers
 record the side that made its vectors. Through one instance on the
-Hailo-8 on a Raspberry Pi 5 at commit 0fab346b, the middle of three
+Hailo-8 on a Raspberry Pi 5 at commit 6acb852a, the middle of three
 medians each (dispatched, then the step fixed on the Hailo-8 and on the
 CPU, in ms):
 
 | Window | Cap | One sentence | One document | All 168 sentences |
 |---|---|---|---|---|
-| 16 | 1 | CPU 7.5 (14.1, 7.5) | CPU 46.3 (84.5, 46.5) | CPU 1617 (2999, 1608) |
-| 16 | 8 | CPU 7.6 (14.1, 7.6) | Hailo-8 42.0 (41.9, 41.4) | Hailo-8 1240 (1240, 1417) |
-| 16 | 32 | CPU 7.6 (14.1, 7.6) | Hailo-8 41.9 (41.9, 41.4) | Hailo-8 640 (640, 1392) |
-| 32 | 1 | CPU 7.5 (14.1, 7.6) | Hailo-8 42.2 (42.2, 42.9) | CPU 1520 (1605, 1519) |
-| 32 | 8 | CPU 7.6 (14.1, 7.6) | Hailo-8 35.2 (35.2, 40.6) | Hailo-8 674 (675, 1398) |
-| 32 | 32 | CPU 7.5 (14.1, 7.6) | Hailo-8 35.3 (35.2, 40.8) | Hailo-8 351 (351, 1382) |
-| 64 | 1 | CPU 7.6 (14.1, 7.6) | Hailo-8 28.2 (28.2, 36.5) | Hailo-8 802 (802, 1300) |
-| 64 | 8 | CPU 7.6 (14.1, 7.6) | Hailo-8 28.2 (28.2, 35.5) | Hailo-8 337 (337, 1246) |
-| 64 | 32 | CPU 7.6 (14.1, 7.6) | Hailo-8 28.2 (28.2, 35.7) | Hailo-8 176 (176, 1243) |
-| 128 | 1 | CPU 7.6 (14.1, 7.6) | Hailo-8 14.1 (14.1, 31.8) | Hailo-8 507 (507, 1144) |
-| 128 | 8 | CPU 7.5 (14.1, 7.5) | Hailo-8 14.1 (14.1, 31.8) | Hailo-8 223 (223, 1107) |
-| 128 | 32 | CPU 7.6 (14.1, 7.7) | Hailo-8 14.1 (14.1, 32.4) | Hailo-8 133 (133, 1117) |
+| 16 | 1 | CPU 7.5 (14.1, 7.5) | CPU 46.5 (84.5, 46.7) | CPU 1615 (2999, 1617) |
+| 16 | 8 | CPU 7.6 (14.1, 7.5) | CPU 41.5 (42.0, 41.5) | Hailo-8 1240 (1241, 1414) |
+| 16 | 32 | CPU 7.6 (14.1, 7.5) | CPU 50.3 (41.9, 41.4) | Hailo-8 640 (640, 1392) |
+| 32 | 1 | CPU 7.5 (14.1, 7.5) | Hailo-8 42.2 (42.2, 42.8) | CPU 1517 (1605, 1518) |
+| 32 | 8 | CPU 7.6 (14.1, 7.6) | Hailo-8 35.2 (35.4, 40.6) | Hailo-8 674 (675, 1398) |
+| 32 | 32 | CPU 7.6 (14.1, 7.6) | Hailo-8 35.2 (35.2, 40.6) | Hailo-8 351 (351, 1384) |
+| 64 | 1 | CPU 7.5 (14.1, 7.5) | Hailo-8 28.1 (28.1, 36.3) | Hailo-8 802 (802, 1301) |
+| 64 | 8 | CPU 7.5 (14.1, 7.5) | Hailo-8 28.1 (28.2, 35.5) | Hailo-8 337 (337, 1242) |
+| 64 | 32 | CPU 7.5 (14.1, 7.6) | Hailo-8 28.1 (28.1, 35.6) | Hailo-8 176 (176, 1241) |
+| 128 | 1 | CPU 7.6 (14.1, 7.5) | Hailo-8 14.1 (14.1, 31.7) | Hailo-8 507 (507, 1143) |
+| 128 | 8 | CPU 7.5 (14.1, 7.6) | Hailo-8 14.1 (14.1, 32.0) | Hailo-8 223 (223, 1107) |
+| 128 | 32 | CPU 7.7 (14.1, 7.6) | Hailo-8 14.1 (14.1, 32.5) | Hailo-8 133 (133, 1117) |
 
-The Compute Module 5 gives the same sides and times within 4%. In 34 of
-the 36 cells the side chosen is the faster one, or the two are within
-each other's spread. The two that are not are one document at 16 tokens
-with a cap of 8 or 32 rows: the fit sends it to the Hailo-8, 1.2% and
-1.3% slower than the CPU, on both boards, outside the spread of three.
+In all 36 cells the side chosen was the faster one. On the Compute
+Module 5 it was in 35, and in the other the two sides' times overlapped,
+so neither was faster.
 
 On the Hailo-10H (on a Raspberry Pi 5, HailoRT 5.1.1, firmware 5.1.1),
 which has memory of its own, the same measurement at commit 67e1327b
