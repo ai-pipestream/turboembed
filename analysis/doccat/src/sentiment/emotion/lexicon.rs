@@ -108,8 +108,22 @@ pub(super) const NEGATORS: &[&str] =
 /// How many tokens before a cue a negator reaches.
 pub(super) const NEGATION_WINDOW: usize = 3;
 
+/// Both tables sorted by word once, for binary search. The
+/// source tables stay in label order for readability.
+fn sorted_cues() -> &'static [(&'static str, D, f64)] {
+    static SORTED: std::sync::OnceLock<Vec<(&'static str, D, f64)>> = std::sync::OnceLock::new();
+    SORTED.get_or_init(|| {
+        let mut all: Vec<(&'static str, D, f64)> = WORDS.iter().chain(EMOJI).copied().collect();
+        all.sort_by(|a, b| a.0.cmp(b.0));
+        all
+    })
+}
+
 /// The weight of `token` (already lowercased and trimmed of punctuation,
 /// or an emoji) for each label it cues.
 pub(super) fn cues(token: &str) -> impl Iterator<Item = (D, f64)> + '_ {
-    WORDS.iter().chain(EMOJI).filter(move |(w, _, _)| *w == token).map(|&(_, d, weight)| (d, weight))
+    let all = sorted_cues();
+    let lo = all.partition_point(|(w, _, _)| *w < token);
+    let hi = lo + all[lo..].partition_point(|(w, _, _)| *w == token);
+    all[lo..hi].iter().map(|&(_, d, weight)| (d, weight))
 }
