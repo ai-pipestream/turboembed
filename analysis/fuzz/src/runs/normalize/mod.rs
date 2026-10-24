@@ -58,7 +58,7 @@ struct Documented {
 /// The run names and their normalizers, the edit policy of each golden
 /// and the documented difference of `docs/normalizers.md` for it (its
 /// "Differences from OpenNLP" subsection), if it has one.
-pub(crate) const RUN_NAMES: [&str; 28] = [
+pub(crate) const RUN_NAMES: [&str; 29] = [
     "whitespace",
     "whitespace-keep-lines",
     "whitespace-keep-paragraphs",
@@ -72,6 +72,7 @@ pub(crate) const RUN_NAMES: [&str; 28] = [
     "nfc",
     "nfkc",
     "case-fold",
+    "case-fold-tr",
     "full-case-fold",
     "accent-fold",
     "german-umlaut",
@@ -127,6 +128,7 @@ fn table(name: &str) -> Option<(Normalize, Edits, Option<Documented>)> {
         "nfc" => (boxed(UnicodeForm::nfc()), Reconstructed, None),
         "nfkc" => (boxed(UnicodeForm::nfkc()), Reconstructed, None),
         "case-fold" => (boxed(CaseFold::lowercase()), Reconstructed, None),
+        "case-fold-tr" => (boxed(CaseFold::turkish_lowercase()), Reconstructed, None),
         "full-case-fold" => (boxed(CaseFold::full()), Reported, None),
         "accent-fold" => (boxed(AccentFold::new()), Reconstructed, None),
         "german-umlaut" => (boxed(GermanUmlauts::new()), Reported, None),

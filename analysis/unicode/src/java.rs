@@ -13,6 +13,7 @@
 //! `UnicodeScript.of`.
 
 pub mod code_point;
+pub mod locale;
 mod word_classes;
 
 use crate::ascii::push_lowercase_run;

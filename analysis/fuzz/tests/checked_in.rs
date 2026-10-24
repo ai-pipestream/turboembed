@@ -43,8 +43,6 @@ fn the_checked_in_goldens_show_no_divergence() {
     for (run, why) in &report.unavailable {
         match why {
             Unavailable::Missing(p) if !require || p.to_string_lossy().contains("mecab-") => {}
-            // The Turkish locale case fold has goldens and no counterpart in the port.
-            Unavailable::NotCovered(_) if run == "normalize/case-fold-tr" => {}
             other => panic!("{run}: {other}"),
         }
     }
@@ -105,4 +103,20 @@ fn the_checked_in_goldens_show_no_divergence() {
         let known = why.contains("surrogate pair") || why.contains("not available") || why.contains("does not read");
         assert!(known, "{} on {}: {why}", f.run_name(), f.input_name());
     }
+}
+
+#[test]
+fn turkish_lowercase_is_compared_without_skips() {
+    let data = turbo_goldens::data_dir();
+    let report = compare_tree(
+        &data,
+        &data.join("inputs"),
+        &Resources::from_env(),
+        |annotator, run| annotator == "normalize" && run == "case-fold-tr",
+        |_, _, _| {},
+    )
+    .unwrap();
+    assert!(report.unavailable.is_empty(), "{}", report.render());
+    assert!(!report.findings.is_empty());
+    assert!(report.findings.iter().all(|f| f.outcome == Outcome::Match), "{}", report.render());
 }
