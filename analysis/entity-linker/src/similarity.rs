@@ -28,7 +28,13 @@ pub fn fold_alias(input: &str) -> String {
         return String::new();
     }
     let mut stripped = String::with_capacity(input.len());
-    turbo_normalize::AccentFold::new().fold_str(input, &mut turbo_normalize::FoldScratch::default(), &mut stripped);
+    thread_local! {
+        static FOLD_SCRATCH: std::cell::RefCell<turbo_normalize::FoldScratch> =
+            std::cell::RefCell::new(turbo_normalize::FoldScratch::default());
+    }
+    FOLD_SCRATCH.with(|scratch| {
+        turbo_normalize::AccentFold::new().fold_str(input, &mut scratch.borrow_mut(), &mut stripped);
+    });
 
     let mut folded = String::with_capacity(stripped.len());
     casefold::fold(&stripped, &mut folded);
