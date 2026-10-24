@@ -84,7 +84,7 @@ request, per loaded bundle:
 |---|---|
 | `name` | The name requests use. |
 | `model` | The bundle's identity: model id, revision, and the manifest's sha256, the contract the load was made against. |
-| `task` | The task it serves, the header constant's name (`TASK_EMBED`). |
+| `task` | The task it serves, the header constant's name (`TASK_EMBED`, `TASK_RERANK`, or `TASK_EXTRACTIVE_QA`). |
 | `roles` | The prompt roles it takes: `PROMPT_QUERY` for a non-empty `prefix_query`, `PROMPT_DOCUMENT` for a non-empty `prefix_document`, `PROMPT_NONE` when it carries neither. |
 | `widths` | `dim` first, then the `output_dims` a request may name by `output_dim`, ascending. |
 | `context_limit` | Tokens per row; a longer row is `TURBO_E_CAPACITY` naming `max_seq`. |

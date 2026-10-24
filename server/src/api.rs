@@ -201,6 +201,10 @@ unsafe impl Send for Session {}
 unsafe impl Sync for Session {}
 
 impl Session {
+    pub(crate) fn as_ptr(&self) -> *mut turbo_session {
+        self.0
+    }
+
     pub fn info(&self) -> Result<turbo_session_info> {
         let mut info: turbo_session_info = sized();
         check(|e| unsafe { turbo_session_get_info(self.0, &mut info, e) })?;
@@ -215,6 +219,23 @@ impl Session {
 
     pub fn write_tokens(&self, batch: &turbo_token_batch, opts: &turbo_embed_options) -> Result<()> {
         check(|e| unsafe { turbo_embed_write_tokens(self.0, batch, opts, e) })
+    }
+
+    pub fn write_ranges(
+        &self,
+        batch: &turbo_token_batch,
+        ranges: &[turbo_token_range],
+        opts: &turbo_embed_options,
+    ) -> Result<()> {
+        let count = u32::try_from(ranges.len())
+            .map_err(|_| Failure::new(TURBO_E_INVALID_SHAPE, 0, "more ranges than a uint32_t holds"))?;
+        check(|e| unsafe { turbo_embed_write_ranges(self.0, batch, ranges.as_ptr(), count, opts, e) })
+    }
+
+    pub fn write_pairs(&self, pairs: &[turbo_text_pair], opts: &turbo_rerank_options) -> Result<()> {
+        let count = u32::try_from(pairs.len())
+            .map_err(|_| Failure::new(TURBO_E_INVALID_SHAPE, 0, "more pairs than a uint32_t holds"))?;
+        check(|e| unsafe { turbo_rerank_write_pairs(self.0, pairs.as_ptr(), count, opts, e) })
     }
 
     pub fn run(&self) -> Result<Output> {
@@ -327,7 +348,12 @@ pub mod names {
         (TURBO_PRECISION_FASTEST, "PRECISION_FASTEST"),
         (TURBO_PRECISION_EXACT, "PRECISION_EXACT"),
     ];
-    const TASK: &[(u32, &str)] = &[(TURBO_TASK_EMBED, "TASK_EMBED")];
+    const TASK: &[(u32, &str)] = &[
+        (TURBO_TASK_EMBED, "TASK_EMBED"),
+        (TURBO_TASK_RERANK, "TASK_RERANK"),
+        (TURBO_TASK_EXTRACTIVE_QA, "TASK_EXTRACTIVE_QA"),
+    ];
+    const PAIR: &[(u32, &str)] = &[(TURBO_PAIR_BERT, "PAIR_BERT"), (TURBO_PAIR_ROBERTA, "PAIR_ROBERTA")];
     const DTYPE: &[(u32, &str)] = &[
         (TURBO_DTYPE_I8, "DTYPE_I8"),
         (TURBO_DTYPE_I32, "DTYPE_I32"),
@@ -364,9 +390,15 @@ pub mod names {
         "EMBED_STAGE_NORMALIZE",
         "EMBED_STAGE_DOWNLOAD",
     ];
+    /// The rerank task's stage constants, by index.
+    pub const RERANK_STAGES: [&str; TURBO_RERANK_STAGE_COUNT] =
+        ["RERANK_STAGE_TOKENIZE", "RERANK_STAGE_ENCODE", "RERANK_STAGE_HEAD", "RERANK_STAGE_POOL"];
 
     pub fn task(v: u32) -> String {
         pick(TASK, v)
+    }
+    pub fn pair_template(v: u32) -> String {
+        pick(PAIR, v)
     }
     pub fn dtype(v: u32) -> String {
         pick(DTYPE, v)
