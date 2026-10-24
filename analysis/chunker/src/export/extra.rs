@@ -34,7 +34,7 @@ impl LayerCodec for ClauseCuts {
         Ok(w.finish())
     }
 
-    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+    fn import(data: &[u8], cx: &mut ImportCx, doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let mut sentences = Vec::new();
         for _ in 0..r.usize()? {
@@ -58,6 +58,29 @@ impl LayerCodec for ClauseCuts {
         let want = aligned_len::<Sentences>(cx)?;
         if sentences.len() != want {
             return Err(malformed(format!("{} clause cut rows for {want} sentences", sentences.len())));
+        }
+        let target = resolved::<Sentences>(cx);
+        let key = cx.key::<Sentences>(&target.instance);
+        let restored = doc
+            .get_key(&key)
+            .ok_or_else(|| ExportError::DanglingReference { layer: cx.layer().to_owned(), reference: target })?;
+        let text = doc.text(restored.spans.view());
+        for (i, row) in sentences.iter().enumerate() {
+            let sentence = restored.spans.get(Ix::new(i as u32));
+            for token in &row.tokens {
+                if !sentence.contains(*token)
+                    || !text.is_char_boundary(token.start as usize)
+                    || !text.is_char_boundary(token.end as usize)
+                {
+                    return Err(ExportError::InvalidLayer {
+                        layer: cx.layer().to_owned(),
+                        detail: format!(
+                            "clause token {}..{} is outside sentence {i} ({}..{}) or off UTF-8 boundaries",
+                            token.start, token.end, sentence.start, sentence.end
+                        ),
+                    });
+                }
+            }
         }
         checked(ClauseCuts { sentences }, cx)
     }
