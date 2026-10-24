@@ -61,16 +61,11 @@ impl Parser<'_> {
     }
 
     pub(super) fn columns_start(&mut self, p: usize, le: usize) -> bool {
+        if !self.columns_candidate {
+            return false;
+        }
         let Leaf::Paragraph { node, lines, last_start, prev_end } = self.leaf else { return false };
         let header_end = self.tree.nodes[node as usize].end as usize;
-        let header_text = &self.text[last_start..header_end];
-        if !crate::columns::candidate(header_text) {
-            return false;
-        }
-        let next_text = &self.text[p..le];
-        if !crate::columns::candidate(next_text) {
-            return false;
-        }
         if !crate::columns::aligned(self.text, last_start, header_end, p, le) {
             return false;
         }
