@@ -239,6 +239,11 @@ message SparseTermsResult
   repeated uint32 occ_start = 8;
   repeated uint32 occ_end = 9;
   repeated uint32 occ_at = 10;
+
+  // The view text the spans are offsets into; when empty in
+  // OFFSET_MODE_UTF8, spans are carried as raw UTF-8 byte offsets.
+  string text = 11;
+  OffsetMode offsets = 12;
 }
 
 // One contextual vector per model token with the spans of the encoder
@@ -271,6 +276,11 @@ message TokenVectorsResult
   // piece.
   repeated uint32 window_start = 5;
   repeated uint32 window_end = 6;
+
+  // The view text the windows are offsets into; when empty in
+  // OFFSET_MODE_UTF8, windows are carried as raw UTF-8 byte offsets.
+  string text = 8;
+  OffsetMode offsets = 9;
 }
 
 // The relevance order of a shortlist (#707): the turbo-analysis-embed
@@ -334,6 +344,11 @@ message ExtractionResult
   repeated uint32 frag_start = 9;
   repeated uint32 frag_end = 10;
   repeated uint32 frag_at = 11;
+
+  // The view text the spans are offsets into; when empty in
+  // OFFSET_MODE_UTF8, spans are carried as raw UTF-8 byte offsets.
+  string text = 12;
+  OffsetMode offsets = 13;
 }
 
 // What the streaming bulk analysis call accepts and answers (issue
