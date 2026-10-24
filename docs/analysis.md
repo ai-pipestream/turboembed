@@ -3881,8 +3881,8 @@ differential and the tests cannot drift apart. `runs::RUNS` lists every
 run and a test holds it to the directories on disk; the differential
 leaves out the `train`, `formats`, `masc`, `ner`, `evaluate`,
 `detokenize` and `bpe` directories (files, scores, token lists and
-merges, not layers over a text) and `normalize/case-fold-tr` (the port
-has no Turkish case fold).
+merges, not layers over a text). The Turkish locale lowercase run
+`normalize/case-fold-tr` is compared.
 
 Every comparison ends in one of four outcomes. A match. A documented
 difference: a JVM behaviour the crate docs describe and test that the port
@@ -3975,13 +3975,31 @@ come along; every input of a seed is a fixed function of its index).
 After a fix, the candidate file is checked in as an input of the set the
 `.report` names, and `turbo-goldens generate` gives it a golden.
 
-The intended use is a nightly run on a hardware host with Docker and the
-models fetched, over a few thousand inputs with a fresh seed each night
-(the date serves), the report kept and every candidate looked at. A
-thousand inputs over the seven sets are a hundred thousand goldens: the
-generator takes about two minutes for them in the container, and the
-comparison about seven in a debug build, most of it in the MeCab
-dictionaries loading.
+`.github/workflows/differential.yml` schedules a daily run at 03:25 UTC
+and supports manual dispatch. It builds the pinned JVM generator, fetches
+its models and builds the release differential tool. It also builds the
+bundle pooling reference recipe and passes its immutable image ID through
+`TURBO_GOLDENS_REFERENCE_IMAGE`; the derived model still must match its
+pinned SHA-512. This avoids depending on a developer's Docker image store.
+The comparison and
+ddmin reduction share a 20-minute budget (plus 30 seconds to terminate).
+The UTC date is the seed; 200 inputs per set cover all nine default sets,
+including `normalize/case-fold-tr`. Up to ten failing runs are reduced,
+with at most 40 oracle rounds per run. A mismatch or timeout fails the job.
+
+The workflow always uploads the report, inputs, JVM goldens, candidates
+and command log for 14 days. A timeout can interrupt reduction: in that
+case the retained inputs and goldens allow `--reuse` to continue it locally.
+The image and model preparation run before the differential time budget;
+the whole job has a separate 90-minute limit. The schedule is proposed until this workflow reaches the default branch.
+A fresh build at this change is blocked: the generator imports
+`GlossaryEntry`, `GlossaryMatch`, `GlossaryMatcher`, `LatticeTokenizer`,
+`MecabDictionary`, `Morpheme`, `PiiExtractor`, `PiiMention` and
+`UnigramSegmenter`, but the pinned OpenNLP runtime does not provide these
+classes. The generator/runtime pins must be reconciled before enabling the
+workflow. The existing local generator can run the selected Turkish oracle
+(425 comparisons pass), but does not recognize the current `cross-validate`
+skip name; it is not evidence of a successful full nightly run.
 
 ### The offset invariants
 

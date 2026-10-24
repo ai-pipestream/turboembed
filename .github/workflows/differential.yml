@@ -1,0 +1,60 @@
+name: Nightly JVM differential
+on:
+  schedule:
+    - cron: '25 3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: differential-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  differential:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_TARGET_DIR: target
+      RUSTFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build differential tool
+        run: cargo build --locked --release -p turbo-goldens-tool --features fuzz
+      - name: Build pinned JVM generator
+        run: target/release/turbo-goldens image
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: differential-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**/*.rs', 'analysis/goldens-tool/src/models.rs') }}
+      - name: Build pooling reference recipe
+        run: |
+          docker build --tag turbo-nightly-reference bundle/reference
+          image=$(docker image inspect --format '{{.Id}}' turbo-nightly-reference)
+          echo "TURBO_GOLDENS_REFERENCE_IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Fetch pinned models
+        run: target/release/turbo-goldens fetch-models .opennlp-models --local
+      - name: Compare and reduce within twenty minutes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/nightly
+          seed=$(date -u +%Y%m%d)
+          echo "seed=$seed count=200 reduce=10 rounds=40" | tee target/nightly/run.log
+          timeout --kill-after=30s 20m target/release/turbo-goldens fuzz \
+            --seed "$seed" --count 200 --reduce 10 --rounds 40 \
+            --models .opennlp-models --out target/nightly/corpus \
+            2>&1 | tee -a target/nightly/run.log
+      - name: Preserve replay inputs and reduced failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: differential-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            target/nightly/run.log
+            target/nightly/corpus/report.txt
+            target/nightly/corpus/inputs
+            target/nightly/corpus/jvm
+            target/nightly/corpus/candidates
