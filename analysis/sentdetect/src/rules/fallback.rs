@@ -184,6 +184,68 @@ pub(crate) fn split_with_fallback(
     Ok(())
 }
 
+/// Computes internal sentence-start byte offsets for `text` using `splitter`'s
+/// rules, refined by `fallback` on any segment containing
+/// [`UNPUNCTUATED_SCRIPTS`].
+pub(crate) fn boundaries_with_fallback(
+    splitter: &RuleSplitter,
+    text: &str,
+    fallback: &dyn UnpunctuatedSplitter,
+    out: &mut Vec<u32>,
+) -> Result<(), Error> {
+    check_len(RuleSentenceDetector::ID, text)?;
+    let rule_breaks: Vec<u32> = RULE_SCRATCH.with_borrow_mut(|scratch| {
+        splitter.boundaries_with(text, scratch);
+        scratch.breaks.iter().map(|b| scratch.units.get(b.at as usize).map_or(text.len() as u32, |u| u.start)).collect()
+    });
+    let mut seg_ranges: Vec<(usize, usize)> = Vec::with_capacity(rule_breaks.len() + 1);
+    let mut start = 0usize;
+    for &at in &rule_breaks {
+        seg_ranges.push((start, at as usize));
+        start = at as usize;
+    }
+    seg_ranges.push((start, text.len()));
+
+    let mut slices: Vec<(usize, u32, &str)> = Vec::new();
+    for (idx, &(s, e)) in seg_ranges.iter().enumerate() {
+        if let Some((ts, te)) = trim(text, s, e, WhitespaceMode::Unicode) {
+            let slice = &text[ts..te];
+            if needs_unpunctuated_fallback(slice) {
+                slices.push((idx, ts as u32, slice));
+            }
+        }
+    }
+    if slices.is_empty() {
+        out.extend_from_slice(&rule_breaks);
+        return Ok(());
+    }
+    let texts: Vec<&str> = slices.iter().map(|&(_, _, s)| s).collect();
+    let results = fallback.split_batch(&texts);
+    if results.len() != texts.len() {
+        return Err(Error::Annotator {
+            annotator: RuleSentenceDetector::ID,
+            detail: format!("unpunctuated fallback returned {} results for {} slices", results.len(), texts.len()),
+        });
+    }
+    let mut slice_iter = slices.into_iter().zip(results).peekable();
+    let mut sub_out = Vec::new();
+    for idx in 0..seg_ranges.len() {
+        if let Some(&((s_idx, _, _), _)) = slice_iter.peek()
+            && s_idx == idx
+        {
+            let ((_, base, slice), res) = slice_iter.next().unwrap();
+            let sub_spans = res?;
+            sub_out.clear();
+            validate_and_shift(RuleSentenceDetector::ID, slice, base, &sub_spans, &mut sub_out)?;
+            out.extend(sub_out.iter().skip(1).map(|sp| sp.start));
+        }
+        if let Some(&brk) = rule_breaks.get(idx) {
+            out.push(brk);
+        }
+    }
+    Ok(())
+}
+
 /// Batch annotation for [`RuleSentenceDetector`] when an
 /// [`UnpunctuatedSplitter`] fallback is configured: batches all unpunctuated
 /// script spans across all documents in `inputs` into a single

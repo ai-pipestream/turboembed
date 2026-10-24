@@ -298,17 +298,35 @@ impl RuleSplitter {
     }
 
     /// The byte offsets where sentences start, after the first, before
-    /// trimming: the boundaries inside the text.
+    /// trimming: the boundaries inside the text, including any splits from a
+    /// configured [`UnpunctuatedSplitter`].
     pub fn boundaries(&self, text: &str, out: &mut Vec<u32>) {
-        let mut scratch = RuleScratch::default();
-        self.boundaries_with(text, &mut scratch);
-        out.extend(
-            scratch.breaks.iter().map(|b| scratch.units.get(b.at as usize).map_or(text.len() as u32, |u| u.start)),
-        );
+        self.try_boundaries(text, out).expect("unpunctuated fallback splitter failed");
+    }
+
+    /// Fallible counterpart to [`boundaries`](Self::boundaries) that returns
+    /// any error from the configured [`UnpunctuatedSplitter`] fallback or
+    /// offset range check.
+    pub fn try_boundaries(&self, text: &str, out: &mut Vec<u32>) -> Result<(), Error> {
+        check_len(RuleSentenceDetector::ID, text)?;
+        if let Some(ref fb) = self.fallback {
+            fallback::boundaries_with_fallback(self, text, fb.as_ref(), out)
+        } else {
+            RULE_SCRATCH.with_borrow_mut(|scratch| {
+                self.boundaries_with(text, scratch);
+                out.extend(
+                    scratch
+                        .breaks
+                        .iter()
+                        .map(|b| scratch.units.get(b.at as usize).map_or(text.len() as u32, |u| u.start)),
+                );
+            });
+            Ok(())
+        }
     }
 
     /// Leaves the sorted boundaries in `scratch.breaks`.
-    fn boundaries_with(&self, text: &str, scratch: &mut RuleScratch) {
+    pub(crate) fn boundaries_with(&self, text: &str, scratch: &mut RuleScratch) {
         let rules = self.rules;
         let language = self.language.rules();
         units::classify(text, rules, language, self.line_breaks, &mut scratch.units);

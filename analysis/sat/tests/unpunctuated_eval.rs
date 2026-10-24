@@ -70,7 +70,21 @@ fn punctuated_scripts_stay_on_rules_and_unpunctuated_scripts_route_to_sat() {
             assert!(sample.is_char_boundary(w[0].start as usize));
             assert!(sample.is_char_boundary(w[0].end as usize));
         }
+        let mut fallback_bounds = Vec::new();
+        with_sat.splitter.boundaries(sample, &mut fallback_bounds);
+        let expected_bounds: Vec<u32> = fallback_spans[1..].iter().map(|s| s.start).collect();
+        assert_eq!(fallback_bounds, expected_bounds);
     }
+
+    // SatAnnotator::into_rule_splitter agrees between split and boundaries on Thai text.
+    let sat_th = SatAnnotator::open(&dir, &opts).unwrap().into_rule_splitter("th");
+    let thai_pair = "ภาษาไทย ภาษาไทย";
+    let mut pair_spans = Vec::new();
+    let mut pair_bounds = Vec::new();
+    sat_th.split(thai_pair, &mut pair_spans);
+    sat_th.boundaries(thai_pair, &mut pair_bounds);
+    assert!(pair_spans.len() > 1);
+    assert_eq!(pair_bounds, pair_spans[1..].iter().map(|s| s.start).collect::<Vec<_>>());
 }
 
 #[test]
@@ -118,6 +132,8 @@ fn invalid_fallback_spans_are_refused() {
     let splitter = RuleSplitter::new("th").with_unpunctuated_fallback(Arc::new(BadSplitter));
     let mut out = Vec::new();
     assert!(splitter.try_split("ภาษาไทย", &mut out).is_err());
+    let mut bounds = Vec::new();
+    assert!(splitter.try_boundaries("ภาษาไทย", &mut bounds).is_err());
     assert!(rule_splitter_with_sat("th", None).unwrap().unpunctuated_fallback().is_none());
 }
 
