@@ -164,6 +164,7 @@ impl Job<'_> {
             d,
             len,
             mask: &e.mask[r * e.seq..][..len],
+            ahead: e.ahead,
             scale: 1.0 / (d as f32).sqrt(),
             fma: M::FMA,
             ctx: unsafe { self.bufs.ctx.add(start * h) },
