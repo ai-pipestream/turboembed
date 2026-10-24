@@ -1,5 +1,6 @@
 //! Frequency segmentation with selectable Chinese and OpenNLP policies.
 
+use std::ops::Range;
 use turbo_analysis::Span;
 use turbo_unicode::WhitespaceMode;
 use turbo_unicode::chars::is_ascii_alnum;
@@ -110,38 +111,35 @@ impl UnigramSegmenter {
         // Find ASCII while collecting the characters the dictionary DP
         // already needs, without another scan of the common non-ASCII run.
         if !Self::prepare::<true>(part, scratch) {
-            self.decode_run(text, stretch, scratch, out, true);
+            self.decode_run(text, stretch, 0..scratch.chars.len(), scratch, out);
             return;
         }
-        let ascii = |b: u8| is_ascii_alnum(char::from(b));
-        let bytes = part.as_bytes();
         let mut start = 0;
-        while start < bytes.len() {
-            let grouped = ascii(bytes[start]);
-            let len = bytes[start..].iter().take_while(|&&b| ascii(b) == grouped).count();
-            let span = Span::new(stretch.start + start as u32, stretch.start + (start + len) as u32);
+        while start < scratch.chars.len() {
+            let grouped = is_ascii_alnum(scratch.chars[start]);
+            let len = scratch.chars[start..].iter().take_while(|&&c| is_ascii_alnum(c) == grouped).count();
             if grouped {
-                out.push(span);
+                out.push(Span::new(
+                    stretch.start + scratch.offsets[start],
+                    stretch.start + scratch.offsets[start + len],
+                ));
             } else {
-                self.decode_run(text, span, scratch, out, false);
+                self.decode_run(text, stretch, start..start + len, scratch, out);
             }
             start += len;
         }
     }
 
-    fn decode_run(&self, text: &str, span: Span, scratch: &mut Scratch, out: &mut Vec<Span>, prepared: bool) {
-        if !prepared {
-            Self::prepare::<false>(&text[span.range()], scratch);
-        }
+    fn decode_run(&self, text: &str, span: Span, range: Range<usize>, scratch: &mut Scratch, out: &mut Vec<Span>) {
         if self.mode != UnigramMode::Chinese {
-            self.decode_prepared(span, scratch, out);
+            self.decode_prepared(span, range, scratch, out);
             return;
         }
         // Only the HMM needs the intermediate dictionary words. The other
         // modes append directly to the caller's output, without a copy.
         let mut raw = std::mem::take(&mut scratch.raw);
         raw.clear();
-        self.decode_prepared(span, scratch, &mut raw);
+        self.decode_prepared(span, range, scratch, &mut raw);
         scratch.raw = raw;
         self.unknown_words(text, span.start, scratch, out);
     }
@@ -195,7 +193,7 @@ impl UnigramSegmenter {
     /// them, and visiting only character boundaries changes nothing.
     fn decode(&self, text: &str, stretch: Span, scratch: &mut Scratch, out: &mut Vec<Span>) {
         Self::prepare::<false>(&text[stretch.range()], scratch);
-        self.decode_prepared(stretch, scratch, out);
+        self.decode_prepared(stretch, 0..scratch.chars.len(), scratch, out);
     }
 
     fn prepare<const CHECK_ASCII: bool>(part: &str, scratch: &mut Scratch) -> bool {
@@ -212,8 +210,10 @@ impl UnigramSegmenter {
         ascii
     }
 
-    fn decode_prepared(&self, stretch: Span, scratch: &mut Scratch, out: &mut Vec<Span>) {
+    fn decode_prepared(&self, stretch: Span, range: Range<usize>, scratch: &mut Scratch, out: &mut Vec<Span>) {
         let Scratch { chars, offsets, best, previous, .. } = scratch;
+        let chars = &chars[range.clone()];
+        let offsets = &offsets[range.start..=range.end];
         let n = chars.len();
         best.clear();
         best.resize(n + 1, f64::NEG_INFINITY);
