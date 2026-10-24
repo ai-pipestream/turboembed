@@ -17,9 +17,9 @@ use std::time::Duration;
 use tokio::sync::{Semaphore, mpsc};
 use tonic::{Status, Streaming};
 
-use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
+use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8, TURBO_E_UNSUPPORTED_OPTION};
 use crate::proto::result::analyze_stream_request::Kind;
-use crate::proto::result::{AnalyzeDocument, AnalyzeStreamRequest};
+use crate::proto::result::{AnalyzeDocument, AnalyzeOutput, AnalyzeStreamRequest};
 use crate::state::State;
 use crate::stream::handler;
 use crate::stream::run::Doc;
@@ -46,13 +46,46 @@ fn check(state: &State, d: AnalyzeDocument, room: Room) -> Result<Doc, Box<(Stri
         if loaded.task != turbo::TURBO_TASK_EMBED {
             return Err((Failure::new(crate::api::TURBO_E_UNSUPPORTED_TASK, 0, "the model's task is not embed"), room));
         }
-        let opts = match handler::options(d.options.as_ref()) {
+        let doc_opts = match handler::doc_options(d.output, d.offsets, d.options.as_ref()) {
             Ok(o) => o,
             Err(f) => return Err((f, room)),
         };
+        if doc_opts.output != AnalyzeOutput::Vectors {
+            if std::str::from_utf8(&d.text).is_err() {
+                return Err((Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"), room));
+            }
+            let Some(embed) = loaded.embed.as_ref() else {
+                return Err((
+                    Failure::new(
+                        TURBO_E_UNSUPPORTED_OPTION,
+                        0,
+                        format!("model {} has no embed companion", served.name),
+                    ),
+                    room,
+                ));
+            };
+            if let Err(f) = embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k) {
+                return Err((f, room));
+            }
+        }
         let batch_limit = loaded.slots[0].info.max_batch;
         let version = loaded.revision.clone();
-        Ok(Doc { seq: 0, id: d.id, text: d.text, opts, loaded, model: served.name.clone(), version, batch_limit, room })
+        Ok(Doc {
+            seq: 0,
+            id: d.id,
+            text: d.text,
+            opts: doc_opts.embed,
+            output: doc_opts.output,
+            offsets: doc_opts.offsets,
+            sparse_top_k: doc_opts.sparse_top_k,
+            sparse_floor: doc_opts.sparse_floor,
+            token_stride: doc_opts.token_stride,
+            loaded,
+            model: served.name.clone(),
+            version,
+            batch_limit,
+            room,
+        })
     })(d, room);
     checked.map_err(|(f, room)| Box::new((id, f, room)))
 }

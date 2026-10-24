@@ -26,6 +26,7 @@ pub(crate) struct Slot {
     /// turbo_session_get_info, read once at load: it is fixed at
     /// turbo_session_create.
     pub(crate) info: turbo_session_info,
+    pub(crate) max_ranges: u32,
     pub(crate) session: Session,
 }
 
@@ -37,6 +38,7 @@ unsafe impl Sync for Slot {}
 /// A loaded model and its sessions, dropped sessions first, then the model.
 pub(crate) struct Loaded {
     pub(crate) slots: Vec<Slot>,
+    pub(crate) embed: Option<crate::tasks::EmbedModel>,
     pub(crate) qa: Option<crate::tasks::QaModel>,
     pub(crate) model: Model,
     pub(crate) task: u32,
@@ -264,19 +266,24 @@ impl State {
                 format!("unsupported task {}", info.task),
             )));
         }
+        let embed = if info.task == TURBO_TASK_EMBED {
+            Some(crate::tasks::EmbedModel::load(&c.bundle, &info).map_err(fail("turbo_model_load", &[]))?)
+        } else {
+            None
+        };
         let qa = if info.task == TURBO_TASK_EXTRACTIVE_QA {
             Some(crate::tasks::QaModel::load(&c.bundle).map_err(fail("turbo_model_load", &[]))?)
         } else {
             None
         };
-        let max_ranges = if info.task == TURBO_TASK_EXTRACTIVE_QA {
+        let max_ranges = if matches!(info.task, TURBO_TASK_EMBED | TURBO_TASK_EXTRACTIVE_QA) {
             let mb = if c.max_batch == 0 { info.max_batch } else { c.max_batch };
             let ms = if c.max_seq == 0 { info.max_seq } else { c.max_seq };
             mb.saturating_mul(ms)
         } else {
             0
         };
-        let desc = turbo_session_desc {
+        let mut desc = turbo_session_desc {
             struct_size: size_of::<turbo_session_desc>() as u32,
             max_batch: c.max_batch,
             max_seq: c.max_seq,
@@ -288,8 +295,16 @@ impl State {
         };
         let mut slots = Vec::new();
         for _ in 0..c.sessions {
-            let session = model.session(&desc).map_err(fail("turbo_session_create", &SESSION_DESC))?;
+            let session = match model.session(&desc) {
+                Ok(s) => s,
+                Err(f) if info.task == TURBO_TASK_EMBED && f.code == TURBO_E_UNSUPPORTED_OPTION && f.field == 7 => {
+                    desc.max_ranges = 0;
+                    model.session(&desc).map_err(fail("turbo_session_create", &SESSION_DESC))?
+                }
+                Err(f) => return Err(fail("turbo_session_create", &SESSION_DESC)(f)),
+            };
             let si = session.info().map_err(fail("turbo_session_get_info", &[]))?;
+            let slot_ranges = if desc.max_ranges == 0 { si.max_batch } else { desc.max_ranges };
             let alloc = || {
                 let b = ctx
                     .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
@@ -298,10 +313,17 @@ impl State {
                 Ok::<_, String>((b, p))
             };
             let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
-            slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
+            slots.push(Slot {
+                _buffers: [ids, mask, types],
+                ptrs: [a, b, t],
+                info: si,
+                max_ranges: slot_ranges,
+                session,
+            });
         }
         let idle = Mutex::new((0..slots.len()).rev().collect());
-        let loaded = Loaded { slots, qa, model, task: info.task, device, revision: api::field(&info.revision), idle };
+        let loaded =
+            Loaded { slots, embed, qa, model, task: info.task, device, revision: api::field(&info.revision), idle };
         // The caller holds the loading mutex: no other load can have set
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));
