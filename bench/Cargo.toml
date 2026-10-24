@@ -36,3 +36,5 @@ npu = ["turbo/npu"]
 # Links the Metal backend (docs/metal.md); TEI is then its router built
 # natively with Metal (--tei-bin).
 metal = ["turbo/metal"]
+# Native Hailo hardware evidence; the vendor runner is separate.
+hailo = ["turbo/hailo"]

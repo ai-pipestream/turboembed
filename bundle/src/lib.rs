@@ -16,6 +16,7 @@ pub mod deberta;
 pub mod distill;
 pub mod fetch;
 pub mod glirel;
+pub mod licence;
 pub mod matryoshka;
 pub mod postag;
 pub mod qa;

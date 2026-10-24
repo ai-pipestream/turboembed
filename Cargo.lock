@@ -2026,6 +2026,7 @@ dependencies = [
  "turbo-gliner",
  "turbo-goldens",
  "turbo-postag",
+ "turbo-zoo",
  "ureq",
 ]
 
