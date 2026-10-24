@@ -15,9 +15,12 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-maxent = { path = "../maxent" }
 # The beam search, the chunker's context generator and sequence validator.
 turbo-sequence = { path = "../sequence" }
+# The shared Java tag-pattern matcher for regex-style tag conditions.
+turbo-jvm = { path = "../jvm" }
+# Shared Unicode case folding for case-insensitive word literals.
+turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
-turbo-unicode = { path = "../unicode" }
 # Writes a small model whose outcome holds half of a surrogate pair.
 turbo-train = { path = "../train" }
