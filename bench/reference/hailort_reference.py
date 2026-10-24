@@ -160,7 +160,7 @@ def run(args):
             rates.append(fps)
     sanitized = [a.replace(str(cli), "<hailortcli>").replace(str(work), "<inputs>") for a in command]
     receipt.update({"target": args.target, "cli_version": version, "cli_sha256": digest(cli.read_bytes()),
-                    "command": sanitized, "warmup_processes": 1, "seconds_per_process": args.seconds,
+                    "command": sanitized, "commands": [["<hailortcli>", "--version"], ["<hailortcli>", "parse-hef", "<inputs>/model.hef"]] + [sanitized] * (args.runs + 1), "warmup_processes": 1, "seconds_per_process": args.seconds,
                     "fps_samples": rates, "median_fps": statistics.median(rates),
                     "median_pass_ms": statistics.median(args.batch * 1000 / f for f in rates),
                     "procedure": "Kernel throughput with host F32 input conversion; reciprocal FPS times batch. Not request latency or a p99 measurement. Inputs cycle the same mixed cases as turbo-bench. No tokenization, host gather, pooling or normalization is timed.",

@@ -41,7 +41,7 @@ fn run() -> Result<()> {
         warmup: 3,
         iterations: 20,
     };
-    let mut hailo = measure::measure(&plan)?;
+    let hailo = measure::measure(&plan)?;
     if vendor["target"].as_str() != Some(field(&hailo.device.arch).as_str())
         || vendor["manifest_sha256"].as_str() != Some(field(&hailo.model.manifest_sha256).as_str())
         || vendor["rows_sha256"].as_str() != Some(hailo.rows.sha256().as_str())
@@ -55,15 +55,15 @@ fn run() -> Result<()> {
     if vendor["hef_sha256"].as_str() != Some(hailo.manifest.file(&artifact.files[0]).sha256.as_str()) {
         return Err("vendor and library HEFs differ".into());
     }
-    // A HEF computes all positions, including padding. The generic bench
-    // currently counts Hailo like a packed backend; preserve the real count.
-    hailo.timing.computed_tokens = Some(hailo.rows.padded_tokens());
     let cpu = measure::measure(&Plan { device: "cpu".into(), precision: turbo::TURBO_PRECISION_EXACT, ..plan })?;
     if cpu.rows.sha256() != hailo.rows.sha256() {
         return Err("CPU and Hailo token inputs differ".into());
     }
     if cpu.conformance.min_cosine < 0.9999 || cpu.conformance.max_abs_diff > 1e-4 {
         return Err("CPU Exact failed F32 conformance against the bundle reference".into());
+    }
+    if cpu.vectors.len() != hailo.vectors.len() {
+        return Err("CPU and Hailo vector counts differ".into());
     }
     let mut min_cosine = 1.0_f64;
     for (h, c) in hailo.vectors.iter().zip(&cpu.vectors) {

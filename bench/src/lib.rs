@@ -8,6 +8,7 @@ pub mod api;
 pub mod cpus;
 pub mod docker;
 pub mod git;
+pub mod hailo;
 pub mod measure;
 pub mod onnx;
 pub mod openvino;
@@ -80,10 +81,11 @@ pub fn check_not_testdata(bundle: &Path, testdata: &[PathBuf]) -> Result<()> {
 
 /// Every reference program the tool knows: its record name, what the
 /// command line calls it, and how to name or disable it there.
-pub const PROGRAMS: [(&str, &str, &str); 3] = [
+pub const PROGRAMS: [(&str, &str, &str); 4] = [
     (tei::NAME, "TEI", "give --tei-image (or --tei-bin) and --tei-model, or --no-tei"),
     (tensorrt::NAME, "TensorRT", "give --tensorrt-image, or --no-tensorrt"),
     (openvino::NAME, "OpenVINO", "give --openvino-image or --openvino-bin, or --no-openvino"),
+    (hailo::NAME, "HailoRT", "give --hailort-bin or --no-hailort"),
 ];
 
 /// The reference programs for a backend, in the order a record lists
@@ -96,6 +98,7 @@ pub fn applies(backend: &str) -> &'static [&'static str] {
     match backend {
         "cuda" => &[tei::NAME, tensorrt::NAME],
         "cpu" => &[tei::NAME],
+        "hailo" => &[hailo::NAME],
         "levelzero" | "npu" => &[tei::NAME, openvino::NAME],
         "metal" => &[tei::NAME],
         _ => &[],
@@ -225,6 +228,9 @@ pub fn report(r: &Record) -> String {
                         " round trip (TEI's time from parsed request to response headers (not a kernel time), \
                          x-total-time in whole ms: p50 {p50} ms)"
                     ),
+                    None if x.name == hailo::NAME => {
+                        " aggregate service-time estimates, not request latency tails".into()
+                    }
                     None => String::new(),
                 };
                 format!(
