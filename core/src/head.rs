@@ -274,6 +274,30 @@ impl Head {
     }
 }
 
+/// The logistic sigmoid, numerically stable at both tails: the
+/// branch keeps `exp` away from overflow for large negative
+/// inputs, where the one-branch form yields `1.0 / (1.0 + inf)`
+/// through an intermediate infinity (and `NaN` in further
+/// arithmetic).
+pub fn sigmoid(x: f32) -> f32 {
+    if x >= 0.0 {
+        1.0 / (1.0 + (-x).exp())
+    } else {
+        let e = x.exp();
+        e / (1.0 + e)
+    }
+}
+
+/// [`sigmoid`] in `f64`.
+pub fn sigmoid_f64(x: f64) -> f64 {
+    if x >= 0.0 {
+        1.0 / (1.0 + (-x).exp())
+    } else {
+        let e = x.exp();
+        e / (1.0 + e)
+    }
+}
+
 /// Numerically stable softmax over a single row of `logits`, written as `f64`
 /// probabilities into `out`.
 pub fn softmax(logits: &[f32], out: &mut [f64]) -> Result<()> {
@@ -342,6 +366,17 @@ fn bf16_to_f32(h: u16) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sigmoid_is_stable_at_the_tails() {
+        assert_eq!(sigmoid(0.0), 0.5);
+        assert_eq!(sigmoid(-1000.0), 0.0);
+        assert_eq!(sigmoid(1000.0), 1.0);
+        assert!(sigmoid(-100.0).is_finite() && sigmoid(-100.0) > 0.0);
+        assert_eq!(sigmoid_f64(0.0), 0.5);
+        assert_eq!(sigmoid_f64(-1000.0), 0.0);
+        assert_eq!(sigmoid_f64(1000.0), 1.0);
+    }
 
     #[test]
     fn linear_and_head_reject_overflowing_misaligned_and_non_finite_inputs() {

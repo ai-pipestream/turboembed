@@ -152,3 +152,16 @@ fn what_lies_between_sentences_counts_inside_a_chunk() {
     // A sum over the sentences alone would fit them in 6.
     assert_eq!(lengths(6), [3, 3]);
 }
+
+#[test]
+fn chunks_record_the_budget_prompt_overhead() {
+    let mut doc = sentences_and_subwords("Cats purr. Cats nap.");
+    doc.add(&Key::DEFAULT, Boundaries { cost: vec![1000, 1000], reason: vec![Cut::Sentence; 2] }, Provenance::by("t"))
+        .unwrap();
+    let budget = Budget { max: 20, target: 10, size_weight: 1000, overhead: 7 };
+    let mut docs = vec![doc];
+    assert!(chunker(budget).run(&mut docs)[0].is_ok());
+    let chunks = docs[0].get::<Chunks>().unwrap();
+    assert_eq!(chunks.prompt_overhead, 7);
+    assert!(chunks.model_tokens.iter().all(|&t| t >= 7), "overhead counted in model tokens");
+}

@@ -76,6 +76,7 @@ fn document() -> Document {
         cut: Vec::new(),
         cost: Vec::new(),
         over_budget: Vec::new(),
+        prompt_overhead: 0,
         model_tokens: Vec::new(),
     };
     for (first, last, level, parent, s) in [

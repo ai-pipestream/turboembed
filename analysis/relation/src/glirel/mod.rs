@@ -226,9 +226,7 @@ const MAX_LABELS: usize = 64;
 /// takes: every ordered pair of 512 is 261,632 pairs.
 const MAX_ENTITIES: usize = 512;
 
-fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
-}
+use turbo::head::sigmoid;
 
 /// The encoder and the entity-free heads over a built input. The parity
 /// tests give inputs whose token ids are not a tokenizer's.

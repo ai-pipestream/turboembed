@@ -1,8 +1,9 @@
-use turbo_analysis::{IxRange, Layer};
+use turbo_analysis::IxRange;
 use turbo_analysis_layers::{Dependencies, PolarityScores, Tokens};
 
-use super::propagation::{ExtractedAspect, ExtractedOpinion, is_conj_rel};
-use super::tables::ADVERSATIVE_CONJUNCTIONS;
+use super::propagation::{ExtractedAspect, ExtractedOpinion};
+use super::shared::{LinkPolicy, LinkedSpan};
+use super::tables::ASPECT_ADVERSATIVES;
 
 pub(super) fn span_text<'a>(text: &'a str, tok_starts: &[u32], tok_ends: &[u32], range: IxRange<Tokens>) -> &'a str {
     let s = tok_starts[range.start.get()] as usize;
@@ -11,8 +12,31 @@ pub(super) fn span_text<'a>(text: &'a str, tok_starts: &[u32], tok_ends: &[u32],
 }
 
 pub(super) fn has_adversative_between(a: usize, b: usize, token_lower: &[String]) -> bool {
-    let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
-    token_lower[lo..=hi].iter().any(|w| ADVERSATIVE_CONJUNCTIONS.contains(&w.as_str()))
+    super::shared::has_adversative_between(a, b, token_lower, ASPECT_ADVERSATIVES)
+}
+
+impl LinkedSpan for ExtractedAspect {
+    fn tokens(&self) -> IxRange<Tokens> {
+        self.tokens
+    }
+    fn head_token(&self) -> usize {
+        self.head_token
+    }
+    fn clause_id(&self) -> usize {
+        self.clause_id
+    }
+}
+
+impl LinkedSpan for ExtractedOpinion {
+    fn tokens(&self) -> IxRange<Tokens> {
+        self.tokens
+    }
+    fn head_token(&self) -> usize {
+        self.head_token
+    }
+    fn clause_id(&self) -> usize {
+        self.clause_id
+    }
 }
 
 pub(super) fn range_contains(r: IxRange<Tokens>, tok: usize) -> bool {
@@ -67,97 +91,17 @@ pub(super) fn link_opinions_to_aspect(
     sent_start: usize,
     sent_end: usize,
 ) -> Vec<usize> {
-    if sent_opinions.is_empty() {
-        return Vec::new();
-    }
-    let mut linked = Vec::new();
-
-    // 1. Direct or copular/shared-head dependency link.
-    if let Some(d) = deps
-        && d.len() >= sent_end
-    {
-        let t_tok = asp.head_token;
-        let t_head = d.head[t_tok].map(|ix| ix.get());
-        for (o_idx, op) in sent_opinions.iter().enumerate() {
-            let o_tok = op.head_token;
-            let o_head = d.head[o_tok].map(|ix| ix.get());
-            let direct = o_head == Some(t_tok) || t_head == Some(o_tok);
-            let shared_head =
-                t_head.is_some() && t_head == o_head && !has_adversative_between(t_tok, o_tok, token_lower);
-            // Also check conjunction chain (`t_tok` conjoined with another aspect linked to `o_tok`,
-            // or `o_tok` conjoined with another opinion linked to `t_tok`).
-            let conj_target = if let Some(th) = t_head
-                && is_conj_rel(d.relations.label(d.relation[t_tok]))
-            {
-                o_head == Some(th) || d.head[th].map(|ix| ix.get()) == Some(o_tok)
-            } else {
-                false
-            };
-            let conj_opinion = if let Some(oh) = o_head
-                && is_conj_rel(d.relations.label(d.relation[o_tok]))
-            {
-                d.head[oh].map(|ix| ix.get()) == Some(t_tok) || t_head == Some(oh)
-            } else {
-                false
-            };
-            if direct || shared_head || conj_target || conj_opinion {
-                linked.push(o_idx);
-            }
-        }
-        if !linked.is_empty() {
-            return linked;
-        }
-    }
-
-    // 2. Clause-bounded nearest-aspect assignment:
-    // Every opinion in `asp.clause_id` links to whichever aspect in `asp.clause_id` is closest to it.
-    let same_clause_aspects: Vec<(usize, &ExtractedAspect)> =
-        sent_aspects.iter().enumerate().filter(|(_, a)| a.clause_id == asp.clause_id).collect();
-
-    for (o_idx, op) in sent_opinions.iter().enumerate() {
-        if op.clause_id != asp.clause_id {
-            continue;
-        }
-        let best_asp =
-            same_clause_aspects.iter().min_by_key(|(_, a)| token_distance(a.tokens, op.tokens)).map(|(idx, _)| *idx);
-        if best_asp == Some(asp_pos) {
-            linked.push(o_idx);
-        }
-    }
-    if !linked.is_empty() {
-        return linked;
-    }
-
-    // 3. If `asp` is in a clause with other opinions (already assigned to a sibling aspect in the same clause),
-    // attach the closest opinion in the same clause.
-    if let Some((o_idx, _)) = sent_opinions
-        .iter()
-        .enumerate()
-        .filter(|(_, op)| op.clause_id == asp.clause_id)
-        .min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
-    {
-        linked.push(o_idx);
-        return linked;
-    }
-
-    // 4. Fallback: closest opinion in the sentence, provided no adversative conjunction separates them.
     let _ = sent_start;
-    if let Some((o_idx, _)) =
-        sent_opinions.iter().enumerate().min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
-    {
-        linked.push(o_idx);
-    }
-    linked
-}
-
-fn token_distance(a: IxRange<Tokens>, b: IxRange<Tokens>) -> usize {
-    if a.end.get() <= b.start.get() {
-        b.start.get() - a.end.get()
-    } else if b.end.get() <= a.start.get() {
-        a.start.get() - b.end.get()
-    } else {
-        0
-    }
+    super::shared::link_opinions_to_aspect(
+        asp,
+        asp_pos,
+        sent_aspects,
+        sent_opinions,
+        deps,
+        token_lower,
+        sent_end,
+        LinkPolicy { adversatives: ASPECT_ADVERSATIVES, conjunction_chains: true },
+    )
 }
 
 pub(super) fn compute_aspect_polarity(linked_ops: &[usize], sent_opinions: &[ExtractedOpinion]) -> PolarityScores {

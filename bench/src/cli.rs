@@ -15,6 +15,13 @@ usage:
       or its max_seq), time one vector per row, one per chunk of --chunk
       text tokens (default 64) by ranges, and one per chunk embedded as a
       row of its own; write the record to <repo>/benchmarks/ranges
+  turbo-bench postag --model <file> --treebank <file.conllu> [--cpus <list>]
+                     [--rounds <n>] [--repo <dir>] [--out <dir>]
+      the BiLSTM-CRF tagger's packed and JVM parity numerics on a CoNLL-U
+      treebank: accuracy, agreement, emission and marginal drift, and words
+      per second and call latency at 1, 8, 32 and 128 sentences per call
+      and by sentence length, interleaved over --rounds (default 3); write
+      the record to <repo>/benchmarks/records/postag (needs --features postag)
   turbo-bench qa --bundle <dir> --questions <squad.json> [--device <d>]
                  [--precision <p>] [--batch <n>] [--max-batch <n>]
                  [--per-bin <n>] [--warmup <n>] [--iterations <n>]
@@ -61,6 +68,9 @@ record options:
   --tei-bin <path>             TEI's router built natively, run in place of
                                an image (metal, which no container reaches)
   --tei-model <dir>            the model in the upstream layout
+  --hailort-bin <path>        native hailortcli (Hailo-8: 4.x; Hailo-10H: 5.x),
+                               batch 32 and the HEF fixed sequence length
+  --no-hailort                record that HailoRT was not run
   --no-tei                     record that TEI was not run
   --tensorrt-image <name@sha256:..>
                                NVIDIA's TensorRT container, pinned (cuda)
@@ -94,7 +104,7 @@ record options:
 /// `--name value` pairs and bare `--flag`s.
 pub(crate) struct Opts(pub(crate) BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 3] = ["--no-tei", "--no-tensorrt", "--no-openvino"];
+const FLAGS: [&str; 4] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort"];
 
 impl Opts {
     pub(crate) fn parse(args: &[String]) -> Result<Opts> {
