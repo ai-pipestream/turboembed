@@ -306,6 +306,14 @@ impl VectorAnnotator {
         self.lock().plan.width()
     }
 
+    /// What every row holds besides its text: the template's
+    /// special tokens and this annotator's prompt prefix, in
+    /// tokens. A `Chunks` layer whose `prompt_overhead` records a
+    /// different nonzero count was budgeted for another prompt.
+    pub fn overhead(&self) -> u32 {
+        (self.head.len() + self.tail.len()) as u32
+    }
+
     /// What every row holds besides its window's pieces: the template's
     /// special tokens and the prompt's prefix, before and after.
     pub fn row_ends(&self) -> (&[i32], &[i32]) {
@@ -353,3 +361,7 @@ mod steps;
 mod tokens;
 pub use steps::{ChunkVectors, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorsProvider};
 pub use tokens::ContextualTokens;
+mod cached;
+pub(crate) use cached::CachedWindows;
+#[cfg(test)]
+mod cache_tests;

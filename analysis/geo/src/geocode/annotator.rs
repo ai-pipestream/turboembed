@@ -15,6 +15,9 @@ use super::{GeoResolution, GeocodeError, Geocoder, MentionPolicy};
 /// The conventional entity type label for location mentions.
 pub const DEFAULT_LOCATION_TYPE: &str = "location";
 
+const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0100_0000_01b3;
+
 /// Resolved location mentions over a text view (`turbo:locations`), matching
 /// OpenNLP's `GeocodeAnnotator.LOCATIONS`.
 ///
@@ -72,6 +75,9 @@ impl Layer for Locations {
             return Err("an entry and a confidence for every location span".into());
         }
         self.spans.check(Self::OVERLAP)?;
+        if !self.spans.is_start_ordered() {
+            return Err("location spans must be in non-decreasing start order".into());
+        }
         for (i, span) in self.spans.iter() {
             let idx = i.get();
             if span.is_empty() {
@@ -104,12 +110,16 @@ pub(crate) fn normalize_location_types<'a>(
     Ok(normalized)
 }
 
-pub(crate) fn hash_location_types(hash: &mut turbo_analysis::Fnv1a, location_types: &HashSet<String>) {
+pub(crate) fn hash_location_types(seed: u64, location_types: &HashSet<String>) -> u64 {
     let mut labels: Vec<_> = location_types.iter().collect();
     labels.sort_unstable();
+    let mut hash = seed;
     for label in labels {
-        hash.str(label);
+        for byte in label.bytes().chain(std::iter::once(0xff)) {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(FNV_PRIME);
+        }
     }
+    hash
 }
 
 /// Resolves location entities from `opennlp:entities` into `turbo:locations`
@@ -159,9 +169,13 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
         if entities.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "entities are in a different view".into() });
         }
+        entities.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         let mut mentions = Vec::new();
         let mut lower_buf = String::new();
         for (ix, span) in entities.spans.iter() {
+            if span.is_empty() {
+                continue;
+            }
             lower_buf.clear();
             to_lowercase(entities.kinds.label(entities.kind[ix.get()]), &mut lower_buf);
             if self.location_types.contains(&lower_buf) {
@@ -194,17 +208,17 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
             }
             out.push(resolution);
         }
+        out.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         Ok((out,))
     }
 
     fn config_hash(&self) -> u64 {
         let policy = match self.mention_policy {
-            MentionPolicy::All => 0u64,
-            MentionPolicy::ExcludeSingleAsciiLetters => 1u64,
+            MentionPolicy::All => 0,
+            MentionPolicy::ExcludeSingleAsciiLetters => 1,
         };
-        let mut hash = turbo_analysis::Fnv1a::new();
-        hash.u64(policy);
-        hash_location_types(&mut hash, &self.location_types);
-        hash.finish()
+        let seed =
+            ((FNV_OFFSET_BASIS ^ policy).wrapping_mul(FNV_PRIME) ^ self.geocoder.fingerprint()).wrapping_mul(FNV_PRIME);
+        hash_location_types(seed, &self.location_types)
     }
 }

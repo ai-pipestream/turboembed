@@ -39,6 +39,8 @@ pub const PRIMARY_LINK_LABEL: &str = "resolved";
 /// Edge tag label for a secondary candidate resolution of an entity.
 pub const CANDIDATE_LINK_LABEL: &str = "candidate";
 
+const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0100_0000_01b3;
 const DEFAULT_MAX_CANDIDATES: usize = 5;
 const DEFAULT_RETRIEVAL_LIMIT: usize = 25;
 
@@ -335,6 +337,44 @@ impl<G: Gazetteer> Geocoder for GeoEntityLinker<G> {
         }
         Ok(resolutions)
     }
+
+    fn fingerprint(&self) -> u64 {
+        const TAG: u64 = 0x4745_4f5f_4c49_4e4b;
+        self.fingerprint_with(TAG)
+    }
+}
+
+impl<G: Gazetteer> GeoEntityLinker<G> {
+    fn fingerprint_with(&self, tag: u64) -> u64 {
+        let metric_disc = match self.fuzzy.metric() {
+            FuzzyMetric::Combined => 0u64,
+            FuzzyMetric::NormalizedLevenshtein => 1u64,
+            FuzzyMetric::JaroWinkler => 2u64,
+        };
+        let policy_disc = match self.mention_policy {
+            MentionPolicy::All => 0u64,
+            MentionPolicy::ExcludeSingleAsciiLetters => 1u64,
+        };
+        let mut h = (FNV_OFFSET_BASIS ^ tag).wrapping_mul(FNV_PRIME);
+        for bits in [
+            self.gazetteer.fingerprint(),
+            self.weights.fuzzy.to_bits(),
+            self.weights.geohash.to_bits(),
+            self.weights.country.to_bits(),
+            self.weights.province.to_bits(),
+            self.weights.population.to_bits(),
+            metric_disc,
+            self.fuzzy.min_similarity().to_bits(),
+            self.geohash.precision() as u64,
+            self.country.decay_bytes().to_bits(),
+            self.province.decay_bytes().to_bits(),
+            self.max_candidates_per_mention as u64,
+            policy_disc,
+        ] {
+            h = (h ^ bits).wrapping_mul(FNV_PRIME);
+        }
+        hash_location_types(h, &self.location_types)
+    }
 }
 
 impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
@@ -343,10 +383,12 @@ impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
     type Writes = (Locations, EntityLocationLinks);
 
     fn annotate(&self, (view, entities): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        use turbo_analysis::Layer as _;
         self.weights.validate().map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
         if entities.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "entities are in a different view".into() });
         }
+        entities.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         let mut admitted_entities: Vec<(Ix<Entities>, Span)> = Vec::new();
         let mut lower_buf = String::new();
         for (ix, span) in entities.spans.iter() {
@@ -387,33 +429,11 @@ impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
                 edges.push(Edge::new(ent_ix, loc_ix, tag, cand.score));
             }
         }
+        locations.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         Ok((locations, Edges::new(kinds, edges)))
     }
 
     fn config_hash(&self) -> u64 {
-        let metric_disc = match self.fuzzy.metric() {
-            FuzzyMetric::Combined => 0u64,
-            FuzzyMetric::NormalizedLevenshtein => 1u64,
-            FuzzyMetric::JaroWinkler => 2u64,
-        };
-        let policy_disc = match self.mention_policy {
-            MentionPolicy::All => 0u64,
-            MentionPolicy::ExcludeSingleAsciiLetters => 1u64,
-        };
-        let mut h = turbo_analysis::Fnv1a::new();
-        h.f64(self.weights.fuzzy)
-            .f64(self.weights.geohash)
-            .f64(self.weights.country)
-            .f64(self.weights.province)
-            .f64(self.weights.population)
-            .u64(metric_disc)
-            .f64(self.fuzzy.min_similarity())
-            .u64(self.geohash.precision() as u64)
-            .u64(self.country.decay_bytes().to_bits())
-            .u64(self.province.decay_bytes().to_bits())
-            .u64(self.max_candidates_per_mention as u64)
-            .u64(policy_disc);
-        hash_location_types(&mut h, &self.location_types);
-        h.finish()
+        self.fingerprint_with(0)
     }
 }

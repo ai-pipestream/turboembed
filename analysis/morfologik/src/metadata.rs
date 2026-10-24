@@ -3,7 +3,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use turbo_unicode::java::to_lowercase;
+use std::borrow::Cow;
+use turbo_unicode::java::lowercase_cow;
 
 use crate::charset::DictionaryCharset;
 use crate::encoding::{BaseFormEncoding, trim_java_string};
@@ -91,23 +92,24 @@ impl MorfologikInputConversion {
 
     /// Replaces non-overlapping matches for each rule in metadata order.
     pub fn apply(&self, token: &str) -> String {
-        if self.replacements.is_empty() {
-            return token.to_owned();
-        }
-        let mut current = token.to_owned();
+        self.apply_cow(Cow::Borrowed(token)).into_owned()
+    }
+
+    pub(crate) fn apply_cow<'a>(&self, token: Cow<'a, str>) -> Cow<'a, str> {
+        let mut current = token;
         for (from, to) in &self.replacements {
             if !current.contains(from.as_str()) {
                 continue;
             }
             let mut next = String::with_capacity(current.len());
-            let mut rest = current.as_str();
+            let mut rest = current.as_ref();
             while let Some(pos) = rest.find(from.as_str()) {
                 next.push_str(&rest[..pos]);
                 next.push_str(to);
                 rest = &rest[pos + from.len()..];
             }
             next.push_str(rest);
-            current = next;
+            current = Cow::Owned(next);
         }
         current
     }
@@ -116,15 +118,16 @@ impl MorfologikInputConversion {
     /// applies the ordered input conversions, and folds the result to lower case as
     /// `DictionaryLemmatizer.lemmatize` does on lookup.
     pub fn convert(&self, token: &str) -> String {
-        let mut lower = String::with_capacity(token.len());
-        to_lowercase(token, &mut lower);
-        if self.replacements.is_empty() {
-            lower
-        } else {
-            let applied = self.apply(&lower);
-            let mut out = String::with_capacity(applied.len());
-            to_lowercase(&applied, &mut out);
-            out
+        self.convert_cow(token).into_owned()
+    }
+
+    pub(crate) fn convert_cow<'a>(&self, token: &'a str) -> Cow<'a, str> {
+        match self.apply_cow(lowercase_cow(token)) {
+            Cow::Borrowed(s) => Cow::Borrowed(s),
+            Cow::Owned(s) => match lowercase_cow(&s) {
+                Cow::Borrowed(_) => Cow::Owned(s),
+                Cow::Owned(lower) => Cow::Owned(lower),
+            },
         }
     }
 }

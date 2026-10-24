@@ -147,6 +147,58 @@ impl Hasher for Fnv1a {
     fn write(&mut self, bytes: &[u8]) {
         self.bytes(bytes);
     }
+
+    // The typed writes override std's defaults, which would feed
+    // `to_ne_bytes` (platform width and endianness) into `write`:
+    // every value mixes little-endian at its canonical width, so
+    // the trait path and the builder path agree on any target.
+    fn write_u8(&mut self, v: u8) {
+        self.u8(v);
+    }
+
+    fn write_u16(&mut self, v: u16) {
+        self.u16(v);
+    }
+
+    fn write_u32(&mut self, v: u32) {
+        self.u32(v);
+    }
+
+    fn write_u64(&mut self, v: u64) {
+        self.u64(v);
+    }
+
+    fn write_u128(&mut self, v: u128) {
+        self.bytes(&v.to_le_bytes());
+    }
+
+    fn write_usize(&mut self, v: usize) {
+        self.usize(v);
+    }
+
+    fn write_i8(&mut self, v: i8) {
+        self.bytes(&v.to_le_bytes());
+    }
+
+    fn write_i16(&mut self, v: i16) {
+        self.bytes(&v.to_le_bytes());
+    }
+
+    fn write_i32(&mut self, v: i32) {
+        self.i32(v);
+    }
+
+    fn write_i64(&mut self, v: i64) {
+        self.i64(v);
+    }
+
+    fn write_i128(&mut self, v: i128) {
+        self.bytes(&v.to_le_bytes());
+    }
+
+    fn write_isize(&mut self, v: isize) {
+        self.i64(v as i64);
+    }
 }
 
 #[cfg(test)]

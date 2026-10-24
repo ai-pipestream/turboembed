@@ -48,7 +48,48 @@ impl Annotator for RerankAnnotator {
             .str(self.levels.name)
             .finish()
     }
-    fn annotate(&self, (view, levels, shortlist): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.annotate_batch(vec![input]).remove(0)
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let prepared: Vec<_> = inputs.iter().map(|&i| self.prepare(i)).collect();
+        let mut session = match self.session.lock() {
+            Ok(s) => s,
+            Err(_) => return inputs.iter().map(|_| Err(failure("reranker lock poisoned"))).collect(),
+        };
+        let pairs: Vec<_> = prepared
+            .iter()
+            .zip(&inputs)
+            .flat_map(|(texts, i)| texts.iter().flatten().map(move |text| (i.2.query.as_str(), text.as_str())))
+            .collect();
+        let scores = session.score(&pairs, self.options);
+        let mut offset = 0;
+        prepared
+            .into_iter()
+            .zip(inputs)
+            .map(|(texts, (_, _, shortlist))| {
+                let texts = texts?;
+                let values = match &scores {
+                    Ok(scores) => {
+                        let values = scores.scores[offset..offset + texts.len()].to_vec();
+                        offset += texts.len();
+                        values
+                    }
+                    Err(_) => {
+                        let pairs: Vec<_> =
+                            texts.iter().map(|text| (shortlist.query.as_str(), text.as_str())).collect();
+                        session.score(&pairs, self.options).map_err(|e| failure(e.message))?.scores
+                    }
+                };
+                self.finish(shortlist, values)
+            })
+            .collect()
+    }
+}
+
+impl RerankAnnotator {
+    fn prepare(&self, (view, levels, shortlist): Refs<'_, Self>) -> Result<Vec<String>, Error> {
         levels.check().map_err(failure)?;
         levels.spans.check(Levels::OVERLAP).map_err(failure)?;
         shortlist.check().map_err(failure)?;
@@ -70,14 +111,10 @@ impl Annotator for RerankAnnotator {
             }
             texts.push(pieces.join(" "));
         }
-        let pairs: Vec<_> = texts.iter().map(|p| (shortlist.query.as_str(), p.as_str())).collect();
-        let scores = self
-            .session
-            .lock()
-            .map_err(|_| failure("reranker lock poisoned"))?
-            .score(&pairs, self.options)
-            .map_err(|e| failure(e.message))?
-            .scores;
+        Ok(texts)
+    }
+
+    fn finish(&self, shortlist: &Shortlist<Levels>, scores: Vec<f32>) -> Result<(Reranked<Levels>,), Error> {
         let mut order: Vec<usize> = (0..scores.len()).collect();
         order.sort_by(|&a, &b| scores[b].total_cmp(&scores[a]).then(a.cmp(&b)));
         let result = Reranked {

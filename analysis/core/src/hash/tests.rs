@@ -42,12 +42,20 @@ fn hasher_trait_agrees_with_bytes() {
     let mut h = Fnv1a::new();
     h.write(b"foo");
     h.write_u64(7);
-    // Hasher::write_u64 default writes native-endian in std's
-    // provided impl? It writes to_le via write; compare against
-    // the same byte stream through bytes().
     let mut b = Fnv1a::new();
     b.bytes(b"foo").bytes(&7u64.to_le_bytes());
     assert_eq!(h.finish(), b.finish());
     assert_eq!(Fnv1a::new().usize(7).finish(), Fnv1a::new().u64(7).finish());
+    // The trait path must equal the builder path at canonical
+    // widths on every target (std's defaults would write
+    // to_ne_bytes: 4 bytes for usize on 32-bit, big-endian on BE).
+    let mut via_trait = Fnv1a::new();
+    via_trait.write_usize(7);
+    via_trait.write_u32(9);
+    via_trait.write_i64(-3);
+    via_trait.write_isize(-5);
+    let mut via_builder = Fnv1a::new();
+    via_builder.usize(7).u32(9).i64(-3).i64(-5);
+    assert_eq!(via_trait.finish(), via_builder.finish());
     assert_ne!(Fnv1a::new().bool(true).finish(), Fnv1a::new().bool(false).finish());
 }

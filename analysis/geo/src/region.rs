@@ -223,8 +223,6 @@ impl Annotator for DocumentRegionAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut hash = turbo_analysis::Fnv1a::new();
-        hash_location_types(&mut hash, &self.location_types);
-        hash.finish()
+        hash_location_types(turbo_analysis::FNV1A_OFFSET_BASIS, &self.location_types)
     }
 }

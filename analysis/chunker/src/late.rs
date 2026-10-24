@@ -121,7 +121,9 @@ impl<L> LateChunkAnnotator<L> {
 }
 
 fn fold(s: &str) -> String {
-    s.trim().chars().flat_map(char::to_lowercase).collect()
+    let mut out = String::new();
+    turbo_unicode::casefold::fold(s.trim(), &mut out);
+    out
 }
 
 /// Whether piece span `p` overlaps fragment `f`, half-open,
@@ -386,5 +388,16 @@ impl<L: Layer> Annotator for LateChunkAnnotator<L> {
             hash.str(word);
         }
         hash.finish()
+    }
+}
+
+#[cfg(test)]
+mod fold_tests {
+    #[test]
+    fn fold_matches_final_sigma_and_eszett() {
+        assert_eq!(super::fold("\u{03A9}\u{03A3}"), super::fold("\u{03C9}\u{03C2}"));
+        assert_eq!(super::fold("\u{03A9}\u{03C2}"), super::fold("\u{03C9}\u{03C2}"));
+        assert_eq!(super::fold("DASS"), super::fold("da\u{00DF}"));
+        assert_eq!(super::fold(" The "), "the");
     }
 }
