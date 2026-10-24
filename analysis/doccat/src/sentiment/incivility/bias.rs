@@ -31,8 +31,8 @@ use turbo_unicode::category::general_category;
 /// the subgroup they name.
 #[derive(Clone, Debug, PartialEq)]
 pub struct IdentityTerms {
-    /// `(term words as token keys, subgroup index)`, longest term first.
-    terms: Vec<(Vec<String>, usize)>,
+    /// The terms' first-word index; payloads are subgroup indices.
+    index: turbo_analysis::PhraseIndex,
     subgroups: Vec<String>,
 }
 
@@ -65,7 +65,8 @@ impl IdentityTerms {
         }
         terms.sort_by(|a, b| b.0.len().cmp(&a.0.len()).then_with(|| a.0.cmp(&b.0)));
         terms.dedup();
-        Ok(IdentityTerms { terms, subgroups })
+        let index = turbo_analysis::PhraseIndex::new(terms.into_iter().map(|(w, s)| (w, s as u32)));
+        Ok(IdentityTerms { index, subgroups })
     }
 
     /// The subgroup names, in the order they first appeared.
@@ -77,9 +78,11 @@ impl IdentityTerms {
     pub fn find<S: AsRef<str>>(&self, tokens: &[S]) -> Vec<&str> {
         let keys: Vec<String> = tokens.iter().map(|t| token_key(t.as_ref())).collect();
         let mut found = vec![false; self.subgroups.len()];
-        for (words, s) in &self.terms {
-            if !found[*s] && keys.windows(words.len()).any(|w| w == words.as_slice()) {
-                found[*s] = true;
+        // Every start is tried, as the per-term window scan did, so
+        // overlapping terms of different subgroups are all found.
+        for at in 0..keys.len() {
+            if let Some((s, _)) = self.index.matches_at(&keys, at) {
+                found[s as usize] = true;
             }
         }
         let mut out: Vec<&str> =
