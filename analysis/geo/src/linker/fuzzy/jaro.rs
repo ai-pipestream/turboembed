@@ -59,7 +59,7 @@ pub(super) fn jw_ascii(a: &[u8], b: &[u8]) -> f64 {
 }
 
 pub(super) fn ascii_pair<'a>(a: &'a str, b: &'a str) -> Option<(&'a [u8], &'a [u8])> {
-    (a.is_ascii() && b.is_ascii() && a.len() <= 128 && b.len() <= 128).then(|| (a.as_bytes(), b.as_bytes()))
+    (a.is_ascii() && b.is_ascii() && a.len() <= 128 && b.len() <= 128).then_some((a.as_bytes(), b.as_bytes()))
 }
 
 #[cfg(test)]
