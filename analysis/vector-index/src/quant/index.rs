@@ -11,13 +11,14 @@ use crate::{Hit, IndexError, Metric, Space, Which};
 /// turbovec kernel returns them. Immutable: queries take `&self`, so one
 /// index serves many threads.
 pub struct QuantizedIndex<M> {
-    space: Space,
-    metric: Metric,
-    config: TurboQuant,
-    codes: TurboQuantIndex,
-    meta: Vec<M>,
+    pub(super) space: Space,
+    pub(super) metric: Metric,
+    pub(super) config: TurboQuant,
+    pub(super) codes: TurboQuantIndex,
+    pub(super) exhaustive: std::sync::OnceLock<Vec<TurboQuantIndex>>,
+    pub(super) meta: Vec<M>,
     /// The factor every row was multiplied by before coding.
-    scale: f64,
+    pub(super) scale: f64,
 }
 
 fn refused(detail: impl std::fmt::Display) -> IndexError {
@@ -66,7 +67,7 @@ impl<M> QuantizedIndex<M> {
         }
         codes.add_2d(&flat, dim).map_err(refused)?;
         codes.prepare();
-        Ok(QuantizedIndex { space, metric, config, codes, meta, scale })
+        Ok(QuantizedIndex { space, metric, config, codes, exhaustive: std::sync::OnceLock::new(), meta, scale })
     }
 
     pub fn space(&self) -> &Space {
@@ -115,11 +116,9 @@ impl<M> QuantizedIndex<M> {
 
     /// The `k` rows whose estimated scores against `query`, a vector of
     /// `space`, are highest, best first. Fewer than `k` when the index
-    /// holds fewer rows. From 32,768 rows turbovec searches 2- and 4-bit
-    /// indexes in stages (a sign-bit shortlist, then full scores for the
-    /// shortlist only), so a row whose estimate would rank in the top `k`
-    /// can be missed; the scores of the rows returned are still exact
-    /// estimates.
+    /// holds fewer rows. Large 2- and 4-bit indexes use an exhaustive
+    /// scan of estimated scores, avoiding the sign shortlist's recall
+    /// loss. This is exact over quantized estimates, not original vectors.
     pub fn top_k(&self, space: &Space, query: &[f32], k: usize) -> Result<Vec<Hit>, IndexError> {
         if query.len() != self.space.dim as usize {
             return Err(IndexError::Dimension { index: self.space.dim, other: query.len() });
@@ -140,6 +139,9 @@ impl<M> QuantizedIndex<M> {
         if k == 0 || self.is_empty() {
             return Ok(vec![Vec::new(); nq]);
         }
+        if self.len() >= 32_768 && self.config.bits != 3 {
+            return self.full_scan(&qs, &lengths, k);
+        }
         let found = self.codes.try_search_with_mask(&qs, k, None).map_err(refused)?;
         Ok((0..nq)
             .map(|q| {
@@ -151,6 +153,63 @@ impl<M> QuantizedIndex<M> {
                     .collect()
             })
             .collect())
+    }
+
+    fn full_scan(&self, qs: &[f32], lengths: &[f64], k: usize) -> Result<Vec<Vec<Hit>>, IndexError> {
+        let mut heaps: Vec<_> = lengths.iter().map(|_| crate::topk::TopK::new(k.min(self.len()))).collect();
+        // Each shard is below the dependency's 32,768-row staged-search
+        // threshold. Merging every shard's top k is exhaustive over the
+        // estimated scores. No process-wide environment setting is changed.
+        // The dependency's streaming path cannot be used: its current
+        // planes-cache chunk slicing panics on 32,769-row indexes.
+        let parts = self.exhaustive_parts()?;
+        for (part_index, part) in parts.iter().enumerate() {
+            let base = part_index * 16_384;
+            let found = part.try_search(qs, k).map_err(refused)?;
+            for (q, heap) in heaps.iter_mut().enumerate() {
+                let range = q * found.k..(q + 1) * found.k;
+                for (&row, &score) in found.indices[range.clone()].iter().zip(&found.scores[range]) {
+                    heap.offer(base as u32 + row as u32, score);
+                }
+            }
+        }
+        Ok(heaps
+            .into_iter()
+            .zip(lengths)
+            .map(|(heap, &length)| {
+                heap.into_sorted()
+                    .into_iter()
+                    .map(|h| Hit { row: h.row, score: self.finish(h.score, length) })
+                    .collect()
+            })
+            .collect())
+    }
+
+    fn exhaustive_parts(&self) -> Result<&[TurboQuantIndex], IndexError> {
+        if self.exhaustive.get().is_none() {
+            let stride = self.config.bits as usize * self.space.dim as usize / 8;
+            let mut parts = Vec::new();
+            for base in (0..self.len()).step_by(16_384) {
+                let end = (base + 16_384).min(self.len());
+                let codes = self.codes.packed_codes()[base * stride..end * stride].to_vec();
+                let scales = self.codes.scales()[base..end].to_vec();
+                let part = TurboQuantIndex::from_parts(
+                    Some(self.space.dim as usize),
+                    self.config.bits as usize,
+                    end - base,
+                    codes,
+                    scales,
+                    self.codes.tqplus_shift().to_vec(),
+                    self.codes.tqplus_scale().to_vec(),
+                )
+                .map_err(refused)?;
+                part.prepare();
+                parts.push(part);
+            }
+            // A concurrent first query may have installed the same shards.
+            let _ = self.exhaustive.set(parts);
+        }
+        Ok(self.exhaustive.get().expect("shards installed"))
     }
 
     /// A turbovec score of a unit query of length `length` against rows

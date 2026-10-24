@@ -89,5 +89,126 @@ reports the staged and whole-index scans returning the same ids for
 
 ## What is not measured here
 
-The paper's own implementation and FAISS `IndexScalarQuantizer` are not
-on this machine, so that comparison is still open.
+The paper's own implementation remains unmeasured. The later FAISS
+comparison is recorded below.
+
+## Compact storage and exhaustive search (#977)
+
+The earlier tables above are historical measurements. `to_bytes()` still
+writes the pinned turbovec `.tv` format. `to_compact_bytes()` now writes a
+separate `TQPACK01` image with exactly `bits * dim / 8` code bytes per row,
+plus one F32 correction scale. At 256 dimensions this is 100 bytes per
+3-bit row and 132 per 4-bit row, before the small header and calibration.
+`from_compact_bytes(bytes, metadata)` restores the model space, metric,
+configuration, calibration and original-vector scaling; generic metadata
+is supplied separately in insertion order. No `.tv` reader is expected to
+read this compact format.
+
+The compact header contains the eight-byte magic, the 40-byte pinned
+encoder commit, width/calibration/metric/normalization bytes, dimension
+(U32), row count (U64), input scale (F64), then three U64-length-prefixed
+UTF-8 model strings (id, revision, SHA-256). A U32 calibration length is
+followed by shift and scale arrays, row correction scales, and packed bit
+planes. All numbers are little-endian. The decoder validates lengths,
+flags, dimensions, encoder revision, scale and calibration, and refuses
+trailing bytes. Code value validation uses the dependency's `from_parts`.
+This image does not include an integrity checksum; content-address it in
+storage when corruption detection is required.
+
+For indexes of at least 32,768 rows, 2- and 4-bit `top_k` and `top_k_batch`
+now merge the top results of every shard of at most 16,384 rows. Each shard
+is below the dependency's sign-shortlist threshold. The union of their
+local top k contains the global top k of the estimated scores. This avoids
+additional recall loss from staging; quantization error remains. Three-bit
+search already scans all codes and is unchanged.
+
+The shards and their SIMD caches are built on the first large search and
+retained for later queries through `OnceLock`. This adds cold-start work
+and resident code/cache copies. Compact bytes are a storage-size measure,
+not a resident-memory claim. Concurrent first queries may briefly build
+duplicate shard sets before one is retained. No environment variable is
+changed inside the library. The dependency's streaming scan and per-range
+stored-row conversion could not be used: real 32,769-row tests found
+out-of-bounds panics in their planes-cache slicing. The shard path uses the
+whole packed representation, which passes those tests.
+
+The tests use actual Potion embedding-table rows 32 through 159, with
+provenance and MIT notice in `analysis/vector-index/tests/data/README.md`.
+They cover round-trip scores with and without calibration, preserved dot
+scaling, empty indexes, malformed images, compact-width size differences,
+and a 32,769-row index compared to a full sort of all quantized estimates.
+The large case repeats real vectors to cross the staging threshold; it is
+not a benchmark corpus or evidence of application recall.
+
+### FAISS comparison
+
+The reference script `analysis/vector-index/reference/faiss_compare.py`
+runs FAISS `IndexFlatIP` and `IndexScalarQuantizer` SQ4/SQ8 on the exact
+little-endian rows, queries and ground-truth ids dumped by `quant_bench`.
+FAISS SQ has no 3-bit mode, so SQ4 is the nearest-width baseline; this is
+not a same-bit comparison. See the upstream
+[FAISS index descriptions](https://github.com/facebookresearch/faiss/wiki/Faiss-indexes).
+The pinned container recipe is
+`analysis/vector-index/reference/Dockerfile.faiss` (FAISS 1.13.2, NumPy 2.2.6).
+No reference packages are added to the Rust library.
+
+Both programs use one CPU thread, pinned to the same CPU core on an AMD
+Ryzen 9 9950X3D. There are three warm-up passes, then a median across three
+passes of individual queries and five full-batch passes. Timing excludes
+encoding, file I/O and cold-cache initialization. It includes the Python
+wrapper for FAISS, so it is not an isolated C++ kernel comparison.
+The two programs run sequentially on each set. Results are one run per
+configuration, without confidence intervals; no significance claim is made.
+
+The real set is the same Potion model and split as above, fetched at
+commit `bf8b056651a2c21b8d2565580b8569da283cab23`, model SHA-256
+`f65d0f325faadc1e121c319e2faa41170d3fa07d8c89abd48ca5358d9a223de2`.
+The second set retains the earlier fixed million-row generator and
+100-query split. Its purpose is to stress near-tie ranking, not represent
+text retrieval. Both sets use 256 dimensions, cosine and k=10. FAISS is
+trained only on indexed rows. All output hashes and measurements are in
+`docs/receipts/turboquant-977/comparison.json`.
+
+#### Potion: 29,232 rows, 296 queries
+
+| Index | Calibrated | Storage bytes/row | Query ms | Batch ms/query | Recall@10 |
+|---|---|---:|---:|---:|---:|
+| Rust exact |  | 1024.0 | 0.2426 | 0.0833 | 1.0000 |
+| TurboQuant 2-bit | no | 68.0 | 0.0291 | 0.0175 | 0.8507 |
+| TurboQuant 3-bit | no | 100.0 | 0.0507 | 0.0300 | 0.9186 |
+| TurboQuant 4-bit | no | 132.0 | 0.1118 | 0.0321 | 0.9547 |
+| TurboQuant 2-bit | yes | 68.1 | 0.0283 | 0.0176 | 0.8470 |
+| TurboQuant 3-bit | yes | 100.1 | 0.0515 | 0.0300 | 0.9159 |
+| TurboQuant 4-bit | yes | 132.1 | 0.1112 | 0.0320 | 0.9581 |
+| FAISS FlatIP | n/a | 1024.0 | 0.3268 | 0.2254 | 1.0000 |
+| FAISS SQ4 | trained on rows | 128.1 | 0.4507 | 0.4507 | 0.9071 |
+| FAISS SQ8 | trained on rows | 256.1 | 0.2676 | 0.2669 | 0.9946 |
+
+#### Random: 999,900 rows, 100 queries
+
+| Index | Calibrated | Storage bytes/row | Query ms | Batch ms/query | Recall@10 |
+|---|---|---:|---:|---:|---:|
+| Rust exact |  | 1024.0 | 23.2947 | 2.9375 | 1.0000 |
+| TurboQuant 2-bit | no | 68.0 | 1.6309 | 0.7467 | 0.4060 |
+| TurboQuant 3-bit | no | 100.0 | 3.8849 | 0.7320 | 0.6580 |
+| TurboQuant 4-bit | no | 132.0 | 4.2474 | 1.3605 | 0.8180 |
+| TurboQuant 2-bit | yes | 68.0 | 1.5904 | 0.9665 | 0.4160 |
+| TurboQuant 3-bit | yes | 100.0 | 3.9040 | 0.7340 | 0.6720 |
+| TurboQuant 4-bit | yes | 132.0 | 4.2792 | 1.3770 | 0.8150 |
+| FAISS FlatIP | n/a | 1024.0 | 24.0686 | 8.3028 | 1.0000 |
+| FAISS SQ4 | trained on rows | 128.0 | 18.4350 | 19.0286 | 0.8530 |
+| FAISS SQ8 | trained on rows | 256.0 | 12.1258 | 12.2279 | 0.9880 |
+
+FAISS SQ8 gives higher recall at higher storage cost. SQ4 has lower recall
+than TurboQuant 4-bit on Potion, but higher recall on the random set
+(0.853 versus 0.818). TurboQuant 4-bit no longer incurs the earlier
+shortlist loss (0.547): the default now reaches the full-scan 0.818 result.
+The faster staged latency from the historical table is not retained.
+
+Reproduce the dumps with `quant_bench`: Potion uses query stride 100;
+`random:1000000:256` uses stride 10000; k is 10. Pass an output directory
+as argument four. The reference script accepts that directory, dimension
+256, k 10, and an output JSON filename. Build its pinned Dockerfile and
+mount the dumps read-only. Set `RAYON_NUM_THREADS=1` for Rust and
+`OMP_NUM_THREADS=1`, `OPENBLAS_NUM_THREADS=1` for FAISS. The script also
+sets FAISS's thread count to one. Use the same CPU affinity for both runs.
