@@ -226,7 +226,14 @@ pub fn stream_header(order: i32, max_inflight: u32, batch_linger_ms: u32) -> Ana
 /// One stream message: a document.
 pub fn stream_doc(id: &str, model: &str, text: &str, options: Option<AnalyzeOptions>) -> AnalyzeStreamRequest {
     AnalyzeStreamRequest {
-        kind: Some(Kind::Document(AnalyzeDocument { id: id.into(), model: model.into(), text: text.into(), options })),
+        kind: Some(Kind::Document(AnalyzeDocument {
+            id: id.into(),
+            model: model.into(),
+            text: text.into(),
+            options,
+            output: 0,
+            offsets: 0,
+        })),
     }
 }
 

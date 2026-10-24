@@ -194,7 +194,7 @@ fn every_normalizer_has_a_golden_for_every_input() {
         .map(|e| e.expect("entry").file_name().into_string().expect("name"))
         .collect();
     names.sort();
-    assert_eq!(names.len(), 29, "{names:?}");
+    assert_eq!(names.len(), 30, "{names:?}");
     for name in &names {
         for id in &ids {
             let golden = Golden::read(golden_path(name, id)).unwrap_or_else(|e| panic!("{name}/{id}: {e}"));
@@ -213,3 +213,6 @@ fn every_normalizer_has_a_golden_for_every_input() {
 
 #[path = "goldens/cases.rs"]
 mod cases;
+#[path = "goldens/divergences.rs"]
+mod divergences;
+use divergences::*;

@@ -58,7 +58,7 @@ struct Documented {
 /// The run names and their normalizers, the edit policy of each golden
 /// and the documented difference of `docs/normalizers.md` for it (its
 /// "Differences from OpenNLP" subsection), if it has one.
-pub(crate) const RUN_NAMES: [&str; 29] = [
+pub(crate) const RUN_NAMES: [&str; 30] = [
     "whitespace",
     "whitespace-keep-lines",
     "whitespace-keep-paragraphs",
@@ -88,6 +88,7 @@ pub(crate) const RUN_NAMES: [&str; 29] = [
     "emoticon-to-emoji",
     "symbol-joiner",
     "default-chain",
+    "umlaut-full-case-whitespace-chain",
 ];
 
 fn table(name: &str) -> Option<(Normalize, Edits, Option<Documented>)> {
@@ -132,6 +133,11 @@ fn table(name: &str) -> Option<(Normalize, Edits, Option<Documented>)> {
         "full-case-fold" => (boxed(CaseFold::full()), Reported, None),
         "accent-fold" => (boxed(AccentFold::new()), Reconstructed, None),
         "german-umlaut" => (boxed(GermanUmlauts::new()), Reported, None),
+        "umlaut-full-case-whitespace-chain" => (
+            boxed(Chain::new().then(GermanUmlauts::new()).then(CaseFold::full()).then(Whitespace::collapse())),
+            Reported,
+            None,
+        ),
         "confusable-skeleton" => (
             boxed(ConfusableSkeleton),
             Reconstructed,

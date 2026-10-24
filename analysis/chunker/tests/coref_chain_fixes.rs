@@ -27,6 +27,7 @@ fn chunks(list: &[(u32, u32, u32, u32)]) -> Chunks {
         cost: vec![0; list.len()],
         model_tokens: vec![1; list.len()],
         over_budget: vec![false; list.len()],
+        prompt_overhead: 0,
     }
 }
 

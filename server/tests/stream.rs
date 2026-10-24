@@ -60,6 +60,7 @@ async fn stream_results_match_single_document_calls_byte_for_byte_in_both_orders
                     assert_eq!(v.model, NAME);
                 }
                 Outcome::Failure(f) => panic!("{name}: {id} failed: {f:?}"),
+                other => panic!("{name}: {id} unexpected outcome: {other:?}"),
             }
         }
         if order == 0 {
@@ -90,6 +91,7 @@ async fn documents_waiting_on_one_model_run_as_one_batch_with_the_same_results()
         match got.get(&format!("b-{i}")).unwrap() {
             Outcome::Vectors(v) => assert_eq!(&v.data, want_row, "b-{i} differs run batched"),
             Outcome::Failure(f) => panic!("b-{i} failed: {f:?}"),
+            other => panic!("b-{i} unexpected outcome: {other:?}"),
         }
     }
     // Eight documents of one model and one options ran as one model
