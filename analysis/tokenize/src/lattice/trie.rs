@@ -12,6 +12,8 @@
 //! position: a surface is whole characters, and the walk starts on a
 //! character boundary.
 
+use super::prebuilt::Table;
+
 /// The flag of a base whose node ends a surface.
 const HAS_VALUE: u32 = 1 << 31;
 /// The bits of a base that are the offset.
@@ -23,15 +25,16 @@ const FREE: u32 = u32::MAX;
 const ROOT: u32 = 0;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-struct Unit {
-    base: u32,
-    check: u32,
+#[repr(C)]
+pub(crate) struct Unit {
+    pub(super) base: u32,
+    pub(super) check: u32,
 }
 
 /// A built trie: the units, and nothing else.
 #[derive(Debug, Clone)]
 pub(crate) struct SurfaceTrie {
-    units: Box<[Unit]>,
+    pub(super) units: Table<Unit>,
 }
 
 /// Why a trie could not be built.
@@ -52,7 +55,7 @@ impl SurfaceTrie {
         }
         let high = b.units.iter().rposition(|u| u.check != FREE).unwrap_or(0);
         b.units.truncate(high + 1);
-        Ok(SurfaceTrie { units: b.units.into_boxed_slice() })
+        Ok(SurfaceTrie { units: b.units.into() })
     }
 
     /// Calls `found(length, value)` for every surface that `bytes` starts

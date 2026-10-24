@@ -5,7 +5,7 @@
 //! This is the search of `opennlp.tools.ml.BeamSearch` at the commit this
 //! crate follows, operation for operation, so it returns the same
 //! sequences with the same probabilities and bit-identical scores (for
-//! GIS and perceptron models; see the crate documentation for QN):
+//! GIS and perceptron models; QN uses an explicit [`OpenNlpBeamSearch`] session):
 //!
 //! - A partial sequence's score is the sum of the `StrictMath.log` of its
 //!   outcome probabilities, added in sequence order from zero.
@@ -24,7 +24,8 @@
 //!
 //! Java keeps the candidates in a `PriorityQueue`; here they are sorted,
 //! which removes them in the same order. OpenNLP's optional cache of
-//! evaluations is left out: it returns what evaluating again would.
+//! evaluations is left out. Compatibility sessions match the default JVM
+//! cache size of zero; QN evaluation depends on earlier calls.
 //!
 //! The outcomes a search hands its context generator and validator, and
 //! returns in a [`Sequence`], are labels of type `L`, an [`OutcomeLabel`]:
@@ -34,11 +35,16 @@
 //! search over `str` refuses a model with such an outcome
 //! ([`Error::OutcomeNotText`]).
 
+mod opennlp;
+mod paths;
 mod scored;
 
-use std::cmp::Ordering;
+pub use opennlp::OpenNlpBeamSearch;
+use paths::{PathSlots, assign_beam_ranks, compare_step_nodes};
+
 use std::convert::Infallible;
 
+use std::cmp::Ordering;
 use turbo_jvm::chars::compare as compare_java_strings;
 use turbo_jvm::strict_math;
 use turbo_maxent::{JavaString, MaxentModel, ModelFile};
@@ -235,10 +241,22 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
         context: &mut (impl ContextGenerator<T, L> + ?Sized),
         validator: &(impl SequenceValidator<T, L> + ?Sized),
     ) -> Vec<Sequence<'m, L>> {
+        let mut probs = vec![0.0; self.outcomes.len()];
+        self.best_sequences_inner::<false, T>(count, sequence, min_score, context, validator, &mut probs)
+    }
+
+    fn best_sequences_inner<const SEEDED: bool, T>(
+        &self,
+        count: usize,
+        sequence: &[T],
+        min_score: f64,
+        context: &mut (impl ContextGenerator<T, L> + ?Sized),
+        validator: &(impl SequenceValidator<T, L> + ?Sized),
+        probs: &mut [f64],
+    ) -> Vec<Sequence<'m, L>> {
         let model = self.model;
         let outcomes = &self.outcomes;
         let n = outcomes.len();
-        let mut probs = vec![0.0; n];
         let mut sorted = vec![0.0; n];
         let mut features = Features::new();
         let mut path_slots: PathSlots<'m, L> = PathSlots::new(sequence.len());
@@ -260,9 +278,13 @@ impl<'m, L: OutcomeLabel + ?Sized> BeamSearch<'m, L> {
                 let prior = path_slots.prior(beam_idx);
                 features.clear();
                 context.context(i, sequence, prior, &mut features);
-                model.eval_features(features.iter(), &mut probs);
+                if SEEDED {
+                    model.eval_features_seeded(features.iter(), probs);
+                } else {
+                    model.eval_features(features.iter(), probs);
+                }
 
-                let min = threshold(&probs, &mut sorted, self.size);
+                let min = threshold(probs, &mut sorted, self.size);
 
                 let (top_score, top_len) =
                     if top == ROOT { (0.0, 0) } else { (nodes[top as usize].score, nodes[top as usize].len) };
@@ -342,145 +364,6 @@ fn threshold(probs: &[f64], sorted: &mut [f64], size: usize) -> f64 {
         sorted.copy_from_slice(probs);
         let (_, &mut min, _) = sorted.select_nth_unstable_by(n - size, |a, b| compare_doubles(*a, *b));
         min
-    }
-}
-
-/// One reusable outcome buffer per active beam slot. Matching each surviving
-/// node to a slot that held its parent updates that slot in $O(1)$ (`push`),
-/// and reassigned slots walk only to the lowest common ancestor of the new
-/// node and the dead branch.
-struct PathSlots<'m, L: ?Sized> {
-    slots: Vec<(u32, Vec<&'m L>)>,
-    assigned: Vec<usize>,
-    used: Vec<bool>,
-    seq_len: usize,
-}
-
-impl<'m, L: ?Sized> PathSlots<'m, L> {
-    fn new(seq_len: usize) -> Self {
-        Self { slots: Vec::new(), assigned: Vec::new(), used: Vec::new(), seq_len }
-    }
-
-    fn prepare(&mut self, nodes: &[Node], prev: &[u32], outcomes: &[&'m L]) {
-        let width = prev.len();
-        self.used.fill(false);
-        self.assigned.clear();
-        self.assigned.resize(width, usize::MAX);
-
-        for (beam_idx, &id) in prev.iter().enumerate() {
-            let parent = if id == ROOT { ROOT } else { nodes[id as usize].parent };
-            if let Some(s) = (0..self.slots.len()).find(|&s| !self.used[s] && self.slots[s].0 == parent) {
-                self.used[s] = true;
-                self.assigned[beam_idx] = s;
-            }
-        }
-        for (beam_idx, &id) in prev.iter().enumerate() {
-            if self.assigned[beam_idx] == usize::MAX {
-                if let Some(s) = (0..self.slots.len()).find(|&s| !self.used[s]) {
-                    self.used[s] = true;
-                    self.assigned[beam_idx] = s;
-                } else {
-                    let s = self.slots.len();
-                    self.slots.push((ROOT, Vec::with_capacity(self.seq_len)));
-                    self.used.push(true);
-                    self.assigned[beam_idx] = s;
-                }
-            }
-            let s = self.assigned[beam_idx];
-            let (last_id, prior) = &mut self.slots[s];
-            update_path(nodes, id, last_id, outcomes, prior);
-        }
-    }
-
-    #[inline]
-    fn prior(&self, beam_idx: usize) -> &[&'m L] {
-        &self.slots[self.assigned[beam_idx]].1
-    }
-}
-
-/// Updates `out` (which currently holds the outcomes of the partial
-/// sequence ending at `*last_id`) to hold the outcomes of the partial
-/// sequence ending at `id`, walking only back to their lowest common
-/// ancestor.
-fn update_path<'m, L: ?Sized>(nodes: &[Node], id: u32, last_id: &mut u32, outcomes: &[&'m L], out: &mut Vec<&'m L>) {
-    if id == ROOT {
-        out.clear();
-        *last_id = ROOT;
-        return;
-    }
-    let len = nodes[id as usize].len as usize;
-    let mut cur = id;
-    let mut prev = *last_id;
-    let mut prev_len = if prev == ROOT { 0 } else { nodes[prev as usize].len as usize };
-    if out.len() < len {
-        let dummy = outcomes[nodes[id as usize].outcome as usize];
-        out.resize(len, dummy);
-    } else if out.len() > len {
-        out.truncate(len);
-        while prev_len > len {
-            prev = nodes[prev as usize].parent;
-            prev_len -= 1;
-        }
-    }
-    let mut d = len;
-    while d > prev_len {
-        d -= 1;
-        let n = nodes[cur as usize];
-        out[d] = outcomes[n.outcome as usize];
-        cur = n.parent;
-    }
-    while cur != prev {
-        d -= 1;
-        let n = nodes[cur as usize];
-        out[d] = outcomes[n.outcome as usize];
-        cur = n.parent;
-        prev = nodes[prev as usize].parent;
-    }
-    *last_id = id;
-}
-
-/// `SearchNode.compareTo` for two nodes of the same step (`x.len == y.len`):
-/// higher scores first, then by parent prefix rank and current outcome in
-/// `String.compareTo` order, in $O(1)$.
-#[inline]
-fn compare_step_nodes<L: OutcomeLabel + ?Sized>(nodes: &[Node], outcomes: &[&L], a: u32, b: u32) -> Ordering {
-    let (x, y) = (nodes[a as usize], nodes[b as usize]);
-    compare_doubles(y.score, x.score)
-        .then_with(|| x.parent_rank.cmp(&y.parent_rank))
-        .then_with(|| L::compare(outcomes[x.outcome as usize], outcomes[y.outcome as usize]))
-}
-
-/// Computes the lexicographical outcome-path rank of each node in
-/// `prev[..size.min(prev.len())]`.
-fn assign_beam_ranks<L: OutcomeLabel + ?Sized>(
-    nodes: &[Node],
-    outcomes: &[&L],
-    prev: &[u32],
-    size: usize,
-    rank_order: &mut Vec<usize>,
-    prev_ranks: &mut Vec<u32>,
-) {
-    let width = size.min(prev.len());
-    rank_order.clear();
-    rank_order.extend(0..width);
-    rank_order.sort_by(|&ia, &ib| {
-        let (x, y) = (nodes[prev[ia] as usize], nodes[prev[ib] as usize]);
-        x.parent_rank
-            .cmp(&y.parent_rank)
-            .then_with(|| L::compare(outcomes[x.outcome as usize], outcomes[y.outcome as usize]))
-    });
-    prev_ranks.resize(width, 0);
-    let mut r = 0u32;
-    for (pos, &idx) in rank_order.iter().enumerate() {
-        if pos > 0 {
-            let (x, y) = (nodes[prev[rank_order[pos - 1]] as usize], nodes[prev[idx] as usize]);
-            if x.parent_rank != y.parent_rank
-                || L::compare(outcomes[x.outcome as usize], outcomes[y.outcome as usize]) != Ordering::Equal
-            {
-                r += 1;
-            }
-        }
-        prev_ranks[idx] = r;
     }
 }
 

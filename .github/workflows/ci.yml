@@ -9,9 +9,11 @@ permissions:
   contents: read
 
 # A new push to a pull request cancels the run still going on its older
-# head. Runs on main are grouped by commit, so none is ever cancelled.
+# head. On main the run going is never cancelled, but only the newest
+# push waits behind it: GitHub keeps one pending run per group and
+# cancels the older one, whose commit the newer run also tests.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.sha }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -24,9 +26,17 @@ env:
 
 # The lanes run in parallel. `check` at the end passes only when every
 # lane passed, so one green check is still the whole workflow.
+#
+# The Linux lanes run on the GitHub-hosted runner unless the repository
+# variable TURBO_CI_LINUX names the labels of self-hosted runners as JSON,
+# such as ["self-hosted", "turbo-ci"]. Pull requests from forks are sent
+# to the hosted runner, but a fork can edit this file: what keeps outside
+# code off the self-hosted runners is the approval the repository requires
+# for every outside collaborator's run (.github/runner/README.md). The
+# Windows lanes are always hosted.
 jobs:
   lint:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -69,7 +79,7 @@ jobs:
   # turbo` ran.
   test:
     name: test (shard ${{ matrix.shard }}/4)
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
       matrix:
@@ -111,7 +121,7 @@ jobs:
   # target directory of their own so the other jobs' builds are untouched.
   fuzz:
     name: test (turbo-fuzz)
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -134,7 +144,7 @@ jobs:
         run: cargo test -p turbo-fuzz
 
   features:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -182,7 +192,7 @@ jobs:
         run: cargo test -p turbo-bench --test tool a_cpu_record_is_measured_and_without_a_reference_backs_nothing
 
   parity:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -297,7 +307,7 @@ jobs:
   check:
     if: always()
     needs: [lint, test, fuzz, features, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     steps:
       - name: every lane passed
         env:

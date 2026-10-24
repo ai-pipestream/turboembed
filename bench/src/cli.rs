@@ -77,6 +77,9 @@ record options:
   --tei-bin <path>             TEI's router built natively, run in place of
                                an image (metal, which no container reaches)
   --tei-model <dir>            the model in the upstream layout
+  --hailort-bin <path>        native hailortcli (Hailo-8: 4.x; Hailo-10H: 5.x),
+                               batch 32 and the HEF fixed sequence length
+  --no-hailort                record that HailoRT was not run
   --no-tei                     record that TEI was not run
   --tensorrt-image <name@sha256:..>
                                NVIDIA's TensorRT container, pinned (cuda)
@@ -110,7 +113,7 @@ record options:
 /// `--name value` pairs and bare `--flag`s.
 pub(crate) struct Opts(pub(crate) BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 4] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-peers"];
+const FLAGS: [&str; 5] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort", "--no-peers"];
 
 impl Opts {
     pub(crate) fn parse(args: &[String]) -> Result<Opts> {
