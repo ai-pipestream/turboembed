@@ -21,6 +21,7 @@ fn sample() -> ThroughputRecord {
             pushed_to: vec!["origin/main".into()],
             settings: Vec::new(),
         },
+        cargo_build: None,
         procedure: "the tool ran unpinned, the grammar on one thread".into(),
         command: "cargo run --release -p turbo-bench --features grammar -- grammar --rounds 5".into(),
         mode: "grammar".into(),
@@ -93,4 +94,31 @@ fn check_refuses_what_a_measurement_cannot_give() {
     refused(&|r| r.runs.clear(), "no run");
     refused(&|r| r.command = ["--repo ", "home", "someone", "tree"].join("/"), "a host path");
     refused(&|r| r.record_version = 2, "another version");
+}
+
+#[test]
+fn historical_records_round_trip_without_invented_build_settings() {
+    let r = sample();
+    let json = serde_json::to_string(&r).unwrap();
+    assert!(!json.contains("cargo_build"));
+    let back: ThroughputRecord = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.cargo_build, None);
+    check(&back).unwrap();
+}
+
+#[test]
+fn cargo_optimization_is_independent_of_profile_family_and_assertions() {
+    for profile in ["debug", "release"] {
+        for debug_assertions in [false, true] {
+            let mut r = sample();
+            r.cargo_build = Some(CargoBuild { profile: profile.into(), opt_level: "0".into(), debug_assertions });
+            assert!(check(&r).unwrap_err().contains("opt-level=0"));
+            for level in ["1", "2", "3", "s", "z"] {
+                r.cargo_build.as_mut().unwrap().opt_level = level.into();
+                check(&r).unwrap();
+                let json = serde_json::to_vec(&r).unwrap();
+                assert_eq!(serde_json::from_slice::<ThroughputRecord>(&json).unwrap(), r);
+            }
+        }
+    }
 }

@@ -983,8 +983,17 @@ SHA-256), and per phase the units produced, the median pass's
 seconds over `--rounds` passes after one warm pass, and the
 characters and bytes per second those divide into. A record holds
 exactly the phases its mode times (the lattice readings phase only
-with --readings), on the CPU device, and an unoptimized build
-refuses to measure, so a record's rates are always release rates.
+with --readings), on the CPU device. A build with Cargo opt-level 0
+refuses before loading inputs, whether debug assertions are enabled or
+disabled. New records include `cargo_build`: Cargo's `PROFILE` (the
+inherited debug/release family, also for custom profiles), `OPT_LEVEL`
+for the benchmark crate, and its debug-assertion setting. These fields
+describe that crate's Cargo settings, not every dependency's settings
+or compiler flags. An optimized dev or custom build can measure; its
+record is not labeled as a release run. The `command` names the
+executable invocation with path placeholders, not an inferred Cargo
+build command. The four historical records predate `cargo_build`; they
+remain valid without it, and their recorded timings are unchanged.
 The name is
 machine, backend, mode, subject and commit:
 `x86-64.cpu.throughput.lattice.ipadic.<commit12>.json`.

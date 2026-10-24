@@ -99,7 +99,7 @@ pub fn cmd(args: &[String]) -> Result<()> {
             None => "the tool ran unpinned, the grammar on one thread".into(),
         },
         format!(
-            "cargo run --release -p turbo-bench --features grammar -- grammar{} --rounds {rounds}",
+            "turbo-bench grammar{} --rounds {rounds} --repo <repo> --out <dir>",
             cpus.as_ref().map_or(String::new(), |c| format!(" --cpus {}", c.list))
         ),
         rounds,

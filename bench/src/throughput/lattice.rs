@@ -106,8 +106,8 @@ pub fn cmd(args: &[String]) -> Result<()> {
         }
 
         let command = format!(
-            "cargo run --release -p turbo-bench --features lattice -- lattice --dictionaries <dir> {}\
-             {}{} --rounds {rounds}",
+            "turbo-bench lattice --dictionaries <dir> {}\
+             {}{} --rounds {rounds} --repo <repo> --out <dir>",
             setup.name,
             cpus.as_ref().map_or(String::new(), |c| format!(" --cpus {}", c.list)),
             if readings { " --readings" } else { "" },

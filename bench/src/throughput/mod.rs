@@ -12,8 +12,10 @@
 //! tool from a clean, pushed commit; nothing in it is typed by
 //! hand.
 
+mod build;
 #[cfg(feature = "grammar")]
 mod grammar;
+pub use build::CargoBuild;
 #[cfg(feature = "lattice")]
 mod lattice;
 #[cfg(any(feature = "grammar", feature = "lattice"))]
@@ -42,6 +44,9 @@ pub struct ThroughputRecord {
     pub machine: Machine,
     pub device: Device,
     pub library: Library,
+    /// Cargo settings of the benchmark crate. Absent in historical records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cargo_build: Option<CargoBuild>,
     /// How the tool ran (pinning, threads).
     pub procedure: String,
     /// The command that made the record, with paths as
@@ -129,6 +134,9 @@ pub(crate) fn slug(s: &str) -> String {
 /// seconds, every figure finite and positive, and no path on
 /// the machine that made it in its text.
 pub fn check(r: &ThroughputRecord) -> Result<()> {
+    if let Some(build) = &r.cargo_build {
+        build.check()?;
+    }
     if r.record_version != THROUGHPUT_RECORD_VERSION {
         return Err(format!("record_version {}, expected {THROUGHPUT_RECORD_VERSION}", r.record_version));
     }
@@ -219,15 +227,12 @@ pub fn write(r: &ThroughputRecord, dir: &Path) -> Result<PathBuf> {
     Ok(path)
 }
 
-/// Throughput records claim release rates, so an unoptimized
-/// build refuses to measure at all.
+/// Refuse Cargo opt-level 0 before loading any measurement inputs.
+#[cfg(any(feature = "lattice", feature = "grammar"))]
 pub(super) fn require_optimized(mode: &str) -> Result<()> {
-    if cfg!(debug_assertions) {
-        return Err(format!(
-            "this turbo-bench was built without optimizations: cargo run --release -p turbo-bench              --features {mode} -- {mode} ..."
-        ));
-    }
-    Ok(())
+    CargoBuild::current().check().map_err(|e| {
+        format!("{e}: cargo run --release -p turbo-bench --features {mode} -- {mode} ... (with a nonzero opt-level)")
+    })
 }
 
 /// `turbo-bench lattice`, with its arguments after the subcommand.

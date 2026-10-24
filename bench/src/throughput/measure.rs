@@ -46,6 +46,7 @@ impl Options {
         self.values.remove(name)
     }
 
+    #[cfg(feature = "lattice")]
     pub(super) fn flag(&self, name: &str) -> bool {
         self.flags.iter().any(|f| f == name)
     }
@@ -167,6 +168,7 @@ pub(super) fn record(
             pushed_to: after.pushed_to.clone(),
             settings: Vec::new(),
         },
+        cargo_build: Some(super::CargoBuild::current()),
         procedure,
         command,
         mode: mode.to_owned(),
