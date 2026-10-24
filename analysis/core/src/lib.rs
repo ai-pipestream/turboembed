@@ -28,7 +28,7 @@ pub mod text;
 pub mod topk;
 
 pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
-pub use analyzer::Analyzer;
+pub use analyzer::{Analyzer, StepEvent, StepTiming};
 pub use annotate::{Annotator, Bound, Refs};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
 pub use doc::{Document, LayerStatus, Status, View};

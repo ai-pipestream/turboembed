@@ -56,7 +56,7 @@ pub type LayerStatus = Status;
 #[derive(Clone)]
 pub struct Document {
     pub(super) views: Vec<Arc<View>>,
-    entries: Vec<Arc<Entry>>,
+    pub(crate) entries: Vec<Arc<Entry>>,
     /// None when the document was made from text: its bytes are then the
     /// UTF-8 of view 0 itself.
     bytes: Option<Arc<SourceBytes>>,

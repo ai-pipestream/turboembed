@@ -9,6 +9,7 @@ pub mod config;
 mod infer;
 mod kserve;
 pub mod offsets;
+pub mod progressive;
 pub mod results;
 pub mod state;
 pub mod status;

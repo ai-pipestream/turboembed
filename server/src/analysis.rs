@@ -12,11 +12,13 @@ use tonic::{Request, Response, Status};
 use crate::api::{Failure, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED};
 use crate::capabilities::{bundle_capabilities, load_config, result_limits, server_limits};
 use crate::kserve::Reply;
+use crate::progressive;
 use crate::proto::result::analysis_service_server::AnalysisService;
 use crate::proto::result::{
-    AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult, DocumentGraphRequest,
-    DocumentGraphResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse, RecordsResult, RerankScoresResult,
-    SparseTermsResult, TokenVectorsResult, UnloadBundleRequest, UnloadBundleResponse,
+    AnalyzePipelineRequest, AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult,
+    DocumentGraphRequest, DocumentGraphResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse,
+    RecordsResult, RerankScoresResult, SparseTermsResult, TokenVectorsResult, UnloadBundleRequest,
+    UnloadBundleResponse,
 };
 use crate::results::Wire;
 use crate::results::{
@@ -62,6 +64,7 @@ where
 #[tonic::async_trait]
 impl AnalysisService for Analysis {
     type AnalyzeStreamStream = stream::handler::AnswerStream;
+    type AnalyzeDocumentProgressiveStream = progressive::ProgressiveStream;
 
     async fn capabilities(&self, _: Request<CapabilitiesRequest>) -> Reply<CapabilitiesResponse> {
         let mut bundles = Vec::new();
@@ -151,5 +154,12 @@ impl AnalysisService for Analysis {
         req: Request<tonic::Streaming<AnalyzeStreamRequest>>,
     ) -> Reply<Self::AnalyzeStreamStream> {
         crate::stream::handler::start(self.state.clone(), req.into_inner()).await
+    }
+
+    async fn analyze_document_progressive(
+        &self,
+        req: Request<AnalyzePipelineRequest>,
+    ) -> Reply<Self::AnalyzeDocumentProgressiveStream> {
+        progressive::start_progressive(req).await
     }
 }
