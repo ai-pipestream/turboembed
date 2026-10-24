@@ -7,34 +7,77 @@ use turbo_analysis_layers::SparseTerms;
 
 use super::{MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, Wire, mismatched, model_from_proto, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
+use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::SparseTermsResult;
 
-impl Wire for SparseTerms<View> {
+/// Document-level [`SparseTerms`] paired with optional view text and wire
+/// [`OffsetMode`].
+pub struct SparseTermsWire {
+    pub text: String,
+    pub offsets: OffsetMode,
+    pub terms: SparseTerms<View>,
+}
+
+impl SparseTermsWire {
+    pub fn new(terms: SparseTerms<View>, text: impl Into<String>, offsets: OffsetMode) -> Self {
+        Self { text: text.into(), offsets, terms }
+    }
+}
+
+fn spans_to_wire(spans: &[Span], text: &str, offsets: OffsetMode) -> (Vec<u32>, Vec<u32>) {
+    if text.is_empty() && offsets == OffsetMode::Utf8 {
+        (spans.iter().map(|s| s.start).collect(), spans.iter().map(|s| s.end).collect())
+    } else {
+        Offsetter::new(text, offsets).spans_to_wire(text, spans)
+    }
+}
+
+fn sparse_to_msg(t: &SparseTerms<View>, text: &str, offsets: OffsetMode) -> SparseTermsResult {
+    let has_occ = t.has_occurrences();
+    let any_span = t.span.iter().any(|s| s.is_some());
+    let present_spans: Vec<Span> = t.span.iter().flatten().copied().collect();
+    let (span_start, span_end) =
+        if any_span { spans_to_wire(&present_spans, text, offsets) } else { (Vec::new(), Vec::new()) };
+    let (occ_start, occ_end) = if has_occ { spans_to_wire(&t.occ, text, offsets) } else { (Vec::new(), Vec::new()) };
+    SparseTermsResult {
+        model: Some(model_to_proto(&t.model)),
+        row: t.row.clone(),
+        term: t.term.clone(),
+        weight: t.weight.clone(),
+        has_span: if any_span { t.span.iter().map(|s| s.is_some()).collect() } else { Vec::new() },
+        span_start,
+        span_end,
+        occ_start,
+        occ_end,
+        occ_at: if has_occ { t.occ_at.clone() } else { Vec::new() },
+        text: text.to_string(),
+        offsets: offsets.to_proto(),
+    }
+}
+
+fn spans_from_wire(
+    what: &str,
+    starts: &[u32],
+    ends: &[u32],
+    text: &str,
+    offsets: OffsetMode,
+) -> Result<Vec<Span>, Failure> {
+    if text.is_empty() && offsets == OffsetMode::Utf8 {
+        Ok(starts.iter().zip(ends).map(|(&s, &e)| Span { start: s, end: e }).collect())
+    } else {
+        Offsetter::new(text, offsets).spans_from_wire(text, what, starts, ends)
+    }
+}
+
+impl Wire for SparseTermsWire {
     type Msg = SparseTermsResult;
 
     fn to_msg(&self) -> SparseTermsResult {
-        let has_occ = self.has_occurrences();
-        // No entry carries a span: the canonical message has no span
-        // column at all, the layer's own empty form.
-        let any_span = self.span.iter().any(|s| s.is_some());
-        SparseTermsResult {
-            model: Some(model_to_proto(&self.model)),
-            row: self.row.clone(),
-            term: self.term.clone(),
-            weight: self.weight.clone(),
-            // `has_span` holds one entry per term; the start/end columns
-            // hold one per present span. With no span at all, all three
-            // stay empty.
-            has_span: if any_span { self.span.iter().map(|s| s.is_some()).collect() } else { Vec::new() },
-            span_start: self.span.iter().flatten().map(|s| s.start).collect(),
-            span_end: self.span.iter().flatten().map(|s| s.end).collect(),
-            occ_start: if has_occ { self.occ.iter().map(|s| s.start).collect() } else { Vec::new() },
-            occ_end: if has_occ { self.occ.iter().map(|s| s.end).collect() } else { Vec::new() },
-            occ_at: if has_occ { self.occ_at.clone() } else { Vec::new() },
-        }
+        sparse_to_msg(&self.terms, &self.text, self.offsets)
     }
 
     fn from_msg(msg: &SparseTermsResult) -> Result<Self, Failure> {
+        let offsets = OffsetMode::from_proto(msg.offsets)?;
         let n = msg.term.len();
         if n as u64 > MAX_SPARSE_ENTRIES {
             return Err(over("max_sparse_entries", "sparse term entries", n as u64));
@@ -54,20 +97,21 @@ impl Wire for SparseTerms<View> {
         let spans = if msg.has_span.is_empty() {
             Vec::new()
         } else {
+            let present = spans_from_wire("sparse term span", &msg.span_start, &msg.span_end, &msg.text, offsets)?;
             let mut spans = Vec::with_capacity(n);
             let mut k = 0;
-            for &present in &msg.has_span {
-                if !present {
+            for &is_present in &msg.has_span {
+                if !is_present {
                     spans.push(None);
                 } else {
-                    let (Some(&start), Some(&end)) = (msg.span_start.get(k), msg.span_end.get(k)) else {
+                    let Some(&span) = present.get(k) else {
                         return Err(mismatched("span_start", msg.span_start.len(), msg.span_end.len()));
                     };
-                    spans.push(Some(Span { start, end }));
+                    spans.push(Some(span));
                     k += 1;
                 }
             }
-            if k != msg.span_start.len() {
+            if k != present.len() {
                 return Err(mismatched("span_start", msg.span_start.len(), k));
             }
             spans
@@ -104,8 +148,7 @@ impl Wire for SparseTerms<View> {
                     "occ_at: occurrence ends in entry order, the last one past the last occurrence",
                 ));
             }
-            let occ: Vec<Span> =
-                msg.occ_start.iter().zip(&msg.occ_end).map(|(&s, &e)| Span { start: s, end: e }).collect();
+            let occ = spans_from_wire("sparse occurrence span", &msg.occ_start, &msg.occ_end, &msg.text, offsets)?;
             (occ, msg.occ_at.clone())
         };
         // The row column: one start per unit and one past the last entry,
@@ -143,7 +186,19 @@ impl Wire for SparseTerms<View> {
             out.unit();
         }
         out.check().map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("sparse terms: {e}")))?;
-        Ok(out)
+        Ok(SparseTermsWire { text: msg.text.clone(), offsets, terms: out })
+    }
+}
+
+impl Wire for SparseTerms<View> {
+    type Msg = SparseTermsResult;
+
+    fn to_msg(&self) -> SparseTermsResult {
+        sparse_to_msg(self, "", OffsetMode::Utf8)
+    }
+
+    fn from_msg(msg: &SparseTermsResult) -> Result<Self, Failure> {
+        SparseTermsWire::from_msg(msg).map(|w| w.terms)
     }
 }
 
@@ -294,6 +349,7 @@ mod tests {
             occ_start: vec![0, 99],
             occ_end: vec![1, 100],
             occ_at: vec![1],
+            ..Default::default()
         };
         let e = refuse(SparseTerms::from_msg(&msg));
         assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT);

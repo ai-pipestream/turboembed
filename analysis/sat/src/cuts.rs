@@ -63,7 +63,7 @@ pub fn place_prefix(text: &str, lone: i32, ids: &[i32], spans: &mut [[u32; 2]]) 
 /// The logistic function in f32, as wtpsplit computes it from its
 /// stitched scores (`1 / (1 + exp(-x))`).
 pub fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
+    turbo::head::sigmoid(x)
 }
 
 /// The byte offsets a sentence may end at: for each token whose score's
