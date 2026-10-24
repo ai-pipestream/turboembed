@@ -224,8 +224,10 @@ Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, uint
                     2);
     model.reap();
     std::unique_ptr<Session> s(new Session());
-    if (Failure f = frame_timeout(s->frame_timeout_)) return f;
+    // Before anything can refuse: a refused session is released, and its
+    // release reaps the model's frames.
     s->model_ = &model;
+    if (Failure f = frame_timeout(s->frame_timeout_)) return f;
     s->max_batch_ = max_batch;
     s->max_seq_ = max_seq;
     s->max_ranges_ = max_ranges;
