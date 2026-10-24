@@ -11,7 +11,7 @@ use turbo_goldens::data_dir;
 use turbo_tokenize::complex::{
     ComplexScript, Lstm, LstmScratch, bundled, bundled_dictionaries, bundled_lstm, bundled_lstms,
 };
-use turbo_tokenize::lattice::Scratch;
+use turbo_tokenize::lattice::{PrebuiltImage, Scratch};
 use turbo_tokenize::{LatticeTokenizer, MecabDictionary, WhitespaceMode};
 
 struct Counting;
@@ -57,21 +57,25 @@ fn a_grown_scratch_analyzes_without_allocating() {
     for (dictionary, set) in [("mecab-fixture-ja", "ja"), ("mecab-fixture-ko", "ko")] {
         let dir = data_dir().join("fixtures").join(dictionary);
         let d = MecabDictionary::load(&dir, WhitespaceMode::Unicode).unwrap();
-        let t = LatticeTokenizer::new(d, WhitespaceMode::Unicode);
-        let texts = inputs(set);
-        let long = texts.join("\n");
-        let mut scratch = Scratch::new();
-        let (mut morphemes, mut spans) = (Vec::new(), Vec::new());
-        t.analyze_with(&long, &mut scratch, &mut morphemes).unwrap();
-        t.tokenize_with(&long, &mut scratch, &mut spans).unwrap();
-        let before = COUNT.with(Cell::get);
-        for text in texts.iter().map(String::as_str).chain([long.as_str()]) {
-            morphemes.clear();
-            t.analyze_with(text, &mut scratch, &mut morphemes).unwrap();
-            spans.clear();
-            t.tokenize_with(text, &mut scratch, &mut spans).unwrap();
+        let image = PrebuiltImage::copy_from(&d.to_prebuilt().unwrap());
+        let packed = MecabDictionary::from_prebuilt(image, Default::default()).unwrap();
+        for d in [d, packed] {
+            let t = LatticeTokenizer::new(d, WhitespaceMode::Unicode);
+            let texts = inputs(set);
+            let long = texts.join("\n");
+            let mut scratch = Scratch::new();
+            let (mut morphemes, mut spans) = (Vec::new(), Vec::new());
+            t.analyze_with(&long, &mut scratch, &mut morphemes).unwrap();
+            t.tokenize_with(&long, &mut scratch, &mut spans).unwrap();
+            let before = COUNT.with(Cell::get);
+            for text in texts.iter().map(String::as_str).chain([long.as_str()]) {
+                morphemes.clear();
+                t.analyze_with(text, &mut scratch, &mut morphemes).unwrap();
+                spans.clear();
+                t.tokenize_with(text, &mut scratch, &mut spans).unwrap();
+            }
+            assert_eq!(COUNT.with(Cell::get) - before, 0, "{dictionary}");
         }
-        assert_eq!(COUNT.with(Cell::get) - before, 0, "{dictionary}");
     }
     complex_segmenters_allocate_nothing_after_warmup();
 }

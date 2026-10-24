@@ -104,9 +104,7 @@ pub(crate) fn lowercase(text: &str) -> String {
     out
 }
 
-fn blank(text: &str) -> bool {
-    text.chars().all(turbo_unicode::java::is_whitespace)
-}
+use turbo_unicode::java::is_blank as blank;
 
 fn same_view(name: &str, view: ViewId, expected: ViewId) -> Result<(), String> {
     if view == expected {

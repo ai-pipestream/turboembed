@@ -382,6 +382,7 @@ impl Document {
                 on.push(target);
             }
         }
+        layer.check_document(self, &on).map_err(|detail| Error::Invalid { layer: id, detail })?;
         let len = layer.len();
         // A view gets the next id and joins the view table.
         if TypeId::of::<L>() == TypeId::of::<View>() {
