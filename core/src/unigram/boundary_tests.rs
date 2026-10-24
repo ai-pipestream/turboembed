@@ -11,6 +11,7 @@ fn fixture() -> (Value, manifest::Unigram) {
         collapse_whitespace: false,
         strip: false,
         whole_text: false,
+        whitespace_split: false,
     };
     let json = json!({"model":{"type":"Unigram","unk_id":0,"byte_fallback":false,
         "vocab":[["<unk>",0.0],["a",-1.0],["b",-1.0],["ab",-1.1],["ba",-1.7]]},

@@ -60,6 +60,10 @@ pub struct WordPiece {
 /// `collapse_whitespace`) and the text is trimmed (when `strip`). With
 /// `whole_text` the text is not cut at the metaspace: it is segmented at
 /// once, as a Metaspace pre-tokenizer with `split` false leaves it.
+/// With `whitespace_split` (XLM-RoBERTa's own file: a WhitespaceSplit
+/// pre-tokenizer before the Metaspace) the normalized text is first cut
+/// at every Unicode whitespace character, which is dropped, and each word
+/// gets its own metaspace in front.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Unigram {
@@ -75,6 +79,8 @@ pub struct Unigram {
     pub strip: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub whole_text: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub whitespace_split: bool,
 }
 
 /// Byte-level BPE as upstream `tokenizers` runs it for GPT-2 and

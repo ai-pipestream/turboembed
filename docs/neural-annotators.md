@@ -155,8 +155,8 @@ the fixtures from the same weights. The tokenizer is BAAI/bge-m3's
 `tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`
 (MIT): it has XLM-R's vocabulary and character map, in the Unigram form
 the core reads. `FacebookAI/xlm-roberta-base`'s own `tokenizer.json`
-names no model type, which the core refuses, so both sides read the
-bge-m3 file, as the tiny model's fixtures do. The two files are not the
+names no model type, which the core refused until #1020, so both sides
+read the bge-m3 file, as the tiny model's fixtures do. The two files are not the
 same tokenizer pipeline, so this is wtpsplit with the bge-m3 file, not
 wtpsplit as it ships (below, "The released checkpoint's tokenizer").
 `a_released_checkpoint_matches_wtpsplit` in
@@ -207,8 +207,11 @@ What the step does differently, and why:
   probabilities are the same within 1e-3 and the pieces are the same.
   Upstream's offsets there start before the space in front of a word
   where the core's start after it; wtpsplit reads a token's score at its
-  end, so this does not move a probability. Reading `xlm-roberta-base`'s
-  file in the core would remove the difference.
+  end, so this does not move a probability. The core now reads
+  `xlm-roberta-base`'s file too (`tokenizer.unigram.whitespace_split`,
+  #1020), matching upstream `tokenizers`' ids on that form in
+  `core/tests/tokenizer_xlmr.rs`. The table above has not yet been
+  measured again with a bundle sealed with that file.
 - **The prefix piece.** Before a text's first word, when no piece
   starts with that word's first characters, the tokenizer emits the
   bare word start `▁`. The core gives it an empty span, as it stands for
