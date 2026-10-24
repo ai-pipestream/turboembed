@@ -16,6 +16,7 @@ pub mod qa;
 pub mod ranges;
 pub mod tei;
 pub mod tensorrt;
+pub mod throughput;
 
 use std::fs;
 use std::path::{Path, PathBuf};
