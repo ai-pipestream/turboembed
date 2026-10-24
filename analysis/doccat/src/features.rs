@@ -7,7 +7,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
-use turbo_sequence::{PatternMode, StringPattern};
+pub use turbo_sequence::PatternMode;
+use turbo_sequence::StringPattern;
 
 use crate::error::DoccatError;
 
@@ -312,16 +313,10 @@ impl BuiltinFeatureGenerator {
         }
     }
 
-    /// Instantiates a built-in feature generator with its default constructor
-    /// from its canonical Java class name, matching `ExtensionLoader.instantiateExtension`
-    /// in `DoccatFactory.getFeatureGenerators()`.
+    /// Instantiates a built-in feature generator from its canonical Java class
+    /// name or parameterized specification.
     pub fn from_class_name(class_name: &str) -> Result<Self, DoccatError> {
-        match class_name.trim() {
-            BAG_OF_WORDS_CLASS => Ok(BuiltinFeatureGenerator::BagOfWords(BagOfWordsFeatureGenerator::new())),
-            NGRAM_CLASS => Ok(BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::default())),
-            EMOJI_CLASS => Ok(BuiltinFeatureGenerator::Emoji(EmojiFeatureGenerator::new())),
-            other => Err(DoccatError::UnknownFeatureGenerator(other.to_owned())),
-        }
+        crate::model::parse_single_generator(class_name)
     }
 }
 

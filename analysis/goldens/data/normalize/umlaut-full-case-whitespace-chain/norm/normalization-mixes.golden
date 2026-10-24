@@ -1,0 +1,25 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	norm/normalization-mixes	264	229	1e6016018c2faeec576ef2359a5c9301e2627255696d79d02b51dde267690a44
+annotator	opennlp.tools.util.normalizer.Alignment	andThen
+config	steps	GermanUmlautCharSequenceNormalizer,FullCaseFoldCharSequenceNormalizer,WhitespaceCharSequenceNormalizer
+layer	turbo:view	text	15	start:u32	end:u32	with:str
+36	38	å
+43	45	oe
+50	51	a
+64	65	z
+65	67	ue
+75	76	z
+84	85	 
+85	86	o
+174	175	 
+175	176	v
+194	195	v
+215	216	v
+225	226	g
+243	244	c
+263	264	
+end	turbo:view

@@ -230,6 +230,29 @@ impl MaxentModel {
         self.finish(out);
     }
 
+    /// Evaluates as Java's `eval(context, probs)` overload does. QN adds
+    /// feature weights to the caller's existing sums, then normalizes;
+    /// every other model kind overwrites the buffer as in `eval_features`.
+    /// This is for explicit OpenNLP compatibility. Ordinary inference should
+    /// use [`eval_features`](Self::eval_features), which starts fresh.
+    ///
+    /// # Panics
+    ///
+    /// If `out.len()` is not [`num_outcomes`](Self::num_outcomes).
+    pub fn eval_features_seeded<'c, I>(&self, context: I, out: &mut [f64])
+    where
+        I: IntoIterator<Item = &'c [u8]>,
+    {
+        assert_eq!(out.len(), self.outcomes.len(), "the output must hold one probability per outcome");
+        if self.kind != ModelKind::Qn {
+            self.start_sums(out);
+        }
+        for feature in context {
+            self.add_feature(feature, out);
+        }
+        self.finish(out);
+    }
+
     /// Sets every sum to its starting value.
     #[inline]
     fn start_sums(&self, out: &mut [f64]) {

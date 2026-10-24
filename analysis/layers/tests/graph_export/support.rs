@@ -163,6 +163,7 @@ pub(super) fn document() -> Document {
             cost: vec![0, 10, -3],
             model_tokens: vec![9, 5, 4],
             over_budget: vec![false, false, true],
+            prompt_overhead: 0,
         },
         by.clone(),
     )

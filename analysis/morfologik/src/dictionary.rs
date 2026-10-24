@@ -199,6 +199,11 @@ impl MorfologikTagDictionary {
         self.case_sensitive
     }
 
+    /// The underlying [`MorfologikDictionary`].
+    pub fn dictionary(&self) -> &MorfologikDictionary {
+        &self.dictionary
+    }
+
     /// Returns the list of POS tags for `word`, or `None` (`null` in Java) when `word` is
     /// not in the dictionary or has only tagless entries (`MorfologikTagDictionary.getTags`).
     pub fn tags(&self, word: &str) -> Option<Vec<String>> {

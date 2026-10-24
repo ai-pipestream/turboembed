@@ -50,6 +50,7 @@ impl LayerCodec for Numbers {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
         put_spans(&mut w, &self.spans, cx)?;
+        put_u32s(&mut w, &self.numeral_start)?;
         put_u32s(&mut w, &self.numeral_end)?;
         put_bools(&mut w, &self.negative)?;
         put_strs(&mut w, &self.coefficient)?;
@@ -62,6 +63,7 @@ impl LayerCodec for Numbers {
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
+        let numeral_start = get_u32s(&mut r)?;
         let numeral_end = get_u32s(&mut r)?;
         let negative = get_bools(&mut r)?;
         let coefficient = get_strs(&mut r)?;
@@ -70,6 +72,7 @@ impl LayerCodec for Numbers {
         let marker = get_variants(&mut r, &MARKERS, "scale marker")?;
         let notation = get_variants(&mut r, &NOTATIONS, "number notation")?;
         let n = spans.len();
+        want_len(numeral_start.len(), n, "numeral starts")?;
         want_len(numeral_end.len(), n, "numeral ends")?;
         want_len(negative.len(), n, "negatives")?;
         want_len(coefficient.len(), n, "coefficients")?;
@@ -78,7 +81,7 @@ impl LayerCodec for Numbers {
         want_len(marker.len(), n, "markers")?;
         want_len(notation.len(), n, "notations")?;
         done(&r, "numbers")?;
-        Ok(Numbers { spans, numeral_end, negative, coefficient, scale, multiplier, marker, notation })
+        Ok(Numbers { spans, numeral_start, numeral_end, negative, coefficient, scale, multiplier, marker, notation })
     }
 }
 

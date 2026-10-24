@@ -13,8 +13,10 @@ binds it to an exact `ModelRef` and validated `RoleCapability` records:
 Use `ModelProfile::from_bundle` to check capabilities against an opened core
 bundle. Dense widths must be the full dimension or declared `output_dims`;
 token-vector widths use the projection dimension when present. Reranking has
-one unnormalized logit. Sparse runtimes whose format is not yet in the core
-manifest register their runtime facts with `ModelProfile::new`. This explicit
+one unnormalized logit. Sparse capabilities validate against the bundle's
+`embed.sparse` output, at the architecture's vocabulary width. Runtimes whose
+format is not in the core manifest register their runtime facts with
+`ModelProfile::new`. This explicit
 constructor does not assert that a bundle or runtime has been loaded: that is
 the caller's responsibility, as is the accuracy of the role descriptors.
 
