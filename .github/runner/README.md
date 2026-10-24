@@ -6,8 +6,13 @@ on the hosted `ubuntu-24.04` runner unless the repository variable
 
     gh variable set TURBO_CI_LINUX --body '["self-hosted", "turbo-ci"]'
 
-Deleting the variable sends the jobs back to the hosted runner. The
-Windows lanes and the publishing jobs are hosted whatever it says.
+The training jobs read `TURBO_TRAIN_LINUX` instead, so a training run of
+up to three hours never holds a runner the ci lanes are waiting for:
+
+    gh variable set TURBO_TRAIN_LINUX --body '["self-hosted", "turbo-train"]'
+
+Deleting a variable sends its jobs back to the hosted runner. The Windows
+lanes and the publishing jobs are hosted whatever they say.
 
 ## What keeps outside code off these runners
 
