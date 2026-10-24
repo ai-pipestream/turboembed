@@ -140,10 +140,12 @@ hexadecimal digits of the HMAC-SHA-256 of the kind name, a zero byte and
 the normalized value, under a key of at least 32 bytes; the label is the
 same in every text for one key. Both return a `PiiRewrite` with the new
 text, the labels as a layer of it, and `map_offset` and `map_span` from
-the original to the new text; both refuse overlapping mentions
+the original to the new text; overlapping mentions are coalesced by
+default into their union span under the top-ranked kind, while
+`refusing_overlaps` and invalid or empty spans are refused
 (`RewriteError`). `PiiAuditReport` counts mentions by kind, with keyed
-tokens in place of values. `analysis/pii/tests/rewrite.rs` checks, for
-every pack over every text of the `pii` input set, that no mention's
+tokens in place of values. `analysis/pii/tests/rewrite_audit.rs` checks,
+for every pack over every text of the `pii` input set, that no mention's
 covered text or normalized value appears in the report's `Display` or
 `Debug` output.
 
