@@ -80,6 +80,9 @@ impl Layer for ChunkAntecedents {
         if self.row.len() != n + 1 {
             return Err(format!("{} row offsets for {n} chunks", self.row.len()));
         }
+        if self.row.first() != Some(&0) {
+            return Err("chunk antecedent row offsets do not start at 0".into());
+        }
         if *self.row.last().unwrap_or(&0) as usize != self.links.len() {
             return Err("chunk antecedent row offsets do not end at links.len()".into());
         }

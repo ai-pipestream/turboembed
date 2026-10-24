@@ -137,6 +137,16 @@ fn antecedent_indexes_bound_both_sentence_columns() {
 }
 
 #[test]
+fn a_nonzero_first_row_offset_is_refused() {
+    // Row [1, 1, 1] is monotonic and ends at links.len(), but the one
+    // stored link belongs to no chunk and links_of can never reach it.
+    let (_, mut antecedents) = sample();
+    antecedents.row = vec![1, 1, 1];
+    let err = Layer::check(&antecedents).unwrap_err();
+    assert!(err.contains("start at 0"), "{err}");
+}
+
+#[test]
 fn out_of_bounds_sentence_references_are_refused_when_added() {
     let (cuts, mut antecedents) = sample();
     antecedents.links[0].mention_sentence = Ix::new(9);
