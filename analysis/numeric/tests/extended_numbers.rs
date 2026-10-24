@@ -175,6 +175,33 @@ fn non_ascii_digits_and_arabic_separators() {
 }
 
 #[test]
+fn known_boundaries_preserve_exact_values_and_utf8_spans() {
+    for (numeral, value, parity_reads) in
+        [("-12.5", "-12.5", true), ("1,00,000", "100000", false), ("-١٢٣", "-123", false), ("1e-3", "0.001", false)]
+    {
+        for prefix in ["", " ", "Reported: ", "\t", "\u{A0}"] {
+            let text = format!("{prefix}{numeral} recorded");
+            for parity in [false, true] {
+                let out = scan_numbers(&text, NumberScanner::new(LatinUs).with_opennlp_parity(parity));
+                if parity && !parity_reads {
+                    assert!(out.is_empty(), "{text:?}");
+                } else {
+                    assert_eq!(out.len(), 1, "{text:?}, parity={parity}");
+                    assert_eq!(out.value(Ix::new(0)).to_plain_string(), value);
+                    assert_eq!(
+                        out.spans.get(Ix::new(0)),
+                        Span::new(prefix.len() as u32, (prefix.len() + numeral.len()) as u32)
+                    );
+                }
+            }
+        }
+    }
+    for parity in [false, true] {
+        assert!(found_with_parity("x\u{301}12", LatinUs, true, parity).is_empty());
+    }
+}
+
+#[test]
 fn quantities_and_money_support_extended_numbers_and_regions() {
     // Quantities with lakh grouping, thin spaces, Swiss apostrophes, exponents, and non-ASCII digits.
     let q_ext = QuantityExtractor::default();

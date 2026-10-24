@@ -52,7 +52,7 @@ pub(crate) fn next_candidate_pos(text: &str, start: usize, opennlp_parity: bool)
     if opennlp_parity {
         return b[start..].iter().position(|&x| x == b'-' || x.is_ascii_digit()).map(|s| start + s);
     }
-    let mut i = candidate_prefix(b, start);
+    let mut i = start;
     while i < b.len() {
         let b0 = b[i];
         if EXTENDED_START_BYTES[usize::from(b0)] {
@@ -69,30 +69,6 @@ pub(crate) fn next_candidate_pos(text: &str, start: usize, opennlp_parity: bool)
         }
     }
     None
-}
-
-/// Skip eight bytes at a time when none can start an ASCII number or a
-/// non-ASCII Nd digit. This is only a conservative byte filter: Unicode
-/// membership is still checked by is_nd_at below.
-#[inline(always)]
-fn candidate_prefix(bytes: &[u8], mut start: usize) -> usize {
-    const HIGH: u64 = 0x8080_8080_8080_8080;
-    while bytes.len() - start >= 8 {
-        let word = u64::from_le_bytes(bytes[start..start + 8].try_into().unwrap());
-        let low = word & !HIGH;
-        // Each low lane is <= 127, so these additions cannot carry between
-        // bytes. Bits 7 mark ASCII 0..9 or any byte >= 0xD9 (all Nd leads).
-        let digits = (low + 0x5050_5050_5050_5050) & !(low + 0x4646_4646_4646_4646) & !word;
-        let nd_leads = (low + 0x2727_2727_2727_2727) & word;
-        let minus = word ^ 0x2D2D_2D2D_2D2D_2D2D;
-        let minus = minus.wrapping_sub(0x0101_0101_0101_0101) & !minus;
-        let candidates = (digits | nd_leads | minus) & HIGH;
-        if candidates != 0 {
-            return start + candidates.trailing_zeros() as usize / 8;
-        }
-        start += 8;
-    }
-    start
 }
 
 /// UTF-8 byte length of the character starting with lead byte `b0`.

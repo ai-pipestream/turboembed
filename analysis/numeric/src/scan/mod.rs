@@ -76,7 +76,7 @@ pub fn parse(
 
 /// Reads a number whose first digit is at byte `start`, in `notation`,
 /// optionally enforcing strict OpenNLP JVM parity (`opennlp_parity = true`).
-#[inline]
+#[inline(never)]
 pub fn parse_with_parity(
     text: &str,
     start: usize,
@@ -281,7 +281,7 @@ pub fn continues_number(text: &str, index: usize, notation: NumberNotation) -> b
 
 /// `NumberScan.continuesNumber`, optionally restricted to ASCII digits when
 /// `opennlp_parity` is `true`.
-#[inline]
+#[inline(never)]
 pub fn continues_number_with_parity(text: &str, index: usize, notation: NumberNotation, opennlp_parity: bool) -> bool {
     let b = text.as_bytes();
     let (group, decimal) = (notation.group_separator(), notation.decimal_separator());
