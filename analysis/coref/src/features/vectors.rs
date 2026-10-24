@@ -9,12 +9,11 @@ const UNKNOWN_SIMILARITY: &str = "unknown";
 
 /// The cosine of two vectors, `-2` when either is all zeros.
 pub(crate) fn cosine(u: &[f32], v: &[f32]) -> f64 {
-    let (mut dot, mut uu, mut vv) = (0.0f64, 0.0f64, 0.0f64);
-    for d in 0..u.len() {
-        dot += u[d] as f64 * v[d] as f64;
-        uu += u[d] as f64 * u[d] as f64;
-        vv += v[d] as f64 * v[d] as f64;
-    }
+    let dot = turbo_analysis::math::dot_f64(u, v);
+    // The former loop started at +0.0; the shared iterator sum starts at -0.0.
+    let dot = if dot == 0.0 { 0.0 } else { dot };
+    let uu = turbo_analysis::math::sum_sq_f64(u);
+    let vv = turbo_analysis::math::sum_sq_f64(v);
     if uu == 0.0 || vv == 0.0 { -2.0 } else { dot / (uu * vv).sqrt() }
 }
 
