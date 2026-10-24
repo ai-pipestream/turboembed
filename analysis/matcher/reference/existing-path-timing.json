@@ -1,54 +1,403 @@
 {
-  "kind": "historical-existing-path-timing",
+  "kind": "existing-path-timing",
+  "schema": 2,
   "date": "2026-10-24",
+  "finished_utc": "2026-10-24T21:46:39Z",
   "architecture": "AMD Ryzen 9 9950X3D",
-  "logical_cpu": 4,
-  "baseline_commit": "0edf2f35ce710bc5d04fd3924c61bd992aad017e",
-  "candidate_commit": "75f5c87ce0ad17e0dd4e0c012be43b2a9a726dd0",
+  "logical_cpu": 7,
+  "baseline_commit": "bf52319dfc49486e5109f2c76faccb8fcd6edc02",
+  "candidate_commit": "89c2ed766746fe3edf801f744b1b95713057c40e",
   "example": "analysis/matcher/examples/token_bench.rs",
-  "example_sha256": "f38602fbc2cdcaed5d34524a4e0a531d95c4440ba087262e882dd94a0d1d19b0",
+  "example_sha256": "cc9e8b7e15545a8df5d2e71da52845e1b09d0b805104834ae9f0f519c22a4bef",
   "corpus": "UD English EWT r2.16 train",
   "corpus_sha256": "3fb78e2b55482c8ee00caa653af436c88c9e5bc9a73ce26e4ae3ddc79d2b7e7b",
   "tokens": 204577,
   "hits": 51765,
-  "iterations_per_process": 15,
+  "matches_sha256": "af63717117339df6cfedc46020317acd2b4b6b17ce0f052f37d4583174335ffd",
+  "match_comparison": "All match token ranges, label ids and pattern ids compared byte for byte before timing.",
+  "compiler": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "cargo_build": "cargo build --locked --release -p turbo-matcher --lib",
+  "rustflags": "-C target-cpu=native",
+  "harness_build": "rustc --edition=2024 -C opt-level=3 -C target-cpu=native; linked to each checkout release libraries",
   "warmups_per_process": 1,
+  "iterations_per_process": 15,
   "pairs": 12,
   "order": "even pairs: baseline,candidate; odd pairs: candidate,baseline",
   "process_medians_ns": {
     "main": [
-      17765772,
-      16192620,
-      16266300,
-      16588548,
-      16109383,
-      16492798,
-      16058006,
-      16011558,
-      16041865,
-      16127156,
-      15986841,
-      16170279
+      13377965,
+      12886155,
+      18486003,
+      13280250,
+      13756831,
+      13344311,
+      14120489,
+      18196696,
+      13015460,
+      13087906,
+      13586850,
+      13500176
     ],
     "new": [
-      11504573,
-      11135407,
-      11697648,
-      12707116,
-      10972168,
-      10976016,
-      11258860,
-      10953352,
-      11032332,
-      11715121,
-      10944526,
-      10934247
+      12664606,
+      12473535,
+      14340184,
+      13713650,
+      18026264,
+      13178548,
+      15665520,
+      14351406,
+      13016391,
+      12844917,
+      13647394,
+      13380620
     ]
   },
   "median_ns": {
-    "main": 16148717.5,
-    "new": 11083869.5
+    "main": 13439070.5,
+    "new": 13514007.0
   },
-  "candidate_over_baseline": 0.6863622142129863,
-  "provenance": "Retained raw samples from the original implementation run; not rerun for the oracle-storage correction."
+  "candidate_over_baseline": 1.0055760180735713,
+  "median_paired_ratio": 0.9893610588978585,
+  "paired_ratios": [
+    0.9466765685214455,
+    0.967979587394378,
+    0.7757319957158938,
+    1.032634927806329,
+    1.3103500362837923,
+    0.9875780023412224,
+    1.1094176696005358,
+    0.7886819673197816,
+    1.0000715303185597,
+    0.9814340812044341,
+    1.004456073335615,
+    0.9911441154544948
+  ],
+  "samples": [
+    {
+      "pair": 0,
+      "order": [
+        "baseline",
+        "candidate"
+      ],
+      "load_before": [
+        40.28,
+        60.21,
+        64.01
+      ],
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13377965
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 12664606
+      },
+      "load_after": [
+        40.28,
+        60.21,
+        64.01
+      ]
+    },
+    {
+      "pair": 1,
+      "order": [
+        "candidate",
+        "baseline"
+      ],
+      "load_before": [
+        40.28,
+        60.21,
+        64.01
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 12473535
+      },
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 12886155
+      },
+      "load_after": [
+        40.28,
+        60.21,
+        64.01
+      ]
+    },
+    {
+      "pair": 2,
+      "order": [
+        "baseline",
+        "candidate"
+      ],
+      "load_before": [
+        40.28,
+        60.21,
+        64.01
+      ],
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 18486003
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 14340184
+      },
+      "load_after": [
+        40.28,
+        60.21,
+        64.01
+      ]
+    },
+    {
+      "pair": 3,
+      "order": [
+        "candidate",
+        "baseline"
+      ],
+      "load_before": [
+        40.28,
+        60.21,
+        64.01
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13713650
+      },
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13280250
+      },
+      "load_after": [
+        40.28,
+        60.21,
+        64.01
+      ]
+    },
+    {
+      "pair": 4,
+      "order": [
+        "baseline",
+        "candidate"
+      ],
+      "load_before": [
+        40.28,
+        60.21,
+        64.01
+      ],
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13756831
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 18026264
+      },
+      "load_after": [
+        40.28,
+        60.21,
+        64.01
+      ]
+    },
+    {
+      "pair": 5,
+      "order": [
+        "candidate",
+        "baseline"
+      ],
+      "load_before": [
+        40.28,
+        60.21,
+        64.01
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13178548
+      },
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13344311
+      },
+      "load_after": [
+        40.28,
+        60.21,
+        64.01
+      ]
+    },
+    {
+      "pair": 6,
+      "order": [
+        "baseline",
+        "candidate"
+      ],
+      "load_before": [
+        40.28,
+        60.21,
+        64.01
+      ],
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 14120489
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 15665520
+      },
+      "load_after": [
+        40.28,
+        60.21,
+        64.01
+      ]
+    },
+    {
+      "pair": 7,
+      "order": [
+        "candidate",
+        "baseline"
+      ],
+      "load_before": [
+        40.28,
+        60.21,
+        64.01
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 14351406
+      },
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 18196696
+      },
+      "load_after": [
+        40.28,
+        60.21,
+        64.01
+      ]
+    },
+    {
+      "pair": 8,
+      "order": [
+        "baseline",
+        "candidate"
+      ],
+      "load_before": [
+        40.28,
+        60.21,
+        64.01
+      ],
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13015460
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13016391
+      },
+      "load_after": [
+        38.9,
+        59.59,
+        63.79
+      ]
+    },
+    {
+      "pair": 9,
+      "order": [
+        "candidate",
+        "baseline"
+      ],
+      "load_before": [
+        38.9,
+        59.59,
+        63.79
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 12844917
+      },
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13087906
+      },
+      "load_after": [
+        38.9,
+        59.59,
+        63.79
+      ]
+    },
+    {
+      "pair": 10,
+      "order": [
+        "baseline",
+        "candidate"
+      ],
+      "load_before": [
+        38.9,
+        59.59,
+        63.79
+      ],
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13586850
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13647394
+      },
+      "load_after": [
+        38.9,
+        59.59,
+        63.79
+      ]
+    },
+    {
+      "pair": 11,
+      "order": [
+        "candidate",
+        "baseline"
+      ],
+      "load_before": [
+        38.9,
+        59.59,
+        63.79
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13380620
+      },
+      "baseline": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13500176
+      },
+      "load_after": [
+        38.9,
+        59.59,
+        63.79
+      ]
+    }
+  ],
+  "environment": "Shared host under ambient load; one pinned logical CPU, no isolated-host or production-throughput claim."
 }

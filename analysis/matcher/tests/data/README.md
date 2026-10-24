@@ -57,14 +57,58 @@ path that cannot be read, invalid JSON, a different corpus digest or a
 different spaCy version always fails. The test pins 31 sentences, 485
 tokens and all 2,580 expected matches.
 
-The historical existing-path timing samples, source and corpus hashes,
-commits and run order are in `../../reference/existing-path-timing.json`.
-To repeat, build the committed `examples/token_bench.rs` in each named
-checkout with `cargo build --locked --release -p turbo-matcher --example token_bench`
-(copy the same example into the baseline checkout first). For twelve pairs,
-alternate the order of the two binaries and run each as
-`taskset -c 4 target/release/examples/token_bench CORPUS.conllu 15`.
+The current existing-path samples, compiler, source and corpus hashes,
+commits, run order and ambient load are in
+`../../reference/existing-path-timing.json`. They compare main
+`bf52319dfc49486e5109f2c76faccb8fcd6edc02` with candidate
+`89c2ed766746fe3edf801f744b1b95713057c40e` on an AMD Ryzen 9 9950X3D.
+The candidate adds only an optional match dump to the example after timing;
+its matcher code is unchanged from the reviewed implementation.
+
+Twelve alternating pairs give process medians of 13.439 ms for main and
+13.514 ms for the candidate (ratio 1.0056). The median paired ratio is
+0.9894. Individual ratios range from 0.7757 to 1.3104 on the shared host,
+whose one-minute load moved from 40.28 to 38.90. These samples are
+consistent with timing parity within the observed variation; no speedup
+or isolated-host result is claimed. All twelve pairs are retained.
+
+To repeat with the recorded rustc 1.99.0 toolchain, set `BASE` and
+`CANDIDATE` to absolute clean checkouts at those commits, and `CORPUS` to
+the digest-checked EWT train file. The same example is linked to each
+checkout's release libraries, keeping both source trees clean:
+
+```bash
+for checkout in "$BASE" "$CANDIDATE"; do
+  out="$checkout/target/matcher-timing"
+  (cd "$checkout" && CARGO_BUILD_JOBS=2 CARGO_TARGET_DIR="$out" \
+    RUSTFLAGS='-C target-cpu=native' \
+    cargo build --locked --release -p turbo-matcher --lib)
+  analysis=("$out"/release/deps/libturbo_analysis-*.rlib)
+  layers=("$out"/release/deps/libturbo_analysis_layers-*.rlib)
+  test "${#analysis[@]}" = 1 && test "${#layers[@]}" = 1 || exit 1
+  rustc --edition=2024 -C opt-level=3 -C target-cpu=native \
+    -L "dependency=$out/release/deps" \
+    --extern "turbo_matcher=$out/release/libturbo_matcher.rlib" \
+    --extern "turbo_analysis=${analysis[0]}" \
+    --extern "turbo_analysis_layers=${layers[0]}" \
+    "$CANDIDATE/analysis/matcher/examples/token_bench.rs" \
+    -o "$out/token_bench"
+done
+base="$BASE/target/matcher-timing/token_bench"
+candidate="$CANDIDATE/target/matcher-timing/token_bench"
+taskset -c 7 "$base" "$CORPUS" 1 "$BASE/target/base-matches.txt"
+taskset -c 7 "$candidate" "$CORPUS" 1 "$CANDIDATE/target/candidate-matches.txt"
+cmp "$BASE/target/base-matches.txt" "$CANDIDATE/target/candidate-matches.txt"
+for ((pair=0; pair<12; pair++)); do
+  if ((pair % 2 == 0)); then order=("$base" "$candidate");
+  else order=("$candidate" "$base"); fi
+  for binary in "${order[@]}"; do taskset -c 7 "$binary" "$CORPUS" 15; done
+done
+```
+
 Each process performs one warmup, reports 204,577 tokens and 51,765 hits,
-and prints the median of fifteen samples. Each checkout needs its own
-target directory. These retained samples are from the original run;
-the oracle-storage correction does not claim a new measurement.
+and prints the median of fifteen timed calls. The optional dump is an
+additional untimed call. Both complete match dumps are byte-identical
+(4,167,221 bytes), SHA-256
+`af63717117339df6cfedc46020317acd2b4b6b17ce0f052f37d4583174335ffd`.
+The receipt/doc follow-up does not change the measured matcher or example.
