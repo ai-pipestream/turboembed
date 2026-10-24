@@ -22,6 +22,7 @@
 //!   [`Pragmatics`](turbo_analysis_layers::Pragmatics) (`turbo:pragmatics`) layers from `#319`.
 
 mod annotators;
+mod batch;
 mod domain;
 mod fit;
 mod io;

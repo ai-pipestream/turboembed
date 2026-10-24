@@ -133,3 +133,25 @@ mod boundaries;
 
 #[path = "window_tests.rs"]
 mod windows;
+
+#[test]
+fn head_workspace_retains_buffers_and_resets_recurrent_state() {
+    let reference: Value = serde_json::from_str(include_str!("../tests/fixtures/reference.json")).unwrap();
+    let heads = heads::Heads::load(&config(), &ec(), include_bytes!("../tests/fixtures/heads.safetensors")).unwrap();
+    let input: Vec<Vec<f32>> = serde_json::from_value(reference["input"].clone()).unwrap();
+    let width = input[0].len();
+    let states = input.concat();
+    let words: Vec<_> = (2..input.len()).collect();
+    let mut work = heads::Work::default();
+    let expected = heads.score(&states, width, &[0, 1], &words, 3).unwrap();
+    assert_eq!(heads.score_with_work(&states, width, &[0, 1], &words, 3, &mut work).unwrap(), expected);
+    let allocations = work.allocations();
+    assert!(allocations.iter().all(|(_, n)| *n > 0));
+    let short = &words[..1];
+    assert_eq!(
+        heads.score_with_work(&states, width, &[0, 1], short, 3, &mut work).unwrap(),
+        heads.score(&states, width, &[0, 1], short, 3).unwrap()
+    );
+    assert_eq!(heads.score_with_work(&states, width, &[0, 1], &words, 3, &mut work).unwrap(), expected);
+    assert_eq!(work.allocations(), allocations, "all 13 head buffers retained after warm-up");
+}

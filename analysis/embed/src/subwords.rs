@@ -62,6 +62,10 @@ impl SubwordAnnotator {
 
     /// The pieces of a view's text, with their spans in it.
     pub fn pieces(&self, view: &View) -> Result<Subwords, Error> {
+        self.pieces_with_scratch(view, &mut Vec::new())
+    }
+
+    fn pieces_with_scratch(&self, view: &View, spans: &mut Vec<[u32; 2]>) -> Result<Subwords, Error> {
         let text = view.text();
         let opts = Encode {
             add_special_tokens: false,
@@ -69,12 +73,15 @@ impl SubwordAnnotator {
             max_tokens: u32::MAX,
             prompt: PromptRole::None,
         };
-        let (mut ids, mut spans) = (Vec::new(), Vec::new());
+        let capacity = text.len().min(4096);
+        let mut ids = Vec::with_capacity(capacity);
+        spans.clear();
+        spans.reserve(capacity);
         self.tokenizer
-            .encode_spans(text, opts, &mut ids, &mut spans)
+            .encode_spans(text, opts, &mut ids, spans)
             .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
         let mut columns = Spans::with_capacity(view.id(), spans.len());
-        for &[start, end] in &spans {
+        for &[start, end] in spans.iter() {
             columns.push(Span::new(start, end));
         }
         Ok(Subwords { spans: columns, ids, model: self.model.clone(), token: None })
@@ -86,8 +93,23 @@ impl Annotator for SubwordAnnotator {
     type Reads = (View, Option<Tokens>);
     type Writes = (Subwords,);
 
-    fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<(Subwords,), Error> {
-        let mut sub = self.pieces(view)?;
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<(Subwords,), Error> {
+        self.with_scratch(input, &mut Vec::new())
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let mut spans = Vec::new();
+        inputs.into_iter().map(|i| self.with_scratch(i, &mut spans)).collect()
+    }
+
+    fn model(&self) -> Option<ModelRef> {
+        Some(self.model.clone())
+    }
+}
+
+impl SubwordAnnotator {
+    fn with_scratch(&self, (view, tokens): Refs<'_, Self>, spans: &mut Vec<[u32; 2]>) -> Result<(Subwords,), Error> {
+        let mut sub = self.pieces_with_scratch(view, spans)?;
         if let Some(t) = tokens {
             if t.spans.view() != view.id() {
                 return Err(Error::Annotator {
@@ -104,10 +126,6 @@ impl Annotator for SubwordAnnotator {
             sub.token = align(&sub.spans, &t.spans);
         }
         Ok((sub,))
-    }
-
-    fn model(&self) -> Option<ModelRef> {
-        Some(self.model.clone())
     }
 }
 

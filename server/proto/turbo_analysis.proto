@@ -345,6 +345,11 @@ message ExtractionResult
   repeated uint32 frag_start = 9;
   repeated uint32 frag_end = 10;
   repeated uint32 frag_at = 11;
+
+  // The view text the spans are offsets into; when empty in
+  // OFFSET_MODE_UTF8, spans are carried as raw UTF-8 byte offsets.
+  string text = 12;
+  OffsetMode offsets = 13;
 }
 
 // What the streaming bulk analysis call accepts and answers (issue
