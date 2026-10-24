@@ -108,6 +108,11 @@ fn rerank_scores_match_upstream() {
         let d = scores_within(&what, &got, &want, si.compute_dtype);
         let margin = 2.0 * score_bound(si.compute_dtype) * scale(&want);
         let (compared, close) = same_order(&what, &got, &want, margin);
+        // At F32 the bound is narrow enough that the small bundle's scores
+        // are told apart; a check that compared nothing would say nothing.
+        if si.compute_dtype == TURBO_DTYPE_F32 {
+            assert!(compared > 0, "{what}: no two scores are far enough apart to compare");
+        }
         report_scores(&what, got.len(), si.compute_dtype, d);
         println!("    order: {compared} pairs as the reference ranks them, {close} too close to say");
     }
@@ -141,19 +146,23 @@ fn extractive_qa_logits_match_upstream() {
         let d = scores_within(&what, &flat, &want, dtype);
         // The reference's logits in the device's windows, which hold the
         // same tokens in the same order.
-        let mut rest = want.chunks_exact(2);
+        let (pairs, _) = want.as_chunks::<2>();
+        let mut rest = pairs.iter();
         let margin = 4.0 * score_bound(dtype) * scale(&want);
         let mut decided = 0;
         for (i, (windows, (_, context))) in got.iter().zip(&cases).enumerate() {
             let reference: Vec<WindowLogits> = windows
                 .iter()
                 .map(|w| {
-                    let (start, end) = rest.by_ref().take(w.start.len()).map(|p| (p[0], p[1])).unzip();
+                    let (start, end) = rest.by_ref().take(w.start.len()).map(|&[s, e]| (s, e)).unzip();
                     WindowLogits { start, end, ..w.clone() }
                 })
                 .collect();
             let (g, r) = (decision(context, windows), decision(context, &reference));
             decided += usize::from(same_answer(&format!("{what}, case {i}"), &g, &r, margin));
+        }
+        if dtype == TURBO_DTYPE_F32 {
+            assert!(decided > 0, "{what}: no case's answer is clear enough to compare");
         }
         report_scores(&what, flat.len(), dtype, d);
         println!(
