@@ -312,3 +312,32 @@ fn filter_spans_longest_first_matches_spacy_util_filter_spans() {
         assert_eq!(got, expected, "input: {input:?}");
     }
 }
+
+#[test]
+fn overlapping_range_and_covering_at_match_the_general_queries() {
+    let spans = spans_of(&[(0, 5), (5, 9), (12, 12), (12, 20), (25, 30)]);
+    let range = |a: u32, b: u32| spans.overlapping_range(Span::new(a, b));
+    let idx = |r: IxRange<Dummy>| (r.start.get(), r.end.get());
+    assert_eq!(idx(range(0, 30)), (0, 5));
+    assert_eq!(idx(range(4, 13)), (0, 4));
+    assert_eq!(idx(range(9, 12)), (2, 2), "the gap overlaps nothing");
+    assert_eq!(idx(range(20, 25)), (4, 4), "touching ends do not overlap");
+    assert_eq!(idx(range(12, 12)), (2, 4), "point query: empty item and covering item");
+    assert_eq!(idx(range(5, 5)), (1, 2), "point at a boundary belongs to the next item");
+    assert_eq!(idx(range(30, 30)), (5, 5));
+    for (span, want) in [((0, 30), 5usize), ((4, 13), 4), ((12, 12), 2)] {
+        assert_eq!(spans.overlapping(Span::new(span.0, span.1)).len(), want);
+    }
+    assert_eq!(spans.covering_at(0), Some(Ix::new(0)));
+    assert_eq!(spans.covering_at(4), Some(Ix::new(0)));
+    assert_eq!(spans.covering_at(5), Some(Ix::new(1)));
+    assert_eq!(spans.covering_at(10), None, "gap");
+    assert_eq!(spans.covering_at(12), Some(Ix::new(3)), "covering item wins over the empty one at its start");
+    assert_eq!(spans.covering_at(30), None);
+    let empty = Spans::<Dummy>::new(ViewId::SOURCE);
+    assert_eq!(empty.covering_at(0), None);
+    assert_eq!(empty.overlapping_range(Span::new(0, 0)).len(), 0);
+    let only_empty = spans_of(&[(7, 7)]);
+    assert_eq!(only_empty.covering_at(7), Some(Ix::new(0)), "an empty item covers its own point");
+    assert_eq!(only_empty.covering_at(6), None);
+}

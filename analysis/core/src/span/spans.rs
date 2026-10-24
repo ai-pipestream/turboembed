@@ -265,6 +265,45 @@ impl<L> Spans<L> {
         IxRange::new(a as u32, b as u32)
     }
 
+    /// The items overlapping `outer`, when the spans are in text
+    /// order and do not overlap (`Overlap::None`): two binary
+    /// searches, no scan and no allocation. An empty `outer` is a
+    /// point query: the item covering that point, plus any empty
+    /// items at it. For layers whose spans may nest or overlap,
+    /// use [`Spans::overlapping`].
+    pub fn overlapping_range(&self, outer: Span) -> IxRange<L> {
+        if outer.is_empty() {
+            let p = outer.start;
+            let mut lo = self.end.partition_point(|&e| e <= p);
+            while lo > 0 && self.start[lo - 1] == p && self.end[lo - 1] == p {
+                lo -= 1;
+            }
+            let mut hi = lo + self.start[lo..].partition_point(|&s| s <= p);
+            while hi > lo && self.end[hi - 1] <= p && self.start[hi - 1] != p {
+                hi -= 1;
+            }
+            return IxRange::new(lo as u32, hi as u32);
+        }
+        let lo = self.end.partition_point(|&e| e <= outer.start);
+        let hi = lo + self.start[lo..].partition_point(|&s| s < outer.end);
+        IxRange::new(lo as u32, hi as u32)
+    }
+
+    /// The item covering byte `offset`, when the spans are in
+    /// text order and do not overlap: `None` in a gap between
+    /// items. An empty item covers its own point. For layers
+    /// whose spans may nest or overlap, use [`Spans::covering`].
+    pub fn covering_at(&self, offset: u32) -> Option<Ix<L>> {
+        let idx = self.end.partition_point(|&e| e <= offset);
+        if idx < self.start.len() && self.start[idx] <= offset {
+            return Some(Ix::new(idx as u32));
+        }
+        if idx > 0 && self.start[idx - 1] == offset && self.end[idx - 1] == offset {
+            return Some(Ix::new((idx - 1) as u32));
+        }
+        None
+    }
+
     /// Whether the `start` column is in non-decreasing text order ($O(1)$,
     /// maintained as spans are pushed).
     pub fn is_start_ordered(&self) -> bool {

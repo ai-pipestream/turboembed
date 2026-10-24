@@ -103,6 +103,40 @@ impl Tokens {
         IxRange::new(a as u32, b as u32)
     }
 
+    /// The tokens of one sentence, with or without the sentence
+    /// column: the column when populated, else a binary search
+    /// over the token spans inside the sentence's span. Never
+    /// panics, unlike [`Tokens::of`].
+    pub fn in_sentence(&self, sentences: &Sentences, s: Ix<Sentences>) -> IxRange<Tokens> {
+        match &self.sentence {
+            Some(_) => self.of(s),
+            None => self.spans.within(sentences.spans.get(s)),
+        }
+    }
+
+    /// Contiguous token runs by sentence: one `(sentence, range)`
+    /// per run of equal sentence indices, or a single
+    /// `(None, all)` run when the sentence column is absent.
+    pub fn sentence_ranges(&self) -> impl Iterator<Item = (Option<Ix<Sentences>>, IxRange<Tokens>)> + '_ {
+        let total = self.spans.len();
+        let mut at = 0usize;
+        std::iter::from_fn(move || {
+            if at >= total {
+                return None;
+            }
+            let (sent, end) = match &self.sentence {
+                Some(col) => {
+                    let s = col[at];
+                    (Some(s), at + col[at..].partition_point(|&x| x == s))
+                }
+                None => (None, total),
+            };
+            let range = IxRange::new(at as u32, end as u32);
+            at = end;
+            Some((sent, range))
+        })
+    }
+
     /// The tokens of `mode`'s path through `alt`
     /// (`Alternatives::path_for_mode`): each alternative's raw byte span,
     /// so an alternative's `form` is not carried over. `None` when `mode`
@@ -153,6 +187,17 @@ pub struct Subwords {
 }
 
 impl Subwords {
+    /// The pieces of one word token, with or without the token
+    /// column: the column when populated, else a binary search
+    /// over the piece spans inside the token's span. Never
+    /// panics, unlike [`Subwords::of`].
+    pub fn in_token(&self, tokens: &Tokens, t: Ix<Tokens>) -> IxRange<Subwords> {
+        match &self.token {
+            Some(_) => self.of(t),
+            None => self.spans.within(tokens.spans.get(t)),
+        }
+    }
+
     /// The pieces of one word token: a binary search, no scan.
     pub fn of(&self, t: Ix<Tokens>) -> IxRange<Subwords> {
         let col = self.token.as_deref().expect("subwords made per token");
