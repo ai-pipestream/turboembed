@@ -10,6 +10,8 @@
 mod common;
 #[path = "cuda_support/mod.rs"]
 mod cuda_support;
+#[path = "rerank/held.rs"]
+mod held;
 #[path = "rerank/common.rs"]
 mod rerank_common;
 
@@ -56,6 +58,17 @@ fn cuda_scores_match_the_reference_and_the_cpu_path() {
         assert!(worst(&a, &b) < 1e-5, "{o:?}: {a:?} vs {b:?}");
     }
     assert!(cuda.score(&[], RerankOptions::default()).unwrap().scores.is_empty());
+}
+
+/// On CUDA the scores are the session's host memory, read back from the
+/// device: the encoder's stage is the device's, and a buffer of them
+/// exports its host pointer, not a CUDA pointer.
+#[test]
+fn held_rerank_scores_on_cuda_export_their_host_pointer() {
+    let _t = turn();
+    let Some(_) = cuda_device("held_rerank_scores_on_cuda_export_their_host_pointer") else { return };
+    let f = fixture();
+    held::held_scores(&on_cuda(&f.dir), turbo::TURBO_STAGE_DEVICE, turbo::TURBO_HANDLE_CUDA_PTR);
 }
 
 /// `Reranker::open` stays on the CPU in a build with CUDA, and the CUDA

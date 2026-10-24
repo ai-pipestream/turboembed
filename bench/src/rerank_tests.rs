@@ -34,6 +34,11 @@ fn a_pair_fits_only_when_nothing_is_cut() {
     assert!(fits_one_window(&t, "what", "a short context", 4, 16));
     assert!(!fits_one_window(&t, "what is this long question about", "a short context", 4, 16));
     assert!(!fits_one_window(&t, "what", "a context far too long to fit in a window of sixteen tokens at all", 4, 16));
+    // A query budget of half the window: a longer query is cut to the same
+    // pieces whichever of the two budgets is asked for, so it is counted.
+    let long = "one two three four five six seven eight nine ten eleven twelve";
+    assert!(fits_one_window(&t, "one two three", "world", 8, 16));
+    assert!(!fits_one_window(&t, long, "world", 8, 16));
 }
 
 /// Each committed record parses and passes `check`, and is filed under

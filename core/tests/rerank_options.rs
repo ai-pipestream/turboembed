@@ -1,6 +1,8 @@
 mod common;
 #[path = "rerank/common.rs"]
 mod fixture;
+#[path = "rerank/held.rs"]
+mod held;
 
 use common::{Loaded, Session, new_error, session_desc, text};
 use std::{path::Path, ptr};
@@ -39,4 +41,12 @@ fn tokenizer_pair_option_errors_name_the_field() {
     for (query, max, stride, field) in [(29, 32, 0, 1), (8, 4, 0, 2), (8, 33, 0, 2), (8, 32, 99, 3)] {
         assert_eq!(tokenizer.encode_pair("hello", "world", query, max, stride).unwrap_err().field, field);
     }
+}
+
+/// On the CPU the scores are in the backend's own output, which exports.
+#[test]
+fn held_rerank_scores_export_their_host_pointer_on_the_cpu() {
+    let f = fixture::Fixture::new(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap());
+    let loaded = Loaded::load(&f.dir).unwrap();
+    held::held_scores(&loaded, TURBO_STAGE_HOST, TURBO_HANDLE_CUDA_PTR);
 }

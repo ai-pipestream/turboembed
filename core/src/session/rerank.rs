@@ -182,11 +182,14 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             *score = score.max(value);
         }
     }
+    let encode = result.stage[TURBO_EMBED_STAGE_ENCODE];
     if result.host.is_null() {
-        // The scores are the session's own host buffer, held with the result.
+        // The scores are the session's own host memory, held with the
+        // result. No backend object holds them, so the output handle is
+        // NULL: a buffer of the result is exported by the core.
         result.placement = TURBO_PLACE_HOST;
-        result.output = state.scores.as_mut_ptr().cast();
-        result.host = result.output;
+        result.output = std::ptr::null_mut();
+        result.host = state.scores.as_mut_ptr().cast();
         result.d2h_bytes += read_back;
     } else {
         // CPU output reserves max_batch * hidden elements, including when the
@@ -198,6 +201,9 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
     result.host_allocs = allocations;
     result.stage.fill(TURBO_STAGE_UNUSED);
     result.stage[..TURBO_RERANK_STAGE_COUNT].fill(TURBO_STAGE_HOST);
+    // The encoder ran where the backend ran it; the head and the window
+    // reduction are the core's, on the host.
+    result.stage[TURBO_RERANK_STAGE_ENCODE] = encode;
     Ok(result)
 }
 

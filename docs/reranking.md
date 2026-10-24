@@ -40,7 +40,13 @@ shape `[pair_count, 1]`. `turbo_tokenizer_encode_pair` exposes the first window'
 joint IDs and segment IDs for inspection. `turbo_model_info` reports the task,
 query budget, and pair-template constant; both previous structure sizes
 remain accepted. Rerank sessions report tokenization, encoding, head, and
-pooling stages separately in the stage placement array.
+pooling stages separately in the stage placement array. The encoding stage
+is where the backend ran the encoder (`TURBO_STAGE_DEVICE` on a GPU). The
+classifier head and the max over windows always run on the host. On a device
+the scores are read back into the session's host memory, so the result is
+`TURBO_PLACE_HOST` on every backend. A buffer from `turbo_result_buffer`
+exports only `TURBO_HANDLE_HOST_PTR`, which is the address
+`turbo_buffer_host_ptr` gives.
 
 `turbo_analysis_embed::RerankAnnotator` reads a view, `Levels`, and a
 `Shortlist<Levels>` and writes `Reranked<Levels>`. Build a shortlist with

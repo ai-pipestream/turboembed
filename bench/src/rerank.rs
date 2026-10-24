@@ -17,9 +17,10 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use turbo::bundle::Bundle;
+use turbo::manifest::{PromptRole, Truncation};
 use turbo::record::{self, Device, Library, Machine};
 use turbo::rerank::{RerankOptions, RerankSessionOptions, Reranker};
-use turbo::tokenizer::Tokenizer;
+use turbo::tokenizer::{Encode, Tokenizer};
 
 use crate::Result;
 use crate::api::field;
@@ -137,11 +138,17 @@ pub fn requests(
 }
 
 /// Whether `query` and `context` make one window at the bundle's budgets
-/// with nothing cut: the window is the same when the query may take half
-/// of `max_seq`, so the query was not truncated to `query_tokens`.
+/// with nothing cut: every piece of the query fits `query_tokens`, and
+/// the passage, whose windows cover all of it, needs only one.
 pub fn fits_one_window(t: &Tokenizer, query: &str, context: &str, query_tokens: u32, max_seq: u32) -> bool {
-    let one = |budget| t.encode_pair(query, context, budget, max_seq, 0).ok().filter(|w| w.len() == 1);
-    one(query_tokens).is_some_and(|w| one(max_seq / 2).is_some_and(|wide| wide[0].ids == w[0].ids))
+    let whole = Encode {
+        add_special_tokens: false,
+        truncation: Truncation::None,
+        max_tokens: u32::MAX,
+        prompt: PromptRole::None,
+    };
+    let uncut = t.encode(query, whole).is_ok_and(|q| q.len() <= query_tokens as usize);
+    uncut && t.encode_pair(query, context, query_tokens, max_seq, 0).is_ok_and(|w| w.len() == 1)
 }
 
 fn side(warmup: u32, mut ms: Vec<f64>, pairs: usize) -> Side {
