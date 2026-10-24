@@ -38,6 +38,7 @@ fn chunks(view: ViewId, rows: &[Row]) -> Chunks {
         cost: Vec::new(),
         model_tokens: Vec::new(),
         over_budget: Vec::new(),
+        prompt_overhead: 0,
     };
     for r in rows {
         c.spans.push(Span::new(10 * r.s, 10 * r.e));

@@ -282,6 +282,7 @@ fn annotator_pipeline_writes_document_and_span_categories_in_both_chunking_modes
         cost: vec![0, 1000],
         model_tokens: vec![4, 4],
         over_budget: vec![false, false],
+        prompt_overhead: 0,
     };
 
     let mut struct_spans = Spans::new(ViewId::SOURCE);
