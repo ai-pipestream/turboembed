@@ -229,7 +229,8 @@ this form before it is written or loaded.
 | `model.source.repository`, `.commit` | string | yes | Where the checkpoint came from. |
 | `model.license` | string | yes | SPDX identifier. Nothing is redistributed without one. |
 | `model.license_file` | path | no | The licence text. |
-| `task` | enum | yes | `TASK_EMBED`. Names the task block that follows. Any other `TASK_*` name is a task this build does not have. |
+| `model.license_class` | enum | no | The class the model zoo puts `model.license` in (docs/zoo.md): `CLASS_PERMISSIVE`, `CLASS_LGPL`, `CLASS_SHARE_ALIKE`, `CLASS_GPL` or `CLASS_LOCAL_ONLY`. The bundle tool writes it from the licence and `turbo-bundle verify` checks it. The tool makes no bundle under a licence the zoo refuses, and fetches a model whose class needs acceptance only with `--accept-terms`. |
+| `task` | enum | yes | `TASK_EMBED`, `TASK_RERANK`, or `TASK_EXTRACTIVE_QA`. Names the task block (`embed`, `rerank`, or `qa`) that follows. Any other `TASK_*` name is a task this build does not have. |
 | `embed.dim`, `.pooling`, `.normalize` | uint32, enum | yes | Vector width; what `TURBO_POOLING_MODEL` and `TURBO_NORMALIZE_MODEL` mean. With an `architecture`, `dim` equals `architecture.hidden`: the vectors are pooled hidden states. |
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |

@@ -22,6 +22,13 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the training still going on its
+# older head; a run by hand is never cancelled. The training job runs
+# where ci.yml's Linux lanes run (TURBO_CI_LINUX); publishing is hosted.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   # The release's tag and where its assets are published
@@ -31,7 +38,7 @@ env:
 
 jobs:
   ud:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     outputs:
       tag: ${{ env.TAG }}
     steps:

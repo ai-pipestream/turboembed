@@ -127,7 +127,7 @@ impl VectorAnnotator {
     /// together: subwords of another model, a layer in another view, a
     /// piece without its id, pieces out of text order, or a span that
     /// ends before it starts.
-    fn output_for(&self, annotator: &'static str, i: &Input<'_>) -> Result<Output, Error> {
+    pub(super) fn output_for(&self, annotator: &'static str, i: &Input<'_>) -> Result<Output, Error> {
         let fail = |detail: String| Err(Error::Annotator { annotator, detail });
         fn has_gaps<L>(spans: &Spans<L>) -> bool {
             spans.iter().any(|(ix, _)| spans.is_discontinuous(ix))

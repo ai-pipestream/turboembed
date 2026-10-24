@@ -68,18 +68,8 @@ impl FeedforwardContext {
         if state.token_count() != words.len() {
             return Err(error("state/input length mismatch"));
         }
-        let s = [state.stack(0), state.stack(1)];
-        let mut positions = vec![s[0], s[1], state.stack(2), state.buffer(0), state.buffer(1), state.buffer(2)];
-        for node in s {
-            positions.extend([child(state, node, false, 0, layout), child(state, node, true, 0, layout)]);
-            if layout == FeatureLayout::ChenManning18 {
-                positions.extend([child(state, node, false, 1, layout), child(state, node, true, 1, layout)]);
-            }
-        }
-        for node in s {
-            positions.push(child(state, child(state, node, false, 0, layout), false, 0, layout));
-            positions.push(child(state, child(state, node, true, 0, layout), true, 0, layout));
-        }
+        let mut positions = Vec::with_capacity(layout.positions());
+        Self::positions(state, layout, &mut positions);
         let strings = |source: &[&str]| {
             positions
                 .iter()
@@ -98,6 +88,27 @@ impl FeedforwardContext {
             })
             .collect();
         Ok(Self { words: strings(words), pos: strings(tags), labels })
+    }
+    /// The layout's positions for `state`, in slot order, into `out`
+    /// (cleared first).
+    pub(super) fn positions<A: WordOrTokenAnchor>(
+        state: &ArcStandardState<A>,
+        layout: FeatureLayout,
+        out: &mut Vec<Position<A>>,
+    ) {
+        out.clear();
+        let s = [state.stack(0), state.stack(1)];
+        out.extend([s[0], s[1], state.stack(2), state.buffer(0), state.buffer(1), state.buffer(2)]);
+        for node in s {
+            out.extend([child(state, node, false, 0, layout), child(state, node, true, 0, layout)]);
+            if layout == FeatureLayout::ChenManning18 {
+                out.extend([child(state, node, false, 1, layout), child(state, node, true, 1, layout)]);
+            }
+        }
+        for node in s {
+            out.push(child(state, child(state, node, false, 0, layout), false, 0, layout));
+            out.push(child(state, child(state, node, true, 0, layout), true, 0, layout));
+        }
     }
 }
 fn child<A: WordOrTokenAnchor>(

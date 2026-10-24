@@ -1,6 +1,6 @@
 # The cases of the pragmatic-segmenter suite that the rules detector gets wrong, and what
 # differs. tests/conformance.rs writes this file and fails when a run differs
-# from it. 148 of 585 cases fail.
+# from it. 141 of 585 cases fail.
 pragmatic-segmenter/arabic_spec/001	1 missing, first after "سؤال وجواب:"
 pragmatic-segmenter/arabic_spec/002	1 extra, first after "وقال د‪.‬"
 pragmatic-segmenter/arabic_spec/004	1 missing, first after "...05:01 GMT الصنداي تايمز:"
@@ -64,8 +64,6 @@ pragmatic-segmenter/danish_spec/157	1 extra, first after "SEC."
 pragmatic-segmenter/danish_spec/168	1 missing, first after "What do you see?"
 pragmatic-segmenter/deutsch_spec/004	1 missing, first after "...tion steht auf Seite 12." [skipped-upstream]
 pragmatic-segmenter/deutsch_spec/014	1 extra, first after "Wir trafen Dr. med."
-pragmatic-segmenter/deutsch_spec/017	1 extra, first after "Frau Prof."
-pragmatic-segmenter/deutsch_spec/020	1 extra, first after "Das finden Sie auf S."
 pragmatic-segmenter/deutsch_spec/026	1 missing, first after "...rfasst von Anna Anderson"; passes without the paragraph line breaks rule
 pragmatic-segmenter/deutsch_spec/032	14 missing, first after "1. Ich ___ gern Tennis." [doc_type=docx]; passes without the paragraph line breaks rule
 pragmatic-segmenter/dutch_spec/001	1 missing, first after "...ssiles op hem af kwamen."
@@ -125,10 +123,6 @@ pragmatic-segmenter/english_spec/181	1 missing, first after "... Street Journal 
 pragmatic-segmenter/greek_spec/001	1 missing, first after "...ακές δε δούλευε κανένας."
 pragmatic-segmenter/greek_spec/002	1 missing, first after "...ακές δε δούλευε κανένας."
 pragmatic-segmenter/italian_spec/005	2 extra, first after "Sono l'Ing."
-pragmatic-segmenter/italian_spec/006	1 extra, first after "...un appuntamento per mar."
-pragmatic-segmenter/italian_spec/009	1 extra, first after "Si ringrazia lo psicol."
-pragmatic-segmenter/italian_spec/012	1 extra, first after "...ia di TR quando il Dott."
-pragmatic-segmenter/italian_spec/013	1 extra, first after "Egregio Dir."
 pragmatic-segmenter/italian_spec/017	1 extra, first after "Nel tribunale, l'Avv."
 pragmatic-segmenter/japanese_spec/005	the same breaks, different text
 pragmatic-segmenter/japanese_spec/006	4 missing, first after "これは山です"; 4 extra, first after "1.）"
@@ -144,8 +138,7 @@ pragmatic-segmenter/spanish_spec/016	1 extra, first after "...n el cantar se con
 pragmatic-segmenter/spanish_spec/019	1 extra, first after "... constitución de los EE."
 pragmatic-segmenter/spanish_spec/029	3 extra, first after "...ras para el almuerzo: 1."
 pragmatic-segmenter/spanish_spec/030	1 missing, first after "1 + 1 es 2."
-pragmatic-segmenter/spanish_spec/032	1 missing, first after "Señores:"; 4 extra, first after "Cra."
+pragmatic-segmenter/spanish_spec/032	1 missing, first after "Señores:"; passes without the paragraph line breaks rule
 pragmatic-segmenter/spanish_spec/033	1 extra, first after "N°."
 pragmatic-segmenter/spanish_spec/034	1 extra, first after "...ada con el documento N°." [doc_type=pdf]
 pragmatic-segmenter/spanish_spec/035	the expected sentences rewrite the text
-pragmatic-segmenter/spanish_spec/036	1 extra, first after "...pital de Northern en Mt."

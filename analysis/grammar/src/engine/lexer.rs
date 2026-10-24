@@ -237,8 +237,11 @@ impl Lexed {
                         self.lower.extend(c.to_lowercase());
                     } else if is_accent_mark(c) {
                         // `n` and a combining tilde is `ñ`; other accents go.
-                        if c == '\u{303}' && self.lower.ends_with('n') {
+                        if c == '\u{303}' && self.lower[low_start..].ends_with('n') {
                             self.lower.pop();
+                            while self.bounds.last().is_some_and(|&(low, _)| low as usize > self.lower.len()) {
+                                self.bounds.pop();
+                            }
                             self.lower.push('ñ');
                         }
                     } else {
@@ -420,10 +423,12 @@ mod tests {
         }
 
         fn split(&self, word: &str, cuts: &mut Vec<u32>) {
-            if let Some(rest) = word.strip_prefix("dos")
-                && !rest.is_empty()
-            {
-                cuts.push(3);
+            for prefix in ["dos", "añ"] {
+                if let Some(rest) = word.strip_prefix(prefix)
+                    && !rest.is_empty()
+                {
+                    cuts.push(prefix.len() as u32);
+                }
             }
         }
     }
@@ -438,11 +443,18 @@ mod tests {
     fn folding_drops_accents_and_keeps_spans() {
         let text = "Miércoles 1º Año a\u{301}n\u{303}o";
         let l = lex_folded(text);
+        for &(low_off, text_off) in &l.bounds {
+            assert!(l.lower.is_char_boundary(low_off as usize));
+            assert!(text.is_char_boundary(text_off as usize));
+        }
         let words: Vec<&str> = (0..l.len()).map(|i| l.word(i)).collect();
-        assert_eq!(words, ["miercoles", "1", "o", "año", "año"]);
+        assert_eq!(words, ["miercoles", "1", "o", "añ", "o", "añ", "o"]);
         assert_eq!(l.raw(text, 0), "Miércoles");
         assert_eq!(l.raw(text, 2), "º");
-        assert_eq!(l.raw(text, 4), "a\u{301}n\u{303}o");
+        assert_eq!(l.raw(text, 3), "Añ");
+        assert_eq!(l.raw(text, 4), "o");
+        assert_eq!(l.raw(text, 5), "a\u{301}n\u{303}");
+        assert_eq!(l.raw(text, 6), "o");
         assert_eq!(fold('Ü'), 'Ü', "fold takes a lowercase letter");
         assert_eq!(fold('ü'), 'u');
     }
