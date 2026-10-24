@@ -63,19 +63,19 @@ fn components(n: usize, pairs: &[(usize, usize)]) -> Vec<Vec<usize>> {
         }
     }
     let mut groups: Vec<Vec<usize>> = Vec::new();
-    let mut by_root: Vec<(usize, usize)> = Vec::new();
+    let mut group_of_root: Vec<Option<usize>> = vec![None; n];
+    let mut seen = vec![false; n];
     for &(a, b) in pairs {
         for x in [a, b] {
+            if seen[x] {
+                continue;
+            }
+            seen[x] = true;
             let root = find(&mut parent, x);
-            match by_root.iter().position(|&(r, _)| r == root) {
-                Some(at) => {
-                    let gi = by_root[at].1;
-                    if !groups[gi].contains(&x) {
-                        groups[gi].push(x);
-                    }
-                }
+            match group_of_root[root] {
+                Some(gi) => groups[gi].push(x),
                 None => {
-                    by_root.push((root, groups.len()));
+                    group_of_root[root] = Some(groups.len());
                     groups.push(vec![x]);
                 }
             }

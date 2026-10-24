@@ -1,9 +1,13 @@
 //! Coreference chain fixes (#1047): transitive edge union,
 //! entity edges, and sub-sentence clause chunk antecedents.
 
-use turbo_analysis::{Edge, Edges, Ix, IxRange, Key, Span, Spans, Tag, TagSet, ViewId};
-use turbo_analysis_layers::{Chunks, Cut, Sentences};
-use turbo_chunker::{MentionKind, Mentions, chunk_antecedents, extract_chains};
+use turbo_analysis::{
+    Analyzer, Document, Edge, Edges, Ix, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, View, ViewId,
+};
+use turbo_analysis_layers::{Chunks, Cut, Sentences, Tokens};
+use turbo_chunker::{
+    ChunkAntecedentBuilder, ChunkAntecedents, MentionKind, Mentions, chunk_antecedents, extract_chains,
+};
 
 fn spans<L>(pairs: &[(u32, u32)]) -> Spans<L> {
     let mut s = Spans::new(ViewId::SOURCE);
@@ -111,4 +115,74 @@ fn entity_edges_alone_form_a_chain() {
     let links = out.links_of(Ix::new(1));
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].antecedent_span, Span::new(0, 12));
+}
+
+#[test]
+fn entity_edges_reach_the_builder_through_the_analyzer() {
+    // The builder, not just chunk_antecedents: with only Entities and
+    // Edges<Entities, Entities> given, the pronoun chunk still gets the
+    // entity antecedent. Dropping the builder's entity-edges read (the
+    // original bug) makes this fail while the direct calls above pass.
+    use turbo_analysis_layers::Entities;
+    let text = "Ada Lovelace wrote notes. She published them. Her work endured.";
+    let (sentences, _) = fixture();
+    let entities = Entities {
+        spans: spans(&[(0, 12), (26, 29), (46, 49)]),
+        tokens: vec![IxRange::new(0, 2), IxRange::new(5, 6), IxRange::new(9, 10)],
+        kind: vec![Tag(0), Tag(1), Tag(1)],
+        kinds: TagSet::new("ner", &["PERSON", "PRON"]),
+        score: vec![1.0, 1.0, 1.0],
+    };
+    let ee = Edges::<Entities, Entities>::between(
+        Key::DEFAULT,
+        Key::DEFAULT,
+        TagSet::new("coref", &["antecedent"]),
+        [
+            Edge { from: Ix::new(1), to: Ix::new(0), kind: Tag(0), score: 0.9 },
+            Edge { from: Ix::new(2), to: Ix::new(1), kind: Tag(0), score: 0.9 },
+        ],
+    );
+    let mut doc = Document::new(text);
+    let by = Provenance::by("t");
+    doc.add(
+        &Key::DEFAULT,
+        Tokens {
+            spans: spans(&[
+                (0, 3),
+                (4, 12),
+                (13, 18),
+                (19, 24),
+                (24, 25),
+                (26, 29),
+                (30, 39),
+                (40, 44),
+                (44, 45),
+                (46, 49),
+                (50, 54),
+            ]),
+            sentence: None,
+        },
+        by.clone(),
+    )
+    .unwrap();
+    doc.add(&Key::DEFAULT, sentences, by.clone()).unwrap();
+    doc.add(&Key::DEFAULT, chunks(&[(0, 25, 0, 1), (26, 63, 1, 3)]), by.clone()).unwrap();
+    doc.add(&Key::DEFAULT, entities, by.clone()).unwrap();
+    doc.add(&Key::DEFAULT, ee, by).unwrap();
+    let analyzer = Analyzer::builder()
+        .given(Key::<View>::DEFAULT)
+        .given(Key::<Tokens>::DEFAULT)
+        .given(Key::<Sentences>::DEFAULT)
+        .given(Key::<Chunks>::DEFAULT)
+        .given(Key::<Entities>::DEFAULT)
+        .given(Key::<Edges<Entities, Entities>>::DEFAULT)
+        .add(ChunkAntecedentBuilder)
+        .build()
+        .unwrap();
+    analyzer.run(std::slice::from_mut(&mut doc))[0].as_ref().unwrap();
+    let out = doc.get::<ChunkAntecedents>().unwrap();
+    let links = out.links_of(Ix::new(1));
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].antecedent_span, Span::new(0, 12));
+    assert_eq!(links[0].mention_span, Span::new(26, 29));
 }
