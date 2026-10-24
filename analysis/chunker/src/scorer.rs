@@ -202,9 +202,10 @@ fn sentence_token_sets(sentences: &Sentences, tokens: &Tokens, text: &str) -> Ve
             for ti in lo..hi {
                 let span = Span::new(t_starts[ti], t_ends[ti]);
                 if let Some(raw) = text.get(span.range()) {
-                    let norm: String =
-                        raw.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect();
-                    if norm.len() >= 3 && !is_stopword(&norm) {
+                    let filtered: String = raw.chars().filter(|c| c.is_alphanumeric()).collect();
+                    let mut norm = String::new();
+                    turbo_unicode::casefold::fold(&filtered, &mut norm);
+                    if norm.chars().count() >= 3 && !is_stopword(&norm) {
                         set.insert(norm);
                     }
                 }
@@ -225,7 +226,12 @@ fn sentence_entity_sets(sentences: &Sentences, entities: &Entities, text: &str) 
         if let Some(raw) = text.get(span.range()) {
             let norm: String = raw
                 .split_whitespace()
-                .map(|w| w.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>())
+                .map(|w| {
+                    let filtered: String = w.chars().filter(|c| c.is_alphanumeric()).collect();
+                    let mut folded = String::new();
+                    turbo_unicode::casefold::fold(&filtered, &mut folded);
+                    folded
+                })
                 .filter(|w| !w.is_empty())
                 .collect::<Vec<_>>()
                 .join(" ");

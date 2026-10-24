@@ -320,11 +320,18 @@ pub struct Chunks {
     /// above holds the chunks cut from it. Its `cut` still says why it
     /// starts where it does.
     pub over_budget: Vec<bool>,
+    /// Tokens every row was counted as carrying besides its text
+    /// (the embedder's special tokens and prompt prefix), as
+    /// included in `model_tokens`. Zero when the producer did
+    /// not count model tokens against a prompt: consumers that
+    /// embed the chunks refuse a different nonzero overhead, so
+    /// a role mismatch cannot silently overflow `max_seq`.
+    pub prompt_overhead: u32,
 }
 
 impl Layer for Chunks {
     const ID: &'static str = "turbo:chunks";
-    const SCHEMA: u16 = 2;
+    const SCHEMA: u16 = 3;
     /// A chunk lies inside its parent, but two chunks at different levels
     /// that are not parent and child can cross: a level 0 chunk under a
     /// section row can run across the edge of a nested section's row.

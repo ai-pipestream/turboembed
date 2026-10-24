@@ -47,7 +47,10 @@ pub use inventory::{
 pub use me::{Candidate, Decision, Scratch, SentenceDetector, SentenceModel};
 pub use newline::{NewlineDetector, newline_spans};
 pub use paragraph::{ParagraphDetector, paragraph_spans};
-pub use rules::{LineBreaks, RuleScratch, RuleSentenceDetector, RuleSplitter, Rules};
+pub use rules::{
+    LineBreaks, RuleScratch, RuleSentenceDetector, RuleSplitter, Rules, UNPUNCTUATED_SCRIPTS, UnpunctuatedSplitter,
+    has_unpunctuated_script, is_unpunctuated_script, needs_unpunctuated_fallback,
+};
 pub use turbo_unicode::WhitespaceMode;
 
 use turbo_analysis::Error;

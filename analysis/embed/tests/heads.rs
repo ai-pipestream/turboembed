@@ -309,6 +309,7 @@ fn vector_head_and_span_heads_write_expected_layers() {
         cost: vec![0],
         model_tokens: vec![0],
         over_budget: vec![false],
+        prompt_overhead: 0,
     };
     c.spans.push(Span::new(0, text.len() as u32));
     doc.add(&Key::DEFAULT, c, Provenance::by("test")).unwrap();
