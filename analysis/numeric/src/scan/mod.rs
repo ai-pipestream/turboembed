@@ -12,6 +12,10 @@
 //! nothing, this reads the whole character and matches nothing too, and
 //! both scans stop at the same place.
 
+#[cfg(target_arch = "x86_64")]
+mod candidate;
+#[cfg(all(test, target_arch = "x86_64"))]
+mod candidate_tests;
 mod extended;
 
 pub(crate) use extended::{EXTENDED_START_BYTES, is_nd_at, next_candidate_pos, utf8_char_width};

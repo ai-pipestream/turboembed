@@ -60,6 +60,10 @@ pub(crate) fn next_candidate_pos(text: &str, start: usize, opennlp_parity: bool)
                 return Some(i);
             }
             i += utf8_char_width(b0);
+            #[cfg(target_arch = "x86_64")]
+            if let Some(next) = super::candidate::try_wide(text, i) {
+                return next;
+            }
         } else {
             i += 1;
         }

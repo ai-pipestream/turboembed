@@ -111,8 +111,7 @@ impl NumberScanner {
         let b = text.as_bytes();
         let negative = b[start] == b'-';
         let first = start + usize::from(negative);
-        let is_digit = b.get(first).is_some_and(u8::is_ascii_digit)
-            || (!self.opennlp_parity && is_nd_at(text, first));
+        let is_digit = b.get(first).is_some_and(u8::is_ascii_digit) || (!self.opennlp_parity && is_nd_at(text, first));
         if !is_digit || continues_number_with_parity(text, first, notation, self.opennlp_parity) {
             return None;
         }
