@@ -988,6 +988,31 @@ space), which makes it join changes that lie one or two characters apart.
 The `norm` inputs are written for the project and use characters of the
 Unicode 15.0 repertoire only, which is what JDK 21 implements.
 
+### Chained views
+
+`umlaut-full-case-whitespace-chain` runs German umlaut expansion, full case
+folding and whitespace collapse on all 61 `norm` inputs. The generator calls
+OpenNLP's `normalizeAligned` on each step, then `Alignment.andThen` twice.
+The output rows come from that composed JVM alignment, with UTF-16 spans
+converted to source UTF-8 bytes. No diff or Rust output supplies the oracle.
+
+The Rust test stores three separate views on a document and compares the
+last one through `GoldenCompare`. Parent edits are composed to the source
+with `Document::view_alignment`, then the text and edit rows are checked
+exactly as for a direct view. Direct-view edit boundaries are unchanged.
+The test also maps changed spans both ways and repeats the comparison after
+adding an identity view. Invalid parent references report `ViewAlignment`.
+
+The normal generator includes the chain. It can also be regenerated without
+loading other models using `NormalizerChainGolden.main`. Compile the two
+normalizer generator classes against the pinned generator jar, then run the
+class with the input directory, output directory, and OpenNLP commit. For the
+checked-in files the image is
+`turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1`, OpenNLP commit
+`cdf33c653d5d61d5af7d37ffee189a83bd8392ea`, and Temurin 21.0.12.1+1-LTS.
+The headers report the actual jar version, JDK and input digest. Running this
+generator twice produced the same 61 files byte for byte.
+
 ## Number goldens
 
 `numbers/<notation>/num/<id>.golden` is what number scanning did to

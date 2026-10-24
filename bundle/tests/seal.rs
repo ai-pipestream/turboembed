@@ -155,6 +155,8 @@ const BACKENDS: [&str; 4] = ["cuda", "levelzero", "metal", "cpu"];
 mod artifacts;
 #[path = "seal/catalogue.rs"]
 mod catalogue;
+#[path = "seal/licence.rs"]
+mod licence;
 #[path = "seal/lookahead.rs"]
 mod lookahead;
 #[path = "seal/staging.rs"]
