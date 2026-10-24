@@ -11,8 +11,9 @@
 //! whitespace, 10 sentences per sentence detector sample, the universal
 //! tags), so a trained model and its reference are trained with the same
 //! settings. These published recipe ids retain the OpenNLP lemma class
-//! format; native case-preserving training requires a separately versioned
-//! release. Training uses no randomness, so a recipe has no seed.
+//! format. [`native`] trains and gates explicitly local case-preserving
+//! artifacts; publishing those requires a separately versioned release.
+//! Training uses no randomness, so a recipe has no seed.
 //!
 //! OpenNLP trained the Catalan references on this treebank's `train` file.
 //! The Catalan sentence detector and tokenizer recipes make OpenNLP's
@@ -118,6 +119,7 @@
 //! MarkIT alone, so its class is permissive.
 
 mod lemma;
+pub mod native;
 mod samples;
 
 use turbo_eval::model_gate::ModelGateRecord;

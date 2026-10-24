@@ -258,11 +258,16 @@ impl UdRecipe {
     /// [`crate::MAX_SKIPPED_SENTENCES`] allows ([`Error::TooManyLeftOut`]),
     /// or what training fails on.
     pub fn train(&self, train: &str) -> Result<Trained> {
+        self.train_with_lemma_format(train, false)
+    }
+
+    pub(super) fn train_with_lemma_format(&self, train: &str, native_lemmas: bool) -> Result<Trained> {
         let read = self.samples(train, self.treebank.train.name)?;
         check_skipped(LeftOut::TrainingSentences, read.skipped, read.samples.len())?;
         let language = self.treebank.language;
         let stamp = Stamp::at(TIMESTAMP_MS);
-        let params = published::training_parameters();
+        let params =
+            if native_lemmas { super::native::training_parameters() } else { published::training_parameters() };
         let mut config = TrainingConfiguration::default();
         let mut events = Vec::new();
         let (bytes, report) = match &read.samples {
@@ -290,8 +295,12 @@ impl UdRecipe {
                 (t.package.to_bytes(), t.report)
             }
             UdSamples::Lemmas(samples) => {
-                // Existing release ids keep their published class format.
-                let factory = LemmatizerFactory::opennlp(language);
+                let factory = if native_lemmas {
+                    LemmatizerFactory::new(language)
+                } else {
+                    // Existing release ids keep their published class format.
+                    LemmatizerFactory::opennlp(language)
+                };
                 let mut stream = LemmaEventStream::new(&factory);
                 samples.iter().for_each(|s| stream.events(s, &mut events));
                 let t = lemmatize::train_lemmatizer_model_from_events(&events, &factory, &params, &mut config, stamp)?;

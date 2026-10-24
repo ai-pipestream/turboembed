@@ -10,7 +10,7 @@ use turbo_lemmatizer::{LemmaEncoding, LemmatizerModel, MaxentLemmatizer, TokenTa
 use turbo_maxent::ModelFile;
 use turbo_postag::{PosModel, PosTagger};
 use turbo_train_components::ud::Component;
-use turbo_train_recipes::ud::{self, UD_RECIPES};
+use turbo_train_recipes::ud::{self, UD_RECIPES, native};
 use turbo_zoo::Sha256;
 
 #[derive(Default)]
@@ -183,7 +183,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             r.treebank.test.sha256
         );
         for (side, path) in [
-            ("native", model_path(native, r.model_id)),
+            ("native", model_path(native, native::model_id(r)?)),
             ("legacy", model_path(legacy, r.model_id)),
             ("reference", references.join(r.reference.file()?)),
         ] {

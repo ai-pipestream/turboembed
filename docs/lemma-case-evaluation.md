@@ -28,8 +28,9 @@ The baseline is the code at `62dce738e7e4e81bc77d66c883cd3d562229591b`.
 The published references are OpenNLP UD 1.3 models (2.5.4).
 
 These measurements deliberately retain 4 partitions on both sides to isolate
-the class-format change. The separate UD reproduction fix in #953 changes the
-shared partition count to 12; retraining with it will produce different hashes.
+the class-format change. The separate UD 1.3 reproduction fix in #953 uses
+12 partitions for that protocol; the native-v1 comparison and the existing
+UD 2.16 release recipes retain their recorded four-partition settings.
 No held-out examples were added to training and no gate thresholds changed.
 
 Full accuracy below includes all test tokens. Capital accuracy counts lemmas
@@ -103,36 +104,60 @@ model.
 
 ## Reproduction and provenance
 
-The implementation used for the native comparison below is preserved at
-commit `c1605c8d181630e8cd83d11295da83022ee8acc7`, before the published
-recipes were explicitly pinned to their original factory. To reproduce those
-historical native models, use an isolated checkout of that commit; running
-the current `ud` command produces the compatibility models. Generic new
-training through `LemmatizerFactory::new` still selects native classes.
-The model ids used for the local evaluation directories below identify
-their source recipes, not published native artifacts.
+The in-tree `ud_native_lemmas` example reproduces the native-v1 protocol:
+GIS, 300 iterations, cutoff 5 and four fixed partitions, with the native
+case-preserving factory. It accepts canonical source lemma recipe ids and
+writes distinct `lemmas-native-v1-local` output ids. The existing `ud`
+command and every released recipe id retain compatibility training. Neither
+the native ids nor their cards are registered as published recipes.
 
-In that historical checkout, fetch through the existing licence-aware zoo command, then run the recipes
-with the digest-checked published models in `references`. Select each lemma
-recipe with repeated `--recipe` flags (and the Italian POS recipe for the POS
-analysis). Use a saved lowercase baseline model directory for the comparison.
+Fetch through the existing licence-aware zoo command. The native command
+checks every selected treebank's licence and file digests, reference digest,
+sample coverage and output directory before training. It runs the same
+held-out/reference gate with unchanged limits and retains its report even
+when it fails. The card records the actual four-partition protocol. Use a
+saved lowercase baseline model directory for the comparison.
 
 ```sh
 cargo run --locked --release -p turbo-train-recipes -- fetch-ud --home data
+cargo run --locked --release -p turbo-train-recipes --example ud_native_lemmas -- \
+  data/artifacts references native-models turbo-es-ud-ancora-2.16-lemmas-1
+cargo run --locked --release -p turbo-train-recipes --example ud_case_eval -- \
+  data/artifacts native-models lowercase-models references es
+
+# For the Italian diagnosis, train its native lemma and existing POS recipe.
+cargo run --locked --release -p turbo-train-recipes --example ud_native_lemmas -- \
+  data/artifacts references native-models turbo-it-ud-markit-2.16-lemmas-1
 cargo run --locked --release -p turbo-train-recipes -- ud \
   --treebanks data/artifacts --references references --out native-models \
-  --recipe turbo-it-ud-markit-2.16-lemmas-1 \
   --recipe turbo-it-ud-markit-2.16-pos-1
 cargo run --locked --release -p turbo-train-recipes --example ud_case_eval -- \
   data/artifacts native-models lowercase-models references it
 ```
 
-The Italian combined recipe exits unsuccessfully because the POS gate fails,
-while retaining both gate reports. `ud_case_eval` emits aggregate counts and
+The Italian POS command exits unsuccessfully because its gate fails,
+while retaining the gate report. `ud_case_eval` emits aggregate counts and
 SHA-256 values only. No corpus text, model binaries or raw per-sample records
 are committed here. The Portuguese text rights remain unsettled and its
 artifact publication guard remains in place. Italian VIT reference weights are
 used locally for evaluation under their existing restricted terms.
+
+The in-tree native command was rerun on the complete Spanish AnCora split:
+14,287 training samples, 442,892 events and 1,721 held-out samples, with no
+skipped sentences. Its 1,923,528-byte package reproduces the recorded
+`cc96098192bfce38e11d67cd186b98c7595c94ed9590f52ab6efd70c5f822cd0` digest.
+The updated evaluator reads the distinct local output id and reproduces
+51,947/52,454 correct lemmas (99.03343882%), including 4,053/4,093 capital
+lemmas and 3,991/4,018 capital proper-noun lemmas. The unchanged gate omits
+the same 57 reference-class exclusions and passes at 99.09155104% candidate
+versus 90.64259404% reference accuracy. Those gate scores are separate from
+the all-token figures. The other four language receipts below were not
+regenerated for this reproduction-path correction.
+
+The published Spanish recipe was also retrained through the existing `ud`
+command. Its 1,828,462-byte package matches the released
+`e00c951c6f60b5907f15ffa475a6a013483ba2b8c370cfc261c1c70114e70c61`
+digest and passes its unchanged gate. The release registry is unchanged.
 
 | Treebank | Train samples / tokens | Test samples / tokens | Successful round trips |
 | --- | ---: | ---: | ---: |
@@ -146,7 +171,8 @@ SHA-256 values identify the complete input files and model packages.
 
 ### Spanish AnCora
 
-Model id: `turbo-es-ud-ancora-2.16-lemmas-1`.
+Source recipe: `turbo-es-ud-ancora-2.16-lemmas-1`.
+Local native id: `turbo-es-ud-ancora-2.16-lemmas-native-v1-local`.
 
 - Train: `79e7463700e75bdf921c85b6e04495af118462a2b032bbff590fb82aa6ad8d5d`
 - Test: `2a24316503a56e171f07b38cf2ec13c22e3b62a337c6dbf2d9d1a54ada2b012b`
@@ -156,7 +182,8 @@ Model id: `turbo-es-ud-ancora-2.16-lemmas-1`.
 
 ### Catalan AnCora
 
-Model id: `turbo-ca-ud-ancora-2.16-lemmas-1`.
+Source recipe: `turbo-ca-ud-ancora-2.16-lemmas-1`.
+Local native id: `turbo-ca-ud-ancora-2.16-lemmas-native-v1-local`.
 
 - Train: `bb5d06fb14336bae2c3aa64aa7e65afe183295a4669ce4f45bf0ed57c18ccccd`
 - Test: `f68ff102b9bf8bc197be3262a1caf25682683c4db4c648663c7a791bfbfa115f`
@@ -166,7 +193,8 @@ Model id: `turbo-ca-ud-ancora-2.16-lemmas-1`.
 
 ### Portuguese Porttinari
 
-Model id: `turbo-pt-ud-porttinari-2.16-lemmas-1`.
+Source recipe: `turbo-pt-ud-porttinari-2.16-lemmas-1`.
+Local native id: `turbo-pt-ud-porttinari-2.16-lemmas-native-v1-local`.
 
 - Train: `d9d3d76ac9ac8cb569c42a698cc60721e088db7c7e90401582aab68aa9ca85d3`
 - Test: `08e51c3687f2800ea45445cb48c7030832984c316b1c39757606499b8e7577b9`
@@ -176,7 +204,8 @@ Model id: `turbo-pt-ud-porttinari-2.16-lemmas-1`.
 
 ### Finnish FTB
 
-Model id: `turbo-fi-ud-ftb-2.16-lemmas-1`.
+Source recipe: `turbo-fi-ud-ftb-2.16-lemmas-1`.
+Local native id: `turbo-fi-ud-ftb-2.16-lemmas-native-v1-local`.
 
 - Train: `0cc04932f18613c4491ace06f597b7b8caed36e557168b9b6ef154da7ae2d71b`
 - Test: `3aca7fbd727846c0955e9db581571a0fca89d46f825ee7f2a32fab1ea0bc31ba`
@@ -186,7 +215,8 @@ Model id: `turbo-fi-ud-ftb-2.16-lemmas-1`.
 
 ### Italian MarkIT
 
-Model id: `turbo-it-ud-markit-2.16-lemmas-1`.
+Source recipe: `turbo-it-ud-markit-2.16-lemmas-1`.
+Local native id: `turbo-it-ud-markit-2.16-lemmas-native-v1-local`.
 
 - Train: `4f6fc3423acb00d49e1e167bd21b11ebbc23e22275fd6f5eeb4d75cfbbccc5c6`
 - Test: `9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc`
