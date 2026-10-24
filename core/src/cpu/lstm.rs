@@ -75,11 +75,14 @@ impl Lstm {
         let Some(gates) = gates else {
             return Err(invalid(format!("lstm: input {input} and hidden {hidden} must be positive")));
         };
+        let (Some(w), Some(u)) = (gates.checked_mul(input), gates.checked_mul(hidden)) else {
+            return Err(invalid(format!("lstm: input {input} and hidden {hidden} make weights past usize")));
+        };
         if dirs.is_empty() {
             return Err(invalid("lstm: no direction"));
         }
         for (i, d) in dirs.iter().enumerate() {
-            let shapes = [("w", d.w.len(), gates * input), ("u", d.u.len(), gates * hidden), ("b", d.b.len(), gates)];
+            let shapes = [("w", d.w.len(), w), ("u", d.u.len(), u), ("b", d.b.len(), gates)];
             for (name, got, want) in shapes {
                 if got != want {
                     return Err(invalid(format!("lstm direction {i}: {name} has {got} values, expected {want}")));

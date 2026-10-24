@@ -130,6 +130,12 @@ fn bad_shapes_lengths_and_values_are_refused() {
     let bad = Weights { w: &m.w[0], u: &m.u[0], b: &inf, reverse: false };
     assert!(Lstm::new(4, 2, &[bad]).err().unwrap().message.contains("not finite"));
     assert!(Lstm::new(4, 2, &[]).is_err() && Lstm::new(0, 2, &[]).is_err());
+    // Shapes whose weight lengths overflow are refused, not a panic.
+    for (input, hidden) in [(2, usize::MAX / 4), (usize::MAX / 4, 2)] {
+        let empty = Weights { w: &[], u: &[], b: &[], reverse: false };
+        let e = Lstm::new(input, hidden, &[empty]).err().unwrap();
+        assert!(e.message.contains("past usize"), "{input} x {hidden}: {}", e.message);
+    }
 }
 
 /// Release timing against the layer, the two interleaved over rounds, at
