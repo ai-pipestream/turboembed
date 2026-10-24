@@ -86,7 +86,7 @@ fn cut_from_wire(tag: u32, block: u32) -> Result<Cut, Failure> {
     })
 }
 
-fn spans_to_wire<L>(spans: &Spans<L>, text: &str, offsetter: &Offsetter) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+pub(crate) fn spans_to_wire<L>(spans: &Spans<L>, text: &str, offsetter: &Offsetter) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
     let (mut start, mut end, mut at) = (Vec::new(), Vec::new(), Vec::new());
     for i in 0..spans.len() as u32 {
         for frag in spans.fragments(Ix::new(i)) {
@@ -99,7 +99,7 @@ fn spans_to_wire<L>(spans: &Spans<L>, text: &str, offsetter: &Offsetter) -> (Vec
     (start, end, at)
 }
 
-fn spans_from_wire<L>(
+pub(crate) fn spans_from_wire<L>(
     what: &str,
     view: ViewId,
     text: &str,

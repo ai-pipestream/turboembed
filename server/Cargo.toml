@@ -20,6 +20,9 @@ turbo = { path = "../core" }
 turbo-analysis = { path = "../analysis/core" }
 turbo-analysis-layers = { path = "../analysis/layers" }
 turbo-analysis-embed = { path = "../analysis/embed" }
+# The structured records of a schema extraction and the limits its
+# schemas are held to.
+turbo-schema-extract = { path = "../analysis/schema-extract" }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
 prost = "0.14"

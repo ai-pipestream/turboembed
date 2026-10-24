@@ -2320,6 +2320,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-schema-extract",
 ]
 
 [[package]]
