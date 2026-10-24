@@ -4013,6 +4013,60 @@
           "sha512": "a23dfdcd05b51c6f495c6808a55933500f3f4ebe3baac3fe97b0dc194bec7c8c0be75d2f15f5000504ae38bdd9e62dd56899f7a986d08b0be29f4e7b67863233"
         }
       ]
+    },
+    {
+      "id": "symspell-frequency-dictionary-en-82-765",
+      "kind": "KIND_LEXICON",
+      "language": "en",
+      "format": "FORMAT_TEXT",
+      "version": "c239062ae02961df18ab7da1671d01b4388204e0",
+      "license": "MIT",
+      "license_terms": "https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE",
+      "trained_on": [
+        {
+          "name": "Google Books Ngram data",
+          "license": "CC-BY-3.0",
+          "license_terms": "https://storage.googleapis.com/books/ngrams/books/datasetsv2.html"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "SymSpell frequency lists by Wolf Garbe at c239062ae02961df18ab7da1671d01b4388204e0 (MIT, https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE), compiled as the intersection of Google Books Ngram data (CC-BY-3.0, https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) with SCOWL (http://wordlist.aspell.net/).",
+      "files": [
+        {
+          "path": "frequency_dictionary_en_82_765.txt",
+          "url": "https://raw.githubusercontent.com/wolfgarbe/SymSpell/c239062ae02961df18ab7da1671d01b4388204e0/SymSpell/frequency_dictionary_en_82_765.txt",
+          "size": 1332881,
+          "sha256": "c604e1121e398ae7c7fbf777f11e0a0f2fa66eda932cb9fba1321466cf3acd7b",
+          "sha512": "c89ad6785ba97e6179049e7033dc2b9c1f7d000982b24c12bfb66841c7b5344a96b7b2d6bbfa8c679bf081ffdb1da9a41fa50c2a9bf7d7aef6a02181d48c04e7"
+        }
+      ]
+    },
+    {
+      "id": "symspell-frequency-bigramdictionary-en-243-342",
+      "kind": "KIND_LEXICON",
+      "language": "en",
+      "format": "FORMAT_TEXT",
+      "version": "c239062ae02961df18ab7da1671d01b4388204e0",
+      "license": "MIT",
+      "license_terms": "https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE",
+      "trained_on": [
+        {
+          "name": "Google Books Ngram data",
+          "license": "CC-BY-3.0",
+          "license_terms": "https://storage.googleapis.com/books/ngrams/books/datasetsv2.html"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "SymSpell frequency lists by Wolf Garbe at c239062ae02961df18ab7da1671d01b4388204e0 (MIT, https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE), compiled as the intersection of Google Books Ngram data (CC-BY-3.0, https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) with SCOWL (http://wordlist.aspell.net/).",
+      "files": [
+        {
+          "path": "frequency_bigramdictionary_en_243_342.txt",
+          "url": "https://raw.githubusercontent.com/wolfgarbe/SymSpell/c239062ae02961df18ab7da1671d01b4388204e0/SymSpell/frequency_bigramdictionary_en_243_342.txt",
+          "size": 5137213,
+          "sha256": "fd892a160184101dd7ae807ac5a302d01fcea1c47304181a8ed7ed9c94545bcd",
+          "sha512": "9e73122f1dd3f3490995e3dbfbacba1503006e7000bde0116e0801b0a04838dd0b12eb0fb870743321c8dd234978ca6fc7783c040a980aa7cfb62d0c0af7426c"
+        }
+      ]
     }
   ]
 }

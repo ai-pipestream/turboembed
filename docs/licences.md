@@ -270,6 +270,30 @@ that of `onnx/model.onnx` (431,172,619 bytes) is
 `963039b81eec5b33e23d84826ccdf1e8f8ada776f320e692113034cfae384617`; both
 match the hub's LFS object ids at that revision.
 
+## Frequency lexicons
+
+The word frequency lists spell correction loads (docs on the
+normalize spell checker, #935). Both are in the zoo's index as
+permissive `KIND_LEXICON` entries, fetched from their publisher
+with nothing to accept: `wolfgarbe/SymSpell`'s
+`frequency_dictionary_en_82_765.txt`
+(`symspell-frequency-dictionary-en-82-765`, 1,332,881 bytes,
+SHA-256 `c604e1121e398ae7c7fbf777f11e0a0f2fa66eda932cb9fba1321466cf3acd7b`)
+and `frequency_bigramdictionary_en_243_342.txt`
+(`symspell-frequency-bigramdictionary-en-243-342`, 5,137,213
+bytes, SHA-256
+`fd892a160184101dd7ae807ac5a302d01fcea1c47304181a8ed7ed9c94545bcd`),
+both at revision `c239062ae02961df18ab7da1671d01b4388204e0` under the
+repository's MIT licence (Wolf Garbe). As the project's README
+states, the lists were compiled as the intersection of Google
+Books Ngram data (CC BY 3.0) with SCOWL, Kevin Atkinson's
+permissively licensed spell-checker word lists
+(http://wordlist.aspell.net/); the index records the Ngram data
+as the training source and names SCOWL in the attribution, which
+must travel with either list. Other frequency sources can join
+later as further lexicon entries behind the same
+`FrequencyDictionary` text loader.
+
 ## Datasets
 
 | Dataset | Use | Licence | Class | Notes | Checked |
@@ -298,6 +322,7 @@ match the hub's LFS object ids at that revision.
 | [DBpedia-14](https://huggingface.co/datasets/fancyzhx/dbpedia_14) | document categorizer | CC BY-SA 3.0 and GFDL | share-alike | | plan |
 | [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) | natural language inference | CC BY-SA 4.0 | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
 | [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) | natural language inference | CC BY-SA 3.0 (majority of OANC genres; remaining genres OANC, public domain, or CC BY) | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
+| [Google Books Ngram data](https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) | word frequencies | CC BY 3.0 | permissive | one of the two sources the SymSpell frequency lists above were compiled from (intersected with SCOWL); the data itself is not fetched or used here, only named as what the lists derive from | here, 2026-10-24 |
 | [SQuAD 2.0](https://rajpurkar.github.io/SQuAD-explorer/) | extractive QA | CC BY-SA 4.0 | share-alike | the dev set `dev-v2.0.json` (4,370,528 bytes, SHA-256 `80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8`) is used for evaluation only (docs/extractive-qa.md); it is not in the repository | here, 2026-10-23 |
 | [UD_English-GUM r2.16](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_English-LinES r2.16](https://github.com/UniversalDependencies/UD_English-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |

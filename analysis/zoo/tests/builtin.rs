@@ -140,6 +140,11 @@ const SHARE_ALIKE_CHECKPOINTS: [&str; 2] = ["cross-encoder-nli-minilm2-l6-h768",
 /// who has accepted their licence.
 const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
 
+/// The frequency lexicons the spell checker loads (#935): MIT lists
+/// compiled from CC BY data, so permissive and nothing to accept.
+const LEXICONS: [&str; 2] =
+    ["symspell-frequency-dictionary-en-82-765", "symspell-frequency-bigramdictionary-en-243-342"];
+
 #[test]
 fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
     let index = Index::builtin();
@@ -331,6 +336,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
+    expected.extend(LEXICONS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {
@@ -390,6 +396,7 @@ fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
         if a.id.as_str().starts_with("opennlp-ca-ud-ancora-")
             || trained_here(a.id.as_str())
             || CHECKPOINTS.contains(&a.id.as_str())
+            || LEXICONS.contains(&a.id.as_str())
         {
             assert!(needs.is_empty(), "{}", a.id);
         } else if a.id.as_str() == SHARE_ALIKE_CHECKPOINTS[0] {
