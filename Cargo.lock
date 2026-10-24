@@ -2208,6 +2208,8 @@ dependencies = [
  "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-bundle",
+ "turbo-zoo",
 ]
 
 [[package]]
