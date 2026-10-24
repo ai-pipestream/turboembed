@@ -311,9 +311,9 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
         // can never be completed, so anything else stays a word.
         let token_at = |i: usize| &text[starts[i] as usize..ends[i] as usize];
         let lowercase_iso_after_amount = |i: usize| {
-            const LOWERCASE_CODES: [&str; 19] = [
-                "aud", "brl", "cad", "chf", "cny", "dkk", "eur", "gbp", "hkd", "inr", "jpy", "krw", "mxn", "nok",
-                "nzd", "sek", "sgd", "usd", "zar",
+            const LOWERCASE_CODES: [&str; 18] = [
+                "aud", "brl", "chf", "cny", "dkk", "eur", "gbp", "hkd", "inr", "jpy", "krw", "mxn", "nok", "nzd",
+                "sek", "sgd", "usd", "zar",
             ];
             let w = token_at(i);
             if i == 0 || !LOWERCASE_CODES.contains(&w) {

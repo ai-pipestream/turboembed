@@ -47,6 +47,10 @@ fn ordinary_words_that_spell_iso_codes_yield_no_money_filter() {
         "3 php books",
         "10 cop shows",
         "5 ron howard films",
+        "10 cad files",
+        "top 5 cad programs",
+        "2 cad drawings",
+        "best 3 cad models",
     ] {
         let kinds = analyze(q);
         assert!(!kinds.iter().any(|k| matches!(k, FilterKind::Money(_))), "invented money filter in {q:?}: {kinds:?}");
