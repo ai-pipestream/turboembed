@@ -20,6 +20,7 @@ pub mod graph;
 pub mod hash;
 pub mod layer;
 pub mod markup;
+pub mod math;
 pub mod offsets;
 pub mod predicate;
 pub mod registry;
