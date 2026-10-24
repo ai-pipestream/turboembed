@@ -83,7 +83,7 @@ impl CorefModel {
         report: Option<&TrainingReport>,
         timestamp_ms: i64,
     ) -> Result<CorefModel, String> {
-        if language.chars().all(turbo_unicode::java::is_whitespace) {
+        if turbo_unicode::java::is_blank(language) {
             return Err("languageCode must not be null or blank".into());
         }
         let mut manifest = Manifest::new(COMPONENT_NAME, language, timestamp_ms);

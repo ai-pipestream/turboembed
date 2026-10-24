@@ -161,11 +161,21 @@ pub trait Geocoder {
     /// Unresolvable mentions are omitted; every returned [`GeoResolution::mention`]
     /// equals one of the input spans.
     fn resolve(&self, text: &str, location_mentions: &[Span]) -> Result<Vec<GeoResolution>, GeocodeError>;
+
+    /// Deterministic 64-bit configuration and gazetteer fingerprint for
+    /// [`Annotator::config_hash`](turbo_analysis::Annotator::config_hash).
+    fn fingerprint(&self) -> u64 {
+        0
+    }
 }
 
 impl<G: Geocoder + ?Sized> Geocoder for &G {
     fn resolve(&self, text: &str, location_mentions: &[Span]) -> Result<Vec<GeoResolution>, GeocodeError> {
         (**self).resolve(text, location_mentions)
+    }
+
+    fn fingerprint(&self) -> u64 {
+        (**self).fingerprint()
     }
 }
 
@@ -173,11 +183,19 @@ impl<G: Geocoder + ?Sized> Geocoder for Box<G> {
     fn resolve(&self, text: &str, location_mentions: &[Span]) -> Result<Vec<GeoResolution>, GeocodeError> {
         (**self).resolve(text, location_mentions)
     }
+
+    fn fingerprint(&self) -> u64 {
+        (**self).fingerprint()
+    }
 }
 
 impl<G: Geocoder + ?Sized> Geocoder for std::sync::Arc<G> {
     fn resolve(&self, text: &str, location_mentions: &[Span]) -> Result<Vec<GeoResolution>, GeocodeError> {
         (**self).resolve(text, location_mentions)
+    }
+
+    fn fingerprint(&self) -> u64 {
+        (**self).fingerprint()
     }
 }
 
@@ -232,6 +250,12 @@ impl<G: Gazetteer> Geocoder for PopulationPriorGeocoder<G> {
             resolutions.push(GeoResolution::new(mention, candidates[0].to_entry(), confidence)?);
         }
         Ok(resolutions)
+    }
+
+    fn fingerprint(&self) -> u64 {
+        const TAG: u64 = 0x504f_505f_5052_494f;
+        let h = (0xcbf2_9ce4_8422_2325 ^ TAG).wrapping_mul(0x0100_0000_01b3);
+        (h ^ self.gazetteer.fingerprint()).wrapping_mul(0x0100_0000_01b3)
     }
 }
 
@@ -344,5 +368,11 @@ impl<G: Gazetteer> Geocoder for SpatialCoherenceGeocoder<G> {
             resolutions.push(GeoResolution::new(mention, candidates[best_index].to_entry(), confidence)?);
         }
         Ok(resolutions)
+    }
+
+    fn fingerprint(&self) -> u64 {
+        const TAG: u64 = 0x5350_4154_5f43_4f48;
+        let h = (0xcbf2_9ce4_8422_2325 ^ TAG).wrapping_mul(0x0100_0000_01b3);
+        (h ^ self.gazetteer.fingerprint()).wrapping_mul(0x0100_0000_01b3)
     }
 }

@@ -142,7 +142,9 @@ has two numerics (`neural::Numerics`):
 The two numerics have different configuration hashes (`config_hash`, FNV-1a
 over the numerics and the model's SHA-256), so their outputs are never
 cached as each other's. `tests/bilstm_numerics.rs` checks both rules
-through the public API.
+through the public API, and `tests/bilstm_provenance.rs` checks that each
+numerics' tags carry its own hash through an analyzer run, the document
+graph export, its bytes and the import, and as the key of a pipeline cache.
 
 `tests/neural_goldens/` runs both on every golden of
 `analysis/goldens/data/postag-neural/` (six BiLSTM runs). The parity
@@ -239,12 +241,20 @@ two directions; `turbo_bundle::postag::load` reads a bundle back.
 and the fixed token list exactly as the `.bin` does, with the parity and
 the packed numerics, and a bundle whose digests do not match is refused.
 
+### The turbo-bench record
+
+`turbo-bench postag` measures the two numerics on a treebank and writes a
+record to `benchmarks/records/postag/`: accuracy, agreement, emission and
+marginal drift, and words per second and call latency by sentences per
+call and by sentence length. The record on this model and the EWT test
+split is `benchmarks/records/postag/x86-64.cpu.postag.bilstm-crf.819328e7.90e41ce15c8c.json`; docs/analysis.md ("BiLSTM-CRF
+numerics") reads it.
+
 ### Not done
 
 - Other backends. The packed numerics use the CPU backend's GEMM directly;
   no GPU or NPU kernel runs the tagger, so no `TURBO_TEST_REQUIRE_*`
   hardware run exists for it.
-- `turbo-bench` records. The numbers above are from the ignored test.
 - A bundle import recipe built in a pinned container: there is no published
   BiLSTM-CRF model to import.
 - The JVM on EWT. The EWT comparison is packed against the parity numerics,

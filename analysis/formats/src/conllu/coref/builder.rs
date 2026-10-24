@@ -336,9 +336,24 @@ fn split_columns(line: Piece<'_>) -> Option<[Piece<'_>; COLUMNS]> {
 /// `StringUtil.trimUnicodeWhitespace`: the piece without the Unicode
 /// whitespace at its ends.
 fn unicode_trim(piece: Piece<'_>) -> Piece<'_> {
-    let ws = |c: char| WhitespaceMode::Unicode.is_whitespace(c as u32);
-    let t = piece.text;
-    let start = t.len() - t.trim_start_matches(ws).len();
-    let end = t.trim_end_matches(ws).len().max(start);
-    piece.slice(start, end)
+    let trimmed = WhitespaceMode::Unicode.trim(piece.text);
+    let start = trimmed.as_ptr() as usize - piece.text.as_ptr() as usize;
+    piece.slice(start, start + trimmed.len())
+}
+
+#[cfg(test)]
+mod trim_tests {
+    use super::*;
+
+    #[test]
+    fn shared_trim_keeps_source_offsets_including_empty_fields() {
+        for (text, expected, start, end) in
+            [("\u{3000} a\u{85}", "a", 4, 5), ("\u{a0}", "", 2, 2), ("\u{1c}", "\u{1c}", 0, 1), ("", "", 0, 0)]
+        {
+            let input = Piece { text, span: Span::new(100, 100 + text.len() as u32) };
+            let output = unicode_trim(input);
+            assert_eq!(output.text, expected);
+            assert_eq!(output.span, Span::new(100 + start, 100 + end));
+        }
+    }
 }
