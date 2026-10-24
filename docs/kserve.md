@@ -116,8 +116,10 @@ with any version is false. A client polls `ModelReady` until it is true rather
 than retrying `ModelInfer` on that status. Once ready, a model stays
 ready until the server stops; the server has no unload.
 
-The server does not serve `grpc.health.v1.Health`. An orchestrator
-probes liveness with `ServerLive` and readiness with `ServerReady`.
+The server also serves `grpc.health.v1.Health` (`Check` and `Watch`),
+mapping `SERVING` to the same state as `ServerReady` (or `ModelReady`
+when `service` names a served bundle) and `NOT_SERVING` before load and
+during drain.
 
 ## Metadata
 
@@ -492,7 +494,7 @@ answered as follows.
 | Protocol | Answer |
 |---|---|
 | Any method not in `GRPCInferenceService` (repository load and unload, streaming inference, shared-memory registration, statistics, trace, logging) | `UNIMPLEMENTED`, from gRPC: this service does not register them. Loading and unloading a bundle while serving lives in the analysis service beside this one, behind its `--admin` flag and off by default (docs/grpc-analysis.md). |
-| `grpc.health.v1.Health` | `UNIMPLEMENTED`, not registered. Probe with `ServerLive` and `ServerReady`. |
+| `grpc.health.v1.Health` | Served (`Check` and `Watch`): `SERVING` when ready and not draining, `NOT_SERVING` before load and during drain. |
 | `ServerMetadataResponse.extensions` | Empty: no extension is implemented. |
 | More than one version of a model | One: the revision. |
 | Typed output `contents` | Not used; outputs are always raw. |

@@ -134,9 +134,10 @@ The six RPCs served, and what each answers, are in kserve.md:
 | `ModelMetadata` | The inputs, the output, and the model's facts on its device as properties: the bundle's settings, the sessions' limits and tier, the device, and the capability cell with its conformance floor. |
 | `ModelInfer` | The vectors, and the run's summary (bytes moved, allocations, where each stage ran) as response parameters. |
 
-Every other method of the protocol, and `grpc.health.v1.Health`, is
-`UNIMPLEMENTED`. Probe liveness with `ServerLive` and readiness with
-`ServerReady`.
+Every other method of the Open Inference Protocol is `UNIMPLEMENTED`.
+The server also serves `grpc.health.v1.Health` (`Check` and `Watch`),
+reporting `SERVING` when `ServerReady` is true and `NOT_SERVING` before
+load and during drain.
 
 A `ModelInfer` carries either `texts` (BYTES, `[batch]`) or token rows
 `ids` and `mask` (INT32, `[batch, seq]`), with `types` optional, and
