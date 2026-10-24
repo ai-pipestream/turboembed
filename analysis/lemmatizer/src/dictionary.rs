@@ -7,7 +7,7 @@ use std::path::Path;
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Lemmas, PosTags, Strs, Tokens};
 use turbo_maxent::sha256;
-use turbo_unicode::java::to_lowercase;
+use turbo_unicode::java::lowercase_cow;
 
 use crate::error::DictionaryError;
 use crate::maxent::words;
@@ -29,7 +29,7 @@ pub const NOT_FOUND: &str = "O";
 /// is never found.
 #[derive(Debug)]
 pub struct DictionaryLemmatizer {
-    entries: HashMap<(String, String), Vec<String>>,
+    entries: HashMap<String, HashMap<String, Vec<String>>>,
     model_ref: ModelRef,
 }
 
@@ -48,14 +48,14 @@ impl DictionaryLemmatizer {
     /// sequences replaced, as `InputStreamReader` decodes them.
     pub fn parse(bytes: &[u8], name: &str) -> Result<DictionaryLemmatizer, DictionaryError> {
         let text = String::from_utf8_lossy(bytes);
-        let mut entries = HashMap::new();
+        let mut entries: HashMap<String, HashMap<String, Vec<String>>> = HashMap::new();
         for (n, line) in java_lines(&text).enumerate() {
             let fields = java_split(line, '\t');
             if fields.len() < 3 {
                 return Err(DictionaryError { line: n + 1, fields: fields.len() });
             }
             let lemmas = java_split(fields[2], '#').into_iter().map(str::to_string).collect();
-            entries.insert((fields[0].to_string(), fields[1].to_string()), lemmas);
+            entries.entry(fields[0].to_owned()).or_default().insert(fields[1].to_owned(), lemmas);
         }
         let model_ref = ModelRef {
             id: format!("opennlp:DictionaryLemmatizer:{name}"),
@@ -67,7 +67,7 @@ impl DictionaryLemmatizer {
 
     /// How many word and tag pairs the dictionary lists.
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.entries.values().map(HashMap::len).sum()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -77,9 +77,7 @@ impl DictionaryLemmatizer {
     /// Every lemma listed for the lowercased word and the tag, if any
     /// (`getAllLemmas` without its `O`).
     pub fn lemmas(&self, word: &str, tag: &str) -> Option<&[String]> {
-        let mut lower = String::with_capacity(word.len());
-        to_lowercase(word, &mut lower);
-        self.entries.get(&(lower, tag.to_string())).map(Vec::as_slice)
+        self.entries.get(lowercase_cow(word).as_ref())?.get(tag).map(Vec::as_slice)
     }
 
     /// `lemmatize(String, String)`: the first lemma listed for the

@@ -202,3 +202,12 @@ fn requests_over_the_tokenized_limits_are_refused_by_name() {
     assert_eq!(limit(wide.prompt(&text, &one)), "encoder max_sequence");
     assert!(matches!(m.prompt("a", &ExtractionSchema::default()), Err(ExtractError::Schema(SchemaError::Empty))));
 }
+
+#[test]
+fn choices_differing_only_by_case_folding_are_duplicates() {
+    let l = Limits::default();
+    let mut cased = record("r", &["f"]);
+    cased.fields[0].choices = Some(vec!["Stra\u{00DF}e".into(), "STRASSE".into()]);
+    let schema = ExtractionSchema { structures: vec![cased], ..Default::default() };
+    assert!(schema.validate(&l).is_err(), "folded duplicates accepted");
+}

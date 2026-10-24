@@ -3,6 +3,7 @@
 //! (docs/schema-extract.md).
 
 pub mod annotator;
+mod config_hash;
 pub mod decode;
 mod evidence;
 pub mod export;

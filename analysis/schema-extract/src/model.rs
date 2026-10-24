@@ -216,6 +216,11 @@ impl Gliner2Extractor {
         &self.limits
     }
 
+    /// The widest span, in words, the span heads score.
+    pub fn max_width(&self) -> usize {
+        self.heads.max_width
+    }
+
     /// The input for `schema` over `text`, checked against every limit,
     /// without running the model.
     pub fn prompt(&self, text: &str, schema: &ExtractionSchema) -> Result<Prompt, ExtractError> {

@@ -274,3 +274,115 @@ fn geocode_annotator_filters_location_entities_and_validates_returned_spans() {
             .is_err()
     );
 }
+
+#[test]
+fn geocode_config_hash_distinguishes_geocoders_and_gazetteers() {
+    use crate::linker::GeoEntityLinker;
+    use std::sync::Arc;
+    use turbo_analysis::Annotator;
+
+    let gaz1 = Arc::new(
+        InMemoryGazetteer::from_entries(&[place("paris", "Paris", 48.85, 2.35, Some("FR"), 2_100_000)]).unwrap(),
+    );
+    let gaz2 =
+        Arc::new(InMemoryGazetteer::from_entries(&[place("lyon", "Lyon", 45.76, 4.83, Some("FR"), 500_000)]).unwrap());
+
+    let pop1 = GeocodeAnnotator::new(PopulationPriorGeocoder::new(Arc::clone(&gaz1)));
+    let pop2 = GeocodeAnnotator::new(PopulationPriorGeocoder::new(Arc::clone(&gaz2)));
+    let spat1 = GeocodeAnnotator::new(SpatialCoherenceGeocoder::new(Arc::clone(&gaz1)));
+    let spat2 = GeocodeAnnotator::new(SpatialCoherenceGeocoder::new(Arc::clone(&gaz2)));
+    let link_geo1 = GeocodeAnnotator::new(GeoEntityLinker::new(Arc::clone(&gaz1)));
+    let link_geo2 = GeocodeAnnotator::new(GeoEntityLinker::new(Arc::clone(&gaz2)));
+
+    let hashes = [
+        pop1.config_hash(),
+        pop2.config_hash(),
+        spat1.config_hash(),
+        spat2.config_hash(),
+        link_geo1.config_hash(),
+        link_geo2.config_hash(),
+    ];
+    for (i, a) in hashes.iter().enumerate() {
+        for b in &hashes[i + 1..] {
+            assert_ne!(a, b, "duplicate GeocodeAnnotator config_hash: {hashes:?}");
+        }
+    }
+
+    let linker1 = GeoEntityLinker::new(gaz1);
+    let linker2 = GeoEntityLinker::new(gaz2);
+    assert_ne!(linker1.config_hash(), linker2.config_hash());
+}
+
+#[test]
+fn geocode_and_linker_annotators_check_entities_skip_empty_spans_and_check_locations() {
+    use crate::linker::GeoEntityLinker;
+    use std::sync::Arc;
+    use turbo_analysis::{Annotator, Error, View};
+
+    struct ReverseOrderGeocoder {
+        entry: GazetteerEntry,
+    }
+
+    impl Geocoder for ReverseOrderGeocoder {
+        fn resolve(&self, _text: &str, location_mentions: &[Span]) -> Result<Vec<GeoResolution>, GeocodeError> {
+            assert_eq!(location_mentions, &[Span::new(0, 5), Span::new(9, 13)]);
+            location_mentions.iter().rev().map(|&span| GeoResolution::new(span, self.entry.clone(), 0.9)).collect()
+        }
+    }
+
+    let gaz = Arc::new(
+        InMemoryGazetteer::from_entries(&[
+            place("paris", "Paris", 48.85, 2.35, Some("FR"), 2_100_000),
+            place("lyon", "Lyon", 45.76, 4.83, Some("FR"), 500_000),
+        ])
+        .unwrap(),
+    );
+    let geo_ann = GeocodeAnnotator::new(PopulationPriorGeocoder::new(Arc::clone(&gaz)));
+    let linker_ann = GeoEntityLinker::new(gaz);
+
+    let doc = Document::new("Paris to Lyon");
+    let view = doc.get::<View>().unwrap();
+    let kinds = TagSet::new("ner", &["location"]);
+
+    let mut bad_len = Entities {
+        spans: Spans::new(ViewId::SOURCE),
+        tokens: vec![IxRange::new(0, 0)],
+        kind: Vec::new(),
+        kinds: kinds.clone(),
+        score: vec![1.0],
+    };
+    bad_len.spans.push(Span::new(0, 5));
+    assert!(matches!(geo_ann.annotate((view, &bad_len)), Err(Error::Annotator { .. })));
+    assert!(matches!(linker_ann.annotate((view, &bad_len)), Err(Error::Annotator { .. })));
+
+    let mut bad_tag = Entities {
+        spans: Spans::new(ViewId::SOURCE),
+        tokens: vec![IxRange::new(0, 0)],
+        kind: vec![Tag(5)],
+        kinds: kinds.clone(),
+        score: vec![1.0],
+    };
+    bad_tag.spans.push(Span::new(0, 5));
+    assert!(matches!(geo_ann.annotate((view, &bad_tag)), Err(Error::Annotator { .. })));
+    assert!(matches!(linker_ann.annotate((view, &bad_tag)), Err(Error::Annotator { .. })));
+
+    let mut with_empty = Entities {
+        spans: Spans::new(ViewId::SOURCE),
+        tokens: vec![IxRange::new(0, 0), IxRange::new(0, 0), IxRange::new(0, 0)],
+        kind: vec![Tag(0), Tag(0), Tag(0)],
+        kinds,
+        score: vec![1.0, 1.0, 1.0],
+    };
+    with_empty.spans.push(Span::new(0, 0));
+    with_empty.spans.push(Span::new(0, 5));
+    with_empty.spans.push(Span::new(9, 13));
+    assert_eq!(with_empty.check(), Ok(()));
+
+    let (locs,) = geo_ann.annotate((view, &with_empty)).unwrap();
+    assert_eq!(locs.len(), 2);
+
+    let rev_ann = GeocodeAnnotator::new(ReverseOrderGeocoder {
+        entry: place("paris", "Paris", 48.85, 2.35, Some("FR"), 2_100_000),
+    });
+    assert!(matches!(rev_ann.annotate((view, &with_empty)), Err(Error::Annotator { .. })));
+}
