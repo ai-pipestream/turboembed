@@ -26,6 +26,9 @@
 //! - [`java_regex`]: [`JavaRegex`], a user's Java pattern compiled to a
 //!   direct bytecode matcher, or refused.
 //! - [`merge`](mod@merge): `dropOverlappingSpans` and [`MergeEntities`].
+//! - [`consensus`](mod@consensus): [`ConsensusEntityMerger`], the votes of
+//!   several recognizers merged under an [`EntityMergePolicy`], with their
+//!   evidence.
 //! - [`annotate`]: the two finders as analysis steps.
 //!
 //! # Regular expressions
@@ -92,6 +95,7 @@ pub mod calibrated;
 pub mod crf;
 pub use crf::{CrfNameAnnotator, CrfNameFinder, CrfNameSequence, CrfSequenceModel};
 pub mod builtin;
+pub mod consensus;
 pub mod dictionary;
 pub mod error;
 pub mod java_regex;
@@ -102,6 +106,7 @@ mod parity;
 pub mod regex_finder;
 
 pub use builtin::BuiltIn;
+pub use consensus::{Consensus, ConsensusEntityMerger, EntityMergePolicy, Vote, consensus};
 pub use dictionary::DictionaryNameFinder;
 pub use error::{Error, Feature, TextLimit};
 pub use java_regex::{Flags, JavaRegex};
