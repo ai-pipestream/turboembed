@@ -1,10 +1,12 @@
 """The reference SaT run that analysis/sat is compared with, in the
 container of this directory (Dockerfile). Three commands:
 
-  tiny <tokenizer.json> <out-dir>
+  tiny <tokenizer.json> <out-dir> [lookahead]
       Writes a small SaT model with random weights: wtpsplit's
       SubwordXLMForTokenClassification over XLM-RoBERTa, two layers,
-      hidden 32, four heads, one label, no limited lookahead, the
+      hidden 32, four heads, one label, no limited lookahead (or
+      wtpsplit's `lookahead`, the keys ahead over all the layers, which
+      it divides among them: 8 is 4 a layer; the weights are the same), the
       positions of max_seq 64, initialised from seed 0, with its
       classifier's weights drawn again with standard deviation 1 so that
       the boundary probabilities spread over (0, 1). Beside it the
@@ -53,7 +55,7 @@ def versions():
     return f"wtpsplit {wtpsplit.__version__} (transformers {transformers.__version__}, torch {torch.__version__}, cpu, float32)"
 
 
-def tiny(tokenizer_json, out):
+def tiny(tokenizer_json, out, lookahead=None):
     tok = XLMRobertaTokenizerFast(tokenizer_file=tokenizer_json, model_max_length=64)
     tok.save_pretrained(out + "/tokenizer")
     torch.manual_seed(0)
@@ -71,7 +73,7 @@ def tiny(tokenizer_json, out):
         bos_token_id=0,
         eos_token_id=2,
         num_labels=1,
-        lookahead=None,
+        lookahead=None if lookahead is None else int(lookahead),
         lookahead_split_layers=None,
     )
     model = SubwordXLMForTokenClassification(cfg)

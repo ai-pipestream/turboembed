@@ -105,11 +105,11 @@ fn a_text_without_words_has_no_sentences() {
 #[test]
 fn the_threshold_and_the_line_feeds() {
     let t = "first line here\nsecond line here";
-    let never = SatOptions { threshold: 1.0, ..SatOptions::default() };
+    let never = SatOptions { threshold: Some(1.0), ..SatOptions::default() };
     assert_eq!(sentences(&sat(never.clone()), t), ["first line here", "second line here"]);
     let model = SatOptions { split_on_newlines: false, ..never };
     assert_eq!(sentences(&sat(model), t), [t]);
-    let always = sat(SatOptions { threshold: 0.0, ..SatOptions::default() });
+    let always = sat(SatOptions { threshold: Some(0.0), ..SatOptions::default() });
     let (spans, _) = always.scores(&[t]).remove(0).unwrap();
     let words = sentences(&always, t);
     // Every cut moves past whitespace, so tokens that end together inside
@@ -130,8 +130,8 @@ fn bad_options_and_bundles_are_refused() {
     // A row of 64 tokens has room for 62 beside <s> and </s>.
     refused(SatOptions { block_size: 63, ..d.clone() }, &b, "block_size 63");
     refused(SatOptions { block_size: 10, stride: 11, ..d.clone() }, &b, "stride 11");
-    refused(SatOptions { threshold: 1.5, ..d.clone() }, &b, "threshold 1.5");
-    refused(SatOptions { threshold: f64::NAN, ..d.clone() }, &b, "threshold NaN");
+    refused(SatOptions { threshold: Some(1.5), ..d.clone() }, &b, "threshold 1.5");
+    refused(SatOptions { threshold: Some(f64::NAN), ..d.clone() }, &b, "threshold NaN");
     let missing = HeadNames { weight: "head.weight".into(), ..HeadNames::default() };
     refused(SatOptions { head: missing, ..d.clone() }, &b, "no raw-weights artifact holds head.weight");
     let label = HeadNames { label: 1, ..HeadNames::default() };
@@ -162,7 +162,7 @@ fn the_step_records_its_model_and_options() {
     let h0 = h(base.clone());
     assert_eq!(h0, h(base.clone()));
     for o in [
-        SatOptions { threshold: 0.3, ..base.clone() },
+        SatOptions { threshold: Some(0.3), ..base.clone() },
         SatOptions { stride: 31, ..base.clone() },
         SatOptions { block_size: 40, ..base.clone() },
         SatOptions { split_on_newlines: false, ..base.clone() },
@@ -272,7 +272,12 @@ fn hostile_texts_give_well_formed_sentences() {
     ];
     for threshold in [0.0, 0.25, 0.5, 1.0] {
         for block_size in [1, 3, 0] {
-            let a = sat(SatOptions { threshold, block_size, stride: block_size.min(2), ..SatOptions::default() });
+            let a = sat(SatOptions {
+                threshold: Some(threshold),
+                block_size,
+                stride: block_size.min(2),
+                ..SatOptions::default()
+            });
             for t in texts {
                 let got = a.scores(&[t]).remove(0).unwrap();
                 let mut out = Vec::new();

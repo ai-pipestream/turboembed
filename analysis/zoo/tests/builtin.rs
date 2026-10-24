@@ -123,13 +123,14 @@ fn trained_here(id: &str) -> bool {
 
 /// The published neural checkpoints the index lists (docs/licences.md,
 /// "Neural annotator checkpoints"): permissive, so nothing to accept.
-const CHECKPOINTS: [&str; 6] = [
+const CHECKPOINTS: [&str; 7] = [
     "fastino-gliner2-base-v1",
     "microsoft-deberta-v3-large-tokenizer",
     "urchade-gliner-small-v2.1",
     "microsoft-deberta-v3-small-tokenizer",
     "urchade-gliner-multi-v2.1",
     "microsoft-mdeberta-v3-base-tokenizer",
+    "segment-any-text-sat-3l",
 ];
 
 /// The share-alike neural checkpoints the index lists: fetched after the user
@@ -165,6 +166,23 @@ fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
     );
     for f in &a.files {
         let url = format!("https://huggingface.co/deepset/roberta-base-squad2/resolve/{revision}/{}", f.path.as_str());
+        assert_eq!(f.url.as_str(), url);
+    }
+}
+
+/// SaT's sat-3l, trained on mC4 alone with limited lookahead (#887).
+#[test]
+fn sat_3l_is_pinned_permissive_and_attributed() {
+    let a = Index::builtin().get(CHECKPOINTS[6]).unwrap().clone();
+    let k = (a.kind, a.format, a.license, a.class);
+    assert_eq!(k, (Kind::Model, Format::Pytorch, Licence::Mit, LicenceClass::Permissive));
+    let revision = "a3b7ba6b61881d619989757aea971cde7d3d6a98";
+    assert_eq!(a.version, revision);
+    let licences: Vec<Licence> = a.trained_on.iter().map(|t| t.license).collect();
+    assert_eq!(licences, [Licence::Mit, Licence::OdcBy10]);
+    assert!(a.attribution.as_deref().unwrap().contains("segment-any-text/sat-3l at a3b7ba6b"));
+    for f in &a.files {
+        let url = format!("https://huggingface.co/segment-any-text/sat-3l/resolve/{revision}/{}", f.path.as_str());
         assert_eq!(f.url.as_str(), url);
     }
 }

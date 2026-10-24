@@ -51,7 +51,15 @@ cargo run -p turbo-bundle -- seal $W/recipe.json $W/upstream $W/bundle
 run segment /w/out/model /w/tokenizer.json /w/texts.jsonl /w/t0.5-s16-b62.jsonl 0.5 16 62
 run segment /w/out/model /w/tokenizer.json /w/texts.jsonl /w/t0.25-s62-b62.jsonl 0.25 62 62
 run segment /w/out/model /w/tokenizer.json /w/texts.jsonl /w/t0.5-s7-b30.jsonl 0.5 7 30
+
+# Limited lookahead: the same weights, wtpsplit's lookahead 8 (4 a layer).
+run tiny /w/tokenizer.json /w/la 8
+run segment /w/la/model /w/tokenizer.json /w/texts.jsonl /w/la8-t0.5-s16-b62.jsonl 0.5 16 62
+run segment /w/la/model /w/tokenizer.json /w/texts.jsonl /w/la8-t0.025-s7-b30.jsonl 0.025 7 30
 ```
+
+`tests/parity.rs` holds the `la8-` fixtures to a copy of the tiny bundle
+with `architecture.lookahead` 4.
 
 The image runs as a user other than root; `--user 0:0` lets it write
 to the mounted directory.

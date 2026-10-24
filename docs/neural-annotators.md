@@ -58,9 +58,16 @@ SaT's checkpoints come in two kinds (`segment-any-text` on the Hugging
 Face hub):
 
 - `sat-1l` to `sat-12l`: trained with limited lookahead, each layer's
-  attention masked to a band of the tokens ahead (`lookahead` 48 in
-  `sat-3l`'s config). The core has no banded attention mask, so these
-  do not run yet; adding one is a change to every backend's attention.
+  attention masked to a band of the tokens ahead. wtpsplit divides the
+  config's `lookahead` among the layers (`sat-3l`: 48 over 3 layers, 16
+  keys ahead a layer), and a bundle carries that per-layer value as
+  `architecture.lookahead` (docs/bundle.md); `turbo-bundle` seal holds a
+  recipe's value to the upstream `config.json`. The CPU backend runs the
+  band; the other backends refuse such a model at load with
+  `TURBO_E_UNSUPPORTED`, naming the backend. They are trained on mC4
+  alone, so they are permissive; `sat-3l` at
+  `a3b7ba6b61881d619989757aea971cde7d3d6a98` is in the zoo index
+  (`segment-any-text-sat-3l`, its PyTorch checkpoint and `config.json`).
 - `sat-1l-sm` to `sat-12l-sm`: the supervised mixture models, with no
   lookahead and one label. These need nothing the core lacks;
   `sat-1l-sm` matches wtpsplit (Against wtpsplit, below), and the others
@@ -95,7 +102,12 @@ Face hub):
    each sentence is trimmed of whitespace clusters at both ends; empty
    ones are left out. Every offset is a UTF-8 byte offset into the view.
 
-The threshold defaults to 0.25, wtpsplit's for the `-sm` models.
+The threshold defaults to wtpsplit's for the model: 0.025 for a model
+of limited lookahead (`architecture.lookahead`), 0.25 for the others,
+as for the `-sm` models. wtpsplit takes 0.01 for the
+`sat-Nl-no-limited-lookahead` checkpoints, which a bundle cannot tell
+from the others; set it in `SatOptions.threshold` or the spec's
+`threshold`.
 
 ### Against wtpsplit
 
@@ -120,6 +132,13 @@ stride and block size (0.5, 16, 62; 0.25, 62, 62; 0.5, 7, 30):
   cluster and trimmed, on 89 texts at each threshold of 0.5 and 88 at
   0.25; the one left out at 0.5 is below, and at 0.25 also the text
   with the character at the threshold.
+- Limited lookahead: the same weights with wtpsplit's `lookahead` 8
+  (4 a layer, `sat_reference.py tiny <tokenizer> <out> 8`) against the
+  tiny bundle with `architecture.lookahead` 4, at threshold 0.5, stride
+  16, block 62 and at 0.025, 7, 30 (`tests/data/la8-*.jsonl`): the same
+  ids and offsets, the largest probability difference 2.8e-4 and 3.4e-4,
+  no character near the threshold, and the same pieces. With a band the
+  rows do not read past, the test fails.
 - `TURBO_TEST_BUNDLE=testdata/tiny-sat-bundle cargo test -p turbo
   --test conformance` checks the encoder against the mean of wtpsplit's
   encoder states for the recipe's cases.

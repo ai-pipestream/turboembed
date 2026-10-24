@@ -16,6 +16,7 @@ pub mod deberta;
 pub mod distill;
 pub mod fetch;
 pub mod glirel;
+pub mod lookahead;
 pub mod matryoshka;
 pub mod qa;
 pub mod recipe;
