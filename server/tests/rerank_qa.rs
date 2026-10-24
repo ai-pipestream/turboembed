@@ -24,7 +24,7 @@ fn cfg(bundle: &Path, name: &str, max_batch: u32) -> ModelConfig {
     ModelConfig {
         bundle: bundle.to_str().unwrap().to_string(),
         name: Some(name.to_string()),
-        device: Device::Select,
+        device: Device::Index(common::cpu()),
         precision: 0,
         max_batch,
         max_seq: 0,
