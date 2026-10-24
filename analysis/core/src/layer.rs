@@ -117,6 +117,14 @@ pub trait Layer: Any + Send + Sync + Sized {
     fn check(&self) -> Result<(), String> {
         Ok(())
     }
+
+    /// Invariants requiring the document, checked after `check`, anchor lengths
+    /// and index bounds, before insertion. `on` contains the resolved anchor
+    /// first, followed by indexed layers, including their actual instance names.
+    /// This also runs when restoring a layer through a graph codec.
+    fn check_document(&self, _doc: &crate::Document, _on: &[KeyId]) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 /// What a layer's items hang on.
