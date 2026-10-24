@@ -14,12 +14,12 @@ use turbo_analysis::{Analyzer, Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_embed::calibrate::{
     Calibration, CalibrationOptions, Cost, Point, Side, Text, lowest_cosine, shape_of,
 };
-use turbo_analysis_embed::vectors::Shape;
+use turbo_analysis_embed::vectors::{Input, Shape};
 use turbo_analysis_embed::{
     Device, Dispatch, Embedder, EncoderOptions, Precision, SentenceVectors, SubwordAnnotator, VectorAnnotator,
     VectorOptions,
 };
-use turbo_analysis_layers::{Sentences, Vectors};
+use turbo_analysis_layers::{Sentences, Subwords, Vectors};
 
 mod held_out;
 use held_out::held_out;
@@ -43,10 +43,9 @@ fn step<E: Embedder>(bundle: &Path, e: Arc<E>) -> Analyzer {
         .unwrap()
 }
 
-/// `texts` through `a`: each document's vectors and the execution its
-/// layer records.
-fn run(a: &Analyzer, texts: &[Text]) -> Vec<(Vec<f32>, String)> {
-    let mut docs: Vec<Document> = texts
+/// A document for each text, with its sentences.
+fn documents(texts: &[Text]) -> Vec<Document> {
+    texts
         .iter()
         .map(|(text, spans)| {
             let mut d = Document::new(text.as_str());
@@ -57,7 +56,13 @@ fn run(a: &Analyzer, texts: &[Text]) -> Vec<(Vec<f32>, String)> {
             d.add(&Key::DEFAULT, Sentences { spans: s }, Provenance::by("test")).unwrap();
             d
         })
-        .collect();
+        .collect()
+}
+
+/// `texts` through `a`: each document's vectors and the execution its
+/// layer records.
+fn run(a: &Analyzer, texts: &[Text]) -> Vec<(Vec<f32>, String)> {
+    let mut docs = documents(texts);
     assert!(a.run(&mut docs).iter().all(|r| r.is_ok()));
     let key = Key::<Vectors<Sentences>>::DEFAULT.id();
     docs.iter()
@@ -80,6 +85,19 @@ fn median_ms(a: &Analyzer, texts: &[Text], reps: usize) -> f64 {
         .collect();
     t.sort_by(f64::total_cmp);
     t[reps / 2]
+}
+
+/// The middle of three or more times.
+fn middle(t: &[f64]) -> f64 {
+    let mut t = t.to_vec();
+    t.sort_by(f64::total_cmp);
+    t[t.len() / 2]
+}
+
+/// Times as their middle, then their lowest and highest.
+fn spread(t: &[f64]) -> String {
+    let (lo, hi) = t.iter().fold((f64::INFINITY, 0f64), |(l, h), &x| (l.min(x), h.max(x)));
+    format!("{:.2} ({lo:.2}-{hi:.2})", middle(t))
 }
 
 /// The lowest cosine between two runs' vectors, document by document.
@@ -199,6 +217,60 @@ fn each_document_records_the_side_its_call_ran_on() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// What `shape` predicts for `texts` on `a`, then what a real call made.
+fn predicted_and_done(a: &Arc<VectorAnnotator>, texts: &[Text]) -> (Shape, Shape) {
+    let words = Analyzer::builder()
+        .given(Key::<Sentences>::DEFAULT)
+        .add(SubwordAnnotator::open(&bert()).unwrap())
+        .build()
+        .unwrap();
+    let mut docs = documents(texts);
+    assert!(words.run(&mut docs).iter().all(|r| r.is_ok()));
+    let inputs: Vec<Input<'_>> = docs
+        .iter()
+        .map(|d| Input {
+            subwords: d.get::<Subwords>().unwrap(),
+            sentences: Some(&d.get::<Sentences>().unwrap().spans),
+            chunks: None,
+            levels: None,
+        })
+        .collect();
+    let predicted = a.shape("test", &inputs);
+    run(&step(&bert(), a.clone()), texts);
+    (predicted, a.last_shape())
+}
+
+#[test]
+fn the_shape_predicted_is_the_shape_run() {
+    // One text of 40 one-word sentences: 40 ranges in one window, so the
+    // ranges a run holds, not its rows, split it.
+    let mut text = String::new();
+    let mut spans = Vec::new();
+    for i in 0..40 {
+        if i > 0 {
+            text.push(' ');
+        }
+        let a = text.len() as u32;
+        text.push_str("word.");
+        spans.push((a, text.len() as u32));
+    }
+    let many: Vec<Text> = vec![(text, spans)];
+    for (max_batch, max_ranges) in [(1, 0), (1, 1), (4, 0), (4, 3), (64, 0)] {
+        let mut o = at(Device::Cpu, Precision::Exact, 64, max_batch);
+        o.encoder.max_ranges = max_ranges;
+        let a = Arc::new(VectorAnnotator::open(&bert(), &o).unwrap());
+        for texts in [&many, &held_out()] {
+            let (predicted, done) = predicted_and_done(&a, texts);
+            assert_eq!(predicted, done, "{max_batch} rows and {max_ranges} ranges a run");
+        }
+    }
+    // The case the cap alone gets wrong: one row a run, one range a row.
+    let mut o = at(Device::Cpu, Precision::Exact, 64, 1);
+    o.encoder.max_ranges = 1;
+    let a = Arc::new(VectorAnnotator::open(&bert(), &o).unwrap());
+    assert_eq!(predicted_and_done(&a, &many).1.runs, 40);
+}
+
 /// How much slower than the faster fixed side a dispatched submission may
 /// run when timed: the spread of the Pi 5 CPU's medians from run to run is
 /// about 5%.
@@ -207,10 +279,11 @@ const NOISE: f64 = 1.10;
 /// On the device TURBO_TEST_DEVICE names, with the bundle
 /// TURBO_TEST_VECTORS_BUNDLE: the calibration of tests/calibrate.rs, then,
 /// at each window and cap, one sentence, one document and the whole set
-/// sent through one dispatched instance. Each runs within NOISE of the
-/// faster of the same step fixed on the device and fixed on the CPU (timed
-/// up to three times), every document of a submission records one side,
-/// and its vectors are that fixed side's.
+/// sent through one dispatched instance. Each, timed three times beside
+/// the same step fixed on the device and fixed on the CPU, runs within
+/// NOISE of the faster of the two; every document of a submission records
+/// one side, and its vectors are that fixed side's. Prints each time's
+/// middle and spread.
 #[test]
 fn on_the_device_every_submission_runs_at_the_faster_side() {
     let (Ok(bundle), Ok(want)) = (std::env::var("TURBO_TEST_VECTORS_BUNDLE"), std::env::var("TURBO_TEST_DEVICE"))
@@ -238,7 +311,7 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
         [("one sentence", &sentence, 20), ("one document", &texts[..1], 10), ("all", &texts, 5)];
     let dir = std::env::temp_dir().join(format!("turbo-dispatch-device-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    println!("window\tcap\tsubmission\tdispatched\tms\tdevice ms\tcpu ms");
+    println!("window\tcap\tsubmission\tdispatched\tfaster\tdispatched ms\tdevice ms\tcpu ms (median, low-high of 3)");
     for &max_seq in &o.windows {
         for &cap in &o.batches {
             let base = at(device.clone(), Precision::Model, max_seq, cap);
@@ -256,16 +329,22 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
                 assert!(got.iter().all(|g| &g.1 == side), "{max_seq}x{cap} {what}: one side per call");
                 let fixed = if side.starts_with("cpu") { &on_cpu } else { &on_device };
                 assert!(same(&got, &run(fixed, sub), dim) >= 1.0 - 1e-6, "{max_seq}x{cap} {what}");
-                let (dev_ms, cpu_ms) = (median_ms(&on_device, sub, reps), median_ms(&on_cpu, sub, reps));
-                let best = dev_ms.min(cpu_ms);
-                let mut ms = f64::INFINITY;
+                // Three medians of each, taking turns, so drift falls on all.
+                let mut t = [Vec::new(), Vec::new(), Vec::new()];
                 for _ in 0..3 {
-                    ms = median_ms(&a, sub, reps);
-                    if ms <= best * NOISE {
-                        break;
+                    for (k, x) in [&a, &on_device, &on_cpu].into_iter().enumerate() {
+                        t[k].push(median_ms(x, sub, reps));
                     }
                 }
-                println!("{max_seq}\t{cap}\t{what}\t{side}\t{ms:.2}\t{dev_ms:.2}\t{cpu_ms:.2}");
+                let [ms, dev_ms, cpu_ms] = t.each_ref().map(|v| middle(v));
+                let best = dev_ms.min(cpu_ms);
+                let faster = if dev_ms < cpu_ms { "hailo" } else { "cpu" };
+                println!(
+                    "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{}\t{}\t{}",
+                    spread(&t[0]),
+                    spread(&t[1]),
+                    spread(&t[2])
+                );
                 assert!(ms <= best * NOISE, "{max_seq}x{cap} {what}: {ms:.2} ms, over {NOISE} times {best:.2}");
             }
         }

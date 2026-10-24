@@ -1,7 +1,7 @@
 use super::*;
 
 /// What a call makes the encoder do (`VectorAnnotator::shape`).
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Shape {
     pub runs: u64,
     pub rows: u64,
@@ -49,22 +49,39 @@ impl VectorAnnotator {
         out
     }
 
-    /// The runs, rows and tokens a call of `inputs` makes when runs hold
-    /// at most `cap` rows: a row for each window the plan lays out, in
-    /// order, each run's rows as long as its longest. The call is planned,
-    /// not run; a window whose ranges overflow a run, which goes again in
-    /// the next, is not counted twice.
-    pub fn shape(&self, annotator: &'static str, inputs: &[Input<'_>], cap: u32) -> Shape {
+    /// The runs, rows and tokens a call of `inputs` makes in this step's
+    /// session: packed as `embed` packs them (`pack`), each run's rows as
+    /// long as its longest. The call is planned, not run.
+    pub fn shape(&self, annotator: &'static str, inputs: &[Input<'_>]) -> Shape {
+        self.shape_at(annotator, inputs, self.max_batch, self.max_ranges)
+    }
+
+    /// `shape` in a session of `max_batch` rows and `max_ranges` ranges a
+    /// run.
+    pub fn shape_at(&self, annotator: &'static str, inputs: &[Input<'_>], max_batch: u32, max_ranges: u32) -> Shape {
         let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
         let mut plan = Plan::new(self.width());
         self.plan_batch(annotator, inputs, &mut plan, &mut out);
         let ends = (self.head.len() + self.tail.len()) as u64;
-        let mut shape = Shape { runs: 0, rows: plan.windows.len() as u64, tokens: 0 };
-        for run in plan.windows.chunks(cap.max(1) as usize) {
-            let longest = run.iter().map(|w| (w.end - w.start) as u64).max().unwrap_or(0) + ends;
-            shape.runs += 1;
-            shape.tokens += run.len() as u64 * longest;
-        }
+        let mut shape = Shape { runs: 0, rows: 0, tokens: 0 };
+        let (mut rows, mut longest) = (0u64, 0u64);
+        let counted: Result<(), std::convert::Infallible> = pack(&plan, max_batch, max_ranges, |step| {
+            match step {
+                Pack::Row { window, .. } => {
+                    let w = &plan.windows[window];
+                    rows += 1;
+                    longest = longest.max((w.end - w.start) as u64 + ends);
+                }
+                Pack::Flush => {
+                    shape.runs += 1;
+                    shape.rows += rows;
+                    shape.tokens += rows * longest;
+                    (rows, longest) = (0, 0);
+                }
+            }
+            Ok(())
+        });
+        let Ok(()) = counted;
         shape
     }
 
@@ -236,28 +253,57 @@ impl VectorAnnotator {
         run.rows.clear();
         run.ranges.clear();
         run.targets.clear();
+        run.done = Shape::default();
         let dim = self.dim as usize;
         let head = self.head.len() as u32;
-        let mut p = 0usize;
-        for (w, win) in plan.windows.iter().enumerate() {
-            let end = p + plan.placed[p..].iter().take_while(|x| x.window as usize == w).count();
-            let ids = &inputs[win.doc as usize].subwords.ids[win.start as usize..win.end as usize];
-            while p < end {
-                if run.rows.len() == self.max_batch || run.ranges.len() as u32 == self.max_ranges {
-                    run.flush(dim, &plan.placed, out)?;
-                }
+        pack(plan, self.max_batch, self.max_ranges, |step| match step {
+            Pack::Flush => run.flush(dim, &plan.placed, out),
+            Pack::Row { window, placed } => {
+                let win = &plan.windows[window];
+                let ids = &inputs[win.doc as usize].subwords.ids[win.start as usize..win.end as usize];
                 let row = run.rows.push(&[&self.head, ids, &self.tail]);
-                let take = (end - p).min(self.max_ranges as usize - run.ranges.len());
-                for (k, x) in plan.placed[p..p + take].iter().enumerate() {
+                for (k, x) in plan.placed[placed.clone()].iter().enumerate() {
                     run.ranges.push(turbo_token_range { row, start: head + x.start, end: head + x.end });
-                    run.targets.push((p + k) as u32);
+                    run.targets.push((placed.start + k) as u32);
                 }
-                p += take;
+                Ok(())
             }
-        }
-        if !run.rows.is_empty() {
-            run.flush(dim, &plan.placed, out)?;
-        }
-        Ok(())
+        })
     }
+}
+
+/// One step of packing a plan into runs.
+enum Pack {
+    /// Run the rows built so far.
+    Flush,
+    /// A row of the window, holding these of the plan's placements.
+    Row { window: usize, placed: std::ops::Range<usize> },
+}
+
+/// The rows and runs a plan goes through the encoder in, in order: a row
+/// for each window with placements, again for those that do not fit in
+/// the run being built, and a flush when a run holds `max_batch` rows or
+/// `max_ranges` ranges, and after the last row. `embed` runs by it and
+/// `shape` counts by it, so the two never differ.
+fn pack<E>(plan: &Plan, max_batch: u32, max_ranges: u32, mut f: impl FnMut(Pack) -> Result<(), E>) -> Result<(), E> {
+    let (mut rows, mut ranges) = (0u32, 0u32);
+    let mut p = 0usize;
+    for w in 0..plan.windows.len() {
+        let end = p + plan.placed[p..].iter().take_while(|x| x.window as usize == w).count();
+        while p < end {
+            if rows == max_batch || ranges == max_ranges {
+                f(Pack::Flush)?;
+                (rows, ranges) = (0, 0);
+            }
+            let take = (end - p).min((max_ranges - ranges) as usize);
+            f(Pack::Row { window: w, placed: p..p + take })?;
+            rows += 1;
+            ranges += take as u32;
+            p += take;
+        }
+    }
+    if rows > 0 {
+        f(Pack::Flush)?;
+    }
+    Ok(())
 }

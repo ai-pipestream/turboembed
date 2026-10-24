@@ -19,7 +19,7 @@ use turbo_analysis::{Analyzer, Error, Execution, Key, ModelRef};
 use turbo_analysis_layers::{Sentences, Subwords};
 
 use super::{Calibration, CalibrationOptions, FORCE_VAR, Side, Text, documents, first_sentence, forced};
-use crate::encoder::{Device, Precision};
+use crate::encoder::{Device, Precision, default_ranges};
 use crate::vectors::{Embedder, Input, Output, Shape};
 use crate::window::Which;
 use crate::{SubwordAnnotator, VectorAnnotator, VectorOptions};
@@ -119,6 +119,9 @@ pub struct Dispatch {
     eligible: bool,
     device_cost: Cost,
     cpu_cost: Cost,
+    /// The calls the calibration timed at the step's cap, by shape, and
+    /// the side that was faster for each.
+    measured: Vec<(Shape, Side)>,
     force: Option<Side>,
 }
 
@@ -158,12 +161,20 @@ impl Dispatch {
         let (device, cpu) = (open(o.device.clone(), o.precision)?, open(Device::Cpu, Precision::Exact)?);
         let short = first_sentence(texts)?;
         let (mut on_device, mut on_cpu) = (Vec::new(), Vec::new());
-        let mut eligible = true;
-        for p in c.points.iter().filter(|p| p.max_seq == max_seq) {
-            let (all, one) = (shape_of(bundle, &device, texts, p.max_batch)?, shape_of(bundle, &device, &short, 1)?);
+        let points: Vec<_> = c.points.iter().filter(|p| p.max_seq == max_seq).collect();
+        let eligible = points.iter().all(|p| p.min_cosine >= c.floor);
+        let mut measured = Vec::new();
+        for p in points {
+            let (all, one) =
+                (shape_of(bundle, &device, texts, p.max_batch)?, shape_of(bundle, &device, &short, p.max_batch)?);
             on_device.extend([(all, p.device_ms), (one, p.short_device_ms)]);
             on_cpu.extend([(all, p.cpu_ms), (one, p.short_cpu_ms)]);
-            eligible &= p.min_cosine >= c.floor;
+            if p.max_batch == cap {
+                let won = |device_ms: f64, cpu_ms: f64| {
+                    if eligible && device_ms < cpu_ms { Side::Device } else { Side::Cpu }
+                };
+                measured.extend([(all, won(p.device_ms, p.cpu_ms)), (one, won(p.short_device_ms, p.short_cpu_ms))]);
+            }
         }
         let fit = |samples: &[(Shape, f64)], side: &str| {
             Cost::fit(samples).ok_or_else(|| {
@@ -178,16 +189,25 @@ impl Dispatch {
             eligible,
             device_cost: fit(&on_device, "device")?,
             cpu_cost: fit(&on_cpu, "cpu")?,
+            measured,
             force,
             device,
             cpu,
         })
     }
 
-    /// The side a call of shape `s` runs on.
+    /// The side a call of shape `s` runs on: the side measured faster when
+    /// the calibration timed a call of that shape at the step's cap, else
+    /// the side whose fitted cost is lower.
     pub fn side(&self, s: Shape) -> Side {
+        if let Some(side) = self.force {
+            return side;
+        }
+        if let Some(&(_, side)) = self.measured.iter().find(|(m, _)| *m == s) {
+            return side;
+        }
         let device = self.eligible && self.device_cost.ms(s) < self.cpu_cost.ms(s);
-        self.force.unwrap_or(if device { Side::Device } else { Side::Cpu })
+        if device { Side::Device } else { Side::Cpu }
     }
 
     /// Each side's fitted cost: the device's, then the CPU's.
@@ -209,8 +229,9 @@ impl Dispatch {
     }
 }
 
-/// The shape of the sentence vector step over `texts` on `a`, at runs of
-/// `cap` rows: the texts are split into subwords and planned, not run.
+/// The shape of the sentence vector step over `texts` on `a`, in a session
+/// of `cap` rows a run and the default ranges, as the calibration opened
+/// it: the texts are split into subwords and planned, not run.
 pub fn shape_of(bundle: &Path, a: &VectorAnnotator, texts: &[Text], cap: u32) -> Result<Shape, CoreError> {
     let err = |e: Error| CoreError::new(INVALID_ARGUMENT, e.to_string());
     let words = Analyzer::builder()
@@ -229,7 +250,7 @@ pub fn shape_of(bundle: &Path, a: &VectorAnnotator, texts: &[Text], cap: u32) ->
             Some(Input { subwords, sentences: Some(&sentences.spans), chunks: None, levels: None })
         })
         .collect();
-    Ok(a.shape("calibration", &inputs, cap))
+    Ok(a.shape_at("calibration", &inputs, cap, default_ranges(cap, a.info().max_seq)))
 }
 
 impl Embedder for Dispatch {
@@ -238,7 +259,7 @@ impl Embedder for Dispatch {
         annotator: &'static str,
         inputs: &[Input<'_>],
     ) -> (Vec<Result<Output, Error>>, Option<Execution>) {
-        let a = self.on(self.side(self.device.shape(annotator, inputs, self.cap)));
+        let a = self.on(self.side(self.device.shape(annotator, inputs)));
         (a.embed(annotator, inputs), Some(a.execution().clone()))
     }
 
