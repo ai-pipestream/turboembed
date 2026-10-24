@@ -322,16 +322,22 @@ fn slice(text: &str, span: Span, unit: Ix<Levels>) -> Result<&str, String> {
 fn tokens(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current = String::new();
+    let push_current = |current: &mut String, out: &mut Vec<String>| {
+        if !current.is_empty() {
+            let raw = std::mem::take(current);
+            let mut folded = String::new();
+            turbo_unicode::casefold::fold(&raw, &mut folded);
+            out.push(folded);
+        }
+    };
     for c in text.chars() {
         if c.is_alphanumeric() {
-            current.extend(c.to_lowercase());
-        } else if !current.is_empty() {
-            out.push(std::mem::take(&mut current));
+            current.push(c);
+        } else {
+            push_current(&mut current, &mut out);
         }
     }
-    if !current.is_empty() {
-        out.push(current);
-    }
+    push_current(&mut current, &mut out);
     out
 }
 
