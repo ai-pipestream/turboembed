@@ -1,0 +1,98 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-24T13:40:45Z",
+  "machine": {
+    "arch": "rtx4080super",
+    "host_cpu": "",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cuda",
+    "kind": "DEVICE_GPU",
+    "name": "NVIDIA GeForce RTX 4080 SUPER",
+    "vendor": "NVIDIA",
+    "driver_version": "615.71.09, CUDA 13.4",
+    "runtime_version": "12.4",
+    "memory_total": 16802250752
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cuda cpu",
+    "commit": "6160b5cb3f3c4fa9b89193d52b869861e53a7f10",
+    "pushed_to": [
+      "origin/fable/916-rerank-devices"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_EXACT",
+  "model_id": "BAAI/bge-reranker-base",
+  "revision": "1",
+  "manifest_sha256": "dce186f35bcbed9ddd41204960713357608ec4d22734488c6c2c09965af242ab",
+  "questions_sha256": "80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8",
+  "requests": 64,
+  "passages": 16,
+  "turbo": {
+    "warmup": 2,
+    "iterations": 10,
+    "p50_ms": 1575.149019,
+    "min_ms": 1560.9900420000001,
+    "max_ms": 1605.7213940000001,
+    "pairs_per_second": 650.097221055375
+  },
+  "tei": {
+    "image": "ghcr.io/huggingface/text-embeddings-inference@sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64",
+    "commands": [
+      [
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        "{{.Id}}",
+        "ghcr.io/huggingface/text-embeddings-inference@sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64"
+      ],
+      [
+        "docker",
+        "run",
+        "--detach",
+        "--rm",
+        "--pull",
+        "never",
+        "--name",
+        "turbo-bench-tei-rerank-2285760",
+        "--gpus",
+        "device=0",
+        "--publish",
+        "127.0.0.1::80",
+        "--env",
+        "HF_HUB_OFFLINE=1",
+        "--mount",
+        "type=bind,src=<tei-model>,dst=/model,readonly",
+        "ghcr.io/huggingface/text-embeddings-inference@sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64",
+        "--model-id",
+        "/model",
+        "--port",
+        "80",
+        "--dtype",
+        "float32",
+        "--max-client-batch-size",
+        "16"
+      ],
+      [
+        "docker",
+        "port",
+        "turbo-bench-tei-rerank-2285760",
+        "80/tcp"
+      ]
+    ],
+    "side": {
+      "warmup": 2,
+      "iterations": 10,
+      "p50_ms": 2775.0231479999998,
+      "min_ms": 2681.6678290000004,
+      "max_ms": 2887.736109,
+      "pairs_per_second": 369.00593090115734
+    },
+    "max_abs_score_diff": 0.11623048782348633,
+    "turbo_speedup": 1.7617527703897837
+  }
+}
