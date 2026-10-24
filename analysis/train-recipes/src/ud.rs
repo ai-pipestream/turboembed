@@ -10,8 +10,9 @@
 //! 4 threads, the factory defaults for the language, OpenNLP 2.5.4's
 //! whitespace, 10 sentences per sentence detector sample, the universal
 //! tags), so a trained model and its reference are trained with the same
-//! settings apart from the lemma classes: new lemmatizers preserve case
-//! with the native factory. Training uses no randomness, so a recipe has no seed.
+//! settings. These published recipe ids retain the OpenNLP lemma class
+//! format; native case-preserving training requires a separately versioned
+//! release. Training uses no randomness, so a recipe has no seed.
 //!
 //! OpenNLP trained the Catalan references on this treebank's `train` file.
 //! The Catalan sentence detector and tokenizer recipes make OpenNLP's

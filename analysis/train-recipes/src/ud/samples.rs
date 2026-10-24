@@ -290,7 +290,8 @@ impl UdRecipe {
                 (t.package.to_bytes(), t.report)
             }
             UdSamples::Lemmas(samples) => {
-                let factory = LemmatizerFactory::new(language);
+                // Existing release ids keep their published class format.
+                let factory = LemmatizerFactory::opennlp(language);
                 let mut stream = LemmaEventStream::new(&factory);
                 samples.iter().for_each(|s| stream.events(s, &mut events));
                 let t = lemmatize::train_lemmatizer_model_from_events(&events, &factory, &params, &mut config, stamp)?;

@@ -6,6 +6,11 @@ selects that format explicitly for reproduction and JVM goldens; `new` selects
 `turbo.lemmatizer.CaseSensitiveV1`. A JVM without that factory refuses the native
 model rather than decoding its classes incorrectly.
 
+The existing `models-ud-2.16-1` release and its recipe ids retain the
+OpenNLP factory and original model bytes. The native models measured below
+are local evaluation artifacts, not replacements for that release. Publishing
+native UD models requires new model ids, a release tag and index entries.
+
 Native classes learn either `K:` (original token) or `L:` (lowercase token), then
 apply case-sensitive UTF-16 edits. Decimal edit indices end with `:`, including
 indices above nine. The classifier learns case from the annotated lemma; there
@@ -98,7 +103,16 @@ model.
 
 ## Reproduction and provenance
 
-Fetch through the existing licence-aware zoo command, then run the recipes
+The implementation used for the native comparison below is preserved at
+commit `c1605c8d181630e8cd83d11295da83022ee8acc7`, before the published
+recipes were explicitly pinned to their original factory. To reproduce those
+historical native models, use an isolated checkout of that commit; running
+the current `ud` command produces the compatibility models. Generic new
+training through `LemmatizerFactory::new` still selects native classes.
+The model ids used for the local evaluation directories below identify
+their source recipes, not published native artifacts.
+
+In that historical checkout, fetch through the existing licence-aware zoo command, then run the recipes
 with the digest-checked published models in `references`. Select each lemma
 recipe with repeated `--recipe` flags (and the Italian POS recipe for the POS
 analysis). Use a saved lowercase baseline model directory for the comparison.
