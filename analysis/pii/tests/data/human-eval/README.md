@@ -1,4 +1,4 @@
-# Human-written PII evaluation set
+# Mixed PII evaluation set (partial work for #968)
 
 Eight documents (`45,401` UTF-8 bytes) and their span-level annotations
 (`labels.tsv`, `87` gold mentions across all 20 built-in `PiiKind`
@@ -18,6 +18,19 @@ The evaluation set is a mixed corpus:
 - One project-authored operational memo collection (`operational-memos.txt`,
   `6,072` bytes, `57` gold spans: `3` `phone` spans and every gold
   mention of the remaining 17 built-in kinds).
+
+This corpus does not complete #968's requirement for licensed human-written
+text with labelled spans per kind. Only `phone` currently has unedited
+third-party prose coverage. The adapted crypto summaries and authored memos
+remain useful, separately labelled test partitions; they do not establish
+external human-written prose coverage for their kinds. The test function's
+historical name does not change that scope.
+
+Outstanding coverage on external text is listed in `docs/pii.md` under
+"Outstanding work for #968". New sources must preserve the policy for safe specimen
+values, record provenance and redistribution terms, and pin the actual source
+text and gold byte offsets. The original issue requirements remain open;
+neither source-partition labels nor an agent's scope decision waive them.
 
 ## Documents and provenance
 

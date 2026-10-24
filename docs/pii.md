@@ -304,7 +304,8 @@ reports rather than layers.
 
 `analysis/pii/tests/precision_recall.rs` measures the widest pack
 (`Pack::AllStructured`) on two sets: a synthetic set built to exercise
-the scanners' rules, and a human-written evaluation set in
+the scanners' rules, and a mixed evaluation set providing partial
+human-written-text evidence in
 `analysis/pii/tests/data/human-eval/` (`analysis/pii/tests/data/human-eval/README.md`).
 A found mention is true when a label has its span and kind; every other
 found mention is false. `PII_SHOW_FALSE=1` lists the false mentions.
@@ -337,9 +338,8 @@ mixed eight-document evaluation set (`45,401` UTF-8 bytes, `87` gold
 mentions across all 20 built-in kinds in
 `analysis/pii/tests/data/human-eval/labels.tsv`; licences and SHA-256
 digests in `analysis/pii/tests/data/human-eval/README.md` and
-`docs/licences.md`). Because real personal identifiers (national IDs,
-payment cards, bank accounts, device IMEIs, and live cloud or SCM
-credentials) cannot be redistributed in the repository, only `phone` is
+`docs/licences.md`). This is partial work for #968, not completion of its
+licensed human-written-text requirement per kind. Only `phone` is currently
 evaluated on unedited third-party prose (`masc-*.escaped`), `btc-address`
 and `eth-address` are evaluated on project-adapted specification summaries
 embedding the canonical BIP-173/350 and ERC-55 test vectors, and the
@@ -397,6 +397,26 @@ remaining 17 kinds are evaluated on project-authored operational memos
 | `phone` (MASC only) | third-party human-written (`masc-*.escaped`, CC BY 3.0 US) | 10 | 1 | 2 | 0.909 | 0.833 |
 | `phone` (all) | third-party MASC (`12`) + project-authored (`3`) | 13 | 5 | 2 | 0.722 | 0.867 |
 | **all kinds** | **mixed (`12` MASC + `18` adapted spec + `57` project-authored)** | **82** | **9** | **5** | **0.901** | **0.943** |
+
+#### Outstanding work for #968
+
+#968 remains open with its original acceptance requirements. Independent
+human-written prose coverage has not been established for the 17 memo-only
+kinds: `card`, `email`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt`, `mac`, `us-ssn`,
+`us-itin`, `uk-nhs`, `ca-sin`, `de-steuer-id`, `aba-routing`, `aws-access-key`,
+`github-token`, and `url-credential`. The `btc-address` and `eth-address` rows
+also remain results from adapted specifications, without established coverage
+on externally authored prose.
+
+Further corpus additions need attributable, licensed source passages with
+appropriate context and per-occurrence gold labels, including scanner misses
+and negative examples. Preserve the fixture policy for safe specimen values;
+where a source requires replacement of a value, record that transformation
+and retain the source context rather than authoring replacement prose. Pin
+the source version, licence, text digest and final UTF-8 annotation offsets.
+Source-partition disclosure or an agent's scope decision does not waive the
+original requirement. The existing mixed metrics remain useful partial
+evidence and must stay separate from future measurements on external prose.
 
 What the false positives and misses are:
 
