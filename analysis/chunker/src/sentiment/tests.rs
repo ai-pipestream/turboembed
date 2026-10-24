@@ -259,6 +259,7 @@ fn annotators_reject_mismatched_views_and_layer_lengths() {
         cost: Vec::new(),
         model_tokens: Vec::new(),
         over_budget: Vec::new(),
+        prompt_overhead: 0,
     };
     let err =
         ChunkFacetBuilder.annotate((&foreign_chunks, sents, doc.get::<View>(), None, None, None, None)).err().unwrap();
@@ -293,6 +294,7 @@ fn multi_level_chunk_facets_preserve_aspect_order_and_merge_chunk_incivility() {
         cost: vec![0, 0, 0],
         model_tokens: vec![8, 4, 4],
         over_budget: vec![false, false, false],
+        prompt_overhead: 0,
     };
 
     // Push aspect in sentence 1 first, then aspect in sentence 0 (out of sentence order).
@@ -347,6 +349,7 @@ fn chunk_incivility_is_kept_without_sentences() {
         cost: vec![0],
         model_tokens: vec![1],
         over_budget: vec![false],
+        prompt_overhead: 0,
     };
     let sents = Sentences { spans: Spans::new(ViewId::SOURCE) };
     let mut inc = Incivility::new();

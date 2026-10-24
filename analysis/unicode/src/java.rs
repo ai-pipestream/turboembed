@@ -149,6 +149,9 @@ pub fn to_lowercase(text: &str, out: &mut String) {
     }
 }
 
+mod borrowed_lowercase;
+pub use borrowed_lowercase::lowercase_cow;
+
 /// What `String.toLowerCase(Locale.ROOT)` writes for one character.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lowercase {

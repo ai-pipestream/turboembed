@@ -308,7 +308,14 @@ impl ExtractionSchema {
                     }
                     over("max_labels_per_task", limits.max_labels_per_task, choices.len())?;
                     // Choices that differ only in case name one value.
-                    let folded: Vec<String> = choices.iter().map(|c| c.to_lowercase()).collect();
+                    let folded: Vec<String> = choices
+                        .iter()
+                        .map(|c| {
+                            let mut f = String::new();
+                            turbo_unicode::casefold::fold(c, &mut f);
+                            f
+                        })
+                        .collect();
                     unique(&format!("{fp} choice"), folded.iter().map(String::as_str))?;
                     for c in choices {
                         text(&format!("{fp} choice"), c, limits)?;

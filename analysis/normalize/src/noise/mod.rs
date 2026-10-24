@@ -29,14 +29,27 @@ pub use stats::NoiseStats;
 
 /// A word list the scorer asks about lowercase ASCII words. None ships
 /// with this crate.
+///
+/// Every implementation provides a content-sensitive [`Dictionary::config_hash`]
+/// so distinct lexicons produce distinct provenance and normalizer cache keys.
+/// Stateful closure predicates pair their closure with an explicit identity key
+/// (`(id, |w: &str| ...)` or [`Dehyphenate::with_identified_lexicon`](crate::Dehyphenate::with_identified_lexicon) /
+/// [`NoiseScorer::with_identified_dictionary`]).
 pub trait Dictionary: Send + Sync {
     /// Whether `word`, in lowercase, is a known word.
     fn contains(&self, word: &str) -> bool;
+
+    /// A content fingerprint of this dictionary for annotator and normalizer cache keys.
+    fn config_hash(&self) -> u64;
 }
 
-impl<F: Fn(&str) -> bool + Send + Sync> Dictionary for F {
+impl<I: std::hash::Hash + Send + Sync, F: Fn(&str) -> bool + Send + Sync> Dictionary for (I, F) {
     fn contains(&self, word: &str) -> bool {
-        self(word)
+        (self.1)(word)
+    }
+
+    fn config_hash(&self) -> u64 {
+        crate::hash_config(&(&self.0, std::any::type_name::<F>()))
     }
 }
 
@@ -44,11 +57,84 @@ impl Dictionary for HashSet<String> {
     fn contains(&self, word: &str) -> bool {
         HashSet::contains(self, word)
     }
+
+    fn config_hash(&self) -> u64 {
+        let mut words: Vec<&str> = self.iter().map(String::as_str).collect();
+        words.sort_unstable();
+        crate::hash_config(&words)
+    }
+}
+
+impl Dictionary for HashSet<&'static str> {
+    fn contains(&self, word: &str) -> bool {
+        HashSet::contains(self, word)
+    }
+
+    fn config_hash(&self) -> u64 {
+        let mut words: Vec<&str> = self.iter().copied().collect();
+        words.sort_unstable();
+        crate::hash_config(&words)
+    }
 }
 
 impl Dictionary for BTreeSet<String> {
     fn contains(&self, word: &str) -> bool {
         BTreeSet::contains(self, word)
+    }
+
+    fn config_hash(&self) -> u64 {
+        crate::hash_config(self)
+    }
+}
+
+impl Dictionary for BTreeSet<&'static str> {
+    fn contains(&self, word: &str) -> bool {
+        BTreeSet::contains(self, word)
+    }
+
+    fn config_hash(&self) -> u64 {
+        crate::hash_config(self)
+    }
+}
+
+impl<D: Dictionary + ?Sized> Dictionary for Arc<D> {
+    fn contains(&self, word: &str) -> bool {
+        (**self).contains(word)
+    }
+
+    fn config_hash(&self) -> u64 {
+        (**self).config_hash()
+    }
+}
+
+impl Dictionary for turbo_hunspell::Dictionary {
+    fn contains(&self, word: &str) -> bool {
+        !turbo_hunspell::Stemmer::new(self).stems(word).is_empty()
+    }
+
+    fn config_hash(&self) -> u64 {
+        self.fingerprint()
+    }
+}
+
+impl Dictionary for turbo_morfologik::MorfologikDictionary {
+    fn contains(&self, word: &str) -> bool {
+        !self.lookup(word).is_empty()
+    }
+
+    fn config_hash(&self) -> u64 {
+        let m = self.metadata();
+        crate::hash_config(&(self.model_ref().sha256.as_str(), m.separator, format!("{m:?}")))
+    }
+}
+
+impl Dictionary for turbo_morfologik::MorfologikTagDictionary {
+    fn contains(&self, word: &str) -> bool {
+        self.tags(word).is_some()
+    }
+
+    fn config_hash(&self) -> u64 {
+        crate::hash_config(&(self.dictionary().config_hash(), self.is_case_sensitive()))
     }
 }
 
@@ -99,6 +185,15 @@ impl NoiseScorer {
     /// OCR confusion away from a dictionary word as misspelled.
     pub fn with_dictionary(dictionary: impl Dictionary + 'static) -> NoiseScorer {
         NoiseScorer { dictionary: Some(Arc::new(dictionary)) }
+    }
+
+    /// A scorer backed by a closure or custom lookup paired with an explicit
+    /// content identity key `id` for [`Annotator::config_hash`].
+    pub fn with_identified_dictionary(
+        id: impl std::hash::Hash,
+        lookup: impl Fn(&str) -> bool + Send + Sync + 'static,
+    ) -> NoiseScorer {
+        Self::with_dictionary((crate::hash_config(&id), lookup))
     }
 
     /// The findings in `text`, leaving out every token that overlaps a
@@ -224,9 +319,8 @@ impl Annotator for NoiseScorer {
         Ok((self.layer(view.text(), view.id(), &exclude),))
     }
 
-    /// Records whether a dictionary is set. A dictionary is not hashed:
-    /// two scorers with different word lists have the same hash.
+    /// Records the dictionary's configuration fingerprint when one is set.
     fn config_hash(&self) -> u64 {
-        crate::hash_config(&self.dictionary.is_some())
+        crate::hash_config(&self.dictionary.as_ref().map(|d| d.config_hash()))
     }
 }

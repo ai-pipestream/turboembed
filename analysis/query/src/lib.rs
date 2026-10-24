@@ -81,9 +81,11 @@ impl turbo_analysis::Annotator for QueryTermAnnotator {
 
     fn annotate(&self, (view,): turbo_analysis::Refs<'_, Self>) -> Result<Self::Writes, turbo_analysis::Error> {
         let text = view.text();
+        let edge_ws =
+            |c: Option<char>| c.is_some_and(|c| turbo_unicode::WhitespaceMode::Unicode.is_whitespace(c as u32));
         let sentences = if !text.is_empty()
-            && !text.as_bytes()[0].is_ascii_whitespace()
-            && !text.as_bytes()[text.len() - 1].is_ascii_whitespace()
+            && !edge_ws(text.chars().next())
+            && !edge_ws(text.chars().next_back())
             && !text.bytes().any(|b| matches!(b, b'.' | b'!' | b'?' | b'\n' | b'\r'))
         {
             let mut s = turbo_analysis_layers::Sentences { spans: turbo_analysis::Spans::new(view.id()) };
@@ -365,5 +367,37 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
             h = (h ^ v).wrapping_mul(0x0100_0000_01b3);
         }
         h
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis::{Analyzer, Document};
+    use turbo_analysis_layers::Sentences;
+    use turbo_chunker::terms::TermForm;
+
+    fn sentences_of(text: &str) -> Vec<(u32, u32)> {
+        let analyzer = Analyzer::builder()
+            .add(crate::QueryTermAnnotator::new(
+                "eng",
+                "eng",
+                TermForm::Surface,
+                crate::annotators::QuerySpanDetector::new(crate::default_span_detector(), false),
+            ))
+            .build()
+            .unwrap();
+        let mut docs = vec![Document::new(text)];
+        analyzer.run(&mut docs).remove(0).unwrap();
+        docs[0].get::<Sentences>().unwrap().spans.iter().map(|(_, s)| (s.start, s.end)).collect()
+    }
+
+    #[test]
+    fn unicode_edge_whitespace_takes_the_detector_path() {
+        // "hello" is bytes 0..5 once any edge whitespace is trimmed.
+        assert_eq!(sentences_of("hello"), vec![(0, 5)]);
+        assert_eq!(sentences_of("hello\u{3000}"), vec![(0, 5)]);
+        assert_eq!(sentences_of("\u{00A0}hello"), vec![(2, 7)]);
+        assert_eq!(sentences_of("hello\u{000B}"), vec![(0, 5)]);
+        assert_eq!(sentences_of("\u{2003}hello\u{2003}"), vec![(3, 8)]);
     }
 }
