@@ -17,6 +17,8 @@ turbo-analysis-embed = { path = "../embed" }
 turbo = { path = "../../core" }
 # Grapheme clusters, which no sentence boundary falls inside.
 turbo-unicode = { path = "../unicode" }
+# Rule sentence splitter that routes unpunctuated scripts to SaT when a bundle is present.
+turbo-sentdetect = { path = "../sentdetect" }
 
 [dev-dependencies]
 # The reference fixtures are JSON lines.

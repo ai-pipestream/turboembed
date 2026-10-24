@@ -1,0 +1,16 @@
+# The cases of the pragmatic-segmenter suite that the maxent-de-inventory detector gets wrong, and what
+# differs. tests/conformance.rs writes this file and fails when a run differs
+# from it. 13 of 37 cases fail.
+pragmatic-segmenter/deutsch_spec/003	1 extra, first after "...n der Abstimmung vom 12."
+pragmatic-segmenter/deutsch_spec/005	4 missing, first after "...abycentre.co.uk/midwives"; 7 extra, first after "...den Schwangerschaft • 1." [doc_type=pdf]
+pragmatic-segmenter/deutsch_spec/014	1 extra, first after "Wir trafen Dr. med."
+pragmatic-segmenter/deutsch_spec/017	1 extra, first after "...rau Prof. Schulze ist z."
+pragmatic-segmenter/deutsch_spec/021	1 extra, first after "Sie besucht eine kath."
+pragmatic-segmenter/deutsch_spec/022	1 extra, first after "...tungen, Zeitschriften u."
+pragmatic-segmenter/deutsch_spec/026	5 missing, first after "Fit in vier Wochen"
+pragmatic-segmenter/deutsch_spec/028	2 extra, first after "...on Tongefäßen aus dem 1."
+pragmatic-segmenter/deutsch_spec/029	2 extra, first after "• 6."
+pragmatic-segmenter/deutsch_spec/032	15 missing, first after "Übung Präsens"; 3 extra, first after "Übung Präsens 1." [doc_type=docx]
+pragmatic-segmenter/deutsch_spec/033	3 missing, first after "... einige Sorten Weichkäse" [doc_type=pdf]
+pragmatic-segmenter/deutsch_spec/034	1 extra, first after "...n der Abstimmung vom 12."
+pragmatic-segmenter/deutsch_spec/037	1 extra, first after "...gesetzes (MiLoG) zum 01."

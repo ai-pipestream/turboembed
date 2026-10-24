@@ -47,41 +47,9 @@ impl ModelProfile {
     /// Bind host timings to the capabilities of an opened core bundle.
     /// Advertise only configurations the loaded serving session can execute;
     /// smaller session context limits are allowed. No files are opened here.
-    /// Sparse runtimes not yet represented in the core manifest can use `new`.
     pub fn from_bundle(bundle: &Bundle, capabilities: Vec<RoleCapability>) -> Result<Self, RoutingError> {
-        let m = &bundle.manifest;
         for c in &capabilities {
-            let supported = match m.task.as_str() {
-                "TASK_EMBED" => {
-                    let e = m
-                        .embed
-                        .as_ref()
-                        .ok_or_else(|| RoutingError::Invalid("embed bundle has no embed configuration".into()))?;
-                    let norm = match e.normalize {
-                        Normalize::None => Normalization::None,
-                        Normalize::L2 => Normalization::Unit,
-                    };
-                    let dense = matches!(c.role, Role::DenseQuery | Role::DenseDocument);
-                    let static_role = c.role == Role::StaticVectors && m.static_embedding.is_some();
-                    let tokens = c.role == Role::TokenVectors && m.architecture.is_some();
-                    let width_ok = if tokens {
-                        c.width == m.projection.as_ref().map_or(e.dim, |p| p.dim)
-                    } else {
-                        c.width == e.dim || e.output_dims.contains(&c.width)
-                    };
-                    (dense || static_role || tokens)
-                        && width_ok
-                        && c.context_limit <= e.max_seq
-                        && (tokens || c.normalization == norm)
-                }
-                "TASK_RERANK" => {
-                    c.role == Role::Rerank
-                        && c.width == 1
-                        && m.rerank.as_ref().is_some_and(|r| c.context_limit <= r.max_seq)
-                }
-                _ => false,
-            };
-            if !supported {
+            if !capability_supported(&bundle.manifest, c)? {
                 return Err(RoutingError::Invalid(format!("bundle does not support {c:?}")));
             }
         }
@@ -94,6 +62,40 @@ impl ModelProfile {
         &self.capabilities
     }
 }
+fn capability_supported(m: &turbo::manifest::Manifest, c: &RoleCapability) -> Result<bool, RoutingError> {
+    Ok(match m.task.as_str() {
+        "TASK_EMBED" => {
+            let e = m
+                .embed
+                .as_ref()
+                .ok_or_else(|| RoutingError::Invalid("embed bundle has no embed configuration".into()))?;
+            let norm = match e.normalize {
+                Normalize::None => Normalization::None,
+                Normalize::L2 => Normalization::Unit,
+            };
+            let dense = matches!(c.role, Role::DenseQuery | Role::DenseDocument);
+            let static_role = c.role == Role::StaticVectors && m.static_embedding.is_some();
+            let tokens = c.role == Role::TokenVectors && m.architecture.is_some();
+            let sparse = c.role == Role::Sparse && e.sparse.is_some();
+            let width_ok = if sparse {
+                m.architecture.as_ref().is_some_and(|a| c.width == a.vocab_size)
+            } else if tokens {
+                c.width == m.projection.as_ref().map_or(e.dim, |p| p.dim)
+            } else {
+                c.width == e.dim || e.output_dims.contains(&c.width)
+            };
+            (dense || static_role || tokens || sparse)
+                && width_ok
+                && c.context_limit <= e.max_seq
+                && (tokens || sparse || c.normalization == norm)
+        }
+        "TASK_RERANK" => {
+            c.role == Role::Rerank && c.width == 1 && m.rerank.as_ref().is_some_and(|r| c.context_limit <= r.max_seq)
+        }
+        _ => false,
+    })
+}
+
 pub(super) fn norm_key(n: Normalization) -> u8 {
     match n {
         Normalization::None => 0,
@@ -117,5 +119,41 @@ impl<H> LoadedModel<H> {
     }
     pub fn profile(&self) -> &ModelProfile {
         &self.profile
+    }
+}
+
+#[cfg(test)]
+mod sparse_capability_tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn cap(width: u32) -> RoleCapability {
+        RoleCapability {
+            role: Role::Sparse,
+            width,
+            normalization: Normalization::None,
+            context_limit: 64,
+            cost_per_item: Duration::from_micros(1),
+        }
+    }
+
+    fn manifest(with_sparse: bool) -> turbo::manifest::Manifest {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle/manifest.json");
+        let mut v: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        if with_sparse {
+            v["embed"]["sparse"] = serde_json::json!({"pooling": "SPARSE_POOLING_MAXLOG"});
+        }
+        serde_json::from_value(v).unwrap()
+    }
+
+    #[test]
+    fn sparse_capabilities_validate_against_embed_sparse() {
+        let m = manifest(true);
+        let vocab = m.architecture.as_ref().unwrap().vocab_size;
+        assert!(capability_supported(&m, &cap(vocab)).unwrap());
+        assert!(!capability_supported(&m, &cap(32)).unwrap(), "sparse width must be the vocabulary");
+        let dense_only = manifest(false);
+        assert!(!capability_supported(&dense_only, &cap(vocab)).unwrap());
     }
 }

@@ -12,6 +12,7 @@ use turbo_unicode::WhitespaceMode;
 use super::error::{DictionaryError, DictionaryFile};
 use super::limits::DictionaryLimits;
 use super::number::parse_java_int;
+use super::prebuilt::Table;
 use crate::lines::{Lines, trim_unicode_whitespace, whitespace_fields};
 
 /// The most cells a matrix may declare without the file being checked to
@@ -22,9 +23,9 @@ const SMALL_MATRIX: u64 = 1 << 16;
 /// ids, row by row.
 #[derive(Debug, Clone)]
 pub(crate) struct Matrix {
-    costs: Box<[i16]>,
-    rows: u32,
-    cols: u32,
+    pub(super) costs: Table<i16>,
+    pub(super) rows: u32,
+    pub(super) cols: u32,
 }
 
 impl Matrix {
@@ -118,7 +119,7 @@ impl Matrix {
         if listed != cells {
             return Err(DictionaryError::MatrixIncomplete { listed, cells });
         }
-        Ok(Matrix { costs, rows: rows_u, cols: cols_u })
+        Ok(Matrix { costs: costs.into(), rows: rows_u, cols: cols_u })
     }
 }
 
