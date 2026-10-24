@@ -60,8 +60,9 @@ At a digit it tries, in order:
 2. A day-first date: one or two digits, an optional ordinal suffix (`st`,
    `nd`, `rd`, `th`), the month and the year: `14 July 2026`,
    `14th Jul 2026`.
-3. With a reference date, a count of one or two digits, a unit and `ago`:
-   `3 days ago`, `1 week ago`.
+3. With a reference date, a count of up to nine digits (one or two digits
+   in OpenNLP parity mode), a unit and `ago`: `3 days ago`, `100 days ago`,
+   `1 week ago`.
 
 At a letter it tries:
 
@@ -69,15 +70,17 @@ At a letter it tries:
 2. A month first: `July 2026` (a month), or `July 14, 2026`,
    `Jul 14 2026`, `July 14th, 2026` (a day).
 3. With a reference date, a relative keyword: `today`, `yesterday`,
-   `tomorrow`; `last`, `this` or `next` and a unit; `in`, a count and a
+   `tomorrow`; `last`, `this` or `next` and a unit (singular or plural by
+   default, singular only in OpenNLP parity mode); `in`, a count and a
    unit.
 
 The parts of a mention are separated by exactly one `White_Space`
 character. Months are their full English names or first three letters,
 in any case. A word is a run of at most ten UTF-16 units of letters
-followed by a word boundary. An absolute mention needs a year from 1000
-to 2999 and a date that exists. Units are `day`, `week`, `month`,
-`quarter` and `year`; a counted unit may have one final `s`.
+followed by a word boundary. An absolute mention needs a four-digit year
+from 0001 to 9999 (`1000..=2999` in OpenNLP parity mode) and a date that
+exists. Units are `day`, `week`, `month`, `quarter` and `year`; a unit may
+have one final `s`.
 
 A relative mention moves the reference by the count of the unit (a
 quarter is three months) with the `java.time` rules: a month or year step
@@ -101,16 +104,40 @@ do the same outside a pipeline.
 
 ## Document date
 
-`DocumentDateSelector` reads `turbo:temporal` and writes
-`turbo:document-date`: the absolute day mention that starts first, or no
-date when there is none. Relative mentions, months and quarters never
-date a document. `DatedMoneyConverter` reads that layer to convert money
-as of the document's date ([money.md](money.md)).
+`DocumentDateSelector` reads `turbo:temporal` and `turbo:times` (from
+`turbo-grammar`, when present) and writes `turbo:document-date`:
+
+- When `turbo:temporal` holds an absolute day mention, it selects the one
+  that starts first and records its `mention` index.
+- Otherwise, when `turbo:times` holds a resolved `Date` or `DateTime`
+  mention, it selects the earliest one's calendar date (with `mention:
+  None`), so Spanish, Dutch and other non-English documents annotated by
+  `TimeAnnotator` can still be dated and converted by
+  `DatedMoneyConverter` ([money.md](money.md)).
+- Relative mentions, months, quarters, durations and times of day never
+  date a document.
 
 ## Differences from OpenNLP
 
-None in the results are intended and none are known. The tests port
-the cases of the add-on's temporal tests (the `CursorTemporal*`,
+By default `TemporalExtractor` fixes four OpenNLP cursor quirks while
+keeping OpenNLP parity behind `TemporalExtractor::with_opennlp_parity(true)`
+(and `scan_with_parity` / `dateline_with_parity`):
+
+- **Four-digit years (`0001..=9999`)**: by default any four-digit year in
+  `0001..=9999` is accepted (`0999-12-31`, `3000-01-01`, `Q1 0999`); parity
+  mode restricts absolute mentions to `1000..=2999`.
+- **Multi-digit relative counts**: by default counts of 1 to 9 digits are
+  accepted (`100 days ago`, `in 365 days`); parity mode accepts 1 or 2
+  digits only.
+- **Plurals after `last`, `this` and `next`**: by default `next weeks`,
+  `last months` and `this years` are accepted alongside the singular forms;
+  parity mode requires the singular after `last`, `this` and `next`.
+- **Supplementary-plane letters**: by default `java::is_letter` is tested on
+  the full scalar value rather than a single UTF-16 code unit; parity mode
+  excludes supplementary characters from entering the initial word branch.
+
+With `.with_opennlp_parity(true)`, none in the results differ from OpenNLP.
+The tests port the cases of the add-on's temporal tests (the `CursorTemporal*`,
 `TemporalAnnotator*`, `DocumentDateAnnotator*` and
 `TemporalExtractorContractTest` classes, and the dated cases of the money
 conversion tests), with relative shifts across month ends,

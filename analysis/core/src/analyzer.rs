@@ -104,10 +104,21 @@ impl Builder {
             }
         }
         for s in &self.steps {
+            let mut has_any_optional_producer = false;
+            let mut has_any_required = false;
             for (r, required) in s.reads().into_iter().zip(s.required()) {
-                if required && !producer.contains_key(&r) {
-                    return Err(Error::Pipeline(format!("{} reads {r}, which nothing writes", s.id())));
+                if required {
+                    has_any_required = true;
+                    if !producer.contains_key(&r) {
+                        return Err(Error::Pipeline(format!("{} reads {r}, which nothing writes", s.id())));
+                    }
+                } else if producer.contains_key(&r) {
+                    has_any_optional_producer = true;
                 }
+            }
+            if !has_any_required && !s.reads().is_empty() && !has_any_optional_producer {
+                let first = s.reads()[0];
+                return Err(Error::Pipeline(format!("{} reads {first}, which nothing writes", s.id())));
             }
             for (w, a) in s.writes().into_iter().zip(s.anchors()) {
                 match a {
@@ -129,16 +140,32 @@ impl Builder {
         }
         // Levels: a step runs once everything it reads that anything
         // writes exists; an optional input nothing writes is just absent.
+        // If two steps have a mutual optional dependency (e.g.
+        // `TimeAnnotator` reading `Option<DocumentDate>` and
+        // `DocumentDateSelector` reading `Option<Times>`), the step added
+        // earlier runs first with its optional input absent.
         let mut level = vec![usize::MAX; self.steps.len()];
         let mut done: HashSet<KeyId> = self.given.iter().copied().collect();
         let mut stages = Vec::new();
         while level.contains(&usize::MAX) {
-            let ready: Vec<usize> = (0..self.steps.len())
+            let mut ready: Vec<usize> = (0..self.steps.len())
                 .filter(|&i| {
                     level[i] == usize::MAX
                         && self.steps[i].reads().iter().all(|r| done.contains(r) || !producer.contains_key(r))
                 })
                 .collect();
+            if ready.is_empty()
+                && let Some(first_optional) = (0..self.steps.len()).find(|&i| {
+                    level[i] == usize::MAX
+                        && self.steps[i]
+                            .reads()
+                            .into_iter()
+                            .zip(self.steps[i].required())
+                            .all(|(r, req)| !req || done.contains(&r) || !producer.contains_key(&r))
+                })
+            {
+                ready.push(first_optional);
+            }
             if ready.is_empty() {
                 let stuck: Vec<_> =
                     (0..self.steps.len()).filter(|&i| level[i] == usize::MAX).map(|i| self.steps[i].id()).collect();
