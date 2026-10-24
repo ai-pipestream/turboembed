@@ -1,15 +1,7 @@
-//! Integration tests for `BundleTokenVectors` (`#960`):
-//!
-//! 1. Alignment and pooling parity between `TokenVectors::vectors`,
-//!    `BundleTokenVectors::embed_document_tokens`, and `pool_subword_vectors`
-//!    (`SubwordAnnotator` + `SubwordVectors` `#709`), including multi-piece
-//!    words, overlapping BPE spans, and `ProjectionHead`.
-//! 2. End-to-end training (`train_ranking`) and CoNLL evaluation (`CorefScorer`:
-//!    MUC, B-cubed, CEAF-m, CEAF-e, and CoNLL average) comparing:
-//!    - surface/syntactic ranking baseline (no vectors),
-//!    - static word vectors (`Word2VecTrainer` / `WordVectors`),
-//!    - contextual token vectors (`BundleTokenVectors` / `TokenVectors`), and
-//!    - combined static + contextual vectors.
+//! BundleTokenVectors integration (#960): alignment, pooling and projection
+//! parity, including overlapping BPE pieces. Coreference training compares
+//! surface/syntax, static vectors, contextual vectors and their combination
+//! using MUC, B-cubed, CEAF-m/e and the CoNLL average.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -346,7 +338,12 @@ fn pool_word_tokens_handles_shared_bpe_spans_and_validates_inputs() {
     for bad_token in
         [vec![Ix::new(0), Ix::new(0), Ix::new(1)], vec![Ix::new(1), Ix::new(0)], vec![Ix::new(0), Ix::new(9)]]
     {
-        let bad = Subwords { spans: subwords.spans.clone(), ids: subwords.ids.clone(), model: subwords.model.clone(), token: Some(bad_token) };
+        let bad = Subwords {
+            spans: subwords.spans.clone(),
+            ids: subwords.ids.clone(),
+            model: subwords.model.clone(),
+            token: Some(bad_token),
+        };
         assert!(pool_word_tokens(&t_spans, &bad, &raw, 2, false).is_err());
     }
 }
