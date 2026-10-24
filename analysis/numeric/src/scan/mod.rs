@@ -283,18 +283,13 @@ pub fn continues_number_with_parity(text: &str, index: usize, notation: NumberNo
     let Some((before_at, before)) = char_before(text, index) else {
         return false;
     };
-    let has_digit_before = |at: usize| {
-        digit_before(b, at)
-            || (!opennlp_parity
-                && at >= 2
-                && b[at - 1] >= 0x80
-                && char_before(text, at).is_some_and(|(_, c)| java::is_digit(c)))
+    let has_non_ascii_digit_before = |at: usize| {
+        !opennlp_parity && at >= 2 && b[at - 1] >= 0x80 && char_before(text, at).is_some_and(|(_, c)| java::is_digit(c))
     };
-    if (before == group
-        || before == decimal
-        || unsupported_separator(before)
-        || matches!(before, '\u{FF0C}' | '\u{FF0E}'))
-        && has_digit_before(before_at)
+    let has_digit_before = |at: usize| digit_before(b, at) || has_non_ascii_digit_before(at);
+    let non_ascii_at_index = b.get(index).is_some_and(|&x| x >= 0x80);
+    if ((before == group || before == decimal || unsupported_separator(before)) && has_digit_before(before_at))
+        || (non_ascii_at_index && matches!(before, '\u{FF0C}' | '\u{FF0E}') && has_non_ascii_digit_before(before_at))
     {
         return true;
     }

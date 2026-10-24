@@ -163,6 +163,15 @@ fn non_ascii_digits_and_arabic_separators() {
         assert_eq!(n.value(Ix::new(0)).to_plain_string(), expected, "{text:?}");
         assert_eq!(found_with_parity(text, LatinUs, true, true), [], "{text:?} parity");
     }
+
+    // ASCII digits separated by fullwidth comma/period (`U+FF0C`, `U+FF0E`) in CJK text
+    // keep both numbers in both default and OpenNLP-parity modes.
+    for text in ["5\u{FF0C}3", "a 5\u{FF0C}3 b", "5\u{FF0E}3", "a 5\u{FF0E}3 b"] {
+        assert_eq!(us(text), pairs(&[("5", "5"), ("3", "3")]), "{text:?} default");
+        assert_eq!(found_with_parity(text, LatinUs, true, true), pairs(&[("5", "5"), ("3", "3")]), "{text:?} parity");
+    }
+    // Malformed fullwidth numeral with chained fullwidth periods is still rejected whole.
+    assert_eq!(us("\u{FF11}\u{FF0E}\u{FF12}\u{FF0E}\u{FF13}"), []);
 }
 
 #[test]
