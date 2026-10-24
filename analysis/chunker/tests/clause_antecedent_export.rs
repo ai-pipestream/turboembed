@@ -41,6 +41,7 @@ fn document(cuts: ClauseCuts, antecedents: ChunkAntecedents) -> Document {
             cost: vec![0, 5],
             model_tokens: vec![3, 3],
             over_budget: vec![false, false],
+            prompt_overhead: 0,
         },
         by.clone(),
     )
@@ -164,6 +165,7 @@ fn out_of_bounds_sentence_references_are_refused_when_added() {
             cost: vec![0, 5],
             model_tokens: vec![3, 3],
             over_budget: vec![false, false],
+            prompt_overhead: 0,
         },
         by.clone(),
     )
