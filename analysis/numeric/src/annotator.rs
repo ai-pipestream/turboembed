@@ -5,7 +5,10 @@
 use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{NumberMention, NumberNotation, Numbers};
 
-use crate::scan::{boundary_before, continues_number, parse, sign_boundary_before};
+use crate::scan::{
+    EXTENDED_START_BYTES, boundary_before, char_at, continues_number_with_parity, is_nd_lead_byte, parse_with_parity,
+    sign_boundary_before,
+};
 
 /// Writes `turbo:numbers` over a text view.
 ///
@@ -23,11 +26,14 @@ pub struct NumberScanner {
     /// read and multiply the value. When they are, a letter directly after
     /// the digits that is no scale suffix rejects the number (`5x`).
     pub apply_scale: bool,
+    /// When `true`, restricts scanning to OpenNLP's strict ASCII Latin US/EU
+    /// rules for JVM golden parity. Defaults to `false`.
+    pub opennlp_parity: bool,
 }
 
 impl Default for NumberScanner {
     fn default() -> NumberScanner {
-        NumberScanner { notation: NumberNotation::LatinUs, apply_scale: true }
+        NumberScanner { notation: NumberNotation::LatinUs, apply_scale: true, opennlp_parity: false }
     }
 }
 
@@ -37,15 +43,29 @@ impl NumberScanner {
         NumberScanner { notation, ..NumberScanner::default() }
     }
 
+    /// Configures whether scale suffixes (`12k`) and scale words (`3 million`)
+    /// are applied.
+    pub fn with_scale(mut self, apply_scale: bool) -> NumberScanner {
+        self.apply_scale = apply_scale;
+        self
+    }
+
+    /// Configures whether to enforce strict OpenNLP JVM parity (rejecting
+    /// Indian grouping, space/apostrophe grouping, exponents, and non-ASCII
+    /// digits).
+    pub fn with_opennlp_parity(mut self, opennlp_parity: bool) -> NumberScanner {
+        self.opennlp_parity = opennlp_parity;
+        self
+    }
+
     /// Appends every number in `text` to `out`, in text order, with byte
     /// offsets into `text`.
     ///
     /// At each character the scan tries a number: an optional minus that
-    /// may open a negative number (see [`sign_boundary_before`]), then an
-    /// ASCII digit that does not go on with a number before it (see
-    /// [`continues_number`]) and a word boundary before the mention. A
-    /// number found is added and the scan goes on after it; otherwise it
-    /// goes on at the next character.
+    /// may open a negative number (see [`sign_boundary_before`]), then a
+    /// digit that does not go on with a number before it and a word boundary
+    /// before the mention. A number found is added and the scan goes on
+    /// after it; otherwise it goes on at the next character.
     ///
     /// # Panics
     ///
@@ -65,11 +85,12 @@ impl NumberScanner {
         let mut digits = String::new();
         let mut i = 0;
         while i < b.len() {
-            // Only a minus or a digit can open a number, so the characters
-            // before the next one would each fail. Neither byte occurs inside
-            // a multibyte character, so where it is found is a character
-            // boundary, as the Java's step by code points would reach.
-            match b[i..].iter().position(|&x| x == b'-' || x.is_ascii_digit()) {
+            let next_pos = if self.opennlp_parity {
+                b[i..].iter().position(|&x| x == b'-' || x.is_ascii_digit())
+            } else {
+                b[i..].iter().position(|&x| EXTENDED_START_BYTES[usize::from(x)])
+            };
+            match next_pos {
                 Some(skip) => i += skip,
                 None => break,
             }
@@ -78,8 +99,7 @@ impl NumberScanner {
                 .or_else(|| fallback.and_then(|alt| self.match_at(text, i, alt, &mut digits, out)));
             match matched {
                 Some(end) => i = end,
-                // A minus or a digit is one byte.
-                None => i += 1,
+                None => i += if b[i].is_ascii() { 1 } else { char_at(text, i).map_or(1, char::len_utf8) },
             }
         }
     }
@@ -87,6 +107,7 @@ impl NumberScanner {
     /// `CursorQuantityExtractor.matchAt` without the unit: adds the
     /// number that starts at byte `start` in `notation` to `out` and
     /// returns its end.
+    #[inline]
     fn match_at(
         &self,
         text: &str,
@@ -98,14 +119,18 @@ impl NumberScanner {
         let b = text.as_bytes();
         let negative = b[start] == b'-';
         let first = start + usize::from(negative);
-        if !b.get(first).is_some_and(u8::is_ascii_digit) || continues_number(text, first, notation) {
+        let is_digit = b.get(first).is_some_and(u8::is_ascii_digit)
+            || (!self.opennlp_parity
+                && b.get(first).is_some_and(|&x| is_nd_lead_byte(x))
+                && char_at(text, first).is_some_and(turbo_unicode::java::is_digit));
+        if !is_digit || continues_number_with_parity(text, first, notation, self.opennlp_parity) {
             return None;
         }
         let boundary = if negative { sign_boundary_before(text, start) } else { boundary_before(text, start) };
         if !boundary {
             return None;
         }
-        let r = parse(text, first, self.apply_scale, notation, digits)?;
+        let r = parse_with_parity(text, first, self.apply_scale, notation, self.opennlp_parity, digits)?;
         out.push(NumberMention {
             span: Span::new(start as u32, r.end as u32),
             numeral_end: r.numeral_end as u32,
@@ -138,14 +163,14 @@ impl Annotator for NumberScanner {
         Ok((numbers,))
     }
 
-    /// FNV-1a over the notation and the scale option, fixed so that stored
-    /// provenance stays comparable across builds.
+    /// FNV-1a over the notation and options, fixed so that stored provenance
+    /// stays comparable across builds.
     fn config_hash(&self) -> u64 {
         let notation: u64 = match self.notation {
             NumberNotation::LatinUs => 1,
             NumberNotation::LatinEu => 2,
         };
-        [notation, u64::from(self.apply_scale)]
+        [notation, u64::from(self.apply_scale), u64::from(self.opennlp_parity)]
             .iter()
             .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
     }
