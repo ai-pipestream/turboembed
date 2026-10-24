@@ -263,45 +263,53 @@ impl Annotator for BilstmPosTagger {
     type Reads = (View, Tokens);
     type Writes = (PosTags,);
 
-    fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<(PosTags,), Error> {
-        if tokens.spans.view() != view.id() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!(
-                    "the tokens are in view {}, not in view {} that is tagged",
-                    tokens.spans.view().0,
-                    view.id().0
-                ),
-            });
-        }
-        let text = view.text();
-        let (starts, ends) = tokens.spans.columns();
-        let n = starts.len();
-        let mut words: Vec<&str> = Vec::with_capacity(n);
-        let mut sentence: Vec<&str> = Vec::new();
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<(PosTags,), Error> {
+        self.annotate_batch(vec![input]).remove(0)
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let mut words = Vec::new();
         let mut lens = Vec::new();
-        let mut from = 0;
-        while from < n {
-            let to = match &tokens.sentence {
-                Some(col) => from + col[from..].partition_point(|&s| s == col[from]),
-                None => n,
-            };
-            crate::tagger::slice_sentence_words(Self::ID, text, starts, ends, from, to, &mut sentence)?;
-            if !sentence.is_empty() {
-                words.extend_from_slice(&sentence);
-                lens.push(sentence.len());
-            }
-            from = to;
-        }
+        let mut scratch = Vec::new();
+        let docs: Vec<_> = inputs
+            .into_iter()
+            .map(|(view, tokens)| {
+                let lengths = super::batch_words::words(Self::ID, view, tokens, &mut scratch)?;
+                let count = lengths.len();
+                words.extend_from_slice(&scratch);
+                lens.extend(lengths);
+                Ok(count)
+            })
+            .collect();
         let failed = |e: NeuralError| Error::Annotator { annotator: Self::ID, detail: e.to_string() };
-        let mut tags = Vec::with_capacity(n);
-        let mut probs = Vec::with_capacity(n);
-        for scores in self.batch_emissions(&words, &lens).map_err(failed)? {
-            let (best, sentence_probs) = self.best_path(&scores).map_err(failed)?;
-            tags.extend(best.into_iter().map(|idx| self.outcome_tags[idx]));
-            probs.extend(sentence_probs);
-        }
-        Ok((PosTags { tagset: self.tagset.clone(), tags, prob: Some(probs) },))
+        let scores = match self.batch_emissions(&words, &lens) {
+            Ok(scores) => scores,
+            Err(e) => {
+                let e = failed(e);
+                return docs.into_iter().map(|d| d.and(Err(e.clone()))).collect();
+            }
+        };
+        let mut paths = scores.iter().map(|s| self.best_path(s).map_err(failed));
+        docs.into_iter()
+            .map(|count| {
+                let mut tags = Vec::new();
+                let mut probs = Vec::new();
+                let mut error = None;
+                for path in paths.by_ref().take(count?) {
+                    match path {
+                        Ok((best, ps)) => {
+                            tags.extend(best.into_iter().map(|i| self.outcome_tags[i]));
+                            probs.extend(ps);
+                        }
+                        Err(e) => error = Some(e),
+                    }
+                }
+                match error {
+                    Some(e) => Err(e),
+                    None => Ok((PosTags { tagset: self.tagset.clone(), tags, prob: Some(probs) },)),
+                }
+            })
+            .collect()
     }
 
     fn model(&self) -> Option<ModelRef> {
