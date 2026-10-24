@@ -2041,6 +2041,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-coref",
+ "turbo-matcher",
  "turbo-normalize",
  "turbo-stem",
  "turbo-structure",
