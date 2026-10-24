@@ -13,6 +13,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <atomic>
+#include <cerrno>
 
 namespace turbo_hailo {
 
@@ -35,18 +37,6 @@ constexpr uint16_t BURST = 32;
 /* How long a frame may take before the run gives up on the device. */
 constexpr std::chrono::milliseconds FRAME_TIMEOUT{10000};
 
-/* FRAME_TIMEOUT, or TURBO_HAILO_FRAME_TIMEOUT_MS when it is a whole number
- * of ms, read when a session is made. A test sets 0, so a frame genuinely
- * does not come back in time on a device that answers, to reach what a
- * device that stopped answering leaves (core/tests/hailo_release.rs). */
-std::chrono::milliseconds frame_timeout() {
-    const char *v = std::getenv("TURBO_HAILO_FRAME_TIMEOUT_MS");
-    if (!v || *v < '0' || *v > '9') return FRAME_TIMEOUT;
-    char *end = nullptr;
-    const unsigned long ms = std::strtoul(v, &end, 10);
-    return *end ? FRAME_TIMEOUT : std::chrono::milliseconds{ms};
-}
-
 Failure fail(int32_t code, std::string message, uint32_t field = 0) {
     Failure f;
     f.code = code;
@@ -59,6 +49,35 @@ Failure hailort_failed(hailo_status s, const std::string &what) {
     const char *m = hailo_get_status_message(s);
     return fail(TURBO_E_RUNTIME, what + ": " + (m ? m : "unknown status") + " (" + std::to_string((int)s) + ")");
 }
+
+/* The longest frame timeout TURBO_HAILO_FRAME_TIMEOUT_MS may set: ten
+ * minutes, far inside what a deadline on the steady clock can hold. */
+constexpr unsigned long MAX_FRAME_TIMEOUT_MS = 600000;
+
+/* FRAME_TIMEOUT, or TURBO_HAILO_FRAME_TIMEOUT_MS, read when a session is
+ * made: a whole number of ms from 0 to MAX_FRAME_TIMEOUT_MS, and anything
+ * else refuses the session. A test sets 0, so a frame genuinely does not
+ * come back in time on a device that answers, to reach what a device that
+ * stopped answering leaves (core/tests/hailo_release.rs). */
+Failure frame_timeout(std::chrono::milliseconds &out) {
+    const char *v = std::getenv("TURBO_HAILO_FRAME_TIMEOUT_MS");
+    out = FRAME_TIMEOUT;
+    if (!v) return {};
+    bool digits = *v != '\0';
+    for (const char *c = v; *c; c++) digits = digits && *c >= '0' && *c <= '9';
+    errno = 0;
+    char *end = nullptr;
+    const unsigned long ms = digits ? std::strtoul(v, &end, 10) : 0;
+    if (!digits || errno == ERANGE || *end || ms > MAX_FRAME_TIMEOUT_MS)
+        return fail(TURBO_E_INVALID_ARGUMENT, std::string("TURBO_HAILO_FRAME_TIMEOUT_MS is ") + v +
+                                                  ": a whole number of ms from 0 to " +
+                                                  std::to_string(MAX_FRAME_TIMEOUT_MS));
+    out = std::chrono::milliseconds{(long long)ms};
+    return {};
+}
+
+/* Frame sets kept by a model and not yet reclaimed (retired_frames). */
+std::atomic<uint32_t> retired_count{0};
 
 /* A stream's layout and its one quantization, or why the HEF's stream is
  * not one this model can use. */
@@ -158,10 +177,37 @@ Failure Model::load(hailort::VDevice &vdevice, const ModelDesc &desc, std::uniqu
     return {};
 }
 
+uint32_t retired_frames() { return retired_count.load(); }
+
+void Model::retire(std::unique_ptr<Slot> slot) {
+    std::lock_guard<std::mutex> g(retired_mu_);
+    retired_.push_back(std::move(slot));
+    retired_count++;
+}
+
+void Model::reap() {
+    std::lock_guard<std::mutex> g(retired_mu_);
+    auto done = [](const std::unique_ptr<Slot> &s) { return s->job.wait(std::chrono::milliseconds{0}) != HAILO_TIMEOUT; };
+    const auto kept = std::remove_if(retired_.begin(), retired_.end(), done);
+    retired_count -= (uint32_t)(retired_.end() - kept);
+    retired_.erase(kept, retired_.end());
+}
+
+Model::~Model() {
+    reap();
+    for (auto &s : retired_) {
+        // Its job was waited on, so its destructor does not wait again;
+        // the detach says so whatever HailoRT does. The memory is not
+        // freed: the device may still own it.
+        s->job.detach();
+        (void)s.release();
+    }
+}
+
 // The alignment HailoRT asks of a frame it reads or writes in place.
 constexpr size_t FRAME_ALIGN = 16384;
 
-bool Session::Frame::resize(size_t bytes) {
+bool Frame::resize(size_t bytes) {
     const size_t len = (bytes + FRAME_ALIGN - 1) / FRAME_ALIGN * FRAME_ALIGN;
     p.reset(static_cast<uint8_t *>(std::aligned_alloc(FRAME_ALIGN, len ? len : FRAME_ALIGN)));
     if (!p) return false;
@@ -176,12 +222,13 @@ Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, uint
         return fail(TURBO_E_UNSUPPORTED_OPTION,
                     "max_seq " + std::to_string(max_seq) + " is over the hef's " + std::to_string(model.desc().seq),
                     2);
+    model.reap();
     std::unique_ptr<Session> s(new Session());
+    if (Failure f = frame_timeout(s->frame_timeout_)) return f;
     s->model_ = &model;
     s->max_batch_ = max_batch;
     s->max_seq_ = max_seq;
     s->max_ranges_ = max_ranges;
-    s->frame_timeout_ = frame_timeout();
     s->ranges_.reserve(max_ranges);
     s->ids_.resize((size_t)max_batch * max_seq);
     s->mask_.resize((size_t)max_batch * max_seq);
@@ -360,11 +407,11 @@ Session::~Session() {
         if (!s || !s->busy) continue;
         if (s->job.wait(timeout) == HAILO_SUCCESS) continue;
         timeout = std::chrono::milliseconds{0};
-        // Without the detach the job's destructor waits for the frame with
-        // no timeout. The slot is not freed: the device may still own it.
-        s->job.detach();
-        (void)s.release();
+        // The device may still write into the slot: the model keeps it
+        // until its job finishes.
+        model_->retire(std::move(s));
     }
+    model_->reap();
 }
 
 Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
