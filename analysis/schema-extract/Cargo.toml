@@ -12,6 +12,7 @@ name = "turbo_schema_extract"
 # The native DeBERTa-v3 encoder, SentencePiece and safetensors reader, and
 # the GLiNER2 span heads the relation scorer already runs.
 turbo = { path = "../../core" }
+turbo-unicode = { path = "../unicode" }
 serde_json = "1"
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }

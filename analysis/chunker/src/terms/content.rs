@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use turbo_analysis::{Annotator, Error, Layer, Refs};
 use turbo_analysis_layers::{Boilerplate, Covered, Structure, Tokens};
 
-use super::count::{count, unit_ranges};
+use super::count::{count_multi, unit_ranges};
 use super::layer::{TermStats, Terms, Vocabulary};
 
 /// `TermCounter<L>` with boilerplate left out: reads the tokens, their
@@ -58,6 +58,6 @@ impl<L: Layer, B: Layer> Annotator for ContentTermCounter<L, B> {
             return Err(fail(format!("{} terms for {} tokens", terms.term.len(), starts.len())));
         }
         let term: Vec<_> = terms.term.iter().zip(starts).map(|(&t, &s)| t.filter(|_| !covered.contains(s))).collect();
-        Ok((count(&term, vocabulary.len(), &ranges).map_err(fail)?,))
+        Ok((count_multi(&term, vocabulary.len(), &ranges).map_err(fail)?,))
     }
 }

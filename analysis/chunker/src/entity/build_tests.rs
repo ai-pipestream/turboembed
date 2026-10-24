@@ -44,6 +44,7 @@ fn chunks(rows: &[&[(u32, u32)]], sentences: (u32, u32)) -> Chunks {
         cost: vec![0; n],
         model_tokens: vec![1; n],
         over_budget: vec![false; n],
+        prompt_overhead: 0,
     }
 }
 
