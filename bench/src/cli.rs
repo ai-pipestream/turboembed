@@ -110,7 +110,7 @@ record options:
 /// `--name value` pairs and bare `--flag`s.
 pub(crate) struct Opts(pub(crate) BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 3] = ["--no-tei", "--no-tensorrt", "--no-openvino"];
+const FLAGS: [&str; 4] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-peers"];
 
 impl Opts {
     pub(crate) fn parse(args: &[String]) -> Result<Opts> {
