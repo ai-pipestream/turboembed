@@ -92,7 +92,7 @@ pub use social::{BoundedSocialMedia, SocialMedia};
 pub use spellcheck::{
     ConfusableSet, ContextSpellAnnotator, ContextSpellCorrector, SpellCorrect, SpellCorrectMode, SymSpell,
 };
-pub use symbols::{SymbolJoiner, SymbolWords};
+pub use symbols::{DEFAULT_SYMBOL_SEQUENCES, SymbolJoiner, SymbolWords};
 pub use unicode_form::UnicodeForm;
 pub use url::{BoundedUrls, Urls};
 pub use whitespace::{Whitespace, WhitespaceMode};

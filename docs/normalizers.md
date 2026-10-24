@@ -669,15 +669,17 @@ exactly one of ten symbols to an English word: `&` and, `+` plus, `@`
 at, `%` percent, `§` section, `¶` paragraph, `°` degree, `©` copyright,
 `®` registered, `™` trademark. Every other input, including `R&D`,
 `"& "`, `©️` and currency symbols, is returned unchanged. It is
-meant to be called once per token. Despite its name, neither version
-joins symbol sequences (`C++`, `.NET`, `->`); that is not implemented
-here either.
+meant to be called once per token, and in OpenNLP neither version joins
+multi-token symbol sequences (`C++`, `.NET`, `->`).
 
 - `SymbolJoiner` (an `Annotator`, id `turbo:normalize:symbol-joiner`)
-  reads a `View` and the `Tokens` made on it and writes a `View` in which
-  each token that is exactly one mapped symbol is replaced by its word.
-  This is OpenNLP's per-token use. The new view's tokens are the old
-  ones mapped through its alignment.
+  reads a `View` and the `Tokens` made on it, joins touching token spans
+  whose combined slice matches a symbol sequence in its table
+  (`DEFAULT_SYMBOL_SEQUENCES` by default, or caller-configured via
+  `SymbolJoiner::with_sequences` and `SymbolJoiner::without_sequences`),
+  replaces each remaining token that is a single mapped symbol with its
+  word in a new `View`, and writes both the new `View` and the joined
+  `Tokens` mapped through its alignment.
 - `SymbolWords` (a `Normalizer`, id `turbo:normalize:symbol-words`)
   replaces each mapped symbol in running text that has whitespace (the
   OpenNLP whitespace table) or the edge of the text on both sides:
@@ -2113,12 +2115,17 @@ addition to OpenNLP that keeps the hyphen when it is U+002D and the
 letter after the break is uppercase (`turbo_unicode::props::uppercase`);
 only the break and the indentation are deleted. It keeps
 "Wi-\nFi" as "Wi-Fi" and "Müller-\nLüdenscheidt" as
-"Müller-Lüdenscheidt". This is a heuristic. It does not help
-with lowercase compounds ("well-\nknown" is still joined), it keeps a
-hyphen that the typesetter added before a capital inside a word
-("Mc-\nDonald" becomes "Mc-Donald"), and it never keeps a soft hyphen or
-U+2010, which mark typesetter breaks. Deciding from a lexicon whether the
-joined form is a word is not implemented.
+"Müller-Lüdenscheidt". `Dehyphenate::with_lexicon` (along with
+`Dehyphenate::with_hunspell` and `Dehyphenate::with_morfologik`, which
+accept `turbo_hunspell::Dictionary` and
+`turbo_morfologik::MorfologikDictionary` through `Dictionary`) decides
+from a lexicon (`DehyphenateMode::Lexicon`): a U+002D hyphen-minus is
+deleted when the joined word is in the lexicon ("litiga-\ntion" becomes
+"litigation", "Mc-\nDonald" becomes "McDonald"), kept when the joined
+word is not in the lexicon and either the hyphenated form or both halves
+are in the lexicon ("well-\nknown" becomes "well-known"), and otherwise
+falls back to the uppercase check. Soft hyphens (U+00AD) and U+2010
+mark typesetter breaks and are always deleted.
 
 Tests (`analysis/normalize/tests/dehyphenate.rs`): every expectation of OpenNLP's
 `DehyphenationCharSequenceNormalizerTest` (each line-break form, the form
