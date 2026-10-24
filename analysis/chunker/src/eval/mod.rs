@@ -22,6 +22,8 @@
 pub mod boundary;
 pub mod budget;
 pub mod coverage;
+pub mod identity;
+pub use identity::{CutDifference, CutIdentityReport, CutRecord, compare_chunk_cuts};
 pub mod sweep;
 
 #[cfg(test)]

@@ -13,8 +13,17 @@ vector rows and non-finite values return errors, rather than receiving labels.
 hidden layer with `HiddenActivation::Relu` or `HiddenActivation::Gelu`.
 `OutputKind::Softmax` expects targets summing to one; `OutputKind::Sigmoid`
 accepts independent targets in [0,1], including a single binary output.
-`Categories<L>` carries all scores and their highest scoring label. This API
-does not implement multi-label threshold selection.
+For `OutputKind::Softmax`, `Categories<L>` carries all scores and the single
+highest-scoring label. For `OutputKind::Sigmoid`, `DenseClassifierModel`
+maintains one decision threshold per label in `(0.0, 1.0)` (defaulting to `0.5`
+for every label), and `DenseClassifierAnnotator<L>` writes every label `i`
+whose probability reaches `thresholds()[i]` into `Categories<L>::selected(item)`
+with `Categories<L>::category[item]` set to the highest-scoring selected label
+or `Tag::NONE` when no label clears its threshold (abstention). This changes the
+previous sigmoid annotation behavior where a 1-label binary sigmoid classifier
+always set `category[item]` (`best`) to `Tag(0)` even when `p < 0.5`; a binary
+sigmoid output below its threshold now abstains with `Tag::NONE` and an empty
+`selected(item)` slice.
 
 `AdamParameters` controls the local RNG seed, learning rate, coupled L2 decay,
 batch size, epochs and optional validation patience. Biases are not decayed.
@@ -37,11 +46,79 @@ the model's current temperature, so calibration cannot increase that loss.
 Use a separate calibration split when reporting final test performance.
 
 The `TDENSE01` binary wrapper records temperature and the `THEAD001` head,
-including encoder identity, labels, architecture and parameters. Decoding checks
-counts against remaining bytes before allocation and rejects truncation, invalid
-dimensions, non-finite parameters and trailing bytes. Annotation provenance hashes
-the complete classifier bytes, so training and temperature changes invalidate
-cached output.
+including encoder identity, labels, architecture and parameters. When a
+`OutputKind::Sigmoid` model has calibrated per-label thresholds that differ
+from `0.5`, `to_bytes` writes a `TDENSE02` header containing temperature, the
+threshold count, the little-endian `f64` thresholds in `(0.0, 1.0)`, and the
+`THEAD001` payload (`TDENSE01` is preserved whenever thresholds are at their
+`0.5` default or the head uses `OutputKind::Softmax`, and `from_bytes` rejects
+an all-`0.5` `TDENSE02` payload so round-tripping preserves the exact bytes and
+provenance hash). Decoding checks counts against remaining bytes before
+allocation and rejects truncation, invalid dimensions, non-finite parameters,
+out-of-range thresholds, and trailing bytes. Annotation provenance hashes the
+complete classifier bytes, so training, temperature, and threshold changes
+invalidate cached output.
+
+## Multi-label threshold calibration and evaluation (#980)
+
+`DenseClassifierModel` re-exports `ThresholdCalibrator`, `MultiLabelReport`,
+`Prf`, and `evaluate_multilabel_sets` from `turbo_doccat::multilabel` and
+provides:
+
+- `thresholds(&self) -> &[f64]` and `with_thresholds(self, Vec<f64>) -> Result<Self, String>`
+  for inspecting or setting per-label sigmoid decision thresholds in `(0.0, 1.0)`.
+- `select_tags(&self, probabilities: &[f64]) -> Result<(Tag, Vec<Tag>), String>`
+  and `predicted_tags(&self, vector: &[f32]) -> Result<Vec<Tag>, String>`
+  for applying per-label thresholds to a probability slice or scoring a single
+  input vector and returning the emitted [`Tag`]s in label order.
+- `calibrate_thresholds(&self, vectors: &Vectors<L>, truth: &[BTreeSet<usize>], calibrator: &ThresholdCalibrator) -> Result<Self, String>`
+  and `calibrate_thresholds_from_targets(&self, vectors: &Vectors<L>, targets: &[Vec<f64>], calibrator: &ThresholdCalibrator) -> Result<Self, String>`
+  to tune each label's threshold independently on held-out validation vectors
+  by sweeping the label's observed validation scores as candidate cut points and
+  maximizing per-label $F_\beta$ (optionally subject to `min_precision`, with
+  ties broken toward the highest threshold), clamping the fitted threshold into
+  `[1e-6, 1.0 - 1e-6]` and retaining `DEFAULT_THRESHOLD` (`0.5`) when a label has
+  zero positive validation examples.
+- `evaluate_multilabel(&self, vectors: &Vectors<L>, gold: &[BTreeSet<usize>]) -> Result<MultiLabelReport, String>`
+  to compute micro-averaged, macro-averaged (averaged over all `0..num_labels`
+  labels under `f_beta`'s zero-division conventions: precision `1.0` when no
+  predictions are made, recall `1.0` when a label has no gold positives, and F1
+  `0.0` when both precision and recall are `0.0`), and sample-averaged
+  precision, recall, F1, plus subset exact-match accuracy.
+
+On the WILDS Civil Comments multi-label benchmark (`all_data_with_identities.csv`,
+`269,038` training, `45,180` validation, and `133,782` test comments across five
+independent toxicity facets: `insult`, `obscene`, `threat`, `identity_attack`,
+and `severe_toxicity`, with a rater fraction $\ge 0.5$ marking a positive
+label), `analysis/embed/tests/dense_civil.rs` (`TURBO_CIVIL_COMMENTS_DIR` and
+`TURBO_CIVIL_BUNDLE_DIR`, plus optional `TURBO_CIVIL_CACHE_DIR`) encodes the
+`comment_text` column with the bundle's `Tokenizer::encode_into`
+(`add_special_tokens = true`, `Truncation::Right`, `max_tokens = info.max_seq`)
+and `Encoder::run_rows_pooled(..., TURBO_POOLING_MODEL, info.l2)`, binds each
+split's `Vectors<Sentences>` to the bundle's `ModelRef`, fits a linear
+`OutputKind::Sigmoid` head (`AdamParameters { seed: 42, learning_rate: 0.01, weight_decay: 1e-5, batch_size: 256, epochs: 8, patience: None }`)
+on `train`, fits per-label thresholds on the `val` split with
+`ThresholdCalibrator::default()` (`beta = 1.0`, `min_precision = None`), and
+applies those `val`-fitted thresholds unchanged to the held-out `test` split:
+
+| Encoder | Split | Thresholds (`insult`, `obscene`, `threat`, `identity_attack`, `severe_toxicity`) | Micro P / R / F1 | Macro P / R / F1 | Exact match |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `sentence-transformers/all-MiniLM-L6-v2` | val (`45,180`) | flat `[0.5000, 0.5000, 0.5000, 0.5000, 0.5000]` | `0.6845 / 0.1135 / 0.1947` | `0.8424 / 0.2397 / 0.2666` | `0.9228` |
+| `sentence-transformers/all-MiniLM-L6-v2` | val (`45,180`) | calibrated `[0.1928, 0.0429, 0.0248, 0.1319, 0.5000]` | `0.3496 / 0.4862 / 0.4068` | `0.4230 / 0.4775 / 0.4409` | `0.8634` |
+| `sentence-transformers/all-MiniLM-L6-v2` | test (`133,782`) | flat `[0.5000, 0.5000, 0.5000, 0.5000, 0.5000]` | `0.6788 / 0.1103 / 0.1898` | `0.8468 / 0.0401 / 0.0681` | `0.9226` |
+| `sentence-transformers/all-MiniLM-L6-v2` | test (`133,782`) | calibrated `[0.1928, 0.0429, 0.0248, 0.1319, 0.5000]` | `0.3452 / 0.4714 / 0.3985` | `0.4220 / 0.2735 / 0.2390` | `0.8628` |
+| `BAAI/bge-small-en-v1.5` | val (`45,180`) | flat `[0.5000, 0.5000, 0.5000, 0.5000, 0.5000]` | `0.7602 / 0.1101 / 0.1923` | `0.8706 / 0.2377 / 0.2642` | `0.9234` |
+| `BAAI/bge-small-en-v1.5` | val (`45,180`) | calibrated `[0.2018, 0.0476, 0.0186, 0.1369, 0.5000]` | `0.3899 / 0.4568 / 0.4207` | `0.4439 / 0.4602 / 0.4472` | `0.8780` |
+| `BAAI/bge-small-en-v1.5` | test (`133,782`) | flat `[0.5000, 0.5000, 0.5000, 0.5000, 0.5000]` | `0.7308 / 0.1043 / 0.1825` | `0.8689 / 0.0364 / 0.0624` | `0.9232` |
+| `BAAI/bge-small-en-v1.5` | test (`133,782`) | calibrated `[0.2018, 0.0476, 0.0186, 0.1369, 0.5000]` | `0.3856 / 0.4475 / 0.4142` | `0.4321 / 0.2571 / 0.2401` | `0.8777` |
+
+Because the validation split has zero comments with a `severe_toxicity` rater
+fraction $\ge 0.5$, `ThresholdCalibrator` retains `DEFAULT_THRESHOLD` (`0.5`)
+for `severe_toxicity` in both encoders; on the validation split that zero-gold /
+zero-predicted label contributes `F1 = 1.0` to the 5-label macro average,
+whereas on the test split (which contains positive `severe_toxicity` comments)
+the uncalibrated `0.5` threshold leaves `severe_toxicity` recall near zero and
+accounts for the drop from `~0.44` validation macro F1 to `~0.24` test macro F1.
 
 ## Sparse feature selection
 
@@ -65,7 +142,8 @@ and positive `FeatureSelectionTopK`. Filtering runs before indexing and cutoff.
 Without those parameters, the previous training behavior is unchanged.
 
 Tests cover separable data, XOR (MLP versus linear), binary and independent
-sigmoid targets, deterministic training, numerical gradients, early stopping,
+sigmoid targets, per-label sigmoid threshold calibration and `TDENSE02`
+serialization, end-to-end multi-label annotation on `testdata/tiny-bert-bundle`,
+deterministic training, numerical gradients, early stopping, temperature
 calibration, codec boundaries, encoder mismatches, and MI/Chi2 feature reduction
-with retained classification accuracy for MaxEnt and Liblinear. These are
-synthetic correctness checks, not accuracy claims for a production corpus.
+with retained classification accuracy for MaxEnt and Liblinear.

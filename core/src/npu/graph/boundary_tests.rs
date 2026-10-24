@@ -148,7 +148,7 @@ fn keep(batch: u32, seq: u32, stride: u32) -> Result<(), (i32, String)> {
         pooling: TURBO_POOLING_MEAN,
         normalize: 0,
         output_dim: 2,
-        reserved: 0,
+        head: 0,
     };
     let mut rows = rows_for(2, 4);
     unsafe { keep_rows(&session, &r, &mut rows) }.map_err(|e| (e.code, e.message))?;

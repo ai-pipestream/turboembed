@@ -341,8 +341,13 @@ final class Runs {
       recorders.add(ChunkDump.of(c));
     }
 
-    for (LanguageGolden languages : List.of(LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI)),
-        LanguageGolden.load(fixtures.resolve(LANGUAGE_FIXTURE_RUST), Set.of(EN, MULTI)))) {
+    for (LanguageGolden languages : List.of(
+        LanguageGolden.load(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI)),
+        LanguageGolden.probing(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI, LANGDETECT)),
+        LanguageGolden.probingChunk50(models.resolve(LANGUAGE_MODEL), Set.of(EN, MULTI, LANGDETECT)),
+        LanguageGolden.load(fixtures.resolve(LANGUAGE_FIXTURE_RUST), Set.of(EN, MULTI)),
+        LanguageGolden.probing(fixtures.resolve(LANGUAGE_FIXTURE_RUST), Set.of(EN, MULTI, LANGDETECT)),
+        LanguageGolden.probingChunk50(fixtures.resolve(LANGUAGE_FIXTURE_RUST), Set.of(EN, MULTI, LANGDETECT)))) {
       annotators.add(languages);
       recorders.add(LanguageDump.of(languages));
     }

@@ -3,11 +3,12 @@
 //! `svm_predict_values`, `svm_predict_probability`, `sigmoid_predict`,
 //! `multiclass_probability` and `predict_one_class_probability`.
 //!
-//! Every sum is taken in LIBSVM's order with the same operations, so the
-//! linear and polynomial kernels give the JVM's decision values bit for
-//! bit. The RBF and sigmoid kernels and the probability sigmoid call
-//! `exp` and `tanh`, which the JVM computes with its own routines; Rust's
-//! may differ from them in the last place (docs/doccat.md, "Tolerances").
+//! Every sum is taken in LIBSVM's order with the same operations, and the
+//! sigmoid kernel calls `turbo_jvm::strict_math::tanh`, so the linear,
+//! polynomial and sigmoid kernels give the JVM's decision values bit for
+//! bit. The RBF kernel and the probability sigmoid call `exp`, which the
+//! JVM computes with its own intrinsic; Rust's may differ from it in the
+//! last place (docs/doccat.md, "Tolerances").
 
 use super::model::{Kernel, LibsvmModel, SvmType};
 use crate::java;
@@ -114,7 +115,7 @@ fn k_function(kernel: Kernel, xi: &[i32], xv: &[f64], yi: &[i32], yv: &[f64]) ->
             }
             (-gamma * sum).exp()
         }
-        Kernel::Sigmoid { gamma, coef0 } => (gamma * dot(xi, xv, yi, yv) + coef0).tanh(),
+        Kernel::Sigmoid { gamma, coef0 } => turbo_jvm::strict_math::tanh(gamma * dot(xi, xv, yi, yv) + coef0),
     }
 }
 

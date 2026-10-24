@@ -148,3 +148,75 @@ fn open_stays_on_the_cpu_in_a_cuda_build() {
     let name: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
     assert_eq!(name, b"cpu");
 }
+
+/// The span head runs on the device: a range write of a window's tokens
+/// to the QA model on CUDA returns a [start, end] row per token, which
+/// match the head applied in F64 to the CPU backend's hidden states, and
+/// reading them copies 8 bytes a token, not the token's hidden state. The
+/// CPU path still returns the hidden states. A normalized or narrowed
+/// range write is refused by its field, as the head reads a whole vector.
+#[test]
+fn cuda_applies_the_span_head_and_copies_back_only_the_logits() {
+    let _t = turn();
+    let Some(_) = cuda_device("cuda_applies_the_span_head_and_copies_back_only_the_logits") else { return };
+    let f = fixture();
+    let bundle = Bundle::open(&f.dir).unwrap();
+    let head = turbo::head::Head::load(&bundle).unwrap();
+    let bytes = bundle.read_verified(&bundle.manifest.reference.file).unwrap();
+    let file = File::parse("qa", &bytes).unwrap();
+    let ids = file.get("ids", Dtype::I32, 2).unwrap();
+    let width = ids.shape[1] as usize;
+    let len = file.get("lengths", Dtype::I32, 1).unwrap().i32s()[0] as usize;
+    let types = file.get("types", Dtype::I32, 2).unwrap().i32s()[..len].to_vec();
+    let mut t = common::Tokens::new(&[ids.i32s()[..len].to_vec()], 0);
+    t.types = Some(types);
+    assert!(len <= width);
+    let ranges: Vec<_> = (0..len as u32).map(|i| common::range(0, i, i + 1)).collect();
+    let session = |l: &common::Loaded| {
+        let mut d = common::session_desc(1, 0, turbo::TURBO_PRECISION_EXACT);
+        d.max_ranges = len as u32;
+        common::Session::create(l.m, Some(&d)).unwrap()
+    };
+    let none = opts(|o| o.normalize = turbo::TURBO_NORMALIZE_NONE);
+
+    let cpu = common::Loaded::load(&f.dir).unwrap();
+    let s = session(&cpu);
+    s.write_ranges(&t.batch(), &ranges, Some(&none)).unwrap();
+    let states = s.run().unwrap().rows();
+    assert_eq!(states[0].len(), head.hidden, "the cpu path returns the hidden states");
+    let h = &head.classifier;
+    let want: Vec<[f32; 2]> = states
+        .iter()
+        .map(|x| {
+            std::array::from_fn(|o| {
+                let w = &h.weight[o * h.in_dim..(o + 1) * h.in_dim];
+                w.iter().zip(x).fold(f64::from(h.bias[o]), |a, (&w, &v)| a + f64::from(w) * f64::from(v)) as f32
+            })
+        })
+        .collect();
+
+    let l = on_cuda(&f.dir);
+    let s = session(&l);
+    s.write_ranges(&t.batch(), &ranges, Some(&none)).unwrap();
+    let out = s.run().unwrap();
+    let info = out.info();
+    assert_eq!((info.batch, info.dim, info.bytes), (len as u32, 2, len as u64 * 8));
+    let got = out.rows();
+    assert_eq!(out.info().d2h_bytes, len as u64 * 8, "the read copies the logits alone");
+    for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+        for o in 0..2 {
+            assert!((g[o] - w[o]).abs() < 1e-5, "token {i} logit {o}: {} vs the cpu path's {}", g[o], w[o]);
+        }
+    }
+    drop(out);
+
+    let l2 = opts(|o| o.normalize = turbo::TURBO_NORMALIZE_L2);
+    let e = s.write_ranges(&t.batch(), &ranges, Some(&l2)).unwrap_err();
+    assert_eq!((e.code, e.field), (turbo::status::UNSUPPORTED_OPTION, 4), "{e:?}");
+    let narrow = opts(|o| {
+        o.normalize = turbo::TURBO_NORMALIZE_NONE;
+        o.output_dim = 8;
+    });
+    let e = s.write_ranges(&t.batch(), &ranges, Some(&narrow)).unwrap_err();
+    assert_eq!((e.code, e.field), (turbo::status::UNSUPPORTED_OPTION, 6), "{e:?}");
+}

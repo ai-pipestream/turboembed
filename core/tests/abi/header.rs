@@ -108,6 +108,9 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_model", "artifact_bytes", offset_of!(turbo_backend_model, artifact_bytes)),
         ("turbo_backend_model", "artifact2", offset_of!(turbo_backend_model, artifact2)),
         ("turbo_backend_model", "artifact2_bytes", offset_of!(turbo_backend_model, artifact2_bytes)),
+        ("turbo_backend_model", "head", offset_of!(turbo_backend_model, head)),
+        ("turbo_backend_model", "head_out", offset_of!(turbo_backend_model, head_out)),
+        ("turbo_backend_model", "reserved", offset_of!(turbo_backend_model, reserved)),
         ("turbo_backend", "formats", offset_of!(turbo_backend, formats)),
         ("turbo_backend", "reserved2", offset_of!(turbo_backend, reserved2)),
     ];
@@ -191,7 +194,7 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_embed_rows", "pooling", offset_of!(turbo_backend_embed_rows, pooling)),
         ("turbo_backend_embed_rows", "normalize", offset_of!(turbo_backend_embed_rows, normalize)),
         ("turbo_backend_embed_rows", "output_dim", offset_of!(turbo_backend_embed_rows, output_dim)),
-        ("turbo_backend_embed_rows", "reserved", offset_of!(turbo_backend_embed_rows, reserved)),
+        ("turbo_backend_embed_rows", "head", offset_of!(turbo_backend_embed_rows, head)),
         ("turbo_backend_run", "placement", offset_of!(turbo_backend_run, placement)),
         ("turbo_backend_run", "output", offset_of!(turbo_backend_run, output)),
         ("turbo_backend_run", "host", offset_of!(turbo_backend_run, host)),
@@ -202,6 +205,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_run", "stage", offset_of!(turbo_backend_run, stage)),
         ("turbo_backend", "session_open", offset_of!(turbo_backend, session_open)),
         ("turbo_backend", "embed_write_ranges", offset_of!(turbo_backend, embed_write_ranges)),
+        ("turbo_backend", "token_head", offset_of!(turbo_backend, token_head)),
+        ("turbo_backend", "reserved3", offset_of!(turbo_backend, reserved3)),
         ("turbo_backend_session_desc", "task", offset_of!(turbo_backend_session_desc, task)),
         ("turbo_backend_session_desc", "max_batch", offset_of!(turbo_backend_session_desc, max_batch)),
         ("turbo_backend_session_desc", "max_seq", offset_of!(turbo_backend_session_desc, max_seq)),
@@ -341,11 +346,26 @@ fn the_late_pooling_layout_is_the_one_proposed() {
     use turbo::backend::{turbo_backend, turbo_backend_session_desc};
     assert_eq!(offset_of!(turbo_backend, session_open), 168);
     assert_eq!(offset_of!(turbo_backend, embed_write_ranges), 176);
-    assert_eq!(size_of::<turbo_backend>(), 184);
+    assert_eq!(offset_of!(turbo_backend, token_head), 184);
     assert_eq!(offset_of!(turbo_session_desc, cpu_threads), 24);
     assert_eq!(offset_of!(turbo_session_desc, max_ranges), 28);
     assert_eq!(size_of::<turbo_session_desc>(), 32);
     assert_eq!(size_of::<turbo_token_range>(), 12);
     assert_eq!(size_of::<turbo_backend_session_desc>(), 32);
     assert_eq!((TURBO_SESSION_DESC_SIZE_V1, TURBO_SESSION_DESC_SIZE_V2), (16, 24));
+}
+
+/// The layout token heads were added with: the table's flag after
+/// embed_write_ranges, the model description's head after artifact2_bytes,
+/// and the rows' head in place of their reserved field.
+#[test]
+fn the_token_head_layout_is_the_one_proposed() {
+    use turbo::backend::{turbo_backend, turbo_backend_embed_rows, turbo_backend_model};
+    assert_eq!(offset_of!(turbo_backend, reserved3), 188);
+    assert_eq!(size_of::<turbo_backend>(), 192);
+    assert_eq!(offset_of!(turbo_backend_model, head), 120);
+    assert_eq!(offset_of!(turbo_backend_model, head_out), 128);
+    assert_eq!(size_of::<turbo_backend_model>(), 136);
+    assert_eq!(offset_of!(turbo_backend_embed_rows, head), 52);
+    assert_eq!(size_of::<turbo_backend_embed_rows>(), 56);
 }

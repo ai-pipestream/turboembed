@@ -83,3 +83,34 @@ The linear layers' weight matrices are copied once per model into the
 panel layout the matrix kernel reads: for all-MiniLM-L6-v2, 42.5 MB
 beside its 90.9 MB weights file. Sessions share it, and it goes with the
 model.
+
+## Benchmark records
+
+`benchmarks/records/x86-64-4d6f19dd.cpu.*` are the CPU backend's
+records (docs/benchmarks.md), made at library commit `9048085a` on the
+x86_64 host of Machine B, an AMD Ryzen 9 9950X (16 cores, 32 threads),
+Linux. Both sides ran on one CCD's 16 threads (`--cpus 8-15,24-31`, so
+`TURBO_CPU_THREADS=16`), 20 untimed and 200 timed runs. The reference
+is TEI 1.9.4's CPU image
+(`text-embeddings-inference@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d`)
+in float32, timed per request from sending it to reading the whole
+response. p50 in ms, 32 rows:
+
+| Model | Seq | Rows | EXACT | MODEL | TEI at EXACT | TEI at MODEL |
+|---|---|---|---|---|---|---|
+| all-MiniLM-L6-v2 | 256 | mixed | 18.5 | 18.7 | 126.5 | 146.7 |
+| all-MiniLM-L6-v2 | 256 | dense | 116.1 | 116.7 | 189.0 | 189.7 |
+| bge-small-en-v1.5 | 512 | mixed | 66.6 | 66.7 | 766.5 | 901.8 |
+| bge-small-en-v1.5 | 512 | dense | 548.4 | 553.3 | 1412.8 | 1420.1 |
+| bge-base-en-v1.5 | 512 | mixed | 222.5 | 224.2 | 1929.7 | 1687.0 |
+| bge-base-en-v1.5 | 512 | dense | 1800.8 | 1770.1 | 2833.5 | 2857.2 |
+| bge-large-en-v1.5 | 512 | mixed | 769.0 | 766.5 | 6849.7 | 5786.5 |
+| bge-large-en-v1.5 | 512 | dense | 5980.7 | 5978.2 | 9884.8 | 9812.6 |
+
+The library's lowest cosine against each bundle's reference vectors is
+at least 0.99999999998 on every record. The mixed records back
+SUPPORTED for EXACT and MODEL on that processor, with `speed_ratio`
+0.07 to 0.15. FASTEST has no record, so it stays EXPERIMENTAL. Mixed
+rows are mostly padding, which the library does not compute (each mixed
+record computes only its live tokens), and their ratios are lower than
+the dense records' 0.39 to 0.64.

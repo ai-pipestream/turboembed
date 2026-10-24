@@ -11,13 +11,15 @@ mod common;
 use std::slice;
 
 use turbo_analysis::{Analyzer, Document, Key, Status};
-use turbo_goldens::{Golden, Tolerance, assert_matches_golden, data_dir};
-use turbo_langdetect::{LanguageDetector, LanguageModel, Ranking, Scratch};
+use turbo_goldens::{Golden, Tolerance, assert_matches_golden, data_dir, segmentation_shapes};
+use turbo_langdetect::{LanguageDetector, LanguageModel, ProbingConfig, ProbingContext, Ranking, Scratch};
 use turbo_maxent::ModelFile;
 
 use common::{goldens_in, read_dump};
 
 const FIXTURE: &str = "langdetect-fixture-rust";
+const CHUNK_50: ProbingConfig =
+    ProbingConfig { max_length: 250, chunk_size: 50, min_consec_improvements: 2, min_diff: 0.20 };
 
 fn goldens() -> Vec<(String, String, std::path::PathBuf)> {
     goldens_in(&data_dir().join("langdetect").join(FIXTURE))
@@ -96,4 +98,72 @@ fn every_ranking_with_the_rust_model_matches_its_golden_or_is_declined_without_e
         declined.push(name.clone());
     }
     assert_eq!(declined, ["multi/ja", "multi/zh"]);
+}
+
+#[test]
+fn probing_with_the_rust_model_matches_every_chunk_context_probability_ranking_and_length() {
+    let detector = detector();
+    let maxent = detector.model().maxent();
+    let shapes = segmentation_shapes();
+    let mut scratch = Scratch::new();
+    let mut ranking = Ranking::new();
+    let mut probing_ctx = ProbingContext::default();
+    let mut chunk_probs = vec![0.0; maxent.num_outcomes()];
+    let mut early_stopped = 0usize;
+    let mut capped = 0usize;
+
+    for (run, cfg) in
+        [(format!("{FIXTURE}+probing"), ProbingConfig::default()), (format!("{FIXTURE}+probing-chunk50"), CHUNK_50)]
+    {
+        let all = goldens_in(&data_dir().join("langdetect").join(&run));
+        assert_eq!(all.len(), 24, "{run}");
+        for (set, id, path) in all {
+            let golden = Golden::read_with(&path, &shapes).unwrap();
+            let text = input(&golden);
+            let char_count = text.chars().count();
+            let points = read_dump(&path.with_extension("dump"));
+            let expected_len = golden.layer("turbo:probing-length").unwrap().u32s("length").unwrap()[0] as usize;
+
+            // Step chunk by chunk and verify every decision point's cumulative n-gram order and probabilities.
+            probing_ctx.reset();
+            let chars: Vec<char> = text.chars().collect();
+            let mut pos = 0usize;
+            for (step, point) in points.iter().enumerate() {
+                let take = cfg.chunk_size.min(cfg.max_length.saturating_sub(pos)).min(chars.len().saturating_sub(pos));
+                let chunk: String = chars[pos..pos + take].iter().collect();
+                pos += take;
+                probing_ctx.add_chunk(&chunk);
+                assert!(probing_ctx.exact_order(), "{run}/{set}/{id} step {step}");
+                let rust_ctx: Vec<&[u8]> = probing_ctx.features().collect();
+                let jvm_ctx: Vec<&[u8]> = point.contexts.iter().map(Vec::as_slice).collect();
+                assert_eq!(rust_ctx, jvm_ctx, "{run}/{set}/{id} step {step} contexts");
+                maxent.eval_features(probing_ctx.features(), &mut chunk_probs);
+                for (o, (label, p)) in point.outcomes.iter().enumerate() {
+                    assert_eq!(maxent.outcome(o), label);
+                    assert_eq!(chunk_probs[o].to_bits(), p.to_bits(), "{run}/{set}/{id} step {step} outcome {label}");
+                }
+            }
+            assert_eq!(pos, expected_len, "{run}/{set}/{id} chunked pos");
+
+            let length = detector.probing_predict_languages_with(&text, cfg, &mut scratch, &mut ranking);
+            assert_eq!(length, expected_len, "{run}/{set}/{id} probing length");
+            if length < char_count && length < cfg.max_length {
+                early_stopped += 1;
+            }
+            if length == cfg.max_length && char_count > cfg.max_length {
+                capped += 1;
+            }
+
+            let jvm = golden.layer("opennlp:language").unwrap();
+            let codes: Vec<&str> = jvm.strs("code").unwrap().iter().collect();
+            let confs = jvm.f64s("confidence").unwrap();
+            let rust_codes: Vec<&str> = ranking.outcomes().iter().map(|&o| detector.model().code(o as usize)).collect();
+            assert_eq!(rust_codes, codes, "{run}/{set}/{id} ranking order");
+            for (r, j) in ranking.probabilities().iter().zip(confs) {
+                assert_eq!(r.to_bits(), j.to_bits(), "{run}/{set}/{id} confidence");
+            }
+        }
+    }
+    assert!(early_stopped > 0, "expected early-stopped inputs via seenEnough");
+    assert!(capped > 0, "expected maxLength-capped inputs");
 }

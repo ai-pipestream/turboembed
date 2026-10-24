@@ -137,7 +137,7 @@ fn rows(batch: u32, seq: u32, stride: u32, ids: &[i32]) -> turbo_backend_embed_r
         pooling: TURBO_POOLING_MEAN,
         normalize: TURBO_NORMALIZE_NONE,
         output_dim: HIDDEN,
-        reserved: 0,
+        head: 0,
     }
 }
 

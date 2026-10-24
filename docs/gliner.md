@@ -1,9 +1,13 @@
 # Native GLiNER span extraction
 
-Part of #391 and #715. `turbo-gliner` adds the entity-schema portion of
-GLiNER extraction using the native DeBERTa-v3 encoder. It supports the
+Part of #391, #715, and #962. `turbo-gliner` adds the entity-schema portion of
+GLiNER extraction using the native DeBERTa-v3 and mDeBERTa-v3 encoder. It supports the
 Apache-2.0 `urchade/gliner_small-v2.1` checkpoint at
-`4e091416cf7c3481db542c2a3d26156916f3a47f`. See `docs/licences.md`.
+`4e091416cf7c3481db542c2a3d26156916f3a47f` (`urchade-gliner-small-v2.1` with
+`microsoft-deberta-v3-small-tokenizer` in the zoo) and the multilingual
+Apache-2.0 `urchade/gliner_multi-v2.1` checkpoint at
+`443d26d654e0324125a96bebd8e796c14ff2efe6` (`urchade-gliner-multi-v2.1` with
+`microsoft-mdeberta-v3-base-tokenizer` in the zoo). See `docs/licences.md`.
 No encoder attention or matrix-multiplication loop is changed here.
 
 This is a Rust CPU API; GLiNER and GLiNER2 heads on other devices are
@@ -11,8 +15,8 @@ This is a Rust CPU API; GLiNER and GLiNER2 heads on other devices are
 against other layers are in `turbo-schema-extract`
 ([schema-extract.md](schema-extract.md)), and SaT sentence segmentation is
 in `turbo-sat`. The entity schema here is not a substitute for GLiNER2's
-counting and structured-field heads. There is no C session task or
-throughput claim for GLiNER.
+counting and structured-field heads. There is no C session task for
+GLiNER.
 
 ## One pass and exact checkpoint heads
 
@@ -163,16 +167,23 @@ the converter and the heads support only the small-v2.1 markerV0 profile.
 
 ## Conversion and loading
 
-The converter accepts F32 safetensors exported from the upstream PyTorch state
-dictionary with `torch.load(..., weights_only=True)`. It requires the
-small-v2.1 markerV0/first-pooling profile, RNN and marker embeddings, and rejects
-unsupported switches. Shapes and finite values are checked for every required
-encoder, recurrent and head tensor. It does not substitute random weights for
-missing tensors. Source revision and licence must be supplied.
+The converter accepts either F32 safetensors (`model.safetensors`, as published
+by `urchade/gliner_multi-v2.1`) or a `torch.save` zip archive
+(`pytorch_model.bin`, as published by `urchade/gliner_small-v2.1`, read with
+the code-free pickle reader in `bundle/src/torch/`). It requires the
+small-v2.1 (`microsoft/deberta-v3-small`, 128,004 vocabulary rows) or
+multi-v2.1 (`microsoft/mdeberta-v3-base`, 250,105 vocabulary rows)
+markerV0/first-pooling profile, RNN and marker embeddings, and rejects
+unsupported switches or mismatched `spm.model` vocabularies. Shapes and finite
+values are checked for every required encoder, recurrent and head tensor. It
+does not substitute random weights for missing tensors. Source revision and
+licence must be supplied.
 
 ```
-turbo-bundle gliner-convert encoder-config.json gliner_config.json checkpoint.safetensors spm.model urchade/gliner_small-v2.1 4e091416cf7c3481db542c2a3d26156916f3a47f Apache-2.0 new-gliner-package
-turbo-bundle gliner-verify new-gliner-package
+turbo-bundle gliner-convert config.json gliner_config.json pytorch_model.bin spm.model urchade/gliner_small-v2.1 4e091416cf7c3481db542c2a3d26156916f3a47f Apache-2.0 new-gliner-small
+turbo-bundle gliner-verify new-gliner-small
+turbo-bundle gliner-convert config.json gliner_config.json model.safetensors spm.model urchade/gliner_multi-v2.1 443d26d654e0324125a96bebd8e796c14ff2efe6 Apache-2.0 new-gliner-multi
+turbo-bundle gliner-verify new-gliner-multi
 ```
 
 The new directory contains `encoder/`, `heads.safetensors`, `spm.model` and
@@ -184,24 +195,30 @@ digest binds the whole package via the GLiNER manifest.
 
 ## Numerical and boundary proof
 
-`bundle/reference/gliner/build_reference.py` executes the real six-layer,
-768-wide encoder and GLiNER 0.2.21's actual LSTM/markerV0 classes with strict
-state-dictionary loading. It avoids importing the optional ONNX serving
-frontend. Reference package versions are pinned in the adjacent requirements
-file. `analysis/gliner/tests/fixtures/full-reference.json` records the immutable
-checkpoint, source hashes, packed IDs, pooling positions, all valid logits,
-and flat/nested predictions for four fixtures, including accented text,
-unknown emoji and supplementary-plane characters.
+`bundle/reference/gliner/build_reference.py` executes the real encoder
+(six-layer DeBERTa-v3-small or twelve-layer mDeBERTa-v3-base) and GLiNER
+0.2.21's actual LSTM/markerV0 classes with strict state-dictionary loading. It
+avoids importing the optional ONNX serving frontend. Reference package versions
+are pinned in the adjacent requirements file.
+`analysis/gliner/tests/fixtures/full-reference.json` records `urchade/gliner_small-v2.1`
+on four English and Unicode fixtures, and
+`analysis/gliner/tests/fixtures/multi-reference.json` records `urchade/gliner_multi-v2.1`
+on five multilingual and Unicode fixtures (French, German, Japanese,
+emoji/Gothic supplementary-plane characters, and nested English).
 
-The independent Rust full-checkpoint test compares token IDs and positions
-exactly, logits within 0.002 and selected scores within 0.0001, and requires
-identical decoded labels and spans. The current maximum logit error is
-0.00003242. An additional native annotation test checks nested source slices
-with multi-byte UTF-8, named instances, threshold/logit evidence and graph
-export/import. It runs explicitly with local artifact environment variables:
+The independent Rust full-checkpoint tests (`full_checkpoint_matches_python`
+and `multi_checkpoint_matches_python` in `analysis/gliner/tests/checkpoint.rs`)
+fetch the checkpoints and tokenizers through `turbo-zoo` and package them via
+`turbo-bundle` (or read `GLINER_PACKAGE` / `GLINER_MULTI_PACKAGE` when set).
+They compare token IDs and positions exactly, logits within 0.002 and selected
+scores within 0.0001, and require identical decoded labels and spans. The
+maximum logit error is 0.00003242 on `urchade/gliner_small-v2.1` and 0.00033951
+on `urchade/gliner_multi-v2.1`. An additional native annotation test checks
+nested source slices with multi-byte UTF-8, named instances, threshold/logit
+evidence and graph export/import:
 
 ```
-GLINER_PACKAGE="$PWD/new-gliner-package" GLINER_REFERENCE="$PWD/reference.json" cargo test --release --locked -p turbo-gliner --test checkpoint -- --ignored --nocapture
+cargo test --release --locked -p turbo-gliner --test checkpoint -- --ignored --nocapture
 ```
 
 The normal offline test suite uses a small, real-weight head slice generated by

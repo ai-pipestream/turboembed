@@ -1,0 +1,26 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	multi/pt	191	184	699a006ea30a073970f33c421ff9ea82f271df4e609177456a4272ff34bbf511
+model	langdetect-fixture-rust.bin	631c804500a2a2cbd3c1b88febdf21332487760abc40efcee217159e3e694a01dbbc82ee9d5102dccc9f5a889775aad4c93efedf3621df9d4622448a1d58ae99
+annotator	opennlp.tools.langdetect.LanguageDetectorME	probingPredictLanguages
+config	chunkSize	50
+config	maxLength	250
+config	minConsecImprovements	2
+config	minDiff	0.2
+layer	opennlp:language	document	9	code:str	confidence:f64
+ita	3fde9eb012f4a99c 0.47843553401130534
+fra	3fd17a10b4ffacbd 0.2730752723279684
+spa	3fc46bc28f33d47e 0.15953857414539024
+deu	3fa200cd40c774b8 0.03516236701737213
+eng	3fa058516f8920d4 0.03192381369132283
+nld	3f95357fd472505c 0.02071189626856583
+rus	3f402919af58b734 4.931807913572729E-4
+tur	3f3692c42884c54f 3.444413091698477E-4
+ell	3f34a37cfae89b7d 3.149204375482646E-4
+end	opennlp:language
+layer	turbo:probing-length	document	1	length:u32
+184
+end	turbo:probing-length
