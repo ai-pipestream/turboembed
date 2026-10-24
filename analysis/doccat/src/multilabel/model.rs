@@ -13,8 +13,8 @@ use super::bytes::{MAX_UTF_BYTES, Reader, put_utf};
 use super::error::MultiLabelError;
 use super::head::LinearHead;
 use super::validate::{check_label_names, check_thresholds};
-use crate::features::{BuiltinFeatureGenerator, DoccatContextGenerator};
-use crate::model::parse_feature_generators;
+use crate::features::DoccatContextGenerator;
+use crate::model::{encode_feature_generators, parse_feature_generators};
 
 /// The model entry's type string, `writeUTF` first, as `writeUTF("GIS")`
 /// is first in a maxent model's bytes.
@@ -177,12 +177,19 @@ impl MultiLabelDoccatModel {
 
     /// Recomputes the model reference from the entry's bytes.
     fn refresh_ref(&mut self) {
-        let bytes = self.write();
+        let sha256 = self.write().map(|b| turbo_maxent::sha256(&b).to_hex()).unwrap_or_default();
         self.model_ref = ModelRef {
             id: format!("turbo:MultiLabelDoccat:{}", self.language),
             revision: FORMAT_VERSION.to_string(),
-            sha256: turbo_maxent::sha256(&bytes).to_hex(),
+            sha256,
         };
+    }
+
+    /// The same model with a new [`DoccatContextGenerator`].
+    pub fn with_context_generator(mut self, context_generator: DoccatContextGenerator) -> Self {
+        self.context_generator = context_generator;
+        self.refresh_ref();
+        self
     }
 
     /// The same model emitting at most `max_labels` labels per item (the
@@ -371,18 +378,17 @@ impl MultiLabelDoccatModel {
     }
 
     /// The entry's bytes: `writeUTF("MultiLabel")`, the format version,
-    /// the language, the feature generator class names, `max_labels` (-1
+    /// the language, the feature generator specifications, `max_labels` (-1
     /// for none), `min_labels` (version 2 and up; -1 for none),
     /// `min_score`, and per label the name, threshold, bias, and
     /// `(feature, weight)` pairs, then the CRC-32C of all of it.
-    pub fn write(&self) -> Vec<u8> {
+    pub fn write(&self) -> Result<Vec<u8>, MultiLabelError> {
+        let generators = encode_feature_generators(&self.context_generator).map_err(MultiLabelError::Invalid)?;
         let mut out = Vec::new();
         put_utf(&mut out, MODEL_TYPE);
         out.extend_from_slice(&FORMAT_VERSION.to_be_bytes());
         put_utf(&mut out, &self.language);
-        let generators: Vec<&str> =
-            self.context_generator.builtins().iter().map(BuiltinFeatureGenerator::class_name).collect();
-        put_utf(&mut out, &generators.join(","));
+        put_utf(&mut out, &generators);
         out.extend_from_slice(&(self.bounds.max_labels.map_or(-1, |m| m as i32)).to_be_bytes());
         out.extend_from_slice(&(self.bounds.min_labels.map_or(-1, |m| m as i32)).to_be_bytes());
         out.extend_from_slice(&self.bounds.min_score.to_be_bytes());
@@ -399,7 +405,7 @@ impl MultiLabelDoccatModel {
         }
         let crc = crc32c(&out);
         out.extend_from_slice(&crc.to_be_bytes());
-        out
+        Ok(out)
     }
 
     /// Opens a model from its entry's bytes, the mirror of

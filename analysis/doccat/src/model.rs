@@ -7,7 +7,11 @@ use turbo_analysis::{ModelRef, Tag, TagSet};
 use turbo_maxent::{MaxentModel, ModelFile};
 
 use crate::error::DoccatError;
-use crate::features::{BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator};
+use crate::features::{
+    BAG_OF_WORDS_CLASS, BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator, EMOJI_CLASS,
+    EmojiFeatureGenerator, NGRAM_CLASS, NGramFeatureGenerator,
+};
+use turbo_sequence::PatternMode;
 
 /// `DoccatModel.COMPONENT_NAME`.
 pub const COMPONENT_NAME: &str = "DocumentCategorizerME";
@@ -147,6 +151,153 @@ impl DoccatModel {
     /// Returns the [`ModelRef`] recorded in layer provenance.
     pub fn model_ref(&self) -> &ModelRef {
         &self.model_ref
+    }
+
+    /// Computes a deterministic FNV-1a configuration hash over the model's
+    /// language, category labels, and feature generator parameters.
+    pub(crate) fn config_hash_value(&self) -> u64 {
+        let mut hash = context_generator_config_hash(&self.context_generator);
+        feed_bytes(&mut hash, self.language.as_bytes());
+        feed_bytes(&mut hash, &[0]);
+        for i in 0..self.categories.len() {
+            feed_bytes(&mut hash, self.categories.label(Tag(i as u16)).as_bytes());
+            feed_bytes(&mut hash, &[0]);
+        }
+        hash
+    }
+}
+
+pub(crate) fn feed_bytes(hash: &mut u64, bytes: &[u8]) {
+    for &b in bytes {
+        *hash = (*hash ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+    }
+}
+
+/// Deterministic FNV-1a hash over a [`DoccatContextGenerator`]'s built-in and
+/// custom feature generators.
+pub(crate) fn context_generator_config_hash(cg: &DoccatContextGenerator) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for g in cg.builtins() {
+        match g {
+            BuiltinFeatureGenerator::BagOfWords(g) => {
+                feed_bytes(
+                    &mut hash,
+                    &[
+                        0,
+                        u8::from(g.uses_only_all_letter_tokens()),
+                        match g.pattern_mode() {
+                            PatternMode::Utf16Units => 0,
+                            PatternMode::CodePoints => 1,
+                        },
+                    ],
+                );
+            }
+            BuiltinFeatureGenerator::NGram(g) => {
+                feed_bytes(&mut hash, &[1]);
+                feed_bytes(&mut hash, &(g.min_gram() as u64).to_le_bytes());
+                feed_bytes(&mut hash, &(g.max_gram() as u64).to_le_bytes());
+            }
+            BuiltinFeatureGenerator::Emoji(_) => {
+                feed_bytes(&mut hash, &[2]);
+            }
+        }
+    }
+    if !cg.custom().is_empty() {
+        feed_bytes(&mut hash, &[3]);
+        feed_bytes(&mut hash, &(cg.custom().len() as u64).to_le_bytes());
+        for g in cg.custom() {
+            let dbg = format!("{g:?}");
+            feed_bytes(&mut hash, dbg.as_bytes());
+            feed_bytes(&mut hash, &[0]);
+        }
+    }
+    hash
+}
+
+/// Encodes a [`BuiltinFeatureGenerator`] as its canonical Java class name when
+/// using default settings, or with its non-default parameters appended so
+/// archives round-trip `NGramFeatureGenerator` bounds and
+/// `BagOfWordsFeatureGenerator` token filters losslessly.
+pub(crate) fn encode_single_generator(g: &BuiltinFeatureGenerator) -> String {
+    match g {
+        BuiltinFeatureGenerator::BagOfWords(bow) => {
+            if !bow.uses_only_all_letter_tokens() && bow.pattern_mode() == PatternMode::Utf16Units {
+                BAG_OF_WORDS_CLASS.to_owned()
+            } else {
+                let mode = match bow.pattern_mode() {
+                    PatternMode::Utf16Units => "utf16",
+                    PatternMode::CodePoints => "codepoints",
+                };
+                format!("{BAG_OF_WORDS_CLASS}(letters={}:mode={mode})", bow.uses_only_all_letter_tokens())
+            }
+        }
+        BuiltinFeatureGenerator::NGram(ng) => {
+            if ng.min_gram() == 2 && ng.max_gram() == 2 {
+                NGRAM_CLASS.to_owned()
+            } else {
+                format!("{NGRAM_CLASS}({}:{})", ng.min_gram(), ng.max_gram())
+            }
+        }
+        BuiltinFeatureGenerator::Emoji(_) => EMOJI_CLASS.to_owned(),
+    }
+}
+
+/// Encodes all feature generators of `cg` as a comma-separated specification,
+/// returning an error if `cg` contains unserializable custom generators or no
+/// built-in generators.
+pub(crate) fn encode_feature_generators(cg: &DoccatContextGenerator) -> Result<String, String> {
+    if !cg.custom().is_empty() {
+        return Err("custom feature generators cannot be serialized in a model archive".into());
+    }
+    if cg.builtins().is_empty() {
+        return Err("context_generator has no built-in feature generators to serialize".into());
+    }
+    let specs: Vec<String> = cg.builtins().iter().map(encode_single_generator).collect();
+    Ok(specs.join(","))
+}
+
+/// Parses one feature generator class name or parameterized specification.
+pub(crate) fn parse_single_generator(class_name: &str) -> Result<BuiltinFeatureGenerator, DoccatError> {
+    let trimmed = class_name.trim();
+    match trimmed {
+        BAG_OF_WORDS_CLASS => Ok(BuiltinFeatureGenerator::BagOfWords(BagOfWordsFeatureGenerator::new())),
+        NGRAM_CLASS => Ok(BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::default())),
+        EMOJI_CLASS => Ok(BuiltinFeatureGenerator::Emoji(EmojiFeatureGenerator::new())),
+        other => {
+            if let Some(inner) = other
+                .strip_prefix(BAG_OF_WORDS_CLASS)
+                .and_then(|s| s.strip_prefix('('))
+                .and_then(|s| s.strip_suffix(')'))
+            {
+                let (letters_kv, mode_kv) =
+                    inner.split_once(':').ok_or_else(|| DoccatError::UnknownFeatureGenerator(other.to_owned()))?;
+                let letters = match letters_kv.strip_prefix("letters=") {
+                    Some("true") => true,
+                    Some("false") => false,
+                    _ => return Err(DoccatError::UnknownFeatureGenerator(other.to_owned())),
+                };
+                let mode = match mode_kv.strip_prefix("mode=") {
+                    Some("utf16") => PatternMode::Utf16Units,
+                    Some("codepoints") => PatternMode::CodePoints,
+                    _ => return Err(DoccatError::UnknownFeatureGenerator(other.to_owned())),
+                };
+                return Ok(BuiltinFeatureGenerator::BagOfWords(
+                    BagOfWordsFeatureGenerator::with_only_all_letter_tokens(letters).with_pattern_mode(mode),
+                ));
+            }
+            if let Some(inner) =
+                other.strip_prefix(NGRAM_CLASS).and_then(|s| s.strip_prefix('(')).and_then(|s| s.strip_suffix(')'))
+            {
+                let (min_s, max_s) =
+                    inner.split_once(':').ok_or_else(|| DoccatError::UnknownFeatureGenerator(other.to_owned()))?;
+                let min_gram: usize =
+                    min_s.parse().map_err(|_| DoccatError::UnknownFeatureGenerator(other.to_owned()))?;
+                let max_gram: usize =
+                    max_s.parse().map_err(|_| DoccatError::UnknownFeatureGenerator(other.to_owned()))?;
+                return Ok(BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::new(min_gram, max_gram)?));
+            }
+            Err(DoccatError::UnknownFeatureGenerator(other.to_owned()))
+        }
     }
 }
 

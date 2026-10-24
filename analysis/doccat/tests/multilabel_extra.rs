@@ -94,7 +94,7 @@ fn the_bounds_are_validated() {
 fn the_codec_round_trips_min_labels() {
     let model =
         model().with_max_labels(Some(3)).unwrap().with_min_labels(Some(2)).unwrap().with_min_score(0.15).unwrap();
-    let opened = MultiLabelDoccatModel::open(&model.write()).unwrap();
+    let opened = MultiLabelDoccatModel::open(&model.write().unwrap()).unwrap();
     assert_eq!(opened.min_labels(), Some(2));
     assert_eq!(opened.max_labels(), Some(3));
     assert_eq!(opened.min_score(), 0.15);
@@ -301,4 +301,133 @@ fn extreme_training_parameters_error_instead_of_panicking() {
         let err = result.expect("training must not panic");
         assert!(err.is_err(), "non-finite weights are an error, not a panic");
     }
+}
+
+#[test]
+fn feature_generator_settings_round_trip_and_custom_generators_error() {
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+    use turbo_doccat::features::PatternMode;
+    use turbo_doccat::multilabel::{
+        MultiLabelSample, MultiLabelTrainingParameters, open_package, package_multilabel_model, train_multilabel,
+    };
+    use turbo_doccat::{DoccatFactory, DoccatFeatureGenerator, NGramFeatureGenerator};
+
+    let samples = [
+        MultiLabelSample::new(["sports"], ["team", "123", "wins", "match"]),
+        MultiLabelSample::new(["finance"], ["stock", "456", "market", "rally"]),
+    ];
+    let factory = DoccatFactory::with_feature_generators(vec![
+        BuiltinFeatureGenerator::BagOfWords(
+            BagOfWordsFeatureGenerator::only_all_letter_tokens().with_pattern_mode(PatternMode::CodePoints),
+        ),
+        BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::new(1, 3).unwrap()),
+    ]);
+    let trained = train_multilabel("en", &samples, &factory, &MultiLabelTrainingParameters::default()).unwrap();
+
+    let default_cg_model = trained.clone().with_context_generator(DoccatContextGenerator::from_builtins(vec![
+        BuiltinFeatureGenerator::BagOfWords(BagOfWordsFeatureGenerator::new()),
+        BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::default()),
+    ]));
+    assert_ne!(
+        trained.model_ref().sha256,
+        default_cg_model.model_ref().sha256,
+        "distinct generator settings must produce distinct entry sha256"
+    );
+
+    let probe = &["team", "123", "wins", "match"];
+    assert_ne!(
+        trained.scores(probe),
+        default_cg_model.scores(probe),
+        "non-default BOW/NGram settings must change inference scores on probe"
+    );
+
+    let entry_bytes = trained.write().unwrap();
+    let opened_entry = MultiLabelDoccatModel::open(&entry_bytes).unwrap();
+    assert_eq!(opened_entry.context_generator().builtins(), trained.context_generator().builtins());
+    assert_eq!(opened_entry.scores(probe), trained.scores(probe));
+    assert_eq!(opened_entry.model_ref().sha256, trained.model_ref().sha256);
+
+    let pkg = package_multilabel_model(&trained, 1_700_000_000_000).unwrap();
+    let opened_pkg = open_package(pkg.to_bytes()).unwrap();
+    assert_eq!(opened_pkg.context_generator().builtins(), trained.context_generator().builtins());
+    assert_eq!(opened_pkg.scores(probe), trained.scores(probe));
+
+    #[derive(Debug)]
+    struct CustomGen;
+    impl DoccatFeatureGenerator for CustomGen {
+        fn extract_features(&self, _text: &[&str], _extra: &BTreeMap<String, String>, out: &mut Vec<String>) {
+            out.push("custom=1".into());
+        }
+    }
+    let custom_cg = DoccatContextGenerator::from_custom(vec![Arc::new(CustomGen)]);
+    let with_custom = trained.with_context_generator(custom_cg);
+    assert!(with_custom.write().is_err(), "write must fail when custom generators are present");
+    assert!(
+        package_multilabel_model(&with_custom, 1_700_000_000_000).is_err(),
+        "package_multilabel_model must fail when custom generators are present"
+    );
+}
+
+#[test]
+fn categorizer_annotators_report_distinct_config_hashes() {
+    use turbo_analysis::Annotator;
+    use turbo_analysis_layers::{Chunks, Sentences};
+    use turbo_doccat::features::PatternMode;
+    use turbo_doccat::{DoccatModel, DocumentCategorizerME, NGramFeatureGenerator, SpanCategorizer};
+    use turbo_maxent::MaxentModel;
+    use turbo_train::{Event, Key as Param, TrainingConfiguration, TrainingParameters, trainer};
+
+    let ml_base = model();
+    let ml_cat = MultiLabelCategorizer::new(ml_base.clone());
+    let h_base = ml_cat.config_hash();
+    assert_ne!(h_base, 0);
+
+    let ml_thresh = MultiLabelCategorizer::new(ml_base.clone().with_thresholds(vec![0.4, 0.5, 0.6]).unwrap());
+    let ml_max = MultiLabelCategorizer::new(ml_base.clone().with_max_labels(Some(2)).unwrap());
+    let ml_min = MultiLabelCategorizer::new(ml_base.clone().with_min_labels(Some(1)).unwrap());
+    let ml_score = MultiLabelCategorizer::new(ml_base.clone().with_min_score(0.25).unwrap());
+    let ml_cg =
+        MultiLabelCategorizer::new(ml_base.with_context_generator(DoccatContextGenerator::from_builtins(vec![
+            BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::new(1, 3).unwrap()),
+        ])));
+    for other in [
+        ml_thresh.config_hash(),
+        ml_max.config_hash(),
+        ml_min.config_hash(),
+        ml_score.config_hash(),
+        ml_cg.config_hash(),
+    ] {
+        assert_ne!(other, 0);
+        assert_ne!(other, h_base);
+    }
+    let ml_spans_sent: turbo_doccat::multilabel::MultiLabelSpanCategorizer<Sentences> = ml_cat.for_spans();
+    let ml_spans_chunk: turbo_doccat::multilabel::MultiLabelSpanCategorizer<Chunks> = ml_cat.for_spans();
+    assert_ne!(ml_spans_sent.config_hash(), 0);
+    assert_ne!(ml_spans_sent.config_hash(), ml_spans_chunk.config_hash());
+    assert_ne!(ml_spans_sent.config_hash(), ml_thresh.for_spans::<Sentences>().config_hash());
+
+    let events = vec![Event::from_strs("pos", &["bow=good"]), Event::from_strs("neg", &["bow=bad"])];
+    let mut params = TrainingParameters::new();
+    params.put(Param::ALGORITHM, "MAXENT");
+    params.put(Param::ITERATIONS, 20);
+    params.put(Param::CUTOFF, 0);
+    let (trained, _) = trainer::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+    let maxent = MaxentModel::read(&trained.write().unwrap()).unwrap();
+    let cg1 = DoccatContextGenerator::from_builtins(vec![BuiltinFeatureGenerator::BagOfWords(
+        BagOfWordsFeatureGenerator::new(),
+    )]);
+    let cg2 = DoccatContextGenerator::from_builtins(vec![BuiltinFeatureGenerator::BagOfWords(
+        BagOfWordsFeatureGenerator::only_all_letter_tokens().with_pattern_mode(PatternMode::CodePoints),
+    )]);
+    let doc_cat1 = DocumentCategorizerME::new(DoccatModel::from_maxent("en", maxent.clone(), cg1).unwrap());
+    let doc_cat2 = DocumentCategorizerME::new(DoccatModel::from_maxent("en", maxent, cg2).unwrap());
+    assert_ne!(doc_cat1.config_hash(), 0);
+    assert_ne!(doc_cat1.config_hash(), doc_cat2.config_hash());
+    let span1: SpanCategorizer<Sentences> = doc_cat1.for_spans();
+    let span2: SpanCategorizer<Sentences> = doc_cat2.for_spans();
+    let span_chunk: SpanCategorizer<Chunks> = doc_cat1.for_spans();
+    assert_ne!(span1.config_hash(), 0);
+    assert_ne!(span1.config_hash(), span2.config_hash());
+    assert_ne!(span1.config_hash(), span_chunk.config_hash());
 }
