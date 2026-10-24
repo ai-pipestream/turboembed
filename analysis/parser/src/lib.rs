@@ -42,6 +42,7 @@
 //! trainers that do.
 
 pub mod annotator;
+mod annotator_inputs;
 pub mod bottom_up;
 pub mod chunking;
 pub mod context;

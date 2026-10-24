@@ -120,6 +120,7 @@ fn result_kinds_encode_and_decode_as_fast_per_byte_as_vector_and_span_messages()
         occ_start: (0..occs as u32).map(|i| i * 2).collect(),
         occ_end: (0..occs as u32).map(|i| i * 2 + 1).collect(),
         occ_at: (0..entries as u32).map(|i| (i as u64 * occs as u64 / entries as u64) as u32).collect(),
+        ..Default::default()
     };
     let (sv, sdec) = span_msg(sparse.encoded_len() / 6);
     let (sn, bn) = alternating(
@@ -149,6 +150,7 @@ fn result_kinds_encode_and_decode_as_fast_per_byte_as_vector_and_span_messages()
         view: 0,
         window_start: (0..windows).map(|i| i * 16 * dim).collect(),
         window_end: (0..windows).map(|i| i * 16 * dim + 16 * dim).collect(),
+        ..Default::default()
     };
     let (vv, vdec) = vector_msg(floats);
     let (vn, bv) = alternating(

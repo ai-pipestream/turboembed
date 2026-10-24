@@ -1,0 +1,212 @@
+{
+  "arms": [
+    {
+      "changed_documents": 0,
+      "chunks": 7386,
+      "doc_scores": {
+        "ndcg_at_10": 0.381822374824809,
+        "recall": {
+          "at_1": 0.2935906271536871,
+          "at_10": 0.48173673328738803,
+          "at_100": 0.7429359062715368,
+          "at_5": 0.4217780840799449
+        },
+        "queries_scored": 1451
+      },
+      "f1": 0.18664358352594507,
+      "name": "baseline",
+      "pk": 0.4800924188719279,
+      "segmentation_ms": 10.077051000000003,
+      "span_scores": {
+        "mean": {
+          "at_1": {
+            "contained": 0.054213975666602514,
+            "precision": 0.048200145821481404,
+            "recall": 0.056793319278366367
+          },
+          "at_10": {
+            "contained": 0.22545985133468777,
+            "precision": 0.022558911655875997,
+            "recall": 0.23139633742945667
+          },
+          "at_100": {
+            "contained": 0.407588930806288,
+            "precision": 0.004314928242881965,
+            "recall": 0.4183009957078919
+          },
+          "at_5": {
+            "contained": 0.16620141768132823,
+            "precision": 0.03241468405312238,
+            "recall": 0.16925153999196135
+          }
+        },
+        "queries_scored": 1310
+      },
+      "window_diff": 0.5036061768916945,
+      "boundary_documents_scored": 416
+    },
+    {
+      "changed_documents": 415,
+      "chunks": 8087,
+      "doc_scores": {
+        "ndcg_at_10": 0.3826987581605646,
+        "recall": {
+          "at_1": 0.28876636802205374,
+          "at_10": 0.487250172294969,
+          "at_100": 0.7415575465196417,
+          "at_5": 0.42798070296347346
+        },
+        "queries_scored": 1451
+      },
+      "f1": 0.229918381671819,
+      "name": "lexical",
+      "pk": 0.44009301230755854,
+      "segmentation_ms": 9.570679,
+      "span_scores": {
+        "mean": {
+          "at_1": {
+            "contained": 0.04807325198029206,
+            "precision": 0.049860511071055894,
+            "recall": 0.050494751167123146
+          },
+          "at_10": {
+            "contained": 0.21957757529964236,
+            "precision": 0.023797052251374667,
+            "recall": 0.22978341296656743
+          },
+          "at_100": {
+            "contained": 0.398389691945216,
+            "precision": 0.004476729933583445,
+            "recall": 0.4129986781821655
+          },
+          "at_5": {
+            "contained": 0.16269759378337884,
+            "precision": 0.035336012175446394,
+            "recall": 0.17288857985472572
+          }
+        },
+        "queries_scored": 1310
+      },
+      "window_diff": 0.47093382348997975,
+      "boundary_documents_scored": 416
+    },
+    {
+      "changed_documents": 384,
+      "chunks": 7535,
+      "doc_scores": {
+        "ndcg_at_10": 0.3747441715048653,
+        "recall": {
+          "at_1": 0.27911784975878706,
+          "at_10": 0.48380427291523087,
+          "at_100": 0.7381116471399035,
+          "at_5": 0.419710544452102
+        },
+        "queries_scored": 1451
+      },
+      "f1": 0.13905609834898514,
+      "name": "discourse",
+      "pk": 0.5014557857769233,
+      "segmentation_ms": 9.514272000000005,
+      "span_scores": {
+        "mean": {
+          "at_1": {
+            "contained": 0.04914779652318944,
+            "precision": 0.04837740767537169,
+            "recall": 0.05538848889993363
+          },
+          "at_10": {
+            "contained": 0.20297876521529912,
+            "precision": 0.022202397323208802,
+            "recall": 0.22583109244220698
+          },
+          "at_100": {
+            "contained": 0.36752292218785465,
+            "precision": 0.004331764925296098,
+            "recall": 0.4123713959456869
+          },
+          "at_5": {
+            "contained": 0.14974056662797602,
+            "precision": 0.032111172300150814,
+            "recall": 0.1665244685104216
+          }
+        },
+        "queries_scored": 1310
+      },
+      "window_diff": 0.5233306068505399,
+      "boundary_documents_scored": 416
+    },
+    {
+      "changed_documents": 415,
+      "chunks": 8252,
+      "doc_scores": {
+        "ndcg_at_10": 0.3815176389144075,
+        "recall": {
+          "at_1": 0.28600964851826327,
+          "at_10": 0.487250172294969,
+          "at_100": 0.7470709855272226,
+          "at_5": 0.4293590627153687
+        },
+        "queries_scored": 1451
+      },
+      "f1": 0.1999355599380972,
+      "name": "both",
+      "pk": 0.456371150601588,
+      "segmentation_ms": 9.201836000000005,
+      "span_scores": {
+        "mean": {
+          "at_1": {
+            "contained": 0.04826826128172256,
+            "precision": 0.04729260368391084,
+            "recall": 0.051830488573144484
+          },
+          "at_10": {
+            "contained": 0.20695922261505714,
+            "precision": 0.02347636335071038,
+            "recall": 0.22675919062597263
+          },
+          "at_100": {
+            "contained": 0.38027195258711627,
+            "precision": 0.004574317828412808,
+            "recall": 0.4118772355996416
+          },
+          "at_5": {
+            "contained": 0.15542524718570677,
+            "precision": 0.03520235773134766,
+            "recall": 0.17012496576238953
+          }
+        },
+        "queries_scored": 1310
+      },
+      "window_diff": 0.4886791237959335,
+      "boundary_documents_scored": 416
+    }
+  ],
+  "boundary_reference": "section starts, abstract separate; silver proxy, not human topic labels",
+  "budget": {
+    "max": 254,
+    "overhead": 0,
+    "size_weight": 1000,
+    "target": 200,
+    "unit": "word tokens"
+  },
+  "corpus": "Qasper v0.3 test, CC BY 4.0",
+  "corpus_archive_sha256": "72a52a41193e2838b8074f80ac074b94f956b84886c36a61c58a7df4171bdd72",
+  "corpus_member_sha256": "6e29ad410e6e39aa1936017fb965b30a20eb2e7751997f55b97c9d281aa884e5",
+  "discourse_hash": "a09d90f8162de367",
+  "documents": 416,
+  "lexical_hash": "53cbf692a586fff8",
+  "marker_gaps": 2713,
+  "queries": 1451,
+  "retrieval": "corpus-wide BM25 English, k1=1.2 b=0.75; all official questions and evidence",
+  "schema": 1,
+  "section_boundaries": 5663,
+  "sentence_abbreviations_hash": "5828191ce3975517",
+  "sentence_model_sha256": "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8",
+  "sentences": 76342,
+  "sentencing": "pinned maxent detector per paragraph or heading; no sentence crosses a layout unit",
+  "term_analyzer_hash": "a9bb7dd73cf41d6e",
+  "tokens": 1506101,
+  "unplaced_evidence": 21,
+  "base_commit": "0edf2f35ce710bc5d04fd3924c61bd992aad017e",
+  "receipt_scope": "Aggregate only. The example also writes per-document cuts and per-query scores locally."
+}

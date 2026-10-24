@@ -33,7 +33,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 | `turbo-depparse` | `analysis/depparse/` | Typed dependency graphs, arc-standard parsing/training, UAS/LAS and annotation ([dependency-parser.md](dependency-parser.md)) |
 | `turbo-relation` | `analysis/relation/` | Dependency-path relation extraction over entity heads ([relation.md](relation.md)) |
-| `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
+| `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the explicit `BeamSearch::opennlp` session for QN probability carry between evaluations and sentences; `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
 | `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Lemmas and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
 | `turbo-phrase-chunker` | `analysis/phrase-chunker/` | OpenNLP's `ChunkerME`: `ChunkerModel` opens a `ChunkerModel` file and `PhraseChunker` writes `opennlp:chunk-tags` (a chunk tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence over the tokens and their part-of-speech tags) and `opennlp:chunks` (the phrases those tags make, as `chunkAsSpans` returns them). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/phrase-chunker/README.md` describes its goldens. It is not `turbo-chunker`, which cuts retrieval units |
@@ -866,6 +866,27 @@ with one item. `Categories<Sentences>`, `Categories<Structure>` and
 block or chunk. A crate categorizing units of its own layer implements
 `CategoryScope` for it.
 
+### Neural annotation batches
+
+`DocumentCategorizerDL` and `DlSpanCategorizer` collect windows from all
+valid documents and span units into one scorer call. The bundle scorer
+splits these rows at its session batch limit. Each unit keeps its own
+window aggregation, category order and scores. Invalid input layers fail
+only their document; if the shared scorer fails, units are retried
+individually to retain valid neighbors.
+
+`BilstmPosTagger` sends all sentences from valid documents to one
+`batch_emissions` call. Packed numerics share the matrix projections;
+JVM-parity numerics retain the reference calculation per sentence.
+`FeedforwardPosTagger` reuses token and prediction scratch buffers, with
+previous-tag context reset at each sentence boundary.
+
+`GlinerAnnotator` reuses the head workspace across windows and documents.
+Recurrent state is reset for each window. Its DeBERTa encoder still runs
+one window at a time. Tests compare actual CPU model outputs with separate
+calls and check that warmed head buffers retain their allocations; these
+checks establish equivalence and reuse, not a measured throughput gain.
+
 ## Sentiment layers (`turbo:opinions`, `turbo:aspects`, `turbo:incivility`, `turbo:pragmatics`)
 
 Four layers in `turbo-analysis-layers` (`sentiment`) hold opinion
@@ -1137,6 +1158,30 @@ The windows of every document in a batch go through the same runs: up
 to the session's `max_batch` rows and `max_ranges` ranges a run (16 per
 row unless set). A window whose ranges do not all fit in a run goes
 again, with the rest, in the next.
+
+The sentence, chunk, opinion and aspect span heads also pack windows
+across documents in `annotate_batch`. They keep the same pooling rules
+and isolate invalid layer inputs before encoding. QA batches question/context
+windows, and reranking batches the candidate pairs from all valid shortlists.
+Subword tokenization reuses its offset scratch buffer between documents.
+
+`LearnedAspectSentiment` retains raw hidden states for the union of its
+sentence-pooling and token-selection windows. Every distinct window runs
+once; BIO tagging, opinion polarity, aspect polarity and implicit aspect
+categories then share those states. Multiple documents share encoder runs
+up to `max_batch`. The range-output session grows to hold one range per
+token, so a small original `max_ranges` does not cause repeat forwards.
+Host storage is proportional to the total retained window tokens times
+encoder width. States are released after the annotation batch.
+
+These raw states are distinct from normalized or projected
+`Vectors<Subwords>`. A supplied subword vector layer can supply BIO features,
+but it cannot reconstruct the raw states for exact span pooling, so span
+heads still require an encoder pass. The current span-head input schemas
+do not take an optional subword vector layer. CPU tests compare the retained
+states with the existing token and span paths bit for bit, including split
+spans, overlapping windows, projection, and cross-document batching. They
+do not establish accelerator numerical parity or full-model throughput.
 
 ### What a pooled vector is
 
@@ -1909,6 +1954,10 @@ a cost per gap. For the gap after sentence g:
    the reason is named, and the cost (about -420 and -210) decides
    whether a cut is made there. The default is untuned; the tests pin
    this behaviour so a change to it is deliberate.
+
+The optional lexical and discourse boundary steps, their provenance, and
+the full Qasper test-split ablation are documented in
+[chunker text signals](chunker-text-signals.md).
 
 Comparing groups of sentences rather than single sentences keeps one
 odd sentence from looking like a topic of its own: with a window of one,
@@ -3097,6 +3146,11 @@ checks that `langdetect-fixture-rust.bin` is the file the Rust trainer
 writes from the samples; the generator loads it in the JVM
 (`langdetect/langdetect-fixture-rust`) for
 `analysis/langdetect/tests/fixture.rs` (docs/langdetect.md, "Training").
+
+The [full MASC CRF evaluation](namefinder-crf-evaluation.md) records
+per-type and overall accuracy against matched maxent, published OpenNLP
+1.5 models and the real CPU namefind-dl backend. The full-corpus CRF
+recipe fails its publication gates; no model is published from that run.
 
 The name finder's and the language detector's cross-validators are
 ported as `namefind::cross_validate` (`TokenNameFinderCrossValidator`)
