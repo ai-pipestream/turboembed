@@ -611,11 +611,12 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * the span head (the cuda backend), each range's vector goes through the
  * head on the device and its row is the head's [start, end] logits: dim
  * is 2, and a read copies 8 bytes a range. The head reads the whole
- * vector, so there opts->normalize other than TURBO_NORMALIZE_NONE is
- * TURBO_E_UNSUPPORTED_OPTION naming field 4, and an output_dim other than
- * 0 or the model's dim the same naming field 6. Elsewhere a QA model's
- * range rows are the vectors, as for any model, and the caller applies
- * the head. */
+ * vector, so there a normalization that resolves to other than
+ * TURBO_NORMALIZE_NONE (the bundle's included, with opts NULL) is
+ * TURBO_E_UNSUPPORTED_OPTION naming field 4, and an output_dim that
+ * resolves to other than the model's dim the same naming field 6.
+ * Elsewhere a QA model's range rows are the vectors, as for any model,
+ * and the caller applies the head. */
 int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batch,
                                  const turbo_token_range *ranges, uint32_t count,
                                  const turbo_embed_options *opts, turbo_error *err);
