@@ -5,8 +5,11 @@
 //! - each piece's label is the first highest score that is not NaN, and its
 //!   probability that label's softmax probability (with OpenNLP's handling
 //!   of infinities);
-//! - a `B-<type>` piece starts an entity that runs over the `I-<type>`
-//!   pieces after it, with the lowest probability among them;
+//! - by default (`Decoding::Word`) each word takes its first piece's label,
+//!   as the model was trained, and the units below are words; with
+//!   `Decoding::Piece` every piece is a unit, as `NameFinderDL` decodes;
+//! - a `B-<type>` unit starts an entity that runs over the `I-<type>`
+//!   units after it, with the lowest probability among them;
 //! - candidates from every chunk are resolved longest first, then most
 //!   probable, and a candidate overlapping one already kept is dropped.
 //!
@@ -49,6 +52,19 @@ pub fn labels(names: &[String]) -> (Vec<Label>, Vec<String>) {
     (labels, types)
 }
 
+/// What a label is read for.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Decoding {
+    /// Each word takes its first piece's label, as the model was trained:
+    /// an entity is whole words, and a `B-` the model gives a piece inside
+    /// a word does not start one there.
+    #[default]
+    Word,
+    /// Every piece takes its own label, as OpenNLP's `NameFinderDL`
+    /// decodes: for parity with it.
+    Piece,
+}
+
 /// One entity candidate: its bytes in the text, its type and probability.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Candidate {
@@ -71,6 +87,32 @@ pub fn chunk_ranges(count: usize, split: usize, overlap: usize) -> Result<Vec<(u
         start = if end == count { end } else { end - overlap };
     }
     Ok(out)
+}
+
+/// The rows a chunk of `count` pieces is read in, `width` pieces to a row:
+/// one row when they fit; otherwise rows overlapping by half a row, each
+/// piece's label taken from the row where it sits furthest from a cut
+/// edge. Each row is `(start, end, own_start, own_end)`: the pieces it
+/// reads and the pieces whose labels it gives, which run on from the
+/// row before's.
+pub fn row_ranges(count: usize, width: usize) -> Vec<(usize, usize, usize, usize)> {
+    if count <= width || width == 0 {
+        return vec![(0, count, 0, count)];
+    }
+    let margin = width / 4;
+    let step = width - 2 * margin;
+    let mut out = Vec::new();
+    let mut start = 0;
+    loop {
+        let end = (start + width).min(count);
+        let own_start = if start == 0 { 0 } else { start + margin };
+        let own_end = if end == count { count } else { end - margin };
+        out.push((start, end, own_start, own_end));
+        if end == count {
+            return out;
+        }
+        start += step;
+    }
 }
 
 /// The byte ranges of the whitespace-separated words of `text`, Unicode's
@@ -121,46 +163,98 @@ pub fn label_probability(scores: &[f32], index: usize) -> f64 {
     (f64::from(scores[index]) - max).exp() / sum
 }
 
-/// The candidates of one chunk: `pieces` are each piece's bytes in the text
-/// (`None` for `[CLS]` and `[SEP]`), `scores` its label scores row by row.
+/// The candidates of one chunk, every piece decoded: `pieces` are each
+/// piece's bytes in the text (`None` for `[CLS]` and `[SEP]`), `scores` its
+/// label scores row by row.
 ///
 /// # Errors
 /// A row with no score that is not NaN, or a row count other than the
 /// pieces'.
 pub fn decode(pieces: &[Option<(usize, usize)>], scores: &[f32], labels: &[Label]) -> Result<Vec<Candidate>, String> {
-    let n = labels.len();
-    if n == 0 || scores.len() != pieces.len() * n {
-        return Err(format!("{} scores for {} pieces of {n} labels", scores.len(), pieces.len()));
+    let predict = predictor(pieces.len(), scores, labels)?;
+    let units = (0..pieces.len()).map(|x| predict(x).map(|(l, p)| (pieces[x], l, p))).collect::<Result<Vec<_>, _>>()?;
+    Ok(chain(&units))
+}
+
+/// The candidates of one chunk, each word labelled by its first piece:
+/// `words` is each piece's word in the chunk (`None` for a special token,
+/// which is no unit), a word's pieces consecutive. A word covers the bytes
+/// of all its pieces.
+///
+/// # Errors
+/// As `decode`, or a word count other than the pieces'.
+pub fn decode_words(
+    pieces: &[Option<(usize, usize)>],
+    words: &[Option<usize>],
+    scores: &[f32],
+    labels: &[Label],
+) -> Result<Vec<Candidate>, String> {
+    if words.len() != pieces.len() {
+        return Err(format!("{} words for {} pieces", words.len(), pieces.len()));
     }
-    let predict = |x: usize| -> Result<(&Label, f64), String> {
+    let predict = predictor(pieces.len(), scores, labels)?;
+    let mut units: Vec<Unit<'_>> = Vec::new();
+    let mut last = None;
+    for (x, w) in words.iter().enumerate() {
+        let Some(w) = *w else { continue };
+        if last == Some(w) {
+            let unit = units.last_mut().expect("a word before");
+            unit.0 = match (unit.0, pieces[x]) {
+                (Some(a), Some(b)) => Some((a.0.min(b.0), a.1.max(b.1))),
+                (a, b) => a.or(b),
+            };
+            continue;
+        }
+        let (label, p) = predict(x)?;
+        units.push((pieces[x], label, p));
+        last = Some(w);
+    }
+    Ok(chain(&units))
+}
+
+/// A piece or word to decode: its bytes, label and probability.
+type Unit<'a> = (Option<(usize, usize)>, &'a Label, f64);
+
+/// Each piece's label and probability, after checking the score count.
+fn predictor<'a>(
+    pieces: usize,
+    scores: &'a [f32],
+    labels: &'a [Label],
+) -> Result<impl Fn(usize) -> Result<(&'a Label, f64), String> + 'a, String> {
+    let n = labels.len();
+    if n == 0 || scores.len() != pieces * n {
+        return Err(format!("{} scores for {pieces} pieces of {n} labels", scores.len()));
+    }
+    Ok(move |x: usize| {
         let row = &scores[x * n..(x + 1) * n];
         let i = max_index(row).ok_or_else(|| format!("piece {x} has no score that is a number"))?;
         Ok((&labels[i], label_probability(row, i)))
-    };
+    })
+}
+
+/// The entities of a run of units: a `B-<type>` unit and the `I-<type>`
+/// units after it, the bytes the units cover and their lowest probability.
+fn chain(units: &[Unit<'_>]) -> Vec<Candidate> {
     let mut out = Vec::new();
     let mut x = 0;
-    while x < pieces.len() {
-        let (label, p) = predict(x)?;
+    while x < units.len() {
+        let (_, label, p) = units[x];
         let Label::Begin(kind) = *label else {
             x += 1;
             continue;
         };
         let (mut end, mut probability) = (x, p);
-        while end + 1 < pieces.len() {
-            let (next, q) = predict(end + 1)?;
-            if *next != Label::Inside(kind) {
-                break;
-            }
+        while end + 1 < units.len() && *units[end + 1].1 == Label::Inside(kind) {
             end += 1;
-            probability = probability.min(q);
+            probability = probability.min(units[end].2);
         }
-        let covered: Vec<(usize, usize)> = pieces[x..=end].iter().flatten().copied().collect();
+        let covered: Vec<(usize, usize)> = units[x..=end].iter().filter_map(|u| u.0).collect();
         if let (Some(first), Some(last)) = (covered.first(), covered.last()) {
             out.push(Candidate { start: first.0, end: last.1, kind, probability });
         }
         x = end + 1;
     }
-    Ok(out)
+    out
 }
 
 /// `NameFinderDL.mergeOverlappingSpans`: longest first (in UTF-16 units of
