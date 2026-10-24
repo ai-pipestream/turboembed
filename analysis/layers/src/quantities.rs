@@ -32,7 +32,9 @@ pub const PERCENT: &str = "%";
 /// `500 g` -> `0.5 kg`, `100 °C` -> `373.15 K`, `36 km/h` -> `10 m/s`). When
 /// a unit is not in the shared unit table (such as `%` or a caller's custom
 /// token), the normalized columns hold the canonicalized written value and
-/// unit.
+/// unit. When the written value or its converted form lies outside [`Dec`]'s
+/// `i128` mantissa or `i16` scale range, `base_unit` is empty (`""`) and
+/// [`Quantities::normalized_dec`] returns `None`.
 pub struct Quantities {
     pub spans: Spans<Quantities>,
     /// Whether the value is below zero. A zero value is never negative,
@@ -53,7 +55,8 @@ pub struct Quantities {
     /// `BigDecimal.scale()` of the normalized value.
     pub normalized_scale: Vec<i32>,
     /// The SI or stated base unit symbol (`m`, `kg`, `m³`, `K`, `m/s`, etc.),
-    /// or `unit` when no base conversion applies.
+    /// `unit` when no base conversion applies, or `""` when the value lies
+    /// outside [`Dec`]'s range.
     pub base_unit: Strs,
 }
 
@@ -101,29 +104,28 @@ impl Quantities {
         self.scale.push(m.scale);
         self.unit.push(m.unit);
 
-        if let Some(dec) = Dec::from_unscaled(m.negative, m.coefficient, m.scale) {
-            if let Some((norm_dec, base)) = parsed.and_then(|u| u.normalize(dec)) {
-                let mut digits = String::new();
-                let norm_scale = norm_dec.write_coefficient(&mut digits);
+        let normalized = Dec::from_unscaled(m.negative, m.coefficient, m.scale).and_then(|dec| match parsed {
+            Some(u) => u.normalize(dec).map(|(norm_dec, base)| {
                 let mut base_sym = String::new();
                 base.write_symbol(&mut base_sym);
-                self.normalized_negative.push(norm_dec.is_negative());
-                self.normalized_coefficient.push(&digits);
-                self.normalized_scale.push(i32::try_from(norm_scale).unwrap_or(i32::MAX));
-                self.base_unit.push(&base_sym);
-            } else {
-                let mut digits = String::new();
-                let norm_scale = dec.write_coefficient(&mut digits);
-                self.normalized_negative.push(dec.is_negative());
-                self.normalized_coefficient.push(&digits);
-                self.normalized_scale.push(i32::try_from(norm_scale).unwrap_or(i32::MAX));
-                self.base_unit.push(m.unit);
-            }
+                (norm_dec, base_sym)
+            }),
+            None => Some((dec, m.unit.to_owned())),
+        });
+
+        if let Some((norm_dec, base_sym)) = normalized {
+            let mut digits = String::new();
+            // Dec's scale is an i16, so write_coefficient's u32 is at most 32767 and always fits in i32.
+            let norm_scale = norm_dec.write_coefficient(&mut digits) as i32;
+            self.normalized_negative.push(norm_dec.is_negative());
+            self.normalized_coefficient.push(&digits);
+            self.normalized_scale.push(norm_scale);
+            self.base_unit.push(&base_sym);
         } else {
             self.normalized_negative.push(m.negative);
             self.normalized_coefficient.push(m.coefficient);
             self.normalized_scale.push(m.scale);
-            self.base_unit.push(m.unit);
+            self.base_unit.push("");
         }
 
         self.spans.push(m.span)
@@ -153,15 +155,18 @@ impl Quantities {
     }
 
     /// The normalized value of mention `i` as an exact [`Dec`] for ordering
-    /// and comparison across units.
-    pub fn normalized_dec(&self, i: Ix<Quantities>) -> Dec {
+    /// and comparison across units, or `None` when the mention could not be
+    /// normalized within [`Dec`]'s range (`base_unit` is empty).
+    pub fn normalized_dec(&self, i: Ix<Quantities>) -> Option<Dec> {
         let k = i.get();
+        if self.base_unit.get(k).is_empty() {
+            return None;
+        }
         Dec::from_unscaled(self.normalized_negative[k], self.normalized_coefficient.get(k), self.normalized_scale[k])
-            .unwrap_or(Dec::ZERO)
     }
 
     /// The SI or stated base unit symbol of mention `i` (`m`, `kg`, `m³`,
-    /// `K`, `m/s`, etc.).
+    /// `K`, `m/s`, etc.), or `""` when the mention lies outside [`Dec`]'s range.
     pub fn base_unit(&self, i: Ix<Quantities>) -> &str {
         self.base_unit.get(i.get())
     }
@@ -238,8 +243,9 @@ impl Layer for Quantities {
             if self.unit.get(i).chars().all(char::is_whitespace) {
                 return Err(format!("quantity mention {i} has a blank unit: {:?}", self.unit.get(i)));
             }
-            if self.base_unit.get(i).chars().all(char::is_whitespace) {
-                return Err(format!("quantity mention {i} has a blank base unit: {:?}", self.base_unit.get(i)));
+            let base = self.base_unit.get(i);
+            if !base.is_empty() && base.chars().all(char::is_whitespace) {
+                return Err(format!("quantity mention {i} has a blank base unit: {base:?}"));
             }
         }
         Ok(())
@@ -266,13 +272,36 @@ mod tests {
         assert_eq!(q.unit(Ix::new(0)), "km");
         assert_eq!(q.normalized_value(Ix::new(0)).to_plain_string(), "-2500");
         assert_eq!(q.base_unit(Ix::new(0)), "m");
+        assert_eq!(q.normalized_dec(Ix::new(0)), Some(Dec::from_i64(-2500)));
         assert!(!q.is_percent(Ix::new(0)));
         assert!(q.is_percent(Ix::new(1)));
         assert_eq!(q.normalized_value(Ix::new(1)).to_plain_string(), "45");
         assert_eq!(q.base_unit(Ix::new(1)), "%");
+        assert_eq!(q.normalized_dec(Ix::new(1)), Some(Dec::from_i64(45)));
         assert_eq!(q.get(Ix::new(1)), mention(11, 14, "45", "%"));
         let ts = q.text_spans().unwrap();
         assert_eq!((ts.view, ts.start, ts.end), (ViewId::SOURCE, &[0, 11][..], &[6, 14][..]));
+    }
+
+    #[test]
+    fn values_outside_dec_range_mark_base_unit_empty_and_normalized_dec_none() {
+        let mut q = Quantities::new(ViewId::SOURCE);
+        // 1e-40000 g: scale 40000 exceeds Dec's i16 scale range.
+        q.push(QuantityMention { scale: 40_000, ..mention(0, 6, "1", "g") });
+        // 0.001 g: fits in Dec and converts to 1e-6 kg.
+        q.push(QuantityMention { scale: 3, ..mention(7, 14, "1", "g") });
+        // 1e32767 km: fits in Dec before conversion, but multiplying by 1000 overflows i16 scale.
+        q.push(QuantityMention { scale: -32_767, ..mention(15, 22, "1", "km") });
+        assert_eq!(q.check(), Ok(()));
+
+        assert_eq!(q.base_unit(Ix::new(0)), "");
+        assert_eq!(q.normalized_dec(Ix::new(0)), None);
+
+        assert_eq!(q.base_unit(Ix::new(1)), "kg");
+        assert_eq!(q.normalized_dec(Ix::new(1)), Dec::new(1, 6));
+
+        assert_eq!(q.base_unit(Ix::new(2)), "");
+        assert_eq!(q.normalized_dec(Ix::new(2)), None);
     }
 
     #[test]

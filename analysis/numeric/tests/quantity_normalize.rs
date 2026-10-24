@@ -35,7 +35,7 @@ fn length_quantities_normalize_to_meters_and_compare_across_units() {
     assert_eq!((q.normalized_value(Ix::new(0)).to_plain_string(), q.base_unit(Ix::new(0))), ("2500".to_string(), "m"));
     assert_eq!((q.value(Ix::new(1)).to_plain_string(), q.unit(Ix::new(1))), ("2500".to_string(), "m"));
     assert_eq!(q.normalized_value(Ix::new(0)), q.normalized_value(Ix::new(1)));
-    assert_eq!(q.normalized_dec(Ix::new(0)), d("2500"));
+    assert_eq!(q.normalized_dec(Ix::new(0)), Some(d("2500")));
 
     // 50 cm and 500 mm both normalize to 0.5 m.
     assert_eq!((q.normalized_value(Ix::new(2)).to_plain_string(), q.base_unit(Ix::new(2))), ("0.5".to_string(), "m"));
@@ -47,9 +47,9 @@ fn length_quantities_normalize_to_meters_and_compare_across_units() {
         (q.normalized_value(Ix::new(5)).to_plain_string(), q.base_unit(Ix::new(5))),
         ("1609.344".to_string(), "m")
     );
-    assert!(q.normalized_dec(Ix::new(2)) < q.normalized_dec(Ix::new(4)));
-    assert!(q.normalized_dec(Ix::new(4)) < q.normalized_dec(Ix::new(5)));
-    assert!(q.normalized_dec(Ix::new(5)) < q.normalized_dec(Ix::new(0)));
+    assert!(q.normalized_dec(Ix::new(2)).unwrap() < q.normalized_dec(Ix::new(4)).unwrap());
+    assert!(q.normalized_dec(Ix::new(4)).unwrap() < q.normalized_dec(Ix::new(5)).unwrap());
+    assert!(q.normalized_dec(Ix::new(5)).unwrap() < q.normalized_dec(Ix::new(0)).unwrap());
 }
 
 #[test]
@@ -138,4 +138,22 @@ fn shared_unit_table_parses_written_symbols_back_to_typed_units() {
     assert_eq!(Unit::from_symbol("°C"), Some(Unit::Temperature(Temperature::Celsius)));
     assert_eq!(Unit::from_symbol("km/h"), Some(Unit::Speed(Speed::Per(Length::Kilometer, Per::Hour))));
     assert_eq!(Unit::from_symbol("mph"), Some(Unit::Speed(Speed::Per(Length::Mile, Per::Hour))));
+}
+
+#[test]
+fn extracted_quantity_outside_dec_scale_range_returns_none_from_normalized_dec() {
+    let zeros = "0".repeat(39_999);
+    let text = format!("0.{zeros}1 kg and 0.{zeros}1 g");
+    let q = scan_with(&QuantityExtractor::default(), &text);
+    assert_eq!(q.spans.len(), 2);
+
+    assert_eq!(q.unit(Ix::new(0)), "kg");
+    assert_eq!(q.scale[0], 40_000);
+    assert_eq!(q.base_unit(Ix::new(0)), "");
+    assert_eq!(q.normalized_dec(Ix::new(0)), None);
+
+    assert_eq!(q.unit(Ix::new(1)), "g");
+    assert_eq!(q.scale[1], 40_000);
+    assert_eq!(q.base_unit(Ix::new(1)), "");
+    assert_eq!(q.normalized_dec(Ix::new(1)), None);
 }
