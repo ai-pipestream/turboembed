@@ -15,20 +15,7 @@ use std::sync::Arc;
 
 use turbo_analysis::{IxRange, Key, KeyId, Layer, Overlap, Span, Spans, ViewId};
 use turbo_analysis_layers::{Strs, Tokens};
-use turbo_unicode::WhitespaceMode;
-
-/// Whether `s` is empty or holds only Unicode `White_Space` characters:
-/// OpenNLP's `StringUtil.isUnicodeBlank`, which the glossary classes use
-/// for identifiers and terms.
-pub fn is_blank(s: &str) -> bool {
-    s.chars().all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32))
-}
-
-/// `s` without leading and trailing Unicode `White_Space` characters:
-/// OpenNLP's `StringUtil.trimUnicodeWhitespace`.
-pub fn trim_blank(s: &str) -> &str {
-    s.trim_matches(|c: char| WhitespaceMode::Unicode.is_whitespace(c as u32))
-}
+pub use turbo_unicode::whitespace::{is_unicode_blank as is_blank, trim_unicode_whitespace as trim_blank};
 
 /// The position of an entry in its [`Glossary`], in registration order.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
