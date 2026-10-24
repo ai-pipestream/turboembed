@@ -448,3 +448,25 @@ fn a_search_over_text_refuses_an_outcome_holding_half_a_surrogate_pair_and_one_o
     let best = search.best_sequence(&["a", "b"], &mut Words, &turbo_sequence::AcceptAll).unwrap();
     assert_eq!(best.outcomes(), [&lone, &JavaString::new("O")]);
 }
+
+#[test]
+fn usize_max_beam_size_handles_empty_and_single_token_inputs_in_ordinary_and_scored_search() {
+    let golden = read_golden("pos-fixture");
+    let file = open(&fixtures(), &golden);
+    let model = file.maxent(postag::MODEL_ENTRY_NAME).unwrap();
+    let search = BeamSearch::<str>::new(usize::MAX, &model).unwrap();
+    let mut context = PosContext::for_model(&file, 3, PatternMode::Utf16Units).unwrap();
+    let validator = PosValidator::new(TagDictionary::for_model(&file).unwrap().map(Arc::new));
+
+    let empty = search.best_sequence::<&str>(&[], &mut context, &validator).unwrap();
+    assert!(empty.outcomes().is_empty());
+    let (empty_scored, empty_rows) = search.best_sequence_scored::<&str>(&[], &mut context, &validator).unwrap();
+    assert!(empty_scored.outcomes().is_empty());
+    assert!(empty_rows.is_empty());
+
+    let single = search.best_sequence(&["The"], &mut context, &validator).unwrap();
+    assert_eq!(single.outcomes().len(), 1);
+    let (single_scored, single_rows) = search.best_sequence_scored(&["The"], &mut context, &validator).unwrap();
+    assert_eq!(single_scored.outcomes(), single.outcomes());
+    assert_eq!(single_rows.len(), 1);
+}

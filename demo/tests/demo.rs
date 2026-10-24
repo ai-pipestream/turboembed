@@ -49,13 +49,37 @@ fn models() -> Vec<ModelConfig> {
                 bundle.clone()
             } else {
                 let link = dir.join(name);
-                std::os::unix::fs::symlink(&bundle, &link).unwrap();
+                alias(&bundle, &link);
                 link
             };
             let s = format!("bundle={},device={},sessions=1,precision={precision}", path.display(), cpu());
             ModelConfig::parse(&s).unwrap()
         })
         .collect()
+}
+
+/// `bundle` under the name `link`: a symlink on unix, a copy elsewhere,
+/// since a directory symlink on Windows needs a privilege a test runner
+/// may not have.
+fn alias(bundle: &Path, link: &Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(bundle, link).unwrap();
+    #[cfg(not(unix))]
+    copy_dir(bundle, link);
+}
+
+#[cfg(not(unix))]
+fn copy_dir(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for e in std::fs::read_dir(from).unwrap() {
+        let e = e.unwrap();
+        let dest = to.join(e.file_name());
+        if e.file_type().unwrap().is_dir() {
+            copy_dir(&e.path(), &dest);
+        } else {
+            std::fs::copy(e.path(), &dest).unwrap();
+        }
+    }
 }
 
 /// The server loaded, and the demo in front of it offering every tier.
