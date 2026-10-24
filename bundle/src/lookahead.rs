@@ -1,9 +1,8 @@
 //! Limited lookahead from a SaT checkpoint's config.json: wtpsplit's
-//! `lookahead` is the keys ahead over all the layers, and each layer
-//! takes `lookahead / lookahead_split_layers` of them, or `/ num_hidden_layers`
-//! when that is absent, rounded down (wtpsplit `models.py`). The manifest's
-//! `architecture.lookahead` is that per-layer value, and sealing holds the
-//! recipe to it.
+//! `lookahead` is the keys ahead over the layers before `lookahead_split_layers`,
+//! or all `num_hidden_layers` when the split is absent. Later layers are
+//! causal (wtpsplit `models.py`). The manifest has one positive band for
+//! every layer, so only a uniform schedule can be sealed.
 
 use std::fs;
 use std::path::Path;
@@ -13,16 +12,39 @@ use serde_json::Value;
 use crate::Result;
 use crate::recipe::Recipe;
 
-/// The keys ahead a layer attends to that `cfg` trains, None for none.
+/// The uniform keys ahead a layer attends to, None for unrestricted
+/// attention. Refuse schedules that change to causal inside the encoder.
 pub fn per_layer(cfg: &Value) -> Result<Option<u64>> {
-    let Some(total) = cfg.get("lookahead").filter(|v| !v.is_null()) else {
+    let total = cfg.get("lookahead").filter(|v| !v.is_null());
+    let split = cfg.get("lookahead_split_layers").filter(|v| !v.is_null());
+    if total.is_none() && split.is_none() {
+        return Ok(None);
+    }
+    let layers = cfg["num_hidden_layers"]
+        .as_u64()
+        .filter(|&n| n > 0)
+        .ok_or("upstream config.json: num_hidden_layers is missing or not a positive whole number")?;
+    let over = match split {
+        Some(v) => {
+            let split = v.as_u64().ok_or("upstream config.json: lookahead_split_layers is not a whole number")?;
+            if split < layers {
+                return Err(format!(
+                    "upstream config.json: lookahead_split_layers {split} switches to causal attention before the end of {layers} layers; per-layer lookahead schedules are not supported"
+                ));
+            }
+            if split > layers {
+                return Err(format!(
+                    "upstream config.json: lookahead_split_layers {split} exceeds num_hidden_layers {layers}"
+                ));
+            }
+            split
+        }
+        None => layers,
+    };
+    let Some(total) = total else {
         return Ok(None);
     };
     let total = total.as_u64().ok_or("upstream config.json: lookahead is not a whole number")?;
-    let over = match cfg.get("lookahead_split_layers").filter(|v| !v.is_null()) {
-        Some(v) => v.as_u64().ok_or("upstream config.json: lookahead_split_layers is not a whole number")?,
-        None => cfg["num_hidden_layers"].as_u64().ok_or("upstream config.json: num_hidden_layers is missing")?,
-    };
     match total.checked_div(over) {
         Some(n) if n > 0 => Ok(Some(n)),
         _ => Err(format!("upstream config.json: lookahead {total} over {over} layers leaves no key ahead a layer")),
@@ -74,6 +96,7 @@ mod tests {
         assert_eq!(per_layer(&json!({ "lookahead": 8, "num_hidden_layers": 3 })), Ok(Some(2)));
         assert_eq!(per_layer(&json!({ "lookahead": null, "num_hidden_layers": 1 })), Ok(None));
         assert_eq!(per_layer(&json!({ "num_hidden_layers": 1 })), Ok(None));
+        assert_eq!(per_layer(&json!({ "num_hidden_layers": 12, "lookahead_split_layers": 12 })), Ok(None));
         assert!(per_layer(&json!({ "lookahead": 2, "num_hidden_layers": 3 })).unwrap_err().contains("no key ahead"));
         assert!(agrees(&sat_3l, &json!({ "architecture": { "lookahead": 16 } })).is_ok());
         let e = agrees(&sat_3l, &json!({ "architecture": {} })).unwrap_err();
@@ -102,7 +125,10 @@ mod tests {
         for cfg in [
             json!({ "lookahead": 48, "num_hidden_layers": 12, "lookahead_split_layers": 13 }),
             json!({ "lookahead": 48, "lookahead_split_layers": 6 }),
+            json!({ "lookahead": 48, "num_hidden_layers": 0, "lookahead_split_layers": 6 }),
             json!({ "lookahead": 48, "num_hidden_layers": "12", "lookahead_split_layers": 6 }),
+            json!({ "lookahead": 48, "num_hidden_layers": 12, "lookahead_split_layers": -1 }),
+            json!({ "lookahead": 48, "num_hidden_layers": 12, "lookahead_split_layers": 1.5 }),
         ] {
             assert!(per_layer(&cfg).is_err(), "{cfg}");
         }

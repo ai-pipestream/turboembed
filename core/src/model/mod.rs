@@ -176,9 +176,6 @@ fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Re
 pub const STATIC_ROLES: [TensorRole; TURBO_STATIC_TENSORS as usize] =
     [TensorRole::StaticEmbeddings, TensorRole::StaticWeights, TensorRole::StaticMapping];
 
-/// The family model_load is told. Every combination the manifest can name
-/// is listed, so a new family, activation or position embedding does not
-/// compile until it has a place here.
 /// Whether the backend named `backend` runs a model of limited lookahead
 /// `lookahead` (0 for none): only the CPU's attention takes a band, and any
 /// other would run the whole row and give wrong vectors.
@@ -194,6 +191,9 @@ pub fn runs_band(backend: &str, lookahead: u32) -> Result<()> {
     ))
 }
 
+/// The family model_load is told. Every combination the manifest can name
+/// is listed, so a new family, activation or position embedding does not
+/// compile until it has a place here.
 fn family(a: &Architecture) -> u32 {
     match (a.family, a.activation, a.position_embedding) {
         (Family::Bert, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_BERT,

@@ -30,7 +30,7 @@ fn script_detection_identifies_thai_lao_and_khmer() {
 #[test]
 fn punctuated_scripts_stay_on_rules_and_unpunctuated_scripts_route_to_sat() {
     let dir = tiny_bundle();
-    let opts = SatOptions { threshold: 0.0, ..SatOptions::default() };
+    let opts = SatOptions { threshold: Some(0.0), ..SatOptions::default() };
     let plain = RuleSentenceDetector::new("en");
     let with_sat = rule_detector_with_sat("en", Some((&dir, &opts))).unwrap();
     assert_ne!(plain.config_hash(), with_sat.config_hash());
@@ -90,7 +90,7 @@ fn punctuated_scripts_stay_on_rules_and_unpunctuated_scripts_route_to_sat() {
 #[test]
 fn analyzer_batch_routes_mixed_documents_and_preserves_provenance() {
     let dir = tiny_bundle();
-    let opts = SatOptions { threshold: 0.0, ..SatOptions::default() };
+    let opts = SatOptions { threshold: Some(0.0), ..SatOptions::default() };
     let sat = SatAnnotator::open(&dir, &opts).unwrap();
     let detector = sat.into_rule_detector("th");
     let analyzer = Analyzer::builder().add(detector).build().unwrap();
@@ -321,7 +321,7 @@ fn unpunctuated_scripts_against_gold() {
     assert!(km_unpunc_sat.span_prf().2 > km_unpunc_rule.span_prf().2);
     assert!(km_unpunc_sat.bound_prf().2 > km_unpunc_rule.bound_prf().2);
 
-    let sat_opts_025 = SatOptions { threshold: 0.025, split_on_newlines: false, ..SatOptions::default() };
+    let sat_opts_025 = SatOptions { threshold: Some(0.025), split_on_newlines: false, ..SatOptions::default() };
     let km_sat_025 = rule_detector_with_sat("km", Some((&sat_dir, &sat_opts_025))).unwrap();
     let km_unpunc_sat_025 = evaluate("khpos_unpunc (rules+sat t=0.025)", &km_sat_025, &kh_unpunc_paras);
     assert!(km_unpunc_sat_025.span_prf().2 > km_unpunc_sat.span_prf().2);

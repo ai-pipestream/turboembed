@@ -4,6 +4,7 @@ use super::*;
 fn staging_refuses_a_partial_layer_lookahead_before_copying_files() {
     let d = scratch("partial-layer-lookahead");
     let mut recipe = Recipe::load(&tiny_recipe(&d)).unwrap();
+    recipe.manifest["architecture"]["layers"] = json!(12);
     recipe.manifest["architecture"]["lookahead"] = json!(8);
     let up = upstream(&d);
     let bundle = d.join("bundle");
