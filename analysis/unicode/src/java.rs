@@ -11,7 +11,6 @@ pub mod code_point;
 mod codepoint_strings;
 mod strings;
 mod word_classes;
-pub use strings::is_blank;
 use crate::ascii::push_lowercase_run;
 use crate::category::{GeneralCategory, general_category};
 use crate::props::bits;
@@ -24,6 +23,7 @@ use crate::trie::find;
 pub use codepoint_strings::{
     eq_lowercase_code_points, lowercase_code_points, lowercase_code_points_changes, to_lowercase_code_points,
 };
+pub use strings::is_blank;
 
 const CAPITAL_SIGMA: char = '\u{3A3}';
 const FINAL_SIGMA: char = '\u{3C2}';
