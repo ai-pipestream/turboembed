@@ -1296,7 +1296,7 @@ Differences from OpenNLP:
     repeated line keeps its span and the line is reported around it. A
     multi-line block that repeats is reported line by line, since each of
     its lines repeats.
-- A labelled four-page PDF evaluation now measures the default and optional
+- A labelled eleven-page PDF evaluation now measures the default and optional
   detectors. See [Extracted PDF evaluation](#extracted-pdf-evaluation) for
   per-kind support, precision, recall and the limits of this sample.
 
@@ -2408,7 +2408,6 @@ chunks, answers) project back to the exact raw markup bytes through
 the view alignment; `analysis/normalize/tests/markup.rs` holds the
 adversary fixtures, including that byte-for-byte projection. There is
 no OpenNLP counterpart to either normalizer.
-
 
 ## Extracted PDF evaluation
 
