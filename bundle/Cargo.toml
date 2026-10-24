@@ -19,3 +19,5 @@ ureq = "3"
 half = "2"
 
 turbo-gliner = { path = "../analysis/gliner" }
+# The licence classes and their rules (licence.rs).
+turbo-zoo = { path = "../analysis/zoo", default-features = false }
