@@ -420,4 +420,25 @@ international,international,JJ\n";
         back(&alignment, litigation_out, litigation_out + "litigation".len()),
         (litigation_src as u32, (litigation_src + "litiga-\ntion".len()) as u32)
     );
+
+    // Closure-backed custom lexicons from the same factory capturing different
+    // word sets require a content identity and produce distinct config hashes.
+    fn make_closure_lexicon(words: &[&str]) -> (Dehyphenate, turbo_normalize::NoiseScorer) {
+        let set: std::collections::HashSet<String> = words.iter().map(|w| (*w).to_string()).collect();
+        let hash = turbo_normalize::Dictionary::config_hash(&set);
+        let set2 = set.clone();
+        (
+            Dehyphenate::with_identified_lexicon(hash, move |w| set.contains(w)),
+            turbo_normalize::NoiseScorer::with_identified_dictionary(hash, move |w| set2.contains(w)),
+        )
+    }
+    let (dehyp_joined, noise_joined) = make_closure_lexicon(&["wellknown"]);
+    let (dehyp_hyphen, noise_hyphen) = make_closure_lexicon(&["well-known", "well", "known"]);
+    assert_eq!(run_checked(&dehyp_joined, "well-\nknown", join_edit), "wellknown");
+    assert_eq!(run_checked(&dehyp_hyphen, "well-\nknown", join_edit), "well-known");
+    assert_ne!(dehyp_joined.config_hash(), dehyp_hyphen.config_hash());
+    assert_ne!(
+        turbo_analysis::Annotator::config_hash(&noise_joined),
+        turbo_analysis::Annotator::config_hash(&noise_hyphen)
+    );
 }

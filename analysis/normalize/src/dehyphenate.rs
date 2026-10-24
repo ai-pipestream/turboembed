@@ -101,11 +101,14 @@ impl Dehyphenate {
         Dehyphenate { mode: DehyphenateMode::Lexicon, lexicon: Some(Arc::new(lexicon)), lexicon_id: Some(id) }
     }
 
-    /// Decides whether to keep a hyphen-minus at a line break using `lexicon`
-    /// and an explicit identity key for [`Normalizer::config_hash`].
-    pub fn with_identified_lexicon(id: impl std::hash::Hash, lexicon: impl Dictionary + 'static) -> Dehyphenate {
-        let id_hash = hash_config(&(id, lexicon.config_hash()));
-        Dehyphenate { mode: DehyphenateMode::Lexicon, lexicon: Some(Arc::new(lexicon)), lexicon_id: Some(id_hash) }
+    /// Decides whether to keep a hyphen-minus at a line break using a closure
+    /// or custom lookup paired with an explicit content identity key `id` for
+    /// [`Normalizer::config_hash`].
+    pub fn with_identified_lexicon(
+        id: impl std::hash::Hash,
+        lookup: impl Fn(&str) -> bool + Send + Sync + 'static,
+    ) -> Dehyphenate {
+        Self::with_lexicon((hash_config(&id), lookup))
     }
 
     /// Decides whether to keep a hyphen-minus at a line break using a
