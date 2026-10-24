@@ -105,7 +105,7 @@ fn dollar_prefixed_region_symbols_resolve_by_default() {
     assert_eq!(codes, [cur("HKD"), cur("NZD"), cur("BRL"), cur("USD"), cur("AUD")]);
 
     // A non-ASCII Latin letter or unknown Latin prefix before `$` is rejected.
-    for text in ["\u{DC}$5", "FOO$50", "X$50", "wordA$50"] {
+    for text in ["\u{DC}$5", "giá$50", "Đạ$50", "FOO$50", "X$50", "wordA$50"] {
         none(&MoneyExtractor::default(), text);
     }
 
@@ -132,7 +132,8 @@ fn units_of_weight_are_not_read_as_pounds_sterling_from_context() {
         "1 pound of butter",
         "2 pounds of sugar",
         "a 10 pound bag",
-        "costs 4 dollars per pound or 5 pounds per box",
+        "30 pounds per square inch",
+        "30 pounds per sq in",
         "he weighs 180 pounds",
         "the parcel weighed 12 pounds",
         "lost 15 pounds last month",
@@ -145,7 +146,7 @@ fn units_of_weight_are_not_read_as_pounds_sterling_from_context() {
         assert!(found.iter().all(|m| m.currency != cur("GBP")), "{weight_text:?}: {found:?}");
     }
 
-    // Genuine currency mentions in pounds still extract.
+    // Genuine currency mentions in pounds still extract, including unit prices.
     let cases = [
         ("3 billion pounds", "3000000000", Span::new(0, 16)),
         ("500 thousand pounds of funding", "500000", Span::new(0, 19)),
@@ -155,6 +156,10 @@ fn units_of_weight_are_not_read_as_pounds_sterling_from_context() {
         ("paid 25 pounds sterling yesterday", "25", Span::new(5, 23)),
         ("tickets cost 10 pounds each", "10", Span::new(13, 22)),
         ("he earns 20 pounds per hour", "20", Span::new(9, 18)),
+        ("Rice costs 2 pounds per kg.", "2", Span::new(11, 19)),
+        ("Apples cost 3 pounds per pound.", "3", Span::new(12, 20)),
+        ("Office rent is 40 pounds per square foot.", "40", Span::new(15, 24)),
+        ("Butter costs 5 pounds per box.", "5", Span::new(13, 21)),
         ("she paid 50 pounds in cash", "50", Span::new(9, 18)),
         ("he lost 50 pounds at the casino", "50", Span::new(8, 17)),
         ("a fine of 500 pounds of his money", "500", Span::new(10, 20)),

@@ -296,8 +296,11 @@ impl MoneyExtractor {
         if self.opennlp_parity {
             base_char_before(text, index).is_some_and(|c| c.is_ascii_alphabetic())
         } else {
-            base_char_before(text, index)
-                .is_some_and(|c| c.is_ascii_alphabetic() || ('\u{00C0}'..='\u{024F}').contains(&c) && c.is_alphabetic())
+            base_char_before(text, index).is_some_and(|c| {
+                c.is_ascii_alphabetic()
+                    || (('\u{00C0}'..='\u{024F}').contains(&c) || ('\u{1E00}'..='\u{1EFF}').contains(&c))
+                        && c.is_alphabetic()
+            })
         }
     }
 

@@ -296,11 +296,16 @@ pub(crate) fn is_pound_weight_context(text: &str, digit_start: usize, end: usize
                         return true;
                     }
                     if lower_eq(next_word, "per")
-                        && ["bag", "box", "carton", "crate", "kg", "pound", "sack", "sq", "square"]
-                            .iter()
-                            .any(|&w| lower_eq(second, w))
+                        && (lower_eq(second, "square") || lower_eq(second, "sq"))
+                        && whitespace_at(text, after_end)
                     {
-                        return true;
+                        let third_start = after_end + char_at(text, after_end).map_or(1, char::len_utf8);
+                        if let Some(third_end) = word_end(text, third_start, 12) {
+                            let third = &text[third_start..third_end];
+                            if ["in", "inch", "inches"].iter().any(|&w| lower_eq(third, w)) {
+                                return true;
+                            }
+                        }
                     }
                 }
             }
