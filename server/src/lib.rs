@@ -6,6 +6,7 @@ pub mod analysis;
 pub mod api;
 pub mod capabilities;
 pub mod config;
+mod health;
 mod infer;
 mod kserve;
 pub mod offsets;
@@ -16,13 +17,17 @@ pub mod stream;
 
 pub use crate::state::Held;
 
-/// The messages and services of the two protos.
+/// The messages and services of the protos.
 pub mod proto {
     #![allow(clippy::all)]
     tonic::include_proto!("inference");
     /// The analysis result layer (docs/grpc-analysis.md).
     pub mod result {
         tonic::include_proto!("turbo.result");
+    }
+    /// The gRPC health checking protocol (`grpc.health.v1.Health`).
+    pub mod health {
+        tonic::include_proto!("grpc.health.v1");
     }
 }
 
@@ -38,6 +43,7 @@ use tonic::transport::server::TcpIncoming;
 
 use crate::config::ModelConfig;
 use crate::proto::grpc_inference_service_server::GrpcInferenceServiceServer;
+use crate::proto::health::health_server::HealthServer;
 use crate::proto::result::analysis_service_server::AnalysisServiceServer;
 use crate::state::State;
 
@@ -95,6 +101,8 @@ impl Server {
             .max_decoding_message_size(max_message_bytes);
         let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone(), admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
+        let health = HealthServer::new(health::HealthService { state: state.clone() })
+            .max_decoding_message_size(max_message_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
         // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
         // does not reach a listener served with serve_with_incoming, and
@@ -106,6 +114,7 @@ impl Server {
                 .layer(tower::util::MapResponseLayer::new(too_large))
                 .add_service(kserve)
                 .add_service(analysis)
+                .add_service(health)
                 .serve_with_incoming_shutdown(incoming, async {
                     let _ = stopped.await;
                 }),
@@ -140,8 +149,16 @@ impl Server {
         self.state.stream.stats()
     }
 
+    /// Marks the server as draining: `ServerReady` and `ModelReady` turn
+    /// false and `grpc.health.v1.Health` reports `NOT_SERVING` on `Check`
+    /// and `Watch` while requests in flight finish before `stop`.
+    pub fn drain(&self) {
+        self.state.drain();
+    }
+
     /// Stops answering and waits for the server to finish.
     pub async fn stop(mut self) {
+        self.state.shutdown();
         if let Some(s) = self.stop.take() {
             let _ = s.send(());
         }

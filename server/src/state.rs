@@ -3,8 +3,10 @@
 //! and remove entries, and every listing reads the current list.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
+use tokio::sync::watch;
 use turbo::{TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, turbo_session_desc, turbo_session_info};
 
 use crate::api::{self, *};
@@ -86,6 +88,12 @@ pub(crate) struct State {
     /// The streaming bulk analysis call's server-wide state, shared by
     /// every stream of this server.
     pub(crate) stream: Arc<stream::Shared>,
+    /// Set once the server begins draining before shutdown.
+    draining: AtomicBool,
+    /// Set once `Server::stop` closes active health watch streams.
+    stopping: AtomicBool,
+    /// Notifies `grpc.health.v1.Health/Watch` subscribers of state changes.
+    health_tx: watch::Sender<u64>,
     /// Serializes load(): one load at a time, so two LoadBundle calls
     /// never load the same new model twice.
     loading: Mutex<()>,
@@ -104,6 +112,7 @@ pub(crate) const MAX_LOADED_MODELS: usize = 64;
 
 impl State {
     pub(crate) fn new(names: Vec<String>, models: Vec<ModelConfig>) -> Self {
+        let (health_tx, _) = watch::channel(0);
         Self {
             models: RwLock::new(
                 names
@@ -115,8 +124,53 @@ impl State {
             runtime: OnceLock::new(),
             contexts: Mutex::new(Vec::new()),
             stream: stream::Shared::new(),
+            draining: AtomicBool::new(false),
+            stopping: AtomicBool::new(false),
+            health_tx,
             loading: Mutex::new(()),
         }
+    }
+
+    fn notify_health(&self) {
+        self.health_tx.send_modify(|v| *v = v.wrapping_add(1));
+    }
+
+    /// True when the server is not draining and every configured model is loaded.
+    pub(crate) fn is_ready(&self) -> bool {
+        if self.draining.load(Ordering::Acquire) {
+            return false;
+        }
+        self.models.read().unwrap_or_else(|e| e.into_inner()).iter().all(|m| m.loaded.get().is_some())
+    }
+
+    /// True when the server is draining.
+    pub(crate) fn is_draining(&self) -> bool {
+        self.draining.load(Ordering::Acquire)
+    }
+
+    /// True when `Server::stop` has been called.
+    pub(crate) fn is_stopping(&self) -> bool {
+        self.stopping.load(Ordering::Acquire)
+    }
+
+    /// Marks the server as draining and notifies health watchers.
+    pub(crate) fn drain(&self) {
+        if !self.draining.swap(true, Ordering::AcqRel) {
+            self.notify_health();
+        }
+    }
+
+    /// Marks the server as draining and stopping so active health watch
+    /// streams emit their final `NOT_SERVING` frame and close cleanly.
+    pub(crate) fn shutdown(&self) {
+        self.draining.store(true, Ordering::Release);
+        self.stopping.store(true, Ordering::Release);
+        self.notify_health();
+    }
+
+    /// Subscribes to health state transitions.
+    pub(crate) fn subscribe_health(&self) -> watch::Receiver<u64> {
+        self.health_tx.subscribe()
     }
 
     /// The served model and, when it is loaded, its load. The answer is
@@ -164,6 +218,8 @@ impl State {
         }
         let m = Arc::new(Served { name, config, loaded: OnceLock::new() });
         models.push(m.clone());
+        drop(models);
+        self.notify_health();
         Ok(m)
     }
 
@@ -175,8 +231,15 @@ impl State {
     /// theirs to roll back.
     pub(crate) fn remove_if(&self, expected: &Arc<Served>) -> api::Result<()> {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
-        if let Some(i) = models.iter().position(|m| Arc::ptr_eq(m, expected)) {
+        let removed = if let Some(i) = models.iter().position(|m| Arc::ptr_eq(m, expected)) {
             models.remove(i);
+            true
+        } else {
+            false
+        };
+        drop(models);
+        if removed {
+            self.notify_health();
         }
         Ok(())
     }
@@ -188,6 +251,8 @@ impl State {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
         let i = models.iter().position(|m| m.name == name).ok_or_else(|| not_found(name))?;
         models.remove(i);
+        drop(models);
+        self.notify_health();
         Ok(())
     }
 
@@ -280,6 +345,7 @@ impl State {
         // The caller holds the loading mutex: no other load can have set
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));
+        self.notify_health();
         Ok(())
     }
 }

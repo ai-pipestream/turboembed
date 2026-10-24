@@ -6,6 +6,71 @@
 mod kserve;
 
 use kserve::*;
+use turbo_kserve::proto::health::HealthCheckRequest;
+use turbo_kserve::proto::health::health_check_response::ServingStatus;
+use turbo_kserve::proto::health::health_client::HealthClient;
+
+#[tokio::test]
+async fn grpc_health_check_and_watch_through_startup_ready_and_drain() {
+    let s =
+        Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), 1)], MAX, Serve::default()).await.unwrap();
+    let mut c = client(&s).await;
+    let mut h = HealthClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+
+    // Open Watch streams before load for both the server and the configured model.
+    let mut watch_server = h.watch(HealthCheckRequest { service: String::new() }).await.unwrap().into_inner();
+    let mut watch_model = h.watch(HealthCheckRequest { service: NAME.into() }).await.unwrap().into_inner();
+    let mut watch_unknown = h.watch(HealthCheckRequest { service: "nope".into() }).await.unwrap().into_inner();
+
+    // Startup: ServerReady is false, Check and Watch report NOT_SERVING.
+    assert!(!c.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
+    for svc in ["", "inference.GRPCInferenceService", "turbo.result.AnalysisService", "grpc.health.v1.Health", NAME] {
+        let resp = h.check(HealthCheckRequest { service: svc.into() }).await.unwrap().into_inner();
+        assert_eq!(resp.status(), ServingStatus::NotServing, "{svc}");
+    }
+    let e = h.check(HealthCheckRequest { service: "nope".into() }).await.unwrap_err();
+    assert_eq!(refusal(&e), (Code::NotFound, 1280, 0));
+    assert_eq!(watch_server.message().await.unwrap().unwrap().status(), ServingStatus::NotServing);
+    assert_eq!(watch_model.message().await.unwrap().unwrap().status(), ServingStatus::NotServing);
+    assert_eq!(watch_unknown.message().await.unwrap().unwrap().status(), ServingStatus::ServiceUnknown);
+
+    // Ready: load completes, ServerReady turns true, Check and Watch report SERVING.
+    s.load().await.unwrap();
+    assert!(c.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
+    for svc in ["", "inference.GRPCInferenceService", "turbo.result.AnalysisService", "grpc.health.v1.Health", NAME] {
+        let resp = h.check(HealthCheckRequest { service: svc.into() }).await.unwrap().into_inner();
+        assert_eq!(resp.status(), ServingStatus::Serving, "{svc}");
+    }
+    assert_eq!(watch_server.message().await.unwrap().unwrap().status(), ServingStatus::Serving);
+    assert_eq!(watch_model.message().await.unwrap().unwrap().status(), ServingStatus::Serving);
+
+    // Real inference succeeds while ready.
+    let cases = reference();
+    let v = embed(&mut c, texts(&[&cases[0].text])).await;
+    matches("inference while serving", &v[0], &cases[0].vector);
+
+    // Drain: ServerReady turns false, Check and Watch report NOT_SERVING while in-flight work finishes.
+    s.drain();
+    assert!(!c.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
+    assert!(
+        !c.model_ready(ModelReadyRequest { name: NAME.into(), version: String::new() })
+            .await
+            .unwrap()
+            .into_inner()
+            .ready
+    );
+    for svc in ["", "inference.GRPCInferenceService", "turbo.result.AnalysisService", "grpc.health.v1.Health", NAME] {
+        let resp = h.check(HealthCheckRequest { service: svc.into() }).await.unwrap().into_inner();
+        assert_eq!(resp.status(), ServingStatus::NotServing, "{svc}");
+    }
+    assert_eq!(watch_server.message().await.unwrap().unwrap().status(), ServingStatus::NotServing);
+    assert_eq!(watch_model.message().await.unwrap().unwrap().status(), ServingStatus::NotServing);
+
+    // Stop closes open Watch streams and shuts down cleanly.
+    s.stop().await;
+    assert!(watch_server.message().await.unwrap().is_none());
+    assert!(watch_model.message().await.unwrap().is_none());
+}
 
 #[tokio::test]
 async fn startup_refusals() {
