@@ -24,6 +24,9 @@
 //!   parameters and real valued features are read with `parseDouble`,
 //!   `parseFloat`, `parseInt` and `parseBoolean`. [`text`] is those
 //!   conversions.
+//! - Head rules and chunk patterns write their tag conditions as Java
+//!   regular expressions matched against whole tags. [`TagPattern`]
+//!   compiles the subset those rule files use and refuses the rest.
 //! - Several components iterate over a `java.util.HashMap` whose order
 //!   affects tie breaking or floating point summation. [`hash_map`]
 //!   reproduces `HashMap` hash codes, table growth, bin splitting, tree
@@ -39,4 +42,7 @@ pub mod hash_map;
 pub mod math;
 pub mod random;
 pub mod strict_math;
+pub mod tag_pattern;
 pub mod text;
+
+pub use tag_pattern::{MAX_PATTERN_ATOMS, TagPattern};

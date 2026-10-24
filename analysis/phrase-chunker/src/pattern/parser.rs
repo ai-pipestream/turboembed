@@ -1,7 +1,10 @@
 //! Declarative POS-tag and token-literal pattern parser.
 
+use turbo_jvm::TagPattern;
+
 use super::{
     MAX_AUTOMATON_STATES, MAX_NESTING_DEPTH, MAX_QUANTIFIER_BOUND, PatternError, TagCond, TokenMatcher, WordCond,
+    folded,
 };
 
 #[derive(Clone, Debug)]
@@ -269,7 +272,7 @@ impl<'a> Parser<'a> {
         }
         if self.peek() == Some('i') {
             self.pos += 1;
-            Ok(WordCond::CaseInsensitive(buf.to_lowercase()))
+            Ok(WordCond::CaseInsensitive(folded(&buf)))
         } else {
             Ok(WordCond::Exact(buf))
         }
@@ -280,6 +283,7 @@ impl<'a> Parser<'a> {
         self.pos += 1;
         let mut raw = String::new();
         let mut closed = false;
+        let mut in_class = false;
         while let Some(c) = self.peek() {
             self.pos += c.len_utf8();
             if c == '\\' {
@@ -287,10 +291,15 @@ impl<'a> Parser<'a> {
                 self.pos += esc.len_utf8();
                 raw.push('\\');
                 raw.push(esc);
-            } else if c == '>' {
+            } else if c == '>' && !in_class {
                 closed = true;
                 break;
             } else {
+                in_class = match c {
+                    '[' => true,
+                    ']' => false,
+                    _ => in_class,
+                };
                 raw.push(c);
             }
         }
@@ -317,7 +326,7 @@ impl<'a> Parser<'a> {
             if p.is_empty() {
                 return Err(PatternError::EmptyTag { pos: open_pos });
             }
-            tag_alts.push(parse_tag_cond(p));
+            tag_alts.push(parse_tag_cond(p, open_pos)?);
         }
 
         let mut word_alts = Vec::new();
@@ -355,6 +364,7 @@ impl<'a> Parser<'a> {
 
 fn split_unescaped_once<'a>(s: &'a str, delims: &[char]) -> (&'a str, Option<&'a str>) {
     let mut escaped = false;
+    let mut in_class = false;
     for (i, c) in s.char_indices() {
         if escaped {
             escaped = false;
@@ -364,8 +374,11 @@ fn split_unescaped_once<'a>(s: &'a str, delims: &[char]) -> (&'a str, Option<&'a
             escaped = true;
             continue;
         }
-        if delims.contains(&c) {
-            return (&s[..i], Some(&s[i + c.len_utf8()..]));
+        match c {
+            '[' => in_class = true,
+            ']' => in_class = false,
+            _ if !in_class && delims.contains(&c) => return (&s[..i], Some(&s[i + c.len_utf8()..])),
+            _ => {}
         }
     }
     (s, None)
@@ -375,6 +388,7 @@ fn split_unescaped(s: &str, delim: char) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start = 0;
     let mut escaped = false;
+    let mut in_class = false;
     for (i, c) in s.char_indices() {
         if escaped {
             escaped = false;
@@ -384,9 +398,14 @@ fn split_unescaped(s: &str, delim: char) -> Vec<&str> {
             escaped = true;
             continue;
         }
-        if c == delim {
-            out.push(&s[start..i]);
-            start = i + c.len_utf8();
+        match c {
+            '[' => in_class = true,
+            ']' => in_class = false,
+            _ if !in_class && c == delim => {
+                out.push(&s[start..i]);
+                start = i + c.len_utf8();
+            }
+            _ => {}
         }
     }
     out.push(&s[start..]);
@@ -408,23 +427,59 @@ fn unescape(s: &str) -> String {
     out
 }
 
-fn parse_tag_cond(raw: &str) -> TagCond {
+/// One tag alternative. Plain tags and the documented `.*` / `*`
+/// shorthands keep their fast forms; anything holding another
+/// metacharacter compiles through the shared Java tag-pattern
+/// reader, and what that reader refuses is an error at the tag's
+/// position, never a silent literal.
+fn parse_tag_cond(raw: &str, pos: usize) -> Result<TagCond, PatternError> {
     if raw == ".*" || raw == "*" {
-        return TagCond::Any;
+        return Ok(TagCond::Any);
     }
-    if let Some(prefix) = raw.strip_suffix(".*")
-        && !prefix.ends_with('\\')
-    {
-        return TagCond::Prefix(unescape(prefix));
+    let plain = |s: &str| {
+        !s.chars().any(|c| matches!(c, '*' | '[' | ']' | '?' | '+' | '.' | '(' | ')' | '{' | '}' | '^' | '\\'))
+    };
+    if let Some(prefix) = raw.strip_suffix(".*").filter(|p| plain(p)) {
+        return Ok(TagCond::Prefix(unescape(prefix)));
     }
-    if let Some(prefix) = raw.strip_suffix('*')
-        && !prefix.ends_with('\\')
-        && !prefix.is_empty()
-    {
-        return TagCond::Prefix(unescape(prefix));
+    if let Some(prefix) = raw.strip_suffix('*').filter(|p| !p.is_empty() && plain(p)) {
+        return Ok(TagCond::Prefix(unescape(prefix)));
     }
-    if let Some(suffix) = raw.strip_prefix(".*") {
-        return TagCond::Suffix(unescape(suffix));
+    if let Some(suffix) = raw.strip_prefix(".*").filter(|s| plain(s)) {
+        return Ok(TagCond::Suffix(unescape(suffix)));
     }
-    TagCond::Exact(unescape(raw))
+    if plain(raw) {
+        return Ok(TagCond::Exact(unescape(raw)));
+    }
+    TagPattern::compile(&escape_dollars(raw))
+        .map(|pattern| TagCond::Pattern { source: raw.into(), pattern: Box::new(pattern) })
+        .map_err(|detail| PatternError::UnexpectedSyntax { pos, detail: format!("tag pattern {raw:?}: {detail}") })
+}
+
+/// Escapes bare `$` outside character classes for the Java
+/// reader, which would otherwise read a trailing `$` as an end
+/// anchor; Penn tags such as `PRP$` carry a literal dollar.
+fn escape_dollars(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut escaped = false;
+    let mut in_class = false;
+    for c in raw.chars() {
+        if escaped {
+            escaped = false;
+            out.push(c);
+            continue;
+        }
+        match c {
+            '\\' => escaped = true,
+            '[' => in_class = true,
+            ']' => in_class = false,
+            '$' if !in_class => out.push('\\'),
+            _ => {}
+        }
+        out.push(c);
+    }
+    if escaped {
+        out.push('\\');
+    }
+    out
 }
