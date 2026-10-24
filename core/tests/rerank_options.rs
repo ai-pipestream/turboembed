@@ -54,5 +54,5 @@ fn held_rerank_scores_export_their_host_pointer_on_the_cpu() {
 #[test]
 fn rerank_transfers_add_up_over_window_batches_on_the_cpu() {
     let f = fixture::Fixture::new(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap());
-    held::transfers_add_up_over_window_batches(&Loaded::load(&f.dir).unwrap(), &f.dir);
+    held::transfers_add_up_over_window_batches(&Loaded::load(&f.dir).unwrap(), &f.dir, false);
 }

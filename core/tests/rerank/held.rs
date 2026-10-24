@@ -84,8 +84,9 @@ fn run_info(s: &Session, pairs: &[(&str, &str)], max_tokens: u32) -> turbo_resul
 
 /// Windows past max_batch take more than one encoder run, and the result
 /// counts the uploads and read-backs of every one: two full batches of
-/// full windows move twice the bytes of one.
-pub fn transfers_add_up_over_window_batches(loaded: &Loaded, dir: &std::path::Path) {
+/// full windows move twice the bytes of one. On a `device`, one run moves
+/// some bytes each way.
+pub fn transfers_add_up_over_window_batches(loaded: &Loaded, dir: &std::path::Path, device: bool) {
     const MAX: u32 = 16;
     let bundle = turbo::bundle::Bundle::open(dir).unwrap();
     let tok = turbo::tokenizer::Tokenizer::load(&bundle).unwrap();
@@ -100,6 +101,9 @@ pub fn transfers_add_up_over_window_batches(loaded: &Loaded, dir: &std::path::Pa
     // Two windows: one run. Four windows: two runs of two.
     let a = run_info(&s, &[("q", &one), ("q", &one)], MAX);
     let b = run_info(&s, &[("q", &two), ("q", &two)], MAX);
+    if device {
+        assert!(a.h2d_bytes > 0 && a.d2h_bytes > 0, "one run's uploads {} and read-backs {}", a.h2d_bytes, a.d2h_bytes);
+    }
     assert_eq!(b.h2d_bytes, 2 * a.h2d_bytes, "uploads of both runs");
     assert_eq!(b.d2h_bytes, 2 * a.d2h_bytes, "read-backs of both runs");
 }

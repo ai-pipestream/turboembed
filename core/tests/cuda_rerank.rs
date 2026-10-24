@@ -78,7 +78,7 @@ fn rerank_transfers_on_cuda_add_up_over_window_batches() {
     let _t = turn();
     let Some(_) = cuda_device("rerank_transfers_on_cuda_add_up_over_window_batches") else { return };
     let f = fixture();
-    held::transfers_add_up_over_window_batches(&on_cuda(&f.dir), &f.dir);
+    held::transfers_add_up_over_window_batches(&on_cuda(&f.dir), &f.dir, true);
 }
 
 /// `Reranker::open` stays on the CPU in a build with CUDA, and the CUDA
