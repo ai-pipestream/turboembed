@@ -61,3 +61,45 @@ pub fn held_scores(loaded: &Loaded, encode: u32, refused: u32) {
     unsafe { turbo_buffer_release(buf) };
     assert_eq!(write(&s), 0);
 }
+
+fn run_info(s: &Session, pairs: &[(&str, &str)], max_tokens: u32) -> turbo_result_info {
+    let views: Vec<turbo_text_pair> =
+        pairs.iter().map(|&(q, p)| turbo_text_pair { query: text(q), passage: text(p) }).collect();
+    let o = turbo_rerank_options {
+        struct_size: size_of::<turbo_rerank_options>() as u32,
+        max_tokens,
+        ..Default::default()
+    };
+    let mut err = new_error();
+    let rc = unsafe { turbo_rerank_write_pairs(s.0, views.as_ptr(), views.len() as u32, &o, &mut err) };
+    assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+    let mut r = ptr::null_mut();
+    assert_eq!(unsafe { turbo_session_run(s.0, &mut r, &mut err) }, 0, "{:?}", failure(-1, &err));
+    let mut info: turbo_result_info = unsafe { std::mem::zeroed() };
+    info.struct_size = size_of::<turbo_result_info>() as u32;
+    assert_eq!(unsafe { turbo_result_get_info(r, &mut info, &mut err) }, 0);
+    unsafe { turbo_result_release(r) };
+    info
+}
+
+/// Windows past max_batch take more than one encoder run, and the result
+/// counts the uploads and read-backs of every one: two full batches of
+/// full windows move twice the bytes of one.
+pub fn transfers_add_up_over_window_batches(loaded: &Loaded, dir: &std::path::Path) {
+    const MAX: u32 = 16;
+    let bundle = turbo::bundle::Bundle::open(dir).unwrap();
+    let tok = turbo::tokenizer::Tokenizer::load(&bundle).unwrap();
+    let windows = |p: &str| tok.encode_pair("q", p, 0, MAX, 0).unwrap();
+    // The longest run of one word that still makes one full window.
+    let passage = |n: usize| vec!["word"; n].join(" ");
+    let n = (1..64).find(|&n| windows(&passage(n + 1)).len() > 1).unwrap();
+    let (one, two) = (passage(n), passage(2 * n));
+    assert!(windows(&one).iter().all(|w| w.ids.len() == MAX as usize) && windows(&one).len() == 1);
+    assert!(windows(&two).iter().all(|w| w.ids.len() == MAX as usize) && windows(&two).len() == 2);
+    let s = Session::create(loaded.m, Some(&session_desc(2, MAX, TURBO_PRECISION_EXACT))).unwrap();
+    // Two windows: one run. Four windows: two runs of two.
+    let a = run_info(&s, &[("q", &one), ("q", &one)], MAX);
+    let b = run_info(&s, &[("q", &two), ("q", &two)], MAX);
+    assert_eq!(b.h2d_bytes, 2 * a.h2d_bytes, "uploads of both runs");
+    assert_eq!(b.d2h_bytes, 2 * a.d2h_bytes, "read-backs of both runs");
+}

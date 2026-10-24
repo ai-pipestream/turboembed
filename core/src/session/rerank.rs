@@ -116,6 +116,8 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
     // back here, and the scores the run returns are the session's own.
     let mut staged: Vec<f32> = Vec::new();
     let mut read_back = 0u64;
+    // Each encoder run reports its own transfers; the public run is all of them.
+    let (mut uploaded, mut downloaded, mut device_allocations) = (0u64, 0u64, 0u64);
     for start in (0..batch.pair.len()).step_by(s.info.max_batch as usize) {
         let n = (batch.pair.len() - start).min(s.info.max_batch as usize);
         let at = start * batch.seq;
@@ -138,6 +140,9 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
         backend::check(s.backend, "rerank encode run", |err| unsafe { (s.run)(s.raw, &mut result, err) })?;
         check_run(s.backend, &result, true)?;
         allocations += result.host_allocs;
+        uploaded += result.h2d_bytes;
+        downloaded += result.d2h_bytes;
+        device_allocations += result.device_allocs;
         let states: &[f32] = if result.host.is_null() {
             let read = backend::offered!(s.backend, buffer_read)?;
             if staged.is_empty() {
@@ -190,7 +195,6 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
         result.placement = TURBO_PLACE_HOST;
         result.output = std::ptr::null_mut();
         result.host = state.scores.as_mut_ptr().cast();
-        result.d2h_bytes += read_back;
     } else {
         // CPU output reserves max_batch * hidden elements, including when the
         // final window batch is shorter. Compact scores into its leading values.
@@ -199,6 +203,9 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
         }
     }
     result.host_allocs = allocations;
+    result.h2d_bytes = uploaded;
+    result.device_allocs = device_allocations;
+    result.d2h_bytes = downloaded + read_back;
     result.stage.fill(TURBO_STAGE_UNUSED);
     result.stage[..TURBO_RERANK_STAGE_COUNT].fill(TURBO_STAGE_HOST);
     // The encoder ran where the backend ran it; the head and the window

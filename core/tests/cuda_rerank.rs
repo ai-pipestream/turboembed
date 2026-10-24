@@ -71,6 +71,16 @@ fn held_rerank_scores_on_cuda_export_their_host_pointer() {
     held::held_scores(&on_cuda(&f.dir), turbo::TURBO_STAGE_DEVICE, turbo::TURBO_HANDLE_CUDA_PTR);
 }
 
+/// On CUDA a run of more windows than max_batch counts every encoder run's
+/// uploads and read-backs.
+#[test]
+fn rerank_transfers_on_cuda_add_up_over_window_batches() {
+    let _t = turn();
+    let Some(_) = cuda_device("rerank_transfers_on_cuda_add_up_over_window_batches") else { return };
+    let f = fixture();
+    held::transfers_add_up_over_window_batches(&on_cuda(&f.dir), &f.dir);
+}
+
 /// `Reranker::open` stays on the CPU in a build with CUDA, and the CUDA
 /// cell reports rerank as experimental.
 #[test]
