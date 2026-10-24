@@ -6,7 +6,9 @@
 //!   probability that label's softmax probability (with OpenNLP's handling
 //!   of infinities);
 //! - by default (`Decoding::Word`) each word takes its first piece's label,
-//!   as the model was trained, and the units below are words; with
+//!   as the model was trained, and the units below are words: the
+//!   tokenizer's own (`turbo::tokenizer::pre_words`), punctuation and CJK
+//!   ideographs each a word; with
 //!   `Decoding::Piece` every piece is a unit, as `NameFinderDL` decodes;
 //! - a `B-<type>` unit starts an entity that runs over the `I-<type>`
 //!   units after it, with the lowest probability among them;
@@ -56,7 +58,8 @@ pub fn labels(names: &[String]) -> (Vec<Label>, Vec<String>) {
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Decoding {
     /// Each word takes its first piece's label, as the model was trained:
-    /// an entity is whole words, and a `B-` the model gives a piece inside
+    /// an entity is whole words, the tokenizer's (punctuation and CJK
+    /// ideographs each one), and a `B-` the model gives a piece inside
     /// a word does not start one there.
     #[default]
     Word,
@@ -90,7 +93,8 @@ pub fn chunk_ranges(count: usize, split: usize, overlap: usize) -> Result<Vec<(u
 }
 
 /// The rows a chunk of `count` pieces is read in, `width` pieces to a row:
-/// one row when they fit; otherwise rows overlapping by half a row, each
+/// one row when they fit; otherwise rows overlapping by `2 * (width / 4)`
+/// pieces (half a row when `width` is a multiple of 4, none below 4), each
 /// piece's label taken from the row where it sits furthest from a cut
 /// edge. Each row is `(start, end, own_start, own_end)`: the pieces it
 /// reads and the pieces whose labels it gives, which run on from the

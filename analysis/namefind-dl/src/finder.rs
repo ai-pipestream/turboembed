@@ -26,7 +26,7 @@ use turbo::bundle::Bundle;
 use turbo::head::Head;
 use turbo::manifest::{ClassifierKind, PromptRole, Truncation};
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
-use turbo::tokenizer::{Encode, Tokenizer};
+use turbo::tokenizer::{Encode, Tokenizer, pre_words};
 use turbo::turbo_token_range;
 use turbo_analysis::{Annotator, Error, Execution, IxRange, Layer, ModelRef, Refs, Span, Spans, TagSet, View};
 use turbo_analysis_embed::{Encoder, EncoderOptions, Rows};
@@ -208,6 +208,10 @@ impl NameFinderDl {
                     ids.clear();
                     spans.clear();
                     self.tokenizer.encode_spans(&joined, bare, &mut ids, &mut spans).map_err(|e| e.to_string())?;
+                    // A piece's word is the tokenizer's own pre-token it
+                    // starts in, not the whitespace word: `(Paris)` is
+                    // `(`, `Paris` and `)`, and `東京` two words.
+                    let pre = pre_words(&joined);
                     // Each end of a piece maps through its own word of
                     // `joined` (place.rs), so one touching or crossing a
                     // joining space still lands on the text's words.
@@ -238,9 +242,7 @@ impl NameFinderDl {
                         bytes.resize(rows, None);
                         let mut words = vec![None; self.cls.len()];
                         words.extend(
-                            piece
-                                .iter()
-                                .map(|s| Some(starts.partition_point(|w| w.0 <= s[0] as usize).saturating_sub(1))),
+                            piece.iter().map(|s| Some(pre.partition_point(|w| w.0 <= s[0] as usize).saturating_sub(1))),
                         );
                         words.resize(rows, None);
                         for p in 0..rows as u32 {

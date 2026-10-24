@@ -217,6 +217,33 @@ pub(super) fn pre_tokenize<'a>(s: &'a str, mut word: impl FnMut(&'a str)) {
     }
 }
 
+/// The words a BERT tokenizer cuts `text` into before WordPiece, as byte
+/// ranges: `BertPreTokenizer`'s, whitespace parting them and each
+/// punctuation character a word of its own, with each CJK ideograph one
+/// too, as `BertNormalizer`'s handle_chinese_chars spaces it. No piece of
+/// such a tokenizer crosses one.
+pub fn pre_words(text: &str) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut start = None;
+    for (i, c) in text.char_indices() {
+        let alone = c.is_ascii_punctuation() || (!c.is_ascii() && category(c, PUNCTUATION)) || is_cjk(c);
+        if is_whitespace(c) || alone {
+            if let Some(s) = start.take() {
+                out.push((s, i));
+            }
+            if alone {
+                out.push((i, i + c.len_utf8()));
+            }
+        } else if start.is_none() {
+            start = Some(i);
+        }
+    }
+    if let Some(s) = start {
+        out.push((s, text.len()));
+    }
+    out
+}
+
 /// A character of regex's Unicode \\w, which upstream's single_word
 /// reads: alphabetic, a mark, a decimal digit, a connector, or a joiner.
 pub(super) fn is_word(c: char) -> bool {
