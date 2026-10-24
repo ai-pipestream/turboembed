@@ -1,6 +1,6 @@
 use super::*;
 
-const BLOCKS: [Block; 14] = [
+const BLOCKS: [Block; 16] = [
     Block::Section,
     Block::Heading,
     Block::Paragraph,
@@ -15,6 +15,8 @@ const BLOCKS: [Block; 14] = [
     Block::Footnote,
     Block::PageHeader,
     Block::PageFooter,
+    Block::LooseList,
+    Block::Html,
 ];
 
 const CUTS: [(&str, Cut); 7] = [
