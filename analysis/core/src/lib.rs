@@ -27,7 +27,7 @@ pub mod text;
 
 pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
 pub use analyzer::Analyzer;
-pub use annotate::{Annotator, Bound, Refs};
+pub use annotate::{Annotator, Bound, Placed, Refs};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
 pub use doc::{Document, LayerStatus, Status, View};
 pub use error::Error;

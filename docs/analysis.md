@@ -728,6 +728,15 @@ annotator that returns `Error::Annotator` fails that document alone. A
 panic does too: it is caught, and a batch that panics is run again one
 document at a time to find the documents that cause it.
 
+`execution` says where an annotator's model runs, and every layer it
+writes records it. An annotator that sends one call to one backend and
+another call to another says so through `annotate_batch_placed`, which
+returns each document's outputs with the execution they were made by;
+that document's layers record it in place of `execution`, and a
+document run again alone after a panic records where it ran then. One
+document's layers come from one execution. The default runs
+`annotate_batch` and records `execution`.
+
 `Bound` binds an annotator to the instances it reads and writes:
 the default ones, or named ones (`.read(0, "folded")`).
 
@@ -4731,29 +4740,89 @@ runs them on any machine:
   is 0.919, the mean 0.983). The mean over the whole row, computed with the
   encoder, is held to 0.999999 (the lowest is 0.9999999999984): the
   tokenizer and the encoder agree with OpenNLP's and ONNX Runtime's.
-- `analysis/embed/src/calibrate.rs` decides how the sentence vector step
-  runs on a device. `Calibration::measure` runs the step over the
-  caller's texts at each window size it is given (each once, at most the
-  model's), on the device and on the CPU at `Precision::Exact` as the
-  reference, and keeps each window's lowest cosine and the median times of
-  the step on the device and on the CPU at `Precision::Model`, the two
-  timed in turns. A cosine that is not a number counts as the lowest, and
-  a device that gives a different number of vectors than the reference is
-  an error. It keeps the widest window whose lowest cosine clears the
-  floor (the core's tolerance for the device's dtype, or 0.93 for I8), and
-  runs on the device only if a window clears it and the device is faster
-  there. `Calibration::load_or_measure` keeps the result in a directory,
-  written to a `.part` file and renamed, under a key of the bundle's model
-  and manifest hash, the device's backend, name, runtime and driver
-  versions, the precision, the library's build (`turbo::tuning::LIBRARY_BUILD`,
-  its version and kernels), the windows, the floor as given and a hash of
-  the texts. It measures again when the key changes, and when the kept
-  file is incomplete or its choice does not follow from its points.
-  `Calibration::options` gives the `VectorOptions` to open the step with.
+- `analysis/embed/src/calibrate/` (`mod.rs`, and `kept.rs` for the kept
+  form) decides where the sentence vector step runs: on a device or on the
+  CPU, for each window and batch. `Calibration::measure` runs the step
+  over the caller's texts at each window (tokens a row; each once, at most
+  the model's) and each batch (the session's cap on rows a run, its
+  `max_batch`; each once, at least 1), on the device at the precision
+  asked and on the CPU at `Precision::Exact`, the two timed in turns,
+  against the CPU at `Precision::Exact` as the reference. It keeps a point
+  for each window and batch, windows outer, in the order asked: the lowest
+  cosine and the fastest times of the device and the CPU. A cosine that is
+  not a number counts as the lowest, and a device that gives a different
+  number of vectors than the reference is an error. `Calibration::side`
+  gives the device for a configuration whose point clears the floor (the
+  core's tolerance for the device's dtype, or 0.93 for I8) and is faster
+  on the device, the CPU for every other, and an error for a configuration
+  with no point. The batch is a cap: a call of fewer documents than fill
+  it runs fewer rows, at the side its cap chose, so a document's vectors
+  do not depend on what else a call sends; the runs a cap leaves short are
+  in what is timed, as far as the caller's texts have them.
+  `TURBO_CALIBRATION_FORCE` set to `device` or `cpu` overrides the choice,
+  and any other value is an error. `Calibration::load_or_measure` keeps
+  the result in a directory, written to a `.part` file and renamed, under
+  a key of the bundle's model and manifest hash, the device's backend,
+  name, runtime and driver versions, the precision, the library's build
+  (`turbo::tuning::LIBRARY_BUILD`, its version and kernels), the windows,
+  the batches, the floor as given and a hash of the texts. It measures
+  again when the key changes, and when the kept file is not the version 5
+  form (version 2 timed the CPU at `Precision::Model`, versions 3 and 4
+  lack the times of one sentence and one text alone) or lacks a point
+  for each window and batch asked, in order. `Calibration::options` gives
+  the `VectorOptions` for one configuration, or an error: the device at
+  the precision asked, or the CPU at `Precision::Exact`, the precision it
+  was timed at. `Calibration::annotator` opens the step on the chosen
+  side, refusing a window and batch that were not asked for before
+  anything is measured, and `calibrate::time` and `calibrate::vectors`
+  time the step on an opened instance and give its vectors.
   `analysis/embed/tests/calibrate.rs` checks it with the CPU as the device
   on the small BERT, and on the device `TURBO_TEST_DEVICE` names with the
-  bundle `TURBO_TEST_VECTORS_BUNDLE` prints what it decided over windows
-  of 64, 96 and 128 tokens.
+  bundle `TURBO_TEST_VECTORS_BUNDLE` measures windows of 16, 32, 64 and
+  128 tokens by batches of 1, 8 and 32 over the documents of
+  `analysis/embed/tests/data/calibration-texts.txt`. For each
+  configuration it checks, on the one instance the calibration opens, that
+  it runs on the side that won, that a document sent alone gets the
+  vectors it gets among the rest (cosine at least 1 - 1e-6), and that the
+  whole set runs within 10% of the faster side's measured time, timed up
+  to three times. docs/hailo.md ("Device or CPU") gives what it measured
+  on the Hailo-8.
+- `analysis/embed/src/calibrate/dispatch.rs` chooses the side per call. A
+  point also keeps each side's fastest time for the texts' first sentence
+  sent alone and for their first text sent alone (kept form version 5; the
+  calibration keeps fastest times throughout, since another process can
+  only slow a run). `Dispatch::open` opens the step on the device and on
+  the CPU at `Precision::Exact` at one window and cap, refusing a window
+  and cap the calibration does not ask for before it measures, and fits
+  each side's time a call (`Cost::fit`: no cost below 0, least relative
+  squares) to a cost a run, a row and a token, over the whole set, the one
+  sentence and the one text at each batch measured at that window. Each
+  call is planned once (`VectorAnnotator::plan`), counted
+  (`shape_of_plan`: packed through `pack`, the loop `embed` runs by, so
+  the rows a run holds and the ranges it holds both split runs) and run
+  from that plan on the side chosen (`embed_planned`); `shape_at` refuses
+  limits of 0, and `last_shape` reports what a call sent to the encoder. A
+  call of a shape the calibration timed goes to the side with the lower
+  median over every cap it was timed at; any other runs on the side whose
+  cost is lower; the device only where its vectors clear the floor at that
+  window; `TURBO_CALIBRATION_FORCE` still sends every call to one side.
+  `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` take any
+  `Embedder`, a `VectorAnnotator` or a `Dispatch`, and record each call's
+  side on every document's layers (`annotate_batch_placed`).
+  `analysis/embed/tests/dispatch.rs` checks the fit, the refusals, that
+  the shape predicted is the shape run (one range a row and 40 one-word
+  sentences among the cases), and, with the CPU at `Precision::Model`
+  standing in for the device, that a call of one sentence and a call of
+  many record different sides and get each side's vectors. On the device
+  `TURBO_TEST_DEVICE` names, at each of the twelve windows and caps, one
+  sentence, one document and the whole set go through one instance and
+  through the instances it runs on, timed six rounds in a rotating order:
+  every document records one side, its vectors are that side's, the side
+  is the faster unless the two sides' rounds overlap, and the dispatched
+  instance's best round is no slower than the chosen side's slowest round
+  by more than the planning, timed on its own, and 0.5%.
+  `analysis/core/tests/placed.rs` checks that each document records the
+  execution its call returned, and its own after a run again alone.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,
