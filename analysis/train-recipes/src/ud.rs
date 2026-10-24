@@ -18,7 +18,8 @@
 //! sums differ from the references in the last parameter bits. Those two
 //! gates compare the released recipes with the references; exact parameter
 //! reproduction uses the separate 12-partition recipes. The Catalan tagger
-//! and lemmatizer recipes make OpenNLP's events exactly when the empty nodes are kept (the event hash OpenNLP's
+//! and lemmatizer recipes make OpenNLP's events exactly when the empty
+//! nodes are kept (the event hash OpenNLP's
 //! trainer gives), so the data their models and the references are
 //! trained on differ only by the 4,999 empty nodes the recipes leave out
 //! (below).
