@@ -71,11 +71,44 @@ impl Health for HealthService {
                 if state.is_stopping() {
                     break;
                 }
-                if rx.changed().await.is_err() {
-                    break;
+                tokio::select! {
+                    _ = tx.closed() => break,
+                    res = rx.changed() => {
+                        if res.is_err() {
+                            break;
+                        }
+                    }
                 }
             }
         });
         Ok(Response::new(ReceiverStream::new(out)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio_stream::StreamExt;
+
+    #[tokio::test]
+    async fn dropped_watch_releases_its_state_without_a_health_change() {
+        let state = Arc::new(State::new(Vec::new(), Vec::new()));
+        let svc = HealthService { state: state.clone() };
+        assert_eq!(Arc::strong_count(&state), 2);
+
+        let mut stream =
+            svc.watch(Request::new(HealthCheckRequest { service: String::new() })).await.unwrap().into_inner();
+        let first = stream.next().await.unwrap().unwrap();
+        assert_eq!(first.status, ServingStatus::Serving as i32);
+        assert_eq!(Arc::strong_count(&state), 3);
+
+        drop(stream);
+        for _ in 0..16 {
+            if Arc::strong_count(&state) == 2 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(Arc::strong_count(&state), 2, "dropped Watch stream must release its spawned task and State Arc");
     }
 }
