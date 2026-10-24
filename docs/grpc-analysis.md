@@ -23,16 +23,32 @@ own file; generate a client from it in any language with gRPC.
 | `AnalyzeStream` | Bulk document analysis over one bidirectional stream. |
 
 Span offsets cross in the unit a message names (`OffsetMode` on
-`ChunkLevelsResult`): UTF-8 bytes (the internal offsets), UTF-16 code
+`ChunkLevelsResult`, `SparseTermsResult`, `TokenVectorsResult`, and
+`ExtractionResult`): UTF-8 bytes (the internal offsets), UTF-16 code
 units (Java string indices), or Unicode code points, converted through
-the view text's checkpoint table (`server/src/offsets.rs`). An offset
+the view text's checkpoint table (`server/src/offsets.rs`) using
+linear-scan column helpers (`OffsetTable::column_to_utf16` and
+`OffsetTable::column_to_code_point`). When `text` is omitted on
+`SparseTermsResult`, `TokenVectorsResult`, or `ExtractionResult` in
+`OFFSET_MODE_UTF8`, spans cross as raw UTF-8 byte offsets; when `text`
+is supplied (or when `offsets` is `OFFSET_MODE_UTF16` or
+`OFFSET_MODE_CODE_POINT`), every span, occurrence, window, and fragment
+is converted and validated against `text`. An offset
 that is out of bounds, inverted, or inside a code point or a UTF-16
 surrogate pair refuses with `TURBO_E_INVALID_ARGUMENT`; nothing is
 snapped to a boundary. `ChunkLevelsResult` carries `turbo:chunks`,
 `turbo:levels`, and `opennlp:embeddings` over the chunks in one round
 trip, fragments included. `RoundTripDocumentGraph` takes binary
 `DocumentGraph` bytes and answers with the same document imported and
-re-exported, listing every layer's standard id (`opennlp:*` or
+re-exported through a `OnceLock<Codecs>` registry
+(`server/src/results/document.rs`) initialized with all first-party
+workspace `LayerCodec` registrations (`turbo-analysis-layers`,
+`turbo-abbrev`, `turbo-chunker`, `turbo-coref`,
+`turbo-encoding-layers`, `turbo-entity-linker`, `turbo-geo`,
+`turbo-gliner`, `turbo-glossary-layers`, `turbo-group`,
+`turbo-keywords`, `turbo-normalize-layers`, `turbo-relation`,
+`turbo-schema-extract`, `turbo-stopword-layers`, and
+`turbo-tokenize-layers`), listing every layer's standard id (`opennlp:*` or
 `turbo:*`), instance, provenance (annotator, version, model, config
 hash), item count, and status (`OK`, `SKIPPED`, or `FAILED` with its
 detail), and every view likewise. Layers whose codecs the server does
@@ -84,7 +100,7 @@ request, per loaded bundle:
 |---|---|
 | `name` | The name requests use. |
 | `model` | The bundle's identity: model id, revision, and the manifest's sha256, the contract the load was made against. |
-| `task` | The task it serves, the header constant's name (`TASK_EMBED`). |
+| `task` | The task it serves, the header constant's name (`TASK_EMBED`, `TASK_RERANK`, or `TASK_EXTRACTIVE_QA`). |
 | `roles` | The prompt roles it takes: `PROMPT_QUERY` for a non-empty `prefix_query`, `PROMPT_DOCUMENT` for a non-empty `prefix_document`, `PROMPT_NONE` when it carries neither. |
 | `widths` | `dim` first, then the `output_dims` a request may name by `output_dim`, ascending. |
 | `context_limit` | Tokens per row; a longer row is `TURBO_E_CAPACITY` naming `max_seq`. |
@@ -159,21 +175,36 @@ first, or an unknown order value, refuses the same way.
 
 After the header the client sends `AnalyzeDocument` messages: a client
 correlation `id` (non-empty, carried back on the answer), the served
-model's `name`, the `text`, and `AnalyzeOptions` (the fields of
-`turbo_embed_options`, each 0 for the model's default, exactly what the
-single-document call's parameters carry). Every document answers exactly
-once as an `AnalyzeStreamResponse` tagged with its id: `AnalyzeVectors`,
-whose `data` is byte for byte the row the single-document call's
-`raw_output_contents` carries for the same text and options, or
-`AnalyzeFailure` with the turbo status code, field and refusal the
-single-document call would carry. A failed document never ends the
-stream; unknown model, unknown option value, and an over-limit document
-all answer this way, and a batch whose write fails is retried one
-document at a time so the failure lands on its document alone.
+model's `name`, the `text`, `AnalyzeOptions` (the fields of
+`turbo_embed_options`, each 0 for the model's default, plus
+`sparse_top_k`, `sparse_floor`, and `token_stride`), `output`
+(`ANALYZE_OUTPUT_VECTORS` by default, `ANALYZE_OUTPUT_SPARSE_TERMS` for
+learned sparse lexical expansion, or `ANALYZE_OUTPUT_TOKEN_VECTORS` for
+per-token contextual vectors and encoder window spans), and `offsets`
+(`OFFSET_MODE_UTF8`, `OFFSET_MODE_UTF16`, or `OFFSET_MODE_CODE_POINT` for
+span offsets on `SparseTermsResult` and `TokenVectorsResult`). Every
+document answers exactly once as an `AnalyzeStreamResponse` tagged with
+its id:
+- `AnalyzeVectors`, whose `data` is byte for byte the row the
+  single-document call's `raw_output_contents` carries for the same text
+  and options;
+- `SparseTermsResult` (`ANALYZE_OUTPUT_SPARSE_TERMS`, issue #917),
+  computed on the model's pooled sessions with its MLM head (`SPLADE`
+  max-log pooling) and matching `SparseAnnotator`;
+- `TokenVectorsResult` (`ANALYZE_OUTPUT_TOKEN_VECTORS`, issue #917),
+  computed on the model's pooled sessions (with optional linear
+  `ProjectionHead` for `ColBERT` / late-interaction bundles) and matching
+  `VectorAnnotator` (`SubwordVectors` and `TokenVectorWindows`); or
+- `AnalyzeFailure` with the turbo status code, field and refusal the
+  single-document call would carry.
+A failed document never ends the stream; unknown model, unknown option
+value, missing MLM head, and an over-limit document all answer this way,
+and a batch whose write fails is retried one document at a time so the
+failure lands on its document alone.
 
-Documents waiting on the same load with the same options gather into
-one batch up to the bundle's `batch_limit`, one write, one run and one
-read on one held session; batching never changes a document's answer,
+Documents waiting on the same load with the same output kind, offset
+mode, and options gather into one batch up to the bundle's `batch_limit`,
+running on one held session; batching never changes a document's answer,
 and the batching key is the load's identity, so an unload and a reload
 under one name never mix loads in one batch. Every admitted document, a
 validation failure included, holds its queue room and window permit
@@ -219,6 +250,10 @@ queue to its advertised cap and no further; cancelling while another
 caller holds the model's only session drains the queue at once; and an
 unload plus reload under one name answers the old document from the old
 load and refuses the over-length new one, never batched together.
+`server/tests/stream_sparse_tokens.rs` proves `ANALYZE_OUTPUT_SPARSE_TERMS`
+and `ANALYZE_OUTPUT_TOKEN_VECTORS` over `AnalyzeStream` against in-process
+`SparseAnnotator` and `VectorAnnotator` across `SPLADE`, unprojected, and
+`ColBERT` projection bundles in all three `OffsetMode`s.
 `cargo test --release -p turbo-kserve --test speed --
 --ignored` measures the encoding and decoding speed bar against the
 current vector and span messages (docs/receipts/server-723/README.md).

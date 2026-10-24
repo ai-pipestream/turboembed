@@ -226,7 +226,14 @@ pub fn stream_header(order: i32, max_inflight: u32, batch_linger_ms: u32) -> Ana
 /// One stream message: a document.
 pub fn stream_doc(id: &str, model: &str, text: &str, options: Option<AnalyzeOptions>) -> AnalyzeStreamRequest {
     AnalyzeStreamRequest {
-        kind: Some(Kind::Document(AnalyzeDocument { id: id.into(), model: model.into(), text: text.into(), options })),
+        kind: Some(Kind::Document(AnalyzeDocument {
+            id: id.into(),
+            model: model.into(),
+            text: text.into(),
+            options,
+            output: 0,
+            offsets: 0,
+        })),
     }
 }
 
@@ -271,4 +278,126 @@ impl Stream {
 /// The collected answers keyed by id.
 pub async fn by_id(stream: Stream) -> std::collections::HashMap<String, Outcome> {
     stream.collect().await.into_iter().collect()
+}
+
+// ---- Rerank and extractive QA test bundle fixtures --------------------------
+
+static BUNDLE_SERIAL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+pub struct BundleDir(pub PathBuf);
+impl Drop for BundleDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn scratch_dir(tag: &str) -> BundleDir {
+    let id =
+        format!("{tag}-{}-{}", std::process::id(), BUNDLE_SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let dir = root.join("target/server-rerank-qa-tests").join(id);
+    std::fs::create_dir_all(dir.join("weights")).unwrap();
+    std::fs::create_dir_all(dir.join("reference")).unwrap();
+    BundleDir(dir)
+}
+
+fn roberta_pair_reference_safetensors() -> Vec<u8> {
+    let mut header = serde_json::to_vec(&serde_json::json!({
+        "ids": {"dtype": "I32", "shape": [1, 4], "data_offsets": [0, 16]},
+        "types": {"dtype": "I32", "shape": [1, 4], "data_offsets": [16, 32]},
+        "lengths": {"dtype": "I32", "shape": [1], "data_offsets": [32, 36]},
+        "scores": {"dtype": "F32", "shape": [1, 1], "data_offsets": [36, 40]},
+    }))
+    .unwrap();
+    while !header.len().is_multiple_of(8) {
+        header.push(b' ');
+    }
+    let mut out = (header.len() as u64).to_le_bytes().to_vec();
+    out.extend_from_slice(&header);
+    for v in [101i32, 102, 102, 102, 0, 0, 0, 0, 4] {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    out.extend_from_slice(&0.0f32.to_le_bytes());
+    out
+}
+
+fn copy_bundle_files(d: &Path, tiny: &Path, reference: &Path, ref_override: Option<Vec<u8>>) -> Vec<Value> {
+    let mut files = Vec::new();
+    for (src, dest) in [
+        (tiny.join("tokenizer.json"), "tokenizer.json"),
+        (tiny.join("weights/model.safetensors"), "weights/model.safetensors"),
+        (reference.join("head.safetensors"), "weights/head.safetensors"),
+    ] {
+        let b = std::fs::read(src).unwrap();
+        std::fs::write(d.join(dest), &b).unwrap();
+        files.push(serde_json::json!({"path": dest, "size": b.len(), "sha256": turbo::bundle::sha256_hex(&b)}));
+    }
+    let ref_bytes = ref_override.unwrap_or_else(|| std::fs::read(reference.join("reference.safetensors")).unwrap());
+    let dest = "reference/reference.safetensors";
+    std::fs::write(d.join(dest), &ref_bytes).unwrap();
+    files.push(
+        serde_json::json!({"path": dest, "size": ref_bytes.len(), "sha256": turbo::bundle::sha256_hex(&ref_bytes)}),
+    );
+    files
+}
+
+pub fn make_rerank_bundle(pair_template: &str) -> BundleDir {
+    let d = scratch_dir("rerank");
+    let r = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let (tiny, reference) = (r.join("testdata/tiny-bert-bundle"), r.join("testdata/tiny-rerank-reference"));
+    let mut m: Value = serde_json::from_slice(&std::fs::read(tiny.join("manifest.json")).unwrap()).unwrap();
+    m.as_object_mut().unwrap().remove("embed");
+    m["task"] = "TASK_RERANK".into();
+    let ref_override = if pair_template == "PAIR_ROBERTA" {
+        m["model"]["id"] = "BAAI/bge-reranker-base".into();
+        m["architecture"]["family"] = "FAMILY_ROBERTA".into();
+        m["architecture"]["position_offset"] = 1.into();
+        m["reference"]["cases"] = serde_json::json!([{"text": "", "passage": "", "prompt_role": "PROMPT_NONE"}]);
+        Some(roberta_pair_reference_safetensors())
+    } else {
+        m["model"]["id"] = "cross-encoder/ms-marco-MiniLM-L6-v2".into();
+        m["reference"]["cases"] =
+            serde_json::from_slice(&std::fs::read(reference.join("cases.json")).unwrap()).unwrap();
+        None
+    };
+    m["rerank"] = serde_json::json!({"max_seq": 32, "max_batch": 4, "query_tokens": 8, "pair_template": pair_template});
+    m["classifier"] = serde_json::json!({"kind": "CLASSIFIER_SEQUENCE", "labels": ["LABEL_0"]});
+    m["artifacts"][0]["files"] = serde_json::json!(["weights/model.safetensors", "weights/head.safetensors"]);
+    let names = m["artifacts"][0]["tensor_names"].as_object_mut().unwrap();
+    for (k, v) in [
+        ("pooler_weight", "bert.pooler.dense.weight"),
+        ("pooler_bias", "bert.pooler.dense.bias"),
+        ("classifier_weight", "classifier.weight"),
+        ("classifier_bias", "classifier.bias"),
+    ] {
+        names.insert(k.into(), v.into());
+    }
+    m["files"] = copy_bundle_files(&d.0, &tiny, &reference, ref_override).into();
+    std::fs::write(d.0.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
+    d
+}
+
+pub fn make_qa_bundle() -> BundleDir {
+    let d = scratch_dir("qa");
+    let r = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let (tiny, reference) = (r.join("testdata/tiny-bert-bundle"), r.join("testdata/tiny-qa-reference"));
+    let spec: Value = serde_json::from_slice(&std::fs::read(reference.join("cases.json")).unwrap()).unwrap();
+    let mut m: Value = serde_json::from_slice(&std::fs::read(tiny.join("manifest.json")).unwrap()).unwrap();
+    m.as_object_mut().unwrap().remove("embed");
+    m["model"]["id"] = "turbo/test-tiny-qa".into();
+    m["task"] = "TASK_EXTRACTIVE_QA".into();
+    m["qa"] = spec["qa"].clone();
+    m["classifier"] = serde_json::json!({"kind": "CLASSIFIER_TOKEN", "labels": ["start", "end"]});
+    m["artifacts"][0]["files"] = serde_json::json!(["weights/model.safetensors", "weights/head.safetensors"]);
+    m["artifacts"][0]["tensor_names"]["classifier_weight"] = "qa_outputs.weight".into();
+    m["artifacts"][0]["tensor_names"]["classifier_bias"] = "qa_outputs.bias".into();
+    let mut cases = spec["cases"].clone();
+    for c in cases.as_array_mut().unwrap() {
+        c["prompt_role"] = "PROMPT_NONE".into();
+    }
+    m["reference"]["cases"] = cases;
+    m["reference"]["produced_by"]["tool"] = "transformers".into();
+    m["files"] = copy_bundle_files(&d.0, &tiny, &reference, None).into();
+    std::fs::write(d.0.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
+    d
 }
