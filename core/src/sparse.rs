@@ -246,7 +246,7 @@ impl MlmHead {
                 // filling the whole block first costs the x86 decoder
                 // about 2%. A kernel that takes one token a pass gets
                 // exactly one row per call, which keeps that gain.
-                let bias = &self.decoder.bias[i0..i0 + w];
+                let bias = &self.decoder().bias[i0..i0 + w];
                 let k = kernel.tokens_per_pass();
                 if k == 1 {
                     for (x, o) in block.chunks_exact(h).zip(out.chunks_exact_mut(w)) {
@@ -401,13 +401,11 @@ mod head_tests {
     }
 
     /// The transposed decoder is made on the first call and read on every
-    /// later one, which gives the same pool; a decoder replaced by one of
-    /// another shape after that call is refused, not read through the old
-    /// transpose.
+    /// later one, which gives the same pool.
     #[test]
     fn the_decoder_is_transposed_once_and_kept() {
         let (h, v) = (17, 301);
-        let mut m = head(h, v);
+        let m = head(h, v);
         let states = values(5 * h, 9);
         let mut first = MaxLogPool::new(v);
         m.relu_peak_into(&states, &mut first).unwrap();
@@ -417,10 +415,31 @@ mod head_tests {
         assert_eq!(first.weights(), again.weights());
         assert_eq!(m.decoder_transposed().unwrap().as_ptr(), wt, "made once");
         assert_eq!(head(h, v), m, "equality ignores the transpose");
+    }
+
+    /// A decoder changed after the first call, to another of the same shape
+    /// or of another, gives the pool a fresh head with that decoder gives:
+    /// the transpose kept of the old one is not read.
+    #[test]
+    fn a_changed_decoder_is_read_not_the_transpose_of_the_old_one() {
+        let (h, v) = (17, 301);
+        let states = values(5 * h, 9);
+        let pool = |m: &MlmHead| {
+            let mut p = MaxLogPool::new(m.vocab);
+            m.relu_peak_into(&states, &mut p).unwrap();
+            p.weights()
+        };
+        let mut m = head(h, v);
+        pool(&m);
+        m.decoder_mut().weight.iter_mut().for_each(|w| *w = -*w);
+        let mut fresh = head(h, v);
+        fresh.decoder_mut().weight.iter_mut().for_each(|w| *w = -*w);
+        assert_eq!(pool(&m), pool(&fresh));
+        assert_ne!(pool(&m), pool(&head(h, v)), "the change is one the pool sees");
+
         m.vocab = v - 1;
-        m.decoder = Linear::new(h, v - 1, values(h * (v - 1), 3), values(v - 1, 4)).unwrap();
-        let mut pool = MaxLogPool::new(v - 1);
-        assert_eq!(m.relu_peak_into(&states, &mut pool).unwrap_err().code, crate::status::INTERNAL);
+        *m.decoder_mut() = Linear::new(h, v - 1, values(h * (v - 1), 3), values(v - 1, 4)).unwrap();
+        assert_eq!(pool(&m), pool(&head(h, v - 1)));
     }
 
     /// relu_peak_into end to end at a base SPLADE model's shape: 128

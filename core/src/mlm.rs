@@ -29,12 +29,10 @@ pub struct MlmHead {
     pub ln_bias: Vec<f32>,
     pub ln_eps: f32,
     /// The decoder, `hidden` to `vocab`; its weight is the word embedding
-    /// table when the bundle ties it (BERT's default). The sparse path
-    /// transposes it once, on its first call, and keeps that copy. A
-    /// decoder of another size set after that call is refused there; one of
-    /// the same size is not seen, so the decoder is not to change once the
-    /// head is in use.
-    pub decoder: Linear,
+    /// table when the bundle ties it (BERT's default). Private, so that
+    /// every change goes through `decoder_mut`, which drops the transpose
+    /// the sparse path keeps of it.
+    decoder: Linear,
     decoder_t: Transposed,
 }
 
@@ -42,7 +40,8 @@ pub struct MlmHead {
 /// kernels read (sparse/decode.rs), made the first time
 /// `MlmHead::relu_peak_into` runs and kept for the head's life: as much
 /// memory again as the decoder weight, in place of a copy made on every
-/// call. Equality ignores whether it has been made.
+/// call; `MlmHead::decoder_mut` drops it. Equality ignores whether it has
+/// been made.
 #[derive(Clone, Default)]
 struct Transposed(OnceLock<Box<[f32]>>);
 
@@ -70,6 +69,19 @@ impl MlmHead {
         decoder: Linear,
     ) -> MlmHead {
         MlmHead { hidden, vocab, transform, ln_weight, ln_bias, ln_eps, decoder, decoder_t: Transposed::default() }
+    }
+
+    /// The decoder, `hidden` to `vocab`.
+    pub fn decoder(&self) -> &Linear {
+        &self.decoder
+    }
+
+    /// The decoder, to change. The transpose the sparse path keeps is
+    /// dropped here and made again from the changed decoder on its next
+    /// call, so the sparse path and `logits` always read the same weights.
+    pub fn decoder_mut(&mut self) -> &mut Linear {
+        self.decoder_t = Transposed::default();
+        &mut self.decoder
     }
 
     /// The decoder weight as `[hidden, vocab]` (`Transposed`), made on the
