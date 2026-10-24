@@ -182,9 +182,9 @@ impl MlmHead {
 
     /// `out = x * W^T + b` for `x` (`[n, hidden]`) into `out`
     /// (`[n, vocab]`): the decoder's weight streams once per block of
-    /// tokens, not once per token, and the bias-first, column-order sum is
-    /// the one Linear::apply computes, so a block of one row names the
-    /// same bits.
+    /// tokens, not once per token, summing bias-first over the columns
+    /// in order, the order `Linear::apply` sums in; its packed kernels
+    /// fuse each multiply-add, so the two can differ by that rounding.
     fn decoder_blocked(&self, x: &[f32], out: &mut [f32]) -> Result<()> {
         const BLOCK: usize = 48;
         let (h, stride) = (self.decoder.in_dim, self.decoder.out_dim);

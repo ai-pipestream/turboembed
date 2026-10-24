@@ -4,20 +4,65 @@
 //! stable softmax over the head's logits.
 
 use crate::bundle::{AlignedBytes, Bundle};
+use crate::cpu::{Matrix, Mode};
 use crate::manifest::{ClassifierKind, Format};
 use crate::model::{Placed, classifier_tensors, place};
 pub use crate::projection::ProjectionHead;
-use crate::status::{BUNDLE_NO_ARTIFACT, Error, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
+use crate::status::{BUNDLE_NO_ARTIFACT, Error, INVALID_ARGUMENT, INVALID_SHAPE, OUT_OF_MEMORY, Result, invalid};
 use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
 /// A host-side linear layer `y = x * W^T + b`, with `weight` stored row-major
 /// as `[out_dim, in_dim]` and `bias` as `[out_dim]`.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// The weights are also packed once, at construction, into the shared
+/// `turbo::cpu::Matrix` panels, and every product goes through that packed
+/// form. Mutating `weight` or `bias` afterward does not re-pack: build a
+/// new `Linear` to change a layer.
 pub struct Linear {
     pub in_dim: usize,
     pub out_dim: usize,
     pub weight: Vec<f32>,
     pub bias: Vec<f32>,
+    matrix: Matrix,
+}
+
+impl Clone for Linear {
+    fn clone(&self) -> Self {
+        // Re-pack from the plain weights. A layer whose public fields
+        // were mutated out of shape after construction has nothing to
+        // pack; the empty matrix keeps the clone infallible, and
+        // `validate` and `apply` still refuse the layer on its fields.
+        let matrix = Matrix::from_rows(&[&self.weight], self.in_dim).unwrap_or_else(|_| Matrix::empty());
+        Self {
+            in_dim: self.in_dim,
+            out_dim: self.out_dim,
+            weight: self.weight.clone(),
+            bias: self.bias.clone(),
+            matrix,
+        }
+    }
+}
+
+impl PartialEq for Linear {
+    fn eq(&self, other: &Self) -> bool {
+        // The packed form is derived from `weight`, so equal layers pack
+        // to the same panels.
+        self.in_dim == other.in_dim
+            && self.out_dim == other.out_dim
+            && self.weight == other.weight
+            && self.bias == other.bias
+    }
+}
+
+impl core::fmt::Debug for Linear {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Linear")
+            .field("in_dim", &self.in_dim)
+            .field("out_dim", &self.out_dim)
+            .field("weight", &self.weight)
+            .field("bias", &self.bias)
+            .finish_non_exhaustive()
+    }
 }
 
 fn validate_linear_parts(what: &str, in_dim: usize, out_dim: usize, weight: &[f32], bias: &[f32]) -> Result<()> {
@@ -47,7 +92,10 @@ impl Linear {
     /// and `bias` (`[out_dim]`).
     pub fn new(in_dim: usize, out_dim: usize, weight: Vec<f32>, bias: Vec<f32>) -> Result<Self> {
         validate_linear_parts("linear layer", in_dim, out_dim, &weight, &bias)?;
-        Ok(Self { in_dim, out_dim, weight, bias })
+        let matrix = Matrix::from_rows(&[&weight], in_dim).map_err(|bytes| {
+            Error::new(OUT_OF_MEMORY, format!("packing a [{out_dim}, {in_dim}] linear layer needs {bytes} bytes"))
+        })?;
+        Ok(Self { in_dim, out_dim, weight, bias, matrix })
     }
 
     /// Validate that dimensions, `weight` cardinality, `bias` length, and
@@ -62,13 +110,14 @@ impl Linear {
         assert_eq!(out.len(), self.out_dim);
         assert_eq!(self.bias.len(), self.out_dim);
         assert_eq!(self.weight.len(), self.out_dim.checked_mul(self.in_dim).expect("linear weight size overflows"));
-        for (dst, (row, &b)) in out.iter_mut().zip(self.weight.chunks_exact(self.in_dim).zip(&self.bias)) {
-            let mut sum = b;
-            for (&w, &xi) in row.iter().zip(x) {
-                sum += w * xi;
-            }
-            *dst = sum;
-        }
+        self.matrix.apply(x, self.in_dim, 1, Some(&self.bias), out, self.out_dim, Mode::Plain);
+    }
+
+    /// `out = states * W^T + b` for `rows` states of length `in_dim`
+    /// (`out` is `[rows, out_dim]`), in one packed product. A row's
+    /// result is the one [`Linear::apply`] computes for it alone.
+    fn apply_rows(&self, states: &[f32], rows: usize, out: &mut [f32]) {
+        self.matrix.apply(states, self.in_dim, rows, Some(&self.bias), out, self.out_dim, Mode::Plain);
     }
 
     /// Compute `out = tanh(x * W^T + b)` for a single vector `x` of length `in_dim`.
@@ -175,19 +224,34 @@ impl Head {
                 format!("logits output has {} values, expected {total} ({rows}x{num_labels})", out.len()),
             ));
         }
-        let mut pooled = if self.pooler.is_some() { vec![0.0f32; self.hidden] } else { Vec::new() };
-        for (state, dst) in states.chunks_exact(self.hidden).zip(out.chunks_exact_mut(num_labels)) {
-            if !state.iter().all(|v| v.is_finite()) {
-                return Err(Error::new(INVALID_ARGUMENT, "hidden state contains non-finite value"));
-            }
-            if let Some(pooler) = &self.pooler {
-                pooler.apply_tanh(state, &mut pooled);
-                self.classifier.apply(&pooled, dst);
-            } else {
-                self.classifier.apply(state, dst);
-            }
-        }
+        self.check_finite(states)?;
+        self.logits_batched(states, rows, out);
         Ok(())
+    }
+
+    /// Every state finite, checked before any product runs so a refused
+    /// call leaves the caller's output untouched.
+    fn check_finite(&self, states: &[f32]) -> Result<()> {
+        if states.iter().all(|v| v.is_finite()) {
+            Ok(())
+        } else {
+            Err(Error::new(INVALID_ARGUMENT, "hidden state contains non-finite value"))
+        }
+    }
+
+    /// The pooler (when the head has one) and the classifier over all
+    /// `rows` states at once, one packed product each.
+    fn logits_batched(&self, states: &[f32], rows: usize, out: &mut [f32]) {
+        if let Some(pooler) = &self.pooler {
+            let mut pooled = vec![0.0f32; rows * self.hidden];
+            pooler.apply_rows(states, rows, &mut pooled);
+            for v in &mut pooled {
+                *v = v.tanh();
+            }
+            self.classifier.apply_rows(&pooled, rows, out);
+        } else {
+            self.classifier.apply_rows(states, rows, out);
+        }
     }
 
     /// Compute softmax probabilities (`[n, num_labels]`) in `f64` for `n`
@@ -211,19 +275,11 @@ impl Head {
                 format!("probabilities output has {} values, expected {total} ({rows}x{num_labels})", out.len()),
             ));
         }
-        let mut row_logits = vec![0.0f32; num_labels];
-        let mut pooled = if self.pooler.is_some() { vec![0.0f32; self.hidden] } else { Vec::new() };
-        for (state, dst) in states.chunks_exact(self.hidden).zip(out.chunks_exact_mut(num_labels)) {
-            if !state.iter().all(|v| v.is_finite()) {
-                return Err(Error::new(INVALID_ARGUMENT, "hidden state contains non-finite value"));
-            }
-            if let Some(pooler) = &self.pooler {
-                pooler.apply_tanh(state, &mut pooled);
-                self.classifier.apply(&pooled, &mut row_logits);
-            } else {
-                self.classifier.apply(state, &mut row_logits);
-            }
-            softmax(&row_logits, dst)?;
+        self.check_finite(states)?;
+        let mut logits = vec![0.0f32; total];
+        self.logits_batched(states, rows, &mut logits);
+        for (row, dst) in logits.chunks_exact(num_labels).zip(out.chunks_exact_mut(num_labels)) {
+            softmax(row, dst)?;
         }
         Ok(())
     }
@@ -388,5 +444,55 @@ mod tests {
         bad_pooler.pooler.as_mut().unwrap().bias.pop();
         assert_eq!(bad_pooler.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
         assert_eq!(bad_pooler.probabilities(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
+    }
+
+    /// The batched packed product names the same logits as one state at
+    /// a time, with and without a pooler, and a refused batch writes
+    /// nothing.
+    #[test]
+    fn batched_logits_match_one_state_at_a_time() {
+        let (hidden, labels, rows) = (5, 3, 7);
+        let mut state = 7u64;
+        let mut next = move || {
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            ((state >> 40) as f32 / (1u64 << 24) as f32) - 0.5
+        };
+        let layer = |inp: usize, out: usize, next: &mut dyn FnMut() -> f32| {
+            Linear::new(inp, out, (0..inp * out).map(|_| next()).collect(), (0..out).map(|_| next()).collect()).unwrap()
+        };
+        let classifier = layer(hidden, labels, &mut next);
+        let pooler = layer(hidden, hidden, &mut next);
+        let states: Vec<f32> = (0..rows * hidden).map(|_| next()).collect();
+        for with_pooler in [false, true] {
+            let head = Head {
+                kind: ClassifierKind::Sequence,
+                hidden,
+                labels: (0..labels).map(|i| i.to_string()).collect(),
+                pooler: with_pooler.then(|| pooler.clone()),
+                classifier: classifier.clone(),
+            };
+            let batched = head.logits(&states).unwrap();
+            let mut one_at_a_time = Vec::new();
+            for s in states.chunks_exact(hidden) {
+                one_at_a_time.extend(head.logits(s).unwrap());
+            }
+            assert_eq!(batched, one_at_a_time, "pooler: {with_pooler}");
+            let probs = head.probabilities(&states).unwrap();
+            let mut want = vec![0.0f64; labels];
+            softmax(&batched[..labels], &mut want).unwrap();
+            assert_eq!(&probs[..labels], &want[..], "pooler: {with_pooler}");
+        }
+        let head = Head {
+            kind: ClassifierKind::Sequence,
+            hidden,
+            labels: (0..labels).map(|i| i.to_string()).collect(),
+            pooler: None,
+            classifier,
+        };
+        let mut bad = states.clone();
+        bad[hidden] = f32::INFINITY;
+        let mut out = vec![9.0f32; rows * labels];
+        assert_eq!(head.logits_into(&bad, &mut out).unwrap_err().code, INVALID_ARGUMENT);
+        assert!(out.iter().all(|&v| v == 9.0), "a refused batch writes nothing");
     }
 }
