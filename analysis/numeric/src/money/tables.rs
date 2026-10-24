@@ -5,6 +5,8 @@
 use turbo_analysis_layers::Currency;
 use turbo_unicode::java;
 
+use crate::scan::{byte_at, char_at, whitespace_at, word_end};
+
 /// A currency code from a literal the tables know to be well formed.
 const fn code(c: &[u8; 3]) -> Currency {
     match Currency::new(*c) {
@@ -196,6 +198,159 @@ const ISO_CODES: [[u8; 3]; 233] = [
     *b"XPD", *b"XPF", *b"XPT", *b"XSU", *b"XTS", *b"XUA", *b"XXX", *b"YER", *b"YUM", *b"ZAR", *b"ZMK", *b"ZMW",
     *b"ZWD", *b"ZWG", *b"ZWL", *b"ZWN", *b"ZWR",
 ];
+
+/// Whether `word` is `pound` or `pounds` under `Character.toLowerCase`.
+pub(crate) fn is_pound_word(word: &str) -> bool {
+    lower_eq(word, "pound") || lower_eq(word, "pounds")
+}
+
+/// If `sterling` follows one whitespace character after `end`, returns the
+/// byte offset after `sterling`.
+pub(crate) fn trailing_sterling(text: &str, end: usize) -> Option<usize> {
+    if !whitespace_at(text, end) {
+        return None;
+    }
+    let next_start = end + char_at(text, end).map_or(1, char::len_utf8);
+    let next_end = word_end(text, next_start, MAX_CURRENCY_WORD_UNITS)?;
+    lower_eq(&text[next_start..next_end], "sterling").then_some(next_end)
+}
+
+const POUND_WEIGHT_FOLLOWING_CUES: &[&str] =
+    &["bag", "box", "carton", "crate", "ounce", "ounces", "oz", "package", "sack"];
+const POUND_WEIGHT_OF_NOUNS: &[&str] = &[
+    "apples",
+    "beef",
+    "butter",
+    "cheese",
+    "coal",
+    "coffee",
+    "corn",
+    "equipment",
+    "fat",
+    "fish",
+    "flour",
+    "food",
+    "force",
+    "freight",
+    "fruit",
+    "grain",
+    "ice",
+    "iron",
+    "lead",
+    "luggage",
+    "meat",
+    "milk",
+    "muscle",
+    "payload",
+    "pork",
+    "potatoes",
+    "pressure",
+    "rice",
+    "salt",
+    "sand",
+    "sugar",
+    "thrust",
+    "water",
+    "weight",
+    "wheat",
+    "wood",
+];
+const POUND_WEIGHT_PRECEDING_CUES: &[&str] = &[
+    "benched",
+    "carried",
+    "carrying",
+    "deadlifted",
+    "gained",
+    "gaining",
+    "heavier",
+    "heavy",
+    "lifted",
+    "lifting",
+    "weigh",
+    "weighed",
+    "weighing",
+    "weighs",
+];
+const POUND_MONEY_LOSS_PREPOSITIONS: &[&str] = &["at", "betting", "by", "from", "in", "on", "to"];
+
+/// Returns `true` when `pound(s)` ending at `end` (after a numeral starting at
+/// `digit_start`) stands in a weight context (`3 pounds of flour`, `weighs 150 pounds`).
+pub(crate) fn is_pound_weight_context(text: &str, digit_start: usize, end: usize) -> bool {
+    let mut next_word_slice: Option<&str> = None;
+    if whitespace_at(text, end) {
+        let next_start = end + char_at(text, end).map_or(1, char::len_utf8);
+        if let Some(next_end) = word_end(text, next_start, 12) {
+            let next_word = &text[next_start..next_end];
+            next_word_slice = Some(next_word);
+            if POUND_WEIGHT_FOLLOWING_CUES.iter().any(|&w| lower_eq(next_word, w)) {
+                return true;
+            }
+            if whitespace_at(text, next_end) {
+                let after = next_end + char_at(text, next_end).map_or(1, char::len_utf8);
+                if let Some(after_end) = word_end(text, after, 12) {
+                    let second = &text[after..after_end];
+                    if lower_eq(next_word, "of") && POUND_WEIGHT_OF_NOUNS.iter().any(|&w| lower_eq(second, w)) {
+                        return true;
+                    }
+                    if lower_eq(next_word, "in") && lower_eq(second, "weight") {
+                        return true;
+                    }
+                    if lower_eq(next_word, "per")
+                        && ["bag", "box", "carton", "crate", "kg", "pound", "sack", "sq", "square"]
+                            .iter()
+                            .any(|&w| lower_eq(second, w))
+                    {
+                        return true;
+                    }
+                }
+            }
+        } else if byte_at(text.as_bytes(), next_start).is_ascii_digit() {
+            let mut sub_idx = next_start;
+            while byte_at(text.as_bytes(), sub_idx).is_ascii_digit() {
+                sub_idx += 1;
+            }
+            let unit_start = if whitespace_at(text, sub_idx) {
+                sub_idx + char_at(text, sub_idx).map_or(1, char::len_utf8)
+            } else {
+                sub_idx
+            };
+            if let Some(unit_end) = word_end(text, unit_start, 12)
+                && ["ounce", "ounces", "oz"].iter().any(|&w| lower_eq(&text[unit_start..unit_end], w))
+            {
+                return true;
+            }
+        }
+    }
+    if let Some(prev) = word_before(text, digit_start) {
+        if POUND_WEIGHT_PRECEDING_CUES.iter().any(|&w| lower_eq(prev, w)) {
+            return true;
+        }
+        if lower_eq(prev, "lost") {
+            return !next_word_slice.is_some_and(|nw| POUND_MONEY_LOSS_PREPOSITIONS.iter().any(|&p| lower_eq(nw, p)));
+        }
+    }
+    false
+}
+
+fn word_before(text: &str, index: usize) -> Option<&str> {
+    let mut chars = text.get(..index)?.char_indices().rev().peekable();
+    if chars.peek().is_some_and(|&(_, c)| c == '-') {
+        chars.next();
+    }
+    if !whitespace_at(text, chars.peek()?.0) {
+        return None;
+    }
+    while chars.peek().is_some_and(|&(idx, _)| whitespace_at(text, idx)) {
+        chars.next();
+    }
+    let (last_idx, last_ch) = chars.next().filter(|&(_, ch)| java::is_letter(ch))?;
+    let word_start = chars.take_while(|&(_, ch)| java::is_letter(ch)).last().map_or(last_idx, |(idx, _)| idx);
+    text.get(word_start..last_idx + last_ch.len_utf8())
+}
+
+pub(crate) fn lower_eq(word: &str, ascii_lower: &str) -> bool {
+    word.chars().map(java::to_lower_char).eq(ascii_lower.chars())
+}
 
 #[cfg(test)]
 mod tests {

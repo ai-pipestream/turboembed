@@ -241,16 +241,20 @@ fn increment_digits(digits: &mut String) {
         digits.push('1');
         return;
     }
-    // SAFETY: `digits` contains only ASCII digits `'0'..='9'`.
-    let bytes = unsafe { digits.as_bytes_mut() };
+    let mut bytes = std::mem::take(digits).into_bytes();
+    let mut carried = true;
     for b in bytes.iter_mut().rev() {
         if *b < b'9' {
             *b += 1;
-            return;
+            carried = false;
+            break;
         }
         *b = b'0';
     }
-    digits.insert(0, '1');
+    if carried {
+        bytes.insert(0, b'1');
+    }
+    *digits = String::from_utf8(bytes).expect("ASCII digits remain valid UTF-8");
 }
 
 impl fmt::Display for Decimal {

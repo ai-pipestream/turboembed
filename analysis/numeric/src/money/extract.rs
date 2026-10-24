@@ -9,19 +9,18 @@
 
 use std::fmt;
 
-use turbo_analysis::{Annotator, Error, Refs, Span, View};
-use turbo_analysis_layers::{Currency, Money, MoneyMention, Multiplier, NumberNotation};
-use turbo_unicode::GeneralCategory;
-use turbo_unicode::category::general_category;
-use turbo_unicode::java;
-
 use super::tables::{
-    DEFAULT_SYMBOLS, MAX_CURRENCY_WORD_UNITS, currency_word, dollar_prefix, is_iso_currency, is_test_currency,
+    DEFAULT_SYMBOLS, MAX_CURRENCY_WORD_UNITS, currency_word, dollar_prefix, is_iso_currency, is_pound_weight_context,
+    is_pound_word, is_test_currency, trailing_sterling,
 };
 use crate::scan::{
     ScanResult, base_char_before, boundary_after, boundary_before, byte_at, char_at, continues_number, parse,
     sign_boundary_before, whitespace_at, word_end,
 };
+use turbo_analysis::{Annotator, Error, Refs, Span, View};
+use turbo_analysis_layers::{Currency, Money, MoneyMention, Multiplier, NumberNotation};
+use turbo_unicode::GeneralCategory;
+use turbo_unicode::category::general_category;
 
 /// Writes `turbo:money` over a text view: every amount written with a
 /// currency symbol before or after it (`$1,234.56`, `50€`, `HK$50`), an ISO
@@ -292,12 +291,13 @@ impl MoneyExtractor {
     }
 
     /// Whether the character before byte `index` (combining marks skipped) is
-    /// a letter that makes the symbol at `index` part of a longer symbol.
+    /// a Latin letter that makes the symbol at `index` part of a longer symbol.
     fn letter_before_symbol(&self, text: &str, index: usize) -> bool {
         if self.opennlp_parity {
             base_char_before(text, index).is_some_and(|c| c.is_ascii_alphabetic())
         } else {
-            base_char_before(text, index).is_some_and(java::is_letter)
+            base_char_before(text, index)
+                .is_some_and(|c| c.is_ascii_alphabetic() || ('\u{00C0}'..='\u{024F}').contains(&c) && c.is_alphabetic())
         }
     }
 
@@ -372,90 +372,6 @@ fn skip_whitespace(text: &str, i: usize) -> usize {
         return i;
     }
     i + char_at(text, i).map_or(1, char::len_utf8)
-}
-
-/// Whether `word` is `pound` or `pounds` under `Character.toLowerCase`.
-fn is_pound_word(word: &str) -> bool {
-    lower_eq(word, "pound") || lower_eq(word, "pounds")
-}
-
-/// If `sterling` follows one whitespace character after `end`, returns the
-/// byte offset after `sterling`.
-fn trailing_sterling(text: &str, end: usize) -> Option<usize> {
-    if !whitespace_at(text, end) {
-        return None;
-    }
-    let next_start = skip_whitespace(text, end);
-    let next_end = word_end(text, next_start, MAX_CURRENCY_WORD_UNITS)?;
-    lower_eq(&text[next_start..next_end], "sterling").then_some(next_end)
-}
-
-/// Words after or before `pound(s)` that indicate a unit of weight rather than
-/// pounds sterling.
-const POUND_WEIGHT_FOLLOWING_CUES: [&str; 12] =
-    ["apples", "bag", "butter", "each", "flour", "in", "ounce", "ounces", "oz", "package", "per", "sugar"];
-const POUND_WEIGHT_PRECEDING_CUES: [&str; 8] =
-    ["carried", "gained", "heavy", "lifted", "lost", "weigh", "weighed", "weighs"];
-
-/// Returns `true` when `pound(s)` ending at `end` (after a numeral starting at
-/// `digit_start`) stands in a weight context (`3 pounds of flour`, `weighs 150 pounds`).
-fn is_pound_weight_context(text: &str, digit_start: usize, end: usize) -> bool {
-    if whitespace_at(text, end) {
-        let next_start = skip_whitespace(text, end);
-        if let Some(next_end) = word_end(text, next_start, 12) {
-            let next_word = &text[next_start..next_end];
-            if lower_eq(next_word, "of") {
-                if whitespace_at(text, next_end) {
-                    let after_of = skip_whitespace(text, next_end);
-                    if let Some(after_end) = word_end(text, after_of, 12)
-                        && ["aid", "debt", "funding", "profit", "revenue", "sterling"]
-                            .iter()
-                            .any(|&w| lower_eq(&text[after_of..after_end], w))
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }
-            if POUND_WEIGHT_FOLLOWING_CUES.iter().any(|&w| lower_eq(next_word, w)) {
-                return true;
-            }
-        } else if byte_at(text.as_bytes(), next_start).is_ascii_digit() {
-            let mut sub_idx = next_start;
-            while byte_at(text.as_bytes(), sub_idx).is_ascii_digit() {
-                sub_idx += 1;
-            }
-            let unit_start = skip_whitespace(text, sub_idx);
-            if let Some(unit_end) = word_end(text, unit_start, 12)
-                && ["ounce", "ounces", "oz"].iter().any(|&w| lower_eq(&text[unit_start..unit_end], w))
-            {
-                return true;
-            }
-        }
-    }
-    word_before(text, digit_start).is_some_and(|prev| POUND_WEIGHT_PRECEDING_CUES.iter().any(|&w| lower_eq(prev, w)))
-}
-
-/// Returns the word immediately before `index` (separated by whitespace or a
-/// leading minus sign), if any.
-fn word_before(text: &str, index: usize) -> Option<&str> {
-    let mut chars = text.get(..index)?.char_indices().rev().peekable();
-    if chars.peek().is_some_and(|&(_, c)| c == '-') {
-        chars.next();
-    }
-    if !whitespace_at(text, chars.peek()?.0) {
-        return None;
-    }
-    while chars.peek().is_some_and(|&(idx, _)| whitespace_at(text, idx)) {
-        chars.next();
-    }
-    let (last_idx, last_ch) = chars.next().filter(|&(_, ch)| java::is_letter(ch))?;
-    let word_start = chars.take_while(|&(_, ch)| java::is_letter(ch)).last().map_or(last_idx, |(idx, _)| idx);
-    text.get(word_start..last_idx + last_ch.len_utf8())
-}
-
-fn lower_eq(word: &str, ascii_lower: &str) -> bool {
-    word.chars().map(java::to_lower_char).eq(ascii_lower.chars())
 }
 
 impl Annotator for MoneyExtractor {

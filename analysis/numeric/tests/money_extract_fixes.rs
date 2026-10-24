@@ -104,9 +104,18 @@ fn dollar_prefixed_region_symbols_resolve_by_default() {
     let codes: Vec<_> = multi.iter().map(|f| f.currency).collect();
     assert_eq!(codes, [cur("HKD"), cur("NZD"), cur("BRL"), cur("USD"), cur("AUD")]);
 
-    // A non-ASCII letter or unknown prefix before `$` is rejected.
+    // A non-ASCII Latin letter or unknown Latin prefix before `$` is rejected.
     for text in ["\u{DC}$5", "FOO$50", "X$50", "wordA$50"] {
         none(&MoneyExtractor::default(), text);
+    }
+
+    // Unspaced CJK and Cyrillic prose before currency symbols still extracts.
+    for (text, amount, code) in
+        [("价格¥100", "100", "JPY"), ("售价€50", "50", "EUR"), ("Цена€50", "50", "EUR"), ("价格$100", "100", "USD")]
+    {
+        let m = single(text);
+        assert!(same(&dec(amount), &m.amount), "{text:?}: {}", m.amount);
+        assert_eq!(m.currency, cur(code), "{text:?}");
     }
 
     // If `$` is not in the symbol table, dollar-prefixed symbols do not match.
@@ -144,6 +153,12 @@ fn units_of_weight_are_not_read_as_pounds_sterling_from_context() {
         ("raised 200 pounds of funding", "200", Span::new(7, 17)),
         ("3 pounds sterling", "3", Span::new(0, 17)),
         ("paid 25 pounds sterling yesterday", "25", Span::new(5, 23)),
+        ("tickets cost 10 pounds each", "10", Span::new(13, 22)),
+        ("he earns 20 pounds per hour", "20", Span::new(9, 18)),
+        ("she paid 50 pounds in cash", "50", Span::new(9, 18)),
+        ("he lost 50 pounds at the casino", "50", Span::new(8, 17)),
+        ("a fine of 500 pounds of his money", "500", Span::new(10, 20)),
+        ("stole 200 pounds of gold", "200", Span::new(6, 16)),
     ];
     for (text, amount, span) in cases {
         let m = single(text);
