@@ -4,13 +4,14 @@
 //!
 //! Each recipe trains on the treebank's UD `train` file and is gated on
 //! its UD `test` file; the `dev` file is checked against its digest and
-//! not read. Training is what OpenNLP 2.5.4's CoNLL-U trainer tools do,
+//! not read. Training uses OpenNLP 2.5.4's CoNLL-U readers,
 //! with the parameters the published UD 1.3 models were trained with
 //! ([`turbo_train_components::ud`]: GIS, 300 iterations, cutoff 5,
 //! 4 threads, the factory defaults for the language, OpenNLP 2.5.4's
 //! whitespace, 10 sentences per sentence detector sample, the universal
 //! tags), so a trained model and its reference are trained with the same
-//! settings. Training uses no randomness, so a recipe has no seed.
+//! settings apart from the lemma classes: new lemmatizers preserve case
+//! with the native factory. Training uses no randomness, so a recipe has no seed.
 //!
 //! OpenNLP trained the Catalan references on this treebank's `train` file.
 //! The Catalan sentence detector and tokenizer recipes make OpenNLP's
@@ -18,7 +19,7 @@
 //! only in the last bits of some parameters, so those two gates check
 //! that the recipes reproduce OpenNLP's models rather than compare two
 //! models. The Catalan tagger and lemmatizer recipes make OpenNLP's
-//! events exactly when the empty nodes are kept (the event hash OpenNLP's
+//! compatibility events exactly when the empty nodes are kept (the event hash OpenNLP's
 //! trainer gives), so the data their models and the references are
 //! trained on differ only by the 4,999 empty nodes the recipes leave out
 //! (below).

@@ -309,7 +309,7 @@ impl Recipe {
 
     /// The factory the trainer tool built: the language.
     pub fn lemmatizer_factory(&self) -> LemmatizerFactory {
-        LemmatizerFactory::new(self.language)
+        LemmatizerFactory::opennlp(self.language)
     }
 
     /// Trains the model from the treebank's CoNLL-U text as the published
