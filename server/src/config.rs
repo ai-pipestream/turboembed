@@ -125,6 +125,8 @@ pub struct Args {
     pub max_message_bytes: usize,
     /// Whether the admin calls, LoadBundle and UnloadBundle, are served.
     pub admin: bool,
+    /// The vocabulary store's directory, made when absent.
+    pub vocabulary_dir: Option<String>,
 }
 
 /// `--max-message-bytes` when absent: 64 MiB.
@@ -139,12 +141,14 @@ pub const ENV_ADMIN: &str = "TURBO_KSERVE_ADMIN";
 pub const ENV_LISTEN: &str = "TURBO_KSERVE_LISTEN";
 pub const ENV_MODELS: &str = "TURBO_KSERVE_MODELS";
 pub const ENV_MAX_MESSAGE_BYTES: &str = "TURBO_KSERVE_MAX_MESSAGE_BYTES";
+pub const ENV_VOCABULARY_DIR: &str = "TURBO_KSERVE_VOCABULARY_DIR";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT --model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] [--model ...] \
-[--max-message-bytes N] [--admin]\n\
+[--max-message-bytes N] [--admin] [--vocabulary-dir PATH]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
-TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN; a flag on the command line replaces its variable";
+TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR; \
+a flag on the command line replaces its variable";
 
 impl Args {
     /// The command line, with the process environment filling in what it
@@ -161,6 +165,7 @@ impl Args {
         let mut listen = None;
         let mut max_message_bytes = None;
         let mut admin = None;
+        let mut vocabulary_dir = None;
         let mut models = Vec::new();
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
@@ -181,6 +186,12 @@ impl Args {
                 "--admin" => {
                     if inline.is_some() || admin.replace(true).is_some() {
                         return Err("--admin takes no value and may be given once".into());
+                    }
+                }
+                "--vocabulary-dir" => {
+                    let v = value()?;
+                    if v.is_empty() || vocabulary_dir.replace(v).is_some() {
+                        return Err("--vocabulary-dir needs a path and may be given once".into());
                     }
                 }
                 "--max-message-bytes" => {
@@ -219,6 +230,9 @@ impl Args {
                 _ => return Err(format!("{ENV_ADMIN}={v}: not one of 1, true, yes, 0, false, no")),
             });
         }
+        if vocabulary_dir.is_none() {
+            vocabulary_dir = env(ENV_VOCABULARY_DIR).filter(|v| !v.is_empty());
+        }
         let listen = listen.ok_or("--listen is required")?;
         names(&models)?;
         Ok(Args {
@@ -226,6 +240,7 @@ impl Args {
             models,
             max_message_bytes: max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES),
             admin: admin.unwrap_or(false),
+            vocabulary_dir,
         })
     }
 }
@@ -328,6 +343,19 @@ mod tests {
         )
         .unwrap();
         assert_eq!(a.max_message_bytes, DEFAULT_MAX_MESSAGE_BYTES);
+    }
+
+    #[test]
+    fn the_vocabulary_dir_comes_from_its_flag_or_its_variable() {
+        let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+        assert_eq!(args(base).unwrap().vocabulary_dir, None);
+        assert_eq!(args(&format!("{base} --vocabulary-dir /v")).unwrap().vocabulary_dir.as_deref(), Some("/v"));
+        let env = |k: &str| (k == ENV_VOCABULARY_DIR).then(|| "/from-env".to_string());
+        let parsed = |s: &str| Args::parse_with(s.split_whitespace().map(String::from), env).unwrap();
+        assert_eq!(parsed(base).vocabulary_dir.as_deref(), Some("/from-env"));
+        assert_eq!(parsed(&format!("{base} --vocabulary-dir=/v")).vocabulary_dir.as_deref(), Some("/v"));
+        assert!(args(&format!("{base} --vocabulary-dir /v --vocabulary-dir /w")).is_err());
+        assert!(args(&format!("{base} --vocabulary-dir=")).is_err());
     }
 
     #[test]

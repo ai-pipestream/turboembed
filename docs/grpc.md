@@ -66,7 +66,8 @@ no way to stop a load part way.
 | `--listen ADDR:PORT` | Where to answer gRPC, without TLS. | Required. |
 | `--model SETTINGS` | One served model; repeat for more. | At least one is required. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
-| `--admin` | Answer the analysis service's admin calls, `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md). Without it they refuse with `UNIMPLEMENTED`. | Off. |
+| `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md) and the vocabulary store's writes (docs/grpc-vocabulary.md). Without it they refuse with `UNIMPLEMENTED`. | Off. |
+| `--vocabulary-dir PATH` | The vocabulary store's directory, made when it does not exist (docs/grpc-vocabulary.md). | No store: it lists nothing and refuses writes with `FAILED_PRECONDITION`. |
 
 `SETTINGS` is comma-separated `key=value` pairs:
 
@@ -110,6 +111,7 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_MODELS` | `--model`, one or more values separated by `;` |
 | `TURBO_KSERVE_MAX_MESSAGE_BYTES` | `--max-message-bytes` |
 | `TURBO_KSERVE_ADMIN` | `--admin` (`1`, `true`, `yes`, `0`, `false`, `no`) |
+| `TURBO_KSERVE_VOCABULARY_DIR` | `--vocabulary-dir` |
 
 ```
 TURBO_KSERVE_LISTEN=0.0.0.0:8081 \
@@ -192,7 +194,9 @@ Errors).
 Protocol's own file, vendored (Apache-2.0); its first lines say where
 from. `server/proto/turbo_analysis.proto` is the crate's own file, the
 analysis result layer's messages and service
-(docs/grpc-analysis.md). Generate a client from either in any language
+(docs/grpc-analysis.md), and `server/proto/turbo_vocabulary.proto` the
+vocabulary store's (docs/grpc-vocabulary.md). Generate a client from any
+of them in any language
 with gRPC. The build compiles them with a Rust protobuf compiler, so
 building the server needs no `protoc`.
 
