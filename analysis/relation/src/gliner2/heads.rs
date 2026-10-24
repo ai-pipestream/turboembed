@@ -172,7 +172,7 @@ fn norm(f: &File, name: &str) -> Result<Norm, String> {
 fn fold(last: &Linear) -> Result<Packed, String> {
     let zero = vec![0.0; last.in_dim];
     let l = Linear::new(last.out_dim, last.in_dim, transpose(last), zero).map_err(|e| e.message)?;
-    Ok(Packed::new(&l))
+    Packed::new(&l)
 }
 
 fn transpose(l: &Linear) -> Vec<f32> {
@@ -186,8 +186,8 @@ fn transpose(l: &Linear) -> Vec<f32> {
 }
 
 /// A two-layer MLP's layers, packed.
-fn packed(m: &Mlp) -> [Packed; 2] {
-    [Packed::new(&m.0[0]), Packed::new(&m.0[1])]
+fn packed(m: &Mlp) -> Result<[Packed; 2], String> {
+    Ok([Packed::new(&m.0[0])?, Packed::new(&m.0[1])?])
 }
 
 /// Splits a `[out, 2 * half]` layer into its two `[out, half]` column
@@ -249,14 +249,14 @@ impl Heads {
                 .0
                 .iter()
                 .map(Packed::new)
-                .collect::<Vec<_>>()
+                .collect::<Result<Vec<_>, String>>()?
                 .try_into()
                 .map_err(|_| "out_projector: three layers".to_string())?,
-            start: packed(&mlp(f, &format!("{span}.project_start"), &[0, 3])?),
-            end: packed(&mlp(f, &format!("{span}.project_end"), &[0, 3])?),
+            start: packed(&mlp(f, &format!("{span}.project_start"), &[0, 3])?)?,
+            end: packed(&mlp(f, &format!("{span}.project_end"), &[0, 3])?)?,
             first_bias: first.bias().to_vec(),
-            first_start: Packed::new(&first_start),
-            first_end: Packed::new(&first_end),
+            first_start: Packed::new(&first_start)?,
+            first_end: Packed::new(&first_end)?,
             fold: fold(&last)?,
             last,
         };
