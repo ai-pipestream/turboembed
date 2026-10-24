@@ -23,8 +23,7 @@ impl LearnedAspectSentiment {
                     text.len()
                 ))
             })?;
-            token_lower
-                .push(turbo_doccat::sentiment::embed_token_key(slice));
+            token_lower.push(turbo_doccat::sentiment::embed_token_key(slice));
         }
 
         // 1. Obtain contextual subword vectors (`Vectors<Subwords>`), either from the document
