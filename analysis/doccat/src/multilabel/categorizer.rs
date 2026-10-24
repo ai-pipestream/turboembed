@@ -126,6 +126,34 @@ impl Annotator for MultiLabelCategorizer {
     fn model(&self) -> Option<ModelRef> {
         Some(self.model.model_ref().clone())
     }
+
+    fn config_hash(&self) -> u64 {
+        multilabel_config_hash(&self.model)
+    }
+}
+
+fn multilabel_config_hash(model: &MultiLabelDoccatModel) -> u64 {
+    let mut h = crate::model::context_generator_config_hash(model.context_generator());
+    let mix = |h: &mut u64, bytes: &[u8]| {
+        for &b in bytes {
+            *h ^= b as u64;
+            *h = h.wrapping_mul(0x100000001b3);
+        }
+    };
+    mix(&mut h, model.language().as_bytes());
+    mix(&mut h, &(model.num_labels() as u64).to_le_bytes());
+    for i in 0..model.num_labels() {
+        let label = model.categories().label(Tag(i as u16));
+        mix(&mut h, &(label.len() as u64).to_le_bytes());
+        mix(&mut h, label.as_bytes());
+    }
+    for &t in model.thresholds() {
+        mix(&mut h, &t.to_bits().to_le_bytes());
+    }
+    mix(&mut h, &(model.max_labels().map_or(-1i64, |v| v as i64)).to_le_bytes());
+    mix(&mut h, &(model.min_labels().map_or(-1i64, |v| v as i64)).to_le_bytes());
+    mix(&mut h, &model.min_score().to_bits().to_le_bytes());
+    h
 }
 
 /// The best category of a scored document: the highest-scoring emitted
@@ -230,5 +258,14 @@ impl<L: SpanCategorizable> Annotator for MultiLabelSpanCategorizer<L> {
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.categorizer.model().model_ref().clone())
+    }
+
+    fn config_hash(&self) -> u64 {
+        let mut h = self.categorizer.config_hash();
+        for &b in L::ID.as_bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        h
     }
 }
