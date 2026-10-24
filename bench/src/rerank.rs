@@ -248,13 +248,17 @@ pub fn measure(plan: &RerankPlan, p: &Provenance, recorded_at: String) -> Result
 /// library was, and stopped.
 fn tei(image: &str, dir: &Path, plan: &RerankPlan, reqs: &[Request], ours: &[f32], turbo: &Side) -> Result<Tei> {
     let image = docker::check_pinned("--tei-image", image)?;
+    // The container gets NVIDIA device 0; no other GPU is wired for TEI here.
+    if !matches!(plan.device.as_str(), "cpu" | "cuda") {
+        return Err(format!("--tei-image: TEI runs here on the CPU or CUDA device 0, not {}", plan.device));
+    }
     let dir = std::fs::canonicalize(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut log = Log::default();
     docker::require_image(&mut log, image)?;
     let container = format!("turbo-bench-tei-rerank-{}", std::process::id());
     let args = |model: &str| {
         let mut a = argv(&["docker", "run", "--detach", "--rm", "--pull", "never", "--name", &container]);
-        if plan.device != "cpu" {
+        if plan.device == "cuda" {
             a.extend(argv(&["--gpus", "device=0"]));
         }
         a.extend(argv(&[

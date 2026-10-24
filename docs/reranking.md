@@ -113,8 +113,11 @@ Compact run outputs are in `docs/receipts/rerank-707/`.
 
 ## Devices
 
-A rerank bundle loads on any backend whose embedding encoder runs its
-weights: CUDA, Metal and Level Zero as well as the CPU. The pair windows go
+A rerank bundle loads on the CPU and on CUDA. Those are the backends whose
+rerank scores and timing are recorded below. Metal and Level Zero would take
+the same code path, but `turbo_model_load` refuses a rerank bundle on them
+with `TURBO_E_UNSUPPORTED_TASK`, and their rerank cell is UNSUPPORTED, until
+they have been run. The pair windows go
 through the embedding encoder with CLS pooling and no normalization. When
 the backend leaves the hidden states in device memory, the CLS states
 (`hidden` floats a window) are copied to the host. The pooler, the
@@ -123,7 +126,7 @@ the CPU. The result is a host buffer, and `d2h_bytes` counts the copy.
 
 `Reranker::open` stays on the CPU even when a device is present: every
 rerank cell ties as experimental, so device order would otherwise pick a
-GPU. Name a device with `open_with`. The rerank cell on a device is
+GPU. Name a device with `open_with`. The rerank cell on CUDA is
 EXPERIMENTAL until a compiled benchmark record backs it.
 
 ### Parity
@@ -144,7 +147,7 @@ TURBO_TEST_REQUIRE_CUDA=1 TURBO_TEST_RERANK_BUNDLES=<minilm bundle>,<bge bundle>
 | CUDA, RTX 4080 SUPER | BGE reranker base | EXACT, MODEL | 0.0000075 | 0.0000048 |
 
 EXACT and MODEL gave the same scores on both bundles. Metal and Level Zero
-take the same code path and have no recorded parity yet.
+have no recorded parity yet, so they are refused.
 
 ### Throughput
 
