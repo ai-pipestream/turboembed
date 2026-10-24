@@ -16,6 +16,8 @@
 
 use std::collections::HashMap;
 
+use turbo_analysis::TopK;
+
 use super::bm25::{Bm25, Collection};
 use super::collection::{CollectionStatistics, CollectionStatisticsBuilder};
 use super::layer::{TermStats, Vocabulary};
@@ -141,7 +143,7 @@ impl Bm25PostingIndex {
             sum += cursors[c].bound;
             cumulative.push(sum);
         }
-        let mut top = Top::new(k);
+        let mut top = TopK::new(k);
         // The first entry of `by_bound` that still brings in rows.
         let mut essential = 0;
         loop {
@@ -189,40 +191,5 @@ impl Cursor<'_> {
     fn seek(&mut self, row: u32) -> Option<u32> {
         self.at += self.rows[self.at..].partition_point(|&(r, _)| r < row);
         self.rows.get(self.at).filter(|&&(r, _)| r == row).map(|&(_, n)| n)
-    }
-}
-
-/// The best `k` rows offered so far, offered in ascending row order.
-struct Top {
-    k: usize,
-    /// Kept sorted best first: score descending, then row ascending.
-    best: Vec<(u32, f64)>,
-}
-
-impl Top {
-    fn new(k: usize) -> Top {
-        Top { k, best: Vec::with_capacity(k.min(1024) + 1) }
-    }
-
-    /// The k-th score once k rows are held.
-    fn threshold(&self) -> Option<f64> {
-        (self.best.len() == self.k).then(|| self.best[self.k - 1].1)
-    }
-
-    /// Rows come in ascending order, so a row that only ties the k-th
-    /// score ranks after it and stays out.
-    /// Scores compare by `total_cmp`, as the full scan sorts them, so a
-    /// NaN from a NaN model ranks the same in both.
-    fn offer(&mut self, row: u32, score: f64) {
-        if self.threshold().is_some_and(|t| score.total_cmp(&t).is_le()) {
-            return;
-        }
-        let at = self.best.partition_point(|&(_, s)| s.total_cmp(&score).is_ge());
-        self.best.insert(at, (row, score));
-        self.best.truncate(self.k);
-    }
-
-    fn into_sorted(self) -> Vec<(u32, f64)> {
-        self.best
     }
 }

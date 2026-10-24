@@ -18,6 +18,7 @@ use turbo_unicode::WhitespaceMode;
 
 use super::error::{CharDefProblem, DictionaryError, DictionaryFile};
 use super::number::{after_two_units, parse_java_int};
+use super::prebuilt::Table;
 use crate::lines::{Lines, trim_unicode_whitespace, whitespace_fields};
 
 /// The category every `char.def` must define, which unmapped code points
@@ -73,14 +74,14 @@ impl AssignmentId {
 pub(crate) struct CharDef {
     pub(crate) categories: Vec<Category>,
     pub(crate) default: CategoryId,
-    assignments: Vec<Assignment>,
+    pub(super) assignments: Vec<Assignment>,
     /// The assignment of `DEFAULT` alone, which an unmapped code point gets.
-    fallback: u32,
+    pub(super) fallback: u32,
     /// The assignment of each code point of the Basic Multilingual Plane.
-    bmp: Box<[u32]>,
+    pub(super) bmp: Table<u32>,
     /// The supplementary ranges, sorted and disjoint: first, last and
     /// assignment.
-    ranges: Vec<(u32, u32, u32)>,
+    pub(super) ranges: Vec<(u32, u32, u32)>,
 }
 
 /// `char.def` as read, before its mappings are resolved against the
@@ -230,7 +231,7 @@ impl CharDefSource {
         let bmp: Box<[u32]> =
             bmp.iter().map(|&m| if m == NONE { fallback_id } else { of_mapping[m as usize] }).collect();
         let ranges = last_covering(&mut supplementary, &of_mapping);
-        Ok(CharDef { categories, default, assignments, fallback: fallback_id, bmp, ranges })
+        Ok(CharDef { categories, default, assignments, fallback: fallback_id, bmp: bmp.into(), ranges })
     }
 }
 
