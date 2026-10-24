@@ -605,11 +605,14 @@ hash; the annotator version is 3. No external dependency is added.
 
 ### Specification status
 
-Re-running the existing DateTimeModel suite gives 891/970 English,
-561/605 Dutch and 686/744 Spanish: **79, 44 and 58 failures** remain.
-The English documentation previously claimed 893; replaying the original
-selector on the same base commit also gives 891. Zone-free counts are
-unchanged by this change.
+Re-running the existing DateTimeModel suite gives 927/970 English,
+579/605 Dutch and 706/744 Spanish: **43, 26 and 38 failures** remain.
+The English `timerange` row previously claimed 43 passing (893 total)
+in the table when the actual passing count on `main` was 42 of 47 (891
+total); no `timerange` pass-list entry was removed, and the 5 remaining
+`timerange` failures are documented in
+`analysis/grammar/tests/spec/reasons.rs`. Zone-free counts are
+unchanged by the explicit-zone reader.
 
 All nine fixture cases carrying an expected `utcOffsetMins` are marked
 unsupported by .NET, which the existing conformance test excludes. Thus
