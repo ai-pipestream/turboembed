@@ -34,7 +34,7 @@ gRPC server serves analysis documents and layers over them
 | `turbo-goldens` | `analysis/goldens/` | Golden layer files from the JVM: the reader, the writer, the comparison, loading golden layers as test inputs, SHA-256 and SHA-512 |
 | `turbo-depparse` | `analysis/depparse/` | Typed dependency graphs, arc-standard parsing/training, UAS/LAS and annotation ([dependency-parser.md](dependency-parser.md)) |
 | `turbo-relation` | `analysis/relation/` | Dependency-path relation extraction over entity heads ([relation.md](relation.md)) |
-| `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
+| `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the explicit `BeamSearch::opennlp` session for QN probability carry between evaluations and sentences; `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
 | `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Lemmas and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
 | `turbo-phrase-chunker` | `analysis/phrase-chunker/` | OpenNLP's `ChunkerME`: `ChunkerModel` opens a `ChunkerModel` file and `PhraseChunker` writes `opennlp:chunk-tags` (a chunk tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence over the tokens and their part-of-speech tags) and `opennlp:chunks` (the phrases those tags make, as `chunkAsSpans` returns them). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/phrase-chunker/README.md` describes its goldens. It is not `turbo-chunker`, which cuts retrieval units |
@@ -1956,6 +1956,10 @@ a cost per gap. For the gap after sentence g:
    whether a cut is made there. The default is untuned; the tests pin
    this behaviour so a change to it is deliberate.
 
+The optional lexical and discourse boundary steps, their provenance, and
+the full Qasper test-split ablation are documented in
+[chunker text signals](chunker-text-signals.md).
+
 Comparing groups of sentences rather than single sentences keeps one
 odd sentence from looking like a topic of its own: with a window of one,
 both gaps around an outlier are full-depth valleys and the optimizer
@@ -3143,6 +3147,11 @@ checks that `langdetect-fixture-rust.bin` is the file the Rust trainer
 writes from the samples; the generator loads it in the JVM
 (`langdetect/langdetect-fixture-rust`) for
 `analysis/langdetect/tests/fixture.rs` (docs/langdetect.md, "Training").
+
+The [full MASC CRF evaluation](namefinder-crf-evaluation.md) records
+per-type and overall accuracy against matched maxent, published OpenNLP
+1.5 models and the real CPU namefind-dl backend. The full-corpus CRF
+recipe fails its publication gates; no model is published from that run.
 
 The name finder's and the language detector's cross-validators are
 ported as `namefind::cross_validate` (`TokenNameFinderCrossValidator`)
