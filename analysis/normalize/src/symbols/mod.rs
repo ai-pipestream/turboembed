@@ -1,22 +1,24 @@
-//! Symbols written as English words: `&` as `and`, `%` as `percent`.
+//! Symbols written as English words (`&` as `and`, `%` as `percent`) and
+//! multi-token symbol sequences (`C++`, `.NET`, `->`) joined into one token.
 //!
 //! OpenNLP's `SymbolJoinerCharSequenceNormalizer` (in the runtime and,
 //! identically, in the `symbol-joiner` add-on) maps an input that is
 //! exactly one of ten symbols to a word and returns every other input
-//! unchanged. It is meant to run on one token at a time; it does not join
-//! symbol sequences such as `C++` or `->`, despite its name. Two forms
-//! here:
+//! unchanged. Two forms here:
 //!
-//! - [`SymbolJoiner`] applies the map to tokens: it reads a view and its
-//!   `Tokens` and writes a view in which every token that is exactly one
-//!   mapped symbol is replaced by its word.
-//! - [`SymbolWords`] applies it to running text: a mapped symbol with
-//!   whitespace or the edge of the text on both sides is replaced.
+//! - [`SymbolJoiner`] reads a view and its `Tokens`, joins touching token
+//!   spans that form a symbol sequence from its table
+//!   ([`DEFAULT_SYMBOL_SEQUENCES`] by default, or caller-configured), and
+//!   writes a new view (with remaining standalone mapped symbols replaced
+//!   by their words) and the joined `Tokens` mapped onto that view.
+//! - [`SymbolWords`] applies the ten-symbol map to running text: a mapped
+//!   symbol with whitespace or the edge of the text on both sides is
+//!   replaced.
 
 mod joiner;
 mod words;
 
-pub use joiner::SymbolJoiner;
+pub use joiner::{DEFAULT_SYMBOL_SEQUENCES, SymbolJoiner};
 pub use words::SymbolWords;
 
 /// The word for a mapped symbol. Currency symbols are not mapped.

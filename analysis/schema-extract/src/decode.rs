@@ -69,11 +69,15 @@ pub struct Record {
 }
 
 /// One classification task's chosen labels: label index, probability and
-/// logit, in the order GLiNER2 gives them.
+/// logit, in the order GLiNER2 gives them, and every label's probability.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Classified {
     pub task: usize,
     pub labels: Vec<(usize, f32, f32)>,
+    /// The probability of each of the task's labels, chosen or not, in the
+    /// schema's label order: the softmax of a single-label task (summing to
+    /// 1), each label's sigmoid for a multi-label one.
+    pub probs: Vec<f32>,
 }
 
 /// Everything one pass extracted.
@@ -85,9 +89,7 @@ pub struct Extraction {
     pub records: Vec<Record>,
 }
 
-fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
-}
+use turbo::head::sigmoid;
 
 /// The spans of one field's logits (`[tokens][width]`, the words after
 /// `skip` prefix tokens) at or above `threshold`, after `checks`, ranked,
@@ -207,7 +209,7 @@ fn classify(task: usize, schema: &ExtractionSchema, logits: &[f32]) -> Classifie
     } else {
         vec![pick(best)]
     };
-    Classified { task, labels }
+    Classified { task, labels, probs }
 }
 
 /// Whether `pass` is the pass of `schema`: its width is at least one and

@@ -1,6 +1,9 @@
 //! Fuzzy string matching scorers (normalized Levenshtein and Jaro-Winkler)
 //! over folded gazetteer match keys and place names.
 
+mod jaro;
+use jaro::{ascii_pair, jaro_ascii, jw_ascii};
+
 use std::cell::RefCell;
 use std::collections::HashSet;
 
@@ -215,6 +218,9 @@ pub fn jaro_similarity(a: &str, b: &str) -> f64 {
     if a == b {
         return 1.0;
     }
+    if let Some((a, b)) = ascii_pair(a, b) {
+        return jaro_ascii(a, b);
+    }
     with_workspace(|ws| {
         ws.load_a(a);
         ws.b_chars.clear();
@@ -227,6 +233,9 @@ pub fn jaro_similarity(a: &str, b: &str) -> f64 {
 pub fn jaro_winkler(a: &str, b: &str) -> f64 {
     if a == b {
         return 1.0;
+    }
+    if let Some((a, b)) = ascii_pair(a, b) {
+        return jw_ascii(a, b);
     }
     with_workspace(|ws| {
         ws.load_a(a);
