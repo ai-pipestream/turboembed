@@ -44,6 +44,10 @@ impl TimeAnnotator {
         TimeAnnotator::new(&crate::lang::es::SPANISH_TIMES)
     }
 
+    pub fn dutch() -> TimeAnnotator {
+        TimeAnnotator::new(&crate::lang::nl::DUTCH_TIMES)
+    }
+
     /// The reference to resolve against when the pipeline has no document
     /// date.
     pub fn with_reference(mut self, reference: DateTime) -> TimeAnnotator {

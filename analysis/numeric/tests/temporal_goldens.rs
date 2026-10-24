@@ -93,7 +93,7 @@ fn check(mode: &str, extractor: TemporalExtractor, reference: &str) -> Compared 
 
 #[test]
 fn the_dateline_mode_matches_the_jvm() {
-    let c = check("dateline", TemporalExtractor::new(), "dateline");
+    let c = check("dateline", TemporalExtractor::new().with_opennlp_parity(true), "dateline");
     assert!(c.mentions > 75, "only {} mentions compared", c.mentions);
     assert!(c.relative >= 5, "only {} relative mentions compared", c.relative);
     assert!(c.dated > 25, "only {} document dates compared", c.dated);
@@ -102,7 +102,7 @@ fn the_dateline_mode_matches_the_jvm() {
 #[test]
 fn the_fixed_mode_matches_the_jvm() {
     let reference = Date::parse(REFERENCE).expect("the reference date");
-    let c = check("fixed", TemporalExtractor::with_reference(reference), REFERENCE);
+    let c = check("fixed", TemporalExtractor::with_reference(reference).with_opennlp_parity(true), REFERENCE);
     assert!(c.mentions > 110, "only {} mentions compared", c.mentions);
     assert!(c.relative > 40, "only {} relative mentions compared", c.relative);
     assert!(c.dated > 25, "only {} document dates compared", c.dated);
