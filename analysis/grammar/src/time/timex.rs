@@ -177,6 +177,9 @@ pub enum Timex {
     Point(TimexPoint),
     /// `(start,end,duration)`.
     Range(TimexPoint, TimexPoint, Duration),
+    /// `(start,end,PXD)`: a date range whose bounds include a calendar
+    /// day that does not exist in that year (`2/29-3/1/2019`).
+    UnresolvedRange(TimexPoint, TimexPoint),
     Duration(Duration),
 }
 
@@ -191,6 +194,7 @@ impl fmt::Display for Timex {
         match self {
             Timex::Point(p) => p.fmt(f),
             Timex::Range(s, e, d) => write!(f, "({s},{e},{d})"),
+            Timex::UnresolvedRange(s, e) => write!(f, "({s},{e},PXD)"),
             Timex::Duration(d) => d.fmt(f),
         }
     }

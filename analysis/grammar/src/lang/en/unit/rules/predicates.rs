@@ -156,13 +156,32 @@ pub(super) fn feet(v: &Value) -> bool {
     v.quantity().is_some_and(|q| q.unit() == Unit::Length(Length::Foot))
 }
 
-/// Money in a major unit, a whole amount: `15 dollars`, not `$4.25`.
+/// Money in a major unit, a whole amount or a yuan amount with tenths
+/// (`one kuai and five mao`), so a minor unit (`cents`, `fen`) can follow.
 pub(super) fn whole_major(v: &Value) -> bool {
     v.quantity().is_some_and(|q| {
-        q.value().is_integer()
-            && !q.value().is_negative()
+        !q.value().is_negative()
             && matches!(q.unit(), Unit::Currency(c) if c.has_hundredths())
+            && (q.value().is_integer()
+                || (q.unit() == Unit::Currency(CurrencyUnit::Code(code("cny").expect("cny")))
+                    && q.value().shift(1).is_some_and(|x| x.is_integer())))
     })
+}
+
+/// A yuan amount with a non-zero tenths digit (`one kuai and five mao`),
+/// before a bare fen digit (`one kuai and five mao five`).
+pub(super) fn cny_tenths(v: &Value) -> bool {
+    v.quantity().is_some_and(|q| {
+        !q.value().is_negative()
+            && !q.value().is_integer()
+            && q.unit() == Unit::Currency(CurrencyUnit::Code(code("cny").expect("cny")))
+            && q.value().shift(1).is_some_and(|x| x.is_integer())
+    })
+}
+
+/// A single non-zero digit (`1..=9`), as the fen after `mao` (`five mao five`).
+pub(super) fn single_digit(v: &Value) -> bool {
+    v.num().is_some_and(|n| n.kind == NumKind::Integer && n.value > Dec::ZERO && n.value < Dec::from_i64(10))
 }
 
 pub(super) fn minor_unit(v: &Value) -> bool {
