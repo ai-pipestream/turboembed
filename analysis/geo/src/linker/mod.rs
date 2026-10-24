@@ -39,8 +39,6 @@ pub const PRIMARY_LINK_LABEL: &str = "resolved";
 /// Edge tag label for a secondary candidate resolution of an entity.
 pub const CANDIDATE_LINK_LABEL: &str = "candidate";
 
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0100_0000_01b3;
 const DEFAULT_MAX_CANDIDATES: usize = 5;
 const DEFAULT_RETRIEVAL_LIMIT: usize = 25;
 
@@ -355,7 +353,8 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
             MentionPolicy::All => 0u64,
             MentionPolicy::ExcludeSingleAsciiLetters => 1u64,
         };
-        let mut h = (FNV_OFFSET_BASIS ^ tag).wrapping_mul(FNV_PRIME);
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.fold_u64(tag);
         for bits in [
             self.gazetteer.fingerprint(),
             self.weights.fuzzy.to_bits(),
@@ -371,9 +370,9 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
             self.max_candidates_per_mention as u64,
             policy_disc,
         ] {
-            h = (h ^ bits).wrapping_mul(FNV_PRIME);
+            h.fold_u64(bits);
         }
-        hash_location_types(h, &self.location_types)
+        hash_location_types(h.finish(), &self.location_types)
     }
 }
 

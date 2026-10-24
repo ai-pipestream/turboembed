@@ -12,6 +12,14 @@ fn empty_and_known_vectors() {
 }
 
 #[test]
+fn fold_u64_is_one_xor_multiply_step() {
+    // (FNV1A_OFFSET_BASIS ^ 0x504f_505f_5052_494f) * FNV1A_PRIME,
+    // computed independently of this crate.
+    assert_eq!(Fnv1a::new().fold_u64(0x504f_505f_5052_494f).finish(), 1435888698901451294);
+    assert_ne!(Fnv1a::new().fold_u64(7).finish(), Fnv1a::new().u64(7).finish());
+}
+
+#[test]
 fn string_framing_prevents_adjacent_collisions() {
     let ab_c = Fnv1a::new().str("ab").str("c").finish();
     let a_bc = Fnv1a::new().str("a").str("bc").finish();

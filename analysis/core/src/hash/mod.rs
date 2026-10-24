@@ -86,6 +86,15 @@ impl Fnv1a {
         self.bytes(&v.to_le_bytes())
     }
 
+    /// Folds a whole `u64` in one FNV-1a step (XOR, then multiply),
+    /// for extending a hash with a tag or another finished hash.
+    /// Distinct from [`Fnv1a::u64`], which mixes the eight
+    /// little-endian bytes one at a time.
+    pub fn fold_u64(&mut self, v: u64) -> &mut Self {
+        self.0 = (self.0 ^ v).wrapping_mul(FNV1A_PRIME);
+        self
+    }
+
     pub fn i32(&mut self, v: i32) -> &mut Self {
         self.bytes(&v.to_le_bytes())
     }
