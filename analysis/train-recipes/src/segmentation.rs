@@ -215,7 +215,7 @@ impl SegmentationRecipe {
     /// or what training fails on.
     pub fn train(&self, train: &MascCorpus) -> Result<Trained> {
         let stamp = Stamp::at(TIMESTAMP_MS);
-        let params = ud::training_parameters();
+        let params = crate::masc::training_parameters();
         let mut config = TrainingConfiguration::default();
         let mut events = Vec::new();
         let (samples, skipped_sentences, package, report) = match self.component {

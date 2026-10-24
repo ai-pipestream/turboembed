@@ -76,7 +76,7 @@ use turbo_formats::masc::{MascCorpus, MascError, MascPosReader};
 use turbo_formats::sample::PosSample;
 use turbo_postag::PosTagFormat;
 use turbo_train::TrainingConfiguration;
-use turbo_train_components::{PosTaggerFactory, Stamp, postag, ud};
+use turbo_train_components::{PosTaggerFactory, Stamp, postag};
 use turbo_zoo::Sha256;
 
 use crate::card::{HeldOutCard, TagCount, TokenCoverage};
@@ -273,7 +273,7 @@ impl PosRecipe {
             return Err(Error::EmptySplit { what: "training part-of-speech sample" });
         }
         check_skipped(LeftOut::TrainingSentences, skipped, samples)?;
-        let params = ud::training_parameters();
+        let params = crate::masc::training_parameters();
         let mut config = TrainingConfiguration::default();
         let t = postag::train_pos_model_from_events(&events, &factory, &params, &mut config, Stamp::at(TIMESTAMP_MS))?;
         Ok(Trained {

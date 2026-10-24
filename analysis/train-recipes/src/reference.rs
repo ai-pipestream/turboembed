@@ -145,7 +145,7 @@ mod tests {
         }
         assert_eq!(
             RECIPES[0].parameters(),
-            ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 5, threads: 12 }
+            ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 5, threads: 4 }
         );
         for r in RECIPES {
             assert_eq!(Recipe::trains(r.model_id()), Some(r));
@@ -157,7 +157,7 @@ mod tests {
         let p = RECIPES[3].parameters();
         assert_eq!((p.algorithm.as_str(), p.iterations, p.cutoff, p.threads), ("MAXENT", 100, 5, 1));
         let p = RECIPES[2].parameters();
-        assert_eq!((p.algorithm.as_str(), p.iterations, p.cutoff, p.threads), ("MAXENT", 300, 5, 12));
+        assert_eq!((p.algorithm.as_str(), p.iterations, p.cutoff, p.threads), ("MAXENT", 300, 5, 4));
         assert!(RECIPES[3].reads_chunks() && !RECIPES[2].reads_chunks());
         assert_eq!(Recipe::trains("turbo-en-masc-3.0.0-unknown-1"), None);
         assert!(Reference::Zoo("not-in-the-zoo").file().is_err());

@@ -8,8 +8,8 @@ CC BY 4.0 Universal Dependencies treebanks are under "The UD recipes".
 
 The UD reproduction investigation in #953 identified 12 training partitions
 as the setting that gives the published parameter bytes. New runs using
-`ud::training_parameters` use 12. The historical recipe results below used
-4; their model hashes and gate values remain records of those runs.
+`ud::training_parameters` use 12. MASC segmentation and POS recipes keep
+4 partitions, preserving their released model hashes and gate values.
 
 | Module | What it holds |
 |---|---|
