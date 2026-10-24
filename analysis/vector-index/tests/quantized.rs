@@ -154,7 +154,7 @@ fn the_exact_best_row_is_near_the_top() {
 }
 
 fn fnv(bytes: &[u8]) -> u64 {
-    turbo_analysis::fnv1a(&bytes)
+    turbo_analysis::fnv1a(bytes)
 }
 
 #[test]
