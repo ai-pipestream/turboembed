@@ -19,9 +19,7 @@ implementation differs on purpose, the difference is listed under
 | `turbo-unicode-gen` | `analysis/unicode-gen/` | The table generator. |
 | `turbo-normalize` | `analysis/normalize/` | The normalizers, the `Normalizer` trait, the pipeline step adapter and the chain. |
 | `turbo-encoding` | `analysis/encoding/` | Decoders, encoding detection and the mojibake repair under `Mojibake` (docs/analysis.md, "Source bytes"). |
-| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Artifacts` (`turbo:artifacts`), `Noise` (`turbo:noise`), `Corrections` (`turbo:corrections`). |
-| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Artifacts` (`turbo:artifacts`), `Noise` (`turbo:noise`). |
-| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Assets` (`turbo:assets`). |
+| `turbo-normalize-layers` | `analysis/normalize-layers/` | The layers normalizers write besides views: `Placeholders` (`turbo:placeholders`), `Emoji` (`turbo:emoji`), `Artifacts` (`turbo:artifacts`), `Noise` (`turbo:noise`), `Corrections` (`turbo:corrections`), `Assets` (`turbo:assets`), `ProtectedSpans` (`turbo:protected_spans`). |
 
 ### turbo-unicode
 
@@ -322,10 +320,9 @@ edits of a mixed text exactly; and 3000 generated texts per mode compared
 with a slow reference that follows OpenNLP's two-pass collapse then trim
 over a character vector, with the alignment checks described under
 "Alignment checks" below. One OpenNLP expectation, that the empty output
-span of an all-whitespace text maps back to a valid empty span, is the
-ignored test `empty_output_span_at_a_deletion`: `Alignment::span_to_parent`
-in turbo-analysis returns a span whose start is after its end for an empty
-span that sits on a deletion, and `Span::new` panics.
+span of an all-whitespace text maps back to a valid empty span, is
+checked by `empty_output_span_at_a_deletion` in
+`analysis/normalize/tests/whitespace.rs`.
 
 ### Dashes
 
@@ -1209,185 +1206,6 @@ Tests (`analysis/normalize/tests/numbers_shrink.rs`): every expectation of
 `ShrinkCharSequenceNormalizerCharacterizationTest` (without its lone
 surrogate cases), and 50,000 generated inputs from its pool compared with
 a three-pass reference that follows OpenNLP's passes one to one.
-### Text artifacts (`analysis/normalize/src/artifacts/mod.rs`)
-
-`ArtifactDetector` (an annotator, id `turbo:artifacts`) reads a `View` and
-writes an `Artifacts` layer (`turbo:artifacts`): a span and an
-`ArtifactKind` for every damaged or hidden character sequence. It does not
-write a view; the spans are UTF-8 byte offsets of the view it read, in text
-order and never overlapping (the layer's `check` refuses overlaps, empty
-spans and a missing kind). `ArtifactKind::name` gives OpenNLP's type
-string ("replacement", "mojibake", ...), which the golden files use.
-
-The default detector reports OpenNLP's nine kinds, by OpenNLP's rules, on
-code points:
-
-- maximal runs of one class: U+FFFD (`ReplacementChar`); C0 and C1
-  controls that are not `White_Space` (`Control`, so tab, line feed and
-  U+0085 are not reported); noncharacters (`Noncharacter`); private-use
-  code points (`PrivateUse`); U+202A..U+202E, U+2066..U+2069, U+200E,
-  U+200F and U+061C (`BidiControl`);
-- zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FEFF): a run of
-  two or more is reported; a single one is left alone between letters, with
-  combining marks passed over on both sides (ZWNJ in Persian and
-  Malayalam, ZWJ in Sinhala, ZWSP in Thai), and a single ZWJ is left alone
-  next to an `Extended_Pictographic` character or U+FE0F (emoji ZWJ
-  sequences);
-- runs from the Tags block (`UnicodeTag`), except a run after U+1F3F4 that
-  spells a region or subdivision code and ends with CANCEL TAG (the
-  England, Scotland and Wales flags), by the syntax of UTS #51 and UTS #35;
-- `Mojibake`: a maximal run of non-ASCII characters that Windows-1252 can
-  encode (ISO-8859-1 for the C1 controls) whose bytes are strictly
-  well-formed UTF-8 with at least one multi-byte sequence (RFC 3629: no
-  overlong form, no surrogate, nothing past U+10FFFF, nothing cut off).
-  A mojibake finding wins over the class findings it overlaps; the parts
-  of a class run outside it are still reported.
-
-`ArtifactDetector::builder()` selects kinds (`only`, `with`, `without`),
-as OpenNLP's `CursorArtifactDetector(Set)` does.
-
-OpenNLP counterpart: `CursorArtifactDetector`, `ArtifactAnnotator` and
-`TextArtifact` in the text-artifacts add-on.
-
-Differences from OpenNLP:
-
-- Character data is Unicode 18.0 (`turbo_unicode`): `White_Space`,
-  `Extended_Pictographic`, the letter test (`Character.isLetter`) and the
-  combining-mark test. OpenNLP reads the JDK's tables (Unicode 15.0 in JDK
-  21) and its own `ExtendedPictographic`. The answers differ only for
-  characters assigned after Unicode 15.0.
-- `UnpairedSurrogate` is never reported: a Rust `str` cannot hold an
-  unpaired surrogate. The kind exists so a layer read from OpenNLP output
-  can carry it.
-- An empty kind set is a detector that reports nothing; OpenNLP refuses
-  it with an exception. Unknown kinds cannot be written.
-- Two kinds are added, both off by default so the defaults match OpenNLP:
-  - `MojibakeSequence` (`analysis/normalize/src/artifacts/sequences.rs`,
-    `ArtifactDetector::builder().with(ArtifactKind::MojibakeSequence)`):
-    the character classes of ftfy's `badness.py` as tables of three code
-    pages (`analysis/normalize/src/artifacts/codepage.rs`: Windows-1252
-    from CP1252.TXT, ISO-8859-1 for its undefined bytes, MacRoman from
-    ROMAN.TXT). Each character that is the image of a UTF-8 lead byte is
-    tried with the images of the continuation bytes it needs, one sequence
-    at a time, so mojibake is found where the round trip of a whole run
-    fails: next to a genuine character ("cafÃ©…" with a typed ellipsis,
-    "naÃ¯" before a typed dash), with a byte Windows-1252 leaves undefined replaced by
-    U+FFFD ("Ã�LVAREZ" for "ÁLVAREZ", and Japanese, whose kana have 0x81
-    in their UTF-8), and in UTF-8 read as MacRoman ("caf√©", "don‚Äôt"). To
-    keep genuine text out, a sequence counts only when it decodes to what
-    mojibake is made of: under Windows-1252 a two-byte sequence must
-    decode to U+00A0..U+017F, Greek or Cyrillic, under MacRoman to
-    U+00A0..U+00FF, and a MacRoman three-byte sequence must start with
-    "‚" and decode to U+2000..U+214F. "“élan”", "«été»", U+2014 before "à", "CAFÉ–BAR"
-    and the multilingual texts of OpenNLP's false-positive test report
-    nothing. Round-trip mojibake keeps precedence: a sequence inside a
-    `Mojibake` finding is not reported. A sequence wins over the class
-    findings it overlaps (a U+FFFD or C1 control inside it).
-  - `RepeatedLine` (`analysis/normalize/src/artifacts/repeated.rs`,
-    `ArtifactDetector::builder().repeated_lines(RepeatedLines::default())`):
-    every occurrence of a line that occurs three or more times
-    (`min_occurrences`) in the view, the running headers, footers and page
-    labels of extracted documents. This is the duplicate-line rule of the
-    Gopher quality filters turned into spans. Lines end at the mandatory
-    breaks of UAX #14; they are compared with `White_Space` trimmed, inner
-    whitespace runs read as one space and digit runs (Nd) read as one
-    digit, so "Page 3 of 12" and "Page 4 of  12" match. Lines without an
-    alphabetic character are not compared: with digits folded every table
-    cell and bare page number would match. A character finding inside a
-    repeated line keeps its span and the line is reported around it. A
-    multi-line block that repeats is reported line by line, since each of
-    its lines repeats.
-- Not done: the precision and recall of these rules on extracted
-  documents. There is no labelled sample of extracted PDFs here; the
-  evaluation needs one (documents from the target corpus with the damaged
-  spans marked by hand), and the issue keeps its evaluation item open.
-
-Tests (`analysis/normalize/tests/artifacts.rs`): every expectation of
-`CursorArtifactDetectorTest`, `ArtifactBoundaryTest`,
-`ArtifactEncodingTest` (with an independent Windows-1252 decoder),
-`ArtifactFalsePositiveTest`, `ArtifactUnicodeContextTest`,
-`ArtifactsManualExampleTest` and `ArtifactAnnotatorTest`, offsets written
-as UTF-8 bytes (the unpaired-surrogate cases are recorded as unable to
-occur, the null-argument and custom-detector cases have no counterpart);
-the layer added to a document and run through an `Analyzer`; the cases of
-both added kinds above, their precedence and that they are off by default;
-and property loops over 10000 generated texts mixing every class, the
-contexts the rules read and mojibake images, checking order, bounds and
-character boundaries through `Layer::check` and `Document::add`, that each
-class span holds only its class (against a classifier written in the
-test), that every classified character is reported, that each kind alone
-equals the full detector filtered to it, and that the added kinds leave
-every default finding covered. Unit tests check the merge, the kind sets,
-the MacRoman and Windows-1252 tables and the UTF-8 validation against the
-standard library on every two-byte pair.
-
-### Noise scoring (`analysis/normalize/src/noise/mod.rs`)
-
-`NoiseScorer` (an annotator, id `turbo:noise`) reads a `View`, and the
-`Placeholders` layer when the document has one, and writes a `Noise` layer
-(`turbo:noise`): spans with a `NoiseSeverity` and a score in (0, 1] within
-that severity. It splits the view at `White_Space`, trims surrounding
-punctuation (ASCII sentence marks, quotes and brackets; outside ASCII every
-Ps, Pe, Pi, Pf and Po character) and scores cores of three or more ASCII
-characters:
-
-- `Binaryish`: 24 or more characters of the base64 alphabet with a `+`,
-  `/` or `=`, twelve case changes, or digits and eight case changes; the
-  score is the length over 48, at most 1;
-- `Gibberish` (two or more signals, score signals over 4, at most 1) and
-  `Damaged` (one signal, 0.5), the signals being: five or more letters and
-  no vowel (a e i o u y); eight or more letters and a vowel share of at
-  most 0.10; seven consonants in a row; four equal characters in a row;
-  four letter-digit transitions in eight or more characters;
-- `Misspelled` (0.9), only with a `Dictionary`: a core with no other
-  finding that one OCR confusion (rn/m, vv/w, cl/d, 1/l, 0/o, 5/s) turns
-  into a dictionary word. A dictionary word is never reported. No
-  dictionary ships here.
-
-Findings separated only by whitespace that no exclusion covers are joined,
-keeping the worse severity and its score (the larger score when both have
-the same severity). Tokens that overlap a placeholder span are not scored.
-`NoiseScorer::score(text, exclude)` does the same for a string and a list
-of exclusions.
-
-OpenNLP counterpart: `StructuralNoiseScorer`, `NoiseAnnotator` and
-`NoiseSpan` in the noise add-on. The rules and constants are the same.
-
-Differences from OpenNLP:
-
-- Surrounding punctuation is tested per code point, so punctuation outside
-  the Basic Multilingual Plane is trimmed: "\u{1E95E}bcdfg\u{1E95F}"
-  (Adlam exclamation marks) is damaged here; OpenNLP tests UTF-16 code
-  units, a surrogate is not punctuation, the core keeps its non-ASCII
-  ends and is skipped. The general categories are Unicode 18.0.
-- The exclusions are the `Placeholders` layer (URLs, e-mail addresses,
-  hashtags, numbers, encoded assets a normalizer replaced), an optional
-  input: without it the whole view is scored. OpenNLP's default
-  `NoiseAnnotator` requires its asset layer and refuses a document
-  without one. Placeholders in a view other than the one read are refused
-  with an error.
-- Exclusions are sorted and joined once, so each test is a binary search;
-  OpenNLP tests every exclusion for every token.
-- `config_hash` records whether a dictionary is set, not its contents.
-- Added: `NoiseStats` (`analysis/normalize/src/noise/stats.rs`), document
-  statistics in the manner of Gopher (Rae et al. 2021) and C4 (Raffel et
-  al. 2020): words, lines, the ratio of `#` and ellipses to words, the
-  mean word length, the share of lines ending in terminal punctuation,
-  and the share of lines (and of characters) in lines that repeat an
-  earlier line exactly. They are measurements: no threshold is applied;
-  the chunker decides. `NoiseScorer::stats` returns them.
-
-Tests (`analysis/normalize/tests/noise.rs`): every expectation of
-`StructuralNoiseScorerTest`, `NoiseScorerBoundaryTest`,
-`NoiseManualExampleTest`, `NoiseAnnotatorTest` and `NoiseConcurrencyTest`
-(the asset layer replaced by placeholders, UTF-16 offsets written as UTF-8
-bytes), the score bounds of `NoiseSpanTest` as the layer's check, the
-supplementary punctuation case, the statistics, and a property loop over
-4000 generated texts with random exclusions: findings in order, trimmed,
-clear of exclusions and accepted by `Document::add`, and each token scored
-alone is noise exactly when its core lies inside a finding of the whole
-text.
-
 ### Spelling correction (`analysis/normalize/src/spellcheck/mod.rs`)
 
 `SymSpell` is a symmetric delete spelling corrector over a frequency
@@ -1850,10 +1668,9 @@ Differences from OpenNLP:
   `toLowerCase` uses the JVM's own Unicode version (15.0 for JDK 21).
   Inside those repertoires the output is the same.
 - Neighbouring changes. Each character is its own `replace`, as OpenNLP
-  records each expansion on its own. `ViewBuilder` and `compose` currently
-  join touching edits, so in "ßß" each "ss" maps back to both characters
-  where OpenNLP's `consecutiveExpansionsEachMapToTheirOwnSource` maps it
-  to its own; the mapped span always covers the character's own source.
+  records each expansion on its own, and touching edits stay separate:
+  in "ßß" each "ss" maps back to its own sharp s, as OpenNLP's
+  `consecutiveExpansionsEachMapToTheirOwnSource` expects.
 
 Cost, measured by the ignored test `cost_per_megabyte` in
 `analysis/normalize/tests/case_fold.rs` (same conditions as for the
@@ -2252,23 +2069,6 @@ it overlaps.
   word boundary depends on how the JDK regular expression engine walks
   back over UTF-16 units, so a supplementary-plane combining mark never
   blocks it.
-- `CursorArtifactDetector` reports two characters of genuine text as
-  mojibake when an accented capital stands before a typographic dash,
-  quote or ellipsis whose Windows-1252 byte is a continuation byte:
-  "CAFÉ–BAR" (C9 96, the UTF-8 of U+0256), "Ä…" (C4 85). Requiring a
-  two-byte image to decode to the ranges mojibake comes from (Latin-1
-  Supplement, Latin Extended-A, Greek, Cyrillic) removes these.
-- `CursorArtifactDetector` needs a whole run of non-ASCII characters to
-  decode, so one genuine character next to the image ("cafÃ©…") or one
-  byte replaced by U+FFFD hides the mojibake; decoding one sequence at a
-  time finds it.
-- `StructuralNoiseScorer.isSurroundingPunctuation` takes a `char`, so
-  supplementary-plane punctuation is never trimmed and the token is
-  skipped as non-ASCII. Testing code points with
-  `Character.getType(int)` fixes this.
-- `StructuralNoiseScorer.overlapsAny` tests every exclusion for every
-  token and every gap. Sorting and joining the exclusions once makes each
-  test a binary search.
 - `SpellCheckingCharSequenceNormalizer` compares `minTokenLength` with
   `String.length()`, UTF-16 units, so a token with a supplementary
   character is corrected one code point earlier than the documentation

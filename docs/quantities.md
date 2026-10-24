@@ -11,6 +11,8 @@ the OpenNLP numeric add-on:
 | `Quantities`, `QuantityMention` | `Quantity` |
 | `DEFAULT_UNITS` | `CursorQuantityExtractor.DEFAULT_UNITS` |
 
+Units and amounts written as words ("6 ft 2 in", "$3.5m") are also
+read by the rule grammar in `turbo-grammar` (`analysis/grammar/`).
 The number inside a mention is read by the number scan of
 [numbers.md](numbers.md), and money is found by the extractor of
 [money.md](money.md).

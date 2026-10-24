@@ -129,9 +129,9 @@ message BundleCapabilities
   uint32 batch_limit = 7;
 
   // The limits an extraction schema may carry; present only for a
-  // bundle whose task reads a schema. No such task is merged yet
-  // (issue #715), so every bundle the server loads today leaves this
-  // unset.
+  // bundle whose task reads a schema (issue #715). No served task
+  // does yet, so the server leaves this unset; the schema-extraction
+  // layer exists in-process only.
   SchemaLimits schema = 8;
 }
 
@@ -311,8 +311,8 @@ message RerankScoresResult
 
 // The ranked answers of an extraction or question-answering run: the
 // turbo-analysis-embed Answers layer (extractive QA, #745) plus the
-// model identity. The schema-driven structured records of #715 have no
-// merged layer yet; this message carries what exists today. An empty
+// model identity. The schema-driven structured records of #715 have
+// no result message in this schema yet. An empty
 // result is a calibrated abstention: null_probability is 1.
 message ExtractionResult
 {

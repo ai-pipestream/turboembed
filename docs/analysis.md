@@ -9,8 +9,9 @@ compiler holds them to it.
 
 It is the base the chunker is built on, and the base OpenNLP 3.x is to
 be rewritten on, as add-ons: OpenNLP is the reference, and the Rust side
-follows it on its own schedule. The crates are Rust only for now;
-nothing here is in the C header or the gRPC server.
+follows it on its own schedule. The crates are Rust only; the
+gRPC server serves analysis documents and layers over them
+(`server/src/analysis.rs`, docs/grpc-analysis.md).
 
 ## Crates
 
@@ -4883,15 +4884,9 @@ runs them on any machine:
 
 ## Not built yet
 
-- The annotators themselves: normalizers, sentence detection,
-  tokenization, and the boundary signals besides structure and drift
-  (lexical cohesion, coreference, discourse markers).
-- The rest of the evaluation harness: baseline records for
-  `legalbench-rag-mini`, which is placed by hand, a published copy and
-  licence for HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
-  is to be reported, from the term statistics above, and what each
-  level and each kind of level vector adds.
-- A gRPC surface, to be shared with the OpenNLP standard.
+- A published copy and licence for HiCBench, and the chunker's
+  records on it. The other evaluation records, including the BM25
+  only baseline, are in `analysis/eval/records/`.
 - A reader for spaCy's JSON pattern files, building `Tok` patterns from
   them.
 

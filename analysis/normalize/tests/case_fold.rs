@@ -372,15 +372,12 @@ fn opennlp_full_fold_expectations() {
     assert_eq!(back(&a, 1, 7), (1, 3));
     assert_eq!(back(&a, 3, 5), (1, 3));
     // consecutiveExpansionsEachMapToTheirOwnSource. Each sharp s is
-    // replaced on its own; `ViewBuilder` joins touching edits into one, so
-    // with the current builder each half maps back to both characters. The
-    // span always covers the half's own source character.
+    // replaced on its own and touching edits stay separate, so each
+    // half maps back to exactly its own source character.
     let (out, a) = normalize(&full, "\u{DF}\u{DF}");
     assert_eq!(out, "ssss");
-    for (half, own) in [((0, 2), Span::new(0, 2)), ((2, 4), Span::new(2, 4))] {
-        let (s, e) = back(&a, half.0, half.1);
-        assert!(Span::new(s, e).contains(own) && e <= 4, "{half:?} -> {s}..{e}");
-    }
+    assert_eq!(back(&a, 0, 2), (0, 2));
+    assert_eq!(back(&a, 2, 4), (2, 4));
     // tableLoadsEveryCommonAndFullFolding counts 1585 C and F rows in
     // CaseFolding.txt 17.0.0; 18.0.0 has 1606
     // (`every_case_folding_row_through_full_simple_and_turkic`).
@@ -392,15 +389,12 @@ fn opennlp_whitespace_then_full_fold_pipeline() {
     // composesIntoTheOffsetAwarePipeline and
     // identityPipelinePreservesEveryOffset.
     let chain = Chain::new().then(Whitespace::collapse()).then(CaseFold::full());
-    // OpenNLP maps "ss" back to the sharp s alone (3..5 in UTF-8). The
-    // three changes here touch ("A", the double space, "ß"), and `compose`
-    // and `ViewBuilder` join touching edits, so with the current builder
-    // the span comes back as the whole text; it always covers the sharp s
-    // and never more than the edits it lies in.
+    // OpenNLP maps "ss" back to the sharp s alone (3..5 in UTF-8), and
+    // touching edits stay separate under `compose` and `ViewBuilder`, so
+    // the span comes back as exactly the sharp s.
     let (out, a) = normalize(&chain, "A  \u{DF}");
     assert_eq!(out, "a ss");
-    let (s, e) = back(&a, 2, 4);
-    assert!(s <= 3 && e == 5, "{s}..{e}");
+    assert_eq!(back(&a, 2, 4), (3, 5));
     // Apart from each other, each change keeps its own source span.
     let (out, a) = normalize(&chain, "A x  y \u{DF}");
     assert_eq!(out, "a x y ss");

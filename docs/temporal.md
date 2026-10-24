@@ -3,8 +3,10 @@
 The `temporal` module of `turbo-numeric` (`analysis/numeric/src/temporal/`)
 finds calendar mentions in a text view, writes them as the `turbo:temporal`
 layer, and picks the date a document is dated with, the
-`turbo:document-date` layer. It is a port of the temporal package of the
-OpenNLP numeric add-on:
+`turbo:document-date` layer. Dates, times, durations and sets written
+as words ("tomorrow at 8am", "every Monday") are also read by the
+rule grammar in `turbo-grammar` (`analysis/grammar/`). It is a port
+of the temporal package of the OpenNLP numeric add-on:
 
 | Rust | OpenNLP |
 |---|---|
