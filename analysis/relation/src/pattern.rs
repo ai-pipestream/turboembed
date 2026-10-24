@@ -34,9 +34,7 @@ impl Step {
     }
 }
 
-fn is_blank(s: &str) -> bool {
-    s.chars().all(char::is_whitespace)
-}
+use turbo_unicode::whitespace::is_unicode_blank as is_blank;
 
 /// The project `StringUtil.toLowerCase`: the simple
 /// per-character lowercase mapping (not the JDK's full string

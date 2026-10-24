@@ -61,15 +61,25 @@ impl FeedforwardPosTagger {
     }
 
     fn best_path(&self, sentence: &[impl AsRef<str>]) -> Result<(Vec<usize>, Vec<f64>), NeuralError> {
-        let n = sentence.len();
-        if n == 0 {
-            return Ok((Vec::new(), Vec::new()));
-        }
-        let sent_features = SentenceFeatures::new(sentence);
-        let mut assigned_indices: Vec<usize> = Vec::with_capacity(n);
-        let mut probs: Vec<f64> = Vec::with_capacity(n);
-        let tags = self.model.tags();
+        let mut assigned = Vec::new();
+        let mut probs = Vec::new();
+        self.best_path_into(sentence, &mut assigned, &mut probs)?;
+        Ok((assigned, probs))
+    }
 
+    fn best_path_into(
+        &self,
+        sentence: &[impl AsRef<str>],
+        assigned_indices: &mut Vec<usize>,
+        probs: &mut Vec<f64>,
+    ) -> Result<(), NeuralError> {
+        let n = sentence.len();
+        assigned_indices.clear();
+        probs.clear();
+        assigned_indices.reserve(n);
+        probs.reserve(n);
+        let sent_features = SentenceFeatures::new(sentence);
+        let tags = self.model.tags();
         for i in 0..n {
             let prev = if i >= 1 { Some(tags[assigned_indices[i - 1]].as_str()) } else { None };
             let prev_prev = if i >= 2 { Some(tags[assigned_indices[i - 2]].as_str()) } else { None };
@@ -95,7 +105,7 @@ impl FeedforwardPosTagger {
             }
             probs.push(1.0 / sum_exp);
         }
-        Ok((assigned_indices, probs))
+        Ok(())
     }
 }
 
@@ -104,40 +114,31 @@ impl Annotator for FeedforwardPosTagger {
     type Reads = (View, Tokens);
     type Writes = (PosTags,);
 
-    fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<(PosTags,), Error> {
-        if tokens.spans.view() != view.id() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!(
-                    "the tokens are in view {}, not in view {} that is tagged",
-                    tokens.spans.view().0,
-                    view.id().0
-                ),
-            });
-        }
-        let text = view.text();
-        let (starts, ends) = tokens.spans.columns();
-        let n = starts.len();
-        let mut tags = Vec::with_capacity(n);
-        let mut probs = Vec::with_capacity(n);
-        let mut words: Vec<&str> = Vec::new();
-        let mut from = 0;
-        while from < n {
-            let to = match &tokens.sentence {
-                Some(col) => from + col[from..].partition_point(|&s| s == col[from]),
-                None => n,
-            };
-            crate::tagger::slice_sentence_words(Self::ID, text, starts, ends, from, to, &mut words)?;
-            if !words.is_empty() {
-                let (best, sentence_probs) = self
-                    .best_path(&words)
-                    .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
-                tags.extend(best.into_iter().map(|idx| self.outcome_tags[idx]));
-                probs.extend(sentence_probs);
-            }
-            from = to;
-        }
-        Ok((PosTags { tagset: self.tagset.clone(), tags, prob: Some(probs) },))
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<(PosTags,), Error> {
+        self.annotate_batch(vec![input]).remove(0)
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let mut words = Vec::new();
+        let mut assigned = Vec::new();
+        let mut sentence_probs = Vec::new();
+        inputs
+            .into_iter()
+            .map(|(view, tokens)| {
+                let lens = crate::neural::batch_words::words(Self::ID, view, tokens, &mut words)?;
+                let mut tags = Vec::with_capacity(words.len());
+                let mut probs = Vec::with_capacity(words.len());
+                let mut start = 0;
+                for len in lens {
+                    self.best_path_into(&words[start..start + len], &mut assigned, &mut sentence_probs)
+                        .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
+                    tags.extend(assigned.iter().map(|&i| self.outcome_tags[i]));
+                    probs.extend_from_slice(&sentence_probs);
+                    start += len;
+                }
+                Ok((PosTags { tagset: self.tagset.clone(), tags, prob: Some(probs) },))
+            })
+            .collect()
     }
 
     fn model(&self) -> Option<ModelRef> {

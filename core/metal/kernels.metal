@@ -413,9 +413,10 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
 // fragments spread across the tile (a group's rows 16 apart, its columns
 // 16 apart), loaded lane by lane from threadgroup memory as F32, with w's
 // tile staged as it lies, [32][HBK], 16 bytes at a time, so no stage
-// transposes. On the M2 it is about 4% faster than gemm_h's 32 x 64 tile
-// over a whole run from 512 to 1024 packed tokens (docs/metal.md, Kernel
-// choices). Same bindings, splits and epilogue as gemm_h.
+// transposes. On the M2 a whole run with it is 7 to 9% faster than with
+// gemm_h's 32 x 64 tile from 2 to 8 rows of 128 tokens, and 13.8% faster
+// at 1 x 128 (docs/metal.md, Kernel choices). Same bindings, splits and
+// epilogue as gemm_h.
 template <typename XT, typename YT>
 kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[buffer(1)]],
                     device const half *w1 [[buffer(2)]], device const half *w2 [[buffer(3)]],

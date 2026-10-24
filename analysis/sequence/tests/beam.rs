@@ -13,6 +13,8 @@
 //! those tests.
 
 mod common;
+#[path = "beam/qn.rs"]
+mod qn;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -172,11 +174,21 @@ fn run<'g, T, C, V>(
     V: SequenceValidator<T>,
 {
     let mut failures = Vec::new();
+    let mut compatible = search.opennlp();
     for (k, s) in golden.sentences.iter().enumerate() {
         let items = items(s);
         let mut recorder = Recorder { inner: context, calls: (!s.calls.is_empty()).then(Vec::new) };
-        let found =
-            search.best_sequences(golden.beam, &items, BeamSearch::<str>::DEFAULT_MIN_SCORE, &mut recorder, validator);
+        let found = if golden.kind == "names-fresh-sums" {
+            search.best_sequences(golden.beam, &items, BeamSearch::<str>::DEFAULT_MIN_SCORE, &mut recorder, validator)
+        } else {
+            compatible.best_sequences(
+                golden.beam,
+                &items,
+                BeamSearch::<str>::DEFAULT_MIN_SCORE,
+                &mut recorder,
+                validator,
+            )
+        };
         let calls = recorder.calls.take().unwrap_or_default();
         if calls != s.calls {
             let at = calls.iter().zip(&s.calls).position(|(a, b)| a != b).unwrap_or(calls.len().min(s.calls.len()));
@@ -350,10 +362,8 @@ fn ner_qn_fixture_fresh_sums() {
 /// `QNModel.eval(context, probs)` adds its sums to what `probs` holds, and
 /// `BeamSearch` passes one array to every evaluation, so each evaluation
 /// of a QN model in a beam search starts from the previous one's
-/// probabilities. Reproducing that needs an evaluation in turbo-maxent
-/// that starts from the caller's sums, which it does not have yet.
+/// probabilities, including across sentences in one session.
 #[test]
-#[ignore = "QN sums carried between evaluations are not reproduced yet"]
 fn ner_qn_fixture() {
     check_names(&fixtures(), "ner-qn-fixture");
 }

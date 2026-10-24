@@ -144,6 +144,7 @@ fn incivility_and_pragmatics_scoring_reject_tokens_from_another_view() {
         cost: vec![0],
         model_tokens: vec![0],
         over_budget: vec![false],
+        prompt_overhead: 0,
     };
 
     let mut tok_spans = Spans::new(ViewId(1));
