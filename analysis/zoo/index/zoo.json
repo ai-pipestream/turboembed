@@ -3735,6 +3735,85 @@
       ]
     },
     {
+      "id": "cross-encoder-nli-minilm2-l6-h768",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "b95119ce93d3e065de6214e38cd4a97b0f2f2c6d",
+      "license": "Apache-2.0",
+      "license_terms": "https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/blob/b95119ce93d3e065de6214e38cd4a97b0f2f2c6d/README.md",
+      "trained_on": [
+        {
+          "name": "nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large"
+        },
+        {
+          "name": "stanfordnlp/snli",
+          "license": "CC-BY-SA-4.0",
+          "license_terms": "https://huggingface.co/datasets/stanfordnlp/snli"
+        },
+        {
+          "name": "nyu-mll/multi_nli",
+          "license": "CC-BY-SA-3.0",
+          "license_terms": "https://huggingface.co/datasets/nyu-mll/multi_nli"
+        }
+      ],
+      "class": "CLASS_SHARE_ALIKE",
+      "attribution": "cross-encoder/nli-MiniLM2-L6-H768 at b95119ce93d3e065de6214e38cd4a97b0f2f2c6d (Apache-2.0, https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/blob/b95119ce93d3e065de6214e38cd4a97b0f2f2c6d/README.md), derived from nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large (Apache-2.0, https://huggingface.co/nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large); stanfordnlp/snli (CC-BY-SA-4.0, https://huggingface.co/datasets/stanfordnlp/snli); nyu-mll/multi_nli (CC-BY-SA-3.0, https://huggingface.co/datasets/nyu-mll/multi_nli).",
+      "files": [
+        {
+          "path": "model.safetensors",
+          "url": "https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/resolve/b95119ce93d3e065de6214e38cd4a97b0f2f2c6d/model.safetensors",
+          "size": 328499560,
+          "sha256": "ec9c5b6a08b60d7a01b465c7ed44b496244dfd1bed3274c95875a74cea89ab35",
+          "sha512": "b6ddc98a908b8a86232daef11231c77248c7ed9c2150897ebd6b6d5ed1cdd767b879f7f2935fb8d942478970e3520f43892db58034e6abd8f3c43c0e3669de32"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/resolve/b95119ce93d3e065de6214e38cd4a97b0f2f2c6d/config.json",
+          "size": 875,
+          "sha256": "8b0e41caff7567c0f53e6983f35591c3dec59507c9173ab125c5823394fb57f3",
+          "sha512": "c3a334360a21ffa871b2fc893575448a819f118579959106c16aa87c15f9c9f46dce8d27b45fa705d1ac820eecd261c41d1fbe9a6564aa46956a8f986a67b441"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/resolve/b95119ce93d3e065de6214e38cd4a97b0f2f2c6d/tokenizer.json",
+          "size": 1356048,
+          "sha256": "82139106e603ee4e1d5bc99d056ccbed5a92bc24848b1b5a7137c26e00d0dbf6",
+          "sha512": "db2234002cfcb01c0c65e081577db60ba30b97230a7ac1e1b48620c3ba6c4d94ffa8c2dc27cd75f224f9d82e334fbb19a40ef86d3e2b5b079341a7bc9edacbbe"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "url": "https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/resolve/b95119ce93d3e065de6214e38cd4a97b0f2f2c6d/tokenizer_config.json",
+          "size": 330,
+          "sha256": "e06f5c3c435fc0255b08b5574cd574eec685390f60c85b27f83d785eb8ecaaa1",
+          "sha512": "ea90c5d6b07437a8b17bd41afaa2ecb7f8bbb5c301d390d79f179e221bd43b0da42190b4835aea1b2eef07091618822e5e5c8a2b18f0f75d3ae5fa5597a8aa37"
+        },
+        {
+          "path": "special_tokens_map.json",
+          "url": "https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/resolve/b95119ce93d3e065de6214e38cd4a97b0f2f2c6d/special_tokens_map.json",
+          "size": 239,
+          "sha256": "378eb3bf733eb16e65792d7e3fda5b8a4631387ca04d2015199c4d4f22ae554d",
+          "sha512": "0b00f4e43e14ea1c4f06d856d5ad3bc1119826c6b4dc5c75a7d4f9b3b1b17a7a495698f08bb26b26a15d7631694854f0ae41e0dab15830932e8e27559524e374"
+        },
+        {
+          "path": "vocab.json",
+          "url": "https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/resolve/b95119ce93d3e065de6214e38cd4a97b0f2f2c6d/vocab.json",
+          "size": 798293,
+          "sha256": "ed19656ea1707df69134c4af35c8ceda2cc9860bf2c3495026153a133670ab5e",
+          "sha512": "69d49d4a10715fed1fe307a4be85291317e7dc75582e51dd05fd3882cb7bb6ec6c321aa2e0129535b4695392c6c5de7dddbd6b759d93942cc1b88752e080c6aa"
+        },
+        {
+          "path": "merges.txt",
+          "url": "https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/resolve/b95119ce93d3e065de6214e38cd4a97b0f2f2c6d/merges.txt",
+          "size": 456356,
+          "sha256": "fe36cab26d4f4421ed725e10a2e9ddb7f799449c603a96e7f29b5a3c82a95862",
+          "sha512": "fdc6228bf5c43f089f5e41424a0152830f986b6396404d049449a63603c99deb5b0d9662321b8d314b0a972046aa2810661de9aa0b659a010c69bceaacf6f0bd"
+        }
+      ]
+    },
+    {
       "id": "deepset-roberta-base-squad2",
       "kind": "KIND_MODEL",
       "language": "en",

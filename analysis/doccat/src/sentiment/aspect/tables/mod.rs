@@ -148,7 +148,7 @@ pub(super) use nouns::*;
 pub(super) use words::*;
 
 pub(super) fn clean_word_lower(raw: &str) -> String {
-    crate::sentiment::token_key::token_key_strict(raw.trim(), true)
+    crate::sentiment::token_key::token_key_word(raw.trim(), true)
 }
 
 /// The domain opinion valence of `word`, if it is in [`DOMAIN_OPINION_LEXICON`].

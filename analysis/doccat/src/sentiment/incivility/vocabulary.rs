@@ -14,7 +14,7 @@ impl IncivilityLexicon {
         let mut entries = BTreeMap::new();
         for &(phrase, label, weight) in DEFAULT_INCIVILITY_PHRASES {
             let toks: Vec<String> =
-                phrase.split_whitespace().map(|s| crate::sentiment::token_key::token_key_strict(s, false)).collect();
+                phrase.split_whitespace().map(|s| crate::sentiment::token_key::token_key_word(s, false)).collect();
             if !toks.is_empty() {
                 entries.insert((toks, label), weight.clamp(0.0, 1.0));
             }
@@ -36,7 +36,7 @@ impl IncivilityLexicon {
         }
         let toks: Vec<String> = phrase
             .split_whitespace()
-            .map(|w| crate::sentiment::token_key::token_key_strict(w, false))
+            .map(|w| crate::sentiment::token_key::token_key_word(w, false))
             .filter(|w| !w.is_empty())
             .collect();
         if !toks.is_empty() {

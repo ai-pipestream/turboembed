@@ -4,6 +4,7 @@ use super::*;
 pub struct Rows {
     ids: Vec<i32>,
     mask: Vec<i32>,
+    types: Vec<i32>,
     stride: u32,
     fill: i32,
     batch: u32,
@@ -15,12 +16,13 @@ impl Rows {
     /// Panics if `stride` is zero.
     pub fn new(stride: u32, fill: i32) -> Rows {
         assert!(stride > 0, "row stride must be positive");
-        Rows { ids: Vec::new(), mask: Vec::new(), stride, fill, batch: 0, seq: 0 }
+        Rows { ids: Vec::new(), mask: Vec::new(), types: Vec::new(), stride, fill, batch: 0, seq: 0 }
     }
 
     pub fn clear(&mut self) {
         self.ids.clear();
         self.mask.clear();
+        self.types.clear();
         self.batch = 0;
         self.seq = 0;
     }
@@ -47,12 +49,38 @@ impl Rows {
         let at = self.ids.len();
         self.ids.resize(at + stride, self.fill);
         self.mask.resize(at + stride, 0);
+        if !self.types.is_empty() {
+            self.types.resize(at + stride, 0);
+        }
         let mut p = at;
         for part in parts {
             self.ids[p..p + part.len()].copy_from_slice(part);
             p += part.len();
         }
         self.mask[at..p].fill(1);
+        self.seq = self.seq.max(len as u32);
+        self.batch = self.batch.checked_add(1).expect("row count overflow");
+        self.batch - 1
+    }
+
+    /// Adds a pre-encoded row of `ids` and matching segment `types`, and
+    /// returns its index. Panics when `ids.len() != types.len()` or when
+    /// `ids.len()` exceeds `stride`.
+    pub fn push_with_types(&mut self, ids: &[i32], types: &[i32]) -> u32 {
+        assert_eq!(ids.len(), types.len(), "row ids and types must have equal length");
+        let stride = self.stride as usize;
+        let len = ids.len();
+        assert!(len <= stride, "a row of {len} tokens is over the stride {stride}");
+        let at = self.ids.len();
+        if self.types.is_empty() && at > 0 {
+            self.types.resize(at, 0);
+        }
+        self.ids.resize(at + stride, self.fill);
+        self.mask.resize(at + stride, 0);
+        self.types.resize(at + stride, 0);
+        self.ids[at..at + len].copy_from_slice(ids);
+        self.mask[at..at + len].fill(1);
+        self.types[at..at + len].copy_from_slice(types);
         self.seq = self.seq.max(len as u32);
         self.batch = self.batch.checked_add(1).expect("row count overflow");
         self.batch - 1
@@ -72,7 +100,7 @@ impl Rows {
             row_stride: self.stride,
             ids: self.ids.as_ptr(),
             mask: self.mask.as_ptr(),
-            types: ptr::null(),
+            types: if self.types.is_empty() { ptr::null() } else { self.types.as_ptr() },
         }
     }
 }

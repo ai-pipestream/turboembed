@@ -64,7 +64,7 @@ impl Annotator for IncivilityAnnotator {
         let mut token_lower: Vec<String> = Vec::with_capacity(n_tokens);
         for t in 0..n_tokens {
             let slice = text.get(tok_starts[t] as usize..tok_ends[t] as usize).unwrap_or("");
-            token_lower.push(crate::sentiment::token_key::token_key_strict(slice, false));
+            token_lower.push(crate::sentiment::token_key::token_key_word(slice, false));
         }
 
         // The lexicon stage reads no vectors, so it checks no encoder.
