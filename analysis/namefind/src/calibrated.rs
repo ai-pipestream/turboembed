@@ -1,12 +1,12 @@
 //! Opt-in NameFinderME token calibration. Prediction sets are marginal
 //! token sets, not jointly valid BIO sequences. Entity outputs stay raw;
 //! callers use the aligned token decisions to withhold uncertain entities.
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use turbo_analysis::{Annotator, Error, Ix, IxRange, Layer, ModelRef, Refs, Spans, TagSet, View};
 use turbo_analysis_layers::{Calibrated, Entities, Sentences, Tokens};
 use turbo_calibration::{Calibration, Identity, Policy, Predictor, Task};
 use turbo_maxent::{MaxentModel, ModelFile};
-use turbo_sequence::namefind::{DefaultNameContext, NameCodec};
+use turbo_sequence::namefind::{NameCodec, NameContextFactory};
 use turbo_sequence::{
     PatternMode,
     namefind::{DEFAULT_BEAM_SIZE, MODEL_ENTRY_NAME, NameFinder},
@@ -38,7 +38,7 @@ pub fn identity(file: &ModelFile, domain: &str) -> Result<Identity, String> {
     Ok(i)
 }
 pub struct CalibratedNameAnnotator {
-    context: Mutex<DefaultNameContext>,
+    context: NameContextFactory,
     beam: usize,
     codec: NameCodec,
     model: MaxentModel,
@@ -50,10 +50,11 @@ impl CalibratedNameAnnotator {
         let expected = identity(&file, domain)?;
         let predictor = Predictor::new(calibration, &expected, policy)?;
         let model = file.maxent(MODEL_ENTRY_NAME).map_err(|e| e.to_string())?;
-        let finder = NameFinder::new(&file, &model, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
-        let codec = finder.codec();
-        let context = Mutex::new(finder.into_context());
+        let codec = NameCodec::for_model(&file);
+        let context = NameContextFactory::for_model(&file, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
         let beam = turbo_sequence::manifest_beam_size(&file, DEFAULT_BEAM_SIZE).map_err(|e| e.to_string())?;
+        NameFinder::with_context(&model, beam, codec, context.create().map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
         let kinds = crate::entity_kinds::from_labels(
             "turbo:calibrated-name-types",
             predictor.artifact().identity().labels.iter().map(String::as_str),
@@ -90,9 +91,8 @@ impl Annotator for CalibratedNameAnnotator {
             score: Vec::new(),
         };
         let mut calibrated = Calibrated::new(&self.predictor);
-        let mut context = self.context.lock().map_err(|_| fail("name context lock poisoned".into()))?;
-        context.clear_adaptive_data();
-        let mut finder = NameFinder::with_context(&self.model, self.beam, self.codec, &mut *context)
+        let mut context = self.context.create().map_err(|e| fail(e.to_string()))?;
+        let mut finder = NameFinder::with_context(&self.model, self.beam, self.codec, &mut context)
             .map_err(|e| fail(e.to_string()))?;
         let (starts, ends) = tokens.spans.columns();
         let mut base = 0;

@@ -2,8 +2,10 @@
 //! (`opennlp.tools.namefind`).
 
 pub mod crf;
+mod factory;
 mod scored;
 pub use crf::{CrfNameFinder, CrfNameSequence};
+pub use factory::NameContextFactory;
 
 use std::borrow::BorrowMut;
 

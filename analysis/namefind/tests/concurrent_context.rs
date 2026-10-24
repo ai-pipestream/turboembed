@@ -4,8 +4,8 @@ mod resource;
 
 use std::sync::Barrier;
 use std::time::Instant;
-use turbo_analysis::{Annotator, Document, Span, Spans, View, ViewId};
-use turbo_analysis_layers::{Sentences, Tokens};
+use turbo_analysis::{Alternatives, Annotator, Document, Layer, Span, Spans, View, ViewId};
+use turbo_analysis_layers::{Calibrated, Entities, Sentences, Tokens};
 use turbo_calibration::{Calibration, DataIdentity, Policy, Transform, digest};
 use turbo_namefind::{
     CrfNameAnnotator,
@@ -23,10 +23,24 @@ fn input() -> (Document, Sentences, Tokens) {
     (Document::new(text), Sentences { spans: sentence }, Tokens { spans: tokens, sentence: None })
 }
 
+trait EntityOutput {
+    fn entities(&self) -> &Entities;
+}
+impl EntityOutput for (Entities, Alternatives<Entities>) {
+    fn entities(&self) -> &Entities {
+        &self.0
+    }
+}
+impl EntityOutput for (Entities, Calibrated<Tokens>) {
+    fn entities(&self) -> &Entities {
+        &self.0
+    }
+}
+
 fn run<A>(ann: &A, threads: usize, documents: usize) -> std::time::Duration
 where
     A: Annotator<Reads = (View, Sentences, Tokens)> + Sync,
-    A::Writes: Send,
+    A::Writes: Send + EntityOutput,
 {
     let barrier = Barrier::new(threads);
     let start = Instant::now();
@@ -38,7 +52,11 @@ where
                 let view = doc.get::<View>().unwrap();
                 barrier.wait();
                 for _ in 0..documents {
-                    std::hint::black_box(ann.annotate((view, &sentences, &tokens)).unwrap());
+                    let output = ann.annotate((view, &sentences, &tokens)).unwrap();
+                    let entities = output.entities();
+                    assert_eq!(entities.len(), tokens.len());
+                    assert_eq!(entities.spans.columns(), tokens.spans.columns());
+                    std::hint::black_box(output);
                 }
             });
         }

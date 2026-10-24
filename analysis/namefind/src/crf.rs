@@ -3,17 +3,17 @@
 //! and entity kinds remain available through `CrfNameFinder::best_sequences`;
 //! arbitrary recombinations of lattice edges are not ranked CRF paths.
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use turbo_analysis::{Alternatives, Annotator, Error, Ix, IxRange, Layer, ModeSet, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Entities, Sentences, TagSet, Tokens};
 use turbo_maxent::ModelFile;
 use turbo_sequence::PatternMode;
 pub use turbo_sequence::crf::{CrfSequenceModel, FeatureRow};
-use turbo_sequence::namefind::DefaultNameContext;
+use turbo_sequence::namefind::NameContextFactory;
 pub use turbo_sequence::namefind::{CrfNameFinder, CrfNameSequence};
 
 pub struct CrfNameAnnotator {
-    context: Mutex<DefaultNameContext>,
+    context: NameContextFactory,
     kinds: Arc<TagSet>,
     model: CrfSequenceModel,
     k: usize,
@@ -26,8 +26,7 @@ impl CrfNameAnnotator {
             return Err("k must be in 1..=4096".into());
         }
         let model = CrfNameFinder::read_model(&file).map_err(|e| e.to_string())?;
-        let context =
-            CrfNameFinder::from_file(&model, &file, PatternMode::Utf16Units).map_err(|e| e.to_string())?.into_context();
+        let context = NameContextFactory::for_model(&file, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
         let kinds = crate::entity_kinds::from_labels("turbo:crf-entities", model.labels().iter().map(String::as_str));
         let hash = file
             .bytes()
@@ -42,7 +41,7 @@ impl CrfNameAnnotator {
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
-        Ok(Self { context: Mutex::new(context), kinds, model, k, hash, model_ref })
+        Ok(Self { context, kinds, model, k, hash, model_ref })
     }
 }
 impl Annotator for CrfNameAnnotator {
@@ -84,9 +83,8 @@ impl Annotator for CrfNameAnnotator {
         let mut entities =
             Entities { spans: Spans::new(view.id()), tokens: Vec::new(), kind: Vec::new(), kinds, score: Vec::new() };
         let mut alternatives = Alternatives::new(view.id());
-        let mut context = self.context.lock().map_err(|_| fail("name context lock poisoned".into()))?;
-        context.clear_adaptive_data();
-        let mut finder = CrfNameFinder::new(&self.model, &mut *context);
+        let mut context = self.context.create().map_err(|e| fail(e.to_string()))?;
+        let mut finder = CrfNameFinder::new(&self.model, &mut context);
         let (starts, ends) = tokens.spans.columns();
         let mut base = 0;
         for sentence in 0..sentences.len() {
