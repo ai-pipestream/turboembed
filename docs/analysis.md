@@ -728,6 +728,15 @@ annotator that returns `Error::Annotator` fails that document alone. A
 panic does too: it is caught, and a batch that panics is run again one
 document at a time to find the documents that cause it.
 
+`execution` says where an annotator's model runs, and every layer it
+writes records it. An annotator that sends one call to one backend and
+another call to another says so through `annotate_batch_placed`, which
+returns each document's outputs with the execution they were made by;
+that document's layers record it in place of `execution`, and a
+document run again alone after a panic records where it ran then. One
+document's layers come from one execution. The default runs
+`annotate_batch` and records `execution`.
+
 `Bound` binds an annotator to the instances it reads and writes:
 the default ones, or named ones (`.read(0, "folded")`).
 
@@ -4757,8 +4766,9 @@ runs them on any machine:
   name, runtime and driver versions, the precision, the library's build
   (`turbo::tuning::LIBRARY_BUILD`, its version and kernels), the windows,
   the batches, the floor as given and a hash of the texts. It measures
-  again when the key changes, and when the kept file is not the version 3
-  form (version 2 timed the CPU at `Precision::Model`) or lacks a point
+  again when the key changes, and when the kept file is not the version 4
+  form (version 2 timed the CPU at `Precision::Model`, version 3 has no
+  times of one sentence alone) or lacks a point
   for each window and batch asked, in order. `Calibration::options` gives
   the `VectorOptions` for one configuration, or an error: the device at
   the precision asked, or the CPU at `Precision::Exact`, the precision it
@@ -4777,6 +4787,31 @@ runs them on any machine:
   whole set runs within 10% of the faster side's measured time, timed up
   to three times. docs/hailo.md ("Device or CPU") gives what it measured
   on the Hailo-8.
+- `analysis/embed/src/calibrate/dispatch.rs` chooses the side per call. A
+  point also keeps the median times of the texts' first sentence sent
+  alone on each side. `Dispatch::open` opens the step on the device and on
+  the CPU at `Precision::Exact` at one window and cap, refusing a window
+  and cap the calibration does not ask for before it measures, and fits
+  each side's time a call (`Cost::fit`, least squares) to a cost a run, a
+  row and a token, over the whole set and the one sentence at each batch
+  measured at that window; the shape of each is planned, not run
+  (`VectorAnnotator::shape`: each run's rows as long as its longest). Each
+  call is planned the same way and runs whole on the side whose cost is
+  lower, the device only where its vectors clear the floor at that window,
+  and `TURBO_CALIBRATION_FORCE` still sends every call to one side.
+  `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` take any
+  `Embedder`, a `VectorAnnotator` or a `Dispatch`, and record each call's
+  side on every document's layers (`annotate_batch_placed`).
+  `analysis/embed/tests/dispatch.rs` checks the fit, the refusals and,
+  with the CPU at `Precision::Model` standing in for the device, that a
+  call of one sentence and a call of many record different sides and get
+  each side's vectors; on the device `TURBO_TEST_DEVICE` names, at each of
+  the twelve windows and caps, one sentence, one document and the whole
+  set through one instance each run within 10% of the faster of the step
+  fixed on each side, every document records one side, and its vectors are
+  that side's. `analysis/core/tests/placed.rs` checks that each document
+  records the execution its call returned, and its own after a run again
+  alone.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,
