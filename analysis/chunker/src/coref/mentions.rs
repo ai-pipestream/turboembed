@@ -2,7 +2,7 @@
 //! re-exported from [`turbo_coref`] and per-chunk antecedent header context
 //! (`ChunkAntecedents`, `ChunkAntecedentBuilder`) for coreference-aware chunking.
 
-use turbo_analysis::{Anchor, Annotator, Edges, Error, Groups, Ix, Layer, Refs, Span, View};
+use turbo_analysis::{Anchor, Annotator, Edges, Error, Groups, Ix, Key, KeyId, Layer, Refs, Span, View};
 use turbo_analysis_layers::{Chunks, Entities, Sentences};
 pub use turbo_coref::{Agreement, Animacy, Gender, MentionKind, Mentions, Number, Origin as MentionOrigin, Person};
 
@@ -67,6 +67,12 @@ impl Layer for ChunkAntecedents {
 
     fn len(&self) -> usize {
         self.headers.len()
+    }
+
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        let bound =
+            self.links.iter().map(|l| l.mention_sentence.get().max(l.antecedent_sentence.get()) + 1).max().unwrap_or(0);
+        if bound > 0 { vec![(Key::<Sentences>::DEFAULT.id(), bound)] } else { Vec::new() }
     }
 
     fn check(&self) -> Result<(), String> {
