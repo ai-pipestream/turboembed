@@ -118,7 +118,27 @@ fn compose(run: &str, base: usize, out: &mut String, sources: &mut Option<&mut V
         }
         done.push((c, from));
     }
-    for (c, from) in done {
+    // Spans in text order, both ends: a character whose span starts or
+    // ends before the one before it, as a mark composed past another
+    // does, joins it, and the group comes from all their sources.
+    let mut groups: Vec<(usize, Span)> = Vec::new();
+    for (i, &(_, from)) in done.iter().enumerate() {
+        let mut group = (i, from);
+        while let Some(&(at, last)) = groups.last() {
+            if group.1[0] >= last[0] && group.1[1] >= last[1] {
+                break;
+            }
+            group = (at, [last[0].min(group.1[0]), last[1].max(group.1[1])]);
+            groups.pop();
+        }
+        groups.push(group);
+    }
+    let mut groups = groups.into_iter().peekable();
+    let mut from = [base as u32; 2];
+    for (i, &(c, _)) in done.iter().enumerate() {
+        if groups.peek().is_some_and(|g| g.0 == i) {
+            from = groups.next().map_or(from, |g| g.1);
+        }
         out.push(c);
         sources.extend(std::iter::repeat_n(from, c.len_utf8()));
     }
@@ -167,9 +187,11 @@ mod tests {
         assert_eq!(src, [[0, 3], [0, 3], [1, 3], [1, 3]]);
         // The cedilla (class 202) does not block the acute (230) after it,
         // so the acute composes with the a, whose span reaches over both.
+        // The cedilla's own span would then end before the a's, so the two
+        // share it, to keep spans in text order.
         aligned("a\u{327}\u{301}", 0, &mut s, Some(&mut src));
         assert_eq!(s, "\u{e1}\u{327}");
-        assert_eq!(src, [[0, 5], [0, 5], [1, 3], [1, 3]]);
+        assert_eq!(src, [[0, 5]; 4]);
         // Marks out of order are reordered with their sources.
         aligned("a\u{301}\u{327}", 0, &mut s, Some(&mut src));
         assert_eq!(s, "\u{e1}\u{327}");
@@ -206,6 +228,7 @@ mod tests {
             aligned(&text, 0, &mut s, Some(&mut src));
             assert_eq!(s, nfc, "{text:?}");
             assert_eq!(src.len(), s.len());
+            assert!(src.windows(2).all(|w| w[0][0] <= w[1][0] && w[0][1] <= w[1][1]), "{text:?}: {src:?}");
             for (&[a, b], (at, c)) in
                 src.iter().zip(s.char_indices().flat_map(|(i, c)| std::iter::repeat_n((i, c), c.len_utf8())))
             {

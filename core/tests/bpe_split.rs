@@ -167,13 +167,14 @@ fn check(tok: &Tokenizer, up: &tokenizers::Tokenizer, text: &str, nfc: bool) {
     let theirs: Vec<i32> = e.get_ids().iter().map(|&i| i as i32).collect();
     assert_eq!(ids, theirs, "{text:?}");
     let changed = nfc && text.nfc().map(|(c, _)| c).ne(text.chars());
-    let mut last = 0;
+    let mut last = [0, 0];
     for (i, (&a, &(x, y))) in spans.iter().zip(e.get_offsets()).enumerate() {
         let b = trimmed(text, [x as u32, y as u32]);
         assert!(text.is_char_boundary(a[0] as usize) && text.is_char_boundary(a[1] as usize), "{text:?}: {a:?}");
         if a != NOWHERE {
-            assert!(a[0] >= last, "{text:?}: token {i} starts before {last}");
-            last = a[0];
+            // Both ends in text order, as the subword layer requires.
+            assert!(a[0] >= last[0] && a[1] >= last[1], "{text:?}: token {i} {a:?} is before {last:?}");
+            last = a;
         }
         let blank = text[a[0] as usize..a[1] as usize].trim().is_empty();
         let piece = token_bytes(&e.get_tokens()[i]);
