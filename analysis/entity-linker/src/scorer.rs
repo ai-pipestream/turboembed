@@ -414,6 +414,22 @@ pub(crate) fn score_all_mentions(
                 coherence_score: coh,
             });
         }
+        // Ineligible candidates rank after every eligible one, and the layer
+        // requires candidate scores in non-increasing order, so an ineligible
+        // candidate's penalized score is capped at the lowest eligible score
+        // of the same mention. Without the cap a high-prior but
+        // type-incompatible candidate can outscore a weak eligible one and
+        // the written layer fails `LinkedEntities::check`.
+        let eligible_floor = scored
+            .iter()
+            .filter(|c| c.type_score >= config.min_type_compatibility)
+            .map(|c| c.score)
+            .min_by(f64::total_cmp);
+        if let Some(floor) = eligible_floor {
+            for c in scored.iter_mut().filter(|c| c.type_score < config.min_type_compatibility) {
+                c.score = c.score.min(floor);
+            }
+        }
         scored.sort_by(|a, b| {
             let a_elig = a.type_score >= config.min_type_compatibility;
             let b_elig = b.type_score >= config.min_type_compatibility;
