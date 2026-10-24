@@ -228,10 +228,9 @@ impl QuerySpanDetector {
         if toks.spans.view() != view.id() || !toks.spans.is_ordered() {
             return None;
         }
-        if bytes
-            .iter()
-            .any(|&b| matches!(b, b'\n' | b'\r' | b'\t') || (b.is_ascii_punctuation() && !matches!(b, b'$' | b'%')))
-            || bytes.windows(2).any(|w| matches!(w[0], b'x' | b'X') && matches!(w[1], b'd' | b'D'))
+        if bytes.iter().any(|&b| {
+            matches!(b, b'\n' | b'\r' | b'\t' | 0x0B | 0x0C) || (b.is_ascii_punctuation() && !matches!(b, b'$' | b'%'))
+        }) || bytes.windows(2).any(|w| matches!(w[0], b'x' | b'X') && matches!(w[1], b'd' | b'D'))
         {
             return None;
         }

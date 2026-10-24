@@ -50,7 +50,7 @@ impl NormalizationProfile {
         accent_fold: Option<AccentFoldKind>,
     ) -> Result<NormalizationProfile, TermError> {
         let language = language.into();
-        if language.chars().all(|c| is_java_whitespace(c as u32)) {
+        if turbo_unicode::java::is_blank(&language) {
             return Err(TermError::BlankLanguage);
         }
         Ok(NormalizationProfile { language, stemmer_algorithm, accent_fold })
