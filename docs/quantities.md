@@ -26,14 +26,32 @@ The number inside a mention is read by the number scan of
 | `coefficient` | The value's digits without sign, decimal point or leading zeros, `0` for zero |
 | `scale` | `BigDecimal.scale()` of the value, an `i32`, as in `Money` |
 | `unit` | The unit token as written, or `%` (`PERCENT`) for a percentage |
+| `normalized_negative` | Whether the normalized value is below zero; never true for zero |
+| `normalized_coefficient` | The normalized value's digits in `base_unit` without sign, decimal point or leading zeros, `0` for zero |
+| `normalized_scale` | `BigDecimal.scale()` of the normalized value |
+| `base_unit` | The SI or stated base unit symbol (`m`, `kg`, `m³`, `K`, `m/s`, `s`, `B`, `Hz`, `W`, `J`, `m²`, `rad`), `unit` when no base conversion applies, or `""` when the value or its normalized form lies outside `Dec`'s range |
 
-The value is stored as in `Money`: `coefficient` and `scale` are the
+The written value is stored as in `Money`: `coefficient` and `scale` are the
 unscaled value and the scale of the `BigDecimal` OpenNLP computes, with
 grouping removed, so `1,250.5 GB` has the coefficient `12505` and the
 scale 1. `Quantities::value` returns a `DecimalRef`, which writes the
 value as `BigDecimal.toPlainString` does. A value read from text has a
-scale of zero or more. No unit conversion is done: `2.5km` keeps 2.5 and
-`km`.
+scale of zero or more.
+
+Alongside the written value and unit, `Quantities::normalized_value`,
+`Quantities::normalized_dec` (`Option<Dec>`), and `Quantities::base_unit`
+expose the quantity normalized to its SI or stated base unit through the
+shared unit table in `analysis/layers/src/unit/mod.rs` (for example,
+`2.5km` -> `2500` `m`, `500 g` -> `0.5` `kg`, `250 mL` -> `0.00025` `m³`,
+`100 °C` -> `373.15` `K`, `36 km/h` -> `10` `m/s`), so quantities can be
+compared and filtered across units while keeping the written columns
+unchanged. When a written value or its converted form lies outside `Dec`'s
+`i128` mantissa or `i16` scale range, `base_unit` is left empty (`""`) and
+`Quantities::normalized_dec` returns `None`. Note that bare unit symbols
+in `Unit::from_symbol` (such as `C`, `F`, `K`, `st`, and `d` for Celsius,
+Fahrenheit, Kelvin, stone, and day) map to typed units in the shared unit
+table, so a caller passing a custom unit list with the same spelling gets
+that unit's normalization.
 
 The unit is a string column, not an enum, because the unit set is open:
 OpenNLP takes a caller's set in place of its own, and the port does too.

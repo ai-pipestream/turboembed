@@ -145,6 +145,10 @@ impl LayerCodec for Quantities {
         put_strs(&mut w, &self.coefficient)?;
         put_i32s(&mut w, &self.scale)?;
         put_strs(&mut w, &self.unit)?;
+        put_bools(&mut w, &self.normalized_negative)?;
+        put_strs(&mut w, &self.normalized_coefficient)?;
+        put_i32s(&mut w, &self.normalized_scale)?;
+        put_strs(&mut w, &self.base_unit)?;
         Ok(w.finish())
     }
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
@@ -154,13 +158,31 @@ impl LayerCodec for Quantities {
         let coefficient = get_strs(&mut r)?;
         let scale = get_i32s(&mut r)?;
         let unit = get_strs(&mut r)?;
+        let normalized_negative = get_bools(&mut r)?;
+        let normalized_coefficient = get_strs(&mut r)?;
+        let normalized_scale = get_i32s(&mut r)?;
+        let base_unit = get_strs(&mut r)?;
         let n = spans.len();
         want_len(negative.len(), n, "negatives")?;
         want_len(coefficient.len(), n, "coefficients")?;
         want_len(scale.len(), n, "scales")?;
         want_len(unit.len(), n, "units")?;
+        want_len(normalized_negative.len(), n, "normalized negatives")?;
+        want_len(normalized_coefficient.len(), n, "normalized coefficients")?;
+        want_len(normalized_scale.len(), n, "normalized scales")?;
+        want_len(base_unit.len(), n, "base units")?;
         done(&r, "quantities")?;
-        Ok(Quantities { spans, negative, coefficient, scale, unit })
+        Ok(Quantities {
+            spans,
+            negative,
+            coefficient,
+            scale,
+            unit,
+            normalized_negative,
+            normalized_coefficient,
+            normalized_scale,
+            base_unit,
+        })
     }
 }
 
