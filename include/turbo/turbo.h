@@ -605,7 +605,17 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * count over the session's max_ranges is TURBO_E_CAPACITY; a range whose
  * row is not under batch, whose start is not under its end, whose end is
  * over seq, or that holds no token with mask 1 is TURBO_E_INVALID_ARGUMENT
- * naming the range by its index. opts may be NULL. */
+ * naming the range by its index. opts may be NULL.
+ *
+ * On an extractive QA model (TURBO_TASK_EXTRACTIVE_QA) whose device applies
+ * the span head (the cuda backend), each range's vector goes through the
+ * head on the device and its row is the head's [start, end] logits: dim
+ * is 2, and a read copies 8 bytes a range. The head reads the whole
+ * vector, so there opts->normalize other than TURBO_NORMALIZE_NONE is
+ * TURBO_E_UNSUPPORTED_OPTION naming field 4, and an output_dim other than
+ * 0 or the model's dim the same naming field 6. Elsewhere a QA model's
+ * range rows are the vectors, as for any model, and the caller applies
+ * the head. */
 int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batch,
                                  const turbo_token_range *ranges, uint32_t count,
                                  const turbo_embed_options *opts, turbo_error *err);

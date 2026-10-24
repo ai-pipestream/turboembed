@@ -65,6 +65,8 @@ pub static BACKEND: turbo_backend = turbo_backend {
     session_open: Some(graph::session_open),
     // Ranges are pooled on the host from the hidden states, as rows are.
     embed_write_ranges: Some(graph::embed_write_ranges),
+    token_head: 0,
+    reserved3: 0,
 };
 
 /// The backend's table, for the tests.

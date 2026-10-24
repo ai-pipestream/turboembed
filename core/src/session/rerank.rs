@@ -126,7 +126,7 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             pooling: TURBO_POOLING_CLS,
             normalize: TURBO_NORMALIZE_NONE,
             output_dim: head.hidden as u32,
-            reserved: 0,
+            head: 0,
         };
         backend::check(s.backend, "rerank encode write", |err| unsafe { write(s.raw, &rows, err) })?;
         result.struct_size = size_of::<turbo_backend_run>() as u32;

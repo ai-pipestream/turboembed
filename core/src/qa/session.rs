@@ -229,8 +229,27 @@ impl ExtractiveQa {
             let mut info: turbo_result_info = std::mem::zeroed();
             info.struct_size = size_of::<turbo_result_info>() as u32;
             check(turbo_result_get_info(result.0, &mut info, &mut e), &e)?;
-            if info.batch != n || info.dim as usize != self.head.hidden || info.dtype != TURBO_DTYPE_F32 {
+            // A device that applies the span head returns each token's two
+            // logits (turbo.h); elsewhere its final hidden state.
+            let labels = self.head.classifier.out_dim;
+            let on_device = info.dim as usize == labels;
+            if info.batch != n || !(on_device || info.dim as usize == self.head.hidden) || info.dtype != TURBO_DTYPE_F32
+            {
                 return Err(Error::new(INTERNAL, "QA encoder returned an unexpected state shape"));
+            }
+            if on_device {
+                let mut logits = vec![[0f32; 2]; n as usize];
+                let bytes = size_of_val(logits.as_slice()) as u64;
+                let mut written = 0;
+                check(turbo_result_read(result.0, logits.as_mut_ptr().cast(), bytes, &mut written, &mut e), &e)?;
+                if written != bytes {
+                    return Err(Error::new(INTERNAL, "QA head returned a short read"));
+                }
+                if logits.iter().flatten().any(|v| !v.is_finite()) {
+                    return Err(Error::new(INTERNAL, "QA head logits overflow F32"));
+                }
+                let mut tokens = logits.into_iter();
+                return Ok(ws.iter().map(|w| tokens.by_ref().take(w.ids.len()).collect()).collect());
             }
             let mut states = vec![0f32; n as usize * self.head.hidden];
             let bytes = size_of_val(states.as_slice()) as u64;
