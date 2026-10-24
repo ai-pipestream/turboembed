@@ -29,7 +29,7 @@ fn directory_lists_the_fixture_without_decoding_bodies() {
     assert_eq!(dir.views().len(), owned.views.len());
     for (entry, record) in dir.views().iter().zip(&owned.views) {
         assert_eq!(entry.instance, record.instance);
-        assert_eq!(entry.parent.as_deref(), record.parent.as_deref());
+        assert_eq!(entry.parent, record.parent.as_deref());
         assert_eq!(entry.text, record.text.as_deref());
     }
     assert_eq!(dir.layers().len(), owned.layers.len());
