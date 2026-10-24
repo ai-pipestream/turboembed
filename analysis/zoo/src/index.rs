@@ -31,34 +31,23 @@ macro_rules! constant_enum {
 
         impl $name {
             pub const ALL: &'static [$name] = &[$($name::$variant,)*];
-
             /// The constant the index writes.
             pub const fn name(self) -> &'static str {
-                match self {
-                    $($name::$variant => $text,)*
-                }
+                match self { $($name::$variant => $text,)* }
             }
         }
-
         impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.name())
-            }
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(self.name()) }
         }
-
         impl FromStr for $name {
             type Err = String;
             fn from_str(s: &str) -> Result<Self, String> {
                 $name::ALL.iter().copied().find(|v| v.name() == s).ok_or_else(|| format!("{s:?} is not {}", $what))
             }
         }
-
         impl Serialize for $name {
-            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-                s.serialize_str(self.name())
-            }
+            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> { s.serialize_str(self.name()) }
         }
-
         impl<'de> Deserialize<'de> for $name {
             fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
                 String::deserialize(d)?.parse().map_err(serde::de::Error::custom)
@@ -254,6 +243,11 @@ pub struct Artifact {
     /// `trained_on[].license`. Written out so a reader that does not know
     /// a licence still sees the class; checked against the computed one.
     pub class: LicenceClass,
+    /// The credit or copyright notice the artifact's licence or training
+    /// data's licences ask for. Required when any licence of the artifact
+    /// requires attribution ([`Licence::requires_attribution`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attribution: Option<String>,
     /// For a `CLASS_LOCAL_ONLY` artifact, and only for one: the original
     /// publisher's own location, which every file's `url` must lie under.
     /// For a dataset it is the data's own place on its host, such as a
@@ -293,6 +287,12 @@ impl Artifact {
     /// order.
     pub fn licences(&self) -> impl Iterator<Item = Licence> + '_ {
         std::iter::once(self.license).chain(self.trained_on.iter().map(|t| t.license))
+    }
+
+    /// Whether the artifact's own licence or any training licence requires
+    /// attribution ([`Licence::requires_attribution`]).
+    pub fn requires_attribution(&self) -> bool {
+        self.licences().any(Licence::requires_attribution)
     }
 
     /// The distinct terms the user must accept under `policy`, in
@@ -432,6 +432,12 @@ impl Index {
                         a.id, t.name
                     )));
                 }
+            }
+            if a.attribution.as_ref().is_some_and(|s| s.trim().is_empty() || s.chars().any(char::is_control)) {
+                return Err(ZooError::Index(format!("{}: attribution is empty or holds a control character", a.id)));
+            }
+            if a.attribution.is_none() && a.requires_attribution() {
+                return Err(ZooError::Index(format!("{}: requires attribution under its licence", a.id)));
             }
             if computed == LicenceClass::Refused {
                 let licences = a.licences().filter(|l| l.class() == LicenceClass::Refused).collect();

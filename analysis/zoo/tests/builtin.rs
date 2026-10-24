@@ -21,6 +21,8 @@ fn nothing_in_the_builtin_index_is_refused() {
     assert_eq!(raw["artifacts"].as_array().unwrap().len(), listed);
     for a in Index::builtin().list() {
         assert_ne!(a.class, LicenceClass::Refused, "{}", a.id);
+        let attr = a.attribution.as_deref().unwrap_or("");
+        assert!(!attr.trim().is_empty() && !attr.chars().any(char::is_control), "{}", a.id);
     }
 }
 
@@ -246,6 +248,7 @@ fn the_ud_models_carry_their_treebank_licences() {
             assert!(t.license_terms.as_str().contains("/blob/r2.16/README."), "{id}");
             let class = if *licence == Licence::CcBy40 { LicenceClass::Permissive } else { LicenceClass::ShareAlike };
             assert_eq!(a.class, class, "{id}");
+            assert!(a.attribution.as_deref().unwrap().contains(&t.name), "{id}");
             assert_eq!(a.files.len(), 1);
             assert_eq!(a.files[0].path.as_str(), format!("{id}.bin"));
             assert_eq!(a.files[0].url.as_str(), format!("{BASE}{id}.bin"));
@@ -278,6 +281,13 @@ fn the_nli_checkpoint_is_pinned_and_share_alike() {
     );
     let revision = "b95119ce93d3e065de6214e38cd4a97b0f2f2c6d";
     assert_eq!(a.version, revision);
+    let notice = a.attribution.as_deref().unwrap();
+    assert!(notice.contains(revision));
+    for source in &a.trained_on {
+        assert!(notice.contains(&source.name));
+        assert!(notice.contains(source.license_terms.as_str()));
+    }
+
     let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
     assert_eq!(
         paths,
