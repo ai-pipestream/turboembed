@@ -217,7 +217,7 @@ fn concurrent_documents() {
                     let date = day("2026-07-14").plus_days(k * 25 + i).unwrap();
                     let mut t = Temporals::new(ViewId::SOURCE);
                     t.push(mention(0, 10, TemporalValue::Day(date), Origin::Absolute));
-                    let (out,) = selector.annotate((Some(&t), None)).unwrap();
+                    let (out,) = selector.annotate((&t,)).unwrap();
                     assert_eq!(out.date, Some(date));
                 }
             });

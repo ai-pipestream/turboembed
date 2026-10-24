@@ -1,24 +1,39 @@
 //! Picks a document's date from its temporal mentions: a port of
-//! OpenNLP's `DocumentDateAnnotator`, with fallback to the grammar
-//! [`Times`] layer when [`Temporals`] is absent or holds no absolute day.
+//! OpenNLP's `DocumentDateAnnotator`, plus [`TimesDocumentDateSelector`]
+//! ([`DocumentDateSelector::from_times`]) for grammar [`Times`] pipelines.
 
-use turbo_analysis::{Annotator, Error, Ix, Key, Refs};
+use turbo_analysis::{Annotator, Error, Ix, Refs};
 use turbo_analysis_layers::{DateTime, DocumentDate, TemporalValue, Temporals, TimeKind, Times};
 
 use super::is_absolute_day;
 
-/// Reads `turbo:temporal` (when present) and falls back to `turbo:times`
-/// (when present), writing `turbo:document-date`: the earliest absolute day
-/// mention from `Temporals`, or else the earliest resolved `Date`/`DateTime`
-/// mention from `Times`, or no date when neither yields one.
+/// Reads `turbo:temporal` and writes `turbo:document-date`: the earliest
+/// absolute day mention, or no date when there is none.
 ///
 /// The Java checks that each mention's own span is its annotation's and
 /// that the chosen value parses as a date; a [`Temporals`] layer holds one
 /// span and a typed date per mention, so neither can fail here.
+///
+/// For non-English or grammar-based pipelines that produce [`Times`]
+/// (`turbo:times`) via `TimeAnnotator`, use
+/// [`DocumentDateSelector::from_times`] ([`TimesDocumentDateSelector`]).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct DocumentDateSelector;
 
+/// Reads `turbo:times` (with optional priority to `turbo:temporal` when
+/// present) and writes `turbo:document-date`: the earliest absolute day
+/// from [`Temporals`], or else the earliest resolved [`TimeKind::Date`] /
+/// [`TimeKind::DateTime`] mention from [`Times`].
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct TimesDocumentDateSelector;
+
 impl DocumentDateSelector {
+    /// Returns a [`TimesDocumentDateSelector`] that dates the document from
+    /// the grammar [`Times`] layer (preferring [`Temporals`] if also present).
+    pub const fn from_times() -> TimesDocumentDateSelector {
+        TimesDocumentDateSelector
+    }
+
     /// The document date `temporals` gives: the absolute day with the
     /// earliest start, the first in layer order among equal starts.
     pub fn select(&self, temporals: &Temporals) -> DocumentDate {
@@ -62,22 +77,26 @@ impl DocumentDateSelector {
 
 impl Annotator for DocumentDateSelector {
     const ID: &'static str = "turbo-numeric:document-date";
-    type Reads = (Option<Temporals>, Option<Times>);
+    type Reads = (Temporals,);
+    type Writes = (DocumentDate,);
+
+    fn annotate(&self, (temporals,): Refs<'_, Self>) -> Result<(DocumentDate,), Error> {
+        Ok((self.select(temporals),))
+    }
+}
+
+impl Annotator for TimesDocumentDateSelector {
+    const ID: &'static str = "turbo-numeric:document-date";
+    type Reads = (Option<Temporals>, Times);
     type Writes = (DocumentDate,);
 
     fn annotate(&self, (temporals, times): Refs<'_, Self>) -> Result<(DocumentDate,), Error> {
-        if temporals.is_none() && times.is_none() {
-            return Err(Error::Missing(Key::<Temporals>::DEFAULT.id()));
-        }
         if let Some(t) = temporals {
-            let doc_date = self.select(t);
+            let doc_date = DocumentDateSelector.select(t);
             if doc_date.date.is_some() {
                 return Ok((doc_date,));
             }
         }
-        if let Some(times) = times {
-            return Ok((self.select_from_times(times),));
-        }
-        Ok((DocumentDate::default(),))
+        Ok((DocumentDateSelector.select_from_times(times),))
     }
 }

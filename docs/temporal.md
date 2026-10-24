@@ -104,15 +104,22 @@ do the same outside a pipeline.
 
 ## Document date
 
-`DocumentDateSelector` reads `turbo:temporal` and `turbo:times` (from
-`turbo-grammar`, when present) and writes `turbo:document-date`:
+`DocumentDateSelector` reads `turbo:temporal` and writes `turbo:document-date`,
+and `DocumentDateSelector::from_times()` (`TimesDocumentDateSelector`) reads
+`turbo:times` (with optional priority to `turbo:temporal` when present) and
+writes `turbo:document-date`:
 
-- When `turbo:temporal` holds an absolute day mention, it selects the one
-  that starts first and records its `mention` index.
-- Otherwise, when `turbo:times` holds a resolved `Date` or `DateTime`
-  mention, it selects the earliest one's calendar date (with `mention:
-  None`), so Spanish, Dutch and other non-English documents annotated by
-  `TimeAnnotator` can still be dated and converted by
+- `DocumentDateSelector` selects the absolute day mention in `turbo:temporal`
+  that starts first and records its `mention` index. Because it reads only
+  `turbo:temporal`, pipelines combining `TemporalExtractor`,
+  `DocumentDateSelector`, and `TimeAnnotator` always schedule
+  `DocumentDateSelector` before `TimeAnnotator` regardless of the order in
+  which steps are added.
+- `DocumentDateSelector::from_times()` (`TimesDocumentDateSelector`) selects
+  the earliest absolute day from `turbo:temporal` when present, or else the
+  earliest resolved `Date` or `DateTime` mention from `turbo:times` (with
+  `mention: None`), so Spanish, Dutch and other non-English documents
+  annotated by `TimeAnnotator` can be dated and converted by
   `DatedMoneyConverter` ([money.md](money.md)).
 - Relative mentions, months, quarters, durations and times of day never
   date a document.
@@ -124,8 +131,10 @@ keeping OpenNLP parity behind `TemporalExtractor::with_opennlp_parity(true)`
 (and `scan_with_parity` / `dateline_with_parity`):
 
 - **Four-digit years (`0001..=9999`)**: by default any four-digit year in
-  `0001..=9999` is accepted (`0999-12-31`, `3000-01-01`, `Q1 0999`); parity
-  mode restricts absolute mentions to `1000..=2999`.
+  `0001..=9999` is accepted (`0999-12-31`, `3000-01-01`, `Q1 0999`; note
+  that a month name followed by any four-digit numeral such as `March 4000`
+  is read as a `Month` mention in default mode); parity mode restricts
+  absolute mentions to `1000..=2999`.
 - **Multi-digit relative counts**: by default counts of 1 to 9 digits are
   accepted (`100 days ago`, `in 365 days`); parity mode accepts 1 or 2
   digits only.

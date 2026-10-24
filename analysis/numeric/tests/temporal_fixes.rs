@@ -116,7 +116,7 @@ fn spanish_document_dates_via_grammar_times_and_converts_money() {
     let analyzer = Analyzer::builder()
         .add(TemporalExtractor::new())
         .add(TimeAnnotator::spanish())
-        .add(DocumentDateSelector)
+        .add(DocumentDateSelector::from_times())
         .add(MoneyExtractor::new(NumberNotation::LatinEu))
         .step(DatedMoneyConverter::new(rates, usd).bound())
         .build()
@@ -144,9 +144,11 @@ fn spanish_document_dates_via_grammar_times_and_converts_money() {
 fn dutch_document_dates_via_grammar_times_and_converts_money() {
     let rates = EcbRates::parse("Date,USD,\n2026-07-14,1.1000,\n").unwrap();
     let usd = Currency::parse("USD").unwrap();
+    // Adding DocumentDateSelector::from_times() before TimeAnnotator::dutch()
+    // still runs TimeAnnotator first because Times is a required input.
     let analyzer = Analyzer::builder()
+        .add(DocumentDateSelector::from_times())
         .add(TimeAnnotator::dutch())
-        .add(DocumentDateSelector)
         .add(MoneyExtractor::new(NumberNotation::LatinEu))
         .step(DatedMoneyConverter::new(rates, usd).bound())
         .build()
@@ -167,6 +169,26 @@ fn dutch_document_dates_via_grammar_times_and_converts_money() {
     assert_eq!(converted.currency, [usd]);
     let a = converted.amount(Ix::new(0));
     assert_eq!(cmp_values(a, Decimal::parse("1320").unwrap().as_ref()), std::cmp::Ordering::Equal);
+}
+
+#[test]
+fn default_document_date_selector_runs_before_time_annotator_regardless_of_add_order() {
+    let analyzer = Analyzer::builder()
+        .add(TemporalExtractor::new())
+        .add(TimeAnnotator::english())
+        .add(DocumentDateSelector)
+        .build()
+        .unwrap();
+    let mut docs = vec![Document::new("London, 14 July 2026. The meeting is tomorrow.")];
+    for res in analyzer.run(&mut docs) {
+        res.unwrap();
+    }
+    let times = docs[0].get::<Times>().unwrap();
+    assert_eq!(
+        times.start,
+        [Some(day("2026-07-14").epoch_day() * 86_400), Some(day("2026-07-15").epoch_day() * 86_400)],
+        "TimeAnnotator must receive DocumentDate regardless of step add order"
+    );
 }
 
 #[test]

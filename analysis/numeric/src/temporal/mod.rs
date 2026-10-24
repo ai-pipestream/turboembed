@@ -21,7 +21,7 @@ mod words;
 use turbo_analysis::{Annotator, Error, Refs, View};
 use turbo_analysis_layers::{Date, Granularity, Temporals};
 
-pub use select::DocumentDateSelector;
+pub use select::{DocumentDateSelector, TimesDocumentDateSelector};
 pub use turbo_analysis_layers::{DocumentDate, Origin, TemporalMention, TemporalValue};
 
 use crate::scan;
